@@ -1,0 +1,107 @@
+/* Tree-table indentation + connector-line styles for the Data Review Epic > Story > Subtask table.
+   Scoped via CSS Modules so it never leaks into the shared design system. */
+
+.treeCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* One indentation unit per tree depth: Story = 1 unit, Subtask = 2 units.
+   Only the last unit (nearest the row's own chevron) draws the connector line. */
+.indentSlot {
+  position: relative;
+  width: 26px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.indentConnector::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: -14px;
+  bottom: 11px;
+  width: 0;
+  border-left: 2px solid var(--tree-line-color, #94a3b8);
+}
+
+.indentConnector.lastChild::before {
+  bottom: 50%;
+}
+
+.indentConnector::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  width: 15px;
+  border-top: 2px solid var(--tree-line-color, #94a3b8);
+}
+
+.chevronToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--color-fb-border-strong, #cbd5e1);
+  background: transparent;
+  color: var(--color-fb-text-secondary, #5f6670);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.chevronToggle:hover {
+  background: var(--color-fb-control, #e4e6eb);
+}
+
+.chevronToggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.chevronToggle.chevronOpen {
+  border-color: var(--color-fb-blue, #0866ff);
+  color: var(--color-fb-blue, #0866ff);
+}
+
+.chevronPlaceholder {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowLevel2 {
+  background: var(--color-fb-blue-soft, #e7f3ff);
+  background: color-mix(in srgb, var(--color-fb-blue-soft, #e7f3ff) 45%, transparent);
+}
+
+.rowLevel3 {
+  background: var(--color-fb-surface-muted, #f1f4f7);
+}
+
+/* Applied to every other Epic row while one Epic is expanded, so the open branch stands out. */
+.rowDimmed {
+  background: #d7dbe1;
+  color: #8a92a0;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.rowDimmed .name,
+.rowDimmed :global(.text-fb-blue) {
+  color: inherit;
+}

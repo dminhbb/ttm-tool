@@ -1,6 +1,7 @@
 export interface DataReviewIssue {
   assignee: string;
   dueDate: string | null;
+  hasChildren: boolean;
   id: number;
   issueKey: string;
   issueType: string;

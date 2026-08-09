@@ -11,6 +11,7 @@
 - Bảng dùng header sticky, muted/semibold/uppercase; text, ngày và status căn trái; số/action căn phải. Status ưu tiên `● label`; badge fill chỉ khi cần nhấn mạnh.
 - Form dùng field/label/input/select/textarea semantic, control 38px và focus ring cyan. Modal chỉ cho action/form ngắn, drawer/full page cho workflow dài.
 - User avatar ở footer left panel mở popover contextual. Menu có Personal information và Settings; Settings lưu `light`/`dark` ở local storage `ttm-monitor.appearance-theme` và gán `data-theme` lên `html`. Mặc định/giá trị fallback là `light`.
+- Light mode contrast contract: `surface-app #dce9f5`, `surface-panel #ffffff`, `surface-elevated #e7f2fc`; border default `#aac3db`, border strong `#839fba`. Primary action dùng `#1976c5`, secondary/outline controls dùng elevated light-blue và border strong.
 
 Source of truth cho giao diện TTM Monitor từ ngày 2026-08-09. Hệ thống dùng Tailwind CSS v4, phong cách social-product lấy cảm hứng từ Facebook và frosted glass kiểu macOS ở các dock có chủ đích.
 

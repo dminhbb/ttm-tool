@@ -2,14 +2,15 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, CaretDown, CaretRight } from '@phosphor-icons/react';
+import { BookmarkSimple, CaretDown, CaretRight, CheckSquare, Lightning, ArrowLeft } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Select } from '@/components/ui/Select';
 import { TableSkeleton } from '@/components/ui/Skeleton';
-import { TableAction } from '@/components/ui/TableAction';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
+import styles from '@/components/data-review/tree-table.module.css';
+import { cn } from '@/lib/utils';
 import type {
   DataReviewChildrenResponse,
   DataReviewEpicsResponse,
@@ -32,6 +33,8 @@ const EMPTY_FILTER_OPTIONS: DataReviewFilterOptions = {
   statuses: [],
 };
 
+const COLUMN_COUNT = 10;
+
 function formatDate(value: string | null): string {
   if (!value) return '-';
   const date = new Date(`${value}T00:00:00`);
@@ -46,47 +49,90 @@ async function getResponse<T>(url: string, signal?: AbortSignal): Promise<T> {
   return data;
 }
 
+type TreeLevel = 1 | 2 | 3;
+
+const LEVEL_LABEL: Record<TreeLevel, string> = { 1: 'Epic', 2: 'Story', 3: 'Subtask' };
+
+const LEVEL_ICON: Record<TreeLevel, { className: string; icon: React.ComponentType<{ className?: string; weight?: 'fill' | 'bold' }> }> = {
+  1: { className: 'text-violet-600', icon: Lightning },
+  2: { className: 'text-emerald-600', icon: BookmarkSimple },
+  3: { className: 'text-sky-600', icon: CheckSquare },
+};
+
+function IssueTypeIcon({ issueType, level }: { issueType: string; level: TreeLevel }) {
+  const { className, icon: Icon } = LEVEL_ICON[level];
+  return (
+    <span className="inline-flex items-center justify-center" title={issueType} role="img" aria-label={issueType}>
+      <Icon className={cn('size-4', className)} weight="fill" />
+    </span>
+  );
+}
+
 interface IssueRowProps {
-  childrenLoaded: boolean;
-  expanded: boolean;
-  hasChildren: boolean;
+  isDimmed: boolean;
+  isExpanded: boolean;
+  isLastChild: boolean;
+  isLoading: boolean;
   issue: DataReviewIssue;
-  level: 0 | 1 | 2;
-  loadingChildren: boolean;
+  level: TreeLevel;
   onToggle: (issue: DataReviewIssue) => void;
 }
 
-function IssueRow({ childrenLoaded, expanded, hasChildren, issue, level, loadingChildren, onToggle }: IssueRowProps) {
-  const prefixClass = level === 0 ? 'pl-0' : level === 1 ? 'pl-5' : 'pl-10';
+function TreeTableRow({ isDimmed, isExpanded, isLastChild, isLoading, issue, level, onToggle }: IssueRowProps) {
+  const toggleLabel = `${isExpanded ? 'Thu gọn' : 'Mở rộng'} ${LEVEL_LABEL[level]} ${issue.issueKey}`;
+  const indentSlotCount = level - 1;
 
   return (
-    <TR className={level === 1 ? 'bg-fb-blue-soft/20' : level === 2 ? 'bg-fb-surface-muted/45' : undefined}>
-      <TD>{issue.project || '-'}</TD>
-      <TD>{issue.jiraId || '-'}</TD>
-      <TD>{issue.issueType}</TD>
-      <TD className="font-semibold text-fb-blue">{issue.issueKey}</TD>
-      <TD>{issue.status}</TD>
-      <TD>{formatDate(issue.startDate)}</TD>
-      <TD>{formatDate(issue.r4gDate)}</TD>
-      <TD>{formatDate(issue.dueDate)}</TD>
-      <TD className="max-w-[360px] truncate" title={issue.summary}>
-        <div className={`flex min-w-0 items-center gap-2 ${prefixClass}`}>
-          {hasChildren ? (
-            <TableAction
-              variant="neutral"
-              icon={expanded ? <CaretDown className="size-4" weight="bold" /> : <CaretRight className="size-4" weight="bold" />}
+    <TR
+      className={cn(level === 2 && styles.rowLevel2, level === 3 && styles.rowLevel3, isDimmed && styles.rowDimmed)}
+      data-level={level}
+    >
+      <TD className="px-3 py-2">{issue.project || '-'}</TD>
+      <TD className="px-3 py-2 text-center"><IssueTypeIcon issueType={issue.issueType} level={level} /></TD>
+      <TD className="px-3 py-2 font-semibold text-fb-blue">
+        <div className={styles.treeCell}>
+          {Array.from({ length: indentSlotCount }).map((_, slotIndex) => {
+            const isConnectorSlot = slotIndex === indentSlotCount - 1;
+            return (
+              <span
+                key={slotIndex}
+                className={cn(styles.indentSlot, isConnectorSlot && styles.indentConnector, isConnectorSlot && isLastChild && styles.lastChild)}
+                aria-hidden="true"
+              />
+            );
+          })}
+
+          {issue.hasChildren ? (
+            <button
+              type="button"
+              className={cn(styles.chevronToggle, isExpanded && styles.chevronOpen)}
               onClick={() => onToggle(issue)}
-              disabled={loadingChildren}
+              disabled={isLoading}
+              aria-expanded={isExpanded}
+              aria-label={toggleLabel}
             >
-              {loadingChildren ? 'Đang tải' : expanded ? 'Thu gọn' : childrenLoaded ? 'Mở lại' : 'Mở'}
-            </TableAction>
+              {isLoading ? (
+                <span className="block size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              ) : isExpanded ? (
+                <CaretDown className="size-3" weight="bold" aria-hidden="true" />
+              ) : (
+                <CaretRight className="size-3" weight="bold" aria-hidden="true" />
+              )}
+            </button>
           ) : (
-            <span className="inline-block w-8" aria-hidden="true" />
+            <span className={styles.chevronPlaceholder} aria-hidden="true" />
           )}
-          <span className="truncate">{issue.summary}</span>
+
+          <span className={styles.name}>{issue.issueKey}</span>
         </div>
       </TD>
-      <TD>{issue.assignee || '-'}</TD>
+      <TD className="max-w-[360px] truncate px-3 py-2" title={issue.summary}>{issue.summary}</TD>
+      <TD className="px-3 py-2">{issue.status}</TD>
+      <TD className="px-3 py-2">{formatDate(issue.startDate)}</TD>
+      <TD className="px-3 py-2">{formatDate(issue.r4gDate)}</TD>
+      <TD className="px-3 py-2">{formatDate(issue.dueDate)}</TD>
+      <TD className="px-3 py-2">{issue.assignee || '-'}</TD>
+      <TD className="px-3 py-2">{issue.jiraId || '-'}</TD>
     </TR>
   );
 }
@@ -95,12 +141,12 @@ export function DataReviewTable({ batchId }: DataReviewTableProps) {
   const router = useRouter();
   const [component, setComponent] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
-  const [expandedEpics, setExpandedEpics] = React.useState<Set<number>>(new Set());
-  const [expandedStories, setExpandedStories] = React.useState<Set<number>>(new Set());
+  const [expandedEpicId, setExpandedEpicId] = React.useState<number | null>(null);
+  const [expandedStoryId, setExpandedStoryId] = React.useState<number | null>(null);
   const [filterOptions, setFilterOptions] = React.useState<DataReviewFilterOptions>(EMPTY_FILTER_OPTIONS);
   const [isLoading, setIsLoading] = React.useState(true);
   const [issueType, setIssueType] = React.useState('');
-  const [loadingChildren, setLoadingChildren] = React.useState<Set<number>>(new Set());
+  const [loadingChildrenOf, setLoadingChildrenOf] = React.useState<number | null>(null);
   const [page, setPage] = React.useState(1);
   const [project, setProject] = React.useState('');
   const [response, setResponse] = React.useState<DataReviewEpicsResponse | null>(null);
@@ -125,8 +171,8 @@ export function DataReviewTable({ batchId }: DataReviewTableProps) {
         const data = await getResponse<DataReviewEpicsResponse>(`/api/data-review?${parameters.toString()}`, controller.signal);
         setResponse(data);
         setFilterOptions(data.filterOptions);
-        setExpandedEpics(new Set());
-        setExpandedStories(new Set());
+        setExpandedEpicId(null);
+        setExpandedStoryId(null);
         setStoriesByEpic({});
         setSubtasksByStory({});
       } catch (requestError: unknown) {
@@ -143,7 +189,7 @@ export function DataReviewTable({ batchId }: DataReviewTableProps) {
   }, [batchId, component, issueType, page, project, status]);
 
   const loadChildren = React.useCallback(async (parentId: number, level: 'stories' | 'subtasks') => {
-    setLoadingChildren((current) => new Set(current).add(parentId));
+    setLoadingChildrenOf(parentId);
     try {
       const parameters = new URLSearchParams({ batchId: String(batchId), parentId: String(parentId), level });
       const result = await getResponse<DataReviewChildrenResponse>(`/api/data-review?${parameters.toString()}`);
@@ -155,35 +201,24 @@ export function DataReviewTable({ batchId }: DataReviewTableProps) {
     } catch (requestError: unknown) {
       setError(requestError instanceof Error ? requestError.message : 'Không thể tải nhánh dữ liệu.');
     } finally {
-      setLoadingChildren((current) => {
-        const next = new Set(current);
-        next.delete(parentId);
-        return next;
-      });
+      setLoadingChildrenOf((current) => (current === parentId ? null : current));
     }
   }, [batchId]);
 
+  // Accordion: opening a different Epic auto-closes the previous Epic (and its Story panel).
   const toggleEpic = React.useCallback((epic: DataReviewIssue) => {
-    const isOpen = expandedEpics.has(epic.id);
-    setExpandedEpics((current) => {
-      const next = new Set(current);
-      if (isOpen) next.delete(epic.id);
-      else next.add(epic.id);
-      return next;
-    });
+    const isOpen = expandedEpicId === epic.id;
+    setExpandedEpicId(isOpen ? null : epic.id);
+    setExpandedStoryId(null);
     if (!isOpen && !storiesByEpic[epic.id]) void loadChildren(epic.id, 'stories');
-  }, [expandedEpics, loadChildren, storiesByEpic]);
+  }, [expandedEpicId, loadChildren, storiesByEpic]);
 
+  // Accordion: opening a different Story (within the open Epic) auto-closes the previous Story.
   const toggleStory = React.useCallback((story: DataReviewIssue) => {
-    const isOpen = expandedStories.has(story.id);
-    setExpandedStories((current) => {
-      const next = new Set(current);
-      if (isOpen) next.delete(story.id);
-      else next.add(story.id);
-      return next;
-    });
+    const isOpen = expandedStoryId === story.id;
+    setExpandedStoryId(isOpen ? null : story.id);
     if (!isOpen && !subtasksByStory[story.id]) void loadChildren(story.id, 'subtasks');
-  }, [expandedStories, loadChildren, subtasksByStory]);
+  }, [expandedStoryId, loadChildren, subtasksByStory]);
 
   const components = project ? filterOptions.componentsByProject[project] ?? [] : [];
   const totalPages = response ? Math.max(1, Math.ceil(response.total / response.pageSize)) : 1;
@@ -237,30 +272,87 @@ export function DataReviewTable({ batchId }: DataReviewTableProps) {
       ) : response ? (
         <>
           <TableContainer>
-            <Table className="min-w-[1580px]">
+            <Table className="w-auto">
               <THead>
                 <TR>
-                  <TH>Project</TH><TH>ID</TH><TH>Issue type</TH><TH>Key</TH><TH>Status</TH>
-                  <TH>Start date</TH><TH>R4G date</TH><TH>Due date</TH><TH>Summary</TH><TH>Assignee</TH>
+                  <TH className="px-3 py-2">Project</TH><TH className="px-3 py-2 text-center">Type</TH><TH className="px-3 py-2">Key</TH><TH className="px-3 py-2">Summary</TH><TH className="px-3 py-2">Status</TH>
+                  <TH className="px-3 py-2">Start date</TH><TH className="px-3 py-2">R4G date</TH><TH className="px-3 py-2">Due date</TH><TH className="px-3 py-2">Assignee</TH><TH className="px-3 py-2">ID</TH>
                 </TR>
               </THead>
               <TBody>
                 {response.items.flatMap((epic) => {
-                  const stories = storiesByEpic[epic.id] ?? [];
-                  const epicOpen = expandedEpics.has(epic.id);
+                  const epicOpen = expandedEpicId === epic.id;
+                  const stories = epicOpen ? storiesByEpic[epic.id] ?? [] : [];
                   const rows: React.ReactNode[] = [
-                    <IssueRow key={`epic-${epic.id}`} issue={epic} level={0} hasChildren expanded={epicOpen} childrenLoaded={Boolean(storiesByEpic[epic.id])} loadingChildren={loadingChildren.has(epic.id)} onToggle={toggleEpic} />,
+                    <TreeTableRow
+                      key={`epic-${epic.id}`}
+                      issue={epic}
+                      level={1}
+                      isDimmed={expandedEpicId !== null && !epicOpen}
+                      isExpanded={epicOpen}
+                      isLastChild={false}
+                      isLoading={loadingChildrenOf === epic.id}
+                      onToggle={toggleEpic}
+                    />,
                   ];
+
                   if (epicOpen) {
-                    for (const story of stories) {
-                      const subtasks = subtasksByStory[story.id] ?? [];
-                      const storyOpen = expandedStories.has(story.id);
-                      rows.push(<IssueRow key={`story-${story.id}`} issue={story} level={1} hasChildren expanded={storyOpen} childrenLoaded={Boolean(subtasksByStory[story.id])} loadingChildren={loadingChildren.has(story.id)} onToggle={toggleStory} />);
-                      if (storyOpen) {
-                        rows.push(...subtasks.map((subtask) => <IssueRow key={`subtask-${subtask.id}`} issue={subtask} level={2} hasChildren={false} expanded={false} childrenLoaded loadingChildren={false} onToggle={() => undefined} />));
-                      }
+                    if (loadingChildrenOf === epic.id && !storiesByEpic[epic.id]) {
+                      // still loading — nothing to render yet, chevron shows a spinner
+                    } else if (stories.length === 0) {
+                      rows.push(
+                        <TR key={`epic-${epic.id}-empty`}>
+                          <TD colSpan={COLUMN_COUNT} className="text-fb-text-secondary">Epic này chưa có Story nào.</TD>
+                        </TR>,
+                      );
                     }
+
+                    stories.forEach((story, storyIndex) => {
+                      const storyOpen = expandedStoryId === story.id;
+                      const subtasks = storyOpen ? subtasksByStory[story.id] ?? [] : [];
+                      const isLastStory = storyIndex === stories.length - 1;
+
+                      rows.push(
+                        <TreeTableRow
+                          key={`story-${story.id}`}
+                          issue={story}
+                          level={2}
+                          isDimmed={false}
+                          isExpanded={storyOpen}
+                          isLastChild={isLastStory && !storyOpen}
+                          isLoading={loadingChildrenOf === story.id}
+                          onToggle={toggleStory}
+                        />,
+                      );
+
+                      if (storyOpen) {
+                        if (loadingChildrenOf === story.id && !subtasksByStory[story.id]) {
+                          // loading subtasks
+                        } else if (subtasks.length === 0) {
+                          rows.push(
+                            <TR key={`story-${story.id}-empty`}>
+                              <TD colSpan={COLUMN_COUNT} className="text-fb-text-secondary">Story này chưa có Subtask nào.</TD>
+                            </TR>,
+                          );
+                        }
+                        subtasks.forEach((subtask, subtaskIndex) => {
+                          rows.push(
+                            <TreeTableRow
+                              key={`subtask-${subtask.id}`}
+                              issue={subtask}
+                              level={3}
+                              isDimmed={false}
+                              isExpanded={false}
+                              isLastChild={subtaskIndex === subtasks.length - 1}
+                              isLoading={false}
+                              onToggle={() => undefined}
+                            />,
+                          );
+                        });
+                      }
+                    });
                   }
+
                   return rows;
                 })}
               </TBody>

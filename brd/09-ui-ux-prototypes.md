@@ -112,6 +112,7 @@ Tất cả offset tính bằng ngày làm việc sau T1.
 - Table header sticky, chữ/dates/status căn trái, số căn phải và action căn phải. Row hover dùng `surface-hover`.
 - Form mặc định một cột, chỉ dùng hai cột cho trường ngắn liên quan. Modal chỉ dùng cho form tạo ngắn; primitive Modal chỉ focus khi mở, không được giành focus trong lúc gõ.
 - Avatar ở footer left panel mở popover menu gồm `Thông tin cá nhân` (placeholder cho giai đoạn sau) và `Cài đặt`. Cài đặt hiện có trường Chế độ hiển thị Light/Dark, mặc định Light; preference lưu local storage key `ttm-monitor.appearance-theme` và load lại mỗi lần sử dụng ứng dụng.
+- Light mode dùng canvas xanh-xám đậm hơn panel trắng, border xanh-xám rõ và bề mặt elevated light-blue để card, table, control và right panel không hòa lẫn với background. Primary button dùng blue rõ, secondary/outline dùng nền light-blue.
 
 ### 8.1. Visual language
 

@@ -11,6 +11,7 @@ const DATA_REVIEW_PAGE_SIZE = 10;
 interface DataReviewIssueRow {
   assignee: string | null;
   dueDate: string | null;
+  hasChildren?: boolean;
   id: number;
   issueKey: string;
   issueType: string;
@@ -40,6 +41,7 @@ function toIssue(row: DataReviewIssueRow): DataReviewIssue {
   return {
     assignee: row.assignee ?? '',
     dueDate: row.dueDate,
+    hasChildren: row.hasChildren ?? false,
     id: row.id,
     issueKey: row.issueKey,
     issueType: row.issueType,
@@ -173,7 +175,11 @@ export async function getDataReviewEpics(
     pool.query<{ total: number }>(`${issueContextCte} SELECT COUNT(*)::int AS total FROM issue_context WHERE ${predicate};`, values),
     pool.query<DataReviewIssueRow>(`
       ${issueContextCte}
-      SELECT id, "jiraId", "issueKey", "issueType", status, "startDate", "r4gDate", "dueDate", summary, assignee, project
+      SELECT id, "jiraId", "issueKey", "issueType", status, "startDate", "r4gDate", "dueDate", summary, assignee, project,
+        EXISTS (
+          SELECT 1 FROM issue_context descendants
+          WHERE descendants."epicId" = issue_context.id AND UPPER(descendants."issueType") = 'STORY'
+        ) AS "hasChildren"
       FROM issue_context
       WHERE ${predicate}
       ORDER BY "issueKey" ASC
@@ -199,9 +205,16 @@ export async function getDataReviewChildren(
   const predicate = level === 'stories'
     ? `"epicId" = $2 AND UPPER("issueType") = 'STORY'`
     : `"parentId" = $2 AND UPPER("issueType") IN ('SUB-TASK', 'SUBTASK')`;
+  const hasChildrenExpr = level === 'stories'
+    ? `EXISTS (
+        SELECT 1 FROM issue_context descendants
+        WHERE descendants."parentId" = issue_context.id AND UPPER(descendants."issueType") IN ('SUB-TASK', 'SUBTASK')
+      )`
+    : 'FALSE';
   const result = await pool.query<DataReviewIssueRow>(`
     ${issueContextCte}
-    SELECT id, "jiraId", "issueKey", "issueType", status, "startDate", "r4gDate", "dueDate", summary, assignee, project
+    SELECT id, "jiraId", "issueKey", "issueType", status, "startDate", "r4gDate", "dueDate", summary, assignee, project,
+      ${hasChildrenExpr} AS "hasChildren"
     FROM issue_context
     WHERE ${predicate}
     ORDER BY "issueKey" ASC;

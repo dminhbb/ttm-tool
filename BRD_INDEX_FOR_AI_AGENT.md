@@ -20,6 +20,8 @@ Khi thay đổi giao diện, AI Agent phải đọc `brd/09-ui-ux-prototypes.md`
 
 Thiết lập giao diện là preference phía client: mặc định `light`, lưu tại local storage key `ttm-monitor.appearance-theme`, chỉ chấp nhận `light` hoặc `dark` và áp dụng bằng `data-theme` trên phần tử `html`.
 
+Light mode phải tách rõ canvas xanh-xám, panel trắng và elevated/control light-blue bằng border xanh-xám; primary button dùng blue tương phản, không dùng panel hoặc button trắng trơn trên canvas nhạt.
+
 # 2. Khuyến nghị tách BRD thành các file thành phần
 
 Nên tách BRD thành nhiều file nhỏ theo module nghiệp vụ và kỹ thuật. Lý do:
