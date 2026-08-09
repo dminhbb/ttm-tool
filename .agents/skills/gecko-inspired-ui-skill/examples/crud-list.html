@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Task List</title>
+  <link rel="stylesheet" href="../css/app.css">
+</head>
+<body>
+  <main class="app-content">
+    <div class="ui-page">
+      <header class="ui-page-header">
+        <div>
+          <h1 class="ui-page-title">Tasks</h1>
+          <div class="ui-text-sm u-mt-2">Track work across active projects.</div>
+        </div>
+        <button class="ui-button ui-button-primary">New task</button>
+      </header>
+
+      <section>
+        <div class="ui-table-toolbar">
+          <input class="ui-input ui-search" placeholder="Search tasks">
+          <div class="ui-table-actions">
+            <button class="ui-button ui-button-secondary">Filter</button>
+            <button class="ui-button ui-button-secondary">Columns</button>
+          </div>
+        </div>
+
+        <div class="ui-table-wrap">
+          <table class="ui-table">
+            <thead>
+              <tr>
+                <th class="is-center"><input type="checkbox"></th>
+                <th>Task</th>
+                <th>Assignee</th>
+                <th>Status</th>
+                <th>Due</th>
+                <th class="is-action">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="is-center"><input type="checkbox"></td>
+                <td class="is-primary">Implement API</td>
+                <td><span class="ui-badge ui-badge-neutral">Minh</span></td>
+                <td><span class="ui-status ui-status-success">Done</span></td>
+                <td>Aug 12</td>
+                <td class="is-action"><button class="ui-button ui-button-ghost ui-button-sm">•••</button></td>
+              </tr>
+              <tr>
+                <td class="is-center"><input type="checkbox"></td>
+                <td class="is-primary">UI review</td>
+                <td><span class="ui-badge ui-badge-neutral">Giang</span></td>
+                <td><span class="ui-status ui-status-warning">At risk</span></td>
+                <td>Aug 14</td>
+                <td class="is-action"><button class="ui-button ui-button-ghost ui-button-sm">•••</button></td>
+              </tr>
+              <tr>
+                <td class="is-center"><input type="checkbox"></td>
+                <td class="is-primary">Production deployment</td>
+                <td><span class="ui-badge ui-badge-neutral">An</span></td>
+                <td><span class="ui-status ui-status-info">Open</span></td>
+                <td>Aug 16</td>
+                <td class="is-action"><button class="ui-button ui-button-ghost ui-button-sm">•••</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="ui-pagination">
+          <span>1–3 of 3</span>
+          <div class="ui-table-actions">
+            <button class="ui-button ui-button-secondary ui-button-sm">Previous</button>
+            <button class="ui-button ui-button-secondary ui-button-sm">Next</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

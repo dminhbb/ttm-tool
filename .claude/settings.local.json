@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"/c/Program Files/PostgreSQL/18/bin/pg_isready\")"
+    ]
+  }
+}

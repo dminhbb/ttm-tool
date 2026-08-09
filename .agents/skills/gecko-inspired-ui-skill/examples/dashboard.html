@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Operations Dashboard</title>
+  <link rel="stylesheet" href="../css/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="app-sidebar">
+      <div class="app-sidebar__brand">Pulse</div>
+      <nav class="app-nav">
+        <a class="app-nav__item is-active" href="#">Dashboard</a>
+        <a class="app-nav__item" href="#">Projects</a>
+        <a class="app-nav__item" href="#">Tasks</a>
+        <a class="app-nav__item" href="#">Reports</a>
+        <a class="app-nav__item" href="#">Settings</a>
+      </nav>
+    </aside>
+
+    <main class="app-main">
+      <header class="app-topbar">
+        <div class="ui-muted">Operations / Overview</div>
+        <button class="ui-button ui-button-secondary">Last 30 days</button>
+      </header>
+
+      <div class="app-content">
+        <div class="ui-page">
+          <header class="ui-page-header">
+            <div class="ui-page-header__main">
+              <h1 class="ui-page-title">Operations dashboard</h1>
+              <div class="ui-text-sm u-mt-2">Monitor delivery health, throughput and risk.</div>
+            </div>
+            <div class="ui-page-header__actions">
+              <button class="ui-button ui-button-secondary">Export</button>
+              <button class="ui-button ui-button-primary">Add widget</button>
+            </div>
+          </header>
+
+          <section class="dashboard-grid">
+            <article class="metric-card dashboard-kpi">
+              <div>
+                <div class="metric-card__label">Throughput</div>
+                <div class="metric-card__value">128</div>
+                <div class="metric-card__delta is-positive">↑ 12.4%</div>
+              </div>
+              <div class="metric-card__meta">vs previous period</div>
+            </article>
+
+            <article class="metric-card dashboard-kpi">
+              <div>
+                <div class="metric-card__label">On-time delivery</div>
+                <div class="metric-card__value">94.8%</div>
+                <div class="metric-card__delta is-positive">↑ 2.1%</div>
+              </div>
+              <div class="metric-card__meta">target 92%</div>
+            </article>
+
+            <article class="metric-card dashboard-kpi">
+              <div>
+                <div class="metric-card__label">Open risks</div>
+                <div class="metric-card__value">17</div>
+                <div class="metric-card__delta is-warning">5 high priority</div>
+              </div>
+              <div class="metric-card__meta">across 8 projects</div>
+            </article>
+
+            <article class="metric-card dashboard-kpi">
+              <div>
+                <div class="metric-card__label">Blocked tasks</div>
+                <div class="metric-card__value">6</div>
+                <div class="metric-card__delta is-negative">↑ 2 this week</div>
+              </div>
+              <div class="metric-card__meta">requires attention</div>
+            </article>
+
+            <article class="chart-card dashboard-two-thirds">
+              <div class="chart-card__header">
+                <div>
+                  <div class="chart-card__title">Delivery trend</div>
+                  <div class="chart-card__meta">Completed work by week</div>
+                </div>
+                <span class="ui-badge ui-badge-info">12 weeks</span>
+              </div>
+              <div class="chart-card__body">
+                <div class="ui-empty">
+                  <div>
+                    <div class="ui-empty__title">Chart integration area</div>
+                    <div>Render your preferred chart library using tokens from charts.css.</div>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article class="chart-card dashboard-third">
+              <div class="chart-card__header">
+                <div>
+                  <div class="chart-card__title">Risk status</div>
+                  <div class="chart-card__meta">Current distribution</div>
+                </div>
+              </div>
+              <div class="chart-card__body">
+                <div class="ui-section">
+                  <div class="ui-status ui-status-danger">High risk · 5</div>
+                  <div class="ui-status ui-status-warning">Medium risk · 7</div>
+                  <div class="ui-status ui-status-success">Low risk · 12</div>
+                </div>
+              </div>
+            </article>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Create Project</title>
+  <link rel="stylesheet" href="../css/app.css">
+</head>
+<body>
+  <main class="app-content" style="max-width: 920px;">
+    <div class="ui-page">
+      <header class="ui-page-header">
+        <div>
+          <h1 class="ui-page-title">Create project</h1>
+          <div class="ui-text-sm u-mt-2">Set the project basics, ownership and schedule.</div>
+        </div>
+      </header>
+
+      <form class="ui-card ui-form">
+        <div class="ui-card-body ui-form">
+          <section class="ui-form-section">
+            <h2 class="ui-section-title">General information</h2>
+
+            <div class="ui-field">
+              <label class="ui-label">Project name <span class="ui-required">*</span></label>
+              <input class="ui-input" placeholder="Enter project name">
+            </div>
+
+            <div class="ui-field">
+              <label class="ui-label">Description</label>
+              <textarea class="ui-textarea" placeholder="Describe the project"></textarea>
+              <div class="ui-helper">Keep this short enough to scan from a list.</div>
+            </div>
+          </section>
+
+          <hr class="ui-divider">
+
+          <section class="ui-form-section">
+            <h2 class="ui-section-title">Ownership</h2>
+            <div class="ui-form-grid">
+              <div class="ui-field">
+                <label class="ui-label">Owner</label>
+                <select class="ui-select">
+                  <option>Minh</option>
+                  <option>Giang</option>
+                  <option>An</option>
+                </select>
+              </div>
+
+              <div class="ui-field">
+                <label class="ui-label">Status</label>
+                <select class="ui-select">
+                  <option>Planned</option>
+                  <option>Active</option>
+                  <option>On hold</option>
+                </select>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="ui-card-footer ui-form-actions">
+          <button type="button" class="ui-button ui-button-secondary">Cancel</button>
+          <button type="submit" class="ui-button ui-button-primary">Create project</button>
+        </div>
+      </form>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TTM Tool for PM/SM - Prototype Showcase</title>
+  
+  <!-- SEO Meta Tags -->
+  <meta name="description" content="A premium prototype showcase tool for project managers and scrum masters, presenting system layout designs and user flows.">
+  <meta name="author" content="Antigravity Coding Assistant">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Style Sheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header>
+    <div class="logo-area">
+      <div class="logo-icon">
+        <!-- Dashboard/Layout SVG Icon -->
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 13h6c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v8c0 .55.45 1 1 1zm0 8h6c.55 0 1-.45 1-1v-4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1zm10 0h6c.55 0 1-.45 1-1v-8c0-.55-.45-1-1-1h-6c-.55 0-1 .45-1 1v8c0 .55.45 1 1 1zM14 4v4c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1h-6c-.55 0-1 .45-1 1z"/>
+        </svg>
+      </div>
+      <div class="logo-text-wrapper">
+        <span class="logo-title">TTM Tool for PM/SM</span>
+        <span class="logo-subtitle">(C) minhnd7</span>
+      </div>
+      <span class="logo-badge">Prototype Showcase</span>
+    </div>
+    
+    <div class="header-info">
+      <span class="copyright-text">(C) minhnd7</span>
+      <button id="header-restore-btn" class="control-btn header-restore-btn" title="Reset Zoom to Fit" aria-label="Reset Zoom to Fit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 4v6h-6"></path>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+        </svg>
+      </button>
+      <button id="index-btn" class="control-btn header-index-btn" title="Quick Index" aria-label="Open Quick Index">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="8" y1="6" x2="21" y2="6"></line>
+          <line x1="8" y1="12" x2="21" y2="12"></line>
+          <line x1="8" y1="18" x2="21" y2="18"></line>
+          <line x1="3" y1="6" x2="3.01" y2="6"></line>
+          <line x1="3" y1="12" x2="3.01" y2="12"></line>
+          <line x1="3" y1="18" x2="3.01" y2="18"></line>
+        </svg>
+        <span>Index</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Showcase Container -->
+  <main class="app-container">
+    
+    <!-- Left Panel: Sidebar Thumbnails -->
+    <aside class="left-panel" id="left-panel" aria-label="Prototype Navigation">
+      <!-- Sidebar Collapse Toggle Button -->
+      <button id="sidebar-toggle" class="sidebar-toggle-btn" title="Toggle Sidebar" aria-label="Toggle Sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
+      
+      <!-- Sticky Search Bar -->
+      <div class="search-container">
+        <div class="search-input-wrapper">
+          <!-- Search Magnifier Icon -->
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          
+          <input 
+            type="text" 
+            id="search-input" 
+            class="search-input" 
+            placeholder="Search prototypes..." 
+            autocomplete="off"
+            aria-label="Search prototype designs"
+          >
+          
+          <button id="clear-search" class="clear-search-btn" title="Clear Search" aria-label="Clear Search Input">
+            <!-- X Close Icon -->
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Scrollable Thumbnail List -->
+      <div id="thumbnail-list" class="thumbnail-list">
+        <!-- Rendered dynamically via JS -->
+      </div>
+    </aside>
+    
+    <!-- Right Panel: Main Image Viewport & Zoom Controls -->
+    <section class="main-panel" aria-label="Image Viewport">
+      
+      <!-- Viewer Header/Toolbar (Contains title and index only) -->
+      <div class="viewer-toolbar">
+        <div class="active-image-info">
+          <span id="active-title" class="active-title">Loading...</span>
+          <span id="active-counter" class="active-counter">-- of --</span>
+        </div>
+      </div>
+      
+      <!-- Main Visual Viewport -->
+      <div id="viewport" class="viewport-container">
+        
+        <!-- Loading Spinner Overlay -->
+        <div id="loading-overlay" class="loading-overlay">
+          <div class="spinner"></div>
+          <div class="loading-text">RENDERING DESIGN ASSET...</div>
+        </div>
+        
+        <!-- Floating Quick Index Menu (Dropdown list at top-right below the Index button) -->
+        <div id="index-menu" class="index-popup-menu" aria-label="Quick Navigation Index"></div>
+        
+        <!-- Floating Expand Dock Button (Only visible when dock is collapsed) -->
+        <button id="expand-dock-btn" class="expand-dock-btn" title="Show Dock Controls" aria-label="Expand Dock Controls">
+          <!-- Dock icon -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="3" y1="15" x2="21" y2="15"></line>
+          </svg>
+          <span>Controls</span>
+        </button>
+
+        <!-- Floating Screen Navigation Chevrons (Mobile & Desktop Zoom Fit) -->
+        <div id="nav-chevron-left" class="nav-chevron nav-chevron-left" title="Previous Image">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </div>
+        <div id="nav-chevron-right" class="nav-chevron nav-chevron-right" title="Next Image">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </div>
+
+        <!-- Click Hover Highlight Zones (Desktop Zoom Fit hover indicators) -->
+        <div id="hover-zone-left" class="hover-zone hover-zone-left" title="Previous Image"></div>
+        <div id="hover-zone-right" class="hover-zone hover-zone-right" title="Next Image"></div>
+
+        <!-- Welcome Screen (Visible when defaultImage is empty) -->
+        <div id="welcome-screen" class="welcome-screen">
+          <canvas id="welcome-canvas" class="welcome-canvas"></canvas>
+          <div class="welcome-content">
+            <h1 class="welcome-title">i.album</h1>
+            <p class="welcome-subtitle">by minhnd7</p>
+          </div>
+        </div>
+        
+        <!-- Draggable Canvas -->
+        <div class="image-canvas">
+          <img 
+            id="main-image" 
+            class="img-fit" 
+            src="" 
+            alt="Prototype Showcase Image" 
+            draggable="false"
+          >
+          <canvas id="drawing-canvas" class="drawing-canvas"></canvas>
+        </div>
+        
+        <!-- Keyboard / Interaction hint dock (Contains all navigation and controls) -->
+        <div class="kb-hint-footer" id="interaction-hint">
+          
+          <!-- Drag Handle -->
+          <div id="dock-drag-handle" class="dock-drag-handle" title="Drag to move dock">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="9" cy="5" r="1.5"></circle>
+              <circle cx="9" cy="12" r="1.5"></circle>
+              <circle cx="9" cy="19" r="1.5"></circle>
+              <circle cx="15" cy="5" r="1.5"></circle>
+              <circle cx="15" cy="12" r="1.5"></circle>
+              <circle cx="15" cy="19" r="1.5"></circle>
+            </svg>
+          </div>
+          
+          <!-- Navigation Buttons (< and >) -->
+          <button id="dock-prev-btn" class="control-btn" title="Previous Image" aria-label="Previous Image">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
+          
+          <button id="dock-next-btn" class="control-btn" title="Next Image" aria-label="Next Image">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+          
+          <div class="divider"></div>
+          
+          <!-- Zoom Controls -->
+          <button id="zoom-out-btn" class="control-btn" title="Zoom Out" aria-label="Zoom Out">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="8" y1="12" x2="16" y2="12"></line>
+            </svg>
+          </button>
+          
+          <span id="zoom-indicator" class="zoom-indicator">Fit</span>
+          
+          <button id="zoom-in-btn" class="control-btn" title="Zoom In" aria-label="Zoom In">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="16"></line>
+              <line x1="8" y1="12" x2="16" y2="12"></line>
+            </svg>
+          </button>
+          
+          <div class="divider"></div>
+          
+          <!-- Scale Settings -->
+          <button id="actual-size-btn" class="control-btn" title="Actual Size (100%)" aria-label="Show Actual Size">
+            <span>100%</span>
+          </button>
+          
+          <button id="fit-screen-btn" class="control-btn" title="Fit to Screen" aria-label="Reset Zoom">
+            <span>Fit</span>
+          </button>
+          
+          <div class="divider"></div>
+          
+          <!-- Pencil Tool (Draw Red) -->
+          <button id="pencil-btn" class="control-btn" title="Pencil Tool (Draw Red)" aria-label="Toggle Pencil Tool">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+            </svg>
+            <span>Pencil</span>
+          </button>
+          
+          <div class="divider"></div>
+          
+          <div class="divider"></div>
+
+          <!-- Theme Toggle Button -->
+          <button id="theme-toggle-btn" class="control-btn" title="Toggle Light/Dark Mode" aria-label="Toggle Light/Dark Mode">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+          </button>
+
+          <div class="divider"></div>
+
+          <!-- Collapse Dock Button -->
+          <button id="dock-collapse-btn" class="dock-collapse-btn" title="Collapse Controls Dock" aria-label="Collapse Controls Dock">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="4 14 10 14 10 20"></polyline>
+              <polyline points="20 10 14 10 14 4"></polyline>
+            </svg>
+          </button>
+          
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Configuration data -->
+  <script src="config.js"></script>
+  <!-- Application Logic -->
+  <script src="script.js"></script>
+</body>
+</html>
