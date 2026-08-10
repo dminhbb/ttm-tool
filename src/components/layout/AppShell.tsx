@@ -57,11 +57,11 @@ const navigation: NavigationSection[] = [
     label: 'Quản trị hệ thống',
     items: [
       { href: '/', icon: Database, label: 'Nguồn dữ liệu' },
-      { icon: Users, label: 'Quản lý User', disabled: true },
+      { href: '/admin/users', icon: Users, label: 'Quản lý User' },
       { href: '/admin/domains', icon: Globe, label: 'Quản lý Domain' },
       { href: '/admin/projects', icon: Folder, label: 'Quản lý Dự án' },
       { href: '/admin/holidays', icon: Calendar, label: 'Cấu hình ngày nghỉ' },
-      { icon: Warning, label: 'Cấu hình cảnh báo', disabled: true },
+      { href: '/admin/status-alert-rules', icon: Warning, label: 'Cấu hình cảnh báo' },
     ],
   },
 ];
@@ -171,6 +171,8 @@ const PAGE_HEADERS: Record<string, { subtitle: string; title: string }> = {
   '/admin/domains': { subtitle: 'Quản lý danh mục Domain nghiệp vụ', title: 'Quản lý Domain' },
   '/admin/projects': { subtitle: 'Quản lý danh mục Dự án và mapping với Domain', title: 'Quản lý Dự án' },
   '/admin/holidays': { subtitle: 'Cấu hình ngày nghỉ dùng để tính ngày làm việc', title: 'Cấu hình ngày nghỉ' },
+  '/admin/status-alert-rules': { subtitle: 'Thiết lập mốc cảnh báo TTM-CNTT theo loại và trạng thái Epic', title: 'Cấu hình cảnh báo' },
+  '/admin/users': { subtitle: 'Quản lý tài khoản, role và trạng thái người dùng', title: 'Quản lý User' },
 };
 
 export function AppShell({ children }: AppShellProps) {
@@ -187,6 +189,8 @@ export function AppShell({ children }: AppShellProps) {
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, [mobileNavigationOpen]);
+
+  if (pathname === '/login') return <>{children}</>;
 
   return (
     <div className="app-type-unified min-h-[100dvh] bg-fb-bg text-fb-text-primary">

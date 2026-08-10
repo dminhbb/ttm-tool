@@ -135,6 +135,13 @@ Hệ thống cần cảnh báo nếu:
 - Fail TTM-CNTT khác target của loại Epic.
 - Trùng rule cho cùng loại Epic và trạng thái.
 
+### 5.4. Phạm vi vận hành MVP1
+
+- Màn hình dùng route `/admin/status-alert-rules`; API đọc/cập nhật là `GET`/`PUT /api/status-alert-rules`.
+- Design và In Progress là dữ liệu seed. Người dùng có thể thêm rule mới cho trạng thái Epic khác, với Loại Epic vẫn giới hạn Epic đơn giản hoặc Epic phức tạp; unique theo cặp Loại Epic/Trạng thái.
+- API tạo/cập nhật chỉ nhận offset nguyên trong khoảng 0–3650, tên trạng thái tối đa 50 ký tự và bắt buộc `cảnh báo sớm < cảnh báo muộn < fail`.
+- Khi tải màn hình Theo dõi Epic, ứng dụng nạp một lần tất cả rule active và dùng chúng để tính cảnh báo. Rule inactive làm cặp loại Epic/trạng thái tương ứng không phát sinh cảnh báo TTM-CNTT.
+
 ## 6. Cấu hình TTM
 
 Màn hình Cấu hình TTM cho phép CBQL Phòng cấu hình:
@@ -163,3 +170,15 @@ Then tất cả ngày trong khoảng được loại khỏi ngày làm việc
 Given CBQL Phòng mở màn hình Status Alert Rules
 Then màn hình chỉ quản lý Design và In Progress cho Epic đơn giản/phức tạp trong MVP1
 ```
+# Bổ sung MVP1 — Chọn Lead phụ trách
+
+Lead phụ trách được chọn bằng dropdown từ danh sách user active, hiển thị họ tên và email. Không cho nhập tự do nhằm giữ nhất quán với danh sách user của hệ thống.
+
+## Bổ sung MVP1 — Quản lý danh mục Dự án
+
+- Danh sách dự án hỗ trợ tìm kiếm gần đúng theo Project Key hoặc tên dự án, lọc theo Domain, PM/SM và trạng thái; hiển thị 20 dự án/trang có phân trang.
+- Form tạo/sửa hiển thị trường `PM/SM`, chọn bắt buộc từ danh sách user active.
+- Có chức năng Thêm nhiều dự án từ CSV với các cột `Tên dự án`, `Loại hình dự án`, `PM-SM`, `Key`, `TTM`. `Tên dự án`, `Key` và `TTM` là bắt buộc; `Key` được dùng cho cả Mã hiển thị và Source Project Key (Jira). TTM chỉ nhận `Y`/`N`. Loại hình dự án hoặc PM/SM bỏ trống/không hợp lệ được lưu trống, không làm hủy import.
+- Import giới hạn 500 dòng, 1 MB, kiểm tra Project key trùng trong file/trong CSDL và ghi toàn bộ bằng một transaction.
+- Loại hình dự án là thông tin tùy chọn trong form tạo/sửa: Dự án, Team Agile hoặc Team Triển khai. CSDL chỉ chấp nhận ba giá trị này hoặc để trống.
+- TTM là thông tin bắt buộc, chọn `Y` hoặc `N`, mặc định `N` khi tạo dự án; CSDL áp dụng default và CHECK constraint tương ứng.

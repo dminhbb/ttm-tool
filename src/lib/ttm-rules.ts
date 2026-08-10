@@ -1,5 +1,6 @@
 import { addWorkingDays, diffWorkingDays } from '@/lib/working-days';
 import type { HolidaySet } from '@/lib/working-days';
+import type { StatusAlertRule } from '@/lib/status-alert-rule-types';
 
 export type EpicComplexity = 'SIMPLE' | 'COMPLEX';
 export type AlertLevel = 'NONE' | 'EARLY' | 'LATE' | 'FAIL';
@@ -31,6 +32,7 @@ export interface TtmAlertInput {
   r4gDate: Date | null;
   startDate: Date | null;
   status: string;
+  statusAlertRules?: StatusAlertRule[];
   targetR4gDate: Date | null;
 }
 
@@ -50,9 +52,18 @@ export interface TtmAlertResult {
  */
 export function computeTtmAlert(input: TtmAlertInput): TtmAlertResult {
   const complexity = input.complexity ?? 'SIMPLE';
-  const rule = ALERTED_STATUSES.has(input.status)
-    ? OFFSET_RULES[complexity][input.status as 'Design' | 'In Progress']
-    : null;
+  const configuredRule = input.statusAlertRules?.find(
+    (item) => item.epicComplexityType === complexity && item.epicStatus === input.status,
+  );
+  const rule = input.statusAlertRules
+    ? configuredRule && {
+      earlyOffset: configuredRule.earlyAlertOffsetDays,
+      lateOffset: configuredRule.lateAlertOffsetDays,
+      failOffset: configuredRule.failOffsetDays,
+    }
+    : ALERTED_STATUSES.has(input.status)
+      ? OFFSET_RULES[complexity][input.status as 'Design' | 'In Progress']
+      : null;
 
   if (!input.startDate || !rule) {
     return { daysRemaining: null, earlyAlertDate: null, failDate: null, lateAlertDate: null, level: 'NONE', targetR4gDate: input.targetR4gDate };

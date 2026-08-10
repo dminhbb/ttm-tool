@@ -459,6 +459,8 @@ Các submenu:
 
 # 10. Quản lý User
 
+Triển khai MVP1: local authentication dùng bcrypt hash, session database qua cookie HttpOnly `SameSite=Lax`; session thường 2 giờ, ghi nhớ đăng nhập 24 giờ. Route `/login`, `/admin/users`; API User Management chỉ cho Superadmin. Dữ liệu seed: minhnd7@mbbank.com.vn (Superadmin), ngothanhha@mbbank.com.vn (Admin), congha@mbbank.com.vn (User); mật khẩu chỉ được lưu dạng bcrypt hash.
+
 Màn hình User Management cần có:
 
 - Danh sách user.
@@ -542,6 +544,13 @@ Bảng mặc định:
 | Epic phức tạp | In Progress | T1 + 19 | T1 + 20 | T1 + 30 |
 
 Tất cả offset đều tính theo ngày làm việc.
+
+Triển khai MVP1:
+
+- Route quản trị: `/admin/status-alert-rules`; menu `Cấu hình cảnh báo` dẫn trực tiếp đến màn hình này.
+- Design và In Progress được seed mặc định. Người dùng có thể thêm rule cho trạng thái Epic khác; loại Epic vẫn là Epic đơn giản hoặc Epic phức tạp. Cặp Loại Epic/Trạng thái phải là duy nhất.
+- API `GET`/`POST`/`PUT /api/status-alert-rules` validate offset là số nguyên 0–3650, tên trạng thái dài tối đa 50 ký tự và bắt buộc `cảnh báo sớm < cảnh báo muộn < fail`.
+- Rule được lưu ở `epic_status_alert_rules`. Mỗi lần tải Theo dõi Epic, hệ thống chỉ nạp các rule active một lần và áp dụng cho toàn bộ Epic trong lần tải đó; khi rule inactive, cặp trạng thái/loại Epic tương ứng không phát sinh alert TTM-CNTT.
 
 ---
 
@@ -743,3 +752,32 @@ Giám sát TTM-CNTT cho Epic đã có Start Date,
 cảnh báo sớm/muộn/fail theo ngày làm việc,
 và hỗ trợ quản trị dữ liệu nền tảng đủ để vận hành dashboard.
 ```
+# Bổ sung MVP1 — Gán Domain và Lead phụ trách
+
+- Một user có thể được gán một hoặc nhiều Domain đang active. Form thêm mới và chỉnh sửa user dùng multi-select dropdown có danh sách cuộn; API kiểm tra tất cả Domain được chọn tồn tại, active và không trùng lặp. User inactive có thể chưa có Domain; khi chuyển sang active, user bắt buộc phải có ít nhất một Domain.
+- Form thêm mới và chỉnh sửa user có trường Dự án tùy chọn, cho phép chọn nhiều dự án mà user được phân công vai trò PM/SM. API kiểm tra các ID dự án được chọn tồn tại và không trùng lặp; user inactive, thêm mới hàng loạt và duyệt active không bắt buộc có Dự án.
+- Người dùng đăng ký mới vẫn chọn một Domain active; Superadmin có thể bổ sung thêm Domain khi chỉnh sửa user.
+- Lead phụ trách của một Domain phải được chọn từ danh sách user active, hiển thị theo Họ tên và email; không cho nhập Lead tự do.
+- `user_domains` dùng khóa chính kết hợp `(user_id, domain_id)` để một user có thể thuộc nhiều Domain nhưng không thể có bản ghi gán Domain trùng lặp.
+
+## Bổ sung MVP1 — Thao tác theo lô User Management
+
+- Tab cấp lại mật khẩu: chọn nhiều ticket, xóa có xác nhận một bước hoặc mở modal để đặt một mật khẩu mới dùng chung cho tất cả user đã chọn.
+- Tab duyệt đăng ký mới: chọn nhiều user inactive, xóa có xác nhận một bước hoặc duyệt để kích hoạt đồng thời. Nếu một hay nhiều user được chọn chưa có Domain, hệ thống mở modal bắt buộc chọn một Domain active, gán thêm Domain đó cho các user chưa có Domain rồi mới kích hoạt; việc gán và kích hoạt được thực hiện trong một transaction.
+- Hai tab hàng chờ hiển thị badge số lượng động ngay trên nút tab: số ticket cấp lại mật khẩu đang chờ và số đăng ký user inactive. Badge tự cập nhật sau mọi thao tác duyệt, xóa hoặc tải lại dữ liệu.
+
+## Bổ sung MVP1 — Danh mục Dự án
+
+- Trang quản lý dự án có tìm kiếm gần đúng theo Mã hiển thị/tên, lọc Domain/PM-SM/trạng thái và phân trang 20 dòng.
+- PM/SM được chọn từ user active. Import CSV nhiều dự án dùng cột Tên dự án, Loại hình dự án, PM-SM, Key, TTM; bắt buộc Tên dự án/Key/TTM. Key dùng cho Mã hiển thị và Source Project Key (Jira); Loại hình và PM/SM không hợp lệ được lưu trống.
+- Thông tin dự án có Loại hình dự án tùy chọn: Dự án, Team Agile, Team Triển khai.
+- Thông tin dự án có TTM bắt buộc (`Y`/`N`), mặc định `N`.
+
+## Bổ sung MVP1 — Thêm nhiều user
+
+- Superadmin nhập username phân tách bằng dấu phẩy. Hệ thống tạo user inactive chưa gán Domain, với email MB Bank và mật khẩu mặc định theo yêu cầu; user đã tồn tại được bỏ qua.
+
+## Bổ sung MVP1 — Quy ước bảng danh sách
+
+- Mọi bảng danh sách dữ liệu dùng component toolbar chung, luôn có tìm kiếm gần đúng và nút reset dạng icon để về trạng thái ban đầu.
+- Bộ lọc theo trường chỉ được bổ sung khi có yêu cầu nghiệp vụ riêng; không tự thêm filter mặc định.

@@ -24,19 +24,27 @@ export interface Project {
   isActive: boolean;
   leadName: string;
   projectKey: string;
+  projectCategory: ProjectCategory | null;
   projectName: string;
   sourceProjectKey: string;
   sourceType: string;
+  ttm: TtmOption;
 }
+
+export const PROJECT_CATEGORIES = ['Dự án', 'Team Agile', 'Team Triển khai'] as const;
+export type ProjectCategory = (typeof PROJECT_CATEGORIES)[number];
+export type TtmOption = 'Y' | 'N';
 
 export interface ProjectInput {
   domainId: number | null;
   isActive: boolean;
   leadName: string;
   projectKey: string;
+  projectCategory: ProjectCategory | null;
   projectName: string;
   sourceProjectKey: string;
   sourceType: string;
+  ttm: TtmOption;
 }
 
 export type HolidayType = 'PUBLIC' | 'COMPANY' | 'OTHER';

@@ -3,6 +3,7 @@ import type { EpicComplexity } from '@/lib/ttm-rules';
 import { computeTtmAlert } from '@/lib/ttm-rules';
 import { diffWorkingDays } from '@/lib/working-days';
 import { getActiveHolidaySet, getDomainByProjectKeyMap } from '@/lib/master-data-service';
+import { listActiveStatusAlertRules } from '@/lib/status-alert-rule-service';
 import type { EpicMonitoringResponse, MonitoredEpic } from '@/lib/epic-monitoring-types';
 
 const CANCELLED_OR_RELEASED = /cancel|release/i;
@@ -38,7 +39,7 @@ function missingStandardInfo(row: EpicRow): string[] {
 }
 
 export async function getEpicMonitoring(from: string, to: string): Promise<EpicMonitoringResponse> {
-  const [result, holidays, domainByProjectKey] = await Promise.all([
+  const [result, holidays, domainByProjectKey, statusAlertRules] = await Promise.all([
     pool.query<EpicRow>(`
     SELECT DISTINCT ON (issues.issue_key)
       issues.issue_key AS "epicKey",
@@ -63,6 +64,7 @@ export async function getEpicMonitoring(from: string, to: string): Promise<EpicM
     `, [from, to]),
     getActiveHolidaySet(),
     getDomainByProjectKeyMap(),
+    listActiveStatusAlertRules(),
   ]);
 
   const now = new Date();
@@ -127,6 +129,7 @@ export async function getEpicMonitoring(from: string, to: string): Promise<EpicM
       r4gDate: parseDate(row.r4gDate),
       startDate,
       status: row.status,
+      statusAlertRules,
       targetR4gDate: parseDate(row.targetR4gDate),
     });
 

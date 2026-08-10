@@ -1,7 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { GearSix, Moon, Sun, UserCircle } from '@phosphor-icons/react';
+import { useRouter } from 'next/navigation';
+import { GearSix, SignOut, UserCircle } from '@phosphor-icons/react';
 import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
@@ -20,6 +21,11 @@ interface UserMenuProps {
   expanded: boolean;
 }
 
+interface CurrentUser {
+  email: string;
+  fullName: string;
+}
+
 function loadStoredTheme(): AppearanceTheme {
   try {
     return window.localStorage.getItem(APPEARANCE_STORAGE_KEY) === 'dark' ? 'dark' : 'light';
@@ -30,17 +36,34 @@ function loadStoredTheme(): AppearanceTheme {
 }
 
 export function UserMenu({ expanded }: UserMenuProps) {
+  const router = useRouter();
   const menuRef = React.useRef<HTMLDivElement>(null);
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
   const [hasLoadedPreference, setHasLoadedPreference] = React.useState(false);
   const [theme, setTheme] = React.useState<AppearanceTheme>('light');
+  const [user, setUser] = React.useState<CurrentUser | null>(null);
 
   React.useEffect(() => {
     void Promise.resolve().then(() => {
       setTheme(loadStoredTheme());
       setHasLoadedPreference(true);
     });
+  }, []);
+
+  React.useEffect(() => {
+    const loadUser = async (): Promise<void> => {
+      try {
+        const response = await fetch('/api/auth/me');
+        const payload: unknown = await response.json();
+        if (response.ok && typeof payload === 'object' && payload !== null && 'user' in payload && typeof payload.user === 'object' && payload.user !== null && 'email' in payload.user && 'fullName' in payload.user && typeof payload.user.email === 'string' && typeof payload.user.fullName === 'string') {
+          setUser({ email: payload.user.email, fullName: payload.user.fullName });
+        }
+      } catch (error) {
+        console.warn('Unable to load the signed-in user profile.', error);
+      }
+    };
+    void loadUser();
   }, []);
 
   React.useEffect(() => {
@@ -69,9 +92,10 @@ export function UserMenu({ expanded }: UserMenuProps) {
     };
   }, [isMenuOpen]);
 
-  const icon = theme === 'dark'
-    ? <Moon className="size-4" weight="bold" aria-hidden="true" />
-    : <Sun className="size-4" weight="bold" aria-hidden="true" />;
+  const logout = async (): Promise<void> => {
+    try { await fetch('/api/auth/logout', { method: 'POST' }); }
+    finally { router.replace('/login'); router.refresh(); }
+  };
 
   return (
     <div ref={menuRef} className="relative">
@@ -98,6 +122,10 @@ export function UserMenu({ expanded }: UserMenuProps) {
             <GearSix className="size-4 shrink-0" weight="bold" aria-hidden="true" />
             <span>Cài đặt</span>
           </button>
+          <button type="button" onClick={logout} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-status-danger transition-colors hover:bg-fb-control" role="menuitem">
+            <SignOut className="size-4 shrink-0" weight="bold" aria-hidden="true" />
+            <span>Đăng xuất</span>
+          </button>
         </div>
       )}
 
@@ -109,11 +137,11 @@ export function UserMenu({ expanded }: UserMenuProps) {
         aria-expanded={isMenuOpen}
         aria-haspopup="menu"
       >
-        <span className="ui-avatar">A</span>
+        <span className="ui-avatar">{(user?.fullName || user?.email || 'U').trim().charAt(0).toUpperCase()}</span>
         {expanded && (
           <span className="min-w-0">
-            <span className="block truncate text-xs font-bold text-fb-text-primary">Administrator</span>
-            <span className="mt-0.5 flex items-center gap-1 truncate text-[9px] font-medium text-sidebar-muted">{icon} CBQL Phòng</span>
+            <span className="block truncate text-xs font-bold text-fb-text-primary">{user?.fullName || 'Đang tải...'}</span>
+            <span className="mt-0.5 block truncate text-[9px] font-medium text-sidebar-muted">{user?.email || ''}</span>
           </span>
         )}
       </button>

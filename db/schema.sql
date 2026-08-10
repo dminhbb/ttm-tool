@@ -8,6 +8,13 @@ DROP TABLE IF EXISTS projects CASCADE;
 DROP TABLE IF EXISTS project_components CASCADE;
 DROP TABLE IF EXISTS domains CASCADE;
 DROP TABLE IF EXISTS holidays CASCADE;
+DROP TABLE IF EXISTS epic_status_alert_rules CASCADE;
+DROP TABLE IF EXISTS audit_logs CASCADE;
+DROP TABLE IF EXISTS password_reset_requests CASCADE;
+DROP TABLE IF EXISTS auth_sessions CASCADE;
+DROP TABLE IF EXISTS user_projects CASCADE;
+DROP TABLE IF EXISTS user_domains CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
 
 -- 1. Import Batches table
 CREATE TABLE import_batches (
@@ -108,6 +115,8 @@ CREATE TABLE projects (
     domain_id INT REFERENCES domains(id) ON DELETE SET NULL,
     source_project_key VARCHAR(50) NOT NULL, -- Jira Project Key used to match imported issues
     source_type VARCHAR(50) NOT NULL DEFAULT 'JIRA',
+    project_category VARCHAR(30) CHECK (project_category IN ('Dự án', 'Team Agile', 'Team Triển khai')),
+    ttm CHAR(1) NOT NULL DEFAULT 'N' CHECK (ttm IN ('Y', 'N')),
     lead_name VARCHAR(100),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -145,3 +154,56 @@ CREATE TABLE holidays (
 );
 
 CREATE INDEX idx_holidays_range ON holidays (start_date, end_date) WHERE is_active;
+
+-- 7. Configurable Epic status alert rules (BRD 06 §5 / BRD index §12).
+CREATE TABLE epic_status_alert_rules (
+    id SERIAL PRIMARY KEY,
+    epic_complexity_type VARCHAR(20) NOT NULL CHECK (epic_complexity_type IN ('SIMPLE', 'COMPLEX')),
+    epic_status VARCHAR(50) NOT NULL,
+    early_alert_offset_days INT NOT NULL CHECK (early_alert_offset_days >= 0),
+    late_alert_offset_days INT NOT NULL CHECK (late_alert_offset_days >= 0),
+    fail_offset_days INT NOT NULL CHECK (fail_offset_days >= 0),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_epic_status_alert_rules_complexity_status UNIQUE (epic_complexity_type, epic_status),
+    CONSTRAINT chk_epic_status_alert_rules_offsets CHECK (
+        early_alert_offset_days < late_alert_offset_days
+        AND late_alert_offset_days < fail_offset_days
+    )
+);
+
+CREATE INDEX idx_epic_status_alert_rules_active
+    ON epic_status_alert_rules (is_active)
+    WHERE is_active;
+
+INSERT INTO epic_status_alert_rules (
+    epic_complexity_type, epic_status, early_alert_offset_days, late_alert_offset_days, fail_offset_days
+) VALUES
+    ('SIMPLE', 'Design', 2, 3, 15),
+    ('SIMPLE', 'In Progress', 12, 13, 15),
+    ('COMPLEX', 'Design', 5, 6, 30),
+    ('COMPLEX', 'In Progress', 19, 20, 30);
+
+-- 8. Local auth and role-based access control (BRD 05).
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    full_name VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('SUPERADMIN', 'ADMIN', 'USER')),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    last_login_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE user_domains (user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, domain_id INT NOT NULL REFERENCES domains(id) ON DELETE CASCADE, PRIMARY KEY (user_id, domain_id));
+CREATE TABLE user_projects (user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, project_id INT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, PRIMARY KEY (user_id, project_id));
+CREATE TABLE auth_sessions (token_hash CHAR(64) PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires_at TIMESTAMP WITH TIME ZONE NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);
+CREATE INDEX idx_auth_sessions_user_expiry ON auth_sessions (user_id, expires_at);
+CREATE TABLE password_reset_requests (id SERIAL PRIMARY KEY, email VARCHAR(255) NOT NULL, status VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'RESOLVED')), created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, resolved_at TIMESTAMP WITH TIME ZONE, resolved_by INT REFERENCES users(id) ON DELETE SET NULL);
+CREATE TABLE audit_logs (id SERIAL PRIMARY KEY, user_id INT REFERENCES users(id) ON DELETE SET NULL, action VARCHAR(100) NOT NULL, entity_type VARCHAR(50) NOT NULL, entity_id VARCHAR(100) NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);
+INSERT INTO users (email, full_name, password_hash, role) VALUES
+  ('minhnd7@mbbank.com.vn', 'minhnd7', '$2b$12$./GnVXw6hJSmPn2ATFAVw.fK3o5WTbS6BICne36Lb1w5.JES/3TM.', 'SUPERADMIN'),
+  ('ngothanhha@mbbank.com.vn', 'ngothanhha', '$2b$12$./GnVXw6hJSmPn2ATFAVw.fK3o5WTbS6BICne36Lb1w5.JES/3TM.', 'ADMIN'),
+  ('congha@mbbank.com.vn', 'congha', '$2b$12$./GnVXw6hJSmPn2ATFAVw.fK3o5WTbS6BICne36Lb1w5.JES/3TM.', 'USER');

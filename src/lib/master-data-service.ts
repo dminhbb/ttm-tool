@@ -58,7 +58,7 @@ export async function listProjects(): Promise<Project[]> {
     SELECT
       p.id, p.project_key AS "projectKey", p.project_name AS "projectName",
       p.domain_id AS "domainId", d.domain_name AS "domainName",
-      p.source_project_key AS "sourceProjectKey", p.source_type AS "sourceType",
+      p.source_project_key AS "sourceProjectKey", p.source_type AS "sourceType", p.project_category AS "projectCategory", p.ttm,
       COALESCE(p.lead_name, '') AS "leadName", p.is_active AS "isActive",
       p.created_at::text AS "createdAt"
     FROM projects p
@@ -70,10 +70,10 @@ export async function listProjects(): Promise<Project[]> {
 
 export async function createProject(input: ProjectInput): Promise<Project> {
   const result = await pool.query<{ id: number }>(`
-    INSERT INTO projects (project_key, project_name, domain_id, source_project_key, source_type, lead_name, is_active)
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    INSERT INTO projects (project_key, project_name, domain_id, source_project_key, source_type, project_category, ttm, lead_name, is_active)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     RETURNING id;
-  `, [input.projectKey, input.projectName, input.domainId, input.sourceProjectKey, input.sourceType, input.leadName || null, input.isActive]);
+  `, [input.projectKey, input.projectName, input.domainId, input.sourceProjectKey, input.sourceType, input.projectCategory, input.ttm, input.leadName || null, input.isActive]);
   return getProjectById(result.rows[0].id);
 }
 
@@ -81,9 +81,9 @@ export async function updateProject(id: number, input: ProjectInput): Promise<Pr
   await pool.query(`
     UPDATE projects SET
       project_key = $2, project_name = $3, domain_id = $4, source_project_key = $5,
-      source_type = $6, lead_name = $7, is_active = $8, updated_at = CURRENT_TIMESTAMP
+      source_type = $6, project_category = $7, ttm = $8, lead_name = $9, is_active = $10, updated_at = CURRENT_TIMESTAMP
     WHERE id = $1;
-  `, [id, input.projectKey, input.projectName, input.domainId, input.sourceProjectKey, input.sourceType, input.leadName || null, input.isActive]);
+  `, [id, input.projectKey, input.projectName, input.domainId, input.sourceProjectKey, input.sourceType, input.projectCategory, input.ttm, input.leadName || null, input.isActive]);
   return getProjectById(id);
 }
 
@@ -92,7 +92,7 @@ async function getProjectById(id: number): Promise<Project> {
     SELECT
       p.id, p.project_key AS "projectKey", p.project_name AS "projectName",
       p.domain_id AS "domainId", d.domain_name AS "domainName",
-      p.source_project_key AS "sourceProjectKey", p.source_type AS "sourceType",
+      p.source_project_key AS "sourceProjectKey", p.source_type AS "sourceType", p.project_category AS "projectCategory", p.ttm,
       COALESCE(p.lead_name, '') AS "leadName", p.is_active AS "isActive",
       p.created_at::text AS "createdAt"
     FROM projects p

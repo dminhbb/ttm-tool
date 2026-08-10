@@ -103,6 +103,8 @@ Các cột chính:
 
 Tất cả offset tính bằng ngày làm việc sau T1.
 
+Màn hình triển khai tại `/admin/status-alert-rules`: hiển thị card table các rule hiện có, offset diễn giải theo định dạng `T1 + N ngày làm việc`, badge Active/Inactive và `TableAction` Chỉnh sửa. Nút primary `Thêm rule` mở modal ngắn dùng Select Loại Epic, Input Trạng thái Epic, các Input number và checkbox active; cặp Loại Epic/Trạng thái trùng bị báo lỗi. Modal chỉnh sửa giữ loại/trạng thái ở chế độ chỉ đọc.
+
 ## 8. Hệ thống giao diện dùng chung
 
 > Bản cập nhật 2026-08-09: `gecko-inspired-ui-skill` là source of truth cho visual language. Các mô tả Facebook/glass cũ bên dưới chỉ còn giá trị lịch sử khi mâu thuẫn với nội dung này.
@@ -110,6 +112,7 @@ Tất cả offset tính bằng ngày làm việc sau T1.
 - Ứng dụng dùng dark dashboard compact, data-first: surface app/sidebar/panel/elevated, border subtle và accent cyan semantic; không dùng gradient, glow hoặc glass trang trí.
 - Card radius 8px, control 38px, primary button cyan; semantic color chỉ biểu đạt trạng thái.
 - Table header sticky, chữ/dates/status căn trái, số căn phải và action căn phải. Row hover dùng `surface-hover`.
+- Mỗi bảng danh sách dữ liệu dùng toolbar chuẩn có ô tìm kiếm gần đúng và nút reset dạng icon; reset trả bảng về trạng thái tìm kiếm/bộ lọc ban đầu. Không tự thêm bộ lọc trường dữ liệu nếu BRD hoặc yêu cầu nghiệp vụ chưa chỉ định.
 - Form mặc định một cột, chỉ dùng hai cột cho trường ngắn liên quan. Modal chỉ dùng cho form tạo ngắn; primitive Modal chỉ focus khi mở, không được giành focus trong lúc gõ.
 - Avatar ở footer left panel mở popover menu gồm `Thông tin cá nhân` (placeholder cho giai đoạn sau) và `Cài đặt`. Cài đặt hiện có trường Chế độ hiển thị Light/Dark, mặc định Light; preference lưu local storage key `ttm-monitor.appearance-theme` và load lại mỗi lần sử dụng ứng dụng.
 - Light mode dùng canvas xanh-xám đậm hơn panel trắng, border xanh-xám rõ và bề mặt elevated light-blue để card, table, control và right panel không hòa lẫn với background. Primary button dùng blue rõ, secondary/outline dùng nền light-blue.
@@ -144,6 +147,7 @@ src/components/
     Select.tsx
     Skeleton.tsx
     Table.tsx
+    DataTableToolbar.tsx
     TableAction.tsx
     Tooltip.tsx
   <module>/
@@ -158,6 +162,8 @@ Màn hình Duyệt dữ liệu dùng component nghiệp vụ `src/components/dat
 - `ui/` chỉ chứa primitive tổng quát, không chứa logic nghiệp vụ.
 - Thư mục module chứa component có ngôn ngữ nghiệp vụ, ví dụ `data-source/FileDropzone.tsx`.
 - Page chịu trách nhiệm điều phối state và gọi API; không định nghĩa lại primitive hoặc component dùng lại ngay bên trong form.
+- `DataTableToolbar` là primitive chung cho tìm kiếm gần đúng và reset; page truyền các trường tìm kiếm phù hợp qua state/logic nghiệp vụ, không đưa filter mặc định vào toolbar.
+- `MultiSelect` là primitive dropdown chọn nhiều, có ô tìm kiếm gần đúng option ở đầu popover, danh sách cuộn và tóm tắt số lựa chọn trên trigger; dùng cho Domain, Dự án và các danh mục chọn nhiều sau này.
 
 ### 8.3. Form và trạng thái tương tác
 

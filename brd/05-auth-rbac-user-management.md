@@ -200,6 +200,12 @@ Không được bắt người dùng cuộn chuột trong danh sách dài để 
 
 ## 13. Acceptance Criteria
 
+## 14. Triển khai MVP1
+
+- LocalAuthProvider xác thực bằng bcrypt hash và session lưu database; cookie session là HttpOnly, Secure trên production và SameSite=Lax.
+- User Management tại `/admin/users` và API `/api/users` chỉ cho role Superadmin. Form hiện quản lý email, họ tên, role và active/inactive; dữ liệu phân quyền domain/project được lưu bằng bảng `user_domains` và `user_projects` để mở rộng giao diện phân quyền tiếp theo.
+- Seed gồm minhnd7@mbbank.com.vn (SUPERADMIN), ngothanhha@mbbank.com.vn (ADMIN), congha@mbbank.com.vn (USER). Password seed chỉ tồn tại dưới dạng bcrypt hash trong database.
+
 ```gherkin
 Given user không chọn Ghi nhớ đăng nhập
 When đăng nhập thành công
@@ -226,3 +232,22 @@ When danh sách dự án được hiển thị
 Then danh sách được sắp xếp A-Z
 And có ô tìm kiếm gần đúng theo mã hoặc tên dự án
 ```
+# Bổ sung MVP1 — Gán Domain
+
+- Form tạo user và chỉnh sửa user dùng multi-select dropdown có danh sách cuộn hiển thị toàn bộ Domain active; Superadmin chọn được một hoặc nhiều Domain.
+- User inactive có thể không có Domain. API chỉ từ chối danh sách Domain rỗng khi user được đặt trạng thái active; đồng thời từ chối Domain có ID trùng lặp hoặc Domain không tồn tại/inactive. User đăng ký mới tiếp tục chọn một Domain active trong luồng đăng ký.
+- Bảng `user_domains` dùng khóa chính `(user_id, domain_id)`, cho phép một user thuộc nhiều Domain và ngăn bản ghi gán trùng lặp.
+- Form tạo/chỉnh sửa user có thêm trường Dự án multi-select, tùy chọn, để gán các project mà user là PM/SM. `user_projects` dùng khóa chính `(user_id, project_id)`; API từ chối ID dự án không tồn tại hoặc trùng lặp, nhưng không bắt buộc user phải có dự án trong mọi trạng thái.
+
+## Bổ sung MVP1 — Xử lý hàng loạt tại User Management
+
+- Tab Yêu cầu cấp lại mật khẩu hỗ trợ checkbox từng dòng, xóa hàng loạt với xác nhận một bước, và cấp lại một mật khẩu mới cho toàn bộ yêu cầu đã chọn.
+- Tab Duyệt đăng ký mới hỗ trợ checkbox từng dòng, xóa hàng loạt với xác nhận một bước, và duyệt nhiều đăng ký bằng cách chuyển toàn bộ user đã chọn sang active. Nếu bất kỳ user nào chưa có Domain, Superadmin phải chọn một Domain active trong modal; hệ thống gán thêm Domain này cho những user chưa có Domain rồi kích hoạt toàn bộ danh sách trong cùng transaction.
+- API chỉ xử lý tối đa 100 bản ghi/lần. Khi cấp lại mật khẩu, ticket phải còn PENDING và phải khớp với user đích.
+- Nút tab `Yêu cầu cấp lại mật khẩu` hiển thị badge số ticket đang chờ; nút tab `Duyệt đăng ký mới` hiển thị badge số user inactive. Cả hai badge lấy từ dữ liệu mới nhất và tự cập nhật sau thao tác quản trị.
+
+## Bổ sung MVP1 — Thêm nhiều user
+
+- Superadmin có thể nhập tối đa 100 username, ngăn cách bằng dấu phẩy, không cần hậu tố `@mbbank.com.vn`.
+- Mỗi username hợp lệ tạo user có họ tên bằng username, email `username@mbbank.com.vn`, role `USER`, trạng thái inactive, chưa gán Domain và mật khẩu mặc định theo yêu cầu nghiệp vụ.
+- Username đã tồn tại được bỏ qua và báo lại số lượng; quá trình ghi dữ liệu mới dùng transaction.

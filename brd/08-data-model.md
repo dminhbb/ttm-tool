@@ -220,7 +220,18 @@ Dữ liệu mặc định:
 | COMPLEX | Design | 5 | 6 | 30 |
 | COMPLEX | In Progress | 19 | 20 | 30 |
 
+Ràng buộc triển khai:
+
+- Tên bảng vật lý: `epic_status_alert_rules`.
+- Unique `(epic_complexity_type, epic_status)`; `epic_complexity_type` chỉ nhận `SIMPLE`/`COMPLEX`. Design và In Progress là dữ liệu seed, nhưng `epic_status` cho phép trạng thái Epic mới dài tối đa 50 ký tự.
+- Các offset là số nguyên không âm và phải tuân thủ `early_alert_offset_days < late_alert_offset_days < fail_offset_days`.
+- Có partial index theo `is_active` để nạp rule dùng cho tính Epic Monitoring.
+
 ## 13. ttm_policy_configs
+
+## 12.1 Local authentication và RBAC
+
+Các bảng triển khai: `users`, `user_domains`, `user_projects`, `auth_sessions`, `password_reset_requests`, `audit_logs`. `users.password_hash` lưu bcrypt hash; `auth_sessions.token_hash` lưu SHA-256 của token cookie thay vì token thô. Role bị giới hạn `SUPERADMIN`, `ADMIN`, `USER`.
 
 ```text
 id
@@ -344,3 +355,6 @@ new_value_json
 created_at
 ip_address
 ```
+# Bổ sung MVP1 — Cardinality user/domain
+
+Bảng `user_domains(user_id, domain_id)` là quan hệ nhiều-nhiều, dùng khóa chính kết hợp `(user_id, domain_id)`: một user có thể có một hoặc nhiều Domain và không thể có bản ghi gán trùng. User active bắt buộc có ít nhất một Domain; user inactive có thể chưa có Domain. Mọi Domain được gán phải active và không trùng lặp.

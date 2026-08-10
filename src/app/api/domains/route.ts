@@ -1,61 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { AuthError, requireUser } from '@/lib/auth-service';
 import { createDomain, deleteDomain, listDomains, updateDomain } from '@/lib/master-data-service';
 import type { DomainInput } from '@/lib/master-data-types';
 
-export async function GET() {
-  try {
-    const domains = await listDomains();
-    return NextResponse.json(domains);
-  } catch (error: unknown) {
-    console.error('API Error in domains route:', error);
-    const message = error instanceof Error ? error.message : 'Lỗi hệ thống khi tải danh sách Domain';
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+function authError(error: unknown): NextResponse | null {
+  if (error instanceof AuthError) return NextResponse.json({ error: error.code === 'FORBIDDEN' ? 'Bạn không có quyền quản lý Domain.' : 'Chưa đăng nhập.' }, { status: error.code === 'FORBIDDEN' ? 403 : 401 });
+  return null;
+}
+
+export async function GET(request: NextRequest) {
+  try { await requireUser(request, ['SUPERADMIN']); return NextResponse.json(await listDomains()); }
+  catch (error) { return authError(error) ?? NextResponse.json({ error: 'Lỗi hệ thống khi tải danh sách Domain.' }, { status: 500 }); }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    await requireUser(request, ['SUPERADMIN']);
     const body = (await request.json()) as DomainInput;
-    if (!body.domainCode || !body.domainName) {
-      return NextResponse.json({ error: 'Domain Code và Tên Domain là bắt buộc' }, { status: 400 });
-    }
-    const domain = await createDomain(body);
-    return NextResponse.json(domain, { status: 201 });
-  } catch (error: unknown) {
-    console.error('API Error creating domain:', error);
-    const message = error instanceof Error ? error.message : 'Lỗi hệ thống khi tạo Domain';
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+    if (!body.domainCode?.trim() || !body.domainName?.trim()) return NextResponse.json({ error: 'Domain Code và Tên Domain là bắt buộc.' }, { status: 400 });
+    return NextResponse.json(await createDomain(body), { status: 201 });
+  } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Lỗi hệ thống khi tạo Domain.' }, { status: 500 }); }
 }
 
 export async function PUT(request: NextRequest) {
   try {
+    await requireUser(request, ['SUPERADMIN']);
     const body = (await request.json()) as DomainInput & { id: number };
-    if (!body.id || !body.domainCode || !body.domainName) {
-      return NextResponse.json({ error: 'Thiếu dữ liệu bắt buộc' }, { status: 400 });
-    }
-    const domain = await updateDomain(body.id, body);
-    return NextResponse.json(domain);
-  } catch (error: unknown) {
-    console.error('API Error updating domain:', error);
-    const message = error instanceof Error ? error.message : 'Lỗi hệ thống khi cập nhật Domain';
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+    if (!Number.isInteger(body.id) || body.id <= 0 || !body.domainCode?.trim() || !body.domainName?.trim()) return NextResponse.json({ error: 'Thiếu dữ liệu Domain bắt buộc.' }, { status: 400 });
+    return NextResponse.json(await updateDomain(body.id, body));
+  } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Lỗi hệ thống khi cập nhật Domain.' }, { status: 500 }); }
 }
 
 export async function DELETE(request: NextRequest) {
   try {
-    const url = new URL(request.url);
-    const idStr = url.searchParams.get('id');
-    const id = idStr ? parseInt(idStr) : NaN;
-    if (Number.isNaN(id)) {
-      return NextResponse.json({ error: 'Domain ID không hợp lệ' }, { status: 400 });
-    }
+    await requireUser(request, ['SUPERADMIN']);
+    const id = Number(new URL(request.url).searchParams.get('id'));
+    if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: 'Domain ID không hợp lệ.' }, { status: 400 });
     await deleteDomain(id);
     return NextResponse.json({ success: true });
-  } catch (error: unknown) {
-    console.error('API Error deleting domain:', error);
-    const message = error instanceof Error ? error.message : 'Lỗi hệ thống khi xóa Domain';
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Lỗi hệ thống khi xóa Domain.' }, { status: 500 }); }
 }
