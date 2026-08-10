@@ -1,0 +1,72 @@
+/* TTM Epic Management — Design Tokens
+   Scope: PM-SM/User Epic monitoring screen, read-only. */
+:root {
+  color-scheme: light;
+
+  /* Brand */
+  --ttm-brand-900: #12254a;
+  --ttm-brand-800: #1a2b4c;
+  --ttm-brand-700: #25406f;
+  --ttm-brand-600: #2f5bd6;
+  --ttm-brand-500: #3d6df2;
+  --ttm-brand-100: #eaf0ff;
+  --ttm-brand-050: #f5f8ff;
+
+  /* Status colors */
+  --ttm-success-700: #2e7d32;
+  --ttm-success-100: #e6f4ea;
+  --ttm-success-050: #f3fbf5;
+  --ttm-warning-700: #b77900;
+  --ttm-warning-500: #f9a825;
+  --ttm-warning-100: #fff4cf;
+  --ttm-warning-050: #fffaf0;
+  --ttm-danger-800: #b71c1c;
+  --ttm-danger-700: #c62828;
+  --ttm-danger-600: #d84315;
+  --ttm-danger-100: #fdeaea;
+  --ttm-danger-050: #fff5f5;
+  --ttm-info-700: #1565c0;
+  --ttm-info-100: #e9f2ff;
+  --ttm-neutral-900: #1f2430;
+  --ttm-neutral-700: #3d4658;
+  --ttm-neutral-600: #5b6475;
+  --ttm-neutral-500: #6b7280;
+  --ttm-neutral-300: #d8dde6;
+  --ttm-neutral-200: #e0e3e8;
+  --ttm-neutral-100: #eef1f7;
+  --ttm-neutral-050: #f5f6f8;
+  --ttm-white: #ffffff;
+
+  /* Alert urgency: d0 = overdue, d1/d2/d3 = remaining working days */
+  --ttm-d0: #b71c1c;
+  --ttm-d1: #d84315;
+  --ttm-d2: #f9a825;
+  --ttm-d3: #fbc02d;
+
+  /* Surface */
+  --ttm-bg: var(--ttm-neutral-050);
+  --ttm-card: var(--ttm-white);
+  --ttm-border: var(--ttm-neutral-200);
+  --ttm-text: var(--ttm-neutral-900);
+  --ttm-muted: var(--ttm-neutral-500);
+
+  /* Sizing */
+  --ttm-radius-sm: 6px;
+  --ttm-radius-md: 8px;
+  --ttm-radius-lg: 12px;
+  --ttm-shadow-card: 0 1px 3px rgba(15, 23, 42, 0.08);
+  --ttm-shadow-popover: 0 12px 30px rgba(15, 23, 42, 0.18);
+
+  /* Typography */
+  --ttm-font: "Segoe UI", Arial, system-ui, -apple-system, sans-serif;
+  --ttm-font-size-xs: 10.5px;
+  --ttm-font-size-sm: 12px;
+  --ttm-font-size-md: 13px;
+  --ttm-font-size-base: 14px;
+  --ttm-font-size-lg: 18px;
+
+  /* Table */
+  --ttm-table-min-width: 1500px;
+  --ttm-table-row-height: 42px;
+  --ttm-stage-cell-width: 118px;
+}

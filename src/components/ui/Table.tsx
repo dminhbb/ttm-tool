@@ -17,13 +17,7 @@ export const THead = ({ className, ...props }: React.HTMLAttributes<HTMLTableSec
 THead.displayName = 'THead';
 
 export const TBody = ({ className, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) => (
-  <tbody
-    className={cn(
-      'divide-y divide-fb-border',
-      className,
-    )}
-    {...props}
-  />
+  <tbody className={className} {...props} />
 );
 TBody.displayName = 'TBody';
 

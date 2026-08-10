@@ -756,6 +756,7 @@ và hỗ trợ quản trị dữ liệu nền tảng đủ để vận hành das
 
 - Một user có thể được gán một hoặc nhiều Domain đang active. Form thêm mới và chỉnh sửa user dùng multi-select dropdown có danh sách cuộn; API kiểm tra tất cả Domain được chọn tồn tại, active và không trùng lặp. User inactive có thể chưa có Domain; khi chuyển sang active, user bắt buộc phải có ít nhất một Domain.
 - Form thêm mới và chỉnh sửa user có trường Dự án tùy chọn, cho phép chọn nhiều dự án mà user được phân công vai trò PM/SM. API kiểm tra các ID dự án được chọn tồn tại và không trùng lặp; user inactive, thêm mới hàng loạt và duyệt active không bắt buộc có Dự án.
+- PM/SM của Project và phân công `user_projects` được đồng bộ hai chiều trong cùng transaction: sửa PM/SM của dự án sẽ cập nhật Dự án của user; sửa Dự án của user sẽ cập nhật PM/SM tương ứng. PM/SM được nhận diện an toàn theo họ tên hoặc email và chuẩn hóa về họ tên. Danh sách user hiển thị các Project Key đã được phân công.
 - Người dùng đăng ký mới vẫn chọn một Domain active; Superadmin có thể bổ sung thêm Domain khi chỉnh sửa user.
 - Lead phụ trách của một Domain phải được chọn từ danh sách user active, hiển thị theo Họ tên và email; không cho nhập Lead tự do.
 - `user_domains` dùng khóa chính kết hợp `(user_id, domain_id)` để một user có thể thuộc nhiều Domain nhưng không thể có bản ghi gán Domain trùng lặp.
@@ -764,6 +765,7 @@ và hỗ trợ quản trị dữ liệu nền tảng đủ để vận hành das
 
 - Tab cấp lại mật khẩu: chọn nhiều ticket, xóa có xác nhận một bước hoặc mở modal để đặt một mật khẩu mới dùng chung cho tất cả user đã chọn.
 - Tab duyệt đăng ký mới: chọn nhiều user inactive, xóa có xác nhận một bước hoặc duyệt để kích hoạt đồng thời. Nếu một hay nhiều user được chọn chưa có Domain, hệ thống mở modal bắt buộc chọn một Domain active, gán thêm Domain đó cho các user chưa có Domain rồi mới kích hoạt; việc gán và kích hoạt được thực hiện trong một transaction.
+- Duyệt một/nhiều đăng ký chỉ yêu cầu Domain active để kích hoạt user. Dự án và các thông tin phân công khác là tùy chọn, được chỉnh sửa riêng sau khi duyệt.
 - Hai tab hàng chờ hiển thị badge số lượng động ngay trên nút tab: số ticket cấp lại mật khẩu đang chờ và số đăng ký user inactive. Badge tự cập nhật sau mọi thao tác duyệt, xóa hoặc tải lại dữ liệu.
 
 ## Bổ sung MVP1 — Danh mục Dự án

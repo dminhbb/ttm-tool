@@ -1,0 +1,322 @@
+/* TTM Epic Management — Design Tokens
+   Scope: PM-SM/User Epic monitoring screen, read-only. */
+:root {
+  color-scheme: light;
+
+  /* Brand */
+  --ttm-brand-900: #12254a;
+  --ttm-brand-800: #1a2b4c;
+  --ttm-brand-700: #25406f;
+  --ttm-brand-600: #2f5bd6;
+  --ttm-brand-500: #3d6df2;
+  --ttm-brand-100: #eaf0ff;
+  --ttm-brand-050: #f5f8ff;
+
+  /* Status colors */
+  --ttm-success-700: #2e7d32;
+  --ttm-success-100: #e6f4ea;
+  --ttm-success-050: #f3fbf5;
+  --ttm-warning-700: #b77900;
+  --ttm-warning-500: #f9a825;
+  --ttm-warning-100: #fff4cf;
+  --ttm-warning-050: #fffaf0;
+  --ttm-danger-800: #b71c1c;
+  --ttm-danger-700: #c62828;
+  --ttm-danger-600: #d84315;
+  --ttm-danger-100: #fdeaea;
+  --ttm-danger-050: #fff5f5;
+  --ttm-info-700: #1565c0;
+  --ttm-info-100: #e9f2ff;
+  --ttm-neutral-900: #1f2430;
+  --ttm-neutral-700: #3d4658;
+  --ttm-neutral-600: #5b6475;
+  --ttm-neutral-500: #6b7280;
+  --ttm-neutral-300: #d8dde6;
+  --ttm-neutral-200: #e0e3e8;
+  --ttm-neutral-100: #eef1f7;
+  --ttm-neutral-050: #f5f6f8;
+  --ttm-white: #ffffff;
+
+  /* Alert urgency: d0 = overdue, d1/d2/d3 = remaining working days */
+  --ttm-d0: #b71c1c;
+  --ttm-d1: #d84315;
+  --ttm-d2: #f9a825;
+  --ttm-d3: #fbc02d;
+
+  /* Surface */
+  --ttm-bg: var(--ttm-neutral-050);
+  --ttm-card: var(--ttm-white);
+  --ttm-border: var(--ttm-neutral-200);
+  --ttm-text: var(--ttm-neutral-900);
+  --ttm-muted: var(--ttm-neutral-500);
+
+  /* Sizing */
+  --ttm-radius-sm: 6px;
+  --ttm-radius-md: 8px;
+  --ttm-radius-lg: 12px;
+  --ttm-shadow-card: 0 1px 3px rgba(15, 23, 42, 0.08);
+  --ttm-shadow-popover: 0 12px 30px rgba(15, 23, 42, 0.18);
+
+  /* Typography */
+  --ttm-font: "Segoe UI", Arial, system-ui, -apple-system, sans-serif;
+  --ttm-font-size-xs: 10.5px;
+  --ttm-font-size-sm: 12px;
+  --ttm-font-size-md: 13px;
+  --ttm-font-size-base: 14px;
+  --ttm-font-size-lg: 18px;
+
+  /* Table */
+  --ttm-table-min-width: 1500px;
+  --ttm-table-row-height: 42px;
+  --ttm-stage-cell-width: 118px;
+}
+
+
+
+/* TTM Epic Management — Layout
+   Adapted for embedding inside the app's own AppShell chrome (sidebar/header already
+   provided elsewhere), so .ttm-shell/.ttm-topbar/.ttm-footer from the standalone demo
+   are intentionally unused here — only the page content classes below are wired up. */
+.ttm-app, .ttm-app * { box-sizing: border-box; }
+.ttm-app {
+  font-family: var(--ttm-font);
+  color: var(--ttm-text);
+}
+.ttm-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.ttm-topbar {
+  background: var(--ttm-brand-800);
+  color: var(--ttm-white);
+  padding: 14px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.ttm-brand {
+  font-weight: 700;
+  font-size: var(--ttm-font-size-lg);
+  letter-spacing: .01em;
+}
+.ttm-user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--ttm-font-size-md);
+}
+.ttm-role-badge {
+  background: #3d5a99;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: var(--ttm-font-size-sm);
+  font-weight: 600;
+}
+.ttm-main {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 20px 24px;
+}
+.ttm-page-title {
+  margin: 0 0 6px 0;
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+.ttm-page-subtitle {
+  margin: 0 0 16px 0;
+  color: var(--ttm-muted);
+  font-size: var(--ttm-font-size-md);
+}
+.ttm-footer {
+  text-align: center;
+  padding: 20px;
+  font-size: var(--ttm-font-size-sm);
+  color: var(--ttm-muted);
+}
+
+
+
+/* TTM Epic Management — Generic Components */
+.ttm-note {
+  background: #fff8e1;
+  border: 1px solid #f0d98a;
+  color: #8a6d1a;
+  padding: 8px 12px;
+  border-radius: var(--ttm-radius-sm);
+  font-size: var(--ttm-font-size-sm);
+  margin-bottom: 14px;
+}
+.ttm-card {
+  background: var(--ttm-card);
+  border: 1px solid var(--ttm-border);
+  border-radius: var(--ttm-radius-md);
+  box-shadow: var(--ttm-shadow-card);
+}
+.ttm-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.ttm-toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.ttm-field,
+.ttm-select,
+.ttm-button {
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--ttm-border);
+  border-radius: var(--ttm-radius-sm);
+  background: var(--ttm-white);
+  color: var(--ttm-text);
+  font-size: var(--ttm-font-size-md);
+  font-family: var(--ttm-font);
+}
+.ttm-select { cursor: pointer; }
+.ttm-field:focus,
+.ttm-select:focus,
+.ttm-button:focus {
+  outline: 2px solid var(--ttm-brand-100);
+  border-color: var(--ttm-brand-600);
+}
+.ttm-button { cursor: pointer; font-weight: 600; }
+.ttm-button.primary {
+  background: var(--ttm-brand-600);
+  color: var(--ttm-white);
+  border-color: var(--ttm-brand-600);
+}
+.ttm-button.ghost { background: transparent; }
+.ttm-button[disabled],
+.ttm-button.disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+.ttm-report-date {
+  font-size: var(--ttm-font-size-md);
+  color: var(--ttm-muted);
+  margin-left: auto;
+}
+.ttm-report-date b { color: var(--ttm-text); }
+.ttm-legend {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  font-size: var(--ttm-font-size-sm);
+  color: var(--ttm-muted);
+}
+.ttm-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.ttm-legend-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.ttm-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+.ttm-badge.on-track { background: var(--ttm-success-700); color: var(--ttm-white); }
+.ttm-badge.at-risk { background: var(--ttm-warning-500); color: #4a3900; }
+.ttm-badge.delayed { background: var(--ttm-danger-700); color: var(--ttm-white); }
+.ttm-badge.ahead { background: var(--ttm-info-700); color: var(--ttm-white); }
+.ttm-badge.early-warning { background: var(--ttm-warning-100); color: var(--ttm-warning-700); border: 1px solid #f5d46b; }
+.ttm-badge.late-warning { background: #fdf0e6; color: var(--ttm-danger-600); border: 1px solid #f5c2a7; }
+.ttm-badge.fail { background: var(--ttm-danger-700); color: var(--ttm-white); }
+.ttm-missing-tag {
+  display: inline-block;
+  background: #f8c9c9;
+  color: var(--ttm-danger-700);
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin: 1px 2px 1px 0;
+  font-weight: 700;
+}
+
+
+
+/* TTM Epic Management — Epic Table Components
+   The table shell itself (wrap/header/hover/border) now comes from the app-wide
+   .ui-table system in globals.css via the shared Table/TH/TD components — this page
+   is the design reference for that shared style, so only page-specific cell content
+   (epic key, badges, stage pills, missing tags, row highlights) stays scoped here. */
+.ttm-epic-key {
+  font-weight: 800;
+  color: var(--ttm-brand-600);
+  text-decoration: none;
+}
+.ttm-epic-key:hover { text-decoration: underline; }
+.ttm-project-tag {
+  display: block;
+  font-size: 11px;
+  color: var(--ttm-muted);
+  font-weight: 400;
+  margin-top: 2px;
+}
+.ttm-source-tag {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--ttm-neutral-100);
+  color: var(--ttm-muted);
+  margin-left: 4px;
+}
+.ttm-metric { font-weight: 700; }
+.ttm-metric.na {
+  color: var(--ttm-muted);
+  font-weight: 400;
+  font-style: italic;
+  font-size: 11px;
+}
+.ttm-stage-plan { font-size: 11px; color: var(--ttm-muted); }
+.ttm-stage-pill {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 2px 7px;
+  border-radius: 8px;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+.ttm-stage-pill.done { background: var(--ttm-success-100); color: var(--ttm-success-700); }
+.ttm-stage-pill.overdue { background: var(--ttm-d0); color: var(--ttm-white); }
+.ttm-stage-pill.d1 { background: var(--ttm-d1); color: var(--ttm-white); }
+.ttm-stage-pill.d2 { background: var(--ttm-d2); color: #4a3900; }
+.ttm-stage-pill.d3 { background: var(--ttm-d3); color: #4a3900; }
+.ttm-stage-pill.upcoming { background: var(--ttm-neutral-100); color: var(--ttm-muted); font-weight: 600; }
+.ttm-stage-pill.unknown { background: #f8c9c9; color: var(--ttm-danger-700); }
+.ttm-app td.hl-overdue { background: var(--ttm-danger-100); }
+.ttm-app td.hl-d1 { background: #fdf0e6; }
+.ttm-app td.hl-d2 { background: var(--ttm-warning-050); }
+.ttm-app td.hl-d3 { background: #fffde7; }
+.ttm-app tr.missing-row td { background: var(--ttm-danger-100); }
+.ttm-app tr.disabled-row td { color: var(--ttm-muted); background: #fbfcfe; }
+.ttm-empty-warning { color: var(--ttm-muted); font-size: 11px; }
+
+
+
+/* TTM Epic Management — Responsive rules */
+@media (max-width: 1024px) {
+  .ttm-main { padding: 16px; }
+  .ttm-report-date { width: 100%; margin-left: 0; }
+  .ttm-toolbar { align-items: stretch; }
+  .ttm-toolbar-group { width: 100%; }
+  .ttm-field, .ttm-select, .ttm-button { width: 100%; }
+}
+@media (max-width: 640px) {
+  .ttm-topbar { padding: 12px 16px; }
+  .ttm-brand { font-size: 16px; }
+  .ttm-user-chip { font-size: 12px; }
+  .ttm-page-title { font-size: 20px; }
+  .ttm-note { font-size: 11.5px; }
+}

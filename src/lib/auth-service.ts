@@ -3,6 +3,7 @@ import { createHash, randomBytes } from 'crypto';
 import bcrypt from 'bcryptjs';
 import { cookies } from 'next/headers';
 import type { NextRequest } from 'next/server';
+import type { PoolClient } from 'pg';
 import pool, { getClient } from '@/lib/db';
 import type { AuthUser, ManagedUser, UserInput, UserRole } from '@/lib/auth-types';
 import { SESSION_COOKIE_NAME } from '@/lib/auth-constants';
@@ -81,6 +82,7 @@ export class AuthError extends Error {
 export class ApprovalError extends Error {
   constructor(public readonly stage: 'ASSIGN_DOMAIN' | 'COMPLETE') {
     super('APPROVAL_FAILED');
+    this.name = 'ApprovalError';
   }
 }
 
@@ -99,41 +101,57 @@ export async function listManagedUsers(): Promise<ManagedUser[]> {
   return result.rows;
 }
 
-async function replacePermissions(userId: number, input: UserInput): Promise<void> {
-  const client = await getClient();
-  try {
-    await client.query('BEGIN');
-    await client.query('DELETE FROM user_domains WHERE user_id = $1;', [userId]);
-    await client.query('DELETE FROM user_projects WHERE user_id = $1;', [userId]);
-    for (const domainId of input.domainIds) await client.query('INSERT INTO user_domains (user_id, domain_id) VALUES ($1, $2);', [userId, domainId]);
-    for (const projectId of input.projectIds) await client.query('INSERT INTO user_projects (user_id, project_id) VALUES ($1, $2);', [userId, projectId]);
-    await client.query('COMMIT');
-  } catch (error: unknown) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+async function replacePermissions(client: PoolClient, userId: number, input: UserInput): Promise<void> {
+  const user = await client.query<{ fullName: string }>('SELECT full_name AS "fullName" FROM users WHERE id = $1 FOR UPDATE', [userId]);
+  if (user.rowCount !== 1) throw new Error('USER_NOT_FOUND');
+  const existingProjectRows = await client.query<{ projectId: number }>('SELECT project_id AS "projectId" FROM user_projects WHERE user_id = $1', [userId]);
+  const existingProjectIds = existingProjectRows.rows.map((project) => project.projectId);
+  const removedProjectIds = existingProjectIds.filter((projectId) => !input.projectIds.includes(projectId));
+  await client.query('DELETE FROM user_domains WHERE user_id = $1;', [userId]);
+  await client.query('DELETE FROM user_projects WHERE user_id = $1;', [userId]);
+  for (const domainId of input.domainIds) await client.query('INSERT INTO user_domains (user_id, domain_id) VALUES ($1, $2);', [userId, domainId]);
+  if (removedProjectIds.length > 0) await client.query('UPDATE projects SET lead_name = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ANY($1::int[]) AND lead_name = $2', [removedProjectIds, user.rows[0].fullName]);
+  if (input.projectIds.length > 0) await client.query('DELETE FROM user_projects WHERE project_id = ANY($1::int[]) AND user_id <> $2', [input.projectIds, userId]);
+  for (const projectId of input.projectIds) await client.query('INSERT INTO user_projects (user_id, project_id) VALUES ($1, $2);', [userId, projectId]);
+  if (input.projectIds.length > 0) await client.query('UPDATE projects SET lead_name = $2, updated_at = CURRENT_TIMESTAMP WHERE id = ANY($1::int[])', [input.projectIds, user.rows[0].fullName]);
 }
 
 export async function createManagedUser(input: UserInput): Promise<ManagedUser> {
   const passwordHash = await bcrypt.hash(input.password!, PASSWORD_HASH_ROUNDS);
-  const result = await pool.query<{ id: number }>(`
-    INSERT INTO users (email, full_name, password_hash, role, is_active)
-    VALUES ($1, $2, $3, $4, $5)
-    RETURNING id;
-  `, [input.email, input.fullName, passwordHash, input.role, input.isActive]);
-  await replacePermissions(result.rows[0].id, input);
-  return (await listManagedUsers()).find((user) => user.id === result.rows[0].id)!;
+  const client = await getClient();
+  let userId = 0;
+  try {
+    await client.query('BEGIN');
+    const result = await client.query<{ id: number }>(`
+      INSERT INTO users (email, full_name, password_hash, role, is_active)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id;
+    `, [input.email, input.fullName, passwordHash, input.role, input.isActive]);
+    userId = result.rows[0].id;
+    await replacePermissions(client, userId, input);
+    await client.query('COMMIT');
+  } catch (error: unknown) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally { client.release(); }
+  return (await listManagedUsers()).find((user) => user.id === userId)!;
 }
 
 export async function updateManagedUser(id: number, input: UserInput): Promise<ManagedUser | null> {
-  const result = await pool.query<{ id: number }>(`
-    UPDATE users SET email = $2, full_name = $3, role = $4, is_active = $5, updated_at = CURRENT_TIMESTAMP
-    WHERE id = $1 RETURNING id;
-  `, [id, input.email, input.fullName, input.role, input.isActive]);
-  if (!result.rows[0]) return null;
-  await replacePermissions(id, input);
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query<{ id: number }>(`
+      UPDATE users SET email = $2, full_name = $3, role = $4, is_active = $5, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1 RETURNING id;
+    `, [id, input.email, input.fullName, input.role, input.isActive]);
+    if (!result.rows[0]) { await client.query('ROLLBACK'); return null; }
+    await replacePermissions(client, id, input);
+    await client.query('COMMIT');
+  } catch (error: unknown) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally { client.release(); }
   return (await listManagedUsers()).find((user) => user.id === id) ?? null;
 }
 
@@ -192,7 +210,7 @@ export async function approveInactiveUsers(ids: number[], domainId?: number): Pr
       if (!domainId) throw new Error('DOMAIN_REQUIRED');
       const domain = await client.query('SELECT id FROM domains WHERE id = $1 AND is_active = TRUE', [domainId]);
       if (domain.rowCount !== 1) throw new Error('INVALID_DOMAIN');
-      for (const userId of missingDomainIds) await client.query('INSERT INTO user_domains (user_id, domain_id) VALUES ($1, $2)', [userId, domainId]);
+      await client.query('INSERT INTO user_domains (user_id, domain_id) SELECT selected.id, $2 FROM unnest($1::int[]) AS selected(id) ON CONFLICT DO NOTHING', [missingDomainIds, domainId]);
     }
     stage = 'COMPLETE';
     await client.query('UPDATE users SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = ANY($1::int[]) AND is_active = FALSE', [ids]);

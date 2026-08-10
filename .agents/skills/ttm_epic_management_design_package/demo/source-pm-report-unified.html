@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>TTM Tool — Báo cáo tổng hợp PM (Demo)</title>
+<style>
+  :root {
+    --on-track: #2e7d32;
+    --at-risk: #f9a825;
+    --delayed: #c62828;
+    --ahead: #1565c0;
+    --d0: #b71c1c;
+    --d1: #d84315;
+    --d2: #f9a825;
+    --d3: #fbc02d;
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --border: #e0e3e8;
+    --text: #1f2430;
+    --muted: #6b7280;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; background: var(--bg); color: var(--text); }
+  header {
+    background: #1a2b4c; color: white; padding: 14px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  header .brand { font-weight: 600; font-size: 18px; }
+  .role-badge { background: #3d5a99; padding: 3px 10px; border-radius: 12px; font-size: 12px; margin-left: 8px; }
+  main { padding: 20px 24px; max-width: 1600px; margin: 0 auto; }
+  .note { background: #fff8e1; border: 1px solid #f0d98a; color: #8a6d1a; padding: 8px 12px; border-radius: 6px; font-size: 12px; margin-bottom: 14px; }
+
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+  .toolbar select, .toolbar button { padding: 7px 12px; border: 1px solid var(--border); border-radius: 6px; background: white; font-size: 13px; }
+  .toolbar button.primary { background: #2f5bd6; color: white; border: none; cursor: pointer; }
+  .report-date { font-size: 13px; color: var(--muted); margin-left: auto; }
+  .report-date b { color: var(--text); }
+
+  .legend { display: flex; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 3px; }
+
+  .table-wrap { background: var(--card); border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 1500px; }
+  th, td { padding: 8px 10px; text-align: left; font-size: 12.5px; border-bottom: 1px solid var(--border); vertical-align: top; white-space: nowrap; }
+  th { background: #f0f2f6; font-weight: 600; color: var(--muted); text-transform: uppercase; font-size: 10.5px; letter-spacing: .02em; position: sticky; top: 0; }
+  tbody tr:hover td { background: #fafbfd; }
+
+  .epic-key { font-weight: 700; color: #2f5bd6; }
+  .proj-tag { display: block; font-size: 11px; color: var(--muted); font-weight: 400; margin-top: 1px; }
+  .source-tag { font-size: 10px; padding: 1px 5px; border-radius: 4px; background: #eef1f7; color: var(--muted); margin-left: 4px; }
+
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; color: white; white-space: nowrap; }
+  .badge.ON_TRACK { background: var(--on-track); }
+  .badge.AT_RISK { background: var(--at-risk); }
+  .badge.DELAYED { background: var(--delayed); }
+  .badge.AHEAD { background: var(--ahead); }
+
+  .metric { font-weight: 600; }
+  .metric.na { color: var(--muted); font-weight: 400; font-style: italic; font-size: 11px; }
+
+  /* Stage cell: shows plan date + status pill, colored by urgency */
+  .stage-cell { min-width: 118px; }
+  .stage-plan { font-size: 11px; color: var(--muted); }
+  .stage-pill { display: inline-block; margin-top: 3px; padding: 2px 7px; border-radius: 8px; font-size: 10.5px; font-weight: 700; }
+  .stage-pill.done { background: #e6f4ea; color: var(--on-track); }
+  .stage-pill.overdue { background: var(--d0); color: white; }
+  .stage-pill.d1 { background: var(--d1); color: white; }
+  .stage-pill.d2 { background: var(--d2); color: #4a3900; }
+  .stage-pill.d3 { background: var(--d3); color: #4a3900; }
+  .stage-pill.upcoming { background: #eef1f7; color: var(--muted); font-weight: 500; }
+
+  td.hl-overdue { background: #fdeaea; }
+  td.hl-d1 { background: #fdf0e6; }
+  td.hl-d2 { background: #fff8e1; }
+  td.hl-d3 { background: #fffde7; }
+
+  .missing-row td { background: #fdeaea; }
+  .missing-tag { display: inline-block; background: #f8c9c9; color: var(--delayed); font-size: 10.5px; padding: 1px 6px; border-radius: 4px; margin: 1px 2px 1px 0; }
+
+  footer { text-align: center; padding: 20px; font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">TTM Tracking Tool</div>
+  <div class="user">Nguyễn Văn A <span class="role-badge">PM</span></div>
+</header>
+
+<main>
+  <div class="note">🖼️ Demo tĩnh — dữ liệu minh hoạ. Một bảng báo cáo duy nhất: thông tin TTM tổng quan + lịch dự kiến 6 giai đoạn + highlight ngày còn lại/quá hạn ngay trên mốc đang chạy.</div>
+
+  <div class="toolbar">
+    <select><option>Tất cả dự án của tôi</option><option>HCM-CORE</option><option>DIGITAL-BANKING</option></select>
+    <select><option>Tất cả Warning_Status</option><option>DELAYED</option><option>AT_RISK</option><option>ON_TRACK</option></select>
+    <select><option>Ngưỡng highlight: ≤ 3 ngày</option><option>≤ 2 ngày</option><option>≤ 1 ngày</option></select>
+    <button class="primary">🔄 Đồng bộ Jira ngay</button>
+    <div class="report-date">Ngày báo cáo: <b>10/08/2026</b></div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="legend-dot" style="background:var(--d0)"></span>Quá hạn</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--d1)"></span>Còn 1 ngày</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--d2)"></span>Còn 2 ngày</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--d3)"></span>Còn 3 ngày</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#e6f4ea;border:1px solid #cfe8d6"></span>Đã hoàn thành</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#eef1f7;border:1px solid var(--border)"></span>Chưa tới</div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Epic</th>
+          <th>Loại YC</th>
+          <th>TTM_Main</th>
+          <th>TTM_Shared_PO</th>
+          <th>Warning</th>
+          <th class="stage-cell">BA</th>
+          <th class="stage-cell">Dev</th>
+          <th class="stage-cell">SIT&amp;UAT</th>
+          <th class="stage-cell">Pentest</th>
+          <th class="stage-cell">R4G</th>
+          <th class="stage-cell">Release</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Epic 1: đang chậm, SIT&UAT quá hạn -->
+        <tr>
+          <td>
+            <span class="epic-key">HCM-4790</span><span class="source-tag">Jira</span>
+            <span class="proj-tag">DIGITAL-BANKING · Start 01/07</span>
+          </td>
+          <td>Mới</td>
+          <td class="metric">61 ngày <span style="font-size:10px;color:var(--muted)">(đang chạy)</span></td>
+          <td class="metric na">không có (thiếu Due_Date)</td>
+          <td><span class="badge DELAYED">● DELAYED</span></td>
+          <td class="stage-cell"><div class="stage-plan">19/07</div><span class="stage-pill done">✓ 18/07</span></td>
+          <td class="stage-cell"><div class="stage-plan">15/08</div><span class="stage-pill done">✓ trễ 7 ngày</span></td>
+          <td class="stage-cell hl-overdue"><div class="stage-plan">04/08</div><span class="stage-pill overdue">Quá hạn 6 ngày</span></td>
+          <td class="stage-cell"><div class="stage-plan">20/09</div><span class="stage-pill upcoming">Chưa tới</span></td>
+          <td class="stage-cell"><div class="stage-plan">25/09</div><span class="stage-pill upcoming">Chưa tới</span></td>
+          <td class="stage-cell"><div class="stage-plan">29/09</div><span class="stage-pill upcoming">Chưa tới</span></td>
+        </tr>
+
+        <!-- Epic 2: ON_TRACK, SIT&UAT còn 1 ngày -->
+        <tr>
+          <td>
+            <span class="epic-key">HCM-4821</span><span class="source-tag">Jira</span>
+            <span class="proj-tag">HCM-CORE · Start 10/07</span>
+          </td>
+          <td>Cải tiến</td>
+          <td class="metric">42 ngày</td>
+          <td class="metric">50 ngày</td>
+          <td><span class="badge ON_TRACK">● ON_TRACK</span></td>
+          <td class="stage-cell"><div class="stage-plan">22/07</div><span class="stage-pill done">✓ 21/07</span></td>
+          <td class="stage-cell"><div class="stage-plan">10/08</div><span class="stage-pill done">✓ 09/08</span></td>
+          <td class="stage-cell hl-d1"><div class="stage-plan">11/08</div><span class="stage-pill d1">Còn 1 ngày</span></td>
+          <td class="stage-cell"><div class="stage-plan">04/09</div><span class="stage-pill upcoming">Chưa tới</span></td>
+          <td class="stage-cell hl-d3"><div class="stage-plan">13/08</div><span class="stage-pill d3">Còn 3 ngày</span></td>
+          <td class="stage-cell"><div class="stage-plan">08/09</div><span class="stage-pill upcoming">Chưa tới</span></td>
+        </tr>
+
+        <!-- Epic 3: AHEAD, Pentest còn 2 ngày -->
+        <tr>
+          <td>
+            <span class="epic-key">DGB-1102</span><span class="source-tag">Jira</span>
+            <span class="proj-tag">DIGITAL-BANKING · Start 15/07</span>
+          </td>
+          <td>Cải tiến</td>
+          <td class="metric">33 ngày <span style="font-size:10px;color:var(--muted)">(đang chạy)</span></td>
+          <td class="metric">40 ngày</td>
+          <td><span class="badge AHEAD">● SỚM 4 NGÀY</span></td>
+          <td class="stage-cell"><div class="stage-plan">24/07</div><span class="stage-pill done">✓ sớm 4 ngày</span></td>
+          <td class="stage-cell"><div class="stage-plan">05/08</div><span class="stage-pill done">✓ sớm 4 ngày</span></td>
+          <td class="stage-cell"><div class="stage-plan">18/08</div><span class="stage-pill done">✓ sớm 4 ngày</span></td>
+          <td class="stage-cell hl-d2"><div class="stage-plan">12/08</div><span class="stage-pill d2">Còn 2 ngày</span></td>
+          <td class="stage-cell"><div class="stage-plan">26/08</div><span class="stage-pill upcoming">Chưa tới</span></td>
+          <td class="stage-cell"><div class="stage-plan">29/08</div><span class="stage-pill upcoming">Chưa tới</span></td>
+        </tr>
+
+        <!-- Epic 4: AT_RISK, BA còn 2 ngày -->
+        <tr>
+          <td>
+            <span class="epic-key">HCM-4705</span><span class="source-tag">Import</span>
+            <span class="proj-tag">HCM-CORE · Start 05/08</span>
+          </td>
+          <td>Mới</td>
+          <td class="metric">88 ngày</td>
+          <td class="metric">90 ngày</td>
+          <td><span class="badge AT_RISK">● AT_RISK</span></td>
+          <td class="stage-cell hl-d2"><div class="stage-plan">12/08</div><span class="stage-pill d2">Còn 2 ngày</span></td>
+          <td class="stage-cell"><div class="stage-plan">03/09</div><span class="stage-pill upcoming">Chưa tới</span></td>
+          <td class="stage-cell"><div class="stage-plan">28/09</div><span class="stage-pill upcoming">Chưa tới</span></td>
+          <td class="stage-cell"><div class="stage-plan">08/10</div><span class="stage-pill upcoming">Chưa tới</span></td>
+          <td class="stage-cell"><div class="stage-plan">13/10</div><span class="stage-pill upcoming">Chưa tới</span></td>
+          <td class="stage-cell"><div class="stage-plan">17/10</div><span class="stage-pill upcoming">Chưa tới</span></td>
+        </tr>
+
+        <!-- Missing data row -->
+        <tr class="missing-row">
+          <td>
+            <span class="epic-key">HCM-4650</span><span class="source-tag">Jira</span>
+            <span class="proj-tag">HCM-CORE</span>
+          </td>
+          <td>Cải tiến</td>
+          <td class="metric na">không có (thiếu Start_Date)</td>
+          <td class="metric">33 ngày</td>
+          <td><span class="missing-tag">Thiếu Start_Date</span></td>
+          <td colspan="6" style="color:var(--muted);font-style:italic;">Chưa thể tính lịch dự kiến do thiếu dữ liệu bắt buộc — cần bổ sung trên Jira hoặc qua Import.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</main>
+
+<footer>TTM Tracking Tool — Demo giao diện, dữ liệu minh hoạ</footer>
+
+</body>
+</html>

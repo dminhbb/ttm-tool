@@ -1,4 +1,5 @@
-import pool from '@/lib/db';
+import type { PoolClient } from 'pg';
+import pool, { getClient } from '@/lib/db';
 import { expandHolidayRanges } from '@/lib/working-days';
 import type { HolidaySet } from '@/lib/working-days';
 import type {
@@ -69,22 +70,49 @@ export async function listProjects(): Promise<Project[]> {
 }
 
 export async function createProject(input: ProjectInput): Promise<Project> {
-  const result = await pool.query<{ id: number }>(`
-    INSERT INTO projects (project_key, project_name, domain_id, source_project_key, source_type, project_category, ttm, lead_name, is_active)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    RETURNING id;
-  `, [input.projectKey, input.projectName, input.domainId, input.sourceProjectKey, input.sourceType, input.projectCategory, input.ttm, input.leadName || null, input.isActive]);
-  return getProjectById(result.rows[0].id);
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query<{ id: number }>(`
+      INSERT INTO projects (project_key, project_name, domain_id, source_project_key, source_type, project_category, ttm, lead_name, is_active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id;
+    `, [input.projectKey, input.projectName, input.domainId, input.sourceProjectKey, input.sourceType, input.projectCategory, input.ttm, input.leadName || null, input.isActive]);
+    await syncProjectLeadAssignment(client, result.rows[0].id, input.leadName);
+    await client.query('COMMIT');
+    return getProjectById(result.rows[0].id);
+  } catch (error: unknown) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally { client.release(); }
 }
 
 export async function updateProject(id: number, input: ProjectInput): Promise<Project> {
-  await pool.query(`
-    UPDATE projects SET
-      project_key = $2, project_name = $3, domain_id = $4, source_project_key = $5,
-      source_type = $6, project_category = $7, ttm = $8, lead_name = $9, is_active = $10, updated_at = CURRENT_TIMESTAMP
-    WHERE id = $1;
-  `, [id, input.projectKey, input.projectName, input.domainId, input.sourceProjectKey, input.sourceType, input.projectCategory, input.ttm, input.leadName || null, input.isActive]);
-  return getProjectById(id);
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+    await client.query(`
+      UPDATE projects SET
+        project_key = $2, project_name = $3, domain_id = $4, source_project_key = $5,
+        source_type = $6, project_category = $7, ttm = $8, lead_name = $9, is_active = $10, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1;
+    `, [id, input.projectKey, input.projectName, input.domainId, input.sourceProjectKey, input.sourceType, input.projectCategory, input.ttm, input.leadName || null, input.isActive]);
+    await syncProjectLeadAssignment(client, id, input.leadName);
+    await client.query('COMMIT');
+    return getProjectById(id);
+  } catch (error: unknown) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally { client.release(); }
+}
+
+async function syncProjectLeadAssignment(client: PoolClient, projectId: number, leadName: string): Promise<void> {
+  await client.query('DELETE FROM user_projects WHERE project_id = $1', [projectId]);
+  if (!leadName) return;
+  const user = await client.query<{ fullName: string; id: number }>('SELECT id, full_name AS "fullName" FROM users WHERE (full_name = $1 OR email = $1) AND is_active = TRUE', [leadName]);
+  if (user.rowCount !== 1) throw new Error('INVALID_PROJECT_LEAD');
+  await client.query('UPDATE projects SET lead_name = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [projectId, user.rows[0].fullName]);
+  await client.query('INSERT INTO user_projects (user_id, project_id) VALUES ($1, $2)', [user.rows[0].id, projectId]);
 }
 
 async function getProjectById(id: number): Promise<Project> {

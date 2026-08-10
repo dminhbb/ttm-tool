@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TTM Epic Management — PM-SM Demo</title>
+<link rel="stylesheet" href="../css/ttm-epic-management.css" />
+</head>
+<body class="ttm-app">
+<div class="ttm-shell">
+  <header class="ttm-topbar">
+    <div class="ttm-brand">TTM Tracking Tool</div>
+    <div class="ttm-user-chip">Nguyễn Văn A <span class="ttm-role-badge">PM-SM</span></div>
+  </header>
+
+  <main class="ttm-main">
+    <h1 class="ttm-page-title">Quản lý Epic của tôi</h1>
+    <p class="ttm-page-subtitle">Màn hình read-only cho PM-SM theo các dự án được phân quyền.</p>
+
+    <div class="ttm-note">Dữ liệu hiển thị là snapshot tích lũy theo ngày. Người dùng PM-SM chỉ xem dữ liệu trong phạm vi dự án được phân quyền.</div>
+
+    <section class="ttm-toolbar" aria-label="Bộ lọc Epic">
+      <div class="ttm-toolbar-group">
+        <input class="ttm-field" type="date" aria-label="From date" value="2026-08-01" />
+        <input class="ttm-field" type="date" aria-label="To date" value="2026-08-10" />
+      </div>
+      <select class="ttm-select" aria-label="Dự án"><option>Tất cả dự án của tôi</option><option>HCM-CORE</option><option>DIGITAL-BANKING</option></select>
+      <select class="ttm-select" aria-label="Cảnh báo"><option>Tất cả cảnh báo</option><option>Cảnh báo sớm</option><option>Cảnh báo muộn</option><option>Fail TTM-CNTT</option></select>
+      <select class="ttm-select" aria-label="Ngưỡng highlight"><option>Ngưỡng highlight: ≤ 3 ngày</option><option>≤ 2 ngày</option><option>≤ 1 ngày</option></select>
+      <button class="ttm-button disabled" disabled>Đồng bộ dữ liệu</button>
+      <div class="ttm-report-date">Ngày báo cáo: <b>10/08/2026</b></div>
+    </section>
+
+    <section class="ttm-legend" aria-label="Chú thích màu">
+      <span class="ttm-legend-item"><i class="ttm-legend-dot" style="background:var(--ttm-d0)"></i>Quá hạn</span>
+      <span class="ttm-legend-item"><i class="ttm-legend-dot" style="background:var(--ttm-d1)"></i>Còn 1 ngày</span>
+      <span class="ttm-legend-item"><i class="ttm-legend-dot" style="background:var(--ttm-d2)"></i>Còn 2 ngày</span>
+      <span class="ttm-legend-item"><i class="ttm-legend-dot" style="background:var(--ttm-d3)"></i>Còn 3 ngày</span>
+      <span class="ttm-legend-item"><i class="ttm-legend-dot" style="background:var(--ttm-success-100);border:1px solid #cfe8d6"></i>Đã hoàn thành</span>
+      <span class="ttm-legend-item"><i class="ttm-legend-dot" style="background:var(--ttm-neutral-100);border:1px solid var(--ttm-border)"></i>Chưa tới</span>
+    </section>
+
+    <div class="ttm-table-wrap">
+      <table class="ttm-table">
+        <thead>
+          <tr>
+            <th class="col-epic">Epic</th>
+            <th>Loại Epic</th>
+            <th>T0</th>
+            <th>T1</th>
+            <th>TTM-CNTT</th>
+            <th>TTM-E2E</th>
+            <th class="col-warning">Cảnh báo</th>
+            <th class="col-stage">Design</th>
+            <th class="col-stage">In Progress</th>
+            <th class="col-stage">R4G</th>
+            <th class="col-stage">Release</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><a class="ttm-epic-key" href="#">HCM-4790</a><span class="ttm-source-tag">CSV</span><span class="ttm-project-tag">DIGITAL-BANKING · Owner: Nguyễn Văn A</span></td>
+            <td>Epic phức tạp</td>
+            <td>24/06/2026</td>
+            <td>01/07/2026</td>
+            <td class="ttm-metric">28/30 ngày làm việc</td>
+            <td class="ttm-metric">42/50 ngày làm việc</td>
+            <td><span class="ttm-badge late-warning">Cảnh báo muộn</span></td>
+            <td><div class="ttm-stage-plan">Mốc muộn: T1+6</div><span class="ttm-stage-pill done">✓ 08/07</span></td>
+            <td class="hl-d2"><div class="ttm-stage-plan">Mốc muộn: T1+20</div><span class="ttm-stage-pill d2">Còn 2 ngày</span></td>
+            <td><div class="ttm-stage-plan">Target: T1+30</div><span class="ttm-stage-pill upcoming">Chưa tới</span></td>
+            <td><span class="ttm-stage-pill upcoming">Chưa tới</span></td>
+          </tr>
+          <tr>
+            <td><a class="ttm-epic-key" href="#">HCM-4821</a><span class="ttm-source-tag">CSV</span><span class="ttm-project-tag">HCM-CORE · Owner: Trần Thị B</span></td>
+            <td>Epic đơn giản</td>
+            <td>04/07/2026</td>
+            <td>10/07/2026</td>
+            <td class="ttm-metric">12/15 ngày làm việc</td>
+            <td class="ttm-metric">21/30 ngày làm việc</td>
+            <td><span class="ttm-badge early-warning">Cảnh báo sớm</span></td>
+            <td><div class="ttm-stage-plan">Mốc sớm: T1+2</div><span class="ttm-stage-pill done">✓ 14/07</span></td>
+            <td class="hl-d1"><div class="ttm-stage-plan">Mốc sớm: T1+12</div><span class="ttm-stage-pill d1">Còn 1 ngày</span></td>
+            <td><div class="ttm-stage-plan">Target: T1+15</div><span class="ttm-stage-pill upcoming">Chưa tới</span></td>
+            <td><span class="ttm-stage-pill upcoming">Chưa tới</span></td>
+          </tr>
+          <tr class="missing-row">
+            <td><a class="ttm-epic-key" href="#">HCM-4650</a><span class="ttm-source-tag">CSV</span><span class="ttm-project-tag">HCM-CORE</span></td>
+            <td>Epic đơn giản</td>
+            <td>12/07/2026</td>
+            <td><span class="ttm-metric na">Không có</span></td>
+            <td class="ttm-metric na">Không tính được</td>
+            <td class="ttm-metric">14/30 ngày làm việc</td>
+            <td><span class="ttm-missing-tag">Thiếu Start Date</span></td>
+            <td colspan="4" class="ttm-metric na">Chưa thể tính lịch TTM-CNTT do thiếu dữ liệu bắt buộc.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <footer class="ttm-footer">TTM Tracking Tool — Epic Management Demo</footer>
+</div>
+</body>
+</html>

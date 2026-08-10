@@ -15,7 +15,7 @@ function isProjectInput(value: unknown): value is ProjectInput { if (typeof valu
 function normalizeHeader(value: string): string { return value.trim().toLocaleLowerCase('vi-VN').replace(/\s+/g, ' '); }
 function validCategory(value: string): ProjectCategory | null { return PROJECT_CATEGORIES.includes(value as ProjectCategory) ? value as ProjectCategory : null; }
 function validateProjectInput(input: ProjectInput): string | null { if (!input.projectKey.trim() || !input.projectName.trim() || !input.sourceProjectKey.trim()) return 'Mã hiển thị, Tên dự án và Source Project Key (Jira) là bắt buộc.'; if (input.projectKey.trim().length > 50 || input.projectName.trim().length > 255 || input.sourceProjectKey.trim().length > 50 || input.leadName.trim().length > 255) return 'Thông tin dự án vượt quá độ dài cho phép.'; return null; }
-async function assertActiveUserName(name: string): Promise<boolean> { const client = await getClient(); try { const result = await client.query('SELECT id FROM users WHERE full_name = $1 AND is_active = TRUE', [name]); return result.rowCount === 1; } finally { client.release(); } }
+async function assertActiveUserName(name: string): Promise<boolean> { const client = await getClient(); try { const result = await client.query('SELECT id FROM users WHERE (full_name = $1 OR email = $1) AND is_active = TRUE', [name]); return result.rowCount === 1; } finally { client.release(); } }
 
 export async function GET(request: NextRequest) { try { await requireUser(request, ['SUPERADMIN']); return NextResponse.json(await listProjects()); } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể tải danh sách dự án.' }, { status: 500 }); } }
 export async function POST(request: NextRequest) { try { await requireUser(request, ['SUPERADMIN']); const input: unknown = await request.json(); if (!isProjectInput(input)) return NextResponse.json({ error: 'Dữ liệu dự án không hợp lệ.' }, { status: 400 }); const error = validateProjectInput(input); if (error) return NextResponse.json({ error }, { status: 400 }); if (input.leadName && !await assertActiveUserName(input.leadName.trim())) return NextResponse.json({ error: 'PM/SM phải thuộc danh sách user đang active.' }, { status: 400 }); return NextResponse.json(await createProject({ ...input, projectKey: input.projectKey.trim(), projectName: input.projectName.trim(), sourceProjectKey: input.sourceProjectKey.trim(), leadName: input.leadName.trim() }), { status: 201 }); } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể tạo dự án.' }, { status: 500 }); } }
@@ -46,12 +46,18 @@ export async function PATCH(request: NextRequest) {
     try {
       await client.query('BEGIN');
       const leadInputs = Array.from(new Set(projects.map((project) => project.leadName).filter(Boolean)));
-      const users = await client.query<{ email: string; fullName: string }>('SELECT email, full_name AS "fullName" FROM users WHERE is_active = TRUE AND (full_name = ANY($1::text[]) OR email = ANY($1::text[]))', [leadInputs]);
+      const users = await client.query<{ email: string; fullName: string; id: number }>('SELECT id, email, full_name AS "fullName" FROM users WHERE is_active = TRUE AND (full_name = ANY($1::text[]) OR email = ANY($1::text[]))', [leadInputs]);
       const nameByInput = new Map<string, string>(); for (const user of users.rows) { nameByInput.set(user.fullName, user.fullName); nameByInput.set(user.email, user.fullName); }
+      const userIdByFullName = new Map(users.rows.map((user) => [user.fullName, user.id]));
       unresolvedLeadCount = projects.filter((project) => project.leadName && !nameByInput.has(project.leadName)).length;
       const existing = await client.query<{ projectKey: string }>('SELECT project_key AS "projectKey" FROM projects WHERE project_key = ANY($1::text[])', [keys]);
       if (existing.rowCount) { await client.query('ROLLBACK'); return NextResponse.json({ error: `Mã hiển thị đã tồn tại: ${existing.rows.map((project) => project.projectKey).join(', ')}.` }, { status: 409 }); }
-      for (const project of projects) await client.query('INSERT INTO projects (project_key, project_name, domain_id, source_project_key, source_type, project_category, ttm, lead_name, is_active) VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, TRUE)', [project.projectKey, project.projectName, project.sourceProjectKey, 'JIRA', project.projectCategory, project.ttm, nameByInput.get(project.leadName) ?? null]);
+      for (const project of projects) {
+        const leadName = nameByInput.get(project.leadName) ?? null;
+        const createdProject = await client.query<{ id: number }>('INSERT INTO projects (project_key, project_name, domain_id, source_project_key, source_type, project_category, ttm, lead_name, is_active) VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, TRUE) RETURNING id', [project.projectKey, project.projectName, project.sourceProjectKey, 'JIRA', project.projectCategory, project.ttm, leadName]);
+        const userId = leadName ? userIdByFullName.get(leadName) : undefined;
+        if (userId) await client.query('INSERT INTO user_projects (user_id, project_id) VALUES ($1, $2)', [userId, createdProject.rows[0].id]);
+      }
       await client.query('COMMIT');
     } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
     return NextResponse.json({ success: true, imported: projects.length, unresolvedLeadCount }, { status: 201 });

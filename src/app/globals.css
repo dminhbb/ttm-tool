@@ -188,10 +188,11 @@ button:not(:disabled), [role="button"]:not([aria-disabled="true"]) { cursor: poi
 .ui-search input::placeholder { color: var(--text-muted); }
 .ui-icon-button { display: inline-flex; width: 38px; min-width: 38px; height: 38px; align-items: center; justify-content: center; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-elevated); color: var(--text-secondary); }
 .ui-icon-button:hover { border-color: var(--border-strong); background: var(--surface-hover); color: var(--text-primary); }
-.ui-table-wrap { width: 100%; overflow-x: auto; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface-panel); }
-.ui-table { width: 100%; color: var(--text-secondary); font-size: 13px; }
-.ui-table thead th { position: sticky; top: 0; z-index: 1; padding: 10px 12px; background: var(--surface-elevated); color: var(--text-muted); border-bottom: 1px solid var(--border-default); text-align: left; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .035em; }
-.ui-table tbody td { padding: 11px 12px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle; }
+/* Standard app-wide data table (Epic Alerts is the reference design: compact, sticky uppercase header, subtle hover). */
+.ui-table-wrap { width: 100%; overflow-x: auto; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface-panel); box-shadow: 0 1px 3px rgb(15 23 42 / 8%); }
+.ui-table { width: 100%; color: var(--text-secondary); font-size: 12.5px; }
+.ui-table thead th { position: sticky; top: 0; z-index: 1; padding: 8px 12px; background: var(--surface-elevated); color: var(--text-muted); border-bottom: 1px solid var(--border-default); text-align: left; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .035em; }
+.ui-table tbody td { padding: 8px 12px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle; }
 .ui-table tbody tr:hover { background: var(--surface-hover); }
 .ui-table tbody tr:last-child td { border-bottom: 0; }
 .ui-badge { display: inline-flex; align-items: center; gap: 6px; width: fit-content; min-height: 24px; padding: 2px 8px; border-radius: var(--radius-pill); font-size: 12px; font-weight: 700; }

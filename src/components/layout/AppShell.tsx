@@ -4,6 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  Archive,
   Calendar,
   CaretDoubleLeft,
   CaretDoubleRight,
@@ -51,6 +52,7 @@ const navigation: NavigationSection[] = [
     items: [
       { icon: Gauge, label: 'Dashboard', disabled: true },
       { href: '/epic-monitoring', icon: ChartBar, label: 'Theo dõi Epic' },
+      { href: '/epic-alerts', icon: Warning, label: 'Quản lý Epic của tôi' },
     ],
   },
   {
@@ -62,6 +64,7 @@ const navigation: NavigationSection[] = [
       { href: '/admin/projects', icon: Folder, label: 'Quản lý Dự án' },
       { href: '/admin/holidays', icon: Calendar, label: 'Cấu hình ngày nghỉ' },
       { href: '/admin/status-alert-rules', icon: Warning, label: 'Cấu hình cảnh báo' },
+      { href: '/admin/database', icon: Archive, label: 'Sao lưu / Phục hồi dữ liệu' },
     ],
   },
 ];
@@ -168,11 +171,13 @@ function SidebarContent({ expanded, onNavigate, onToggle }: SidebarContentProps)
 const PAGE_HEADERS: Record<string, { subtitle: string; title: string }> = {
   '/': { subtitle: 'Kiểm tra và quản lý các lớp dữ liệu Jira nhập vào TTM Monitor', title: 'Quản trị nguồn dữ liệu' },
   '/epic-monitoring': { subtitle: 'Theo dõi rủi ro TTM-CNTT của các Epic theo thời gian thực', title: 'Theo dõi Epic' },
+  '/epic-alerts': { subtitle: 'Thiết kế bảng cảnh báo Epic theo TTM Epic Management Design Package (bản so sánh)', title: 'Quản lý Epic của tôi' },
   '/admin/domains': { subtitle: 'Quản lý danh mục Domain nghiệp vụ', title: 'Quản lý Domain' },
   '/admin/projects': { subtitle: 'Quản lý danh mục Dự án và mapping với Domain', title: 'Quản lý Dự án' },
   '/admin/holidays': { subtitle: 'Cấu hình ngày nghỉ dùng để tính ngày làm việc', title: 'Cấu hình ngày nghỉ' },
   '/admin/status-alert-rules': { subtitle: 'Thiết lập mốc cảnh báo TTM-CNTT theo loại và trạng thái Epic', title: 'Cấu hình cảnh báo' },
   '/admin/users': { subtitle: 'Quản lý tài khoản, role và trạng thái người dùng', title: 'Quản lý User' },
+  '/admin/database': { subtitle: 'Export/Import dữ liệu ứng dụng dưới dạng file SQL', title: 'Sao lưu / Phục hồi dữ liệu' },
 };
 
 export function AppShell({ children }: AppShellProps) {

@@ -1,0 +1,63 @@
+/* TTM Epic Management — Layout */
+* { box-sizing: border-box; }
+body.ttm-app {
+  margin: 0;
+  font-family: var(--ttm-font);
+  background: var(--ttm-bg);
+  color: var(--ttm-text);
+}
+.ttm-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.ttm-topbar {
+  background: var(--ttm-brand-800);
+  color: var(--ttm-white);
+  padding: 14px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.ttm-brand {
+  font-weight: 700;
+  font-size: var(--ttm-font-size-lg);
+  letter-spacing: .01em;
+}
+.ttm-user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--ttm-font-size-md);
+}
+.ttm-role-badge {
+  background: #3d5a99;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: var(--ttm-font-size-sm);
+  font-weight: 600;
+}
+.ttm-main {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 20px 24px;
+}
+.ttm-page-title {
+  margin: 0 0 6px 0;
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+.ttm-page-subtitle {
+  margin: 0 0 16px 0;
+  color: var(--ttm-muted);
+  font-size: var(--ttm-font-size-md);
+}
+.ttm-footer {
+  text-align: center;
+  padding: 20px;
+  font-size: var(--ttm-font-size-sm);
+  color: var(--ttm-muted);
+}

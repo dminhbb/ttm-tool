@@ -7,14 +7,14 @@ export type AlertLevel = 'NONE' | 'EARLY' | 'LATE' | 'FAIL';
 
 const ALERTED_STATUSES = new Set(['Design', 'In Progress']);
 
-interface OffsetRule {
+export interface OffsetRule {
   earlyOffset: number;
   lateOffset: number;
   failOffset: number;
 }
 
 // BRD 03 §3 — working-day offsets from T1 (Start Date), by complexity and status.
-const OFFSET_RULES: Record<EpicComplexity, Record<'Design' | 'In Progress', OffsetRule>> = {
+export const OFFSET_RULES: Record<EpicComplexity, Record<'Design' | 'In Progress', OffsetRule>> = {
   SIMPLE: {
     Design: { earlyOffset: 2, lateOffset: 3, failOffset: 15 },
     'In Progress': { earlyOffset: 12, lateOffset: 13, failOffset: 15 },
@@ -24,6 +24,21 @@ const OFFSET_RULES: Record<EpicComplexity, Record<'Design' | 'In Progress', Offs
     'In Progress': { earlyOffset: 19, lateOffset: 20, failOffset: 30 },
   },
 };
+
+/** Resolves the effective early/late/fail offset rule for a given complexity + status, preferring an admin-configured StatusAlertRule when supplied. */
+export function resolveOffsetRule(
+  complexity: EpicComplexity,
+  status: string,
+  statusAlertRules?: StatusAlertRule[],
+): OffsetRule | null {
+  if (statusAlertRules) {
+    const configured = statusAlertRules.find((item) => item.epicComplexityType === complexity && item.epicStatus === status);
+    return configured
+      ? { earlyOffset: configured.earlyAlertOffsetDays, lateOffset: configured.lateAlertOffsetDays, failOffset: configured.failOffsetDays }
+      : null;
+  }
+  return ALERTED_STATUSES.has(status) ? OFFSET_RULES[complexity][status as 'Design' | 'In Progress'] : null;
+}
 
 export interface TtmAlertInput {
   complexity: EpicComplexity | null;
@@ -52,18 +67,7 @@ export interface TtmAlertResult {
  */
 export function computeTtmAlert(input: TtmAlertInput): TtmAlertResult {
   const complexity = input.complexity ?? 'SIMPLE';
-  const configuredRule = input.statusAlertRules?.find(
-    (item) => item.epicComplexityType === complexity && item.epicStatus === input.status,
-  );
-  const rule = input.statusAlertRules
-    ? configuredRule && {
-      earlyOffset: configuredRule.earlyAlertOffsetDays,
-      lateOffset: configuredRule.lateAlertOffsetDays,
-      failOffset: configuredRule.failOffsetDays,
-    }
-    : ALERTED_STATUSES.has(input.status)
-      ? OFFSET_RULES[complexity][input.status as 'Design' | 'In Progress']
-      : null;
+  const rule = resolveOffsetRule(complexity, input.status, input.statusAlertRules);
 
   if (!input.startDate || !rule) {
     return { daysRemaining: null, earlyAlertDate: null, failDate: null, lateAlertDate: null, level: 'NONE', targetR4gDate: input.targetR4gDate };

@@ -238,11 +238,13 @@ And có ô tìm kiếm gần đúng theo mã hoặc tên dự án
 - User inactive có thể không có Domain. API chỉ từ chối danh sách Domain rỗng khi user được đặt trạng thái active; đồng thời từ chối Domain có ID trùng lặp hoặc Domain không tồn tại/inactive. User đăng ký mới tiếp tục chọn một Domain active trong luồng đăng ký.
 - Bảng `user_domains` dùng khóa chính `(user_id, domain_id)`, cho phép một user thuộc nhiều Domain và ngăn bản ghi gán trùng lặp.
 - Form tạo/chỉnh sửa user có thêm trường Dự án multi-select, tùy chọn, để gán các project mà user là PM/SM. `user_projects` dùng khóa chính `(user_id, project_id)`; API từ chối ID dự án không tồn tại hoặc trùng lặp, nhưng không bắt buộc user phải có dự án trong mọi trạng thái.
+- `projects.lead_name` và `user_projects` là hai hình chiếu đồng bộ của phân công PM/SM. Khi Superadmin đổi PM/SM trên dự án, assignment của PM/SM cũ được thay bằng user mới; khi đổi Dự án trên user, `lead_name` của các dự án tương ứng được cập nhật. Tất cả thay đổi liên quan chạy trong transaction.
 
 ## Bổ sung MVP1 — Xử lý hàng loạt tại User Management
 
 - Tab Yêu cầu cấp lại mật khẩu hỗ trợ checkbox từng dòng, xóa hàng loạt với xác nhận một bước, và cấp lại một mật khẩu mới cho toàn bộ yêu cầu đã chọn.
 - Tab Duyệt đăng ký mới hỗ trợ checkbox từng dòng, xóa hàng loạt với xác nhận một bước, và duyệt nhiều đăng ký bằng cách chuyển toàn bộ user đã chọn sang active. Nếu bất kỳ user nào chưa có Domain, Superadmin phải chọn một Domain active trong modal; hệ thống gán thêm Domain này cho những user chưa có Domain rồi kích hoạt toàn bộ danh sách trong cùng transaction.
+- Luồng duyệt không yêu cầu Dự án hay thông tin phân công khác: Domain active là điều kiện duy nhất để kích hoạt user; các trường tùy chọn được cập nhật sau bằng modal sửa user.
 - API chỉ xử lý tối đa 100 bản ghi/lần. Khi cấp lại mật khẩu, ticket phải còn PENDING và phải khớp với user đích.
 - Nút tab `Yêu cầu cấp lại mật khẩu` hiển thị badge số ticket đang chờ; nút tab `Duyệt đăng ký mới` hiển thị badge số user inactive. Cả hai badge lấy từ dữ liệu mới nhất và tự cập nhật sau thao tác quản trị.
 

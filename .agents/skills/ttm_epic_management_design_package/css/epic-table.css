@@ -1,0 +1,88 @@
+/* TTM Epic Management — Epic Table Components */
+.ttm-table-wrap {
+  background: var(--ttm-card);
+  border-radius: var(--ttm-radius-md);
+  box-shadow: var(--ttm-shadow-card);
+  overflow: auto;
+  border: 1px solid var(--ttm-border);
+}
+.ttm-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: var(--ttm-table-min-width);
+}
+.ttm-table th,
+.ttm-table td {
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--ttm-border);
+  vertical-align: top;
+  white-space: nowrap;
+}
+.ttm-table th {
+  background: #f0f2f6;
+  font-weight: 700;
+  color: var(--ttm-muted);
+  text-transform: uppercase;
+  font-size: var(--ttm-font-size-xs);
+  letter-spacing: .02em;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.ttm-table tbody tr:hover td { background: #fafbfd; }
+.ttm-table .col-epic { min-width: 180px; }
+.ttm-table .col-warning { min-width: 120px; }
+.ttm-table .col-stage { min-width: var(--ttm-stage-cell-width); }
+.ttm-epic-key {
+  font-weight: 800;
+  color: var(--ttm-brand-600);
+  text-decoration: none;
+}
+.ttm-epic-key:hover { text-decoration: underline; }
+.ttm-project-tag {
+  display: block;
+  font-size: 11px;
+  color: var(--ttm-muted);
+  font-weight: 400;
+  margin-top: 2px;
+}
+.ttm-source-tag {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--ttm-neutral-100);
+  color: var(--ttm-muted);
+  margin-left: 4px;
+}
+.ttm-metric { font-weight: 700; }
+.ttm-metric.na {
+  color: var(--ttm-muted);
+  font-weight: 400;
+  font-style: italic;
+  font-size: 11px;
+}
+.ttm-stage-plan { font-size: 11px; color: var(--ttm-muted); }
+.ttm-stage-pill {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 2px 7px;
+  border-radius: 8px;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+.ttm-stage-pill.done { background: var(--ttm-success-100); color: var(--ttm-success-700); }
+.ttm-stage-pill.overdue { background: var(--ttm-d0); color: var(--ttm-white); }
+.ttm-stage-pill.d1 { background: var(--ttm-d1); color: var(--ttm-white); }
+.ttm-stage-pill.d2 { background: var(--ttm-d2); color: #4a3900; }
+.ttm-stage-pill.d3 { background: var(--ttm-d3); color: #4a3900; }
+.ttm-stage-pill.upcoming { background: var(--ttm-neutral-100); color: var(--ttm-muted); font-weight: 600; }
+.ttm-stage-pill.unknown { background: #f8c9c9; color: var(--ttm-danger-700); }
+.ttm-table td.hl-overdue { background: var(--ttm-danger-100); }
+.ttm-table td.hl-d1 { background: #fdf0e6; }
+.ttm-table td.hl-d2 { background: var(--ttm-warning-050); }
+.ttm-table td.hl-d3 { background: #fffde7; }
+.ttm-table tr.missing-row td { background: var(--ttm-danger-100); }
+.ttm-table tr.disabled-row td { color: var(--ttm-muted); background: #fbfcfe; }
+.ttm-empty-warning { color: var(--ttm-muted); font-size: 11px; }
