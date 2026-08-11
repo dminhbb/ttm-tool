@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { FileDropzone } from '@/components/data-source/FileDropzone';
+import { RawImportRetentionSettings } from '@/components/data-source/RawImportRetentionSettings';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHeader, CardTitle, CardBody, CardFooter } from '@/components/ui/Card';
@@ -357,6 +358,8 @@ export default function DataSourcePage() {
               </Button>
             </CardFooter>
           </Card>
+
+          <RawImportRetentionSettings />
 
           {/* Alert Messages (Clean Facebook notifications layout) */}
           {importMessage && (

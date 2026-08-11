@@ -52,6 +52,7 @@ function CommonCells({ epic }: { epic: MonitoredEpic }) {
       <TD>{epic.project || '-'}</TD>
       <TD>{epic.assignee || '-'}</TD>
       <TD>{epic.epicType || '-'}</TD>
+      <TD>{epic.requirementLevel || '-'}</TD>
       <TD>{formatDate(epic.ideaApprovedDate)}</TD>
       <TD>{formatDate(epic.startDate)}</TD>
       <TD className="text-center">
@@ -63,7 +64,7 @@ function CommonCells({ epic }: { epic: MonitoredEpic }) {
   );
 }
 
-const COMMON_HEADERS = ['Risk', 'Epic Key', 'Epic Name', 'Status', 'Domain', 'Dự án', 'Owner', 'Epic Type', 'T0', 'T1', 'Missing'];
+const COMMON_HEADERS = ['Risk', 'Epic Key', 'Epic Name', 'Status', 'Domain', 'Dự án', 'Owner', 'Epic Type', 'Requirement Level', 'T0', 'T1', 'Missing'];
 
 function Panel1Table({ epics }: { epics: MonitoredEpic[] }) {
   if (epics.length === 0) {

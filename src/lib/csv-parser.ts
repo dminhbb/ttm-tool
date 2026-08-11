@@ -13,6 +13,7 @@ export interface RawJiraIssue {
   epicName: string;
   epicStatus: string;
   epicType: string;
+  requirementLevel: string;
   startDate: string;
   r4gDate: string;
   ideaApprovedDate: string;
@@ -109,6 +110,7 @@ export function mapCSVToRawIssues(rows: string[][]): { issues: RawJiraIssue[]; h
   const idxEpicName = getIndex(['Custom field (Epic Name)', 'Epic Name', 'Epic-Name']);
   const idxEpicStatus = getIndex(['Custom field (Epic Status)', 'Epic Status']);
   const idxEpicType = getIndex(['Custom field (Epic Type)', 'Epic Type']);
+  const idxRequirementLevel = getIndex(['Custom field (Requirement Level)', 'Requirement Level', 'Mức độ yêu cầu']);
   const idxStartDate = getIndex(['Custom field (Start date)', 'Custom field (Start Date)', 'Start date', 'Start Date']);
   const idxR4gDate = getIndex(['Custom field (R4G Date)', 'R4G Date']);
   const idxIdeaApprovedDate = getIndex(['Custom field (Ngày duyệt ý tưởng)', 'Ngày duyệt ý tưởng', 'Idea Approved Date']);
@@ -136,6 +138,7 @@ export function mapCSVToRawIssues(rows: string[][]): { issues: RawJiraIssue[]; h
       epicName: getValue(idxEpicName),
       epicStatus: getValue(idxEpicStatus),
       epicType: getValue(idxEpicType),
+      requirementLevel: getValue(idxRequirementLevel),
       startDate: getValue(idxStartDate),
       r4gDate: getValue(idxR4gDate),
       ideaApprovedDate: getValue(idxIdeaApprovedDate),

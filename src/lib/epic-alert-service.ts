@@ -1,12 +1,11 @@
 import pool from '@/lib/db';
 import type { UserRole } from '@/lib/auth-types';
 import type { AlertLevel, EpicComplexity, OffsetRule } from '@/lib/ttm-rules';
-import { computeTtmAlert, resolveOffsetRule } from '@/lib/ttm-rules';
+import { evaluateIssueCompliance } from '@/lib/epic-compliance-engine';
 import { addWorkingDays, diffWorkingDays } from '@/lib/working-days';
 import type { HolidaySet } from '@/lib/working-days';
 import { getActiveHolidaySet, getDomainByProjectKeyMap } from '@/lib/master-data-service';
 import { listActiveStatusAlertRules } from '@/lib/status-alert-rule-service';
-import type { StatusAlertRule } from '@/lib/status-alert-rule-types';
 import type { EpicAlertAccessRole, EpicAlertResponse, EpicAlertRow, StageCell, StagePillVariant } from '@/lib/epic-alert-types';
 
 const CANCELLED_OR_RELEASED = /cancel|release/i;
@@ -34,6 +33,7 @@ interface EpicRow {
   ideaApprovedDate: string | null;
   project: string | null;
   r4gDate: string | null;
+  requirementLevel: string | null;
   startDate: string | null;
   status: string;
   targetR4gDate: string | null;
@@ -101,6 +101,13 @@ function pillForRemaining(remaining: number): { pillLabel: string; pillVariant: 
   return { pillLabel: `Còn ${remaining} ngày`, pillVariant: 'upcoming' };
 }
 
+/** dd/mm/yyyy, matching the client's formatDate() so plan-label text and formatted cell dates read the same. */
+function formatDdMmYyyy(date: Date): string {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${day}/${month}/${date.getFullYear()}`;
+}
+
 /** The stage the epic is currently moving through: countdown to whichever milestone (early/late/fail) hasn't been reached yet. */
 function activeStageCell(now: Date, dates: StageDates, holidays: HolidaySet): StageCell {
   let target: Date;
@@ -110,34 +117,47 @@ function activeStageCell(now: Date, dates: StageDates, holidays: HolidaySet): St
   else { target = dates.fail; planPrefix = 'Hạn chót'; }
   const remaining = diffWorkingDays(now, target, holidays);
   const pill = pillForRemaining(remaining);
-  return { dateLabel: null, planLabel: `${planPrefix}: còn ${remaining} ngày làm việc`, pillLabel: pill.pillLabel, pillVariant: pill.pillVariant };
+  return { dateLabel: toIsoDate(target), isCurrentStage: true, planLabel: `${planPrefix}: ${formatDdMmYyyy(target)}`, pillLabel: pill.pillLabel, pillVariant: pill.pillVariant };
 }
 
 function doneStageCell(dateLabel?: string | null): StageCell {
-  return { dateLabel: dateLabel ?? null, planLabel: 'Đã hoàn thành giai đoạn', pillLabel: dateLabel ? `✓ ${dateLabel}` : '✓ Hoàn thành', pillVariant: 'done' };
+  return { dateLabel: dateLabel ?? null, isCurrentStage: false, planLabel: 'Đã hoàn thành giai đoạn', pillLabel: dateLabel ? `✓ ${dateLabel}` : '✓ Hoàn thành', pillVariant: 'done' };
 }
 
-function upcomingStageCell(rule: OffsetRule | null): StageCell {
+function upcomingStageCell(startDate: Date, rule: OffsetRule | null, holidays: HolidaySet): StageCell {
+  if (!rule) {
+    return { dateLabel: null, isCurrentStage: false, planLabel: 'Chưa cấu hình rule cảnh báo', pillLabel: 'Chưa tới', pillVariant: 'upcoming' };
+  }
+  const early = addWorkingDays(startDate, rule.earlyOffset, holidays);
+  const late = addWorkingDays(startDate, rule.lateOffset, holidays);
   return {
     dateLabel: null,
-    planLabel: rule ? `Mốc sớm: T1+${rule.earlyOffset}, Mốc muộn: T1+${rule.lateOffset}` : 'Chưa cấu hình rule cảnh báo',
+    isCurrentStage: false,
+    planLabel: `Mốc sớm: ${formatDdMmYyyy(early)}, Mốc muộn: ${formatDdMmYyyy(late)}`,
     pillLabel: 'Chưa tới',
     pillVariant: 'upcoming',
   };
 }
 
 function naStageCell(reason: string): StageCell {
-  return { dateLabel: null, planLabel: reason, pillLabel: 'Không tính được', pillVariant: 'unknown' };
+  return { dateLabel: null, isCurrentStage: false, planLabel: reason, pillLabel: 'Không tính được', pillVariant: 'unknown' };
 }
 
-export async function getEpicAlertRows(userId: number, role: UserRole, from: string, to: string): Promise<EpicAlertResponse> {
-  const [scope, holidays, domainByProjectKey, statusAlertRules, viewer] = await Promise.all([
+/** Everything on this screen is anchored to the single most recent import batch — no date-range picking. */
+export async function getEpicAlertRows(userId: number, role: UserRole): Promise<EpicAlertResponse> {
+  const [scope, holidays, domainByProjectKey, statusAlertRules, viewer, latestBatch] = await Promise.all([
     resolveAccessScope(userId, role),
     getActiveHolidaySet(),
     getDomainByProjectKeyMap(),
     listActiveStatusAlertRules(),
     pool.query<{ fullName: string }>('SELECT full_name AS "fullName" FROM users WHERE id = $1', [userId]),
+    pool.query<{ aggregatedAt: string }>('SELECT aggregated_at::text AS "aggregatedAt" FROM import_batches ORDER BY aggregated_at DESC LIMIT 1;'),
   ]);
+
+  const latestAggregatedAt = latestBatch.rows[0]?.aggregatedAt ?? null;
+  if (!latestAggregatedAt) {
+    return { accessRole: scope.accessRole, lastAggregatedAt: null, rows: [], viewerName: viewer.rows[0]?.fullName ?? '' };
+  }
 
   const result = await pool.query<EpicRow & { aggregatedAt: string }>(`
     SELECT DISTINCT ON (issues.issue_key)
@@ -151,6 +171,7 @@ export async function getEpicAlertRows(userId: number, role: UserRole, from: str
       issues.r4g_date::text AS "r4gDate",
       issues.target_r4g_date::text AS "targetR4gDate",
       issues.due_date::text AS "dueDate",
+      issues.requirement_level AS "requirementLevel",
       issues.aggregated_at::text AS "aggregatedAt",
       COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''), '') AS project,
       COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'epicType', ''), '') AS "epicType"
@@ -159,18 +180,15 @@ export async function getEpicAlertRows(userId: number, role: UserRole, from: str
       ON import_rows.import_batch_id = issues.source_import_batch_id
       AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = issues.issue_key
     WHERE UPPER(issues.issue_type) = 'EPIC'
-      AND issues.aggregated_at BETWEEN $1 AND $2
-      AND ($3::text[] IS NULL OR COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''), '') = ANY($3::text[]))
-    ORDER BY issues.issue_key ASC, issues.aggregated_at DESC
-  `, [from, to, scope.sourceProjectKeys]);
+      AND issues.aggregated_at = $1
+      AND ($2::text[] IS NULL OR COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''), '') = ANY($2::text[]))
+    ORDER BY issues.issue_key ASC
+  `, [latestAggregatedAt, scope.sourceProjectKeys]);
 
   const now = new Date();
-  let lastAggregatedAt: string | null = null;
   const rows: EpicAlertRow[] = [];
 
   for (const row of result.rows) {
-    if (!lastAggregatedAt || row.aggregatedAt > lastAggregatedAt) lastAggregatedAt = row.aggregatedAt;
-
     const startDate = parseDate(row.startDate);
     const ideaApprovedDate = parseDate(row.ideaApprovedDate);
     const r4gDateParsed = parseDate(row.r4gDate);
@@ -183,21 +201,21 @@ export async function getEpicAlertRows(userId: number, role: UserRole, from: str
     const ttmE2eTarget = TTM_E2E_TARGET_DAYS[complexity];
     const ttmE2eElapsed = ideaApprovedDate ? Math.max(0, diffWorkingDays(ideaApprovedDate, now, holidays)) : null;
 
-    let alertLevel: AlertLevel = 'NONE';
-    let remainingWorkingDays: number | null = null;
-    let targetR4gDate = parseDate(row.targetR4gDate);
-
-    if (startDate && (row.status === 'Design' || row.status === 'In Progress')) {
-      const computed = computeTtmAlert({ complexity, currentDate: now, holidays, r4gDate: r4gDateParsed, startDate, status: row.status, statusAlertRules, targetR4gDate });
-      alertLevel = computed.level;
-      remainingWorkingDays = computed.daysRemaining;
-      targetR4gDate = computed.targetR4gDate;
-    } else if (r4gDateParsed && targetR4gDate && r4gDateParsed.getTime() > targetR4gDate.getTime()) {
-      alertLevel = 'FAIL';
-    }
-
-    const designRule = resolveOffsetRule(complexity, 'Design', statusAlertRules);
-    const ipRule = resolveOffsetRule(complexity, 'In Progress', statusAlertRules);
+    const evaluation = evaluateIssueCompliance({
+      dueDate: row.dueDate,
+      epicComplexityType: complexity,
+      ideaApprovedDate: row.ideaApprovedDate,
+      issueKey: row.epicKey,
+      issueType: 'EPIC',
+      r4gDate: row.r4gDate,
+      startDate: row.startDate,
+      status: row.status,
+    }, now, holidays, statusAlertRules);
+    const alertLevel = evaluation.alertLevel;
+    const targetR4gDate = parseDate(evaluation.baseline.r4g?.date ?? row.targetR4gDate);
+    const remainingWorkingDays = targetR4gDate ? diffWorkingDays(now, targetR4gDate, holidays) : null;
+    const designRule = evaluation.baseline.design?.rule ?? null;
+    const ipRule = evaluation.baseline.inProgress?.rule ?? null;
 
     let designCell: StageCell;
     let inProgressCell: StageCell;
@@ -205,16 +223,18 @@ export async function getEpicAlertRows(userId: number, role: UserRole, from: str
       designCell = naStageCell('Thiếu Start Date');
       inProgressCell = naStageCell('Thiếu Start Date');
     } else if (stageIdx < 1) {
-      designCell = upcomingStageCell(designRule);
-      inProgressCell = upcomingStageCell(ipRule);
+      designCell = upcomingStageCell(startDate, designRule, holidays);
+      inProgressCell = upcomingStageCell(startDate, ipRule, holidays);
     } else if (stageIdx === 1) {
       designCell = designRule ? activeStageCell(now, buildStageDates(startDate, designRule, holidays), holidays) : naStageCell('Chưa cấu hình rule');
-      inProgressCell = upcomingStageCell(ipRule);
-    } else if (stageIdx === 2 && !r4gDateParsed) {
+      inProgressCell = upcomingStageCell(startDate, ipRule, holidays);
+    } else if (stageIdx === 2) {
+      // Current Jira status is In Progress / Pending — that's authoritative even if R4G Date
+      // has already been filled in ahead of the status catching up.
       designCell = doneStageCell();
       inProgressCell = ipRule ? activeStageCell(now, buildStageDates(startDate, ipRule, holidays), holidays) : naStageCell('Chưa cấu hình rule');
     } else {
-      // Either past In Progress, or R4G Date is already set — engineering stages are behind us either way.
+      // Past In Progress (or cancelled) — engineering stages are behind us either way.
       designCell = doneStageCell();
       inProgressCell = doneStageCell();
     }
@@ -227,14 +247,14 @@ export async function getEpicAlertRows(userId: number, role: UserRole, from: str
     } else if (startDate && targetR4gDate) {
       const remaining = remainingWorkingDays ?? diffWorkingDays(now, targetR4gDate, holidays);
       const pill = pillForRemaining(remaining);
-      r4gCell = { dateLabel: null, planLabel: `Target: T1+${ttmCnttTarget}`, pillLabel: pill.pillLabel, pillVariant: pill.pillVariant };
+      r4gCell = { dateLabel: toIsoDate(targetR4gDate), isCurrentStage: false, planLabel: `Target: ${formatDdMmYyyy(targetR4gDate)}`, pillLabel: pill.pillLabel, pillVariant: pill.pillVariant };
     } else {
-      r4gCell = upcomingStageCell(null);
+      r4gCell = upcomingStageCell(startDate ?? now, null, holidays);
     }
 
     const releaseCell: StageCell = row.dueDate
       ? doneStageCell(toIsoDate(parseDate(row.dueDate)) ?? undefined)
-      : { dateLabel: null, planLabel: 'Chưa có Due Date', pillLabel: 'Chưa tới', pillVariant: 'upcoming' };
+      : { dateLabel: null, isCurrentStage: false, planLabel: 'Chưa có Due Date', pillLabel: 'Chưa tới', pillVariant: 'upcoming' };
 
     rows.push({
       alertLevel,
@@ -248,6 +268,7 @@ export async function getEpicAlertRows(userId: number, role: UserRole, from: str
       projectKey: row.project ?? '',
       r4gDate: row.r4gDate,
       remainingWorkingDays,
+      requirementLevel: row.requirementLevel,
       sourceType: 'CSV',
       stages: { design: designCell, inProgress: inProgressCell, r4g: r4gCell, release: releaseCell },
       t0IdeaApprovedDate: row.ideaApprovedDate,
@@ -269,10 +290,8 @@ export async function getEpicAlertRows(userId: number, role: UserRole, from: str
 
   return {
     accessRole: scope.accessRole,
-    from,
-    lastAggregatedAt,
+    lastAggregatedAt: latestAggregatedAt,
     rows,
-    to,
     viewerName: viewer.rows[0]?.fullName ?? '',
   };
 }

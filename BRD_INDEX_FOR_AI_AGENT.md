@@ -551,6 +551,7 @@ Triển khai MVP1:
 - Design và In Progress được seed mặc định. Người dùng có thể thêm rule cho trạng thái Epic khác; loại Epic vẫn là Epic đơn giản hoặc Epic phức tạp. Cặp Loại Epic/Trạng thái phải là duy nhất.
 - API `GET`/`POST`/`PUT /api/status-alert-rules` validate offset là số nguyên 0–3650, tên trạng thái dài tối đa 50 ký tự và bắt buộc `cảnh báo sớm < cảnh báo muộn < fail`.
 - Rule được lưu ở `epic_status_alert_rules`. Mỗi lần tải Theo dõi Epic, hệ thống chỉ nạp các rule active một lần và áp dụng cho toàn bộ Epic trong lần tải đó; khi rule inactive, cặp trạng thái/loại Epic tương ứng không phát sinh alert TTM-CNTT.
+- API nghiệp vụ dùng chung `POST /api/epic-compliance` là nguồn duy nhất để đánh giá baseline, cảnh báo và tuân thủ. API nhận tối đa 500 Epic/Story/Subtask, dùng rule active và Holiday từ CSDL; Epic trả baseline Design/In Progress/R4G/Released, Story/Subtask kiểm tra liên kết phân cấp và chất lượng dữ liệu. Các màn hình cảnh báo phải gọi hoặc tái sử dụng rule engine của API này, không tự sao chép công thức.
 
 ---
 
@@ -581,6 +582,8 @@ MVP1 cho phép:
 - Import file CSV.
 - Validate dữ liệu: Hỗ trợ chế độ "Validate only" chỉ trả về danh sách lỗi và cảnh báo xem trước (preview) trên UI, hoàn toàn không ghi nhận bất kỳ dữ liệu nào vào CSDL.
 - Lớp dữ liệu (Data Layering): Dữ liệu tích lũy theo từng lớp. Thêm trường `aggregated_at` (thời gian tổng hợp, lấy tự động từ tên file dạng `Jira YYYY-MM-DDTHH_mm_ss+zzzz.csv` hoặc điều chỉnh thủ công) để phân biệt các lớp dữ liệu của Epic. Khóa duy nhất trong bảng issues là `(issue_key, source_import_batch_id)`.
+- Bảng tổng hợp dài hạn `issue_daily_snapshots` lưu vĩnh viễn các trường nghiệp vụ quan trọng của toàn bộ Epic, Story và Subtask cho từng `aggregated_at`. Khi raw batch bị dọn, `source_import_batch_id` trong snapshot được đặt `NULL`, nhưng snapshot vẫn còn để tra cứu lịch sử cảnh báo.
+- Raw data gồm `import_batches`, `import_rows` và `issues` theo batch. Mặc định giữ 30 ngày; SUPERADMIN cấu hình 7–3650 ngày tại Quản trị nguồn dữ liệu. Sau mỗi import được lưu hệ thống tự dọn raw batch quá hạn, luôn bảo vệ batch vừa import và lớp dữ liệu mới nhất.
 - Rule cảnh báo "Thiếu Epic Link": Chỉ áp dụng cho issue type là `STORY`, không áp dụng cho các loại issue khác.
 - Lưu batch import khi thực hiện lưu chính thức.
 - Ghi nhận lỗi import.
@@ -726,6 +729,8 @@ Từ bản nâng cấp UI ngày 2026-08-09, các màn hình mới và màn hình
 - Hiệu ứng kính mờ kiểu macOS chỉ là web frosted-glass approximation, chỉ dùng cho app shell, top dock và dialog. Phải có solid fallback khi trình duyệt không hỗ trợ blur hoặc người dùng giảm transparency.
 - App shell dùng chung nằm tại `src/components/layout/AppShell.tsx`; không viết lại sidebar/header trong từng page.
 - Primitive dùng chung nằm tại `src/components/ui/`. Form phải tái sử dụng `FormField`, `Input`, `Select`, `Button`, `Alert`, `Modal`, `EmptyState`, `Skeleton` và các primitive tương ứng.
+- Mọi bảng dữ liệu mới phải tái sử dụng `TableContainer`, `Table`, `THead`, `TBody`, `TR`, `TH`, `TD` tại `src/components/ui/Table.tsx`. Các quy tắc chung về surface, sticky header, border, row hover, typography, scroll ngang và responsive chỉ được đặt ở `globals.css`; component nghiệp vụ chỉ thêm class cho cell/row mang ý nghĩa đặc thù, không tạo table shell hoặc header style riêng.
+- Trang `/epic-alerts` áp dụng gói thiết kế `ttm_epic_management_design_package`: toolbar cảnh báo, legend, Epic identity, badge cảnh báo và stage-pill/highlight theo số ngày làm việc. Các cấu trúc bảng trong trang vẫn phải đi qua primitive Table dùng chung.
 - Không viết lại label, helper text, error text, focus state hoặc icon SVG trực tiếp trong từng form khi primitive dùng chung đã hỗ trợ.
 - Component theo nghiệp vụ được đặt trong thư mục module, ví dụ `src/components/data-source/`; không khai báo component dùng lại trực tiếp bên trong hàm page/form.
 - Desktop và mobile phải dùng cùng cấu trúc thông tin. Sidebar chuyển thành drawer trên màn hình nhỏ, không dùng margin cố định làm tràn viewport.

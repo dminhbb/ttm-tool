@@ -2,6 +2,7 @@ import pool, { getClient } from './db';
 import { parseCSV, mapCSVToRawIssues } from './csv-parser';
 import { validateAllJiraIssues, parseJiraDate, RowValidationResult, ValidationError } from './validator';
 import { accumulateProjectComponents } from './project-component-service';
+import { DEFAULT_RAW_IMPORT_RETENTION_DAYS } from './data-retention-service';
 
 export interface ImportBatch {
   id: number;
@@ -115,11 +116,13 @@ export async function processImport(
     const batchId = batchRes.rows[0].id;
 
     // 4. Ingest Raw Import Rows into import_rows
+    // (normalized_data_json is the single copy kept — it used to be duplicated verbatim
+    // into a separate raw_data_json column, doubling storage for no benefit.)
     const insertRowQuery = `
       INSERT INTO import_rows (
-        import_batch_id, row_number, raw_data_json, normalized_data_json, 
+        import_batch_id, row_number, normalized_data_json,
         validation_status, validation_errors_json
-      ) VALUES ($1, $2, $3, $4, $5, $6);
+      ) VALUES ($1, $2, $3, $4, $5);
     `;
 
     for (let i = 0; i < rawIssues.length; i++) {
@@ -128,7 +131,6 @@ export async function processImport(
       await client.query(insertRowQuery, [
         batchId,
         issue.rowNumber,
-        JSON.stringify(issue),
         JSON.stringify(issue),
         validation.status,
         JSON.stringify(validation.errors)
@@ -143,9 +145,9 @@ export async function processImport(
         INSERT INTO issues (
           source_system, jira_id, issue_key, issue_name, issue_type, current_status,
           standard_status, assignee_name, epic_key, parent_key,
-          idea_approved_date, start_date, r4g_date, due_date, 
-          epic_complexity_type, source_import_batch_id, aggregated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+          idea_approved_date, start_date, r4g_date, due_date,
+          epic_complexity_type, requirement_level, source_import_batch_id, aggregated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         ON CONFLICT (issue_key, source_import_batch_id) DO UPDATE SET
           jira_id = EXCLUDED.jira_id,
           issue_name = EXCLUDED.issue_name,
@@ -158,6 +160,7 @@ export async function processImport(
           r4g_date = EXCLUDED.r4g_date,
           due_date = EXCLUDED.due_date,
           epic_complexity_type = EXCLUDED.epic_complexity_type,
+          requirement_level = EXCLUDED.requirement_level,
           aggregated_at = EXCLUDED.aggregated_at,
           updated_at = NOW();
       `;
@@ -194,6 +197,7 @@ export async function processImport(
           parseJiraDate(issue.r4gDate),
           parseJiraDate(issue.dueDate),
           complexity,
+          issue.requirementLevel || null,
           batchId,
           aggregatedAtDate
         ]);
@@ -236,7 +240,104 @@ export async function processImport(
           AND parent.epic_id IS NOT NULL;
       `;
       await client.query(updateSubtaskEpicsQuery, [batchId]);
+
+      // 7. Compact, long-retention Epic-level snapshot (survives raw-data cleanup — see epic_ttm_snapshots).
+      const insertSnapshotQuery = `
+        INSERT INTO epic_ttm_snapshots (
+          epic_key, epic_name, project_key, domain_id, assignee_name, current_status,
+          epic_complexity_type, requirement_level, idea_approved_date, start_date, r4g_date, due_date,
+          target_r4g_date, source_import_batch_id, aggregated_at
+        )
+        SELECT
+          issues.issue_key, issues.issue_name,
+          COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''), NULL),
+          project.domain_id, issues.assignee_name, issues.current_status,
+          issues.epic_complexity_type, issues.requirement_level, issues.idea_approved_date, issues.start_date,
+          issues.r4g_date, issues.due_date, issues.target_r4g_date, issues.source_import_batch_id,
+          issues.aggregated_at
+        FROM issues
+        LEFT JOIN import_rows
+          ON import_rows.import_batch_id = issues.source_import_batch_id
+          AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = issues.issue_key
+        LEFT JOIN projects project
+          ON project.source_project_key = NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', '')
+        WHERE issues.source_import_batch_id = $1 AND UPPER(issues.issue_type) = 'EPIC'
+        ON CONFLICT (epic_key, aggregated_at) DO UPDATE SET
+          epic_name = EXCLUDED.epic_name,
+          project_key = EXCLUDED.project_key,
+          domain_id = EXCLUDED.domain_id,
+          assignee_name = EXCLUDED.assignee_name,
+          current_status = EXCLUDED.current_status,
+          epic_complexity_type = EXCLUDED.epic_complexity_type,
+          requirement_level = EXCLUDED.requirement_level,
+          idea_approved_date = EXCLUDED.idea_approved_date,
+          start_date = EXCLUDED.start_date,
+          r4g_date = EXCLUDED.r4g_date,
+          due_date = EXCLUDED.due_date,
+          target_r4g_date = EXCLUDED.target_r4g_date,
+          source_import_batch_id = EXCLUDED.source_import_batch_id;
+      `;
+      await client.query(insertSnapshotQuery, [batchId]);
+
+      // 8. Keep a compact, permanent daily history for every hierarchy level. It has no
+      // cascade-delete relationship to the raw batch, so Epic/Story/Subtask history
+      // remains available when raw import data reaches its retention limit.
+      const insertDailySnapshotsQuery = `
+        INSERT INTO issue_daily_snapshots (
+          issue_key, issue_type, issue_name, jira_id, project_key, epic_key, parent_key,
+          assignee_name, current_status, epic_complexity_type, requirement_level,
+          idea_approved_date, start_date, r4g_date, due_date, target_r4g_date,
+          source_import_batch_id, aggregated_at
+        )
+        SELECT
+          issues.issue_key, issues.issue_type, issues.issue_name, issues.jira_id,
+          NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+          issues.epic_key, issues.parent_key, issues.assignee_name, issues.current_status,
+          issues.epic_complexity_type, issues.requirement_level, issues.idea_approved_date,
+          issues.start_date, issues.r4g_date, issues.due_date, issues.target_r4g_date,
+          issues.source_import_batch_id, issues.aggregated_at
+        FROM issues
+        LEFT JOIN import_rows
+          ON import_rows.import_batch_id = issues.source_import_batch_id
+          AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = issues.issue_key
+        WHERE issues.source_import_batch_id = $1
+        ON CONFLICT (issue_key, aggregated_at) DO UPDATE SET
+          issue_type = EXCLUDED.issue_type,
+          issue_name = EXCLUDED.issue_name,
+          jira_id = EXCLUDED.jira_id,
+          project_key = EXCLUDED.project_key,
+          epic_key = EXCLUDED.epic_key,
+          parent_key = EXCLUDED.parent_key,
+          assignee_name = EXCLUDED.assignee_name,
+          current_status = EXCLUDED.current_status,
+          epic_complexity_type = EXCLUDED.epic_complexity_type,
+          requirement_level = EXCLUDED.requirement_level,
+          idea_approved_date = EXCLUDED.idea_approved_date,
+          start_date = EXCLUDED.start_date,
+          r4g_date = EXCLUDED.r4g_date,
+          due_date = EXCLUDED.due_date,
+          target_r4g_date = EXCLUDED.target_r4g_date,
+          source_import_batch_id = EXCLUDED.source_import_batch_id;
+      `;
+      await client.query(insertDailySnapshotsQuery, [batchId]);
+
     }
+
+    // Raw data is cleaned after every stored import, including a failed batch. Protect
+    // both this batch and the newest data layer so an out-of-order historical import
+    // can never remove the currently used alert source.
+    const retentionResult = await client.query<{ rawImportRetentionDays: number }>(
+      'SELECT raw_import_retention_days AS "rawImportRetentionDays" FROM data_retention_configs WHERE id = 1;',
+    );
+    const retentionDays = retentionResult.rows[0]?.rawImportRetentionDays ?? DEFAULT_RAW_IMPORT_RETENTION_DAYS;
+    const latestBatch = await client.query<{ id: number }>(
+      'SELECT id FROM import_batches ORDER BY aggregated_at DESC, id DESC LIMIT 1;',
+    );
+    const protectedBatchIds = [...new Set([batchId, latestBatch.rows[0]?.id].filter((id): id is number => typeof id === 'number'))];
+    await client.query(
+      'DELETE FROM import_batches WHERE aggregated_at < CURRENT_TIMESTAMP - ($1::int * INTERVAL \'1 day\') AND NOT (id = ANY($2::int[]));',
+      [retentionDays, protectedBatchIds],
+    );
 
     await client.query('COMMIT');
 
@@ -291,8 +392,8 @@ export async function getImportHistory(): Promise<ImportBatch[]> {
 
 export async function getBatchValidationDetail(batchId: number): Promise<BatchValidationDetail[]> {
   const res = await pool.query(`
-    SELECT row_number as "rowNumber", raw_data_json as "rawData", 
-           validation_status as "validationStatus", 
+    SELECT row_number as "rowNumber", normalized_data_json as "rawData",
+           validation_status as "validationStatus",
            validation_errors_json as "validationErrors"
     FROM import_rows
     WHERE import_batch_id = $1

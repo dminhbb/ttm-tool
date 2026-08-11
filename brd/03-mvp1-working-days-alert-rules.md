@@ -166,3 +166,12 @@ And R4G Date is null
 When Current Working Date > Target R4G Date
 Then cột Cảnh báo hiển thị "Fail TTM-CNTT"
 ```
+
+## 8. API đánh giá cảnh báo và tuân thủ
+
+`POST /api/epic-compliance` là contract nghiệp vụ tập trung cho Epic, Story và Subtask. API yêu cầu người dùng đã đăng nhập, nhận `items` (tối đa 500) cùng `evaluatedAt` tùy chọn theo định dạng `YYYY-MM-DD`.
+
+- Epic nhận `startDate`, `ideaApprovedDate`, `r4gDate`, `dueDate`, `status` và `epicComplexityType`; API trả baseline Design, In Progress, R4G, Released; `alertLevel`; trạng thái tuân thủ và các finding chất lượng dữ liệu.
+- Story cần `epicKey`; Subtask cần `parentKey` và `epicKey`. MVP1 chưa đặt deadline TTM riêng cho hai cấp này, nên API trả `NOT_APPLICABLE` nếu hợp lệ hoặc `AT_RISK` kèm finding khi thiếu liên kết.
+- Rule status/offset được đọc từ `epic_status_alert_rules` active; ngày baseline luôn tính bằng ngày làm việc và Holiday đang active.
+- Status không có rule active không phát sinh cảnh báo status, nhưng baseline R4G vẫn được đánh giá; API trả finding thông tin để quản trị viên biết cần cấu hình rule.

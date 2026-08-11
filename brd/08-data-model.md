@@ -358,3 +358,42 @@ ip_address
 # Bổ sung MVP1 — Cardinality user/domain
 
 Bảng `user_domains(user_id, domain_id)` là quan hệ nhiều-nhiều, dùng khóa chính kết hợp `(user_id, domain_id)`: một user có thể có một hoặc nhiều Domain và không thể có bản ghi gán trùng. User active bắt buộc có ít nhất một Domain; user inactive có thể chưa có Domain. Mọi Domain được gán phải active và không trùng lặp.
+
+## Bổ sung MVP1 — Snapshot lịch sử và cấu hình raw retention
+
+### issue_daily_snapshots
+
+```text
+id
+issue_key
+issue_type                 -- EPIC / STORY / SUBTASK và loại issue được import
+issue_name
+jira_id
+project_key
+epic_key
+parent_key
+assignee_name
+current_status
+epic_complexity_type
+requirement_level
+idea_approved_date
+start_date
+r4g_date
+due_date
+target_r4g_date
+source_import_batch_id     -- ON DELETE SET NULL
+aggregated_at
+created_at
+```
+
+Unique `(issue_key, aggregated_at)`. Đây là bảng tổng hợp lịch sử vĩnh viễn, tách khỏi raw import để hỗ trợ lịch sử cảnh báo sau khi dọn batch cũ.
+
+### data_retention_configs
+
+```text
+id                          -- singleton, luôn bằng 1
+raw_import_retention_days   -- mặc định 30, 7–3650
+updated_at
+```
+
+Chỉ SUPERADMIN được cập nhật cấu hình này.

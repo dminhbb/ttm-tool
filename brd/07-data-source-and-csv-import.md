@@ -94,10 +94,18 @@ CSV file
 → Staging
 → Mapping & Link Resolution (Phân giải parent_id, epic_id)
 → Canonical Unified Issues Table (Bảng issues gộp duy nhất)
+→ Daily Issue Snapshot (Epic/Story/Subtask, lưu vĩnh viễn)
 → Risk calculation
 ```
 
 Không ghi trực tiếp từ CSV vào bảng nghiệp vụ chính nếu chưa validate. Bước Mapping có nhiệm vụ phân giải mối quan hệ giữa Epic - Story - Subtask từ khóa chuỗi (Jira Key) thành các khóa ngoại số nguyên (`parent_id`, `epic_id`) và liên kết trực tiếp để tối ưu hóa hiệu năng truy vấn.
+
+## 5.1. Lưu trữ dài hạn và dọn raw data
+
+- Mỗi import thành công tạo snapshot trong `issue_daily_snapshots` cho Epic, Story và Subtask, theo `aggregated_at`; snapshot chứa các trường định danh, phân cấp, project, trạng thái, owner và các mốc ngày quan trọng.
+- Snapshot là dữ liệu lịch sử vĩnh viễn, không bị xóa khi raw import bị dọn. FK tới batch dùng `ON DELETE SET NULL`.
+- Raw data là `import_batches`, `import_rows` và `issues` của batch. Giá trị mặc định giữ raw là 30 ngày; SUPERADMIN có thể đặt từ 7 đến 3650 ngày tại Quản trị nguồn dữ liệu.
+- Sau mỗi import được lưu, hệ thống dọn raw batch quá hạn trong cùng transaction; luôn giữ batch đang import và lớp `aggregated_at` mới nhất để trang Cảnh báo Epic không mất dữ liệu hiện hành.
 
 
 ## 6. Import log

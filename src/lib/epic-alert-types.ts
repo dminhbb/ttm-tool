@@ -4,6 +4,7 @@ export type StagePillVariant = 'd1' | 'd2' | 'd3' | 'done' | 'overdue' | 'unknow
 
 export interface StageCell {
   dateLabel: string | null;
+  isCurrentStage: boolean;
   pillLabel: string;
   pillVariant: StagePillVariant;
   planLabel: string;
@@ -21,6 +22,7 @@ export interface EpicAlertRow {
   projectKey: string;
   r4gDate: string | null;
   remainingWorkingDays: number | null;
+  requirementLevel: string | null;
   sourceType: 'CSV';
   stages: {
     design: StageCell;
@@ -41,9 +43,7 @@ export type EpicAlertAccessRole = 'CBQL_PHONG' | 'LEAD' | 'PM_SM';
 
 export interface EpicAlertResponse {
   accessRole: EpicAlertAccessRole;
-  from: string;
   lastAggregatedAt: string | null;
   rows: EpicAlertRow[];
-  to: string;
   viewerName: string;
 }

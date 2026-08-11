@@ -70,12 +70,7 @@ const issueContextCte = `
       issues.epic_id AS "epicId",
       issues.parent_id AS "parentId",
       COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''), '') AS project,
-      COALESCE(
-        NULLIF(import_rows.normalized_data_json::jsonb ->> 'components', ''),
-        import_rows.raw_data_json::jsonb ->> 'Component/s',
-        import_rows.raw_data_json::jsonb ->> 'Components',
-        ''
-      ) AS components
+      COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'components', ''), '') AS components
     FROM issues
     LEFT JOIN import_rows
       ON import_rows.import_batch_id = issues.source_import_batch_id
@@ -91,12 +86,7 @@ export async function getDataReviewFilterOptions(batchId: number): Promise<DataR
       COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''), '') AS project,
       issues.current_status AS status,
       issues.issue_type AS "issueType",
-      COALESCE(
-        NULLIF(import_rows.normalized_data_json::jsonb ->> 'components', ''),
-        import_rows.raw_data_json::jsonb ->> 'Component/s',
-        import_rows.raw_data_json::jsonb ->> 'Components',
-        ''
-      ) AS components
+      COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'components', ''), '') AS components
     FROM issues
     LEFT JOIN import_rows
       ON import_rows.import_batch_id = issues.source_import_batch_id

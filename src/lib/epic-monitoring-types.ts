@@ -14,6 +14,7 @@ export interface MonitoredEpic {
   missingStandardInfo: string[];
   project: string;
   r4gDate: string | null;
+  requirementLevel: string | null;
   startDate: string | null;
   status: string;
   targetR4gDate: string | null;

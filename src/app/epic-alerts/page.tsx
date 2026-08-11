@@ -7,16 +7,9 @@ import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import type { EpicAlertAccessRole, EpicAlertResponse, EpicAlertRow, StageCell } from '@/lib/epic-alert-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
+import { CheckCircle, Circle, Stack } from '@phosphor-icons/react';
 
-function defaultFrom(): string {
-  const date = new Date();
-  date.setDate(date.getDate() - 90);
-  return date.toISOString().slice(0, 10);
-}
-
-function defaultTo(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+const EMPTY_EPIC_ALERT_ROWS: EpicAlertRow[] = [];
 
 function formatDate(value: string | null): string {
   if (!value) return '-';
@@ -37,8 +30,6 @@ function formatDateTime(value: string | null): string {
   const minute = String(date.getMinutes()).padStart(2, '0');
   return `${day}/${month}/${date.getFullYear()} ${hour}:${minute}`;
 }
-
-const EPIC_TYPE_LABEL: Record<string, string> = { COMPLEX: 'Epic phức tạp', SIMPLE: 'Epic đơn giản' };
 
 const ALERT_BADGE_CLASS: Record<AlertLevel, string> = {
   FAIL: 'fail',
@@ -76,18 +67,78 @@ function stageHighlightClass(cell: StageCell, threshold: number): string {
   return `hl-${cell.pillVariant}`;
 }
 
-function StagePill({ cell, threshold }: { cell: StageCell; threshold: number }) {
+function StagePill({ cell, threshold, doneDisplay = 'icon' }: { cell: StageCell; threshold: number; doneDisplay?: 'icon' | 'date' }) {
+  if (cell.pillVariant === 'done') {
+    if (doneDisplay === 'date' && cell.dateLabel) {
+      return (
+        <TD className={stageHighlightClass(cell, threshold)} title="Ngày Ready4Golive thực tế">
+          <span className="ttm-stage-pill done">{formatDate(cell.dateLabel)}</span>
+        </TD>
+      );
+    }
+    return (
+      <TD className={stageHighlightClass(cell, threshold)} title={cell.dateLabel ? `Hoàn thành: ${formatDate(cell.dateLabel)}` : cell.planLabel}>
+        <CheckCircle weight="fill" size={18} className="ttm-stage-done-icon" />
+      </TD>
+    );
+  }
   return (
-    <TD className={stageHighlightClass(cell, threshold)}>
+    <TD className={stageHighlightClass(cell, threshold)} title={cell.isCurrentStage ? 'Đang xử lý (status hiện tại của epic)' : undefined}>
       <div className="ttm-stage-plan">{cell.planLabel}</div>
       <span className={`ttm-stage-pill ${cell.pillVariant}`}>{cell.pillLabel}</span>
     </TD>
   );
 }
 
+const EPIC_TYPE_ICON: Record<string, { icon: typeof Circle; label: string }> = {
+  SIMPLE: { icon: Circle, label: 'Epic đơn giản' },
+  COMPLEX: { icon: Stack, label: 'Epic phức tạp' },
+};
+
+function EpicTypeIcon({ epicType }: { epicType: string | null }) {
+  const entry = epicType ? EPIC_TYPE_ICON[epicType] : undefined;
+  if (!entry) return <span className="ttm-empty-warning">-</span>;
+  const Icon = entry.icon;
+  return (
+    <span title={entry.label}>
+      <Icon weight="fill" size={18} className="ttm-epic-type-icon" />
+    </span>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  if (!status) return <span className="ttm-empty-warning">—</span>;
+  return <span className="ttm-status-badge">{status}</span>;
+}
+
+function TtmCnttStrips({ row }: { row: EpicAlertRow }) {
+  const target = row.ttmCnttTargetWorkingDays;
+  const elapsed = row.ttmCnttElapsedWorkingDays ?? 0;
+  const ratio = target > 0 ? elapsed / target : 0;
+  const isOver = elapsed > target;
+  const BASE_WIDTH = 56;
+  const actualWidth = Math.max(6, Math.min(ratio, 2) * BASE_WIDTH);
+  const actualEnd = row.r4gDate ?? new Date().toISOString().slice(0, 10);
+
+  return (
+    <TD className="ttm-metric">
+      <div className="ttm-strip-wrap" title={`${elapsed}/${target} ngày làm việc`}>
+        <div className="ttm-strip-row">
+          <span className="ttm-strip-date">{formatDate(row.t1StartDate)}</span>
+          <span className="ttm-strip-track" style={{ width: `${BASE_WIDTH}px` }} />
+          <span className="ttm-strip-date">{formatDate(row.targetR4gDate)}</span>
+        </div>
+        <div className="ttm-strip-row">
+          <span className="ttm-strip-date">{formatDate(row.t1StartDate)}</span>
+          <span className={`ttm-strip-track actual ${isOver ? 'over' : 'under'}`} style={{ width: `${actualWidth}px` }} />
+          <span className="ttm-strip-date">{formatDate(actualEnd)}</span>
+        </div>
+      </div>
+    </TD>
+  );
+}
+
 export default function EpicAlertsPage() {
-  const [from, setFrom] = useState(defaultFrom());
-  const [to, setTo] = useState(defaultTo());
   const [data, setData] = useState<EpicAlertResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -103,7 +154,7 @@ export default function EpicAlertsPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/epic-alerts?from=${from}&to=${to}`);
+      const res = await fetch('/api/epic-alerts');
       const result = await res.json();
       if (!res.ok) {
         setError(result.error || 'Lỗi hệ thống khi tải dữ liệu.');
@@ -118,11 +169,11 @@ export default function EpicAlertsPage() {
   };
 
   useEffect(() => {
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Deferring the initial request prevents a synchronous state update during effect setup.
+    void Promise.resolve().then(fetchData);
   }, []);
 
-  const rows = data?.rows ?? [];
+  const rows = data?.rows ?? EMPTY_EPIC_ALERT_ROWS;
   const projectOptions = useMemo(() => [...new Set(rows.map((row) => row.projectKey).filter(Boolean))].sort(), [rows]);
   const statusOptions = useMemo(() => [...new Set(rows.map((row) => row.currentStatus).filter(Boolean))].sort(), [rows]);
 
@@ -137,18 +188,16 @@ export default function EpicAlertsPage() {
 
   return (
     <div className="ttm-app">
-      <h1 className="ttm-page-title">Quản lý Epic của tôi</h1>
       <p className="ttm-page-subtitle">Màn hình read-only theo các dự án được phân quyền. Không có hành động ghi ngược Jira.</p>
 
-      {data && <div className="ttm-note">{ACCESS_ROLE_NOTE[data.accessRole]} Dữ liệu hiển thị là snapshot tích lũy theo ngày.</div>}
+      {data && (
+        <div className="ttm-note">
+          {ACCESS_ROLE_NOTE[data.accessRole]} Toàn bộ thông tin và tính toán cảnh báo đều dựa trên đợt import dữ liệu mới nhất.
+        </div>
+      )}
       {error && <div className="ttm-note" style={{ background: 'var(--ttm-danger-050)', borderColor: '#f3b3b3', color: 'var(--ttm-danger-700)' }}>{error}</div>}
 
       <section className="ttm-toolbar" aria-label="Bộ lọc Epic">
-        <div className="ttm-toolbar-group">
-          <input className="ttm-field" type="date" aria-label="From date" value={from} onChange={(event) => setFrom(event.target.value)} />
-          <input className="ttm-field" type="date" aria-label="To date" value={to} onChange={(event) => setTo(event.target.value)} />
-          <button type="button" className="ttm-button primary" onClick={fetchData}>Áp dụng</button>
-        </div>
         <select className="ttm-select" aria-label="Dự án" value={projectFilter} onChange={(event) => setProjectFilter(event.target.value)}>
           <option value="">Tất cả dự án của tôi</option>
           {projectOptions.map((project) => <option key={project} value={project}>{project}</option>)}
@@ -186,23 +235,22 @@ export default function EpicAlertsPage() {
       {isLoading ? (
         <TableSkeleton rows={8} />
       ) : filteredRows.length === 0 ? (
-        <EmptyState title="Không có Epic phù hợp" description="Thử thay đổi bộ lọc hoặc khoảng ngày." />
+        <EmptyState title="Không có Epic phù hợp" description="Thử thay đổi bộ lọc." />
       ) : (
         <TableContainer>
-          <Table className="min-w-[1500px]">
+          <Table className="min-w-[1300px]">
             <THead>
               <TR>
-                <TH className="min-w-[180px]">Epic</TH>
-                <TH>Loại Epic</TH>
-                <TH>T0</TH>
-                <TH>T1</TH>
-                <TH>TTM-CNTT</TH>
-                <TH>TTM-E2E</TH>
-                <TH className="min-w-[120px]">Cảnh báo</TH>
-                <TH className="min-w-[118px]">Design</TH>
-                <TH className="min-w-[118px]">In Progress</TH>
-                <TH className="min-w-[118px]">R4G</TH>
-                <TH className="min-w-[118px]">Release</TH>
+                <TH className="min-w-[180px]" title="issues.issue_key / issues.issue_name">Epic</TH>
+                <TH title="import_rows.normalized_data_json->>'epicType' (fallback: issues.epic_complexity_type)">Loại Epic</TH>
+                <TH title="issues.start_date">Start Date</TH>
+                <TH title="Tính từ issues.start_date + issues.epic_complexity_type (số ngày làm việc thực tế / chuẩn)">TTM-CNTT</TH>
+                <TH title="issues.current_status">Status</TH>
+                <TH className="min-w-[120px]" title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">Nhận xét</TH>
+                <TH className="min-w-[118px]" title="Tính từ issues.start_date theo rule offset (giai đoạn Design)">Design</TH>
+                <TH className="min-w-[118px]" title="Tính từ issues.start_date theo rule offset (giai đoạn In Progress)">In Progress</TH>
+                <TH className="min-w-[118px]" title="issues.r4g_date">Ready4Golive</TH>
+                <TH className="min-w-[118px]" title="issues.due_date">Release</TH>
               </TR>
             </THead>
             <TBody>
@@ -224,29 +272,30 @@ export default function EpicAlertsPage() {
                         </span>
                       )}
                     </TD>
-                    <TD>{EPIC_TYPE_LABEL[row.epicType ?? ''] ?? '-'}</TD>
-                    <TD>{formatDate(row.t0IdeaApprovedDate)}</TD>
+                    <TD><EpicTypeIcon epicType={row.epicType} /></TD>
                     {isMissingCore ? (
                       <>
                         <TD><span className="ttm-metric na">Không có</span></TD>
                         <TD className="ttm-metric na">Không tính được</TD>
-                        <TD className="ttm-metric">{row.ttmE2eElapsedWorkingDays ?? 0}/{row.ttmE2eTargetWorkingDays} ngày làm việc</TD>
+                        <TD><StatusBadge status={row.currentStatus} /></TD>
                         <TD>{row.currentStatus === 'To Do' ? <span className="ttm-empty-warning">—</span> : <span className="ttm-badge fail">Thiếu Start Date</span>}</TD>
                         <TD colSpan={4} className="ttm-metric na">Chưa thể tính lịch TTM-CNTT do thiếu dữ liệu bắt buộc.</TD>
                       </>
                     ) : (
                       <>
                         <TD>{formatDate(row.t1StartDate)}</TD>
-                        <TD className="ttm-metric">{row.ttmCnttElapsedWorkingDays}/{row.ttmCnttTargetWorkingDays} ngày làm việc</TD>
-                        <TD className="ttm-metric">{row.ttmE2eElapsedWorkingDays ?? 0}/{row.ttmE2eTargetWorkingDays} ngày làm việc</TD>
+                        <TtmCnttStrips row={row} />
+                        <TD><StatusBadge status={row.currentStatus} /></TD>
                         <TD>
                           {row.alertLevel === 'NONE'
-                            ? <span className="ttm-empty-warning">—</span>
+                            ? (row.r4gDate
+                              ? <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT đúng hạn theo rule">Đạt TTM</span>
+                              : <span className="ttm-empty-warning">—</span>)
                             : <span className={`ttm-badge ${ALERT_BADGE_CLASS[row.alertLevel]}`}>{row.alertLevel === 'EARLY' ? 'Cảnh báo sớm' : row.alertLevel === 'LATE' ? 'Cảnh báo muộn' : 'Fail TTM-CNTT'}</span>}
                         </TD>
                         <StagePill cell={row.stages.design} threshold={threshold} />
                         <StagePill cell={row.stages.inProgress} threshold={threshold} />
-                        <StagePill cell={row.stages.r4g} threshold={threshold} />
+                        <StagePill cell={row.stages.r4g} threshold={threshold} doneDisplay="date" />
                         <StagePill cell={row.stages.release} threshold={threshold} />
                       </>
                     )}

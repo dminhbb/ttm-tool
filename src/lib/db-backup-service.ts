@@ -19,6 +19,7 @@ export const EXPORTABLE_TABLES: { label: string; tableName: string }[] = [
   { label: 'Đợt import dữ liệu', tableName: 'import_batches' },
   { label: 'Dòng dữ liệu import (raw)', tableName: 'import_rows' },
   { label: 'Issues (Epic/Story/Subtask)', tableName: 'issues' },
+  { label: 'Epic TTM Snapshot (lịch sử tổng hợp)', tableName: 'epic_ttm_snapshots' },
   { label: 'Audit log', tableName: 'audit_logs' },
 ];
 

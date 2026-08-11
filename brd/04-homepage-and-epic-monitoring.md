@@ -38,6 +38,10 @@ Các menu vận hành chính ở cấp ngoài:
 - Epic Detail.
 - Báo cáo, nếu có.
 
+## 3.1. Trang Cảnh báo Epic
+
+Trang `/epic-alerts` là màn hình read-only, dùng lớp import mới nhất để tính và hiển thị cảnh báo Epic. Màn hình phân quyền theo role: SUPERADMIN xem toàn bộ, ADMIN xem các dự án thuộc Domain được gán, USER xem các dự án được phân công PM/SM. Các lớp snapshot cũ được giữ để phát triển tra cứu lịch sử cảnh báo sau này, nhưng không được trộn vào cảnh báo hiện hành.
+
 ## 4. Nguyên tắc 3 panel Homepage
 
 Homepage có 3 panel:

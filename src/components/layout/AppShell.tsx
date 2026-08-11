@@ -171,7 +171,7 @@ function SidebarContent({ expanded, onNavigate, onToggle }: SidebarContentProps)
 const PAGE_HEADERS: Record<string, { subtitle: string; title: string }> = {
   '/': { subtitle: 'Kiểm tra và quản lý các lớp dữ liệu Jira nhập vào TTM Monitor', title: 'Quản trị nguồn dữ liệu' },
   '/epic-monitoring': { subtitle: 'Theo dõi rủi ro TTM-CNTT của các Epic theo thời gian thực', title: 'Theo dõi Epic' },
-  '/epic-alerts': { subtitle: 'Thiết kế bảng cảnh báo Epic theo TTM Epic Management Design Package (bản so sánh)', title: 'Quản lý Epic của tôi' },
+  '/epic-alerts': { subtitle: 'Cảnh báo TTM-CNTT dựa trên đợt import dữ liệu mới nhất', title: 'Cảnh báo Epic' },
   '/admin/domains': { subtitle: 'Quản lý danh mục Domain nghiệp vụ', title: 'Quản lý Domain' },
   '/admin/projects': { subtitle: 'Quản lý danh mục Dự án và mapping với Domain', title: 'Quản lý Dự án' },
   '/admin/holidays': { subtitle: 'Cấu hình ngày nghỉ dùng để tính ngày làm việc', title: 'Cấu hình ngày nghỉ' },

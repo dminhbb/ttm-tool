@@ -1,19 +1,29 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { CloudArrowDown, CloudArrowUp, Warning } from '@phosphor-icons/react';
+import { CloudArrowDown, CloudArrowUp, Trash, Warning } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import type { BackupTableInfo, ImportResult } from '@/lib/db-backup-types';
 import type { ImportPreview } from '@/lib/db-backup-service';
+import type { CleanupPreview } from '@/lib/db-cleanup-service';
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat('vi-VN').format(value);
+}
+
+function formatDateTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${day}/${month}/${date.getFullYear()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
 export default function DatabaseBackupPage() {
@@ -45,7 +55,8 @@ export default function DatabaseBackupPage() {
   };
 
   useEffect(() => {
-    void fetchTables();
+    // Defer the request so effect setup itself does not synchronously schedule state updates.
+    void Promise.resolve().then(fetchTables);
   }, []);
 
   const openExportModal = () => {
@@ -160,6 +171,56 @@ export default function DatabaseBackupPage() {
 
   const isPreviewCurrent = importFile && importPreviewedFileKey === fileKeyOf(importFile);
 
+  const [retentionDays, setRetentionDays] = useState(30);
+  const [cleanupPreview, setCleanupPreview] = useState<CleanupPreview | null>(null);
+  const [isPreviewingCleanup, setIsPreviewingCleanup] = useState(false);
+  const [isCleaning, setIsCleaning] = useState(false);
+
+  const handleCleanupPreview = async () => {
+    setIsPreviewingCleanup(true);
+    setMessage(null);
+    setCleanupPreview(null);
+    try {
+      const res = await fetch(`/api/admin/db-cleanup?retentionDays=${retentionDays}`);
+      const result = await res.json();
+      if (!res.ok) {
+        setMessage({ text: result.error || 'Không xem trước được.', type: 'error' });
+        return;
+      }
+      setCleanupPreview(result);
+    } catch {
+      setMessage({ text: 'Không thể kết nối API dọn dữ liệu.', type: 'error' });
+    } finally {
+      setIsPreviewingCleanup(false);
+    }
+  };
+
+  const handleCleanupExecute = async () => {
+    if (!cleanupPreview) return;
+    if (!confirm(`Xóa vĩnh viễn ${formatNumber(cleanupPreview.batchCount)} đợt import cũ (và toàn bộ issues/import_rows liên quan)? Epic TTM Snapshot sẽ được giữ nguyên.`)) return;
+    setIsCleaning(true);
+    setMessage(null);
+    try {
+      const res = await fetch('/api/admin/db-cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ retentionDays }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        setMessage({ text: result.error || 'Dọn dữ liệu thất bại.', type: 'error' });
+        return;
+      }
+      setMessage({ text: `Đã xóa ${formatNumber(result.batchesDeleted)} đợt import cũ hơn ${retentionDays} ngày.`, type: 'success' });
+      setCleanupPreview(null);
+      void fetchTables();
+    } catch {
+      setMessage({ text: 'Không thể kết nối API dọn dữ liệu.', type: 'error' });
+    } finally {
+      setIsCleaning(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       {message && (
@@ -267,6 +328,61 @@ export default function DatabaseBackupPage() {
             Xác nhận import
           </Button>
         </CardFooter>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Dọn dữ liệu import cũ</CardTitle>
+        </CardHeader>
+        <CardBody className="gap-4">
+          <p className="text-fb-text-secondary">
+            Xóa các đợt import cũ hơn số ngày chọn bên dưới (kéo theo <code>issues</code> và <code>import_rows</code> của đợt đó, do quan hệ cascade).
+            Đợt import <strong>mới nhất luôn được giữ lại</strong> dù có cũ hơn ngưỡng, để dữ liệu hiện tại không bao giờ bị ảnh hưởng.
+            Lịch sử tóm tắt của Epic (<code>epic_ttm_snapshots</code>) <strong>không bị xóa</strong>.
+          </p>
+          <div className="flex items-end gap-3">
+            <Input
+              type="number"
+              label="Giữ lại (ngày)"
+              min={7}
+              max={3650}
+              value={retentionDays}
+              onChange={(event) => { setRetentionDays(Number(event.target.value)); setCleanupPreview(null); }}
+              className="max-w-[140px]"
+            />
+            <Button variant="outline" isLoading={isPreviewingCleanup} onClick={handleCleanupPreview}>Xem trước</Button>
+          </div>
+
+          {cleanupPreview && (
+            <div className="flex flex-col gap-2 rounded-xl border border-fb-border bg-fb-surface-muted p-4">
+              <p className="text-fb-text-secondary">
+                Sẽ xóa <strong className="text-fb-text-primary">{formatNumber(cleanupPreview.batchCount)}</strong> đợt import
+                (ước tính <strong className="text-fb-text-primary">{formatNumber(cleanupPreview.issueCount)}</strong> dòng issues,{' '}
+                <strong className="text-fb-text-primary">{formatNumber(cleanupPreview.importRowCount)}</strong> dòng import_rows)
+                cũ hơn {formatDateTime(cleanupPreview.cutoffDate)}.
+              </p>
+              {cleanupPreview.latestBatchProtected && (
+                <p className="text-fb-text-secondary">
+                  Đợt gần nhất được giữ lại: <strong className="text-fb-text-primary">{cleanupPreview.latestBatchProtected.fileName}</strong>{' '}
+                  ({formatDateTime(cleanupPreview.latestBatchProtected.aggregatedAt)})
+                </p>
+              )}
+            </div>
+          )}
+        </CardBody>
+        {cleanupPreview && (
+          <CardFooter>
+            <Button
+              variant="danger"
+              icon={<Trash className="size-4" weight="bold" />}
+              disabled={cleanupPreview.batchCount === 0 || isCleaning}
+              isLoading={isCleaning}
+              onClick={handleCleanupExecute}
+            >
+              Xóa {formatNumber(cleanupPreview.batchCount)} đợt import cũ
+            </Button>
+          </CardFooter>
+        )}
       </Card>
 
       <Modal

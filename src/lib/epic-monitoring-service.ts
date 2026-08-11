@@ -18,6 +18,7 @@ interface EpicRow {
   ideaApprovedDate: string | null;
   project: string | null;
   r4gDate: string | null;
+  requirementLevel: string | null;
   startDate: string | null;
   status: string;
   targetR4gDate: string | null;
@@ -52,6 +53,7 @@ export async function getEpicMonitoring(from: string, to: string): Promise<EpicM
       issues.r4g_date::text AS "r4gDate",
       issues.target_r4g_date::text AS "targetR4gDate",
       issues.due_date::text AS "dueDate",
+      issues.requirement_level AS "requirementLevel",
       COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''), '') AS project,
       COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'epicType', ''), '') AS "epicType"
     FROM issues
@@ -93,6 +95,7 @@ export async function getEpicMonitoring(from: string, to: string): Promise<EpicM
         missingStandardInfo: [],
         project: row.project ?? '',
         r4gDate: row.r4gDate,
+        requirementLevel: row.requirementLevel,
         startDate: row.startDate,
         status: row.status,
         targetR4gDate: row.targetR4gDate,
@@ -115,6 +118,7 @@ export async function getEpicMonitoring(from: string, to: string): Promise<EpicM
         missingStandardInfo: missingStandardInfo(row),
         project: row.project ?? '',
         r4gDate: row.r4gDate,
+        requirementLevel: row.requirementLevel,
         startDate: row.startDate,
         status: row.status,
         targetR4gDate: row.targetR4gDate,
@@ -147,6 +151,7 @@ export async function getEpicMonitoring(from: string, to: string): Promise<EpicM
       missingStandardInfo: missingStandardInfo(row),
       project: row.project ?? '',
       r4gDate: row.r4gDate,
+      requirementLevel: row.requirementLevel,
       startDate: row.startDate,
       status: row.status,
       targetR4gDate: alert.targetR4gDate ? alert.targetR4gDate.toISOString().slice(0, 10) : row.targetR4gDate,
