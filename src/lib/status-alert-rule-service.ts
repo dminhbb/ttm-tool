@@ -7,7 +7,6 @@ const RULE_COLUMNS = `
   epic_status AS "epicStatus",
   early_alert_offset_days AS "earlyAlertOffsetDays",
   late_alert_offset_days AS "lateAlertOffsetDays",
-  fail_offset_days AS "failOffsetDays",
   is_active AS "isActive",
   created_at::text AS "createdAt",
   updated_at::text AS "updatedAt"
@@ -42,17 +41,15 @@ export async function createStatusAlertRule(input: StatusAlertRuleInput): Promis
       epic_status,
       early_alert_offset_days,
       late_alert_offset_days,
-      fail_offset_days,
       is_active
     )
-    VALUES ($1, $2, $3, $4, $5, $6)
+    VALUES ($1, $2, $3, $4, $5)
     RETURNING ${RULE_COLUMNS};
   `, [
     input.epicComplexityType,
     input.epicStatus,
     input.earlyAlertOffsetDays,
     input.lateAlertOffsetDays,
-    input.failOffsetDays,
     input.isActive,
   ]);
   return result.rows[0];
@@ -66,8 +63,7 @@ export async function updateStatusAlertRule(id: number, input: StatusAlertRuleIn
       epic_status = $3,
       early_alert_offset_days = $4,
       late_alert_offset_days = $5,
-      fail_offset_days = $6,
-      is_active = $7,
+      is_active = $6,
       updated_at = CURRENT_TIMESTAMP
     WHERE id = $1
     RETURNING ${RULE_COLUMNS};
@@ -77,8 +73,12 @@ export async function updateStatusAlertRule(id: number, input: StatusAlertRuleIn
     input.epicStatus,
     input.earlyAlertOffsetDays,
     input.lateAlertOffsetDays,
-    input.failOffsetDays,
     input.isActive,
   ]);
   return result.rows[0] ?? null;
+}
+
+export async function deleteStatusAlertRule(id: number): Promise<boolean> {
+  const result = await pool.query('DELETE FROM epic_status_alert_rules WHERE id = $1;', [id]);
+  return result.rowCount === 1;
 }

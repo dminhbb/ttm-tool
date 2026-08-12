@@ -1,26 +1,26 @@
 import pool from '@/lib/db';
 import type { UserRole } from '@/lib/auth-types';
 import type { AlertLevel, EpicComplexity, OffsetRule } from '@/lib/ttm-rules';
+import { resolveOffsetRule } from '@/lib/ttm-rules';
 import { evaluateIssueCompliance } from '@/lib/epic-compliance-engine';
 import { addWorkingDays, diffWorkingDays } from '@/lib/working-days';
 import type { HolidaySet } from '@/lib/working-days';
 import { getActiveHolidaySet, getDomainByProjectKeyMap } from '@/lib/master-data-service';
 import { listActiveStatusAlertRules } from '@/lib/status-alert-rule-service';
-import type { EpicAlertAccessRole, EpicAlertResponse, EpicAlertRow, StageCell, StagePillVariant } from '@/lib/epic-alert-types';
+import { listTtmPolicies } from '@/lib/ttm-policy-service';
+import { getEpicKeysWithAlertHistory } from '@/lib/epic-alert-history-service';
+import type { EpicAlertAccessRole, EpicAlertResponse, EpicAlertRow, StageCell } from '@/lib/epic-alert-types';
 
-const CANCELLED_OR_RELEASED = /cancel|release/i;
 
-const TTM_CNTT_TARGET_DAYS: Record<EpicComplexity, number> = { SIMPLE: 15, COMPLEX: 30 };
-const TTM_E2E_TARGET_DAYS: Record<EpicComplexity, number> = { SIMPLE: 30, COMPLEX: 50 };
+// Canonical Epic workflow order (BRD 03 §1.1). "R4G Date" on the Epic is the completion date of
+// R4GOLIVE. Statuses that don't match anything here (including Cancelled) sort after everything —
+// same "already past" convention as before.
+const STATUS_ORDER = ['To Do', 'IN PO', 'Design', 'In Progress', 'R4GOLIVE', 'MVPDONE', 'PILOT', 'Released'];
+const STATUS_ORDER_UPPER = STATUS_ORDER.map((status) => status.toUpperCase());
 
-// Coarse Jira-status progression, used only to decide whether Design/In Progress are already behind us.
-// Unrecognized statuses (IN PO, R4GOLIVE, Ready for Golive, Released, ...) are treated as "past In Progress".
-const STATUS_STAGE_INDEX: Record<string, number> = { 'To Do': 0, Design: 1, 'In Progress': 2, Pending: 2 };
-
-function stageIndexOf(status: string): number {
-  if (status in STATUS_STAGE_INDEX) return STATUS_STAGE_INDEX[status];
-  if (CANCELLED_OR_RELEASED.test(status)) return -1;
-  return 3;
+function statusOrderIndex(status: string): number {
+  const idx = STATUS_ORDER_UPPER.indexOf(status.trim().toUpperCase());
+  return idx === -1 ? STATUS_ORDER.length : idx;
 }
 
 interface EpicRow {
@@ -78,29 +78,6 @@ async function resolveAccessScope(userId: number, role: UserRole): Promise<{ acc
   return { accessRole: 'PM_SM', sourceProjectKeys: result.rows.map((row) => row.sourceProjectKey) };
 }
 
-interface StageDates {
-  early: Date;
-  fail: Date;
-  late: Date;
-}
-
-function buildStageDates(startDate: Date, rule: OffsetRule, holidays: HolidaySet): StageDates {
-  return {
-    early: addWorkingDays(startDate, rule.earlyOffset, holidays),
-    fail: addWorkingDays(startDate, rule.failOffset, holidays),
-    late: addWorkingDays(startDate, rule.lateOffset, holidays),
-  };
-}
-
-function pillForRemaining(remaining: number): { pillLabel: string; pillVariant: StagePillVariant } {
-  if (remaining < 0) return { pillLabel: 'Quá hạn', pillVariant: 'overdue' };
-  if (remaining === 0) return { pillLabel: 'Hết hạn hôm nay', pillVariant: 'd1' };
-  if (remaining === 1) return { pillLabel: 'Còn 1 ngày', pillVariant: 'd1' };
-  if (remaining === 2) return { pillLabel: 'Còn 2 ngày', pillVariant: 'd2' };
-  if (remaining === 3) return { pillLabel: 'Còn 3 ngày', pillVariant: 'd3' };
-  return { pillLabel: `Còn ${remaining} ngày`, pillVariant: 'upcoming' };
-}
-
 /** dd/mm/yyyy, matching the client's formatDate() so plan-label text and formatted cell dates read the same. */
 function formatDdMmYyyy(date: Date): string {
   const day = String(date.getDate()).padStart(2, '0');
@@ -108,48 +85,80 @@ function formatDdMmYyyy(date: Date): string {
   return `${day}/${month}/${date.getFullYear()}`;
 }
 
-/** The stage the epic is currently moving through: countdown to whichever milestone (early/late/fail) hasn't been reached yet. */
-function activeStageCell(now: Date, dates: StageDates, holidays: HolidaySet): StageCell {
-  let target: Date;
-  let planPrefix: string;
-  if (now.getTime() < dates.early.getTime()) { target = dates.early; planPrefix = 'Mốc sớm'; }
-  else if (now.getTime() < dates.late.getTime()) { target = dates.late; planPrefix = 'Mốc muộn'; }
-  else { target = dates.fail; planPrefix = 'Hạn chót'; }
-  const remaining = diffWorkingDays(now, target, holidays);
-  const pill = pillForRemaining(remaining);
-  return { dateLabel: toIsoDate(target), isCurrentStage: true, planLabel: `${planPrefix}: ${formatDdMmYyyy(target)}`, pillLabel: pill.pillLabel, pillVariant: pill.pillVariant };
-}
-
 function doneStageCell(dateLabel?: string | null): StageCell {
   return { dateLabel: dateLabel ?? null, isCurrentStage: false, planLabel: 'Đã hoàn thành giai đoạn', pillLabel: dateLabel ? `✓ ${dateLabel}` : '✓ Hoàn thành', pillVariant: 'done' };
-}
-
-function upcomingStageCell(startDate: Date, rule: OffsetRule | null, holidays: HolidaySet): StageCell {
-  if (!rule) {
-    return { dateLabel: null, isCurrentStage: false, planLabel: 'Chưa cấu hình rule cảnh báo', pillLabel: 'Chưa tới', pillVariant: 'upcoming' };
-  }
-  const early = addWorkingDays(startDate, rule.earlyOffset, holidays);
-  const late = addWorkingDays(startDate, rule.lateOffset, holidays);
-  return {
-    dateLabel: null,
-    isCurrentStage: false,
-    planLabel: `Mốc sớm: ${formatDdMmYyyy(early)}, Mốc muộn: ${formatDdMmYyyy(late)}`,
-    pillLabel: 'Chưa tới',
-    pillVariant: 'upcoming',
-  };
 }
 
 function naStageCell(reason: string): StageCell {
   return { dateLabel: null, isCurrentStage: false, planLabel: reason, pillLabel: 'Không tính được', pillVariant: 'unknown' };
 }
 
-/** Everything on this screen is anchored to the single most recent import batch — no date-range picking. */
+/**
+ * Renders a single status-column cell for an Epic, per BRD 03 §4 (rules TTM-CNTT-1…6):
+ * target = T1 + late-alert offset configured for that column's status. Comparison is against
+ * where the Epic's *current* Jira status sits in STATUS_ORDER relative to the column's status —
+ * not against whether a downstream date field (e.g. R4G Date) happens to be filled in already.
+ *
+ * - Epic already past this status (TTM-CNTT-6, extended to any today): "done" — icon, or the
+ *   actual completion date when the caller has one (only R4GOLIVE has this, via R4G Date).
+ * - Epic hasn't reached this status yet (TTM-CNTT-1, extended past the early milestone): shows
+ *   the target date, labelled "Target" before the early milestone and "Past target" after it.
+ * - Epic is currently in this status (TTM-CNTT-2…5): "Target" date text while today is before the
+ *   late milestone, "Cảnh báo sớm" exactly on the early milestone, "Cảnh báo muộn" on/after late.
+ */
+function statusStageCell(
+  columnIndex: number,
+  epicIndex: number,
+  startDate: Date,
+  now: Date,
+  holidays: HolidaySet,
+  rule: OffsetRule | null,
+  actualDoneDate?: string | null,
+): StageCell {
+  if (!rule) return naStageCell('Chưa cấu hình rule cảnh báo');
+
+  const early = addWorkingDays(startDate, rule.earlyOffset, holidays);
+  const target = addWorkingDays(startDate, rule.lateOffset, holidays);
+
+  if (epicIndex > columnIndex) {
+    return doneStageCell(actualDoneDate ?? undefined);
+  }
+
+  if (epicIndex < columnIndex) {
+    const pastEarly = diffWorkingDays(now, early, holidays) <= 0;
+    return {
+      dateLabel: toIsoDate(target),
+      isCurrentStage: false,
+      planLabel: `${pastEarly ? 'Past target' : 'Target'}: ${formatDdMmYyyy(target)}`,
+      pillLabel: 'Chưa tới',
+      pillVariant: 'upcoming',
+    };
+  }
+
+  if (diffWorkingDays(now, early, holidays) === 0) {
+    return { dateLabel: null, isCurrentStage: true, planLabel: 'Cảnh báo sớm', pillLabel: 'Cảnh báo sớm', pillVariant: 'earlyAlert' };
+  }
+  if (diffWorkingDays(now, target, holidays) <= 0) {
+    return { dateLabel: null, isCurrentStage: true, planLabel: 'Cảnh báo muộn', pillLabel: 'Cảnh báo muộn', pillVariant: 'lateAlert' };
+  }
+  return { dateLabel: toIsoDate(target), isCurrentStage: true, planLabel: `Target: ${formatDdMmYyyy(target)}`, pillLabel: '', pillVariant: 'upcoming' };
+}
+
+/**
+ * Daily imports are incremental — a given import batch only contains issues whose `updated`
+ * field falls on that day, so no single batch is a complete snapshot. Each Epic therefore uses
+ * its own latest known row from the accumulated `issues` history (`DISTINCT ON` + `aggregated_at
+ * DESC`), not a shared "latest batch" filter — an Epic untouched today still shows its most
+ * recent known data instead of disappearing from the list.
+ */
 export async function getEpicAlertRows(userId: number, role: UserRole): Promise<EpicAlertResponse> {
-  const [scope, holidays, domainByProjectKey, statusAlertRules, viewer, latestBatch] = await Promise.all([
+  const [scope, holidays, domainByProjectKey, statusAlertRules, ttmPolicies, epicKeysWithAlertHistory, viewer, latestBatch] = await Promise.all([
     resolveAccessScope(userId, role),
     getActiveHolidaySet(),
     getDomainByProjectKeyMap(),
     listActiveStatusAlertRules(),
+    listTtmPolicies(true),
+    getEpicKeysWithAlertHistory(),
     pool.query<{ fullName: string }>('SELECT full_name AS "fullName" FROM users WHERE id = $1', [userId]),
     pool.query<{ aggregatedAt: string }>('SELECT aggregated_at::text AS "aggregatedAt" FROM import_batches ORDER BY aggregated_at DESC LIMIT 1;'),
   ]);
@@ -180,26 +189,25 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
       ON import_rows.import_batch_id = issues.source_import_batch_id
       AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = issues.issue_key
     WHERE UPPER(issues.issue_type) = 'EPIC'
-      AND issues.aggregated_at = $1
-      AND ($2::text[] IS NULL OR COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''), '') = ANY($2::text[]))
-    ORDER BY issues.issue_key ASC
-  `, [latestAggregatedAt, scope.sourceProjectKeys]);
+      AND ($1::text[] IS NULL OR COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''), '') = ANY($1::text[]))
+    ORDER BY issues.issue_key ASC, issues.aggregated_at DESC
+  `, [scope.sourceProjectKeys]);
 
   const now = new Date();
   const rows: EpicAlertRow[] = [];
 
+  const releasedStatusIndex = statusOrderIndex('Released');
+
   for (const row of result.rows) {
+    const hasAlertHistory = epicKeysWithAlertHistory.has(row.epicKey);
+    const epicStatusIndex = statusOrderIndex(row.status);
+    // Default visibility rule: Released epics only stay on the list if they were ever flagged
+    // Cảnh báo muộn/Fail TTM in their accumulated alert history; everything else always shows.
+    if (epicStatusIndex === releasedStatusIndex && !hasAlertHistory) continue;
+
     const startDate = parseDate(row.startDate);
-    const ideaApprovedDate = parseDate(row.ideaApprovedDate);
-    const r4gDateParsed = parseDate(row.r4gDate);
     const complexity: EpicComplexity = row.complexity ?? 'SIMPLE';
     const domain = (row.project && domainByProjectKey.get(row.project)) ?? '';
-    const stageIdx = stageIndexOf(row.status);
-
-    const ttmCnttTarget = TTM_CNTT_TARGET_DAYS[complexity];
-    const ttmCnttElapsed = startDate ? Math.max(0, diffWorkingDays(startDate, now, holidays)) : null;
-    const ttmE2eTarget = TTM_E2E_TARGET_DAYS[complexity];
-    const ttmE2eElapsed = ideaApprovedDate ? Math.max(0, diffWorkingDays(ideaApprovedDate, now, holidays)) : null;
 
     const evaluation = evaluateIssueCompliance({
       dueDate: row.dueDate,
@@ -210,46 +218,31 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
       r4gDate: row.r4gDate,
       startDate: row.startDate,
       status: row.status,
-    }, now, holidays, statusAlertRules);
+    }, now, holidays, statusAlertRules, ttmPolicies);
+    const ttmCnttStartDate = parseDate(evaluation.ttm.cntt.fromDate);
+    const ttmE2eStartDate = parseDate(evaluation.ttm.e2e.fromDate);
+    const ttmCnttTarget = evaluation.ttm.cntt.workingDays ?? 0;
+    const ttmCnttElapsed = ttmCnttStartDate ? Math.max(0, diffWorkingDays(ttmCnttStartDate, now, holidays)) : null;
+    const ttmE2eTarget = evaluation.ttm.e2e.workingDays ?? 0;
+    const ttmE2eElapsed = ttmE2eStartDate ? Math.max(0, diffWorkingDays(ttmE2eStartDate, now, holidays)) : null;
     const alertLevel = evaluation.alertLevel;
-    const targetR4gDate = parseDate(evaluation.baseline.r4g?.date ?? row.targetR4gDate);
+    const targetR4gDate = parseDate(evaluation.ttm.cntt.targetDate ?? row.targetR4gDate);
     const remainingWorkingDays = targetR4gDate ? diffWorkingDays(now, targetR4gDate, holidays) : null;
-    const designRule = evaluation.baseline.design?.rule ?? null;
-    const ipRule = evaluation.baseline.inProgress?.rule ?? null;
+    const designRule = resolveOffsetRule(complexity, 'Design', statusAlertRules);
+    const ipRule = resolveOffsetRule(complexity, 'In Progress', statusAlertRules);
+    const r4gRule = resolveOffsetRule(complexity, 'R4GOLIVE', statusAlertRules);
 
     let designCell: StageCell;
     let inProgressCell: StageCell;
+    let r4gCell: StageCell;
     if (!startDate) {
       designCell = naStageCell('Thiếu Start Date');
       inProgressCell = naStageCell('Thiếu Start Date');
-    } else if (stageIdx < 1) {
-      designCell = upcomingStageCell(startDate, designRule, holidays);
-      inProgressCell = upcomingStageCell(startDate, ipRule, holidays);
-    } else if (stageIdx === 1) {
-      designCell = designRule ? activeStageCell(now, buildStageDates(startDate, designRule, holidays), holidays) : naStageCell('Chưa cấu hình rule');
-      inProgressCell = upcomingStageCell(startDate, ipRule, holidays);
-    } else if (stageIdx === 2) {
-      // Current Jira status is In Progress / Pending — that's authoritative even if R4G Date
-      // has already been filled in ahead of the status catching up.
-      designCell = doneStageCell();
-      inProgressCell = ipRule ? activeStageCell(now, buildStageDates(startDate, ipRule, holidays), holidays) : naStageCell('Chưa cấu hình rule');
+      r4gCell = naStageCell('Thiếu Start Date');
     } else {
-      // Past In Progress (or cancelled) — engineering stages are behind us either way.
-      designCell = doneStageCell();
-      inProgressCell = doneStageCell();
-    }
-
-    let r4gCell: StageCell;
-    if (r4gDateParsed) {
-      r4gCell = doneStageCell(toIsoDate(r4gDateParsed) ?? undefined);
-    } else if (stageIdx >= 3) {
-      r4gCell = naStageCell('Đã qua In Progress nhưng thiếu R4G Date');
-    } else if (startDate && targetR4gDate) {
-      const remaining = remainingWorkingDays ?? diffWorkingDays(now, targetR4gDate, holidays);
-      const pill = pillForRemaining(remaining);
-      r4gCell = { dateLabel: toIsoDate(targetR4gDate), isCurrentStage: false, planLabel: `Target: ${formatDdMmYyyy(targetR4gDate)}`, pillLabel: pill.pillLabel, pillVariant: pill.pillVariant };
-    } else {
-      r4gCell = upcomingStageCell(startDate ?? now, null, holidays);
+      designCell = statusStageCell(statusOrderIndex('Design'), epicStatusIndex, startDate, now, holidays, designRule);
+      inProgressCell = statusStageCell(statusOrderIndex('In Progress'), epicStatusIndex, startDate, now, holidays, ipRule);
+      r4gCell = statusStageCell(statusOrderIndex('R4GOLIVE'), epicStatusIndex, startDate, now, holidays, r4gRule, row.r4gDate);
     }
 
     const releaseCell: StageCell = row.dueDate
@@ -263,6 +256,7 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
       epicKey: row.epicKey,
       epicName: row.epicName,
       epicType: complexity,
+      hasAlertHistory,
       missingStandardInfo: missingStandardInfo(row),
       ownerName: row.assignee ?? '',
       projectKey: row.project ?? '',
@@ -273,6 +267,9 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
       stages: { design: designCell, inProgress: inProgressCell, r4g: r4gCell, release: releaseCell },
       t0IdeaApprovedDate: row.ideaApprovedDate,
       t1StartDate: row.startDate,
+      ttmCnttFromDate: evaluation.ttm.cntt.fromDate,
+      ttmCnttFromField: evaluation.ttm.cntt.fromField,
+      ttmCnttToField: evaluation.ttm.cntt.toField,
       targetR4gDate: toIsoDate(targetR4gDate) ?? row.targetR4gDate,
       ttmCnttElapsedWorkingDays: ttmCnttElapsed,
       ttmCnttTargetWorkingDays: ttmCnttTarget,

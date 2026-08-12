@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TTM Monitor — Tài liệu sản phẩm</title>
+<style>
+  :root {
+    --brand-900: #12254a; --brand-700: #25406f; --brand-600: #2f5bd6; --brand-100: #eaf0ff; --brand-050: #f5f8ff;
+    --ink: #1f2430; --muted: #5b6475; --border: #e0e3e8; --bg: #f5f6f8; --card: #ffffff;
+    --success: #2e7d32; --success-bg: #e6f4ea; --warning: #b77900; --warning-bg: #fff4cf;
+    --danger: #c62828; --danger-bg: #fdeaea; --info: #1565c0; --info-bg: #e9f2ff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Arial, system-ui, -apple-system, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.55; }
+  header.top { position: sticky; top: 0; z-index: 10; background: var(--brand-900); color: #fff; padding: 18px 28px; }
+  header.top h1 { margin: 0; font-size: 20px; letter-spacing: -0.01em; }
+  header.top p { margin: 4px 0 0; font-size: 12.5px; color: #b9c6e6; }
+  .layout { display: flex; gap: 0; align-items: flex-start; max-width: 1280px; margin: 0 auto; }
+  nav.toc { position: sticky; top: 68px; width: 250px; flex: none; padding: 20px 14px; max-height: calc(100vh - 68px); overflow-y: auto; }
+  nav.toc a { display: block; padding: 5px 10px; font-size: 12.5px; color: var(--muted); text-decoration: none; border-radius: 6px; }
+  nav.toc a:hover { background: var(--brand-100); color: var(--brand-700); }
+  nav.toc .toc-block { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: #8a93a6; margin: 14px 10px 4px; }
+  main { flex: 1; min-width: 0; padding: 24px 32px 80px; }
+  section { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 24px 28px; margin-bottom: 20px; scroll-margin-top: 80px; }
+  section h2 { margin: 0 0 4px; font-size: 20px; color: var(--brand-900); }
+  section .kicker { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--brand-600); margin-bottom: 4px; }
+  section h3 { font-size: 15px; margin: 20px 0 8px; color: var(--brand-700); }
+  p { margin: 8px 0; font-size: 13.5px; }
+  ul, ol { font-size: 13.5px; padding-left: 22px; }
+  li { margin: 4px 0; }
+  code { background: var(--brand-050); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 12px; font-family: "Consolas", monospace; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12.5px; }
+  th, td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--brand-050); font-weight: 800; color: var(--brand-700); }
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .badge.success { background: var(--success-bg); color: var(--success); }
+  .badge.warning { background: var(--warning-bg); color: var(--warning); }
+  .badge.danger { background: var(--danger-bg); color: var(--danger); }
+  .badge.info { background: var(--info-bg); color: var(--info); }
+  .callout { background: var(--brand-050); border: 1px solid #cdd9f7; border-radius: 10px; padding: 12px 16px; font-size: 12.5px; margin: 12px 0; }
+  .callout.warn { background: var(--warning-bg); border-color: #f0d98a; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card-mini { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: #fbfcff; }
+  .card-mini h4 { margin: 0 0 4px; font-size: 12.5px; color: var(--brand-700); }
+  .card-mini p { margin: 0; font-size: 12px; color: var(--muted); }
+  footer.page { text-align: center; padding: 30px; font-size: 11.5px; color: var(--muted); }
+  svg text { font-family: "Segoe UI", Arial, sans-serif; }
+  @media (max-width: 900px) {
+    .layout { flex-direction: column; }
+    nav.toc { position: static; width: 100%; max-height: none; }
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>TTM Monitor — Tài liệu sản phẩm</h1>
+  <p>Hệ thống giám sát Time to Market (TTM) của các Epic — trình bày cho đào tạo và tra cứu nội bộ.</p>
+</header>
+
+<div class="layout">
+  <nav class="toc" aria-label="Mục lục">
+    <div class="toc-block">Thông tin chung</div>
+    <a href="#overview">1. Tổng quan hệ thống</a>
+    <a href="#roles">2. Vai trò &amp; phân quyền</a>
+    <div class="toc-block">Khối dữ liệu</div>
+    <a href="#import">3. Quy trình Import dữ liệu</a>
+    <a href="#architecture">4. Kiến trúc dữ liệu</a>
+    <a href="#retention">5. Vòng đời &amp; lưu trữ dữ liệu</a>
+    <div class="toc-block">Khối cảnh báo</div>
+    <a href="#alert-policy">6. Cấu hình chính sách TTM &amp; rule cảnh báo</a>
+    <a href="#alert-logic">7. Logic tính cảnh báo Epic</a>
+    <a href="#alert-history">8. Lịch sử cảnh báo tích lũy</a>
+    <div class="toc-block">Khối màn hình</div>
+    <a href="#screen-epic-alerts">9. Màn hình Cảnh báo Epic</a>
+    <a href="#screen-monitoring">10. Màn hình Theo dõi Epic</a>
+    <a href="#screen-data-source">11. Màn hình Nguồn dữ liệu</a>
+    <a href="#screen-admin">12. Các màn hình Quản trị hệ thống</a>
+    <div class="toc-block">Phụ lục</div>
+    <a href="#glossary">13. Thuật ngữ</a>
+  </nav>
+
+  <main>
+
+    <section id="overview">
+      <div class="kicker">Thông tin chung</div>
+      <h2>1. Tổng quan hệ thống</h2>
+      <p>
+        <strong>TTM Monitor</strong> theo dõi rủi ro <strong>Time to Market (TTM)</strong> của các Epic Jira: từ lúc bắt đầu triển khai
+        (Start Date / T1) tới khi lên môi trường sản xuất (R4G Date), so với mốc chuẩn cấu hình theo Loại Epic và trạng thái.
+        Dữ liệu được nạp định kỳ từ file CSV export từ Jira; hệ thống tự tính toán cảnh báo và hiển thị trên các màn hình giám sát.
+      </p>
+      <div class="grid-2">
+        <div class="card-mini">
+          <h4>Đối tượng dùng chính</h4>
+          <p>PM/SM theo dõi Epic phụ trách, Lead theo dõi Domain, CBQL Phòng theo dõi toàn bộ; Admin/SUPERADMIN cấu hình hệ thống.</p>
+        </div>
+        <div class="card-mini">
+          <h4>Nguồn dữ liệu</h4>
+          <p>File CSV export chuẩn từ Jira, import thủ công theo lớp dữ liệu hàng ngày (data layering theo <code>aggregated_at</code>).</p>
+        </div>
+        <div class="card-mini">
+          <h4>Phạm vi cảnh báo</h4>
+          <p>TTM-CNTT (từ Start Date tới R4G) là trọng tâm; TTM-E2E (từ ngày duyệt ý tưởng tới Release) theo dõi song song.</p>
+        </div>
+        <div class="card-mini">
+          <h4>Nguyên tắc tính toán</h4>
+          <p>Mọi cảnh báo tính bằng <strong>ngày làm việc</strong> (bỏ Thứ Bảy/Chủ Nhật/ngày nghỉ cấu hình), tính lại theo thời gian thực mỗi lần tải màn hình.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="roles">
+      <div class="kicker">Thông tin chung</div>
+      <h2>2. Vai trò &amp; phân quyền</h2>
+      <table>
+        <thead><tr><th>Role</th><th>Phạm vi xem</th><th>Quyền quản trị</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge info">SUPERADMIN</span></td><td>Toàn bộ Epic mọi dự án (vai trò CBQL Phòng)</td><td>Toàn quyền: User, Domain, Dự án, ngày nghỉ, rule cảnh báo, tiêu chí TTM, sao lưu/phục hồi, quản lý lớp dữ liệu tổng hợp</td></tr>
+          <tr><td><span class="badge info">ADMIN</span></td><td>Epic thuộc Domain được phân quyền (vai trò Lead)</td><td>Xem các menu Quản trị hệ thống; một số hành động (cấu hình lưu trữ, chạy lại dữ liệu tổng hợp) giới hạn SUPERADMIN</td></tr>
+          <tr><td><span class="badge neutral" style="background:#eef1f7;color:#5b6475">USER</span></td><td>Epic thuộc dự án được phân quyền PM/SM</td><td>Chỉ xem màn hình giám sát (Cảnh báo Epic, Theo dõi Epic), không truy cập menu Quản trị</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        Menu avatar người dùng có 2 mục chỉ hiển thị cho ADMIN/SUPERADMIN: <strong>Logic xử lý dữ liệu</strong> và <strong>Tài liệu sản phẩm</strong> (trang này).
+        Mục <strong>Logic cảnh báo</strong> hiển thị cho mọi role.
+      </div>
+    </section>
+
+    <section id="import">
+      <div class="kicker">Khối dữ liệu</div>
+      <h2>3. Quy trình Import dữ liệu</h2>
+      <p>Thực hiện tại màn hình <strong>Nguồn dữ liệu</strong> (route <code>/</code>). Mỗi lần import tạo một <strong>lớp dữ liệu</strong> gắn với một mốc thời gian tổng hợp (<code>aggregated_at</code>).</p>
+      <h3>3.1. Mô hình import theo ngày (incremental)</h3>
+      <p>
+        File CSV hàng ngày <strong>chỉ chứa các issue có trường <code>updated</code> rơi vào đúng ngày import đó</strong> — không phải bản snapshot đầy đủ toàn bộ dữ liệu.
+        Vì vậy hệ thống không dựa vào "batch mới nhất" để hiển thị, mà luôn lấy dòng dữ liệu <strong>mới nhất của từng Epic</strong> trong toàn bộ lịch sử tích lũy.
+      </p>
+      <h3>3.2. Các bước xử lý khi import (không ở chế độ "chỉ kiểm tra lỗi")</h3>
+      <ol>
+        <li>Parse CSV, chuẩn hoá thành các issue thô.</li>
+        <li>Validate từng dòng: <span class="badge success">VALID</span> / <span class="badge warning">WARNING</span> / <span class="badge danger">INVALID</span>. Nếu có dòng INVALID, cả batch coi là <strong>FAILED</strong> và không ghi vào bảng canonical.</li>
+        <li>Lưu toàn bộ dòng thô vào <code>import_rows</code> (kèm kết quả validate).</li>
+        <li>Ghi/UPSERT vào bảng canonical <code>issues</code> (1 dòng / issue / batch).</li>
+        <li>Liên kết quan hệ Subtask → Story → Epic trong phạm vi batch.</li>
+        <li>Chạy <code>aggregateBatchData()</code>: tính lại 3 lớp dữ liệu tổng hợp (mục 4).</li>
+        <li>Dọn dữ liệu raw quá hạn lưu trữ (theo cấu hình retention), luôn bảo toàn batch mới nhất.</li>
+      </ol>
+      <div class="callout warn">
+        Chế độ <strong>“Chỉ kiểm tra lỗi” (Validate only)</strong> chỉ chạy bước 1–2, không ghi gì vào CSDL — dùng để rà soát file trước khi import thật.
+      </div>
+    </section>
+
+    <section id="architecture">
+      <div class="kicker">Khối dữ liệu</div>
+      <h2>4. Kiến trúc dữ liệu</h2>
+      <svg viewBox="0 0 900 260" role="img" aria-label="Sơ đồ luồng xử lý dữ liệu">
+        <defs>
+          <marker id="arrow1" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#8a93a6" /></marker>
+        </defs>
+        <g font-size="11.5" font-weight="700" fill="#1f2430">
+          <rect x="20" y="20" width="150" height="50" rx="8" fill="#eaf0ff" stroke="#c3cce3" /><text x="95" y="41" text-anchor="middle">File CSV (Jira)</text><text x="95" y="57" font-size="9.5" font-weight="400" fill="#6b7280" text-anchor="middle">Chỉ issue update trong ngày</text>
+          <line x1="170" y1="45" x2="200" y2="45" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow1)" />
+          <rect x="200" y="20" width="150" height="50" rx="8" fill="#eaf0ff" stroke="#c3cce3" /><text x="275" y="41" text-anchor="middle">import_rows</text><text x="275" y="57" font-size="9.5" font-weight="400" fill="#6b7280" text-anchor="middle">Raw, kèm validation</text>
+          <line x1="350" y1="45" x2="380" y2="45" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow1)" />
+          <rect x="380" y="20" width="150" height="50" rx="8" fill="#eaf0ff" stroke="#c3cce3" /><text x="455" y="41" text-anchor="middle">issues</text><text x="455" y="57" font-size="9.5" font-weight="400" fill="#6b7280" text-anchor="middle">Canonical, upsert theo batch</text>
+
+          <line x1="455" y1="70" x2="455" y2="110" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow1)" />
+          <rect x="380" y="110" width="150" height="50" rx="8" fill="#fff4cf" stroke="#f0d98a" /><text x="455" y="131" text-anchor="middle">aggregateBatchData()</text><text x="455" y="147" font-size="9.5" font-weight="400" fill="#6b7280" text-anchor="middle">Khi import &amp; khi "Chạy lại"</text>
+
+          <line x1="380" y1="135" x2="200" y2="135" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow1)" />
+          <rect x="20" y="110" width="150" height="50" rx="8" fill="#eaf0ff" stroke="#c3cce3" /><text x="95" y="131" text-anchor="middle">epic_ttm_snapshots</text><text x="95" y="147" font-size="9.5" font-weight="400" fill="#6b7280" text-anchor="middle">Lịch sử Epic gọn</text>
+
+          <line x1="530" y1="135" x2="560" y2="135" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow1)" />
+          <rect x="560" y="110" width="170" height="50" rx="8" fill="#eaf0ff" stroke="#c3cce3" /><text x="645" y="131" text-anchor="middle">issue_daily_snapshots</text><text x="645" y="147" font-size="9.5" font-weight="400" fill="#6b7280" text-anchor="middle">Lịch sử mọi cấp Epic/Story/Subtask</text>
+
+          <line x1="455" y1="160" x2="455" y2="190" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow1)" />
+          <rect x="380" y="190" width="150" height="50" rx="8" fill="#eaf0ff" stroke="#c3cce3" /><text x="455" y="211" text-anchor="middle">epic_alert_history</text><text x="455" y="227" font-size="9.5" font-weight="400" fill="#6b7280" text-anchor="middle">Chỉ lưu khi LATE/FAIL</text>
+
+          <rect x="730" y="90" width="150" height="90" rx="8" fill="#e6f4ea" stroke="#cfe8d6" /><text x="805" y="121" text-anchor="middle">Màn hình</text><text x="805" y="136" text-anchor="middle">Cảnh báo Epic</text><text x="805" y="155" font-size="9" font-weight="400" fill="#6b7280" text-anchor="middle">Đọc issues mới nhất</text><text x="805" y="167" font-size="9" font-weight="400" fill="#6b7280" text-anchor="middle">+ tính cảnh báo real-time</text>
+          <line x1="530" y1="45" x2="730" y2="110" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow1)" />
+          <line x1="530" y1="215" x2="730" y2="150" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow1)" />
+        </g>
+      </svg>
+      <h3>4.1. Vai trò từng bảng</h3>
+      <table>
+        <thead><tr><th>Bảng</th><th>Vai trò</th><th>Khi raw batch bị xoá</th></tr></thead>
+        <tbody>
+          <tr><td><code>import_batches</code>, <code>import_rows</code></td><td>Dữ liệu raw của từng đợt import (metadata batch + toàn bộ dòng CSV thô)</td><td>Chính là dữ liệu bị xoá</td></tr>
+          <tr><td><code>issues</code></td><td>Dữ liệu canonical Epic/Story/Subtask, 1 dòng/issue/batch, có quan hệ cha–con và Epic Link</td><td>Cascade xoá theo batch</td></tr>
+          <tr><td><code>epic_ttm_snapshots</code></td><td>Lịch sử gọn theo Epic (1 dòng/Epic/ngày), phục vụ tra cứu dài hạn</td><td>Giữ lại — chỉ mất liên kết batch (SET NULL)</td></tr>
+          <tr><td><code>issue_daily_snapshots</code></td><td>Lịch sử gọn theo ngày cho mọi cấp (Epic/Story/Subtask)</td><td>Giữ lại</td></tr>
+          <tr><td><code>epic_alert_history</code></td><td>Tích luỹ mỗi lần Epic bị "Cảnh báo muộn"/"Fail TTM" — gồm loại cảnh báo, ngày, status lúc đó</td><td>Giữ lại</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        3 bảng tổng hợp (<code>epic_ttm_snapshots</code>, <code>issue_daily_snapshots</code>, <code>epic_alert_history</code>) không cascade xoá theo raw batch —
+        đây là thiết kế có chủ đích để lịch sử Epic sống lâu hơn raw data, phục vụ tra cứu sau khi raw đã bị dọn theo retention.
+      </div>
+    </section>
+
+    <section id="retention">
+      <div class="kicker">Khối dữ liệu</div>
+      <h2>5. Vòng đời &amp; lưu trữ dữ liệu</h2>
+      <h3>5.1. Lưu trữ dữ liệu import (raw)</h3>
+      <p>
+        Cấu hình tại panel <strong>“Lưu trữ dữ liệu import”</strong> (right panel màn hình Nguồn dữ liệu, SUPERADMIN): số ngày giữ dữ liệu raw
+        (<code>import_batches</code>/<code>import_rows</code>/<code>issues</code>), mặc định 30 ngày, tối thiểu 7. Sau mỗi lần import thành công, hệ thống tự dọn
+        các batch cũ hơn ngưỡng — batch mới nhất luôn được bảo vệ để tránh mất nguồn cảnh báo hiện hành.
+      </p>
+      <h3>5.2. Quản lý lớp dữ liệu tổng hợp</h3>
+      <p>
+        Panel <strong>“Nhật ký lớp dữ liệu tổng hợp (Epic)”</strong> (cùng màn hình Nguồn dữ liệu) liệt kê từng ngày có dữ liệu tổng hợp, kèm số dòng ở mỗi bảng
+        và trạng thái dữ liệu import gốc (còn/đã dọn). Hai hành động:
+      </p>
+      <ul>
+        <li><strong>Xoá</strong> — chỉ xoá 3 bảng tổng hợp của ngày đó, không đụng tới dữ liệu import gốc.</li>
+        <li><strong>Chạy lại</strong> — tính lại tổng hợp từ dữ liệu <code>issues</code> hiện có (không cần import lại CSV); chỉ khả dụng khi raw của ngày đó còn tồn tại.</li>
+      </ul>
+      <div class="callout warn">
+        Nếu dữ liệu raw của một ngày đã bị dọn theo retention, nút "Chạy lại" cho ngày đó sẽ không khả dụng — lớp tổng hợp đã có vẫn được giữ nguyên,
+        chỉ không thể tái tạo lại từ đầu.
+      </div>
+    </section>
+
+    <section id="alert-policy">
+      <div class="kicker">Khối cảnh báo</div>
+      <h2>6. Cấu hình chính sách TTM &amp; rule cảnh báo</h2>
+      <p>Tại màn hình <strong>Cấu hình cảnh báo</strong> (<code>/admin/status-alert-rules</code>) có 2 nhóm cấu hình độc lập:</p>
+      <h3>6.1. Tiêu chí Time to Market (TTM Policy)</h3>
+      <p>
+        Xác định deadline tổng thể: <code>Target = From TTM Field + số ngày làm việc</code>, theo từng cặp (Loại TTM × Loại Epic).
+        <code>From TTM Field</code>/<code>To TTM Field</code> là nhãn logic nội bộ ứng dụng (Start Date, Idea Approved Date, R4G Date, Due Date) — không phải tên cột trong file CSV import gốc.
+        Loại TTM gồm <strong>TTM-CNTT</strong> (T1 → R4G, trọng tâm MVP1) và <strong>TTM-E2E</strong> (T0 → Release).
+      </p>
+      <h3>6.2. Rule cảnh báo theo trạng thái Epic (epic_status_alert_rules)</h3>
+      <p>
+        Với mỗi cặp (Loại Epic × Trạng thái Epic), cấu hình 3 mốc: <strong>Cảnh báo sớm</strong>, <strong>Cảnh báo muộn</strong>, <strong>Fail TTM-CNTT</strong> —
+        tính bằng số ngày làm việc kể từ T1. Design và In Progress là dữ liệu seed mặc định; có thể thêm rule cho trạng thái khác (IN PO, R4GOLIVE, MVPDONE, PILOT, Released…).
+      </p>
+      <table>
+        <thead><tr><th>Trạng thái Epic</th><th>Epic đơn giản (TTM-CNTT 15 ngày)</th><th>Epic phức tạp (TTM-CNTT 30 ngày)</th></tr></thead>
+        <tbody>
+          <tr><td>Design</td><td>Sớm: T1+2 · Muộn: T1+3</td><td>Sớm: T1+5 · Muộn: T1+6</td></tr>
+          <tr><td>In Progress</td><td>Sớm: T1+12 · Muộn: T1+13</td><td>Sớm: T1+19 · Muộn: T1+20</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="alert-logic">
+      <div class="kicker">Khối cảnh báo</div>
+      <h2>7. Logic tính cảnh báo Epic</h2>
+      <h3>7.1. Thứ tự trạng thái chuẩn (STATUS_ORDER)</h3>
+      <p><code>To Do → IN PO → Design → In Progress → R4GOLIVE → MVPDONE → PILOT → Released</code></p>
+      <p>Trường <code>R4G Date</code> trên Epic tương ứng với ngày hoàn thành trạng thái <strong>R4GOLIVE</strong>. Trạng thái không khớp danh sách này (kể cả Cancelled) được xếp sau cùng.</p>
+
+      <h3>7.2. Ba cột trạng thái trên bảng Cảnh báo Epic</h3>
+      <p>Mỗi cột (Design, In Progress, Ready4Golive) so sánh vị trí trạng thái hiện tại của Epic với vị trí trạng thái của cột đó:</p>
+      <table>
+        <thead><tr><th>Rule</th><th>Điều kiện</th><th>Hiển thị</th></tr></thead>
+        <tbody>
+          <tr><td>TTM-CNTT-1</td><td><code>today &lt; mốc sớm</code> và Epic ở trạng thái <strong>trước</strong> cột</td><td>“Target: dd/mm/yyyy”</td></tr>
+          <tr><td>TTM-CNTT-2</td><td>Trước/giữa 2 mốc, Epic đang <strong>đúng</strong> trạng thái cột</td><td>“Target: dd/mm/yyyy”</td></tr>
+          <tr><td>TTM-CNTT-3</td><td>Đúng ngày mốc sớm, Epic đang đúng trạng thái cột</td><td><span class="badge warning">Cảnh báo sớm</span></td></tr>
+          <tr><td>TTM-CNTT-4/5</td><td>Từ ngày mốc muộn trở đi, Epic đang đúng trạng thái cột</td><td><span class="badge danger">Cảnh báo muộn</span></td></tr>
+          <tr><td>TTM-CNTT-6</td><td>Epic đã đi qua trạng thái cột (bất kể ngày)</td><td>Icon hoàn thành (Pass) — riêng cột Ready4Golive hiện luôn ngày R4G Date thực tế nếu có</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        Mở rộng an toàn: nếu Epic <em>chưa tới</em> trạng thái cột nhưng đã qua mốc sớm → nhãn đổi thành “Past target”; nếu Epic <em>đã qua</em> trạng thái cột
+        nhưng chưa tới mốc muộn → vẫn coi là hoàn thành (Pass), vì trạng thái đã đi qua thì luôn là “đã xong”.
+      </div>
+
+      <h3>7.3. Cột "Nhận xét" (cảnh báo tổng thể)</h3>
+      <p>
+        Độc lập với 3 cột trạng thái, cột Nhận xét thể hiện mức cảnh báo tổng thể theo tiêu chí TTM-CNTT (mục 6.1): so sánh R4G Date (hoặc ngày hiện tại nếu
+        chưa có R4G Date) với Target tổng. Badge <strong>“Đạt TTM”</strong> (nền navy nhạt) xuất hiện khi Epic đã có R4G Date và không bị cảnh báo.
+      </p>
+
+      <h3>7.4. Nguyên tắc tính real-time</h3>
+      <p>
+        API <code>GET /api/epic-alerts</code> <strong>không đọc dữ liệu đã tổng hợp sẵn</strong>. Mỗi lần tải trang, hệ thống lấy dòng <code>issues</code> mới nhất
+        của từng Epic (không giới hạn theo 1 batch cụ thể) và tính lại toàn bộ cảnh báo tại đúng thời điểm request, theo rule đang active. Vì vậy nếu không import gì
+        trong ngày, cảnh báo vẫn có thể tự chuyển trạng thái theo ngày thực tế.
+      </p>
+    </section>
+
+    <section id="alert-history">
+      <div class="kicker">Khối cảnh báo</div>
+      <h2>8. Lịch sử cảnh báo tích luỹ</h2>
+      <p>
+        Khác với cảnh báo hiển thị trên bảng (tính real-time), bảng <code>epic_alert_history</code> "đóng băng" đúng trạng thái cảnh báo tại ngày import:
+        mỗi khi Epic được tính là <strong>Cảnh báo muộn</strong> hoặc <strong>Fail TTM</strong> ở một lần import, hệ thống ghi 1 dòng gồm loại cảnh báo, trạng thái Epic
+        lúc đó và ngày cảnh báo — không ghi đè, tích luỹ theo thời gian để tra cứu sau này.
+      </p>
+      <p>Dữ liệu này phục vụ 2 việc trên màn hình Cảnh báo Epic:</p>
+      <ul>
+        <li>Icon tam giác vàng cạnh Epic Key mở panel liệt kê toàn bộ lịch sử cảnh báo, sắp xếp theo ngày.</li>
+        <li>Quyết định Epic đã <strong>Released</strong> có tiếp tục hiển thị trên bảng hay không (mục 9).</li>
+      </ul>
+    </section>
+
+    <section id="screen-epic-alerts">
+      <div class="kicker">Khối màn hình</div>
+      <h2>9. Màn hình Cảnh báo Epic (<code>/epic-alerts</code>)</h2>
+      <p>Màn hình chính cho PM/SM theo dõi Epic phụ trách. Các cột: Epic (kèm icon lịch sử cảnh báo), Loại Epic, Start Date, TTM-CNTT (2 strip chuẩn/thực tế), Status,
+      Nhận xét, Design, In Progress, Ready4Golive, Release.</p>
+      <h3>9.1. Quy tắc hiển thị mặc định</h3>
+      <ul>
+        <li>Epic có trạng thái <strong>khác Released</strong>: luôn hiển thị.</li>
+        <li>Epic có trạng thái <strong>= Released</strong>: chỉ hiển thị nếu từng có lịch sử Cảnh báo muộn/Fail TTM (mục 8); nếu chưa từng bị cảnh báo, Epic biến mất khỏi danh sách sau khi Released.</li>
+      </ul>
+      <h3>9.2. Bộ lọc &amp; phân trang</h3>
+      <p>Lọc theo Dự án, Cảnh báo, Loại Epic, Status, tìm theo Epic Key/Tên. Danh sách sau lọc được phân trang 20 Epic/trang, điều hướng bằng nút Trước/Sau và chọn số trang.</p>
+    </section>
+
+    <section id="screen-monitoring">
+      <div class="kicker">Khối màn hình</div>
+      <h2>10. Màn hình Theo dõi Epic (<code>/epic-monitoring</code>)</h2>
+      <p>Góc nhìn theo khoảng thời gian tự chọn (from–to), chia 3 panel:</p>
+      <table>
+        <thead><tr><th>Panel</th><th>Nội dung</th></tr></thead>
+        <tbody>
+          <tr><td>Panel 1</td><td>Epic đang ở Design/In Progress — theo dõi cảnh báo TTM-CNTT theo rule trạng thái</td></tr>
+          <tr><td>Panel 2</td><td>Epic đã qua To Do nhưng thiếu Start Date — cảnh báo thiếu dữ liệu đầu vào</td></tr>
+          <tr><td>Panel 3</td><td>Epic ở trạng thái To Do — chờ kế hoạch, chưa áp dụng rule cảnh báo</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="screen-data-source">
+      <div class="kicker">Khối màn hình</div>
+      <h2>11. Màn hình Nguồn dữ liệu (<code>/</code>)</h2>
+      <ul>
+        <li><strong>Thiết lập nguồn dữ liệu CSV</strong> — chọn file, kiểm tra lỗi hoặc import &amp; lưu.</li>
+        <li><strong>Nhật ký lịch sử import (Lớp Dữ liệu)</strong> — danh sách batch, xem chi tiết lỗi/cảnh báo, duyệt dữ liệu, xoá batch.</li>
+        <li><strong>Nhật ký lớp dữ liệu tổng hợp (Epic)</strong> — quản lý riêng 3 bảng tổng hợp theo ngày (mục 5.2).</li>
+        <li><strong>Cấu hình Đợt Import</strong> (right panel) — loại nguồn, mapping profile, thời gian tổng hợp (nhận diện tự động từ tên file theo mẫu <code>Jira YYYY-MM-DDThh_mm_ss+0700.csv</code>).</li>
+        <li><strong>Lưu trữ dữ liệu import</strong> (right panel, SUPERADMIN) — cấu hình số ngày giữ raw data.</li>
+      </ul>
+    </section>
+
+    <section id="screen-admin">
+      <div class="kicker">Khối màn hình</div>
+      <h2>12. Các màn hình Quản trị hệ thống</h2>
+      <table>
+        <thead><tr><th>Màn hình</th><th>Route</th><th>Chức năng</th></tr></thead>
+        <tbody>
+          <tr><td>Quản lý User</td><td><code>/admin/users</code></td><td>Tạo/sửa user, gán role, Domain, Dự án</td></tr>
+          <tr><td>Quản lý Domain</td><td><code>/admin/domains</code></td><td>Danh mục Domain nghiệp vụ</td></tr>
+          <tr><td>Quản lý Dự án</td><td><code>/admin/projects</code></td><td>Danh mục Dự án, mapping Domain</td></tr>
+          <tr><td>Cấu hình ngày nghỉ</td><td><code>/admin/holidays</code></td><td>Danh sách ngày nghỉ dùng để tính ngày làm việc</td></tr>
+          <tr><td>Cấu hình cảnh báo</td><td><code>/admin/status-alert-rules</code></td><td>Tiêu chí TTM Policy + rule cảnh báo theo trạng thái (mục 6)</td></tr>
+          <tr><td>Sao lưu / Phục hồi dữ liệu</td><td><code>/admin/database</code></td><td>Export/Import toàn bộ CSDL ứng dụng dưới dạng file SQL</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="glossary">
+      <div class="kicker">Phụ lục</div>
+      <h2>13. Thuật ngữ</h2>
+      <table>
+        <thead><tr><th>Thuật ngữ</th><th>Ý nghĩa</th></tr></thead>
+        <tbody>
+          <tr><td>T1 / Start Date</td><td>Ngày Epic bắt đầu triển khai — mốc gốc tính TTM-CNTT</td></tr>
+          <tr><td>T0 / Idea Approved Date</td><td>Ngày duyệt ý tưởng — mốc gốc tính TTM-E2E</td></tr>
+          <tr><td>R4G Date</td><td>Ngày Epic hoàn thành trạng thái R4GOLIVE (Ready for Golive)</td></tr>
+          <tr><td>Target</td><td>Ngày deadline tính từ mốc gốc + số ngày làm việc cấu hình</td></tr>
+          <tr><td>Lớp dữ liệu (data layer)</td><td>Tập dữ liệu của một lần import, gắn với một mốc <code>aggregated_at</code></td></tr>
+          <tr><td>TTM-CNTT</td><td>Time to Market — Công nghệ thông tin (T1 → R4G)</td></tr>
+          <tr><td>TTM-E2E</td><td>Time to Market — End to End (T0 → Release)</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+  </main>
+</div>
+
+<footer class="page">TTM Monitor — Tài liệu nội bộ, cập nhật theo phiên bản hệ thống hiện hành.</footer>
+
+</body>
+</html>

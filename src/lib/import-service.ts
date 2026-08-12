@@ -1,8 +1,139 @@
+import type { PoolClient } from 'pg';
 import pool, { getClient } from './db';
 import { parseCSV, mapCSVToRawIssues } from './csv-parser';
 import { validateAllJiraIssues, parseJiraDate, RowValidationResult, ValidationError } from './validator';
 import { accumulateProjectComponents } from './project-component-service';
 import { DEFAULT_RAW_IMPORT_RETENTION_DAYS } from './data-retention-service';
+import { evaluateIssueCompliance } from './epic-compliance-engine';
+import { recordEpicAlertHistory } from './epic-alert-history-service';
+import { getActiveHolidaySet } from './master-data-service';
+import { listActiveStatusAlertRules } from './status-alert-rule-service';
+import { listTtmPolicies } from './ttm-policy-service';
+
+/**
+ * Derives every "lớp dữ liệu tổng hợp" (aggregated data layer) for one import batch from the
+ * canonical `issues` rows already stored for it: the compact epic_ttm_snapshots and
+ * issue_daily_snapshots history tables, plus epic_alert_history (Cảnh báo muộn/Fail TTM as of
+ * that batch's aggregatedAtDate). All three inserts are idempotent (ON CONFLICT upsert / unique
+ * constraint), so this is safe to call again to "re-run" aggregation for a batch whose raw
+ * `issues` rows are still present — it never re-reads or re-validates the original CSV.
+ */
+export async function aggregateBatchData(client: PoolClient, batchId: number, aggregatedAtDate: Date): Promise<void> {
+  // Compact, long-retention Epic-level snapshot (survives raw-data cleanup — see epic_ttm_snapshots).
+  const insertSnapshotQuery = `
+    INSERT INTO epic_ttm_snapshots (
+      epic_key, epic_name, project_key, domain_id, assignee_name, current_status,
+      epic_complexity_type, requirement_level, idea_approved_date, start_date, r4g_date, due_date,
+      target_r4g_date, source_import_batch_id, aggregated_at
+    )
+    SELECT
+      issues.issue_key, issues.issue_name,
+      COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''), NULL),
+      project.domain_id, issues.assignee_name, issues.current_status,
+      issues.epic_complexity_type, issues.requirement_level, issues.idea_approved_date, issues.start_date,
+      issues.r4g_date, issues.due_date, issues.target_r4g_date, issues.source_import_batch_id,
+      issues.aggregated_at
+    FROM issues
+    LEFT JOIN import_rows
+      ON import_rows.import_batch_id = issues.source_import_batch_id
+      AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = issues.issue_key
+    LEFT JOIN projects project
+      ON project.source_project_key = NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', '')
+    WHERE issues.source_import_batch_id = $1 AND UPPER(issues.issue_type) = 'EPIC'
+    ON CONFLICT (epic_key, aggregated_at) DO UPDATE SET
+      epic_name = EXCLUDED.epic_name,
+      project_key = EXCLUDED.project_key,
+      domain_id = EXCLUDED.domain_id,
+      assignee_name = EXCLUDED.assignee_name,
+      current_status = EXCLUDED.current_status,
+      epic_complexity_type = EXCLUDED.epic_complexity_type,
+      requirement_level = EXCLUDED.requirement_level,
+      idea_approved_date = EXCLUDED.idea_approved_date,
+      start_date = EXCLUDED.start_date,
+      r4g_date = EXCLUDED.r4g_date,
+      due_date = EXCLUDED.due_date,
+      target_r4g_date = EXCLUDED.target_r4g_date,
+      source_import_batch_id = EXCLUDED.source_import_batch_id;
+  `;
+  await client.query(insertSnapshotQuery, [batchId]);
+
+  // Compact, permanent daily history for every hierarchy level. No cascade-delete relationship
+  // to the raw batch, so Epic/Story/Subtask history remains available when raw import data
+  // reaches its retention limit.
+  const insertDailySnapshotsQuery = `
+    INSERT INTO issue_daily_snapshots (
+      issue_key, issue_type, issue_name, jira_id, project_key, epic_key, parent_key,
+      assignee_name, current_status, epic_complexity_type, requirement_level,
+      idea_approved_date, start_date, r4g_date, due_date, target_r4g_date,
+      source_import_batch_id, aggregated_at
+    )
+    SELECT
+      issues.issue_key, issues.issue_type, issues.issue_name, issues.jira_id,
+      NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+      issues.epic_key, issues.parent_key, issues.assignee_name, issues.current_status,
+      issues.epic_complexity_type, issues.requirement_level, issues.idea_approved_date,
+      issues.start_date, issues.r4g_date, issues.due_date, issues.target_r4g_date,
+      issues.source_import_batch_id, issues.aggregated_at
+    FROM issues
+    LEFT JOIN import_rows
+      ON import_rows.import_batch_id = issues.source_import_batch_id
+      AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = issues.issue_key
+    WHERE issues.source_import_batch_id = $1
+    ON CONFLICT (issue_key, aggregated_at) DO UPDATE SET
+      issue_type = EXCLUDED.issue_type,
+      issue_name = EXCLUDED.issue_name,
+      jira_id = EXCLUDED.jira_id,
+      project_key = EXCLUDED.project_key,
+      epic_key = EXCLUDED.epic_key,
+      parent_key = EXCLUDED.parent_key,
+      assignee_name = EXCLUDED.assignee_name,
+      current_status = EXCLUDED.current_status,
+      epic_complexity_type = EXCLUDED.epic_complexity_type,
+      requirement_level = EXCLUDED.requirement_level,
+      idea_approved_date = EXCLUDED.idea_approved_date,
+      start_date = EXCLUDED.start_date,
+      r4g_date = EXCLUDED.r4g_date,
+      due_date = EXCLUDED.due_date,
+      target_r4g_date = EXCLUDED.target_r4g_date,
+      source_import_batch_id = EXCLUDED.source_import_batch_id;
+  `;
+  await client.query(insertDailySnapshotsQuery, [batchId]);
+
+  // Accumulate a permanent alert-history record for every Epic in this batch whose status,
+  // evaluated as of aggregatedAtDate against the configured 'Quy tắc cảnh báo Epic' rules, is
+  // already Cảnh báo muộn (LATE) or Fail TTM (FAIL) — never overwritten, only refreshed per-day.
+  const [holidays, statusAlertRules, ttmPolicies] = await Promise.all([
+    getActiveHolidaySet(),
+    listActiveStatusAlertRules(),
+    listTtmPolicies(true),
+  ]);
+  const epicRows = await client.query<{
+    complexity: string | null; dueDate: string | null; epicKey: string; ideaApprovedDate: string | null;
+    r4gDate: string | null; startDate: string | null; status: string;
+  }>(`
+    SELECT issue_key AS "epicKey", current_status AS status, epic_complexity_type AS complexity,
+      idea_approved_date::text AS "ideaApprovedDate", start_date::text AS "startDate",
+      r4g_date::text AS "r4gDate", due_date::text AS "dueDate"
+    FROM issues
+    WHERE source_import_batch_id = $1 AND UPPER(issue_type) = 'EPIC';
+  `, [batchId]);
+  for (const epic of epicRows.rows) {
+    const evaluation = evaluateIssueCompliance({
+      dueDate: epic.dueDate,
+      epicComplexityType: epic.complexity === 'COMPLEX' ? 'COMPLEX' : 'SIMPLE',
+      ideaApprovedDate: epic.ideaApprovedDate,
+      issueKey: epic.epicKey,
+      issueType: 'EPIC',
+      r4gDate: epic.r4gDate,
+      startDate: epic.startDate,
+      status: epic.status,
+    }, aggregatedAtDate, holidays, statusAlertRules, ttmPolicies);
+
+    if (evaluation.alertLevel === 'LATE' || evaluation.alertLevel === 'FAIL') {
+      await recordEpicAlertHistory(client, epic.epicKey, evaluation.alertLevel, epic.status, aggregatedAtDate, batchId);
+    }
+  }
+}
 
 export interface ImportBatch {
   id: number;
@@ -241,86 +372,9 @@ export async function processImport(
       `;
       await client.query(updateSubtaskEpicsQuery, [batchId]);
 
-      // 7. Compact, long-retention Epic-level snapshot (survives raw-data cleanup — see epic_ttm_snapshots).
-      const insertSnapshotQuery = `
-        INSERT INTO epic_ttm_snapshots (
-          epic_key, epic_name, project_key, domain_id, assignee_name, current_status,
-          epic_complexity_type, requirement_level, idea_approved_date, start_date, r4g_date, due_date,
-          target_r4g_date, source_import_batch_id, aggregated_at
-        )
-        SELECT
-          issues.issue_key, issues.issue_name,
-          COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''), NULL),
-          project.domain_id, issues.assignee_name, issues.current_status,
-          issues.epic_complexity_type, issues.requirement_level, issues.idea_approved_date, issues.start_date,
-          issues.r4g_date, issues.due_date, issues.target_r4g_date, issues.source_import_batch_id,
-          issues.aggregated_at
-        FROM issues
-        LEFT JOIN import_rows
-          ON import_rows.import_batch_id = issues.source_import_batch_id
-          AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = issues.issue_key
-        LEFT JOIN projects project
-          ON project.source_project_key = NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', '')
-        WHERE issues.source_import_batch_id = $1 AND UPPER(issues.issue_type) = 'EPIC'
-        ON CONFLICT (epic_key, aggregated_at) DO UPDATE SET
-          epic_name = EXCLUDED.epic_name,
-          project_key = EXCLUDED.project_key,
-          domain_id = EXCLUDED.domain_id,
-          assignee_name = EXCLUDED.assignee_name,
-          current_status = EXCLUDED.current_status,
-          epic_complexity_type = EXCLUDED.epic_complexity_type,
-          requirement_level = EXCLUDED.requirement_level,
-          idea_approved_date = EXCLUDED.idea_approved_date,
-          start_date = EXCLUDED.start_date,
-          r4g_date = EXCLUDED.r4g_date,
-          due_date = EXCLUDED.due_date,
-          target_r4g_date = EXCLUDED.target_r4g_date,
-          source_import_batch_id = EXCLUDED.source_import_batch_id;
-      `;
-      await client.query(insertSnapshotQuery, [batchId]);
-
-      // 8. Keep a compact, permanent daily history for every hierarchy level. It has no
-      // cascade-delete relationship to the raw batch, so Epic/Story/Subtask history
-      // remains available when raw import data reaches its retention limit.
-      const insertDailySnapshotsQuery = `
-        INSERT INTO issue_daily_snapshots (
-          issue_key, issue_type, issue_name, jira_id, project_key, epic_key, parent_key,
-          assignee_name, current_status, epic_complexity_type, requirement_level,
-          idea_approved_date, start_date, r4g_date, due_date, target_r4g_date,
-          source_import_batch_id, aggregated_at
-        )
-        SELECT
-          issues.issue_key, issues.issue_type, issues.issue_name, issues.jira_id,
-          NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
-          issues.epic_key, issues.parent_key, issues.assignee_name, issues.current_status,
-          issues.epic_complexity_type, issues.requirement_level, issues.idea_approved_date,
-          issues.start_date, issues.r4g_date, issues.due_date, issues.target_r4g_date,
-          issues.source_import_batch_id, issues.aggregated_at
-        FROM issues
-        LEFT JOIN import_rows
-          ON import_rows.import_batch_id = issues.source_import_batch_id
-          AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = issues.issue_key
-        WHERE issues.source_import_batch_id = $1
-        ON CONFLICT (issue_key, aggregated_at) DO UPDATE SET
-          issue_type = EXCLUDED.issue_type,
-          issue_name = EXCLUDED.issue_name,
-          jira_id = EXCLUDED.jira_id,
-          project_key = EXCLUDED.project_key,
-          epic_key = EXCLUDED.epic_key,
-          parent_key = EXCLUDED.parent_key,
-          assignee_name = EXCLUDED.assignee_name,
-          current_status = EXCLUDED.current_status,
-          epic_complexity_type = EXCLUDED.epic_complexity_type,
-          requirement_level = EXCLUDED.requirement_level,
-          idea_approved_date = EXCLUDED.idea_approved_date,
-          start_date = EXCLUDED.start_date,
-          r4g_date = EXCLUDED.r4g_date,
-          due_date = EXCLUDED.due_date,
-          target_r4g_date = EXCLUDED.target_r4g_date,
-          source_import_batch_id = EXCLUDED.source_import_batch_id;
-      `;
-      await client.query(insertDailySnapshotsQuery, [batchId]);
-
+      // 7. Derive every aggregated data layer (epic_ttm_snapshots, issue_daily_snapshots,
+      // epic_alert_history) for this batch — same function used to "re-run" aggregation later.
+      await aggregateBatchData(client, batchId, aggregatedAtDate);
     }
 
     // Raw data is cleaned after every stored import, including a failed batch. Protect

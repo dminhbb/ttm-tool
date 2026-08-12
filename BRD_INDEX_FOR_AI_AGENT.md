@@ -788,3 +788,12 @@ và hỗ trợ quản trị dữ liệu nền tảng đủ để vận hành das
 
 - Mọi bảng danh sách dữ liệu dùng component toolbar chung, luôn có tìm kiếm gần đúng và nút reset dạng icon để về trạng thái ban đầu.
 - Bộ lọc theo trường chỉ được bổ sung khi có yêu cầu nghiệp vụ riêng; không tự thêm filter mặc định.
+
+## Bổ sung MVP1 — Tách deadline Time to Market khỏi rule cảnh báo status
+
+- Rule cảnh báo status Epic chỉ quản lý `Cảnh báo sớm` và `Cảnh báo muộn` theo ngày làm việc từ Start Date; không có trường hoặc dữ liệu `Offset Fail TTM-CNTT`.
+- Deadline TTM được quản lý tại panel **Tiêu chí Time to Market**: Loại TTM (`TTM-CNTT`/`TTM-E2E`), loại Epic (đơn giản/phức tạp), From TTM Field, To TTM Field, số ngày làm việc và active/inactive. Chỉ tiêu chí active của đúng cặp Loại TTM/Loại Epic được engine sử dụng.
+- Với TTM-CNTT, baseline là `From TTM Field + số ngày làm việc`; trạng thái thực tế luôn là dải thời gian từ From TTM Field đến Today. Cột TTM-CNTT tại `/epic-alerts` hiển thị hai dải này.
+- API tính tuân thủ (`POST /api/epic-compliance`), `/api/epic-alerts` và `/api/epic-monitoring` phải dùng chung tiêu chí TTM active; không được tự hard-code deadline theo loại Epic.
+- Xóa rule cảnh báo hoặc tiêu chí TTM phải dùng popup xác nhận một bước. Xóa rule chỉ thực hiện từ modal chỉnh sửa rule.
+- `From TTM Field` và `To TTM Field` là text tự do (1–100 ký tự), không giới hạn dropdown. Engine nhận diện các alias chuẩn của Idea Approved Date, Start Date, R4G Date và Due Date; field mới được lưu sẵn để bổ sung mapping dữ liệu sau.

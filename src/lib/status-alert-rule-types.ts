@@ -8,7 +8,6 @@ export interface StatusAlertRule {
   earlyAlertOffsetDays: number;
   epicComplexityType: EpicComplexityType;
   epicStatus: string;
-  failOffsetDays: number;
   id: number;
   isActive: boolean;
   lateAlertOffsetDays: number;
@@ -19,7 +18,6 @@ export interface StatusAlertRuleInput {
   earlyAlertOffsetDays: number;
   epicComplexityType: EpicComplexityType;
   epicStatus: string;
-  failOffsetDays: number;
   isActive: boolean;
   lateAlertOffsetDays: number;
 }

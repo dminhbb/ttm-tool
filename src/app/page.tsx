@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { AggregatedDataLayersPanel } from '@/components/data-source/AggregatedDataLayersPanel';
 import { FileDropzone } from '@/components/data-source/FileDropzone';
 import { RawImportRetentionSettings } from '@/components/data-source/RawImportRetentionSettings';
 import { Alert } from '@/components/ui/Alert';
@@ -24,6 +25,7 @@ import {
   DownloadSimple,
   Info,
   SlidersHorizontal,
+  Database,
 } from '@phosphor-icons/react';
 
 interface ImportBatch {
@@ -359,8 +361,6 @@ export default function DataSourcePage() {
             </CardFooter>
           </Card>
 
-          <RawImportRetentionSettings />
-
           {/* Alert Messages (Clean Facebook notifications layout) */}
           {importMessage && (
             <Alert
@@ -536,17 +536,20 @@ export default function DataSourcePage() {
               )}
             </CardBody>
           </Card>
+
+          <AggregatedDataLayersPanel />
         </div>
 
         <RightPanel
           expanded={isRightPanelExpanded}
           items={[
             { icon: SlidersHorizontal, label: 'Cấu hình đợt import' },
+            { icon: Database, label: 'Lưu trữ dữ liệu import' },
             { icon: Info, label: 'Thông tin chung và hướng dẫn' },
           ]}
           onToggle={() => setIsRightPanelExpanded((current) => !current)}
         >
-          
+
           {/* Config Card */}
           <Card>
             <CardHeader>
@@ -589,6 +592,8 @@ export default function DataSourcePage() {
               />
             </CardBody>
           </Card>
+
+          <RawImportRetentionSettings />
 
           {/* Guide Card */}
           <Card>

@@ -175,3 +175,57 @@ Then cột Cảnh báo hiển thị "Fail TTM-CNTT"
 - Story cần `epicKey`; Subtask cần `parentKey` và `epicKey`. MVP1 chưa đặt deadline TTM riêng cho hai cấp này, nên API trả `NOT_APPLICABLE` nếu hợp lệ hoặc `AT_RISK` kèm finding khi thiếu liên kết.
 - Rule status/offset được đọc từ `epic_status_alert_rules` active; ngày baseline luôn tính bằng ngày làm việc và Holiday đang active.
 - Status không có rule active không phát sinh cảnh báo status, nhưng baseline R4G vẫn được đánh giá; API trả finding thông tin để quản trị viên biết cần cấu hình rule.
+
+## 9. Logic hiển thị từng ô cột Status trên bảng Epic (`GET /api/epic-alerts`)
+
+Mục này chỉ áp dụng cho các cột **Design**, **In Progress**, **Ready4Golive** trên danh sách Epic (`GET /api/epic-alerts`, implementation tại `getEpicAlertRows` trong `src/lib/epic-alert-service.ts`). Đây là logic hiển thị theo từng ô, tách biệt với cột **Nhận xét** (mục 2–4 ở trên, dựa trên `POST /api/epic-compliance`).
+
+### 9.1. Thứ tự trạng thái Epic
+
+```text
+To Do → IN PO → Design → In Progress → R4GOLIVE → MVPDONE → PILOT → Released
+```
+
+Trường `R4G Date` trên Epic tương ứng với ngày hoàn thành trạng thái **R4GOLIVE**. Status không khớp thứ tự nào ở trên (kể cả Cancelled) được xếp sau cùng — coi như Epic đã đi qua mọi cột.
+
+### 9.2. Target của một cột Status
+
+```text
+Target(status) = addWorkingDays(T1, offset "cảnh báo muộn" cấu hình cho status đó)
+```
+
+`offset` đọc từ `epic_status_alert_rules` active theo `(epic_complexity_type, epic_status)`; nếu chưa có rule cho status của cột, ô hiển thị "Chưa cấu hình rule cảnh báo" (không tính được).
+
+### 9.3. Rule TTM-CNTT-1 đến TTM-CNTT-6
+
+So sánh vị trí status hiện tại của Epic với vị trí status của cột (theo thứ tự ở mục 9.1):
+
+| Rule | Điều kiện | Kết quả hiển thị tại ô |
+|---|---|---|
+| TTM-CNTT-1 | `today < Mốc cảnh báo sớm` VÀ status Epic đứng **trước** status của ô | `Target: <ngày>` |
+| TTM-CNTT-2 | (`today < Mốc cảnh báo sớm` HOẶC `Mốc cảnh báo sớm < today < Mốc cảnh báo muộn`) VÀ status Epic **=** status của ô | `Target: <ngày>` |
+| TTM-CNTT-3 | `today = Mốc cảnh báo sớm` VÀ status Epic **=** status của ô | Badge "Cảnh báo sớm" nền light orange |
+| TTM-CNTT-4 | `today = Mốc cảnh báo muộn` VÀ status Epic **=** status của ô | Badge "Cảnh báo muộn" nền light red |
+| TTM-CNTT-5 | `today > Mốc cảnh báo muộn` VÀ status Epic **=** status của ô | Badge "Cảnh báo muộn" nền light red |
+| TTM-CNTT-6 | `today > Mốc cảnh báo muộn` VÀ status Epic đứng **sau** status của ô | Icon completed |
+
+Hai tổ hợp không được liệt kê tường minh ở trên được mở rộng để mọi ô luôn có giá trị hiển thị:
+
+- Status Epic đứng trước status của ô, nhưng `today ≥ Mốc cảnh báo sớm` (mở rộng TTM-CNTT-1): vẫn hiển thị `Past target: <ngày>` (đổi nhãn "Target" thành "Past target" vì đã quá mốc sớm) thay vì badge, vì Epic chưa thực sự vào giai đoạn này.
+- Status Epic đứng sau status của ô, nhưng `today ≤ Mốc cảnh báo muộn` (mở rộng TTM-CNTT-6): vẫn hiển thị icon completed — Epic đã qua giai đoạn này thì luôn là "đã xong", không phụ thuộc mốc ngày.
+
+Ô icon completed của cột **Ready4Golive** hiển thị **ngày R4G Date thực tế** (thay icon) khi trường này có dữ liệu; các cột **Design**/**In Progress** không có ngày hoàn thành thực tế nên chỉ hiển thị icon.
+
+Ô không hiển thị thông tin "Mốc cảnh báo sớm" dưới dạng text (chỉ dùng nội bộ để so sánh điều kiện); chữ "Mốc cảnh báo muộn" hiển thị ra UI là **"Target"**, và trường hợp mở rộng của TTM-CNTT-1 hiển thị là **"Past target"**.
+
+### 9.4. Ví dụ
+
+```text
+T1 = 01/08, Epic phức tạp, rule In Progress: sớm = T1+19, muộn = T1+20
+Status Epic hiện tại = In Progress
+```
+
+- `today` = 05/08 (< mốc sớm): ô In Progress hiển thị `Target: <T1+20>` (TTM-CNTT-2).
+- `today` = mốc sớm: ô In Progress hiển thị badge "Cảnh báo sớm" (TTM-CNTT-3).
+- `today` = mốc muộn hoặc sau đó: ô In Progress hiển thị badge "Cảnh báo muộn" (TTM-CNTT-4/5).
+- Nếu Status Epic đã chuyển sang R4GOLIVE (đứng sau In Progress): ô In Progress hiển thị icon completed (TTM-CNTT-6), bất kể `R4G Date` đã có hay chưa — vì so sánh dựa trên status hiện tại, không dựa trên `r4gDate is null`.

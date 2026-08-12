@@ -4,6 +4,8 @@ import { computeTtmAlert } from '@/lib/ttm-rules';
 import { diffWorkingDays } from '@/lib/working-days';
 import { getActiveHolidaySet, getDomainByProjectKeyMap } from '@/lib/master-data-service';
 import { listActiveStatusAlertRules } from '@/lib/status-alert-rule-service';
+import { listTtmPolicies } from '@/lib/ttm-policy-service';
+import { evaluateIssueCompliance } from '@/lib/epic-compliance-engine';
 import type { EpicMonitoringResponse, MonitoredEpic } from '@/lib/epic-monitoring-types';
 
 const CANCELLED_OR_RELEASED = /cancel|release/i;
@@ -40,7 +42,7 @@ function missingStandardInfo(row: EpicRow): string[] {
 }
 
 export async function getEpicMonitoring(from: string, to: string): Promise<EpicMonitoringResponse> {
-  const [result, holidays, domainByProjectKey, statusAlertRules] = await Promise.all([
+  const [result, holidays, domainByProjectKey, statusAlertRules, ttmPolicies] = await Promise.all([
     pool.query<EpicRow>(`
     SELECT DISTINCT ON (issues.issue_key)
       issues.issue_key AS "epicKey",
@@ -67,6 +69,7 @@ export async function getEpicMonitoring(from: string, to: string): Promise<EpicM
     getActiveHolidaySet(),
     getDomainByProjectKeyMap(),
     listActiveStatusAlertRules(),
+    listTtmPolicies(true),
   ]);
 
   const now = new Date();
@@ -126,16 +129,9 @@ export async function getEpicMonitoring(from: string, to: string): Promise<EpicM
       continue;
     }
 
-    const alert = computeTtmAlert({
-      complexity: row.complexity,
-      currentDate: now,
-      holidays,
-      r4gDate: parseDate(row.r4gDate),
-      startDate,
-      status: row.status,
-      statusAlertRules,
-      targetR4gDate: parseDate(row.targetR4gDate),
-    });
+    const compliance = evaluateIssueCompliance({ dueDate: row.dueDate, epicComplexityType: row.complexity, ideaApprovedDate: row.ideaApprovedDate, issueKey: row.epicKey, issueType: 'EPIC', r4gDate: row.r4gDate, startDate: row.startDate, status: row.status }, now, holidays, statusAlertRules, ttmPolicies);
+    const targetR4gDate = parseDate(compliance.ttm.cntt.targetDate ?? row.targetR4gDate);
+    const alert = computeTtmAlert({ complexity: row.complexity, currentDate: now, holidays, r4gDate: parseDate(row.r4gDate), startDate: parseDate(compliance.ttm.cntt.fromDate), status: row.status, statusAlertRules, targetR4gDate });
 
     panel1.push({
       alertLevel: alert.level,

@@ -2,11 +2,13 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { GearSix, SignOut, UserCircle } from '@phosphor-icons/react';
+import { BookOpen, FlowArrow, GearSix, SignOut, UserCircle, Warning } from '@phosphor-icons/react';
 import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
+import { AlertLogicModal, DataLogicModal } from '@/components/layout/HelpPanels';
 import { cn } from '@/lib/utils';
+import type { UserRole } from '@/lib/auth-types';
 
 type AppearanceTheme = 'dark' | 'light';
 
@@ -24,6 +26,7 @@ interface UserMenuProps {
 interface CurrentUser {
   email: string;
   fullName: string;
+  role: UserRole;
 }
 
 function loadStoredTheme(): AppearanceTheme {
@@ -40,9 +43,12 @@ export function UserMenu({ expanded }: UserMenuProps) {
   const menuRef = React.useRef<HTMLDivElement>(null);
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
+  const [isAlertLogicOpen, setIsAlertLogicOpen] = React.useState(false);
+  const [isDataLogicOpen, setIsDataLogicOpen] = React.useState(false);
   const [hasLoadedPreference, setHasLoadedPreference] = React.useState(false);
   const [theme, setTheme] = React.useState<AppearanceTheme>('light');
   const [user, setUser] = React.useState<CurrentUser | null>(null);
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPERADMIN';
 
   React.useEffect(() => {
     void Promise.resolve().then(() => {
@@ -56,8 +62,8 @@ export function UserMenu({ expanded }: UserMenuProps) {
       try {
         const response = await fetch('/api/auth/me');
         const payload: unknown = await response.json();
-        if (response.ok && typeof payload === 'object' && payload !== null && 'user' in payload && typeof payload.user === 'object' && payload.user !== null && 'email' in payload.user && 'fullName' in payload.user && typeof payload.user.email === 'string' && typeof payload.user.fullName === 'string') {
-          setUser({ email: payload.user.email, fullName: payload.user.fullName });
+        if (response.ok && typeof payload === 'object' && payload !== null && 'user' in payload && typeof payload.user === 'object' && payload.user !== null && 'email' in payload.user && 'fullName' in payload.user && 'role' in payload.user && typeof payload.user.email === 'string' && typeof payload.user.fullName === 'string' && typeof payload.user.role === 'string') {
+          setUser({ email: payload.user.email, fullName: payload.user.fullName, role: payload.user.role as UserRole });
         }
       } catch (error) {
         console.warn('Unable to load the signed-in user profile.', error);
@@ -122,6 +128,37 @@ export function UserMenu({ expanded }: UserMenuProps) {
             <GearSix className="size-4 shrink-0" weight="bold" aria-hidden="true" />
             <span>Cài đặt</span>
           </button>
+          <button
+            type="button"
+            onClick={() => { setIsMenuOpen(false); setIsAlertLogicOpen(true); }}
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-fb-text-primary transition-colors hover:bg-fb-control"
+            role="menuitem"
+          >
+            <Warning className="size-4 shrink-0" weight="bold" aria-hidden="true" />
+            <span>Logic cảnh báo</span>
+          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => { setIsMenuOpen(false); setIsDataLogicOpen(true); }}
+              className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-fb-text-primary transition-colors hover:bg-fb-control"
+              role="menuitem"
+            >
+              <FlowArrow className="size-4 shrink-0" weight="bold" aria-hidden="true" />
+              <span>Logic xử lý dữ liệu</span>
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => { setIsMenuOpen(false); router.push('/docs/product'); }}
+              className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-fb-text-primary transition-colors hover:bg-fb-control"
+              role="menuitem"
+            >
+              <BookOpen className="size-4 shrink-0" weight="bold" aria-hidden="true" />
+              <span>Tài liệu sản phẩm</span>
+            </button>
+          )}
           <button type="button" onClick={logout} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-status-danger transition-colors hover:bg-fb-control" role="menuitem">
             <SignOut className="size-4 shrink-0" weight="bold" aria-hidden="true" />
             <span>Đăng xuất</span>
@@ -167,6 +204,9 @@ export function UserMenu({ expanded }: UserMenuProps) {
           </section>
         </div>
       </Modal>
+
+      <AlertLogicModal isOpen={isAlertLogicOpen} onClose={() => setIsAlertLogicOpen(false)} />
+      {isAdmin && <DataLogicModal isOpen={isDataLogicOpen} onClose={() => setIsDataLogicOpen(false)} />}
     </div>
   );
 }

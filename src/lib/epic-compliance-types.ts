@@ -45,6 +45,18 @@ export interface ComplianceIssueResult {
   issueKey: string;
   issueType: ComplianceIssueType;
   status: string;
+  ttm: {
+    cntt: TtmBaseline;
+    e2e: TtmBaseline;
+  };
+}
+
+export interface TtmBaseline {
+  fromDate: string | null;
+  fromField: string | null;
+  targetDate: string | null;
+  toField: string | null;
+  workingDays: number | null;
 }
 
 export interface ComplianceEvaluationResponse {

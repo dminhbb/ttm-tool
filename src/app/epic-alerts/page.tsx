@@ -3,11 +3,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import './epic-alerts.css';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Modal } from '@/components/ui/Modal';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import type { EpicAlertAccessRole, EpicAlertResponse, EpicAlertRow, StageCell } from '@/lib/epic-alert-types';
+import type { EpicAlertHistoryEntry } from '@/lib/epic-alert-history-service';
 import type { AlertLevel } from '@/lib/ttm-rules';
-import { CheckCircle, Circle, Stack } from '@phosphor-icons/react';
+import { Circle, Stack, Warning } from '@phosphor-icons/react';
+
+const PAGE_SIZE = 20;
 
 const EMPTY_EPIC_ALERT_ROWS: EpicAlertRow[] = [];
 
@@ -57,35 +61,35 @@ const ACCESS_ROLE_NOTE: Record<EpicAlertAccessRole, string> = {
   PM_SM: 'Bạn chỉ thấy Epic thuộc các dự án được phân quyền làm PM-SM.',
 };
 
-const STAGE_VARIANT_REMAINING: Record<string, number> = { d1: 1, d2: 2, d3: 3, overdue: 0 };
-
-function stageHighlightClass(cell: StageCell, threshold: number): string {
-  const remaining = STAGE_VARIANT_REMAINING[cell.pillVariant];
-  if (remaining === undefined) return '';
-  if (cell.pillVariant === 'overdue') return 'hl-overdue';
-  if (remaining > threshold) return '';
-  return `hl-${cell.pillVariant}`;
+function stageHighlightClass(cell: StageCell): string {
+  return cell.pillVariant === 'lateAlert' ? 'hl-overdue' : '';
 }
 
-function StagePill({ cell, threshold, doneDisplay = 'icon' }: { cell: StageCell; threshold: number; doneDisplay?: 'icon' | 'date' }) {
+function StagePill({ cell, doneDisplay = 'icon' }: { cell: StageCell; doneDisplay?: 'icon' | 'date' }) {
   if (cell.pillVariant === 'done') {
     if (doneDisplay === 'date' && cell.dateLabel) {
       return (
-        <TD className={stageHighlightClass(cell, threshold)} title="Ngày Ready4Golive thực tế">
+        <TD className={stageHighlightClass(cell)} title="Ngày Ready4Golive thực tế">
           <span className="ttm-stage-pill done">{formatDate(cell.dateLabel)}</span>
         </TD>
       );
     }
     return (
-      <TD className={stageHighlightClass(cell, threshold)} title={cell.dateLabel ? `Hoàn thành: ${formatDate(cell.dateLabel)}` : cell.planLabel}>
-        <CheckCircle weight="fill" size={18} className="ttm-stage-done-icon" />
+      <TD className={stageHighlightClass(cell)} title={cell.dateLabel ? `Hoàn thành: ${formatDate(cell.dateLabel)}` : cell.planLabel}>
+        <span className="ttm-stage-pass-label">Pass</span>
+      </TD>
+    );
+  }
+  if (cell.pillVariant === 'earlyAlert' || cell.pillVariant === 'lateAlert') {
+    return (
+      <TD className={stageHighlightClass(cell)} title="Status hiện tại của epic">
+        <span className={`ttm-stage-pill ${cell.pillVariant === 'earlyAlert' ? 'early-alert' : 'late-alert'}`}>{cell.pillLabel}</span>
       </TD>
     );
   }
   return (
-    <TD className={stageHighlightClass(cell, threshold)} title={cell.isCurrentStage ? 'Đang xử lý (status hiện tại của epic)' : undefined}>
+    <TD className={stageHighlightClass(cell)} title={cell.isCurrentStage ? 'Status hiện tại của epic' : undefined}>
       <div className="ttm-stage-plan">{cell.planLabel}</div>
-      <span className={`ttm-stage-pill ${cell.pillVariant}`}>{cell.pillLabel}</span>
     </TD>
   );
 }
@@ -118,23 +122,90 @@ function TtmCnttStrips({ row }: { row: EpicAlertRow }) {
   const isOver = elapsed > target;
   const BASE_WIDTH = 56;
   const actualWidth = Math.max(6, Math.min(ratio, 2) * BASE_WIDTH);
-  const actualEnd = row.r4gDate ?? new Date().toISOString().slice(0, 10);
+  const actualEnd = new Date().toISOString().slice(0, 10);
+  // The visual timeline is always anchored to the Start Date column so both
+  // baseline and actual strips share the same, directly comparable origin.
+  const fromDate = row.t1StartDate;
 
   return (
     <TD className="ttm-metric">
       <div className="ttm-strip-wrap" title={`${elapsed}/${target} ngày làm việc`}>
         <div className="ttm-strip-row">
-          <span className="ttm-strip-date">{formatDate(row.t1StartDate)}</span>
+          <span className="ttm-strip-date">{formatDate(fromDate)}</span>
           <span className="ttm-strip-track" style={{ width: `${BASE_WIDTH}px` }} />
           <span className="ttm-strip-date">{formatDate(row.targetR4gDate)}</span>
         </div>
         <div className="ttm-strip-row">
-          <span className="ttm-strip-date">{formatDate(row.t1StartDate)}</span>
+          <span className="ttm-strip-date">{formatDate(fromDate)}</span>
           <span className={`ttm-strip-track actual ${isOver ? 'over' : 'under'}`} style={{ width: `${actualWidth}px` }} />
           <span className="ttm-strip-date">{formatDate(actualEnd)}</span>
         </div>
       </div>
     </TD>
+  );
+}
+
+function Ready4GoliveCell({ row }: { row: EpicAlertRow }) {
+  return (
+    <TD className={row.r4gDate ? 'ttm-r4g-cell is-complete' : 'ttm-r4g-cell'}>
+      {row.r4gDate && <span className="ttm-r4g-actual">{formatDate(row.r4gDate)}</span>}
+      <span className="ttm-r4g-target">Target TTM={formatDate(row.targetR4gDate)}</span>
+    </TD>
+  );
+}
+
+const ALERT_HISTORY_TYPE_LABEL: Record<EpicAlertHistoryEntry['alertType'], string> = {
+  FAIL: 'Fail TTM-CNTT',
+  LATE: 'Cảnh báo muộn',
+};
+
+function AlertHistoryButton({ row, onOpen }: { row: EpicAlertRow; onOpen: (epicKey: string) => void }) {
+  return (
+    <button
+      type="button"
+      className={`ttm-alert-history-trigger${row.hasAlertHistory ? ' has-history' : ''}`}
+      title={row.hasAlertHistory ? 'Xem lịch sử cảnh báo Epic' : 'Epic chưa có lịch sử cảnh báo'}
+      onClick={() => onOpen(row.epicKey)}
+    >
+      <Warning weight="fill" size={16} />
+    </button>
+  );
+}
+
+function AlertHistoryPanel({ epicKey, onClose }: { epicKey: string; onClose: () => void }) {
+  const [entries, setEntries] = useState<EpicAlertHistoryEntry[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/epic-alerts/${encodeURIComponent(epicKey)}/alert-history`)
+      .then(async (res) => ({ ok: res.ok, body: await res.json() }))
+      .then(({ ok, body }) => {
+        if (cancelled) return;
+        if (!ok) { setError(body.error || 'Lỗi hệ thống khi tải lịch sử cảnh báo.'); return; }
+        setEntries(body.history ?? []);
+      })
+      .catch(() => { if (!cancelled) setError('Không thể kết nối API.'); });
+    return () => { cancelled = true; };
+  }, [epicKey]);
+
+  return (
+    <Modal isOpen onClose={onClose} title={`Lịch sử cảnh báo — ${epicKey}`} maxWidth="sm">
+      {error && <div className="ttm-note" style={{ background: 'var(--ttm-danger-050)', borderColor: '#f3b3b3', color: 'var(--ttm-danger-700)' }}>{error}</div>}
+      {!error && entries === null && <p className="ttm-page-subtitle">Đang tải…</p>}
+      {!error && entries?.length === 0 && <p className="ttm-page-subtitle">Chưa có lịch sử cảnh báo cho Epic này.</p>}
+      {!error && entries && entries.length > 0 && (
+        <ul className="ttm-alert-history-list">
+          {entries.map((entry, index) => (
+            <li key={`${entry.alertDate}-${entry.alertType}-${index}`} className="ttm-alert-history-item">
+              <span className={`ttm-badge ${entry.alertType === 'FAIL' ? 'fail' : 'late-warning'}`}>{ALERT_HISTORY_TYPE_LABEL[entry.alertType]}</span>
+              <span className="ttm-alert-history-status">{entry.alertStatus}</span>
+              <span className="ttm-alert-history-date">{formatDate(entry.alertDate)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Modal>
   );
 }
 
@@ -147,8 +218,9 @@ export default function EpicAlertsPage() {
   const [alertFilter, setAlertFilter] = useState<AlertLevel | ''>('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [threshold, setThreshold] = useState(3);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [alertHistoryEpicKey, setAlertHistoryEpicKey] = useState<string | null>(null);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -186,6 +258,13 @@ export default function EpicAlertsPage() {
       && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch));
   }), [rows, projectFilter, alertFilter, typeFilter, statusFilter, search]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageRows = useMemo(
+    () => filteredRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filteredRows, currentPage],
+  );
+
   return (
     <div className="ttm-app">
       <p className="ttm-page-subtitle">Màn hình read-only theo các dự án được phân quyền. Không có hành động ghi ngược Jira.</p>
@@ -198,36 +277,29 @@ export default function EpicAlertsPage() {
       {error && <div className="ttm-note" style={{ background: 'var(--ttm-danger-050)', borderColor: '#f3b3b3', color: 'var(--ttm-danger-700)' }}>{error}</div>}
 
       <section className="ttm-toolbar" aria-label="Bộ lọc Epic">
-        <select className="ttm-select" aria-label="Dự án" value={projectFilter} onChange={(event) => setProjectFilter(event.target.value)}>
+        <select className="ttm-select" aria-label="Dự án" value={projectFilter} onChange={(event) => { setProjectFilter(event.target.value); setPage(1); }}>
           <option value="">Tất cả dự án của tôi</option>
           {projectOptions.map((project) => <option key={project} value={project}>{project}</option>)}
         </select>
-        <select className="ttm-select" aria-label="Cảnh báo" value={alertFilter} onChange={(event) => setAlertFilter(event.target.value as AlertLevel | '')}>
+        <select className="ttm-select" aria-label="Cảnh báo" value={alertFilter} onChange={(event) => { setAlertFilter(event.target.value as AlertLevel | ''); setPage(1); }}>
           {ALERT_FILTER_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
-        <select className="ttm-select" aria-label="Loại Epic" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
+        <select className="ttm-select" aria-label="Loại Epic" value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(1); }}>
           <option value="">Tất cả loại Epic</option>
           <option value="SIMPLE">Epic đơn giản</option>
           <option value="COMPLEX">Epic phức tạp</option>
         </select>
-        <select className="ttm-select" aria-label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+        <select className="ttm-select" aria-label="Status" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}>
           <option value="">Tất cả status</option>
           {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
         </select>
-        <select className="ttm-select" aria-label="Ngưỡng highlight" value={threshold} onChange={(event) => setThreshold(Number(event.target.value))}>
-          <option value={3}>Ngưỡng highlight: ≤ 3 ngày</option>
-          <option value={2}>≤ 2 ngày</option>
-          <option value={1}>≤ 1 ngày</option>
-        </select>
-        <input className="ttm-field" type="search" aria-label="Tìm Epic Key hoặc Epic Name" placeholder="Tìm Epic Key hoặc Epic Name…" value={search} onChange={(event) => setSearch(event.target.value)} />
+        <input className="ttm-field" type="search" aria-label="Tìm Epic Key hoặc Epic Name" placeholder="Tìm Epic Key hoặc Epic Name…" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} />
         <div className="ttm-report-date">Dữ liệu cập nhật lần cuối: <b>{data ? formatDateTime(data.lastAggregatedAt) : '—'}</b></div>
       </section>
 
       <section className="ttm-legend" aria-label="Chú thích màu">
-        <span className="ttm-legend-item"><i className="ttm-legend-dot" style={{ background: 'var(--ttm-d0)' }} />Quá hạn</span>
-        <span className="ttm-legend-item"><i className="ttm-legend-dot" style={{ background: 'var(--ttm-d1)' }} />Còn 1 ngày</span>
-        <span className="ttm-legend-item"><i className="ttm-legend-dot" style={{ background: 'var(--ttm-d2)' }} />Còn 2 ngày</span>
-        <span className="ttm-legend-item"><i className="ttm-legend-dot" style={{ background: 'var(--ttm-d3)' }} />Còn 3 ngày</span>
+        <span className="ttm-legend-item"><i className="ttm-legend-dot" style={{ background: 'var(--ttm-warning-100)', border: '1px solid #f5d46b' }} />Cảnh báo sớm</span>
+        <span className="ttm-legend-item"><i className="ttm-legend-dot" style={{ background: 'var(--ttm-danger-100)', border: '1px solid #f3b3b3' }} />Cảnh báo muộn</span>
         <span className="ttm-legend-item"><i className="ttm-legend-dot" style={{ background: 'var(--ttm-success-100)', border: '1px solid #cfe8d6' }} />Đã hoàn thành</span>
         <span className="ttm-legend-item"><i className="ttm-legend-dot" style={{ background: 'var(--ttm-neutral-100)', border: '1px solid var(--ttm-border)' }} />Chưa tới</span>
       </section>
@@ -254,13 +326,13 @@ export default function EpicAlertsPage() {
               </TR>
             </THead>
             <TBody>
-              {filteredRows.map((row: EpicAlertRow) => {
+              {pageRows.map((row: EpicAlertRow) => {
                 const isMissingCore = !row.t1StartDate;
                 return (
                   <TR key={row.epicKey} className={isMissingCore ? 'missing-row' : undefined}>
                     <TD>
                       <span className="ttm-epic-key">{row.epicKey}</span>
-                      <span className="ttm-source-tag">{row.sourceType}</span>
+                      <AlertHistoryButton row={row} onOpen={setAlertHistoryEpicKey} />
                       <span className="ttm-project-tag">
                         {row.projectKey}{row.domainName ? ` · ${row.domainName}` : ''}{row.ownerName ? ` · Owner: ${row.ownerName}` : ''}
                       </span>
@@ -293,10 +365,10 @@ export default function EpicAlertsPage() {
                               : <span className="ttm-empty-warning">—</span>)
                             : <span className={`ttm-badge ${ALERT_BADGE_CLASS[row.alertLevel]}`}>{row.alertLevel === 'EARLY' ? 'Cảnh báo sớm' : row.alertLevel === 'LATE' ? 'Cảnh báo muộn' : 'Fail TTM-CNTT'}</span>}
                         </TD>
-                        <StagePill cell={row.stages.design} threshold={threshold} />
-                        <StagePill cell={row.stages.inProgress} threshold={threshold} />
-                        <StagePill cell={row.stages.r4g} threshold={threshold} doneDisplay="date" />
-                        <StagePill cell={row.stages.release} threshold={threshold} />
+                        <StagePill cell={row.stages.design} />
+                        <StagePill cell={row.stages.inProgress} />
+                        <Ready4GoliveCell row={row} />
+                        <StagePill cell={row.stages.release} />
                       </>
                     )}
                   </TR>
@@ -307,9 +379,27 @@ export default function EpicAlertsPage() {
         </TableContainer>
       )}
 
+      {filteredRows.length > 0 && (
+        <nav className="ttm-pagination" aria-label="Điều hướng phân trang">
+          <button type="button" className="ttm-button" disabled={currentPage <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>‹ Trước</button>
+          <span className="ttm-pagination-label">Trang</span>
+          <select className="ttm-select" aria-label="Chọn trang" value={currentPage} onChange={(event) => setPage(Number(event.target.value))}>
+            {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
+              <option key={pageNumber} value={pageNumber}>{pageNumber}</option>
+            ))}
+          </select>
+          <span className="ttm-pagination-label">/ {totalPages}</span>
+          <button type="button" className="ttm-button" disabled={currentPage >= totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>Sau ›</button>
+        </nav>
+      )}
+
       <p className="ttm-page-subtitle" style={{ marginTop: 12 }}>
-        Hiển thị {filteredRows.length} / {rows.length} Epic{data ? ` — vai trò: ${ACCESS_ROLE_LABEL[data.accessRole]}` : ''}.
+        Hiển thị {pageRows.length ? (currentPage - 1) * PAGE_SIZE + 1 : 0}–{(currentPage - 1) * PAGE_SIZE + pageRows.length} / {filteredRows.length} Epic{data ? ` — vai trò: ${ACCESS_ROLE_LABEL[data.accessRole]}` : ''}.
       </p>
+
+      {alertHistoryEpicKey && (
+        <AlertHistoryPanel key={alertHistoryEpicKey} epicKey={alertHistoryEpicKey} onClose={() => setAlertHistoryEpicKey(null)} />
+      )}
     </div>
   );
 }

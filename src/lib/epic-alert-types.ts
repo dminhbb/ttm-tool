@@ -1,6 +1,6 @@
 import type { AlertLevel, EpicComplexity } from '@/lib/ttm-rules';
 
-export type StagePillVariant = 'd1' | 'd2' | 'd3' | 'done' | 'overdue' | 'unknown' | 'upcoming';
+export type StagePillVariant = 'done' | 'earlyAlert' | 'lateAlert' | 'unknown' | 'upcoming';
 
 export interface StageCell {
   dateLabel: string | null;
@@ -17,6 +17,7 @@ export interface EpicAlertRow {
   epicKey: string;
   epicName: string;
   epicType: EpicComplexity | null;
+  hasAlertHistory: boolean;
   missingStandardInfo: string[];
   ownerName: string;
   projectKey: string;
@@ -32,6 +33,9 @@ export interface EpicAlertRow {
   };
   t0IdeaApprovedDate: string | null;
   t1StartDate: string | null;
+  ttmCnttFromDate: string | null;
+  ttmCnttFromField: string | null;
+  ttmCnttToField: string | null;
   targetR4gDate: string | null;
   ttmCnttElapsedWorkingDays: number | null;
   ttmCnttTargetWorkingDays: number;
