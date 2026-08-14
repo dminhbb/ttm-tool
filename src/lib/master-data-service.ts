@@ -147,6 +147,23 @@ export async function getDomainByProjectKeyMap(): Promise<Map<string, string>> {
   return map;
 }
 
+export interface ProjectMeta {
+  leadName: string;
+  projectName: string;
+}
+
+/** Maps a Jira project key to its project name + PM/SM (the project's configured "lead_name"). */
+export async function getProjectMetaByProjectKeyMap(): Promise<Map<string, ProjectMeta>> {
+  const result = await pool.query<{ leadName: string; projectName: string; sourceProjectKey: string }>(`
+    SELECT source_project_key AS "sourceProjectKey", project_name AS "projectName", COALESCE(lead_name, '') AS "leadName"
+    FROM projects
+    WHERE is_active;
+  `);
+  const map = new Map<string, ProjectMeta>();
+  for (const row of result.rows) map.set(row.sourceProjectKey, { leadName: row.leadName, projectName: row.projectName });
+  return map;
+}
+
 // ---------- Holidays ----------
 
 export async function listHolidays(): Promise<Holiday[]> {

@@ -69,7 +69,11 @@ const issueContextCte = `
       issues.assignee_name AS assignee,
       issues.epic_id AS "epicId",
       issues.parent_id AS "parentId",
-      COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''), '') AS project,
+      COALESCE(
+        NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+        NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),
+        ''
+      ) AS project,
       COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'components', ''), '') AS components
     FROM issues
     LEFT JOIN import_rows
@@ -83,7 +87,11 @@ export async function getDataReviewFilterOptions(batchId: number): Promise<DataR
   const [metadataResult, componentResult] = await Promise.all([
     pool.query<DataReviewMetadataRow>(`
     SELECT DISTINCT
-      COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''), '') AS project,
+      COALESCE(
+        NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+        NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),
+        ''
+      ) AS project,
       issues.current_status AS status,
       issues.issue_type AS "issueType",
       COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'components', ''), '') AS components
@@ -145,7 +153,7 @@ export async function getDataReviewEpics(
   const offset = (page - 1) * DATA_REVIEW_PAGE_SIZE;
   const values = [batchId, filters.project, filters.status, filters.component, filters.issueType];
   const predicate = `
-    UPPER("issueType") = 'EPIC'
+    UPPER("issueType") IN ('EPIC', 'CTNB')
     AND ($2 = '' OR project = $2)
     AND ($3 = '' OR status = $3)
     AND ($4 = '' OR $4 = ANY(regexp_split_to_array(components, '\\s*[,;]\\s*')))
@@ -168,7 +176,7 @@ export async function getDataReviewEpics(
       SELECT id, "jiraId", "issueKey", "issueType", status, "startDate", "r4gDate", "dueDate", summary, assignee, project,
         EXISTS (
           SELECT 1 FROM issue_context descendants
-          WHERE descendants."epicId" = issue_context.id AND UPPER(descendants."issueType") = 'STORY'
+          WHERE descendants."epicId" = issue_context.id AND UPPER(descendants."issueType") IN ('STORY', 'TASK', 'ENABLER STORY')
         ) AS "hasChildren"
       FROM issue_context
       WHERE ${predicate}
@@ -193,12 +201,12 @@ export async function getDataReviewChildren(
   level: 'stories' | 'subtasks',
 ): Promise<DataReviewChildrenResponse> {
   const predicate = level === 'stories'
-    ? `"epicId" = $2 AND UPPER("issueType") = 'STORY'`
-    : `"parentId" = $2 AND UPPER("issueType") IN ('SUB-TASK', 'SUBTASK')`;
+    ? `"epicId" = $2 AND UPPER("issueType") IN ('STORY', 'TASK', 'ENABLER STORY')`
+    : `"parentId" = $2 AND UPPER("issueType") NOT IN ('EPIC', 'CTNB', 'STORY', 'TASK', 'ENABLER STORY')`;
   const hasChildrenExpr = level === 'stories'
     ? `EXISTS (
         SELECT 1 FROM issue_context descendants
-        WHERE descendants."parentId" = issue_context.id AND UPPER(descendants."issueType") IN ('SUB-TASK', 'SUBTASK')
+        WHERE descendants."parentId" = issue_context.id AND UPPER(descendants."issueType") NOT IN ('EPIC', 'CTNB', 'STORY', 'TASK', 'ENABLER STORY')
       )`
     : 'FALSE';
   const result = await pool.query<DataReviewIssueRow>(`

@@ -304,18 +304,16 @@
 
     <section id="screen-epic-alerts">
       <div class="kicker">Khối màn hình</div>
-      <h2>9. Màn hình Quản lý Epic 30 &amp; Epic 15</h2>
-      <p>Hệ thống hỗ trợ 2 chế độ màn hình giám sát chuyên biệt dành cho PM/SM và Lead:</p>
-      <h3>9.1. Quản lý Epic 30 (<code>/epic-alerts</code>)</h3>
-      <p>Theo dõi tổng quan các Epic theo mốc chuẩn 30 ngày (Epic phức tạp) hoặc 15 ngày (Epic đơn giản) qua 3 cột chính: <strong>Design</strong>, <strong>In Progress</strong>, <strong>Ready4Golive</strong>.</p>
-      <h3>9.2. Quản lý Epic 15 (<code>/epic-alerts-15</code>)</h3>
-      <p>Theo dõi chuyên sâu theo 5 pha mốc thời gian: <strong>Design (20%)</strong>, <strong>Dev (50%)</strong>, <strong>Test (80%)</strong>, <strong>Pentest (90%)</strong>, <strong>R4Golive (100%)</strong>. Ngày baseline mỗi pha được tính tự động dựa trên số ngày làm việc tích lũy từ Start Date (T1).</p>
-      <h3>9.3. Quy tắc hiển thị &amp; Lịch sử Cảnh báo</h3>
+      <h2>9. Màn hình Cảnh báo Epic (<code>/epic-alerts</code>)</h2>
+      <p>Màn hình chính cho PM/SM theo dõi Epic phụ trách. Các cột: Epic (kèm icon lịch sử cảnh báo), Loại Epic, Start Date, TTM-CNTT (2 strip chuẩn/thực tế), Status,
+      Nhận xét, Design, In Progress, Ready4Golive, Release.</p>
+      <h3>9.1. Quy tắc hiển thị mặc định</h3>
       <ul>
-        <li>Epic ở trạng thái <strong>khác Released</strong>: luôn hiển thị.</li>
-        <li>Epic ở trạng thái <strong>= Released</strong>: chỉ hiển thị nếu từng có lịch sử Cảnh báo muộn/Fail TTM; nếu chưa từng bị cảnh báo, Epic sẽ biến mất khỏi danh sách sau khi Released.</li>
-        <li>Icon tam giác vàng ở cột Epic mở ra popup <strong class="text-fb-text-primary">Epic History</strong> mờ kính iOS (frosted glass) để tra cứu tích lũy qua các đợt import.</li>
+        <li>Epic có trạng thái <strong>khác Released</strong>: luôn hiển thị.</li>
+        <li>Epic có trạng thái <strong>= Released</strong>: chỉ hiển thị nếu từng có lịch sử Cảnh báo muộn/Fail TTM (mục 8); nếu chưa từng bị cảnh báo, Epic biến mất khỏi danh sách sau khi Released.</li>
       </ul>
+      <h3>9.2. Bộ lọc &amp; phân trang</h3>
+      <p>Lọc theo Dự án, Cảnh báo, Loại Epic, Status, tìm theo Epic Key/Tên. Danh sách sau lọc được phân trang 20 Epic/trang, điều hướng bằng nút Trước/Sau và chọn số trang.</p>
     </section>
 
     <section id="screen-monitoring">
@@ -325,7 +323,7 @@
       <table>
         <thead><tr><th>Panel</th><th>Nội dung</th></tr></thead>
         <tbody>
-          <tr><td>Panel 1</td><td>Epic đang ở Design/In Progress (hoặc Dev/Test/Pentest) — theo dõi cảnh báo TTM-CNTT theo rule trạng thái</td></tr>
+          <tr><td>Panel 1</td><td>Epic đang ở Design/In Progress — theo dõi cảnh báo TTM-CNTT theo rule trạng thái</td></tr>
           <tr><td>Panel 2</td><td>Epic đã qua To Do nhưng thiếu Start Date — cảnh báo thiếu dữ liệu đầu vào</td></tr>
           <tr><td>Panel 3</td><td>Epic ở trạng thái To Do — chờ kế hoạch, chưa áp dụng rule cảnh báo</td></tr>
         </tbody>
@@ -338,7 +336,7 @@
       <ul>
         <li><strong>Thiết lập nguồn dữ liệu CSV</strong> — chọn file, kiểm tra lỗi hoặc import &amp; lưu.</li>
         <li><strong>Nhật ký lịch sử import (Lớp Dữ liệu)</strong> — danh sách batch, xem chi tiết lỗi/cảnh báo, duyệt dữ liệu, xoá batch.</li>
-        <li><strong>Nhật ký lớp dữ liệu tổng hợp (Epic)</strong> — quản lý riêng 3 bảng tổng hợp theo ngày (hỗ trợ Xóa và Chạy lại).</li>
+        <li><strong>Nhật ký lớp dữ liệu tổng hợp (Epic)</strong> — quản lý riêng 3 bảng tổng hợp theo ngày (mục 5.2).</li>
         <li><strong>Cấu hình Đợt Import</strong> (right panel) — loại nguồn, mapping profile, thời gian tổng hợp (nhận diện tự động từ tên file theo mẫu <code>Jira YYYY-MM-DDThh_mm_ss+0700.csv</code>).</li>
         <li><strong>Lưu trữ dữ liệu import</strong> (right panel, SUPERADMIN) — cấu hình số ngày giữ raw data.</li>
       </ul>
@@ -350,12 +348,12 @@
       <table>
         <thead><tr><th>Màn hình</th><th>Route</th><th>Chức năng</th></tr></thead>
         <tbody>
-          <tr><td>Quản lý User</td><td><code>/admin/users</code></td><td>Tạo/sửa user đơn lẻ hoặc thêm nhiều user từ danh sách username, gán role, Domain, Dự án</td></tr>
+          <tr><td>Quản lý User</td><td><code>/admin/users</code></td><td>Tạo/sửa user, gán role, Domain, Dự án</td></tr>
           <tr><td>Quản lý Domain</td><td><code>/admin/domains</code></td><td>Danh mục Domain nghiệp vụ</td></tr>
-          <tr><td>Quản lý Dự án</td><td><code>/admin/projects</code></td><td>Danh mục Dự án, mapping Domain, hỗ trợ Import hàng loạt dự án từ file CSV</td></tr>
+          <tr><td>Quản lý Dự án</td><td><code>/admin/projects</code></td><td>Danh mục Dự án, mapping Domain</td></tr>
           <tr><td>Cấu hình ngày nghỉ</td><td><code>/admin/holidays</code></td><td>Danh sách ngày nghỉ dùng để tính ngày làm việc</td></tr>
-          <tr><td>Cấu hình cảnh báo</td><td><code>/admin/status-alert-rules</code></td><td>Tiêu chí TTM Policy + rule cảnh báo theo trạng thái</td></tr>
-          <tr><td>Sao lưu / Phục hồi dữ liệu</td><td><code>/admin/database</code></td><td>Export/Import toàn bộ CSDL ứng dụng dưới dạng file SQL dump để sao lưu hoặc khôi phục dữ liệu khi cần</td></tr>
+          <tr><td>Cấu hình cảnh báo</td><td><code>/admin/status-alert-rules</code></td><td>Tiêu chí TTM Policy + rule cảnh báo theo trạng thái (mục 6)</td></tr>
+          <tr><td>Sao lưu / Phục hồi dữ liệu</td><td><code>/admin/database</code></td><td>Export/Import toàn bộ CSDL ứng dụng dưới dạng file SQL</td></tr>
         </tbody>
       </table>
     </section>

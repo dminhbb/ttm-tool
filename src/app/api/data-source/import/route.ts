@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { processImport } from '@/lib/import-service';
+import { DEFAULT_ADAPTER, type AdapterType } from '@/lib/adapters/index';
 
 export async function POST(request: NextRequest) {
   try {
@@ -7,6 +8,7 @@ export async function POST(request: NextRequest) {
     const file = formData.get('file') as File | null;
     const aggregatedAtStr = formData.get('aggregatedAt') as string | null;
     const validateOnly = formData.get('validateOnly') === 'true';
+    const adapterType = (formData.get('adapterType') as AdapterType | null) ?? DEFAULT_ADAPTER;
 
     if (!file) {
       return NextResponse.json({ error: 'Không tìm thấy file upload' }, { status: 400 });
@@ -24,7 +26,7 @@ export async function POST(request: NextRequest) {
     const csvText = await file.text();
     const fileName = file.name;
 
-    const result = await processImport(fileName, csvText, aggregatedAt, validateOnly);
+    const result = await processImport(fileName, csvText, aggregatedAt, validateOnly, adapterType);
     return NextResponse.json(result);
   } catch (error: unknown) {
     console.error('API Error in import route:', error);

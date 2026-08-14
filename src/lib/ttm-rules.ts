@@ -32,8 +32,14 @@ export function resolveOffsetRule(
 ): OffsetRule | null {
   if (statusAlertRules) {
     const configured = statusAlertRules.find((item) => item.epicComplexityType === complexity && item.epicStatus === status);
-    return configured
-      ? { earlyOffset: configured.earlyAlertOffsetDays, lateOffset: configured.lateAlertOffsetDays }
+    if (configured) return { earlyOffset: configured.earlyAlertOffsetDays, lateOffset: configured.lateAlertOffsetDays };
+    // Epic 15 expands the legacy In Progress stage. Unless a phase-specific rule is
+    // configured, DEV/TEST/PENTEST inherit the existing In Progress warning offsets.
+    const inherited = ['DEV', 'TEST', 'PENTEST'].includes(status.trim().toLocaleUpperCase('en-US'))
+      ? statusAlertRules.find((item) => item.epicComplexityType === complexity && item.epicStatus === 'In Progress')
+      : undefined;
+    return inherited
+      ? { earlyOffset: inherited.earlyAlertOffsetDays, lateOffset: inherited.lateAlertOffsetDays }
       : null;
   }
   return ALERTED_STATUSES.has(status) ? OFFSET_RULES[complexity][status as 'Design' | 'In Progress'] : null;

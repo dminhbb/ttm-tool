@@ -35,22 +35,26 @@ Nên tách BRD thành nhiều file nhỏ theo module nghiệp vụ và kỹ thu�
 Cấu trúc khuyến nghị:
 
 ```text
-/brd
-  00-ai-agent-index.md
-  01-product-overview.md
-  02-ttm-concepts-and-rules.md
-  03-mvp1-working-days-alert-rules.md
-  04-homepage-and-epic-monitoring.md
-  05-auth-rbac-user-management.md
-  06-master-data-management.md
-  07-data-source-and-csv-import.md
-  08-data-model.md
-  09-ui-ux-prototypes.md
-  10-security-and-non-functional.md
-  11-mvp-roadmap.md
-  12-ttm-policy-and-epic-alert-ui.md
-  13-epic-15-and-epic-30-management.md
-  14-issue-hierarchy-and-workflows.md
+/docs
+  /brd
+    00-ai-agent-index.md
+    01-product-overview.md
+    02-ttm-concepts-and-rules.md
+    03-mvp1-working-days-alert-rules.md
+    04-homepage-and-epic-monitoring.md
+    05-auth-rbac-user-management.md
+    06-master-data-management.md
+    07-data-source-and-csv-import.md
+    08-data-model.md
+    09-ui-ux-prototypes.md
+    10-security-and-non-functional.md
+    11-mvp-roadmap.md
+  /mvp
+    /mvp-01
+      requirements.md
+      acceptance-criteria.md
+      test-cases.md
+      implementation-plan.md
 ```
 
 ---

@@ -1,7 +1,7 @@
 import type { AlertLevel, EpicComplexity, OffsetRule } from '@/lib/ttm-rules';
 
-export const COMPLIANCE_ISSUE_TYPES = ['EPIC', 'STORY', 'SUBTASK'] as const;
-export type ComplianceIssueType = (typeof COMPLIANCE_ISSUE_TYPES)[number];
+/** Literal Jira type; hierarchy is resolved by issue-hierarchy.ts. */
+export type ComplianceIssueType = string;
 
 export type ComplianceState = 'COMPLIANT' | 'AT_RISK' | 'NON_COMPLIANT' | 'NOT_EVALUABLE' | 'NOT_APPLICABLE';
 export type ComplianceSeverity = 'ERROR' | 'INFO' | 'WARNING';
@@ -44,7 +44,14 @@ export interface ComplianceIssueResult {
   findings: ComplianceFinding[];
   issueKey: string;
   issueType: ComplianceIssueType;
+  hierarchyLevel: 1 | 2 | 3;
   status: string;
+  workflow: {
+    isSpecialStatus: boolean;
+    statusKnown: boolean;
+    statusOrder: number | null;
+    type: 'EPIC' | 'STORY' | 'SUBTASK';
+  };
   ttm: {
     cntt: TtmBaseline;
     e2e: TtmBaseline;

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
 import { evaluateComplianceRequest } from '@/lib/epic-compliance-service';
-import { COMPLIANCE_ISSUE_TYPES } from '@/lib/epic-compliance-types';
-import type { ComplianceIssueInput, ComplianceIssueType } from '@/lib/epic-compliance-types';
+import type { ComplianceIssueInput } from '@/lib/epic-compliance-types';
 import type { EpicComplexity } from '@/lib/ttm-rules';
 
 const MAX_ITEMS_PER_REQUEST = 500;
@@ -32,7 +31,7 @@ function parseIssue(value: unknown): ComplianceIssueInput | null {
   const issueType = payload.issueType;
   const issueKey = payload.issueKey;
   const status = payload.status;
-  if (!COMPLIANCE_ISSUE_TYPES.includes(issueType as ComplianceIssueType)
+  if (typeof issueType !== 'string' || issueType.trim().length === 0 || issueType.length > 100
     || typeof issueKey !== 'string' || issueKey.trim().length === 0 || issueKey.length > 100
     || typeof status !== 'string' || status.trim().length === 0 || status.length > 100) return null;
 
@@ -51,7 +50,7 @@ function parseIssue(value: unknown): ComplianceIssueInput | null {
     epicKey: text.epicKey,
     ideaApprovedDate: dates.ideaApprovedDate,
     issueKey: issueKey.trim(),
-    issueType: issueType as ComplianceIssueType,
+    issueType: issueType.trim(),
     parentKey: text.parentKey,
     r4gDate: dates.r4gDate,
     startDate: dates.startDate,

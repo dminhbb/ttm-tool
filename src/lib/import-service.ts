@@ -6,9 +6,13 @@ import { accumulateProjectComponents } from './project-component-service';
 import { DEFAULT_RAW_IMPORT_RETENTION_DAYS } from './data-retention-service';
 import { evaluateIssueCompliance } from './epic-compliance-engine';
 import { recordEpicAlertHistory } from './epic-alert-history-service';
+import { computeDesignDoneCandidates, recordEpicMilestone } from './epic-milestone-history-service';
 import { getActiveHolidaySet } from './master-data-service';
 import { listActiveStatusAlertRules } from './status-alert-rule-service';
 import { listTtmPolicies } from './ttm-policy-service';
+import { ADAPTER_TYPES, DEFAULT_ADAPTER, type AdapterType } from './adapters/index';
+import { parsePyJiraApi } from './adapters/py-jira-api-adapter';
+import { parsePureJiraExport } from './adapters/pure-jira-export-adapter';
 
 /**
  * Derives every "lớp dữ liệu tổng hợp" (aggregated data layer) for one import batch from the
@@ -28,7 +32,10 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
     )
     SELECT
       issues.issue_key, issues.issue_name,
-      COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''), NULL),
+      COALESCE(
+        NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+        NULLIF(SPLIT_PART(issues.issue_key, '-', 1), '')
+      ),
       project.domain_id, issues.assignee_name, issues.current_status,
       issues.epic_complexity_type, issues.requirement_level, issues.idea_approved_date, issues.start_date,
       issues.r4g_date, issues.due_date, issues.target_r4g_date, issues.source_import_batch_id,
@@ -38,7 +45,10 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
       ON import_rows.import_batch_id = issues.source_import_batch_id
       AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = issues.issue_key
     LEFT JOIN projects project
-      ON project.source_project_key = NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', '')
+      ON project.source_project_key = COALESCE(
+        NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+        NULLIF(SPLIT_PART(issues.issue_key, '-', 1), '')
+      )
     WHERE issues.source_import_batch_id = $1 AND UPPER(issues.issue_type) = 'EPIC'
     ON CONFLICT (epic_key, aggregated_at) DO UPDATE SET
       epic_name = EXCLUDED.epic_name,
@@ -69,7 +79,10 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
     )
     SELECT
       issues.issue_key, issues.issue_type, issues.issue_name, issues.jira_id,
-      NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+      COALESCE(
+        NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+        NULLIF(SPLIT_PART(issues.issue_key, '-', 1), '')
+      ),
       issues.epic_key, issues.parent_key, issues.assignee_name, issues.current_status,
       issues.epic_complexity_type, issues.requirement_level, issues.idea_approved_date,
       issues.start_date, issues.r4g_date, issues.due_date, issues.target_r4g_date,
@@ -133,6 +146,14 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
       await recordEpicAlertHistory(client, epic.epicKey, evaluation.alertLevel, epic.status, aggregatedAtDate, batchId);
     }
   }
+
+  // DESIGN_DONE milestone: scans every Epic (not just this batch's), since a BA subtask can be
+  // the most recently confirmed as Done in a different day's batch than its Epic or Story.
+  // Idempotent — recordEpicMilestone only writes the first time it's detected per Epic.
+  const designDoneCandidates = await computeDesignDoneCandidates(client);
+  for (const candidate of designDoneCandidates) {
+    await recordEpicMilestone(client, candidate.epicKey, 'DESIGN_DONE', candidate.designDoneDate, batchId);
+  }
 }
 
 export interface ImportBatch {
@@ -172,11 +193,20 @@ export async function processImport(
   fileName: string,
   csvText: string,
   aggregatedAtDate: Date,
-  validateOnly: boolean = false
+  validateOnly: boolean = false,
+  adapterType: AdapterType = DEFAULT_ADAPTER,
 ): Promise<ImportResult> {
-  // 1. Parse CSV
-  const parsedRows = parseCSV(csvText);
-  const { issues: rawIssues } = mapCSVToRawIssues(parsedRows);
+  // 1. Parse CSV — dispatch to the correct adapter
+  let rawIssues;
+  if (adapterType === ADAPTER_TYPES.PY_JIRA_API) {
+    ({ issues: rawIssues } = parsePyJiraApi(csvText));
+  } else {
+    // PURE_JIRA_EXPORT (original / legacy path)
+    const parsedRows = parseCSV(csvText);
+    ({ issues: rawIssues } = mapCSVToRawIssues(parsedRows));
+    // parsePureJiraExport is a thin wrapper — call it for symmetry in future
+    void parsePureJiraExport; // explicit reference so tree-shaking keeps the module
+  }
   const totalRows = rawIssues.length;
 
   // 2. Validate issues
@@ -240,7 +270,7 @@ export async function processImport(
       warningRows,
       errorRows,
       batchStatus,
-      JSON.stringify({ validateOnly })
+      JSON.stringify({ validateOnly, adapterType })
     ];
 
     const batchRes = await client.query(insertBatchQuery, batchValues);
@@ -277,8 +307,9 @@ export async function processImport(
           source_system, jira_id, issue_key, issue_name, issue_type, current_status,
           standard_status, assignee_name, epic_key, parent_key,
           idea_approved_date, start_date, r4g_date, due_date,
-          epic_complexity_type, requirement_level, source_import_batch_id, aggregated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+          epic_complexity_type, requirement_level, source_import_batch_id, aggregated_at,
+          jira_created_at, jira_updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
         ON CONFLICT (issue_key, source_import_batch_id) DO UPDATE SET
           jira_id = EXCLUDED.jira_id,
           issue_name = EXCLUDED.issue_name,
@@ -292,13 +323,16 @@ export async function processImport(
           due_date = EXCLUDED.due_date,
           epic_complexity_type = EXCLUDED.epic_complexity_type,
           requirement_level = EXCLUDED.requirement_level,
+          jira_created_at = EXCLUDED.jira_created_at,
+          jira_updated_at = EXCLUDED.jira_updated_at,
           aggregated_at = EXCLUDED.aggregated_at,
           updated_at = NOW();
       `;
 
       for (const issue of rawIssues) {
-        // Map Epic Complexity Type
-        // Standardize: If "Complex" or "Phức tạp" in Epic Type, then COMPLEX, else SIMPLE.
+        // Map Epic Complexity Type.
+        // For Py Jira API adapter, epicType is already normalised to COMPLEX/SIMPLE
+        // by the adapter itself. For Pure Jira Export, apply the same text rule.
         let complexity = 'SIMPLE';
         if (issue.epicType && (
           issue.epicType.toUpperCase().includes('COMPLEX') ||
@@ -311,6 +345,10 @@ export async function processImport(
         const stdStatus = issue.status;
 
         const jiraId = parseInt(issue.issueId) || 0;
+
+        // Parse Jira source timestamps — only provided by Py Jira API adapter for epics
+        const jiraCreatedAt = issue.jiraCreatedAt ? parseJiraDate(issue.jiraCreatedAt) : null;
+        const jiraUpdatedAt = issue.jiraUpdatedAt ? parseJiraDate(issue.jiraUpdatedAt) : null;
 
         await client.query(insertIssueQuery, [
           'JIRA',
@@ -330,7 +368,9 @@ export async function processImport(
           complexity,
           issue.requirementLevel || null,
           batchId,
-          aggregatedAtDate
+          aggregatedAtDate,
+          jiraCreatedAt,
+          jiraUpdatedAt,
         ]);
       }
 
@@ -343,7 +383,10 @@ export async function processImport(
         FROM issues parent
         WHERE child.source_import_batch_id = $1
           AND parent.source_import_batch_id = $1
-          AND child.parent_key = CAST(parent.jira_id AS VARCHAR)
+          AND (
+            child.parent_key = CAST(parent.jira_id AS VARCHAR)
+            OR child.parent_key = parent.issue_key
+          )
           AND child.parent_key IS NOT NULL;
       `;
       await client.query(updateParentsQuery, [batchId]);

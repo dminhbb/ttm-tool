@@ -1,4 +1,8 @@
 import { RawJiraIssue } from './csv-parser';
+import { getIssueHierarchyLevel } from './issue-hierarchy';
+import { isCancelledStatus, isPendingStatus } from './issue-status-rules';
+import { STORY_WORKFLOW_STATUS_ORDER, storyWorkflowStatusIndex } from './story-workflow-rules';
+import { SUBTASK_WORKFLOW_STATUS_ORDER, subtaskWorkflowStatusIndex } from './subtask-workflow-rules';
 
 export interface ValidationError {
   type: 'ERROR' | 'WARNING';
@@ -74,7 +78,21 @@ export function parseJiraDate(dateStr: string): Date | null {
     if (!isNaN(date.getTime())) return date;
   }
 
-  // Format 3: YYYY-MM-DDTHH:mm:ss or similar ISO
+  // Format 3: YYYY-MM-DD (or YYYY-MM-DD HH:mm:ss / YYYY-MM-DDTHH:mm:ss)
+  const regexIso = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[\sT](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/;
+  const matchIso = dateStr.match(regexIso);
+  if (matchIso) {
+    const year = parseInt(matchIso[1]);
+    const month = parseInt(matchIso[2]) - 1;
+    const day = parseInt(matchIso[3]);
+    const hours = matchIso[4] ? parseInt(matchIso[4]) : 0;
+    const minutes = matchIso[5] ? parseInt(matchIso[5]) : 0;
+    const seconds = matchIso[6] ? parseInt(matchIso[6]) : 0;
+    const date = new Date(year, month, day, hours, minutes, seconds, 0);
+    if (!isNaN(date.getTime())) return date;
+  }
+
+  // Format 4: Fallback standard Date constructor
   const d = new Date(dateStr);
   if (!isNaN(d.getTime())) return d;
   
@@ -117,8 +135,8 @@ export function validateJiraIssue(issue: RawJiraIssue): ValidationError[] {
     });
   }
   
-  const isEpic = issue.issueType.toUpperCase() === 'EPIC';
-  const isSubtask = issue.issueType.toUpperCase() === 'SUBTASK' || issue.issueType.toUpperCase() === 'SUB-TASK';
+  const hierarchyLevel = getIssueHierarchyLevel(issue.issueType);
+  const isEpic = hierarchyLevel === 1;
   
   // 2. Date parsing validations
   const t0 = parseJiraDate(issue.ideaApprovedDate);
@@ -198,8 +216,7 @@ export function validateJiraIssue(issue: RawJiraIssue): ValidationError[] {
     }
   } else {
     // Non-epics validation
-    const isStory = issue.issueType.toUpperCase() === 'STORY';
-    if (isStory && !issue.epicLink) {
+    if (hierarchyLevel === 2 && !issue.epicLink) {
       errors.push({
         type: 'WARNING',
         field: 'Epic Link',
@@ -207,11 +224,22 @@ export function validateJiraIssue(issue: RawJiraIssue): ValidationError[] {
       });
     }
     
-    if (isSubtask && !issue.parentId && !issue.epicLink) {
+    if (hierarchyLevel === 3 && !issue.parentId && !issue.epicLink) {
       errors.push({
         type: 'WARNING',
         field: 'Parent ID',
         message: 'Subtask thiếu mã cha (Parent ID)'
+      });
+    }
+
+    const isSpecialStatus = isPendingStatus(issue.status) || isCancelledStatus(issue.status);
+    const statusOrder = hierarchyLevel === 2 ? storyWorkflowStatusIndex(issue.status) : subtaskWorkflowStatusIndex(issue.status);
+    const workflowLength = hierarchyLevel === 2 ? STORY_WORKFLOW_STATUS_ORDER.length : SUBTASK_WORKFLOW_STATUS_ORDER.length;
+    if (!isSpecialStatus && statusOrder >= workflowLength) {
+      errors.push({
+        type: 'WARNING',
+        field: 'Status',
+        message: `Status "${issue.status}" không thuộc workflow ${hierarchyLevel === 2 ? 'Story' : 'Subtask'} đã cấu hình`
       });
     }
   }

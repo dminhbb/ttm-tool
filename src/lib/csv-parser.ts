@@ -19,6 +19,9 @@ export interface RawJiraIssue {
   ideaApprovedDate: string;
   dueDate: string;
   rowNumber: number;
+  // Source system timestamps — populated by adapters that provide creation/update info
+  jiraCreatedAt?: string; // epic_created in Py Jira API format
+  jiraUpdatedAt?: string; // epic_updated in Py Jira API format
 }
 
 export function parseCSV(csvText: string): string[][] {
@@ -143,7 +146,9 @@ export function mapCSVToRawIssues(rows: string[][]): { issues: RawJiraIssue[]; h
       r4gDate: getValue(idxR4gDate),
       ideaApprovedDate: getValue(idxIdeaApprovedDate),
       dueDate: getValue(idxDueDate),
-      rowNumber: r + 1 // 1-indexed row number in the CSV file
+      rowNumber: r + 1, // 1-indexed row number in the CSV file
+      jiraCreatedAt: '',
+      jiraUpdatedAt: '',
     });
   }
   

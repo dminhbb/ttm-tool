@@ -5,25 +5,29 @@ import { resolveOffsetRule } from '@/lib/ttm-rules';
 import { evaluateIssueCompliance } from '@/lib/epic-compliance-engine';
 import { addWorkingDays, diffWorkingDays } from '@/lib/working-days';
 import type { HolidaySet } from '@/lib/working-days';
-import { getActiveHolidaySet, getDomainByProjectKeyMap } from '@/lib/master-data-service';
+import { getActiveHolidaySet, getDomainByProjectKeyMap, getProjectMetaByProjectKeyMap } from '@/lib/master-data-service';
 import { listActiveStatusAlertRules } from '@/lib/status-alert-rule-service';
 import { listTtmPolicies } from '@/lib/ttm-policy-service';
 import { getEpicKeysWithAlertHistory } from '@/lib/epic-alert-history-service';
+import { EPIC_WORKFLOW_STATUS_ORDER, epicWorkflowStatusIndex } from '@/lib/ttm-phase-rules';
+import { isCancelledStatus, isPendingStatus } from '@/lib/issue-status-rules';
 import type { EpicAlertAccessRole, EpicAlertResponse, EpicAlertRow, StageCell } from '@/lib/epic-alert-types';
 
 
-// Canonical Epic workflow order (BRD 03 §1.1). "R4G Date" on the Epic is the completion date of
-// R4GOLIVE. Statuses that don't match anything here (including Cancelled) sort after everything —
-// same "already past" convention as before.
-const STATUS_ORDER = ['To Do', 'IN PO', 'Design', 'In Progress', 'R4GOLIVE', 'MVPDONE', 'PILOT', 'Released'];
-const STATUS_ORDER_UPPER = STATUS_ORDER.map((status) => status.toUpperCase());
+// Canonical Epic workflow order (core logic — an Epic moves through these statuses strictly in
+// order). "R4G Date" on the Epic is the completion date of R4GOLIVE. Statuses that don't match
+// anything here sort after everything — same "already past" convention.
+export const STATUS_ORDER = EPIC_WORKFLOW_STATUS_ORDER;
 
-function statusOrderIndex(status: string): number {
-  const idx = STATUS_ORDER_UPPER.indexOf(status.trim().toUpperCase());
-  return idx === -1 ? STATUS_ORDER.length : idx;
+export function statusOrderIndex(status: string): number {
+  return epicWorkflowStatusIndex(status);
 }
 
-interface EpicRow {
+// Cancelled/Pending (core logic, shared across Epic/Story/Subtask) — see issue-status-rules.ts.
+export { isCancelledStatus, isPendingStatus };
+
+export interface EpicRow {
+  aggregatedAt: string;
   assignee: string | null;
   complexity: EpicComplexity | null;
   dueDate: string | null;
@@ -39,17 +43,17 @@ interface EpicRow {
   targetR4gDate: string | null;
 }
 
-function parseDate(value: string | null): Date | null {
+export function parseDate(value: string | null): Date | null {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function toIsoDate(date: Date | null): string | null {
+export function toIsoDate(date: Date | null): string | null {
   return date ? date.toISOString().slice(0, 10) : null;
 }
 
-function missingStandardInfo(row: EpicRow): string[] {
+export function missingStandardInfo(row: EpicRow): string[] {
   const missing: string[] = [];
   if (!row.startDate) missing.push('Start Date');
   if (!row.epicType && !row.complexity) missing.push('Epic Type');
@@ -58,7 +62,7 @@ function missingStandardInfo(row: EpicRow): string[] {
   return missing;
 }
 
-async function resolveAccessScope(userId: number, role: UserRole): Promise<{ accessRole: EpicAlertAccessRole; sourceProjectKeys: string[] | null }> {
+export async function resolveAccessScope(userId: number, role: UserRole): Promise<{ accessRole: EpicAlertAccessRole; sourceProjectKeys: string[] | null }> {
   if (role === 'SUPERADMIN') return { accessRole: 'CBQL_PHONG', sourceProjectKeys: null };
   if (role === 'ADMIN') {
     const result = await pool.query<{ sourceProjectKey: string }>(`
@@ -144,18 +148,42 @@ function statusStageCell(
   return { dateLabel: toIsoDate(target), isCurrentStage: true, planLabel: `Target: ${formatDdMmYyyy(target)}`, pillLabel: '', pillVariant: 'upcoming' };
 }
 
+export interface EvaluatedEpicEntry {
+  complexity: EpicComplexity;
+  domain: string;
+  epicStatusIndex: number;
+  evaluation: ReturnType<typeof evaluateIssueCompliance>;
+  hasAlertHistory: boolean;
+  pmSmName: string;
+  projectName: string;
+  row: EpicRow;
+  startDate: Date | null;
+}
+
+export interface EpicAlertContext {
+  accessRole: EpicAlertAccessRole;
+  entries: EvaluatedEpicEntry[];
+  holidays: HolidaySet;
+  lastAggregatedAt: string | null;
+  now: Date;
+  statusAlertRules: Awaited<ReturnType<typeof listActiveStatusAlertRules>>;
+  viewerName: string;
+}
+
 /**
- * Daily imports are incremental — a given import batch only contains issues whose `updated`
- * field falls on that day, so no single batch is a complete snapshot. Each Epic therefore uses
- * its own latest known row from the accumulated `issues` history (`DISTINCT ON` + `aggregated_at
- * DESC`), not a shared "latest batch" filter — an Epic untouched today still shows its most
- * recent known data instead of disappearing from the list.
+ * Shared fetch used by every Epic Alerts screen ("Quản lý Epic 30", "Quản lý Epic 15", …):
+ * resolves access scope, reads each Epic's latest known `issues` row (daily imports are
+ * incremental, so no single batch is a complete snapshot — DISTINCT ON + aggregated_at DESC
+ * picks up the most recent data per Epic regardless of which day it was last touched), evaluates
+ * TTM compliance once per Epic, and applies the shared Released-epic visibility rule. Screens
+ * differ only in how they turn `entries` into stage cells.
  */
-export async function getEpicAlertRows(userId: number, role: UserRole): Promise<EpicAlertResponse> {
-  const [scope, holidays, domainByProjectKey, statusAlertRules, ttmPolicies, epicKeysWithAlertHistory, viewer, latestBatch] = await Promise.all([
+export async function fetchEpicAlertContext(userId: number, role: UserRole): Promise<EpicAlertContext> {
+  const [scope, holidays, domainByProjectKey, projectMetaByProjectKey, statusAlertRules, ttmPolicies, epicKeysWithAlertHistory, viewer, latestBatch] = await Promise.all([
     resolveAccessScope(userId, role),
     getActiveHolidaySet(),
     getDomainByProjectKeyMap(),
+    getProjectMetaByProjectKeyMap(),
     listActiveStatusAlertRules(),
     listTtmPolicies(true),
     getEpicKeysWithAlertHistory(),
@@ -163,12 +191,14 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
     pool.query<{ aggregatedAt: string }>('SELECT aggregated_at::text AS "aggregatedAt" FROM import_batches ORDER BY aggregated_at DESC LIMIT 1;'),
   ]);
 
+  const viewerName = viewer.rows[0]?.fullName ?? '';
   const latestAggregatedAt = latestBatch.rows[0]?.aggregatedAt ?? null;
+  const now = new Date();
   if (!latestAggregatedAt) {
-    return { accessRole: scope.accessRole, lastAggregatedAt: null, rows: [], viewerName: viewer.rows[0]?.fullName ?? '' };
+    return { accessRole: scope.accessRole, entries: [], holidays, lastAggregatedAt: null, now, statusAlertRules, viewerName };
   }
 
-  const result = await pool.query<EpicRow & { aggregatedAt: string }>(`
+  const result = await pool.query<EpicRow>(`
     SELECT DISTINCT ON (issues.issue_key)
       issues.issue_key AS "epicKey",
       issues.issue_name AS "epicName",
@@ -182,21 +212,27 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
       issues.due_date::text AS "dueDate",
       issues.requirement_level AS "requirementLevel",
       issues.aggregated_at::text AS "aggregatedAt",
-      COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''), '') AS project,
+      COALESCE(
+        NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+        NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),
+        ''
+      ) AS project,
       COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'epicType', ''), '') AS "epicType"
     FROM issues
     LEFT JOIN import_rows
       ON import_rows.import_batch_id = issues.source_import_batch_id
       AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = issues.issue_key
     WHERE UPPER(issues.issue_type) = 'EPIC'
-      AND ($1::text[] IS NULL OR COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''), '') = ANY($1::text[]))
+      AND ($1::text[] IS NULL OR COALESCE(
+        NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+        NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),
+        ''
+      ) = ANY($1::text[]))
     ORDER BY issues.issue_key ASC, issues.aggregated_at DESC
   `, [scope.sourceProjectKeys]);
 
-  const now = new Date();
-  const rows: EpicAlertRow[] = [];
-
   const releasedStatusIndex = statusOrderIndex('Released');
+  const entries: EvaluatedEpicEntry[] = [];
 
   for (const row of result.rows) {
     const hasAlertHistory = epicKeysWithAlertHistory.has(row.epicKey);
@@ -208,6 +244,9 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
     const startDate = parseDate(row.startDate);
     const complexity: EpicComplexity = row.complexity ?? 'SIMPLE';
     const domain = (row.project && domainByProjectKey.get(row.project)) ?? '';
+    const projectMeta = row.project ? projectMetaByProjectKey.get(row.project) : undefined;
+    const pmSmName = projectMeta?.leadName ?? '';
+    const projectName = projectMeta?.projectName ?? '';
 
     const evaluation = evaluateIssueCompliance({
       dueDate: row.dueDate,
@@ -219,6 +258,29 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
       startDate: row.startDate,
       status: row.status,
     }, now, holidays, statusAlertRules, ttmPolicies);
+
+    entries.push({ complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, projectName, row, startDate });
+  }
+
+  return { accessRole: scope.accessRole, entries, holidays, lastAggregatedAt: latestAggregatedAt, now, statusAlertRules, viewerName };
+}
+
+/**
+ * Daily imports are incremental — a given import batch only contains issues whose `updated`
+ * field falls on that day, so no single batch is a complete snapshot. Each Epic therefore uses
+ * its own latest known row from the accumulated `issues` history (`DISTINCT ON` + `aggregated_at
+ * DESC`), not a shared "latest batch" filter — an Epic untouched today still shows its most
+ * recent known data instead of disappearing from the list.
+ */
+export async function getEpicAlertRows(userId: number, role: UserRole): Promise<EpicAlertResponse> {
+  const context = await fetchEpicAlertContext(userId, role);
+  if (!context.lastAggregatedAt) {
+    return { accessRole: context.accessRole, lastAggregatedAt: null, rows: [], viewerName: context.viewerName };
+  }
+  const { entries, holidays, now, statusAlertRules } = context;
+  const rows: EpicAlertRow[] = [];
+
+  for (const { complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, row, startDate } of entries) {
     const ttmCnttStartDate = parseDate(evaluation.ttm.cntt.fromDate);
     const ttmE2eStartDate = parseDate(evaluation.ttm.e2e.fromDate);
     const ttmCnttTarget = evaluation.ttm.cntt.workingDays ?? 0;
@@ -241,7 +303,7 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
       r4gCell = naStageCell('Thiếu Start Date');
     } else {
       designCell = statusStageCell(statusOrderIndex('Design'), epicStatusIndex, startDate, now, holidays, designRule);
-      inProgressCell = statusStageCell(statusOrderIndex('In Progress'), epicStatusIndex, startDate, now, holidays, ipRule);
+      inProgressCell = statusStageCell(statusOrderIndex('DEV'), epicStatusIndex, startDate, now, holidays, ipRule);
       r4gCell = statusStageCell(statusOrderIndex('R4GOLIVE'), epicStatusIndex, startDate, now, holidays, r4gRule, row.r4gDate);
     }
 
@@ -286,9 +348,9 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
   });
 
   return {
-    accessRole: scope.accessRole,
-    lastAggregatedAt: latestAggregatedAt,
+    accessRole: context.accessRole,
+    lastAggregatedAt: context.lastAggregatedAt,
     rows,
-    viewerName: viewer.rows[0]?.fullName ?? '',
+    viewerName: context.viewerName,
   };
 }

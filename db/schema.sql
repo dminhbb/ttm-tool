@@ -71,6 +71,10 @@ CREATE TABLE issues (
     due_date DATE,           -- E2E end
     target_r4g_date DATE,
     target_due_date DATE,
+
+    -- Source system timestamps (from Jira / Py Jira API adapter)
+    jira_created_at TIMESTAMP WITH TIME ZONE, -- epic_created in Py Jira API format
+    jira_updated_at TIMESTAMP WITH TIME ZONE, -- epic_updated in Py Jira API format
     
     -- KPI / Alert rules
     epic_complexity_type VARCHAR(50), -- SIMPLE, COMPLEX

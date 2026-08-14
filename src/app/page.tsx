@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { ADAPTER_TYPES, DEFAULT_ADAPTER, ADAPTER_LABELS, type AdapterType } from '@/lib/adapters/index';
 import { AggregatedDataLayersPanel } from '@/components/data-source/AggregatedDataLayersPanel';
 import { FileDropzone } from '@/components/data-source/FileDropzone';
 import { RawImportRetentionSettings } from '@/components/data-source/RawImportRetentionSettings';
@@ -75,7 +76,7 @@ interface PreviewResult {
 export default function DataSourcePage() {
   const router = useRouter();
   const [sourceType, setSourceType] = useState('CSV');
-  const [mappingProfile, setMappingProfile] = useState('JIRA_STANDARD');
+  const [adapterType, setAdapterType] = useState<AdapterType>(DEFAULT_ADAPTER);
   const [file, setFile] = useState<File | null>(null);
   const [aggregatedAt, setAggregatedAt] = useState('');
   const [isAutoDate, setIsAutoDate] = useState(false);
@@ -195,6 +196,7 @@ export default function DataSourcePage() {
     formData.append('file', file);
     formData.append('aggregatedAt', aggregatedDate.toISOString());
     formData.append('validateOnly', validateOnly ? 'true' : 'false');
+    formData.append('adapterType', adapterType);
 
     try {
       const res = await fetch('/api/data-source/import', {
@@ -569,13 +571,14 @@ export default function DataSourcePage() {
               />
 
               <Select
-                label="Cấu hình Mapping Profile"
-                value={mappingProfile}
-                onChange={(e) => setMappingProfile(e.target.value)}
-                options={[
-                  { value: 'JIRA_STANDARD', label: 'Jira Export Standard' },
-                  { value: 'CUSTOM', label: 'Tùy chỉnh cột (Sắp có)' },
-                ]}
+                id="adapter-type-right-panel"
+                label="Định dạng file import (Adapter)"
+                value={adapterType}
+                onChange={(e) => setAdapterType(e.target.value as AdapterType)}
+                options={Object.entries(ADAPTER_TYPES).map(([, val]) => ({
+                  value: val,
+                  label: `${ADAPTER_LABELS[val]}${val === DEFAULT_ADAPTER ? ' (Mặc định)' : ''}`,
+                }))}
               />
 
               <Input

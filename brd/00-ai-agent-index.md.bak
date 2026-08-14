@@ -32,15 +32,12 @@ Nếu các tài liệu cũ còn nhắc tới ngày lịch, logic cũ hoặc tr�
 | `03-mvp1-working-days-alert-rules.md` | Rule cảnh báo MVP1 cho Design/In Progress | Khi code cảnh báo, risk, cột Cảnh báo |
 | `04-homepage-and-epic-monitoring.md` | Homepage 3 panel, cột bảng, filter From/To Date | Khi code dashboard hoặc danh sách Epic |
 | `05-auth-rbac-user-management.md` | Login, session, password, role, phân quyền user/domain/project | Khi code auth, user CRUD, RBAC |
-| `06-master-data-management.md` | Domain, Project (import CSV), Holiday, Status Alert Rule, TTM config, DB Backup/Restore | Khi code menu Quản trị hệ thống |
-| `07-data-source-and-csv-import.md` | Data Source Adapter, CSV import, quản lý lớp dữ liệu hàng ngày (Data Layer Logs) | Khi code nhập dữ liệu |
-| `08-data-model.md` | Mô hình dữ liệu CSDL (RAW, Canonical, Snapshots, DB Dump) | Khi thiết kế DB, migration, ORM |
-| `09-ui-ux-prototypes.md` | Danh sách prototype, định hướng UI & hệ thống mờ kính iOS Frosted Glass | Khi code giao diện |
+| `06-master-data-management.md` | Domain, Project, Holiday, Status Alert Rule, TTM config | Khi code menu Quản trị hệ thống |
+| `07-data-source-and-csv-import.md` | Data Source Adapter, CSV import, import tự động 1 lần/ngày | Khi code nhập dữ liệu |
+| `08-data-model.md` | Mô hình dữ liệu khuyến nghị | Khi thiết kế DB, migration, ORM |
+| `09-ui-ux-prototypes.md` | Danh sách prototype và định hướng UI | Khi code giao diện |
 | `10-security-and-non-functional.md` | Bảo mật, hiệu năng, logging, coding constraints | Khi code nền tảng và review an toàn |
 | `11-mvp-roadmap.md` | Thứ tự MVP và phạm vi từng giai đoạn | Khi lập kế hoạch triển khai |
-| `12-ttm-policy-and-epic-alert-ui.md` | Tiêu chí TTM Policy & giao diện Cảnh báo Epic | Khi code quy tắc TTM & UI cảnh báo |
-| `13-epic-15-and-epic-30-management.md` | Quản lý Epic 30 và Quản lý Epic 15 (5 pha milestone) | Khi code màn hình Epic 30 / Epic 15 |
-| `14-issue-hierarchy-and-workflows.md` | Cấu trúc phân cấp Issue Jira & quy trình workflow | Khi xử lý dữ liệu issue & cây quan hệ |
 
 ## 4. Mapping task → file cần đọc
 

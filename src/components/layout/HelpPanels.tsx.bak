@@ -42,31 +42,23 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
     <Modal isOpen={isOpen} onClose={onClose} title="Logic cảnh báo Epic" maxWidth="xl" footer={<Button variant="outline" onClick={onClose}>Đóng</Button>}>
       <div className="flex flex-col gap-5 text-fb-text-secondary">
         <section>
-          <h3 className="ui-card-title mb-1">1. Phân tách màn hình Quản lý Epic 30 và Epic 15</h3>
-          <ul className="ml-5 list-disc space-y-1">
-            <li><strong className="text-fb-text-primary">Quản lý Epic 30 (/epic-alerts)</strong> — theo dõi tổng quan các cột Design, In Progress, Ready4Golive và Release theo mốc chuẩn 30 ngày (Epic phức tạp) hoặc 15 ngày (Epic đơn giản).</li>
-            <li><strong className="text-fb-text-primary">Quản lý Epic 15 (/epic-alerts-15)</strong> — theo dõi chi tiết theo 5 pha: Design (20%), Dev (50%), Test (80%), Pentest (90%), R4Golive (100%). Mốc thời gian mỗi pha tính tự động theo tỷ lệ % TTM-CNTT tích lũy.</li>
-          </ul>
-        </section>
-
-        <section>
-          <h3 className="ui-card-title mb-1">2. Hai lớp cảnh báo trên màn hình</h3>
+          <h3 className="ui-card-title mb-1">1. Hai lớp cảnh báo trên màn hình Epic của tôi</h3>
           <ul className="ml-5 list-disc space-y-1">
             <li><strong className="text-fb-text-primary">Cột Nhận xét</strong> — mức cảnh báo tổng thể của Epic (Cảnh báo sớm / Cảnh báo muộn / Fail TTM-CNTT), tính theo tiêu chí Time to Market (TTM-CNTT) đang active cho loại Epic đó, so R4G Date (hoặc Target) với mốc chuẩn.</li>
-            <li><strong className="text-fb-text-primary">Các cột Trạng thái/Pha</strong> — cảnh báo theo từng trạng thái cụ thể trong quy trình Epic, dựa trên rule cấu hình tại &quot;Cấu hình cảnh báo&quot; (mốc sớm/muộn theo Loại Epic × Trạng thái).</li>
+            <li><strong className="text-fb-text-primary">Các cột Design / In Progress / Ready4Golive</strong> — cảnh báo theo từng trạng thái cụ thể trong quy trình Epic, dựa trên rule cấu hình tại &quot;Cấu hình cảnh báo&quot; (mốc sớm/muộn theo Loại Epic × Trạng thái).</li>
           </ul>
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-2">3. Mốc thời gian khuyến nghị cho một trạng thái</h3>
+          <h3 className="ui-card-title mb-2">2. Mốc thời gian khuyến nghị cho một trạng thái</h3>
           <AlertTimelineDiagram />
           <p className="mt-2 text-xs">
-            <code>Target = addWorkingDays(T1, offset &quot;cảnh báo muộn&quot;)</code> — tính bằng ngày làm việc (bỏ qua Thứ Bảy, Chủ Nhật và các ngày nghỉ được cấu hình tại &quot;Cấu hình ngày nghỉ&quot;).
+            <code>Target = addWorkingDays(T1, offset &quot;cảnh báo muộn&quot;)</code> — tính bằng ngày làm việc (bỏ qua Thứ Bảy, Chủ Nhật và ngày nghỉ cấu hình).
           </p>
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">4. Quy tắc hiển thị từng ô trạng thái (TTM-CNTT-1…6)</h3>
+          <h3 className="ui-card-title mb-1">3. Quy tắc hiển thị từng ô trạng thái (TTM-CNTT-1…6)</h3>
           <table className="ui-table w-full text-xs">
             <thead>
               <tr><th className="text-left">Rule</th><th className="text-left">Điều kiện</th><th className="text-left">Hiển thị</th></tr>
@@ -81,8 +73,13 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">5. Badge &quot;Đạt TTM&quot; &amp; Lịch sử cảnh báo tích lũy</h3>
-          <p>Badge <strong>&quot;Đạt TTM&quot;</strong> hiển thị ở cột Nhận xét khi Epic đã có R4G Date và không bị cảnh báo. Icon tam giác vàng ở cột Epic cho phép mở popup <strong className="text-fb-text-primary">Epic History</strong> để tra cứu toàn bộ lịch sử cảnh báo muộn/fail qua các đợt import dữ liệu.</p>
+          <h3 className="ui-card-title mb-1">4. Badge &quot;Đạt TTM&quot;</h3>
+          <p>Hiển thị ở cột Nhận xét khi Epic đã có R4G Date và không bị cảnh báo (đạt tiêu chí TTM-CNTT đúng hạn theo rule).</p>
+        </section>
+
+        <section>
+          <h3 className="ui-card-title mb-1">5. Dữ liệu luôn tính lại theo thời gian thực</h3>
+          <p>Mọi cảnh báo trên màn hình được tính lại tại thời điểm bạn mở trang (không phải đóng băng theo lần import gần nhất), dựa trên dữ liệu Epic mới nhất và cấu hình rule hiện hành. Riêng icon tam giác vàng ở cột Epic mở ra <strong className="text-fb-text-primary">lịch sử cảnh báo</strong> — các lần Epic từng bị &quot;Cảnh báo muộn&quot;/&quot;Fail TTM&quot; theo đúng ngày import, được lưu tích lũy để tra cứu.</p>
         </section>
       </div>
     </Modal>
@@ -147,11 +144,11 @@ export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">3. Các bảng dữ liệu trong CSDL</h3>
+          <h3 className="ui-card-title mb-1">3. Các bảng dữ liệu</h3>
           <table className="ui-table w-full text-xs">
             <thead><tr><th className="text-left">Bảng</th><th className="text-left">Vai trò</th><th className="text-left">Khi raw batch bị xóa</th></tr></thead>
             <tbody>
-              <tr><td>import_batches / import_rows</td><td>Dữ liệu raw của từng đợt import CSV</td><td>Bị xóa (đây chính là dữ liệu raw)</td></tr>
+              <tr><td>import_batches / import_rows</td><td>Dữ liệu raw của từng đợt import</td><td>Bị xóa (đây chính là raw)</td></tr>
               <tr><td>issues</td><td>Dữ liệu Epic/Story/Subtask canonical, 1 dòng/issue/batch</td><td>Cascade xóa theo batch</td></tr>
               <tr><td>epic_ttm_snapshots</td><td>Lịch sử gọn theo Epic, phục vụ tra cứu dài hạn</td><td><strong className="text-fb-text-primary">Giữ lại</strong> (source_import_batch_id → NULL)</td></tr>
               <tr><td>issue_daily_snapshots</td><td>Lịch sử gọn theo ngày cho mọi cấp (Epic/Story/Subtask)</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
@@ -161,16 +158,13 @@ export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">4. Quản lý lớp dữ liệu tổng hợp &amp; Sao lưu/Phục hồi</h3>
-          <ul className="ml-5 list-disc space-y-1">
-            <li><strong className="text-fb-text-primary">Nhật ký lớp dữ liệu tổng hợp (Epic)</strong>: Có thể <strong className="text-fb-text-primary">Xóa</strong> (chỉ xóa 3 bảng tổng hợp, bảo toàn raw) hoặc <strong className="text-fb-text-primary">Chạy lại</strong> (tính lại từ <code>issues</code> hiện có mà không cần re-import CSV).</li>
-            <li><strong className="text-fb-text-primary">Sao lưu / Phục hồi dữ liệu (/admin/database)</strong>: Hỗ trợ Export toàn bộ CSDL dưới dạng file SQL dump (bao gồm cấu hình master data, danh mục user, dự án, ngày nghỉ, rule cảnh báo và dữ liệu import) và Restore an toàn khi cần thiết.</li>
-          </ul>
+          <h3 className="ui-card-title mb-1">4. Màn hình Epic Alerts lấy dữ liệu từ đâu?</h3>
+          <p>API <code>GET /api/epic-alerts</code> KHÔNG đọc dữ liệu đã tổng hợp sẵn. Mỗi lần load, hệ thống lấy dòng <code>issues</code> mới nhất của từng Epic (theo <code>aggregated_at</code> lớn nhất, không giới hạn theo 1 batch cụ thể) rồi tính lại toàn bộ cảnh báo tại thời điểm request bằng rule đang active. <code>epic_alert_history</code> chỉ dùng để: (a) hiện icon/lịch sử cảnh báo, (b) quyết định Epic status = Released có còn hiển thị hay không.</p>
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">5. Màn hình Cảnh báo Epic lấy dữ liệu từ đâu?</h3>
-          <p>API <code>GET /api/epic-alerts</code> KHÔNG đọc dữ liệu đã tổng hợp sẵn. Mỗi lần load, hệ thống lấy dòng <code>issues</code> mới nhất của từng Epic (theo <code>aggregated_at</code> lớn nhất, không giới hạn theo 1 batch cụ thể) rồi tính lại toàn bộ cảnh báo tại thời điểm request bằng rule đang active. <code>epic_alert_history</code> chỉ dùng để: (a) hiện icon/lịch sử cảnh báo, (b) quyết định Epic status = Released có còn hiển thị hay không.</p>
+          <h3 className="ui-card-title mb-1">5. Quản lý lớp dữ liệu tổng hợp</h3>
+          <p>Tại &quot;Nguồn dữ liệu&quot; → panel &quot;Nhật ký lớp dữ liệu tổng hợp (Epic)&quot;: có thể <strong className="text-fb-text-primary">Xóa</strong> (chỉ xóa 3 bảng tổng hợp, không đụng raw) hoặc <strong className="text-fb-text-primary">Chạy lại</strong> (tính lại từ <code>issues</code> hiện có, không cần import lại CSV — chỉ khả dụng khi raw của ngày đó còn tồn tại).</p>
         </section>
       </div>
     </Modal>
