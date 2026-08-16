@@ -1,7 +1,9 @@
 import type { PoolClient } from 'pg';
 import pool from '@/lib/db';
+import { LATEST_ISSUES_CTE, RESOLVED_EPIC_KEY_EXPR, RESOLVED_EPIC_KEY_JOIN, STORIES_CTE } from '@/lib/issue-resolution-sql';
+import { storyWorkflowStatusIndex } from '@/lib/story-workflow-rules';
 
-export type EpicMilestoneKey = 'DESIGN_DONE';
+export type EpicMilestoneKey = 'DESIGN_DONE' | 'DEV_DONE' | 'TEST_DONE';
 
 export interface EpicMilestoneHistoryEntry {
   milestone: EpicMilestoneKey;
@@ -37,55 +39,201 @@ export async function listEpicMilestones(epicKey: string): Promise<EpicMilestone
   return result.rows;
 }
 
-/** Design-done date per epic, keyed by epic_key, read straight from the recorded milestone history. */
-export async function getDesignDoneDatesByEpicKey(): Promise<Map<string, string>> {
+async function getMilestoneDatesByEpicKey(milestone: EpicMilestoneKey): Promise<Map<string, string>> {
   const result = await pool.query<{ epicKey: string; milestoneDate: string }>(`
     SELECT epic_key AS "epicKey", milestone_date::text AS "milestoneDate"
     FROM epic_milestone_history
-    WHERE milestone = 'DESIGN_DONE';
-  `);
+    WHERE milestone = $1;
+  `, [milestone]);
   const map = new Map<string, string>();
   for (const row of result.rows) map.set(row.epicKey, row.milestoneDate);
   return map;
 }
 
+/** Design-done date per epic, keyed by epic_key, read straight from the recorded milestone history. */
+export async function getDesignDoneDatesByEpicKey(): Promise<Map<string, string>> {
+  return getMilestoneDatesByEpicKey('DESIGN_DONE');
+}
+
+/** Dev-done date per epic, keyed by epic_key, read straight from the recorded milestone history. */
+export async function getDevDoneDatesByEpicKey(): Promise<Map<string, string>> {
+  return getMilestoneDatesByEpicKey('DEV_DONE');
+}
+
+/** Test-done date per epic, keyed by epic_key, read straight from the recorded milestone history. */
+export async function getTestDoneDatesByEpicKey(): Promise<Map<string, string>> {
+  return getMilestoneDatesByEpicKey('TEST_DONE');
+}
+
+interface RoleAgg {
+  doneCount: number;
+  lastDoneDate: string | null;
+  total: number;
+}
+
+interface StoryStatusSignal {
+  aggregatedAt: string;
+  status: string;
+}
+
+interface EpicMilestoneSignals {
+  ba: RoleAgg;
+  dev: RoleAgg;
+  epicKey: string;
+  stories: StoryStatusSignal[];
+  test: RoleAgg;
+}
+
 /**
- * Core logic: DESIGN is considered done for an Epic once every non-Cancelled "BA" subtask
- * belonging to it — either linked directly to the Epic, or to a Story that itself belongs to the
- * Epic — is Done. "Belonging to" is resolved from each issue's own latest known row (not
- * batch-scoped parent/epic FK links, since daily imports are incremental and a subtask's latest
- * row may come from a different day's batch than its Epic or Story). The recorded date is the
- * latest `aggregated_at` among that Epic's Done BA subtasks — i.e. the data layer that last
- * confirmed the final one was Done.
+ * Single query pass computing, per Epic, the per-role subtask completion signals (BA, DEV, TEST)
+ * and the status of every Story inside it — the shared raw material DESIGN_DONE, DEV_DONE and
+ * TEST_DONE are all derived from. Issue-type ⇄ role classification comes from the configurable
+ * `issue_type_role_mapping` table (see "Quản lý Issue Type" in Quản lý chung), not a hardcoded
+ * literal, so admins can extend it (e.g. adding more DEV/TEST issue types) without a code change.
+ *
+ * "Belonging to" an Epic uses the shared resolution in issue-resolution-sql.ts (latest known row
+ * per issue, direct epic_key or via parent Story, adapter-agnostic). Cancelled and Pending items
+ * are excluded entirely (never counted, never block a "done" verdict) per the core "ignore
+ * Cancelled/Pending" rule (see issue-status-rules.ts).
  */
-export async function computeDesignDoneCandidates(client: PoolClient): Promise<{ designDoneDate: Date; epicKey: string }[]> {
-  const result = await client.query<{ aggregatedAt: string; epicKey: string }>(`
-    WITH latest_issues AS (
-      SELECT DISTINCT ON (issue_key)
-        issue_key, issue_type, current_status, epic_key, parent_key, jira_id, aggregated_at
-      FROM issues
-      ORDER BY issue_key, aggregated_at DESC
+async function computeEpicMilestoneSignals(client: PoolClient): Promise<EpicMilestoneSignals[]> {
+  const result = await client.query<{
+    baDoneCount: string; baLastDate: string | null; baTotal: string;
+    devDoneCount: string; devLastDate: string | null; devTotal: string;
+    epicKey: string;
+    storiesJson: StoryStatusSignal[];
+    testDoneCount: string; testLastDate: string | null; testTotal: string;
+  }>(`
+    WITH ${LATEST_ISSUES_CTE},
+    ${STORIES_CTE},
+    role_map AS (
+      SELECT UPPER(issue_type) AS issue_type_upper, team_role
+      FROM issue_type_role_mapping
+      WHERE team_role IN ('BA', 'DEV', 'TEST')
     ),
-    stories AS (
-      SELECT issue_key AS story_key, jira_id AS story_jira_id, epic_key
-      FROM latest_issues
-      WHERE UPPER(issue_type) IN ('STORY', 'TASK', 'ENABLER STORY')
-    ),
-    ba_subtasks AS (
+    role_subtasks AS (
       SELECT
         li.current_status AS status,
         li.aggregated_at,
-        COALESCE(li.epic_key, s.epic_key) AS "epicKey"
+        rm.team_role,
+        ${RESOLVED_EPIC_KEY_EXPR} AS epic_key
       FROM latest_issues li
-      LEFT JOIN stories s ON s.story_jira_id::text = li.parent_key
-      WHERE UPPER(li.issue_type) = 'BA'
+      JOIN role_map rm ON rm.issue_type_upper = UPPER(li.issue_type)
+      ${RESOLVED_EPIC_KEY_JOIN}
+      WHERE li.current_status NOT ILIKE '%cancel%' AND li.current_status NOT ILIKE '%pending%'
+    ),
+    role_subtasks_filtered AS (
+      SELECT * FROM role_subtasks WHERE epic_key IS NOT NULL
+    ),
+    ba_agg AS (
+      SELECT epic_key, COUNT(*) AS total, COUNT(*) FILTER (WHERE LOWER(status) = 'done') AS done_count, MAX(aggregated_at) AS last_date
+      FROM role_subtasks_filtered WHERE team_role = 'BA' GROUP BY epic_key
+    ),
+    dev_agg AS (
+      SELECT epic_key, COUNT(*) AS total, COUNT(*) FILTER (WHERE LOWER(status) = 'done') AS done_count, MAX(aggregated_at) AS last_date
+      FROM role_subtasks_filtered WHERE team_role = 'DEV' GROUP BY epic_key
+    ),
+    test_agg AS (
+      SELECT epic_key, COUNT(*) AS total, COUNT(*) FILTER (WHERE LOWER(status) = 'done') AS done_count, MAX(aggregated_at) AS last_date
+      FROM role_subtasks_filtered WHERE team_role = 'TEST' GROUP BY epic_key
+    ),
+    stories_filtered AS (
+      SELECT epic_key, status, aggregated_at
+      FROM stories
+      WHERE epic_key IS NOT NULL AND status NOT ILIKE '%cancel%' AND status NOT ILIKE '%pending%'
+    ),
+    stories_agg AS (
+      SELECT epic_key, jsonb_agg(jsonb_build_object('status', status, 'aggregatedAt', aggregated_at)) AS stories
+      FROM stories_filtered
+      GROUP BY epic_key
     )
-    SELECT "epicKey", MAX(aggregated_at)::text AS "aggregatedAt"
-    FROM ba_subtasks
-    WHERE "epicKey" IS NOT NULL
-      AND status NOT ILIKE '%cancel%'
-    GROUP BY "epicKey"
-    HAVING COUNT(*) > 0 AND COUNT(*) = COUNT(*) FILTER (WHERE LOWER(status) = 'done');
+    SELECT
+      COALESCE(ba.epic_key, dev.epic_key, test.epic_key, sa.epic_key) AS "epicKey",
+      COALESCE(ba.total, 0)::text AS "baTotal", COALESCE(ba.done_count, 0)::text AS "baDoneCount", ba.last_date::text AS "baLastDate",
+      COALESCE(dev.total, 0)::text AS "devTotal", COALESCE(dev.done_count, 0)::text AS "devDoneCount", dev.last_date::text AS "devLastDate",
+      COALESCE(test.total, 0)::text AS "testTotal", COALESCE(test.done_count, 0)::text AS "testDoneCount", test.last_date::text AS "testLastDate",
+      COALESCE(sa.stories, '[]'::jsonb) AS "storiesJson"
+    FROM ba_agg ba
+    FULL JOIN dev_agg dev ON dev.epic_key = ba.epic_key
+    FULL JOIN test_agg test ON test.epic_key = COALESCE(ba.epic_key, dev.epic_key)
+    FULL JOIN stories_agg sa ON sa.epic_key = COALESCE(ba.epic_key, dev.epic_key, test.epic_key);
   `);
-  return result.rows.map((row) => ({ designDoneDate: new Date(row.aggregatedAt), epicKey: row.epicKey }));
+  return result.rows.map((row) => ({
+    ba: { doneCount: Number(row.baDoneCount), lastDoneDate: row.baLastDate, total: Number(row.baTotal) },
+    dev: { doneCount: Number(row.devDoneCount), lastDoneDate: row.devLastDate, total: Number(row.devTotal) },
+    epicKey: row.epicKey,
+    stories: row.storiesJson,
+    test: { doneCount: Number(row.testDoneCount), lastDoneDate: row.testLastDate, total: Number(row.testTotal) },
+  }));
+}
+
+export interface MilestoneCandidates {
+  designDoneCandidates: { designDoneDate: Date; epicKey: string }[];
+  devDoneCandidates: { devDoneDate: Date; epicKey: string }[];
+  testDoneCandidates: { epicKey: string; testDoneDate: Date }[];
+}
+
+/** Earliest of a set of OR-branch confirmation dates — the branch that satisfied the condition first. */
+function earliestOf(dates: (string | null)[]): string | null {
+  const present = dates.filter((d): d is string => !!d);
+  return present.length > 0 ? present.sort()[0] : null;
+}
+
+/** Latest of a set of AND-requirement confirmation dates — the last one to be satisfied. */
+function latestOf(dates: (string | null)[]): string | null {
+  const present = dates.filter((d): d is string => !!d);
+  return present.length > 0 ? present.sort().at(-1)! : null;
+}
+
+/**
+ * Derives all three milestone candidate lists from a single pass over the shared per-epic signals
+ * (one DB round trip instead of three near-identical queries).
+ *
+ * - DESIGN_DONE: every non-Cancelled/non-Pending BA-role subtask belonging to the Epic (directly,
+ *   or via one of its Stories) is Done. The recorded date is the latest `aggregated_at` among that
+ *   Epic's Done BA subtasks — i.e. the data layer that last confirmed the final one was Done.
+ * - DEV_DONE: BA-role subtasks are all Done (same condition as DESIGN_DONE) AND at least one of:
+ *   (a) every DEV-role subtask of its Stories is Done, or (b) every one of its Stories is past
+ *   "DEV DONE" in the Story workflow.
+ * - TEST_DONE: DEV_DONE's condition holds AND at least one of: (a) every TEST-role subtask of its
+ *   Stories is Done, or (b) every one of its Stories is past "SIT DONE" in the Story workflow.
+ *
+ * Cancelled and Pending subtasks/stories are excluded entirely (never block, never count) for all
+ * three milestones.
+ */
+export async function computeMilestoneCandidates(client: PoolClient): Promise<MilestoneCandidates> {
+  const signals = await computeEpicMilestoneSignals(client);
+  const devDoneStoryIndex = storyWorkflowStatusIndex('DEV DONE');
+  const sitDoneStoryIndex = storyWorkflowStatusIndex('SIT DONE');
+  const designDoneCandidates: MilestoneCandidates['designDoneCandidates'] = [];
+  const devDoneCandidates: MilestoneCandidates['devDoneCandidates'] = [];
+  const testDoneCandidates: MilestoneCandidates['testDoneCandidates'] = [];
+
+  for (const { ba, dev, epicKey, stories, test } of signals) {
+    const baAllDone = ba.total > 0 && ba.doneCount === ba.total;
+    if (!baAllDone || !ba.lastDoneDate) continue;
+    designDoneCandidates.push({ designDoneDate: new Date(ba.lastDoneDate), epicKey });
+
+    const storiesLastDate = stories.length > 0
+      ? stories.reduce((max, story) => (story.aggregatedAt > max ? story.aggregatedAt : max), stories[0].aggregatedAt)
+      : null;
+
+    const devAllDone = dev.total > 0 && dev.doneCount === dev.total;
+    const storiesPastDevDone = stories.length > 0 && stories.every((story) => storyWorkflowStatusIndex(story.status) > devDoneStoryIndex);
+    const devConditionMet = devAllDone || storiesPastDevDone;
+    if (!devConditionMet) continue;
+
+    const devSecondaryDate = earliestOf([devAllDone ? dev.lastDoneDate : null, storiesPastDevDone ? storiesLastDate : null]) ?? ba.lastDoneDate;
+    const devDoneDate = latestOf([ba.lastDoneDate, devSecondaryDate])!;
+    devDoneCandidates.push({ devDoneDate: new Date(devDoneDate), epicKey });
+
+    const testAllDone = test.total > 0 && test.doneCount === test.total;
+    const storiesPastSitDone = stories.length > 0 && stories.every((story) => storyWorkflowStatusIndex(story.status) > sitDoneStoryIndex);
+    if (!testAllDone && !storiesPastSitDone) continue;
+
+    const testSecondaryDate = earliestOf([testAllDone ? test.lastDoneDate : null, storiesPastSitDone ? storiesLastDate : null]) ?? devDoneDate;
+    const testDoneDate = latestOf([devDoneDate, testSecondaryDate])!;
+    testDoneCandidates.push({ epicKey, testDoneDate: new Date(testDoneDate) });
+  }
+  return { designDoneCandidates, devDoneCandidates, testDoneCandidates };
 }

@@ -70,3 +70,18 @@ export interface HolidayInput {
   name: string;
   startDate: string;
 }
+
+export const TEAM_ROLES = ['BA', 'DEV', 'TEST', 'PM'] as const;
+export type TeamRole = (typeof TEAM_ROLES)[number];
+
+export interface IssueTypeRoleMapping {
+  createdAt: string;
+  id: number;
+  issueType: string;
+  teamRole: TeamRole;
+}
+
+export interface IssueTypeRoleMappingInput {
+  issueType: string;
+  teamRole: TeamRole;
+}

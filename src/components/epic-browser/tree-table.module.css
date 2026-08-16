@@ -1,5 +1,5 @@
-/* Tree-table indentation + connector-line styles for the Data Review Epic > Story > Subtask table.
-   Scoped via CSS Modules so it never leaks into the shared design system. */
+/* Tree-table indentation + connector-line styles for the Epic Browser's Epic > Story > Subtask
+   tree table. Scoped via CSS Modules so it never leaks into the shared design system. */
 
 .treeCell {
   display: flex;

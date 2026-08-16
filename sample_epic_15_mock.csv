@@ -1,0 +1,14 @@
+Issue key,Issue id,Issue Type,Summary,Parent id,Status,Project key,Project name,Component/s,Assignee,Due Date,Epic Link,Epic Name,Epic Status,Epic Type,Requirement Level,Start Date,R4G Date,Idea Approved Date
+PROJ-100,100000,Epic,Epic Mẫu Quản Lý 15,,In Progress,PROJ,Dự án Mẫu,,ngothanhha,31/12/2026 12:00,,Epic Mẫu Quản Lý 15,In Progress,COMPLEX,Cao,01/08/2026 12:00,30/11/2026 12:00,01/07/2026 12:00
+PROJ-101,100001,Story,Story 1: Quản lý người dùng,,IN SIT,PROJ,Dự án Mẫu,,minhnd7,,PROJ-100,,,,,,,
+PROJ-102,100002,Story,Story 2: Tích hợp API,,IN DEV,PROJ,Dự án Mẫu,,congha,,PROJ-100,,,,,,,
+PROJ-103,100003,Story,Story 3: Báo cáo thống kê,,UAT,PROJ,Dự án Mẫu,,ngothanhha,,PROJ-100,,,,,,,
+PROJ-104,100004,BA,Phân tích nghiệp vụ Story 1,100001,Done,PROJ,Dự án Mẫu,,minhnd7,,,,,,,,,
+PROJ-105,100005,DEV,Code backend Story 1,100001,In Progress,PROJ,Dự án Mẫu,,minhnd7,,,,,,,,,
+PROJ-106,100006,Sub test execution,Test API Story 1,100001,To Do,PROJ,Dự án Mẫu,,congha,,,,,,,,,
+PROJ-107,100007,BA,Phân tích giao diện Story 2,100002,Done,PROJ,Dự án Mẫu,,congha,,,,,,,,,
+PROJ-108,100008,Design,Thiết kế UI Story 2,100002,Done,PROJ,Dự án Mẫu,,congha,,,,,,,,,
+PROJ-109,100009,UAT,UAT cho phần tích hợp,100002,To Do,PROJ,Dự án Mẫu,,minhnd7,,,,,,,,,
+PROJ-110,100010,BA,Phân tích report,100003,In Progress,PROJ,Dự án Mẫu,,ngothanhha,,,,,,,,,
+PROJ-111,100011,Review TKCT,Review code thiết kế báo cáo,100003,To Do,PROJ,Dự án Mẫu,,minhnd7,,,,,,,,,
+PROJ-112,100012,KSTĐ,KSTĐ Story báo cáo,100003,To Do,PROJ,Dự án Mẫu,,congha,,,,,,,,,

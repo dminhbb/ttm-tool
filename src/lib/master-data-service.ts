@@ -7,6 +7,8 @@ import type {
   DomainInput,
   Holiday,
   HolidayInput,
+  IssueTypeRoleMapping,
+  IssueTypeRoleMappingInput,
   Project,
   ProjectInput,
 } from '@/lib/master-data-types';
@@ -221,4 +223,38 @@ export async function getActiveHolidaySet(): Promise<HolidaySet> {
     WHERE is_active;
   `);
   return expandHolidayRanges(result.rows);
+}
+
+// ---------- Issue Type ⇄ Role mapping ----------
+
+export async function listIssueTypeRoleMappings(): Promise<IssueTypeRoleMapping[]> {
+  const result = await pool.query<IssueTypeRoleMapping>(`
+    SELECT id, issue_type AS "issueType", team_role AS "teamRole", created_at::text AS "createdAt"
+    FROM issue_type_role_mapping
+    ORDER BY team_role ASC, issue_type ASC;
+  `);
+  return result.rows;
+}
+
+export async function createIssueTypeRoleMapping(input: IssueTypeRoleMappingInput): Promise<IssueTypeRoleMapping> {
+  const result = await pool.query<IssueTypeRoleMapping>(`
+    INSERT INTO issue_type_role_mapping (issue_type, team_role)
+    VALUES ($1, $2)
+    RETURNING id, issue_type AS "issueType", team_role AS "teamRole", created_at::text AS "createdAt";
+  `, [input.issueType, input.teamRole]);
+  return result.rows[0];
+}
+
+export async function updateIssueTypeRoleMapping(id: number, input: IssueTypeRoleMappingInput): Promise<IssueTypeRoleMapping> {
+  const result = await pool.query<IssueTypeRoleMapping>(`
+    UPDATE issue_type_role_mapping SET
+      issue_type = $2, team_role = $3, updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1
+    RETURNING id, issue_type AS "issueType", team_role AS "teamRole", created_at::text AS "createdAt";
+  `, [id, input.issueType, input.teamRole]);
+  return result.rows[0];
+}
+
+export async function deleteIssueTypeRoleMapping(id: number): Promise<void> {
+  await pool.query('DELETE FROM issue_type_role_mapping WHERE id = $1;', [id]);
 }

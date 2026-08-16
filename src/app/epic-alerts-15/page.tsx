@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
+import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import type { EpicAlertAccessRole, EpicAlertPhasedResponse, EpicAlertRowPhased, PhaseCell } from '@/lib/epic-alert-types';
 import type { EpicAlertHistoryEntry } from '@/lib/epic-alert-history-service';
 import type { EpicMilestoneHistoryEntry } from '@/lib/epic-milestone-history-service';
@@ -150,6 +151,8 @@ const ALERT_HISTORY_TYPE_LABEL: Record<EpicAlertHistoryEntry['alertType'], strin
 
 const MILESTONE_LABEL: Record<string, string> = {
   DESIGN_DONE: 'Design Done',
+  DEV_DONE: 'Dev Done',
+  TEST_DONE: 'Test Done',
 };
 
 function AlertHistoryButton({ row, onOpen }: { row: EpicAlertRowPhased; onOpen: (row: EpicAlertRowPhased) => void }) {
@@ -263,6 +266,7 @@ export default function EpicAlerts15Page() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [alertHistoryRow, setAlertHistoryRow] = useState<EpicAlertRowPhased | null>(null);
+  const [browsingEpicKey, setBrowsingEpicKey] = useState<string | null>(null);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -370,7 +374,14 @@ export default function EpicAlerts15Page() {
                 return (
                   <TR key={row.epicKey} className={isMissingCore ? 'missing-row' : undefined}>
                     <TD>
-                      <span className="ttm-epic-key">{row.epicKey}</span>
+                      <button
+                        type="button"
+                        className="ttm-epic-key"
+                        onClick={() => setBrowsingEpicKey(row.epicKey)}
+                        title="Duyệt Epic (Epic Browser)"
+                      >
+                        {row.epicKey}
+                      </button>
                       <AlertHistoryButton row={row} onOpen={setAlertHistoryRow} />
                       {(row.domainName || row.ownerName) && (
                         <span className="ttm-project-tag">
@@ -443,6 +454,8 @@ export default function EpicAlerts15Page() {
       {alertHistoryRow && (
         <AlertHistoryPanel key={alertHistoryRow.epicKey} row={alertHistoryRow} onClose={() => setAlertHistoryRow(null)} />
       )}
+
+      <EpicBrowserModal epicKey={browsingEpicKey} onClose={() => setBrowsingEpicKey(null)} />
     </div>
   );
 }

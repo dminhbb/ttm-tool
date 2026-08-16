@@ -6,7 +6,8 @@ import { accumulateProjectComponents } from './project-component-service';
 import { DEFAULT_RAW_IMPORT_RETENTION_DAYS } from './data-retention-service';
 import { evaluateIssueCompliance } from './epic-compliance-engine';
 import { recordEpicAlertHistory } from './epic-alert-history-service';
-import { computeDesignDoneCandidates, recordEpicMilestone } from './epic-milestone-history-service';
+import { computeMilestoneCandidates, recordEpicMilestone } from './epic-milestone-history-service';
+import { EPIC_ISSUE_TYPES_SQL } from './issue-resolution-sql';
 import { getActiveHolidaySet } from './master-data-service';
 import { listActiveStatusAlertRules } from './status-alert-rule-service';
 import { listTtmPolicies } from './ttm-policy-service';
@@ -49,7 +50,7 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
         NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
         NULLIF(SPLIT_PART(issues.issue_key, '-', 1), '')
       )
-    WHERE issues.source_import_batch_id = $1 AND UPPER(issues.issue_type) = 'EPIC'
+    WHERE issues.source_import_batch_id = $1 AND UPPER(issues.issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
     ON CONFLICT (epic_key, aggregated_at) DO UPDATE SET
       epic_name = EXCLUDED.epic_name,
       project_key = EXCLUDED.project_key,
@@ -128,7 +129,7 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
       idea_approved_date::text AS "ideaApprovedDate", start_date::text AS "startDate",
       r4g_date::text AS "r4gDate", due_date::text AS "dueDate"
     FROM issues
-    WHERE source_import_batch_id = $1 AND UPPER(issue_type) = 'EPIC';
+    WHERE source_import_batch_id = $1 AND UPPER(issue_type) IN (${EPIC_ISSUE_TYPES_SQL});
   `, [batchId]);
   for (const epic of epicRows.rows) {
     const evaluation = evaluateIssueCompliance({
@@ -147,12 +148,18 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
     }
   }
 
-  // DESIGN_DONE milestone: scans every Epic (not just this batch's), since a BA subtask can be
-  // the most recently confirmed as Done in a different day's batch than its Epic or Story.
-  // Idempotent — recordEpicMilestone only writes the first time it's detected per Epic.
-  const designDoneCandidates = await computeDesignDoneCandidates(client);
+  // DESIGN_DONE / DEV_DONE / TEST_DONE milestones: scan every Epic (not just this batch's), since
+  // a subtask can be the most recently confirmed as Done in a different day's batch than its Epic
+  // or Story. Idempotent — recordEpicMilestone only writes the first time it's detected per Epic.
+  const { designDoneCandidates, devDoneCandidates, testDoneCandidates } = await computeMilestoneCandidates(client);
   for (const candidate of designDoneCandidates) {
     await recordEpicMilestone(client, candidate.epicKey, 'DESIGN_DONE', candidate.designDoneDate, batchId);
+  }
+  for (const candidate of devDoneCandidates) {
+    await recordEpicMilestone(client, candidate.epicKey, 'DEV_DONE', candidate.devDoneDate, batchId);
+  }
+  for (const candidate of testDoneCandidates) {
+    await recordEpicMilestone(client, candidate.epicKey, 'TEST_DONE', candidate.testDoneDate, batchId);
   }
 }
 

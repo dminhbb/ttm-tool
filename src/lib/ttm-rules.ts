@@ -5,7 +5,11 @@ import type { StatusAlertRule } from '@/lib/status-alert-rule-types';
 export type EpicComplexity = 'SIMPLE' | 'COMPLEX';
 export type AlertLevel = 'NONE' | 'EARLY' | 'LATE' | 'FAIL';
 
-const ALERTED_STATUSES = new Set(['Design', 'In Progress']);
+const ALERTED_STATUSES = new Set(['DESIGN', 'IN PROGRESS']);
+
+function normalizeStatusForMatch(status: string): string {
+  return status.trim().toLocaleUpperCase('en-US');
+}
 
 export interface OffsetRule {
   earlyOffset: number;
@@ -24,25 +28,31 @@ export const OFFSET_RULES: Record<EpicComplexity, Record<'Design' | 'In Progress
   },
 };
 
-/** Resolves the effective early/late offset rule for a given complexity + status. */
+/**
+ * Resolves the effective early/late offset rule for a given complexity + status. Status matching
+ * is case/whitespace-normalized (core logic: Jira status text and manually-created placeholder
+ * issues — see data-completion-service.ts — aren't guaranteed to share one exact casing), so a
+ * status like "IN PROGRESS" matches a rule configured as "In Progress".
+ */
 export function resolveOffsetRule(
   complexity: EpicComplexity,
   status: string,
   statusAlertRules?: StatusAlertRule[],
 ): OffsetRule | null {
+  const normalizedStatus = normalizeStatusForMatch(status);
   if (statusAlertRules) {
-    const configured = statusAlertRules.find((item) => item.epicComplexityType === complexity && item.epicStatus === status);
+    const configured = statusAlertRules.find((item) => item.epicComplexityType === complexity && normalizeStatusForMatch(item.epicStatus) === normalizedStatus);
     if (configured) return { earlyOffset: configured.earlyAlertOffsetDays, lateOffset: configured.lateAlertOffsetDays };
     // Epic 15 expands the legacy In Progress stage. Unless a phase-specific rule is
     // configured, DEV/TEST/PENTEST inherit the existing In Progress warning offsets.
-    const inherited = ['DEV', 'TEST', 'PENTEST'].includes(status.trim().toLocaleUpperCase('en-US'))
-      ? statusAlertRules.find((item) => item.epicComplexityType === complexity && item.epicStatus === 'In Progress')
+    const inherited = ['DEV', 'TEST', 'PENTEST'].includes(normalizedStatus)
+      ? statusAlertRules.find((item) => item.epicComplexityType === complexity && normalizeStatusForMatch(item.epicStatus) === 'IN PROGRESS')
       : undefined;
     return inherited
       ? { earlyOffset: inherited.earlyAlertOffsetDays, lateOffset: inherited.lateAlertOffsetDays }
       : null;
   }
-  return ALERTED_STATUSES.has(status) ? OFFSET_RULES[complexity][status as 'Design' | 'In Progress'] : null;
+  return ALERTED_STATUSES.has(normalizedStatus) ? OFFSET_RULES[complexity][(normalizedStatus === 'DESIGN' ? 'Design' : 'In Progress')] : null;
 }
 
 export interface TtmAlertInput {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDataReviewChildren, getDataReviewEpics } from '@/lib/data-review-service';
+import { getDataReviewEpics } from '@/lib/data-review-service';
 
 const MAX_FILTER_LENGTH = 120;
 
@@ -25,17 +25,6 @@ export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
     const batchId = parsePositiveInteger(url.searchParams.get('batchId'), 'Mã lớp dữ liệu');
-    const parentId = url.searchParams.get('parentId');
-    const level = url.searchParams.get('level');
-
-    if (parentId || level) {
-      if (!parentId || (level !== 'stories' && level !== 'subtasks')) {
-        return NextResponse.json({ error: 'Yêu cầu tải nhánh dữ liệu không hợp lệ.' }, { status: 400 });
-      }
-      const result = await getDataReviewChildren(batchId, parsePositiveInteger(parentId, 'Mã issue cha'), level);
-      return NextResponse.json(result);
-    }
-
     const page = parsePositiveInteger(url.searchParams.get('page') ?? '1', 'Trang');
     const result = await getDataReviewEpics(
       batchId,

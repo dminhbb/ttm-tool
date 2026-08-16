@@ -11,6 +11,7 @@ import { listTtmPolicies } from '@/lib/ttm-policy-service';
 import { getEpicKeysWithAlertHistory } from '@/lib/epic-alert-history-service';
 import { EPIC_WORKFLOW_STATUS_ORDER, epicWorkflowStatusIndex } from '@/lib/ttm-phase-rules';
 import { isCancelledStatus, isPendingStatus } from '@/lib/issue-status-rules';
+import { EPIC_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 import type { EpicAlertAccessRole, EpicAlertResponse, EpicAlertRow, StageCell } from '@/lib/epic-alert-types';
 
 
@@ -222,7 +223,7 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole): Pro
     LEFT JOIN import_rows
       ON import_rows.import_batch_id = issues.source_import_batch_id
       AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = issues.issue_key
-    WHERE UPPER(issues.issue_type) = 'EPIC'
+    WHERE UPPER(issues.issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
       AND ($1::text[] IS NULL OR COALESCE(
         NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
         NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),

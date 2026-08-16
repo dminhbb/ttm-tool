@@ -4,7 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ADAPTER_TYPES, DEFAULT_ADAPTER, ADAPTER_LABELS, type AdapterType } from '@/lib/adapters/index';
 import { AggregatedDataLayersPanel } from '@/components/data-source/AggregatedDataLayersPanel';
+import { CompleteDataPanel } from '@/components/data-source/CompleteDataPanel';
 import { FileDropzone } from '@/components/data-source/FileDropzone';
+import { PurgeRecentLayersPanel } from '@/components/data-source/PurgeRecentLayersPanel';
 import { RawImportRetentionSettings } from '@/components/data-source/RawImportRetentionSettings';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
@@ -27,6 +29,8 @@ import {
   Info,
   SlidersHorizontal,
   Database,
+  Wrench,
+  Eraser,
 } from '@phosphor-icons/react';
 
 interface ImportBatch {
@@ -547,6 +551,8 @@ export default function DataSourcePage() {
           items={[
             { icon: SlidersHorizontal, label: 'Cấu hình đợt import' },
             { icon: Database, label: 'Lưu trữ dữ liệu import' },
+            { icon: Wrench, label: 'Hoàn thiện dữ liệu' },
+            { icon: Eraser, label: 'Xóa N lớp dữ liệu gần nhất' },
             { icon: Info, label: 'Thông tin chung và hướng dẫn' },
           ]}
           onToggle={() => setIsRightPanelExpanded((current) => !current)}
@@ -597,6 +603,10 @@ export default function DataSourcePage() {
           </Card>
 
           <RawImportRetentionSettings />
+
+          <CompleteDataPanel />
+
+          <PurgeRecentLayersPanel />
 
           {/* Guide Card */}
           <Card>

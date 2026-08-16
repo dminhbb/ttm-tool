@@ -5,12 +5,12 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Archive,
-  Calendar,
   CaretDoubleLeft,
   CaretDoubleRight,
   Database,
   Folder,
   Gauge,
+  GearSix,
   Globe,
   List,
   Pulse,
@@ -22,12 +22,14 @@ import type { Icon } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { UserMenu } from '@/components/layout/UserMenu';
+import { GeneralSettingsModal } from '@/components/settings/GeneralSettingsModal';
 
 interface NavigationItem {
   disabled?: boolean;
   href?: string;
   icon: Icon;
   label: string;
+  onClick?: () => void;
 }
 
 interface NavigationSection {
@@ -38,12 +40,15 @@ interface NavigationSection {
 interface SidebarContentProps {
   expanded: boolean;
   onNavigate?: () => void;
+  onOpenSettings: () => void;
   onToggle?: () => void;
 }
 
 export interface AppShellProps {
   children: React.ReactNode;
 }
+
+const GENERAL_SETTINGS_ITEM: NavigationItem = { icon: GearSix, label: 'Quản lý chung' };
 
 const navigation: NavigationSection[] = [
   {
@@ -61,14 +66,14 @@ const navigation: NavigationSection[] = [
       { href: '/admin/users', icon: Users, label: 'Quản lý User' },
       { href: '/admin/domains', icon: Globe, label: 'Quản lý Domain' },
       { href: '/admin/projects', icon: Folder, label: 'Quản lý Dự án' },
-      { href: '/admin/holidays', icon: Calendar, label: 'Cấu hình ngày nghỉ' },
       { href: '/admin/status-alert-rules', icon: Warning, label: 'Cấu hình cảnh báo' },
       { href: '/admin/database', icon: Archive, label: 'Sao lưu / Phục hồi dữ liệu' },
+      GENERAL_SETTINGS_ITEM,
     ],
   },
 ];
 
-function SidebarContent({ expanded, onNavigate, onToggle }: SidebarContentProps) {
+function SidebarContent({ expanded, onNavigate, onOpenSettings, onToggle }: SidebarContentProps) {
   const pathname = usePathname();
 
   return (
@@ -111,10 +116,23 @@ function SidebarContent({ expanded, onNavigate, onToggle }: SidebarContentProps)
                     {expanded && item.disabled && <span className="ml-auto text-[8px] font-medium">Sắp có</span>}
                   </>
                 );
+                const isGeneralSettings = item === GENERAL_SETTINGS_ITEM;
                 return (
                   <li key={item.label}>
                     <Tooltip content={item.label} disabled={expanded}>
-                      {item.disabled || !item.href ? (
+                      {isGeneralSettings ? (
+                        <button
+                          type="button"
+                          className={sharedClassName}
+                          aria-label={!expanded ? item.label : undefined}
+                          onClick={() => {
+                            onOpenSettings();
+                            onNavigate?.();
+                          }}
+                        >
+                          {content}
+                        </button>
+                      ) : item.disabled || !item.href ? (
                         <button
                           type="button"
                           disabled={item.disabled}
@@ -183,6 +201,7 @@ const PAGE_HEADERS: Record<string, { subtitle: string; title: string }> = {
 export function AppShell({ children }: AppShellProps) {
   const [mobileNavigationOpen, setMobileNavigationOpen] = React.useState(false);
   const [desktopNavigationExpanded, setDesktopNavigationExpanded] = React.useState(false);
+  const [generalSettingsOpen, setGeneralSettingsOpen] = React.useState(false);
   const pathname = usePathname();
   const header = PAGE_HEADERS[pathname] ?? PAGE_HEADERS['/'];
 
@@ -207,6 +226,7 @@ export function AppShell({ children }: AppShellProps) {
       >
         <SidebarContent
           expanded={desktopNavigationExpanded}
+          onOpenSettings={() => setGeneralSettingsOpen(true)}
           onToggle={() => setDesktopNavigationExpanded((current) => !current)}
         />
       </aside>
@@ -228,10 +248,16 @@ export function AppShell({ children }: AppShellProps) {
             >
               <X className="size-5" weight="bold" aria-hidden="true" />
             </button>
-            <SidebarContent expanded onNavigate={() => setMobileNavigationOpen(false)} />
+            <SidebarContent
+              expanded
+              onNavigate={() => setMobileNavigationOpen(false)}
+              onOpenSettings={() => setGeneralSettingsOpen(true)}
+            />
           </aside>
         </div>
       )}
+
+      <GeneralSettingsModal isOpen={generalSettingsOpen} onClose={() => setGeneralSettingsOpen(false)} />
 
       <div className={cn('min-w-0', desktopNavigationExpanded ? 'lg:pl-64' : 'lg:pl-[72px]')}>
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-fb-border bg-fb-bg px-4 sm:px-6">

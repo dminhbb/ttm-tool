@@ -10,7 +10,7 @@ import {
   parseDate,
   toIsoDate,
 } from '@/lib/epic-alert-service';
-import { getDesignDoneDatesByEpicKey } from '@/lib/epic-milestone-history-service';
+import { getDesignDoneDatesByEpicKey, getDevDoneDatesByEpicKey, getTestDoneDatesByEpicKey } from '@/lib/epic-milestone-history-service';
 import type { EpicAlertPhasedResponse, EpicAlertRowPhased, PhaseCell } from '@/lib/epic-alert-types';
 
 // Jira status granularity doesn't distinguish DEV/TEST/PENTEST — all three sit under the single
@@ -31,14 +31,17 @@ function naPhaseCell(): PhaseCell {
  * "Quản lý Epic 15": same Epic list and access rules as "Quản lý Epic 30" (fetchEpicAlertContext
  * is shared), but the Design/In Progress/Ready4Golive columns are replaced with five phase
  * columns (DESIGN, DEV, TEST, PENTEST, R4GOLIVE) per the phase-division core rule
- * (ttm-phase-rules.ts). Each cell is baseline (top, always computed) + actual (bottom — only
- * R4GOLIVE has a real actual value today, via R4G Date; the rest wait on a future upgrade that
- * tracks real per-phase completion dates).
+ * (ttm-phase-rules.ts). Each cell is baseline (top, always computed) + actual (bottom — DESIGN,
+ * DEV and TEST have real actual values via epic_milestone_history (DESIGN_DONE/DEV_DONE/TEST_DONE,
+ * see epic-milestone-history-service.ts), R4GOLIVE via R4G Date; PENTEST waits on a future upgrade
+ * that tracks real per-phase completion dates).
  */
 export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Promise<EpicAlertPhasedResponse> {
-  const [context, designDoneDates] = await Promise.all([
+  const [context, designDoneDates, devDoneDates, testDoneDates] = await Promise.all([
     fetchEpicAlertContext(userId, role),
     getDesignDoneDatesByEpicKey(),
+    getDevDoneDatesByEpicKey(),
+    getTestDoneDatesByEpicKey(),
   ]);
   if (!context.lastAggregatedAt) {
     return { accessRole: context.accessRole, lastAggregatedAt: null, rows: [], viewerName: context.viewerName };
@@ -93,11 +96,11 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
       sourceType: 'CSV',
       stages: {
         design: phaseCell('DESIGN', designDoneDates.get(row.epicKey) ?? null),
-        dev: phaseCell('DEV', null),
+        dev: phaseCell('DEV', devDoneDates.get(row.epicKey) ?? null),
         pentest: phaseCell('PENTEST', null),
         r4golive: phaseCell('R4GOLIVE', row.r4gDate),
         release: releaseCell,
-        test: phaseCell('TEST', null),
+        test: phaseCell('TEST', testDoneDates.get(row.epicKey) ?? null),
       },
       t0IdeaApprovedDate: row.ideaApprovedDate,
       t1StartDate: row.startDate,

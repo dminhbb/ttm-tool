@@ -1,27 +1,19 @@
 import pool from '@/lib/db';
+import { toIssue } from '@/lib/epic-browser-service';
+import type { DataReviewIssueRow } from '@/lib/epic-browser-service';
+import {
+  EPIC_ISSUE_TYPES_SQL,
+  LATEST_ISSUES_CTE,
+  RESOLVED_DESCENDANTS_CTE,
+  STORIES_CTE,
+  STORY_ISSUE_TYPES_SQL,
+} from '@/lib/issue-resolution-sql';
 import type {
-  DataReviewChildrenResponse,
   DataReviewEpicsResponse,
   DataReviewFilterOptions,
-  DataReviewIssue,
 } from '@/lib/data-review-types';
 
 const DATA_REVIEW_PAGE_SIZE = 10;
-
-interface DataReviewIssueRow {
-  assignee: string | null;
-  dueDate: string | null;
-  hasChildren?: boolean;
-  id: number;
-  issueKey: string;
-  issueType: string;
-  jiraId: string | number;
-  project: string | null;
-  r4gDate: string | null;
-  startDate: string | null;
-  status: string;
-  summary: string;
-}
 
 interface DataReviewMetadataRow {
   components: string | null;
@@ -37,25 +29,14 @@ export interface DataReviewFilters {
   status: string;
 }
 
-function toIssue(row: DataReviewIssueRow): DataReviewIssue {
-  return {
-    assignee: row.assignee ?? '',
-    dueDate: row.dueDate,
-    hasChildren: row.hasChildren ?? false,
-    id: row.id,
-    issueKey: row.issueKey,
-    issueType: row.issueType,
-    jiraId: String(row.jiraId),
-    project: row.project ?? '',
-    r4gDate: row.r4gDate,
-    startDate: row.startDate,
-    status: row.status,
-    summary: row.summary,
-  };
-}
-
-const issueContextCte = `
-  WITH issue_context AS (
+/**
+ * Rows literally present in the reviewed batch — what this specific day's import actually
+ * contained. This is the scope for the top-level Epic listing and its filter dropdowns ("what did
+ * today's file bring in"), which is intentionally batch-scoped, unlike hierarchy resolution
+ * (Story/Subtask children), which is delegated to epic-browser-service.ts's cross-batch resolution.
+ */
+const batchIssuesCte = `
+  batch_issues AS (
     SELECT
       issues.id,
       issues.jira_id AS "jiraId",
@@ -67,8 +48,6 @@ const issueContextCte = `
       issues.due_date::text AS "dueDate",
       issues.issue_name AS summary,
       issues.assignee_name AS assignee,
-      issues.epic_id AS "epicId",
-      issues.parent_id AS "parentId",
       COALESCE(
         NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
         NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),
@@ -145,6 +124,15 @@ export async function getDataReviewFilterOptions(batchId: number): Promise<DataR
   };
 }
 
+/**
+ * Epic list is scoped to this batch (which Epics did today's import touch), but "does this Epic
+ * have children" resolves against the full accumulated history via `descendants` (see
+ * issue-resolution-sql.ts) — not just rows that happen to share this exact batch — since daily
+ * incremental imports mean an Epic's Stories/Subtasks are very often confirmed in a different
+ * day's batch than the Epic itself (e.g. a placeholder Epic created via "Tạo Epic trống" always
+ * lives in its own separate batch from the Stories/Subtasks that reference it). The actual
+ * Story/Subtask rows themselves are fetched on demand via epic-browser-service.ts.
+ */
 export async function getDataReviewEpics(
   batchId: number,
   filters: DataReviewFilters,
@@ -153,7 +141,7 @@ export async function getDataReviewEpics(
   const offset = (page - 1) * DATA_REVIEW_PAGE_SIZE;
   const values = [batchId, filters.project, filters.status, filters.component, filters.issueType];
   const predicate = `
-    UPPER("issueType") IN ('EPIC', 'CTNB')
+    UPPER("issueType") IN (${EPIC_ISSUE_TYPES_SQL})
     AND ($2 = '' OR project = $2)
     AND ($3 = '' OR status = $3)
     AND ($4 = '' OR $4 = ANY(regexp_split_to_array(components, '\\s*[,;]\\s*')))
@@ -161,24 +149,23 @@ export async function getDataReviewEpics(
       $5 = ''
       OR UPPER("issueType") = UPPER($5)
       OR EXISTS (
-        SELECT 1
-        FROM issue_context descendants
-        WHERE descendants."epicId" = issue_context.id
-          AND UPPER(descendants."issueType") = UPPER($5)
+        SELECT 1 FROM descendants d
+        WHERE d.resolved_epic_key = batch_issues."issueKey" AND UPPER(d.issue_type) = UPPER($5)
       )
     )
   `;
+  const cteChain = `WITH ${LATEST_ISSUES_CTE}, ${STORIES_CTE}, ${RESOLVED_DESCENDANTS_CTE}, ${batchIssuesCte}`;
 
   const [countResult, rowsResult, filterOptions] = await Promise.all([
-    pool.query<{ total: number }>(`${issueContextCte} SELECT COUNT(*)::int AS total FROM issue_context WHERE ${predicate};`, values),
+    pool.query<{ total: number }>(`${cteChain} SELECT COUNT(*)::int AS total FROM batch_issues WHERE ${predicate};`, values),
     pool.query<DataReviewIssueRow>(`
-      ${issueContextCte}
+      ${cteChain}
       SELECT id, "jiraId", "issueKey", "issueType", status, "startDate", "r4gDate", "dueDate", summary, assignee, project,
         EXISTS (
-          SELECT 1 FROM issue_context descendants
-          WHERE descendants."epicId" = issue_context.id AND UPPER(descendants."issueType") IN ('STORY', 'TASK', 'ENABLER STORY')
+          SELECT 1 FROM descendants d
+          WHERE d.resolved_epic_key = batch_issues."issueKey" AND UPPER(d.issue_type) IN (${STORY_ISSUE_TYPES_SQL})
         ) AS "hasChildren"
-      FROM issue_context
+      FROM batch_issues
       WHERE ${predicate}
       ORDER BY "issueKey" ASC
       LIMIT $6 OFFSET $7;
@@ -193,30 +180,4 @@ export async function getDataReviewEpics(
     pageSize: DATA_REVIEW_PAGE_SIZE,
     total: countResult.rows[0]?.total ?? 0,
   };
-}
-
-export async function getDataReviewChildren(
-  batchId: number,
-  parentId: number,
-  level: 'stories' | 'subtasks',
-): Promise<DataReviewChildrenResponse> {
-  const predicate = level === 'stories'
-    ? `"epicId" = $2 AND UPPER("issueType") IN ('STORY', 'TASK', 'ENABLER STORY')`
-    : `"parentId" = $2 AND UPPER("issueType") NOT IN ('EPIC', 'CTNB', 'STORY', 'TASK', 'ENABLER STORY')`;
-  const hasChildrenExpr = level === 'stories'
-    ? `EXISTS (
-        SELECT 1 FROM issue_context descendants
-        WHERE descendants."parentId" = issue_context.id AND UPPER(descendants."issueType") NOT IN ('EPIC', 'CTNB', 'STORY', 'TASK', 'ENABLER STORY')
-      )`
-    : 'FALSE';
-  const result = await pool.query<DataReviewIssueRow>(`
-    ${issueContextCte}
-    SELECT id, "jiraId", "issueKey", "issueType", status, "startDate", "r4gDate", "dueDate", summary, assignee, project,
-      ${hasChildrenExpr} AS "hasChildren"
-    FROM issue_context
-    WHERE ${predicate}
-    ORDER BY "issueKey" ASC;
-  `, [batchId, parentId]);
-
-  return { items: result.rows.map(toIssue) };
 }
