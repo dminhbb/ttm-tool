@@ -58,9 +58,30 @@ export function missingStandardInfo(row: EpicRow): string[] {
   const missing: string[] = [];
   if (!row.startDate) missing.push('Start Date');
   if (!row.epicType && !row.complexity) missing.push('Epic Type');
-  if (!row.assignee) missing.push('Owner');
   if (!row.ideaApprovedDate) missing.push('T0');
   return missing;
+}
+
+export interface TtmActualRange {
+  fromDate: string | null;
+  toDate: string | null;
+}
+
+/**
+ * Range the "stripe thực tế" (actual, bottom strip) of the TTM-CNTT column draws for, per the
+ * core rule: Due Date wins over R4G Date whenever both are present.
+ * - Due Date present, no T0 (Idea Approved Date) → Start Date → Due Date.
+ * - Due Date present, T0 present → T0 → Due Date.
+ * - No Due Date, R4G Date present → Start Date → R4G Date.
+ * - Neither present → Start Date → today (the Epic is still ongoing, no completion date yet).
+ */
+export function resolveTtmActualRange(
+  row: Pick<EpicRow, 'dueDate' | 'ideaApprovedDate' | 'r4gDate' | 'startDate'>,
+  now: Date,
+): TtmActualRange {
+  if (row.dueDate) return { fromDate: row.ideaApprovedDate ?? row.startDate, toDate: row.dueDate };
+  if (row.r4gDate) return { fromDate: row.startDate, toDate: row.r4gDate };
+  return { fromDate: row.startDate, toDate: toIsoDate(now) };
 }
 
 export async function resolveAccessScope(userId: number, role: UserRole): Promise<{ accessRole: EpicAlertAccessRole; sourceProjectKeys: string[] | null }> {
@@ -166,6 +187,8 @@ export interface EpicAlertContext {
   entries: EvaluatedEpicEntry[];
   holidays: HolidaySet;
   lastAggregatedAt: string | null;
+  /** import_batches.id of the latest batch — attached to any alert history row recorded off this context. */
+  lastBatchId: number | null;
   now: Date;
   statusAlertRules: Awaited<ReturnType<typeof listActiveStatusAlertRules>>;
   viewerName: string;
@@ -189,14 +212,15 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole): Pro
     listTtmPolicies(true),
     getEpicKeysWithAlertHistory(),
     pool.query<{ fullName: string }>('SELECT full_name AS "fullName" FROM users WHERE id = $1', [userId]),
-    pool.query<{ aggregatedAt: string }>('SELECT aggregated_at::text AS "aggregatedAt" FROM import_batches ORDER BY aggregated_at DESC LIMIT 1;'),
+    pool.query<{ aggregatedAt: string; id: number }>('SELECT id, aggregated_at::text AS "aggregatedAt" FROM import_batches ORDER BY aggregated_at DESC LIMIT 1;'),
   ]);
 
   const viewerName = viewer.rows[0]?.fullName ?? '';
   const latestAggregatedAt = latestBatch.rows[0]?.aggregatedAt ?? null;
+  const lastBatchId = latestBatch.rows[0]?.id ?? null;
   const now = new Date();
   if (!latestAggregatedAt) {
-    return { accessRole: scope.accessRole, entries: [], holidays, lastAggregatedAt: null, now, statusAlertRules, viewerName };
+    return { accessRole: scope.accessRole, entries: [], holidays, lastAggregatedAt: null, lastBatchId: null, now, statusAlertRules, viewerName };
   }
 
   const result = await pool.query<EpicRow>(`
@@ -263,7 +287,7 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole): Pro
     entries.push({ complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, projectName, row, startDate });
   }
 
-  return { accessRole: scope.accessRole, entries, holidays, lastAggregatedAt: latestAggregatedAt, now, statusAlertRules, viewerName };
+  return { accessRole: scope.accessRole, entries, holidays, lastAggregatedAt: latestAggregatedAt, lastBatchId, now, statusAlertRules, viewerName };
 }
 
 /**
@@ -312,6 +336,11 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
       ? doneStageCell(toIsoDate(parseDate(row.dueDate)) ?? undefined)
       : { dateLabel: null, isCurrentStage: false, planLabel: 'Chưa có Due Date', pillLabel: 'Chưa tới', pillVariant: 'upcoming' };
 
+    const ttmActualRange = resolveTtmActualRange(row, now);
+    const ttmActualFrom = parseDate(ttmActualRange.fromDate);
+    const ttmActualTo = parseDate(ttmActualRange.toDate);
+    const ttmActualElapsed = ttmActualFrom && ttmActualTo ? diffWorkingDays(ttmActualFrom, ttmActualTo, holidays) : null;
+
     rows.push({
       alertLevel,
       currentStatus: row.status,
@@ -321,7 +350,6 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
       epicType: complexity,
       hasAlertHistory,
       missingStandardInfo: missingStandardInfo(row),
-      ownerName: row.assignee ?? '',
       projectKey: row.project ?? '',
       r4gDate: row.r4gDate,
       remainingWorkingDays,
@@ -330,6 +358,9 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
       stages: { design: designCell, inProgress: inProgressCell, r4g: r4gCell, release: releaseCell },
       t0IdeaApprovedDate: row.ideaApprovedDate,
       t1StartDate: row.startDate,
+      ttmActualElapsedWorkingDays: ttmActualElapsed,
+      ttmActualFromDate: ttmActualRange.fromDate,
+      ttmActualToDate: ttmActualRange.toDate,
       ttmCnttFromDate: evaluation.ttm.cntt.fromDate,
       ttmCnttFromField: evaluation.ttm.cntt.fromField,
       ttmCnttToField: evaluation.ttm.cntt.toField,

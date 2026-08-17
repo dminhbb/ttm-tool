@@ -117,14 +117,15 @@ function StatusBadge({ status }: { status: string }) {
 
 function TtmCnttStrips({ row }: { row: EpicAlertRow }) {
   const target = row.ttmCnttTargetWorkingDays;
-  const elapsed = row.ttmCnttElapsedWorkingDays ?? 0;
+  const elapsed = row.ttmActualElapsedWorkingDays ?? 0;
   const ratio = target > 0 ? elapsed / target : 0;
-  const isOver = elapsed > target;
+  // Tied to the same alertLevel shown in "Nhận xét" (not re-derived from elapsed/target here) so
+  // the stripe color can never disagree with the Fail TTM badge at the day-boundary — elapsed is a
+  // working-day count (reaching the target day still reads as "not yet over"), while alertLevel's
+  // FAIL already fires that same day (see computeTtmAlert in ttm-rules.ts).
+  const isOver = row.alertLevel === 'FAIL';
   const BASE_WIDTH = 56;
   const actualWidth = Math.max(6, Math.min(ratio, 2) * BASE_WIDTH);
-  const actualEnd = new Date().toISOString().slice(0, 10);
-  // The visual timeline is always anchored to the Start Date column so both
-  // baseline and actual strips share the same, directly comparable origin.
   const fromDate = row.t1StartDate;
 
   return (
@@ -136,9 +137,9 @@ function TtmCnttStrips({ row }: { row: EpicAlertRow }) {
           <span className="ttm-strip-date">{formatDate(row.targetR4gDate)}</span>
         </div>
         <div className="ttm-strip-row">
-          <span className="ttm-strip-date">{formatDate(fromDate)}</span>
+          <span className="ttm-strip-date">{formatDate(row.ttmActualFromDate)}</span>
           <span className={`ttm-strip-track actual ${isOver ? 'over' : 'under'}`} style={{ width: `${actualWidth}px` }} />
-          <span className="ttm-strip-date">{formatDate(actualEnd)}</span>
+          <span className="ttm-strip-date">{formatDate(row.ttmActualToDate)}</span>
         </div>
       </div>
     </TD>
@@ -334,7 +335,7 @@ export default function EpicAlertsPage() {
                       <span className="ttm-epic-key">{row.epicKey}</span>
                       <AlertHistoryButton row={row} onOpen={setAlertHistoryEpicKey} />
                       <span className="ttm-project-tag">
-                        {row.projectKey}{row.domainName ? ` · ${row.domainName}` : ''}{row.ownerName ? ` · Owner: ${row.ownerName}` : ''}
+                        {row.projectKey}{row.domainName ? ` · ${row.domainName}` : ''}
                       </span>
                       {row.missingStandardInfo.length > 0 && (
                         <span>

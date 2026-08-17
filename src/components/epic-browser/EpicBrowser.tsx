@@ -22,7 +22,7 @@ interface ApiErrorResponse {
   error?: string;
 }
 
-const COLUMN_COUNT = 10;
+const COLUMN_COUNT = 9;
 
 function formatDate(value: string | null): string {
   if (!value) return '-';
@@ -120,7 +120,6 @@ function TreeTableRow({ isDimmed, isExpanded, isLastChild, isLoading, issue, lev
       <TD className="px-3 py-2">{formatDate(issue.startDate)}</TD>
       <TD className="px-3 py-2">{formatDate(issue.r4gDate)}</TD>
       <TD className="px-3 py-2">{formatDate(issue.dueDate)}</TD>
-      <TD className="px-3 py-2">{issue.assignee || '-'}</TD>
       <TD className="px-3 py-2">{issue.jiraId || '-'}</TD>
     </TR>
   );
@@ -192,7 +191,7 @@ export function EpicBrowser({ epics, emptyDescription, emptyTitle }: EpicBrowser
           <THead>
             <TR>
               <TH className="px-3 py-2">Project</TH><TH className="px-3 py-2 text-center">Type</TH><TH className="px-3 py-2">Key</TH><TH className="px-3 py-2">Summary</TH><TH className="px-3 py-2">Status</TH>
-              <TH className="px-3 py-2">Start date</TH><TH className="px-3 py-2">R4G date</TH><TH className="px-3 py-2">Due date</TH><TH className="px-3 py-2">Assignee</TH><TH className="px-3 py-2">ID</TH>
+              <TH className="px-3 py-2">Start date</TH><TH className="px-3 py-2">R4G date</TH><TH className="px-3 py-2">Due date</TH><TH className="px-3 py-2">ID</TH>
             </TR>
           </THead>
           <TBody>

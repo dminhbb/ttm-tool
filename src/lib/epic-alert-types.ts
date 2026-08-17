@@ -19,7 +19,6 @@ export interface EpicAlertRow {
   epicType: EpicComplexity | null;
   hasAlertHistory: boolean;
   missingStandardInfo: string[];
-  ownerName: string;
   projectKey: string;
   r4gDate: string | null;
   remainingWorkingDays: number | null;
@@ -33,6 +32,10 @@ export interface EpicAlertRow {
   };
   t0IdeaApprovedDate: string | null;
   t1StartDate: string | null;
+  /** Start of the "stripe thực tế" (actual strip) — see resolveTtmActualRange in epic-alert-service.ts. */
+  ttmActualElapsedWorkingDays: number | null;
+  ttmActualFromDate: string | null;
+  ttmActualToDate: string | null;
   ttmCnttFromDate: string | null;
   ttmCnttFromField: string | null;
   ttmCnttToField: string | null;
@@ -55,15 +58,15 @@ export interface EpicAlertResponse {
 /** Two-line cell for the phase-split screen ("Quản lý Epic 15"): baseline (top) vs actual (bottom). */
 export interface PhaseCell {
   actualDate: string | null;
+  /** NONE/EARLY/LATE per the phase's own baseline (see ttm-phase-rules.ts's computeComponentPhaseAlerts). FAIL is unused here. */
+  alertLevel: AlertLevel;
   baselineDate: string | null;
-  /** True when the Epic's current status is already past this phase's mapped status. */
-  isPastStatus: boolean;
+  /** True for the single phase Epic 15 considers "giai đoạn hiện tại" of this Epic. */
+  isCurrentStage: boolean;
 }
 
 export interface EpicAlertRowPhased {
   alertLevel: AlertLevel;
-  /** Raw Jira "Assignee" on the Epic — distinct from ownerName (the project's configured PM/SM). */
-  assigneeName: string;
   currentStatus: string;
   /** Which import data layer (aggregated_at) this Epic's row currently comes from. */
   dataLayerDate: string | null;
@@ -93,6 +96,10 @@ export interface EpicAlertRowPhased {
   t0IdeaApprovedDate: string | null;
   t1StartDate: string | null;
   targetR4gDate: string | null;
+  /** Range of the "stripe thực tế" (actual strip) — see resolveTtmActualRange in epic-alert-service.ts. */
+  ttmActualElapsedWorkingDays: number | null;
+  ttmActualFromDate: string | null;
+  ttmActualToDate: string | null;
   ttmCnttElapsedWorkingDays: number | null;
   ttmCnttFromDate: string | null;
   ttmCnttFromField: string | null;

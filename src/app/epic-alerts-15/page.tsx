@@ -64,20 +64,17 @@ const ACCESS_ROLE_NOTE: Record<EpicAlertAccessRole, string> = {
 };
 
 /**
- * pass (green) — completed on time (actualDate ≤ baselineDate, or already past this status with
- * no actual date tracked yet); fail (red) — completed late, or still not done past its baseline;
- * warning (yellow) — due exactly today; neutral — not due yet.
+ * light green (pass) — có cơ sở hoàn thành và actualDate ≤ baselineDate;
+ * light red (fail) — actualDate > baselineDate (hoàn thành muộn), hoặc chưa có cơ sở hoàn thành mà
+ * đã tới/quá baseline (Cảnh báo muộn); light yellow (warning) — Cảnh báo sớm; không màu — chưa tới.
  */
 function phaseCellColorClass(cell: PhaseCell): string {
   if (cell.actualDate) {
     if (!cell.baselineDate) return 'pass';
     return cell.actualDate <= cell.baselineDate ? 'pass' : 'fail';
   }
-  if (cell.isPastStatus) return 'pass';
-  if (!cell.baselineDate) return '';
-  const todayIso = new Date().toISOString().slice(0, 10);
-  if (todayIso > cell.baselineDate) return 'fail';
-  if (todayIso === cell.baselineDate) return 'warning';
+  if (cell.alertLevel === 'LATE') return 'fail';
+  if (cell.alertLevel === 'EARLY') return 'warning';
   return '';
 }
 
@@ -86,6 +83,7 @@ function PhaseStageCell({ cell }: { cell: PhaseCell }) {
   const colorClass = phaseCellColorClass(cell);
   return (
     <TD className={`ttm-phase-cell${colorClass ? ` ${colorClass}` : ''}`}>
+      {cell.isCurrentStage && <span className="ttm-phase-current-dot" title="Giai đoạn hiện tại của Epic" aria-hidden="true" />}
       <span className="ttm-phase-baseline" title="Baseline chuẩn theo rule phân chia giai đoạn (tính từ Start Date)">{formatDate(cell.baselineDate)}</span>
       <span className="ttm-phase-actual" title="Thời gian hoàn thành giai đoạn thực tế">{cell.actualDate ? formatDate(cell.actualDate) : '-'}</span>
     </TD>
@@ -115,15 +113,18 @@ function StatusBadge({ status }: { status: string }) {
 
 function TtmCnttStrips({ row }: { row: EpicAlertRowPhased }) {
   const target = row.ttmCnttTargetWorkingDays;
-  const elapsed = row.ttmCnttElapsedWorkingDays ?? 0;
+  const elapsed = row.ttmActualElapsedWorkingDays ?? 0;
   const ratio = target > 0 ? elapsed / target : 0;
-  const isOver = elapsed > target;
+  // Tied to the same alertLevel shown in "Nhận xét" (not re-derived from elapsed/target here) so
+  // the stripe color can never disagree with the Fail TTM badge at the day-boundary — elapsed is a
+  // working-day count (reaching the target day still reads as "not yet over"), while alertLevel's
+  // FAIL already fires that same day (see computeTtmAlert in ttm-rules.ts).
+  const isOver = row.alertLevel === 'FAIL';
   const BASE_WIDTH = 56;
   // Hard cap in px (not just a ratio multiplier) so an Epic with an unusually long actual
   // duration can never stretch the strip wide enough to break the table's layout.
   const MAX_ACTUAL_WIDTH = 112;
   const actualWidth = Math.min(Math.max(6, ratio * BASE_WIDTH), MAX_ACTUAL_WIDTH);
-  const actualEnd = new Date().toISOString().slice(0, 10);
   const fromDate = row.t1StartDate;
 
   return (
@@ -135,9 +136,9 @@ function TtmCnttStrips({ row }: { row: EpicAlertRowPhased }) {
           <span className="ttm-strip-date">{formatDate(row.targetR4gDate)}</span>
         </div>
         <div className="ttm-strip-row">
-          <span className="ttm-strip-date">{formatDate(fromDate)}</span>
+          <span className="ttm-strip-date">{formatDate(row.ttmActualFromDate)}</span>
           <span className={`ttm-strip-track actual ${isOver ? 'over' : 'under'}`} style={{ width: `${actualWidth}px` }} />
-          <span className="ttm-strip-date">{formatDate(actualEnd)}</span>
+          <span className="ttm-strip-date">{formatDate(row.ttmActualToDate)}</span>
         </div>
       </div>
     </TD>
@@ -147,6 +148,15 @@ function TtmCnttStrips({ row }: { row: EpicAlertRowPhased }) {
 const ALERT_HISTORY_TYPE_LABEL: Record<EpicAlertHistoryEntry['alertType'], string> = {
   FAIL: 'Fail TTM-CNTT',
   LATE: 'Cảnh báo muộn',
+};
+
+const ALERT_HISTORY_PHASE_LABEL: Record<EpicAlertHistoryEntry['phase'], string> = {
+  OVERALL: '',
+  DESIGN: 'DESIGN',
+  DEV: 'DEV',
+  TEST: 'TEST',
+  PENTEST: 'PENTEST',
+  R4GOLIVE: 'R4GOLIVE',
 };
 
 const MILESTONE_LABEL: Record<string, string> = {
@@ -204,7 +214,6 @@ function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRowPhased; onClose:
         <div className="ttm-alert-popup-left">
           <AlertPopupField label="Summary" value={row.epicName || '-'} />
           <AlertPopupField label="Tên dự án" value={row.projectName || '-'} />
-          <AlertPopupField label="Assignee" value={row.assigneeName || '-'} />
           <AlertPopupField label="Ngày duyệt ý tưởng (T0)" value={formatDate(row.t0IdeaApprovedDate)} />
           <AlertPopupField label="Start Date (T1)" value={formatDate(row.t1StartDate)} />
           <AlertPopupField label="Status" value={row.currentStatus || '-'} />
@@ -238,8 +247,10 @@ function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRowPhased; onClose:
               ) : (
                 <ul className="ttm-alert-history-list">
                   {entries.map((entry, index) => (
-                    <li key={`${entry.alertDate}-${entry.alertType}-${index}`} className="ttm-alert-history-item">
-                      <span className={`ttm-badge ${entry.alertType === 'FAIL' ? 'fail' : 'late-warning'}`}>{ALERT_HISTORY_TYPE_LABEL[entry.alertType]}</span>
+                    <li key={`${entry.alertDate}-${entry.alertType}-${entry.phase}-${index}`} className="ttm-alert-history-item">
+                      <span className={`ttm-badge ${entry.alertType === 'FAIL' ? 'fail' : 'late-warning'}`}>
+                        {ALERT_HISTORY_TYPE_LABEL[entry.alertType]}{ALERT_HISTORY_PHASE_LABEL[entry.phase] ? ` (${ALERT_HISTORY_PHASE_LABEL[entry.phase]})` : ''}
+                      </span>
                       <span className="ttm-alert-history-status">{entry.alertStatus}</span>
                       <span className="ttm-alert-history-date">{formatDate(entry.alertDate)}</span>
                     </li>

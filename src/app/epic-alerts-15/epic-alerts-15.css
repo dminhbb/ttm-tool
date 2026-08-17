@@ -389,10 +389,19 @@
 .ttm-r4g-actual { display: block; color: var(--ttm-success-700); font-weight: 800; font-size: 11px; }
 .ttm-r4g-target { display: block; color: var(--ttm-muted); font-size: 10.5px; font-weight: 600; white-space: nowrap; }
 .ttm-r4g-actual + .ttm-r4g-target { margin-top: 3px; }
-.ttm-phase-cell { text-align: center; }
+.ttm-phase-cell { position: relative; text-align: center; }
 .ttm-phase-cell.pass { background: var(--ttm-success-100); }
 .ttm-phase-cell.warning { background: var(--ttm-warning-100); }
 .ttm-phase-cell.fail { background: var(--ttm-danger-100); }
+.ttm-phase-current-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ttm-brand-500);
+}
 .ttm-phase-baseline { display: block; color: var(--ttm-text); font-weight: 400; font-style: normal; font-size: 11px; white-space: nowrap; }
 .ttm-phase-actual { display: block; margin-top: 3px; color: var(--ttm-text); font-weight: 400; font-style: normal; font-size: 11px; white-space: nowrap; }
 .ttm-epic-type-icon { color: var(--ttm-brand-600); display: block; }

@@ -1,5 +1,6 @@
 import { addWorkingDays } from '@/lib/working-days';
 import type { HolidaySet } from '@/lib/working-days';
+import type { AlertLevel } from '@/lib/ttm-rules';
 
 /**
  * Core TTM-CNTT phase-division rule (added on top of the existing T1 → R4G Date TTM-CNTT
@@ -65,4 +66,62 @@ export function computeTtmPhaseBaselines(startDate: Date, ttmCnttTotalWorkingDay
     result[phase] = { cumulativeWorkingDays: cumulative, date: addWorkingDays(startDate, cumulative, holidays), workingDays };
   });
   return result;
+}
+
+function toDateOnlyIso(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Epic 15's uniform per-phase alert rule, applied independently to every one of the five phase
+ * columns (DESIGN/DEV/TEST/PENTEST/R4GOLIVE), calendar-date based (not working-day based, unlike
+ * the baseline itself):
+ * - A phase with no basis to record completion yet (no actual/milestone date) is late once today
+ *   reaches its own baseline, one calendar day early the day before that, else not due yet.
+ * - A phase that already has a recorded completion date isn't "due" anymore — comparing that date
+ *   against the baseline (on time vs late) is a separate, presentation-layer concern (see
+ *   phaseCellColorClass in epic-alerts-15/page.tsx), not something this function decides.
+ */
+export function computePhaseAlertLevel(baselineDate: Date, now: Date, isDone: boolean): AlertLevel {
+  if (isDone) return 'NONE';
+  const todayIso = toDateOnlyIso(now);
+  if (todayIso >= toDateOnlyIso(baselineDate)) return 'LATE';
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (toDateOnlyIso(tomorrow) === toDateOnlyIso(baselineDate)) return 'EARLY';
+  return 'NONE';
+}
+
+export type ComponentPhaseKey = 'DEV' | 'TEST' | 'PENTEST';
+
+export interface ComponentPhaseAlerts {
+  currentComponent: ComponentPhaseKey;
+  dev: AlertLevel;
+  pentest: AlertLevel;
+  test: AlertLevel;
+}
+
+/**
+ * DEV/TEST/PENTEST alert levels (each independent, per computePhaseAlertLevel — a phase blocked
+ * behind an earlier, not-yet-done phase still goes LATE once its own baseline passes, since DEV's
+ * baseline always falls before TEST's, which always falls before PENTEST's), plus which of the
+ * three is Epic 15's "giai đoạn hiện tại" (current phase) — the first not yet satisfying its
+ * completion rule (DEV_DONE / TEST_DONE — see epic-milestone-history-service.ts; PENTEST has no
+ * completion rule yet, so it's the fallback once TEST is done).
+ */
+export function computeComponentPhaseAlerts(
+  baselines: Record<TtmPhaseKey, TtmPhaseBaseline>,
+  devDone: boolean,
+  testDone: boolean,
+  now: Date,
+): ComponentPhaseAlerts {
+  const currentComponent: ComponentPhaseKey = !devDone ? 'DEV' : !testDone ? 'TEST' : 'PENTEST';
+
+  return {
+    currentComponent,
+    dev: computePhaseAlertLevel(baselines.DEV.date, now, devDone),
+    // PENTEST has no completion rule yet, so its alert always tracks its own baseline.
+    pentest: computePhaseAlertLevel(baselines.PENTEST.date, now, false),
+    test: computePhaseAlertLevel(baselines.TEST.date, now, testDone),
+  };
 }

@@ -1,6 +1,7 @@
 import { addWorkingDays, diffWorkingDays } from '@/lib/working-days';
 import type { HolidaySet } from '@/lib/working-days';
 import type { StatusAlertRule } from '@/lib/status-alert-rule-types';
+import { isCancelledStatus } from '@/lib/issue-status-rules';
 
 export type EpicComplexity = 'SIMPLE' | 'COMPLEX';
 export type AlertLevel = 'NONE' | 'EARLY' | 'LATE' | 'FAIL';
@@ -77,18 +78,24 @@ export interface TtmAlertResult {
 /**
  * MVP1 only covers TTM-CNTT (T1 → R4G) for Epics in Design / In Progress.
  * The target date is supplied by the active TTM-CNTT policy (From/To + working days).
+ *
+ * FAIL (the target R4G date has already passed, or R4G Date landed after it) is an objective fact
+ * about the Epic missing its deadline — it doesn't depend on a status-specific early/late offset
+ * rule being configured, so it still applies to statuses like Pending that have no such rule (e.g.
+ * work paused mid-flight doesn't reset the clock). Cancelled is the one exception: abandoned work
+ * never "fails" TTM. EARLY/LATE, by contrast, genuinely need a configured rule for the status.
  */
 export function computeTtmAlert(input: TtmAlertInput): TtmAlertResult {
   const complexity = input.complexity ?? 'SIMPLE';
   const rule = resolveOffsetRule(complexity, input.status, input.statusAlertRules);
 
-  if (!input.startDate || !rule || !input.targetR4gDate) {
+  if (!input.startDate || !input.targetR4gDate || isCancelledStatus(input.status)) {
     return { daysRemaining: null, earlyAlertDate: null, lateAlertDate: null, level: 'NONE', targetR4gDate: input.targetR4gDate };
   }
 
   const holidays = input.holidays ?? new Set<string>();
-  const earlyAlertDate = addWorkingDays(input.startDate, rule.earlyOffset, holidays);
-  const lateAlertDate = addWorkingDays(input.startDate, rule.lateOffset, holidays);
+  const earlyAlertDate = rule ? addWorkingDays(input.startDate, rule.earlyOffset, holidays) : null;
+  const lateAlertDate = rule ? addWorkingDays(input.startDate, rule.lateOffset, holidays) : null;
   const targetR4gDate = input.targetR4gDate;
 
   if (input.r4gDate) {
@@ -99,8 +106,8 @@ export function computeTtmAlert(input: TtmAlertInput): TtmAlertResult {
   const now = input.currentDate.getTime();
   let level: AlertLevel = 'NONE';
   if (now > targetR4gDate.getTime()) level = 'FAIL';
-  else if (now >= lateAlertDate.getTime()) level = 'LATE';
-  else if (now >= earlyAlertDate.getTime()) level = 'EARLY';
+  else if (lateAlertDate && now >= lateAlertDate.getTime()) level = 'LATE';
+  else if (earlyAlertDate && now >= earlyAlertDate.getTime()) level = 'EARLY';
 
   const daysRemaining = diffWorkingDays(input.currentDate, targetR4gDate, holidays);
 
