@@ -20,7 +20,7 @@ export function SystemStatusFooter() {
   if (!status) return null;
 
   return (
-    <footer className="fixed bottom-2 right-3 z-20 text-right text-xs leading-tight" style={{ color: 'grey' }}>
+    <footer className="w-full shrink-0 px-3 py-2 text-right text-xs leading-tight" style={{ color: 'grey' }}>
       <p>TTM tool - version {status.version}. (C) minhnd7</p>
       <p>db: {status.dbTarget} - {status.dbStatus}</p>
     </footer>

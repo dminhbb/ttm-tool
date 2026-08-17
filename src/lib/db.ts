@@ -6,8 +6,9 @@ export type DbConnectionTarget = 'aiven' | 'local';
 
 /**
  * Which named connection profile to use — 'local' (PGHOST/… or DATABASE_URL_LOCAL, from .env) or
- * 'aiven' (DATABASE_URL_AIVEN). Switching only requires changing DB_CONNECTION in .env.local (never
- * committed — see .env.example) and restarting `next dev`; no code change needed. Deployed
+ * 'aiven' (DATABASE_URL_AIVEN). Switching only requires changing DB_CONNECTION in .env.local
+ * (never committed — see .env.example); the exported `pool` below picks the change up on its next
+ * query, no restart needed (see the "quick switch" doc comment further down). Deployed
  * environments (Vercel) set DB_CONNECTION=aiven directly as a dashboard env var, since a serverless
  * function can never reach a developer's local Postgres.
  */
@@ -37,7 +38,12 @@ function aivenPoolConfig(): PoolConfig {
   const ssl: PoolConfig['ssl'] = process.env.PGSSLROOTCERT
     ? { ca: readFileSync(process.env.PGSSLROOTCERT, 'utf8'), rejectUnauthorized: true }
     : { rejectUnauthorized: false };
-  return { connectionString: stripSslModeParam(rawConnectionString), ssl };
+  // Aiven's free tier caps total connections very low (shared across every client hitting it —
+  // this app, psql sessions, migrate scripts, …). pg's own default `max` is 10 per Pool, which on
+  // its own can exhaust that budget the moment a page fires more than a couple of queries in
+  // parallel ("sorry, too many clients already"). Keep this app's own ceiling low so pg queues
+  // extra queries instead of opening more physical connections than the plan allows.
+  return { connectionString: stripSslModeParam(rawConnectionString), idleTimeoutMillis: 5000, max: 3, ssl };
 }
 
 function localPoolConfig(): PoolConfig {
@@ -55,20 +61,42 @@ function buildPoolConfig(): PoolConfig {
   return resolveDbConnectionTarget() === 'aiven' ? aivenPoolConfig() : localPoolConfig();
 }
 
-let pool: Pool;
-
-if (process.env.NODE_ENV === 'production') {
-  pool = new Pool(buildPoolConfig());
-} else {
-  // Prevent multiple pools from being created in development hot-reloading
-  const globalWithPool = global as typeof globalThis & {
-    _postgresPool?: Pool;
-  };
-  if (!globalWithPool._postgresPool) {
-    globalWithPool._postgresPool = new Pool(buildPoolConfig());
-  }
-  pool = globalWithPool._postgresPool;
+interface PoolState {
+  pool: Pool;
+  target: DbConnectionTarget;
 }
+
+let moduleState: PoolState | undefined;
+
+// Next dev hot-reloads DB_CONNECTION live (it watches .env* files) without restarting the process,
+// so a pool built once at first import would silently keep talking to the OLD profile forever —
+// this was exactly why switching to DB_CONNECTION=aiven kept authenticating against the stale
+// local pool. getPool() re-checks the target on every call and swaps in a fresh Pool when it
+// changes, so `pool.query(...)` below always reflects whatever DB_CONNECTION currently says.
+function getPool(): Pool {
+  const target = resolveDbConnectionTarget();
+  const globalWithPool = global as typeof globalThis & { _postgresPoolState?: PoolState };
+  const isDev = process.env.NODE_ENV !== 'production';
+  const state = isDev ? globalWithPool._postgresPoolState : moduleState;
+
+  if (state && state.target === target) return state.pool;
+
+  if (state) void state.pool.end().catch(() => undefined);
+  const nextState: PoolState = { pool: new Pool(buildPoolConfig()), target };
+  if (isDev) globalWithPool._postgresPoolState = nextState;
+  else moduleState = nextState;
+  return nextState.pool;
+}
+
+// A stable Proxy so every existing `import pool from '@/lib/db'; pool.query(...)` call site keeps
+// working unchanged, while always dispatching to whatever getPool() currently resolves to.
+const pool = new Proxy({} as Pool, {
+  get(_target, prop) {
+    const currentPool = getPool();
+    const value = Reflect.get(currentPool, prop, currentPool);
+    return typeof value === 'function' ? value.bind(currentPool) : value;
+  },
+});
 
 export const query = async (text: string, params?: unknown[]) => {
   const start = Date.now();

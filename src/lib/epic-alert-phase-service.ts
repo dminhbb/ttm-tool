@@ -20,6 +20,13 @@ import type { EpicAlertPhasedResponse, EpicAlertRowPhased, PhaseCell } from '@/l
 const DESIGN_STATUS_INDEX = epicWorkflowStatusIndex('DESIGN');
 const R4GOLIVE_STATUS_INDEX = epicWorkflowStatusIndex('R4GOLIVE');
 
+// Temporarily off: recording a LATE phase into epic_alert_history writes on every screen view (up
+// to one row per Epic per phase currently LATE), which exhausted Aiven's free-tier connection cap
+// even after capping the pool and making the writes sequential (see db.ts / the write-loop below).
+// Flip back to true once the target DB's connection budget can absorb it. The write path itself is
+// left fully intact — this only skips calling it.
+const ALERT_HISTORY_RECORDING_ENABLED = false;
+
 function naPhaseCell(): PhaseCell {
   return { actualDate: null, alertLevel: 'NONE', baselineDate: null, isCurrentStage: false };
 }
@@ -184,9 +191,13 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
     });
   }
 
-  if (lateAlertsToRecord.length > 0) {
-    await Promise.all(lateAlertsToRecord.map(({ epicKey, phase, status }) =>
-      recordEpicAlertHistory(pool, epicKey, 'LATE', `${status} - ${phase}`, now, lastBatchId, phase)));
+  // Sequential, not Promise.all: this can be dozens of INSERTs per page view (one per Epic/phase
+  // currently LATE) — firing them all at once can exhaust a connection-constrained target (e.g.
+  // Aiven's free tier) well before the read queries above even get a chance to release theirs.
+  if (ALERT_HISTORY_RECORDING_ENABLED) {
+    for (const { epicKey, phase, status } of lateAlertsToRecord) {
+      await recordEpicAlertHistory(pool, epicKey, 'LATE', `${status} - ${phase}`, now, lastBatchId, phase);
+    }
   }
 
   const alertRank: Record<AlertLevel, number> = { FAIL: 0, LATE: 1, EARLY: 2, NONE: 3 };
