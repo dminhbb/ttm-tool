@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth-service';
+import { AuthError, requireUser } from '@/lib/auth-service';
 import {
   completeMissingData,
   countOrphanEpicCandidates,
@@ -8,8 +8,16 @@ import {
   listOrphanStoryCandidates,
 } from '@/lib/data-completion-service';
 
+function authError(error: unknown): NextResponse | null {
+  if (error instanceof AuthError) {
+    return NextResponse.json({ error: error.code === 'FORBIDDEN' ? 'Bạn không có quyền quản trị Nguồn dữ liệu.' : 'Chưa đăng nhập.' }, { status: error.code === 'FORBIDDEN' ? 403 : 401 });
+  }
+  return null;
+}
+
 export async function GET(request: NextRequest) {
   try {
+    await requireUser(request, ['SUPERADMIN']);
     const countOnly = new URL(request.url).searchParams.get('countOnly') === 'true';
     if (countOnly) {
       const [epicCount, storyCount] = await Promise.all([countOrphanEpicCandidates(), countOrphanStoryCandidates()]);
@@ -20,12 +28,13 @@ export async function GET(request: NextRequest) {
   } catch (error: unknown) {
     console.error('API Error listing data-completion candidates:', error);
     const message = error instanceof Error ? error.message : 'Lỗi hệ thống khi tải danh sách dữ liệu thiếu';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return authError(error) ?? NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireUser(request, ['SUPERADMIN']);
     const body: unknown = await request.json();
     const epicKeys = (body as { epicKeys?: unknown })?.epicKeys;
     const storyKeys = (body as { storyKeys?: unknown })?.storyKeys;
@@ -43,12 +52,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Ngày bắt đầu (Start Date) không hợp lệ' }, { status: 400 });
     }
 
-    const user = await getCurrentUser(request);
-    const result = await completeMissingData(safeEpicKeys, safeStoryKeys, user?.fullName ?? 'System', startDate);
+    const result = await completeMissingData(safeEpicKeys, safeStoryKeys, user.fullName, startDate);
     return NextResponse.json(result);
   } catch (error: unknown) {
     console.error('API Error completing missing data:', error);
     const message = error instanceof Error ? error.message : 'Lỗi hệ thống khi hoàn thiện dữ liệu';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return authError(error) ?? NextResponse.json({ error: message }, { status: 500 });
   }
 }

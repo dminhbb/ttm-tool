@@ -9,13 +9,13 @@ function authError(error: unknown): NextResponse | null {
 }
 
 export async function GET(request: NextRequest) {
-  try { await requireUser(request, ['SUPERADMIN']); return NextResponse.json(await listDomains()); }
+  try { await requireUser(request, ['ADMIN', 'SUPERADMIN']); return NextResponse.json(await listDomains()); }
   catch (error) { return authError(error) ?? NextResponse.json({ error: 'Lỗi hệ thống khi tải danh sách Domain.' }, { status: 500 }); }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    await requireUser(request, ['SUPERADMIN']);
+    await requireUser(request, ['ADMIN', 'SUPERADMIN']);
     const body = (await request.json()) as DomainInput;
     if (!body.domainCode?.trim() || !body.domainName?.trim()) return NextResponse.json({ error: 'Domain Code và Tên Domain là bắt buộc.' }, { status: 400 });
     return NextResponse.json(await createDomain(body), { status: 201 });
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    await requireUser(request, ['SUPERADMIN']);
+    await requireUser(request, ['ADMIN', 'SUPERADMIN']);
     const body = (await request.json()) as DomainInput & { id: number };
     if (!Number.isInteger(body.id) || body.id <= 0 || !body.domainCode?.trim() || !body.domainName?.trim()) return NextResponse.json({ error: 'Thiếu dữ liệu Domain bắt buộc.' }, { status: 400 });
     return NextResponse.json(await updateDomain(body.id, body));
@@ -33,7 +33,7 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    await requireUser(request, ['SUPERADMIN']);
+    await requireUser(request, ['ADMIN', 'SUPERADMIN']);
     const id = Number(new URL(request.url).searchParams.get('id'));
     if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: 'Domain ID không hợp lệ.' }, { status: 400 });
     await deleteDomain(id);

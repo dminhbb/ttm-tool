@@ -6,7 +6,7 @@ function isDatabaseError(error: unknown, code: string): boolean { return typeof 
 
 export async function POST(request: NextRequest) {
   try {
-    await requireUser(request, ['SUPERADMIN']);
+    await requireUser(request, ['ADMIN', 'SUPERADMIN']);
     const body: unknown = await request.json();
     if (typeof body !== 'object' || body === null || !('ids' in body)) return NextResponse.json({ error: 'Danh sách user hoặc Domain không hợp lệ.' }, { status: 400 });
     const payload = body as Record<string, unknown>;

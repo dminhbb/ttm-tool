@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { AuthError, requireUser } from '@/lib/auth-service';
 import { processImport } from '@/lib/import-service';
 import { DEFAULT_ADAPTER, type AdapterType } from '@/lib/adapters/index';
 
+function authError(error: unknown): NextResponse | null {
+  if (error instanceof AuthError) {
+    return NextResponse.json({ error: error.code === 'FORBIDDEN' ? 'Bạn không có quyền quản trị Nguồn dữ liệu.' : 'Chưa đăng nhập.' }, { status: error.code === 'FORBIDDEN' ? 403 : 401 });
+  }
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
+    await requireUser(request, ['SUPERADMIN']);
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const aggregatedAtStr = formData.get('aggregatedAt') as string | null;
@@ -31,6 +40,6 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     console.error('API Error in import route:', error);
     const message = error instanceof Error ? error.message : 'Lỗi hệ thống khi xử lý import file';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return authError(error) ?? NextResponse.json({ error: message }, { status: 500 });
   }
 }

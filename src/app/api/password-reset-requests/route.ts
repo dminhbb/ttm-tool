@@ -10,7 +10,7 @@ function authError(error: unknown): NextResponse | null { if (error instanceof A
 
 export async function GET(request: NextRequest) {
   try {
-    await requireUser(request, ['SUPERADMIN']);
+    await requireUser(request, ['ADMIN', 'SUPERADMIN']);
     const { default: pool } = await import('@/lib/db');
     const result = await pool.query('SELECT pr.id, pr.email, pr.created_at AS "createdAt", u.id AS "userId" FROM password_reset_requests pr LEFT JOIN users u ON u.email = pr.email WHERE pr.status = \'PENDING\' ORDER BY pr.created_at DESC');
     return NextResponse.json(result.rows);
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const actor = await requireUser(request, ['SUPERADMIN']);
+    const actor = await requireUser(request, ['ADMIN', 'SUPERADMIN']);
     const body: unknown = await request.json();
     if (!isRecord(body) || typeof body.password !== 'string' || body.password.length < 8 || body.password.length > 256) return NextResponse.json({ error: 'Mật khẩu mới không hợp lệ.' }, { status: 400 });
     const targets: ResetTarget[] = Array.isArray(body.tickets) ? body.tickets.filter(isResetTarget) : isResetTarget(body) ? [{ id: body.id, userId: body.userId }] : [];
@@ -48,7 +48,7 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    await requireUser(request, ['SUPERADMIN']);
+    await requireUser(request, ['ADMIN', 'SUPERADMIN']);
     const body: unknown = await request.json();
     if (!isRecord(body) || !Array.isArray(body.ids) || body.ids.length === 0 || body.ids.length > 100 || !body.ids.every((id) => Number.isInteger(id) && id > 0)) return NextResponse.json({ error: 'Danh sách ticket không hợp lệ.' }, { status: 400 });
     const { default: pool } = await import('@/lib/db');

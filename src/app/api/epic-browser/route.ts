@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { AuthError, requireUser } from '@/lib/auth-service';
 import { getEpicBrowserChildren, getEpicBrowserRoot } from '@/lib/epic-browser-service';
+
+function authError(error: unknown): NextResponse | null {
+  if (error instanceof AuthError) {
+    return NextResponse.json({ error: 'Chưa đăng nhập.' }, { status: 401 });
+  }
+  return null;
+}
 
 export async function GET(request: NextRequest) {
   try {
+    // Shared by every screen that embeds the Epic Browser (Quản lý Epic 15/30, Nguồn dữ liệu) —
+    // any authenticated role, matching whichever of those screens the caller already got past.
+    await requireUser(request);
     const url = new URL(request.url);
     const epicKey = url.searchParams.get('epicKey');
     const parentIdParam = url.searchParams.get('parentId');
@@ -28,6 +39,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Thiếu tham số epicKey hoặc parentId.' }, { status: 400 });
   } catch (error: unknown) {
     console.error('Epic Browser request failed.', error);
-    return NextResponse.json({ error: 'Không thể tải dữ liệu Epic Browser.' }, { status: 500 });
+    return authError(error) ?? NextResponse.json({ error: 'Không thể tải dữ liệu Epic Browser.' }, { status: 500 });
   }
 }

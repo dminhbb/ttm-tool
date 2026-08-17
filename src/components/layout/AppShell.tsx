@@ -2,7 +2,8 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import type { UserRole } from '@/lib/auth-types';
 import {
   Archive,
   CaretDoubleLeft,
@@ -31,6 +32,8 @@ interface NavigationItem {
   icon: Icon;
   label: string;
   onClick?: () => void;
+  /** Omitted = every authenticated role. Matches the permission matrix (see AGENTS.md-adjacent docs). */
+  roles?: UserRole[];
 }
 
 interface NavigationSection {
@@ -43,39 +46,52 @@ interface SidebarContentProps {
   onNavigate?: () => void;
   onOpenSettings: () => void;
   onToggle?: () => void;
+  role: UserRole | null;
 }
 
 export interface AppShellProps {
   children: React.ReactNode;
 }
 
-const GENERAL_SETTINGS_ITEM: NavigationItem = { icon: GearSix, label: 'Quản lý chung' };
+const ADMIN_OR_SUPERADMIN: UserRole[] = ['ADMIN', 'SUPERADMIN'];
+const SUPERADMIN_ONLY: UserRole[] = ['SUPERADMIN'];
+
+const GENERAL_SETTINGS_ITEM: NavigationItem = { icon: GearSix, label: 'Quản lý chung', roles: ADMIN_OR_SUPERADMIN };
 
 const navigation: NavigationSection[] = [
   {
     label: 'Giám sát',
     items: [
       { icon: Gauge, label: 'Dashboard', disabled: true },
-      { href: '/epic-alerts', icon: Warning, label: 'Quản lý Epic 30' },
+      { href: '/epic-alerts', icon: Warning, label: 'Quản lý Epic 30', roles: ADMIN_OR_SUPERADMIN },
       { href: '/epic-alerts-15', icon: Warning, label: 'Quản lý Epic 15' },
     ],
   },
   {
     label: 'Quản trị hệ thống',
     items: [
-      { href: '/', icon: Database, label: 'Nguồn dữ liệu' },
-      { href: '/admin/users', icon: Users, label: 'Quản lý User' },
-      { href: '/admin/domains', icon: Globe, label: 'Quản lý Domain' },
-      { href: '/admin/projects', icon: Folder, label: 'Quản lý Dự án' },
-      { href: '/admin/status-alert-rules', icon: Warning, label: 'Cấu hình cảnh báo' },
-      { href: '/admin/database', icon: Archive, label: 'Sao lưu / Phục hồi dữ liệu' },
+      { href: '/', icon: Database, label: 'Nguồn dữ liệu', roles: SUPERADMIN_ONLY },
+      { href: '/admin/users', icon: Users, label: 'Quản lý User', roles: ADMIN_OR_SUPERADMIN },
+      { href: '/admin/domains', icon: Globe, label: 'Quản lý Domain', roles: ADMIN_OR_SUPERADMIN },
+      { href: '/admin/projects', icon: Folder, label: 'Quản lý Dự án', roles: ADMIN_OR_SUPERADMIN },
+      { href: '/admin/status-alert-rules', icon: Warning, label: 'Cấu hình cảnh báo', roles: SUPERADMIN_ONLY },
+      { href: '/admin/database', icon: Archive, label: 'Sao lưu / Phục hồi dữ liệu', roles: SUPERADMIN_ONLY },
       GENERAL_SETTINGS_ITEM,
     ],
   },
 ];
 
-function SidebarContent({ expanded, onNavigate, onOpenSettings, onToggle }: SidebarContentProps) {
+/** Every "Quản trị hệ thống" item needs at least ADMIN, so a plain USER always ends up with an
+ * empty section — dropped entirely rather than shown as a header with nothing under it. */
+function visibleNavigationFor(role: UserRole | null): NavigationSection[] {
+  return navigation
+    .map((section) => ({ ...section, items: section.items.filter((item) => !item.roles || (role !== null && item.roles.includes(role))) }))
+    .filter((section) => section.items.length > 0);
+}
+
+function SidebarContent({ expanded, onNavigate, onOpenSettings, onToggle, role }: SidebarContentProps) {
   const pathname = usePathname();
+  const sections = visibleNavigationFor(role);
 
   return (
     <>
@@ -92,7 +108,7 @@ function SidebarContent({ expanded, onNavigate, onOpenSettings, onToggle }: Side
       </div>
 
       <nav className={cn('flex-1 overflow-y-auto py-4', expanded ? 'px-3' : 'px-2')} aria-label="Điều hướng chính">
-        {navigation.map((section) => (
+        {sections.map((section) => (
           <div key={section.label} className="mb-5 last:mb-0">
             {expanded ? (
               <p className="mb-1.5 px-3 text-[9px] font-bold tracking-wide text-sidebar-muted">{section.label}</p>
@@ -199,12 +215,55 @@ const PAGE_HEADERS: Record<string, { subtitle: string; title: string }> = {
   '/docs/product': { subtitle: 'Tài liệu trình bày và đào tạo về hệ thống TTM Monitor', title: 'Tài liệu sản phẩm' },
 };
 
+// Mirrors the API-side role checks (epic-alerts, users, domains, projects, status-alert-rules,
+// database, holidays/issue-type-roles routes) — a safe landing spot when a role that lacks access
+// hits one of these URLs directly (nav already hides the link, but a direct URL still needs a
+// redirect instead of a page full of 403s).
+const PAGE_ROLES: Record<string, UserRole[]> = {
+  '/': SUPERADMIN_ONLY,
+  '/admin/database': SUPERADMIN_ONLY,
+  '/admin/domains': ADMIN_OR_SUPERADMIN,
+  '/admin/projects': ADMIN_OR_SUPERADMIN,
+  '/admin/status-alert-rules': SUPERADMIN_ONLY,
+  '/admin/users': ADMIN_OR_SUPERADMIN,
+  '/epic-alerts': ADMIN_OR_SUPERADMIN,
+  // /data-review/[batchId] drills into "Nguồn dữ liệu" — same SUPERADMIN-only gate as its API.
+  '/data-review': SUPERADMIN_ONLY,
+};
+
+function requiredRolesFor(pathname: string): UserRole[] | undefined {
+  if (PAGE_ROLES[pathname]) return PAGE_ROLES[pathname];
+  const prefixMatch = Object.keys(PAGE_ROLES).find((path) => path !== '/' && pathname.startsWith(`${path}/`));
+  return prefixMatch ? PAGE_ROLES[prefixMatch] : undefined;
+}
+
+// Every role can reach Epic 15, so it's the safe fallback landing page when access is denied.
+const FALLBACK_PATH = '/epic-alerts-15';
+
 export function AppShell({ children }: AppShellProps) {
   const [mobileNavigationOpen, setMobileNavigationOpen] = React.useState(false);
   const [desktopNavigationExpanded, setDesktopNavigationExpanded] = React.useState(false);
   const [generalSettingsOpen, setGeneralSettingsOpen] = React.useState(false);
+  const [role, setRole] = React.useState<UserRole | null>(null);
   const pathname = usePathname();
+  const router = useRouter();
   const header = PAGE_HEADERS[pathname] ?? PAGE_HEADERS['/'];
+
+  React.useEffect(() => {
+    if (pathname === '/login') return;
+    let cancelled = false;
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { user?: { role: UserRole } } | null) => { if (!cancelled && data?.user) setRole(data.user.role); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [pathname]);
+
+  React.useEffect(() => {
+    if (!role) return;
+    const requiredRoles = requiredRolesFor(pathname);
+    if (requiredRoles && !requiredRoles.includes(role)) router.replace(FALLBACK_PATH);
+  }, [pathname, role, router]);
 
   React.useEffect(() => {
     if (!mobileNavigationOpen) return undefined;
@@ -229,6 +288,7 @@ export function AppShell({ children }: AppShellProps) {
           expanded={desktopNavigationExpanded}
           onOpenSettings={() => setGeneralSettingsOpen(true)}
           onToggle={() => setDesktopNavigationExpanded((current) => !current)}
+          role={role}
         />
       </aside>
 
@@ -253,6 +313,7 @@ export function AppShell({ children }: AppShellProps) {
               expanded
               onNavigate={() => setMobileNavigationOpen(false)}
               onOpenSettings={() => setGeneralSettingsOpen(true)}
+              role={role}
             />
           </aside>
         </div>
