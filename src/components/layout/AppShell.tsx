@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { UserMenu } from '@/components/layout/UserMenu';
 import { GeneralSettingsModal } from '@/components/settings/GeneralSettingsModal';
+import { SystemStatusFooter } from '@/components/layout/SystemStatusFooter';
 
 interface NavigationItem {
   disabled?: boolean;
@@ -284,6 +285,8 @@ export function AppShell({ children }: AppShellProps) {
           {children}
         </main>
       </div>
+
+      <SystemStatusFooter />
     </div>
   );
 }

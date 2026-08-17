@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:migrate:local": "node scripts/migrate-db.js --target=local",
+    "db:migrate:aiven": "node scripts/migrate-db.js --target=aiven",
+    "db:init:aiven": "node scripts/migrate-db.js --target=aiven --init"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
