@@ -10,15 +10,18 @@
  * guardrail against the DROP CASCADE at its top.
  *
  * Usage:
- *   node scripts/migrate-db.js --target=aiven --init     # first-time setup of a fresh Aiven DB
- *   node scripts/migrate-db.js --target=aiven             # apply any new migrations later
- *   node scripts/migrate-db.js --target=local              # same, against your local Postgres
- *   node scripts/migrate-db.js --target=local --baseline   # DB already has every migration
- *                                                           # applied by hand (e.g. this repo's
- *                                                           # existing local DB) — record them as
- *                                                           # applied WITHOUT re-running the SQL.
+ *   node scripts/migrate-db.js --target=aiven --init       # first-time setup of a fresh Aiven DB
+ *   node scripts/migrate-db.js --target=aiven               # apply any new migrations later
+ *   node scripts/migrate-db.js --target=supabase --init     # same, against a fresh Supabase DB
+ *   node scripts/migrate-db.js --target=supabase            # apply any new migrations later
+ *   node scripts/migrate-db.js --target=local                # same, against your local Postgres
+ *   node scripts/migrate-db.js --target=local --baseline     # DB already has every migration
+ *                                                             # applied by hand (e.g. this repo's
+ *                                                             # existing local DB) — record them as
+ *                                                             # applied WITHOUT re-running the SQL.
  *
- * Reads DATABASE_URL_AIVEN / PGHOST etc from .env.local + .env, same as the Next.js app.
+ * Reads DATABASE_URL_AIVEN / DATABASE_URL_SUPABASE / PGHOST etc from .env.local + .env, same as the
+ * Next.js app.
  */
 const fs = require('fs');
 const path = require('path');
@@ -33,8 +36,8 @@ const target = (targetArg ? targetArg.split('=')[1] : '').trim().toLowerCase();
 const runInit = args.includes('--init');
 const baselineOnly = args.includes('--baseline');
 
-if (target !== 'aiven' && target !== 'local') {
-  console.error('Thiếu hoặc sai --target. Dùng --target=local hoặc --target=aiven.');
+if (target !== 'aiven' && target !== 'local' && target !== 'supabase') {
+  console.error('Thiếu hoặc sai --target. Dùng --target=local, --target=aiven hoặc --target=supabase.');
   process.exit(1);
 }
 
@@ -55,6 +58,17 @@ function buildPoolConfig() {
     }
     const ssl = process.env.PGSSLROOTCERT
       ? { ca: fs.readFileSync(process.env.PGSSLROOTCERT, 'utf8'), rejectUnauthorized: true }
+      : { rejectUnauthorized: false };
+    return { connectionString: stripSslModeParam(rawConnectionString), ssl };
+  }
+  if (target === 'supabase') {
+    const rawConnectionString = process.env.DATABASE_URL_SUPABASE;
+    if (!rawConnectionString) {
+      console.error('Thiếu DATABASE_URL_SUPABASE trong .env.local. Xem .env.example để biết cách lấy giá trị này từ Supabase Dashboard.');
+      process.exit(1);
+    }
+    const ssl = process.env.PGSSLROOTCERT_SUPABASE
+      ? { ca: fs.readFileSync(process.env.PGSSLROOTCERT_SUPABASE, 'utf8'), rejectUnauthorized: true }
       : { rejectUnauthorized: false };
     return { connectionString: stripSslModeParam(rawConnectionString), ssl };
   }

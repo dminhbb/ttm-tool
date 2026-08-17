@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-type SystemStatus = { dbStatus: 'fail' | 'pass'; dbTarget: 'aiven' | 'local'; version: string };
+type SystemStatus = { dbStatus: 'fail' | 'pass'; dbTarget: 'aiven' | 'local' | 'supabase'; version: string };
 
 /** Bottom-right build/DB-status readout — shown on the login screen and every authenticated screen. */
 export function SystemStatusFooter() {

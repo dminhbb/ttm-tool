@@ -2,18 +2,21 @@ import { readFileSync } from 'fs';
 import { Pool } from 'pg';
 import type { PoolConfig } from 'pg';
 
-export type DbConnectionTarget = 'aiven' | 'local';
+export type DbConnectionTarget = 'aiven' | 'local' | 'supabase';
 
 /**
- * Which named connection profile to use — 'local' (PGHOST/… or DATABASE_URL_LOCAL, from .env) or
- * 'aiven' (DATABASE_URL_AIVEN). Switching only requires changing DB_CONNECTION in .env.local
- * (never committed — see .env.example); the exported `pool` below picks the change up on its next
- * query, no restart needed (see the "quick switch" doc comment further down). Deployed
- * environments (Vercel) set DB_CONNECTION=aiven directly as a dashboard env var, since a serverless
- * function can never reach a developer's local Postgres.
+ * Which named connection profile to use — 'local' (PGHOST/… or DATABASE_URL_LOCAL, from .env),
+ * 'aiven' (DATABASE_URL_AIVEN), or 'supabase' (DATABASE_URL_SUPABASE). Switching only requires
+ * changing DB_CONNECTION in .env.local (never committed — see .env.example); the exported `pool`
+ * below picks the change up on its next query, no restart needed (see the "quick switch" doc
+ * comment further down). Deployed environments (Vercel) set DB_CONNECTION=aiven/supabase directly
+ * as a dashboard env var, since a serverless function can never reach a developer's local Postgres.
  */
 export function resolveDbConnectionTarget(): DbConnectionTarget {
-  return (process.env.DB_CONNECTION ?? '').trim().toLowerCase() === 'aiven' ? 'aiven' : 'local';
+  const value = (process.env.DB_CONNECTION ?? '').trim().toLowerCase();
+  if (value === 'aiven') return 'aiven';
+  if (value === 'supabase') return 'supabase';
+  return 'local';
 }
 
 /**
@@ -46,6 +49,21 @@ function aivenPoolConfig(): PoolConfig {
   return { connectionString: stripSslModeParam(rawConnectionString), idleTimeoutMillis: 5000, max: 3, ssl };
 }
 
+function supabasePoolConfig(): PoolConfig {
+  const rawConnectionString = process.env.DATABASE_URL_SUPABASE;
+  if (!rawConnectionString) {
+    throw new Error('DB_CONNECTION=supabase nhưng thiếu DATABASE_URL_SUPABASE (xem .env.example để biết cách lấy giá trị này từ Supabase Dashboard).');
+  }
+  // Same reasoning as aivenPoolConfig(): Supabase requires TLS, and its free tier also caps total
+  // connections low (worse still if DATABASE_URL_SUPABASE points at the direct connection instead
+  // of the pooler — see .env.example). Keep this app's own ceiling low so pg queues extra queries
+  // instead of opening more physical connections than the plan allows.
+  const ssl: PoolConfig['ssl'] = process.env.PGSSLROOTCERT_SUPABASE
+    ? { ca: readFileSync(process.env.PGSSLROOTCERT_SUPABASE, 'utf8'), rejectUnauthorized: true }
+    : { rejectUnauthorized: false };
+  return { connectionString: stripSslModeParam(rawConnectionString), idleTimeoutMillis: 5000, max: 3, ssl };
+}
+
 function localPoolConfig(): PoolConfig {
   if (process.env.DATABASE_URL_LOCAL) return { connectionString: process.env.DATABASE_URL_LOCAL };
   return {
@@ -58,7 +76,10 @@ function localPoolConfig(): PoolConfig {
 }
 
 function buildPoolConfig(): PoolConfig {
-  return resolveDbConnectionTarget() === 'aiven' ? aivenPoolConfig() : localPoolConfig();
+  const target = resolveDbConnectionTarget();
+  if (target === 'aiven') return aivenPoolConfig();
+  if (target === 'supabase') return supabasePoolConfig();
+  return localPoolConfig();
 }
 
 interface PoolState {

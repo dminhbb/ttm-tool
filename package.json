@@ -9,7 +9,9 @@
     "lint": "eslint",
     "db:migrate:local": "node scripts/migrate-db.js --target=local",
     "db:migrate:aiven": "node scripts/migrate-db.js --target=aiven",
-    "db:init:aiven": "node scripts/migrate-db.js --target=aiven --init"
+    "db:init:aiven": "node scripts/migrate-db.js --target=aiven --init",
+    "db:migrate:supabase": "node scripts/migrate-db.js --target=supabase",
+    "db:init:supabase": "node scripts/migrate-db.js --target=supabase --init"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
