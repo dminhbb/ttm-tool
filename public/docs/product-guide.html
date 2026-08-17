@@ -120,12 +120,16 @@
         <tbody>
           <tr><td><span class="badge info">SUPERADMIN</span></td><td>Toàn bộ Epic mọi dự án (vai trò CBQL Phòng)</td><td>Toàn quyền: User, Domain, Dự án, ngày nghỉ, rule cảnh báo, tiêu chí TTM, sao lưu/phục hồi, quản lý lớp dữ liệu tổng hợp</td></tr>
           <tr><td><span class="badge info">ADMIN</span></td><td>Epic thuộc Domain được phân quyền (vai trò Lead)</td><td>Xem các menu Quản trị hệ thống; một số hành động (cấu hình lưu trữ, chạy lại dữ liệu tổng hợp) giới hạn SUPERADMIN</td></tr>
-          <tr><td><span class="badge neutral" style="background:#eef1f7;color:#5b6475">USER</span></td><td>Epic thuộc dự án được phân quyền PM/SM</td><td>Chỉ xem màn hình giám sát (Cảnh báo Epic, Theo dõi Epic), không truy cập menu Quản trị</td></tr>
+          <tr><td><span class="badge neutral" style="background:#eef1f7;color:#5b6475">USER</span></td><td>Epic thuộc dự án được phân quyền PM/SM</td><td>Chỉ xem màn hình giám sát (Quản lý Epic 15, Theo dõi Epic), không truy cập menu Quản trị</td></tr>
         </tbody>
       </table>
+      <div class="callout warn">
+        Màn hình <strong>Quản lý Epic 30 (<code>/epic-alerts</code>)</strong> hiện chỉ dành cho <strong>ADMIN/SUPERADMIN</strong> — role USER không truy cập được, kể cả với Epic thuộc dự án mình phụ trách.
+        Màn hình <strong>Quản lý Epic 15 (<code>/epic-alerts-15</code>)</strong> mở cho mọi role đã đăng nhập, theo phạm vi dự án/Domain được phân quyền.
+      </div>
       <div class="callout">
-        Menu avatar người dùng có 2 mục chỉ hiển thị cho ADMIN/SUPERADMIN: <strong>Logic xử lý dữ liệu</strong> và <strong>Tài liệu sản phẩm</strong> (trang này).
-        Mục <strong>Logic cảnh báo</strong> hiển thị cho mọi role.
+        Menu avatar người dùng có 1 mục chỉ hiển thị cho ADMIN/SUPERADMIN: <strong>Logic xử lý dữ liệu</strong>.
+        Hai mục <strong>Logic cảnh báo</strong> và <strong>Tài liệu sản phẩm</strong> (trang này) hiển thị cho mọi role.
       </div>
     </section>
 
@@ -145,7 +149,7 @@
         <li>Lưu toàn bộ dòng thô vào <code>import_rows</code> (kèm kết quả validate).</li>
         <li>Ghi/UPSERT vào bảng canonical <code>issues</code> (1 dòng / issue / batch).</li>
         <li>Liên kết quan hệ Subtask → Story → Epic trong phạm vi batch.</li>
-        <li>Chạy <code>aggregateBatchData()</code>: tính lại 3 lớp dữ liệu tổng hợp (mục 4).</li>
+        <li>Chạy <code>aggregateBatchData()</code>: tính lại 4 lớp dữ liệu tổng hợp/hậu-tổng hợp (mục 4).</li>
         <li>Dọn dữ liệu raw quá hạn lưu trữ (theo cấu hình retention), luôn bảo toàn batch mới nhất.</li>
       </ol>
       <div class="callout warn">
@@ -168,7 +172,7 @@
           <rect x="380" y="20" width="150" height="50" rx="8" fill="#eaf0ff" stroke="#c3cce3" /><text x="455" y="41" text-anchor="middle">issues</text><text x="455" y="57" font-size="9.5" font-weight="400" fill="#6b7280" text-anchor="middle">Canonical, upsert theo batch</text>
 
           <line x1="455" y1="70" x2="455" y2="110" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow1)" />
-          <rect x="380" y="110" width="150" height="50" rx="8" fill="#fff4cf" stroke="#f0d98a" /><text x="455" y="131" text-anchor="middle">aggregateBatchData()</text><text x="455" y="147" font-size="9.5" font-weight="400" fill="#6b7280" text-anchor="middle">Khi import &amp; khi "Chạy lại"</text>
+          <rect x="380" y="110" width="150" height="50" rx="8" fill="#fff4cf" stroke="#f0d98a" /><text x="455" y="131" text-anchor="middle">aggregateBatchData()</text><text x="455" y="147" font-size="9.5" font-weight="400" fill="#6b7280" text-anchor="middle">Khi import, "Chạy lại" &amp; "Hoàn thiện dữ liệu"</text>
 
           <line x1="380" y1="135" x2="200" y2="135" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow1)" />
           <rect x="20" y="110" width="150" height="50" rx="8" fill="#eaf0ff" stroke="#c3cce3" /><text x="95" y="131" text-anchor="middle">epic_ttm_snapshots</text><text x="95" y="147" font-size="9.5" font-weight="400" fill="#6b7280" text-anchor="middle">Lịch sử Epic gọn</text>
@@ -193,11 +197,12 @@
           <tr><td><code>epic_ttm_snapshots</code></td><td>Lịch sử gọn theo Epic (1 dòng/Epic/ngày), phục vụ tra cứu dài hạn</td><td>Giữ lại — chỉ mất liên kết batch (SET NULL)</td></tr>
           <tr><td><code>issue_daily_snapshots</code></td><td>Lịch sử gọn theo ngày cho mọi cấp (Epic/Story/Subtask)</td><td>Giữ lại</td></tr>
           <tr><td><code>epic_alert_history</code></td><td>Tích luỹ mỗi lần Epic bị "Cảnh báo muộn"/"Fail TTM" — gồm loại cảnh báo, ngày, status lúc đó</td><td>Giữ lại</td></tr>
+          <tr><td><code>epic_milestone_history</code></td><td>Lịch sử mốc DESIGN_DONE/DEV_DONE/TEST_DONE, phục vụ tính pha cho màn hình Quản lý Epic 15</td><td>Giữ lại</td></tr>
         </tbody>
       </table>
       <div class="callout">
-        3 bảng tổng hợp (<code>epic_ttm_snapshots</code>, <code>issue_daily_snapshots</code>, <code>epic_alert_history</code>) không cascade xoá theo raw batch —
-        đây là thiết kế có chủ đích để lịch sử Epic sống lâu hơn raw data, phục vụ tra cứu sau khi raw đã bị dọn theo retention.
+        4 bảng tổng hợp/hậu-tổng hợp (<code>epic_ttm_snapshots</code>, <code>issue_daily_snapshots</code>, <code>epic_alert_history</code>, <code>epic_milestone_history</code>) không cascade xoá theo raw batch —
+        đây là thiết kế có chủ đích để lịch sử Epic sống lâu hơn raw data, phục vụ tra cứu sau khi raw đã bị dọn theo retention. (Sơ đồ trên chỉ minh hoạ 3 bảng chính cho gọn — <code>epic_milestone_history</code> vận hành tương tự <code>epic_alert_history</code>, ghi ra từ cùng bước <code>aggregateBatchData()</code>.)
       </div>
     </section>
 
@@ -212,17 +217,23 @@
       </p>
       <h3>5.2. Quản lý lớp dữ liệu tổng hợp</h3>
       <p>
-        Panel <strong>“Nhật ký lớp dữ liệu tổng hợp (Epic)”</strong> (cùng màn hình Nguồn dữ liệu) liệt kê từng ngày có dữ liệu tổng hợp, kèm số dòng ở mỗi bảng
+        Panel <strong>“Nhật ký lớp dữ liệu tổng hợp (Epic)”</strong> (cùng màn hình Nguồn dữ liệu, chỉ <strong>SUPERADMIN</strong>) liệt kê từng ngày có dữ liệu tổng hợp, kèm số dòng ở mỗi bảng
         và trạng thái dữ liệu import gốc (còn/đã dọn). Hai hành động:
       </p>
       <ul>
-        <li><strong>Xoá</strong> — chỉ xoá 3 bảng tổng hợp của ngày đó, không đụng tới dữ liệu import gốc.</li>
+        <li><strong>Xoá</strong> — chỉ xoá 4 bảng tổng hợp/hậu-tổng hợp của ngày đó (mục 4.1), không đụng tới dữ liệu import gốc.</li>
         <li><strong>Chạy lại</strong> — tính lại tổng hợp từ dữ liệu <code>issues</code> hiện có (không cần import lại CSV); chỉ khả dụng khi raw của ngày đó còn tồn tại.</li>
       </ul>
       <div class="callout warn">
         Nếu dữ liệu raw của một ngày đã bị dọn theo retention, nút "Chạy lại" cho ngày đó sẽ không khả dụng — lớp tổng hợp đã có vẫn được giữ nguyên,
         chỉ không thể tái tạo lại từ đầu.
       </div>
+      <h3>5.3. Xoá N lớp dữ liệu gần nhất</h3>
+      <p>
+        Thao tác riêng biệt (cùng màn hình, chỉ <strong>SUPERADMIN</strong>), mạnh hơn "Xoá" ở mục 5.2: xoá <strong>cả raw lẫn tổng hợp</strong> của N "lớp dữ liệu" gần nhất,
+        trong đó một lớp dữ liệu là một ngày bất kỳ có dữ liệu ở bất kỳ bảng nào trong chuỗi xử lý (raw hoặc tổng hợp). Có bước xem trước (preview) số dòng sẽ bị xoá ở từng bảng
+        trước khi xác nhận. Dùng khi cần loại bỏ hẳn một đợt dữ liệu lỗi, khác với "Xoá"/"Chạy lại" vốn chỉ tác động tới lớp tổng hợp.
+      </p>
     </section>
 
     <section id="alert-policy">
@@ -306,9 +317,9 @@
       <div class="kicker">Khối màn hình</div>
       <h2>9. Màn hình Quản lý Epic 30 &amp; Epic 15</h2>
       <p>Hệ thống hỗ trợ 2 chế độ màn hình giám sát chuyên biệt dành cho PM/SM và Lead:</p>
-      <h3>9.1. Quản lý Epic 30 (<code>/epic-alerts</code>)</h3>
+      <h3>9.1. Quản lý Epic 30 (<code>/epic-alerts</code>) — chỉ ADMIN/SUPERADMIN</h3>
       <p>Theo dõi tổng quan các Epic theo mốc chuẩn 30 ngày (Epic phức tạp) hoặc 15 ngày (Epic đơn giản) qua 3 cột chính: <strong>Design</strong>, <strong>In Progress</strong>, <strong>Ready4Golive</strong>.</p>
-      <h3>9.2. Quản lý Epic 15 (<code>/epic-alerts-15</code>)</h3>
+      <h3>9.2. Quản lý Epic 15 (<code>/epic-alerts-15</code>) — mọi role đã đăng nhập</h3>
       <p>Theo dõi chuyên sâu theo 5 pha mốc thời gian: <strong>Design (20%)</strong>, <strong>Dev (50%)</strong>, <strong>Test (80%)</strong>, <strong>Pentest (90%)</strong>, <strong>R4Golive (100%)</strong>. Ngày baseline mỗi pha được tính tự động dựa trên số ngày làm việc tích lũy từ Start Date (T1).</p>
       <h3>9.3. Quy tắc hiển thị &amp; Lịch sử Cảnh báo</h3>
       <ul>
@@ -338,7 +349,9 @@
       <ul>
         <li><strong>Thiết lập nguồn dữ liệu CSV</strong> — chọn file, kiểm tra lỗi hoặc import &amp; lưu.</li>
         <li><strong>Nhật ký lịch sử import (Lớp Dữ liệu)</strong> — danh sách batch, xem chi tiết lỗi/cảnh báo, duyệt dữ liệu, xoá batch.</li>
-        <li><strong>Nhật ký lớp dữ liệu tổng hợp (Epic)</strong> — quản lý riêng 3 bảng tổng hợp theo ngày (hỗ trợ Xóa và Chạy lại).</li>
+        <li><strong>Nhật ký lớp dữ liệu tổng hợp (Epic)</strong> (SUPERADMIN) — quản lý riêng 4 bảng tổng hợp/hậu-tổng hợp theo ngày (hỗ trợ Xóa và Chạy lại).</li>
+        <li><strong>Xoá N lớp dữ liệu gần nhất</strong> (SUPERADMIN) — xoá cả raw lẫn tổng hợp của N ngày gần nhất, có preview trước khi xác nhận (mục 5.3).</li>
+        <li><strong>Hoàn thiện dữ liệu</strong> (SUPERADMIN) — bổ sung/vá dữ liệu còn thiếu cho các issue đã import (ví dụ liên kết Story→Epic bị thiếu), sau đó tự chạy lại <code>aggregateBatchData()</code> cho batch liên quan.</li>
         <li><strong>Cấu hình Đợt Import</strong> (right panel) — loại nguồn, mapping profile, thời gian tổng hợp (nhận diện tự động từ tên file theo mẫu <code>Jira YYYY-MM-DDThh_mm_ss+0700.csv</code>).</li>
         <li><strong>Lưu trữ dữ liệu import</strong> (right panel, SUPERADMIN) — cấu hình số ngày giữ raw data.</li>
       </ul>
@@ -355,7 +368,7 @@
           <tr><td>Quản lý Dự án</td><td><code>/admin/projects</code></td><td>Danh mục Dự án, mapping Domain, hỗ trợ Import hàng loạt dự án từ file CSV</td></tr>
           <tr><td>Cấu hình ngày nghỉ</td><td><code>/admin/holidays</code></td><td>Danh sách ngày nghỉ dùng để tính ngày làm việc</td></tr>
           <tr><td>Cấu hình cảnh báo</td><td><code>/admin/status-alert-rules</code></td><td>Tiêu chí TTM Policy + rule cảnh báo theo trạng thái</td></tr>
-          <tr><td>Sao lưu / Phục hồi dữ liệu</td><td><code>/admin/database</code></td><td>Export/Import toàn bộ CSDL ứng dụng dưới dạng file SQL dump để sao lưu hoặc khôi phục dữ liệu khi cần</td></tr>
+          <tr><td>Sao lưu / Phục hồi dữ liệu</td><td><code>/admin/database</code></td><td>Export/Import dạng file SQL dump cho một danh sách bảng cố định (user, Domain, Dự án, phân quyền, ngày nghỉ, rule cảnh báo, <code>import_batches</code>/<code>import_rows</code>, <code>issues</code>, <code>epic_ttm_snapshots</code>, audit log). <strong>Chưa</strong> bao phủ <code>issue_daily_snapshots</code>, <code>epic_alert_history</code>, <code>epic_milestone_history</code></td></tr>
         </tbody>
       </table>
     </section>

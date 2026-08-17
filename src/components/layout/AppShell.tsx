@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import type { UserRole } from '@/lib/auth-types';
+import { USER_ROLES, type UserRole } from '@/lib/auth-types';
 import {
   Archive,
   CaretDoubleLeft,
@@ -14,6 +14,7 @@ import {
   GearSix,
   Globe,
   List,
+  Lock,
   Pulse,
   Users,
   Warning,
@@ -76,6 +77,7 @@ const navigation: NavigationSection[] = [
       { href: '/admin/projects', icon: Folder, label: 'Quản lý Dự án', roles: ADMIN_OR_SUPERADMIN },
       { href: '/admin/status-alert-rules', icon: Warning, label: 'Cấu hình cảnh báo', roles: SUPERADMIN_ONLY },
       { href: '/admin/database', icon: Archive, label: 'Sao lưu / Phục hồi dữ liệu', roles: SUPERADMIN_ONLY },
+      { href: '/admin/permissions', icon: Lock, label: 'Ma trận phân quyền', roles: SUPERADMIN_ONLY },
       GENERAL_SETTINGS_ITEM,
     ],
   },
@@ -212,6 +214,7 @@ const PAGE_HEADERS: Record<string, { subtitle: string; title: string }> = {
   '/admin/status-alert-rules': { subtitle: 'Thiết lập mốc cảnh báo TTM-CNTT theo loại và trạng thái Epic', title: 'Cấu hình cảnh báo' },
   '/admin/users': { subtitle: 'Quản lý tài khoản, role và trạng thái người dùng', title: 'Quản lý User' },
   '/admin/database': { subtitle: 'Export/Import dữ liệu ứng dụng dưới dạng file SQL', title: 'Sao lưu / Phục hồi dữ liệu' },
+  '/admin/permissions': { subtitle: 'Cấu hình quyền Xem/Thêm/Sửa/Xóa theo vai trò cho từng chức năng', title: 'Ma trận phân quyền' },
   '/docs/product': { subtitle: 'Tài liệu trình bày và đào tạo về hệ thống TTM Monitor', title: 'Tài liệu sản phẩm' },
 };
 
@@ -223,6 +226,7 @@ const PAGE_ROLES: Record<string, UserRole[]> = {
   '/': SUPERADMIN_ONLY,
   '/admin/database': SUPERADMIN_ONLY,
   '/admin/domains': ADMIN_OR_SUPERADMIN,
+  '/admin/permissions': SUPERADMIN_ONLY,
   '/admin/projects': ADMIN_OR_SUPERADMIN,
   '/admin/status-alert-rules': SUPERADMIN_ONLY,
   '/admin/users': ADMIN_OR_SUPERADMIN,
@@ -237,33 +241,74 @@ function requiredRolesFor(pathname: string): UserRole[] | undefined {
   return prefixMatch ? PAGE_ROLES[prefixMatch] : undefined;
 }
 
+// Catches the case where a nav item is given `roles` but its route has no matching PAGE_ROLES
+// entry: the link would be hidden correctly, but a direct URL visit wouldn't get redirected.
+if (process.env.NODE_ENV !== 'production') {
+  for (const section of navigation) {
+    for (const item of section.items) {
+      if (item.roles && item.href && !requiredRolesFor(item.href)) {
+        console.warn(`[AppShell] "${item.label}" (${item.href}) declares roles but has no PAGE_ROLES entry — direct navigation to it won't be redirect-protected.`);
+      }
+    }
+  }
+}
+
 // Every role can reach Epic 15, so it's the safe fallback landing page when access is denied.
 const FALLBACK_PATH = '/epic-alerts-15';
+
+// Session-only cache of the last known role, keyed per tab. Lets a repeat page load in the same
+// tab restore the nav instantly instead of flashing the "no role" (fully collapsed) menu while
+// /api/auth/me is in flight.
+const ROLE_CACHE_KEY = 'ttm-role-cache';
+
+function readCachedRole(): UserRole | null {
+  const cached = window.sessionStorage.getItem(ROLE_CACHE_KEY);
+  return cached && (USER_ROLES as readonly string[]).includes(cached) ? (cached as UserRole) : null;
+}
+
+// sessionStorage isn't reactive, but useSyncExternalStore is still the right tool here: it lets
+// the cached role be read synchronously during render (no setState-in-effect cascade) while
+// still returning `null` on the server snapshot, so hydration always matches the initial markup.
+function subscribeToRoleCache(): () => void {
+  return () => undefined;
+}
 
 export function AppShell({ children }: AppShellProps) {
   const [mobileNavigationOpen, setMobileNavigationOpen] = React.useState(false);
   const [desktopNavigationExpanded, setDesktopNavigationExpanded] = React.useState(false);
   const [generalSettingsOpen, setGeneralSettingsOpen] = React.useState(false);
   const [role, setRole] = React.useState<UserRole | null>(null);
+  // Best-effort last-known role for this tab, used only to avoid flashing the "no role" nav —
+  // never to decide `isAuthorized` below, so a stale/downgraded cache can't skip the real gate.
+  const cachedRole = React.useSyncExternalStore(subscribeToRoleCache, readCachedRole, () => null);
+  const displayRole = role ?? cachedRole;
   const pathname = usePathname();
   const router = useRouter();
   const header = PAGE_HEADERS[pathname] ?? PAGE_HEADERS['/'];
+  const requiredRoles = requiredRolesFor(pathname);
+  // Gates `children` below, not just the redirect: a protected page's own effects (data fetches,
+  // etc.) must not mount for a role that doesn't belong there, even for the one tick before
+  // router.replace takes effect. Deliberately uses the confirmed `role`, not `displayRole`.
+  const isAuthorized = !requiredRoles || (role !== null && requiredRoles.includes(role));
 
   React.useEffect(() => {
     if (pathname === '/login') return;
     let cancelled = false;
     fetch('/api/auth/me', { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : null))
-      .then((data: { user?: { role: UserRole } } | null) => { if (!cancelled && data?.user) setRole(data.user.role); })
+      .then((data: { user?: { role: UserRole } } | null) => {
+        if (cancelled || !data?.user) return;
+        setRole(data.user.role);
+        window.sessionStorage.setItem(ROLE_CACHE_KEY, data.user.role);
+      })
       .catch(() => undefined);
     return () => { cancelled = true; };
   }, [pathname]);
 
   React.useEffect(() => {
-    if (!role) return;
-    const requiredRoles = requiredRolesFor(pathname);
-    if (requiredRoles && !requiredRoles.includes(role)) router.replace(FALLBACK_PATH);
-  }, [pathname, role, router]);
+    if (!role || !requiredRoles) return;
+    if (!requiredRoles.includes(role)) router.replace(FALLBACK_PATH);
+  }, [pathname, role, requiredRoles, router]);
 
   React.useEffect(() => {
     if (!mobileNavigationOpen) return undefined;
@@ -288,7 +333,7 @@ export function AppShell({ children }: AppShellProps) {
           expanded={desktopNavigationExpanded}
           onOpenSettings={() => setGeneralSettingsOpen(true)}
           onToggle={() => setDesktopNavigationExpanded((current) => !current)}
-          role={role}
+          role={displayRole}
         />
       </aside>
 
@@ -313,7 +358,7 @@ export function AppShell({ children }: AppShellProps) {
               expanded
               onNavigate={() => setMobileNavigationOpen(false)}
               onOpenSettings={() => setGeneralSettingsOpen(true)}
-              role={role}
+              role={displayRole}
             />
           </aside>
         </div>
@@ -343,7 +388,11 @@ export function AppShell({ children }: AppShellProps) {
         </header>
 
         <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 p-4 sm:p-6 lg:p-8">
-          {children}
+          {isAuthorized ? children : (
+            <div className="flex flex-1 items-center justify-center py-24 text-sm text-fb-text-secondary">
+              Đang kiểm tra quyền truy cập…
+            </div>
+          )}
         </main>
       </div>
 

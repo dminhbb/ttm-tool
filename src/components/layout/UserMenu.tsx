@@ -148,17 +148,15 @@ export function UserMenu({ expanded }: UserMenuProps) {
               <span>Logic xử lý dữ liệu</span>
             </button>
           )}
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={() => { setIsMenuOpen(false); router.push('/docs/product'); }}
-              className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-fb-text-primary transition-colors hover:bg-fb-control"
-              role="menuitem"
-            >
-              <BookOpen className="size-4 shrink-0" weight="bold" aria-hidden="true" />
-              <span>Tài liệu sản phẩm</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => { setIsMenuOpen(false); router.push('/docs/product'); }}
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-fb-text-primary transition-colors hover:bg-fb-control"
+            role="menuitem"
+          >
+            <BookOpen className="size-4 shrink-0" weight="bold" aria-hidden="true" />
+            <span>Tài liệu sản phẩm</span>
+          </button>
           <button type="button" onClick={logout} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-status-danger transition-colors hover:bg-fb-control" role="menuitem">
             <SignOut className="size-4 shrink-0" weight="bold" aria-hidden="true" />
             <span>Đăng xuất</span>

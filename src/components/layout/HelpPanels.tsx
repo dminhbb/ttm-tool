@@ -44,8 +44,8 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
         <section>
           <h3 className="ui-card-title mb-1">1. Phân tách màn hình Quản lý Epic 30 và Epic 15</h3>
           <ul className="ml-5 list-disc space-y-1">
-            <li><strong className="text-fb-text-primary">Quản lý Epic 30 (/epic-alerts)</strong> — theo dõi tổng quan các cột Design, In Progress, Ready4Golive và Release theo mốc chuẩn 30 ngày (Epic phức tạp) hoặc 15 ngày (Epic đơn giản).</li>
-            <li><strong className="text-fb-text-primary">Quản lý Epic 15 (/epic-alerts-15)</strong> — theo dõi chi tiết theo 5 pha: Design (20%), Dev (50%), Test (80%), Pentest (90%), R4Golive (100%). Mốc thời gian mỗi pha tính tự động theo tỷ lệ % TTM-CNTT tích lũy.</li>
+            <li><strong className="text-fb-text-primary">Quản lý Epic 30 (/epic-alerts)</strong> — theo dõi tổng quan các cột Design, In Progress, Ready4Golive và Release theo mốc chuẩn 30 ngày (Epic phức tạp) hoặc 15 ngày (Epic đơn giản). Chỉ dành cho <strong className="text-fb-text-primary">ADMIN/SUPERADMIN</strong>.</li>
+            <li><strong className="text-fb-text-primary">Quản lý Epic 15 (/epic-alerts-15)</strong> — theo dõi chi tiết theo 5 pha: Design (20%), Dev (50%), Test (80%), Pentest (90%), R4Golive (100%). Mốc thời gian mỗi pha tính tự động theo tỷ lệ % TTM-CNTT tích lũy. Mở cho <strong className="text-fb-text-primary">mọi user đã đăng nhập</strong> (theo phạm vi dự án được phân quyền).</li>
           </ul>
         </section>
 
@@ -116,7 +116,7 @@ function DataPipelineDiagram() {
       {box(360, 20, 140, 50, 'issues', 'Canonical, upsert theo batch')}
 
       {arrow(430, 70, 430, 110)}
-      {box(360, 110, 140, 50, 'aggregateBatchData()', 'Chạy khi import & khi "Chạy lại"')}
+      {box(360, 110, 140, 50, 'aggregateBatchData()', 'Chạy khi import, "Chạy lại" & "Hoàn thiện dữ liệu"')}
 
       {arrow(360, 135, 190, 135)}
       {box(20, 110, 140, 50, 'epic_ttm_snapshots', 'Lịch sử Epic gọn')}
@@ -156,6 +156,7 @@ export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
               <tr><td>epic_ttm_snapshots</td><td>Lịch sử gọn theo Epic, phục vụ tra cứu dài hạn</td><td><strong className="text-fb-text-primary">Giữ lại</strong> (source_import_batch_id → NULL)</td></tr>
               <tr><td>issue_daily_snapshots</td><td>Lịch sử gọn theo ngày cho mọi cấp (Epic/Story/Subtask)</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
               <tr><td>epic_alert_history</td><td>Tích lũy các lần Epic bị Cảnh báo muộn/Fail TTM, kèm ngày và status lúc đó</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
+              <tr><td>epic_milestone_history</td><td>Lịch sử mốc DESIGN_DONE/DEV_DONE/TEST_DONE phục vụ Quản lý Epic 15</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
             </tbody>
           </table>
         </section>
@@ -163,8 +164,9 @@ export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
         <section>
           <h3 className="ui-card-title mb-1">4. Quản lý lớp dữ liệu tổng hợp &amp; Sao lưu/Phục hồi</h3>
           <ul className="ml-5 list-disc space-y-1">
-            <li><strong className="text-fb-text-primary">Nhật ký lớp dữ liệu tổng hợp (Epic)</strong>: Có thể <strong className="text-fb-text-primary">Xóa</strong> (chỉ xóa 3 bảng tổng hợp, bảo toàn raw) hoặc <strong className="text-fb-text-primary">Chạy lại</strong> (tính lại từ <code>issues</code> hiện có mà không cần re-import CSV).</li>
-            <li><strong className="text-fb-text-primary">Sao lưu / Phục hồi dữ liệu (/admin/database)</strong>: Hỗ trợ Export toàn bộ CSDL dưới dạng file SQL dump (bao gồm cấu hình master data, danh mục user, dự án, ngày nghỉ, rule cảnh báo và dữ liệu import) và Restore an toàn khi cần thiết.</li>
+            <li><strong className="text-fb-text-primary">Nhật ký lớp dữ liệu tổng hợp (Epic)</strong> (trang Nguồn dữ liệu, chỉ <strong className="text-fb-text-primary">SUPERADMIN</strong>): có thể <strong className="text-fb-text-primary">Xóa</strong> (chỉ xóa 4 bảng tổng hợp/hậu-tổng hợp ở trên, bảo toàn raw) hoặc <strong className="text-fb-text-primary">Chạy lại</strong> (tính lại từ <code>issues</code> hiện có mà không cần re-import CSV).</li>
+            <li><strong className="text-fb-text-primary">Xóa N lớp dữ liệu gần nhất</strong> (cùng trang, chỉ <strong className="text-fb-text-primary">SUPERADMIN</strong>): thao tác mạnh hơn — xóa <em>cả raw lẫn tổng hợp</em> của N ngày import gần nhất (tính theo union ngày của mọi bảng liên quan), dùng khi cần loại bỏ hẳn một đợt dữ liệu lỗi thay vì chỉ tính lại.</li>
+            <li><strong className="text-fb-text-primary">Sao lưu / Phục hồi dữ liệu (/admin/database)</strong>: Export/Import dạng file SQL dump cho một danh sách bảng cố định (master data, user, dự án, ngày nghỉ, rule cảnh báo, <code>import_batches</code>/<code>import_rows</code>, <code>issues</code>, <code>epic_ttm_snapshots</code>, audit log). <strong className="text-fb-text-primary">Chưa bao gồm</strong> <code>issue_daily_snapshots</code>, <code>epic_alert_history</code>, <code>epic_milestone_history</code> — 3 bảng này hiện không nằm trong phạm vi sao lưu/phục hồi.</li>
           </ul>
         </section>
 
