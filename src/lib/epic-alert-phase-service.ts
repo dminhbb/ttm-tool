@@ -18,12 +18,11 @@ import type { EpicAlertHistoryPhase } from '@/lib/epic-alert-history-service';
 import pool from '@/lib/db';
 import type { EpicAlertPhasedResponse, EpicAlertRowPhased, PhaseCell } from '@/lib/epic-alert-types';
 
-// Released baseline = T0 (Idea Approved Date) + this many working days, falling back to the
-// Epic's Jira creation date when T0 is missing. "Working days" here deliberately skips only
-// weekends — addWorkingDays's holidays param is left at its default (empty set) so the app's
-// configured holiday calendar does NOT shorten this baseline, unlike the DESIGN/DEV/TEST/PENTEST/
-// R4GOLIVE baselines above which do exclude holidays.
-const RELEASE_BASELINE_WORKING_DAYS = 20;
+const RELEASE_BASELINE_SOURCE_LABEL = {
+  ideaApproved: 'Idea Approved Date (T0)',
+  startDate: 'Start Date',
+  jiraCreated: 'Ngày tạo trên Jira',
+} as const;
 
 const DESIGN_STATUS_INDEX = epicWorkflowStatusIndex('DESIGN');
 const R4GOLIVE_STATUS_INDEX = epicWorkflowStatusIndex('R4GOLIVE');
@@ -36,7 +35,7 @@ const R4GOLIVE_STATUS_INDEX = epicWorkflowStatusIndex('R4GOLIVE');
 const ALERT_HISTORY_RECORDING_ENABLED = false;
 
 function naPhaseCell(): PhaseCell {
-  return { alertLevel: 'NONE', baselineDate: null, isCurrentStage: false, isDone: false };
+  return { alertLevel: 'NONE', baselineDate: null, baselineSourceDate: null, baselineSourceLabel: null, isCurrentStage: false, isDone: false };
 }
 
 /**
@@ -75,6 +74,8 @@ function resolvePhaseCells(
   const cell = (phase: TtmPhaseKey, isDone: boolean, alertLevel: AlertLevel): PhaseCell => ({
     alertLevel: isDone ? 'NONE' : alertLevel,
     baselineDate: toIsoDate(baselines[phase].date),
+    baselineSourceDate: null,
+    baselineSourceLabel: null,
     isCurrentStage: currentStage === phase,
     isDone,
   });
@@ -125,29 +126,45 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
     const ttmE2eTarget = evaluation.ttm.e2e.workingDays ?? 0;
     const ttmE2eElapsed = ttmE2eStartDate ? Math.max(0, diffWorkingDays(ttmE2eStartDate, now, holidays)) : null;
     const alertLevel = evaluation.alertLevel;
-    const targetR4gDate = parseDate(evaluation.ttm.cntt.targetDate ?? row.targetR4gDate);
-    const remainingWorkingDays = targetR4gDate ? diffWorkingDays(now, targetR4gDate, holidays) : null;
 
     const baselines = startDate && ttmCnttTarget ? computeTtmPhaseBaselines(startDate, ttmCnttTarget, holidays) : null;
+
+    // TTM-CNTT's own end date is defined to always equal R4GOLIVE's phase baseline (per
+    // computeTtmPhaseBaselines' sequential/floor-rounded walk), not an independently-computed
+    // addWorkingDays(from, totalWorkingDays) — those two can disagree once per-phase rounding
+    // enters the picture. Only fall back to the independent calc when there's no Start Date to
+    // walk the phases from.
+    const targetR4gDate = baselines ? baselines.R4GOLIVE.date : parseDate(evaluation.ttm.cntt.targetDate ?? row.targetR4gDate);
+    const remainingWorkingDays = targetR4gDate ? diffWorkingDays(now, targetR4gDate, holidays) : null;
 
     const completion = phaseCompletionByEpicKey.get(row.epicKey) ?? {
       designDone: false, devDone: false, r4goliveDone: false, releasedDone: false, testDone: false,
     };
 
-    // Released baseline: T0 (Idea Approved Date) if present, else the Epic's Jira creation date —
-    // + 20 working days (weekends only, holiday calendar not applied; see the constant above).
-    const releaseBaseDate = parseDate(row.ideaApprovedDate) ?? parseDate(row.jiraCreatedAt);
-    const releaseBaselineDate = releaseBaseDate ? addWorkingDays(releaseBaseDate, RELEASE_BASELINE_WORKING_DAYS) : null;
-    const releaseCell: PhaseCell = {
-      alertLevel: 'NONE',
-      baselineDate: toIsoDate(releaseBaselineDate),
-      isCurrentStage: false,
-      isDone: completion.releasedDone,
-    };
-
     const stages = baselines
       ? resolvePhaseCells(epicStatusIndex, baselines, completion, now)
       : { design: naPhaseCell(), dev: naPhaseCell(), pentest: naPhaseCell(), r4golive: naPhaseCell(), test: naPhaseCell() };
+
+    // Released baseline: T0 = Idea Approved Date if present; else Start Date if present; else the
+    // Epic's Jira creation date (always present, so every Epic resolves a T0) — + TTM-E2E's own
+    // working-day budget (ttmE2eTarget, from the active TTM_E2E policy for this Epic's complexity,
+    // configured in "Cấu hình cảnh báo"), excluding weekends and the app's configured holiday
+    // calendar.
+    const ideaApprovedDate = parseDate(row.ideaApprovedDate);
+    const [releaseBaseDate, releaseBaseSourceLabel] = ideaApprovedDate
+      ? [ideaApprovedDate, RELEASE_BASELINE_SOURCE_LABEL.ideaApproved]
+      : startDate
+        ? [startDate, RELEASE_BASELINE_SOURCE_LABEL.startDate]
+        : [parseDate(row.jiraCreatedAt), RELEASE_BASELINE_SOURCE_LABEL.jiraCreated];
+    const releaseBaselineDate = releaseBaseDate && ttmE2eTarget ? addWorkingDays(releaseBaseDate, ttmE2eTarget, holidays) : null;
+    const releaseCell: PhaseCell = {
+      alertLevel: 'NONE',
+      baselineDate: toIsoDate(releaseBaselineDate),
+      baselineSourceDate: releaseBaseDate ? toIsoDate(releaseBaseDate) : null,
+      baselineSourceLabel: releaseBaseDate ? releaseBaseSourceLabel : null,
+      isCurrentStage: false,
+      isDone: completion.releasedDone,
+    };
 
     (['design', 'dev', 'test', 'pentest', 'r4golive'] as const).forEach((key) => {
       if (stages[key].alertLevel === 'LATE') {

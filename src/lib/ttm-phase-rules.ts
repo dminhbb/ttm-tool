@@ -1,4 +1,4 @@
-import { addWorkingDays } from '@/lib/working-days';
+import { addWorkingDays, toDateKey } from '@/lib/working-days';
 import type { HolidaySet } from '@/lib/working-days';
 import type { AlertLevel } from '@/lib/ttm-rules';
 
@@ -47,29 +47,62 @@ export interface TtmPhaseBaseline {
 }
 
 /**
- * Baseline (target) date for every phase, as a cumulative offset in working days from T1 —
- * Design ends at 20%, DEV at 50%, TEST at 80%, PENTEST at 90%, R4GOLIVE at 100% of the Epic's
- * total TTM-CNTT working-day budget.
+ * Baseline (target) date for every phase — Design ends at 20%, DEV at 50%, TEST at 80%, PENTEST
+ * at 90%, R4GOLIVE at 100% of the Epic's total TTM-CNTT working-day budget, walked sequentially
+ * (not each phase's cumulative % rounded independently off the total) so phases stay contiguous
+ * even though an individual phase's own share (e.g. 30% of a 15-day budget = 4.5 days) is rarely
+ * a whole number:
+ *
+ * - Start Date is day 1 of the whole timeline — DESIGN's own N-day share ends on the Nth working
+ *   day counting Start Date itself as day 1 (so N working days of headroom is `N - 1` steps
+ *   forward from Start Date), not "N working days after Start Date".
+ * - Every later phase's own share is walked forward from the PREVIOUS phase's baseline — DEV's end
+ *   = TEST's start, PENTEST's end = R4GOLIVE's start, by construction (each phase's date becomes
+ *   the next phase's starting cursor), stepping the full share's worth of working days forward
+ *   from that cursor (no day-1 adjustment there — the cursor date was already the previous phase's
+ *   last day, not a fresh day 1).
+ * - A fractional day share (e.g. 4.5 days) rounds UP (ceil) for DESIGN/DEV/PENTEST, but rounds DOWN
+ *   (floor) for TEST/R4GOLIVE specifically — e.g. a 4.5-day TEST share ends one working day earlier
+ *   than a flat 5-day share would. This asymmetry is an explicit business rule, not a bug: it exists
+ *   specifically to keep the chained per-phase rounding close to the direct total (see below).
+ * - Only working days count throughout: Saturdays, Sundays, and the app's configured holidays are
+ *   all skipped (addWorkingDays already encodes this).
+ *
+ * R4GOLIVE's baseline is TTM-CNTT's own end date by definition (core business rule, confirmed
+ * explicitly): it must always equal exactly `startDate + (ttmCnttTotalWorkingDays - 1)` working
+ * days — the same day-1-counts-as-day-1 convention as DESIGN's own share above, applied to the
+ * whole TTM-CNTT budget at once. Five independently-rounded phase shares (each ceil or floor of a
+ * fraction) don't always sum back to exactly that total — e.g. 20/30/30/10/10% of 17 days rounds to
+ * 4+6+5+2+1 = 18 raw days, one more than 17. FLOOR_ROUNDED_PHASES keeps that drift small, but to
+ * guarantee exactness R4GOLIVE's date is always pinned directly off startDate afterward, rather than
+ * trusted from the chained walk — DESIGN/DEV/TEST/PENTEST keep their chained dates unchanged.
  */
-export function computeTtmPhaseBaselines(startDate: Date, ttmCnttTotalWorkingDays: number, holidays: HolidaySet): Record<TtmPhaseKey, TtmPhaseBaseline> {
-  let cumulative = 0;
-  let previousCumulative = 0;
-  const result = {} as Record<TtmPhaseKey, TtmPhaseBaseline>;
-  (Object.keys(TTM_PHASE_PERCENTAGE) as TtmPhaseKey[]).forEach((phase) => {
-    cumulative = phase === 'R4GOLIVE'
-      ? ttmCnttTotalWorkingDays
-      : Math.round(ttmCnttTotalWorkingDays * (Object.keys(TTM_PHASE_PERCENTAGE) as TtmPhaseKey[])
-        .slice(0, (Object.keys(TTM_PHASE_PERCENTAGE) as TtmPhaseKey[]).indexOf(phase) + 1)
-        .reduce((total, item) => total + TTM_PHASE_PERCENTAGE[item], 0));
-    const workingDays = cumulative - previousCumulative;
-    previousCumulative = cumulative;
-    result[phase] = { cumulativeWorkingDays: cumulative, date: addWorkingDays(startDate, cumulative, holidays), workingDays };
-  });
-  return result;
-}
+const FLOOR_ROUNDED_PHASES: ReadonlySet<TtmPhaseKey> = new Set(['TEST', 'R4GOLIVE']);
 
-function toDateOnlyIso(date: Date): string {
-  return date.toISOString().slice(0, 10);
+export function computeTtmPhaseBaselines(startDate: Date, ttmCnttTotalWorkingDays: number, holidays: HolidaySet): Record<TtmPhaseKey, TtmPhaseBaseline> {
+  const result = {} as Record<TtmPhaseKey, TtmPhaseBaseline>;
+  let cursor = startDate;
+  let cumulativeWorkingDays = 0;
+  (Object.keys(TTM_PHASE_PERCENTAGE) as TtmPhaseKey[]).forEach((phase, index) => {
+    const isFirstPhase = index === 0;
+    const share = ttmCnttTotalWorkingDays * TTM_PHASE_PERCENTAGE[phase];
+    const roundedShare = FLOOR_ROUNDED_PHASES.has(phase) ? Math.floor(share) : Math.ceil(share);
+    const workingDays = Math.max(0, roundedShare - (isFirstPhase ? 1 : 0));
+    const date = addWorkingDays(cursor, workingDays, holidays);
+    cumulativeWorkingDays += workingDays;
+    result[phase] = { cumulativeWorkingDays, date, workingDays };
+    cursor = date;
+  });
+
+  const r4goliveWorkingDays = Math.max(0, ttmCnttTotalWorkingDays - 1);
+  const r4goliveDate = addWorkingDays(startDate, r4goliveWorkingDays, holidays);
+  result.R4GOLIVE = {
+    cumulativeWorkingDays: r4goliveWorkingDays,
+    date: r4goliveDate,
+    workingDays: r4goliveWorkingDays - result.PENTEST.cumulativeWorkingDays,
+  };
+
+  return result;
 }
 
 /**
@@ -84,11 +117,11 @@ function toDateOnlyIso(date: Date): string {
  */
 export function computePhaseAlertLevel(baselineDate: Date, now: Date, isDone: boolean): AlertLevel {
   if (isDone) return 'NONE';
-  const todayIso = toDateOnlyIso(now);
-  if (todayIso >= toDateOnlyIso(baselineDate)) return 'LATE';
+  const todayIso = toDateKey(now);
+  if (todayIso >= toDateKey(baselineDate)) return 'LATE';
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
-  if (toDateOnlyIso(tomorrow) === toDateOnlyIso(baselineDate)) return 'EARLY';
+  if (toDateKey(tomorrow) === toDateKey(baselineDate)) return 'EARLY';
   return 'NONE';
 }
 

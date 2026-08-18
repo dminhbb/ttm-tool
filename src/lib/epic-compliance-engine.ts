@@ -1,4 +1,4 @@
-import { addWorkingDays } from '@/lib/working-days';
+import { addWorkingDays, toDateKey } from '@/lib/working-days';
 import type { HolidaySet } from '@/lib/working-days';
 import { computeTtmAlert, resolveOffsetRule } from '@/lib/ttm-rules';
 import type { AlertLevel, OffsetRule } from '@/lib/ttm-rules';
@@ -19,7 +19,7 @@ function toDate(value: string | null | undefined): Date | null {
   const date = new Date(`${value}T00:00:00`);
   return Number.isNaN(date.getTime()) ? null : date;
 }
-function toDateString(value: Date | null): string | null { return value ? value.toISOString().slice(0, 10) : null; }
+function toDateString(value: Date | null): string | null { return value ? toDateKey(value) : null; }
 function fieldDate(input: ComplianceIssueInput, field: string): Date | null {
   const normalized = field.trim().toLocaleUpperCase('en-US').replace(/[ _-]+/g, '');
   if (['IDEAAPPROVEDDATE', 'IDEAAPPROVED'].includes(normalized)) return toDate(input.ideaApprovedDate);

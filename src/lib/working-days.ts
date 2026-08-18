@@ -4,7 +4,16 @@ function atMidnight(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
-function toDateKey(date: Date): string {
+/**
+ * Core logic: the ONLY correct way to turn a Date into a "YYYY-MM-DD" string anywhere date-only
+ * values are computed via local-calendar arithmetic (this file, addWorkingDays included) — i.e.
+ * everywhere except values that came straight from a DB `date` column as text. `date.toISOString()`
+ * converts to UTC first, which silently shifts the calendar day backward for any positive-UTC-
+ * offset timezone (e.g. Asia/Saigon, UTC+7): a Date built via `new Date(y, m, d)` (local midnight)
+ * serializes to the PREVIOUS day once re-read through toISOString(). Use this instead everywhere
+ * a computed (not DB-sourced) Date needs to become a date string.
+ */
+export function toDateKey(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');

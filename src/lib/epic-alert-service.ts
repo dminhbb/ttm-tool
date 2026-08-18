@@ -3,7 +3,7 @@ import type { UserRole } from '@/lib/auth-types';
 import type { AlertLevel, EpicComplexity, OffsetRule } from '@/lib/ttm-rules';
 import { resolveOffsetRule } from '@/lib/ttm-rules';
 import { evaluateIssueCompliance } from '@/lib/epic-compliance-engine';
-import { addWorkingDays, diffWorkingDays } from '@/lib/working-days';
+import { addWorkingDays, diffWorkingDays, toDateKey } from '@/lib/working-days';
 import type { HolidaySet } from '@/lib/working-days';
 import { getActiveHolidaySet, getDomainByProjectKeyMap, getProjectMetaByProjectKeyMap } from '@/lib/master-data-service';
 import { listActiveStatusAlertRules } from '@/lib/status-alert-rule-service';
@@ -53,7 +53,7 @@ export function parseDate(value: string | null): Date | null {
 }
 
 export function toIsoDate(date: Date | null): string | null {
-  return date ? date.toISOString().slice(0, 10) : null;
+  return date ? toDateKey(date) : null;
 }
 
 export function missingStandardInfo(row: EpicRow): string[] {

@@ -62,6 +62,11 @@ export interface PhaseCell {
   /** NONE/EARLY/LATE per the phase's own baseline (see ttm-phase-rules.ts's computeComponentPhaseAlerts). FAIL is unused here. */
   alertLevel: AlertLevel;
   baselineDate: string | null;
+  /** Human label of the field the baseline was counted from (e.g. "Idea Approved Date (T0)"), for
+   * cells whose baseline is anchored to a specific recorded date rather than the phase chain — only
+   * Release currently sets this. Null when not applicable. */
+  baselineSourceDate: string | null;
+  baselineSourceLabel: string | null;
   /** True for the single phase Epic 15 considers "giai đoạn hiện tại" of this Epic. */
   isCurrentStage: boolean;
   isDone: boolean;

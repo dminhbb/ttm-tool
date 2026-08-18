@@ -81,10 +81,13 @@ function phaseCellColorClass(cell: PhaseCell): string {
  * phases no longer have a recorded completion date at all, so their bottom line stays empty. */
 function PhaseStageCell({ actualDateText, cell }: { actualDateText?: string | null; cell: PhaseCell }) {
   const colorClass = phaseCellColorClass(cell);
+  const baselineTitle = cell.baselineSourceLabel
+    ? `Tính từ ${cell.baselineSourceLabel}: ${formatDate(cell.baselineSourceDate)}`
+    : 'Baseline chuẩn theo rule phân chia giai đoạn (tính từ Start Date)';
   return (
     <TD className={`ttm-phase-cell${colorClass ? ` ${colorClass}` : ''}`}>
       {cell.isCurrentStage && <span className="ttm-phase-current-dot" title="Giai đoạn hiện tại của Epic" aria-hidden="true" />}
-      <span className="ttm-phase-baseline" title="Baseline chuẩn theo rule phân chia giai đoạn (tính từ Start Date)">{formatDate(cell.baselineDate)}</span>
+      <span className="ttm-phase-baseline" title={baselineTitle}>{formatDate(cell.baselineDate)}</span>
       <span className="ttm-phase-actual">{actualDateText ? formatDate(actualDateText) : null}</span>
     </TD>
   );
