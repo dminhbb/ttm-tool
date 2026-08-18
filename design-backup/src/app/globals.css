@@ -2,18 +2,12 @@
 @plugin '@tailwindcss/forms';
 
 @theme {
-  /* NOTE: these two intentionally do NOT reference var(--font-inter)/var(--font-geist-mono).
-     Those vars come from a next/font CSS Module class applied at runtime to <body> — invisible
-     to Tailwind's static @theme resolution, which silently drops any --font-* declaration built
-     from a var() it can't resolve at build time. body{} below sets the real font-family directly
-     instead; these two only exist so the `font-sans`/`font-mono` utility classes still resolve to
-     *something* sane if used in isolation elsewhere. */
-  --font-sans: ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, monospace;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
   --color-fb-blue: var(--accent);
   --color-fb-blue-hover: var(--accent-hover);
-  --color-fb-blue-active: var(--color-primary);
+  --color-fb-blue-active: #12a6c2;
   --color-fb-blue-soft: var(--accent-soft);
   --color-fb-bg: var(--surface-app);
   --color-fb-surface: var(--surface-panel);
@@ -26,12 +20,6 @@
   --color-fb-text-secondary: var(--text-secondary);
   --color-fb-text-placeholder: var(--text-muted);
   --color-table-header: var(--surface-elevated);
-
-  /* Wise-brand lime — reserved for filled CTAs, the brand mark, and the focus-ring glow.
-     Never used as text color (fails contrast on white); see DESIGN.md Do's & Don'ts. */
-  --color-fb-primary: var(--color-primary);
-  --color-fb-on-primary: var(--color-on-primary);
-  --color-fb-primary-hover: var(--color-primary-hover);
 
   --color-status-success: var(--success);
   --color-status-success-soft: var(--success-soft);
@@ -57,106 +45,11 @@
   --shadow-glass: none;
   --shadow-dialog: var(--shadow-soft);
   --shadow-sidebar: none;
-
-  /* Wise's signature shape language: generous, friendly rounding — 24px is the canonical
-     card/button radius. Overriding Tailwind's own scale so every `rounded-*` utility already
-     used across the app (Modal, AppShell, etc.) picks this up without touching each call site. */
-  --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
-  --radius-2xl: 24px;
-}
-
-:root {
-  /* Wise-brand lime: constant across themes. Backgrounds only — see the --color-fb-primary
-     comment above for why this never becomes a text color. */
-  --color-primary: #9fe870;
-  --color-primary-hover: #cdffad;
-  --color-on-primary: #0e0f0c;
 }
 
 :root,
 :root[data-theme="light"] {
   color-scheme: light;
-  --surface-app: #e8ebe6;
-  --surface-sidebar: #ffffff;
-  --surface-panel: #ffffff;
-  --surface-elevated: #e8ebe6;
-  --surface-hover: #dbe1d4;
-  --surface-active: #cad3c0;
-  --border-subtle: rgb(14 15 12 / 0.08);
-  --border-default: rgb(14 15 12 / 0.20);
-  --border-strong: rgb(14 15 12 / 0.38);
-  --text-primary: #0e0f0c;
-  --text-secondary: #454745;
-  --text-muted: #6b6d6a;
-  --text-disabled: #a3a5a0;
-  --text-on-accent: #ffffff;
-  /* A deep, WCAG-AA forest green stands in for links/active-text/focus color — the brief's own
-     literal lime (#9fe870) fails contrast as text on a light surface (~1.7:1); Wise itself never
-     uses it that way either (see badge-positive, which pairs the pale tint with positive-deep
-     text, not raw green). The vivid lime is reserved for filled surfaces — see --color-primary. */
-  --accent: #1c6e2e;
-  --accent-hover: #124f20;
-  --accent-soft: rgb(28 110 46 / 0.12);
-  --success: #15803d;
-  --success-soft: rgb(21 128 61 / 0.12);
-  --warning: #b45309;
-  --warning-soft: rgb(180 83 9 / 0.12);
-  --danger: #dc2626;
-  --danger-soft: rgb(220 38 38 / 0.12);
-  --info: #0284c7;
-  --info-soft: rgb(2 132 199 / 0.12);
-  --focus-ring: 0 0 0 3px rgb(159 232 112 / 0.55);
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
-  --radius-pill: 9999px;
-  --shadow-soft: 0 4px 16px rgb(14 15 12 / 0.12);
-}
-
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  /* Near-black ink with a faint olive cast, not a neutral slate — matches the brief's own
-     card-feature-dark / hero-band-dark surfaces, which pair {colors.ink} with {colors.primary}
-     text. On this background the literal Wise lime has plenty of contrast, so unlike light mode
-     it can be used directly as --accent instead of a deep substitute. */
-  --surface-app: #101208;
-  --surface-sidebar: #15170e;
-  --surface-panel: #191c12;
-  --surface-elevated: #212518;
-  --surface-hover: #282d1d;
-  --surface-active: #303622;
-  --border-subtle: rgb(255 255 255 / 0.07);
-  --border-default: rgb(255 255 255 / 0.15);
-  --border-strong: rgb(255 255 255 / 0.28);
-  --text-primary: #f3f5ec;
-  --text-secondary: #c7cdba;
-  --text-muted: #8c9280;
-  --text-disabled: #5c6252;
-  --accent: #9fe870;
-  --accent-hover: #cdffad;
-  --accent-soft: rgb(159 232 112 / 0.16);
-  --success: #44d17c;
-  --success-soft: rgb(68 209 124 / 0.13);
-  --warning: #f4b34c;
-  --warning-soft: rgb(244 179 76 / 0.14);
-  --danger: #f06472;
-  --danger-soft: rgb(240 100 114 / 0.14);
-  --info: #42bde6;
-  --info-soft: rgb(66 189 230 / 0.14);
-  --focus-ring: 0 0 0 3px rgb(159 232 112 / 0.4);
-  --shadow-soft: 0 8px 24px rgb(0 0 0 / 0.35);
-}
-
-/* "Giao diện cũ" — the original steel-blue admin theme, preserved verbatim (see
-   design-backup/src/app/globals.css) as a user-selectable alternative to the Wise-inspired
-   redesign above. Toggled by AppearancePanel via the data-brand attribute on <html>; see
-   src/lib/theme-brand.ts for the single source of truth these values are copied from. */
-:root[data-brand="legacy"] {
   --surface-app: #e9ecef;
   --surface-sidebar: #ffffff;
   --surface-panel: #ffffff;
@@ -170,9 +63,18 @@
   --text-secondary: #334155;
   --text-muted: #475569;
   --text-disabled: #94a3b8;
+  --text-on-accent: #ffffff;
   --accent: #0284c7;
   --accent-hover: #0369a1;
   --accent-soft: rgb(2 132 199 / 0.14);
+  --success: #15803d;
+  --success-soft: rgb(21 128 61 / 0.12);
+  --warning: #b45309;
+  --warning-soft: rgb(180 83 9 / 0.12);
+  --danger: #dc2626;
+  --danger-soft: rgb(220 38 38 / 0.12);
+  --info: #0284c7;
+  --info-soft: rgb(2 132 199 / 0.12);
   --focus-ring: 0 0 0 3px rgb(2 132 199 / 0.28);
   --radius-sm: 4px;
   --radius-md: 6px;
@@ -180,32 +82,54 @@
   --radius-xl: 12px;
   --radius-pill: 999px;
   --shadow-soft: 0 4px 16px rgb(15 23 42 / 0.12);
-  /* The redesign's primary/on-primary split doesn't exist in the old theme — button-primary
-     was just solid --accent with white text, so point both at the same restored blue. */
-  --color-primary: #0284c7;
-  --color-primary-hover: #0369a1;
-  --color-on-primary: #ffffff;
 }
-:root[data-brand="legacy"] .ui-page-title { font-size: 24px; font-weight: 700; }
-:root[data-brand="legacy"] .ui-card-title { font-weight: 700; }
-:root[data-brand="legacy"] body { font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; }
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-app: #17182b;
+  --surface-sidebar: #1d1e35;
+  --surface-panel: #252740;
+  --surface-elevated: #2c2f4b;
+  --surface-hover: #343752;
+  --surface-active: #3a3d5b;
+  --border-subtle: #34364c;
+  --border-default: #41445f;
+  --border-strong: #555976;
+  --text-primary: #f4f5fa;
+  --text-secondary: #b7bbcd;
+  --text-muted: #81869d;
+  --text-disabled: #62667a;
+  --accent: #28c7e8;
+  --accent-hover: #4bd5f2;
+  --accent-soft: rgb(40 199 232 / 0.14);
+  --success: #44d17c;
+  --success-soft: rgb(68 209 124 / 0.13);
+  --warning: #f4b34c;
+  --warning-soft: rgb(244 179 76 / 0.14);
+  --danger: #f06472;
+  --danger-soft: rgb(240 100 114 / 0.14);
+  --info: #42bde6;
+  --info-soft: rgb(66 189 230 / 0.14);
+  --focus-ring: 0 0 0 3px rgb(40 199 232 / 0.28);
+  --shadow-soft: 0 8px 24px rgb(0 0 0 / 0.16);
+}
 
 :root[data-theme="light"] .ui-card,
 :root[data-theme="light"] .ui-table-wrap,
 :root[data-theme="light"] .right-panel-surface {
   border-color: var(--border-default);
-  box-shadow: 0 2px 6px rgb(14 15 12 / 0.06);
+  box-shadow: 0 2px 6px rgb(15 23 42 / 0.08);
 }
 
 :root[data-theme="light"] .ui-table thead th {
-  background: var(--surface-hover);
-  color: var(--text-primary);
+  background: #e2e8f0;
+  color: #1e293b;
   font-weight: 800;
   border-bottom: 2px solid var(--border-default);
 }
 
 :root[data-theme="light"] .ui-button-secondary {
-  background: var(--surface-panel);
+  background: #ffffff;
   border-color: var(--border-default);
   color: var(--text-primary);
 }
@@ -218,13 +142,13 @@
 :root[data-theme="light"] .ui-select,
 :root[data-theme="light"] .ui-textarea,
 :root[data-theme="light"] .ui-search {
-  background: var(--surface-panel);
+  background: #ffffff;
   border-color: var(--border-default);
 }
 
 * { box-sizing: border-box; }
 html { min-width: 320px; background: var(--surface-app); }
-body { margin: 0; min-height: 100dvh; background: var(--surface-app); color: var(--text-primary); font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif; font-size: var(--text-app); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+body { margin: 0; min-height: 100dvh; background: var(--surface-app); color: var(--text-primary); font-family: var(--font-sans); font-size: var(--text-app); line-height: 1.5; -webkit-font-smoothing: antialiased; }
 button, input, select, textarea { font: inherit; }
 button:not(:disabled), [role="button"]:not([aria-disabled="true"]) { cursor: pointer; }
 ::selection { background: var(--accent-soft); }
@@ -237,16 +161,16 @@ button:not(:disabled), [role="button"]:not([aria-disabled="true"]) { cursor: poi
 .app-type-unified { font-size: var(--text-app); }
 .form-control-compact { font-size: var(--text-app) !important; line-height: 1.5 !important; }
 
-.ui-card { background: var(--surface-panel); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); }
+.ui-card { background: var(--surface-panel); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); }
 .ui-card-header, .ui-card-footer { padding: 16px; }
 .ui-card-header { border-bottom: 1px solid var(--border-subtle); }
 .ui-card-footer { border-top: 1px solid var(--border-subtle); }
 .ui-card-body { padding: 16px; }
-.ui-button { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border: 1px solid var(--border-default); border-radius: var(--radius-xl); background: transparent; color: var(--text-primary); font-size: 13px; font-weight: 700; transition: background 120ms ease, border-color 120ms ease, transform 80ms ease; }
+.ui-button { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 14px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: transparent; color: var(--text-primary); font-size: 13px; font-weight: 700; transition: background 120ms ease, border-color 120ms ease, transform 80ms ease; }
 .ui-button:hover { border-color: var(--border-strong); }
 .ui-button:active { transform: translateY(1px); }
-.ui-button-primary { background: var(--color-primary); border-color: transparent; color: var(--color-on-primary); }
-.ui-button-primary:hover { background: var(--color-primary-hover); }
+.ui-button-primary { background: var(--accent); border-color: transparent; color: var(--text-on-accent); }
+.ui-button-primary:hover { background: var(--accent-hover); }
 .ui-button-secondary { background: var(--surface-elevated); }
 .ui-button-ghost { border-color: transparent; }
 .ui-button-ghost:hover { background: var(--surface-hover); }
@@ -284,7 +208,7 @@ button:not(:disabled), [role="button"]:not([aria-disabled="true"]) { cursor: poi
 .ui-search:focus-within { border-color: var(--accent); box-shadow: var(--focus-ring); }
 .ui-search input { min-width: 0; flex: 1; border: 0; background: transparent; color: var(--text-primary); font-size: var(--text-app); outline: 0; }
 .ui-search input::placeholder { color: var(--text-muted); }
-.ui-icon-button { display: inline-flex; width: 38px; min-width: 38px; height: 38px; align-items: center; justify-content: center; border: 1px solid var(--border-default); border-radius: var(--radius-pill); background: var(--surface-elevated); color: var(--text-secondary); }
+.ui-icon-button { display: inline-flex; width: 38px; min-width: 38px; height: 38px; align-items: center; justify-content: center; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-elevated); color: var(--text-secondary); }
 .ui-icon-button:hover { border-color: var(--border-strong); background: var(--surface-hover); color: var(--text-primary); }
 /* Standard app-wide data table (Epic Alerts is the reference design: compact, sticky uppercase header, subtle hover). */
 .ui-table-wrap { width: 100%; overflow-x: auto; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface-panel); box-shadow: 0 1px 3px rgb(15 23 42 / 8%); }
@@ -299,8 +223,8 @@ button:not(:disabled), [role="button"]:not([aria-disabled="true"]) { cursor: poi
 .ui-status-success::before { background: var(--success); }.ui-status-warning::before { background: var(--warning); }.ui-status-danger::before { background: var(--danger); }.ui-status-info::before { background: var(--info); }
 .ui-alert { display: flex; gap: 12px; padding: 12px 16px; border: 1px solid var(--border-default); border-radius: var(--radius-lg); background: var(--surface-panel); }
 .ui-empty { display: grid; min-height: 220px; place-items: center; padding: 32px; text-align: center; color: var(--text-secondary); }
-.ui-page-title { margin: 0; color: var(--text-primary); font-size: 26px; font-weight: 800; letter-spacing: -.03em; line-height: 1.15; }
-.ui-card-title { margin: 0; color: var(--text-primary); font-size: 13px; font-weight: 800; }
+.ui-page-title { margin: 0; color: var(--text-primary); font-size: 24px; font-weight: 700; letter-spacing: -.03em; line-height: 1.15; }
+.ui-card-title { margin: 0; color: var(--text-primary); font-size: 13px; font-weight: 700; }
 .skeleton { position: relative; overflow: hidden; background: linear-gradient(90deg, var(--surface-elevated), var(--surface-hover), var(--surface-elevated)); background-size: 200% 100%; animation: skeleton-move 1.4s linear infinite; }
 @keyframes skeleton-move { to { background-position: -200% 0; } }
 

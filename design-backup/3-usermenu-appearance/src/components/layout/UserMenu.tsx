@@ -7,8 +7,6 @@ import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { AlertLogicModal, DataLogicModal } from '@/components/layout/HelpPanels';
-import { UserInfoModal } from '@/components/layout/UserInfoModal';
-import { AppearancePanel } from '@/components/settings/AppearancePanel';
 import { cn } from '@/lib/utils';
 import type { UserRole } from '@/lib/auth-types';
 
@@ -45,7 +43,6 @@ export function UserMenu({ expanded }: UserMenuProps) {
   const menuRef = React.useRef<HTMLDivElement>(null);
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
-  const [isUserInfoOpen, setIsUserInfoOpen] = React.useState(false);
   const [isAlertLogicOpen, setIsAlertLogicOpen] = React.useState(false);
   const [isDataLogicOpen, setIsDataLogicOpen] = React.useState(false);
   const [hasLoadedPreference, setHasLoadedPreference] = React.useState(false);
@@ -117,14 +114,10 @@ export function UserMenu({ expanded }: UserMenuProps) {
           role="menu"
           aria-label="Menu người dùng"
         >
-          <button
-            type="button"
-            onClick={() => { setIsMenuOpen(false); setIsUserInfoOpen(true); }}
-            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-fb-text-primary transition-colors hover:bg-fb-control"
-            role="menuitem"
-          >
+          <button type="button" disabled className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-fb-text-placeholder disabled:cursor-not-allowed" role="menuitem">
             <UserCircle className="size-4 shrink-0" weight="bold" aria-hidden="true" />
             <span>Thông tin cá nhân</span>
+            <span className="ml-auto text-xs">Sắp có</span>
           </button>
           <button
             type="button"
@@ -194,27 +187,22 @@ export function UserMenu({ expanded }: UserMenuProps) {
         title="Cài đặt"
         footer={<Button variant="outline" onClick={() => setIsSettingsOpen(false)}>Đóng</Button>}
       >
-        <div className="ui-form flex flex-col gap-6">
-          <section className="ui-form-section flex flex-col gap-3" aria-label="Chế độ hiển thị">
+        <div className="ui-form">
+          <section className="ui-form-section" aria-labelledby="appearance-settings-title">
+            <div>
+              <h3 id="appearance-settings-title" className="ui-card-title">Giao diện</h3>
+              <p className="mt-1 text-xs text-fb-text-secondary">Lựa chọn được lưu trên thiết bị này và áp dụng lại khi bạn mở ứng dụng.</p>
+            </div>
             <Select
-              label="Sáng / Tối"
+              label="Chế độ hiển thị"
               value={theme}
               onChange={(event) => setTheme(event.target.value as AppearanceTheme)}
               options={THEME_OPTIONS}
             />
           </section>
-
-          <section className="ui-form-section flex flex-col gap-3" aria-labelledby="brand-settings-title">
-            <div>
-              <h3 id="brand-settings-title" className="ui-card-title">Giao diện</h3>
-              <p className="mt-1 text-xs text-fb-text-secondary">Chọn phong cách hiển thị tổng thể của ứng dụng.</p>
-            </div>
-            <AppearancePanel />
-          </section>
         </div>
       </Modal>
 
-      <UserInfoModal isOpen={isUserInfoOpen} onClose={() => setIsUserInfoOpen(false)} />
       <AlertLogicModal isOpen={isAlertLogicOpen} onClose={() => setIsAlertLogicOpen(false)} />
       {isAdmin && <DataLogicModal isOpen={isDataLogicOpen} onClose={() => setIsDataLogicOpen(false)} />}
     </div>

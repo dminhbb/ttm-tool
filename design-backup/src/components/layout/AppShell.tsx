@@ -98,7 +98,7 @@ function SidebarContent({ expanded, onNavigate, onOpenSettings, onToggle, role }
   return (
     <>
       <div className={cn('flex h-16 items-center border-b border-fb-border', expanded ? 'gap-3 px-4' : 'justify-center px-2')}>
-        <div className="grid size-9 shrink-0 place-items-center rounded-md bg-fb-primary text-fb-on-primary">
+        <div className="grid size-9 shrink-0 place-items-center rounded-md bg-fb-blue text-slate-950">
           <Pulse className="size-5" weight="bold" aria-hidden="true" />
         </div>
         {expanded && (
@@ -377,7 +377,7 @@ export function AppShell({ children }: AppShellProps) {
             <List className="size-5" weight="bold" aria-hidden="true" />
           </button>
           <div className="min-w-0">
-            <h1 className="truncate text-xl font-extrabold tracking-[-0.025em]">{header.title}</h1>
+            <h1 className="truncate text-xl font-bold tracking-[-0.025em]">{header.title}</h1>
             <p className="hidden text-sm text-fb-text-secondary sm:block">{header.subtitle}</p>
           </div>
           {pathname === '/' && (

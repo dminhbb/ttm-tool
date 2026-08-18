@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono, Inter } from 'next/font/google';
+import { Geist_Mono, Inter } from 'next/font/google';
 import './globals.css';
 import { AppShell } from '@/components/layout/AppShell';
-import { THEME_BRAND_INIT_SCRIPT } from '@/lib/theme-brand';
 
 // Wise Sans is proprietary; Inter at weight 900 is the brief's own recommended substitute for
 // the brand's heavy display voice, and doubles as the body/UI face (DESIGN.md Typography note).
@@ -10,13 +9,6 @@ const inter = Inter({
   subsets: ['latin', 'vietnamese'],
   variable: '--font-inter',
   weight: ['400', '500', '600', '700', '800', '900'],
-});
-
-// Kept loaded (not just its CSS values) so "Giao diện cũ" in AppearancePanel can restore the
-// original typeface, not just the original colors/radius.
-const geistSans = Geist({
-  subsets: ['latin', 'vietnamese'],
-  variable: '--font-geist-sans',
 });
 
 const geistMono = Geist_Mono({
@@ -36,12 +28,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="vi" suppressHydrationWarning>
-      <head>
-        {/* Applies a stored "legacy" brand preference before first paint — without this, every
-            load would flash the default Wise theme before React hydrates and can re-apply it. */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_BRAND_INIT_SCRIPT }} />
-      </head>
-      <body className={`${inter.variable} ${geistSans.variable} ${geistMono.variable} min-h-[100dvh] font-sans antialiased`}>
+      <body className={`${inter.variable} ${geistMono.variable} min-h-[100dvh] font-sans antialiased`}>
         <AppShell>{children}</AppShell>
       </body>
     </html>

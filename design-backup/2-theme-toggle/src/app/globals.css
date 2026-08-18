@@ -152,44 +152,6 @@
   --shadow-soft: 0 8px 24px rgb(0 0 0 / 0.35);
 }
 
-/* "Giao diện cũ" — the original steel-blue admin theme, preserved verbatim (see
-   design-backup/src/app/globals.css) as a user-selectable alternative to the Wise-inspired
-   redesign above. Toggled by AppearancePanel via the data-brand attribute on <html>; see
-   src/lib/theme-brand.ts for the single source of truth these values are copied from. */
-:root[data-brand="legacy"] {
-  --surface-app: #e9ecef;
-  --surface-sidebar: #ffffff;
-  --surface-panel: #ffffff;
-  --surface-elevated: #f1f5f9;
-  --surface-hover: #e2e8f0;
-  --surface-active: #cbd5e1;
-  --border-subtle: #cbd5e1;
-  --border-default: #94a3b8;
-  --border-strong: #64748b;
-  --text-primary: #0f172a;
-  --text-secondary: #334155;
-  --text-muted: #475569;
-  --text-disabled: #94a3b8;
-  --accent: #0284c7;
-  --accent-hover: #0369a1;
-  --accent-soft: rgb(2 132 199 / 0.14);
-  --focus-ring: 0 0 0 3px rgb(2 132 199 / 0.28);
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
-  --radius-pill: 999px;
-  --shadow-soft: 0 4px 16px rgb(15 23 42 / 0.12);
-  /* The redesign's primary/on-primary split doesn't exist in the old theme — button-primary
-     was just solid --accent with white text, so point both at the same restored blue. */
-  --color-primary: #0284c7;
-  --color-primary-hover: #0369a1;
-  --color-on-primary: #ffffff;
-}
-:root[data-brand="legacy"] .ui-page-title { font-size: 24px; font-weight: 700; }
-:root[data-brand="legacy"] .ui-card-title { font-weight: 700; }
-:root[data-brand="legacy"] body { font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; }
-
 :root[data-theme="light"] .ui-card,
 :root[data-theme="light"] .ui-table-wrap,
 :root[data-theme="light"] .right-panel-surface {
