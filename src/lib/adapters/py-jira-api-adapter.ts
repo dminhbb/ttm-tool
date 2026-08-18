@@ -14,9 +14,14 @@
  *
  * Epic   : epic_key, epic_name, epic_request_type, epic_idea_approval_date,
  *           epic_start_date, epic_due_date, epic_r4g_date,
- *           epic_created, epic_updated, epic_components
+ *           epic_created, epic_updated, epic_components,
+ *           epic_stories (comma/semicolon-separated story keys, stored verbatim — not the
+ *             source of truth for the epic/story link, which is still epic_key on story rows),
+ *           epic_requirement_level (maps to issues.requirement_level)
  *
- * Story  : story_key, story_issue_type, story_summary, story_status
+ * Story  : story_key, story_issue_type, story_summary, story_status,
+ *           story_subtasks (comma/semicolon-separated subtask keys, stored verbatim — same
+ *             caveat as epic_stories)
  *          + epic_key  (the epic this story belongs to)
  *
  * Subtask: subtask_key, subtask_issue_type, subtask_summary, subtask_status,
@@ -30,6 +35,11 @@ import { parseCSV, RawJiraIssue } from '../csv-parser';
 export interface PyJiraApiParseResult {
   issues: RawJiraIssue[];
   headers: string[];
+}
+
+/** Splits a "KEY-1, KEY-2; KEY-3" style cell into a clean list of issue keys. */
+function splitKeyList(raw: string): string[] {
+  return raw.split(/[,;]/).map((key) => key.trim()).filter(Boolean);
 }
 
 /** Normalise hierarchy_level values from the file to a canonical string */
@@ -97,12 +107,15 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
     epic_created: idx('epic_created'),
     epic_updated: idx('epic_updated'),
     epic_components: idx('epic_components'),
+    epic_stories: idx('epic_stories'),
+    epic_requirement_level: idx('epic_requirement_level'),
 
     // Story columns
     story_key: idx('story_key'),
     story_issue_type: idx('story_issue_type'),
     story_summary: idx('story_summary'),
     story_status: idx('story_status'),
+    story_subtasks: idx('story_subtasks'),
 
     // Subtask columns
     subtask_key: idx('subtask_key'),
@@ -151,7 +164,7 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
         epicName: get(COL.epic_name),
         epicStatus: '',
         epicType: epicRequestType,
-        requirementLevel: '',
+        requirementLevel: get(COL.epic_requirement_level),
         ideaApprovedDate: get(COL.epic_idea_approval_date),
         startDate: get(COL.epic_start_date),
         dueDate: get(COL.epic_due_date),
@@ -160,6 +173,7 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
         rowNumber: r + 1,
         jiraCreatedAt: get(COL.epic_created),
         jiraUpdatedAt: get(COL.epic_updated),
+        epicStories: splitKeyList(get(COL.epic_stories)),
       };
     } else if (level === 'story') {
       const key = get(COL.story_key);
@@ -187,6 +201,7 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
         rowNumber: r + 1,
         jiraCreatedAt: '',
         jiraUpdatedAt: '',
+        storySubtasks: splitKeyList(get(COL.story_subtasks)),
       };
     } else {
       // subtask

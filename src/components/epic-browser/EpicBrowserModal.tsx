@@ -18,9 +18,10 @@ interface ApiErrorResponse {
 }
 
 /**
- * Large (80% of viewport) popup wrapping the shared EpicBrowser tree — used to drill into one
- * Epic's Story/Subtask hierarchy from a context that only knows the Epic Key (e.g. clicking an
- * Epic Key on "Quản lý Epic 15"), without navigating away to the batch-scoped review screen.
+ * Large (80% viewport height, 95% viewport width — wide enough for the tree's Issue Type column
+ * on top of its other columns) popup wrapping the shared EpicBrowser tree — used to drill into
+ * one Epic's Story/Subtask hierarchy from a context that only knows the Epic Key (e.g. clicking
+ * an Epic Key on "Quản trị Epic"), without navigating away to the batch-scoped review screen.
  */
 export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
   const [root, setRoot] = React.useState<DataReviewIssue | null>(null);
@@ -85,7 +86,7 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
       <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden="true" />
 
       <div
-        className="relative z-10 flex h-[80vh] w-[80vw] flex-col overflow-hidden rounded-xl border border-fb-border bg-fb-surface text-fb-text-primary shadow-dialog"
+        className="relative z-10 flex h-[80vh] w-[95vw] flex-col overflow-hidden rounded-xl border border-fb-border bg-fb-surface text-fb-text-primary shadow-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

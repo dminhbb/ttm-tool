@@ -36,6 +36,8 @@ export interface EpicRow {
   epicName: string;
   epicType: string | null;
   ideaApprovedDate: string | null;
+  /** issues.jira_created_at — when the Epic was created in the source Jira system, distinct from startDate (T1). */
+  jiraCreatedAt: string | null;
   project: string | null;
   r4gDate: string | null;
   requirementLevel: string | null;
@@ -232,6 +234,7 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole): Pro
       issues.assignee_name AS assignee,
       issues.start_date::text AS "startDate",
       issues.idea_approved_date::text AS "ideaApprovedDate",
+      issues.jira_created_at::text AS "jiraCreatedAt",
       issues.r4g_date::text AS "r4gDate",
       issues.target_r4g_date::text AS "targetR4gDate",
       issues.due_date::text AS "dueDate",

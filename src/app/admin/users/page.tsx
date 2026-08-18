@@ -17,10 +17,12 @@ import { DataTableToolbar } from '@/components/ui/DataTableToolbar';
 import { TableAction } from '@/components/ui/TableAction';
 import { USER_ROLES } from '@/lib/auth-types';
 import { fuzzyIncludes } from '@/lib/fuzzy-search';
+import { compareValues, useSortableList } from '@/lib/use-sortable-list';
 import type { ManagedUser, UserInput, UserRole } from '@/lib/auth-types';
 import type { Domain, Project } from '@/lib/master-data-types';
 
 type Tab = 'users' | 'reset' | 'registrations';
+type UserSortKey = 'email' | 'fullName' | 'domain' | 'projects' | 'role' | 'status';
 type Ticket = { id: number; email: string; userId: number | null; createdAt: string };
 type BulkDelete = { ids: number[]; type: 'registrations' | 'tickets' };
 
@@ -66,7 +68,16 @@ export default function UsersPage() {
   const domainName = (user: ManagedUser) => user.domainIds.map((domainId) => domains.find((domain) => domain.id === domainId)?.domainName).filter((name): name is string => Boolean(name)).join(', ') || '-';
   const projectKeys = (user: ManagedUser) => user.projectIds.map((projectId) => projects.find((project) => project.id === projectId)?.projectKey).filter((key): key is string => Boolean(key)).join(', ') || '-';
   const toggle = (id: number, checked: boolean, selected: number[], setSelected: (ids: number[]) => void) => setSelected(checked ? [...selected, id] : selected.filter((value) => value !== id));
-  const visibleUsers = users.filter((user) => fuzzyIncludes(searchTerm, [user.email, user.fullName, domainName(user), projectKeys(user), user.role, user.isActive ? 'active' : 'inactive']));
+  const { sortKey: userSortKey, toggleSort: toggleUserSort, directionFor: userSortDirection } = useSortableList<UserSortKey>('email');
+  const userSortValue = (user: ManagedUser, key: UserSortKey): string => {
+    if (key === 'domain') return domainName(user);
+    if (key === 'projects') return projectKeys(user);
+    if (key === 'status') return user.isActive ? 'active' : 'inactive';
+    return user[key];
+  };
+  const visibleUsers = users
+    .filter((user) => fuzzyIncludes(searchTerm, [user.email, user.fullName, domainName(user), projectKeys(user), user.role, user.isActive ? 'active' : 'inactive']))
+    .sort((a, b) => compareValues(userSortValue(a, userSortKey), userSortValue(b, userSortKey), userSortDirection(userSortKey) ?? 'asc'));
   const visibleTickets = tickets.filter((ticket) => fuzzyIncludes(searchTerm, [ticket.email, ticket.createdAt]));
   const visibleInactiveUsers = inactiveUsers.filter((user) => fuzzyIncludes(searchTerm, [user.email, user.fullName, domainName(user)]));
 
@@ -151,7 +162,16 @@ export default function UsersPage() {
       {tab === 'registrations' && selectedRegistrationIds.length > 0 && <div className="ui-button-group flex gap-2"><Button onClick={() => setBulkDelete({ ids: selectedRegistrationIds, type: 'registrations' })} size="sm" variant="danger">Xóa ({selectedRegistrationIds.length})</Button><Button onClick={() => requestApproval(inactiveUsers.filter((user) => selectedRegistrationIds.includes(user.id)))} size="sm">Duyệt đăng ký ({selectedRegistrationIds.length})</Button></div>}
     </CardHeader><CardBody>
       <DataTableToolbar onReset={() => setSearchTerm('')} onSearchChange={setSearchTerm} placeholder={tab === 'users' ? 'Tìm email, họ tên, Domain, Dự án hoặc role' : tab === 'reset' ? 'Tìm email hoặc thời gian gửi' : 'Tìm email, họ tên hoặc Domain'} searchValue={searchTerm} />
-      {tab === 'users' && (visibleUsers.length ? <TableContainer><Table><THead><TR><TH>Email</TH><TH>Họ tên</TH><TH>Domain</TH><TH>Dự án</TH><TH>Role</TH><TH>Trạng thái</TH><TH>Hành động</TH></TR></THead><TBody>{visibleUsers.map((user) => <TR key={user.id}><TD>{user.email}</TD><TD>{user.fullName}</TD><TD>{domainName(user)}</TD><TD>{projectKeys(user)}</TD><TD><Badge variant="info">{user.role}</Badge></TD><TD><Badge variant={user.isActive ? 'success' : 'neutral'}>{user.isActive ? 'Active' : 'Inactive'}</Badge></TD><TD><TableAction onClick={() => setEditing({ ...user })} variant="info">Chỉnh sửa</TableAction></TD></TR>)}</TBody></Table></TableContainer> : <p className="text-fb-text-secondary">Không tìm thấy user phù hợp.</p>)}
+      {tab === 'users' && (visibleUsers.length ? <TableContainer><Table><THead><TR>
+        <TH>STT</TH>
+        <TH sortDirection={userSortDirection('email')} onClick={() => toggleUserSort('email')}>Email</TH>
+        <TH sortDirection={userSortDirection('fullName')} onClick={() => toggleUserSort('fullName')}>Họ tên</TH>
+        <TH sortDirection={userSortDirection('domain')} onClick={() => toggleUserSort('domain')}>Domain</TH>
+        <TH sortDirection={userSortDirection('projects')} onClick={() => toggleUserSort('projects')}>Dự án</TH>
+        <TH sortDirection={userSortDirection('role')} onClick={() => toggleUserSort('role')}>Role</TH>
+        <TH sortDirection={userSortDirection('status')} onClick={() => toggleUserSort('status')}>Trạng thái</TH>
+        <TH>Hành động</TH>
+      </TR></THead><TBody>{visibleUsers.map((user, index) => <TR key={user.id}><TD>{index + 1}</TD><TD>{user.email}</TD><TD>{user.fullName}</TD><TD>{domainName(user)}</TD><TD>{projectKeys(user)}</TD><TD><Badge variant="info">{user.role}</Badge></TD><TD><Badge variant={user.isActive ? 'success' : 'neutral'}>{user.isActive ? 'Active' : 'Inactive'}</Badge></TD><TD><TableAction onClick={() => setEditing({ ...user })} variant="info">Chỉnh sửa</TableAction></TD></TR>)}</TBody></Table></TableContainer> : <p className="text-fb-text-secondary">Không tìm thấy user phù hợp.</p>)}
       {tab === 'reset' && (tickets.length ? (visibleTickets.length ? <TableContainer><Table><THead><TR><TH className="text-center"><input aria-label="Chọn tất cả yêu cầu cấp lại mật khẩu" checked={visibleTickets.length > 0 && visibleTickets.every((ticket) => selectedTicketIds.includes(ticket.id))} onChange={(event) => setSelectedTicketIds(event.target.checked ? [...new Set([...selectedTicketIds, ...visibleTickets.map((ticket) => ticket.id)])] : selectedTicketIds.filter((id) => !visibleTickets.some((ticket) => ticket.id === id)))} type="checkbox" /></TH><TH>Email</TH><TH>Thời gian gửi</TH><TH>Hành động</TH></TR></THead><TBody>{visibleTickets.map((ticket) => <TR key={ticket.id}><TD className="text-center"><input aria-label={`Chọn yêu cầu của ${ticket.email}`} checked={selectedTicketIds.includes(ticket.id)} onChange={(event) => toggle(ticket.id, event.target.checked, selectedTicketIds, setSelectedTicketIds)} type="checkbox" /></TD><TD>{ticket.email}</TD><TD>{ticket.createdAt}</TD><TD>{ticket.userId ? <TableAction onClick={() => { setResetTickets([ticket]); setPassword(randomPassword()); }} variant="warning">Cấp lại</TableAction> : 'Không tìm thấy user'}</TD></TR>)}</TBody></Table></TableContainer> : <p className="text-fb-text-secondary">Không tìm thấy ticket phù hợp.</p>) : <p className="text-fb-text-secondary">Không có ticket đang chờ.</p>)}
       {tab === 'registrations' && (visibleInactiveUsers.length ? <TableContainer><Table><THead><TR><TH className="text-center"><input aria-label="Chọn tất cả đăng ký mới" checked={visibleInactiveUsers.length > 0 && visibleInactiveUsers.every((user) => selectedRegistrationIds.includes(user.id))} onChange={(event) => setSelectedRegistrationIds(event.target.checked ? [...new Set([...selectedRegistrationIds, ...visibleInactiveUsers.map((user) => user.id)])] : selectedRegistrationIds.filter((id) => !visibleInactiveUsers.some((user) => user.id === id)))} type="checkbox" /></TH><TH>Email</TH><TH>Họ tên</TH><TH>Domain</TH><TH>Hành động</TH></TR></THead><TBody>{visibleInactiveUsers.map((user) => <TR key={user.id}><TD className="text-center"><input aria-label={`Chọn đăng ký của ${user.email}`} checked={selectedRegistrationIds.includes(user.id)} onChange={(event) => toggle(user.id, event.target.checked, selectedRegistrationIds, setSelectedRegistrationIds)} type="checkbox" /></TD><TD>{user.email}</TD><TD>{user.fullName}</TD><TD>{domainName(user)}</TD><TD><TableAction onClick={() => requestApproval([user])} variant="info">Duyệt</TableAction></TD></TR>)}</TBody></Table></TableContainer> : <p className="text-fb-text-secondary">Không tìm thấy đăng ký phù hợp.</p>)}
     </CardBody></Card>

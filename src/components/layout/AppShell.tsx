@@ -65,7 +65,7 @@ const navigation: NavigationSection[] = [
     items: [
       { icon: Gauge, label: 'Dashboard', disabled: true },
       { href: '/epic-alerts', icon: Warning, label: 'Quản lý Epic 30', roles: ADMIN_OR_SUPERADMIN },
-      { href: '/epic-alerts-15', icon: Warning, label: 'Quản lý Epic 15' },
+      { href: '/epic-alerts-15', icon: Warning, label: 'Quản trị Epic' },
     ],
   },
   {
@@ -207,7 +207,7 @@ function SidebarContent({ expanded, onNavigate, onOpenSettings, onToggle, role }
 const PAGE_HEADERS: Record<string, { subtitle: string; title: string }> = {
   '/': { subtitle: 'Kiểm tra và quản lý các lớp dữ liệu Jira nhập vào TTM Monitor', title: 'Quản trị nguồn dữ liệu' },
   '/epic-alerts': { subtitle: 'Cảnh báo TTM-CNTT dựa trên đợt import dữ liệu mới nhất', title: 'Quản lý Epic 30' },
-  '/epic-alerts-15': { subtitle: 'Cảnh báo TTM-CNTT theo giai đoạn DESIGN/DEV/TEST/PENTEST/R4GOLIVE', title: 'Quản lý Epic 15' },
+  '/epic-alerts-15': { subtitle: 'Cảnh báo TTM-CNTT theo giai đoạn DESIGN/DEV/TEST/PENTEST/R4GOLIVE', title: 'Quản trị Epic' },
   '/admin/domains': { subtitle: 'Quản lý danh mục Domain nghiệp vụ', title: 'Quản lý Domain' },
   '/admin/projects': { subtitle: 'Quản lý danh mục Dự án và mapping với Domain', title: 'Quản lý Dự án' },
   '/admin/holidays': { subtitle: 'Cấu hình ngày nghỉ dùng để tính ngày làm việc', title: 'Cấu hình ngày nghỉ' },

@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import styles from '@/components/epic-browser/tree-table.module.css';
 import { cn } from '@/lib/utils';
+import { isLevel1IssueType, isLevel2IssueType } from '@/lib/issue-hierarchy';
 import type { DataReviewChildrenResponse, DataReviewIssue } from '@/lib/data-review-types';
 
 export interface EpicBrowserProps {
@@ -22,7 +23,7 @@ interface ApiErrorResponse {
   error?: string;
 }
 
-const COLUMN_COUNT = 9;
+const COLUMN_COUNT = 10;
 
 function formatDate(value: string | null): string {
   if (!value) return '-';
@@ -38,18 +39,23 @@ async function getResponse<T>(url: string): Promise<T> {
   return data;
 }
 
+// Indentation depth in the tree — NOT the same as issue kind: an Epic's own direct Subtasks (no
+// parent Story) render at the same depth as Stories (level 2), since they ARE the Epic's direct
+// children. The icon below is picked from the issue's real issueType, not this depth, so those
+// still show as Subtasks visually.
 type TreeLevel = 1 | 2 | 3;
 
 const LEVEL_LABEL: Record<TreeLevel, string> = { 1: 'Epic', 2: 'Story', 3: 'Subtask' };
 
-const LEVEL_ICON: Record<TreeLevel, { className: string; icon: React.ComponentType<{ className?: string; weight?: 'fill' | 'bold' }> }> = {
-  1: { className: 'text-violet-600', icon: Lightning },
-  2: { className: 'text-emerald-600', icon: BookmarkSimple },
-  3: { className: 'text-sky-600', icon: CheckSquare },
+const KIND_ICON = {
+  epic: { className: 'text-violet-600', icon: Lightning },
+  story: { className: 'text-emerald-600', icon: BookmarkSimple },
+  subtask: { className: 'text-sky-600', icon: CheckSquare },
 };
 
-function IssueTypeIcon({ issueType, level }: { issueType: string; level: TreeLevel }) {
-  const { className, icon: Icon } = LEVEL_ICON[level];
+function IssueTypeIcon({ issueType }: { issueType: string }) {
+  const kind = isLevel1IssueType(issueType) ? 'epic' : isLevel2IssueType(issueType) ? 'story' : 'subtask';
+  const { className, icon: Icon } = KIND_ICON[kind];
   return (
     <span className="inline-flex items-center justify-center" title={issueType} role="img" aria-label={issueType}>
       <Icon className={cn('size-4', className)} weight="fill" />
@@ -77,7 +83,8 @@ function TreeTableRow({ isDimmed, isExpanded, isLastChild, isLoading, issue, lev
       data-level={level}
     >
       <TD className="px-3 py-2">{issue.project || '-'}</TD>
-      <TD className="px-3 py-2 text-center"><IssueTypeIcon issueType={issue.issueType} level={level} /></TD>
+      <TD className="px-3 py-2 text-center"><IssueTypeIcon issueType={issue.issueType} /></TD>
+      <TD className="px-3 py-2 whitespace-nowrap">{issue.issueType || '-'}</TD>
       <TD className="px-3 py-2 font-semibold text-fb-blue">
         <div className={styles.treeCell}>
           {Array.from({ length: indentSlotCount }).map((_, slotIndex) => {
@@ -190,7 +197,7 @@ export function EpicBrowser({ epics, emptyDescription, emptyTitle }: EpicBrowser
         <Table className="w-auto">
           <THead>
             <TR>
-              <TH className="px-3 py-2">Project</TH><TH className="px-3 py-2 text-center">Type</TH><TH className="px-3 py-2">Key</TH><TH className="px-3 py-2">Summary</TH><TH className="px-3 py-2">Status</TH>
+              <TH className="px-3 py-2">Project</TH><TH className="px-3 py-2 text-center">Type</TH><TH className="px-3 py-2">Issue Type</TH><TH className="px-3 py-2">Key</TH><TH className="px-3 py-2">Summary</TH><TH className="px-3 py-2">Status</TH>
               <TH className="px-3 py-2">Start date</TH><TH className="px-3 py-2">R4G date</TH><TH className="px-3 py-2">Due date</TH><TH className="px-3 py-2">ID</TH>
             </TR>
           </THead>

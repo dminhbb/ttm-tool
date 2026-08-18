@@ -11,7 +11,7 @@ import type { EpicAlertAccessRole, EpicAlertPhasedResponse, EpicAlertRowPhased, 
 import type { EpicAlertHistoryEntry } from '@/lib/epic-alert-history-service';
 import type { EpicMilestoneHistoryEntry } from '@/lib/epic-milestone-history-service';
 import type { AlertLevel } from '@/lib/ttm-rules';
-import { Circle, Stack, Warning } from '@phosphor-icons/react';
+import { Warning } from '@phosphor-icons/react';
 
 const PAGE_SIZE = 20;
 
@@ -64,46 +64,46 @@ const ACCESS_ROLE_NOTE: Record<EpicAlertAccessRole, string> = {
 };
 
 /**
- * light green (pass) — có cơ sở hoàn thành và actualDate ≤ baselineDate;
- * light red (fail) — actualDate > baselineDate (hoàn thành muộn), hoặc chưa có cơ sở hoàn thành mà
- * đã tới/quá baseline (Cảnh báo muộn); light yellow (warning) — Cảnh báo sớm; không màu — chưa tới.
+ * light green (pass) — đã hoàn thành (isDone); light red (fail) — chưa hoàn thành và đã tới/quá
+ * baseline (Cảnh báo muộn); light yellow (warning) — Cảnh báo sớm; không màu — chưa hoàn thành,
+ * chưa tới baseline.
  */
 function phaseCellColorClass(cell: PhaseCell): string {
-  if (cell.actualDate) {
-    if (!cell.baselineDate) return 'pass';
-    return cell.actualDate <= cell.baselineDate ? 'pass' : 'fail';
-  }
+  if (cell.isDone) return 'pass';
   if (cell.alertLevel === 'LATE') return 'fail';
   if (cell.alertLevel === 'EARLY') return 'warning';
   return '';
 }
 
-/** Two-line cell: baseline (top, computed from the phase-division rule) vs actual completion (bottom). */
-function PhaseStageCell({ cell }: { cell: PhaseCell }) {
+/** Two-line cell: baseline (top, computed from the phase-division rule) vs — only for phases that
+ * have a real recorded date (R4GOLIVE's R4G Date, Release's Due Date) — that date (bottom).
+ * Completion itself is shown purely via the cell's background color (phaseCellColorClass); other
+ * phases no longer have a recorded completion date at all, so their bottom line stays empty. */
+function PhaseStageCell({ actualDateText, cell }: { actualDateText?: string | null; cell: PhaseCell }) {
   const colorClass = phaseCellColorClass(cell);
   return (
     <TD className={`ttm-phase-cell${colorClass ? ` ${colorClass}` : ''}`}>
       {cell.isCurrentStage && <span className="ttm-phase-current-dot" title="Giai đoạn hiện tại của Epic" aria-hidden="true" />}
       <span className="ttm-phase-baseline" title="Baseline chuẩn theo rule phân chia giai đoạn (tính từ Start Date)">{formatDate(cell.baselineDate)}</span>
-      <span className="ttm-phase-actual" title="Thời gian hoàn thành giai đoạn thực tế">{cell.actualDate ? formatDate(cell.actualDate) : '-'}</span>
+      <span className="ttm-phase-actual">{actualDateText ? formatDate(actualDateText) : null}</span>
     </TD>
   );
 }
 
-const EPIC_TYPE_ICON: Record<string, { icon: typeof Circle; label: string; variant: string }> = {
-  SIMPLE: { icon: Circle, label: 'Epic đơn giản', variant: 'simple' },
-  COMPLEX: { icon: Stack, label: 'Epic phức tạp', variant: 'complex' },
+const EPIC_TYPE_DOT: Record<string, { label: string; variant: string }> = {
+  SIMPLE: { label: 'Epic đơn giản', variant: 'epic-type-simple' },
+  COMPLEX: { label: 'Epic phức tạp', variant: 'epic-type-complex' },
 };
 
-function EpicTypeIcon({ epicType }: { epicType: string | null }) {
-  const entry = epicType ? EPIC_TYPE_ICON[epicType] : undefined;
+function EpicTypeDot({ epicType }: { epicType: string | null }) {
+  const entry = epicType ? EPIC_TYPE_DOT[epicType] : undefined;
   if (!entry) return <span className="ttm-empty-warning">-</span>;
-  const Icon = entry.icon;
-  return (
-    <span title={entry.label}>
-      <Icon weight="fill" size={18} className={`ttm-epic-type-icon ${entry.variant}`} />
-    </span>
-  );
+  return <span className={`ttm-epic-type-dot ${entry.variant}`} title={entry.label} role="img" aria-label={entry.label} />;
+}
+
+/** Truncates epic summary text for the table's subtitle line — full text stays in the title tooltip. */
+function truncateSummary(value: string, maxLength = 70): string {
+  return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -291,7 +291,7 @@ export default function EpicAlerts15Page() {
         setData(result);
       }
     } catch {
-      setError('Không thể kết nối API Quản lý Epic 15.');
+      setError('Không thể kết nối API Quản trị Epic.');
     } finally {
       setIsLoading(false);
     }
@@ -365,18 +365,18 @@ export default function EpicAlerts15Page() {
           <Table className="min-w-[1440px]">
             <THead>
               <TR>
-                <TH className="min-w-[180px]" title="issues.issue_key / issues.issue_name">Epic</TH>
-                <TH title="import_rows.normalized_data_json->>'epicType' (fallback: issues.epic_complexity_type)">Loại Epic</TH>
+                <TH className="min-w-[180px] ttm-epic-col-sticky" title="issues.issue_key / issues.issue_name">Epic</TH>
+                <TH title="import_rows.normalized_data_json->>'epicType' (fallback: issues.epic_complexity_type). Xanh lá = Epic đơn giản, nâu nhạt = Epic phức tạp">Type</TH>
                 <TH className="min-w-[120px]" title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">Nhận xét</TH>
-                <TH title="issues.start_date">Start Date</TH>
                 <TH title="Tính từ issues.start_date + issues.epic_complexity_type (số ngày làm việc thực tế / chuẩn)">TTM-CNTT</TH>
                 <TH title="issues.current_status">Status</TH>
+                <TH title="issues.start_date">Start Date</TH>
                 <TH className="min-w-[110px]" title="Baseline = Start Date + 20% TTM-CNTT (làm tròn ngày)">DESIGN</TH>
                 <TH className="min-w-[110px]" title="Baseline = Start Date + (20%+30%) TTM-CNTT (làm tròn ngày)">DEV</TH>
                 <TH className="min-w-[110px]" title="Baseline = Start Date + (20%+30%+30%) TTM-CNTT (làm tròn ngày)">TEST</TH>
                 <TH className="min-w-[110px]" title="Baseline = Start Date + (20%+30%+30%+10%) TTM-CNTT (làm tròn ngày)">PENTEST</TH>
                 <TH className="min-w-[110px]" title="Baseline = Start Date + 100% TTM-CNTT; dòng dưới = issues.r4g_date">R4GOLIVE</TH>
-                <TH className="min-w-[118px]" title="issues.due_date">Release</TH>
+                <TH className="min-w-[118px]" title="Baseline = Ngày duyệt ý tưởng (hoặc Ngày epic created nếu không có) + 20 ngày làm việc, không tính holiday. Dòng dưới = issues.due_date">Release</TH>
               </TR>
             </THead>
             <TBody>
@@ -384,7 +384,7 @@ export default function EpicAlerts15Page() {
                 const isMissingCore = !row.t1StartDate;
                 return (
                   <TR key={row.epicKey} className={isMissingCore ? 'missing-row' : undefined}>
-                    <TD>
+                    <TD className="ttm-epic-col-sticky">
                       <button
                         type="button"
                         className="ttm-epic-key"
@@ -394,10 +394,11 @@ export default function EpicAlerts15Page() {
                         {row.epicKey}
                       </button>
                       <AlertHistoryButton row={row} onOpen={setAlertHistoryRow} />
-                      {(row.domainName || row.ownerName) && (
-                        <span className="ttm-project-tag">
-                          {[row.domainName, row.ownerName ? `PM/SM: ${row.ownerName}` : ''].filter(Boolean).join(' - ')}
-                        </span>
+                      {row.epicName && (
+                        <span className="ttm-epic-summary" title={row.epicName}>{truncateSummary(row.epicName)}</span>
+                      )}
+                      {row.ownerName && (
+                        <span className="ttm-project-tag">PM/SM: {row.ownerName}</span>
                       )}
                       {row.missingStandardInfo.length > 0 && (
                         <span>
@@ -407,13 +408,13 @@ export default function EpicAlerts15Page() {
                         </span>
                       )}
                     </TD>
-                    <TD><EpicTypeIcon epicType={row.epicType} /></TD>
+                    <TD><EpicTypeDot epicType={row.epicType} /></TD>
                     {isMissingCore ? (
                       <>
                         <TD>{row.currentStatus === 'To Do' ? <span className="ttm-empty-warning">—</span> : <span className="ttm-badge fail">Thiếu Start Date</span>}</TD>
-                        <TD><span className="ttm-metric na">Không có</span></TD>
                         <TD className="ttm-metric na">Không tính được</TD>
                         <TD><StatusBadge status={row.currentStatus} /></TD>
+                        <TD><span className="ttm-metric na">Không có</span></TD>
                         <TD colSpan={6} className="ttm-metric na">Chưa thể tính lịch TTM-CNTT do thiếu dữ liệu bắt buộc.</TD>
                       </>
                     ) : (
@@ -425,15 +426,15 @@ export default function EpicAlerts15Page() {
                               : <span className="ttm-empty-warning">—</span>)
                             : <span className={`ttm-badge ${ALERT_BADGE_CLASS[row.alertLevel]}`}>{row.alertLevel === 'EARLY' ? 'Cảnh báo sớm' : row.alertLevel === 'LATE' ? 'Cảnh báo muộn' : 'Fail TTM-CNTT'}</span>}
                         </TD>
-                        <TD>{formatDate(row.t1StartDate)}</TD>
                         <TtmCnttStrips row={row} />
                         <TD><StatusBadge status={row.currentStatus} /></TD>
+                        <TD className="ttm-phase-cell pass">{formatDate(row.t1StartDate)}</TD>
                         <PhaseStageCell cell={row.stages.design} />
                         <PhaseStageCell cell={row.stages.dev} />
                         <PhaseStageCell cell={row.stages.test} />
                         <PhaseStageCell cell={row.stages.pentest} />
-                        <PhaseStageCell cell={row.stages.r4golive} />
-                        <PhaseStageCell cell={row.stages.release} />
+                        <PhaseStageCell cell={row.stages.r4golive} actualDateText={row.r4gDate} />
+                        <PhaseStageCell cell={row.stages.release} actualDateText={row.dueDate} />
                       </>
                     )}
                   </TR>

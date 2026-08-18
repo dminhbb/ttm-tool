@@ -14,7 +14,10 @@ import { Select } from '@/components/ui/Select';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { TableAction } from '@/components/ui/TableAction';
 import { TableSkeleton } from '@/components/ui/Skeleton';
+import { compareValues, useSortableList } from '@/lib/use-sortable-list';
 import type { Holiday, HolidayInput } from '@/lib/master-data-types';
+
+type HolidaySortKey = 'name' | 'holidayType' | 'startDate' | 'endDate' | 'status';
 
 const EMPTY_FORM: HolidayInput = {
   description: '',
@@ -112,6 +115,10 @@ export function HolidaysPanel() {
     }
   };
 
+  const { sortKey: holidaySortKey, toggleSort: toggleHolidaySort, directionFor: holidaySortDirection } = useSortableList<HolidaySortKey>('startDate');
+  const holidaySortValue = (holiday: Holiday, key: HolidaySortKey): string => (key === 'status' ? (holiday.isActive ? 'active' : 'inactive') : holiday[key]);
+  const sortedHolidays = [...holidays].sort((a, b) => compareValues(holidaySortValue(a, holidaySortKey), holidaySortValue(b, holidaySortKey), holidaySortDirection(holidaySortKey) ?? 'asc'));
+
   const handleDelete = async (holiday: Holiday) => {
     if (!confirm(`Xóa Holiday "${holiday.name}"?`)) return;
     const res = await fetch(`/api/holidays?id=${holiday.id}`, { method: 'DELETE' });
@@ -149,17 +156,19 @@ export function HolidaysPanel() {
               <Table>
                 <THead>
                   <TR>
-                    <TH>Tên ngày nghỉ</TH>
-                    <TH>Loại</TH>
-                    <TH>Ngày bắt đầu</TH>
-                    <TH>Ngày kết thúc</TH>
-                    <TH className="text-center">Trạng thái</TH>
+                    <TH>STT</TH>
+                    <TH sortDirection={holidaySortDirection('name')} onClick={() => toggleHolidaySort('name')}>Tên ngày nghỉ</TH>
+                    <TH sortDirection={holidaySortDirection('holidayType')} onClick={() => toggleHolidaySort('holidayType')}>Loại</TH>
+                    <TH sortDirection={holidaySortDirection('startDate')} onClick={() => toggleHolidaySort('startDate')}>Ngày bắt đầu</TH>
+                    <TH sortDirection={holidaySortDirection('endDate')} onClick={() => toggleHolidaySort('endDate')}>Ngày kết thúc</TH>
+                    <TH className="text-center" sortDirection={holidaySortDirection('status')} onClick={() => toggleHolidaySort('status')}>Trạng thái</TH>
                     <TH className="text-center">Hành động</TH>
                   </TR>
                 </THead>
                 <TBody>
-                  {holidays.map((holiday) => (
+                  {sortedHolidays.map((holiday, index) => (
                     <TR key={holiday.id}>
+                      <TD>{index + 1}</TD>
                       <TD className="font-medium">{holiday.name}</TD>
                       <TD>{HOLIDAY_TYPE_OPTIONS.find((o) => o.value === holiday.holidayType)?.label ?? holiday.holidayType}</TD>
                       <TD>{formatDate(holiday.startDate)}</TD>

@@ -15,6 +15,9 @@ import { ADAPTER_TYPES, DEFAULT_ADAPTER, type AdapterType } from './adapters/ind
 import { parsePyJiraApi } from './adapters/py-jira-api-adapter';
 import { parsePureJiraExport } from './adapters/pure-jira-export-adapter';
 
+// See the write-loop this guards, near the bottom of aggregateBatchData.
+const MILESTONE_RECORDING_ENABLED = false;
+
 /**
  * Derives every "lớp dữ liệu tổng hợp" (aggregated data layer) for one import batch from the
  * canonical `issues` rows already stored for it: the compact epic_ttm_snapshots and
@@ -148,18 +151,21 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
     }
   }
 
-  // DESIGN_DONE / DEV_DONE / TEST_DONE milestones: scan every Epic (not just this batch's), since
-  // a subtask can be the most recently confirmed as Done in a different day's batch than its Epic
-  // or Story. Idempotent — recordEpicMilestone only writes the first time it's detected per Epic.
-  const { designDoneCandidates, devDoneCandidates, testDoneCandidates } = await computeMilestoneCandidates(client);
-  for (const candidate of designDoneCandidates) {
-    await recordEpicMilestone(client, candidate.epicKey, 'DESIGN_DONE', candidate.designDoneDate, batchId);
-  }
-  for (const candidate of devDoneCandidates) {
-    await recordEpicMilestone(client, candidate.epicKey, 'DEV_DONE', candidate.devDoneDate, batchId);
-  }
-  for (const candidate of testDoneCandidates) {
-    await recordEpicMilestone(client, candidate.epicKey, 'TEST_DONE', candidate.testDoneDate, batchId);
+  // DESIGN_DONE / DEV_DONE / TEST_DONE milestone recording is temporarily off — phase completion
+  // is now evaluated live from current statuses on every request instead (see
+  // epic-phase-completion-service.ts). The write path is left fully intact, same convention as
+  // ALERT_HISTORY_RECORDING_ENABLED in epic-alert-phase-service.ts.
+  if (MILESTONE_RECORDING_ENABLED) {
+    const { designDoneCandidates, devDoneCandidates, testDoneCandidates } = await computeMilestoneCandidates(client);
+    for (const candidate of designDoneCandidates) {
+      await recordEpicMilestone(client, candidate.epicKey, 'DESIGN_DONE', candidate.designDoneDate, batchId);
+    }
+    for (const candidate of devDoneCandidates) {
+      await recordEpicMilestone(client, candidate.epicKey, 'DEV_DONE', candidate.devDoneDate, batchId);
+    }
+    for (const candidate of testDoneCandidates) {
+      await recordEpicMilestone(client, candidate.epicKey, 'TEST_DONE', candidate.testDoneDate, batchId);
+    }
   }
 }
 
@@ -315,8 +321,8 @@ export async function processImport(
           standard_status, assignee_name, epic_key, parent_key,
           idea_approved_date, start_date, r4g_date, due_date,
           epic_complexity_type, requirement_level, source_import_batch_id, aggregated_at,
-          jira_created_at, jira_updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+          jira_created_at, jira_updated_at, epic_stories, story_subtasks
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
         ON CONFLICT (issue_key, source_import_batch_id) DO UPDATE SET
           jira_id = EXCLUDED.jira_id,
           issue_name = EXCLUDED.issue_name,
@@ -333,6 +339,8 @@ export async function processImport(
           jira_created_at = EXCLUDED.jira_created_at,
           jira_updated_at = EXCLUDED.jira_updated_at,
           aggregated_at = EXCLUDED.aggregated_at,
+          epic_stories = EXCLUDED.epic_stories,
+          story_subtasks = EXCLUDED.story_subtasks,
           updated_at = NOW();
       `;
 
@@ -378,6 +386,8 @@ export async function processImport(
           aggregatedAtDate,
           jiraCreatedAt,
           jiraUpdatedAt,
+          issue.epicStories?.length ? issue.epicStories : null,
+          issue.storySubtasks?.length ? issue.storySubtasks : null,
         ]);
       }
 

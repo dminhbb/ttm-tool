@@ -1,6 +1,6 @@
 import type { UserRole } from '@/lib/auth-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
-import { diffWorkingDays } from '@/lib/working-days';
+import { addWorkingDays, diffWorkingDays } from '@/lib/working-days';
 import { computeComponentPhaseAlerts, computePhaseAlertLevel, computeTtmPhaseBaselines, epicWorkflowStatusIndex } from '@/lib/ttm-phase-rules';
 import type { TtmPhaseBaseline, TtmPhaseKey } from '@/lib/ttm-phase-rules';
 import {
@@ -11,11 +11,19 @@ import {
   resolveTtmActualRange,
   toIsoDate,
 } from '@/lib/epic-alert-service';
-import { getDesignDoneDatesByEpicKey, getDevDoneDatesByEpicKey, getTestDoneDatesByEpicKey } from '@/lib/epic-milestone-history-service';
+import { computeEpicPhaseCompletionByEpicKey } from '@/lib/epic-phase-completion-service';
+import type { EpicPhaseCompletion } from '@/lib/epic-phase-completion-service';
 import { recordEpicAlertHistory } from '@/lib/epic-alert-history-service';
 import type { EpicAlertHistoryPhase } from '@/lib/epic-alert-history-service';
 import pool from '@/lib/db';
 import type { EpicAlertPhasedResponse, EpicAlertRowPhased, PhaseCell } from '@/lib/epic-alert-types';
+
+// Released baseline = T0 (Idea Approved Date) + this many working days, falling back to the
+// Epic's Jira creation date when T0 is missing. "Working days" here deliberately skips only
+// weekends — addWorkingDays's holidays param is left at its default (empty set) so the app's
+// configured holiday calendar does NOT shorten this baseline, unlike the DESIGN/DEV/TEST/PENTEST/
+// R4GOLIVE baselines above which do exclude holidays.
+const RELEASE_BASELINE_WORKING_DAYS = 20;
 
 const DESIGN_STATUS_INDEX = epicWorkflowStatusIndex('DESIGN');
 const R4GOLIVE_STATUS_INDEX = epicWorkflowStatusIndex('R4GOLIVE');
@@ -28,7 +36,7 @@ const R4GOLIVE_STATUS_INDEX = epicWorkflowStatusIndex('R4GOLIVE');
 const ALERT_HISTORY_RECORDING_ENABLED = false;
 
 function naPhaseCell(): PhaseCell {
-  return { actualDate: null, alertLevel: 'NONE', baselineDate: null, isCurrentStage: false };
+  return { alertLevel: 'NONE', baselineDate: null, isCurrentStage: false, isDone: false };
 }
 
 /**
@@ -50,60 +58,53 @@ type NonReleaseStages = Omit<EpicAlertRowPhased['stages'], 'release'>;
 /**
  * Builds the five Epic 15 phase cells for one Epic. Every phase alerts independently off its own
  * baseline (computePhaseAlertLevel), regardless of Epic status or of whether an earlier phase is
- * still blocking progress — DESIGN and R4GOLIVE included, since "no basis to record completion
- * yet" (no DESIGN_DONE milestone; R4GOLIVE has none until R4G Date is actually filled in) is
- * itself a valid reason to alert once that phase's own baseline passes. Only which single phase is
- * "hiện tại" (current — resolveCurrentStage) is status-dependent.
+ * still blocking progress — DESIGN and R4GOLIVE included, since not yet being done (per
+ * epic-phase-completion-service.ts's live rules) is itself a valid reason to alert once that
+ * phase's own baseline passes. Only which single phase is "hiện tại" (current —
+ * resolveCurrentStage) is status-dependent.
  */
 function resolvePhaseCells(
   epicStatusIndex: number,
   baselines: Record<TtmPhaseKey, TtmPhaseBaseline>,
-  designDoneDate: string | null,
-  devDoneDate: string | null,
-  testDoneDate: string | null,
-  r4gDate: string | null,
+  completion: EpicPhaseCompletion,
   now: Date,
 ): NonReleaseStages {
-  const devDone = devDoneDate !== null;
-  const testDone = testDoneDate !== null;
-  const currentStage = resolveCurrentStage(epicStatusIndex, devDone, testDone);
-  const componentAlerts = computeComponentPhaseAlerts(baselines, devDone, testDone, now);
+  const currentStage = resolveCurrentStage(epicStatusIndex, completion.devDone, completion.testDone);
+  const componentAlerts = computeComponentPhaseAlerts(baselines, completion.devDone, completion.testDone, now);
 
-  const cell = (phase: TtmPhaseKey, actualDate: string | null, alertLevel: AlertLevel): PhaseCell => ({
-    actualDate,
-    alertLevel: actualDate !== null ? 'NONE' : alertLevel,
+  const cell = (phase: TtmPhaseKey, isDone: boolean, alertLevel: AlertLevel): PhaseCell => ({
+    alertLevel: isDone ? 'NONE' : alertLevel,
     baselineDate: toIsoDate(baselines[phase].date),
     isCurrentStage: currentStage === phase,
+    isDone,
   });
 
   return {
-    design: cell('DESIGN', designDoneDate, computePhaseAlertLevel(baselines.DESIGN.date, now, designDoneDate !== null)),
-    dev: cell('DEV', devDoneDate, componentAlerts.dev),
-    pentest: cell('PENTEST', null, componentAlerts.pentest),
-    r4golive: cell('R4GOLIVE', r4gDate, computePhaseAlertLevel(baselines.R4GOLIVE.date, now, r4gDate !== null)),
-    test: cell('TEST', testDoneDate, componentAlerts.test),
+    design: cell('DESIGN', completion.designDone, computePhaseAlertLevel(baselines.DESIGN.date, now, completion.designDone)),
+    dev: cell('DEV', completion.devDone, componentAlerts.dev),
+    pentest: cell('PENTEST', false, componentAlerts.pentest),
+    r4golive: cell('R4GOLIVE', completion.r4goliveDone, computePhaseAlertLevel(baselines.R4GOLIVE.date, now, completion.r4goliveDone)),
+    test: cell('TEST', completion.testDone, componentAlerts.test),
   };
 }
 
 /**
- * "Quản lý Epic 15": same Epic list and access rules as "Quản lý Epic 30" (fetchEpicAlertContext
- * is shared), but the Design/In Progress/Ready4Golive columns are replaced with five phase
- * columns (DESIGN, DEV, TEST, PENTEST, R4GOLIVE) per the phase-division core rule
- * (ttm-phase-rules.ts). Each cell is baseline (top, always computed) + actual (bottom — DESIGN,
- * DEV and TEST have real actual values via epic_milestone_history (DESIGN_DONE/DEV_DONE/TEST_DONE,
- * see epic-milestone-history-service.ts), R4GOLIVE via R4G Date; PENTEST waits on a future upgrade
- * that tracks real per-phase completion dates).
+ * "Quản trị Epic": same Epic list and access rules as "Quản lý Epic 30" (fetchEpicAlertContext is
+ * shared), but the Design/In Progress/Ready4Golive columns are replaced with five phase columns
+ * (DESIGN, DEV, TEST, PENTEST, R4GOLIVE) per the phase-division core rule (ttm-phase-rules.ts).
+ * Each cell carries a baseline (always computed) and an `isDone` flag evaluated live from current
+ * story/subtask statuses every request (see epic-phase-completion-service.ts) — completion dates
+ * are no longer recorded. PENTEST still has no completion rule, per its own comment below. How
+ * baseline/isDone actually render is the frontend's concern (epic-alerts-15/page.tsx).
  *
  * As a side effect of being viewed, any Epic whose phase (DESIGN/DEV/TEST/PENTEST/R4GOLIVE) is
  * currently Cảnh báo muộn gets that recorded into epic_alert_history (once per Epic/phase/day —
  * see recordEpicAlertHistory's ON CONFLICT).
  */
 export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Promise<EpicAlertPhasedResponse> {
-  const [context, designDoneDates, devDoneDates, testDoneDates] = await Promise.all([
+  const [context, phaseCompletionByEpicKey] = await Promise.all([
     fetchEpicAlertContext(userId, role),
-    getDesignDoneDatesByEpicKey(),
-    getDevDoneDatesByEpicKey(),
-    getTestDoneDatesByEpicKey(),
+    computeEpicPhaseCompletionByEpicKey(),
   ]);
   if (!context.lastAggregatedAt) {
     return { accessRole: context.accessRole, lastAggregatedAt: null, rows: [], viewerName: context.viewerName };
@@ -129,19 +130,23 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
 
     const baselines = startDate && ttmCnttTarget ? computeTtmPhaseBaselines(startDate, ttmCnttTarget, holidays) : null;
 
-    // TTM-E2E isn't implemented yet, so Released has no baseline to show — only the actual Due Date.
-    const releaseCell: PhaseCell = { actualDate: toIsoDate(parseDate(row.dueDate)), alertLevel: 'NONE', baselineDate: null, isCurrentStage: false };
+    const completion = phaseCompletionByEpicKey.get(row.epicKey) ?? {
+      designDone: false, devDone: false, r4goliveDone: false, releasedDone: false, testDone: false,
+    };
+
+    // Released baseline: T0 (Idea Approved Date) if present, else the Epic's Jira creation date —
+    // + 20 working days (weekends only, holiday calendar not applied; see the constant above).
+    const releaseBaseDate = parseDate(row.ideaApprovedDate) ?? parseDate(row.jiraCreatedAt);
+    const releaseBaselineDate = releaseBaseDate ? addWorkingDays(releaseBaseDate, RELEASE_BASELINE_WORKING_DAYS) : null;
+    const releaseCell: PhaseCell = {
+      alertLevel: 'NONE',
+      baselineDate: toIsoDate(releaseBaselineDate),
+      isCurrentStage: false,
+      isDone: completion.releasedDone,
+    };
 
     const stages = baselines
-      ? resolvePhaseCells(
-        epicStatusIndex,
-        baselines,
-        designDoneDates.get(row.epicKey) ?? null,
-        devDoneDates.get(row.epicKey) ?? null,
-        testDoneDates.get(row.epicKey) ?? null,
-        row.r4gDate,
-        now,
-      )
+      ? resolvePhaseCells(epicStatusIndex, baselines, completion, now)
       : { design: naPhaseCell(), dev: naPhaseCell(), pentest: naPhaseCell(), r4golive: naPhaseCell(), test: naPhaseCell() };
 
     (['design', 'dev', 'test', 'pentest', 'r4golive'] as const).forEach((key) => {
@@ -160,6 +165,7 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
       currentStatus: row.status,
       dataLayerDate: row.aggregatedAt ?? null,
       domainName: domain,
+      dueDate: row.dueDate,
       epicKey: row.epicKey,
       epicName: row.epicName,
       epicType: complexity,

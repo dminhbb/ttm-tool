@@ -55,14 +55,16 @@ export interface EpicAlertResponse {
   viewerName: string;
 }
 
-/** Two-line cell for the phase-split screen ("Quản lý Epic 15"): baseline (top) vs actual (bottom). */
+/** Cell for "Quản trị Epic": a baseline date, plus an `isDone` flag evaluated live every request
+ * (completion dates are no longer recorded — see epic-phase-completion-service.ts). How these
+ * render (background color, optional date text) is the frontend's call. */
 export interface PhaseCell {
-  actualDate: string | null;
   /** NONE/EARLY/LATE per the phase's own baseline (see ttm-phase-rules.ts's computeComponentPhaseAlerts). FAIL is unused here. */
   alertLevel: AlertLevel;
   baselineDate: string | null;
   /** True for the single phase Epic 15 considers "giai đoạn hiện tại" of this Epic. */
   isCurrentStage: boolean;
+  isDone: boolean;
 }
 
 export interface EpicAlertRowPhased {
@@ -71,6 +73,8 @@ export interface EpicAlertRowPhased {
   /** Which import data layer (aggregated_at) this Epic's row currently comes from. */
   dataLayerDate: string | null;
   domainName: string;
+  /** issues.due_date — shown on the Release cell's bottom line when present. */
+  dueDate: string | null;
   epicKey: string;
   epicName: string;
   epicType: EpicComplexity | null;

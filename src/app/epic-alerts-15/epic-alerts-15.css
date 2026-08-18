@@ -199,16 +199,6 @@
   margin-left: auto;
 }
 .ttm-report-date b { color: var(--ttm-text); }
-.ttm-legend {
-  display: flex;
-  gap: 14px;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-  font-size: var(--ttm-font-size-sm);
-  color: var(--ttm-muted);
-}
-.ttm-legend-item { display: inline-flex; align-items: center; gap: 5px; }
-.ttm-legend-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 .ttm-badge {
   display: inline-flex;
   align-items: center;
@@ -220,13 +210,13 @@
   line-height: 1.45;
   white-space: nowrap;
 }
-.ttm-badge.on-track { background: var(--ttm-success-700); color: var(--ttm-white); }
-.ttm-badge.at-risk { background: var(--ttm-warning-500); color: #4a3900; }
-.ttm-badge.delayed { background: var(--ttm-danger-700); color: var(--ttm-white); }
-.ttm-badge.ahead { background: var(--ttm-info-700); color: var(--ttm-white); }
 .ttm-badge.early-warning { background: var(--ttm-warning-100); color: var(--ttm-warning-700); border: 1px solid #f5d46b; }
 .ttm-badge.late-warning { background: #fdf0e6; color: var(--ttm-danger-600); border: 1px solid #f5c2a7; }
 .ttm-badge.fail { background: var(--ttm-danger-700); color: var(--ttm-white); }
+/* Type column — small bullet: light green for simple, light brown for complex. */
+.ttm-epic-type-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+.ttm-epic-type-dot.epic-type-simple { background: #8ed07f; }
+.ttm-epic-type-dot.epic-type-complex { background: #c9a279; }
 .ttm-missing-tag {
   display: inline-block;
   background: #f8c9c9;
@@ -245,6 +235,17 @@
    .ui-table system in globals.css via the shared Table/TH/TD components — this page
    is the design reference for that shared style, so only page-specific cell content
    (epic key, badges, stage pills, missing tags, row highlights) stays scoped here. */
+/* Freezes the Epic column so it stays visible while the table scrolls horizontally. The header
+   cell is also sticky top (globals.css's .ui-table thead th) — its higher-specificity z-index:1
+   would otherwise sit BELOW this column's body cells (z-index:2) at the sticky corner, so this
+   needs !important to win there too. */
+.ttm-epic-col-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 2 !important;
+  background: var(--ttm-card);
+  box-shadow: 2px 0 4px rgb(15 23 42 / 8%);
+}
 .ttm-epic-key {
   font-weight: 800;
   color: var(--ttm-brand-600);
@@ -261,6 +262,14 @@
   display: block;
   font-size: 11px;
   color: var(--ttm-muted);
+  font-weight: 400;
+  margin-top: 2px;
+}
+/* Epic summary (top subtitle) — a touch more readable than the PM/SM line below it (.ttm-project-tag), since it's actual epic content rather than metadata. */
+.ttm-epic-summary {
+  display: block;
+  font-size: 11.5px;
+  color: var(--ttm-text);
   font-weight: 400;
   margin-top: 2px;
 }
@@ -364,31 +373,10 @@
   font-style: italic;
   font-size: 11px;
 }
-.ttm-stage-plan { font-size: 11px; color: var(--ttm-muted); }
-.ttm-stage-pill {
-  display: inline-block;
-  margin-top: 3px;
-  padding: 2px 7px;
-  border-radius: 8px;
-  font-size: 10.5px;
-  font-weight: 800;
-}
-.ttm-stage-pill.done { background: var(--ttm-success-100); color: var(--ttm-success-700); }
-.ttm-stage-pill.early-alert { background: var(--ttm-warning-100); color: var(--ttm-warning-700); }
-.ttm-stage-pill.late-alert { background: var(--ttm-danger-100); color: var(--ttm-danger-700); }
-.ttm-stage-pill.upcoming { background: var(--ttm-neutral-100); color: var(--ttm-muted); font-weight: 600; }
-.ttm-stage-pill.unknown { background: #f8c9c9; color: var(--ttm-danger-700); }
 .ttm-app td.hl-overdue { background: var(--ttm-danger-100); }
 .ttm-app tr.missing-row td { background: var(--ttm-danger-100); }
 .ttm-app tr.disabled-row td { color: var(--ttm-muted); background: #fbfcfe; }
 .ttm-empty-warning { color: var(--ttm-muted); font-size: 11px; }
-.ttm-app td:has(.ttm-stage-pass-label) { background: var(--ttm-success-100); text-align: center; }
-.ttm-stage-pass-label { color: var(--ttm-success-700); font-size: 11px; font-weight: 800; }
-.ttm-r4g-cell { text-align: center; }
-.ttm-r4g-cell.is-complete { background: var(--ttm-success-050); }
-.ttm-r4g-actual { display: block; color: var(--ttm-success-700); font-weight: 800; font-size: 11px; }
-.ttm-r4g-target { display: block; color: var(--ttm-muted); font-size: 10.5px; font-weight: 600; white-space: nowrap; }
-.ttm-r4g-actual + .ttm-r4g-target { margin-top: 3px; }
 .ttm-phase-cell { position: relative; text-align: center; }
 .ttm-phase-cell.pass { background: var(--ttm-success-100); }
 .ttm-phase-cell.warning { background: var(--ttm-warning-100); }
@@ -403,9 +391,7 @@
   background: var(--ttm-brand-500);
 }
 .ttm-phase-baseline { display: block; color: var(--ttm-text); font-weight: 400; font-style: normal; font-size: 11px; white-space: nowrap; }
-.ttm-phase-actual { display: block; margin-top: 3px; color: var(--ttm-text); font-weight: 400; font-style: normal; font-size: 11px; white-space: nowrap; }
-.ttm-epic-type-icon { color: var(--ttm-brand-600); display: block; }
-.ttm-epic-type-icon.simple { color: #9db4e8; }
+.ttm-phase-actual { display: block; margin-top: 3px; font-size: 11px; white-space: nowrap; }
 .ttm-status-badge {
   display: inline-flex;
   align-items: center;

@@ -22,6 +22,9 @@ export interface RawJiraIssue {
   // Source system timestamps — populated by adapters that provide creation/update info
   jiraCreatedAt?: string; // epic_created in Py Jira API format
   jiraUpdatedAt?: string; // epic_updated in Py Jira API format
+  // Py Jira API adapter only — verbatim key lists from the source row, not derived.
+  epicStories?: string[]; // epic_stories, on epic rows: this epic's story keys
+  storySubtasks?: string[]; // story_subtasks, on story rows: this story's subtask keys
 }
 
 export function parseCSV(csvText: string): string[][] {

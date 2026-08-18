@@ -15,6 +15,9 @@ import { TableAction } from '@/components/ui/TableAction';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { TEAM_ROLES } from '@/lib/master-data-types';
 import type { IssueTypeRoleMapping, IssueTypeRoleMappingInput, TeamRole } from '@/lib/master-data-types';
+import { compareValues, useSortableList } from '@/lib/use-sortable-list';
+
+type MappingSortKey = 'issueType' | 'teamRole';
 
 const EMPTY_FORM: IssueTypeRoleMappingInput = { issueType: '', teamRole: 'BA' };
 
@@ -86,6 +89,9 @@ export function IssueTypeRolesPanel() {
     }
   };
 
+  const { sortKey: mappingSortKey, toggleSort: toggleMappingSort, directionFor: mappingSortDirection } = useSortableList<MappingSortKey>('issueType');
+  const sortedMappings = [...mappings].sort((a, b) => compareValues(a[mappingSortKey], b[mappingSortKey], mappingSortDirection(mappingSortKey) ?? 'asc'));
+
   const handleDelete = async (mapping: IssueTypeRoleMapping) => {
     if (!confirm(`Xóa khai báo Issue Type "${mapping.issueType}"?`)) return;
     const res = await fetch(`/api/issue-type-roles?id=${mapping.id}`, { method: 'DELETE' });
@@ -127,14 +133,16 @@ export function IssueTypeRolesPanel() {
               <Table>
                 <THead>
                   <TR>
-                    <TH>Issue Type</TH>
-                    <TH>Role</TH>
+                    <TH>STT</TH>
+                    <TH sortDirection={mappingSortDirection('issueType')} onClick={() => toggleMappingSort('issueType')}>Issue Type</TH>
+                    <TH sortDirection={mappingSortDirection('teamRole')} onClick={() => toggleMappingSort('teamRole')}>Role</TH>
                     <TH className="text-center">Hành động</TH>
                   </TR>
                 </THead>
                 <TBody>
-                  {mappings.map((mapping) => (
+                  {sortedMappings.map((mapping, index) => (
                     <TR key={mapping.id}>
+                      <TD>{index + 1}</TD>
                       <TD className="font-medium">{mapping.issueType}</TD>
                       <TD><Badge variant={ROLE_BADGE_VARIANT[mapping.teamRole]}>{mapping.teamRole}</Badge></TD>
                       <TD>
