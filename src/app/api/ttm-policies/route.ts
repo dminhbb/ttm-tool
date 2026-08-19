@@ -25,7 +25,7 @@ function parseInput(value: unknown): TtmPolicyInput | null {
 }
 
 export async function GET(request: NextRequest) {
-  try { await requireUser(request, ['SUPERADMIN']); return NextResponse.json(await listTtmPolicies()); }
+  try { await requireUser(request, ['SUPERADMIN', 'SUPERVISOR']); return NextResponse.json(await listTtmPolicies()); }
   catch (error: unknown) { return authError(error) ?? NextResponse.json({ error: 'Không thể tải tiêu chí Time to Market.' }, { status: 500 }); }
 }
 export async function POST(request: NextRequest) {

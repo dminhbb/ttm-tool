@@ -11,7 +11,7 @@ function authError(error: unknown): NextResponse | null {
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireUser(request, ['ADMIN', 'SUPERADMIN']);
+    const user = await requireUser(request, ['ADMIN', 'SUPERADMIN', 'SUPERVISOR']);
     const data = await getEpicAlertRows(user.id, user.role);
     return NextResponse.json(data);
   } catch (error: unknown) {

@@ -1,4 +1,4 @@
-export const USER_ROLES = ['SUPERADMIN', 'ADMIN', 'USER'] as const;
+export const USER_ROLES = ['SUPERADMIN', 'ADMIN', 'SUPERVISOR', 'USER'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
 export interface AuthUser {
@@ -42,7 +42,7 @@ export interface UserProfileDetails {
   ledProjects: ProjectSummary[];
   /**
    * ADMIN only: every project in a domain they're assigned to (their epic-alerts view scope —
-   * see resolveAccessScope in epic-alert-service.ts). null for SUPERADMIN (already sees
+   * see resolveAccessScope in epic-alert-service.ts). null for SUPERADMIN/SUPERVISOR (already see
    * everything, a list would be noise) and USER (no domain-wide scope to show).
    */
   viewableProjects: ProjectSummary[] | null;

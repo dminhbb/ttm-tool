@@ -31,7 +31,7 @@ function validate(body: unknown): { error: string } | { value: IssueTypeRoleMapp
 
 export async function GET(request: NextRequest) {
   try {
-    await requireUser(request, ['ADMIN', 'SUPERADMIN']);
+    await requireUser(request, ['ADMIN', 'SUPERADMIN', 'SUPERVISOR']);
     return NextResponse.json(await listIssueTypeRoleMappings());
   } catch (error: unknown) {
     console.error('API Error in issue-type-roles route:', error);

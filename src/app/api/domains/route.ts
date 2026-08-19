@@ -9,7 +9,7 @@ function authError(error: unknown): NextResponse | null {
 }
 
 export async function GET(request: NextRequest) {
-  try { await requireUser(request, ['ADMIN', 'SUPERADMIN']); return NextResponse.json(await listDomains()); }
+  try { await requireUser(request, ['ADMIN', 'SUPERADMIN', 'SUPERVISOR']); return NextResponse.json(await listDomains()); }
   catch (error) { return authError(error) ?? NextResponse.json({ error: 'Lỗi hệ thống khi tải danh sách Domain.' }, { status: 500 }); }
 }
 

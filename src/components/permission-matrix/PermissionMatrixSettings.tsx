@@ -12,8 +12,9 @@ import type { PermissionFeature, PermissionMatrix, RoleFeaturePermission } from 
 
 interface Notice { text: string; type: 'error' | 'success'; }
 
-const EDITABLE_ROLES: UserRole[] = ['ADMIN', 'USER'];
-const ROLE_LABEL: Record<UserRole, string> = { SUPERADMIN: 'Superadmin', ADMIN: 'Admin', USER: 'User' };
+const EDITABLE_ROLES: UserRole[] = ['ADMIN', 'SUPERVISOR', 'USER'];
+const ROLE_LABEL: Record<UserRole, string> = { SUPERADMIN: 'Superadmin', ADMIN: 'Admin', SUPERVISOR: 'Supervisor', USER: 'User' };
+const MATRIX_ROLES: UserRole[] = ['SUPERADMIN', 'ADMIN', 'SUPERVISOR', 'USER'];
 const ACTIONS: { key: keyof Pick<RoleFeaturePermission, 'canView' | 'canAdd' | 'canEdit' | 'canDelete'>; label: string }[] = [
   { key: 'canView', label: 'Xem' },
   { key: 'canAdd', label: 'Thêm' },
@@ -111,16 +112,16 @@ export function PermissionMatrixSettings() {
       <p className="mb-2 text-sm font-bold text-fb-text-primary">{title}</p>
       <p className="mb-3 text-xs text-fb-text-secondary">{description}</p>
       <TableContainer>
-        <Table className="min-w-[960px]">
+        <Table className="min-w-[1280px]">
           <THead>
             <TR>
               <TH rowSpan={2} className="align-bottom">Chức năng</TH>
-              {(['SUPERADMIN', 'ADMIN', 'USER'] as UserRole[]).map((role) => (
+              {MATRIX_ROLES.map((role) => (
                 <TH key={role} colSpan={4} className="text-center border-l border-fb-border">{ROLE_LABEL[role]}</TH>
               ))}
             </TR>
             <TR>
-              {(['SUPERADMIN', 'ADMIN', 'USER'] as UserRole[]).map((role) => ACTIONS.map((action, index) => (
+              {MATRIX_ROLES.map((role) => ACTIONS.map((action, index) => (
                 <TH key={`${role}-${action.key}`} className={`text-center text-[10px] font-medium text-fb-text-secondary ${index === 0 ? 'border-l border-fb-border' : ''}`}>{action.label}</TH>
               )))}
             </TR>
@@ -129,7 +130,7 @@ export function PermissionMatrixSettings() {
             {rows.map((feature) => (
               <TR key={feature.featureKey}>
                 <TD className="font-semibold text-fb-text-primary">{feature.featureName}</TD>
-                {(['SUPERADMIN', 'ADMIN', 'USER'] as UserRole[]).map((role) => ACTIONS.map((action, index) => (
+                {MATRIX_ROLES.map((role) => ACTIONS.map((action, index) => (
                   <TD key={`${role}-${action.key}`} className={`text-center ${index === 0 ? 'border-l border-fb-border' : ''}`}>{renderCell(feature, role, action.key)}</TD>
                 )))}
               </TR>

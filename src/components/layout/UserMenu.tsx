@@ -51,7 +51,7 @@ export function UserMenu({ expanded }: UserMenuProps) {
   const [hasLoadedPreference, setHasLoadedPreference] = React.useState(false);
   const [theme, setTheme] = React.useState<AppearanceTheme>('light');
   const [user, setUser] = React.useState<CurrentUser | null>(null);
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPERADMIN';
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPERADMIN' || user?.role === 'SUPERVISOR';
 
   React.useEffect(() => {
     void Promise.resolve().then(() => {

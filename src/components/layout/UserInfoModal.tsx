@@ -11,7 +11,7 @@ export interface UserInfoModalProps {
   onClose: () => void;
 }
 
-const ROLE_LABEL: Record<AuthUser['role'], string> = { SUPERADMIN: 'Superadmin', ADMIN: 'Admin', USER: 'User' };
+const ROLE_LABEL: Record<AuthUser['role'], string> = { SUPERADMIN: 'Superadmin', ADMIN: 'Admin', SUPERVISOR: 'Supervisor', USER: 'User' };
 
 type ProfileResponse = { user: AuthUser } & UserProfileDetails;
 

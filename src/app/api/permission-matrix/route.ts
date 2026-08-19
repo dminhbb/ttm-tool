@@ -17,7 +17,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isPermissionRow(value: unknown): value is RoleFeaturePermission {
   return isRecord(value)
     && typeof value.featureKey === 'string' && value.featureKey.length > 0
-    && (value.role === 'ADMIN' || value.role === 'USER')
+    && (value.role === 'ADMIN' || value.role === 'SUPERVISOR' || value.role === 'USER')
     && typeof value.canView === 'boolean'
     && typeof value.canAdd === 'boolean'
     && typeof value.canEdit === 'boolean'

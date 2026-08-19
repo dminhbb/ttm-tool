@@ -49,7 +49,7 @@ function parseInput(body: unknown): { error: string } | { value: StatusAlertRule
 
 export async function GET(request: NextRequest) {
   try {
-    await requireUser(request, ['SUPERADMIN']);
+    await requireUser(request, ['SUPERADMIN', 'SUPERVISOR']);
     return NextResponse.json(await listStatusAlertRules());
   } catch (error: unknown) {
     const response = authError(error); if (response) return response;

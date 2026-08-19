@@ -87,7 +87,7 @@ export function resolveTtmActualRange(
 }
 
 export async function resolveAccessScope(userId: number, role: UserRole): Promise<{ accessRole: EpicAlertAccessRole; sourceProjectKeys: string[] | null }> {
-  if (role === 'SUPERADMIN') return { accessRole: 'CBQL_PHONG', sourceProjectKeys: null };
+  if (role === 'SUPERADMIN' || role === 'SUPERVISOR') return { accessRole: 'CBQL_PHONG', sourceProjectKeys: null };
   if (role === 'ADMIN') {
     const result = await pool.query<{ sourceProjectKey: string }>(`
       SELECT DISTINCT p.source_project_key AS "sourceProjectKey"

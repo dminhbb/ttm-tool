@@ -10,7 +10,7 @@ function authError(error: unknown): NextResponse | null { if (error instanceof A
 
 export async function GET(request: NextRequest) {
   try {
-    await requireUser(request, ['ADMIN', 'SUPERADMIN']);
+    await requireUser(request, ['ADMIN', 'SUPERADMIN', 'SUPERVISOR']);
     const { default: pool } = await import('@/lib/db');
     const result = await pool.query('SELECT pr.id, pr.email, pr.created_at AS "createdAt", u.id AS "userId" FROM password_reset_requests pr LEFT JOIN users u ON u.email = pr.email WHERE pr.status = \'PENDING\' ORDER BY pr.created_at DESC');
     return NextResponse.json(result.rows);

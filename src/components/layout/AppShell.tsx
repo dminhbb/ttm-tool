@@ -54,17 +54,23 @@ export interface AppShellProps {
   children: React.ReactNode;
 }
 
-const ADMIN_OR_SUPERADMIN: UserRole[] = ['ADMIN', 'SUPERADMIN'];
+// Admin config/monitoring screens: SUPERADMIN and SUPERVISOR both see everything here (SUPERVISOR
+// is read-only — enforced by the API's per-method role checks, not by hiding nav items — ADMIN
+// keeps its existing scoped edit rights unchanged).
+const ADMIN_VIEW_ROLES: UserRole[] = ['ADMIN', 'SUPERADMIN', 'SUPERVISOR'];
+const SUPERADMIN_OR_SUPERVISOR: UserRole[] = ['SUPERADMIN', 'SUPERVISOR'];
+// Data-processing screens (raw import/backup/restore/cleanup) — SUPERVISOR has zero access here,
+// not even view, unlike the admin config screens above.
 const SUPERADMIN_ONLY: UserRole[] = ['SUPERADMIN'];
 
-const GENERAL_SETTINGS_ITEM: NavigationItem = { icon: GearSix, label: 'Quản lý chung', roles: ADMIN_OR_SUPERADMIN };
+const GENERAL_SETTINGS_ITEM: NavigationItem = { icon: GearSix, label: 'Quản lý chung', roles: ADMIN_VIEW_ROLES };
 
 const navigation: NavigationSection[] = [
   {
     label: 'Giám sát',
     items: [
       { icon: Gauge, label: 'Dashboard', disabled: true },
-      { href: '/epic-alerts', icon: Warning, label: 'Quản lý Epic 30', roles: ADMIN_OR_SUPERADMIN },
+      { href: '/epic-alerts', icon: Warning, label: 'Quản lý Epic 30', roles: ADMIN_VIEW_ROLES },
       { href: '/epic-alerts-15', icon: Warning, label: 'Quản trị Epic' },
     ],
   },
@@ -72,10 +78,10 @@ const navigation: NavigationSection[] = [
     label: 'Quản trị hệ thống',
     items: [
       { href: '/', icon: Database, label: 'Nguồn dữ liệu', roles: SUPERADMIN_ONLY },
-      { href: '/admin/users', icon: Users, label: 'Quản lý User', roles: ADMIN_OR_SUPERADMIN },
-      { href: '/admin/domains', icon: Globe, label: 'Quản lý Domain', roles: ADMIN_OR_SUPERADMIN },
-      { href: '/admin/projects', icon: Folder, label: 'Quản lý Dự án', roles: ADMIN_OR_SUPERADMIN },
-      { href: '/admin/status-alert-rules', icon: Warning, label: 'Cấu hình cảnh báo', roles: SUPERADMIN_ONLY },
+      { href: '/admin/users', icon: Users, label: 'Quản lý User', roles: ADMIN_VIEW_ROLES },
+      { href: '/admin/domains', icon: Globe, label: 'Quản lý Domain', roles: ADMIN_VIEW_ROLES },
+      { href: '/admin/projects', icon: Folder, label: 'Quản lý Dự án', roles: ADMIN_VIEW_ROLES },
+      { href: '/admin/status-alert-rules', icon: Warning, label: 'Cấu hình cảnh báo', roles: SUPERADMIN_OR_SUPERVISOR },
       { href: '/admin/database', icon: Archive, label: 'Sao lưu / Phục hồi dữ liệu', roles: SUPERADMIN_ONLY },
       { href: '/admin/permissions', icon: Lock, label: 'Ma trận phân quyền', roles: SUPERADMIN_ONLY },
       GENERAL_SETTINGS_ITEM,
@@ -225,12 +231,12 @@ const PAGE_HEADERS: Record<string, { subtitle: string; title: string }> = {
 const PAGE_ROLES: Record<string, UserRole[]> = {
   '/': SUPERADMIN_ONLY,
   '/admin/database': SUPERADMIN_ONLY,
-  '/admin/domains': ADMIN_OR_SUPERADMIN,
+  '/admin/domains': ADMIN_VIEW_ROLES,
   '/admin/permissions': SUPERADMIN_ONLY,
-  '/admin/projects': ADMIN_OR_SUPERADMIN,
-  '/admin/status-alert-rules': SUPERADMIN_ONLY,
-  '/admin/users': ADMIN_OR_SUPERADMIN,
-  '/epic-alerts': ADMIN_OR_SUPERADMIN,
+  '/admin/projects': ADMIN_VIEW_ROLES,
+  '/admin/status-alert-rules': SUPERADMIN_OR_SUPERVISOR,
+  '/admin/users': ADMIN_VIEW_ROLES,
+  '/epic-alerts': ADMIN_VIEW_ROLES,
   // /data-review/[batchId] drills into "Nguồn dữ liệu" — same SUPERADMIN-only gate as its API.
   '/data-review': SUPERADMIN_ONLY,
 };

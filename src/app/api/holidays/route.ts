@@ -23,7 +23,7 @@ function validate(body: HolidayInput): string | null {
 
 export async function GET(request: NextRequest) {
   try {
-    await requireUser(request, ['ADMIN', 'SUPERADMIN']);
+    await requireUser(request, ['ADMIN', 'SUPERADMIN', 'SUPERVISOR']);
     const holidays = await listHolidays();
     return NextResponse.json(holidays);
   } catch (error: unknown) {
