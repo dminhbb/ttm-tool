@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import './epic-alerts-15.css';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
@@ -11,7 +11,7 @@ import type { EpicAlertAccessRole, EpicAlertPhasedResponse, EpicAlertRowPhased, 
 import type { EpicAlertHistoryEntry } from '@/lib/epic-alert-history-service';
 import type { EpicMilestoneHistoryEntry } from '@/lib/epic-milestone-history-service';
 import type { AlertLevel } from '@/lib/ttm-rules';
-import { ArrowSquareOut, Warning } from '@phosphor-icons/react';
+import { ArrowSquareOut, CaretDown, Check, Warning } from '@phosphor-icons/react';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 
 const PAGE_SIZE = 20;
@@ -327,15 +327,86 @@ function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRowPhased; onClose:
   );
 }
 
+/** Compact multi-choice dropdown for the toolbar — same trigger/height as the plain `.ttm-select`
+ * filters next to it, but opens a checkbox popover instead of a native <select> list. */
+function TtmToolbarMultiSelect({
+  allLabel, ariaLabel, onChange, options, value,
+}: {
+  allLabel: string;
+  ariaLabel: string;
+  onChange: (values: string[]) => void;
+  options: string[];
+  value: string[];
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const closeWhenOutside = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setIsOpen(false);
+    };
+    const closeWhenEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setIsOpen(false); };
+    document.addEventListener('mousedown', closeWhenOutside);
+    document.addEventListener('keydown', closeWhenEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeWhenOutside);
+      document.removeEventListener('keydown', closeWhenEscape);
+    };
+  }, [isOpen]);
+
+  const summary = value.length === 0 ? allLabel : value.length <= 2 ? value.join(', ') : `${value.length} lựa chọn`;
+
+  const toggle = (option: string) => {
+    onChange(value.includes(option) ? value.filter((item) => item !== option) : [...value, option]);
+  };
+
+  return (
+    <div className="ttm-multiselect" ref={containerRef}>
+      <button
+        type="button"
+        className={`ttm-select ttm-multiselect-trigger${isOpen ? ' is-open' : ''}`}
+        aria-label={ariaLabel}
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((open) => !open)}
+      >
+        <span className="ttm-multiselect-summary">{summary}</span>
+        <CaretDown size={14} weight="bold" className="ttm-multiselect-caret" aria-hidden="true" />
+      </button>
+      {isOpen && (
+        <div className="ttm-multiselect-popover" role="group" aria-label={ariaLabel}>
+          {value.length > 0 && (
+            <button type="button" className="ttm-multiselect-clear" onClick={() => onChange([])}>Bỏ chọn tất cả</button>
+          )}
+          <div className="ttm-multiselect-options">
+            {options.length === 0 ? (
+              <p className="ttm-multiselect-empty">Không có lựa chọn.</p>
+            ) : options.map((option) => {
+              const isSelected = value.includes(option);
+              return (
+                <label key={option} className={`ttm-multiselect-option${isSelected ? ' is-selected' : ''}`}>
+                  <input type="checkbox" checked={isSelected} onChange={() => toggle(option)} />
+                  <span>{option}</span>
+                  {isSelected && <Check size={14} weight="bold" className="ttm-multiselect-check" aria-hidden="true" />}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function EpicAlerts15Page() {
   const [data, setData] = useState<EpicAlertPhasedResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [projectFilter, setProjectFilter] = useState('');
+  const [projectFilters, setProjectFilters] = useState<string[]>([]);
   const [alertFilter, setAlertFilter] = useState<AlertLevel | ''>('');
   const [typeFilter, setTypeFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [alertHistoryRow, setAlertHistoryRow] = useState<EpicAlertRowPhased | null>(null);
@@ -371,12 +442,12 @@ export default function EpicAlerts15Page() {
 
   const filteredRows = useMemo(() => rows.filter((row) => {
     const normalizedSearch = search.trim().toLocaleLowerCase('vi-VN');
-    return (!projectFilter || row.projectKey === projectFilter)
+    return (projectFilters.length === 0 || projectFilters.includes(row.projectKey))
       && (!alertFilter || row.alertLevel === alertFilter)
       && (!typeFilter || row.epicType === typeFilter)
-      && (!statusFilter || row.currentStatus === statusFilter)
+      && (statusFilters.length === 0 || statusFilters.includes(row.currentStatus))
       && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch));
-  }), [rows, projectFilter, alertFilter, typeFilter, statusFilter, search]);
+  }), [rows, projectFilters, alertFilter, typeFilter, statusFilters, search]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -399,10 +470,13 @@ export default function EpicAlerts15Page() {
       {error && <div className="ttm-note" style={{ background: 'var(--ttm-danger-050)', borderColor: '#f3b3b3', color: 'var(--ttm-danger-700)' }}>{error}</div>}
 
       <section className="ttm-toolbar" aria-label="Bộ lọc Epic">
-        <select className="ttm-select" aria-label="Dự án" value={projectFilter} onChange={(event) => { setProjectFilter(event.target.value); setPage(1); }}>
-          <option value="">Tất cả dự án của tôi</option>
-          {projectOptions.map((project) => <option key={project} value={project}>{project}</option>)}
-        </select>
+        <TtmToolbarMultiSelect
+          ariaLabel="Dự án"
+          allLabel="Tất cả dự án của tôi"
+          options={projectOptions}
+          value={projectFilters}
+          onChange={(values) => { setProjectFilters(values); setPage(1); }}
+        />
         <select className="ttm-select" aria-label="Cảnh báo" value={alertFilter} onChange={(event) => { setAlertFilter(event.target.value as AlertLevel | ''); setPage(1); }}>
           {ALERT_FILTER_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
@@ -411,10 +485,13 @@ export default function EpicAlerts15Page() {
           <option value="SIMPLE">Epic đơn giản</option>
           <option value="COMPLEX">Epic phức tạp</option>
         </select>
-        <select className="ttm-select" aria-label="Status" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}>
-          <option value="">Tất cả status</option>
-          {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
-        </select>
+        <TtmToolbarMultiSelect
+          ariaLabel="Status"
+          allLabel="Tất cả status"
+          options={statusOptions}
+          value={statusFilters}
+          onChange={(values) => { setStatusFilters(values); setPage(1); }}
+        />
         <input className="ttm-field" type="search" aria-label="Tìm Epic Key hoặc Epic Name" placeholder="Tìm Epic Key hoặc Epic Name…" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} />
         <div className="ttm-report-date">Dữ liệu cập nhật lần cuối: <b>{data ? formatDateTime(data.lastAggregatedAt) : '—'}</b></div>
       </section>

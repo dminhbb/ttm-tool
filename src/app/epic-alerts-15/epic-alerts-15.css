@@ -181,6 +181,64 @@
   outline: 2px solid var(--ttm-brand-100);
   border-color: var(--ttm-brand-600);
 }
+.ttm-multiselect { position: relative; display: inline-flex; }
+.ttm-multiselect-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 220px;
+}
+.ttm-multiselect-trigger.is-open {
+  outline: 2px solid var(--ttm-brand-100);
+  border-color: var(--ttm-brand-600);
+}
+.ttm-multiselect-summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ttm-multiselect-caret { flex-shrink: 0; color: var(--ttm-muted); transition: transform .15s ease; }
+.ttm-multiselect-trigger.is-open .ttm-multiselect-caret { transform: rotate(180deg); }
+.ttm-multiselect-popover {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  width: max(220px, 100%);
+  max-width: 320px;
+  border: 1px solid var(--ttm-border);
+  border-radius: var(--ttm-radius-sm);
+  background: var(--ttm-white);
+  box-shadow: var(--ttm-shadow-card);
+  overflow: hidden;
+}
+.ttm-multiselect-clear {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-bottom: 1px solid var(--ttm-border);
+  background: transparent;
+  color: var(--ttm-brand-600);
+  font-size: var(--ttm-font-size-sm);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.ttm-multiselect-clear:hover { background: var(--ttm-brand-050); }
+.ttm-multiselect-options { max-height: 240px; overflow-y: auto; padding: 4px; }
+.ttm-multiselect-empty { padding: 10px 8px; color: var(--ttm-muted); font-size: var(--ttm-font-size-sm); }
+.ttm-multiselect-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 5px 8px;
+  border-radius: var(--ttm-radius-sm);
+  color: var(--ttm-text);
+  font-size: var(--ttm-font-size-sm);
+  cursor: pointer;
+}
+.ttm-multiselect-option:hover,
+.ttm-multiselect-option.is-selected { background: var(--ttm-brand-050); }
+.ttm-multiselect-option input { width: 15px; height: 15px; accent-color: var(--ttm-brand-600); }
+.ttm-multiselect-check { margin-left: auto; flex-shrink: 0; color: var(--ttm-brand-600); }
 .ttm-button { cursor: pointer; font-weight: 600; }
 .ttm-button.primary {
   background: var(--ttm-brand-600);
