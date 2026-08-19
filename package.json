@@ -11,7 +11,8 @@
     "db:migrate:aiven": "node scripts/migrate-db.js --target=aiven",
     "db:init:aiven": "node scripts/migrate-db.js --target=aiven --init",
     "db:migrate:supabase": "node scripts/migrate-db.js --target=supabase",
-    "db:init:supabase": "node scripts/migrate-db.js --target=supabase --init"
+    "db:init:supabase": "node scripts/migrate-db.js --target=supabase --init",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",

@@ -33,7 +33,17 @@ over the direct connection for the same reason `db.ts` caps `max` low on both ho
 # Version stamp
 
 After finishing each user request that changes the app, regenerate `version.json` at the repo root
-with a fresh build stamp: `"yymmdd.hhmm"` — build date `yymmdd`, build time `hhmm` in 24h format,
-separated by a dot (e.g. `260817.1748`), using the actual current date/time. This is surfaced on
-the login screen footer (`src/app/login/page.tsx`) via `GET /api/system/status`
-(`src/lib/version.ts` reads the file).
+with a fresh build stamp: `"build": "yymmdd.hhmm"` — build date `yymmdd`, build time `hhmm` in 24h
+format, separated by a dot (e.g. `260817.1748`), using the actual current date/time. This is
+surfaced on the login screen footer (`src/components/layout/SystemStatusFooter.tsx`) via
+`GET /api/system/status` (`src/lib/version.ts` reads the `build` field — keep the field name as
+`build`, not `version`).
+
+This rule applies regardless of which coding agent is doing the work — Claude Code, Codex, Cursor,
+Antigravity, a human, whatever reads this file — since the whole point is a single, reliable
+version trail across every environment (production/UAT) no matter who or what shipped the change.
+As a backstop beyond just following this instruction, `.githooks/pre-commit` (activated via the
+`prepare` npm script's `git config core.hooksPath .githooks` — run once per clone via `npm install`)
+blocks any commit that changes app files without also staging an updated `version.json`. That hook
+is the actual enforcement; this section is what tells you *why* and *how* to satisfy it before you
+hit the block.

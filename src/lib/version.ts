@@ -10,8 +10,8 @@ export function getAppVersion(): string {
   try {
     const raw = readFileSync(path.join(process.cwd(), 'version.json'), 'utf8');
     const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed === 'object' && parsed !== null && 'version' in parsed && typeof parsed.version === 'string') {
-      return parsed.version;
+    if (typeof parsed === 'object' && parsed !== null && 'build' in parsed && typeof parsed.build === 'string') {
+      return parsed.build;
     }
   } catch {
     // Fall through to the placeholder below.

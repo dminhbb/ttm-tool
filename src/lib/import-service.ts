@@ -220,12 +220,18 @@ export interface ImportResult {
   validationReport: RowValidationResult[];
 }
 
+/** importType/importedBy just label the import_batches row for the history screen — default
+ * ('MANUAL'/'System') matches the UI upload path; the token-authenticated auto-import route
+ * (src/app/api/data-source/import/auto/route.ts) passes 'AUTO'/'Python Script (Auto Import)' so
+ * the two entry points stay distinguishable in "Nhật ký lịch sử import". */
 export async function processImport(
   fileName: string,
   csvText: string,
   aggregatedAtDate: Date,
   validateOnly: boolean = false,
   adapterType: AdapterType = DEFAULT_ADAPTER,
+  importType: string = 'MANUAL',
+  importedBy: string = 'System',
 ): Promise<ImportResult> {
   // 1. Parse CSV — dispatch to the correct adapter
   let rawIssues;
@@ -293,8 +299,8 @@ export async function processImport(
     const batchValues = [
       'CSV',
       fileName,
-      'MANUAL',
-      'System',
+      importType,
+      importedBy,
       aggregatedAtDate,
       totalRows,
       successRows,

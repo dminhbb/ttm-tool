@@ -1,0 +1,36 @@
+#!/bin/sh
+# Blocks a commit that changes the app without also bumping version.json's build stamp.
+# Applies no matter which tool made the change (Claude Code, Codex, Cursor, a human, ...) since it
+# runs at the git level, not inside any one agent's own conventions — see AGENTS.md's "Version
+# stamp" section for the exact format and rationale.
+#
+# Installed via `core.hooksPath` — see the "prepare" script in package.json, which points every
+# clone at this committed .githooks/ directory automatically on `npm install`.
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$STAGED" ] && exit 0
+
+# Files whose change alone never counts as "the app changed" — docs, planning artifacts, the
+# version file itself, and this hooks directory.
+NON_APP_PATTERN='^(version\.json|.*\.md|AGENTS\.md|CLAUDE\.md|README.*|\.gitignore|\.env.*|\.githooks/.*|\.claude/.*|\.design/.*|brd/.*|design-backup/.*)$'
+
+APP_CHANGED=$(printf '%s\n' "$STAGED" | grep -Ev "$NON_APP_PATTERN")
+
+if [ -n "$APP_CHANGED" ] && ! printf '%s\n' "$STAGED" | grep -qx 'version.json'; then
+  echo "pre-commit: app files changed but version.json wasn't updated." >&2
+  echo "  Regenerate version.json's \"build\" field (\"yymmdd.hhmm\", e.g. 260819.1400) and stage it," >&2
+  echo "  per AGENTS.md's Version stamp section, then retry the commit." >&2
+  echo "  (Emergency bypass: git commit --no-verify)" >&2
+  exit 1
+fi
+
+if printf '%s\n' "$STAGED" | grep -qx 'version.json'; then
+  BUILD=$(git show :version.json 2>/dev/null | grep -o '"build"[[:space:]]*:[[:space:]]*"[^"]*"' | sed -E 's/.*"([0-9.]+)"/\1/')
+  if ! printf '%s' "$BUILD" | grep -Eq '^[0-9]{6}\.[0-9]{4}$'; then
+    echo "pre-commit: version.json's \"build\" field is missing or not in \"yymmdd.hhmm\" format (got: \"$BUILD\")." >&2
+    echo "  (Emergency bypass: git commit --no-verify)" >&2
+    exit 1
+  fi
+fi
+
+exit 0

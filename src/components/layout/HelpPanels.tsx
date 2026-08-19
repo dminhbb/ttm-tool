@@ -174,6 +174,25 @@ export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
           <h3 className="ui-card-title mb-1">5. Màn hình Cảnh báo Epic lấy dữ liệu từ đâu?</h3>
           <p>API <code>GET /api/epic-alerts</code> KHÔNG đọc dữ liệu đã tổng hợp sẵn. Mỗi lần load, hệ thống lấy dòng <code>issues</code> mới nhất của từng Epic (theo <code>aggregated_at</code> lớn nhất, không giới hạn theo 1 batch cụ thể) rồi tính lại toàn bộ cảnh báo tại thời điểm request bằng rule đang active. <code>epic_alert_history</code> chỉ dùng để: (a) hiện icon/lịch sử cảnh báo, (b) quyết định Epic status = Released có còn hiển thị hay không.</p>
         </section>
+
+        <section>
+          <h3 className="ui-card-title mb-1">6. API import dữ liệu tự động (cho script Python)</h3>
+          <p>Ngoài form upload trên màn hình Nguồn dữ liệu (xác thực bằng session, chỉ <strong className="text-fb-text-primary">SUPERADMIN</strong>), hệ thống có thêm 1 endpoint riêng để script export Jira của bạn tự động gọi ngay sau khi xuất xong file — dùng chung pipeline <code>processImport()</code>, cùng định dạng CSV/adapter <code>PY_JIRA_API</code>, không đổi gì ở logic parse/validate so với import thủ công.</p>
+          <ul className="ml-5 list-disc space-y-1">
+            <li><strong className="text-fb-text-primary">Endpoint riêng</strong>: <code>POST /api/data-source/import/auto</code> — tách hoàn toàn khỏi route UI (<code>/api/data-source/import</code> vẫn giữ nguyên session + SUPERADMIN).</li>
+            <li><strong className="text-fb-text-primary">Xác thực bằng token</strong>: gửi header <code>Authorization: Bearer &lt;token&gt;</code>, so khớp với biến môi trường <code>IMPORT_API_TOKEN</code> bằng SHA-256 hash + so sánh constant-time (tránh timing attack). Bạn tự tạo token và khai báo — hệ thống không tự sinh giá trị thật, chỉ có chỗ khai báo mẫu trong <code>.env.example</code>.</li>
+            <li><strong className="text-fb-text-primary">aggregatedAt</strong>: luôn lấy <code>new Date()</code> tại đúng thời điểm API được gọi — script không cần truyền, hệ thống cũng không đoán từ tên file.</li>
+            <li><strong className="text-fb-text-primary">Response</strong>: dùng nguyên contract JSON hiện có của <code>processImport()</code> (<code>successRows</code>/<code>warningRows</code>/<code>errorRows</code>) để script log/cảnh báo khi import có lỗi.</li>
+            <li><strong className="text-fb-text-primary">Giới hạn file</strong>: chặn ở 2MB (413 nếu vượt) — chỉ là lớp phòng thủ, dư dả so với các file export thực tế (thường dưới 500KB).</li>
+            <li><strong className="text-fb-text-primary">Phân biệt trong nhật ký import</strong>: các đợt import qua API này được gắn <code>importType = &quot;AUTO&quot;</code>, <code>importedBy = &quot;Python Script (Auto Import)&quot;</code> (khác với <code>&quot;MANUAL&quot;</code>/<code>&quot;System&quot;</code> của upload thủ công) để dễ tra soát &quot;Nhật ký lịch sử import&quot;.</li>
+          </ul>
+          <p className="mt-2"><strong className="text-fb-text-primary">Các bước cần làm để dùng được:</strong></p>
+          <ol className="ml-5 list-decimal space-y-1">
+            <li>Tạo token (ví dụ <code>openssl rand -hex 32</code>), thêm vào <code>.env.local</code>: <code>IMPORT_API_TOKEN=&lt;giá trị&gt;</code> — và biến môi trường tương ứng trên Vercel (production) nếu muốn script gọi cả vào production.</li>
+            <li>Restart server (<code>npm run dev</code>/deploy lại) — biến môi trường mới chỉ được đọc lúc server khởi động.</li>
+            <li>Script Python gọi: <code>POST http://&lt;host&gt;/api/data-source/import/auto</code>, header <code>Authorization: Bearer &lt;token&gt;</code>, body <code>multipart/form-data</code> với field <code>file</code> = file CSV export.</li>
+          </ol>
+        </section>
       </div>
     </Modal>
   );
