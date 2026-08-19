@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import { ArrowsClockwise, Trash } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
-import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card, CardBody, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Pagination } from '@/components/ui/Pagination';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { TableAction } from '@/components/ui/TableAction';
@@ -21,6 +22,8 @@ interface AggregatedDataLayer {
   rawDataAvailable: boolean;
 }
 
+const LAYERS_PAGE_SIZE = 5;
+
 function formatDate(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00`);
   if (Number.isNaN(d.getTime())) return dateStr;
@@ -35,6 +38,7 @@ export function AggregatedDataLayersPanel() {
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [pendingLayerDate, setPendingLayerDate] = useState<string | null>(null);
+  const [layersPage, setLayersPage] = useState(1);
 
   const fetchLayers = async () => {
     setIsLoading(true);
@@ -139,7 +143,7 @@ export function AggregatedDataLayersPanel() {
                 </TR>
               </THead>
               <TBody>
-                {layers.map((layer) => (
+                {layers.slice((layersPage - 1) * LAYERS_PAGE_SIZE, layersPage * LAYERS_PAGE_SIZE).map((layer) => (
                   <TR key={layer.layerDate}>
                     <TD className="font-bold text-fb-blue">{formatDate(layer.layerDate)}</TD>
                     <TD className="text-center font-bold">{layer.epicTtmSnapshotCount}</TD>
@@ -178,6 +182,17 @@ export function AggregatedDataLayersPanel() {
           </TableContainer>
         )}
       </CardBody>
+      {!isLoading && layers.length > LAYERS_PAGE_SIZE && (
+        <CardFooter>
+          <Pagination
+            currentPage={Math.min(layersPage, Math.max(1, Math.ceil(layers.length / LAYERS_PAGE_SIZE)))}
+            itemLabel="lớp dữ liệu"
+            onPageChange={setLayersPage}
+            pageSize={LAYERS_PAGE_SIZE}
+            totalItems={layers.length}
+          />
+        </CardFooter>
+      )}
     </Card>
   );
 }

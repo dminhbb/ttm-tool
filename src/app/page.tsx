@@ -20,6 +20,7 @@ import { TableContainer, Table, THead, TBody, TR, TH, TD } from '@/components/ui
 import { TableAction } from '@/components/ui/TableAction';
 import { Modal } from '@/components/ui/Modal';
 import { RightPanel } from '@/components/layout/RightPanel';
+import { Pagination } from '@/components/ui/Pagination';
 import {
   Trash,
   Eye,
@@ -77,6 +78,8 @@ interface PreviewResult {
   }[];
 }
 
+const HISTORY_PAGE_SIZE = 5;
+
 export default function DataSourcePage() {
   const router = useRouter();
   const [sourceType, setSourceType] = useState('CSV');
@@ -87,6 +90,7 @@ export default function DataSourcePage() {
   const [autoDateMessage, setAutoDateMessage] = useState('');
   
   const [history, setHistory] = useState<ImportBatch[]>([]);
+  const [historyPage, setHistoryPage] = useState(1);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<{ type: 'success' | 'error' | 'warning', text: string } | null>(null);
@@ -478,7 +482,7 @@ export default function DataSourcePage() {
                       </TR>
                     </THead>
                     <TBody>
-                      {history.map((batch) => (
+                      {history.slice((historyPage - 1) * HISTORY_PAGE_SIZE, historyPage * HISTORY_PAGE_SIZE).map((batch) => (
                         <TR key={batch.id}>
                           <TD className="font-bold text-fb-text-primary">#{batch.id}</TD>
                           <TD className="max-w-[230px] truncate font-medium" title={batch.fileName}>
@@ -541,6 +545,17 @@ export default function DataSourcePage() {
                 </TableContainer>
               )}
             </CardBody>
+            {!isLoadingHistory && history.length > HISTORY_PAGE_SIZE && (
+              <CardFooter>
+                <Pagination
+                  currentPage={Math.min(historyPage, Math.max(1, Math.ceil(history.length / HISTORY_PAGE_SIZE)))}
+                  itemLabel="đợt import"
+                  onPageChange={setHistoryPage}
+                  pageSize={HISTORY_PAGE_SIZE}
+                  totalItems={history.length}
+                />
+              </CardFooter>
+            )}
           </Card>
 
           <AggregatedDataLayersPanel />

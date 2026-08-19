@@ -6,12 +6,13 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import type { EpicAlertAccessRole, EpicAlertPhasedResponse, EpicAlertRowPhased, PhaseCell } from '@/lib/epic-alert-types';
 import type { EpicAlertHistoryEntry } from '@/lib/epic-alert-history-service';
 import type { EpicMilestoneHistoryEntry } from '@/lib/epic-milestone-history-service';
 import type { AlertLevel } from '@/lib/ttm-rules';
-import { ArrowSquareOut, CaretDown, Check, Warning } from '@phosphor-icons/react';
+import { ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, Check, Warning } from '@phosphor-icons/react';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 
 const PAGE_SIZE = 20;
@@ -94,6 +95,55 @@ function PhaseStageCell({ actualDateText, cell }: { actualDateText?: string | nu
   );
 }
 
+/** DESIGN/DEV/TEST/PENTEST can be individually collapsed to save horizontal space (the table has
+ * grown to 13 columns) — R4GOLIVE/Release stay always-expanded since their bottom line carries a
+ * real recorded date (R4G Date / Due Date), not just the baseline. */
+type CollapsiblePhase = 'DESIGN' | 'DEV' | 'TEST' | 'PENTEST';
+
+const COLLAPSIBLE_PHASES: CollapsiblePhase[] = ['DESIGN', 'DEV', 'TEST', 'PENTEST'];
+
+const PHASE_COLUMN_META: Record<CollapsiblePhase, { char: string; title: string }> = {
+  DESIGN: { char: 'D', title: 'Baseline = Start Date + 20% TTM-CNTT (làm tròn ngày)' },
+  DEV: { char: 'V', title: 'Baseline = Start Date + (20%+30%) TTM-CNTT (làm tròn ngày)' },
+  TEST: { char: 'T', title: 'Baseline = Start Date + (20%+30%+30%) TTM-CNTT (làm tròn ngày)' },
+  PENTEST: { char: 'P', title: 'Baseline = Start Date + (20%+30%+30%+10%) TTM-CNTT (làm tròn ngày)' },
+};
+
+/** Expanded: full name, click to collapse. Collapsed: thin stub showing one representative
+ * character with an immediate tooltip carrying the full name, click to expand — no sort affordance
+ * either way (TH's sortDirection prop is intentionally left unset on this column). */
+function CollapsiblePhaseHeader({ isCollapsed, onToggle, phase }: { isCollapsed: boolean; onToggle: (phase: CollapsiblePhase) => void; phase: CollapsiblePhase }) {
+  const meta = PHASE_COLUMN_META[phase];
+  if (isCollapsed) {
+    return (
+      <TH className="ttm-col-collapsed">
+        <Tooltip content={phase} side="right">
+          <button type="button" className="ttm-col-collapsed-toggle" onClick={() => onToggle(phase)} aria-label={`Hiện cột ${phase}`}>
+            {meta.char}
+          </button>
+        </Tooltip>
+      </TH>
+    );
+  }
+  return (
+    <TH className="min-w-[110px]" title={meta.title}>
+      <button type="button" className="ttm-col-header-toggle" onClick={() => onToggle(phase)} aria-label={`Ẩn cột ${phase}`}>{phase}</button>
+    </TH>
+  );
+}
+
+/** Body-side counterpart of CollapsiblePhaseHeader — a collapsed column renders as an empty thin
+ * cell (no content, per the collapse rule), matching the header's width/right-border. */
+function CollapsiblePhaseCell({ actualDateText, cell, isCollapsed }: { actualDateText?: string | null; cell: PhaseCell; isCollapsed: boolean }) {
+  if (isCollapsed) {
+    // Collapsed background reuses the same pass/warning/fail class as the expanded cell (see
+    // phaseCellColorClass) so the thin stub still shows the column's real status at a glance.
+    const colorClass = phaseCellColorClass(cell);
+    return <TD className={`ttm-phase-cell ttm-col-collapsed${colorClass ? ` ${colorClass}` : ''}`} />;
+  }
+  return <PhaseStageCell actualDateText={actualDateText} cell={cell} />;
+}
+
 const EPIC_TYPE_DOT: Record<string, { label: string; variant: string }> = {
   SIMPLE: { label: 'Epic đơn giản', variant: 'epic-type-simple' },
   COMPLEX: { label: 'Epic phức tạp', variant: 'epic-type-complex' },
@@ -106,7 +156,7 @@ function EpicTypeDot({ epicType }: { epicType: string | null }) {
 }
 
 /** Truncates epic summary text for the table's subtitle line — full text stays in the title tooltip. */
-function truncateSummary(value: string, maxLength = 70): string {
+function truncateSummary(value: string, maxLength = 50): string {
   return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
 }
 
@@ -126,26 +176,29 @@ function isPastBaseline(actual: string | null, baseline: string | null): boolean
  * end date is either a real recorded date (R4G Date / Due Date) or today while still ongoing. The
  * bottom stripe's color signals whether its end date has passed the baseline's end date. */
 function TtmMetricStrips({
-  actualFromDate, actualToDate, baselineFromDate, baselineToDate, elapsed, target,
+  actualFromDate, actualToDate, baselineFromDate, baselineToDate, compact, elapsed, target,
 }: {
   actualFromDate: string | null;
   actualToDate: string | null;
   baselineFromDate: string | null;
   baselineToDate: string | null;
+  compact: boolean;
   elapsed: number | null;
   target: number;
 }) {
   const elapsedDays = elapsed ?? 0;
   const ratio = target > 0 ? elapsedDays / target : 0;
   const isOver = isPastBaseline(actualToDate, baselineToDate);
-  const BASE_WIDTH = 56;
+  // Compact mode (all four collapsible phase columns collapsed) shrinks these tracks so the whole
+  // table fits the viewport with no horizontal scroll — see the toolbar's collapse-all toggle.
+  const BASE_WIDTH = compact ? 30 : 56;
   // Hard cap in px (not just a ratio multiplier) so an Epic with an unusually long actual
   // duration can never stretch the strip wide enough to break the table's layout.
-  const MAX_ACTUAL_WIDTH = 112;
+  const MAX_ACTUAL_WIDTH = compact ? 56 : 112;
   const actualWidth = Math.min(Math.max(6, ratio * BASE_WIDTH), MAX_ACTUAL_WIDTH);
 
   return (
-    <TD className="ttm-metric">
+    <TD className={`ttm-metric${compact ? ' ttm-metric-compact' : ''}`}>
       <div className="ttm-strip-wrap" title={`${elapsedDays}/${target} ngày làm việc`}>
         <div className="ttm-strip-row">
           <span className="ttm-strip-date">{formatDate(baselineFromDate)}</span>
@@ -162,13 +215,14 @@ function TtmMetricStrips({
   );
 }
 
-function TtmCnttStrips({ row }: { row: EpicAlertRowPhased }) {
+function TtmCnttStrips({ compact, row }: { compact: boolean; row: EpicAlertRowPhased }) {
   return (
     <TtmMetricStrips
       actualFromDate={row.ttmActualFromDate}
       actualToDate={row.ttmActualToDate}
       baselineFromDate={row.t1StartDate}
       baselineToDate={row.targetR4gDate}
+      compact={compact}
       elapsed={row.ttmActualElapsedWorkingDays}
       target={row.ttmCnttTargetWorkingDays}
     />
@@ -177,7 +231,7 @@ function TtmCnttStrips({ row }: { row: EpicAlertRowPhased }) {
 
 /** T0 (release baseline's own source date) doubles as both stripes' start — same convention as
  * TTM-CNTT's Start Date. */
-function TtmE2eStrips({ row }: { row: EpicAlertRowPhased }) {
+function TtmE2eStrips({ compact, row }: { compact: boolean; row: EpicAlertRowPhased }) {
   const t0 = row.stages.release.baselineSourceDate;
   return (
     <TtmMetricStrips
@@ -185,6 +239,7 @@ function TtmE2eStrips({ row }: { row: EpicAlertRowPhased }) {
       actualToDate={row.ttmE2eActualToDate}
       baselineFromDate={t0}
       baselineToDate={row.stages.release.baselineDate}
+      compact={compact}
       elapsed={row.ttmE2eElapsedWorkingDays}
       target={row.ttmE2eTargetWorkingDays}
     />
@@ -409,6 +464,20 @@ export default function EpicAlerts15Page() {
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [collapsedColumns, setCollapsedColumns] = useState<Set<CollapsiblePhase>>(new Set(['DESIGN', 'DEV', 'TEST', 'PENTEST']));
+  const toggleColumn = (phase: CollapsiblePhase) => {
+    setCollapsedColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(phase)) next.delete(phase); else next.add(phase);
+      return next;
+    });
+  };
+  // "Compact mode": only while every collapsible phase column is collapsed does the table shrink
+  // its other wide elements (TTM-CNTT/E2E strips, Status/R4GOLIVE/Release widths) to fit the
+  // viewport without horizontal scroll. Expanding any one of them drops back to the wider fixed
+  // layout — the user then scrolls horizontally instead.
+  const allColumnsCollapsed = collapsedColumns.size === COLLAPSIBLE_PHASES.length;
+  const toggleAllColumns = () => setCollapsedColumns(allColumnsCollapsed ? new Set() : new Set(COLLAPSIBLE_PHASES));
   const [alertHistoryRow, setAlertHistoryRow] = useState<EpicAlertRowPhased | null>(null);
   const [browsingEpicKey, setBrowsingEpicKey] = useState<string | null>(null);
   const viewIssueBaseUrl = useJiraViewIssueUrl();
@@ -493,6 +562,15 @@ export default function EpicAlerts15Page() {
           onChange={(values) => { setStatusFilters(values); setPage(1); }}
         />
         <input className="ttm-field" type="search" aria-label="Tìm Epic Key hoặc Epic Name" placeholder="Tìm Epic Key hoặc Epic Name…" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} />
+        <button
+          type="button"
+          className="ttm-button ghost ttm-collapse-all-toggle"
+          onClick={toggleAllColumns}
+          title={allColumnsCollapsed ? 'Mở rộng các cột DESIGN/DEV/TEST/PENTEST' : 'Thu gọn các cột DESIGN/DEV/TEST/PENTEST'}
+          aria-label={allColumnsCollapsed ? 'Mở rộng các cột DESIGN/DEV/TEST/PENTEST' : 'Thu gọn các cột DESIGN/DEV/TEST/PENTEST'}
+        >
+          {allColumnsCollapsed ? <ArrowsOutLineHorizontal size={16} weight="bold" /> : <ArrowsInLineHorizontal size={16} weight="bold" />}
+        </button>
         <div className="ttm-report-date">Dữ liệu cập nhật lần cuối: <b>{data ? formatDateTime(data.lastAggregatedAt) : '—'}</b></div>
       </section>
 
@@ -502,22 +580,21 @@ export default function EpicAlerts15Page() {
         <EmptyState title="Không có Epic phù hợp" description="Thử thay đổi bộ lọc." />
       ) : (
         <TableContainer>
-          <Table className="min-w-[1440px]">
+          <Table className={allColumnsCollapsed ? 'ttm-table-compact' : 'min-w-[1440px]'}>
             <THead>
               <TR>
-                <TH className="min-w-[180px] ttm-epic-col-sticky" title="issues.issue_key / issues.issue_name">Epic</TH>
-                <TH title="import_rows.normalized_data_json->>'epicType' (fallback: issues.epic_complexity_type). Xanh lá = Epic đơn giản, nâu nhạt = Epic phức tạp">Type</TH>
-                <TH className="min-w-[120px]" title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">Nhận xét</TH>
+                <TH className={`ttm-epic-col-sticky ${allColumnsCollapsed ? 'min-w-[150px]' : 'min-w-[180px]'}`} title="issues.issue_key / issues.issue_name">Epic</TH>
+                <TH className={allColumnsCollapsed ? 'min-w-[90px]' : 'min-w-[120px]'} title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">Nhận xét</TH>
                 <TH title="Baseline (dòng trên) = Start Date + TTM-CNTT; Thực tế (dòng dưới) = Start Date → R4G Date (hoặc hôm nay nếu chưa có)">TTM-CNTT</TH>
                 <TH title="Baseline (dòng trên) = T0 + TTM-E2E; Thực tế (dòng dưới) = T0 → Due Date (hoặc hôm nay nếu chưa có). T0 = Idea Approved Date, hoặc Start Date, hoặc ngày tạo Jira">TTM-E2E</TH>
-                <TH title="issues.current_status">Status</TH>
+                <TH className={allColumnsCollapsed ? 'ttm-col-compact-status' : undefined} title="issues.current_status">Status</TH>
                 <TH title="issues.start_date">Start Date</TH>
-                <TH className="min-w-[110px]" title="Baseline = Start Date + 20% TTM-CNTT (làm tròn ngày)">DESIGN</TH>
-                <TH className="min-w-[110px]" title="Baseline = Start Date + (20%+30%) TTM-CNTT (làm tròn ngày)">DEV</TH>
-                <TH className="min-w-[110px]" title="Baseline = Start Date + (20%+30%+30%) TTM-CNTT (làm tròn ngày)">TEST</TH>
-                <TH className="min-w-[110px]" title="Baseline = Start Date + (20%+30%+30%+10%) TTM-CNTT (làm tròn ngày)">PENTEST</TH>
-                <TH className="min-w-[110px]" title="Baseline = Start Date + 100% TTM-CNTT; dòng dưới = issues.r4g_date">R4GOLIVE</TH>
-                <TH className="min-w-[118px]" title="Baseline = Ngày duyệt ý tưởng (hoặc Ngày epic created nếu không có) + 20 ngày làm việc, không tính holiday. Dòng dưới = issues.due_date">Release</TH>
+                <CollapsiblePhaseHeader phase="DESIGN" isCollapsed={collapsedColumns.has('DESIGN')} onToggle={toggleColumn} />
+                <CollapsiblePhaseHeader phase="DEV" isCollapsed={collapsedColumns.has('DEV')} onToggle={toggleColumn} />
+                <CollapsiblePhaseHeader phase="TEST" isCollapsed={collapsedColumns.has('TEST')} onToggle={toggleColumn} />
+                <CollapsiblePhaseHeader phase="PENTEST" isCollapsed={collapsedColumns.has('PENTEST')} onToggle={toggleColumn} />
+                <TH className={allColumnsCollapsed ? 'min-w-[92px]' : 'min-w-[110px]'} title="Baseline = Start Date + 100% TTM-CNTT; dòng dưới = issues.r4g_date">R4GOLIVE</TH>
+                <TH className={allColumnsCollapsed ? 'min-w-[98px]' : 'min-w-[118px]'} title="Baseline = Ngày duyệt ý tưởng (hoặc Ngày epic created nếu không có) + 20 ngày làm việc, không tính holiday. Dòng dưới = issues.due_date">Release</TH>
               </TR>
             </THead>
             <TBody>
@@ -536,6 +613,7 @@ export default function EpicAlerts15Page() {
                       >
                         {row.epicKey}
                       </button>
+                      <EpicTypeDot epicType={row.epicType} />
                       {row.epicName && (
                         <span className="ttm-epic-summary" title={row.epicName}>{truncateSummary(row.epicName)}</span>
                       )}
@@ -550,7 +628,6 @@ export default function EpicAlerts15Page() {
                         </span>
                       )}
                     </TD>
-                    <TD><EpicTypeDot epicType={row.epicType} /></TD>
                     {isMissingCore ? (
                       <>
                         <TD>{row.currentStatus === 'To Do' ? <span className="ttm-empty-warning">—</span> : <span className="ttm-badge fail">Thiếu Start Date</span>}</TD>
@@ -569,14 +646,14 @@ export default function EpicAlerts15Page() {
                               : <span className="ttm-empty-warning">—</span>)
                             : <span className={`ttm-badge ${ALERT_BADGE_CLASS[row.alertLevel]}`}>{row.alertLevel === 'EARLY' ? 'Cảnh báo sớm' : row.alertLevel === 'LATE' ? 'Cảnh báo muộn' : 'Fail TTM-CNTT'}</span>}
                         </TD>
-                        <TtmCnttStrips row={row} />
-                        <TtmE2eStrips row={row} />
-                        <TD><StatusBadge status={row.currentStatus} /></TD>
+                        <TtmCnttStrips compact={allColumnsCollapsed} row={row} />
+                        <TtmE2eStrips compact={allColumnsCollapsed} row={row} />
+                        <TD className={allColumnsCollapsed ? 'ttm-col-compact-status' : undefined}><StatusBadge status={row.currentStatus} /></TD>
                         <TD className="ttm-phase-cell pass">{formatDate(row.t1StartDate)}</TD>
-                        <PhaseStageCell cell={row.stages.design} />
-                        <PhaseStageCell cell={row.stages.dev} />
-                        <PhaseStageCell cell={row.stages.test} />
-                        <PhaseStageCell cell={row.stages.pentest} />
+                        <CollapsiblePhaseCell cell={row.stages.design} isCollapsed={collapsedColumns.has('DESIGN')} />
+                        <CollapsiblePhaseCell cell={row.stages.dev} isCollapsed={collapsedColumns.has('DEV')} />
+                        <CollapsiblePhaseCell cell={row.stages.test} isCollapsed={collapsedColumns.has('TEST')} />
+                        <CollapsiblePhaseCell cell={row.stages.pentest} isCollapsed={collapsedColumns.has('PENTEST')} />
                         <PhaseStageCell cell={row.stages.r4golive} actualDateText={row.r4gDate} />
                         <PhaseStageCell cell={row.stages.release} actualDateText={row.dueDate} />
                       </>

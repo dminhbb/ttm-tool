@@ -181,6 +181,48 @@
   outline: 2px solid var(--ttm-brand-100);
   border-color: var(--ttm-brand-600);
 }
+/* Collapsible phase columns (DESIGN/DEV/TEST/PENTEST) — collapsed state matches the right border
+   to the same color as the table's row bottom border (.ui-table tbody td's border-bottom, driven
+   by the shared --border-subtle token) so the thin stub reads as an extension of the row grid. */
+.ttm-col-collapsed { width: 28px; min-width: 28px; max-width: 28px; padding: 0 !important; text-align: center; border-right: 2px solid var(--border-subtle); }
+.ttm-col-collapsed-toggle {
+  display: flex;
+  width: 100%;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--ttm-muted);
+  font-weight: 700;
+  font-size: var(--ttm-font-size-sm);
+  cursor: pointer;
+}
+.ttm-col-collapsed-toggle:hover { color: var(--ttm-brand-600); }
+.ttm-col-header-toggle {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+.ttm-col-header-toggle:hover { text-decoration: underline; }
+.ttm-collapse-all-toggle { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; width: 34px; padding: 0; }
+.ttm-collapse-all-toggle:hover { border-color: var(--ttm-brand-600); color: var(--ttm-brand-600); }
+/* Compact mode (Table gets this class only while every collapsible phase column is collapsed —
+   see allColumnsCollapsed in page.tsx): drop the table's forced min-width and tighten cell padding
+   plus the TTM-CNTT/E2E strips and Status badge so the remaining columns fit the viewport without
+   a horizontal scrollbar. Expanding any phase column drops this class and reverts to the normal
+   fixed-width layout (horizontal scroll takes over instead). */
+.ttm-table-compact th,
+.ttm-table-compact td { padding-left: 8px; padding-right: 8px; }
+.ttm-col-compact-status { max-width: 92px; }
+.ttm-col-compact-status .ttm-status-badge { max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ttm-metric-compact .ttm-strip-date { font-size: 10px; }
 .ttm-multiselect { position: relative; display: inline-flex; }
 .ttm-multiselect-trigger {
   display: inline-flex;
@@ -272,7 +314,7 @@
 .ttm-badge.late-warning { background: #fdf0e6; color: var(--ttm-danger-600); border: 1px solid #f5c2a7; }
 .ttm-badge.fail { background: var(--ttm-danger-700); color: var(--ttm-white); }
 /* Type column — small bullet: light green for simple, light brown for complex. */
-.ttm-epic-type-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+.ttm-epic-type-dot { display: inline-block; width: 10px; height: 10px; margin-left: 6px; vertical-align: middle; border-radius: 50%; }
 .ttm-epic-type-dot.epic-type-simple { background: #8ed07f; }
 .ttm-epic-type-dot.epic-type-complex { background: #c9a279; }
 .ttm-missing-tag {
