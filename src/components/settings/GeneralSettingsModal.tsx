@@ -1,11 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import { Calendar, Tag, X } from '@phosphor-icons/react';
+import { Calendar, LinkSimple, Tag, X } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { HolidaysPanel } from '@/components/settings/HolidaysPanel';
 import { IssueTypeRolesPanel } from '@/components/settings/IssueTypeRolesPanel';
+import { JiraConfigPanel } from '@/components/settings/JiraConfigPanel';
 
 export interface GeneralSettingsModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ interface SettingsSection {
 const SECTIONS: SettingsSection[] = [
   { id: 'holidays', icon: Calendar, label: 'Quản lý ngày nghỉ', panel: <HolidaysPanel /> },
   { id: 'issue-type-roles', icon: Tag, label: 'Quản lý Issue Type', panel: <IssueTypeRolesPanel /> },
+  { id: 'jira-config', icon: LinkSimple, label: 'Cấu hình Jira', panel: <JiraConfigPanel /> },
 ];
 
 export function GeneralSettingsModal({ isOpen, onClose }: GeneralSettingsModalProps) {

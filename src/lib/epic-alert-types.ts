@@ -114,6 +114,9 @@ export interface EpicAlertRowPhased {
   ttmCnttFromField: string | null;
   ttmCnttTargetWorkingDays: number;
   ttmCnttToField: string | null;
+  /** Ends the TTM-E2E "stripe thực tế" (bottom strip) — Due Date once recorded, else today. Start of
+   * that same strip is stages.release.baselineSourceDate (T0), shared with the baseline strip above it. */
+  ttmE2eActualToDate: string | null;
   ttmE2eElapsedWorkingDays: number | null;
   ttmE2eTargetWorkingDays: number;
 }

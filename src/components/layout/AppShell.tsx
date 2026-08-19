@@ -367,7 +367,7 @@ export function AppShell({ children }: AppShellProps) {
       <GeneralSettingsModal isOpen={generalSettingsOpen} onClose={() => setGeneralSettingsOpen(false)} />
 
       <div className={cn('min-w-0', desktopNavigationExpanded ? 'lg:pl-64' : 'lg:pl-[72px]')}>
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-fb-border bg-fb-bg px-4 sm:px-6">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-fb-border ttm-frosted-header px-4 sm:px-6">
           <button
             type="button"
             onClick={() => setMobileNavigationOpen(true)}

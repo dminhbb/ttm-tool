@@ -9,7 +9,8 @@ import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui
 import type { EpicAlertAccessRole, EpicAlertResponse, EpicAlertRow, StageCell } from '@/lib/epic-alert-types';
 import type { EpicAlertHistoryEntry } from '@/lib/epic-alert-history-service';
 import type { AlertLevel } from '@/lib/ttm-rules';
-import { Circle, Stack, Warning } from '@phosphor-icons/react';
+import { ArrowSquareOut, Circle, Stack, Warning } from '@phosphor-icons/react';
+import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 
 const PAGE_SIZE = 20;
 
@@ -173,6 +174,22 @@ function AlertHistoryButton({ row, onOpen }: { row: EpicAlertRow; onOpen: (epicK
   );
 }
 
+function JiraLinkButton({ epicKey, viewIssueBaseUrl }: { epicKey: string; viewIssueBaseUrl: string }) {
+  if (!viewIssueBaseUrl) return null;
+  return (
+    <a
+      className="ttm-alert-history-trigger"
+      href={`${viewIssueBaseUrl}${epicKey}`}
+      onClick={(event) => event.stopPropagation()}
+      rel="noopener noreferrer"
+      target="_blank"
+      title="Mở Epic trên Jira"
+    >
+      <ArrowSquareOut weight="bold" size={16} />
+    </a>
+  );
+}
+
 function AlertHistoryPanel({ epicKey, onClose }: { epicKey: string; onClose: () => void }) {
   const [entries, setEntries] = useState<EpicAlertHistoryEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -222,6 +239,7 @@ export default function EpicAlertsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [alertHistoryEpicKey, setAlertHistoryEpicKey] = useState<string | null>(null);
+  const viewIssueBaseUrl = useJiraViewIssueUrl();
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -332,8 +350,9 @@ export default function EpicAlertsPage() {
                 return (
                   <TR key={row.epicKey} className={isMissingCore ? 'missing-row' : undefined}>
                     <TD>
-                      <span className="ttm-epic-key">{row.epicKey}</span>
                       <AlertHistoryButton row={row} onOpen={setAlertHistoryEpicKey} />
+                      <JiraLinkButton epicKey={row.epicKey} viewIssueBaseUrl={viewIssueBaseUrl} />
+                      <span className="ttm-epic-key">{row.epicKey}</span>
                       <span className="ttm-project-tag">
                         {row.projectKey}{row.domainName ? ` · ${row.domainName}` : ''}
                       </span>

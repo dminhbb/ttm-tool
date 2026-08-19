@@ -8,7 +8,6 @@ import {
   isCancelledStatus,
   missingStandardInfo,
   parseDate,
-  resolveTtmActualRange,
   toIsoDate,
 } from '@/lib/epic-alert-service';
 import { computeEpicPhaseCompletionByEpicKey } from '@/lib/epic-phase-completion-service';
@@ -120,11 +119,9 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
     if (isCancelledStatus(row.status)) continue;
 
     const ttmCnttStartDate = parseDate(evaluation.ttm.cntt.fromDate);
-    const ttmE2eStartDate = parseDate(evaluation.ttm.e2e.fromDate);
     const ttmCnttTarget = evaluation.ttm.cntt.workingDays ?? 0;
     const ttmCnttElapsed = ttmCnttStartDate ? Math.max(0, diffWorkingDays(ttmCnttStartDate, now, holidays)) : null;
     const ttmE2eTarget = evaluation.ttm.e2e.workingDays ?? 0;
-    const ttmE2eElapsed = ttmE2eStartDate ? Math.max(0, diffWorkingDays(ttmE2eStartDate, now, holidays)) : null;
     const alertLevel = evaluation.alertLevel;
 
     const baselines = startDate && ttmCnttTarget ? computeTtmPhaseBaselines(startDate, ttmCnttTarget, holidays) : null;
@@ -172,10 +169,17 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
       }
     });
 
-    const ttmActualRange = resolveTtmActualRange(row, now);
-    const ttmActualFrom = parseDate(ttmActualRange.fromDate);
-    const ttmActualTo = parseDate(ttmActualRange.toDate);
-    const ttmActualElapsed = ttmActualFrom && ttmActualTo ? diffWorkingDays(ttmActualFrom, ttmActualTo, holidays) : null;
+    // TTM-CNTT stripe "thực tế" (bottom): same start as the baseline stripe (Start Date) — ends at
+    // R4G Date once recorded, else today (Epic still ongoing). This screen's own rule, distinct from
+    // the shared resolveTtmActualRange used by the legacy "Quản lý Epic 30" screen (which factors in
+    // Due Date / T0 for a different column layout).
+    const ttmActualToDate = (row.r4gDate && parseDate(row.r4gDate)) || now;
+    const ttmActualElapsed = startDate ? Math.max(0, diffWorkingDays(startDate, ttmActualToDate, holidays)) : null;
+
+    // TTM-E2E stripe "thực tế" (bottom): same start as its baseline stripe (T0, releaseBaseDate) —
+    // ends at Due Date once recorded, else today.
+    const ttmE2eActualToDate = (row.dueDate && parseDate(row.dueDate)) || now;
+    const ttmE2eElapsed = releaseBaseDate ? Math.max(0, diffWorkingDays(releaseBaseDate, ttmE2eActualToDate, holidays)) : null;
 
     rows.push({
       alertLevel,
@@ -202,13 +206,14 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
       t1StartDate: row.startDate,
       targetR4gDate: toIsoDate(targetR4gDate) ?? row.targetR4gDate,
       ttmActualElapsedWorkingDays: ttmActualElapsed,
-      ttmActualFromDate: ttmActualRange.fromDate,
-      ttmActualToDate: ttmActualRange.toDate,
+      ttmActualFromDate: toIsoDate(startDate),
+      ttmActualToDate: toIsoDate(ttmActualToDate),
       ttmCnttElapsedWorkingDays: ttmCnttElapsed,
       ttmCnttFromDate: evaluation.ttm.cntt.fromDate,
       ttmCnttFromField: evaluation.ttm.cntt.fromField,
       ttmCnttTargetWorkingDays: ttmCnttTarget,
       ttmCnttToField: evaluation.ttm.cntt.toField,
+      ttmE2eActualToDate: toIsoDate(ttmE2eActualToDate),
       ttmE2eElapsedWorkingDays: ttmE2eElapsed,
       ttmE2eTargetWorkingDays: ttmE2eTarget,
     });

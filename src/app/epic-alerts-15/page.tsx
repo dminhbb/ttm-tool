@@ -11,7 +11,8 @@ import type { EpicAlertAccessRole, EpicAlertPhasedResponse, EpicAlertRowPhased, 
 import type { EpicAlertHistoryEntry } from '@/lib/epic-alert-history-service';
 import type { EpicMilestoneHistoryEntry } from '@/lib/epic-milestone-history-service';
 import type { AlertLevel } from '@/lib/ttm-rules';
-import { Warning } from '@phosphor-icons/react';
+import { ArrowSquareOut, Warning } from '@phosphor-icons/react';
+import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 
 const PAGE_SIZE = 20;
 
@@ -114,37 +115,79 @@ function StatusBadge({ status }: { status: string }) {
   return <span className="ttm-status-badge">{status}</span>;
 }
 
-function TtmCnttStrips({ row }: { row: EpicAlertRowPhased }) {
-  const target = row.ttmCnttTargetWorkingDays;
-  const elapsed = row.ttmActualElapsedWorkingDays ?? 0;
-  const ratio = target > 0 ? elapsed / target : 0;
-  // Tied to the same alertLevel shown in "Nhận xét" (not re-derived from elapsed/target here) so
-  // the stripe color can never disagree with the Fail TTM badge at the day-boundary — elapsed is a
-  // working-day count (reaching the target day still reads as "not yet over"), while alertLevel's
-  // FAIL already fires that same day (see computeTtmAlert in ttm-rules.ts).
-  const isOver = row.alertLevel === 'FAIL';
+/** True when `actual` (an ISO "YYYY-MM-DD" date) falls strictly after `baseline` — ISO date strings
+ * sort lexicographically the same as chronologically, so a plain string compare is exact here. */
+function isPastBaseline(actual: string | null, baseline: string | null): boolean {
+  return Boolean(actual && baseline && actual > baseline);
+}
+
+/** Two-stripe metric cell shared by the TTM-CNTT and TTM-E2E columns: top stripe is the baseline
+ * (planned) window, bottom stripe is the actual window so far — same start date as the baseline,
+ * end date is either a real recorded date (R4G Date / Due Date) or today while still ongoing. The
+ * bottom stripe's color signals whether its end date has passed the baseline's end date. */
+function TtmMetricStrips({
+  actualFromDate, actualToDate, baselineFromDate, baselineToDate, elapsed, target,
+}: {
+  actualFromDate: string | null;
+  actualToDate: string | null;
+  baselineFromDate: string | null;
+  baselineToDate: string | null;
+  elapsed: number | null;
+  target: number;
+}) {
+  const elapsedDays = elapsed ?? 0;
+  const ratio = target > 0 ? elapsedDays / target : 0;
+  const isOver = isPastBaseline(actualToDate, baselineToDate);
   const BASE_WIDTH = 56;
   // Hard cap in px (not just a ratio multiplier) so an Epic with an unusually long actual
   // duration can never stretch the strip wide enough to break the table's layout.
   const MAX_ACTUAL_WIDTH = 112;
   const actualWidth = Math.min(Math.max(6, ratio * BASE_WIDTH), MAX_ACTUAL_WIDTH);
-  const fromDate = row.t1StartDate;
 
   return (
     <TD className="ttm-metric">
-      <div className="ttm-strip-wrap" title={`${elapsed}/${target} ngày làm việc`}>
+      <div className="ttm-strip-wrap" title={`${elapsedDays}/${target} ngày làm việc`}>
         <div className="ttm-strip-row">
-          <span className="ttm-strip-date">{formatDate(fromDate)}</span>
+          <span className="ttm-strip-date">{formatDate(baselineFromDate)}</span>
           <span className="ttm-strip-track" style={{ width: `${BASE_WIDTH}px` }} />
-          <span className="ttm-strip-date">{formatDate(row.targetR4gDate)}</span>
+          <span className="ttm-strip-date">{formatDate(baselineToDate)}</span>
         </div>
         <div className="ttm-strip-row">
-          <span className="ttm-strip-date">{formatDate(row.ttmActualFromDate)}</span>
+          <span className="ttm-strip-date">{formatDate(actualFromDate)}</span>
           <span className={`ttm-strip-track actual ${isOver ? 'over' : 'under'}`} style={{ width: `${actualWidth}px` }} />
-          <span className="ttm-strip-date">{formatDate(row.ttmActualToDate)}</span>
+          <span className="ttm-strip-date">{formatDate(actualToDate)}</span>
         </div>
       </div>
     </TD>
+  );
+}
+
+function TtmCnttStrips({ row }: { row: EpicAlertRowPhased }) {
+  return (
+    <TtmMetricStrips
+      actualFromDate={row.ttmActualFromDate}
+      actualToDate={row.ttmActualToDate}
+      baselineFromDate={row.t1StartDate}
+      baselineToDate={row.targetR4gDate}
+      elapsed={row.ttmActualElapsedWorkingDays}
+      target={row.ttmCnttTargetWorkingDays}
+    />
+  );
+}
+
+/** T0 (release baseline's own source date) doubles as both stripes' start — same convention as
+ * TTM-CNTT's Start Date. */
+function TtmE2eStrips({ row }: { row: EpicAlertRowPhased }) {
+  const t0 = row.stages.release.baselineSourceDate;
+  return (
+    <TtmMetricStrips
+      actualFromDate={t0}
+      actualToDate={row.ttmE2eActualToDate}
+      baselineFromDate={t0}
+      baselineToDate={row.stages.release.baselineDate}
+      elapsed={row.ttmE2eElapsedWorkingDays}
+      target={row.ttmE2eTargetWorkingDays}
+    />
   );
 }
 
@@ -178,6 +221,22 @@ function AlertHistoryButton({ row, onOpen }: { row: EpicAlertRowPhased; onOpen: 
     >
       <Warning weight="fill" size={16} />
     </button>
+  );
+}
+
+function JiraLinkButton({ epicKey, viewIssueBaseUrl }: { epicKey: string; viewIssueBaseUrl: string }) {
+  if (!viewIssueBaseUrl) return null;
+  return (
+    <a
+      className="ttm-alert-history-trigger"
+      href={`${viewIssueBaseUrl}${epicKey}`}
+      onClick={(event) => event.stopPropagation()}
+      rel="noopener noreferrer"
+      target="_blank"
+      title="Mở Epic trên Jira"
+    >
+      <ArrowSquareOut weight="bold" size={16} />
+    </a>
   );
 }
 
@@ -281,6 +340,7 @@ export default function EpicAlerts15Page() {
   const [page, setPage] = useState(1);
   const [alertHistoryRow, setAlertHistoryRow] = useState<EpicAlertRowPhased | null>(null);
   const [browsingEpicKey, setBrowsingEpicKey] = useState<string | null>(null);
+  const viewIssueBaseUrl = useJiraViewIssueUrl();
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -371,7 +431,8 @@ export default function EpicAlerts15Page() {
                 <TH className="min-w-[180px] ttm-epic-col-sticky" title="issues.issue_key / issues.issue_name">Epic</TH>
                 <TH title="import_rows.normalized_data_json->>'epicType' (fallback: issues.epic_complexity_type). Xanh lá = Epic đơn giản, nâu nhạt = Epic phức tạp">Type</TH>
                 <TH className="min-w-[120px]" title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">Nhận xét</TH>
-                <TH title="Tính từ issues.start_date + issues.epic_complexity_type (số ngày làm việc thực tế / chuẩn)">TTM-CNTT</TH>
+                <TH title="Baseline (dòng trên) = Start Date + TTM-CNTT; Thực tế (dòng dưới) = Start Date → R4G Date (hoặc hôm nay nếu chưa có)">TTM-CNTT</TH>
+                <TH title="Baseline (dòng trên) = T0 + TTM-E2E; Thực tế (dòng dưới) = T0 → Due Date (hoặc hôm nay nếu chưa có). T0 = Idea Approved Date, hoặc Start Date, hoặc ngày tạo Jira">TTM-E2E</TH>
                 <TH title="issues.current_status">Status</TH>
                 <TH title="issues.start_date">Start Date</TH>
                 <TH className="min-w-[110px]" title="Baseline = Start Date + 20% TTM-CNTT (làm tròn ngày)">DESIGN</TH>
@@ -388,6 +449,8 @@ export default function EpicAlerts15Page() {
                 return (
                   <TR key={row.epicKey} className={isMissingCore ? 'missing-row' : undefined}>
                     <TD className="ttm-epic-col-sticky">
+                      <AlertHistoryButton row={row} onOpen={setAlertHistoryRow} />
+                      <JiraLinkButton epicKey={row.epicKey} viewIssueBaseUrl={viewIssueBaseUrl} />
                       <button
                         type="button"
                         className="ttm-epic-key"
@@ -396,7 +459,6 @@ export default function EpicAlerts15Page() {
                       >
                         {row.epicKey}
                       </button>
-                      <AlertHistoryButton row={row} onOpen={setAlertHistoryRow} />
                       {row.epicName && (
                         <span className="ttm-epic-summary" title={row.epicName}>{truncateSummary(row.epicName)}</span>
                       )}
@@ -416,6 +478,7 @@ export default function EpicAlerts15Page() {
                       <>
                         <TD>{row.currentStatus === 'To Do' ? <span className="ttm-empty-warning">—</span> : <span className="ttm-badge fail">Thiếu Start Date</span>}</TD>
                         <TD className="ttm-metric na">Không tính được</TD>
+                        <TD className="ttm-metric na">Không tính được</TD>
                         <TD><StatusBadge status={row.currentStatus} /></TD>
                         <TD><span className="ttm-metric na">Không có</span></TD>
                         <TD colSpan={6} className="ttm-metric na">Chưa thể tính lịch TTM-CNTT do thiếu dữ liệu bắt buộc.</TD>
@@ -430,6 +493,7 @@ export default function EpicAlerts15Page() {
                             : <span className={`ttm-badge ${ALERT_BADGE_CLASS[row.alertLevel]}`}>{row.alertLevel === 'EARLY' ? 'Cảnh báo sớm' : row.alertLevel === 'LATE' ? 'Cảnh báo muộn' : 'Fail TTM-CNTT'}</span>}
                         </TD>
                         <TtmCnttStrips row={row} />
+                        <TtmE2eStrips row={row} />
                         <TD><StatusBadge status={row.currentStatus} /></TD>
                         <TD className="ttm-phase-cell pass">{formatDate(row.t1StartDate)}</TD>
                         <PhaseStageCell cell={row.stages.design} />

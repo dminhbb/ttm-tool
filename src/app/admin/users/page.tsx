@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus } from '@phosphor-icons/react';
+import { Eye, EyeSlash, Plus } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -51,6 +51,10 @@ export default function UsersPage() {
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [editNewPassword, setEditNewPassword] = useState('');
+  const [editConfirmPassword, setEditConfirmPassword] = useState('');
+  const [showEditNewPassword, setShowEditNewPassword] = useState(false);
+  const [showEditConfirmPassword, setShowEditConfirmPassword] = useState(false);
 
   const load = async () => {
     const [usersResponse, ticketsResponse, domainsResponse, projectsResponse] = await Promise.all([fetch('/api/users'), fetch('/api/password-reset-requests'), fetch('/api/domains'), fetch('/api/projects')]);
@@ -81,13 +85,26 @@ export default function UsersPage() {
   const visibleTickets = tickets.filter((ticket) => fuzzyIncludes(searchTerm, [ticket.email, ticket.createdAt]));
   const visibleInactiveUsers = inactiveUsers.filter((user) => fuzzyIncludes(searchTerm, [user.email, user.fullName, domainName(user)]));
 
+  const closeEdit = () => { setEditing(null); setEditNewPassword(''); setEditConfirmPassword(''); setShowEditNewPassword(false); setShowEditConfirmPassword(false); };
+
   const save = async () => {
     if (!editing) return;
     if (editing.isActive && editing.domainIds.length === 0) { setMessage({ text: 'User active phải thuộc ít nhất một Domain.', type: 'error' }); return; }
+    if (editNewPassword || editConfirmPassword) {
+      if (editNewPassword.length < 8) { setMessage({ text: 'Mật khẩu mới phải có từ 8 ký tự.', type: 'error' }); return; }
+      if (editNewPassword !== editConfirmPassword) { setMessage({ text: 'Mật khẩu nhập lại không khớp.', type: 'error' }); return; }
+    }
     const response = await fetch('/api/users', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editing) });
     const result = await response.json();
-    if (response.ok) { setEditing(null); setMessage({ text: 'Đã cập nhật user.', type: 'success' }); void load(); }
-    else setMessage({ text: result.error || 'Không thể cập nhật user.', type: 'error' });
+    if (!response.ok) { setMessage({ text: result.error || 'Không thể cập nhật user.', type: 'error' }); return; }
+    if (editNewPassword) {
+      const pwResponse = await fetch('/api/users', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editing.id, password: editNewPassword }) });
+      const pwResult = await pwResponse.json();
+      if (!pwResponse.ok) { setMessage({ text: pwResult.error || 'Đã cập nhật user nhưng không thể cấp lại mật khẩu.', type: 'error' }); void load(); return; }
+    }
+    closeEdit();
+    setMessage({ text: 'Đã cập nhật user.', type: 'success' });
+    void load();
   };
 
   const create = async () => {
@@ -171,14 +188,32 @@ export default function UsersPage() {
         <TH sortDirection={userSortDirection('role')} onClick={() => toggleUserSort('role')}>Role</TH>
         <TH sortDirection={userSortDirection('status')} onClick={() => toggleUserSort('status')}>Trạng thái</TH>
         <TH>Hành động</TH>
-      </TR></THead><TBody>{visibleUsers.map((user, index) => <TR key={user.id}><TD>{index + 1}</TD><TD>{user.email}</TD><TD>{user.fullName}</TD><TD>{domainName(user)}</TD><TD>{projectKeys(user)}</TD><TD><Badge variant="info">{user.role}</Badge></TD><TD><Badge variant={user.isActive ? 'success' : 'neutral'}>{user.isActive ? 'Active' : 'Inactive'}</Badge></TD><TD><TableAction onClick={() => setEditing({ ...user })} variant="info">Chỉnh sửa</TableAction></TD></TR>)}</TBody></Table></TableContainer> : <p className="text-fb-text-secondary">Không tìm thấy user phù hợp.</p>)}
+      </TR></THead><TBody>{visibleUsers.map((user, index) => <TR key={user.id}><TD>{index + 1}</TD><TD>{user.email}</TD><TD>{user.fullName}</TD><TD>{domainName(user)}</TD><TD>{projectKeys(user)}</TD><TD><Badge variant="info">{user.role}</Badge></TD><TD><Badge variant={user.isActive ? 'success' : 'neutral'}>{user.isActive ? 'Active' : 'Inactive'}</Badge></TD><TD><TableAction onClick={() => { setEditing({ ...user }); setEditNewPassword(''); setEditConfirmPassword(''); setShowEditNewPassword(false); setShowEditConfirmPassword(false); }} variant="info">Chỉnh sửa</TableAction></TD></TR>)}</TBody></Table></TableContainer> : <p className="text-fb-text-secondary">Không tìm thấy user phù hợp.</p>)}
       {tab === 'reset' && (tickets.length ? (visibleTickets.length ? <TableContainer><Table><THead><TR><TH className="text-center"><input aria-label="Chọn tất cả yêu cầu cấp lại mật khẩu" checked={visibleTickets.length > 0 && visibleTickets.every((ticket) => selectedTicketIds.includes(ticket.id))} onChange={(event) => setSelectedTicketIds(event.target.checked ? [...new Set([...selectedTicketIds, ...visibleTickets.map((ticket) => ticket.id)])] : selectedTicketIds.filter((id) => !visibleTickets.some((ticket) => ticket.id === id)))} type="checkbox" /></TH><TH>Email</TH><TH>Thời gian gửi</TH><TH>Hành động</TH></TR></THead><TBody>{visibleTickets.map((ticket) => <TR key={ticket.id}><TD className="text-center"><input aria-label={`Chọn yêu cầu của ${ticket.email}`} checked={selectedTicketIds.includes(ticket.id)} onChange={(event) => toggle(ticket.id, event.target.checked, selectedTicketIds, setSelectedTicketIds)} type="checkbox" /></TD><TD>{ticket.email}</TD><TD>{ticket.createdAt}</TD><TD>{ticket.userId ? <TableAction onClick={() => { setResetTickets([ticket]); setPassword(randomPassword()); }} variant="warning">Cấp lại</TableAction> : 'Không tìm thấy user'}</TD></TR>)}</TBody></Table></TableContainer> : <p className="text-fb-text-secondary">Không tìm thấy ticket phù hợp.</p>) : <p className="text-fb-text-secondary">Không có ticket đang chờ.</p>)}
       {tab === 'registrations' && (visibleInactiveUsers.length ? <TableContainer><Table><THead><TR><TH className="text-center"><input aria-label="Chọn tất cả đăng ký mới" checked={visibleInactiveUsers.length > 0 && visibleInactiveUsers.every((user) => selectedRegistrationIds.includes(user.id))} onChange={(event) => setSelectedRegistrationIds(event.target.checked ? [...new Set([...selectedRegistrationIds, ...visibleInactiveUsers.map((user) => user.id)])] : selectedRegistrationIds.filter((id) => !visibleInactiveUsers.some((user) => user.id === id)))} type="checkbox" /></TH><TH>Email</TH><TH>Họ tên</TH><TH>Domain</TH><TH>Hành động</TH></TR></THead><TBody>{visibleInactiveUsers.map((user) => <TR key={user.id}><TD className="text-center"><input aria-label={`Chọn đăng ký của ${user.email}`} checked={selectedRegistrationIds.includes(user.id)} onChange={(event) => toggle(user.id, event.target.checked, selectedRegistrationIds, setSelectedRegistrationIds)} type="checkbox" /></TD><TD>{user.email}</TD><TD>{user.fullName}</TD><TD>{domainName(user)}</TD><TD><TableAction onClick={() => requestApproval([user])} variant="info">Duyệt</TableAction></TD></TR>)}</TBody></Table></TableContainer> : <p className="text-fb-text-secondary">Không tìm thấy đăng ký phù hợp.</p>)}
     </CardBody></Card>
     <Modal isOpen={creating} onClose={() => setCreating(false)} title="Thêm user mới" footer={<><Button onClick={() => setCreating(false)} variant="outline">Hủy</Button><Button onClick={create}>Lưu</Button></>}><UserForm domains={domainMultiOptions} onChange={setCreateForm} projects={projectMultiOptions} user={createForm} withPassword /></Modal>
     <Modal isOpen={creatingBulk} onClose={() => setCreatingBulk(false)} title="Thêm nhiều user" footer={<><Button onClick={() => setCreatingBulk(false)} variant="outline">Hủy</Button><Button isLoading={isBulkSaving} onClick={createBulkUsers}>Thêm user</Button></>}><div className="ui-form flex flex-col gap-4"><FormField id="bulk-usernames" label="Danh sách username" helperText="Nhập username, ngăn cách bằng dấu phẩy; không cần @mbbank.com.vn."><textarea className="ui-textarea form-control-compact" onChange={(event) => setBulkUsernames(event.target.value)} placeholder="minhnd7, ngothanhha, congha" value={bulkUsernames} /></FormField><p className="text-fb-text-secondary">User mới có Họ tên là username, email dạng username@mbbank.com.vn, role USER, inactive, chưa gán Domain và mật khẩu mặc định theo cấu hình yêu cầu.</p></div></Modal>
     <Modal isOpen={approvalUserIds.length > 0} onClose={() => setApprovalUserIds([])} title="Chọn Domain để duyệt đăng ký" footer={<><Button onClick={() => setApprovalUserIds([])} variant="outline">Hủy</Button><Button disabled={!approvalDomainId} onClick={() => void approve(approvalUserIds, Number(approvalDomainId))}>Duyệt đăng ký</Button></>}><div className="ui-form flex flex-col gap-4"><p className="text-fb-text-secondary">Các user được chọn chưa có Domain. Chọn một Domain active để gán trước khi kích hoạt {approvalUserIds.length} user.</p><Select label="Domain" onChange={(event) => setApprovalDomainId(event.target.value)} options={domainOptions} required value={approvalDomainId} /></div></Modal>
-    <Modal isOpen={editing !== null} onClose={() => setEditing(null)} title="Chỉnh sửa user" footer={<><Button onClick={() => setDeleting(editing)} title="Xóa user" variant="danger">Xóa user</Button><Button onClick={save}>Lưu</Button></>}>{editing && <UserForm domains={domainMultiOptions} onChange={(user) => setEditing(user as ManagedUser)} projects={projectMultiOptions} user={editing} />}</Modal>
+    <Modal isOpen={editing !== null} onClose={closeEdit} title="Chỉnh sửa user" footer={<><Button onClick={() => setDeleting(editing)} title="Xóa user" variant="danger">Xóa user</Button><Button onClick={save}>Lưu</Button></>}>{editing && <div className="flex flex-col gap-6">
+      <UserForm domains={domainMultiOptions} onChange={(user) => setEditing(user as ManagedUser)} projects={projectMultiOptions} user={editing} />
+      <section className="ui-form-section" aria-labelledby="edit-user-reset-password-title">
+        <div>
+          <h3 id="edit-user-reset-password-title" className="ui-card-title">Cấp lại mật khẩu</h3>
+          <p className="mt-1 text-xs text-fb-text-secondary">Để trống nếu không muốn đổi mật khẩu cho user này.</p>
+        </div>
+        <div className="flex flex-col gap-4">
+          <div className="relative">
+            <Input className="pr-10" label="Mật khẩu mới" minLength={8} onChange={(event) => setEditNewPassword(event.target.value)} type={showEditNewPassword ? 'text' : 'password'} value={editNewPassword} />
+            <button aria-label="Hiện hoặc ẩn mật khẩu" className="absolute right-3 top-9" onClick={() => setShowEditNewPassword(!showEditNewPassword)} type="button">{showEditNewPassword ? <EyeSlash /> : <Eye />}</button>
+          </div>
+          <div className="relative">
+            <Input className="pr-10" label="Nhập lại mật khẩu mới" minLength={8} onChange={(event) => setEditConfirmPassword(event.target.value)} type={showEditConfirmPassword ? 'text' : 'password'} value={editConfirmPassword} />
+            <button aria-label="Hiện hoặc ẩn mật khẩu" className="absolute right-3 top-9" onClick={() => setShowEditConfirmPassword(!showEditConfirmPassword)} type="button">{showEditConfirmPassword ? <EyeSlash /> : <Eye />}</button>
+          </div>
+        </div>
+      </section>
+    </div>}</Modal>
     <Modal isOpen={resetTickets.length > 0} onClose={() => setResetTickets([])} title="Cấp lại mật khẩu" footer={<><Button onClick={() => setPassword(randomPassword())} variant="outline">Tạo ngẫu nhiên</Button><Button onClick={reset}>Lưu</Button></>}><div className="flex flex-col gap-4"><p className="text-fb-text-secondary">Mật khẩu mới sẽ áp dụng cho {resetTickets.length} user đã chọn.</p><Input label="Mật khẩu mới" minLength={8} onChange={(event) => setPassword(event.target.value)} value={password} /></div></Modal>
     <ConfirmDialog confirmLabel="Xóa user" description={`Bạn có chắc muốn xóa user ${deleting?.email ?? ''}?`} isOpen={deleting !== null} onClose={() => setDeleting(null)} onConfirm={remove} steps={1} title="Xóa user" />
     <ConfirmDialog confirmLabel="Xóa" description={`Bạn có chắc muốn xóa ${bulkDelete?.ids.length ?? 0} ${bulkDelete?.type === 'tickets' ? 'yêu cầu cấp lại mật khẩu' : 'yêu cầu đăng ký mới'} đã chọn?`} isOpen={bulkDelete !== null} onClose={() => setBulkDelete(null)} onConfirm={deleteSelected} steps={1} title="Xóa các mục đã chọn" />
