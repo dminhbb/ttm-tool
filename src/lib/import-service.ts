@@ -18,6 +18,24 @@ import { parsePureJiraExport } from './adapters/pure-jira-export-adapter';
 // See the write-loop this guards, near the bottom of aggregateBatchData.
 const MILESTONE_RECORDING_ENABLED = false;
 
+// Epic complexity rule: SIMPLE ("Epic 15") requires BOTH the request type AND the requirement
+// level to fall in these "simple" sets — any other combination (including one field being simple
+// and the other not) is COMPLEX ("Epic 30"). Empty/missing/'None' counts as simple for both fields.
+const SIMPLE_REQUEST_TYPES = new Set(['', 'none', 'cải tiến', 'tính năng mới']);
+const SIMPLE_REQUIREMENT_LEVELS = new Set(['', 'none', '1', '2']);
+
+function normalizeComplexityField(value: string): string {
+  return value.trim().toLocaleLowerCase('vi-VN');
+}
+
+/** 'Loại yêu cầu' (requestType) and 'Requirement Level' (requirementLevel) — raw text straight from
+ * the import source, not yet normalised. See the SIMPLE_* sets above for the exact rule. */
+function computeEpicComplexity(requestType: string, requirementLevel: string): 'SIMPLE' | 'COMPLEX' {
+  const isSimpleRequestType = SIMPLE_REQUEST_TYPES.has(normalizeComplexityField(requestType));
+  const isSimpleRequirementLevel = SIMPLE_REQUIREMENT_LEVELS.has(normalizeComplexityField(requirementLevel));
+  return isSimpleRequestType && isSimpleRequirementLevel ? 'SIMPLE' : 'COMPLEX';
+}
+
 /**
  * Derives every "lớp dữ liệu tổng hợp" (aggregated data layer) for one import batch from the
  * canonical `issues` rows already stored for it: the compact epic_ttm_snapshots and
@@ -345,16 +363,9 @@ export async function processImport(
       `;
 
       for (const issue of rawIssues) {
-        // Map Epic Complexity Type.
-        // For Py Jira API adapter, epicType is already normalised to COMPLEX/SIMPLE
-        // by the adapter itself. For Pure Jira Export, apply the same text rule.
-        let complexity = 'SIMPLE';
-        if (issue.epicType && (
-          issue.epicType.toUpperCase().includes('COMPLEX') ||
-          issue.epicType.toUpperCase().includes('PHỨC TẠP')
-        )) {
-          complexity = 'COMPLEX';
-        }
+        // issue.epicType carries the raw 'Loại yêu cầu' (request type) text unchanged from both
+        // adapters — see computeEpicComplexity for the actual SIMPLE/COMPLEX rule.
+        const complexity = computeEpicComplexity(issue.epicType, issue.requirementLevel);
 
         // Standard status (mock mapping for now, to be detailed later)
         const stdStatus = issue.status;

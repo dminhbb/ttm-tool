@@ -52,16 +52,6 @@ function normaliseHierarchy(raw: string): 'epic' | 'story' | 'subtask' | 'unknow
 }
 
 /**
- * Map epic_request_type to the internal COMPLEX/SIMPLE complexity codes.
- * Matches the same convention already used by the Pure Jira Export adapter.
- */
-function mapComplexityType(epicRequestType: string): string {
-  const upper = epicRequestType.toUpperCase();
-  if (upper.includes('COMPLEX') || upper.includes('PHỨC TẠP')) return 'COMPLEX';
-  return 'SIMPLE';
-}
-
-/**
  * Parse a raw CSV text string in Py Jira API format.
  * Returns a normalised list of RawJiraIssue objects ready for validation.
  */
@@ -232,12 +222,6 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
         jiraCreatedAt: '',
         jiraUpdatedAt: '',
       };
-    }
-
-    // Derive epic_complexity_type early so import-service can use it directly
-    // (only meaningful for epics, but the field is always present on RawJiraIssue)
-    if (level === 'epic') {
-      issue.epicType = mapComplexityType(issue.epicType);
     }
 
     issues.push(issue);
