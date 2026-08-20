@@ -42,10 +42,10 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
     <Modal isOpen={isOpen} onClose={onClose} title="Logic cảnh báo Epic" maxWidth="xl" footer={<Button variant="outline" onClick={onClose}>Đóng</Button>}>
       <div className="flex flex-col gap-5 text-fb-text-secondary">
         <section>
-          <h3 className="ui-card-title mb-1">1. Phân tách màn hình Quản lý Epic 30 và Epic 15</h3>
+          <h3 className="ui-card-title mb-1">1. Phân tách màn hình Quản trị Epic (rút gọn) và (đầy đủ)</h3>
           <ul className="ml-5 list-disc space-y-1">
-            <li><strong className="text-fb-text-primary">Quản lý Epic 30 (/epic-alerts)</strong> — theo dõi tổng quan các cột Design, In Progress, Ready4Golive và Release theo mốc chuẩn 30 ngày (Epic phức tạp) hoặc 15 ngày (Epic đơn giản). Chỉ dành cho <strong className="text-fb-text-primary">ADMIN/SUPERADMIN</strong>.</li>
-            <li><strong className="text-fb-text-primary">Quản lý Epic 15 (/epic-alerts-15)</strong> — theo dõi chi tiết theo 5 pha: Design (20%), Dev (50%), Test (80%), Pentest (90%), R4Golive (100%). Mốc thời gian mỗi pha tính tự động theo tỷ lệ % TTM-CNTT tích lũy. Mở cho <strong className="text-fb-text-primary">mọi user đã đăng nhập</strong> (theo phạm vi dự án được phân quyền).</li>
+            <li><strong className="text-fb-text-primary">Quản trị Epic (rút gọn) (/epic-alerts)</strong> — theo dõi tổng quan các cột Design, In Progress, Ready4Golive và Release theo mốc chuẩn 30 ngày (Epic phức tạp) hoặc 15 ngày (Epic đơn giản). Chỉ dành cho <strong className="text-fb-text-primary">ADMIN/SUPERADMIN</strong>.</li>
+            <li><strong className="text-fb-text-primary">Quản trị Epic (đầy đủ) (/epic-alerts-15)</strong> — theo dõi chi tiết theo 5 pha: Design (20%), Dev (50%), Test (80%), Pentest (90%), R4Golive (100%). Mốc thời gian mỗi pha tính tự động theo tỷ lệ % TTM-CNTT tích lũy. Mở cho <strong className="text-fb-text-primary">mọi user đã đăng nhập</strong> (theo phạm vi dự án được phân quyền).</li>
           </ul>
         </section>
 

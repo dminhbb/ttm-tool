@@ -566,7 +566,8 @@ export function ImportIssuesTab() {
           items={[
             { icon: SlidersHorizontal, label: 'Cấu hình đợt import' },
             { icon: Database, label: 'Lưu trữ dữ liệu import' },
-            { icon: Wrench, label: 'Hoàn thiện dữ liệu' },
+            // Tạm ẩn cùng CompleteDataPanel — bỏ comment khi bật lại.
+            // { icon: Wrench, label: 'Hoàn thiện dữ liệu' },
             { icon: Eraser, label: 'Xóa N lớp dữ liệu gần nhất' },
             { icon: Info, label: 'Thông tin chung và hướng dẫn' },
           ]}
@@ -619,7 +620,8 @@ export function ImportIssuesTab() {
 
           <RawImportRetentionSettings />
 
-          <CompleteDataPanel />
+          {/* Tạm ẩn theo yêu cầu — bật lại bằng cách bỏ comment dòng dưới. Giữ nguyên code/logic. */}
+          {/* <CompleteDataPanel /> */}
 
           <PurgeRecentLayersPanel />
 
