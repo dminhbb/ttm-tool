@@ -12,6 +12,8 @@ export interface StageCell {
 
 export interface EpicAlertRow {
   alertLevel: AlertLevel;
+  /** issues.components (Epic's own Jira Component/s) — used by the Components filter. */
+  components: string[];
   currentStatus: string;
   domainName: string;
   epicKey: string;
@@ -74,6 +76,8 @@ export interface PhaseCell {
 
 export interface EpicAlertRowPhased {
   alertLevel: AlertLevel;
+  /** issues.components (Epic's own Jira Component/s) — used by the Components filter. */
+  components: string[];
   currentStatus: string;
   /** Which import data layer (aggregated_at) this Epic's row currently comes from. */
   dataLayerDate: string | null;

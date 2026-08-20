@@ -3,7 +3,8 @@ import type { RawJiraIssue } from '@/lib/csv-parser';
 
 const COMPONENT_SEPARATOR = /[,;]/;
 
-function splitComponents(value: string): string[] {
+/** Shared by import-service.ts (populating issues.components) and this file's own accumulation. */
+export function splitComponents(value: string): string[] {
   return value
     .split(COMPONENT_SEPARATOR)
     .map((component) => component.trim())

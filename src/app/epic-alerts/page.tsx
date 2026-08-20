@@ -6,11 +6,14 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
+import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
 import type { EpicAlertAccessRole, EpicAlertResponse, EpicAlertRow, StageCell } from '@/lib/epic-alert-types';
 import type { EpicAlertHistoryEntry } from '@/lib/epic-alert-history-service';
+import type { ProjectComponent } from '@/lib/master-data-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
 import { ArrowSquareOut, Circle, Stack, Warning } from '@phosphor-icons/react';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
+import { trackDataUsage } from '@/lib/usage-tracking';
 
 const PAGE_SIZE = 20;
 
@@ -167,7 +170,7 @@ function AlertHistoryButton({ row, onOpen }: { row: EpicAlertRow; onOpen: (epicK
       type="button"
       className={`ttm-alert-history-trigger${row.hasAlertHistory ? ' has-history' : ''}`}
       title={row.hasAlertHistory ? 'Xem lịch sử cảnh báo Epic' : 'Epic chưa có lịch sử cảnh báo'}
-      onClick={() => onOpen(row.epicKey)}
+      onClick={() => { trackDataUsage(); onOpen(row.epicKey); }}
     >
       <Warning weight="fill" size={16} />
     </button>
@@ -232,7 +235,9 @@ export default function EpicAlertsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [projectFilter, setProjectFilter] = useState('');
+  const [projectFilters, setProjectFilters] = useState<string[]>([]);
+  const [componentFilters, setComponentFilters] = useState<string[]>([]);
+  const [projectComponents, setProjectComponents] = useState<ProjectComponent[]>([]);
   const [alertFilter, setAlertFilter] = useState<AlertLevel | ''>('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -262,20 +267,33 @@ export default function EpicAlertsPage() {
   useEffect(() => {
     // Deferring the initial request prevents a synchronous state update during effect setup.
     void Promise.resolve().then(fetchData);
+    fetch('/api/project-components').then((res) => (res.ok ? res.json() : [])).then(setProjectComponents).catch(() => undefined);
   }, []);
 
   const rows = data?.rows ?? EMPTY_EPIC_ALERT_ROWS;
   const projectOptions = useMemo(() => [...new Set(rows.map((row) => row.projectKey).filter(Boolean))].sort(), [rows]);
   const statusOptions = useMemo(() => [...new Set(rows.map((row) => row.currentStatus).filter(Boolean))].sort(), [rows]);
+  // Options = the catalog's components for whichever projects are selected — disabled entirely
+  // (no options, filter cleared) until at least one project is picked.
+  const componentOptions = useMemo(
+    () => [...new Set(projectComponents.filter((component) => projectFilters.includes(component.projectKey)).map((component) => component.componentName))].sort(),
+    [projectComponents, projectFilters],
+  );
+  const handleProjectFiltersChange = (values: string[]) => {
+    setProjectFilters(values);
+    if (values.length === 0) setComponentFilters([]);
+    setPage(1);
+  };
 
   const filteredRows = useMemo(() => rows.filter((row) => {
     const normalizedSearch = search.trim().toLocaleLowerCase('vi-VN');
-    return (!projectFilter || row.projectKey === projectFilter)
+    return (projectFilters.length === 0 || projectFilters.includes(row.projectKey))
+      && (componentFilters.length === 0 || row.components.some((component) => componentFilters.includes(component)))
       && (!alertFilter || row.alertLevel === alertFilter)
       && (!typeFilter || row.epicType === typeFilter)
       && (!statusFilter || row.currentStatus === statusFilter)
       && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch));
-  }), [rows, projectFilter, alertFilter, typeFilter, statusFilter, search]);
+  }), [rows, projectFilters, componentFilters, alertFilter, typeFilter, statusFilter, search]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -296,10 +314,21 @@ export default function EpicAlertsPage() {
       {error && <div className="ttm-note" style={{ background: 'var(--ttm-danger-050)', borderColor: '#f3b3b3', color: 'var(--ttm-danger-700)' }}>{error}</div>}
 
       <section className="ttm-toolbar" aria-label="Bộ lọc Epic">
-        <select className="ttm-select" aria-label="Dự án" value={projectFilter} onChange={(event) => { setProjectFilter(event.target.value); setPage(1); }}>
-          <option value="">Tất cả dự án của tôi</option>
-          {projectOptions.map((project) => <option key={project} value={project}>{project}</option>)}
-        </select>
+        <ToolbarMultiSelect
+          ariaLabel="Dự án"
+          allLabel="Tất cả dự án của tôi"
+          options={projectOptions}
+          value={projectFilters}
+          onChange={handleProjectFiltersChange}
+        />
+        <ToolbarMultiSelect
+          ariaLabel="Components"
+          allLabel={projectFilters.length === 0 ? 'Chọn dự án trước' : 'Tất cả Components'}
+          disabled={projectFilters.length === 0}
+          options={componentOptions}
+          value={componentFilters}
+          onChange={(values) => { setComponentFilters(values); setPage(1); }}
+        />
         <select className="ttm-select" aria-label="Cảnh báo" value={alertFilter} onChange={(event) => { setAlertFilter(event.target.value as AlertLevel | ''); setPage(1); }}>
           {ALERT_FILTER_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
@@ -401,15 +430,15 @@ export default function EpicAlertsPage() {
 
       {filteredRows.length > 0 && (
         <nav className="ttm-pagination" aria-label="Điều hướng phân trang">
-          <button type="button" className="ttm-button" disabled={currentPage <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>‹ Trước</button>
+          <button type="button" className="ttm-button" disabled={currentPage <= 1} onClick={() => { trackDataUsage(); setPage((current) => Math.max(1, current - 1)); }}>‹ Trước</button>
           <span className="ttm-pagination-label">Trang</span>
-          <select className="ttm-select" aria-label="Chọn trang" value={currentPage} onChange={(event) => setPage(Number(event.target.value))}>
+          <select className="ttm-select" aria-label="Chọn trang" value={currentPage} onChange={(event) => { trackDataUsage(); setPage(Number(event.target.value)); }}>
             {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
               <option key={pageNumber} value={pageNumber}>{pageNumber}</option>
             ))}
           </select>
           <span className="ttm-pagination-label">/ {totalPages}</span>
-          <button type="button" className="ttm-button" disabled={currentPage >= totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>Sau ›</button>
+          <button type="button" className="ttm-button" disabled={currentPage >= totalPages} onClick={() => { trackDataUsage(); setPage((current) => Math.min(totalPages, current + 1)); }}>Sau ›</button>
         </nav>
       )}
 

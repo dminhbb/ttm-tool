@@ -128,13 +128,13 @@ export async function getEpicBrowserChildren(
         UNION
         SELECT d.id, d.issue_key, d.issue_type, d.current_status, d.epic_key, d.parent_key, d.jira_id,
           d.issue_name, d.assignee_name, d.start_date, d.r4g_date, d.due_date,
-          d.epic_stories, d.story_subtasks, d.source_import_batch_id, d.aggregated_at
+          d.epic_stories, d.story_subtasks, d.components, d.source_import_batch_id, d.aggregated_at
         FROM descendants d
         WHERE d.resolved_epic_key = $1 AND UPPER(d.issue_type) IN (${STORY_ISSUE_TYPES_SQL})
         UNION
         SELECT d.id, d.issue_key, d.issue_type, d.current_status, d.epic_key, d.parent_key, d.jira_id,
           d.issue_name, d.assignee_name, d.start_date, d.r4g_date, d.due_date,
-          d.epic_stories, d.story_subtasks, d.source_import_batch_id, d.aggregated_at
+          d.epic_stories, d.story_subtasks, d.components, d.source_import_batch_id, d.aggregated_at
         FROM descendants d
         WHERE d.resolved_epic_key = $1
           AND UPPER(d.issue_type) NOT IN (${STORY_ISSUE_TYPES_SQL})
@@ -150,7 +150,7 @@ export async function getEpicBrowserChildren(
         UNION
         SELECT d.id, d.issue_key, d.issue_type, d.current_status, d.epic_key, d.parent_key, d.jira_id,
           d.issue_name, d.assignee_name, d.start_date, d.r4g_date, d.due_date,
-          d.epic_stories, d.story_subtasks, d.source_import_batch_id, d.aggregated_at
+          d.epic_stories, d.story_subtasks, d.components, d.source_import_batch_id, d.aggregated_at
         FROM descendants d
         WHERE (d.parent_key = $1 OR d.parent_key = $2) AND UPPER(d.issue_type) NOT IN (${STORY_ISSUE_TYPES_SQL})
       )

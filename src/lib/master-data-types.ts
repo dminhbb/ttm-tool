@@ -23,7 +23,6 @@ export interface Project {
   id: number;
   isActive: boolean;
   leadName: string;
-  projectKey: string;
   projectCategory: ProjectCategory | null;
   projectName: string;
   sourceProjectKey: string;
@@ -35,11 +34,11 @@ export const PROJECT_CATEGORIES = ['Dự án', 'Team Agile', 'Team Triển khai'
 export type ProjectCategory = (typeof PROJECT_CATEGORIES)[number];
 export type TtmOption = 'Y' | 'N';
 
+/** PM/SM assignment is read-only here — set exclusively via the Users screen (auth-service.ts's
+ * replacePermissions, which keeps projects.lead_name in sync with user_projects). */
 export interface ProjectInput {
   domainId: number | null;
   isActive: boolean;
-  leadName: string;
-  projectKey: string;
   projectCategory: ProjectCategory | null;
   projectName: string;
   sourceProjectKey: string;
@@ -69,6 +68,26 @@ export interface HolidayInput {
   isMultiDay: boolean;
   name: string;
   startDate: string;
+}
+
+export interface ProjectComponent {
+  componentName: string;
+  createdAt: string;
+  id: number;
+  isActive: boolean;
+  projectKey: string;
+  updatedAt: string;
+}
+
+export interface ProjectComponentImportRowError {
+  message: string;
+  rowNumber: number;
+}
+
+export interface ProjectComponentImportResult {
+  errors: ProjectComponentImportRowError[];
+  importedCount: number;
+  totalRows: number;
 }
 
 export const TEAM_ROLES = ['BA', 'DEV', 'TEST', 'PM'] as const;

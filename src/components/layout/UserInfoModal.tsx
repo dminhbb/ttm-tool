@@ -32,6 +32,15 @@ function DomainList({ domains }: { domains: DomainSummary[] }) {
   );
 }
 
+function UsageStatTile({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border border-fb-border bg-fb-surface-muted px-3 py-2">
+      <p className="text-xl font-bold text-fb-text-primary">{value}</p>
+      <p className="text-xs text-fb-text-secondary">{label}</p>
+    </div>
+  );
+}
+
 function ProjectList({ projects, emptyText }: { projects: ProjectSummary[]; emptyText: string }) {
   if (projects.length === 0) return <p className="text-sm text-fb-text-secondary">{emptyText}</p>;
   return (
@@ -87,6 +96,15 @@ export function UserInfoModal({ isOpen, onClose }: UserInfoModalProps) {
           <section className="flex flex-col gap-1">
             <h3 className="ui-card-title">Vai trò</h3>
             <p className="text-sm text-fb-text-primary">{ROLE_LABEL[data.user.role]}</p>
+          </section>
+
+          <section className="flex flex-col gap-2">
+            <h3 className="ui-card-title">Thống kê sử dụng (cộng dồn)</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <UsageStatTile label="Lượt đăng nhập" value={data.usageStats.loginCount} />
+              <UsageStatTile label="Lượt dùng chức năng" value={data.usageStats.featureCount} />
+              <UsageStatTile label="Lượt dùng dữ liệu" value={data.usageStats.dataCount} />
+            </div>
           </section>
 
           <section className="flex flex-col gap-2">

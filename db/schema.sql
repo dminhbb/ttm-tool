@@ -114,10 +114,9 @@ CREATE TABLE domains (
 -- 5. Projects (master data — BRD 06 §3), mapped to a Domain
 CREATE TABLE projects (
     id SERIAL PRIMARY KEY,
-    project_key VARCHAR(50) NOT NULL UNIQUE,
     project_name VARCHAR(255) NOT NULL,
     domain_id INT REFERENCES domains(id) ON DELETE SET NULL,
-    source_project_key VARCHAR(50) NOT NULL, -- Jira Project Key used to match imported issues
+    source_project_key VARCHAR(50) NOT NULL UNIQUE, -- Jira Project Key used to match imported issues; the app's single project key
     source_type VARCHAR(50) NOT NULL DEFAULT 'JIRA',
     project_category VARCHAR(30) CHECK (project_category IN ('Dự án', 'Team Agile', 'Team Triển khai')),
     ttm CHAR(1) NOT NULL DEFAULT 'N' CHECK (ttm IN ('Y', 'N')),

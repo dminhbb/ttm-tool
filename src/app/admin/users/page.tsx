@@ -19,14 +19,14 @@ import { USER_ROLES } from '@/lib/auth-types';
 import { fuzzyIncludes } from '@/lib/fuzzy-search';
 import { compareValues, useSortableList } from '@/lib/use-sortable-list';
 import type { ManagedUser, UserInput, UserRole } from '@/lib/auth-types';
-import type { Domain, Project } from '@/lib/master-data-types';
+import type { Domain, Project, ProjectComponent } from '@/lib/master-data-types';
 
 type Tab = 'users' | 'reset' | 'registrations';
 type UserSortKey = 'email' | 'fullName' | 'domain' | 'projects' | 'role' | 'status';
 type Ticket = { id: number; email: string; userId: number | null; createdAt: string };
 type BulkDelete = { ids: number[]; type: 'registrations' | 'tickets' };
 
-const emptyUser = (): UserInput => ({ email: '', fullName: '', role: 'USER', isActive: true, password: '', domainIds: [], projectIds: [] });
+const emptyUser = (): UserInput => ({ email: '', fullName: '', role: 'USER', isActive: true, password: '', domainIds: [], projectIds: [], projectComponents: {} });
 const randomPassword = () => `${crypto.randomUUID().slice(0, 8)}Aa!`;
 
 export default function UsersPage() {
@@ -34,6 +34,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [domains, setDomains] = useState<Domain[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectComponents, setProjectComponents] = useState<ProjectComponent[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [editing, setEditing] = useState<ManagedUser | null>(null);
   const [creating, setCreating] = useState(false);
@@ -57,20 +58,21 @@ export default function UsersPage() {
   const [showEditConfirmPassword, setShowEditConfirmPassword] = useState(false);
 
   const load = async () => {
-    const [usersResponse, ticketsResponse, domainsResponse, projectsResponse] = await Promise.all([fetch('/api/users'), fetch('/api/password-reset-requests'), fetch('/api/domains'), fetch('/api/projects')]);
+    const [usersResponse, ticketsResponse, domainsResponse, projectsResponse, componentsResponse] = await Promise.all([fetch('/api/users'), fetch('/api/password-reset-requests'), fetch('/api/domains'), fetch('/api/projects'), fetch('/api/project-components')]);
     if (usersResponse.ok) setUsers(await usersResponse.json());
     if (ticketsResponse.ok) setTickets(await ticketsResponse.json());
     if (domainsResponse.ok) setDomains((await domainsResponse.json()).filter((domain: Domain) => domain.isActive));
     if (projectsResponse.ok) setProjects(await projectsResponse.json());
+    if (componentsResponse.ok) setProjectComponents(await componentsResponse.json());
   };
 
   useEffect(() => { void Promise.resolve().then(load); }, []);
   const domainOptions = [{ value: '', label: 'Chọn Domain' }, ...domains.map((domain) => ({ value: String(domain.id), label: `${domain.domainCode} — ${domain.domainName}` }))];
   const domainMultiOptions = domains.map((domain) => ({ value: String(domain.id), label: `${domain.domainCode} — ${domain.domainName}` }));
-  const projectMultiOptions = projects.map((project) => ({ value: String(project.id), label: `${project.projectKey} — ${project.projectName}${project.isActive ? '' : ' (Inactive)'}` }));
+  const projectMultiOptions = projects.map((project) => ({ value: String(project.id), label: `${project.sourceProjectKey} — ${project.projectName}${project.isActive ? '' : ' (Inactive)'}` }));
   const inactiveUsers = users.filter((user) => !user.isActive);
   const domainName = (user: ManagedUser) => user.domainIds.map((domainId) => domains.find((domain) => domain.id === domainId)?.domainName).filter((name): name is string => Boolean(name)).join(', ') || '-';
-  const projectKeys = (user: ManagedUser) => user.projectIds.map((projectId) => projects.find((project) => project.id === projectId)?.projectKey).filter((key): key is string => Boolean(key)).join(', ') || '-';
+  const projectKeys = (user: ManagedUser) => user.projectIds.map((projectId) => projects.find((project) => project.id === projectId)?.sourceProjectKey).filter((key): key is string => Boolean(key)).join(', ') || '-';
   const toggle = (id: number, checked: boolean, selected: number[], setSelected: (ids: number[]) => void) => setSelected(checked ? [...selected, id] : selected.filter((value) => value !== id));
   const { sortKey: userSortKey, toggleSort: toggleUserSort, directionFor: userSortDirection } = useSortableList<UserSortKey>('email');
   const userSortValue = (user: ManagedUser, key: UserSortKey): string => {
@@ -187,16 +189,19 @@ export default function UsersPage() {
         <TH sortDirection={userSortDirection('projects')} onClick={() => toggleUserSort('projects')}>Dự án</TH>
         <TH sortDirection={userSortDirection('role')} onClick={() => toggleUserSort('role')}>Role</TH>
         <TH sortDirection={userSortDirection('status')} onClick={() => toggleUserSort('status')}>Trạng thái</TH>
+        <TH className="text-center" title="Số lượt đăng nhập (cộng dồn theo ngày)">Đăng nhập</TH>
+        <TH className="text-center" title="Số lượt bấm menu chức năng ở left panel và menu avatar (cộng dồn theo ngày)">Chức năng</TH>
+        <TH className="text-center" title="Số lượt xem lịch sử cảnh báo Epic, duyệt Epic và chuyển trang trên màn hình quản lý Epic (cộng dồn theo ngày)">Dữ liệu</TH>
         <TH>Hành động</TH>
-      </TR></THead><TBody>{visibleUsers.map((user, index) => <TR key={user.id}><TD>{index + 1}</TD><TD>{user.email}</TD><TD>{user.fullName}</TD><TD>{domainName(user)}</TD><TD>{projectKeys(user)}</TD><TD><Badge variant="info">{user.role}</Badge></TD><TD><Badge variant={user.isActive ? 'success' : 'neutral'}>{user.isActive ? 'Active' : 'Inactive'}</Badge></TD><TD><TableAction onClick={() => { setEditing({ ...user }); setEditNewPassword(''); setEditConfirmPassword(''); setShowEditNewPassword(false); setShowEditConfirmPassword(false); }} variant="info">Chỉnh sửa</TableAction></TD></TR>)}</TBody></Table></TableContainer> : <p className="text-fb-text-secondary">Không tìm thấy user phù hợp.</p>)}
+      </TR></THead><TBody>{visibleUsers.map((user, index) => <TR key={user.id}><TD>{index + 1}</TD><TD>{user.email}</TD><TD>{user.fullName}</TD><TD>{domainName(user)}</TD><TD>{projectKeys(user)}</TD><TD><Badge variant="info">{user.role}</Badge></TD><TD><Badge variant={user.isActive ? 'success' : 'neutral'}>{user.isActive ? 'Active' : 'Inactive'}</Badge></TD><TD className="text-center">{user.usageStats.loginCount}</TD><TD className="text-center">{user.usageStats.featureCount}</TD><TD className="text-center">{user.usageStats.dataCount}</TD><TD><TableAction onClick={() => { setEditing({ ...user }); setEditNewPassword(''); setEditConfirmPassword(''); setShowEditNewPassword(false); setShowEditConfirmPassword(false); }} variant="info">Chỉnh sửa</TableAction></TD></TR>)}</TBody></Table></TableContainer> : <p className="text-fb-text-secondary">Không tìm thấy user phù hợp.</p>)}
       {tab === 'reset' && (tickets.length ? (visibleTickets.length ? <TableContainer><Table><THead><TR><TH className="text-center"><input aria-label="Chọn tất cả yêu cầu cấp lại mật khẩu" checked={visibleTickets.length > 0 && visibleTickets.every((ticket) => selectedTicketIds.includes(ticket.id))} onChange={(event) => setSelectedTicketIds(event.target.checked ? [...new Set([...selectedTicketIds, ...visibleTickets.map((ticket) => ticket.id)])] : selectedTicketIds.filter((id) => !visibleTickets.some((ticket) => ticket.id === id)))} type="checkbox" /></TH><TH>Email</TH><TH>Thời gian gửi</TH><TH>Hành động</TH></TR></THead><TBody>{visibleTickets.map((ticket) => <TR key={ticket.id}><TD className="text-center"><input aria-label={`Chọn yêu cầu của ${ticket.email}`} checked={selectedTicketIds.includes(ticket.id)} onChange={(event) => toggle(ticket.id, event.target.checked, selectedTicketIds, setSelectedTicketIds)} type="checkbox" /></TD><TD>{ticket.email}</TD><TD>{ticket.createdAt}</TD><TD>{ticket.userId ? <TableAction onClick={() => { setResetTickets([ticket]); setPassword(randomPassword()); }} variant="warning">Cấp lại</TableAction> : 'Không tìm thấy user'}</TD></TR>)}</TBody></Table></TableContainer> : <p className="text-fb-text-secondary">Không tìm thấy ticket phù hợp.</p>) : <p className="text-fb-text-secondary">Không có ticket đang chờ.</p>)}
       {tab === 'registrations' && (visibleInactiveUsers.length ? <TableContainer><Table><THead><TR><TH className="text-center"><input aria-label="Chọn tất cả đăng ký mới" checked={visibleInactiveUsers.length > 0 && visibleInactiveUsers.every((user) => selectedRegistrationIds.includes(user.id))} onChange={(event) => setSelectedRegistrationIds(event.target.checked ? [...new Set([...selectedRegistrationIds, ...visibleInactiveUsers.map((user) => user.id)])] : selectedRegistrationIds.filter((id) => !visibleInactiveUsers.some((user) => user.id === id)))} type="checkbox" /></TH><TH>Email</TH><TH>Họ tên</TH><TH>Domain</TH><TH>Hành động</TH></TR></THead><TBody>{visibleInactiveUsers.map((user) => <TR key={user.id}><TD className="text-center"><input aria-label={`Chọn đăng ký của ${user.email}`} checked={selectedRegistrationIds.includes(user.id)} onChange={(event) => toggle(user.id, event.target.checked, selectedRegistrationIds, setSelectedRegistrationIds)} type="checkbox" /></TD><TD>{user.email}</TD><TD>{user.fullName}</TD><TD>{domainName(user)}</TD><TD><TableAction onClick={() => requestApproval([user])} variant="info">Duyệt</TableAction></TD></TR>)}</TBody></Table></TableContainer> : <p className="text-fb-text-secondary">Không tìm thấy đăng ký phù hợp.</p>)}
     </CardBody></Card>
-    <Modal isOpen={creating} onClose={() => setCreating(false)} title="Thêm user mới" footer={<><Button onClick={() => setCreating(false)} variant="outline">Hủy</Button><Button onClick={create}>Lưu</Button></>}><UserForm domains={domainMultiOptions} onChange={setCreateForm} projects={projectMultiOptions} user={createForm} withPassword /></Modal>
+    <Modal isOpen={creating} onClose={() => setCreating(false)} maxWidth="xl" title="Thêm user mới" footer={<><Button onClick={() => setCreating(false)} variant="outline">Hủy</Button><Button onClick={create}>Lưu</Button></>}><UserForm allProjects={projects} allProjectComponents={projectComponents} domains={domainMultiOptions} onChange={setCreateForm} projects={projectMultiOptions} user={createForm} withPassword /></Modal>
     <Modal isOpen={creatingBulk} onClose={() => setCreatingBulk(false)} title="Thêm nhiều user" footer={<><Button onClick={() => setCreatingBulk(false)} variant="outline">Hủy</Button><Button isLoading={isBulkSaving} onClick={createBulkUsers}>Thêm user</Button></>}><div className="ui-form flex flex-col gap-4"><FormField id="bulk-usernames" label="Danh sách username" helperText="Nhập username, ngăn cách bằng dấu phẩy; không cần @mbbank.com.vn."><textarea className="ui-textarea form-control-compact" onChange={(event) => setBulkUsernames(event.target.value)} placeholder="minhnd7, ngothanhha, congha" value={bulkUsernames} /></FormField><p className="text-fb-text-secondary">User mới có Họ tên là username, email dạng username@mbbank.com.vn, role USER, inactive, chưa gán Domain và mật khẩu mặc định theo cấu hình yêu cầu.</p></div></Modal>
     <Modal isOpen={approvalUserIds.length > 0} onClose={() => setApprovalUserIds([])} title="Chọn Domain để duyệt đăng ký" footer={<><Button onClick={() => setApprovalUserIds([])} variant="outline">Hủy</Button><Button disabled={!approvalDomainId} onClick={() => void approve(approvalUserIds, Number(approvalDomainId))}>Duyệt đăng ký</Button></>}><div className="ui-form flex flex-col gap-4"><p className="text-fb-text-secondary">Các user được chọn chưa có Domain. Chọn một Domain active để gán trước khi kích hoạt {approvalUserIds.length} user.</p><Select label="Domain" onChange={(event) => setApprovalDomainId(event.target.value)} options={domainOptions} required value={approvalDomainId} /></div></Modal>
-    <Modal isOpen={editing !== null} onClose={closeEdit} title="Chỉnh sửa user" footer={<><Button onClick={() => setDeleting(editing)} title="Xóa user" variant="danger">Xóa user</Button><Button onClick={save}>Lưu</Button></>}>{editing && <div className="flex flex-col gap-6">
-      <UserForm domains={domainMultiOptions} onChange={(user) => setEditing(user as ManagedUser)} projects={projectMultiOptions} user={editing} />
+    <Modal isOpen={editing !== null} onClose={closeEdit} maxWidth="xl" title="Chỉnh sửa user" footer={<><Button onClick={() => setDeleting(editing)} title="Xóa user" variant="danger">Xóa user</Button><Button onClick={save}>Lưu</Button></>}>{editing && <div className="flex flex-col gap-6">
+      <UserForm allProjects={projects} allProjectComponents={projectComponents} domains={domainMultiOptions} onChange={(user) => setEditing(user as ManagedUser)} projects={projectMultiOptions} user={editing} />
       <section className="ui-form-section" aria-labelledby="edit-user-reset-password-title">
         <div>
           <h3 id="edit-user-reset-password-title" className="ui-card-title">Cấp lại mật khẩu</h3>
@@ -220,6 +225,32 @@ export default function UsersPage() {
   </div>;
 }
 
-function UserForm({ domains, onChange, projects, user, withPassword = false }: { domains: { value: string; label: string }[]; onChange: (user: UserInput) => void; projects: { value: string; label: string }[]; user: UserInput; withPassword?: boolean }) {
-  return <div className="ui-form flex flex-col gap-4"><Input label="Email" onChange={(event) => onChange({ ...user, email: event.target.value })} required type="email" value={user.email} /><Input label="Họ tên" onChange={(event) => onChange({ ...user, fullName: event.target.value })} required value={user.fullName} />{withPassword && <Input label="Mật khẩu" minLength={8} onChange={(event) => onChange({ ...user, password: event.target.value })} required type="password" value={user.password ?? ''} />}<MultiSelect helperText={user.isActive ? 'User active phải có ít nhất một Domain.' : 'User inactive có thể chưa được gán Domain.'} label="Domain" onChange={(domainIds) => onChange({ ...user, domainIds: domainIds.map(Number) })} options={domains} placeholder="Chọn Domain" required={user.isActive} value={user.domainIds.map(String)} /><MultiSelect helperText="Tùy chọn. Chọn các dự án user được phân công vai trò PM/SM." label="Dự án" onChange={(projectIds) => onChange({ ...user, projectIds: projectIds.map(Number) })} options={projects} placeholder="Chọn dự án" value={user.projectIds.map(String)} /><Select label="Role" onChange={(event) => onChange({ ...user, role: event.target.value as UserRole })} options={USER_ROLES.map((value) => ({ value, label: value }))} value={user.role} /><label className="ui-check"><input checked={user.isActive} onChange={(event) => onChange({ ...user, isActive: event.target.checked })} type="checkbox" />Đang hoạt động (Active)</label></div>;
+function UserForm({ allProjectComponents, allProjects, domains, onChange, projects, user, withPassword = false }: { allProjectComponents: ProjectComponent[]; allProjects: Project[]; domains: { value: string; label: string }[]; onChange: (user: UserInput) => void; projects: { value: string; label: string }[]; user: UserInput; withPassword?: boolean }) {
+  const selectedProjects = user.projectIds
+    .map((projectId) => allProjects.find((project) => project.id === projectId))
+    .filter((project): project is Project => Boolean(project));
+
+  return <div className="ui-form flex flex-col gap-4"><Input label="Email" onChange={(event) => onChange({ ...user, email: event.target.value })} required type="email" value={user.email} /><Input label="Họ tên" onChange={(event) => onChange({ ...user, fullName: event.target.value })} required value={user.fullName} />{withPassword && <Input label="Mật khẩu" minLength={8} onChange={(event) => onChange({ ...user, password: event.target.value })} required type="password" value={user.password ?? ''} />}<MultiSelect helperText={user.isActive ? 'User active phải có ít nhất một Domain.' : 'User inactive có thể chưa được gán Domain.'} label="Domain" onChange={(domainIds) => onChange({ ...user, domainIds: domainIds.map(Number) })} options={domains} placeholder="Chọn Domain" required={user.isActive} value={user.domainIds.map(String)} /><MultiSelect helperText="Tùy chọn. Chọn các dự án user được phân công vai trò PM/SM." label="Dự án" onChange={(projectIds) => {
+    const nextProjectIds = projectIds.map(Number);
+    const nextProjectComponents = Object.fromEntries(Object.entries(user.projectComponents).filter(([projectId]) => nextProjectIds.includes(Number(projectId))));
+    onChange({ ...user, projectIds: nextProjectIds, projectComponents: nextProjectComponents });
+  }} options={projects} placeholder="Chọn dự án" value={user.projectIds.map(String)} />
+    {selectedProjects.length > 0 && <div className="ui-form-section flex flex-col gap-3 rounded-lg border border-fb-border bg-fb-surface-muted p-3">
+      <p className="text-xs font-semibold text-fb-text-secondary">Giới hạn theo Component (tùy chọn) — bỏ trống nghĩa là user có quyền với toàn bộ issue của dự án đó.</p>
+      {selectedProjects.map((project) => {
+        const componentOptions = allProjectComponents
+          .filter((component) => component.projectKey === project.sourceProjectKey && component.isActive)
+          .map((component) => ({ value: component.componentName, label: component.componentName }));
+        return <MultiSelect
+          key={project.id}
+          helperText={componentOptions.length === 0 ? 'Dự án này chưa có Component nào trong danh mục.' : undefined}
+          label={`${project.sourceProjectKey} — ${project.projectName}`}
+          onChange={(components) => onChange({ ...user, projectComponents: { ...user.projectComponents, [String(project.id)]: components } })}
+          options={componentOptions}
+          placeholder="Toàn quyền dự án (không giới hạn Component)"
+          value={user.projectComponents[String(project.id)] ?? []}
+        />;
+      })}
+    </div>}
+  <Select label="Role" onChange={(event) => onChange({ ...user, role: event.target.value as UserRole })} options={USER_ROLES.map((value) => ({ value, label: value }))} value={user.role} /><label className="ui-check"><input checked={user.isActive} onChange={(event) => onChange({ ...user, isActive: event.target.checked })} type="checkbox" />Đang hoạt động (Active)</label></div>;
 }

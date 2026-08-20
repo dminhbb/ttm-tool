@@ -7,6 +7,7 @@ import type { PoolClient } from 'pg';
 import pool, { getClient } from '@/lib/db';
 import type { AuthUser, DomainSummary, ManagedUser, ProjectSummary, UserInput, UserProfileDetails, UserRole } from '@/lib/auth-types';
 import { SESSION_COOKIE_NAME } from '@/lib/auth-constants';
+import { getUsageStatsTotals, recordUsageEvent, USAGE_STATS_RETENTION_DAYS } from '@/lib/usage-stats-service';
 
 export { SESSION_COOKIE_NAME } from '@/lib/auth-constants';
 const SESSION_HOURS = { remembered: 24, standard: 2 } as const;
@@ -36,6 +37,7 @@ export async function authenticateLocal(username: string, password: string): Pro
   const user = result.rows[0];
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) return null;
   await pool.query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1;', [user.id]);
+  await recordUsageEvent(user.id, 'login');
   return mapAuthUser(user);
 }
 
@@ -96,7 +98,7 @@ export async function getUserProfileDetails(userId: number, role: UserRole): Pro
   `, [userId]);
 
   const ledProjects = await pool.query<ProjectSummary>(`
-    SELECT p.id, p.project_key AS "projectKey", p.project_name AS "projectName"
+    SELECT p.id, p.source_project_key AS "projectKey", p.project_name AS "projectName"
     FROM projects p
     JOIN user_projects up ON up.project_id = p.id
     WHERE up.user_id = $1
@@ -108,7 +110,7 @@ export async function getUserProfileDetails(userId: number, role: UserRole): Pro
     // Same domain-scoped visibility ADMIN gets in epic-alerts (resolveAccessScope) — every
     // active project in a domain they're assigned to.
     const result = await pool.query<ProjectSummary>(`
-      SELECT DISTINCT p.id, p.project_key AS "projectKey", p.project_name AS "projectName"
+      SELECT DISTINCT p.id, p.source_project_key AS "projectKey", p.project_name AS "projectName"
       FROM projects p
       JOIN user_domains ud ON ud.domain_id = p.domain_id
       WHERE ud.user_id = $1 AND p.is_active
@@ -117,7 +119,9 @@ export async function getUserProfileDetails(userId: number, role: UserRole): Pro
     viewableProjects = result.rows;
   }
 
-  return { domains: domains.rows, ledProjects: ledProjects.rows, viewableProjects };
+  const usageStats = await getUsageStatsTotals(userId);
+
+  return { domains: domains.rows, ledProjects: ledProjects.rows, viewableProjects, usageStats };
 }
 
 export async function listManagedUsers(): Promise<ManagedUser[]> {
@@ -125,13 +129,34 @@ export async function listManagedUsers(): Promise<ManagedUser[]> {
     SELECT
       u.id, u.email, u.full_name AS "fullName", u.role, u.is_active AS "isActive",
       COALESCE(array_agg(DISTINCT ud.domain_id) FILTER (WHERE ud.domain_id IS NOT NULL), '{}') AS "domainIds",
-      COALESCE(array_agg(DISTINCT up.project_id) FILTER (WHERE up.project_id IS NOT NULL), '{}') AS "projectIds"
+      COALESCE(array_agg(DISTINCT up.project_id) FILTER (WHERE up.project_id IS NOT NULL), '{}') AS "projectIds",
+      COALESCE(upc_agg.project_components, '{}'::jsonb) AS "projectComponents",
+      jsonb_build_object(
+        'loginCount', COALESCE(us.login_count, 0),
+        'featureCount', COALESCE(us.feature_count, 0),
+        'dataCount', COALESCE(us.data_count, 0)
+      ) AS "usageStats"
     FROM users u
     LEFT JOIN user_domains ud ON ud.user_id = u.id
     LEFT JOIN user_projects up ON up.user_id = u.id
-    GROUP BY u.id
+    LEFT JOIN (
+      SELECT user_id, SUM(login_count)::int AS login_count, SUM(feature_count)::int AS feature_count, SUM(data_count)::int AS data_count
+      FROM user_usage_daily_stats
+      WHERE stat_date >= CURRENT_DATE - $1::int
+      GROUP BY user_id
+    ) us ON us.user_id = u.id
+    LEFT JOIN (
+      SELECT user_id, jsonb_object_agg(project_id::text, components) AS project_components
+      FROM (
+        SELECT user_id, project_id, array_agg(component_name ORDER BY component_name) AS components
+        FROM user_project_components
+        GROUP BY user_id, project_id
+      ) grouped
+      GROUP BY user_id
+    ) upc_agg ON upc_agg.user_id = u.id
+    GROUP BY u.id, us.login_count, us.feature_count, us.data_count, upc_agg.project_components
     ORDER BY u.email ASC;
-  `);
+  `, [USAGE_STATS_RETENTION_DAYS - 1]);
   return result.rows;
 }
 
@@ -142,11 +167,19 @@ async function replacePermissions(client: PoolClient, userId: number, input: Use
   const existingProjectIds = existingProjectRows.rows.map((project) => project.projectId);
   const removedProjectIds = existingProjectIds.filter((projectId) => !input.projectIds.includes(projectId));
   await client.query('DELETE FROM user_domains WHERE user_id = $1;', [userId]);
+  // ON DELETE CASCADE on user_project_components (FK to user_projects) clears its rows too.
   await client.query('DELETE FROM user_projects WHERE user_id = $1;', [userId]);
   for (const domainId of input.domainIds) await client.query('INSERT INTO user_domains (user_id, domain_id) VALUES ($1, $2);', [userId, domainId]);
   if (removedProjectIds.length > 0) await client.query('UPDATE projects SET lead_name = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ANY($1::int[]) AND lead_name = $2', [removedProjectIds, user.rows[0].fullName]);
   if (input.projectIds.length > 0) await client.query('DELETE FROM user_projects WHERE project_id = ANY($1::int[]) AND user_id <> $2', [input.projectIds, userId]);
-  for (const projectId of input.projectIds) await client.query('INSERT INTO user_projects (user_id, project_id) VALUES ($1, $2);', [userId, projectId]);
+  for (const projectId of input.projectIds) {
+    await client.query('INSERT INTO user_projects (user_id, project_id) VALUES ($1, $2);', [userId, projectId]);
+    // Component narrowing is optional per project — an absent/empty entry means full project access.
+    const components = input.projectComponents[String(projectId)] ?? [];
+    for (const componentName of components) {
+      await client.query('INSERT INTO user_project_components (user_id, project_id, component_name) VALUES ($1, $2, $3);', [userId, projectId, componentName]);
+    }
+  }
   if (input.projectIds.length > 0) await client.query('UPDATE projects SET lead_name = $2, updated_at = CURRENT_TIMESTAMP WHERE id = ANY($1::int[])', [input.projectIds, user.rows[0].fullName]);
 }
 

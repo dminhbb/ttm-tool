@@ -22,6 +22,7 @@ import {
 } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
+import { trackFeatureUsage } from '@/lib/usage-tracking';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { UserMenu } from '@/components/layout/UserMenu';
 import { GeneralSettingsModal } from '@/components/settings/GeneralSettingsModal';
@@ -72,6 +73,7 @@ const navigation: NavigationSection[] = [
       { icon: Gauge, label: 'Dashboard', disabled: true },
       { href: '/epic-alerts', icon: Warning, label: 'Quản lý Epic 30', roles: ADMIN_VIEW_ROLES },
       { href: '/epic-alerts-15', icon: Warning, label: 'Quản trị Epic' },
+      { href: '/epic-in-po', icon: Warning, label: 'Epic in PO' },
     ],
   },
   {
@@ -151,6 +153,7 @@ function SidebarContent({ expanded, onNavigate, onOpenSettings, onToggle, role }
                           className={sharedClassName}
                           aria-label={!expanded ? item.label : undefined}
                           onClick={() => {
+                            trackFeatureUsage();
                             onOpenSettings();
                             onNavigate?.();
                           }}
@@ -169,7 +172,7 @@ function SidebarContent({ expanded, onNavigate, onOpenSettings, onToggle, role }
                       ) : (
                         <Link
                           href={item.href}
-                          onClick={onNavigate}
+                          onClick={() => { trackFeatureUsage(); onNavigate?.(); }}
                           className={sharedClassName}
                           aria-current={active ? 'page' : undefined}
                           aria-label={!expanded ? item.label : undefined}
@@ -214,6 +217,7 @@ const PAGE_HEADERS: Record<string, { subtitle: string; title: string }> = {
   '/': { subtitle: 'Kiểm tra và quản lý các lớp dữ liệu Jira nhập vào TTM Monitor', title: 'Quản trị nguồn dữ liệu' },
   '/epic-alerts': { subtitle: 'Cảnh báo TTM-CNTT dựa trên đợt import dữ liệu mới nhất', title: 'Quản lý Epic 30' },
   '/epic-alerts-15': { subtitle: 'Cảnh báo TTM-CNTT theo giai đoạn DESIGN/DEV/TEST/PENTEST/R4GOLIVE', title: 'Quản trị Epic' },
+  '/epic-in-po': { subtitle: 'Epic đang ở trạng thái To Do, In PO hoặc Released', title: 'Epic in PO' },
   '/admin/domains': { subtitle: 'Quản lý danh mục Domain nghiệp vụ', title: 'Quản lý Domain' },
   '/admin/projects': { subtitle: 'Quản lý danh mục Dự án và mapping với Domain', title: 'Quản lý Dự án' },
   '/admin/holidays': { subtitle: 'Cấu hình ngày nghỉ dùng để tính ngày làm việc', title: 'Cấu hình ngày nghỉ' },

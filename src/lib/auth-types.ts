@@ -1,3 +1,5 @@
+import type { UsageStatsTotals } from '@/lib/usage-stats-types';
+
 export const USER_ROLES = ['SUPERADMIN', 'ADMIN', 'SUPERVISOR', 'USER'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
@@ -12,6 +14,11 @@ export interface ManagedUser extends AuthUser {
   domainIds: number[];
   isActive: boolean;
   projectIds: number[];
+  /** Component-level narrowing per project (user_project_components) — keyed by project.id (as a
+   * string, since it round-trips through JSON). A projectId in projectIds but absent/empty here
+   * has full, unrestricted access to that project — same as before this feature existed. */
+  projectComponents: Record<string, string[]>;
+  usageStats: UsageStatsTotals;
 }
 
 export interface UserInput {
@@ -21,6 +28,8 @@ export interface UserInput {
   isActive: boolean;
   password?: string;
   projectIds: number[];
+  /** See ManagedUser.projectComponents. */
+  projectComponents: Record<string, string[]>;
   role: UserRole;
 }
 
@@ -46,4 +55,6 @@ export interface UserProfileDetails {
    * everything, a list would be noise) and USER (no domain-wide scope to show).
    */
   viewableProjects: ProjectSummary[] | null;
+  /** All-time totals, accumulated per day (see user_usage_daily_stats). */
+  usageStats: UsageStatsTotals;
 }

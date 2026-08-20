@@ -31,6 +31,8 @@ export interface EpicRow {
   aggregatedAt: string;
   assignee: string | null;
   complexity: EpicComplexity | null;
+  /** issues.components — Jira Component/s on the Epic itself (Story-level components don't roll up here). */
+  components: string[];
   dueDate: string | null;
   epicKey: string;
   epicName: string;
@@ -86,8 +88,21 @@ export function resolveTtmActualRange(
   return { fromDate: row.startDate, toDate: toIsoDate(now) };
 }
 
-export async function resolveAccessScope(userId: number, role: UserRole): Promise<{ accessRole: EpicAlertAccessRole; sourceProjectKeys: string[] | null }> {
-  if (role === 'SUPERADMIN' || role === 'SUPERVISOR') return { accessRole: 'CBQL_PHONG', sourceProjectKeys: null };
+export interface AccessScope {
+  accessRole: EpicAlertAccessRole;
+  /**
+   * Component-level narrowing of a PM/SM's per-project grant (user_project_components) — keyed by
+   * source_project_key, same key as EpicRow.project. A project present here with a non-empty list
+   * only shows Epics whose `components` intersects it; a granted project absent from this map is
+   * unrestricted (full project access) — the pre-existing user_projects behavior, unchanged.
+   * Always empty for LEAD/CBQL_PHONG (component narrowing is PM/SM-only, per the permission matrix).
+   */
+  projectComponents: Map<string, string[]>;
+  sourceProjectKeys: string[] | null;
+}
+
+export async function resolveAccessScope(userId: number, role: UserRole): Promise<AccessScope> {
+  if (role === 'SUPERADMIN' || role === 'SUPERVISOR') return { accessRole: 'CBQL_PHONG', projectComponents: new Map(), sourceProjectKeys: null };
   if (role === 'ADMIN') {
     const result = await pool.query<{ sourceProjectKey: string }>(`
       SELECT DISTINCT p.source_project_key AS "sourceProjectKey"
@@ -95,15 +110,27 @@ export async function resolveAccessScope(userId: number, role: UserRole): Promis
       JOIN user_domains ud ON ud.domain_id = p.domain_id
       WHERE ud.user_id = $1 AND p.is_active;
     `, [userId]);
-    return { accessRole: 'LEAD', sourceProjectKeys: result.rows.map((row) => row.sourceProjectKey) };
+    return { accessRole: 'LEAD', projectComponents: new Map(), sourceProjectKeys: result.rows.map((row) => row.sourceProjectKey) };
   }
-  const result = await pool.query<{ sourceProjectKey: string }>(`
-    SELECT p.source_project_key AS "sourceProjectKey"
-    FROM projects p
-    JOIN user_projects up ON up.project_id = p.id
-    WHERE up.user_id = $1 AND p.is_active;
-  `, [userId]);
-  return { accessRole: 'PM_SM', sourceProjectKeys: result.rows.map((row) => row.sourceProjectKey) };
+  const [projectRows, componentRows] = await Promise.all([
+    pool.query<{ sourceProjectKey: string }>(`
+      SELECT p.source_project_key AS "sourceProjectKey"
+      FROM projects p
+      JOIN user_projects up ON up.project_id = p.id
+      WHERE up.user_id = $1 AND p.is_active;
+    `, [userId]),
+    pool.query<{ componentName: string; sourceProjectKey: string }>(`
+      SELECT p.source_project_key AS "sourceProjectKey", upc.component_name AS "componentName"
+      FROM user_project_components upc
+      JOIN projects p ON p.id = upc.project_id
+      WHERE upc.user_id = $1 AND p.is_active;
+    `, [userId]),
+  ]);
+  const projectComponents = new Map<string, string[]>();
+  for (const row of componentRows.rows) {
+    projectComponents.set(row.sourceProjectKey, [...(projectComponents.get(row.sourceProjectKey) ?? []), row.componentName]);
+  }
+  return { accessRole: 'PM_SM', projectComponents, sourceProjectKeys: projectRows.rows.map((row) => row.sourceProjectKey) };
 }
 
 /** dd/mm/yyyy, matching the client's formatDate() so plan-label text and formatted cell dates read the same. */
@@ -240,6 +267,7 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole): Pro
       issues.due_date::text AS "dueDate",
       issues.requirement_level AS "requirementLevel",
       issues.aggregated_at::text AS "aggregatedAt",
+      COALESCE(issues.components, '{}') AS components,
       COALESCE(
         NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
         NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),
@@ -268,6 +296,13 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole): Pro
     // Default visibility rule: Released epics only stay on the list if they were ever flagged
     // Cảnh báo muộn/Fail TTM in their accumulated alert history; everything else always shows.
     if (epicStatusIndex === releasedStatusIndex && !hasAlertHistory) continue;
+
+    // Component-level narrowing (PM/SM only — see resolveAccessScope): a project present in
+    // projectComponents only shows Epics whose own components intersect the allowed set. An Epic
+    // with no components tagged in Jira is NOT restricted — per the confirmed rule, a blank
+    // Component/s field is treated as "general", visible regardless of the user's narrowing.
+    const allowedComponents = row.project ? scope.projectComponents.get(row.project) : undefined;
+    if (allowedComponents && row.components.length > 0 && !row.components.some((component) => allowedComponents.includes(component))) continue;
 
     const startDate = parseDate(row.startDate);
     const complexity: EpicComplexity = row.complexity ?? 'SIMPLE';
@@ -346,6 +381,7 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
 
     rows.push({
       alertLevel,
+      components: row.components,
       currentStatus: row.status,
       domainName: domain,
       epicKey: row.epicKey,

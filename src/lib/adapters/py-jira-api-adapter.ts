@@ -19,7 +19,7 @@
  *             source of truth for the epic/story link, which is still epic_key on story rows),
  *           epic_requirement_level (maps to issues.requirement_level)
  *
- * Story  : story_key, story_issue_type, story_summary, story_status,
+ * Story  : story_key, story_issue_type, story_summary, story_status, story_components,
  *           story_subtasks (comma/semicolon-separated subtask keys, stored verbatim — same
  *             caveat as epic_stories)
  *          + epic_key  (the epic this story belongs to)
@@ -105,6 +105,7 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
     story_issue_type: idx('story_issue_type'),
     story_summary: idx('story_summary'),
     story_status: idx('story_status'),
+    story_components: idx('story_components'),
     story_subtasks: idx('story_subtasks'),
 
     // Subtask columns
@@ -176,7 +177,7 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
         status: get(COL.story_status),
         projectKey,
         projectName: '',
-        components: '',
+        components: get(COL.story_components),
         assignee: '',
         epicLink: epicKey,      // epic_key on the same row is the story's parent epic
         epicName: '',

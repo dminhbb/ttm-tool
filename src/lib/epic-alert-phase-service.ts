@@ -183,6 +183,7 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
 
     rows.push({
       alertLevel,
+      components: row.components,
       currentStatus: row.status,
       dataLayerDate: row.aggregatedAt ?? null,
       domainName: domain,

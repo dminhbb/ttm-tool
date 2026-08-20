@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import './epic-alerts-15.css';
+import { useEffect, useMemo, useState } from 'react';
+import './epic-in-po.css';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -14,8 +14,8 @@ import type { EpicAlertHistoryEntry } from '@/lib/epic-alert-history-service';
 import type { EpicMilestoneHistoryEntry } from '@/lib/epic-milestone-history-service';
 import type { ProjectComponent } from '@/lib/master-data-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
-import { ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, Warning } from '@phosphor-icons/react';
 import { normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
+import { ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, Warning } from '@phosphor-icons/react';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import { trackDataUsage } from '@/lib/usage-tracking';
 
@@ -23,11 +23,11 @@ const PAGE_SIZE = 20;
 
 const EMPTY_ROWS: EpicAlertRowPhased[] = [];
 
-/** These 3 statuses now have their own dedicated screen ("Epic in PO"), so Quản trị Epic defaults
- * its Status filter to everything else — applied once, the first time real status options load
- * (see the statusOptions effect below), and never reapplied after that so it doesn't fight a
- * user's own filter choice. */
-const DEFAULT_EXCLUDED_STATUSES = new Set(['TO DO', 'IN PO', 'RELEASED']);
+/** "Epic in PO" only ever shows Epics in these 3 statuses — clone of Quản trị Epic
+ * (epic-alerts-15), filtered to the pre-Design part of the workflow plus Released. Matched via
+ * normalizeEpicWorkflowStatus so casing/whitespace variants in raw Jira data (e.g. "To Do",
+ * "TO DO") all resolve the same way as everywhere else status is classified. */
+const IN_PO_STATUSES = new Set(['TO DO', 'IN PO', 'RELEASED']);
 
 function formatDate(value: string | null): string {
   if (!value) return '-';
@@ -392,8 +392,7 @@ function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRowPhased; onClose:
   );
 }
 
-
-export default function EpicAlerts15Page() {
+export default function EpicInPoPage() {
   const [data, setData] = useState<EpicAlertPhasedResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -436,7 +435,7 @@ export default function EpicAlerts15Page() {
         setData(result);
       }
     } catch {
-      setError('Không thể kết nối API Quản trị Epic.');
+      setError('Không thể kết nối API Epic in PO.');
     } finally {
       setIsLoading(false);
     }
@@ -448,11 +447,14 @@ export default function EpicAlerts15Page() {
     fetch('/api/project-components').then((res) => (res.ok ? res.json() : [])).then(setProjectComponents).catch(() => undefined);
   }, []);
 
-  const rows = data?.rows ?? EMPTY_ROWS;
+  // Same source data as Quản trị Epic, sliced down to just TO DO / IN PO / RELEASED — this is the
+  // one thing that makes "Epic in PO" a distinct screen rather than the same page.
+  const rows = useMemo(
+    () => (data?.rows ?? EMPTY_ROWS).filter((row) => IN_PO_STATUSES.has(normalizeEpicWorkflowStatus(row.currentStatus))),
+    [data],
+  );
   const projectOptions = useMemo(() => [...new Set(rows.map((row) => row.projectKey).filter(Boolean))].sort(), [rows]);
   const statusOptions = useMemo(() => [...new Set(rows.map((row) => row.currentStatus).filter(Boolean))].sort(), [rows]);
-  // Options = the catalog's components for whichever projects are selected — disabled entirely
-  // (no options, filter cleared) until at least one project is picked.
   const componentOptions = useMemo(
     () => [...new Set(projectComponents.filter((component) => projectFilters.includes(component.projectKey)).map((component) => component.componentName))].sort(),
     [projectComponents, projectFilters],
@@ -462,13 +464,6 @@ export default function EpicAlerts15Page() {
     if (values.length === 0) setComponentFilters([]);
     setPage(1);
   };
-
-  const hasAppliedDefaultStatusFilter = useRef(false);
-  useEffect(() => {
-    if (hasAppliedDefaultStatusFilter.current || statusOptions.length === 0) return;
-    hasAppliedDefaultStatusFilter.current = true;
-    setStatusFilters(statusOptions.filter((status) => !DEFAULT_EXCLUDED_STATUSES.has(normalizeEpicWorkflowStatus(status))));
-  }, [statusOptions]);
 
   const filteredRows = useMemo(() => rows.filter((row) => {
     const normalizedSearch = search.trim().toLocaleLowerCase('vi-VN');
@@ -490,7 +485,7 @@ export default function EpicAlerts15Page() {
   return (
     <div className="ttm-app">
       <p className="ttm-page-subtitle">
-        Màn hình read-only theo các dự án được phân quyền. Cột trạng thái tách theo giai đoạn DESIGN/DEV/TEST/PENTEST/R4GOLIVE (baseline 20/30/30/10/10% TTM-CNTT, tính từ Start Date).
+        Màn hình read-only theo các dự án được phân quyền, chỉ hiển thị Epic đang ở trạng thái To Do, In PO hoặc Released.
       </p>
 
       {data && (

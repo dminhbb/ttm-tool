@@ -2,7 +2,7 @@ import type { PoolClient } from 'pg';
 import pool, { getClient } from './db';
 import { parseCSV, mapCSVToRawIssues } from './csv-parser';
 import { validateAllJiraIssues, parseJiraDate, RowValidationResult, ValidationError } from './validator';
-import { accumulateProjectComponents } from './project-component-service';
+import { accumulateProjectComponents, splitComponents } from './project-component-service';
 import { DEFAULT_RAW_IMPORT_RETENTION_DAYS } from './data-retention-service';
 import { evaluateIssueCompliance } from './epic-compliance-engine';
 import { recordEpicAlertHistory } from './epic-alert-history-service';
@@ -345,8 +345,8 @@ export async function processImport(
           standard_status, assignee_name, epic_key, parent_key,
           idea_approved_date, start_date, r4g_date, due_date,
           epic_complexity_type, requirement_level, source_import_batch_id, aggregated_at,
-          jira_created_at, jira_updated_at, epic_stories, story_subtasks
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+          jira_created_at, jira_updated_at, epic_stories, story_subtasks, components
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
         ON CONFLICT (issue_key, source_import_batch_id) DO UPDATE SET
           jira_id = EXCLUDED.jira_id,
           issue_name = EXCLUDED.issue_name,
@@ -365,6 +365,7 @@ export async function processImport(
           aggregated_at = EXCLUDED.aggregated_at,
           epic_stories = EXCLUDED.epic_stories,
           story_subtasks = EXCLUDED.story_subtasks,
+          components = EXCLUDED.components,
           updated_at = NOW();
       `;
 
@@ -377,6 +378,7 @@ export async function processImport(
         const stdStatus = issue.status;
 
         const jiraId = parseInt(issue.issueId) || 0;
+        const components = splitComponents(issue.components);
 
         // Parse Jira source timestamps — only provided by Py Jira API adapter for epics
         const jiraCreatedAt = issue.jiraCreatedAt ? parseJiraDate(issue.jiraCreatedAt) : null;
@@ -405,6 +407,7 @@ export async function processImport(
           jiraUpdatedAt,
           issue.epicStories?.length ? issue.epicStories : null,
           issue.storySubtasks?.length ? issue.storySubtasks : null,
+          components.length ? components : null,
         ]);
       }
 

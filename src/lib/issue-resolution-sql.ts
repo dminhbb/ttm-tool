@@ -28,7 +28,7 @@ export const LATEST_ISSUES_CTE = `
     SELECT DISTINCT ON (issue_key)
       id, issue_key, issue_type, current_status, epic_key, parent_key, jira_id,
       issue_name, assignee_name, start_date, r4g_date, due_date,
-      epic_stories, story_subtasks,
+      epic_stories, story_subtasks, components,
       source_import_batch_id, aggregated_at
     FROM issues
     ORDER BY issue_key, aggregated_at DESC

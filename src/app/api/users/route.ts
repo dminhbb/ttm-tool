@@ -7,12 +7,31 @@ import { listDomains, listProjects } from '@/lib/master-data-service';
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null; }
 function isIdList(value: unknown): value is number[] { return Array.isArray(value) && value.every((item) => Number.isInteger(item) && item > 0); }
 
+/** Every key must be one of the granted projectIds (component narrowing only makes sense for a
+ * project the user actually has), and every value a de-duplicated list of non-empty component names. */
+function parseProjectComponents(value: unknown, projectIds: number[]): Record<string, string[]> | null {
+  if (value === undefined) return {};
+  if (!isRecord(value)) return null;
+  const projectIdStrings = new Set(projectIds.map(String));
+  const result: Record<string, string[]> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    if (!projectIdStrings.has(key)) return null;
+    if (!Array.isArray(raw) || !raw.every((item) => typeof item === 'string' && item.trim().length > 0)) return null;
+    const components = [...new Set(raw.map((item) => item.trim()))];
+    if (components.length > 0) result[key] = components;
+  }
+  return result;
+}
+
 function parseUser(body: unknown, requirePassword: boolean): { error: string } | { value: UserInput } {
   if (!isRecord(body) || typeof body.email !== 'string' || typeof body.fullName !== 'string' || typeof body.role !== 'string' || typeof body.isActive !== 'boolean' || !isIdList(body.domainIds) || (body.isActive && body.domainIds.length === 0) || new Set(body.domainIds).size !== body.domainIds.length || !isIdList(body.projectIds) || new Set(body.projectIds).size !== body.projectIds.length) return { error: 'Dữ liệu người dùng không hợp lệ. User active phải thuộc ít nhất một Domain; Domain và Dự án không được trùng lặp.' };
   const email = body.email.trim().toLowerCase();
   if (!/^[^\s@]+@mbbank\.com\.vn$/i.test(email) || body.fullName.trim().length === 0 || body.fullName.trim().length > 255 || !USER_ROLES.includes(body.role as UserRole)) return { error: 'Email MB Bank, họ tên hoặc role không hợp lệ.' };
   if (requirePassword && (typeof body.password !== 'string' || body.password.length < 8 || body.password.length > 256)) return { error: 'Mật khẩu phải có từ 8 đến 256 ký tự.' };
-  return { value: { email, fullName: body.fullName.trim(), role: body.role as UserRole, isActive: body.isActive, domainIds: body.domainIds, projectIds: [...new Set(body.projectIds)], ...(typeof body.password === 'string' ? { password: body.password } : {}) } };
+  const projectIds = [...new Set(body.projectIds)];
+  const projectComponents = parseProjectComponents(body.projectComponents, projectIds);
+  if (projectComponents === null) return { error: 'Dữ liệu Components theo Dự án không hợp lệ.' };
+  return { value: { email, fullName: body.fullName.trim(), role: body.role as UserRole, isActive: body.isActive, domainIds: body.domainIds, projectIds, projectComponents, ...(typeof body.password === 'string' ? { password: body.password } : {}) } };
 }
 
 async function hasActiveDomains(ids: number[]): Promise<boolean> {

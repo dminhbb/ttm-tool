@@ -1,7 +1,7 @@
-import type { PoolClient } from 'pg';
 import pool, { getClient } from '@/lib/db';
 import { expandHolidayRanges } from '@/lib/working-days';
 import type { HolidaySet } from '@/lib/working-days';
+import { parseCSV } from '@/lib/csv-parser';
 import type {
   Domain,
   DomainInput,
@@ -10,6 +10,8 @@ import type {
   IssueTypeRoleMapping,
   IssueTypeRoleMappingInput,
   Project,
+  ProjectComponent,
+  ProjectComponentImportResult,
   ProjectInput,
 } from '@/lib/master-data-types';
 
@@ -59,68 +61,46 @@ export async function deleteDomain(id: number): Promise<void> {
 export async function listProjects(): Promise<Project[]> {
   const result = await pool.query<Project>(`
     SELECT
-      p.id, p.project_key AS "projectKey", p.project_name AS "projectName",
+      p.id, p.project_name AS "projectName",
       p.domain_id AS "domainId", d.domain_name AS "domainName",
       p.source_project_key AS "sourceProjectKey", p.source_type AS "sourceType", p.project_category AS "projectCategory", p.ttm,
       COALESCE(p.lead_name, '') AS "leadName", p.is_active AS "isActive",
       p.created_at::text AS "createdAt"
     FROM projects p
     LEFT JOIN domains d ON d.id = p.domain_id
-    ORDER BY p.project_key ASC;
+    ORDER BY p.source_project_key ASC;
   `);
   return result.rows;
 }
 
+/**
+ * Creates/updates only the project record itself — PM/SM assignment (projects.lead_name) is not
+ * touched here. It's set exclusively by auth-service.ts's replacePermissions, driven by the Users
+ * screen's project assignment UI, so a Project add/edit save can never clobber it.
+ */
 export async function createProject(input: ProjectInput): Promise<Project> {
-  const client = await getClient();
-  try {
-    await client.query('BEGIN');
-    const result = await client.query<{ id: number }>(`
-      INSERT INTO projects (project_key, project_name, domain_id, source_project_key, source_type, project_category, ttm, lead_name, is_active)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING id;
-    `, [input.projectKey, input.projectName, input.domainId, input.sourceProjectKey, input.sourceType, input.projectCategory, input.ttm, input.leadName || null, input.isActive]);
-    await syncProjectLeadAssignment(client, result.rows[0].id, input.leadName);
-    await client.query('COMMIT');
-    return getProjectById(result.rows[0].id);
-  } catch (error: unknown) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally { client.release(); }
+  const result = await pool.query<{ id: number }>(`
+    INSERT INTO projects (project_name, domain_id, source_project_key, source_type, project_category, ttm, is_active)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    RETURNING id;
+  `, [input.projectName, input.domainId, input.sourceProjectKey, input.sourceType, input.projectCategory, input.ttm, input.isActive]);
+  return getProjectById(result.rows[0].id);
 }
 
 export async function updateProject(id: number, input: ProjectInput): Promise<Project> {
-  const client = await getClient();
-  try {
-    await client.query('BEGIN');
-    await client.query(`
-      UPDATE projects SET
-        project_key = $2, project_name = $3, domain_id = $4, source_project_key = $5,
-        source_type = $6, project_category = $7, ttm = $8, lead_name = $9, is_active = $10, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1;
-    `, [id, input.projectKey, input.projectName, input.domainId, input.sourceProjectKey, input.sourceType, input.projectCategory, input.ttm, input.leadName || null, input.isActive]);
-    await syncProjectLeadAssignment(client, id, input.leadName);
-    await client.query('COMMIT');
-    return getProjectById(id);
-  } catch (error: unknown) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally { client.release(); }
-}
-
-async function syncProjectLeadAssignment(client: PoolClient, projectId: number, leadName: string): Promise<void> {
-  await client.query('DELETE FROM user_projects WHERE project_id = $1', [projectId]);
-  if (!leadName) return;
-  const user = await client.query<{ fullName: string; id: number }>('SELECT id, full_name AS "fullName" FROM users WHERE (full_name = $1 OR email = $1) AND is_active = TRUE', [leadName]);
-  if (user.rowCount !== 1) throw new Error('INVALID_PROJECT_LEAD');
-  await client.query('UPDATE projects SET lead_name = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [projectId, user.rows[0].fullName]);
-  await client.query('INSERT INTO user_projects (user_id, project_id) VALUES ($1, $2)', [user.rows[0].id, projectId]);
+  await pool.query(`
+    UPDATE projects SET
+      project_name = $2, domain_id = $3, source_project_key = $4,
+      source_type = $5, project_category = $6, ttm = $7, is_active = $8, updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1;
+  `, [id, input.projectName, input.domainId, input.sourceProjectKey, input.sourceType, input.projectCategory, input.ttm, input.isActive]);
+  return getProjectById(id);
 }
 
 async function getProjectById(id: number): Promise<Project> {
   const result = await pool.query<Project>(`
     SELECT
-      p.id, p.project_key AS "projectKey", p.project_name AS "projectName",
+      p.id, p.project_name AS "projectName",
       p.domain_id AS "domainId", d.domain_name AS "domainName",
       p.source_project_key AS "sourceProjectKey", p.source_type AS "sourceType", p.project_category AS "projectCategory", p.ttm,
       COALESCE(p.lead_name, '') AS "leadName", p.is_active AS "isActive",
@@ -257,4 +237,94 @@ export async function updateIssueTypeRoleMapping(id: number, input: IssueTypeRol
 
 export async function deleteIssueTypeRoleMapping(id: number): Promise<void> {
   await pool.query('DELETE FROM issue_type_role_mapping WHERE id = $1;', [id]);
+}
+
+// ---------- Project Components ----------
+// project_key here is projects.source_project_key, the same join key epic-alert-service.ts
+// resolves onto every Epic row. Rows accumulate both from CSV issue imports
+// (project-component-service.ts, keyed off issue.projectKey) and the manual "Import Components"
+// tab below — same table, same upsert semantics either way.
+
+export async function listProjectComponents(): Promise<ProjectComponent[]> {
+  const result = await pool.query<ProjectComponent>(`
+    SELECT id, project_key AS "projectKey", component_name AS "componentName",
+      is_active AS "isActive", created_at::text AS "createdAt", updated_at::text AS "updatedAt"
+    FROM project_components
+    ORDER BY project_key ASC, component_name ASC;
+  `);
+  return result.rows;
+}
+
+interface ParsedComponentRow {
+  componentName: string;
+  projectKey: string;
+  rowNumber: number;
+}
+
+/**
+ * "Import Components": 2-column CSV (project_key, component) — a manually curated addition to the
+ * same catalog CSV issue imports auto-accumulate into (see accumulateProjectComponents). Rejects
+ * the whole file on any invalid row (duplicate pair within the file, unknown/inactive project_key)
+ * rather than silently dropping rows, so the admin fixes the file instead of getting a partial import.
+ */
+export async function importProjectComponentsCsv(csvText: string): Promise<ProjectComponentImportResult> {
+  const rows = parseCSV(csvText);
+  if (rows.length === 0) return { errors: [{ message: 'File rỗng.', rowNumber: 0 }], importedCount: 0, totalRows: 0 };
+
+  const headers = rows[0].map((cell) => cell.trim().toLowerCase());
+  const projectKeyIdx = headers.findIndex((h) => h === 'project_key' || h === 'projectkey');
+  const componentIdx = headers.findIndex((h) => h === 'component' || h === 'component_name' || h === 'componentname');
+  if (projectKeyIdx < 0 || componentIdx < 0) {
+    return { errors: [{ message: 'File cần đúng 2 cột: project_key và component.', rowNumber: 1 }], importedCount: 0, totalRows: 0 };
+  }
+
+  const dataRows = rows.slice(1).filter((row) => row.some((cell) => cell.trim() !== ''));
+  const activeProjectKeys = new Set((await listProjects()).filter((project) => project.isActive).map((project) => project.sourceProjectKey));
+
+  const errors: ProjectComponentImportResult['errors'] = [];
+  const seenPairs = new Set<string>();
+  const parsed: ParsedComponentRow[] = [];
+
+  dataRows.forEach((row, index) => {
+    const rowNumber = index + 2; // +1 for 0-index, +1 for the header row
+    const projectKey = (row[projectKeyIdx] ?? '').trim();
+    const componentName = (row[componentIdx] ?? '').trim();
+    if (!projectKey || !componentName) {
+      errors.push({ message: 'Thiếu project_key hoặc component.', rowNumber });
+      return;
+    }
+    if (!activeProjectKeys.has(projectKey)) {
+      errors.push({ message: `project_key "${projectKey}" không khớp Dự án nào đang hoạt động.`, rowNumber });
+      return;
+    }
+    const pairKey = `${projectKey} ${componentName}`;
+    if (seenPairs.has(pairKey)) {
+      errors.push({ message: `Cặp (${projectKey}, ${componentName}) bị lặp lại trong file.`, rowNumber });
+      return;
+    }
+    seenPairs.add(pairKey);
+    parsed.push({ componentName, projectKey, rowNumber });
+  });
+
+  if (errors.length > 0) return { errors, importedCount: 0, totalRows: dataRows.length };
+
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+    for (const row of parsed) {
+      await client.query(`
+        INSERT INTO project_components (project_key, component_name)
+        VALUES ($1, $2)
+        ON CONFLICT (project_key, component_name) DO UPDATE SET updated_at = CURRENT_TIMESTAMP;
+      `, [row.projectKey, row.componentName]);
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  return { errors: [], importedCount: parsed.length, totalRows: dataRows.length };
 }

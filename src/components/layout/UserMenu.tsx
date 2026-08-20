@@ -10,6 +10,7 @@ import { AlertLogicModal, DataLogicModal } from '@/components/layout/HelpPanels'
 import { UserInfoModal } from '@/components/layout/UserInfoModal';
 import { AppearancePanel } from '@/components/settings/AppearancePanel';
 import { cn } from '@/lib/utils';
+import { trackFeatureUsage } from '@/lib/usage-tracking';
 import type { UserRole } from '@/lib/auth-types';
 
 type AppearanceTheme = 'dark' | 'light';
@@ -119,7 +120,7 @@ export function UserMenu({ expanded }: UserMenuProps) {
         >
           <button
             type="button"
-            onClick={() => { setIsMenuOpen(false); setIsUserInfoOpen(true); }}
+            onClick={() => { trackFeatureUsage(); setIsMenuOpen(false); setIsUserInfoOpen(true); }}
             className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-fb-text-primary transition-colors hover:bg-fb-control"
             role="menuitem"
           >
@@ -128,7 +129,7 @@ export function UserMenu({ expanded }: UserMenuProps) {
           </button>
           <button
             type="button"
-            onClick={() => { setIsMenuOpen(false); setIsSettingsOpen(true); }}
+            onClick={() => { trackFeatureUsage(); setIsMenuOpen(false); setIsSettingsOpen(true); }}
             className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-fb-text-primary transition-colors hover:bg-fb-control"
             role="menuitem"
           >
@@ -137,7 +138,7 @@ export function UserMenu({ expanded }: UserMenuProps) {
           </button>
           <button
             type="button"
-            onClick={() => { setIsMenuOpen(false); setIsAlertLogicOpen(true); }}
+            onClick={() => { trackFeatureUsage(); setIsMenuOpen(false); setIsAlertLogicOpen(true); }}
             className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-fb-text-primary transition-colors hover:bg-fb-control"
             role="menuitem"
           >
@@ -147,7 +148,7 @@ export function UserMenu({ expanded }: UserMenuProps) {
           {isAdmin && (
             <button
               type="button"
-              onClick={() => { setIsMenuOpen(false); setIsDataLogicOpen(true); }}
+              onClick={() => { trackFeatureUsage(); setIsMenuOpen(false); setIsDataLogicOpen(true); }}
               className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-fb-text-primary transition-colors hover:bg-fb-control"
               role="menuitem"
             >
@@ -157,14 +158,14 @@ export function UserMenu({ expanded }: UserMenuProps) {
           )}
           <button
             type="button"
-            onClick={() => { setIsMenuOpen(false); router.push('/docs/product'); }}
+            onClick={() => { trackFeatureUsage(); setIsMenuOpen(false); router.push('/docs/product'); }}
             className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-fb-text-primary transition-colors hover:bg-fb-control"
             role="menuitem"
           >
             <BookOpen className="size-4 shrink-0" weight="bold" aria-hidden="true" />
             <span>Tài liệu sản phẩm</span>
           </button>
-          <button type="button" onClick={logout} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-status-danger transition-colors hover:bg-fb-control" role="menuitem">
+          <button type="button" onClick={() => { trackFeatureUsage(); void logout(); }} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-status-danger transition-colors hover:bg-fb-control" role="menuitem">
             <SignOut className="size-4 shrink-0" weight="bold" aria-hidden="true" />
             <span>Đăng xuất</span>
           </button>
