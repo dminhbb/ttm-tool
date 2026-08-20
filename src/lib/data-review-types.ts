@@ -1,5 +1,7 @@
 export interface DataReviewIssue {
   assignee: string;
+  /** Which import data layer (aggregated_at) this issue's latest known row currently comes from. */
+  dataLayerDate: string | null;
   dueDate: string | null;
   hasChildren: boolean;
   id: number;

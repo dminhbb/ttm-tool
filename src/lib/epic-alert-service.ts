@@ -88,6 +88,57 @@ export function resolveTtmActualRange(
   return { fromDate: row.startDate, toDate: toIsoDate(now) };
 }
 
+export const RELEASE_BASELINE_SOURCE_LABEL = {
+  ideaApproved: 'Idea Approved Date (T0)',
+  startDate: 'Start Date',
+  jiraCreated: 'Ngày tạo trên Jira',
+} as const;
+
+export interface TtmE2eRelease {
+  /** Due Date once recorded, else today (Epic still ongoing). */
+  actualToDate: string | null;
+  /** FAIL once actualToDate passes baselineDate — no EARLY/LATE tiers for TTM-E2E. */
+  alertLevel: AlertLevel;
+  baselineDate: string | null;
+  /** T0 itself — Idea Approved Date, else Start Date, else the Epic's Jira creation date. */
+  baselineSourceDate: string | null;
+  baselineSourceLabel: string | null;
+  elapsedWorkingDays: number | null;
+}
+
+/**
+ * TTM-E2E's own baseline/actual pair, shared by every screen that shows a TTM-E2E stripe or its
+ * Fail alert — same T0 fallback chain "đầy đủ" already used for its Release stage cell (Idea
+ * Approved Date → Start Date → Jira creation date, always resolves), so a Fail TTM-E2E badge can
+ * never disagree with that screen's own TTM-E2E stripe color.
+ */
+export function resolveTtmE2eRelease(
+  row: Pick<EpicRow, 'dueDate' | 'ideaApprovedDate' | 'jiraCreatedAt' | 'startDate' | 'status'>,
+  ttmE2eTargetWorkingDays: number,
+  now: Date,
+  holidays: HolidaySet,
+): TtmE2eRelease {
+  const ideaApprovedDate = parseDate(row.ideaApprovedDate);
+  const startDate = parseDate(row.startDate);
+  const [baselineSourceDate, baselineSourceLabel] = ideaApprovedDate
+    ? [ideaApprovedDate, RELEASE_BASELINE_SOURCE_LABEL.ideaApproved]
+    : startDate
+      ? [startDate, RELEASE_BASELINE_SOURCE_LABEL.startDate]
+      : [parseDate(row.jiraCreatedAt), RELEASE_BASELINE_SOURCE_LABEL.jiraCreated];
+  const baselineDate = baselineSourceDate && ttmE2eTargetWorkingDays ? addWorkingDays(baselineSourceDate, ttmE2eTargetWorkingDays, holidays) : null;
+  const actualToDate = (row.dueDate && parseDate(row.dueDate)) || now;
+  const elapsedWorkingDays = baselineSourceDate ? Math.max(0, diffWorkingDays(baselineSourceDate, actualToDate, holidays)) : null;
+  const alertLevel: AlertLevel = !baselineDate || isCancelledStatus(row.status) ? 'NONE' : (actualToDate.getTime() > baselineDate.getTime() ? 'FAIL' : 'NONE');
+  return {
+    actualToDate: toIsoDate(actualToDate),
+    alertLevel,
+    baselineDate: toIsoDate(baselineDate),
+    baselineSourceDate: baselineSourceDate ? toIsoDate(baselineSourceDate) : null,
+    baselineSourceLabel: baselineSourceDate ? baselineSourceLabel : null,
+    elapsedWorkingDays,
+  };
+}
+
 export interface AccessScope {
   accessRole: EpicAlertAccessRole;
   /**
@@ -345,11 +396,10 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
 
   for (const { complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, row, startDate } of entries) {
     const ttmCnttStartDate = parseDate(evaluation.ttm.cntt.fromDate);
-    const ttmE2eStartDate = parseDate(evaluation.ttm.e2e.fromDate);
     const ttmCnttTarget = evaluation.ttm.cntt.workingDays ?? 0;
     const ttmCnttElapsed = ttmCnttStartDate ? Math.max(0, diffWorkingDays(ttmCnttStartDate, now, holidays)) : null;
     const ttmE2eTarget = evaluation.ttm.e2e.workingDays ?? 0;
-    const ttmE2eElapsed = ttmE2eStartDate ? Math.max(0, diffWorkingDays(ttmE2eStartDate, now, holidays)) : null;
+    const ttmE2eRelease = resolveTtmE2eRelease(row, ttmE2eTarget, now, holidays);
     const alertLevel = evaluation.alertLevel;
     const targetR4gDate = parseDate(evaluation.ttm.cntt.targetDate ?? row.targetR4gDate);
     const remainingWorkingDays = targetR4gDate ? diffWorkingDays(now, targetR4gDate, holidays) : null;
@@ -383,6 +433,7 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
       alertLevel,
       components: row.components,
       currentStatus: row.status,
+      dataLayerDate: row.aggregatedAt ?? null,
       domainName: domain,
       epicKey: row.epicKey,
       epicName: row.epicName,
@@ -406,7 +457,11 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
       targetR4gDate: toIsoDate(targetR4gDate) ?? row.targetR4gDate,
       ttmCnttElapsedWorkingDays: ttmCnttElapsed,
       ttmCnttTargetWorkingDays: ttmCnttTarget,
-      ttmE2eElapsedWorkingDays: ttmE2eElapsed,
+      ttmE2eAlertLevel: ttmE2eRelease.alertLevel,
+      ttmE2eActualToDate: ttmE2eRelease.actualToDate,
+      ttmE2eBaselineDate: ttmE2eRelease.baselineDate,
+      ttmE2eBaselineSourceDate: ttmE2eRelease.baselineSourceDate,
+      ttmE2eElapsedWorkingDays: ttmE2eRelease.elapsedWorkingDays,
       ttmE2eTargetWorkingDays: ttmE2eTarget,
     });
   }

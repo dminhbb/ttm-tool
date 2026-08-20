@@ -17,6 +17,8 @@ type AppearanceTheme = 'dark' | 'light';
 
 const APPEARANCE_STORAGE_KEY = 'ttm-monitor.appearance-theme';
 
+const ROLE_LABEL: Record<UserRole, string> = { SUPERADMIN: 'Superadmin', ADMIN: 'Admin', SUPERVISOR: 'Supervisor', USER: 'User' };
+
 const THEME_OPTIONS = [
   { value: 'light', label: 'Light mode' },
   { value: 'dark', label: 'Dark mode' },
@@ -118,6 +120,12 @@ export function UserMenu({ expanded }: UserMenuProps) {
           role="menu"
           aria-label="Menu người dùng"
         >
+          <div className="px-3 py-2">
+            <p className="truncate text-sm font-bold text-fb-text-primary">{user?.fullName || 'Đang tải...'}</p>
+            <p className="mt-0.5 truncate text-xs text-fb-text-secondary">{user?.email ? user.email.split('@')[0] : ''}</p>
+            <p className="mt-0.5 truncate text-xs text-fb-text-secondary">{user ? ROLE_LABEL[user.role] : ''}</p>
+          </div>
+          <div className="my-1 border-t border-fb-border" role="separator" />
           <button
             type="button"
             onClick={() => { trackFeatureUsage(); setIsMenuOpen(false); setIsUserInfoOpen(true); }}

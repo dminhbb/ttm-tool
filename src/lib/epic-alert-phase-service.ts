@@ -1,6 +1,6 @@
 import type { UserRole } from '@/lib/auth-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
-import { addWorkingDays, diffWorkingDays } from '@/lib/working-days';
+import { diffWorkingDays } from '@/lib/working-days';
 import { computeComponentPhaseAlerts, computePhaseAlertLevel, computeTtmPhaseBaselines, epicWorkflowStatusIndex } from '@/lib/ttm-phase-rules';
 import type { TtmPhaseBaseline, TtmPhaseKey } from '@/lib/ttm-phase-rules';
 import {
@@ -8,6 +8,7 @@ import {
   isCancelledStatus,
   missingStandardInfo,
   parseDate,
+  resolveTtmE2eRelease,
   toIsoDate,
 } from '@/lib/epic-alert-service';
 import { computeEpicPhaseCompletionByEpicKey } from '@/lib/epic-phase-completion-service';
@@ -16,12 +17,6 @@ import { recordEpicAlertHistory } from '@/lib/epic-alert-history-service';
 import type { EpicAlertHistoryPhase } from '@/lib/epic-alert-history-service';
 import pool from '@/lib/db';
 import type { EpicAlertPhasedResponse, EpicAlertRowPhased, PhaseCell } from '@/lib/epic-alert-types';
-
-const RELEASE_BASELINE_SOURCE_LABEL = {
-  ideaApproved: 'Idea Approved Date (T0)',
-  startDate: 'Start Date',
-  jiraCreated: 'Ngày tạo trên Jira',
-} as const;
 
 const DESIGN_STATUS_INDEX = epicWorkflowStatusIndex('DESIGN');
 const R4GOLIVE_STATUS_INDEX = epicWorkflowStatusIndex('R4GOLIVE');
@@ -146,19 +141,14 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
     // Epic's Jira creation date (always present, so every Epic resolves a T0) — + TTM-E2E's own
     // working-day budget (ttmE2eTarget, from the active TTM_E2E policy for this Epic's complexity,
     // configured in "Cấu hình cảnh báo"), excluding weekends and the app's configured holiday
-    // calendar.
-    const ideaApprovedDate = parseDate(row.ideaApprovedDate);
-    const [releaseBaseDate, releaseBaseSourceLabel] = ideaApprovedDate
-      ? [ideaApprovedDate, RELEASE_BASELINE_SOURCE_LABEL.ideaApproved]
-      : startDate
-        ? [startDate, RELEASE_BASELINE_SOURCE_LABEL.startDate]
-        : [parseDate(row.jiraCreatedAt), RELEASE_BASELINE_SOURCE_LABEL.jiraCreated];
-    const releaseBaselineDate = releaseBaseDate && ttmE2eTarget ? addWorkingDays(releaseBaseDate, ttmE2eTarget, holidays) : null;
+    // calendar. Shared with "Quản trị Epic (rút gọn)" and Epic in PO so the Fail TTM-E2E badge can
+    // never disagree with any screen's own TTM-E2E stripe color — see resolveTtmE2eRelease.
+    const ttmE2eRelease = resolveTtmE2eRelease(row, ttmE2eTarget, now, holidays);
     const releaseCell: PhaseCell = {
       alertLevel: 'NONE',
-      baselineDate: toIsoDate(releaseBaselineDate),
-      baselineSourceDate: releaseBaseDate ? toIsoDate(releaseBaseDate) : null,
-      baselineSourceLabel: releaseBaseDate ? releaseBaseSourceLabel : null,
+      baselineDate: ttmE2eRelease.baselineDate,
+      baselineSourceDate: ttmE2eRelease.baselineSourceDate,
+      baselineSourceLabel: ttmE2eRelease.baselineSourceLabel,
       isCurrentStage: false,
       isDone: completion.releasedDone,
     };
@@ -175,11 +165,6 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
     // Due Date / T0 for a different column layout).
     const ttmActualToDate = (row.r4gDate && parseDate(row.r4gDate)) || now;
     const ttmActualElapsed = startDate ? Math.max(0, diffWorkingDays(startDate, ttmActualToDate, holidays)) : null;
-
-    // TTM-E2E stripe "thực tế" (bottom): same start as its baseline stripe (T0, releaseBaseDate) —
-    // ends at Due Date once recorded, else today.
-    const ttmE2eActualToDate = (row.dueDate && parseDate(row.dueDate)) || now;
-    const ttmE2eElapsed = releaseBaseDate ? Math.max(0, diffWorkingDays(releaseBaseDate, ttmE2eActualToDate, holidays)) : null;
 
     rows.push({
       alertLevel,
@@ -206,6 +191,7 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
       t0IdeaApprovedDate: row.ideaApprovedDate,
       t1StartDate: row.startDate,
       targetR4gDate: toIsoDate(targetR4gDate) ?? row.targetR4gDate,
+      ttmE2eAlertLevel: ttmE2eRelease.alertLevel,
       ttmActualElapsedWorkingDays: ttmActualElapsed,
       ttmActualFromDate: toIsoDate(startDate),
       ttmActualToDate: toIsoDate(ttmActualToDate),
@@ -214,8 +200,8 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
       ttmCnttFromField: evaluation.ttm.cntt.fromField,
       ttmCnttTargetWorkingDays: ttmCnttTarget,
       ttmCnttToField: evaluation.ttm.cntt.toField,
-      ttmE2eActualToDate: toIsoDate(ttmE2eActualToDate),
-      ttmE2eElapsedWorkingDays: ttmE2eElapsed,
+      ttmE2eActualToDate: ttmE2eRelease.actualToDate,
+      ttmE2eElapsedWorkingDays: ttmE2eRelease.elapsedWorkingDays,
       ttmE2eTargetWorkingDays: ttmE2eTarget,
     });
   }

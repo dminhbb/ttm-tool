@@ -119,7 +119,7 @@ function TreeTableRow({ isDimmed, isExpanded, isLastChild, isLoading, issue, lev
             <span className={styles.chevronPlaceholder} aria-hidden="true" />
           )}
 
-          <span className={styles.name}>{issue.issueKey}</span>
+          <span className={styles.name} title={`Lớp dữ liệu: ${formatDate(issue.dataLayerDate)}`}>{issue.issueKey}</span>
         </div>
       </TD>
       <TD className="max-w-[360px] truncate px-3 py-2" title={issue.summary}>{issue.summary}</TD>

@@ -15,6 +15,8 @@ export interface EpicAlertRow {
   /** issues.components (Epic's own Jira Component/s) — used by the Components filter. */
   components: string[];
   currentStatus: string;
+  /** Which import data layer (aggregated_at) this Epic's row currently comes from. */
+  dataLayerDate: string | null;
   domainName: string;
   epicKey: string;
   epicName: string;
@@ -44,6 +46,14 @@ export interface EpicAlertRow {
   targetR4gDate: string | null;
   ttmCnttElapsedWorkingDays: number | null;
   ttmCnttTargetWorkingDays: number;
+  /** Fail TTM-E2E — see resolveTtmE2eRelease in epic-alert-service.ts. FAIL/NONE only, no EARLY/LATE tiers. */
+  ttmE2eAlertLevel: AlertLevel;
+  /** Due Date once recorded, else today — end of the TTM-E2E "stripe thực tế". */
+  ttmE2eActualToDate: string | null;
+  /** T0 + ttmE2eTargetWorkingDays working days — end of the TTM-E2E "stripe baseline". */
+  ttmE2eBaselineDate: string | null;
+  /** T0 itself (start of both TTM-E2E stripes) — Idea Approved Date, else Start Date, else Jira creation date. */
+  ttmE2eBaselineSourceDate: string | null;
   ttmE2eElapsedWorkingDays: number | null;
   ttmE2eTargetWorkingDays: number;
 }
@@ -112,6 +122,8 @@ export interface EpicAlertRowPhased {
   /** Range of the "stripe thực tế" (actual strip) — see resolveTtmActualRange in epic-alert-service.ts. */
   ttmActualElapsedWorkingDays: number | null;
   ttmActualFromDate: string | null;
+  /** Fail TTM-E2E — see ComplianceIssueResult.e2eAlertLevel. FAIL/NONE only, independent of alertLevel. */
+  ttmE2eAlertLevel: AlertLevel;
   ttmActualToDate: string | null;
   ttmCnttElapsedWorkingDays: number | null;
   ttmCnttFromDate: string | null;

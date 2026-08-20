@@ -13,6 +13,7 @@ import type { DataReviewChildrenResponse, DataReviewIssue } from '@/lib/data-rev
  * which composes on top of it) — one place defining what a browsable issue looks like.
  */
 export interface DataReviewIssueRow {
+  aggregatedAt?: string;
   assignee: string | null;
   dueDate: string | null;
   hasChildren?: boolean;
@@ -30,6 +31,7 @@ export interface DataReviewIssueRow {
 export function toIssue(row: DataReviewIssueRow): DataReviewIssue {
   return {
     assignee: row.assignee ?? '',
+    dataLayerDate: row.aggregatedAt ?? null,
     dueDate: row.dueDate,
     hasChildren: row.hasChildren ?? false,
     id: row.id,
@@ -58,6 +60,7 @@ export async function getEpicBrowserRoot(epicKey: string): Promise<DataReviewIss
       li.id, li.jira_id AS "jiraId", li.issue_key AS "issueKey", li.issue_type AS "issueType",
       li.current_status AS status, li.start_date::text AS "startDate", li.r4g_date::text AS "r4gDate",
       li.due_date::text AS "dueDate", li.issue_name AS summary, li.assignee_name AS assignee,
+      li.aggregated_at::text AS "aggregatedAt",
       COALESCE(
         NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
         NULLIF(SPLIT_PART(li.issue_key, '-', 1), ''),
@@ -170,6 +173,7 @@ export async function getEpicBrowserChildren(
       c.id, c.jira_id AS "jiraId", c.issue_key AS "issueKey", c.issue_type AS "issueType",
       c.current_status AS status, c.start_date::text AS "startDate", c.r4g_date::text AS "r4gDate",
       c.due_date::text AS "dueDate", c.issue_name AS summary, c.assignee_name AS assignee,
+      c.aggregated_at::text AS "aggregatedAt",
       COALESCE(
         NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
         NULLIF(SPLIT_PART(c.issue_key, '-', 1), ''),

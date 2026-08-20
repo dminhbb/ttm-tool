@@ -227,6 +227,8 @@
 .ttm-badge.early-warning { background: var(--ttm-warning-100); color: var(--ttm-warning-700); border: 1px solid #f5d46b; }
 .ttm-badge.late-warning { background: #fdf0e6; color: var(--ttm-danger-600); border: 1px solid #f5c2a7; }
 .ttm-badge.fail { background: var(--ttm-danger-700); color: var(--ttm-white); }
+.ttm-badge.fail-cntt { background: #f78b4d; color: var(--ttm-white); }
+.ttm-badge.fail-e2e { background: #e3b842; color: var(--ttm-white); }
 .ttm-missing-tag {
   display: inline-block;
   background: #f8c9c9;
@@ -271,6 +273,8 @@
   vertical-align: -3px;
 }
 .ttm-alert-history-trigger.has-history { color: var(--ttm-warning-500); }
+.ttm-alert-history-trigger.ttm-jira-link-trigger { color: var(--ttm-neutral-700); }
+.ttm-col-border-right { border-right: 2px solid var(--ttm-border); }
 .ttm-alert-history-trigger:hover { opacity: 0.75; }
 .ttm-alert-history-list { display: flex; flex-direction: column; gap: 8px; list-style: none; margin: 0; padding: 0; }
 .ttm-alert-history-item {
@@ -293,6 +297,14 @@
 }
 .ttm-pagination-label { font-size: var(--ttm-font-size-sm); color: var(--ttm-muted); }
 .ttm-pagination .ttm-select { min-height: 30px; padding: 4px 8px; }
+.ttm-pagination-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; margin-top: 14px; }
+.ttm-pagination-row .ttm-pagination { grid-column: 2; margin-top: 0; }
+.ttm-status-legend { grid-column: 3; justify-self: end; display: flex; align-items: center; gap: 14px; font-size: var(--ttm-font-size-sm); color: var(--ttm-muted); }
+.ttm-status-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.ttm-status-swatch { display: inline-block; width: 16px; height: 11px; border-radius: 3px; }
+.ttm-status-swatch.done { background: var(--ttm-success-100); border: 1px solid var(--ttm-success-700); }
+.ttm-status-swatch.warning { background: var(--ttm-warning-100); border: 1px solid var(--ttm-warning-700); }
+.ttm-status-swatch.failed { background: var(--ttm-danger-100); border: 1px solid var(--ttm-danger-700); }
 .ttm-metric { font-weight: 700; }
 .ttm-badge-achieved {
   display: inline-flex;
@@ -345,6 +357,7 @@
 .ttm-r4g-target { display: block; color: var(--ttm-muted); font-size: 10.5px; font-weight: 600; white-space: nowrap; }
 .ttm-r4g-actual + .ttm-r4g-target { margin-top: 3px; }
 .ttm-epic-type-icon { color: var(--ttm-brand-600); display: block; }
+.ttm-epic-type-icon.epic-type-complex { color: #0077b6; }
 .ttm-status-badge {
   display: inline-flex;
   align-items: center;
