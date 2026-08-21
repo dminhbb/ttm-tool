@@ -37,6 +37,18 @@ function isTemporalType(dataType: string): boolean {
   return dataType === 'date' || dataType.startsWith('timestamp') || dataType.startsWith('time');
 }
 
+/** Builds the `{elem1,elem2,...}` Postgres array-literal body, quoting elements that need it (per array-literal syntax, not SQL string syntax — that escaping is applied by the caller). */
+function formatPgArrayLiteral(values: unknown[]): string {
+  const elements = values.map((item) => {
+    if (item === null || item === undefined) return 'NULL';
+    const str = String(item);
+    const needsQuoting = str === '' || str.toUpperCase() === 'NULL' || /[,\s"\\{}]/.test(str);
+    if (!needsQuoting) return str;
+    return `"${str.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+  });
+  return `{${elements.join(',')}}`;
+}
+
 function formatSqlValue(value: unknown): string {
   if (value === null || value === undefined) return 'NULL';
   if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE';
@@ -44,6 +56,11 @@ function formatSqlValue(value: unknown): string {
   // Dates are selected as ::text upstream (see isTemporalType), so this only guards against
   // a driver returning a Date object unexpectedly rather than being the normal code path.
   if (value instanceof Date) return `'${value.toISOString()}'`;
+  // Array columns (e.g. issues.epic_stories) come back from node-pg as real JS arrays — without
+  // this branch they fell into the plain-string case below, where String(array) joins elements
+  // with bare commas and no braces, producing a value Postgres rejects as a malformed array
+  // literal on re-import.
+  if (Array.isArray(value)) return `'${formatPgArrayLiteral(value).replace(/'/g, "''")}'`;
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 
@@ -298,6 +315,14 @@ export async function importSqlFile(sqlText: string): Promise<ImportResult> {
     for (const tableName of touchedTables) await client.query(`ALTER TABLE ${quoteIdent(tableName)} ENABLE TRIGGER ALL;`);
 
     for (const tableName of touchedTables) {
+      // pg_get_serial_sequence() throws (not just returns NULL) when the table has no "id" column
+      // at all — true for join tables with a composite key (user_domains, user_projects) — so
+      // check column existence first instead of letting that abort the whole import transaction.
+      const hasIdColumn = await client.query<{ exists: boolean }>(
+        `SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 AND column_name = 'id') AS exists;`,
+        [tableName],
+      );
+      if (!hasIdColumn.rows[0]?.exists) continue;
       const sequenceResult = await client.query<{ sequenceName: string | null }>('SELECT pg_get_serial_sequence($1, \'id\') AS "sequenceName";', [tableName]);
       const sequenceName = sequenceResult.rows[0]?.sequenceName;
       if (sequenceName) {
