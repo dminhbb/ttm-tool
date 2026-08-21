@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle, ChartBar, Clock, Gauge, WarningCircle } from '@phosphor-icons/react';
+import './dashboard.css';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -25,19 +26,36 @@ function formatDateTime(value: string | null): string {
   return `${day}/${month}/${date.getFullYear()} ${hour}:${minute}`;
 }
 
-function StatTile({ icon: Icon, label, tone = 'neutral', value }: { icon: typeof Gauge; label: string; tone?: 'neutral' | 'success' | 'warning' | 'danger'; value: string | number }) {
-  const toneClass = {
-    neutral: 'text-fb-text-primary',
-    success: 'text-status-success',
-    warning: 'text-status-warning',
-    danger: 'text-status-danger',
-  }[tone];
+function StatTile({ hero = false, icon: Icon, label, tone = 'neutral', value }: { hero?: boolean; icon: typeof Gauge; label: string; tone?: 'neutral' | 'success' | 'warning' | 'danger'; value: string | number }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-fb-border bg-fb-surface-muted px-4 py-3">
-      <Icon className={`size-6 shrink-0 ${toneClass}`} weight="bold" aria-hidden="true" />
+    <div className={`dashboard-stat-tile${hero ? ' hero' : ''} tone-${tone}`}>
+      <span className="dashboard-stat-tile-icon"><Icon className="size-4" weight="bold" aria-hidden="true" /></span>
       <div className="min-w-0">
-        <p className={`text-2xl font-bold leading-tight ${toneClass}`}>{value}</p>
-        <p className="truncate text-xs text-fb-text-secondary">{label}</p>
+        <p className="dashboard-stat-tile-value truncate">{value}</p>
+        <p className="dashboard-stat-tile-label truncate">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+/** Navy/orange donut (CSS conic-gradient — no charting library) for the "Đạt TTM" rate, echoing
+ * the % ring in the reference infographic template. */
+function AchievedTtmDonut({ achieved, eligible }: { achieved: number; eligible: number }) {
+  const percent = eligible > 0 ? Math.round((achieved / eligible) * 100) : 0;
+  return (
+    <div className="flex items-center gap-4">
+      <div
+        className="dashboard-donut"
+        style={{ background: eligible > 0 ? `conic-gradient(var(--db-orange-500) 0% ${percent}%, var(--db-navy-800) ${percent}% 100%)` : 'var(--db-navy-800)' }}
+        role="img"
+        aria-label={`Đạt TTM ${percent}%`}
+      >
+        <div className="dashboard-donut-hole">{eligible > 0 ? `${percent}%` : '—'}</div>
+      </div>
+      <div className="text-sm text-fb-text-secondary">
+        <p><span className="dashboard-legend-dot" style={{ background: 'var(--db-orange-500)' }} /> Đạt TTM: <strong className="text-fb-text-primary">{achieved}</strong></p>
+        <p className="mt-1"><span className="dashboard-legend-dot" style={{ background: 'var(--db-navy-800)' }} /> Còn lại: <strong className="text-fb-text-primary">{Math.max(0, eligible - achieved)}</strong></p>
+        <p className="mt-1 text-xs">Trên {eligible} Epic đã có R4G Date</p>
       </div>
     </div>
   );
@@ -51,8 +69,8 @@ function StatusDistributionBars({ data }: { data: DashboardStats['statusDistribu
       {data.map((item) => (
         <li key={item.status} className="flex items-center gap-2">
           <span className="w-28 shrink-0 truncate text-xs text-fb-text-secondary" title={item.status}>{item.status || '—'}</span>
-          <span className="h-3 flex-1 overflow-hidden rounded-full bg-fb-surface-muted">
-            <span className="block h-full rounded-full bg-fb-blue" style={{ width: `${Math.max(4, (item.count / max) * 100)}%` }} />
+          <span className="dashboard-bar-track h-3 flex-1">
+            <span className="dashboard-bar-fill block h-full" style={{ width: `${Math.max(4, (item.count / max) * 100)}%` }} />
           </span>
           <span className="w-8 shrink-0 text-right text-xs font-semibold text-fb-text-primary">{item.count}</span>
         </li>
@@ -97,19 +115,17 @@ function AtRiskList({ items, onOpenEpic, showProject }: { items: DashboardAtRisk
 }
 
 function DashboardStatsPanel({ onOpenEpic, showProjectInAtRisk, stats, subtitle, title }: { onOpenEpic: (epicKey: string) => void; showProjectInAtRisk: boolean; stats: DashboardStats; subtitle?: string; title: string }) {
-  const achievedRate = stats.achievedTtmEligibleCount > 0 ? Math.round((stats.achievedTtmCount / stats.achievedTtmEligibleCount) * 100) : null;
   return (
     <Card>
       <CardHeader><CardTitle>{title}</CardTitle>{subtitle && <span className="text-xs text-fb-text-secondary">{subtitle}</span>}</CardHeader>
       <CardBody className="gap-5">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatTile icon={Gauge} label="Tổng số Epic" value={stats.epicCount} />
+          <StatTile hero icon={Gauge} label="Tổng số Epic" value={stats.epicCount} />
           <StatTile icon={WarningCircle} label="Fail TTM-CNTT" tone="danger" value={stats.alerts.failCntt} />
           <StatTile icon={WarningCircle} label="Fail TTM-E2E" tone="danger" value={stats.alerts.failE2e} />
           <StatTile icon={WarningCircle} label="Cảnh báo muộn" tone="warning" value={stats.alerts.lateWarning} />
           <StatTile icon={WarningCircle} label="Cảnh báo sớm" tone="warning" value={stats.alerts.earlyWarning} />
           <StatTile icon={Clock} label="Sắp đến hạn (≤5 ngày)" tone="warning" value={stats.upcomingDeadlineCount} />
-          <StatTile icon={CheckCircle} label="Đạt TTM" tone="success" value={achievedRate !== null ? `${stats.achievedTtmCount}/${stats.achievedTtmEligibleCount} (${achievedRate}%)` : '—'} />
           <StatTile icon={WarningCircle} label="Thiếu dữ liệu chuẩn" value={stats.missingDataCount} />
         </div>
 
@@ -120,9 +136,14 @@ function DashboardStatsPanel({ onOpenEpic, showProjectInAtRisk, stats, subtitle,
             <p className="mt-3 text-xs text-fb-text-secondary">Epic phức tạp: <strong className="text-fb-text-primary">{stats.complexity.complex}</strong> · Epic đơn giản: <strong className="text-fb-text-primary">{stats.complexity.simple}</strong></p>
           </div>
           <div>
-            <h4 className="mb-2 text-sm font-semibold text-fb-text-primary">Epic cần chú ý nhất</h4>
-            <AtRiskList items={stats.topAtRisk} onOpenEpic={onOpenEpic} showProject={showProjectInAtRisk} />
+            <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-fb-text-primary"><CheckCircle className="size-4" weight="bold" aria-hidden="true" />Đạt TTM</h4>
+            <AchievedTtmDonut achieved={stats.achievedTtmCount} eligible={stats.achievedTtmEligibleCount} />
           </div>
+        </div>
+
+        <div>
+          <h4 className="mb-2 text-sm font-semibold text-fb-text-primary">Epic cần chú ý nhất</h4>
+          <AtRiskList items={stats.topAtRisk} onOpenEpic={onOpenEpic} showProject={showProjectInAtRisk} />
         </div>
       </CardBody>
     </Card>
@@ -168,9 +189,9 @@ export default function DashboardPage() {
 
   if (needsGate) {
     return (
-      <div className="flex flex-col items-center gap-6 py-10">
+      <div className="dashboard-app flex flex-col items-center gap-6 py-10">
         <div className="max-w-lg text-center">
-          <Gauge className="mx-auto mb-3 size-10 text-fb-blue" weight="bold" aria-hidden="true" />
+          <Gauge className="mx-auto mb-3 size-10" style={{ color: 'var(--db-navy-800)' }} weight="bold" aria-hidden="true" />
           <h2 className="text-xl font-bold text-fb-text-primary">Welcome to Dashboard</h2>
           <p className="mt-2 text-sm text-fb-text-secondary">
             Chọn từ {DASHBOARD_MIN_SELECTABLE_PROJECTS} đến {DASHBOARD_MAX_SELECTABLE_PROJECTS} dự án (Project Key) để xem thống kê TTM.
@@ -198,7 +219,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="dashboard-app flex flex-col gap-6">
       {error && <Alert variant="error" title="Lỗi">{error}</Alert>}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <p className="text-xs text-fb-text-secondary">Dữ liệu tính đến lớp: <strong className="text-fb-text-primary">{formatDateTime(data.lastAggregatedAt)}</strong></p>
