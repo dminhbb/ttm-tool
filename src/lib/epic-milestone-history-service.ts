@@ -78,18 +78,18 @@ interface StoryStatusSignal {
 
 interface EpicMilestoneSignals {
   ba: RoleAgg;
-  dev: RoleAgg;
   epicKey: string;
   stories: StoryStatusSignal[];
-  test: RoleAgg;
 }
 
 /**
- * Single query pass computing, per Epic, the per-role subtask completion signals (BA, DEV, TEST)
- * and the status of every Story inside it — the shared raw material DESIGN_DONE, DEV_DONE and
- * TEST_DONE are all derived from. Issue-type ⇄ role classification comes from the configurable
- * `issue_type_role_mapping` table (see "Quản lý Issue Type" in Quản lý chung), not a hardcoded
- * literal, so admins can extend it (e.g. adding more DEV/TEST issue types) without a code change.
+ * Single query pass computing, per Epic, the BA-role subtask completion signal (still the basis
+ * for DESIGN_DONE) and the status of every Story inside it — the shared raw material DESIGN_DONE,
+ * DEV_DONE and TEST_DONE are all derived from. DEV_DONE/TEST_DONE only look at Story status (no
+ * per-role subtask check — see computeMilestoneCandidates), so only the BA role is aggregated here.
+ * Issue-type ⇄ role classification comes from the configurable `issue_type_role_mapping` table
+ * (see "Quản lý Issue Type" in Quản lý chung), not a hardcoded literal, so admins can extend it
+ * without a code change.
  *
  * "Belonging to" an Epic uses the shared resolution in issue-resolution-sql.ts (latest known row
  * per issue, direct epic_key or via parent Story, adapter-agnostic). Cancelled and Pending items
@@ -99,23 +99,20 @@ interface EpicMilestoneSignals {
 async function computeEpicMilestoneSignals(client: PoolClient): Promise<EpicMilestoneSignals[]> {
   const result = await client.query<{
     baDoneCount: string; baLastDate: string | null; baTotal: string;
-    devDoneCount: string; devLastDate: string | null; devTotal: string;
     epicKey: string;
     storiesJson: StoryStatusSignal[];
-    testDoneCount: string; testLastDate: string | null; testTotal: string;
   }>(`
     WITH ${LATEST_ISSUES_CTE},
     ${STORIES_CTE},
     role_map AS (
       SELECT UPPER(issue_type) AS issue_type_upper, team_role
       FROM issue_type_role_mapping
-      WHERE team_role IN ('BA', 'DEV', 'TEST')
+      WHERE team_role = 'BA'
     ),
     role_subtasks AS (
       SELECT
         li.current_status AS status,
         li.aggregated_at,
-        rm.team_role,
         ${RESOLVED_EPIC_KEY_EXPR} AS epic_key
       FROM latest_issues li
       JOIN role_map rm ON rm.issue_type_upper = UPPER(li.issue_type)
@@ -127,15 +124,8 @@ async function computeEpicMilestoneSignals(client: PoolClient): Promise<EpicMile
     ),
     ba_agg AS (
       SELECT epic_key, COUNT(*) AS total, COUNT(*) FILTER (WHERE LOWER(status) = 'done') AS done_count, MAX(aggregated_at) AS last_date
-      FROM role_subtasks_filtered WHERE team_role = 'BA' GROUP BY epic_key
-    ),
-    dev_agg AS (
-      SELECT epic_key, COUNT(*) AS total, COUNT(*) FILTER (WHERE LOWER(status) = 'done') AS done_count, MAX(aggregated_at) AS last_date
-      FROM role_subtasks_filtered WHERE team_role = 'DEV' GROUP BY epic_key
-    ),
-    test_agg AS (
-      SELECT epic_key, COUNT(*) AS total, COUNT(*) FILTER (WHERE LOWER(status) = 'done') AS done_count, MAX(aggregated_at) AS last_date
-      FROM role_subtasks_filtered WHERE team_role = 'TEST' GROUP BY epic_key
+      FROM role_subtasks_filtered
+      GROUP BY epic_key
     ),
     stories_filtered AS (
       SELECT epic_key, status, aggregated_at
@@ -148,22 +138,16 @@ async function computeEpicMilestoneSignals(client: PoolClient): Promise<EpicMile
       GROUP BY epic_key
     )
     SELECT
-      COALESCE(ba.epic_key, dev.epic_key, test.epic_key, sa.epic_key) AS "epicKey",
+      COALESCE(ba.epic_key, sa.epic_key) AS "epicKey",
       COALESCE(ba.total, 0)::text AS "baTotal", COALESCE(ba.done_count, 0)::text AS "baDoneCount", ba.last_date::text AS "baLastDate",
-      COALESCE(dev.total, 0)::text AS "devTotal", COALESCE(dev.done_count, 0)::text AS "devDoneCount", dev.last_date::text AS "devLastDate",
-      COALESCE(test.total, 0)::text AS "testTotal", COALESCE(test.done_count, 0)::text AS "testDoneCount", test.last_date::text AS "testLastDate",
       COALESCE(sa.stories, '[]'::jsonb) AS "storiesJson"
     FROM ba_agg ba
-    FULL JOIN dev_agg dev ON dev.epic_key = ba.epic_key
-    FULL JOIN test_agg test ON test.epic_key = COALESCE(ba.epic_key, dev.epic_key)
-    FULL JOIN stories_agg sa ON sa.epic_key = COALESCE(ba.epic_key, dev.epic_key, test.epic_key);
+    FULL JOIN stories_agg sa ON sa.epic_key = ba.epic_key;
   `);
   return result.rows.map((row) => ({
     ba: { doneCount: Number(row.baDoneCount), lastDoneDate: row.baLastDate, total: Number(row.baTotal) },
-    dev: { doneCount: Number(row.devDoneCount), lastDoneDate: row.devLastDate, total: Number(row.devTotal) },
     epicKey: row.epicKey,
     stories: row.storiesJson,
-    test: { doneCount: Number(row.testDoneCount), lastDoneDate: row.testLastDate, total: Number(row.testTotal) },
   }));
 }
 
@@ -171,12 +155,6 @@ export interface MilestoneCandidates {
   designDoneCandidates: { designDoneDate: Date; epicKey: string }[];
   devDoneCandidates: { devDoneDate: Date; epicKey: string }[];
   testDoneCandidates: { epicKey: string; testDoneDate: Date }[];
-}
-
-/** Earliest of a set of OR-branch confirmation dates — the branch that satisfied the condition first. */
-function earliestOf(dates: (string | null)[]): string | null {
-  const present = dates.filter((d): d is string => !!d);
-  return present.length > 0 ? present.sort()[0] : null;
 }
 
 /** Latest of a set of AND-requirement confirmation dates — the last one to be satisfied. */
@@ -192,11 +170,11 @@ function latestOf(dates: (string | null)[]): string | null {
  * - DESIGN_DONE: every non-Cancelled/non-Pending BA-role subtask belonging to the Epic (directly,
  *   or via one of its Stories) is Done. The recorded date is the latest `aggregated_at` among that
  *   Epic's Done BA subtasks — i.e. the data layer that last confirmed the final one was Done.
- * - DEV_DONE: BA-role subtasks are all Done (same condition as DESIGN_DONE) AND at least one of:
- *   (a) every DEV-role subtask of its Stories is Done, or (b) every one of its Stories is past
- *   "DEV DONE" in the Story workflow.
- * - TEST_DONE: DEV_DONE's condition holds AND at least one of: (a) every TEST-role subtask of its
- *   Stories is Done, or (b) every one of its Stories is past "SIT DONE" in the Story workflow.
+ * - DEV_DONE: BA-role subtasks are all Done (same condition as DESIGN_DONE) AND every one of the
+ *   Epic's Stories is past "DEV DONE" in the Story workflow. Only Story status is considered —
+ *   unlike DESIGN_DONE, this does not look at any subtask underneath the Story.
+ * - TEST_DONE: DEV_DONE's condition holds AND every one of the Epic's Stories is past "SIT DONE"
+ *   in the Story workflow. Same Story-only rule as DEV_DONE.
  *
  * Cancelled and Pending subtasks/stories are excluded entirely (never block, never count) for all
  * three milestones.
@@ -209,7 +187,7 @@ export async function computeMilestoneCandidates(client: PoolClient): Promise<Mi
   const devDoneCandidates: MilestoneCandidates['devDoneCandidates'] = [];
   const testDoneCandidates: MilestoneCandidates['testDoneCandidates'] = [];
 
-  for (const { ba, dev, epicKey, stories, test } of signals) {
+  for (const { ba, epicKey, stories } of signals) {
     const baAllDone = ba.total > 0 && ba.doneCount === ba.total;
     if (!baAllDone || !ba.lastDoneDate) continue;
     designDoneCandidates.push({ designDoneDate: new Date(ba.lastDoneDate), epicKey });
@@ -218,21 +196,16 @@ export async function computeMilestoneCandidates(client: PoolClient): Promise<Mi
       ? stories.reduce((max, story) => (story.aggregatedAt > max ? story.aggregatedAt : max), stories[0].aggregatedAt)
       : null;
 
-    const devAllDone = dev.total > 0 && dev.doneCount === dev.total;
     const storiesPastDevDone = stories.length > 0 && stories.every((story) => storyWorkflowStatusIndex(story.status) > devDoneStoryIndex);
-    const devConditionMet = devAllDone || storiesPastDevDone;
-    if (!devConditionMet) continue;
+    if (!storiesPastDevDone) continue;
 
-    const devSecondaryDate = earliestOf([devAllDone ? dev.lastDoneDate : null, storiesPastDevDone ? storiesLastDate : null]) ?? ba.lastDoneDate;
-    const devDoneDate = latestOf([ba.lastDoneDate, devSecondaryDate])!;
+    const devDoneDate = latestOf([ba.lastDoneDate, storiesLastDate])!;
     devDoneCandidates.push({ devDoneDate: new Date(devDoneDate), epicKey });
 
-    const testAllDone = test.total > 0 && test.doneCount === test.total;
     const storiesPastSitDone = stories.length > 0 && stories.every((story) => storyWorkflowStatusIndex(story.status) > sitDoneStoryIndex);
-    if (!testAllDone && !storiesPastSitDone) continue;
+    if (!storiesPastSitDone) continue;
 
-    const testSecondaryDate = earliestOf([testAllDone ? test.lastDoneDate : null, storiesPastSitDone ? storiesLastDate : null]) ?? devDoneDate;
-    const testDoneDate = latestOf([devDoneDate, testSecondaryDate])!;
+    const testDoneDate = latestOf([devDoneDate, storiesLastDate])!;
     testDoneCandidates.push({ epicKey, testDoneDate: new Date(testDoneDate) });
   }
   return { designDoneCandidates, devDoneCandidates, testDoneCandidates };

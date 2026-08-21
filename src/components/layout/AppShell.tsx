@@ -73,7 +73,7 @@ const navigation: NavigationSection[] = [
   {
     label: 'Giám sát',
     items: [
-      { icon: Gauge, label: 'Dashboard', disabled: true },
+      { href: '/dashboard', icon: Gauge, label: 'Dashboard' },
       { href: '/epic-alerts', icon: Browser, label: 'Quản trị Epic (rút gọn)', roles: ADMIN_VIEW_ROLES },
       { href: '/epic-alerts-15', icon: Browsers, label: 'Quản trị Epic (đầy đủ)' },
       { href: '/epic-in-po', icon: BriefcaseMetal, label: 'Epic in PO' },
@@ -218,6 +218,7 @@ function SidebarContent({ expanded, onNavigate, onOpenSettings, onToggle, role }
 
 const PAGE_HEADERS: Record<string, { subtitle: string; title: string }> = {
   '/': { subtitle: 'Kiểm tra và quản lý các lớp dữ liệu Jira nhập vào TTM Monitor', title: 'Quản trị nguồn dữ liệu' },
+  '/dashboard': { subtitle: 'Thống kê tổng quan tình trạng TTM theo dự án', title: 'Dashboard' },
   '/epic-alerts': { subtitle: 'Cảnh báo TTM-CNTT dựa trên đợt import dữ liệu mới nhất', title: 'Quản trị Epic (rút gọn)' },
   '/epic-alerts-15': { subtitle: 'Cảnh báo TTM-CNTT theo giai đoạn DESIGN/DEV/TEST/PENTEST/R4GOLIVE', title: 'Quản trị Epic (đầy đủ)' },
   '/epic-in-po': { subtitle: 'Epic đang ở trạng thái To Do, In PO hoặc Released', title: 'Epic in PO' },
