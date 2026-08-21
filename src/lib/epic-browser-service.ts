@@ -23,6 +23,7 @@ export interface DataReviewIssueRow {
   jiraId: string | number;
   project: string | null;
   r4gDate: string | null;
+  role?: string | null;
   startDate: string | null;
   status: string;
   summary: string;
@@ -40,10 +41,18 @@ export function toIssue(row: DataReviewIssueRow): DataReviewIssue {
     jiraId: String(row.jiraId),
     project: row.project ?? '',
     r4gDate: row.r4gDate,
+    role: row.role || '-',
     startDate: row.startDate,
     status: row.status,
     summary: row.summary,
   };
+}
+
+/** LEFT JOIN + SELECT expression resolving an issue's team role from issue_type_role_mapping
+ * ("Quản lý Issue Type" in Quản lý chung), "-" when its issue type isn't mapped. `alias` is the
+ * table/CTE alias exposing an `issue_type` column in the query this is spliced into. */
+function roleJoin(alias: string): string {
+  return `LEFT JOIN issue_type_role_mapping itrm_${alias} ON UPPER(itrm_${alias}.issue_type) = UPPER(${alias}.issue_type)`;
 }
 
 /**
@@ -61,6 +70,7 @@ export async function getEpicBrowserRoot(epicKey: string): Promise<DataReviewIss
       li.current_status AS status, li.start_date::text AS "startDate", li.r4g_date::text AS "r4gDate",
       li.due_date::text AS "dueDate", li.issue_name AS summary, li.assignee_name AS assignee,
       li.aggregated_at::text AS "aggregatedAt",
+      COALESCE(itrm_li.team_role, '-') AS role,
       COALESCE(
         NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
         NULLIF(SPLIT_PART(li.issue_key, '-', 1), ''),
@@ -83,6 +93,7 @@ export async function getEpicBrowserRoot(epicKey: string): Promise<DataReviewIss
     LEFT JOIN import_rows
       ON import_rows.import_batch_id = li.source_import_batch_id
       AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = li.issue_key
+    ${roleJoin('li')}
     WHERE li.issue_key = $1 AND UPPER(li.issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
     LIMIT 1;
   `, [epicKey]);
@@ -174,6 +185,7 @@ export async function getEpicBrowserChildren(
       c.current_status AS status, c.start_date::text AS "startDate", c.r4g_date::text AS "r4gDate",
       c.due_date::text AS "dueDate", c.issue_name AS summary, c.assignee_name AS assignee,
       c.aggregated_at::text AS "aggregatedAt",
+      COALESCE(itrm_c.team_role, '-') AS role,
       COALESCE(
         NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
         NULLIF(SPLIT_PART(c.issue_key, '-', 1), ''),
@@ -184,6 +196,7 @@ export async function getEpicBrowserChildren(
     LEFT JOIN import_rows
       ON import_rows.import_batch_id = c.source_import_batch_id
       AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = c.issue_key
+    ${roleJoin('c')}
     ORDER BY c.issue_key ASC;
   `, queryParams);
 

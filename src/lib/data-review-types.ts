@@ -10,6 +10,9 @@ export interface DataReviewIssue {
   jiraId: string;
   project: string;
   r4gDate: string | null;
+  /** Team role (BA/DEV/TEST/PM) the issue's type maps to in issue_type_role_mapping, or "-" if
+   * unmapped — see "Quản lý Issue Type" in Quản lý chung. */
+  role: string;
   startDate: string | null;
   status: string;
   summary: string;

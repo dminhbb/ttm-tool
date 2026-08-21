@@ -55,15 +55,23 @@ export const STORIES_CTE = `
  * API: Story issue key) — this mirrors the same ambiguity import-service.ts's parent-linking
  * UPDATE already resolves the same way for its own purposes.
  *
+ * Split into two single-equality LEFT JOINs (rather than one `ON a = x OR b = x` join) so
+ * Postgres can hash each side independently — an OR across two different columns isn't sargable
+ * for a hash join, and was measured forcing a nested-loop scan of every non-Epic issue against
+ * every Story (EXPLAIN ANALYZE: ~1.9s of a ~2s Epic Browser "stories" request on real data,
+ * ~490k row comparisons) instead of the near-instant hash joins this form produces. `story_key`
+ * and `story_jira_id` are each unique per Story, so this never fans out multiple matching rows.
+ *
  * Must follow STORIES_CTE in the same WITH clause, and requires `latest_issues li` in the FROM
  * clause of the query this join is spliced into.
  */
 export const RESOLVED_EPIC_KEY_JOIN = `
-  LEFT JOIN stories s ON s.story_jira_id::text = li.parent_key OR s.story_key = li.parent_key
+  LEFT JOIN stories s_by_jira_id ON s_by_jira_id.story_jira_id::text = li.parent_key
+  LEFT JOIN stories s_by_key ON s_by_key.story_key = li.parent_key
 `;
 
 /** Companion SELECT expression for RESOLVED_EPIC_KEY_JOIN. */
-export const RESOLVED_EPIC_KEY_EXPR = `COALESCE(li.epic_key, s.epic_key)`;
+export const RESOLVED_EPIC_KEY_EXPR = `COALESCE(li.epic_key, s_by_jira_id.epic_key, s_by_key.epic_key)`;
 
 /**
  * Every non-Epic issue's latest known state, tagged with the Epic it resolves to — the full

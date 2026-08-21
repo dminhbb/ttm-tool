@@ -274,7 +274,9 @@
 }
 .ttm-alert-history-trigger.has-history { color: var(--ttm-warning-500); }
 .ttm-alert-history-trigger.ttm-jira-link-trigger { color: var(--ttm-neutral-700); }
-.ttm-col-border-right { border-right: 2px solid var(--ttm-border); }
+/* Color matches the collapsed phase-column right border (.ttm-col-collapsed, --border-subtle) so
+   the Epic/TTM-E2E divider reads as part of the same grid instead of a stronger, separate line. */
+.ttm-col-border-right { border-right: 2px solid var(--border-subtle); }
 .ttm-alert-history-trigger:hover { opacity: 0.75; }
 .ttm-alert-history-list { display: flex; flex-direction: column; gap: 8px; list-style: none; margin: 0; padding: 0; }
 .ttm-alert-history-item {

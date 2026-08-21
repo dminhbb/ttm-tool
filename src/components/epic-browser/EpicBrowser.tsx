@@ -23,11 +23,18 @@ interface ApiErrorResponse {
   error?: string;
 }
 
-const COLUMN_COUNT = 10;
+const COLUMN_COUNT = 11;
 
 function formatDate(value: string | null): string {
   if (!value) return '-';
   const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('vi-VN').format(date);
+}
+
+function formatDataLayer(value: string | null): string {
+  if (!value) return '-';
+  const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat('vi-VN').format(date);
 }
@@ -63,6 +70,18 @@ function IssueTypeIcon({ issueType }: { issueType: string }) {
   );
 }
 
+/** Core logic: status text renders bold for Epic/Story rows (the levels that drive milestone/alert
+ * evaluation), and in brown for any status other than "Done" — a lightweight, always-visible cue
+ * for "this isn't finished yet" without a full badge system. */
+function StatusText({ level, status }: { level: TreeLevel; status: string }) {
+  const isDone = status.trim().toLocaleLowerCase('en-US') === 'done';
+  return (
+    <span className={cn('font-semibold', level !== 3 && 'font-bold')} style={isDone ? undefined : { color: 'brown' }}>
+      {status || '-'}
+    </span>
+  );
+}
+
 interface IssueRowProps {
   isDimmed: boolean;
   isExpanded: boolean;
@@ -85,6 +104,7 @@ function TreeTableRow({ isDimmed, isExpanded, isLastChild, isLoading, issue, lev
       <TD className="px-3 py-2">{issue.project || '-'}</TD>
       <TD className="px-3 py-2 text-center"><IssueTypeIcon issueType={issue.issueType} /></TD>
       <TD className="px-3 py-2 whitespace-nowrap">{issue.issueType || '-'}</TD>
+      <TD className="px-3 py-2 whitespace-nowrap">{issue.role || '-'}</TD>
       <TD className="px-3 py-2 font-semibold text-fb-blue">
         <div className={styles.treeCell}>
           {Array.from({ length: indentSlotCount }).map((_, slotIndex) => {
@@ -119,16 +139,109 @@ function TreeTableRow({ isDimmed, isExpanded, isLastChild, isLoading, issue, lev
             <span className={styles.chevronPlaceholder} aria-hidden="true" />
           )}
 
-          <span className={styles.name} title={`Lớp dữ liệu: ${formatDate(issue.dataLayerDate)}`}>{issue.issueKey}</span>
+          <span className={styles.name}>{issue.issueKey}</span>
         </div>
       </TD>
       <TD className="max-w-[360px] truncate px-3 py-2" title={issue.summary}>{issue.summary}</TD>
-      <TD className="px-3 py-2">{issue.status}</TD>
+      <TD className="px-3 py-2"><StatusText level={level} status={issue.status} /></TD>
       <TD className="px-3 py-2">{formatDate(issue.startDate)}</TD>
       <TD className="px-3 py-2">{formatDate(issue.r4gDate)}</TD>
       <TD className="px-3 py-2">{formatDate(issue.dueDate)}</TD>
-      <TD className="px-3 py-2">{issue.jiraId || '-'}</TD>
+      <TD className="px-3 py-2 whitespace-nowrap" title={issue.dataLayerDate ?? undefined}>{formatDataLayer(issue.dataLayerDate)}</TD>
     </TR>
+  );
+}
+
+interface EpicAlertHistoryEntry {
+  alertDate: string;
+  alertStatus: string;
+  alertType: 'FAIL' | 'LATE';
+}
+interface EpicMilestoneHistoryEntry {
+  milestone: string;
+  milestoneDate: string;
+}
+interface EpicHistoryResponse {
+  history: EpicAlertHistoryEntry[];
+  milestones: EpicMilestoneHistoryEntry[];
+}
+
+const ALERT_TYPE_LABEL: Record<EpicAlertHistoryEntry['alertType'], string> = {
+  FAIL: 'Fail TTM-CNTT',
+  LATE: 'Cảnh báo muộn',
+};
+const MILESTONE_LABEL: Record<string, string> = {
+  DESIGN_DONE: 'Design Done',
+  DEV_DONE: 'Dev Done',
+  TEST_DONE: 'Test Done',
+};
+
+type HistoryColumn = { date: string; label: string; status: string };
+
+/** Epic alert/milestone history laid out horizontally (one column per event, oldest → newest) so
+ * it reads as a timeline strip under the Epic's row, instead of a long vertical list. */
+function EpicHistoryStrip({ epicKey }: { epicKey: string }) {
+  const [data, setData] = React.useState<EpicHistoryResponse | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const controller = new AbortController();
+    const load = async () => {
+      await Promise.resolve();
+      if (controller.signal.aborted) return;
+      setData(null);
+      setError(null);
+      try {
+        const result = await fetch(`/api/epic-alerts/${encodeURIComponent(epicKey)}/alert-history`, { signal: controller.signal });
+        const body = await result.json() as EpicHistoryResponse & ApiErrorResponse;
+        if (!result.ok) throw new Error(body.error ?? 'Không thể tải lịch sử cảnh báo.');
+        setData(body);
+      } catch (requestError: unknown) {
+        if (requestError instanceof DOMException && requestError.name === 'AbortError') return;
+        setError(requestError instanceof Error ? requestError.message : 'Không thể tải lịch sử cảnh báo.');
+      }
+    };
+    void load();
+    return () => controller.abort();
+  }, [epicKey]);
+
+  if (error) return <Alert variant="error" title="Không thể tải lịch sử cảnh báo">{error}</Alert>;
+  if (!data) return <p className="px-1 py-2 text-fb-text-secondary">Đang tải lịch sử cảnh báo…</p>;
+
+  const columns: HistoryColumn[] = [
+    ...data.milestones.map((m) => ({ date: m.milestoneDate, label: MILESTONE_LABEL[m.milestone] ?? m.milestone, status: 'Hoàn thành' })),
+    ...data.history.map((h) => ({ date: h.alertDate, label: ALERT_TYPE_LABEL[h.alertType], status: h.alertStatus })),
+  ].sort((a, b) => a.date.localeCompare(b.date));
+
+  if (columns.length === 0) {
+    return <p className="px-1 py-2 text-fb-text-secondary">Epic này chưa có lịch sử cảnh báo hoặc mốc hoàn thành nào.</p>;
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-lg border border-fb-border">
+      <table className="border-collapse text-sm">
+        <tbody>
+          <tr>
+            <th className="whitespace-nowrap border-b border-r border-fb-border bg-fb-surface-muted px-3 py-2 text-left font-bold text-fb-text-secondary">Loại</th>
+            {columns.map((column, index) => (
+              <td key={index} className="whitespace-nowrap border-b border-r border-fb-border px-3 py-2 font-semibold text-fb-blue last:border-r-0">{column.label}</td>
+            ))}
+          </tr>
+          <tr>
+            <th className="whitespace-nowrap border-b border-r border-fb-border bg-fb-surface-muted px-3 py-2 text-left font-bold text-fb-text-secondary">Ngày</th>
+            {columns.map((column, index) => (
+              <td key={index} className="whitespace-nowrap border-b border-r border-fb-border px-3 py-2 last:border-r-0">{formatDate(column.date)}</td>
+            ))}
+          </tr>
+          <tr>
+            <th className="whitespace-nowrap border-r border-fb-border bg-fb-surface-muted px-3 py-2 text-left font-bold text-fb-text-secondary">Trạng thái</th>
+            {columns.map((column, index) => (
+              <td key={index} className="whitespace-nowrap border-r border-fb-border px-3 py-2 last:border-r-0">{column.status}</td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -137,10 +250,6 @@ function TreeTableRow({ isDimmed, isExpanded, isLastChild, isLoading, issue, lev
  * Epic's hierarchy — "Duyệt dữ liệu lớp import" (Quản trị nguồn dữ liệu) and the Epic Browser
  * popup on "Quản lý Epic 15". Update this component (and epic-browser-service.ts on the backend)
  * to change how Epic browsing behaves everywhere at once.
- *
- * Only owns the tree itself (expand/collapse, lazy-loading Story/Subtask children via
- * /api/epic-browser). Fetching the root-level `epics` is the caller's responsibility, since that
- * differs per use case (a batch's Epic list with filters/pagination vs. a single Epic by key).
  *
  * Expand/collapse state resets whenever the component remounts, not on every `epics` change — pass
  * a `key` prop that changes when the root set conceptually changes (new batch, filters, page, or
@@ -162,7 +271,14 @@ export function EpicBrowser({ epics, emptyDescription, emptyTitle }: EpicBrowser
       if (level === 'stories') {
         setStoriesByEpic((current) => ({ ...current, [parentId]: result.items }));
       } else {
-        setSubtasksByStory((current) => ({ ...current, [parentId]: result.items }));
+        // Subtasks under a Story sort by Role A→Z (unmapped "-" sorts last) so subtasks from the
+        // same team role cluster together.
+        const sorted = [...result.items].sort((a, b) => {
+          if (a.role === '-' && b.role !== '-') return 1;
+          if (b.role === '-' && a.role !== '-') return -1;
+          return a.role.localeCompare(b.role);
+        });
+        setSubtasksByStory((current) => ({ ...current, [parentId]: sorted }));
       }
     } catch (requestError: unknown) {
       setError(requestError instanceof Error ? requestError.message : 'Không thể tải nhánh dữ liệu.');
@@ -190,6 +306,8 @@ export function EpicBrowser({ epics, emptyDescription, emptyTitle }: EpicBrowser
     return <EmptyState title={emptyTitle ?? 'Không có Epic phù hợp'} description={emptyDescription ?? 'Thử thay đổi bộ lọc hoặc kiểm tra lại lớp dữ liệu.'} />;
   }
 
+  const expandedEpic = expandedEpicId !== null ? epics.find((epic) => epic.id === expandedEpicId) : undefined;
+
   return (
     <div className="flex flex-col gap-3">
       {error && <Alert variant="error" title="Không thể tải dữ liệu">{error}</Alert>}
@@ -197,8 +315,8 @@ export function EpicBrowser({ epics, emptyDescription, emptyTitle }: EpicBrowser
         <Table className="w-auto">
           <THead>
             <TR>
-              <TH className="px-3 py-2">Project</TH><TH className="px-3 py-2 text-center">Type</TH><TH className="px-3 py-2">Issue Type</TH><TH className="px-3 py-2">Key</TH><TH className="px-3 py-2">Summary</TH><TH className="px-3 py-2">Status</TH>
-              <TH className="px-3 py-2">Start date</TH><TH className="px-3 py-2">R4G date</TH><TH className="px-3 py-2">Due date</TH><TH className="px-3 py-2">ID</TH>
+              <TH className="px-3 py-2">Project</TH><TH className="px-3 py-2 text-center">Type</TH><TH className="px-3 py-2">Issue Type</TH><TH className="px-3 py-2">Role</TH><TH className="px-3 py-2">Key</TH><TH className="px-3 py-2">Summary</TH><TH className="px-3 py-2">Status</TH>
+              <TH className="px-3 py-2">Start date</TH><TH className="px-3 py-2">R4G date</TH><TH className="px-3 py-2">Due date</TH><TH className="px-3 py-2">Lớp dữ liệu</TH>
             </TR>
           </THead>
           <TBody>
@@ -280,6 +398,13 @@ export function EpicBrowser({ epics, emptyDescription, emptyTitle }: EpicBrowser
           </TBody>
         </Table>
       </TableContainer>
+
+      {expandedEpic && (
+        <div className="flex flex-col gap-2">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-fb-text-secondary">Lịch sử cảnh báo — {expandedEpic.issueKey}</p>
+          <EpicHistoryStrip key={expandedEpic.issueKey} epicKey={expandedEpic.issueKey} />
+        </div>
+      )}
     </div>
   );
 }
