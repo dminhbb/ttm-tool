@@ -240,8 +240,9 @@ export function ImportIssuesTab() {
           if (result.status === 'FAILED') {
             setImportMessage({
               type: 'error',
-              text: `Import thất bại! File chứa ${result.errorRows} dòng lỗi dữ liệu nghiêm trọng. Vui lòng kiểm tra lịch sử để xem chi tiết.`
+              text: `Import hoàn tất với lỗi! File chứa ${result.errorRows} dòng lỗi dữ liệu nghiêm trọng — các dòng này đã bị bỏ qua. ${result.successRows + result.warningRows}/${result.totalRows} dòng hợp lệ khác vẫn được lưu vào lớp dữ liệu ngày ${formatDate(result.aggregatedAt)}. Vui lòng kiểm tra lịch sử để xem chi tiết lỗi và điều chỉnh dữ liệu nguồn.`
             });
+            clearFileSelection();
           } else if (result.status === 'COMPLETED_WITH_WARNINGS') {
             setImportMessage({
               type: 'warning',
@@ -508,7 +509,7 @@ export function ImportIssuesTab() {
                               batch.status === 'COMPLETED_WITH_WARNINGS' ? 'warning' : 'danger'
                             }>
                               {batch.status === 'SUCCESS' ? 'Thành công' :
-                               batch.status === 'COMPLETED_WITH_WARNINGS' ? 'Có cảnh báo' : 'Thất bại'}
+                               batch.status === 'COMPLETED_WITH_WARNINGS' ? 'Có cảnh báo' : 'Có lỗi (đã bỏ qua dòng lỗi)'}
                             </Badge>
                           </TD>
                           <TD>

@@ -198,6 +198,9 @@ export interface ImportBatch {
   successRows: number;
   warningRows: number;
   errorRows: number;
+  /** Reporting label only — 'FAILED' (errorRows > 0) no longer means nothing was saved: rows that
+   * failed validation are skipped individually (see `validIssues` in processImport), every other
+   * row in the batch is still ingested and aggregated normally. */
   status: 'SUCCESS' | 'FAILED' | 'COMPLETED_WITH_WARNINGS';
 }
 
@@ -335,9 +338,18 @@ export async function processImport(
       ]);
     }
 
-    // 5. Ingest into canonical issues table if NOT validateOnly AND status is NOT FAILED
-    if (!validateOnly && batchStatus !== 'FAILED') {
-      await accumulateProjectComponents(client, rawIssues);
+    // 5. Ingest into canonical issues table if NOT validateOnly. Rows that failed validation
+    // (status INVALID) are excluded from this insert loop — every row, valid or not, was already
+    // recorded verbatim in import_rows above (with its validation_status/errors) so the source
+    // data can be corrected — but only issues that passed validation are safe to write into the
+    // canonical table and downstream aggregation (epic_ttm_snapshots, issue_daily_snapshots,
+    // epic_alert_history). This means one bad row no longer takes the whole batch down with it:
+    // every other issue (including other Epics untouched by any error) still gets ingested and
+    // aggregated normally. batchStatus stays 'FAILED' whenever errorRows > 0 purely as a reporting
+    // label on the batch history screen — it no longer implies "nothing was saved".
+    const validIssues = rawIssues.filter((_issue, index) => validationReport[index].status !== 'INVALID');
+    if (!validateOnly && validIssues.length > 0) {
+      await accumulateProjectComponents(client, validIssues);
 
       const insertIssueQuery = `
         INSERT INTO issues (
@@ -369,7 +381,7 @@ export async function processImport(
           updated_at = NOW();
       `;
 
-      for (const issue of rawIssues) {
+      for (const issue of validIssues) {
         // issue.epicType carries the raw 'Loại yêu cầu' (request type) text unchanged from both
         // adapters — see computeEpicComplexity for the actual SIMPLE/COMPLEX rule.
         const complexity = computeEpicComplexity(issue.epicType, issue.requirementLevel);

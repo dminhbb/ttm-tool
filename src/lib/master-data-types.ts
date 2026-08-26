@@ -79,15 +79,10 @@ export interface ProjectComponent {
   updatedAt: string;
 }
 
-export interface ProjectComponentImportRowError {
-  message: string;
-  rowNumber: number;
-}
-
-export interface ProjectComponentImportResult {
-  errors: ProjectComponentImportRowError[];
-  importedCount: number;
-  totalRows: number;
+export interface ProjectComponentInput {
+  componentName: string;
+  isActive: boolean;
+  projectKey: string;
 }
 
 export const TEAM_ROLES = ['BA', 'DEV', 'TEST', 'PM'] as const;

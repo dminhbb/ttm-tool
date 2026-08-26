@@ -1,7 +1,7 @@
-import pool, { getClient } from '@/lib/db';
+import pool from '@/lib/db';
 import { expandHolidayRanges } from '@/lib/working-days';
 import type { HolidaySet } from '@/lib/working-days';
-import { parseCSV } from '@/lib/csv-parser';
+import { LATEST_ISSUES_CTE } from '@/lib/issue-resolution-sql';
 import type {
   Domain,
   DomainInput,
@@ -11,7 +11,7 @@ import type {
   IssueTypeRoleMappingInput,
   Project,
   ProjectComponent,
-  ProjectComponentImportResult,
+  ProjectComponentInput,
   ProjectInput,
 } from '@/lib/master-data-types';
 
@@ -241,9 +241,10 @@ export async function deleteIssueTypeRoleMapping(id: number): Promise<void> {
 
 // ---------- Project Components ----------
 // project_key here is projects.source_project_key, the same join key epic-alert-service.ts
-// resolves onto every Epic row. Rows accumulate both from CSV issue imports
-// (project-component-service.ts, keyed off issue.projectKey) and the manual "Import Components"
-// tab below — same table, same upsert semantics either way.
+// resolves onto every Epic row. Rows accumulate from CSV issue imports only
+// (project-component-service.ts, keyed off issue.projectKey) -- a component only appears here once
+// at least one imported issue carries it; until then it can't be picked for a PM/SM's per-component
+// grant on /admin/users, so that user simply sees that project as unrestricted in the meantime.
 
 export async function listProjectComponents(): Promise<ProjectComponent[]> {
   const result = await pool.query<ProjectComponent>(`
@@ -255,76 +256,74 @@ export async function listProjectComponents(): Promise<ProjectComponent[]> {
   return result.rows;
 }
 
-interface ParsedComponentRow {
-  componentName: string;
-  projectKey: string;
-  rowNumber: number;
+/**
+ * "Mồ côi" (orphan): a catalog row whose (project_key, component_name) doesn't appear on any
+ * issue's `components` array in its latest known state (LATEST_ISSUES_CTE — accumulation never
+ * deletes catalog rows, so a component that no longer shows up on any current issue, e.g. renamed
+ * in Jira or belonging to since-cleaned-up data, just lingers here forever otherwise). Project key
+ * per issue is derived the same way the manual-import path validated against (issue key prefix) —
+ * good enough for a diagnostic/cleanup view, unlike the request-path resolution used for filtering.
+ */
+export async function listOrphanProjectComponents(): Promise<ProjectComponent[]> {
+  const result = await pool.query<ProjectComponent>(`
+    WITH ${LATEST_ISSUES_CTE},
+    used_components AS (
+      SELECT DISTINCT SPLIT_PART(issue_key, '-', 1) AS project_key, unnest(components) AS component_name
+      FROM latest_issues
+      WHERE components IS NOT NULL
+    )
+    SELECT pc.id, pc.project_key AS "projectKey", pc.component_name AS "componentName",
+      pc.is_active AS "isActive", pc.created_at::text AS "createdAt", pc.updated_at::text AS "updatedAt"
+    FROM project_components pc
+    LEFT JOIN used_components uc ON uc.project_key = pc.project_key AND uc.component_name = pc.component_name
+    WHERE uc.component_name IS NULL
+    ORDER BY pc.project_key ASC, pc.component_name ASC;
+  `);
+  return result.rows;
 }
 
-/**
- * "Import Components": 2-column CSV (project_key, component) — a manually curated addition to the
- * same catalog CSV issue imports auto-accumulate into (see accumulateProjectComponents). Rejects
- * the whole file on any invalid row (duplicate pair within the file, unknown/inactive project_key)
- * rather than silently dropping rows, so the admin fixes the file instead of getting a partial import.
- */
-export async function importProjectComponentsCsv(csvText: string): Promise<ProjectComponentImportResult> {
-  const rows = parseCSV(csvText);
-  if (rows.length === 0) return { errors: [{ message: 'File rỗng.', rowNumber: 0 }], importedCount: 0, totalRows: 0 };
+function validateProjectComponentInput(input: ProjectComponentInput): string | null {
+  if (!input.projectKey.trim() || !input.componentName.trim()) return 'Project key và Component là bắt buộc.';
+  if (input.projectKey.trim().length > 50 || input.componentName.trim().length > 255) return 'Project key hoặc Component vượt quá độ dài cho phép.';
+  return null;
+}
 
-  const headers = rows[0].map((cell) => cell.trim().toLowerCase());
-  const projectKeyIdx = headers.findIndex((h) => h === 'project_key' || h === 'projectkey');
-  const componentIdx = headers.findIndex((h) => h === 'component' || h === 'component_name' || h === 'componentname');
-  if (projectKeyIdx < 0 || componentIdx < 0) {
-    return { errors: [{ message: 'File cần đúng 2 cột: project_key và component.', rowNumber: 1 }], importedCount: 0, totalRows: 0 };
-  }
-
-  const dataRows = rows.slice(1).filter((row) => row.some((cell) => cell.trim() !== ''));
-  const activeProjectKeys = new Set((await listProjects()).filter((project) => project.isActive).map((project) => project.sourceProjectKey));
-
-  const errors: ProjectComponentImportResult['errors'] = [];
-  const seenPairs = new Set<string>();
-  const parsed: ParsedComponentRow[] = [];
-
-  dataRows.forEach((row, index) => {
-    const rowNumber = index + 2; // +1 for 0-index, +1 for the header row
-    const projectKey = (row[projectKeyIdx] ?? '').trim();
-    const componentName = (row[componentIdx] ?? '').trim();
-    if (!projectKey || !componentName) {
-      errors.push({ message: 'Thiếu project_key hoặc component.', rowNumber });
-      return;
-    }
-    if (!activeProjectKeys.has(projectKey)) {
-      errors.push({ message: `project_key "${projectKey}" không khớp Dự án nào đang hoạt động.`, rowNumber });
-      return;
-    }
-    const pairKey = `${projectKey} ${componentName}`;
-    if (seenPairs.has(pairKey)) {
-      errors.push({ message: `Cặp (${projectKey}, ${componentName}) bị lặp lại trong file.`, rowNumber });
-      return;
-    }
-    seenPairs.add(pairKey);
-    parsed.push({ componentName, projectKey, rowNumber });
-  });
-
-  if (errors.length > 0) return { errors, importedCount: 0, totalRows: dataRows.length };
-
-  const client = await getClient();
+export async function createProjectComponent(input: ProjectComponentInput): Promise<{ component?: ProjectComponent; error?: string }> {
+  const validationError = validateProjectComponentInput(input);
+  if (validationError) return { error: validationError };
   try {
-    await client.query('BEGIN');
-    for (const row of parsed) {
-      await client.query(`
-        INSERT INTO project_components (project_key, component_name)
-        VALUES ($1, $2)
-        ON CONFLICT (project_key, component_name) DO UPDATE SET updated_at = CURRENT_TIMESTAMP;
-      `, [row.projectKey, row.componentName]);
-    }
-    await client.query('COMMIT');
-  } catch (error) {
-    await client.query('ROLLBACK');
+    const result = await pool.query<ProjectComponent>(`
+      INSERT INTO project_components (project_key, component_name, is_active)
+      VALUES ($1, $2, $3)
+      RETURNING id, project_key AS "projectKey", component_name AS "componentName",
+        is_active AS "isActive", created_at::text AS "createdAt", updated_at::text AS "updatedAt";
+    `, [input.projectKey.trim(), input.componentName.trim(), input.isActive]);
+    return { component: result.rows[0] };
+  } catch (error: unknown) {
+    if (error instanceof Error && 'code' in error && (error as { code?: string }).code === '23505') return { error: 'Cặp (Project key, Component) này đã tồn tại trong danh mục.' };
     throw error;
-  } finally {
-    client.release();
   }
+}
 
-  return { errors: [], importedCount: parsed.length, totalRows: dataRows.length };
+export async function updateProjectComponent(id: number, input: ProjectComponentInput): Promise<{ component?: ProjectComponent; error?: string }> {
+  const validationError = validateProjectComponentInput(input);
+  if (validationError) return { error: validationError };
+  try {
+    const result = await pool.query<ProjectComponent>(`
+      UPDATE project_components
+      SET project_key = $2, component_name = $3, is_active = $4, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING id, project_key AS "projectKey", component_name AS "componentName",
+        is_active AS "isActive", created_at::text AS "createdAt", updated_at::text AS "updatedAt";
+    `, [id, input.projectKey.trim(), input.componentName.trim(), input.isActive]);
+    if (result.rowCount === 0) return { error: 'Không tìm thấy Component.' };
+    return { component: result.rows[0] };
+  } catch (error: unknown) {
+    if (error instanceof Error && 'code' in error && (error as { code?: string }).code === '23505') return { error: 'Cặp (Project key, Component) này đã tồn tại trong danh mục.' };
+    throw error;
+  }
+}
+
+export async function deleteProjectComponent(id: number): Promise<void> {
+  await pool.query('DELETE FROM project_components WHERE id = $1;', [id]);
 }
