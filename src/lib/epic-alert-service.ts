@@ -275,12 +275,15 @@ export interface EpicAlertContext {
 }
 
 /**
- * Shared fetch used by every Epic Alerts screen ("Quản lý Epic 30", "Quản lý Epic 15", …):
- * resolves access scope, reads each Epic's latest known `issues` row (daily imports are
+ * Shared fetch used by every Epic Alerts screen ("Quản trị Epic (rút gọn)", "Quản trị Epic (đầy
+ * đủ)", …): resolves access scope, reads each Epic's latest known `issues` row (daily imports are
  * incremental, so no single batch is a complete snapshot — DISTINCT ON + aggregated_at DESC
- * picks up the most recent data per Epic regardless of which day it was last touched), evaluates
- * TTM compliance once per Epic, and applies the shared Released-epic visibility rule. Screens
- * differ only in how they turn `entries` into stage cells.
+ * picks up the most recent data per Epic regardless of which day it was last touched), and
+ * evaluates TTM compliance once per Epic. `entries` includes every Epic the caller's access scope
+ * permits — no status-based visibility rule (Released-without-history, Cancelled, …) is applied
+ * here; those are each screen's own concern (see getEpicAlertRows' Released-hide-unless-alerted
+ * filter below, which "Quản trị Epic (đầy đủ)" deliberately does not replicate — see
+ * getEpicAlertRowsPhased's doc comment).
  */
 export async function fetchEpicAlertContext(userId: number, role: UserRole): Promise<EpicAlertContext> {
   const [scope, holidays, domainByProjectKey, projectMetaByProjectKey, statusAlertRules, ttmPolicies, epicKeysWithAlertHistory, viewer, latestBatch] = await Promise.all([
@@ -338,15 +341,11 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole): Pro
     ORDER BY issues.issue_key ASC, issues.aggregated_at DESC
   `, [scope.sourceProjectKeys]);
 
-  const releasedStatusIndex = statusOrderIndex('Released');
   const entries: EvaluatedEpicEntry[] = [];
 
   for (const row of result.rows) {
     const hasAlertHistory = epicKeysWithAlertHistory.has(row.epicKey);
     const epicStatusIndex = statusOrderIndex(row.status);
-    // Default visibility rule: Released epics only stay on the list if they were ever flagged
-    // Cảnh báo muộn/Fail TTM in their accumulated alert history; everything else always shows.
-    if (epicStatusIndex === releasedStatusIndex && !hasAlertHistory) continue;
 
     // Component-level narrowing (PM/SM only — see resolveAccessScope): a project present in
     // projectComponents only shows Epics whose own components intersect the allowed set. An Epic
@@ -393,8 +392,16 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
   }
   const { entries, holidays, now, statusAlertRules } = context;
   const rows: EpicAlertRow[] = [];
+  const releasedStatusIndex = statusOrderIndex('Released');
 
   for (const { complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, row, startDate } of entries) {
+    // Default visibility rule for THIS screen only ("Quản trị Epic (rút gọn)"): Released epics
+    // only stay on the list if they were ever flagged Cảnh báo muộn/Fail TTM in their accumulated
+    // alert history — everything else always shows. "Quản trị Epic (đầy đủ)" deliberately shows
+    // every Epic its access scope permits, Released-without-history included (see
+    // getEpicAlertRowsPhased), so this filter lives here rather than in fetchEpicAlertContext.
+    if (epicStatusIndex === releasedStatusIndex && !hasAlertHistory) continue;
+
     const ttmCnttStartDate = parseDate(evaluation.ttm.cntt.fromDate);
     const ttmCnttTarget = evaluation.ttm.cntt.workingDays ?? 0;
     const ttmCnttElapsed = ttmCnttStartDate ? Math.max(0, diffWorkingDays(ttmCnttStartDate, now, holidays)) : null;

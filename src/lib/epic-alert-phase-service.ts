@@ -5,7 +5,6 @@ import { computeComponentPhaseAlerts, computePhaseAlertLevel, computeTtmPhaseBas
 import type { TtmPhaseBaseline, TtmPhaseKey } from '@/lib/ttm-phase-rules';
 import {
   fetchEpicAlertContext,
-  isCancelledStatus,
   missingStandardInfo,
   parseDate,
   resolveTtmE2eRelease,
@@ -84,8 +83,13 @@ function resolvePhaseCells(
 }
 
 /**
- * "Quản trị Epic": same Epic list and access rules as "Quản lý Epic 30" (fetchEpicAlertContext is
- * shared), but the Design/In Progress/Ready4Golive columns are replaced with five phase columns
+ * "Quản trị Epic (đầy đủ)": same access-scope rules as "Quản trị Epic (rút gọn)"
+ * (fetchEpicAlertContext is shared), but shows every Epic that scope permits with no further
+ * status-based visibility filter — unlike the "rút gọn" screen, Released epics without alert
+ * history and Cancelled epics are NOT hidden here (the client's own Status filter still defaults
+ * to excluding To Do/In PO/Released on first load — see DEFAULT_EXCLUDED_STATUSES in
+ * epic-alerts-15/page.tsx — but every status remains selectable since the data now always
+ * includes them). The Design/In Progress/Ready4Golive columns are replaced with five phase columns
  * (DESIGN, DEV, TEST, PENTEST, R4GOLIVE) per the phase-division core rule (ttm-phase-rules.ts).
  * Each cell carries a baseline (always computed) and an `isDone` flag evaluated live from current
  * story/subtask statuses every request (see epic-phase-completion-service.ts) — completion dates
@@ -109,10 +113,6 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
   const lateAlertsToRecord: { epicKey: string; phase: EpicAlertHistoryPhase; status: string }[] = [];
 
   for (const { complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, projectName, row, startDate } of entries) {
-    // This screen never shows Cancelled epics (core logic: Cancelled/Pending are special
-    // statuses outside the sequential workflow).
-    if (isCancelledStatus(row.status)) continue;
-
     const ttmCnttStartDate = parseDate(evaluation.ttm.cntt.fromDate);
     const ttmCnttTarget = evaluation.ttm.cntt.workingDays ?? 0;
     const ttmCnttElapsed = ttmCnttStartDate ? Math.max(0, diffWorkingDays(ttmCnttStartDate, now, holidays)) : null;
