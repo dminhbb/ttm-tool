@@ -80,6 +80,22 @@ interface ColumnInfo {
   isNullable: boolean;
 }
 
+// information_schema.columns.data_type reports every array column as the bare string 'ARRAY' —
+// no element type, no dimension — which isn't valid standalone SQL (hence "syntax error at or
+// near ARRAY" when that string was used as-is in a CREATE TABLE). udt_name carries the actual
+// element type instead, prefixed with an underscore (Postgres' internal array-type naming, e.g.
+// '_text' for text[]); map the ones this schema actually uses back to a real SQL type name.
+const ARRAY_ELEMENT_SQL_TYPES: Record<string, string> = {
+  _bool: 'BOOLEAN',
+  _date: 'DATE',
+  _int4: 'INTEGER',
+  _int8: 'BIGINT',
+  _numeric: 'NUMERIC',
+  _text: 'TEXT',
+  _timestamptz: 'TIMESTAMPTZ',
+  _varchar: 'VARCHAR',
+};
+
 async function getColumns(tableName: string): Promise<ColumnInfo[]> {
   const result = await pool.query<{
     characterMaximumLength: number | null;
@@ -89,10 +105,11 @@ async function getColumns(tableName: string): Promise<ColumnInfo[]> {
     isNullable: string;
     numericPrecision: number | null;
     numericScale: number | null;
+    udtName: string;
   }>(`
     SELECT column_name AS "columnName", data_type AS "dataType", is_nullable AS "isNullable",
       column_default AS "columnDefault", character_maximum_length AS "characterMaximumLength",
-      numeric_precision AS "numericPrecision", numeric_scale AS "numericScale"
+      numeric_precision AS "numericPrecision", numeric_scale AS "numericScale", udt_name AS "udtName"
     FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = $1
     ORDER BY ordinal_position;
@@ -100,7 +117,8 @@ async function getColumns(tableName: string): Promise<ColumnInfo[]> {
 
   return result.rows.map((row) => {
     let fullType = row.dataType;
-    if (row.dataType === 'character varying' && row.characterMaximumLength) fullType = `VARCHAR(${row.characterMaximumLength})`;
+    if (row.dataType === 'ARRAY') fullType = `${ARRAY_ELEMENT_SQL_TYPES[row.udtName] ?? row.udtName.replace(/^_/, '').toUpperCase()}[]`;
+    else if (row.dataType === 'character varying' && row.characterMaximumLength) fullType = `VARCHAR(${row.characterMaximumLength})`;
     else if (row.dataType === 'character' && row.characterMaximumLength) fullType = `CHAR(${row.characterMaximumLength})`;
     else if (row.dataType === 'numeric' && row.numericPrecision) fullType = `NUMERIC(${row.numericPrecision}${row.numericScale ? `,${row.numericScale}` : ''})`;
     else if (row.dataType === 'timestamp with time zone') fullType = 'TIMESTAMPTZ';
