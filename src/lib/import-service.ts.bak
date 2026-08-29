@@ -319,26 +319,23 @@ export async function processImport(
     // 4. Ingest Raw Import Rows into import_rows
     // (normalized_data_json is the single copy kept — it used to be duplicated verbatim
     // into a separate raw_data_json column, doubling storage for no benefit.)
-    //
-    // One INSERT per row here used to mean one DB round trip per row — fine for a small file, but
-    // a real production export (tens of thousands of rows) turned this into a 10+ minute request
-    // that timed out (confirmed by reproducing it directly: ~31,500 rows took over 10 minutes and
-    // the connection was eventually dropped). All columns here are scalar, so a single
-    // unnest()-based bulk insert replaces the whole loop with one round trip regardless of row
-    // count — Postgres has no limit on array-parameter length, only on the number of distinct
-    // placeholders ($1..$5 here), so this scales to any file size in one query.
-    if (rawIssues.length > 0) {
-      await client.query(
-        `INSERT INTO import_rows (import_batch_id, row_number, normalized_data_json, validation_status, validation_errors_json)
-         SELECT $1, * FROM unnest($2::int[], $3::text[], $4::text[], $5::text[]);`,
-        [
-          batchId,
-          rawIssues.map((issue) => issue.rowNumber),
-          rawIssues.map((issue) => JSON.stringify(issue)),
-          validationReport.map((validation) => validation.status),
-          validationReport.map((validation) => JSON.stringify(validation.errors)),
-        ],
-      );
+    const insertRowQuery = `
+      INSERT INTO import_rows (
+        import_batch_id, row_number, normalized_data_json,
+        validation_status, validation_errors_json
+      ) VALUES ($1, $2, $3, $4, $5);
+    `;
+
+    for (let i = 0; i < rawIssues.length; i++) {
+      const issue = rawIssues[i];
+      const validation = validationReport[i];
+      await client.query(insertRowQuery, [
+        batchId,
+        issue.rowNumber,
+        JSON.stringify(issue),
+        validation.status,
+        JSON.stringify(validation.errors)
+      ]);
     }
 
     // 5. Ingest into canonical issues table if NOT validateOnly. Rows that failed validation
@@ -354,21 +351,14 @@ export async function processImport(
     if (!validateOnly && validIssues.length > 0) {
       await accumulateProjectComponents(client, validIssues);
 
-      // Same round-trip-per-row problem as the import_rows loop above, but issues has 3 array
-      // columns (epic_stories/story_subtasks/components) — unnest() can't cleanly expand "one
-      // array value per row" alongside scalar columns (it flattens every level together), so this
-      // stays a multi-row VALUES (...), (...), ... insert instead, chunked to stay well under
-      // Postgres's 65535-bound-parameter limit (23 columns × 500 rows = 11,500 params/statement).
-      // Still turns tens of thousands of round trips into a handful.
-      const ISSUE_INSERT_CHUNK_SIZE = 500;
-      const insertIssueColumns = [
-        'source_system', 'jira_id', 'issue_key', 'issue_name', 'issue_type', 'current_status',
-        'standard_status', 'assignee_name', 'epic_key', 'parent_key',
-        'idea_approved_date', 'start_date', 'r4g_date', 'due_date',
-        'epic_complexity_type', 'requirement_level', 'source_import_batch_id', 'aggregated_at',
-        'jira_created_at', 'jira_updated_at', 'epic_stories', 'story_subtasks', 'components',
-      ];
-      const insertIssueUpdateClause = `
+      const insertIssueQuery = `
+        INSERT INTO issues (
+          source_system, jira_id, issue_key, issue_name, issue_type, current_status,
+          standard_status, assignee_name, epic_key, parent_key,
+          idea_approved_date, start_date, r4g_date, due_date,
+          epic_complexity_type, requirement_level, source_import_batch_id, aggregated_at,
+          jira_created_at, jira_updated_at, epic_stories, story_subtasks, components
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
         ON CONFLICT (issue_key, source_import_batch_id) DO UPDATE SET
           jira_id = EXCLUDED.jira_id,
           issue_name = EXCLUDED.issue_name,
@@ -391,24 +381,29 @@ export async function processImport(
           updated_at = NOW();
       `;
 
-      const issueRows = validIssues.map((issue) => {
+      for (const issue of validIssues) {
         // issue.epicType carries the raw 'Loại yêu cầu' (request type) text unchanged from both
         // adapters — see computeEpicComplexity for the actual SIMPLE/COMPLEX rule.
         const complexity = computeEpicComplexity(issue.epicType, issue.requirementLevel);
+
+        // Standard status (mock mapping for now, to be detailed later)
+        const stdStatus = issue.status;
+
         const jiraId = parseInt(issue.issueId) || 0;
         const components = splitComponents(issue.components);
+
         // Parse Jira source timestamps — only provided by Py Jira API adapter for epics
         const jiraCreatedAt = issue.jiraCreatedAt ? parseJiraDate(issue.jiraCreatedAt) : null;
         const jiraUpdatedAt = issue.jiraUpdatedAt ? parseJiraDate(issue.jiraUpdatedAt) : null;
 
-        return [
+        await client.query(insertIssueQuery, [
           'JIRA',
           jiraId,
           issue.issueKey,
           issue.summary,
           issue.issueType.toUpperCase(),
           issue.status,
-          issue.status, // standard_status (mock mapping for now, to be detailed later)
+          stdStatus,
           issue.assignee || null,
           issue.epicLink || null,
           issue.parentId || null,
@@ -425,67 +420,28 @@ export async function processImport(
           issue.epicStories?.length ? issue.epicStories : null,
           issue.storySubtasks?.length ? issue.storySubtasks : null,
           components.length ? components : null,
-        ];
-      });
-
-      for (let chunkStart = 0; chunkStart < issueRows.length; chunkStart += ISSUE_INSERT_CHUNK_SIZE) {
-        const chunk = issueRows.slice(chunkStart, chunkStart + ISSUE_INSERT_CHUNK_SIZE);
-        const values: unknown[] = [];
-        const placeholders = chunk.map((row) => {
-          const rowPlaceholders = row.map((_value, columnIndex) => `$${values.length + columnIndex + 1}`).join(', ');
-          values.push(...row);
-          return `(${rowPlaceholders})`;
-        }).join(', ');
-        await client.query(
-          `INSERT INTO issues (${insertIssueColumns.join(', ')}) VALUES ${placeholders} ${insertIssueUpdateClause}`,
-          values,
-        );
+        ]);
       }
 
-      // 6. Link relationships within the batch.
-      //
-      // Every one of these is a self-join of `issues` filtered to just this batch — but within
-      // this same transaction that filter's true selectivity (tens of thousands of rows for a
-      // real import) is invisible to the query planner: pg_statistic is only ever refreshed by
-      // ANALYZE/autovacuum, never by the INSERTs this transaction just did, so the planner
-      // estimates ~1 row for a `source_import_batch_id = $1` literal it has no stats for — and
-      // reasonably (from its point of view) concludes a nested-loop join must be cheap, when the
-      // real row counts make that a near-quadratic scan. Confirmed directly by EXPLAIN ANALYZE at
-      // real import scale (~40,500 rows): 291s and 850 MILLION row comparisons on the worst of
-      // these four queries with a misestimate, vs 1.6s with an accurate one. A plain ANALYZE right
-      // after the bulk insert above is enough to fix every one of them — it's the actual cause
-      // (bad stats), not a per-query workaround, and it costs under a second here. import_rows
-      // gets the same treatment since aggregateBatchData (step 7, right after this) joins it
-      // against `issues` on this same freshly-inserted batch and hit the identical bad-plan issue.
-      await client.query('ANALYZE issues, import_rows;');
-
-      // Link parents (Subtasks -> Stories). Split into two single-equality UPDATEs instead of one
-      // `child.parent_key = CAST(parent.jira_id AS VARCHAR) OR child.parent_key = parent.issue_key`
-      // join — an OR across two different comparisons isn't sargable for a hash/merge join either,
-      // regardless of how good the statistics are (same anti-pattern already identified and fixed
-      // once in this codebase — see RESOLVED_EPIC_KEY_JOIN's doc comment in issue-resolution-sql.ts).
-      await client.query(`
+      // 6. Link relationships within the batch
+      
+      // Link parents (Subtasks -> Stories)
+      const updateParentsQuery = `
         UPDATE issues child
         SET parent_id = parent.id
         FROM issues parent
         WHERE child.source_import_batch_id = $1
           AND parent.source_import_batch_id = $1
-          AND child.parent_key = parent.issue_key
+          AND (
+            child.parent_key = CAST(parent.jira_id AS VARCHAR)
+            OR child.parent_key = parent.issue_key
+          )
           AND child.parent_key IS NOT NULL;
-      `, [batchId]);
-      await client.query(`
-        UPDATE issues child
-        SET parent_id = parent.id
-        FROM issues parent
-        WHERE child.source_import_batch_id = $1
-          AND parent.source_import_batch_id = $1
-          AND child.parent_id IS NULL
-          AND child.parent_key = CAST(parent.jira_id AS VARCHAR)
-          AND child.parent_key IS NOT NULL;
-      `, [batchId]);
+      `;
+      await client.query(updateParentsQuery, [batchId]);
 
       // Link epics (Stories/Tasks/Bugs -> Epics)
-      await client.query(`
+      const updateEpicsQuery = `
         UPDATE issues story
         SET epic_id = epic.id
         FROM issues epic
@@ -493,10 +449,11 @@ export async function processImport(
           AND epic.source_import_batch_id = $1
           AND story.epic_key = epic.issue_key
           AND story.epic_key IS NOT NULL;
-      `, [batchId]);
+      `;
+      await client.query(updateEpicsQuery, [batchId]);
 
       // Link subtask directly to epic via parent's epic Link
-      await client.query(`
+      const updateSubtaskEpicsQuery = `
         UPDATE issues child
         SET epic_id = parent.epic_id
         FROM issues parent
@@ -504,7 +461,8 @@ export async function processImport(
           AND parent.source_import_batch_id = $1
           AND child.parent_id = parent.id
           AND parent.epic_id IS NOT NULL;
-      `, [batchId]);
+      `;
+      await client.query(updateSubtaskEpicsQuery, [batchId]);
 
       // 7. Derive every aggregated data layer (epic_ttm_snapshots, issue_daily_snapshots,
       // epic_alert_history) for this batch — same function used to "re-run" aggregation later.
