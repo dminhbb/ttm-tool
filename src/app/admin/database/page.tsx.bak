@@ -38,7 +38,6 @@ export default function DatabaseBackupPage() {
 
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
-  const [importSelectedTables, setImportSelectedTables] = useState<Set<string>>(new Set());
   const [importPreviewedFileKey, setImportPreviewedFileKey] = useState<string | null>(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -112,18 +111,8 @@ export default function DatabaseBackupPage() {
   const onFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setImportFile(event.target.files?.[0] ?? null);
     setImportPreview(null);
-    setImportSelectedTables(new Set());
     setImportPreviewedFileKey(null);
     setImportResult(null);
-  };
-
-  const toggleImportTable = (tableName: string, checked: boolean) => {
-    setImportSelectedTables((current) => {
-      const next = new Set(current);
-      if (checked) next.add(tableName);
-      else next.delete(tableName);
-      return next;
-    });
   };
 
   const fileKeyOf = (file: File) => `${file.name}:${file.size}:${file.lastModified}`;
@@ -145,7 +134,6 @@ export default function DatabaseBackupPage() {
         return;
       }
       setImportPreview(result);
-      setImportSelectedTables(new Set((result as ImportPreview).tableCounts.map((item) => item.tableName)));
       setImportPreviewedFileKey(fileKeyOf(importFile));
     } catch {
       setMessage({ text: 'Không thể kết nối API import.', type: 'error' });
@@ -159,15 +147,13 @@ export default function DatabaseBackupPage() {
     setIsImporting(true);
     setMessage(null);
     try {
-      const tablesParam = encodeURIComponent([...importSelectedTables].join(','));
-      const res = await fetch(`/api/admin/db-backup/import?tables=${tablesParam}`, { method: 'POST', body: importFile });
+      const res = await fetch('/api/admin/db-backup/import', { method: 'POST', body: importFile });
       const result: ImportResult = await res.json();
       setImportResult(result);
       if (result.ok) {
         setMessage({ text: 'Import hoàn tất.', type: 'success' });
         setImportFile(null);
         setImportPreview(null);
-        setImportSelectedTables(new Set());
         setImportPreviewedFileKey(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
         void fetchTables();
@@ -291,42 +277,20 @@ export default function DatabaseBackupPage() {
 
           {importPreview && isPreviewCurrent && (
             <div className="flex flex-col gap-3 rounded-xl border border-fb-border bg-fb-surface-muted p-4">
-              <div className="flex items-center justify-between">
-                <p className="font-bold text-fb-text-primary">Xem trước nội dung file — chọn bảng sẽ import dữ liệu:</p>
-                <label className="flex items-center gap-2 text-sm font-semibold">
-                  <input
-                    type="checkbox"
-                    checked={importSelectedTables.size === importPreview.tableCounts.length && importPreview.tableCounts.length > 0}
-                    onChange={(event) => setImportSelectedTables(event.target.checked ? new Set(importPreview.tableCounts.map((item) => item.tableName)) : new Set())}
-                  />
-                  Chọn tất cả
-                </label>
-              </div>
+              <p className="font-bold text-fb-text-primary">Xem trước nội dung file:</p>
               {importPreview.createsSchemaFor.length > 0 && (
                 <p className="text-fb-text-secondary">
-                  File có kèm cấu trúc bảng (CREATE TABLE IF NOT EXISTS) cho: {importPreview.createsSchemaFor.join(', ')}. Luôn được tạo bất kể có chọn import dữ liệu bảng đó hay không — an toàn với DB đã có bảng (sẽ được bỏ qua).
+                  File có kèm cấu trúc bảng (CREATE TABLE IF NOT EXISTS) cho: {importPreview.createsSchemaFor.join(', ')}. An toàn với DB đã có bảng (sẽ được bỏ qua).
                 </p>
               )}
               <ul className="flex flex-col gap-1">
                 {importPreview.tableCounts.map((item) => (
-                  <li key={item.tableName}>
-                    <label className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 hover:bg-fb-surface">
-                      <span className="flex items-center gap-2 font-mono text-fb-text-secondary">
-                        <input
-                          type="checkbox"
-                          checked={importSelectedTables.has(item.tableName)}
-                          onChange={(event) => toggleImportTable(item.tableName, event.target.checked)}
-                        />
-                        {item.tableName}
-                      </span>
-                      <Badge variant={importSelectedTables.has(item.tableName) ? 'info' : 'neutral'}>{formatNumber(item.insertCount)} dòng</Badge>
-                    </label>
+                  <li key={item.tableName} className="flex items-center justify-between text-fb-text-secondary">
+                    <span className="font-mono">{item.tableName}</span>
+                    <Badge variant="info">{formatNumber(item.insertCount)} dòng</Badge>
                   </li>
                 ))}
               </ul>
-              {importSelectedTables.size === 0 && (
-                <p className="text-status-warning">Chưa chọn bảng nào — import sẽ không ghi dữ liệu của bất kỳ bảng nào (chỉ tạo cấu trúc bảng nếu file có kèm).</p>
-              )}
             </div>
           )}
 

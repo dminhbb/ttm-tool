@@ -26,8 +26,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Chỉ chấp nhận file .sql tối đa ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB.` }, { status: 400 });
     }
 
-    const url = new URL(request.url);
-    const isDryRun = url.searchParams.get('dryRun') === '1';
+    const isDryRun = new URL(request.url).searchParams.get('dryRun') === '1';
 
     if (isDryRun) {
       const result = previewImportFile(sqlText);
@@ -35,15 +34,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(result.preview);
     }
 
-    // "Bảng nào không được checked thì sẽ không import dữ liệu" — the preview's per-table
-    // checkboxes (admin/database/page.tsx) send the checked set as ?tables=a,b,c. Omitted entirely
-    // (no ?tables param at all) means "import every table found in the file", unchanged from
-    // before this parameter existed; an explicit empty string means "nothing selected" (all data
-    // skipped, only CREATE TABLE statements if any would run) rather than falling back to "all".
-    const tablesParam = url.searchParams.get('tables');
-    const selectedTables = tablesParam === null ? null : new Set(tablesParam.split(',').map((name) => name.trim()).filter(Boolean));
-
-    const result = await importSqlFile(sqlText, selectedTables);
+    const result = await importSqlFile(sqlText);
     return NextResponse.json(result, { status: result.ok ? 200 : 400 });
   } catch (error: unknown) {
     console.error('API Error in db-backup/import route:', error);

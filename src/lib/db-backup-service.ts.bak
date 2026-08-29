@@ -207,15 +207,9 @@ export async function exportTablesToSql(tableNames: string[], includeSchema: boo
 }
 
 interface ParsedStatement {
-  /** Only set for type INSERT — the column list exactly as written, e.g. `"id", "email"`. Every
-   * INSERT statement for one table shares an identical column list (exportTablesToSql always
-   * writes the same list for a table), which is what makes batching them together below safe. */
-  columns?: string;
   statement: string;
   tableName: string;
   type: 'CREATE_TABLE' | 'INSERT';
-  /** Only set for type INSERT — the VALUES(...) tuple's inner content, e.g. `1, 'a@b.com'`. */
-  valuesTuple?: string;
 }
 
 /** Quote-aware statement splitter: only splits on `;` outside single-quoted strings, and drops `--` line comments. */
@@ -275,12 +269,7 @@ function parseImportFile(sqlText: string): { error: string } | { statements: Par
       const tableName = insertMatch[1];
       if (!ALLOWED_TABLE_NAMES.has(tableName)) return { error: `Bảng "${tableName}" trong file không được phép import.` };
       if (!/\bON CONFLICT DO NOTHING\s*$/i.test(statement)) return { error: 'File chứa câu lệnh INSERT không đúng định dạng export chuẩn (thiếu ON CONFLICT DO NOTHING).' };
-      // Also captures columns/valuesTuple so importSqlFile can batch many rows into one multi-row
-      // INSERT instead of one round trip per row — every statement this app's own export produces
-      // matches this exact shape, so a mismatch here means a hand-edited/foreign file.
-      const shapeMatch = statement.match(/^INSERT INTO "[a-zA-Z0-9_]+" \(([^)]*)\) VALUES \(([\s\S]*)\) ON CONFLICT DO NOTHING$/i);
-      if (!shapeMatch) return { error: 'File chứa câu lệnh INSERT không đúng định dạng export chuẩn.' };
-      statements.push({ columns: shapeMatch[1], statement, tableName, type: 'INSERT', valuesTuple: shapeMatch[2] });
+      statements.push({ statement, tableName, type: 'INSERT' });
       continue;
     }
     return { error: `File chứa câu lệnh không được hỗ trợ: "${statement.slice(0, 80)}..."` };
@@ -313,24 +302,13 @@ export function previewImportFile(sqlText: string): { error: string } | { previe
   };
 }
 
-/**
- * @param selectedTables When provided, only these tables' INSERT statements are executed — every
- * other table found in the file has its data silently skipped (the import preview's per-table
- * checkboxes — "Bảng nào không được checked thì sẽ không import dữ liệu"). CREATE TABLE statements
- * are unaffected by this filter and always run for every table present in the file regardless —
- * the checkbox is documented and scoped to data only, and CREATE TABLE IF NOT EXISTS is harmless
- * either way. Omit (or pass null/undefined) to import every table's data, unchanged from before
- * this parameter existed — callers other than the admin UI (if any future ones use this function
- * directly) keep working with no changes.
- */
-export async function importSqlFile(sqlText: string, selectedTables?: Set<string> | null): Promise<ImportResult> {
+export async function importSqlFile(sqlText: string): Promise<ImportResult> {
   const parsed = parseImportFile(sqlText);
   if ('error' in parsed) return { ok: false, tables: [{ error: parsed.error, inserted: 0, skippedDuplicates: 0, tableName: '(file)' }] };
 
-  const allTouchedTables = [...new Set(parsed.statements.map((item) => item.tableName))];
-  const insertTables = selectedTables ? allTouchedTables.filter((tableName) => selectedTables.has(tableName)) : allTouchedTables;
+  const touchedTables = [...new Set(parsed.statements.map((item) => item.tableName))];
   const resultByTable = new Map<string, ImportTableResult>();
-  for (const tableName of insertTables) resultByTable.set(tableName, { error: null, inserted: 0, skippedDuplicates: 0, tableName });
+  for (const tableName of touchedTables) resultByTable.set(tableName, { error: null, inserted: 0, skippedDuplicates: 0, tableName });
 
   const client = await getClient();
   try {
@@ -339,43 +317,22 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
     // Disable FK/trigger enforcement for the duration of the load so cross-table and
     // self-referential foreign keys (e.g. issues.parent_id -> issues.id) never block on
     // insert order; triggers are re-enabled (without retroactive validation) before commit.
-    for (const tableName of insertTables) await client.query(`ALTER TABLE ${quoteIdent(tableName)} DISABLE TRIGGER ALL;`);
+    for (const tableName of touchedTables) await client.query(`ALTER TABLE ${quoteIdent(tableName)} DISABLE TRIGGER ALL;`);
 
     for (const item of parsed.statements.filter((statement) => statement.type === 'CREATE_TABLE')) {
       await client.query(item.statement);
     }
 
-    // Batched instead of one round trip per row — same fix, same reasoning, as processImport()'s
-    // CSV path (src/lib/import-service.ts): a real export can be tens of thousands of INSERT
-    // statements, and awaiting them one at a time turned into a multi-minute request that timed
-    // out in production. Grouped per table (every INSERT for one table shares the exact same
-    // column list, guaranteed by exportTablesToSql — see the ParsedStatement.columns comment) and
-    // chunked to stay well under Postgres's 65535-bound-parameter limit; unlike the CSV path this
-    // needs no parameters at all (values are already-formatted SQL literals from the export, not
-    // JS values), so the only cap that matters is statement length, not parameter count.
-    // `RETURNING` on the batched INSERT recovers the same per-row inserted/skipped-duplicate
-    // counts the old one-statement-per-row loop reported (ON CONFLICT DO NOTHING never returns a
-    // row for the ones it skips, so result.rowCount is exactly the inserted count).
-    const INSERT_BATCH_CHUNK_SIZE = 500;
-    for (const tableName of insertTables) {
-      const insertsForTable = parsed.statements.filter((statement) => statement.type === 'INSERT' && statement.tableName === tableName);
-      if (insertsForTable.length === 0) continue;
-      const tableResult = resultByTable.get(tableName)!;
-      const columns = insertsForTable[0].columns!;
-      for (let chunkStart = 0; chunkStart < insertsForTable.length; chunkStart += INSERT_BATCH_CHUNK_SIZE) {
-        const chunk = insertsForTable.slice(chunkStart, chunkStart + INSERT_BATCH_CHUNK_SIZE);
-        const tuples = chunk.map((item) => `(${item.valuesTuple})`).join(', ');
-        const result = await client.query(
-          `INSERT INTO ${quoteIdent(tableName)} (${columns}) VALUES ${tuples} ON CONFLICT DO NOTHING RETURNING 1;`,
-        );
-        tableResult.inserted += result.rowCount ?? 0;
-        tableResult.skippedDuplicates += chunk.length - (result.rowCount ?? 0);
-      }
+    for (const item of parsed.statements.filter((statement) => statement.type === 'INSERT')) {
+      const result = await client.query(item.statement);
+      const tableResult = resultByTable.get(item.tableName)!;
+      if ((result.rowCount ?? 0) > 0) tableResult.inserted += 1;
+      else tableResult.skippedDuplicates += 1;
     }
 
-    for (const tableName of insertTables) await client.query(`ALTER TABLE ${quoteIdent(tableName)} ENABLE TRIGGER ALL;`);
+    for (const tableName of touchedTables) await client.query(`ALTER TABLE ${quoteIdent(tableName)} ENABLE TRIGGER ALL;`);
 
-    for (const tableName of insertTables) {
+    for (const tableName of touchedTables) {
       // pg_get_serial_sequence() throws (not just returns NULL) when the table has no "id" column
       // at all — true for join tables with a composite key (user_domains, user_projects) — so
       // check column existence first instead of letting that abort the whole import transaction.
