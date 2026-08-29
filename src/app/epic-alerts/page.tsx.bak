@@ -13,53 +13,8 @@ import type { EpicAlertHistoryEntry } from '@/lib/epic-alert-history-service';
 import type { ProjectComponent } from '@/lib/master-data-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
 import { ArrowSquareOut, Circle, Stack, Warning } from '@phosphor-icons/react';
-import { epicWorkflowStatusIndex } from '@/lib/ttm-phase-rules';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import { trackDataUsage } from '@/lib/usage-tracking';
-
-/**
- * TTM-CNTT "stripe thực tế" (bottom, actual strip) on-track color rule — shared core logic with
- * "Quản trị Epic (đầy đủ)" and Epic in PO's own copy of this same function (kept as small
- * per-page duplicates, matching this codebase's existing convention for tiny client-side render
- * helpers — see isPastBaseline in epic-alerts-15/page.tsx and epic-in-po/page.tsx).
- * Green ("on track") when the actual stripe's end date (X) doesn't fall after the baseline
- * stripe's own end date (targetR4gDate) — a plain calendar-date compare, deliberately NOT the
- * working-day elapsed/target counts used everywhere else in this app: those stayed flat over a
- * weekend even once the visible calendar baseline date had passed (confirmed on a real Epic —
- * baseline ending Friday 28/8, still green on Saturday 29/8 since neither weekend day advances
- * the working-day count), which read as wrong given the two dates are shown side by side on the
- * stripe itself. AND either the Epic is still ongoing (X is today, not R4G Date — checked by
- * comparing actualToDate to r4gDate rather than adding a separate flag) or it finished on time
- * with the Epic's current status already at/past R4GOLIVE. An Epic whose stripe ends at R4G Date
- * but whose status hasn't caught up to R4GOLIVE yet is treated as NOT on track (data likely
- * stale/inconsistent), same as the end date falling after the baseline.
- */
-function isTtmCnttStripeOnTrack(currentStatus: string, r4gDate: string | null, actualToDate: string | null, baselineToDate: string | null): boolean {
-  const withinBaseline = Boolean(actualToDate && baselineToDate && actualToDate <= baselineToDate);
-  const usesR4gDate = Boolean(r4gDate && actualToDate === r4gDate);
-  const statusCaughtUp = epicWorkflowStatusIndex(currentStatus) >= epicWorkflowStatusIndex('R4GOLIVE');
-  return withinBaseline && (!usesR4gDate || statusCaughtUp);
-}
-
-/** Calendar days between two ISO "YYYY-MM-DD" dates (0 if either is missing/unparseable). */
-function calendarDaysBetween(from: string | null, to: string | null): number {
-  if (!from || !to) return 0;
-  const fromMs = new Date(`${from}T00:00:00`).getTime();
-  const toMs = new Date(`${to}T00:00:00`).getTime();
-  if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return 0;
-  return Math.round((toMs - fromMs) / 86400000);
-}
-
-/** TTM-CNTT actual-stripe width ratio, in CALENDAR days — matches isTtmCnttStripeOnTrack's own
- * calendar-date basis (see its doc comment) so a stripe rendered red/over is never visually
- * shorter than the baseline it's failing against, which is what a working-day ratio produced here
- * (e.g. 14/15 working days ≈ 93% width, even though the calendar end date had already passed the
- * baseline's calendar end date over a weekend). */
-function ttmCnttWidthRatio(fromDate: string | null, actualToDate: string | null, baselineToDate: string | null): number {
-  const baselineDays = calendarDaysBetween(fromDate, baselineToDate);
-  const actualDays = calendarDaysBetween(fromDate, actualToDate);
-  return baselineDays > 0 ? actualDays / baselineDays : 0;
-}
 
 const PAGE_SIZE = 20;
 
@@ -165,11 +120,15 @@ function StatusBadge({ status }: { status: string }) {
 function TtmCnttStrips({ row }: { row: EpicAlertRow }) {
   const target = row.ttmCnttTargetWorkingDays;
   const elapsed = row.ttmActualElapsedWorkingDays ?? 0;
-  const fromDate = row.t1StartDate;
-  const ratio = ttmCnttWidthRatio(fromDate, row.ttmActualToDate, row.targetR4gDate);
-  const isOver = !isTtmCnttStripeOnTrack(row.currentStatus, row.r4gDate, row.ttmActualToDate, row.targetR4gDate);
+  const ratio = target > 0 ? elapsed / target : 0;
+  // Tied to the same alertLevel shown in "Nhận xét" (not re-derived from elapsed/target here) so
+  // the stripe color can never disagree with the Fail TTM badge at the day-boundary — elapsed is a
+  // working-day count (reaching the target day still reads as "not yet over"), while alertLevel's
+  // FAIL already fires that same day (see computeTtmAlert in ttm-rules.ts).
+  const isOver = row.alertLevel === 'FAIL';
   const BASE_WIDTH = 56;
   const actualWidth = Math.max(6, Math.min(ratio, 2) * BASE_WIDTH);
+  const fromDate = row.t1StartDate;
 
   return (
     <TD className="ttm-metric">

@@ -72,24 +72,20 @@ export interface TtmActualRange {
 }
 
 /**
- * Range the "stripe thực tế" (actual, bottom strip) of the TTM-CNTT column draws for — shared by
- * every screen with a TTM-CNTT stripe (Quản trị Epic rút gọn/đầy đủ, Epic in PO) so it can never
- * disagree between them. Start is always Start Date (T1), same as the baseline stripe directly
- * above it. End (X):
- * - X = today, when there's no R4G Date yet, or R4G Date is still in the future (today < R4G Date)
- *   — the Epic is still ongoing.
- * - X = R4G Date, once today has reached or passed it.
- * ISO "YYYY-MM-DD" strings compare lexicographically the same as chronologically, so a plain
- * string comparison against R4G Date is exact here (see isPastBaseline's identical convention on
- * the client side).
+ * Range the "stripe thực tế" (actual, bottom strip) of the TTM-CNTT column draws for, per the
+ * core rule: Due Date wins over R4G Date whenever both are present.
+ * - Due Date present, no T0 (Idea Approved Date) → Start Date → Due Date.
+ * - Due Date present, T0 present → T0 → Due Date.
+ * - No Due Date, R4G Date present → Start Date → R4G Date.
+ * - Neither present → Start Date → today (the Epic is still ongoing, no completion date yet).
  */
 export function resolveTtmActualRange(
-  row: Pick<EpicRow, 'r4gDate' | 'startDate'>,
+  row: Pick<EpicRow, 'dueDate' | 'ideaApprovedDate' | 'r4gDate' | 'startDate'>,
   now: Date,
 ): TtmActualRange {
-  const todayIso = toIsoDate(now);
-  const usesR4gDate = Boolean(row.r4gDate && todayIso && row.r4gDate <= todayIso);
-  return { fromDate: row.startDate, toDate: usesR4gDate ? row.r4gDate : todayIso };
+  if (row.dueDate) return { fromDate: row.ideaApprovedDate ?? row.startDate, toDate: row.dueDate };
+  if (row.r4gDate) return { fromDate: row.startDate, toDate: row.r4gDate };
+  return { fromDate: row.startDate, toDate: toIsoDate(now) };
 }
 
 export const RELEASE_BASELINE_SOURCE_LABEL = {

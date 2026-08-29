@@ -15,7 +15,7 @@ import type { EpicAlertHistoryEntry } from '@/lib/epic-alert-history-service';
 import type { EpicMilestoneHistoryEntry } from '@/lib/epic-milestone-history-service';
 import type { ProjectComponent } from '@/lib/master-data-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
-import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
+import { normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, Warning } from '@phosphor-icons/react';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import { trackDataUsage } from '@/lib/usage-tracking';
@@ -180,59 +180,12 @@ function isPastBaseline(actual: string | null, baseline: string | null): boolean
   return Boolean(actual && baseline && actual > baseline);
 }
 
-/**
- * TTM-CNTT "stripe thực tế" (bottom, actual strip) on-track color rule — core logic shared with
- * "Quản trị Epic (rút gọn)" and "Quản trị Epic (đầy đủ)"'s own copy of this same function (kept as
- * small per-page duplicates, matching this codebase's existing convention for tiny client-side
- * render helpers — see isPastBaseline just above). TTM-E2E keeps its separate, simpler
- * isPastBaseline rule (see TtmE2eStrips below) — this function is TTM-CNTT-only.
- * Green ("on track") when the actual stripe's end date (X) doesn't fall after the baseline
- * stripe's own end date (targetR4gDate) — a plain calendar-date compare, deliberately NOT the
- * working-day elapsed/target counts used everywhere else in this app: those stayed flat over a
- * weekend even once the visible calendar baseline date had passed (confirmed on a real Epic —
- * baseline ending Friday 28/8, still green on Saturday 29/8 since neither weekend day advances
- * the working-day count), which read as wrong given the two dates are shown side by side on the
- * stripe itself. AND either the Epic is still ongoing (X is today, not R4G Date — checked by
- * comparing actualToDate to r4gDate rather than adding a separate flag) or it finished on time
- * with the Epic's current status already at/past R4GOLIVE. An Epic whose stripe ends at R4G Date
- * but whose status hasn't caught up to R4GOLIVE yet is treated as NOT on track (data likely
- * stale/inconsistent), same as the end date falling after the baseline.
- */
-function isTtmCnttStripeOnTrack(currentStatus: string, r4gDate: string | null, actualToDate: string | null, baselineToDate: string | null): boolean {
-  const withinBaseline = Boolean(actualToDate && baselineToDate && actualToDate <= baselineToDate);
-  const usesR4gDate = Boolean(r4gDate && actualToDate === r4gDate);
-  const statusCaughtUp = epicWorkflowStatusIndex(currentStatus) >= epicWorkflowStatusIndex('R4GOLIVE');
-  return withinBaseline && (!usesR4gDate || statusCaughtUp);
-}
-
-/** Calendar days between two ISO "YYYY-MM-DD" dates (0 if either is missing/unparseable). */
-function calendarDaysBetween(from: string | null, to: string | null): number {
-  if (!from || !to) return 0;
-  const fromMs = new Date(`${from}T00:00:00`).getTime();
-  const toMs = new Date(`${to}T00:00:00`).getTime();
-  if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return 0;
-  return Math.round((toMs - fromMs) / 86400000);
-}
-
-/** TTM-CNTT actual-stripe width ratio, in CALENDAR days — matches isTtmCnttStripeOnTrack's own
- * calendar-date basis (see its doc comment) so a stripe rendered red/over is never visually
- * shorter than the baseline it's failing against, which is what a working-day ratio produced here
- * (e.g. 14/15 working days ≈ 93% width, even though the calendar end date had already passed the
- * baseline's calendar end date over a weekend). TTM-E2E keeps its own working-day ratio, computed
- * inline in TtmE2eStrips below — this function is TTM-CNTT-only. */
-function ttmCnttWidthRatio(fromDate: string | null, actualToDate: string | null, baselineToDate: string | null): number {
-  const baselineDays = calendarDaysBetween(fromDate, baselineToDate);
-  const actualDays = calendarDaysBetween(fromDate, actualToDate);
-  return baselineDays > 0 ? actualDays / baselineDays : 0;
-}
-
 /** Two-stripe metric cell shared by the TTM-CNTT and TTM-E2E columns: top stripe is the baseline
  * (planned) window, bottom stripe is the actual window so far — same start date as the baseline,
  * end date is either a real recorded date (R4G Date / Due Date) or today while still ongoing. The
- * bottom stripe's color (`isOver`) and width ratio (`ratio`) are each caller's own concern — see
- * TtmCnttStrips/TtmE2eStrips. */
+ * bottom stripe's color signals whether its end date has passed the baseline's end date. */
 function TtmMetricStrips({
-  actualFromDate, actualToDate, baselineFromDate, baselineToDate, className, compact, elapsed, isOver, ratio, target,
+  actualFromDate, actualToDate, baselineFromDate, baselineToDate, className, compact, elapsed, target,
 }: {
   actualFromDate: string | null;
   actualToDate: string | null;
@@ -241,11 +194,11 @@ function TtmMetricStrips({
   className?: string;
   compact: boolean;
   elapsed: number | null;
-  isOver: boolean;
-  ratio: number;
   target: number;
 }) {
   const elapsedDays = elapsed ?? 0;
+  const ratio = target > 0 ? elapsedDays / target : 0;
+  const isOver = isPastBaseline(actualToDate, baselineToDate);
   // Compact mode (all four collapsible phase columns collapsed) shrinks these tracks so the whole
   // table fits the viewport with no horizontal scroll — see the toolbar's collapse-all toggle.
   const BASE_WIDTH = compact ? 30 : 56;
@@ -273,9 +226,6 @@ function TtmMetricStrips({
 }
 
 function TtmCnttStrips({ compact, row }: { compact: boolean; row: EpicAlertRowPhased }) {
-  const target = row.ttmCnttTargetWorkingDays;
-  const isOver = !isTtmCnttStripeOnTrack(row.currentStatus, row.r4gDate, row.ttmActualToDate, row.targetR4gDate);
-  const ratio = ttmCnttWidthRatio(row.t1StartDate, row.ttmActualToDate, row.targetR4gDate);
   return (
     <TtmMetricStrips
       actualFromDate={row.ttmActualFromDate}
@@ -284,9 +234,7 @@ function TtmCnttStrips({ compact, row }: { compact: boolean; row: EpicAlertRowPh
       baselineToDate={row.targetR4gDate}
       compact={compact}
       elapsed={row.ttmActualElapsedWorkingDays}
-      isOver={isOver}
-      ratio={ratio}
-      target={target}
+      target={row.ttmCnttTargetWorkingDays}
     />
   );
 }
@@ -304,8 +252,6 @@ function TtmE2eStrips({ compact, row }: { compact: boolean; row: EpicAlertRowPha
       className="ttm-col-border-right"
       compact={compact}
       elapsed={row.ttmE2eElapsedWorkingDays}
-      isOver={isPastBaseline(row.ttmE2eActualToDate, row.stages.release.baselineDate)}
-      ratio={row.ttmE2eTargetWorkingDays > 0 ? (row.ttmE2eElapsedWorkingDays ?? 0) / row.ttmE2eTargetWorkingDays : 0}
       target={row.ttmE2eTargetWorkingDays}
     />
   );

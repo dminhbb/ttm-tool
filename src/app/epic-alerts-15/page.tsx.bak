@@ -1,20 +1,34 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import './epic-alerts-15.css';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
+import { StatusColorLegend } from '@/components/ui/StatusColorLegend';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
+import { Tooltip } from '@/components/ui/Tooltip';
+import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
+import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import type { EpicAlertAccessRole, EpicAlertPhasedResponse, EpicAlertRowPhased, PhaseCell } from '@/lib/epic-alert-types';
 import type { EpicAlertHistoryEntry } from '@/lib/epic-alert-history-service';
 import type { EpicMilestoneHistoryEntry } from '@/lib/epic-milestone-history-service';
+import type { ProjectComponent } from '@/lib/master-data-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
-import { Circle, Stack, Warning } from '@phosphor-icons/react';
+import { ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, Warning } from '@phosphor-icons/react';
+import { normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
+import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
+import { trackDataUsage } from '@/lib/usage-tracking';
 
 const PAGE_SIZE = 20;
 
 const EMPTY_ROWS: EpicAlertRowPhased[] = [];
+
+/** These 3 statuses now have their own dedicated screen ("Epic in PO"), so Quản trị Epic defaults
+ * its Status filter to everything else — applied once, the first time real status options load
+ * (see the statusOptions effect below), and never reapplied after that so it doesn't fight a
+ * user's own filter choice. */
+const DEFAULT_EXCLUDED_STATUSES = new Set(['TO DO', 'IN PO', 'RELEASED']);
 
 function formatDate(value: string | null): string {
   if (!value) return '-';
@@ -37,17 +51,20 @@ function formatDateTime(value: string | null): string {
 }
 
 const ALERT_BADGE_CLASS: Record<AlertLevel, string> = {
-  FAIL: 'fail',
+  FAIL: 'fail-cntt',
   LATE: 'late-warning',
   EARLY: 'early-warning',
   NONE: '',
 };
 
-const ALERT_FILTER_OPTIONS: { label: string; value: AlertLevel | '' }[] = [
+type AlertFilterValue = AlertLevel | 'FAIL_E2E' | '';
+
+const ALERT_FILTER_OPTIONS: { label: string; value: AlertFilterValue }[] = [
   { label: 'Tất cả cảnh báo', value: '' },
   { label: 'Cảnh báo sớm', value: 'EARLY' },
   { label: 'Cảnh báo muộn', value: 'LATE' },
   { label: 'Fail TTM-CNTT', value: 'FAIL' },
+  { label: 'Fail TTM-E2E', value: 'FAIL_E2E' },
 ];
 
 const ACCESS_ROLE_LABEL: Record<EpicAlertAccessRole, string> = {
@@ -56,55 +73,100 @@ const ACCESS_ROLE_LABEL: Record<EpicAlertAccessRole, string> = {
   PM_SM: 'PM-SM',
 };
 
-const ACCESS_ROLE_NOTE: Record<EpicAlertAccessRole, string> = {
-  CBQL_PHONG: 'Bạn thấy toàn bộ Epic của mọi dự án (vai trò CBQL Phòng).',
-  LEAD: 'Bạn thấy Epic thuộc các dự án trong Domain nghiệp vụ được phân quyền (vai trò Lead).',
-  PM_SM: 'Bạn chỉ thấy Epic thuộc các dự án được phân quyền làm PM-SM.',
-};
 
 /**
- * pass (green) — completed on time (actualDate ≤ baselineDate, or already past this status with
- * no actual date tracked yet); fail (red) — completed late, or still not done past its baseline;
- * warning (yellow) — due exactly today; neutral — not due yet.
+ * light green (pass) — đã hoàn thành (isDone); light red (fail) — chưa hoàn thành và đã tới/quá
+ * baseline (Cảnh báo muộn); light yellow (warning) — Cảnh báo sớm; không màu — chưa hoàn thành,
+ * chưa tới baseline.
  */
 function phaseCellColorClass(cell: PhaseCell): string {
-  if (cell.actualDate) {
-    if (!cell.baselineDate) return 'pass';
-    return cell.actualDate <= cell.baselineDate ? 'pass' : 'fail';
-  }
-  if (cell.isPastStatus) return 'pass';
-  if (!cell.baselineDate) return '';
-  const todayIso = new Date().toISOString().slice(0, 10);
-  if (todayIso > cell.baselineDate) return 'fail';
-  if (todayIso === cell.baselineDate) return 'warning';
+  if (cell.isDone) return 'pass';
+  if (cell.alertLevel === 'LATE') return 'fail';
+  if (cell.alertLevel === 'EARLY') return 'warning';
   return '';
 }
 
-/** Two-line cell: baseline (top, computed from the phase-division rule) vs actual completion (bottom). */
-function PhaseStageCell({ cell }: { cell: PhaseCell }) {
+/** Two-line cell: baseline (top, computed from the phase-division rule) vs — only for phases that
+ * have a real recorded date (R4GOLIVE's R4G Date, Release's Due Date) — that date (bottom).
+ * Completion itself is shown purely via the cell's background color (phaseCellColorClass); other
+ * phases no longer have a recorded completion date at all, so their bottom line stays empty. */
+function PhaseStageCell({ actualDateText, cell }: { actualDateText?: string | null; cell: PhaseCell }) {
   const colorClass = phaseCellColorClass(cell);
+  const baselineTitle = cell.baselineSourceLabel
+    ? `Tính từ ${cell.baselineSourceLabel}: ${formatDate(cell.baselineSourceDate)}`
+    : 'Baseline chuẩn theo rule phân chia giai đoạn (tính từ Start Date)';
   return (
     <TD className={`ttm-phase-cell${colorClass ? ` ${colorClass}` : ''}`}>
-      <span className="ttm-phase-baseline" title="Baseline chuẩn theo rule phân chia giai đoạn (tính từ Start Date)">{formatDate(cell.baselineDate)}</span>
-      <span className="ttm-phase-actual" title="Thời gian hoàn thành giai đoạn thực tế">{cell.actualDate ? formatDate(cell.actualDate) : '-'}</span>
+      {cell.isCurrentStage && <span className="ttm-phase-current-dot" title="Giai đoạn hiện tại của Epic" aria-hidden="true" />}
+      <span className="ttm-phase-baseline" title={baselineTitle}>{formatDate(cell.baselineDate)}</span>
+      <span className="ttm-phase-actual">{actualDateText ? formatDate(actualDateText) : null}</span>
     </TD>
   );
 }
 
-const EPIC_TYPE_ICON: Record<string, { icon: typeof Circle; label: string; variant: string }> = {
-  SIMPLE: { icon: Circle, label: 'Epic đơn giản', variant: 'simple' },
-  COMPLEX: { icon: Stack, label: 'Epic phức tạp', variant: 'complex' },
+/** DESIGN/DEV/TEST/PENTEST can be individually collapsed to save horizontal space (the table has
+ * grown to 13 columns) — R4GOLIVE/Release stay always-expanded since their bottom line carries a
+ * real recorded date (R4G Date / Due Date), not just the baseline. */
+type CollapsiblePhase = 'DESIGN' | 'DEV' | 'TEST' | 'PENTEST';
+
+const COLLAPSIBLE_PHASES: CollapsiblePhase[] = ['DESIGN', 'DEV', 'TEST', 'PENTEST'];
+
+const PHASE_COLUMN_META: Record<CollapsiblePhase, { char: string; title: string }> = {
+  DESIGN: { char: 'D', title: 'Baseline = Start Date + 20% TTM-CNTT (làm tròn ngày)' },
+  DEV: { char: 'V', title: 'Baseline = Start Date + (20%+30%) TTM-CNTT (làm tròn ngày)' },
+  TEST: { char: 'T', title: 'Baseline = Start Date + (20%+30%+30%) TTM-CNTT (làm tròn ngày)' },
+  PENTEST: { char: 'P', title: 'Baseline = Start Date + (20%+30%+30%+10%) TTM-CNTT (làm tròn ngày)' },
 };
 
-function EpicTypeIcon({ epicType }: { epicType: string | null }) {
-  const entry = epicType ? EPIC_TYPE_ICON[epicType] : undefined;
-  if (!entry) return <span className="ttm-empty-warning">-</span>;
-  const Icon = entry.icon;
+/** Expanded: full name, click to collapse. Collapsed: thin stub showing one representative
+ * character with an immediate tooltip carrying the full name, click to expand — no sort affordance
+ * either way (TH's sortDirection prop is intentionally left unset on this column). */
+function CollapsiblePhaseHeader({ isCollapsed, onToggle, phase }: { isCollapsed: boolean; onToggle: (phase: CollapsiblePhase) => void; phase: CollapsiblePhase }) {
+  const meta = PHASE_COLUMN_META[phase];
+  if (isCollapsed) {
+    return (
+      <TH className="ttm-col-collapsed">
+        <Tooltip content={phase} side="right">
+          <button type="button" className="ttm-col-collapsed-toggle" onClick={() => onToggle(phase)} aria-label={`Hiện cột ${phase}`}>
+            {meta.char}
+          </button>
+        </Tooltip>
+      </TH>
+    );
+  }
   return (
-    <span title={entry.label}>
-      <Icon weight="fill" size={18} className={`ttm-epic-type-icon ${entry.variant}`} />
-    </span>
+    <TH className="min-w-[110px]" title={meta.title}>
+      <button type="button" className="ttm-col-header-toggle" onClick={() => onToggle(phase)} aria-label={`Ẩn cột ${phase}`}>{phase}</button>
+    </TH>
   );
+}
+
+/** Body-side counterpart of CollapsiblePhaseHeader — a collapsed column renders as an empty thin
+ * cell (no content, per the collapse rule), matching the header's width/right-border. */
+function CollapsiblePhaseCell({ actualDateText, cell, isCollapsed }: { actualDateText?: string | null; cell: PhaseCell; isCollapsed: boolean }) {
+  if (isCollapsed) {
+    // Collapsed background reuses the same pass/warning/fail class as the expanded cell (see
+    // phaseCellColorClass) so the thin stub still shows the column's real status at a glance.
+    const colorClass = phaseCellColorClass(cell);
+    return <TD className={`ttm-phase-cell ttm-col-collapsed${colorClass ? ` ${colorClass}` : ''}`} />;
+  }
+  return <PhaseStageCell actualDateText={actualDateText} cell={cell} />;
+}
+
+const EPIC_TYPE_DOT: Record<string, { label: string; variant: string }> = {
+  SIMPLE: { label: 'Epic đơn giản', variant: 'epic-type-simple' },
+  COMPLEX: { label: 'Epic phức tạp', variant: 'epic-type-complex' },
+};
+
+function EpicTypeDot({ epicType }: { epicType: string | null }) {
+  const entry = epicType ? EPIC_TYPE_DOT[epicType] : undefined;
+  if (!entry) return <span className="ttm-empty-warning">-</span>;
+  return <span className={`ttm-epic-type-dot ${entry.variant}`} title={entry.label} role="img" aria-label={entry.label} />;
+}
+
+/** Truncates epic summary text for the table's subtitle line — full text stays in the title tooltip. */
+function truncateSummary(value: string, maxLength = 50): string {
+  return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -112,34 +174,86 @@ function StatusBadge({ status }: { status: string }) {
   return <span className="ttm-status-badge">{status}</span>;
 }
 
-function TtmCnttStrips({ row }: { row: EpicAlertRowPhased }) {
-  const target = row.ttmCnttTargetWorkingDays;
-  const elapsed = row.ttmCnttElapsedWorkingDays ?? 0;
-  const ratio = target > 0 ? elapsed / target : 0;
-  const isOver = elapsed > target;
-  const BASE_WIDTH = 56;
+/** True when `actual` (an ISO "YYYY-MM-DD" date) falls strictly after `baseline` — ISO date strings
+ * sort lexicographically the same as chronologically, so a plain string compare is exact here. */
+function isPastBaseline(actual: string | null, baseline: string | null): boolean {
+  return Boolean(actual && baseline && actual > baseline);
+}
+
+/** Two-stripe metric cell shared by the TTM-CNTT and TTM-E2E columns: top stripe is the baseline
+ * (planned) window, bottom stripe is the actual window so far — same start date as the baseline,
+ * end date is either a real recorded date (R4G Date / Due Date) or today while still ongoing. The
+ * bottom stripe's color signals whether its end date has passed the baseline's end date. */
+function TtmMetricStrips({
+  actualFromDate, actualToDate, baselineFromDate, baselineToDate, className, compact, elapsed, target,
+}: {
+  actualFromDate: string | null;
+  actualToDate: string | null;
+  baselineFromDate: string | null;
+  baselineToDate: string | null;
+  className?: string;
+  compact: boolean;
+  elapsed: number | null;
+  target: number;
+}) {
+  const elapsedDays = elapsed ?? 0;
+  const ratio = target > 0 ? elapsedDays / target : 0;
+  const isOver = isPastBaseline(actualToDate, baselineToDate);
+  // Compact mode (all four collapsible phase columns collapsed) shrinks these tracks so the whole
+  // table fits the viewport with no horizontal scroll — see the toolbar's collapse-all toggle.
+  const BASE_WIDTH = compact ? 30 : 56;
   // Hard cap in px (not just a ratio multiplier) so an Epic with an unusually long actual
   // duration can never stretch the strip wide enough to break the table's layout.
-  const MAX_ACTUAL_WIDTH = 112;
+  const MAX_ACTUAL_WIDTH = compact ? 56 : 112;
   const actualWidth = Math.min(Math.max(6, ratio * BASE_WIDTH), MAX_ACTUAL_WIDTH);
-  const actualEnd = new Date().toISOString().slice(0, 10);
-  const fromDate = row.t1StartDate;
 
   return (
-    <TD className="ttm-metric">
-      <div className="ttm-strip-wrap" title={`${elapsed}/${target} ngày làm việc`}>
+    <TD className={`ttm-metric${compact ? ' ttm-metric-compact' : ''}${className ? ` ${className}` : ''}`}>
+      <div className="ttm-strip-wrap" title={`${elapsedDays}/${target} ngày làm việc`}>
         <div className="ttm-strip-row">
-          <span className="ttm-strip-date">{formatDate(fromDate)}</span>
+          <span className="ttm-strip-date">{formatDate(baselineFromDate)}</span>
           <span className="ttm-strip-track" style={{ width: `${BASE_WIDTH}px` }} />
-          <span className="ttm-strip-date">{formatDate(row.targetR4gDate)}</span>
+          <span className="ttm-strip-date">{formatDate(baselineToDate)}</span>
         </div>
         <div className="ttm-strip-row">
-          <span className="ttm-strip-date">{formatDate(fromDate)}</span>
+          <span className="ttm-strip-date">{formatDate(actualFromDate)}</span>
           <span className={`ttm-strip-track actual ${isOver ? 'over' : 'under'}`} style={{ width: `${actualWidth}px` }} />
-          <span className="ttm-strip-date">{formatDate(actualEnd)}</span>
+          <span className="ttm-strip-date">{formatDate(actualToDate)}</span>
         </div>
       </div>
     </TD>
+  );
+}
+
+function TtmCnttStrips({ compact, row }: { compact: boolean; row: EpicAlertRowPhased }) {
+  return (
+    <TtmMetricStrips
+      actualFromDate={row.ttmActualFromDate}
+      actualToDate={row.ttmActualToDate}
+      baselineFromDate={row.t1StartDate}
+      baselineToDate={row.targetR4gDate}
+      compact={compact}
+      elapsed={row.ttmActualElapsedWorkingDays}
+      target={row.ttmCnttTargetWorkingDays}
+    />
+  );
+}
+
+/** T0 (release baseline's own source date) doubles as both stripes' start — same convention as
+ * TTM-CNTT's Start Date. */
+function TtmE2eStrips({ compact, row }: { compact: boolean; row: EpicAlertRowPhased }) {
+  const t0 = row.stages.release.baselineSourceDate;
+  return (
+    <TtmMetricStrips
+      actualFromDate={t0}
+      actualToDate={row.ttmE2eActualToDate}
+      baselineFromDate={t0}
+      baselineToDate={row.stages.release.baselineDate}
+      className="ttm-col-border-right"
+      compact={compact}
+      elapsed={row.ttmE2eElapsedWorkingDays}
+      target={row.ttmE2eTargetWorkingDays}
+    />
   );
 }
 
@@ -148,8 +262,19 @@ const ALERT_HISTORY_TYPE_LABEL: Record<EpicAlertHistoryEntry['alertType'], strin
   LATE: 'Cảnh báo muộn',
 };
 
+const ALERT_HISTORY_PHASE_LABEL: Record<EpicAlertHistoryEntry['phase'], string> = {
+  OVERALL: '',
+  DESIGN: 'DESIGN',
+  DEV: 'DEV',
+  TEST: 'TEST',
+  PENTEST: 'PENTEST',
+  R4GOLIVE: 'R4GOLIVE',
+};
+
 const MILESTONE_LABEL: Record<string, string> = {
   DESIGN_DONE: 'Design Done',
+  DEV_DONE: 'Dev Done',
+  TEST_DONE: 'Test Done',
 };
 
 function AlertHistoryButton({ row, onOpen }: { row: EpicAlertRowPhased; onOpen: (row: EpicAlertRowPhased) => void }) {
@@ -158,10 +283,26 @@ function AlertHistoryButton({ row, onOpen }: { row: EpicAlertRowPhased; onOpen: 
       type="button"
       className={`ttm-alert-history-trigger${row.hasAlertHistory ? ' has-history' : ''}`}
       title={row.hasAlertHistory ? 'Xem lịch sử cảnh báo Epic' : 'Epic chưa có lịch sử cảnh báo'}
-      onClick={() => onOpen(row)}
+      onClick={() => { trackDataUsage(); onOpen(row); }}
     >
       <Warning weight="fill" size={16} />
     </button>
+  );
+}
+
+function JiraLinkButton({ epicKey, viewIssueBaseUrl }: { epicKey: string; viewIssueBaseUrl: string }) {
+  if (!viewIssueBaseUrl) return null;
+  return (
+    <a
+      className="ttm-alert-history-trigger ttm-jira-link-trigger"
+      href={`${viewIssueBaseUrl}${epicKey}`}
+      onClick={(event) => event.stopPropagation()}
+      rel="noopener noreferrer"
+      target="_blank"
+      title="Mở Epic trên Jira"
+    >
+      <ArrowSquareOut weight="bold" size={16} />
+    </a>
   );
 }
 
@@ -201,7 +342,6 @@ function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRowPhased; onClose:
         <div className="ttm-alert-popup-left">
           <AlertPopupField label="Summary" value={row.epicName || '-'} />
           <AlertPopupField label="Tên dự án" value={row.projectName || '-'} />
-          <AlertPopupField label="Assignee" value={row.assigneeName || '-'} />
           <AlertPopupField label="Ngày duyệt ý tưởng (T0)" value={formatDate(row.t0IdeaApprovedDate)} />
           <AlertPopupField label="Start Date (T1)" value={formatDate(row.t1StartDate)} />
           <AlertPopupField label="Status" value={row.currentStatus || '-'} />
@@ -235,8 +375,10 @@ function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRowPhased; onClose:
               ) : (
                 <ul className="ttm-alert-history-list">
                   {entries.map((entry, index) => (
-                    <li key={`${entry.alertDate}-${entry.alertType}-${index}`} className="ttm-alert-history-item">
-                      <span className={`ttm-badge ${entry.alertType === 'FAIL' ? 'fail' : 'late-warning'}`}>{ALERT_HISTORY_TYPE_LABEL[entry.alertType]}</span>
+                    <li key={`${entry.alertDate}-${entry.alertType}-${entry.phase}-${index}`} className="ttm-alert-history-item">
+                      <span className={`ttm-badge ${entry.alertType === 'FAIL' ? 'fail' : 'late-warning'}`}>
+                        {ALERT_HISTORY_TYPE_LABEL[entry.alertType]}{ALERT_HISTORY_PHASE_LABEL[entry.phase] ? ` (${ALERT_HISTORY_PHASE_LABEL[entry.phase]})` : ''}
+                      </span>
                       <span className="ttm-alert-history-status">{entry.alertStatus}</span>
                       <span className="ttm-alert-history-date">{formatDate(entry.alertDate)}</span>
                     </li>
@@ -251,18 +393,37 @@ function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRowPhased; onClose:
   );
 }
 
+
 export default function EpicAlerts15Page() {
   const [data, setData] = useState<EpicAlertPhasedResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [projectFilter, setProjectFilter] = useState('');
-  const [alertFilter, setAlertFilter] = useState<AlertLevel | ''>('');
+  const [projectFilters, setProjectFilters] = useState<string[]>([]);
+  const [componentFilters, setComponentFilters] = useState<string[]>([]);
+  const [projectComponents, setProjectComponents] = useState<ProjectComponent[]>([]);
+  const [alertFilter, setAlertFilter] = useState<AlertFilterValue>('');
   const [typeFilter, setTypeFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [collapsedColumns, setCollapsedColumns] = useState<Set<CollapsiblePhase>>(new Set(['DESIGN', 'DEV', 'TEST', 'PENTEST']));
+  const toggleColumn = (phase: CollapsiblePhase) => {
+    setCollapsedColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(phase)) next.delete(phase); else next.add(phase);
+      return next;
+    });
+  };
+  // "Compact mode": only while every collapsible phase column is collapsed does the table shrink
+  // its other wide elements (TTM-CNTT/E2E strips, Status/R4GOLIVE/Release widths) to fit the
+  // viewport without horizontal scroll. Expanding any one of them drops back to the wider fixed
+  // layout — the user then scrolls horizontally instead.
+  const allColumnsCollapsed = collapsedColumns.size === COLLAPSIBLE_PHASES.length;
+  const toggleAllColumns = () => setCollapsedColumns(allColumnsCollapsed ? new Set() : new Set(COLLAPSIBLE_PHASES));
   const [alertHistoryRow, setAlertHistoryRow] = useState<EpicAlertRowPhased | null>(null);
+  const [browsingEpicKey, setBrowsingEpicKey] = useState<string | null>(null);
+  const viewIssueBaseUrl = useJiraViewIssueUrl();
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -276,7 +437,7 @@ export default function EpicAlerts15Page() {
         setData(result);
       }
     } catch {
-      setError('Không thể kết nối API Quản lý Epic 15.');
+      setError('Không thể kết nối API Quản trị Epic.');
     } finally {
       setIsLoading(false);
     }
@@ -285,20 +446,40 @@ export default function EpicAlerts15Page() {
   useEffect(() => {
     // Deferring the initial request prevents a synchronous state update during effect setup.
     void Promise.resolve().then(fetchData);
+    fetch('/api/project-components').then((res) => (res.ok ? res.json() : [])).then(setProjectComponents).catch(() => undefined);
   }, []);
 
   const rows = data?.rows ?? EMPTY_ROWS;
   const projectOptions = useMemo(() => [...new Set(rows.map((row) => row.projectKey).filter(Boolean))].sort(), [rows]);
   const statusOptions = useMemo(() => [...new Set(rows.map((row) => row.currentStatus).filter(Boolean))].sort(), [rows]);
+  // Options = the catalog's components for whichever projects are selected — disabled entirely
+  // (no options, filter cleared) until at least one project is picked.
+  const componentOptions = useMemo(
+    () => [...new Set(projectComponents.filter((component) => projectFilters.includes(component.projectKey)).map((component) => component.componentName))].sort(),
+    [projectComponents, projectFilters],
+  );
+  const handleProjectFiltersChange = (values: string[]) => {
+    setProjectFilters(values);
+    if (values.length === 0) setComponentFilters([]);
+    setPage(1);
+  };
+
+  const hasAppliedDefaultStatusFilter = useRef(false);
+  useEffect(() => {
+    if (hasAppliedDefaultStatusFilter.current || statusOptions.length === 0) return;
+    hasAppliedDefaultStatusFilter.current = true;
+    setStatusFilters(statusOptions.filter((status) => !DEFAULT_EXCLUDED_STATUSES.has(normalizeEpicWorkflowStatus(status))));
+  }, [statusOptions]);
 
   const filteredRows = useMemo(() => rows.filter((row) => {
     const normalizedSearch = search.trim().toLocaleLowerCase('vi-VN');
-    return (!projectFilter || row.projectKey === projectFilter)
-      && (!alertFilter || row.alertLevel === alertFilter)
+    return (projectFilters.length === 0 || projectFilters.includes(row.projectKey))
+      && (componentFilters.length === 0 || row.components.some((component) => componentFilters.includes(component)))
+      && (!alertFilter || (alertFilter === 'FAIL_E2E' ? row.ttmE2eAlertLevel === 'FAIL' : row.alertLevel === alertFilter))
       && (!typeFilter || row.epicType === typeFilter)
-      && (!statusFilter || row.currentStatus === statusFilter)
+      && (statusFilters.length === 0 || statusFilters.includes(row.currentStatus))
       && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch));
-  }), [rows, projectFilter, alertFilter, typeFilter, statusFilter, search]);
+  }), [rows, projectFilters, componentFilters, alertFilter, typeFilter, statusFilters, search]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -315,17 +496,28 @@ export default function EpicAlerts15Page() {
 
       {data && (
         <div className="ttm-note">
-          {ACCESS_ROLE_NOTE[data.accessRole]} Toàn bộ thông tin và tính toán cảnh báo đều dựa trên đợt import dữ liệu mới nhất.
+          Trạng thái hoàn thành của Epic: tính theo trạng thái của story, hoặc trạng thái Done của các subtask của mỗi role BA, DEV, TEST.
         </div>
       )}
       {error && <div className="ttm-note" style={{ background: 'var(--ttm-danger-050)', borderColor: '#f3b3b3', color: 'var(--ttm-danger-700)' }}>{error}</div>}
 
       <section className="ttm-toolbar" aria-label="Bộ lọc Epic">
-        <select className="ttm-select" aria-label="Dự án" value={projectFilter} onChange={(event) => { setProjectFilter(event.target.value); setPage(1); }}>
-          <option value="">Tất cả dự án của tôi</option>
-          {projectOptions.map((project) => <option key={project} value={project}>{project}</option>)}
-        </select>
-        <select className="ttm-select" aria-label="Cảnh báo" value={alertFilter} onChange={(event) => { setAlertFilter(event.target.value as AlertLevel | ''); setPage(1); }}>
+        <ToolbarMultiSelect
+          ariaLabel="Dự án"
+          allLabel="Tất cả dự án của tôi"
+          options={projectOptions}
+          value={projectFilters}
+          onChange={handleProjectFiltersChange}
+        />
+        <ToolbarMultiSelect
+          ariaLabel="Components"
+          allLabel={projectFilters.length === 0 ? 'Chọn dự án trước' : 'Tất cả Components'}
+          disabled={projectFilters.length === 0}
+          options={componentOptions}
+          value={componentFilters}
+          onChange={(values) => { setComponentFilters(values); setPage(1); }}
+        />
+        <select className="ttm-select" aria-label="Cảnh báo" value={alertFilter} onChange={(event) => { setAlertFilter(event.target.value as AlertFilterValue); setPage(1); }}>
           {ALERT_FILTER_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
         <select className="ttm-select" aria-label="Loại Epic" value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(1); }}>
@@ -333,11 +525,23 @@ export default function EpicAlerts15Page() {
           <option value="SIMPLE">Epic đơn giản</option>
           <option value="COMPLEX">Epic phức tạp</option>
         </select>
-        <select className="ttm-select" aria-label="Status" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}>
-          <option value="">Tất cả status</option>
-          {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
-        </select>
+        <ToolbarMultiSelect
+          ariaLabel="Status"
+          allLabel="Tất cả status"
+          options={statusOptions}
+          value={statusFilters}
+          onChange={(values) => { setStatusFilters(values); setPage(1); }}
+        />
         <input className="ttm-field" type="search" aria-label="Tìm Epic Key hoặc Epic Name" placeholder="Tìm Epic Key hoặc Epic Name…" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} />
+        <button
+          type="button"
+          className="ttm-button ghost ttm-collapse-all-toggle"
+          onClick={toggleAllColumns}
+          title={allColumnsCollapsed ? 'Mở rộng các cột DESIGN/DEV/TEST/PENTEST' : 'Thu gọn các cột DESIGN/DEV/TEST/PENTEST'}
+          aria-label={allColumnsCollapsed ? 'Mở rộng các cột DESIGN/DEV/TEST/PENTEST' : 'Thu gọn các cột DESIGN/DEV/TEST/PENTEST'}
+        >
+          {allColumnsCollapsed ? <ArrowsOutLineHorizontal size={16} weight="bold" /> : <ArrowsInLineHorizontal size={16} weight="bold" />}
+        </button>
         <div className="ttm-report-date">Dữ liệu cập nhật lần cuối: <b>{data ? formatDateTime(data.lastAggregatedAt) : '—'}</b></div>
       </section>
 
@@ -347,21 +551,21 @@ export default function EpicAlerts15Page() {
         <EmptyState title="Không có Epic phù hợp" description="Thử thay đổi bộ lọc." />
       ) : (
         <TableContainer>
-          <Table className="min-w-[1440px]">
+          <Table className={allColumnsCollapsed ? 'ttm-table-compact' : 'min-w-[1440px]'}>
             <THead>
               <TR>
-                <TH className="min-w-[180px]" title="issues.issue_key / issues.issue_name">Epic</TH>
-                <TH title="import_rows.normalized_data_json->>'epicType' (fallback: issues.epic_complexity_type)">Loại Epic</TH>
-                <TH className="min-w-[120px]" title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">Nhận xét</TH>
+                <TH className={`ttm-epic-col-sticky ttm-col-border-right ${allColumnsCollapsed ? 'min-w-[150px]' : 'min-w-[180px]'}`} title="issues.issue_key / issues.issue_name">Epic</TH>
+                <TH className={allColumnsCollapsed ? 'min-w-[90px]' : 'min-w-[120px]'} title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">Nhận xét</TH>
+                <TH title="Baseline (dòng trên) = Start Date + TTM-CNTT; Thực tế (dòng dưới) = Start Date → R4G Date (hoặc hôm nay nếu chưa có)">TTM-CNTT</TH>
+                <TH className="ttm-col-border-right" title="Baseline (dòng trên) = T0 + TTM-E2E; Thực tế (dòng dưới) = T0 → Due Date (hoặc hôm nay nếu chưa có). T0 = Idea Approved Date, hoặc Start Date, hoặc ngày tạo Jira">TTM-E2E</TH>
+                <TH className={allColumnsCollapsed ? 'ttm-col-compact-status' : undefined} title="issues.current_status">Status</TH>
                 <TH title="issues.start_date">Start Date</TH>
-                <TH title="Tính từ issues.start_date + issues.epic_complexity_type (số ngày làm việc thực tế / chuẩn)">TTM-CNTT</TH>
-                <TH title="issues.current_status">Status</TH>
-                <TH className="min-w-[110px]" title="Baseline = Start Date + 20% TTM-CNTT (làm tròn ngày)">DESIGN</TH>
-                <TH className="min-w-[110px]" title="Baseline = Start Date + (20%+30%) TTM-CNTT (làm tròn ngày)">DEV</TH>
-                <TH className="min-w-[110px]" title="Baseline = Start Date + (20%+30%+30%) TTM-CNTT (làm tròn ngày)">TEST</TH>
-                <TH className="min-w-[110px]" title="Baseline = Start Date + (20%+30%+30%+10%) TTM-CNTT (làm tròn ngày)">PENTEST</TH>
-                <TH className="min-w-[110px]" title="Baseline = Start Date + 100% TTM-CNTT; dòng dưới = issues.r4g_date">R4GOLIVE</TH>
-                <TH className="min-w-[118px]" title="issues.due_date">Release</TH>
+                <CollapsiblePhaseHeader phase="DESIGN" isCollapsed={collapsedColumns.has('DESIGN')} onToggle={toggleColumn} />
+                <CollapsiblePhaseHeader phase="DEV" isCollapsed={collapsedColumns.has('DEV')} onToggle={toggleColumn} />
+                <CollapsiblePhaseHeader phase="TEST" isCollapsed={collapsedColumns.has('TEST')} onToggle={toggleColumn} />
+                <CollapsiblePhaseHeader phase="PENTEST" isCollapsed={collapsedColumns.has('PENTEST')} onToggle={toggleColumn} />
+                <TH className={allColumnsCollapsed ? 'min-w-[92px]' : 'min-w-[110px]'} title="Baseline = Start Date + 100% TTM-CNTT; dòng dưới = issues.r4g_date">R4GOLIVE</TH>
+                <TH className={allColumnsCollapsed ? 'min-w-[98px]' : 'min-w-[118px]'} title="Baseline = Ngày duyệt ý tưởng (hoặc Ngày epic created nếu không có) + 20 ngày làm việc, không tính holiday. Dòng dưới = issues.due_date">Release</TH>
               </TR>
             </THead>
             <TBody>
@@ -369,13 +573,23 @@ export default function EpicAlerts15Page() {
                 const isMissingCore = !row.t1StartDate;
                 return (
                   <TR key={row.epicKey} className={isMissingCore ? 'missing-row' : undefined}>
-                    <TD>
-                      <span className="ttm-epic-key">{row.epicKey}</span>
+                    <TD className="ttm-epic-col-sticky ttm-col-border-right">
                       <AlertHistoryButton row={row} onOpen={setAlertHistoryRow} />
-                      {(row.domainName || row.ownerName) && (
-                        <span className="ttm-project-tag">
-                          {[row.domainName, row.ownerName ? `PM/SM: ${row.ownerName}` : ''].filter(Boolean).join(' - ')}
-                        </span>
+                      <JiraLinkButton epicKey={row.epicKey} viewIssueBaseUrl={viewIssueBaseUrl} />
+                      <button
+                        type="button"
+                        className="ttm-epic-key"
+                        onClick={() => { trackDataUsage(); setBrowsingEpicKey(row.epicKey); }}
+                        title={`Duyệt Epic (Epic Browser) — Lớp dữ liệu: ${formatDate(row.dataLayerDate)}`}
+                      >
+                        {row.epicKey}
+                      </button>
+                      <EpicTypeDot epicType={row.epicType} />
+                      {row.epicName && (
+                        <span className="ttm-epic-summary" title={row.epicName}>{truncateSummary(row.epicName)}</span>
+                      )}
+                      {row.ownerName && (
+                        <span className="ttm-project-tag">PM/SM: {row.ownerName}</span>
                       )}
                       {row.missingStandardInfo.length > 0 && (
                         <span>
@@ -385,33 +599,37 @@ export default function EpicAlerts15Page() {
                         </span>
                       )}
                     </TD>
-                    <TD><EpicTypeIcon epicType={row.epicType} /></TD>
                     {isMissingCore ? (
                       <>
                         <TD>{row.currentStatus === 'To Do' ? <span className="ttm-empty-warning">—</span> : <span className="ttm-badge fail">Thiếu Start Date</span>}</TD>
-                        <TD><span className="ttm-metric na">Không có</span></TD>
                         <TD className="ttm-metric na">Không tính được</TD>
+                        <TD className="ttm-metric na ttm-col-border-right">Không tính được</TD>
                         <TD><StatusBadge status={row.currentStatus} /></TD>
+                        <TD><span className="ttm-metric na">Không có</span></TD>
                         <TD colSpan={6} className="ttm-metric na">Chưa thể tính lịch TTM-CNTT do thiếu dữ liệu bắt buộc.</TD>
                       </>
                     ) : (
                       <>
                         <TD>
-                          {row.alertLevel === 'NONE'
-                            ? (row.r4gDate
-                              ? <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT đúng hạn theo rule">Đạt TTM</span>
-                              : <span className="ttm-empty-warning">—</span>)
-                            : <span className={`ttm-badge ${ALERT_BADGE_CLASS[row.alertLevel]}`}>{row.alertLevel === 'EARLY' ? 'Cảnh báo sớm' : row.alertLevel === 'LATE' ? 'Cảnh báo muộn' : 'Fail TTM-CNTT'}</span>}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                            {row.alertLevel === 'NONE'
+                              ? (row.r4gDate
+                                ? <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT đúng hạn theo rule">Đạt TTM</span>
+                                : <span className="ttm-empty-warning">—</span>)
+                              : <span className={`ttm-badge ${ALERT_BADGE_CLASS[row.alertLevel]}`}>{row.alertLevel === 'EARLY' ? 'Cảnh báo sớm' : row.alertLevel === 'LATE' ? 'Cảnh báo muộn' : 'Fail TTM-CNTT'}</span>}
+                            {row.ttmE2eAlertLevel === 'FAIL' && <span className="ttm-badge fail-e2e">Fail TTM-E2E</span>}
+                          </div>
                         </TD>
-                        <TD>{formatDate(row.t1StartDate)}</TD>
-                        <TtmCnttStrips row={row} />
-                        <TD><StatusBadge status={row.currentStatus} /></TD>
-                        <PhaseStageCell cell={row.stages.design} />
-                        <PhaseStageCell cell={row.stages.dev} />
-                        <PhaseStageCell cell={row.stages.test} />
-                        <PhaseStageCell cell={row.stages.pentest} />
-                        <PhaseStageCell cell={row.stages.r4golive} />
-                        <PhaseStageCell cell={row.stages.release} />
+                        <TtmCnttStrips compact={allColumnsCollapsed} row={row} />
+                        <TtmE2eStrips compact={allColumnsCollapsed} row={row} />
+                        <TD className={allColumnsCollapsed ? 'ttm-col-compact-status' : undefined}><StatusBadge status={row.currentStatus} /></TD>
+                        <TD className="ttm-phase-cell pass">{formatDate(row.t1StartDate)}</TD>
+                        <CollapsiblePhaseCell cell={row.stages.design} isCollapsed={collapsedColumns.has('DESIGN')} />
+                        <CollapsiblePhaseCell cell={row.stages.dev} isCollapsed={collapsedColumns.has('DEV')} />
+                        <CollapsiblePhaseCell cell={row.stages.test} isCollapsed={collapsedColumns.has('TEST')} />
+                        <CollapsiblePhaseCell cell={row.stages.pentest} isCollapsed={collapsedColumns.has('PENTEST')} />
+                        <PhaseStageCell cell={row.stages.r4golive} actualDateText={row.r4gDate} />
+                        <PhaseStageCell cell={row.stages.release} actualDateText={row.dueDate} />
                       </>
                     )}
                   </TR>
@@ -422,19 +640,22 @@ export default function EpicAlerts15Page() {
         </TableContainer>
       )}
 
-      {filteredRows.length > 0 && (
-        <nav className="ttm-pagination" aria-label="Điều hướng phân trang">
-          <button type="button" className="ttm-button" disabled={currentPage <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>‹ Trước</button>
-          <span className="ttm-pagination-label">Trang</span>
-          <select className="ttm-select" aria-label="Chọn trang" value={currentPage} onChange={(event) => setPage(Number(event.target.value))}>
-            {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
-              <option key={pageNumber} value={pageNumber}>{pageNumber}</option>
-            ))}
-          </select>
-          <span className="ttm-pagination-label">/ {totalPages}</span>
-          <button type="button" className="ttm-button" disabled={currentPage >= totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>Sau ›</button>
-        </nav>
-      )}
+      <div className="ttm-pagination-row">
+        {filteredRows.length > 0 && (
+          <nav className="ttm-pagination" aria-label="Điều hướng phân trang">
+            <button type="button" className="ttm-button" disabled={currentPage <= 1} onClick={() => { trackDataUsage(); setPage((current) => Math.max(1, current - 1)); }}>‹ Trước</button>
+            <span className="ttm-pagination-label">Trang</span>
+            <select className="ttm-select" aria-label="Chọn trang" value={currentPage} onChange={(event) => { trackDataUsage(); setPage(Number(event.target.value)); }}>
+              {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
+                <option key={pageNumber} value={pageNumber}>{pageNumber}</option>
+              ))}
+            </select>
+            <span className="ttm-pagination-label">/ {totalPages}</span>
+            <button type="button" className="ttm-button" disabled={currentPage >= totalPages} onClick={() => { trackDataUsage(); setPage((current) => Math.min(totalPages, current + 1)); }}>Sau ›</button>
+          </nav>
+        )}
+        <StatusColorLegend />
+      </div>
 
       <p className="ttm-page-subtitle" style={{ marginTop: 12 }}>
         Hiển thị {pageRows.length ? (currentPage - 1) * PAGE_SIZE + 1 : 0}–{(currentPage - 1) * PAGE_SIZE + pageRows.length} / {filteredRows.length} Epic{data ? ` — vai trò: ${ACCESS_ROLE_LABEL[data.accessRole]}` : ''}.
@@ -443,6 +664,8 @@ export default function EpicAlerts15Page() {
       {alertHistoryRow && (
         <AlertHistoryPanel key={alertHistoryRow.epicKey} row={alertHistoryRow} onClose={() => setAlertHistoryRow(null)} />
       )}
+
+      <EpicBrowserModal epicKey={browsingEpicKey} onClose={() => setBrowsingEpicKey(null)} />
     </div>
   );
 }

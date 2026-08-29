@@ -7,7 +7,6 @@ import {
   fetchEpicAlertContext,
   missingStandardInfo,
   parseDate,
-  resolveTtmActualRange,
   resolveTtmE2eRelease,
   toIsoDate,
 } from '@/lib/epic-alert-service';
@@ -160,14 +159,12 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
       }
     });
 
-    // TTM-CNTT stripe "thực tế" (bottom) — resolveTtmActualRange is shared with "Quản trị Epic
-    // (rút gọn)" and Epic in PO so this stripe's end date/color can never disagree between screens.
-    const ttmActualRange = resolveTtmActualRange(row, now);
-    const ttmActualFromDateParsed = parseDate(ttmActualRange.fromDate);
-    const ttmActualToDateParsed = parseDate(ttmActualRange.toDate);
-    const ttmActualElapsed = ttmActualFromDateParsed && ttmActualToDateParsed
-      ? Math.max(0, diffWorkingDays(ttmActualFromDateParsed, ttmActualToDateParsed, holidays))
-      : null;
+    // TTM-CNTT stripe "thực tế" (bottom): same start as the baseline stripe (Start Date) — ends at
+    // R4G Date once recorded, else today (Epic still ongoing). This screen's own rule, distinct from
+    // the shared resolveTtmActualRange used by the legacy "Quản lý Epic 30" screen (which factors in
+    // Due Date / T0 for a different column layout).
+    const ttmActualToDate = (row.r4gDate && parseDate(row.r4gDate)) || now;
+    const ttmActualElapsed = startDate ? Math.max(0, diffWorkingDays(startDate, ttmActualToDate, holidays)) : null;
 
     rows.push({
       alertLevel,
@@ -196,8 +193,8 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
       targetR4gDate: toIsoDate(targetR4gDate) ?? row.targetR4gDate,
       ttmE2eAlertLevel: ttmE2eRelease.alertLevel,
       ttmActualElapsedWorkingDays: ttmActualElapsed,
-      ttmActualFromDate: ttmActualRange.fromDate,
-      ttmActualToDate: ttmActualRange.toDate,
+      ttmActualFromDate: toIsoDate(startDate),
+      ttmActualToDate: toIsoDate(ttmActualToDate),
       ttmCnttElapsedWorkingDays: ttmCnttElapsed,
       ttmCnttFromDate: evaluation.ttm.cntt.fromDate,
       ttmCnttFromField: evaluation.ttm.cntt.fromField,
