@@ -261,16 +261,27 @@ export async function listProjectComponents(): Promise<ProjectComponent[]> {
  * issue's `components` array in its latest known state (LATEST_ISSUES_CTE — accumulation never
  * deletes catalog rows, so a component that no longer shows up on any current issue, e.g. renamed
  * in Jira or belonging to since-cleaned-up data, just lingers here forever otherwise). Project key
- * per issue is derived the same way the manual-import path validated against (issue key prefix) —
- * good enough for a diagnostic/cleanup view, unlike the request-path resolution used for filtering.
+ * per issue is derived the same COALESCE(import_rows JSON, issue key prefix) pattern every other
+ * query in this app uses (see epic-alert-service.ts) — NOT the issue key prefix alone, since the
+ * prefix is only ever a fallback and isn't guaranteed to equal the real project key (e.g. an
+ * anonymised/masked import where issue keys are rewritten but the CSV's own Project key column
+ * is preserved).
  */
 export async function listOrphanProjectComponents(): Promise<ProjectComponent[]> {
   const result = await pool.query<ProjectComponent>(`
     WITH ${LATEST_ISSUES_CTE},
     used_components AS (
-      SELECT DISTINCT SPLIT_PART(issue_key, '-', 1) AS project_key, unnest(components) AS component_name
+      SELECT DISTINCT
+        COALESCE(
+          NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+          NULLIF(SPLIT_PART(latest_issues.issue_key, '-', 1), '')
+        ) AS project_key,
+        unnest(latest_issues.components) AS component_name
       FROM latest_issues
-      WHERE components IS NOT NULL
+      LEFT JOIN import_rows
+        ON import_rows.import_batch_id = latest_issues.source_import_batch_id
+        AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = latest_issues.issue_key
+      WHERE latest_issues.components IS NOT NULL
     )
     SELECT pc.id, pc.project_key AS "projectKey", pc.component_name AS "componentName",
       pc.is_active AS "isActive", pc.created_at::text AS "createdAt", pc.updated_at::text AS "updatedAt"

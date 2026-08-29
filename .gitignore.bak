@@ -42,10 +42,6 @@ yarn-error.log*
 *.db
 *.db-journal
 
-# scripts/mask-jira-csv.js's persistent key-mapping state — a literal real-key↔fake-key decoder
-# ring, never commit it. Default path; --state points elsewhere it still matches this glob.
-scripts/*.jira-key-mask-map.json
-
 # local tooling caches
 .turbo/
 .swc/
