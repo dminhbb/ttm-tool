@@ -71,13 +71,19 @@ export interface TtmPhaseBaseline {
  * R4GOLIVE's baseline is TTM-CNTT's own end date by definition (core business rule, confirmed
  * explicitly): it must always equal exactly `startDate + (ttmCnttTotalWorkingDays - 1)` working
  * days — the same day-1-counts-as-day-1 convention as DESIGN's own share above, applied to the
- * whole TTM-CNTT budget at once. Five independently-rounded phase shares (each ceil or floor of a
- * fraction) don't always sum back to exactly that total — e.g. 20/30/30/10/10% of 17 days rounds to
- * 4+6+5+2+1 = 18 raw days, one more than 17. FLOOR_ROUNDED_PHASES keeps that drift small, but to
- * guarantee exactness R4GOLIVE's date is always pinned directly off startDate afterward, rather than
- * trusted from the chained walk — DESIGN/DEV/TEST/PENTEST keep their chained dates unchanged.
+ * whole TTM-CNTT budget at once. R4GOLIVE's date is always pinned directly off startDate afterward,
+ * rather than trusted from the chained walk — DESIGN/DEV/TEST/PENTEST keep their chained dates
+ * unchanged.
+ *
+ * DEV/TEST/PENTEST shares always round DOWN (floor) to a whole day when their % share isn't a
+ * whole number — e.g. DEV at 30% of a 15-day (simple-Epic) budget = 4.5 days rounds down to 4, not
+ * 5 — applied the same way for simple and complex Epics alike. DESIGN keeps rounding UP (ceil),
+ * unchanged. Because R4GOLIVE's own end date is always pinned to the total TTM-CNTT budget (see
+ * above) rather than chained from the walk, every working day floored away from DEV/TEST/PENTEST's
+ * shares is automatically absorbed back into R4GOLIVE's own duration (`workingDays = r4golive's
+ * cumulative total - PENTEST's cumulative total`) — no separate redistribution step is needed.
  */
-const FLOOR_ROUNDED_PHASES: ReadonlySet<TtmPhaseKey> = new Set(['TEST', 'R4GOLIVE']);
+const FLOOR_ROUNDED_PHASES: ReadonlySet<TtmPhaseKey> = new Set(['DEV', 'TEST', 'PENTEST', 'R4GOLIVE']);
 
 export function computeTtmPhaseBaselines(startDate: Date, ttmCnttTotalWorkingDays: number, holidays: HolidaySet): Record<TtmPhaseKey, TtmPhaseBaseline> {
   const result = {} as Record<TtmPhaseKey, TtmPhaseBaseline>;

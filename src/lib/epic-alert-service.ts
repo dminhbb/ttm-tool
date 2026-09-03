@@ -9,7 +9,7 @@ import { getActiveHolidaySet, getDomainByProjectKeyMap, getProjectMetaByProjectK
 import { listActiveStatusAlertRules } from '@/lib/status-alert-rule-service';
 import { listTtmPolicies } from '@/lib/ttm-policy-service';
 import { getEpicKeysWithAlertHistory } from '@/lib/epic-alert-history-service';
-import { EPIC_WORKFLOW_STATUS_ORDER, epicWorkflowStatusIndex } from '@/lib/ttm-phase-rules';
+import { EPIC_WORKFLOW_STATUS_ORDER, epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { isCancelledStatus, isPendingStatus } from '@/lib/issue-status-rules';
 import { EPIC_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 import type { EpicAlertAccessRole, EpicAlertResponse, EpicAlertRow, StageCell } from '@/lib/epic-alert-types';
@@ -99,7 +99,7 @@ export const RELEASE_BASELINE_SOURCE_LABEL = {
 } as const;
 
 export interface TtmE2eRelease {
-  /** Due Date once recorded, else today (Epic still ongoing). */
+  /** Due Date once the Epic is Released and that Due Date has already passed, else today. */
   actualToDate: string | null;
   /** FAIL once actualToDate passes baselineDate — no EARLY/LATE tiers for TTM-E2E. */
   alertLevel: AlertLevel;
@@ -130,7 +130,13 @@ export function resolveTtmE2eRelease(
       ? [startDate, RELEASE_BASELINE_SOURCE_LABEL.startDate]
       : [parseDate(row.jiraCreatedAt), RELEASE_BASELINE_SOURCE_LABEL.jiraCreated];
   const baselineDate = baselineSourceDate && ttmE2eTargetWorkingDays ? addWorkingDays(baselineSourceDate, ttmE2eTargetWorkingDays, holidays) : null;
-  const actualToDate = (row.dueDate && parseDate(row.dueDate)) || now;
+  // "Stripe thực tế" end point (X): Due Date only once the Epic is Released AND that Due Date is
+  // already in the past (Due Date <= today) — otherwise (not yet Released, or a future Due Date)
+  // X stays "today", tracking the stripe forward live until the Epic is actually done.
+  const dueDate = parseDate(row.dueDate);
+  const isReleased = normalizeEpicWorkflowStatus(row.status) === 'RELEASED';
+  const dueDateAlreadyPassed = Boolean(dueDate && toDateKey(dueDate) <= toDateKey(now));
+  const actualToDate = isReleased && dueDateAlreadyPassed && dueDate ? dueDate : now;
   const elapsedWorkingDays = baselineSourceDate ? Math.max(0, diffWorkingDays(baselineSourceDate, actualToDate, holidays)) : null;
   const alertLevel: AlertLevel = !baselineDate || isCancelledStatus(row.status) ? 'NONE' : (actualToDate.getTime() > baselineDate.getTime() ? 'FAIL' : 'NONE');
   return {

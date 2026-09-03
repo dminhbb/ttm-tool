@@ -24,11 +24,11 @@ const PAGE_SIZE = 20;
 
 const EMPTY_ROWS: EpicAlertRowPhased[] = [];
 
-/** These 3 statuses now have their own dedicated screen ("Epic in PO"), so Quản trị Epic defaults
- * its Status filter to everything else — applied once, the first time real status options load
- * (see the statusOptions effect below), and never reapplied after that so it doesn't fight a
- * user's own filter choice. */
-const DEFAULT_EXCLUDED_STATUSES = new Set(['TO DO', 'IN PO', 'RELEASED']);
+/** TO DO/IN PO/RELEASED now have their own dedicated screen ("Epic in PO"), and Cancelled Epics
+ * are noise on this screen by default, so Quản trị Epic defaults its Status filter to everything
+ * else — applied once, the first time real status options load (see the statusOptions effect
+ * below), and never reapplied after that so it doesn't fight a user's own filter choice. */
+const DEFAULT_EXCLUDED_STATUSES = new Set(['TO DO', 'IN PO', 'RELEASED', 'CANCELLED']);
 
 function formatDate(value: string | null): string {
   if (!value) return '-';
