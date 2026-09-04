@@ -13,7 +13,8 @@ Nếu các tài liệu cũ còn nhắc tới ngày lịch, logic cũ hoặc tr�
 1. Toàn bộ tính toán thời gian trong hệ thống dùng **ngày làm việc**.
 2. Ngày làm việc là ngày trong năm, không tính Thứ Bảy, Chủ Nhật và các ngày Holiday được cấu hình.
 3. MVP1 chỉ tập trung **TTM-CNTT**.
-4. TTM-E2E vẫn được mô hình hóa nhưng chưa phải trọng tâm cảnh báo của MVP1.
+4. **Cập nhật:** TTM-E2E đã có cảnh báo **Fail TTM-E2E** độc lập (không còn chỉ là tham khảo) — xem
+   `12-ttm-policy-and-epic-alert-ui.md` và `03-mvp1-working-days-alert-rules.md` §4.5.
 5. Epic có hai mốc T:
    - **T0** = Ngày duyệt ý tưởng.
    - **T1** = Start Date của Epic.

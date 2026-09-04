@@ -2,6 +2,24 @@
 
 ## 1. Role hệ thống
 
+> **Cập nhật (thay thế nội dung "3 role" bên dưới):** ứng dụng hiện có **4 role**
+> (`users.role` CHECK IN `('SUPERADMIN','ADMIN','SUPERVISOR','USER')`, thêm bởi
+> `db/migrations/20260824_add_supervisor_role.sql`):
+>
+> | Role nghiệp vụ | Role kỹ thuật | Phạm vi |
+> |---|---|---|
+> | CBQL Phòng | SUPERADMIN | Toàn hệ thống, toàn quyền |
+> | (không có tên nghiệp vụ riêng) | SUPERVISOR | Toàn hệ thống, **chỉ xem** — không tạo/sửa/xóa ở bất kỳ màn hình quản trị nào, không truy cập import/backup/purge dữ liệu |
+> | Lead | ADMIN | Theo Domain nghiệp vụ được gán |
+> | PM-SM | USER | Theo Dự án được gán, có thể bị thu hẹp thêm theo Component (xem §12b) |
+>
+> SUPERVISOR được thêm để có người xem/giám sát toàn hệ thống mà không có rủi ro ghi/xóa nhầm.
+> Enforcement nằm ở `auth-service.ts`'s `requireUser` role arrays theo từng API, không phải một
+> flag chung; Ma trận phân quyền (`/admin/permissions`, xem §12c) là nơi SUPERADMIN xem/điều chỉnh
+> chi tiết theo từng tính năng.
+
+Nội dung gốc bên dưới (3 role) đã lỗi thời, giữ lại để tham khảo lịch sử:
+
 Ứng dụng có 3 role:
 
 | Role nghiệp vụ | Role kỹ thuật tương đương | Phạm vi |
@@ -106,6 +124,10 @@ KeycloakAuthProvider
 ```
 
 ## 6. Login form
+
+> Lưu ý schema: `users` **không có cột `username`** — chỉ có `email` (UNIQUE). Ô "Username" trên
+> form chỉ là UX: `normalizeUsername` (`auth-service.ts`) tự nối `@mbbank.com.vn` nếu người dùng gõ
+> thiếu, rồi so khớp với `email`. Không có bảng/cột riêng lưu "username".
 
 Login form gồm:
 
@@ -238,7 +260,7 @@ And có ô tìm kiếm gần đúng theo mã hoặc tên dự án
 - User inactive có thể không có Domain. API chỉ từ chối danh sách Domain rỗng khi user được đặt trạng thái active; đồng thời từ chối Domain có ID trùng lặp hoặc Domain không tồn tại/inactive. User đăng ký mới tiếp tục chọn một Domain active trong luồng đăng ký.
 - Bảng `user_domains` dùng khóa chính `(user_id, domain_id)`, cho phép một user thuộc nhiều Domain và ngăn bản ghi gán trùng lặp.
 - Form tạo/chỉnh sửa user có thêm trường Dự án multi-select, tùy chọn, để gán các project mà user là PM/SM. `user_projects` dùng khóa chính `(user_id, project_id)`; API từ chối ID dự án không tồn tại hoặc trùng lặp, nhưng không bắt buộc user phải có dự án trong mọi trạng thái.
-- `projects.lead_name` và `user_projects` là hai hình chiếu đồng bộ của phân công PM/SM. Khi Superadmin đổi PM/SM trên dự án, assignment của PM/SM cũ được thay bằng user mới; khi đổi Dự án trên user, `lead_name` của các dự án tương ứng được cập nhật. Tất cả thay đổi liên quan chạy trong transaction.
+- **Cập nhật:** `projects.lead_name` và `user_projects` là hai hình chiếu đồng bộ của phân công PM/SM, nhưng chiều gán chỉ còn **một hướng**: đổi Dự án trên form user (`/admin/users`) cập nhật `lead_name` tương ứng trong transaction. Popup thêm/sửa Dự án (`/admin/projects`) **không còn** cho sửa PM/SM — chỉ hiển thị `lead_name` hiện tại (đọc-only) kèm danh sách Component mà PM/SM đó được phân quyền cho dự án này (đọc từ `user_project_components`, xem §12b). Nội dung "Khi Superadmin đổi PM/SM trên dự án..." bên dưới đã lỗi thời.
 
 ## Bổ sung MVP1 — Xử lý hàng loạt tại User Management
 
@@ -253,3 +275,31 @@ And có ô tìm kiếm gần đúng theo mã hoặc tên dự án
 - Superadmin có thể nhập tối đa 100 username, ngăn cách bằng dấu phẩy, không cần hậu tố `@mbbank.com.vn`.
 - Mỗi username hợp lệ tạo user có họ tên bằng username, email `username@mbbank.com.vn`, role `USER`, trạng thái inactive, chưa gán Domain và mật khẩu mặc định theo yêu cầu nghiệp vụ.
 - Username đã tồn tại được bỏ qua và báo lại số lượng; quá trình ghi dữ liệu mới dùng transaction.
+
+## Bổ sung — Phân quyền theo Component (§12b)
+
+- Bảng `user_project_components(user_id, project_id, component_name)` (khóa chính kết hợp, FK tới
+  `user_projects(user_id, project_id)` ON DELETE CASCADE) thu hẹp một dự án đã cấp trong
+  `user_projects` xuống chỉ những Epic có `issues.components` giao với danh sách component đã chọn.
+  Không có dòng nào cho một dự án = không giới hạn (toàn quyền dự án đó) — hành vi mặc định không
+  đổi so với trước khi có tính năng này.
+- Chỉ áp dụng cho role **USER** (PM/SM). ADMIN (theo Domain) và SUPERADMIN/SUPERVISOR (toàn hệ
+  thống) không bị giới hạn theo Component.
+- Epic không có Component nào trong Jira (`issues.components` rỗng) luôn hiển thị, kể cả với user bị
+  giới hạn theo Component — coi là "chung", không thuộc phạm vi giới hạn.
+- Form user (`/admin/users`) hiển thị 1 khối MultiSelect Component riêng cho mỗi dự án đã chọn ở
+  trường Dự án, dữ liệu Component lấy từ danh mục `project_components` (lọc theo
+  `source_project_key` của dự án đó).
+- Danh mục Component tích lũy tự động qua import CSV (Epic/Story's Component/s) và có thể bổ sung
+  thủ công qua tab "Import Components" tại Nguồn dữ liệu (CSV 2 cột `project_key`/`component`,
+  upsert vào cùng bảng `project_components`).
+
+## Bổ sung — Ma trận phân quyền (§12c)
+
+- Màn hình `/admin/permissions` ("Ma trận phân quyền", chỉ SUPERADMIN) cấu hình quyền
+  Xem/Thêm/Sửa/Xóa cho từng cặp (tính năng, role), lưu ở `permission_features` +
+  `role_feature_permissions` (xem `08-data-model.md` §14). Đây là lớp RBAC **chi tiết hơn** so với
+  phân quyền Domain/Dự án ở trên — cho phép SUPERADMIN bật/tắt riêng từng hành động của ADMIN/
+  SUPERVISOR/USER trên từng màn hình quản trị, thay vì chỉ dựa vào role cứng trong code.
+- SUPERADMIN luôn có đủ 4 quyền trên mọi tính năng; API từ chối sửa dòng SUPERADMIN để tránh tự khóa
+  quyền quản trị cao nhất.

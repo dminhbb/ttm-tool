@@ -51,8 +51,13 @@ export function computeDashboardStats(rows: EpicAlertRowPhased[]): DashboardStat
     if (row.ttmE2eAlertLevel === 'FAIL') failE2e += 1;
     if (row.epicType === 'COMPLEX') complex += 1;
     else if (row.epicType === 'SIMPLE') simple += 1;
-    if (row.missingStandardInfo.length > 0) missingDataCount += 1;
-    if (row.r4gDate) {
+    // hasDataAnomaly (missing Start Date, or R4G/Due Date chronologically nonsense) counts here too
+    // — same "cần làm sạch dữ liệu" bucket as missingStandardInfo, not a separate stat tile.
+    if (row.missingStandardInfo.length > 0 || row.hasDataAnomaly) missingDataCount += 1;
+    // A data-anomaly Epic is excluded from the Đạt TTM ratio entirely — alertLevel is already
+    // forced 'NONE' for it (see epic-alert-phase-service.ts), so counting it here would silently
+    // inflate the ratio with an Epic whose R4G Date can't actually be trusted.
+    if (row.r4gDate && !row.hasDataAnomaly) {
       achievedTtmEligibleCount += 1;
       if (row.alertLevel === 'NONE') achievedTtmCount += 1;
     }

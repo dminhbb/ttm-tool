@@ -333,7 +333,16 @@ Lý do:
 
 # 7. Phân quyền và vai trò
 
-Hệ thống có 3 role chính:
+> **Cập nhật:** hệ thống hiện có **4 role** (`users.role` CHECK), không phải 3 — đã thêm
+> `SUPERVISOR` (`db/migrations/20260824_add_supervisor_role.sql`): cùng phạm vi xem như SUPERADMIN
+> (toàn hệ thống) nhưng **chỉ đọc** — không tạo/sửa/xóa ở bất kỳ màn hình quản trị nào, không truy
+> cập import/backup/purge dữ liệu. Chi tiết: `brd/05-auth-rbac-user-management.md` §1.
+>
+> Ngoài ra còn có **Ma trận phân quyền** (`/admin/permissions`, SUPERADMIN-only) cấu hình chi tiết
+> quyền Xem/Thêm/Sửa/Xóa theo từng cặp (tính năng, role) — lớp RBAC mịn hơn bảng dưới đây, xem
+> `brd/05-auth-rbac-user-management.md` §12c.
+
+Hệ thống có 3 role chính (nội dung gốc, đã lỗi thời — xem cập nhật ở trên):
 
 | Role nghiệp vụ | Role kỹ thuật | Ý nghĩa |
 |---|---|---|
@@ -611,12 +620,18 @@ Sau này có thể thay bằng job scheduler độc lập.
 
 ---
 
-## Bổ sung MVP1 — Quản lý Epic 30 và Quản lý Epic 15
+## Bổ sung MVP1 — Quản trị Epic (rút gọn/đầy đủ), Epic in PO, Dashboard
 
-- Route `/epic-alerts` là **Quản lý Epic 30**: giữ cấu trúc giai đoạn tổng quát Design → In Progress → Ready4Golive → Release.
-- Route `/epic-alerts-15` là **Quản lý Epic 15**: tách In Progress thành DEV → TEST → PENTEST, hiển thị baseline và actual theo từng pha.
-- Thứ tự workflow chuẩn dùng xuyên suốt service/API/UI là: `To Do → IN PO → Design → DEV → TEST → PENTEST → R4GOLIVE → MVPDONE → Released`. Jira status legacy `In Progress` và `In Dev` được chuẩn hóa thành `DEV`; `Ready For Golive`/`Ready4Golive` chuẩn hóa thành `R4GOLIVE`; `Pen Test` chuẩn hóa thành `PENTEST`. Pending và Cancelled là trạng thái đặc biệt ngoài workflow.
-- TTM-CNTT lấy tổng số ngày làm việc từ tiêu chí TTM-CNTT active theo loại Epic. Rule chia pha Epic 15 là Design 20%, DEV 30%, TEST 30%, PENTEST 10%, R4GOLIVE 10%; baseline tính bằng phần trăm tích lũy từ Start Date và mốc R4GOLIVE luôn đúng bằng toàn bộ số ngày TTM-CNTT sau khi làm tròn.
+> Tên màn hình đã đổi trên UI: "Quản lý Epic 30" → **"Quản trị Epic (rút gọn)"**, "Quản lý Epic 15"
+> → **"Quản trị Epic (đầy đủ)"**. Route không đổi. Chi tiết đầy đủ, gồm 2 màn hình mới
+> `/epic-in-po` (Epic in PO) và `/dashboard` (Dashboard), TTM-E2E fail alert độc lập và
+> `hasDataAnomaly`: xem `brd/13-epic-15-and-epic-30-management.md` và
+> `brd/03-mvp1-working-days-alert-rules.md` §4.5.
+
+- Route `/epic-alerts` là **Quản trị Epic (rút gọn)**: giữ cấu trúc giai đoạn tổng quát Design → In Progress → Ready4Golive → Release. Chỉ role `ADMIN`/`SUPERADMIN`/`SUPERVISOR`.
+- Route `/epic-alerts-15` là **Quản trị Epic (đầy đủ)**: tách In Progress thành DEV → TEST → PENTEST, hiển thị baseline và actual theo từng pha. Mở cho mọi role.
+- Thứ tự workflow chuẩn dùng xuyên suốt service/API/UI là: `TO DO → IN PO → DESIGN → DEV → TEST → PENTEST → R4GOLIVE → MVPDONE → RELEASED`. Jira status legacy `In Progress` và `In Dev` được chuẩn hóa thành `DEV`; `Ready For Golive`/`Ready4Golive` chuẩn hóa thành `R4GOLIVE`; `Pen Test` chuẩn hóa thành `PENTEST`. Pending và Cancelled là trạng thái đặc biệt ngoài workflow.
+- TTM-CNTT lấy tổng số ngày làm việc từ tiêu chí TTM-CNTT active theo loại Epic (bảng `ttm_policy_configs`). Rule chia pha Epic 15 là Design 20%, DEV 30%, TEST 30%, PENTEST 10%, R4GOLIVE 10%; baseline tính bằng phần trăm tích lũy từ Start Date và mốc R4GOLIVE luôn đúng bằng toàn bộ số ngày TTM-CNTT sau khi làm tròn.
 
 ## Bổ sung core logic — Phân cấp Issue Type và workflow
 
@@ -634,15 +649,18 @@ Trước khi code, AI Agent phải xác định task thuộc nhóm nào và đ�
 
 | Loại task | File cần đọc |
 |---|---|
-| Rule TTM-CNTT, ngày làm việc, Epic đơn giản/phức tạp | `03-mvp1-working-days-alert-rules.md` |
+| Rule TTM-CNTT, ngày làm việc, Epic đơn giản/phức tạp, `hasDataAnomaly` | `03-mvp1-working-days-alert-rules.md` |
 | Homepage 3 panel, cột Cảnh báo, filter From/To | `04-homepage-and-epic-monitoring.md` |
-| Login, password, request change password, RBAC | `05-auth-rbac-user-management.md` |
-| Domain, Dự án, Holiday, Status Rule | `06-master-data-management.md` |
-| CSV import, data source adapter | `07-data-source-and-csv-import.md` |
-| Database schema | `08-data-model.md` |
+| Login, password, request change password, RBAC, SUPERVISOR, phân quyền theo Component, Ma trận phân quyền | `05-auth-rbac-user-management.md` |
+| Domain, Dự án (Project Key hợp nhất, PM/SM read-only), Holiday, Ngày làm bù, Status Rule, Cấu hình Jira | `06-master-data-management.md` |
+| CSV import, data source adapter, downgrade validate ERROR→WARNING | `07-data-source-and-csv-import.md` |
+| Database schema (nguồn sự thật: `db/schema.sql` + `db/migrations/*.sql`) | `08-data-model.md` |
 | UI layout, prototype, responsive behavior | `09-ui-ux-prototypes.md` |
 | Security, password hashing, session, audit log | `10-security-and-non-functional.md` |
-| MVP planning | `11-mvp-roadmap.md` |
+| MVP planning (lưu ý: nhiều mục đã build xong, xem BRD file tương ứng thay vì coi đây là chưa làm) | `11-mvp-roadmap.md` |
+| TTM policy config (`ttm_policy_configs`), Fail TTM-E2E | `12-ttm-policy-and-epic-alert-ui.md` |
+| Quản trị Epic (rút gọn/đầy đủ), Epic in PO, Dashboard | `13-epic-15-and-epic-30-management.md` |
+| Phân cấp Issue Type, workflow Story/Subtask | `14-issue-hierarchy-and-workflows.md` |
 
 Nếu các file chưa được tách thật, Agent cần dùng section tương ứng trong BRD tổng và file index này để định vị nội dung.
 
@@ -788,8 +806,12 @@ và hỗ trợ quản trị dữ liệu nền tảng đủ để vận hành das
 
 ## Bổ sung MVP1 — Danh mục Dự án
 
-- Trang quản lý dự án có tìm kiếm gần đúng theo Mã hiển thị/tên, lọc Domain/PM-SM/trạng thái và phân trang 20 dòng.
-- PM/SM được chọn từ user active. Import CSV nhiều dự án dùng cột Tên dự án, Loại hình dự án, PM-SM, Key, TTM; bắt buộc Tên dự án/Key/TTM. Key dùng cho Mã hiển thị và Source Project Key (Jira); Loại hình và PM/SM không hợp lệ được lưu trống.
+> **Cập nhật:** cột `projects.project_key` ("Mã hiển thị") đã bị xóa — chỉ còn `source_project_key`
+> làm Project Key (Jira) duy nhất. Popup thêm/sửa 1 dự án **không còn cho gán PM/SM** (chỉ đọc); gán
+> PM/SM chỉ thực hiện tại `/admin/users`. Xem `brd/06-master-data-management.md` §3.
+
+- Trang quản lý dự án có tìm kiếm gần đúng theo Project Key/tên, lọc Domain/PM-SM/trạng thái và phân trang 20 dòng.
+- Import CSV nhiều dự án (tạo hàng loạt, khác popup sửa 1 dự án) dùng cột Tên dự án, Loại hình dự án, PM-SM, Key, TTM; bắt buộc Tên dự án/Key/TTM. Key chỉ còn dùng làm Project Key (Jira) duy nhất; Loại hình và PM/SM không hợp lệ được lưu trống.
 - Thông tin dự án có Loại hình dự án tùy chọn: Dự án, Team Agile, Team Triển khai.
 - Thông tin dự án có TTM bắt buộc (`Y`/`N`), mặc định `N`.
 

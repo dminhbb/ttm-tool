@@ -15,6 +15,14 @@ Quản trị hệ thống
 └── Cấu hình TTM
 ```
 
+> **Cập nhật — thêm 2 màn hình quản trị chưa có trong danh sách trên:**
+> - **Ma trận phân quyền** (`/admin/permissions`, chỉ SUPERADMIN) — xem
+>   `05-auth-rbac-user-management.md` §12c và `08-data-model.md` §14.
+> - **Quản lý chung** — gồm Cấu hình Jira (`jira_settings`: `api_base_url`, `view_issue_base_url`
+>   dùng để tạo link "Mở Epic trên Jira") và các cấu hình chung khác.
+>
+> Ngoài ra Holiday (§4) giờ có thêm bảng song song **Ngày làm bù** (`makeup_workdays`) — xem §4.2.
+
 ## 2. Danh mục Domain nghiệp vụ
 
 Màn hình Domain cho phép CRUD domain nghiệp vụ.
@@ -34,7 +42,29 @@ Lead thuộc domain sẽ được xem toàn bộ dự án thuộc domain đó.
 
 Màn hình Dự án cho phép CRUD dự án và mapping dự án với domain nghiệp vụ.
 
-Thông tin chính:
+> **Cập nhật:** cột `projects.project_key` đã bị xóa (`db/migrations/20260827_drop_project_key_use_
+> source_key.sql`). Không còn khái niệm "Mã hiển thị" tách biệt Source Project Key — chỉ còn MỘT
+> trường **Project Key (Jira)** = `source_project_key`, có UNIQUE constraint, dùng vừa làm mã hiển
+> thị vừa làm khóa join với `issues`/`project_components`.
+>
+> Popup thêm/sửa Dự án **không còn cho gán PM/SM** — chỉ hiển thị PM/SM hiện tại (đọc-only) kèm danh
+> sách Component mà PM/SM đó được phân quyền cho dự án này (đọc từ `user_project_components`). Gán/
+> đổi PM/SM cho dự án chỉ thực hiện tại màn hình Quản lý User (`/admin/users`) — xem
+> `05-auth-rbac-user-management.md` §12b/§12c.
+
+Thông tin chính (đã cập nhật, thay cho danh sách cũ bên dưới):
+
+- Project Key (Jira) — `source_project_key`, duy nhất.
+- Tên dự án.
+- Domain nghiệp vụ.
+- Loại hình dự án (Dự án / Team Agile / Team Triển khai).
+- Time to Market (Y/N).
+- PM/SM hiện tại — chỉ hiển thị, không sửa tại đây.
+- Source Type (mặc định JIRA).
+- Trạng thái active/inactive.
+
+Danh sách cũ (đã lỗi thời — "Project Key" và "Source Project Key" từng là 2 trường riêng, "Lead
+phụ trách"/"User được phân quyền" từng sửa được tại đây):
 
 - Project Key.
 - Tên dự án.
@@ -45,7 +75,8 @@ Thông tin chính:
 - Source Type.
 - Trạng thái active/inactive.
 
-PM-SM được xem toàn bộ dữ liệu của các dự án được phân quyền.
+PM-SM được xem toàn bộ dữ liệu của các dự án được phân quyền (có thể bị thu hẹp theo Component —
+xem `05-auth-rbac-user-management.md` §12b).
 
 ## 4. Quản lý Holiday
 
@@ -94,6 +125,16 @@ Một ngày không được tính là ngày làm việc nếu:
 - Là Thứ Bảy.
 - Là Chủ Nhật.
 - Nằm trong một holiday range đang active.
+
+Ngoại lệ: nếu ngày đó nằm trong `makeup_workdays` đang active (xem §4.5) thì vẫn tính là ngày làm
+việc — luôn thắng cả 2 điều kiện trên.
+
+### 4.5. Ngày làm bù (`makeup_workdays`)
+
+Bảng riêng, độc lập với `holidays`, dùng để khai báo một ngày Thứ Bảy/Chủ Nhật cụ thể là ngày làm
+việc bình thường (bù cho một kỳ nghỉ dài trước/sau đó). Mỗi bản ghi: ngày làm bù (duy nhất), mô tả,
+trạng thái active/inactive. Chỉ SUPERADMIN quản lý; được `working-days.ts` đọc cùng lúc với
+Holiday qua `master-data-service.ts`'s `getActiveHolidaySet`.
 
 ## 5. Quản lý Status Alert Rules
 
@@ -177,8 +218,9 @@ Lead phụ trách được chọn bằng dropdown từ danh sách user active, h
 ## Bổ sung MVP1 — Quản lý danh mục Dự án
 
 - Danh sách dự án hỗ trợ tìm kiếm gần đúng theo Project Key hoặc tên dự án, lọc theo Domain, PM/SM và trạng thái; hiển thị 20 dự án/trang có phân trang.
-- Form tạo/sửa hiển thị trường `PM/SM`, chọn bắt buộc từ danh sách user active.
-- Có chức năng Thêm nhiều dự án từ CSV với các cột `Tên dự án`, `Loại hình dự án`, `PM-SM`, `Key`, `TTM`. `Tên dự án`, `Key` và `TTM` là bắt buộc; `Key` được dùng cho cả Mã hiển thị và Source Project Key (Jira). TTM chỉ nhận `Y`/`N`. Loại hình dự án hoặc PM/SM bỏ trống/không hợp lệ được lưu trống, không làm hủy import.
-- Import giới hạn 500 dòng, 1 MB, kiểm tra Project key trùng trong file/trong CSDL và ghi toàn bộ bằng một transaction.
+- **Cập nhật:** Form tạo/sửa (popup Dự án) **không còn** trường `PM/SM` để chọn — PM/SM chỉ hiển
+  thị đọc-only (xem §3 ở trên). Gán/đổi PM/SM thực hiện tại `/admin/users`.
+- Có chức năng Thêm nhiều dự án từ CSV với các cột `Tên dự án`, `Loại hình dự án`, `PM-SM`, `Key`, `TTM` (chức năng import hàng loạt này vẫn cho set PM-SM lúc tạo mới, khác với popup sửa 1 dự án). `Tên dự án`, `Key` và `TTM` là bắt buộc; **Key chỉ còn dùng làm Project Key (Jira) duy nhất** (không còn khái niệm Mã hiển thị riêng). TTM chỉ nhận `Y`/`N`. Loại hình dự án hoặc PM/SM bỏ trống/không hợp lệ được lưu trống, không làm hủy import.
+- Import giới hạn 500 dòng, 1 MB, kiểm tra Project Key (Jira) trùng trong file/trong CSDL và ghi toàn bộ bằng một transaction.
 - Loại hình dự án là thông tin tùy chọn trong form tạo/sửa: Dự án, Team Agile hoặc Team Triển khai. CSDL chỉ chấp nhận ba giá trị này hoặc để trống.
 - TTM là thông tin bắt buộc, chọn `Y` hoặc `N`, mặc định `N` khi tạo dự án; CSDL áp dụng default và CHECK constraint tương ứng.

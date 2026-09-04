@@ -448,7 +448,7 @@ export default function EpicAlertsPage() {
               {pageRows.map((row: EpicAlertRow) => {
                 const isMissingCore = !row.t1StartDate;
                 return (
-                  <TR key={row.epicKey} className={isMissingCore ? 'missing-row' : undefined}>
+                  <TR key={row.epicKey} className={row.hasDataAnomaly ? 'missing-row' : undefined}>
                     <TD className="ttm-col-border-right">
                       <AlertHistoryButton row={row} onOpen={setAlertHistoryEpicKey} />
                       <JiraLinkButton epicKey={row.epicKey} viewIssueBaseUrl={viewIssueBaseUrl} />
@@ -465,39 +465,50 @@ export default function EpicAlertsPage() {
                       )}
                     </TD>
                     <TD><EpicTypeIcon epicType={row.epicType} /></TD>
+                    {/* START-E2E / TTM-E2E: T0 (Idea Approved → Jira creation date) always resolves —
+                        independent of Start Date, so these render the same whether or not the Epic
+                        is missing its Start Date (see resolveTtmE2eRelease in epic-alert-service.ts). */}
+                    <TD>{formatDate(row.ttmE2eBaselineSourceDate)}</TD>
                     {isMissingCore ? (
-                      <>
-                        <TD>{formatDate(row.ttmE2eBaselineSourceDate)}</TD>
-                        <TD><span className="ttm-metric na">Không có</span></TD>
-                        <TD className="ttm-metric na">Không tính được</TD>
-                        <TD className="ttm-metric na ttm-col-border-right">Không tính được</TD>
-                        <TD><StatusBadge status={row.currentStatus} /></TD>
-                        <TD>{row.currentStatus === 'To Do' ? <span className="ttm-empty-warning">—</span> : <span className="ttm-badge fail">Thiếu Start Date</span>}</TD>
-                        <TD colSpan={4} className="ttm-metric na">Chưa thể tính lịch TTM-CNTT do thiếu dữ liệu bắt buộc.</TD>
-                      </>
+                      <TD><span className="ttm-metric na">Không có</span></TD>
+                    ) : (
+                      <TD>{formatDate(row.t1StartDate)}</TD>
+                    )}
+                    {isMissingCore ? (
+                      <TD className="ttm-metric na">Không tính được</TD>
+                    ) : (
+                      <TtmCnttStrips row={row} />
+                    )}
+                    <TtmE2eStrips row={row} />
+                    <TD><StatusBadge status={row.currentStatus} /></TD>
+                    <TD>
+                      {row.hasDataAnomaly ? (
+                        isMissingCore
+                          ? (row.currentStatus === 'To Do' ? <span className="ttm-empty-warning">—</span> : <span className="ttm-badge fail">Thiếu Start Date</span>)
+                          : <span className="ttm-metric na">Không tính được</span>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                          {row.alertLevel === 'NONE'
+                            ? (row.r4gDate
+                              ? <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT đúng hạn theo rule">Đạt TTM</span>
+                              : <span className="ttm-empty-warning">—</span>)
+                            : <span className={`ttm-badge ${ALERT_BADGE_CLASS[row.alertLevel]}`}>{row.alertLevel === 'EARLY' ? 'Cảnh báo sớm' : row.alertLevel === 'LATE' ? 'Cảnh báo muộn' : 'Fail TTM-CNTT'}</span>}
+                          {row.ttmE2eAlertLevel === 'FAIL' && <span className="ttm-badge fail-e2e">Fail TTM-E2E</span>}
+                        </div>
+                      )}
+                    </TD>
+                    {isMissingCore ? (
+                      <TD colSpan={3} className="ttm-metric na">Chưa thể tính lịch TTM-CNTT do thiếu dữ liệu bắt buộc.</TD>
                     ) : (
                       <>
-                        <TD>{formatDate(row.ttmE2eBaselineSourceDate)}</TD>
-                        <TD>{formatDate(row.t1StartDate)}</TD>
-                        <TtmCnttStrips row={row} />
-                        <TtmE2eStrips row={row} />
-                        <TD><StatusBadge status={row.currentStatus} /></TD>
-                        <TD>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
-                            {row.alertLevel === 'NONE'
-                              ? (row.r4gDate
-                                ? <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT đúng hạn theo rule">Đạt TTM</span>
-                                : <span className="ttm-empty-warning">—</span>)
-                              : <span className={`ttm-badge ${ALERT_BADGE_CLASS[row.alertLevel]}`}>{row.alertLevel === 'EARLY' ? 'Cảnh báo sớm' : row.alertLevel === 'LATE' ? 'Cảnh báo muộn' : 'Fail TTM-CNTT'}</span>}
-                            {row.ttmE2eAlertLevel === 'FAIL' && <span className="ttm-badge fail-e2e">Fail TTM-E2E</span>}
-                          </div>
-                        </TD>
                         <StagePill cell={row.stages.design} />
                         <StagePill cell={row.stages.inProgress} />
                         <Ready4GoliveCell row={row} />
-                        <StagePill cell={row.stages.release} />
                       </>
                     )}
+                    {/* Release: for "rút gọn" this cell only ever depends on Due Date (issues.due_date),
+                        never on Start Date — see releaseCell in getEpicAlertRows — so it's unconditional. */}
+                    <StagePill cell={row.stages.release} />
                   </TR>
                 );
               })}

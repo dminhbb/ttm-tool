@@ -22,6 +22,11 @@ export interface EpicAlertRow {
   epicName: string;
   epicType: EpicComplexity | null;
   hasAlertHistory: boolean;
+  /** True when startDate is missing, or r4gDate/dueDate are chronologically nonsense relative to
+   * startDate/ideaApprovedDate — see hasDataAnomaly in epic-alert-service.ts. alertLevel and
+   * ttmE2eAlertLevel are forced to 'NONE' whenever this is true; the frontend shows "Không tính
+   * được" instead and groups these rows at the bottom of the table, highlighted. */
+  hasDataAnomaly: boolean;
   missingStandardInfo: string[];
   projectKey: string;
   r4gDate: string | null;
@@ -98,6 +103,11 @@ export interface EpicAlertRowPhased {
   epicName: string;
   epicType: EpicComplexity | null;
   hasAlertHistory: boolean;
+  /** True when startDate is missing, or r4gDate/dueDate are chronologically nonsense relative to
+   * startDate/ideaApprovedDate — see hasDataAnomaly in epic-alert-service.ts. alertLevel and
+   * ttmE2eAlertLevel are forced to 'NONE' whenever this is true; the frontend shows "Không tính
+   * được" instead and groups these rows at the bottom of the table, highlighted. */
+  hasDataAnomaly: boolean;
   missingStandardInfo: string[];
   /** PM/SM of the Epic's project (projects.lead_name) — not the Jira assignee. */
   ownerName: string;

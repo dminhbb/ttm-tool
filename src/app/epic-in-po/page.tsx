@@ -622,7 +622,7 @@ export default function EpicInPoPage() {
               {pageRows.map((row: EpicAlertRowPhased) => {
                 const isMissingCore = !row.t1StartDate;
                 return (
-                  <TR key={row.epicKey} className={isMissingCore ? 'missing-row' : undefined}>
+                  <TR key={row.epicKey} className={row.hasDataAnomaly ? 'missing-row' : undefined}>
                     <TD className="ttm-epic-col-sticky ttm-col-border-right">
                       <AlertHistoryButton row={row} onOpen={setAlertHistoryRow} />
                       <JiraLinkButton epicKey={row.epicKey} viewIssueBaseUrl={viewIssueBaseUrl} />
@@ -649,41 +649,51 @@ export default function EpicInPoPage() {
                         </span>
                       )}
                     </TD>
+                    <TD>
+                      {row.hasDataAnomaly ? (
+                        isMissingCore
+                          ? (row.currentStatus === 'To Do' ? <span className="ttm-empty-warning">—</span> : <span className="ttm-badge fail">Thiếu Start Date</span>)
+                          : <span className="ttm-metric na">Không tính được</span>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                          {row.alertLevel === 'NONE'
+                            ? (row.r4gDate
+                              ? <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT đúng hạn theo rule">Đạt TTM</span>
+                              : <span className="ttm-empty-warning">—</span>)
+                            : <span className={`ttm-badge ${ALERT_BADGE_CLASS[row.alertLevel]}`}>{row.alertLevel === 'EARLY' ? 'Cảnh báo sớm' : row.alertLevel === 'LATE' ? 'Cảnh báo muộn' : 'Fail TTM-CNTT'}</span>}
+                          {row.ttmE2eAlertLevel === 'FAIL' && <span className="ttm-badge fail-e2e">Fail TTM-E2E</span>}
+                        </div>
+                      )}
+                    </TD>
                     {isMissingCore ? (
-                      <>
-                        <TD>{row.currentStatus === 'To Do' ? <span className="ttm-empty-warning">—</span> : <span className="ttm-badge fail">Thiếu Start Date</span>}</TD>
-                        <TD className="ttm-metric na">Không tính được</TD>
-                        <TD className="ttm-metric na ttm-col-border-right">Không tính được</TD>
-                        <TD><StatusBadge status={row.currentStatus} /></TD>
-                        <TD className="ttm-phase-cell pass">{formatDate(row.stages.release.baselineSourceDate)}</TD>
-                        <TD><span className="ttm-metric na">Không có</span></TD>
-                        <TD colSpan={6} className="ttm-metric na">Chưa thể tính lịch TTM-CNTT do thiếu dữ liệu bắt buộc.</TD>
-                      </>
+                      <TD className="ttm-metric na">Không tính được</TD>
+                    ) : (
+                      <TtmCnttStrips compact={allColumnsCollapsed} row={row} />
+                    )}
+                    {/* TTM-E2E: T0 (Idea Approved → Jira creation date) always resolves — independent
+                        of Start Date, so this renders the same whether or not the Epic is missing
+                        Start Date (see resolveTtmE2eRelease in epic-alert-service.ts). */}
+                    <TtmE2eStrips compact={allColumnsCollapsed} row={row} />
+                    <TD className={allColumnsCollapsed ? 'ttm-col-compact-status' : undefined}><StatusBadge status={row.currentStatus} /></TD>
+                    <TD className="ttm-phase-cell pass">{formatDate(row.stages.release.baselineSourceDate)}</TD>
+                    {isMissingCore ? (
+                      <TD><span className="ttm-metric na">Không có</span></TD>
+                    ) : (
+                      <TD className="ttm-phase-cell pass">{formatDate(row.t1StartDate)}</TD>
+                    )}
+                    {isMissingCore ? (
+                      <TD colSpan={5} className="ttm-metric na">Chưa thể tính lịch TTM-CNTT do thiếu dữ liệu bắt buộc.</TD>
                     ) : (
                       <>
-                        <TD>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
-                            {row.alertLevel === 'NONE'
-                              ? (row.r4gDate
-                                ? <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT đúng hạn theo rule">Đạt TTM</span>
-                                : <span className="ttm-empty-warning">—</span>)
-                              : <span className={`ttm-badge ${ALERT_BADGE_CLASS[row.alertLevel]}`}>{row.alertLevel === 'EARLY' ? 'Cảnh báo sớm' : row.alertLevel === 'LATE' ? 'Cảnh báo muộn' : 'Fail TTM-CNTT'}</span>}
-                            {row.ttmE2eAlertLevel === 'FAIL' && <span className="ttm-badge fail-e2e">Fail TTM-E2E</span>}
-                          </div>
-                        </TD>
-                        <TtmCnttStrips compact={allColumnsCollapsed} row={row} />
-                        <TtmE2eStrips compact={allColumnsCollapsed} row={row} />
-                        <TD className={allColumnsCollapsed ? 'ttm-col-compact-status' : undefined}><StatusBadge status={row.currentStatus} /></TD>
-                        <TD className="ttm-phase-cell pass">{formatDate(row.stages.release.baselineSourceDate)}</TD>
-                        <TD className="ttm-phase-cell pass">{formatDate(row.t1StartDate)}</TD>
                         <CollapsiblePhaseCell cell={row.stages.design} isCollapsed={collapsedColumns.has('DESIGN')} />
                         <CollapsiblePhaseCell cell={row.stages.dev} isCollapsed={collapsedColumns.has('DEV')} />
                         <CollapsiblePhaseCell cell={row.stages.test} isCollapsed={collapsedColumns.has('TEST')} />
                         <CollapsiblePhaseCell cell={row.stages.pentest} isCollapsed={collapsedColumns.has('PENTEST')} />
                         <PhaseStageCell cell={row.stages.r4golive} actualDateText={row.r4gDate} />
-                        <PhaseStageCell cell={row.stages.release} actualDateText={row.dueDate} />
                       </>
                     )}
+                    {/* Release: T0-based baseline, always resolves independent of Start Date. */}
+                    <PhaseStageCell cell={row.stages.release} actualDateText={row.dueDate} />
                   </TR>
                 );
               })}

@@ -86,6 +86,39 @@ Hoặc:
 R4G Date > Target R4G Date
 ```
 
+Target R4G Date lấy từ `ttm_policy_configs` (TTM_CNTT), không còn từ cột `fail_offset_days` trên
+`epic_status_alert_rules` (cột này đã bị drop — xem `02-ttm-concepts-and-rules.md`).
+
+### 4.5. Dữ liệu bất thường (`hasDataAnomaly`) — không tính cảnh báo
+
+Từ khi 2 rule validate "R4G Date trước Start Date" và "Due Date trước T0" được hạ từ ERROR xuống
+WARNING (không còn chặn import — xem `07-data-source-and-csv-import.md` §7), các Epic có dữ liệu
+ngày phi logic này vẫn được đưa vào `issues`. Ở tầng đọc, `hasDataAnomaly(row)`
+(`src/lib/epic-alert-service.ts`) đánh dấu true khi:
+
+```text
+Thiếu Start Date
+HOẶC (có R4G Date VÀ R4G Date < Start Date)
+HOẶC (có Due Date VÀ có T0 VÀ Due Date < T0)
+```
+
+Với Epic bị đánh dấu:
+
+- `alertLevel` và `ttmE2eAlertLevel` bị ép về `NONE` — cột Nhận xét hiện **"Không tính được"** thay
+  vì badge Cảnh báo/Fail hoặc "Đạt TTM" (tránh hiện kết quả giả-sạch do dải ngày phi logic).
+- Dòng bị đẩy xuống **cuối bảng** và tô nền highlight (class `.missing-row`) trên cả 3 màn hình
+  Quản trị Epic.
+- **Ngoại lệ khi vẫn có Start Date** (chỉ R4G/Due Date phi logic, không phải thiếu Start Date): cột
+  TTM-CNTT **vẫn vẽ stripe bình thường** — stripe baseline theo Start Date + rule, stripe thực tế
+  bắt đầu tại Start Date và kết thúc luôn là "hôm nay" (bỏ qua R4G Date phi logic thay vì vẽ ngược).
+  Tương tự, cột TTM-E2E cũng không dùng Due Date phi logic làm điểm cuối, luôn fallback về "hôm nay".
+- Cột TTM-E2E và cột Release (tính từ T0, không phụ thuộc Start Date — xem mục 9) **vẫn hiển thị
+  bình thường** ngay cả khi Epic thiếu Start Date, vì T0 luôn tính được qua fallback (Idea Approved
+  Date → ngày tạo Jira). Chỉ các cột phụ thuộc Start Date trực tiếp (TTM-CNTT, Design/In Progress/
+  Ready4Golive hoặc DESIGN/DEV/TEST/PENTEST/R4GOLIVE) mới hiện "Không tính được" khi thiếu Start Date.
+- Dashboard (`dashboard-service.ts`) loại các Epic này khỏi mẫu số/tử số tỷ lệ "Đạt TTM", gộp vào ô
+  thống kê "Thiếu dữ liệu chuẩn".
+
 ## 5. Cách tính mốc ngày
 
 Tất cả mốc ngày được tính bằng ngày làm việc.
@@ -182,9 +215,21 @@ Mục này chỉ áp dụng cho các cột **Design**, **In Progress**, **Ready4
 
 ### 9.1. Thứ tự trạng thái Epic
 
-```text
-To Do → IN PO → Design → In Progress → R4GOLIVE → MVPDONE → PILOT → Released
-```
+> **Cập nhật:** thứ tự chuẩn (`EPIC_WORKFLOW_STATUS_ORDER`, `src/lib/ttm-phase-rules.ts`) hiện là:
+>
+> ```text
+> TO DO → IN PO → DESIGN → DEV → TEST → PENTEST → R4GOLIVE → MVPDONE → RELEASED
+> ```
+>
+> Không có "PILOT". `In Progress`/`In Dev` (Jira cũ) được chuẩn hóa thành `DEV`; `Ready For Golive`
+> chuẩn hóa thành `R4GOLIVE`; `Pen Test` chuẩn hóa thành `PENTEST`. Đây là thứ tự dùng chung cho cả
+> "Quản trị Epic (rút gọn)" (chỉ hiện 3 cột Design/In Progress/Ready4Golive, DEV/TEST/PENTEST gộp
+> chung "In Progress") lẫn "Quản trị Epic (đầy đủ)" (hiện đủ 5 cột pha — xem
+> `13-epic-15-and-epic-30-management.md`). Danh sách cũ bên dưới đã lỗi thời:
+>
+> ```text
+> To Do → IN PO → Design → In Progress → R4GOLIVE → MVPDONE → PILOT → Released
+> ```
 
 Trường `R4G Date` trên Epic tương ứng với ngày hoàn thành trạng thái **R4GOLIVE**. Status không khớp thứ tự nào ở trên (kể cả Cancelled) được xếp sau cùng — coi như Epic đã đi qua mọi cột.
 

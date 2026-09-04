@@ -5,6 +5,7 @@ import { computeComponentPhaseAlerts, computePhaseAlertLevel, computeTtmPhaseBas
 import type { TtmPhaseBaseline, TtmPhaseKey } from '@/lib/ttm-phase-rules';
 import {
   fetchEpicAlertContext,
+  hasDataAnomaly,
   missingStandardInfo,
   parseDate,
   resolveTtmActualRange,
@@ -118,7 +119,10 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
     const ttmCnttTarget = evaluation.ttm.cntt.workingDays ?? 0;
     const ttmCnttElapsed = ttmCnttStartDate ? Math.max(0, diffWorkingDays(ttmCnttStartDate, now, holidays)) : null;
     const ttmE2eTarget = evaluation.ttm.e2e.workingDays ?? 0;
-    const alertLevel = evaluation.alertLevel;
+    // See hasDataAnomaly in epic-alert-service.ts — forces alertLevel/ttmE2eAlertLevel to 'NONE'
+    // rather than let a chronologically-nonsense date range compute a falsely-clean result.
+    const dataAnomaly = hasDataAnomaly(row);
+    const alertLevel = dataAnomaly ? 'NONE' : evaluation.alertLevel;
 
     const baselines = startDate && ttmCnttTarget ? computeTtmPhaseBaselines(startDate, ttmCnttTarget, holidays) : null;
 
@@ -180,6 +184,7 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
       epicName: row.epicName,
       epicType: complexity,
       hasAlertHistory,
+      hasDataAnomaly: dataAnomaly,
       // "Thiếu T0" isn't shown on this screen — Idea Approved Date isn't part of Epic 15's scope.
       missingStandardInfo: missingStandardInfo(row).filter((item) => item !== 'T0'),
       // PM/SM of the Epic's project (projects.lead_name) — not the raw Jira assignee.
@@ -194,7 +199,7 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
       t0IdeaApprovedDate: row.ideaApprovedDate,
       t1StartDate: row.startDate,
       targetR4gDate: toIsoDate(targetR4gDate) ?? row.targetR4gDate,
-      ttmE2eAlertLevel: ttmE2eRelease.alertLevel,
+      ttmE2eAlertLevel: dataAnomaly ? 'NONE' : ttmE2eRelease.alertLevel,
       ttmActualElapsedWorkingDays: ttmActualElapsed,
       ttmActualFromDate: ttmActualRange.fromDate,
       ttmActualToDate: ttmActualRange.toDate,
@@ -220,6 +225,9 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
 
   const alertRank: Record<AlertLevel, number> = { FAIL: 0, LATE: 1, EARLY: 2, NONE: 3 };
   rows.sort((a, b) => {
+    // Data-anomaly Epics always sink to the bottom, regardless of alertLevel/remaining days —
+    // grouped together so a user cleaning up source Jira data can find them all in one place.
+    if (a.hasDataAnomaly !== b.hasDataAnomaly) return a.hasDataAnomaly ? 1 : -1;
     const rankDiff = alertRank[a.alertLevel] - alertRank[b.alertLevel];
     if (rankDiff !== 0) return rankDiff;
     return (a.remainingWorkingDays ?? Infinity) - (b.remainingWorkingDays ?? Infinity);

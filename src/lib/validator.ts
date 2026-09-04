@@ -197,19 +197,22 @@ export function validateJiraIssue(issue: RawJiraIssue): ValidationError[] {
       });
     }
     
-    // Check R4G Date vs Start Date
+    // Check R4G Date vs Start Date — WARNING, not ERROR: the row is still imported (flagged as a
+    // data anomaly and highlighted at the bottom of the Epic Alerts screens — see hasDataAnomaly
+    // in epic-alert-service.ts) rather than silently dropped, so the anomaly stays visible for
+    // whoever owns cleaning up the source Jira data.
     if (r4g && t1 && r4g < t1) {
       errors.push({
-        type: 'ERROR',
+        type: 'WARNING',
         field: 'R4G Date',
         message: 'Ngày R4G (R4G Date) không được trước Ngày bắt đầu (Start Date)'
       });
     }
-    
-    // Check Due date vs T0
+
+    // Check Due date vs T0 — WARNING, not ERROR: same reasoning as R4G Date vs Start Date above.
     if (due && t0 && due < t0) {
       errors.push({
-        type: 'ERROR',
+        type: 'WARNING',
         field: 'Due Date',
         message: 'Ngày hoàn thành (Due Date) không được trước Ngày duyệt ý tưởng (T0)'
       });

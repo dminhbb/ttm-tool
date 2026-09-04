@@ -66,6 +66,22 @@ export function missingStandardInfo(row: EpicRow): string[] {
   return missing;
 }
 
+/**
+ * True when this Epic's date fields can't support a trustworthy TTM calculation — missing Start
+ * Date, or the same two chronological-nonsense checks validator.ts downgraded from blocking ERROR
+ * to non-blocking WARNING at import time (R4G Date before Start Date, Due Date before T0/Idea
+ * Approved Date): these Epics are no longer silently dropped at import, but every Epic Alerts
+ * screen groups them at the bottom (highlighted) and shows "Không tính được" for alertLevel/
+ * ttmE2eAlertLevel instead of a number a broken date range would produce (see getEpicAlertRows /
+ * getEpicAlertRowsPhased, which force both fields to 'NONE' whenever this is true).
+ */
+export function hasDataAnomaly(row: Pick<EpicRow, 'dueDate' | 'ideaApprovedDate' | 'r4gDate' | 'startDate'>): boolean {
+  if (!row.startDate) return true;
+  if (row.r4gDate && row.r4gDate < row.startDate) return true;
+  if (row.dueDate && row.ideaApprovedDate && row.dueDate < row.ideaApprovedDate) return true;
+  return false;
+}
+
 export interface TtmActualRange {
   fromDate: string | null;
   toDate: string | null;
@@ -76,9 +92,11 @@ export interface TtmActualRange {
  * every screen with a TTM-CNTT stripe (Quản trị Epic rút gọn/đầy đủ, Epic in PO) so it can never
  * disagree between them. Start is always Start Date (T1), same as the baseline stripe directly
  * above it. End (X):
- * - X = today, when there's no R4G Date yet, or R4G Date is still in the future (today < R4G Date)
- *   — the Epic is still ongoing.
- * - X = R4G Date, once today has reached or passed it.
+ * - X = today, when there's no R4G Date yet, R4G Date is still in the future (today < R4G Date), or
+ *   R4G Date is chronologically nonsense (before Start Date — a data anomaly, see hasDataAnomaly;
+ *   the row is highlighted separately, but the stripe itself still draws start→today rather than
+ *   backwards) — the Epic is treated as still ongoing.
+ * - X = R4G Date, once today has reached or passed it (and it's not before Start Date).
  * ISO "YYYY-MM-DD" strings compare lexicographically the same as chronologically, so a plain
  * string comparison against R4G Date is exact here (see isPastBaseline's identical convention on
  * the client side).
@@ -88,7 +106,8 @@ export function resolveTtmActualRange(
   now: Date,
 ): TtmActualRange {
   const todayIso = toIsoDate(now);
-  const usesR4gDate = Boolean(row.r4gDate && todayIso && row.r4gDate <= todayIso);
+  const r4gDateIsChronological = Boolean(row.r4gDate && row.startDate && row.r4gDate >= row.startDate);
+  const usesR4gDate = Boolean(r4gDateIsChronological && row.r4gDate && todayIso && row.r4gDate <= todayIso);
   return { fromDate: row.startDate, toDate: usesR4gDate ? row.r4gDate : todayIso };
 }
 
@@ -126,13 +145,15 @@ export function resolveTtmE2eRelease(
     ? [ideaApprovedDate, RELEASE_BASELINE_SOURCE_LABEL.ideaApproved]
     : [parseDate(row.jiraCreatedAt), RELEASE_BASELINE_SOURCE_LABEL.jiraCreated];
   const baselineDate = baselineSourceDate && ttmE2eTargetWorkingDays ? addWorkingDays(baselineSourceDate, ttmE2eTargetWorkingDays, holidays) : null;
-  // "Stripe thực tế" end point (X): Due Date only once the Epic is Released AND that Due Date is
-  // already in the past (Due Date <= today) — otherwise (not yet Released, or a future Due Date)
-  // X stays "today", tracking the stripe forward live until the Epic is actually done.
+  // "Stripe thực tế" end point (X): Due Date only once the Epic is Released, that Due Date is
+  // already in the past (Due Date <= today), AND it isn't chronologically nonsense (before T0 — a
+  // data anomaly, see hasDataAnomaly) — otherwise (not yet Released, a future Due Date, or an
+  // anomalous one) X stays "today", tracking the stripe forward live rather than drawing backwards.
   const dueDate = parseDate(row.dueDate);
   const isReleased = normalizeEpicWorkflowStatus(row.status) === 'RELEASED';
   const dueDateAlreadyPassed = Boolean(dueDate && toDateKey(dueDate) <= toDateKey(now));
-  const actualToDate = isReleased && dueDateAlreadyPassed && dueDate ? dueDate : now;
+  const dueDateIsChronological = Boolean(dueDate && baselineSourceDate && dueDate.getTime() >= baselineSourceDate.getTime());
+  const actualToDate = isReleased && dueDateAlreadyPassed && dueDateIsChronological && dueDate ? dueDate : now;
   const elapsedWorkingDays = baselineSourceDate ? Math.max(0, diffWorkingDays(baselineSourceDate, actualToDate, holidays)) : null;
   const alertLevel: AlertLevel = !baselineDate || isCancelledStatus(row.status) ? 'NONE' : (actualToDate.getTime() > baselineDate.getTime() ? 'FAIL' : 'NONE');
   return {
@@ -413,7 +434,12 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
     const ttmCnttElapsed = ttmCnttStartDate ? Math.max(0, diffWorkingDays(ttmCnttStartDate, now, holidays)) : null;
     const ttmE2eTarget = evaluation.ttm.e2e.workingDays ?? 0;
     const ttmE2eRelease = resolveTtmE2eRelease(row, ttmE2eTarget, now, holidays);
-    const alertLevel = evaluation.alertLevel;
+    // A data anomaly makes alertLevel/ttmE2eAlertLevel meaningless (e.g. R4G Date before Start Date
+    // would otherwise compute as a falsely-clean 'NONE'/"Đạt TTM") — force both to 'NONE' so no
+    // filter/badge ever surfaces a fake result; the frontend shows "Không tính được" instead (see
+    // hasDataAnomaly).
+    const dataAnomaly = hasDataAnomaly(row);
+    const alertLevel = dataAnomaly ? 'NONE' : evaluation.alertLevel;
     const targetR4gDate = parseDate(evaluation.ttm.cntt.targetDate ?? row.targetR4gDate);
     const remainingWorkingDays = targetR4gDate ? diffWorkingDays(now, targetR4gDate, holidays) : null;
     const designRule = resolveOffsetRule(complexity, 'Design', statusAlertRules);
@@ -452,6 +478,7 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
       epicName: row.epicName,
       epicType: complexity,
       hasAlertHistory,
+      hasDataAnomaly: dataAnomaly,
       missingStandardInfo: missingStandardInfo(row),
       projectKey: row.project ?? '',
       r4gDate: row.r4gDate,
@@ -470,7 +497,7 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
       targetR4gDate: toIsoDate(targetR4gDate) ?? row.targetR4gDate,
       ttmCnttElapsedWorkingDays: ttmCnttElapsed,
       ttmCnttTargetWorkingDays: ttmCnttTarget,
-      ttmE2eAlertLevel: ttmE2eRelease.alertLevel,
+      ttmE2eAlertLevel: dataAnomaly ? 'NONE' : ttmE2eRelease.alertLevel,
       ttmE2eActualToDate: ttmE2eRelease.actualToDate,
       ttmE2eBaselineDate: ttmE2eRelease.baselineDate,
       ttmE2eBaselineSourceDate: ttmE2eRelease.baselineSourceDate,
@@ -481,6 +508,9 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
 
   const alertRank: Record<AlertLevel, number> = { FAIL: 0, LATE: 1, EARLY: 2, NONE: 3 };
   rows.sort((a, b) => {
+    // Data-anomaly Epics always sink to the bottom, regardless of alertLevel/remaining days —
+    // grouped together so a user cleaning up source Jira data can find them all in one place.
+    if (a.hasDataAnomaly !== b.hasDataAnomaly) return a.hasDataAnomaly ? 1 : -1;
     const rankDiff = alertRank[a.alertLevel] - alertRank[b.alertLevel];
     if (rankDiff !== 0) return rankDiff;
     return (a.remainingWorkingDays ?? Infinity) - (b.remainingWorkingDays ?? Infinity);

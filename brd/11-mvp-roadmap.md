@@ -1,5 +1,12 @@
 # 11 — MVP Roadmap
 
+> **Cập nhật:** đây là roadmap dự kiến ban đầu — nhiều mục đã build xong và vượt phạm vi mô tả ở
+> đây (Dashboard, TTM-E2E có cảnh báo Fail riêng, Py Jira API adapter đang có groundwork trong
+> schema `issues.jira_created_at`/`epic_stories`/`story_subtasks`, Ma trận phân quyền, phân quyền
+> theo Component, SUPERVISOR role, Ngày làm bù...). Đừng dùng file này để suy ra "chưa làm" — luôn
+> đối chiếu với `db/schema.sql`/`db/migrations` và các file BRD theo chủ đề (xem bảng định tuyến ở
+> `BRD_INDEX_FOR_AI_AGENT.md` §14) để biết trạng thái thật.
+
 ## MVP 0 — Foundation, Auth và RBAC
 
 ### Mục tiêu

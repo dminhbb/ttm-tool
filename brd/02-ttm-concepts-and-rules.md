@@ -7,7 +7,12 @@ Hệ thống theo dõi hai tiêu chí:
 | Tiêu chí | Ý nghĩa | Trọng tâm MVP1 |
 |---|---|---|
 | TTM-CNTT | Thời gian xử lý trong phạm vi CNTT | Có |
-| TTM-E2E | Toàn bộ hành trình từ duyệt ý tưởng tới Released | Chưa phải trọng tâm MVP1 |
+| TTM-E2E | Toàn bộ hành trình từ duyệt ý tưởng tới Released | Chưa phải trọng tâm MVP1 (nhưng đã có cảnh báo Fail riêng, xem cập nhật bên dưới) |
+
+> **Cập nhật:** TTM-E2E hiện có cảnh báo **Fail TTM-E2E** độc lập với Fail TTM-CNTT, không chỉ là
+> con số tham chiếu như dự kiến ban đầu — xem `resolveTtmE2eRelease` (`src/lib/epic-alert-service.ts`)
+> và mục 5 bên dưới. T0 (Idea Approved Date) nếu thiếu sẽ tự fallback sang ngày tạo Epic trên Jira
+> (`jira_created_at`, luôn có), nên baseline TTM-E2E luôn tính được kể cả khi Epic thiếu Start Date.
 
 ## 2. Epic đơn giản và Epic phức tạp
 
@@ -18,7 +23,11 @@ Hệ thống theo dõi hai tiêu chí:
 | Epic đơn giản | 3 tuần = 15 ngày làm việc | 6 tuần = 30 ngày làm việc |
 | Epic phức tạp | 6 tuần = 30 ngày làm việc | 10 tuần = 50 ngày làm việc |
 
-Các giá trị target có thể cấu hình được trong ứng dụng bởi CBQL Phòng.
+Các giá trị target có thể cấu hình được trong ứng dụng bởi CBQL Phòng, tại bảng `ttm_policy_configs`
+(panel "Tiêu chí Time to Market" — `ttm_type` × `epic_complexity_type` × `from_ttm_field`/
+`to_ttm_field`/`working_days`, xem `08-data-model.md` §11). Đây là nguồn DUY NHẤT cho mốc hạn TTM —
+không còn cột `fail_offset_days` trên `epic_status_alert_rules` (đã bị drop, xem
+`03-mvp1-working-days-alert-rules.md`).
 
 ## 3. Ngày làm việc
 
@@ -73,6 +82,13 @@ TTM-E2E dùng để đo toàn bộ hành trình của yêu cầu.
 Due Date là field nhập tay trên Jira.
 
 Trong MVP1, TTM-E2E có thể được lưu và hiển thị tham khảo nhưng chưa phải trọng tâm cảnh báo chính.
+
+> **Cập nhật:** đã triển khai cảnh báo **Fail TTM-E2E** — chỉ có FAIL/NONE (không có mức Cảnh báo
+> sớm/muộn riêng như TTM-CNTT). FAIL khi ngày kết thúc thực tế (Due Date đã qua, hoặc "hôm nay" nếu
+> Due Date chưa có/chưa qua) vượt baseline (T0 + số ngày làm việc TTM-E2E theo `ttm_policy_configs`).
+> T0 fallback: Idea Approved Date → ngày tạo Epic trên Jira (không dùng Start Date) nếu thiếu Idea
+> Approved Date. Nếu Epic bị đánh dấu `hasDataAnomaly` (xem `03-mvp1-working-days-alert-rules.md`),
+> cả Fail TTM-CNTT và Fail TTM-E2E đều bị ép về "Không tính được" thay vì hiện kết quả có thể sai.
 
 ## 7. Giai đoạn TTM-CNTT
 
