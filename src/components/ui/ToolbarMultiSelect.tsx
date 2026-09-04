@@ -39,6 +39,11 @@ export function ToolbarMultiSelect({
     onChange(value.includes(option) ? value.filter((item) => item !== option) : [...value, option]);
   };
 
+  // Toggle link: every option explicitly checked → "Bỏ chọn" (clears to []); anything else
+  // (none or only some checked) → "Chọn tất cả" (checks every option explicitly).
+  const allSelected = options.length > 0 && value.length === options.length;
+  const toggleAll = () => onChange(allSelected ? [] : options);
+
   return (
     <div className="ttm-multiselect" ref={containerRef}>
       <button
@@ -54,8 +59,10 @@ export function ToolbarMultiSelect({
       </button>
       {isOpen && !disabled && (
         <div className="ttm-multiselect-popover" role="group" aria-label={ariaLabel}>
-          {value.length > 0 && (
-            <button type="button" className="ttm-multiselect-clear" onClick={() => onChange([])}>Bỏ chọn tất cả</button>
+          {options.length > 0 && (
+            <button type="button" className="ttm-multiselect-clear" onClick={toggleAll}>
+              {allSelected ? 'Bỏ chọn' : 'Chọn tất cả'}
+            </button>
           )}
           <div className="ttm-multiselect-options">
             {options.length === 0 ? (

@@ -427,12 +427,13 @@ export default function EpicAlertsPage() {
         <EmptyState title="Không có Epic phù hợp" description="Thử thay đổi bộ lọc." />
       ) : (
         <TableContainer>
-          <Table className="min-w-[1300px]">
+          <Table className="min-w-[1400px]">
             <THead>
               <TR>
                 <TH className="min-w-[180px] ttm-col-border-right" title="issues.issue_key / issues.issue_name">Epic</TH>
                 <TH title="import_rows.normalized_data_json->>'epicType' (fallback: issues.epic_complexity_type)">Loại Epic</TH>
-                <TH title="issues.start_date">Start Date</TH>
+                <TH className="min-w-[100px]" title="T0 = Idea Approved Date, hoặc ngày tạo Jira nếu không có — điểm bắt đầu chu kỳ TTM-E2E">START-E2E</TH>
+                <TH title="issues.start_date">START-CNTT</TH>
                 <TH title="Tính từ issues.start_date + issues.epic_complexity_type (số ngày làm việc thực tế / chuẩn)">TTM-CNTT</TH>
                 <TH className="ttm-col-border-right" title="Baseline (dòng trên) = T0 + TTM-E2E; Thực tế (dòng dưới) = T0 → Due Date (hoặc hôm nay nếu chưa có). T0 = Idea Approved Date, hoặc Start Date, hoặc ngày tạo Jira">TTM-E2E</TH>
                 <TH title="issues.current_status">Status</TH>
@@ -466,6 +467,7 @@ export default function EpicAlertsPage() {
                     <TD><EpicTypeIcon epicType={row.epicType} /></TD>
                     {isMissingCore ? (
                       <>
+                        <TD>{formatDate(row.ttmE2eBaselineSourceDate)}</TD>
                         <TD><span className="ttm-metric na">Không có</span></TD>
                         <TD className="ttm-metric na">Không tính được</TD>
                         <TD className="ttm-metric na ttm-col-border-right">Không tính được</TD>
@@ -475,6 +477,7 @@ export default function EpicAlertsPage() {
                       </>
                     ) : (
                       <>
+                        <TD>{formatDate(row.ttmE2eBaselineSourceDate)}</TD>
                         <TD>{formatDate(row.t1StartDate)}</TD>
                         <TtmCnttStrips row={row} />
                         <TtmE2eStrips row={row} />

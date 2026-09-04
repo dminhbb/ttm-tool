@@ -600,7 +600,7 @@ export default function EpicInPoPage() {
         <EmptyState title="Không có Epic phù hợp" description="Thử thay đổi bộ lọc." />
       ) : (
         <TableContainer>
-          <Table className={allColumnsCollapsed ? 'ttm-table-compact' : 'min-w-[1440px]'}>
+          <Table className={allColumnsCollapsed ? 'ttm-table-compact' : 'min-w-[1540px]'}>
             <THead>
               <TR>
                 <TH className={`ttm-epic-col-sticky ttm-col-border-right ${allColumnsCollapsed ? 'min-w-[150px]' : 'min-w-[180px]'}`} title="issues.issue_key / issues.issue_name">Epic</TH>
@@ -608,7 +608,8 @@ export default function EpicInPoPage() {
                 <TH title="Baseline (dòng trên) = Start Date + TTM-CNTT; Thực tế (dòng dưới) = Start Date → R4G Date (hoặc hôm nay nếu chưa có)">TTM-CNTT</TH>
                 <TH className="ttm-col-border-right" title="Baseline (dòng trên) = T0 + TTM-E2E; Thực tế (dòng dưới) = T0 → Due Date (hoặc hôm nay nếu chưa có). T0 = Idea Approved Date, hoặc Start Date, hoặc ngày tạo Jira">TTM-E2E</TH>
                 <TH className={allColumnsCollapsed ? 'ttm-col-compact-status' : undefined} title="issues.current_status">Status</TH>
-                <TH title="issues.start_date">Start Date</TH>
+                <TH className={allColumnsCollapsed ? 'min-w-[92px]' : 'min-w-[100px]'} title="T0 = Idea Approved Date, hoặc ngày tạo Jira nếu không có — điểm bắt đầu chu kỳ TTM-E2E">START-E2E</TH>
+                <TH title="issues.start_date">START-CNTT</TH>
                 <CollapsiblePhaseHeader phase="DESIGN" isCollapsed={collapsedColumns.has('DESIGN')} onToggle={toggleColumn} />
                 <CollapsiblePhaseHeader phase="DEV" isCollapsed={collapsedColumns.has('DEV')} onToggle={toggleColumn} />
                 <CollapsiblePhaseHeader phase="TEST" isCollapsed={collapsedColumns.has('TEST')} onToggle={toggleColumn} />
@@ -654,6 +655,7 @@ export default function EpicInPoPage() {
                         <TD className="ttm-metric na">Không tính được</TD>
                         <TD className="ttm-metric na ttm-col-border-right">Không tính được</TD>
                         <TD><StatusBadge status={row.currentStatus} /></TD>
+                        <TD className="ttm-phase-cell pass">{formatDate(row.stages.release.baselineSourceDate)}</TD>
                         <TD><span className="ttm-metric na">Không có</span></TD>
                         <TD colSpan={6} className="ttm-metric na">Chưa thể tính lịch TTM-CNTT do thiếu dữ liệu bắt buộc.</TD>
                       </>
@@ -672,6 +674,7 @@ export default function EpicInPoPage() {
                         <TtmCnttStrips compact={allColumnsCollapsed} row={row} />
                         <TtmE2eStrips compact={allColumnsCollapsed} row={row} />
                         <TD className={allColumnsCollapsed ? 'ttm-col-compact-status' : undefined}><StatusBadge status={row.currentStatus} /></TD>
+                        <TD className="ttm-phase-cell pass">{formatDate(row.stages.release.baselineSourceDate)}</TD>
                         <TD className="ttm-phase-cell pass">{formatDate(row.t1StartDate)}</TD>
                         <CollapsiblePhaseCell cell={row.stages.design} isCollapsed={collapsedColumns.has('DESIGN')} />
                         <CollapsiblePhaseCell cell={row.stages.dev} isCollapsed={collapsedColumns.has('DEV')} />
