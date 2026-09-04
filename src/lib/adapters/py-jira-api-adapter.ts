@@ -12,19 +12,20 @@
  * Column schema by level (only relevant columns are populated per row;
  * columns for other levels are present but empty):
  *
- * Epic   : epic_key, epic_name, epic_request_type, epic_idea_approval_date,
+ * Epic   : epic_key, epic_name, epic_request_type, epic_assignee, epic_idea_approval_date,
  *           epic_start_date, epic_due_date, epic_r4g_date,
  *           epic_created, epic_updated, epic_components,
  *           epic_stories (comma/semicolon-separated story keys, stored verbatim — not the
  *             source of truth for the epic/story link, which is still epic_key on story rows),
- *           epic_requirement_level (maps to issues.requirement_level)
+ *           epic_request_level (maps to issues.requirement_level — older files may still name
+ *             this column epic_requirement_level, accepted as a fallback for backward compat)
  *
- * Story  : story_key, story_issue_type, story_summary, story_status, story_components,
- *           story_subtasks (comma/semicolon-separated subtask keys, stored verbatim — same
- *             caveat as epic_stories)
+ * Story  : story_key, story_issue_type, story_summary, story_status, story_assignee,
+ *           story_components, story_subtasks (comma/semicolon-separated subtask keys, stored
+ *             verbatim — same caveat as epic_stories)
  *          + epic_key  (the epic this story belongs to)
  *
- * Subtask: subtask_key, subtask_issue_type, subtask_summary, subtask_status,
+ * Subtask: subtask_key, subtask_issue_type, subtask_summary, subtask_status, subtask_assignee,
  *           subtask_start_date, subtask_due_date
  *           + story_key (the parent story)
  *           + epic_key  (the grandparent epic)
@@ -90,6 +91,7 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
     epic_name: idx('epic_name'),
     epic_status: idx('epic_status'),         // Optional — not always present in Py Jira API export
     epic_request_type: idx('epic_request_type'),
+    epic_assignee: idx('epic_assignee'),
     epic_idea_approval_date: idx('epic_idea_approval_date'),
     epic_start_date: idx('epic_start_date'),
     epic_due_date: idx('epic_due_date'),
@@ -98,13 +100,16 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
     epic_updated: idx('epic_updated'),
     epic_components: idx('epic_components'),
     epic_stories: idx('epic_stories'),
-    epic_requirement_level: idx('epic_requirement_level'),
+    // epic_request_level is the current column name; epic_requirement_level is kept as a fallback
+    // for files exported before the rename, so older files keep importing this field correctly.
+    epic_requirement_level: idx('epic_request_level') >= 0 ? idx('epic_request_level') : idx('epic_requirement_level'),
 
     // Story columns
     story_key: idx('story_key'),
     story_issue_type: idx('story_issue_type'),
     story_summary: idx('story_summary'),
     story_status: idx('story_status'),
+    story_assignee: idx('story_assignee'),
     story_components: idx('story_components'),
     story_subtasks: idx('story_subtasks'),
 
@@ -113,6 +118,7 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
     subtask_issue_type: idx('subtask_issue_type'),
     subtask_summary: idx('subtask_summary'),
     subtask_status: idx('subtask_status'),
+    subtask_assignee: idx('subtask_assignee'),
     subtask_start_date: idx('subtask_start_date'),
     subtask_due_date: idx('subtask_due_date'),
   };
@@ -150,7 +156,7 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
         projectKey,
         projectName: '',
         components: get(COL.epic_components),
-        assignee: '',
+        assignee: get(COL.epic_assignee),
         epicLink: '',
         epicName: get(COL.epic_name),
         epicStatus: '',
@@ -178,7 +184,7 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
         projectKey,
         projectName: '',
         components: get(COL.story_components),
-        assignee: '',
+        assignee: get(COL.story_assignee),
         epicLink: epicKey,      // epic_key on the same row is the story's parent epic
         epicName: '',
         epicStatus: '',
@@ -208,7 +214,7 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
         projectKey,
         projectName: '',
         components: '',
-        assignee: '',
+        assignee: get(COL.subtask_assignee),
         epicLink: epicKey,      // epic_key on the same row
         epicName: '',
         epicStatus: '',

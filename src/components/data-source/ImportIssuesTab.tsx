@@ -648,13 +648,35 @@ export function ImportIssuesTab() {
                 Hệ thống nhận diện và thiết lập thời gian tổng hợp là 07/08/2026 15:18.
               </p>
 
+              <p className="pt-2 font-bold text-fb-text-primary">
+                Cấu trúc file CSV — Adapter &quot;Py Jira API&quot; (mặc định):
+              </p>
+              <p className="text-[10px] leading-4 text-fb-text-secondary">
+                Mỗi dòng ứng với 1 issue (Epic/Story/Subtask), phân biệt qua cột <code>hierarchy_level</code>.
+                Cột theo từng cấp (chỉ điền ở dòng tương ứng cấp đó, các dòng khác để trống):
+              </p>
+              <ul className="list-disc pl-4 text-[10px] leading-5 text-fb-text-secondary">
+                <li><strong className="text-fb-text-primary">Epic</strong>: epic_key, epic_name, epic_status, epic_request_type, epic_request_level, epic_assignee, epic_idea_approval_date, epic_start_date, epic_due_date, epic_r4g_date, epic_created, epic_updated, epic_Components, epic_stories</li>
+                <li><strong className="text-fb-text-primary">Story</strong>: story_key, story_issue_type, story_summary, story_status, story_assignee, story_Components, story_subtasks (+ epic_key của dòng)</li>
+                <li><strong className="text-fb-text-primary">Subtask</strong>: subtask_key, subtask_issue_type, subtask_summary, subtask_status, subtask_assignee, subtask_start_date, subtask_due_date (+ story_key, epic_key của dòng)</li>
+              </ul>
+
               <div className="mt-2 border-t border-fb-border pt-3.5">
                 <a
                   href="/brd/Jira 2026-08-07T15_18_36+0700.csv"
                   className="inline-flex items-center gap-2 text-[10.5px] font-bold text-fb-blue transition-colors hover:text-fb-blue-hover focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-fb-blue/20"
                 >
                   <DownloadSimple className="w-4 h-4" weight="bold" />
-                  Tải file mẫu CSV
+                  Tải file mẫu CSV (Pure Jira Export)
+                </a>
+              </div>
+              <div>
+                <a
+                  href="/brd/py_jira_api_sample.csv"
+                  className="inline-flex items-center gap-2 text-[10.5px] font-bold text-fb-blue transition-colors hover:text-fb-blue-hover focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-fb-blue/20"
+                >
+                  <DownloadSimple className="w-4 h-4" weight="bold" />
+                  Tải file mẫu CSV (Py Jira API)
                 </a>
               </div>
             </CardBody>

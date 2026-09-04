@@ -94,7 +94,6 @@ export function resolveTtmActualRange(
 
 export const RELEASE_BASELINE_SOURCE_LABEL = {
   ideaApproved: 'Idea Approved Date (T0)',
-  startDate: 'Start Date',
   jiraCreated: 'Ngày tạo trên Jira',
 } as const;
 
@@ -104,7 +103,7 @@ export interface TtmE2eRelease {
   /** FAIL once actualToDate passes baselineDate — no EARLY/LATE tiers for TTM-E2E. */
   alertLevel: AlertLevel;
   baselineDate: string | null;
-  /** T0 itself — Idea Approved Date, else Start Date, else the Epic's Jira creation date. */
+  /** T0 itself — Idea Approved Date, else the Epic's Jira creation date. */
   baselineSourceDate: string | null;
   baselineSourceLabel: string | null;
   elapsedWorkingDays: number | null;
@@ -113,22 +112,19 @@ export interface TtmE2eRelease {
 /**
  * TTM-E2E's own baseline/actual pair, shared by every screen that shows a TTM-E2E stripe or its
  * Fail alert — same T0 fallback chain "đầy đủ" already used for its Release stage cell (Idea
- * Approved Date → Start Date → Jira creation date, always resolves), so a Fail TTM-E2E badge can
- * never disagree with that screen's own TTM-E2E stripe color.
+ * Approved Date → Jira creation date, always resolves, since the Jira `created` field is always
+ * present), so a Fail TTM-E2E badge can never disagree with that screen's own TTM-E2E stripe color.
  */
 export function resolveTtmE2eRelease(
-  row: Pick<EpicRow, 'dueDate' | 'ideaApprovedDate' | 'jiraCreatedAt' | 'startDate' | 'status'>,
+  row: Pick<EpicRow, 'dueDate' | 'ideaApprovedDate' | 'jiraCreatedAt' | 'status'>,
   ttmE2eTargetWorkingDays: number,
   now: Date,
   holidays: HolidaySet,
 ): TtmE2eRelease {
   const ideaApprovedDate = parseDate(row.ideaApprovedDate);
-  const startDate = parseDate(row.startDate);
   const [baselineSourceDate, baselineSourceLabel] = ideaApprovedDate
     ? [ideaApprovedDate, RELEASE_BASELINE_SOURCE_LABEL.ideaApproved]
-    : startDate
-      ? [startDate, RELEASE_BASELINE_SOURCE_LABEL.startDate]
-      : [parseDate(row.jiraCreatedAt), RELEASE_BASELINE_SOURCE_LABEL.jiraCreated];
+    : [parseDate(row.jiraCreatedAt), RELEASE_BASELINE_SOURCE_LABEL.jiraCreated];
   const baselineDate = baselineSourceDate && ttmE2eTargetWorkingDays ? addWorkingDays(baselineSourceDate, ttmE2eTargetWorkingDays, holidays) : null;
   // "Stripe thực tế" end point (X): Due Date only once the Epic is Released AND that Due Date is
   // already in the past (Due Date <= today) — otherwise (not yet Released, or a future Due Date)
