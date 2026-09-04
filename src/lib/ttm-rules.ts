@@ -1,4 +1,4 @@
-import { addWorkingDays, diffWorkingDays } from '@/lib/working-days';
+import { addWorkingDays, diffWorkingDays, emptyHolidaySet } from '@/lib/working-days';
 import type { HolidaySet } from '@/lib/working-days';
 import type { StatusAlertRule } from '@/lib/status-alert-rule-types';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
@@ -93,7 +93,7 @@ export function computeTtmAlert(input: TtmAlertInput): TtmAlertResult {
     return { daysRemaining: null, earlyAlertDate: null, lateAlertDate: null, level: 'NONE', targetR4gDate: input.targetR4gDate };
   }
 
-  const holidays = input.holidays ?? new Set<string>();
+  const holidays = input.holidays ?? emptyHolidaySet();
   const earlyAlertDate = rule ? addWorkingDays(input.startDate, rule.earlyOffset, holidays) : null;
   const lateAlertDate = rule ? addWorkingDays(input.startDate, rule.lateOffset, holidays) : null;
   const targetR4gDate = input.targetR4gDate;

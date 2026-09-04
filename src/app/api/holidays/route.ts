@@ -24,7 +24,9 @@ function validate(body: HolidayInput): string | null {
 export async function GET(request: NextRequest) {
   try {
     await requireUser(request, ['ADMIN', 'SUPERADMIN', 'SUPERVISOR']);
-    const holidays = await listHolidays();
+    const yearParam = new URL(request.url).searchParams.get('year');
+    const year = yearParam ? parseInt(yearParam, 10) : undefined;
+    const holidays = await listHolidays(Number.isNaN(year) ? undefined : year);
     return NextResponse.json(holidays);
   } catch (error: unknown) {
     console.error('API Error in holidays route:', error);

@@ -9,6 +9,8 @@ import type {
   HolidayInput,
   IssueTypeRoleMapping,
   IssueTypeRoleMappingInput,
+  MakeupWorkday,
+  MakeupWorkdayInput,
   Project,
   ProjectComponent,
   ProjectComponentInput,
@@ -148,7 +150,9 @@ export async function getProjectMetaByProjectKeyMap(): Promise<Map<string, Proje
 
 // ---------- Holidays ----------
 
-export async function listHolidays(): Promise<Holiday[]> {
+/** `year` filters to holidays whose Start Date falls in that year — omit for every year (used by
+ * getActiveHolidaySet, which always needs the full calendar regardless of any UI year filter). */
+export async function listHolidays(year?: number): Promise<Holiday[]> {
   const result = await pool.query<Holiday>(`
     SELECT
       id, name, holiday_type AS "holidayType", is_multi_day AS "isMultiDay",
@@ -156,8 +160,9 @@ export async function listHolidays(): Promise<Holiday[]> {
       COALESCE(description, '') AS description, is_active AS "isActive",
       created_at::text AS "createdAt"
     FROM holidays
+    WHERE $1::int IS NULL OR EXTRACT(YEAR FROM start_date) = $1
     ORDER BY start_date DESC;
-  `);
+  `, [year ?? null]);
   return result.rows;
 }
 
@@ -195,14 +200,121 @@ export async function deleteHoliday(id: number): Promise<void> {
   await pool.query('DELETE FROM holidays WHERE id = $1;', [id]);
 }
 
-/** Loads all active holidays expanded into a flat set of "YYYY-MM-DD" keys, for working-day math. */
+/**
+ * Loads all active holidays + makeup workdays ("ngày làm bù") for working-day math — always the
+ * FULL calendar across every year, never filtered to whichever year the management screens'
+ * filter happens to show, since a baseline computed from a Start Date can walk into a later or
+ * earlier year than either date's own year.
+ */
 export async function getActiveHolidaySet(): Promise<HolidaySet> {
-  const result = await pool.query<{ endDate: string; startDate: string }>(`
-    SELECT start_date::text AS "startDate", end_date::text AS "endDate"
-    FROM holidays
-    WHERE is_active;
-  `);
-  return expandHolidayRanges(result.rows);
+  const [holidayResult, workdayResult] = await Promise.all([
+    pool.query<{ endDate: string; startDate: string }>(`
+      SELECT start_date::text AS "startDate", end_date::text AS "endDate"
+      FROM holidays
+      WHERE is_active;
+    `),
+    pool.query<{ workDate: string }>(`
+      SELECT work_date::text AS "workDate"
+      FROM makeup_workdays
+      WHERE is_active;
+    `),
+  ]);
+  return {
+    holidays: expandHolidayRanges(holidayResult.rows),
+    workdays: new Set(workdayResult.rows.map((row) => row.workDate)),
+  };
+}
+
+// ---------- Makeup workdays ("Ngày làm bù") ----------
+
+/** `year` filters to workdays in that year — omit for every year. */
+export async function listMakeupWorkdays(year?: number): Promise<MakeupWorkday[]> {
+  const result = await pool.query<MakeupWorkday>(`
+    SELECT
+      id, work_date::text AS "workDate", COALESCE(description, '') AS description,
+      is_active AS "isActive", created_at::text AS "createdAt"
+    FROM makeup_workdays
+    WHERE $1::int IS NULL OR EXTRACT(YEAR FROM work_date) = $1
+    ORDER BY work_date DESC;
+  `, [year ?? null]);
+  return result.rows;
+}
+
+export async function createMakeupWorkday(input: MakeupWorkdayInput): Promise<{ error?: string; workday?: MakeupWorkday }> {
+  try {
+    const result = await pool.query<MakeupWorkday>(`
+      INSERT INTO makeup_workdays (work_date, description, is_active)
+      VALUES ($1, $2, $3)
+      RETURNING id, work_date::text AS "workDate", COALESCE(description, '') AS description,
+        is_active AS "isActive", created_at::text AS "createdAt";
+    `, [input.workDate, input.description || null, input.isActive]);
+    return { workday: result.rows[0] };
+  } catch (error: unknown) {
+    if (error instanceof Error && 'code' in error && (error as { code?: string }).code === '23505') return { error: 'Ngày làm bù này đã tồn tại.' };
+    throw error;
+  }
+}
+
+export async function updateMakeupWorkday(id: number, input: MakeupWorkdayInput): Promise<{ error?: string; workday?: MakeupWorkday }> {
+  try {
+    const result = await pool.query<MakeupWorkday>(`
+      UPDATE makeup_workdays SET
+        work_date = $2, description = $3, is_active = $4, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING id, work_date::text AS "workDate", COALESCE(description, '') AS description,
+        is_active AS "isActive", created_at::text AS "createdAt";
+    `, [id, input.workDate, input.description || null, input.isActive]);
+    if (result.rowCount === 0) return { error: 'Không tìm thấy Ngày làm bù.' };
+    return { workday: result.rows[0] };
+  } catch (error: unknown) {
+    if (error instanceof Error && 'code' in error && (error as { code?: string }).code === '23505') return { error: 'Ngày làm bù này đã tồn tại.' };
+    throw error;
+  }
+}
+
+export async function deleteMakeupWorkday(id: number): Promise<void> {
+  await pool.query('DELETE FROM makeup_workdays WHERE id = $1;', [id]);
+}
+
+export interface CopyHolidayDataResult {
+  holidaysCopied: number;
+  targetYear: number;
+  workdaysCopied: number;
+}
+
+/**
+ * "Copy sang năm sau": duplicates every holiday and makeup workday recorded in `year` into
+ * `year + 1`, shifting every date field by exactly +1 year (holidays keep their own name/type/
+ * multi-day span, workdays keep their own description). Skips a holiday whose (name, shifted Start
+ * Date) already exists in the target year, and relies on makeup_workdays' own UNIQUE(work_date) via
+ * ON CONFLICT DO NOTHING — so running this twice for the same year is safe (no duplicate rows).
+ */
+export async function copyHolidayDataToNextYear(year: number): Promise<CopyHolidayDataResult> {
+  const targetYear = year + 1;
+  const [holidayResult, workdayResult] = await Promise.all([
+    pool.query(`
+      INSERT INTO holidays (name, holiday_type, is_multi_day, start_date, end_date, description, is_active)
+      SELECT h.name, h.holiday_type, h.is_multi_day,
+        (h.start_date + INTERVAL '1 year')::date, (h.end_date + INTERVAL '1 year')::date,
+        h.description, h.is_active
+      FROM holidays h
+      WHERE EXTRACT(YEAR FROM h.start_date) = $1
+        AND NOT EXISTS (
+          SELECT 1 FROM holidays h2
+          WHERE h2.name = h.name AND h2.start_date = (h.start_date + INTERVAL '1 year')::date
+        )
+      RETURNING id;
+    `, [year]),
+    pool.query(`
+      INSERT INTO makeup_workdays (work_date, description, is_active)
+      SELECT (w.work_date + INTERVAL '1 year')::date, w.description, w.is_active
+      FROM makeup_workdays w
+      WHERE EXTRACT(YEAR FROM w.work_date) = $1
+      ON CONFLICT (work_date) DO NOTHING
+      RETURNING id;
+    `, [year]),
+  ]);
+  return { holidaysCopied: holidayResult.rowCount ?? 0, targetYear, workdaysCopied: workdayResult.rowCount ?? 0 };
 }
 
 // ---------- Issue Type ⇄ Role mapping ----------

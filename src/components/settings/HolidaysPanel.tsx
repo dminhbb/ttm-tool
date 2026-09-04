@@ -44,7 +44,11 @@ function formatDate(value: string): string {
   return `${day}/${month}/${date.getFullYear()}`;
 }
 
-export function HolidaysPanel() {
+export interface HolidaysPanelProps {
+  year: number;
+}
+
+export function HolidaysPanel({ year }: HolidaysPanelProps) {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -56,7 +60,7 @@ export function HolidaysPanel() {
   const fetchHolidays = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/holidays');
+      const res = await fetch(`/api/holidays?year=${year}`);
       if (res.ok) setHolidays(await res.json());
     } finally {
       setIsLoading(false);
@@ -65,7 +69,8 @@ export function HolidaysPanel() {
 
   useEffect(() => {
     void Promise.resolve().then(fetchHolidays);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [year]);
 
   const openCreate = () => {
     setEditingId(null);

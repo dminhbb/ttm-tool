@@ -1,7 +1,7 @@
 'use client';
 
-import { HolidaysPanel } from '@/components/settings/HolidaysPanel';
+import { HolidaysAndWorkdaysSection } from '@/components/settings/HolidaysAndWorkdaysSection';
 
 export default function HolidaysAdminPage() {
-  return <HolidaysPanel />;
+  return <HolidaysAndWorkdaysSection />;
 }

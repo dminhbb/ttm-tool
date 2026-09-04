@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Calendar, LinkSimple, Tag, X } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
-import { HolidaysPanel } from '@/components/settings/HolidaysPanel';
+import { HolidaysAndWorkdaysSection } from '@/components/settings/HolidaysAndWorkdaysSection';
 import { IssueTypeRolesPanel } from '@/components/settings/IssueTypeRolesPanel';
 import { JiraConfigPanel } from '@/components/settings/JiraConfigPanel';
 
@@ -21,7 +21,7 @@ interface SettingsSection {
 }
 
 const SECTIONS: SettingsSection[] = [
-  { id: 'holidays', icon: Calendar, label: 'Quản lý ngày nghỉ', panel: <HolidaysPanel /> },
+  { id: 'holidays', icon: Calendar, label: 'Quản lý ngày nghỉ/làm bù', panel: <HolidaysAndWorkdaysSection /> },
   { id: 'issue-type-roles', icon: Tag, label: 'Quản lý Issue Type', panel: <IssueTypeRolesPanel /> },
   { id: 'jira-config', icon: LinkSimple, label: 'Cấu hình Jira', panel: <JiraConfigPanel /> },
 ];

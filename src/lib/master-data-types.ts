@@ -70,6 +70,23 @@ export interface HolidayInput {
   startDate: string;
 }
 
+/** "Ngày làm bù" — a Saturday/Sunday explicitly declared a normal working day, to make up for an
+ * extended holiday block before/after it (see working-days.ts's HolidaySet.workdays). Always a
+ * single date (no range, unlike Holiday). */
+export interface MakeupWorkday {
+  createdAt: string;
+  description: string;
+  id: number;
+  isActive: boolean;
+  workDate: string;
+}
+
+export interface MakeupWorkdayInput {
+  description: string;
+  isActive: boolean;
+  workDate: string;
+}
+
 export interface ProjectComponent {
   componentName: string;
   createdAt: string;
