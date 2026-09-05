@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils';
 import { trackFeatureUsage } from '@/lib/usage-tracking';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { UserMenu } from '@/components/layout/UserMenu';
+import { ChangePasswordModal } from '@/components/layout/ChangePasswordModal';
 import { GeneralSettingsModal } from '@/components/settings/GeneralSettingsModal';
 import { SystemStatusFooter } from '@/components/layout/SystemStatusFooter';
 
@@ -291,6 +292,7 @@ export function AppShell({ children }: AppShellProps) {
   const [mobileNavigationOpen, setMobileNavigationOpen] = React.useState(false);
   const [desktopNavigationExpanded, setDesktopNavigationExpanded] = React.useState(false);
   const [generalSettingsOpen, setGeneralSettingsOpen] = React.useState(false);
+  const [mustChangePassword, setMustChangePassword] = React.useState(false);
   const [role, setRole] = React.useState<UserRole | null>(null);
   // Best-effort last-known role for this tab, used only to avoid flashing the "no role" nav —
   // never to decide `isAuthorized` below, so a stale/downgraded cache can't skip the real gate.
@@ -310,10 +312,13 @@ export function AppShell({ children }: AppShellProps) {
     let cancelled = false;
     fetch('/api/auth/me', { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : null))
-      .then((data: { user?: { role: UserRole } } | null) => {
+      .then((data: { user?: { mustChangePassword?: boolean; role: UserRole } } | null) => {
         if (cancelled || !data?.user) return;
         setRole(data.user.role);
         window.sessionStorage.setItem(ROLE_CACHE_KEY, data.user.role);
+        if (data.user.mustChangePassword) {
+          setMustChangePassword(true);
+        }
       })
       .catch(() => undefined);
     return () => { cancelled = true; };
@@ -379,6 +384,7 @@ export function AppShell({ children }: AppShellProps) {
       )}
 
       <GeneralSettingsModal isOpen={generalSettingsOpen} onClose={() => setGeneralSettingsOpen(false)} />
+      <ChangePasswordModal isForceChangePassword isOpen={mustChangePassword} onClose={() => {}} />
 
       <div className={cn('min-w-0', desktopNavigationExpanded ? 'lg:pl-64' : 'lg:pl-[72px]')}>
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-fb-border ttm-frosted-header px-4 sm:px-6">
@@ -402,7 +408,14 @@ export function AppShell({ children }: AppShellProps) {
         </header>
 
         <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 p-4 sm:p-6 lg:p-8">
-          {isAuthorized ? children : (
+          {mustChangePassword ? (
+            <div className="flex flex-1 flex-col items-center justify-center py-24 text-center">
+              <p className="text-base font-bold text-fb-text-primary">Yêu cầu đổi mật khẩu lần đầu</p>
+              <p className="mt-2 text-sm text-fb-text-secondary">
+                Tài khoản của bạn cần đổi mật khẩu lần đầu để đảm bảo bảo mật trước khi tiếp tục sử dụng hệ thống.
+              </p>
+            </div>
+          ) : isAuthorized ? children : (
             <div className="flex flex-1 items-center justify-center py-24 text-sm text-fb-text-secondary">
               Đang kiểm tra quyền truy cập…
             </div>

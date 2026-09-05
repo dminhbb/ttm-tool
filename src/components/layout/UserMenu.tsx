@@ -2,12 +2,13 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { BookOpen, FlowArrow, GearSix, SignOut, UserCircle, Warning } from '@phosphor-icons/react';
+import { BookOpen, FlowArrow, GearSix, Key, SignOut, UserCircle, Warning } from '@phosphor-icons/react';
 import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { AlertLogicModal, DataLogicModal } from '@/components/layout/HelpPanels';
 import { UserInfoModal } from '@/components/layout/UserInfoModal';
+import { ChangePasswordModal } from '@/components/layout/ChangePasswordModal';
 import { AppearancePanel } from '@/components/settings/AppearancePanel';
 import { cn } from '@/lib/utils';
 import { trackFeatureUsage } from '@/lib/usage-tracking';
@@ -31,6 +32,7 @@ interface UserMenuProps {
 interface CurrentUser {
   email: string;
   fullName: string;
+  mustChangePassword?: boolean;
   role: UserRole;
 }
 
@@ -49,6 +51,7 @@ export function UserMenu({ expanded }: UserMenuProps) {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
   const [isUserInfoOpen, setIsUserInfoOpen] = React.useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = React.useState(false);
   const [isAlertLogicOpen, setIsAlertLogicOpen] = React.useState(false);
   const [isDataLogicOpen, setIsDataLogicOpen] = React.useState(false);
   const [hasLoadedPreference, setHasLoadedPreference] = React.useState(false);
@@ -66,10 +69,14 @@ export function UserMenu({ expanded }: UserMenuProps) {
   React.useEffect(() => {
     const loadUser = async (): Promise<void> => {
       try {
-        const response = await fetch('/api/auth/me');
+        const response = await fetch('/api/auth/me', { cache: 'no-store' });
         const payload: unknown = await response.json();
         if (response.ok && typeof payload === 'object' && payload !== null && 'user' in payload && typeof payload.user === 'object' && payload.user !== null && 'email' in payload.user && 'fullName' in payload.user && 'role' in payload.user && typeof payload.user.email === 'string' && typeof payload.user.fullName === 'string' && typeof payload.user.role === 'string') {
-          setUser({ email: payload.user.email, fullName: payload.user.fullName, role: payload.user.role as UserRole });
+          const mustChangePassword = 'mustChangePassword' in payload.user && typeof payload.user.mustChangePassword === 'boolean' ? payload.user.mustChangePassword : false;
+          setUser({ email: payload.user.email, fullName: payload.user.fullName, role: payload.user.role as UserRole, mustChangePassword });
+          if (mustChangePassword) {
+            setIsChangePasswordOpen(true);
+          }
         }
       } catch (error) {
         console.warn('Unable to load the signed-in user profile.', error);
@@ -134,6 +141,15 @@ export function UserMenu({ expanded }: UserMenuProps) {
           >
             <UserCircle className="size-4 shrink-0" weight="bold" aria-hidden="true" />
             <span>Thông tin cá nhân</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { trackFeatureUsage(); setIsMenuOpen(false); setIsChangePasswordOpen(true); }}
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-fb-text-primary transition-colors hover:bg-fb-control"
+            role="menuitem"
+          >
+            <Key className="size-4 shrink-0" weight="bold" aria-hidden="true" />
+            <span>Đổi mật khẩu</span>
           </button>
           <button
             type="button"
@@ -224,6 +240,7 @@ export function UserMenu({ expanded }: UserMenuProps) {
       </Modal>
 
       <UserInfoModal isOpen={isUserInfoOpen} onClose={() => setIsUserInfoOpen(false)} />
+      <ChangePasswordModal isForceChangePassword={user?.mustChangePassword} isOpen={isChangePasswordOpen} onClose={() => setIsChangePasswordOpen(false)} />
       <AlertLogicModal isOpen={isAlertLogicOpen} onClose={() => setIsAlertLogicOpen(false)} />
       {isAdmin && <DataLogicModal isOpen={isDataLogicOpen} onClose={() => setIsDataLogicOpen(false)} />}
     </div>

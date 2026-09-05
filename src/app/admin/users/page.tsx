@@ -16,6 +16,7 @@ import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui
 import { DataTableToolbar } from '@/components/ui/DataTableToolbar';
 import { TableAction } from '@/components/ui/TableAction';
 import { USER_ROLES } from '@/lib/auth-types';
+import { generateCompliantPassword, PASSWORD_REQUIREMENTS_GUIDE, validatePassword } from '@/lib/password-rules';
 import { fuzzyIncludes } from '@/lib/fuzzy-search';
 import { compareValues, useSortableList } from '@/lib/use-sortable-list';
 import type { ManagedUser, UserInput, UserRole } from '@/lib/auth-types';
@@ -24,11 +25,11 @@ import type { Domain, Project, ProjectComponent } from '@/lib/master-data-types'
 type Tab = 'users' | 'reset' | 'registrations';
 type EditUserTab = 'info' | 'permission' | 'password';
 type UserSortKey = 'email' | 'fullName' | 'domain' | 'projects' | 'role' | 'status';
-type Ticket = { id: number; email: string; userId: number | null; createdAt: string };
+type Ticket = { createdAt: string; email: string; id: number; userId: number | null };
 type BulkDelete = { ids: number[]; type: 'registrations' | 'tickets' };
 
-const emptyUser = (): UserInput => ({ email: '', fullName: '', role: 'USER', isActive: true, password: '', domainIds: [], projectIds: [], projectComponents: {} });
-const randomPassword = () => `${crypto.randomUUID().slice(0, 8)}Aa!`;
+const emptyUser = (): UserInput => ({ domainIds: [], email: '', fullName: '', isActive: true, password: '', projectComponents: {}, projectIds: [], role: 'USER' });
+const randomPassword = () => generateCompliantPassword();
 
 export default function UsersPage() {
   const [tab, setTab] = useState<Tab>('users');
@@ -95,7 +96,8 @@ export default function UsersPage() {
     if (!editing) return;
     if (editing.isActive && editing.domainIds.length === 0) { setMessage({ text: 'User active phải thuộc ít nhất một Domain.', type: 'error' }); return; }
     if (editNewPassword || editConfirmPassword) {
-      if (editNewPassword.length < 8) { setMessage({ text: 'Mật khẩu mới phải có từ 8 ký tự.', type: 'error' }); return; }
+      const v = validatePassword(editNewPassword);
+      if (!v.isValid) { setMessage({ text: v.error || 'Mật khẩu mới không hợp lệ.', type: 'error' }); return; }
       if (editNewPassword !== editConfirmPassword) { setMessage({ text: 'Mật khẩu nhập lại không khớp.', type: 'error' }); return; }
     }
     const response = await fetch('/api/users', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editing) });
@@ -143,6 +145,8 @@ export default function UsersPage() {
 
   const reset = async () => {
     if (resetTickets.length === 0) return;
+    const v = validatePassword(password);
+    if (!v.isValid) { setMessage({ text: v.error || 'Mật khẩu mới không hợp lệ.', type: 'error' }); return; }
     const response = await fetch('/api/password-reset-requests', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tickets: resetTickets.map(({ id, userId }) => ({ id, userId })), password }) });
     const result = await response.json();
     if (response.ok) { const count = resetTickets.length; setResetTickets([]); setSelectedTicketIds([]); setMessage({ text: `Đã cấp lại mật khẩu cho ${count} user.`, type: 'success' }); void load(); }
@@ -212,23 +216,33 @@ export default function UsersPage() {
         <UserPermissionFields allProjectComponents={projectComponents} allProjects={projects} onChange={(user) => setEditing(user as ManagedUser)} projects={projectMultiOptions} user={editing} />
       </div>}
       {editTab === 'password' && <section className="ui-form-section" aria-labelledby="edit-user-reset-password-title">
-        <div>
-          <h3 id="edit-user-reset-password-title" className="ui-card-title">Cấp lại mật khẩu</h3>
-          <p className="mt-1 text-xs text-fb-text-secondary">Để trống nếu không muốn đổi mật khẩu cho user này.</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 id="edit-user-reset-password-title" className="ui-card-title">Cấp lại mật khẩu</h3>
+            <p className="mt-1 text-xs text-fb-text-secondary">Để trống nếu không muốn đổi mật khẩu cho user này.</p>
+            <p className="mt-1 text-xs font-medium text-fb-blue">Quy tắc mật khẩu: {PASSWORD_REQUIREMENTS_GUIDE}</p>
+          </div>
+          <Button onClick={() => {
+            const gen = generateCompliantPassword();
+            setEditNewPassword(gen);
+            setEditConfirmPassword(gen);
+            setShowEditNewPassword(true);
+            setShowEditConfirmPassword(true);
+          }} size="sm" type="button" variant="outline">Tạo ngẫu nhiên</Button>
         </div>
-        <div className="flex flex-col gap-4">
+        <div className="mt-4 flex flex-col gap-4">
           <div className="relative">
-            <Input className="pr-10" label="Mật khẩu mới" minLength={8} onChange={(event) => setEditNewPassword(event.target.value)} type={showEditNewPassword ? 'text' : 'password'} value={editNewPassword} />
+            <Input className="pr-10" label="Mật khẩu mới" onChange={(event) => setEditNewPassword(event.target.value)} type={showEditNewPassword ? 'text' : 'password'} value={editNewPassword} />
             <button aria-label="Hiện hoặc ẩn mật khẩu" className="absolute right-3 top-9" onClick={() => setShowEditNewPassword(!showEditNewPassword)} type="button">{showEditNewPassword ? <EyeSlash /> : <Eye />}</button>
           </div>
           <div className="relative">
-            <Input className="pr-10" label="Nhập lại mật khẩu mới" minLength={8} onChange={(event) => setEditConfirmPassword(event.target.value)} type={showEditConfirmPassword ? 'text' : 'password'} value={editConfirmPassword} />
+            <Input className="pr-10" label="Nhập lại mật khẩu mới" onChange={(event) => setEditConfirmPassword(event.target.value)} type={showEditConfirmPassword ? 'text' : 'password'} value={editConfirmPassword} />
             <button aria-label="Hiện hoặc ẩn mật khẩu" className="absolute right-3 top-9" onClick={() => setShowEditConfirmPassword(!showEditConfirmPassword)} type="button">{showEditConfirmPassword ? <EyeSlash /> : <Eye />}</button>
           </div>
         </div>
       </section>}
     </div>}</Modal>
-    <Modal isOpen={resetTickets.length > 0} onClose={() => setResetTickets([])} title="Cấp lại mật khẩu" footer={<><Button onClick={() => { setBulkDelete({ ids: resetTickets.map((ticket) => ticket.id), type: 'tickets' }); setResetTickets([]); }} variant="danger">Xóa yêu cầu</Button><Button onClick={() => setPassword(randomPassword())} variant="outline">Tạo ngẫu nhiên</Button><Button onClick={reset}>Lưu</Button></>}><div className="flex flex-col gap-4"><p className="text-fb-text-secondary">Mật khẩu mới sẽ áp dụng cho {resetTickets.length} user đã chọn.</p><Input label="Mật khẩu mới" minLength={8} onChange={(event) => setPassword(event.target.value)} value={password} /></div></Modal>
+    <Modal isOpen={resetTickets.length > 0} onClose={() => setResetTickets([])} title="Cấp lại mật khẩu" footer={<><Button onClick={() => { setBulkDelete({ ids: resetTickets.map((ticket) => ticket.id), type: 'tickets' }); setResetTickets([]); }} variant="danger">Xóa yêu cầu</Button><Button onClick={() => setPassword(randomPassword())} variant="outline">Tạo ngẫu nhiên</Button><Button onClick={reset}>Lưu</Button></>}><div className="flex flex-col gap-4"><p className="text-fb-text-secondary">Mật khẩu mới sẽ áp dụng cho {resetTickets.length} user đã chọn.</p><p className="text-xs font-medium text-fb-blue">Quy tắc mật khẩu: {PASSWORD_REQUIREMENTS_GUIDE}</p><Input label="Mật khẩu mới" onChange={(event) => setPassword(event.target.value)} value={password} /></div></Modal>
     <ConfirmDialog confirmLabel="Xóa user" description={`Bạn có chắc muốn xóa user ${deleting?.email ?? ''}?`} isOpen={deleting !== null} onClose={() => setDeleting(null)} onConfirm={remove} steps={1} title="Xóa user" />
     <ConfirmDialog confirmLabel="Xóa" description={`Bạn có chắc muốn xóa ${bulkDelete?.ids.length ?? 0} ${bulkDelete?.type === 'tickets' ? 'yêu cầu cấp lại mật khẩu' : 'yêu cầu đăng ký mới'} đã chọn?`} isOpen={bulkDelete !== null} onClose={() => setBulkDelete(null)} onConfirm={deleteSelected} steps={1} title="Xóa các mục đã chọn" />
   </div>;

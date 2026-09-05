@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser, resetUserPassword } from '@/lib/auth-service';
 import { verifyCaptcha } from '@/lib/captcha-service';
+import { validatePassword } from '@/lib/password-rules';
 
 type ResetTarget = { id: number; userId: number };
 
@@ -34,7 +35,7 @@ export async function PATCH(request: NextRequest) {
   try {
     const actor = await requireUser(request, ['ADMIN', 'SUPERADMIN']);
     const body: unknown = await request.json();
-    if (!isRecord(body) || typeof body.password !== 'string' || body.password.length < 8 || body.password.length > 256) return NextResponse.json({ error: 'Mật khẩu mới không hợp lệ.' }, { status: 400 });
+    if (!isRecord(body) || typeof body.password !== 'string' || !validatePassword(body.password).isValid) return NextResponse.json({ error: 'Mật khẩu mới không đạt quy tắc.' }, { status: 400 });
     const targets: ResetTarget[] = Array.isArray(body.tickets) ? body.tickets.filter(isResetTarget) : isResetTarget(body) ? [{ id: body.id, userId: body.userId }] : [];
     if (targets.length === 0 || targets.length > 100 || targets.length !== new Set(targets.map((target) => target.id)).size) return NextResponse.json({ error: 'Danh sách yêu cầu cấp lại mật khẩu không hợp lệ.' }, { status: 400 });
     const { default: pool } = await import('@/lib/db');

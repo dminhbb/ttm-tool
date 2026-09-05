@@ -7,6 +7,7 @@ import type { PoolClient } from 'pg';
 import pool, { getClient } from '@/lib/db';
 import type { AuthUser, DomainSummary, ManagedUser, ProjectSummary, UserInput, UserProfileDetails, UserRole } from '@/lib/auth-types';
 import { SESSION_COOKIE_NAME } from '@/lib/auth-constants';
+import { validatePassword } from '@/lib/password-rules';
 import { getUsageStatsTotals, recordUsageEvent, USAGE_STATS_RETENTION_DAYS } from '@/lib/usage-stats-service';
 
 export { SESSION_COOKIE_NAME } from '@/lib/auth-constants';
@@ -18,8 +19,8 @@ function tokenHash(value: string): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
-function mapAuthUser(row: AuthUser): AuthUser {
-  return { email: row.email, fullName: row.fullName, id: row.id, role: row.role };
+function mapAuthUser(row: AuthUser & { mustChangePassword?: boolean }): AuthUser {
+  return { email: row.email, fullName: row.fullName, id: row.id, role: row.role, mustChangePassword: Boolean(row.mustChangePassword) };
 }
 
 export function normalizeUsername(value: string): string {
@@ -27,18 +28,43 @@ export function normalizeUsername(value: string): string {
   return normalized.includes('@') ? normalized : `${normalized}@mbbank.com.vn`;
 }
 
-export async function authenticateLocal(username: string, password: string): Promise<AuthUser | null> {
+export type AuthResult =
+  | { user: AuthUser }
+  | { error: 'INACTIVE' | 'INVALID_CREDENTIALS' };
+
+export async function authenticateLocal(username: string, password: string): Promise<AuthResult> {
   const email = normalizeUsername(username);
-  const result = await pool.query<AuthUser & { passwordHash: string }>(`
-    SELECT id, email, full_name AS "fullName", role, password_hash AS "passwordHash"
+  const result = await pool.query<AuthUser & { isActive: boolean; mustChangePassword: boolean; passwordHash: string }>(`
+    SELECT id, email, full_name AS "fullName", role, is_active AS "isActive", password_hash AS "passwordHash", must_change_password AS "mustChangePassword"
     FROM users
-    WHERE email = $1 AND is_active = TRUE;
+    WHERE email = $1;
   `, [email]);
   const user = result.rows[0];
-  if (!user || !(await bcrypt.compare(password, user.passwordHash))) return null;
+  if (!user) return { error: 'INVALID_CREDENTIALS' };
+  if (!user.isActive) return { error: 'INACTIVE' };
+  if (!(await bcrypt.compare(password, user.passwordHash))) return { error: 'INVALID_CREDENTIALS' };
   await pool.query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1;', [user.id]);
   await recordUsageEvent(user.id, 'login');
-  return mapAuthUser(user);
+  return { user: mapAuthUser(user) };
+}
+
+export async function verifyUserPassword(userId: number, password: string): Promise<boolean> {
+  const result = await pool.query<{ passwordHash: string }>('SELECT password_hash AS "passwordHash" FROM users WHERE id = $1 AND is_active = TRUE;', [userId]);
+  const user = result.rows[0];
+  if (!user) return false;
+  return bcrypt.compare(password, user.passwordHash);
+}
+
+export async function changeUserPassword(userId: number, currentPassword: string, newPassword: string): Promise<{ error?: string; success: boolean }> {
+  const isValidCurrent = await verifyUserPassword(userId, currentPassword);
+  if (!isValidCurrent) return { success: false, error: 'Mật khẩu hiện tại không chính xác.' };
+
+  const validation = validatePassword(newPassword);
+  if (!validation.isValid) return { success: false, error: validation.error };
+
+  const passwordHash = await bcrypt.hash(newPassword, PASSWORD_HASH_ROUNDS);
+  await pool.query('UPDATE users SET password_hash = $2, must_change_password = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1;', [userId, passwordHash]);
+  return { success: true };
 }
 
 export async function createSession(userId: number, remember: boolean): Promise<{ expiresAt: Date; token: string }> {
@@ -55,7 +81,7 @@ export async function getCurrentUser(request?: NextRequest): Promise<AuthUser | 
   const token = request?.cookies.get(SESSION_COOKIE_NAME)?.value ?? (await cookies()).get(SESSION_COOKIE_NAME)?.value;
   if (!token) return null;
   const result = await pool.query<AuthUser>(`
-    SELECT u.id, u.email, u.full_name AS "fullName", u.role
+    SELECT u.id, u.email, u.full_name AS "fullName", u.role, u.must_change_password AS "mustChangePassword"
     FROM auth_sessions s
     JOIN users u ON u.id = s.user_id
     WHERE s.token_hash = $1 AND s.expires_at > CURRENT_TIMESTAMP AND u.is_active = TRUE;
@@ -190,8 +216,8 @@ export async function createManagedUser(input: UserInput): Promise<ManagedUser> 
   try {
     await client.query('BEGIN');
     const result = await client.query<{ id: number }>(`
-      INSERT INTO users (email, full_name, password_hash, role, is_active)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO users (email, full_name, password_hash, role, is_active, must_change_password)
+      VALUES ($1, $2, $3, $4, $5, TRUE)
       RETURNING id;
     `, [input.email, input.fullName, passwordHash, input.role, input.isActive]);
     userId = result.rows[0].id;
@@ -224,7 +250,7 @@ export async function updateManagedUser(id: number, input: UserInput): Promise<M
 
 export async function resetUserPassword(id: number, password: string, actorUserId: number): Promise<boolean> {
   const passwordHash = await bcrypt.hash(password, PASSWORD_HASH_ROUNDS);
-  const result = await pool.query('UPDATE users SET password_hash = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1;', [id, passwordHash]);
+  const result = await pool.query('UPDATE users SET password_hash = $2, must_change_password = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = $1;', [id, passwordHash]);
   if (result.rowCount !== 1) return false;
   await pool.query('DELETE FROM auth_sessions WHERE user_id = $1;', [id]);
   await pool.query('INSERT INTO audit_logs (user_id, action, entity_type, entity_id) VALUES ($1, $2, $3, $4);', [actorUserId, 'RESET_PASSWORD', 'USER', String(id)]);

@@ -28,11 +28,15 @@ export async function POST(request: NextRequest) {
       || body.username.trim().length === 0 || body.username.length > 255 || body.password.length === 0 || body.password.length > 256) {
       return NextResponse.json({ error: 'Thông tin đăng nhập không hợp lệ.' }, { status: 400 });
     }
-    const user = await authenticateLocal(body.username, body.password);
-    if (!user) {
+    const authResult = await authenticateLocal(body.username, body.password);
+    if ('error' in authResult) {
       recordFailure(ip);
+      if (authResult.error === 'INACTIVE') {
+        return NextResponse.json({ error: 'User chưa kích hoạt, liên hệ admin hoặc domain lead để hỗ trợ.' }, { status: 403 });
+      }
       return NextResponse.json({ error: 'Sai username hoặc mật khẩu.' }, { status: 401 });
     }
+    const user = authResult.user;
     attempts.delete(ip);
     const session = await createSession(user.id, body.remember);
     const response = NextResponse.json({ user });
