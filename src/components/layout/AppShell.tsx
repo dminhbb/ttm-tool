@@ -30,6 +30,7 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { UserMenu } from '@/components/layout/UserMenu';
 import { ChangePasswordModal } from '@/components/layout/ChangePasswordModal';
 import { GeneralSettingsModal } from '@/components/settings/GeneralSettingsModal';
+import { AdPopupDisplay } from '@/components/layout/AdPopupDisplay';
 import { SystemStatusFooter } from '@/components/layout/SystemStatusFooter';
 
 interface NavigationItem {
@@ -383,7 +384,8 @@ export function AppShell({ children }: AppShellProps) {
         </div>
       )}
 
-      <GeneralSettingsModal isOpen={generalSettingsOpen} onClose={() => setGeneralSettingsOpen(false)} />
+      <GeneralSettingsModal isOpen={generalSettingsOpen} onClose={() => setGeneralSettingsOpen(false)} role={role} />
+      <AdPopupDisplay />
       <ChangePasswordModal isForceChangePassword isOpen={mustChangePassword} onClose={() => {}} />
 
       <div className={cn('min-w-0', desktopNavigationExpanded ? 'lg:pl-64' : 'lg:pl-[72px]')}>

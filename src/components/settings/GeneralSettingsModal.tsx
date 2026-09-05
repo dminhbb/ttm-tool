@@ -1,9 +1,11 @@
 'use client';
 
 import * as React from 'react';
-import { Calendar, LinkSimple, Tag, X } from '@phosphor-icons/react';
+import { Calendar, LinkSimple, Megaphone, Tag, X } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
+import type { UserRole } from '@/lib/auth-types';
+import { AdPopupsPanel } from '@/components/settings/AdPopupsPanel';
 import { HolidaysAndWorkdaysSection } from '@/components/settings/HolidaysAndWorkdaysSection';
 import { IssueTypeRolesPanel } from '@/components/settings/IssueTypeRolesPanel';
 import { JiraConfigPanel } from '@/components/settings/JiraConfigPanel';
@@ -11,6 +13,10 @@ import { JiraConfigPanel } from '@/components/settings/JiraConfigPanel';
 export interface GeneralSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Gates the "Popup quảng cáo" section — configuration is SUPERADMIN-only, so ADMIN/SUPERVISOR
+   * (who can otherwise open this whole modal) never see that section at all, not just a
+   * disabled/read-only view of it. */
+  role?: UserRole | null;
 }
 
 interface SettingsSection {
@@ -20,14 +26,17 @@ interface SettingsSection {
   panel: React.ReactNode;
 }
 
-const SECTIONS: SettingsSection[] = [
+const BASE_SECTIONS: SettingsSection[] = [
   { id: 'holidays', icon: Calendar, label: 'Quản lý ngày nghỉ/làm bù', panel: <HolidaysAndWorkdaysSection /> },
   { id: 'issue-type-roles', icon: Tag, label: 'Quản lý Issue Type', panel: <IssueTypeRolesPanel /> },
   { id: 'jira-config', icon: LinkSimple, label: 'Cấu hình Jira', panel: <JiraConfigPanel /> },
 ];
 
-export function GeneralSettingsModal({ isOpen, onClose }: GeneralSettingsModalProps) {
-  const [activeSectionId, setActiveSectionId] = React.useState(SECTIONS[0].id);
+const AD_POPUPS_SECTION: SettingsSection = { id: 'ad-popups', icon: Megaphone, label: 'Popup quảng cáo', panel: <AdPopupsPanel /> };
+
+export function GeneralSettingsModal({ isOpen, onClose, role = null }: GeneralSettingsModalProps) {
+  const sections = role === 'SUPERADMIN' ? [...BASE_SECTIONS, AD_POPUPS_SECTION] : BASE_SECTIONS;
+  const [activeSectionId, setActiveSectionId] = React.useState(sections[0].id);
   const titleId = React.useId();
   const closeButtonRef = React.useRef<HTMLButtonElement>(null);
   const onCloseRef = React.useRef(onClose);
@@ -55,7 +64,7 @@ export function GeneralSettingsModal({ isOpen, onClose }: GeneralSettingsModalPr
 
   if (!isOpen) return null;
 
-  const activeSection = SECTIONS.find((section) => section.id === activeSectionId) ?? SECTIONS[0];
+  const activeSection = sections.find((section) => section.id === activeSectionId) ?? sections[0];
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="presentation">
@@ -85,7 +94,7 @@ export function GeneralSettingsModal({ isOpen, onClose }: GeneralSettingsModalPr
             className="flex w-[30%] shrink-0 flex-col gap-1 overflow-y-auto border-r border-fb-border bg-fb-surface-muted p-3"
             aria-label="Chức năng cấu hình chung"
           >
-            {SECTIONS.map((section) => {
+            {sections.map((section) => {
               const SectionIcon = section.icon;
               const active = section.id === activeSectionId;
               return (

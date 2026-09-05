@@ -308,3 +308,11 @@ button:not(:disabled), [role="button"]:not([aria-disabled="true"]) { cursor: poi
 
 .ttm-frosted-header { background: rgba(255, 255, 255, 0.55) !important; backdrop-filter: saturate(180%) blur(24px) !important; -webkit-backdrop-filter: saturate(180%) blur(24px) !important; }
 :root[data-theme="dark"] .ttm-frosted-header { background: rgba(16, 18, 8, 0.65) !important; }
+
+/* AD Popup (Quản lý chung → Popup quảng cáo) — auto-dismiss countdown bar. Duration is set inline
+   per-popup (style={{ animationDuration: `${timeoutSeconds}s` }}) since it's now configurable per
+   campaign; `key={popup.id}` on the element remounts it (restarting the animation) each time a new
+   popup in the queue is shown. */
+@keyframes ad-popup-countdown { from { width: 100%; } to { width: 0%; } }
+.ad-popup-progress { animation-name: ad-popup-countdown; animation-timing-function: linear; animation-fill-mode: forwards; }
+@media (prefers-reduced-motion: reduce) { .ad-popup-progress { animation: none; width: 0%; } }
