@@ -11,11 +11,12 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
 import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import { EpicAlertTimeline } from '@/components/epic-alerts/EpicAlertTimeline';
+import { EpicStatWidgets } from '@/components/epic-alerts/EpicStatWidgets';
 import type { EpicAlertAccessRole, EpicAlertPhasedResponse, EpicAlertRowPhased, PhaseCell } from '@/lib/epic-alert-types';
 import type { EpicMilestoneHistoryEntry } from '@/lib/epic-milestone-history-service';
 import type { ProjectComponent } from '@/lib/master-data-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
-import { ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, Warning } from '@phosphor-icons/react';
+import { ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, ClockCountdown, HourglassMedium, ListChecks, Prohibit, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import { trackDataUsage } from '@/lib/usage-tracking';
@@ -439,6 +440,7 @@ export default function EpicAlerts15Page() {
   const [alertFilter, setAlertFilter] = useState<AlertFilterValue>('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
+  const [dataIssueFilter, setDataIssueFilter] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [collapsedColumns, setCollapsedColumns] = useState<Set<CollapsiblePhase>>(new Set(['DESIGN', 'DEV', 'TEST', 'PENTEST']));
@@ -512,8 +514,42 @@ export default function EpicAlerts15Page() {
       && (!alertFilter || (alertFilter === 'FAIL_E2E' ? row.ttmE2eAlertLevel === 'FAIL' : row.alertLevel === alertFilter))
       && (!typeFilter || row.epicType === typeFilter)
       && (statusFilters.length === 0 || statusFilters.includes(row.currentStatus))
+      && (!dataIssueFilter || row.hasDataAnomaly)
       && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch));
-  }), [rows, projectFilters, componentFilters, alertFilter, typeFilter, statusFilters, search]);
+  }), [rows, projectFilters, componentFilters, alertFilter, typeFilter, statusFilters, dataIssueFilter, search]);
+
+  // Raw status strings (case as stored) whose normalized form is PENDING/TO DO — the Pending/To Do
+  // stat widgets set the Status filter (a multi-select) to exactly this set.
+  const pendingStatusValues = useMemo(() => statusOptions.filter((status) => status.trim().toLocaleUpperCase('en-US') === 'PENDING'), [statusOptions]);
+  const todoStatusValues = useMemo(() => statusOptions.filter((status) => status.trim().toLocaleUpperCase('en-US') === 'TO DO'), [statusOptions]);
+  const isExactStatusSet = (values: string[]) => values.length > 0 && statusFilters.length === values.length && values.every((value) => statusFilters.includes(value));
+
+  const statCounts = useMemo(() => {
+    let failCntt = 0;
+    let failE2e = 0;
+    let late = 0;
+    let dataIssue = 0;
+    let pending = 0;
+    let todo = 0;
+    for (const row of filteredRows) {
+      if (row.alertLevel === 'FAIL') failCntt += 1;
+      if (row.ttmE2eAlertLevel === 'FAIL') failE2e += 1;
+      if (row.alertLevel === 'LATE') late += 1;
+      if (row.hasDataAnomaly) dataIssue += 1;
+      const normalizedStatus = row.currentStatus.trim().toLocaleUpperCase('en-US');
+      if (normalizedStatus === 'PENDING') pending += 1;
+      else if (normalizedStatus === 'TO DO') todo += 1;
+    }
+    return { dataIssue, failCntt, failE2e, late, pending, todo };
+  }, [filteredRows]);
+
+  // Admin/superadmin-tier viewers (accessRole LEAD/CBQL_PHONG) can be scoped to a huge number of
+  // project keys, so the stat widgets only compute/show once the Project filter narrows that down
+  // to a workable range (1–3 projects) — a PM/SM viewer's own scope is already small, so it's exempt.
+  const isAdminTierAccess = data ? data.accessRole !== 'PM_SM' : false;
+  const statWidgetsGateMessage = isAdminTierAccess && (projectFilters.length === 0 || projectFilters.length > 3)
+    ? 'Chọn từ 1 đến 3 dự án ở bộ lọc "Dự án" để xem thống kê nhanh.'
+    : undefined;
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -578,6 +614,44 @@ export default function EpicAlerts15Page() {
         </button>
         <div className="ttm-report-date">Dữ liệu cập nhật lần cuối: <b>{data ? formatDateTime(data.lastAggregatedAt) : '—'}</b></div>
       </section>
+
+      {data && (
+        <EpicStatWidgets
+          gateMessage={statWidgetsGateMessage}
+          items={[
+            {
+              icon: XCircle, isActive: alertFilter === 'FAIL', key: 'fail-cntt', label: 'Epic Fail TTM-CNTT',
+              onClick: () => { setAlertFilter((current) => (current === 'FAIL' ? '' : 'FAIL')); setPage(1); },
+              tone: 'danger', value: statCounts.failCntt,
+            },
+            {
+              icon: Prohibit, isActive: alertFilter === 'FAIL_E2E', key: 'fail-e2e', label: 'Epic Fail TTM-E2E',
+              onClick: () => { setAlertFilter((current) => (current === 'FAIL_E2E' ? '' : 'FAIL_E2E')); setPage(1); },
+              tone: 'danger', value: statCounts.failE2e,
+            },
+            {
+              icon: ClockCountdown, isActive: alertFilter === 'LATE', key: 'late', label: 'Epic Cảnh báo muộn',
+              onClick: () => { setAlertFilter((current) => (current === 'LATE' ? '' : 'LATE')); setPage(1); },
+              tone: 'warning', value: statCounts.late,
+            },
+            {
+              icon: WarningOctagon, isActive: dataIssueFilter, key: 'data-issue', label: 'Epic sai lệch dữ liệu',
+              onClick: () => { setDataIssueFilter((current) => !current); setPage(1); },
+              tone: 'warning', value: statCounts.dataIssue,
+            },
+            {
+              icon: HourglassMedium, isActive: isExactStatusSet(pendingStatusValues), key: 'pending', label: 'Epic Pending',
+              onClick: () => { setStatusFilters(isExactStatusSet(pendingStatusValues) ? [] : pendingStatusValues); setPage(1); },
+              tone: 'neutral', value: statCounts.pending,
+            },
+            {
+              icon: ListChecks, isActive: isExactStatusSet(todoStatusValues), key: 'todo', label: 'Epic To Do',
+              onClick: () => { setStatusFilters(isExactStatusSet(todoStatusValues) ? [] : todoStatusValues); setPage(1); },
+              tone: 'neutral', value: statCounts.todo,
+            },
+          ]}
+        />
+      )}
 
       {isLoading ? (
         <TableSkeleton rows={8} />

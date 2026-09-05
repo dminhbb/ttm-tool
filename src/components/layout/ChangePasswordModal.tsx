@@ -31,7 +31,8 @@ export function ChangePasswordModal({ isForceChangePassword = false, isOpen, onC
   const [isLoading, setIsLoading] = React.useState(false);
 
   React.useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return;
+    void Promise.resolve().then(() => {
       setStep(1);
       setCurrentPassword('');
       setShowCurrentPassword(false);
@@ -41,7 +42,7 @@ export function ChangePasswordModal({ isForceChangePassword = false, isOpen, onC
       setShowConfirmPassword(false);
       setError('');
       setIsLoading(false);
-    }
+    });
   }, [isOpen]);
 
   const passwordValidation = validatePassword(newPassword);
@@ -132,7 +133,11 @@ export function ChangePasswordModal({ isForceChangePassword = false, isOpen, onC
     if (step === 1) {
       return (
         <>
-          {!isForceChangePassword && (
+          {isForceChangePassword ? (
+            <Button onClick={() => void handleLogout()} variant="outline">
+              Thoát
+            </Button>
+          ) : (
             <Button onClick={onClose} variant="outline">
               Hủy
             </Button>
@@ -146,6 +151,11 @@ export function ChangePasswordModal({ isForceChangePassword = false, isOpen, onC
 
     return (
       <>
+        {isForceChangePassword && (
+          <Button onClick={() => void handleLogout()} variant="outline">
+            Thoát
+          </Button>
+        )}
         <Button onClick={() => setStep(1)} variant="outline">
           Quay lại
         </Button>
