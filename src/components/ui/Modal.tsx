@@ -8,7 +8,7 @@ export interface ModalProps {
   title: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl';
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 }
 
 export const Modal = ({
@@ -62,6 +62,7 @@ export const Modal = ({
             'max-w-md': maxWidth === 'md',
             'max-w-lg': maxWidth === 'lg',
             'max-w-3xl': maxWidth === 'xl',
+            'max-w-6xl': maxWidth === '2xl',
           }
         )}
         role="dialog"

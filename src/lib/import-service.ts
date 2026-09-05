@@ -6,6 +6,8 @@ import { accumulateProjectComponents, splitComponents } from './project-componen
 import { DEFAULT_RAW_IMPORT_RETENTION_DAYS } from './data-retention-service';
 import { evaluateIssueCompliance } from './epic-compliance-engine';
 import { recordEpicAlertHistory } from './epic-alert-history-service';
+import { hasDataAnomaly, resolveTtmE2eRelease } from './epic-alert-service';
+import { recordEpicAlertTimelineTransitions, type EpicAlertTimelineDetail, type EpicAlertTimelineStates } from './epic-alert-timeline-service';
 import { computeMilestoneCandidates, recordEpicMilestone } from './epic-milestone-history-service';
 import { EPIC_ISSUE_TYPES_SQL } from './issue-resolution-sql';
 import { getActiveHolidaySet } from './master-data-service';
@@ -144,14 +146,19 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
   ]);
   const epicRows = await client.query<{
     complexity: string | null; dueDate: string | null; epicKey: string; ideaApprovedDate: string | null;
-    r4gDate: string | null; startDate: string | null; status: string;
+    jiraCreatedAt: string | null; r4gDate: string | null; startDate: string | null; status: string;
   }>(`
     SELECT issue_key AS "epicKey", current_status AS status, epic_complexity_type AS complexity,
       idea_approved_date::text AS "ideaApprovedDate", start_date::text AS "startDate",
-      r4g_date::text AS "r4gDate", due_date::text AS "dueDate"
+      r4g_date::text AS "r4gDate", due_date::text AS "dueDate", jira_created_at::text AS "jiraCreatedAt"
     FROM issues
     WHERE source_import_batch_id = $1 AND UPPER(issue_type) IN (${EPIC_ISSUE_TYPES_SQL});
   `, [batchId]);
+  // epic_alert_timeline transitions (Fail TTM-CNTT/E2E, thiếu Start Date, dữ liệu bất thường) are
+  // collected per-epic here and applied in ONE batched diff below (see
+  // recordEpicAlertTimelineTransitions) instead of one write per epic — same connection-cap
+  // reasoning as everything else recorded during import.
+  const timelineStatesByEpic = new Map<string, EpicAlertTimelineStates>();
   for (const epic of epicRows.rows) {
     const evaluation = evaluateIssueCompliance({
       dueDate: epic.dueDate,
@@ -167,7 +174,38 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
     if (evaluation.alertLevel === 'LATE' || evaluation.alertLevel === 'FAIL') {
       await recordEpicAlertHistory(client, epic.epicKey, evaluation.alertLevel, epic.status, aggregatedAtDate, batchId);
     }
+
+    // Same 5 states shown live on "Quản trị Epic (đầy đủ)"/"Epic in PO" (hasDataAnomaly,
+    // resolveTtmE2eRelease, evaluation.alertLevel) so the timeline can never disagree with what the
+    // screen itself shows today for the same Epic.
+    const missingStartDate = !epic.startDate;
+    const chronologicalAnomaly = Boolean(epic.r4gDate && epic.startDate && epic.r4gDate < epic.startDate)
+      || Boolean(epic.dueDate && epic.ideaApprovedDate && epic.dueDate < epic.ideaApprovedDate);
+    const dataAnomaly = hasDataAnomaly(epic);
+    const ttmE2eRelease = resolveTtmE2eRelease(epic, evaluation.ttm.e2e.workingDays ?? 0, aggregatedAtDate, holidays);
+
+    const failCnttDetail: EpicAlertTimelineDetail | null = !dataAnomaly && evaluation.alertLevel === 'FAIL'
+      ? { fromDate: evaluation.ttm.cntt.fromDate, targetDate: evaluation.ttm.cntt.targetDate }
+      : null;
+    const lateCnttDetail: EpicAlertTimelineDetail | null = !dataAnomaly && evaluation.alertLevel === 'LATE'
+      ? { fromDate: evaluation.ttm.cntt.fromDate, targetDate: evaluation.ttm.cntt.targetDate }
+      : null;
+    const failE2eDetail: EpicAlertTimelineDetail | null = !dataAnomaly && ttmE2eRelease.alertLevel === 'FAIL'
+      ? { baselineDate: ttmE2eRelease.baselineDate, actualToDate: ttmE2eRelease.actualToDate }
+      : null;
+    const anomalyDetail: EpicAlertTimelineDetail | null = chronologicalAnomaly
+      ? { dueDate: epic.dueDate, ideaApprovedDate: epic.ideaApprovedDate, r4gDate: epic.r4gDate, startDate: epic.startDate }
+      : null;
+
+    timelineStatesByEpic.set(epic.epicKey, {
+      FAIL_TTM_CNTT: { active: failCnttDetail !== null, detail: failCnttDetail },
+      LATE_TTM_CNTT: { active: lateCnttDetail !== null, detail: lateCnttDetail },
+      FAIL_TTM_E2E: { active: failE2eDetail !== null, detail: failE2eDetail },
+      MISSING_START_DATE: { active: missingStartDate, detail: null },
+      DATA_ANOMALY: { active: chronologicalAnomaly, detail: anomalyDetail },
+    });
   }
+  await recordEpicAlertTimelineTransitions(client, aggregatedAtDate, timelineStatesByEpic, batchId);
 
   // DESIGN_DONE / DEV_DONE / TEST_DONE milestone recording is temporarily off — phase completion
   // is now evaluated live from current statuses on every request instead (see

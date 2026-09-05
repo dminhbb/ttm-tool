@@ -71,11 +71,11 @@
     <a href="#retention">5. Vòng đời &amp; lưu trữ dữ liệu</a>
     <div class="toc-block">Khối cảnh báo</div>
     <a href="#alert-policy">6. Cấu hình chính sách TTM &amp; rule cảnh báo</a>
-    <a href="#alert-logic">7. Logic tính cảnh báo Epic</a>
-    <a href="#alert-history">8. Lịch sử cảnh báo tích lũy</a>
+    <a href="#alert-logic">7. Logic tính cảnh báo Epic (TTM-CNTT &amp; TTM-E2E)</a>
+    <a href="#data-anomaly">8. Dữ liệu bất thường (không còn bị chặn import)</a>
+    <a href="#alert-history">9. Lịch sử cảnh báo tích lũy</a>
     <div class="toc-block">Khối màn hình</div>
-    <a href="#screen-epic-alerts">9. Màn hình Cảnh báo Epic</a>
-    <a href="#screen-monitoring">10. Màn hình Theo dõi Epic</a>
+    <a href="#screen-epic-alerts">10. 4 màn hình giám sát Epic</a>
     <a href="#screen-data-source">11. Màn hình Nguồn dữ liệu</a>
     <a href="#screen-admin">12. Các màn hình Quản trị hệ thống</a>
     <div class="toc-block">Phụ lục</div>
@@ -118,18 +118,23 @@
       <table>
         <thead><tr><th>Role</th><th>Phạm vi xem</th><th>Quyền quản trị</th></tr></thead>
         <tbody>
-          <tr><td><span class="badge info">SUPERADMIN</span></td><td>Toàn bộ Epic mọi dự án (vai trò CBQL Phòng)</td><td>Toàn quyền: User, Domain, Dự án, ngày nghỉ, rule cảnh báo, tiêu chí TTM, sao lưu/phục hồi, quản lý lớp dữ liệu tổng hợp</td></tr>
-          <tr><td><span class="badge info">ADMIN</span></td><td>Epic thuộc Domain được phân quyền (vai trò Lead)</td><td>Xem các menu Quản trị hệ thống; một số hành động (cấu hình lưu trữ, chạy lại dữ liệu tổng hợp) giới hạn SUPERADMIN</td></tr>
-          <tr><td><span class="badge neutral" style="background:#eef1f7;color:#5b6475">USER</span></td><td>Epic thuộc dự án được phân quyền PM/SM</td><td>Chỉ xem màn hình giám sát (Quản lý Epic 15, Theo dõi Epic), không truy cập menu Quản trị</td></tr>
+          <tr><td><span class="badge info">SUPERADMIN</span></td><td>Toàn bộ Epic mọi dự án (vai trò CBQL Phòng)</td><td>Toàn quyền: User, Domain, Dự án, ngày nghỉ, Ngày làm bù, rule cảnh báo, tiêu chí TTM, Ma trận phân quyền, Cấu hình Jira, sao lưu/phục hồi, quản lý lớp dữ liệu tổng hợp</td></tr>
+          <tr><td><span class="badge info">SUPERVISOR</span></td><td>Toàn bộ Epic mọi dự án — cùng phạm vi xem như SUPERADMIN</td><td><strong>Chỉ xem</strong> — không tạo/sửa/xóa ở bất kỳ màn hình quản trị nào, không truy cập import/backup/purge dữ liệu</td></tr>
+          <tr><td><span class="badge info">ADMIN</span></td><td>Epic thuộc Domain được phân quyền (vai trò Lead)</td><td>Xem các menu Quản trị hệ thống (User/Domain/Dự án); một số hành động (Ma trận phân quyền, cấu hình lưu trữ, chạy lại dữ liệu tổng hợp, Nguồn dữ liệu) giới hạn SUPERADMIN</td></tr>
+          <tr><td><span class="badge neutral" style="background:#eef1f7;color:#5b6475">USER</span></td><td>Epic thuộc dự án được phân quyền PM/SM — có thể bị thu hẹp thêm theo Component cụ thể trong dự án đó</td><td>Chỉ xem màn hình giám sát (Quản trị Epic đầy đủ, Epic in PO, Dashboard), không truy cập menu Quản trị</td></tr>
         </tbody>
       </table>
       <div class="callout warn">
-        Màn hình <strong>Quản lý Epic 30 (<code>/epic-alerts</code>)</strong> hiện chỉ dành cho <strong>ADMIN/SUPERADMIN</strong> — role USER không truy cập được, kể cả với Epic thuộc dự án mình phụ trách.
-        Màn hình <strong>Quản lý Epic 15 (<code>/epic-alerts-15</code>)</strong> mở cho mọi role đã đăng nhập, theo phạm vi dự án/Domain được phân quyền.
+        Màn hình <strong>Quản trị Epic (rút gọn) (<code>/epic-alerts</code>)</strong> chỉ dành cho <strong>ADMIN/SUPERADMIN/SUPERVISOR</strong> — role USER không truy cập được, kể cả với Epic thuộc dự án mình phụ trách.
+        Các màn hình <strong>Quản trị Epic (đầy đủ) (<code>/epic-alerts-15</code>)</strong>, <strong>Epic in PO (<code>/epic-in-po</code>)</strong> và <strong>Dashboard (<code>/dashboard</code>)</strong> mở cho mọi role đã đăng nhập, theo phạm vi dự án/Domain/Component được phân quyền.
       </div>
       <div class="callout">
         Menu avatar người dùng có 1 mục chỉ hiển thị cho ADMIN/SUPERADMIN: <strong>Logic xử lý dữ liệu</strong>.
         Hai mục <strong>Logic cảnh báo</strong> và <strong>Tài liệu sản phẩm</strong> (trang này) hiển thị cho mọi role.
+      </div>
+      <div class="callout">
+        Ngoài bảng phân quyền theo Domain/Dự án ở trên, màn hình <strong>Ma trận phân quyền (<code>/admin/permissions</code>, chỉ SUPERADMIN)</strong> cấu hình chi tiết
+        quyền Xem/Thêm/Sửa/Xóa cho từng cặp (tính năng, role) — lớp RBAC mịn hơn, cho phép SUPERADMIN bật/tắt riêng từng hành động.
       </div>
     </section>
 
@@ -248,8 +253,9 @@
       </p>
       <h3>6.2. Rule cảnh báo theo trạng thái Epic (epic_status_alert_rules)</h3>
       <p>
-        Với mỗi cặp (Loại Epic × Trạng thái Epic), cấu hình 3 mốc: <strong>Cảnh báo sớm</strong>, <strong>Cảnh báo muộn</strong>, <strong>Fail TTM-CNTT</strong> —
-        tính bằng số ngày làm việc kể từ T1. Design và In Progress là dữ liệu seed mặc định; có thể thêm rule cho trạng thái khác (IN PO, R4GOLIVE, MVPDONE, PILOT, Released…).
+        Với mỗi cặp (Loại Epic × Trạng thái Epic), cấu hình 2 mốc: <strong>Cảnh báo sớm</strong>, <strong>Cảnh báo muộn</strong> —
+        tính bằng số ngày làm việc kể từ T1. Mốc <strong>Fail TTM-CNTT không còn nằm ở bảng này</strong> (cột <code>fail_offset_days</code> đã bị bỏ) — Fail TTM-CNTT/
+        TTM-E2E lấy hoàn toàn từ Tiêu chí Time to Market ở mục 6.1. Design và In Progress là dữ liệu seed mặc định; có thể thêm rule cho trạng thái khác (IN PO, DEV, TEST, PENTEST, R4GOLIVE, MVPDONE, Released…).
       </p>
       <table>
         <thead><tr><th>Trạng thái Epic</th><th>Epic đơn giản (TTM-CNTT 15 ngày)</th><th>Epic phức tạp (TTM-CNTT 30 ngày)</th></tr></thead>
@@ -262,13 +268,13 @@
 
     <section id="alert-logic">
       <div class="kicker">Khối cảnh báo</div>
-      <h2>7. Logic tính cảnh báo Epic</h2>
+      <h2>7. Logic tính cảnh báo Epic (TTM-CNTT &amp; TTM-E2E)</h2>
       <h3>7.1. Thứ tự trạng thái chuẩn (STATUS_ORDER)</h3>
-      <p><code>To Do → IN PO → Design → In Progress → R4GOLIVE → MVPDONE → PILOT → Released</code></p>
-      <p>Trường <code>R4G Date</code> trên Epic tương ứng với ngày hoàn thành trạng thái <strong>R4GOLIVE</strong>. Trạng thái không khớp danh sách này (kể cả Cancelled) được xếp sau cùng.</p>
+      <p><code>TO DO → IN PO → DESIGN → DEV → TEST → PENTEST → R4GOLIVE → MVPDONE → RELEASED</code></p>
+      <p>Trường <code>R4G Date</code> trên Epic tương ứng với ngày hoàn thành trạng thái <strong>R4GOLIVE</strong>. Trạng thái không khớp danh sách này (kể cả Cancelled) được xếp sau cùng. Jira status legacy <code>In Progress</code>/<code>In Dev</code> chuẩn hóa thành <code>DEV</code>; <code>Pen Test</code> thành <code>PENTEST</code>; <code>Ready For Golive</code> thành <code>R4GOLIVE</code>.</p>
 
-      <h3>7.2. Ba cột trạng thái trên bảng Cảnh báo Epic</h3>
-      <p>Mỗi cột (Design, In Progress, Ready4Golive) so sánh vị trí trạng thái hiện tại của Epic với vị trí trạng thái của cột đó:</p>
+      <h3>7.2. Cột trạng thái/pha trên bảng Epic Alerts</h3>
+      <p>Màn hình rút gọn có 3 cột (Design, In Progress, Ready4Golive); màn hình đầy đủ/Epic in PO có 5 cột pha (DESIGN/DEV/TEST/PENTEST/R4GOLIVE). Mỗi cột so sánh vị trí trạng thái hiện tại của Epic với vị trí trạng thái của cột đó:</p>
       <table>
         <thead><tr><th>Rule</th><th>Điều kiện</th><th>Hiển thị</th></tr></thead>
         <tbody>
@@ -281,80 +287,101 @@
       </table>
       <div class="callout">
         Mở rộng an toàn: nếu Epic <em>chưa tới</em> trạng thái cột nhưng đã qua mốc sớm → nhãn đổi thành “Past target”; nếu Epic <em>đã qua</em> trạng thái cột
-        nhưng chưa tới mốc muộn → vẫn coi là hoàn thành (Pass), vì trạng thái đã đi qua thì luôn là “đã xong”.
+        nhưng chưa tới mốc muộn → vẫn coi là hoàn thành (Pass), vì trạng thái đã đi qua thì luôn là “đã xong”. Cuối mỗi bảng có chú giải màu nền Done (xanh)/Warning (vàng)/Failed (đỏ) dùng chung cho các ô này.
       </div>
 
-      <h3>7.3. Cột "Nhận xét" (cảnh báo tổng thể)</h3>
+      <h3>7.3. Cột "Nhận xét" — 2 badge cảnh báo tổng thể độc lập</h3>
       <p>
-        Độc lập với 3 cột trạng thái, cột Nhận xét thể hiện mức cảnh báo tổng thể theo tiêu chí TTM-CNTT (mục 6.1): so sánh R4G Date (hoặc ngày hiện tại nếu
-        chưa có R4G Date) với Target tổng. Badge <strong>“Đạt TTM”</strong> (nền navy nhạt) xuất hiện khi Epic đã có R4G Date và không bị cảnh báo.
+        <strong>Fail TTM-CNTT</strong>: so sánh R4G Date (hoặc ngày hiện tại nếu chưa có) với Target tổng theo tiêu chí TTM-CNTT (mục 6.1). Badge <strong>“Đạt TTM”</strong> xuất hiện khi Epic đã có R4G Date và không bị cảnh báo.
+      </p>
+      <p>
+        <strong>Fail TTM-E2E</strong> (badge riêng, độc lập hoàn toàn với Fail TTM-CNTT): chỉ có FAIL/NONE, không có mức Cảnh báo sớm/muộn. Tính từ T0 (Idea Approved Date,
+        tự fallback sang ngày tạo Epic trên Jira nếu thiếu) tới Due Date (hoặc hôm nay nếu chưa có), so với tiêu chí TTM-E2E. Vì T0 luôn tính được, cột stripe TTM-E2E và badge
+        này hiển thị đầy đủ ở cả 3 màn hình giám sát kể cả khi Epic thiếu Start Date.
       </p>
 
       <h3>7.4. Nguyên tắc tính real-time</h3>
       <p>
-        API <code>GET /api/epic-alerts</code> <strong>không đọc dữ liệu đã tổng hợp sẵn</strong>. Mỗi lần tải trang, hệ thống lấy dòng <code>issues</code> mới nhất
-        của từng Epic (không giới hạn theo 1 batch cụ thể) và tính lại toàn bộ cảnh báo tại đúng thời điểm request, theo rule đang active. Vì vậy nếu không import gì
+        Không màn hình Epic Alerts nào đọc dữ liệu đã tổng hợp sẵn. Mỗi lần tải trang, hệ thống lấy dòng <code>issues</code> mới nhất
+        của từng Epic (không giới hạn theo 1 batch cụ thể) và tính lại toàn bộ cảnh báo — cả TTM-CNTT lẫn TTM-E2E — tại đúng thời điểm request, theo rule đang active. Vì vậy nếu không import gì
         trong ngày, cảnh báo vẫn có thể tự chuyển trạng thái theo ngày thực tế.
       </p>
     </section>
 
+    <section id="data-anomaly">
+      <div class="kicker">Khối cảnh báo</div>
+      <h2>8. Dữ liệu bất thường (không còn bị chặn import)</h2>
+      <p>
+        Một Epic được đánh dấu <strong>dữ liệu bất thường</strong> khi: thiếu hẳn Start Date, hoặc có R4G Date sớm hơn Start Date, hoặc có Due Date sớm hơn T0.
+        Hai rule sau <strong>trước kia chặn import hoàn toàn</strong> (dòng bị loại khỏi <code>issues</code>) — nay chỉ còn là <span class="badge warning">WARNING</span>
+        không chặn: R4G Date sớm hơn Start Date; Due Date sớm hơn T0.
+      </p>
+      <p>Epic bị đánh dấu:</p>
+      <ul>
+        <li>Bị đẩy xuống <strong>cuối bảng</strong> và tô nền highlight trên cả 3 màn hình giám sát.</li>
+        <li>Cột Nhận xét hiện <strong>“Không tính được”</strong> thay vì badge Cảnh báo/Fail hay “Đạt TTM”.</li>
+        <li>Riêng khi Start Date vẫn có (chỉ R4G/Due Date phi logic): dải TTM-CNTT vẫn vẽ bình thường — baseline theo Start Date, thực tế = Start Date → hôm nay (bỏ qua ngày phi logic thay vì vẽ ngược).</li>
+      </ul>
+      <div class="callout">
+        Lý do thiết kế: để user chủ động nhận biết và làm sạch dữ liệu nguồn trên Jira, thay vì Epic bị âm thầm loại khỏi hệ thống mà không ai biết.
+      </div>
+    </section>
+
     <section id="alert-history">
       <div class="kicker">Khối cảnh báo</div>
-      <h2>8. Lịch sử cảnh báo tích luỹ</h2>
+      <h2>9. Lịch sử cảnh báo tích luỹ</h2>
       <p>
-        Khác với cảnh báo hiển thị trên bảng (tính real-time), bảng <code>epic_alert_history</code> "đóng băng" đúng trạng thái cảnh báo tại ngày import:
+        Khác với cảnh báo hiển thị trên bảng (tính real-time), bảng <code>epic_alert_history</code> "đóng băng" đúng trạng thái cảnh báo Fail TTM-CNTT tổng thể tại ngày import:
         mỗi khi Epic được tính là <strong>Cảnh báo muộn</strong> hoặc <strong>Fail TTM</strong> ở một lần import, hệ thống ghi 1 dòng gồm loại cảnh báo, trạng thái Epic
         lúc đó và ngày cảnh báo — không ghi đè, tích luỹ theo thời gian để tra cứu sau này.
       </p>
-      <p>Dữ liệu này phục vụ 2 việc trên màn hình Cảnh báo Epic:</p>
+      <p>Dữ liệu này phục vụ 2 việc trên màn hình rút gọn/đầy đủ:</p>
       <ul>
         <li>Icon tam giác vàng cạnh Epic Key mở panel liệt kê toàn bộ lịch sử cảnh báo, sắp xếp theo ngày.</li>
-        <li>Quyết định Epic đã <strong>Released</strong> có tiếp tục hiển thị trên bảng hay không (mục 9).</li>
+        <li>Quyết định Epic đã <strong>Released</strong> có tiếp tục hiển thị trên màn <strong>rút gọn</strong> hay không (màn đầy đủ/Epic in PO/Dashboard không áp dụng rule ẩn này).</li>
       </ul>
+      <div class="callout warn">
+        Cảnh báo <strong>theo từng pha</strong> (DEV/TEST/PENTEST của màn đầy đủ, cũng ghi vào bảng này) hiện <strong>tạm tắt ghi nhận</strong> do giới hạn kết nối của hạ tầng
+        DB miễn phí (code vẫn còn nguyên, chỉ chưa gọi). Tương tự, <code>epic_milestone_history</code> (mốc DESIGN_DONE/DEV_DONE/TEST_DONE) cũng tạm tắt ghi — trạng thái
+        hoàn thành từng pha của Epic đầy đủ hiện tính <strong>live</strong> từ status Story/Subtask hiện tại mỗi lần tải trang, không phụ thuộc lịch sử này.
+      </div>
     </section>
 
     <section id="screen-epic-alerts">
       <div class="kicker">Khối màn hình</div>
-      <h2>9. Màn hình Quản lý Epic 30 &amp; Epic 15</h2>
-      <p>Hệ thống hỗ trợ 2 chế độ màn hình giám sát chuyên biệt dành cho PM/SM và Lead:</p>
-      <h3>9.1. Quản lý Epic 30 (<code>/epic-alerts</code>) — chỉ ADMIN/SUPERADMIN</h3>
-      <p>Theo dõi tổng quan các Epic theo mốc chuẩn 30 ngày (Epic phức tạp) hoặc 15 ngày (Epic đơn giản) qua 3 cột chính: <strong>Design</strong>, <strong>In Progress</strong>, <strong>Ready4Golive</strong>.</p>
-      <h3>9.2. Quản lý Epic 15 (<code>/epic-alerts-15</code>) — mọi role đã đăng nhập</h3>
-      <p>Theo dõi chuyên sâu theo 5 pha mốc thời gian: <strong>Design (20%)</strong>, <strong>Dev (50%)</strong>, <strong>Test (80%)</strong>, <strong>Pentest (90%)</strong>, <strong>R4Golive (100%)</strong>. Ngày baseline mỗi pha được tính tự động dựa trên số ngày làm việc tích lũy từ Start Date (T1).</p>
-      <h3>9.3. Quy tắc hiển thị &amp; Lịch sử Cảnh báo</h3>
+      <h2>10. Bốn màn hình giám sát Epic</h2>
+      <h3>10.1. Quản trị Epic (rút gọn) (<code>/epic-alerts</code>) — ADMIN/SUPERADMIN/SUPERVISOR</h3>
+      <p>Theo dõi tổng quan các Epic theo mốc chuẩn 30 ngày (Epic phức tạp) hoặc 15 ngày (Epic đơn giản) qua 3 cột chính: <strong>Design</strong>, <strong>In Progress</strong>, <strong>Ready4Golive</strong>, cộng cột <strong>Release</strong>. Có đủ 2 cột dải TTM-CNTT và TTM-E2E.</p>
+      <h3>10.2. Quản trị Epic (đầy đủ) (<code>/epic-alerts-15</code>) — mọi role đã đăng nhập</h3>
+      <p>Theo dõi chuyên sâu theo 5 pha mốc thời gian: <strong>Design (20%)</strong>, <strong>Dev (50%)</strong>, <strong>Test (80%)</strong>, <strong>Pentest (90%)</strong>, <strong>R4Golive (100%)</strong>. Ngày baseline mỗi pha được tính tự động dựa trên số ngày làm việc tích lũy từ Start Date (T1); cột Release lấy baseline từ T0 + tiêu chí TTM-E2E, độc lập với Start Date.</p>
+      <h3>10.3. Epic in PO (<code>/epic-in-po</code>) — mọi role đã đăng nhập</h3>
+      <p>Cùng dữ liệu/logic với màn (đầy đủ), chỉ lọc còn Epic đang ở trạng thái <strong>To Do</strong>, <strong>In PO</strong> hoặc <strong>Released</strong> — dùng để theo dõi Epic chưa/vừa qua giai đoạn lập kế hoạch.</p>
+      <h3>10.4. Dashboard (<code>/dashboard</code>) — mọi role đã đăng nhập</h3>
+      <p>Thống kê tổng hợp theo dự án: số Epic, phân bố trạng thái, số lượng Fail TTM-CNTT/Fail TTM-E2E/Cảnh báo sớm/muộn, tỷ lệ Đạt TTM, Epic sắp đến hạn, top Epic cần chú ý. Không có bảng tổng hợp riêng — tính live từ cùng dữ liệu 3 màn hình trên. Role SUPERVISOR/SUPERADMIN/ADMIN, hoặc USER có từ 4 dự án có dữ liệu Epic trở lên, phải chọn 1–3 dự án trước khi xem số liệu.</p>
+      <h3>10.5. Quy tắc hiển thị &amp; Lịch sử Cảnh báo (rút gọn/đầy đủ)</h3>
       <ul>
         <li>Epic ở trạng thái <strong>khác Released</strong>: luôn hiển thị.</li>
-        <li>Epic ở trạng thái <strong>= Released</strong>: chỉ hiển thị nếu từng có lịch sử Cảnh báo muộn/Fail TTM; nếu chưa từng bị cảnh báo, Epic sẽ biến mất khỏi danh sách sau khi Released.</li>
-        <li>Icon tam giác vàng ở cột Epic mở ra popup <strong class="text-fb-text-primary">Epic History</strong> mờ kính iOS (frosted glass) để tra cứu tích lũy qua các đợt import.</li>
+        <li>Màn <strong>rút gọn</strong>: Epic ở trạng thái <strong>= Released</strong> chỉ hiển thị nếu từng có lịch sử Cảnh báo muộn/Fail TTM; nếu chưa từng bị cảnh báo, Epic sẽ biến mất khỏi danh sách sau khi Released. Màn <strong>đầy đủ/Epic in PO/Dashboard không áp dụng</strong> rule ẩn này — luôn hiện mọi Epic trong phạm vi được phân quyền.</li>
+        <li>Icon tam giác vàng ở cột Epic mở ra popup <strong class="text-fb-text-primary">Epic History</strong> để tra cứu tích lũy cảnh báo Fail TTM-CNTT qua các đợt import.</li>
+        <li>Epic có <strong>dữ liệu bất thường</strong> (mục 8) luôn bị đẩy xuống cuối bảng và tô nền highlight trên cả 3 màn hình giám sát Epic.</li>
       </ul>
-    </section>
-
-    <section id="screen-monitoring">
-      <div class="kicker">Khối màn hình</div>
-      <h2>10. Màn hình Theo dõi Epic (<code>/epic-monitoring</code>)</h2>
-      <p>Góc nhìn theo khoảng thời gian tự chọn (from–to), chia 3 panel:</p>
-      <table>
-        <thead><tr><th>Panel</th><th>Nội dung</th></tr></thead>
-        <tbody>
-          <tr><td>Panel 1</td><td>Epic đang ở Design/In Progress (hoặc Dev/Test/Pentest) — theo dõi cảnh báo TTM-CNTT theo rule trạng thái</td></tr>
-          <tr><td>Panel 2</td><td>Epic đã qua To Do nhưng thiếu Start Date — cảnh báo thiếu dữ liệu đầu vào</td></tr>
-          <tr><td>Panel 3</td><td>Epic ở trạng thái To Do — chờ kế hoạch, chưa áp dụng rule cảnh báo</td></tr>
-        </tbody>
-      </table>
     </section>
 
     <section id="screen-data-source">
       <div class="kicker">Khối màn hình</div>
-      <h2>11. Màn hình Nguồn dữ liệu (<code>/</code>)</h2>
+      <h2>11. Màn hình Nguồn dữ liệu (<code>/</code>, chỉ SUPERADMIN)</h2>
+      <p>Có 2 tab: <strong>Import Issues</strong> (nội dung dưới đây) và <strong>Import Components</strong> (import thủ công CSV 2 cột <code>project_key</code>/<code>component</code>, upsert vào cùng danh mục <code>project_components</code> mà import Issue tự tích lũy).</p>
       <ul>
         <li><strong>Thiết lập nguồn dữ liệu CSV</strong> — chọn file, kiểm tra lỗi hoặc import &amp; lưu.</li>
-        <li><strong>Nhật ký lịch sử import (Lớp Dữ liệu)</strong> — danh sách batch, xem chi tiết lỗi/cảnh báo, duyệt dữ liệu, xoá batch.</li>
+        <li><strong>Nhật ký lịch sử import (Lớp Dữ liệu)</strong> — danh sách batch, xem chi tiết lỗi/cảnh báo (nay có cả cờ WARNING cho dữ liệu bất thường, xem mục 8), duyệt dữ liệu, xoá batch.</li>
         <li><strong>Nhật ký lớp dữ liệu tổng hợp (Epic)</strong> (SUPERADMIN) — quản lý riêng 4 bảng tổng hợp/hậu-tổng hợp theo ngày (hỗ trợ Xóa và Chạy lại).</li>
         <li><strong>Xoá N lớp dữ liệu gần nhất</strong> (SUPERADMIN) — xoá cả raw lẫn tổng hợp của N ngày gần nhất, có preview trước khi xác nhận (mục 5.3).</li>
-        <li><strong>Hoàn thiện dữ liệu</strong> (SUPERADMIN) — bổ sung/vá dữ liệu còn thiếu cho các issue đã import (ví dụ liên kết Story→Epic bị thiếu), sau đó tự chạy lại <code>aggregateBatchData()</code> cho batch liên quan.</li>
         <li><strong>Cấu hình Đợt Import</strong> (right panel) — loại nguồn, mapping profile, thời gian tổng hợp (nhận diện tự động từ tên file theo mẫu <code>Jira YYYY-MM-DDThh_mm_ss+0700.csv</code>).</li>
         <li><strong>Lưu trữ dữ liệu import</strong> (right panel, SUPERADMIN) — cấu hình số ngày giữ raw data.</li>
       </ul>
+      <div class="callout warn">
+        <strong>Hoàn thiện dữ liệu</strong> (bổ sung/vá dữ liệu còn thiếu cho issue đã import, chạy lại tổng hợp) — code vẫn còn nguyên nhưng box này <strong>đang tạm ẩn</strong> khỏi màn hình theo yêu cầu, chưa dùng lại được từ UI.
+      </div>
     </section>
 
     <section id="screen-admin">
@@ -363,11 +390,12 @@
       <table>
         <thead><tr><th>Màn hình</th><th>Route</th><th>Chức năng</th></tr></thead>
         <tbody>
-          <tr><td>Quản lý User</td><td><code>/admin/users</code></td><td>Tạo/sửa user đơn lẻ hoặc thêm nhiều user từ danh sách username, gán role, Domain, Dự án</td></tr>
+          <tr><td>Quản lý User</td><td><code>/admin/users</code></td><td>Tạo/sửa user đơn lẻ hoặc thêm nhiều user từ danh sách username, gán role, Domain, Dự án, giới hạn theo Component cho từng dự án</td></tr>
           <tr><td>Quản lý Domain</td><td><code>/admin/domains</code></td><td>Danh mục Domain nghiệp vụ</td></tr>
-          <tr><td>Quản lý Dự án</td><td><code>/admin/projects</code></td><td>Danh mục Dự án, mapping Domain, hỗ trợ Import hàng loạt dự án từ file CSV</td></tr>
-          <tr><td>Cấu hình ngày nghỉ</td><td><code>/admin/holidays</code></td><td>Danh sách ngày nghỉ dùng để tính ngày làm việc</td></tr>
-          <tr><td>Cấu hình cảnh báo</td><td><code>/admin/status-alert-rules</code></td><td>Tiêu chí TTM Policy + rule cảnh báo theo trạng thái</td></tr>
+          <tr><td>Quản lý Dự án</td><td><code>/admin/projects</code></td><td>Danh mục Dự án (1 Project Key duy nhất), mapping Domain, hỗ trợ Import hàng loạt dự án từ file CSV. Popup sửa 1 dự án chỉ <strong>hiển thị</strong> PM/SM hiện tại (đọc-only) — gán/đổi PM/SM thực hiện tại Quản lý User</td></tr>
+          <tr><td>Cấu hình ngày nghỉ</td><td><code>/admin/holidays</code></td><td>Danh sách ngày nghỉ + <strong>Ngày làm bù</strong> (khai báo 1 Thứ Bảy/Chủ Nhật là ngày làm việc bình thường) dùng để tính ngày làm việc</td></tr>
+          <tr><td>Cấu hình cảnh báo</td><td><code>/admin/status-alert-rules</code></td><td>Tiêu chí TTM Policy (TTM-CNTT &amp; TTM-E2E) + rule Cảnh báo sớm/muộn theo trạng thái</td></tr>
+          <tr><td>Ma trận phân quyền</td><td><code>/admin/permissions</code></td><td>Chỉ SUPERADMIN — cấu hình quyền Xem/Thêm/Sửa/Xóa cho từng cặp (tính năng, role)</td></tr>
           <tr><td>Sao lưu / Phục hồi dữ liệu</td><td><code>/admin/database</code></td><td>Export/Import dạng file SQL dump cho một danh sách bảng cố định (user, Domain, Dự án, phân quyền, ngày nghỉ, rule cảnh báo, <code>import_batches</code>/<code>import_rows</code>, <code>issues</code>, <code>epic_ttm_snapshots</code>, audit log). <strong>Chưa</strong> bao phủ <code>issue_daily_snapshots</code>, <code>epic_alert_history</code>, <code>epic_milestone_history</code></td></tr>
         </tbody>
       </table>
@@ -384,8 +412,10 @@
           <tr><td>R4G Date</td><td>Ngày Epic hoàn thành trạng thái R4GOLIVE (Ready for Golive)</td></tr>
           <tr><td>Target</td><td>Ngày deadline tính từ mốc gốc + số ngày làm việc cấu hình</td></tr>
           <tr><td>Lớp dữ liệu (data layer)</td><td>Tập dữ liệu của một lần import, gắn với một mốc <code>aggregated_at</code></td></tr>
-          <tr><td>TTM-CNTT</td><td>Time to Market — Công nghệ thông tin (T1 → R4G)</td></tr>
-          <tr><td>TTM-E2E</td><td>Time to Market — End to End (T0 → Release)</td></tr>
+          <tr><td>TTM-CNTT</td><td>Time to Market — Công nghệ thông tin (T1 → R4G). Có 3 mức cảnh báo: Cảnh báo sớm/muộn/Fail</td></tr>
+          <tr><td>TTM-E2E</td><td>Time to Market — End to End (T0 → Release/Due Date). Chỉ có Fail/NONE, không có mức sớm/muộn</td></tr>
+          <tr><td>Dữ liệu bất thường</td><td>Epic thiếu Start Date, hoặc R4G Date sớm hơn Start Date, hoặc Due Date sớm hơn T0 — không bị chặn import nhưng bị nhóm cuối bảng, highlight, cột Nhận xét hiện "Không tính được"</td></tr>
+          <tr><td>SUPERVISOR</td><td>Role thứ 4, cùng phạm vi xem toàn hệ thống như SUPERADMIN nhưng chỉ đọc, không có quyền tạo/sửa/xóa</td></tr>
         </tbody>
       </table>
     </section>

@@ -417,8 +417,8 @@
 .ttm-alert-popup-right {
   flex: 1;
   min-width: 0;
-  min-height: 360px;
-  max-height: 460px;
+  min-height: 420px;
+  max-height: 640px;
   overflow-y: auto;
   background: var(--ttm-info-100);
   border: 1px solid #cfe0f7;
@@ -537,3 +537,79 @@
   .ttm-page-title { font-size: 20px; }
   .ttm-note { font-size: 11.5px; }
 }
+
+/* Epic alert timeline (transition-based — see EpicAlertTimeline.tsx / epic-alert-timeline-service.ts).
+   Colors reuse the same fail-cntt/fail-e2e tones as .ttm-badge above so a run in the timeline never
+   reads as a different alert than the same badge shown elsewhere on this screen. */
+.ttm-timeline { display: flex; flex-direction: column; gap: 10px; }
+.ttm-timeline-load-older {
+  align-self: flex-start;
+  font-size: 11px;
+  padding: 4px 10px;
+  border: 1px solid var(--ttm-border);
+  border-radius: var(--ttm-radius-sm);
+  background: var(--ttm-white);
+  color: var(--ttm-brand-700);
+  cursor: pointer;
+}
+.ttm-timeline-load-older:disabled { color: var(--ttm-neutral-300); cursor: default; }
+.ttm-timeline-grid { display: flex; gap: 10px; }
+.ttm-timeline-label-col { flex: 0 0 130px; display: flex; flex-direction: column; }
+.ttm-timeline-axis-spacer { height: 18px; }
+.ttm-timeline-row-label {
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ttm-neutral-700);
+}
+.ttm-timeline-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.ttm-timeline-legend-dot.fail-cntt, .ttm-timeline-run.fail-cntt .ttm-timeline-badge, .ttm-timeline-run.fail-cntt .ttm-timeline-line { background: #f78b4d; }
+.ttm-timeline-legend-dot.late-cntt, .ttm-timeline-run.late-cntt .ttm-timeline-badge, .ttm-timeline-run.late-cntt .ttm-timeline-line { background: var(--ttm-danger-600); }
+.ttm-timeline-legend-dot.fail-e2e, .ttm-timeline-run.fail-e2e .ttm-timeline-badge, .ttm-timeline-run.fail-e2e .ttm-timeline-line { background: #e3b842; }
+.ttm-timeline-legend-dot.missing-start, .ttm-timeline-run.missing-start .ttm-timeline-badge, .ttm-timeline-run.missing-start .ttm-timeline-line { background: var(--ttm-warning-500); }
+.ttm-timeline-legend-dot.data-anomaly, .ttm-timeline-run.data-anomaly .ttm-timeline-badge, .ttm-timeline-run.data-anomaly .ttm-timeline-line { background: var(--ttm-danger-700); }
+.ttm-timeline-scroll { flex: 1; min-width: 0; overflow-x: auto; }
+.ttm-timeline-body { position: relative; }
+.ttm-timeline-axis { position: relative; height: 18px; font-size: 10.5px; color: var(--ttm-neutral-500); }
+.ttm-timeline-axis span { position: absolute; top: 0; white-space: nowrap; transform: translateX(-2px); }
+.ttm-timeline-axis-today { font-weight: 700; color: var(--ttm-brand-600); }
+/* Overlay spanning just the row area (below the axis) — vertical lines line up with the header's
+   own date markers, which themselves line up with the run boundaries drawn in the rows. */
+.ttm-timeline-gridlines { position: absolute; top: 18px; left: 0; right: 0; pointer-events: none; }
+/* rgba(neutral-900) rather than a --ttm-neutral-100 token — that token (#f1f5f9) sits almost the
+   same lightness as this panel's own background (--ttm-info-100, #e0f2fe), so it was rendering
+   essentially invisible; a dark tone at low opacity keeps a "mờ" (faint) line visible against any
+   background instead of matching one specific panel color. */
+.ttm-timeline-gridline { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(15, 23, 42, .16); }
+.ttm-timeline-track { position: relative; height: 26px; border-bottom: 1px dashed rgba(15, 23, 42, .16); }
+.ttm-timeline-track:first-child { border-top: 1px dashed rgba(15, 23, 42, .16); }
+.ttm-timeline-run { position: absolute; top: 0; height: 26px; }
+.ttm-timeline-run-badge { width: 16px; }
+.ttm-timeline-run .ttm-timeline-badge { position: absolute; top: 8px; width: 10px; height: 10px; border-radius: 50%; cursor: pointer; }
+.ttm-timeline-run-badge .ttm-timeline-badge { left: 3px; }
+.ttm-timeline-run-line .ttm-timeline-line { position: absolute; top: 11px; left: 0; right: 0; height: 4px; border-radius: 2px; cursor: pointer; }
+.ttm-timeline-run-line .ttm-timeline-line-cut { opacity: .45; }
+.ttm-timeline-badge-start { left: 0; }
+.ttm-timeline-badge-end { right: 0; }
+.ttm-timeline-badge-ongoing { box-shadow: 0 0 0 3px rgba(0, 0, 0, .15); }
+.ttm-timeline-tooltip {
+  display: none;
+  position: absolute;
+  top: 20px;
+  left: 0;
+  z-index: 5;
+  white-space: nowrap;
+  background: var(--ttm-neutral-900);
+  color: var(--ttm-white);
+  border-radius: 6px;
+  padding: 6px 9px;
+  font-size: 11px;
+  line-height: 1.5;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .18);
+}
+.ttm-timeline-run:hover .ttm-timeline-tooltip { display: block; }
+.ttm-timeline-tooltip-title { font-weight: 700; margin-bottom: 2px; }
+.ttm-timeline-tooltip-note { color: var(--ttm-warning-100); }

@@ -1,0 +1,3 @@
+ALTER TABLE epic_alert_timeline DROP CONSTRAINT IF EXISTS epic_alert_timeline_alert_type_check;
+ALTER TABLE epic_alert_timeline ADD CONSTRAINT epic_alert_timeline_alert_type_check
+  CHECK (alert_type IN ('FAIL_TTM_CNTT', 'FAIL_TTM_E2E', 'MISSING_START_DATE', 'DATA_ANOMALY'));

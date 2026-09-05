@@ -10,8 +10,8 @@ import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
 import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
+import { EpicAlertTimeline } from '@/components/epic-alerts/EpicAlertTimeline';
 import type { EpicAlertAccessRole, EpicAlertPhasedResponse, EpicAlertRowPhased, PhaseCell } from '@/lib/epic-alert-types';
-import type { EpicAlertHistoryEntry } from '@/lib/epic-alert-history-service';
 import type { EpicMilestoneHistoryEntry } from '@/lib/epic-milestone-history-service';
 import type { ProjectComponent } from '@/lib/master-data-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
@@ -174,18 +174,13 @@ function StatusBadge({ status }: { status: string }) {
   return <span className="ttm-status-badge">{status}</span>;
 }
 
-/** True when `actual` (an ISO "YYYY-MM-DD" date) falls strictly after `baseline` — ISO date strings
- * sort lexicographically the same as chronologically, so a plain string compare is exact here. */
-function isPastBaseline(actual: string | null, baseline: string | null): boolean {
-  return Boolean(actual && baseline && actual > baseline);
-}
-
 /**
  * TTM-CNTT "stripe thực tế" (bottom, actual strip) on-track color rule — core logic shared with
  * "Quản trị Epic (rút gọn)" and "Quản trị Epic (đầy đủ)"'s own copy of this same function (kept as
  * small per-page duplicates, matching this codebase's existing convention for tiny client-side
- * render helpers — see isPastBaseline just above). TTM-E2E keeps its separate, simpler
- * isPastBaseline rule (see TtmE2eStrips below) — this function is TTM-CNTT-only.
+ * render helpers). TTM-E2E's own stripe just trusts `row.ttmE2eAlertLevel === 'FAIL'` directly (see
+ * TtmE2eStrips below) instead of re-deriving a raw date compare, so it can never disagree with the
+ * Fail TTM-E2E badge on Cancelled/hasDataAnomaly Epics — this function is TTM-CNTT-only.
  * Green ("on track") when the actual stripe's end date (X) doesn't fall after the baseline
  * stripe's own end date (targetR4gDate) — a plain calendar-date compare, deliberately NOT the
  * working-day elapsed/target counts used everywhere else in this app: those stayed flat over a
@@ -304,26 +299,12 @@ function TtmE2eStrips({ compact, row }: { compact: boolean; row: EpicAlertRowPha
       className="ttm-col-border-right"
       compact={compact}
       elapsed={row.ttmE2eElapsedWorkingDays}
-      isOver={isPastBaseline(row.ttmE2eActualToDate, row.stages.release.baselineDate)}
+      isOver={row.ttmE2eAlertLevel === 'FAIL'}
       ratio={row.ttmE2eTargetWorkingDays > 0 ? (row.ttmE2eElapsedWorkingDays ?? 0) / row.ttmE2eTargetWorkingDays : 0}
       target={row.ttmE2eTargetWorkingDays}
     />
   );
 }
-
-const ALERT_HISTORY_TYPE_LABEL: Record<EpicAlertHistoryEntry['alertType'], string> = {
-  FAIL: 'Fail TTM-CNTT',
-  LATE: 'Cảnh báo muộn',
-};
-
-const ALERT_HISTORY_PHASE_LABEL: Record<EpicAlertHistoryEntry['phase'], string> = {
-  OVERALL: '',
-  DESIGN: 'DESIGN',
-  DEV: 'DEV',
-  TEST: 'TEST',
-  PENTEST: 'PENTEST',
-  R4GOLIVE: 'R4GOLIVE',
-};
 
 const MILESTONE_LABEL: Record<string, string> = {
   DESIGN_DONE: 'Design Done',
@@ -370,7 +351,6 @@ function AlertPopupField({ label, value }: { label: string; value: string }) {
 }
 
 function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRowPhased; onClose: () => void }) {
-  const [entries, setEntries] = useState<EpicAlertHistoryEntry[] | null>(null);
   const [milestones, setMilestones] = useState<EpicMilestoneHistoryEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -381,17 +361,24 @@ function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRowPhased; onClose:
       .then(({ ok, body }) => {
         if (cancelled) return;
         if (!ok) { setError(body.error || 'Lỗi hệ thống khi tải lịch sử Epic.'); return; }
-        setEntries(body.history ?? []);
         setMilestones(body.milestones ?? []);
       })
       .catch(() => { if (!cancelled) setError('Không thể kết nối API.'); });
     return () => { cancelled = true; };
   }, [row.epicKey]);
 
-  const isLoading = entries === null || milestones === null;
+  const isLoading = milestones === null;
+
+  // R4GOLIVE/Released "hoàn thành" — tính trực tiếp từ chính PhaseCell.isDone đã hiển thị ở cột
+  // R4GOLIVE/RELEASE của dòng này (evaluated live, epic-phase-completion-service.ts), KHÔNG phải từ
+  // epic_milestone_history (chỉ có DESIGN/DEV/TEST_DONE, và việc ghi log đang tạm tắt — xem
+  // MILESTONE_RECORDING_ENABLED) — nên 2 mốc này luôn "có" ngay khi Epic đã qua giai đoạn tương ứng.
+  const computedMilestones: { date: string; label: string }[] = [];
+  if (row.stages.r4golive.isDone && row.r4gDate) computedMilestones.push({ label: 'R4GOLIVE', date: row.r4gDate });
+  if (row.stages.release.isDone && row.dueDate) computedMilestones.push({ label: 'Released', date: row.dueDate });
 
   return (
-    <Modal isOpen onClose={onClose} title={`Epic History — ${row.epicKey}`} maxWidth="xl">
+    <Modal isOpen onClose={onClose} title={`Epic History — ${row.epicKey}`} maxWidth="2xl">
       <div className="ttm-alert-popup">
         <div className="ttm-alert-popup-left">
           <AlertPopupField label="Summary" value={row.epicName || '-'} />
@@ -404,12 +391,15 @@ function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRowPhased; onClose:
           <AlertPopupField label="Lớp dữ liệu đang sử dụng" value={formatDate(row.dataLayerDate)} />
         </div>
         <div className="ttm-alert-popup-right">
-          {error && <div className="ttm-note" style={{ background: 'var(--ttm-danger-050)', borderColor: '#f3b3b3', color: 'var(--ttm-danger-700)' }}>{error}</div>}
+          <h4 className="ttm-alert-popup-section-title">Dòng thời gian cảnh báo</h4>
+          <EpicAlertTimeline epicKey={row.epicKey} />
+
+          {error && <div className="ttm-note" style={{ background: 'var(--ttm-danger-050)', borderColor: '#f3b3b3', color: 'var(--ttm-danger-700)', marginTop: 16 }}>{error}</div>}
           {!error && isLoading && <p className="ttm-alert-popup-right-empty">Đang tải…</p>}
           {!error && !isLoading && (
             <>
-              <h4 className="ttm-alert-popup-section-title">Mốc hoàn thành</h4>
-              {milestones.length === 0 ? (
+              <h4 className="ttm-alert-popup-section-title ttm-alert-popup-section-title-spaced">Mốc hoàn thành</h4>
+              {milestones.length === 0 && computedMilestones.length === 0 ? (
                 <p className="ttm-alert-popup-right-empty">Chưa có mốc hoàn thành nào được ghi nhận.</p>
               ) : (
                 <ul className="ttm-alert-history-list">
@@ -420,21 +410,11 @@ function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRowPhased; onClose:
                       <span className="ttm-alert-history-date">{formatDate(milestone.milestoneDate)}</span>
                     </li>
                   ))}
-                </ul>
-              )}
-
-              <h4 className="ttm-alert-popup-section-title ttm-alert-popup-section-title-spaced">Cảnh báo</h4>
-              {entries.length === 0 ? (
-                <p className="ttm-alert-popup-right-empty">Chưa có lịch sử cảnh báo cho Epic này.</p>
-              ) : (
-                <ul className="ttm-alert-history-list">
-                  {entries.map((entry, index) => (
-                    <li key={`${entry.alertDate}-${entry.alertType}-${entry.phase}-${index}`} className="ttm-alert-history-item">
-                      <span className={`ttm-badge ${entry.alertType === 'FAIL' ? 'fail' : 'late-warning'}`}>
-                        {ALERT_HISTORY_TYPE_LABEL[entry.alertType]}{ALERT_HISTORY_PHASE_LABEL[entry.phase] ? ` (${ALERT_HISTORY_PHASE_LABEL[entry.phase]})` : ''}
-                      </span>
-                      <span className="ttm-alert-history-status">{entry.alertStatus}</span>
-                      <span className="ttm-alert-history-date">{formatDate(entry.alertDate)}</span>
+                  {computedMilestones.map((milestone) => (
+                    <li key={milestone.label} className="ttm-alert-history-item">
+                      <span className="ttm-badge-achieved">{milestone.label}</span>
+                      <span className="ttm-alert-history-status">Hoàn thành</span>
+                      <span className="ttm-alert-history-date">{formatDate(milestone.date)}</span>
                     </li>
                   ))}
                 </ul>
