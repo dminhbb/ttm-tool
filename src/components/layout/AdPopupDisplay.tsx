@@ -24,29 +24,25 @@ export function AdPopupDisplay() {
     return () => { cancelled = true; };
   }, []);
 
-  const dismissCurrent = () => setQueue((prev) => prev.slice(1));
-
-  // Fires once per popup actually shown: records the impression (see recordAdPopupImpression's
-  // doc comment — counts at display time, not at dismiss time) and starts its own countdown timer,
-  // using that campaign's own configured timeoutSeconds.
-  useEffect(() => {
-    if (!current) return undefined;
-    fetch(`/api/ad-popups/${current.id}/impression`, { method: 'POST' }).catch(() => undefined);
-    const timer = setTimeout(dismissCurrent, current.timeoutSeconds * 1000);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- dismissCurrent is a stable setState updater, not a real dependency.
-  }, [current?.id]);
-
   if (!current) return null;
+
+  const dismissCurrent = () => setQueue((prev) => prev.slice(1));
+  // "Số lần hiện tối đa" counts at display time, not at dismiss time — see recordAdPopupImpression.
+  const recordImpression = () => { fetch(`/api/ad-popups/${current.id}/impression`, { method: 'POST' }).catch(() => undefined); };
 
   return (
     <AdPopupCard
+      key={current.id}
       campaignName={current.campaignName}
       clickUrl={current.clickUrl}
+      forceView={current.forceView}
+      heightPercent={current.heightPercent}
       imageUrl={current.imageUrl}
       message={current.message}
       onDismiss={dismissCurrent}
+      onShown={recordImpression}
       timeoutSeconds={current.timeoutSeconds}
+      widthPercent={current.widthPercent}
     />
   );
 }

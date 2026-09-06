@@ -22,6 +22,8 @@ function validate(body: AdPopupInput): string | null {
   if (new Date(body.endDate).getTime() < new Date(body.startDate).getTime()) return 'Ngày kết thúc phải lớn hơn hoặc bằng Ngày bắt đầu';
   if (!Number.isInteger(body.maxImpressions) || body.maxImpressions < 1) return 'Số lần hiện tối đa phải là số nguyên lớn hơn 0';
   if (!Number.isInteger(body.timeoutSeconds) || body.timeoutSeconds < 1) return 'Thời gian timeout phải là số nguyên lớn hơn 0';
+  if (body.widthPercent !== null && (!Number.isInteger(body.widthPercent) || body.widthPercent < 1 || body.widthPercent > 100)) return 'Chiều rộng popup phải là số nguyên từ 1-100 (%) hoặc để trống';
+  if (body.heightPercent !== null && (!Number.isInteger(body.heightPercent) || body.heightPercent < 1 || body.heightPercent > 100)) return 'Chiều cao popup phải là số nguyên từ 1-100 (%) hoặc để trống';
   return null;
 }
 

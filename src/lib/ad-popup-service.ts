@@ -5,6 +5,7 @@ const ADMIN_SELECT_COLUMNS = `
   id, campaign_name AS "campaignName", is_active AS "isActive", max_impressions AS "maxImpressions",
   message, COALESCE(image_url, '') AS "imageUrl", COALESCE(click_url, '') AS "clickUrl",
   start_date::text AS "startDate", end_date::text AS "endDate", timeout_seconds AS "timeoutSeconds",
+  force_view AS "forceView", width_percent AS "widthPercent", height_percent AS "heightPercent",
   created_at::text AS "createdAt"
 `;
 
@@ -15,10 +16,16 @@ export async function listAdPopups(): Promise<AdPopup[]> {
 
 export async function createAdPopup(input: AdPopupInput): Promise<AdPopup> {
   const result = await pool.query<AdPopup>(`
-    INSERT INTO ad_popups (campaign_name, is_active, max_impressions, message, image_url, click_url, start_date, end_date, timeout_seconds)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    INSERT INTO ad_popups (
+      campaign_name, is_active, max_impressions, message, image_url, click_url, start_date, end_date,
+      timeout_seconds, force_view, width_percent, height_percent
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     RETURNING ${ADMIN_SELECT_COLUMNS};
-  `, [input.campaignName, input.isActive, input.maxImpressions, input.message, input.imageUrl || null, input.clickUrl || null, input.startDate, input.endDate, input.timeoutSeconds]);
+  `, [
+    input.campaignName, input.isActive, input.maxImpressions, input.message, input.imageUrl || null, input.clickUrl || null,
+    input.startDate, input.endDate, input.timeoutSeconds, input.forceView, input.widthPercent, input.heightPercent,
+  ]);
   return result.rows[0];
 }
 
@@ -27,10 +34,13 @@ export async function updateAdPopup(id: number, input: AdPopupInput): Promise<Ad
     UPDATE ad_popups SET
       campaign_name = $2, is_active = $3, max_impressions = $4, message = $5,
       image_url = $6, click_url = $7, start_date = $8, end_date = $9, timeout_seconds = $10,
-      updated_at = CURRENT_TIMESTAMP
+      force_view = $11, width_percent = $12, height_percent = $13, updated_at = CURRENT_TIMESTAMP
     WHERE id = $1
     RETURNING ${ADMIN_SELECT_COLUMNS};
-  `, [id, input.campaignName, input.isActive, input.maxImpressions, input.message, input.imageUrl || null, input.clickUrl || null, input.startDate, input.endDate, input.timeoutSeconds]);
+  `, [
+    id, input.campaignName, input.isActive, input.maxImpressions, input.message, input.imageUrl || null, input.clickUrl || null,
+    input.startDate, input.endDate, input.timeoutSeconds, input.forceView, input.widthPercent, input.heightPercent,
+  ]);
   return result.rows[0] ?? null;
 }
 
@@ -47,6 +57,7 @@ export async function deleteAdPopup(id: number): Promise<void> {
 export async function getEligibleAdPopupsForUser(userId: number): Promise<AdPopupPublic[]> {
   const result = await pool.query<AdPopupPublic>(`
     SELECT p.id, p.campaign_name AS "campaignName", p.message, p.timeout_seconds AS "timeoutSeconds",
+      p.force_view AS "forceView", p.width_percent AS "widthPercent", p.height_percent AS "heightPercent",
       COALESCE(p.image_url, '') AS "imageUrl", COALESCE(p.click_url, '') AS "clickUrl"
     FROM ad_popups p
     LEFT JOIN ad_popup_impressions i ON i.popup_id = p.id AND i.user_id = $1

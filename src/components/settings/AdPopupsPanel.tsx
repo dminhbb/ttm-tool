@@ -33,12 +33,15 @@ function buildEmptyForm(): AdPopupInput {
     campaignName: '',
     clickUrl: '',
     endDate: toDateKey(addWorkingDays(today, DEFAULT_DURATION_WORKING_DAYS)),
+    forceView: false,
+    heightPercent: null,
     imageUrl: '',
     isActive: true,
     maxImpressions: DEFAULT_MAX_IMPRESSIONS,
     message: '',
     startDate: toDateKey(today),
     timeoutSeconds: DEFAULT_TIMEOUT_SECONDS,
+    widthPercent: null,
   };
 }
 
@@ -51,6 +54,9 @@ export function AdPopupsPanel() {
   const [form, setForm] = useState<AdPopupInput>(buildEmptyForm());
   const [isSaving, setIsSaving] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  // Bumped every "Test Popup" click so AdPopupCard remounts (and its timer restarts) even if the
+  // form hasn't changed since the last preview.
+  const [previewKey, setPreviewKey] = useState(0);
 
   const fetchPopups = async () => {
     setIsLoading(true);
@@ -66,14 +72,6 @@ export function AdPopupsPanel() {
     void Promise.resolve().then(fetchPopups);
   }, []);
 
-  // Faithful preview: auto-closes on the same schedule the real popup would (no impression call,
-  // unlike AdPopupDisplay — this is just admin-facing, not a real show).
-  useEffect(() => {
-    if (!isPreviewOpen) return undefined;
-    const timer = setTimeout(() => setIsPreviewOpen(false), (form.timeoutSeconds || DEFAULT_TIMEOUT_SECONDS) * 1000);
-    return () => clearTimeout(timer);
-  }, [isPreviewOpen, form.timeoutSeconds]);
-
   const openCreate = () => {
     setEditingId(null);
     setForm(buildEmptyForm());
@@ -86,12 +84,15 @@ export function AdPopupsPanel() {
       campaignName: popup.campaignName,
       clickUrl: popup.clickUrl,
       endDate: popup.endDate,
+      forceView: popup.forceView,
+      heightPercent: popup.heightPercent,
       imageUrl: popup.imageUrl,
       isActive: popup.isActive,
       maxImpressions: popup.maxImpressions,
       message: popup.message,
       startDate: popup.startDate,
       timeoutSeconds: popup.timeoutSeconds,
+      widthPercent: popup.widthPercent,
     });
     setShowModal(true);
   };
@@ -270,11 +271,40 @@ export function AdPopupsPanel() {
               onChange={(event) => setForm({ ...form, timeoutSeconds: parseInt(event.target.value, 10) || 1 })}
             />
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              type="number"
+              min={1}
+              max={100}
+              label="Chiều rộng popup (% khung nhìn)"
+              placeholder="Để trống = mặc định"
+              value={form.widthPercent ?? ''}
+              onChange={(event) => setForm({ ...form, widthPercent: event.target.value === '' ? null : parseInt(event.target.value, 10) || null })}
+            />
+            <Input
+              type="number"
+              min={1}
+              max={100}
+              label="Chiều cao popup (% khung nhìn)"
+              placeholder="Để trống = mặc định"
+              value={form.heightPercent ?? ''}
+              onChange={(event) => setForm({ ...form, heightPercent: event.target.value === '' ? null : parseInt(event.target.value, 10) || null })}
+            />
+          </div>
           <label className="ui-check">
             <input type="checkbox" checked={form.isActive} onChange={(event) => setForm({ ...form, isActive: event.target.checked })} />
             Đang hoạt động (Active)
           </label>
-          <Button type="button" variant="outline" icon={<Eye className="w-4 h-4" weight="bold" />} onClick={() => setIsPreviewOpen(true)}>
+          <label className="ui-check">
+            <input type="checkbox" checked={form.forceView} onChange={(event) => setForm({ ...form, forceView: event.target.checked })} />
+            Bắt buộc xem — ẩn nút X và không tự đóng cho tới khi hết Thời gian timeout, sau đó mới hiện nút X
+          </label>
+          <Button
+            type="button"
+            variant="outline"
+            icon={<Eye className="w-4 h-4" weight="bold" />}
+            onClick={() => { setPreviewKey((k) => k + 1); setIsPreviewOpen(true); }}
+          >
             Test Popup
           </Button>
         </div>
@@ -282,12 +312,16 @@ export function AdPopupsPanel() {
 
       {isPreviewOpen && (
         <AdPopupCard
+          key={previewKey}
           campaignName={form.campaignName || 'Xem thử'}
           clickUrl={form.clickUrl}
+          forceView={form.forceView}
+          heightPercent={form.heightPercent}
           imageUrl={form.imageUrl}
           message={form.message || '(Chưa nhập nội dung thông điệp)'}
           onDismiss={() => setIsPreviewOpen(false)}
           timeoutSeconds={form.timeoutSeconds || DEFAULT_TIMEOUT_SECONDS}
+          widthPercent={form.widthPercent}
         />
       )}
     </div>
