@@ -7,14 +7,15 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { TableAction } from '@/components/ui/TableAction';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { compareValues, useSortableList } from '@/lib/use-sortable-list';
 import { addWorkingDays, toDateKey } from '@/lib/working-days';
+import { stripHtmlToText } from '@/lib/sanitize-html';
 import { AdPopupCard } from '@/components/layout/AdPopupCard';
 import type { AdPopup, AdPopupInput } from '@/lib/ad-popup-types';
 
@@ -178,7 +179,7 @@ export function AdPopupsPanel() {
                   {sortedPopups.map((popup, index) => (
                     <TR key={popup.id}>
                       <TD>{index + 1}</TD>
-                      <TD className="max-w-[220px] truncate font-medium" title={popup.message}>{popup.campaignName}</TD>
+                      <TD className="max-w-[220px] truncate font-medium" title={stripHtmlToText(popup.message)}>{popup.campaignName}</TD>
                       <TD className="text-center"><Badge variant={popup.isActive ? 'success' : 'neutral'}>{popup.isActive ? 'Active' : 'Inactive'}</Badge></TD>
                       <TD className="whitespace-nowrap">{popup.startDate} → {popup.endDate}</TD>
                       <TD className="text-center">{popup.maxImpressions}</TD>
@@ -216,14 +217,14 @@ export function AdPopupsPanel() {
             value={form.campaignName}
             onChange={(event) => setForm({ ...form, campaignName: event.target.value })}
           />
-          <FormField id="ad-popup-message" label="Nội dung thông điệp" required>
-            <textarea
-              className="ui-textarea form-control-compact"
-              rows={4}
-              value={form.message}
-              onChange={(event) => setForm({ ...form, message: event.target.value })}
-            />
-          </FormField>
+          <RichTextEditor
+            id="ad-popup-message"
+            label="Nội dung thông điệp"
+            required
+            placeholder="Nhập nội dung thông điệp…"
+            value={form.message}
+            onChange={(html) => setForm({ ...form, message: html })}
+          />
           <Input
             label="URL ảnh đính kèm"
             placeholder="https://..."

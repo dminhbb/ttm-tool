@@ -260,6 +260,16 @@ button:not(:disabled), [role="button"]:not([aria-disabled="true"]) { cursor: poi
 .ui-check { display: inline-flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 13px; font-weight: 650; }
 .ui-check input { accent-color: var(--accent); }
 .ui-input, .ui-textarea, .ui-select { width: 100%; min-height: 38px; padding: 8px 10px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-elevated); color: var(--text-primary); outline: none; transition: border-color 120ms ease, background 120ms ease; }
+.ui-richtext { border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-elevated); overflow: hidden; transition: border-color 120ms ease; }
+.ui-richtext:focus-within { border-color: var(--accent); box-shadow: var(--focus-ring); }
+.ui-richtext-toolbar { display: flex; flex-wrap: wrap; gap: 2px; padding: 6px; border-bottom: 1px solid var(--border-default); background: var(--surface-panel); }
+.ui-richtext-btn { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); cursor: pointer; }
+.ui-richtext-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
+.ui-richtext-editor { min-height: 110px; max-height: 320px; overflow-y: auto; padding: 8px 10px; color: var(--text-primary); font-size: var(--text-app); line-height: 1.5; outline: none; }
+.ui-richtext-editor:empty::before { content: attr(data-placeholder); color: var(--text-muted); }
+.ui-richtext-editor ul { list-style: disc; padding-left: 1.5em; }
+.ui-richtext-editor ol { list-style: decimal; padding-left: 1.5em; }
+.ui-richtext-editor a { color: var(--accent); text-decoration: underline; }
 .ui-textarea { min-height: 110px; resize: vertical; }
 .ui-input:hover, .ui-textarea:hover, .ui-select:hover { border-color: var(--border-strong); }
 .ui-input:focus, .ui-textarea:focus, .ui-select:focus { border-color: var(--accent); box-shadow: var(--focus-ring); }
@@ -315,4 +325,10 @@ button:not(:disabled), [role="button"]:not([aria-disabled="true"]) { cursor: poi
    popup in the queue is shown. */
 @keyframes ad-popup-countdown { from { width: 100%; } to { width: 0%; } }
 .ad-popup-progress { animation-name: ad-popup-countdown; animation-timing-function: linear; animation-fill-mode: forwards; }
+/* WYSIWYG output (RichTextEditor) rendered via dangerouslySetInnerHTML — reset browser default
+   paragraph/list margins so admin-authored content doesn't get extra unexpected spacing. */
+.ad-popup-message p { margin: 0 0 .5em; }
+.ad-popup-message p:last-child { margin-bottom: 0; }
+.ad-popup-message ul, .ad-popup-message ol { margin: 0 0 .5em; padding-left: 1.4em; text-align: left; }
+.ad-popup-message a { color: var(--accent); text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) { .ad-popup-progress { animation: none; width: 0%; } }

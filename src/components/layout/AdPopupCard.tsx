@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { X } from '@phosphor-icons/react';
+import { sanitizeAdPopupHtml } from '@/lib/sanitize-html';
 
 export interface AdPopupCardProps {
   campaignName: string;
@@ -14,6 +15,10 @@ export interface AdPopupCardProps {
   /** % of viewport height, or null for the default (content-sized) height. */
   heightPercent: number | null;
   imageUrl: string;
+  /** HTML from the admin's WYSIWYG editor (RichTextEditor) — sanitized again here as a second,
+   * defense-in-depth pass (see sanitizeAdPopupHtml's own doc comment for the actual trust model:
+   * only SUPERADMIN authors this, sanitization guards against a compromised session, not an
+   * untrusted author). */
   message: string;
   onDismiss: () => void;
   /** Fired once, on mount — e.g. to record an impression. Not called again for the same popup;
@@ -99,14 +104,24 @@ export function AdPopupCard({
         </div>
 
         <div
-          className={`flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto text-center${clickUrl ? ' cursor-pointer' : ''}`}
+          className={`flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto${clickUrl ? ' cursor-pointer' : ''}`}
           onClick={clickUrl ? openClickUrl : undefined}
         >
           {imageUrl && (
             // eslint-disable-next-line @next/next/no-img-element -- arbitrary admin-supplied URL, not a build-time-known local asset.
             <img src={imageUrl} alt={campaignName} className="max-h-[240px] w-full shrink-0 object-cover" />
           )}
-          <p className="whitespace-pre-wrap p-5 text-sm leading-relaxed text-fb-text-primary">{message}</p>
+          {/* Title: always bold, always left-aligned, one size step above the message text —
+             unlike the message below, this alignment isn't admin-configurable. */}
+          <p className="w-full px-5 pt-4 text-left text-base font-bold text-fb-text-primary">{campaignName}</p>
+          {/* Centered by default (text-center); an admin-set alignment (RichTextEditor's
+             justifyLeft/Center/Right toolbar, applied as inline text-align on specific blocks)
+             overrides it per-element, since a directly-specified value always wins over an
+             inherited one regardless of specificity. */}
+          <div
+            className="ad-popup-message w-full p-5 text-center text-sm leading-relaxed text-fb-text-primary"
+            dangerouslySetInnerHTML={{ __html: sanitizeAdPopupHtml(message) }}
+          />
         </div>
 
         <div className="h-1 w-full shrink-0 bg-fb-control">

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
 import { createAdPopup, deleteAdPopup, listAdPopups, updateAdPopup } from '@/lib/ad-popup-service';
+import { sanitizeAdPopupHtml, stripHtmlToText } from '@/lib/sanitize-html';
 import type { AdPopupInput } from '@/lib/ad-popup-types';
 
 // SUPERADMIN only for every method — this screen is configuration, not just viewing (per the
@@ -15,9 +16,11 @@ function authError(error: unknown): NextResponse | null {
   return null;
 }
 
+// message comes from RichTextEditor (HTML) — .trim() alone wouldn't catch an editor's "empty"
+// state (e.g. "<p><br></p>"), so check the tag-stripped text instead.
 function validate(body: AdPopupInput): string | null {
   if (!body.campaignName?.trim()) return 'Tên campaign là bắt buộc';
-  if (!body.message?.trim()) return 'Nội dung thông điệp là bắt buộc';
+  if (!body.message || !stripHtmlToText(body.message)) return 'Nội dung thông điệp là bắt buộc';
   if (!body.startDate || !body.endDate) return 'Ngày bắt đầu và Ngày kết thúc là bắt buộc';
   if (new Date(body.endDate).getTime() < new Date(body.startDate).getTime()) return 'Ngày kết thúc phải lớn hơn hoặc bằng Ngày bắt đầu';
   if (!Number.isInteger(body.maxImpressions) || body.maxImpressions < 1) return 'Số lần hiện tối đa phải là số nguyên lớn hơn 0';
@@ -44,7 +47,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as AdPopupInput;
     const validationError = validate(body);
     if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
-    const popup = await createAdPopup(body);
+    const popup = await createAdPopup({ ...body, message: sanitizeAdPopupHtml(body.message) });
     return NextResponse.json(popup, { status: 201 });
   } catch (error: unknown) {
     console.error('API Error creating ad-popup:', error);
@@ -60,7 +63,7 @@ export async function PUT(request: NextRequest) {
     if (!body.id) return NextResponse.json({ error: 'Popup ID là bắt buộc' }, { status: 400 });
     const validationError = validate(body);
     if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
-    const popup = await updateAdPopup(body.id, body);
+    const popup = await updateAdPopup(body.id, { ...body, message: sanitizeAdPopupHtml(body.message) });
     if (!popup) return NextResponse.json({ error: 'Không tìm thấy Popup quảng cáo' }, { status: 404 });
     return NextResponse.json(popup);
   } catch (error: unknown) {
