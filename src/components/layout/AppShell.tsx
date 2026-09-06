@@ -317,9 +317,12 @@ export function AppShell({ children }: AppShellProps) {
         if (cancelled || !data?.user) return;
         setRole(data.user.role);
         window.sessionStorage.setItem(ROLE_CACHE_KEY, data.user.role);
-        if (data.user.mustChangePassword) {
-          setMustChangePassword(true);
-        }
+        // Unconditional sync (not just "set true"): AppShell is a shared layout that survives a
+        // client-side logout→/login→login-again round trip without unmounting, so a `true` from an
+        // earlier session (forced first-time change) would otherwise never get cleared back to
+        // `false` once the DB flag is actually cleared — reproducing exactly the reported bug (only
+        // a full reload, which remounts AppShell from its `false` default, "fixed" it).
+        setMustChangePassword(Boolean(data.user.mustChangePassword));
       })
       .catch(() => undefined);
     return () => { cancelled = true; };

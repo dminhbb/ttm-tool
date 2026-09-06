@@ -114,12 +114,11 @@ export function AdPopupCard({
           {/* Title: always bold, always left-aligned, one size step above the message text —
              unlike the message below, this alignment isn't admin-configurable. */}
           <p className="w-full px-5 pt-4 text-left text-base font-bold text-fb-text-primary">{campaignName}</p>
-          {/* Centered by default (text-center); an admin-set alignment (RichTextEditor's
+          {/* No default alignment here (natural left) — an admin-set alignment (RichTextEditor's
              justifyLeft/Center/Right toolbar, applied as inline text-align on specific blocks)
-             overrides it per-element, since a directly-specified value always wins over an
-             inherited one regardless of specificity. */}
+             is what actually determines it, per-element. */}
           <div
-            className="ad-popup-message w-full p-5 text-center text-sm leading-relaxed text-fb-text-primary"
+            className="ad-popup-message w-full p-5 text-sm leading-relaxed text-fb-text-primary"
             dangerouslySetInnerHTML={{ __html: sanitizeAdPopupHtml(message) }}
           />
         </div>
