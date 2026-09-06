@@ -9,6 +9,7 @@ import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
 import { EpicStatWidgets } from '@/components/epic-alerts/EpicStatWidgets';
+import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import type { EpicAlertAccessRole, EpicAlertResponse, EpicAlertRow, StageCell } from '@/lib/epic-alert-types';
 import type { EpicAlertHistoryEntry } from '@/lib/epic-alert-history-service';
 import type { ProjectComponent } from '@/lib/master-data-types';
@@ -409,13 +410,7 @@ export default function EpicAlertsPage() {
 
   return (
     <div className="ttm-app">
-      <p className="ttm-page-subtitle">Màn hình read-only theo các dự án được phân quyền. Không có hành động ghi ngược Jira.</p>
-
-      {data && (
-        <div className="ttm-note">
-          Trạng thái hoàn thành của Epic: tính theo trạng thái của story, hoặc trạng thái Done của các subtask của mỗi role BA, DEV, TEST.
-        </div>
-      )}
+      <InfoBannerDisplay pathname="/epic-alerts" />
       {error && <div className="ttm-note" style={{ background: 'var(--ttm-danger-050)', borderColor: '#f3b3b3', color: 'var(--ttm-danger-700)' }}>{error}</div>}
 
       <section className="ttm-toolbar" aria-label="Bộ lọc Epic">
@@ -447,7 +442,6 @@ export default function EpicAlertsPage() {
           {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
         </select>
         <input className="ttm-field" type="search" aria-label="Tìm Epic Key hoặc Epic Name" placeholder="Tìm Epic Key hoặc Epic Name…" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} />
-        <div className="ttm-report-date">Dữ liệu cập nhật lần cuối: <b>{data ? formatDateTime(data.lastAggregatedAt) : '—'}</b></div>
       </section>
 
       {data && (
@@ -592,6 +586,7 @@ export default function EpicAlertsPage() {
       )}
 
       <div className="ttm-pagination-row">
+        <div className="ttm-report-date">Dữ liệu cập nhật lần cuối: <b>{data ? formatDateTime(data.lastAggregatedAt) : '—'}</b></div>
         {filteredRows.length > 0 && (
           <nav className="ttm-pagination" aria-label="Điều hướng phân trang">
             <button type="button" className="ttm-button" disabled={currentPage <= 1} onClick={() => { trackDataUsage(); setPage((current) => Math.max(1, current - 1)); }}>‹ Trước</button>

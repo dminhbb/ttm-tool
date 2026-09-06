@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef } from 'react';
+import type { ClipboardEvent, KeyboardEvent } from 'react';
 import { Eraser, LinkSimple, ListBullets, ListNumbers, TextAlignCenter, TextAlignLeft, TextAlignRight, TextB, TextItalic, TextUnderline } from '@phosphor-icons/react';
 
 export interface RichTextEditorProps {
@@ -10,13 +11,22 @@ export interface RichTextEditorProps {
   onChange: (html: string) => void;
   placeholder?: string;
   required?: boolean;
+  /** Renders as a single-line field (e.g. a banner's text) — Enter is blocked, pasted text has
+   * line breaks stripped, and list/alignment toolbar buttons (nonsensical for one line) are
+   * dropped, leaving just Bold/Italic/Underline/Link/Clear formatting. */
+  singleLine?: boolean;
   value: string;
 }
 
-const TOOLBAR_ACTIONS: { command: string; icon: typeof TextB; label: string }[] = [
+type ToolbarAction = { command: string; icon: typeof TextB; label: string };
+
+const INLINE_ACTIONS: ToolbarAction[] = [
   { command: 'bold', icon: TextB, label: 'In đậm' },
   { command: 'italic', icon: TextItalic, label: 'In nghiêng' },
   { command: 'underline', icon: TextUnderline, label: 'Gạch chân' },
+];
+
+const BLOCK_ACTIONS: ToolbarAction[] = [
   { command: 'insertUnorderedList', icon: ListBullets, label: 'Danh sách chấm' },
   { command: 'insertOrderedList', icon: ListNumbers, label: 'Danh sách số' },
   { command: 'justifyLeft', icon: TextAlignLeft, label: 'Căn trái' },
@@ -25,11 +35,11 @@ const TOOLBAR_ACTIONS: { command: string; icon: typeof TextB; label: string }[] 
 ];
 
 /**
- * Minimal WYSIWYG editor for the AD Popup message field — contentEditable + document.execCommand,
- * no external editor dependency (execCommand is deprecated from the spec but still functions in
- * every evergreen browser; a from-scratch replacement is out of proportion for one form field).
- * Output is an HTML string — see sanitizeAdPopupHtml for how it's treated as untrusted-ish before
- * storage/render despite only SUPERADMIN being able to author it.
+ * Minimal WYSIWYG editor — contentEditable + document.execCommand, no external editor dependency
+ * (execCommand is deprecated from the spec but still functions in every evergreen browser; a
+ * from-scratch replacement is out of proportion for a form field or two). Output is an HTML string
+ * — see sanitizeAdPopupHtml for how it's treated as untrusted-ish before storage/render despite
+ * only trusted admin roles being able to author it.
  *
  * Not built on FormField: FormField clones its single child to inject `id`, which would land on
  * this component's outer wrapper (toolbar + editable area) rather than the editable div itself,
@@ -40,7 +50,7 @@ const TOOLBAR_ACTIONS: { command: string; icon: typeof TextB; label: string }[] 
  * OUTSIDE this component's own onInput (tracked via lastValueRef) — never on every keystroke, which
  * would otherwise reset the caret position mid-typing.
  */
-export function RichTextEditor({ helperText, id, label, onChange, placeholder, required, value }: RichTextEditorProps) {
+export function RichTextEditor({ helperText, id, label, onChange, placeholder, required, singleLine = false, value }: RichTextEditorProps) {
   const generatedId = useId();
   const editorId = id ?? generatedId;
   const editorRef = useRef<HTMLDivElement>(null);
@@ -71,7 +81,20 @@ export function RichTextEditor({ helperText, id, label, onChange, placeholder, r
     if (url) exec('createLink', url);
   };
 
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (singleLine && event.key === 'Enter') event.preventDefault();
+  };
+
+  const handlePaste = (event: ClipboardEvent<HTMLDivElement>) => {
+    if (!singleLine) return;
+    event.preventDefault();
+    const text = event.clipboardData.getData('text/plain').replace(/[\r\n]+/g, ' ');
+    document.execCommand('insertText', false, text);
+    emitChange();
+  };
+
   const descriptionId = helperText ? `${editorId}-description` : undefined;
+  const toolbarActions = singleLine ? INLINE_ACTIONS : [...INLINE_ACTIONS, ...BLOCK_ACTIONS];
 
   return (
     <div className="ui-field">
@@ -83,7 +106,7 @@ export function RichTextEditor({ helperText, id, label, onChange, placeholder, r
       )}
       <div className="ui-richtext">
         <div className="ui-richtext-toolbar" role="toolbar" aria-label="Định dạng văn bản">
-          {TOOLBAR_ACTIONS.map(({ command, icon: Icon, label: actionLabel }) => (
+          {toolbarActions.map(({ command, icon: Icon, label: actionLabel }) => (
             <button
               key={command}
               type="button"
@@ -120,17 +143,19 @@ export function RichTextEditor({ helperText, id, label, onChange, placeholder, r
         <div
           ref={editorRef}
           id={editorId}
-          className="ui-richtext-editor form-control-compact"
+          className={`ui-richtext-editor form-control-compact${singleLine ? ' ui-richtext-editor--single-line' : ''}`}
           data-placeholder={placeholder}
           contentEditable
           role="textbox"
-          aria-multiline="true"
+          aria-multiline={!singleLine}
           aria-label={label}
           aria-describedby={descriptionId}
           aria-required={required}
           suppressContentEditableWarning
           onInput={emitChange}
           onBlur={emitChange}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
         />
       </div>
       {helperText && <p id={descriptionId} className="ui-helper">{helperText}</p>}

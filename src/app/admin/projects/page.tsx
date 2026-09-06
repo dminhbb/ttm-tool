@@ -14,6 +14,7 @@ import { Select } from '@/components/ui/Select';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { TableAction } from '@/components/ui/TableAction';
 import { TableSkeleton } from '@/components/ui/Skeleton';
+import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import type { ManagedUser } from '@/lib/auth-types';
 import { PROJECT_CATEGORIES } from '@/lib/master-data-types';
 import { fuzzyIncludes } from '@/lib/fuzzy-search';
@@ -91,6 +92,7 @@ export default function ProjectsAdminPage() {
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => setImportFile(event.target.files?.[0] ?? null);
 
   return <div className="flex flex-col gap-6">
+    <InfoBannerDisplay pathname="/admin/projects" />
     {message && <Alert variant={message.type === 'success' ? 'success' : 'error'} title={message.type === 'success' ? 'Thành công' : 'Lỗi'}>{message.text}</Alert>}
     <Card><CardHeader><CardTitle>Danh mục Dự án ({filteredProjects.length})</CardTitle><div className="flex gap-2"><Button icon={<FileArrowUp className="size-4" weight="bold" />} onClick={() => setShowImportModal(true)} size="sm" variant="outline">Thêm nhiều dự án</Button><Button icon={<Plus className="size-4" weight="bold" />} onClick={openCreate} size="sm">Thêm dự án</Button></div></CardHeader><CardBody>
       <div className="ui-table-toolbar grid gap-3 md:grid-cols-[repeat(4,minmax(0,1fr))_auto]"><Input aria-label="Tìm project key hoặc tên dự án" label="Tìm kiếm" onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Project Key hoặc tên dự án" value={query} /><Select label="Domain" onChange={(event) => { setFilterDomain(event.target.value); setPage(1); }} options={[{ value: '', label: 'Tất cả Domain' }, ...domains.map((domain) => ({ value: String(domain.id), label: domain.domainName }))]} value={filterDomain} /><Input label="PM/SM" onChange={(event) => { setFilterLead(event.target.value); setPage(1); }} placeholder="Nhập tên hoặc email PM/SM" value={filterLead} /><Select label="Trạng thái" onChange={(event) => { setFilterStatus(event.target.value); setPage(1); }} options={[{ value: '', label: 'Tất cả trạng thái' }, { value: 'true', label: 'Active' }, { value: 'false', label: 'Inactive' }]} value={filterStatus} /><button aria-label="Đặt lại tìm kiếm và bộ lọc" className="ui-icon-button self-end" onClick={() => { setQuery(''); setFilterDomain(''); setFilterLead(''); setFilterStatus(''); setPage(1); }} title="Đặt lại tìm kiếm và bộ lọc" type="button"><ArrowCounterClockwise aria-hidden="true" className="size-4" weight="bold" /></button></div>

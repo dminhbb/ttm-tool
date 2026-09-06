@@ -15,6 +15,7 @@ import { Select } from '@/components/ui/Select';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { DataTableToolbar } from '@/components/ui/DataTableToolbar';
 import { TableAction } from '@/components/ui/TableAction';
+import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import { USER_ROLES } from '@/lib/auth-types';
 import { generateCompliantPassword, PASSWORD_REQUIREMENTS_GUIDE, validatePassword } from '@/lib/password-rules';
 import { fuzzyIncludes } from '@/lib/fuzzy-search';
@@ -179,6 +180,7 @@ export default function UsersPage() {
   };
 
   return <div className="flex flex-col gap-6">
+    <InfoBannerDisplay pathname="/admin/users" />
     <nav className="ui-tabs" aria-label="Quản lý user">{([['users', 'Quản lý user', 0], ['reset', 'Yêu cầu cấp lại mật khẩu', tickets.length], ['registrations', 'Duyệt đăng ký mới', inactiveUsers.length]] as [Tab, string, number][]).map(([key, label, count]) => <Button key={key} onClick={() => setTab(key)} variant={tab === key ? 'primary' : 'outline'}><span>{label}</span>{count > 0 && <Badge className="ml-1" variant={key === 'reset' ? 'warning' : 'info'}>{count}</Badge>}</Button>)}</nav>
     {message && <Alert title={message.type === 'success' ? 'Thông báo' : 'Lỗi'} variant={message.type}>{message.text}</Alert>}
     <Card><CardHeader><CardTitle>{tab === 'users' ? 'Quản lý user' : tab === 'reset' ? 'Yêu cầu cấp lại mật khẩu' : 'Duyệt đăng ký mới'}</CardTitle>

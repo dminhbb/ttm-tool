@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { MultiSelect } from '@/components/ui/MultiSelect';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
+import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import { DASHBOARD_MAX_SELECTABLE_PROJECTS, DASHBOARD_MIN_SELECTABLE_PROJECTS } from '@/lib/dashboard-types';
 import type { DashboardAtRiskEpic, DashboardResponse, DashboardStats } from '@/lib/dashboard-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
@@ -220,6 +221,7 @@ export default function DashboardPage() {
 
   return (
     <div className="dashboard-app flex flex-col gap-6">
+      <InfoBannerDisplay pathname="/dashboard" />
       {error && <Alert variant="error" title="Lỗi">{error}</Alert>}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <p className="text-xs text-fb-text-secondary">Dữ liệu tính đến lớp: <strong className="text-fb-text-primary">{formatDateTime(data.lastAggregatedAt)}</strong></p>

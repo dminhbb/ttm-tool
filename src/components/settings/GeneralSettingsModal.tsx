@@ -1,12 +1,13 @@
 'use client';
 
 import * as React from 'react';
-import { Calendar, LinkSimple, Megaphone, Tag, X } from '@phosphor-icons/react';
+import { Calendar, Info, LinkSimple, Megaphone, Tag, X } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import type { UserRole } from '@/lib/auth-types';
 import { AdPopupsPanel } from '@/components/settings/AdPopupsPanel';
 import { HolidaysAndWorkdaysSection } from '@/components/settings/HolidaysAndWorkdaysSection';
+import { InfoBannersPanel } from '@/components/settings/InfoBannersPanel';
 import { IssueTypeRolesPanel } from '@/components/settings/IssueTypeRolesPanel';
 import { JiraConfigPanel } from '@/components/settings/JiraConfigPanel';
 
@@ -30,6 +31,7 @@ const BASE_SECTIONS: SettingsSection[] = [
   { id: 'holidays', icon: Calendar, label: 'Quản lý ngày nghỉ/làm bù', panel: <HolidaysAndWorkdaysSection /> },
   { id: 'issue-type-roles', icon: Tag, label: 'Quản lý Issue Type', panel: <IssueTypeRolesPanel /> },
   { id: 'jira-config', icon: LinkSimple, label: 'Cấu hình Jira', panel: <JiraConfigPanel /> },
+  { id: 'info-banners', icon: Info, label: 'Banner thông báo', panel: <InfoBannersPanel /> },
 ];
 
 const AD_POPUPS_SECTION: SettingsSection = { id: 'ad-popups', icon: Megaphone, label: 'Popup quảng cáo', panel: <AdPopupsPanel /> };

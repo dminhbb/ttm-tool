@@ -75,6 +75,11 @@
 .ttm-app {
   font-family: var(--ttm-font);
   color: var(--ttm-text);
+  /* Pulls the banner row up closer to the header — AppShell's shared <main> wrapper has its own
+     top padding (p-4/p-6/p-8) that this page can't remove without affecting every other screen, so
+     this is a partial, page-scoped offset instead. Approximate — nudge the value if it over/under-
+     shoots once you see it live. */
+  margin-top: -8px;
 }
 .ttm-shell {
   min-height: 100vh;
@@ -154,6 +159,9 @@
   display: flex;
   gap: 10px;
   align-items: center;
+  /* Spacing from the banner row (InfoBannerDisplay) right above — present whether or not a banner
+     is actually showing, so the toolbar's position never shifts depending on that. */
+  margin-top: 16px;
   margin-bottom: 12px;
   flex-wrap: wrap;
 }

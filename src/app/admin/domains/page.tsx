@@ -15,6 +15,7 @@ import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui
 import { DataTableToolbar } from '@/components/ui/DataTableToolbar';
 import { TableAction } from '@/components/ui/TableAction';
 import { TableSkeleton } from '@/components/ui/Skeleton';
+import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import { fuzzyIncludes } from '@/lib/fuzzy-search';
 import { compareValues, useSortableList } from '@/lib/use-sortable-list';
 import type { ManagedUser } from '@/lib/auth-types';
@@ -71,6 +72,7 @@ export default function DomainsAdminPage() {
     .filter((domain) => fuzzyIncludes(searchTerm, [domain.domainCode, domain.domainName, domain.leadName, domain.description, domain.isActive ? 'active' : 'inactive']))
     .sort((a, b) => compareValues(domainSortValue(a, domainSortKey), domainSortValue(b, domainSortKey), domainSortDirection(domainSortKey) ?? 'asc'));
   return <div className="flex flex-col gap-6">
+    <InfoBannerDisplay pathname="/admin/domains" />
     {message && <Alert variant={message.type === 'success' ? 'success' : 'error'} title={message.type === 'success' ? 'Thành công' : 'Lỗi'}>{message.text}</Alert>}
     <Card><CardHeader><CardTitle>Danh mục Domain nghiệp vụ ({domains.length})</CardTitle><Button size="sm" icon={<Plus className="size-4" weight="bold" />} onClick={openCreate}>Thêm Domain</Button></CardHeader><CardBody>
       {isLoading ? <TableSkeleton rows={4} /> : domains.length === 0 ? <EmptyState title="Chưa có Domain nào" description="Thêm Domain nghiệp vụ đầu tiên để phân loại các dự án." /> : <><DataTableToolbar onReset={() => setSearchTerm('')} onSearchChange={setSearchTerm} placeholder="Tìm Domain, Lead hoặc mô tả" searchValue={searchTerm} />{filteredDomains.length === 0 ? <EmptyState title="Không tìm thấy Domain phù hợp" description="Hãy thay đổi từ khóa hoặc đặt lại tìm kiếm." /> : <TableContainer><Table><THead><TR>

@@ -270,6 +270,7 @@ button:not(:disabled), [role="button"]:not([aria-disabled="true"]) { cursor: poi
 .ui-richtext-editor ul { list-style: disc; padding-left: 1.5em; }
 .ui-richtext-editor ol { list-style: decimal; padding-left: 1.5em; }
 .ui-richtext-editor a { color: var(--accent); text-decoration: underline; }
+.ui-richtext-editor--single-line { min-height: 38px; max-height: 38px; overflow: hidden; white-space: nowrap; }
 .ui-textarea { min-height: 110px; resize: vertical; }
 .ui-input:hover, .ui-textarea:hover, .ui-select:hover { border-color: var(--border-strong); }
 .ui-input:focus, .ui-textarea:focus, .ui-select:focus { border-color: var(--accent); box-shadow: var(--focus-ring); }
@@ -308,6 +309,14 @@ button:not(:disabled), [role="button"]:not([aria-disabled="true"]) { cursor: poi
 .ui-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); }
 .ui-status-success::before { background: var(--success); }.ui-status-warning::before { background: var(--warning); }.ui-status-danger::before { background: var(--danger); }.ui-status-info::before { background: var(--info); }
 .ui-alert { display: flex; gap: 12px; padding: 12px 16px; border: 1px solid var(--border-default); border-radius: var(--radius-lg); background: var(--surface-panel); }
+/* "Banner thông báo" (Quản lý chung → Banner thông báo, InfoBannerDisplay) — plain text row, no
+   background/border: a leading (i) icon + muted text. The icon stays muted for a PER_SCREEN banner
+   but turns the vivid accent color for the DEFAULT one (--default modifier) — the only visual
+   difference between the two, so the site-wide banner still stands out at a glance. */
+.ui-info-banner { display: flex; align-items: center; gap: 10px; padding: 4px 0; color: var(--text-muted); font-size: 13px; font-weight: 600; line-height: 1.4; }
+.ui-info-banner-icon { flex-shrink: 0; color: var(--text-muted); }
+.ui-info-banner--default .ui-info-banner-icon { color: var(--accent); }
+.ui-info-banner p { display: inline; margin: 0; }
 .ui-empty { display: grid; min-height: 220px; place-items: center; padding: 32px; text-align: center; color: var(--text-secondary); }
 .ui-page-title { margin: 0; color: var(--text-primary); font-size: 26px; font-weight: 800; letter-spacing: -.03em; line-height: 1.15; }
 .ui-card-title { margin: 0; color: var(--text-primary); font-size: 13px; font-weight: 800; }

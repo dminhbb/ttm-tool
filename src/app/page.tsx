@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { ImportIssuesTab } from '@/components/data-source/ImportIssuesTab';
 import { ComponentManagementTab } from '@/components/data-source/ComponentManagementTab';
+import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 
 type Tab = 'issues' | 'components';
 
@@ -12,6 +13,7 @@ export default function DataSourcePage() {
 
   return (
     <>
+      <InfoBannerDisplay pathname="/" />
       <nav className="ui-tabs" aria-label="Quản trị nguồn dữ liệu">
         <Button onClick={() => setTab('issues')} variant={tab === 'issues' ? 'primary' : 'outline'}>Import Issues</Button>
         <Button onClick={() => setTab('components')} variant={tab === 'components' ? 'primary' : 'outline'}>Quản lý Component</Button>

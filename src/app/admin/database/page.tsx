@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { TableSkeleton } from '@/components/ui/Skeleton';
+import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import type { BackupTableInfo, ImportResult } from '@/lib/db-backup-types';
 import type { ImportPreview } from '@/lib/db-backup-service';
 import type { CleanupPreview } from '@/lib/db-cleanup-service';
@@ -235,6 +236,7 @@ export default function DatabaseBackupPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <InfoBannerDisplay pathname="/admin/database" />
       {message && (
         <Alert variant={message.type === 'success' ? 'success' : 'error'} title={message.type === 'success' ? 'Thành công' : 'Lỗi'}>
           {message.text}

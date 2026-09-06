@@ -1,6 +1,9 @@
+import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
+
 export default function ProductDocsPage() {
   return (
     <div className="flex flex-col gap-3">
+      <InfoBannerDisplay pathname="/docs/product" />
       <p className="text-fb-text-secondary">
         Tài liệu trình bày toàn bộ workflow, chức năng và logic xử lý dữ liệu của TTM Monitor — dùng để đào tạo người dùng mới.
       </p>

@@ -4,6 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { USER_ROLES, type UserRole } from '@/lib/auth-types';
+import { PAGE_HEADERS } from '@/lib/app-screens';
 import {
   Archive,
   BriefcaseMetal,
@@ -218,21 +219,10 @@ function SidebarContent({ expanded, onNavigate, onOpenSettings, onToggle, role }
   );
 }
 
-const PAGE_HEADERS: Record<string, { subtitle: string; title: string }> = {
-  '/': { subtitle: 'Kiểm tra và quản lý các lớp dữ liệu Jira nhập vào TTM Monitor', title: 'Quản trị nguồn dữ liệu' },
-  '/dashboard': { subtitle: 'Thống kê tổng quan tình trạng TTM theo dự án', title: 'Dashboard' },
-  '/epic-alerts': { subtitle: 'Cảnh báo TTM-CNTT dựa trên đợt import dữ liệu mới nhất', title: 'Quản trị Epic (rút gọn)' },
-  '/epic-alerts-15': { subtitle: 'Cảnh báo TTM-CNTT theo giai đoạn DESIGN/DEV/TEST/PENTEST/R4GOLIVE', title: 'Quản trị Epic (đầy đủ)' },
-  '/epic-in-po': { subtitle: 'Epic đang ở trạng thái To Do, In PO hoặc Released', title: 'Epic in PO' },
-  '/admin/domains': { subtitle: 'Quản lý danh mục Domain nghiệp vụ', title: 'Quản lý Domain' },
-  '/admin/projects': { subtitle: 'Quản lý danh mục Dự án và mapping với Domain', title: 'Quản lý Dự án' },
-  '/admin/holidays': { subtitle: 'Cấu hình ngày nghỉ dùng để tính ngày làm việc', title: 'Cấu hình ngày nghỉ' },
-  '/admin/status-alert-rules': { subtitle: 'Thiết lập mốc cảnh báo TTM-CNTT theo loại và trạng thái Epic', title: 'Cấu hình cảnh báo' },
-  '/admin/users': { subtitle: 'Quản lý tài khoản, role và trạng thái người dùng', title: 'Quản lý User' },
-  '/admin/database': { subtitle: 'Export/Import dữ liệu ứng dụng dưới dạng file SQL', title: 'Sao lưu / Phục hồi dữ liệu' },
-  '/admin/permissions': { subtitle: 'Cấu hình quyền Xem/Thêm/Sửa/Xóa theo vai trò cho từng chức năng', title: 'Ma trận phân quyền' },
-  '/docs/product': { subtitle: 'Tài liệu trình bày và đào tạo về hệ thống TTM Monitor', title: 'Tài liệu sản phẩm' },
-};
+// PAGE_HEADERS now lives in '@/lib/app-screens' (a dependency-free leaf module) so InfoBannersPanel
+// can import it too without creating AppShell → GeneralSettingsModal → InfoBannersPanel → AppShell,
+// a circular import that throws "Cannot access 'PAGE_HEADERS' before initialization" — importing it
+// back out of this file was the original approach and is exactly what caused that.
 
 // Mirrors the API-side role checks (epic-alerts, users, domains, projects, status-alert-rules,
 // database, holidays/issue-type-roles routes) — a safe landing spot when a role that lacks access
