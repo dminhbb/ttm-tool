@@ -357,6 +357,29 @@ export default function EpicAlertsPage() {
     setPage(1);
   };
 
+  // Admin/superadmin-tier viewers (accessRole LEAD/CBQL_PHONG) — see resolveAccessScope in
+  // epic-alert-service.ts: SUPERADMIN/SUPERVISOR → CBQL_PHONG, ADMIN → LEAD, USER → PM_SM.
+  const isAdminTierAccess = data ? data.accessRole !== 'PM_SM' : false;
+
+  // Domain → Project Keys, derived from the rows already scoped to this viewer's own access —
+  // Domain filter picks a Domain and auto-selects every Project Key under it into the Project
+  // filter. Admin/superadmin-tier only: a PM/SM's own project scope is already small.
+  const domainProjectKeys = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const row of rows) {
+      if (!row.domainName || !row.projectKey) continue;
+      if (!map.has(row.domainName)) map.set(row.domainName, new Set());
+      map.get(row.domainName)!.add(row.projectKey);
+    }
+    return map;
+  }, [rows]);
+  const domainOptions = useMemo(() => [...domainProjectKeys.keys()].sort((a, b) => a.localeCompare(b, 'vi')), [domainProjectKeys]);
+  const [domainFilter, setDomainFilter] = useState('');
+  const handleDomainFilterChange = (value: string) => {
+    setDomainFilter(value);
+    handleProjectFiltersChange(value ? [...(domainProjectKeys.get(value) ?? [])].sort() : []);
+  };
+
   const filteredRows = useMemo(() => rows.filter((row) => {
     const normalizedSearch = search.trim().toLocaleLowerCase('vi-VN');
     return (projectFilters.length === 0 || projectFilters.includes(row.projectKey))
@@ -396,7 +419,6 @@ export default function EpicAlertsPage() {
   // Admin/superadmin-tier viewers (accessRole LEAD/CBQL_PHONG) can be scoped to a huge number of
   // project keys, so the stat widgets only compute/show once the Project filter narrows that down
   // to a workable range (1–3 projects) — a PM/SM viewer's own scope is already small, so it's exempt.
-  const isAdminTierAccess = data ? data.accessRole !== 'PM_SM' : false;
   const statWidgetsGateMessage = isAdminTierAccess && (projectFilters.length === 0 || projectFilters.length > 3)
     ? 'Chọn từ 1 đến 3 dự án ở bộ lọc "Dự án" để xem thống kê nhanh.'
     : undefined;
@@ -414,12 +436,23 @@ export default function EpicAlertsPage() {
       {error && <div className="ttm-note" style={{ background: 'var(--ttm-danger-050)', borderColor: '#f3b3b3', color: 'var(--ttm-danger-700)' }}>{error}</div>}
 
       <section className="ttm-toolbar" aria-label="Bộ lọc Epic">
+        {isAdminTierAccess && (
+          <select
+            className="ttm-select"
+            aria-label="Domain"
+            value={domainFilter}
+            onChange={(event) => handleDomainFilterChange(event.target.value)}
+          >
+            <option value="">Chọn Domain…</option>
+            {domainOptions.map((domain) => <option key={domain} value={domain}>{domain}</option>)}
+          </select>
+        )}
         <ToolbarMultiSelect
           ariaLabel="Dự án"
           allLabel="Tất cả dự án của tôi"
           options={projectOptions}
           value={projectFilters}
-          onChange={handleProjectFiltersChange}
+          onChange={(values) => { setDomainFilter(''); handleProjectFiltersChange(values); }}
         />
         <ToolbarMultiSelect
           ariaLabel="Components"
