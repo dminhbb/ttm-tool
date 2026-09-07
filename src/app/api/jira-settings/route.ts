@@ -6,7 +6,7 @@ const MAX_URL_LENGTH = 500;
 
 function authError(error: unknown): NextResponse | null {
   if (error instanceof AuthError) {
-    return NextResponse.json({ error: error.code === 'FORBIDDEN' ? 'Chỉ ADMIN/SUPERADMIN được cấu hình Jira.' : 'Chưa đăng nhập.' }, { status: error.code === 'FORBIDDEN' ? 403 : 401 });
+    return NextResponse.json({ error: error.code === 'FORBIDDEN' ? 'Chỉ SUPERADMIN được cấu hình Jira.' : 'Chưa đăng nhập.' }, { status: error.code === 'FORBIDDEN' ? 403 : 401 });
   }
   return null;
 }
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    await requireUser(request, ['ADMIN', 'SUPERADMIN']);
+    await requireUser(request, ['SUPERADMIN']);
     const body: unknown = await request.json();
     if (!isRecord(body) || !isValidUrlOrEmpty(body.apiBaseUrl) || !isValidUrlOrEmpty(body.viewIssueBaseUrl)) {
       return NextResponse.json({ error: 'Địa chỉ Jira API hoặc Jira View Issue không hợp lệ.' }, { status: 400 });

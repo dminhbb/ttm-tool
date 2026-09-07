@@ -63,3 +63,6 @@ Thumbs.db
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+public/reports/pr-review-ttm-monitor.zip
+public/reports/pr-review-ttm-monitor.html
+public/docs/product-guide.zip

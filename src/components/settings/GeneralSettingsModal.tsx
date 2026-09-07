@@ -14,9 +14,9 @@ import { JiraConfigPanel } from '@/components/settings/JiraConfigPanel';
 export interface GeneralSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Gates the "Popup quảng cáo" and "Banner thông báo" sections — configuration for both is
-   * SUPERADMIN-only, so ADMIN/SUPERVISOR (who can otherwise open this whole modal) never see
-   * those sections at all, not just a disabled/read-only view of them. */
+  /** Gates the "Popup quảng cáo", "Banner thông báo" and "Cấu hình Jira" sections — configuration
+   * for all three is SUPERADMIN-only, so ADMIN/SUPERVISOR (who can otherwise open this whole
+   * modal) never see those sections at all, not just a disabled/read-only view of them. */
   role?: UserRole | null;
 }
 
@@ -30,7 +30,6 @@ interface SettingsSection {
 const BASE_SECTIONS: SettingsSection[] = [
   { id: 'holidays', icon: Calendar, label: 'Quản lý ngày nghỉ/làm bù', panel: <HolidaysAndWorkdaysSection /> },
   { id: 'issue-type-roles', icon: Tag, label: 'Quản lý Issue Type', panel: <IssueTypeRolesPanel /> },
-  { id: 'jira-config', icon: LinkSimple, label: 'Cấu hình Jira', panel: <JiraConfigPanel /> },
 ];
 
 // SUPERADMIN-only sections — configuration, not just viewing (same "chỉ cho superadmin thực hiện
@@ -38,6 +37,7 @@ const BASE_SECTIONS: SettingsSection[] = [
 const SUPERADMIN_SECTIONS: SettingsSection[] = [
   { id: 'info-banners', icon: Info, label: 'Banner thông báo', panel: <InfoBannersPanel /> },
   { id: 'ad-popups', icon: Megaphone, label: 'Popup quảng cáo', panel: <AdPopupsPanel /> },
+  { id: 'jira-config', icon: LinkSimple, label: 'Cấu hình Jira', panel: <JiraConfigPanel /> },
 ];
 
 export function GeneralSettingsModal({ isOpen, onClose, role = null }: GeneralSettingsModalProps) {
