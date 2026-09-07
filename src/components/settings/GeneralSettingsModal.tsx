@@ -14,9 +14,9 @@ import { JiraConfigPanel } from '@/components/settings/JiraConfigPanel';
 export interface GeneralSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Gates the "Popup quảng cáo" section — configuration is SUPERADMIN-only, so ADMIN/SUPERVISOR
-   * (who can otherwise open this whole modal) never see that section at all, not just a
-   * disabled/read-only view of it. */
+  /** Gates the "Popup quảng cáo" and "Banner thông báo" sections — configuration for both is
+   * SUPERADMIN-only, so ADMIN/SUPERVISOR (who can otherwise open this whole modal) never see
+   * those sections at all, not just a disabled/read-only view of them. */
   role?: UserRole | null;
 }
 
@@ -31,13 +31,17 @@ const BASE_SECTIONS: SettingsSection[] = [
   { id: 'holidays', icon: Calendar, label: 'Quản lý ngày nghỉ/làm bù', panel: <HolidaysAndWorkdaysSection /> },
   { id: 'issue-type-roles', icon: Tag, label: 'Quản lý Issue Type', panel: <IssueTypeRolesPanel /> },
   { id: 'jira-config', icon: LinkSimple, label: 'Cấu hình Jira', panel: <JiraConfigPanel /> },
-  { id: 'info-banners', icon: Info, label: 'Banner thông báo', panel: <InfoBannersPanel /> },
 ];
 
-const AD_POPUPS_SECTION: SettingsSection = { id: 'ad-popups', icon: Megaphone, label: 'Popup quảng cáo', panel: <AdPopupsPanel /> };
+// SUPERADMIN-only sections — configuration, not just viewing (same "chỉ cho superadmin thực hiện
+// cấu hình" rule as ad-popups' own API route).
+const SUPERADMIN_SECTIONS: SettingsSection[] = [
+  { id: 'info-banners', icon: Info, label: 'Banner thông báo', panel: <InfoBannersPanel /> },
+  { id: 'ad-popups', icon: Megaphone, label: 'Popup quảng cáo', panel: <AdPopupsPanel /> },
+];
 
 export function GeneralSettingsModal({ isOpen, onClose, role = null }: GeneralSettingsModalProps) {
-  const sections = role === 'SUPERADMIN' ? [...BASE_SECTIONS, AD_POPUPS_SECTION] : BASE_SECTIONS;
+  const sections = role === 'SUPERADMIN' ? [...BASE_SECTIONS, ...SUPERADMIN_SECTIONS] : BASE_SECTIONS;
   const [activeSectionId, setActiveSectionId] = React.useState(sections[0].id);
   const titleId = React.useId();
   const closeButtonRef = React.useRef<HTMLButtonElement>(null);

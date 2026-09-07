@@ -4,14 +4,13 @@ import { createInfoBanner, deleteInfoBanner, listInfoBanners, updateInfoBanner }
 import { sanitizeAdPopupHtml, stripHtmlToText } from '@/lib/sanitize-html';
 import type { InfoBannerInput } from '@/lib/info-banner-types';
 
-// Same view/edit split as most admin CRUD in this app: SUPERVISOR can see the list (read-only,
-// enforced here by only being in the GET roles) but not mutate; ADMIN and SUPERADMIN can both.
-const VIEW_ROLES = ['ADMIN', 'SUPERADMIN', 'SUPERVISOR'] as const;
-const EDIT_ROLES = ['ADMIN', 'SUPERADMIN'] as const;
+// SUPERADMIN only for every method — this screen is configuration, not just viewing (per the
+// business rule: "chỉ cho superadmin thực hiện cấu hình"), same rule as ad-popups' own route.
+const ALLOWED_ROLES = ['SUPERADMIN'] as const;
 
 function authError(error: unknown): NextResponse | null {
   if (error instanceof AuthError) {
-    return NextResponse.json({ error: error.code === 'FORBIDDEN' ? 'Bạn không có quyền quản lý Banner thông báo.' : 'Chưa đăng nhập.' }, { status: error.code === 'FORBIDDEN' ? 403 : 401 });
+    return NextResponse.json({ error: error.code === 'FORBIDDEN' ? 'Chỉ SUPERADMIN được cấu hình Banner thông báo.' : 'Chưa đăng nhập.' }, { status: error.code === 'FORBIDDEN' ? 403 : 401 });
   }
   return null;
 }
@@ -27,7 +26,7 @@ function validate(body: InfoBannerInput): string | null {
 
 export async function GET(request: NextRequest) {
   try {
-    await requireUser(request, [...VIEW_ROLES]);
+    await requireUser(request, [...ALLOWED_ROLES]);
     return NextResponse.json(await listInfoBanners());
   } catch (error: unknown) {
     console.error('API Error in info-banners route:', error);
@@ -38,7 +37,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await requireUser(request, [...EDIT_ROLES]);
+    await requireUser(request, [...ALLOWED_ROLES]);
     const body = (await request.json()) as InfoBannerInput;
     const validationError = validate(body);
     if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
@@ -53,7 +52,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    await requireUser(request, [...EDIT_ROLES]);
+    await requireUser(request, [...ALLOWED_ROLES]);
     const body = (await request.json()) as InfoBannerInput & { id: number };
     if (!body.id) return NextResponse.json({ error: 'Banner ID là bắt buộc' }, { status: 400 });
     const validationError = validate(body);
@@ -70,7 +69,7 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    await requireUser(request, [...EDIT_ROLES]);
+    await requireUser(request, [...ALLOWED_ROLES]);
     const idStr = new URL(request.url).searchParams.get('id');
     const id = idStr ? parseInt(idStr, 10) : NaN;
     if (Number.isNaN(id)) return NextResponse.json({ error: 'Banner ID không hợp lệ' }, { status: 400 });

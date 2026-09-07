@@ -81,8 +81,10 @@
     <div class="toc-block">Thông báo trong ứng dụng</div>
     <a href="#ad-popup">13. Popup quảng cáo (AD Popup)</a>
     <a href="#info-banner">14. Banner thông báo (Information Banner)</a>
+    <div class="toc-block">Công nghệ</div>
+    <a href="#tech-stack">15. Tech stack</a>
     <div class="toc-block">Phụ lục</div>
-    <a href="#glossary">15. Thuật ngữ</a>
+    <a href="#glossary">16. Thuật ngữ</a>
   </nav>
 
   <main>
@@ -549,8 +551,10 @@
       <div class="kicker">Thông báo trong ứng dụng</div>
       <h2>14. Banner thông báo (Information Banner)</h2>
       <p>
-        Cấu hình tại menu avatar người dùng → <strong>Quản lý chung</strong> → <strong>Banner thông báo</strong>. Khác với Popup quảng cáo (che màn hình, cần tương tác),
-        đây là 1 dòng thông báo nhỏ, không chặn thao tác, gắn cố định vào layout của từng màn hình.
+        Cấu hình tại menu avatar người dùng → <strong>Quản lý chung</strong> → <strong>Banner thông báo</strong>, chỉ <strong>SUPERADMIN</strong> thấy và chỉnh sửa được
+        (cùng nguyên tắc với Popup quảng cáo ở mục 13). Khác với Popup quảng cáo (che màn hình, cần tương tác), đây là 1 dòng thông báo nhỏ, không chặn thao tác, gắn
+        cố định vào layout của từng màn hình. Banner vẫn <strong>hiển thị cho mọi user đã đăng nhập</strong> (không phân biệt role) khi đủ điều kiện — chỉ việc cấu hình
+        bị giới hạn SUPERADMIN.
       </p>
       <h3>14.1. Hai loại banner</h3>
       <ul>
@@ -588,9 +592,54 @@
       <p>Danh sách các màn hình đã gắn banner: Nguồn dữ liệu (<code>/</code>), Dashboard, 3 màn hình giám sát Epic, và toàn bộ màn hình Quản trị hệ thống (Quản lý User/Domain/Dự án, Cấu hình ngày nghỉ, Cấu hình cảnh báo, Ma trận phân quyền, Sao lưu/Phục hồi dữ liệu, Tài liệu sản phẩm).</p>
     </section>
 
+    <section id="tech-stack">
+      <div class="kicker">Công nghệ</div>
+      <h2>15. Tech stack</h2>
+      <p>
+        Tổng quan công nghệ nền của hệ thống — quy trình nghiệp vụ Import/ETL đã mô tả chi tiết ở mục 3, mục này chỉ nêu lớp công nghệ/hạ tầng bên dưới.
+      </p>
+      <div class="grid-2">
+        <div class="card-mini">
+          <h4>Frontend</h4>
+          <p>Next.js 16 (App Router, React 19) + TypeScript, Tailwind CSS 4. Toàn bộ màn hình là Client Component (<code>'use client'</code>), gọi thẳng các Route Handler nội bộ qua <code>fetch</code>, không dùng thư viện quản lý state/data-fetching riêng (React state + <code>useMemo</code>).</p>
+        </div>
+        <div class="card-mini">
+          <h4>Backend</h4>
+          <p>Next.js Route Handlers (<code>src/app/api/**/route.ts</code>) chạy trên Node.js — vừa là API vừa là nơi phục vụ giao diện (không có server Express/NestJS riêng). Truy vấn CSDL bằng SQL thuần qua driver <code>pg</code> (node-postgres), không dùng ORM.</p>
+        </div>
+        <div class="card-mini">
+          <h4>Xác thực</h4>
+          <p>Tự xây (không dùng NextAuth/Clerk…): mật khẩu băm bằng <strong>bcrypt</strong>, phiên đăng nhập lưu ở bảng <code>auth_sessions</code> (token băm, có hạn dùng 2 giờ hoặc 24 giờ nếu "Ghi nhớ đăng nhập"), gắn vào <strong>cookie HTTP-only</strong> phía trình duyệt. Phân quyền RBAC theo 4 role cố định (mục 2), kiểm tra ở từng Route Handler qua hàm dùng chung <code>requireUser()</code>.</p>
+        </div>
+        <div class="card-mini">
+          <h4>Cơ sở dữ liệu</h4>
+          <p><strong>PostgreSQL</strong>, chạy song song tối đa 3 profile kết nối (local / Aiven / Supabase, mục 5) chọn qua biến môi trường <code>DB_CONNECTION</code>. Schema quản lý bằng migration có đánh version trong <code>db/migrations</code>, áp dụng thủ công cho từng profile qua script <code>scripts/migrate-db.js</code> — không tự động chạy migration khi deploy.</p>
+        </div>
+      </div>
+      <h3>15.1. Import/ETL — lớp công nghệ</h3>
+      <p>Chi tiết quy trình nghiệp vụ xem mục 3; về mặt công nghệ, import xử lý theo mô hình <strong>adapter</strong>:</p>
+      <ul>
+        <li><code>src/lib/adapters/pure-jira-export-adapter.ts</code> — đọc CSV export gốc từ Jira (nhiều cột, nhiều loại issue).</li>
+        <li><code>src/lib/adapters/py-jira-api-adapter.ts</code> — đọc CSV theo cấu trúc phẳng do script Python (gọi Jira REST API) xuất ra, hỗ trợ thêm các cột phân cấp Epic → Story → Subtask.</li>
+        <li>Cả 2 adapter chuẩn hoá dữ liệu thô về cùng 1 kiểu issue nội bộ trước khi ghi vào CSDL — pipeline validate/ghi/tổng hợp phía sau (mục 3.2) dùng chung, không phụ thuộc adapter nào.</li>
+        <li>Không dùng nền tảng ETL/scheduler ngoài (Airflow, n8n…) — "ETL" ở đây gói gọn trong chính Route Handler xử lý import (đồng bộ, chạy trong 1 request HTTP), kích hoạt bằng tay qua UI hoặc bằng script Python gọi API tự động (mục 3.3).</li>
+      </ul>
+      <h3>15.2. Hạ tầng & vận hành</h3>
+      <table>
+        <thead><tr><th>Thành phần</th><th>Ghi chú</th></tr></thead>
+        <tbody>
+          <tr><td>Ngôn ngữ</td><td>TypeScript toàn bộ (frontend lẫn backend), kiểm tra kiểu qua <code>tsc --noEmit</code>, lint qua ESLint</td></tr>
+          <tr><td>Dev server</td><td>Next.js dev mode dùng <strong>Turbopack</strong></td></tr>
+          <tr><td>Kết nối CSDL</td><td>Connection pool <code>pg.Pool</code>, giới hạn <code>max</code> thấp trên 2 profile hosted (Aiven/Supabase) do free-tier giới hạn số kết nối đồng thời</td></tr>
+          <tr><td>Icon/UI</td><td><code>@phosphor-icons/react</code>; component UI dùng chung tự xây trong <code>src/components/ui</code> (không dùng thư viện component đầy đủ như MUI/Ant)</td></tr>
+          <tr><td>Sao lưu/phục hồi</td><td>Chức năng riêng ở màn hình Quản trị (SUPERADMIN) — xuất/nhập dump CSDL, không dựa vào cơ chế backup tự động của nhà cung cấp hosting</td></tr>
+        </tbody>
+      </table>
+    </section>
+
     <section id="glossary">
       <div class="kicker">Phụ lục</div>
-      <h2>15. Thuật ngữ</h2>
+      <h2>16. Thuật ngữ</h2>
       <table>
         <thead><tr><th>Thuật ngữ</th><th>Ý nghĩa</th></tr></thead>
         <tbody>
