@@ -78,8 +78,11 @@
     <a href="#screen-epic-alerts">10. 4 màn hình giám sát Epic</a>
     <a href="#screen-data-source">11. Màn hình Nguồn dữ liệu</a>
     <a href="#screen-admin">12. Các màn hình Quản trị hệ thống</a>
+    <div class="toc-block">Thông báo trong ứng dụng</div>
+    <a href="#ad-popup">13. Popup quảng cáo (AD Popup)</a>
+    <a href="#info-banner">14. Banner thông báo (Information Banner)</a>
     <div class="toc-block">Phụ lục</div>
-    <a href="#glossary">13. Thuật ngữ</a>
+    <a href="#glossary">15. Thuật ngữ</a>
   </nav>
 
   <main>
@@ -136,6 +139,17 @@
         Ngoài bảng phân quyền theo Domain/Dự án ở trên, màn hình <strong>Ma trận phân quyền (<code>/admin/permissions</code>, chỉ SUPERADMIN)</strong> cấu hình chi tiết
         quyền Xem/Thêm/Sửa/Xóa cho từng cặp (tính năng, role) — lớp RBAC mịn hơn, cho phép SUPERADMIN bật/tắt riêng từng hành động.
       </div>
+      <div class="callout warn">
+        <strong>Ma trận phân quyền hiện chỉ mang tính cấu hình/tham chiếu, chưa được các API/màn hình khác thực sự kiểm tra</strong> — không có route nào trong ứng dụng đọc
+        bảng <code>role_feature_permissions</code> để quyết định cho phép/từ chối một hành động; toàn bộ phân quyền thực tế vẫn dựa trên role cố định (bảng ở mục 2) và
+        phạm vi Domain/Dự án/Component. Bảng này cũng <strong>chưa hỗ trợ role SUPERVISOR</strong> (ràng buộc CHECK trên cột role chỉ nhận SUPERADMIN/ADMIN/USER) —
+        khác với dự kiến ban đầu là đưa Supervisor vào ma trận.
+      </div>
+      <div class="callout">
+        <strong>Component-level narrowing (USER):</strong> tại <code>/admin/users</code>, với mỗi Dự án đã gán cho một user role USER, có thể gán kèm danh sách
+        Component cụ thể của dự án đó (ô "Giới hạn theo Component"). Bỏ trống = user có quyền với toàn bộ issue của dự án; có chọn Component = user chỉ thấy Epic có
+        gắn ít nhất 1 Component trong danh sách đó. Epic không gắn Component nào luôn hiển thị cho mọi user được phân quyền dự án đó, bất kể có cấu hình Component hay không.
+      </div>
     </section>
 
     <section id="import">
@@ -159,6 +173,26 @@
       </ol>
       <div class="callout warn">
         Chế độ <strong>“Chỉ kiểm tra lỗi” (Validate only)</strong> chỉ chạy bước 1–2, không ghi gì vào CSDL — dùng để rà soát file trước khi import thật.
+      </div>
+      <h3>3.3. API import tự động (script Python)</h3>
+      <p>
+        Bên cạnh form upload thủ công (session + SUPERADMIN), hệ thống có 1 endpoint riêng để 1 script Python gọi trực tiếp ngay sau khi export xong CSV từ Jira:
+        <code>POST /api/data-source/import/auto</code>.
+      </p>
+      <table>
+        <thead><tr><th>Thuộc tính</th><th>Giá trị</th></tr></thead>
+        <tbody>
+          <tr><td>Xác thực</td><td>Header <code>Authorization: Bearer &lt;token&gt;</code> — token tĩnh cấu hình qua biến môi trường <code>IMPORT_API_TOKEN</code> trên server (không phải session người dùng), so khớp bằng thuật toán constant-time. Sai/thiếu token → <code>401</code>; server chưa cấu hình token → <code>503</code>.</td></tr>
+          <tr><td>Payload</td><td><code>multipart/form-data</code> với field <code>file</code> — cùng định dạng CSV (adapter <strong>Py Jira API</strong> cố định, không truyền được adapter khác), giới hạn <strong>2MB</strong> (thoải mái hơn nhiều so với &lt;500KB script thường xuất ra).</td></tr>
+          <tr><td>Thời điểm tổng hợp</td><td><code>aggregatedAt</code> luôn = thời điểm server nhận request (không nhận tham số từ script) — đúng ngữ nghĩa "vừa export xong, import ngay bây giờ".</td></tr>
+          <tr><td>Pipeline xử lý</td><td>Gọi lại đúng <code>processImport()</code> dùng chung với form thủ công — cùng bước validate → <code>import_rows</code> → <code>issues</code> → <code>aggregateBatchData()</code> → dọn dữ liệu quá hạn (mục 3.2). Không có chế độ "chỉ kiểm tra lỗi" ở API này.</td></tr>
+          <tr><td>Truy vết</td><td>Batch tạo ra được đánh dấu nguồn <code>AUTO</code>, người thực hiện hiển thị "Python Script (Auto Import)" trong Nhật ký lịch sử import — phân biệt rõ với batch import thủ công qua UI.</td></tr>
+          <tr><td>Phản hồi</td><td>Trả về cùng cấu trúc JSON kết quả import (<code>status</code>, <code>totalRows</code>/<code>successRows</code>/<code>warningRows</code>/<code>errorRows</code>, …) như API import qua UI — script có thể tự xác định thành công/thất bại theo <code>status</code>/mã HTTP mà không cần đăng nhập giao diện.</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        Endpoint này được liệt kê riêng trong danh sách route công khai (không qua kiểm tra session đăng nhập của lớp middleware nội bộ) — hệ thống middleware của ứng dụng
+        chỉ hiểu xác thực bằng session, nên mọi route dùng bearer token đều phải khai báo tường minh để không bị chặn 401 trước khi vào tới route handler.
       </div>
     </section>
 
@@ -264,6 +298,19 @@
           <tr><td>In Progress</td><td>Sớm: T1+12 · Muộn: T1+13</td><td>Sớm: T1+19 · Muộn: T1+20</td></tr>
         </tbody>
       </table>
+      <h3>6.3. Phân loại độ phức tạp Epic (SIMPLE / COMPLEX)</h3>
+      <p>
+        Mọi mốc cảnh báo ở trên phụ thuộc Epic là <strong>đơn giản (SIMPLE)</strong> hay <strong>phức tạp (COMPLEX)</strong> — tính tự động mỗi lần import, dựa trên 2 trường
+        Jira của Epic, không cấu hình thủ công:
+      </p>
+      <ul>
+        <li>Epic được xếp <strong>SIMPLE</strong> khi <strong>đồng thời</strong> thoả cả 2 điều kiện: <code>Loại yêu cầu</code> (request type) là rỗng, "none", "cải tiến" hoặc "tính năng mới" <strong>và</strong> <code>Requirement Level</code> là rỗng, "none", "1" hoặc "2" (so khớp không phân biệt hoa/thường và khoảng trắng thừa).</li>
+        <li>Mọi tổ hợp còn lại (kể cả khi chỉ 1 trong 2 điều kiện không thoả) được xếp <strong>COMPLEX</strong>.</li>
+      </ul>
+      <div class="callout">
+        Nói cách khác: mặc định (thiếu dữ liệu 1 hoặc cả 2 trường) Epic được coi là SIMPLE; Epic chỉ "rớt" xuống COMPLEX khi có ít nhất một trong hai trường mang giá trị
+        vượt ngoài các mức thấp/nhẹ liệt kê ở trên (ví dụ Loại yêu cầu = "dự án mới", hoặc Requirement Level = "3" trở lên).
+      </div>
     </section>
 
     <section id="alert-logic">
@@ -306,6 +353,22 @@
         của từng Epic (không giới hạn theo 1 batch cụ thể) và tính lại toàn bộ cảnh báo — cả TTM-CNTT lẫn TTM-E2E — tại đúng thời điểm request, theo rule đang active. Vì vậy nếu không import gì
         trong ngày, cảnh báo vẫn có thể tự chuyển trạng thái theo ngày thực tế.
       </p>
+
+      <h3>7.5. Cách tính ngày baseline từng pha (màn hình đầy đủ/Epic in PO)</h3>
+      <p>
+        5 ngày baseline pha (DESIGN/DEV/TEST/PENTEST/R4GOLIVE) được suy ra tuần tự từ Start Date (T1), cộng dồn số ngày làm việc theo tỷ trọng
+        <strong> 20% / 30% / 30% / 10% / 10%</strong> trên tổng số ngày làm việc TTM-CNTT của Epic (15 hoặc 30 ngày tuỳ độ phức tạp, mục 6.1/6.3). Vì tỷ trọng từng pha
+        thường ra số ngày lẻ, hệ thống làm tròn theo từng pha để tổng cộng dồn luôn khớp chính xác tổng số ngày TTM-CNTT:
+      </p>
+      <ul>
+        <li><strong>DESIGN</strong>: làm tròn <strong>lên</strong> (ceiling).</li>
+        <li><strong>DEV, TEST, PENTEST</strong>: làm tròn <strong>xuống</strong> (floor), tính tiếp nối từ ngày cộng dồn của pha trước.</li>
+        <li><strong>R4GOLIVE</strong>: không dùng số ngày làm tròn theo chuỗi tích luỹ ở trên — được <strong>gán trực tiếp</strong> bằng <code>Start Date + (tổng số ngày làm việc TTM-CNTT − 1)</code> ngày làm việc, để đảm bảo ngày baseline R4GOLIVE luôn trùng khớp tuyệt đối với Target TTM-CNTT tổng (mục 6.1), không lệch do sai số làm tròn cộng dồn qua 4 pha trước.</li>
+      </ul>
+      <div class="callout">
+        Ví dụ Epic phức tạp (30 ngày TTM-CNTT): DESIGN chiếm ⌈30×20%⌉ = 6 ngày; DEV/TEST mỗi pha làm tròn xuống theo tỷ trọng 30%; PENTEST làm tròn xuống theo 10%; R4GOLIVE
+        luôn rơi đúng ngày làm việc thứ 29 kể từ Start Date (30 − 1), bất kể tổng 4 pha trước cộng dồn ra bao nhiêu ngày.
+      </div>
     </section>
 
     <section id="data-anomaly">
@@ -345,6 +408,28 @@
         DB miễn phí (code vẫn còn nguyên, chỉ chưa gọi). Tương tự, <code>epic_milestone_history</code> (mốc DESIGN_DONE/DEV_DONE/TEST_DONE) cũng tạm tắt ghi — trạng thái
         hoàn thành từng pha của Epic đầy đủ hiện tính <strong>live</strong> từ status Story/Subtask hiện tại mỗi lần tải trang, không phụ thuộc lịch sử này.
       </div>
+
+      <h3>9.2. Dòng thời gian cảnh báo theo đợt (epic_alert_timeline)</h3>
+      <p>
+        Song song với <code>epic_alert_history</code> (chỉ ghi 1 dòng rời rạc mỗi lần rơi vào Cảnh báo muộn/Fail), bảng <code>epic_alert_timeline</code> theo dõi
+        <strong>5 loại cảnh báo</strong> của mỗi Epic dưới dạng các <strong>"đợt" (run) có khoảng ngày bắt đầu/kết thúc</strong>, cho phép biết chính xác Epic đã ở trạng
+        thái cảnh báo đó <em>liên tục từ ngày nào đến ngày nào</em>, không chỉ ngày phát hiện:
+      </p>
+      <ul>
+        <li><code>FAIL_TTM_CNTT</code> — Fail TTM-CNTT tổng thể (mục 7.3)</li>
+        <li><code>LATE_TTM_CNTT</code> — Cảnh báo muộn TTM-CNTT theo trạng thái hiện tại (mục 6.2)</li>
+        <li><code>FAIL_TTM_E2E</code> — Fail TTM-E2E (mục 7.3)</li>
+        <li><code>MISSING_START_DATE</code> — Epic thiếu Start Date</li>
+        <li><code>DATA_ANOMALY</code> — Dữ liệu bất thường (mục 8)</li>
+      </ul>
+      <p>
+        Mỗi lần <code>aggregateBatchData()</code> chạy (import thủ công, import tự động qua API, hoặc "Chạy lại" lớp dữ liệu), hệ thống tính lại cả 5 trạng thái này cho
+        từng Epic bằng <strong>đúng những hàm dùng chung</strong> mà các màn hình giám sát dùng để hiển thị hôm nay (<code>hasDataAnomaly</code>, <code>resolveTtmE2eRelease</code>,
+        …) — nên lịch sử ghi lại không bao giờ "lệch pha" so với những gì màn hình đang hiển thị. So sánh với các "đợt" đang mở trong DB: đợt đang mở và vẫn còn đúng → nối dài
+        thêm; đợt đang mở nhưng hết đúng → đóng lại (gán <code>end_date</code>); trạng thái mới xuất hiện → mở đợt mới. Toàn bộ thao tác ghi trong 1 lần import được gộp
+        thành tối đa 3 câu lệnh SQL theo lô, không ghi từng Epic một. Dữ liệu này phục vụ mục "Dòng thời gian cảnh báo" trong popup <strong>Epic History</strong> ở màn hình
+        Quản trị Epic (đầy đủ).
+      </p>
     </section>
 
     <section id="screen-epic-alerts">
@@ -369,19 +454,27 @@
 
     <section id="screen-data-source">
       <div class="kicker">Khối màn hình</div>
-      <h2>11. Màn hình Nguồn dữ liệu (<code>/</code>, chỉ SUPERADMIN)</h2>
-      <p>Có 2 tab: <strong>Import Issues</strong> (nội dung dưới đây) và <strong>Import Components</strong> (import thủ công CSV 2 cột <code>project_key</code>/<code>component</code>, upsert vào cùng danh mục <code>project_components</code> mà import Issue tự tích lũy).</p>
+      <h2>11. Màn hình Nguồn dữ liệu (<code>/</code>)</h2>
+      <p>Có 2 tab, chuyển bằng thanh tab ở đầu trang: <strong>Import Issues</strong> (nội dung chính, SUPERADMIN) và <strong>Quản lý Component</strong> (dọn dẹp danh mục Component, SUPERADMIN).</p>
+      <h3>11.1. Tab Import Issues</h3>
       <ul>
         <li><strong>Thiết lập nguồn dữ liệu CSV</strong> — chọn file, kiểm tra lỗi hoặc import &amp; lưu.</li>
         <li><strong>Nhật ký lịch sử import (Lớp Dữ liệu)</strong> — danh sách batch, xem chi tiết lỗi/cảnh báo (nay có cả cờ WARNING cho dữ liệu bất thường, xem mục 8), duyệt dữ liệu, xoá batch.</li>
         <li><strong>Nhật ký lớp dữ liệu tổng hợp (Epic)</strong> (SUPERADMIN) — quản lý riêng 4 bảng tổng hợp/hậu-tổng hợp theo ngày (hỗ trợ Xóa và Chạy lại).</li>
         <li><strong>Xoá N lớp dữ liệu gần nhất</strong> (SUPERADMIN) — xoá cả raw lẫn tổng hợp của N ngày gần nhất, có preview trước khi xác nhận (mục 5.3).</li>
-        <li><strong>Cấu hình Đợt Import</strong> (right panel) — loại nguồn, mapping profile, thời gian tổng hợp (nhận diện tự động từ tên file theo mẫu <code>Jira YYYY-MM-DDThh_mm_ss+0700.csv</code>).</li>
+        <li><strong>Cấu hình Đợt Import</strong> (right panel) — loại nguồn, định dạng file (adapter), thời gian tổng hợp (nhận diện tự động từ tên file theo mẫu <code>Jira YYYY-MM-DDThh_mm_ss+0700.csv</code>).</li>
         <li><strong>Lưu trữ dữ liệu import</strong> (right panel, SUPERADMIN) — cấu hình số ngày giữ raw data.</li>
       </ul>
       <div class="callout warn">
         <strong>Hoàn thiện dữ liệu</strong> (bổ sung/vá dữ liệu còn thiếu cho issue đã import, chạy lại tổng hợp) — code vẫn còn nguyên nhưng box này <strong>đang tạm ẩn</strong> khỏi màn hình theo yêu cầu, chưa dùng lại được từ UI.
       </div>
+      <h3>11.2. Tab Quản lý Component</h3>
+      <p>
+        Không phải màn hình import — đây là công cụ dọn dẹp danh mục <code>project_components</code>, vốn chỉ tích luỹ dần theo dữ liệu Component đọc được từ mỗi issue
+        import (chưa từng có cơ chế nào tự xoá bớt). Liệt kê các Component "mồ côi": có trong danh mục nhưng <strong>không còn xuất hiện trên dữ liệu mới nhất của bất kỳ
+        issue nào</strong> đã import (ví dụ Component đã đổi tên/xoá trên Jira). Hỗ trợ thêm/sửa/xoá thủ công 1 Component (chọn Dự án, nhập tên Component, bật/tắt Active) —
+        chỉ SUPERADMIN, tab tự ẩn nội dung nếu gọi API mà bị 401/403.
+      </p>
     </section>
 
     <section id="screen-admin">
@@ -401,9 +494,103 @@
       </table>
     </section>
 
+    <section id="ad-popup">
+      <div class="kicker">Thông báo trong ứng dụng</div>
+      <h2>13. Popup quảng cáo (AD Popup)</h2>
+      <p>
+        Cấu hình tại menu avatar người dùng → <strong>Quản lý chung</strong> → <strong>Popup quảng cáo</strong>, chỉ <strong>SUPERADMIN</strong> thấy và chỉnh sửa được.
+        Popup hiển thị cho <strong>mọi user đã đăng nhập</strong> (không phân biệt role) khi đủ điều kiện, ngay khi họ vào một màn hình bất kỳ sau đăng nhập (không hiện ở
+        trang login).
+      </p>
+      <h3>13.1. Các trường cấu hình</h3>
+      <table>
+        <thead><tr><th>Trường</th><th>Ý nghĩa</th></tr></thead>
+        <tbody>
+          <tr><td>Tên chiến dịch (<code>campaignName</code>)</td><td>Nhãn quản trị nội bộ, không hiển thị cho người dùng cuối</td></tr>
+          <tr><td>Hình ảnh (<code>imageUrl</code>)</td><td>URL ảnh banner của popup</td></tr>
+          <tr><td>Link khi click (<code>clickUrl</code>)</td><td>Điều hướng khi người dùng bấm vào ảnh</td></tr>
+          <tr><td>Nội dung thông điệp (<code>message</code>)</td><td>Soạn bằng trình soạn thảo WYSIWYG (in đậm/nghiêng/gạch chân, căn lề, danh sách) — lưu dạng HTML đã được làm sạch (mục 13.4)</td></tr>
+          <tr><td>Ngày bắt đầu / kết thúc (<code>startDate</code>/<code>endDate</code>)</td><td>Khoảng ngày hiệu lực hiển thị</td></tr>
+          <tr><td>Đang hoạt động (<code>isActive</code>)</td><td>Bật/tắt thủ công độc lập với khoảng ngày</td></tr>
+          <tr><td>Số lần hiện tối đa (<code>maxImpressions</code>)</td><td>Trần số lần popup này được hiện <strong>cho mỗi user</strong> (đếm riêng theo từng người dùng, không phải tổng toàn hệ thống)</td></tr>
+          <tr><td>Thời gian tự đóng (<code>timeoutSeconds</code>)</td><td>Số giây trước khi popup tự đóng (chế độ thường) hoặc trước khi nút X xuất hiện (chế độ "Bắt buộc xem")</td></tr>
+          <tr><td>Bắt buộc xem (<code>forceView</code>)</td><td>Xem mục 13.2</td></tr>
+          <tr><td>Chiều rộng / chiều cao theo % khung nhìn (<code>widthPercent</code>/<code>heightPercent</code>)</td><td>Tuỳ chọn — để trống thì dùng kích thước mặc định của popup</td></tr>
+        </tbody>
+      </table>
+      <h3>13.2. Chế độ "Bắt buộc xem"</h3>
+      <p>
+        Mặc định (<code>forceView = false</code>): popup hiện nút X ngay từ đầu và tự động đóng sau <code>timeoutSeconds</code> giây, người dùng có thể đóng sớm bất cứ lúc nào.
+      </p>
+      <p>
+        Khi bật <strong>Bắt buộc xem</strong> (<code>forceView = true</code>): popup <strong>không có nút X và không tự đóng</strong> trong <code>timeoutSeconds</code> giây đầu —
+        thay vào đó hiện <strong>bộ đếm ngược</strong> ở vị trí nút X. Hết thời gian đếm ngược, nút X mới xuất hiện để người dùng tự đóng (không tự động đóng nữa).
+      </p>
+      <h3>13.3. Bố cục nội dung popup</h3>
+      <p>
+        Tiêu đề chiến dịch luôn hiển thị <strong>in đậm, cỡ chữ lớn hơn nội dung 1 cấp, căn trái</strong> (không cấu hình được, áp dụng cho mọi popup). Phần nội dung
+        thông điệp <strong>không có canh lề mặc định</strong> (theo dòng chảy tự nhiên) — nếu người soạn dùng WYSIWYG đặt canh trái/giữa/phải cho một đoạn cụ thể thì hiển
+        thị đúng theo lựa chọn đó.
+      </p>
+      <h3>13.4. Vòng đời hiển thị &amp; theo dõi lượt xem</h3>
+      <ul>
+        <li><code>GET /api/ad-popups/active</code> — mọi user đã đăng nhập gọi 1 lần khi tải lại toàn trang, trả về danh sách popup còn <strong>đủ điều kiện cho user đó</strong>: đang Active, trong khoảng ngày hiệu lực, và <strong>chưa đạt</strong> số lần hiện tối đa <em>của riêng user này</em>.</li>
+        <li>Chỉ hiện <strong>1 popup tại một thời điểm</strong> (theo hàng đợi, popup đầu tiên đủ điều kiện); đóng popup này mới hiện popup tiếp theo trong hàng đợi (nếu có), không cần tải lại trang.</li>
+        <li>Mỗi lần popup thực sự hiển thị, hệ thống gọi <code>POST /api/ad-popups/[id]/impression</code> để cộng dồn lượt hiện cho user đó — tính tại <strong>thời điểm hiện</strong>, không phải thời điểm đóng.</li>
+        <li>Nút <strong>"Test Popup"</strong> trong form cấu hình cho phép SUPERADMIN xem trước popup đang soạn (kể cả khi chưa lưu) với đúng hành vi hiển thị thật, không tính vào số lần hiện.</li>
+      </ul>
+      <div class="callout">
+        Nội dung HTML (thông điệp) được xử lý qua bộ lọc làm sạch nội bộ (loại bỏ <code>&lt;script&gt;</code>, thuộc tính <code>on*</code>, URL <code>javascript:</code>, …)
+        trước khi lưu — đây <strong>không phải</strong> một thư viện sanitize chuyên dụng, ranh giới an toàn thực tế là chỉ SUPERADMIN mới soạn được nội dung này.
+      </div>
+    </section>
+
+    <section id="info-banner">
+      <div class="kicker">Thông báo trong ứng dụng</div>
+      <h2>14. Banner thông báo (Information Banner)</h2>
+      <p>
+        Cấu hình tại menu avatar người dùng → <strong>Quản lý chung</strong> → <strong>Banner thông báo</strong>. Khác với Popup quảng cáo (che màn hình, cần tương tác),
+        đây là 1 dòng thông báo nhỏ, không chặn thao tác, gắn cố định vào layout của từng màn hình.
+      </p>
+      <h3>14.1. Hai loại banner</h3>
+      <ul>
+        <li><strong>Banner mặc định (DEFAULT)</strong> — hiển thị trên <strong>mọi</strong> màn hình đã gắn <code>InfoBannerDisplay</code>. Tại một thời điểm chỉ tồn tại
+          <strong>tối đa 1</strong> banner mặc định đang active (ràng buộc unique index ở tầng CSDL, kèm bước "hạ cấp" banner mặc định cũ trong cùng transaction khi lưu
+          banner mặc định mới).</li>
+        <li><strong>Banner theo màn hình (PER_SCREEN)</strong> — chỉ hiển thị trên đúng 1 màn hình được chọn (<code>screenKey</code> = pathname, lấy từ cùng danh sách màn
+          hình dùng cho tiêu đề trang). Không giới hạn số lượng — có thể có nhiều banner theo màn hình active cùng lúc, mỗi màn hình vẫn chỉ hiện banner PER_SCREEN của
+          riêng nó.</li>
+      </ul>
+      <h3>14.2. Các trường cấu hình</h3>
+      <table>
+        <thead><tr><th>Trường</th><th>Ý nghĩa</th></tr></thead>
+        <tbody>
+          <tr><td>Tên banner</td><td>Nhãn quản trị nội bộ, không hiển thị cho người dùng cuối</td></tr>
+          <tr><td>Nội dung</td><td>Soạn bằng WYSIWYG <strong>1 dòng</strong> (chặn phím Enter, dán văn bản tự loại bỏ xuống dòng) — vẫn hỗ trợ định dạng chữ và canh lề trong 1 dòng đó</td></tr>
+          <tr><td>Loại banner</td><td>Mặc định / Theo màn hình — chọn Theo màn hình thì hiện thêm dropdown chọn đúng 1 màn hình áp dụng</td></tr>
+          <tr><td>Đang hoạt động</td><td>Bật/tắt thủ công độc lập với khoảng ngày</td></tr>
+          <tr><td>Ngày bắt đầu</td><td>Bắt buộc nhập</td></tr>
+          <tr><td>Ngày kết thúc</td><td>Không bắt buộc — để trống nghĩa là hiệu lực vô thời hạn</td></tr>
+        </tbody>
+      </table>
+      <h3>14.3. Vị trí hiển thị &amp; kiểu dáng</h3>
+      <p>
+        Mỗi màn hình tự mount <code>InfoBannerDisplay</code> vào đúng vị trí layout của mình (không có 1 vị trí chung toàn cục trong AppShell). Trên các màn hình giám sát
+        Epic (Quản trị Epic đầy đủ/rút gọn, Epic in PO), banner mặc định và banner riêng được đặt <strong>ngay trên bảng danh sách Epic</strong> (mặc định trước, riêng
+        màn hình sau) — dòng trạng thái dữ liệu (thời điểm lớp dữ liệu mới nhất) đặt <strong>dưới</strong> bảng, thay vì xen giữa banner như thiết kế cũ. Mọi màn hình
+        đều có 1 khoảng cách dòng giữa vùng bộ lọc/toolbar và banner gần nhất.
+      </p>
+      <p>
+        Banner mặc định và banner riêng hiển thị <strong>đồng thời</strong> nếu cả hai cùng đủ điều kiện cho màn hình đó — không có cái nào ẩn cái nào; nếu không có
+        banner nào đủ điều kiện, khu vực này không chiếm chỗ (không render placeholder rỗng). Banner không có nền màu/viền — chỉ gồm icon "(i)" và chữ màu
+        <code>--text-muted</code>; riêng banner <strong>mặc định</strong> có icon "(i)" nổi bật hơn (màu accent) để phân biệt với banner theo màn hình.
+      </p>
+      <p>Danh sách các màn hình đã gắn banner: Nguồn dữ liệu (<code>/</code>), Dashboard, 3 màn hình giám sát Epic, và toàn bộ màn hình Quản trị hệ thống (Quản lý User/Domain/Dự án, Cấu hình ngày nghỉ, Cấu hình cảnh báo, Ma trận phân quyền, Sao lưu/Phục hồi dữ liệu, Tài liệu sản phẩm).</p>
+    </section>
+
     <section id="glossary">
       <div class="kicker">Phụ lục</div>
-      <h2>13. Thuật ngữ</h2>
+      <h2>15. Thuật ngữ</h2>
       <table>
         <thead><tr><th>Thuật ngữ</th><th>Ý nghĩa</th></tr></thead>
         <tbody>
@@ -416,6 +603,12 @@
           <tr><td>TTM-E2E</td><td>Time to Market — End to End (T0 → Release/Due Date). Chỉ có Fail/NONE, không có mức sớm/muộn</td></tr>
           <tr><td>Dữ liệu bất thường</td><td>Epic thiếu Start Date, hoặc R4G Date sớm hơn Start Date, hoặc Due Date sớm hơn T0 — không bị chặn import nhưng bị nhóm cuối bảng, highlight, cột Nhận xét hiện "Không tính được"</td></tr>
           <tr><td>SUPERVISOR</td><td>Role thứ 4, cùng phạm vi xem toàn hệ thống như SUPERADMIN nhưng chỉ đọc, không có quyền tạo/sửa/xóa</td></tr>
+          <tr><td>Epic đơn giản / phức tạp (SIMPLE/COMPLEX)</td><td>Phân loại tự động theo <code>Loại yêu cầu</code> + <code>Requirement Level</code> của Epic (mục 6.3), quyết định TTM-CNTT 15 hay 30 ngày làm việc</td></tr>
+          <tr><td>epic_alert_timeline</td><td>Lịch sử 5 loại cảnh báo của Epic dưới dạng các "đợt" có ngày bắt đầu/kết thúc, phục vụ mục "Dòng thời gian cảnh báo" (mục 9.2)</td></tr>
+          <tr><td>Popup quảng cáo (AD Popup)</td><td>Popup toàn màn hình, cấu hình tại Quản lý chung, hiện cho mọi user đã đăng nhập theo lịch/số lần cấu hình (mục 13)</td></tr>
+          <tr><td>Bắt buộc xem</td><td>Chế độ của Popup quảng cáo: ẩn nút X và không tự đóng cho tới khi hết thời gian đếm ngược (mục 13.2)</td></tr>
+          <tr><td>Banner thông báo (Information Banner)</td><td>Dòng thông báo nhỏ không chặn thao tác, loại Mặc định (toàn hệ thống) hoặc Theo màn hình (mục 14)</td></tr>
+          <tr><td>API import tự động</td><td><code>POST /api/data-source/import/auto</code> — endpoint xác thực bằng bearer token để script Python tự động import CSV, không qua session (mục 3.3)</td></tr>
         </tbody>
       </table>
     </section>
