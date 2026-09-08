@@ -14,7 +14,8 @@ import type { EpicAlertAccessRole, EpicAlertResponse, EpicAlertRow, StageCell } 
 import type { EpicAlertHistoryEntry } from '@/lib/epic-alert-history-service';
 import type { ProjectComponent } from '@/lib/master-data-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
-import { ArrowSquareOut, Circle, ClockCountdown, HourglassMedium, ListChecks, Prohibit, Stack, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
+import { ArrowSquareOut, ClockCountdown, HourglassMedium, ListChecks, Prohibit, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
+import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import { epicWorkflowStatusIndex } from '@/lib/ttm-phase-rules';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import { trackDataUsage } from '@/lib/usage-tracking';
@@ -143,20 +144,9 @@ function StagePill({ cell, doneDisplay = 'icon' }: { cell: StageCell; doneDispla
   );
 }
 
-const EPIC_TYPE_ICON: Record<string, { icon: typeof Circle; label: string; variant: string }> = {
-  SIMPLE: { icon: Circle, label: 'Epic đơn giản', variant: 'epic-type-simple' },
-  COMPLEX: { icon: Stack, label: 'Epic phức tạp', variant: 'epic-type-complex' },
-};
-
-function EpicTypeIcon({ epicType }: { epicType: string | null }) {
-  const entry = epicType ? EPIC_TYPE_ICON[epicType] : undefined;
-  if (!entry) return <span className="ttm-empty-warning">-</span>;
-  const Icon = entry.icon;
-  return (
-    <span title={entry.label}>
-      <Icon weight="fill" size={18} className={`ttm-epic-type-icon ${entry.variant}`} />
-    </span>
-  );
+/** Truncates epic summary text for the Epic column's subtitle line — full text stays in the title tooltip. */
+function truncateSummary(value: string, maxLength = 50): string {
+  return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -467,8 +457,7 @@ export default function EpicAlertsPage() {
         </select>
         <select className="ttm-select" aria-label="Loại Epic" value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(1); }}>
           <option value="">Tất cả loại Epic</option>
-          <option value="SIMPLE">Epic đơn giản</option>
-          <option value="COMPLEX">Epic phức tạp</option>
+          {EPIC_COMPLEXITY_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
         </select>
         <select className="ttm-select" aria-label="Status" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}>
           <option value="">Tất cả status</option>
@@ -532,7 +521,6 @@ export default function EpicAlertsPage() {
             <THead>
               <TR>
                 <TH className="min-w-[180px] ttm-col-border-right" title="issues.issue_key / issues.issue_name">Epic</TH>
-                <TH title="import_rows.normalized_data_json->>'epicType' (fallback: issues.epic_complexity_type)">Loại Epic</TH>
                 <TH className="min-w-[100px]" title="T0 = Idea Approved Date, hoặc ngày tạo Jira nếu không có — điểm bắt đầu chu kỳ TTM-E2E">START-E2E</TH>
                 <TH title="issues.start_date">START-CNTT</TH>
                 <TH title="Tính từ issues.start_date + issues.epic_complexity_type (số ngày làm việc thực tế / chuẩn)">TTM-CNTT</TH>
@@ -554,9 +542,15 @@ export default function EpicAlertsPage() {
                       <AlertHistoryButton row={row} onOpen={setAlertHistoryEpicKey} />
                       <JiraLinkButton epicKey={row.epicKey} viewIssueBaseUrl={viewIssueBaseUrl} />
                       <span className="ttm-epic-key" title={`Lớp dữ liệu: ${formatDate(row.dataLayerDate)}`}>{row.epicKey}</span>
+                      {row.epicName && (
+                        <span className="ttm-epic-summary" title={row.epicName}>{truncateSummary(row.epicName)}</span>
+                      )}
                       <span className="ttm-project-tag">
                         {row.projectKey}{row.domainName ? ` · ${row.domainName}` : ''}
                       </span>
+                      {(row.epicType || row.ownerName) && (
+                        <span className="ttm-project-tag">{row.epicType ? `${row.epicType}. ` : ''}PM/SM: {row.ownerName || '-'}</span>
+                      )}
                       {row.missingStandardInfo.length > 0 && (
                         <span>
                           {row.missingStandardInfo.map((item) => (
@@ -565,7 +559,6 @@ export default function EpicAlertsPage() {
                         </span>
                       )}
                     </TD>
-                    <TD><EpicTypeIcon epicType={row.epicType} /></TD>
                     {/* START-E2E / TTM-E2E: T0 (Idea Approved → Jira creation date) always resolves —
                         independent of Start Date, so these render the same whether or not the Epic
                         is missing its Start Date (see resolveTtmE2eRelease in epic-alert-service.ts). */}

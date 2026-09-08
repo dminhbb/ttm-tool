@@ -162,7 +162,10 @@ CREATE INDEX idx_holidays_range ON holidays (start_date, end_date) WHERE is_acti
 -- 7. Configurable Epic status alert rules (BRD 06 §5 / BRD index §12).
 CREATE TABLE epic_status_alert_rules (
     id SERIAL PRIMARY KEY,
-    epic_complexity_type VARCHAR(20) NOT NULL CHECK (epic_complexity_type IN ('SIMPLE', 'COMPLEX')),
+    -- SIMPLE/COMPLEX are the legacy 2-way scheme, kept accepted alongside the current 4-way one
+    -- (CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34 — see 20260908b_widen_epic_complexity_types.sql) so old
+    -- admin-tuned rows never violate this constraint even though no Epic classifies as either anymore.
+    epic_complexity_type VARCHAR(20) NOT NULL CHECK (epic_complexity_type IN ('SIMPLE', 'COMPLEX', 'CT-Lv12', 'CT-Lv34', 'SP-Lv12', 'SP-Lv34')),
     epic_status VARCHAR(50) NOT NULL,
     early_alert_offset_days INT NOT NULL CHECK (early_alert_offset_days >= 0),
     late_alert_offset_days INT NOT NULL CHECK (late_alert_offset_days >= 0),

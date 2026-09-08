@@ -18,7 +18,10 @@ export async function listStatusAlertRules(): Promise<StatusAlertRule[]> {
     SELECT ${RULE_COLUMNS}
     FROM epic_status_alert_rules
     ORDER BY
-      CASE epic_complexity_type WHEN 'SIMPLE' THEN 1 ELSE 2 END,
+      CASE epic_complexity_type
+        WHEN 'CT-Lv12' THEN 1 WHEN 'CT-Lv34' THEN 2 WHEN 'SP-Lv12' THEN 3 WHEN 'SP-Lv34' THEN 4
+        ELSE 5
+      END,
       CASE epic_status WHEN 'Design' THEN 1 ELSE 2 END;
   `);
   return result.rows;

@@ -7,6 +7,7 @@ import { DEFAULT_RAW_IMPORT_RETENTION_DAYS } from './data-retention-service';
 import { evaluateIssueCompliance } from './epic-compliance-engine';
 import { recordEpicAlertHistory } from './epic-alert-history-service';
 import { hasDataAnomaly, resolveTtmE2eRelease } from './epic-alert-service';
+import type { EpicComplexity } from './ttm-rules';
 import { recordEpicAlertTimelineTransitions, type EpicAlertTimelineDetail, type EpicAlertTimelineStates } from './epic-alert-timeline-service';
 import { computeMilestoneCandidates, recordEpicMilestone } from './epic-milestone-history-service';
 import { EPIC_ISSUE_TYPES_SQL } from './issue-resolution-sql';
@@ -20,22 +21,37 @@ import { parsePureJiraExport } from './adapters/pure-jira-export-adapter';
 // See the write-loop this guards, near the bottom of aggregateBatchData.
 const MILESTONE_RECORDING_ENABLED = false;
 
-// Epic complexity rule: SIMPLE ("Epic 15") requires BOTH the request type AND the requirement
-// level to fall in these "simple" sets — any other combination (including one field being simple
-// and the other not) is COMPLEX ("Epic 30"). Empty/missing/'None' counts as simple for both fields.
-const SIMPLE_REQUEST_TYPES = new Set(['', 'none', 'cải tiến', 'tính năng mới']);
-const SIMPLE_REQUIREMENT_LEVELS = new Set(['', 'none', '1', '2']);
+// Epic complexity rule (company rule change, 2026-09) — 4-way classification from epic_request_type
+// + epic_request_level:
+//   CT-Lv12: request type ∈ {Tính năng mới, Cải tiến} AND level ∈ {1, 2}
+//   CT-Lv34: request type ∈ {Tính năng mới, Cải tiến} AND level ∈ {3, 4}
+//   SP-Lv12: request type ∈ {Sản phẩm/dịch vụ/quy trình mới, Sản phẩm} AND level ∈ {1, 2}
+//   SP-Lv34: request type ∈ {Sản phẩm/dịch vụ/quy trình mới, Sản phẩm} AND level ∈ {3, 4}
+// Any combination that doesn't match one of these 4 (missing data, an unrecognized request type, a
+// level outside 1-4) defaults to CT-Lv12 — the agreed safe default.
+const CT_REQUEST_TYPES = new Set(['cải tiến', 'tính năng mới']);
+const SP_REQUEST_TYPES = new Set(['sản phẩm/dịch vụ/quy trình mới', 'sản phẩm']);
+const LV12_LEVELS = new Set(['1', '2']);
+const LV34_LEVELS = new Set(['3', '4']);
 
 function normalizeComplexityField(value: string): string {
   return value.trim().toLocaleLowerCase('vi-VN');
 }
 
-/** 'Loại yêu cầu' (requestType) and 'Requirement Level' (requirementLevel) — raw text straight from
- * the import source, not yet normalised. See the SIMPLE_* sets above for the exact rule. */
-function computeEpicComplexity(requestType: string, requirementLevel: string): 'SIMPLE' | 'COMPLEX' {
-  const isSimpleRequestType = SIMPLE_REQUEST_TYPES.has(normalizeComplexityField(requestType));
-  const isSimpleRequirementLevel = SIMPLE_REQUIREMENT_LEVELS.has(normalizeComplexityField(requirementLevel));
-  return isSimpleRequestType && isSimpleRequirementLevel ? 'SIMPLE' : 'COMPLEX';
+/** 'Loại yêu cầu' (requestType, i.e. epic_request_type) and 'Requirement Level' (requirementLevel,
+ * i.e. epic_request_level) — raw text straight from the import source, not yet normalised. See the
+ * rule comment above for the exact 4-way mapping and its default. */
+function computeEpicComplexity(requestType: string, requirementLevel: string): EpicComplexity {
+  const type = normalizeComplexityField(requestType);
+  const level = normalizeComplexityField(requirementLevel);
+  const isSpType = SP_REQUEST_TYPES.has(type);
+  const isCtType = CT_REQUEST_TYPES.has(type);
+  const isLv34 = LV34_LEVELS.has(level);
+  if (isSpType && isLv34) return 'SP-Lv34';
+  if (isSpType && LV12_LEVELS.has(level)) return 'SP-Lv12';
+  if (isCtType && isLv34) return 'CT-Lv34';
+  // CT + Lv12 lands here too, and so does every unmatched/missing combination (the default).
+  return 'CT-Lv12';
 }
 
 /**
@@ -162,7 +178,7 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
   for (const epic of epicRows.rows) {
     const evaluation = evaluateIssueCompliance({
       dueDate: epic.dueDate,
-      epicComplexityType: epic.complexity === 'COMPLEX' ? 'COMPLEX' : 'SIMPLE',
+      epicComplexityType: epic.complexity as EpicComplexity | null,
       ideaApprovedDate: epic.ideaApprovedDate,
       issueKey: epic.epicKey,
       issueType: 'EPIC',

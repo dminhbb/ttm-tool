@@ -1,0 +1,3 @@
+-- No-op: this is a one-time data backfill, not a schema change. The original SIMPLE/COMPLEX values
+-- it overwrote aren't recoverable (they were themselves derived, and the up-migration doesn't keep
+-- a copy) — reverting would mean recomputing the OLD 2-way rule by hand if ever needed.

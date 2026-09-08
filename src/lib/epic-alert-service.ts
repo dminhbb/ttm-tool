@@ -382,7 +382,7 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole): Pro
     if (allowedComponents && row.components.length > 0 && !row.components.some((component) => allowedComponents.includes(component))) continue;
 
     const startDate = parseDate(row.startDate);
-    const complexity: EpicComplexity = row.complexity ?? 'SIMPLE';
+    const complexity: EpicComplexity = row.complexity ?? 'CT-Lv12';
     const domain = (row.project && domainByProjectKey.get(row.project)) ?? '';
     const projectMeta = row.project ? projectMetaByProjectKey.get(row.project) : undefined;
     const pmSmName = projectMeta?.leadName ?? '';
@@ -421,7 +421,7 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
   const rows: EpicAlertRow[] = [];
   const releasedStatusIndex = statusOrderIndex('Released');
 
-  for (const { complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, row, startDate } of entries) {
+  for (const { complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, row, startDate } of entries) {
     // Default visibility rule for THIS screen only ("Quản trị Epic (rút gọn)"): Released epics
     // only stay on the list if they were ever flagged Cảnh báo muộn/Fail TTM in their accumulated
     // alert history — everything else always shows. "Quản trị Epic (đầy đủ)" deliberately shows
@@ -480,6 +480,7 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
       hasAlertHistory,
       hasDataAnomaly: dataAnomaly,
       missingStandardInfo: missingStandardInfo(row),
+      ownerName: pmSmName,
       projectKey: row.project ?? '',
       r4gDate: row.r4gDate,
       remainingWorkingDays,

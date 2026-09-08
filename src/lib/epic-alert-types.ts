@@ -28,6 +28,9 @@ export interface EpicAlertRow {
    * được" instead and groups these rows at the bottom of the table, highlighted. */
   hasDataAnomaly: boolean;
   missingStandardInfo: string[];
+  /** PM/SM of the Epic's project — comma-joined when there are several, derived live from
+   * user_projects (getProjectMetaByProjectKeyMap) — not the Jira assignee. */
+  ownerName: string;
   projectKey: string;
   r4gDate: string | null;
   remainingWorkingDays: number | null;

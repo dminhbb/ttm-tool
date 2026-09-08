@@ -1,4 +1,4 @@
-import type { AlertLevel } from '@/lib/ttm-rules';
+import type { AlertLevel, EpicComplexity } from '@/lib/ttm-rules';
 import type { EpicAlertAccessRole } from '@/lib/epic-alert-types';
 
 export interface DashboardStatusCount {
@@ -29,10 +29,8 @@ export interface DashboardStats {
     failE2e: number;
     lateWarning: number;
   };
-  complexity: {
-    complex: number;
-    simple: number;
-  };
+  /** Count of Epics per complexity type (CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34). */
+  complexity: Record<EpicComplexity, number>;
   epicCount: number;
   missingDataCount: number;
   statusDistribution: DashboardStatusCount[];

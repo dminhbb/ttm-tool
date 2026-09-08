@@ -1,5 +1,6 @@
 import type { UserRole } from '@/lib/auth-types';
-import type { AlertLevel } from '@/lib/ttm-rules';
+import type { AlertLevel, EpicComplexity } from '@/lib/ttm-rules';
+import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
 import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
 import type {
@@ -36,8 +37,7 @@ export function computeDashboardStats(rows: EpicAlertRowPhased[]): DashboardStat
   let failE2e = 0;
   let lateWarning = 0;
   let earlyWarning = 0;
-  let simple = 0;
-  let complex = 0;
+  const complexityCounts = Object.fromEntries(EPIC_COMPLEXITY_TYPES.map((type) => [type, 0])) as Record<EpicComplexity, number>;
   let missingDataCount = 0;
   let achievedTtmCount = 0;
   let achievedTtmEligibleCount = 0;
@@ -49,8 +49,7 @@ export function computeDashboardStats(rows: EpicAlertRowPhased[]): DashboardStat
     else if (row.alertLevel === 'LATE') lateWarning += 1;
     else if (row.alertLevel === 'EARLY') earlyWarning += 1;
     if (row.ttmE2eAlertLevel === 'FAIL') failE2e += 1;
-    if (row.epicType === 'COMPLEX') complex += 1;
-    else if (row.epicType === 'SIMPLE') simple += 1;
+    if (row.epicType && row.epicType in complexityCounts) complexityCounts[row.epicType] += 1;
     // hasDataAnomaly (missing Start Date, or R4G/Due Date chronologically nonsense) counts here too
     // — same "cần làm sạch dữ liệu" bucket as missingStandardInfo, not a separate stat tile.
     if (row.missingStandardInfo.length > 0 || row.hasDataAnomaly) missingDataCount += 1;
@@ -87,7 +86,7 @@ export function computeDashboardStats(rows: EpicAlertRowPhased[]): DashboardStat
     achievedTtmCount,
     achievedTtmEligibleCount,
     alerts: { earlyWarning, failCntt, failE2e, lateWarning },
-    complexity: { complex, simple },
+    complexity: complexityCounts,
     epicCount: rows.length,
     missingDataCount,
     statusDistribution: [...statusCounts.entries()]

@@ -1,9 +1,11 @@
 import { addWorkingDays, diffWorkingDays, emptyHolidaySet } from '@/lib/working-days';
 import type { HolidaySet } from '@/lib/working-days';
-import type { StatusAlertRule } from '@/lib/status-alert-rule-types';
+import type { EpicComplexityType, StatusAlertRule } from '@/lib/status-alert-rule-types';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
 
-export type EpicComplexity = 'SIMPLE' | 'COMPLEX';
+/** Alias of EpicComplexityType (status-alert-rule-types.ts) — kept as its own exported name since
+ * most of this codebase imports "EpicComplexity" from here, not from status-alert-rule-types.ts. */
+export type EpicComplexity = EpicComplexityType;
 export type AlertLevel = 'NONE' | 'EARLY' | 'LATE' | 'FAIL';
 
 const ALERTED_STATUSES = new Set(['DESIGN', 'IN PROGRESS']);
@@ -17,13 +19,24 @@ export interface OffsetRule {
   lateOffset: number;
 }
 
-// BRD 03 §3 — working-day offsets from T1 (Start Date), by complexity and status.
+// BRD 03 §3 — working-day offsets from T1 (Start Date), by complexity and status. Only used as a
+// fallback when the caller doesn't pass DB-loaded statusAlertRules (see resolveOffsetRule below) —
+// Lv12/Lv34 values mirror the old SIMPLE/COMPLEX defaults until the admin configures the 4 new
+// types for real via "Cấu hình cảnh báo".
 export const OFFSET_RULES: Record<EpicComplexity, Record<'Design' | 'In Progress', OffsetRule>> = {
-  SIMPLE: {
+  'CT-Lv12': {
     Design: { earlyOffset: 2, lateOffset: 3 },
     'In Progress': { earlyOffset: 12, lateOffset: 13 },
   },
-  COMPLEX: {
+  'CT-Lv34': {
+    Design: { earlyOffset: 5, lateOffset: 6 },
+    'In Progress': { earlyOffset: 19, lateOffset: 20 },
+  },
+  'SP-Lv12': {
+    Design: { earlyOffset: 2, lateOffset: 3 },
+    'In Progress': { earlyOffset: 12, lateOffset: 13 },
+  },
+  'SP-Lv34': {
     Design: { earlyOffset: 5, lateOffset: 6 },
     'In Progress': { earlyOffset: 19, lateOffset: 20 },
   },
@@ -86,7 +99,7 @@ export interface TtmAlertResult {
  * never "fails" TTM. EARLY/LATE, by contrast, genuinely need a configured rule for the status.
  */
 export function computeTtmAlert(input: TtmAlertInput): TtmAlertResult {
-  const complexity = input.complexity ?? 'SIMPLE';
+  const complexity = input.complexity ?? 'CT-Lv12';
   const rule = resolveOffsetRule(complexity, input.status, input.statusAlertRules);
 
   if (!input.startDate || !input.targetR4gDate || isCancelledStatus(input.status)) {

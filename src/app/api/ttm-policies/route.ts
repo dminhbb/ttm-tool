@@ -4,9 +4,12 @@ import { createTtmPolicy, deleteTtmPolicy, listTtmPolicies, updateTtmPolicy } fr
 import { TTM_TYPES } from '@/lib/ttm-policy-types';
 import type { TtmPolicyInput, TtmType } from '@/lib/ttm-policy-types';
 import type { EpicComplexity } from '@/lib/ttm-rules';
+import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 
 const MAX_WORKING_DAYS = 3650;
-const COMPLEXITIES: EpicComplexity[] = ['SIMPLE', 'COMPLEX'];
+// Shares the single source of truth (status-alert-rule-types.ts) instead of duplicating the value
+// list here — this array used to be its own independent 2-value literal.
+const COMPLEXITIES: readonly EpicComplexity[] = EPIC_COMPLEXITY_TYPES;
 
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null; }
 function authError(error: unknown): NextResponse | null {

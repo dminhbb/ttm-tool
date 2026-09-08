@@ -14,8 +14,8 @@ import { Select } from '@/components/ui/Select';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { TableAction } from '@/components/ui/TableAction';
 import { TableSkeleton } from '@/components/ui/Skeleton';
-import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
-import type { StatusAlertRule, StatusAlertRuleInput } from '@/lib/status-alert-rule-types';
+import { EPIC_COMPLEXITY_LABELS, EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
+import type { EpicComplexityType, StatusAlertRule, StatusAlertRuleInput } from '@/lib/status-alert-rule-types';
 import { TTM_TYPES } from '@/lib/ttm-policy-types';
 import type { TtmPolicy, TtmPolicyInput } from '@/lib/ttm-policy-types';
 import { compareValues, useSortableList } from '@/lib/use-sortable-list';
@@ -24,9 +24,13 @@ type RuleSortKey = 'epicComplexityType' | 'epicStatus' | 'earlyAlertOffsetDays' 
 type PolicySortKey = 'ttmType' | 'epicComplexityType' | 'fromTtmField' | 'toTtmField' | 'workingDays' | 'status';
 
 interface Notice { text: string; type: 'error' | 'success'; }
-const EMPTY_RULE: StatusAlertRuleInput = { earlyAlertOffsetDays: 0, epicComplexityType: 'SIMPLE', epicStatus: 'Design', isActive: true, lateAlertOffsetDays: 1 };
-const EMPTY_POLICY: TtmPolicyInput = { epicComplexityType: 'SIMPLE', fromTtmField: 'START_DATE', isActive: true, toTtmField: 'R4G_DATE', ttmType: 'TTM_CNTT', workingDays: 15 };
-const typeLabel = (value: 'SIMPLE' | 'COMPLEX') => value === 'SIMPLE' ? 'Epic đơn giản' : 'Epic phức tạp';
+const EMPTY_RULE: StatusAlertRuleInput = { earlyAlertOffsetDays: 0, epicComplexityType: 'CT-Lv12', epicStatus: 'Design', isActive: true, lateAlertOffsetDays: 1 };
+const EMPTY_POLICY: TtmPolicyInput = { epicComplexityType: 'CT-Lv12', fromTtmField: 'START_DATE', isActive: true, toTtmField: 'R4G_DATE', ttmType: 'TTM_CNTT', workingDays: 15 };
+// Legacy rows (epic_complexity_type = SIMPLE/COMPLEX) are kept in the DB rather than deleted — see
+// 20260908b_widen_epic_complexity_types.sql — so this still needs to render something for them
+// instead of a blank cell; they're inert (no Epic classifies as either anymore).
+const typeLabel = (value: EpicComplexityType | 'SIMPLE' | 'COMPLEX') =>
+  EPIC_COMPLEXITY_LABELS[value as EpicComplexityType] ?? `${value} (cũ, không còn áp dụng)`;
 const offsetLabel = (value: number) => `T1 + ${value} ngày làm việc`;
 const readError = (value: unknown, fallback: string) => typeof value === 'object' && value !== null && 'error' in value && typeof value.error === 'string' ? value.error : fallback;
 

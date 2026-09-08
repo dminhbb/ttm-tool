@@ -71,7 +71,7 @@ export function evaluateIssueCompliance(input: ComplianceIssueInput, evaluatedAt
   const emptyTtm: TtmBaseline = { fromDate: null, fromField: null, targetDate: null, toField: null, workingDays: null };
   if (hierarchyLevel !== 1) return { alertLevel: 'NONE', baseline: { design: null, inProgress: null, r4g: null, released: null }, compliance: findings.length ? 'AT_RISK' : 'NOT_APPLICABLE', findings, hierarchyLevel, issueKey: input.issueKey, issueType: input.issueType, status: input.status, ttm: { cntt: emptyTtm, e2e: emptyTtm }, workflow };
 
-  const complexity = input.epicComplexityType ?? 'SIMPLE';
+  const complexity = input.epicComplexityType ?? 'CT-Lv12';
   const startDate = toDate(input.startDate);
   const r4gDate = toDate(input.r4gDate);
   const dueDate = toDate(input.dueDate);

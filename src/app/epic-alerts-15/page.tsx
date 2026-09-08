@@ -17,6 +17,7 @@ import type { EpicAlertAccessRole, EpicAlertPhasedResponse, EpicAlertRowPhased, 
 import type { EpicMilestoneHistoryEntry } from '@/lib/epic-milestone-history-service';
 import type { ProjectComponent } from '@/lib/master-data-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
+import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import { ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, ClockCountdown, HourglassMedium, ListChecks, Prohibit, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
@@ -153,17 +154,6 @@ function CollapsiblePhaseCell({ actualDateText, cell, isCollapsed }: { actualDat
     return <TD className={`ttm-phase-cell ttm-col-collapsed${colorClass ? ` ${colorClass}` : ''}`} />;
   }
   return <PhaseStageCell actualDateText={actualDateText} cell={cell} />;
-}
-
-const EPIC_TYPE_DOT: Record<string, { label: string; variant: string }> = {
-  SIMPLE: { label: 'Epic đơn giản', variant: 'epic-type-simple' },
-  COMPLEX: { label: 'Epic phức tạp', variant: 'epic-type-complex' },
-};
-
-function EpicTypeDot({ epicType }: { epicType: string | null }) {
-  const entry = epicType ? EPIC_TYPE_DOT[epicType] : undefined;
-  if (!entry) return <span className="ttm-empty-warning">-</span>;
-  return <span className={`ttm-epic-type-dot ${entry.variant}`} title={entry.label} role="img" aria-label={entry.label} />;
 }
 
 /** Truncates epic summary text for the table's subtitle line — full text stays in the title tooltip. */
@@ -619,8 +609,7 @@ export default function EpicAlerts15Page() {
         </select>
         <select className="ttm-select" aria-label="Loại Epic" value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(1); }}>
           <option value="">Tất cả loại Epic</option>
-          <option value="SIMPLE">Epic đơn giản</option>
-          <option value="COMPLEX">Epic phức tạp</option>
+          {EPIC_COMPLEXITY_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
         </select>
         <ToolbarMultiSelect
           ariaLabel="Status"
@@ -719,12 +708,11 @@ export default function EpicAlerts15Page() {
                       >
                         {row.epicKey}
                       </button>
-                      <EpicTypeDot epicType={row.epicType} />
                       {row.epicName && (
                         <span className="ttm-epic-summary" title={row.epicName}>{truncateSummary(row.epicName)}</span>
                       )}
-                      {row.ownerName && (
-                        <span className="ttm-project-tag">PM/SM: {row.ownerName}</span>
+                      {(row.epicType || row.ownerName) && (
+                        <span className="ttm-project-tag">{row.epicType ? `${row.epicType}. ` : ''}PM/SM: {row.ownerName || '-'}</span>
                       )}
                       {row.missingStandardInfo.length > 0 && (
                         <span>

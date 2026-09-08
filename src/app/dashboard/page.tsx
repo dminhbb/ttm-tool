@@ -15,6 +15,7 @@ import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import { DASHBOARD_MAX_SELECTABLE_PROJECTS, DASHBOARD_MIN_SELECTABLE_PROJECTS } from '@/lib/dashboard-types';
 import type { DashboardAtRiskEpic, DashboardResponse, DashboardStats } from '@/lib/dashboard-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
+import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 
 function formatDateTime(value: string | null): string {
   if (!value) return 'Chưa có dữ liệu';
@@ -134,7 +135,11 @@ function DashboardStatsPanel({ onOpenEpic, showProjectInAtRisk, stats, subtitle,
           <div>
             <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-fb-text-primary"><ChartBar className="size-4" weight="bold" aria-hidden="true" />Phân bố trạng thái Epic</h4>
             <StatusDistributionBars data={stats.statusDistribution} />
-            <p className="mt-3 text-xs text-fb-text-secondary">Epic phức tạp: <strong className="text-fb-text-primary">{stats.complexity.complex}</strong> · Epic đơn giản: <strong className="text-fb-text-primary">{stats.complexity.simple}</strong></p>
+            <p className="mt-3 text-xs text-fb-text-secondary">
+              {EPIC_COMPLEXITY_TYPES.map((type, index) => (
+                <span key={type}>{index > 0 && ' · '}{type}: <strong className="text-fb-text-primary">{stats.complexity[type]}</strong></span>
+              ))}
+            </p>
           </div>
           <div>
             <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-fb-text-primary"><CheckCircle className="size-4" weight="bold" aria-hidden="true" />Đạt TTM</h4>

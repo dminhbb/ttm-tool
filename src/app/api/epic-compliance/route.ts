@@ -3,10 +3,11 @@ import { AuthError, requireUser } from '@/lib/auth-service';
 import { evaluateComplianceRequest } from '@/lib/epic-compliance-service';
 import type { ComplianceIssueInput } from '@/lib/epic-compliance-types';
 import type { EpicComplexity } from '@/lib/ttm-rules';
+import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 
 const MAX_ITEMS_PER_REQUEST = 500;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const VALID_COMPLEXITIES: EpicComplexity[] = ['SIMPLE', 'COMPLEX'];
+const VALID_COMPLEXITIES: readonly EpicComplexity[] = EPIC_COMPLEXITY_TYPES;
 
 function isDateString(value: unknown): value is string {
   if (typeof value !== 'string' || !DATE_PATTERN.test(value)) return false;
