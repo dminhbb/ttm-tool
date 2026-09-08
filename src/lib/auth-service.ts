@@ -186,18 +186,19 @@ export async function listManagedUsers(): Promise<ManagedUser[]> {
   return result.rows;
 }
 
+/**
+ * Replaces only THIS user's own domain/project/component grants — never touches another user's
+ * user_projects rows. A project can have many PM/SM users at once (each gets their own row here);
+ * projects.lead_name no longer exists (dropped — see 20260908_drop_projects_lead_name.sql), display
+ * names for a project's PM/SM list are derived live via a user_projects join (master-data-service.ts).
+ */
 async function replacePermissions(client: PoolClient, userId: number, input: UserInput): Promise<void> {
   const user = await client.query<{ fullName: string }>('SELECT full_name AS "fullName" FROM users WHERE id = $1 FOR UPDATE', [userId]);
   if (user.rowCount !== 1) throw new Error('USER_NOT_FOUND');
-  const existingProjectRows = await client.query<{ projectId: number }>('SELECT project_id AS "projectId" FROM user_projects WHERE user_id = $1', [userId]);
-  const existingProjectIds = existingProjectRows.rows.map((project) => project.projectId);
-  const removedProjectIds = existingProjectIds.filter((projectId) => !input.projectIds.includes(projectId));
   await client.query('DELETE FROM user_domains WHERE user_id = $1;', [userId]);
   // ON DELETE CASCADE on user_project_components (FK to user_projects) clears its rows too.
   await client.query('DELETE FROM user_projects WHERE user_id = $1;', [userId]);
   for (const domainId of input.domainIds) await client.query('INSERT INTO user_domains (user_id, domain_id) VALUES ($1, $2);', [userId, domainId]);
-  if (removedProjectIds.length > 0) await client.query('UPDATE projects SET lead_name = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ANY($1::int[]) AND lead_name = $2', [removedProjectIds, user.rows[0].fullName]);
-  if (input.projectIds.length > 0) await client.query('DELETE FROM user_projects WHERE project_id = ANY($1::int[]) AND user_id <> $2', [input.projectIds, userId]);
   for (const projectId of input.projectIds) {
     await client.query('INSERT INTO user_projects (user_id, project_id) VALUES ($1, $2);', [userId, projectId]);
     // Component narrowing is optional per project — an absent/empty entry means full project access.
@@ -206,7 +207,6 @@ async function replacePermissions(client: PoolClient, userId: number, input: Use
       await client.query('INSERT INTO user_project_components (user_id, project_id, component_name) VALUES ($1, $2, $3);', [userId, projectId, componentName]);
     }
   }
-  if (input.projectIds.length > 0) await client.query('UPDATE projects SET lead_name = $2, updated_at = CURRENT_TIMESTAMP WHERE id = ANY($1::int[])', [input.projectIds, user.rows[0].fullName]);
 }
 
 export async function createManagedUser(input: UserInput): Promise<ManagedUser> {

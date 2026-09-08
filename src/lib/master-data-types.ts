@@ -35,7 +35,8 @@ export type ProjectCategory = (typeof PROJECT_CATEGORIES)[number];
 export type TtmOption = 'Y' | 'N';
 
 /** PM/SM assignment is read-only here — set exclusively via the Users screen (auth-service.ts's
- * replacePermissions, which keeps projects.lead_name in sync with user_projects). */
+ * replacePermissions, which writes user_projects). A project's Project.leadName is derived live
+ * from user_projects (comma-joined when there are multiple PM/SM users), not stored on this input. */
 export interface ProjectInput {
   domainId: number | null;
   isActive: boolean;

@@ -120,7 +120,8 @@ CREATE TABLE projects (
     source_type VARCHAR(50) NOT NULL DEFAULT 'JIRA',
     project_category VARCHAR(30) CHECK (project_category IN ('Dự án', 'Team Agile', 'Team Triển khai')),
     ttm CHAR(1) NOT NULL DEFAULT 'N' CHECK (ttm IN ('Y', 'N')),
-    lead_name VARCHAR(100),
+    -- PM/SM assignment lives in user_projects (many-to-many — a project can have several PM/SM
+    -- users); no lead_name column here, see 20260908_drop_projects_lead_name.sql.
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

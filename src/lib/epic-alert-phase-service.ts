@@ -187,7 +187,7 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
       hasDataAnomaly: dataAnomaly,
       // "Thiếu T0" isn't shown on this screen — Idea Approved Date isn't part of Epic 15's scope.
       missingStandardInfo: missingStandardInfo(row).filter((item) => item !== 'T0'),
-      // PM/SM of the Epic's project (projects.lead_name) — not the raw Jira assignee.
+      // PM/SM of the Epic's project (comma-joined if several) — not the raw Jira assignee.
       ownerName: pmSmName,
       projectKey: row.project ?? '',
       projectName: projectName || row.project || '',

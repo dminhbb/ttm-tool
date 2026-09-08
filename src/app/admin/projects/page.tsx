@@ -118,22 +118,26 @@ function ProjectForm({ domainOptions, form, project, projectComponents, users, o
 }
 
 /** Read-only — PM/SM assignment (and its Component-level scope) is set exclusively from the Users
- * screen (UserForm's "Dự án" picker), never from this popup. */
+ * screen (UserForm's "Dự án" picker), never from this popup. A project can now have multiple PM/SM
+ * users, each with their own independent Component-level scope for this project. */
 function ProjectLeadInfo({ project, projectComponents, users }: { project: Project | null; projectComponents: ProjectComponent[]; users: ManagedUser[] }) {
   if (!project) return null;
-  if (!project.leadName) return <div className="ui-form-section rounded-lg border border-fb-border bg-fb-surface-muted p-3"><p className="text-xs font-semibold text-fb-text-secondary">PM/SM</p><p className="mt-1 text-sm text-fb-text-secondary">Chưa gán PM/SM. Gán tại màn hình Quản lý user.</p></div>;
-  const lead = users.find((user) => user.fullName === project.leadName);
-  const components = lead?.projectComponents[String(project.id)] ?? [];
+  const leads = users.filter((user) => user.projectIds.includes(project.id));
   const hasComponentCatalog = projectComponents.some((component) => component.projectKey === project.sourceProjectKey && component.isActive);
+  if (leads.length === 0) return <div className="ui-form-section rounded-lg border border-fb-border bg-fb-surface-muted p-3"><p className="text-xs font-semibold text-fb-text-secondary">PM/SM</p><p className="mt-1 text-sm text-fb-text-secondary">Chưa gán PM/SM. Gán tại màn hình Quản lý user.</p></div>;
   return <div className="ui-form-section rounded-lg border border-fb-border bg-fb-surface-muted p-3">
-    <p className="text-xs font-semibold text-fb-text-secondary">PM/SM</p>
-    <p className="mt-1 text-sm font-medium text-fb-text-primary">{project.leadName}{lead ? ` — ${lead.email}` : ''}</p>
-    {hasComponentCatalog && <>
-      <p className="mt-2 text-xs font-semibold text-fb-text-secondary">Component được phân quyền</p>
-      {components.length === 0
-        ? <p className="mt-1 text-sm text-fb-text-secondary">Toàn quyền dự án (không giới hạn Component).</p>
-        : <ul className="mt-1 flex flex-wrap gap-1.5">{components.map((component) => <li key={component}><Badge variant="info">{component}</Badge></li>)}</ul>}
-    </>}
+    <p className="text-xs font-semibold text-fb-text-secondary">PM/SM ({leads.length})</p>
+    <ul className="mt-1 flex flex-col gap-3">
+      {leads.map((lead) => {
+        const components = lead.projectComponents[String(project.id)] ?? [];
+        return <li key={lead.id}>
+          <p className="text-sm font-medium text-fb-text-primary">{lead.fullName} — {lead.email}</p>
+          {hasComponentCatalog && (components.length === 0
+            ? <p className="mt-0.5 text-xs text-fb-text-secondary">Toàn quyền dự án (không giới hạn Component).</p>
+            : <ul className="mt-1 flex flex-wrap gap-1.5">{components.map((component) => <li key={component}><Badge variant="info">{component}</Badge></li>)}</ul>)}
+        </li>;
+      })}
+    </ul>
     <p className="mt-2 text-[11px] text-fb-text-secondary">Việc gán/đổi PM/SM và giới hạn Component được thực hiện tại màn hình Quản lý user.</p>
   </div>;
 }

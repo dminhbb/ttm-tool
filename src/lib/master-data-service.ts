@@ -60,25 +60,38 @@ export async function deleteDomain(id: number): Promise<void> {
 
 // ---------- Projects ----------
 
+/** Joined onto `projects` to derive its PM/SM display name(s) live from user_projects + users — a
+ * project can have zero, one, or many PM/SM users; this aggregates every assigned user's full name
+ * into one comma-joined string ('' when none) so callers keep treating "leadName" as a single field. */
+const PROJECT_LEAD_NAME_JOIN = `
+  LEFT JOIN (
+    SELECT up.project_id, STRING_AGG(u.full_name, ', ' ORDER BY u.full_name) AS lead_name
+    FROM user_projects up
+    JOIN users u ON u.id = up.user_id
+    GROUP BY up.project_id
+  ) leads ON leads.project_id = p.id
+`;
+
 export async function listProjects(): Promise<Project[]> {
   const result = await pool.query<Project>(`
     SELECT
       p.id, p.project_name AS "projectName",
       p.domain_id AS "domainId", d.domain_name AS "domainName",
       p.source_project_key AS "sourceProjectKey", p.source_type AS "sourceType", p.project_category AS "projectCategory", p.ttm,
-      COALESCE(p.lead_name, '') AS "leadName", p.is_active AS "isActive",
+      COALESCE(leads.lead_name, '') AS "leadName", p.is_active AS "isActive",
       p.created_at::text AS "createdAt"
     FROM projects p
     LEFT JOIN domains d ON d.id = p.domain_id
+    ${PROJECT_LEAD_NAME_JOIN}
     ORDER BY p.source_project_key ASC;
   `);
   return result.rows;
 }
 
 /**
- * Creates/updates only the project record itself — PM/SM assignment (projects.lead_name) is not
- * touched here. It's set exclusively by auth-service.ts's replacePermissions, driven by the Users
- * screen's project assignment UI, so a Project add/edit save can never clobber it.
+ * Creates/updates only the project record itself — PM/SM assignment (user_projects) is not touched
+ * here. It's set exclusively by auth-service.ts's replacePermissions, driven by the Users screen's
+ * project assignment UI, so a Project add/edit save can never clobber it.
  */
 export async function createProject(input: ProjectInput): Promise<Project> {
   const result = await pool.query<{ id: number }>(`
@@ -105,10 +118,11 @@ async function getProjectById(id: number): Promise<Project> {
       p.id, p.project_name AS "projectName",
       p.domain_id AS "domainId", d.domain_name AS "domainName",
       p.source_project_key AS "sourceProjectKey", p.source_type AS "sourceType", p.project_category AS "projectCategory", p.ttm,
-      COALESCE(p.lead_name, '') AS "leadName", p.is_active AS "isActive",
+      COALESCE(leads.lead_name, '') AS "leadName", p.is_active AS "isActive",
       p.created_at::text AS "createdAt"
     FROM projects p
     LEFT JOIN domains d ON d.id = p.domain_id
+    ${PROJECT_LEAD_NAME_JOIN}
     WHERE p.id = $1;
   `, [id]);
   return result.rows[0];
@@ -136,12 +150,14 @@ export interface ProjectMeta {
   projectName: string;
 }
 
-/** Maps a Jira project key to its project name + PM/SM (the project's configured "lead_name"). */
+/** Maps a Jira project key to its project name + PM/SM display name(s) — comma-joined when a
+ * project has multiple PM/SM users, derived live from user_projects (see PROJECT_LEAD_NAME_JOIN). */
 export async function getProjectMetaByProjectKeyMap(): Promise<Map<string, ProjectMeta>> {
   const result = await pool.query<{ leadName: string; projectName: string; sourceProjectKey: string }>(`
-    SELECT source_project_key AS "sourceProjectKey", project_name AS "projectName", COALESCE(lead_name, '') AS "leadName"
-    FROM projects
-    WHERE is_active;
+    SELECT p.source_project_key AS "sourceProjectKey", p.project_name AS "projectName", COALESCE(leads.lead_name, '') AS "leadName"
+    FROM projects p
+    ${PROJECT_LEAD_NAME_JOIN}
+    WHERE p.is_active;
   `);
   const map = new Map<string, ProjectMeta>();
   for (const row of result.rows) map.set(row.sourceProjectKey, { leadName: row.leadName, projectName: row.projectName });

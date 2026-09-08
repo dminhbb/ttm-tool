@@ -53,7 +53,7 @@ export async function PATCH(request: NextRequest) {
       if (existing.rowCount) { await client.query('ROLLBACK'); return NextResponse.json({ error: `Key đã tồn tại: ${existing.rows.map((project) => project.sourceProjectKey).join(', ')}.` }, { status: 409 }); }
       for (const project of projects) {
         const leadName = nameByInput.get(project.leadName) ?? null;
-        const createdProject = await client.query<{ id: number }>('INSERT INTO projects (project_name, domain_id, source_project_key, source_type, project_category, ttm, lead_name, is_active) VALUES ($1, NULL, $2, $3, $4, $5, $6, TRUE) RETURNING id', [project.projectName, project.sourceProjectKey, 'JIRA', project.projectCategory, project.ttm, leadName]);
+        const createdProject = await client.query<{ id: number }>('INSERT INTO projects (project_name, domain_id, source_project_key, source_type, project_category, ttm, is_active) VALUES ($1, NULL, $2, $3, $4, $5, TRUE) RETURNING id', [project.projectName, project.sourceProjectKey, 'JIRA', project.projectCategory, project.ttm]);
         const userId = leadName ? userIdByFullName.get(leadName) : undefined;
         if (userId) await client.query('INSERT INTO user_projects (user_id, project_id) VALUES ($1, $2)', [userId, createdProject.rows[0].id]);
       }

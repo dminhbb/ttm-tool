@@ -1,0 +1,13 @@
+-- Retires projects.lead_name as a stored column. It was a denormalized single-name cache of "the"
+-- PM/SM for a project, kept in sync by auth-service.ts's replacePermissions — but that sync also
+-- forced exactly one PM/SM per project (saving a new PM/SM silently evicted any other user already
+-- linked to that project via user_projects, and unconditionally overwrote lead_name to just the
+-- newly-saved user's name). Two earlier migrations (20260811_sync_project_lead_assignments,
+-- 20260812_reconcile_project_pm_sm_assignments) already had to backfill/reconcile this column after
+-- it drifted out of sync — a symptom of it being a cache with no single writer, not a fix.
+--
+-- Now that a project can have multiple PM/SM users (user_projects, already a many-to-many table —
+-- no schema change needed there), a project's PM/SM display name(s) are derived live via a join from
+-- user_projects + users instead (see listProjects/getProjectById/getProjectMetaByProjectKeyMap in
+-- master-data-service.ts) — eliminating the sync problem entirely rather than reconciling it again.
+ALTER TABLE projects DROP COLUMN IF EXISTS lead_name;
