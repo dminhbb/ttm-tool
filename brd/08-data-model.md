@@ -149,7 +149,8 @@ target_r4g_date
 target_due_date
 jira_created_at            -- epic_created (Py Jira API adapter)
 jira_updated_at             -- epic_updated (Py Jira API adapter)
-epic_complexity_type       -- SIMPLE / COMPLEX
+epic_complexity_type       -- CT-Lv12 / CT-Lv34 / SP-Lv12 / SP-Lv34 (từ 09/2026 — xem 02-ttm-concepts-and-rules.md §2;
+                            -- legacy SIMPLE/COMPLEX vẫn được CHECK constraint chấp nhận nhưng không còn Epic nào mang giá trị này)
 requirement_level
 components                 -- TEXT[], Epic/Story's Jira Component/s — dùng cho lọc theo Component
 epic_stories                -- TEXT[], danh sách Story key con trực tiếp của Epic (Py Jira API adapter)
@@ -208,7 +209,7 @@ makeup_workdays: id, work_date (UNIQUE), description, is_active, created_at, upd
 
 ```text
 id
-epic_complexity_type      -- SIMPLE / COMPLEX
+epic_complexity_type      -- CT-Lv12 / CT-Lv34 / SP-Lv12 / SP-Lv34 (CHECK cũng vẫn chấp nhận SIMPLE/COMPLEX cho các dòng cũ, xem mục 6)
 epic_status                -- Design / In Progress / ... (không giới hạn dropdown, tối đa 50 ký tự)
 early_alert_offset_days
 late_alert_offset_days
@@ -222,15 +223,18 @@ Ràng buộc: unique `(epic_complexity_type, epic_status)`; `early_alert_offset_
 late_alert_offset_days` (không còn ràng buộc 3 chiều với fail vì fail không còn nằm ở bảng này).
 Mốc Fail TTM giờ tính hoàn toàn từ `ttm_policy_configs` (mục 11), tách khỏi rule Cảnh báo sớm/muộn.
 
-Dữ liệu seed (`db/schema.sql`): SIMPLE/Design 2-3, SIMPLE/In Progress 12-13, COMPLEX/Design 5-6,
-COMPLEX/In Progress 19-20 (đơn vị ngày làm việc, không có cột fail nữa).
+Dữ liệu seed gốc (`db/schema.sql`, nay là dữ liệu **legacy** không còn áp dụng): SIMPLE/Design 2-3,
+SIMPLE/In Progress 12-13, COMPLEX/Design 5-6, COMPLEX/In Progress 19-20 (đơn vị ngày làm việc). CHECK
+constraint được nới rộng (`20260908b_widen_epic_complexity_types.sql`) để giữ nguyên các dòng này thay
+vì xóa, nhưng **admin cần tự thêm rule mới cho 4 epic-type CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34** tại panel
+"Quy tắc cảnh báo Epic" — tại thời điểm cập nhật tài liệu này, 4 loại mới **chưa có rule nào**.
 
 ## 11. ttm_policy_configs
 
 ```text
 id
 ttm_type              -- CHECK IN ('TTM_CNTT','TTM_E2E')
-epic_complexity_type  -- CHECK IN ('SIMPLE','COMPLEX')
+epic_complexity_type  -- CHECK IN ('SIMPLE','COMPLEX','CT-Lv12','CT-Lv34','SP-Lv12','SP-Lv34')
 from_ttm_field        -- CHECK IN ('IDEA_APPROVED_DATE','START_DATE')
 to_ttm_field           -- CHECK IN ('R4G_DATE','DUE_DATE')
 working_days           -- 1–3650
@@ -240,8 +244,11 @@ updated_at
 ```
 
 Unique `(ttm_type, epic_complexity_type)`. Đây là **nguồn duy nhất** của mốc hạn TTM (thay
-`fail_offset_days` cũ). Seed mặc định: TTM_CNTT SIMPLE=15 ngày, TTM_CNTT COMPLEX=30 ngày, TTM_E2E
-SIMPLE=30 ngày, TTM_E2E COMPLEX=50 ngày.
+`fail_offset_days` cũ). Seed mặc định lúc tạo bảng (nay là legacy): TTM_CNTT SIMPLE=15 ngày, TTM_CNTT
+COMPLEX=30 ngày, TTM_E2E SIMPLE=30 ngày, TTM_E2E COMPLEX=50 ngày. Giá trị đang active cho 4 epic-type
+mới (do CBQL Phòng tự cấu hình, có thể thay đổi bất kỳ lúc nào — xem `02-ttm-concepts-and-rules.md`
+§2 để biết giá trị hiện tại): CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34, mỗi loại có 1 dòng TTM_CNTT + 1 dòng
+TTM_E2E.
 
 **Fail TTM-E2E là cảnh báo độc lập với Fail TTM-CNTT** (không phải chỉ tham chiếu như tài liệu cũ mô
 tả) — tính bởi `resolveTtmE2eRelease` (`epic-alert-service.ts`): T0 = Idea Approved Date, nếu thiếu

@@ -86,7 +86,10 @@ Màn hình quản lý trạng thái Epic MVP1 chỉ cần quản lý:
 - Design.
 - In Progress.
 
-Theo 2 loại Epic:
+> **Cập nhật (09/2026):** "2 loại Epic" bên dưới là spec MVP1 gốc — hệ thống hiện dùng **4 epic-type**
+> (`CT-Lv12`/`CT-Lv34`/`SP-Lv12`/`SP-Lv34`), xem `02-ttm-concepts-and-rules.md` §2.
+
+Theo 2 loại Epic (spec gốc, xem ghi chú cập nhật ở trên):
 
 - Epic đơn giản.
 - Epic phức tạp.

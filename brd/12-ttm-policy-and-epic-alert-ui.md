@@ -2,7 +2,7 @@
 
 ## Time to Market policy
 
-The deadline is independent from status alert rules. A Time to Market policy has a TTM type (`TTM-CNTT` or `TTM-E2E`), Epic type (`SIMPLE` or `COMPLEX`), From TTM Field, To TTM Field, working days, and active state. A type/Epic-type pair is unique. The active policy supplies the deadline: `From TTM Field + working days`. Table: `ttm_policy_configs` (see `08-data-model.md` §11).
+The deadline is independent from status alert rules. A Time to Market policy has a TTM type (`TTM-CNTT` or `TTM-E2E`), Epic type (`CT-Lv12`/`CT-Lv34`/`SP-Lv12`/`SP-Lv34` — see `02-ttm-concepts-and-rules.md` §2 for how each Epic is classified into one of these; the legacy `SIMPLE`/`COMPLEX` values are still DB-accepted but no Epic classifies as either anymore), From TTM Field, To TTM Field, working days, and active state. A type/Epic-type pair is unique. The active policy supplies the deadline: `From TTM Field + working days`. Table: `ttm_policy_configs` (see `08-data-model.md` §11).
 
 Status alert rules retain only early and late alert offsets. They do not store a Fail TTM-CNTT offset (the `fail_offset_days` column was dropped — the deadline comes exclusively from `ttm_policy_configs` now). Deleting either a status rule or policy requires a one-step confirmation.
 

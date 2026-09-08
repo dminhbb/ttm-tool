@@ -76,7 +76,23 @@ Các nội dung cũ nói rằng TTM dùng ngày lịch làm đơn vị chính đ
 
 ## 3.2. Phân loại Epic
 
-Hệ thống dùng hai loại Epic:
+> **Cập nhật (09/2026):** bảng "hai loại Epic" bên dưới là spec MVP1 gốc, **đã bị thay thế**. Hệ
+> thống hiện phân loại Epic theo **4 epic-type**, tính từ `epic_request_type` + `epic_request_level`
+> của Epic (`computeEpicComplexity`, `src/lib/import-service.ts`; mặc định `CT-Lv12` khi dữ liệu
+> thiếu/không khớp):
+>
+> | Epic-type | Điều kiện | TTM-CNTT | TTM-E2E |
+> |---|---|---:|---:|
+> | `CT-Lv12` | Cải tiến/Tính năng mới, mức 1-2 (mặc định) | 15 ngày làm việc | 20 ngày làm việc |
+> | `CT-Lv34` | Cải tiến/Tính năng mới, mức 3-4 | 25 ngày làm việc | 30 ngày làm việc |
+> | `SP-Lv12` | Sản phẩm/DV/quy trình mới, mức 1-2 | 30 ngày làm việc | 50 ngày làm việc |
+> | `SP-Lv34` | Sản phẩm/DV/quy trình mới, mức 3-4 | 30 ngày làm việc | 50 ngày làm việc |
+>
+> Số ngày làm việc do CBQL Phòng tự cấu hình tại panel "Tiêu chí Time to Market" (bảng
+> `ttm_policy_configs`) và có thể thay đổi — bảng trên chỉ là giá trị đang active tại thời điểm cập
+> nhật tài liệu. Chi tiết đầy đủ: `brd/02-ttm-concepts-and-rules.md` §2.
+
+Hệ thống dùng hai loại Epic (spec MVP1 gốc, đã thay thế — xem ghi chú cập nhật ở trên):
 
 | Loại Epic | TTM-CNTT | TTM-E2E | Ý nghĩa |
 |---|---:|---:|---|
@@ -183,6 +199,11 @@ MVP1 chỉ cảnh báo với Epic có status:
 - In Progress.
 
 Các status khác chưa cần rule cảnh báo TTM-CNTT trong MVP1, trừ Fail TTM-CNTT khi đã quá hạn mà chưa đạt R4G theo quy định nghiệp vụ.
+
+> **Cập nhật (09/2026):** §5.3/§5.4 dưới đây dùng "Epic đơn giản/phức tạp" (spec MVP1 gốc, đã thay
+> bằng 4 epic-type — xem ghi chú cập nhật ở §3.2 và `brd/03-mvp1-working-days-alert-rules.md` §3).
+> Rule Design/In Progress cho 4 epic-type mới **chưa được admin cấu hình** tại thời điểm cập nhật
+> tài liệu này.
 
 ## 5.3. Rule cho Epic đơn giản
 
@@ -519,6 +540,9 @@ Quy tắc:
 ---
 
 # 12. Quản lý trạng thái Epic / Status Alert Rules
+
+> **Cập nhật (09/2026):** "2 loại Epic" và bảng mặc định bên dưới là spec MVP1 gốc, đã thay bằng 4
+> epic-type CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34 — xem ghi chú cập nhật ở §3.2 phía trên.
 
 Trong MVP1, màn hình quản lý trạng thái Epic chỉ cần quản lý 2 trạng thái:
 

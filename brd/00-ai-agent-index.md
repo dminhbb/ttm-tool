@@ -18,8 +18,11 @@ Nếu các tài liệu cũ còn nhắc tới ngày lịch, logic cũ hoặc tr�
 5. Epic có hai mốc T:
    - **T0** = Ngày duyệt ý tưởng.
    - **T1** = Start Date của Epic.
-6. **Epic đơn giản** là Epic có TTM-CNTT 3 tuần, tương ứng TTM-E2E 6 tuần.
-7. **Epic phức tạp** là Epic có TTM-CNTT 6 tuần, tương ứng TTM-E2E 10 tuần.
+6. **Cập nhật (09/2026):** Epic đơn giản/phức tạp (2 loại) đã được thay bằng **4 epic-type**
+   `CT-Lv12`/`CT-Lv34`/`SP-Lv12`/`SP-Lv34`, tính từ `epic_request_type` + `epic_request_level` của
+   Epic (mặc định `CT-Lv12` khi dữ liệu thiếu/không khớp) — xem `02-ttm-concepts-and-rules.md` §2 cho
+   định nghĩa và giá trị working-days đang cấu hình cho từng loại. Giá trị SIMPLE/COMPLEX cũ (3 tuần/
+   6 tuần TTM-CNTT) chỉ còn là dữ liệu lịch sử, không còn Epic nào phân loại theo 2 giá trị này.
 8. R4G Date và Due Date là field nhập tay trên Jira.
 9. Phần mềm read-only đối với Jira, không ghi ngược lại Jira.
 10. CSV Import là nguồn dữ liệu MVP đầu; sau này có thể thay bằng Jira API hoặc Jira DB Query thông qua Data Source Adapter.
@@ -29,7 +32,7 @@ Nếu các tài liệu cũ còn nhắc tới ngày lịch, logic cũ hoặc tr�
 | File | Mục đích | Khi nào cần đọc |
 |---|---|---|
 | `01-product-overview.md` | Tổng quan sản phẩm, mục tiêu, phạm vi | Khi cần hiểu sản phẩm tổng thể |
-| `02-ttm-concepts-and-rules.md` | Khái niệm TTM-CNTT, TTM-E2E, Epic đơn giản/phức tạp, ngày làm việc, Pending | Khi code logic nghiệp vụ TTM |
+| `02-ttm-concepts-and-rules.md` | Khái niệm TTM-CNTT, TTM-E2E, 4 epic-type (CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34), ngày làm việc, Pending | Khi code logic nghiệp vụ TTM |
 | `03-mvp1-working-days-alert-rules.md` | Rule cảnh báo MVP1 cho Design/In Progress | Khi code cảnh báo, risk, cột Cảnh báo |
 | `04-homepage-and-epic-monitoring.md` | Homepage 3 panel, cột bảng, filter From/To Date | Khi code dashboard hoặc danh sách Epic |
 | `05-auth-rbac-user-management.md` | Login, session, password, role, phân quyền user/domain/project | Khi code auth, user CRUD, RBAC |

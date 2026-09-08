@@ -145,6 +145,12 @@ MVP1 chỉ cần quản lý rule cho 2 trạng thái Epic:
 
 Màn hình không cần quản lý toàn bộ status Jira phức tạp trong MVP1.
 
+> **Cập nhật (09/2026):** "Loại Epic" trong toàn bộ mục 5 và 6 dưới đây (nội dung spec MVP1 gốc) đã
+> đổi từ 2 loại Epic đơn giản/phức tạp sang **4 epic-type** `CT-Lv12`/`CT-Lv34`/`SP-Lv12`/`SP-Lv34` —
+> xem `02-ttm-concepts-and-rules.md` §2 cho định nghĩa và giá trị working-days hiện hành. Các bảng số
+> liệu cụ thể bên dưới (Epic đơn giản/phức tạp) chỉ còn giá trị lịch sử/tham khảo cấu trúc màn hình,
+> không phản ánh dữ liệu hiện tại của hệ thống.
+
 ### 5.1. Dữ liệu quản lý
 
 Mỗi dòng rule gồm:

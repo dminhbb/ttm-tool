@@ -14,20 +14,39 @@ Hệ thống theo dõi hai tiêu chí:
 > và mục 5 bên dưới. T0 (Idea Approved Date) nếu thiếu sẽ tự fallback sang ngày tạo Epic trên Jira
 > (`jira_created_at`, luôn có), nên baseline TTM-E2E luôn tính được kể cả khi Epic thiếu Start Date.
 
-## 2. Epic đơn giản và Epic phức tạp
+## 2. Bốn loại Epic (epic-type)
 
-Để dễ sử dụng trong BRD và giao diện, hệ thống dùng hai thuật ngữ:
+> **Cập nhật (09/2026):** thay cho lược đồ 2 loại cũ (Epic đơn giản/Epic phức tạp = SIMPLE/COMPLEX),
+> hệ thống hiện phân loại Epic theo **4 loại**, tính từ hai trường Jira của Epic — `epic_request_type`
+> (loại yêu cầu) và `epic_request_level` (mức độ yêu cầu, 1-4) — theo `computeEpicComplexity`
+> (`src/lib/import-service.ts`), tính một lần tại thời điểm import:
 
-| Loại Epic | TTM-CNTT | TTM-E2E |
+| Epic-type | Điều kiện (request type × request level) |
+|---|---|
+| `CT-Lv12` | "Cải tiến"/"Tính năng mới" + mức 1-2 — **mặc định** khi dữ liệu thiếu hoặc không khớp bất kỳ điều kiện nào khác |
+| `CT-Lv34` | "Cải tiến"/"Tính năng mới" + mức 3-4 |
+| `SP-Lv12` | "Sản phẩm/dịch vụ/quy trình mới" + mức 1-2 |
+| `SP-Lv34` | "Sản phẩm/dịch vụ/quy trình mới" + mức 3-4 |
+
+Giá trị số ngày làm việc (working days) hiện đang cấu hình cho từng loại (bảng `ttm_policy_configs`,
+panel "Tiêu chí Time to Market" tại "Cấu hình cảnh báo"):
+
+| Epic-type | TTM-CNTT (Start Date → R4G Date) | TTM-E2E (T0 → Due Date) |
 |---|---:|---:|
-| Epic đơn giản | 3 tuần = 15 ngày làm việc | 6 tuần = 30 ngày làm việc |
-| Epic phức tạp | 6 tuần = 30 ngày làm việc | 10 tuần = 50 ngày làm việc |
+| CT-Lv12 | 15 ngày làm việc | 20 ngày làm việc |
+| CT-Lv34 | 25 ngày làm việc | 30 ngày làm việc |
+| SP-Lv12 | 30 ngày làm việc | 50 ngày làm việc |
+| SP-Lv34 | 30 ngày làm việc | 50 ngày làm việc |
 
-Các giá trị target có thể cấu hình được trong ứng dụng bởi CBQL Phòng, tại bảng `ttm_policy_configs`
-(panel "Tiêu chí Time to Market" — `ttm_type` × `epic_complexity_type` × `from_ttm_field`/
-`to_ttm_field`/`working_days`, xem `08-data-model.md` §11). Đây là nguồn DUY NHẤT cho mốc hạn TTM —
-không còn cột `fail_offset_days` trên `epic_status_alert_rules` (đã bị drop, xem
-`03-mvp1-working-days-alert-rules.md`).
+Các giá trị trên do CBQL Phòng tự cấu hình và có thể thay đổi bất kỳ lúc nào tại panel "Tiêu chí Time
+to Market" — bảng trên chỉ là giá trị đang active tại thời điểm cập nhật tài liệu này, không phải hằng
+số cứng trong code. Đây là nguồn DUY NHẤT cho mốc hạn TTM — không còn cột `fail_offset_days` trên
+`epic_status_alert_rules` (đã bị drop, xem `03-mvp1-working-days-alert-rules.md`).
+
+Lược đồ SIMPLE/COMPLEX cũ vẫn còn được DB chấp nhận (`CHECK` constraint không xóa các giá trị cũ) để
+không phá vỡ các dòng rule cũ do admin đã cấu hình trước đây, nhưng **không còn Epic nào được phân
+loại là SIMPLE/COMPLEX nữa** — mọi Epic (kể cả Epic import trước khi đổi rule) đã được backfill sang 1
+trong 4 loại mới ở trên.
 
 ## 3. Ngày làm việc
 
@@ -59,8 +78,7 @@ TTM-CNTT là tiêu chí ưu tiên trong MVP1.
 | Bắt đầu | T1 = Epic.Start Date |
 | Kết thúc | Epic.R4G Date |
 | Đơn vị tính | Ngày làm việc |
-| Target Epic đơn giản | 15 ngày làm việc |
-| Target Epic phức tạp | 30 ngày làm việc |
+| Target theo epic-type | Xem bảng 4 loại tại mục 2 (CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34), cấu hình tại "Tiêu chí Time to Market" |
 | Kết quả | Đạt TTM-CNTT hoặc Fail TTM-CNTT |
 
 R4G Date là field nhập tay trên Jira.
@@ -76,8 +94,7 @@ TTM-E2E dùng để đo toàn bộ hành trình của yêu cầu.
 | Bắt đầu | T0 = Ngày duyệt ý tưởng |
 | Kết thúc | Epic.Due Date |
 | Đơn vị tính | Ngày làm việc |
-| Target Epic đơn giản | 30 ngày làm việc |
-| Target Epic phức tạp | 50 ngày làm việc |
+| Target theo epic-type | Xem bảng 4 loại tại mục 2 (CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34), cấu hình tại "Tiêu chí Time to Market" |
 
 Due Date là field nhập tay trên Jira.
 

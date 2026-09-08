@@ -29,23 +29,33 @@ Các mức cảnh báo:
 
 ## 3. Bảng rule cảnh báo MVP1
 
-### 3.1. Epic đơn giản
+> **Cập nhật (09/2026):** thay cho 2 loại Epic đơn giản/phức tạp cũ, rule cảnh báo trạng thái
+> (`epic_status_alert_rules` — panel "Quy tắc cảnh báo Epic") nay áp theo **4 epic-type**
+> CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34 — xem `02-ttm-concepts-and-rules.md` §2 cho định nghĩa từng loại.
+> Fail TTM-CNTT không còn nằm trong bảng này — lấy từ `ttm_policy_configs` (§4.4 bên dưới).
+>
+> Các dòng SIMPLE/COMPLEX bên dưới là rule **cũ**, hiện vẫn còn lưu trong DB (không xóa để bảo toàn
+> lịch sử cấu hình) nhưng **không còn Epic nào thuộc 2 loại này** nên các dòng này không còn tác
+> dụng thực tế. Admin cần tự cấu hình rule Design/In Progress (và các trạng thái khác nếu cần) cho 4
+> epic-type mới tại panel "Quy tắc cảnh báo Epic" — hiện tại 4 loại mới **chưa có rule nào**, nghĩa
+> là các Epic mới sẽ không có cảnh báo sớm/muộn theo trạng thái cho tới khi admin cấu hình.
 
-Epic đơn giản có TTM-CNTT là 15 ngày làm việc.
+### 3.1. Rule cũ (SIMPLE/COMPLEX) — tham khảo, không còn áp dụng
 
-| Trạng thái Epic | Cảnh báo sớm | Cảnh báo muộn | Fail TTM-CNTT |
-|---|---:|---:|---:|
-| Design | T1 + 2 ngày làm việc | T1 + 3 ngày làm việc | T1 + 15 ngày làm việc |
-| In Progress | T1 + 12 ngày làm việc | T1 + 13 ngày làm việc | T1 + 15 ngày làm việc |
+| Loại Epic (cũ) | Trạng thái Epic | Cảnh báo sớm | Cảnh báo muộn |
+|---|---|---:|---:|
+| SIMPLE | Design | T1 + 2 ngày làm việc | T1 + 3 ngày làm việc |
+| SIMPLE | In Progress | T1 + 12 ngày làm việc | T1 + 13 ngày làm việc |
+| COMPLEX | Design | T1 + 5 ngày làm việc | T1 + 6 ngày làm việc |
+| COMPLEX | In Progress | T1 + 19 ngày làm việc | T1 + 20 ngày làm việc |
 
-### 3.2. Epic phức tạp
+### 3.2. Epic-type mới (CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34)
 
-Epic phức tạp có TTM-CNTT là 30 ngày làm việc.
-
-| Trạng thái Epic | Cảnh báo sớm | Cảnh báo muộn | Fail TTM-CNTT |
-|---|---:|---:|---:|
-| Design | T1 + 5 ngày làm việc | T1 + 6 ngày làm việc | T1 + 30 ngày làm việc |
-| In Progress | T1 + 19 ngày làm việc | T1 + 20 ngày làm việc | T1 + 30 ngày làm việc |
+Chưa có giá trị mặc định cứng trong code cho 4 loại mới — admin tự nhập tại panel "Quy tắc cảnh báo
+Epic" (mỗi dòng là 1 cặp epic-type × trạng thái, với offset cảnh báo sớm < offset cảnh báo muộn). Có
+thể dùng lại giá trị SIMPLE ở trên làm điểm khởi đầu cho CT-Lv12, giá trị COMPLEX cho CT-Lv34/SP-Lv12/
+SP-Lv34, rồi điều chỉnh theo TTM-CNTT thực tế của từng loại (xem bảng working-days tại
+`02-ttm-concepts-and-rules.md` §2).
 
 ## 4. Quy tắc xác định cảnh báo
 
