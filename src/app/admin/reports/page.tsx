@@ -595,6 +595,7 @@ export default function AdminReportsPage() {
             title="3. DANH SÁCH CÁC EPIC FAIL TTM-CNTT VÀ TTM-E2E"
             totalCount={report.totalFailedCount}
             items={report.failedEpics}
+            isFailTable={true}
             customHeader="Loại Fail / Chi tiết"
             renderCustomCell={(item) => (
               <td className="px-2.5 py-1.5 text-[11px] font-bold text-black">
@@ -663,6 +664,7 @@ export default function AdminReportsPage() {
 
 interface ReportSectionBlockSquareProps {
   customHeader: string;
+  isFailTable?: boolean;
   items: ReportEpicItem[];
   jiraViewIssueBaseUrl: string;
   renderCustomCell: (item: ReportEpicItem) => React.ReactNode;
@@ -672,6 +674,7 @@ interface ReportSectionBlockSquareProps {
 
 function ReportSectionBlockSquare({
   customHeader,
+  isFailTable,
   items,
   jiraViewIssueBaseUrl,
   renderCustomCell,
@@ -682,23 +685,18 @@ function ReportSectionBlockSquare({
 
   return (
     <div className="rounded-none border border-black overflow-hidden">
-      {/* Header Bar - Clickable to Toggle Collapsed State */}
+      {/* Header Bar - Light Background, Clickable to Toggle Collapsed State */}
       <div
         onClick={() => setCollapsed(!collapsed)}
-        className="bg-slate-700 text-white px-3 py-2 font-bold text-xs flex items-center justify-between cursor-pointer select-none hover:bg-slate-800 transition-colors"
+        className="bg-slate-200 text-black px-3 py-2 font-bold text-xs flex items-center justify-between cursor-pointer select-none border-b border-slate-300 hover:bg-slate-300 transition-colors"
       >
         <div className="flex items-center gap-2">
-          {collapsed ? <CaretRight className="size-4 text-white shrink-0" weight="bold" /> : <CaretDown className="size-4 text-white shrink-0" weight="bold" />}
+          {collapsed ? <CaretRight className="size-4 text-black shrink-0" weight="bold" /> : <CaretDown className="size-4 text-black shrink-0" weight="bold" />}
           <span>{title}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-gray-300 font-normal no-print">
-            {collapsed ? '(Bấm để mở)' : '(Bấm để thu gọn)'}
-          </span>
-          <span className="bg-[#1463f7] text-white px-2 py-0.5 text-[10px] font-extrabold uppercase">
-            Tổng số: {totalCount} Epic
-          </span>
-        </div>
+        <span className="bg-[#1463f7] text-white px-2 py-0.5 text-[10px] font-extrabold uppercase">
+          Tổng số: {totalCount} Epic
+        </span>
       </div>
 
       {/* Table Content Container - Always printed even if collapsed on screen */}
@@ -711,7 +709,7 @@ function ReportSectionBlockSquare({
           <div className="overflow-x-auto">
             <table className="w-full text-left text-[11px] border-collapse">
               <thead>
-                <tr className="border-b border-gray-300 bg-gray-50 text-black font-bold select-none">
+                <tr className="border-b border-gray-300 bg-gray-100 text-black font-bold select-none">
                   <th className="px-2.5 py-1.5 w-8 text-center border-r border-gray-300">STT</th>
                   <th className="px-2.5 py-1.5 w-16 border-r border-gray-300">Project</th>
                   {/* COMBINED EPIC KEY + SUMMARY COLUMN */}
@@ -766,8 +764,14 @@ function ReportSectionBlockSquare({
                       <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">{item.ideaApprovedDate || '-'}</td>
                       {/* Start CNTT (formerly T1) */}
                       <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">{item.startDate || '-'}</td>
-                      <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">{item.r4gDate || '-'}</td>
-                      <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">{item.releasedDate || '-'}</td>
+                      {/* R4G Date */}
+                      <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">
+                        {item.r4gDate ? item.r4gDate : isFailTable ? <span className="text-red-700 font-semibold text-[11px]">Thiếu thông tin</span> : '-'}
+                      </td>
+                      {/* Released Date */}
+                      <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">
+                        {item.releasedDate ? item.releasedDate : isFailTable ? <span className="text-red-700 font-semibold text-[11px]">Thiếu thông tin</span> : '-'}
+                      </td>
                       {renderCustomCell(item)}
                     </tr>
                   );
