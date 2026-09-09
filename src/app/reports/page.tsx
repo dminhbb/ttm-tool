@@ -5,6 +5,7 @@ import { ArrowSquareOut, ArrowsClockwise, Bandaids, CaretDown, CaretRight, Check
 import type { ReportEpicItem, ReportResult } from '@/lib/reports-service';
 import { normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
+import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 
 /**
  * Custom Status Font-Color rules per user request:
@@ -32,7 +33,7 @@ function getStatusTextColorClass(status: string): string {
   return 'text-black font-bold';
 }
 
-export default function AdminReportsPage() {
+export default function ReportsPage() {
   const jiraViewIssueBaseUrl = useJiraViewIssueUrl();
 
   const [loadingMeta, setLoadingMeta] = React.useState(true);
@@ -63,7 +64,7 @@ export default function AdminReportsPage() {
   React.useEffect(() => {
     async function loadMeta() {
       try {
-        const res = await fetch('/api/admin/reports');
+        const res = await fetch('/api/reports');
         if (!res.ok) {
           const errData = await res.json();
           setMetaError(errData.error || 'Quyền truy cập bị từ chối.');
@@ -168,7 +169,7 @@ export default function AdminReportsPage() {
     setReportError(null);
 
     try {
-      const res = await fetch('/api/admin/reports', {
+      const res = await fetch('/api/reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -220,6 +221,9 @@ export default function AdminReportsPage() {
 
   return (
     <div className="space-y-6 p-4 md:p-6 text-black bg-white">
+      {/* Banner System */}
+      <InfoBannerDisplay pathname="/reports" />
+
       {/* Printable CSS style override */}
       <style jsx global>{`
         @media print {

@@ -65,7 +65,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   } catch (error: unknown) {
     if (error instanceof AuthError) {
       return NextResponse.json(
-        { error: error.code === 'FORBIDDEN' ? 'Chỉ SUPERADMIN mới có quyền tạo Báo cáo.' : 'Chưa đăng nhập.' },
+        { error: error.code === 'FORBIDDEN' ? 'Bạn không có quyền tạo Báo cáo.' : 'Chưa đăng nhập.' },
         { status: error.code === 'FORBIDDEN' ? 403 : 401 }
       );
     }

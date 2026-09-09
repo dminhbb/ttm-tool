@@ -300,43 +300,48 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
       isStatusValidForPass
     );
 
-    // Evaluate failure reasons for Bảng 3
+    // Actual Fail determination: An epic fails only if it is actually overdue or has invalid status on completion
+    let actualCnttFail = false;
     let cnttFailReason: string | null = null;
+
     if (!ttmCnttPassed) {
-      if (!cnttClosingDate) {
-        cnttFailReason = 'Thiếu R4G Date';
-      } else if (targetCnttDate && cnttClosingDate <= targetCnttDate && !isStatusValidForPass) {
+      if (cnttClosingDate && targetCnttDate && cnttClosingDate > targetCnttDate) {
+        actualCnttFail = true;
+        cnttFailReason = !isStatusValidForPass
+          ? 'Epic Status không đúng'
+          : `Fail TTM-CNTT (${formatDateVietnamese(cnttClosingDate)}>${formatDateVietnamese(targetCnttDate)})`;
+      } else if (cnttClosingDate && targetCnttDate && cnttClosingDate <= targetCnttDate && !isStatusValidForPass) {
+        actualCnttFail = true;
         cnttFailReason = 'Epic Status không đúng';
-      } else if (targetCnttDate && cnttClosingDate > targetCnttDate) {
-        if (!isStatusValidForPass) {
-          cnttFailReason = 'Epic Status không đúng';
-        } else {
-          cnttFailReason = `Fail TTM-CNTT (${formatDateVietnamese(cnttClosingDate)}>${formatDateVietnamese(targetCnttDate)})`;
-        }
-      } else if (!isStatusValidForPass) {
-        cnttFailReason = 'Epic Status không đúng';
+      } else if (!cnttClosingDate && targetCnttDate && todayKey > targetCnttDate && !isReleased) {
+        actualCnttFail = true;
+        cnttFailReason = `Fail TTM-CNTT (Quá hạn ${formatDateVietnamese(targetCnttDate)})`;
       }
     }
 
+    let actualE2eFail = false;
     let e2eFailReason: string | null = null;
+
     if (!ttmE2ePassed) {
-      if (!e2eClosingDate) {
-        e2eFailReason = 'Thiếu Released Date';
-      } else if (targetE2eDate && e2eClosingDate <= targetE2eDate && !isStatusValidForPass) {
+      if (e2eClosingDate && targetE2eDate && e2eClosingDate > targetE2eDate) {
+        actualE2eFail = true;
+        e2eFailReason = !isStatusValidForPass
+          ? 'Epic Status không đúng'
+          : `Fail TTM-e2e (${formatDateVietnamese(e2eClosingDate)}>${formatDateVietnamese(targetE2eDate)})`;
+      } else if (e2eClosingDate && targetE2eDate && e2eClosingDate <= targetE2eDate && !isStatusValidForPass) {
+        actualE2eFail = true;
         e2eFailReason = 'Epic Status không đúng';
-      } else if (targetE2eDate && e2eClosingDate > targetE2eDate) {
-        if (!isStatusValidForPass) {
-          e2eFailReason = 'Epic Status không đúng';
-        } else {
-          e2eFailReason = `Fail TTM-e2e (${formatDateVietnamese(e2eClosingDate)}>${formatDateVietnamese(targetE2eDate)})`;
-        }
-      } else if (!isStatusValidForPass) {
-        e2eFailReason = 'Epic Status không đúng';
+      } else if (!e2eClosingDate && targetE2eDate && todayKey > targetE2eDate && !isReleased) {
+        actualE2eFail = true;
+        e2eFailReason = `Fail TTM-e2e (Quá hạn ${formatDateVietnamese(targetE2eDate)})`;
       }
     }
 
-    const ttmCnttFailed = !ttmCnttPassed;
-    const ttmE2eFailed = !ttmE2ePassed;
+    // Chronological Anomaly Check (genuine date conflicts)
+    const hasChronologicalAnomaly = Boolean(
+      (row.r4gDate && row.startDate && row.r4gDate < row.startDate) ||
+      (row.dueDate && row.ideaApprovedDate && row.dueDate < row.ideaApprovedDate)
+    );
 
     const item: ReportEpicItem = {
       actualTtmDays,
@@ -381,16 +386,16 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
       releasedEpics.push(item);
     }
 
-    // 2. Data Anomaly Table (EXEMPT from status = RELEASED rule)
-    if (isAnomaly || anomalyDetails.length > 0) {
+    // 2. Data Anomaly Table (ONLY genuine chronological anomalies, exempting missing info epics that haven't failed TTM)
+    if (hasChronologicalAnomaly) {
       anomalyEpics.push({
         ...item,
-        anomalyDetails: anomalyDetails.length > 0 ? anomalyDetails : ['Dữ liệu không đầy đủ/sai lệch'],
+        anomalyDetails: anomalyDetails.length > 0 ? anomalyDetails : ['Dữ liệu sai lệch mốc thời gian'],
       });
     }
 
     // 3. Passed TTM Table (Rule 1 & 3: ONLY epics satisfying Pass rule)
-    if (passesReleasedStatusRule && (ttmCnttPassed || ttmE2ePassed) && !isAnomaly) {
+    if (passesReleasedStatusRule && (ttmCnttPassed || ttmE2ePassed) && !hasChronologicalAnomaly) {
       let passType = 'Đạt TTM-CNTT';
       if (ttmCnttPassed && ttmE2ePassed) passType = 'Đạt cả TTM-CNTT & TTM-e2e';
       else if (ttmE2ePassed && !ttmCnttPassed) passType = 'Đạt TTM-e2e';
@@ -401,19 +406,20 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
       });
     }
 
-    // 4. Failed TTM Table (Rule 2)
+    // 4. Failed TTM Table (Rule 2: Fails 1 of the 2 criteria)
     // Rule: Skip if status is 'To do' and ideaApprovedDate (Start E2E / T0) is missing
     const isToDoStatus = normStatus === 'TO DO' || upperStatus.includes('TO DO');
     const skipFailTableIfToDoWithoutIdeaDate = isToDoStatus && !row.ideaApprovedDate;
+    const isActualFail = actualCnttFail || actualE2eFail;
 
-    if (passesReleasedStatusRule && (ttmCnttFailed || ttmE2eFailed) && !skipFailTableIfToDoWithoutIdeaDate) {
+    if (passesReleasedStatusRule && isActualFail && !skipFailTableIfToDoWithoutIdeaDate) {
       const reasons = new Set<string>();
-      if (cnttFailReason && cnttFailReason !== 'Thiếu R4G Date') reasons.add(cnttFailReason);
-      if (e2eFailReason && e2eFailReason !== 'Thiếu Released Date') reasons.add(e2eFailReason);
+      if (cnttFailReason) reasons.add(cnttFailReason);
+      if (e2eFailReason) reasons.add(e2eFailReason);
 
       let failType = Array.from(reasons).join(' & ');
       if (!failType) {
-        failType = 'Dữ liệu không đầy đủ';
+        failType = 'Fail TTM';
       }
 
       failedEpics.push({
