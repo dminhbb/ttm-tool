@@ -24,6 +24,46 @@ Dữ liệu chia thành các nhóm:
   `issue_daily_snapshots`, `audit_logs`, `user_usage_daily_stats`).
 - Cấu hình chung (`jira_settings`, `data_retention_configs`).
 
+## 1.1. Sơ đồ cấu trúc cơ sở dữ liệu (ERD Diagram)
+
+Sơ đồ ERD dưới đây mô tả cấu trúc thực tế của 27 bảng/thực thể trong CSDL PostgreSQL của ứng dụng TTM Monitor, phân chia theo 7 nhóm chức năng cốt lõi:
+
+```mermaid
+erDiagram
+    %% Auth & RBAC Module
+    users ||--o{ user_domains : "1-n (user_id)"
+    domains ||--o{ user_domains : "1-n (domain_id)"
+    users ||--o{ user_projects : "1-n (user_id)"
+    projects ||--o{ user_projects : "1-n (project_id)"
+    user_projects ||--o{ user_project_components : "1-n (user_id, project_id)"
+    users ||--o{ auth_sessions : "1-n (user_id)"
+    users ||--o{ password_reset_requests : "1-n (resolved_by)"
+    users ||--o{ audit_logs : "1-n (user_id)"
+    users ||--o{ user_usage_daily_stats : "1-n (user_id)"
+    permission_features ||--o{ role_feature_permissions : "1-n (feature_key)"
+
+    %% Domain & Project Module
+    domains ||--o{ projects : "1-n (domain_id)"
+    projects ||--o{ project_components : "1-n (source_project_key = project_key)"
+
+    %% Jira Data & Import Engine Module
+    import_batches ||--o{ import_rows : "1-n (import_batch_id)"
+    import_batches ||--o{ issues : "1-n (source_import_batch_id)"
+    issues ||--o{ issues : "self-FK (parent_id / epic_id)"
+
+    %% TTM Policy & Alert Config Module
+    issues }o--|| ttm_policy_configs : "so khớp epic_complexity_type"
+    issues }o--|| epic_status_alert_rules : "so khớp epic_complexity_type & current_status"
+    issues }o--|| issue_type_role_mapping : "so khớp issue_type"
+
+    %% History, Snapshots & Audit Module
+    import_batches ||--o{ epic_ttm_snapshots : "1-n (source_import_batch_id)"
+    import_batches ||--o{ issue_daily_snapshots : "1-n (source_import_batch_id)"
+    import_batches ||--o{ epic_alert_history : "1-n (source_import_batch_id)"
+    import_batches ||--o{ epic_milestone_history : "1-n (source_import_batch_id)"
+```
+
+
 ## 2. users
 
 ```text
@@ -176,6 +216,15 @@ Khóa duy nhất: `(issue_key, source_import_batch_id)` — cho phép cùng 1 is
 (lớp dữ liệu) khác nhau; "trạng thái mới nhất" của 1 issue luôn là bản ghi có `aggregated_at` lớn
 nhất trong toàn bộ lịch sử (`LATEST_ISSUES_CTE`, `issue-resolution-sql.ts`), không phải bản ghi
 trong batch gần nhất.
+
+**Quy tắc phân loại Epic (`epic_complexity_type` — cập nhật 09/2026):**
+Lúc import dữ liệu, hệ thống tự động tính toán `epic_complexity_type` cho từng Epic (`computeEpicComplexity` trong `import-service.ts`) dựa vào 2 trường từ Jira: `epic_request_type` (Loại yêu cầu) và `epic_request_level` (Mức yêu cầu):
+- **CT-Lv12**: Loại yêu cầu ∈ {`Tính năng mới`, `Cải tiến`} và Mức yêu cầu ∈ {`1`, `2`} (*mặc định an toàn cho mọi trường hợp thiếu hoặc không khớp dữ liệu*).
+- **CT-Lv34**: Loại yêu cầu ∈ {`Tính năng mới`, `Cải tiến`} và Mức yêu cầu ∈ {`3`, `4`}.
+- **SP-Lv12**: Loại yêu cầu ∈ {`Sản phẩm/dịch vụ/quy trình mới`, `Sản phẩm`} và Mức yêu cầu ∈ {`1`, `2`}.
+- **SP-Lv34**: Loại yêu cầu ∈ {`Sản phẩm/dịch vụ/quy trình mới`, `Sản phẩm`} và Mức yêu cầu ∈ {`3`, `4`}.
+
+Tất cả các bản ghi Epic lịch sử đã được backfill tự động sang 4 loại mới thông qua migration `20260908c_backfill_epic_complexity_types.sql`.
 
 ## 8. Chỉ mục hiệu năng trên issues
 

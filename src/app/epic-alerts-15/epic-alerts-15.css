@@ -665,3 +665,183 @@
 .ttm-timeline-run:hover .ttm-timeline-tooltip { display: block; }
 .ttm-timeline-tooltip-title { font-weight: 700; margin-bottom: 2px; }
 .ttm-timeline-tooltip-note { color: var(--ttm-warning-100); }
+
+/* TTM Epic Management — Dark Mode Tokens & Overrides */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Brand */
+  --ttm-brand-900: #101208;
+  --ttm-brand-800: #15170e;
+  --ttm-brand-700: #9fe870;
+  --ttm-brand-600: #9fe870;
+  --ttm-brand-500: #9fe870;
+  --ttm-brand-100: rgba(159, 232, 112, 0.16);
+  --ttm-brand-050: rgba(159, 232, 112, 0.08);
+
+  /* Status colors */
+  --ttm-success-700: #44d17c;
+  --ttm-success-100: rgba(68, 209, 124, 0.16);
+  --ttm-success-050: rgba(68, 209, 124, 0.08);
+  --ttm-warning-700: #f4b34c;
+  --ttm-warning-500: #f4b34c;
+  --ttm-warning-100: rgba(244, 179, 76, 0.16);
+  --ttm-warning-050: rgba(244, 179, 76, 0.08);
+  --ttm-danger-800: #f06472;
+  --ttm-danger-700: #f06472;
+  --ttm-danger-600: #f78b4d;
+  --ttm-danger-100: rgba(240, 100, 114, 0.16);
+  --ttm-danger-050: rgba(240, 100, 114, 0.08);
+  --ttm-info-700: #42bde6;
+  --ttm-info-100: rgba(66, 189, 230, 0.16);
+  --ttm-neutral-900: #f3f5ec;
+  --ttm-neutral-700: #c7cdba;
+  --ttm-neutral-600: #8c9280;
+  --ttm-neutral-500: #8c9280;
+  --ttm-neutral-300: rgba(255, 255, 255, 0.20);
+  --ttm-neutral-200: rgba(255, 255, 255, 0.15);
+  --ttm-neutral-100: #212518;
+  --ttm-neutral-050: #191c12;
+  --ttm-white: #191c12;
+
+  /* Surface */
+  --ttm-bg: #101208;
+  --ttm-card: #191c12;
+  --ttm-border: rgba(255, 255, 255, 0.15);
+  --ttm-text: #f3f5ec;
+  --ttm-muted: #8c9280;
+}
+
+:root[data-theme="dark"] .ttm-field,
+:root[data-theme="dark"] .ttm-select,
+:root[data-theme="dark"] .ttm-button {
+  background: var(--surface-elevated, #212518);
+  color: var(--text-primary, #f3f5ec);
+  border-color: var(--border-default, rgba(255, 255, 255, 0.15));
+}
+
+:root[data-theme="dark"] .ttm-stat-widget {
+  background: var(--surface-panel, #191c12);
+  border-color: var(--border-default, rgba(255, 255, 255, 0.15));
+}
+:root[data-theme="dark"] .ttm-stat-widget.tone-danger .ttm-stat-widget-icon {
+  background: rgba(240, 100, 114, 0.16);
+  color: #f06472;
+}
+:root[data-theme="dark"] .ttm-stat-widget.tone-warning .ttm-stat-widget-icon {
+  background: rgba(244, 179, 76, 0.16);
+  color: #f4b34c;
+}
+:root[data-theme="dark"] .ttm-stat-widget.tone-neutral .ttm-stat-widget-icon {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f3f5ec;
+}
+
+:root[data-theme="dark"] .ttm-epic-col-sticky {
+  background: var(--surface-panel, #191c12);
+}
+
+:root[data-theme="dark"] .ttm-multiselect-popover {
+  background: var(--surface-panel, #191c12);
+  border-color: var(--border-default, rgba(255, 255, 255, 0.15));
+}
+:root[data-theme="dark"] .ttm-multiselect-option:hover,
+:root[data-theme="dark"] .ttm-multiselect-option.is-selected {
+  background: var(--surface-hover, #282d1d);
+}
+
+:root[data-theme="dark"] .ttm-phase-cell.pass {
+  background: rgba(68, 209, 124, 0.18);
+}
+:root[data-theme="dark"] .ttm-phase-cell.warning {
+  background: rgba(244, 179, 76, 0.18);
+}
+:root[data-theme="dark"] .ttm-phase-cell.fail {
+  background: rgba(240, 100, 114, 0.18);
+}
+
+:root[data-theme="dark"] .ttm-app td.hl-overdue,
+:root[data-theme="dark"] .ttm-app tr.missing-row td {
+  background: rgba(240, 100, 114, 0.22);
+}
+:root[data-theme="dark"] .ttm-app tr.disabled-row td {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted, #8c9280);
+}
+
+:root[data-theme="dark"] .ttm-status-legend-item {
+  color: var(--text-secondary, #c7cdba);
+}
+:root[data-theme="dark"] .ttm-status-swatch.done {
+  background: rgba(68, 209, 124, 0.3);
+  border-color: #44d17c;
+}
+:root[data-theme="dark"] .ttm-status-swatch.warning {
+  background: rgba(244, 179, 76, 0.3);
+  border-color: #f4b34c;
+}
+:root[data-theme="dark"] .ttm-status-swatch.failed {
+  background: rgba(240, 100, 114, 0.3);
+  border-color: #f06472;
+}
+
+:root[data-theme="dark"] .ttm-alert-popup-left {
+  background: var(--surface-elevated, #212518);
+  border-color: var(--border-default, rgba(255, 255, 255, 0.15));
+}
+:root[data-theme="dark"] .ttm-alert-popup-right {
+  background: #182433;
+  border-color: rgba(66, 189, 230, 0.3);
+}
+:root[data-theme="dark"] .ttm-alert-popup-right .ttm-alert-history-item {
+  background: #1d2b3d;
+  border-color: rgba(66, 189, 230, 0.3);
+}
+:root[data-theme="dark"] .ttm-alert-popup-section-title {
+  color: #42bde6;
+}
+
+:root[data-theme="dark"] .ttm-badge.early-warning {
+  background: rgba(244, 179, 76, 0.2);
+  color: #f4b34c;
+  border-color: rgba(244, 179, 76, 0.4);
+}
+:root[data-theme="dark"] .ttm-badge.late-warning {
+  background: rgba(247, 139, 77, 0.2);
+  color: #f78b4d;
+  border-color: rgba(247, 139, 77, 0.4);
+}
+:root[data-theme="dark"] .ttm-status-badge {
+  background: rgba(66, 189, 230, 0.16);
+  color: #42bde6;
+  border-color: rgba(66, 189, 230, 0.3);
+}
+:root[data-theme="dark"] .ttm-badge-achieved {
+  background: rgba(159, 232, 112, 0.16);
+  color: #9fe870;
+  border-color: rgba(159, 232, 112, 0.3);
+}
+:root[data-theme="dark"] .ttm-note {
+  background: rgba(244, 179, 76, 0.12);
+  border-color: rgba(244, 179, 76, 0.3);
+  color: #f4b34c;
+}
+:root[data-theme="dark"] .ttm-missing-tag {
+  background: rgba(240, 100, 114, 0.25);
+  color: #f06472;
+}
+:root[data-theme="dark"] .ttm-timeline-load-older {
+  background: var(--surface-elevated, #212518);
+  border-color: var(--border-default, rgba(255, 255, 255, 0.15));
+  color: #9fe870;
+}
+:root[data-theme="dark"] .ttm-timeline-row-label {
+  color: var(--text-secondary, #c7cdba);
+}
+:root[data-theme="dark"] .ttm-timeline-gridline {
+  background: rgba(255, 255, 255, 0.12);
+}
+:root[data-theme="dark"] .ttm-timeline-track {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+

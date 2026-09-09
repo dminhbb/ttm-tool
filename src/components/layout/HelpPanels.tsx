@@ -44,9 +44,9 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
         <section>
           <h3 className="ui-card-title mb-1">1. Bốn màn hình giám sát Epic</h3>
           <ul className="ml-5 list-disc space-y-1">
-            <li><strong className="text-fb-text-primary">Quản trị Epic (rút gọn) (/epic-alerts)</strong> — theo dõi tổng quan các cột Design, In Progress, Ready4Golive và Release theo mốc TTM-CNTT cấu hình cho từng loại Epic (CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34, xem mục 7 bên dưới). Chỉ dành cho <strong className="text-fb-text-primary">ADMIN/SUPERADMIN/SUPERVISOR</strong>.</li>
-            <li><strong className="text-fb-text-primary">Quản trị Epic (đầy đủ) (/epic-alerts-15)</strong> — theo dõi chi tiết theo 5 pha: Design (20%), Dev (50%), Test (80%), Pentest (90%), R4Golive (100%). Mốc thời gian mỗi pha tính tự động theo tỷ lệ % TTM-CNTT tích lũy. Mở cho <strong className="text-fb-text-primary">mọi role đã đăng nhập</strong> (theo phạm vi dự án được phân quyền).</li>
-            <li><strong className="text-fb-text-primary">Epic in PO (/epic-in-po)</strong> — cùng dữ liệu/logic với màn hình (đầy đủ), chỉ lọc còn Epic đang ở trạng thái To Do, In PO hoặc Released. Mở cho mọi role.</li>
+            <li><strong className="text-fb-text-primary">Quản trị Epic (/epic-alerts-15)</strong> — theo dõi chi tiết theo 5 pha: Design (20%), Dev (50%), Test (80%), Pentest (90%), R4Golive (100%). Mốc thời gian mỗi pha tính tự động theo tỷ lệ % TTM-CNTT tích lũy. Mở cho <strong className="text-fb-text-primary">mọi role đã đăng nhập</strong> (theo phạm vi dự án được phân quyền).</li>
+            <li><strong className="text-fb-text-primary">Quản trị Epic (rút gọn) (/epic-alerts)</strong> — theo dõi tổng quan theo mốc TTM-CNTT. (*Tạm ẩn trên menu chính*).</li>
+            <li><strong className="text-fb-text-primary">Epic in PO (/epic-in-po)</strong> — cùng dữ liệu/logic với màn hình Quản trị Epic, chỉ lọc còn Epic đang ở trạng thái To Do, In PO hoặc Released. Mở cho mọi role.</li>
             <li><strong className="text-fb-text-primary">Dashboard (/dashboard)</strong> — thống kê tổng hợp theo dự án (số Epic, phân bố trạng thái, số lượng từng loại cảnh báo, tỷ lệ Đạt TTM, Epic sắp đến hạn), tính live từ cùng dữ liệu 3 màn hình trên, không có bảng tổng hợp riêng.</li>
           </ul>
         </section>

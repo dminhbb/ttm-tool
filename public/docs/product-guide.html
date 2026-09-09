@@ -68,23 +68,24 @@
     <div class="toc-block">Khối dữ liệu</div>
     <a href="#import">3. Quy trình Import dữ liệu</a>
     <a href="#architecture">4. Kiến trúc dữ liệu</a>
-    <a href="#retention">5. Vòng đời &amp; lưu trữ dữ liệu</a>
+    <a href="#data-model">5. Mô hình &amp; Sơ đồ cơ sở dữ liệu (Data Model &amp; ERD)</a>
+    <a href="#retention">6. Vòng đời &amp; lưu trữ dữ liệu</a>
     <div class="toc-block">Khối cảnh báo</div>
-    <a href="#alert-policy">6. Cấu hình chính sách TTM &amp; rule cảnh báo</a>
-    <a href="#alert-logic">7. Logic tính cảnh báo Epic (TTM-CNTT &amp; TTM-E2E)</a>
-    <a href="#data-anomaly">8. Dữ liệu bất thường (không còn bị chặn import)</a>
-    <a href="#alert-history">9. Lịch sử cảnh báo tích lũy</a>
+    <a href="#alert-policy">7. Cấu hình chính sách TTM &amp; rule cảnh báo</a>
+    <a href="#alert-logic">8. Logic tính cảnh báo Epic (TTM-CNTT &amp; TTM-E2E)</a>
+    <a href="#data-anomaly">9. Dữ liệu bất thường (không còn bị chặn import)</a>
+    <a href="#alert-history">10. Lịch sử cảnh báo tích lũy</a>
     <div class="toc-block">Khối màn hình</div>
-    <a href="#screen-epic-alerts">10. 4 màn hình giám sát Epic</a>
-    <a href="#screen-data-source">11. Màn hình Nguồn dữ liệu</a>
-    <a href="#screen-admin">12. Các màn hình Quản trị hệ thống</a>
+    <a href="#screen-epic-alerts">11. Các màn hình giám sát Epic</a>
+    <a href="#screen-data-source">12. Màn hình Nguồn dữ liệu</a>
+    <a href="#screen-admin">13. Các màn hình Quản trị hệ thống</a>
     <div class="toc-block">Thông báo trong ứng dụng</div>
-    <a href="#ad-popup">13. Popup quảng cáo (AD Popup)</a>
-    <a href="#info-banner">14. Banner thông báo (Information Banner)</a>
+    <a href="#ad-popup">14. Popup quảng cáo (AD Popup)</a>
+    <a href="#info-banner">15. Banner thông báo (Information Banner)</a>
     <div class="toc-block">Công nghệ</div>
-    <a href="#tech-stack">15. Tech stack</a>
+    <a href="#tech-stack">16. Tech stack</a>
     <div class="toc-block">Phụ lục</div>
-    <a href="#glossary">16. Thuật ngữ</a>
+    <a href="#glossary">17. Thuật ngữ</a>
   </nav>
 
   <main>
@@ -247,16 +248,399 @@
       </div>
     </section>
 
+    <section id="data-model">
+      <div class="kicker">Khối dữ liệu</div>
+      <h2>5. Mô hình &amp; Sơ đồ cơ sở dữ liệu (Data Model &amp; ERD)</h2>
+      <p>
+        Cơ sở dữ liệu của TTM Monitor sử dụng <strong>PostgreSQL</strong>, bao gồm <strong>27 bảng/thực thể</strong> được thiết kế theo nguyên tắc tối giản, phân quyền trực tiếp và tính toán cảnh báo real-time. Nguồn sự thật (Source of Truth) của cấu trúc CSDL được quản lý tập trung tại <code>db/schema.sql</code> và chuỗi migration <code>db/migrations/*.sql</code>.
+      </p>
+
+      <h3>5.1. Sơ đồ thực thể CSDL (ERD Overview)</h3>
+      <svg viewBox="0 0 900 360" role="img" aria-label="Sơ đồ ERD thực thể cơ sở dữ liệu TTM Monitor" style="width:100%; height:auto;">
+        <defs>
+          <marker id="arrow2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#8a93a6" /></marker>
+        </defs>
+        <g font-size="11" font-weight="700" fill="#1f2430">
+          <!-- Auth & RBAC -->
+          <rect x="20" y="20" width="250" height="90" rx="8" fill="#eaf0ff" stroke="#c3cce3" />
+          <text x="145" y="40" text-anchor="middle" fill="#25406f" font-size="12">1. Auth &amp; RBAC (8 bảng)</text>
+          <text x="145" y="58" font-size="9.5" font-weight="400" fill="#5b6475" text-anchor="middle">users, user_domains, user_projects</text>
+          <text x="145" y="73" font-size="9.5" font-weight="400" fill="#5b6475" text-anchor="middle">user_project_components, auth_sessions</text>
+          <text x="145" y="88" font-size="9.5" font-weight="400" fill="#5b6475" text-anchor="middle">password_reset_requests, permission_matrix</text>
+
+          <!-- Domain & Project -->
+          <rect x="320" y="20" width="250" height="90" rx="8" fill="#eaf0ff" stroke="#c3cce3" />
+          <text x="445" y="40" text-anchor="middle" fill="#25406f" font-size="12">2. Domain &amp; Project (3 bảng)</text>
+          <text x="445" y="62" font-size="9.5" font-weight="400" fill="#5b6475" text-anchor="middle">domains, projects, project_components</text>
+          <text x="445" y="80" font-size="9.5" font-weight="400" fill="#5b6475" text-anchor="middle">FK domain_id &amp; Jira Project Key</text>
+
+          <!-- Jira Import & Canonical -->
+          <rect x="620" y="20" width="260" height="90" rx="8" fill="#fff4cf" stroke="#f0d98a" />
+          <text x="750" y="40" text-anchor="middle" fill="#b77900" font-size="12">3. Import &amp; Issues (3 bảng)</text>
+          <text x="750" y="62" font-size="9.5" font-weight="400" fill="#5b6475" text-anchor="middle">import_batches, import_rows, issues</text>
+          <text x="750" y="80" font-size="9.5" font-weight="400" fill="#5b6475" text-anchor="middle">Self-FK parent_id &amp; epic_id</text>
+
+          <!-- TTM Policy & Rules -->
+          <rect x="20" y="140" width="250" height="90" rx="8" fill="#e6f4ea" stroke="#cfe8d6" />
+          <text x="145" y="160" text-anchor="middle" fill="#2e7d32" font-size="12">4. TTM Policy &amp; Rules (3 bảng)</text>
+          <text x="145" y="182" font-size="9.5" font-weight="400" fill="#5b6475" text-anchor="middle">ttm_policy_configs (TTM_CNTT, TTM_E2E)</text>
+          <text x="145" y="197" font-size="9.5" font-weight="400" fill="#5b6475" text-anchor="middle">epic_status_alert_rules (4 Epic Types)</text>
+          <text x="145" y="212" font-size="9.5" font-weight="400" fill="#5b6475" text-anchor="middle">issue_type_role_mapping (BA/DEV/TEST)</text>
+
+          <!-- Calendar & Workdays -->
+          <rect x="320" y="140" width="250" height="90" rx="8" fill="#eaf0ff" stroke="#c3cce3" />
+          <text x="445" y="160" text-anchor="middle" fill="#25406f" font-size="12">5. Lịch làm việc (2 bảng)</text>
+          <text x="445" y="182" font-size="9.5" font-weight="400" fill="#5b6475" text-anchor="middle">holidays (bỏ T7/CN/ngày lễ)</text>
+          <text x="445" y="200" font-size="9.5" font-weight="400" fill="#5b6475" text-anchor="middle">makeup_workdays (ngày làm bù T7/CN)</text>
+
+          <!-- History, Snapshots & Audit -->
+          <rect x="620" y="140" width="260" height="90" rx="8" fill="#eaf0ff" stroke="#c3cce3" />
+          <text x="750" y="160" text-anchor="middle" fill="#25406f" font-size="12">6. History &amp; Snapshots (6 bảng)</text>
+          <text x="750" y="178" font-size="9.5" font-weight="400" fill="#5b6475" text-anchor="middle">epic_ttm_snapshots, issue_daily_snapshots</text>
+          <text x="750" y="193" font-size="9.5" font-weight="400" fill="#5b6475" text-anchor="middle">epic_alert_history, epic_alert_timeline</text>
+          <text x="750" y="208" font-size="9.5" font-weight="400" fill="#5b6475" text-anchor="middle">audit_logs, user_usage_daily_stats</text>
+
+          <!-- System Settings -->
+          <rect x="320" y="260" width="250" height="75" rx="8" fill="#f5f6f8" stroke="#cbd5e1" />
+          <text x="445" y="282" text-anchor="middle" fill="#5b6475" font-size="12">7. Cấu hình hệ thống (2 bảng)</text>
+          <text x="445" y="302" font-size="9.5" font-weight="400" fill="#6b7280" text-anchor="middle">jira_settings, data_retention_configs</text>
+
+          <!-- Connectors -->
+          <line x1="270" y1="65" x2="320" y2="65" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow2)" />
+          <line x1="570" y1="65" x2="620" y2="65" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow2)" />
+          <line x1="750" y1="110" x2="750" y2="140" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow2)" />
+          <line x1="620" y1="185" x2="270" y2="185" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow2)" />
+        </g>
+      </svg>
+
+      <!-- Nút xem chi tiết section ẩn -->
+      <details style="margin: 16px 0; border: 1px solid #cdd9f7; border-radius: 10px; background: #f8faff; padding: 12px 16px;">
+        <summary style="cursor: pointer; font-weight: 700; font-size: 13.5px; color: var(--brand-600); outline: none; user-select: none;">
+          🔍 Bấm vào đây để Xem chi tiết Đặc điểm trường, Khóa PK/FK, Ràng buộc &amp; Index của 27 bảng CSDL
+        </summary>
+        <div style="margin-top: 16px;">
+          <p style="font-size: 12.5px; color: var(--muted); margin-bottom: 16px;">
+            Dưới đây là chi tiết kỹ thuật của toàn bộ 27 bảng PostgreSQL trong CSDL TTM Monitor (tương thích với <code>db/schema.sql</code> và chuỗi migration):
+          </p>
+
+          <!-- 1. Auth & RBAC -->
+          <h4 style="color:var(--brand-700); margin:14px 0 6px; font-size:14px;">1. Nhóm Xác thực &amp; Phân quyền (Auth &amp; RBAC — 8 bảng)</h4>
+          
+          <p><strong>1.1. <code>users</code> (Tài khoản người dùng)</strong></p>
+          <table>
+            <thead><tr><th>Tên trường</th><th>Kiểu dữ liệu &amp; Đặc điểm</th><th>Khóa / Constraint</th><th>Ghi chú</th></tr></thead>
+            <tbody>
+              <tr><td><code>id</code></td><td><code>SERIAL</code></td><td>PRIMARY KEY</td><td>Mã định danh tự tăng</td></tr>
+              <tr><td><code>email</code></td><td><code>VARCHAR(255) NOT NULL</code></td><td>UNIQUE</td><td>Email đăng nhập hệ thống (không dùng username riêng)</td></tr>
+              <tr><td><code>full_name</code></td><td><code>VARCHAR(255) NOT NULL</code></td><td>—</td><td>Họ tên đầy đủ người dùng</td></tr>
+              <tr><td><code>password_hash</code></td><td><code>VARCHAR(255) NOT NULL</code></td><td>—</td><td>Mật khẩu đã băm bằng bcrypt</td></tr>
+              <tr><td><code>role</code></td><td><code>VARCHAR(20) NOT NULL</code></td><td>CHECK (SUPERADMIN, ADMIN, SUPERVISOR, USER)</td><td>4 vai trò cố định của hệ thống</td></tr>
+              <tr><td><code>is_active</code></td><td><code>BOOLEAN NOT NULL</code></td><td>DEFAULT TRUE</td><td>Trạng thái hoạt động</td></tr>
+              <tr><td><code>last_login_at</code></td><td><code>TIMESTAMP WITH TIME ZONE</code></td><td>—</td><td>Thời điểm đăng nhập gần nhất</td></tr>
+              <tr><td><code>created_at</code> / <code>updated_at</code></td><td><code>TIMESTAMP WITH TIME ZONE</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td>Thời điểm tạo &amp; cập nhật</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size:12px; color:var(--muted); margin-top:2px;">📌 <strong>Indexes:</strong> <code>users_pkey</code> (PK id), <code>users_email_key</code> (UNIQUE email).</p>
+
+          <p><strong>1.2. <code>user_domains</code> (Gán Domain cho User)</strong></p>
+          <table>
+            <thead><tr><th>Tên trường</th><th>Kiểu dữ liệu</th><th>Khóa / Liên kết FK</th></tr></thead>
+            <tbody>
+              <tr><td><code>user_id</code></td><td><code>INT NOT NULL</code></td><td>PK (user_id, domain_id), FK <code>users(id) ON DELETE CASCADE</code></td></tr>
+              <tr><td><code>domain_id</code></td><td><code>INT NOT NULL</code></td><td>PK (user_id, domain_id), FK <code>domains(id) ON DELETE CASCADE</code></td></tr>
+            </tbody>
+          </table>
+
+          <p><strong>1.3. <code>user_projects</code> (Gán Dự án cho User)</strong></p>
+          <table>
+            <thead><tr><th>Tên trường</th><th>Kiểu dữ liệu</th><th>Khóa / Liên kết FK</th></tr></thead>
+            <tbody>
+              <tr><td><code>user_id</code></td><td><code>INT NOT NULL</code></td><td>PK (user_id, project_id), FK <code>users(id) ON DELETE CASCADE</code></td></tr>
+              <tr><td><code>project_id</code></td><td><code>INT NOT NULL</code></td><td>PK (user_id, project_id), FK <code>projects(id) ON DELETE CASCADE</code></td></tr>
+            </tbody>
+          </table>
+
+          <p><strong>1.4. <code>user_project_components</code> (Thu hẹp Component theo User-Dự án)</strong></p>
+          <table>
+            <thead><tr><th>Tên trường</th><th>Kiểu dữ liệu</th><th>Khóa / Liên kết FK</th></tr></thead>
+            <tbody>
+              <tr><td><code>user_id</code>, <code>project_id</code></td><td><code>INT NOT NULL</code></td><td>PK kết hợp 3 trường, FK <code>user_projects(user_id, project_id) ON DELETE CASCADE</code></td></tr>
+              <tr><td><code>component_name</code></td><td><code>VARCHAR(255) NOT NULL</code></td><td>Tên Jira Component áp dụng giới hạn</td></tr>
+            </tbody>
+          </table>
+
+          <p><strong>1.5. <code>auth_sessions</code> (Phiên đăng nhập Active)</strong></p>
+          <table>
+            <thead><tr><th>Tên trường</th><th>Kiểu dữ liệu</th><th>Đặc điểm / FK</th></tr></thead>
+            <tbody>
+              <tr><td><code>token_hash</code></td><td><code>CHAR(64)</code></td><td>PRIMARY KEY (Mã băm SHA-256 của session token)</td></tr>
+              <tr><td><code>user_id</code></td><td><code>INT NOT NULL</code></td><td>FK <code>users(id) ON DELETE CASCADE</code></td></tr>
+              <tr><td><code>expires_at</code></td><td><code>TIMESTAMP WITH TIME ZONE NOT NULL</code></td><td>Thời điểm hết hạn (2h hoặc 24h)</td></tr>
+              <tr><td><code>created_at</code></td><td><code>TIMESTAMP WITH TIME ZONE</code></td><td>DEFAULT CURRENT_TIMESTAMP</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size:12px; color:var(--muted); margin-top:2px;">📌 <strong>Indexes:</strong> <code>idx_auth_sessions_user_expiry (user_id, expires_at)</code>.</p>
+
+          <p><strong>1.6. <code>password_reset_requests</code> (Yêu cầu đặt lại mật khẩu)</strong></p>
+          <table>
+            <thead><tr><th>Tên trường</th><th>Kiểu dữ liệu</th><th>Đặc điểm / FK</th></tr></thead>
+            <tbody>
+              <tr><td><code>id</code></td><td><code>SERIAL PRIMARY KEY</code></td><td>Khóa chính tự tăng</td></tr>
+              <tr><td><code>email</code></td><td><code>VARCHAR(255) NOT NULL</code></td><td>Email nhận yêu cầu reset</td></tr>
+              <tr><td><code>status</code></td><td><code>VARCHAR(20) NOT NULL</code></td><td>CHECK (PENDING, RESOLVED), mặc định PENDING</td></tr>
+              <tr><td><code>resolved_by</code></td><td><code>INT</code></td><td>FK <code>users(id) ON DELETE SET NULL</code> (Admin/Superadmin xử lý)</td></tr>
+            </tbody>
+          </table>
+
+          <p><strong>1.7. <code>permission_features</code> &amp; 1.8. <code>role_feature_permissions</code> (Ma trận phân quyền)</strong></p>
+          <table>
+            <thead><tr><th>Bảng</th><th>Cấu trúc trường</th><th>Khóa &amp; Constraints</th></tr></thead>
+            <tbody>
+              <tr><td><code>permission_features</code></td><td><code>feature_key VARCHAR(100) PK</code>, <code>feature_name VARCHAR(255)</code>, <code>category VARCHAR(50)</code>, <code>display_order INT</code></td><td>CHECK <code>category IN ('ADMIN', 'VIEW_ONLY')</code></td></tr>
+              <tr><td><code>role_feature_permissions</code></td><td><code>feature_key VARCHAR(100) FK</code>, <code>role VARCHAR(20)</code>, <code>can_view BOOLEAN</code>, <code>can_add BOOLEAN</code>, <code>can_edit BOOLEAN</code>, <code>can_delete BOOLEAN</code></td><td>PK kết hợp <code>(feature_key, role)</code>, FK <code>permission_features(feature_key) ON DELETE CASCADE</code></td></tr>
+            </tbody>
+          </table>
+
+          <!-- 2. Domain & Project -->
+          <h4 style="color:var(--brand-700); margin:18px 0 6px; font-size:14px;">2. Nhóm Domain &amp; Dự án (3 bảng)</h4>
+          
+          <p><strong>2.1. <code>domains</code> (Domain nghiệp vụ)</strong></p>
+          <table>
+            <thead><tr><th>Tên trường</th><th>Kiểu dữ liệu</th><th>Constraint / Ghi chú</th></tr></thead>
+            <tbody>
+              <tr><td><code>id</code></td><td><code>SERIAL PRIMARY KEY</code></td><td>Khóa chính tự tăng</td></tr>
+              <tr><td><code>domain_code</code></td><td><code>VARCHAR(50) NOT NULL</code></td><td>UNIQUE (Mã Domain nghiệp vụ)</td></tr>
+              <tr><td><code>domain_name</code></td><td><code>VARCHAR(255) NOT NULL</code></td><td>Tên đầy đủ Domain</td></tr>
+              <tr><td><code>lead_name</code></td><td><code>VARCHAR(100)</code></td><td>Tên Trưởng Domain (dạng text tự do)</td></tr>
+              <tr><td><code>is_active</code></td><td><code>BOOLEAN NOT NULL</code></td><td>DEFAULT TRUE</td></tr>
+            </tbody>
+          </table>
+
+          <p><strong>2.2. <code>projects</code> (Danh mục Dự án)</strong></p>
+          <table>
+            <thead><tr><th>Tên trường</th><th>Kiểu dữ liệu</th><th>Constraint / Liên kết FK</th></tr></thead>
+            <tbody>
+              <tr><td><code>id</code></td><td><code>SERIAL PRIMARY KEY</code></td><td>Khóa chính tự tăng</td></tr>
+              <tr><td><code>project_name</code></td><td><code>VARCHAR(255) NOT NULL</code></td><td>Tên Dự án</td></tr>
+              <tr><td><code>domain_id</code></td><td><code>INT</code></td><td>FK <code>domains(id) ON DELETE SET NULL</code></td></tr>
+              <tr><td><code>source_project_key</code></td><td><code>VARCHAR(50) NOT NULL</code></td><td>UNIQUE, khóa duy nhất so khớp với Jira CSV</td></tr>
+              <tr><td><code>source_type</code></td><td><code>VARCHAR(50) NOT NULL</code></td><td>DEFAULT 'JIRA'</td></tr>
+              <tr><td><code>project_category</code></td><td><code>VARCHAR(30)</code></td><td>CHECK ('Dự án', 'Team Agile', 'Team Triển khai')</td></tr>
+              <tr><td><code>ttm</code></td><td><code>CHAR(1) NOT NULL</code></td><td>DEFAULT 'N', CHECK ('Y', 'N')</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size:12px; color:var(--muted); margin-top:2px;">📌 <strong>Indexes:</strong> <code>idx_projects_source_key (source_project_key)</code>.</p>
+
+          <p><strong>2.3. <code>project_components</code> (Danh mục Component tích lũy)</strong></p>
+          <table>
+            <thead><tr><th>Tên trường</th><th>Kiểu dữ liệu</th><th>Constraints / Index</th></tr></thead>
+            <tbody>
+              <tr><td><code>id</code></td><td><code>SERIAL PRIMARY KEY</code></td><td>Khóa chính tự tăng</td></tr>
+              <tr><td><code>project_key</code></td><td><code>VARCHAR(50) NOT NULL</code></td><td>Mã Project Key (khớp <code>projects.source_project_key</code>)</td></tr>
+              <tr><td><code>component_name</code></td><td><code>VARCHAR(255) NOT NULL</code></td><td>Tên Jira Component</td></tr>
+              <tr><td><code>is_active</code></td><td><code>BOOLEAN NOT NULL</code></td><td>DEFAULT TRUE</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size:12px; color:var(--muted); margin-top:2px;">📌 <strong>Constraint &amp; Index:</strong> UNIQUE <code>(project_key, component_name)</code>, <code>idx_project_components_project_active (project_key, is_active)</code>.</p>
+
+          <!-- 3. Jira Import & Canonical -->
+          <h4 style="color:var(--brand-700); margin:18px 0 6px; font-size:14px;">3. Nhóm Import &amp; Dữ liệu Issue Canonical (3 bảng)</h4>
+
+          <p><strong>3.1. <code>import_batches</code> (Đợt import CSV)</strong></p>
+          <table>
+            <thead><tr><th>Tên trường</th><th>Kiểu dữ liệu</th><th>Mô tả / Constraints</th></tr></thead>
+            <tbody>
+              <tr><td><code>id</code></td><td><code>SERIAL PRIMARY KEY</code></td><td>Mã đợt import</td></tr>
+              <tr><td><code>file_name</code></td><td><code>VARCHAR(255) NOT NULL</code></td><td>Tên file CSV import gốc</td></tr>
+              <tr><td><code>import_type</code></td><td><code>VARCHAR(50)</code></td><td>MANUAL (qua UI) / AUTO (qua Python API script)</td></tr>
+              <tr><td><code>aggregated_at</code></td><td><code>TIMESTAMP WITH TIME ZONE NOT NULL</code></td><td>Mốc thời gian lớp dữ liệu snapshot tổng hợp</td></tr>
+              <tr><td><code>total_rows</code>, <code>success_rows</code>, <code>warning_rows</code>, <code>error_rows</code></td><td><code>INT</code></td><td>Thống kê số lượng dòng validate</td></tr>
+              <tr><td><code>status</code></td><td><code>VARCHAR(50) NOT NULL</code></td><td>SUCCESS / FAILED / COMPLETED_WITH_WARNINGS</td></tr>
+            </tbody>
+          </table>
+
+          <p><strong>3.2. <code>import_rows</code> (Lưu vết thô &amp; Validate CSV)</strong></p>
+          <table>
+            <thead><tr><th>Tên trường</th><th>Kiểu dữ liệu</th><th>Mô tả / Constraints</th></tr></thead>
+            <tbody>
+              <tr><td><code>id</code></td><td><code>SERIAL PRIMARY KEY</code></td><td>Khóa chính tự tăng</td></tr>
+              <tr><td><code>import_batch_id</code></td><td><code>INT</code></td><td>FK <code>import_batches(id) ON DELETE CASCADE</code></td></tr>
+              <tr><td><code>row_number</code></td><td><code>INT NOT NULL</code></td><td>Số thứ tự dòng trong file CSV gốc</td></tr>
+              <tr><td><code>raw_data_json</code></td><td><code>TEXT NOT NULL</code></td><td>Nội dung JSON dữ liệu dòng thô</td></tr>
+              <tr><td><code>normalized_data_json</code></td><td><code>TEXT</code></td><td>Dữ liệu đã chuẩn hóa (gồm <code>projectKey</code>/<code>components</code>)</td></tr>
+              <tr><td><code>validation_status</code></td><td><code>VARCHAR(50) NOT NULL</code></td><td>VALID / INVALID / WARNING</td></tr>
+              <tr><td><code>validation_errors_json</code></td><td><code>TEXT</code></td><td>Chi tiết các thông điệp lỗi/cảnh báo validate</td></tr>
+            </tbody>
+          </table>
+
+          <p><strong>3.3. <code>issues</code> (Bảng gộp lưu trữ issue mọi cấp: Epic / Story / Subtask)</strong></p>
+          <table>
+            <thead><tr><th>Tên trường</th><th>Kiểu dữ liệu &amp; Đặc điểm</th><th>Constraints / Liên kết FK</th></tr></thead>
+            <tbody>
+              <tr><td><code>id</code></td><td><code>SERIAL PRIMARY KEY</code></td><td>Khóa chính tự tăng</td></tr>
+              <tr><td><code>jira_id</code></td><td><code>BIGINT NOT NULL</code></td><td>ID gốc của Issue trên hệ thống Jira</td></tr>
+              <tr><td><code>issue_key</code></td><td><code>VARCHAR(50) NOT NULL</code></td><td>Key issue (ví dụ: WM-31288)</td></tr>
+              <tr><td><code>issue_name</code></td><td><code>TEXT NOT NULL</code></td><td>Tóm tắt / Tên issue</td></tr>
+              <tr><td><code>issue_type</code></td><td><code>VARCHAR(50) NOT NULL</code></td><td>EPIC / STORY / TASK / SUBTASK ...</td></tr>
+              <tr><td><code>current_status</code></td><td><code>VARCHAR(50) NOT NULL</code></td><td>Trạng thái hiện tại từ Jira</td></tr>
+              <tr><td><code>parent_id</code></td><td><code>INT</code></td><td>Self-FK <code>issues(id) ON DELETE SET NULL</code> (Story → Epic)</td></tr>
+              <tr><td><code>epic_id</code></td><td><code>INT</code></td><td>Self-FK <code>issues(id) ON DELETE SET NULL</code> (Subtask → Epic)</td></tr>
+              <tr><td><code>idea_approved_date</code></td><td><code>DATE</code></td><td>Mốc T0 (Bắt đầu TTM-E2E)</td></tr>
+              <tr><td><code>start_date</code></td><td><code>DATE</code></td><td>Mốc T1 (Bắt đầu TTM-CNTT)</td></tr>
+              <tr><td><code>r4g_date</code></td><td><code>DATE</code></td><td>Mốc R4G Date (Kết thúc TTM-CNTT)</td></tr>
+              <tr><td><code>due_date</code></td><td><code>DATE</code></td><td>Mốc Due Date (Kết thúc TTM-E2E)</td></tr>
+              <tr><td><code>jira_created_at</code> / <code>jira_updated_at</code></td><td><code>TIMESTAMP WITH TIME ZONE</code></td><td>Thời điểm tạo / cập nhật trên Jira</td></tr>
+              <tr><td><code>epic_complexity_type</code></td><td><code>VARCHAR(50)</code></td><td>CT-Lv12 / CT-Lv34 / SP-Lv12 / SP-Lv34 (4 Epic Types)</td></tr>
+              <tr><td><code>requirement_level</code></td><td><code>VARCHAR(50)</code></td><td>Mức yêu cầu từ Jira (1, 2, 3, 4)</td></tr>
+              <tr><td><code>components</code></td><td><code>TEXT[]</code></td><td>Mảng danh sách Jira Component của Epic/Story</td></tr>
+              <tr><td><code>epic_stories</code> / <code>story_subtasks</code></td><td><code>TEXT[]</code></td><td>Mảng lưu danh sách key con trực tiếp</td></tr>
+              <tr><td><code>source_import_batch_id</code></td><td><code>INT</code></td><td>FK <code>import_batches(id) ON DELETE CASCADE</code></td></tr>
+              <tr><td><code>aggregated_at</code></td><td><code>TIMESTAMP WITH TIME ZONE NOT NULL</code></td><td>Thời điểm chốt lớp dữ liệu</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size:12px; color:var(--muted); margin-top:2px;">📌 <strong>Indexes tối ưu hiệu năng:</strong></p>
+          <ul style="font-size:12px; color:var(--muted); margin:4px 0 10px 20px;">
+            <li><code>idx_issues_key_batch</code>: UNIQUE <code>(issue_key, source_import_batch_id)</code></li>
+            <li><code>idx_issues_key_aggregated_at</code>: Index tăng tốc LATEST_ISSUES_CTE <code>(issue_key, aggregated_at DESC)</code></li>
+            <li><code>idx_issues_epic_id</code> &amp; <code>idx_issues_parent_id</code>: Partial Index lọc ID cha khác NULL</li>
+            <li><code>idx_issues_batch_id</code> &amp; <code>idx_issues_aggregated_at</code> &amp; <code>idx_issues_type_status</code></li>
+          </ul>
+
+          <!-- 4. TTM Policy & Rules -->
+          <h4 style="color:var(--brand-700); margin:18px 0 6px; font-size:14px;">4. Nhóm Cấu hình TTM &amp; Rules Cảnh báo (3 bảng)</h4>
+
+          <p><strong>4.1. <code>ttm_policy_configs</code> (Tiêu chí mốc hạn TTM tổng thể)</strong></p>
+          <table>
+            <thead><tr><th>Tên trường</th><th>Kiểu dữ liệu</th><th>Constraints</th></tr></thead>
+            <tbody>
+              <tr><td><code>ttm_type</code></td><td><code>VARCHAR(20) NOT NULL</code></td><td>CHECK ('TTM_CNTT', 'TTM_E2E')</td></tr>
+              <tr><td><code>epic_complexity_type</code></td><td><code>VARCHAR(20) NOT NULL</code></td><td>CHECK ('SIMPLE', 'COMPLEX', 'CT-Lv12', 'CT-Lv34', 'SP-Lv12', 'SP-Lv34')</td></tr>
+              <tr><td><code>from_ttm_field</code></td><td><code>VARCHAR(50) NOT NULL</code></td><td>CHECK ('IDEA_APPROVED_DATE', 'START_DATE')</td></tr>
+              <tr><td><code>to_ttm_field</code></td><td><code>VARCHAR(50) NOT NULL</code></td><td>CHECK ('R4G_DATE', 'DUE_DATE')</td></tr>
+              <tr><td><code>working_days</code></td><td><code>INT NOT NULL</code></td><td>CHECK (1 BETWEEN 3650) — Số ngày làm việc tiêu chuẩn</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size:12px; color:var(--muted); margin-top:2px;">📌 <strong>Constraint:</strong> UNIQUE <code>(ttm_type, epic_complexity_type)</code>.</p>
+
+          <p><strong>4.2. <code>epic_status_alert_rules</code> (Quy tắc cảnh báo theo Trạng thái Epic)</strong></p>
+          <table>
+            <thead><tr><th>Tên trường</th><th>Kiểu dữ liệu</th><th>Constraints</th></tr></thead>
+            <tbody>
+              <tr><td><code>epic_complexity_type</code></td><td><code>VARCHAR(20) NOT NULL</code></td><td>CHECK ('SIMPLE', 'COMPLEX', 'CT-Lv12', 'CT-Lv34', 'SP-Lv12', 'SP-Lv34')</td></tr>
+              <tr><td><code>epic_status</code></td><td><code>VARCHAR(50) NOT NULL</code></td><td>Trạng thái Epic (Design, In Progress, DEV, TEST...)</td></tr>
+              <tr><td><code>early_alert_offset_days</code></td><td><code>INT NOT NULL</code></td><td>CHECK (>= 0) — Mốc Cảnh báo sớm (ngày làm việc)</td></tr>
+              <tr><td><code>late_alert_offset_days</code></td><td><code>INT NOT NULL</code></td><td>CHECK (>= 0) — Mốc Cảnh báo muộn (ngày làm việc)</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size:12px; color:var(--muted); margin-top:2px;">📌 <strong>Constraints &amp; Index:</strong> UNIQUE <code>(epic_complexity_type, epic_status)</code>, CHECK <code>early_alert_offset_days &lt; late_alert_offset_days</code>, <code>idx_epic_status_alert_rules_active</code>.</p>
+
+          <p><strong>4.3. <code>issue_type_role_mapping</code> (Mapping Subtask Jira sang Role hoàn thành pha)</strong></p>
+          <table>
+            <thead><tr><th>Tên trường</th><th>Kiểu dữ liệu</th><th>Constraints</th></tr></thead>
+            <tbody>
+              <tr><td><code>issue_type</code></td><td><code>VARCHAR(100) NOT NULL</code></td><td>UNIQUE (Ví dụ: BA, UAT, Sub test execution...)</td></tr>
+              <tr><td><code>team_role</code></td><td><code>VARCHAR(20) NOT NULL</code></td><td>CHECK ('BA', 'DEV', 'TEST', 'PM')</td></tr>
+            </tbody>
+          </table>
+
+          <!-- 5. Workdays Calendar -->
+          <h4 style="color:var(--brand-700); margin:18px 0 6px; font-size:14px;">5. Nhóm Lịch làm việc (2 bảng)</h4>
+          <table>
+            <thead><tr><th>Bảng CSDL</th><th>Cấu trúc trường</th><th>Constraints &amp; Index</th></tr></thead>
+            <tbody>
+              <tr><td><code>holidays</code></td><td><code>id SERIAL PK</code>, <code>name VARCHAR(255)</code>, <code>holiday_type VARCHAR(50)</code>, <code>is_multi_day BOOLEAN</code>, <code>start_date DATE</code>, <code>end_date DATE</code>, <code>is_active BOOLEAN</code></td><td>CHECK <code>(end_date &gt;= start_date)</code>, Index <code>idx_holidays_range (start_date, end_date) WHERE is_active</code></td></tr>
+              <tr><td><code>makeup_workdays</code></td><td><code>id SERIAL PK</code>, <code>work_date DATE NOT NULL UNIQUE</code>, <code>description TEXT</code>, <code>is_active BOOLEAN</code></td><td>Khai báo 1 ngày T7/CN cụ thể là ngày làm việc bình thường</td></tr>
+            </tbody>
+          </table>
+
+          <!-- 6. History & Snapshots -->
+          <h4 style="color:var(--brand-700); margin:18px 0 6px; font-size:14px;">6. Nhóm Lịch sử, Snapshot &amp; Audit (6 bảng)</h4>
+          <table>
+            <thead><tr><th>Bảng CSDL</th><th>Trường &amp; Kiểu dữ liệu chính</th><th>Constraints &amp; FK</th></tr></thead>
+            <tbody>
+              <tr><td><code>epic_alert_history</code></td><td><code>epic_key VARCHAR(50)</code>, <code>alert_type VARCHAR(20)</code> (LATE/FAIL), <code>alert_date DATE</code>, <code>phase VARCHAR(50)</code>, <code>source_import_batch_id INT</code></td><td>UNIQUE <code>(epic_key, alert_date, alert_type, phase)</code>, FK <code>import_batches(id) ON DELETE SET NULL</code></td></tr>
+              <tr><td><code>epic_alert_timeline</code></td><td><code>epic_key VARCHAR(50)</code>, <code>alert_type VARCHAR(50)</code> (5 loại), <code>start_date DATE</code>, <code>end_date DATE</code>, <code>last_seen_batch_id INT</code></td><td>UNIQUE <code>(epic_key, alert_type, start_date)</code>, FK <code>import_batches(id) ON DELETE SET NULL</code></td></tr>
+              <tr><td><code>epic_milestone_history</code></td><td><code>epic_key VARCHAR(50)</code>, <code>milestone VARCHAR(50)</code>, <code>milestone_date DATE</code>, <code>source_import_batch_id INT</code></td><td>UNIQUE <code>(epic_key, milestone)</code>, FK <code>import_batches(id) ON DELETE SET NULL</code></td></tr>
+              <tr><td><code>epic_ttm_snapshots</code></td><td><code>epic_key VARCHAR(50)</code>, <code>aggregated_at TIMESTAMPTZ</code>, <code>snapshot_data_json TEXT</code></td><td>UNIQUE <code>(epic_key, aggregated_at)</code>, FK <code>import_batches(id) ON DELETE SET NULL</code></td></tr>
+              <tr><td><code>issue_daily_snapshots</code></td><td><code>issue_key VARCHAR(50)</code>, <code>aggregated_at TIMESTAMPTZ</code>, <code>snapshot_data_json TEXT</code></td><td>UNIQUE <code>(issue_key, aggregated_at)</code>, FK <code>import_batches(id) ON DELETE SET NULL</code></td></tr>
+              <tr><td><code>audit_logs</code> / <code>user_usage_daily_stats</code></td><td><code>audit_logs</code>: user_id FK, action, entity_type, entity_id.<br /><code>user_usage_daily_stats</code>: user_id FK, stat_date DATE, login_count, feature_count, data_count.</td><td>PK kết hợp <code>user_usage_daily_stats(user_id, stat_date)</code>, FK <code>users(id)</code></td></tr>
+            </tbody>
+          </table>
+
+          <!-- 7. System Settings -->
+          <h4 style="color:var(--brand-700); margin:18px 0 6px; font-size:14px;">7. Nhóm Cấu hình hệ thống Singleton (2 bảng)</h4>
+          <table>
+            <thead><tr><th>Bảng CSDL</th><th>Cấu trúc trường</th><th>Ràng buộc Singleton</th></tr></thead>
+            <tbody>
+              <tr><td><code>jira_settings</code></td><td><code>id INT PRIMARY KEY</code>, <code>api_base_url VARCHAR(255)</code>, <code>view_issue_base_url VARCHAR(255)</code></td><td>Bảng singleton 1 dòng (<code>id = 1</code>)</td></tr>
+              <tr><td><code>data_retention_configs</code></td><td><code>id INT PRIMARY KEY</code>, <code>raw_import_retention_days INT NOT NULL DEFAULT 30</code></td><td>CHECK <code>(raw_import_retention_days BETWEEN 7 AND 3650)</code> (<code>id = 1</code>)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+
+      <h3>5.2. Bảng danh mục 27 bảng CSDL trong hệ thống</h3>
+      <table>
+        <thead><tr><th>STT</th><th>Bảng CSDL</th><th>Khóa chính / Khóa ngoại</th><th>Vai trò nghiệp vụ &amp; Ghi chú</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><code>users</code></td><td><code>id</code> (PK)</td><td>Quản lý tài khoản người dùng, băm mật khẩu bcrypt. Cột <code>role</code> nhận CHECK 4 giá trị: SUPERADMIN, ADMIN, SUPERVISOR, USER.</td></tr>
+          <tr><td>2</td><td><code>user_domains</code></td><td><code>(user_id, domain_id)</code> (PK, FK)</td><td>Phân quyền nhiều-nhiều giữa User và Domain nghiệp vụ (chỉ áp dụng cho ADMIN).</td></tr>
+          <tr><td>3</td><td><code>user_projects</code></td><td><code>(user_id, project_id)</code> (PK, FK)</td><td>Phân quyền nhiều-nhiều giữa User và Dự án (cấp quyền full 1 dự án cho PM/SM).</td></tr>
+          <tr><td>4</td><td><code>user_project_components</code></td><td><code>(user_id, project_id, component_name)</code> (PK, FK)</td><td>Thu hẹp phạm vi quyền dự án của PM/SM xuống chỉ những Epic có Jira Component khớp danh sách.</td></tr>
+          <tr><td>5</td><td><code>auth_sessions</code></td><td><code>token_hash</code> (PK), <code>user_id</code> (FK)</td><td>Quản lý phiên đăng nhập active bằng cookie HTTP-only (băm SHA-256).</td></tr>
+          <tr><td>6</td><td><code>password_reset_requests</code></td><td><code>id</code> (PK), <code>email</code>, <code>resolved_by</code> (FK)</td><td>Lưu trữ yêu cầu đặt lại mật khẩu theo email. CAPTCHA xác thực trước ở tầng API.</td></tr>
+          <tr><td>7</td><td><code>permission_features</code></td><td><code>feature_key</code> (PK)</td><td>Danh mục các tính năng hệ thống phục vụ ma trận phân quyền.</td></tr>
+          <tr><td>8</td><td><code>role_feature_permissions</code></td><td><code>(feature_key, role)</code> (PK, FK)</td><td>Bảng ma trận cấu hình 4 quyền Xem/Thêm/Sửa/Xóa theo từng (tính năng, role).</td></tr>
+          <tr><td>9</td><td><code>domains</code></td><td><code>id</code> (PK), <code>domain_code</code> (UNIQUE)</td><td>Danh mục Domain nghiệp vụ. Cột <code>lead_name</code> dạng text tự do.</td></tr>
+          <tr><td>10</td><td><code>projects</code></td><td><code>id</code> (PK), <code>source_project_key</code> (UNIQUE, FK)</td><td>Danh mục Dự án. Khóa <code>source_project_key</code> duy nhất dùng để so khớp với dữ liệu import từ Jira.</td></tr>
+          <tr><td>11</td><td><code>project_components</code></td><td><code>id</code> (PK), <code>(project_key, component_name)</code> (UNIQUE)</td><td>Tích lũy tự động các Jira Component đọc được từ CSV import để phục vụ dropdown lọc.</td></tr>
+          <tr><td>12</td><td><code>import_batches</code></td><td><code>id</code> (PK)</td><td>Quản lý từng đợt import CSV (metadata đợt import, mốc <code>aggregated_at</code>, số dòng thành công/lỗi).</td></tr>
+          <tr><td>13</td><td><code>import_rows</code></td><td><code>id</code> (PK), <code>import_batch_id</code> (FK)</td><td>Lưu trữ toàn bộ dòng CSV thô (raw_data_json) và dữ liệu chuẩn hóa (normalized_data_json) kèm log validate.</td></tr>
+          <tr><td>14</td><td><code>issues</code></td><td><code>id</code> (PK), <code>(issue_key, source_import_batch_id)</code> (UNIQUE)</td><td>Bảng canonical lưu trữ toàn bộ issue mọi cấp (Epic/Story/Subtask). Ghi nhận các mốc T0 (idea_approved_date), T1 (start_date), R4G (r4g_date), Due (due_date) và 4 Epic Type. Self-FK <code>parent_id</code> &amp; <code>epic_id</code>.</td></tr>
+          <tr><td>15</td><td><code>holidays</code></td><td><code>id</code> (PK)</td><td>Danh mục ngày nghỉ lễ/nghỉ công ty dùng để loại trừ khi tính số ngày làm việc.</td></tr>
+          <tr><td>16</td><td><code>makeup_workdays</code></td><td><code>id</code> (PK), <code>work_date</code> (UNIQUE)</td><td>Danh mục "Ngày làm bù": khai báo một ngày T7/CN cụ thể là ngày làm việc bình thường.</td></tr>
+          <tr><td>17</td><td><code>epic_status_alert_rules</code></td><td><code>id</code> (PK), <code>(epic_complexity_type, epic_status)</code> (UNIQUE)</td><td>Quy tắc mốc Cảnh báo sớm/muộn (số ngày làm việc từ T1) cho từng cặp (Loại Epic × Trạng thái).</td></tr>
+          <tr><td>18</td><td><code>ttm_policy_configs</code></td><td><code>id</code> (PK), <code>(ttm_type, epic_complexity_type)</code> (UNIQUE)</td><td>Tiêu chí mốc hạn TTM chuẩn (TTM-CNTT và TTM-E2E) cho 4 loại Epic Type.</td></tr>
+          <tr><td>19</td><td><code>issue_type_role_mapping</code></td><td><code>id</code> (PK), <code>issue_type</code> (UNIQUE)</td><td>Mapping loại Subtask Jira sang team-role BA/DEV/TEST/PM để xác định hoàn thành pha.</td></tr>
+          <tr><td>20</td><td><code>epic_alert_history</code></td><td><code>id</code> (PK), <code>source_import_batch_id</code> (FK)</td><td>Tích lũy lịch sử các lần Epic bị Cảnh báo muộn hoặc Fail TTM-CNTT qua các đợt import.</td></tr>
+          <tr><td>21</td><td><code>epic_alert_timeline</code></td><td><code>id</code> (PK), <code>(epic_key, alert_type, start_date)</code> (UNIQUE)</td><td>Theo dõi 5 loại cảnh báo dưới dạng các đợt (run) có khoảng ngày bắt đầu/kết thúc liên tục.</td></tr>
+          <tr><td>22</td><td><code>epic_milestone_history</code></td><td><code>id</code> (PK), <code>(epic_key, milestone)</code> (UNIQUE)</td><td>Ghi nhận lịch sử mốc hoàn thành nội bộ (DESIGN_DONE, DEV_DONE, TEST_DONE...).</td></tr>
+          <tr><td>23</td><td><code>epic_ttm_snapshots</code></td><td><code>id</code> (PK), <code>(epic_key, aggregated_at)</code> (UNIQUE)</td><td>Snapshot lịch sử rút gọn của Epic theo từng mốc <code>aggregated_at</code> (không bị xóa khi raw batch bị dọn).</td></tr>
+          <tr><td>24</td><td><code>issue_daily_snapshots</code></td><td><code>id</code> (PK), <code>(issue_key, aggregated_at)</code> (UNIQUE)</td><td>Snapshot lịch sử đầy đủ của mọi cấp issue (Epic/Story/Subtask) theo mốc `aggregated_at`.</td></tr>
+          <tr><td>25</td><td><code>audit_logs</code></td><td><code>id</code> (PK), <code>user_id</code> (FK)</td><td>Nhật ký ghi nhận các thao tác quan trọng trên hệ thống.</td></tr>
+          <tr><td>26</td><td><code>user_usage_daily_stats</code></td><td><code>(user_id, stat_date)</code> (PK, FK)</td><td>Thống kê tần suất tương tác và sử dụng tính năng theo ngày của từng user.</td></tr>
+          <tr><td>27</td><td><code>jira_settings</code> &amp; <code>data_retention_configs</code></td><td><code>id</code> (PK = 1)</td><td>Hai bảng cấu hình singleton lưu Cấu hình tích hợp Jira và số ngày lưu giữ dữ liệu raw import.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>5.3. Quy tắc phân loại 4 Epic Type (`epic_complexity_type`)</h3>
+      <p>
+        Từ 09/2026, ứng dụng chính thức chuyển sang mô hình <strong>4 Epic Type</strong> (thay thế mô hình 2 loại <code>SIMPLE</code>/<code>COMPLEX</code> cũ). Việc phân loại được thực hiện tự động lúc import dữ liệu bằng hàm <code>computeEpicComplexity</code> (trong <code>src/lib/import-service.ts</code>) dựa vào 2 trường raw từ Jira: <code>epic_request_type</code> (Loại yêu cầu) và <code>epic_request_level</code> (Mức yêu cầu):
+      </p>
+      <table>
+        <thead><tr><th>Epic-type</th><th>Điều kiện phân loại (`epic_request_type` &amp; `epic_request_level`)</th><th>Mục tiêu TTM-CNTT</th><th>Mục tiêu TTM-E2E</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge info">CT-Lv12</span></td><td>Loại yêu cầu ∈ {<em>Tính năng mới, Cải tiến</em>} <strong>VÀ</strong> Mức yêu cầu ∈ {<em>1, 2</em>} (<em>mặc định cho mọi trường hợp thiếu hoặc không khớp dữ liệu</em>)</td><td>15 ngày làm việc</td><td>20 ngày làm việc</td></tr>
+          <tr><td><span class="badge info">CT-Lv34</span></td><td>Loại yêu cầu ∈ {<em>Tính năng mới, Cải tiến</em>} <strong>VÀ</strong> Mức yêu cầu ∈ {<em>3, 4</em>}</td><td>25 ngày làm việc</td><td>30 ngày làm việc</td></tr>
+          <tr><td><span class="badge info">SP-Lv12</span></td><td>Loại yêu cầu ∈ {<em>Sản phẩm/dịch vụ/quy trình mới, Sản phẩm</em>} <strong>VÀ</strong> Mức yêu cầu ∈ {<em>1, 2</em>}</td><td>30 ngày làm việc</td><td>50 ngày làm việc</td></tr>
+          <tr><td><span class="badge info">SP-Lv34</span></td><td>Loại yêu cầu ∈ {<em>Sản phẩm/dịch vụ/quy trình mới, Sản phẩm</em>} <strong>VÀ</strong> Mức yêu cầu ∈ {<em>3, 4</em>}</td><td>30 ngày làm việc</td><td>50 ngày làm việc</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        Hạ tầng CSDL đã được cập nhật mở rộng constraint <code>CHECK</code> qua migration <code>20260908b_widen_epic_complexity_types.sql</code> và backfill dữ liệu lịch sử qua migration <code>20260908c_backfill_epic_complexity_types.sql</code>.
+      </div>
+    </section>
+
     <section id="retention">
       <div class="kicker">Khối dữ liệu</div>
-      <h2>5. Vòng đời &amp; lưu trữ dữ liệu</h2>
-      <h3>5.1. Lưu trữ dữ liệu import (raw)</h3>
+      <h2>6. Vòng đời &amp; lưu trữ dữ liệu</h2>
+      <h3>6.1. Lưu trữ dữ liệu import (raw)</h3>
       <p>
         Cấu hình tại panel <strong>“Lưu trữ dữ liệu import”</strong> (right panel màn hình Nguồn dữ liệu, SUPERADMIN): số ngày giữ dữ liệu raw
         (<code>import_batches</code>/<code>import_rows</code>/<code>issues</code>), mặc định 30 ngày, tối thiểu 7. Sau mỗi lần import thành công, hệ thống tự dọn
         các batch cũ hơn ngưỡng — batch mới nhất luôn được bảo vệ để tránh mất nguồn cảnh báo hiện hành.
       </p>
-      <h3>5.2. Quản lý lớp dữ liệu tổng hợp</h3>
+      <h3>6.2. Quản lý lớp dữ liệu tổng hợp</h3>
       <p>
         Panel <strong>“Nhật ký lớp dữ liệu tổng hợp (Epic)”</strong> (cùng màn hình Nguồn dữ liệu, chỉ <strong>SUPERADMIN</strong>) liệt kê từng ngày có dữ liệu tổng hợp, kèm số dòng ở mỗi bảng
         và trạng thái dữ liệu import gốc (còn/đã dọn). Hai hành động:
@@ -269,9 +653,9 @@
         Nếu dữ liệu raw của một ngày đã bị dọn theo retention, nút "Chạy lại" cho ngày đó sẽ không khả dụng — lớp tổng hợp đã có vẫn được giữ nguyên,
         chỉ không thể tái tạo lại từ đầu.
       </div>
-      <h3>5.3. Xoá N lớp dữ liệu gần nhất</h3>
+      <h3>6.3. Xoá N lớp dữ liệu gần nhất</h3>
       <p>
-        Thao tác riêng biệt (cùng màn hình, chỉ <strong>SUPERADMIN</strong>), mạnh hơn "Xoá" ở mục 5.2: xoá <strong>cả raw lẫn tổng hợp</strong> của N "lớp dữ liệu" gần nhất,
+        Thao tác riêng biệt (cùng màn hình, chỉ <strong>SUPERADMIN</strong>), mạnh hơn "Xoá" ở mục 6.2: xoá <strong>cả raw lẫn tổng hợp</strong> của N "lớp dữ liệu" gần nhất,
         trong đó một lớp dữ liệu là một ngày bất kỳ có dữ liệu ở bất kỳ bảng nào trong chuỗi xử lý (raw hoặc tổng hợp). Có bước xem trước (preview) số dòng sẽ bị xoá ở từng bảng
         trước khi xác nhận. Dùng khi cần loại bỏ hẳn một đợt dữ liệu lỗi, khác với "Xoá"/"Chạy lại" vốn chỉ tác động tới lớp tổng hợp.
       </p>
@@ -279,50 +663,43 @@
 
     <section id="alert-policy">
       <div class="kicker">Khối cảnh báo</div>
-      <h2>6. Cấu hình chính sách TTM &amp; rule cảnh báo</h2>
+      <h2>7. Cấu hình chính sách TTM &amp; rule cảnh báo</h2>
       <p>Tại màn hình <strong>Cấu hình cảnh báo</strong> (<code>/admin/status-alert-rules</code>) có 2 nhóm cấu hình độc lập:</p>
-      <h3>6.1. Tiêu chí Time to Market (TTM Policy)</h3>
+      <h3>7.1. Tiêu chí Time to Market (TTM Policy)</h3>
       <p>
         Xác định deadline tổng thể: <code>Target = From TTM Field + số ngày làm việc</code>, theo từng cặp (Loại TTM × Loại Epic).
         <code>From TTM Field</code>/<code>To TTM Field</code> là nhãn logic nội bộ ứng dụng (Start Date, Idea Approved Date, R4G Date, Due Date) — không phải tên cột trong file CSV import gốc.
         Loại TTM gồm <strong>TTM-CNTT</strong> (T1 → R4G, trọng tâm MVP1) và <strong>TTM-E2E</strong> (T0 → Release).
       </p>
-      <h3>6.2. Rule cảnh báo theo trạng thái Epic (epic_status_alert_rules)</h3>
+      <h3>7.2. Rule cảnh báo theo trạng thái Epic (epic_status_alert_rules)</h3>
       <p>
         Với mỗi cặp (Loại Epic × Trạng thái Epic), cấu hình 2 mốc: <strong>Cảnh báo sớm</strong>, <strong>Cảnh báo muộn</strong> —
         tính bằng số ngày làm việc kể từ T1. Mốc <strong>Fail TTM-CNTT không còn nằm ở bảng này</strong> (cột <code>fail_offset_days</code> đã bị bỏ) — Fail TTM-CNTT/
-        TTM-E2E lấy hoàn toàn từ Tiêu chí Time to Market ở mục 6.1. Design và In Progress là dữ liệu seed mặc định; có thể thêm rule cho trạng thái khác (IN PO, DEV, TEST, PENTEST, R4GOLIVE, MVPDONE, Released…).
+        TTM-E2E lấy hoàn toàn từ Tiêu chí Time to Market ở mục 7.1. Design và In Progress là dữ liệu seed mặc định; có thể thêm rule cho trạng thái khác (IN PO, DEV, TEST, PENTEST, R4GOLIVE, MVPDONE, Released…).
       </p>
-      <table>
-        <thead><tr><th>Trạng thái Epic</th><th>Epic đơn giản (TTM-CNTT 15 ngày)</th><th>Epic phức tạp (TTM-CNTT 30 ngày)</th></tr></thead>
-        <tbody>
-          <tr><td>Design</td><td>Sớm: T1+2 · Muộn: T1+3</td><td>Sớm: T1+5 · Muộn: T1+6</td></tr>
-          <tr><td>In Progress</td><td>Sớm: T1+12 · Muộn: T1+13</td><td>Sớm: T1+19 · Muộn: T1+20</td></tr>
-        </tbody>
-      </table>
-      <h3>6.3. Phân loại độ phức tạp Epic (SIMPLE / COMPLEX)</h3>
+      <h3>7.3. Phân loại 4 Epic Type (CT-Lv12 / CT-Lv34 / SP-Lv12 / SP-Lv34)</h3>
       <p>
-        Mọi mốc cảnh báo ở trên phụ thuộc Epic là <strong>đơn giản (SIMPLE)</strong> hay <strong>phức tạp (COMPLEX)</strong> — tính tự động mỗi lần import, dựa trên 2 trường
-        Jira của Epic, không cấu hình thủ công:
+        Mọi mốc cảnh báo ở trên áp dụng theo <strong>4 Epic Type</strong> (cập nhật từ 09/2026, xem chi tiết tại chương 5.2) — được tính tự động lúc import dữ liệu bằng hàm <code>computeEpicComplexity</code>:
       </p>
       <ul>
-        <li>Epic được xếp <strong>SIMPLE</strong> khi <strong>đồng thời</strong> thoả cả 2 điều kiện: <code>Loại yêu cầu</code> (request type) là rỗng, "none", "cải tiến" hoặc "tính năng mới" <strong>và</strong> <code>Requirement Level</code> là rỗng, "none", "1" hoặc "2" (so khớp không phân biệt hoa/thường và khoảng trắng thừa).</li>
-        <li>Mọi tổ hợp còn lại (kể cả khi chỉ 1 trong 2 điều kiện không thoả) được xếp <strong>COMPLEX</strong>.</li>
+        <li><strong>CT-Lv12</strong>: Jenis request ∈ {<em>Tính năng mới, Cải tiến</em>} &amp; Level ∈ {<em>1, 2</em>} (<em>mặc định cho trường hợp dữ liệu thiếu hoặc không khớp</em>).</li>
+        <li><strong>CT-Lv34</strong>: Jenis request ∈ {<em>Tính năng mới, Cải tiến</em>} &amp; Level ∈ {<em>3, 4</em>}.</li>
+        <li><strong>SP-Lv12</strong>: Jenis request ∈ {<em>Sản phẩm/dịch vụ/quy trình mới, Sản phẩm</em>} &amp; Level ∈ {<em>1, 2</em>}.</li>
+        <li><strong>SP-Lv34</strong>: Jenis request ∈ {<em>Sản phẩm/dịch vụ/quy trình mới, Sản phẩm</em>} &amp; Level ∈ {<em>3, 4</em>}.</li>
       </ul>
       <div class="callout">
-        Nói cách khác: mặc định (thiếu dữ liệu 1 hoặc cả 2 trường) Epic được coi là SIMPLE; Epic chỉ "rớt" xuống COMPLEX khi có ít nhất một trong hai trường mang giá trị
-        vượt ngoài các mức thấp/nhẹ liệt kê ở trên (ví dụ Loại yêu cầu = "dự án mới", hoặc Requirement Level = "3" trở lên).
+        Hạ tầng CSDL đã nới rộng CHECK constraint trên bảng <code>epic_status_alert_rules</code> để đón nhận cả 4 loại mới này song song với các dòng legacy <code>SIMPLE</code>/<code>COMPLEX</code> cũ (giữ lại cấu hình cũ để tham chiếu). Admin có thể cấu hình chi tiết offset cảnh báo sớm/muộn cho 4 loại Epic Type mới trực tiếp trên màn hình Cấu hình cảnh báo.
       </div>
     </section>
 
     <section id="alert-logic">
       <div class="kicker">Khối cảnh báo</div>
-      <h2>7. Logic tính cảnh báo Epic (TTM-CNTT &amp; TTM-E2E)</h2>
-      <h3>7.1. Thứ tự trạng thái chuẩn (STATUS_ORDER)</h3>
+      <h2>8. Logic tính cảnh báo Epic (TTM-CNTT &amp; TTM-E2E)</h2>
+      <h3>8.1. Thứ tự trạng thái chuẩn (STATUS_ORDER)</h3>
       <p><code>TO DO → IN PO → DESIGN → DEV → TEST → PENTEST → R4GOLIVE → MVPDONE → RELEASED</code></p>
       <p>Trường <code>R4G Date</code> trên Epic tương ứng với ngày hoàn thành trạng thái <strong>R4GOLIVE</strong>. Trạng thái không khớp danh sách này (kể cả Cancelled) được xếp sau cùng. Jira status legacy <code>In Progress</code>/<code>In Dev</code> chuẩn hóa thành <code>DEV</code>; <code>Pen Test</code> thành <code>PENTEST</code>; <code>Ready For Golive</code> thành <code>R4GOLIVE</code>.</p>
 
-      <h3>7.2. Cột trạng thái/pha trên bảng Epic Alerts</h3>
+      <h3>8.2. Cột trạng thái/pha trên bảng Epic Alerts</h3>
       <p>Màn hình rút gọn có 3 cột (Design, In Progress, Ready4Golive); màn hình đầy đủ/Epic in PO có 5 cột pha (DESIGN/DEV/TEST/PENTEST/R4GOLIVE). Mỗi cột so sánh vị trí trạng thái hiện tại của Epic với vị trí trạng thái của cột đó:</p>
       <table>
         <thead><tr><th>Rule</th><th>Điều kiện</th><th>Hiển thị</th></tr></thead>
@@ -339,9 +716,9 @@
         nhưng chưa tới mốc muộn → vẫn coi là hoàn thành (Pass), vì trạng thái đã đi qua thì luôn là “đã xong”. Cuối mỗi bảng có chú giải màu nền Done (xanh)/Warning (vàng)/Failed (đỏ) dùng chung cho các ô này.
       </div>
 
-      <h3>7.3. Cột "Nhận xét" — 2 badge cảnh báo tổng thể độc lập</h3>
+      <h3>8.3. Cột "Nhận xét" — 2 badge cảnh báo tổng thể độc lập</h3>
       <p>
-        <strong>Fail TTM-CNTT</strong>: so sánh R4G Date (hoặc ngày hiện tại nếu chưa có) với Target tổng theo tiêu chí TTM-CNTT (mục 6.1). Badge <strong>“Đạt TTM”</strong> xuất hiện khi Epic đã có R4G Date và không bị cảnh báo.
+        <strong>Fail TTM-CNTT</strong>: so sánh R4G Date (hoặc ngày hiện tại nếu chưa có) với Target tổng theo tiêu chí TTM-CNTT (mục 7.1). Badge <strong>“Đạt TTM”</strong> xuất hiện khi Epic đã có R4G Date và không bị cảnh báo.
       </p>
       <p>
         <strong>Fail TTM-E2E</strong> (badge riêng, độc lập hoàn toàn với Fail TTM-CNTT): chỉ có FAIL/NONE, không có mức Cảnh báo sớm/muộn. Tính từ T0 (Idea Approved Date,
@@ -349,33 +726,33 @@
         này hiển thị đầy đủ ở cả 3 màn hình giám sát kể cả khi Epic thiếu Start Date.
       </p>
 
-      <h3>7.4. Nguyên tắc tính real-time</h3>
+      <h3>8.4. Nguyên tắc tính real-time</h3>
       <p>
         Không màn hình Epic Alerts nào đọc dữ liệu đã tổng hợp sẵn. Mỗi lần tải trang, hệ thống lấy dòng <code>issues</code> mới nhất
         của từng Epic (không giới hạn theo 1 batch cụ thể) và tính lại toàn bộ cảnh báo — cả TTM-CNTT lẫn TTM-E2E — tại đúng thời điểm request, theo rule đang active. Vì vậy nếu không import gì
         trong ngày, cảnh báo vẫn có thể tự chuyển trạng thái theo ngày thực tế.
       </p>
 
-      <h3>7.5. Cách tính ngày baseline từng pha (màn hình đầy đủ/Epic in PO)</h3>
+      <h3>8.5. Cách tính ngày baseline từng pha (màn hình đầy đủ/Epic in PO)</h3>
       <p>
         5 ngày baseline pha (DESIGN/DEV/TEST/PENTEST/R4GOLIVE) được suy ra tuần tự từ Start Date (T1), cộng dồn số ngày làm việc theo tỷ trọng
-        <strong> 20% / 30% / 30% / 10% / 10%</strong> trên tổng số ngày làm việc TTM-CNTT của Epic (15 hoặc 30 ngày tuỳ độ phức tạp, mục 6.1/6.3). Vì tỷ trọng từng pha
+        <strong> 20% / 30% / 30% / 10% / 10%</strong> trên tổng số ngày làm việc TTM-CNTT của Epic (15, 25 hoặc 30 ngày tuỳ Loại Epic, mục 5.2/7.1). Vì tỷ trọng từng pha
         thường ra số ngày lẻ, hệ thống làm tròn theo từng pha để tổng cộng dồn luôn khớp chính xác tổng số ngày TTM-CNTT:
       </p>
       <ul>
         <li><strong>DESIGN</strong>: làm tròn <strong>lên</strong> (ceiling).</li>
         <li><strong>DEV, TEST, PENTEST</strong>: làm tròn <strong>xuống</strong> (floor), tính tiếp nối từ ngày cộng dồn của pha trước.</li>
-        <li><strong>R4GOLIVE</strong>: không dùng số ngày làm tròn theo chuỗi tích luỹ ở trên — được <strong>gán trực tiếp</strong> bằng <code>Start Date + (tổng số ngày làm việc TTM-CNTT − 1)</code> ngày làm việc, để đảm bảo ngày baseline R4GOLIVE luôn trùng khớp tuyệt đối với Target TTM-CNTT tổng (mục 6.1), không lệch do sai số làm tròn cộng dồn qua 4 pha trước.</li>
+        <li><strong>R4GOLIVE</strong>: không dùng số ngày làm tròn theo chuỗi tích luỹ ở trên — được <strong>gán trực tiếp</strong> bằng <code>Start Date + (tổng số ngày làm việc TTM-CNTT − 1)</code> ngày làm việc, để đảm bảo ngày baseline R4GOLIVE luôn trùng khớp tuyệt đối với Target TTM-CNTT tổng (mục 7.1), không lệch do sai số làm tròn cộng dồn qua 4 pha trước.</li>
       </ul>
       <div class="callout">
-        Ví dụ Epic phức tạp (30 ngày TTM-CNTT): DESIGN chiếm ⌈30×20%⌉ = 6 ngày; DEV/TEST mỗi pha làm tròn xuống theo tỷ trọng 30%; PENTEST làm tròn xuống theo 10%; R4GOLIVE
+        Ví dụ Epic SP-Lv12 / SP-Lv34 (30 ngày TTM-CNTT): DESIGN chiếm ⌈30×20%⌉ = 6 ngày; DEV/TEST mỗi pha làm tròn xuống theo tỷ trọng 30%; PENTEST làm tròn xuống theo 10%; R4GOLIVE
         luôn rơi đúng ngày làm việc thứ 29 kể từ Start Date (30 − 1), bất kể tổng 4 pha trước cộng dồn ra bao nhiêu ngày.
       </div>
     </section>
 
     <section id="data-anomaly">
       <div class="kicker">Khối cảnh báo</div>
-      <h2>8. Dữ liệu bất thường (không còn bị chặn import)</h2>
+      <h2>9. Dữ liệu bất thường (không còn bị chặn import)</h2>
       <p>
         Một Epic được đánh dấu <strong>dữ liệu bất thường</strong> khi: thiếu hẳn Start Date, hoặc có R4G Date sớm hơn Start Date, hoặc có Due Date sớm hơn T0.
         Hai rule sau <strong>trước kia chặn import hoàn toàn</strong> (dòng bị loại khỏi <code>issues</code>) — nay chỉ còn là <span class="badge warning">WARNING</span>
@@ -394,7 +771,7 @@
 
     <section id="alert-history">
       <div class="kicker">Khối cảnh báo</div>
-      <h2>9. Lịch sử cảnh báo tích luỹ</h2>
+      <h2>10. Lịch sử cảnh báo tích luỹ</h2>
       <p>
         Khác với cảnh báo hiển thị trên bảng (tính real-time), bảng <code>epic_alert_history</code> "đóng băng" đúng trạng thái cảnh báo Fail TTM-CNTT tổng thể tại ngày import:
         mỗi khi Epic được tính là <strong>Cảnh báo muộn</strong> hoặc <strong>Fail TTM</strong> ở một lần import, hệ thống ghi 1 dòng gồm loại cảnh báo, trạng thái Epic
@@ -411,18 +788,18 @@
         hoàn thành từng pha của Epic đầy đủ hiện tính <strong>live</strong> từ status Story/Subtask hiện tại mỗi lần tải trang, không phụ thuộc lịch sử này.
       </div>
 
-      <h3>9.2. Dòng thời gian cảnh báo theo đợt (epic_alert_timeline)</h3>
+      <h3>10.2. Dòng thời gian cảnh báo theo đợt (epic_alert_timeline)</h3>
       <p>
         Song song với <code>epic_alert_history</code> (chỉ ghi 1 dòng rời rạc mỗi lần rơi vào Cảnh báo muộn/Fail), bảng <code>epic_alert_timeline</code> theo dõi
         <strong>5 loại cảnh báo</strong> của mỗi Epic dưới dạng các <strong>"đợt" (run) có khoảng ngày bắt đầu/kết thúc</strong>, cho phép biết chính xác Epic đã ở trạng
         thái cảnh báo đó <em>liên tục từ ngày nào đến ngày nào</em>, không chỉ ngày phát hiện:
       </p>
       <ul>
-        <li><code>FAIL_TTM_CNTT</code> — Fail TTM-CNTT tổng thể (mục 7.3)</li>
-        <li><code>LATE_TTM_CNTT</code> — Cảnh báo muộn TTM-CNTT theo trạng thái hiện tại (mục 6.2)</li>
-        <li><code>FAIL_TTM_E2E</code> — Fail TTM-E2E (mục 7.3)</li>
+        <li><code>FAIL_TTM_CNTT</code> — Fail TTM-CNTT tổng thể (mục 8.3)</li>
+        <li><code>LATE_TTM_CNTT</code> — Cảnh báo muộn TTM-CNTT theo trạng thái hiện tại (mục 8.2)</li>
+        <li><code>FAIL_TTM_E2E</code> — Fail TTM-E2E (mục 8.3)</li>
         <li><code>MISSING_START_DATE</code> — Epic thiếu Start Date</li>
-        <li><code>DATA_ANOMALY</code> — Dữ liệu bất thường (mục 8)</li>
+        <li><code>DATA_ANOMALY</code> — Dữ liệu bất thường (mục 9)</li>
       </ul>
       <p>
         Mỗi lần <code>aggregateBatchData()</code> chạy (import thủ công, import tự động qua API, hoặc "Chạy lại" lớp dữ liệu), hệ thống tính lại cả 5 trạng thái này cho
@@ -436,41 +813,41 @@
 
     <section id="screen-epic-alerts">
       <div class="kicker">Khối màn hình</div>
-      <h2>10. Bốn màn hình giám sát Epic</h2>
-      <h3>10.1. Quản trị Epic (rút gọn) (<code>/epic-alerts</code>) — ADMIN/SUPERADMIN/SUPERVISOR</h3>
+      <h2>11. Các màn hình giám sát Epic</h2>
+      <h3>11.1. Quản trị Epic (rút gọn) (<code>/epic-alerts</code>) — ADMIN/SUPERADMIN/SUPERVISOR</h3>
       <p>Theo dõi tổng quan các Epic theo mốc chuẩn 30 ngày (Epic phức tạp) hoặc 15 ngày (Epic đơn giản) qua 3 cột chính: <strong>Design</strong>, <strong>In Progress</strong>, <strong>Ready4Golive</strong>, cộng cột <strong>Release</strong>. Có đủ 2 cột dải TTM-CNTT và TTM-E2E.</p>
-      <h3>10.2. Quản trị Epic (đầy đủ) (<code>/epic-alerts-15</code>) — mọi role đã đăng nhập</h3>
+      <h3>11.2. Quản trị Epic (đầy đủ) (<code>/epic-alerts-15</code>) — mọi role đã đăng nhập</h3>
       <p>Theo dõi chuyên sâu theo 5 pha mốc thời gian: <strong>Design (20%)</strong>, <strong>Dev (50%)</strong>, <strong>Test (80%)</strong>, <strong>Pentest (90%)</strong>, <strong>R4Golive (100%)</strong>. Ngày baseline mỗi pha được tính tự động dựa trên số ngày làm việc tích lũy từ Start Date (T1); cột Release lấy baseline từ T0 + tiêu chí TTM-E2E, độc lập với Start Date.</p>
-      <h3>10.3. Epic in PO (<code>/epic-in-po</code>) — mọi role đã đăng nhập</h3>
+      <h3>11.3. Epic in PO (<code>/epic-in-po</code>) — mọi role đã đăng nhập</h3>
       <p>Cùng dữ liệu/logic với màn (đầy đủ), chỉ lọc còn Epic đang ở trạng thái <strong>To Do</strong>, <strong>In PO</strong> hoặc <strong>Released</strong> — dùng để theo dõi Epic chưa/vừa qua giai đoạn lập kế hoạch.</p>
-      <h3>10.4. Dashboard (<code>/dashboard</code>) — mọi role đã đăng nhập</h3>
+      <h3>11.4. Dashboard (<code>/dashboard</code>) — mọi role đã đăng nhập</h3>
       <p>Thống kê tổng hợp theo dự án: số Epic, phân bố trạng thái, số lượng Fail TTM-CNTT/Fail TTM-E2E/Cảnh báo sớm/muộn, tỷ lệ Đạt TTM, Epic sắp đến hạn, top Epic cần chú ý. Không có bảng tổng hợp riêng — tính live từ cùng dữ liệu 3 màn hình trên. Role SUPERVISOR/SUPERADMIN/ADMIN, hoặc USER có từ 4 dự án có dữ liệu Epic trở lên, phải chọn 1–3 dự án trước khi xem số liệu.</p>
-      <h3>10.5. Quy tắc hiển thị &amp; Lịch sử Cảnh báo (rút gọn/đầy đủ)</h3>
+      <h3>11.5. Quy tắc hiển thị &amp; Lịch sử Cảnh báo (rút gọn/đầy đủ)</h3>
       <ul>
         <li>Epic ở trạng thái <strong>khác Released</strong>: luôn hiển thị.</li>
         <li>Màn <strong>rút gọn</strong>: Epic ở trạng thái <strong>= Released</strong> chỉ hiển thị nếu từng có lịch sử Cảnh báo muộn/Fail TTM; nếu chưa từng bị cảnh báo, Epic sẽ biến mất khỏi danh sách sau khi Released. Màn <strong>đầy đủ/Epic in PO/Dashboard không áp dụng</strong> rule ẩn này — luôn hiện mọi Epic trong phạm vi được phân quyền.</li>
         <li>Icon tam giác vàng ở cột Epic mở ra popup <strong class="text-fb-text-primary">Epic History</strong> để tra cứu tích lũy cảnh báo Fail TTM-CNTT qua các đợt import.</li>
-        <li>Epic có <strong>dữ liệu bất thường</strong> (mục 8) luôn bị đẩy xuống cuối bảng và tô nền highlight trên cả 3 màn hình giám sát Epic.</li>
+        <li>Epic có <strong>dữ liệu bất thường</strong> (mục 9) luôn bị đẩy xuống cuối bảng và tô nền highlight trên cả 3 màn hình giám sát Epic.</li>
       </ul>
     </section>
 
     <section id="screen-data-source">
       <div class="kicker">Khối màn hình</div>
-      <h2>11. Màn hình Nguồn dữ liệu (<code>/</code>)</h2>
+      <h2>12. Màn hình Nguồn dữ liệu (<code>/</code>)</h2>
       <p>Có 2 tab, chuyển bằng thanh tab ở đầu trang: <strong>Import Issues</strong> (nội dung chính, SUPERADMIN) và <strong>Quản lý Component</strong> (dọn dẹp danh mục Component, SUPERADMIN).</p>
-      <h3>11.1. Tab Import Issues</h3>
+      <h3>12.1. Tab Import Issues</h3>
       <ul>
         <li><strong>Thiết lập nguồn dữ liệu CSV</strong> — chọn file, kiểm tra lỗi hoặc import &amp; lưu.</li>
-        <li><strong>Nhật ký lịch sử import (Lớp Dữ liệu)</strong> — danh sách batch, xem chi tiết lỗi/cảnh báo (nay có cả cờ WARNING cho dữ liệu bất thường, xem mục 8), duyệt dữ liệu, xoá batch.</li>
+        <li><strong>Nhật ký lịch sử import (Lớp Dữ liệu)</strong> — danh sách batch, xem chi tiết lỗi/cảnh báo (nay có cả cờ WARNING cho dữ liệu bất thường, xem mục 9), duyệt dữ liệu, xoá batch.</li>
         <li><strong>Nhật ký lớp dữ liệu tổng hợp (Epic)</strong> (SUPERADMIN) — quản lý riêng 4 bảng tổng hợp/hậu-tổng hợp theo ngày (hỗ trợ Xóa và Chạy lại).</li>
-        <li><strong>Xoá N lớp dữ liệu gần nhất</strong> (SUPERADMIN) — xoá cả raw lẫn tổng hợp của N ngày gần nhất, có preview trước khi xác nhận (mục 5.3).</li>
+        <li><strong>Xoá N lớp dữ liệu gần nhất</strong> (SUPERADMIN) — xoá cả raw lẫn tổng hợp của N ngày gần nhất, có preview trước khi xác nhận (mục 6.3).</li>
         <li><strong>Cấu hình Đợt Import</strong> (right panel) — loại nguồn, định dạng file (adapter), thời gian tổng hợp (nhận diện tự động từ tên file theo mẫu <code>Jira YYYY-MM-DDThh_mm_ss+0700.csv</code>).</li>
         <li><strong>Lưu trữ dữ liệu import</strong> (right panel, SUPERADMIN) — cấu hình số ngày giữ raw data.</li>
       </ul>
       <div class="callout warn">
         <strong>Hoàn thiện dữ liệu</strong> (bổ sung/vá dữ liệu còn thiếu cho issue đã import, chạy lại tổng hợp) — code vẫn còn nguyên nhưng box này <strong>đang tạm ẩn</strong> khỏi màn hình theo yêu cầu, chưa dùng lại được từ UI.
       </div>
-      <h3>11.2. Tab Quản lý Component</h3>
+      <h3>12.2. Tab Quản lý Component</h3>
       <p>
         Không phải màn hình import — đây là công cụ dọn dẹp danh mục <code>project_components</code>, vốn chỉ tích luỹ dần theo dữ liệu Component đọc được từ mỗi issue
         import (chưa từng có cơ chế nào tự xoá bớt). Liệt kê các Component "mồ côi": có trong danh mục nhưng <strong>không còn xuất hiện trên dữ liệu mới nhất của bất kỳ
@@ -481,7 +858,7 @@
 
     <section id="screen-admin">
       <div class="kicker">Khối màn hình</div>
-      <h2>12. Các màn hình Quản trị hệ thống</h2>
+      <h2>13. Các màn hình Quản trị hệ thống</h2>
       <table>
         <thead><tr><th>Màn hình</th><th>Route</th><th>Chức năng</th></tr></thead>
         <tbody>
@@ -498,29 +875,29 @@
 
     <section id="ad-popup">
       <div class="kicker">Thông báo trong ứng dụng</div>
-      <h2>13. Popup quảng cáo (AD Popup)</h2>
+      <h2>14. Popup quảng cáo (AD Popup)</h2>
       <p>
         Cấu hình tại menu avatar người dùng → <strong>Quản lý chung</strong> → <strong>Popup quảng cáo</strong>, chỉ <strong>SUPERADMIN</strong> thấy và chỉnh sửa được.
         Popup hiển thị cho <strong>mọi user đã đăng nhập</strong> (không phân biệt role) khi đủ điều kiện, ngay khi họ vào một màn hình bất kỳ sau đăng nhập (không hiện ở
         trang login).
       </p>
-      <h3>13.1. Các trường cấu hình</h3>
+      <h3>14.1. Các trường cấu hình</h3>
       <table>
         <thead><tr><th>Trường</th><th>Ý nghĩa</th></tr></thead>
         <tbody>
           <tr><td>Tên chiến dịch (<code>campaignName</code>)</td><td>Nhãn quản trị nội bộ, không hiển thị cho người dùng cuối</td></tr>
           <tr><td>Hình ảnh (<code>imageUrl</code>)</td><td>URL ảnh banner của popup</td></tr>
           <tr><td>Link khi click (<code>clickUrl</code>)</td><td>Điều hướng khi người dùng bấm vào ảnh</td></tr>
-          <tr><td>Nội dung thông điệp (<code>message</code>)</td><td>Soạn bằng trình soạn thảo WYSIWYG (in đậm/nghiêng/gạch chân, căn lề, danh sách) — lưu dạng HTML đã được làm sạch (mục 13.4)</td></tr>
+          <tr><td>Nội dung thông điệp (<code>message</code>)</td><td>Soạn bằng trình soạn thảo WYSIWYG (in đậm/nghiêng/gạch chân, căn lề, danh sách) — lưu dạng HTML đã được làm sạch (mục 14.4)</td></tr>
           <tr><td>Ngày bắt đầu / kết thúc (<code>startDate</code>/<code>endDate</code>)</td><td>Khoảng ngày hiệu lực hiển thị</td></tr>
           <tr><td>Đang hoạt động (<code>isActive</code>)</td><td>Bật/tắt thủ công độc lập với khoảng ngày</td></tr>
           <tr><td>Số lần hiện tối đa (<code>maxImpressions</code>)</td><td>Trần số lần popup này được hiện <strong>cho mỗi user</strong> (đếm riêng theo từng người dùng, không phải tổng toàn hệ thống)</td></tr>
           <tr><td>Thời gian tự đóng (<code>timeoutSeconds</code>)</td><td>Số giây trước khi popup tự đóng (chế độ thường) hoặc trước khi nút X xuất hiện (chế độ "Bắt buộc xem")</td></tr>
-          <tr><td>Bắt buộc xem (<code>forceView</code>)</td><td>Xem mục 13.2</td></tr>
+          <tr><td>Bắt buộc xem (<code>forceView</code>)</td><td>Xem mục 14.2</td></tr>
           <tr><td>Chiều rộng / chiều cao theo % khung nhìn (<code>widthPercent</code>/<code>heightPercent</code>)</td><td>Tuỳ chọn — để trống thì dùng kích thước mặc định của popup</td></tr>
         </tbody>
       </table>
-      <h3>13.2. Chế độ "Bắt buộc xem"</h3>
+      <h3>14.2. Chế độ "Bắt buộc xem"</h3>
       <p>
         Mặc định (<code>forceView = false</code>): popup hiện nút X ngay từ đầu và tự động đóng sau <code>timeoutSeconds</code> giây, người dùng có thể đóng sớm bất cứ lúc nào.
       </p>
@@ -528,13 +905,13 @@
         Khi bật <strong>Bắt buộc xem</strong> (<code>forceView = true</code>): popup <strong>không có nút X và không tự đóng</strong> trong <code>timeoutSeconds</code> giây đầu —
         thay vào đó hiện <strong>bộ đếm ngược</strong> ở vị trí nút X. Hết thời gian đếm ngược, nút X mới xuất hiện để người dùng tự đóng (không tự động đóng nữa).
       </p>
-      <h3>13.3. Bố cục nội dung popup</h3>
+      <h3>14.3. Bố cục nội dung popup</h3>
       <p>
         Tiêu đề chiến dịch luôn hiển thị <strong>in đậm, cỡ chữ lớn hơn nội dung 1 cấp, căn trái</strong> (không cấu hình được, áp dụng cho mọi popup). Phần nội dung
         thông điệp <strong>không có canh lề mặc định</strong> (theo dòng chảy tự nhiên) — nếu người soạn dùng WYSIWYG đặt canh trái/giữa/phải cho một đoạn cụ thể thì hiển
         thị đúng theo lựa chọn đó.
       </p>
-      <h3>13.4. Vòng đời hiển thị &amp; theo dõi lượt xem</h3>
+      <h3>14.4. Vòng đời hiển thị &amp; theo dõi lượt xem</h3>
       <ul>
         <li><code>GET /api/ad-popups/active</code> — mọi user đã đăng nhập gọi 1 lần khi tải lại toàn trang, trả về danh sách popup còn <strong>đủ điều kiện cho user đó</strong>: đang Active, trong khoảng ngày hiệu lực, và <strong>chưa đạt</strong> số lần hiện tối đa <em>của riêng user này</em>.</li>
         <li>Chỉ hiện <strong>1 popup tại một thời điểm</strong> (theo hàng đợi, popup đầu tiên đủ điều kiện); đóng popup này mới hiện popup tiếp theo trong hàng đợi (nếu có), không cần tải lại trang.</li>
@@ -549,14 +926,14 @@
 
     <section id="info-banner">
       <div class="kicker">Thông báo trong ứng dụng</div>
-      <h2>14. Banner thông báo (Information Banner)</h2>
+      <h2>15. Banner thông báo (Information Banner)</h2>
       <p>
         Cấu hình tại menu avatar người dùng → <strong>Quản lý chung</strong> → <strong>Banner thông báo</strong>, chỉ <strong>SUPERADMIN</strong> thấy và chỉnh sửa được
-        (cùng nguyên tắc với Popup quảng cáo ở mục 13). Khác với Popup quảng cáo (che màn hình, cần tương tác), đây là 1 dòng thông báo nhỏ, không chặn thao tác, gắn
+        (cùng nguyên tắc với Popup quảng cáo ở mục 14). Khác với Popup quảng cáo (che màn hình, cần tương tác), đây là 1 dòng thông báo nhỏ, không chặn thao tác, gắn
         cố định vào layout của từng màn hình. Banner vẫn <strong>hiển thị cho mọi user đã đăng nhập</strong> (không phân biệt role) khi đủ điều kiện — chỉ việc cấu hình
         bị giới hạn SUPERADMIN.
       </p>
-      <h3>14.1. Hai loại banner</h3>
+      <h3>15.1. Hai loại banner</h3>
       <ul>
         <li><strong>Banner mặc định (DEFAULT)</strong> — hiển thị trên <strong>mọi</strong> màn hình đã gắn <code>InfoBannerDisplay</code>. Tại một thời điểm chỉ tồn tại
           <strong>tối đa 1</strong> banner mặc định đang active (ràng buộc unique index ở tầng CSDL, kèm bước "hạ cấp" banner mặc định cũ trong cùng transaction khi lưu
@@ -565,7 +942,7 @@
           hình dùng cho tiêu đề trang). Không giới hạn số lượng — có thể có nhiều banner theo màn hình active cùng lúc, mỗi màn hình vẫn chỉ hiện banner PER_SCREEN của
           riêng nó.</li>
       </ul>
-      <h3>14.2. Các trường cấu hình</h3>
+      <h3>15.2. Các trường cấu hình</h3>
       <table>
         <thead><tr><th>Trường</th><th>Ý nghĩa</th></tr></thead>
         <tbody>
@@ -577,7 +954,7 @@
           <tr><td>Ngày kết thúc</td><td>Không bắt buộc — để trống nghĩa là hiệu lực vô thời hạn</td></tr>
         </tbody>
       </table>
-      <h3>14.3. Vị trí hiển thị &amp; kiểu dáng</h3>
+      <h3>15.3. Vị trí hiển thị &amp; kiểu dáng</h3>
       <p>
         Mỗi màn hình tự mount <code>InfoBannerDisplay</code> vào đúng vị trí layout của mình (không có 1 vị trí chung toàn cục trong AppShell). Trên các màn hình giám sát
         Epic (Quản trị Epic đầy đủ/rút gọn, Epic in PO), banner mặc định và banner riêng được đặt <strong>ngay trên bảng danh sách Epic</strong> (mặc định trước, riêng
@@ -594,7 +971,7 @@
 
     <section id="tech-stack">
       <div class="kicker">Công nghệ</div>
-      <h2>15. Tech stack</h2>
+      <h2>16. Tech stack</h2>
       <p>
         Tổng quan công nghệ nền của hệ thống — quy trình nghiệp vụ Import/ETL đã mô tả chi tiết ở mục 3, mục này chỉ nêu lớp công nghệ/hạ tầng bên dưới.
       </p>
@@ -616,7 +993,7 @@
           <p><strong>PostgreSQL</strong>, chạy song song tối đa 3 profile kết nối (local / Aiven / Supabase, mục 5) chọn qua biến môi trường <code>DB_CONNECTION</code>. Schema quản lý bằng migration có đánh version trong <code>db/migrations</code>, áp dụng thủ công cho từng profile qua script <code>scripts/migrate-db.js</code> — không tự động chạy migration khi deploy.</p>
         </div>
       </div>
-      <h3>15.1. Import/ETL — lớp công nghệ</h3>
+      <h3>16.1. Import/ETL — lớp công nghệ</h3>
       <p>Chi tiết quy trình nghiệp vụ xem mục 3; về mặt công nghệ, import xử lý theo mô hình <strong>adapter</strong>:</p>
       <ul>
         <li><code>src/lib/adapters/pure-jira-export-adapter.ts</code> — đọc CSV export gốc từ Jira (nhiều cột, nhiều loại issue).</li>
@@ -624,7 +1001,7 @@
         <li>Cả 2 adapter chuẩn hoá dữ liệu thô về cùng 1 kiểu issue nội bộ trước khi ghi vào CSDL — pipeline validate/ghi/tổng hợp phía sau (mục 3.2) dùng chung, không phụ thuộc adapter nào.</li>
         <li>Không dùng nền tảng ETL/scheduler ngoài (Airflow, n8n…) — "ETL" ở đây gói gọn trong chính Route Handler xử lý import (đồng bộ, chạy trong 1 request HTTP), kích hoạt bằng tay qua UI hoặc bằng script Python gọi API tự động (mục 3.3).</li>
       </ul>
-      <h3>15.2. Hạ tầng & vận hành</h3>
+      <h3>16.2. Hạ tầng &amp; vận hành</h3>
       <table>
         <thead><tr><th>Thành phần</th><th>Ghi chú</th></tr></thead>
         <tbody>
@@ -639,7 +1016,7 @@
 
     <section id="glossary">
       <div class="kicker">Phụ lục</div>
-      <h2>16. Thuật ngữ</h2>
+      <h2>17. Thuật ngữ</h2>
       <table>
         <thead><tr><th>Thuật ngữ</th><th>Ý nghĩa</th></tr></thead>
         <tbody>
@@ -652,11 +1029,11 @@
           <tr><td>TTM-E2E</td><td>Time to Market — End to End (T0 → Release/Due Date). Chỉ có Fail/NONE, không có mức sớm/muộn</td></tr>
           <tr><td>Dữ liệu bất thường</td><td>Epic thiếu Start Date, hoặc R4G Date sớm hơn Start Date, hoặc Due Date sớm hơn T0 — không bị chặn import nhưng bị nhóm cuối bảng, highlight, cột Nhận xét hiện "Không tính được"</td></tr>
           <tr><td>SUPERVISOR</td><td>Role thứ 4, cùng phạm vi xem toàn hệ thống như SUPERADMIN nhưng chỉ đọc, không có quyền tạo/sửa/xóa</td></tr>
-          <tr><td>Epic đơn giản / phức tạp (SIMPLE/COMPLEX)</td><td>Phân loại tự động theo <code>Loại yêu cầu</code> + <code>Requirement Level</code> của Epic (mục 6.3), quyết định TTM-CNTT 15 hay 30 ngày làm việc</td></tr>
-          <tr><td>epic_alert_timeline</td><td>Lịch sử 5 loại cảnh báo của Epic dưới dạng các "đợt" có ngày bắt đầu/kết thúc, phục vụ mục "Dòng thời gian cảnh báo" (mục 9.2)</td></tr>
-          <tr><td>Popup quảng cáo (AD Popup)</td><td>Popup toàn màn hình, cấu hình tại Quản lý chung, hiện cho mọi user đã đăng nhập theo lịch/số lần cấu hình (mục 13)</td></tr>
-          <tr><td>Bắt buộc xem</td><td>Chế độ của Popup quảng cáo: ẩn nút X và không tự đóng cho tới khi hết thời gian đếm ngược (mục 13.2)</td></tr>
-          <tr><td>Banner thông báo (Information Banner)</td><td>Dòng thông báo nhỏ không chặn thao tác, loại Mặc định (toàn hệ thống) hoặc Theo màn hình (mục 14)</td></tr>
+          <tr><td>4 Epic Type (CT-Lv12 / CT-Lv34 / SP-Lv12 / SP-Lv34)</td><td>Phân loại tự động theo <code>Loại yêu cầu</code> + <code>Mức yêu cầu</code> của Epic (mục 5.2), quyết định TTM-CNTT 15, 25 hoặc 30 ngày làm việc</td></tr>
+          <tr><td>epic_alert_timeline</td><td>Lịch sử 5 loại cảnh báo của Epic dưới dạng các "đợt" có ngày bắt đầu/kết thúc, phục vụ mục "Dòng thời gian cảnh báo" (mục 10.2)</td></tr>
+          <tr><td>Popup quảng cáo (AD Popup)</td><td>Popup toàn màn hình, cấu hình tại Quản lý chung, hiện cho mọi user đã đăng nhập theo lịch/số lần cấu hình (mục 14)</td></tr>
+          <tr><td>Bắt buộc xem</td><td>Chế độ của Popup quảng cáo: ẩn nút X và không tự đóng cho tới khi hết thời gian đếm ngược (mục 14.2)</td></tr>
+          <tr><td>Banner thông báo (Information Banner)</td><td>Dòng thông báo nhỏ không chặn thao tác, loại Mặc định (toàn hệ thống) hoặc Theo màn hình (mục 15)</td></tr>
           <tr><td>API import tự động</td><td><code>POST /api/data-source/import/auto</code> — endpoint xác thực bằng bearer token để script Python tự động import CSV, không qua session (mục 3.3)</td></tr>
         </tbody>
       </table>
