@@ -24,5 +24,6 @@ export const PAGE_HEADERS: Record<string, AppScreenInfo> = {
   '/admin/users': { subtitle: 'Quản lý tài khoản, role và trạng thái người dùng', title: 'Quản lý User' },
   '/admin/database': { subtitle: 'Export/Import dữ liệu ứng dụng dưới dạng file SQL', title: 'Sao lưu / Phục hồi dữ liệu' },
   '/admin/permissions': { subtitle: 'Cấu hình quyền Xem/Thêm/Sửa/Xóa theo vai trò cho từng chức năng', title: 'Ma trận phân quyền' },
+  '/admin/reports': { subtitle: 'Lựa chọn lớp dữ liệu và các điều kiện lọc', title: 'Báo cáo Epic' },
   '/docs/product': { subtitle: 'Tài liệu trình bày và đào tạo về hệ thống TTM Monitor', title: 'Tài liệu sản phẩm' },
 };
