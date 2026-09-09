@@ -1,0 +1,126 @@
+'use client';
+
+import * as React from 'react';
+import { GearSix, Info, Key, LinkSimple, Megaphone, X } from '@phosphor-icons/react';
+import type { Icon } from '@phosphor-icons/react';
+import { cn } from '@/lib/utils';
+import type { UserRole } from '@/lib/auth-types';
+import { AdPopupsPanel } from '@/components/settings/AdPopupsPanel';
+import { ApiKeysPanel } from '@/components/settings/ApiKeysPanel';
+import { InfoBannersPanel } from '@/components/settings/InfoBannersPanel';
+import { JiraConfigPanel } from '@/components/settings/JiraConfigPanel';
+
+export interface SystemAdminModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  role?: UserRole | null;
+}
+
+interface SettingsSection {
+  icon: Icon;
+  id: string;
+  label: string;
+  panel: React.ReactNode;
+}
+
+const SUPERADMIN_SECTIONS: SettingsSection[] = [
+  { id: 'info-banners', icon: Info, label: 'Banner thông báo', panel: <InfoBannersPanel /> },
+  { id: 'ad-popups', icon: Megaphone, label: 'Popup quảng cáo', panel: <AdPopupsPanel /> },
+  { id: 'api-keys', icon: Key, label: 'Quản lý API key', panel: <ApiKeysPanel /> },
+  { id: 'jira-config', icon: LinkSimple, label: 'Cấu hình Jira', panel: <JiraConfigPanel /> },
+];
+
+export function SystemAdminModal({ isOpen, onClose, role = null }: SystemAdminModalProps) {
+  const [activeSectionId, setActiveSectionId] = React.useState(SUPERADMIN_SECTIONS[0].id);
+  const titleId = React.useId();
+  const closeButtonRef = React.useRef<HTMLButtonElement>(null);
+  const onCloseRef = React.useRef(onClose);
+
+  React.useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  React.useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCloseRef.current();
+    };
+
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      window.addEventListener('keydown', handleEscape);
+      window.requestAnimationFrame(() => closeButtonRef.current?.focus());
+    }
+
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [isOpen]);
+
+  // Safety check: restricted to SUPERADMIN
+  if (!isOpen || role !== 'SUPERADMIN') return null;
+
+  const activeSection = SUPERADMIN_SECTIONS.find((section) => section.id === activeSectionId) ?? SUPERADMIN_SECTIONS[0];
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="presentation">
+      <div className="absolute inset-0 bg-black/60 transition-opacity duration-200" onClick={onClose} aria-hidden="true" />
+
+      <div
+        className="relative z-10 flex h-[85dvh] w-full max-w-[1280px] flex-col overflow-hidden rounded-xl border border-fb-border bg-fb-surface text-fb-text-primary shadow-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
+        <div className="flex items-center justify-between border-b border-fb-border px-5 py-4 select-none">
+          <div className="flex items-center gap-2">
+            <GearSix className="w-5 h-5 text-fb-blue" weight="bold" />
+            <h2 id={titleId} className="text-lg font-bold tracking-tight text-fb-text-primary">Quản trị hệ thống</h2>
+          </div>
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={onClose}
+            className="grid size-9 place-items-center rounded-md text-fb-text-secondary outline-none transition-colors hover:bg-fb-control hover:text-fb-text-primary"
+            aria-label="Đóng hộp thoại"
+          >
+            <X className="w-4 h-4" weight="bold" />
+          </button>
+        </div>
+
+        <div className="flex min-h-0 flex-1">
+          <nav
+            className="flex w-[30%] shrink-0 flex-col gap-1 overflow-y-auto border-r border-fb-border bg-fb-surface-muted p-3"
+            aria-label="Chức năng quản trị hệ thống"
+          >
+            {SUPERADMIN_SECTIONS.map((section) => {
+              const SectionIcon = section.icon;
+              const active = section.id === activeSectionId;
+              return (
+                <button
+                  key={section.id}
+                  type="button"
+                  onClick={() => setActiveSectionId(section.id)}
+                  className={cn(
+                    'flex min-h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-semibold outline-none transition-colors',
+                    active
+                      ? 'bg-fb-blue-soft text-fb-blue'
+                      : 'text-fb-text-secondary hover:bg-fb-control hover:text-fb-text-primary',
+                  )}
+                  aria-current={active ? 'page' : undefined}
+                >
+                  <SectionIcon className="size-5 shrink-0" weight={active ? 'fill' : 'bold'} aria-hidden="true" />
+                  <span className="truncate">{section.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          <div className="w-[70%] flex-1 overflow-y-auto p-5">
+            {activeSection.panel}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

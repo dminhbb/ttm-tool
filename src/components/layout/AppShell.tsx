@@ -20,6 +20,7 @@ import {
   List,
   Lock,
   Pulse,
+  SlidersHorizontal,
   Users,
   Warning,
   X,
@@ -30,7 +31,8 @@ import { trackFeatureUsage } from '@/lib/usage-tracking';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { UserMenu } from '@/components/layout/UserMenu';
 import { ChangePasswordModal } from '@/components/layout/ChangePasswordModal';
-import { GeneralSettingsModal } from '@/components/settings/GeneralSettingsModal';
+import { AppConfigModal } from '@/components/settings/AppConfigModal';
+import { SystemAdminModal } from '@/components/settings/SystemAdminModal';
 import { AdPopupDisplay } from '@/components/layout/AdPopupDisplay';
 import { SystemStatusFooter } from '@/components/layout/SystemStatusFooter';
 
@@ -52,7 +54,8 @@ interface NavigationSection {
 interface SidebarContentProps {
   expanded: boolean;
   onNavigate?: () => void;
-  onOpenSettings: () => void;
+  onOpenAppConfig: () => void;
+  onOpenSystemAdmin: () => void;
   onToggle?: () => void;
   role: UserRole | null;
 }
@@ -70,7 +73,8 @@ const SUPERADMIN_OR_SUPERVISOR: UserRole[] = ['SUPERADMIN', 'SUPERVISOR'];
 // not even view, unlike the admin config screens above.
 const SUPERADMIN_ONLY: UserRole[] = ['SUPERADMIN'];
 
-const GENERAL_SETTINGS_ITEM: NavigationItem = { icon: GearSix, label: 'Quản lý chung', roles: ADMIN_VIEW_ROLES };
+const APP_CONFIG_ITEM: NavigationItem = { icon: GearSix, label: 'Cấu hình ứng dụng', roles: ADMIN_VIEW_ROLES };
+const SYSTEM_ADMIN_MODAL_ITEM: NavigationItem = { icon: GearSix, label: 'Quản trị hệ thống', roles: SUPERADMIN_ONLY };
 
 const navigation: NavigationSection[] = [
   {
@@ -83,7 +87,7 @@ const navigation: NavigationSection[] = [
     ],
   },
   {
-    label: 'Quản trị hệ thống',
+    label: 'Quản trị',
     items: [
       { href: '/', icon: Database, label: 'Nguồn dữ liệu', roles: SUPERADMIN_ONLY },
       { href: '/admin/users', icon: Users, label: 'Quản lý User', roles: ADMIN_VIEW_ROLES },
@@ -92,12 +96,13 @@ const navigation: NavigationSection[] = [
       { href: '/admin/status-alert-rules', icon: Warning, label: 'Cấu hình cảnh báo', roles: SUPERADMIN_OR_SUPERVISOR },
       { href: '/admin/database', icon: Archive, label: 'Sao lưu / Phục hồi dữ liệu', roles: SUPERADMIN_ONLY },
       { href: '/admin/permissions', icon: Lock, label: 'Ma trận phân quyền', roles: SUPERADMIN_ONLY },
-      GENERAL_SETTINGS_ITEM,
+      APP_CONFIG_ITEM,
+      SYSTEM_ADMIN_MODAL_ITEM,
     ],
   },
 ];
 
-/** Every "Quản trị hệ thống" item needs at least ADMIN, so a plain USER always ends up with an
+/** Every "Quản trị" item needs at least ADMIN, so a plain USER always ends up with an
  * empty section — dropped entirely rather than shown as a header with nothing under it. */
 function visibleNavigationFor(role: UserRole | null): NavigationSection[] {
   return navigation
@@ -105,7 +110,7 @@ function visibleNavigationFor(role: UserRole | null): NavigationSection[] {
     .filter((section) => section.items.length > 0);
 }
 
-function SidebarContent({ expanded, onNavigate, onOpenSettings, onToggle, role }: SidebarContentProps) {
+function SidebarContent({ expanded, onNavigate, onOpenAppConfig, onOpenSystemAdmin, onToggle, role }: SidebarContentProps) {
   const pathname = usePathname();
   const sections = visibleNavigationFor(role);
 
@@ -149,18 +154,22 @@ function SidebarContent({ expanded, onNavigate, onOpenSettings, onToggle, role }
                     {expanded && item.disabled && <span className="ml-auto text-[8px] font-medium">Sắp có</span>}
                   </>
                 );
-                const isGeneralSettings = item === GENERAL_SETTINGS_ITEM;
+                const isAppConfig = item === APP_CONFIG_ITEM;
+                const isSystemAdmin = item === SYSTEM_ADMIN_MODAL_ITEM;
+                const isModalItem = isAppConfig || isSystemAdmin;
+
                 return (
                   <li key={item.label}>
                     <Tooltip content={item.label} disabled={expanded}>
-                      {isGeneralSettings ? (
+                      {isModalItem ? (
                         <button
                           type="button"
                           className={sharedClassName}
                           aria-label={!expanded ? item.label : undefined}
                           onClick={() => {
                             trackFeatureUsage();
-                            onOpenSettings();
+                            if (isAppConfig) onOpenAppConfig();
+                            if (isSystemAdmin) onOpenSystemAdmin();
                             onNavigate?.();
                           }}
                         >
@@ -282,7 +291,8 @@ function subscribeToRoleCache(): () => void {
 export function AppShell({ children }: AppShellProps) {
   const [mobileNavigationOpen, setMobileNavigationOpen] = React.useState(false);
   const [desktopNavigationExpanded, setDesktopNavigationExpanded] = React.useState(false);
-  const [generalSettingsOpen, setGeneralSettingsOpen] = React.useState(false);
+  const [appConfigOpen, setAppConfigOpen] = React.useState(false);
+  const [systemAdminOpen, setSystemAdminOpen] = React.useState(false);
   const [mustChangePassword, setMustChangePassword] = React.useState(false);
   const [role, setRole] = React.useState<UserRole | null>(null);
   // Best-effort last-known role for this tab, used only to avoid flashing the "no role" nav —
@@ -344,7 +354,8 @@ export function AppShell({ children }: AppShellProps) {
       >
         <SidebarContent
           expanded={desktopNavigationExpanded}
-          onOpenSettings={() => setGeneralSettingsOpen(true)}
+          onOpenAppConfig={() => setAppConfigOpen(true)}
+          onOpenSystemAdmin={() => setSystemAdminOpen(true)}
           onToggle={() => setDesktopNavigationExpanded((current) => !current)}
           role={displayRole}
         />
@@ -370,14 +381,16 @@ export function AppShell({ children }: AppShellProps) {
             <SidebarContent
               expanded
               onNavigate={() => setMobileNavigationOpen(false)}
-              onOpenSettings={() => setGeneralSettingsOpen(true)}
+              onOpenAppConfig={() => setAppConfigOpen(true)}
+              onOpenSystemAdmin={() => setSystemAdminOpen(true)}
               role={displayRole}
             />
           </aside>
         </div>
       )}
 
-      <GeneralSettingsModal isOpen={generalSettingsOpen} onClose={() => setGeneralSettingsOpen(false)} role={role} />
+      <AppConfigModal isOpen={appConfigOpen} onClose={() => setAppConfigOpen(false)} role={role} />
+      <SystemAdminModal isOpen={systemAdminOpen} onClose={() => setSystemAdminOpen(false)} role={role} />
       <AdPopupDisplay />
       <ChangePasswordModal isForceChangePassword isOpen={mustChangePassword} onClose={() => {}} />
 
