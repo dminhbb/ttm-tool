@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { ArrowSquareOut, ArrowsClockwise, Check, CheckCircle, FileText, Funnel, Printer, Pulse, ShieldCheck, Warning } from '@phosphor-icons/react';
+import { ArrowSquareOut, ArrowsClockwise, Bandaids, CaretDown, CaretRight, Check, CheckCircle, FileText, Funnel, Printer, Pulse, ShieldCheck, Warning } from '@phosphor-icons/react';
 import type { ReportEpicItem, ReportResult } from '@/lib/reports-service';
 import { normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
@@ -246,7 +246,7 @@ export default function AdminReportsPage() {
         <div className="flex items-center justify-between border-b border-slate-300 pb-3">
           <div className="flex items-center gap-2">
             <div className="grid size-8 place-items-center bg-[#1463f7] text-white rounded-none">
-              <Funnel className="size-4" weight="bold" />
+              <Bandaids className="size-4" weight="bold" />
             </div>
             <div>
               <h1 className="text-base font-bold text-black">Báo cáo Epic</h1>
@@ -566,10 +566,10 @@ export default function AdminReportsPage() {
             items={report.releasedEpics}
             customHeader="Thời gian Released / TTM"
             renderCustomCell={(item) => (
-              <td className="px-2.5 py-1.5 text-[10px]">
+              <td className="px-2.5 py-1.5 text-[11px]">
                 <div className="font-mono">{item.releasedDate || '-'}</div>
                 {item.actualTtmDays !== null && (
-                  <div className="text-[10px] font-bold text-[#1463f7]">{item.actualTtmDays} ngày làm việc</div>
+                  <div className="text-[11px] font-bold text-[#1463f7]">{item.actualTtmDays} ngày làm việc</div>
                 )}
               </td>
             )}
@@ -583,7 +583,7 @@ export default function AdminReportsPage() {
             items={report.passedEpics}
             customHeader="Loại đạt"
             renderCustomCell={(item) => (
-              <td className="px-2.5 py-1.5 text-[10px] font-bold text-[#1463f7]">
+              <td className="px-2.5 py-1.5 text-[11px] font-bold text-[#1463f7]">
                 <span>{item.passType || 'Đạt TTM'}</span>
               </td>
             )}
@@ -597,7 +597,7 @@ export default function AdminReportsPage() {
             items={report.failedEpics}
             customHeader="Loại Fail / Chi tiết"
             renderCustomCell={(item) => (
-              <td className="px-2.5 py-1.5 text-[10px] font-bold text-black">
+              <td className="px-2.5 py-1.5 text-[11px] font-bold text-black">
                 <span>{item.failType || 'Fail TTM'}</span>
               </td>
             )}
@@ -611,7 +611,7 @@ export default function AdminReportsPage() {
             items={report.inPoEpics}
             customHeader="Phân loại Trạng thái"
             renderCustomCell={(item) => (
-              <td className="px-2.5 py-1.5 text-[10px] font-bold">
+              <td className="px-2.5 py-1.5 text-[11px] font-bold">
                 <span className={getStatusTextColorClass(item.status)}>{item.status}</span>
               </td>
             )}
@@ -625,7 +625,7 @@ export default function AdminReportsPage() {
             items={report.anomalyEpics}
             customHeader="Chi tiết dữ liệu sai lệch"
             renderCustomCell={(item) => (
-              <td className="px-2.5 py-1.5 text-[10px] font-medium text-gray-700">
+              <td className="px-2.5 py-1.5 text-[11px] font-medium text-gray-700">
                 <ul className="list-disc pl-3 space-y-0.5">
                   {item.anomalyDetails.map((det, idx) => (
                     <li key={idx}>{det}</li>
@@ -643,7 +643,7 @@ export default function AdminReportsPage() {
             items={report.pendingEpics || []}
             customHeader="Phân loại Trạng thái"
             renderCustomCell={(item) => (
-              <td className="px-2.5 py-1.5 text-[10px] font-bold text-[#8B4513]">
+              <td className="px-2.5 py-1.5 text-[11px] font-bold text-[#8B4513]">
                 <span>{item.status}</span>
               </td>
             )}
@@ -678,90 +678,105 @@ function ReportSectionBlockSquare({
   title,
   totalCount,
 }: ReportSectionBlockSquareProps) {
+  const [collapsed, setCollapsed] = React.useState(true);
+
   return (
     <div className="rounded-none border border-black overflow-hidden">
-      {/* Header Bar */}
-      <div className="bg-slate-700 text-white px-3 py-2 font-bold text-xs flex items-center justify-between">
-        <span>{title}</span>
-        <span className="bg-[#1463f7] text-white px-2 py-0.5 text-[10px] font-extrabold uppercase">
-          Tổng số: {totalCount} Epic
-        </span>
+      {/* Header Bar - Clickable to Toggle Collapsed State */}
+      <div
+        onClick={() => setCollapsed(!collapsed)}
+        className="bg-slate-700 text-white px-3 py-2 font-bold text-xs flex items-center justify-between cursor-pointer select-none hover:bg-slate-800 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          {collapsed ? <CaretRight className="size-4 text-white shrink-0" weight="bold" /> : <CaretDown className="size-4 text-white shrink-0" weight="bold" />}
+          <span>{title}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-gray-300 font-normal no-print">
+            {collapsed ? '(Bấm để mở)' : '(Bấm để thu gọn)'}
+          </span>
+          <span className="bg-[#1463f7] text-white px-2 py-0.5 text-[10px] font-extrabold uppercase">
+            Tổng số: {totalCount} Epic
+          </span>
+        </div>
       </div>
 
-      {/* Table Content */}
-      {items.length === 0 ? (
-        <div className="p-3 text-center text-[10px] text-gray-500 bg-gray-50">
-          Không có Epic nào trong danh sách này.
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-[10px] border-collapse">
-            <thead>
-              <tr className="border-b border-gray-300 bg-gray-50 text-black font-bold select-none">
-                <th className="px-2.5 py-1.5 w-8 text-center border-r border-gray-300">STT</th>
-                <th className="px-2.5 py-1.5 w-16 border-r border-gray-300">Project</th>
-                {/* COMBINED EPIC KEY + SUMMARY COLUMN */}
-                <th className="px-2.5 py-1.5 max-w-[260px] border-r border-gray-300">Epic Key / Summary</th>
-                <th className="px-2.5 py-1.5 w-24 border-r border-gray-300">Status</th>
-                {/* RENAMED COLUMNS */}
-                <th className="px-2.5 py-1.5 w-20 border-r border-gray-300">Start E2E</th>
-                <th className="px-2.5 py-1.5 w-20 border-r border-gray-300">Start CNTT</th>
-                <th className="px-2.5 py-1.5 w-20 border-r border-gray-300">R4G Date</th>
-                <th className="px-2.5 py-1.5 w-20 border-r border-gray-300">Released Date</th>
-                <th className="px-2.5 py-1.5">{customHeader}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {items.map((item, idx) => {
-                const jiraHref = jiraViewIssueBaseUrl
-                  ? `${jiraViewIssueBaseUrl}${encodeURIComponent(item.epicKey)}`
-                  : null;
+      {/* Table Content Container - Always printed even if collapsed on screen */}
+      <div className={collapsed ? 'hidden print:block' : 'block'}>
+        {items.length === 0 ? (
+          <div className="p-3 text-center text-[11px] text-gray-500 bg-gray-50">
+            Không có Epic nào trong danh sách này.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[11px] border-collapse">
+              <thead>
+                <tr className="border-b border-gray-300 bg-gray-50 text-black font-bold select-none">
+                  <th className="px-2.5 py-1.5 w-8 text-center border-r border-gray-300">STT</th>
+                  <th className="px-2.5 py-1.5 w-16 border-r border-gray-300">Project</th>
+                  {/* COMBINED EPIC KEY + SUMMARY COLUMN */}
+                  <th className="px-2.5 py-1.5 max-w-[260px] border-r border-gray-300">Epic Key / Summary</th>
+                  <th className="px-2.5 py-1.5 w-24 border-r border-gray-300">Status</th>
+                  {/* RENAMED COLUMNS */}
+                  <th className="px-2.5 py-1.5 w-20 border-r border-gray-300">Start E2E</th>
+                  <th className="px-2.5 py-1.5 w-20 border-r border-gray-300">Start CNTT</th>
+                  <th className="px-2.5 py-1.5 w-20 border-r border-gray-300">R4G Date</th>
+                  <th className="px-2.5 py-1.5 w-20 border-r border-gray-300">Released Date</th>
+                  <th className="px-2.5 py-1.5">{customHeader}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {items.map((item, idx) => {
+                  const jiraHref = jiraViewIssueBaseUrl
+                    ? `${jiraViewIssueBaseUrl}${encodeURIComponent(item.epicKey)}`
+                    : null;
 
-                return (
-                  <tr key={item.epicKey} className="hover:bg-gray-50">
-                    <td className="px-2.5 py-1.5 text-center font-mono text-gray-500 border-r border-gray-200">{idx + 1}</td>
-                    <td className="px-2.5 py-1.5 font-mono font-bold text-black border-r border-gray-200">{item.projectKey}</td>
-                    
-                    {/* COMBINED EPIC KEY WITH JIRA NEW WINDOW LINK (LINE 1) & SUMMARY (LINE 2) */}
-                    <td className="px-2.5 py-1.5 border-r border-gray-200">
-                      {jiraHref ? (
-                        <a
-                          href={jiraHref}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-mono font-bold text-[#1463f7] hover:underline text-[10px] inline-flex items-center gap-1"
-                          title="Mở Epic trên Jira (cửa sổ mới)"
-                        >
-                          <span>{item.epicKey}</span>
-                          <ArrowSquareOut className="size-3 shrink-0" weight="bold" />
-                        </a>
-                      ) : (
-                        <div className="font-mono font-bold text-[#1463f7] text-[10px]">{item.epicKey}</div>
-                      )}
-                      <div className="text-[10px] text-gray-600 truncate max-w-[260px]" title={item.summary}>
-                        {item.summary}
-                      </div>
-                    </td>
+                  return (
+                    <tr key={item.epicKey} className="hover:bg-gray-50">
+                      <td className="px-2.5 py-1.5 text-center font-mono text-gray-500 border-r border-gray-200">{idx + 1}</td>
+                      <td className="px-2.5 py-1.5 font-mono font-bold text-black border-r border-gray-200">{item.projectKey}</td>
+                      
+                      {/* COMBINED EPIC KEY WITH JIRA NEW WINDOW LINK (LINE 1) & SUMMARY (LINE 2) */}
+                      <td className="px-2.5 py-1.5 border-r border-gray-200">
+                        {jiraHref ? (
+                          <a
+                            href={jiraHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-mono font-bold text-[#1463f7] hover:underline text-[11px] inline-flex items-center gap-1"
+                            title="Mở Epic trên Jira (cửa sổ mới)"
+                          >
+                            <span>{item.epicKey}</span>
+                            <ArrowSquareOut className="size-3 shrink-0" weight="bold" />
+                          </a>
+                        ) : (
+                          <div className="font-mono font-bold text-[#1463f7] text-[11px]">{item.epicKey}</div>
+                        )}
+                        <div className="text-[11px] text-gray-600 truncate max-w-[260px]" title={item.summary}>
+                          {item.summary}
+                        </div>
+                      </td>
 
-                    {/* STATUS COLUMN WITH SPECIFIC TEXT COLOR RULES */}
-                    <td className={`px-2.5 py-1.5 font-bold border-r border-gray-200 ${getStatusTextColorClass(item.status)}`}>
-                      {item.status}
-                    </td>
+                      {/* STATUS COLUMN WITH SPECIFIC TEXT COLOR RULES */}
+                      <td className={`px-2.5 py-1.5 font-bold border-r border-gray-200 ${getStatusTextColorClass(item.status)}`}>
+                        {item.status}
+                      </td>
 
-                    {/* Start E2E (formerly T0) */}
-                    <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">{item.ideaApprovedDate || '-'}</td>
-                    {/* Start CNTT (formerly T1) */}
-                    <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">{item.startDate || '-'}</td>
-                    <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">{item.r4gDate || '-'}</td>
-                    <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">{item.releasedDate || '-'}</td>
-                    {renderCustomCell(item)}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                      {/* Start E2E (formerly T0) */}
+                      <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">{item.ideaApprovedDate || '-'}</td>
+                      {/* Start CNTT (formerly T1) */}
+                      <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">{item.startDate || '-'}</td>
+                      <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">{item.r4gDate || '-'}</td>
+                      <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">{item.releasedDate || '-'}</td>
+                      {renderCustomCell(item)}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
