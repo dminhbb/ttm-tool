@@ -47,3 +47,16 @@ As a backstop beyond just following this instruction, `.githooks/pre-commit` (ac
 blocks any commit that changes app files without also staging an updated `version.json`. That hook
 is the actual enforcement; this section is what tells you *why* and *how* to satisfy it before you
 hit the block.
+
+# Icons standard — phosphoricons.com
+
+All UI icons across the application must be imported exclusively from Phosphor Icons (`@phosphor-icons/react` from `phosphoricons.com`).
+When designing or updating Epic list screens (`/epic-alerts-15`, `/epic-in-po`, `/epic-alerts`, `/reports`):
+- In the Epic column, use `Warning` icon for alert triggers and `ArrowSquareOut` icon for opening Jira in a new tab.
+- Prepend `CaretRight` icon before date text in the START-E2E column/cell, styled with muted font-size (11px) and lighter color (`#64748b`).
+- Prepend `CaretLineRight` icon before date text in the START-CNTT column/cell, styled with muted font-size (11px) and lighter color (`#64748b`).
+- In status/phase stage cells, prepend `ArrowBendUpRight` icon before the baseline date text on the EXACT SAME line, using a lighter muted color (e.g. `#64748b`).
+- Prepend the `Checks` icon before the actual recorded date text in the R4Golive and Released columns/cells, using solid BLACK color (`#000000`).
+
+
+

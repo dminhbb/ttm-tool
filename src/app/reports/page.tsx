@@ -1,11 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import { ArrowSquareOut, ArrowsClockwise, Bandaids, CaretDown, CaretRight, Check, CheckCircle, FileText, Funnel, Printer, Pulse, ShieldCheck, Warning } from '@phosphor-icons/react';
+import { ArrowSquareOut, ArrowsClockwise, Bandaids, CaretDown, CaretLineRight, CaretRight, Check, CheckCircle, Checks, FileText, Funnel, Printer, Pulse, ShieldCheck, Warning } from '@phosphor-icons/react';
 import type { ReportEpicItem, ReportResult } from '@/lib/reports-service';
 import { normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
+import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 
 /**
  * Custom Status Font-Color rules per user request:
@@ -50,7 +51,13 @@ export default function ReportsPage() {
   const [selectedComponent, setSelectedComponent] = React.useState<string>('ALL');
   const [selectedLayers, setSelectedLayers] = React.useState<string[]>([]);
 
-  // 3 New Date Filters
+  // Collapsible Advanced Config
+  const [advancedConfigOpen, setAdvancedConfigOpen] = React.useState(false);
+
+  // Epic Browser Modal State
+  const [browsingEpicKey, setBrowsingEpicKey] = React.useState<string | null>(null);
+
+  // 3 Date Filters
   const [createdDateFrom, setCreatedDateFrom] = React.useState<string>('');
   const [startDateFrom, setStartDateFrom] = React.useState<string>('');
   const [releasedDateFrom, setReleasedDateFrom] = React.useState<string>('');
@@ -78,7 +85,7 @@ export default function ReportsPage() {
         const layers = data.layerDates || [];
         setLayerDates(layers);
 
-        // Default select latest layer (always selected)
+        // Default select latest layer (index 0)
         if (layers.length > 0) {
           setSelectedLayers([layers[0]]);
         }
@@ -122,20 +129,53 @@ export default function ReportsPage() {
   }, [filteredProjects, selectedProjectKey]);
 
   /**
-   * Consecutive layer selection rule:
-   * 1. Latest layer (index 0) is ALWAYS selected and cannot be unchecked.
-   * 2. Selecting layer at index i automatically selects all layers from 0 to i.
-   * 3. Unselecting layer at index i unselects layers from i downwards, keeping 0 to i-1.
+   * Flexible consecutive layer selection rule:
+   * 1. Default selects newest layer (index 0).
+   * 2. User can choose older layers or unselect index 0.
+   * 3. Always maintains a single contiguous consecutive range of layer dates.
    */
   const handleToggleConsecutiveLayer = (index: number) => {
-    if (index === 0) return; // Newest layer is always selected!
     const targetLayer = layerDates[index];
     const isAlreadySelected = selectedLayers.includes(targetLayer);
 
     if (isAlreadySelected) {
-      setSelectedLayers(layerDates.slice(0, index));
+      if (selectedLayers.length === 1) {
+        setSelectedLayers([]);
+        return;
+      }
+      const selectedIndices = selectedLayers
+        .map((l) => layerDates.indexOf(l))
+        .filter((i) => i !== -1)
+        .sort((a, b) => a - b);
+      const minIdx = selectedIndices[0];
+      const maxIdx = selectedIndices[selectedIndices.length - 1];
+
+      if (index === minIdx) {
+        setSelectedLayers(layerDates.slice(minIdx + 1, maxIdx + 1));
+      } else if (index === maxIdx) {
+        setSelectedLayers(layerDates.slice(minIdx, maxIdx));
+      } else {
+        setSelectedLayers(layerDates.slice(minIdx, index + 1));
+      }
     } else {
-      setSelectedLayers(layerDates.slice(0, index + 1));
+      if (selectedLayers.length === 0) {
+        setSelectedLayers([targetLayer]);
+        return;
+      }
+      const selectedIndices = selectedLayers
+        .map((l) => layerDates.indexOf(l))
+        .filter((i) => i !== -1)
+        .sort((a, b) => a - b);
+      const minIdx = selectedIndices[0];
+      const maxIdx = selectedIndices[selectedIndices.length - 1];
+
+      if (index < minIdx) {
+        setSelectedLayers(layerDates.slice(index, maxIdx + 1));
+      } else if (index > maxIdx) {
+        setSelectedLayers(layerDates.slice(minIdx, index + 1));
+      } else {
+        setSelectedLayers(layerDates.slice(minIdx, maxIdx + 1));
+      }
     }
   };
 
@@ -320,11 +360,11 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* Row 2 Filters: 3 New Date Filters (Epic tạo mới từ, Epic start date từ, Epic golive sau) */}
+        {/* Row 2 Filters: 3 Date Filters */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-slate-300 pt-3">
           <div>
             <label className="mb-1 block text-[11px] font-bold text-black">
-              4. Epic tạo mới từ (Start E2E / T0 &ge;)
+              4. Epic tạo mới từ (Created Date &ge;)
             </label>
             <input
               type="date"
@@ -348,7 +388,7 @@ export default function ReportsPage() {
 
           <div>
             <label className="mb-1 block text-[11px] font-bold text-black">
-              6. Epic golive sau
+              6. Epic golive sau (Due Date &ge;)
             </label>
             <input
               type="date"
@@ -359,42 +399,60 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* Data Layer Dates Selection (Consecutive Rule & Lock Newest) */}
+        {/* Advanced Config Section Toggle */}
         <div className="border-t border-slate-300 pt-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="text-[11px] font-bold text-black">
-              7. Lịch sử báo cáo (Lớp dữ liệu liên tiếp 7 ngày) <span className="text-[#1463f7]">*</span>
-            </label>
-            <span className="text-[10px] text-gray-700 font-medium">Lớp mới nhất mặc định luôn chọn. Chọn thêm phải liên tiếp.</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => setAdvancedConfigOpen(!advancedConfigOpen)}
+            className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[#1463f7] transition-colors"
+          >
+            {advancedConfigOpen ? (
+              <CaretDown className="size-4 text-[#1463f7]" weight="bold" />
+            ) : (
+              <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
+            )}
+            <span>Cấu hình nâng cao...</span>
+          </button>
 
-          {layerDates.length === 0 ? (
-            <p className="text-[11px] text-gray-600">Chưa có lớp dữ liệu nào trong hệ thống.</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {layerDates.map((layer, idx) => {
-                const isSelected = selectedLayers.includes(layer);
-                const isNewest = idx === 0;
+          {advancedConfigOpen && (
+            <div className="mt-3 space-y-3 pl-2 border-l-2 border-[#1463f7] pt-1">
+              {/* Item 7. Lịch sử báo cáo */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[11px] font-bold text-black">
+                    7. Lịch sử báo cáo (Lớp dữ liệu liên tiếp) <span className="text-[#1463f7]">*</span>
+                  </label>
+                  <span className="text-[10px] text-gray-700 font-medium">Chọn các lớp dữ liệu liên tiếp nhau.</span>
+                </div>
 
-                return (
-                  <button
-                    key={layer}
-                    type="button"
-                    onClick={() => handleToggleConsecutiveLayer(idx)}
-                    disabled={isNewest}
-                    title={isNewest ? 'Lớp dữ liệu mới nhất luôn được chọn mặc định' : `Tích chọn liên tiếp từ mới tới ${layer}`}
-                    className={`flex items-center gap-1.5 rounded-none border px-3 py-1.5 text-xs font-bold transition-all ${
-                      isSelected
-                        ? 'border-[#1463f7] bg-[#1463f7] text-white'
-                        : 'border-slate-400 bg-white text-gray-800 hover:border-black'
-                    } ${isNewest ? 'cursor-not-allowed opacity-90' : 'cursor-pointer'}`}
-                  >
-                    {isSelected && <Check className="size-3.5" weight="bold" />}
-                    <span>{layer}</span>
-                    {isNewest && <span className="bg-black text-white px-1 text-[9px] uppercase">Bắt buộc</span>}
-                  </button>
-                );
-              })}
+                {layerDates.length === 0 ? (
+                  <p className="text-[11px] text-gray-600">Chưa có lớp dữ liệu nào trong hệ thống.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {layerDates.map((layer, idx) => {
+                      const isSelected = selectedLayers.includes(layer);
+
+                      return (
+                        <button
+                          key={layer}
+                          type="button"
+                          onClick={() => handleToggleConsecutiveLayer(idx)}
+                          title={`Tích chọn liên tiếp lớp dữ liệu ${layer}`}
+                          className={`flex items-center gap-1.5 rounded-none border px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
+                            isSelected
+                              ? 'border-[#1463f7] bg-[#1463f7] text-white'
+                              : 'border-slate-400 bg-white text-gray-800 hover:border-black'
+                          }`}
+                        >
+                          {isSelected && <Check className="size-3.5" weight="bold" />}
+                          <span>{layer}</span>
+                          {idx === 0 && <span className="bg-black text-white px-1 text-[9px] uppercase">Mới nhất</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -440,7 +498,7 @@ export default function ReportsPage() {
           <div className="no-print flex items-center justify-between border-b border-gray-300 pb-3">
             <div className="flex items-center gap-2 text-xs font-bold text-black">
               <CheckCircle className="size-4 text-[#1463f7]" weight="fill" />
-              <span>Báo cáo đã tổng hợp xong (Bấm mã Epic để mở Jira ở cửa sổ mới)</span>
+              <span>Báo cáo đã tổng hợp xong (Bấm mã Epic để Duyệt Epic hoặc xem Jira)</span>
             </div>
             <button
               type="button"
@@ -565,6 +623,7 @@ export default function ReportsPage() {
           {/* SECTION 1: RELEASED EPICS TABLE */}
           <ReportSectionBlockSquare
             jiraViewIssueBaseUrl={jiraViewIssueBaseUrl}
+            onOpenEpicBrowser={(epicKey) => setBrowsingEpicKey(epicKey)}
             title="1. DANH SÁCH CÁC EPIC ĐÃ RELEASED TRONG GIAI ĐOẠN LỰA CHỌN"
             totalCount={report.totalReleasedCount}
             items={report.releasedEpics}
@@ -582,6 +641,7 @@ export default function ReportsPage() {
           {/* SECTION 2: PASSED TTM EPICS TABLE */}
           <ReportSectionBlockSquare
             jiraViewIssueBaseUrl={jiraViewIssueBaseUrl}
+            onOpenEpicBrowser={(epicKey) => setBrowsingEpicKey(epicKey)}
             title="2. DANH SÁCH CÁC EPIC ĐẠT TTM-CNTT VÀ TTM-E2E"
             totalCount={report.totalPassedCount}
             items={report.passedEpics}
@@ -596,6 +656,7 @@ export default function ReportsPage() {
           {/* SECTION 3: FAILED TTM EPICS TABLE */}
           <ReportSectionBlockSquare
             jiraViewIssueBaseUrl={jiraViewIssueBaseUrl}
+            onOpenEpicBrowser={(epicKey) => setBrowsingEpicKey(epicKey)}
             title="3. DANH SÁCH CÁC EPIC FAIL TTM-CNTT VÀ TTM-E2E"
             totalCount={report.totalFailedCount}
             items={report.failedEpics}
@@ -611,6 +672,7 @@ export default function ReportsPage() {
           {/* SECTION 4: EPIC IN PO DEDICATED TABLE */}
           <ReportSectionBlockSquare
             jiraViewIssueBaseUrl={jiraViewIssueBaseUrl}
+            onOpenEpicBrowser={(epicKey) => setBrowsingEpicKey(epicKey)}
             title="4. DANH SÁCH CÁC EPIC IN PO (TO DO, IN PO)"
             totalCount={report.totalInPoCount}
             items={report.inPoEpics}
@@ -625,6 +687,7 @@ export default function ReportsPage() {
           {/* SECTION 5: DATA ANOMALY EPICS TABLE */}
           <ReportSectionBlockSquare
             jiraViewIssueBaseUrl={jiraViewIssueBaseUrl}
+            onOpenEpicBrowser={(epicKey) => setBrowsingEpicKey(epicKey)}
             title="5. DANH SÁCH CÁC EPIC CÓ SAI LỆCH DỮ LIỆU"
             totalCount={report.totalAnomalyCount}
             items={report.anomalyEpics}
@@ -643,6 +706,7 @@ export default function ReportsPage() {
           {/* SECTION 6: PENDING EPICS TABLE */}
           <ReportSectionBlockSquare
             jiraViewIssueBaseUrl={jiraViewIssueBaseUrl}
+            onOpenEpicBrowser={(epicKey) => setBrowsingEpicKey(epicKey)}
             title="6. DANH SÁCH CÁC EPIC PENDING"
             totalCount={report.totalPendingCount || 0}
             items={report.pendingEpics || []}
@@ -662,6 +726,11 @@ export default function ReportsPage() {
           </div>
         </div>
       )}
+
+      {/* EPIC BROWSER MODAL (POPUP DUYỆT EPIC) */}
+      {browsingEpicKey && (
+        <EpicBrowserModal epicKey={browsingEpicKey} onClose={() => setBrowsingEpicKey(null)} />
+      )}
     </div>
   );
 }
@@ -671,6 +740,7 @@ interface ReportSectionBlockSquareProps {
   isFailTable?: boolean;
   items: ReportEpicItem[];
   jiraViewIssueBaseUrl: string;
+  onOpenEpicBrowser: (epicKey: string) => void;
   renderCustomCell: (item: ReportEpicItem) => React.ReactNode;
   title: string;
   totalCount: number;
@@ -681,6 +751,7 @@ function ReportSectionBlockSquare({
   isFailTable,
   items,
   jiraViewIssueBaseUrl,
+  onOpenEpicBrowser,
   renderCustomCell,
   title,
   totalCount,
@@ -738,22 +809,29 @@ function ReportSectionBlockSquare({
                       <td className="px-2.5 py-1.5 text-center font-mono text-gray-500 border-r border-gray-200">{idx + 1}</td>
                       <td className="px-2.5 py-1.5 font-mono font-bold text-black border-r border-gray-200">{item.projectKey}</td>
                       
-                      {/* COMBINED EPIC KEY WITH JIRA NEW WINDOW LINK (LINE 1) & SUMMARY (LINE 2) */}
+                      {/* COMBINED EPIC KEY WITH CLICK TO OPEN DUYỆT EPIC POPUP (LINE 1) & SUMMARY (LINE 2) */}
                       <td className="px-2.5 py-1.5 border-r border-gray-200">
-                        {jiraHref ? (
-                          <a
-                            href={jiraHref}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-mono font-bold text-[#1463f7] hover:underline text-[11px] inline-flex items-center gap-1"
-                            title="Mở Epic trên Jira (cửa sổ mới)"
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => onOpenEpicBrowser(item.epicKey)}
+                            className="font-mono font-bold text-[#1463f7] hover:underline text-[11px] text-left"
+                            title={`Duyệt Epic — ${item.epicKey}`}
                           >
-                            <span>{item.epicKey}</span>
-                            <ArrowSquareOut className="size-3 shrink-0" weight="bold" />
-                          </a>
-                        ) : (
-                          <div className="font-mono font-bold text-[#1463f7] text-[11px]">{item.epicKey}</div>
-                        )}
+                            {item.epicKey}
+                          </button>
+                          {jiraHref && (
+                            <a
+                              href={jiraHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-gray-500 hover:text-[#1463f7]"
+                              title="Mở Epic trên Jira (cửa sổ mới)"
+                            >
+                              <ArrowSquareOut className="size-3 shrink-0" weight="bold" />
+                            </a>
+                          )}
+                        </div>
                         <div className="text-[11px] text-gray-600 truncate max-w-[260px]" title={item.summary}>
                           {item.summary}
                         </div>
@@ -765,16 +843,52 @@ function ReportSectionBlockSquare({
                       </td>
 
                       {/* Start E2E (formerly T0) */}
-                      <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">{item.ideaApprovedDate || '-'}</td>
+                      <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">
+                        {item.ideaApprovedDate ? (
+                          <span className="inline-flex items-center gap-0.5 text-slate-500 font-medium text-[11px]">
+                            <CaretRight className="size-3 shrink-0 text-slate-500" weight="bold" />
+                            <span>{item.ideaApprovedDate}</span>
+                          </span>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
                       {/* Start CNTT (formerly T1) */}
-                      <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">{item.startDate || '-'}</td>
+                      <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">
+                        {item.startDate ? (
+                          <span className="inline-flex items-center gap-0.5 text-slate-500 font-medium text-[11px]">
+                            <CaretLineRight className="size-3 shrink-0 text-slate-500" weight="bold" />
+                            <span>{item.startDate}</span>
+                          </span>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
                       {/* R4G Date */}
                       <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">
-                        {item.r4gDate ? item.r4gDate : isFailTable ? <span className="text-red-700 font-semibold text-[11px]">Thiếu thông tin</span> : '-'}
+                        {item.r4gDate ? (
+                          <span className="inline-flex items-center gap-0.5 text-black font-bold">
+                            <Checks className="size-3 shrink-0 text-black" weight="bold" />
+                            <span>{item.r4gDate}</span>
+                          </span>
+                        ) : isFailTable ? (
+                          <span className="text-red-700 font-semibold text-[11px]">Thiếu thông tin</span>
+                        ) : (
+                          '-'
+                        )}
                       </td>
                       {/* Released Date */}
                       <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">
-                        {item.releasedDate ? item.releasedDate : isFailTable ? <span className="text-red-700 font-semibold text-[11px]">Thiếu thông tin</span> : '-'}
+                        {item.releasedDate ? (
+                          <span className="inline-flex items-center gap-0.5 text-black font-bold">
+                            <Checks className="size-3 shrink-0 text-black" weight="bold" />
+                            <span>{item.releasedDate}</span>
+                          </span>
+                        ) : isFailTable ? (
+                          <span className="text-red-700 font-semibold text-[11px]">Thiếu thông tin</span>
+                        ) : (
+                          '-'
+                        )}
                       </td>
                       {renderCustomCell(item)}
                     </tr>

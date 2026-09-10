@@ -560,8 +560,36 @@
      chỉ cần bỏ dòng display:none này để hiện lại. */
   display: none;
 }
-.ttm-phase-baseline { display: block; color: var(--ttm-text); font-weight: 400; font-style: normal; font-size: 11px; white-space: nowrap; }
-.ttm-phase-actual { display: block; margin-top: 3px; font-size: 11px; white-space: nowrap; }
+.ttm-phase-baseline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: #64748b;
+  font-weight: 500;
+  font-style: normal;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.ttm-phase-baseline svg {
+  color: #64748b;
+  flex-shrink: 0;
+}
+.ttm-phase-actual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: #000000;
+  font-weight: 700;
+  font-size: 11px;
+  margin-top: 3px;
+  white-space: nowrap;
+}
+.ttm-phase-actual svg {
+  color: #000000;
+  flex-shrink: 0;
+}
 .ttm-status-badge {
   display: inline-flex;
   align-items: center;

@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { BookmarkSimple, CaretDown, CaretRight, CheckSquare, Lightning } from '@phosphor-icons/react';
+import { BookmarkSimple, CaretDown, CaretLineRight, CaretRight, CheckSquare, Checks, Lightning } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
@@ -144,9 +144,36 @@ function TreeTableRow({ isDimmed, isExpanded, isLastChild, isLoading, issue, lev
       </TD>
       <TD className="max-w-[360px] truncate px-3 py-2" title={issue.summary}>{issue.summary}</TD>
       <TD className="px-3 py-2"><StatusText level={level} status={issue.status} /></TD>
-      <TD className="px-3 py-2">{formatDate(issue.startDate)}</TD>
-      <TD className="px-3 py-2">{formatDate(issue.r4gDate)}</TD>
-      <TD className="px-3 py-2">{formatDate(issue.dueDate)}</TD>
+      <TD className="px-3 py-2">
+        {issue.startDate ? (
+          <span className="inline-flex items-center gap-0.5 font-medium text-slate-500 text-[11px]">
+            <CaretLineRight className="size-3 shrink-0 text-slate-500" weight="bold" />
+            <span>{formatDate(issue.startDate)}</span>
+          </span>
+        ) : (
+          '—'
+        )}
+      </TD>
+      <TD className="px-3 py-2">
+        {issue.r4gDate ? (
+          <span className="inline-flex items-center gap-0.5 font-medium text-[#1463f7]">
+            <Checks className="size-3.5 shrink-0" weight="bold" />
+            <span>{formatDate(issue.r4gDate)}</span>
+          </span>
+        ) : (
+          '—'
+        )}
+      </TD>
+      <TD className="px-3 py-2">
+        {issue.dueDate ? (
+          <span className="inline-flex items-center gap-0.5 font-medium text-[#2E7D32]">
+            <Checks className="size-3.5 shrink-0" weight="bold" />
+            <span>{formatDate(issue.dueDate)}</span>
+          </span>
+        ) : (
+          '—'
+        )}
+      </TD>
       <TD className="px-3 py-2 whitespace-nowrap" title={issue.dataLayerDate ?? undefined}>{formatDataLayer(issue.dataLayerDate)}</TD>
     </TR>
   );

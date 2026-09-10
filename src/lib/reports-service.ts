@@ -361,32 +361,29 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
     };
 
     // Date Range Filters:
-    // 1. Epic tạo mới từ (createdDateFrom): Idea Approved Date / T0 or Jira Created Date >= createdDateFrom
-    const createdDate = row.ideaApprovedDate || row.jiraCreatedAt || null;
-    if (createdDateFrom && (!createdDate || createdDate < createdDateFrom)) {
+    // 1. Epic tạo mới từ (createdDateFrom): Created Date (Jira Created Date || Start E2E) >= createdDateFrom
+    // Applies to ALL TABLES (1, 2, 3, 4, 5, 6)
+    const createdDate = row.jiraCreatedAt || row.ideaApprovedDate || null;
+    if (createdDateFrom && (!createdDate || createdDate.slice(0, 10) < createdDateFrom)) {
       continue;
     }
 
-    // 2. Epic start date từ (startDateFrom): Start CNTT / T1 >= startDateFrom
-    if (startDateFrom && (!row.startDate || row.startDate < startDateFrom)) {
-      continue;
-    }
+    // 2. Epic start date từ (startDateFrom): Start CNTT / T1 >= startDateFrom (Epics without startDate excluded)
+    // Applies ONLY to tables 1, 2, 3
+    const passesStartDateFilter = !startDateFrom || (Boolean(row.startDate) && row.startDate! >= startDateFrom);
 
-    // 3. Epic golive sau (releasedDateFrom): Released Date (or R4G Date / Released Date) >= releasedDateFrom
-    const effectiveReleasedDate = releasedDate || row.r4gDate || null;
-    if (releasedDateFrom && (!effectiveReleasedDate || effectiveReleasedDate < releasedDateFrom)) {
-      continue;
-    }
+    // 3. Epic golive sau (releasedDateFrom): Due Date >= releasedDateFrom (Epics without dueDate excluded)
+    // Applies ONLY to tables 1, 2, 3
+    const passesDueDateFilter = !releasedDateFrom || (Boolean(row.dueDate) && row.dueDate! >= releasedDateFrom);
 
-    // Rule: When releasedDateFrom filter is active, tables 1, 2, 3 only allow status = RELEASED!
-    const passesReleasedStatusRule = !releasedDateFrom || isReleased;
+    const passesTable123DateFilters = passesStartDateFilter && passesDueDateFilter;
 
-    // 1. Released Table
-    if (isReleased) {
+    // 1. Released Table (Applied Table 1,2,3 date filters)
+    if (isReleased && passesTable123DateFilters) {
       releasedEpics.push(item);
     }
 
-    // 2. Data Anomaly Table (ONLY genuine chronological anomalies, exempting missing info epics that haven't failed TTM)
+    // 2. Data Anomaly Table (ONLY genuine chronological anomalies)
     if (hasChronologicalAnomaly) {
       anomalyEpics.push({
         ...item,
@@ -394,8 +391,8 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
       });
     }
 
-    // 3. Passed TTM Table (Rule 1 & 3: ONLY epics satisfying Pass rule)
-    if (passesReleasedStatusRule && (ttmCnttPassed || ttmE2ePassed) && !hasChronologicalAnomaly) {
+    // 3. Passed TTM Table (Rule 1 & 3: ONLY epics satisfying Pass rule + Table 1,2,3 date filters)
+    if (passesTable123DateFilters && (ttmCnttPassed || ttmE2ePassed) && !hasChronologicalAnomaly) {
       let passType = 'Đạt TTM-CNTT';
       if (ttmCnttPassed && ttmE2ePassed) passType = 'Đạt cả TTM-CNTT & TTM-e2e';
       else if (ttmE2ePassed && !ttmCnttPassed) passType = 'Đạt TTM-e2e';
@@ -406,13 +403,13 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
       });
     }
 
-    // 4. Failed TTM Table (Rule 2: Fails 1 of the 2 criteria)
+    // 4. Failed TTM Table (Rule 2: Fails 1 of the 2 criteria + Table 1,2,3 date filters)
     // Rule: Skip if status is 'To do' and ideaApprovedDate (Start E2E / T0) is missing
     const isToDoStatus = normStatus === 'TO DO' || upperStatus.includes('TO DO');
     const skipFailTableIfToDoWithoutIdeaDate = isToDoStatus && !row.ideaApprovedDate;
     const isActualFail = actualCnttFail || actualE2eFail;
 
-    if (passesReleasedStatusRule && isActualFail && !skipFailTableIfToDoWithoutIdeaDate) {
+    if (passesTable123DateFilters && isActualFail && !skipFailTableIfToDoWithoutIdeaDate) {
       const reasons = new Set<string>();
       if (cnttFailReason) reasons.add(cnttFailReason);
       if (e2eFailReason) reasons.add(e2eFailReason);

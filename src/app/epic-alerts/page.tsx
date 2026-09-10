@@ -14,7 +14,7 @@ import type { EpicAlertAccessRole, EpicAlertResponse, EpicAlertRow, StageCell } 
 import type { EpicAlertHistoryEntry } from '@/lib/epic-alert-history-service';
 import type { ProjectComponent } from '@/lib/master-data-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
-import { ArrowSquareOut, ClockCountdown, HourglassMedium, ListChecks, Prohibit, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
+import { ArrowBendUpRight, ArrowSquareOut, CaretLineRight, CaretRight, Checks, ClockCountdown, HourglassMedium, ListChecks, Prohibit, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import { epicWorkflowStatusIndex } from '@/lib/ttm-phase-rules';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
@@ -214,8 +214,16 @@ function TtmE2eStrips({ row }: { row: EpicAlertRow }) {
 function Ready4GoliveCell({ row }: { row: EpicAlertRow }) {
   return (
     <TD className={row.r4gDate ? 'ttm-r4g-cell is-complete' : 'ttm-r4g-cell'}>
-      {row.r4gDate && <span className="ttm-r4g-actual">{formatDate(row.r4gDate)}</span>}
-      <span className="ttm-r4g-target">Target TTM={formatDate(row.targetR4gDate)}</span>
+      {row.r4gDate && (
+        <span className="ttm-r4g-actual inline-flex items-center gap-0.5 text-black font-bold">
+          <Checks className="size-3 shrink-0 text-black" weight="bold" />
+          <span>{formatDate(row.r4gDate)}</span>
+        </span>
+      )}
+      <span className="ttm-r4g-target inline-flex items-center gap-0.5 text-slate-500 font-medium">
+        <ArrowBendUpRight className="size-3 shrink-0 text-slate-500" weight="bold" />
+        <span>Target TTM={formatDate(row.targetR4gDate)}</span>
+      </span>
     </TD>
   );
 }
@@ -562,11 +570,25 @@ export default function EpicAlertsPage() {
                     {/* START-E2E / TTM-E2E: T0 (Idea Approved → Jira creation date) always resolves —
                         independent of Start Date, so these render the same whether or not the Epic
                         is missing its Start Date (see resolveTtmE2eRelease in epic-alert-service.ts). */}
-                    <TD>{formatDate(row.ttmE2eBaselineSourceDate)}</TD>
+                    <TD>
+                      {row.ttmE2eBaselineSourceDate ? (
+                        <span className="inline-flex items-center gap-0.5 text-slate-500 font-medium text-[11px]">
+                          <CaretRight className="size-3 shrink-0 text-slate-500" weight="bold" />
+                          <span>{formatDate(row.ttmE2eBaselineSourceDate)}</span>
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </TD>
                     {isMissingCore ? (
                       <TD><span className="ttm-metric na">Không có</span></TD>
                     ) : (
-                      <TD>{formatDate(row.t1StartDate)}</TD>
+                      <TD>
+                        <span className="inline-flex items-center gap-0.5 text-slate-500 font-medium text-[11px]">
+                          <CaretLineRight className="size-3 shrink-0 text-slate-500" weight="bold" />
+                          <span>{formatDate(row.t1StartDate)}</span>
+                        </span>
+                      </TD>
                     )}
                     {isMissingCore ? (
                       <TD className="ttm-metric na">Không tính được</TD>

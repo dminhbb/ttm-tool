@@ -18,7 +18,7 @@ import type { ProjectComponent } from '@/lib/master-data-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
-import { ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, Warning } from '@phosphor-icons/react';
+import { ArrowBendUpRight, ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretLineRight, CaretRight, Checks, Warning } from '@phosphor-icons/react';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import { trackDataUsage } from '@/lib/usage-tracking';
 
@@ -100,8 +100,16 @@ function PhaseStageCell({ actualDateText, cell }: { actualDateText?: string | nu
   return (
     <TD className={`ttm-phase-cell${colorClass ? ` ${colorClass}` : ''}`}>
       {cell.isCurrentStage && <span className="ttm-phase-current-dot" title="Giai đoạn hiện tại của Epic" aria-hidden="true" />}
-      <span className="ttm-phase-baseline" title={baselineTitle}>{formatDate(cell.baselineDate)}</span>
-      <span className="ttm-phase-actual">{actualDateText ? formatDate(actualDateText) : null}</span>
+      <span className="ttm-phase-baseline" title={baselineTitle}>
+        <ArrowBendUpRight className="size-3 shrink-0" weight="bold" />
+        <span>{formatDate(cell.baselineDate)}</span>
+      </span>
+      {actualDateText ? (
+        <span className="ttm-phase-actual">
+          <Checks className="size-3 shrink-0" weight="bold" />
+          <span>{formatDate(actualDateText)}</span>
+        </span>
+      ) : null}
     </TD>
   );
 }
@@ -669,11 +677,25 @@ export default function EpicInPoPage() {
                         Start Date (see resolveTtmE2eRelease in epic-alert-service.ts). */}
                     <TtmE2eStrips compact={allColumnsCollapsed} row={row} />
                     <TD className={allColumnsCollapsed ? 'ttm-col-compact-status' : undefined}><StatusBadge status={row.currentStatus} /></TD>
-                    <TD className="ttm-phase-cell pass">{formatDate(row.stages.release.baselineSourceDate)}</TD>
+                    <TD className="ttm-phase-cell pass">
+                      {row.stages.release.baselineSourceDate ? (
+                        <span className="inline-flex items-center gap-0.5 text-slate-500 font-medium text-[11px]">
+                          <CaretRight className="size-3 shrink-0 text-slate-500" weight="bold" />
+                          <span>{formatDate(row.stages.release.baselineSourceDate)}</span>
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </TD>
                     {isMissingCore ? (
                       <TD><span className="ttm-metric na">Không có</span></TD>
                     ) : (
-                      <TD className="ttm-phase-cell pass">{formatDate(row.t1StartDate)}</TD>
+                      <TD className="ttm-phase-cell pass">
+                        <span className="inline-flex items-center gap-0.5 text-slate-500 font-medium text-[11px]">
+                          <CaretLineRight className="size-3 shrink-0 text-slate-500" weight="bold" />
+                          <span>{formatDate(row.t1StartDate)}</span>
+                        </span>
+                      </TD>
                     )}
                     {isMissingCore ? (
                       <TD colSpan={5} className="ttm-metric na">Chưa thể tính lịch TTM-CNTT do thiếu dữ liệu bắt buộc.</TD>
