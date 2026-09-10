@@ -116,7 +116,9 @@ export function computeTtmPhaseBaselines(startDate: Date, ttmCnttTotalWorkingDay
  * columns (DESIGN/DEV/TEST/PENTEST/R4GOLIVE), calendar-date based (not working-day based, unlike
  * the baseline itself):
  * - A phase with no basis to record completion yet (no actual/milestone date) is late once today
- *   reaches its own baseline, one calendar day early the day before that, else not due yet.
+ *   has PASSED its own baseline (strictly after — the baseline day itself is still "on time"),
+ *   one calendar day early the day before the baseline, else not due yet. On the baseline date
+ *   exactly the cell shows NONE (due today, not yet missed).
  * - A phase that already has a recorded completion date isn't "due" anymore — comparing that date
  *   against the baseline (on time vs late) is a separate, presentation-layer concern (see
  *   phaseCellColorClass in epic-alerts-15/page.tsx), not something this function decides.
@@ -124,7 +126,7 @@ export function computeTtmPhaseBaselines(startDate: Date, ttmCnttTotalWorkingDay
 export function computePhaseAlertLevel(baselineDate: Date, now: Date, isDone: boolean): AlertLevel {
   if (isDone) return 'NONE';
   const todayIso = toDateKey(now);
-  if (todayIso >= toDateKey(baselineDate)) return 'LATE';
+  if (todayIso > toDateKey(baselineDate)) return 'LATE';
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
   if (toDateKey(tomorrow) === toDateKey(baselineDate)) return 'EARLY';
