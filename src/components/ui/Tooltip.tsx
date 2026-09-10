@@ -14,10 +14,12 @@ export interface TooltipProps {
   className?: string;
   content: string;
   disabled?: boolean;
+  /** Render `content` with its line breaks preserved and a capped width (for a multi-line list). */
+  multiline?: boolean;
   side?: 'left' | 'right';
 }
 
-export function Tooltip({ children, className, content, disabled = false, side = 'right' }: TooltipProps) {
+export function Tooltip({ children, className, content, disabled = false, multiline = false, side = 'right' }: TooltipProps) {
   const triggerRef = React.useRef<HTMLSpanElement>(null);
   const [position, setPosition] = React.useState<TooltipPosition | null>(null);
 
@@ -59,7 +61,8 @@ export function Tooltip({ children, className, content, disabled = false, side =
         <span
           role="tooltip"
           className={cn(
-            'pointer-events-none fixed z-[70] -translate-y-1/2 whitespace-nowrap rounded-lg border border-fb-border-strong bg-fb-surface px-2.5 py-1.5 text-app font-semibold text-fb-text-primary shadow-dialog',
+            'pointer-events-none fixed z-[70] -translate-y-1/2 rounded-lg border border-fb-border-strong bg-fb-surface px-2.5 py-1.5 text-app font-semibold text-fb-text-primary shadow-dialog',
+            multiline ? 'max-w-[300px] whitespace-pre-line text-left leading-snug' : 'whitespace-nowrap',
             side === 'left' && '-translate-x-full',
           )}
           style={{ left: position.left, top: position.top }}

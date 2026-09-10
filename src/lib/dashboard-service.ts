@@ -38,7 +38,7 @@ export function computeDashboardStats(rows: EpicAlertRowPhased[]): DashboardStat
   let lateWarning = 0;
   let earlyWarning = 0;
   const complexityCounts = Object.fromEntries(EPIC_COMPLEXITY_TYPES.map((type) => [type, 0])) as Record<EpicComplexity, number>;
-  let missingDataCount = 0;
+  let dataAnomalyCount = 0;
   let achievedTtmCount = 0;
   let achievedTtmEligibleCount = 0;
   let upcomingDeadlineCount = 0;
@@ -50,9 +50,9 @@ export function computeDashboardStats(rows: EpicAlertRowPhased[]): DashboardStat
     else if (row.alertLevel === 'EARLY') earlyWarning += 1;
     if (row.ttmE2eAlertLevel === 'FAIL') failE2e += 1;
     if (row.epicType && row.epicType in complexityCounts) complexityCounts[row.epicType] += 1;
-    // hasDataAnomaly (missing Start Date, or R4G/Due Date chronologically nonsense) counts here too
-    // — same "cần làm sạch dữ liệu" bucket as missingStandardInfo, not a separate stat tile.
-    if (row.missingStandardInfo.length > 0 || row.hasDataAnomaly) missingDataCount += 1;
+    // "Epic sai lệch dữ liệu" — the unified engine (evaluateEpicDataAnomaly), same flag every Epic
+    // screen and the alert timeline use, so this tile can never disagree with them.
+    if (row.hasDataAnomaly) dataAnomalyCount += 1;
     // A data-anomaly Epic is excluded from the Đạt TTM ratio entirely — alertLevel is already
     // forced 'NONE' for it (see epic-alert-phase-service.ts), so counting it here would silently
     // inflate the ratio with an Epic whose R4G Date can't actually be trusted.
@@ -87,8 +87,8 @@ export function computeDashboardStats(rows: EpicAlertRowPhased[]): DashboardStat
     achievedTtmEligibleCount,
     alerts: { earlyWarning, failCntt, failE2e, lateWarning },
     complexity: complexityCounts,
+    dataAnomalyCount,
     epicCount: rows.length,
-    missingDataCount,
     statusDistribution: [...statusCounts.entries()]
       .map(([status, count]) => ({ count, status }))
       .sort((a, b) => b.count - a.count),

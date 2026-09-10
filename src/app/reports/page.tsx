@@ -790,11 +790,11 @@ function ReportSectionBlockSquare({
                   {/* COMBINED EPIC KEY + SUMMARY COLUMN */}
                   <th className="px-2.5 py-1.5 max-w-[260px] border-r border-gray-300">Epic Key / Summary</th>
                   <th className="px-2.5 py-1.5 w-24 border-r border-gray-300">Status</th>
-                  {/* RENAMED COLUMNS */}
-                  <th className="px-2.5 py-1.5 w-20 border-r border-gray-300">Start E2E</th>
-                  <th className="px-2.5 py-1.5 w-20 border-r border-gray-300">Start CNTT</th>
-                  <th className="px-2.5 py-1.5 w-20 border-r border-gray-300">R4G Date</th>
-                  <th className="px-2.5 py-1.5 w-20 border-r border-gray-300">Released Date</th>
+                  {/* RENAMED COLUMNS WITH NO-WRAP AND ENOUGH MIN-WIDTH */}
+                  <th className="px-2.5 py-1.5 min-w-[92px] whitespace-nowrap border-r border-gray-300">Start E2E</th>
+                  <th className="px-2.5 py-1.5 min-w-[92px] whitespace-nowrap border-r border-gray-300">Start CNTT</th>
+                  <th className="px-2.5 py-1.5 min-w-[92px] whitespace-nowrap border-r border-gray-300">R4G Date</th>
+                  <th className="px-2.5 py-1.5 min-w-[92px] whitespace-nowrap border-r border-gray-300">Released Date</th>
                   <th className="px-2.5 py-1.5">{customHeader}</th>
                 </tr>
               </thead>
@@ -843,52 +843,16 @@ function ReportSectionBlockSquare({
                       </td>
 
                       {/* Start E2E (formerly T0) */}
-                      <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">
-                        {item.ideaApprovedDate ? (
-                          <span className="inline-flex items-center gap-0.5 text-slate-500 font-medium text-[11px]">
-                            <CaretRight className="size-3 shrink-0 text-slate-500" weight="bold" />
-                            <span>{item.ideaApprovedDate}</span>
-                          </span>
-                        ) : (
-                          '-'
-                        )}
-                      </td>
+                      <td className="px-2.5 py-1.5 font-mono whitespace-nowrap border-r border-gray-200">{item.ideaApprovedDate || '-'}</td>
                       {/* Start CNTT (formerly T1) */}
-                      <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">
-                        {item.startDate ? (
-                          <span className="inline-flex items-center gap-0.5 text-slate-500 font-medium text-[11px]">
-                            <CaretLineRight className="size-3 shrink-0 text-slate-500" weight="bold" />
-                            <span>{item.startDate}</span>
-                          </span>
-                        ) : (
-                          '-'
-                        )}
-                      </td>
+                      <td className="px-2.5 py-1.5 font-mono whitespace-nowrap border-r border-gray-200">{item.startDate || '-'}</td>
                       {/* R4G Date */}
-                      <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">
-                        {item.r4gDate ? (
-                          <span className="inline-flex items-center gap-0.5 text-black font-bold">
-                            <Checks className="size-3 shrink-0 text-black" weight="bold" />
-                            <span>{item.r4gDate}</span>
-                          </span>
-                        ) : isFailTable ? (
-                          <span className="text-red-700 font-semibold text-[11px]">Thiếu thông tin</span>
-                        ) : (
-                          '-'
-                        )}
+                      <td className="px-2.5 py-1.5 font-mono whitespace-nowrap border-r border-gray-200">
+                        {item.r4gDate ? item.r4gDate : isFailTable ? <span className="text-red-700 font-semibold text-[11px]">Thiếu thông tin</span> : '-'}
                       </td>
                       {/* Released Date */}
-                      <td className="px-2.5 py-1.5 font-mono border-r border-gray-200">
-                        {item.releasedDate ? (
-                          <span className="inline-flex items-center gap-0.5 text-black font-bold">
-                            <Checks className="size-3 shrink-0 text-black" weight="bold" />
-                            <span>{item.releasedDate}</span>
-                          </span>
-                        ) : isFailTable ? (
-                          <span className="text-red-700 font-semibold text-[11px]">Thiếu thông tin</span>
-                        ) : (
-                          '-'
-                        )}
+                      <td className="px-2.5 py-1.5 font-mono whitespace-nowrap border-r border-gray-200">
+                        {item.releasedDate ? item.releasedDate : isFailTable ? <span className="text-red-700 font-semibold text-[11px]">Thiếu thông tin</span> : '-'}
                       </td>
                       {renderCustomCell(item)}
                     </tr>

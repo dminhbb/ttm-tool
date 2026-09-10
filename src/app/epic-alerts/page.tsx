@@ -9,6 +9,7 @@ import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
 import { EpicStatWidgets } from '@/components/epic-alerts/EpicStatWidgets';
+import { DataAnomalyBadge, DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import type { EpicAlertAccessRole, EpicAlertResponse, EpicAlertRow, StageCell } from '@/lib/epic-alert-types';
 import type { EpicAlertHistoryEntry } from '@/lib/epic-alert-history-service';
@@ -233,13 +234,13 @@ const ALERT_HISTORY_TYPE_LABEL: Record<EpicAlertHistoryEntry['alertType'], strin
   LATE: 'Cảnh báo muộn',
 };
 
-function AlertHistoryButton({ row, onOpen }: { row: EpicAlertRow; onOpen: (epicKey: string) => void }) {
+function AlertHistoryButton({ row, onOpen }: { row: EpicAlertRow; onOpen: (row: EpicAlertRow) => void }) {
   return (
     <button
       type="button"
       className={`ttm-alert-history-trigger${row.hasAlertHistory ? ' has-history' : ''}`}
       title={row.hasAlertHistory ? 'Xem lịch sử cảnh báo Epic' : 'Epic chưa có lịch sử cảnh báo'}
-      onClick={() => { trackDataUsage(); onOpen(row.epicKey); }}
+      onClick={() => { trackDataUsage(); onOpen(row); }}
     >
       <Warning weight="fill" size={16} />
     </button>
@@ -262,13 +263,13 @@ function JiraLinkButton({ epicKey, viewIssueBaseUrl }: { epicKey: string; viewIs
   );
 }
 
-function AlertHistoryPanel({ epicKey, onClose }: { epicKey: string; onClose: () => void }) {
+function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRow; onClose: () => void }) {
   const [entries, setEntries] = useState<EpicAlertHistoryEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/epic-alerts/${encodeURIComponent(epicKey)}/alert-history`)
+    fetch(`/api/epic-alerts/${encodeURIComponent(row.epicKey)}/alert-history`)
       .then(async (res) => ({ ok: res.ok, body: await res.json() }))
       .then(({ ok, body }) => {
         if (cancelled) return;
@@ -277,10 +278,16 @@ function AlertHistoryPanel({ epicKey, onClose }: { epicKey: string; onClose: () 
       })
       .catch(() => { if (!cancelled) setError('Không thể kết nối API.'); });
     return () => { cancelled = true; };
-  }, [epicKey]);
+  }, [row.epicKey]);
 
   return (
-    <Modal isOpen onClose={onClose} title={`Lịch sử cảnh báo — ${epicKey}`} maxWidth="sm">
+    <Modal isOpen onClose={onClose} title={`Lịch sử cảnh báo — ${row.epicKey}`} maxWidth="sm">
+      {row.dataAnomalyViolations.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <h4 className="ttm-alert-popup-section-title">Sai lệch dữ liệu ({row.dataAnomalyViolations.length})</h4>
+          <DataAnomalyList violations={row.dataAnomalyViolations} />
+        </div>
+      )}
       {error && <div className="ttm-note" style={{ background: 'var(--ttm-danger-050)', borderColor: '#f3b3b3', color: 'var(--ttm-danger-700)' }}>{error}</div>}
       {!error && entries === null && <p className="ttm-page-subtitle">Đang tải…</p>}
       {!error && entries?.length === 0 && <p className="ttm-page-subtitle">Chưa có lịch sử cảnh báo cho Epic này.</p>}
@@ -313,7 +320,7 @@ export default function EpicAlertsPage() {
   const [dataIssueFilter, setDataIssueFilter] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [alertHistoryEpicKey, setAlertHistoryEpicKey] = useState<string | null>(null);
+  const [alertHistoryRow, setAlertHistoryRow] = useState<EpicAlertRow | null>(null);
   const viewIssueBaseUrl = useJiraViewIssueUrl();
 
   const fetchData = async () => {
@@ -547,7 +554,7 @@ export default function EpicAlertsPage() {
                 return (
                   <TR key={row.epicKey} className={row.hasDataAnomaly ? 'missing-row' : undefined}>
                     <TD className="ttm-col-border-right">
-                      <AlertHistoryButton row={row} onOpen={setAlertHistoryEpicKey} />
+                      <AlertHistoryButton row={row} onOpen={setAlertHistoryRow} />
                       <JiraLinkButton epicKey={row.epicKey} viewIssueBaseUrl={viewIssueBaseUrl} />
                       <span className="ttm-epic-key" title={`Lớp dữ liệu: ${formatDate(row.dataLayerDate)}`}>{row.epicKey}</span>
                       {row.epicName && (
@@ -599,9 +606,7 @@ export default function EpicAlertsPage() {
                     <TD><StatusBadge status={row.currentStatus} /></TD>
                     <TD>
                       {row.hasDataAnomaly ? (
-                        isMissingCore
-                          ? (row.currentStatus === 'To Do' ? <span className="ttm-empty-warning">—</span> : <span className="ttm-badge fail">Thiếu Start Date</span>)
-                          : <span className="ttm-metric na">Không tính được</span>
+                        <DataAnomalyBadge violations={row.dataAnomalyViolations} />
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
                           {row.alertLevel === 'NONE'
@@ -655,8 +660,8 @@ export default function EpicAlertsPage() {
         Hiển thị {pageRows.length ? (currentPage - 1) * PAGE_SIZE + 1 : 0}–{(currentPage - 1) * PAGE_SIZE + pageRows.length} / {filteredRows.length} Epic{data ? ` — vai trò: ${ACCESS_ROLE_LABEL[data.accessRole]}` : ''}.
       </p>
 
-      {alertHistoryEpicKey && (
-        <AlertHistoryPanel key={alertHistoryEpicKey} epicKey={alertHistoryEpicKey} onClose={() => setAlertHistoryEpicKey(null)} />
+      {alertHistoryRow && (
+        <AlertHistoryPanel key={alertHistoryRow.epicKey} row={alertHistoryRow} onClose={() => setAlertHistoryRow(null)} />
       )}
     </div>
   );

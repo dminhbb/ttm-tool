@@ -11,6 +11,8 @@ import { listTtmPolicies } from '@/lib/ttm-policy-service';
 import { getEpicKeysWithAlertHistory } from '@/lib/epic-alert-history-service';
 import { EPIC_WORKFLOW_STATUS_ORDER, epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { isCancelledStatus, isPendingStatus } from '@/lib/issue-status-rules';
+import { evaluateEpicDataAnomaly as evaluateEpicDataAnomalyImpl } from '@/lib/epic-data-anomaly';
+import type { EpicAnomalyInput } from '@/lib/epic-data-anomaly';
 import { EPIC_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 import type { EpicAlertAccessRole, EpicAlertResponse, EpicAlertRow, StageCell } from '@/lib/epic-alert-types';
 
@@ -66,20 +68,27 @@ export function missingStandardInfo(row: EpicRow): string[] {
   return missing;
 }
 
-/**
- * True when this Epic's date fields can't support a trustworthy TTM calculation — missing Start
- * Date, or the same two chronological-nonsense checks validator.ts downgraded from blocking ERROR
- * to non-blocking WARNING at import time (R4G Date before Start Date, Due Date before T0/Idea
- * Approved Date): these Epics are no longer silently dropped at import, but every Epic Alerts
- * screen groups them at the bottom (highlighted) and shows "Không tính được" for alertLevel/
- * ttmE2eAlertLevel instead of a number a broken date range would produce (see getEpicAlertRows /
- * getEpicAlertRowsPhased, which force both fields to 'NONE' whenever this is true).
- */
-export function hasDataAnomaly(row: Pick<EpicRow, 'dueDate' | 'ideaApprovedDate' | 'r4gDate' | 'startDate'>): boolean {
-  if (!row.startDate) return true;
-  if (row.r4gDate && row.r4gDate < row.startDate) return true;
-  if (row.dueDate && row.ideaApprovedDate && row.dueDate < row.ideaApprovedDate) return true;
-  return false;
+// "Epic bị sai lệch dữ liệu" logic now lives in epic-data-anomaly.ts (shared by every screen,
+// Báo cáo, Dashboard and the alert timeline). Re-exported here so existing imports keep working.
+export { evaluateEpicDataAnomaly, hasDataAnomaly } from '@/lib/epic-data-anomaly';
+export type { EpicAnomalyCode, EpicAnomalyInput, EpicAnomalyViolation } from '@/lib/epic-data-anomaly';
+
+/** Assembles an EpicAnomalyInput from an EpicRow + the resolved TTM-CNTT working-day budget. */
+export function toEpicAnomalyInput(
+  row: Pick<EpicRow, 'dueDate' | 'epicType' | 'ideaApprovedDate' | 'jiraCreatedAt' | 'r4gDate' | 'requirementLevel' | 'startDate' | 'status'>,
+  ttmCnttWorkingDays: number | null,
+): EpicAnomalyInput {
+  return {
+    dueDate: row.dueDate,
+    ideaApprovedDate: row.ideaApprovedDate,
+    jiraCreatedAt: row.jiraCreatedAt,
+    r4gDate: row.r4gDate,
+    requestType: row.epicType,
+    requirementLevel: row.requirementLevel,
+    startDate: row.startDate,
+    status: row.status,
+    ttmCnttWorkingDays,
+  };
 }
 
 export interface TtmActualRange {
@@ -436,9 +445,14 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
     const ttmE2eRelease = resolveTtmE2eRelease(row, ttmE2eTarget, now, holidays);
     // A data anomaly makes alertLevel/ttmE2eAlertLevel meaningless (e.g. R4G Date before Start Date
     // would otherwise compute as a falsely-clean 'NONE'/"Đạt TTM") — force both to 'NONE' so no
-    // filter/badge ever surfaces a fake result; the frontend shows "Không tính được" instead (see
-    // hasDataAnomaly).
-    const dataAnomaly = hasDataAnomaly(row);
+    // filter/badge ever surfaces a fake result; the frontend shows "Không tính được" instead and
+    // lists dataAnomalyViolations so the user knows what to complete (see epic-data-anomaly.ts).
+    const dataAnomalyViolations = evaluateEpicDataAnomalyImpl(
+      toEpicAnomalyInput(row, evaluation.ttm.cntt.workingDays),
+      now,
+      holidays,
+    );
+    const dataAnomaly = dataAnomalyViolations.length > 0;
     const alertLevel = dataAnomaly ? 'NONE' : evaluation.alertLevel;
     const targetR4gDate = parseDate(evaluation.ttm.cntt.targetDate ?? row.targetR4gDate);
     const remainingWorkingDays = targetR4gDate ? diffWorkingDays(now, targetR4gDate, holidays) : null;
@@ -479,6 +493,7 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
       epicType: complexity,
       hasAlertHistory,
       hasDataAnomaly: dataAnomaly,
+      dataAnomalyViolations,
       missingStandardInfo: missingStandardInfo(row),
       ownerName: pmSmName,
       projectKey: row.project ?? '',

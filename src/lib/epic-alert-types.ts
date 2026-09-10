@@ -1,4 +1,7 @@
 import type { AlertLevel, EpicComplexity } from '@/lib/ttm-rules';
+import type { EpicAnomalyViolation } from '@/lib/epic-data-anomaly';
+
+export type { EpicAnomalyViolation } from '@/lib/epic-data-anomaly';
 
 export type StagePillVariant = 'done' | 'earlyAlert' | 'lateAlert' | 'unknown' | 'upcoming';
 
@@ -22,11 +25,13 @@ export interface EpicAlertRow {
   epicName: string;
   epicType: EpicComplexity | null;
   hasAlertHistory: boolean;
-  /** True when startDate is missing, or r4gDate/dueDate are chronologically nonsense relative to
-   * startDate/ideaApprovedDate — see hasDataAnomaly in epic-alert-service.ts. alertLevel and
-   * ttmE2eAlertLevel are forced to 'NONE' whenever this is true; the frontend shows "Không tính
-   * được" instead and groups these rows at the bottom of the table, highlighted. */
+  /** True when this Epic breaks any "sai lệch dữ liệu" rule — see evaluateEpicDataAnomaly in
+   * epic-data-anomaly.ts. alertLevel and ttmE2eAlertLevel are forced to 'NONE' whenever this is
+   * true; the frontend shows "Không tính được", groups these rows at the bottom (highlighted) and
+   * lists dataAnomalyViolations so the user knows exactly what to complete. */
   hasDataAnomaly: boolean;
+  /** Every rule this Epic currently violates (empty when hasDataAnomaly is false). */
+  dataAnomalyViolations: EpicAnomalyViolation[];
   missingStandardInfo: string[];
   /** PM/SM of the Epic's project — comma-joined when there are several, derived live from
    * user_projects (getProjectMetaByProjectKeyMap) — not the Jira assignee. */
@@ -106,11 +111,13 @@ export interface EpicAlertRowPhased {
   epicName: string;
   epicType: EpicComplexity | null;
   hasAlertHistory: boolean;
-  /** True when startDate is missing, or r4gDate/dueDate are chronologically nonsense relative to
-   * startDate/ideaApprovedDate — see hasDataAnomaly in epic-alert-service.ts. alertLevel and
-   * ttmE2eAlertLevel are forced to 'NONE' whenever this is true; the frontend shows "Không tính
-   * được" instead and groups these rows at the bottom of the table, highlighted. */
+  /** True when this Epic breaks any "sai lệch dữ liệu" rule — see evaluateEpicDataAnomaly in
+   * epic-data-anomaly.ts. alertLevel and ttmE2eAlertLevel are forced to 'NONE' whenever this is
+   * true; the frontend shows "Không tính được", groups these rows at the bottom (highlighted) and
+   * lists dataAnomalyViolations so the user knows exactly what to complete. */
   hasDataAnomaly: boolean;
+  /** Every rule this Epic currently violates (empty when hasDataAnomaly is false). */
+  dataAnomalyViolations: EpicAnomalyViolation[];
   missingStandardInfo: string[];
   /** PM/SM of the Epic's project — comma-joined when there are several, derived live from
    * user_projects (getProjectMetaByProjectKeyMap) — not the Jira assignee. */

@@ -128,7 +128,7 @@ function DashboardStatsPanel({ onOpenEpic, showProjectInAtRisk, stats, subtitle,
           <StatTile icon={WarningCircle} label="Cảnh báo muộn" tone="warning" value={stats.alerts.lateWarning} />
           <StatTile icon={WarningCircle} label="Cảnh báo sớm" tone="warning" value={stats.alerts.earlyWarning} />
           <StatTile icon={Clock} label="Sắp đến hạn (≤5 ngày)" tone="warning" value={stats.upcomingDeadlineCount} />
-          <StatTile icon={WarningCircle} label="Thiếu dữ liệu chuẩn" value={stats.missingDataCount} />
+          <StatTile icon={WarningCircle} label="Epic sai lệch dữ liệu" value={stats.dataAnomalyCount} />
         </div>
 
         <div className="grid gap-5 lg:grid-cols-2">

@@ -31,8 +31,9 @@ export interface DashboardStats {
   };
   /** Count of Epics per complexity type (CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34). */
   complexity: Record<EpicComplexity, number>;
+  /** Epics breaking any "sai lệch dữ liệu" rule — unified engine (evaluateEpicDataAnomaly). */
+  dataAnomalyCount: number;
   epicCount: number;
-  missingDataCount: number;
   statusDistribution: DashboardStatusCount[];
   /** Highest-severity epics (FAIL first, then LATE/EARLY, then soonest remaining working days),
    * capped at DASHBOARD_TOP_AT_RISK_LIMIT. */

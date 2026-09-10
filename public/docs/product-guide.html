@@ -73,7 +73,7 @@
     <div class="toc-block">Khối cảnh báo</div>
     <a href="#alert-policy">7. Cấu hình chính sách TTM &amp; rule cảnh báo</a>
     <a href="#alert-logic">8. Logic tính cảnh báo Epic (TTM-CNTT &amp; TTM-E2E)</a>
-    <a href="#data-anomaly">9. Dữ liệu bất thường (không còn bị chặn import)</a>
+    <a href="#data-anomaly">9. Epic sai lệch dữ liệu (không còn bị chặn import)</a>
     <a href="#alert-history">10. Lịch sử cảnh báo tích lũy</a>
     <div class="toc-block">Khối màn hình</div>
     <a href="#screen-epic-alerts">11. Các màn hình giám sát Epic</a>
@@ -752,20 +752,33 @@
 
     <section id="data-anomaly">
       <div class="kicker">Khối cảnh báo</div>
-      <h2>9. Dữ liệu bất thường (không còn bị chặn import)</h2>
+      <h2>9. Epic sai lệch dữ liệu (không còn bị chặn import)</h2>
       <p>
-        Một Epic được đánh dấu <strong>dữ liệu bất thường</strong> khi: thiếu hẳn Start Date, hoặc có R4G Date sớm hơn Start Date, hoặc có Due Date sớm hơn T0.
-        Hai rule sau <strong>trước kia chặn import hoàn toàn</strong> (dòng bị loại khỏi <code>issues</code>) — nay chỉ còn là <span class="badge warning">WARNING</span>
-        không chặn: R4G Date sớm hơn Start Date; Due Date sớm hơn T0.
+        Toàn bộ ứng dụng (3 màn hình giám sát Epic, Báo cáo, Dashboard, dòng thời gian cảnh báo) dùng <strong>chung một hàm</strong>
+        <code>evaluateEpicDataAnomaly()</code> để đánh giá — nên cờ "sai lệch" và danh sách lý do không bao giờ lệch nhau giữa các màn hình.
+        Một Epic có thể vi phạm nhiều rule cùng lúc; ứng dụng liệt kê <strong>đầy đủ từng rule bị vi phạm</strong> ở cột Nhận xét để người phụ trách biết chính xác cần bổ sung gì.
+        Epic sai lệch <strong>không bao giờ bị loại khỏi hệ thống</strong> — vẫn được đưa vào đầy đủ, chỉ bị đánh dấu để hoàn thiện.
       </p>
+      <table>
+        <thead><tr><th>Rule</th><th>Điều kiện vi phạm</th></tr></thead>
+        <tbody>
+          <tr><td>a. Miễn trừ</td><td>Epic ở trạng thái <strong>Cancelled / To Do / In PO / Backlog</strong> được <strong>miễn toàn bộ</strong> các rule bên dưới.</td></tr>
+          <tr><td>b. Thiếu T0</td><td>Trạng thái ≥ <strong>Design</strong> nhưng không có Ngày duyệt ý tưởng (T0).</td></tr>
+          <tr><td>c. Thiếu T1</td><td>Trạng thái ≥ <strong>In Progress</strong> nhưng không có Start Date (T1).</td></tr>
+          <tr><td>d. Pending quá lâu</td><td>Trạng thái <strong>Pending</strong>, số ngày làm việc từ ngày tạo Epic tới hôm nay ≥ <strong>20% chu trình TTM-CNTT</strong> (dùng ngân sách CT-Lv12 nếu không xác định được loại Epic), và Epic thiếu T0 hoặc T1.</td></tr>
+          <tr><td>e. Sai thứ tự ngày</td><td>Không thoả chuỗi <code>Ngày tạo Epic ≤ T0 ≤ T1 &lt; R4G Date &lt; Due Date</code> (chỉ xét mốc đã có giá trị) — mỗi cặp sai sinh 1 lỗi.</td></tr>
+          <tr><td>f. Thiếu phân loại</td><td>Không có <strong>Phân loại yêu cầu</strong> hoặc <strong>Requirement Level</strong> (rỗng hoặc "none").</td></tr>
+        </tbody>
+      </table>
       <p>Epic bị đánh dấu:</p>
       <ul>
         <li>Bị đẩy xuống <strong>cuối bảng</strong> và tô nền highlight trên cả 3 màn hình giám sát.</li>
-        <li>Cột Nhận xét hiện <strong>“Không tính được”</strong> thay vì badge Cảnh báo/Fail hay “Đạt TTM”.</li>
+        <li>Cột Nhận xét hiện badge <strong>“Sai lệch dữ liệu (x)”</strong> (x = số vết sai lệch, màu nâu nhạt) — di chuột lên badge để xem chi tiết từng rule vi phạm trong tooltip; danh sách đầy đủ cũng nằm trong 1 mục riêng "Sai lệch dữ liệu" của popup Epic History. <code>alertLevel</code>/<code>ttmE2eAlertLevel</code> bị ép về <code>NONE</code>.</li>
         <li>Riêng khi Start Date vẫn có (chỉ R4G/Due Date phi logic): dải TTM-CNTT vẫn vẽ bình thường — baseline theo Start Date, thực tế = Start Date → hôm nay (bỏ qua ngày phi logic thay vì vẽ ngược).</li>
       </ul>
       <div class="callout">
         Lý do thiết kế: để user chủ động nhận biết và làm sạch dữ liệu nguồn trên Jira, thay vì Epic bị âm thầm loại khỏi hệ thống mà không ai biết.
+        Lúc import, rule sai thứ tự ngày còn phát sinh <span class="badge warning">WARNING</span> (không chặn) trong nhật ký kiểm tra file.
       </div>
     </section>
 
@@ -1027,7 +1040,7 @@
           <tr><td>Lớp dữ liệu (data layer)</td><td>Tập dữ liệu của một lần import, gắn với một mốc <code>aggregated_at</code></td></tr>
           <tr><td>TTM-CNTT</td><td>Time to Market — Công nghệ thông tin (T1 → R4G). Có 3 mức cảnh báo: Cảnh báo sớm/muộn/Fail</td></tr>
           <tr><td>TTM-E2E</td><td>Time to Market — End to End (T0 → Release/Due Date). Chỉ có Fail/NONE, không có mức sớm/muộn</td></tr>
-          <tr><td>Dữ liệu bất thường</td><td>Epic thiếu Start Date, hoặc R4G Date sớm hơn Start Date, hoặc Due Date sớm hơn T0 — không bị chặn import nhưng bị nhóm cuối bảng, highlight, cột Nhận xét hiện "Không tính được"</td></tr>
+          <tr><td>Epic sai lệch dữ liệu</td><td>Epic vi phạm ≥ 1 trong 6 rule (mục 9): thiếu T0/T1 theo trạng thái, Pending quá lâu, ngày sai thứ tự, thiếu Phân loại yêu cầu/Requirement Level. Không bị chặn import; bị nhóm cuối bảng, highlight, cột Nhận xét hiện badge "Sai lệch dữ liệu" + danh sách rule vi phạm. Đánh giá bằng một hàm dùng chung cho mọi màn hình.</td></tr>
           <tr><td>SUPERVISOR</td><td>Role thứ 4, cùng phạm vi xem toàn hệ thống như SUPERADMIN nhưng chỉ đọc, không có quyền tạo/sửa/xóa</td></tr>
           <tr><td>4 Epic Type (CT-Lv12 / CT-Lv34 / SP-Lv12 / SP-Lv34)</td><td>Phân loại tự động theo <code>Loại yêu cầu</code> + <code>Mức yêu cầu</code> của Epic (mục 5.2), quyết định TTM-CNTT 15, 25 hoặc 30 ngày làm việc</td></tr>
           <tr><td>epic_alert_timeline</td><td>Lịch sử 5 loại cảnh báo của Epic dưới dạng các "đợt" có ngày bắt đầu/kết thúc, phục vụ mục "Dòng thời gian cảnh báo" (mục 10.2)</td></tr>

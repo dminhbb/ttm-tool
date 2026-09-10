@@ -281,6 +281,10 @@
 .ttm-badge.fail { background: var(--ttm-danger-700); color: var(--ttm-white); }
 .ttm-badge.fail-cntt { background: #f78b4d; color: var(--ttm-white); }
 .ttm-badge.fail-e2e { background: #e3b842; color: var(--ttm-white); }
+.ttm-badge.anomaly { background: #ece0cf; color: #6b4e2e; border: 1px solid #d5bd97; cursor: help; }
+.ttm-alert-popup-section-title { margin: 0 0 8px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; color: var(--ttm-brand-700); }
+.ttm-anomaly-list { margin: 4px 0 0; padding-left: 18px; font-size: 12px; color: var(--ttm-text); }
+.ttm-anomaly-list li { margin: 2px 0; }
 .ttm-missing-tag {
   display: inline-block;
   background: #f8c9c9;

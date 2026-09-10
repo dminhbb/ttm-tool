@@ -12,6 +12,7 @@ import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
 import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import { EpicAlertTimeline } from '@/components/epic-alerts/EpicAlertTimeline';
 import { EpicStatWidgets } from '@/components/epic-alerts/EpicStatWidgets';
+import { DataAnomalyBadge, DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import type { EpicAlertAccessRole, EpicAlertPhasedResponse, EpicAlertRowPhased, PhaseCell } from '@/lib/epic-alert-types';
 import type { EpicMilestoneHistoryEntry } from '@/lib/epic-milestone-history-service';
@@ -391,7 +392,13 @@ function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRowPhased; onClose:
           <AlertPopupField label="Lớp dữ liệu đang sử dụng" value={formatDate(row.dataLayerDate)} />
         </div>
         <div className="ttm-alert-popup-right">
-          <h4 className="ttm-alert-popup-section-title">Dòng thời gian cảnh báo</h4>
+          {row.dataAnomalyViolations.length > 0 && (
+            <>
+              <h4 className="ttm-alert-popup-section-title">Sai lệch dữ liệu ({row.dataAnomalyViolations.length})</h4>
+              <DataAnomalyList violations={row.dataAnomalyViolations} />
+            </>
+          )}
+          <h4 className={`ttm-alert-popup-section-title${row.dataAnomalyViolations.length > 0 ? ' ttm-alert-popup-section-title-spaced' : ''}`}>Dòng thời gian cảnh báo</h4>
           <EpicAlertTimeline epicKey={row.epicKey} />
 
           {error && <div className="ttm-note" style={{ background: 'var(--ttm-danger-050)', borderColor: '#f3b3b3', color: 'var(--ttm-danger-700)', marginTop: 16 }}>{error}</div>}
@@ -732,9 +739,7 @@ export default function EpicAlerts15Page() {
                     </TD>
                     <TD>
                       {row.hasDataAnomaly ? (
-                        isMissingCore
-                          ? (row.currentStatus === 'To Do' ? <span className="ttm-empty-warning">—</span> : <span className="ttm-badge fail">Thiếu Start Date</span>)
-                          : <span className="ttm-metric na">Không tính được</span>
+                        <DataAnomalyBadge violations={row.dataAnomalyViolations} />
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
                           {row.alertLevel === 'NONE'

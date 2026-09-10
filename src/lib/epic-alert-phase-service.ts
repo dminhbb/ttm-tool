@@ -4,12 +4,13 @@ import { diffWorkingDays } from '@/lib/working-days';
 import { computeComponentPhaseAlerts, computePhaseAlertLevel, computeTtmPhaseBaselines, epicWorkflowStatusIndex } from '@/lib/ttm-phase-rules';
 import type { TtmPhaseBaseline, TtmPhaseKey } from '@/lib/ttm-phase-rules';
 import {
+  evaluateEpicDataAnomaly,
   fetchEpicAlertContext,
-  hasDataAnomaly,
   missingStandardInfo,
   parseDate,
   resolveTtmActualRange,
   resolveTtmE2eRelease,
+  toEpicAnomalyInput,
   toIsoDate,
 } from '@/lib/epic-alert-service';
 import { computeEpicPhaseCompletionByEpicKey } from '@/lib/epic-phase-completion-service';
@@ -119,9 +120,15 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
     const ttmCnttTarget = evaluation.ttm.cntt.workingDays ?? 0;
     const ttmCnttElapsed = ttmCnttStartDate ? Math.max(0, diffWorkingDays(ttmCnttStartDate, now, holidays)) : null;
     const ttmE2eTarget = evaluation.ttm.e2e.workingDays ?? 0;
-    // See hasDataAnomaly in epic-alert-service.ts — forces alertLevel/ttmE2eAlertLevel to 'NONE'
-    // rather than let a chronologically-nonsense date range compute a falsely-clean result.
-    const dataAnomaly = hasDataAnomaly(row);
+    // See epic-data-anomaly.ts — forces alertLevel/ttmE2eAlertLevel to 'NONE' rather than let a
+    // chronologically-nonsense date range compute a falsely-clean result; dataAnomalyViolations
+    // lists every rule broken so the user knows what to complete.
+    const dataAnomalyViolations = evaluateEpicDataAnomaly(
+      toEpicAnomalyInput(row, evaluation.ttm.cntt.workingDays),
+      now,
+      holidays,
+    );
+    const dataAnomaly = dataAnomalyViolations.length > 0;
     const alertLevel = dataAnomaly ? 'NONE' : evaluation.alertLevel;
 
     const baselines = startDate && ttmCnttTarget ? computeTtmPhaseBaselines(startDate, ttmCnttTarget, holidays) : null;
@@ -185,6 +192,7 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
       epicType: complexity,
       hasAlertHistory,
       hasDataAnomaly: dataAnomaly,
+      dataAnomalyViolations,
       // "Thiếu T0" isn't shown on this screen — Idea Approved Date isn't part of Epic 15's scope.
       missingStandardInfo: missingStandardInfo(row).filter((item) => item !== 'T0'),
       // PM/SM of the Epic's project (comma-joined if several) — not the raw Jira assignee.

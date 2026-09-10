@@ -1,11 +1,11 @@
 import pool from '@/lib/db';
 import { getActiveHolidaySet } from '@/lib/master-data-service';
-import { listActiveStatusAlertRules } from '@/lib/status-alert-rule-service';
-import { listTtmPolicies } from '@/lib/ttm-policy-service';
-import { resolveTtmActualRange, resolveTtmE2eRelease, hasDataAnomaly, missingStandardInfo } from '@/lib/epic-alert-service';
-import { EPIC_WORKFLOW_STATUS_ORDER, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
+import { listTtmPolicies, resolveTtmCnttWorkingDays } from '@/lib/ttm-policy-service';
+import { resolveTtmE2eRelease } from '@/lib/epic-alert-service';
+import { evaluateEpicDataAnomaly } from '@/lib/epic-data-anomaly';
+import { normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { EPIC_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
-import { addWorkingDays, diffWorkingDays, toDateKey } from '@/lib/working-days';
+import { diffWorkingDays, toDateKey } from '@/lib/working-days';
 
 export interface ReportFilterOptions {
   component?: string;
@@ -143,6 +143,7 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
   // DISTINCT ON (issue_key) filtering aggregated_at::date IN (selectedLayerDates) ORDER BY issue_key, aggregated_at DESC
   const epicsResult = await pool.query<{
     aggregatedAt: string;
+    complexity: string | null;
     components: string[] | null;
     dueDate: string | null;
     epicKey: string;
@@ -151,6 +152,7 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
     jiraCreatedAt: string | null;
     projectKey: string;
     r4gDate: string | null;
+    requirementLevel: string | null;
     startDate: string | null;
     status: string;
     summary: string;
@@ -165,6 +167,8 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
         r4g_date::text AS "r4gDate",
         due_date::text AS "dueDate",
         aggregated_at::text AS "aggregatedAt",
+        epic_complexity_type AS complexity,
+        requirement_level AS "requirementLevel",
         components,
         COALESCE(
           NULLIF(SPLIT_PART(issue_key, '-', 1), ''),
@@ -249,15 +253,23 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
       aggregatedAt: row.aggregatedAt,
     };
 
-    // Calculate Data Anomaly
-    const isAnomaly = hasDataAnomaly(epicDataRow);
-    const missingInfo = missingStandardInfo(epicDataRow);
-    const anomalyDetails: string[] = [];
-
-    if (!row.startDate) anomalyDetails.push('Thiếu Start CNTT (T1)');
-    if (!row.ideaApprovedDate) anomalyDetails.push('Thiếu Start E2E (T0)');
-    if (row.r4gDate && row.startDate && row.r4gDate < row.startDate) anomalyDetails.push('R4G Date nhỏ hơn Start CNTT');
-    if (row.dueDate && row.ideaApprovedDate && row.dueDate < row.ideaApprovedDate) anomalyDetails.push('Due Date nhỏ hơn Start E2E');
+    // "Sai lệch dữ liệu" — unified engine shared with every Epic screen, Dashboard and the alert
+    // timeline (see epic-data-anomaly.ts). Cancelled Epics are already skipped above; To Do / In PO
+    // Epics are exempt inside the engine itself (rule a).
+    const ttmCnttWorkingDays = resolveTtmCnttWorkingDays(ttmPolicies, row.complexity);
+    const anomalyViolations = evaluateEpicDataAnomaly({
+      dueDate: row.dueDate,
+      ideaApprovedDate: row.ideaApprovedDate,
+      jiraCreatedAt: row.jiraCreatedAt,
+      r4gDate: row.r4gDate,
+      requestType: row.epicType,
+      requirementLevel: row.requirementLevel,
+      startDate: row.startDate,
+      status: row.status,
+      ttmCnttWorkingDays,
+    }, now, holidays);
+    const isAnomaly = anomalyViolations.length > 0;
+    const anomalyDetails: string[] = anomalyViolations.map((violation) => violation.message);
 
     // Released Date determination
     const releasedDate = isReleased ? (row.dueDate || row.r4gDate || row.aggregatedAt?.slice(0, 10) || null) : null;
@@ -337,12 +349,6 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
       }
     }
 
-    // Chronological Anomaly Check (genuine date conflicts)
-    const hasChronologicalAnomaly = Boolean(
-      (row.r4gDate && row.startDate && row.r4gDate < row.startDate) ||
-      (row.dueDate && row.ideaApprovedDate && row.dueDate < row.ideaApprovedDate)
-    );
-
     const item: ReportEpicItem = {
       actualTtmDays,
       anomalyDetails,
@@ -383,16 +389,16 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
       releasedEpics.push(item);
     }
 
-    // 2. Data Anomaly Table (ONLY genuine chronological anomalies)
-    if (hasChronologicalAnomaly) {
+    // 2. Data Anomaly Table — every Epic breaking any "sai lệch dữ liệu" rule (unified engine).
+    if (isAnomaly) {
       anomalyEpics.push({
         ...item,
-        anomalyDetails: anomalyDetails.length > 0 ? anomalyDetails : ['Dữ liệu sai lệch mốc thời gian'],
+        anomalyDetails: anomalyDetails.length > 0 ? anomalyDetails : ['Dữ liệu sai lệch'],
       });
     }
 
     // 3. Passed TTM Table (Rule 1 & 3: ONLY epics satisfying Pass rule + Table 1,2,3 date filters)
-    if (passesTable123DateFilters && (ttmCnttPassed || ttmE2ePassed) && !hasChronologicalAnomaly) {
+    if (passesTable123DateFilters && (ttmCnttPassed || ttmE2ePassed) && !isAnomaly) {
       let passType = 'Đạt TTM-CNTT';
       if (ttmCnttPassed && ttmE2ePassed) passType = 'Đạt cả TTM-CNTT & TTM-e2e';
       else if (ttmE2ePassed && !ttmCnttPassed) passType = 'Đạt TTM-e2e';

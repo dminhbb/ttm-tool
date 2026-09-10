@@ -63,6 +63,7 @@ const DETAIL_FIELD_LABEL: Record<string, string> = {
   r4gDate: 'R4G Date',
   dueDate: 'Due Date',
   ideaApprovedDate: 'T0 (Idea Approved)',
+  rules: 'Vi phạm',
 };
 
 function formatDetailLines(detail: Record<string, string | number | null> | null): string[] {

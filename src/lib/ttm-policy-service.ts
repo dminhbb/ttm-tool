@@ -1,5 +1,8 @@
 import pool from '@/lib/db';
 import type { TtmPolicy, TtmPolicyInput } from '@/lib/ttm-policy-types';
+import { EPIC_COMPLEXITY_TYPES, type EpicComplexityType } from '@/lib/status-alert-rule-types';
+
+const VALID_COMPLEXITY = new Set<string>(EPIC_COMPLEXITY_TYPES);
 
 const POLICY_COLUMNS = `
   id, ttm_type AS "ttmType", epic_complexity_type AS "epicComplexityType",
@@ -41,4 +44,14 @@ export async function deleteTtmPolicy(id: number): Promise<boolean> {
 
 export function findActiveTtmPolicy(policies: TtmPolicy[], ttmType: TtmPolicy['ttmType'], complexity: TtmPolicy['epicComplexityType']): TtmPolicy | null {
   return policies.find((policy) => policy.isActive && policy.ttmType === ttmType && policy.epicComplexityType === complexity) ?? null;
+}
+
+/** TTM-CNTT working-day budget for an Epic — resolves the active policy for its complexity, falling
+ * back to CT-Lv12's budget when the Epic's own type can't be determined (missing/legacy/invalid).
+ * Matches evaluateIssueCompliance's own `?? 'CT-Lv12'` default and rule d in epic-data-anomaly.ts. */
+export function resolveTtmCnttWorkingDays(policies: TtmPolicy[], complexity: string | null): number | null {
+  const effective: EpicComplexityType = complexity && VALID_COMPLEXITY.has(complexity) ? (complexity as EpicComplexityType) : 'CT-Lv12';
+  return findActiveTtmPolicy(policies, 'TTM_CNTT', effective)?.workingDays
+    ?? findActiveTtmPolicy(policies, 'TTM_CNTT', 'CT-Lv12')?.workingDays
+    ?? null;
 }
