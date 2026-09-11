@@ -287,7 +287,7 @@ export default function DatabaseBackupPage() {
         </CardHeader>
         <CardBody className="gap-4">
           <p className="text-fb-text-secondary">
-            Chỉ chấp nhận file <code>.sql</code> được tạo bởi chính chức năng Export ở trên. Dòng dữ liệu trùng khóa chính (đã tồn tại trong DB) sẽ tự động được <strong>bỏ qua</strong>, không ghi đè.
+            Chỉ chấp nhận file <code>.sql</code> được tạo bởi chính chức năng Export ở trên. Dòng dữ liệu trùng khóa chính (đã tồn tại trong DB) sẽ được <strong>cập nhật (ghi đè)</strong> bằng dữ liệu trong file — không còn bị bỏ qua. (File export từ phiên bản cũ hơn, chưa có ghi đè, vẫn được chấp nhận và giữ hành vi bỏ qua như trước.)
           </p>
           <input ref={fileInputRef} type="file" accept=".sql,application/sql,text/plain" onChange={onFileChange} className="text-fb-text-primary" />
 
@@ -343,6 +343,7 @@ export default function DatabaseBackupPage() {
                   ) : (
                     <span>
                       <Badge variant="success">{formatNumber(table.inserted)} thêm mới</Badge>{' '}
+                      <Badge variant="info">{formatNumber(table.updated)} cập nhật (ghi đè)</Badge>{' '}
                       <Badge variant="neutral">{formatNumber(table.skippedDuplicates)} bỏ qua (trùng)</Badge>
                     </span>
                   )}

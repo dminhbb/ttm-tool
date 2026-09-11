@@ -11,7 +11,7 @@ import { listTtmPolicies } from '@/lib/ttm-policy-service';
 import { getEpicKeysWithAlertHistory } from '@/lib/epic-alert-history-service';
 import { EPIC_WORKFLOW_STATUS_ORDER, epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { isCancelledStatus, isPendingStatus } from '@/lib/issue-status-rules';
-import { evaluateEpicDataAnomaly as evaluateEpicDataAnomalyImpl } from '@/lib/epic-data-anomaly';
+import { breaksTtmCnttCalculation, breaksTtmE2eCalculation, evaluateEpicDataAnomaly as evaluateEpicDataAnomalyImpl } from '@/lib/epic-data-anomaly';
 import type { EpicAnomalyInput } from '@/lib/epic-data-anomaly';
 import { EPIC_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 import type { EpicAlertAccessRole, EpicAlertResponse, EpicAlertRow, StageCell } from '@/lib/epic-alert-types';
@@ -70,7 +70,7 @@ export function missingStandardInfo(row: EpicRow): string[] {
 
 // "Epic bị sai lệch dữ liệu" logic now lives in epic-data-anomaly.ts (shared by every screen,
 // Báo cáo, Dashboard and the alert timeline). Re-exported here so existing imports keep working.
-export { evaluateEpicDataAnomaly, hasDataAnomaly } from '@/lib/epic-data-anomaly';
+export { breaksTtmCnttCalculation, breaksTtmE2eCalculation, evaluateEpicDataAnomaly, hasDataAnomaly } from '@/lib/epic-data-anomaly';
 export type { EpicAnomalyCode, EpicAnomalyInput, EpicAnomalyViolation } from '@/lib/epic-data-anomaly';
 
 /** Assembles an EpicAnomalyInput from an EpicRow + the resolved TTM-CNTT working-day budget. */
@@ -443,17 +443,17 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
     const ttmCnttElapsed = ttmCnttStartDate ? Math.max(0, diffWorkingDays(ttmCnttStartDate, now, holidays)) : null;
     const ttmE2eTarget = evaluation.ttm.e2e.workingDays ?? 0;
     const ttmE2eRelease = resolveTtmE2eRelease(row, ttmE2eTarget, now, holidays);
-    // A data anomaly makes alertLevel/ttmE2eAlertLevel meaningless (e.g. R4G Date before Start Date
-    // would otherwise compute as a falsely-clean 'NONE'/"Đạt TTM") — force both to 'NONE' so no
-    // filter/badge ever surfaces a fake result; the frontend shows "Không tính được" instead and
-    // lists dataAnomalyViolations so the user knows what to complete (see epic-data-anomaly.ts).
+    // "Sai lệch dữ liệu" (badge/report/dashboard/timeline) is the full 6-rule flag — but only a
+    // BROKEN TTM-CNTT calculation (missing Start Date, or R4G Date before it) may force alertLevel
+    // to 'NONE'; a missing Requirement Level or Idea Approved Date etc. must never hide a genuine
+    // Cảnh báo sớm/muộn/Fail TTM-CNTT badge (see breaksTtmCnttCalculation in epic-data-anomaly.ts).
     const dataAnomalyViolations = evaluateEpicDataAnomalyImpl(
       toEpicAnomalyInput(row, evaluation.ttm.cntt.workingDays),
       now,
       holidays,
     );
     const dataAnomaly = dataAnomalyViolations.length > 0;
-    const alertLevel = dataAnomaly ? 'NONE' : evaluation.alertLevel;
+    const alertLevel = breaksTtmCnttCalculation(row) ? 'NONE' : evaluation.alertLevel;
     const targetR4gDate = parseDate(evaluation.ttm.cntt.targetDate ?? row.targetR4gDate);
     const remainingWorkingDays = targetR4gDate ? diffWorkingDays(now, targetR4gDate, holidays) : null;
     const designRule = resolveOffsetRule(complexity, 'Design', statusAlertRules);
@@ -513,7 +513,7 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
       targetR4gDate: toIsoDate(targetR4gDate) ?? row.targetR4gDate,
       ttmCnttElapsedWorkingDays: ttmCnttElapsed,
       ttmCnttTargetWorkingDays: ttmCnttTarget,
-      ttmE2eAlertLevel: dataAnomaly ? 'NONE' : ttmE2eRelease.alertLevel,
+      ttmE2eAlertLevel: breaksTtmE2eCalculation(row) ? 'NONE' : ttmE2eRelease.alertLevel,
       ttmE2eActualToDate: ttmE2eRelease.actualToDate,
       ttmE2eBaselineDate: ttmE2eRelease.baselineDate,
       ttmE2eBaselineSourceDate: ttmE2eRelease.baselineSourceDate,

@@ -7,7 +7,7 @@ import { DEFAULT_RAW_IMPORT_RETENTION_DAYS } from './data-retention-service';
 import { evaluateIssueCompliance } from './epic-compliance-engine';
 import { recordEpicAlertHistory } from './epic-alert-history-service';
 import { resolveTtmE2eRelease } from './epic-alert-service';
-import { evaluateEpicDataAnomaly } from './epic-data-anomaly';
+import { breaksTtmCnttCalculation, breaksTtmE2eCalculation, evaluateEpicDataAnomaly } from './epic-data-anomaly';
 import type { EpicComplexity } from './ttm-rules';
 import { recordEpicAlertTimelineTransitions, type EpicAlertTimelineDetail, type EpicAlertTimelineStates } from './epic-alert-timeline-service';
 import { computeMilestoneCandidates, recordEpicMilestone } from './epic-milestone-history-service';
@@ -214,16 +214,21 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
     }, aggregatedAtDate, holidays);
     const missingStartDateViolation = anomalyViolations.find((v) => v.code === 'MISSING_START_DATE') ?? null;
     const otherAnomalyViolations = anomalyViolations.filter((v) => v.code !== 'MISSING_START_DATE');
-    const dataAnomaly = anomalyViolations.length > 0;
     const ttmE2eRelease = resolveTtmE2eRelease(epic, evaluation.ttm.e2e.workingDays ?? 0, aggregatedAtDate, holidays);
 
-    const failCnttDetail: EpicAlertTimelineDetail | null = !dataAnomaly && evaluation.alertLevel === 'FAIL'
+    // Same narrow gate as the live screens (epic-alert-service.ts / epic-alert-phase-service.ts):
+    // only a genuinely broken TTM-CNTT/E2E calculation suppresses these — NOT the full 6-rule
+    // anomaly flag, or an Epic merely missing Requirement Level would never get its Fail/Cảnh báo
+    // muộn run recorded here even while the live screen correctly shows it today.
+    const cnttBroken = breaksTtmCnttCalculation(epic);
+    const e2eBroken = breaksTtmE2eCalculation(epic);
+    const failCnttDetail: EpicAlertTimelineDetail | null = !cnttBroken && evaluation.alertLevel === 'FAIL'
       ? { fromDate: evaluation.ttm.cntt.fromDate, targetDate: evaluation.ttm.cntt.targetDate }
       : null;
-    const lateCnttDetail: EpicAlertTimelineDetail | null = !dataAnomaly && evaluation.alertLevel === 'LATE'
+    const lateCnttDetail: EpicAlertTimelineDetail | null = !cnttBroken && evaluation.alertLevel === 'LATE'
       ? { fromDate: evaluation.ttm.cntt.fromDate, targetDate: evaluation.ttm.cntt.targetDate }
       : null;
-    const failE2eDetail: EpicAlertTimelineDetail | null = !dataAnomaly && ttmE2eRelease.alertLevel === 'FAIL'
+    const failE2eDetail: EpicAlertTimelineDetail | null = !e2eBroken && ttmE2eRelease.alertLevel === 'FAIL'
       ? { baselineDate: ttmE2eRelease.baselineDate, actualToDate: ttmE2eRelease.actualToDate }
       : null;
 

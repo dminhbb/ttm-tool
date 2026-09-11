@@ -4,6 +4,8 @@ import { diffWorkingDays } from '@/lib/working-days';
 import { computeComponentPhaseAlerts, computePhaseAlertLevel, computeTtmPhaseBaselines, epicWorkflowStatusIndex } from '@/lib/ttm-phase-rules';
 import type { TtmPhaseBaseline, TtmPhaseKey } from '@/lib/ttm-phase-rules';
 import {
+  breaksTtmCnttCalculation,
+  breaksTtmE2eCalculation,
   evaluateEpicDataAnomaly,
   fetchEpicAlertContext,
   missingStandardInfo,
@@ -120,16 +122,18 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
     const ttmCnttTarget = evaluation.ttm.cntt.workingDays ?? 0;
     const ttmCnttElapsed = ttmCnttStartDate ? Math.max(0, diffWorkingDays(ttmCnttStartDate, now, holidays)) : null;
     const ttmE2eTarget = evaluation.ttm.e2e.workingDays ?? 0;
-    // See epic-data-anomaly.ts — forces alertLevel/ttmE2eAlertLevel to 'NONE' rather than let a
-    // chronologically-nonsense date range compute a falsely-clean result; dataAnomalyViolations
-    // lists every rule broken so the user knows what to complete.
+    // "Sai lệch dữ liệu" (badge/report/dashboard/timeline) is the full 6-rule flag — but only a
+    // BROKEN TTM-CNTT/E2E calculation (see breaksTtmCnttCalculation/breaksTtmE2eCalculation) may
+    // force alertLevel/ttmE2eAlertLevel to 'NONE'; a missing Requirement Level etc. must never hide
+    // a genuine Cảnh báo sớm/muộn/Fail badge. dataAnomalyViolations lists every rule broken so the
+    // user knows what to complete.
     const dataAnomalyViolations = evaluateEpicDataAnomaly(
       toEpicAnomalyInput(row, evaluation.ttm.cntt.workingDays),
       now,
       holidays,
     );
     const dataAnomaly = dataAnomalyViolations.length > 0;
-    const alertLevel = dataAnomaly ? 'NONE' : evaluation.alertLevel;
+    const alertLevel = breaksTtmCnttCalculation(row) ? 'NONE' : evaluation.alertLevel;
 
     const baselines = startDate && ttmCnttTarget ? computeTtmPhaseBaselines(startDate, ttmCnttTarget, holidays) : null;
 
@@ -207,7 +211,7 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
       t0IdeaApprovedDate: row.ideaApprovedDate,
       t1StartDate: row.startDate,
       targetR4gDate: toIsoDate(targetR4gDate) ?? row.targetR4gDate,
-      ttmE2eAlertLevel: dataAnomaly ? 'NONE' : ttmE2eRelease.alertLevel,
+      ttmE2eAlertLevel: breaksTtmE2eCalculation(row) ? 'NONE' : ttmE2eRelease.alertLevel,
       ttmActualElapsedWorkingDays: ttmActualElapsed,
       ttmActualFromDate: ttmActualRange.fromDate,
       ttmActualToDate: ttmActualRange.toDate,

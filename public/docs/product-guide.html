@@ -766,14 +766,15 @@
           <tr><td>b. Thiếu T0</td><td>Trạng thái ≥ <strong>Design</strong> nhưng không có Ngày duyệt ý tưởng (T0).</td></tr>
           <tr><td>c. Thiếu T1</td><td>Trạng thái ≥ <strong>In Progress</strong> nhưng không có Start Date (T1).</td></tr>
           <tr><td>d. Pending quá lâu</td><td>Trạng thái <strong>Pending</strong>, số ngày làm việc từ ngày tạo Epic tới hôm nay ≥ <strong>20% chu trình TTM-CNTT</strong> (dùng ngân sách CT-Lv12 nếu không xác định được loại Epic), và Epic thiếu T0 hoặc T1.</td></tr>
-          <tr><td>e. Sai thứ tự ngày</td><td>Không thoả chuỗi <code>Ngày tạo Epic ≤ T0 ≤ T1 &lt; R4G Date &lt; Due Date</code> (chỉ xét mốc đã có giá trị) — mỗi cặp sai sinh 1 lỗi.</td></tr>
+          <tr><td>e. Sai thứ tự ngày</td><td>Không thoả chuỗi <code>T0 ≤ T1 &lt; R4G Date ≤ Due Date</code> (chỉ xét mốc đã có giá trị) — mỗi cặp sai sinh 1 lỗi. R4G Date = Due Date được coi là hợp lệ (không sai lệch). Ngày tạo Epic không bị đối chiếu với T0 (T0 muộn hơn ngày tạo là bình thường).</td></tr>
           <tr><td>f. Thiếu phân loại</td><td>Không có <strong>Phân loại yêu cầu</strong> hoặc <strong>Requirement Level</strong> (rỗng hoặc "none").</td></tr>
         </tbody>
       </table>
       <p>Epic bị đánh dấu:</p>
       <ul>
         <li>Bị đẩy xuống <strong>cuối bảng</strong> và tô nền highlight trên cả 3 màn hình giám sát.</li>
-        <li>Cột Nhận xét hiện badge <strong>“Sai lệch dữ liệu (x)”</strong> (x = số vết sai lệch, màu nâu nhạt) — di chuột lên badge để xem chi tiết từng rule vi phạm trong tooltip; danh sách đầy đủ cũng nằm trong 1 mục riêng "Sai lệch dữ liệu" của popup Epic History. <code>alertLevel</code>/<code>ttmE2eAlertLevel</code> bị ép về <code>NONE</code>.</li>
+        <li>Cột Nhận xét hiện badge <strong>“Sai lệch dữ liệu (x)”</strong> (x = số vết sai lệch, màu nâu nhạt) <strong>cùng lúc</strong> với badge Cảnh báo/Fail/Đạt TTM bình thường (không thay thế nhau) — di chuột lên badge để xem chi tiết từng rule vi phạm trong tooltip; danh sách đầy đủ cũng nằm trong 1 mục riêng "Sai lệch dữ liệu" của popup Epic History.</li>
+        <li><code>alertLevel</code>/<code>ttmE2eAlertLevel</code> chỉ bị ép về <code>NONE</code> khi bản thân phép tính TTM-CNTT/TTM-E2E không đáng tin (thiếu Start Date, hoặc R4G/Due Date phi logic — <code>breaksTtmCnttCalculation</code>/<code>breaksTtmE2eCalculation</code>), <strong>không</strong> phải mọi vết sai lệch trong 6 rule ở mục 9 — một Epic chỉ thiếu Requirement Level (rule f) vẫn hiện đúng Cảnh báo sớm/muộn/Fail bình thường.</li>
         <li>Riêng khi Start Date vẫn có (chỉ R4G/Due Date phi logic): dải TTM-CNTT vẫn vẽ bình thường — baseline theo Start Date, thực tế = Start Date → hôm nay (bỏ qua ngày phi logic thay vì vẽ ngược).</li>
       </ul>
       <div class="callout">
@@ -881,7 +882,7 @@
           <tr><td>Cấu hình ngày nghỉ</td><td><code>/admin/holidays</code></td><td>Danh sách ngày nghỉ + <strong>Ngày làm bù</strong> (khai báo 1 Thứ Bảy/Chủ Nhật là ngày làm việc bình thường) dùng để tính ngày làm việc</td></tr>
           <tr><td>Cấu hình cảnh báo</td><td><code>/admin/status-alert-rules</code></td><td>Tiêu chí TTM Policy (TTM-CNTT &amp; TTM-E2E) + rule Cảnh báo sớm/muộn theo trạng thái</td></tr>
           <tr><td>Ma trận phân quyền</td><td><code>/admin/permissions</code></td><td>Chỉ SUPERADMIN — cấu hình quyền Xem/Thêm/Sửa/Xóa cho từng cặp (tính năng, role)</td></tr>
-          <tr><td>Sao lưu / Phục hồi dữ liệu</td><td><code>/admin/database</code></td><td>Export/Import dạng file SQL dump cho một danh sách bảng cố định (user, Domain, Dự án, phân quyền, ngày nghỉ, rule cảnh báo, <code>import_batches</code>/<code>import_rows</code>, <code>issues</code>, <code>epic_ttm_snapshots</code>, audit log). <strong>Chưa</strong> bao phủ <code>issue_daily_snapshots</code>, <code>epic_alert_history</code>, <code>epic_milestone_history</code></td></tr>
+          <tr><td>Sao lưu / Phục hồi dữ liệu</td><td><code>/admin/database</code></td><td>Export/Import dạng file SQL dump cho một danh sách bảng cố định (user, Domain, Dự án, phân quyền, ngày nghỉ, rule cảnh báo, <code>import_batches</code>/<code>import_rows</code>, <code>issues</code>, <code>epic_ttm_snapshots</code>, audit log). Import dùng <strong>upsert theo khóa chính</strong> — dòng dữ liệu trùng khóa chính đã tồn tại sẽ được <strong>ghi đè</strong> bằng dữ liệu trong file, không còn bị bỏ qua (file export từ bản cũ hơn vẫn tương thích, giữ hành vi bỏ qua). <strong>Chưa</strong> bao phủ <code>issue_daily_snapshots</code>, <code>epic_alert_history</code>, <code>epic_milestone_history</code></td></tr>
         </tbody>
       </table>
     </section>

@@ -166,6 +166,24 @@ async function buildCreateTableStatement(tableName: string): Promise<string> {
   return `CREATE TABLE IF NOT EXISTS ${quoteIdent(tableName)} (\n${columnLines.join(',\n')}\n);`;
 }
 
+/**
+ * Conflict clause for one table's exported INSERTs — an upsert keyed on the table's own primary
+ * key: a row whose PK matches an existing one on import OVERWRITES it with the file's data (every
+ * other column set to EXCLUDED.<col>), rather than being silently skipped. This is what makes
+ * re-importing an export of `users`/`domains`/etc. actually pick up detail-field edits (name,
+ * role, dates, …) instead of a no-op whenever the PK already exists on the target DB. Every
+ * exportable table has a real PRIMARY KEY (verified against schema.sql — SERIAL id, or a composite
+ * key for join tables like user_domains), so the "no PK" fallback below is only a defensive guard.
+ */
+function buildConflictClause(tableName: string, columnNames: string[], primaryKeyColumns: string[]): string {
+  if (primaryKeyColumns.length === 0) return 'ON CONFLICT DO NOTHING';
+  const conflictTarget = primaryKeyColumns.map(quoteIdent).join(', ');
+  const updatableColumns = columnNames.filter((name) => !primaryKeyColumns.includes(name));
+  if (updatableColumns.length === 0) return `ON CONFLICT (${conflictTarget}) DO NOTHING`;
+  const setClause = updatableColumns.map((name) => `${quoteIdent(name)} = EXCLUDED.${quoteIdent(name)}`).join(', ');
+  return `ON CONFLICT (${conflictTarget}) DO UPDATE SET ${setClause}`;
+}
+
 export async function exportTablesToSql(tableNames: string[], includeSchema: boolean): Promise<string> {
   const uniqueTableNames = [...new Set(tableNames)];
   if (uniqueTableNames.length === 0) throw new Error('Vui lòng chọn ít nhất một bảng để export.');
@@ -176,6 +194,7 @@ export async function exportTablesToSql(tableNames: string[], includeSchema: boo
     `-- Generated at: ${new Date().toISOString()}`,
     `-- Tables: ${uniqueTableNames.join(', ')}`,
     `-- Includes schema: ${includeSchema ? 'yes (CREATE TABLE IF NOT EXISTS, columns + primary key only)' : 'no (data only)'}`,
+    '-- Import behavior: rows whose primary key already exists on the target DB are OVERWRITTEN (upsert), not skipped.',
     '',
   ];
 
@@ -186,9 +205,10 @@ export async function exportTablesToSql(tableNames: string[], includeSchema: boo
       lines.push('');
     }
 
-    const columns = await getColumns(tableName);
+    const [columns, primaryKeyColumns] = await Promise.all([getColumns(tableName), getPrimaryKeyColumns(tableName)]);
     const columnNames = columns.map((column) => column.columnName);
     const quotedColumns = columnNames.map(quoteIdent).join(', ');
+    const conflictClause = buildConflictClause(tableName, columnNames, primaryKeyColumns);
     // Date/timestamp columns are selected as ::text so node-postgres never round-trips them
     // through a JS Date (which would shift the calendar date by the server's UTC offset).
     const selectList = columns
@@ -198,7 +218,7 @@ export async function exportTablesToSql(tableNames: string[], includeSchema: boo
 
     for (const row of result.rows) {
       const values = columnNames.map((columnName) => formatSqlValue((row as Record<string, unknown>)[columnName]));
-      lines.push(`INSERT INTO ${quoteIdent(tableName)} (${quotedColumns}) VALUES (${values.join(', ')}) ON CONFLICT DO NOTHING;`);
+      lines.push(`INSERT INTO ${quoteIdent(tableName)} (${quotedColumns}) VALUES (${values.join(', ')}) ${conflictClause};`);
     }
     lines.push('');
   }
@@ -211,11 +231,25 @@ interface ParsedStatement {
    * INSERT statement for one table shares an identical column list (exportTablesToSql always
    * writes the same list for a table), which is what makes batching them together below safe. */
   columns?: string;
+  /** Only set for type INSERT — the ON CONFLICT clause exactly as written, e.g.
+   * `ON CONFLICT ("id") DO UPDATE SET "email" = EXCLUDED."email", ...` (current exports, an
+   * upsert) or `ON CONFLICT DO NOTHING` (files exported before upsert existed — kept accepted for
+   * backward compatibility). Every INSERT for one table shares the same clause. */
+  conflictClause?: string;
   statement: string;
   tableName: string;
   type: 'CREATE_TABLE' | 'INSERT';
   /** Only set for type INSERT — the VALUES(...) tuple's inner content, e.g. `1, 'a@b.com'`. */
   valuesTuple?: string;
+}
+
+/** Accepts exactly the two shapes exportTablesToSql can produce (current upsert-by-PK form, and
+ * the pre-upsert DO NOTHING form for older export files) — never arbitrary ON CONFLICT text, so a
+ * hand-edited file can't smuggle extra SQL into the batched INSERT this clause gets spliced into. */
+function isAllowedConflictClause(clause: string): boolean {
+  return /^ON CONFLICT DO NOTHING$/i.test(clause)
+    || /^ON CONFLICT \([^()]+\) DO NOTHING$/i.test(clause)
+    || /^ON CONFLICT \([^()]+\) DO UPDATE SET (?:"[a-zA-Z0-9_]+" = EXCLUDED\."[a-zA-Z0-9_]+"(?:, )?)+$/i.test(clause);
 }
 
 /** Quote-aware statement splitter: only splits on `;` outside single-quoted strings, and drops `--` line comments. */
@@ -274,13 +308,14 @@ function parseImportFile(sqlText: string): { error: string } | { statements: Par
     if (insertMatch) {
       const tableName = insertMatch[1];
       if (!ALLOWED_TABLE_NAMES.has(tableName)) return { error: `Bảng "${tableName}" trong file không được phép import.` };
-      if (!/\bON CONFLICT DO NOTHING\s*$/i.test(statement)) return { error: 'File chứa câu lệnh INSERT không đúng định dạng export chuẩn (thiếu ON CONFLICT DO NOTHING).' };
-      // Also captures columns/valuesTuple so importSqlFile can batch many rows into one multi-row
-      // INSERT instead of one round trip per row — every statement this app's own export produces
-      // matches this exact shape, so a mismatch here means a hand-edited/foreign file.
-      const shapeMatch = statement.match(/^INSERT INTO "[a-zA-Z0-9_]+" \(([^)]*)\) VALUES \(([\s\S]*)\) ON CONFLICT DO NOTHING$/i);
-      if (!shapeMatch) return { error: 'File chứa câu lệnh INSERT không đúng định dạng export chuẩn.' };
-      statements.push({ columns: shapeMatch[1], statement, tableName, type: 'INSERT', valuesTuple: shapeMatch[2] });
+      // Also captures columns/valuesTuple/conflictClause so importSqlFile can batch many rows into
+      // one multi-row INSERT instead of one round trip per row — every statement this app's own
+      // export produces matches this exact shape, so a mismatch here means a hand-edited/foreign file.
+      const shapeMatch = statement.match(/^INSERT INTO "[a-zA-Z0-9_]+" \(([^)]*)\) VALUES \(([\s\S]*)\) (ON CONFLICT[\s\S]*)$/i);
+      if (!shapeMatch) return { error: 'File chứa câu lệnh INSERT không đúng định dạng export chuẩn (thiếu mệnh đề ON CONFLICT).' };
+      const conflictClause = shapeMatch[3].trim();
+      if (!isAllowedConflictClause(conflictClause)) return { error: 'File chứa câu lệnh INSERT có mệnh đề ON CONFLICT không hợp lệ.' };
+      statements.push({ columns: shapeMatch[1], conflictClause, statement, tableName, type: 'INSERT', valuesTuple: shapeMatch[2] });
       continue;
     }
     return { error: `File chứa câu lệnh không được hỗ trợ: "${statement.slice(0, 80)}..."` };
@@ -325,12 +360,12 @@ export function previewImportFile(sqlText: string): { error: string } | { previe
  */
 export async function importSqlFile(sqlText: string, selectedTables?: Set<string> | null): Promise<ImportResult> {
   const parsed = parseImportFile(sqlText);
-  if ('error' in parsed) return { ok: false, tables: [{ error: parsed.error, inserted: 0, skippedDuplicates: 0, tableName: '(file)' }] };
+  if ('error' in parsed) return { ok: false, tables: [{ error: parsed.error, inserted: 0, skippedDuplicates: 0, tableName: '(file)', updated: 0 }] };
 
   const allTouchedTables = [...new Set(parsed.statements.map((item) => item.tableName))];
   const insertTables = selectedTables ? allTouchedTables.filter((tableName) => selectedTables.has(tableName)) : allTouchedTables;
   const resultByTable = new Map<string, ImportTableResult>();
-  for (const tableName of insertTables) resultByTable.set(tableName, { error: null, inserted: 0, skippedDuplicates: 0, tableName });
+  for (const tableName of insertTables) resultByTable.set(tableName, { error: null, inserted: 0, skippedDuplicates: 0, tableName, updated: 0 });
 
   const client = await getClient();
   try {
@@ -349,27 +384,32 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
     // CSV path (src/lib/import-service.ts): a real export can be tens of thousands of INSERT
     // statements, and awaiting them one at a time turned into a multi-minute request that timed
     // out in production. Grouped per table (every INSERT for one table shares the exact same
-    // column list, guaranteed by exportTablesToSql — see the ParsedStatement.columns comment) and
-    // chunked to stay well under Postgres's 65535-bound-parameter limit; unlike the CSV path this
-    // needs no parameters at all (values are already-formatted SQL literals from the export, not
-    // JS values), so the only cap that matters is statement length, not parameter count.
-    // `RETURNING` on the batched INSERT recovers the same per-row inserted/skipped-duplicate
-    // counts the old one-statement-per-row loop reported (ON CONFLICT DO NOTHING never returns a
-    // row for the ones it skips, so result.rowCount is exactly the inserted count).
+    // column list AND conflict clause, guaranteed by exportTablesToSql — see ParsedStatement's
+    // comments) and chunked to stay well under Postgres's 65535-bound-parameter limit; unlike the
+    // CSV path this needs no parameters at all (values are already-formatted SQL literals from the
+    // export, not JS values), so the only cap that matters is statement length, not parameter count.
+    // `RETURNING (xmax = 0)` distinguishes a freshly-inserted row (xmax = 0) from one that hit the
+    // ON CONFLICT DO UPDATE path (xmax set by the update) — that's how "inserted" vs "updated" (an
+    // existing PK overwritten with the file's data) are told apart. A DO NOTHING clause (older
+    // export files) never returns a row for the ones it skips at all, so those still fall out of
+    // `chunk.length - (returned rows)` into skippedDuplicates, exactly as before upsert existed.
     const INSERT_BATCH_CHUNK_SIZE = 500;
     for (const tableName of insertTables) {
       const insertsForTable = parsed.statements.filter((statement) => statement.type === 'INSERT' && statement.tableName === tableName);
       if (insertsForTable.length === 0) continue;
       const tableResult = resultByTable.get(tableName)!;
       const columns = insertsForTable[0].columns!;
+      const conflictClause = insertsForTable[0].conflictClause!;
       for (let chunkStart = 0; chunkStart < insertsForTable.length; chunkStart += INSERT_BATCH_CHUNK_SIZE) {
         const chunk = insertsForTable.slice(chunkStart, chunkStart + INSERT_BATCH_CHUNK_SIZE);
         const tuples = chunk.map((item) => `(${item.valuesTuple})`).join(', ');
-        const result = await client.query(
-          `INSERT INTO ${quoteIdent(tableName)} (${columns}) VALUES ${tuples} ON CONFLICT DO NOTHING RETURNING 1;`,
+        const result = await client.query<{ isNewRow: boolean }>(
+          `INSERT INTO ${quoteIdent(tableName)} (${columns}) VALUES ${tuples} ${conflictClause} RETURNING (xmax = 0) AS "isNewRow";`,
         );
-        tableResult.inserted += result.rowCount ?? 0;
-        tableResult.skippedDuplicates += chunk.length - (result.rowCount ?? 0);
+        const insertedCount = result.rows.filter((row) => row.isNewRow).length;
+        tableResult.inserted += insertedCount;
+        tableResult.updated += result.rows.length - insertedCount;
+        tableResult.skippedDuplicates += chunk.length - result.rows.length;
       }
     }
 
@@ -396,7 +436,7 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
   } catch (error: unknown) {
     await client.query('ROLLBACK');
     const message = error instanceof Error ? error.message : 'Lỗi không xác định khi import.';
-    return { ok: false, tables: [{ error: message, inserted: 0, skippedDuplicates: 0, tableName: '(transaction rolled back)' }] };
+    return { ok: false, tables: [{ error: message, inserted: 0, skippedDuplicates: 0, tableName: '(transaction rolled back)', updated: 0 }] };
   } finally {
     client.release();
   }

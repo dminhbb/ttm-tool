@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import type { EpicAlertTimelineEntry, EpicAlertTimelineType } from '@/lib/epic-alert-timeline-service';
 
 const DAY_MS = 86_400_000;
@@ -73,14 +74,88 @@ function formatDetailLines(detail: Record<string, string | number | null> | null
     .map(([key, value]) => `${DETAIL_FIELD_LABEL[key] ?? key}: ${typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? formatDate(value) : value}`);
 }
 
+interface TimelineTooltipPortalProps {
+  targetRect: DOMRect;
+  cursorX?: number;
+  content: React.ReactNode;
+  onHide: () => void;
+}
+
+function TimelineTooltipPortal({ targetRect, cursorX, content, onHide }: TimelineTooltipPortalProps) {
+  const tooltipRef = React.useRef<HTMLDivElement>(null);
+  const [pos, setPos] = React.useState<{ top: number; left: number; ready: boolean }>({
+    top: 0,
+    left: 0,
+    ready: false,
+  });
+
+  React.useLayoutEffect(() => {
+    if (!tooltipRef.current) return;
+    const el = tooltipRef.current;
+    const width = el.offsetWidth;
+    const height = el.offsetHeight;
+    const gap = 8;
+
+    // Vertical placement: default above targetRect. If space above < 10px, flip below targetRect
+    let top = targetRect.top - height - gap;
+    if (top < 10) {
+      top = targetRect.bottom + gap;
+    }
+
+    // Horizontal placement: anchor around cursorX or center of targetRect
+    const anchorX = cursorX ?? (targetRect.left + targetRect.width / 2);
+    let left = anchorX - width / 2;
+
+    // Clamp left so tooltip stays inside viewport margins
+    const maxLeft = Math.max(10, window.innerWidth - width - 10);
+    left = Math.max(10, Math.min(maxLeft, left));
+
+    setPos({ top, left, ready: true });
+  }, [targetRect, cursorX, content]);
+
+  React.useEffect(() => {
+    const handleScrollOrResize = () => {
+      onHide();
+    };
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    window.addEventListener('resize', handleScrollOrResize);
+    return () => {
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      window.removeEventListener('resize', handleScrollOrResize);
+    };
+  }, [onHide]);
+
+  if (typeof window === 'undefined' || !document.body) return null;
+
+  return createPortal(
+    <div
+      ref={tooltipRef}
+      className="ttm-timeline-tooltip"
+      style={{
+        position: 'fixed',
+        zIndex: 9999,
+        top: pos.top,
+        left: pos.left,
+        opacity: pos.ready ? 1 : 0,
+        pointerEvents: 'none',
+      }}
+    >
+      {content}
+    </div>,
+    document.body
+  );
+}
+
 interface TimelineRunProps {
   dayWidth: number;
   entry: EpicAlertTimelineEntry;
   rangeStart: string;
   todayKey: string;
+  onShowTooltip: (targetRect: DOMRect, content: React.ReactNode, cursorX?: number) => void;
+  onHideTooltip: () => void;
 }
 
-function TimelineRun({ dayWidth, entry, rangeStart, todayKey }: TimelineRunProps) {
+function TimelineRun({ dayWidth, entry, rangeStart, todayKey, onShowTooltip, onHideTooltip }: TimelineRunProps) {
   const endKey = entry.endDate ?? todayKey;
   const rawStartIndex = daysBetween(rangeStart, entry.startDate);
   const endIndex = daysBetween(rangeStart, endKey);
@@ -93,13 +168,13 @@ function TimelineRun({ dayWidth, entry, rangeStart, todayKey }: TimelineRunProps
     ? `${formatDate(entry.startDate)} → đang tiếp diễn`
     : `${formatDate(entry.startDate)} → ${formatDate(entry.endDate)} (${realDurationDays} ngày)`;
 
-  const tooltip = (
-    <div className="ttm-timeline-tooltip">
+  const tooltipContent = (
+    <>
       <p className="ttm-timeline-tooltip-title">{ALERT_TYPE_LABEL[entry.alertType]}</p>
       <p>{rangeLabel}</p>
       {isTruncated && <p className="ttm-timeline-tooltip-note">Bắt đầu trước khoảng thời gian đang hiển thị</p>}
       {detailLines.map((line) => <p key={line}>{line}</p>)}
-    </div>
+    </>
   );
 
   if (realDurationDays > LONG_RUN_THRESHOLD_DAYS) {
@@ -107,11 +182,13 @@ function TimelineRun({ dayWidth, entry, rangeStart, todayKey }: TimelineRunProps
       <div
         className={`ttm-timeline-run ttm-timeline-run-line ${ALERT_TYPE_CLASS[entry.alertType]}`}
         style={{ left: startIndex * dayWidth, width: (endIndex - startIndex + 1) * dayWidth }}
+        onMouseEnter={(e) => onShowTooltip(e.currentTarget.getBoundingClientRect(), tooltipContent, e.clientX)}
+        onMouseMove={(e) => onShowTooltip(e.currentTarget.getBoundingClientRect(), tooltipContent, e.clientX)}
+        onMouseLeave={onHideTooltip}
       >
         <span className={`ttm-timeline-line ${isTruncated ? 'ttm-timeline-line-cut' : ''}`} />
         {!isTruncated && <span className="ttm-timeline-badge ttm-timeline-badge-start" />}
         <span className={`ttm-timeline-badge ttm-timeline-badge-end ${isOngoing ? 'ttm-timeline-badge-ongoing' : ''}`} />
-        {tooltip}
       </div>
     );
   }
@@ -124,9 +201,10 @@ function TimelineRun({ dayWidth, entry, rangeStart, todayKey }: TimelineRunProps
           key={offset}
           className={`ttm-timeline-run ttm-timeline-run-badge ${ALERT_TYPE_CLASS[entry.alertType]}`}
           style={{ left: (startIndex + offset) * dayWidth }}
+          onMouseEnter={(e) => onShowTooltip(e.currentTarget.getBoundingClientRect(), tooltipContent)}
+          onMouseLeave={onHideTooltip}
         >
           <span className="ttm-timeline-badge" />
-          {tooltip}
         </div>
       ))}
     </>
@@ -155,6 +233,20 @@ export function EpicAlertTimeline({ epicKey }: { epicKey: string }) {
   const [hasMoreOlder, setHasMoreOlder] = React.useState(true);
   const [loadingOlder, setLoadingOlder] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  const [activeTooltip, setActiveTooltip] = React.useState<{
+    targetRect: DOMRect;
+    cursorX?: number;
+    content: React.ReactNode;
+  } | null>(null);
+
+  const handleShowTooltip = React.useCallback((targetRect: DOMRect, content: React.ReactNode, cursorX?: number) => {
+    setActiveTooltip({ targetRect, cursorX, content });
+  }, []);
+
+  const handleHideTooltip = React.useCallback(() => {
+    setActiveTooltip(null);
+  }, []);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -260,13 +352,29 @@ export function EpicAlertTimeline({ epicKey }: { epicKey: string }) {
               {ALERT_TYPE_ORDER.map((alertType) => (
                 <div key={alertType} className="ttm-timeline-track">
                   {(entriesByType.get(alertType) ?? []).map((entry) => (
-                    <TimelineRun key={`${entry.alertType}-${entry.startDate}`} entry={entry} rangeStart={rangeStart} todayKey={todayKey} dayWidth={DAY_WIDTH_PX} />
+                    <TimelineRun
+                      key={`${entry.alertType}-${entry.startDate}`}
+                      entry={entry}
+                      rangeStart={rangeStart}
+                      todayKey={todayKey}
+                      dayWidth={DAY_WIDTH_PX}
+                      onShowTooltip={handleShowTooltip}
+                      onHideTooltip={handleHideTooltip}
+                    />
                   ))}
                 </div>
               ))}
             </div>
           </div>
         </div>
+      )}
+      {activeTooltip && (
+        <TimelineTooltipPortal
+          targetRect={activeTooltip.targetRect}
+          cursorX={activeTooltip.cursorX}
+          content={activeTooltip.content}
+          onHide={handleHideTooltip}
+        />
       )}
     </div>
   );

@@ -738,18 +738,18 @@ export default function EpicAlerts15Page() {
                       )}
                     </TD>
                     <TD>
-                      {row.hasDataAnomaly ? (
-                        <DataAnomalyBadge violations={row.dataAnomalyViolations} />
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
-                          {row.alertLevel === 'NONE'
-                            ? (row.r4gDate
-                              ? <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT đúng hạn theo rule">Đạt TTM</span>
-                              : <span className="ttm-empty-warning">—</span>)
-                            : <span className={`ttm-badge ${ALERT_BADGE_CLASS[row.alertLevel]}`}>{row.alertLevel === 'EARLY' ? 'Cảnh báo sớm' : row.alertLevel === 'LATE' ? 'Cảnh báo muộn' : 'Fail TTM-CNTT'}</span>}
-                          {row.ttmE2eAlertLevel === 'FAIL' && <span className="ttm-badge fail-e2e">Fail TTM-E2E</span>}
-                        </div>
-                      )}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                        {row.alertLevel === 'NONE'
+                          ? (row.r4gDate
+                            ? <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT đúng hạn theo rule">Đạt TTM</span>
+                            : <span className="ttm-empty-warning">—</span>)
+                          : <span className={`ttm-badge ${ALERT_BADGE_CLASS[row.alertLevel]}`}>{row.alertLevel === 'EARLY' ? 'Cảnh báo sớm' : row.alertLevel === 'LATE' ? 'Cảnh báo muộn' : 'Fail TTM-CNTT'}</span>}
+                        {row.ttmE2eAlertLevel === 'FAIL' && <span className="ttm-badge fail-e2e">Fail TTM-E2E</span>}
+                        {/* "Sai lệch dữ liệu" is informational (missing Requirement Level, T0, …) —
+                            shown alongside the alert badges above, never hiding them (see
+                            breaksTtmCnttCalculation/breaksTtmE2eCalculation in epic-data-anomaly.ts). */}
+                        {row.hasDataAnomaly && <DataAnomalyBadge violations={row.dataAnomalyViolations} />}
+                      </div>
                     </TD>
                     {isMissingCore ? (
                       <TD className="ttm-metric na">Không tính được</TD>

@@ -638,11 +638,9 @@
 .ttm-timeline-badge-end { right: 0; }
 .ttm-timeline-badge-ongoing { box-shadow: 0 0 0 3px rgba(0, 0, 0, .15); }
 .ttm-timeline-tooltip {
-  display: none;
-  position: absolute;
-  top: 20px;
-  left: 0;
-  z-index: 5;
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
   white-space: nowrap;
   background: var(--ttm-neutral-900);
   color: var(--ttm-white);
@@ -650,9 +648,9 @@
   padding: 6px 9px;
   font-size: 11px;
   line-height: 1.5;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, .18);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .35);
+  transition: opacity 0.1s ease-in-out;
 }
-.ttm-timeline-run:hover .ttm-timeline-tooltip { display: block; }
 .ttm-timeline-tooltip-title { font-weight: 700; margin-bottom: 2px; }
 .ttm-timeline-tooltip-note { color: var(--ttm-warning-100); }
 

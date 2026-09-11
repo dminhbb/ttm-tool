@@ -19,8 +19,10 @@ import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-
  *       TTM-CNTT working-day budget (CT-Lv12's budget when the Epic's own type can't be resolved),
  *       and it's missing T0 or T1 → anomaly.
  *  - e. date sequence must hold for whichever of these are present:
- *       created ≤ Idea Approved Date ≤ Start Date < R4G Date < Due Date. Any inversion → anomaly
- *       (one violation per bad pair).
+ *       Idea Approved Date ≤ Start Date < R4G Date ≤ Due Date. Any inversion → anomaly (one
+ *       violation per bad pair). R4G Date == Due Date is allowed (not an anomaly) — that's the
+ *       normal case for an Epic released the same day it hits R4GOLIVE. The Epic's created date is
+ *       NOT checked against Idea Approved Date (a later Idea Approved Date than created is normal).
  *  - f. missing Phân loại yêu cầu (request type) or Requirement Level → anomaly ("" or "none").
  *  An Epic can carry several violations at once; the caller shows the full list so the user knows
  *  exactly what to fix.
@@ -115,11 +117,11 @@ export function evaluateEpicDataAnomaly(input: EpicAnomalyInput, now: Date, holi
     }
   }
 
-  // Rule e — created ≤ T0 ≤ T1 < R4G < Due, for the values that are present.
-  if (created && t0 && created > t0) violations.push({ code: 'DATE_OUT_OF_SEQUENCE', message: 'Sai thứ tự ngày: Ngày tạo Epic muộn hơn Ngày duyệt ý tưởng (T0)' });
+  // Rule e — T0 ≤ T1 < R4G ≤ Due, for the values that are present. created vs T0 is NOT checked
+  // (a later Idea Approved Date than the Jira creation date is normal); R4G == Due is allowed.
   if (t0 && t1 && t0 > t1) violations.push({ code: 'DATE_OUT_OF_SEQUENCE', message: 'Sai thứ tự ngày: Ngày duyệt ý tưởng (T0) muộn hơn Start Date (T1)' });
   if (t1 && r4g && t1 >= r4g) violations.push({ code: 'DATE_OUT_OF_SEQUENCE', message: 'Sai thứ tự ngày: Start Date (T1) không sớm hơn R4G Date' });
-  if (r4g && due && r4g >= due) violations.push({ code: 'DATE_OUT_OF_SEQUENCE', message: 'Sai thứ tự ngày: R4G Date không sớm hơn Due Date' });
+  if (r4g && due && r4g > due) violations.push({ code: 'DATE_OUT_OF_SEQUENCE', message: 'Sai thứ tự ngày: R4G Date muộn hơn Due Date' });
 
   // Rule f — classification fields.
   if (isBlank(input.requestType)) violations.push({ code: 'MISSING_REQUEST_TYPE', message: 'Thiếu Phân loại yêu cầu' });
@@ -130,4 +132,35 @@ export function evaluateEpicDataAnomaly(input: EpicAnomalyInput, now: Date, holi
 
 export function hasDataAnomaly(input: EpicAnomalyInput, now: Date, holidays: HolidaySet): boolean {
   return evaluateEpicDataAnomaly(input, now, holidays).length > 0;
+}
+
+/**
+ * Whether Start Date is missing or chronologically nonsense relative to R4G Date — the only
+ * condition that makes the TTM-CNTT early/late/fail calculation itself unreliable enough to force
+ * alertLevel to 'NONE' rather than risk showing a falsely-clean result (e.g. R4G Date before Start
+ * Date would otherwise compute a bogus "on time"). Deliberately much narrower than
+ * evaluateEpicDataAnomaly(): a missing Requirement Level, missing T0, or a Pending Epic sitting too
+ * long has no bearing on this specific calculation and must never suppress a genuine Cảnh báo
+ * sớm/muộn/Fail TTM-CNTT badge — that was the 2026-09 regression this function fixes (rules b/c/d/f
+ * being folded into a single "suppress alertLevel" switch hid the alert on most real Epics, which
+ * are still missing Requirement Level / Idea Approved Date for unrelated reasons).
+ */
+export function breaksTtmCnttCalculation(input: Pick<EpicAnomalyInput, 'r4gDate' | 'startDate'>): boolean {
+  const t1 = dateOnly(input.startDate);
+  const r4g = dateOnly(input.r4gDate);
+  return !t1 || Boolean(r4g && r4g < t1);
+}
+
+/**
+ * Whether Due Date is chronologically nonsense relative to Idea Approved Date (T0) — the only
+ * condition that makes the TTM-E2E Fail calculation itself unreliable (resolveTtmE2eRelease
+ * already falls back T0 → Jira creation date on its own, so a merely-missing T0 is never a problem
+ * here). Same narrow-vs-evaluateEpicDataAnomaly() reasoning as breaksTtmCnttCalculation above —
+ * this must never be the full 6-rule anomaly flag, or a missing Requirement Level would hide a
+ * genuine Fail TTM-E2E badge.
+ */
+export function breaksTtmE2eCalculation(input: Pick<EpicAnomalyInput, 'dueDate' | 'ideaApprovedDate'>): boolean {
+  const t0 = dateOnly(input.ideaApprovedDate);
+  const due = dateOnly(input.dueDate);
+  return Boolean(t0 && due && due < t0);
 }
