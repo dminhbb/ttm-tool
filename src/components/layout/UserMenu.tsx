@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { BookOpen, FlowArrow, GearSix, Key, SignOut, UserCircle, Warning } from '@phosphor-icons/react';
+import { Baby, BookOpen, FlowArrow, GearSix, Key, SignOut, Warning } from '@phosphor-icons/react';
 import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
@@ -139,7 +139,7 @@ export function UserMenu({ expanded }: UserMenuProps) {
             className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-fb-text-primary transition-colors hover:bg-fb-control"
             role="menuitem"
           >
-            <UserCircle className="size-4 shrink-0" weight="bold" aria-hidden="true" />
+            <Baby className="size-4 shrink-0" weight="bold" aria-hidden="true" />
             <span>Thông tin cá nhân</span>
           </button>
           <button
@@ -204,7 +204,7 @@ export function UserMenu({ expanded }: UserMenuProps) {
         aria-expanded={isMenuOpen}
         aria-haspopup="menu"
       >
-        <span className="ui-avatar">{(user?.fullName || user?.email || 'U').trim().charAt(0).toUpperCase()}</span>
+        <Baby className="size-6 shrink-0 text-fb-text-primary" weight="bold" aria-hidden="true" />
         {expanded && (
           <span className="min-w-0">
             <span className="block truncate text-xs font-bold text-fb-text-primary">{user?.fullName || 'Đang tải...'}</span>
