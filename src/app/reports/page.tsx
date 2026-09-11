@@ -49,7 +49,7 @@ export default function ReportsPage() {
   const [selectedDomainId, setSelectedDomainId] = React.useState<string>('ALL');
   const [selectedProjectKey, setSelectedProjectKey] = React.useState<string>('');
   const [selectedComponent, setSelectedComponent] = React.useState<string>('ALL');
-  const [selectedLayers, setSelectedLayers] = React.useState<string[]>([]);
+  const [selectedLayerAnchor, setSelectedLayerAnchor] = React.useState<string>('');
 
   // Collapsible Advanced Config
   const [advancedConfigOpen, setAdvancedConfigOpen] = React.useState(false);
@@ -87,7 +87,7 @@ export default function ReportsPage() {
 
         // Default select latest layer (index 0)
         if (layers.length > 0) {
-          setSelectedLayers([layers[0]]);
+          setSelectedLayerAnchor(layers[0]);
         }
         // Default select first project if available
         if (data.projects && data.projects.length > 0) {
@@ -129,55 +129,24 @@ export default function ReportsPage() {
   }, [filteredProjects, selectedProjectKey]);
 
   /**
-   * Flexible consecutive layer selection rule:
+   * Single layer selection rule:
    * 1. Default selects newest layer (index 0).
-   * 2. User can choose older layers or unselect index 0.
-   * 3. Always maintains a single contiguous consecutive range of layer dates.
+   * 2. User can pick exactly 1 layer (older or the newest) — clicking a layer replaces the previous pick.
+   * 3. Report data always drills down from the selected layer through all older layers
+   *    (layerDates is sorted newest-first, so this is layerDates.slice(selectedIndex)).
    */
-  const handleToggleConsecutiveLayer = (index: number) => {
-    const targetLayer = layerDates[index];
-    const isAlreadySelected = selectedLayers.includes(targetLayer);
-
-    if (isAlreadySelected) {
-      if (selectedLayers.length === 1) {
-        setSelectedLayers([]);
-        return;
-      }
-      const selectedIndices = selectedLayers
-        .map((l) => layerDates.indexOf(l))
-        .filter((i) => i !== -1)
-        .sort((a, b) => a - b);
-      const minIdx = selectedIndices[0];
-      const maxIdx = selectedIndices[selectedIndices.length - 1];
-
-      if (index === minIdx) {
-        setSelectedLayers(layerDates.slice(minIdx + 1, maxIdx + 1));
-      } else if (index === maxIdx) {
-        setSelectedLayers(layerDates.slice(minIdx, maxIdx));
-      } else {
-        setSelectedLayers(layerDates.slice(minIdx, index + 1));
-      }
-    } else {
-      if (selectedLayers.length === 0) {
-        setSelectedLayers([targetLayer]);
-        return;
-      }
-      const selectedIndices = selectedLayers
-        .map((l) => layerDates.indexOf(l))
-        .filter((i) => i !== -1)
-        .sort((a, b) => a - b);
-      const minIdx = selectedIndices[0];
-      const maxIdx = selectedIndices[selectedIndices.length - 1];
-
-      if (index < minIdx) {
-        setSelectedLayers(layerDates.slice(index, maxIdx + 1));
-      } else if (index > maxIdx) {
-        setSelectedLayers(layerDates.slice(minIdx, index + 1));
-      } else {
-        setSelectedLayers(layerDates.slice(minIdx, maxIdx + 1));
-      }
-    }
+  const handleSelectLayer = (index: number) => {
+    setSelectedLayerAnchor(layerDates[index]);
   };
+
+  // Full set of layer dates actually sent to the report query: the selected layer plus every older layer,
+  // so the backend's fallback logic can drill down for epics missing from the selected snapshot.
+  const selectedLayers = React.useMemo(() => {
+    if (!selectedLayerAnchor) return [];
+    const anchorIdx = layerDates.indexOf(selectedLayerAnchor);
+    if (anchorIdx === -1) return [];
+    return layerDates.slice(anchorIdx);
+  }, [layerDates, selectedLayerAnchor]);
 
   const handleResetFilter = () => {
     setSelectedDomainId('ALL');
@@ -189,7 +158,7 @@ export default function ReportsPage() {
     setStartDateFrom('');
     setReleasedDateFrom('');
     if (layerDates.length > 0) {
-      setSelectedLayers([layerDates[0]]);
+      setSelectedLayerAnchor(layerDates[0]);
     }
     setReport(null);
     setReportError(null);
@@ -200,8 +169,8 @@ export default function ReportsPage() {
       alert('Vui lòng chọn Dự án!');
       return;
     }
-    if (selectedLayers.length === 0) {
-      alert('Vui lòng chọn ít nhất 1 Lớp dữ liệu!');
+    if (!selectedLayerAnchor || selectedLayers.length === 0) {
+      alert('Vui lòng chọn 1 Lớp dữ liệu!');
       return;
     }
 
@@ -420,9 +389,9 @@ export default function ReportsPage() {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-[11px] font-bold text-black">
-                    7. Lịch sử báo cáo (Lớp dữ liệu liên tiếp) <span className="text-[#1463f7]">*</span>
+                    7. Lịch sử báo cáo (Lớp dữ liệu) <span className="text-[#1463f7]">*</span>
                   </label>
-                  <span className="text-[10px] text-gray-700 font-medium">Chọn các lớp dữ liệu liên tiếp nhau.</span>
+                  <span className="text-[10px] text-gray-700 font-medium">Chọn 1 lớp dữ liệu, dữ liệu sẽ tự động drill xuống các lớp cũ hơn nếu thiếu.</span>
                 </div>
 
                 {layerDates.length === 0 ? (
@@ -430,14 +399,14 @@ export default function ReportsPage() {
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     {layerDates.map((layer, idx) => {
-                      const isSelected = selectedLayers.includes(layer);
+                      const isSelected = layer === selectedLayerAnchor;
 
                       return (
                         <button
                           key={layer}
                           type="button"
-                          onClick={() => handleToggleConsecutiveLayer(idx)}
-                          title={`Tích chọn liên tiếp lớp dữ liệu ${layer}`}
+                          onClick={() => handleSelectLayer(idx)}
+                          title={`Chọn lớp dữ liệu ${layer} (drill xuống các lớp cũ hơn)`}
                           className={`flex items-center gap-1.5 rounded-none border px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
                             isSelected
                               ? 'border-[#1463f7] bg-[#1463f7] text-white'
@@ -460,7 +429,7 @@ export default function ReportsPage() {
         {/* Generate Report & Reset Submit Buttons */}
         <div className="flex items-center justify-between border-t border-slate-300 pt-3">
           <p className="text-[11px] text-gray-800 font-medium">
-            Đã chọn dự án: <strong className="text-black">{selectedProjectKey || 'Chưa chọn'}</strong> | Lớp dữ liệu liên tiếp: <strong className="text-[#1463f7]">{selectedLayers.length} lớp</strong>
+            Đã chọn dự án: <strong className="text-black">{selectedProjectKey || 'Chưa chọn'}</strong> | Lớp dữ liệu: <strong className="text-[#1463f7]">{selectedLayerAnchor || 'Chưa chọn'}</strong> (drill {selectedLayers.length} lớp)
           </p>
           <div className="flex items-center gap-2">
             <button

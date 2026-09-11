@@ -2,7 +2,10 @@ import pool from '@/lib/db';
 import { getActiveHolidaySet } from '@/lib/master-data-service';
 import { listTtmPolicies, resolveTtmCnttWorkingDays } from '@/lib/ttm-policy-service';
 import { resolveTtmE2eRelease } from '@/lib/epic-alert-service';
-import { evaluateEpicDataAnomaly } from '@/lib/epic-data-anomaly';
+import { evaluateIssueCompliance } from '@/lib/epic-compliance-engine';
+import { breaksTtmCnttCalculation, breaksTtmE2eCalculation, evaluateEpicDataAnomaly } from '@/lib/epic-data-anomaly';
+import { listActiveStatusAlertRules } from '@/lib/status-alert-rule-service';
+import type { EpicComplexityType } from '@/lib/status-alert-rule-types';
 import { normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { EPIC_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 import { diffWorkingDays, toDateKey } from '@/lib/working-days';
@@ -203,9 +206,10 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
   }
 
   // Fetch TTM rules & holidays for TTM calculations
-  const [holidays, ttmPolicies] = await Promise.all([
+  const [holidays, ttmPolicies, statusAlertRules] = await Promise.all([
     getActiveHolidaySet(),
     listTtmPolicies(true),
+    listActiveStatusAlertRules(),
   ]);
 
   const now = new Date();
@@ -287,66 +291,52 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
     // Status valid for PASS: MUST be R4GOLIVE or RELEASED
     const isStatusValidForPass = normStatus === 'R4GOLIVE' || normStatus === 'RELEASED' || upperStatus.includes('R4G') || upperStatus.includes('RELEASED');
 
-    // Closing & Target dates
-    const cnttClosingDate = row.r4gDate;
-    const targetCnttDate = row.dueDate;
+    // Canonical TTM-CNTT / TTM-E2E evaluation — same functions used by Quản trị Epic / Dashboard /
+    // alert timeline (evaluateIssueCompliance → computeTtmAlert, resolveTtmE2eRelease), gated by the
+    // same breaksTtmCnttCalculation/breaksTtmE2eCalculation narrow checks, so Bảng 2/3 always agree
+    // with the live screens instead of re-deriving Pass/Fail from Due Date.
+    const complianceEvaluation = evaluateIssueCompliance({
+      dueDate: row.dueDate,
+      epicComplexityType: row.complexity as EpicComplexityType | null,
+      ideaApprovedDate: row.ideaApprovedDate,
+      issueKey: row.epicKey,
+      issueType: 'EPIC',
+      r4gDate: row.r4gDate,
+      startDate: row.startDate,
+      status: row.status,
+    }, now, holidays, statusAlertRules, ttmPolicies);
+    const cnttBroken = breaksTtmCnttCalculation(row);
+    const cnttAlertLevel = cnttBroken ? 'NONE' : complianceEvaluation.alertLevel;
+    const targetCnttDate = complianceEvaluation.ttm.cntt.targetDate;
 
-    const e2eTargetDays = ttmPolicies.find((p) => p.ttmType === 'TTM_E2E')?.workingDays ?? 30;
+    const e2eTargetDays = complianceEvaluation.ttm.e2e.workingDays ?? 0;
     const e2eEval = resolveTtmE2eRelease(epicDataRow, e2eTargetDays, now, holidays);
-    const e2eClosingDate = row.dueDate || releasedDate;
+    const e2eBroken = breaksTtmE2eCalculation(row);
+    const e2eAlertLevel = e2eBroken ? 'NONE' : e2eEval.alertLevel;
     const targetE2eDate = e2eEval.baselineDate;
 
-    // Rule 1: TTM-CNTT Pass condition: r4gDate <= targetCnttDate AND status is R4GOLIVE/RELEASED
-    const ttmCnttPassed = Boolean(
-      cnttClosingDate &&
-      targetCnttDate &&
-      cnttClosingDate <= targetCnttDate &&
-      isStatusValidForPass
-    );
+    // Pass: the Epic actually reached R4G/Released status AND the canonical engine says it did so
+    // within its TTM budget (not FAIL).
+    const ttmCnttPassed = Boolean(row.r4gDate) && !cnttBroken && cnttAlertLevel !== 'FAIL' && isStatusValidForPass;
+    const ttmE2ePassed = Boolean(row.dueDate || releasedDate) && !e2eBroken && e2eAlertLevel !== 'FAIL' && isStatusValidForPass;
 
-    // Rule 1: TTM-e2e Pass condition: dueDate <= targetE2eDate AND status is R4GOLIVE/RELEASED
-    const ttmE2ePassed = Boolean(
-      e2eClosingDate &&
-      targetE2eDate &&
-      e2eClosingDate <= targetE2eDate &&
-      isStatusValidForPass
-    );
-
-    // Actual Fail determination: An epic fails only if it is actually overdue or has invalid status on completion
+    // Fail: the canonical engine's FAIL determination — no separate "wrong status" fail concept.
     let actualCnttFail = false;
     let cnttFailReason: string | null = null;
-
-    if (!ttmCnttPassed) {
-      if (cnttClosingDate && targetCnttDate && cnttClosingDate > targetCnttDate) {
-        actualCnttFail = true;
-        cnttFailReason = !isStatusValidForPass
-          ? 'Epic Status không đúng'
-          : `Fail TTM-CNTT (${formatDateVietnamese(cnttClosingDate)}>${formatDateVietnamese(targetCnttDate)})`;
-      } else if (cnttClosingDate && targetCnttDate && cnttClosingDate <= targetCnttDate && !isStatusValidForPass) {
-        actualCnttFail = true;
-        cnttFailReason = 'Epic Status không đúng';
-      } else if (!cnttClosingDate && targetCnttDate && todayKey > targetCnttDate && !isReleased) {
-        actualCnttFail = true;
-        cnttFailReason = `Fail TTM-CNTT (Quá hạn ${formatDateVietnamese(targetCnttDate)})`;
-      }
+    if (cnttAlertLevel === 'FAIL') {
+      actualCnttFail = true;
+      cnttFailReason = targetCnttDate
+        ? `Fail TTM-CNTT (${formatDateVietnamese(row.r4gDate ?? todayKey)}>${formatDateVietnamese(targetCnttDate)})`
+        : 'Fail TTM-CNTT';
     }
 
     let actualE2eFail = false;
     let e2eFailReason: string | null = null;
-
-    if (!ttmE2ePassed) {
-      if (e2eClosingDate && targetE2eDate && e2eClosingDate > targetE2eDate) {
-        actualE2eFail = true;
-        e2eFailReason = !isStatusValidForPass
-          ? 'Epic Status không đúng'
-          : `Fail TTM-e2e (${formatDateVietnamese(e2eClosingDate)}>${formatDateVietnamese(targetE2eDate)})`;
-      } else if (e2eClosingDate && targetE2eDate && e2eClosingDate <= targetE2eDate && !isStatusValidForPass) {
-        actualE2eFail = true;
-        e2eFailReason = 'Epic Status không đúng';
-      } else if (!e2eClosingDate && targetE2eDate && todayKey > targetE2eDate && !isReleased) {
-        actualE2eFail = true;
-        e2eFailReason = `Fail TTM-e2e (Quá hạn ${formatDateVietnamese(targetE2eDate)})`;
-      }
+    if (e2eAlertLevel === 'FAIL') {
+      actualE2eFail = true;
+      e2eFailReason = targetE2eDate
+        ? `Fail TTM-e2e (${formatDateVietnamese(e2eEval.actualToDate)}>${formatDateVietnamese(targetE2eDate)})`
+        : 'Fail TTM-e2e';
     }
 
     const item: ReportEpicItem = {
