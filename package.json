@@ -15,6 +15,7 @@
     "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@phosphor-icons/react": "^2.1.10",
     "@tailwindcss/postcss": "^4.3.3",
     "bcryptjs": "^3.0.2",
@@ -24,7 +25,8 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "tailwind-merge": "^3.6.0",
-    "tailwindcss": "^4.3.3"
+    "tailwindcss": "^4.3.3",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.11",

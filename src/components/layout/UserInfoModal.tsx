@@ -4,6 +4,7 @@ import * as React from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { PersonalAccessTokensPanel } from '@/components/settings/PersonalAccessTokensPanel';
 import type { AuthUser, DomainSummary, ProjectSummary, UserProfileDetails } from '@/lib/auth-types';
 
 export interface UserInfoModalProps {
@@ -78,6 +79,7 @@ export function UserInfoModal({ isOpen, onClose }: UserInfoModalProps) {
       onClose={onClose}
       title="Thông tin người dùng"
       footer={<Button variant="outline" onClick={onClose}>Đóng</Button>}
+      maxWidth="lg"
     >
       {error && <p className="text-sm text-status-danger">{error}</p>}
       {!error && !data && <p className="text-sm text-fb-text-secondary">Đang tải...</p>}
@@ -124,6 +126,10 @@ export function UserInfoModal({ isOpen, onClose }: UserInfoModalProps) {
               <ProjectList projects={data.viewableProjects} emptyText="Chưa có dự án nào trong domain được gán." />
             </section>
           )}
+
+          <section className="flex flex-col gap-2 border-t border-fb-border pt-4">
+            <PersonalAccessTokensPanel />
+          </section>
         </div>
       )}
     </Modal>

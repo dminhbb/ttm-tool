@@ -12,6 +12,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--", "-p", "3099"],
       "port": 3099
+    },
+    {
+      "name": "mdsso-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "D:/git/mdsso", "run", "dev", "--", "-p", "3100"],
+      "port": 3100
     }
   ]
 }

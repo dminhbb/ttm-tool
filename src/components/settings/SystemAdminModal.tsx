@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { GearSix, Info, Key, LinkSimple, Megaphone, X } from '@phosphor-icons/react';
+import { GearSix, Info, Key, LinkSimple, Megaphone, Plugs, X } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import type { UserRole } from '@/lib/auth-types';
@@ -9,6 +9,7 @@ import { AdPopupsPanel } from '@/components/settings/AdPopupsPanel';
 import { ApiKeysPanel } from '@/components/settings/ApiKeysPanel';
 import { InfoBannersPanel } from '@/components/settings/InfoBannersPanel';
 import { JiraConfigPanel } from '@/components/settings/JiraConfigPanel';
+import { McpServerPanel } from '@/components/settings/McpServerPanel';
 
 export interface SystemAdminModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ const SUPERADMIN_SECTIONS: SettingsSection[] = [
   { id: 'ad-popups', icon: Megaphone, label: 'Popup quảng cáo', panel: <AdPopupsPanel /> },
   { id: 'api-keys', icon: Key, label: 'Quản lý API key', panel: <ApiKeysPanel /> },
   { id: 'jira-config', icon: LinkSimple, label: 'Cấu hình Jira', panel: <JiraConfigPanel /> },
+  { id: 'mcp-server', icon: Plugs, label: 'MCP Server', panel: <McpServerPanel /> },
 ];
 
 export function SystemAdminModal({ isOpen, onClose, role = null }: SystemAdminModalProps) {
