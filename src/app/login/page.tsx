@@ -1,9 +1,9 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, Suspense, useState } from 'react';
 import { Eye, EyeSlash, LockSimpleOpen, ShieldStar } from '@phosphor-icons/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -16,8 +16,26 @@ import { PASSWORD_REQUIREMENTS_GUIDE, validatePassword } from '@/lib/password-ru
 type ModalMode = 'forgot' | 'register' | null;
 type RegistrationDomain = { id: number; domainCode: string; domainName: string };
 
+/** Only ever redirects to a same-app relative path (single leading "/", never "//..." which the
+ * browser would treat as protocol-relative) — the `next` param round-trips through the URL bar, so
+ * treating it as trusted input here would be an open-redirect hole. */
+function safeNextPath(value: string | null): string {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/';
+  return value;
+}
+
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = safeNextPath(searchParams.get('next'));
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -60,7 +78,7 @@ export default function LoginPage() {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password, remember }) });
-    if (response.ok) { router.replace('/'); router.refresh(); return; }
+    if (response.ok) { router.replace(nextPath); router.refresh(); return; }
     const data: unknown = await response.json().catch(() => null);
     setNotice(typeof data === 'object' && data !== null && 'error' in data && typeof data.error === 'string' ? data.error : 'Sai username hoặc mật khẩu.');
     setIsError(true);

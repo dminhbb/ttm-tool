@@ -5,8 +5,12 @@ import { getMcpSettings, verifyMcpAccessToken } from '@/lib/mcp-service';
 
 export const runtime = 'nodejs';
 
-function unauthorized(message: string): NextResponse {
-  return NextResponse.json({ error: message }, { status: 401, headers: { 'WWW-Authenticate': 'Bearer' } });
+function unauthorized(message: string, request: NextRequest): NextResponse {
+  const resourceMetadataUrl = new URL('/.well-known/oauth-protected-resource', request.nextUrl.origin);
+  return NextResponse.json(
+    { error: message },
+    { status: 401, headers: { 'WWW-Authenticate': `Bearer resource_metadata="${resourceMetadataUrl}"` } },
+  );
 }
 
 /**
@@ -24,12 +28,12 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
   const authHeader = request.headers.get('authorization') ?? '';
   const [scheme, token] = authHeader.split(' ');
   if (scheme?.toLowerCase() !== 'bearer' || !token) {
-    return unauthorized('Thiếu hoặc sai định dạng Authorization: Bearer <token>.');
+    return unauthorized('Thiếu hoặc sai định dạng Authorization: Bearer <token>.', request);
   }
 
   const resolved = await verifyMcpAccessToken(token);
   if (!resolved) {
-    return unauthorized('Personal Access Token không hợp lệ hoặc đã bị thu hồi.');
+    return unauthorized('Personal Access Token không hợp lệ hoặc đã bị thu hồi.', request);
   }
 
   const server = buildMcpServer(resolved.user, resolved.tokenId);
