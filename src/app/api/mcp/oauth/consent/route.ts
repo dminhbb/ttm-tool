@@ -20,7 +20,11 @@ function redirectWithQuery(baseUrl: string, query: Record<string, string>): Next
   for (const [key, value] of Object.entries(query)) {
     if (value) url.searchParams.set(key, value);
   }
-  return NextResponse.redirect(url);
+  // 303 (not NextResponse.redirect's default 307): this handler runs off a POST, and 307 preserves
+  // the original method — the browser would then POST straight into the OAuth client's GET-only
+  // callback endpoint and get "Method Not Allowed" back. 303 is the status built for exactly this
+  // "POST here, then GET there" handoff.
+  return NextResponse.redirect(url, 303);
 }
 
 /** Handles the "Cho phép" / "Từ chối" submit from the consent page — re-validates everything
