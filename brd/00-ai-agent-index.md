@@ -45,6 +45,7 @@ Nếu các tài liệu cũ còn nhắc tới ngày lịch, logic cũ hoặc tr�
 | `12-ttm-policy-and-epic-alert-ui.md` | Tiêu chí TTM Policy & giao diện Cảnh báo Epic | Khi code quy tắc TTM & UI cảnh báo |
 | `13-epic-15-and-epic-30-management.md` | Quản lý Epic 30 và Quản lý Epic 15 (5 pha milestone) | Khi code màn hình Epic 30 / Epic 15 |
 | `14-issue-hierarchy-and-workflows.md` | Cấu trúc phân cấp Issue Jira & quy trình workflow | Khi xử lý dữ liệu issue & cây quan hệ |
+| `15-mcp-sso-and-reports.md` | Báo cáo Epic (`/reports`), MCP Server (AI chatbot), SSO/API Key (SSO Provider) | Khi code màn Báo cáo, tích hợp MCP hoặc SSO |
 
 ## 4. Mapping task → file cần đọc
 

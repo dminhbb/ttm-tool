@@ -82,10 +82,13 @@
     <div class="toc-block">Thông báo trong ứng dụng</div>
     <a href="#ad-popup">14. Popup quảng cáo (AD Popup)</a>
     <a href="#info-banner">15. Banner thông báo (Information Banner)</a>
+    <div class="toc-block">Tích hợp &amp; tự động hoá</div>
+    <a href="#mcp-server">16. MCP Server — kết nối AI chatbot</a>
+    <a href="#sso-api-key">17. SSO &amp; API Key — đăng nhập liên kết ứng dụng khác</a>
     <div class="toc-block">Công nghệ</div>
-    <a href="#tech-stack">16. Tech stack</a>
+    <a href="#tech-stack">18. Tech stack</a>
     <div class="toc-block">Phụ lục</div>
-    <a href="#glossary">17. Thuật ngữ</a>
+    <a href="#glossary">19. Thuật ngữ</a>
   </nav>
 
   <main>
@@ -135,8 +138,11 @@
         Các màn hình <strong>Quản trị Epic (đầy đủ) (<code>/epic-alerts-15</code>)</strong>, <strong>Epic in PO (<code>/epic-in-po</code>)</strong> và <strong>Dashboard (<code>/dashboard</code>)</strong> mở cho mọi role đã đăng nhập, theo phạm vi dự án/Domain/Component được phân quyền.
       </div>
       <div class="callout">
-        Menu avatar người dùng có 1 mục chỉ hiển thị cho ADMIN/SUPERADMIN: <strong>Logic xử lý dữ liệu</strong>.
-        Hai mục <strong>Logic cảnh báo</strong> và <strong>Tài liệu sản phẩm</strong> (trang này) hiển thị cho mọi role.
+        Menu avatar người dùng (góc dưới sidebar) gồm: <strong>Thông tin cá nhân</strong> (đổi thông tin, quản lý Personal Access Token cho MCP — mục 16), <strong>Đổi mật khẩu</strong>,
+        <strong>Cài đặt</strong> (Sáng/Tối, giao diện), <strong>Logic cảnh báo</strong>, <strong>Logic xử lý dữ liệu</strong> (chỉ ADMIN/SUPERADMIN/SUPERVISOR), <strong>Tài liệu sản phẩm</strong>
+        (trang này, mọi role) và <strong>Đăng xuất</strong>. Hai mục cấu hình toàn hệ thống <strong>không</strong> nằm trong menu avatar mà là 2 mục riêng ở cuối nhóm
+        &quot;Quản trị&quot; trên sidebar chính: <strong>Cấu hình ứng dụng</strong> (mở modal, từ ADMIN trở lên — Quản lý ngày nghỉ/Ngày làm bù, Quản lý Issue Type) và
+        <strong>Quản trị hệ thống</strong> (mở modal, chỉ SUPERADMIN — Banner thông báo, Popup quảng cáo, Quản lý API key, Cấu hình Jira, MCP Server; xem mục 13/14/15/16/17).
       </div>
       <div class="callout">
         Ngoài bảng phân quyền theo Domain/Dự án ở trên, màn hình <strong>Ma trận phân quyền (<code>/admin/permissions</code>, chỉ SUPERADMIN)</strong> cấu hình chi tiết
@@ -252,7 +258,7 @@
       <div class="kicker">Khối dữ liệu</div>
       <h2>5. Mô hình &amp; Sơ đồ cơ sở dữ liệu (Data Model &amp; ERD)</h2>
       <p>
-        Cơ sở dữ liệu của TTM Monitor sử dụng <strong>PostgreSQL</strong>, bao gồm <strong>27 bảng/thực thể</strong> được thiết kế theo nguyên tắc tối giản, phân quyền trực tiếp và tính toán cảnh báo real-time. Nguồn sự thật (Source of Truth) của cấu trúc CSDL được quản lý tập trung tại <code>db/schema.sql</code> và chuỗi migration <code>db/migrations/*.sql</code>.
+        Cơ sở dữ liệu của TTM Monitor sử dụng <strong>PostgreSQL</strong>, bao gồm <strong>37 bảng/thực thể</strong> được thiết kế theo nguyên tắc tối giản, phân quyền trực tiếp và tính toán cảnh báo real-time. Nguồn sự thật (Source of Truth) của cấu trúc CSDL được quản lý tập trung tại <code>db/schema.sql</code> và chuỗi migration <code>db/migrations/*.sql</code>.
       </p>
 
       <h3>5.1. Sơ đồ thực thể CSDL (ERD Overview)</h3>
@@ -312,6 +318,11 @@
           <line x1="620" y1="185" x2="270" y2="185" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow2)" />
         </g>
       </svg>
+      <div class="callout">
+        Sơ đồ trên minh hoạ <strong>7 nhóm nghiệp vụ cốt lõi (27 bảng)</strong> đã có từ MVP1. Ứng dụng còn <strong>2 nhóm hạ tầng tích hợp</strong> mới hơn (10 bảng),
+        phục vụ Popup quảng cáo/Banner thông báo (mục 14-15) và SSO/API Key/MCP Server (mục 16-17) — chi tiết trong phần &quot;Bấm để xem chi tiết&quot; ngay dưới đây
+        (nhóm 8-9) và bảng danh mục đầy đủ 37 bảng ở mục 5.2.
+      </div>
 
       <!-- Nút xem chi tiết section ẩn -->
       <details style="margin: 16px 0; border: 1px solid #cdd9f7; border-radius: 10px; background: #f8faff; padding: 12px 16px;">
@@ -320,7 +331,7 @@
         </summary>
         <div style="margin-top: 16px;">
           <p style="font-size: 12.5px; color: var(--muted); margin-bottom: 16px;">
-            Dưới đây là chi tiết kỹ thuật của toàn bộ 27 bảng PostgreSQL trong CSDL TTM Monitor (tương thích với <code>db/schema.sql</code> và chuỗi migration):
+            Dưới đây là chi tiết kỹ thuật của toàn bộ 37 bảng PostgreSQL trong CSDL TTM Monitor (tương thích với <code>db/schema.sql</code> và chuỗi migration):
           </p>
 
           <!-- 1. Auth & RBAC -->
@@ -576,10 +587,36 @@
               <tr><td><code>data_retention_configs</code></td><td><code>id INT PRIMARY KEY</code>, <code>raw_import_retention_days INT NOT NULL DEFAULT 30</code></td><td>CHECK <code>(raw_import_retention_days BETWEEN 7 AND 3650)</code> (<code>id = 1</code>)</td></tr>
             </tbody>
           </table>
+
+          <!-- 8. In-app notifications -->
+          <h4 style="color:var(--brand-700); margin:18px 0 6px; font-size:14px;">8. Nhóm Thông báo trong ứng dụng (3 bảng) — mục 14-15</h4>
+          <table>
+            <thead><tr><th>Bảng CSDL</th><th>Cấu trúc trường chính</th><th>Constraints &amp; Index</th></tr></thead>
+            <tbody>
+              <tr><td><code>ad_popups</code></td><td><code>id SERIAL PK</code>, <code>campaign_name</code>, <code>image_url</code>, <code>click_url</code>, <code>message TEXT</code> (HTML đã làm sạch), <code>start_date</code>/<code>end_date DATE</code>, <code>is_active BOOLEAN</code>, <code>max_impressions INT</code>, <code>timeout_seconds INT</code>, <code>force_view BOOLEAN</code>, <code>width_percent</code>/<code>height_percent INT</code></td><td>Popup quảng cáo toàn màn hình, SUPERADMIN cấu hình tại &quot;Quản trị hệ thống&quot; (mục 16 trong modal, xem mục 14)</td></tr>
+              <tr><td><code>ad_popup_impressions</code></td><td><code>ad_popup_id INT FK</code>, <code>user_id INT FK</code>, <code>shown_count INT</code></td><td>PK kết hợp <code>(ad_popup_id, user_id)</code> — đếm số lần đã hiện <em>riêng theo từng user</em> để so với <code>max_impressions</code></td></tr>
+              <tr><td><code>info_banners</code></td><td><code>id SERIAL PK</code>, <code>name</code>, <code>content TEXT</code> (1 dòng, HTML đã làm sạch), <code>banner_type</code> CHECK ('DEFAULT','PER_SCREEN'), <code>screen_key VARCHAR</code>, <code>is_active BOOLEAN</code>, <code>start_date</code>/<code>end_date DATE</code></td><td>Unique index từng phần đảm bảo tối đa 1 banner <code>DEFAULT</code> đang active cùng lúc</td></tr>
+            </tbody>
+          </table>
+
+          <!-- 9. SSO, API Key & MCP -->
+          <h4 style="color:var(--brand-700); margin:18px 0 6px; font-size:14px;">9. Nhóm SSO, API Key &amp; MCP Server (7 bảng) — mục 16-17</h4>
+          <table>
+            <thead><tr><th>Bảng CSDL</th><th>Cấu trúc trường chính</th><th>Constraints &amp; Index</th></tr></thead>
+            <tbody>
+              <tr><td><code>api_keys</code></td><td><code>id SERIAL PK</code>, <code>key_name</code>, <code>app_name</code>, <code>api_key VARCHAR UNIQUE</code> (đóng vai trò client_id), <code>is_active</code>/<code>is_unlimited BOOLEAN</code>, <code>valid_from</code>/<code>valid_to DATE</code></td><td>Cấp cho ứng dụng ngoài để dùng luồng SSO bên dưới, quản lý tại &quot;Quản trị hệ thống&quot; → Quản lý API key</td></tr>
+              <tr><td><code>sso_auth_codes</code></td><td><code>code VARCHAR UNIQUE</code>, <code>api_key_id INT FK</code>, <code>user_id INT FK</code>, <code>redirect_uri</code>, <code>is_used BOOLEAN</code>, <code>expires_at TIMESTAMPTZ</code></td><td>Mã dùng 1 lần, hết hạn sau 5 phút, FK <code>api_keys(id)</code> &amp; <code>users(id)</code></td></tr>
+              <tr><td><code>mcp_settings</code></td><td><code>id INT PRIMARY KEY = 1</code>, <code>is_enabled BOOLEAN</code>, <code>updated_at</code>, <code>updated_by INT FK users(id)</code></td><td>Bảng singleton — công tắc bật/tắt toàn bộ MCP Server</td></tr>
+              <tr><td><code>mcp_access_tokens</code></td><td><code>id SERIAL PK</code>, <code>user_id INT FK</code>, <code>token_name</code>, <code>token_prefix</code>, <code>token_hash CHAR(64)</code>, <code>created_at</code>, <code>last_used_at</code>, <code>revoked_at</code></td><td>Personal Access Token do chính user tạo tại &quot;Thông tin cá nhân&quot;; giá trị plaintext chỉ trả về đúng 1 lần lúc tạo</td></tr>
+              <tr><td><code>mcp_access_daily_stats</code></td><td><code>user_id INT FK</code>, <code>stat_date DATE</code>, <code>access_count INT</code></td><td>PK kết hợp <code>(user_id, stat_date)</code>, tự dọn sau 90 ngày</td></tr>
+              <tr><td><code>mcp_oauth_clients</code></td><td><code>client_id VARCHAR PK</code>, <code>client_name</code>, <code>redirect_uris TEXT[]</code>, các trường theo chuẩn RFC 7591</td><td>Đăng ký client OAuth động (Dynamic Client Registration) cho các AI chatbot dùng luồng OAuth thay vì Personal Access Token tĩnh</td></tr>
+              <tr><td><code>mcp_oauth_authorization_codes</code></td><td><code>code VARCHAR PK</code>, <code>client_id</code> (không FK cứng — có thể là URL Client ID Metadata Document), <code>user_id INT FK</code>, <code>code_challenge</code> (PKCE), <code>expires_at</code></td><td>Mã ủy quyền ngắn hạn cho luồng MCP OAuth 2.0 (Authorization Code + PKCE)</td></tr>
+            </tbody>
+          </table>
         </div>
       </details>
 
-      <h3>5.2. Bảng danh mục 27 bảng CSDL trong hệ thống</h3>
+      <h3>5.2. Bảng danh mục 37 bảng CSDL trong hệ thống</h3>
       <table>
         <thead><tr><th>STT</th><th>Bảng CSDL</th><th>Khóa chính / Khóa ngoại</th><th>Vai trò nghiệp vụ &amp; Ghi chú</th></tr></thead>
         <tbody>
@@ -610,6 +647,16 @@
           <tr><td>25</td><td><code>audit_logs</code></td><td><code>id</code> (PK), <code>user_id</code> (FK)</td><td>Nhật ký ghi nhận các thao tác quan trọng trên hệ thống.</td></tr>
           <tr><td>26</td><td><code>user_usage_daily_stats</code></td><td><code>(user_id, stat_date)</code> (PK, FK)</td><td>Thống kê tần suất tương tác và sử dụng tính năng theo ngày của từng user.</td></tr>
           <tr><td>27</td><td><code>jira_settings</code> &amp; <code>data_retention_configs</code></td><td><code>id</code> (PK = 1)</td><td>Hai bảng cấu hình singleton lưu Cấu hình tích hợp Jira và số ngày lưu giữ dữ liệu raw import.</td></tr>
+          <tr><td>28</td><td><code>ad_popups</code></td><td><code>id</code> (PK)</td><td>Cấu hình Popup quảng cáo toàn màn hình cho mọi user đã đăng nhập (mục 14).</td></tr>
+          <tr><td>29</td><td><code>ad_popup_impressions</code></td><td><code>(ad_popup_id, user_id)</code> (PK, FK)</td><td>Đếm số lần một popup đã hiện cho từng user, so với <code>max_impressions</code>.</td></tr>
+          <tr><td>30</td><td><code>info_banners</code></td><td><code>id</code> (PK)</td><td>Cấu hình Banner thông báo (Mặc định toàn hệ thống hoặc theo từng màn hình, mục 15).</td></tr>
+          <tr><td>31</td><td><code>api_keys</code></td><td><code>id</code> (PK), <code>api_key</code> (UNIQUE)</td><td>API key cấp cho ứng dụng ngoài dùng làm client_id trong luồng SSO (mục 17).</td></tr>
+          <tr><td>32</td><td><code>sso_auth_codes</code></td><td><code>code</code> (UNIQUE), <code>api_key_id</code>/<code>user_id</code> (FK)</td><td>Mã ủy quyền SSO dùng 1 lần, hết hạn sau 5 phút (mục 17).</td></tr>
+          <tr><td>33</td><td><code>mcp_settings</code></td><td><code>id</code> (PK = 1)</td><td>Công tắc singleton bật/tắt toàn bộ MCP Server (mục 16).</td></tr>
+          <tr><td>34</td><td><code>mcp_access_tokens</code></td><td><code>id</code> (PK), <code>user_id</code> (FK)</td><td>Personal Access Token để AI chatbot kết nối MCP thay mặt một user cụ thể (mục 16).</td></tr>
+          <tr><td>35</td><td><code>mcp_access_daily_stats</code></td><td><code>(user_id, stat_date)</code> (PK, FK)</td><td>Thống kê số lượt gọi MCP theo ngày/user, tự dọn sau 90 ngày (mục 16).</td></tr>
+          <tr><td>36</td><td><code>mcp_oauth_clients</code></td><td><code>client_id</code> (PK)</td><td>Đăng ký client OAuth động (RFC 7591) cho AI chatbot dùng luồng OAuth kết nối MCP (mục 16).</td></tr>
+          <tr><td>37</td><td><code>mcp_oauth_authorization_codes</code></td><td><code>code</code> (PK), <code>user_id</code> (FK)</td><td>Mã ủy quyền ngắn hạn cho luồng MCP OAuth 2.0 + PKCE (mục 16).</td></tr>
         </tbody>
       </table>
 
@@ -682,10 +729,10 @@
         Mọi mốc cảnh báo ở trên áp dụng theo <strong>4 Epic Type</strong> (cập nhật từ 09/2026, xem chi tiết tại chương 5.2) — được tính tự động lúc import dữ liệu bằng hàm <code>computeEpicComplexity</code>:
       </p>
       <ul>
-        <li><strong>CT-Lv12</strong>: Jenis request ∈ {<em>Tính năng mới, Cải tiến</em>} &amp; Level ∈ {<em>1, 2</em>} (<em>mặc định cho trường hợp dữ liệu thiếu hoặc không khớp</em>).</li>
-        <li><strong>CT-Lv34</strong>: Jenis request ∈ {<em>Tính năng mới, Cải tiến</em>} &amp; Level ∈ {<em>3, 4</em>}.</li>
-        <li><strong>SP-Lv12</strong>: Jenis request ∈ {<em>Sản phẩm/dịch vụ/quy trình mới, Sản phẩm</em>} &amp; Level ∈ {<em>1, 2</em>}.</li>
-        <li><strong>SP-Lv34</strong>: Jenis request ∈ {<em>Sản phẩm/dịch vụ/quy trình mới, Sản phẩm</em>} &amp; Level ∈ {<em>3, 4</em>}.</li>
+        <li><strong>CT-Lv12</strong>: Loại yêu cầu ∈ {<em>Tính năng mới, Cải tiến</em>} &amp; Level ∈ {<em>1, 2</em>} (<em>mặc định cho trường hợp dữ liệu thiếu hoặc không khớp</em>).</li>
+        <li><strong>CT-Lv34</strong>: Loại yêu cầu ∈ {<em>Tính năng mới, Cải tiến</em>} &amp; Level ∈ {<em>3, 4</em>}.</li>
+        <li><strong>SP-Lv12</strong>: Loại yêu cầu ∈ {<em>Sản phẩm/dịch vụ/quy trình mới, Sản phẩm</em>} &amp; Level ∈ {<em>1, 2</em>}.</li>
+        <li><strong>SP-Lv34</strong>: Loại yêu cầu ∈ {<em>Sản phẩm/dịch vụ/quy trình mới, Sản phẩm</em>} &amp; Level ∈ {<em>3, 4</em>}.</li>
       </ul>
       <div class="callout">
         Hạ tầng CSDL đã nới rộng CHECK constraint trên bảng <code>epic_status_alert_rules</code> để đón nhận cả 4 loại mới này song song với các dòng legacy <code>SIMPLE</code>/<code>COMPLEX</code> cũ (giữ lại cấu hình cũ để tham chiếu). Admin có thể cấu hình chi tiết offset cảnh báo sớm/muộn cho 4 loại Epic Type mới trực tiếp trên màn hình Cấu hình cảnh báo.
@@ -830,13 +877,31 @@
       <h2>11. Các màn hình giám sát Epic</h2>
       <h3>11.1. Quản trị Epic (rút gọn) (<code>/epic-alerts</code>) — ADMIN/SUPERADMIN/SUPERVISOR</h3>
       <p>Theo dõi tổng quan các Epic theo mốc chuẩn 30 ngày (Epic phức tạp) hoặc 15 ngày (Epic đơn giản) qua 3 cột chính: <strong>Design</strong>, <strong>In Progress</strong>, <strong>Ready4Golive</strong>, cộng cột <strong>Release</strong>. Có đủ 2 cột dải TTM-CNTT và TTM-E2E.</p>
+      <div class="callout warn">Màn hình này <strong>đã bị gỡ khỏi sidebar điều hướng chính</strong> (route vẫn hoạt động nếu gõ thẳng URL, đúng theo phân quyền ADMIN/SUPERADMIN/SUPERVISOR) — sidebar hiện chỉ còn dẫn tới <strong>Quản trị Epic</strong> (<code>/epic-alerts-15</code>, mục 11.2) làm màn hình theo dõi chính.</div>
       <h3>11.2. Quản trị Epic (đầy đủ) (<code>/epic-alerts-15</code>) — mọi role đã đăng nhập</h3>
-      <p>Theo dõi chuyên sâu theo 5 pha mốc thời gian: <strong>Design (20%)</strong>, <strong>Dev (50%)</strong>, <strong>Test (80%)</strong>, <strong>Pentest (90%)</strong>, <strong>R4Golive (100%)</strong>. Ngày baseline mỗi pha được tính tự động dựa trên số ngày làm việc tích lũy từ Start Date (T1); cột Release lấy baseline từ T0 + tiêu chí TTM-E2E, độc lập với Start Date.</p>
+      <p>Theo dõi chuyên sâu theo 5 pha mốc thời gian: <strong>Design (20%)</strong>, <strong>Dev (50%)</strong>, <strong>Test (80%)</strong>, <strong>Pentest (90%)</strong>, <strong>R4Golive (100%)</strong>. Ngày baseline mỗi pha được tính tự động dựa trên số ngày làm việc tích lũy từ Start Date (T1); cột Release lấy baseline từ T0 + tiêu chí TTM-E2E, độc lập với Start Date. Trên sidebar, mục này chỉ hiển thị nhãn ngắn <strong>&quot;Quản trị Epic&quot;</strong> (không còn hậu tố &quot;(đầy đủ)&quot;).</p>
       <h3>11.3. Epic in PO (<code>/epic-in-po</code>) — mọi role đã đăng nhập</h3>
       <p>Cùng dữ liệu/logic với màn (đầy đủ), chỉ lọc còn Epic đang ở trạng thái <strong>To Do</strong>, <strong>In PO</strong> hoặc <strong>Released</strong> — dùng để theo dõi Epic chưa/vừa qua giai đoạn lập kế hoạch.</p>
       <h3>11.4. Dashboard (<code>/dashboard</code>) — mọi role đã đăng nhập</h3>
       <p>Thống kê tổng hợp theo dự án: số Epic, phân bố trạng thái, số lượng Fail TTM-CNTT/Fail TTM-E2E/Cảnh báo sớm/muộn, tỷ lệ Đạt TTM, Epic sắp đến hạn, top Epic cần chú ý. Không có bảng tổng hợp riêng — tính live từ cùng dữ liệu 3 màn hình trên. Role SUPERVISOR/SUPERADMIN/ADMIN, hoặc USER có từ 4 dự án có dữ liệu Epic trở lên, phải chọn 1–3 dự án trước khi xem số liệu.</p>
-      <h3>11.5. Quy tắc hiển thị &amp; Lịch sử Cảnh báo (rút gọn/đầy đủ)</h3>
+      <h3>11.5. Báo cáo Epic (<code>/reports</code>) — mọi role đã đăng nhập</h3>
+      <p>
+        Màn hình báo cáo theo <strong>từng dự án</strong> (không gộp nhiều dự án như Dashboard) — đây là mục đầu tiên trong nhóm &quot;Giám sát&quot; trên sidebar. Người dùng
+        chọn 1 Dự án, tùy chọn lọc thêm Domain/Component/khoảng ngày, và chọn 1 hoặc nhiều trong <strong>tối đa 7 lớp dữ liệu (<code>aggregated_at</code>) gần nhất</strong>
+        để &quot;drill&quot; xuống dữ liệu của các ngày import cũ hơn. Dùng lại đúng engine tính cảnh báo/tuân thủ/sai lệch dữ liệu (<code>evaluateIssueCompliance</code>,
+        <code>evaluateEpicDataAnomaly</code>, <code>resolveTtmE2eRelease</code>) với 3 màn hình giám sát Epic ở trên — không tính lại bằng công thức riêng.
+      </p>
+      <p>Kết quả gộp Epic của dự án vào 6 danh sách:</p>
+      <ol>
+        <li>Epic đã <strong>Released</strong> trong giai đoạn lựa chọn.</li>
+        <li>Epic <strong>Đạt TTM-CNTT và TTM-E2E</strong>.</li>
+        <li>Epic <strong>Fail TTM-CNTT và TTM-E2E</strong>.</li>
+        <li>Epic <strong>In PO</strong> (To Do, In PO).</li>
+        <li>Epic có <strong>Sai lệch dữ liệu</strong>.</li>
+        <li>Epic <strong>Pending</strong>.</li>
+      </ol>
+      <p>Mỗi dòng Epic có thể bấm mã để mở popup Duyệt Epic hoặc mở thẳng Jira ở tab mới. Đây cũng là báo cáo duy nhất được expose sẵn cho AI chatbot qua MCP Server (tool <code>list_report_filters</code>, mục 16).</p>
+      <h3>11.6. Quy tắc hiển thị &amp; Lịch sử Cảnh báo (rút gọn/đầy đủ)</h3>
       <ul>
         <li>Epic ở trạng thái <strong>khác Released</strong>: luôn hiển thị.</li>
         <li>Màn <strong>rút gọn</strong>: Epic ở trạng thái <strong>= Released</strong> chỉ hiển thị nếu từng có lịch sử Cảnh báo muộn/Fail TTM; nếu chưa từng bị cảnh báo, Epic sẽ biến mất khỏi danh sách sau khi Released. Màn <strong>đầy đủ/Epic in PO/Dashboard không áp dụng</strong> rule ẩn này — luôn hiện mọi Epic trong phạm vi được phân quyền.</li>
@@ -872,17 +937,40 @@
 
     <section id="screen-admin">
       <div class="kicker">Khối màn hình</div>
-      <h2>13. Các màn hình Quản trị hệ thống</h2>
+      <h2>13. Các màn hình &amp; modal Quản trị</h2>
+      <p>Nhóm &quot;Quản trị&quot; trên sidebar gồm 5 <strong>route riêng</strong> (mở thành trang) và 2 mục cuối mở <strong>modal cấu hình</strong> chồng lên trang hiện tại — không đổi URL.</p>
+      <h3>13.1. Các route quản trị dạng trang</h3>
       <table>
         <thead><tr><th>Màn hình</th><th>Route</th><th>Chức năng</th></tr></thead>
         <tbody>
+          <tr><td>Nguồn dữ liệu</td><td><code>/</code></td><td>Chỉ SUPERADMIN — xem mục 12</td></tr>
           <tr><td>Quản lý User</td><td><code>/admin/users</code></td><td>Tạo/sửa user đơn lẻ hoặc thêm nhiều user từ danh sách username, gán role, Domain, Dự án, giới hạn theo Component cho từng dự án</td></tr>
           <tr><td>Quản lý Domain</td><td><code>/admin/domains</code></td><td>Danh mục Domain nghiệp vụ</td></tr>
           <tr><td>Quản lý Dự án</td><td><code>/admin/projects</code></td><td>Danh mục Dự án (1 Project Key duy nhất), mapping Domain, hỗ trợ Import hàng loạt dự án từ file CSV. Popup sửa 1 dự án chỉ <strong>hiển thị</strong> PM/SM hiện tại (đọc-only) — gán/đổi PM/SM thực hiện tại Quản lý User</td></tr>
-          <tr><td>Cấu hình ngày nghỉ</td><td><code>/admin/holidays</code></td><td>Danh sách ngày nghỉ + <strong>Ngày làm bù</strong> (khai báo 1 Thứ Bảy/Chủ Nhật là ngày làm việc bình thường) dùng để tính ngày làm việc</td></tr>
-          <tr><td>Cấu hình cảnh báo</td><td><code>/admin/status-alert-rules</code></td><td>Tiêu chí TTM Policy (TTM-CNTT &amp; TTM-E2E) + rule Cảnh báo sớm/muộn theo trạng thái</td></tr>
+          <tr><td>Cấu hình cảnh báo</td><td><code>/admin/status-alert-rules</code></td><td>Tiêu chí TTM Policy (TTM-CNTT &amp; TTM-E2E) + rule Cảnh báo sớm/muộn theo trạng thái. Mở cho SUPERADMIN/SUPERVISOR</td></tr>
           <tr><td>Ma trận phân quyền</td><td><code>/admin/permissions</code></td><td>Chỉ SUPERADMIN — cấu hình quyền Xem/Thêm/Sửa/Xóa cho từng cặp (tính năng, role)</td></tr>
-          <tr><td>Sao lưu / Phục hồi dữ liệu</td><td><code>/admin/database</code></td><td>Export/Import dạng file SQL dump cho một danh sách bảng cố định (user, Domain, Dự án, phân quyền, ngày nghỉ, rule cảnh báo, <code>import_batches</code>/<code>import_rows</code>, <code>issues</code>, <code>epic_ttm_snapshots</code>, audit log). Import dùng <strong>upsert theo khóa chính</strong> — dòng dữ liệu trùng khóa chính đã tồn tại sẽ được <strong>ghi đè</strong> bằng dữ liệu trong file, không còn bị bỏ qua (file export từ bản cũ hơn vẫn tương thích, giữ hành vi bỏ qua). <strong>Chưa</strong> bao phủ <code>issue_daily_snapshots</code>, <code>epic_alert_history</code>, <code>epic_milestone_history</code></td></tr>
+          <tr><td>Sao lưu / Phục hồi dữ liệu</td><td><code>/admin/database</code></td><td>Chỉ SUPERADMIN — Export/Import dạng file SQL dump cho một danh sách bảng cố định (user, Domain, Dự án, phân quyền, ngày nghỉ, rule cảnh báo, <code>import_batches</code>/<code>import_rows</code>, <code>issues</code>, <code>epic_ttm_snapshots</code>, audit log). Import dùng <strong>upsert theo khóa chính</strong> — dòng dữ liệu trùng khóa chính đã tồn tại sẽ được <strong>ghi đè</strong> bằng dữ liệu trong file, không còn bị bỏ qua (file export từ bản cũ hơn vẫn tương thích, giữ hành vi bỏ qua). <strong>Chưa</strong> bao phủ <code>issue_daily_snapshots</code>, <code>epic_alert_history</code>, <code>epic_alert_timeline</code>, <code>epic_milestone_history</code></td></tr>
+        </tbody>
+      </table>
+      <h3>13.2. Modal &quot;Cấu hình ứng dụng&quot; — ADMIN trở lên</h3>
+      <p>Mở modal, không đổi URL. Trang route cũ <code>/admin/holidays</code> vẫn còn hoạt động nếu gõ thẳng nhưng <strong>không còn liên kết trên sidebar</strong>.</p>
+      <table>
+        <thead><tr><th>Tab trong modal</th><th>Chức năng</th></tr></thead>
+        <tbody>
+          <tr><td>Quản lý ngày nghỉ/làm bù</td><td>Danh sách ngày nghỉ + <strong>Ngày làm bù</strong> (khai báo 1 Thứ Bảy/Chủ Nhật là ngày làm việc bình thường) dùng để tính ngày làm việc</td></tr>
+          <tr><td>Quản lý Issue Type</td><td>Mapping loại Subtask Jira (<code>issue_type_role_mapping</code>) sang team-role <strong>BA/DEV/TEST/PM</strong> — dùng để xác định Subtask nào tính là &quot;hoàn thành&quot; một pha (DEV/TEST/PENTEST) của Epic 15</td></tr>
+        </tbody>
+      </table>
+      <h3>13.3. Modal &quot;Quản trị hệ thống&quot; — chỉ SUPERADMIN</h3>
+      <p>Mở modal, không đổi URL. Gồm 5 tab, chi tiết ở các mục riêng:</p>
+      <table>
+        <thead><tr><th>Tab trong modal</th><th>Chi tiết tại mục</th></tr></thead>
+        <tbody>
+          <tr><td>Banner thông báo</td><td>Mục 15</td></tr>
+          <tr><td>Popup quảng cáo</td><td>Mục 14</td></tr>
+          <tr><td>Quản lý API key</td><td>Mục 17 (SSO)</td></tr>
+          <tr><td>Cấu hình Jira</td><td>Địa chỉ Jira API và Jira View Issue (ghép với Epic Key để mở nhanh Epic trên Jira) — dữ liệu ở bảng singleton <code>jira_settings</code></td></tr>
+          <tr><td>MCP Server</td><td>Mục 16</td></tr>
         </tbody>
       </table>
     </section>
@@ -891,9 +979,9 @@
       <div class="kicker">Thông báo trong ứng dụng</div>
       <h2>14. Popup quảng cáo (AD Popup)</h2>
       <p>
-        Cấu hình tại menu avatar người dùng → <strong>Quản lý chung</strong> → <strong>Popup quảng cáo</strong>, chỉ <strong>SUPERADMIN</strong> thấy và chỉnh sửa được.
-        Popup hiển thị cho <strong>mọi user đã đăng nhập</strong> (không phân biệt role) khi đủ điều kiện, ngay khi họ vào một màn hình bất kỳ sau đăng nhập (không hiện ở
-        trang login).
+        Cấu hình tại sidebar → <strong>Quản trị hệ thống</strong> (mục cuối nhóm &quot;Quản trị&quot;, mở modal) → tab <strong>Popup quảng cáo</strong>, chỉ <strong>SUPERADMIN</strong>
+        thấy mục này và chỉnh sửa được. Popup hiển thị cho <strong>mọi user đã đăng nhập</strong> (không phân biệt role) khi đủ điều kiện, ngay khi họ vào một màn hình
+        bất kỳ sau đăng nhập (không hiện ở trang login).
       </p>
       <h3>14.1. Các trường cấu hình</h3>
       <table>
@@ -942,7 +1030,7 @@
       <div class="kicker">Thông báo trong ứng dụng</div>
       <h2>15. Banner thông báo (Information Banner)</h2>
       <p>
-        Cấu hình tại menu avatar người dùng → <strong>Quản lý chung</strong> → <strong>Banner thông báo</strong>, chỉ <strong>SUPERADMIN</strong> thấy và chỉnh sửa được
+        Cấu hình tại sidebar → <strong>Quản trị hệ thống</strong> (mở modal) → tab <strong>Banner thông báo</strong>, chỉ <strong>SUPERADMIN</strong> thấy và chỉnh sửa được
         (cùng nguyên tắc với Popup quảng cáo ở mục 14). Khác với Popup quảng cáo (che màn hình, cần tương tác), đây là 1 dòng thông báo nhỏ, không chặn thao tác, gắn
         cố định vào layout của từng màn hình. Banner vẫn <strong>hiển thị cho mọi user đã đăng nhập</strong> (không phân biệt role) khi đủ điều kiện — chỉ việc cấu hình
         bị giới hạn SUPERADMIN.
@@ -980,12 +1068,80 @@
         banner nào đủ điều kiện, khu vực này không chiếm chỗ (không render placeholder rỗng). Banner không có nền màu/viền — chỉ gồm icon "(i)" và chữ màu
         <code>--text-muted</code>; riêng banner <strong>mặc định</strong> có icon "(i)" nổi bật hơn (màu accent) để phân biệt với banner theo màn hình.
       </p>
-      <p>Danh sách các màn hình đã gắn banner: Nguồn dữ liệu (<code>/</code>), Dashboard, 3 màn hình giám sát Epic, và toàn bộ màn hình Quản trị hệ thống (Quản lý User/Domain/Dự án, Cấu hình ngày nghỉ, Cấu hình cảnh báo, Ma trận phân quyền, Sao lưu/Phục hồi dữ liệu, Tài liệu sản phẩm).</p>
+      <p>Danh sách các màn hình đã gắn banner: Nguồn dữ liệu (<code>/</code>), Báo cáo Epic, Dashboard, 3 màn hình giám sát Epic, và toàn bộ trang quản trị dạng route (Quản lý User/Domain/Dự án, Cấu hình cảnh báo, Ma trận phân quyền, Sao lưu/Phục hồi dữ liệu, Tài liệu sản phẩm).</p>
+    </section>
+
+    <section id="mcp-server">
+      <div class="kicker">Tích hợp &amp; tự động hoá</div>
+      <h2>16. MCP Server — kết nối AI chatbot</h2>
+      <p>
+        Cho phép người dùng kết nối AI chatbot (Claude, ChatGPT, Gemini, Copilot...) trực tiếp tới TTM Monitor qua giao thức <strong>MCP (Model Context Protocol)</strong>
+        để tra cứu dữ liệu bằng hội thoại thay vì vào giao diện. Mọi tool MCP đều gọi lại đúng service layer đang phục vụ UI (không truy vấn CSDL riêng), nên kết quả
+        trả về cho AI chatbot luôn tôn trọng đúng RBAC hiện có của người dùng đang kết nối.
+      </p>
+      <h3>16.1. Bật/tắt &amp; endpoint</h3>
+      <ul>
+        <li>Công tắc <code>mcp_settings.is_enabled</code> (bảng singleton) — cấu hình tại sidebar <strong>Quản trị hệ thống</strong> → tab <strong>MCP Server</strong>, chỉ SUPERADMIN. Tắt là chặn toàn bộ truy cập MCP ngay lập tức, kể cả token còn hiệu lực.</li>
+        <li>Endpoint duy nhất: <code>/api/mcp</code> (GET/POST/DELETE) — dựng bằng <code>WebStandardStreamableHTTPServerTransport</code>, tạo mới hoàn toàn cho mỗi request (stateless, không giữ session giữa các lần gọi) vì hạ tầng serverless không giữ tiến trình sống liên tục.</li>
+        <li>2 endpoint <code>.well-known</code> (<code>oauth-protected-resource</code>, <code>oauth-authorization-server</code>) công bố metadata OAuth cho client tự động dò cấu hình kết nối.</li>
+      </ul>
+      <h3>16.2. Xác thực — 2 cách</h3>
+      <table>
+        <thead><tr><th>Cách</th><th>Cơ chế</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Personal Access Token (PAT)</strong></td><td>Người dùng tự tạo tại menu avatar → <strong>Thông tin cá nhân</strong>, đặt tên gợi nhớ; giá trị token thật (tiền tố <code>ttm_mcp_</code>) chỉ hiển thị <strong>đúng 1 lần</strong> lúc tạo (bảng chỉ lưu bản băm SHA-256). Có thể thu hồi bất kỳ lúc nào. Dùng header <code>Authorization: Bearer &lt;token&gt;</code>.</td></tr>
+          <tr><td><strong>OAuth 2.0 Dynamic Client Registration + PKCE</strong></td><td>Dành cho AI chatbot có thể tự đăng ký client (không cần người dùng copy token thủ công) — <code>/api/mcp/oauth/register</code>, <code>/authorize</code>, <code>/consent</code>, <code>/token</code>, lưu tại <code>mcp_oauth_clients</code>/<code>mcp_oauth_authorization_codes</code>.</td></tr>
+        </tbody>
+      </table>
+      <h3>16.3. Các tool MCP đang có</h3>
+      <table>
+        <thead><tr><th>Tool</th><th>Chức năng</th><th>Giới hạn role</th></tr></thead>
+        <tbody>
+          <tr><td><code>list_epic_alerts</code></td><td>Danh sách Epic + mức cảnh báo, lọc theo dự án/mức cảnh báo/từ khoá</td><td>Theo RBAC dự án của user gọi</td></tr>
+          <tr><td><code>get_epic_detail</code></td><td>Chi tiết 1 Epic theo mã</td><td>Theo RBAC dự án của user gọi</td></tr>
+          <tr><td><code>get_dashboard_summary</code></td><td>Số liệu tổng hợp tương đương màn Dashboard, chọn được 1-3 dự án</td><td>Theo RBAC dự án của user gọi</td></tr>
+          <tr><td><code>list_projects</code> / <code>list_domains</code> / <code>list_holidays</code></td><td>Danh mục dự án / domain / ngày nghỉ</td><td>Chỉ ADMIN/SUPERVISOR/SUPERADMIN</td></tr>
+          <tr><td><code>get_ttm_policies</code></td><td>Toàn bộ tiêu chí Time to Market đang active</td><td>Chỉ SUPERVISOR/SUPERADMIN</td></tr>
+          <tr><td><code>list_report_filters</code></td><td>Danh mục domain/dự án/component/lớp dữ liệu — phục vụ tra cứu sâu kiểu Báo cáo Epic (mục 11.5)</td><td>Mọi role đã xác thực</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        Mỗi lần một tool được gọi thành công, hệ thống cộng dồn <code>mcp_access_daily_stats</code> (theo user/ngày, tự dọn sau 90 ngày) và cập nhật <code>last_used_at</code>
+        của token — hiển thị lại thành 3 số liệu (Token đã cấp/Lượt truy cập tuần này/Token đang active) và bảng Top 5 user tại tab MCP Server.
+      </div>
+    </section>
+
+    <section id="sso-api-key">
+      <div class="kicker">Tích hợp &amp; tự động hoá</div>
+      <h2>17. SSO &amp; API Key — đăng nhập liên kết ứng dụng khác</h2>
+      <p>
+        Đây là chiều <strong>ngược lại</strong> với việc TTM Monitor đăng nhập qua AD Server/Keycloak (vẫn là hạng mục roadmap tương lai) — ở đây <strong>TTM Monitor đóng
+        vai trò nhà cung cấp SSO (Identity Provider)</strong> cho một ứng dụng nội bộ khác: cho phép ứng dụng đó lấy thông tin (email, họ tên, role) của user đang đăng
+        nhập TTM Monitor mà không cần user đăng nhập lại lần hai.
+      </p>
+      <h3>17.1. API Key (client_id)</h3>
+      <p>
+        SUPERADMIN cấp tại sidebar <strong>Quản trị hệ thống</strong> → tab <strong>Quản lý API key</strong>: mỗi key gồm tên gợi nhớ, tên ứng dụng, chuỗi
+        <code>api_key</code> (dùng làm <code>client_id</code>), cờ Đang hoạt động, cờ &quot;Không giới hạn&quot; hoặc khoảng ngày hiệu lực (<code>valid_from</code>/<code>valid_to</code>).
+      </p>
+      <h3>17.2. Luồng Authorization Code (5 phút)</h3>
+      <ol>
+        <li>Ứng dụng ngoài điều hướng user tới <code>/sso/authorize?client_id=&lt;api_key&gt;&amp;redirect_uri=&lt;url&gt;</code> trên TTM Monitor.</li>
+        <li>Trang tự kiểm tra <code>client_id</code> hợp lệ (<code>GET /api/sso/verify-client</code>) và user đã đăng nhập TTM Monitor hay chưa (<code>GET /api/auth/me</code>); nếu chưa đăng nhập sẽ yêu cầu đăng nhập trước.</li>
+        <li>User xác nhận, hệ thống gọi <code>POST /api/sso/authorize</code>, sinh 1 mã dùng-một-lần (<code>sso_auth_codes.code</code>, hết hạn sau 5 phút) rồi điều hướng về đúng <code>redirect_uri</code> kèm mã này (và <code>state</code> nếu có).</li>
+        <li>Ứng dụng ngoài đổi mã lấy hồ sơ user bằng <code>POST /api/sso/token</code> (body <code>code</code> + <code>api_key</code>, hoặc header <code>X-API-Key</code>) — trả về <code>appName</code> và <code>user</code> (id, email, họ tên, role). Mã chỉ đổi được đúng 1 lần; đổi lại lần 2 báo lỗi <code>CODE_ALREADY_USED</code>.</li>
+      </ol>
+      <div class="callout warn">
+        Trường <code>accessToken</code> trong phản hồi <code>/api/sso/token</code> chỉ là chuỗi định danh tham khảo (ghép từ timestamp + user id), <strong>không phải</strong>
+        một token có thể xác minh lại được ở phía TTM Monitor — ứng dụng ngoài cần tự quản lý phiên đăng nhập của họ sau khi nhận được hồ sơ user, không dùng lại chuỗi
+        này như một bearer token.
+      </div>
+      <p>Trang <code>/sso-demo</code> (kèm <code>/api/sso-demo/callback</code>) minh hoạ đầy đủ luồng trên từ phía một ứng dụng khách mẫu.</p>
     </section>
 
     <section id="tech-stack">
       <div class="kicker">Công nghệ</div>
-      <h2>16. Tech stack</h2>
+      <h2>18. Tech stack</h2>
       <p>
         Tổng quan công nghệ nền của hệ thống — quy trình nghiệp vụ Import/ETL đã mô tả chi tiết ở mục 3, mục này chỉ nêu lớp công nghệ/hạ tầng bên dưới.
       </p>
@@ -1007,7 +1163,7 @@
           <p><strong>PostgreSQL</strong>, chạy song song tối đa 3 profile kết nối (local / Aiven / Supabase, mục 5) chọn qua biến môi trường <code>DB_CONNECTION</code>. Schema quản lý bằng migration có đánh version trong <code>db/migrations</code>, áp dụng thủ công cho từng profile qua script <code>scripts/migrate-db.js</code> — không tự động chạy migration khi deploy.</p>
         </div>
       </div>
-      <h3>16.1. Import/ETL — lớp công nghệ</h3>
+      <h3>18.1. Import/ETL — lớp công nghệ</h3>
       <p>Chi tiết quy trình nghiệp vụ xem mục 3; về mặt công nghệ, import xử lý theo mô hình <strong>adapter</strong>:</p>
       <ul>
         <li><code>src/lib/adapters/pure-jira-export-adapter.ts</code> — đọc CSV export gốc từ Jira (nhiều cột, nhiều loại issue).</li>
@@ -1015,7 +1171,7 @@
         <li>Cả 2 adapter chuẩn hoá dữ liệu thô về cùng 1 kiểu issue nội bộ trước khi ghi vào CSDL — pipeline validate/ghi/tổng hợp phía sau (mục 3.2) dùng chung, không phụ thuộc adapter nào.</li>
         <li>Không dùng nền tảng ETL/scheduler ngoài (Airflow, n8n…) — "ETL" ở đây gói gọn trong chính Route Handler xử lý import (đồng bộ, chạy trong 1 request HTTP), kích hoạt bằng tay qua UI hoặc bằng script Python gọi API tự động (mục 3.3).</li>
       </ul>
-      <h3>16.2. Hạ tầng &amp; vận hành</h3>
+      <h3>18.2. Hạ tầng &amp; vận hành</h3>
       <table>
         <thead><tr><th>Thành phần</th><th>Ghi chú</th></tr></thead>
         <tbody>
@@ -1024,13 +1180,14 @@
           <tr><td>Kết nối CSDL</td><td>Connection pool <code>pg.Pool</code>, giới hạn <code>max</code> thấp trên 2 profile hosted (Aiven/Supabase) do free-tier giới hạn số kết nối đồng thời</td></tr>
           <tr><td>Icon/UI</td><td><code>@phosphor-icons/react</code>; component UI dùng chung tự xây trong <code>src/components/ui</code> (không dùng thư viện component đầy đủ như MUI/Ant)</td></tr>
           <tr><td>Sao lưu/phục hồi</td><td>Chức năng riêng ở màn hình Quản trị (SUPERADMIN) — xuất/nhập dump CSDL, không dựa vào cơ chế backup tự động của nhà cung cấp hosting</td></tr>
+          <tr><td>MCP Server</td><td><code>@modelcontextprotocol/sdk</code> (chuẩn MCP chính thức) + <code>zod</code> để khai báo schema tham số từng tool — xem mục 16</td></tr>
         </tbody>
       </table>
     </section>
 
     <section id="glossary">
       <div class="kicker">Phụ lục</div>
-      <h2>17. Thuật ngữ</h2>
+      <h2>19. Thuật ngữ</h2>
       <table>
         <thead><tr><th>Thuật ngữ</th><th>Ý nghĩa</th></tr></thead>
         <tbody>
@@ -1049,6 +1206,12 @@
           <tr><td>Bắt buộc xem</td><td>Chế độ của Popup quảng cáo: ẩn nút X và không tự đóng cho tới khi hết thời gian đếm ngược (mục 14.2)</td></tr>
           <tr><td>Banner thông báo (Information Banner)</td><td>Dòng thông báo nhỏ không chặn thao tác, loại Mặc định (toàn hệ thống) hoặc Theo màn hình (mục 15)</td></tr>
           <tr><td>API import tự động</td><td><code>POST /api/data-source/import/auto</code> — endpoint xác thực bằng bearer token để script Python tự động import CSV, không qua session (mục 3.3)</td></tr>
+          <tr><td>Báo cáo Epic</td><td>Màn hình <code>/reports</code> — báo cáo theo từng dự án, chọn tối đa 7 lớp dữ liệu gần nhất, gộp Epic vào 6 nhóm Released/Đạt TTM/Fail TTM/In PO/Sai lệch dữ liệu/Pending (mục 11.5)</td></tr>
+          <tr><td>Cấu hình ứng dụng</td><td>Modal cấu hình mở từ sidebar (ADMIN trở lên): Quản lý ngày nghỉ/làm bù, Quản lý Issue Type (mục 13.2)</td></tr>
+          <tr><td>Quản trị hệ thống (modal)</td><td>Modal cấu hình mở từ sidebar (chỉ SUPERADMIN): Banner thông báo, Popup quảng cáo, Quản lý API key, Cấu hình Jira, MCP Server (mục 13.3)</td></tr>
+          <tr><td>MCP Server</td><td>Model Context Protocol — cho phép AI chatbot (Claude, ChatGPT...) kết nối và tra cứu dữ liệu TTM Monitor bằng hội thoại, tôn trọng đúng RBAC (mục 16)</td></tr>
+          <tr><td>Personal Access Token (PAT)</td><td>Token do người dùng tự tạo tại &quot;Thông tin cá nhân&quot; để AI chatbot xác thực khi kết nối MCP Server, chỉ hiện giá trị thật đúng 1 lần lúc tạo (mục 16.2)</td></tr>
+          <tr><td>SSO Provider / API Key</td><td>TTM Monitor cấp API key (client_id) cho ứng dụng ngoài, cho phép ứng dụng đó lấy hồ sơ user đang đăng nhập TTM Monitor qua luồng authorization code dùng 1 lần (mục 17)</td></tr>
         </tbody>
       </table>
     </section>

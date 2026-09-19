@@ -51,11 +51,19 @@ Các mức cảnh báo:
 
 ### 3.2. Epic-type mới (CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34)
 
-Chưa có giá trị mặc định cứng trong code cho 4 loại mới — admin tự nhập tại panel "Quy tắc cảnh báo
-Epic" (mỗi dòng là 1 cặp epic-type × trạng thái, với offset cảnh báo sớm < offset cảnh báo muộn). Có
-thể dùng lại giá trị SIMPLE ở trên làm điểm khởi đầu cho CT-Lv12, giá trị COMPLEX cho CT-Lv34/SP-Lv12/
-SP-Lv34, rồi điều chỉnh theo TTM-CNTT thực tế của từng loại (xem bảng working-days tại
-`02-ttm-concepts-and-rules.md` §2).
+Admin tự nhập rule tại panel "Quy tắc cảnh báo Epic" (mỗi dòng là 1 cặp epic-type × trạng thái, với
+offset cảnh báo sớm < offset cảnh báo muộn) — nếu chưa cấu hình, Epic của 4 loại mới sẽ không có
+cảnh báo sớm/muộn theo trạng thái. Có thể dùng lại giá trị SIMPLE ở trên làm điểm khởi đầu cho
+CT-Lv12, giá trị COMPLEX cho CT-Lv34/SP-Lv12/SP-Lv34, rồi điều chỉnh theo TTM-CNTT thực tế của từng
+loại (xem bảng working-days tại `02-ttm-concepts-and-rules.md` §2).
+
+Lưu ý code-level: `OFFSET_RULES` trong `src/lib/ttm-rules.ts` **vẫn hardcode** offset Design/In
+Progress cho cả 4 epic-type (CT-Lv12/SP-Lv12 dùng lại giá trị SIMPLE cũ, CT-Lv34/SP-Lv34 dùng lại
+giá trị COMPLEX cũ) — nhưng đây là **dead code** trong thực tế: mọi caller thật (`epic-compliance-
+engine.ts`, `epic-alert-service.ts`) luôn truyền một mảng `statusAlertRules` (kể cả rỗng) nên
+`resolveOffsetRule` không bao giờ rơi xuống `OFFSET_RULES`. Kết luận nghiệp vụ ở trên (chưa cấu hình
+= chưa có cảnh báo) vẫn đúng, chỉ là do đường gọi thực tế luôn ưu tiên rule active trong DB, không
+phải vì code thiếu giá trị mặc định.
 
 ## 4. Quy tắc xác định cảnh báo
 
@@ -99,26 +107,44 @@ R4G Date > Target R4G Date
 Target R4G Date lấy từ `ttm_policy_configs` (TTM_CNTT), không còn từ cột `fail_offset_days` trên
 `epic_status_alert_rules` (cột này đã bị drop — xem `02-ttm-concepts-and-rules.md`).
 
-### 4.5. Dữ liệu bất thường (`hasDataAnomaly`) — không tính cảnh báo
+### 4.5. Dữ liệu bất thường — hai khái niệm khác nhau, đừng nhầm lẫn
 
-Từ khi 2 rule validate "R4G Date trước Start Date" và "Due Date trước T0" được hạ từ ERROR xuống
-WARNING (không còn chặn import — xem `07-data-source-and-csv-import.md` §7), các Epic có dữ liệu
-ngày phi logic này vẫn được đưa vào `issues`. Ở tầng đọc, `hasDataAnomaly(row)`
-(`src/lib/epic-alert-service.ts`) đánh dấu true khi:
+Có **2 hàm khác nhau** trong `src/lib/epic-data-anomaly.ts`, phục vụ 2 mục đích khác nhau — tài liệu
+cũ từng gộp chung thành "hasDataAnomaly" là không chính xác:
+
+**a) `evaluateEpicDataAnomaly()` — badge "Sai lệch dữ liệu", 6 rule, dùng cho MỌI màn hình giám sát
+Epic (Quản trị Epic rút gọn/đầy đủ, Epic in PO, Báo cáo Epic, Dashboard, Dòng thời gian cảnh báo).**
+Epic ở trạng thái Cancelled/To Do/In PO/Backlog được miễn toàn bộ 6 rule dưới đây:
 
 ```text
-Thiếu Start Date
-HOẶC (có R4G Date VÀ R4G Date < Start Date)
-HOẶC (có Due Date VÀ có T0 VÀ Due Date < T0)
+b. Thiếu T0    — trạng thái ≥ Design nhưng chưa có Ngày duyệt ý tưởng.
+c. Thiếu T1    — trạng thái ≥ In Progress/DEV nhưng chưa có Start Date.
+d. Pending lâu — đang Pending, số ngày làm việc từ ngày tạo Epic ≥ 20% chu trình TTM-CNTT
+                 (dùng ngân sách CT-Lv12 nếu không xác định được loại Epic), và vẫn thiếu T0 hoặc T1.
+e. Sai thứ tự  — không thoả T0 ≤ T1 < R4G Date ≤ Due Date (chỉ xét mốc đã có giá trị;
+                 R4G Date = Due Date vẫn coi là hợp lệ). Mỗi cặp sai sinh 1 lỗi riêng.
+f. Thiếu phân loại — không có Phân loại yêu cầu (epic_request_type) hoặc Requirement Level.
 ```
 
-Với Epic bị đánh dấu:
+Epic vi phạm ≥ 1 rule **vẫn được nhập đầy đủ, không bị chặn**, nhưng: bị đẩy xuống **cuối bảng** và
+tô nền highlight; cột Nhận xét hiện thêm badge **"Sai lệch dữ liệu (x)"** — hiển thị **song song**
+với badge Cảnh báo/Fail/"Đạt TTM" bình thường (không thay thế nhau); Dashboard gộp các Epic này vào
+ô thống kê "Thiếu dữ liệu chuẩn" thay vì tính vào mẫu số/tử số tỷ lệ "Đạt TTM".
 
-- `alertLevel` và `ttmE2eAlertLevel` bị ép về `NONE` — cột Nhận xét hiện **"Không tính được"** thay
-  vì badge Cảnh báo/Fail hoặc "Đạt TTM" (tránh hiện kết quả giả-sạch do dải ngày phi logic).
-- Dòng bị đẩy xuống **cuối bảng** và tô nền highlight (class `.missing-row`) trên cả 3 màn hình
-  Quản trị Epic.
-- **Ngoại lệ khi vẫn có Start Date** (chỉ R4G/Due Date phi logic, không phải thiếu Start Date): cột
+**b) `breaksTtmCnttCalculation()` / `breaksTtmE2eCalculation()` — ép `alertLevel`/`ttmE2eAlertLevel`
+về `NONE`, phạm vi hẹp hơn NHIỀU, chỉ khi bản thân phép tính không còn đáng tin:**
+
+```text
+breaksTtmCnttCalculation = Thiếu Start Date HOẶC (có R4G Date VÀ R4G Date < Start Date)
+breaksTtmE2eCalculation  = (có Due Date VÀ có T0 VÀ Due Date < T0)
+```
+
+Khi 1 trong 2 điều kiện này đúng, cột Nhận xét hiện **"Không tính được"** cho đúng loại TTM tương
+ứng thay vì badge Cảnh báo/Fail/"Đạt TTM" (tránh hiện kết quả giả-sạch do dải ngày phi logic) — ví
+dụ Epic chỉ vi phạm rule (f) ở trên (thiếu Requirement Level) vẫn hiện đúng Cảnh báo sớm/muộn/Fail
+bình thường, KHÔNG bị ép về "Không tính được".
+
+- **Ngoại lệ khi vẫn có Start Date** (chỉ R4G Date phi logic, không phải thiếu Start Date): cột
   TTM-CNTT **vẫn vẽ stripe bình thường** — stripe baseline theo Start Date + rule, stripe thực tế
   bắt đầu tại Start Date và kết thúc luôn là "hôm nay" (bỏ qua R4G Date phi logic thay vì vẽ ngược).
   Tương tự, cột TTM-E2E cũng không dùng Due Date phi logic làm điểm cuối, luôn fallback về "hôm nay".
@@ -126,8 +152,6 @@ Với Epic bị đánh dấu:
   bình thường** ngay cả khi Epic thiếu Start Date, vì T0 luôn tính được qua fallback (Idea Approved
   Date → ngày tạo Jira). Chỉ các cột phụ thuộc Start Date trực tiếp (TTM-CNTT, Design/In Progress/
   Ready4Golive hoặc DESIGN/DEV/TEST/PENTEST/R4GOLIVE) mới hiện "Không tính được" khi thiếu Start Date.
-- Dashboard (`dashboard-service.ts`) loại các Epic này khỏi mẫu số/tử số tỷ lệ "Đạt TTM", gộp vào ô
-  thống kê "Thiếu dữ liệu chuẩn".
 
 ## 5. Cách tính mốc ngày
 

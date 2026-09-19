@@ -15,11 +15,18 @@ Quản trị hệ thống
 └── Cấu hình TTM
 ```
 
-> **Cập nhật — thêm 2 màn hình quản trị chưa có trong danh sách trên:**
-> - **Ma trận phân quyền** (`/admin/permissions`, chỉ SUPERADMIN) — xem
+> **Cập nhật — sidebar "Quản trị" không còn 1-1 với danh sách trên; các mục quản trị mới hiện là
+> 2 modal cấu hình (không phải route riêng), mở từ 2 mục cuối cùng của nhóm "Quản trị" trên sidebar:**
+> - **Ma trận phân quyền** (`/admin/permissions`, route riêng, chỉ SUPERADMIN) — xem
 >   `05-auth-rbac-user-management.md` §12c và `08-data-model.md` §14.
-> - **Quản lý chung** — gồm Cấu hình Jira (`jira_settings`: `api_base_url`, `view_issue_base_url`
->   dùng để tạo link "Mở Epic trên Jira") và các cấu hình chung khác.
+> - **Modal "Cấu hình ứng dụng"** (ADMIN trở lên) — 2 tab: Quản lý ngày nghỉ/làm bù (thay cho route
+>   `/admin/holidays` cũ, nay không còn liên kết trên sidebar dù route vẫn chạy được), và Quản lý
+>   Issue Type (`issue_type_role_mapping` — xem `08-data-model.md` §13).
+> - **Modal "Quản trị hệ thống"** (chỉ SUPERADMIN) — 5 tab: Banner thông báo (`info_banners`), Popup
+>   quảng cáo (`ad_popups`/`ad_popup_impressions`), Quản lý API key (`api_keys`, dùng cho SSO Provider
+>   — xem `15-mcp-sso-and-reports.md`), Cấu hình Jira (`jira_settings`: `api_base_url`,
+>   `view_issue_base_url` dùng để tạo link "Mở Epic trên Jira"), và MCP Server (`mcp_settings`/
+>   `mcp_access_tokens` — xem `15-mcp-sso-and-reports.md`).
 >
 > Ngoài ra Holiday (§4) giờ có thêm bảng song song **Ngày làm bù** (`makeup_workdays`) — xem §4.2.
 

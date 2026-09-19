@@ -20,13 +20,19 @@ Dữ liệu chia thành các nhóm:
 - Cấu hình TTM và cảnh báo (`ttm_policy_configs`, `epic_status_alert_rules`,
   `issue_type_role_mapping`).
 - Lịch làm việc (`holidays`, `makeup_workdays`).
-- Lịch sử/audit (`epic_alert_history`, `epic_milestone_history`, `epic_ttm_snapshots`,
-  `issue_daily_snapshots`, `audit_logs`, `user_usage_daily_stats`).
+- Lịch sử/audit (`epic_alert_history`, `epic_alert_timeline`, `epic_milestone_history`,
+  `epic_ttm_snapshots`, `issue_daily_snapshots`, `audit_logs`, `user_usage_daily_stats`).
 - Cấu hình chung (`jira_settings`, `data_retention_configs`).
+- Thông báo trong ứng dụng (`ad_popups`, `ad_popup_impressions`, `info_banners`) — mục 20.
+- SSO/API Key & MCP Server (`api_keys`, `sso_auth_codes`, `mcp_settings`, `mcp_access_tokens`,
+  `mcp_access_daily_stats`, `mcp_oauth_clients`, `mcp_oauth_authorization_codes`) — mục 21.
 
 ## 1.1. Sơ đồ cấu trúc cơ sở dữ liệu (ERD Diagram)
 
-Sơ đồ ERD dưới đây mô tả cấu trúc thực tế của 27 bảng/thực thể trong CSDL PostgreSQL của ứng dụng TTM Monitor, phân chia theo 7 nhóm chức năng cốt lõi:
+Sơ đồ ERD dưới đây mô tả cấu trúc thực tế của **37 bảng/thực thể** trong CSDL PostgreSQL của ứng dụng
+TTM Monitor (27 bảng nghiệp vụ cốt lõi từ MVP1 + 10 bảng hạ tầng tích hợp mới hơn — mục 20/21),
+phân chia theo 9 nhóm chức năng. Sơ đồ mermaid dưới đây chỉ vẽ 7 nhóm cốt lõi cho gọn — 2 nhóm mới
+xem chi tiết dạng text tại mục 20/21:
 
 ```mermaid
 erDiagram
@@ -60,6 +66,7 @@ erDiagram
     import_batches ||--o{ epic_ttm_snapshots : "1-n (source_import_batch_id)"
     import_batches ||--o{ issue_daily_snapshots : "1-n (source_import_batch_id)"
     import_batches ||--o{ epic_alert_history : "1-n (source_import_batch_id)"
+    import_batches ||--o{ epic_alert_timeline : "1-n (last_seen_batch_id)"
     import_batches ||--o{ epic_milestone_history : "1-n (source_import_batch_id)"
 ```
 
@@ -73,6 +80,8 @@ full_name
 password_hash        -- bcrypt hash, không lưu plaintext
 role                  -- CHECK IN ('SUPERADMIN','ADMIN','SUPERVISOR','USER') — 4 role, không phải 3
 is_active
+must_change_password -- BOOLEAN NOT NULL DEFAULT TRUE (thêm bởi 20260905c) — bắt đổi mật khẩu ở lần
+                      -- đăng nhập kế tiếp; chỉ seed FALSE cho minhnd7@mbbank.com.vn
 last_login_at
 created_at
 updated_at
@@ -136,17 +145,19 @@ source_project_key    -- UNIQUE, NOT NULL — Jira Project Key, DÙNG DUY NHẤT
 source_type           -- mặc định 'JIRA'
 project_category      -- CHECK IN ('Dự án','Team Agile','Team Triển khai'), nullable
 ttm                    -- CHAR(1) CHECK IN ('Y','N'), mặc định 'N'
-lead_name             -- PM/SM hiện tại — CHỈ ĐỌC trên popup Dự án, chỉ được set/sửa từ màn Quản lý User
 is_active
 created_at
 updated_at
 ```
 
 Không còn khái niệm "Mã hiển thị" tách biệt Source Project Key — `source_project_key` vừa là khóa
-join với `issues`/`project_components` vừa là mã hiển thị duy nhất trên UI. Popup thêm/sửa Dự án
-không cho gán PM/SM (chỉ hiển thị `lead_name` hiện tại + component được phân quyền của PM/SM đó,
-đọc từ `user_project_components`); gán/đổi PM/SM thực hiện tại `/admin/users`, đồng bộ hai chiều
-trong transaction (`auth-service.ts`'s `replacePermissions`).
+join với `issues`/`project_components` vừa là mã hiển thị duy nhất trên UI. Cột `lead_name` (PM/SM
+hiện tại) đã bị **DROP** khỏi bảng này (`20260908_drop_projects_lead_name.sql`) — PM/SM hiện tại
+không còn là 1 cột lưu sẵn, mà được suy ra **live** bằng join `user_projects` + `users` (xem
+`listProjects`/`getProjectById` trong `master-data-service.ts`). Popup thêm/sửa Dự án không cho gán
+PM/SM (chỉ hiển thị PM/SM hiện tại + component được phân quyền của PM/SM đó, đọc từ
+`user_project_components`); gán/đổi PM/SM thực hiện tại `/admin/users`, đồng bộ hai chiều trong
+transaction (`auth-service.ts`'s `replacePermissions`).
 
 ## 6. project_components
 
@@ -284,13 +295,19 @@ vì xóa, nhưng **admin cần tự thêm rule mới cho 4 epic-type CT-Lv12/CT-
 id
 ttm_type              -- CHECK IN ('TTM_CNTT','TTM_E2E')
 epic_complexity_type  -- CHECK IN ('SIMPLE','COMPLEX','CT-Lv12','CT-Lv34','SP-Lv12','SP-Lv34')
-from_ttm_field        -- CHECK IN ('IDEA_APPROVED_DATE','START_DATE')
-to_ttm_field           -- CHECK IN ('R4G_DATE','DUE_DATE')
+from_ttm_field        -- VARCHAR(100), TEXT TỰ DO — CHECK enum ('IDEA_APPROVED_DATE','START_DATE') đã
+                       -- bị DROP (20260817_allow_free_text_ttm_fields.sql) để chừa chỗ map field mới
+to_ttm_field           -- VARCHAR(100), TEXT TỰ DO — CHECK enum ('R4G_DATE','DUE_DATE') đã bị DROP
+                       -- cùng migration trên, cùng lý do
 working_days           -- 1–3650
 is_active
 created_at
 updated_at
 ```
+
+`from_ttm_field`/`to_ttm_field` không còn ràng buộc CHECK — engine (`ttm-policy-service.ts`) nhận
+diện qua alias chuẩn của Idea Approved Date/Start Date/R4G Date/Due Date, giá trị lạ được lưu nguyên
+để dành sẵn cho việc bổ sung mapping dữ liệu sau, không bị DB từ chối.
 
 Unique `(ttm_type, epic_complexity_type)`. Đây là **nguồn duy nhất** của mốc hạn TTM (thay
 `fail_offset_days` cũ). Seed mặc định lúc tạo bảng (nay là legacy): TTM_CNTT SIMPLE=15 ngày, TTM_CNTT
@@ -378,7 +395,9 @@ Xem/Thêm/Sửa/Xóa cho từng cặp (tính năng, role). `category='ADMIN'` ch
 help, tài liệu sản phẩm). SUPERADMIN luôn được seed đủ 4 quyền TRUE trên mọi feature và API từ chối
 sửa dòng SUPERADMIN. Lưu ý: seed feature key `epic_alerts_30`/`epic_alerts_15` vẫn giữ tên gọi cũ
 "Quản lý Epic 30"/"Quản lý Epic 15" dù UI đã đổi nhãn thành "Quản trị Epic (rút gọn)"/"(đầy đủ)" —
-đây chỉ là key nội bộ, không đổi tên field để tránh phá dữ liệu đã seed.
+đây chỉ là key nội bộ, không đổi tên field để tránh phá dữ liệu đã seed. Migration
+`20260909_add_epic_reports_permission.sql` bổ sung thêm feature key `epic_reports` (category
+`VIEW_ONLY`) cho màn hình Báo cáo Epic (`/reports` — xem `15-mcp-sso-and-reports.md`).
 
 ## 15. jira_settings
 
@@ -389,7 +408,8 @@ view_issue_base_url  -- prefix nối trực tiếp với Epic Key để tạo li
 updated_at
 ```
 
-Cấu hình tại "Quản lý chung".
+Cấu hình tại modal "Quản trị hệ thống" (sidebar, chỉ SUPERADMIN) → tab "Cấu hình Jira" —
+`JiraConfigPanel.tsx`, API `GET`/`PUT /api/jira-settings`.
 
 ## 16. user_usage_daily_stats
 
@@ -445,6 +465,81 @@ Chỉ SUPERADMIN được cập nhật. Sau mỗi import lưu chính thức, h�
 (`import_batches`/`import_rows`/`issues`), luôn giữ batch vừa import và lớp dữ liệu mới nhất;
 `epic_ttm_snapshots`/`issue_daily_snapshots` không bị dọn theo — đó là lý do 2 bảng snapshot tồn
 tại.
+
+## 20. epic_alert_timeline / ad_popups / ad_popup_impressions / info_banners
+
+### epic_alert_timeline
+
+```text
+id
+epic_key
+alert_type          -- CHECK IN ('FAIL_TTM_CNTT','LATE_TTM_CNTT','FAIL_TTM_E2E','MISSING_START_DATE','DATA_ANOMALY')
+start_date
+end_date            -- NULL = đợt đang mở (Epic vẫn đang ở trạng thái cảnh báo đó tại lớp dữ liệu mới nhất)
+last_seen_batch_id  -- FK import_batches(id) ON DELETE SET NULL
+created_at
+updated_at
+```
+
+Thêm bởi `20260905_create_epic_alert_timeline.sql`, mở rộng bởi `20260905b` (thêm `LATE_TTM_CNTT`).
+Unique `(epic_key, alert_type, start_date)`. Khác `epic_alert_history` (chỉ ghi 1 dòng rời rạc/ngày,
+riêng cho LATE/FAIL TTM-CNTT tổng thể): bảng này theo dõi **5 loại cảnh báo** dưới dạng các "đợt"
+(run) liên tục có ngày bắt đầu/kết thúc, cho cả `epic-alerts` UI mục "Dòng thời gian cảnh báo". Ghi
+bởi `recordEpicAlertTimelineTransitions` (gọi từ `import-service.ts`), chạy mỗi khi
+`aggregateBatchData()` chạy (import thủ công, import tự động, hoặc "Chạy lại" lớp dữ liệu) — **luôn
+bật**, không bị flag tắt như `epic_alert_history`/`epic_milestone_history`.
+
+### ad_popups / ad_popup_impressions
+
+```text
+ad_popups: id, campaign_name, image_url, click_url, message (HTML đã làm sạch nội bộ),
+           start_date, end_date, is_active, max_impressions, timeout_seconds, force_view,
+           width_percent, height_percent, created_at, updated_at
+ad_popup_impressions: ad_popup_id (FK), user_id (FK), shown_count, PK (ad_popup_id, user_id)
+```
+
+Thêm bởi `20260905d`/`20260905e`/`20260906`. Popup quảng cáo toàn màn hình cho mọi user đã đăng
+nhập, cấu hình tại modal "Quản trị hệ thống" (SUPERADMIN) → tab "Popup quảng cáo". `max_impressions`
+đếm riêng theo từng user qua `ad_popup_impressions.shown_count`, không phải tổng toàn hệ thống.
+`force_view = true` ẩn nút đóng cho tới hết `timeout_seconds`. API: `/api/ad-popups`,
+`/api/ad-popups/active`, `/api/ad-popups/[id]/impression`.
+
+### info_banners
+
+```text
+id, name, content (HTML 1 dòng đã làm sạch), banner_type CHECK IN ('DEFAULT','PER_SCREEN'),
+screen_key, is_active, start_date, end_date, created_at, updated_at
+```
+
+Thêm bởi `20260906b`. Unique index từng phần đảm bảo tối đa 1 banner `DEFAULT` active cùng lúc.
+`PER_SCREEN` gắn theo `screen_key` (route pathname), không giới hạn số lượng. Cấu hình cùng modal
+"Quản trị hệ thống" → tab "Banner thông báo". API: `/api/info-banners`, `/api/info-banners/active`.
+
+## 21. api_keys / sso_auth_codes / mcp_*
+
+```text
+api_keys: id, key_name, app_name, api_key (UNIQUE, dùng làm client_id), is_active, is_unlimited,
+          valid_from, valid_to, created_at, updated_at
+sso_auth_codes: code (UNIQUE), api_key_id (FK), user_id (FK), redirect_uri, is_used,
+                expires_at (+5 phút), created_at
+mcp_settings: id = 1 (singleton), is_enabled, updated_at, updated_by (FK users(id))
+mcp_access_tokens: id, user_id (FK), token_name, token_prefix, token_hash (SHA-256),
+                   created_at, last_used_at, revoked_at
+mcp_access_daily_stats: user_id (FK), stat_date, access_count, PK (user_id, stat_date)
+mcp_oauth_clients: client_id (PK), client_name, redirect_uris, ... (RFC 7591 dynamic registration)
+mcp_oauth_authorization_codes: code (PK), client_id (KHÔNG FK cứng — có thể là URL Client ID
+                                Metadata Document), user_id (FK), code_challenge (PKCE), expires_at
+```
+
+Thêm bởi `20260909_create_api_keys.sql`, `20260909_create_sso_auth_codes.sql`,
+`20260915_create_mcp_settings.sql`, `20260915b_create_mcp_access_tokens.sql`,
+`20260915c_create_mcp_access_daily_stats.sql`, `20260916_create_mcp_oauth_clients.sql`,
+`20260916b_create_mcp_oauth_authorization_codes.sql`. `api_keys`/`sso_auth_codes` phục vụ TTM
+Monitor đóng vai trò SSO Provider cho ứng dụng ngoài (`sso-service.ts`, route `/sso/authorize` +
+`/api/sso/*`). `mcp_*` phục vụ MCP Server cho AI chatbot (`mcp-server.ts`, `mcp-service.ts`, route
+`/api/mcp`, `/api/mcp/oauth/*`) — `mcp_access_tokens` là Personal Access Token do chính user tạo,
+`mcp_oauth_clients`/`mcp_oauth_authorization_codes` phục vụ luồng OAuth 2.0 + PKCE thay thế. Chi
+tiết nghiệp vụ đầy đủ: `15-mcp-sso-and-reports.md`.
 
 ---
 

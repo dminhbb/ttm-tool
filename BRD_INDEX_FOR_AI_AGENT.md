@@ -667,6 +667,29 @@ Source of truth: `brd/14-issue-hierarchy-and-workflows.md`.
 - Luồng import/validation, trang Duyệt dữ liệu và API đánh giá tuân thủ phải dùng chung core logic này; không hard-code riêng `Sub-task`/`Bug` tại từng màn hình.
 - Khi chưa có rule riêng, DEV/TEST/PENTEST kế thừa mốc cảnh báo sớm/muộn của rule legacy `In Progress`, để dữ liệu Jira cũ không bị mất cảnh báo.
 
+## Bổ sung — Báo cáo Epic, MCP Server, SSO/API Key và tái cấu trúc sidebar "Quản trị"
+
+> **Cập nhật (09/2026):** 3 mảng tính năng mới, chi tiết đầy đủ tại `15-mcp-sso-and-reports.md`.
+
+- Route mới `/reports` ("Báo cáo Epic") — mở cho mọi role, là mục đầu tiên nhóm "Giám sát" trên
+  sidebar. Báo cáo theo 1 dự án, tối đa 7 lớp dữ liệu gần nhất, dùng lại đúng engine cảnh báo/tuân
+  thủ/sai lệch dữ liệu với 3 màn hình Epic Alerts — không viết công thức riêng.
+- **MCP Server**: cho phép AI chatbot (Claude, ChatGPT, Gemini, Copilot) kết nối qua giao thức MCP,
+  xác thực bằng Personal Access Token (tạo tại "Thông tin cá nhân") hoặc OAuth 2.0 + PKCE. Mọi tool
+  MCP gọi lại service layer dùng chung với UI nên luôn tôn trọng đúng RBAC. Bật/tắt tại modal "Quản
+  trị hệ thống" → tab MCP Server.
+- **SSO/API Key**: chiều ngược lại với TTM Monitor tự đăng nhập AD/Keycloak — ở đây TTM Monitor cấp
+  API key (`client_id`) cho ứng dụng ngoài, cho ứng dụng đó lấy hồ sơ user đang đăng nhập TTM Monitor
+  qua luồng authorization-code dùng 1 lần, hết hạn 5 phút (`/sso/authorize` → `/api/sso/token`).
+- **Sidebar "Quản trị" đã tái cấu trúc**: 2 mục cuối cùng không còn là route mà là **modal cấu hình**:
+  "Cấu hình ứng dụng" (ADMIN trở lên — Quản lý ngày nghỉ/làm bù, Quản lý Issue Type; route cũ
+  `/admin/holidays` không còn liên kết trên sidebar dù vẫn chạy được) và "Quản trị hệ thống" (chỉ
+  SUPERADMIN — Banner thông báo, Popup quảng cáo, Quản lý API key, Cấu hình Jira, MCP Server; các
+  tính năng này **không còn** ở "menu avatar người dùng" như một số tài liệu cũ có thể còn ghi).
+- Route `/epic-alerts` ("Quản trị Epic (rút gọn)") đã bị gỡ khỏi sidebar điều hướng chính (route vẫn
+  chạy nếu gõ thẳng URL, đúng phân quyền ADMIN/SUPERADMIN/SUPERVISOR) — sidebar chỉ còn dẫn tới
+  `/epic-alerts-15`, hiển thị nhãn ngắn **"Quản trị Epic"**.
+
 # 14. Hướng dẫn AI Agent khi thực hiện task
 
 Trước khi code, AI Agent phải xác định task thuộc nhóm nào và đọc đúng file BRD tương ứng.
@@ -685,6 +708,7 @@ Trước khi code, AI Agent phải xác định task thuộc nhóm nào và đ�
 | TTM policy config (`ttm_policy_configs`), Fail TTM-E2E | `12-ttm-policy-and-epic-alert-ui.md` |
 | Quản trị Epic (rút gọn/đầy đủ), Epic in PO, Dashboard | `13-epic-15-and-epic-30-management.md` |
 | Phân cấp Issue Type, workflow Story/Subtask | `14-issue-hierarchy-and-workflows.md` |
+| Báo cáo Epic (`/reports`), MCP Server (AI chatbot), SSO/API Key (SSO Provider) | `15-mcp-sso-and-reports.md` |
 
 Nếu các file chưa được tách thật, Agent cần dùng section tương ứng trong BRD tổng và file index này để định vị nội dung.
 

@@ -36,17 +36,20 @@ Alias tương thích dữ liệu Jira: `In Progress`/`In Dev` = DEV; `Pen Test` 
 
 ## TTM-CNTT và rule pha Epic 15
 
-Tổng số ngày TTM-CNTT lấy từ tiêu chí TTM-CNTT active theo loại Epic. Baseline tính theo ngày làm việc từ Start Date, bỏ cuối tuần và holiday active:
+Tổng số ngày TTM-CNTT lấy từ tiêu chí TTM-CNTT active theo loại Epic. Baseline tính theo ngày làm việc từ Start Date, bỏ cuối tuần và holiday active, theo tỷ trọng từng pha (`TTM_PHASE_PERCENTAGE`, `src/lib/ttm-phase-rules.ts`): Design 20%, Dev 30%, Test 30%, Pentest 10%, R4Golive 10% — mốc tích lũy tương ứng là 20% / 50% / 80% / 90% / 100% tổng TTM-CNTT:
 
 | Pha | Tỷ lệ tích lũy | Baseline |
 |---|---:|---|
-| Design | 20% | Start Date + round(total × 20%) |
-| Dev | 50% | Start Date + round(total × 50%) |
-| Test | 80% | Start Date + round(total × 80%) |
-| Pentest | 90% | Start Date + round(total × 90%) |
-| R4Golive | 100% | Start Date + total |
+| Design | 20% | Start Date + ⌈total × 20%⌉ ngày làm việc (làm tròn **lên**) |
+| Dev | 50% | Nối tiếp từ Design, cộng thêm ⌊total × 30%⌋ ngày làm việc (làm tròn **xuống**) |
+| Test | 80% | Nối tiếp từ Dev, cộng thêm ⌊total × 30%⌋ ngày làm việc (làm tròn **xuống**) |
+| Pentest | 90% | Nối tiếp từ Test, cộng thêm ⌊total × 10%⌋ ngày làm việc (làm tròn **xuống**) |
+| R4Golive | 100% | **Gán trực tiếp** = Start Date + (total − 1) ngày làm việc — không dùng chuỗi cộng dồn 4 pha trước, để luôn khớp tuyệt đối với Target TTM-CNTT tổng, không lệch do sai số làm tròn |
 
-Phần ngày của mỗi pha là chênh lệch giữa hai mốc tích lũy liên tiếp, nên tổng luôn bằng đúng TTM-CNTT. Khi chưa cấu hình rule status riêng, DEV/TEST/PENTEST dùng offset cảnh báo sớm/muộn của `In Progress`.
+DESIGN làm tròn lên (ceiling) còn DEV/TEST/PENTEST làm tròn xuống (floor) và tính nối tiếp từ ngày
+cộng dồn của pha trước — không phải `round()` đơn giản trên từng pha độc lập như cách diễn giải cũ.
+Nhờ R4GOLIVE được gán trực tiếp (không cộng dồn), tổng 5 baseline luôn khớp đúng TTM-CNTT dù 4 pha
+trước có làm tròn lệch bao nhiêu. Khi chưa cấu hình rule status riêng, DEV/TEST/PENTEST dùng offset cảnh báo sớm/muộn của `In Progress`.
 
 ## Cột TTM-E2E, START-E2E và Release — độc lập với Start Date
 

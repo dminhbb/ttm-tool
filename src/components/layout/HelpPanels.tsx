@@ -42,12 +42,13 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
     <Modal isOpen={isOpen} onClose={onClose} title="Logic cảnh báo Epic" maxWidth="xl" footer={<Button variant="outline" onClick={onClose}>Đóng</Button>}>
       <div className="flex flex-col gap-5 text-fb-text-secondary">
         <section>
-          <h3 className="ui-card-title mb-1">1. Bốn màn hình giám sát Epic</h3>
+          <h3 className="ui-card-title mb-1">1. Các màn hình giám sát Epic</h3>
           <ul className="ml-5 list-disc space-y-1">
+            <li><strong className="text-fb-text-primary">Báo cáo Epic (/reports)</strong> — báo cáo theo dự án, chọn 1 dự án + component + tối đa 7 lớp dữ liệu gần nhất, gộp Epic vào 6 nhóm: Released, Đạt TTM-CNTT &amp; TTM-E2E, Fail TTM-CNTT/TTM-E2E, In PO (To Do/In PO), Sai lệch dữ liệu, Pending. Dùng chung engine tính cảnh báo/sai lệch với 3 màn hình dưới đây. Mở cho mọi role đã đăng nhập.</li>
             <li><strong className="text-fb-text-primary">Quản trị Epic (/epic-alerts-15)</strong> — theo dõi chi tiết theo 5 pha: Design (20%), Dev (50%), Test (80%), Pentest (90%), R4Golive (100%). Mốc thời gian mỗi pha tính tự động theo tỷ lệ % TTM-CNTT tích lũy. Mở cho <strong className="text-fb-text-primary">mọi role đã đăng nhập</strong> (theo phạm vi dự án được phân quyền).</li>
-            <li><strong className="text-fb-text-primary">Quản trị Epic (rút gọn) (/epic-alerts)</strong> — theo dõi tổng quan theo mốc TTM-CNTT. (*Tạm ẩn trên menu chính*).</li>
+            <li><strong className="text-fb-text-primary">Quản trị Epic (rút gọn) (/epic-alerts)</strong> — theo dõi tổng quan theo mốc TTM-CNTT. (*Tạm ẩn trên menu chính, chỉ ADMIN/SUPERADMIN/SUPERVISOR truy cập được nếu gõ thẳng URL*).</li>
             <li><strong className="text-fb-text-primary">Epic in PO (/epic-in-po)</strong> — cùng dữ liệu/logic với màn hình Quản trị Epic, chỉ lọc còn Epic đang ở trạng thái To Do, In PO hoặc Released. Mở cho mọi role.</li>
-            <li><strong className="text-fb-text-primary">Dashboard (/dashboard)</strong> — thống kê tổng hợp theo dự án (số Epic, phân bố trạng thái, số lượng từng loại cảnh báo, tỷ lệ Đạt TTM, Epic sắp đến hạn), tính live từ cùng dữ liệu 3 màn hình trên, không có bảng tổng hợp riêng.</li>
+            <li><strong className="text-fb-text-primary">Dashboard (/dashboard)</strong> — thống kê tổng hợp theo dự án (số Epic, phân bố trạng thái, số lượng từng loại cảnh báo, tỷ lệ Đạt TTM, Epic sắp đến hạn), tính live từ cùng dữ liệu các màn hình trên, không có bảng tổng hợp riêng.</li>
           </ul>
         </section>
 
@@ -95,14 +96,23 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
         <section>
           <h3 className="ui-card-title mb-1">6. Epic có dữ liệu bất thường — nhóm cuối bảng</h3>
           <p>
-            Một Epic được đánh dấu <strong className="text-fb-text-primary">dữ liệu bất thường</strong> khi: thiếu hẳn Start Date, hoặc có R4G Date sớm hơn Start Date,
-            hoặc có Due Date sớm hơn T0. Các Epic này <strong>vẫn được nhập vào hệ thống</strong> (không còn bị chặn import như trước — chỉ ghi nhận Cảnh báo, không chặn),
-            nhưng:
+            Một hàm dùng chung <code>evaluateEpicDataAnomaly()</code> (áp dụng cho cả 3 màn hình giám sát Epic, Báo cáo và Dashboard) đánh dấu Epic
+            <strong className="text-fb-text-primary"> dữ liệu bất thường</strong> khi vi phạm ít nhất 1 trong 6 rule sau. Epic ở trạng thái Cancelled/To Do/In PO/Backlog
+            được miễn toàn bộ các rule này:
           </p>
           <ul className="ml-5 list-disc space-y-1">
-            <li>Bị đẩy xuống <strong>cuối bảng</strong> và tô nền highlight, để dễ nhận biết cần làm sạch dữ liệu nguồn trên Jira.</li>
-            <li>Cột Nhận xét hiện <strong>&quot;Không tính được&quot;</strong> thay vì badge Cảnh báo/Fail hay &quot;Đạt TTM&quot; — tránh hiển thị kết quả có thể sai do dải ngày phi logic.</li>
-            <li>Riêng trường hợp có Start Date nhưng R4G Date phi logic: dải TTM-CNTT vẫn vẽ bình thường (baseline theo Start Date, thực tế = Start Date → hôm nay, bỏ qua R4G Date phi logic).</li>
+            <li><strong>Thiếu T0</strong> — trạng thái ≥ Design nhưng chưa có Ngày duyệt ý tưởng.</li>
+            <li><strong>Thiếu T1</strong> — trạng thái ≥ In Progress/DEV nhưng chưa có Start Date.</li>
+            <li><strong>Pending quá lâu</strong> — Epic đang Pending, số ngày làm việc từ ngày tạo Epic tới hôm nay ≥ 20% chu trình TTM-CNTT, và vẫn thiếu T0 hoặc T1.</li>
+            <li><strong>Sai thứ tự ngày</strong> — không thoả chuỗi <code>T0 ≤ T1 &lt; R4G Date ≤ Due Date</code> (chỉ xét mốc đã có giá trị; R4G Date = Due Date vẫn coi là hợp lệ).</li>
+            <li><strong>Thiếu phân loại</strong> — chưa có Phân loại yêu cầu (epic_request_type) hoặc Requirement Level.</li>
+          </ul>
+          <p>Epic vi phạm <strong>vẫn được nhập đầy đủ vào hệ thống</strong> (không bị chặn import), nhưng:</p>
+          <ul className="ml-5 list-disc space-y-1">
+            <li>Bị đẩy xuống <strong>cuối bảng</strong> và tô nền highlight trên cả 3 màn hình, để dễ nhận biết cần làm sạch dữ liệu nguồn trên Jira.</li>
+            <li>Cột Nhận xét hiện thêm badge <strong className="text-fb-text-primary">&quot;Sai lệch dữ liệu (x)&quot;</strong> — hiển thị <em>song song</em> với badge Cảnh báo/Fail/&quot;Đạt TTM&quot; bình thường (không thay thế nhau); di chuột lên badge để xem chi tiết từng rule vi phạm.</li>
+            <li>Cảnh báo TTM-CNTT/TTM-E2E chỉ bị ép về &quot;Không tính được&quot; khi bản thân phép tính không còn đáng tin — <strong>thiếu Start Date</strong>, hoặc <strong>R4G/Due Date phi logic</strong> so với mốc gốc — chứ không phải mọi vết trong 6 rule ở trên; ví dụ Epic chỉ thiếu Requirement Level vẫn hiện đúng Cảnh báo sớm/muộn/Fail bình thường.</li>
+            <li>Riêng khi vẫn có Start Date (chỉ R4G/Due Date phi logic): dải TTM-CNTT vẫn vẽ bình thường (baseline theo Start Date, thực tế = Start Date → hôm nay, bỏ qua ngày phi logic).</li>
           </ul>
         </section>
 
@@ -127,6 +137,7 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
         <section>
           <h3 className="ui-card-title mb-1">8. Badge &quot;Đạt TTM&quot; &amp; Lịch sử cảnh báo tích lũy</h3>
           <p>Badge <strong>&quot;Đạt TTM&quot;</strong> hiển thị ở cột Nhận xét khi Epic đã có R4G Date và không bị cảnh báo (và không có dữ liệu bất thường). Icon tam giác vàng ở cột Epic cho phép mở popup <strong className="text-fb-text-primary">Epic History</strong> để tra cứu lịch sử cảnh báo muộn/fail TTM-CNTT tổng thể qua các đợt import dữ liệu.</p>
+          <p>Popup Epic History còn có mục <strong className="text-fb-text-primary">Dòng thời gian cảnh báo</strong>, dựng từ bảng <code>epic_alert_timeline</code>: theo dõi 5 loại cảnh báo (Fail TTM-CNTT, Cảnh báo muộn TTM-CNTT, Fail TTM-E2E, Thiếu Start Date, Sai lệch dữ liệu) dưới dạng các &quot;đợt&quot; có ngày bắt đầu/kết thúc liên tục — cho biết chính xác Epic đã ở trạng thái đó từ ngày nào đến ngày nào, không chỉ ngày phát hiện. Bảng này luôn được ghi ở mỗi lần tổng hợp dữ liệu (không tạm tắt như lịch sử theo pha bên dưới).</p>
           <p className="rounded-md border border-fb-border bg-fb-surface-muted px-3 py-2 text-xs">
             Lịch sử cảnh báo <strong>theo từng pha</strong> (DEV/TEST/PENTEST của Epic 15) hiện <strong>tạm tắt ghi nhận</strong> do giới hạn kết nối của hạ tầng DB miễn phí — bảng vẫn còn nguyên, chỉ chưa ghi thêm dòng mới. Trạng thái hoàn thành từng pha vẫn được tính <strong>live</strong> mỗi lần tải trang, không phụ thuộc lịch sử này.
           </p>
@@ -203,6 +214,7 @@ export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
               <tr><td>epic_ttm_snapshots</td><td>Lịch sử gọn theo Epic, phục vụ tra cứu dài hạn</td><td><strong className="text-fb-text-primary">Giữ lại</strong> (source_import_batch_id → NULL)</td></tr>
               <tr><td>issue_daily_snapshots</td><td>Lịch sử gọn theo ngày cho mọi cấp (Epic/Story/Subtask)</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
               <tr><td>epic_alert_history</td><td>Tích lũy các lần Epic bị Cảnh báo muộn/Fail TTM-CNTT tổng thể (ghi tại thời điểm import), kèm ngày và status lúc đó. Cảnh báo <strong>theo từng pha</strong> (DEV/TEST/PENTEST của Epic 15) cũng ghi vào bảng này nhưng <strong className="text-fb-text-primary">đang tạm tắt</strong> (xem mục 5).</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
+              <tr><td>epic_alert_timeline</td><td>Theo dõi 5 loại cảnh báo (Fail TTM-CNTT, Cảnh báo muộn TTM-CNTT, Fail TTM-E2E, Thiếu Start Date, Sai lệch dữ liệu) dưới dạng các &quot;đợt&quot; có ngày bắt đầu/kết thúc liên tục — phục vụ mục &quot;Dòng thời gian cảnh báo&quot; trong popup Epic History. Luôn ghi ở mỗi lần <code>aggregateBatchData()</code> chạy (không tạm tắt như 2 dòng dưới).</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
               <tr><td>epic_milestone_history</td><td>Lịch sử mốc DESIGN_DONE/DEV_DONE/TEST_DONE — bảng vẫn tồn tại nhưng việc ghi mới <strong className="text-fb-text-primary">đang tạm tắt</strong>; trạng thái hoàn thành từng pha của Epic 15 hiện tính <strong>live</strong> từ status Story/Subtask hiện tại (xem mục 5), không đọc bảng này.</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
             </tbody>
           </table>
@@ -211,18 +223,16 @@ export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
         <section>
           <h3 className="ui-card-title mb-1">4. Validate khi import — dữ liệu bất thường không còn bị chặn</h3>
           <p>
-            Hai rule sau <strong className="text-fb-text-primary">trước kia chặn import</strong> (dòng bị loại hoàn toàn khỏi <code>issues</code>), nay chỉ còn ở mức
-            <strong className="text-fb-text-primary"> cảnh báo (WARNING)</strong> và <strong>vẫn được ghi vào <code>issues</code></strong>:
+            Rule ngày sai thứ tự (ví dụ R4G Date sớm hơn Start Date, Due Date sớm hơn T0) <strong className="text-fb-text-primary">trước kia chặn import</strong>
+            (dòng bị loại hoàn toàn khỏi <code>issues</code>), nay chỉ còn ở mức <strong className="text-fb-text-primary">cảnh báo (WARNING)</strong> ngay lúc import
+            và <strong>vẫn được ghi vào <code>issues</code></strong> — để user chủ động nhận biết và làm sạch dữ liệu trên Jira thay vì Epic bị âm thầm biến mất khỏi hệ thống.
           </p>
-          <ul className="ml-5 list-disc space-y-1">
-            <li>R4G Date sớm hơn Start Date.</li>
-            <li>Due Date sớm hơn T0 (Idea Approved Date).</li>
-          </ul>
           <p>
-            Lý do: để user chủ động nhận biết và làm sạch dữ liệu trên Jira thay vì Epic bị âm thầm biến mất khỏi hệ thống. Ở tầng đọc, các Epic có 1 trong 2 vấn đề
-            trên — hoặc thiếu hẳn Start Date — được đánh dấu <strong className="text-fb-text-primary">dữ liệu bất thường</strong>, nhóm cuối bảng và highlight trên
-            mọi màn hình Epic Alerts (xem popup &quot;Logic cảnh báo Epic&quot;). Màn hình Nguồn dữ liệu vẫn hiện đúng badge &quot;Cảnh báo&quot; (không còn &quot;Lỗi&quot;)
-            kèm message chi tiết cho các dòng này.
+            Ở tầng đọc (mỗi lần tải màn hình), hàm dùng chung <code>evaluateEpicDataAnomaly()</code> đánh giá lại đầy đủ <strong>6 rule</strong> — không chỉ riêng
+            ngày sai thứ tự, mà cả thiếu T0/T1 theo trạng thái, Pending quá lâu, thiếu Phân loại yêu cầu/Requirement Level (chi tiết ở popup &quot;Logic cảnh báo
+            Epic&quot; mục 6) — để gắn badge <strong className="text-fb-text-primary">&quot;Sai lệch dữ liệu&quot;</strong>, nhóm cuối bảng và highlight trên mọi
+            màn hình Epic Alerts/Báo cáo/Dashboard. Màn hình Nguồn dữ liệu vẫn chỉ hiện đúng badge &quot;Cảnh báo&quot; (không còn &quot;Lỗi&quot;) kèm message chi
+            tiết cho các dòng ngày sai thứ tự lúc import.
           </p>
         </section>
 
