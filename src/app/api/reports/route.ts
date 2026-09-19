@@ -29,7 +29,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         { status: error.code === 'FORBIDDEN' ? 403 : 401 }
       );
     }
-    return NextResponse.json({ error: (error as any)?.message || 'Không thể tải thông tin bộ lọc báo cáo.' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Không thể tải thông tin bộ lọc báo cáo.';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     await requireUser(request);
 
     const body = await request.json().catch(() => ({}));
-    const { domainId, projectKey, component, selectedLayerDates, createdDateFrom, startDateFrom, releasedDateFrom, releasedDateTo } = body;
+    const { domainId, projectKey, component, selectedLayerDates, compareLayerDates, createdDateFrom, startDateFrom, releasedDateFrom, releasedDateTo } = body;
 
     if (!projectKey) {
       return NextResponse.json({ error: 'Thông tin Dự án (projectKey) là bắt buộc.' }, { status: 400 });
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Bạn phải chọn ít nhất 1 Lớp dữ liệu.' }, { status: 400 });
     }
 
-    const report = await generateEpicReport({
+    const reportPromise = generateEpicReport({
       component,
       createdDateFrom,
       domainId: domainId ? Number(domainId) : undefined,
@@ -58,7 +59,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       startDateFrom,
     });
 
+    let compareReportPromise = Promise.resolve<Awaited<ReturnType<typeof generateEpicReport>> | null>(null);
+    if (compareLayerDates && Array.isArray(compareLayerDates) && compareLayerDates.length > 0) {
+      compareReportPromise = generateEpicReport({
+        component,
+        createdDateFrom,
+        domainId: domainId ? Number(domainId) : undefined,
+        projectKey,
+        releasedDateFrom: releasedDateFrom || releasedDateTo,
+        selectedLayerDates: compareLayerDates,
+        startDateFrom,
+      });
+    }
+
+    const [report, compareReport] = await Promise.all([reportPromise, compareReportPromise]);
+
     return NextResponse.json({
+      compareReport,
       report,
       success: true,
     });
@@ -69,6 +86,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         { status: error.code === 'FORBIDDEN' ? 403 : 401 }
       );
     }
-    return NextResponse.json({ error: (error as any)?.message || 'Lỗi khi tạo báo cáo.' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Lỗi khi tạo báo cáo.';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

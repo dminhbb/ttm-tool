@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { ArrowSquareOut, ArrowsClockwise, Bandaids, CaretDown, CaretLineRight, CaretRight, Check, CheckCircle, Checks, FileText, Funnel, Printer, Pulse, ShieldCheck, Warning } from '@phosphor-icons/react';
+import { ArrowSquareOut, ArrowsClockwise, Bandaids, CaretDown, CaretLineRight, CaretRight, ChartBar, Check, CheckCircle, Checks, FileText, Printer, Pulse, Warning } from '@phosphor-icons/react';
 import type { ReportEpicItem, ReportResult } from '@/lib/reports-service';
 import { normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
@@ -50,6 +50,7 @@ export default function ReportsPage() {
   const [selectedProjectKey, setSelectedProjectKey] = React.useState<string>('');
   const [selectedComponent, setSelectedComponent] = React.useState<string>('ALL');
   const [selectedLayerAnchor, setSelectedLayerAnchor] = React.useState<string>('');
+  const [compareLayerAnchor, setCompareLayerAnchor] = React.useState<string>('');
 
   // Collapsible Advanced Config
   const [advancedConfigOpen, setAdvancedConfigOpen] = React.useState(false);
@@ -66,6 +67,7 @@ export default function ReportsPage() {
   const [generating, setGenerating] = React.useState(false);
   const [reportError, setReportError] = React.useState<string | null>(null);
   const [report, setReport] = React.useState<ReportResult | null>(null);
+  const [compareReport, setCompareReport] = React.useState<ReportResult | null>(null);
 
   // Fetch Metadata
   React.useEffect(() => {
@@ -93,8 +95,8 @@ export default function ReportsPage() {
         if (data.projects && data.projects.length > 0) {
           setSelectedProjectKey(data.projects[0].sourceProjectKey);
         }
-      } catch (err: any) {
-        setMetaError(err?.message || 'Không thể kết nối máy chủ.');
+      } catch (err: unknown) {
+        setMetaError(err instanceof Error ? err.message : 'Không thể kết nối máy chủ.');
       } finally {
         setLoadingMeta(false);
       }
@@ -110,23 +112,21 @@ export default function ReportsPage() {
     return projects.filter((p) => p.domainId === domIdNum);
   }, [projects, selectedDomainId]);
 
+  // Derived effective project key that automatically syncs with domain filter
+  const effectiveProjectKey = React.useMemo(() => {
+    if (filteredProjects.length === 0) return '';
+    if (filteredProjects.some((p) => p.sourceProjectKey === selectedProjectKey)) {
+      return selectedProjectKey;
+    }
+    return filteredProjects[0].sourceProjectKey;
+  }, [filteredProjects, selectedProjectKey]);
+
   // Filter components by project
   const filteredComponents = React.useMemo(() => {
-    if (!selectedProjectKey) return [];
-    const projKeyLower = selectedProjectKey.toLowerCase();
+    if (!effectiveProjectKey) return [];
+    const projKeyLower = effectiveProjectKey.toLowerCase();
     return components.filter((c) => c.projectKey.toLowerCase() === projKeyLower);
-  }, [components, selectedProjectKey]);
-
-  // Auto update selected project if current is not in filtered list
-  React.useEffect(() => {
-    if (filteredProjects.length > 0) {
-      if (!filteredProjects.some((p) => p.sourceProjectKey === selectedProjectKey)) {
-        setSelectedProjectKey(filteredProjects[0].sourceProjectKey);
-      }
-    } else {
-      setSelectedProjectKey('');
-    }
-  }, [filteredProjects, selectedProjectKey]);
+  }, [components, effectiveProjectKey]);
 
   /**
    * Single layer selection rule:
@@ -148,6 +148,14 @@ export default function ReportsPage() {
     return layerDates.slice(anchorIdx);
   }, [layerDates, selectedLayerAnchor]);
 
+  // Full set of compare layer dates sent to the report query if comparison is active.
+  const compareLayers = React.useMemo(() => {
+    if (!compareLayerAnchor) return [];
+    const anchorIdx = layerDates.indexOf(compareLayerAnchor);
+    if (anchorIdx === -1) return [];
+    return layerDates.slice(anchorIdx);
+  }, [layerDates, compareLayerAnchor]);
+
   const handleResetFilter = () => {
     setSelectedDomainId('ALL');
     if (projects.length > 0) {
@@ -160,12 +168,14 @@ export default function ReportsPage() {
     if (layerDates.length > 0) {
       setSelectedLayerAnchor(layerDates[0]);
     }
+    setCompareLayerAnchor('');
     setReport(null);
+    setCompareReport(null);
     setReportError(null);
   };
 
   const handleGenerateReport = async () => {
-    if (!selectedProjectKey) {
+    if (!effectiveProjectKey) {
       alert('Vui lòng chọn Dự án!');
       return;
     }
@@ -182,10 +192,11 @@ export default function ReportsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          compareLayerDates: compareLayers.length > 0 ? compareLayers : undefined,
           component: selectedComponent,
           createdDateFrom: createdDateFrom || undefined,
           domainId: selectedDomainId !== 'ALL' ? Number(selectedDomainId) : undefined,
-          projectKey: selectedProjectKey,
+          projectKey: effectiveProjectKey,
           releasedDateFrom: releasedDateFrom || undefined,
           selectedLayerDates: selectedLayers,
           startDateFrom: startDateFrom || undefined,
@@ -197,9 +208,10 @@ export default function ReportsPage() {
         setReportError(data.error || 'Tạo báo cáo thất bại.');
       } else {
         setReport(data.report);
+        setCompareReport(data.compareReport || null);
       }
-    } catch (err: any) {
-      setReportError(err?.message || 'Lỗi hệ thống khi tạo báo cáo.');
+    } catch (err: unknown) {
+      setReportError(err instanceof Error ? err.message : 'Lỗi hệ thống khi tạo báo cáo.');
     } finally {
       setGenerating(false);
     }
@@ -262,7 +274,7 @@ export default function ReportsPage() {
               <Bandaids className="size-4" weight="bold" />
             </div>
             <div>
-              <h1 className="text-base font-bold text-black">Báo cáo Epic</h1>
+              <h1 className="text-base font-bold text-black">Báo cáo Epic (beta 2)</h1>
               <p className="text-[11px] text-gray-700 font-medium">Lựa chọn lớp dữ liệu và các điều kiện lọc</p>
             </div>
           </div>
@@ -294,7 +306,7 @@ export default function ReportsPage() {
               2. Dự án (Project Key) <span className="text-[#1463f7]">*</span>
             </label>
             <select
-              value={selectedProjectKey}
+              value={effectiveProjectKey}
               onChange={(e) => setSelectedProjectKey(e.target.value)}
               className="w-full rounded-none border border-slate-400 bg-white px-3 py-2 text-xs outline-none focus:border-[#1463f7] font-medium"
               required
@@ -317,7 +329,7 @@ export default function ReportsPage() {
               value={selectedComponent}
               onChange={(e) => setSelectedComponent(e.target.value)}
               className="w-full rounded-none border border-slate-400 bg-white px-3 py-2 text-xs outline-none focus:border-[#1463f7] font-medium"
-              disabled={!selectedProjectKey}
+              disabled={!effectiveProjectKey}
             >
               <option value="ALL">-- Tất cả Component --</option>
               {filteredComponents.map((c) => (
@@ -422,6 +434,54 @@ export default function ReportsPage() {
                   </div>
                 )}
               </div>
+
+              {/* Item 8. So sánh với Lớp dữ liệu */}
+              <div className="pt-2 border-t border-slate-300">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[11px] font-bold text-black">
+                    8. So sánh với Lớp dữ liệu
+                  </label>
+                  <span className="text-[10px] text-gray-700 font-medium">Mặc định không so sánh. Chọn 1 lớp dữ liệu để so sánh chi tiết.</span>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCompareLayerAnchor('')}
+                    title="Mặc định: Không so sánh dữ liệu với lớp khác"
+                    className={`flex items-center gap-1.5 rounded-none border px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
+                      !compareLayerAnchor
+                        ? 'border-[#1463f7] bg-[#1463f7] text-white'
+                        : 'border-slate-400 bg-white text-gray-800 hover:border-black'
+                    }`}
+                  >
+                    {!compareLayerAnchor && <Check className="size-3.5" weight="bold" />}
+                    <span>Không so sánh</span>
+                  </button>
+
+                  {layerDates.map((layer, idx) => {
+                    const isSelected = layer === compareLayerAnchor;
+
+                    return (
+                      <button
+                        key={layer}
+                        type="button"
+                        onClick={() => setCompareLayerAnchor(layer)}
+                        title={`So sánh với lớp dữ liệu ${layer}`}
+                        className={`flex items-center gap-1.5 rounded-none border px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
+                          isSelected
+                            ? 'border-[#1463f7] bg-[#1463f7] text-white'
+                            : 'border-slate-400 bg-white text-gray-800 hover:border-black'
+                        }`}
+                      >
+                        {isSelected && <Check className="size-3.5" weight="bold" />}
+                        <span>{layer}</span>
+                        {idx === 0 && <span className="bg-black text-white px-1 text-[9px] uppercase">Mới nhất</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -429,7 +489,12 @@ export default function ReportsPage() {
         {/* Generate Report & Reset Submit Buttons */}
         <div className="flex items-center justify-between border-t border-slate-300 pt-3">
           <p className="text-[11px] text-gray-800 font-medium">
-            Đã chọn dự án: <strong className="text-black">{selectedProjectKey || 'Chưa chọn'}</strong> | Lớp dữ liệu: <strong className="text-[#1463f7]">{selectedLayerAnchor || 'Chưa chọn'}</strong> (drill {selectedLayers.length} lớp)
+            Đã chọn dự án: <strong className="text-black">{effectiveProjectKey || 'Chưa chọn'}</strong> | Lớp chính (Mục 7): <strong className="text-[#1463f7]">{selectedLayerAnchor || 'Chưa chọn'}</strong>
+            {compareLayerAnchor ? (
+              <> | So sánh với (Mục 8): <strong className="text-slate-800">{compareLayerAnchor}</strong></>
+            ) : (
+              <> | <span className="text-gray-600 font-semibold">Không so sánh</span></>
+            )}
           </p>
           <div className="flex items-center gap-2">
             <button
@@ -443,7 +508,7 @@ export default function ReportsPage() {
             <button
               type="button"
               onClick={handleGenerateReport}
-              disabled={generating || !selectedProjectKey || selectedLayers.length === 0}
+              disabled={generating || !effectiveProjectKey || selectedLayers.length === 0}
               className="flex items-center gap-2 rounded-none bg-[#1463f7] px-6 py-2.5 text-xs font-bold text-white shadow-none transition-all hover:bg-black disabled:opacity-50"
             >
               <FileText className="size-4" weight="bold" />
@@ -500,8 +565,15 @@ export default function ReportsPage() {
                   <div className="w-2/5 bg-gray-100 text-black px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-gray-300">
                     THỜI GIAN THỐNG KÊ
                   </div>
-                  <div className="w-3/5 bg-white px-3 py-2 text-[11px] font-bold text-black flex items-center">
-                    Từ {report.minLayerDate} đến {report.maxLayerDate} ({report.layerDates.length} lớp)
+                  <div className="w-3/5 bg-white px-3 py-2 text-[11px] font-bold text-black flex flex-col justify-center">
+                    <div>
+                      <span className="text-[#1463f7]">Lớp chính (Mục 7):</span> Từ {report.minLayerDate} đến {report.maxLayerDate} ({report.layerDates.length} lớp)
+                    </div>
+                    {compareReport && (
+                      <div className="mt-1 pt-1 border-t border-gray-200">
+                        <span className="text-slate-800">Lớp so sánh (Mục 8):</span> Từ {compareReport.minLayerDate} đến {compareReport.maxLayerDate} ({compareReport.layerDates.length} lớp)
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -557,36 +629,91 @@ export default function ReportsPage() {
           </div>
 
           {/* SUMMARY KPI CARDS BLOCK (6 Cards Grid) */}
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
-            <div className="rounded-none border border-gray-300 bg-gray-50 p-2.5 text-center">
-              <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">TỔNG RELEASED</p>
-              <p className="text-lg font-extrabold text-black mt-0.5">{report.totalReleasedCount}</p>
-            </div>
+          <div className="space-y-1">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+              <div className="rounded-none border border-gray-300 bg-gray-50 p-2 text-center">
+                <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">TỔNG RELEASED</p>
+                {compareReport ? (
+                  <div className="flex items-center justify-center gap-1.5 mt-0.5">
+                    <span className="text-base font-extrabold text-[#1463f7]" title={`Lớp chính: ${report.totalReleasedCount}`}>{report.totalReleasedCount}</span>
+                    <span className="text-gray-400 font-bold">/</span>
+                    <span className="text-base font-extrabold text-slate-800" title={`Lớp so sánh: ${compareReport.totalReleasedCount}`}>{compareReport.totalReleasedCount}</span>
+                  </div>
+                ) : (
+                  <p className="text-lg font-extrabold text-black mt-0.5">{report.totalReleasedCount}</p>
+                )}
+              </div>
 
-            <div className="rounded-none border border-gray-300 bg-gray-50 p-2.5 text-center">
-              <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">ĐẠT TTM</p>
-              <p className="text-lg font-extrabold text-[#1463f7] mt-0.5">{report.totalPassedCount}</p>
-            </div>
+              <div className="rounded-none border border-gray-300 bg-gray-50 p-2 text-center">
+                <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">ĐẠT TTM</p>
+                {compareReport ? (
+                  <div className="flex items-center justify-center gap-1.5 mt-0.5">
+                    <span className="text-base font-extrabold text-[#1463f7]" title={`Lớp chính: ${report.totalPassedCount}`}>{report.totalPassedCount}</span>
+                    <span className="text-gray-400 font-bold">/</span>
+                    <span className="text-base font-extrabold text-slate-800" title={`Lớp so sánh: ${compareReport.totalPassedCount}`}>{compareReport.totalPassedCount}</span>
+                  </div>
+                ) : (
+                  <p className="text-lg font-extrabold text-[#1463f7] mt-0.5">{report.totalPassedCount}</p>
+                )}
+              </div>
 
-            <div className="rounded-none border border-gray-300 bg-gray-50 p-2.5 text-center">
-              <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">FAIL TTM</p>
-              <p className="text-lg font-extrabold text-black mt-0.5">{report.totalFailedCount}</p>
-            </div>
+              <div className="rounded-none border border-gray-300 bg-gray-50 p-2 text-center">
+                <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">FAIL TTM</p>
+                {compareReport ? (
+                  <div className="flex items-center justify-center gap-1.5 mt-0.5">
+                    <span className="text-base font-extrabold text-[#1463f7]" title={`Lớp chính: ${report.totalFailedCount}`}>{report.totalFailedCount}</span>
+                    <span className="text-gray-400 font-bold">/</span>
+                    <span className="text-base font-extrabold text-slate-800" title={`Lớp so sánh: ${compareReport.totalFailedCount}`}>{compareReport.totalFailedCount}</span>
+                  </div>
+                ) : (
+                  <p className="text-lg font-extrabold text-black mt-0.5">{report.totalFailedCount}</p>
+                )}
+              </div>
 
-            <div className="rounded-none border border-gray-300 bg-gray-50 p-2.5 text-center">
-              <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">EPIC IN PO</p>
-              <p className="text-lg font-extrabold text-[#1463f7] mt-0.5">{report.totalInPoCount}</p>
-            </div>
+              <div className="rounded-none border border-gray-300 bg-gray-50 p-2 text-center">
+                <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">EPIC IN PO</p>
+                {compareReport ? (
+                  <div className="flex items-center justify-center gap-1.5 mt-0.5">
+                    <span className="text-base font-extrabold text-[#1463f7]" title={`Lớp chính: ${report.totalInPoCount}`}>{report.totalInPoCount}</span>
+                    <span className="text-gray-400 font-bold">/</span>
+                    <span className="text-base font-extrabold text-slate-800" title={`Lớp so sánh: ${compareReport.totalInPoCount}`}>{compareReport.totalInPoCount}</span>
+                  </div>
+                ) : (
+                  <p className="text-lg font-extrabold text-[#1463f7] mt-0.5">{report.totalInPoCount}</p>
+                )}
+              </div>
 
-            <div className="rounded-none border border-gray-300 bg-gray-50 p-2.5 text-center">
-              <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">EPIC PENDING</p>
-              <p className="text-lg font-extrabold text-[#8B4513] mt-0.5">{report.totalPendingCount || 0}</p>
-            </div>
+              <div className="rounded-none border border-gray-300 bg-gray-50 p-2 text-center">
+                <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">EPIC PENDING</p>
+                {compareReport ? (
+                  <div className="flex items-center justify-center gap-1.5 mt-0.5">
+                    <span className="text-base font-extrabold text-[#1463f7]" title={`Lớp chính: ${report.totalPendingCount || 0}`}>{report.totalPendingCount || 0}</span>
+                    <span className="text-gray-400 font-bold">/</span>
+                    <span className="text-base font-extrabold text-slate-800" title={`Lớp so sánh: ${compareReport.totalPendingCount || 0}`}>{compareReport.totalPendingCount || 0}</span>
+                  </div>
+                ) : (
+                  <p className="text-lg font-extrabold text-[#8B4513] mt-0.5">{report.totalPendingCount || 0}</p>
+                )}
+              </div>
 
-            <div className="rounded-none border border-gray-300 bg-gray-50 p-2.5 text-center">
-              <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">SAI LỆCH DỮ LIỆU</p>
-              <p className="text-lg font-extrabold text-gray-700 mt-0.5">{report.totalAnomalyCount}</p>
+              <div className="rounded-none border border-gray-300 bg-gray-50 p-2 text-center">
+                <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">SAI LỆCH DỮ LIỆU</p>
+                {compareReport ? (
+                  <div className="flex items-center justify-center gap-1.5 mt-0.5">
+                    <span className="text-base font-extrabold text-[#1463f7]" title={`Lớp chính: ${report.totalAnomalyCount}`}>{report.totalAnomalyCount}</span>
+                    <span className="text-gray-400 font-bold">/</span>
+                    <span className="text-base font-extrabold text-slate-800" title={`Lớp so sánh: ${compareReport.totalAnomalyCount}`}>{compareReport.totalAnomalyCount}</span>
+                  </div>
+                ) : (
+                  <p className="text-lg font-extrabold text-gray-700 mt-0.5">{report.totalAnomalyCount}</p>
+                )}
+              </div>
             </div>
+            {compareReport && (
+              <p className="text-[10px] text-gray-500 text-right italic">
+                * Định dạng số liệu: <span className="text-[#1463f7] font-bold">Lớp chính (Mục 7)</span> / <span className="text-slate-800 font-bold">Lớp so sánh (Mục 8)</span>
+              </p>
+            )}
           </div>
 
           {/* SECTION 1: RELEASED EPICS TABLE */}
@@ -596,6 +723,10 @@ export default function ReportsPage() {
             title="1. DANH SÁCH CÁC EPIC ĐÃ RELEASED TRONG GIAI ĐOẠN LỰA CHỌN"
             totalCount={report.totalReleasedCount}
             items={report.releasedEpics}
+            compareItems={compareReport ? compareReport.releasedEpics : undefined}
+            compareTotalCount={compareReport ? compareReport.totalReleasedCount : undefined}
+            primaryLayerLabel={report.maxLayerDate}
+            compareLayerLabel={compareReport?.maxLayerDate}
             customHeader="Thời gian Released / TTM"
             renderCustomCell={(item) => (
               <td className="px-2.5 py-1.5 text-[11px]">
@@ -614,6 +745,10 @@ export default function ReportsPage() {
             title="2. DANH SÁCH CÁC EPIC ĐẠT TTM-CNTT VÀ TTM-E2E"
             totalCount={report.totalPassedCount}
             items={report.passedEpics}
+            compareItems={compareReport ? compareReport.passedEpics : undefined}
+            compareTotalCount={compareReport ? compareReport.totalPassedCount : undefined}
+            primaryLayerLabel={report.maxLayerDate}
+            compareLayerLabel={compareReport?.maxLayerDate}
             customHeader="Loại đạt"
             renderCustomCell={(item) => (
               <td className="px-2.5 py-1.5 text-[11px] font-bold text-[#1463f7]">
@@ -629,6 +764,10 @@ export default function ReportsPage() {
             title="3. DANH SÁCH CÁC EPIC FAIL TTM-CNTT VÀ TTM-E2E"
             totalCount={report.totalFailedCount}
             items={report.failedEpics}
+            compareItems={compareReport ? compareReport.failedEpics : undefined}
+            compareTotalCount={compareReport ? compareReport.totalFailedCount : undefined}
+            primaryLayerLabel={report.maxLayerDate}
+            compareLayerLabel={compareReport?.maxLayerDate}
             isFailTable={true}
             customHeader="Loại Fail / Chi tiết"
             renderCustomCell={(item) => (
@@ -645,6 +784,10 @@ export default function ReportsPage() {
             title="4. DANH SÁCH CÁC EPIC IN PO (TO DO, IN PO)"
             totalCount={report.totalInPoCount}
             items={report.inPoEpics}
+            compareItems={compareReport ? compareReport.inPoEpics : undefined}
+            compareTotalCount={compareReport ? compareReport.totalInPoCount : undefined}
+            primaryLayerLabel={report.maxLayerDate}
+            compareLayerLabel={compareReport?.maxLayerDate}
             customHeader="Phân loại Trạng thái"
             renderCustomCell={(item) => (
               <td className="px-2.5 py-1.5 text-[11px] font-bold">
@@ -660,6 +803,10 @@ export default function ReportsPage() {
             title="5. DANH SÁCH CÁC EPIC CÓ SAI LỆCH DỮ LIỆU"
             totalCount={report.totalAnomalyCount}
             items={report.anomalyEpics}
+            compareItems={compareReport ? compareReport.anomalyEpics : undefined}
+            compareTotalCount={compareReport ? compareReport.totalAnomalyCount : undefined}
+            primaryLayerLabel={report.maxLayerDate}
+            compareLayerLabel={compareReport?.maxLayerDate}
             customHeader="Chi tiết dữ liệu sai lệch"
             renderCustomCell={(item) => (
               <td className="px-2.5 py-1.5 text-[11px] font-medium text-gray-700">
@@ -679,6 +826,10 @@ export default function ReportsPage() {
             title="6. DANH SÁCH CÁC EPIC PENDING"
             totalCount={report.totalPendingCount || 0}
             items={report.pendingEpics || []}
+            compareItems={compareReport ? compareReport.pendingEpics : undefined}
+            compareTotalCount={compareReport ? compareReport.totalPendingCount : undefined}
+            primaryLayerLabel={report.maxLayerDate}
+            compareLayerLabel={compareReport?.maxLayerDate}
             customHeader="Phân loại Trạng thái"
             renderCustomCell={(item) => (
               <td className="px-2.5 py-1.5 text-[11px] font-bold text-[#8B4513]">
@@ -686,6 +837,14 @@ export default function ReportsPage() {
               </td>
             )}
           />
+
+          {/* COMPARISON CHARTS ROW (WHEN ITEM 8 IS SELECTED) */}
+          {compareReport && (
+            <ReportComparisonChartsRow
+              report={report}
+              compareReport={compareReport}
+            />
+          )}
 
           {/* PAGE BOTTOM FOOTER */}
           <div className="border-t-2 border-black pt-4 pb-2 text-center mt-6">
@@ -705,132 +864,411 @@ export default function ReportsPage() {
 }
 
 interface ReportSectionBlockSquareProps {
+  compareItems?: ReportEpicItem[];
+  compareLayerLabel?: string;
+  compareTotalCount?: number;
   customHeader: string;
   isFailTable?: boolean;
   items: ReportEpicItem[];
   jiraViewIssueBaseUrl: string;
   onOpenEpicBrowser: (epicKey: string) => void;
+  primaryLayerLabel?: string;
   renderCustomCell: (item: ReportEpicItem) => React.ReactNode;
   title: string;
   totalCount: number;
 }
 
 function ReportSectionBlockSquare({
+  compareItems,
+  compareLayerLabel,
+  compareTotalCount,
   customHeader,
   isFailTable,
   items,
   jiraViewIssueBaseUrl,
   onOpenEpicBrowser,
+  primaryLayerLabel,
   renderCustomCell,
   title,
   totalCount,
 }: ReportSectionBlockSquareProps) {
   const [collapsed, setCollapsed] = React.useState(true);
+  const isComparing = compareItems !== undefined;
 
   return (
     <div className="rounded-none border border-black overflow-hidden">
       {/* Header Bar - Light Background, Clickable to Toggle Collapsed State */}
       <div
         onClick={() => setCollapsed(!collapsed)}
-        className="bg-slate-200 text-black px-3 py-2 font-bold text-xs flex items-center justify-between cursor-pointer select-none border-b border-slate-300 hover:bg-slate-300 transition-colors"
+        className="bg-slate-200 text-black px-3 py-2 font-bold text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-1 cursor-pointer select-none border-b border-slate-300 hover:bg-slate-300 transition-colors"
       >
         <div className="flex items-center gap-2">
           {collapsed ? <CaretRight className="size-4 text-black shrink-0" weight="bold" /> : <CaretDown className="size-4 text-black shrink-0" weight="bold" />}
           <span>{title}</span>
         </div>
-        <span className="bg-[#1463f7] text-white px-2 py-0.5 text-[10px] font-extrabold uppercase">
-          Tổng số: {totalCount} Epic
-        </span>
+        <div className="flex items-center gap-2">
+          {isComparing ? (
+            <div className="flex items-center gap-1.5">
+              <span className="bg-[#1463f7] text-white px-2 py-0.5 text-[10px] font-extrabold uppercase">
+                Lớp chính: {totalCount}
+              </span>
+              <span className="bg-slate-800 text-white px-2 py-0.5 text-[10px] font-extrabold uppercase">
+                Lớp so sánh: {compareTotalCount ?? 0}
+              </span>
+            </div>
+          ) : (
+            <span className="bg-[#1463f7] text-white px-2 py-0.5 text-[10px] font-extrabold uppercase">
+              Tổng số: {totalCount} Epic
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Table Content Container - Always printed even if collapsed on screen */}
       <div className={collapsed ? 'hidden print:block' : 'block'}>
-        {items.length === 0 ? (
-          <div className="p-3 text-center text-[11px] text-gray-500 bg-gray-50">
-            Không có Epic nào trong danh sách này.
+        {isComparing ? (
+          /* COMPARISON MODE: 2 VERTICAL PANES (SIDE-BY-SIDE) */
+          <div className="grid grid-cols-1 xl:grid-cols-2 divide-y xl:divide-y-0 xl:divide-x divide-black bg-white">
+            {/* Left Pane: Layer chosen in Item 7 */}
+            <div className="min-w-0">
+              <div className="bg-blue-100 border-b border-gray-300 px-3 py-1.5 flex items-center justify-between text-[11px] font-bold text-[#1463f7]">
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-block size-2.5 bg-[#1463f7]" />
+                  <span>BÊN TRÁI: LỚP CHÍNH ({primaryLayerLabel || 'Mục 7'})</span>
+                </div>
+                <span className="bg-[#1463f7] text-white px-1.5 py-0.5 text-[10px] font-extrabold">
+                  {totalCount} Epic
+                </span>
+              </div>
+              <SingleReportTable
+                customHeader={customHeader}
+                isFailTable={isFailTable}
+                items={items}
+                jiraViewIssueBaseUrl={jiraViewIssueBaseUrl}
+                onOpenEpicBrowser={onOpenEpicBrowser}
+                renderCustomCell={renderCustomCell}
+              />
+            </div>
+
+            {/* Right Pane: Layer chosen in Item 8 */}
+            <div className="min-w-0">
+              <div className="bg-slate-200 border-b border-gray-300 px-3 py-1.5 flex items-center justify-between text-[11px] font-bold text-slate-800">
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-block size-2.5 bg-slate-700" />
+                  <span>BÊN PHẢI: LỚP SO SÁNH ({compareLayerLabel || 'Mục 8'})</span>
+                </div>
+                <span className="bg-slate-800 text-white px-1.5 py-0.5 text-[10px] font-extrabold">
+                  {compareTotalCount ?? 0} Epic
+                </span>
+              </div>
+              <SingleReportTable
+                customHeader={customHeader}
+                isFailTable={isFailTable}
+                items={compareItems}
+                jiraViewIssueBaseUrl={jiraViewIssueBaseUrl}
+                onOpenEpicBrowser={onOpenEpicBrowser}
+                renderCustomCell={renderCustomCell}
+              />
+            </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-[11px] border-collapse">
-              <thead>
-                <tr className="border-b border-gray-300 bg-gray-100 text-black font-bold select-none">
-                  <th className="px-2.5 py-1.5 w-8 text-center border-r border-gray-300">STT</th>
-                  <th className="px-2.5 py-1.5 w-16 border-r border-gray-300">Project</th>
-                  {/* COMBINED EPIC KEY + SUMMARY COLUMN */}
-                  <th className="px-2.5 py-1.5 max-w-[260px] border-r border-gray-300">Epic Key / Summary</th>
-                  <th className="px-2.5 py-1.5 w-24 border-r border-gray-300">Status</th>
-                  {/* RENAMED COLUMNS WITH NO-WRAP AND ENOUGH MIN-WIDTH */}
-                  <th className="px-2.5 py-1.5 min-w-[92px] whitespace-nowrap border-r border-gray-300">Start E2E</th>
-                  <th className="px-2.5 py-1.5 min-w-[92px] whitespace-nowrap border-r border-gray-300">Start CNTT</th>
-                  <th className="px-2.5 py-1.5 min-w-[92px] whitespace-nowrap border-r border-gray-300">R4G Date</th>
-                  <th className="px-2.5 py-1.5 min-w-[92px] whitespace-nowrap border-r border-gray-300">Released Date</th>
-                  <th className="px-2.5 py-1.5">{customHeader}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {items.map((item, idx) => {
-                  const jiraHref = jiraViewIssueBaseUrl
-                    ? `${jiraViewIssueBaseUrl}${encodeURIComponent(item.epicKey)}`
-                    : null;
-
-                  return (
-                    <tr key={item.epicKey} className="hover:bg-gray-50">
-                      <td className="px-2.5 py-1.5 text-center font-mono text-gray-500 border-r border-gray-200">{idx + 1}</td>
-                      <td className="px-2.5 py-1.5 font-mono font-bold text-black border-r border-gray-200">{item.projectKey}</td>
-                      
-                      {/* COMBINED EPIC KEY WITH CLICK TO OPEN DUYỆT EPIC POPUP (LINE 1) & SUMMARY (LINE 2) */}
-                      <td className="px-2.5 py-1.5 border-r border-gray-200">
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => onOpenEpicBrowser(item.epicKey)}
-                            className="font-mono font-bold text-[#1463f7] hover:underline text-[11px] text-left"
-                            title={`Duyệt Epic — ${item.epicKey}`}
-                          >
-                            {item.epicKey}
-                          </button>
-                          {jiraHref && (
-                            <a
-                              href={jiraHref}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-gray-500 hover:text-[#1463f7]"
-                              title="Mở Epic trên Jira (cửa sổ mới)"
-                            >
-                              <ArrowSquareOut className="size-3 shrink-0" weight="bold" />
-                            </a>
-                          )}
-                        </div>
-                        <div className="text-[11px] text-gray-600 truncate max-w-[260px]" title={item.summary}>
-                          {item.summary}
-                        </div>
-                      </td>
-
-                      {/* STATUS COLUMN WITH SPECIFIC TEXT COLOR RULES */}
-                      <td className={`px-2.5 py-1.5 font-bold border-r border-gray-200 ${getStatusTextColorClass(item.status)}`}>
-                        {item.status}
-                      </td>
-
-                      {/* Start E2E (formerly T0) */}
-                      <td className="px-2.5 py-1.5 font-mono whitespace-nowrap border-r border-gray-200">{item.ideaApprovedDate || '-'}</td>
-                      {/* Start CNTT (formerly T1) */}
-                      <td className="px-2.5 py-1.5 font-mono whitespace-nowrap border-r border-gray-200">{item.startDate || '-'}</td>
-                      {/* R4G Date */}
-                      <td className="px-2.5 py-1.5 font-mono whitespace-nowrap border-r border-gray-200">
-                        {item.r4gDate ? item.r4gDate : isFailTable ? <span className="text-red-700 font-semibold text-[11px]">Thiếu thông tin</span> : '-'}
-                      </td>
-                      {/* Released Date */}
-                      <td className="px-2.5 py-1.5 font-mono whitespace-nowrap border-r border-gray-200">
-                        {item.releasedDate ? item.releasedDate : isFailTable ? <span className="text-red-700 font-semibold text-[11px]">Thiếu thông tin</span> : '-'}
-                      </td>
-                      {renderCustomCell(item)}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          /* STANDARD MODE: FULL WIDTH TABLE */
+          <SingleReportTable
+            customHeader={customHeader}
+            isFailTable={isFailTable}
+            items={items}
+            jiraViewIssueBaseUrl={jiraViewIssueBaseUrl}
+            onOpenEpicBrowser={onOpenEpicBrowser}
+            renderCustomCell={renderCustomCell}
+          />
         )}
+      </div>
+    </div>
+  );
+}
+
+interface SingleReportTableProps {
+  customHeader: string;
+  isFailTable?: boolean;
+  items: ReportEpicItem[];
+  jiraViewIssueBaseUrl: string;
+  onOpenEpicBrowser: (epicKey: string) => void;
+  renderCustomCell: (item: ReportEpicItem) => React.ReactNode;
+}
+
+function SingleReportTable({
+  customHeader,
+  isFailTable,
+  items,
+  jiraViewIssueBaseUrl,
+  onOpenEpicBrowser,
+  renderCustomCell,
+}: SingleReportTableProps) {
+  if (items.length === 0) {
+    return (
+      <div className="p-3 text-center text-[11px] text-gray-500 bg-gray-50">
+        Không có Epic nào trong danh sách này.
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-[11px] border-collapse min-w-[620px]">
+        <thead>
+          <tr className="border-b border-gray-300 bg-gray-100 text-black font-bold select-none">
+            <th className="px-2 py-1.5 w-7 text-center border-r border-gray-300">STT</th>
+            <th className="px-2 py-1.5 w-14 border-r border-gray-300">Project</th>
+            <th className="px-2 py-1.5 max-w-[220px] border-r border-gray-300">Epic Key / Summary</th>
+            <th className="px-2 py-1.5 w-20 border-r border-gray-300">Status</th>
+            <th className="px-2 py-1.5 min-w-[86px] whitespace-nowrap border-r border-gray-300">Start E2E</th>
+            <th className="px-2 py-1.5 min-w-[86px] whitespace-nowrap border-r border-gray-300">Start CNTT</th>
+            <th className="px-2 py-1.5 min-w-[86px] whitespace-nowrap border-r border-gray-300">R4G Date</th>
+            <th className="px-2 py-1.5 min-w-[86px] whitespace-nowrap border-r border-gray-300">Released Date</th>
+            <th className="px-2 py-1.5">{customHeader}</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-200">
+          {items.map((item, idx) => {
+            const jiraHref = jiraViewIssueBaseUrl
+              ? `${jiraViewIssueBaseUrl}${encodeURIComponent(item.epicKey)}`
+              : null;
+
+            return (
+              <tr key={item.epicKey} className="hover:bg-gray-50">
+                <td className="px-2 py-1.5 text-center font-mono text-gray-500 border-r border-gray-200">{idx + 1}</td>
+                <td className="px-2 py-1.5 font-mono font-bold text-black border-r border-gray-200">{item.projectKey}</td>
+
+                {/* COMBINED EPIC KEY WITH CLICK TO OPEN DUYỆT EPIC POPUP (LINE 1) & SUMMARY (LINE 2) */}
+                <td className="px-2 py-1.5 border-r border-gray-200">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onOpenEpicBrowser(item.epicKey)}
+                      className="font-mono font-bold text-[#1463f7] hover:underline text-[11px] text-left"
+                      title={`Duyệt Epic — ${item.epicKey}`}
+                    >
+                      {item.epicKey}
+                    </button>
+                    {jiraHref && (
+                      <a
+                        href={jiraHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gray-500 hover:text-[#1463f7]"
+                        title="Mở Epic trên Jira (cửa sổ mới)"
+                      >
+                        <ArrowSquareOut className="size-3 shrink-0" weight="bold" />
+                      </a>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-gray-600 truncate max-w-[220px]" title={item.summary}>
+                    {item.summary}
+                  </div>
+                </td>
+
+                {/* STATUS COLUMN WITH SPECIFIC TEXT COLOR RULES */}
+                <td className={`px-2 py-1.5 font-bold border-r border-gray-200 ${getStatusTextColorClass(item.status)}`}>
+                  {item.status}
+                </td>
+
+                {/* Start E2E with CaretRight icon per standard */}
+                <td className="px-2 py-1.5 font-mono whitespace-nowrap border-r border-gray-200">
+                  {item.ideaApprovedDate ? (
+                    <span className="inline-flex items-center gap-1">
+                      <CaretRight className="size-3 text-[#64748b] shrink-0" weight="bold" />
+                      <span>{item.ideaApprovedDate}</span>
+                    </span>
+                  ) : '-'}
+                </td>
+
+                {/* Start CNTT with CaretLineRight icon per standard */}
+                <td className="px-2 py-1.5 font-mono whitespace-nowrap border-r border-gray-200">
+                  {item.startDate ? (
+                    <span className="inline-flex items-center gap-1">
+                      <CaretLineRight className="size-3 text-[#64748b] shrink-0" weight="bold" />
+                      <span>{item.startDate}</span>
+                    </span>
+                  ) : '-'}
+                </td>
+
+                {/* R4G Date with Checks icon per standard */}
+                <td className="px-2 py-1.5 font-mono whitespace-nowrap border-r border-gray-200">
+                  {item.r4gDate ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Checks className="size-3 text-[#000000] shrink-0" weight="bold" />
+                      <span>{item.r4gDate}</span>
+                    </span>
+                  ) : isFailTable ? (
+                    <span className="text-red-700 font-semibold text-[11px]">Thiếu thông tin</span>
+                  ) : (
+                    '-'
+                  )}
+                </td>
+
+                {/* Released Date with Checks icon per standard */}
+                <td className="px-2 py-1.5 font-mono whitespace-nowrap border-r border-gray-200">
+                  {item.releasedDate ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Checks className="size-3 text-[#000000] shrink-0" weight="bold" />
+                      <span>{item.releasedDate}</span>
+                    </span>
+                  ) : isFailTable ? (
+                    <span className="text-red-700 font-semibold text-[11px]">Thiếu thông tin</span>
+                  ) : (
+                    '-'
+                  )}
+                </td>
+
+                {renderCustomCell(item)}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+interface ComparisonChartCardProps {
+  compareCount: number;
+  compareLabel: string;
+  primaryCount: number;
+  primaryLabel: string;
+  title: string;
+}
+
+function ComparisonChartCard({
+  compareCount,
+  compareLabel,
+  primaryCount,
+  primaryLabel,
+  title,
+}: ComparisonChartCardProps) {
+  const maxVal = Math.max(primaryCount, compareCount, 1);
+  const h1Percent = Math.round((primaryCount / maxVal) * 100);
+  const h2Percent = Math.round((compareCount / maxVal) * 100);
+  const diff = primaryCount - compareCount;
+
+  return (
+    <div className="rounded-none border border-black bg-gray-50 p-2.5 flex flex-col justify-between">
+      {/* Title */}
+      <div className="border-b border-gray-300 pb-1.5 text-center">
+        <h3 className="text-[11px] font-bold text-black uppercase tracking-tight truncate" title={title}>
+          {title}
+        </h3>
+        <div className="mt-0.5 flex items-center justify-center gap-1 text-[10px] font-semibold">
+          <span className="text-gray-500">Chênh lệch:</span>
+          {diff > 0 ? (
+            <span className="text-blue-700 font-bold">+{diff}</span>
+          ) : diff < 0 ? (
+            <span className="text-red-600 font-bold">{diff}</span>
+          ) : (
+            <span className="text-gray-700 font-bold">0</span>
+          )}
+        </div>
+      </div>
+
+      {/* Column Chart Area */}
+      <div className="h-28 flex items-end justify-center gap-4 px-2 pt-2 pb-1 border-b border-gray-200">
+        {/* Primary Bar (Mục 7) */}
+        <div className="flex flex-col items-center justify-end h-full w-1/2 max-w-[44px]">
+          <span className="text-[11px] font-extrabold text-[#1463f7] mb-0.5">{primaryCount}</span>
+          <div
+            className="w-full bg-[#1463f7] border border-blue-800 transition-all duration-300"
+            style={{ height: `${Math.max(primaryCount > 0 ? 6 : 2, h1Percent * 0.78)}%` }}
+          />
+        </div>
+
+        {/* Compare Bar (Mục 8) */}
+        <div className="flex flex-col items-center justify-end h-full w-1/2 max-w-[44px]">
+          <span className="text-[11px] font-extrabold text-slate-800 mb-0.5">{compareCount}</span>
+          <div
+            className="w-full bg-slate-700 border border-slate-900 transition-all duration-300"
+            style={{ height: `${Math.max(compareCount > 0 ? 6 : 2, h2Percent * 0.78)}%` }}
+          />
+        </div>
+      </div>
+
+      {/* X-Axis Labels */}
+      <div className="flex items-center justify-between pt-1 text-[10px] font-bold">
+        <span className="text-[#1463f7] truncate text-center w-1/2" title={`Lớp chính: ${primaryLabel}`}>
+          {primaryLabel.length > 5 ? primaryLabel.slice(5) : primaryLabel}
+        </span>
+        <span className="text-slate-700 truncate text-center w-1/2" title={`Lớp so sánh: ${compareLabel}`}>
+          {compareLabel.length > 5 ? compareLabel.slice(5) : compareLabel}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ReportComparisonChartsRow({
+  compareReport,
+  report,
+}: {
+  compareReport: ReportResult;
+  report: ReportResult;
+}) {
+  const primaryLabel = report.maxLayerDate;
+  const compareLabel = compareReport.maxLayerDate;
+
+  return (
+    <div className="rounded-none border border-black p-3 bg-white space-y-3 print:break-inside-avoid">
+      {/* Header & Legend */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-300 pb-2 gap-2">
+        <div className="flex items-center gap-2">
+          <ChartBar className="size-4 text-[#1463f7]" weight="bold" />
+          <span className="text-xs font-extrabold uppercase text-black">
+            BIỂU ĐỒ CỘT SO SÁNH TỔNG SỐ EPIC (MỤC 2, 3, 4, 5)
+          </span>
+        </div>
+        <div className="flex items-center gap-4 text-[11px] font-semibold">
+          <div className="flex items-center gap-1.5">
+            <span className="inline-block size-3 bg-[#1463f7] border border-blue-800" />
+            <span className="text-gray-700">
+              Lớp chính (Mục 7): <strong className="text-[#1463f7]">{primaryLabel}</strong>
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="inline-block size-3 bg-slate-700 border border-slate-900" />
+            <span className="text-gray-700">
+              Lớp so sánh (Mục 8): <strong className="text-slate-800">{compareLabel}</strong>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* 4 Column Charts on the SAME ROW */}
+      <div className="grid grid-cols-4 gap-3">
+        <ComparisonChartCard
+          title="Mục 2: Đạt TTM"
+          primaryCount={report.totalPassedCount}
+          compareCount={compareReport.totalPassedCount}
+          primaryLabel={primaryLabel}
+          compareLabel={compareLabel}
+        />
+        <ComparisonChartCard
+          title="Mục 3: Fail TTM"
+          primaryCount={report.totalFailedCount}
+          compareCount={compareReport.totalFailedCount}
+          primaryLabel={primaryLabel}
+          compareLabel={compareLabel}
+        />
+        <ComparisonChartCard
+          title="Mục 4: Epic In PO"
+          primaryCount={report.totalInPoCount}
+          compareCount={compareReport.totalInPoCount}
+          primaryLabel={primaryLabel}
+          compareLabel={compareLabel}
+        />
+        <ComparisonChartCard
+          title="Mục 5: Sai lệch dữ liệu"
+          primaryCount={report.totalAnomalyCount}
+          compareCount={compareReport.totalAnomalyCount}
+          primaryLabel={primaryLabel}
+          compareLabel={compareLabel}
+        />
       </div>
     </div>
   );

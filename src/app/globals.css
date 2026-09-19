@@ -323,6 +323,13 @@ button:not(:disabled), [role="button"]:not([aria-disabled="true"]) { cursor: poi
 .skeleton { position: relative; overflow: hidden; background: linear-gradient(90deg, var(--surface-elevated), var(--surface-hover), var(--surface-elevated)); background-size: 200% 100%; animation: skeleton-move 1.4s linear infinite; }
 @keyframes skeleton-move { to { background-position: -200% 0; } }
 
+/* Login form error alert (src/app/login/page.tsx) — `key={errorNonce}` remounts this wrapper on
+   every failed submit, replaying the shake even when the error text is identical to the previous
+   attempt (e.g. two "Sai username hoặc mật khẩu." in a row), so a repeat failure still reads as a
+   NEW failure instead of looking like a no-op click. */
+@keyframes shake-x { 10%, 90% { transform: translateX(-1px); } 20%, 80% { transform: translateX(2px); } 30%, 50%, 70% { transform: translateX(-4px); } 40%, 60% { transform: translateX(4px); } }
+.shake-once { animation: shake-x .4s cubic-bezier(.36,.07,.19,.97) both; }
+
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }
 
 .ttm-frosted-header { background: rgba(255, 255, 255, 0.55) !important; backdrop-filter: saturate(180%) blur(24px) !important; -webkit-backdrop-filter: saturate(180%) blur(24px) !important; }

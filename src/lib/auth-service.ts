@@ -7,6 +7,7 @@ import type { PoolClient } from 'pg';
 import pool, { getClient } from '@/lib/db';
 import type { AuthUser, DomainSummary, ManagedUser, ProjectSummary, UserInput, UserProfileDetails, UserRole } from '@/lib/auth-types';
 import { SESSION_COOKIE_NAME } from '@/lib/auth-constants';
+import { verifyCaptcha } from '@/lib/captcha-service';
 import { validatePassword } from '@/lib/password-rules';
 import { getUsageStatsTotals, recordUsageEvent, USAGE_STATS_RETENTION_DAYS } from '@/lib/usage-stats-service';
 
@@ -14,6 +15,12 @@ export { SESSION_COOKIE_NAME } from '@/lib/auth-constants';
 const SESSION_HOURS = { remembered: 24, standard: 2 } as const;
 const PASSWORD_HASH_ROUNDS = 12;
 const BULK_USER_DEFAULT_PASSWORD = 'ZAQ!2wsx';
+// From the 3rd recorded failure onward, the NEXT attempt must include a valid CAPTCHA before the
+// password is even checked (slows down scripted brute-force without revealing the exact count to
+// the caller). At 5 recorded failures the account is auto-deactivated and a password-reset ticket
+// is auto-filed, same shape as a user-initiated "Quên mật khẩu" request.
+const CAPTCHA_REQUIRED_AFTER_FAILURES = 3;
+const LOCK_AFTER_FAILURES = 5;
 
 function tokenHash(value: string): string {
   return createHash('sha256').update(value).digest('hex');
@@ -30,19 +37,68 @@ export function normalizeUsername(value: string): string {
 
 export type AuthResult =
   | { user: AuthUser }
-  | { error: 'INACTIVE' | 'INVALID_CREDENTIALS' };
+  | { error: 'INACTIVE' }
+  | { error: 'LOCKED' }
+  | { error: 'CAPTCHA_REQUIRED' }
+  | { error: 'INVALID_CREDENTIALS'; requiresCaptcha: boolean; showWarning: boolean };
 
-export async function authenticateLocal(username: string, password: string): Promise<AuthResult> {
+/**
+ * Increments the account's failed-login counter and, once it reaches LOCK_AFTER_FAILURES,
+ * deactivates the account and auto-files a password-reset ticket (same table/shape as the
+ * user-initiated "Quên mật khẩu" flow in /api/password-reset-requests) so an admin sees it show up
+ * in the same queue. Guards against filing a second ticket if the account is somehow re-activated
+ * and locked out again before the first ticket is resolved.
+ */
+async function recordFailedLogin(userId: number, email: string): Promise<number> {
+  const result = await pool.query<{ failedLoginAttempts: number }>(`
+    UPDATE users SET failed_login_attempts = failed_login_attempts + 1, updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1
+    RETURNING failed_login_attempts AS "failedLoginAttempts";
+  `, [userId]);
+  const failedLoginAttempts = result.rows[0].failedLoginAttempts;
+  if (failedLoginAttempts >= LOCK_AFTER_FAILURES) {
+    // One statement (CTE + INSERT), not two separate queries — deactivating the account and
+    // filing its ticket must be all-or-nothing. This used to be 2 queries, and the 2nd (the
+    // INSERT) threw `42P08 inconsistent types deduced for parameter $1` (a bare `SELECT $1` can't
+    // share a type with `email = $1` in the same statement without an explicit cast) *after* the
+    // 1st had already committed — silently leaving accounts locked with no ticket ever filed.
+    await pool.query(`
+      WITH deactivated AS (
+        UPDATE users SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1
+      )
+      INSERT INTO password_reset_requests (email)
+      SELECT $2::varchar WHERE NOT EXISTS (SELECT 1 FROM password_reset_requests WHERE email = $2 AND status = 'PENDING');
+    `, [userId, email]);
+  }
+  return failedLoginAttempts;
+}
+
+export async function authenticateLocal(username: string, password: string, captchaId?: string, captcha?: string): Promise<AuthResult> {
   const email = normalizeUsername(username);
-  const result = await pool.query<AuthUser & { isActive: boolean; mustChangePassword: boolean; passwordHash: string }>(`
-    SELECT id, email, full_name AS "fullName", role, is_active AS "isActive", password_hash AS "passwordHash", must_change_password AS "mustChangePassword"
+  const result = await pool.query<AuthUser & { isActive: boolean; mustChangePassword: boolean; passwordHash: string; failedLoginAttempts: number }>(`
+    SELECT id, email, full_name AS "fullName", role, is_active AS "isActive", password_hash AS "passwordHash", must_change_password AS "mustChangePassword", failed_login_attempts AS "failedLoginAttempts"
     FROM users
     WHERE email = $1;
   `, [email]);
   const user = result.rows[0];
-  if (!user) return { error: 'INVALID_CREDENTIALS' };
+  if (!user) return { error: 'INVALID_CREDENTIALS', requiresCaptcha: false, showWarning: false };
   if (!user.isActive) return { error: 'INACTIVE' };
-  if (!(await bcrypt.compare(password, user.passwordHash))) return { error: 'INVALID_CREDENTIALS' };
+
+  if (user.failedLoginAttempts >= CAPTCHA_REQUIRED_AFTER_FAILURES) {
+    if (!captchaId || !captcha || !verifyCaptcha(captchaId, captcha)) return { error: 'CAPTCHA_REQUIRED' };
+  }
+
+  if (!(await bcrypt.compare(password, user.passwordHash))) {
+    const failedLoginAttempts = await recordFailedLogin(user.id, user.email);
+    if (failedLoginAttempts >= LOCK_AFTER_FAILURES) return { error: 'LOCKED' };
+    return {
+      error: 'INVALID_CREDENTIALS',
+      requiresCaptcha: failedLoginAttempts >= CAPTCHA_REQUIRED_AFTER_FAILURES,
+      showWarning: failedLoginAttempts >= CAPTCHA_REQUIRED_AFTER_FAILURES,
+    };
+  }
+
+  if (user.failedLoginAttempts > 0) await pool.query('UPDATE users SET failed_login_attempts = 0 WHERE id = $1;', [user.id]);
   await pool.query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1;', [user.id]);
   await recordUsageEvent(user.id, 'login');
   return { user: mapAuthUser(user) };

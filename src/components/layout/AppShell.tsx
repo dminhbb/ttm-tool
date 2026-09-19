@@ -59,6 +59,8 @@ interface SidebarContentProps {
   onOpenAppConfig: () => void;
   onOpenSystemAdmin: () => void;
   onToggle?: () => void;
+  /** Pending password-reset + inactive-registration tickets — drives the red dot on "Quản lý User". */
+  pendingUserTicketsCount: number;
   role: UserRole | null;
 }
 
@@ -82,7 +84,7 @@ const navigation: NavigationSection[] = [
   {
     label: 'Giám sát',
     items: [
-      { href: '/reports', icon: Bandaids, label: 'Báo cáo Epic' },
+      { href: '/reports', icon: Bandaids, label: 'Báo cáo Epic (beta 2)' },
       { href: '/dashboard', icon: Gauge, label: 'Dashboard' },
       // { href: '/epic-alerts', icon: Browser, label: 'Quản trị Epic (rút gọn)', roles: ADMIN_VIEW_ROLES },
       { href: '/epic-alerts-15', icon: Browsers, label: 'Quản trị Epic' },
@@ -113,7 +115,7 @@ function visibleNavigationFor(role: UserRole | null): NavigationSection[] {
     .filter((section) => section.items.length > 0);
 }
 
-function SidebarContent({ expanded, onNavigate, onOpenAppConfig, onOpenSystemAdmin, onToggle, role }: SidebarContentProps) {
+function SidebarContent({ expanded, onNavigate, onOpenAppConfig, onOpenSystemAdmin, onToggle, pendingUserTicketsCount, role }: SidebarContentProps) {
   const pathname = usePathname();
   const sections = visibleNavigationFor(role);
 
@@ -150,11 +152,24 @@ function SidebarContent({ expanded, onNavigate, onOpenAppConfig, onOpenSystemAdm
                   !active && !item.disabled && 'text-sidebar-text hover:bg-fb-control hover:text-fb-text-primary',
                   item.disabled && 'cursor-not-allowed text-sidebar-disabled',
                 );
+                const hasPendingTickets = item.href === '/admin/users' && pendingUserTicketsCount > 0;
                 const content = (
                   <>
-                    <ItemIcon className="size-5 shrink-0" weight={active ? 'fill' : 'bold'} aria-hidden="true" />
+                    <span className="relative inline-flex shrink-0">
+                      <ItemIcon className="size-5 shrink-0" weight={active ? 'fill' : 'bold'} aria-hidden="true" />
+                      {hasPendingTickets && (
+                        <span
+                          className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-status-danger ring-2 ring-fb-surface"
+                          aria-hidden="true"
+                        />
+                      )}
+                    </span>
                     {expanded && <span className="truncate">{item.label}</span>}
+                    {expanded && hasPendingTickets && (
+                      <span className="ml-auto size-2 shrink-0 rounded-full bg-status-danger" aria-hidden="true" />
+                    )}
                     {expanded && item.disabled && <span className="ml-auto text-[8px] font-medium">Sắp có</span>}
+                    {hasPendingTickets && <span className="sr-only"> (có ticket đang chờ xử lý)</span>}
                   </>
                 );
                 const isAppConfig = item === APP_CONFIG_ITEM;
@@ -298,6 +313,7 @@ export function AppShell({ children }: AppShellProps) {
   const [systemAdminOpen, setSystemAdminOpen] = React.useState(false);
   const [mustChangePassword, setMustChangePassword] = React.useState(false);
   const [role, setRole] = React.useState<UserRole | null>(null);
+  const [pendingUserTicketsCount, setPendingUserTicketsCount] = React.useState(0);
   // Best-effort last-known role for this tab, used only to avoid flashing the "no role" nav —
   // never to decide `isAuthorized` below, so a stale/downgraded cache can't skip the real gate.
   const cachedRole = React.useSyncExternalStore(subscribeToRoleCache, readCachedRole, () => null);
@@ -336,6 +352,23 @@ export function AppShell({ children }: AppShellProps) {
     if (!requiredRoles.includes(role)) router.replace(FALLBACK_PATH);
   }, [pathname, role, requiredRoles, router]);
 
+  // Red dot on "Quản lý User" — polled (not just fetched once) so an admin sitting on another page
+  // notices a new self-lockout ticket (5 failed logins, see auth-service.ts) without reloading.
+  React.useEffect(() => {
+    if (!role || !ADMIN_VIEW_ROLES.includes(role)) {
+      void Promise.resolve().then(() => setPendingUserTicketsCount(0));
+      return undefined;
+    }
+    let cancelled = false;
+    const load = () => fetch('/api/admin/pending-tickets-count', { cache: 'no-store' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { total?: number } | null) => { if (!cancelled && data) setPendingUserTicketsCount(data.total ?? 0); })
+      .catch(() => undefined);
+    void load();
+    const intervalId = window.setInterval(load, 60_000);
+    return () => { cancelled = true; window.clearInterval(intervalId); };
+  }, [role]);
+
   React.useEffect(() => {
     if (!mobileNavigationOpen) return undefined;
     const handleEscape = (event: KeyboardEvent) => {
@@ -360,6 +393,7 @@ export function AppShell({ children }: AppShellProps) {
           onOpenAppConfig={() => setAppConfigOpen(true)}
           onOpenSystemAdmin={() => setSystemAdminOpen(true)}
           onToggle={() => setDesktopNavigationExpanded((current) => !current)}
+          pendingUserTicketsCount={pendingUserTicketsCount}
           role={displayRole}
         />
       </aside>
@@ -386,6 +420,7 @@ export function AppShell({ children }: AppShellProps) {
               onNavigate={() => setMobileNavigationOpen(false)}
               onOpenAppConfig={() => setAppConfigOpen(true)}
               onOpenSystemAdmin={() => setSystemAdminOpen(true)}
+              pendingUserTicketsCount={pendingUserTicketsCount}
               role={displayRole}
             />
           </aside>
