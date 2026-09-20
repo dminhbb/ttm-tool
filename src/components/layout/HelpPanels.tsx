@@ -110,7 +110,7 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
           <p>Epic vi phạm <strong>vẫn được nhập đầy đủ vào hệ thống</strong> (không bị chặn import), nhưng:</p>
           <ul className="ml-5 list-disc space-y-1">
             <li>Bị đẩy xuống <strong>cuối bảng</strong> và tô nền highlight trên cả 3 màn hình, để dễ nhận biết cần làm sạch dữ liệu nguồn trên Jira.</li>
-            <li>Cột Nhận xét hiện thêm badge <strong className="text-fb-text-primary">&quot;Sai lệch dữ liệu (x)&quot;</strong> — hiển thị <em>song song</em> với badge Cảnh báo/Fail/&quot;Đạt TTM&quot; bình thường (không thay thế nhau); di chuột lên badge để xem chi tiết từng rule vi phạm.</li>
+            <li>Cột Nhận xét hiện thêm badge <strong className="text-fb-text-primary">&quot;Sai lệch dữ liệu (x)&quot;</strong> — hiển thị <em>song song</em> với badge Cảnh báo/Fail/&quot;Đạt TTM-CNTT&quot;/&quot;Đạt TTM-e2e&quot; bình thường (không thay thế nhau); di chuột lên badge để xem chi tiết từng rule vi phạm.</li>
             <li>Cảnh báo TTM-CNTT/TTM-E2E chỉ bị ép về &quot;Không tính được&quot; khi bản thân phép tính không còn đáng tin — <strong>thiếu Start Date</strong>, hoặc <strong>R4G/Due Date phi logic</strong> so với mốc gốc — chứ không phải mọi vết trong 6 rule ở trên; ví dụ Epic chỉ thiếu Requirement Level vẫn hiện đúng Cảnh báo sớm/muộn/Fail bình thường.</li>
             <li>Riêng khi vẫn có Start Date (chỉ R4G/Due Date phi logic): dải TTM-CNTT vẫn vẽ bình thường (baseline theo Start Date, thực tế = Start Date → hôm nay, bỏ qua ngày phi logic).</li>
           </ul>
@@ -135,8 +135,8 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">8. Badge &quot;Đạt TTM&quot; &amp; Lịch sử cảnh báo tích lũy</h3>
-          <p>Badge <strong>&quot;Đạt TTM&quot;</strong> hiển thị ở cột Nhận xét khi Epic đã có R4G Date và không bị cảnh báo (và không có dữ liệu bất thường). Icon tam giác vàng ở cột Epic cho phép mở popup <strong className="text-fb-text-primary">Epic History</strong> để tra cứu lịch sử cảnh báo muộn/fail TTM-CNTT tổng thể qua các đợt import dữ liệu.</p>
+          <h3 className="ui-card-title mb-1">8. Badge &quot;Đạt TTM-CNTT&quot; / &quot;Đạt TTM-e2e&quot; &amp; Lịch sử cảnh báo tích lũy</h3>
+          <p>Badge <strong>&quot;Đạt TTM-CNTT&quot;</strong> hiển thị ở cột Nhận xét khi Epic đã có R4G Date và không bị cảnh báo. Badge <strong>&quot;Đạt TTM-e2e&quot;</strong> hiển thị khi Epic đã Released/hoàn thành Due Date đúng hạn. Icon tam giác vàng ở cột Epic cho phép mở popup <strong className="text-fb-text-primary">Epic History</strong> để tra cứu lịch sử cảnh báo muộn/fail TTM-CNTT tổng thể qua các đợt import dữ liệu.</p>
           <p>Popup Epic History còn có mục <strong className="text-fb-text-primary">Dòng thời gian cảnh báo</strong>, dựng từ bảng <code>epic_alert_timeline</code>: theo dõi 5 loại cảnh báo (Fail TTM-CNTT, Cảnh báo muộn TTM-CNTT, Fail TTM-E2E, Thiếu Start Date, Sai lệch dữ liệu) dưới dạng các &quot;đợt&quot; có ngày bắt đầu/kết thúc liên tục — cho biết chính xác Epic đã ở trạng thái đó từ ngày nào đến ngày nào, không chỉ ngày phát hiện. Bảng này luôn được ghi ở mỗi lần tổng hợp dữ liệu (không tạm tắt như lịch sử theo pha bên dưới).</p>
           <p className="rounded-md border border-fb-border bg-fb-surface-muted px-3 py-2 text-xs">
             Lịch sử cảnh báo <strong>theo từng pha</strong> (DEV/TEST/PENTEST của Epic 15) hiện <strong>tạm tắt ghi nhận</strong> do giới hạn kết nối của hạ tầng DB miễn phí — bảng vẫn còn nguyên, chỉ chưa ghi thêm dòng mới. Trạng thái hoàn thành từng pha vẫn được tính <strong>live</strong> mỗi lần tải trang, không phụ thuộc lịch sử này.

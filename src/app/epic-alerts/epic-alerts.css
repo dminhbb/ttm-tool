@@ -189,6 +189,30 @@
   outline: 2px solid var(--ttm-brand-100);
   border-color: var(--ttm-brand-600);
 }
+/* Active / applied filter indicator — viền màu đỏ khi bộ lọc được áp dụng */
+.ttm-select.has-filter,
+.ttm-field.has-filter,
+.ttm-multiselect-trigger.has-filter,
+.has-filter {
+  border-color: #dc2626 !important;
+}
+.ttm-select.has-filter:focus,
+.ttm-field.has-filter:focus,
+.ttm-multiselect-trigger.has-filter.is-open,
+.ttm-multiselect-trigger.has-filter:focus {
+  border-color: #dc2626 !important;
+  outline: 2px solid rgba(220, 38, 38, 0.25) !important;
+}
+/* Keyword search input — placeholder 'Tìm epic', background matches page background, border preserved */
+.ttm-search-field,
+.ttm-field[type="search"] {
+  background-color: transparent !important;
+  border: 1px solid var(--ttm-border);
+}
+.ttm-search-field.has-filter,
+.ttm-field[type="search"].has-filter {
+  border-color: #dc2626 !important;
+}
 .ttm-button { cursor: pointer; font-weight: 600; }
 .ttm-button.primary {
   background: var(--ttm-brand-600);

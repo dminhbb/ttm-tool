@@ -44,11 +44,13 @@ export function ToolbarMultiSelect({
   const allSelected = options.length > 0 && value.length === options.length;
   const toggleAll = () => onChange(allSelected ? [] : options);
 
+  const hasFilter = value.length > 0;
+
   return (
     <div className="ttm-multiselect" ref={containerRef}>
       <button
         type="button"
-        className={`ttm-select ttm-multiselect-trigger${isOpen ? ' is-open' : ''}`}
+        className={`ttm-select ttm-multiselect-trigger${isOpen ? ' is-open' : ''}${hasFilter ? ' has-filter' : ''}`}
         aria-label={ariaLabel}
         aria-expanded={isOpen}
         disabled={disabled}

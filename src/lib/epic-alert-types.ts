@@ -21,6 +21,7 @@ export interface EpicAlertRow {
   /** Which import data layer (aggregated_at) this Epic's row currently comes from. */
   dataLayerDate: string | null;
   domainName: string;
+  dueDate: string | null;
   epicKey: string;
   epicName: string;
   epicType: EpicComplexity | null;

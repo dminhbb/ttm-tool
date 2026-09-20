@@ -17,7 +17,7 @@ import type { ProjectComponent } from '@/lib/master-data-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
 import { ArrowBendUpRight, ArrowSquareOut, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, HourglassMedium, ListChecks, Prohibit, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
-import { epicWorkflowStatusIndex } from '@/lib/ttm-phase-rules';
+import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import { trackDataUsage } from '@/lib/usage-tracking';
 
@@ -485,7 +485,7 @@ export default function EpicAlertsPage() {
       <section className="ttm-toolbar" aria-label="Bộ lọc Epic">
         {isAdminTierAccess && (
           <select
-            className="ttm-select"
+            className={`ttm-select${domainFilter ? ' has-filter' : ''}`}
             aria-label="Domain"
             value={domainFilter}
             onChange={(event) => handleDomainFilterChange(event.target.value)}
@@ -502,7 +502,7 @@ export default function EpicAlertsPage() {
           onChange={(values) => { setDomainFilter(''); handleProjectFiltersChange(values); }}
         />
         <select
-          className="ttm-select"
+          className={`ttm-select${pmSmFilter ? ' has-filter' : ''}`}
           aria-label="PM/SM"
           value={pmSmFilter}
           onChange={(event) => { setPmSmFilter(event.target.value); setPage(1); }}
@@ -519,18 +519,40 @@ export default function EpicAlertsPage() {
           value={componentFilters}
           onChange={(values) => { setComponentFilters(values); setPage(1); }}
         />
-        <select className="ttm-select" aria-label="Cảnh báo" value={alertFilter} onChange={(event) => { setAlertFilter(event.target.value as AlertFilterValue); setPage(1); }}>
+        <select
+          className={`ttm-select${alertFilter ? ' has-filter' : ''}`}
+          aria-label="Cảnh báo"
+          value={alertFilter}
+          onChange={(event) => { setAlertFilter(event.target.value as AlertFilterValue); setPage(1); }}
+        >
           {ALERT_FILTER_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
-        <select className="ttm-select" aria-label="Loại Epic" value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(1); }}>
+        <select
+          className={`ttm-select${typeFilter ? ' has-filter' : ''}`}
+          aria-label="Loại Epic"
+          value={typeFilter}
+          onChange={(event) => { setTypeFilter(event.target.value); setPage(1); }}
+        >
           <option value="">Tất cả loại Epic</option>
           {EPIC_COMPLEXITY_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
         </select>
-        <select className="ttm-select" aria-label="Status" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}>
+        <select
+          className={`ttm-select${statusFilter ? ' has-filter' : ''}`}
+          aria-label="Status"
+          value={statusFilter}
+          onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}
+        >
           <option value="">Tất cả status</option>
           {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
         </select>
-        <input className="ttm-field" type="search" aria-label="Tìm Epic Key hoặc Epic Name" placeholder="Tìm Epic Key hoặc Epic Name…" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} />
+        <input
+          className={`ttm-field ttm-search-field${search.trim() ? ' has-filter' : ''}`}
+          type="search"
+          aria-label="Tìm epic"
+          placeholder="Tìm epic"
+          value={search}
+          onChange={(event) => { setSearch(event.target.value); setPage(1); }}
+        />
       </section>
 
       <div className="border-t border-slate-300 pt-3 mb-4">
@@ -579,7 +601,7 @@ export default function EpicAlertsPage() {
                   type="date"
                   value={createdDateFrom}
                   onChange={(event) => { setCreatedDateFrom(event.target.value); setPage(1); }}
-                  className="w-full rounded-none border border-slate-400 bg-white px-3 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono"
+                  className={`w-full rounded-none border ${createdDateFrom ? 'border-red-600 has-filter' : 'border-slate-400'} bg-white px-3 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono`}
                 />
               </div>
               <div>
@@ -588,7 +610,7 @@ export default function EpicAlertsPage() {
                   type="date"
                   value={startDateFromFilter}
                   onChange={(event) => { setStartDateFromFilter(event.target.value); setPage(1); }}
-                  className="w-full rounded-none border border-slate-400 bg-white px-3 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono"
+                  className={`w-full rounded-none border ${startDateFromFilter ? 'border-red-600 has-filter' : 'border-slate-400'} bg-white px-3 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono`}
                 />
               </div>
               <div>
@@ -597,7 +619,7 @@ export default function EpicAlertsPage() {
                   type="date"
                   value={dueDateFromFilter}
                   onChange={(event) => { setDueDateFromFilter(event.target.value); setPage(1); }}
-                  className="w-full rounded-none border border-slate-400 bg-white px-3 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono"
+                  className={`w-full rounded-none border ${dueDateFromFilter ? 'border-red-600 has-filter' : 'border-slate-400'} bg-white px-3 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono`}
                 />
               </div>
             </div>
@@ -690,11 +712,13 @@ export default function EpicAlertsPage() {
                       {(row.epicType || row.ownerName) && (
                         <span className="ttm-project-tag">{row.epicType ? `${row.epicType}. ` : ''}PM/SM: {row.ownerName || '-'}</span>
                       )}
-                      {row.missingStandardInfo.length > 0 && (
+                      {row.missingStandardInfo.filter((item) => item !== 'Start Date').length > 0 && (
                         <span>
-                          {row.missingStandardInfo.map((item) => (
-                            <span key={item} className="ttm-missing-tag">Thiếu {item}</span>
-                          ))}
+                          {row.missingStandardInfo
+                            .filter((item) => item !== 'Start Date')
+                            .map((item) => (
+                              <span key={item} className="ttm-missing-tag">Thiếu {item}</span>
+                            ))}
                         </span>
                       )}
                     </TD>
@@ -729,15 +753,38 @@ export default function EpicAlertsPage() {
                     <TtmE2eStrips row={row} />
                     <TD><StatusBadge status={row.currentStatus} /></TD>
                     <TD>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
-                        {row.alertLevel === 'NONE'
-                          ? (row.r4gDate
-                            ? <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT đúng hạn theo rule">Đạt TTM</span>
-                            : <span className="ttm-empty-warning">—</span>)
-                          : <span className={`ttm-badge ${ALERT_BADGE_CLASS[row.alertLevel]}`}>{row.alertLevel === 'EARLY' ? 'Cảnh báo sớm' : row.alertLevel === 'LATE' ? 'Cảnh báo muộn' : 'Fail TTM-CNTT'}</span>}
-                        {row.ttmE2eAlertLevel === 'FAIL' && <span className="ttm-badge fail-e2e">Fail TTM-E2E</span>}
-                        {row.hasDataAnomaly && <DataAnomalyBadge violations={row.dataAnomalyViolations} />}
-                      </div>
+                      {(() => {
+                        const isTtmCnttAchieved = row.alertLevel === 'NONE' && Boolean(row.r4gDate);
+                        const isE2eCompleted = normalizeEpicWorkflowStatus(row.currentStatus) === 'RELEASED' || (Boolean(row.dueDate) && epicWorkflowStatusIndex(row.currentStatus) >= epicWorkflowStatusIndex('R4GOLIVE'));
+                        const isTtmE2eAchieved = isE2eCompleted && row.ttmE2eAlertLevel !== 'FAIL';
+                        const hasCnttBadge = row.alertLevel !== 'NONE' || isTtmCnttAchieved;
+                        const hasE2eBadge = row.ttmE2eAlertLevel === 'FAIL' || isTtmE2eAchieved;
+                        const hasAnyBadge = hasCnttBadge || hasE2eBadge || row.hasDataAnomaly;
+
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                            {row.alertLevel === 'FAIL' ? (
+                              <span className="ttm-badge fail-cntt">Fail TTM-CNTT</span>
+                            ) : row.alertLevel === 'LATE' ? (
+                              <span className="ttm-badge late-warning">Cảnh báo muộn</span>
+                            ) : row.alertLevel === 'EARLY' ? (
+                              <span className="ttm-badge early-warning">Cảnh báo sớm</span>
+                            ) : isTtmCnttAchieved ? (
+                              <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT đúng hạn theo rule">Đạt TTM-CNTT</span>
+                            ) : null}
+
+                            {row.ttmE2eAlertLevel === 'FAIL' ? (
+                              <span className="ttm-badge fail-e2e">Fail TTM-E2E</span>
+                            ) : isTtmE2eAchieved ? (
+                              <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-E2E đúng hạn theo rule">Đạt TTM-e2e</span>
+                            ) : null}
+
+                            {!hasAnyBadge && <span className="ttm-empty-warning">—</span>}
+
+                            {row.hasDataAnomaly && <DataAnomalyBadge violations={row.dataAnomalyViolations} />}
+                          </div>
+                        );
+                      })()}
                     </TD>
                     {isMissingCore ? (
                       <TD colSpan={3} className="ttm-metric na">Chưa thể tính lịch TTM-CNTT do thiếu dữ liệu bắt buộc.</TD>
