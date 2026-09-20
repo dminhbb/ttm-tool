@@ -19,7 +19,7 @@ import type { EpicMilestoneHistoryEntry } from '@/lib/epic-milestone-history-ser
 import type { ProjectComponent } from '@/lib/master-data-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
-import { ArrowBendUpRight, ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretLineRight, CaretRight, Checks, ClockCountdown, HourglassMedium, ListChecks, Prohibit, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
+import { ArrowBendUpRight, ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, HourglassMedium, ListChecks, Prohibit, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import { trackDataUsage } from '@/lib/usage-tracking';
@@ -27,6 +27,7 @@ import { trackDataUsage } from '@/lib/usage-tracking';
 const PAGE_SIZE = 20;
 
 const EMPTY_ROWS: EpicAlertRowPhased[] = [];
+const EMPTY_LAYER_DATES: string[] = [];
 
 /** TO DO/IN PO/RELEASED now have their own dedicated screen ("Epic in PO"), and Cancelled Epics
  * are noise on this screen by default, so Quản trị Epic defaults its Status filter to everything
@@ -441,6 +442,7 @@ export default function EpicAlerts15Page() {
   const [error, setError] = useState<string | null>(null);
 
   const [projectFilters, setProjectFilters] = useState<string[]>([]);
+  const [pmSmFilter, setPmSmFilter] = useState('');
   const [componentFilters, setComponentFilters] = useState<string[]>([]);
   const [projectComponents, setProjectComponents] = useState<ProjectComponent[]>([]);
   const [alertFilter, setAlertFilter] = useState<AlertFilterValue>('');
@@ -449,6 +451,15 @@ export default function EpicAlerts15Page() {
   const [dataIssueFilter, setDataIssueFilter] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  // "Bộ lọc nâng cao" — collapsed by default (see reports/page.tsx's "Cấu hình nâng cao..." for
+  // the shared UI/logic pattern this mirrors). selectedLayerAnchor === availableLayerDates[0] (or
+  // unset) means "no restriction" — equivalent to the default always-latest-per-Epic behavior, so
+  // that case sends no layerDates param at all rather than the full list.
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
+  const [selectedLayerAnchor, setSelectedLayerAnchor] = useState('');
+  const [createdDateFrom, setCreatedDateFrom] = useState('');
+  const [startDateFromFilter, setStartDateFromFilter] = useState('');
+  const [dueDateFromFilter, setDueDateFromFilter] = useState('');
   const [collapsedColumns, setCollapsedColumns] = useState<Set<CollapsiblePhase>>(new Set(['DESIGN', 'DEV', 'TEST', 'PENTEST']));
   const toggleColumn = (phase: CollapsiblePhase) => {
     setCollapsedColumns((prev) => {
@@ -467,11 +478,31 @@ export default function EpicAlerts15Page() {
   const [browsingEpicKey, setBrowsingEpicKey] = useState<string | null>(null);
   const viewIssueBaseUrl = useJiraViewIssueUrl();
 
+  const availableLayerDates = data?.availableLayerDates ?? EMPTY_LAYER_DATES;
+  // Default selection = newest layer, without a setState-in-effect: selectedLayerAnchor starts
+  // unset, and this just falls back to the newest available layer until the user clicks a chip.
+  const effectiveLayerAnchor = selectedLayerAnchor || availableLayerDates[0] || '';
+  // Selecting the newest layer (or none yet) needs no restriction at all — the same query this
+  // screen has always run. Only an OLDER anchor narrows the window (see EpicAlertFilters.layerDates
+  // — "drill xuống các lớp cũ hơn" picks each Epic's latest row within that window).
+  const layerWindow = useMemo(() => {
+    if (!effectiveLayerAnchor) return null;
+    const anchorIndex = availableLayerDates.indexOf(effectiveLayerAnchor);
+    return anchorIndex > 0 ? availableLayerDates.slice(anchorIndex) : null;
+  }, [availableLayerDates, effectiveLayerAnchor]);
+  const layerWindowKey = layerWindow ? layerWindow.join(',') : '';
+
   const fetchData = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/epic-alerts-15');
+      const query = new URLSearchParams();
+      if (layerWindow) query.set('layerDates', layerWindow.join(','));
+      if (createdDateFrom) query.set('createdDateFrom', createdDateFrom);
+      if (startDateFromFilter) query.set('startDateFrom', startDateFromFilter);
+      if (dueDateFromFilter) query.set('dueDateFrom', dueDateFromFilter);
+      const queryString = query.toString();
+      const res = await fetch(`/api/epic-alerts-15${queryString ? `?${queryString}` : ''}`);
       const result = await res.json();
       if (!res.ok) {
         setError(result.error || 'Lỗi hệ thống khi tải dữ liệu.');
@@ -486,13 +517,25 @@ export default function EpicAlerts15Page() {
   };
 
   useEffect(() => {
-    // Deferring the initial request prevents a synchronous state update during effect setup.
+    // Deferring the initial request prevents a synchronous state update during effect setup. Also
+    // re-runs whenever an advanced filter changes — those are applied server-side (see
+    // EpicAlertFilters), unlike every other toolbar filter which stays client-side on `rows`.
     void Promise.resolve().then(fetchData);
+  }, [layerWindowKey, createdDateFrom, startDateFromFilter, dueDateFromFilter]);
+
+  useEffect(() => {
     fetch('/api/project-components').then((res) => (res.ok ? res.json() : [])).then(setProjectComponents).catch(() => undefined);
   }, []);
 
   const rows = data?.rows ?? EMPTY_ROWS;
   const projectOptions = useMemo(() => [...new Set(rows.map((row) => row.projectKey).filter(Boolean))].sort(), [rows]);
+  // PM/SM options: ownerName is comma-joined when a project has several PM/SM users (see
+  // getProjectMetaByProjectKeyMap) — split back out so each individual person is its own option,
+  // and selecting one shows every Epic whose project lists them (single-choice, next to "Dự án").
+  const pmSmOptions = useMemo(
+    () => [...new Set(rows.flatMap((row) => row.ownerName.split(',').map((name) => name.trim()).filter(Boolean)))].sort((a, b) => a.localeCompare(b, 'vi')),
+    [rows],
+  );
   const statusOptions = useMemo(() => [...new Set(rows.map((row) => row.currentStatus).filter(Boolean))].sort(), [rows]);
   // Options = the catalog's components for whichever projects are selected — disabled entirely
   // (no options, filter cleared) until at least one project is picked.
@@ -540,13 +583,14 @@ export default function EpicAlerts15Page() {
   const filteredRows = useMemo(() => rows.filter((row) => {
     const normalizedSearch = search.trim().toLocaleLowerCase('vi-VN');
     return (projectFilters.length === 0 || projectFilters.includes(row.projectKey))
+      && (!pmSmFilter || row.ownerName.split(',').map((name) => name.trim()).includes(pmSmFilter))
       && (componentFilters.length === 0 || row.components.some((component) => componentFilters.includes(component)))
       && (!alertFilter || (alertFilter === 'FAIL_E2E' ? row.ttmE2eAlertLevel === 'FAIL' : row.alertLevel === alertFilter))
       && (!typeFilter || row.epicType === typeFilter)
       && (statusFilters.length === 0 || statusFilters.includes(row.currentStatus))
       && (!dataIssueFilter || row.hasDataAnomaly)
       && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch));
-  }), [rows, projectFilters, componentFilters, alertFilter, typeFilter, statusFilters, dataIssueFilter, search]);
+  }), [rows, projectFilters, pmSmFilter, componentFilters, alertFilter, typeFilter, statusFilters, dataIssueFilter, search]);
 
   // Raw status strings (case as stored) whose normalized form is PENDING/TO DO — the Pending/To Do
   // stat widgets set the Status filter (a multi-select) to exactly this set.
@@ -611,6 +655,16 @@ export default function EpicAlerts15Page() {
           value={projectFilters}
           onChange={(values) => { setDomainFilter(''); handleProjectFiltersChange(values); }}
         />
+        <select
+          className="ttm-select"
+          aria-label="PM/SM"
+          value={pmSmFilter}
+          onChange={(event) => { setPmSmFilter(event.target.value); setPage(1); }}
+          title="Lọc theo PM/SM của dự án — hiển thị Epic của mọi dự án do người này phụ trách"
+        >
+          <option value="">Tất cả PM/SM</option>
+          {pmSmOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+        </select>
         <ToolbarMultiSelect
           ariaLabel="Components"
           allLabel={projectFilters.length === 0 ? 'Chọn dự án trước' : 'Tất cả Components'}
@@ -644,6 +698,78 @@ export default function EpicAlerts15Page() {
           {allColumnsCollapsed ? <ArrowsOutLineHorizontal size={16} weight="bold" /> : <ArrowsInLineHorizontal size={16} weight="bold" />}
         </button>
       </section>
+
+      <div className="border-t border-slate-300 pt-3 mb-4">
+        <button
+          type="button"
+          onClick={() => setAdvancedFiltersOpen((prev) => !prev)}
+          className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[#1463f7] transition-colors"
+        >
+          {advancedFiltersOpen ? <CaretDown className="size-4 text-[#1463f7]" weight="bold" /> : <CaretRight className="size-4 text-[#1463f7]" weight="bold" />}
+          <span>Bộ lọc nâng cao...</span>
+        </button>
+        {advancedFiltersOpen && (
+          <div className="mt-3 space-y-3 pl-2 border-l-2 border-[#1463f7] pt-1">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[11px] font-bold text-black">Chọn lớp dữ liệu</label>
+                <span className="text-[10px] text-gray-700 font-medium">Chọn 1 lớp dữ liệu, dữ liệu sẽ tự động drill xuống các lớp cũ hơn nếu thiếu.</span>
+              </div>
+              {availableLayerDates.length === 0 ? (
+                <p className="text-[11px] text-gray-600">Chưa có lớp dữ liệu nào trong hệ thống.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {availableLayerDates.map((layer, idx) => {
+                    const isSelected = layer === effectiveLayerAnchor;
+                    return (
+                      <button
+                        key={layer}
+                        type="button"
+                        onClick={() => { setSelectedLayerAnchor(layer); setPage(1); }}
+                        title={`Chọn lớp dữ liệu ${layer} (drill xuống các lớp cũ hơn)`}
+                        className={`flex items-center gap-1.5 rounded-none border px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${isSelected ? 'border-[#1463f7] bg-[#1463f7] text-white' : 'border-slate-400 bg-white text-gray-800 hover:border-black'}`}
+                      >
+                        {isSelected && <Check className="size-3.5" weight="bold" />}
+                        <span>{layer}</span>
+                        {idx === 0 && <span className="bg-black text-white px-1 text-[9px] uppercase">Mới nhất</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-slate-300 pt-3">
+              <div>
+                <label className="mb-1 block text-[11px] font-bold text-black">Epic tạo mới từ (Created Date ≥)</label>
+                <input
+                  type="date"
+                  value={createdDateFrom}
+                  onChange={(event) => { setCreatedDateFrom(event.target.value); setPage(1); }}
+                  className="w-full rounded-none border border-slate-400 bg-white px-3 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-bold text-black">Epic start date từ (Start CNTT / T1 ≥)</label>
+                <input
+                  type="date"
+                  value={startDateFromFilter}
+                  onChange={(event) => { setStartDateFromFilter(event.target.value); setPage(1); }}
+                  className="w-full rounded-none border border-slate-400 bg-white px-3 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-bold text-black">Epic golive sau (Due Date ≥)</label>
+                <input
+                  type="date"
+                  value={dueDateFromFilter}
+                  onChange={(event) => { setDueDateFromFilter(event.target.value); setPage(1); }}
+                  className="w-full rounded-none border border-slate-400 bg-white px-3 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {data && (
         <EpicStatWidgets

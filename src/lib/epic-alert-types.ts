@@ -75,6 +75,8 @@ export type EpicAlertAccessRole = 'CBQL_PHONG' | 'LEAD' | 'PM_SM';
 
 export interface EpicAlertResponse {
   accessRole: EpicAlertAccessRole;
+  /** The 7 most recent distinct `issues.aggregated_at` dates — chips for the "Chọn lớp dữ liệu" advanced filter. */
+  availableLayerDates: string[];
   lastAggregatedAt: string | null;
   rows: EpicAlertRow[];
   viewerName: string;
@@ -160,6 +162,8 @@ export interface EpicAlertRowPhased {
 
 export interface EpicAlertPhasedResponse {
   accessRole: EpicAlertAccessRole;
+  /** The 7 most recent distinct `issues.aggregated_at` dates — chips for the "Chọn lớp dữ liệu" advanced filter. */
+  availableLayerDates: string[];
   lastAggregatedAt: string | null;
   rows: EpicAlertRowPhased[];
   viewerName: string;

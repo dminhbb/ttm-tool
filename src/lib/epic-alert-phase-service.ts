@@ -15,6 +15,7 @@ import {
   toEpicAnomalyInput,
   toIsoDate,
 } from '@/lib/epic-alert-service';
+import type { EpicAlertFilters } from '@/lib/epic-alert-service';
 import { computeEpicPhaseCompletionByEpicKey } from '@/lib/epic-phase-completion-service';
 import type { EpicPhaseCompletion } from '@/lib/epic-phase-completion-service';
 import { recordEpicAlertHistory } from '@/lib/epic-alert-history-service';
@@ -105,13 +106,13 @@ function resolvePhaseCells(
  * currently Cảnh báo muộn gets that recorded into epic_alert_history (once per Epic/phase/day —
  * see recordEpicAlertHistory's ON CONFLICT).
  */
-export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Promise<EpicAlertPhasedResponse> {
+export async function getEpicAlertRowsPhased(userId: number, role: UserRole, filters: EpicAlertFilters = {}): Promise<EpicAlertPhasedResponse> {
   const [context, phaseCompletionByEpicKey] = await Promise.all([
-    fetchEpicAlertContext(userId, role),
+    fetchEpicAlertContext(userId, role, filters),
     computeEpicPhaseCompletionByEpicKey(),
   ]);
   if (!context.lastAggregatedAt) {
-    return { accessRole: context.accessRole, lastAggregatedAt: null, rows: [], viewerName: context.viewerName };
+    return { accessRole: context.accessRole, availableLayerDates: context.availableLayerDates, lastAggregatedAt: null, rows: [], viewerName: context.viewerName };
   }
   const { entries, holidays, lastBatchId, now } = context;
   const rows: EpicAlertRowPhased[] = [];
@@ -247,6 +248,7 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole): Pr
 
   return {
     accessRole: context.accessRole,
+    availableLayerDates: context.availableLayerDates,
     lastAggregatedAt: context.lastAggregatedAt,
     rows,
     viewerName: context.viewerName,

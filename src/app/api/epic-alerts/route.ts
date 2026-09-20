@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
 import { getEpicAlertRows } from '@/lib/epic-alert-service';
+import { parseEpicAlertFiltersFromSearchParams } from '@/lib/epic-alert-filter-params';
 
 function authError(error: unknown): NextResponse | null {
   if (error instanceof AuthError) {
@@ -12,7 +13,8 @@ function authError(error: unknown): NextResponse | null {
 export async function GET(request: NextRequest) {
   try {
     const user = await requireUser(request, ['ADMIN', 'SUPERADMIN', 'SUPERVISOR']);
-    const data = await getEpicAlertRows(user.id, user.role);
+    const filters = parseEpicAlertFiltersFromSearchParams(request.nextUrl.searchParams);
+    const data = await getEpicAlertRows(user.id, user.role, filters);
     return NextResponse.json(data);
   } catch (error: unknown) {
     console.error('API Error in epic-alerts route:', error);

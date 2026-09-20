@@ -300,6 +300,8 @@ export interface EvaluatedEpicEntry {
 
 export interface EpicAlertContext {
   accessRole: EpicAlertAccessRole;
+  /** The 7 most recent distinct `issues.aggregated_at` dates in the system, newest first. */
+  availableLayerDates: string[];
   entries: EvaluatedEpicEntry[];
   holidays: HolidaySet;
   lastAggregatedAt: string | null;
@@ -308,6 +310,24 @@ export interface EpicAlertContext {
   now: Date;
   statusAlertRules: Awaited<ReturnType<typeof listActiveStatusAlertRules>>;
   viewerName: string;
+}
+
+/**
+ * "Bộ lọc nâng cao" on the Epic admin screens (Quản trị Epic rút gọn/đầy đủ, Epic in PO) — same
+ * filter set/semantics as the Epic Report's own advanced filters (reports-service.ts), applied to
+ * a single flat Epic list instead of the Report's multi-table split.
+ */
+export interface EpicAlertFilters {
+  /** Epic tạo mới từ (Created Date ≥) — compared against jiraCreatedAt, falling back to ideaApprovedDate. */
+  createdDateFrom?: string | null;
+  /** Epic golive sau (Due Date ≥) — compared against issues.due_date; Epics without one are excluded once set. */
+  dueDateFrom?: string | null;
+  /** "Chọn lớp dữ liệu" drill-down window: when set, only issues rows whose aggregated_at::date is in
+   * this list are considered (newest-per-epic within that window) — omit/null for the default,
+   * unrestricted "always latest known row" behavior. */
+  layerDates?: string[] | null;
+  /** Epic start date từ (Start CNTT / T1 ≥) — compared against issues.start_date; Epics without one are excluded once set. */
+  startDateFrom?: string | null;
 }
 
 /**
@@ -321,8 +341,8 @@ export interface EpicAlertContext {
  * filter below, which "Quản trị Epic (đầy đủ)" deliberately does not replicate — see
  * getEpicAlertRowsPhased's doc comment).
  */
-export async function fetchEpicAlertContext(userId: number, role: UserRole): Promise<EpicAlertContext> {
-  const [scope, holidays, domainByProjectKey, projectMetaByProjectKey, statusAlertRules, ttmPolicies, epicKeysWithAlertHistory, viewer, latestBatch] = await Promise.all([
+export async function fetchEpicAlertContext(userId: number, role: UserRole, filters: EpicAlertFilters = {}): Promise<EpicAlertContext> {
+  const [scope, holidays, domainByProjectKey, projectMetaByProjectKey, statusAlertRules, ttmPolicies, epicKeysWithAlertHistory, viewer, latestBatch, layerDatesResult] = await Promise.all([
     resolveAccessScope(userId, role),
     getActiveHolidaySet(),
     getDomainByProjectKeyMap(),
@@ -332,14 +352,16 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole): Pro
     getEpicKeysWithAlertHistory(),
     pool.query<{ fullName: string }>('SELECT full_name AS "fullName" FROM users WHERE id = $1', [userId]),
     pool.query<{ aggregatedAt: string; id: number }>('SELECT id, aggregated_at::text AS "aggregatedAt" FROM import_batches ORDER BY aggregated_at DESC LIMIT 1;'),
+    pool.query<{ layerDate: string }>('SELECT DISTINCT aggregated_at::date::text AS "layerDate" FROM issues ORDER BY "layerDate" DESC LIMIT 7;'),
   ]);
 
   const viewerName = viewer.rows[0]?.fullName ?? '';
   const latestAggregatedAt = latestBatch.rows[0]?.aggregatedAt ?? null;
   const lastBatchId = latestBatch.rows[0]?.id ?? null;
+  const availableLayerDates = layerDatesResult.rows.map((row) => row.layerDate);
   const now = new Date();
   if (!latestAggregatedAt) {
-    return { accessRole: scope.accessRole, entries: [], holidays, lastAggregatedAt: null, lastBatchId: null, now, statusAlertRules, viewerName };
+    return { accessRole: scope.accessRole, availableLayerDates, entries: [], holidays, lastAggregatedAt: null, lastBatchId: null, now, statusAlertRules, viewerName };
   }
 
   const result = await pool.query<EpicRow>(`
@@ -374,8 +396,9 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole): Pro
         NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),
         ''
       ) = ANY($1::text[]))
+      AND ($2::date[] IS NULL OR issues.aggregated_at::date = ANY($2::date[]))
     ORDER BY issues.issue_key ASC, issues.aggregated_at DESC
-  `, [scope.sourceProjectKeys]);
+  `, [scope.sourceProjectKeys, filters.layerDates ?? null]);
 
   const entries: EvaluatedEpicEntry[] = [];
 
@@ -389,6 +412,15 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole): Pro
     // Component/s field is treated as "general", visible regardless of the user's narrowing.
     const allowedComponents = row.project ? scope.projectComponents.get(row.project) : undefined;
     if (allowedComponents && row.components.length > 0 && !row.components.some((component) => allowedComponents.includes(component))) continue;
+
+    // "Bộ lọc nâng cao" date filters — same semantics as the Epic Report's own filters (see
+    // generateEpicReport in reports-service.ts), applied here to the single flat Epic list.
+    if (filters.createdDateFrom) {
+      const createdDate = row.jiraCreatedAt || row.ideaApprovedDate || null;
+      if (!createdDate || createdDate.slice(0, 10) < filters.createdDateFrom) continue;
+    }
+    if (filters.startDateFrom && (!row.startDate || row.startDate.slice(0, 10) < filters.startDateFrom)) continue;
+    if (filters.dueDateFrom && (!row.dueDate || row.dueDate.slice(0, 10) < filters.dueDateFrom)) continue;
 
     const startDate = parseDate(row.startDate);
     const complexity: EpicComplexity = row.complexity ?? 'CT-Lv12';
@@ -411,7 +443,7 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole): Pro
     entries.push({ complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, projectName, row, startDate });
   }
 
-  return { accessRole: scope.accessRole, entries, holidays, lastAggregatedAt: latestAggregatedAt, lastBatchId, now, statusAlertRules, viewerName };
+  return { accessRole: scope.accessRole, availableLayerDates, entries, holidays, lastAggregatedAt: latestAggregatedAt, lastBatchId, now, statusAlertRules, viewerName };
 }
 
 /**
@@ -421,10 +453,10 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole): Pro
  * DESC`), not a shared "latest batch" filter — an Epic untouched today still shows its most
  * recent known data instead of disappearing from the list.
  */
-export async function getEpicAlertRows(userId: number, role: UserRole): Promise<EpicAlertResponse> {
-  const context = await fetchEpicAlertContext(userId, role);
+export async function getEpicAlertRows(userId: number, role: UserRole, filters: EpicAlertFilters = {}): Promise<EpicAlertResponse> {
+  const context = await fetchEpicAlertContext(userId, role, filters);
   if (!context.lastAggregatedAt) {
-    return { accessRole: context.accessRole, lastAggregatedAt: null, rows: [], viewerName: context.viewerName };
+    return { accessRole: context.accessRole, availableLayerDates: context.availableLayerDates, lastAggregatedAt: null, rows: [], viewerName: context.viewerName };
   }
   const { entries, holidays, now, statusAlertRules } = context;
   const rows: EpicAlertRow[] = [];
@@ -534,6 +566,7 @@ export async function getEpicAlertRows(userId: number, role: UserRole): Promise<
 
   return {
     accessRole: context.accessRole,
+    availableLayerDates: context.availableLayerDates,
     lastAggregatedAt: context.lastAggregatedAt,
     rows,
     viewerName: context.viewerName,
