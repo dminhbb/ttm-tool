@@ -28,6 +28,10 @@ const PAGE_SIZE = 20;
 
 const EMPTY_ROWS: EpicAlertRowPhased[] = [];
 const EMPTY_LAYER_DATES: string[] = [];
+// "Chọn lớp dữ liệu" only shows the newest 5 as quick-pick chips — everything older lives in a
+// dropdown right after them, so any recorded layer stays reachable without the button row growing
+// unbounded (availableLayerDates now returns up to 365 dates, not just 7).
+const RECENT_LAYER_CHIP_COUNT = 5;
 
 /** TO DO/IN PO/RELEASED now have their own dedicated screen ("Epic in PO"), and Cancelled Epics
  * are noise on this screen by default, so Quản trị Epic defaults its Status filter to everything
@@ -55,22 +59,40 @@ function formatDateTime(value: string | null): string {
   return `${day}/${month}/${date.getFullYear()} ${hour}:${minute}`;
 }
 
-const ALERT_BADGE_CLASS: Record<AlertLevel, string> = {
-  FAIL: 'fail-cntt',
-  LATE: 'late-warning',
-  EARLY: 'early-warning',
-  NONE: '',
-};
-
-type AlertFilterValue = AlertLevel | 'FAIL_E2E' | '';
+type AlertFilterValue = AlertLevel | 'FAIL_E2E' | 'ACHIEVED_CNTT' | 'ACHIEVED_E2E' | 'STATUS_MISMATCH' | 'DATA_ANOMALY' | '';
 
 const ALERT_FILTER_OPTIONS: { label: string; value: AlertFilterValue }[] = [
-  { label: 'Tất cả cảnh báo', value: '' },
+  { label: 'Tất cả nhận xét', value: '' },
+  { label: 'Đạt TTM-CNTT', value: 'ACHIEVED_CNTT' },
+  { label: 'Đạt TTM-E2E', value: 'ACHIEVED_E2E' },
   { label: 'Cảnh báo sớm', value: 'EARLY' },
   { label: 'Cảnh báo muộn', value: 'LATE' },
   { label: 'Fail TTM-CNTT', value: 'FAIL' },
   { label: 'Fail TTM-E2E', value: 'FAIL_E2E' },
+  { label: 'Sai Status', value: 'STATUS_MISMATCH' },
+  { label: 'Sai lệch dữ liệu', value: 'DATA_ANOMALY' },
 ];
+
+/**
+ * "Lọc Nhận xét" (formerly "Cảnh báo") — matches the same "Nhận xét" badges rendered in the table
+ * (see the Nhận xét TD below): FAIL_E2E, ACHIEVED_CNTT, ACHIEVED_E2E, STATUS_MISMATCH and
+ * DATA_ANOMALY are sentinel values layered on top of the raw AlertLevel values (EARLY/LATE/FAIL)
+ * already used elsewhere (sorting, stat widgets). A "Sai Status" row never also matches an
+ * ACHIEVED/FAIL_E2E option — see resolveTtmCnttStatusMismatch/resolveTtmE2eStatusMismatch in
+ * epic-alert-service.ts, which only ever flag status mismatch when the underlying axis is
+ * objectively on schedule (alertLevel NONE).
+ */
+function matchesAlertFilter(row: EpicAlertRowPhased, alertFilter: AlertFilterValue): boolean {
+  switch (alertFilter) {
+    case '': return true;
+    case 'FAIL_E2E': return row.ttmE2eAlertLevel === 'FAIL' && !row.ttmE2eStatusMismatch;
+    case 'ACHIEVED_CNTT': return row.alertLevel === 'NONE' && Boolean(row.r4gDate) && !row.ttmCnttStatusMismatch && row.ttmActualToDate === row.r4gDate;
+    case 'ACHIEVED_E2E': return row.ttmE2eAlertLevel === 'NONE' && Boolean(row.dueDate) && !row.ttmE2eStatusMismatch && row.ttmE2eActualToDate === row.dueDate;
+    case 'STATUS_MISMATCH': return row.ttmCnttStatusMismatch || row.ttmE2eStatusMismatch;
+    case 'DATA_ANOMALY': return row.hasDataAnomaly;
+    default: return row.alertLevel === alertFilter;
+  }
+}
 
 const ACCESS_ROLE_LABEL: Record<EpicAlertAccessRole, string> = {
   CBQL_PHONG: 'CBQL Phòng',
@@ -229,7 +251,7 @@ function ttmCnttWidthRatio(fromDate: string | null, actualToDate: string | null,
  * bottom stripe's color (`isOver`) and width ratio (`ratio`) are each caller's own concern — see
  * TtmCnttStrips/TtmE2eStrips. */
 function TtmMetricStrips({
-  actualFromDate, actualToDate, baselineFromDate, baselineToDate, className, compact, elapsed, isOver, ratio, target,
+  actualFromDate, actualToDate, baselineFromDate, baselineToDate, className, compact, elapsed, isOver, ratio, statusMismatch, target,
 }: {
   actualFromDate: string | null;
   actualToDate: string | null;
@@ -240,6 +262,11 @@ function TtmMetricStrips({
   elapsed: number | null;
   isOver: boolean;
   ratio: number;
+  /** "Sai Status" (see resolveTtmCnttStatusMismatch/resolveTtmE2eStatusMismatch in
+   * epic-alert-service.ts): the recorded date is on schedule, but the caller still forces `isOver`
+   * true since the workflow status hasn't actually caught up — this renders a "*" marker beside the
+   * actual end date so the red color doesn't read as a plain, unexplained lateness. */
+  statusMismatch?: boolean;
   target: number;
 }) {
   const elapsedDays = elapsed ?? 0;
@@ -250,10 +277,11 @@ function TtmMetricStrips({
   // duration can never stretch the strip wide enough to break the table's layout.
   const MAX_ACTUAL_WIDTH = compact ? 56 : 112;
   const actualWidth = Math.min(Math.max(6, ratio * BASE_WIDTH), MAX_ACTUAL_WIDTH);
+  const mismatchNote = ' — * đã đạt tiến độ theo ngày ghi nhận nhưng status Epic chưa chuyển đúng quy định';
 
   return (
     <TD className={`ttm-metric${compact ? ' ttm-metric-compact' : ''}${className ? ` ${className}` : ''}`}>
-      <div className="ttm-strip-wrap" title={`${elapsedDays}/${target} ngày làm việc`}>
+      <div className="ttm-strip-wrap" title={`${elapsedDays}/${target} ngày làm việc${statusMismatch ? mismatchNote : ''}`}>
         <div className="ttm-strip-row">
           <span className="ttm-strip-date">{formatDate(baselineFromDate)}</span>
           <span className="ttm-strip-track" style={{ width: `${BASE_WIDTH}px` }} />
@@ -262,7 +290,12 @@ function TtmMetricStrips({
         <div className="ttm-strip-row">
           <span className="ttm-strip-date">{formatDate(actualFromDate)}</span>
           <span className={`ttm-strip-track actual ${isOver ? 'over' : 'under'}`} style={{ width: `${actualWidth}px` }} />
-          <span className="ttm-strip-date">{formatDate(actualToDate)}</span>
+          <span className="ttm-strip-date">
+            {formatDate(actualToDate)}
+            {statusMismatch && (
+              <span className="ttm-strip-status-mismatch-mark" title="Đã đạt tiến độ theo ngày ghi nhận nhưng status Epic chưa chuyển đúng quy định — vui lòng cập nhật status.">*</span>
+            )}
+          </span>
         </div>
       </div>
     </TD>
@@ -271,7 +304,7 @@ function TtmMetricStrips({
 
 function TtmCnttStrips({ compact, row }: { compact: boolean; row: EpicAlertRowPhased }) {
   const target = row.ttmCnttTargetWorkingDays;
-  const isOver = !isTtmCnttStripeOnTrack(row.currentStatus, row.r4gDate, row.ttmActualToDate, row.targetR4gDate);
+  const isOver = row.ttmCnttStatusMismatch || !isTtmCnttStripeOnTrack(row.currentStatus, row.r4gDate, row.ttmActualToDate, row.targetR4gDate);
   const ratio = ttmCnttWidthRatio(row.t1StartDate, row.ttmActualToDate, row.targetR4gDate);
   return (
     <TtmMetricStrips
@@ -283,6 +316,7 @@ function TtmCnttStrips({ compact, row }: { compact: boolean; row: EpicAlertRowPh
       elapsed={row.ttmActualElapsedWorkingDays}
       isOver={isOver}
       ratio={ratio}
+      statusMismatch={row.ttmCnttStatusMismatch}
       target={target}
     />
   );
@@ -301,8 +335,9 @@ function TtmE2eStrips({ compact, row }: { compact: boolean; row: EpicAlertRowPha
       className="ttm-col-border-right"
       compact={compact}
       elapsed={row.ttmE2eElapsedWorkingDays}
-      isOver={row.ttmE2eAlertLevel === 'FAIL'}
+      isOver={row.ttmE2eStatusMismatch || row.ttmE2eAlertLevel === 'FAIL'}
       ratio={row.ttmE2eTargetWorkingDays > 0 ? (row.ttmE2eElapsedWorkingDays ?? 0) / row.ttmE2eTargetWorkingDays : 0}
+      statusMismatch={row.ttmE2eStatusMismatch}
       target={row.ttmE2eTargetWorkingDays}
     />
   );
@@ -479,6 +514,8 @@ export default function EpicAlerts15Page() {
   const viewIssueBaseUrl = useJiraViewIssueUrl();
 
   const availableLayerDates = data?.availableLayerDates ?? EMPTY_LAYER_DATES;
+  const recentLayerDates = useMemo(() => availableLayerDates.slice(0, RECENT_LAYER_CHIP_COUNT), [availableLayerDates]);
+  const olderLayerDates = useMemo(() => availableLayerDates.slice(RECENT_LAYER_CHIP_COUNT), [availableLayerDates]);
   // Default selection = newest layer, without a setState-in-effect: selectedLayerAnchor starts
   // unset, and this just falls back to the newest available layer until the user clicks a chip.
   const effectiveLayerAnchor = selectedLayerAnchor || availableLayerDates[0] || '';
@@ -585,7 +622,7 @@ export default function EpicAlerts15Page() {
     return (projectFilters.length === 0 || projectFilters.includes(row.projectKey))
       && (!pmSmFilter || row.ownerName.split(',').map((name) => name.trim()).includes(pmSmFilter))
       && (componentFilters.length === 0 || row.components.some((component) => componentFilters.includes(component)))
-      && (!alertFilter || (alertFilter === 'FAIL_E2E' ? row.ttmE2eAlertLevel === 'FAIL' : row.alertLevel === alertFilter))
+      && matchesAlertFilter(row, alertFilter)
       && (!typeFilter || row.epicType === typeFilter)
       && (statusFilters.length === 0 || statusFilters.includes(row.currentStatus))
       && (!dataIssueFilter || row.hasDataAnomaly)
@@ -675,7 +712,7 @@ export default function EpicAlerts15Page() {
         />
         <select
           className={`ttm-select${alertFilter ? ' has-filter' : ''}`}
-          aria-label="Cảnh báo"
+          aria-label="Lọc Nhận xét"
           value={alertFilter}
           onChange={(event) => { setAlertFilter(event.target.value as AlertFilterValue); setPage(1); }}
         >
@@ -735,8 +772,8 @@ export default function EpicAlerts15Page() {
               {availableLayerDates.length === 0 ? (
                 <p className="text-[11px] text-gray-600">Chưa có lớp dữ liệu nào trong hệ thống.</p>
               ) : (
-                <div className="flex flex-wrap gap-2">
-                  {availableLayerDates.map((layer, idx) => {
+                <div className="flex flex-wrap items-center gap-2">
+                  {recentLayerDates.map((layer, idx) => {
                     const isSelected = layer === effectiveLayerAnchor;
                     return (
                       <button
@@ -752,6 +789,17 @@ export default function EpicAlerts15Page() {
                       </button>
                     );
                   })}
+                  {olderLayerDates.length > 0 && (
+                    <select
+                      className={`rounded-none border px-2 py-1.5 text-xs font-bold font-mono cursor-pointer ${olderLayerDates.includes(effectiveLayerAnchor) ? 'border-[#1463f7] text-[#1463f7]' : 'border-slate-400 text-gray-800'}`}
+                      value={olderLayerDates.includes(effectiveLayerAnchor) ? effectiveLayerAnchor : ''}
+                      onChange={(event) => { if (event.target.value) { setSelectedLayerAnchor(event.target.value); setPage(1); } }}
+                      title="Chọn 1 lớp dữ liệu cũ hơn (ngoài 5 lớp gần nhất) — drill xuống các lớp cũ hơn nữa"
+                    >
+                      <option value="">Lớp dữ liệu cũ hơn…</option>
+                      {olderLayerDates.map((layer) => <option key={layer} value={layer}>{layer}</option>)}
+                    </select>
+                  )}
                 </div>
               )}
             </div>
@@ -884,16 +932,27 @@ export default function EpicAlerts15Page() {
                     </TD>
                     <TD>
                       {(() => {
-                        const isTtmCnttAchieved = row.alertLevel === 'NONE' && Boolean(row.r4gDate);
-                        const isE2eCompleted = normalizeEpicWorkflowStatus(row.currentStatus) === 'RELEASED' || (Boolean(row.dueDate) && epicWorkflowStatusIndex(row.currentStatus) >= epicWorkflowStatusIndex('R4GOLIVE'));
-                        const isTtmE2eAchieved = isE2eCompleted && row.ttmE2eAlertLevel !== 'FAIL';
-                        const hasCnttBadge = row.alertLevel !== 'NONE' || isTtmCnttAchieved;
-                        const hasE2eBadge = row.ttmE2eAlertLevel === 'FAIL' || isTtmE2eAchieved;
+                        // "Sai Status" (see resolveTtmCnttStatusMismatch/resolveTtmE2eStatusMismatch in
+                        // epic-alert-service.ts) always takes priority over Đạt/Fail on its own axis —
+                        // the recorded date is on schedule, but the workflow status hasn't caught up,
+                        // so neither badge would be honest here.
+                        // "Đạt" requires the recorded date to have actually already passed — ttmActualToDate/
+                        // ttmE2eActualToDate only equal r4gDate/dueDate once they're chronological AND <=
+                        // today (see resolveTtmActualRange/resolveTtmE2eRelease); a future-dated R4G/Due
+                        // Date (still "in progress") must not be praised as achieved just because it exists.
+                        const isTtmCnttAchieved = !row.ttmCnttStatusMismatch && row.alertLevel === 'NONE' && Boolean(row.r4gDate) && row.ttmActualToDate === row.r4gDate;
+                        const isTtmE2eAchieved = !row.ttmE2eStatusMismatch && row.ttmE2eAlertLevel === 'NONE' && Boolean(row.dueDate) && row.ttmE2eActualToDate === row.dueDate;
+                        const hasCnttBadge = row.ttmCnttStatusMismatch || row.alertLevel !== 'NONE' || isTtmCnttAchieved;
+                        const hasE2eBadge = row.ttmE2eStatusMismatch || row.ttmE2eAlertLevel === 'FAIL' || isTtmE2eAchieved;
                         const hasAnyBadge = hasCnttBadge || hasE2eBadge || row.hasDataAnomaly;
 
                         return (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
-                            {row.alertLevel === 'FAIL' ? (
+                            {row.ttmCnttStatusMismatch ? (
+                              <Tooltip content="R4G Date đã ghi nhận và đúng hạn theo TTM-CNTT, nhưng status Epic chưa chuyển sang R4GOLIVE — vui lòng cập nhật status đúng quy định." className="inline-flex w-auto">
+                                <span className="ttm-badge status-mismatch">Sai Status</span>
+                              </Tooltip>
+                            ) : row.alertLevel === 'FAIL' ? (
                               <span className="ttm-badge fail-cntt">Fail TTM-CNTT</span>
                             ) : row.alertLevel === 'LATE' ? (
                               <span className="ttm-badge late-warning">Cảnh báo muộn</span>
@@ -903,7 +962,11 @@ export default function EpicAlerts15Page() {
                               <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT đúng hạn theo rule">Đạt TTM-CNTT</span>
                             ) : null}
 
-                            {row.ttmE2eAlertLevel === 'FAIL' ? (
+                            {row.ttmE2eStatusMismatch ? (
+                              <Tooltip content="Due Date đã ghi nhận và đúng hạn theo TTM-E2E, nhưng status Epic chưa chuyển sang RELEASED — vui lòng cập nhật status đúng quy định." className="inline-flex w-auto">
+                                <span className="ttm-badge status-mismatch">Sai Status</span>
+                              </Tooltip>
+                            ) : row.ttmE2eAlertLevel === 'FAIL' ? (
                               <span className="ttm-badge fail-e2e">Fail TTM-E2E</span>
                             ) : isTtmE2eAchieved ? (
                               <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-E2E đúng hạn theo rule">Đạt TTM-e2e</span>

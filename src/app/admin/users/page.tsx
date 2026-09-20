@@ -11,6 +11,7 @@ import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { MultiSelect } from '@/components/ui/MultiSelect';
+import { Pagination } from '@/components/ui/Pagination';
 import { Select } from '@/components/ui/Select';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { DataTableToolbar } from '@/components/ui/DataTableToolbar';
@@ -31,6 +32,7 @@ type BulkDelete = { ids: number[]; type: 'registrations' | 'tickets' };
 
 const emptyUser = (): UserInput => ({ domainIds: [], email: '', fullName: '', isActive: true, password: '', projectComponents: {}, projectIds: [], role: 'USER' });
 const randomPassword = () => generateCompliantPassword();
+const PAGE_SIZE = 20;
 
 export default function UsersPage() {
   const [tab, setTab] = useState<Tab>('users');
@@ -56,6 +58,7 @@ export default function UsersPage() {
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
   const [editNewPassword, setEditNewPassword] = useState('');
   const [editConfirmPassword, setEditConfirmPassword] = useState('');
   const [showEditNewPassword, setShowEditNewPassword] = useState(false);
@@ -88,6 +91,9 @@ export default function UsersPage() {
   const visibleUsers = users
     .filter((user) => fuzzyIncludes(searchTerm, [user.email, user.fullName, domainName(user), projectKeys(user), user.role, user.isActive ? 'active' : 'inactive']))
     .sort((a, b) => compareValues(userSortValue(a, userSortKey), userSortValue(b, userSortKey), userSortDirection(userSortKey) ?? 'asc'));
+  const totalUserPages = Math.max(1, Math.ceil(visibleUsers.length / PAGE_SIZE));
+  const currentUserPage = Math.min(page, totalUserPages);
+  const pageUsers = visibleUsers.slice((currentUserPage - 1) * PAGE_SIZE, currentUserPage * PAGE_SIZE);
   const visibleTickets = tickets.filter((ticket) => fuzzyIncludes(searchTerm, [ticket.email, ticket.createdAt]));
   const visibleInactiveUsers = inactiveUsers.filter((user) => fuzzyIncludes(searchTerm, [user.email, user.fullName, domainName(user)]));
 
@@ -181,15 +187,15 @@ export default function UsersPage() {
 
   return <div className="flex flex-col gap-6">
     <InfoBannerDisplay pathname="/admin/users" />
-    <nav className="ui-tabs" aria-label="Quản lý user">{([['users', 'Quản lý user', 0], ['reset', 'Yêu cầu cấp lại mật khẩu', tickets.length], ['registrations', 'Duyệt đăng ký mới', inactiveUsers.length]] as [Tab, string, number][]).map(([key, label, count]) => <Button key={key} onClick={() => setTab(key)} variant={tab === key ? 'primary' : 'outline'}><span>{label}</span>{count > 0 && <Badge className="ml-1" variant={key === 'reset' ? 'warning' : 'info'}>{count}</Badge>}</Button>)}</nav>
+    <nav className="ui-tabs" aria-label="Quản lý user">{([['users', 'Quản lý user', 0], ['reset', 'Yêu cầu cấp lại mật khẩu', tickets.length], ['registrations', 'Duyệt đăng ký mới', inactiveUsers.length]] as [Tab, string, number][]).map(([key, label, count]) => <Button key={key} onClick={() => { setTab(key); setPage(1); }} variant={tab === key ? 'primary' : 'outline'}><span>{label}</span>{count > 0 && <Badge className="ml-1" variant={key === 'reset' ? 'warning' : 'info'}>{count}</Badge>}</Button>)}</nav>
     {message && <Alert title={message.type === 'success' ? 'Thông báo' : 'Lỗi'} variant={message.type}>{message.text}</Alert>}
     <Card><CardHeader><CardTitle>{tab === 'users' ? 'Quản lý user' : tab === 'reset' ? 'Yêu cầu cấp lại mật khẩu' : 'Duyệt đăng ký mới'}</CardTitle>
       {tab === 'users' && <div className="flex gap-2"><Button size="sm" onClick={() => { setBulkUsernames(''); setCreatingBulk(true); }} variant="outline">Thêm nhiều user</Button><Button size="sm" icon={<Plus className="size-4" weight="bold" />} onClick={() => { setCreateForm(emptyUser()); setCreating(true); }}>Thêm user</Button></div>}
       {tab === 'reset' && selectedTicketIds.length > 0 && <div className="ui-button-group flex gap-2"><Button onClick={() => setBulkDelete({ ids: selectedTicketIds, type: 'tickets' })} size="sm" variant="danger">Xóa ({selectedTicketIds.length})</Button><Button onClick={() => { const selected = tickets.filter((ticket) => selectedTicketIds.includes(ticket.id) && ticket.userId !== null); setResetTickets(selected); setPassword(randomPassword()); }} size="sm">Cấp lại mật khẩu ({selectedTicketIds.length})</Button></div>}
       {tab === 'registrations' && selectedRegistrationIds.length > 0 && <div className="ui-button-group flex gap-2"><Button onClick={() => setBulkDelete({ ids: selectedRegistrationIds, type: 'registrations' })} size="sm" variant="danger">Xóa ({selectedRegistrationIds.length})</Button><Button onClick={() => requestApproval(inactiveUsers.filter((user) => selectedRegistrationIds.includes(user.id)))} size="sm">Duyệt đăng ký ({selectedRegistrationIds.length})</Button></div>}
     </CardHeader><CardBody>
-      <DataTableToolbar onReset={() => setSearchTerm('')} onSearchChange={setSearchTerm} placeholder={tab === 'users' ? 'Tìm email, họ tên, Domain, Dự án hoặc role' : tab === 'reset' ? 'Tìm email hoặc thời gian gửi' : 'Tìm email, họ tên hoặc Domain'} searchValue={searchTerm} />
-      {tab === 'users' && (visibleUsers.length ? <TableContainer><Table><THead><TR>
+      <DataTableToolbar onReset={() => { setSearchTerm(''); setPage(1); }} onSearchChange={(value) => { setSearchTerm(value); setPage(1); }} placeholder={tab === 'users' ? 'Tìm email, họ tên, Domain, Dự án hoặc role' : tab === 'reset' ? 'Tìm email hoặc thời gian gửi' : 'Tìm email, họ tên hoặc Domain'} searchValue={searchTerm} />
+      {tab === 'users' && (visibleUsers.length ? <><TableContainer><Table><THead><TR>
         <TH>STT</TH>
         <TH sortDirection={userSortDirection('email')} onClick={() => toggleUserSort('email')}>Email</TH>
         <TH sortDirection={userSortDirection('fullName')} onClick={() => toggleUserSort('fullName')}>Họ tên</TH>
@@ -201,7 +207,7 @@ export default function UsersPage() {
         <TH className="text-center" title="Số lượt bấm menu chức năng ở left panel và menu avatar (cộng dồn theo ngày)">Chức năng</TH>
         <TH className="text-center" title="Số lượt xem lịch sử cảnh báo Epic, duyệt Epic và chuyển trang trên màn hình quản lý Epic (cộng dồn theo ngày)">Dữ liệu</TH>
         <TH>Hành động</TH>
-      </TR></THead><TBody>{visibleUsers.map((user, index) => <TR key={user.id}><TD>{index + 1}</TD><TD>{user.email}</TD><TD>{user.fullName}</TD><TD>{domainName(user)}</TD><TD>{projectKeys(user)}</TD><TD><Badge variant="info">{user.role}</Badge></TD><TD><Badge variant={user.isActive ? 'success' : 'neutral'}>{user.isActive ? 'Active' : 'Inactive'}</Badge></TD><TD className="text-center">{user.usageStats.loginCount}</TD><TD className="text-center">{user.usageStats.featureCount}</TD><TD className="text-center">{user.usageStats.dataCount}</TD><TD><TableAction onClick={() => { setEditing({ ...user }); setEditTab('info'); setEditNewPassword(''); setEditConfirmPassword(''); setShowEditNewPassword(false); setShowEditConfirmPassword(false); }} variant="info">Chỉnh sửa</TableAction></TD></TR>)}</TBody></Table></TableContainer> : <p className="text-fb-text-secondary">Không tìm thấy user phù hợp.</p>)}
+      </TR></THead><TBody>{pageUsers.map((user, index) => <TR key={user.id}><TD>{(currentUserPage - 1) * PAGE_SIZE + index + 1}</TD><TD>{user.email}</TD><TD>{user.fullName}</TD><TD>{domainName(user)}</TD><TD>{projectKeys(user)}</TD><TD><Badge variant="info">{user.role}</Badge></TD><TD><Badge variant={user.isActive ? 'success' : 'neutral'}>{user.isActive ? 'Active' : 'Inactive'}</Badge></TD><TD className="text-center">{user.usageStats.loginCount}</TD><TD className="text-center">{user.usageStats.featureCount}</TD><TD className="text-center">{user.usageStats.dataCount}</TD><TD><TableAction onClick={() => { setEditing({ ...user }); setEditTab('info'); setEditNewPassword(''); setEditConfirmPassword(''); setShowEditNewPassword(false); setShowEditConfirmPassword(false); }} variant="info">Chỉnh sửa</TableAction></TD></TR>)}</TBody></Table></TableContainer><Pagination currentPage={currentUserPage} onPageChange={setPage} pageSize={PAGE_SIZE} totalItems={visibleUsers.length} itemLabel="user" /></> : <p className="text-fb-text-secondary">Không tìm thấy user phù hợp.</p>)}
       {tab === 'reset' && (tickets.length ? (visibleTickets.length ? <TableContainer><Table><THead><TR><TH className="text-center"><input aria-label="Chọn tất cả yêu cầu cấp lại mật khẩu" checked={visibleTickets.length > 0 && visibleTickets.every((ticket) => selectedTicketIds.includes(ticket.id))} onChange={(event) => setSelectedTicketIds(event.target.checked ? [...new Set([...selectedTicketIds, ...visibleTickets.map((ticket) => ticket.id)])] : selectedTicketIds.filter((id) => !visibleTickets.some((ticket) => ticket.id === id)))} type="checkbox" /></TH><TH>Email</TH><TH>Thời gian gửi</TH><TH>Hành động</TH></TR></THead><TBody>{visibleTickets.map((ticket) => <TR key={ticket.id}><TD className="text-center"><input aria-label={`Chọn yêu cầu của ${ticket.email}`} checked={selectedTicketIds.includes(ticket.id)} onChange={(event) => toggle(ticket.id, event.target.checked, selectedTicketIds, setSelectedTicketIds)} type="checkbox" /></TD><TD>{ticket.email}</TD><TD>{ticket.createdAt}</TD><TD>{ticket.userId ? <TableAction onClick={() => { setResetTickets([ticket]); setPassword(randomPassword()); }} variant="warning">Cấp lại</TableAction> : 'Không tìm thấy user'}</TD></TR>)}</TBody></Table></TableContainer> : <p className="text-fb-text-secondary">Không tìm thấy ticket phù hợp.</p>) : <p className="text-fb-text-secondary">Không có ticket đang chờ.</p>)}
       {tab === 'registrations' && (visibleInactiveUsers.length ? <TableContainer><Table><THead><TR><TH className="text-center"><input aria-label="Chọn tất cả đăng ký mới" checked={visibleInactiveUsers.length > 0 && visibleInactiveUsers.every((user) => selectedRegistrationIds.includes(user.id))} onChange={(event) => setSelectedRegistrationIds(event.target.checked ? [...new Set([...selectedRegistrationIds, ...visibleInactiveUsers.map((user) => user.id)])] : selectedRegistrationIds.filter((id) => !visibleInactiveUsers.some((user) => user.id === id)))} type="checkbox" /></TH><TH>Email</TH><TH>Họ tên</TH><TH>Domain</TH><TH>Hành động</TH></TR></THead><TBody>{visibleInactiveUsers.map((user) => <TR key={user.id}><TD className="text-center"><input aria-label={`Chọn đăng ký của ${user.email}`} checked={selectedRegistrationIds.includes(user.id)} onChange={(event) => toggle(user.id, event.target.checked, selectedRegistrationIds, setSelectedRegistrationIds)} type="checkbox" /></TD><TD>{user.email}</TD><TD>{user.fullName}</TD><TD>{domainName(user)}</TD><TD><TableAction onClick={() => requestApproval([user])} variant="info">Duyệt</TableAction></TD></TR>)}</TBody></Table></TableContainer> : <p className="text-fb-text-secondary">Không tìm thấy đăng ký phù hợp.</p>)}
     </CardBody></Card>

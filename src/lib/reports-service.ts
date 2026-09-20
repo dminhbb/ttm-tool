@@ -62,14 +62,17 @@ export interface ReportResult {
 }
 
 /**
- * List the 7 most recent data layer dates available in the system.
+ * List the data layer dates available in the system, newest first — capped at 365 (about a year of
+ * daily snapshots) purely to bound the query/response size, not to hide older layers: the "Chọn lớp
+ * dữ liệu" filter shows the newest 5 as quick-pick chips and every older one in a dropdown beside
+ * them, so any recorded layer stays reachable.
  */
 export async function getReportLayerDates(): Promise<string[]> {
   const result = await pool.query<{ layerDate: string }>(`
     SELECT DISTINCT aggregated_at::date::text AS "layerDate"
     FROM issues
     ORDER BY "layerDate" DESC
-    LIMIT 7;
+    LIMIT 365;
   `);
   return result.rows.map((row) => row.layerDate);
 }

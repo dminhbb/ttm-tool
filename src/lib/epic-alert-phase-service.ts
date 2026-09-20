@@ -11,7 +11,6 @@ import {
   missingStandardInfo,
   parseDate,
   resolveTtmActualRange,
-  resolveTtmE2eRelease,
   toEpicAnomalyInput,
   toIsoDate,
 } from '@/lib/epic-alert-service';
@@ -118,11 +117,10 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole, fil
   const rows: EpicAlertRowPhased[] = [];
   const lateAlertsToRecord: { epicKey: string; phase: EpicAlertHistoryPhase; status: string }[] = [];
 
-  for (const { complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, projectName, row, startDate } of entries) {
+  for (const { complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, projectName, row, startDate, ttmCnttStatusMismatch, ttmE2eRelease, ttmE2eStatusMismatch, ttmE2eTarget } of entries) {
     const ttmCnttStartDate = parseDate(evaluation.ttm.cntt.fromDate);
     const ttmCnttTarget = evaluation.ttm.cntt.workingDays ?? 0;
     const ttmCnttElapsed = ttmCnttStartDate ? Math.max(0, diffWorkingDays(ttmCnttStartDate, now, holidays)) : null;
-    const ttmE2eTarget = evaluation.ttm.e2e.workingDays ?? 0;
     // "Sai lệch dữ liệu" (badge/report/dashboard/timeline) is the full 6-rule flag — but only a
     // BROKEN TTM-CNTT/E2E calculation (see breaksTtmCnttCalculation/breaksTtmE2eCalculation) may
     // force alertLevel/ttmE2eAlertLevel to 'NONE'; a missing Requirement Level etc. must never hide
@@ -154,13 +152,10 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole, fil
       ? resolvePhaseCells(epicStatusIndex, baselines, completion, now)
       : { design: naPhaseCell(), dev: naPhaseCell(), pentest: naPhaseCell(), r4golive: naPhaseCell(), test: naPhaseCell() };
 
-    // Released baseline: T0 = Idea Approved Date if present; else Start Date if present; else the
-    // Epic's Jira creation date (always present, so every Epic resolves a T0) — + TTM-E2E's own
-    // working-day budget (ttmE2eTarget, from the active TTM_E2E policy for this Epic's complexity,
-    // configured in "Cấu hình cảnh báo"), excluding weekends and the app's configured holiday
-    // calendar. Shared with "Quản trị Epic (rút gọn)" and Epic in PO so the Fail TTM-E2E badge can
-    // never disagree with any screen's own TTM-E2E stripe color — see resolveTtmE2eRelease.
-    const ttmE2eRelease = resolveTtmE2eRelease(row, ttmE2eTarget, now, holidays);
+    // Released baseline (T0 = Idea Approved Date if present; else Start Date; else the Epic's Jira
+    // creation date) + TTM-E2E's own working-day budget — precomputed once in fetchEpicAlertContext
+    // (ttmE2eRelease) and shared with "Quản trị Epic (rút gọn)" and Epic in PO so the Fail TTM-E2E
+    // badge can never disagree with any screen's own TTM-E2E stripe color — see resolveTtmE2eRelease.
     const releaseCell: PhaseCell = {
       alertLevel: 'NONE',
       baselineDate: ttmE2eRelease.baselineDate,
@@ -224,6 +219,8 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole, fil
       ttmE2eActualToDate: ttmE2eRelease.actualToDate,
       ttmE2eElapsedWorkingDays: ttmE2eRelease.elapsedWorkingDays,
       ttmE2eTargetWorkingDays: ttmE2eTarget,
+      ttmCnttStatusMismatch,
+      ttmE2eStatusMismatch,
     });
   }
 

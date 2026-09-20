@@ -59,6 +59,11 @@ export interface EpicAlertRow {
   ttmCnttToField: string | null;
   targetR4gDate: string | null;
   ttmCnttElapsedWorkingDays: number | null;
+  /** "Sai Status" (TTM-CNTT) — see resolveTtmCnttStatusMismatch in epic-alert-service.ts: R4G Date
+   * is recorded and on schedule, but the Epic's status hasn't actually advanced to/past R4GOLIVE
+   * yet. The "Nhận xét" cell shows a "Sai Status" badge instead of Đạt/Fail while this is true, and
+   * the TTM-CNTT actual stripe stays red (with a "*") even though its length is within budget. */
+  ttmCnttStatusMismatch: boolean;
   ttmCnttTargetWorkingDays: number;
   /** Fail TTM-E2E — see resolveTtmE2eRelease in epic-alert-service.ts. FAIL/NONE only, no EARLY/LATE tiers. */
   ttmE2eAlertLevel: AlertLevel;
@@ -69,6 +74,9 @@ export interface EpicAlertRow {
   /** T0 itself (start of both TTM-E2E stripes) — Idea Approved Date, else Start Date, else Jira creation date. */
   ttmE2eBaselineSourceDate: string | null;
   ttmE2eElapsedWorkingDays: number | null;
+  /** Same "Sai Status" concept as ttmCnttStatusMismatch, for TTM-E2E: Due Date recorded and on
+   * schedule, but the Epic's status hasn't reached RELEASED yet — see resolveTtmE2eStatusMismatch. */
+  ttmE2eStatusMismatch: boolean;
   ttmE2eTargetWorkingDays: number;
 }
 
@@ -76,7 +84,9 @@ export type EpicAlertAccessRole = 'CBQL_PHONG' | 'LEAD' | 'PM_SM';
 
 export interface EpicAlertResponse {
   accessRole: EpicAlertAccessRole;
-  /** The 7 most recent distinct `issues.aggregated_at` dates — chips for the "Chọn lớp dữ liệu" advanced filter. */
+  /** Distinct `issues.aggregated_at` dates, newest first, capped at 365 — the newest 5 render as
+   * quick-pick chips in the "Chọn lớp dữ liệu" advanced filter, every older one in a dropdown
+   * beside them. */
   availableLayerDates: string[];
   lastAggregatedAt: string | null;
   rows: EpicAlertRow[];
@@ -152,18 +162,28 @@ export interface EpicAlertRowPhased {
   ttmCnttElapsedWorkingDays: number | null;
   ttmCnttFromDate: string | null;
   ttmCnttFromField: string | null;
+  /** "Sai Status" (TTM-CNTT) — see resolveTtmCnttStatusMismatch in epic-alert-service.ts: R4G Date
+   * is recorded and on schedule, but the Epic's status hasn't actually advanced to/past R4GOLIVE
+   * yet. The "Nhận xét" cell shows a "Sai Status" badge instead of Đạt/Fail while this is true, and
+   * the TTM-CNTT actual stripe stays red (with a "*") even though its length is within budget. */
+  ttmCnttStatusMismatch: boolean;
   ttmCnttTargetWorkingDays: number;
   ttmCnttToField: string | null;
   /** Ends the TTM-E2E "stripe thực tế" (bottom strip) — Due Date once recorded, else today. Start of
    * that same strip is stages.release.baselineSourceDate (T0), shared with the baseline strip above it. */
   ttmE2eActualToDate: string | null;
   ttmE2eElapsedWorkingDays: number | null;
+  /** Same "Sai Status" concept as ttmCnttStatusMismatch, for TTM-E2E: Due Date recorded and on
+   * schedule, but the Epic's status hasn't reached RELEASED yet — see resolveTtmE2eStatusMismatch. */
+  ttmE2eStatusMismatch: boolean;
   ttmE2eTargetWorkingDays: number;
 }
 
 export interface EpicAlertPhasedResponse {
   accessRole: EpicAlertAccessRole;
-  /** The 7 most recent distinct `issues.aggregated_at` dates — chips for the "Chọn lớp dữ liệu" advanced filter. */
+  /** Distinct `issues.aggregated_at` dates, newest first, capped at 365 — the newest 5 render as
+   * quick-pick chips in the "Chọn lớp dữ liệu" advanced filter, every older one in a dropdown
+   * beside them. */
   availableLayerDates: string[];
   lastAggregatedAt: string | null;
   rows: EpicAlertRowPhased[];

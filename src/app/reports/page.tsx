@@ -139,6 +139,14 @@ export default function ReportsPage() {
     setSelectedLayerAnchor(layerDates[index]);
   };
 
+  // "Chọn lớp dữ liệu" only shows the newest 5 as quick-pick chips — everything older lives in a
+  // dropdown right after them (see the "Lớp dữ liệu cũ hơn…" select below) so any recorded layer
+  // stays reachable without the button row growing unbounded (getReportLayerDates now returns up
+  // to 365 dates, not just 7).
+  const RECENT_LAYER_CHIP_COUNT = 5;
+  const recentLayerDates = React.useMemo(() => layerDates.slice(0, RECENT_LAYER_CHIP_COUNT), [layerDates]);
+  const olderLayerDates = React.useMemo(() => layerDates.slice(RECENT_LAYER_CHIP_COUNT), [layerDates]);
+
   // Full set of layer dates actually sent to the report query: the selected layer plus every older layer,
   // so the backend's fallback logic can drill down for epics missing from the selected snapshot.
   const selectedLayers = React.useMemo(() => {
@@ -409,8 +417,8 @@ export default function ReportsPage() {
                 {layerDates.length === 0 ? (
                   <p className="text-[11px] text-gray-600">Chưa có lớp dữ liệu nào trong hệ thống.</p>
                 ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {layerDates.map((layer, idx) => {
+                  <div className="flex flex-wrap items-center gap-2">
+                    {recentLayerDates.map((layer, idx) => {
                       const isSelected = layer === selectedLayerAnchor;
 
                       return (
@@ -431,6 +439,19 @@ export default function ReportsPage() {
                         </button>
                       );
                     })}
+                    {olderLayerDates.length > 0 && (
+                      <select
+                        className={`rounded-none border px-2 py-1.5 text-xs font-bold font-mono cursor-pointer ${
+                          olderLayerDates.includes(selectedLayerAnchor) ? 'border-[#1463f7] text-[#1463f7]' : 'border-slate-400 text-gray-800'
+                        }`}
+                        value={olderLayerDates.includes(selectedLayerAnchor) ? selectedLayerAnchor : ''}
+                        onChange={(event) => { if (event.target.value) setSelectedLayerAnchor(event.target.value); }}
+                        title="Chọn 1 lớp dữ liệu cũ hơn (ngoài 5 lớp gần nhất) — drill xuống các lớp cũ hơn nữa"
+                      >
+                        <option value="">Lớp dữ liệu cũ hơn…</option>
+                        {olderLayerDates.map((layer) => <option key={layer} value={layer}>{layer}</option>)}
+                      </select>
+                    )}
                   </div>
                 )}
               </div>
@@ -444,42 +465,59 @@ export default function ReportsPage() {
                   <span className="text-[10px] text-gray-700 font-medium">Mặc định không so sánh. Chọn 1 lớp dữ liệu để so sánh chi tiết.</span>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setCompareLayerAnchor('')}
-                    title="Mặc định: Không so sánh dữ liệu với lớp khác"
-                    className={`flex items-center gap-1.5 rounded-none border px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
-                      !compareLayerAnchor
-                        ? 'border-[#1463f7] bg-[#1463f7] text-white'
-                        : 'border-slate-400 bg-white text-gray-800 hover:border-black'
-                    }`}
-                  >
-                    {!compareLayerAnchor && <Check className="size-3.5" weight="bold" />}
-                    <span>Không so sánh</span>
-                  </button>
+                <div className="space-y-2">
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setCompareLayerAnchor('')}
+                      title="Mặc định: Không so sánh dữ liệu với lớp khác"
+                      className={`flex items-center gap-1.5 rounded-none border px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
+                        !compareLayerAnchor
+                          ? 'border-[#1463f7] bg-[#1463f7] text-white'
+                          : 'border-slate-400 bg-white text-gray-800 hover:border-black'
+                      }`}
+                    >
+                      {!compareLayerAnchor && <Check className="size-3.5" weight="bold" />}
+                      <span>Không so sánh</span>
+                    </button>
+                  </div>
 
-                  {layerDates.map((layer, idx) => {
-                    const isSelected = layer === compareLayerAnchor;
+                  <div className="flex flex-wrap items-center gap-2">
+                    {recentLayerDates.map((layer, idx) => {
+                      const isSelected = layer === compareLayerAnchor;
 
-                    return (
-                      <button
-                        key={layer}
-                        type="button"
-                        onClick={() => setCompareLayerAnchor(layer)}
-                        title={`So sánh với lớp dữ liệu ${layer}`}
-                        className={`flex items-center gap-1.5 rounded-none border px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
-                          isSelected
-                            ? 'border-[#1463f7] bg-[#1463f7] text-white'
-                            : 'border-slate-400 bg-white text-gray-800 hover:border-black'
+                      return (
+                        <button
+                          key={layer}
+                          type="button"
+                          onClick={() => setCompareLayerAnchor(layer)}
+                          title={`So sánh với lớp dữ liệu ${layer}`}
+                          className={`flex items-center gap-1.5 rounded-none border px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
+                            isSelected
+                              ? 'border-[#1463f7] bg-[#1463f7] text-white'
+                              : 'border-slate-400 bg-white text-gray-800 hover:border-black'
+                          }`}
+                        >
+                          {isSelected && <Check className="size-3.5" weight="bold" />}
+                          <span>{layer}</span>
+                          {idx === 0 && <span className="bg-black text-white px-1 text-[9px] uppercase">Mới nhất</span>}
+                        </button>
+                      );
+                    })}
+                    {olderLayerDates.length > 0 && (
+                      <select
+                        className={`rounded-none border px-2 py-1.5 text-xs font-bold font-mono cursor-pointer ${
+                          olderLayerDates.includes(compareLayerAnchor) ? 'border-[#1463f7] text-[#1463f7]' : 'border-slate-400 text-gray-800'
                         }`}
+                        value={olderLayerDates.includes(compareLayerAnchor) ? compareLayerAnchor : ''}
+                        onChange={(event) => { if (event.target.value) setCompareLayerAnchor(event.target.value); }}
+                        title="So sánh với 1 lớp dữ liệu cũ hơn (ngoài 5 lớp gần nhất)"
                       >
-                        {isSelected && <Check className="size-3.5" weight="bold" />}
-                        <span>{layer}</span>
-                        {idx === 0 && <span className="bg-black text-white px-1 text-[9px] uppercase">Mới nhất</span>}
-                      </button>
-                    );
-                  })}
+                        <option value="">Lớp dữ liệu cũ hơn…</option>
+                        {olderLayerDates.map((layer) => <option key={layer} value={layer}>{layer}</option>)}
+                      </select>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
