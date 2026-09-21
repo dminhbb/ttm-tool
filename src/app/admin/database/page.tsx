@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+import { Select } from '@/components/ui/Select';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
@@ -27,6 +28,12 @@ function formatDateTime(value: string): string {
   return `${day}/${month}/${date.getFullYear()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
+/** "YYYY-MM-DD" (a data-layer date, always this exact shape from the API) → "dd/mm/yyyy". */
+function formatLayerDate(value: string): string {
+  const [year, month, day] = value.split('-');
+  return year && month && day ? `${day}/${month}/${year}` : value;
+}
+
 export default function DatabaseBackupPage() {
   const [tables, setTables] = useState<BackupTableInfo[]>([]);
   const [isLoadingTables, setIsLoadingTables] = useState(true);
@@ -36,6 +43,12 @@ export default function DatabaseBackupPage() {
   const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set());
   const [includeSchema, setIncludeSchema] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+
+  const [layerDates, setLayerDates] = useState<string[]>([]);
+  const [startLayerDate, setStartLayerDate] = useState('');
+  const [endLayerDate, setEndLayerDate] = useState('');
+  const [includeRawData, setIncludeRawData] = useState(true);
+  const [isExportingLayerRange, setIsExportingLayerRange] = useState(false);
 
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
@@ -56,9 +69,27 @@ export default function DatabaseBackupPage() {
     }
   };
 
+  const fetchLayerDates = async () => {
+    try {
+      const res = await fetch('/api/admin/db-backup/layer-dates');
+      if (!res.ok) return;
+      const result: { dates: string[] } = await res.json();
+      setLayerDates(result.dates);
+      // Default to the most recent single layer — the common case is "export today's data",
+      // not the full history; the user widens the range explicitly when they need more.
+      if (result.dates.length > 0) {
+        setStartLayerDate(result.dates[0]);
+        setEndLayerDate(result.dates[0]);
+      }
+    } catch {
+      // Non-fatal — the layer-range export form just shows no options; the table-based export below still works.
+    }
+  };
+
   useEffect(() => {
     // Defer the request so effect setup itself does not synchronously schedule state updates.
     void Promise.resolve().then(fetchTables);
+    void Promise.resolve().then(fetchLayerDates);
   }, []);
 
   const openExportModal = () => {
@@ -107,6 +138,44 @@ export default function DatabaseBackupPage() {
       setMessage({ text: 'Không thể kết nối API export.', type: 'error' });
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleLayerRangeExport = async () => {
+    if (!startLayerDate || !endLayerDate) return;
+    if (startLayerDate > endLayerDate) {
+      setMessage({ text: '"Start Data Layer" phải trước hoặc trùng ngày với "End Data Layer".', type: 'error' });
+      return;
+    }
+    setIsExportingLayerRange(true);
+    setMessage(null);
+    try {
+      const res = await fetch('/api/admin/db-backup/export-layer-range', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ startDate: startLayerDate, endDate: endLayerDate, includeRawData }),
+      });
+      if (!res.ok) {
+        const result = await res.json();
+        setMessage({ text: result.error || 'Export thất bại.', type: 'error' });
+        return;
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition') ?? '';
+      const fileNameMatch = disposition.match(/filename="(.+)"/);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileNameMatch ? fileNameMatch[1] : 'export.sql';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setMessage({ text: `Đã export dữ liệu từ lớp ${formatLayerDate(startLayerDate)} đến ${formatLayerDate(endLayerDate)} thành công.`, type: 'success' });
+    } catch {
+      setMessage({ text: 'Không thể kết nối API export.', type: 'error' });
+    } finally {
+      setIsExportingLayerRange(false);
     }
   };
 
@@ -251,11 +320,52 @@ export default function DatabaseBackupPage() {
       <Card>
         <CardHeader>
           <CardTitle>Export dữ liệu ra file SQL</CardTitle>
-          <Button icon={<CloudArrowDown className="size-4" weight="bold" />} onClick={openExportModal} size="sm">
-            Chọn bảng để export
+          <Button variant="outline" icon={<CloudArrowDown className="size-4" weight="bold" />} onClick={openExportModal} size="sm">
+            Export nâng cao (chọn bảng thủ công)
           </Button>
         </CardHeader>
-        <CardBody>
+        <CardBody className="gap-4">
+          <div className="flex flex-col gap-3 rounded-xl border border-fb-border bg-fb-surface-muted p-4">
+            <p className="font-bold text-fb-text-primary">Export theo lớp dữ liệu</p>
+            <p className="text-fb-text-secondary">
+              Chọn một khoảng lớp dữ liệu liên tiếp (theo ngày <code>aggregated_at</code>) — export luôn bao gồm dữ liệu tổng hợp
+              (<code>epic_ttm_snapshots</code>, <code>issue_daily_snapshots</code>), dữ liệu cảnh báo (<code>epic_alert_history</code>) và
+              dữ liệu lịch sử Epic (<code>epic_alert_timeline</code>, <code>epic_milestone_history</code>) trong khoảng đã chọn; bật
+              &quot;Export Raw Data&quot; để gộp thêm dữ liệu gốc (<code>issues</code>, <code>import_rows</code>, <code>import_batches</code>).
+            </p>
+            <div className="flex flex-wrap items-end gap-3">
+              <Select
+                label="Start Data Layer"
+                options={[...layerDates].sort().map((date) => ({ value: date, label: formatLayerDate(date) }))}
+                value={startLayerDate}
+                onChange={(event) => setStartLayerDate(event.target.value)}
+                disabled={layerDates.length === 0}
+                className="min-w-[160px]"
+              />
+              <Select
+                label="End Data Layer"
+                options={[...layerDates].sort().map((date) => ({ value: date, label: formatLayerDate(date) }))}
+                value={endLayerDate}
+                onChange={(event) => setEndLayerDate(event.target.value)}
+                disabled={layerDates.length === 0}
+                className="min-w-[160px]"
+              />
+              <label className="flex items-center gap-2 pb-2 font-semibold">
+                <input type="checkbox" checked={includeRawData} onChange={(event) => setIncludeRawData(event.target.checked)} />
+                Export Raw Data
+              </label>
+              <Button
+                icon={<CloudArrowDown className="size-4" weight="bold" />}
+                onClick={handleLayerRangeExport}
+                isLoading={isExportingLayerRange}
+                disabled={!startLayerDate || !endLayerDate || startLayerDate > endLayerDate}
+              >
+                Export
+              </Button>
+            </div>
+            {layerDates.length === 0 && <p className="text-fb-text-secondary">Chưa có lớp dữ liệu nào để export.</p>}
+          </div>
+
           {isLoadingTables ? <TableSkeleton rows={4} /> : (
             <TableContainer>
               <Table>

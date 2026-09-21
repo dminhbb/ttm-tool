@@ -7,7 +7,7 @@ import pool, { getClient } from '@/lib/db';
  * (ON DELETE SET NULL — see data-retention-service.ts) and can therefore have dates the RAW side
  * no longer does.
  */
-async function listLayerDatesDescending(): Promise<string[]> {
+export async function listLayerDatesDescending(): Promise<string[]> {
   const result = await pool.query<{ layerDate: string }>(`
     SELECT DISTINCT d::text AS "layerDate" FROM (
       SELECT aggregated_at::date AS d FROM import_batches

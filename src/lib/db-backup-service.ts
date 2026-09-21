@@ -19,7 +19,11 @@ export const EXPORTABLE_TABLES: { label: string; tableName: string }[] = [
   { label: 'Đợt import dữ liệu', tableName: 'import_batches' },
   { label: 'Dòng dữ liệu import (raw)', tableName: 'import_rows' },
   { label: 'Issues (Epic/Story/Subtask)', tableName: 'issues' },
-  { label: 'Epic TTM Snapshot (lịch sử tổng hợp)', tableName: 'epic_ttm_snapshots' },
+  { label: 'Epic TTM Snapshot (dữ liệu tổng hợp)', tableName: 'epic_ttm_snapshots' },
+  { label: 'Issue Daily Snapshot (dữ liệu tổng hợp)', tableName: 'issue_daily_snapshots' },
+  { label: 'Lịch sử cảnh báo Epic (dữ liệu cảnh báo)', tableName: 'epic_alert_history' },
+  { label: 'Dòng thời gian cảnh báo Epic (lịch sử Epic)', tableName: 'epic_alert_timeline' },
+  { label: 'Mốc hoàn thành Epic (lịch sử Epic)', tableName: 'epic_milestone_history' },
   { label: 'Audit log', tableName: 'audit_logs' },
 ];
 
@@ -184,6 +188,39 @@ function buildConflictClause(tableName: string, columnNames: string[], primaryKe
   return `ON CONFLICT (${conflictTarget}) DO UPDATE SET ${setClause}`;
 }
 
+/**
+ * One table's worth of export lines — optional CREATE TABLE, then one INSERT per row, optionally
+ * restricted by `whereClause` (raw SQL using `$1`/`$2`, paired with `whereParams`). Shared by both
+ * exportTablesToSql (whole-table, no filter) and exportDataLayerRangeToSql (filtered by data-layer
+ * date range) so the two never drift on statement shape, upsert behavior, or value formatting.
+ */
+async function exportOneTableToSql(tableName: string, includeSchema: boolean, whereClause?: string, whereParams?: unknown[]): Promise<string[]> {
+  const lines: string[] = [`-- Table: ${tableName}`];
+  if (includeSchema) {
+    lines.push(await buildCreateTableStatement(tableName));
+    lines.push('');
+  }
+
+  const [columns, primaryKeyColumns] = await Promise.all([getColumns(tableName), getPrimaryKeyColumns(tableName)]);
+  const columnNames = columns.map((column) => column.columnName);
+  const quotedColumns = columnNames.map(quoteIdent).join(', ');
+  const conflictClause = buildConflictClause(tableName, columnNames, primaryKeyColumns);
+  // Date/timestamp columns are selected as ::text so node-postgres never round-trips them
+  // through a JS Date (which would shift the calendar date by the server's UTC offset).
+  const selectList = columns
+    .map((column) => (isTemporalType(column.dataType) ? `${quoteIdent(column.columnName)}::text AS ${quoteIdent(column.columnName)}` : quoteIdent(column.columnName)))
+    .join(', ');
+  const whereSql = whereClause ? ` WHERE ${whereClause}` : '';
+  const result = await pool.query(`SELECT ${selectList} FROM ${quoteIdent(tableName)}${whereSql} ORDER BY 1;`, whereParams);
+
+  for (const row of result.rows) {
+    const values = columnNames.map((columnName) => formatSqlValue((row as Record<string, unknown>)[columnName]));
+    lines.push(`INSERT INTO ${quoteIdent(tableName)} (${quotedColumns}) VALUES (${values.join(', ')}) ${conflictClause};`);
+  }
+  lines.push('');
+  return lines;
+}
+
 export async function exportTablesToSql(tableNames: string[], includeSchema: boolean): Promise<string> {
   const uniqueTableNames = [...new Set(tableNames)];
   if (uniqueTableNames.length === 0) throw new Error('Vui lòng chọn ít nhất một bảng để export.');
@@ -199,28 +236,80 @@ export async function exportTablesToSql(tableNames: string[], includeSchema: boo
   ];
 
   for (const tableName of uniqueTableNames) {
-    lines.push(`-- Table: ${tableName}`);
-    if (includeSchema) {
-      lines.push(await buildCreateTableStatement(tableName));
-      lines.push('');
-    }
+    lines.push(...await exportOneTableToSql(tableName, includeSchema));
+  }
 
-    const [columns, primaryKeyColumns] = await Promise.all([getColumns(tableName), getPrimaryKeyColumns(tableName)]);
-    const columnNames = columns.map((column) => column.columnName);
-    const quotedColumns = columnNames.map(quoteIdent).join(', ');
-    const conflictClause = buildConflictClause(tableName, columnNames, primaryKeyColumns);
-    // Date/timestamp columns are selected as ::text so node-postgres never round-trips them
-    // through a JS Date (which would shift the calendar date by the server's UTC offset).
-    const selectList = columns
-      .map((column) => (isTemporalType(column.dataType) ? `${quoteIdent(column.columnName)}::text AS ${quoteIdent(column.columnName)}` : quoteIdent(column.columnName)))
-      .join(', ');
-    const result = await pool.query(`SELECT ${selectList} FROM ${quoteIdent(tableName)} ORDER BY 1;`);
+  return lines.join('\n');
+}
 
-    for (const row of result.rows) {
-      const values = columnNames.map((columnName) => formatSqlValue((row as Record<string, unknown>)[columnName]));
-      lines.push(`INSERT INTO ${quoteIdent(tableName)} (${quotedColumns}) VALUES (${values.join(', ')}) ${conflictClause};`);
-    }
-    lines.push('');
+export type DataLayerExportCategory = 'raw' | 'aggregated' | 'alert' | 'epicHistory';
+
+interface DataLayerTableConfig {
+  category: DataLayerExportCategory;
+  /** Raw WHERE-clause SQL using $1 (startDate) / $2 (endDate), both 'YYYY-MM-DD' — inclusive range.
+   * epic_alert_timeline is transition-based (a run's own start_date/end_date can span outside the
+   * chosen window), so its rows are selected by RANGE OVERLAP rather than exact containment —
+   * otherwise an alert that started before the window but is still open (or still active partway
+   * through it) would silently vanish from the export instead of showing up truncated/ongoing, the
+   * same way the live timeline UI itself draws a run that starts before its visible window. */
+  tableName: string;
+  whereClause: string;
+}
+
+// dữ liệu gốc (raw, toggle-gated) / dữ liệu tổng hợp (aggregated) / dữ liệu cảnh báo (alert) /
+// dữ liệu lịch sử Epic (epicHistory) — always exported together for the chosen data-layer range,
+// per exportDataLayerRangeToSql's single "Start/End Data Layer" selection.
+const DATA_LAYER_TABLES: DataLayerTableConfig[] = [
+  { category: 'raw', tableName: 'import_batches', whereClause: 'aggregated_at::date BETWEEN $1 AND $2' },
+  { category: 'raw', tableName: 'import_rows', whereClause: 'import_batch_id IN (SELECT id FROM import_batches WHERE aggregated_at::date BETWEEN $1 AND $2)' },
+  { category: 'raw', tableName: 'issues', whereClause: 'aggregated_at::date BETWEEN $1 AND $2' },
+  { category: 'aggregated', tableName: 'epic_ttm_snapshots', whereClause: 'aggregated_at::date BETWEEN $1 AND $2' },
+  { category: 'aggregated', tableName: 'issue_daily_snapshots', whereClause: 'aggregated_at::date BETWEEN $1 AND $2' },
+  { category: 'alert', tableName: 'epic_alert_history', whereClause: 'alert_date BETWEEN $1 AND $2' },
+  { category: 'epicHistory', tableName: 'epic_alert_timeline', whereClause: 'start_date <= $2 AND (end_date IS NULL OR end_date >= $1)' },
+  { category: 'epicHistory', tableName: 'epic_milestone_history', whereClause: 'milestone_date BETWEEN $1 AND $2' },
+];
+
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+export interface DataLayerExportOptions {
+  endDate: string;
+  includeRawData: boolean;
+  includeSchema?: boolean;
+  startDate: string;
+}
+
+/**
+ * Export "dữ liệu tổng hợp" + "dữ liệu cảnh báo" + "dữ liệu lịch sử Epic" (always) plus "dữ liệu
+ * gốc" (only when includeRawData) for one contiguous data-layer date range — the "Start/End Data
+ * Layer" + "Export Raw Data" flow on the admin backup screen. Reuses exportOneTableToSql, so the
+ * resulting file has the exact same EXPORT_SIGNATURE/statement shape as a whole-table export and
+ * is restorable through the same importSqlFile path unchanged.
+ */
+export async function exportDataLayerRangeToSql(options: DataLayerExportOptions): Promise<string> {
+  const { startDate, endDate, includeRawData, includeSchema = false } = options;
+  if (!ISO_DATE_PATTERN.test(startDate) || !ISO_DATE_PATTERN.test(endDate)) {
+    throw new Error('Vui lòng chọn Start Data Layer và End Data Layer hợp lệ.');
+  }
+  if (startDate > endDate) {
+    throw new Error('"Start Data Layer" phải trước hoặc trùng ngày với "End Data Layer".');
+  }
+
+  const tablesToExport = DATA_LAYER_TABLES.filter((table) => includeRawData || table.category !== 'raw');
+
+  const lines: string[] = [
+    EXPORT_SIGNATURE,
+    `-- Generated at: ${new Date().toISOString()}`,
+    `-- Data layer range: ${startDate} .. ${endDate}`,
+    `-- Includes raw data: ${includeRawData ? 'yes' : 'no'}`,
+    `-- Tables: ${tablesToExport.map((table) => table.tableName).join(', ')}`,
+    `-- Includes schema: ${includeSchema ? 'yes (CREATE TABLE IF NOT EXISTS, columns + primary key only)' : 'no (data only)'}`,
+    '-- Import behavior: rows whose primary key already exists on the target DB are OVERWRITTEN (upsert), not skipped.',
+    '',
+  ];
+
+  for (const table of tablesToExport) {
+    lines.push(...await exportOneTableToSql(table.tableName, includeSchema, table.whereClause, [startDate, endDate]));
   }
 
   return lines.join('\n');
