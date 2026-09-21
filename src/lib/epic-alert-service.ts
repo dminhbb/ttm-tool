@@ -339,6 +339,9 @@ export interface EpicAlertContext {
    * lớp dữ liệu" filter shows the newest 5 as quick-pick chips and every older one in a dropdown
    * beside them, so any recorded layer stays reachable. */
   availableLayerDates: string[];
+  /** Echoes EpicAlertFilters.asOfDate — the date `now` below was actually pinned to, or null when
+   * `now` is the real wall-clock date. */
+  asOfDate: string | null;
   entries: EvaluatedEpicEntry[];
   holidays: HolidaySet;
   lastAggregatedAt: string | null;
@@ -355,6 +358,11 @@ export interface EpicAlertContext {
  * a single flat Epic list instead of the Report's multi-table split.
  */
 export interface EpicAlertFilters {
+  /** Pins every FAIL/EARLY/LATE, "stripe thực tế" and remaining/elapsed-working-days calculation to
+   * this date instead of the real wall-clock date — set together with an OLDER `layerDates` window
+   * ("Chọn lớp dữ liệu" drill-down) so viewing a past data layer also evaluates it as of that layer's
+   * own date, not today. Omit/null for the default: evaluate as of the real current date. */
+  asOfDate?: string | null;
   /** Epic tạo mới từ (Created Date ≥) — compared against jiraCreatedAt, falling back to ideaApprovedDate. */
   createdDateFrom?: string | null;
   /** Epic golive sau (Due Date ≥) — compared against issues.due_date; Epics without one are excluded once set. */
@@ -396,10 +404,14 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole, filt
   const latestAggregatedAt = latestBatch.rows[0]?.aggregatedAt ?? null;
   const lastBatchId = latestBatch.rows[0]?.id ?? null;
   const availableLayerDates = layerDatesResult.rows.map((row) => row.layerDate);
-  const now = new Date();
+  // Viewing a past "Chọn lớp dữ liệu" layer must evaluate FAIL/EARLY/LATE/stripe/remaining-days as
+  // of THAT layer's date, not today — filters.asOfDate (set together with an older layerDates
+  // window) pins `now` accordingly; the default (no asOfDate) keeps today's real date.
+  const asOfDate = filters.asOfDate ? toIsoDate(parseDate(filters.asOfDate)) : null;
+  const now = asOfDate ? (parseDate(asOfDate) ?? new Date()) : new Date();
   const todayIso = toIsoDate(now) ?? '';
   if (!latestAggregatedAt) {
-    return { accessRole: scope.accessRole, availableLayerDates, entries: [], holidays, lastAggregatedAt: null, lastBatchId: null, now, statusAlertRules, viewerName };
+    return { accessRole: scope.accessRole, asOfDate, availableLayerDates, entries: [], holidays, lastAggregatedAt: null, lastBatchId: null, now, statusAlertRules, viewerName };
   }
 
   const result = await pool.query<EpicRow>(`
@@ -488,7 +500,7 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole, filt
     entries.push({ complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, projectName, row, startDate, ttmCnttStatusMismatch, ttmE2eRelease, ttmE2eStatusMismatch, ttmE2eTarget });
   }
 
-  return { accessRole: scope.accessRole, availableLayerDates, entries, holidays, lastAggregatedAt: latestAggregatedAt, lastBatchId, now, statusAlertRules, viewerName };
+  return { accessRole: scope.accessRole, asOfDate, availableLayerDates, entries, holidays, lastAggregatedAt: latestAggregatedAt, lastBatchId, now, statusAlertRules, viewerName };
 }
 
 /**
@@ -501,7 +513,7 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole, filt
 export async function getEpicAlertRows(userId: number, role: UserRole, filters: EpicAlertFilters = {}): Promise<EpicAlertResponse> {
   const context = await fetchEpicAlertContext(userId, role, filters);
   if (!context.lastAggregatedAt) {
-    return { accessRole: context.accessRole, availableLayerDates: context.availableLayerDates, lastAggregatedAt: null, rows: [], viewerName: context.viewerName };
+    return { accessRole: context.accessRole, asOfDate: context.asOfDate, availableLayerDates: context.availableLayerDates, lastAggregatedAt: null, rows: [], viewerName: context.viewerName };
   }
   const { entries, holidays, now, statusAlertRules } = context;
   const rows: EpicAlertRow[] = [];
@@ -612,6 +624,7 @@ export async function getEpicAlertRows(userId: number, role: UserRole, filters: 
 
   return {
     accessRole: context.accessRole,
+    asOfDate: context.asOfDate,
     availableLayerDates: context.availableLayerDates,
     lastAggregatedAt: context.lastAggregatedAt,
     rows,

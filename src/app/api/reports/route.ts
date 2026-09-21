@@ -39,7 +39,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     await requireUser(request);
 
     const body = await request.json().catch(() => ({}));
-    const { domainId, projectKey, component, selectedLayerDates, compareLayerDates, createdDateFrom, startDateFrom, releasedDateFrom, releasedDateTo } = body;
+    const { domainId, projectKey, component, selectedLayerDates, compareLayerDates, createdDateFrom, startDateFrom, releasedDateFrom, releasedDateTo, asOfDate, compareAsOfDate } = body;
 
     if (!projectKey) {
       return NextResponse.json({ error: 'Thông tin Dự án (projectKey) là bắt buộc.' }, { status: 400 });
@@ -50,6 +50,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const reportPromise = generateEpicReport({
+      asOfDate,
       component,
       createdDateFrom,
       domainId: domainId ? Number(domainId) : undefined,
@@ -62,6 +63,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let compareReportPromise = Promise.resolve<Awaited<ReturnType<typeof generateEpicReport>> | null>(null);
     if (compareLayerDates && Array.isArray(compareLayerDates) && compareLayerDates.length > 0) {
       compareReportPromise = generateEpicReport({
+        asOfDate: compareAsOfDate,
         component,
         createdDateFrom,
         domainId: domainId ? Number(domainId) : undefined,

@@ -529,7 +529,10 @@ export default function EpicInPoPage() {
     setError(null);
     try {
       const query = new URLSearchParams();
-      if (layerWindow) query.set('layerDates', layerWindow.join(','));
+      if (layerWindow) {
+        query.set('layerDates', layerWindow.join(','));
+        query.set('asOfDate', effectiveLayerAnchor);
+      }
       if (createdDateFrom) query.set('createdDateFrom', createdDateFrom);
       if (startDateFromFilter) query.set('startDateFrom', startDateFromFilter);
       if (dueDateFromFilter) query.set('dueDateFrom', dueDateFromFilter);
@@ -629,6 +632,11 @@ export default function EpicInPoPage() {
     <div className="ttm-app">
       <InfoBannerDisplay pathname="/epic-in-po" />
       {error && <div className="ttm-note" style={{ background: 'var(--ttm-danger-050)', borderColor: '#f3b3b3', color: 'var(--ttm-danger-700)' }}>{error}</div>}
+      {data?.asOfDate && (
+        <div className="ttm-note" style={{ background: '#fff7e6', borderColor: '#f0c36d', color: '#7a5200', fontWeight: 700 }}>
+          Đang xem dữ liệu &amp; đánh giá cảnh báo tại thời điểm {data.asOfDate.split('-').reverse().join('/')} (không phải hôm nay thực tế).
+        </div>
+      )}
 
       <section className="ttm-toolbar" aria-label="Bộ lọc Epic">
         {isAdminTierAccess && (

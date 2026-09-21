@@ -88,6 +88,10 @@ export interface EpicAlertResponse {
    * quick-pick chips in the "Chọn lớp dữ liệu" advanced filter, every older one in a dropdown
    * beside them. */
   availableLayerDates: string[];
+  /** Echoes EpicAlertFilters.asOfDate — null means every FAIL/EARLY/LATE/stripe/remaining-days
+   * calculation used the real wall-clock date (the default, newest-layer view); a date means they
+   * were all evaluated as of that past layer instead, so the frontend can banner-warn the viewer. */
+  asOfDate: string | null;
   lastAggregatedAt: string | null;
   rows: EpicAlertRow[];
   viewerName: string;
@@ -185,6 +189,8 @@ export interface EpicAlertPhasedResponse {
    * quick-pick chips in the "Chọn lớp dữ liệu" advanced filter, every older one in a dropdown
    * beside them. */
   availableLayerDates: string[];
+  /** Echoes EpicAlertFilters.asOfDate — see EpicAlertResponse.asOfDate. */
+  asOfDate: string | null;
   lastAggregatedAt: string | null;
   rows: EpicAlertRowPhased[];
   viewerName: string;

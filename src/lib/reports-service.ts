@@ -1,7 +1,7 @@
 import pool from '@/lib/db';
 import { getActiveHolidaySet } from '@/lib/master-data-service';
 import { listTtmPolicies, resolveTtmCnttWorkingDays } from '@/lib/ttm-policy-service';
-import { resolveTtmE2eRelease } from '@/lib/epic-alert-service';
+import { parseDate, resolveTtmE2eRelease } from '@/lib/epic-alert-service';
 import { evaluateIssueCompliance } from '@/lib/epic-compliance-engine';
 import { breaksTtmCnttCalculation, breaksTtmE2eCalculation, evaluateEpicDataAnomaly } from '@/lib/epic-data-anomaly';
 import { listActiveStatusAlertRules } from '@/lib/status-alert-rule-service';
@@ -11,6 +11,11 @@ import { EPIC_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 import { diffWorkingDays, toDateKey } from '@/lib/working-days';
 
 export interface ReportFilterOptions {
+  /** Pins every FAIL/EARLY/LATE and "sai lệch dữ liệu" calculation to this date instead of the real
+   * wall-clock date — set together with an OLDER `selectedLayerDates` window ("Chọn lớp dữ liệu"
+   * drill-down) so viewing a past data layer also evaluates it as of that layer's own date, not
+   * today. Omit/null for the default: evaluate as of the real current date. */
+  asOfDate?: string | null;
   component?: string;
   createdDateFrom?: string; // YYYY-MM-DD (Epic tạo mới từ >=)
   domainId?: number;
@@ -39,6 +44,10 @@ export interface ReportEpicItem {
 
 export interface ReportResult {
   anomalyEpics: ReportEpicItem[];
+  /** Echoes ReportFilterOptions.asOfDate — null means every FAIL/EARLY/LATE/anomaly calculation
+   * used the real wall-clock date; a date means they were all evaluated as of that past layer
+   * instead, so the frontend can banner-warn the viewer. */
+  asOfDate: string | null;
   componentName: string;
   domainName: string;
   evaluatedAt: string;
@@ -81,7 +90,7 @@ export async function getReportLayerDates(): Promise<string[]> {
  * Generate full Epic Report payload based on project, component, selected layer dates, and date range filters.
  */
 export async function generateEpicReport(options: ReportFilterOptions): Promise<ReportResult> {
-  const { projectKey, component, selectedLayerDates, createdDateFrom, startDateFrom, releasedDateFrom } = options;
+  const { projectKey, component, selectedLayerDates, createdDateFrom, startDateFrom, releasedDateFrom, asOfDate: asOfDateOption } = options;
 
   if (!projectKey) {
     throw new Error('Dự án (projectKey) là thông tin bắt buộc.');
@@ -215,7 +224,11 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
     listActiveStatusAlertRules(),
   ]);
 
-  const now = new Date();
+  // Viewing a past "Chọn lớp dữ liệu" layer must evaluate FAIL/EARLY/LATE/anomaly rules as of THAT
+  // layer's date, not today — options.asOfDate (set together with an older selectedLayerDates
+  // window) pins `now` accordingly; the default (no asOfDate) keeps today's real date.
+  const asOfDate = asOfDateOption ? toDateKey(parseDate(asOfDateOption) ?? new Date()) : null;
+  const now = asOfDate ? (parseDate(asOfDate) ?? new Date()) : new Date();
   const todayKey = toDateKey(now);
 
   const releasedEpics: ReportEpicItem[] = [];
@@ -439,6 +452,7 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
 
   return {
     anomalyEpics,
+    asOfDate,
     componentName: component && component !== 'ALL' ? component : 'Tất cả Component',
     domainName: projMeta.domainName || 'Tất cả Domain',
     evaluatedAt: new Date().toISOString(),

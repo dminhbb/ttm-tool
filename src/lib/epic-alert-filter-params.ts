@@ -7,6 +7,7 @@ import type { EpicAlertFilters } from '@/lib/epic-alert-service';
 export function parseEpicAlertFiltersFromSearchParams(searchParams: URLSearchParams): EpicAlertFilters {
   const layerDatesParam = searchParams.get('layerDates');
   return {
+    asOfDate: searchParams.get('asOfDate') || undefined,
     createdDateFrom: searchParams.get('createdDateFrom') || undefined,
     dueDateFrom: searchParams.get('dueDateFrom') || undefined,
     layerDates: layerDatesParam ? layerDatesParam.split(',').map((value) => value.trim()).filter(Boolean) : undefined,

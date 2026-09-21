@@ -111,7 +111,7 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole, fil
     computeEpicPhaseCompletionByEpicKey(),
   ]);
   if (!context.lastAggregatedAt) {
-    return { accessRole: context.accessRole, availableLayerDates: context.availableLayerDates, lastAggregatedAt: null, rows: [], viewerName: context.viewerName };
+    return { accessRole: context.accessRole, asOfDate: context.asOfDate, availableLayerDates: context.availableLayerDates, lastAggregatedAt: null, rows: [], viewerName: context.viewerName };
   }
   const { entries, holidays, lastBatchId, now } = context;
   const rows: EpicAlertRowPhased[] = [];
@@ -245,6 +245,7 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole, fil
 
   return {
     accessRole: context.accessRole,
+    asOfDate: context.asOfDate,
     availableLayerDates: context.availableLayerDates,
     lastAggregatedAt: context.lastAggregatedAt,
     rows,

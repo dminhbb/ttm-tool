@@ -164,6 +164,12 @@ export default function ReportsPage() {
     return layerDates.slice(anchorIdx);
   }, [layerDates, compareLayerAnchor]);
 
+  // "As of" date pinning every FAIL/EARLY/LATE/anomaly calculation to the selected layer instead of
+  // the real wall-clock date — only needed when the anchor is an OLDER layer than the newest
+  // (index 0); picking the newest layer (or none yet) keeps the default real-today evaluation.
+  const asOfDate = layerDates.indexOf(selectedLayerAnchor) > 0 ? selectedLayerAnchor : undefined;
+  const compareAsOfDate = layerDates.indexOf(compareLayerAnchor) > 0 ? compareLayerAnchor : undefined;
+
   const handleResetFilter = () => {
     setSelectedDomainId('ALL');
     if (projects.length > 0) {
@@ -200,6 +206,8 @@ export default function ReportsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          asOfDate,
+          compareAsOfDate,
           compareLayerDates: compareLayers.length > 0 ? compareLayers : undefined,
           component: selectedComponent,
           createdDateFrom: createdDateFrom || undefined,
@@ -593,6 +601,17 @@ export default function ReportsPage() {
             <h1 className="text-xl font-extrabold tracking-tight text-black uppercase">BÁO CÁO EPIC DỰ ÁN</h1>
             <p className="text-[10px] text-gray-500">Thời gian trích xuất hệ thống: {new Date(report.evaluatedAt).toLocaleString('vi-VN')}</p>
           </div>
+
+          {report.asOfDate && (
+            <div className="rounded-none border px-3 py-2 text-xs font-bold" style={{ background: '#fff7e6', borderColor: '#f0c36d', color: '#7a5200' }}>
+              Đang xem dữ liệu &amp; đánh giá cảnh báo tại thời điểm {report.asOfDate.split('-').reverse().join('/')} (không phải hôm nay thực tế).
+            </div>
+          )}
+          {compareReport?.asOfDate && (
+            <div className="rounded-none border px-3 py-2 text-xs font-bold" style={{ background: '#fff7e6', borderColor: '#f0c36d', color: '#7a5200' }}>
+              Báo cáo so sánh đang đánh giá cảnh báo tại thời điểm {compareReport.asOfDate.split('-').reverse().join('/')} (không phải hôm nay thực tế).
+            </div>
+          )}
 
           {/* 2-COLUMN METADATA BLOCK */}
           <div className="rounded-none border border-black overflow-hidden">
