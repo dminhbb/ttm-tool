@@ -190,6 +190,39 @@
 :root[data-brand="legacy"] .ui-card-title { font-weight: 700; }
 :root[data-brand="legacy"] body { font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; }
 
+/* "Pink theme" — pastel pink theme based on the Navy layout structure, custom colors: background #dedcdd, primary #80526c, text #5c2545. */
+:root[data-brand="pink"] {
+  --surface-app: #dedcdd;
+  --surface-sidebar: #ffffff;
+  --surface-panel: #ffffff;
+  --surface-elevated: #f0edee;
+  --surface-hover: #e5e1e3;
+  --surface-active: #d6cfd2;
+  --border-subtle: #d6cfd2;
+  --border-default: #bfaab5;
+  --border-strong: #997f8c;
+  --text-primary: #5c2545;
+  --text-secondary: #6e3b5a;
+  --text-muted: #8c5876;
+  --text-disabled: #b38d9f;
+  --accent: #80526c;
+  --accent-hover: #6a3e56;
+  --accent-soft: rgb(128 82 108 / 0.14);
+  --focus-ring: 0 0 0 3px rgb(128 82 108 / 0.28);
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-pill: 999px;
+  --shadow-soft: 0 4px 16px rgb(92 37 69 / 0.12);
+  --color-primary: #80526c;
+  --color-primary-hover: #6a3e56;
+  --color-on-primary: #ffffff;
+}
+:root[data-brand="pink"] .ui-page-title { font-size: 24px; font-weight: 700; }
+:root[data-brand="pink"] .ui-card-title { font-weight: 700; }
+:root[data-brand="pink"] body { font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; }
+
 :root[data-theme="light"] .ui-card,
 :root[data-theme="light"] .ui-table-wrap,
 :root[data-theme="light"] .right-panel-surface {

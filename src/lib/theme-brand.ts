@@ -1,4 +1,4 @@
-export const THEME_BRANDS = ['wise', 'legacy'] as const;
+export const THEME_BRANDS = ['wise', 'legacy', 'pink'] as const;
 export type ThemeBrand = (typeof THEME_BRANDS)[number];
 
 export const THEME_BRAND_STORAGE_KEY = 'ttm-theme-brand';
@@ -24,4 +24,5 @@ export function applyThemeBrand(brand: ThemeBrand): void {
  * applies before first paint — defaults to 'legacy' (Navy theme) for all users unless a
  * different preference was saved in localStorage.
  */
-export const THEME_BRAND_INIT_SCRIPT = `(function(){try{var b=localStorage.getItem('${THEME_BRAND_STORAGE_KEY}');if(b==='wise'){document.documentElement.setAttribute('data-brand','wise');}else{document.documentElement.setAttribute('data-brand','legacy');}}catch(e){document.documentElement.setAttribute('data-brand','legacy');}})();`;
+export const THEME_BRAND_INIT_SCRIPT = `(function(){try{var b=localStorage.getItem('${THEME_BRAND_STORAGE_KEY}');if(b==='wise'||b==='pink'){document.documentElement.setAttribute('data-brand',b);}else{document.documentElement.setAttribute('data-brand','legacy');}}catch(e){document.documentElement.setAttribute('data-brand','legacy');}})();`;
+

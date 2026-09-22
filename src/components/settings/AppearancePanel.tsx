@@ -19,6 +19,7 @@ function readAppliedBrand(): ThemeBrand {
 const OPTIONS: { id: ThemeBrand; label: string; swatch: string[] }[] = [
   { id: 'wise', label: 'Lime theme', swatch: ['#e8ebe6', '#9fe870', '#0e0f0c'] },
   { id: 'legacy', label: 'Navy theme', swatch: ['#e9ecef', '#0284c7', '#0f172a'] },
+  { id: 'pink', label: 'Pink theme', swatch: ['#dedcdd', '#80526c', '#5c2545'] },
 ];
 
 export function AppearancePanel() {
@@ -42,7 +43,7 @@ export function AppearancePanel() {
       <p className="text-sm text-fb-text-secondary">
         Chọn giao diện hiển thị cho ứng dụng. Lựa chọn được lưu trên trình duyệt này.
       </p>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-3">
         {OPTIONS.map((option) => {
           const active = brand === option.id;
           return (
