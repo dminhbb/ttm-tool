@@ -70,16 +70,17 @@ export function missingStandardInfo(row: EpicRow): string[] {
 
 // "Epic bị sai lệch dữ liệu" logic now lives in epic-data-anomaly.ts (shared by every screen,
 // Báo cáo, Dashboard and the alert timeline). Re-exported here so existing imports keep working.
-export { breaksTtmCnttCalculation, breaksTtmE2eCalculation, evaluateEpicDataAnomaly, hasDataAnomaly } from '@/lib/epic-data-anomaly';
+export { breaksTtmCnttCalculation, breaksTtmE2eCalculation, EPIC_ANOMALY_RULE_INDEX, evaluateEpicDataAnomaly, hasDataAnomaly } from '@/lib/epic-data-anomaly';
 export type { EpicAnomalyCode, EpicAnomalyInput, EpicAnomalyViolation } from '@/lib/epic-data-anomaly';
 
 /** Assembles an EpicAnomalyInput from an EpicRow + the resolved TTM-CNTT working-day budget. */
 export function toEpicAnomalyInput(
-  row: Pick<EpicRow, 'dueDate' | 'epicType' | 'ideaApprovedDate' | 'jiraCreatedAt' | 'r4gDate' | 'requirementLevel' | 'startDate' | 'status'>,
+  row: Pick<EpicRow, 'complexity' | 'dueDate' | 'epicType' | 'ideaApprovedDate' | 'jiraCreatedAt' | 'r4gDate' | 'requirementLevel' | 'startDate' | 'status'>,
   ttmCnttWorkingDays: number | null,
 ): EpicAnomalyInput {
   return {
     dueDate: row.dueDate,
+    epicComplexityType: row.complexity,
     ideaApprovedDate: row.ideaApprovedDate,
     jiraCreatedAt: row.jiraCreatedAt,
     r4gDate: row.r4gDate,

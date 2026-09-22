@@ -112,19 +112,29 @@ Target R4G Date lấy từ `ttm_policy_configs` (TTM_CNTT), không còn từ c�
 Có **2 hàm khác nhau** trong `src/lib/epic-data-anomaly.ts`, phục vụ 2 mục đích khác nhau — tài liệu
 cũ từng gộp chung thành "hasDataAnomaly" là không chính xác:
 
-**a) `evaluateEpicDataAnomaly()` — badge "Sai lệch dữ liệu", 6 rule, dùng cho MỌI màn hình giám sát
-Epic (Quản trị Epic rút gọn/đầy đủ, Epic in PO, Báo cáo Epic, Dashboard, Dòng thời gian cảnh báo).**
-Epic ở trạng thái Cancelled/To Do/In PO/Backlog được miễn toàn bộ 6 rule dưới đây:
+**a) `evaluateEpicDataAnomaly()` — badge "Sai lệch dữ liệu", 6 rule đánh index R1-R6, dùng cho MỌI
+màn hình giám sát Epic (Quản trị Epic rút gọn/đầy đủ, Epic in PO, Báo cáo Epic, Dashboard, Dòng thời
+gian cảnh báo).** Epic ở trạng thái Cancelled/To Do/In PO/Backlog được miễn toàn bộ 6 rule dưới đây.
 
-```text
-b. Thiếu T0    — trạng thái ≥ Design nhưng chưa có Ngày duyệt ý tưởng.
-c. Thiếu T1    — trạng thái ≥ In Progress/DEV nhưng chưa có Start Date.
-d. Pending lâu — đang Pending, số ngày làm việc từ ngày tạo Epic ≥ 20% chu trình TTM-CNTT
-                 (dùng ngân sách CT-Lv12 nếu không xác định được loại Epic), và vẫn thiếu T0 hoặc T1.
-e. Sai thứ tự  — không thoả T0 ≤ T1 < R4G Date ≤ Due Date (chỉ xét mốc đã có giá trị;
-                 R4G Date = Due Date vẫn coi là hợp lệ). Mỗi cặp sai sinh 1 lỗi riêng.
-f. Thiếu phân loại — không có Phân loại yêu cầu (epic_request_type) hoặc Requirement Level.
-```
+> **Cập nhật (22/09/2026):** bỏ rule "thiếu T0" cũ, đổi mốc tính của rule "Pending lâu" sang Start
+> Date, và bổ sung rule R6 (SP nhưng Requirement Level thấp). Mỗi rule nay có `ruleIndex` cố định
+> (`EPIC_ANOMALY_RULE_INDEX`, `src/lib/epic-data-anomaly.ts`) — không bao giờ đánh số lại, rule mới
+> luôn thêm vào cuối — và được lưu kèm mỗi vi phạm trong bảng `epic_data_anomaly_violations` (xem
+> `08-data-model.md` §20) để thống kê theo từng nhóm rule bằng `GROUP BY rule_code`.
+
+| Index | Code | Rule |
+|---|---|---|
+| R1 | `MISSING_START_DATE` | Thiếu T1 — trạng thái ≥ In Progress/DEV nhưng chưa có Start Date. |
+| R2 | `PENDING_TOO_LONG` | Pending lâu — đang Pending, số ngày làm việc từ **Start Date (T1)** tới ngày đánh giá ≥ 20% chu trình TTM-CNTT (dùng ngân sách CT-Lv12 nếu không xác định được loại Epic). Nếu Epic Pending mà chưa có T1, mốc tính fallback sang **ngày tạo Epic trên Jira** (`jira_created_at`). Không còn điều kiện "vẫn thiếu T0 hoặc T1" như rule cũ. |
+| R3 | `DATE_OUT_OF_SEQUENCE` | Sai thứ tự — không thoả T0 ≤ T1 < R4G Date ≤ Due Date (chỉ xét mốc đã có giá trị; R4G Date = Due Date vẫn coi là hợp lệ). Mỗi cặp sai sinh 1 lỗi riêng. |
+| R4 | `MISSING_REQUEST_TYPE` | Thiếu Phân loại yêu cầu (`epic_request_type`). |
+| R5 | `MISSING_REQUIREMENT_LEVEL` | Thiếu Requirement Level (`epic_request_level`). |
+| R6 | `SP_LEVEL_MISMATCH` | Epic được `computeEpicComplexity` đánh giá độ phức tạp **SP** (SP-Lv12/SP-Lv34) nhưng Requirement Level = 1 hoặc 2 — mâu thuẫn nghiệp vụ (SP luôn phải là mức cao), báo hiệu Phân loại yêu cầu hoặc Requirement Level nhập sai. |
+
+> Rule "thiếu T0" (trạng thái ≥ Design nhưng chưa có Ngày duyệt ý tưởng) đã **bị bỏ** khỏi bộ 6 rule
+> này kể từ 22/09/2026 — thiếu T0 không còn tự động bị đánh dấu "Sai lệch dữ liệu" (T0 vẫn được dùng
+> bình thường cho TTM-E2E qua cơ chế fallback sang ngày tạo Jira, xem mục 1 của
+> `02-ttm-concepts-and-rules.md`).
 
 Epic vi phạm ≥ 1 rule **vẫn được nhập đầy đủ, không bị chặn**, nhưng: bị đẩy xuống **cuối bảng** và
 tô nền highlight; cột Nhận xét hiện thêm badge **"Sai lệch dữ liệu (x)"** — hiển thị **song song**

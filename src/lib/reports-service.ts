@@ -279,6 +279,7 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
     const ttmCnttWorkingDays = resolveTtmCnttWorkingDays(ttmPolicies, row.complexity);
     const anomalyViolations = evaluateEpicDataAnomaly({
       dueDate: row.dueDate,
+      epicComplexityType: row.complexity as EpicComplexityType | null,
       ideaApprovedDate: row.ideaApprovedDate,
       jiraCreatedAt: row.jiraCreatedAt,
       r4gDate: row.r4gDate,

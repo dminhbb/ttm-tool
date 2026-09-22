@@ -2,6 +2,7 @@ import { diffWorkingDays } from '@/lib/working-days';
 import type { HolidaySet } from '@/lib/working-days';
 import { isCancelledStatus, isPendingStatus } from '@/lib/issue-status-rules';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
+import type { EpicComplexity } from '@/lib/ttm-rules';
 
 /**
  * Single source of truth for "Epic bị sai lệch dữ liệu" — every screen (Quản trị Epic đầy đủ/rút
@@ -10,39 +11,66 @@ import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-
  * Data-anomaly Epics are NEVER dropped at import — they're all kept and flagged so the owner can
  * complete the missing information (see aggregateBatchData / getEpicAlertRows*).
  *
- * Rules (company spec, 2026-09):
+ * Rules (company spec, 2026-09, revised 2026-09-22 — see EPIC_ANOMALY_RULE_INDEX for the stable
+ * numeric index of each rule, persisted alongside every violation in
+ * epic_data_anomaly_violations so violations can be counted/queried per rule):
  *  - a. status ∈ {Cancelled, To Do, In PO, Backlog}: EXEMPT from every rule below (a fresh/parked
  *       Epic legitimately has incomplete data — Backlog matches validator.ts's own exemption).
- *  - b. status ≥ Design and no Idea Approved Date (T0) → anomaly.
- *  - c. status ≥ In Progress (DEV) and no Start Date (T1) → anomaly.
- *  - d. status = Pending, working days from the Jira creation date to `now` ≥ 20% of the Epic's
- *       TTM-CNTT working-day budget (CT-Lv12's budget when the Epic's own type can't be resolved),
- *       and it's missing T0 or T1 → anomaly.
- *  - e. date sequence must hold for whichever of these are present:
+ *  - R1 MISSING_START_DATE — status ≥ In Progress (DEV) and no Start Date (T1) → anomaly.
+ *  - R2 PENDING_TOO_LONG — status = Pending, working days from Start Date (T1) to `now` ≥ 20% of
+ *       the Epic's TTM-CNTT working-day budget (CT-Lv12's budget when the Epic's own type can't be
+ *       resolved) → anomaly. Falls back to the Jira creation date as the anchor when T1 itself is
+ *       missing (a Pending Epic that never got a Start Date is exactly the stale case this rule
+ *       exists to catch).
+ *  - R3 DATE_OUT_OF_SEQUENCE — date sequence must hold for whichever of these are present:
  *       Idea Approved Date ≤ Start Date < R4G Date ≤ Due Date. Any inversion → anomaly (one
  *       violation per bad pair). R4G Date == Due Date is allowed (not an anomaly) — that's the
  *       normal case for an Epic released the same day it hits R4GOLIVE. The Epic's created date is
  *       NOT checked against Idea Approved Date (a later Idea Approved Date than created is normal).
- *  - f. missing Phân loại yêu cầu (request type) or Requirement Level → anomaly ("" or "none").
+ *  - R4 MISSING_REQUEST_TYPE — missing Phân loại yêu cầu (request type) → anomaly ("" or "none").
+ *  - R5 MISSING_REQUIREMENT_LEVEL — missing Requirement Level → anomaly ("" or "none").
+ *  - R6 SP_LEVEL_MISMATCH — Epic's resolved complexity is SP (SP-Lv12/SP-Lv34, i.e. request type
+ *       not Tính năng mới/Cải tiến/blank) but Requirement Level = 1 or 2 → anomaly. SP-type
+ *       requests are expected to always be higher complexity (level 3-4); an SP Epic sitting at
+ *       level 1-2 signals a request-type or level entered by mistake.
  *  An Epic can carry several violations at once; the caller shows the full list so the user knows
  *  exactly what to fix.
  */
 export type EpicAnomalyCode =
-  | 'MISSING_IDEA_APPROVED_DATE'
   | 'MISSING_START_DATE'
-  | 'PENDING_STALE_MISSING_DATE'
+  | 'PENDING_TOO_LONG'
   | 'DATE_OUT_OF_SEQUENCE'
   | 'MISSING_REQUEST_TYPE'
-  | 'MISSING_REQUIREMENT_LEVEL';
+  | 'MISSING_REQUIREMENT_LEVEL'
+  | 'SP_LEVEL_MISMATCH';
+
+/** Stable numeric index (R1-R6) for each rule — persisted with every violation
+ * (epic_data_anomaly_violations.rule_index) so stats can be grouped by rule without depending on
+ * the rule's text code or message wording. Never renumber an existing code; add new rules at the
+ * end. */
+export const EPIC_ANOMALY_RULE_INDEX: Record<EpicAnomalyCode, number> = {
+  MISSING_START_DATE: 1,
+  PENDING_TOO_LONG: 2,
+  DATE_OUT_OF_SEQUENCE: 3,
+  MISSING_REQUEST_TYPE: 4,
+  MISSING_REQUIREMENT_LEVEL: 5,
+  SP_LEVEL_MISMATCH: 6,
+};
 
 export interface EpicAnomalyViolation {
   code: EpicAnomalyCode;
+  /** See EPIC_ANOMALY_RULE_INDEX — same value as EPIC_ANOMALY_RULE_INDEX[code], carried on the
+   * violation itself so callers/persistence never need a second lookup. */
+  ruleIndex: number;
   /** Actionable Vietnamese message — shown to the user as "what to complete". */
   message: string;
 }
 
 export interface EpicAnomalyInput {
   dueDate: string | null;
+  /** Resolved Epic complexity (CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34) — the caller resolves it (see
+   * computeEpicComplexity in import-service.ts). Only consulted for rule R6. */
+  epicComplexityType: EpicComplexity | null;
   ideaApprovedDate: string | null;
   /** issues.jira_created_at — a "YYYY-MM-DD" date or a full timestamp; only the date part is used. */
   jiraCreatedAt: string | null;
@@ -54,20 +82,26 @@ export interface EpicAnomalyInput {
   startDate: string | null;
   status: string;
   /** TTM-CNTT working-day budget for this Epic's complexity — the caller resolves it (and passes
-   * CT-Lv12's budget when the Epic's own type is indeterminate). Only consulted for rule d. */
+   * CT-Lv12's budget when the Epic's own type is indeterminate). Only consulted for rule R2. */
   ttmCnttWorkingDays: number | null;
 }
 
-/** Rule d: pending this many × TTM-CNTT budget without T0/T1 is treated as stale. */
+/** Rule R2: pending this many × TTM-CNTT budget is treated as stale. */
 const PENDING_STALE_RATIO = 0.2;
 
-const DESIGN_INDEX = epicWorkflowStatusIndex('DESIGN');
 /** "In Progress" normalizes to DEV in the Epic workflow order. */
 const IN_PROGRESS_INDEX = epicWorkflowStatusIndex('DEV');
+
+/** Rule R6: SP-type Epics sitting at Requirement Level 1-2 are a mismatch. */
+const SP_MISMATCH_LEVELS = new Set(['1', '2']);
 
 function isBlank(value: string | null): boolean {
   const normalized = (value ?? '').trim().toLocaleLowerCase('en-US');
   return normalized === '' || normalized === 'none';
+}
+
+function violation(code: EpicAnomalyCode, message: string): EpicAnomalyViolation {
+  return { code, message, ruleIndex: EPIC_ANOMALY_RULE_INDEX[code] };
 }
 
 /** A "YYYY-MM-DD" date or a "YYYY-MM-DD ..." timestamp → the "YYYY-MM-DD" part (lexical == chronological). */
@@ -94,38 +128,42 @@ export function evaluateEpicDataAnomaly(input: EpicAnomalyInput, now: Date, holi
   const due = dateOnly(input.dueDate);
 
   if (pending) {
-    // Rule d — Pending too long without T0/T1.
-    if ((!t0 || !t1) && input.ttmCnttWorkingDays) {
-      const elapsedWorkingDays = created ? diffWorkingDays(new Date(`${created}T00:00:00`), now, holidays) : Number.POSITIVE_INFINITY;
+    // R2 — Pending too long: anchor on Start Date (T1); fall back to the Jira creation date when
+    // T1 itself is missing (a Pending Epic that never got a Start Date is exactly the stale case
+    // this rule exists to catch — the 2026-09-22 rule change dropped the "AND missing T0/T1" gate,
+    // so this now fires purely on elapsed time from the anchor).
+    const anchor = t1 ?? created;
+    if (anchor && input.ttmCnttWorkingDays) {
+      const elapsedWorkingDays = diffWorkingDays(new Date(`${anchor}T00:00:00`), now, holidays);
       const threshold = PENDING_STALE_RATIO * input.ttmCnttWorkingDays;
       if (elapsedWorkingDays >= threshold) {
-        const missing = [!t0 ? 'Ngày duyệt ý tưởng (T0)' : null, !t1 ? 'Start Date (T1)' : null].filter(Boolean).join(' và ');
-        violations.push({
-          code: 'PENDING_STALE_MISSING_DATE',
-          message: `Epic Pending đã quá ${Math.round(threshold)} ngày làm việc (20% chu trình TTM-CNTT) kể từ ngày tạo mà vẫn thiếu ${missing}`,
-        });
+        const anchorLabel = t1 ? 'Start Date (T1)' : 'ngày tạo Jira (Epic Pending chưa có Start Date)';
+        violations.push(violation('PENDING_TOO_LONG', `Epic Pending đã quá ${Math.round(threshold)} ngày làm việc (20% chu trình TTM-CNTT) kể từ ${anchorLabel}`));
       }
     }
   } else {
-    // Rule b — status ≥ Design must have an Idea Approved Date.
-    if (statusIndex >= DESIGN_INDEX && !t0) {
-      violations.push({ code: 'MISSING_IDEA_APPROVED_DATE', message: 'Thiếu Ngày duyệt ý tưởng (T0) — Epic đã qua giai đoạn Design' });
-    }
-    // Rule c — status ≥ In Progress must have a Start Date.
+    // R1 — status ≥ In Progress must have a Start Date.
     if (statusIndex >= IN_PROGRESS_INDEX && !t1) {
-      violations.push({ code: 'MISSING_START_DATE', message: 'Thiếu Start Date (T1) — Epic đã qua giai đoạn In Progress' });
+      violations.push(violation('MISSING_START_DATE', 'Thiếu Start Date (T1) — Epic đã qua giai đoạn In Progress'));
     }
   }
 
-  // Rule e — T0 ≤ T1 < R4G ≤ Due, for the values that are present. created vs T0 is NOT checked
+  // R3 — T0 ≤ T1 < R4G ≤ Due, for the values that are present. created vs T0 is NOT checked
   // (a later Idea Approved Date than the Jira creation date is normal); R4G == Due is allowed.
-  if (t0 && t1 && t0 > t1) violations.push({ code: 'DATE_OUT_OF_SEQUENCE', message: 'Sai thứ tự ngày: Ngày duyệt ý tưởng (T0) muộn hơn Start Date (T1)' });
-  if (t1 && r4g && t1 >= r4g) violations.push({ code: 'DATE_OUT_OF_SEQUENCE', message: 'Sai thứ tự ngày: Start Date (T1) không sớm hơn R4G Date' });
-  if (r4g && due && r4g > due) violations.push({ code: 'DATE_OUT_OF_SEQUENCE', message: 'Sai thứ tự ngày: R4G Date muộn hơn Due Date' });
+  if (t0 && t1 && t0 > t1) violations.push(violation('DATE_OUT_OF_SEQUENCE', 'Sai thứ tự ngày: Ngày duyệt ý tưởng (T0) muộn hơn Start Date (T1)'));
+  if (t1 && r4g && t1 >= r4g) violations.push(violation('DATE_OUT_OF_SEQUENCE', 'Sai thứ tự ngày: Start Date (T1) không sớm hơn R4G Date'));
+  if (r4g && due && r4g > due) violations.push(violation('DATE_OUT_OF_SEQUENCE', 'Sai thứ tự ngày: R4G Date muộn hơn Due Date'));
 
-  // Rule f — classification fields.
-  if (isBlank(input.requestType)) violations.push({ code: 'MISSING_REQUEST_TYPE', message: 'Thiếu Phân loại yêu cầu' });
-  if (isBlank(input.requirementLevel)) violations.push({ code: 'MISSING_REQUIREMENT_LEVEL', message: 'Thiếu Requirement Level' });
+  // R4/R5 — classification fields.
+  if (isBlank(input.requestType)) violations.push(violation('MISSING_REQUEST_TYPE', 'Thiếu Phân loại yêu cầu'));
+  if (isBlank(input.requirementLevel)) violations.push(violation('MISSING_REQUIREMENT_LEVEL', 'Thiếu Requirement Level'));
+
+  // R6 — SP-type Epic (request type not Tính năng mới/Cải tiến/blank) but Requirement Level 1-2.
+  const isSpComplexity = (input.epicComplexityType ?? '').startsWith('SP-');
+  const requirementLevelNormalized = (input.requirementLevel ?? '').trim();
+  if (isSpComplexity && SP_MISMATCH_LEVELS.has(requirementLevelNormalized)) {
+    violations.push(violation('SP_LEVEL_MISMATCH', `Epic được đánh giá độ phức tạp Sản phẩm (${input.epicComplexityType}) nhưng Requirement Level = ${requirementLevelNormalized} — không phù hợp với loại yêu cầu Sản phẩm`));
+  }
 
   return violations;
 }

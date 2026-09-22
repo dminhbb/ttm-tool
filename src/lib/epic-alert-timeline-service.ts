@@ -29,8 +29,10 @@ interface OpenRunRow {
   lastSeenDate: string;
 }
 
-/** Builds a "($1,$2,...),($n,...)" VALUES clause and its flat parameter array from row tuples. */
-function buildValuesClause(rows: unknown[][]): { clause: string; values: unknown[] } {
+/** Builds a "($1,$2,...),($n,...)" VALUES clause and its flat parameter array from row tuples.
+ * Exported for reuse by other per-batch bulk-write services (e.g. epic-data-anomaly-storage-service.ts)
+ * that follow the same "1 round trip regardless of row count" convention. */
+export function buildValuesClause(rows: unknown[][]): { clause: string; values: unknown[] } {
   const values: unknown[] = [];
   const clause = rows.map((row) => {
     const placeholders = row.map((_value, columnIndex) => `$${values.length + columnIndex + 1}`).join(', ');

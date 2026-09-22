@@ -8,8 +8,10 @@ import { evaluateIssueCompliance } from './epic-compliance-engine';
 import { recordEpicAlertHistory } from './epic-alert-history-service';
 import { resolveTtmE2eRelease } from './epic-alert-service';
 import { breaksTtmCnttCalculation, breaksTtmE2eCalculation, evaluateEpicDataAnomaly } from './epic-data-anomaly';
+import type { EpicAnomalyViolation } from './epic-data-anomaly';
 import type { EpicComplexity } from './ttm-rules';
 import { recordEpicAlertTimelineTransitions, type EpicAlertTimelineDetail, type EpicAlertTimelineStates } from './epic-alert-timeline-service';
+import { recordEpicDataAnomalyViolations } from './epic-data-anomaly-storage-service';
 import { computeMilestoneCandidates, recordEpicMilestone } from './epic-milestone-history-service';
 import { EPIC_ISSUE_TYPES_SQL } from './issue-resolution-sql';
 import { getActiveHolidaySet } from './master-data-service';
@@ -24,14 +26,12 @@ const MILESTONE_RECORDING_ENABLED = false;
 
 // Epic complexity rule (company rule change, 2026-09) — 4-way classification from epic_request_type
 // + epic_request_level:
-//   CT-Lv12: request type ∈ {Tính năng mới, Cải tiến} AND level ∈ {1, 2}
-//   CT-Lv34: request type ∈ {Tính năng mới, Cải tiến} AND level ∈ {3, 4}
-//   SP-Lv12: request type ∈ {Sản phẩm/dịch vụ/quy trình mới, Sản phẩm} AND level ∈ {1, 2}
-//   SP-Lv34: request type ∈ {Sản phẩm/dịch vụ/quy trình mới, Sản phẩm} AND level ∈ {3, 4}
-// Any combination that doesn't match one of these 4 (missing data, an unrecognized request type, a
-// level outside 1-4) defaults to CT-Lv12 — the agreed safe default.
+//   CT: request type ∈ {Tính năng mới, Cải tiến} OR request type is missing/empty ("None")
+//   SP: every other request type (anything not matched to CT above)
+//   Lv12/Lv34: request level ∈ {1, 2} vs {3, 4}
+// A level outside 1-4 (including missing data) defaults the whole Epic to CT-Lv12 — the agreed
+// safe default.
 const CT_REQUEST_TYPES = new Set(['cải tiến', 'tính năng mới']);
-const SP_REQUEST_TYPES = new Set(['sản phẩm/dịch vụ/quy trình mới', 'sản phẩm']);
 const LV12_LEVELS = new Set(['1', '2']);
 const LV34_LEVELS = new Set(['3', '4']);
 
@@ -39,19 +39,23 @@ function normalizeComplexityField(value: string): string {
   return value.trim().toLocaleLowerCase('vi-VN');
 }
 
+function isBlankComplexityField(normalized: string): boolean {
+  return normalized === '' || normalized === 'none';
+}
+
 /** 'Loại yêu cầu' (requestType, i.e. epic_request_type) and 'Requirement Level' (requirementLevel,
  * i.e. epic_request_level) — raw text straight from the import source, not yet normalised. See the
- * rule comment above for the exact 4-way mapping and its default. */
+ * rule comment above for the exact mapping and its default. */
 function computeEpicComplexity(requestType: string, requirementLevel: string): EpicComplexity {
   const type = normalizeComplexityField(requestType);
   const level = normalizeComplexityField(requirementLevel);
-  const isSpType = SP_REQUEST_TYPES.has(type);
-  const isCtType = CT_REQUEST_TYPES.has(type);
+  const isCtType = CT_REQUEST_TYPES.has(type) || isBlankComplexityField(type);
+  const isSpType = !isCtType;
   const isLv34 = LV34_LEVELS.has(level);
   if (isSpType && isLv34) return 'SP-Lv34';
   if (isSpType && LV12_LEVELS.has(level)) return 'SP-Lv12';
   if (isCtType && isLv34) return 'CT-Lv34';
-  // CT + Lv12 lands here too, and so does every unmatched/missing combination (the default).
+  // CT + Lv12 lands here too, and so does every unmatched/missing level (the default).
   return 'CT-Lv12';
 }
 
@@ -182,6 +186,10 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
   // recordEpicAlertTimelineTransitions) instead of one write per epic — same connection-cap
   // reasoning as everything else recorded during import.
   const timelineStatesByEpic = new Map<string, EpicAlertTimelineStates>();
+  // Per-rule anomaly violations, keyed by epic — recorded into epic_data_anomaly_violations (one
+  // current-state row per epic/rule) below so anomalies can be counted/queried per rule group,
+  // separately from the single combined DATA_ANOMALY timeline run above.
+  const anomalyViolationsByEpic = new Map<string, EpicAnomalyViolation[]>();
   for (const epic of epicRows.rows) {
     const evaluation = evaluateIssueCompliance({
       dueDate: epic.dueDate,
@@ -203,6 +211,7 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
     // MISSING_START_DATE run tracks rule c specifically; DATA_ANOMALY covers every other violation.
     const anomalyViolations = evaluateEpicDataAnomaly({
       dueDate: epic.dueDate,
+      epicComplexityType: epic.complexity as EpicComplexity | null,
       ideaApprovedDate: epic.ideaApprovedDate,
       jiraCreatedAt: epic.jiraCreatedAt,
       r4gDate: epic.r4gDate,
@@ -214,6 +223,7 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
     }, aggregatedAtDate, holidays);
     const missingStartDateViolation = anomalyViolations.find((v) => v.code === 'MISSING_START_DATE') ?? null;
     const otherAnomalyViolations = anomalyViolations.filter((v) => v.code !== 'MISSING_START_DATE');
+    anomalyViolationsByEpic.set(epic.epicKey, anomalyViolations);
     const ttmE2eRelease = resolveTtmE2eRelease(epic, evaluation.ttm.e2e.workingDays ?? 0, aggregatedAtDate, holidays);
 
     // Same narrow gate as the live screens (epic-alert-service.ts / epic-alert-phase-service.ts):
@@ -244,6 +254,7 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
     });
   }
   await recordEpicAlertTimelineTransitions(client, aggregatedAtDate, timelineStatesByEpic, batchId);
+  await recordEpicDataAnomalyViolations(client, aggregatedAtDate, anomalyViolationsByEpic, batchId);
 
   // DESIGN_DONE / DEV_DONE / TEST_DONE milestone recording is temporarily off — phase completion
   // is now evaluated live from current statuses on every request instead (see

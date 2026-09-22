@@ -97,15 +97,17 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
           <h3 className="ui-card-title mb-1">6. Epic có dữ liệu bất thường — nhóm cuối bảng</h3>
           <p>
             Một hàm dùng chung <code>evaluateEpicDataAnomaly()</code> (áp dụng cho cả 3 màn hình giám sát Epic, Báo cáo và Dashboard) đánh dấu Epic
-            <strong className="text-fb-text-primary"> dữ liệu bất thường</strong> khi vi phạm ít nhất 1 trong 6 rule sau. Epic ở trạng thái Cancelled/To Do/In PO/Backlog
+            <strong className="text-fb-text-primary"> dữ liệu bất thường</strong> khi vi phạm ít nhất 1 trong 6 rule sau, mỗi rule có index R1-R6 cố định
+            (lưu kèm mỗi vi phạm trong bảng <code>epic_data_anomaly_violations</code> để thống kê riêng theo từng nhóm rule). Epic ở trạng thái Cancelled/To Do/In PO/Backlog
             được miễn toàn bộ các rule này:
           </p>
           <ul className="ml-5 list-disc space-y-1">
-            <li><strong>Thiếu T0</strong> — trạng thái ≥ Design nhưng chưa có Ngày duyệt ý tưởng.</li>
-            <li><strong>Thiếu T1</strong> — trạng thái ≥ In Progress/DEV nhưng chưa có Start Date.</li>
-            <li><strong>Pending quá lâu</strong> — Epic đang Pending, số ngày làm việc từ ngày tạo Epic tới hôm nay ≥ 20% chu trình TTM-CNTT, và vẫn thiếu T0 hoặc T1.</li>
-            <li><strong>Sai thứ tự ngày</strong> — không thoả chuỗi <code>T0 ≤ T1 &lt; R4G Date ≤ Due Date</code> (chỉ xét mốc đã có giá trị; R4G Date = Due Date vẫn coi là hợp lệ).</li>
-            <li><strong>Thiếu phân loại</strong> — chưa có Phân loại yêu cầu (epic_request_type) hoặc Requirement Level.</li>
+            <li><strong>R1 — Thiếu T1</strong> — trạng thái ≥ In Progress/DEV nhưng chưa có Start Date.</li>
+            <li><strong>R2 — Pending quá lâu</strong> — Epic đang Pending, số ngày làm việc từ Start Date (T1) tới hôm nay ≥ 20% chu trình TTM-CNTT; nếu chưa có T1 thì tính từ ngày tạo Epic trên Jira.</li>
+            <li><strong>R3 — Sai thứ tự ngày</strong> — không thoả chuỗi <code>T0 ≤ T1 &lt; R4G Date ≤ Due Date</code> (chỉ xét mốc đã có giá trị; R4G Date = Due Date vẫn coi là hợp lệ).</li>
+            <li><strong>R4 — Thiếu Phân loại yêu cầu</strong> (epic_request_type).</li>
+            <li><strong>R5 — Thiếu Requirement Level</strong> (epic_request_level).</li>
+            <li><strong>R6 — SP nhưng mức thấp</strong> — Epic được đánh giá độ phức tạp SP (SP-Lv12/SP-Lv34) nhưng Requirement Level = 1 hoặc 2.</li>
           </ul>
           <p>Epic vi phạm <strong>vẫn được nhập đầy đủ vào hệ thống</strong> (không bị chặn import), nhưng:</p>
           <ul className="ml-5 list-disc space-y-1">
@@ -119,16 +121,16 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
         <section>
           <h3 className="ui-card-title mb-1">7. Chú giải màu &amp; loại Epic</h3>
           <p>Cuối mỗi bảng có chú giải màu nền <strong>Done</strong> (xanh) / <strong>Warning</strong> (vàng) / <strong>Failed</strong> (đỏ) dùng chung cho các ô trạng thái/pha.</p>
-          <p>Loại Epic (epic-type) hiển thị bằng text ngay trước thông tin PM/SM trên cột Epic, dạng <code>&quot;&lt;Loại Epic&gt;. PM/SM: &lt;tên&gt;&quot;</code>. Có 4 loại, tính từ loại và mức yêu cầu của Epic trên Jira (mặc định <strong>CT-Lv12</strong> khi dữ liệu thiếu/không khớp):</p>
+          <p>Loại Epic (epic-type) hiển thị bằng text ngay trước thông tin PM/SM trên cột Epic, dạng <code>&quot;&lt;Loại Epic&gt;. PM/SM: &lt;tên&gt;&quot;</code>. Có 4 loại, tính từ loại và mức yêu cầu của Epic trên Jira (mặc định <strong>CT-Lv12</strong> khi dữ liệu thiếu/không khớp). CT = Cải tiến/Tính năng mới/rỗng; SP = mọi loại yêu cầu còn lại (không còn là danh sách liệt kê riêng):</p>
           <table className="ui-table w-full text-xs">
             <thead>
               <tr><th className="text-left">Epic-type</th><th className="text-left">Điều kiện</th><th className="text-right">TTM-CNTT</th><th className="text-right">TTM-E2E</th></tr>
             </thead>
             <tbody>
-              <tr><td>CT-Lv12</td><td>Cải tiến / Tính năng mới, mức 1-2</td><td className="text-right">15 ngày làm việc</td><td className="text-right">20 ngày làm việc</td></tr>
-              <tr><td>CT-Lv34</td><td>Cải tiến / Tính năng mới, mức 3-4</td><td className="text-right">25 ngày làm việc</td><td className="text-right">30 ngày làm việc</td></tr>
-              <tr><td>SP-Lv12</td><td>Sản phẩm/DV/quy trình mới, mức 1-2</td><td className="text-right">30 ngày làm việc</td><td className="text-right">50 ngày làm việc</td></tr>
-              <tr><td>SP-Lv34</td><td>Sản phẩm/DV/quy trình mới, mức 3-4</td><td className="text-right">30 ngày làm việc</td><td className="text-right">50 ngày làm việc</td></tr>
+              <tr><td>CT-Lv12</td><td>Cải tiến / Tính năng mới / rỗng, mức 1-2</td><td className="text-right">15 ngày làm việc</td><td className="text-right">20 ngày làm việc</td></tr>
+              <tr><td>CT-Lv34</td><td>Cải tiến / Tính năng mới / rỗng, mức 3-4</td><td className="text-right">25 ngày làm việc</td><td className="text-right">30 ngày làm việc</td></tr>
+              <tr><td>SP-Lv12</td><td>Loại yêu cầu khác CT, mức 1-2 (luôn bị đánh dấu Sai lệch dữ liệu — rule R6)</td><td className="text-right">30 ngày làm việc</td><td className="text-right">50 ngày làm việc</td></tr>
+              <tr><td>SP-Lv34</td><td>Loại yêu cầu khác CT, mức 3-4</td><td className="text-right">30 ngày làm việc</td><td className="text-right">50 ngày làm việc</td></tr>
             </tbody>
           </table>
           <p className="mt-1 text-xs">Số ngày làm việc trên do CBQL Phòng tự cấu hình tại panel &quot;Tiêu chí Time to Market&quot; (mục &quot;Cấu hình cảnh báo&quot;) và có thể thay đổi bất kỳ lúc nào — bảng trên chỉ là giá trị đang active tại thời điểm hiển thị trợ giúp này.</p>
@@ -215,6 +217,7 @@ export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
               <tr><td>issue_daily_snapshots</td><td>Lịch sử gọn theo ngày cho mọi cấp (Epic/Story/Subtask)</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
               <tr><td>epic_alert_history</td><td>Tích lũy các lần Epic bị Cảnh báo muộn/Fail TTM-CNTT tổng thể (ghi tại thời điểm import), kèm ngày và status lúc đó. Cảnh báo <strong>theo từng pha</strong> (DEV/TEST/PENTEST của Epic 15) cũng ghi vào bảng này nhưng <strong className="text-fb-text-primary">đang tạm tắt</strong> (xem mục 5).</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
               <tr><td>epic_alert_timeline</td><td>Theo dõi 5 loại cảnh báo (Fail TTM-CNTT, Cảnh báo muộn TTM-CNTT, Fail TTM-E2E, Thiếu Start Date, Sai lệch dữ liệu) dưới dạng các &quot;đợt&quot; có ngày bắt đầu/kết thúc liên tục — phục vụ mục &quot;Dòng thời gian cảnh báo&quot; trong popup Epic History. Luôn ghi ở mỗi lần <code>aggregateBatchData()</code> chạy (không tạm tắt như 2 dòng dưới).</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
+              <tr><td>epic_data_anomaly_violations</td><td>Trạng thái hiện tại (không phải lịch sử &quot;đợt&quot;) của từng rule R1-R6 &quot;Sai lệch dữ liệu&quot; đang vi phạm trên mỗi Epic — 1 dòng/Epic/rule, ghi đè hoặc xoá ở mỗi lần <code>aggregateBatchData()</code> chạy. Phục vụ thống kê số Epic vi phạm theo từng nhóm rule; badge trên UI vẫn tính live, không đọc bảng này.</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
               <tr><td>epic_milestone_history</td><td>Lịch sử mốc DESIGN_DONE/DEV_DONE/TEST_DONE — bảng vẫn tồn tại nhưng việc ghi mới <strong className="text-fb-text-primary">đang tạm tắt</strong>; trạng thái hoàn thành từng pha của Epic 15 hiện tính <strong>live</strong> từ status Story/Subtask hiện tại (xem mục 5), không đọc bảng này.</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
             </tbody>
           </table>
@@ -228,10 +231,11 @@ export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
             và <strong>vẫn được ghi vào <code>issues</code></strong> — để user chủ động nhận biết và làm sạch dữ liệu trên Jira thay vì Epic bị âm thầm biến mất khỏi hệ thống.
           </p>
           <p>
-            Ở tầng đọc (mỗi lần tải màn hình), hàm dùng chung <code>evaluateEpicDataAnomaly()</code> đánh giá lại đầy đủ <strong>6 rule</strong> — không chỉ riêng
-            ngày sai thứ tự, mà cả thiếu T0/T1 theo trạng thái, Pending quá lâu, thiếu Phân loại yêu cầu/Requirement Level (chi tiết ở popup &quot;Logic cảnh báo
+            Ở tầng đọc (mỗi lần tải màn hình), hàm dùng chung <code>evaluateEpicDataAnomaly()</code> đánh giá lại đầy đủ <strong>6 rule (R1-R6)</strong> — không chỉ riêng
+            ngày sai thứ tự, mà cả thiếu T1 theo trạng thái, Pending quá lâu, thiếu Phân loại yêu cầu/Requirement Level, SP nhưng mức thấp (chi tiết ở popup &quot;Logic cảnh báo
             Epic&quot; mục 6) — để gắn badge <strong className="text-fb-text-primary">&quot;Sai lệch dữ liệu&quot;</strong>, nhóm cuối bảng và highlight trên mọi
-            màn hình Epic Alerts/Báo cáo/Dashboard. Màn hình Nguồn dữ liệu vẫn chỉ hiện đúng badge &quot;Cảnh báo&quot; (không còn &quot;Lỗi&quot;) kèm message chi
+            màn hình Epic Alerts/Báo cáo/Dashboard. Mỗi vi phạm còn được ghi vào bảng <code>epic_data_anomaly_violations</code> (xem mục 3) để thống kê riêng theo
+            từng nhóm rule. Màn hình Nguồn dữ liệu vẫn chỉ hiện đúng badge &quot;Cảnh báo&quot; (không còn &quot;Lỗi&quot;) kèm message chi
             tiết cho các dòng ngày sai thứ tự lúc import.
           </p>
         </section>

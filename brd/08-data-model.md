@@ -489,6 +489,32 @@ bởi `recordEpicAlertTimelineTransitions` (gọi từ `import-service.ts`), ch�
 `aggregateBatchData()` chạy (import thủ công, import tự động, hoặc "Chạy lại" lớp dữ liệu) — **luôn
 bật**, không bị flag tắt như `epic_alert_history`/`epic_milestone_history`.
 
+### epic_data_anomaly_violations
+
+```text
+id
+epic_key
+rule_code                -- CHECK IN ('MISSING_START_DATE','PENDING_TOO_LONG','DATE_OUT_OF_SEQUENCE',
+                          --           'MISSING_REQUEST_TYPE','MISSING_REQUIREMENT_LEVEL','SP_LEVEL_MISMATCH')
+rule_index                -- R1-R6, xem EPIC_ANOMALY_RULE_INDEX (src/lib/epic-data-anomaly.ts)
+message
+detected_at
+source_import_batch_id    -- FK import_batches(id) ON DELETE SET NULL
+created_at
+updated_at
+```
+
+Thêm bởi `20260922_create_epic_data_anomaly_violations.sql`. Unique `(epic_key, rule_code)` — lưu
+**trạng thái hiện tại**, KHÔNG phải lịch sử "đợt" như `epic_alert_timeline`: mỗi lần
+`aggregateBatchData()` chạy, hàng nào vẫn còn vi phạm thì upsert, hàng nào hết vi phạm thì bị xoá
+hẳn (không đóng bằng `end_date`). Ghi bởi `recordEpicDataAnomalyViolations`
+(`src/lib/epic-data-anomaly-storage-service.ts`), gọi ngay sau
+`recordEpicAlertTimelineTransitions` trong `aggregateBatchData()`. Mục đích duy nhất của bảng này là
+cho phép thống kê "Sai lệch dữ liệu" theo từng nhóm rule bằng một câu `GROUP BY rule_code` đơn giản
+(`getEpicDataAnomalyRuleStats` trong cùng file) — badge "Sai lệch dữ liệu (x)" trên UI vẫn luôn tính
+**trực tiếp/live** qua `evaluateEpicDataAnomaly()` (xem `03-mvp1-working-days-alert-rules.md` §4.5),
+không đọc từ bảng này, nên hai nguồn không bao giờ lệch nhau về mặt hiển thị.
+
 ### ad_popups / ad_popup_impressions
 
 ```text

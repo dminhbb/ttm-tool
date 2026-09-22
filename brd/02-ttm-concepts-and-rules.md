@@ -19,14 +19,21 @@ Hệ thống theo dõi hai tiêu chí:
 > **Cập nhật (09/2026):** thay cho lược đồ 2 loại cũ (Epic đơn giản/Epic phức tạp = SIMPLE/COMPLEX),
 > hệ thống hiện phân loại Epic theo **4 loại**, tính từ hai trường Jira của Epic — `epic_request_type`
 > (loại yêu cầu) và `epic_request_level` (mức độ yêu cầu, 1-4) — theo `computeEpicComplexity`
-> (`src/lib/import-service.ts`), tính một lần tại thời điểm import:
+> (`src/lib/import-service.ts`), tính một lần tại thời điểm import.
+>
+> **Cập nhật (22/09/2026):** đổi cách xác định CT/SP theo `epic_request_type` — CT nay là tập đóng
+> (whitelist), SP là phần bù (mọi giá trị còn lại), thay vì cả hai đều là whitelist như trước:
+>
+> - **CT** = `epic_request_type` ∈ {"Cải tiến", "Tính năng mới"} HOẶC rỗng/`None` (thiếu dữ liệu).
+> - **SP** = mọi giá trị `epic_request_type` còn lại (không còn giới hạn ở "Sản phẩm/dịch vụ/quy
+>   trình mới"/"Sản phẩm" như trước — bất kỳ giá trị nào không khớp CT đều là SP).
 
 | Epic-type | Điều kiện (request type × request level) |
 |---|---|
-| `CT-Lv12` | "Cải tiến"/"Tính năng mới" + mức 1-2 — **mặc định** khi dữ liệu thiếu hoặc không khớp bất kỳ điều kiện nào khác |
-| `CT-Lv34` | "Cải tiến"/"Tính năng mới" + mức 3-4 |
-| `SP-Lv12` | "Sản phẩm/dịch vụ/quy trình mới" + mức 1-2 |
-| `SP-Lv34` | "Sản phẩm/dịch vụ/quy trình mới" + mức 3-4 |
+| `CT-Lv12` | request type ∈ {"Cải tiến", "Tính năng mới"} hoặc rỗng/None + mức 1-2 — **mặc định** khi dữ liệu thiếu hoặc không khớp bất kỳ điều kiện nào khác |
+| `CT-Lv34` | request type ∈ {"Cải tiến", "Tính năng mới"} hoặc rỗng/None + mức 3-4 |
+| `SP-Lv12` | request type là bất kỳ giá trị nào khác CT + mức 1-2 (xem R6 tại `03-mvp1-working-days-alert-rules.md` §4.5 — tổ hợp này luôn bị đánh dấu "Sai lệch dữ liệu") |
+| `SP-Lv34` | request type là bất kỳ giá trị nào khác CT + mức 3-4 |
 
 Giá trị số ngày làm việc (working days) hiện đang cấu hình cho từng loại (bảng `ttm_policy_configs`,
 panel "Tiêu chí Time to Market" tại "Cấu hình cảnh báo"):

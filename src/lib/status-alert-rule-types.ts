@@ -1,9 +1,9 @@
-/** 4-way Epic complexity/request-type classification (company rule change, 2026-09) — replaces the
- * old 2-way SIMPLE/COMPLEX. Computed at import time from epic_request_type + epic_request_level
- * (see computeEpicComplexity in import-service.ts): CT = 'Tính năng mới'/'Cải tiến' request type,
- * SP = 'Sản phẩm/dịch vụ/quy trình mới'/'Sản phẩm'; Lv12/Lv34 = request level 1-2 vs 3-4. Any
- * request type/level combination that doesn't match one of the 4 rules (including missing data)
- * defaults to CT-Lv12. */
+/** 4-way Epic complexity/request-type classification (company rule change, 2026-09, request-type
+ * mapping revised 2026-09-22) — replaces the old 2-way SIMPLE/COMPLEX. Computed at import time from
+ * epic_request_type + epic_request_level (see computeEpicComplexity in import-service.ts):
+ * CT = 'Tính năng mới'/'Cải tiến' request type OR blank/missing; SP = every other request type
+ * (the complement of CT, not its own whitelist); Lv12/Lv34 = request level 1-2 vs 3-4. A level that
+ * doesn't match 1-4 (including missing data) defaults the whole Epic to CT-Lv12. */
 export const EPIC_COMPLEXITY_TYPES = ['CT-Lv12', 'CT-Lv34', 'SP-Lv12', 'SP-Lv34'] as const;
 export const DEFAULT_EPIC_STATUSES = ['Design', 'In Progress'] as const;
 
