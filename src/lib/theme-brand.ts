@@ -2,7 +2,7 @@ export const THEME_BRANDS = ['wise', 'legacy'] as const;
 export type ThemeBrand = (typeof THEME_BRANDS)[number];
 
 export const THEME_BRAND_STORAGE_KEY = 'ttm-theme-brand';
-export const DEFAULT_THEME_BRAND: ThemeBrand = 'wise';
+export const DEFAULT_THEME_BRAND: ThemeBrand = 'legacy';
 
 export function isThemeBrand(value: unknown): value is ThemeBrand {
   return typeof value === 'string' && (THEME_BRANDS as readonly string[]).includes(value);
@@ -15,17 +15,13 @@ export function readStoredThemeBrand(): ThemeBrand {
 }
 
 export function applyThemeBrand(brand: ThemeBrand): void {
-  if (brand === DEFAULT_THEME_BRAND) {
-    document.documentElement.removeAttribute('data-brand');
-  } else {
-    document.documentElement.setAttribute('data-brand', brand);
-  }
+  document.documentElement.setAttribute('data-brand', brand);
   window.localStorage.setItem(THEME_BRAND_STORAGE_KEY, brand);
 }
 
 /**
  * Inlined as a blocking <script> in the document head (see layout.tsx) so the stored brand
- * applies before first paint — otherwise every load would flash the default Wise theme first.
- * Kept in sync with the constants above by hand since a blocking script can't import a module.
+ * applies before first paint — defaults to 'legacy' (Navy theme) for all users unless a
+ * different preference was saved in localStorage.
  */
-export const THEME_BRAND_INIT_SCRIPT = `(function(){try{var b=localStorage.getItem('${THEME_BRAND_STORAGE_KEY}');if(b==='legacy')document.documentElement.setAttribute('data-brand','legacy');}catch(e){}})();`;
+export const THEME_BRAND_INIT_SCRIPT = `(function(){try{var b=localStorage.getItem('${THEME_BRAND_STORAGE_KEY}');if(b==='wise'){document.documentElement.setAttribute('data-brand','wise');}else{document.documentElement.setAttribute('data-brand','legacy');}}catch(e){document.documentElement.setAttribute('data-brand','legacy');}})();`;

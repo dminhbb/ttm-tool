@@ -41,6 +41,13 @@ JiraApiDataSourceAdapter
 JiraDbQueryDataSourceAdapter
 ```
 
+> **Lưu ý tên gọi:** adapter hiện có tên `src/lib/adapters/py-jira-api-adapter.ts` — tên này dễ gây
+> hiểu nhầm là gọi Jira REST API trực tiếp. Thực tế nó **vẫn chỉ đọc file CSV** (do một script Python
+> chạy ngoài, tự gọi Jira REST API rồi xuất ra CSV theo cấu trúc phẳng), không phải một
+> `JiraApiDataSourceAdapter` thật sự theo interface `fetchEpics()` ở trên. `JiraApiDataSourceAdapter`/
+> `JiraDbQueryDataSourceAdapter` (gọi sống tới Jira, không qua file trung gian) vẫn là roadmap tương
+> lai, chưa triển khai.
+
 ## 2.1. Duyệt dữ liệu của một lớp import
 
 Từ mỗi record trong nhật ký import, action `Duyệt dữ liệu` mở `/data-review/[batchId]` và chỉ đọc dữ liệu thuộc batch đó.
@@ -151,10 +158,14 @@ Các lỗi validate cần phát hiện (`src/lib/validator.ts`):
 > `INVALID`, không loại `WARNING`).
 >
 > Ở tầng đọc (không phải tầng import), các Epic có 1 trong 2 vấn đề trên — hoặc thiếu hẳn Start Date
-> — được đánh dấu `hasDataAnomaly = true` (`epic-alert-service.ts`): `alertLevel`/`ttmE2eAlertLevel`
-> bị ép về `NONE` (tránh hiện kết quả "Đạt TTM" giả do dải ngày phi logic), cột Nhận xét hiện
-> "Không tính được", và dòng bị đẩy xuống cuối bảng + highlight trên mọi màn Quản trị Epic (rút
-> gọn/đầy đủ/Epic in PO). Xem chi tiết rule tính TTM tại `03-mvp1-working-days-alert-rules.md`.
+> — luôn được đánh dấu `hasDataAnomaly = true` (một trong 6 rule "Sai lệch dữ liệu", xem mục 4.5 của
+> `03-mvp1-working-days-alert-rules.md`) và hiện badge "Sai lệch dữ liệu" + đẩy xuống cuối bảng +
+> highlight trên mọi màn Quản trị Epic (rút gọn/đầy đủ/Epic in PO). Riêng việc ép `alertLevel`/
+> `ttmE2eAlertLevel` về `NONE` ("Không tính được") dùng 2 điều kiện **hẹp hơn** —
+> `breaksTtmCnttCalculation`/`breaksTtmE2eCalculation` (`epic-data-anomaly.ts`) — chỉ đúng khi bản
+> thân phép tính TTM-CNTT/TTM-E2E không còn đáng tin (thiếu Start Date, hoặc R4G/Due Date phi logic
+> so với mốc gốc); một Epic chỉ thiếu Requirement Level hoặc T0 (không thuộc 2 điều kiện trên) vẫn
+> hiện đúng Cảnh báo sớm/muộn/Fail bình thường song song với badge "Sai lệch dữ liệu".
 >
 > Dữ liệu đã bị loại bởi 2 rule này TRƯỚC khi hạ xuống WARNING sẽ không tự xuất hiện lại — phải
 > import lại đúng file CSV gốc.

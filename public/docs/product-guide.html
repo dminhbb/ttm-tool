@@ -258,7 +258,7 @@
       <div class="kicker">Khối dữ liệu</div>
       <h2>5. Mô hình &amp; Sơ đồ cơ sở dữ liệu (Data Model &amp; ERD)</h2>
       <p>
-        Cơ sở dữ liệu của TTM Monitor sử dụng <strong>PostgreSQL</strong>, bao gồm <strong>37 bảng/thực thể</strong> được thiết kế theo nguyên tắc tối giản, phân quyền trực tiếp và tính toán cảnh báo real-time. Nguồn sự thật (Source of Truth) của cấu trúc CSDL được quản lý tập trung tại <code>db/schema.sql</code> và chuỗi migration <code>db/migrations/*.sql</code>.
+        Cơ sở dữ liệu của TTM Monitor sử dụng <strong>PostgreSQL</strong>, bao gồm <strong>38 bảng/thực thể</strong> được thiết kế theo nguyên tắc tối giản, phân quyền trực tiếp và tính toán cảnh báo real-time. Nguồn sự thật (Source of Truth) của cấu trúc CSDL được quản lý tập trung tại <code>db/schema.sql</code> và chuỗi migration <code>db/migrations/*.sql</code>.
       </p>
 
       <h3>5.1. Sơ đồ thực thể CSDL (ERD Overview)</h3>
@@ -301,9 +301,9 @@
 
           <!-- History, Snapshots & Audit -->
           <rect x="620" y="140" width="260" height="90" rx="8" fill="#eaf0ff" stroke="#c3cce3" />
-          <text x="750" y="160" text-anchor="middle" fill="#25406f" font-size="12">6. History &amp; Snapshots (6 bảng)</text>
+          <text x="750" y="160" text-anchor="middle" fill="#25406f" font-size="12">6. History &amp; Snapshots (7 bảng)</text>
           <text x="750" y="178" font-size="9.5" font-weight="400" fill="#5b6475" text-anchor="middle">epic_ttm_snapshots, issue_daily_snapshots</text>
-          <text x="750" y="193" font-size="9.5" font-weight="400" fill="#5b6475" text-anchor="middle">epic_alert_history, epic_alert_timeline</text>
+          <text x="750" y="193" font-size="9.5" font-weight="400" fill="#5b6475" text-anchor="middle">epic_alert_history, epic_alert_timeline, epic_data_anomaly_violations</text>
           <text x="750" y="208" font-size="9.5" font-weight="400" fill="#5b6475" text-anchor="middle">audit_logs, user_usage_daily_stats</text>
 
           <!-- System Settings -->
@@ -319,19 +319,20 @@
         </g>
       </svg>
       <div class="callout">
-        Sơ đồ trên minh hoạ <strong>7 nhóm nghiệp vụ cốt lõi (27 bảng)</strong> đã có từ MVP1. Ứng dụng còn <strong>2 nhóm hạ tầng tích hợp</strong> mới hơn (10 bảng),
+        Sơ đồ trên minh hoạ <strong>7 nhóm nghiệp vụ cốt lõi (28 bảng)</strong> đã có từ MVP1 — bao gồm <code>epic_data_anomaly_violations</code> (nhóm 6, bổ sung
+        22/09/2026 cùng rule "Sai lệch dữ liệu" R1-R6, mục 9). Ứng dụng còn <strong>2 nhóm hạ tầng tích hợp</strong> mới hơn (10 bảng),
         phục vụ Popup quảng cáo/Banner thông báo (mục 14-15) và SSO/API Key/MCP Server (mục 16-17) — chi tiết trong phần &quot;Bấm để xem chi tiết&quot; ngay dưới đây
-        (nhóm 8-9) và bảng danh mục đầy đủ 37 bảng ở mục 5.2.
+        (nhóm 8-9) và bảng danh mục đầy đủ 38 bảng ở mục 5.2.
       </div>
 
       <!-- Nút xem chi tiết section ẩn -->
       <details style="margin: 16px 0; border: 1px solid #cdd9f7; border-radius: 10px; background: #f8faff; padding: 12px 16px;">
         <summary style="cursor: pointer; font-weight: 700; font-size: 13.5px; color: var(--brand-600); outline: none; user-select: none;">
-          🔍 Bấm vào đây để Xem chi tiết Đặc điểm trường, Khóa PK/FK, Ràng buộc &amp; Index của 27 bảng CSDL
+          🔍 Bấm vào đây để Xem chi tiết Đặc điểm trường, Khóa PK/FK, Ràng buộc &amp; Index của 28 bảng CSDL
         </summary>
         <div style="margin-top: 16px;">
           <p style="font-size: 12.5px; color: var(--muted); margin-bottom: 16px;">
-            Dưới đây là chi tiết kỹ thuật của toàn bộ 37 bảng PostgreSQL trong CSDL TTM Monitor (tương thích với <code>db/schema.sql</code> và chuỗi migration):
+            Dưới đây là chi tiết kỹ thuật của toàn bộ 38 bảng PostgreSQL trong CSDL TTM Monitor (tương thích với <code>db/schema.sql</code> và chuỗi migration):
           </p>
 
           <!-- 1. Auth & RBAC -->
@@ -565,7 +566,7 @@
           </table>
 
           <!-- 6. History & Snapshots -->
-          <h4 style="color:var(--brand-700); margin:18px 0 6px; font-size:14px;">6. Nhóm Lịch sử, Snapshot &amp; Audit (6 bảng)</h4>
+          <h4 style="color:var(--brand-700); margin:18px 0 6px; font-size:14px;">6. Nhóm Lịch sử, Snapshot &amp; Audit (7 bảng)</h4>
           <table>
             <thead><tr><th>Bảng CSDL</th><th>Trường &amp; Kiểu dữ liệu chính</th><th>Constraints &amp; FK</th></tr></thead>
             <tbody>
@@ -574,6 +575,7 @@
               <tr><td><code>epic_milestone_history</code></td><td><code>epic_key VARCHAR(50)</code>, <code>milestone VARCHAR(50)</code>, <code>milestone_date DATE</code>, <code>source_import_batch_id INT</code></td><td>UNIQUE <code>(epic_key, milestone)</code>, FK <code>import_batches(id) ON DELETE SET NULL</code></td></tr>
               <tr><td><code>epic_ttm_snapshots</code></td><td><code>epic_key VARCHAR(50)</code>, <code>aggregated_at TIMESTAMPTZ</code>, <code>snapshot_data_json TEXT</code></td><td>UNIQUE <code>(epic_key, aggregated_at)</code>, FK <code>import_batches(id) ON DELETE SET NULL</code></td></tr>
               <tr><td><code>issue_daily_snapshots</code></td><td><code>issue_key VARCHAR(50)</code>, <code>aggregated_at TIMESTAMPTZ</code>, <code>snapshot_data_json TEXT</code></td><td>UNIQUE <code>(issue_key, aggregated_at)</code>, FK <code>import_batches(id) ON DELETE SET NULL</code></td></tr>
+              <tr><td><code>epic_data_anomaly_violations</code></td><td><code>epic_key VARCHAR(50)</code>, <code>rule_code VARCHAR(40)</code> (6 giá trị R1-R6), <code>rule_index SMALLINT</code>, <code>message TEXT</code>, <code>detected_at DATE</code>, <code>source_import_batch_id INT</code></td><td>UNIQUE <code>(epic_key, rule_code)</code>, FK <code>import_batches(id) ON DELETE SET NULL</code> — trạng thái hiện tại (không phải lịch sử "đợt" như 2 bảng trên), 1 dòng/Epic/rule đang vi phạm, ghi đè hoặc xoá ở mỗi lần <code>aggregateBatchData()</code> chạy</td></tr>
               <tr><td><code>audit_logs</code> / <code>user_usage_daily_stats</code></td><td><code>audit_logs</code>: user_id FK, action, entity_type, entity_id.<br /><code>user_usage_daily_stats</code>: user_id FK, stat_date DATE, login_count, feature_count, data_count.</td><td>PK kết hợp <code>user_usage_daily_stats(user_id, stat_date)</code>, FK <code>users(id)</code></td></tr>
             </tbody>
           </table>
@@ -616,7 +618,7 @@
         </div>
       </details>
 
-      <h3>5.2. Bảng danh mục 37 bảng CSDL trong hệ thống</h3>
+      <h3>5.2. Bảng danh mục 38 bảng CSDL trong hệ thống</h3>
       <table>
         <thead><tr><th>STT</th><th>Bảng CSDL</th><th>Khóa chính / Khóa ngoại</th><th>Vai trò nghiệp vụ &amp; Ghi chú</th></tr></thead>
         <tbody>
@@ -657,6 +659,7 @@
           <tr><td>35</td><td><code>mcp_access_daily_stats</code></td><td><code>(user_id, stat_date)</code> (PK, FK)</td><td>Thống kê số lượt gọi MCP theo ngày/user, tự dọn sau 90 ngày (mục 16).</td></tr>
           <tr><td>36</td><td><code>mcp_oauth_clients</code></td><td><code>client_id</code> (PK)</td><td>Đăng ký client OAuth động (RFC 7591) cho AI chatbot dùng luồng OAuth kết nối MCP (mục 16).</td></tr>
           <tr><td>37</td><td><code>mcp_oauth_authorization_codes</code></td><td><code>code</code> (PK), <code>user_id</code> (FK)</td><td>Mã ủy quyền ngắn hạn cho luồng MCP OAuth 2.0 + PKCE (mục 16).</td></tr>
+          <tr><td>38</td><td><code>epic_data_anomaly_violations</code></td><td><code>id</code> (PK), <code>(epic_key, rule_code)</code> (UNIQUE), <code>source_import_batch_id</code> (FK)</td><td>Trạng thái hiện tại (không phải lịch sử "đợt") của từng rule R1-R6 "Sai lệch dữ liệu" (mục 9) đang vi phạm trên mỗi Epic — 1 dòng/Epic/rule, ghi đè hoặc xoá ở mỗi lần <code>aggregateBatchData()</code> chạy. Phục vụ thống kê theo nhóm rule; badge trên UI vẫn tính live, không đọc bảng này.</td></tr>
         </tbody>
       </table>
 
@@ -806,15 +809,17 @@
         Một Epic có thể vi phạm nhiều rule cùng lúc; ứng dụng liệt kê <strong>đầy đủ từng rule bị vi phạm</strong> ở cột Nhận xét để người phụ trách biết chính xác cần bổ sung gì.
         Epic sai lệch <strong>không bao giờ bị loại khỏi hệ thống</strong> — vẫn được đưa vào đầy đủ, chỉ bị đánh dấu để hoàn thiện.
       </p>
+      <p>Mỗi rule có <strong>index R1-R6 cố định</strong> (không đổi số khi thêm rule mới), được lưu kèm mỗi vi phạm trong bảng <code>epic_data_anomaly_violations</code> (mục 5.2) để thống kê theo nhóm rule mà không phụ thuộc câu chữ message.</p>
       <table>
         <thead><tr><th>Rule</th><th>Điều kiện vi phạm</th></tr></thead>
         <tbody>
-          <tr><td>a. Miễn trừ</td><td>Epic ở trạng thái <strong>Cancelled / To Do / In PO / Backlog</strong> được <strong>miễn toàn bộ</strong> các rule bên dưới.</td></tr>
-          <tr><td>b. Thiếu T0</td><td>Trạng thái ≥ <strong>Design</strong> nhưng không có Ngày duyệt ý tưởng (T0).</td></tr>
-          <tr><td>c. Thiếu T1</td><td>Trạng thái ≥ <strong>In Progress</strong> nhưng không có Start Date (T1).</td></tr>
-          <tr><td>d. Pending quá lâu</td><td>Trạng thái <strong>Pending</strong>, số ngày làm việc từ ngày tạo Epic tới hôm nay ≥ <strong>20% chu trình TTM-CNTT</strong> (dùng ngân sách CT-Lv12 nếu không xác định được loại Epic), và Epic thiếu T0 hoặc T1.</td></tr>
-          <tr><td>e. Sai thứ tự ngày</td><td>Không thoả chuỗi <code>T0 ≤ T1 &lt; R4G Date ≤ Due Date</code> (chỉ xét mốc đã có giá trị) — mỗi cặp sai sinh 1 lỗi. R4G Date = Due Date được coi là hợp lệ (không sai lệch). Ngày tạo Epic không bị đối chiếu với T0 (T0 muộn hơn ngày tạo là bình thường).</td></tr>
-          <tr><td>f. Thiếu phân loại</td><td>Không có <strong>Phân loại yêu cầu</strong> hoặc <strong>Requirement Level</strong> (rỗng hoặc "none").</td></tr>
+          <tr><td>Miễn trừ</td><td>Epic ở trạng thái <strong>Cancelled / To Do / In PO / Backlog</strong> được <strong>miễn toàn bộ</strong> 6 rule bên dưới.</td></tr>
+          <tr><td>R1 — Thiếu T1</td><td>Trạng thái ≥ <strong>In Progress/DEV</strong> nhưng không có Start Date (T1).</td></tr>
+          <tr><td>R2 — Pending quá lâu</td><td>Trạng thái <strong>Pending</strong>, số ngày làm việc từ Start Date (T1) — hoặc ngày tạo Epic trên Jira nếu chưa có T1 — tới hôm nay ≥ <strong>20% chu trình TTM-CNTT</strong> (dùng ngân sách CT-Lv12 nếu không xác định được loại Epic). Từ 22/09/2026, rule này tính thuần theo thời gian trôi qua, <strong>không còn</strong> yêu cầu kèm điều kiện thiếu T0/T1.</td></tr>
+          <tr><td>R3 — Sai thứ tự ngày</td><td>Không thoả chuỗi <code>T0 ≤ T1 &lt; R4G Date ≤ Due Date</code> (chỉ xét mốc đã có giá trị) — toàn bộ cặp sai trong cùng 1 Epic được gộp thành <strong>1</strong> vi phạm duy nhất. R4G Date = Due Date được coi là hợp lệ (không sai lệch). Ngày tạo Epic không bị đối chiếu với T0 (T0 muộn hơn ngày tạo là bình thường).</td></tr>
+          <tr><td>R4 — Thiếu phân loại yêu cầu</td><td>Không có <strong>Phân loại yêu cầu</strong> (<code>epic_request_type</code>, rỗng hoặc "none").</td></tr>
+          <tr><td>R5 — Thiếu Requirement Level</td><td>Không có <strong>Requirement Level</strong> (<code>epic_request_level</code>, rỗng hoặc "none").</td></tr>
+          <tr><td>R6 — SP nhưng mức thấp</td><td>Epic được đánh giá độ phức tạp <strong>SP</strong> (SP-Lv12/SP-Lv34) nhưng Requirement Level = 1 hoặc 2 — loại yêu cầu Sản phẩm luôn kỳ vọng mức 3-4, mức 1-2 báo hiệu nhập sai Loại/Mức yêu cầu.</td></tr>
         </tbody>
       </table>
       <p>Epic bị đánh dấu:</p>
@@ -949,7 +954,14 @@
           <tr><td>Quản lý Dự án</td><td><code>/admin/projects</code></td><td>Danh mục Dự án (1 Project Key duy nhất), mapping Domain, hỗ trợ Import hàng loạt dự án từ file CSV. Popup sửa 1 dự án chỉ <strong>hiển thị</strong> PM/SM hiện tại (đọc-only) — gán/đổi PM/SM thực hiện tại Quản lý User</td></tr>
           <tr><td>Cấu hình cảnh báo</td><td><code>/admin/status-alert-rules</code></td><td>Tiêu chí TTM Policy (TTM-CNTT &amp; TTM-E2E) + rule Cảnh báo sớm/muộn theo trạng thái. Mở cho SUPERADMIN/SUPERVISOR</td></tr>
           <tr><td>Ma trận phân quyền</td><td><code>/admin/permissions</code></td><td>Chỉ SUPERADMIN — cấu hình quyền Xem/Thêm/Sửa/Xóa cho từng cặp (tính năng, role)</td></tr>
-          <tr><td>Sao lưu / Phục hồi dữ liệu</td><td><code>/admin/database</code></td><td>Chỉ SUPERADMIN — Export/Import dạng file SQL dump cho một danh sách bảng cố định (user, Domain, Dự án, phân quyền, ngày nghỉ, rule cảnh báo, <code>import_batches</code>/<code>import_rows</code>, <code>issues</code>, <code>epic_ttm_snapshots</code>, audit log). Import dùng <strong>upsert theo khóa chính</strong> — dòng dữ liệu trùng khóa chính đã tồn tại sẽ được <strong>ghi đè</strong> bằng dữ liệu trong file, không còn bị bỏ qua (file export từ bản cũ hơn vẫn tương thích, giữ hành vi bỏ qua). <strong>Chưa</strong> bao phủ <code>issue_daily_snapshots</code>, <code>epic_alert_history</code>, <code>epic_alert_timeline</code>, <code>epic_milestone_history</code></td></tr>
+          <tr><td>Sao lưu / Phục hồi dữ liệu</td><td><code>/admin/database</code></td><td>
+            Chỉ SUPERADMIN — 2 chế độ export, cùng ghi ra 1 định dạng file SQL dump và dùng chung luồng Import:
+            <ul style="margin:6px 0 6px 18px; font-size:12.5px;">
+              <li><strong>Export theo lớp dữ liệu</strong> (mặc định, đơn giản) — chọn 1 khoảng "Start/End Data Layer" (<code>aggregated_at</code>) liên tiếp; luôn gồm dữ liệu tổng hợp/cảnh báo/lịch sử Epic (<code>epic_ttm_snapshots</code>, <code>issue_daily_snapshots</code>, <code>epic_alert_history</code>, <code>epic_alert_timeline</code>, <code>epic_milestone_history</code>) trong khoảng đã chọn, tuỳ chọn bật thêm "Export Raw Data" để gộp <code>issues</code>/<code>import_rows</code>/<code>import_batches</code> cùng khoảng.</li>
+              <li><strong>Export nâng cao (chọn bảng thủ công)</strong> — export toàn bộ dữ liệu (không lọc theo ngày) cho 1 danh sách 17 bảng cố định (user, Domain, Dự án, phân quyền Domain/Dự án, Component, ngày nghỉ, rule cảnh báo, <code>import_batches</code>/<code>import_rows</code>/<code>issues</code>, <code>epic_ttm_snapshots</code>, <code>issue_daily_snapshots</code>, <code>epic_alert_history</code>, <code>epic_alert_timeline</code>, <code>epic_milestone_history</code>, audit log).</li>
+            </ul>
+            Import dùng <strong>upsert theo khóa chính</strong> — dòng dữ liệu trùng khóa chính đã tồn tại sẽ được <strong>ghi đè</strong> bằng dữ liệu trong file, không còn bị bỏ qua (file export từ bản cũ hơn vẫn tương thích, giữ hành vi bỏ qua). Cả 2 chế độ đều <strong>chưa</strong> bao phủ <code>epic_data_anomaly_violations</code> (tính lại được từ <code>issues</code> nên không cần backup riêng), Ma trận phân quyền (<code>permission_features</code>/<code>role_feature_permissions</code>), Popup/Banner, SSO/API Key/MCP và các bảng cấu hình singleton.
+          </td></tr>
         </tbody>
       </table>
       <h3>13.2. Modal &quot;Cấu hình ứng dụng&quot; — ADMIN trở lên</h3>
@@ -1198,7 +1210,7 @@
           <tr><td>Lớp dữ liệu (data layer)</td><td>Tập dữ liệu của một lần import, gắn với một mốc <code>aggregated_at</code></td></tr>
           <tr><td>TTM-CNTT</td><td>Time to Market — Công nghệ thông tin (T1 → R4G). Có 3 mức cảnh báo: Cảnh báo sớm/muộn/Fail</td></tr>
           <tr><td>TTM-E2E</td><td>Time to Market — End to End (T0 → Release/Due Date). Chỉ có Fail/NONE, không có mức sớm/muộn</td></tr>
-          <tr><td>Epic sai lệch dữ liệu</td><td>Epic vi phạm ≥ 1 trong 6 rule (mục 9): thiếu T0/T1 theo trạng thái, Pending quá lâu, ngày sai thứ tự, thiếu Phân loại yêu cầu/Requirement Level. Không bị chặn import; bị nhóm cuối bảng, highlight, cột Nhận xét hiện badge "Sai lệch dữ liệu" + danh sách rule vi phạm. Đánh giá bằng một hàm dùng chung cho mọi màn hình.</td></tr>
+          <tr><td>Epic sai lệch dữ liệu</td><td>Epic vi phạm ≥ 1 trong 6 rule R1-R6 (mục 9): thiếu T1 theo trạng thái, Pending quá lâu, ngày sai thứ tự, thiếu Phân loại yêu cầu, thiếu Requirement Level, hoặc Epic SP nhưng Requirement Level thấp (1-2). Không bị chặn import; bị nhóm cuối bảng, highlight, cột Nhận xét hiện badge "Sai lệch dữ liệu" + danh sách rule vi phạm. Đánh giá bằng một hàm dùng chung cho mọi màn hình, lưu trạng thái hiện tại vào <code>epic_data_anomaly_violations</code> (mục 5.2).</td></tr>
           <tr><td>SUPERVISOR</td><td>Role thứ 4, cùng phạm vi xem toàn hệ thống như SUPERADMIN nhưng chỉ đọc, không có quyền tạo/sửa/xóa</td></tr>
           <tr><td>4 Epic Type (CT-Lv12 / CT-Lv34 / SP-Lv12 / SP-Lv34)</td><td>Phân loại tự động theo <code>Loại yêu cầu</code> + <code>Mức yêu cầu</code> của Epic (mục 5.2), quyết định TTM-CNTT 15, 25 hoặc 30 ngày làm việc</td></tr>
           <tr><td>epic_alert_timeline</td><td>Lịch sử 5 loại cảnh báo của Epic dưới dạng các "đợt" có ngày bắt đầu/kết thúc, phục vụ mục "Dòng thời gian cảnh báo" (mục 10.2)</td></tr>

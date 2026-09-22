@@ -14,6 +14,7 @@ export interface AppScreenInfo {
 export const PAGE_HEADERS: Record<string, AppScreenInfo> = {
   '/': { subtitle: 'Kiểm tra và quản lý các lớp dữ liệu Jira nhập vào TTM Monitor', title: 'Quản trị nguồn dữ liệu' },
   '/dashboard': { subtitle: 'Thống kê tổng quan tình trạng TTM theo dự án', title: 'Dashboard' },
+  '/dashboard-new': { subtitle: 'Trung tâm điều hành và phân tích TTM Epic đa chiều (Executive & Operational)', title: 'Dashboard New' },
   '/epic-alerts': { subtitle: 'Cảnh báo TTM-CNTT dựa trên đợt import dữ liệu mới nhất', title: 'Quản trị Epic (rút gọn)' },
   '/epic-alerts-15': { subtitle: 'Cảnh báo TTM-CNTT theo giai đoạn DESIGN/DEV/TEST/PENTEST/R4GOLIVE', title: 'Quản trị Epic' },
   '/epic-in-po': { subtitle: 'Epic đang ở trạng thái To Do, In PO hoặc Released', title: 'Epic in PO' },

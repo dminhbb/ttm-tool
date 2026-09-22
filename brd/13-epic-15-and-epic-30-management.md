@@ -64,3 +64,20 @@ DESIGN/DEV/TEST/PENTEST/R4GOLIVE) mới hiện "Không tính được" khi đó 
 Mỗi Epic còn có cảnh báo **Fail TTM-E2E** độc lập với Fail TTM-CNTT — badge riêng ở cột Nhận xét
 (chỉ FAIL/NONE, không có mức Cảnh báo sớm/muộn), filter "Cảnh báo" trên cả 3 màn hình đều có option
 riêng "Fail TTM-E2E". Xem `resolveTtmE2eRelease` (`src/lib/epic-alert-service.ts`).
+
+## Bộ lọc nâng cao (cả 3 màn hình giám sát)
+
+Ngoài filter "Cảnh báo"/Dự án/Domain/Component ở trên cùng, khối **"Bộ lọc nâng cao..."** (thu gọn
+mặc định, dưới thanh filter chính) cung cấp thêm (`src/lib/epic-alert-filter-params.ts`,
+`EpicAlertFilters`):
+
+- **Chọn lớp dữ liệu** — chip chọn 1 trong 5 lớp dữ liệu (`aggregated_at`) gần nhất, cộng dropdown
+  cho các lớp cũ hơn (tối đa 365 lớp gần nhất, `availableLayerDates`). Dữ liệu tự "drill" xuống lớp
+  cũ hơn kế tiếp nếu lớp đã chọn thiếu dữ liệu cho một Epic. Mặc định luôn dùng lớp mới nhất.
+- **Epic tạo mới từ (Created Date ≥)** — lọc theo `createdDateFrom`.
+- **Epic start date từ (Start CNTT / T1 ≥)** — lọc theo `startDateFrom`.
+- **Epic golive sau (Due Date ≥)** — lọc theo `dueDateFrom`.
+
+Mỗi ô filter đang có giá trị được viền đỏ (`has-filter`) để người dùng nhận ra ngay đang lọc thu hẹp
+dữ liệu, kể cả khi đã thu gọn khối "Bộ lọc nâng cao...". `/api/epic-alerts-15` và `/api/epic-alerts`
+dùng chung `parseEpicAlertFiltersFromSearchParams` để đọc 4 tham số trên.

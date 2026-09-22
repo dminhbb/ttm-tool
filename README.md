@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TTM Monitor
 
-## Getting Started
+Công cụ giám sát rủi ro **Time to Market (TTM)** cho các Epic Jira, dùng nội bộ để theo dõi tiến độ
+TTM-CNTT (Start Date → R4G Date) và TTM-E2E (Idea Approved Date → Release), cảnh báo sớm/muộn theo
+trạng thái Epic, và quản lý dữ liệu nhập từ CSV export của Jira.
 
-First, run the development server:
+Ứng dụng Next.js (App Router) + PostgreSQL. Tài liệu nghiệp vụ đầy đủ nằm ở [`brd/`](brd/) (bắt đầu
+từ [`brd/00-ai-agent-index.md`](brd/00-ai-agent-index.md)); tài liệu vận hành/đào tạo người dùng nằm
+ở trang trong ứng dụng **Tài liệu sản phẩm** (`/docs/product`, nguồn tại
+[`public/docs/product-guide.html`](public/docs/product-guide.html)).
+
+## Bắt đầu
+
+Cài dependency và cấu hình kết nối CSDL trước khi chạy dev server:
 
 ```bash
+npm install
+cp .env.example .env.local   # rồi điền DB_CONNECTION + thông tin kết nối tương ứng
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Mở [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Cơ sở dữ liệu — 3 profile song song
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Ứng dụng có thể chạy trên 3 profile Postgres: **local** (máy dev), **Aiven** và **Supabase** — chọn
+bằng biến `DB_CONNECTION` trong `.env.local` (xem chi tiết từng profile trong
+[`.env.example`](.env.example)). Migration nằm ở [`db/migrations/`](db/migrations); mỗi khi thêm
+migration mới, chạy đủ 3 lệnh dưới đây để không bị lệch schema giữa các profile:
 
-## Learn More
+```bash
+npm run db:migrate:local
+npm run db:migrate:aiven
+npm run db:migrate:supabase
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Các lệnh khác
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run build   # build production
+npm run start   # chạy bản đã build
+npm run lint    # ESLint
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Cấu trúc chính
 
-## Deploy on Vercel
+- `src/app` — route App Router: màn hình giám sát Epic (`/epic-alerts`, `/epic-alerts-15`,
+  `/epic-in-po`, `/dashboard`, `/reports`), quản trị (`/admin/*`), SSO/MCP, và API Route Handlers
+  (`src/app/api`).
+- `src/lib` — business logic dùng chung (tính cảnh báo, ngày làm việc, import/aggregate dữ liệu,
+  RBAC, MCP server, SSO...), gọi trực tiếp bởi cả UI lẫn API — không có tầng service riêng.
+- `db/schema.sql` + `db/migrations/*.sql` — nguồn sự thật của cấu trúc CSDL.
+- `brd/` — Business Requirement Document theo từng chủ đề (xem chỉ mục
+  [`brd/00-ai-agent-index.md`](brd/00-ai-agent-index.md) trước khi đọc).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Xem [`AGENTS.md`](AGENTS.md) để biết quy ước dành cho coding agent khi sửa code trong repo này
+(đa CSDL, version stamp, icon standard...).

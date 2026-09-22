@@ -12,6 +12,7 @@ import {
   Browsers,
   CaretDoubleLeft,
   CaretDoubleRight,
+  ChartPie,
   ClockCounterClockwise,
   Database,
   FileText,
@@ -85,6 +86,7 @@ const navigation: NavigationSection[] = [
     label: 'Giám sát',
     items: [
       { href: '/reports', icon: Bandaids, label: 'Báo cáo Epic (beta 2)' },
+      { href: '/dashboard-new', icon: ChartPie, label: 'Dashboard New' },
       { href: '/dashboard', icon: Gauge, label: 'Dashboard' },
       // { href: '/epic-alerts', icon: Browser, label: 'Quản trị Epic (rút gọn)', roles: ADMIN_VIEW_ROLES },
       { href: '/epic-alerts-15', icon: Browsers, label: 'Quản trị Epic' },
