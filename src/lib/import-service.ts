@@ -86,7 +86,18 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
       issues.r4g_date, issues.due_date, issues.target_r4g_date, issues.source_import_batch_id,
       issues.aggregated_at
     FROM issues
-    LEFT JOIN import_rows
+    LEFT JOIN (
+      -- import_rows keeps every raw CSV row verbatim (no unique constraint — it's the audit
+      -- trail), so a source file that repeats an issue_key across rows leaves duplicates here
+      -- too. Collapse to one row per issue_key per batch (last row_number wins, same rule as
+      -- the issues-table dedup in processImport) so this join can't fan out and cause the
+      -- epic_key conflict target below to be hit twice by the same statement.
+      SELECT DISTINCT ON (normalized_data_json::jsonb ->> 'issueKey')
+        import_batch_id, normalized_data_json
+      FROM import_rows
+      WHERE import_batch_id = $1
+      ORDER BY normalized_data_json::jsonb ->> 'issueKey', row_number DESC
+    ) import_rows
       ON import_rows.import_batch_id = issues.source_import_batch_id
       AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = issues.issue_key
     LEFT JOIN projects project
@@ -133,7 +144,14 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
       issues.start_date, issues.r4g_date, issues.due_date, issues.target_r4g_date,
       issues.source_import_batch_id, issues.aggregated_at
     FROM issues
-    LEFT JOIN import_rows
+    LEFT JOIN (
+      -- See the identical dedup in insertSnapshotQuery above for why this is needed.
+      SELECT DISTINCT ON (normalized_data_json::jsonb ->> 'issueKey')
+        import_batch_id, normalized_data_json
+      FROM import_rows
+      WHERE import_batch_id = $1
+      ORDER BY normalized_data_json::jsonb ->> 'issueKey', row_number DESC
+    ) import_rows
       ON import_rows.import_batch_id = issues.source_import_batch_id
       AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = issues.issue_key
     WHERE issues.source_import_batch_id = $1
@@ -437,7 +455,28 @@ export async function processImport(
     // every other issue (including other Epics untouched by any error) still gets ingested and
     // aggregated normally. batchStatus stays 'FAILED' whenever errorRows > 0 purely as a reporting
     // label on the batch history screen — it no longer implies "nothing was saved".
-    const validIssues = rawIssues.filter((_issue, index) => validationReport[index].status !== 'INVALID');
+    const validIssuesRaw = rawIssues.filter((_issue, index) => validationReport[index].status !== 'INVALID');
+
+    // The Py Jira API export is denormalized (one row per issue, but the crawler has been seen to
+    // re-emit the same issue — same issue_key — on more than one row within a single file, e.g.
+    // when a multi-valued field is flattened without aggregation). `issues` is upserted with
+    // ON CONFLICT (issue_key, source_import_batch_id) DO UPDATE, and Postgres cannot affect the
+    // same conflict-target row twice within one statement, so two rows sharing an issue_key inside
+    // the same insert/chunk fail the whole import with "ON CONFLICT DO UPDATE command cannot affect
+    // row a second time". Collapse to one row per issue_key here — last occurrence in the file wins,
+    // the same outcome sequential single-row upserts would have produced — before any DB write reads
+    // or inserts from this set (the `issues` insert below, and aggregateBatchData's per-issue reads).
+    const dedupedByIssueKey = new Map<string, typeof validIssuesRaw[number]>();
+    for (const issue of validIssuesRaw) {
+      dedupedByIssueKey.set(issue.issueKey, issue);
+    }
+    if (dedupedByIssueKey.size < validIssuesRaw.length) {
+      console.warn(
+        `processImport: collapsed ${validIssuesRaw.length - dedupedByIssueKey.size} duplicate-issue_key row(s) ` +
+        `out of ${validIssuesRaw.length} valid row(s) in "${fileName}" (keeping the last occurrence of each issue_key).`,
+      );
+    }
+    const validIssues = [...dedupedByIssueKey.values()];
     if (!validateOnly && validIssues.length > 0) {
       await accumulateProjectComponents(client, validIssues);
 

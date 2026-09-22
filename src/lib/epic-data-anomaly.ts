@@ -150,9 +150,19 @@ export function evaluateEpicDataAnomaly(input: EpicAnomalyInput, now: Date, holi
 
   // R3 — T0 ≤ T1 < R4G ≤ Due, for the values that are present. created vs T0 is NOT checked
   // (a later Idea Approved Date than the Jira creation date is normal); R4G == Due is allowed.
-  if (t0 && t1 && t0 > t1) violations.push(violation('DATE_OUT_OF_SEQUENCE', 'Sai thứ tự ngày: Ngày duyệt ý tưởng (T0) muộn hơn Start Date (T1)'));
-  if (t1 && r4g && t1 >= r4g) violations.push(violation('DATE_OUT_OF_SEQUENCE', 'Sai thứ tự ngày: Start Date (T1) không sớm hơn R4G Date'));
-  if (r4g && due && r4g > due) violations.push(violation('DATE_OUT_OF_SEQUENCE', 'Sai thứ tự ngày: R4G Date muộn hơn Due Date'));
+  // An Epic can break more than one of these pairs at once (e.g. T0 > T1 AND R4G > Due) — all
+  // such breaks are collected into ONE combined DATE_OUT_OF_SEQUENCE violation rather than one
+  // violation per pair, because epic_data_anomaly_violations stores at most one row per
+  // (epic_key, rule_code) (see recordEpicDataAnomalyViolations): pushing more than one violation
+  // with this same code for the same epic would upsert two rows onto that same conflict target
+  // within a single statement, which Postgres rejects outright.
+  const dateOrderBreaks: string[] = [];
+  if (t0 && t1 && t0 > t1) dateOrderBreaks.push('Ngày duyệt ý tưởng (T0) muộn hơn Start Date (T1)');
+  if (t1 && r4g && t1 >= r4g) dateOrderBreaks.push('Start Date (T1) không sớm hơn R4G Date');
+  if (r4g && due && r4g > due) dateOrderBreaks.push('R4G Date muộn hơn Due Date');
+  if (dateOrderBreaks.length > 0) {
+    violations.push(violation('DATE_OUT_OF_SEQUENCE', `Sai thứ tự ngày: ${dateOrderBreaks.join('; ')}`));
+  }
 
   // R4/R5 — classification fields.
   if (isBlank(input.requestType)) violations.push(violation('MISSING_REQUEST_TYPE', 'Thiếu Phân loại yêu cầu'));
