@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import './epic-alerts-15.css';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
@@ -72,6 +73,54 @@ const ALERT_FILTER_OPTIONS: { label: string; value: AlertFilterValue }[] = [
   { label: 'Sai Status', value: 'STATUS_MISMATCH' },
   { label: 'Sai lệch dữ liệu', value: 'DATA_ANOMALY' },
 ];
+
+const ALERT_FILTER_VALUES = new Set<AlertFilterValue>(ALERT_FILTER_OPTIONS.map((option) => option.value));
+
+/**
+ * Deep-link filters read once from the URL a caller (e.g. a Dashboard widget) navigated here with —
+ * see buildEpicAlertsDeepLink in epic-alerts-deep-link.ts, the single place that builds these query
+ * strings so this parsing side never drifts out of sync with it. Comma-separated lists match
+ * multi-select filters (projects/status); everything else is a single value.
+ */
+interface EpicAlertsDeepLinkFilters {
+  alert: AlertFilterValue;
+  dataIssue: boolean;
+  domain: string;
+  hasAny: boolean;
+  pmSm: string;
+  projects: string[];
+  requestingUnit: string;
+  search: string;
+  status: string[];
+  type: string;
+}
+
+function parseDeepLinkFilters(searchParams: URLSearchParams): EpicAlertsDeepLinkFilters {
+  const splitList = (key: string) => (searchParams.get(key) ?? '').split(',').map((value) => value.trim()).filter(Boolean);
+  const alertRaw = searchParams.get('alert') ?? '';
+  const alert = ALERT_FILTER_VALUES.has(alertRaw as AlertFilterValue) ? (alertRaw as AlertFilterValue) : '';
+  const projects = splitList('projects');
+  const status = splitList('status');
+  const typeRaw = searchParams.get('type') ?? '';
+  const type = (EPIC_COMPLEXITY_TYPES as readonly string[]).includes(typeRaw) ? typeRaw : '';
+  const pmSm = searchParams.get('pmSm') ?? '';
+  const requestingUnit = searchParams.get('requestingUnit') ?? '';
+  const dataIssue = searchParams.get('dataIssue') === '1';
+  const search = searchParams.get('search') ?? '';
+  const domain = searchParams.get('domain') ?? '';
+  return {
+    alert,
+    dataIssue,
+    domain,
+    hasAny: Boolean(alert || projects.length || status.length || type || pmSm || requestingUnit || dataIssue || search || domain),
+    pmSm,
+    projects,
+    requestingUnit,
+    search,
+    status,
+    type,
+  };
+}
 
 /**
  * "Lọc Nhận xét" (formerly "Cảnh báo") — matches the same "Nhận xét" badges rendered in the table
@@ -473,20 +522,33 @@ function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRowPhased; onClose:
 
 
 export default function EpicAlerts15Page() {
+  return (
+    <Suspense fallback={null}>
+      <EpicAlerts15Screen />
+    </Suspense>
+  );
+}
+
+function EpicAlerts15Screen() {
+  const searchParams = useSearchParams();
+  // Read once at mount, from whatever URL navigated here (see epic-alerts-deep-link.ts) — later
+  // edits to these state values via the toolbar must never get overridden by a stale re-parse.
+  const [deepLinkFilters] = useState(() => parseDeepLinkFilters(searchParams));
+
   const [data, setData] = useState<EpicAlertPhasedResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [projectFilters, setProjectFilters] = useState<string[]>([]);
-  const [pmSmFilter, setPmSmFilter] = useState('');
+  const [projectFilters, setProjectFilters] = useState<string[]>(deepLinkFilters.projects);
+  const [pmSmFilter, setPmSmFilter] = useState(deepLinkFilters.pmSm);
   const [componentFilters, setComponentFilters] = useState<string[]>([]);
   const [projectComponents, setProjectComponents] = useState<ProjectComponent[]>([]);
-  const [alertFilter, setAlertFilter] = useState<AlertFilterValue>('');
-  const [typeFilter, setTypeFilter] = useState('');
-  const [statusFilters, setStatusFilters] = useState<string[]>([]);
-  const [requestingUnitFilter, setRequestingUnitFilter] = useState('');
-  const [dataIssueFilter, setDataIssueFilter] = useState(false);
-  const [search, setSearch] = useState('');
+  const [alertFilter, setAlertFilter] = useState<AlertFilterValue>(deepLinkFilters.alert);
+  const [typeFilter, setTypeFilter] = useState(deepLinkFilters.type);
+  const [statusFilters, setStatusFilters] = useState<string[]>(deepLinkFilters.status);
+  const [requestingUnitFilter, setRequestingUnitFilter] = useState(deepLinkFilters.requestingUnit);
+  const [dataIssueFilter, setDataIssueFilter] = useState(deepLinkFilters.dataIssue);
+  const [search, setSearch] = useState(deepLinkFilters.search);
   const [page, setPage] = useState(1);
   // "Bộ lọc nâng cao" — collapsed by default (see reports/page.tsx's "Cấu hình nâng cao..." for
   // the shared UI/logic pattern this mirrors). selectedLayerAnchor === availableLayerDates[0] (or
@@ -619,7 +681,24 @@ export default function EpicAlerts15Page() {
     handleProjectFiltersChange(value ? [...(domainProjectKeys.get(value) ?? [])].sort() : []);
   };
 
-  const hasAppliedDefaultStatusFilter = useRef(false);
+  // A `domain` deep-link needs domainProjectKeys, which only exists once rows have loaded — applied
+  // once, the first time it becomes available. Skipped when the deep link already gave `projects`
+  // directly (that always wins over a domain-derived project set).
+  const hasAppliedDeepLinkDomainFilter = useRef(!deepLinkFilters.domain || deepLinkFilters.projects.length > 0);
+  useEffect(() => {
+    const projectKeysForDomain = domainProjectKeys.get(deepLinkFilters.domain);
+    if (hasAppliedDeepLinkDomainFilter.current || domainProjectKeys.size === 0 || !projectKeysForDomain) return;
+    hasAppliedDeepLinkDomainFilter.current = true;
+    // Same two updates handleDomainFilterChange makes — spelled out directly (rather than calling
+    // that handler) since componentFilters never needs resetting here: it's still at its initial [].
+    setDomainFilter(deepLinkFilters.domain);
+    setProjectFilters([...projectKeysForDomain].sort());
+  }, [domainProjectKeys]);
+
+  // Skipped entirely when the deep link already specifies any filter of its own — the caller's
+  // exact combination (e.g. "every Fail TTM-CNTT Epic, any status") must render as-is, not get
+  // narrowed further by this screen's own default status exclusions.
+  const hasAppliedDefaultStatusFilter = useRef(deepLinkFilters.hasAny);
   useEffect(() => {
     if (hasAppliedDefaultStatusFilter.current || statusOptions.length === 0) return;
     hasAppliedDefaultStatusFilter.current = true;

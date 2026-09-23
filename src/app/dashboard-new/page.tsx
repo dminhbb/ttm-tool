@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import {
   CaretDown,
   CaretRight,
@@ -26,6 +27,10 @@ import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui
 import { TableAction } from '@/components/ui/TableAction';
 import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import { DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
+import { isCancelledStatus } from '@/lib/issue-status-rules';
+import { isTtmCnttQaInScope, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
+import { buildEpicAlertsDeepLink } from '@/lib/epic-alerts-deep-link';
+import type { EpicAlertsDeepLinkParams } from '@/lib/epic-alerts-deep-link';
 import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
 
@@ -159,49 +164,57 @@ export default function DashboardNewPage() {
     });
   }, [data, filterProject, filterDomain, searchQuery]);
 
-  // Executive Metrics
+  // Executive Metrics. TTM-CNTT-specific numbers (eligibleTtm/passTtm/failCntt/ttmHealthPct) come
+  // from the shared summarizeTtmCntt helper so this stays byte-for-byte the same ratio as the
+  // TTM-CNTT-QA metrics below and as dashboard-service.ts's achievedTtmCount/achievedTtmEligibleCount.
   const executiveMetrics = useMemo(() => {
     const total = filteredRows.length;
-    let failCntt = 0;
     let failE2e = 0;
     let lateWarning = 0;
     let earlyWarning = 0;
     let anomalyCount = 0;
-    let eligibleTtm = 0;
-    let passTtm = 0;
 
     for (const row of filteredRows) {
-      if (row.alertLevel === 'FAIL') failCntt += 1;
-      else if (row.alertLevel === 'LATE') lateWarning += 1;
+      if (row.alertLevel === 'LATE') lateWarning += 1;
       else if (row.alertLevel === 'EARLY') earlyWarning += 1;
 
       if (row.ttmE2eAlertLevel === 'FAIL') failE2e += 1;
       if (row.hasDataAnomaly) anomalyCount += 1;
-
-      if (row.r4gDate && !row.hasDataAnomaly) {
-        eligibleTtm += 1;
-        if (row.alertLevel === 'NONE') passTtm += 1;
-      }
     }
 
-    const ttmHealthPct = eligibleTtm > 0 ? Math.round((passTtm / eligibleTtm) * 100) : total > 0 ? Math.round(((total - failCntt) / total) * 100) : 100;
+    const ttmCntt = summarizeTtmCntt(filteredRows);
 
     return {
       anomalyCount,
       earlyWarning,
-      eligibleTtm,
-      failCntt,
+      eligibleTtm: ttmCntt.eligible,
+      failCntt: ttmCntt.fail,
       failE2e,
       lateWarning,
-      passTtm,
+      passTtm: ttmCntt.pass,
       total,
-      ttmHealthPct,
+      ttmHealthPct: ttmCntt.pct,
     };
   }, [filteredRows]);
 
+  // TTM-CNTT-QA: the exact same TTM-CNTT ratio (summarizeTtmCntt), scoped to Epics currently
+  // 'MVP Done' or 'Released' — always over filteredRows, i.e. within the user's data-access scope
+  // and whatever project/domain/search filter is active, same as executiveMetrics above.
+  const qaScopedRows = useMemo(() => filteredRows.filter((row) => isTtmCnttQaInScope(row.currentStatus)), [filteredRows]);
+  const qaMetrics = useMemo(() => summarizeTtmCntt(qaScopedRows), [qaScopedRows]);
+
+  // Drills a KPI tile/matrix cell down into "Quản trị Epic" (epic-alerts-15) pre-filtered to exactly
+  // what produced that number — carries over whatever project/domain the dashboard itself is
+  // currently scoped to, so the target screen's count matches the tile the user clicked.
+  const toEpicAlertsLink = (extra: Omit<EpicAlertsDeepLinkParams, 'domain' | 'projects'>) => buildEpicAlertsDeepLink({
+    ...extra,
+    domain: filterProject ? undefined : (filterDomain || undefined),
+    projects: filterProject ? [filterProject] : undefined,
+  });
+
   // Breakdown Matrix Table Data
   const dimensionMatrix = useMemo(() => {
-    const map = new Map<string, { fail: number; late: number; ok: number; pass: number; total: number }>();
+    const map = new Map<string, { late: number; ok: number; rows: EpicAlertRowPhased[] }>();
 
     for (const row of filteredRows) {
       let keyVal = 'Khác';
@@ -210,23 +223,23 @@ export default function DashboardNewPage() {
       else if (dimensionKey === 'project') keyVal = row.projectName || row.projectKey || 'Chưa gán';
       else if (dimensionKey === 'epicType') keyVal = row.epicType || 'CT-Lv12';
 
-      const curr = map.get(keyVal) ?? { fail: 0, late: 0, ok: 0, pass: 0, total: 0 };
-      curr.total += 1;
+      const curr = map.get(keyVal) ?? { late: 0, ok: 0, rows: [] };
+      curr.rows.push(row);
 
+      // "Đúng/Chậm tiến độ" only tracks Epics still in flight (not yet Released) — Released Epics
+      // are already judged by Pass/Fail TTM-CNTT (QLDA) instead.
       const isReleased = Boolean(row.stages.release.isDone && row.dueDate);
-      if (isReleased) {
-        if (row.alertLevel === 'FAIL' || row.ttmE2eAlertLevel === 'FAIL') curr.fail += 1;
-        else curr.pass += 1;
-      } else {
+      if (!isReleased) {
         if (row.alertLevel === 'FAIL' || row.alertLevel === 'LATE') curr.late += 1;
         else curr.ok += 1;
       }
       map.set(keyVal, curr);
     }
 
-    return [...map.entries()].map(([name, stat]) => {
-      const passPct = stat.total > 0 ? Math.round(((stat.pass + stat.ok) / stat.total) * 100) : 0;
-      return { name, passPct, ...stat };
+    return [...map.entries()].map(([name, bucket]) => {
+      const qlda = summarizeTtmCntt(bucket.rows);
+      const qa = summarizeTtmCntt(bucket.rows.filter((row) => isTtmCnttQaInScope(row.currentStatus)));
+      return { late: bucket.late, name, ok: bucket.ok, qa, qlda, total: bucket.rows.length };
     }).sort((a, b) => b.total - a.total);
   }, [filteredRows, dimensionKey]);
 
@@ -244,7 +257,11 @@ export default function DashboardNewPage() {
     return [...map.values()].sort((a, b) => b.fail - a.fail).slice(0, 5);
   }, [filteredRows]);
 
-  // Phase Pipeline (Kanban Phases for Version 2)
+  // Phase Pipeline (Kanban Phases for Version 2). Classified off the same signals the rest of the
+  // page already trusts (row.stages' isDone/isCurrentStage, plus exact status equality for the
+  // To Do/Backlog/In PO/Cancelled exemption list from epic-data-anomaly.ts) instead of
+  // currentStatus.includes(...) — that substring matching mis-bucketed real statuses like
+  // "Support" (contains "po") and "Dev/SIT/UAT Done" (contains "done") into the wrong phase.
   const pipelinePhases = useMemo(() => {
     const phases = [
       { key: 'To Do', label: '1. To Do', rows: [] as EpicAlertRowPhased[] },
@@ -255,15 +272,18 @@ export default function DashboardNewPage() {
     ];
 
     for (const row of filteredRows) {
-      const statusLower = (row.currentStatus || '').toLowerCase();
-      if (statusLower.includes('to do') || statusLower.includes('backlog') || statusLower.includes('po')) {
-        phases[0].rows.push(row);
-      } else if (statusLower.includes('design')) {
-        phases[1].rows.push(row);
-      } else if (statusLower.includes('ready for golive') || statusLower.includes('r4g')) {
-        phases[3].rows.push(row);
-      } else if (statusLower.includes('release') || statusLower.includes('done')) {
+      const status = (row.currentStatus || '').trim().toUpperCase();
+      const isReleased = Boolean(row.stages.release.isDone && row.dueDate);
+      const isBacklogLike = status === 'TO DO' || status === 'BACKLOG' || status === 'IN PO' || isCancelledStatus(row.currentStatus);
+
+      if (isReleased) {
         phases[4].rows.push(row);
+      } else if (isBacklogLike) {
+        phases[0].rows.push(row);
+      } else if (row.stages.r4golive.isCurrentStage) {
+        phases[3].rows.push(row);
+      } else if (row.stages.design.isCurrentStage) {
+        phases[1].rows.push(row);
       } else {
         phases[2].rows.push(row);
       }
@@ -455,9 +475,9 @@ export default function DashboardNewPage() {
           {viewMode === 'EXECUTIVE' && (
             <div className="flex flex-col gap-5">
               {/* Top KPI Metrics Strip */}
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                {/* Health Index Ring */}
-                <div className="col-span-2 sm:col-span-1 rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs flex items-center justify-start gap-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+                {/* Health Index Ring — TTM-CNTT (QLDA): every Epic in the current filter/access scope */}
+                <div className="col-span-2 sm:col-span-2 lg:col-span-1 rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs flex items-center justify-start gap-3">
                   <div
                     className="relative flex size-14 shrink-0 items-center justify-center rounded-full"
                     style={{
@@ -470,7 +490,29 @@ export default function DashboardNewPage() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-fb-text-primary">TTM Index (QLDA)</p>
-                    <p className="text-[10px] text-fb-text-secondary">Tỷ lệ Đạt TTM-CNTT</p>
+                    <p className="text-[10px] text-fb-text-secondary">{executiveMetrics.passTtm}/{executiveMetrics.eligibleTtm}</p>
+                  </div>
+                </div>
+
+                {/* Health Index Ring — TTM-CNTT-QA: same ratio, scoped to MVP Done/Released only */}
+                <div className="col-span-2 sm:col-span-2 lg:col-span-1 rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs flex items-center justify-start gap-3">
+                  <div
+                    className="relative flex size-14 shrink-0 items-center justify-center rounded-full"
+                    style={{
+                      background: qaMetrics.total > 0
+                        ? `conic-gradient(#7c3aed 0% ${qaMetrics.pct}%, #e4e6eb ${qaMetrics.pct}% 100%)`
+                        : '#e4e6eb',
+                    }}
+                  >
+                    <div className="flex size-10 items-center justify-center rounded-full bg-fb-surface font-extrabold text-xs text-purple-700">
+                      {qaMetrics.total > 0 ? `${qaMetrics.pct}%` : '—'}
+                    </div>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-fb-text-primary">TTM Index (QA)</p>
+                    <p className="text-[10px] text-fb-text-secondary">
+                      {qaMetrics.total > 0 ? `${qaMetrics.pass}/${qaMetrics.eligible}` : 'Chưa có Epic MVP Done/Released'}
+                    </p>
                   </div>
                 </div>
 
@@ -480,29 +522,49 @@ export default function DashboardNewPage() {
                   <p className="text-[10px] text-fb-text-secondary">Thuộc phạm vi lọc</p>
                 </div>
 
-                <div className="rounded-xl border border-red-200 bg-red-50/50 p-3 shadow-xs">
+                <Link
+                  href={toEpicAlertsLink({ alert: 'FAIL' })}
+                  className="block rounded-xl border border-red-200 bg-red-50/50 p-3 shadow-xs transition-all hover:border-red-400 hover:shadow-sm"
+                  title="Xem danh sách Epic Fail TTM-CNTT ở Quản trị Epic"
+                >
                   <p className="text-[10px] font-bold uppercase text-status-danger">Fail TTM-CNTT</p>
                   <p className="mt-1 text-xl font-extrabold text-status-danger">{executiveMetrics.failCntt}</p>
                   <p className="text-[10px] text-red-600 font-medium">Vượt R4G Target</p>
-                </div>
+                </Link>
 
-                <div className="rounded-xl border border-red-200 bg-red-50/50 p-3 shadow-xs">
+                <Link
+                  href={toEpicAlertsLink({ alert: 'FAIL_E2E' })}
+                  className="block rounded-xl border border-red-200 bg-red-50/50 p-3 shadow-xs transition-all hover:border-red-400 hover:shadow-sm"
+                  title="Xem danh sách Epic Fail TTM-E2E ở Quản trị Epic"
+                >
                   <p className="text-[10px] font-bold uppercase text-status-danger">Fail TTM-E2E</p>
                   <p className="mt-1 text-xl font-extrabold text-status-danger">{executiveMetrics.failE2e}</p>
                   <p className="text-[10px] text-red-600 font-medium">Vượt Due Date Target</p>
-                </div>
+                </Link>
 
                 <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 shadow-xs">
                   <p className="text-[10px] font-bold uppercase text-status-warning">Cảnh báo (Sớm/Muộn)</p>
                   <p className="mt-1 text-xl font-extrabold text-status-warning">{executiveMetrics.lateWarning + executiveMetrics.earlyWarning}</p>
-                  <p className="text-[10px] text-amber-700 font-medium">{executiveMetrics.lateWarning} muộn · {executiveMetrics.earlyWarning} sớm</p>
+                  <p className="text-[10px] text-amber-700 font-medium">
+                    <Link href={toEpicAlertsLink({ alert: 'LATE' })} className="underline-offset-2 hover:underline" title="Xem danh sách Epic Cảnh báo muộn ở Quản trị Epic">
+                      {executiveMetrics.lateWarning} muộn
+                    </Link>
+                    {' · '}
+                    <Link href={toEpicAlertsLink({ alert: 'EARLY' })} className="underline-offset-2 hover:underline" title="Xem danh sách Epic Cảnh báo sớm ở Quản trị Epic">
+                      {executiveMetrics.earlyWarning} sớm
+                    </Link>
+                  </p>
                 </div>
 
-                <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-3 shadow-xs">
+                <Link
+                  href={toEpicAlertsLink({ dataIssue: true })}
+                  className="block rounded-xl border border-purple-200 bg-purple-50/50 p-3 shadow-xs transition-all hover:border-purple-400 hover:shadow-sm"
+                  title="Xem danh sách Epic sai lệch dữ liệu ở Quản trị Epic"
+                >
                   <p className="text-[10px] font-bold uppercase text-purple-700">Sai lệch Dữ liệu</p>
                   <p className="mt-1 text-xl font-extrabold text-purple-700">{executiveMetrics.anomalyCount}</p>
                   <p className="text-[10px] text-purple-600 font-medium">Vi phạm rule R1-R6</p>
-                </div>
+                </Link>
               </div>
 
               {/* Interactive Breakdown Matrix Table */}
@@ -541,9 +603,10 @@ export default function DashboardNewPage() {
                         <TR>
                           <TH>{DIMENSION_LABELS[dimensionKey]}</TH>
                           <TH className="text-center">Tổng số Epic</TH>
-                          <TH className="w-64">Tỷ lệ Tiến độ & TTM (%)</TH>
+                          <TH className="w-56">TTM-CNTT (QLDA)</TH>
                           <TH className="text-center">Pass TTM</TH>
                           <TH className="text-center">Fail TTM</TH>
+                          <TH className="w-40">TTM-CNTT (QA)</TH>
                           <TH className="text-center">Đúng tiến độ</TH>
                           <TH className="text-center">Chậm tiến độ</TH>
                         </TR>
@@ -556,14 +619,30 @@ export default function DashboardNewPage() {
                             <TD>
                               <div className="flex items-center gap-2">
                                 <div className="h-2.5 flex-1 rounded-full bg-fb-control overflow-hidden flex">
-                                  <div style={{ width: `${item.passPct}%` }} className="bg-status-success h-full" title={`Pass: ${item.passPct}%`} />
-                                  <div style={{ width: `${100 - item.passPct}%` }} className="bg-status-danger h-full" title={`Rủi ro: ${100 - item.passPct}%`} />
+                                  <div style={{ width: `${item.qlda.pct}%` }} className="bg-status-success h-full" title={`Pass: ${item.qlda.pct}%`} />
+                                  <div style={{ width: `${100 - item.qlda.pct}%` }} className="bg-status-danger h-full" title={`Rủi ro: ${100 - item.qlda.pct}%`} />
                                 </div>
-                                <span className="w-9 text-right text-xs font-bold text-fb-text-primary">{item.passPct}%</span>
+                                <span className="w-9 text-right text-xs font-bold text-fb-text-primary">{item.qlda.pct}%</span>
                               </div>
                             </TD>
-                            <TD className="text-center font-semibold text-status-success">{item.pass}</TD>
-                            <TD className="text-center font-semibold text-status-danger">{item.fail}</TD>
+                            <TD className="text-center font-semibold text-status-success">{item.qlda.pass}</TD>
+                            <TD className="text-center font-semibold text-status-danger">{item.qlda.fail}</TD>
+                            <TD>
+                              {item.qa.total > 0 ? (
+                                <div className="flex flex-col gap-0.5">
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-2 flex-1 rounded-full bg-fb-control overflow-hidden flex">
+                                      <div style={{ width: `${item.qa.pct}%` }} className="bg-purple-600 h-full" title={`Pass QA: ${item.qa.pct}%`} />
+                                      <div style={{ width: `${100 - item.qa.pct}%` }} className="bg-status-danger h-full" title={`Rủi ro QA: ${100 - item.qa.pct}%`} />
+                                    </div>
+                                    <span className="w-9 text-right text-xs font-bold text-purple-700">{item.qa.pct}%</span>
+                                  </div>
+                                  <p className="text-[10px] text-fb-text-secondary">{item.qa.pass}/{item.qa.eligible} Epic MVP Done/Released</p>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-fb-text-placeholder">— Chưa có Epic MVP Done/Released</span>
+                              )}
+                            </TD>
                             <TD className="text-center font-semibold text-fb-text-primary">{item.ok}</TD>
                             <TD className="text-center font-semibold text-status-warning">{item.late}</TD>
                           </TR>
