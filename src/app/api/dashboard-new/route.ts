@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser, listManagedUsers } from '@/lib/auth-service';
+import { AuthError, requireUser, listManagedUsers } from '@/lib/auth-service';
 import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
 import pool from '@/lib/db';
 import type { UserRole } from '@/lib/auth-types';
+
+function authError(error: unknown): NextResponse | null {
+  if (error instanceof AuthError) {
+    return NextResponse.json({ error: error.code === 'FORBIDDEN' ? 'Bạn không có quyền xem màn hình này.' : 'Chưa đăng nhập.' }, { status: error.code === 'FORBIDDEN' ? 403 : 401 });
+  }
+  return null;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -58,6 +65,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Dashboard New API error:', error);
-    return NextResponse.json({ error: 'Không thể tải dữ liệu Dashboard New.' }, { status: 500 });
+    return authError(error) ?? NextResponse.json({ error: 'Không thể tải dữ liệu Dashboard New.' }, { status: 500 });
   }
 }

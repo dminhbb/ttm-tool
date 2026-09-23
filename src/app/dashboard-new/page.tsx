@@ -1,31 +1,18 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowBendUpRight,
-  ArrowRight,
-  Bandaids,
-  BriefcaseMetal,
   CaretDown,
-  CaretLineRight,
   CaretRight,
   ChartBar,
   ChartPie,
-  CheckCircle,
   Checks,
-  Clock,
   Eye,
   Funnel,
-  Gauge,
-  Info,
-  List,
   MagnifyingGlass,
   SlidersHorizontal,
-  User,
-  UserSwitch,
   Warning,
   WarningCircle,
-  X,
 } from '@phosphor-icons/react';
 
 import { Alert } from '@/components/ui/Alert';
@@ -38,6 +25,7 @@ import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { TableAction } from '@/components/ui/TableAction';
 import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
+import { DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
 import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
 
@@ -107,13 +95,23 @@ export default function DashboardNewPage() {
   const [filterDomain, setFilterDomain] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  // Pagination for the Operational "Progress" list
+  const PROGRESS_PAGE_SIZE = 50;
+  const [progressPage, setProgressPage] = useState(1);
+
+  // Guards against an out-of-order response overwriting a newer one when
+  // previewUserId changes rapidly (e.g. switching between two users quickly).
+  const requestIdRef = useRef(0);
+
   const loadData = async (userId: number | null) => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
     try {
       const url = userId ? `/api/dashboard-new?viewAsUserId=${userId}` : '/api/dashboard-new';
       const res = await fetch(url, { cache: 'no-store' });
       const json: unknown = await res.json();
+      if (requestIdRef.current !== requestId) return;
       if (!res.ok) {
         throw new Error(typeof json === 'object' && json !== null && 'error' in json && typeof json.error === 'string' ? json.error : 'Không thể tải dữ liệu.');
       }
@@ -129,9 +127,10 @@ export default function DashboardNewPage() {
         setViewMode('EXECUTIVE');
       }
     } catch (err) {
+      if (requestIdRef.current !== requestId) return;
       setError(err instanceof Error ? err.message : 'Đã có lỗi xảy ra.');
     } finally {
-      setLoading(false);
+      if (requestIdRef.current === requestId) setLoading(false);
     }
   };
 
@@ -214,7 +213,7 @@ export default function DashboardNewPage() {
       const curr = map.get(keyVal) ?? { fail: 0, late: 0, ok: 0, pass: 0, total: 0 };
       curr.total += 1;
 
-      const isReleased = Boolean(row.stages.release.isDone || row.dueDate);
+      const isReleased = Boolean(row.stages.release.isDone && row.dueDate);
       if (isReleased) {
         if (row.alertLevel === 'FAIL' || row.ttmE2eAlertLevel === 'FAIL') curr.fail += 1;
         else curr.pass += 1;
@@ -287,6 +286,14 @@ export default function DashboardNewPage() {
     return filteredRows.filter((r) => r.hasDataAnomaly);
   }, [filteredRows]);
 
+  // Paginated slice for the Operational "Progress" list
+  const progressTotalPages = Math.max(1, Math.ceil(filteredRows.length / PROGRESS_PAGE_SIZE));
+  const progressPageClamped = Math.min(progressPage, progressTotalPages);
+  const progressRows = useMemo(() => {
+    const start = (progressPageClamped - 1) * PROGRESS_PAGE_SIZE;
+    return filteredRows.slice(start, start + PROGRESS_PAGE_SIZE);
+  }, [filteredRows, progressPageClamped]);
+
   // Projects & Domains options
   const projectOptions = useMemo(() => {
     if (!data) return [];
@@ -333,7 +340,10 @@ export default function DashboardNewPage() {
               </span>
               <button
                 type="button"
-                onClick={() => setPreviewUserId(null)}
+                onClick={() => {
+                  setPreviewUserId(null);
+                  setViewMode('EXECUTIVE');
+                }}
                 className="h-7 shrink-0 rounded-md bg-white border border-amber-300 px-2.5 text-xs font-bold text-amber-900 hover:bg-amber-100 transition-colors shadow-xs"
               >
                 Trở về Lead View
@@ -341,22 +351,14 @@ export default function DashboardNewPage() {
             </div>
           )}
 
-          {isAdminOrSupervisor && !data?.isUserPreview && (
-            <button
-              type="button"
-              onClick={() => setShowUserModal(true)}
-              className="flex h-9 items-center gap-1.5 rounded-lg border border-fb-border bg-fb-surface px-3 text-xs font-semibold text-fb-text-primary hover:bg-fb-surface-muted transition-colors shrink-0 shadow-xs"
-            >
-              <UserSwitch className="size-4 text-fb-blue" weight="bold" />
-              Xem dưới dạng User
-            </button>
-          )}
-
           {isAdminOrSupervisor && (
             <div className="flex h-9 items-center rounded-lg border border-fb-border bg-fb-surface-muted p-1 shrink-0">
               <button
                 type="button"
-                onClick={() => setViewMode('EXECUTIVE')}
+                onClick={() => {
+                  setPreviewUserId(null);
+                  setViewMode('EXECUTIVE');
+                }}
                 className={`flex h-7 items-center justify-center rounded-md px-3 text-xs font-bold transition-all ${
                   viewMode === 'EXECUTIVE'
                     ? 'bg-fb-blue text-white shadow-xs'
@@ -367,7 +369,9 @@ export default function DashboardNewPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setViewMode('OPERATIONAL')}
+                onClick={() => {
+                  if (viewMode !== 'OPERATIONAL') setShowUserModal(true);
+                }}
                 className={`flex h-7 items-center justify-center rounded-md px-3 text-xs font-bold transition-all ${
                   viewMode === 'OPERATIONAL'
                     ? 'bg-fb-blue text-white shadow-xs'
@@ -465,8 +469,8 @@ export default function DashboardNewPage() {
                     </div>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-fb-text-primary">TTM Health Index</p>
-                    <p className="text-[10px] text-fb-text-secondary">Đạt TTM CNTT & E2E</p>
+                    <p className="text-xs font-bold text-fb-text-primary">TTM Index (QLDA)</p>
+                    <p className="text-[10px] text-fb-text-secondary">Tỷ lệ Đạt TTM-CNTT</p>
                   </div>
                 </div>
 
@@ -749,7 +753,7 @@ export default function DashboardNewPage() {
                           </TR>
                         </THead>
                         <TBody>
-                          {filteredRows.slice(0, 50).map((row) => (
+                          {progressRows.map((row) => (
                             <TR key={row.epicKey}>
                               <TD>
                                 <button
@@ -805,6 +809,33 @@ export default function DashboardNewPage() {
                         </TBody>
                       </Table>
                     </TableContainer>
+                    {filteredRows.length > 0 && (
+                      <div className="flex items-center justify-between gap-3 border-t border-fb-border px-4 py-2.5">
+                        <p className="text-xs text-fb-text-secondary">
+                          Hiển thị {(progressPageClamped - 1) * PROGRESS_PAGE_SIZE + 1}
+                          –{Math.min(progressPageClamped * PROGRESS_PAGE_SIZE, filteredRows.length)} trên tổng {filteredRows.length} Epic
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            disabled={progressPageClamped <= 1}
+                            onClick={() => setProgressPage((p) => Math.max(1, p - 1))}
+                          >
+                            Trước
+                          </Button>
+                          <span className="text-xs font-semibold text-fb-text-secondary">
+                            Trang {progressPageClamped}/{progressTotalPages}
+                          </span>
+                          <Button
+                            variant="outline"
+                            disabled={progressPageClamped >= progressTotalPages}
+                            onClick={() => setProgressPage((p) => Math.min(progressTotalPages, p + 1))}
+                          >
+                            Sau
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </CardBody>
                 </Card>
               )}
@@ -901,8 +932,7 @@ export default function DashboardNewPage() {
                                   <Badge variant="danger">Sai lệch dữ liệu</Badge>
                                 </TD>
                                 <TD className="text-xs text-purple-700 font-medium">
-                                  {!row.t1StartDate ? '• Thiếu Start Date (R1) ' : ''}
-                                  {row.epicType === 'SP-Lv12' ? '• SP mức 1-2 mâu thuẫn (R6)' : ''}
+                                  <DataAnomalyList violations={row.dataAnomalyViolations} />
                                 </TD>
                               </TR>
                             ))}
