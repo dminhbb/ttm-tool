@@ -72,7 +72,7 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
   const insertSnapshotQuery = `
     INSERT INTO epic_ttm_snapshots (
       epic_key, epic_name, project_key, domain_id, assignee_name, current_status,
-      epic_complexity_type, requirement_level, idea_approved_date, start_date, r4g_date, due_date,
+      epic_complexity_type, requirement_level, requesting_unit, idea_approved_date, start_date, r4g_date, due_date,
       target_r4g_date, source_import_batch_id, aggregated_at
     )
     SELECT
@@ -82,7 +82,7 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
         NULLIF(SPLIT_PART(issues.issue_key, '-', 1), '')
       ),
       project.domain_id, issues.assignee_name, issues.current_status,
-      issues.epic_complexity_type, issues.requirement_level, issues.idea_approved_date, issues.start_date,
+      issues.epic_complexity_type, issues.requirement_level, issues.requesting_unit, issues.idea_approved_date, issues.start_date,
       issues.r4g_date, issues.due_date, issues.target_r4g_date, issues.source_import_batch_id,
       issues.aggregated_at
     FROM issues
@@ -114,6 +114,7 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
       current_status = EXCLUDED.current_status,
       epic_complexity_type = EXCLUDED.epic_complexity_type,
       requirement_level = EXCLUDED.requirement_level,
+      requesting_unit = EXCLUDED.requesting_unit,
       idea_approved_date = EXCLUDED.idea_approved_date,
       start_date = EXCLUDED.start_date,
       r4g_date = EXCLUDED.r4g_date,
@@ -491,7 +492,7 @@ export async function processImport(
         'source_system', 'jira_id', 'issue_key', 'issue_name', 'issue_type', 'current_status',
         'standard_status', 'assignee_name', 'epic_key', 'parent_key',
         'idea_approved_date', 'start_date', 'r4g_date', 'due_date',
-        'epic_complexity_type', 'requirement_level', 'source_import_batch_id', 'aggregated_at',
+        'epic_complexity_type', 'requirement_level', 'requesting_unit', 'source_import_batch_id', 'aggregated_at',
         'jira_created_at', 'jira_updated_at', 'epic_stories', 'story_subtasks', 'components',
       ];
       const insertIssueUpdateClause = `
@@ -508,6 +509,7 @@ export async function processImport(
           due_date = EXCLUDED.due_date,
           epic_complexity_type = EXCLUDED.epic_complexity_type,
           requirement_level = EXCLUDED.requirement_level,
+          requesting_unit = EXCLUDED.requesting_unit,
           jira_created_at = EXCLUDED.jira_created_at,
           jira_updated_at = EXCLUDED.jira_updated_at,
           aggregated_at = EXCLUDED.aggregated_at,
@@ -544,6 +546,7 @@ export async function processImport(
           parseJiraDate(issue.dueDate),
           complexity,
           issue.requirementLevel || null,
+          issue.requestingUnit || null,
           batchId,
           aggregatedAtDate,
           jiraCreatedAt,

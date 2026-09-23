@@ -44,6 +44,8 @@ export interface EpicRow {
   jiraCreatedAt: string | null;
   project: string | null;
   r4gDate: string | null;
+  /** "Đơn vị yêu cầu" — issues.requesting_unit, epic rows only (Py Jira API adapter). */
+  requestingUnit: string | null;
   requirementLevel: string | null;
   startDate: string | null;
   status: string;
@@ -429,6 +431,7 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole, filt
       issues.target_r4g_date::text AS "targetR4gDate",
       issues.due_date::text AS "dueDate",
       issues.requirement_level AS "requirementLevel",
+      issues.requesting_unit AS "requestingUnit",
       issues.aggregated_at::text AS "aggregatedAt",
       COALESCE(issues.components, '{}') AS components,
       COALESCE(
@@ -588,6 +591,7 @@ export async function getEpicAlertRows(userId: number, role: UserRole, filters: 
       projectKey: row.project ?? '',
       r4gDate: row.r4gDate,
       remainingWorkingDays,
+      requestingUnit: row.requestingUnit,
       requirementLevel: row.requirementLevel,
       sourceType: 'CSV',
       stages: { design: designCell, inProgress: inProgressCell, r4g: r4gCell, release: releaseCell },

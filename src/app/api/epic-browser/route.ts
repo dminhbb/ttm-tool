@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
-import { getEpicBrowserChildren, getEpicBrowserRoot } from '@/lib/epic-browser-service';
+import { getEpicBrowserChildren, getEpicBrowserRoot, getEpicBrowserSummary } from '@/lib/epic-browser-service';
 
 function authError(error: unknown): NextResponse | null {
   if (error instanceof AuthError) {
@@ -20,9 +20,13 @@ export async function GET(request: NextRequest) {
     const level = url.searchParams.get('level');
 
     if (epicKey) {
-      const root = await getEpicBrowserRoot(epicKey.trim());
+      const trimmedEpicKey = epicKey.trim();
+      const [root, summary] = await Promise.all([
+        getEpicBrowserRoot(trimmedEpicKey),
+        getEpicBrowserSummary(trimmedEpicKey),
+      ]);
       if (!root) return NextResponse.json({ error: `Không tìm thấy Epic ${epicKey}.` }, { status: 404 });
-      return NextResponse.json(root);
+      return NextResponse.json({ root, summary });
     }
 
     if (parentIdParam || level) {

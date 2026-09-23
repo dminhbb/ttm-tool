@@ -425,6 +425,7 @@ function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRowPhased; onClose:
           <AlertPopupField label="Status" value={row.currentStatus || '-'} />
           <AlertPopupField label="PM/SM" value={row.ownerName || '-'} />
           <AlertPopupField label="Domain (của PM/SM)" value={row.domainName || '-'} />
+          <AlertPopupField label="Đơn vị yêu cầu" value={row.requestingUnit || '-'} />
           <AlertPopupField label="Lớp dữ liệu đang sử dụng" value={formatDate(row.dataLayerDate)} />
         </div>
         <div className="ttm-alert-popup-right">
@@ -483,6 +484,7 @@ export default function EpicAlerts15Page() {
   const [alertFilter, setAlertFilter] = useState<AlertFilterValue>('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
+  const [requestingUnitFilter, setRequestingUnitFilter] = useState('');
   const [dataIssueFilter, setDataIssueFilter] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -577,6 +579,10 @@ export default function EpicAlerts15Page() {
     [rows],
   );
   const statusOptions = useMemo(() => [...new Set(rows.map((row) => row.currentStatus).filter(Boolean))].sort(), [rows]);
+  const requestingUnitOptions = useMemo(
+    () => [...new Set(rows.map((row) => row.requestingUnit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, 'vi')),
+    [rows],
+  );
   // Options = the catalog's components for whichever projects are selected — disabled entirely
   // (no options, filter cleared) until at least one project is picked.
   const componentOptions = useMemo(
@@ -629,8 +635,9 @@ export default function EpicAlerts15Page() {
       && (!typeFilter || row.epicType === typeFilter)
       && (statusFilters.length === 0 || statusFilters.includes(row.currentStatus))
       && (!dataIssueFilter || row.hasDataAnomaly)
+      && (!requestingUnitFilter || row.requestingUnit === requestingUnitFilter)
       && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch));
-  }), [rows, projectFilters, pmSmFilter, componentFilters, alertFilter, typeFilter, statusFilters, dataIssueFilter, search]);
+  }), [rows, projectFilters, pmSmFilter, componentFilters, alertFilter, typeFilter, statusFilters, dataIssueFilter, requestingUnitFilter, search]);
 
   // Raw status strings (case as stored) whose normalized form is PENDING/TO DO — the Pending/To Do
   // stat widgets set the Status filter (a multi-select) to exactly this set.
@@ -742,6 +749,15 @@ export default function EpicAlerts15Page() {
           value={statusFilters}
           onChange={(values) => { setStatusFilters(values); setPage(1); }}
         />
+        <select
+          className={`ttm-select${requestingUnitFilter ? ' has-filter' : ''}`}
+          aria-label="Đơn vị yêu cầu"
+          value={requestingUnitFilter}
+          onChange={(event) => { setRequestingUnitFilter(event.target.value); setPage(1); }}
+        >
+          <option value="">Tất cả đơn vị yêu cầu</option>
+          {requestingUnitOptions.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+        </select>
         <input
           className={`ttm-field ttm-search-field${search.trim() ? ' has-filter' : ''}`}
           type="search"

@@ -14,6 +14,8 @@ export interface RawJiraIssue {
   epicStatus: string;
   epicType: string;
   requirementLevel: string;
+  /** "Đơn vị yêu cầu" — epic_requesting_unit, epic rows only (Py Jira API adapter). */
+  requestingUnit?: string;
   startDate: string;
   r4gDate: string;
   ideaApprovedDate: string;

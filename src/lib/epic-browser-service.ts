@@ -7,6 +7,7 @@ import {
   STORY_ISSUE_TYPES_SQL,
 } from '@/lib/issue-resolution-sql';
 import type { DataReviewChildrenResponse, DataReviewIssue } from '@/lib/data-review-types';
+import { getDomainByProjectKeyMap, getProjectMetaByProjectKeyMap } from '@/lib/master-data-service';
 
 /**
  * Canonical row shape + mapper for every Epic Browser query (this file, and data-review-service.ts
@@ -201,4 +202,81 @@ export async function getEpicBrowserChildren(
   `, queryParams);
 
   return { items: result.rows.map(toIssue) };
+}
+
+/**
+ * Epic-level summary fields shown below the Jira issue tree on the "Duyệt Epic" (Epic Browser)
+ * popup — the same info fields as the left column of the "Epic History" popup on Quản trị Epic /
+ * Epic in PO (AlertPopupField list in those pages), independently resolvable from just an Epic
+ * Key so this popup works from every context it's opened from (Quản trị Epic, Epic in PO, Báo
+ * cáo, Dashboard), not only when the caller already has a fully-evaluated row in memory.
+ */
+export interface EpicBrowserSummary {
+  /** Which import data layer (aggregated_at) this Epic's latest known row currently comes from. */
+  dataLayerDate: string | null;
+  domainName: string;
+  epicKey: string;
+  epicName: string;
+  ideaApprovedDate: string | null;
+  /** PM/SM of the Epic's project — comma-joined when there are several, derived live from
+   * user_projects (getProjectMetaByProjectKeyMap), not the Jira assignee. */
+  ownerName: string;
+  projectName: string;
+  /** "Đơn vị yêu cầu" — issues.requesting_unit, epic rows only (Py Jira API adapter). */
+  requestingUnit: string | null;
+  startDate: string | null;
+  status: string;
+}
+
+interface EpicBrowserSummaryRow {
+  aggregatedAt: string | null;
+  epicKey: string;
+  epicName: string;
+  ideaApprovedDate: string | null;
+  project: string | null;
+  requestingUnit: string | null;
+  startDate: string | null;
+  status: string;
+}
+
+export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowserSummary | null> {
+  const [result, domainByProjectKey, projectMetaByProjectKey] = await Promise.all([
+    pool.query<EpicBrowserSummaryRow>(`
+      SELECT
+        issues.issue_key AS "epicKey", issues.issue_name AS "epicName", issues.current_status AS status,
+        issues.start_date::text AS "startDate", issues.idea_approved_date::text AS "ideaApprovedDate",
+        issues.requesting_unit AS "requestingUnit", issues.aggregated_at::text AS "aggregatedAt",
+        COALESCE(
+          NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+          NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),
+          ''
+        ) AS project
+      FROM issues
+      LEFT JOIN import_rows
+        ON import_rows.import_batch_id = issues.source_import_batch_id
+        AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = issues.issue_key
+      WHERE issues.issue_key = $1 AND UPPER(issues.issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
+      ORDER BY issues.aggregated_at DESC
+      LIMIT 1;
+    `, [epicKey]),
+    getDomainByProjectKeyMap(),
+    getProjectMetaByProjectKeyMap(),
+  ]);
+
+  const row = result.rows[0];
+  if (!row) return null;
+
+  const projectMeta = row.project ? projectMetaByProjectKey.get(row.project) : undefined;
+  return {
+    dataLayerDate: row.aggregatedAt,
+    domainName: (row.project && domainByProjectKey.get(row.project)) ?? '',
+    epicKey: row.epicKey,
+    epicName: row.epicName,
+    ideaApprovedDate: row.ideaApprovedDate,
+    ownerName: projectMeta?.leadName ?? '',
+    projectName: projectMeta?.projectName ?? '',
+    requestingUnit: row.requestingUnit,
+    startDate: row.startDate,
+    status: row.status,
+  };
 }

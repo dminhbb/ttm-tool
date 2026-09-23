@@ -424,6 +424,7 @@ function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRowPhased; onClose:
           <AlertPopupField label="Status" value={row.currentStatus || '-'} />
           <AlertPopupField label="PM/SM" value={row.ownerName || '-'} />
           <AlertPopupField label="Domain (của PM/SM)" value={row.domainName || '-'} />
+          <AlertPopupField label="Đơn vị yêu cầu" value={row.requestingUnit || '-'} />
           <AlertPopupField label="Lớp dữ liệu đang sử dụng" value={formatDate(row.dataLayerDate)} />
         </div>
         <div className="ttm-alert-popup-right">
@@ -481,6 +482,7 @@ export default function EpicInPoPage() {
   const [alertFilter, setAlertFilter] = useState<AlertFilterValue>('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
+  const [requestingUnitFilter, setRequestingUnitFilter] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   // "Bộ lọc nâng cao" — collapsed by default; see epic-alerts-15/page.tsx for the shared pattern
@@ -577,6 +579,10 @@ export default function EpicInPoPage() {
     [rows],
   );
   const statusOptions = useMemo(() => [...new Set(rows.map((row) => row.currentStatus).filter(Boolean))].sort(), [rows]);
+  const requestingUnitOptions = useMemo(
+    () => [...new Set(rows.map((row) => row.requestingUnit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, 'vi')),
+    [rows],
+  );
   const componentOptions = useMemo(
     () => [...new Set(projectComponents.filter((component) => projectFilters.includes(component.projectKey)).map((component) => component.componentName))].sort(),
     [projectComponents, projectFilters],
@@ -618,8 +624,9 @@ export default function EpicInPoPage() {
       && matchesAlertFilter(row, alertFilter)
       && (!typeFilter || row.epicType === typeFilter)
       && (statusFilters.length === 0 || statusFilters.includes(row.currentStatus))
+      && (!requestingUnitFilter || row.requestingUnit === requestingUnitFilter)
       && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch));
-  }), [rows, projectFilters, pmSmFilter, componentFilters, alertFilter, typeFilter, statusFilters, search]);
+  }), [rows, projectFilters, pmSmFilter, componentFilters, alertFilter, typeFilter, statusFilters, requestingUnitFilter, search]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -699,6 +706,15 @@ export default function EpicInPoPage() {
           value={statusFilters}
           onChange={(values) => { setStatusFilters(values); setPage(1); }}
         />
+        <select
+          className={`ttm-select${requestingUnitFilter ? ' has-filter' : ''}`}
+          aria-label="Đơn vị yêu cầu"
+          value={requestingUnitFilter}
+          onChange={(event) => { setRequestingUnitFilter(event.target.value); setPage(1); }}
+        >
+          <option value="">Tất cả đơn vị yêu cầu</option>
+          {requestingUnitOptions.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+        </select>
         <input
           className={`ttm-field ttm-search-field${search.trim() ? ' has-filter' : ''}`}
           type="search"

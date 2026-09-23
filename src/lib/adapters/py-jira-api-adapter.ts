@@ -12,7 +12,8 @@
  * Column schema by level (only relevant columns are populated per row;
  * columns for other levels are present but empty):
  *
- * Epic   : epic_key, epic_name, epic_request_type, epic_assignee, epic_idea_approval_date,
+ * Epic   : epic_key, epic_name, epic_request_type, epic_assignee, epic_requesting_unit
+ *             ("Đơn vị yêu cầu"), epic_idea_approval_date,
  *           epic_start_date, epic_due_date, epic_r4g_date,
  *           epic_created, epic_updated, epic_components,
  *           epic_stories (comma/semicolon-separated story keys, stored verbatim — not the
@@ -100,6 +101,7 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
     epic_updated: idx('epic_updated'),
     epic_components: idx('epic_components'),
     epic_stories: idx('epic_stories'),
+    epic_requesting_unit: idx('epic_requesting_unit'),
     // epic_request_level is the current column name; epic_requirement_level is kept as a fallback
     // for files exported before the rename, so older files keep importing this field correctly.
     epic_requirement_level: idx('epic_request_level') >= 0 ? idx('epic_request_level') : idx('epic_requirement_level'),
@@ -162,6 +164,7 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
         epicStatus: '',
         epicType: epicRequestType,
         requirementLevel: get(COL.epic_requirement_level),
+        requestingUnit: get(COL.epic_requesting_unit),
         ideaApprovedDate: get(COL.epic_idea_approval_date),
         startDate: get(COL.epic_start_date),
         dueDate: get(COL.epic_due_date),

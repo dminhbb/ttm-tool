@@ -40,6 +40,8 @@ export interface EpicAlertRow {
   projectKey: string;
   r4gDate: string | null;
   remainingWorkingDays: number | null;
+  /** "Đơn vị yêu cầu" — issues.requesting_unit. */
+  requestingUnit: string | null;
   requirementLevel: string | null;
   sourceType: 'CSV';
   stages: {
@@ -144,6 +146,8 @@ export interface EpicAlertRowPhased {
   projectName: string;
   r4gDate: string | null;
   remainingWorkingDays: number | null;
+  /** "Đơn vị yêu cầu" — issues.requesting_unit. */
+  requestingUnit: string | null;
   requirementLevel: string | null;
   sourceType: 'CSV';
   stages: {

@@ -201,6 +201,7 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole, fil
       projectName: projectName || row.project || '',
       r4gDate: row.r4gDate,
       remainingWorkingDays,
+      requestingUnit: row.requestingUnit,
       requirementLevel: row.requirementLevel,
       sourceType: 'CSV',
       stages: { ...stages, release: releaseCell },

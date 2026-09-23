@@ -656,7 +656,7 @@ export function ImportIssuesTab() {
                 Cột theo từng cấp (chỉ điền ở dòng tương ứng cấp đó, các dòng khác để trống):
               </p>
               <ul className="list-disc pl-4 text-[10px] leading-5 text-fb-text-secondary">
-                <li><strong className="text-fb-text-primary">Epic</strong>: epic_key, epic_name, epic_status, epic_request_type, epic_request_level, epic_assignee, epic_idea_approval_date, epic_start_date, epic_due_date, epic_r4g_date, epic_created, epic_updated, epic_Components, epic_stories</li>
+                <li><strong className="text-fb-text-primary">Epic</strong>: epic_key, epic_name, epic_status, epic_request_type, epic_request_level, epic_assignee, epic_requesting_unit (Đơn vị yêu cầu), epic_idea_approval_date, epic_start_date, epic_due_date, epic_r4g_date, epic_created, epic_updated, epic_Components, epic_stories</li>
                 <li><strong className="text-fb-text-primary">Story</strong>: story_key, story_issue_type, story_summary, story_status, story_assignee, story_Components, story_subtasks (+ epic_key của dòng)</li>
                 <li><strong className="text-fb-text-primary">Subtask</strong>: subtask_key, subtask_issue_type, subtask_summary, subtask_status, subtask_assignee, subtask_start_date, subtask_due_date (+ story_key, epic_key của dòng)</li>
               </ul>

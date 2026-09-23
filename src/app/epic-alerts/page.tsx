@@ -357,6 +357,7 @@ export default function EpicAlertsPage() {
   const [alertFilter, setAlertFilter] = useState<AlertFilterValue>('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [requestingUnitFilter, setRequestingUnitFilter] = useState('');
   const [dataIssueFilter, setDataIssueFilter] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -434,6 +435,10 @@ export default function EpicAlertsPage() {
     [rows],
   );
   const statusOptions = useMemo(() => [...new Set(rows.map((row) => row.currentStatus).filter(Boolean))].sort(), [rows]);
+  const requestingUnitOptions = useMemo(
+    () => [...new Set(rows.map((row) => row.requestingUnit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, 'vi')),
+    [rows],
+  );
   // Options = the catalog's components for whichever projects are selected — disabled entirely
   // (no options, filter cleared) until at least one project is picked.
   const componentOptions = useMemo(
@@ -478,8 +483,9 @@ export default function EpicAlertsPage() {
       && (!typeFilter || row.epicType === typeFilter)
       && (!statusFilter || row.currentStatus === statusFilter)
       && (!dataIssueFilter || row.hasDataAnomaly)
+      && (!requestingUnitFilter || row.requestingUnit === requestingUnitFilter)
       && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch));
-  }), [rows, projectFilters, pmSmFilter, componentFilters, alertFilter, typeFilter, statusFilter, dataIssueFilter, search]);
+  }), [rows, projectFilters, pmSmFilter, componentFilters, alertFilter, typeFilter, statusFilter, dataIssueFilter, requestingUnitFilter, search]);
 
   // Raw status strings (case as stored) whose normalized form is PENDING/TO DO — the Status filter
   // is a single exact-match value, so the Pending/To Do stat widgets need the actual string(s) to
@@ -592,6 +598,15 @@ export default function EpicAlertsPage() {
         >
           <option value="">Tất cả status</option>
           {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+        </select>
+        <select
+          className={`ttm-select${requestingUnitFilter ? ' has-filter' : ''}`}
+          aria-label="Đơn vị yêu cầu"
+          value={requestingUnitFilter}
+          onChange={(event) => { setRequestingUnitFilter(event.target.value); setPage(1); }}
+        >
+          <option value="">Tất cả đơn vị yêu cầu</option>
+          {requestingUnitOptions.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
         </select>
         <input
           className={`ttm-field ttm-search-field${search.trim() ? ' has-filter' : ''}`}
