@@ -48,6 +48,34 @@ blocks any commit that changes app files without also staging an updated `versio
 is the actual enforcement; this section is what tells you *why* and *how* to satisfy it before you
 hit the block.
 
+# Daily change log
+
+This project is developed continuously across multiple machines/sessions (see `.env.local` per
+machine and the "Multi-database" section above), so nobody can rely on scrollback or a single
+machine's shell history to know what changed. `daily_change_log.md` at the repo root exists so the
+next session — on any machine, by any agent — can catch up by reading one file instead of replaying
+`git log`.
+
+After finishing each user request that changes app code, schema, or config (not needed for
+pure-review/read-only requests that changed nothing), append a short entry to
+`daily_change_log.md`:
+
+- Find today's date heading (`## yyyy-mm-dd`, using the actual current date). If it doesn't exist
+  yet, create it as a new block at the very TOP of the file, right under the title/intro — newest
+  date first.
+- Add your summary as one or more new bullets under that heading. Never rewrite, merge away, or
+  delete bullets already there from earlier requests the same day — entries accumulate; each run
+  only adds to the pile.
+- Keep each bullet short (what changed and, if not obvious, why) — this is a supplement to git
+  history and the diff itself, not a replacement, so don't restate the whole diff. Reference
+  `file/paths.ts` when it helps a future reader jump straight to the code.
+- Write it in the same language the user used for the request (Vietnamese in this project, unless
+  told otherwise).
+
+Like the version-stamp rule above, this applies no matter which coding agent is doing the work —
+Claude Code, Codex, Cursor, Antigravity, a human, whatever reads this file — since the point is one
+reliable running log that every environment and every agent can trust and add to.
+
 # Icons standard — phosphoricons.com
 
 All UI icons across the application must be imported exclusively from Phosphor Icons (`@phosphor-icons/react` from `phosphoricons.com`).
