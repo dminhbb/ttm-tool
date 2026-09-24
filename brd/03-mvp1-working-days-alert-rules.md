@@ -112,15 +112,20 @@ Target R4G Date lấy từ `ttm_policy_configs` (TTM_CNTT), không còn từ c�
 Có **2 hàm khác nhau** trong `src/lib/epic-data-anomaly.ts`, phục vụ 2 mục đích khác nhau — tài liệu
 cũ từng gộp chung thành "hasDataAnomaly" là không chính xác:
 
-**a) `evaluateEpicDataAnomaly()` — badge "Sai lệch dữ liệu", 6 rule đánh index R1-R6, dùng cho MỌI
+**a) `evaluateEpicDataAnomaly()` — badge "Sai lệch dữ liệu", 7 rule đánh index R1-R7, dùng cho MỌI
 màn hình giám sát Epic (Quản trị Epic rút gọn/đầy đủ, Epic in PO, Báo cáo Epic, Dashboard, Dòng thời
-gian cảnh báo).** Epic ở trạng thái Cancelled/To Do/In PO/Backlog được miễn toàn bộ 6 rule dưới đây.
+gian cảnh báo).** Epic ở trạng thái Cancelled/To Do/In PO/Backlog được miễn toàn bộ 7 rule dưới đây.
 
 > **Cập nhật (22/09/2026):** bỏ rule "thiếu T0" cũ, đổi mốc tính của rule "Pending lâu" sang Start
 > Date, và bổ sung rule R6 (SP nhưng Requirement Level thấp). Mỗi rule nay có `ruleIndex` cố định
 > (`EPIC_ANOMALY_RULE_INDEX`, `src/lib/epic-data-anomaly.ts`) — không bao giờ đánh số lại, rule mới
 > luôn thêm vào cuối — và được lưu kèm mỗi vi phạm trong bảng `epic_data_anomaly_violations` (xem
 > `08-data-model.md` §20) để thống kê theo từng nhóm rule bằng `GROUP BY rule_code`.
+>
+> **Cập nhật (24/09/2026):** bổ sung rule R7, phát sinh từ việc tách "trục Release" ra khỏi phép
+> tính TTM-E2E (xem `02-ttm-concepts-and-rules.md` mục 6.1) — thay thế khái niệm "Sai Status TTM-E2E"
+> cũ (dựa trên Due Date vs baseline TTM-E2E, đã bị xoá) bằng một rule chính thức trong bộ máy sai
+> lệch dữ liệu, để được đếm/thống kê như mọi rule khác thay vì là một cờ rời rạc.
 
 | Index | Code | Rule |
 |---|---|---|
@@ -130,6 +135,7 @@ gian cảnh báo).** Epic ở trạng thái Cancelled/To Do/In PO/Backlog đư�
 | R4 | `MISSING_REQUEST_TYPE` | Thiếu Phân loại yêu cầu (`epic_request_type`). |
 | R5 | `MISSING_REQUIREMENT_LEVEL` | Thiếu Requirement Level (`epic_request_level`). |
 | R6 | `SP_LEVEL_MISMATCH` | Epic được `computeEpicComplexity` đánh giá độ phức tạp **SP** (SP-Lv12/SP-Lv34) nhưng Requirement Level = 1 hoặc 2 — mâu thuẫn nghiệp vụ (SP luôn phải là mức cao), báo hiệu Phân loại yêu cầu hoặc Requirement Level nhập sai. |
+| R7 | `RELEASE_STATUS_MISMATCH` | Đã có R4G Date và Due Date, Due Date ≤ R4G Date + 5 ngày làm việc (đúng hạn theo "trục Release" — xem `02-ttm-concepts-and-rules.md` mục 6.1), NHƯNG status Epic chưa chuyển sang Released. Ưu tiên hơn badge "Cảnh báo sớm"/"Giải trình Golive" của trục Release. |
 
 > Rule "thiếu T0" (trạng thái ≥ Design nhưng chưa có Ngày duyệt ý tưởng) đã **bị bỏ** khỏi bộ 6 rule
 > này kể từ 22/09/2026 — thiếu T0 không còn tự động bị đánh dấu "Sai lệch dữ liệu" (T0 vẫn được dùng
@@ -146,8 +152,11 @@ về `NONE`, phạm vi hẹp hơn NHIỀU, chỉ khi bản thân phép tính kh�
 
 ```text
 breaksTtmCnttCalculation = Thiếu Start Date HOẶC (có R4G Date VÀ R4G Date < Start Date)
-breaksTtmE2eCalculation  = (có Due Date VÀ có T0 VÀ Due Date < T0)
+breaksTtmE2eCalculation  = (có R4G Date VÀ có T0 VÀ R4G Date < T0)
 ```
+
+> **Cập nhật (24/09/2026):** `breaksTtmE2eCalculation` kiểm tra R4G Date thay vì Due Date — vì
+> TTM-E2E nay đo tới R4G Date, không phải Due Date (xem mục 6 của `02-ttm-concepts-and-rules.md`).
 
 Khi 1 trong 2 điều kiện này đúng, cột Nhận xét hiện **"Không tính được"** cho đúng loại TTM tương
 ứng thay vì badge Cảnh báo/Fail/"Đạt TTM" (tránh hiện kết quả giả-sạch do dải ngày phi logic) — ví

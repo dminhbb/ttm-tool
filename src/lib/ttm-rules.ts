@@ -8,6 +8,13 @@ import { isCancelledStatus } from '@/lib/issue-status-rules';
 export type EpicComplexity = EpicComplexityType;
 export type AlertLevel = 'NONE' | 'EARLY' | 'LATE' | 'FAIL';
 
+/** "Giải trình Golive" rule (company rule change, 2026-09-24): Due Date must land within this many
+ * working days of R4G Date. Shared by the Release axis's "Cảnh báo sớm"/"Giải trình Golive" badges
+ * (resolveReleaseAxis, epic-alert-service.ts) and the RELEASE_STATUS_MISMATCH anomaly rule
+ * (epic-data-anomaly.ts) — both derive the grace deadline from this one constant so they can never
+ * disagree on where the boundary falls. */
+export const RELEASE_DUE_GRACE_WORKING_DAYS = 5;
+
 const ALERTED_STATUSES = new Set(['DESIGN', 'IN PROGRESS']);
 
 function normalizeStatusForMatch(status: string): string {

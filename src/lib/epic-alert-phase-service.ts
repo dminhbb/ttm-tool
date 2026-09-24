@@ -117,7 +117,7 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole, fil
   const rows: EpicAlertRowPhased[] = [];
   const lateAlertsToRecord: { epicKey: string; phase: EpicAlertHistoryPhase; status: string }[] = [];
 
-  for (const { complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, projectName, row, startDate, ttmCnttStatusMismatch, ttmE2eRelease, ttmE2eStatusMismatch, ttmE2eTarget } of entries) {
+  for (const { complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, projectName, releaseAxis, row, startDate, ttmCnttStatusMismatch, ttmE2eRelease, ttmE2eTarget } of entries) {
     const ttmCnttStartDate = parseDate(evaluation.ttm.cntt.fromDate);
     const ttmCnttTarget = evaluation.ttm.cntt.workingDays ?? 0;
     const ttmCnttElapsed = ttmCnttStartDate ? Math.max(0, diffWorkingDays(ttmCnttStartDate, now, holidays)) : null;
@@ -200,6 +200,8 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole, fil
       projectKey: row.project ?? '',
       projectName: projectName || row.project || '',
       r4gDate: row.r4gDate,
+      releaseAxisState: releaseAxis.state,
+      releaseGraceDeadline: releaseAxis.graceDeadline,
       remainingWorkingDays,
       requestingUnit: row.requestingUnit,
       requirementLevel: row.requirementLevel,
@@ -221,7 +223,6 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole, fil
       ttmE2eElapsedWorkingDays: ttmE2eRelease.elapsedWorkingDays,
       ttmE2eTargetWorkingDays: ttmE2eTarget,
       ttmCnttStatusMismatch,
-      ttmE2eStatusMismatch,
     });
   }
 

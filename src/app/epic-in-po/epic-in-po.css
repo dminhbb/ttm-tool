@@ -349,10 +349,15 @@
 .ttm-badge.fail-cntt { background: #f78b4d; color: var(--ttm-white); }
 .ttm-badge.fail-e2e { background: #e3b842; color: var(--ttm-white); }
 .ttm-badge.anomaly { background: #ece0cf; color: #6b4e2e; border: 1px solid #d5bd97; cursor: help; }
-/* "Sai Status" — recorded date (R4G/Due) is on schedule but the workflow status hasn't caught up
-   yet (see resolveTtmCnttStatusMismatch/resolveTtmE2eStatusMismatch in epic-alert-service.ts).
-   Deliberately its own violet tone, distinct from fail (orange/yellow/red) and achieved (blue). */
+/* "Sai Status" — recorded date (R4G) is on schedule but the workflow status hasn't caught up yet
+   (see resolveTtmCnttStatusMismatch in epic-alert-service.ts). Deliberately its own violet tone,
+   distinct from fail (orange/yellow/red) and achieved (blue). */
 .ttm-badge.status-mismatch { background: #6b5b95; color: var(--ttm-white); cursor: help; }
+/* "Trục Release" badges (resolveReleaseAxis, epic-alert-service.ts) — waiting-golive is neutral
+   (nothing wrong yet), justify-golive is a stronger escalation tone than fail-cntt/fail-e2e since
+   it signals a management explanation is owed, not just a missed internal target. */
+.ttm-badge.waiting-golive { background: var(--ttm-info-100); color: var(--ttm-info-700); }
+.ttm-badge.justify-golive { background: var(--ttm-danger-800); color: var(--ttm-white); }
 .ttm-anomaly-list { margin: 4px 0 0; padding-left: 18px; font-size: 12px; color: var(--ttm-text); }
 .ttm-anomaly-list li { margin: 2px 0; }
 /* Type column — small bullet: light green for simple, ocean blue for complex. */
@@ -521,8 +526,8 @@
 .ttm-strip-track { display: inline-block; height: 7px; border-radius: 3px; background: #a9a9a9; flex: none; }
 .ttm-strip-track.actual.under { background: #7fc794; }
 .ttm-strip-track.actual.over { background: #ec8f8f; }
-/* "Sai Status" marker beside the actual end date — see resolveTtmCnttStatusMismatch/
-   resolveTtmE2eStatusMismatch in epic-alert-service.ts; the stripe stays red on purpose here. */
+/* "Sai Status" marker beside the actual end date — see resolveTtmCnttStatusMismatch in
+   epic-alert-service.ts (TTM-CNTT strip only, since 2026-09-24); the stripe stays red on purpose here. */
 .ttm-strip-status-mismatch-mark { color: #6b5b95; font-weight: 900; margin-left: 2px; cursor: help; }
 .ttm-metric.na {
   color: var(--ttm-muted);

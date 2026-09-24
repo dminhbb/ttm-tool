@@ -1,7 +1,9 @@
 import type { AlertLevel, EpicComplexity } from '@/lib/ttm-rules';
 import type { EpicAnomalyViolation } from '@/lib/epic-data-anomaly';
+import type { ReleaseAxisState } from '@/lib/epic-alert-service';
 
 export type { EpicAnomalyViolation } from '@/lib/epic-data-anomaly';
+export type { ReleaseAxisState } from '@/lib/epic-alert-service';
 
 export type StagePillVariant = 'done' | 'earlyAlert' | 'lateAlert' | 'unknown' | 'upcoming';
 
@@ -39,6 +41,12 @@ export interface EpicAlertRow {
   ownerName: string;
   projectKey: string;
   r4gDate: string | null;
+  /** "Trục Release" (Chờ golive/Cảnh báo sớm/Giải trình Golive) — see resolveReleaseAxis in
+   * epic-alert-service.ts. 'NONE' when nothing to say on this axis (either genuinely clean, or the
+   * RELEASE_STATUS_MISMATCH anomaly rule owns the badge instead — see epic-data-anomaly.ts). */
+  releaseAxisState: ReleaseAxisState;
+  /** R4G Date + RELEASE_DUE_GRACE_WORKING_DAYS working days — null until R4G Date is recorded. */
+  releaseGraceDeadline: string | null;
   remainingWorkingDays: number | null;
   /** "Đơn vị yêu cầu" — issues.requesting_unit. */
   requestingUnit: string | null;
@@ -67,18 +75,16 @@ export interface EpicAlertRow {
    * the TTM-CNTT actual stripe stays red (with a "*") even though its length is within budget. */
   ttmCnttStatusMismatch: boolean;
   ttmCnttTargetWorkingDays: number;
-  /** Fail TTM-E2E — see resolveTtmE2eRelease in epic-alert-service.ts. FAIL/NONE only, no EARLY/LATE tiers. */
+  /** Fail/Đạt TTM-E2E — see resolveTtmE2eRelease in epic-alert-service.ts. FAIL/NONE only, no
+   * EARLY/LATE tiers; "Đạt" (frontend) additionally requires status Released. */
   ttmE2eAlertLevel: AlertLevel;
-  /** Due Date once recorded, else today — end of the TTM-E2E "stripe thực tế". */
+  /** R4G Date once recorded and in the past, else today — end of the TTM-E2E "stripe thực tế". */
   ttmE2eActualToDate: string | null;
   /** T0 + ttmE2eTargetWorkingDays working days — end of the TTM-E2E "stripe baseline". */
   ttmE2eBaselineDate: string | null;
   /** T0 itself (start of both TTM-E2E stripes) — Idea Approved Date, else Start Date, else Jira creation date. */
   ttmE2eBaselineSourceDate: string | null;
   ttmE2eElapsedWorkingDays: number | null;
-  /** Same "Sai Status" concept as ttmCnttStatusMismatch, for TTM-E2E: Due Date recorded and on
-   * schedule, but the Epic's status hasn't reached RELEASED yet — see resolveTtmE2eStatusMismatch. */
-  ttmE2eStatusMismatch: boolean;
   ttmE2eTargetWorkingDays: number;
 }
 
@@ -145,6 +151,12 @@ export interface EpicAlertRowPhased {
   /** Human-readable project name (projects.project_name), distinct from projectKey. */
   projectName: string;
   r4gDate: string | null;
+  /** "Trục Release" (Chờ golive/Cảnh báo sớm/Giải trình Golive) — see resolveReleaseAxis in
+   * epic-alert-service.ts. 'NONE' when nothing to say on this axis (either genuinely clean, or the
+   * RELEASE_STATUS_MISMATCH anomaly rule owns the badge instead — see epic-data-anomaly.ts). */
+  releaseAxisState: ReleaseAxisState;
+  /** R4G Date + RELEASE_DUE_GRACE_WORKING_DAYS working days — null until R4G Date is recorded. */
+  releaseGraceDeadline: string | null;
   remainingWorkingDays: number | null;
   /** "Đơn vị yêu cầu" — issues.requesting_unit. */
   requestingUnit: string | null;
@@ -177,13 +189,11 @@ export interface EpicAlertRowPhased {
   ttmCnttStatusMismatch: boolean;
   ttmCnttTargetWorkingDays: number;
   ttmCnttToField: string | null;
-  /** Ends the TTM-E2E "stripe thực tế" (bottom strip) — Due Date once recorded, else today. Start of
-   * that same strip is stages.release.baselineSourceDate (T0), shared with the baseline strip above it. */
+  /** Ends the TTM-E2E "stripe thực tế" (bottom strip) — R4G Date once recorded and in the past,
+   * else today. Start of that same strip is stages.release.baselineSourceDate (T0), shared with the
+   * baseline strip above it. */
   ttmE2eActualToDate: string | null;
   ttmE2eElapsedWorkingDays: number | null;
-  /** Same "Sai Status" concept as ttmCnttStatusMismatch, for TTM-E2E: Due Date recorded and on
-   * schedule, but the Epic's status hasn't reached RELEASED yet — see resolveTtmE2eStatusMismatch. */
-  ttmE2eStatusMismatch: boolean;
   ttmE2eTargetWorkingDays: number;
 }
 

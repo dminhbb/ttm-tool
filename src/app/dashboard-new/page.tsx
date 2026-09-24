@@ -28,7 +28,9 @@ import { TableAction } from '@/components/ui/TableAction';
 import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import { DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
+import { compareValues, useSortableList } from '@/lib/use-sortable-list';
 import { isTtmCnttQaInScope, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
+import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import { buildEpicAlertsDeepLink } from '@/lib/epic-alerts-deep-link';
 import type { EpicAlertsDeepLinkParams } from '@/lib/epic-alerts-deep-link';
 import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
@@ -55,6 +57,7 @@ interface DashboardNewPayload {
 
 type DimensionKey = 'domain' | 'epicType' | 'pmsm' | 'project';
 type OperationalTab = 'ANOMALY' | 'PENDING' | 'PROGRESS';
+type MatrixSortKey = 'late' | 'name' | 'ok' | 'qaPct' | 'qldaFail' | 'qldaPass' | 'qldaPct' | 'total';
 
 const DIMENSION_LABELS: Record<DimensionKey, string> = {
   domain: 'Theo Domain',
@@ -62,6 +65,32 @@ const DIMENSION_LABELS: Record<DimensionKey, string> = {
   pmsm: 'Theo PM/SM',
   project: 'Theo Dự án',
 };
+
+interface DimensionMatrixItem {
+  late: number;
+  name: string;
+  ok: number;
+  qa: TtmCnttSummary;
+  qlda: TtmCnttSummary;
+  total: number;
+}
+
+/** Maps a "Ma trận Phân bổ" column to the value its TH sorts by — qldaPct/qaPct use the unrounded
+ * ratio (finer-grained ordering than the whole-number `pct` shown on screen); qaPct sorts rows
+ * with no QA-scoped Epic (qa.total === 0, shown as "—") to the end regardless of direction. */
+function matrixSortValue(item: DimensionMatrixItem, key: MatrixSortKey): number | string | null {
+  switch (key) {
+    case 'name': return item.name;
+    case 'total': return item.total;
+    case 'qldaPct': return item.qlda.pctPrecise;
+    case 'qldaPass': return item.qlda.pass;
+    case 'qldaFail': return item.qlda.fail;
+    case 'qaPct': return item.qa.total > 0 ? item.qa.pctPrecise : null;
+    case 'ok': return item.ok;
+    case 'late': return item.late;
+    default: return null;
+  }
+}
 
 const ALERT_BADGE_VARIANT: Record<AlertLevel, 'danger' | 'info' | 'neutral' | 'warning'> = {
   EARLY: 'info',
@@ -76,6 +105,14 @@ const ALERT_BADGE_LABEL: Record<AlertLevel, string> = {
   LATE: 'Cảnh báo muộn',
   NONE: 'Đạt / Không cảnh báo',
 };
+
+/** 1 decimal place, Vietnamese comma separator — used by the two "TTM Index" ring widgets
+ * (executiveMetrics.ttmHealthPctPrecise / qaMetrics.pctPrecise), which show more precision than the
+ * whole-number `pct` used everywhere else (matrix table bars/cells). */
+const PERCENT_1_DECIMAL_FORMATTER = new Intl.NumberFormat('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+function formatPct1(value: number): string {
+  return PERCENT_1_DECIMAL_FORMATTER.format(value);
+}
 
 export default function DashboardNewPage() {
   const [loading, setLoading] = useState(true);
@@ -92,6 +129,8 @@ export default function DashboardNewPage() {
 
   // Controls
   const [dimensionKey, setDimensionKey] = useState<DimensionKey>('domain');
+  // "Ma trận Phân bổ Tiến độ Epic Đa chiều" — mặc định sort giảm dần theo TTM-CNTT (QLDA).
+  const { sortKey: matrixSortKey, sortDirection: matrixSortDirection, toggleSort: toggleMatrixSort, directionFor: matrixSortDirectionFor } = useSortableList<MatrixSortKey>('qldaPct', 'desc');
   const [operationalTab, setOperationalTab] = useState<OperationalTab>('PROGRESS');
   const [selectedEpicKey, setSelectedEpicKey] = useState<string | null>(null);
 
@@ -173,6 +212,8 @@ export default function DashboardNewPage() {
     let lateWarning = 0;
     let earlyWarning = 0;
     let anomalyCount = 0;
+    let waitingGolive = 0;
+    let justifyGolive = 0;
 
     for (const row of filteredRows) {
       if (row.alertLevel === 'LATE') lateWarning += 1;
@@ -180,6 +221,8 @@ export default function DashboardNewPage() {
 
       if (row.ttmE2eAlertLevel === 'FAIL') failE2e += 1;
       if (row.hasDataAnomaly) anomalyCount += 1;
+      if (row.releaseAxisState === 'WAITING_GOLIVE') waitingGolive += 1;
+      else if (row.releaseAxisState === 'JUSTIFY_GOLIVE') justifyGolive += 1;
     }
 
     const ttmCntt = summarizeTtmCntt(filteredRows);
@@ -190,10 +233,13 @@ export default function DashboardNewPage() {
       eligibleTtm: ttmCntt.eligible,
       failCntt: ttmCntt.fail,
       failE2e,
+      justifyGolive,
       lateWarning,
       passTtm: ttmCntt.pass,
+      waitingGolive,
       total,
       ttmHealthPct: ttmCntt.pct,
+      ttmHealthPctPrecise: ttmCntt.pctPrecise,
     };
   }, [filteredRows]);
 
@@ -241,12 +287,13 @@ export default function DashboardNewPage() {
       map.set(keyVal, curr);
     }
 
-    return [...map.entries()].map(([name, bucket]) => {
+    const items = [...map.entries()].map(([name, bucket]) => {
       const qlda = summarizeTtmCntt(bucket.rows);
       const qa = summarizeTtmCntt(bucket.rows.filter((row) => isTtmCnttQaInScope(row.currentStatus)));
       return { late: bucket.late, name, ok: bucket.ok, qa, qlda, total: bucket.rows.length };
-    }).sort((a, b) => b.total - a.total);
-  }, [filteredRows, dimensionKey]);
+    });
+    return items.sort((a, b) => compareValues(matrixSortValue(a, matrixSortKey), matrixSortValue(b, matrixSortKey), matrixSortDirection));
+  }, [filteredRows, dimensionKey, matrixSortKey, matrixSortDirection]);
 
   // Top Risk Projects
   const topRiskProjects = useMemo(() => {
@@ -480,17 +527,17 @@ export default function DashboardNewPage() {
           {viewMode === 'EXECUTIVE' && (
             <div className="flex flex-col gap-5">
               {/* Top KPI Metrics Strip */}
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-9">
                 {/* Health Index Ring — TTM-CNTT (QLDA): every Epic in the current filter/access scope */}
                 <div className="col-span-2 sm:col-span-2 lg:col-span-1 rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs flex items-center justify-start gap-3">
                   <div
                     className="relative flex size-14 shrink-0 items-center justify-center rounded-full"
                     style={{
-                      background: `conic-gradient(#0866ff 0% ${executiveMetrics.ttmHealthPct}%, #e4e6eb ${executiveMetrics.ttmHealthPct}% 100%)`,
+                      background: `conic-gradient(#0866ff 0% ${executiveMetrics.ttmHealthPctPrecise}%, #e4e6eb ${executiveMetrics.ttmHealthPctPrecise}% 100%)`,
                     }}
                   >
                     <div className="flex size-10 items-center justify-center rounded-full bg-fb-surface font-extrabold text-xs text-fb-blue">
-                      {executiveMetrics.ttmHealthPct}%
+                      {formatPct1(executiveMetrics.ttmHealthPctPrecise)}%
                     </div>
                   </div>
                   <div className="min-w-0">
@@ -505,12 +552,12 @@ export default function DashboardNewPage() {
                     className="relative flex size-14 shrink-0 items-center justify-center rounded-full"
                     style={{
                       background: qaMetrics.total > 0
-                        ? `conic-gradient(#7c3aed 0% ${qaMetrics.pct}%, #e4e6eb ${qaMetrics.pct}% 100%)`
+                        ? `conic-gradient(#7c3aed 0% ${qaMetrics.pctPrecise}%, #e4e6eb ${qaMetrics.pctPrecise}% 100%)`
                         : '#e4e6eb',
                     }}
                   >
                     <div className="flex size-10 items-center justify-center rounded-full bg-fb-surface font-extrabold text-xs text-purple-700">
-                      {qaMetrics.total > 0 ? `${qaMetrics.pct}%` : '—'}
+                      {qaMetrics.total > 0 ? `${formatPct1(qaMetrics.pctPrecise)}%` : '—'}
                     </div>
                   </div>
                   <div className="min-w-0">
@@ -568,7 +615,27 @@ export default function DashboardNewPage() {
                 >
                   <p className="text-[10px] font-bold uppercase text-purple-700">Sai lệch Dữ liệu</p>
                   <p className="mt-1 text-xl font-extrabold text-purple-700">{executiveMetrics.anomalyCount}</p>
-                  <p className="text-[10px] text-purple-600 font-medium">Vi phạm rule R1-R6</p>
+                  <p className="text-[10px] text-purple-600 font-medium">Vi phạm rule R1-R7</p>
+                </Link>
+
+                <Link
+                  href={toEpicAlertsLink({ alert: 'WAITING_GOLIVE' })}
+                  className="block rounded-xl border border-sky-200 bg-sky-50/50 p-3 shadow-xs transition-all hover:border-sky-400 hover:shadow-sm"
+                  title="Xem danh sách Epic Chờ golive ở Quản trị Epic"
+                >
+                  <p className="text-[10px] font-bold uppercase text-sky-700">Chờ golive</p>
+                  <p className="mt-1 text-xl font-extrabold text-sky-700">{executiveMetrics.waitingGolive}</p>
+                  <p className="text-[10px] text-sky-600 font-medium">Trong hạn R4G Date + 5 ngày</p>
+                </Link>
+
+                <Link
+                  href={toEpicAlertsLink({ alert: 'JUSTIFY_GOLIVE' })}
+                  className="block rounded-xl border border-red-200 bg-red-50/50 p-3 shadow-xs transition-all hover:border-red-400 hover:shadow-sm"
+                  title="Xem danh sách Epic cần Giải trình Golive ở Quản trị Epic"
+                >
+                  <p className="text-[10px] font-bold uppercase text-status-danger">Giải trình Golive</p>
+                  <p className="mt-1 text-xl font-extrabold text-status-danger">{executiveMetrics.justifyGolive}</p>
+                  <p className="text-[10px] text-red-600 font-medium">Quá hạn R4G Date + 5 ngày</p>
                 </Link>
               </div>
 
@@ -606,14 +673,14 @@ export default function DashboardNewPage() {
                     <Table>
                       <THead>
                         <TR>
-                          <TH>{DIMENSION_LABELS[dimensionKey]}</TH>
-                          <TH className="text-center">Tổng số Epic</TH>
-                          <TH className="w-56">TTM-CNTT (QLDA)</TH>
-                          <TH className="text-center">Pass TTM</TH>
-                          <TH className="text-center">Fail TTM</TH>
-                          <TH className="w-40">TTM-CNTT (QA)</TH>
-                          <TH className="text-center">Đúng tiến độ</TH>
-                          <TH className="text-center">Chậm tiến độ</TH>
+                          <TH sortDirection={matrixSortDirectionFor('name')} onClick={() => toggleMatrixSort('name')}>{DIMENSION_LABELS[dimensionKey]}</TH>
+                          <TH className="text-center" sortDirection={matrixSortDirectionFor('total')} onClick={() => toggleMatrixSort('total')}>Tổng số Epic</TH>
+                          <TH className="w-56" sortDirection={matrixSortDirectionFor('qldaPct')} onClick={() => toggleMatrixSort('qldaPct')}>TTM-CNTT (QLDA)</TH>
+                          <TH className="text-center" sortDirection={matrixSortDirectionFor('qldaPass')} onClick={() => toggleMatrixSort('qldaPass')}>Pass TTM</TH>
+                          <TH className="text-center" sortDirection={matrixSortDirectionFor('qldaFail')} onClick={() => toggleMatrixSort('qldaFail')}>Fail TTM</TH>
+                          <TH className="w-40" sortDirection={matrixSortDirectionFor('qaPct')} onClick={() => toggleMatrixSort('qaPct')}>TTM-CNTT (QA)</TH>
+                          <TH className="text-center" sortDirection={matrixSortDirectionFor('ok')} onClick={() => toggleMatrixSort('ok')}>Đúng tiến độ</TH>
+                          <TH className="text-center" sortDirection={matrixSortDirectionFor('late')} onClick={() => toggleMatrixSort('late')}>Chậm tiến độ</TH>
                         </TR>
                       </THead>
                       <TBody>

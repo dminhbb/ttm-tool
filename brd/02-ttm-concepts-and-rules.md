@@ -38,7 +38,7 @@ Hệ thống theo dõi hai tiêu chí:
 Giá trị số ngày làm việc (working days) hiện đang cấu hình cho từng loại (bảng `ttm_policy_configs`,
 panel "Tiêu chí Time to Market" tại "Cấu hình cảnh báo"):
 
-| Epic-type | TTM-CNTT (Start Date → R4G Date) | TTM-E2E (T0 → Due Date) |
+| Epic-type | TTM-CNTT (Start Date → R4G Date) | TTM-E2E (T0 → R4G Date, xem cập nhật 24/09/2026 mục 6) |
 |---|---:|---:|
 | CT-Lv12 | 15 ngày làm việc | 20 ngày làm việc |
 | CT-Lv34 | 25 ngày làm việc | 30 ngày làm việc |
@@ -99,20 +99,54 @@ TTM-E2E dùng để đo toàn bộ hành trình của yêu cầu.
 | Thuộc tính | Quy tắc |
 |---|---|
 | Bắt đầu | T0 = Ngày duyệt ý tưởng |
-| Kết thúc | Epic.Due Date |
+| Kết thúc | Epic.R4G Date (xem cập nhật 24/09/2026 bên dưới — trước đó là Due Date) |
 | Đơn vị tính | Ngày làm việc |
 | Target theo epic-type | Xem bảng 4 loại tại mục 2 (CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34), cấu hình tại "Tiêu chí Time to Market" |
 
-Due Date là field nhập tay trên Jira.
-
 Trong MVP1, TTM-E2E có thể được lưu và hiển thị tham khảo nhưng chưa phải trọng tâm cảnh báo chính.
 
-> **Cập nhật:** đã triển khai cảnh báo **Fail TTM-E2E** — chỉ có FAIL/NONE (không có mức Cảnh báo
-> sớm/muộn riêng như TTM-CNTT). FAIL khi ngày kết thúc thực tế (Due Date đã qua, hoặc "hôm nay" nếu
-> Due Date chưa có/chưa qua) vượt baseline (T0 + số ngày làm việc TTM-E2E theo `ttm_policy_configs`).
-> T0 fallback: Idea Approved Date → ngày tạo Epic trên Jira (không dùng Start Date) nếu thiếu Idea
-> Approved Date. Nếu Epic bị đánh dấu `hasDataAnomaly` (xem `03-mvp1-working-days-alert-rules.md`),
-> cả Fail TTM-CNTT và Fail TTM-E2E đều bị ép về "Không tính được" thay vì hiện kết quả có thể sai.
+> **Cập nhật (24/09/2026) — đổi điểm kết thúc TTM-E2E từ Due Date sang R4G Date:**
+>
+> - TTM-E2E nay đo từ **T0 đến R4G Date** (trước đó là Due Date). Ngày bắt đầu (T0) không đổi.
+> - **FAIL/NONE** như trước (không có Cảnh báo sớm/muộn riêng). FAIL khi ngày kết thúc thực tế (R4G
+>   Date đã qua, hoặc "hôm nay" nếu R4G Date chưa có/chưa qua) vượt baseline (T0 + số ngày làm việc
+>   TTM-E2E theo `ttm_policy_configs`). T0 fallback không đổi: Idea Approved Date → ngày tạo Epic
+>   trên Jira.
+> - **Đạt TTM-E2E** nay yêu cầu **cả hai** điều kiện: Epic có status = **Released**, VÀ khoảng T0 →
+>   R4G Date đạt tiêu chuẩn TTM-E2E của loại Epic đó (FAIL/NONE ở trên = NONE). Trước đó chỉ dựa vào
+>   Due Date đã qua và đúng hạn.
+> - Kỷ luật của **Due Date** (khi nào phải có, phải nằm trong khoảng nào so với R4G Date) tách thành
+>   một trục riêng — xem mục 6.1 "Trục Release" bên dưới — không còn là một phần của phép tính
+>   TTM-E2E nữa.
+> - Nếu Epic bị đánh dấu `hasDataAnomaly` (xem `03-mvp1-working-days-alert-rules.md`), cả Fail
+>   TTM-CNTT và Fail TTM-E2E đều bị ép về "Không tính được" thay vì hiện kết quả có thể sai.
+
+### 6.1. Trục Release (Due Date vs R4G Date) — mới 24/09/2026
+
+Sau khi TTM-E2E không còn dùng Due Date, kỷ luật ghi nhận Due Date được tách thành "trục Release"
+riêng, độc lập với TTM-E2E, với 3 badge mới hiển thị trên cột **Nhận xét** (song song với các badge
+Đạt/Fail/Sai Status/Sai lệch dữ liệu hiện có):
+
+Toàn bộ trục này chỉ áp dụng cho Epic **đã có R4G Date** — Epic chưa qua R4GOLIVE (chưa có R4G Date)
+không hiện badge nào ở trục này (chưa tới lúc đánh giá).
+
+- **Rule hợp lệ**: Epic phải có status = **Released** VÀ Due Date không quá **5 ngày làm việc** kể
+  từ R4G Date (`addWorkingDays(R4G Date, 5)`, không tính R4G Date là ngày thứ 1). Thoả cả hai →
+  không hiện badge nào ở trục này (coi là bình thường).
+- **Chờ golive** (cập nhật 24/09/2026 — chỉ áp dụng khi có R4G Date): Epic đã có R4G Date, hôm nay
+  còn trong khoảng từ R4G Date đến R4G Date + 5 ngày làm việc, chưa có Due Date, VÀ status vẫn ≤
+  R4GOLIVE (chưa qua giai đoạn R4GOLIVE). Badge trung tính, chưa phải cảnh báo.
+- **Cảnh báo sớm** (trục Release): giống điều kiện "Chờ golive" ở trên (đã có R4G Date, còn trong
+  hạn R4G Date + 5 ngày làm việc, chưa có Due Date) nhưng status Epic đã qua R4GOLIVE (ví dụ
+  MVPDONE) — cùng một khoảng thời gian, khác nhau ở status hiện tại của Epic.
+- **Giải trình Golive**: Epic đã có R4G Date, và một trong hai điều kiện sau đúng (không phụ thuộc
+  status hiện tại):
+  1. Đã có Due Date và Due Date > R4G Date + 5 ngày làm việc; hoặc
+  2. Chưa có Due Date và hôm nay (hoặc ngày đang đánh giá) > R4G Date + 5 ngày làm việc.
+- **Sai lệch dữ liệu** (rule R7, xem `03-mvp1-working-days-alert-rules.md` §4.5): đã có Due Date,
+  Due Date ≤ R4G Date + 5 ngày làm việc (đúng hạn), NHƯNG status Epic chưa chuyển sang Released —
+  rule này ưu tiên hơn "Cảnh báo sớm"/"Giải trình Golive" (2 badge đó im lặng trong trường hợp này,
+  nhường chỗ cho badge "Sai lệch dữ liệu").
 
 ## 7. Giai đoạn TTM-CNTT
 
@@ -150,8 +184,8 @@ R4G Date và Due Date là các trường nhập tay trên Jira.
 
 | Field | Ý nghĩa | Dùng cho |
 |---|---|---|
-| R4G Date | Ngày Epic đạt Ready for Golive | Kết thúc TTM-CNTT |
-| Due Date | Ngày Epic Released theo ghi nhận quản trị | Kết thúc TTM-E2E |
+| R4G Date | Ngày Epic đạt Ready for Golive | Kết thúc TTM-CNTT **và** TTM-E2E (từ 24/09/2026, xem mục 6) |
+| Due Date | Ngày Epic Released theo ghi nhận quản trị | Kỷ luật "trục Release" — không còn nằm trong phép tính TTM-E2E (xem mục 6.1) |
 
 Nếu field ngày và status history không khớp, hệ thống vẫn dùng field ngày để tính TTM và sinh cảnh báo chất lượng dữ liệu.
 

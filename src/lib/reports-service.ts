@@ -335,7 +335,9 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
     // Pass: the Epic actually reached R4G/Released status AND the canonical engine says it did so
     // within its TTM budget (not FAIL).
     const ttmCnttPassed = Boolean(row.r4gDate) && !cnttBroken && cnttAlertLevel !== 'FAIL' && isStatusValidForPass;
-    const ttmE2ePassed = Boolean(row.dueDate || releasedDate) && !e2eBroken && e2eAlertLevel !== 'FAIL' && isStatusValidForPass;
+    // TTM-E2E "Pass" (2026-09-24 rule): status must actually be Released (not just R4GOLIVE), and
+    // the axis is now T0 → R4G Date, not T0 → Due Date — see resolveTtmE2eRelease's own doc comment.
+    const ttmE2ePassed = Boolean(row.r4gDate) && !e2eBroken && e2eAlertLevel !== 'FAIL' && isReleased;
 
     // Fail: the canonical engine's FAIL determination — no separate "wrong status" fail concept.
     let actualCnttFail = false;

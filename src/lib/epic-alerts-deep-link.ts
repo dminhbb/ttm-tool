@@ -8,7 +8,7 @@
 export const EPIC_ALERTS_ROUTE = '/epic-alerts-15';
 
 /** Mirrors AlertFilterValue in epic-alerts-15/page.tsx, minus the '' (no filter) case. */
-export type EpicAlertsDeepLinkAlert = 'ACHIEVED_CNTT' | 'ACHIEVED_E2E' | 'DATA_ANOMALY' | 'EARLY' | 'FAIL' | 'FAIL_E2E' | 'LATE' | 'STATUS_MISMATCH';
+export type EpicAlertsDeepLinkAlert = 'ACHIEVED_CNTT' | 'ACHIEVED_E2E' | 'DATA_ANOMALY' | 'EARLY' | 'FAIL' | 'FAIL_E2E' | 'JUSTIFY_GOLIVE' | 'LATE' | 'RELEASE_EARLY' | 'STATUS_MISMATCH' | 'WAITING_GOLIVE';
 
 export interface EpicAlertsDeepLinkParams {
   /** "Lọc Nhận xét" — same values as the table's Nhận xét badges (FAIL = Fail TTM-CNTT, etc.). */

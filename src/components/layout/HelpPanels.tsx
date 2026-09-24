@@ -56,7 +56,8 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
           <h3 className="ui-card-title mb-1">2. Ba lớp cảnh báo trên màn hình</h3>
           <ul className="ml-5 list-disc space-y-1">
             <li><strong className="text-fb-text-primary">Cột Nhận xét — Fail TTM-CNTT</strong>: mức cảnh báo tổng thể (Cảnh báo sớm / Cảnh báo muộn / Fail TTM-CNTT), tính theo tiêu chí Time to Market (TTM-CNTT) đang active cho loại Epic đó, so R4G Date (hoặc ngày hiện tại) với mốc chuẩn từ T1 (Start Date).</li>
-            <li><strong className="text-fb-text-primary">Cột Nhận xét — Fail TTM-E2E</strong> (badge riêng, độc lập với Fail TTM-CNTT): chỉ có FAIL/NONE, không có mức Cảnh báo sớm/muộn. Tính từ T0 (Idea Approved Date, nếu thiếu thì tự dùng ngày tạo Epic trên Jira) tới Due Date (hoặc hôm nay nếu chưa có), so với mốc chuẩn TTM-E2E. Vì T0 luôn tính được, badge và cột stripe TTM-E2E hiển thị ở cả 3 màn hình kể cả khi Epic thiếu Start Date.</li>
+            <li><strong className="text-fb-text-primary">Cột Nhận xét — Fail/Đạt TTM-E2E</strong> (badge riêng, độc lập với TTM-CNTT): chỉ có FAIL/NONE, không có mức Cảnh báo sớm/muộn. Từ 24/09/2026, tính từ T0 (Idea Approved Date, nếu thiếu thì tự dùng ngày tạo Epic trên Jira) tới <strong>R4G Date</strong> (hoặc hôm nay nếu chưa có) — không còn dùng Due Date. Badge &quot;Đạt TTM-e2e&quot; chỉ hiện khi status Epic = Released VÀ khoảng T0→R4G Date đạt chuẩn. Vì T0 luôn tính được, badge và cột stripe TTM-E2E hiển thị ở cả 3 màn hình kể cả khi Epic thiếu Start Date.</li>
+            <li><strong className="text-fb-text-primary">Trục Release</strong> (mới 24/09/2026, badge riêng thứ 3 ở cột Nhận xét): kỷ luật Due Date so với R4G Date + 5 ngày làm việc — &quot;Chờ golive&quot;, &quot;Cảnh báo sớm&quot;, &quot;Giải trình Golive&quot;, hoặc &quot;Sai lệch dữ liệu&quot; (rule R7) khi Due Date đúng hạn nhưng status chưa Released. Xem mục 4 bên dưới.</li>
             <li><strong className="text-fb-text-primary">Các cột Trạng thái/Pha</strong> — cảnh báo theo từng trạng thái cụ thể trong quy trình Epic, dựa trên rule cấu hình tại &quot;Cấu hình cảnh báo&quot; (mốc sớm/muộn theo Loại Epic × Trạng thái).</li>
           </ul>
         </section>
@@ -66,12 +67,24 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
           <p>Mỗi cột có 2 dải: dải trên là <strong>baseline</strong> (kế hoạch — từ mốc gốc tới hạn chuẩn), dải dưới là <strong>thực tế</strong> (từ mốc gốc tới ngày hoàn thành thật hoặc hôm nay nếu chưa xong). Dải thực tế tô đỏ khi đã vượt baseline, tô xanh khi vẫn trong hạn.</p>
           <ul className="ml-5 list-disc space-y-1">
             <li>TTM-CNTT: mốc gốc = Start Date (T1); hạn = Target R4G Date.</li>
-            <li>TTM-E2E: mốc gốc = T0 (cột START-E2E); hạn = T0 + số ngày làm việc TTM-E2E đang active.</li>
+            <li>TTM-E2E: mốc gốc = T0 (cột START-E2E); hạn = T0 + số ngày làm việc TTM-E2E đang active; điểm kết thúc thực tế = R4G Date (từ 24/09/2026, trước đó là Due Date).</li>
           </ul>
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-2">4. Mốc thời gian khuyến nghị cho một trạng thái (TTM-CNTT)</h3>
+          <h3 className="ui-card-title mb-1">4. Trục Release — Due Date vs R4G Date (mới 24/09/2026)</h3>
+          <p>Tách riêng khỏi phép tính TTM-E2E: kỷ luật ghi nhận Due Date so với R4G Date, hiển thị badge thứ 3 ở cột Nhận xét (song song với badge TTM-CNTT và TTM-E2E). Chỉ áp dụng cho Epic <strong>đã có R4G Date</strong> — chưa có R4G Date thì không hiện badge nào ở trục này.</p>
+          <ul className="ml-5 list-disc space-y-1">
+            <li><strong>Hợp lệ</strong> (không badge) — status = Released VÀ Due Date ≤ R4G Date + 5 ngày làm việc.</li>
+            <li><strong>Chờ golive</strong> (cập nhật 24/09/2026) — đã có R4G Date, hôm nay còn trong khoảng R4G Date → R4G Date + 5 ngày làm việc, chưa có Due Date, VÀ status Epic vẫn ≤ R4GOLIVE.</li>
+            <li><strong>Cảnh báo sớm</strong> — cùng điều kiện thời gian với &quot;Chờ golive&quot; (còn trong hạn R4G Date + 5 ngày làm việc, chưa có Due Date), nhưng status Epic đã qua R4GOLIVE (ví dụ MVPDONE).</li>
+            <li><strong>Giải trình Golive</strong> — đã có R4G Date, và (Due Date &gt; R4G Date + 5 ngày làm việc) hoặc (chưa có Due Date và hôm nay đã quá hạn đó) — không phụ thuộc status hiện tại.</li>
+            <li><strong>Sai lệch dữ liệu</strong> (rule R7 — xem mục 7 dưới) — Due Date đúng hạn (≤ R4G Date + 5 ngày làm việc) nhưng status chưa Released; badge này thay thế Cảnh báo sớm/Giải trình Golive trong trường hợp này.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h3 className="ui-card-title mb-2">5. Mốc thời gian khuyến nghị cho một trạng thái (TTM-CNTT)</h3>
           <AlertTimelineDiagram />
           <p className="mt-2 text-xs">
             <code>Target = addWorkingDays(T1, offset &quot;cảnh báo muộn&quot;)</code> — tính bằng ngày làm việc (bỏ qua Thứ Bảy, Chủ Nhật, các ngày nghỉ tại &quot;Cấu hình ngày nghỉ&quot;, và tôn trọng &quot;Ngày làm bù&quot; — một Thứ Bảy/Chủ Nhật được khai báo là ngày làm việc bình thường).
@@ -79,7 +92,7 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">5. Quy tắc hiển thị từng ô trạng thái (TTM-CNTT-1…6)</h3>
+          <h3 className="ui-card-title mb-1">6. Quy tắc hiển thị từng ô trạng thái (TTM-CNTT-1…6)</h3>
           <table className="ui-table w-full text-xs">
             <thead>
               <tr><th className="text-left">Rule</th><th className="text-left">Điều kiện</th><th className="text-left">Hiển thị</th></tr>
@@ -94,10 +107,10 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">6. Epic có dữ liệu bất thường — nhóm cuối bảng</h3>
+          <h3 className="ui-card-title mb-1">7. Epic có dữ liệu bất thường — nhóm cuối bảng</h3>
           <p>
             Một hàm dùng chung <code>evaluateEpicDataAnomaly()</code> (áp dụng cho cả 3 màn hình giám sát Epic, Báo cáo và Dashboard) đánh dấu Epic
-            <strong className="text-fb-text-primary"> dữ liệu bất thường</strong> khi vi phạm ít nhất 1 trong 6 rule sau, mỗi rule có index R1-R6 cố định
+            <strong className="text-fb-text-primary"> dữ liệu bất thường</strong> khi vi phạm ít nhất 1 trong 7 rule sau, mỗi rule có index R1-R7 cố định
             (lưu kèm mỗi vi phạm trong bảng <code>epic_data_anomaly_violations</code> để thống kê riêng theo từng nhóm rule). Epic ở trạng thái Cancelled/To Do/In PO/Backlog
             được miễn toàn bộ các rule này:
           </p>
@@ -108,18 +121,19 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
             <li><strong>R4 — Thiếu Phân loại yêu cầu</strong> (epic_request_type).</li>
             <li><strong>R5 — Thiếu Requirement Level</strong> (epic_request_level).</li>
             <li><strong>R6 — SP nhưng mức thấp</strong> — Epic được đánh giá độ phức tạp SP (SP-Lv12/SP-Lv34) nhưng Requirement Level = 1 hoặc 2.</li>
+            <li><strong>R7 — Due Date đúng hạn nhưng sai status</strong> — đã có R4G Date và Due Date, Due Date ≤ R4G Date + 5 ngày làm việc, nhưng status Epic chưa chuyển sang Released (xem mục 4 &quot;Trục Release&quot;).</li>
           </ul>
           <p>Epic vi phạm <strong>vẫn được nhập đầy đủ vào hệ thống</strong> (không bị chặn import), nhưng:</p>
           <ul className="ml-5 list-disc space-y-1">
             <li>Bị đẩy xuống <strong>cuối bảng</strong> và tô nền highlight trên cả 3 màn hình, để dễ nhận biết cần làm sạch dữ liệu nguồn trên Jira.</li>
-            <li>Cột Nhận xét hiện thêm badge <strong className="text-fb-text-primary">&quot;Sai lệch dữ liệu (x)&quot;</strong> — hiển thị <em>song song</em> với badge Cảnh báo/Fail/&quot;Đạt TTM-CNTT&quot;/&quot;Đạt TTM-e2e&quot; bình thường (không thay thế nhau); di chuột lên badge để xem chi tiết từng rule vi phạm.</li>
-            <li>Cảnh báo TTM-CNTT/TTM-E2E chỉ bị ép về &quot;Không tính được&quot; khi bản thân phép tính không còn đáng tin — <strong>thiếu Start Date</strong>, hoặc <strong>R4G/Due Date phi logic</strong> so với mốc gốc — chứ không phải mọi vết trong 6 rule ở trên; ví dụ Epic chỉ thiếu Requirement Level vẫn hiện đúng Cảnh báo sớm/muộn/Fail bình thường.</li>
-            <li>Riêng khi vẫn có Start Date (chỉ R4G/Due Date phi logic): dải TTM-CNTT vẫn vẽ bình thường (baseline theo Start Date, thực tế = Start Date → hôm nay, bỏ qua ngày phi logic).</li>
+            <li>Cột Nhận xét hiện thêm badge <strong className="text-fb-text-primary">&quot;Sai lệch dữ liệu (x)&quot;</strong> — hiển thị <em>song song</em> với badge Cảnh báo/Fail/&quot;Đạt TTM-CNTT&quot;/&quot;Đạt TTM-e2e&quot;/trục Release bình thường (không thay thế nhau); di chuột lên badge để xem chi tiết từng rule vi phạm.</li>
+            <li>Cảnh báo TTM-CNTT/TTM-E2E chỉ bị ép về &quot;Không tính được&quot; khi bản thân phép tính không còn đáng tin — <strong>thiếu Start Date</strong> (TTM-CNTT), hoặc <strong>R4G Date phi logic</strong> so với mốc gốc (TTM-E2E, từ 24/09/2026) — chứ không phải mọi vết trong 7 rule ở trên; ví dụ Epic chỉ thiếu Requirement Level vẫn hiện đúng Cảnh báo sớm/muộn/Fail bình thường.</li>
+            <li>Riêng khi vẫn có Start Date (chỉ R4G Date phi logic): dải TTM-CNTT vẫn vẽ bình thường (baseline theo Start Date, thực tế = Start Date → hôm nay, bỏ qua ngày phi logic).</li>
           </ul>
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">7. Chú giải màu &amp; loại Epic</h3>
+          <h3 className="ui-card-title mb-1">8. Chú giải màu &amp; loại Epic</h3>
           <p>Cuối mỗi bảng có chú giải màu nền <strong>Done</strong> (xanh) / <strong>Warning</strong> (vàng) / <strong>Failed</strong> (đỏ) dùng chung cho các ô trạng thái/pha.</p>
           <p>Loại Epic (epic-type) hiển thị bằng text ngay trước thông tin PM/SM trên cột Epic, dạng <code>&quot;&lt;Loại Epic&gt;. PM/SM: &lt;tên&gt;&quot;</code>. Có 4 loại, tính từ loại và mức yêu cầu của Epic trên Jira (mặc định <strong>CT-Lv12</strong> khi dữ liệu thiếu/không khớp). CT = Cải tiến/Tính năng mới/rỗng; SP = mọi loại yêu cầu còn lại (không còn là danh sách liệt kê riêng):</p>
           <table className="ui-table w-full text-xs">
@@ -137,8 +151,8 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">8. Badge &quot;Đạt TTM-CNTT&quot; / &quot;Đạt TTM-e2e&quot; &amp; Lịch sử cảnh báo tích lũy</h3>
-          <p>Badge <strong>&quot;Đạt TTM-CNTT&quot;</strong> hiển thị ở cột Nhận xét khi Epic đã có R4G Date và không bị cảnh báo. Badge <strong>&quot;Đạt TTM-e2e&quot;</strong> hiển thị khi Epic đã Released/hoàn thành Due Date đúng hạn. Icon tam giác vàng ở cột Epic cho phép mở popup <strong className="text-fb-text-primary">Epic History</strong> để tra cứu lịch sử cảnh báo muộn/fail TTM-CNTT tổng thể qua các đợt import dữ liệu.</p>
+          <h3 className="ui-card-title mb-1">9. Badge &quot;Đạt TTM-CNTT&quot; / &quot;Đạt TTM-e2e&quot; &amp; Lịch sử cảnh báo tích lũy</h3>
+          <p>Badge <strong>&quot;Đạt TTM-CNTT&quot;</strong> hiển thị ở cột Nhận xét khi Epic đã có R4G Date và không bị cảnh báo. Badge <strong>&quot;Đạt TTM-e2e&quot;</strong> (từ 24/09/2026) hiển thị khi Epic đã <strong>Released</strong> VÀ khoảng T0 → R4G Date đạt chuẩn TTM-E2E — không còn dựa vào Due Date (kỷ luật Due Date nay là badge riêng ở &quot;Trục Release&quot;, mục 4). Icon tam giác vàng ở cột Epic cho phép mở popup <strong className="text-fb-text-primary">Epic History</strong> để tra cứu lịch sử cảnh báo muộn/fail TTM-CNTT tổng thể qua các đợt import dữ liệu.</p>
           <p>Popup Epic History còn có mục <strong className="text-fb-text-primary">Dòng thời gian cảnh báo</strong>, dựng từ bảng <code>epic_alert_timeline</code>: theo dõi 5 loại cảnh báo (Fail TTM-CNTT, Cảnh báo muộn TTM-CNTT, Fail TTM-E2E, Thiếu Start Date, Sai lệch dữ liệu) dưới dạng các &quot;đợt&quot; có ngày bắt đầu/kết thúc liên tục — cho biết chính xác Epic đã ở trạng thái đó từ ngày nào đến ngày nào, không chỉ ngày phát hiện. Bảng này luôn được ghi ở mỗi lần tổng hợp dữ liệu (không tạm tắt như lịch sử theo pha bên dưới).</p>
           <p className="rounded-md border border-fb-border bg-fb-surface-muted px-3 py-2 text-xs">
             Lịch sử cảnh báo <strong>theo từng pha</strong> (DEV/TEST/PENTEST của Epic 15) hiện <strong>tạm tắt ghi nhận</strong> do giới hạn kết nối của hạ tầng DB miễn phí — bảng vẫn còn nguyên, chỉ chưa ghi thêm dòng mới. Trạng thái hoàn thành từng pha vẫn được tính <strong>live</strong> mỗi lần tải trang, không phụ thuộc lịch sử này.
@@ -231,9 +245,9 @@ export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
             và <strong>vẫn được ghi vào <code>issues</code></strong> — để user chủ động nhận biết và làm sạch dữ liệu trên Jira thay vì Epic bị âm thầm biến mất khỏi hệ thống.
           </p>
           <p>
-            Ở tầng đọc (mỗi lần tải màn hình), hàm dùng chung <code>evaluateEpicDataAnomaly()</code> đánh giá lại đầy đủ <strong>6 rule (R1-R6)</strong> — không chỉ riêng
-            ngày sai thứ tự, mà cả thiếu T1 theo trạng thái, Pending quá lâu, thiếu Phân loại yêu cầu/Requirement Level, SP nhưng mức thấp (chi tiết ở popup &quot;Logic cảnh báo
-            Epic&quot; mục 6) — để gắn badge <strong className="text-fb-text-primary">&quot;Sai lệch dữ liệu&quot;</strong>, nhóm cuối bảng và highlight trên mọi
+            Ở tầng đọc (mỗi lần tải màn hình), hàm dùng chung <code>evaluateEpicDataAnomaly()</code> đánh giá lại đầy đủ <strong>7 rule (R1-R7)</strong> — không chỉ riêng
+            ngày sai thứ tự, mà cả thiếu T1 theo trạng thái, Pending quá lâu, thiếu Phân loại yêu cầu/Requirement Level, SP nhưng mức thấp, Due Date đúng hạn nhưng status chưa Released (chi tiết ở popup &quot;Logic cảnh báo
+            Epic&quot; mục 7) — để gắn badge <strong className="text-fb-text-primary">&quot;Sai lệch dữ liệu&quot;</strong>, nhóm cuối bảng và highlight trên mọi
             màn hình Epic Alerts/Báo cáo/Dashboard. Mỗi vi phạm còn được ghi vào bảng <code>epic_data_anomaly_violations</code> (xem mục 3) để thống kê riêng theo
             từng nhóm rule. Màn hình Nguồn dữ liệu vẫn chỉ hiện đúng badge &quot;Cảnh báo&quot; (không còn &quot;Lỗi&quot;) kèm message chi
             tiết cho các dòng ngày sai thứ tự lúc import.

@@ -23,11 +23,15 @@ export interface TtmCnttSummary {
   fail: number;
   /** alertLevel === 'NONE' among eligible Epics — "Đạt TTM-CNTT". */
   pass: number;
-  /** pass/eligible as a percentage. When nothing is eligible yet (no Epic has reached R4G), falls
-   * back to (total-fail)/total so an Epic that already blew its TTM-CNTT budget pre-R4G still pulls
-   * the ratio down instead of rendering a false 100% "healthy"; 100 only when there are no rows at
-   * all. */
+  /** pass/eligible as a percentage, rounded to a whole number — used wherever the ratio is shown
+   * compactly (matrix table bars/cells). When nothing is eligible yet (no Epic has reached R4G),
+   * falls back to (total-fail)/total so an Epic that already blew its TTM-CNTT budget pre-R4G still
+   * pulls the ratio down instead of rendering a false 100% "healthy"; 100 only when there are no
+   * rows at all. */
   pct: number;
+  /** Same ratio as `pct`, unrounded — for displays that show 1 decimal place (the two "TTM Index"
+   * ring widgets on Dashboard 2's Executive view) instead of a whole-number percentage. */
+  pctPrecise: number;
   total: number;
 }
 
@@ -45,10 +49,10 @@ export function summarizeTtmCntt(rows: EpicAlertRowPhased[]): TtmCnttSummary {
   }
 
   const total = rows.length;
-  const pct = eligible > 0
-    ? Math.round((pass / eligible) * 100)
+  const pctPrecise = eligible > 0
+    ? (pass / eligible) * 100
     : total > 0
-      ? Math.round(((total - fail) / total) * 100)
+      ? ((total - fail) / total) * 100
       : 100;
-  return { eligible, fail, pass, pct, total };
+  return { eligible, fail, pass, pct: Math.round(pctPrecise), pctPrecise, total };
 }

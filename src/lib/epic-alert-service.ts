@@ -1,7 +1,7 @@
 import pool from '@/lib/db';
 import type { UserRole } from '@/lib/auth-types';
 import type { AlertLevel, EpicComplexity, OffsetRule } from '@/lib/ttm-rules';
-import { resolveOffsetRule } from '@/lib/ttm-rules';
+import { RELEASE_DUE_GRACE_WORKING_DAYS, resolveOffsetRule } from '@/lib/ttm-rules';
 import { evaluateIssueCompliance } from '@/lib/epic-compliance-engine';
 import { addWorkingDays, diffWorkingDays, toDateKey } from '@/lib/working-days';
 import type { HolidaySet } from '@/lib/working-days';
@@ -9,7 +9,7 @@ import { getActiveHolidaySet, getDomainByProjectKeyMap, getProjectMetaByProjectK
 import { listActiveStatusAlertRules } from '@/lib/status-alert-rule-service';
 import { listTtmPolicies } from '@/lib/ttm-policy-service';
 import { getEpicKeysWithAlertHistory } from '@/lib/epic-alert-history-service';
-import { EPIC_WORKFLOW_STATUS_ORDER, epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
+import { EPIC_WORKFLOW_STATUS_ORDER, epicWorkflowStatusIndex } from '@/lib/ttm-phase-rules';
 import { isCancelledStatus, isPendingStatus } from '@/lib/issue-status-rules';
 import { breaksTtmCnttCalculation, breaksTtmE2eCalculation, evaluateEpicDataAnomaly as evaluateEpicDataAnomalyImpl } from '@/lib/epic-data-anomaly';
 import type { EpicAnomalyInput } from '@/lib/epic-data-anomaly';
@@ -129,7 +129,9 @@ export const RELEASE_BASELINE_SOURCE_LABEL = {
 } as const;
 
 export interface TtmE2eRelease {
-  /** Due Date once the Epic is Released and that Due Date has already passed, else today. */
+  /** R4G Date once it's already in the past (<= today), else today — see the 2026-09-24 rule
+   * change: TTM-E2E now measures T0 → R4G Date, not T0 → Due Date (Due Date's own discipline is a
+   * separate concern, see resolveReleaseAxis below). */
   actualToDate: string | null;
   /** FAIL once actualToDate passes baselineDate — no EARLY/LATE tiers for TTM-E2E. */
   alertLevel: AlertLevel;
@@ -142,12 +144,17 @@ export interface TtmE2eRelease {
 
 /**
  * TTM-E2E's own baseline/actual pair, shared by every screen that shows a TTM-E2E stripe or its
- * Fail alert — same T0 fallback chain "đầy đủ" already used for its Release stage cell (Idea
+ * Đạt/Fail badge — same T0 fallback chain "đầy đủ" already used for its Release stage cell (Idea
  * Approved Date → Jira creation date, always resolves, since the Jira `created` field is always
  * present), so a Fail TTM-E2E badge can never disagree with that screen's own TTM-E2E stripe color.
+ *
+ * 2026-09-24 rule change: TTM-E2E's own end point is now R4G Date instead of Due Date — Due Date's
+ * discipline against R4G Date (must land within RELEASE_DUE_GRACE_WORKING_DAYS of it) is now a
+ * wholly separate axis, see resolveReleaseAxis. "Đạt TTM-E2E" (frontend) additionally requires the
+ * Epic's status to actually be Released, not just derived here (see each page's isTtmE2eAchieved).
  */
 export function resolveTtmE2eRelease(
-  row: Pick<EpicRow, 'dueDate' | 'ideaApprovedDate' | 'jiraCreatedAt' | 'status'>,
+  row: Pick<EpicRow, 'ideaApprovedDate' | 'jiraCreatedAt' | 'r4gDate' | 'status'>,
   ttmE2eTargetWorkingDays: number,
   now: Date,
   holidays: HolidaySet,
@@ -157,17 +164,14 @@ export function resolveTtmE2eRelease(
     ? [ideaApprovedDate, RELEASE_BASELINE_SOURCE_LABEL.ideaApproved]
     : [parseDate(row.jiraCreatedAt), RELEASE_BASELINE_SOURCE_LABEL.jiraCreated];
   const baselineDate = baselineSourceDate && ttmE2eTargetWorkingDays ? addWorkingDays(baselineSourceDate, ttmE2eTargetWorkingDays, holidays) : null;
-  // "Stripe thực tế" end point (X): Due Date once it's already in the past (Due Date <= today) and
-  // isn't chronologically nonsense (before T0 — a data anomaly, see hasDataAnomaly) — regardless of
-  // whether the Epic's own status has actually caught up to RELEASED yet, same convention as
-  // resolveTtmActualRange's R4G Date handling for TTM-CNTT. A Due Date recorded ahead of the status
-  // catching up is exactly the "Sai Status" case (see resolveTtmE2eStatusMismatch below) — flagged
-  // separately there instead of being hidden by falling back to "today" here. Otherwise (no Due
-  // Date yet, a future one, or an anomalous one) X stays "today", tracking forward live.
-  const dueDate = parseDate(row.dueDate);
-  const dueDateAlreadyPassed = Boolean(dueDate && toDateKey(dueDate) <= toDateKey(now));
-  const dueDateIsChronological = Boolean(dueDate && baselineSourceDate && dueDate.getTime() >= baselineSourceDate.getTime());
-  const actualToDate = dueDateAlreadyPassed && dueDateIsChronological && dueDate ? dueDate : now;
+  // "Stripe thực tế" end point (X): R4G Date once it's already in the past (R4G Date <= today) and
+  // isn't chronologically nonsense (before T0 — a data anomaly, see hasDataAnomaly), same convention
+  // as resolveTtmActualRange's R4G Date handling for TTM-CNTT. Otherwise (no R4G Date yet, a future
+  // one, or an anomalous one) X stays "today", tracking forward live.
+  const r4gDate = parseDate(row.r4gDate);
+  const r4gDateAlreadyPassed = Boolean(r4gDate && toDateKey(r4gDate) <= toDateKey(now));
+  const r4gDateIsChronological = Boolean(r4gDate && baselineSourceDate && r4gDate.getTime() >= baselineSourceDate.getTime());
+  const actualToDate = r4gDateAlreadyPassed && r4gDateIsChronological && r4gDate ? r4gDate : now;
   const elapsedWorkingDays = baselineSourceDate ? Math.max(0, diffWorkingDays(baselineSourceDate, actualToDate, holidays)) : null;
   const alertLevel: AlertLevel = !baselineDate || isCancelledStatus(row.status) ? 'NONE' : (actualToDate.getTime() > baselineDate.getTime() ? 'FAIL' : 'NONE');
   return {
@@ -196,14 +200,58 @@ export function resolveTtmCnttStatusMismatch(row: Pick<EpicRow, 'r4gDate' | 'sta
   return epicStatusIndex < statusOrderIndex('R4GOLIVE');
 }
 
-/** Same "Sai Status" concept for TTM-E2E: Due Date recorded, already passed (<= today — a future
- * Due Date is just a plan, so there's nothing to evaluate yet), and on schedule against the
- * TTM-E2E baseline, but the Epic's status hasn't reached RELEASED yet. */
-export function resolveTtmE2eStatusMismatch(row: Pick<EpicRow, 'dueDate' | 'status'>, baselineDate: string | null, todayIso: string): boolean {
-  if (!row.dueDate || !baselineDate || row.dueDate > baselineDate) return false;
-  if (row.dueDate > todayIso) return false;
-  if (isCancelledStatus(row.status)) return false;
-  return normalizeEpicWorkflowStatus(row.status) !== 'RELEASED';
+export type ReleaseAxisState = 'NONE' | 'WAITING_GOLIVE' | 'EARLY_WARNING' | 'JUSTIFY_GOLIVE';
+
+export interface ReleaseAxisResult {
+  /** R4G Date + RELEASE_DUE_GRACE_WORKING_DAYS working days — null until the Epic has an R4G Date. */
+  graceDeadline: string | null;
+  state: ReleaseAxisState;
+}
+
+/**
+ * "Trục Release" (company rule, 2026-09-24) — governs the "Chờ golive"/"Cảnh báo sớm"/"Giải trình
+ * Golive" badges, entirely separate from the TTM-E2E duration axis (resolveTtmE2eRelease) and from
+ * "Sai lệch dữ liệu" (see RELEASE_STATUS_MISMATCH in
+ * epic-data-anomaly.ts, which owns the "Due Date on time but status still not Released" case
+ * instead of this function):
+ *
+ * - No R4G Date yet → NONE. This axis doesn't start until the Epic actually has an R4G Date — an
+ *   Epic still in DESIGN/DEV/TEST/PENTEST (no R4G Date at all) has nothing to say here, and neither
+ *   does one that's somehow past R4GOLIVE without one recorded (a different anomaly's concern).
+ * - R4G Date recorded:
+ *   - Due Date recorded and later than R4G Date + grace → JUSTIFY_GOLIVE, regardless of status (a
+ *     Due Date that badly overshoots the grace period needs explaining even once Released).
+ *   - Due Date recorded and within the grace window → NONE here — either genuinely clean (Released)
+ *     or the RELEASE_STATUS_MISMATCH anomaly rule owns the badge (status not yet Released).
+ *   - No Due Date yet, and today is past R4G Date + grace → JUSTIFY_GOLIVE (stuck with no Due Date
+ *     at all past the grace window, regardless of status).
+ *   - No Due Date yet, still inside [R4G Date, R4G Date + grace] → WAITING_GOLIVE ("Chờ golive")
+ *     while status hasn't advanced past R4GOLIVE yet (still sitting right at that milestone), else
+ *     EARLY_WARNING ("Cảnh báo sớm" — status has already moved on, e.g. MVPDONE, but Due Date isn't
+ *     recorded yet).
+ */
+export function resolveReleaseAxis(
+  row: Pick<EpicRow, 'dueDate' | 'r4gDate' | 'status'>,
+  epicStatusIndex: number,
+  now: Date,
+  holidays: HolidaySet,
+): ReleaseAxisResult {
+  if (isCancelledStatus(row.status)) return { graceDeadline: null, state: 'NONE' };
+
+  const r4gDate = parseDate(row.r4gDate);
+  if (!r4gDate) return { graceDeadline: null, state: 'NONE' };
+  const graceDeadline = toIsoDate(addWorkingDays(r4gDate, RELEASE_DUE_GRACE_WORKING_DAYS, holidays));
+
+  const dueDate = parseDate(row.dueDate);
+  if (dueDate && graceDeadline) {
+    const dueIso = toIsoDate(dueDate);
+    if (dueIso && dueIso > graceDeadline) return { graceDeadline, state: 'JUSTIFY_GOLIVE' };
+    return { graceDeadline, state: 'NONE' };
+  }
+
+  const todayIso = toIsoDate(now);
+  if (graceDeadline && todayIso && todayIso > graceDeadline) return { graceDeadline, state: 'JUSTIFY_GOLIVE' };
+  return { graceDeadline, state: epicStatusIndex <= statusOrderIndex('R4GOLIVE') ? 'WAITING_GOLIVE' : 'EARLY_WARNING' };
 }
 
 export interface AccessScope {
@@ -325,14 +373,14 @@ export interface EvaluatedEpicEntry {
   hasAlertHistory: boolean;
   pmSmName: string;
   projectName: string;
+  /** See resolveReleaseAxis — "Chờ golive"/"Cảnh báo sớm"/"Giải trình Golive" on the Release axis. */
+  releaseAxis: ReleaseAxisResult;
   row: EpicRow;
   startDate: Date | null;
   /** See resolveTtmCnttStatusMismatch — "Sai Status" on the TTM-CNTT axis. */
   ttmCnttStatusMismatch: boolean;
   /** Precomputed once here (shared by every screen) instead of recomputed per consumer. */
   ttmE2eRelease: TtmE2eRelease;
-  /** See resolveTtmE2eStatusMismatch — "Sai Status" on the TTM-E2E axis. */
-  ttmE2eStatusMismatch: boolean;
   ttmE2eTarget: number;
 }
 
@@ -496,12 +544,12 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole, filt
 
     const ttmE2eTarget = evaluation.ttm.e2e.workingDays ?? 0;
     const ttmE2eRelease = resolveTtmE2eRelease(row, ttmE2eTarget, now, holidays);
-    // Guarded the same narrow way alertLevel itself is (breaksTtmCnttCalculation/E2e) — a row whose
+    // Guarded the same narrow way alertLevel itself is (breaksTtmCnttCalculation) — a row whose
     // underlying calc is already broken (e.g. missing Start Date) shouldn't also claim "Sai Status".
     const ttmCnttStatusMismatch = !breaksTtmCnttCalculation(row) && resolveTtmCnttStatusMismatch(row, epicStatusIndex, evaluation.ttm.cntt.targetDate, todayIso);
-    const ttmE2eStatusMismatch = !breaksTtmE2eCalculation(row) && resolveTtmE2eStatusMismatch(row, ttmE2eRelease.baselineDate, todayIso);
+    const releaseAxis = resolveReleaseAxis(row, epicStatusIndex, now, holidays);
 
-    entries.push({ complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, projectName, row, startDate, ttmCnttStatusMismatch, ttmE2eRelease, ttmE2eStatusMismatch, ttmE2eTarget });
+    entries.push({ complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, projectName, releaseAxis, row, startDate, ttmCnttStatusMismatch, ttmE2eRelease, ttmE2eTarget });
   }
 
   return { accessRole: scope.accessRole, asOfDate, availableLayerDates, entries, holidays, lastAggregatedAt: latestAggregatedAt, lastBatchId, now, statusAlertRules, viewerName };
@@ -523,7 +571,7 @@ export async function getEpicAlertRows(userId: number, role: UserRole, filters: 
   const rows: EpicAlertRow[] = [];
   const releasedStatusIndex = statusOrderIndex('Released');
 
-  for (const { complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, row, startDate, ttmCnttStatusMismatch, ttmE2eRelease, ttmE2eStatusMismatch, ttmE2eTarget } of entries) {
+  for (const { complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, releaseAxis, row, startDate, ttmCnttStatusMismatch, ttmE2eRelease, ttmE2eTarget } of entries) {
     // Default visibility rule for THIS screen only ("Quản trị Epic (rút gọn)"): Released epics
     // only stay on the list if they were ever flagged Cảnh báo muộn/Fail TTM in their accumulated
     // alert history — everything else always shows. "Quản trị Epic (đầy đủ)" deliberately shows
@@ -590,6 +638,8 @@ export async function getEpicAlertRows(userId: number, role: UserRole, filters: 
       ownerName: pmSmName,
       projectKey: row.project ?? '',
       r4gDate: row.r4gDate,
+      releaseAxisState: releaseAxis.state,
+      releaseGraceDeadline: releaseAxis.graceDeadline,
       remainingWorkingDays,
       requestingUnit: row.requestingUnit,
       requirementLevel: row.requirementLevel,
@@ -613,7 +663,6 @@ export async function getEpicAlertRows(userId: number, role: UserRole, filters: 
       ttmE2eElapsedWorkingDays: ttmE2eRelease.elapsedWorkingDays,
       ttmE2eTargetWorkingDays: ttmE2eTarget,
       ttmCnttStatusMismatch,
-      ttmE2eStatusMismatch,
     });
   }
 

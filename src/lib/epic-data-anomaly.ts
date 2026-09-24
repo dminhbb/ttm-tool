@@ -1,8 +1,9 @@
-import { diffWorkingDays } from '@/lib/working-days';
+import { addWorkingDays, diffWorkingDays, toDateKey } from '@/lib/working-days';
 import type { HolidaySet } from '@/lib/working-days';
 import { isCancelledStatus, isPendingStatus } from '@/lib/issue-status-rules';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import type { EpicComplexity } from '@/lib/ttm-rules';
+import { RELEASE_DUE_GRACE_WORKING_DAYS } from '@/lib/ttm-rules';
 
 /**
  * Single source of truth for "Epic bị sai lệch dữ liệu" — every screen (Quản trị Epic đầy đủ/rút
@@ -33,6 +34,13 @@ import type { EpicComplexity } from '@/lib/ttm-rules';
  *       not Tính năng mới/Cải tiến/blank) but Requirement Level = 1 or 2 → anomaly. SP-type
  *       requests are expected to always be higher complexity (level 3-4); an SP Epic sitting at
  *       level 1-2 signals a request-type or level entered by mistake.
+ *  - R7 RELEASE_STATUS_MISMATCH (added 2026-09-24) — R4G Date and Due Date are both recorded, Due
+ *       Date lands within RELEASE_DUE_GRACE_WORKING_DAYS working days of R4G Date (on schedule per
+ *       the "trục Release" rule — see resolveReleaseAxis in epic-alert-service.ts), but the Epic's
+ *       status hasn't actually reached RELEASED yet → anomaly. Same "Sai Status" shape as
+ *       resolveTtmCnttStatusMismatch, just for the Release axis instead of TTM-CNTT; folded into the
+ *       anomaly engine (rather than a standalone mismatch flag like the old TTM-E2E one) so it's
+ *       counted/queried the same way as every other rule.
  *  An Epic can carry several violations at once; the caller shows the full list so the user knows
  *  exactly what to fix.
  */
@@ -42,9 +50,10 @@ export type EpicAnomalyCode =
   | 'DATE_OUT_OF_SEQUENCE'
   | 'MISSING_REQUEST_TYPE'
   | 'MISSING_REQUIREMENT_LEVEL'
-  | 'SP_LEVEL_MISMATCH';
+  | 'SP_LEVEL_MISMATCH'
+  | 'RELEASE_STATUS_MISMATCH';
 
-/** Stable numeric index (R1-R6) for each rule — persisted with every violation
+/** Stable numeric index (R1-R7) for each rule — persisted with every violation
  * (epic_data_anomaly_violations.rule_index) so stats can be grouped by rule without depending on
  * the rule's text code or message wording. Never renumber an existing code; add new rules at the
  * end. */
@@ -55,6 +64,7 @@ export const EPIC_ANOMALY_RULE_INDEX: Record<EpicAnomalyCode, number> = {
   MISSING_REQUEST_TYPE: 4,
   MISSING_REQUIREMENT_LEVEL: 5,
   SP_LEVEL_MISMATCH: 6,
+  RELEASE_STATUS_MISMATCH: 7,
 };
 
 export interface EpicAnomalyViolation {
@@ -175,6 +185,16 @@ export function evaluateEpicDataAnomaly(input: EpicAnomalyInput, now: Date, holi
     violations.push(violation('SP_LEVEL_MISMATCH', `Epic được đánh giá độ phức tạp Sản phẩm (${input.epicComplexityType}) nhưng Requirement Level = ${requirementLevelNormalized} — không phù hợp với loại yêu cầu Sản phẩm`));
   }
 
+  // R7 — Due Date on schedule (within RELEASE_DUE_GRACE_WORKING_DAYS of R4G Date) but status
+  // hasn't caught up to RELEASED yet. See resolveReleaseAxis (epic-alert-service.ts), which
+  // deliberately stays silent (state 'NONE') in exactly this case and lets this rule own the badge.
+  if (r4g && due) {
+    const graceDeadline = toDateKey(addWorkingDays(new Date(`${r4g}T00:00:00`), RELEASE_DUE_GRACE_WORKING_DAYS, holidays));
+    if (due <= graceDeadline && normalizedStatus !== 'RELEASED') {
+      violations.push(violation('RELEASE_STATUS_MISMATCH', `Due Date đã ghi nhận trong hạn ${RELEASE_DUE_GRACE_WORKING_DAYS} ngày làm việc kể từ R4G Date, nhưng status Epic chưa chuyển sang Released`));
+    }
+  }
+
   return violations;
 }
 
@@ -200,15 +220,17 @@ export function breaksTtmCnttCalculation(input: Pick<EpicAnomalyInput, 'r4gDate'
 }
 
 /**
- * Whether Due Date is chronologically nonsense relative to Idea Approved Date (T0) — the only
+ * Whether R4G Date is chronologically nonsense relative to Idea Approved Date (T0) — the only
  * condition that makes the TTM-E2E Fail calculation itself unreliable (resolveTtmE2eRelease
  * already falls back T0 → Jira creation date on its own, so a merely-missing T0 is never a problem
- * here). Same narrow-vs-evaluateEpicDataAnomaly() reasoning as breaksTtmCnttCalculation above —
- * this must never be the full 6-rule anomaly flag, or a missing Requirement Level would hide a
- * genuine Fail TTM-E2E badge.
+ * here). Checks R4G Date, not Due Date, since the 2026-09-24 rule change made R4G Date the TTM-E2E
+ * axis's own end point (Due Date's discipline against R4G Date is a separate concern — see
+ * resolveReleaseAxis / RELEASE_STATUS_MISMATCH). Same narrow-vs-evaluateEpicDataAnomaly() reasoning
+ * as breaksTtmCnttCalculation above — this must never be the full anomaly flag, or a missing
+ * Requirement Level would hide a genuine Fail TTM-E2E badge.
  */
-export function breaksTtmE2eCalculation(input: Pick<EpicAnomalyInput, 'dueDate' | 'ideaApprovedDate'>): boolean {
+export function breaksTtmE2eCalculation(input: Pick<EpicAnomalyInput, 'ideaApprovedDate' | 'r4gDate'>): boolean {
   const t0 = dateOnly(input.ideaApprovedDate);
-  const due = dateOnly(input.dueDate);
-  return Boolean(t0 && due && due < t0);
+  const r4g = dateOnly(input.r4gDate);
+  return Boolean(t0 && r4g && r4g < t0);
 }

@@ -58,7 +58,7 @@ function formatDateTime(value: string | null): string {
   return `${day}/${month}/${date.getFullYear()} ${hour}:${minute}`;
 }
 
-type AlertFilterValue = AlertLevel | 'FAIL_E2E' | 'ACHIEVED_CNTT' | 'ACHIEVED_E2E' | 'STATUS_MISMATCH' | 'DATA_ANOMALY' | '';
+type AlertFilterValue = AlertLevel | 'FAIL_E2E' | 'ACHIEVED_CNTT' | 'ACHIEVED_E2E' | 'STATUS_MISMATCH' | 'DATA_ANOMALY' | 'WAITING_GOLIVE' | 'RELEASE_EARLY' | 'JUSTIFY_GOLIVE' | '';
 
 const ALERT_FILTER_OPTIONS: { label: string; value: AlertFilterValue }[] = [
   { label: 'Tất cả nhận xét', value: '' },
@@ -70,25 +70,32 @@ const ALERT_FILTER_OPTIONS: { label: string; value: AlertFilterValue }[] = [
   { label: 'Fail TTM-E2E', value: 'FAIL_E2E' },
   { label: 'Sai Status', value: 'STATUS_MISMATCH' },
   { label: 'Sai lệch dữ liệu', value: 'DATA_ANOMALY' },
+  { label: 'Chờ golive', value: 'WAITING_GOLIVE' },
+  { label: 'Cảnh báo sớm Release', value: 'RELEASE_EARLY' },
+  { label: 'Giải trình Golive', value: 'JUSTIFY_GOLIVE' },
 ];
 
 /**
  * "Lọc Nhận xét" (formerly "Cảnh báo") — matches the same "Nhận xét" badges rendered in the table
- * (see the Nhận xét TD below): FAIL_E2E, ACHIEVED_CNTT, ACHIEVED_E2E, STATUS_MISMATCH and
- * DATA_ANOMALY are sentinel values layered on top of the raw AlertLevel values (EARLY/LATE/FAIL)
- * already used elsewhere (sorting, stat widgets). A "Sai Status" row never also matches an
- * ACHIEVED/FAIL_E2E option — see resolveTtmCnttStatusMismatch/resolveTtmE2eStatusMismatch in
- * epic-alert-service.ts, which only ever flag status mismatch when the underlying axis is
- * objectively on schedule (alertLevel NONE).
+ * (see the Nhận xét TD below): FAIL_E2E, ACHIEVED_CNTT, ACHIEVED_E2E, STATUS_MISMATCH,
+ * DATA_ANOMALY, WAITING_GOLIVE, RELEASE_EARLY and JUSTIFY_GOLIVE are sentinel values layered on top
+ * of the raw AlertLevel values (EARLY/LATE/FAIL) already used elsewhere (sorting, stat widgets). A
+ * "Sai Status" row never also matches ACHIEVED_CNTT — see resolveTtmCnttStatusMismatch in
+ * epic-alert-service.ts, which only ever flags status mismatch when the underlying axis is
+ * objectively on schedule (alertLevel NONE). "Đạt TTM-E2E" (2026-09-24 rule) requires status
+ * Released, not just an on-schedule R4G Date — see resolveTtmE2eRelease's own doc comment.
  */
 function matchesAlertFilter(row: EpicAlertRowPhased, alertFilter: AlertFilterValue): boolean {
   switch (alertFilter) {
     case '': return true;
-    case 'FAIL_E2E': return row.ttmE2eAlertLevel === 'FAIL' && !row.ttmE2eStatusMismatch;
+    case 'FAIL_E2E': return row.ttmE2eAlertLevel === 'FAIL';
     case 'ACHIEVED_CNTT': return row.alertLevel === 'NONE' && Boolean(row.r4gDate) && !row.ttmCnttStatusMismatch && row.ttmActualToDate === row.r4gDate;
-    case 'ACHIEVED_E2E': return row.ttmE2eAlertLevel === 'NONE' && Boolean(row.dueDate) && !row.ttmE2eStatusMismatch && row.ttmE2eActualToDate === row.dueDate;
-    case 'STATUS_MISMATCH': return row.ttmCnttStatusMismatch || row.ttmE2eStatusMismatch;
+    case 'ACHIEVED_E2E': return row.ttmE2eAlertLevel === 'NONE' && normalizeEpicWorkflowStatus(row.currentStatus) === 'RELEASED' && Boolean(row.r4gDate) && row.ttmE2eActualToDate === row.r4gDate;
+    case 'STATUS_MISMATCH': return row.ttmCnttStatusMismatch;
     case 'DATA_ANOMALY': return row.hasDataAnomaly;
+    case 'WAITING_GOLIVE': return row.releaseAxisState === 'WAITING_GOLIVE';
+    case 'RELEASE_EARLY': return row.releaseAxisState === 'EARLY_WARNING';
+    case 'JUSTIFY_GOLIVE': return row.releaseAxisState === 'JUSTIFY_GOLIVE';
     default: return row.alertLevel === alertFilter;
   }
 }
@@ -261,10 +268,12 @@ function TtmMetricStrips({
   elapsed: number | null;
   isOver: boolean;
   ratio: number;
-  /** "Sai Status" (see resolveTtmCnttStatusMismatch/resolveTtmE2eStatusMismatch in
-   * epic-alert-service.ts): the recorded date is on schedule, but the caller still forces `isOver`
-   * true since the workflow status hasn't actually caught up — this renders a "*" marker beside the
-   * actual end date so the red color doesn't read as a plain, unexplained lateness. */
+  /** "Sai Status" (see resolveTtmCnttStatusMismatch in epic-alert-service.ts): the recorded date is
+   * on schedule, but the caller still forces `isOver` true since the workflow status hasn't
+   * actually caught up — this renders a "*" marker beside the actual end date so the red color
+   * doesn't read as a plain, unexplained lateness. Only ever passed for the TTM-CNTT strip now —
+   * TTM-E2E's own "status not caught up" case moved to the Release axis (resolveReleaseAxis) and
+   * the RELEASE_STATUS_MISMATCH anomaly rule, 2026-09-24. */
   statusMismatch?: boolean;
   target: number;
 }) {
@@ -334,9 +343,8 @@ function TtmE2eStrips({ compact, row }: { compact: boolean; row: EpicAlertRowPha
       className="ttm-col-border-right"
       compact={compact}
       elapsed={row.ttmE2eElapsedWorkingDays}
-      isOver={row.ttmE2eStatusMismatch || row.ttmE2eAlertLevel === 'FAIL'}
+      isOver={row.ttmE2eAlertLevel === 'FAIL'}
       ratio={row.ttmE2eTargetWorkingDays > 0 ? (row.ttmE2eElapsedWorkingDays ?? 0) / row.ttmE2eTargetWorkingDays : 0}
-      statusMismatch={row.ttmE2eStatusMismatch}
       target={row.ttmE2eTargetWorkingDays}
     />
   );
@@ -875,19 +883,21 @@ export default function EpicInPoPage() {
                     </TD>
                     <TD>
                       {(() => {
-                        // "Sai Status" (see resolveTtmCnttStatusMismatch/resolveTtmE2eStatusMismatch in
-                        // epic-alert-service.ts) always takes priority over Đạt/Fail on its own axis —
-                        // the recorded date is on schedule, but the workflow status hasn't caught up,
-                        // so neither badge would be honest here.
-                        // "Đạt" requires the recorded date to have actually already passed — ttmActualToDate/
-                        // ttmE2eActualToDate only equal r4gDate/dueDate once they're chronological AND <=
-                        // today (see resolveTtmActualRange/resolveTtmE2eRelease); a future-dated R4G/Due
-                        // Date (still "in progress") must not be praised as achieved just because it exists.
+                        // "Sai Status" (see resolveTtmCnttStatusMismatch in epic-alert-service.ts) always
+                        // takes priority over Đạt/Fail TTM-CNTT — the recorded date is on schedule, but
+                        // the workflow status hasn't caught up, so neither badge would be honest here.
+                        // "Đạt TTM-CNTT" requires the recorded date to have actually already passed —
+                        // ttmActualToDate only equals r4gDate once it's chronological AND <= today (see
+                        // resolveTtmActualRange); a future-dated R4G Date (still "in progress") must not
+                        // be praised as achieved just because it exists.
                         const isTtmCnttAchieved = !row.ttmCnttStatusMismatch && row.alertLevel === 'NONE' && Boolean(row.r4gDate) && row.ttmActualToDate === row.r4gDate;
-                        const isTtmE2eAchieved = !row.ttmE2eStatusMismatch && row.ttmE2eAlertLevel === 'NONE' && Boolean(row.dueDate) && row.ttmE2eActualToDate === row.dueDate;
+                        // "Đạt TTM-E2E" (2026-09-24 rule): status Released AND T0→R4G Date on schedule —
+                        // see resolveTtmE2eRelease's doc comment for why status alone isn't derived there.
+                        const isTtmE2eAchieved = row.ttmE2eAlertLevel === 'NONE' && normalizeEpicWorkflowStatus(row.currentStatus) === 'RELEASED' && Boolean(row.r4gDate) && row.ttmE2eActualToDate === row.r4gDate;
                         const hasCnttBadge = row.ttmCnttStatusMismatch || row.alertLevel !== 'NONE' || isTtmCnttAchieved;
-                        const hasE2eBadge = row.ttmE2eStatusMismatch || row.ttmE2eAlertLevel === 'FAIL' || isTtmE2eAchieved;
-                        const hasAnyBadge = hasCnttBadge || hasE2eBadge || row.hasDataAnomaly;
+                        const hasE2eBadge = row.ttmE2eAlertLevel === 'FAIL' || isTtmE2eAchieved;
+                        const hasReleaseBadge = row.releaseAxisState !== 'NONE';
+                        const hasAnyBadge = hasCnttBadge || hasE2eBadge || hasReleaseBadge || row.hasDataAnomaly;
 
                         return (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
@@ -905,14 +915,24 @@ export default function EpicInPoPage() {
                               <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT đúng hạn theo rule">Đạt TTM-CNTT</span>
                             ) : null}
 
-                            {row.ttmE2eStatusMismatch ? (
-                              <Tooltip content="Due Date đã ghi nhận và đúng hạn theo TTM-E2E, nhưng status Epic chưa chuyển sang RELEASED — vui lòng cập nhật status đúng quy định." className="inline-flex w-auto">
-                                <span className="ttm-badge status-mismatch">Sai Status</span>
-                              </Tooltip>
-                            ) : row.ttmE2eAlertLevel === 'FAIL' ? (
+                            {row.ttmE2eAlertLevel === 'FAIL' ? (
                               <span className="ttm-badge fail-e2e">Fail TTM-E2E</span>
                             ) : isTtmE2eAchieved ? (
-                              <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-E2E đúng hạn theo rule">Đạt TTM-e2e</span>
+                              <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-E2E đúng hạn theo rule (T0 → R4G Date) và đã Released">Đạt TTM-e2e</span>
+                            ) : null}
+
+                            {row.releaseAxisState === 'WAITING_GOLIVE' ? (
+                              <Tooltip content={`Epic đã có R4G Date, còn trong hạn ${formatDate(row.releaseGraceDeadline)} (R4G Date + 5 ngày làm việc) và chưa có Due Date.`} className="inline-flex w-auto">
+                                <span className="ttm-badge waiting-golive">Chờ golive</span>
+                              </Tooltip>
+                            ) : row.releaseAxisState === 'EARLY_WARNING' ? (
+                              <Tooltip content={`Đã qua R4GOLIVE, còn trong hạn ${formatDate(row.releaseGraceDeadline)} để có Due Date hợp lệ và chuyển status Released.`} className="inline-flex w-auto">
+                                <span className="ttm-badge early-warning">Cảnh báo sớm</span>
+                              </Tooltip>
+                            ) : row.releaseAxisState === 'JUSTIFY_GOLIVE' ? (
+                              <Tooltip content={`Đã quá hạn ${formatDate(row.releaseGraceDeadline)} (R4G Date + 5 ngày làm việc) mà Epic chưa Released đúng hạn hoặc Due Date vượt hạn — cần giải trình.`} className="inline-flex w-auto">
+                                <span className="ttm-badge justify-golive">Giải trình Golive</span>
+                              </Tooltip>
                             ) : null}
 
                             {!hasAnyBadge && <span className="ttm-empty-warning">—</span>}
