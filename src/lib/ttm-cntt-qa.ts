@@ -23,8 +23,10 @@ export interface TtmCnttSummary {
   fail: number;
   /** alertLevel === 'NONE' among eligible Epics — "Đạt TTM-CNTT". */
   pass: number;
-  /** pass/eligible as a percentage; 100 when there is nothing eligible yet (no Epic to fail the
-   * ratio), so an empty scope never renders as if it were failing. */
+  /** pass/eligible as a percentage. When nothing is eligible yet (no Epic has reached R4G), falls
+   * back to (total-fail)/total so an Epic that already blew its TTM-CNTT budget pre-R4G still pulls
+   * the ratio down instead of rendering a false 100% "healthy"; 100 only when there are no rows at
+   * all. */
   pct: number;
   total: number;
 }
@@ -42,6 +44,11 @@ export function summarizeTtmCntt(rows: EpicAlertRowPhased[]): TtmCnttSummary {
     }
   }
 
-  const pct = eligible > 0 ? Math.round((pass / eligible) * 100) : 100;
-  return { eligible, fail, pass, pct, total: rows.length };
+  const total = rows.length;
+  const pct = eligible > 0
+    ? Math.round((pass / eligible) * 100)
+    : total > 0
+      ? Math.round(((total - fail) / total) * 100)
+      : 100;
+  return { eligible, fail, pass, pct, total };
 }

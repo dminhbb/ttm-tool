@@ -206,10 +206,11 @@ export default function DashboardNewPage() {
   // Drills a KPI tile/matrix cell down into "Quản trị Epic" (epic-alerts-15) pre-filtered to exactly
   // what produced that number — carries over whatever project/domain the dashboard itself is
   // currently scoped to, so the target screen's count matches the tile the user clicked.
-  const toEpicAlertsLink = (extra: Omit<EpicAlertsDeepLinkParams, 'domain' | 'projects'>) => buildEpicAlertsDeepLink({
+  const toEpicAlertsLink = (extra: Omit<EpicAlertsDeepLinkParams, 'domain' | 'projects' | 'search'>) => buildEpicAlertsDeepLink({
     ...extra,
     domain: filterProject ? undefined : (filterDomain || undefined),
     projects: filterProject ? [filterProject] : undefined,
+    search: searchQuery || undefined,
   });
 
   // Breakdown Matrix Table Data
@@ -226,10 +227,14 @@ export default function DashboardNewPage() {
       const curr = map.get(keyVal) ?? { late: 0, ok: 0, rows: [] };
       curr.rows.push(row);
 
-      // "Đúng/Chậm tiến độ" only tracks Epics still in flight (not yet Released) — Released Epics
-      // are already judged by Pass/Fail TTM-CNTT (QLDA) instead.
-      const isReleased = Boolean(row.stages.release.isDone && row.dueDate);
-      if (!isReleased) {
+      // "Đúng/Chậm tiến độ" only tracks Epics that don't have a TTM-CNTT verdict yet — the same
+      // eligibility gate summarizeTtmCntt uses below (recorded R4G Date + no data anomaly). Once a
+      // row is QLDA-judged it's counted there instead, so every row in the bucket lands in exactly
+      // one of {qlda pass/fail, late/ok} and "Tổng số Epic" never silently outgrows the columns
+      // that add up to it (a Released Epic with a data anomaly or a missing R4G Date used to vanish
+      // from every column here otherwise).
+      const isQldaJudged = Boolean(row.r4gDate && !row.hasDataAnomaly);
+      if (!isQldaJudged) {
         if (row.alertLevel === 'FAIL' || row.alertLevel === 'LATE') curr.late += 1;
         else curr.ok += 1;
       }

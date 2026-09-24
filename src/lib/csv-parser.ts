@@ -122,6 +122,7 @@ export function mapCSVToRawIssues(rows: string[][]): { issues: RawJiraIssue[]; h
   const idxStartDate = getIndex(['Custom field (Start date)', 'Custom field (Start Date)', 'Start date', 'Start Date']);
   const idxR4gDate = getIndex(['Custom field (R4G Date)', 'R4G Date']);
   const idxIdeaApprovedDate = getIndex(['Custom field (Ngày duyệt ý tưởng)', 'Ngày duyệt ý tưởng', 'Idea Approved Date']);
+  const idxRequestingUnit = getIndex(['Custom field (Đơn vị yêu cầu)', 'Đơn vị yêu cầu']);
   
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r];
@@ -147,6 +148,7 @@ export function mapCSVToRawIssues(rows: string[][]): { issues: RawJiraIssue[]; h
       epicStatus: getValue(idxEpicStatus),
       epicType: getValue(idxEpicType),
       requirementLevel: getValue(idxRequirementLevel),
+      requestingUnit: getValue(idxRequestingUnit),
       startDate: getValue(idxStartDate),
       r4gDate: getValue(idxR4gDate),
       ideaApprovedDate: getValue(idxIdeaApprovedDate),
