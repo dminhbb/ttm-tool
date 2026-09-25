@@ -65,12 +65,6 @@ function formatSqlValue(value: unknown): string {
   // with bare commas and no braces, producing a value Postgres rejects as a malformed array
   // literal on re-import.
   if (Array.isArray(value)) return `'${formatPgArrayLiteral(value).replace(/'/g, "''")}'`;
-  // JSON/JSONB columns (e.g. epic_alert_timeline.detail) come back from node-pg as parsed plain
-  // objects — without this branch they fell into the generic String(value) case below, which
-  // produces the literal text "[object Object]" (JS's default object-to-string conversion, not
-  // JSON), and Postgres rejects that on import with "invalid input syntax for type json". Must
-  // come after the Array check above since arrays are also typeof 'object'.
-  if (typeof value === 'object') return `'${JSON.stringify(value).replace(/'/g, "''")}'`;
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 

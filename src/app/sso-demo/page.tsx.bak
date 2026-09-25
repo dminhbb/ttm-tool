@@ -27,9 +27,9 @@ function SsoDemoContent() {
       try {
         const res = await fetch('/api/admin/api-keys');
         if (res.ok) {
-          const data: unknown = await res.json();
+          const data = await res.json();
           if (Array.isArray(data)) {
-            const active = (data as { apiKey: string; appName: string; isActive: boolean; keyName: string }[]).filter((k) => k.isActive);
+            const active = data.filter((k: any) => k.isActive);
             setAvailableKeys(active);
             if (active.length > 0) {
               setApiKey(active[0].apiKey);
@@ -49,14 +49,14 @@ function SsoDemoContent() {
   React.useEffect(() => {
     if (!code) return;
 
-    async function processCode() {
-      // Retrieve stored test API Key from localStorage if available
-      const savedKey = localStorage.getItem('sso_demo_api_key') || apiKey;
-      if (!savedKey) {
-        setExchangeError('Không tìm thấy API Key để trao đổi mã code. Vui lòng nhập API Key và thử lại.');
-        return;
-      }
+    // Retrieve stored test API Key from localStorage if available
+    const savedKey = localStorage.getItem('sso_demo_api_key') || apiKey;
+    if (!savedKey) {
+      setExchangeError('Không tìm thấy API Key để trao đổi mã code. Vui lòng nhập API Key và thử lại.');
+      return;
+    }
 
+    async function processCode() {
       setExchanging(true);
       setExchangeError(null);
       try {
@@ -72,14 +72,14 @@ function SsoDemoContent() {
         } else {
           setSsoResult(data);
         }
-      } catch (err: unknown) {
-        setExchangeError(err instanceof Error ? err.message : 'Không thể trao đổi mã token.');
+      } catch (err: any) {
+        setExchangeError(err?.message || 'Không thể trao đổi mã token.');
       } finally {
         setExchanging(false);
       }
     }
 
-    void processCode();
+    processCode();
   }, [code]);
 
   const handleStartSso = () => {

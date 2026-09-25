@@ -6,7 +6,121 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-09-26
+
+- **Rà soát tác động của thay đổi pagination hôm nay lên "Epic in PO", "Báo cáo Epic", "Dashboard
+  New" — phát hiện và sửa 1 lỗi thật (Epic in PO), 2 màn còn lại không bị ảnh hưởng**:
+  - **Lỗi phát hiện (đã sửa)**: `src/app/epic-in-po/page.tsx` gọi chung `/api/epic-alerts-15` rồi tự
+    lọc client-side xuống 3 status TO DO/IN PO/RELEASED — từ khi API đó chuyển sang trả về `mode:
+    'paged'` (đã tải sẵn phân trang, tối đa `pageSize` dòng thay vì toàn bộ), Epic in PO chỉ còn
+    nhận đúng 1 trang (tối đa 20 dòng) của TOÀN BỘ phạm vi quyền rồi mới lọc còn lại — gần như trống
+    dữ liệu ở đa số trường hợp. Sửa bằng cách cho Epic in PO tự gửi `statuses=<các biến thể "To
+    Do"/"IN PO"/"Released" thật trong dữ liệu>` cùng `page`/`pageSize` riêng của nó tới API (giống
+    hệt cách epic-alerts-15/page.tsx đã làm) — giờ Epic in PO cũng được hưởng lợi ích phân trang
+    server-side y hệt Quản trị Epic thay vì tải hết. Đã kiểm chứng qua API thật: 487 Epic In PO
+    đúng, thay vì bị cắt còn ≤20.
+  - **Lỗi phụ đi kèm (đã sửa luôn)**: dòng "Hiển thị X–Y / Z Epic" ở cả `epic-alerts-15/page.tsx`
+    và `epic-in-po/page.tsx` dùng `filteredRows.length` làm tổng số — đúng ở chế độ cũ (client giữ
+    hết rows) nhưng sai ở `mode:'paged'` (chỉ còn 1 trang trong `filteredRows`), hiển thị tổng sai
+    (ví dụ "20" thay vì "487"). Sửa dùng `data.totalCount` khi `mode==='paged'`.
+  - **Báo cáo Epic (`/reports`)**: hoàn toàn độc lập — `reports-service.ts` tự chạy SQL riêng trên
+    `issues`, không gọi `getEpicAlertRowsPhased`/đọc `epic_alert_row_cache`. Không có rủi ro, không
+    có lợi ích gì từ cache mới.
+  - **Dashboard New (`/dashboard-new`, kể cả `/dashboard` cũ qua `dashboard-service.ts`)**: KHÔNG
+    dùng cache mới — API (`api/dashboard-new/route.ts`, `api/dashboard/route.ts`) vẫn gọi
+    `getEpicAlertRowsPhased` sống mỗi request như trước giờ (chỉ có 2 badge "(QLDA)" là đã cache từ
+    trước qua `ttm_index_global_cache`, không đổi). Không bị hỏng bởi thay đổi hôm nay, nhưng vẫn
+    còn nguyên rủi ro performance ở quy mô lớn mà người dùng từng nêu ban đầu — CHƯA làm, để ngỏ nếu
+    người dùng muốn áp dụng cùng pattern cache cho 2 màn hình dashboard sau này.
+
+- **"Quản trị Epic" (`/epic-alerts-15`): chuyển sang server-side pagination + filter thật sự, thay
+  vì tải hết rồi cắt trang ở client** — theo yêu cầu thảo luận trước của người dùng về rủi ro
+  performance khi scale lên ~20.000 epic / ~500 người dùng đồng thời:
+  - Phát hiện quan trọng trước khi làm: `alertLevel`/`hasDataAnomaly`/`releaseAxisState`/5 phase
+    cell... đều được TÍNH TRONG JS mỗi request (dựa lịch ngày làm việc/ngày lễ + trạng thái
+    story/subtask sống), không phải cột SQL — nên "server-side filter" thật sự đòi hỏi tính toán
+    trước rồi cache lại, không thể chỉ thêm `WHERE`/`LIMIT` vào câu SQL gốc.
+  - Bảng mới `epic_alert_row_cache` (migration `20260925_create_epic_alert_row_cache.sql` +
+    `20260925_epic_alert_row_cache_sort_ranks.sql`, đã áp dụng `local`+`supabase`, `aiven` vẫn
+    không kết nối được): lưu sẵn toàn bộ row đã tính (kiểu `EpicAlertRowPhased`, dạng JSONB) +
+    vài cột phẳng để lọc/sort nhanh (`project_key`, `current_status`, `alert_level`,
+    `has_data_anomaly`, `owner_names`, `components`, và 2 cột rank `alert_rank`/
+    `bottom_status_rank` dùng cho `ORDER BY`).
+  - `src/lib/epic-alert-row-cache-service.ts` (`refreshEpicAlertRowCache`): tính lại toàn bộ bảng
+    này 1 lần ngay sau mỗi lần import CSV commit thành công (giống cơ chế
+    `refreshTtmIndexGlobalCache` có sẵn), gọi trong `import-service.ts` — không tính lại mỗi lần
+    xem màn hình nữa.
+  - `src/lib/epic-alert-row-cache-query-service.ts`: đọc/lọc/sort/phân trang bằng SQL thường
+    (`WHERE`/`ORDER BY`/`LIMIT`/`OFFSET`) trên bảng cache, cộng thêm 2 aggregate query cho
+    statCounts (thay vì tính trên toàn bộ rows đã lọc phía client) và TTM-Index(PM)/QA-Index(PM).
+  - `src/app/api/epic-alerts-15/route.ts`: chỉ dùng cache khi KHÔNG có "lớp dữ liệu cũ hơn" hay bộ
+    lọc ngày nâng cao đang bật (những filter đó đổi tập Epic ngay từ SQL gốc, cache không đại diện
+    được) — các trường hợp đó vẫn rơi về đường tính live như cũ, không đổi hành vi.
+  - `src/app/epic-alerts-15/page.tsx`: khi API trả `mode:'paged'`, bỏ hẳn việc client tự
+    filter/sort/cắt trang/tính statCounts — dùng thẳng dữ liệu server trả về; mỗi lần đổi filter
+    (có debounce 400ms cho ô tìm kiếm) hoặc đổi trang đều gọi lại API thay vì tính lại trong bộ
+    nhớ trình duyệt. Khi rơi về đường live (`mode:'full'`) thì giữ nguyên pipeline client-side cũ.
+  - `src/lib/epic-alert-sort-rules.ts` (mới): gom `ALERT_RANK`/`BOTTOM_STATUS_RANK` dùng chung giữa
+    client và cache-write service, tránh lệch logic giữa 2 nơi.
+  - Đã kiểm thử trực tiếp qua API (`fetch` trong console trình duyệt, không qua UI): xác nhận thứ
+    tự sort đúng In PO → To Do → Released, statCounts/TTM-Index(PM)/QA-Index(PM)/filterOptions
+    (dropdown Dự án/PM-SM/Status/Đơn vị yêu cầu) đều tính đúng trên toàn bộ phạm vi quyền chứ không
+    chỉ trang hiện tại, và phân trang/tìm kiếm gọi đúng API với query param tương ứng.
+
 ## 2026-09-25
+
+- **Bổ sung màn hình "Dashboard" (`/dashboard`) vào Ma trận phân quyền + đổi default/sort Status
+  filter ở "Quản trị Epic"**:
+  - Migration `db/migrations/20260925_add_dashboard_permission.sql` (+ `.down.sql`): thêm feature
+    `dashboard` (VIEW_ONLY, display_order=83, ngay trước `dashboard_new`) vào `permission_features` /
+    `role_feature_permissions` — trước đây `/dashboard` (khác `/dashboard-new`, đã có sẵn từ
+    20260923) không có dòng nào trong ma trận. Đã áp dụng cho profile `local` và `supabase`
+    (`aiven` vẫn không kết nối được — `ENOTFOUND ttm-tool-dminhbb.d.aivencloud.com`, không chặn vì
+    `DB_CONNECTION=local`).
+  - `src/app/epic-alerts-15/page.tsx`: `DEFAULT_EXCLUDED_STATUSES` bỏ `TO DO`/`IN PO`/`RELEASED`
+    (chỉ còn `CANCELLED`) nên 3 status này giờ hiển thị mặc định trên "Quản trị Epic"; thêm
+    `BOTTOM_STATUS_RANK` + `.sort()` (stable) trên `filteredRows` để đẩy 3 status này xuống cuối
+    danh sách theo đúng thứ tự In PO → To Do → Released, các status khác giữ nguyên thứ tự cũ.
+  - `public/docs/product-guide.html`: bổ sung mục 11.5 "Dashboard New" (trước đây thiếu hẳn khỏi tài
+    liệu) và mục 9 (R7 `RELEASE_STATUS_MISMATCH`) + mục 8.6 "Trục Release" (Chờ golive/Cảnh báo
+    sớm/Giải trình Golive) — các tính năng đã lên production nhưng chưa được viết vào tài liệu sản
+    phẩm.
+- **Sửa lỗi `invalid input syntax for type json` khi import file "Export theo lớp dữ liệu"**:
+  - `src/lib/db-backup-service.ts` (`formatSqlValue`): thiếu nhánh xử lý giá trị kiểu object (cột
+    `jsonb`, ví dụ `epic_alert_timeline.detail`) — node-pg trả JSONB đã parse sẵn thành object JS
+    thuần, rơi vào nhánh mặc định `String(value)` cho ra literal `"[object Object]"` (không phải
+    JSON hợp lệ) thay vì `JSON.stringify(value)`. Postgres từ chối khi import với đúng lỗi người
+    dùng báo. Cùng dạng lỗi đã sửa trước đây cho cột mảng (`TEXT[]`) — giờ thêm nhánh
+    `typeof value === 'object'` (sau nhánh `Array.isArray`) dùng `JSON.stringify`.
+  - Đã kiểm chứng trực tiếp trên dữ liệu thật: export bằng `POST
+    /api/admin/db-backup/export-layer-range` (không kèm raw data, giống thao tác người dùng báo lỗi)
+    → câu INSERT sinh ra đúng JSON hợp lệ (`'{"fromDate":"...","targetDate":"..."}'` thay vì
+    `'[object Object]'`) → chạy thử trực tiếp qua Postgres (transaction rollback) xác nhận
+    `jsonb_typeof` = `object`, không còn lỗi.
+  - Sửa chung trong hàm dùng chung cho cả export toàn bảng lẫn export theo lớp dữ liệu, nên áp dụng
+    luôn cho mọi cột `jsonb` khác nếu phát sinh sau này, không chỉ riêng `epic_alert_timeline`.
+
+- **Dọn sạch 16 lỗi `eslint` có sẵn trong `src`** (phát hiện khi review sau khi pull code mới; không
+  liên quan tính năng nào cụ thể, rải ở các file SSO mới thêm + `Table.tsx`):
+  - `src/lib/sso-service.ts`: `SsoClientValidation` đổi thành discriminated union theo `isValid`
+    (`{isValid:true; apiKey:ApiKey}` / `{isValid:false; apiKey:ApiKey|null; reason:string}`) thay vì
+    `apiKey: null as any` — mọi nơi gọi (`api/sso/authorize`, `api/sso/verify-client`) đã sẵn pattern
+    `if (!validation.isValid) return ...` nên TS tự narrow `apiKey` không cần ép kiểu.
+  - `src/app/api/sso/authorize/route.ts`, `src/app/api/sso/token/route.ts`,
+    `src/app/api/sso-demo/callback/route.ts`, `src/app/sso/authorize/page.tsx` (3 chỗ),
+    `src/app/sso-demo/page.tsx` (1 chỗ + ép kiểu response `/api/admin/api-keys`): `catch (e: any)` →
+    `catch (e: unknown)` + `e instanceof Error ? e.message : fallback`.
+  - `src/app/sso-demo/page.tsx`: effect xử lý `code` từ URL redirect gọi `setExchangeError` đồng bộ
+    ngay trong thân effect khi thiếu `savedKey` — dời nhánh kiểm tra đó vào bên trong hàm async
+    `processCode()` (cùng hàm với các `setState` khác, vốn không bị lint bắt) thay vì đứng trước nó.
+  - `src/app/dashboard-new/page.tsx`: `useEffect` gọi thẳng `loadData(previewUserId)` (hàm này set
+    `loading`/`error` đồng bộ trước `await` đầu tiên) — bọc qua `Promise.resolve().then(...)` như
+    quy ước đã dùng nhiều nơi khác trong file để tách khỏi thân effect.
+  - `src/components/ui/Table.tsx`: vòng lặp `requestAnimationFrame` tự đệ quy (`tick` gọi lại chính
+    nó) bị `react-hooks/immutability` bắt lỗi tự tham chiếu `useCallback` trong thân nó — chuyển
+    sang giữ hàm trong `useRef` (gán 1 lần trong `useEffect([])`, không gán lúc render) và gọi qua
+    `tickRef.current()`; `startScrolling` không còn phụ thuộc `tick` nữa.
+  - `npx tsc --noEmit` và `npx eslint src` đều sạch tuyệt đối sau khi sửa.
 
 - **Thêm filter PM/SM + Đơn vị yêu cầu ở Dashboard 2, sửa `Tooltip` dùng chung để không bị che/tràn màn hình**:
   - `src/app/dashboard-new/page.tsx`: thêm 2 dropdown lọc "PM/SM" và "Đơn vị yêu cầu" vào thanh Bộ

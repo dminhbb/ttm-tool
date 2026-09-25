@@ -173,10 +173,7 @@ export default function DashboardNewPage() {
   };
 
   useEffect(() => {
-    // Deferred via a microtask (not called directly) — loadData's first statements are
-    // setLoading(true)/setError(null), which would otherwise run synchronously within this effect
-    // body (same convention used elsewhere in this codebase for this exact shape).
-    void Promise.resolve().then(() => loadData(previewUserId));
+    void loadData(previewUserId);
   }, [previewUserId]);
 
   const isAdminOrSupervisor = useMemo(() => {

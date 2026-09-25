@@ -437,6 +437,34 @@ export interface EpicAlertFilters {
  * filter below, which "Quản trị Epic (đầy đủ)" deliberately does not replicate — see
  * getEpicAlertRowsPhased's doc comment).
  */
+export interface EpicAlertHeaderContext {
+  accessRole: EpicAlertAccessRole;
+  availableLayerDates: string[];
+  lastAggregatedAt: string | null;
+  scope: AccessScope;
+  viewerName: string;
+}
+
+/** The 3 cheap header-only queries fetchEpicAlertContext also runs (viewer name, latest import
+ * batch, layer-date list) plus resolveAccessScope — split out so the epic_alert_row_cache-backed
+ * fast path (epic-alert-row-cache-query-service.ts) can populate the screen header without paying
+ * for the full per-Epic Epic query + JS computation fetchEpicAlertContext otherwise runs. */
+export async function fetchEpicAlertHeaderContext(userId: number, role: UserRole): Promise<EpicAlertHeaderContext> {
+  const [scope, viewer, latestBatch, layerDatesResult] = await Promise.all([
+    resolveAccessScope(userId, role),
+    pool.query<{ fullName: string }>('SELECT full_name AS "fullName" FROM users WHERE id = $1', [userId]),
+    pool.query<{ aggregatedAt: string; id: number }>('SELECT id, aggregated_at::text AS "aggregatedAt" FROM import_batches ORDER BY aggregated_at DESC LIMIT 1;'),
+    pool.query<{ layerDate: string }>('SELECT DISTINCT aggregated_at::date::text AS "layerDate" FROM issues ORDER BY "layerDate" DESC LIMIT 365;'),
+  ]);
+  return {
+    accessRole: scope.accessRole,
+    availableLayerDates: layerDatesResult.rows.map((row) => row.layerDate),
+    lastAggregatedAt: latestBatch.rows[0]?.aggregatedAt ?? null,
+    scope,
+    viewerName: viewer.rows[0]?.fullName ?? '',
+  };
+}
+
 export async function fetchEpicAlertContext(userId: number, role: UserRole, filters: EpicAlertFilters = {}): Promise<EpicAlertContext> {
   const [scope, holidays, domainByProjectKey, projectMetaByProjectKey, statusAlertRules, ttmPolicies, epicKeysWithAlertHistory, viewer, latestBatch, layerDatesResult] = await Promise.all([
     resolveAccessScope(userId, role),

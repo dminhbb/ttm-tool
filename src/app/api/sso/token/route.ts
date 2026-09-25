@@ -51,12 +51,12 @@ export async function POST(request: NextRequest) {
       tokenType: 'Bearer',
       expiresIn: 3600,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
       {
         success: false,
         error: 'SERVER_ERROR',
-        message: error?.message || 'Lỗi xử lý hệ thống.',
+        message: error instanceof Error ? error.message : 'Lỗi xử lý hệ thống.',
       },
       { status: 500 }
     );

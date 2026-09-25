@@ -798,6 +798,21 @@
         Ví dụ Epic SP-Lv12 / SP-Lv34 (30 ngày TTM-CNTT): DESIGN chiếm ⌈30×20%⌉ = 6 ngày; DEV/TEST mỗi pha làm tròn xuống theo tỷ trọng 30%; PENTEST làm tròn xuống theo 10%; R4GOLIVE
         luôn rơi đúng ngày làm việc thứ 29 kể từ Start Date (30 − 1), bất kể tổng 4 pha trước cộng dồn ra bao nhiêu ngày.
       </div>
+
+      <h3>8.6. Trục Release — "Chờ golive" / "Cảnh báo sớm" / "Giải trình Golive" (từ 24/09/2026)</h3>
+      <p>
+        Badge thứ 3 ở cột Nhận xét, hoàn toàn độc lập với Fail TTM-CNTT/Fail TTM-E2E (mục 8.3) và với "Sai lệch dữ liệu" (mục 9) — chỉ áp dụng
+        <strong>khi Epic đã có R4G Date</strong> (chưa có R4G Date → không hiện badge nào ở trục này, kể cả khi status còn DESIGN/DEV/TEST/PENTEST):
+      </p>
+      <table>
+        <thead><tr><th>Badge</th><th>Điều kiện</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge warning">Chờ golive</span></td><td>Có R4G Date, hôm nay còn trong hạn <strong>R4G Date + 5 ngày làm việc</strong>, chưa có Due Date, và status Epic vẫn ≤ R4GOLIVE.</td></tr>
+          <tr><td><span class="badge warning">Cảnh báo sớm</span></td><td>Cùng điều kiện "còn trong hạn, chưa có Due Date" ở trên, nhưng status Epic đã <strong>vượt qua R4GOLIVE</strong> (ví dụ MVPDONE) mà vẫn chưa có Due Date.</td></tr>
+          <tr><td><span class="badge danger">Giải trình Golive</span></td><td>Due Date đã ghi nhận nhưng <strong>vượt hạn</strong> (&gt; R4G Date + 5 ngày làm việc) — bất kể status; <strong>hoặc</strong> chưa có Due Date mà hôm nay đã vượt hạn đó.</td></tr>
+        </tbody>
+      </table>
+      <p>Due Date ghi nhận đúng trong hạn (≤ R4G Date + 5 ngày làm việc) thì trục này không hiện badge nào — lúc đó nếu status vẫn chưa Released, rule R7 (mục 9) sẽ báo "Sai lệch dữ liệu" thay vào đó.</p>
     </section>
 
     <section id="data-anomaly">
@@ -809,17 +824,18 @@
         Một Epic có thể vi phạm nhiều rule cùng lúc; ứng dụng liệt kê <strong>đầy đủ từng rule bị vi phạm</strong> ở cột Nhận xét để người phụ trách biết chính xác cần bổ sung gì.
         Epic sai lệch <strong>không bao giờ bị loại khỏi hệ thống</strong> — vẫn được đưa vào đầy đủ, chỉ bị đánh dấu để hoàn thiện.
       </p>
-      <p>Mỗi rule có <strong>index R1-R6 cố định</strong> (không đổi số khi thêm rule mới), được lưu kèm mỗi vi phạm trong bảng <code>epic_data_anomaly_violations</code> (mục 5.2) để thống kê theo nhóm rule mà không phụ thuộc câu chữ message.</p>
+      <p>Mỗi rule có <strong>index R1-R7 cố định</strong> (không đổi số khi thêm rule mới), được lưu kèm mỗi vi phạm trong bảng <code>epic_data_anomaly_violations</code> (mục 5.2) để thống kê theo nhóm rule mà không phụ thuộc câu chữ message.</p>
       <table>
         <thead><tr><th>Rule</th><th>Điều kiện vi phạm</th></tr></thead>
         <tbody>
-          <tr><td>Miễn trừ</td><td>Epic ở trạng thái <strong>Cancelled / To Do / In PO / Backlog</strong> được <strong>miễn toàn bộ</strong> 6 rule bên dưới.</td></tr>
+          <tr><td>Miễn trừ</td><td>Epic ở trạng thái <strong>Cancelled / To Do / In PO / Backlog</strong> được <strong>miễn toàn bộ</strong> 7 rule bên dưới.</td></tr>
           <tr><td>R1 — Thiếu T1</td><td>Trạng thái ≥ <strong>In Progress/DEV</strong> nhưng không có Start Date (T1).</td></tr>
           <tr><td>R2 — Pending quá lâu</td><td>Trạng thái <strong>Pending</strong>, số ngày làm việc từ Start Date (T1) — hoặc ngày tạo Epic trên Jira nếu chưa có T1 — tới hôm nay ≥ <strong>20% chu trình TTM-CNTT</strong> (dùng ngân sách CT-Lv12 nếu không xác định được loại Epic). Từ 22/09/2026, rule này tính thuần theo thời gian trôi qua, <strong>không còn</strong> yêu cầu kèm điều kiện thiếu T0/T1.</td></tr>
           <tr><td>R3 — Sai thứ tự ngày</td><td>Không thoả chuỗi <code>T0 ≤ T1 &lt; R4G Date ≤ Due Date</code> (chỉ xét mốc đã có giá trị) — toàn bộ cặp sai trong cùng 1 Epic được gộp thành <strong>1</strong> vi phạm duy nhất. R4G Date = Due Date được coi là hợp lệ (không sai lệch). Ngày tạo Epic không bị đối chiếu với T0 (T0 muộn hơn ngày tạo là bình thường).</td></tr>
           <tr><td>R4 — Thiếu phân loại yêu cầu</td><td>Không có <strong>Phân loại yêu cầu</strong> (<code>epic_request_type</code>, rỗng hoặc "none").</td></tr>
           <tr><td>R5 — Thiếu Requirement Level</td><td>Không có <strong>Requirement Level</strong> (<code>epic_request_level</code>, rỗng hoặc "none").</td></tr>
           <tr><td>R6 — SP nhưng mức thấp</td><td>Epic được đánh giá độ phức tạp <strong>SP</strong> (SP-Lv12/SP-Lv34) nhưng Requirement Level = 1 hoặc 2 — loại yêu cầu Sản phẩm luôn kỳ vọng mức 3-4, mức 1-2 báo hiệu nhập sai Loại/Mức yêu cầu.</td></tr>
+          <tr><td>R7 — Sai lệch Status/Due Date (từ 24/09/2026)</td><td><code>RELEASE_STATUS_MISMATCH</code>: R4G Date và Due Date đều đã ghi nhận, Due Date nằm <strong>trong hạn</strong> (≤ R4G Date + 5 ngày làm việc — cùng ngưỡng <code>RELEASE_DUE_GRACE_WORKING_DAYS</code> dùng cho Trục Release, mục 8.6) nhưng status Epic <strong>chưa chuyển sang Released</strong>. Ưu tiên hơn 2 badge "Chờ golive"/"Giải trình Golive" ở mục 8.6 khi cùng xảy ra.</td></tr>
         </tbody>
       </table>
       <p>Epic bị đánh dấu:</p>
@@ -889,7 +905,16 @@
       <p>Cùng dữ liệu/logic với màn (đầy đủ), chỉ lọc còn Epic đang ở trạng thái <strong>To Do</strong>, <strong>In PO</strong> hoặc <strong>Released</strong> — dùng để theo dõi Epic chưa/vừa qua giai đoạn lập kế hoạch.</p>
       <h3>11.4. Dashboard (<code>/dashboard</code>) — mọi role đã đăng nhập</h3>
       <p>Thống kê tổng hợp theo dự án: số Epic, phân bố trạng thái, số lượng Fail TTM-CNTT/Fail TTM-E2E/Cảnh báo sớm/muộn, tỷ lệ Đạt TTM, Epic sắp đến hạn, top Epic cần chú ý. Không có bảng tổng hợp riêng — tính live từ cùng dữ liệu 3 màn hình trên. Role SUPERVISOR/SUPERADMIN/ADMIN, hoặc USER có từ 4 dự án có dữ liệu Epic trở lên, phải chọn 1–3 dự án trước khi xem số liệu.</p>
-      <h3>11.5. Báo cáo Epic (<code>/reports</code>) — mọi role đã đăng nhập</h3>
+      <h3>11.5. Dashboard New (<code>/dashboard-new</code>, còn gọi "Dashboard 2") — mọi role đã đăng nhập</h3>
+      <p>
+        Trung tâm điều hành đa chiều, tách 2 chế độ xem theo vai trò:
+      </p>
+      <ul>
+        <li><strong>Lead Command Center (Executive)</strong> — mặc định cho SUPERADMIN/ADMIN/SUPERVISOR: KPI tổng quan toàn phạm vi phân quyền (Chờ golive, Giải trình Golive — mục 8.6, ma trận phân bổ tiến độ Epic đa chiều sort được theo cột, phase pipeline), cùng 2 vòng tròn chỉ số <strong>TTM-Index (QLDA)</strong>/<strong>QA-Index (QLDA)</strong> — tính trên <strong>toàn bộ Epic hệ thống</strong>, không phụ thuộc phân quyền người xem, cache lại sau mỗi lần import (không tính live để tránh quá tải kết nối DB — xem cảnh báo hạ tầng miễn phí ở mục 10) — và 2 vòng tròn <strong>TTM-Index (PM)</strong>/<strong>QA-Index (PM)</strong> tính trực tiếp trên phạm vi Epic người xem được phân quyền.</li>
+        <li><strong>PM/SM Workbench (Operational)</strong> — mặc định cho USER, hoặc khi Lead/SUPERVISOR bấm "Xem dưới dạng User" (popup chọn 1 tài khoản cụ thể để xem đúng góc nhìn PM/SM đó): 3 tab Tiến độ TTM & danh sách Epic (có phân trang), Epic Pending, Epic sai lệch dữ liệu.</li>
+      </ul>
+      <p>Thanh Bộ lọc chung có Dự án/Domain/Tìm kiếm, cộng thêm <strong>PM/SM</strong> và <strong>Đơn vị yêu cầu (Requesting Unit)</strong> — mỗi ô KPI/hàng Epic bấm vào sẽ deep-link sang đúng bộ lọc tương ứng trên "Quản trị Epic (đầy đủ)" để đối chiếu số liệu chi tiết. Quyền truy cập màn hình này kiểm soát riêng qua permission <code>dashboard_new</code> trong Ma trận phân quyền (mục 13.2).</p>
+      <h3>11.6. Báo cáo Epic (<code>/reports</code>) — mọi role đã đăng nhập</h3>
       <p>
         Màn hình báo cáo theo <strong>từng dự án</strong> (không gộp nhiều dự án như Dashboard) — đây là mục đầu tiên trong nhóm &quot;Giám sát&quot; trên sidebar. Người dùng
         chọn 1 Dự án, tùy chọn lọc thêm Domain/Component/khoảng ngày, và chọn 1 hoặc nhiều trong <strong>tối đa 7 lớp dữ liệu (<code>aggregated_at</code>) gần nhất</strong>

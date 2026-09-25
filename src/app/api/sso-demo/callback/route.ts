@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       user: result.user,
       accessToken: `ttm_at_demo_${Date.now()}_${result.user.id}`,
     });
-  } catch (err: any) {
-    return NextResponse.json({ success: false, error: err?.message || 'Lỗi xử lý demo callback.' }, { status: 500 });
+  } catch (err: unknown) {
+    return NextResponse.json({ success: false, error: err instanceof Error ? err.message : 'Lỗi xử lý demo callback.' }, { status: 500 });
   }
 }

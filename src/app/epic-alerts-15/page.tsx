@@ -26,6 +26,7 @@ import { useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import { ArrowBendUpRight, ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, HourglassMedium, ListChecks, Prohibit, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
+import { bottomStatusRankOf } from '@/lib/epic-alert-sort-rules';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import { trackDataUsage } from '@/lib/usage-tracking';
 
@@ -38,11 +39,12 @@ const EMPTY_LAYER_DATES: string[] = [];
 // unbounded (availableLayerDates now returns up to 365 dates, not just 7).
 const RECENT_LAYER_CHIP_COUNT = 5;
 
-/** TO DO/IN PO/RELEASED now have their own dedicated screen ("Epic in PO"), and Cancelled Epics
- * are noise on this screen by default, so Quản trị Epic defaults its Status filter to everything
- * else — applied once, the first time real status options load (see the statusOptions effect
- * below), and never reapplied after that so it doesn't fight a user's own filter choice. */
-const DEFAULT_EXCLUDED_STATUSES = new Set(['TO DO', 'IN PO', 'RELEASED', 'CANCELLED']);
+/** Cancelled Epics are noise on this screen by default, so Quản trị Epic defaults its Status
+ * filter to everything else — applied once, the first time real status options load (see the
+ * statusOptions effect below), and never reapplied after that so it doesn't fight a user's own
+ * filter choice. TO DO/IN PO/RELEASED stay in the default filter (also shown on the dedicated
+ * "Epic in PO" screen) but are sorted to the bottom of the list — see BOTTOM_STATUS_RANK below. */
+const DEFAULT_EXCLUDED_STATUSES = new Set(['CANCELLED']);
 
 function formatDate(value: string | null): string {
   if (!value) return '-';
@@ -533,11 +535,43 @@ function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRowPhased; onClose:
 }
 
 
+interface EpicAlertFilterOptions {
+  domainProjectKeys: Record<string, string[]>;
+  pmSmNames: string[];
+  projectKeys: string[];
+  requestingUnits: string[];
+  statuses: string[];
+}
+
+interface EpicAlertStatCounts {
+  dataIssue: number;
+  failCntt: number;
+  failE2e: number;
+  late: number;
+  pending: number;
+  todo: number;
+}
+
 /** `/api/epic-alerts-15`'s payload is EpicAlertPhasedResponse plus a cached, permission-unscoped
  * "(QLDA)" TTM/QA Index snapshot (see ttm-index-global-cache-service.ts) — null before the very
- * first CSV import has ever completed. */
+ * first CSV import has ever completed.
+ *
+ * `mode: 'paged'` (the common case — see epic-alert-row-cache-query-service.ts) means `rows` is
+ * already the current page, server-filtered/sorted by every toolbar filter, with `totalCount`/
+ * `statCounts`/`ttmIndexPm`/`qaIndexPm`/`filterOptions` computed server-side to match — the client
+ * must not re-filter/re-sort/re-paginate `rows` itself. `mode: 'full'` (an old-layer drill-down or
+ * an advanced date filter — see the API route) means `rows` is the full access-scoped set, exactly
+ * like before this cache existed: the client still does its own filter/sort/paginate/stat pipeline. */
 interface EpicAlerts15Payload extends EpicAlertPhasedResponse {
   ttmIndexGlobal: TtmIndexGlobalCache | null;
+  mode: 'paged' | 'full';
+  totalCount?: number;
+  page?: number;
+  pageSize?: number;
+  statCounts?: EpicAlertStatCounts;
+  ttmIndexPm?: TtmCnttSummary;
+  qaIndexPm?: TtmCnttSummary;
+  filterOptions?: EpicAlertFilterOptions;
 }
 
 /** "(QLDA)"/"(PM)" TTM-Index or QA-Index value + 2-line tooltip text, formatted for the
@@ -624,6 +658,14 @@ function EpicAlerts15Screen() {
   }, [availableLayerDates, effectiveLayerAnchor]);
   const layerWindowKey = layerWindow ? layerWindow.join(',') : '';
 
+  // Debounced so typing in "Tìm kiếm" doesn't fire a network request per keystroke — every other
+  // toolbar filter is a discrete click/select, so those go straight into the fetch effect below.
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const fetchData = async () => {
     setIsLoading(true);
     setError(null);
@@ -636,6 +678,20 @@ function EpicAlerts15Screen() {
       if (createdDateFrom) query.set('createdDateFrom', createdDateFrom);
       if (startDateFromFilter) query.set('startDateFrom', startDateFromFilter);
       if (dueDateFromFilter) query.set('dueDateFrom', dueDateFromFilter);
+      // Every other toolbar filter — server-side when the fast (cache-backed) path serves the
+      // request (see the API route); ignored by the fallback path, which keeps filtering `rows`
+      // client-side exactly like before this cache existed.
+      if (projectFilters.length > 0) query.set('projectKeys', projectFilters.join(','));
+      if (pmSmFilter) query.set('pmSm', pmSmFilter);
+      if (componentFilters.length > 0) query.set('components', componentFilters.join(','));
+      if (alertFilter) query.set('alertFilter', alertFilter);
+      if (typeFilter) query.set('epicType', typeFilter);
+      if (statusFilters.length > 0) query.set('statuses', statusFilters.join(','));
+      if (dataIssueFilter) query.set('dataIssueOnly', '1');
+      if (requestingUnitFilter) query.set('requestingUnit', requestingUnitFilter);
+      if (debouncedSearch) query.set('search', debouncedSearch);
+      query.set('page', String(page));
+      query.set('pageSize', String(PAGE_SIZE));
       const queryString = query.toString();
       const res = await fetch(`/api/epic-alerts-15${queryString ? `?${queryString}` : ''}`);
       const result = await res.json();
@@ -653,10 +709,14 @@ function EpicAlerts15Screen() {
 
   useEffect(() => {
     // Deferring the initial request prevents a synchronous state update during effect setup. Also
-    // re-runs whenever an advanced filter changes — those are applied server-side (see
-    // EpicAlertFilters), unlike every other toolbar filter which stays client-side on `rows`.
+    // re-runs whenever any toolbar filter or the page changes — every filter setter already resets
+    // page to 1 in the same event, so a filter change and its page reset land in one fetch.
     void Promise.resolve().then(fetchData);
-  }, [layerWindowKey, createdDateFrom, startDateFromFilter, dueDateFromFilter]);
+  }, [
+    layerWindowKey, createdDateFrom, startDateFromFilter, dueDateFromFilter,
+    projectFilters, pmSmFilter, componentFilters, alertFilter, typeFilter, statusFilters,
+    dataIssueFilter, requestingUnitFilter, debouncedSearch, page,
+  ]);
 
   useEffect(() => {
     fetch('/api/project-components').then((res) => (res.ok ? res.json() : [])).then(setProjectComponents).catch(() => undefined);
@@ -670,8 +730,13 @@ function EpicAlerts15Screen() {
   // this screen's own toolbar filters (Dự án/Domain/Status/…), so it reads as a stable "my whole
   // permitted scope" badge rather than shifting with whatever filter happens to be active. Free to
   // compute (no extra query): unlike the "(QLDA)" company-wide badges, this never needs caching.
-  const ttmIndexPm = useMemo(() => summarizeTtmCntt(rows), [rows]);
-  const qaIndexPm = useMemo(() => summarizeTtmCntt(rows.filter((row) => isTtmCnttQaInScope(row.currentStatus))), [rows]);
+  // Paged mode only ever holds one page of `rows` here, so the server computes these over the full
+  // access scope instead (see queryTtmQaIndexPm) — the client-side fallback below only applies in
+  // 'full' mode, where `rows` genuinely is the whole access-scoped set.
+  const clientTtmIndexPm = useMemo(() => summarizeTtmCntt(rows), [rows]);
+  const clientQaIndexPm = useMemo(() => summarizeTtmCntt(rows.filter((row) => isTtmCnttQaInScope(row.currentStatus))), [rows]);
+  const ttmIndexPm = data?.mode === 'paged' && data.ttmIndexPm ? data.ttmIndexPm : clientTtmIndexPm;
+  const qaIndexPm = data?.mode === 'paged' && data.qaIndexPm ? data.qaIndexPm : clientQaIndexPm;
 
   // Publish the 4 index badges into AppShell's shared sticky header (see
   // epic-header-widgets-context.tsx). Clearing lives in its own effect (cleanup-only, on unmount)
@@ -714,18 +779,32 @@ function EpicAlerts15Screen() {
     ]);
   }, [data, qaIndexPm, setHeaderWidgetItems, ttmIndexPm]);
 
-  const projectOptions = useMemo(() => [...new Set(rows.map((row) => row.projectKey).filter(Boolean))].sort(), [rows]);
+  // Paged mode: `rows` is only the current page, so every filter dropdown's option list instead
+  // comes from the server's filterOptions — computed over the viewer's FULL access scope (see
+  // queryEpicAlertFilterOptions) — not from whatever happens to be on screen. 'full' mode keeps
+  // deriving options from `rows` (the whole access-scoped set in that mode) exactly as before.
+  const projectOptions = useMemo(
+    () => (data?.mode === 'paged' && data.filterOptions ? data.filterOptions.projectKeys : [...new Set(rows.map((row) => row.projectKey).filter(Boolean))].sort()),
+    [data, rows],
+  );
   // PM/SM options: ownerName is comma-joined when a project has several PM/SM users (see
   // getProjectMetaByProjectKeyMap) — split back out so each individual person is its own option,
   // and selecting one shows every Epic whose project lists them (single-choice, next to "Dự án").
   const pmSmOptions = useMemo(
-    () => [...new Set(rows.flatMap((row) => row.ownerName.split(',').map((name) => name.trim()).filter(Boolean)))].sort((a, b) => a.localeCompare(b, 'vi')),
-    [rows],
+    () => (data?.mode === 'paged' && data.filterOptions
+      ? data.filterOptions.pmSmNames
+      : [...new Set(rows.flatMap((row) => row.ownerName.split(',').map((name) => name.trim()).filter(Boolean)))].sort((a, b) => a.localeCompare(b, 'vi'))),
+    [data, rows],
   );
-  const statusOptions = useMemo(() => [...new Set(rows.map((row) => row.currentStatus).filter(Boolean))].sort(), [rows]);
+  const statusOptions = useMemo(
+    () => (data?.mode === 'paged' && data.filterOptions ? data.filterOptions.statuses : [...new Set(rows.map((row) => row.currentStatus).filter(Boolean))].sort()),
+    [data, rows],
+  );
   const requestingUnitOptions = useMemo(
-    () => [...new Set(rows.map((row) => row.requestingUnit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, 'vi')),
-    [rows],
+    () => (data?.mode === 'paged' && data.filterOptions
+      ? data.filterOptions.requestingUnits
+      : [...new Set(rows.map((row) => row.requestingUnit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, 'vi'))),
+    [data, rows],
   );
   // Options = the catalog's components for whichever projects are selected — disabled entirely
   // (no options, filter cleared) until at least one project is picked.
@@ -749,13 +828,17 @@ function EpicAlerts15Screen() {
   // own project scope is already small, so there's no real need to pick by Domain first.
   const domainProjectKeys = useMemo(() => {
     const map = new Map<string, Set<string>>();
+    if (data?.mode === 'paged' && data.filterOptions) {
+      for (const [domain, projectKeys] of Object.entries(data.filterOptions.domainProjectKeys)) map.set(domain, new Set(projectKeys));
+      return map;
+    }
     for (const row of rows) {
       if (!row.domainName || !row.projectKey) continue;
       if (!map.has(row.domainName)) map.set(row.domainName, new Set());
       map.get(row.domainName)!.add(row.projectKey);
     }
     return map;
-  }, [rows]);
+  }, [data, rows]);
   const domainOptions = useMemo(() => [...domainProjectKeys.keys()].sort((a, b) => a.localeCompare(b, 'vi')), [domainProjectKeys]);
   const [domainFilter, setDomainFilter] = useState('');
   const handleDomainFilterChange = (value: string) => {
@@ -787,18 +870,24 @@ function EpicAlerts15Screen() {
     setStatusFilters(statusOptions.filter((status) => !DEFAULT_EXCLUDED_STATUSES.has(normalizeEpicWorkflowStatus(status))));
   }, [statusOptions]);
 
-  const filteredRows = useMemo(() => rows.filter((row) => {
-    const normalizedSearch = search.trim().toLocaleLowerCase('vi-VN');
-    return (projectFilters.length === 0 || projectFilters.includes(row.projectKey))
-      && (!pmSmFilter || row.ownerName.split(',').map((name) => name.trim()).includes(pmSmFilter))
-      && (componentFilters.length === 0 || row.components.some((component) => componentFilters.includes(component)))
-      && matchesAlertFilter(row, alertFilter)
-      && (!typeFilter || row.epicType === typeFilter)
-      && (statusFilters.length === 0 || statusFilters.includes(row.currentStatus))
-      && (!dataIssueFilter || row.hasDataAnomaly)
-      && (!requestingUnitFilter || row.requestingUnit === requestingUnitFilter)
-      && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch));
-  }), [rows, projectFilters, pmSmFilter, componentFilters, alertFilter, typeFilter, statusFilters, dataIssueFilter, requestingUnitFilter, search]);
+  // Paged mode: the server already filtered/sorted `rows` down to exactly this page (see the API
+  // route) — re-filtering here would double-apply the same filters against a set that's already
+  // narrowed, silently dropping rows. 'full' mode keeps the original client-side pipeline.
+  const filteredRows = useMemo(() => {
+    if (data?.mode === 'paged') return rows;
+    return rows.filter((row) => {
+      const normalizedSearch = search.trim().toLocaleLowerCase('vi-VN');
+      return (projectFilters.length === 0 || projectFilters.includes(row.projectKey))
+        && (!pmSmFilter || row.ownerName.split(',').map((name) => name.trim()).includes(pmSmFilter))
+        && (componentFilters.length === 0 || row.components.some((component) => componentFilters.includes(component)))
+        && matchesAlertFilter(row, alertFilter)
+        && (!typeFilter || row.epicType === typeFilter)
+        && (statusFilters.length === 0 || statusFilters.includes(row.currentStatus))
+        && (!dataIssueFilter || row.hasDataAnomaly)
+        && (!requestingUnitFilter || row.requestingUnit === requestingUnitFilter)
+        && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch));
+    }).sort((a, b) => bottomStatusRankOf(a.currentStatus) - bottomStatusRankOf(b.currentStatus));
+  }, [data?.mode, rows, projectFilters, pmSmFilter, componentFilters, alertFilter, typeFilter, statusFilters, dataIssueFilter, requestingUnitFilter, search]);
 
   // Raw status strings (case as stored) whose normalized form is PENDING/TO DO — the Pending/To Do
   // stat widgets set the Status filter (a multi-select) to exactly this set.
@@ -806,7 +895,9 @@ function EpicAlerts15Screen() {
   const todoStatusValues = useMemo(() => statusOptions.filter((status) => status.trim().toLocaleUpperCase('en-US') === 'TO DO'), [statusOptions]);
   const isExactStatusSet = (values: string[]) => values.length > 0 && statusFilters.length === values.length && values.every((value) => statusFilters.includes(value));
 
-  const statCounts = useMemo(() => {
+  // Paged mode: the server already computed this over the full filtered set (queryEpicAlertStat-
+  // Counts), not just the current page — the client fallback below only applies in 'full' mode.
+  const clientStatCounts = useMemo(() => {
     let failCntt = 0;
     let failE2e = 0;
     let late = 0;
@@ -824,6 +915,7 @@ function EpicAlerts15Screen() {
     }
     return { dataIssue, failCntt, failE2e, late, pending, todo };
   }, [filteredRows]);
+  const statCounts = data?.mode === 'paged' && data.statCounts ? data.statCounts : clientStatCounts;
 
   // Admin/superadmin-tier viewers (accessRole LEAD/CBQL_PHONG) can be scoped to a huge number of
   // project keys, so the stat widgets only compute/show once the Project filter narrows that down
@@ -832,11 +924,15 @@ function EpicAlerts15Screen() {
     ? 'Chọn từ 1 đến 3 dự án ở bộ lọc "Dự án" để xem thống kê nhanh.'
     : undefined;
 
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
+  // Paged mode: `rows` IS the current page already (server-paginated) — slicing it again would cut
+  // it down to a sub-page. totalCount/page/pageSize come straight from the API response.
+  const totalPages = data?.mode === 'paged'
+    ? Math.max(1, Math.ceil((data.totalCount ?? 0) / (data.pageSize ?? PAGE_SIZE)))
+    : Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const currentPage = data?.mode === 'paged' ? (data.page ?? page) : Math.min(page, totalPages);
   const pageRows = useMemo(
-    () => filteredRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
-    [filteredRows, currentPage],
+    () => (data?.mode === 'paged' ? filteredRows : filteredRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)),
+    [data?.mode, filteredRows, currentPage],
   );
 
   return (
@@ -1246,7 +1342,7 @@ function EpicAlerts15Screen() {
       </div>
 
       <p className="ttm-page-subtitle" style={{ marginTop: 12 }}>
-        Hiển thị {pageRows.length ? (currentPage - 1) * PAGE_SIZE + 1 : 0}–{(currentPage - 1) * PAGE_SIZE + pageRows.length} / {filteredRows.length} Epic{data ? ` — vai trò: ${ACCESS_ROLE_LABEL[data.accessRole]}` : ''}.
+        Hiển thị {pageRows.length ? (currentPage - 1) * PAGE_SIZE + 1 : 0}–{(currentPage - 1) * PAGE_SIZE + pageRows.length} / {data?.mode === 'paged' ? (data.totalCount ?? 0) : filteredRows.length} Epic{data ? ` — vai trò: ${ACCESS_ROLE_LABEL[data.accessRole]}` : ''}.
       </p>
 
       {alertHistoryRow && (

@@ -56,7 +56,13 @@ export function summarizeTtmCntt(rows: EpicAlertRowPhased[]): TtmCnttSummary {
     }
   }
 
-  const total = rows.length;
+  return summarizeTtmCnttFromCounts(eligible, pass, fail, rows.length);
+}
+
+/** Same eligible/pass/fail/total → pct/pctPrecise formula as summarizeTtmCntt, for callers that
+ * already have the counts (e.g. a SQL aggregate) instead of the row array itself — see
+ * epic-alert-row-cache-query-service.ts's queryTtmQaIndexPm. */
+export function summarizeTtmCnttFromCounts(eligible: number, pass: number, fail: number, total: number): TtmCnttSummary {
   const pctPrecise = eligible > 0
     ? (pass / eligible) * 100
     : total > 0

@@ -21,6 +21,7 @@ import { ADAPTER_TYPES, DEFAULT_ADAPTER, type AdapterType } from './adapters/ind
 import { parsePyJiraApi } from './adapters/py-jira-api-adapter';
 import { parsePureJiraExport } from './adapters/pure-jira-export-adapter';
 import { refreshTtmIndexGlobalCache } from './ttm-index-global-cache-service';
+import { refreshEpicAlertRowCache } from './epic-alert-row-cache-service';
 
 // See the write-loop this guards, near the bottom of aggregateBatchData.
 const MILESTONE_RECORDING_ENABLED = false;
@@ -667,6 +668,14 @@ export async function processImport(
       await refreshTtmIndexGlobalCache(batchId);
     } catch (cacheError) {
       console.error('Failed to refresh TTM index global cache after import:', cacheError);
+    }
+
+    // Same rationale as above: pre-computes "Quản trị Epic" rows (alertLevel/hasDataAnomaly/stages/
+    // etc.) once here instead of on every page view — see epic-alert-row-cache-service.ts.
+    try {
+      await refreshEpicAlertRowCache(batchId);
+    } catch (cacheError) {
+      console.error('Failed to refresh Epic alert row cache after import:', cacheError);
     }
 
     return {

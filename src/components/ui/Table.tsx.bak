@@ -31,29 +31,19 @@ export function TableContainer({ className, style, onMouseMove: externalMouseMov
     }
   }, []);
 
-  // Persistent rAF loop — reads direction & speed from refs so it never goes stale. Held in a ref
-  // (reassigned plain function, not useCallback) rather than referencing its own useCallback
-  // binding from within its own body — self-referencing a useCallback like that is safe in
-  // practice (the reference is only read once the callback actually runs, well after the `const`
-  // assignment completes) but trips react-hooks/immutability's static check; going through a ref
-  // sidesteps that entirely and needs no dependency array reasoning.
-  const tickRef = React.useRef<() => void>(() => {});
-  React.useEffect(() => {
-    // Assigned once (empty deps): the body only reads other refs' `.current` at call time, so it
-    // never goes stale despite not being redefined on every render.
-    tickRef.current = () => {
-      const el = containerRef.current;
-      if (!el || scrollDirectionRef.current === null) { rafRef.current = null; return; }
-      const delta = scrollDirectionRef.current === 'left' ? -scrollSpeedRef.current : scrollSpeedRef.current;
-      el.scrollLeft += delta;
-      rafRef.current = requestAnimationFrame(() => tickRef.current());
-    };
+  // Persistent rAF loop — reads direction & speed from refs so it never goes stale.
+  const tick = React.useCallback(() => {
+    const el = containerRef.current;
+    if (!el || scrollDirectionRef.current === null) { rafRef.current = null; return; }
+    const delta = scrollDirectionRef.current === 'left' ? -scrollSpeedRef.current : scrollSpeedRef.current;
+    el.scrollLeft += delta;
+    rafRef.current = requestAnimationFrame(tick);
   }, []);
 
   const startScrolling = React.useCallback(() => {
     if (rafRef.current !== null) return; // already running
-    rafRef.current = requestAnimationFrame(() => tickRef.current());
-  }, []);
+    rafRef.current = requestAnimationFrame(tick);
+  }, [tick]);
 
   const handleMouseMove = React.useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     externalMouseMove?.(e);

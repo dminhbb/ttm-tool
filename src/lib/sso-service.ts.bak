@@ -3,13 +3,11 @@ import pool from '@/lib/db';
 import type { ApiKey } from '@/lib/api-key-types';
 import type { UserRole } from '@/lib/auth-types';
 
-// Discriminated on `isValid` so every caller that checks it first (the established pattern —
-// `if (!validation.isValid) return ...; use(validation.apiKey)`) gets `apiKey: ApiKey` narrowed
-// automatically afterward, with no cast needed. The invalid branch still carries `apiKey` (nullable)
-// since some invalid reasons (inactive/expired) do have a real key on hand — only "not found" is null.
-export type SsoClientValidation =
-  | { apiKey: ApiKey; isValid: true }
-  | { apiKey: ApiKey | null; isValid: false; reason: string };
+export interface SsoClientValidation {
+  apiKey: ApiKey;
+  isValid: boolean;
+  reason?: string;
+}
 
 export interface SsoUser {
   email: string;
@@ -35,7 +33,7 @@ export type SsoExchangeResult =
 export async function validateSsoClient(apiKeyString: string): Promise<SsoClientValidation> {
   const trimmed = apiKeyString.trim();
   if (!trimmed) {
-    return { isValid: false, reason: 'API Key không được để trống.', apiKey: null };
+    return { isValid: false, reason: 'API Key không được để trống.', apiKey: null as any };
   }
 
   const result = await pool.query<ApiKey>(`
@@ -54,7 +52,7 @@ export async function validateSsoClient(apiKeyString: string): Promise<SsoClient
 
   const key = result.rows[0];
   if (!key) {
-    return { isValid: false, reason: 'API Key (client_id) không tồn tại trên hệ thống.', apiKey: null };
+    return { isValid: false, reason: 'API Key (client_id) không tồn tại trên hệ thống.', apiKey: null as any };
   }
 
   if (!key.isActive) {

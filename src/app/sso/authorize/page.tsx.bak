@@ -54,8 +54,8 @@ function SsoAuthorizeContent() {
             setCurrentUser(meData.user);
           }
         }
-      } catch (err: unknown) {
-        setClientError(err instanceof Error ? err.message : 'Không thể kết nối máy chủ xác thực.');
+      } catch (err: any) {
+        setClientError(err?.message || 'Không thể kết nối máy chủ xác thực.');
       } finally {
         setLoadingClient(false);
       }
@@ -87,8 +87,8 @@ function SsoAuthorizeContent() {
       }
 
       window.location.href = data.redirectUrl;
-    } catch (err: unknown) {
-      setAuthError(err instanceof Error ? err.message : 'Lỗi kết nối.');
+    } catch (err: any) {
+      setAuthError(err?.message || 'Lỗi kết nối.');
       setSubmitting(false);
     }
   };
@@ -123,8 +123,8 @@ function SsoAuthorizeContent() {
       }
 
       window.location.href = data.redirectUrl;
-    } catch (err: unknown) {
-      setAuthError(err instanceof Error ? err.message : 'Lỗi hệ thống.');
+    } catch (err: any) {
+      setAuthError(err?.message || 'Lỗi hệ thống.');
       setSubmitting(false);
     }
   };
