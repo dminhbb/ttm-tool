@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { USER_ROLES, type UserRole } from '@/lib/auth-types';
 import { PAGE_HEADERS } from '@/lib/app-screens';
+import { EpicHeaderWidgetsProvider, useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
 import {
   Bandaids,
   BriefcaseMetal,
@@ -308,7 +309,8 @@ function subscribeToRoleCache(): () => void {
   return () => undefined;
 }
 
-export function AppShell({ children }: AppShellProps) {
+function AppShellInner({ children }: AppShellProps) {
+  const { items: epicHeaderWidgetItems } = useEpicHeaderWidgets();
   const [mobileNavigationOpen, setMobileNavigationOpen] = React.useState(false);
   const [desktopNavigationExpanded, setDesktopNavigationExpanded] = React.useState(false);
   const [appConfigOpen, setAppConfigOpen] = React.useState(false);
@@ -453,6 +455,18 @@ export function AppShell({ children }: AppShellProps) {
               CSV Adapter đang hoạt động
             </div>
           )}
+          {pathname === '/epic-alerts-15' && epicHeaderWidgetItems && (
+            <div className="ml-auto hidden shrink-0 items-center gap-1.5 lg:flex">
+              {epicHeaderWidgetItems.map((item) => (
+                <Tooltip key={item.key} multiline side="left" content={item.tooltip} className="inline-flex w-auto">
+                  <div className="flex flex-col items-end gap-0 rounded-md border border-fb-border bg-fb-surface-muted px-2 py-1 leading-none">
+                    <span className="text-[9px] font-bold uppercase tracking-wide text-fb-text-secondary">{item.label}</span>
+                    <span className={cn('text-sm font-extrabold', item.tone === 'qa' ? 'text-purple-700' : 'text-fb-blue')}>{item.value}</span>
+                  </div>
+                </Tooltip>
+              ))}
+            </div>
+          )}
         </header>
 
         <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 p-4 sm:p-6 lg:p-8">
@@ -473,5 +487,13 @@ export function AppShell({ children }: AppShellProps) {
 
       <SystemStatusFooter />
     </div>
+  );
+}
+
+export function AppShell({ children }: AppShellProps) {
+  return (
+    <EpicHeaderWidgetsProvider>
+      <AppShellInner>{children}</AppShellInner>
+    </EpicHeaderWidgetsProvider>
   );
 }

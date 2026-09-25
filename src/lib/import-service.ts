@@ -20,6 +20,7 @@ import { listTtmPolicies } from './ttm-policy-service';
 import { ADAPTER_TYPES, DEFAULT_ADAPTER, type AdapterType } from './adapters/index';
 import { parsePyJiraApi } from './adapters/py-jira-api-adapter';
 import { parsePureJiraExport } from './adapters/pure-jira-export-adapter';
+import { refreshTtmIndexGlobalCache } from './ttm-index-global-cache-service';
 
 // See the write-loop this guards, near the bottom of aggregateBatchData.
 const MILESTONE_RECORDING_ENABLED = false;
@@ -657,6 +658,16 @@ export async function processImport(
     );
 
     await client.query('COMMIT');
+
+    // Refresh the company-wide TTM-Index/QA-Index cache now that the new data is committed and
+    // visible — must run via the shared pool, after COMMIT, since `client`'s transaction is the
+    // only connection that could see this batch's rows before commit. Never lets a cache-refresh
+    // failure fail an otherwise-successful import.
+    try {
+      await refreshTtmIndexGlobalCache(batchId);
+    } catch (cacheError) {
+      console.error('Failed to refresh TTM index global cache after import:', cacheError);
+    }
 
     return {
       batchId,

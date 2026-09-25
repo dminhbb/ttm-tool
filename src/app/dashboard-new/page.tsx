@@ -29,7 +29,7 @@ import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import { DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
 import { compareValues, useSortableList } from '@/lib/use-sortable-list';
-import { isTtmCnttQaInScope, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
+import { formatTtmPct1, isTtmCnttQaInScope, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import { buildEpicAlertsDeepLink } from '@/lib/epic-alerts-deep-link';
 import type { EpicAlertsDeepLinkParams } from '@/lib/epic-alerts-deep-link';
@@ -106,14 +106,6 @@ const ALERT_BADGE_LABEL: Record<AlertLevel, string> = {
   NONE: 'Đạt / Không cảnh báo',
 };
 
-/** 1 decimal place, Vietnamese comma separator — used by the two "TTM Index" ring widgets
- * (executiveMetrics.ttmHealthPctPrecise / qaMetrics.pctPrecise), which show more precision than the
- * whole-number `pct` used everywhere else (matrix table bars/cells). */
-const PERCENT_1_DECIMAL_FORMATTER = new Intl.NumberFormat('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-function formatPct1(value: number): string {
-  return PERCENT_1_DECIMAL_FORMATTER.format(value);
-}
-
 export default function DashboardNewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -137,6 +129,8 @@ export default function DashboardNewPage() {
   // Filters
   const [filterProject, setFilterProject] = useState<string>('');
   const [filterDomain, setFilterDomain] = useState<string>('');
+  const [filterPmSm, setFilterPmSm] = useState<string>('');
+  const [filterRequestingUnit, setFilterRequestingUnit] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Pagination for the Operational "Progress" list
@@ -192,6 +186,11 @@ export default function DashboardNewPage() {
     return data.rows.filter((row) => {
       if (filterProject && row.projectKey !== filterProject) return false;
       if (filterDomain && row.domainName !== filterDomain) return false;
+      // ownerName is comma-joined when a project has several PM/SM users (see
+      // getProjectMetaByProjectKeyMap) — split back out, same convention as epic-alerts-15's own
+      // PM/SM filter, so selecting one shows every Epic whose project lists them.
+      if (filterPmSm && !row.ownerName.split(',').map((name) => name.trim()).includes(filterPmSm)) return false;
+      if (filterRequestingUnit && row.requestingUnit !== filterRequestingUnit) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         const matchKey = row.epicKey.toLowerCase().includes(q);
@@ -201,7 +200,7 @@ export default function DashboardNewPage() {
       }
       return true;
     });
-  }, [data, filterProject, filterDomain, searchQuery]);
+  }, [data, filterProject, filterDomain, filterPmSm, filterRequestingUnit, searchQuery]);
 
   // Executive Metrics. TTM-CNTT-specific numbers (eligibleTtm/passTtm/failCntt/ttmHealthPct) come
   // from the shared summarizeTtmCntt helper so this stays byte-for-byte the same ratio as the
@@ -250,12 +249,15 @@ export default function DashboardNewPage() {
   const qaMetrics = useMemo(() => summarizeTtmCntt(qaScopedRows), [qaScopedRows]);
 
   // Drills a KPI tile/matrix cell down into "Quản trị Epic" (epic-alerts-15) pre-filtered to exactly
-  // what produced that number — carries over whatever project/domain the dashboard itself is
-  // currently scoped to, so the target screen's count matches the tile the user clicked.
-  const toEpicAlertsLink = (extra: Omit<EpicAlertsDeepLinkParams, 'domain' | 'projects' | 'search'>) => buildEpicAlertsDeepLink({
+  // what produced that number — carries over whatever project/domain/PM-SM/requesting-unit/search
+  // the dashboard itself is currently scoped to, so the target screen's count matches the tile the
+  // user clicked.
+  const toEpicAlertsLink = (extra: Omit<EpicAlertsDeepLinkParams, 'domain' | 'pmSm' | 'projects' | 'requestingUnit' | 'search'>) => buildEpicAlertsDeepLink({
     ...extra,
     domain: filterProject ? undefined : (filterDomain || undefined),
     projects: filterProject ? [filterProject] : undefined,
+    pmSm: filterPmSm || undefined,
+    requestingUnit: filterRequestingUnit || undefined,
     search: searchQuery || undefined,
   });
 
@@ -375,6 +377,16 @@ export default function DashboardNewPage() {
   const domainOptions = useMemo(() => {
     if (!data) return [];
     return [...new Set(data.rows.map((r) => r.domainName).filter(Boolean))].sort();
+  }, [data]);
+
+  const pmSmOptions = useMemo(() => {
+    if (!data) return [];
+    return [...new Set(data.rows.flatMap((r) => r.ownerName.split(',').map((name) => name.trim()).filter(Boolean)))].sort((a, b) => a.localeCompare(b, 'vi'));
+  }, [data]);
+
+  const requestingUnitOptions = useMemo(() => {
+    if (!data) return [];
+    return [...new Set(data.rows.map((r) => r.requestingUnit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, 'vi'));
   }, [data]);
 
   const filteredUsersForModal = useMemo(() => {
@@ -499,6 +511,40 @@ export default function DashboardNewPage() {
                 </select>
                 <CaretDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 size-4 text-fb-text-secondary" weight="bold" />
               </div>
+
+              <div className="relative inline-flex items-center min-w-[170px]">
+                <select
+                  aria-label="Chọn PM/SM"
+                  value={filterPmSm}
+                  onChange={(e) => setFilterPmSm(e.target.value)}
+                  className="w-full appearance-none rounded-lg border border-fb-border bg-fb-surface pl-3 pr-8 h-8 text-xs font-semibold text-fb-text-primary outline-none focus:border-fb-blue focus:ring-1 focus:ring-fb-blue cursor-pointer"
+                >
+                  <option value="">Tất cả PM/SM ({pmSmOptions.length})</option>
+                  {pmSmOptions.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+                <CaretDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 size-4 text-fb-text-secondary" weight="bold" />
+              </div>
+
+              <div className="relative inline-flex items-center min-w-[170px]">
+                <select
+                  aria-label="Chọn Đơn vị yêu cầu"
+                  value={filterRequestingUnit}
+                  onChange={(e) => setFilterRequestingUnit(e.target.value)}
+                  className="w-full appearance-none rounded-lg border border-fb-border bg-fb-surface pl-3 pr-8 h-8 text-xs font-semibold text-fb-text-primary outline-none focus:border-fb-blue focus:ring-1 focus:ring-fb-blue cursor-pointer"
+                >
+                  <option value="">Tất cả Đơn vị yêu cầu ({requestingUnitOptions.length})</option>
+                  {requestingUnitOptions.map((unit) => (
+                    <option key={unit} value={unit}>
+                      {unit}
+                    </option>
+                  ))}
+                </select>
+                <CaretDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 size-4 text-fb-text-secondary" weight="bold" />
+              </div>
             </div>
 
             <div className="relative w-64">
@@ -528,7 +574,11 @@ export default function DashboardNewPage() {
             <div className="flex flex-col gap-5">
               {/* Top KPI Metrics Strip */}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-9">
-                {/* Health Index Ring — TTM-CNTT (QLDA): every Epic in the current filter/access scope */}
+                {/* Health Index Ring — TTM-Index (PM): every Epic in the current filter/access scope.
+                    Named "(PM)" here (vs. the company-wide "(QLDA)" badge on Quản trị Epic) because
+                    this ring is always scoped to the logged-in user's own permission + this
+                    dashboard's own Dự án/Domain/Tìm kiếm filters — see epic-alerts-15/page.tsx's
+                    TtmIndexBadge for the unscoped "(QLDA)" counterpart. */}
                 <div className="col-span-2 sm:col-span-2 lg:col-span-1 rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs flex items-center justify-start gap-3">
                   <div
                     className="relative flex size-14 shrink-0 items-center justify-center rounded-full"
@@ -537,16 +587,16 @@ export default function DashboardNewPage() {
                     }}
                   >
                     <div className="flex size-10 items-center justify-center rounded-full bg-fb-surface font-extrabold text-xs text-fb-blue">
-                      {formatPct1(executiveMetrics.ttmHealthPctPrecise)}%
+                      {formatTtmPct1(executiveMetrics.ttmHealthPctPrecise)}%
                     </div>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-fb-text-primary">TTM Index (QLDA)</p>
+                    <p className="text-xs font-bold text-fb-text-primary">TTM-Index (PM)</p>
                     <p className="text-[10px] text-fb-text-secondary">{executiveMetrics.passTtm}/{executiveMetrics.eligibleTtm}</p>
                   </div>
                 </div>
 
-                {/* Health Index Ring — TTM-CNTT-QA: same ratio, scoped to MVP Done/Released only */}
+                {/* Health Index Ring — QA-Index (PM): same ratio, scoped to MVP Done/Released only */}
                 <div className="col-span-2 sm:col-span-2 lg:col-span-1 rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs flex items-center justify-start gap-3">
                   <div
                     className="relative flex size-14 shrink-0 items-center justify-center rounded-full"
@@ -557,11 +607,11 @@ export default function DashboardNewPage() {
                     }}
                   >
                     <div className="flex size-10 items-center justify-center rounded-full bg-fb-surface font-extrabold text-xs text-purple-700">
-                      {qaMetrics.total > 0 ? `${formatPct1(qaMetrics.pctPrecise)}%` : '—'}
+                      {qaMetrics.total > 0 ? `${formatTtmPct1(qaMetrics.pctPrecise)}%` : '—'}
                     </div>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-fb-text-primary">TTM Index (QA)</p>
+                    <p className="text-xs font-bold text-fb-text-primary">QA-Index (PM)</p>
                     <p className="text-[10px] text-fb-text-secondary">
                       {qaMetrics.total > 0 ? `${qaMetrics.pass}/${qaMetrics.eligible}` : 'Chưa có Epic MVP Done/Released'}
                     </p>

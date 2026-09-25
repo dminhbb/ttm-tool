@@ -35,6 +35,14 @@ export interface TtmCnttSummary {
   total: number;
 }
 
+/** 1 decimal place, Vietnamese comma separator — shared by every "TTM/QA Index" ring/badge widget
+ * (Dashboard 2's Executive view, Quản trị Epic's header badges) so the same ratio never renders
+ * with a different precision/locale on two screens. */
+const PERCENT_1_DECIMAL_FORMATTER = new Intl.NumberFormat('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+export function formatTtmPct1(value: number): string {
+  return PERCENT_1_DECIMAL_FORMATTER.format(value);
+}
+
 export function summarizeTtmCntt(rows: EpicAlertRowPhased[]): TtmCnttSummary {
   let eligible = 0;
   let pass = 0;

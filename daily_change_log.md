@@ -6,6 +6,69 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-09-25
+
+- **Thêm filter PM/SM + Đơn vị yêu cầu ở Dashboard 2, sửa `Tooltip` dùng chung để không bị che/tràn màn hình**:
+  - `src/app/dashboard-new/page.tsx`: thêm 2 dropdown lọc "PM/SM" và "Đơn vị yêu cầu" vào thanh Bộ
+    lọc chung (cùng style với Dự án/Domain hiện có), áp dụng lên `filteredRows` — dùng cùng quy ước
+    tách `ownerName` (comma-joined) với `epic-alerts-15`. `toEpicAlertsLink` forward thêm 2 filter
+    này vào deep-link sang `epic-alerts-15` để số liệu ở màn đích khớp đúng số trên KPI tile.
+  - `src/components/ui/Tooltip.tsx`: viết lại cơ chế định vị — trước đây tính vị trí 1 lần dựa trên
+    rect của trigger rồi neo bằng CSS transform (`-translate-y-1/2`/`-translate-x-full`), không biết
+    kích thước thật của tooltip nên bị tràn/che khuất khi nội dung dài và trigger nằm gần mép màn
+    hình (ví dụ 4 badge TTM/QA-Index mới thêm ở header, sát mép phải + gần đỉnh màn hình). Nay dùng
+    `useLayoutEffect` đo kích thước tooltip THẬT sau khi mount, tự lật sang bên còn lại nếu bên ưu
+    tiên (`side`) không đủ chỗ, rồi kẹp (clamp) cả 2 trục trong viewport (chừa margin 8px) — tooltip
+    ẩn (`visibility: hidden`) cho tới khi tính xong vị trí cuối để không bị nhấp nháy sai vị trí 1
+    frame. Giảm font chữ tooltip từ `text-app` (14px) xuống `text-xs` (12px).
+
+
+- **Chuyển 4 widget TTM/QA-Index (QLDA/PM) lên header dùng chung của AppShell + thêm tooltip**:
+  - `src/lib/epic-header-widgets-context.tsx` (mới): Context cho phép 1 trang "bắn" dữ liệu widget
+    (label/value/tooltip đã format sẵn) lên header sticky của `AppShell` mà KHÔNG cần AppShell tự
+    fetch gì thêm — tránh lặp lại đúng loại query nặng vừa được bàn ở mục cache hôm 24/9.
+  - `src/components/layout/AppShell.tsx`: tách `AppShellInner` (giữ nguyên toàn bộ logic cũ) ra khỏi
+    `AppShell` (nay chỉ là wrapper bọc `EpicHeaderWidgetsProvider`) vì component tạo Context Provider
+    và component đọc Context không thể là cùng 1 hàm. Header (`pathname === '/epic-alerts-15'`) render
+    4 badge nhỏ (label mờ phía trên, % đậm phía dưới, màu xanh cho TTM/tím cho QA) kèm `Tooltip`
+    (component dùng chung với badge "Nhận xét"), `side="left"` vì badge nằm sát mép phải màn hình.
+  - `src/app/epic-alerts-15/page.tsx`: bỏ khối JSX 4 badge cũ trong nội dung trang, thay bằng 2
+    `useEffect` gọi `setItems(...)` của context — tách riêng effect cleanup (chỉ chạy khi unmount)
+    khỏi effect set dữ liệu, để tránh nhấp nháy ẩn/hiện mỗi lần data refresh (cleanup của
+    `useEffect` chạy trước MỌI lần effect chạy lại, không chỉ lúc unmount).
+  - Tooltip 2 dòng theo đúng yêu cầu: dòng 1 mô tả phạm vi tính, dòng 2 là `{pass}/{eligible}` (số
+    Epic đạt trên số Epic đủ điều kiện tính — cùng "phạm vi tính" dùng cho mẫu số của %). Với 2 badge
+    "(QLDA)", cả % và cặp số `{pass}/{eligible}` này đều lấy thẳng từ `ttm_index_global_cache` (cache
+    ghi 1 lần/import từ 24/9) — không tính lại, kể cả phần hiển thị trong tooltip.
+
+- **Tách TTM-Index/QA-Index thành 2 loại "(QLDA)" (toàn công ty) và "(PM)" (theo phân quyền) + cache "(QLDA)" sau mỗi import**:
+  - `src/lib/ttm-index-global-cache-service.ts` (mới): tính `TTM-Index (QLDA)` và `QA-Index (QLDA)`
+    — toàn bộ Epic trong hệ thống, KHÔNG phụ thuộc phân quyền user — bằng cách gọi
+    `getEpicAlertRowsPhased(0, 'SUPERVISOR', {})` (role SUPERVISOR có `sourceProjectKeys: null`,
+    tức không lọc project) rồi `summarizeTtmCntt`, cache kết quả vào bảng mới
+    `ttm_index_global_cache` (1 dòng duy nhất, migration `20260925_create_ttm_index_global_cache`).
+  - `src/lib/import-service.ts` (`processImport`): sau `COMMIT` của mỗi import, gọi
+    `refreshTtmIndexGlobalCache(batchId)` để tính lại cache — lỗi ở bước này chỉ log, không làm fail
+    import. **Lý do cache thay vì tính live**: query "toàn bộ Epic, không lọc theo project" là query
+    nặng nhất hệ thống; nếu tính lại mỗi lần xem màn hình Quản trị Epic (nhiều lượt xem/ngày, trong
+    khi import chỉ chạy ~1 lần/ngày) sẽ tăng tải đúng loại query từng làm cạn connection pool Aiven
+    (xem `ALERT_HISTORY_RECORDING_ENABLED`). Cache rỗng cho tới lần import kế tiếp sau khi deploy
+    thay đổi này — 2 badge "(QLDA)" sẽ hiện "—" cho tới đó.
+  - `src/app/api/epic-alerts-15/route.ts`: trả thêm field `ttmIndexGlobal` (đọc từ cache, ghép song
+    song với query chính, không tính lại) trong response.
+  - `src/app/epic-alerts-15/page.tsx`: thêm 4 badge góc phải đầu trang — `TTM-Index (QLDA)`,
+    `TTM-Index (PM)`, `QA-Index (QLDA)`, `QA-Index (PM)`. 2 badge "(PM)" tính trực tiếp từ `rows` màn
+    hình đã fetch sẵn (không cần query thêm, không cache) — phạm vi toàn bộ Epic user được phân
+    quyền, KHÔNG bị thu hẹp thêm bởi filter Dự án/Domain/Status đang chọn trên toolbar (đọc như một
+    chỉ số cố định "phạm vi quyền của tôi", không đổi theo filter).
+  - `src/lib/ttm-cntt-qa.ts`: export thêm `formatTtmPct1` (format % 1 số thập phân dùng chung, gộp
+    từ bản local trước đây trong `dashboard-new/page.tsx`).
+  - `src/app/dashboard-new/page.tsx`: đổi tên 2 ring widget "TTM Index (QLDA)" → `TTM-Index (PM)`,
+    "TTM Index (QA)" → `QA-Index (PM)` — công thức/phạm vi giữ nguyên (vẫn lọc theo quyền + filter
+    Dự án/Domain/Tìm kiếm của Dashboard 2 như cũ), chỉ đổi tên cho khớp quy ước mới.
+  - Đã chạy `db:migrate:supabase` (áp dụng thành công). `local`/`aiven` chưa migrate được từ máy này
+    (cùng lý do thiếu cấu hình như các mục trước).
+
 ## 2026-09-24
 
 - **Thu hẹp rule "Chờ golive" + thêm 2 widget Dashboard New + sort bảng ma trận Dashboard 2 + format % 1 số thập phân**:

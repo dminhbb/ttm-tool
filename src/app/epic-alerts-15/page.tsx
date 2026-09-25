@@ -19,6 +19,10 @@ import type { EpicAlertAccessRole, EpicAlertPhasedResponse, EpicAlertRowPhased, 
 import type { EpicMilestoneHistoryEntry } from '@/lib/epic-milestone-history-service';
 import type { ProjectComponent } from '@/lib/master-data-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
+import { formatTtmPct1, isTtmCnttQaInScope, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
+import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
+import type { TtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
+import { useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import { ArrowBendUpRight, ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, HourglassMedium, ListChecks, Prohibit, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
@@ -529,6 +533,25 @@ function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRowPhased; onClose:
 }
 
 
+/** `/api/epic-alerts-15`'s payload is EpicAlertPhasedResponse plus a cached, permission-unscoped
+ * "(QLDA)" TTM/QA Index snapshot (see ttm-index-global-cache-service.ts) — null before the very
+ * first CSV import has ever completed. */
+interface EpicAlerts15Payload extends EpicAlertPhasedResponse {
+  ttmIndexGlobal: TtmIndexGlobalCache | null;
+}
+
+/** "(QLDA)"/"(PM)" TTM-Index or QA-Index value + 2-line tooltip text, formatted for the
+ * EpicHeaderWidgetItem AppShell renders in its sticky header — see ttm-cntt-qa.ts for what
+ * eligible/pass/fail mean. `summary` null (no cache yet) or `total === 0` (nothing to rate, e.g. no
+ * MVP Done/Released Epic yet for QA-Index) both render "—" instead of a misleading 0,0%/100,0%. */
+function formatTtmIndexValue(summary: TtmCnttSummary | null): string {
+  return summary && summary.total > 0 ? `${formatTtmPct1(summary.pctPrecise)}%` : '—';
+}
+function formatTtmIndexTooltip(firstLine: string, summary: TtmCnttSummary | null): string {
+  const secondLine = summary && summary.total > 0 ? `${summary.pass}/${summary.eligible}` : '—';
+  return `${firstLine}\n${secondLine}`;
+}
+
 export default function EpicAlerts15Page() {
   return (
     <Suspense fallback={null}>
@@ -543,7 +566,7 @@ function EpicAlerts15Screen() {
   // edits to these state values via the toolbar must never get overridden by a stale re-parse.
   const [deepLinkFilters] = useState(() => parseDeepLinkFilters(searchParams));
 
-  const [data, setData] = useState<EpicAlertPhasedResponse | null>(null);
+  const [data, setData] = useState<EpicAlerts15Payload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -640,6 +663,57 @@ function EpicAlerts15Screen() {
   }, []);
 
   const rows = data?.rows ?? EMPTY_ROWS;
+
+  // TTM-Index (PM) / QA-Index (PM) — the "(QLDA)" ratios (see ttm-cntt-qa.ts) scoped to everything
+  // this logged-in user is permitted to see (`rows`, already access-scoped server-side), computed
+  // live off data the page already fetched for its own table — deliberately NOT narrowed further by
+  // this screen's own toolbar filters (Dự án/Domain/Status/…), so it reads as a stable "my whole
+  // permitted scope" badge rather than shifting with whatever filter happens to be active. Free to
+  // compute (no extra query): unlike the "(QLDA)" company-wide badges, this never needs caching.
+  const ttmIndexPm = useMemo(() => summarizeTtmCntt(rows), [rows]);
+  const qaIndexPm = useMemo(() => summarizeTtmCntt(rows.filter((row) => isTtmCnttQaInScope(row.currentStatus))), [rows]);
+
+  // Publish the 4 index badges into AppShell's shared sticky header (see
+  // epic-header-widgets-context.tsx). Clearing lives in its own effect (cleanup-only, on unmount)
+  // so navigating away never leaves this screen's numbers on another page's header, without also
+  // flashing the badges empty-then-full on every ordinary data refresh (a cleanup fires before each
+  // re-run of an effect with dependencies, not just on unmount).
+  const { setItems: setHeaderWidgetItems } = useEpicHeaderWidgets();
+  useEffect(() => () => setHeaderWidgetItems(null), [setHeaderWidgetItems]);
+  useEffect(() => {
+    if (!data) return;
+    setHeaderWidgetItems([
+      {
+        key: 'ttm-qlda',
+        label: 'TTM-Index (QLDA)',
+        tone: 'ttm',
+        value: formatTtmIndexValue(data.ttmIndexGlobal?.ttm ?? null),
+        tooltip: formatTtmIndexTooltip('Chỉ số TTM-Index của Phòng QLDA tính trên toàn bộ Epic của Phòng', data.ttmIndexGlobal?.ttm ?? null),
+      },
+      {
+        key: 'ttm-pm',
+        label: 'TTM-Index (PM)',
+        tone: 'ttm',
+        value: formatTtmIndexValue(ttmIndexPm),
+        tooltip: formatTtmIndexTooltip('Chỉ số TTM-Index các dự án của PM tính trên các Epic của dự án được phân quyền', ttmIndexPm),
+      },
+      {
+        key: 'qa-qlda',
+        label: 'QA-Index (QLDA)',
+        tone: 'qa',
+        value: formatTtmIndexValue(data.ttmIndexGlobal?.qa ?? null),
+        tooltip: formatTtmIndexTooltip('Chỉ số QA-Index của Phòng QLDA tính trên toàn bộ Epic của Phòng, theo cách tính của QA', data.ttmIndexGlobal?.qa ?? null),
+      },
+      {
+        key: 'qa-pm',
+        label: 'QA-Index (PM)',
+        tone: 'qa',
+        value: formatTtmIndexValue(qaIndexPm),
+        tooltip: formatTtmIndexTooltip('Chỉ số QA-Index các dự án của PM tính trên các Epic của dự án được phân quyền', qaIndexPm),
+      },
+    ]);
+  }, [data, qaIndexPm, setHeaderWidgetItems, ttmIndexPm]);
+
   const projectOptions = useMemo(() => [...new Set(rows.map((row) => row.projectKey).filter(Boolean))].sort(), [rows]);
   // PM/SM options: ownerName is comma-joined when a project has several PM/SM users (see
   // getProjectMetaByProjectKeyMap) — split back out so each individual person is its own option,
