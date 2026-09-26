@@ -8,6 +8,16 @@
 
 ## 2026-09-26
 
+- **Triệt tiêu hiện tượng rung giật (layout shift) và tinh chỉnh tương tác Biểu đồ Donut**:
+  - **Giữ nguyên 100% độ rõ (không làm mờ các item khác)** ([`src/components/dashboard-new/DonutChartCard.tsx`](file:///d:/git/ttm-tool/src/components/dashboard-new/DonutChartCard.tsx)):
+    - Loại bỏ hoàn toàn cơ chế làm mờ `opacity: 0.4` của các lát cắt Donut và `opacity-35` của các dòng trong bảng chú giải. Mọi lát cắt và mục dữ liệu luôn hiển thị rõ ràng, chỉ làm nổi bật duy nhất lát cắt/mục được chọn.
+  - **Triệt tiêu hoàn toàn hiện tượng rung giật/rung lắc khi hover**:
+    - Cố định chiều cao tuyệt đối của từng dòng bảng chú giải (`h-8 flex items-center`) và áp dụng `tabular-nums` cho số lượng và tỷ lệ %, tránh co giãn kích thước bảng khi hover.
+    - Cố định cỡ chữ `text-xs` xuyên suốt (không tăng lên `text-sm` khi hover) và cố định kích thước chấm màu `size-2.5` (không dùng `scale-110`).
+    - Cố định kích thước khu vực biểu đồ SVG `h-44` và tiêu đề `h-5`, loại bỏ thuộc tính `justify-between` gây biến động khoảng cách khi nội dung co giãn.
+    - Loại bỏ hiệu ứng trễ chuyển vị trí `transition-all duration-75` ở tooltip nổi và bỏ filter `drop-shadow` nặng của SVG, giúp biểu đồ mượt mà và không bị giật khung hình.
+
+
 - **Nâng cấp tương tác biểu đồ Donut: Hover Tooltip % và Highlight hai chiều**:
   - **Tương tác biểu đồ Donut** ([`src/components/dashboard-new/DonutChartCard.tsx`](file:///d:/git/ttm-tool/src/components/dashboard-new/DonutChartCard.tsx)):
     - Khi di chuột vào từng lát cắt của biểu đồ Donut: hiển thị hover tooltip nổi theo con trỏ chuột gồm tên danh mục, số lượng Epic và tỷ lệ `%` nổi bật màu vàng hổ phách. Đồng thời tâm vòng tròn donut chuyển sang hiển thị số `%` và tên danh mục đang hover.

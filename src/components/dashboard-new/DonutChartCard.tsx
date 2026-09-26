@@ -74,7 +74,7 @@ export function DonutChartCard({
 
   // SVG Donut calculation
   const radius = 55;
-  const strokeWidth = 18;
+  const strokeWidth = 19;
   const circumference = 2 * Math.PI * radius;
 
   let accumulatedOffset = 0;
@@ -101,11 +101,13 @@ export function DonutChartCard({
     const target = e.currentTarget.ownerSVGElement?.parentElement;
     if (!target) return;
     const rect = target.getBoundingClientRect();
-    setHoveredIndex(idx);
+    if (hoveredIndex !== idx) {
+      setHoveredIndex(idx);
+    }
     setTooltipState({
       visible: true,
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
+      x: Math.round(e.clientX - rect.left),
+      y: Math.round(e.clientY - rect.top),
     });
   };
 
@@ -115,21 +117,21 @@ export function DonutChartCard({
   };
 
   return (
-    <div className="relative flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-[#f8fafc] p-5 shadow-xs transition-shadow hover:shadow-sm">
-      {/* Title */}
-      <h3 className="text-center text-sm font-bold text-slate-800">
+    <div className="relative flex flex-col rounded-2xl border border-slate-200/90 bg-[#f8fafc] p-5 shadow-xs transition-shadow hover:shadow-sm">
+      {/* Title with fixed height */}
+      <h3 className="flex h-5 items-center justify-center text-center text-sm font-bold text-slate-800 line-clamp-1">
         {title}
       </h3>
 
-      {/* Donut Chart Visual */}
-      <div className="relative my-4 flex items-center justify-center">
-        {/* Floating Tooltip */}
+      {/* Donut Chart Visual - fixed height container */}
+      <div className="relative my-3 flex h-44 items-center justify-center select-none">
+        {/* Floating Tooltip - absolute with zero transition lag to prevent jitter */}
         {tooltipState?.visible && activeItem && (
           <div
-            className="pointer-events-none absolute z-30 -translate-x-1/2 -translate-y-full rounded-lg bg-slate-900/95 px-2.5 py-1.5 text-xs text-white shadow-lg backdrop-blur-xs transition-all duration-75"
-            style={{ left: tooltipState.x, top: tooltipState.y - 12 }}
+            className="pointer-events-none absolute z-30 -translate-x-1/2 -translate-y-full rounded-lg bg-slate-900/95 px-2.5 py-1.5 text-xs text-white shadow-lg backdrop-blur-xs select-none"
+            style={{ left: tooltipState.x, top: tooltipState.y - 10 }}
           >
-            <div className="flex items-center gap-1.5 font-bold">
+            <div className="flex items-center gap-1.5 font-semibold">
               <span
                 className="size-2 rounded-full shrink-0"
                 style={{ backgroundColor: activeItem.color }}
@@ -137,7 +139,7 @@ export function DonutChartCard({
               <span className="truncate max-w-[150px]">{activeItem.name}</span>
             </div>
             <div className="mt-0.5 text-[11px] text-slate-300">
-              {activeItem.value} {unitLabel} &bull; <strong className="text-amber-300 font-extrabold text-xs">{activeItem.pct}%</strong>
+              {activeItem.value} {unitLabel} &bull; <strong className="text-amber-300 font-bold text-xs">{activeItem.pct}%</strong>
             </div>
           </div>
         )}
@@ -156,63 +158,60 @@ export function DonutChartCard({
               strokeWidth={strokeWidth}
             />
           ) : (
-            segments.map((seg) => {
-              const isHovered = hoveredIndex === seg.index;
-              const isDimmed = hoveredIndex !== null && !isHovered;
+            // Render hovered segment last so it stays on top without clipping
+            [...segments]
+              .sort((a, b) => {
+                if (a.index === hoveredIndex) return 1;
+                if (b.index === hoveredIndex) return -1;
+                return 0;
+              })
+              .map((seg) => {
+                const isHovered = hoveredIndex === seg.index;
 
-              return (
-                <circle
-                  key={`${seg.name}-${seg.index}`}
-                  cx="70"
-                  cy="70"
-                  r={radius}
-                  fill="transparent"
-                  stroke={seg.color}
-                  strokeWidth={isHovered ? strokeWidth + 4 : strokeWidth}
-                  strokeDasharray={seg.strokeDasharray}
-                  strokeDashoffset={seg.strokeDashoffset}
-                  className="cursor-pointer transition-all duration-200 ease-out"
-                  style={{
-                    filter: isHovered ? 'drop-shadow(0 2px 6px rgba(0,0,0,0.3))' : undefined,
-                    opacity: isDimmed ? 0.4 : 1,
-                  }}
-                  onMouseMove={(e) => handleMouseMove(e, seg.index)}
-                  onMouseLeave={handleMouseLeave}
-                />
-              );
-            })
+                return (
+                  <circle
+                    key={`${seg.name}-${seg.index}`}
+                    cx="70"
+                    cy="70"
+                    r={radius}
+                    fill="transparent"
+                    stroke={seg.color}
+                    strokeWidth={isHovered ? strokeWidth + 3 : strokeWidth}
+                    strokeDasharray={seg.strokeDasharray}
+                    strokeDashoffset={seg.strokeDashoffset}
+                    className="cursor-pointer transition-[stroke-width] duration-150 ease-out"
+                    style={{
+                      // KHÔNG làm mờ các section khác - giữ nguyên 100% độ rõ
+                      opacity: 1,
+                    }}
+                    onMouseEnter={() => setHoveredIndex(seg.index)}
+                    onMouseMove={(e) => handleMouseMove(e, seg.index)}
+                    onMouseLeave={handleMouseLeave}
+                  />
+                );
+              })
           )}
         </svg>
 
-        {/* Center Text */}
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-          {activeItem ? (
-            <>
-              <span
-                className="text-2xl font-black leading-none transition-all duration-150"
-                style={{ color: activeItem.color }}
-              >
-                {activeItem.pct}%
-              </span>
-              <span className="text-[11px] font-semibold text-slate-600 mt-1 truncate max-w-[90px]" title={activeItem.name}>
-                {activeItem.name}
-              </span>
-            </>
-          ) : (
-            <>
-              <span className="text-2xl font-black text-slate-900 leading-none">
-                {total}
-              </span>
-              <span className="text-xs font-medium text-slate-500 mt-1">
-                {unitLabel}
-              </span>
-            </>
-          )}
+        {/* Center Text - constant size & position to eliminate layout shift */}
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center px-4 select-none">
+          <span
+            className="text-2xl font-black leading-none tabular-nums"
+            style={{ color: activeItem ? activeItem.color : '#0f172a' }}
+          >
+            {activeItem ? `${activeItem.pct}%` : total}
+          </span>
+          <span
+            className="text-[11px] font-semibold text-slate-500 mt-1 truncate max-w-[100px] leading-tight"
+            title={activeItem ? activeItem.name : unitLabel}
+          >
+            {activeItem ? activeItem.name : unitLabel}
+          </span>
         </div>
       </div>
 
-      {/* Legend & Breakdown Table */}
-      <div className="mt-2 space-y-1 border-t border-slate-200/60 pt-3">
+      {/* Legend & Breakdown Table - fixed row height to eliminate any shaking */}
+      <div className="mt-auto space-y-1 border-t border-slate-200/60 pt-3">
         {total === 0 || displayItems.length === 0 ? (
           <p className="py-2 text-center text-xs text-slate-400 italic">
             {emptyMessage}
@@ -220,42 +219,50 @@ export function DonutChartCard({
         ) : (
           displayItems.map((item, idx) => {
             const isHovered = hoveredIndex === idx;
-            const isDimmed = hoveredIndex !== null && !isHovered;
 
             return (
               <div
                 key={item.name}
                 onMouseEnter={() => setHoveredIndex(idx)}
                 onMouseLeave={() => setHoveredIndex(null)}
-                className={`flex items-center justify-between text-xs px-2 py-1.5 rounded-lg transition-all cursor-pointer ${
+                className={`flex h-8 items-center justify-between text-xs px-2.5 rounded-lg border transition-colors cursor-pointer select-none ${
                   isHovered
-                    ? 'bg-blue-50 ring-1 ring-blue-300 font-bold shadow-xs'
-                    : isDimmed
-                      ? 'opacity-35 hover:opacity-80'
-                      : 'hover:bg-slate-100/80'
+                    ? 'bg-blue-50/90 text-blue-900 border-blue-300/80 shadow-xs'
+                    : 'bg-transparent text-slate-700 border-transparent hover:bg-slate-100/70'
                 }`}
               >
+                {/* Left: Dot & Name */}
                 <div className="flex items-center gap-2 min-w-0 mr-2">
                   <span
-                    className={`shrink-0 rounded-full transition-all ${
-                      isHovered
-                        ? 'size-3 ring-2 ring-offset-1 ring-blue-400 scale-110'
-                        : 'size-2.5'
+                    className={`size-2.5 shrink-0 rounded-full transition-shadow ${
+                      isHovered ? 'ring-2 ring-blue-400 ring-offset-1' : ''
                     }`}
                     style={{ backgroundColor: item.color }}
                   />
                   <span
-                    className={`truncate ${isHovered ? 'text-blue-900 font-bold' : 'font-medium text-slate-700'}`}
+                    className={`truncate text-xs ${
+                      isHovered ? 'font-bold text-blue-900' : 'font-medium text-slate-700'
+                    }`}
                     title={item.name}
                   >
                     {item.name}
                   </span>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className={`w-8 text-right font-bold ${isHovered ? 'text-blue-900 text-sm' : 'text-slate-900'}`}>
+
+                {/* Right: Value & Pct (constant text-xs, tabular-nums to eliminate layout shift) */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <span
+                    className={`w-9 text-right text-xs tabular-nums ${
+                      isHovered ? 'font-bold text-blue-900' : 'font-semibold text-slate-800'
+                    }`}
+                  >
                     {item.value}
                   </span>
-                  <span className={`w-9 text-right font-bold ${isHovered ? 'text-blue-700' : 'text-slate-400 font-medium'}`}>
+                  <span
+                    className={`w-10 text-right text-xs tabular-nums ${
+                      isHovered ? 'font-bold text-blue-700' : 'font-medium text-slate-400'
+                    }`}
+                  >
                     {item.pct}%
                   </span>
                 </div>
