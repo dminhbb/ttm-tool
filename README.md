@@ -44,8 +44,8 @@ npm run lint    # ESLint
 
 ## Cấu trúc chính
 
-- `src/app` — route App Router: màn hình giám sát Epic (`/epic-alerts`, `/epic-alerts-15`,
-  `/epic-in-po`, `/dashboard`, `/reports`), quản trị (`/admin/*`), SSO/MCP, và API Route Handlers
+- `src/app` — route App Router: màn hình giám sát Epic (`/dashboard-new` - TTM Dashboard màn hình chính mặc định khi đăng nhập, `/epic-alerts-15` - Quản trị Epic,
+  `/epic-in-po`, `/reports`), quản trị (`/admin/*`), SSO/MCP, và API Route Handlers
   (`src/app/api`).
 - `src/lib` — business logic dùng chung (tính cảnh báo, ngày làm việc, import/aggregate dữ liệu,
   RBAC, MCP server, SSO...), gọi trực tiếp bởi cả UI lẫn API — không có tầng service riêng.

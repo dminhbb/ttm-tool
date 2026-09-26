@@ -36,6 +36,7 @@ import { buildEpicAlertsDeepLink } from '@/lib/epic-alerts-deep-link';
 import type { EpicAlertsDeepLinkParams } from '@/lib/epic-alerts-deep-link';
 import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
+import type { TtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { DonutChartCard, type DonutDataItem } from '@/components/dashboard-new/DonutChartCard';
 import { EpicAlertsIframeModal } from '@/components/dashboard-new/EpicAlertsIframeModal';
 import '@/app/epic-alerts-15/epic-alerts-15.css';
@@ -49,6 +50,7 @@ function computeDimensionDonuts(
   const failMap = new Map<string, number>();
 
   for (const row of rows) {
+    if (isCancelledStatus(row.currentStatus || '')) continue;
     const key = (getDimensionKey(row) || '').trim() || 'Chưa xác định';
 
     // Total
@@ -88,11 +90,12 @@ interface DashboardNewPayload {
   lastAggregatedAt: string | null;
   managedUsers: ManagedUserItem[];
   rows: EpicAlertRowPhased[];
+  ttmIndexGlobal: TtmIndexGlobalCache | null;
   viewAsUser: { email: string; fullName: string; id: number; role: string } | null;
 }
 
 type DimensionKey = 'domain' | 'epicType' | 'pmsm' | 'project';
-type OperationalTab = 'ANOMALY' | 'PENDING' | 'PROGRESS';
+type OperationalTab = 'WAITING_GOLIVE' | 'PENDING' | 'ANOMALY';
 type MatrixSortKey = 'late' | 'name' | 'ok' | 'qaPct' | 'qldaFail' | 'qldaPass' | 'qldaPct' | 'total';
 
 const DIMENSION_LABELS: Record<DimensionKey, string> = {
@@ -101,6 +104,15 @@ const DIMENSION_LABELS: Record<DimensionKey, string> = {
   pmsm: 'Theo PM/SM',
   project: 'Theo Dự án',
 };
+
+function formatTtmIndexValue(summary: TtmCnttSummary | null | undefined): string {
+  return summary && summary.total > 0 ? `${formatTtmPct1(summary.pctPrecise)}%` : '—';
+}
+
+function formatTtmIndexTooltip(firstLine: string, summary: TtmCnttSummary | null | undefined): string {
+  const secondLine = summary && summary.total > 0 ? `${summary.pass}/${summary.eligible} Epic đạt TTM` : '—';
+  return `${firstLine}\n${secondLine}`;
+}
 
 function formatDateTime(value: string | null): string {
   if (!value) return 'Chưa có dữ liệu';
@@ -111,6 +123,15 @@ function formatDateTime(value: string | null): string {
   const hour = String(date.getHours()).padStart(2, '0');
   const minute = String(date.getMinutes()).padStart(2, '0');
   return `${day}/${month}/${date.getFullYear()} ${hour}:${minute}`;
+}
+
+function formatDate(value: string | null): string {
+  if (!value) return '-';
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${day}/${month}/${date.getFullYear()}`;
 }
 
 interface DimensionMatrixItem {
@@ -170,13 +191,20 @@ export default function DashboardNewPage() {
   const [dimensionKey, setDimensionKey] = useState<DimensionKey>('domain');
   // "Ma trận Phân bổ Tiến độ Epic Đa chiều" — mặc định sort giảm dần theo TTM-CNTT (QLDA).
   const { sortKey: matrixSortKey, sortDirection: matrixSortDirection, toggleSort: toggleMatrixSort, directionFor: matrixSortDirectionFor } = useSortableList<MatrixSortKey>('qldaPct', 'desc');
-  const [operationalTab, setOperationalTab] = useState<OperationalTab>('PROGRESS');
+  const [operationalTab, setOperationalTab] = useState<OperationalTab>('WAITING_GOLIVE');
   const [selectedEpicKey, setSelectedEpicKey] = useState<string | null>(null);
+
+  // When in PM/SM view (OPERATIONAL), only epicType and project dimensions are available
+  useEffect(() => {
+    if (viewMode === 'OPERATIONAL' && dimensionKey !== 'epicType' && dimensionKey !== 'project') {
+      setDimensionKey('epicType');
+    }
+  }, [viewMode, dimensionKey]);
 
   // Accordion state for LEAD view sections (lazy loading)
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     domain: false,
-    epicType: false,
+    epicType: true,
     pmsm: false,
     project: false,
     requestingUnit: false,
@@ -203,10 +231,6 @@ export default function DashboardNewPage() {
     setEpicModalUrl(null);
   };
 
-  // Pagination for the Operational "Progress" list
-  const PROGRESS_PAGE_SIZE = 50;
-  const [progressPage, setProgressPage] = useState(1);
-
   // Guards against an out-of-order response overwriting a newer one when
   // previewUserId changes rapidly (e.g. switching between two users quickly).
   const requestIdRef = useRef(0);
@@ -229,8 +253,10 @@ export default function DashboardNewPage() {
       const isAdminOrSupervisor = ['SUPERADMIN', 'ADMIN', 'SUPERVISOR'].includes(payload.actor.role);
       if (isAdminOrSupervisor && payload.isUserPreview) {
         setViewMode('OPERATIONAL');
+        setFilterPmSm('');
       } else if (!isAdminOrSupervisor) {
         setViewMode('OPERATIONAL');
+        setFilterPmSm('');
       } else {
         setViewMode('EXECUTIVE');
       }
@@ -257,15 +283,14 @@ export default function DashboardNewPage() {
   const filteredRows = useMemo(() => {
     if (!data) return [];
     return data.rows.filter((row) => {
+      if (isCancelledStatus(row.currentStatus || '')) return false;
       if (filterProjects.length > 0 && !filterProjects.includes(row.projectKey)) return false;
       if (filterDomain && row.domainName !== filterDomain) return false;
-      // ownerName is comma-joined when a project has several PM/SM users (see
-      // getProjectMetaByProjectKeyMap) — split back out, same convention as epic-alerts-15's own
-      // PM/SM filter, so selecting one shows every Epic whose project lists them.
-      if (filterPmSm && !row.ownerName.split(',').map((name) => name.trim()).includes(filterPmSm)) return false;
+      // In PM/SM view (OPERATIONAL), PM/SM filter is removed / not applied.
+      if (viewMode === 'EXECUTIVE' && filterPmSm && !row.ownerName.split(',').map((name) => name.trim()).includes(filterPmSm)) return false;
       return true;
     });
-  }, [data, filterProjects, filterDomain, filterPmSm]);
+  }, [data, filterProjects, filterDomain, filterPmSm, viewMode]);
 
   // Executive Metrics. TTM-CNTT-specific numbers (eligibleTtm/passTtm/failCntt/ttmHealthPct) come
   // from the shared summarizeTtmCntt helper so this stays byte-for-byte the same ratio as the
@@ -321,7 +346,7 @@ export default function DashboardNewPage() {
     alert: extra.alert,
     dataIssue: extra.dataIssue,
     domain: extra.domain ?? (filterProjects.length > 0 ? undefined : (filterDomain || undefined)),
-    pmSm: extra.pmSm ?? (filterPmSm ? [filterPmSm] : undefined),
+    pmSm: extra.pmSm ?? (viewMode === 'EXECUTIVE' && filterPmSm ? [filterPmSm] : undefined),
     projects: extra.projects ?? (filterProjects.length > 0 ? filterProjects : undefined),
     requestingUnit: extra.requestingUnit,
     search: extra.search,
@@ -435,7 +460,7 @@ export default function DashboardNewPage() {
     for (const row of filteredRows) {
       const status = (row.currentStatus || '').trim().toUpperCase();
       const isReleased = Boolean(row.stages.release.isDone && row.dueDate);
-      const isBacklogLike = status === 'TO DO' || status === 'BACKLOG' || status === 'IN PO' || isCancelledStatus(row.currentStatus);
+      const isBacklogLike = status === 'TO DO' || status === 'BACKLOG' || status === 'IN PO';
 
       if (isReleased) {
         phases[4].rows.push(row);
@@ -457,6 +482,11 @@ export default function DashboardNewPage() {
     });
   }, [filteredRows]);
 
+  // Waiting Golive Epics List
+  const waitingGoliveEpics = useMemo(() => {
+    return filteredRows.filter((r) => r.releaseAxisState === 'WAITING_GOLIVE');
+  }, [filteredRows]);
+
   // Pending Epics List
   const pendingEpics = useMemo(() => {
     return filteredRows.filter((r) => (r.currentStatus || '').toLowerCase().includes('pending'));
@@ -467,28 +497,20 @@ export default function DashboardNewPage() {
     return filteredRows.filter((r) => r.hasDataAnomaly);
   }, [filteredRows]);
 
-  // Paginated slice for the Operational "Progress" list
-  const progressTotalPages = Math.max(1, Math.ceil(filteredRows.length / PROGRESS_PAGE_SIZE));
-  const progressPageClamped = Math.min(progressPage, progressTotalPages);
-  const progressRows = useMemo(() => {
-    const start = (progressPageClamped - 1) * PROGRESS_PAGE_SIZE;
-    return filteredRows.slice(start, start + PROGRESS_PAGE_SIZE);
-  }, [filteredRows, progressPageClamped]);
-
   // Projects, Domains, Types, Statuses & other filter options
   const projectOptions = useMemo(() => {
     if (!data) return [];
-    return [...new Set(data.rows.map((r) => r.projectKey).filter((v): v is string => Boolean(v)))].sort();
+    return [...new Set(data.rows.filter((r) => !isCancelledStatus(r.currentStatus || '')).map((r) => r.projectKey).filter((v): v is string => Boolean(v)))].sort();
   }, [data]);
 
   const domainOptions = useMemo(() => {
     if (!data) return [];
-    return [...new Set(data.rows.map((r) => r.domainName).filter((v): v is string => Boolean(v)))].sort();
+    return [...new Set(data.rows.filter((r) => !isCancelledStatus(r.currentStatus || '')).map((r) => r.domainName).filter((v): v is string => Boolean(v)))].sort();
   }, [data]);
 
   const pmSmOptions = useMemo(() => {
     if (!data) return [];
-    return [...new Set(data.rows.flatMap((r) => (r.ownerName || '').split(',').map((name) => name.trim()).filter(Boolean)))].sort((a, b) => a.localeCompare(b, 'vi'));
+    return [...new Set(data.rows.filter((r) => !isCancelledStatus(r.currentStatus || '')).flatMap((r) => (r.ownerName || '').split(',').map((name) => name.trim()).filter(Boolean)))].sort((a, b) => a.localeCompare(b, 'vi'));
   }, [data]);
 
   // Domain → Project Keys, selecting a Domain auto-selects every project under it
@@ -496,6 +518,7 @@ export default function DashboardNewPage() {
     const map = new Map<string, Set<string>>();
     if (!data) return map;
     for (const row of data.rows) {
+      if (isCancelledStatus(row.currentStatus || '')) continue;
       if (!row.domainName || !row.projectKey) continue;
       const set = map.get(row.domainName) ?? new Set<string>();
       set.add(row.projectKey);
@@ -508,7 +531,6 @@ export default function DashboardNewPage() {
     setFilterDomain(domain);
     const projects = domain ? Array.from(domainProjectKeys.get(domain) ?? []) : [];
     setFilterProjects(projects);
-    setProgressPage(1);
   };
 
   const filteredUsersForModal = useMemo(() => {
@@ -550,6 +572,417 @@ export default function DashboardNewPage() {
     return computeDimensionDonuts(filteredRows, (r) => r.projectName || r.projectKey || 'Chưa gán');
   }, [openSections.project, filteredRows]);
 
+  const phaseStatuses = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    for (const p of pipelinePhases) {
+      map[p.key] = [...new Set(p.rows.map((r) => r.currentStatus).filter(Boolean))];
+    }
+    return map;
+  }, [pipelinePhases]);
+
+  const renderKpiStrip = () => (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-9">
+      {/* Health Index Ring — TTM-Index (PM) */}
+      <div className="col-span-2 sm:col-span-2 lg:col-span-1 rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs flex items-center justify-start gap-3">
+        <div
+          className="relative flex size-14 shrink-0 items-center justify-center rounded-full"
+          style={{
+            background: `conic-gradient(#0866ff 0% ${executiveMetrics.ttmHealthPctPrecise}%, #e4e6eb ${executiveMetrics.ttmHealthPctPrecise}% 100%)`,
+          }}
+        >
+          <div className="flex size-10 items-center justify-center rounded-full bg-fb-surface font-extrabold text-xs text-fb-blue">
+            {formatTtmPct1(executiveMetrics.ttmHealthPctPrecise)}%
+          </div>
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-bold text-fb-text-primary">TTM-Index (PM)</p>
+          <p className="text-[10px] text-fb-text-secondary">{executiveMetrics.passTtm}/{executiveMetrics.eligibleTtm}</p>
+        </div>
+      </div>
+
+      {/* Health Index Ring — QA-Index (PM) */}
+      <div className="col-span-2 sm:col-span-2 lg:col-span-1 rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs flex items-center justify-start gap-3">
+        <div
+          className="relative flex size-14 shrink-0 items-center justify-center rounded-full"
+          style={{
+            background: qaMetrics.total > 0
+              ? `conic-gradient(#7c3aed 0% ${qaMetrics.pctPrecise}%, #e4e6eb ${qaMetrics.pctPrecise}% 100%)`
+              : '#e4e6eb',
+          }}
+        >
+          <div className="flex size-10 items-center justify-center rounded-full bg-fb-surface font-extrabold text-xs text-purple-700">
+            {qaMetrics.total > 0 ? `${formatTtmPct1(qaMetrics.pctPrecise)}%` : '—'}
+          </div>
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-bold text-fb-text-primary">QA-Index (PM)</p>
+          <p className="text-[10px] text-fb-text-secondary">
+            {qaMetrics.total > 0 ? `${qaMetrics.pass}/${qaMetrics.eligible}` : 'Chưa có Epic MVP Done/Released'}
+          </p>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => openEpicModal(toEpicAlertsLink(), 'Danh sách Epic - Tổng số Epic')}
+        className="block text-left rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs transition-all hover:border-fb-blue hover:shadow-sm cursor-pointer w-full"
+        title="Xem tất cả Epic trong phạm vi lọc"
+      >
+        <p className="text-[10px] font-bold uppercase text-fb-text-secondary">Tổng số Epic</p>
+        <p className="mt-1 text-xl font-extrabold text-fb-text-primary">{executiveMetrics.total}</p>
+        <p className="text-[10px] text-fb-text-secondary">Thuộc phạm vi lọc</p>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'FAIL' }), 'Danh sách Epic - Fail TTM-CNTT')}
+        className="block text-left rounded-xl border border-red-200 bg-red-50/50 p-3 shadow-xs transition-all hover:border-red-400 hover:shadow-sm cursor-pointer w-full"
+        title="Xem danh sách Epic Fail TTM-CNTT ở Quản trị Epic"
+      >
+        <p className="text-[10px] font-bold uppercase text-status-danger">Fail TTM-CNTT</p>
+        <p className="mt-1 text-xl font-extrabold text-status-danger">{executiveMetrics.failCntt}</p>
+        <p className="text-[10px] text-red-600 font-medium">Vượt R4G Target</p>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'FAIL_E2E' }), 'Danh sách Epic - Fail TTM-E2E')}
+        className="block text-left rounded-xl border border-red-200 bg-red-50/50 p-3 shadow-xs transition-all hover:border-red-400 hover:shadow-sm cursor-pointer w-full"
+        title="Xem danh sách Epic Fail TTM-E2E ở Quản trị Epic"
+      >
+        <p className="text-[10px] font-bold uppercase text-status-danger">Fail TTM-E2E</p>
+        <p className="mt-1 text-xl font-extrabold text-status-danger">{executiveMetrics.failE2e}</p>
+        <p className="text-[10px] text-red-600 font-medium">Vượt Due Date Target</p>
+      </button>
+
+      <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 shadow-xs">
+        <p className="text-[10px] font-bold uppercase text-status-warning">Cảnh báo (Sớm/Muộn)</p>
+        <p className="mt-1 text-xl font-extrabold text-status-warning">{executiveMetrics.lateWarning + executiveMetrics.earlyWarning}</p>
+        <p className="text-[10px] text-amber-700 font-medium">
+          <button
+            type="button"
+            onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'LATE' }), 'Danh sách Epic - Cảnh báo muộn')}
+            className="underline-offset-2 hover:underline cursor-pointer font-bold"
+            title="Xem danh sách Epic Cảnh báo muộn ở Quản trị Epic"
+          >
+            {executiveMetrics.lateWarning} muộn
+          </button>
+          {' · '}
+          <button
+            type="button"
+            onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'EARLY' }), 'Danh sách Epic - Cảnh báo sớm')}
+            className="underline-offset-2 hover:underline cursor-pointer font-bold"
+            title="Xem danh sách Epic Cảnh báo sớm ở Quản trị Epic"
+          >
+            {executiveMetrics.earlyWarning} sớm
+          </button>
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => openEpicModal(toEpicAlertsLink({ dataIssue: true }), 'Danh sách Epic - Sai lệch Dữ liệu')}
+        className="block text-left rounded-xl border border-purple-200 bg-purple-50/50 p-3 shadow-xs transition-all hover:border-purple-400 hover:shadow-sm cursor-pointer w-full"
+        title="Xem danh sách Epic sai lệch dữ liệu ở Quản trị Epic"
+      >
+        <p className="text-[10px] font-bold uppercase text-purple-700">Sai lệch Dữ liệu</p>
+        <p className="mt-1 text-xl font-extrabold text-purple-700">{executiveMetrics.anomalyCount}</p>
+        <p className="text-[10px] text-purple-600 font-medium">Vi phạm rule R1-R7</p>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'WAITING_GOLIVE' }), 'Danh sách Epic - Chờ golive')}
+        className="block text-left rounded-xl border border-sky-200 bg-sky-50/50 p-3 shadow-xs transition-all hover:border-sky-400 hover:shadow-sm cursor-pointer w-full"
+        title="Xem danh sách Epic Chờ golive ở Quản trị Epic"
+      >
+        <p className="text-[10px] font-bold uppercase text-sky-700">Chờ golive</p>
+        <p className="mt-1 text-xl font-extrabold text-sky-700">{executiveMetrics.waitingGolive}</p>
+        <p className="text-[10px] text-sky-600 font-medium">Trong hạn R4G Date + 5 ngày</p>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'JUSTIFY_GOLIVE' }), 'Danh sách Epic - Cần Giải trình Golive')}
+        className="block text-left rounded-xl border border-red-200 bg-red-50/50 p-3 shadow-xs transition-all hover:border-red-400 hover:shadow-sm cursor-pointer w-full"
+        title="Xem danh sách Epic cần Giải trình Golive ở Quản trị Epic"
+      >
+        <p className="text-[10px] font-bold uppercase text-status-danger">Giải trình Golive</p>
+        <p className="mt-1 text-xl font-extrabold text-status-danger">{executiveMetrics.justifyGolive}</p>
+        <p className="text-[10px] text-red-600 font-medium">Quá hạn R4G Date + 5 ngày</p>
+      </button>
+    </div>
+  );
+
+  const renderMatrixCard = (allowedDimensions: DimensionKey[]) => (
+    <Card>
+      <CardHeader className="flex flex-wrap items-center justify-between gap-3 border-b border-fb-border pb-3">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <SlidersHorizontal className="size-4 text-fb-blue" weight="bold" />
+            Ma trận Phân bổ Tiến độ Epic Đa chiều
+          </CardTitle>
+          <p className="text-xs text-fb-text-secondary mt-0.5">
+            Bảng phân tích trực quan tỷ lệ Pass/Fail & Tiến độ Epic theo từng chiều dữ liệu
+          </p>
+        </div>
+
+        {/* Dimension selector tabs */}
+        <div className="flex flex-wrap items-center gap-1 rounded-lg border border-fb-border bg-fb-surface-muted p-1">
+          {allowedDimensions.map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setDimensionKey(key)}
+              className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${
+                dimensionKey === key ? 'bg-fb-blue text-white shadow-xs' : 'text-fb-text-secondary hover:text-fb-text-primary'
+              }`}
+            >
+              {DIMENSION_LABELS[key]}
+            </button>
+          ))}
+        </div>
+      </CardHeader>
+      <CardBody className="p-0">
+        <TableContainer>
+          <Table>
+            <THead>
+              <TR>
+                <TH sortDirection={matrixSortDirectionFor('name')} onClick={() => toggleMatrixSort('name')}>{DIMENSION_LABELS[dimensionKey]}</TH>
+                <TH className="text-center" sortDirection={matrixSortDirectionFor('total')} onClick={() => toggleMatrixSort('total')}>Tổng số Epic</TH>
+                <TH className="w-56" sortDirection={matrixSortDirectionFor('qldaPct')} onClick={() => toggleMatrixSort('qldaPct')}>TTM-CNTT (QLDA)</TH>
+                <TH className="text-center" sortDirection={matrixSortDirectionFor('qldaPass')} onClick={() => toggleMatrixSort('qldaPass')}>Pass TTM</TH>
+                <TH className="text-center" sortDirection={matrixSortDirectionFor('qldaFail')} onClick={() => toggleMatrixSort('qldaFail')}>Fail TTM</TH>
+                <TH className="w-40" sortDirection={matrixSortDirectionFor('qaPct')} onClick={() => toggleMatrixSort('qaPct')}>TTM-CNTT (QA)</TH>
+                <TH className="text-center" sortDirection={matrixSortDirectionFor('ok')} onClick={() => toggleMatrixSort('ok')}>Đúng tiến độ</TH>
+                <TH className="text-center" sortDirection={matrixSortDirectionFor('late')} onClick={() => toggleMatrixSort('late')}>Chậm tiến độ</TH>
+              </TR>
+            </THead>
+            <TBody>
+              {dimensionMatrix.map((item) => (
+                <TR key={item.name}>
+                  <TD className="font-bold text-fb-text-primary">
+                    <button
+                      type="button"
+                      onClick={() => openEpicModal(
+                        toEpicAlertsLinkForMatrixItem(item, 'total'),
+                        `Danh sách Epic - ${item.name} (Tổng số Epic)`
+                      )}
+                      className="font-bold text-fb-text-primary hover:text-fb-blue hover:underline cursor-pointer text-left"
+                      title={`Xem tất cả Epic của ${item.name}`}
+                    >
+                      {item.name}
+                    </button>
+                  </TD>
+                  <TD className="text-center font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => openEpicModal(
+                        toEpicAlertsLinkForMatrixItem(item, 'total'),
+                        `Danh sách Epic - ${item.name} (Tổng số Epic)`
+                      )}
+                      className="text-fb-blue hover:underline cursor-pointer font-bold inline-block px-1.5 py-0.5 rounded-sm hover:bg-blue-50 transition-colors"
+                      title={`Xem tất cả Epic của ${item.name}`}
+                    >
+                      {item.total}
+                    </button>
+                  </TD>
+                  <TD>
+                    <button
+                      type="button"
+                      onClick={() => openEpicModal(
+                        toEpicAlertsLinkForMatrixItem(item, 'pass'),
+                        `Danh sách Epic Pass TTM - ${item.name}`
+                      )}
+                      className="flex items-center gap-2 w-full hover:opacity-80 transition-opacity cursor-pointer group"
+                      title={`Xem các Epic Pass TTM của ${item.name} (Tỷ lệ: ${item.qlda.pct}%)`}
+                    >
+                      <div className="h-2.5 flex-1 rounded-full bg-fb-control overflow-hidden flex">
+                        <div style={{ width: `${item.qlda.pct}%` }} className="bg-status-success h-full" title={`Pass: ${item.qlda.pct}%`} />
+                        <div style={{ width: `${100 - item.qlda.pct}%` }} className="bg-status-danger h-full" title={`Rủi ro: ${100 - item.qlda.pct}%`} />
+                      </div>
+                      <span className="w-9 text-right text-xs font-bold text-fb-text-primary group-hover:underline">{item.qlda.pct}%</span>
+                    </button>
+                  </TD>
+                  <TD className="text-center font-semibold text-status-success">
+                    <button
+                      type="button"
+                      onClick={() => openEpicModal(
+                        toEpicAlertsLinkForMatrixItem(item, 'pass'),
+                        `Danh sách Epic Pass TTM - ${item.name}`
+                      )}
+                      className="text-status-success hover:underline cursor-pointer font-bold inline-block px-1.5 py-0.5 rounded-sm hover:bg-emerald-50 transition-colors"
+                      title={`Xem các Epic Pass TTM của ${item.name}`}
+                    >
+                      {item.qlda.pass}
+                    </button>
+                  </TD>
+                  <TD className="text-center font-semibold text-status-danger">
+                    <button
+                      type="button"
+                      onClick={() => openEpicModal(
+                        toEpicAlertsLinkForMatrixItem(item, 'fail'),
+                        `Danh sách Epic Fail TTM - ${item.name}`
+                      )}
+                      className="text-status-danger hover:underline cursor-pointer font-bold inline-block px-1.5 py-0.5 rounded-sm hover:bg-red-50 transition-colors"
+                      title={`Xem các Epic Fail TTM của ${item.name}`}
+                    >
+                      {item.qlda.fail}
+                    </button>
+                  </TD>
+                  <TD>
+                    {item.qa.total > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => openEpicModal(
+                          toEpicAlertsLinkForMatrixItem(item, 'qa'),
+                          `Danh sách Epic QA (MVP Done / Released) - ${item.name}`
+                        )}
+                        className="flex flex-col gap-0.5 w-full text-left hover:opacity-80 transition-opacity cursor-pointer group"
+                        title={`Xem các Epic MVP Done / Released của ${item.name}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 flex-1 rounded-full bg-fb-control overflow-hidden flex">
+                            <div style={{ width: `${item.qa.pct}%` }} className="bg-purple-600 h-full" title={`Pass QA: ${item.qa.pct}%`} />
+                            <div style={{ width: `${100 - item.qa.pct}%` }} className="bg-status-danger h-full" title={`Rủi ro QA: ${100 - item.qa.pct}%`} />
+                          </div>
+                          <span className="w-9 text-right text-xs font-bold text-purple-700 group-hover:underline">{item.qa.pct}%</span>
+                        </div>
+                        <p className="text-[10px] text-fb-text-secondary group-hover:underline">{item.qa.pass}/{item.qa.eligible} Epic MVP Done/Released</p>
+                      </button>
+                    ) : (
+                      <span className="text-xs text-fb-text-placeholder">— Chưa có Epic MVP Done/Released</span>
+                    )}
+                  </TD>
+                  <TD className="text-center font-semibold text-fb-text-primary">
+                    <button
+                      type="button"
+                      onClick={() => openEpicModal(
+                        toEpicAlertsLinkForMatrixItem(item, 'ok'),
+                        `Danh sách Epic đúng tiến độ - ${item.name}`
+                      )}
+                      className="text-fb-text-primary hover:underline cursor-pointer font-semibold inline-block px-1.5 py-0.5 rounded-sm hover:bg-slate-100 transition-colors"
+                      title={`Xem các Epic đúng tiến độ của ${item.name}`}
+                    >
+                      {item.ok}
+                    </button>
+                  </TD>
+                  <TD className="text-center font-semibold text-status-warning">
+                    <button
+                      type="button"
+                      onClick={() => openEpicModal(
+                        toEpicAlertsLinkForMatrixItem(item, 'late'),
+                        `Danh sách Epic chậm tiến độ - ${item.name}`
+                      )}
+                      className="text-status-warning hover:underline cursor-pointer font-bold inline-block px-1.5 py-0.5 rounded-sm hover:bg-amber-50 transition-colors"
+                      title={`Xem các Epic chậm tiến độ của ${item.name}`}
+                    >
+                      {item.late}
+                    </button>
+                  </TD>
+                </TR>
+              ))}
+            </TBody>
+          </Table>
+        </TableContainer>
+      </CardBody>
+    </Card>
+  );
+
+  const renderPipelineCard = () => (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <ChartBar className="size-4 text-fb-blue" weight="bold" /> Phễu Tiến độ Epic theo Giai đoạn (Phase Pipeline)
+        </CardTitle>
+      </CardHeader>
+      <CardBody>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-5">
+          {pipelinePhases.map((phase) => {
+            const statuses = phaseStatuses[phase.key] || [];
+            return (
+              <button
+                key={phase.key}
+                type="button"
+                onClick={() => openEpicModal(
+                  toEpicAlertsLink(statuses.length > 0 ? { status: statuses } : undefined),
+                  `Danh sách Epic - Giai đoạn: ${phase.label}`
+                )}
+                className={`block text-left rounded-xl border p-3 shadow-xs transition-all hover:shadow-sm cursor-pointer w-full ${
+                  phase.alertCount > 0
+                    ? 'border-red-200 bg-red-50/30 hover:border-red-400'
+                    : 'border-fb-border bg-fb-surface hover:border-fb-blue'
+                }`}
+                title={`Xem danh sách Epic giai đoạn ${phase.label}`}
+              >
+                <p className="text-[10px] font-bold uppercase text-fb-text-secondary truncate">{phase.label}</p>
+                <p className="mt-1 text-xl font-extrabold text-fb-text-primary">{phase.count}</p>
+                <p className="text-[10px] font-medium mt-0.5">
+                  {phase.alertCount > 0 ? (
+                    <span className="text-status-danger flex items-center gap-1 font-semibold">
+                      <WarningCircle className="size-3" weight="bold" /> {phase.alertCount} cảnh báo rủi ro
+                    </span>
+                  ) : (
+                    <span className="text-status-success font-medium">Đúng tiến độ</span>
+                  )}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </CardBody>
+    </Card>
+  );
+
+  const renderEpicTypeSection = () => (
+    <div className="border-t border-slate-300 pt-3 mb-4">
+      <button
+        type="button"
+        onClick={() => toggleSection('epicType')}
+        className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[#1463f7] transition-colors cursor-pointer select-none"
+      >
+        {openSections.epicType ? (
+          <CaretDown className="size-4 text-[#1463f7]" weight="bold" />
+        ) : (
+          <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
+        )}
+        <span>Theo Phân loại Epic</span>
+      </button>
+      {openSections.epicType && epicTypeDonuts && (
+        <div className="mt-3 pl-3 border-l-2 border-[#1463f7] pt-1">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <DonutChartCard
+              title="% Tổng số Epic"
+              data={epicTypeDonuts.totalData}
+              onItemClick={(item) => openEpicModal(
+                toEpicAlertsLink({ type: item.name === 'Khác..' ? undefined : item.name }),
+                `Danh sách Epic - Phân loại: ${item.name}`
+              )}
+            />
+            <DonutChartCard
+              title="% Epic Pass TTM-CNTT (pm)"
+              data={epicTypeDonuts.passData}
+              emptyMessage="Không có Epic đạt TTM"
+              onItemClick={(item) => openEpicModal(
+                toEpicAlertsLink({ type: item.name === 'Khác..' ? undefined : item.name, alert: 'ACHIEVED_CNTT' }),
+                `Danh sách Epic Pass TTM - Phân loại: ${item.name}`
+              )}
+            />
+            <DonutChartCard
+              title="% Epic Fail TTM (pm)"
+              data={epicTypeDonuts.failData}
+              emptyMessage="Không có Epic Fail TTM"
+              onItemClick={(item) => openEpicModal(
+                toEpicAlertsLink({ type: item.name === 'Khác..' ? undefined : item.name, alert: 'FAIL' }),
+                `Danh sách Epic Fail TTM - Phân loại: ${item.name}`
+              )}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="ttm-app flex flex-col gap-5 p-4 md:p-6 text-app bg-fb-bg min-h-screen">
       {/* Header Banner & Switcher Controls */}
@@ -570,6 +1003,55 @@ export default function DashboardNewPage() {
 
         {/* Control Buttons & User Switcher */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Header Widgets: TTM-Index (QLDA) & QA-Index (QLDA) positioned to the left of toggle */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => openEpicModal(buildEpicAlertsDeepLink({}), 'Quản trị Epic - TTM-Index (QLDA)')}
+              className="flex h-9 items-center gap-2 rounded-lg border border-fb-border bg-fb-surface-muted px-3 shrink-0 text-left transition-all hover:border-fb-blue hover:bg-fb-surface shadow-2xs cursor-pointer group"
+              title={formatTtmIndexTooltip('Chỉ số TTM-Index của Phòng QLDA tính trên toàn bộ Epic của Phòng', data?.ttmIndexGlobal?.ttm)}
+            >
+              <div className="flex flex-col justify-center leading-none">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-fb-text-secondary group-hover:text-fb-blue transition-colors">
+                  TTM-Index (QLDA)
+                </span>
+                <div className="flex items-baseline gap-1 mt-0.5">
+                  <span className="text-xs font-black text-fb-blue">
+                    {formatTtmIndexValue(data?.ttmIndexGlobal?.ttm)}
+                  </span>
+                  {data?.ttmIndexGlobal?.ttm && data.ttmIndexGlobal.ttm.total > 0 && (
+                    <span className="text-[10px] font-medium text-fb-text-secondary">
+                      ({data.ttmIndexGlobal.ttm.pass}/{data.ttmIndexGlobal.ttm.eligible})
+                    </span>
+                  )}
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => openEpicModal(buildEpicAlertsDeepLink({ status: ['MVP Done', 'Released'] }), 'Quản trị Epic - QA-Index (QLDA)')}
+              className="flex h-9 items-center gap-2 rounded-lg border border-fb-border bg-fb-surface-muted px-3 shrink-0 text-left transition-all hover:border-purple-400 hover:bg-fb-surface shadow-2xs cursor-pointer group"
+              title={formatTtmIndexTooltip('Chỉ số QA-Index của Phòng QLDA tính trên toàn bộ Epic của Phòng, theo cách tính của QA', data?.ttmIndexGlobal?.qa)}
+            >
+              <div className="flex flex-col justify-center leading-none">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-fb-text-secondary group-hover:text-purple-700 transition-colors">
+                  QA-Index (QLDA)
+                </span>
+                <div className="flex items-baseline gap-1 mt-0.5">
+                  <span className="text-xs font-black text-purple-700">
+                    {formatTtmIndexValue(data?.ttmIndexGlobal?.qa)}
+                  </span>
+                  {data?.ttmIndexGlobal?.qa && data.ttmIndexGlobal.qa.total > 0 && (
+                    <span className="text-[10px] font-medium text-fb-text-secondary">
+                      ({data.ttmIndexGlobal.qa.pass}/{data.ttmIndexGlobal.qa.eligible})
+                    </span>
+                  )}
+                </div>
+              </div>
+            </button>
+          </div>
+
           {data?.isUserPreview && (
             <div className="flex h-9 items-center gap-2 rounded-lg bg-amber-50 px-3 border border-amber-300 text-amber-900 text-xs shrink-0">
               <Eye className="size-4 shrink-0 text-amber-600" weight="bold" />
@@ -608,7 +1090,10 @@ export default function DashboardNewPage() {
               <button
                 type="button"
                 onClick={() => {
-                  if (viewMode !== 'OPERATIONAL') setShowUserModal(true);
+                  if (viewMode !== 'OPERATIONAL') {
+                    setFilterPmSm('');
+                    setShowUserModal(true);
+                  }
                 }}
                 className={`flex h-7 items-center justify-center rounded-md px-3 text-xs font-bold transition-all ${
                   viewMode === 'OPERATIONAL'
@@ -645,18 +1130,20 @@ export default function DashboardNewPage() {
           allLabel="Tất cả dự án của tôi"
           options={projectOptions}
           value={filterProjects}
-          onChange={(values) => { setFilterDomain(''); setFilterProjects(values); setProgressPage(1); }}
+          onChange={(values) => { setFilterDomain(''); setFilterProjects(values); }}
         />
-        <select
-          className={`ttm-select${filterPmSm ? ' has-filter' : ''}`}
-          aria-label="PM/SM"
-          value={filterPmSm}
-          onChange={(event) => { setFilterPmSm(event.target.value); setProgressPage(1); }}
-          title="Lọc theo PM/SM của dự án"
-        >
-          <option value="">Tất cả PM/SM</option>
-          {pmSmOptions.map((name) => <option key={name} value={name}>{name}</option>)}
-        </select>
+        {viewMode === 'EXECUTIVE' && (
+          <select
+            className={`ttm-select${filterPmSm ? ' has-filter' : ''}`}
+            aria-label="PM/SM"
+            value={filterPmSm}
+            onChange={(event) => { setFilterPmSm(event.target.value); }}
+            title="Lọc theo PM/SM của dự án"
+          >
+            <option value="">Tất cả PM/SM</option>
+            {pmSmOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+          </select>
+        )}
 
         {data?.lastAggregatedAt && (
           <div className="ttm-report-date ml-auto text-xs text-fb-text-secondary">
@@ -676,316 +1163,9 @@ export default function DashboardNewPage() {
           {/* ========================================================================= */}
           {viewMode === 'EXECUTIVE' && (
             <div className="flex flex-col gap-5">
-              {/* Top KPI Metrics Strip */}
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-9">
-                {/* Health Index Ring — TTM-Index (PM): every Epic in the current filter/access scope.
-                    Named "(PM)" here (vs. the company-wide "(QLDA)" badge on Quản trị Epic) because
-                    this ring is always scoped to the logged-in user's own permission + this
-                    dashboard's own Dự án/Domain/Tìm kiếm filters — see epic-alerts-15/page.tsx's
-                    TtmIndexBadge for the unscoped "(QLDA)" counterpart. */}
-                <div className="col-span-2 sm:col-span-2 lg:col-span-1 rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs flex items-center justify-start gap-3">
-                  <div
-                    className="relative flex size-14 shrink-0 items-center justify-center rounded-full"
-                    style={{
-                      background: `conic-gradient(#0866ff 0% ${executiveMetrics.ttmHealthPctPrecise}%, #e4e6eb ${executiveMetrics.ttmHealthPctPrecise}% 100%)`,
-                    }}
-                  >
-                    <div className="flex size-10 items-center justify-center rounded-full bg-fb-surface font-extrabold text-xs text-fb-blue">
-                      {formatTtmPct1(executiveMetrics.ttmHealthPctPrecise)}%
-                    </div>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-fb-text-primary">TTM-Index (PM)</p>
-                    <p className="text-[10px] text-fb-text-secondary">{executiveMetrics.passTtm}/{executiveMetrics.eligibleTtm}</p>
-                  </div>
-                </div>
+              {renderKpiStrip()}
 
-                {/* Health Index Ring — QA-Index (PM): same ratio, scoped to MVP Done/Released only */}
-                <div className="col-span-2 sm:col-span-2 lg:col-span-1 rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs flex items-center justify-start gap-3">
-                  <div
-                    className="relative flex size-14 shrink-0 items-center justify-center rounded-full"
-                    style={{
-                      background: qaMetrics.total > 0
-                        ? `conic-gradient(#7c3aed 0% ${qaMetrics.pctPrecise}%, #e4e6eb ${qaMetrics.pctPrecise}% 100%)`
-                        : '#e4e6eb',
-                    }}
-                  >
-                    <div className="flex size-10 items-center justify-center rounded-full bg-fb-surface font-extrabold text-xs text-purple-700">
-                      {qaMetrics.total > 0 ? `${formatTtmPct1(qaMetrics.pctPrecise)}%` : '—'}
-                    </div>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-fb-text-primary">QA-Index (PM)</p>
-                    <p className="text-[10px] text-fb-text-secondary">
-                      {qaMetrics.total > 0 ? `${qaMetrics.pass}/${qaMetrics.eligible}` : 'Chưa có Epic MVP Done/Released'}
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => openEpicModal(toEpicAlertsLink(), 'Danh sách Epic - Tổng số Epic')}
-                  className="block text-left rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs transition-all hover:border-fb-blue hover:shadow-sm cursor-pointer w-full"
-                  title="Xem tất cả Epic trong phạm vi lọc"
-                >
-                  <p className="text-[10px] font-bold uppercase text-fb-text-secondary">Tổng số Epic</p>
-                  <p className="mt-1 text-xl font-extrabold text-fb-text-primary">{executiveMetrics.total}</p>
-                  <p className="text-[10px] text-fb-text-secondary">Thuộc phạm vi lọc</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'FAIL' }), 'Danh sách Epic - Fail TTM-CNTT')}
-                  className="block text-left rounded-xl border border-red-200 bg-red-50/50 p-3 shadow-xs transition-all hover:border-red-400 hover:shadow-sm cursor-pointer w-full"
-                  title="Xem danh sách Epic Fail TTM-CNTT ở Quản trị Epic"
-                >
-                  <p className="text-[10px] font-bold uppercase text-status-danger">Fail TTM-CNTT</p>
-                  <p className="mt-1 text-xl font-extrabold text-status-danger">{executiveMetrics.failCntt}</p>
-                  <p className="text-[10px] text-red-600 font-medium">Vượt R4G Target</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'FAIL_E2E' }), 'Danh sách Epic - Fail TTM-E2E')}
-                  className="block text-left rounded-xl border border-red-200 bg-red-50/50 p-3 shadow-xs transition-all hover:border-red-400 hover:shadow-sm cursor-pointer w-full"
-                  title="Xem danh sách Epic Fail TTM-E2E ở Quản trị Epic"
-                >
-                  <p className="text-[10px] font-bold uppercase text-status-danger">Fail TTM-E2E</p>
-                  <p className="mt-1 text-xl font-extrabold text-status-danger">{executiveMetrics.failE2e}</p>
-                  <p className="text-[10px] text-red-600 font-medium">Vượt Due Date Target</p>
-                </button>
-
-                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 shadow-xs">
-                  <p className="text-[10px] font-bold uppercase text-status-warning">Cảnh báo (Sớm/Muộn)</p>
-                  <p className="mt-1 text-xl font-extrabold text-status-warning">{executiveMetrics.lateWarning + executiveMetrics.earlyWarning}</p>
-                  <p className="text-[10px] text-amber-700 font-medium">
-                    <button
-                      type="button"
-                      onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'LATE' }), 'Danh sách Epic - Cảnh báo muộn')}
-                      className="underline-offset-2 hover:underline cursor-pointer font-bold"
-                      title="Xem danh sách Epic Cảnh báo muộn ở Quản trị Epic"
-                    >
-                      {executiveMetrics.lateWarning} muộn
-                    </button>
-                    {' · '}
-                    <button
-                      type="button"
-                      onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'EARLY' }), 'Danh sách Epic - Cảnh báo sớm')}
-                      className="underline-offset-2 hover:underline cursor-pointer font-bold"
-                      title="Xem danh sách Epic Cảnh báo sớm ở Quản trị Epic"
-                    >
-                      {executiveMetrics.earlyWarning} sớm
-                    </button>
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => openEpicModal(toEpicAlertsLink({ dataIssue: true }), 'Danh sách Epic - Sai lệch Dữ liệu')}
-                  className="block text-left rounded-xl border border-purple-200 bg-purple-50/50 p-3 shadow-xs transition-all hover:border-purple-400 hover:shadow-sm cursor-pointer w-full"
-                  title="Xem danh sách Epic sai lệch dữ liệu ở Quản trị Epic"
-                >
-                  <p className="text-[10px] font-bold uppercase text-purple-700">Sai lệch Dữ liệu</p>
-                  <p className="mt-1 text-xl font-extrabold text-purple-700">{executiveMetrics.anomalyCount}</p>
-                  <p className="text-[10px] text-purple-600 font-medium">Vi phạm rule R1-R7</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'WAITING_GOLIVE' }), 'Danh sách Epic - Chờ golive')}
-                  className="block text-left rounded-xl border border-sky-200 bg-sky-50/50 p-3 shadow-xs transition-all hover:border-sky-400 hover:shadow-sm cursor-pointer w-full"
-                  title="Xem danh sách Epic Chờ golive ở Quản trị Epic"
-                >
-                  <p className="text-[10px] font-bold uppercase text-sky-700">Chờ golive</p>
-                  <p className="mt-1 text-xl font-extrabold text-sky-700">{executiveMetrics.waitingGolive}</p>
-                  <p className="text-[10px] text-sky-600 font-medium">Trong hạn R4G Date + 5 ngày</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'JUSTIFY_GOLIVE' }), 'Danh sách Epic - Cần Giải trình Golive')}
-                  className="block text-left rounded-xl border border-red-200 bg-red-50/50 p-3 shadow-xs transition-all hover:border-red-400 hover:shadow-sm cursor-pointer w-full"
-                  title="Xem danh sách Epic cần Giải trình Golive ở Quản trị Epic"
-                >
-                  <p className="text-[10px] font-bold uppercase text-status-danger">Giải trình Golive</p>
-                  <p className="mt-1 text-xl font-extrabold text-status-danger">{executiveMetrics.justifyGolive}</p>
-                  <p className="text-[10px] text-red-600 font-medium">Quá hạn R4G Date + 5 ngày</p>
-                </button>
-              </div>
-
-              {/* Interactive Breakdown Matrix Table */}
-              <Card>
-                <CardHeader className="flex flex-wrap items-center justify-between gap-3 border-b border-fb-border pb-3">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <SlidersHorizontal className="size-4 text-fb-blue" weight="bold" />
-                      Ma trận Phân bổ Tiến độ Epic Đa chiều
-                    </CardTitle>
-                    <p className="text-xs text-fb-text-secondary mt-0.5">
-                      Bảng phân tích trực quan tỷ lệ Pass/Fail & Tiến độ Epic theo từng chiều dữ liệu
-                    </p>
-                  </div>
-
-                  {/* Dimension selector tabs */}
-                  <div className="flex flex-wrap items-center gap-1 rounded-lg border border-fb-border bg-fb-surface-muted p-1">
-                    {(Object.keys(DIMENSION_LABELS) as DimensionKey[]).map((key) => (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => setDimensionKey(key)}
-                        className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${
-                          dimensionKey === key ? 'bg-fb-blue text-white shadow-xs' : 'text-fb-text-secondary hover:text-fb-text-primary'
-                        }`}
-                      >
-                        {DIMENSION_LABELS[key]}
-                      </button>
-                    ))}
-                  </div>
-                </CardHeader>
-                <CardBody className="p-0">
-                  <TableContainer>
-                    <Table>
-                      <THead>
-                        <TR>
-                          <TH sortDirection={matrixSortDirectionFor('name')} onClick={() => toggleMatrixSort('name')}>{DIMENSION_LABELS[dimensionKey]}</TH>
-                          <TH className="text-center" sortDirection={matrixSortDirectionFor('total')} onClick={() => toggleMatrixSort('total')}>Tổng số Epic</TH>
-                          <TH className="w-56" sortDirection={matrixSortDirectionFor('qldaPct')} onClick={() => toggleMatrixSort('qldaPct')}>TTM-CNTT (QLDA)</TH>
-                          <TH className="text-center" sortDirection={matrixSortDirectionFor('qldaPass')} onClick={() => toggleMatrixSort('qldaPass')}>Pass TTM</TH>
-                          <TH className="text-center" sortDirection={matrixSortDirectionFor('qldaFail')} onClick={() => toggleMatrixSort('qldaFail')}>Fail TTM</TH>
-                          <TH className="w-40" sortDirection={matrixSortDirectionFor('qaPct')} onClick={() => toggleMatrixSort('qaPct')}>TTM-CNTT (QA)</TH>
-                          <TH className="text-center" sortDirection={matrixSortDirectionFor('ok')} onClick={() => toggleMatrixSort('ok')}>Đúng tiến độ</TH>
-                          <TH className="text-center" sortDirection={matrixSortDirectionFor('late')} onClick={() => toggleMatrixSort('late')}>Chậm tiến độ</TH>
-                        </TR>
-                      </THead>
-                      <TBody>
-                        {dimensionMatrix.map((item) => (
-                          <TR key={item.name}>
-                            <TD className="font-bold text-fb-text-primary">
-                              <button
-                                type="button"
-                                onClick={() => openEpicModal(
-                                  toEpicAlertsLinkForMatrixItem(item, 'total'),
-                                  `Danh sách Epic - ${item.name} (Tổng số Epic)`
-                                )}
-                                className="font-bold text-fb-text-primary hover:text-fb-blue hover:underline cursor-pointer text-left"
-                                title={`Xem tất cả Epic của ${item.name}`}
-                              >
-                                {item.name}
-                              </button>
-                            </TD>
-                            <TD className="text-center font-semibold">
-                              <button
-                                type="button"
-                                onClick={() => openEpicModal(
-                                  toEpicAlertsLinkForMatrixItem(item, 'total'),
-                                  `Danh sách Epic - ${item.name} (Tổng số Epic)`
-                                )}
-                                className="text-fb-blue hover:underline cursor-pointer font-bold inline-block px-1.5 py-0.5 rounded-sm hover:bg-blue-50 transition-colors"
-                                title={`Xem tất cả Epic của ${item.name}`}
-                              >
-                                {item.total}
-                              </button>
-                            </TD>
-                            <TD>
-                              <button
-                                type="button"
-                                onClick={() => openEpicModal(
-                                  toEpicAlertsLinkForMatrixItem(item, 'pass'),
-                                  `Danh sách Epic Pass TTM - ${item.name}`
-                                )}
-                                className="flex items-center gap-2 w-full hover:opacity-80 transition-opacity cursor-pointer group"
-                                title={`Xem các Epic Pass TTM của ${item.name} (Tỷ lệ: ${item.qlda.pct}%)`}
-                              >
-                                <div className="h-2.5 flex-1 rounded-full bg-fb-control overflow-hidden flex">
-                                  <div style={{ width: `${item.qlda.pct}%` }} className="bg-status-success h-full" title={`Pass: ${item.qlda.pct}%`} />
-                                  <div style={{ width: `${100 - item.qlda.pct}%` }} className="bg-status-danger h-full" title={`Rủi ro: ${100 - item.qlda.pct}%`} />
-                                </div>
-                                <span className="w-9 text-right text-xs font-bold text-fb-text-primary group-hover:underline">{item.qlda.pct}%</span>
-                              </button>
-                            </TD>
-                            <TD className="text-center font-semibold text-status-success">
-                              <button
-                                type="button"
-                                onClick={() => openEpicModal(
-                                  toEpicAlertsLinkForMatrixItem(item, 'pass'),
-                                  `Danh sách Epic Pass TTM - ${item.name}`
-                                )}
-                                className="text-status-success hover:underline cursor-pointer font-bold inline-block px-1.5 py-0.5 rounded-sm hover:bg-emerald-50 transition-colors"
-                                title={`Xem các Epic Pass TTM của ${item.name}`}
-                              >
-                                {item.qlda.pass}
-                              </button>
-                            </TD>
-                            <TD className="text-center font-semibold text-status-danger">
-                              <button
-                                type="button"
-                                onClick={() => openEpicModal(
-                                  toEpicAlertsLinkForMatrixItem(item, 'fail'),
-                                  `Danh sách Epic Fail TTM - ${item.name}`
-                                )}
-                                className="text-status-danger hover:underline cursor-pointer font-bold inline-block px-1.5 py-0.5 rounded-sm hover:bg-red-50 transition-colors"
-                                title={`Xem các Epic Fail TTM của ${item.name}`}
-                              >
-                                {item.qlda.fail}
-                              </button>
-                            </TD>
-                            <TD>
-                              {item.qa.total > 0 ? (
-                                <button
-                                  type="button"
-                                  onClick={() => openEpicModal(
-                                    toEpicAlertsLinkForMatrixItem(item, 'qa'),
-                                    `Danh sách Epic QA (MVP Done / Released) - ${item.name}`
-                                  )}
-                                  className="flex flex-col gap-0.5 w-full text-left hover:opacity-80 transition-opacity cursor-pointer group"
-                                  title={`Xem các Epic MVP Done / Released của ${item.name}`}
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <div className="h-2 flex-1 rounded-full bg-fb-control overflow-hidden flex">
-                                      <div style={{ width: `${item.qa.pct}%` }} className="bg-purple-600 h-full" title={`Pass QA: ${item.qa.pct}%`} />
-                                      <div style={{ width: `${100 - item.qa.pct}%` }} className="bg-status-danger h-full" title={`Rủi ro QA: ${100 - item.qa.pct}%`} />
-                                    </div>
-                                    <span className="w-9 text-right text-xs font-bold text-purple-700 group-hover:underline">{item.qa.pct}%</span>
-                                  </div>
-                                  <p className="text-[10px] text-fb-text-secondary group-hover:underline">{item.qa.pass}/{item.qa.eligible} Epic MVP Done/Released</p>
-                                </button>
-                              ) : (
-                                <span className="text-xs text-fb-text-placeholder">— Chưa có Epic MVP Done/Released</span>
-                              )}
-                            </TD>
-                            <TD className="text-center font-semibold text-fb-text-primary">
-                              <button
-                                type="button"
-                                onClick={() => openEpicModal(
-                                  toEpicAlertsLinkForMatrixItem(item, 'ok'),
-                                  `Danh sách Epic đúng tiến độ - ${item.name}`
-                                )}
-                                className="text-fb-text-primary hover:underline cursor-pointer font-semibold inline-block px-1.5 py-0.5 rounded-sm hover:bg-slate-100 transition-colors"
-                                title={`Xem các Epic đúng tiến độ của ${item.name}`}
-                              >
-                                {item.ok}
-                              </button>
-                            </TD>
-                            <TD className="text-center font-semibold text-status-warning">
-                              <button
-                                type="button"
-                                onClick={() => openEpicModal(
-                                  toEpicAlertsLinkForMatrixItem(item, 'late'),
-                                  `Danh sách Epic chậm tiến độ - ${item.name}`
-                                )}
-                                className="text-status-warning hover:underline cursor-pointer font-bold inline-block px-1.5 py-0.5 rounded-sm hover:bg-amber-50 transition-colors"
-                                title={`Xem các Epic chậm tiến độ của ${item.name}`}
-                              >
-                                {item.late}
-                              </button>
-                            </TD>
-                          </TR>
-                        ))}
-                      </TBody>
-                    </Table>
-                  </TableContainer>
-                </CardBody>
-              </Card>
+              {renderMatrixCard(['domain', 'epicType', 'pmsm', 'project'])}
 
               {/* Section 1: Theo Đơn vị yêu cầu */}
               <div className="border-t border-slate-300 pt-3 mb-4">
@@ -1086,52 +1266,7 @@ export default function DashboardNewPage() {
               )}
 
               {/* Section 3: Theo Phân loại Epic */}
-              <div className="border-t border-slate-300 pt-3 mb-4">
-                <button
-                  type="button"
-                  onClick={() => toggleSection('epicType')}
-                  className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[#1463f7] transition-colors cursor-pointer select-none"
-                >
-                  {openSections.epicType ? (
-                    <CaretDown className="size-4 text-[#1463f7]" weight="bold" />
-                  ) : (
-                    <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
-                  )}
-                  <span>Theo Phân loại Epic</span>
-                </button>
-                {openSections.epicType && epicTypeDonuts && (
-                  <div className="mt-3 pl-3 border-l-2 border-[#1463f7] pt-1">
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                      <DonutChartCard
-                        title="% Tổng số Epic"
-                        data={epicTypeDonuts.totalData}
-                        onItemClick={(item) => openEpicModal(
-                          toEpicAlertsLink({ type: item.name === 'Khác..' ? undefined : item.name }),
-                          `Danh sách Epic - Phân loại: ${item.name}`
-                        )}
-                      />
-                      <DonutChartCard
-                        title="% Epic Pass TTM-CNTT (pm)"
-                        data={epicTypeDonuts.passData}
-                        emptyMessage="Không có Epic đạt TTM"
-                        onItemClick={(item) => openEpicModal(
-                          toEpicAlertsLink({ type: item.name === 'Khác..' ? undefined : item.name, alert: 'ACHIEVED_CNTT' }),
-                          `Danh sách Epic Pass TTM - Phân loại: ${item.name}`
-                        )}
-                      />
-                      <DonutChartCard
-                        title="% Epic Fail TTM (pm)"
-                        data={epicTypeDonuts.failData}
-                        emptyMessage="Không có Epic Fail TTM"
-                        onItemClick={(item) => openEpicModal(
-                          toEpicAlertsLink({ type: item.name === 'Khác..' ? undefined : item.name, alert: 'FAIL' }),
-                          `Danh sách Epic Fail TTM - Phân loại: ${item.name}`
-                        )}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
+              {renderEpicTypeSection()}
 
               {/* Section 4: Theo PM/SM (chỉ hiển thị nếu role !== USER) */}
               {showPmsmSection && (
@@ -1254,195 +1389,141 @@ export default function DashboardNewPage() {
           {/* ========================================================================= */}
           {viewMode === 'OPERATIONAL' && (
             <div className="flex flex-col gap-5">
-              {/* Kanban Phase Pipeline Health Bar */}
+              {/* All widgets from Lead view, scoped to user permission and toolbar filters */}
+              {renderKpiStrip()}
+
+              {/* Phễu Tiến độ Epic theo Giai đoạn (Phase Pipeline) with Lead-style 3-tier widgets */}
+              {renderPipelineCard()}
+
+              {/* Ma trận Phân bổ Tiến độ Epic Đa chiều with only 2 tabs: epicType and project */}
+              {renderMatrixCard(['epicType', 'project'])}
+
+              {/* Section biểu đồ Theo Phân loại Epic */}
+              {renderEpicTypeSection()}
+
+              {/* Tabbed Epic List Card with unified Header & Switcher */}
               <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2 text-sm">
-                    <ChartBar className="size-4 text-fb-blue" weight="bold" /> Phễu Tiến độ Epic theo Giai đoạn (Phase Pipeline)
-                  </CardTitle>
-                </CardHeader>
-                <CardBody>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-5">
-                    {pipelinePhases.map((phase) => (
-                      <div
-                        key={phase.key}
-                        className="flex flex-col justify-between rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs relative overflow-hidden"
-                      >
-                        <div className="flex items-center justify-between border-b border-fb-border pb-2">
-                          <span className="font-bold text-xs text-fb-text-primary">{phase.label}</span>
-                          <span className="rounded-full bg-fb-blue-soft px-2 py-0.5 text-[10px] font-extrabold text-fb-blue">
-                            {phase.count} Epic
-                          </span>
-                        </div>
-                        <div className="mt-3 flex items-baseline justify-between">
-                          <span className="text-xl font-extrabold text-fb-text-primary">{phase.count}</span>
-                          {phase.alertCount > 0 && (
-                            <span className="text-xs font-bold text-status-danger flex items-center gap-1">
-                              <WarningCircle className="size-3.5" /> {phase.alertCount} Cảnh báo
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                <CardHeader className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-sm">
+                      {operationalTab === 'WAITING_GOLIVE' && '1. Danh sách Epic Chờ Golive (MVP Done)'}
+                      {operationalTab === 'PENDING' && '2. Phân tích Epic đang ở Trạng thái Pending'}
+                      {operationalTab === 'ANOMALY' && '3. Giám sát 6 Rule Sai lệch Dữ liệu (R1 - R6)'}
+                    </CardTitle>
+                    <p className="text-xs text-fb-text-secondary mt-0.5">
+                      {operationalTab === 'WAITING_GOLIVE' && 'Các Epic đã xong R4G Date nhưng chưa có Due Date, đang trong hạn bổ sung để chuyển Released'}
+                      {operationalTab === 'PENDING' && 'Theo dõi các Epic bị Pending/tạm dừng triển khai cần tháo gỡ vướng mắc'}
+                      {operationalTab === 'ANOMALY' && 'Kiểm soát tính toàn vẹn và hợp lệ của dữ liệu ngày tháng theo quy chuẩn R1-R6'}
+                    </p>
                   </div>
-                </CardBody>
-              </Card>
 
-              {/* Multi-Tab Navigation */}
-              <div className="flex border-b border-fb-border gap-2">
-                <button
-                  type="button"
-                  onClick={() => setOperationalTab('PROGRESS')}
-                  className={`pb-2.5 px-4 text-xs font-bold transition-all border-b-2 ${
-                    operationalTab === 'PROGRESS'
-                      ? 'border-fb-blue text-fb-blue'
-                      : 'border-transparent text-fb-text-secondary hover:text-fb-text-primary'
-                  }`}
-                >
-                  1. Tiến độ TTM & Danh sách Epic ({filteredRows.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOperationalTab('PENDING')}
-                  className={`pb-2.5 px-4 text-xs font-bold transition-all border-b-2 ${
-                    operationalTab === 'PENDING'
-                      ? 'border-fb-blue text-fb-blue'
-                      : 'border-transparent text-fb-text-secondary hover:text-fb-text-primary'
-                  }`}
-                >
-                  2. Phân tích Pending ({pendingEpics.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOperationalTab('ANOMALY')}
-                  className={`pb-2.5 px-4 text-xs font-bold transition-all border-b-2 ${
-                    operationalTab === 'ANOMALY'
-                      ? 'border-fb-blue text-fb-blue'
-                      : 'border-transparent text-fb-text-secondary hover:text-fb-text-primary'
-                  }`}
-                >
-                  3. Giám sát Dữ liệu bất thường R1-R6 ({anomalyRows.length})
-                </button>
-              </div>
-
-              {/* Tab 1: Progress & TTM List */}
-              {operationalTab === 'PROGRESS' && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">Danh sách Epic Vận hành</CardTitle>
-                  </CardHeader>
-                  <CardBody className="p-0">
-                    <TableContainer>
-                      <Table>
-                        <THead>
-                          <TR>
-                            <TH>Epic Key</TH>
-                            <TH>Tên Epic</TH>
-                            <TH>Trạng thái</TH>
-                            <TH>Dự án</TH>
-                            <TH>PM / SM</TH>
-                            <TH>Start Date (T1)</TH>
-                            <TH>R4G Date</TH>
-                            <TH className="text-center">Cảnh báo TTM-CNTT</TH>
-                            <TH className="text-center">Cảnh báo TTM-E2E</TH>
-                          </TR>
-                        </THead>
-                        <TBody>
-                          {progressRows.map((row) => (
-                            <TR key={row.epicKey}>
-                              <TD>
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedEpicKey(row.epicKey)}
-                                  className="font-bold text-fb-blue hover:underline"
-                                >
-                                  {row.epicKey}
-                                </button>
-                              </TD>
-                              <TD className="max-w-xs truncate font-medium" title={row.epicName}>
-                                {row.epicName}
-                              </TD>
-                              <TD>
-                                <Badge variant="neutral">{row.currentStatus}</Badge>
-                              </TD>
-                              <TD>{row.projectKey}</TD>
-                              <TD>{row.ownerName || '—'}</TD>
-                              <TD>
-                                {row.t1StartDate ? (
-                                  <span className="flex items-center gap-1 text-[11px]">
-                                    <CaretRight className="size-3 text-slate-500" /> {row.t1StartDate}
-                                  </span>
-                                ) : (
-                                  '—'
-                                )}
-                              </TD>
-                              <TD>
-                                {row.r4gDate ? (
-                                  <span className="flex items-center gap-1 text-[11px] font-bold">
-                                    <Checks className="size-3 text-black" /> {row.r4gDate}
-                                  </span>
-                                ) : (
-                                  '—'
-                                )}
-                              </TD>
-                              <TD className="text-center">
-                                {row.alertLevel !== 'NONE' ? (
-                                  <Badge variant={ALERT_BADGE_VARIANT[row.alertLevel]}>{ALERT_BADGE_LABEL[row.alertLevel]}</Badge>
-                                ) : (
-                                  <span className="text-fb-text-placeholder">—</span>
-                                )}
-                              </TD>
-                              <TD className="text-center">
-                                {row.ttmE2eAlertLevel === 'FAIL' ? (
-                                  <Badge variant="danger">Fail TTM-E2E</Badge>
-                                ) : (
-                                  <span className="text-fb-text-placeholder">—</span>
-                                )}
-                              </TD>
+                  {/* Switch chuyển tab giống như bảng Ma trận Phân bổ Tiến độ Epic Đa chiều */}
+                  <div className="flex flex-wrap items-center gap-1 rounded-lg border border-fb-border bg-fb-surface-muted p-1">
+                    <button
+                      type="button"
+                      onClick={() => setOperationalTab('WAITING_GOLIVE')}
+                      className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${
+                        operationalTab === 'WAITING_GOLIVE'
+                          ? 'bg-fb-blue text-white shadow-xs'
+                          : 'text-fb-text-secondary hover:text-fb-text-primary'
+                      }`}
+                    >
+                      1. Chờ golive ({waitingGoliveEpics.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOperationalTab('PENDING')}
+                      className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${
+                        operationalTab === 'PENDING'
+                          ? 'bg-fb-blue text-white shadow-xs'
+                          : 'text-fb-text-secondary hover:text-fb-text-primary'
+                      }`}
+                    >
+                      2. Phân tích Pending ({pendingEpics.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOperationalTab('ANOMALY')}
+                      className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${
+                        operationalTab === 'ANOMALY'
+                          ? 'bg-fb-blue text-white shadow-xs'
+                          : 'text-fb-text-secondary hover:text-fb-text-primary'
+                      }`}
+                    >
+                      3. Giám sát Dữ liệu bất thường R1-R6 ({anomalyRows.length})
+                    </button>
+                  </div>
+                </CardHeader>
+                <CardBody className="p-0">
+                  {/* Tab 1: Waiting Golive */}
+                  {operationalTab === 'WAITING_GOLIVE' && (
+                    waitingGoliveEpics.length === 0 ? (
+                      <EmptyState title="Không có Epic nào đang Chờ golive" description="Hiện tại không có Epic nào trong trạng thái Chờ golive." />
+                    ) : (
+                      <TableContainer>
+                        <Table>
+                          <THead>
+                            <TR>
+                              <TH>Epic Key</TH>
+                              <TH>Tên Epic</TH>
+                              <TH>Dự án</TH>
+                              <TH>PM / SM</TH>
+                              <TH className="text-center">Trạng thái hiện tại</TH>
+                              <TH>Ngày ghi nhận R4G</TH>
+                              <TH>Hạn bổ sung Due Date</TH>
+                              <TH className="text-center">Tình trạng</TH>
                             </TR>
-                          ))}
-                        </TBody>
-                      </Table>
-                    </TableContainer>
-                    {filteredRows.length > 0 && (
-                      <div className="flex items-center justify-between gap-3 border-t border-fb-border px-4 py-2.5">
-                        <p className="text-xs text-fb-text-secondary">
-                          Hiển thị {(progressPageClamped - 1) * PROGRESS_PAGE_SIZE + 1}
-                          –{Math.min(progressPageClamped * PROGRESS_PAGE_SIZE, filteredRows.length)} trên tổng {filteredRows.length} Epic
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            disabled={progressPageClamped <= 1}
-                            onClick={() => setProgressPage((p) => Math.max(1, p - 1))}
-                          >
-                            Trước
-                          </Button>
-                          <span className="text-xs font-semibold text-fb-text-secondary">
-                            Trang {progressPageClamped}/{progressTotalPages}
-                          </span>
-                          <Button
-                            variant="outline"
-                            disabled={progressPageClamped >= progressTotalPages}
-                            onClick={() => setProgressPage((p) => Math.min(progressTotalPages, p + 1))}
-                          >
-                            Sau
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </CardBody>
-                </Card>
-              )}
+                          </THead>
+                          <TBody>
+                            {waitingGoliveEpics.map((row) => (
+                              <TR key={row.epicKey}>
+                                <TD>
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedEpicKey(row.epicKey)}
+                                    className="font-bold text-fb-blue hover:underline"
+                                  >
+                                    {row.epicKey}
+                                  </button>
+                                </TD>
+                                <TD className="max-w-xs truncate font-medium" title={row.epicName}>{row.epicName}</TD>
+                                <TD>{row.projectKey}</TD>
+                                <TD>{row.ownerName || '—'}</TD>
+                                <TD className="text-center">
+                                  <Badge variant="neutral">{row.currentStatus}</Badge>
+                                </TD>
+                                <TD>
+                                  {row.r4gDate ? (
+                                    <span className="flex items-center gap-1 text-[11px] font-bold">
+                                      <Checks className="size-3 text-black" /> {row.r4gDate}
+                                    </span>
+                                  ) : (
+                                    '—'
+                                  )}
+                                </TD>
+                                <TD>
+                                  {row.releaseGraceDeadline ? (
+                                    <span className="text-[11px] text-fb-text-secondary">
+                                      {formatDate(row.releaseGraceDeadline)}
+                                    </span>
+                                  ) : (
+                                    '—'
+                                  )}
+                                </TD>
+                                <TD className="text-center">
+                                  <Badge variant="warning">Chờ golive</Badge>
+                                </TD>
+                              </TR>
+                            ))}
+                          </TBody>
+                        </Table>
+                      </TableContainer>
+                    )
+                  )}
 
-              {/* Tab 2: Pending Analysis */}
-              {operationalTab === 'PENDING' && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">Phân tích Epic đang ở Trạng thái Pending</CardTitle>
-                  </CardHeader>
-                  <CardBody className="p-0">
-                    {pendingEpics.length === 0 ? (
+                  {/* Tab 2: Pending Analysis */}
+                  {operationalTab === 'PENDING' && (
+                    pendingEpics.length === 0 ? (
                       <EmptyState title="Không có Epic nào bị Pending" description="Hiện tại không ghi nhận Epic nào đang trong trạng thái Pending." />
                     ) : (
                       <TableContainer>
@@ -1481,19 +1562,12 @@ export default function DashboardNewPage() {
                           </TBody>
                         </Table>
                       </TableContainer>
-                    )}
-                  </CardBody>
-                </Card>
-              )}
+                    )
+                  )}
 
-              {/* Tab 3: Data Quality Matrix (Anomaly Rules R1-R6) */}
-              {operationalTab === 'ANOMALY' && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">Giám sát 6 Rule Sai lệch Dữ liệu (R1 - R6)</CardTitle>
-                  </CardHeader>
-                  <CardBody className="p-0">
-                    {anomalyRows.length === 0 ? (
+                  {/* Tab 3: Data Quality Matrix (Anomaly Rules R1-R6) */}
+                  {operationalTab === 'ANOMALY' && (
+                    anomalyRows.length === 0 ? (
                       <EmptyState title="Chất lượng dữ liệu hoàn hảo" description="Không có Epic nào vi phạm các rule sai lệch dữ liệu R1 - R6." />
                     ) : (
                       <TableContainer>
@@ -1534,10 +1608,10 @@ export default function DashboardNewPage() {
                           </TBody>
                         </Table>
                       </TableContainer>
-                    )}
-                  </CardBody>
-                </Card>
-              )}
+                    )
+                  )}
+                </CardBody>
+              </Card>
             </div>
           )}
         </>

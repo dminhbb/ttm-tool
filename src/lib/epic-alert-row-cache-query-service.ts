@@ -91,6 +91,8 @@ function buildFilterClause(scope: AccessScope, filters: EpicAlertRowCacheFilters
   if (filters.statuses && filters.statuses.length > 0) {
     params.push(filters.statuses);
     clauses.push(`current_status = ANY($${params.length}::text[])`);
+  } else {
+    clauses.push(`current_status !~* 'cancel'`);
   }
   if (filters.dataIssueOnly) {
     clauses.push('has_data_anomaly = TRUE');
@@ -221,7 +223,7 @@ export async function queryTtmQaIndexPm(scope: AccessScope): Promise<{ ttm: TtmC
       count(*) FILTER (WHERE UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED') AND (row_data->>'r4gDate') IS NOT NULL AND NOT has_data_anomaly)::text AS "qaEligible",
       count(*) FILTER (WHERE UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED') AND (row_data->>'r4gDate') IS NOT NULL AND NOT has_data_anomaly AND alert_level = 'NONE')::text AS "qaPass",
       count(*) FILTER (WHERE UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED'))::text AS "qaTotal"
-    FROM epic_alert_row_cache WHERE ${accessClause};
+    FROM epic_alert_row_cache WHERE ${accessClause} AND current_status !~* 'cancel';
     `,
     params,
   );

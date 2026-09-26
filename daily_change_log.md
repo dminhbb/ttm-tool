@@ -8,7 +8,50 @@
 
 ## 2026-09-26
 
-- **Hỗ trợ lọc nhiều PM/SM qua deep-link popup, chuẩn hóa Toast thành công và đổi tên TTM dashboard**:
+- **Nâng cấp Quản trị Epic, TTM Dashboard & Tài liệu sản phẩm**:
+  - **Mặc định lọc loại bỏ `Cancelled` trên Quản trị Epic (`/epic-alerts-15`)**:
+    - [`src/app/epic-alerts-15/page.tsx`](file:///d:/git/ttm-tool/src/app/epic-alerts-15/page.tsx): Cập nhật `hasAppliedDefaultStatusFilter` chỉ bỏ qua khi deep link có chỉ định rõ ràng `status` (`deepLinkFilters.status.length > 0`). Nếu truy cập trực tiếp hoặc từ các route màn hình khác (deep link không có `status`), bộ lọc Status tự động tích chọn (checked) tất cả các options ngoại trừ `Cancelled` (`!isCancelledStatus(status)`).
+    - [`src/lib/epic-alert-row-cache-query-service.ts`](file:///d:/git/ttm-tool/src/lib/epic-alert-row-cache-query-service.ts): Trong `buildFilterClause`, khi không truyền `statuses` từ client, mặc định thêm điều kiện SQL `current_status !~* 'cancel'`.
+  - **Mặc định mở rộng (expanded) Section 'Theo Phân loại Epic' trên TTM Dashboard** ([`src/app/dashboard-new/page.tsx`](file:///d:/git/ttm-tool/src/app/dashboard-new/page.tsx)):
+    - Khởi tạo `openSections.epicType = true` để khối biểu đồ Donut phân tích theo phân loại Epic luôn mở sẵn cho người dùng.
+  - **Thiết lập mặc định vào TTM Dashboard sau khi đăng nhập** ([`src/app/login/page.tsx`](file:///d:/git/ttm-tool/src/app/login/page.tsx)):
+    - Cập nhật hàm `safeNextPath` điều hướng người dùng tới `/dashboard-new` khi đăng nhập thành công (khi không có tham số `next` hoặc khi `next=/`).
+  - **Bổ sung tab "Chờ golive" và thiết kế Switch Pills cho Danh sách Epic trong PM/SM View** ([`src/app/dashboard-new/page.tsx`](file:///d:/git/ttm-tool/src/app/dashboard-new/page.tsx)):
+    - Bổ sung tab 1: *1. Chờ golive* (`WAITING_GOLIVE`), lọc các Epic có `releaseAxisState === 'WAITING_GOLIVE'`. Thứ tự 3 tab: 1. Chờ golive, 2. Phân tích Pending, 3. Giám sát Dữ liệu bất thường R1-R6.
+    - Chuyển đổi toàn bộ cụm điều hướng tab thành Card thống nhất, thiết kế bộ chuyển đổi tab (Switch Pills) bo góc trên CardHeader tương tự như bảng Ma trận Phân bổ Tiến độ Epic Đa chiều của Lead view để đồng bộ UI/UX.
+  - **Cập nhật tài liệu sản phẩm và các markdown liên quan**:
+    - [`public/docs/product-guide.html`](file:///d:/git/ttm-tool/public/docs/product-guide.html): Bổ sung tài liệu chi tiết về màn hình TTM Dashboard (mục 11.5) gồm 2 chế độ Lead view / PM/SM view, 2 widget chỉ số QLDA trên header, popup Quản trị Epic in-page, quy tắc loại bỏ Epic Cancelled ở tử/mẫu số; bổ sung quy tắc mặc định check bỏ Cancelled trong Quản trị Epic (mục 11.2); ghi chú ẩn Dashboard cũ (mục 11.4).
+    - [`README.md`](file:///d:/git/ttm-tool/README.md), [`brd/04-homepage-and-epic-monitoring.md`](file:///d:/git/ttm-tool/brd/04-homepage-and-epic-monitoring.md), [`brd/13-epic-15-and-epic-30-management.md`](file:///d:/git/ttm-tool/brd/13-epic-15-and-epic-30-management.md): Cập nhật danh mục route và vai trò của TTM Dashboard là màn hình hạ cánh mặc định.
+
+
+- **Loại bỏ các Epic có trạng thái `Cancelled` khỏi mọi tính toán trên màn hình TTM Dashboard (Lead view & PM/SM view)**:
+  - [`src/app/dashboard-new/page.tsx`](file:///d:/git/ttm-tool/src/app/dashboard-new/page.tsx):
+    - Thêm điều kiện lọc `!isCancelledStatus(row.currentStatus || '')` vào `filteredRows` để loại trừ hoàn toàn các Epic có trạng thái Cancelled (không phân biệt chữ hoa/thường) ra khỏi tập dữ liệu phân tích của trang.
+    - Nhờ đó, tất cả 9 KPI widget (TTM-Index PM, QA-Index PM, Tổng số Epic, Fail TTM-CNTT, Fail TTM-E2E, Cảnh báo sớm/muộn, Sai lệch Dữ liệu, Chờ golive, Giải trình golive), Phễu tiến độ 5 giai đoạn (`pipelinePhases`), Bảng Ma trận Phân bổ Tiến độ Epic Đa chiều (`dimensionMatrix`), toàn bộ 5 Section Biểu đồ Donut (3 biểu đồ mỗi section), và các tab vận hành Pending/Anomaly đều không tính Epic Cancelled ở cả tử số lẫn mẫu số.
+    - Loại bỏ Epic Cancelled khỏi các danh sách lựa chọn bộ lọc (`projectOptions`, `domainOptions`, `pmSmOptions`) và ánh xạ dự án (`domainProjectKeys`) nhằm tránh các option rỗng.
+    - Cập nhật `computeDimensionDonuts` kiểm tra thêm `isCancelledStatus` đảm bảo tuyệt đối không có Epic Cancelled nào được phân bổ vào các biểu đồ Donut.
+    - Làm sạch điều kiện `isBacklogLike` trong `pipelinePhases`, không gom Epic Cancelled vào giai đoạn "1. To Do".
+  - [`src/lib/ttm-cntt-qa.ts`](file:///d:/git/ttm-tool/src/lib/ttm-cntt-qa.ts):
+    - Cập nhật hàm lõi `summarizeTtmCntt` tự động bỏ qua các dòng có `isCancelledStatus(row.currentStatus || '')`, không tính vào `eligible`, `pass`, `fail`, cũng như `total`. Đảm bảo mọi tính toán TTM-CNTT và QA-Index ở cả tử số và mẫu số đều loại bỏ triệt để Epic Cancelled.
+  - [`src/lib/epic-alert-row-cache-query-service.ts`](file:///d:/git/ttm-tool/src/lib/epic-alert-row-cache-query-service.ts):
+    - Thêm điều kiện `AND current_status !~* 'cancel'` vào truy vấn tổng hợp SQL `queryTtmQaIndexPm` để loại bỏ trạng thái Cancelled khỏi các chỉ số TTM/QA Index.
+
+
+- **Ẩn menu item "Dashboard" trên menu bên trái (Left Sidebar)** ([`src/components/layout/AppShell.tsx`](file:///d:/git/ttm-tool/src/components/layout/AppShell.tsx)):
+  - Ẩn mục điều hướng `Dashboard` (`/dashboard`) khỏi danh sách navigation ở thanh bên trái (sidebar), chỉ hiển thị `TTM dashboard` (`/dashboard-new`) cùng các màn hình Báo cáo và Quản trị Epic.
+
+- **Nâng cấp TTM Dashboard: Cải tiến PM/SM View toàn diện và bổ sung 2 Widget TTM-Index/QA-Index (QLDA) trên Header**:
+  - **Widget TTM-Index (QLDA) & QA-Index (QLDA) trên Header Banner** ([`src/app/api/dashboard-new/route.ts`](file:///d:/git/ttm-tool/src/app/api/dashboard-new/route.ts), [`src/app/dashboard-new/page.tsx`](file:///d:/git/ttm-tool/src/app/dashboard-new/page.tsx)):
+    - Bổ sung 2 widget thống kê độc lập `TTM-Index (QLDA)` và `QA-Index (QLDA)` ngay bên trong hộp tiêu đề `'TIME TO MARKET DASHBOARD'`, bố trí ở bên trái nút bấm chọn `Lead | PM/SM view`.
+    - Dữ liệu được đọc trực tiếp từ cache toàn phòng `ttm_index_global_cache` (không bị giới hạn bởi quyền của user), hiển thị tỷ lệ % và số lượng `(pass/eligible)`.
+    - Hỗ trợ click để mở Popup Quản trị Epic lọc nhanh danh sách toàn bộ Epic hoặc các Epic hoàn thành của phòng.
+  - **Tối ưu hóa và đồng bộ trải nghiệm cho PM/SM View (`OPERATIONAL`)** ([`src/app/dashboard-new/page.tsx`](file:///d:/git/ttm-tool/src/app/dashboard-new/page.tsx)):
+    - **Ẩn bộ lọc PM/SM**: Bỏ chọn lọc PM/SM trên thanh công cụ khi đang ở PM/SM View (chỉ hiển thị ở Lead View); dữ liệu tự động gắn chặt vào quyền hạn và bộ lọc của user đăng nhập.
+    - **Đưa toàn bộ 9 KPI Widgets từ Lead View vào PM/SM View**: Hiển thị đầy đủ vòng đo TTM-Index (PM), QA-Index (PM), Tổng số Epic, Fail TTM-CNTT, Fail TTM-E2E, Cảnh báo sớm/muộn, Sai lệch dữ liệu, Chờ golive, Giải trình golive với số liệu được tính toán chuẩn xác theo phạm vi phân quyền và bộ lọc active của user.
+    - **Tái thiết kế 5 Widget của "Phễu Tiến độ Epic theo Giai đoạn"**: Đồng bộ thiết kế 3 tầng (tiêu đề in hoa, số lượng lớn 20px, phụ đề trạng thái cảnh báo/đúng tiến độ) tương tự các KPI cards của Lead view; hỗ trợ click để mở modal Quản trị Epic theo từng giai đoạn.
+    - **Bổ sung "Ma trận Phân bổ Tiến độ Epic Đa chiều" vào PM/SM View**: Hỗ trợ 2 tab *'Theo Phân loại Epic'* và *'Theo Dự án'* với đầy đủ tương tác mở modal Quản trị Epic theo từng ô số liệu.
+    - **Bổ sung Section Biểu đồ Donut "Theo Phân loại Epic"**: Accordion lazy-loading chứa 3 biểu đồ Donut phân tích theo phân loại Epic (Tổng số Epic, Pass TTM-CNTT, Fail TTM).
+    - **Tinh gọn danh sách Epic**: Bỏ tab số 1 (Tiến độ TTM & Danh sách Epic) do đã có tính năng mở modal Quản trị Epic chi tiết ngay tại chỗ; chỉ giữ lại 2 tab chuyên sâu: *'1. Phân tích Pending'* và *'2. Giám sát Dữ liệu bất thường R1-R6'*.
   - **Lọc nhiều PM/SM khi chuyển tiếp sang Quản trị Epic** ([`src/lib/epic-alerts-deep-link.ts`](file:///d:/git/ttm-tool/src/lib/epic-alerts-deep-link.ts), [`src/lib/epic-alert-row-cache-query-service.ts`](file:///d:/git/ttm-tool/src/lib/epic-alert-row-cache-query-service.ts), [`src/app/api/epic-alerts-15/route.ts`](file:///d:/git/ttm-tool/src/app/api/epic-alerts-15/route.ts), [`src/app/epic-alerts-15/page.tsx`](file:///d:/git/ttm-tool/src/app/epic-alerts-15/page.tsx), [`src/app/dashboard-new/page.tsx`](file:///d:/git/ttm-tool/src/app/dashboard-new/page.tsx)):
     - Với các item biểu đồ/ma trận có nhiều hơn 1 PM/SM (ví dụ `'longnx1, tanlt4'`), hệ thống tự động tách chuỗi thành mảng danh sách PM/SM và truyền dạng danh sách qua URL param `pmSm=longnx1,tanlt4`.
     - Phía API `epic-alerts-15` và service truy vấn cache Postgres sử dụng toán tử mảng Postgres `owner_names && $N::text[]` để lấy ra toàn bộ các Epic thuộc về bất kỳ PM/SM nào trong danh sách.

@@ -30,7 +30,7 @@ export interface EpicAlertsDeepLinkParams {
   type?: string;
 }
 
-export function buildEpicAlertsDeepLink(params: EpicAlertsDeepLinkParams): string {
+export function buildEpicAlertsDeepLink(params: EpicAlertsDeepLinkParams = {}): string {
   const query = new URLSearchParams();
   if (params.alert) query.set('alert', params.alert);
   if (params.projects && params.projects.length > 0) query.set('projects', params.projects.join(','));

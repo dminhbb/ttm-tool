@@ -5,10 +5,10 @@
 > `07-data-source-and-csv-import.md`), không phải Homepage theo dõi Epic. Chức năng "theo dõi
 > Epic + rủi ro TTM-CNTT" mà file này mô tả thực chất được triển khai bởi 4 màn hình riêng, đọc
 > chi tiết ở `13-epic-15-and-epic-30-management.md`:
-> - `/epic-alerts` — Quản trị Epic (rút gọn).
-> - `/epic-alerts-15` — Quản trị Epic (đầy đủ).
+> - `/dashboard-new` — **TTM Dashboard** (màn hình chính mặc định sau khi đăng nhập cho toàn bộ user, kết hợp Lead view và PM/SM view).
+> - `/epic-alerts-15` — Quản trị Epic (theo dõi chi tiết 5 pha).
 > - `/epic-in-po` — Epic in PO (lọc To Do/In PO/Released).
-> - `/dashboard` — Dashboard thống kê theo dự án.
+> - `/reports` — Báo cáo Epic đa lớp dữ liệu.
 >
 > Không có màn hình nào dùng đúng cấu trúc "3 panel theo Start Date" mô tả bên dưới; nội dung dưới
 > đây chỉ còn giá trị tham khảo ý tưởng gốc (rule cột/nhóm dữ liệu tương tự vẫn dùng lại một phần

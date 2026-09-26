@@ -16,12 +16,12 @@
 - `/epic-in-po`: **Epic in PO** — cùng dữ liệu/logic với "đầy đủ" (dùng chung
   `getEpicAlertRowsPhased`/API `/api/epic-alerts-15`), lọc client-side chỉ còn Epic ở trạng thái
   `TO DO`/`IN PO`/`RELEASED`. Mở cho mọi role như "đầy đủ".
-- `/dashboard`: **Dashboard** — thống kê tổng hợp theo dự án (số Epic, phân bố trạng thái, số lượng
-  Fail TTM-CNTT/Fail TTM-E2E/Cảnh báo sớm/muộn, tỷ lệ Đạt TTM, Epic sắp đến hạn, top Epic cần chú
-  ý), tái dùng cùng pipeline `getEpicAlertRowsPhased` — không có bảng tổng hợp riêng cho Dashboard.
-  Role `SUPERVISOR`/`SUPERADMIN`/`ADMIN`, hoặc `USER` có từ 4 dự án có dữ liệu Epic trở lên, phải
-  chọn 1–3 dự án ở màn hình "Welcome to Dashboard" trước khi xem số liệu; `USER` có dưới 4 dự án xem
-  thẳng toàn bộ dự án của mình. Xem `src/lib/dashboard-service.ts`.
+- `/dashboard-new`: **TTM Dashboard** — màn hình trung tâm điều hành và theo dõi chính, là màn hình mặc
+  định sau khi đăng nhập cho toàn bộ user. Tích hợp 2 chỉ số toàn phòng TTM-Index (QLDA) / QA-Index (QLDA),
+  chế độ Lead view (9 KPI cards, Phễu 5 giai đoạn, Ma trận Đa chiều 4 tab, 5 Section Donut Charts) và PM/SM
+  view (thừa hưởng KPI và Phễu, Ma trận 2 tab, Section Donut phân loại Epic, Bảng danh sách Epic 3 tab: Chờ
+  golive, Pending, Anomaly). Toàn bộ widget và biểu đồ loại bỏ các Epic Cancelled ở cả tử số lẫn mẫu số.
+- `/dashboard`: **Dashboard cũ** — thống kê tổng hợp theo dự án (đã ẩn khỏi thanh điều hướng sidebar).
 
 **Không còn "dùng chung quyền truy cập"** như nội dung cũ — "rút gọn" hạn chế role, còn "đầy đủ"/
 "Epic in PO"/Dashboard mở cho mọi role.

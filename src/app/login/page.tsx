@@ -20,7 +20,7 @@ type RegistrationDomain = { id: number; domainCode: string; domainName: string }
  * browser would treat as protocol-relative) — the `next` param round-trips through the URL bar, so
  * treating it as trusted input here would be an open-redirect hole. */
 function safeNextPath(value: string | null): string {
-  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/';
+  if (!value || !value.startsWith('/') || value.startsWith('//') || value === '/') return '/dashboard-new';
   return value;
 }
 

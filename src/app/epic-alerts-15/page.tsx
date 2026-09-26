@@ -27,6 +27,7 @@ import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import { ArrowBendUpRight, ArrowCounterClockwise, ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, FloppyDisk, FolderSimple, HourglassMedium, Lightning, ListChecks, Prohibit, Sparkle, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { bottomStatusRankOf } from '@/lib/epic-alert-sort-rules';
+import { isCancelledStatus } from '@/lib/issue-status-rules';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import { trackDataUsage } from '@/lib/usage-tracking';
 import { showToast } from '@/components/ui/Toast';
@@ -936,19 +937,19 @@ function EpicAlerts15Screen() {
     });
   }, [deepLinkFilters.domain, domainFilter, domainProjectKeys]);
 
-  // Skipped entirely when deep link specifies any filter of its own
-  const hasAppliedDefaultStatusFilter = useRef(deepLinkFilters.hasAny);
+  // Skipped only when deep link explicitly specifies a status filter
+  const hasAppliedDefaultStatusFilter = useRef(deepLinkFilters.status.length > 0);
   useEffect(() => {
     if (hasAppliedDefaultStatusFilter.current || statusOptions.length === 0) return;
     // eslint-disable-next-line react-hooks/immutability -- also set by the saved-filters-restore effect above (deliberate cross-effect coordination).
     hasAppliedDefaultStatusFilter.current = true;
-    setStatusFilters(statusOptions.filter((status) => !DEFAULT_EXCLUDED_STATUSES.has(normalizeEpicWorkflowStatus(status))));
+    setStatusFilters(statusOptions.filter((status) => !isCancelledStatus(status)));
   }, [statusOptions]);
 
   const handlePendingQuickFilter = () => {
     if (activeQuickFilter === 'PENDING') {
       setActiveQuickFilter(null);
-      setStatusFilters(statusOptions.filter((status) => !DEFAULT_EXCLUDED_STATUSES.has(normalizeEpicWorkflowStatus(status))));
+      setStatusFilters(statusOptions.filter((status) => !isCancelledStatus(status)));
     } else {
       setActiveQuickFilter('PENDING');
       const matched = statusOptions.filter((s) => s.trim().toLocaleUpperCase('en-US').includes('PENDING'));
@@ -960,7 +961,7 @@ function EpicAlerts15Screen() {
   const handleInPoQuickFilter = () => {
     if (activeQuickFilter === 'IN_PO') {
       setActiveQuickFilter(null);
-      setStatusFilters(statusOptions.filter((status) => !DEFAULT_EXCLUDED_STATUSES.has(normalizeEpicWorkflowStatus(status))));
+      setStatusFilters(statusOptions.filter((status) => !isCancelledStatus(status)));
     } else {
       setActiveQuickFilter('IN_PO');
       const targetStatuses = new Set(['TO DO', 'IN PO', 'RELEASED']);
@@ -973,7 +974,7 @@ function EpicAlerts15Screen() {
   const handleNotInPoQuickFilter = () => {
     if (activeQuickFilter === 'NOT_IN_PO') {
       setActiveQuickFilter(null);
-      setStatusFilters(statusOptions.filter((status) => !DEFAULT_EXCLUDED_STATUSES.has(normalizeEpicWorkflowStatus(status))));
+      setStatusFilters(statusOptions.filter((status) => !isCancelledStatus(status)));
     } else {
       setActiveQuickFilter('NOT_IN_PO');
       const matched = statusOptions.filter((s) => !EXCLUDED_NOT_IN_PO.has(normalizeEpicWorkflowStatus(s)));
@@ -1019,7 +1020,7 @@ function EpicAlerts15Screen() {
     setComponentFilters([]);
     setAlertFilter('');
     setTypeFilter('');
-    setStatusFilters(statusOptions.filter((status) => !DEFAULT_EXCLUDED_STATUSES.has(normalizeEpicWorkflowStatus(status))));
+    setStatusFilters(statusOptions.filter((status) => !isCancelledStatus(status)));
     setRequestingUnitFilter('');
     setDataIssueFilter(false);
     setSearch('');
@@ -1044,7 +1045,7 @@ function EpicAlerts15Screen() {
         && (componentFilters.length === 0 || row.components.some((component) => componentFilters.includes(component)))
         && matchesAlertFilter(row, alertFilter)
         && (!typeFilter || row.epicType === typeFilter)
-        && (statusFilters.length === 0 || statusFilters.includes(row.currentStatus))
+        && (statusFilters.length === 0 ? !isCancelledStatus(row.currentStatus) : statusFilters.includes(row.currentStatus))
         && (!dataIssueFilter || row.hasDataAnomaly)
         && (!requestingUnitFilter || row.requestingUnit === requestingUnitFilter)
         && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch));

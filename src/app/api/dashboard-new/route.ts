@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser, listManagedUsers } from '@/lib/auth-service';
 import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
+import { getTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import pool from '@/lib/db';
 import type { UserRole } from '@/lib/auth-types';
 
@@ -49,7 +50,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const context = await getEpicAlertRowsPhased(targetUserId, targetRole);
+    const [context, ttmIndexGlobal] = await Promise.all([
+      getEpicAlertRowsPhased(targetUserId, targetRole),
+      getTtmIndexGlobalCache().catch((err) => {
+        console.error('Failed to get TTM Index Global Cache:', err);
+        return null;
+      }),
+    ]);
 
     let managedUsers: Array<{ domainIds: number[]; email: string; fullName: string; id: number; isActive: boolean; projectIds: number[]; role: string }> = [];
     if (isAdminOrSupervisor) {
@@ -73,6 +80,7 @@ export async function GET(request: NextRequest) {
       lastAggregatedAt: context.lastAggregatedAt,
       managedUsers,
       rows: context.rows,
+      ttmIndexGlobal,
       viewAsUser,
     });
   } catch (error) {

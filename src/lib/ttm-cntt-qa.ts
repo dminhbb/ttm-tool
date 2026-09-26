@@ -1,4 +1,5 @@
 import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
+import { isCancelledStatus } from '@/lib/issue-status-rules';
 
 /**
  * TTM-CNTT-QA is TTM-CNTT itself, narrowed to Epics whose current status is 'MVP Done' or
@@ -47,8 +48,11 @@ export function summarizeTtmCntt(rows: EpicAlertRowPhased[]): TtmCnttSummary {
   let eligible = 0;
   let pass = 0;
   let fail = 0;
+  let total = 0;
 
   for (const row of rows) {
+    if (isCancelledStatus(row.currentStatus || '')) continue;
+    total += 1;
     if (row.alertLevel === 'FAIL') fail += 1;
     if (row.r4gDate && !row.hasDataAnomaly) {
       eligible += 1;
@@ -56,7 +60,7 @@ export function summarizeTtmCntt(rows: EpicAlertRowPhased[]): TtmCnttSummary {
     }
   }
 
-  return summarizeTtmCnttFromCounts(eligible, pass, fail, rows.length);
+  return summarizeTtmCnttFromCounts(eligible, pass, fail, total);
 }
 
 /** Same eligible/pass/fail/total → pct/pctPrecise formula as summarizeTtmCntt, for callers that
