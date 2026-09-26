@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ADAPTER_TYPES, DEFAULT_ADAPTER, ADAPTER_LABELS, type AdapterType } from '@/lib/adapters/index';
 import { AggregatedDataLayersPanel } from '@/components/data-source/AggregatedDataLayersPanel';
+import { CacheStatusPanel } from '@/components/data-source/CacheStatusPanel';
 import { CompleteDataPanel } from '@/components/data-source/CompleteDataPanel';
 import { FileDropzone } from '@/components/data-source/FileDropzone';
 import { PurgeRecentLayersPanel } from '@/components/data-source/PurgeRecentLayersPanel';
@@ -561,6 +562,8 @@ export function ImportIssuesTab() {
           </Card>
 
           <AggregatedDataLayersPanel />
+
+          <CacheStatusPanel />
         </div>
 
         <RightPanel

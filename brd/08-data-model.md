@@ -20,17 +20,18 @@ Dữ liệu chia thành các nhóm:
 - Cấu hình TTM và cảnh báo (`ttm_policy_configs`, `epic_status_alert_rules`,
   `issue_type_role_mapping`).
 - Lịch làm việc (`holidays`, `makeup_workdays`).
-- Lịch sử/audit (`epic_alert_history`, `epic_alert_timeline`, `epic_milestone_history`,
-  `epic_ttm_snapshots`, `issue_daily_snapshots`, `audit_logs`, `user_usage_daily_stats`).
+- Lịch sử/audit & tương tác (`epic_alert_history`, `epic_alert_timeline`, `epic_milestone_history`,
+  `epic_ttm_snapshots`, `issue_daily_snapshots`, `audit_logs`, `user_usage_daily_stats`, `visit_logs`).
 - Cấu hình chung (`jira_settings`, `data_retention_configs`).
 - Thông báo trong ứng dụng (`ad_popups`, `ad_popup_impressions`, `info_banners`) — mục 20.
 - SSO/API Key & MCP Server (`api_keys`, `sso_auth_codes`, `mcp_settings`, `mcp_access_tokens`,
   `mcp_access_daily_stats`, `mcp_oauth_clients`, `mcp_oauth_authorization_codes`) — mục 21.
+- Visit Counter (`visit_logs`) — mục 22.
 
 ## 1.1. Sơ đồ cấu trúc cơ sở dữ liệu (ERD Diagram)
 
-Sơ đồ ERD dưới đây mô tả cấu trúc thực tế của **37 bảng/thực thể** trong CSDL PostgreSQL của ứng dụng
-TTM Monitor (27 bảng nghiệp vụ cốt lõi từ MVP1 + 10 bảng hạ tầng tích hợp mới hơn — mục 20/21),
+Sơ đồ ERD dưới đây mô tả cấu trúc thực tế của **39 bảng/thực thể** trong CSDL PostgreSQL của ứng dụng
+TTM Monitor (28 bảng nghiệp vụ & thống kê cốt lõi + 10 bảng hạ tầng tích hợp mới hơn — mục 20/21 + bảng `visit_logs` — mục 22),
 phân chia theo 9 nhóm chức năng. Sơ đồ mermaid dưới đây chỉ vẽ 7 nhóm cốt lõi cho gọn — 2 nhóm mới
 xem chi tiết dạng text tại mục 20/21:
 
@@ -46,6 +47,7 @@ erDiagram
     users ||--o{ password_reset_requests : "1-n (resolved_by)"
     users ||--o{ audit_logs : "1-n (user_id)"
     users ||--o{ user_usage_daily_stats : "1-n (user_id)"
+    users ||--o{ visit_logs : "1-n (user_id)"
     permission_features ||--o{ role_feature_permissions : "1-n (feature_key)"
 
     %% Domain & Project Module
@@ -566,6 +568,45 @@ Monitor đóng vai trò SSO Provider cho ứng dụng ngoài (`sso-service.ts`, 
 `/api/mcp`, `/api/mcp/oauth/*`) — `mcp_access_tokens` là Personal Access Token do chính user tạo,
 `mcp_oauth_clients`/`mcp_oauth_authorization_codes` phục vụ luồng OAuth 2.0 + PKCE thay thế. Chi
 tiết nghiệp vụ đầy đủ: `15-mcp-sso-and-reports.md`.
+
+## 22. visit_logs (Nhật ký truy cập ứng dụng & màn hình — Visit Counter)
+
+```text
+id            -- BIGSERIAL PRIMARY KEY
+event_type    -- VARCHAR(20) NOT NULL ('APP_LOGIN' | 'SCREEN_VIEW')
+screen_key    -- VARCHAR(50) ('dashboard' | 'epic_alerts' | 'epic_reports' | 'epic_in_po' | NULL)
+user_id       -- INT REFERENCES users(id) ON DELETE SET NULL
+created_at    -- TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+```
+
+Thêm bởi migration `20260926b_create_visit_logs.sql`. Bảng phục vụ tính năng **Visit Counter** — ghi nhận, phân tích tần suất đăng nhập và lưu lượng truy cập của người dùng trên các màn hình trọng điểm của hệ thống TTM Monitor.
+
+### Chỉ mục hiệu năng trên visit_logs
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_visit_logs_type_created ON visit_logs (event_type, created_at);
+CREATE INDEX IF NOT EXISTS idx_visit_logs_screen_created ON visit_logs (screen_key, created_at);
+CREATE INDEX IF NOT EXISTS idx_visit_logs_user_created ON visit_logs (user_id, created_at);
+```
+
+### Quy tắc nghiệp vụ & Luồng ghi nhận
+
+- **`APP_LOGIN`**: Ghi nhận một bản ghi mỗi khi người dùng đăng nhập thành công vào hệ thống (ghi nhận tại `src/lib/auth-service.ts` trong hàm `createSession`). Cột `screen_key` mang giá trị `NULL`.
+- **`SCREEN_VIEW`**: Ghi nhận khi người dùng truy cập một trong 4 màn hình trọng điểm:
+  1. `dashboard`: Màn hình TTM Dashboard (`/dashboard-new`, alias `/dashboard`).
+  2. `epic_alerts`: Màn hình Quản trị Epic (`/epic-alerts-15`, alias `/epic-alerts`).
+  3. `epic_reports`: Màn hình Báo cáo Epic (`/reports`).
+  4. `epic_in_po`: Màn hình Epic in PO (`/epic-in-po`).
+  Phía client (`src/lib/visit-counter-client.ts`) áp dụng cơ chế **debounce 30 giây** trong `sessionStorage` cho từng `screen_key` nhằm tránh ghi nhận trùng lặp khi người dùng chuyển tab nhanh hoặc re-render component.
+- **Quan hệ**: `users ||--o{ visit_logs : "1-n (user_id)"`. Khi xóa user, `user_id` trong `visit_logs` được set `NULL` (`ON DELETE SET NULL`), bảo toàn số liệu thống kê tổng mà không làm sai lệch lịch sử truy cập.
+- **Phân tích đa chiều**: Service `src/lib/visit-counter-service.ts` tổng hợp số liệu trực tiếp từ `visit_logs`:
+  - **Khái niệm thời gian trượt**: "Hôm nay" ($T$), "Tuần này" ($T-7 \to T$), "Tuần trước" ($T-15 \to T-8$), và "Tổng số (Lũy kế)".
+  - **3 thẻ KPI**: Tổng số lượt truy cập (lũy kế), Tuần này, Hôm nay.
+  - **Biểu đồ trend line 7 ngày qua**: Xu hướng đăng nhập ứng dụng hàng ngày.
+  - **Biểu đồ cột kép so sánh 4 màn hình giữa 2 tuần**: So sánh tương tác của 4 màn hình giữa tuần này và tuần trước.
+  - **Phân rã theo Domain & User**: Bảng ma trận số liệu truy cập gom nhóm theo Domain và chi tiết từng User trong Domain.
+  - **Danh sách 10 user login gần nhất**: Kèm ngày giờ đăng nhập chi tiết định dạng GMT+7 (`DD/MM/YYYY HH:mm:ss`).
+  - **Chân trang cố định (`SystemStatusFooter`)**: Hiển thị tổng truy cập, tuần này, màn hình hiện tại (nếu thuộc 4 màn hình), và 5 user login gần nhất kèm hover tooltip.
 
 ---
 

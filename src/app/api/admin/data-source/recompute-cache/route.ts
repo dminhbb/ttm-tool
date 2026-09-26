@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
 import pool from '@/lib/db';
-import { refreshTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
-import { refreshEpicAlertRowCache } from '@/lib/epic-alert-row-cache-service';
+import { refreshDerivedCaches } from '@/lib/daily-cache-service';
 
 function authError(error: unknown): NextResponse | null {
   if (error instanceof AuthError) {
@@ -31,8 +30,8 @@ export async function POST(request: NextRequest) {
     const latestBatch = await pool.query<{ id: number }>('SELECT id FROM import_batches ORDER BY aggregated_at DESC, id DESC LIMIT 1;');
     const latestBatchId = latestBatch.rows[0]?.id ?? null;
 
-    await refreshTtmIndexGlobalCache(latestBatchId);
-    await refreshEpicAlertRowCache(latestBatchId);
+    // One unscoped recompute feeding both caches (see refreshDerivedCaches), not one per cache.
+    await refreshDerivedCaches(latestBatchId);
 
     const rowCacheCount = await pool.query<{ n: string }>('SELECT count(*)::text AS n FROM epic_alert_row_cache;');
 

@@ -1,6 +1,7 @@
 import pool from '@/lib/db';
 import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
 import { isTtmCnttQaInScope, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
+import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 
 export interface TtmIndexGlobalCache {
@@ -69,8 +70,10 @@ export async function getTtmIndexGlobalCache(): Promise<TtmIndexGlobalCache | nu
  * Never throws: a stale/missing cache is far less harmful than failing the import itself, so the
  * caller only logs on failure.
  */
-export async function refreshTtmIndexGlobalCache(batchId: number | null): Promise<void> {
-  const { rows } = await getEpicAlertRowsPhased(0, 'SUPERVISOR', {});
+/** `precomputedRows` — the unscoped newest-layer row set, when the caller already has it (see
+ * refreshDerivedCaches in daily-cache-service.ts) — skips recomputing it here. */
+export async function refreshTtmIndexGlobalCache(batchId: number | null, precomputedRows?: EpicAlertRowPhased[]): Promise<void> {
+  const rows = precomputedRows ?? (await getEpicAlertRowsPhased(0, 'SUPERVISOR', {})).rows;
   const ttm = summarizeTtmCntt(rows);
   const qa = summarizeTtmCntt(rows.filter((row) => isTtmCnttQaInScope(row.currentStatus)));
 

@@ -85,10 +85,12 @@
     <div class="toc-block">Tích hợp &amp; tự động hoá</div>
     <a href="#mcp-server">16. MCP Server — kết nối AI chatbot</a>
     <a href="#sso-api-key">17. SSO &amp; API Key — đăng nhập liên kết ứng dụng khác</a>
+    <div class="toc-block">Theo dõi &amp; Thống kê</div>
+    <a href="#visit-counter">18. Visit Counter — Thống kê lượt truy cập &amp; tương tác người dùng</a>
     <div class="toc-block">Công nghệ</div>
-    <a href="#tech-stack">18. Tech stack</a>
+    <a href="#tech-stack">19. Tech stack</a>
     <div class="toc-block">Phụ lục</div>
-    <a href="#glossary">19. Thuật ngữ</a>
+    <a href="#glossary">20. Thuật ngữ</a>
   </nav>
 
   <main>
@@ -320,19 +322,19 @@
       </svg>
       <div class="callout">
         Sơ đồ trên minh hoạ <strong>7 nhóm nghiệp vụ cốt lõi (28 bảng)</strong> đã có từ MVP1 — bao gồm <code>epic_data_anomaly_violations</code> (nhóm 6, bổ sung
-        22/09/2026 cùng rule "Sai lệch dữ liệu" R1-R6, mục 9). Ứng dụng còn <strong>2 nhóm hạ tầng tích hợp</strong> mới hơn (10 bảng),
-        phục vụ Popup quảng cáo/Banner thông báo (mục 14-15) và SSO/API Key/MCP Server (mục 16-17) — chi tiết trong phần &quot;Bấm để xem chi tiết&quot; ngay dưới đây
-        (nhóm 8-9) và bảng danh mục đầy đủ 38 bảng ở mục 5.2.
+        22/09/2026 cùng rule "Sai lệch dữ liệu" R1-R6, mục 9). Ứng dụng còn <strong>2 nhóm hạ tầng tích hợp</strong> mới hơn (10 bảng)
+        phục vụ Popup quảng cáo/Banner thông báo (mục 14-15) và SSO/API Key/MCP Server (mục 16-17), cùng bảng nhật ký <code>visit_logs</code> (nhóm 6, phục vụ Visit Counter — mục 18) — chi tiết trong phần &quot;Bấm để xem chi tiết&quot; ngay dưới đây
+        và bảng danh mục đầy đủ 39 bảng ở mục 5.2.
       </div>
 
       <!-- Nút xem chi tiết section ẩn -->
       <details style="margin: 16px 0; border: 1px solid #cdd9f7; border-radius: 10px; background: #f8faff; padding: 12px 16px;">
         <summary style="cursor: pointer; font-weight: 700; font-size: 13.5px; color: var(--brand-600); outline: none; user-select: none;">
-          🔍 Bấm vào đây để Xem chi tiết Đặc điểm trường, Khóa PK/FK, Ràng buộc &amp; Index của 28 bảng CSDL
+          🔍 Bấm vào đây để Xem chi tiết Đặc điểm trường, Khóa PK/FK, Ràng buộc &amp; Index của các bảng CSDL
         </summary>
         <div style="margin-top: 16px;">
           <p style="font-size: 12.5px; color: var(--muted); margin-bottom: 16px;">
-            Dưới đây là chi tiết kỹ thuật của toàn bộ 38 bảng PostgreSQL trong CSDL TTM Monitor (tương thích với <code>db/schema.sql</code> và chuỗi migration):
+            Dưới đây là chi tiết kỹ thuật của toàn bộ 39 bảng PostgreSQL trong CSDL TTM Monitor (tương thích với <code>db/schema.sql</code> và chuỗi migration):
           </p>
 
           <!-- 1. Auth & RBAC -->
@@ -566,7 +568,7 @@
           </table>
 
           <!-- 6. History & Snapshots -->
-          <h4 style="color:var(--brand-700); margin:18px 0 6px; font-size:14px;">6. Nhóm Lịch sử, Snapshot &amp; Audit (7 bảng)</h4>
+          <h4 style="color:var(--brand-700); margin:18px 0 6px; font-size:14px;">6. Nhóm Lịch sử, Snapshot, Audit &amp; Nhật ký truy cập (8 bảng)</h4>
           <table>
             <thead><tr><th>Bảng CSDL</th><th>Trường &amp; Kiểu dữ liệu chính</th><th>Constraints &amp; FK</th></tr></thead>
             <tbody>
@@ -577,6 +579,7 @@
               <tr><td><code>issue_daily_snapshots</code></td><td><code>issue_key VARCHAR(50)</code>, <code>aggregated_at TIMESTAMPTZ</code>, <code>snapshot_data_json TEXT</code></td><td>UNIQUE <code>(issue_key, aggregated_at)</code>, FK <code>import_batches(id) ON DELETE SET NULL</code></td></tr>
               <tr><td><code>epic_data_anomaly_violations</code></td><td><code>epic_key VARCHAR(50)</code>, <code>rule_code VARCHAR(40)</code> (6 giá trị R1-R6), <code>rule_index SMALLINT</code>, <code>message TEXT</code>, <code>detected_at DATE</code>, <code>source_import_batch_id INT</code></td><td>UNIQUE <code>(epic_key, rule_code)</code>, FK <code>import_batches(id) ON DELETE SET NULL</code> — trạng thái hiện tại (không phải lịch sử "đợt" như 2 bảng trên), 1 dòng/Epic/rule đang vi phạm, ghi đè hoặc xoá ở mỗi lần <code>aggregateBatchData()</code> chạy</td></tr>
               <tr><td><code>audit_logs</code> / <code>user_usage_daily_stats</code></td><td><code>audit_logs</code>: user_id FK, action, entity_type, entity_id.<br /><code>user_usage_daily_stats</code>: user_id FK, stat_date DATE, login_count, feature_count, data_count.</td><td>PK kết hợp <code>user_usage_daily_stats(user_id, stat_date)</code>, FK <code>users(id)</code></td></tr>
+              <tr><td><code>visit_logs</code></td><td><code>id BIGSERIAL PK</code>, <code>event_type VARCHAR(20)</code> ('APP_LOGIN' | 'SCREEN_VIEW'), <code>screen_key VARCHAR(50)</code>, <code>user_id INT</code>, <code>created_at TIMESTAMPTZ</code></td><td>FK <code>users(id) ON DELETE SET NULL</code>. Index: <code>idx_visit_logs_type_created (event_type, created_at)</code>, <code>idx_visit_logs_screen_created (screen_key, created_at)</code>, <code>idx_visit_logs_user_created (user_id, created_at)</code>. Ghi nhận nhật ký lượt đăng nhập ứng dụng và lượt xem 4 màn hình trọng điểm phục vụ Visit Counter (mục 18).</td></tr>
             </tbody>
           </table>
 
@@ -618,7 +621,7 @@
         </div>
       </details>
 
-      <h3>5.2. Bảng danh mục 38 bảng CSDL trong hệ thống</h3>
+      <h3>5.2. Bảng danh mục 39 bảng CSDL trong hệ thống</h3>
       <table>
         <thead><tr><th>STT</th><th>Bảng CSDL</th><th>Khóa chính / Khóa ngoại</th><th>Vai trò nghiệp vụ &amp; Ghi chú</th></tr></thead>
         <tbody>
@@ -660,6 +663,7 @@
           <tr><td>36</td><td><code>mcp_oauth_clients</code></td><td><code>client_id</code> (PK)</td><td>Đăng ký client OAuth động (RFC 7591) cho AI chatbot dùng luồng OAuth kết nối MCP (mục 16).</td></tr>
           <tr><td>37</td><td><code>mcp_oauth_authorization_codes</code></td><td><code>code</code> (PK), <code>user_id</code> (FK)</td><td>Mã ủy quyền ngắn hạn cho luồng MCP OAuth 2.0 + PKCE (mục 16).</td></tr>
           <tr><td>38</td><td><code>epic_data_anomaly_violations</code></td><td><code>id</code> (PK), <code>(epic_key, rule_code)</code> (UNIQUE), <code>source_import_batch_id</code> (FK)</td><td>Trạng thái hiện tại (không phải lịch sử "đợt") của từng rule R1-R6 "Sai lệch dữ liệu" (mục 9) đang vi phạm trên mỗi Epic — 1 dòng/Epic/rule, ghi đè hoặc xoá ở mỗi lần <code>aggregateBatchData()</code> chạy. Phục vụ thống kê theo nhóm rule; badge trên UI vẫn tính live, không đọc bảng này.</td></tr>
+          <tr><td>39</td><td><code>visit_logs</code></td><td><code>id</code> (PK), <code>user_id</code> (FK)</td><td>Ghi nhận nhật ký lượt đăng nhập ứng dụng (APP_LOGIN) và lượt xem 4 màn hình trọng điểm (SCREEN_VIEW cho Dashboard, Quản trị Epic, Báo cáo Epic, Epic in PO) phục vụ tính năng Visit Counter (mục 18).</td></tr>
         </tbody>
       </table>
 
@@ -999,6 +1003,7 @@
         <tbody>
           <tr><td>Quản lý ngày nghỉ/làm bù</td><td>Danh sách ngày nghỉ + <strong>Ngày làm bù</strong> (khai báo 1 Thứ Bảy/Chủ Nhật là ngày làm việc bình thường) dùng để tính ngày làm việc</td></tr>
           <tr><td>Quản lý Issue Type</td><td>Mapping loại Subtask Jira (<code>issue_type_role_mapping</code>) sang team-role <strong>BA/DEV/TEST/PM</strong> — dùng để xác định Subtask nào tính là &quot;hoàn thành&quot; một pha (DEV/TEST/PENTEST) của Epic 15</td></tr>
+          <tr><td>Thống kê truy cập (Visit counter)</td><td>Bảng điều khiển trực quan phân tích số liệu truy cập ứng dụng &amp; 4 màn hình trọng điểm: 3 thẻ KPI, biểu đồ trend line 7 ngày qua, biểu đồ cột kép so sánh 2 tuần, bảng phân rã Domain/User và top 10 user login gần nhất (chi tiết xem mục 18)</td></tr>
         </tbody>
       </table>
       <h3>13.3. Modal &quot;Quản trị hệ thống&quot; — chỉ SUPERADMIN</h3>
@@ -1179,9 +1184,102 @@
       <p>Trang <code>/sso-demo</code> (kèm <code>/api/sso-demo/callback</code>) minh hoạ đầy đủ luồng trên từ phía một ứng dụng khách mẫu.</p>
     </section>
 
+    <section id="visit-counter">
+      <div class="kicker">Theo dõi &amp; Thống kê</div>
+      <h2>18. Visit Counter — Thống kê lượt truy cập &amp; tương tác người dùng</h2>
+      <p>
+        <strong>Visit Counter</strong> là phân hệ đo lường, theo dõi và phân tích tần suất sử dụng cũng như lưu lượng truy cập của người dùng trên toàn bộ hệ thống TTM Monitor. Tính năng ghi nhận chi tiết lượt đăng nhập vào ứng dụng và lượt xem tại 4 màn hình nghiệp vụ trọng điểm, từ đó tổng hợp số liệu đa chiều phục vụ công tác giám sát vận hành và đánh giá mức độ tương tác của các Domain và người dùng.
+      </p>
+
+      <h3>18.1. Cơ chế thu thập sự kiện &amp; 4 màn hình trọng điểm</h3>
+      <p>Hệ thống tự động ghi nhận nhật ký vào bảng CSDL <code>visit_logs</code> qua 2 loại sự kiện chính:</p>
+      <ul>
+        <li>
+          <strong>Lượt truy cập ứng dụng (<code>event_type = 'APP_LOGIN'</code>)</strong>: Được ghi nhận tự động mỗi khi một người dùng đăng nhập thành công vào hệ thống (thực hiện tại <code>auth-service.ts</code> khi tạo phiên làm việc). Sự kiện này gắn với mã người dùng (<code>user_id</code>), cho biết tần suất đăng nhập thực tế của từng tài khoản.
+        </li>
+        <li>
+          <strong>Lượt truy cập màn hình trọng điểm (<code>event_type = 'SCREEN_VIEW'</code>)</strong>: Hệ thống chủ động đo lường lưu lượng trên <strong>4 màn hình nghiệp vụ trọng tâm</strong>:
+          <ol style="margin-top: 6px;">
+            <li><strong>Dashboard (<code>/dashboard-new</code> hoặc alias <code>/dashboard</code>)</strong> — <code>screen_key = 'dashboard'</code>: Trung tâm chỉ huy vận hành và giám sát chỉ số TTM toàn diện.</li>
+            <li><strong>Quản trị Epic (<code>/epic-alerts-15</code> hoặc alias <code>/epic-alerts</code>)</strong> — <code>screen_key = 'epic_alerts'</code>: Màn hình theo dõi tiến độ chi tiết 5 pha của các Epic.</li>
+            <li><strong>Báo cáo Epic (<code>/reports</code>)</strong> — <code>screen_key = 'epic_reports'</code>: Màn hình trích xuất báo cáo chuyên sâu theo từng dự án và lớp dữ liệu.</li>
+            <li><strong>Epic in PO (<code>/epic-in-po</code>)</strong> — <code>screen_key = 'epic_in_po'</code>: Màn hình theo dõi các Epic giai đoạn lập kế hoạch (To Do, In PO, Released).</li>
+          </ol>
+        </li>
+      </ul>
+      <div class="callout">
+        <strong>Cơ chế chống đếm lặp (Client-side Debouncing):</strong> Để tránh việc ghi nhận trùng lặp khi người dùng chuyển đổi tab liên tục hoặc component re-render, phía client (<code>src/lib/visit-counter-client.ts</code>) duy trì cờ thời gian trong <code>sessionStorage</code> với ngưỡng debounce <strong>30 giây</strong> cho từng màn hình. Nếu người dùng xem lại cùng một màn hình trong vòng 30 giây của cùng phiên trình duyệt, request ghi nhận sẽ được bỏ qua.
+      </div>
+
+      <h3>18.2. Khái niệm chu kỳ thời gian &amp; Thống kê đa chiều</h3>
+      <p>Số liệu từ bảng <code>visit_logs</code> được phân tích theo các khung thời gian và góc nhìn quản trị:</p>
+      <div class="grid-2">
+        <div class="card-mini">
+          <h4>Khung thời gian trượt</h4>
+          <p>
+            • <strong>Hôm nay ($T$)</strong>: Tính từ đầu ngày hiện tại (00:00:00) theo giờ địa phương.<br />
+            • <strong>Tuần này ($T-7 \to T$)</strong>: Cửa sổ trượt 8 ngày gần nhất, phản ánh lưu lượng tương tác hiện thời.<br />
+            • <strong>Tuần trước ($T-15 \to T-8$)</strong>: Cửa sổ 8 ngày đối ứng liền trước, dùng làm mốc so sánh tăng trưởng.<br />
+            • <strong>Tổng số (Lũy kế)</strong>: Toàn bộ dữ liệu tích lũy từ khi hệ thống bắt đầu ghi log.
+          </p>
+        </div>
+        <div class="card-mini">
+          <h4>Phân tích đa chiều</h4>
+          <p>
+            • <strong>Theo Domain nghiệp vụ</strong>: Tổng hợp số lượng user active và tổng lượt truy cập phân theo từng Domain.<br />
+            • <strong>Theo từng User</strong>: Tần suất đăng nhập và sử dụng của từng tài khoản cụ thể.<br />
+            • <strong>Theo thời gian</strong>: Phân rã số liệu theo tuần, theo ngày (trend line 7 ngày), và theo giờ.<br />
+            • <strong>Theo màn hình</strong>: So sánh mức độ quan tâm giữa 4 màn hình trọng điểm.
+          </p>
+        </div>
+      </div>
+
+      <h3>18.3. Vị trí hiển thị trên giao diện người dùng</h3>
+      <p>Dữ liệu Visit Counter được trực quan hóa tại 2 vị trí chính trên giao diện:</p>
+
+      <h4>1. Tab &quot;Thống kê truy cập (Visit counter)&quot; trong Panel &quot;Cấu hình ứng dụng&quot;</h4>
+      <p>
+        Mở từ sidebar → <strong>Cấu hình ứng dụng</strong> (dành cho vai trò từ ADMIN trở lên) → chọn tab <strong>Thống kê truy cập (Visit counter)</strong>. Giao diện cung cấp bảng điều khiển chi tiết gồm 5 khu vực:
+      </p>
+      <ul>
+        <li><strong>3 thẻ KPI nổi bật</strong>: Hiển thị Tổng số lượt truy cập ứng dụng lũy kế, Số lượt trong Tuần này ($T-7 \to T$), và Số lượt Hôm nay ($T$) với định dạng số phân cách hàng nghìn chuẩn tiếng Việt (<code>vi-VN</code>).</li>
+        <li><strong>Biểu đồ xu hướng (Trend line SVG 7 ngày qua)</strong>: Biểu đồ đường trực quan thể hiện biến thiên lượt đăng nhập ứng dụng qua 8 ngày ($T-7$ đến $T$), có diện tích phủ gradient mềm mại, trục tọa độ rõ ràng và chấm điểm tương tác hiển thị Tooltip (Thứ, ngày, số lượt đăng nhập) khi rê chuột.</li>
+        <li><strong>Biểu đồ cột kép so sánh 4 màn hình giữa 2 tuần &amp; Bảng chi tiết</strong>: Biểu đồ cột ghép đôi so sánh trực quan lượt xem của 4 màn hình trọng điểm giữa Tuần trước (cột màu xám slate) và Tuần này (cột màu xanh blue). Đi kèm bảng ma trận chi tiết liệt kê đầy đủ số liệu: Hôm nay, Tuần này, Tuần trước và Tổng lũy kế của từng màn hình.</li>
+        <li><strong>Bảng phân rã Domain và User</strong>: Thống kê số lượng user và lượt truy cập theo từng Domain. Cho phép người dùng bấm &quot;Mở rộng tất cả / Thu gọn tất cả&quot; hoặc mở riêng từng Domain để xem bảng chi tiết từng user (Username, Họ tên, Email, Lượt truy cập Hôm nay/Tuần này/Tổng số).</li>
+        <li><strong>Danh sách 10 user login gần nhất</strong>: Bảng vinh danh 10 người dùng đăng nhập gần nhất, bao gồm STT, Username, Họ tên, Email và Thời điểm đăng nhập. Tên người dùng tích hợp Tooltip nổi bật hiển thị đầy đủ Họ tên và ngày giờ chính xác định dạng <code>DD/MM/YYYY HH:mm:ss</code> (GMT+7).</li>
+      </ul>
+
+      <h4>2. Page Footer chung tại mọi màn hình (<code>SystemStatusFooter</code>)</h4>
+      <p>
+        Nằm cố định ở đáy trang trên toàn bộ các màn hình của hệ thống (sau khi đăng nhập), được bố trí căn giữa trang trọng thành 2 dòng:
+      </p>
+      <ul>
+        <li>
+          <strong>Dòng 1 (căn giữa, màu slate-500, cỡ chữ 11px)</strong>:
+          <br />
+          <code>TTM Tool | Version {version} | Total visit: {A}. Weekly: {B}. {This screen: {C}. }Last login users: {D}.</code>
+          <br />
+          Trong đó:
+          <ul style="margin-top: 4px;">
+            <li><code>{A}</code>: Tổng số lượt truy cập toàn ứng dụng (lũy kế).</li>
+            <li><code>{B}</code>: Lượt truy cập ứng dụng trong tuần này ($T-7 \to T$).</li>
+            <li><code>{C}</code>: Lượt truy cập màn hình hiện tại — <em>chỉ hiển thị nếu người dùng đang đứng tại 1 trong 4 màn hình trọng điểm</em> (Dashboard, Quản trị Epic, Báo cáo Epic, Epic in PO), tự động ẩn trên các màn hình khác (như trang Admin, Tài liệu, Demo...).</li>
+            <li><code>{D}</code>: Danh sách 5 user đăng nhập gần nhất (dạng username gạch chân ngắt quãng). Khi rê chuột (hover) vào từng username, hiển thị Tooltip nổi chứa <strong>Họ và tên đầy đủ</strong> cùng <strong>thời điểm đăng nhập chính xác</strong> (<code>DD/MM/YYYY HH:mm:ss</code>).</li>
+          </ul>
+        </li>
+        <li>
+          <strong>Dòng 2 (căn giữa, màu xám nhạt mờ, cỡ chữ 10px)</strong>:
+          <br />
+          <code>(C) minhnd7. db: {dbTarget} - {dbStatus}</code>
+          <br />
+          Hiển thị bản quyền tác giả cùng thông tin profile kết nối CSDL hiện tại (<code>local</code>, <code>supabase</code> hoặc <code>aiven</code>) và trạng thái kết nối (<code>pass</code> / <code>fail</code>).
+        </li>
+      </ul>
+    </section>
+
     <section id="tech-stack">
       <div class="kicker">Công nghệ</div>
-      <h2>18. Tech stack</h2>
+      <h2>19. Tech stack</h2>
       <p>
         Tổng quan công nghệ nền của hệ thống — quy trình nghiệp vụ Import/ETL đã mô tả chi tiết ở mục 3, mục này chỉ nêu lớp công nghệ/hạ tầng bên dưới.
       </p>
@@ -1203,7 +1301,7 @@
           <p><strong>PostgreSQL</strong>, chạy song song tối đa 3 profile kết nối (local / Aiven / Supabase, mục 5) chọn qua biến môi trường <code>DB_CONNECTION</code>. Schema quản lý bằng migration có đánh version trong <code>db/migrations</code>, áp dụng thủ công cho từng profile qua script <code>scripts/migrate-db.js</code> — không tự động chạy migration khi deploy.</p>
         </div>
       </div>
-      <h3>18.1. Import/ETL — lớp công nghệ</h3>
+      <h3>19.1. Import/ETL — lớp công nghệ</h3>
       <p>Chi tiết quy trình nghiệp vụ xem mục 3; về mặt công nghệ, import xử lý theo mô hình <strong>adapter</strong>:</p>
       <ul>
         <li><code>src/lib/adapters/pure-jira-export-adapter.ts</code> — đọc CSV export gốc từ Jira (nhiều cột, nhiều loại issue).</li>
@@ -1211,7 +1309,7 @@
         <li>Cả 2 adapter chuẩn hoá dữ liệu thô về cùng 1 kiểu issue nội bộ trước khi ghi vào CSDL — pipeline validate/ghi/tổng hợp phía sau (mục 3.2) dùng chung, không phụ thuộc adapter nào.</li>
         <li>Không dùng nền tảng ETL/scheduler ngoài (Airflow, n8n…) — "ETL" ở đây gói gọn trong chính Route Handler xử lý import (đồng bộ, chạy trong 1 request HTTP), kích hoạt bằng tay qua UI hoặc bằng script Python gọi API tự động (mục 3.3).</li>
       </ul>
-      <h3>18.2. Hạ tầng &amp; vận hành</h3>
+      <h3>19.2. Hạ tầng &amp; vận hành</h3>
       <table>
         <thead><tr><th>Thành phần</th><th>Ghi chú</th></tr></thead>
         <tbody>
@@ -1227,7 +1325,7 @@
 
     <section id="glossary">
       <div class="kicker">Phụ lục</div>
-      <h2>19. Thuật ngữ</h2>
+      <h2>20. Thuật ngữ</h2>
       <table>
         <thead><tr><th>Thuật ngữ</th><th>Ý nghĩa</th></tr></thead>
         <tbody>
@@ -1252,6 +1350,9 @@
           <tr><td>MCP Server</td><td>Model Context Protocol — cho phép AI chatbot (Claude, ChatGPT...) kết nối và tra cứu dữ liệu TTM Monitor bằng hội thoại, tôn trọng đúng RBAC (mục 16)</td></tr>
           <tr><td>Personal Access Token (PAT)</td><td>Token do người dùng tự tạo tại &quot;Thông tin cá nhân&quot; để AI chatbot xác thực khi kết nối MCP Server, chỉ hiện giá trị thật đúng 1 lần lúc tạo (mục 16.2)</td></tr>
           <tr><td>SSO Provider / API Key</td><td>TTM Monitor cấp API key (client_id) cho ứng dụng ngoài, cho phép ứng dụng đó lấy hồ sơ user đang đăng nhập TTM Monitor qua luồng authorization code dùng 1 lần (mục 17)</td></tr>
+          <tr><td>Visit Counter</td><td>Hệ thống đo lường và phân tích lưu lượng truy cập đa chiều (đăng nhập ứng dụng &amp; 4 màn hình trọng điểm), lưu tại bảng <code>visit_logs</code> (mục 18)</td></tr>
+          <tr><td>Tuần này ($T-7 \to T$) / Tuần trước ($T-15 \to T-8$)</td><td>Khung thời gian trượt dùng trong thống kê Visit Counter để so sánh tốc độ tăng/giảm tương tác người dùng giữa 2 tuần liên tiếp</td></tr>
+          <tr><td>SystemStatusFooter</td><td>Chân trang chung cố định tại mọi màn hình, hiển thị phiên bản hệ thống, trạng thái CSDL, tổng lượt truy cập, lượt truy cập tuần này, màn hình hiện tại và 5 user đăng nhập gần nhất (mục 18.3)</td></tr>
         </tbody>
       </table>
     </section>

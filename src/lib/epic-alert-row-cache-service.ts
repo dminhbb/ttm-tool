@@ -19,8 +19,10 @@ import { ALERT_RANK, bottomStatusRankOf } from '@/lib/epic-alert-sort-rules';
 const INSERT_CHUNK_SIZE = 200;
 const INSERT_COLUMN_COUNT = 17;
 
-export async function refreshEpicAlertRowCache(batchId: number | null): Promise<void> {
-  const { rows } = await getEpicAlertRowsPhased(0, 'SUPERVISOR', {});
+/** `precomputedRows` — same as refreshTtmIndexGlobalCache's: lets refreshDerivedCaches
+ * (daily-cache-service.ts) compute the unscoped row set once for both caches. */
+export async function refreshEpicAlertRowCache(batchId: number | null, precomputedRows?: EpicAlertRowPhased[]): Promise<void> {
+  const rows = precomputedRows ?? (await getEpicAlertRowsPhased(0, 'SUPERVISOR', {})).rows;
   // Last row per epic_key wins — same outcome the previous row-by-row ON CONFLICT upsert gave,
   // but a single multi-row INSERT can't touch the same key twice, so dedupe up front.
   const uniqueRows = [...new Map(rows.map((row) => [row.epicKey, row])).values()];

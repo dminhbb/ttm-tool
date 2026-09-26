@@ -8,6 +8,42 @@
 
 ## 2026-09-26
 
+- **Tinh chỉnh giao diện Visit Counter Panel ([`src/components/settings/VisitCounterPanel.tsx`](file:///d:/git/ttm-tool/src/components/settings/VisitCounterPanel.tsx))**:
+  - Chuyển đổi nút "Làm mới" ở header của panel Visit Counter thành nút chỉ có icon (`ArrowsClockwise`) kích thước `size-8`, bo tròn tinh tế và tích hợp `Tooltip` hiển thị nhãn "Làm mới" khi hover, tối ưu không gian và tính thẩm mỹ đồng bộ.
+
+- **Triển khai tính năng Visit Counter (Bộ đếm truy cập ứng dụng & màn hình)**:
+  - **CSDL & Migrations**:
+    - Tạo migration `db/migrations/20260926b_create_visit_logs.sql` (và down migration) tạo bảng `visit_logs` gồm các trường `id`, `event_type` (`APP_LOGIN` | `SCREEN_VIEW`), `screen_key` (`dashboard`, `epic_alerts`, `epic_reports`, `epic_in_po`), `user_id`, `created_at` và 3 index tối ưu truy vấn theo `(event_type, created_at)`, `(screen_key, created_at)`, `(user_id, created_at)`.
+    - Đã chạy migration thành công đồng bộ trên cả 2 môi trường `local` (63/63) và `supabase` (62/62).
+  - **Dịch vụ Backend & Tích hợp Authentication**:
+    - [`src/lib/visit-counter-types.ts`](file:///d:/git/ttm-tool/src/lib/visit-counter-types.ts): Định nghĩa kiểu dữ liệu màn hình, thống kê KPI, dữ liệu trend line 8 ngày, dữ liệu cột kép so sánh 2 tuần, phân rã domain/user và danh sách user login gần nhất.
+    - [`src/lib/visit-counter-service.ts`](file:///d:/git/ttm-tool/src/lib/visit-counter-service.ts): Cung cấp các hàm `recordAppLogin`, `recordScreenView`, `getFooterVisitSummary`, `getDetailedVisitStats` xử lý chính xác theo múi giờ Việt Nam (`Asia/Ho_Chi_Minh` / GMT+7) cho các khung trượt Hôm nay ($T$), Tuần này ($T-7 \to T$), Tuần trước ($T-15 \to T-8$) và Lũy kế toàn thời gian.
+    - [`src/lib/auth-service.ts`](file:///d:/git/ttm-tool/src/lib/auth-service.ts): Tích hợp gọi `recordAppLogin(user.id)` trong `authenticateLocal()` ngay khi đăng nhập thành công.
+  - **API Routes**:
+    - `POST /api/visit-counter/track`: Ghi nhận sự kiện truy cập màn hình.
+    - `GET /api/visit-counter/footer`: Trả về dữ liệu tóm tắt cho footer (Tổng số, tuần này, màn hình hiện tại theo param `path`, và 5 user login gần nhất).
+    - `GET /api/visit-counter/stats`: Trả về dữ liệu thống kê chi tiết cho Panel Visit counter trong modal Cấu hình ứng dụng.
+  - **Tracking tự động tại Client**:
+    - [`src/lib/visit-counter-client.ts`](file:///d:/git/ttm-tool/src/lib/visit-counter-client.ts): Chuẩn hóa nhận diện đường dẫn (Dashboard: `/dashboard-new` và `/dashboard`; Quản trị Epic: `/epic-alerts-15` và `/epic-alerts`; Báo cáo Epic: `/reports`; Epic in PO: `/epic-in-po`) và cơ chế chống đếm lặp Client-side Debouncing 30s với `sessionStorage`.
+    - [`src/components/layout/AppShell.tsx`](file:///d:/git/ttm-tool/src/components/layout/AppShell.tsx): Tự động kích hoạt `trackScreenVisit` khi user chuyển tới 1 trong 4 màn hình được theo dõi.
+  - **Giao diện Page Footer chung (`SystemStatusFooter`)**:
+    - [`src/components/layout/SystemStatusFooter.tsx`](file:///d:/git/ttm-tool/src/components/layout/SystemStatusFooter.tsx): Đổi layout thành 2 dòng căn giữa:
+      - Dòng 1 (11px, text-slate-500): `TTM Tool | Version {version} | Total visit: A. Weekly: B. {This screen: C. }Last login users: D.` (ẩn `This screen: C.` nếu ngoài 4 màn hình trên; 5 user login gần nhất có hover Tooltip hiển thị đầy đủ Họ tên, username và ngày giờ login `DD/MM/YYYY HH:mm:ss` GMT+7).
+      - Dòng 2 (10px, text-gray-400): `(C) minhnd7. db: {dbTarget} - {dbStatus}`.
+  - **Panel "Thống kê truy cập (Visit counter)" trong Cấu hình ứng dụng**:
+    - [`src/components/settings/AppConfigModal.tsx`](file:///d:/git/ttm-tool/src/components/settings/AppConfigModal.tsx): Bổ sung tab cấu hình với icon `ChartLineUp`.
+    - [`src/components/settings/VisitCounterPanel.tsx`](file:///d:/git/ttm-tool/src/components/settings/VisitCounterPanel.tsx): 3 thẻ KPI (Tổng số, Tuần này, Hôm nay); biểu đồ SVG trend line 7 ngày qua kèm gradient fill và interactive tooltip; biểu đồ cột kép so sánh lượt truy cập 4 màn hình giữa 2 tuần ($T-15 \to T-8$ vs $T-7 \to T$) kèm bảng chi tiết; bảng thống kê theo Domain với khả năng mở rộng/thu gọn xem chi tiết từng User; bảng 10 user login gần nhất có hover tooltip ngày giờ login.
+  - **Tài liệu sản phẩm & Markdown**:
+    - Cập nhật [`public/docs/product-guide.html`](file:///d:/git/ttm-tool/public/docs/product-guide.html) (Mục 18 chuyên biệt, Mục 5 Data model 39 bảng, Mục 13.2, Mục 20 Thuật ngữ).
+    - Cập nhật [`README.md`](file:///d:/git/ttm-tool/README.md) và [`brd/08-data-model.md`](file:///d:/git/ttm-tool/brd/08-data-model.md) (Mục 22, sơ đồ Mermaid ERD).
+
+- **Ngừng dùng Aiven**: cập nhật `AGENTS.md` (mục Multi-database) — migration chỉ áp dụng cho `local` và `supabase`, không chạy `db:migrate:aiven` nữa (host Aiven đã không còn tồn tại).
+- **Tự tạo cache 1 lần/ngày + panel "Theo dõi cache dữ liệu"** — Vercel không có lịch chạy, mà FAIL/LATE/số ngày còn lại trong cache tính theo ngày tạo, nên ngày không import cache bị lệch.
+  - Bảng mới `daily_cache_runs` (1 dòng/ngày VN, `run_date` là PK → chỉ 1 request giành được lượt chạy, an toàn qua transaction pooler) — migration `db/migrations/20260926_create_daily_cache_runs.sql`, đã áp dụng local + supabase; **aiven lỗi `ENOTFOUND` (host không còn tồn tại) nên chưa áp dụng**.
+  - `src/lib/daily-cache-service.ts`: trạng thái FRESH/STALE/RUNNING/FAILED, claim nguyên tử (RUNNING quá 10 phút hoặc FAILED sau 5 phút được claim lại), `refreshDerivedCaches` tính dữ liệu Epic 1 lần cho cả 2 cache (trước đây mỗi cache tự tính lại). `recompute-cache` cũng dùng hàm này.
+  - `src/app/api/system/daily-cache/route.ts`: GET trạng thái; POST claim + chạy nền bằng `after()` (`maxDuration = 300`), trả về ngay.
+  - `src/components/layout/DailyCacheWarmer.tsx` (gắn trong `AppShell`, không chạy trong iframe embedded): lần tải trang đầu trong ngày gọi POST, nếu đang chạy thì poll 4s/lần → toast "Caching dữ liệu trong ngày hoàn thành" + popup hỏi tải lại trang. Tab đã biết hôm nay FRESH thì không hỏi lại (sessionStorage).
+  - `src/components/data-source/CacheStatusPanel.tsx` + `GET /api/admin/data-source/cache-status` (SUPERADMIN): trạng thái hôm nay, số Epic/thời điểm tạo cache, cache TTM/QA-Index, đợt import mới nhất, cảnh báo cache trống/lệch đợt import, lịch sử 10 ngày.
 - **TTM Dashboard (`/dashboard-new`) đọc từ `epic_alert_row_cache` thay vì tính lại trực tiếp** — trước đây mỗi lần mở gọi `getEpicAlertRowsPhased` (~7–8s trên Supabase) và trả full row (testuser ~493KB).
   - `src/app/api/dashboard-new/route.ts`: fast path đọc cache theo phạm vi quyền (`resolveAccessScope` + `queryDashboardEpicRows`), fallback tính trực tiếp khi cache trống; `listManagedUsers` chạy song song.
   - `src/lib/epic-alert-types.ts`: thêm `DashboardEpicRow`/`DASHBOARD_EPIC_ROW_KEYS`/`toDashboardEpicRow` — chỉ các trường dashboard dùng, bỏ Epic Cancelled ở server (dashboard vốn loại Cancelled ở mọi chỗ). `queryDashboardEpicRows` (`src/lib/epic-alert-row-cache-query-service.ts`) dựng đúng shape này bằng `jsonb_build_object`.

@@ -46,12 +46,22 @@ npm run lint    # ESLint
 
 - `src/app` — route App Router: màn hình giám sát Epic (`/dashboard-new` - TTM Dashboard màn hình chính mặc định khi đăng nhập, `/epic-alerts-15` - Quản trị Epic,
   `/epic-in-po`, `/reports`), quản trị (`/admin/*`), SSO/MCP, và API Route Handlers
-  (`src/app/api`).
+  (`src/app/api`, bao gồm `/api/visit-counter/*`).
 - `src/lib` — business logic dùng chung (tính cảnh báo, ngày làm việc, import/aggregate dữ liệu,
-  RBAC, MCP server, SSO...), gọi trực tiếp bởi cả UI lẫn API — không có tầng service riêng.
-- `db/schema.sql` + `db/migrations/*.sql` — nguồn sự thật của cấu trúc CSDL.
+  RBAC, MCP server, SSO, Visit Counter qua `visit-counter-service.ts`...), gọi trực tiếp bởi cả UI lẫn API — không có tầng service riêng.
+- `db/schema.sql` + `db/migrations/*.sql` — nguồn sự thật của cấu trúc CSDL (bao gồm bảng `visit_logs` phục vụ Visit Counter).
 - `brd/` — Business Requirement Document theo từng chủ đề (xem chỉ mục
-  [`brd/00-ai-agent-index.md`](brd/00-ai-agent-index.md) trước khi đọc).
+  [`brd/00-ai-agent-index.md`](brd/00-ai-agent-index.md) trước khi đọc; mô hình CSDL chi tiết tại [`brd/08-data-model.md`](brd/08-data-model.md)).
+
+## Tính năng Thống kê truy cập (Visit Counter)
+
+Hệ thống tích hợp bộ đo lường và phân tích lượt truy cập đa chiều (lưu tại bảng CSDL `visit_logs`):
+- **Sự kiện ghi nhận**: Đăng nhập ứng dụng (`APP_LOGIN` khi user login thành công) và lượt xem 4 màn hình trọng điểm (`SCREEN_VIEW` trên Dashboard `/dashboard-new`, Quản trị Epic `/epic-alerts-15`, Báo cáo Epic `/reports`, Epic in PO `/epic-in-po`), áp dụng cơ chế client-side debouncing 30s.
+- **Chu kỳ phân tích**: Tuần này ($T-7 \to T$), Tuần trước ($T-15 \to T-8$), Hôm nay ($T$) và Tổng số (Lũy kế).
+- **Phân rã đa chiều**: Thống kê theo Domain nghiệp vụ, theo từng User, theo tuần/ngày/giờ, và danh sách 10 user login gần nhất.
+- **Hiển thị trên giao diện**:
+  - **Chân trang chung (`SystemStatusFooter`)**: Xuất hiện cố định ở đáy mọi màn hình, dòng 1 hiển thị Tổng truy cập (A), Tuần này (B), Màn hình hiện tại (C - nếu thuộc 4 màn hình), và 5 user login gần nhất (D - hover tooltip ngày giờ login `DD/MM/YYYY HH:mm:ss`); dòng 2 hiển thị bản quyền và trạng thái kết nối DB.
+  - **Panel Cấu hình ứng dụng**: Tab "Thống kê truy cập (Visit counter)" trong modal Cấu hình ứng dụng (ADMIN trở lên), trực quan hoá qua 3 thẻ KPI, biểu đồ SVG trend line 7 ngày qua, biểu đồ cột kép so sánh 4 màn hình giữa 2 tuần, bảng phân rã Domain/User và danh sách 10 user login gần nhất.
 
 Xem [`AGENTS.md`](AGENTS.md) để biết quy ước dành cho coding agent khi sửa code trong repo này
 (đa CSDL, version stamp, icon standard...).

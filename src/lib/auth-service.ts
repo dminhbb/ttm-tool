@@ -10,6 +10,7 @@ import { SESSION_COOKIE_NAME } from '@/lib/auth-constants';
 import { verifyCaptcha } from '@/lib/captcha-service';
 import { validatePassword } from '@/lib/password-rules';
 import { getUsageStatsTotals, recordUsageEvent, USAGE_STATS_RETENTION_DAYS } from '@/lib/usage-stats-service';
+import { recordAppLogin } from '@/lib/visit-counter-service';
 
 export { SESSION_COOKIE_NAME } from '@/lib/auth-constants';
 const SESSION_HOURS = { remembered: 24, standard: 2 } as const;
@@ -101,6 +102,7 @@ export async function authenticateLocal(username: string, password: string, capt
   if (user.failedLoginAttempts > 0) await pool.query('UPDATE users SET failed_login_attempts = 0 WHERE id = $1;', [user.id]);
   await pool.query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1;', [user.id]);
   await recordUsageEvent(user.id, 'login');
+  await recordAppLogin(user.id);
   return { user: mapAuthUser(user) };
 }
 

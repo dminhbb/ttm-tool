@@ -38,8 +38,10 @@ import { ChangePasswordModal } from '@/components/layout/ChangePasswordModal';
 import { AppConfigModal } from '@/components/settings/AppConfigModal';
 import { SystemAdminModal } from '@/components/settings/SystemAdminModal';
 import { AdPopupDisplay } from '@/components/layout/AdPopupDisplay';
+import { DailyCacheWarmer } from '@/components/layout/DailyCacheWarmer';
 import { SystemStatusFooter } from '@/components/layout/SystemStatusFooter';
 import { ToastProvider } from '@/components/ui/Toast';
+import { resolveScreenKeyFromPathname, trackScreenVisit } from '@/lib/visit-counter-client';
 
 interface NavigationItem {
   disabled?: boolean;
@@ -385,6 +387,14 @@ function AppShellInner({ children }: AppShellProps) {
     return () => window.removeEventListener('keydown', handleEscape);
   }, [mobileNavigationOpen]);
 
+  React.useEffect(() => {
+    if (!role || mustChangePassword) return;
+    const screenKey = resolveScreenKeyFromPathname(pathname);
+    if (screenKey) {
+      trackScreenVisit(screenKey);
+    }
+  }, [pathname, role, mustChangePassword]);
+
   if (pathname === '/login') return <>{children}</>;
 
   if (isEmbedded) {
@@ -459,6 +469,9 @@ function AppShellInner({ children }: AppShellProps) {
       <SystemAdminModal isOpen={systemAdminOpen} onClose={() => setSystemAdminOpen(false)} role={role} />
       <AdPopupDisplay />
       <ChangePasswordModal isForceChangePassword isOpen={mustChangePassword} onClose={() => {}} />
+      {/* Only in the full shell (never the embedded/iframe branch above), so a dashboard drill-down
+          popup doesn't run a second trigger/poll alongside its parent page. */}
+      <DailyCacheWarmer enabled={role !== null && !mustChangePassword} />
 
       <div className={cn('min-w-0', desktopNavigationExpanded ? 'lg:pl-64' : 'lg:pl-[72px]')}>
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-fb-border ttm-frosted-header px-4 sm:px-6">

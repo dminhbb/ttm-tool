@@ -1,12 +1,13 @@
 'use client';
 
 import * as React from 'react';
-import { Calendar, Tag, X } from '@phosphor-icons/react';
+import { Calendar, ChartLineUp, Tag, X } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import type { UserRole } from '@/lib/auth-types';
 import { HolidaysAndWorkdaysSection } from '@/components/settings/HolidaysAndWorkdaysSection';
 import { IssueTypeRolesPanel } from '@/components/settings/IssueTypeRolesPanel';
+import { VisitCounterPanel } from '@/components/settings/VisitCounterPanel';
 
 export interface AppConfigModalProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ interface SettingsSection {
 const CONFIG_SECTIONS: SettingsSection[] = [
   { id: 'holidays', icon: Calendar, label: 'Quản lý ngày nghỉ/làm bù', panel: <HolidaysAndWorkdaysSection /> },
   { id: 'issue-type-roles', icon: Tag, label: 'Quản lý Issue Type', panel: <IssueTypeRolesPanel /> },
+  { id: 'visit-counter', icon: ChartLineUp, label: 'Thống kê truy cập (Visit counter)', panel: <VisitCounterPanel /> },
 ];
 
 export function AppConfigModal({ isOpen, onClose }: AppConfigModalProps) {
