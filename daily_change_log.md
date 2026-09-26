@@ -8,6 +8,10 @@
 
 ## 2026-09-26
 
+- **Tăng tốc load Quản trị Epic (`/epic-alerts-15`)** — đo trên production (testuser, deep link `?alert=FAIL&projects=WM&type=SP-Lv34`): 2 request `/api/epic-alerts-15` chạy nối tiếp ~11s + ~10s, màn hình "nháy" giữa 2 lần.
+  - Frontend (`src/app/epic-alerts-15/page.tsx`): bỏ request thứ 2 do effect mặc định Status (loại Cancelled) đổi `statusFilters` sau response đầu — tập "mọi status trừ Cancelled" giờ gửi như param rỗng (server hiểu giống hệt), nên không refetch; chờ khôi phục saved filters xong mới fetch lần đầu; hủy (AbortController) request cũ khi có request mới để response chậm không ghi đè và không tắt loading giữa chừng.
+  - `src/lib/epic-alert-row-cache-service.ts`: `refreshEpicAlertRowCache` INSERT theo lô 200 dòng thay vì từng dòng. Nguyên nhân gốc: `epic_alert_row_cache` trên Supabase đang trống → API luôn rơi vào nhánh `mode: 'full'` tính lại toàn bộ (~10s, 500KB). Cần chạy lại "recompute-cache" trên production sau khi deploy.
+  - `src/proxy.ts`: redirect về `/login?next=` giữ cả query string để deep link không mất filter sau khi đăng nhập.
 - **Nâng cấp Quản trị Epic, TTM Dashboard & Tài liệu sản phẩm**:
   - **Mặc định lọc loại bỏ `Cancelled` trên Quản trị Epic (`/epic-alerts-15`)**:
     - [`src/app/epic-alerts-15/page.tsx`](file:///d:/git/ttm-tool/src/app/epic-alerts-15/page.tsx): Cập nhật `hasAppliedDefaultStatusFilter` chỉ bỏ qua khi deep link có chỉ định rõ ràng `status` (`deepLinkFilters.status.length > 0`). Nếu truy cập trực tiếp hoặc từ các route màn hình khác (deep link không có `status`), bộ lọc Status tự động tích chọn (checked) tất cả các options ngoại trừ `Cancelled` (`!isCancelledStatus(status)`).

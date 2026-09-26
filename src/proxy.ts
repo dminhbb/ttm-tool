@@ -33,7 +33,9 @@ export async function proxy(request: NextRequest) {
   if (hasSessionCookie && await getCurrentUser(request)) return NextResponse.next();
   if (pathname.startsWith('/api/')) return NextResponse.json({ error: 'Chưa đăng nhập.' }, { status: 401 });
   const loginUrl = new URL('/login', request.url);
-  loginUrl.searchParams.set('next', pathname);
+  // Keep the query string too — deep links like /epic-alerts-15?alert=FAIL&projects=WM would
+  // otherwise land back on the screen with every filter dropped after signing in.
+  loginUrl.searchParams.set('next', `${pathname}${request.nextUrl.search}`);
   return NextResponse.redirect(loginUrl);
 }
 

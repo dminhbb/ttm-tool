@@ -704,7 +704,13 @@ function EpicAlerts15Screen() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  // Only the newest request may write `data` — a slower, older response (e.g. the pre-filter one
+  // still in flight when a filter changes) must never overwrite the list the user is now looking at.
+  const fetchAbortRef = useRef<AbortController | null>(null);
   const fetchData = async () => {
+    fetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    fetchAbortRef.current = controller;
     setIsLoading(true);
     setError(null);
     try {
@@ -724,37 +730,29 @@ function EpicAlerts15Screen() {
       if (componentFilters.length > 0) query.set('components', componentFilters.join(','));
       if (alertFilter) query.set('alertFilter', alertFilter);
       if (typeFilter) query.set('epicType', typeFilter);
-      if (statusFilters.length > 0) query.set('statuses', statusFilters.join(','));
+      if (statusQuery) query.set('statuses', statusQuery);
       if (dataIssueFilter) query.set('dataIssueOnly', '1');
       if (requestingUnitFilter) query.set('requestingUnit', requestingUnitFilter);
       if (debouncedSearch) query.set('search', debouncedSearch);
       query.set('page', String(page));
       query.set('pageSize', String(PAGE_SIZE));
       const queryString = query.toString();
-      const res = await fetch(`/api/epic-alerts-15${queryString ? `?${queryString}` : ''}`);
+      const res = await fetch(`/api/epic-alerts-15${queryString ? `?${queryString}` : ''}`, { signal: controller.signal });
       const result = await res.json();
+      if (controller.signal.aborted) return;
       if (!res.ok) {
         setError(result.error || 'Lỗi hệ thống khi tải dữ liệu.');
       } else {
         setData(result);
       }
     } catch {
+      if (controller.signal.aborted) return;
       setError('Không thể kết nối API Quản trị Epic.');
-    } finally {
-      setIsLoading(false);
     }
+    // Not in `finally`: an aborted request's replacement is already loading, so it must not flip
+    // isLoading off (that was the "list flashes, then keeps waiting" on first load).
+    setIsLoading(false);
   };
-
-  useEffect(() => {
-    // Deferring the initial request prevents a synchronous state update during effect setup. Also
-    // re-runs whenever any toolbar filter or the page changes — every filter setter already resets
-    // page to 1 in the same event, so a filter change and its page reset land in one fetch.
-    void Promise.resolve().then(fetchData);
-  }, [
-    layerWindowKey, createdDateFrom, startDateFromFilter, dueDateFromFilter,
-    projectFilters, pmSmFilters, componentFilters, alertFilter, typeFilter, statusFilters,
-    dataIssueFilter, requestingUnitFilter, debouncedSearch, page,
-  ]);
 
   useEffect(() => {
     fetch('/api/project-components').then((res) => (res.ok ? res.json() : [])).then(setProjectComponents).catch(() => undefined);
@@ -885,16 +883,19 @@ function EpicAlerts15Screen() {
 
   // Load saved filters on client mount to avoid SSR hydration mismatch
   const hasLoadedSavedFilters = useRef(false);
+  const [savedFiltersReady, setSavedFiltersReady] = useState(deepLinkFilters.hasAny);
   useEffect(() => {
     if (hasLoadedSavedFilters.current || deepLinkFilters.hasAny) return;
     hasLoadedSavedFilters.current = true;
     const saved = loadSavedFilters();
-    if (!saved) return;
 
     // Deferred past the effect's synchronous scope (matching this file's own fetchData-trigger
-    // effect above) — restoring several filters at once here would otherwise be flagged as
-    // cascading setState-in-effect.
+    // effect below) — restoring several filters at once here would otherwise be flagged as
+    // cascading setState-in-effect. setSavedFiltersReady lands in the same batch as the restored
+    // filters, so the first fetch sees them all at once.
     void Promise.resolve().then(() => {
+      setSavedFiltersReady(true);
+      if (!saved) return;
       if (saved.projectFilters && saved.projectFilters.length > 0) setProjectFilters(saved.projectFilters);
       if (saved.domainFilter) setDomainFilter(saved.domainFilter);
       if (saved.pmSmFilters && saved.pmSmFilters.length > 0) {
@@ -945,6 +946,29 @@ function EpicAlerts15Screen() {
     hasAppliedDefaultStatusFilter.current = true;
     setStatusFilters(statusOptions.filter((status) => !isCancelledStatus(status)));
   }, [statusOptions]);
+
+  // What actually goes into the `statuses` param. "Every non-cancelled status" is exactly what an
+  // empty param already means server-side (and in the 'full'-mode client filter), so that set is
+  // sent as '' — otherwise the default-status effect above, filling in the list the moment the
+  // first response arrives, would re-fire the whole fetch for an identical result.
+  const defaultStatuses = statusOptions.filter((status) => !isCancelledStatus(status));
+  const isDefaultStatusSet = statusFilters.length === defaultStatuses.length && defaultStatuses.every((status) => statusFilters.includes(status));
+  const statusQuery = isDefaultStatusSet ? '' : statusFilters.join(',');
+
+  useEffect(() => {
+    // Held back until saved filters (if any) have been restored, so a returning user's first
+    // request already carries their filters instead of fetching the defaults first.
+    if (!savedFiltersReady) return;
+    // Deferring the initial request prevents a synchronous state update during effect setup. Also
+    // re-runs whenever any toolbar filter or the page changes — every filter setter already resets
+    // page to 1 in the same event, so a filter change and its page reset land in one fetch.
+    void Promise.resolve().then(fetchData);
+  }, [
+    savedFiltersReady, layerWindowKey, createdDateFrom, startDateFromFilter, dueDateFromFilter,
+    projectFilters, pmSmFilters, componentFilters, alertFilter, typeFilter, statusQuery,
+    dataIssueFilter, requestingUnitFilter, debouncedSearch, page,
+  ]);
+  useEffect(() => () => fetchAbortRef.current?.abort(), []);
 
   const handlePendingQuickFilter = () => {
     if (activeQuickFilter === 'PENDING') {

@@ -16,41 +16,27 @@ import { ALERT_RANK, bottomStatusRankOf } from '@/lib/epic-alert-sort-rules';
  * Never throws: a stale/missing cache is far less harmful than failing the import itself, so the
  * caller only logs on failure — mirrors refreshTtmIndexGlobalCache.
  */
+const INSERT_CHUNK_SIZE = 200;
+const INSERT_COLUMN_COUNT = 17;
+
 export async function refreshEpicAlertRowCache(batchId: number | null): Promise<void> {
   const { rows } = await getEpicAlertRowsPhased(0, 'SUPERVISOR', {});
+  // Last row per epic_key wins — same outcome the previous row-by-row ON CONFLICT upsert gave,
+  // but a single multi-row INSERT can't touch the same key twice, so dedupe up front.
+  const uniqueRows = [...new Map(rows.map((row) => [row.epicKey, row])).values()];
   const client = await getClient();
   try {
     await client.query('BEGIN');
     await client.query('DELETE FROM epic_alert_row_cache');
-    for (const row of rows) {
-      await client.query(
-        `
-        INSERT INTO epic_alert_row_cache (
-          epic_key, project_key, current_status, epic_type, requesting_unit, owner_names,
-          components, alert_level, ttm_e2e_alert_level, has_data_anomaly, remaining_working_days,
-          epic_name, row_data, source_import_batch_id, computed_at,
-          alert_rank, bottom_status_rank, remaining_working_days_rank
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), $15, $16, $17)
-        ON CONFLICT (epic_key) DO UPDATE SET
-          project_key = EXCLUDED.project_key,
-          current_status = EXCLUDED.current_status,
-          epic_type = EXCLUDED.epic_type,
-          requesting_unit = EXCLUDED.requesting_unit,
-          owner_names = EXCLUDED.owner_names,
-          components = EXCLUDED.components,
-          alert_level = EXCLUDED.alert_level,
-          ttm_e2e_alert_level = EXCLUDED.ttm_e2e_alert_level,
-          has_data_anomaly = EXCLUDED.has_data_anomaly,
-          remaining_working_days = EXCLUDED.remaining_working_days,
-          epic_name = EXCLUDED.epic_name,
-          row_data = EXCLUDED.row_data,
-          source_import_batch_id = EXCLUDED.source_import_batch_id,
-          computed_at = NOW(),
-          alert_rank = EXCLUDED.alert_rank,
-          bottom_status_rank = EXCLUDED.bottom_status_rank,
-          remaining_working_days_rank = EXCLUDED.remaining_working_days_rank;
-        `,
-        [
+    // Batched multi-row INSERTs instead of one round trip per Epic: on a hosted DB (~100ms per
+    // round trip) a few thousand single-row INSERTs outlived the serverless function's time limit,
+    // rolled back, and silently left this cache empty — sending every Quản trị Epic view down the
+    // slow live-recompute fallback.
+    for (let offset = 0; offset < uniqueRows.length; offset += INSERT_CHUNK_SIZE) {
+      const chunk = uniqueRows.slice(offset, offset + INSERT_CHUNK_SIZE);
+      const params: unknown[] = [];
+      const valuesSql = chunk.map((row) => {
+        params.push(
           row.epicKey,
           row.projectKey,
           row.currentStatus,
@@ -68,7 +54,21 @@ export async function refreshEpicAlertRowCache(batchId: number | null): Promise<
           ALERT_RANK[row.alertLevel],
           bottomStatusRankOf(row.currentStatus),
           row.remainingWorkingDays ?? 2147483647,
-        ],
+        );
+        const base = params.length - INSERT_COLUMN_COUNT;
+        const p = (index: number) => `$${base + index}`;
+        return `(${p(1)}, ${p(2)}, ${p(3)}, ${p(4)}, ${p(5)}, ${p(6)}, ${p(7)}, ${p(8)}, ${p(9)}, ${p(10)}, ${p(11)}, ${p(12)}, ${p(13)}, ${p(14)}, NOW(), ${p(15)}, ${p(16)}, ${p(17)})`;
+      });
+      await client.query(
+        `
+        INSERT INTO epic_alert_row_cache (
+          epic_key, project_key, current_status, epic_type, requesting_unit, owner_names,
+          components, alert_level, ttm_e2e_alert_level, has_data_anomaly, remaining_working_days,
+          epic_name, row_data, source_import_batch_id, computed_at,
+          alert_rank, bottom_status_rank, remaining_working_days_rank
+        ) VALUES ${valuesSql.join(', ')};
+        `,
+        params,
       );
     }
     await client.query('COMMIT');
