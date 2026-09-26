@@ -34,7 +34,7 @@ import { formatTtmPct1, isTtmCnttQaInScope, summarizeTtmCntt } from '@/lib/ttm-c
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import { buildEpicAlertsDeepLink } from '@/lib/epic-alerts-deep-link';
 import type { EpicAlertsDeepLinkParams } from '@/lib/epic-alerts-deep-link';
-import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
+import type { DashboardEpicRow } from '@/lib/epic-alert-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
 import type { TtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { DonutChartCard, type DonutDataItem } from '@/components/dashboard-new/DonutChartCard';
@@ -42,8 +42,8 @@ import { EpicAlertsIframeModal } from '@/components/dashboard-new/EpicAlertsIfra
 import '@/app/epic-alerts-15/epic-alerts-15.css';
 
 function computeDimensionDonuts(
-  rows: EpicAlertRowPhased[],
-  getDimensionKey: (row: EpicAlertRowPhased) => string,
+  rows: DashboardEpicRow[],
+  getDimensionKey: (row: DashboardEpicRow) => string,
 ) {
   const totalMap = new Map<string, number>();
   const passMap = new Map<string, number>();
@@ -89,7 +89,7 @@ interface DashboardNewPayload {
   isUserPreview: boolean;
   lastAggregatedAt: string | null;
   managedUsers: ManagedUserItem[];
-  rows: EpicAlertRowPhased[];
+  rows: DashboardEpicRow[];
   ttmIndexGlobal: TtmIndexGlobalCache | null;
   viewAsUser: { email: string; fullName: string; id: number; role: string } | null;
 }
@@ -395,7 +395,7 @@ export default function DashboardNewPage() {
 
   // Breakdown Matrix Table Data
   const dimensionMatrix = useMemo(() => {
-    const map = new Map<string, { late: number; ok: number; rows: EpicAlertRowPhased[] }>();
+    const map = new Map<string, { late: number; ok: number; rows: DashboardEpicRow[] }>();
 
     for (const row of filteredRows) {
       let keyVal = 'Khác';
@@ -450,11 +450,11 @@ export default function DashboardNewPage() {
   // "Support" (contains "po") and "Dev/SIT/UAT Done" (contains "done") into the wrong phase.
   const pipelinePhases = useMemo(() => {
     const phases = [
-      { key: 'To Do', label: '1. To Do', rows: [] as EpicAlertRowPhased[] },
-      { key: 'Design', label: '2. Design', rows: [] as EpicAlertRowPhased[] },
-      { key: 'In Progress', label: '3. In Progress', rows: [] as EpicAlertRowPhased[] },
-      { key: 'Ready for Golive', label: '4. Ready for Golive', rows: [] as EpicAlertRowPhased[] },
-      { key: 'Released', label: '5. Released', rows: [] as EpicAlertRowPhased[] },
+      { key: 'To Do', label: '1. To Do', rows: [] as DashboardEpicRow[] },
+      { key: 'Design', label: '2. Design', rows: [] as DashboardEpicRow[] },
+      { key: 'In Progress', label: '3. In Progress', rows: [] as DashboardEpicRow[] },
+      { key: 'Ready for Golive', label: '4. Ready for Golive', rows: [] as DashboardEpicRow[] },
+      { key: 'Released', label: '5. Released', rows: [] as DashboardEpicRow[] },
     ];
 
     for (const row of filteredRows) {

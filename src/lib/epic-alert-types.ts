@@ -197,6 +197,36 @@ export interface EpicAlertRowPhased {
   ttmE2eTargetWorkingDays: number;
 }
 
+/** The slice of EpicAlertRowPhased that TTM Dashboard (dashboard-new) actually reads — every
+ * metric/list/filter there is derived from just these fields, so its API ships this instead of the
+ * full row (stages' baselines, strips, timelines… are ~90% of each row's JSON and unused there).
+ * Keep DASHBOARD_EPIC_ROW_KEYS in sync: the cache-backed read builds the same shape in SQL from it. */
+export const DASHBOARD_EPIC_ROW_KEYS = [
+  'alertLevel', 'currentStatus', 'dataAnomalyViolations', 'domainName', 'dueDate', 'epicKey', 'epicName',
+  'epicType', 'hasDataAnomaly', 'ownerName', 'projectKey', 'projectName', 'r4gDate', 'releaseAxisState',
+  'releaseGraceDeadline', 'requestingUnit', 'ttmE2eAlertLevel',
+] as const satisfies readonly (keyof EpicAlertRowPhased)[];
+
+export type DashboardEpicRow = Pick<EpicAlertRowPhased, (typeof DASHBOARD_EPIC_ROW_KEYS)[number]> & {
+  stages: {
+    design: Pick<PhaseCell, 'isCurrentStage'>;
+    r4golive: Pick<PhaseCell, 'isCurrentStage'>;
+    release: Pick<PhaseCell, 'isDone'>;
+  };
+};
+
+export function toDashboardEpicRow(row: EpicAlertRowPhased): DashboardEpicRow {
+  const slim = Object.fromEntries(DASHBOARD_EPIC_ROW_KEYS.map((key) => [key, row[key]])) as Pick<EpicAlertRowPhased, (typeof DASHBOARD_EPIC_ROW_KEYS)[number]>;
+  return {
+    ...slim,
+    stages: {
+      design: { isCurrentStage: row.stages.design.isCurrentStage },
+      r4golive: { isCurrentStage: row.stages.r4golive.isCurrentStage },
+      release: { isDone: row.stages.release.isDone },
+    },
+  };
+}
+
 export interface EpicAlertPhasedResponse {
   accessRole: EpicAlertAccessRole;
   /** Distinct `issues.aggregated_at` dates, newest first, capped at 365 — the newest 5 render as

@@ -44,7 +44,7 @@ export function formatTtmPct1(value: number): string {
   return PERCENT_1_DECIMAL_FORMATTER.format(value);
 }
 
-export function summarizeTtmCntt(rows: EpicAlertRowPhased[]): TtmCnttSummary {
+export function summarizeTtmCntt(rows: Pick<EpicAlertRowPhased, 'alertLevel' | 'currentStatus' | 'hasDataAnomaly' | 'r4gDate'>[]): TtmCnttSummary {
   let eligible = 0;
   let pass = 0;
   let fail = 0;

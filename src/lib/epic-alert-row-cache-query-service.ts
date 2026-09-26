@@ -1,6 +1,7 @@
 import pool from '@/lib/db';
 import type { AccessScope } from '@/lib/epic-alert-service';
-import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
+import { DASHBOARD_EPIC_ROW_KEYS } from '@/lib/epic-alert-types';
+import type { DashboardEpicRow, EpicAlertRowPhased } from '@/lib/epic-alert-types';
 import { summarizeTtmCnttFromCounts } from '@/lib/ttm-cntt-qa';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 
@@ -276,6 +277,32 @@ export async function queryEpicAlertFilterOptions(scope: AccessScope): Promise<E
     requestingUnits: [...requestingUnits].sort((a, b) => a.localeCompare(b, 'vi')),
     statuses: [...statuses].sort(),
   };
+}
+
+/** TTM Dashboard's full row set — every non-cancelled Epic in the viewer's access scope (the
+ * dashboard drops Cancelled everywhere, and filters/aggregates the rest client-side), already
+ * slimmed to DashboardEpicRow in SQL so the unused bulk of row_data never leaves the database. */
+export async function queryDashboardEpicRows(scope: AccessScope): Promise<DashboardEpicRow[]> {
+  const params: unknown[] = [];
+  const accessClause = buildAccessScopeClause(scope, params);
+  const fieldsSql = DASHBOARD_EPIC_ROW_KEYS.map((key) => `'${key}', row_data->'${key}'`).join(', ');
+  const result = await pool.query<{ row: DashboardEpicRow }>(
+    `
+    SELECT jsonb_build_object(
+      ${fieldsSql},
+      'stages', jsonb_build_object(
+        'design', jsonb_build_object('isCurrentStage', row_data#>'{stages,design,isCurrentStage}'),
+        'r4golive', jsonb_build_object('isCurrentStage', row_data#>'{stages,r4golive,isCurrentStage}'),
+        'release', jsonb_build_object('isDone', row_data#>'{stages,release,isDone}')
+      )
+    ) AS row
+    FROM epic_alert_row_cache
+    WHERE ${accessClause} AND current_status !~* 'cancel'
+    ORDER BY ${ORDER_BY};
+    `,
+    params,
+  );
+  return result.rows.map((row) => row.row);
 }
 
 export async function getEpicAlertRowCacheMeta(): Promise<{ computedAt: string | null; hasCache: boolean }> {

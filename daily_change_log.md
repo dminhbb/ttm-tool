@@ -8,6 +8,11 @@
 
 ## 2026-09-26
 
+- **TTM Dashboard (`/dashboard-new`) đọc từ `epic_alert_row_cache` thay vì tính lại trực tiếp** — trước đây mỗi lần mở gọi `getEpicAlertRowsPhased` (~7–8s trên Supabase) và trả full row (testuser ~493KB).
+  - `src/app/api/dashboard-new/route.ts`: fast path đọc cache theo phạm vi quyền (`resolveAccessScope` + `queryDashboardEpicRows`), fallback tính trực tiếp khi cache trống; `listManagedUsers` chạy song song.
+  - `src/lib/epic-alert-types.ts`: thêm `DashboardEpicRow`/`DASHBOARD_EPIC_ROW_KEYS`/`toDashboardEpicRow` — chỉ các trường dashboard dùng, bỏ Epic Cancelled ở server (dashboard vốn loại Cancelled ở mọi chỗ). `queryDashboardEpicRows` (`src/lib/epic-alert-row-cache-query-service.ts`) dựng đúng shape này bằng `jsonb_build_object`.
+  - `summarizeTtmCntt` (`src/lib/ttm-cntt-qa.ts`) nhận `Pick<...>` thay vì full row. Logic tính chỉ số/lọc trên client giữ nguyên.
+  - Đã đối chiếu live vs cache trên Supabase cho superadmin/supervisor/admin/PM-SM: số Epic và từng trường khớp 100%; thời gian 7–8s → 0,3–1,3s (đo từ VN), payload testuser ~493KB → ~116KB.
 - **Tăng tốc load Quản trị Epic (`/epic-alerts-15`)** — đo trên production (testuser, deep link `?alert=FAIL&projects=WM&type=SP-Lv34`): 2 request `/api/epic-alerts-15` chạy nối tiếp ~11s + ~10s, màn hình "nháy" giữa 2 lần.
   - Frontend (`src/app/epic-alerts-15/page.tsx`): bỏ request thứ 2 do effect mặc định Status (loại Cancelled) đổi `statusFilters` sau response đầu — tập "mọi status trừ Cancelled" giờ gửi như param rỗng (server hiểu giống hệt), nên không refetch; chờ khôi phục saved filters xong mới fetch lần đầu; hủy (AbortController) request cũ khi có request mới để response chậm không ghi đè và không tắt loading giữa chừng.
   - `src/lib/epic-alert-row-cache-service.ts`: `refreshEpicAlertRowCache` INSERT theo lô 200 dòng thay vì từng dòng. Nguyên nhân gốc: `epic_alert_row_cache` trên Supabase đang trống → API luôn rơi vào nhánh `mode: 'full'` tính lại toàn bộ (~10s, 500KB). Cần chạy lại "recompute-cache" trên production sau khi deploy.
