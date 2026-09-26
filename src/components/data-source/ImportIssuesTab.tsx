@@ -8,6 +8,7 @@ import { CompleteDataPanel } from '@/components/data-source/CompleteDataPanel';
 import { FileDropzone } from '@/components/data-source/FileDropzone';
 import { PurgeRecentLayersPanel } from '@/components/data-source/PurgeRecentLayersPanel';
 import { RawImportRetentionSettings } from '@/components/data-source/RawImportRetentionSettings';
+import { RecomputeCachePanel } from '@/components/data-source/RecomputeCachePanel';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHeader, CardTitle, CardBody, CardFooter } from '@/components/ui/Card';
@@ -623,6 +624,8 @@ export function ImportIssuesTab() {
 
           {/* Tạm ẩn theo yêu cầu — bật lại bằng cách bỏ comment dòng dưới. Giữ nguyên code/logic. */}
           {/* <CompleteDataPanel /> */}
+
+          <RecomputeCachePanel />
 
           <PurgeRecentLayersPanel />
 

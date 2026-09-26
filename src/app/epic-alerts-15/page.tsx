@@ -24,11 +24,44 @@ import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import type { TtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
-import { ArrowBendUpRight, ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, HourglassMedium, ListChecks, Prohibit, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
+import { ArrowBendUpRight, ArrowCounterClockwise, ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, FloppyDisk, FolderSimple, HourglassMedium, Lightning, ListChecks, Prohibit, Sparkle, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { bottomStatusRankOf } from '@/lib/epic-alert-sort-rules';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import { trackDataUsage } from '@/lib/usage-tracking';
+import { showToast } from '@/components/ui/Toast';
+
+const SAVED_FILTER_STORAGE_KEY = 'ttm_epic_alerts_15_saved_filters';
+const EXCLUDED_NOT_IN_PO = new Set(['CANCELLED', 'TO DO', 'IN PO', 'RELEASED']);
+
+interface SavedFilterConfig {
+  activeQuickFilter: 'PENDING' | 'IN_PO' | 'NOT_IN_PO' | null;
+  alertFilter: AlertFilterValue;
+  componentFilters: string[];
+  createdDateFrom?: string;
+  dataIssueFilter: boolean;
+  domainFilter?: string;
+  dueDateFromFilter?: string;
+  pmSmFilter: string;
+  projectFilters: string[];
+  requestingUnitFilter: string;
+  search: string;
+  selectedLayerAnchor?: string;
+  startDateFromFilter?: string;
+  statusFilters: string[];
+  typeFilter: string;
+}
+
+function loadSavedFilters(): SavedFilterConfig | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(SAVED_FILTER_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as SavedFilterConfig;
+  } catch {
+    return null;
+  }
+}
 
 const PAGE_SIZE = 20;
 
@@ -605,6 +638,7 @@ function EpicAlerts15Screen() {
   const [error, setError] = useState<string | null>(null);
 
   const [projectFilters, setProjectFilters] = useState<string[]>(deepLinkFilters.projects);
+  const [domainFilter, setDomainFilter] = useState(deepLinkFilters.domain);
   const [pmSmFilter, setPmSmFilter] = useState(deepLinkFilters.pmSm);
   const [componentFilters, setComponentFilters] = useState<string[]>([]);
   const [projectComponents, setProjectComponents] = useState<ProjectComponent[]>([]);
@@ -614,6 +648,7 @@ function EpicAlerts15Screen() {
   const [requestingUnitFilter, setRequestingUnitFilter] = useState(deepLinkFilters.requestingUnit);
   const [dataIssueFilter, setDataIssueFilter] = useState(deepLinkFilters.dataIssue);
   const [search, setSearch] = useState(deepLinkFilters.search);
+  const [activeQuickFilter, setActiveQuickFilter] = useState<'PENDING' | 'IN_PO' | 'NOT_IN_PO' | null>(null);
   const [page, setPage] = useState(1);
   // "Bộ lọc nâng cao" — collapsed by default (see reports/page.tsx's "Cấu hình nâng cao..." for
   // the shared UI/logic pattern this mirrors). selectedLayerAnchor === availableLayerDates[0] (or
@@ -840,35 +875,155 @@ function EpicAlerts15Screen() {
     return map;
   }, [data, rows]);
   const domainOptions = useMemo(() => [...domainProjectKeys.keys()].sort((a, b) => a.localeCompare(b, 'vi')), [domainProjectKeys]);
-  const [domainFilter, setDomainFilter] = useState('');
   const handleDomainFilterChange = (value: string) => {
     setDomainFilter(value);
     handleProjectFiltersChange(value ? [...(domainProjectKeys.get(value) ?? [])].sort() : []);
   };
 
-  // A `domain` deep-link needs domainProjectKeys, which only exists once rows have loaded — applied
-  // once, the first time it becomes available. Skipped when the deep link already gave `projects`
-  // directly (that always wins over a domain-derived project set).
-  const hasAppliedDeepLinkDomainFilter = useRef(!deepLinkFilters.domain || deepLinkFilters.projects.length > 0);
+  // Load saved filters on client mount to avoid SSR hydration mismatch
+  const hasLoadedSavedFilters = useRef(false);
   useEffect(() => {
-    const projectKeysForDomain = domainProjectKeys.get(deepLinkFilters.domain);
-    if (hasAppliedDeepLinkDomainFilter.current || domainProjectKeys.size === 0 || !projectKeysForDomain) return;
-    hasAppliedDeepLinkDomainFilter.current = true;
-    // Same two updates handleDomainFilterChange makes — spelled out directly (rather than calling
-    // that handler) since componentFilters never needs resetting here: it's still at its initial [].
-    setDomainFilter(deepLinkFilters.domain);
-    setProjectFilters([...projectKeysForDomain].sort());
-  }, [domainProjectKeys]);
+    if (hasLoadedSavedFilters.current || deepLinkFilters.hasAny) return;
+    hasLoadedSavedFilters.current = true;
+    const saved = loadSavedFilters();
+    if (!saved) return;
 
-  // Skipped entirely when the deep link already specifies any filter of its own — the caller's
-  // exact combination (e.g. "every Fail TTM-CNTT Epic, any status") must render as-is, not get
-  // narrowed further by this screen's own default status exclusions.
+    // Deferred past the effect's synchronous scope (matching this file's own fetchData-trigger
+    // effect above) — restoring several filters at once here would otherwise be flagged as
+    // cascading setState-in-effect.
+    void Promise.resolve().then(() => {
+      if (saved.projectFilters && saved.projectFilters.length > 0) setProjectFilters(saved.projectFilters);
+      if (saved.domainFilter) setDomainFilter(saved.domainFilter);
+      if (saved.pmSmFilter) setPmSmFilter(saved.pmSmFilter);
+      if (saved.componentFilters && saved.componentFilters.length > 0) setComponentFilters(saved.componentFilters);
+      if (saved.alertFilter) setAlertFilter(saved.alertFilter);
+      if (saved.typeFilter) setTypeFilter(saved.typeFilter);
+      if (saved.statusFilters && saved.statusFilters.length > 0) {
+        // Pre-empts the default-status-filter effect below (same ref) so a saved selection is
+        // never immediately clobbered by the default exclusion set once statusOptions loads.
+        // eslint-disable-next-line react-hooks/immutability -- deliberate cross-effect coordination, see comment above.
+        hasAppliedDefaultStatusFilter.current = true;
+        setStatusFilters(saved.statusFilters);
+      }
+      if (saved.requestingUnitFilter) setRequestingUnitFilter(saved.requestingUnitFilter);
+      if (saved.dataIssueFilter) setDataIssueFilter(saved.dataIssueFilter);
+      if (saved.search) setSearch(saved.search);
+      if (saved.activeQuickFilter) setActiveQuickFilter(saved.activeQuickFilter);
+      if (saved.selectedLayerAnchor) setSelectedLayerAnchor(saved.selectedLayerAnchor);
+      if (saved.createdDateFrom) setCreatedDateFrom(saved.createdDateFrom);
+      if (saved.startDateFromFilter) setStartDateFromFilter(saved.startDateFromFilter);
+      if (saved.dueDateFromFilter) setDueDateFromFilter(saved.dueDateFromFilter);
+    });
+  }, [deepLinkFilters.hasAny]);
+
+  // A `domain` deep-link or saved domain filter needs domainProjectKeys, which only exists once rows have loaded
+  const hasAppliedDomainFilter = useRef(!deepLinkFilters.domain || deepLinkFilters.projects.length > 0);
+  useEffect(() => {
+    const targetDomain = domainFilter || deepLinkFilters.domain;
+    if (hasAppliedDomainFilter.current || !targetDomain || domainProjectKeys.size === 0) return;
+    const projectKeysForDomain = domainProjectKeys.get(targetDomain);
+    if (!projectKeysForDomain) return;
+    hasAppliedDomainFilter.current = true;
+    void Promise.resolve().then(() => {
+      setDomainFilter(targetDomain);
+      setProjectFilters([...projectKeysForDomain].sort());
+    });
+  }, [deepLinkFilters.domain, domainFilter, domainProjectKeys]);
+
+  // Skipped entirely when deep link specifies any filter of its own
   const hasAppliedDefaultStatusFilter = useRef(deepLinkFilters.hasAny);
   useEffect(() => {
     if (hasAppliedDefaultStatusFilter.current || statusOptions.length === 0) return;
+    // eslint-disable-next-line react-hooks/immutability -- also set by the saved-filters-restore effect above (deliberate cross-effect coordination).
     hasAppliedDefaultStatusFilter.current = true;
     setStatusFilters(statusOptions.filter((status) => !DEFAULT_EXCLUDED_STATUSES.has(normalizeEpicWorkflowStatus(status))));
   }, [statusOptions]);
+
+  const handlePendingQuickFilter = () => {
+    if (activeQuickFilter === 'PENDING') {
+      setActiveQuickFilter(null);
+      setStatusFilters(statusOptions.filter((status) => !DEFAULT_EXCLUDED_STATUSES.has(normalizeEpicWorkflowStatus(status))));
+    } else {
+      setActiveQuickFilter('PENDING');
+      const matched = statusOptions.filter((s) => s.trim().toLocaleUpperCase('en-US').includes('PENDING'));
+      setStatusFilters(matched.length > 0 ? matched : ['Pending']);
+    }
+    setPage(1);
+  };
+
+  const handleInPoQuickFilter = () => {
+    if (activeQuickFilter === 'IN_PO') {
+      setActiveQuickFilter(null);
+      setStatusFilters(statusOptions.filter((status) => !DEFAULT_EXCLUDED_STATUSES.has(normalizeEpicWorkflowStatus(status))));
+    } else {
+      setActiveQuickFilter('IN_PO');
+      const targetStatuses = new Set(['TO DO', 'IN PO', 'RELEASED']);
+      const matched = statusOptions.filter((s) => targetStatuses.has(s.trim().toLocaleUpperCase('en-US')));
+      setStatusFilters(matched.length > 0 ? matched : ['To Do', 'In PO', 'Released']);
+    }
+    setPage(1);
+  };
+
+  const handleNotInPoQuickFilter = () => {
+    if (activeQuickFilter === 'NOT_IN_PO') {
+      setActiveQuickFilter(null);
+      setStatusFilters(statusOptions.filter((status) => !DEFAULT_EXCLUDED_STATUSES.has(normalizeEpicWorkflowStatus(status))));
+    } else {
+      setActiveQuickFilter('NOT_IN_PO');
+      const matched = statusOptions.filter((s) => !EXCLUDED_NOT_IN_PO.has(normalizeEpicWorkflowStatus(s)));
+      setStatusFilters(matched);
+    }
+    setPage(1);
+  };
+
+  const handleSaveFilters = () => {
+    const config: SavedFilterConfig = {
+      activeQuickFilter,
+      alertFilter,
+      componentFilters,
+      createdDateFrom,
+      dataIssueFilter,
+      domainFilter,
+      dueDateFromFilter,
+      pmSmFilter,
+      projectFilters,
+      requestingUnitFilter,
+      search,
+      selectedLayerAnchor,
+      startDateFromFilter,
+      statusFilters,
+      typeFilter,
+    };
+    try {
+      localStorage.setItem(SAVED_FILTER_STORAGE_KEY, JSON.stringify(config));
+      showToast('Đã lưu trạng thái filter');
+    } catch {
+      showToast('Lỗi: Không thể lưu trạng thái filter');
+    }
+  };
+
+  const handleResetFilters = () => {
+    try {
+      localStorage.removeItem(SAVED_FILTER_STORAGE_KEY);
+    } catch {}
+    setProjectFilters([]);
+    setDomainFilter('');
+    setPmSmFilter('');
+    setComponentFilters([]);
+    setAlertFilter('');
+    setTypeFilter('');
+    setStatusFilters(statusOptions.filter((status) => !DEFAULT_EXCLUDED_STATUSES.has(normalizeEpicWorkflowStatus(status))));
+    setRequestingUnitFilter('');
+    setDataIssueFilter(false);
+    setSearch('');
+    setActiveQuickFilter(null);
+    setSelectedLayerAnchor('');
+    setCreatedDateFrom('');
+    setStartDateFromFilter('');
+    setDueDateFromFilter('');
+    setPage(1);
+    showToast('Đã đặt lại bộ lọc mặc định');
+  };
 
   // Paged mode: the server already filtered/sorted `rows` down to exactly this page (see the API
   // route) — re-filtering here would double-apply the same filters against a set that's already
@@ -945,7 +1100,61 @@ function EpicAlerts15Screen() {
         </div>
       )}
 
+      {data && (
+        <div className="border-b border-slate-300 pb-3 mb-3">
+          <EpicStatWidgets
+            gateMessage={statWidgetsGateMessage}
+            items={[
+              {
+                icon: XCircle, isActive: alertFilter === 'FAIL', key: 'fail-cntt', label: 'Epic Fail TTM-CNTT',
+                onClick: () => { setAlertFilter((current) => (current === 'FAIL' ? '' : 'FAIL')); setPage(1); },
+                tone: 'danger', value: statCounts.failCntt,
+              },
+              {
+                icon: Prohibit, isActive: alertFilter === 'FAIL_E2E', key: 'fail-e2e', label: 'Epic Fail TTM-E2E',
+                onClick: () => { setAlertFilter((current) => (current === 'FAIL_E2E' ? '' : 'FAIL_E2E')); setPage(1); },
+                tone: 'danger', value: statCounts.failE2e,
+              },
+              {
+                icon: ClockCountdown, isActive: alertFilter === 'LATE', key: 'late', label: 'Epic Cảnh báo muộn',
+                onClick: () => { setAlertFilter((current) => (current === 'LATE' ? '' : 'LATE')); setPage(1); },
+                tone: 'warning', value: statCounts.late,
+              },
+              {
+                icon: WarningOctagon, isActive: dataIssueFilter, key: 'data-issue', label: 'Epic sai lệch dữ liệu',
+                onClick: () => { setDataIssueFilter((current) => !current); setPage(1); },
+                tone: 'warning', value: statCounts.dataIssue,
+              },
+              {
+                icon: HourglassMedium, isActive: isExactStatusSet(pendingStatusValues), key: 'pending', label: 'Epic Pending',
+                onClick: () => {
+                  const nextActive = !isExactStatusSet(pendingStatusValues);
+                  setStatusFilters(nextActive ? pendingStatusValues : []);
+                  setActiveQuickFilter(nextActive ? 'PENDING' : null);
+                  setPage(1);
+                },
+                tone: 'neutral', value: statCounts.pending,
+              },
+              {
+                icon: ListChecks, isActive: isExactStatusSet(todoStatusValues), key: 'todo', label: 'Epic To Do',
+                onClick: () => {
+                  const nextActive = !isExactStatusSet(todoStatusValues);
+                  setStatusFilters(nextActive ? todoStatusValues : []);
+                  setActiveQuickFilter(null);
+                  setPage(1);
+                },
+                tone: 'neutral', value: statCounts.todo,
+              },
+            ]}
+          />
+        </div>
+      )}
+
       <section className="ttm-toolbar" aria-label="Bộ lọc Epic">
+        <div className="flex items-center gap-1.5 text-xs font-bold text-black shrink-0 mr-1 select-none">
+          <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
+          <span>Filters:</span>
+        </div>
         {isAdminTierAccess && (
           <select
             className={`ttm-select${domainFilter ? ' has-filter' : ''}`}
@@ -1004,7 +1213,7 @@ function EpicAlerts15Screen() {
           allLabel="Tất cả status"
           options={statusOptions}
           value={statusFilters}
-          onChange={(values) => { setStatusFilters(values); setPage(1); }}
+          onChange={(values) => { setStatusFilters(values); setActiveQuickFilter(null); setPage(1); }}
         />
         <select
           className={`ttm-select${requestingUnitFilter ? ' has-filter' : ''}`}
@@ -1033,6 +1242,80 @@ function EpicAlerts15Screen() {
           {allColumnsCollapsed ? <ArrowsOutLineHorizontal size={16} weight="bold" /> : <ArrowsInLineHorizontal size={16} weight="bold" />}
         </button>
       </section>
+
+      <div className="border-t border-slate-300 pt-3 mb-3 flex items-center justify-between gap-3 overflow-x-auto">
+        <div className="flex items-center gap-2 shrink-0 flex-nowrap">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-black shrink-0 mr-1 select-none">
+            <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
+            <span>Quick filters:</span>
+          </div>
+          <Tooltip content="Lọc các Epic có status là Pending" side="top" className="inline-flex w-auto shrink-0">
+            <button
+              type="button"
+              onClick={handlePendingQuickFilter}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+                activeQuickFilter === 'PENDING'
+                  ? 'bg-amber-500 border-amber-600 text-white shadow-sm'
+                  : 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100 hover:border-amber-400'
+              }`}
+            >
+              <HourglassMedium className="size-3.5" weight={activeQuickFilter === 'PENDING' ? 'bold' : 'regular'} />
+              <span>Pending Epics</span>
+            </button>
+          </Tooltip>
+          <Tooltip content="Lọc các Epic có status thuộc: To Do, In PO, Released" side="top" className="inline-flex w-auto shrink-0">
+            <button
+              type="button"
+              onClick={handleInPoQuickFilter}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+                activeQuickFilter === 'IN_PO'
+                  ? 'bg-[#1463f7] border-blue-700 text-white shadow-sm'
+                  : 'bg-blue-50 border-blue-200 text-blue-900 hover:bg-blue-100 hover:border-blue-300'
+              }`}
+            >
+              <FolderSimple className="size-3.5" weight={activeQuickFilter === 'IN_PO' ? 'bold' : 'regular'} />
+              <span>Epics in PO</span>
+            </button>
+          </Tooltip>
+          <Tooltip content="Lọc các Epic ở tất cả trạng thái trừ: Cancelled, To Do, In PO, Released" side="top" className="inline-flex w-auto shrink-0">
+            <button
+              type="button"
+              onClick={handleNotInPoQuickFilter}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+                activeQuickFilter === 'NOT_IN_PO'
+                  ? 'bg-purple-600 border-purple-700 text-white shadow-sm'
+                  : 'bg-purple-50 border-purple-200 text-purple-900 hover:bg-purple-100 hover:border-purple-300'
+              }`}
+            >
+              <Sparkle className="size-3.5" weight={activeQuickFilter === 'NOT_IN_PO' ? 'bold' : 'regular'} />
+              <span>not Epics in PO</span>
+            </button>
+          </Tooltip>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+          <Tooltip content="Lưu trạng thái filter" side="top" className="inline-flex w-auto shrink-0">
+            <button
+              type="button"
+              onClick={handleSaveFilters}
+              aria-label="Lưu trạng thái filter"
+              className="flex items-center justify-center p-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 hover:border-slate-400 text-slate-700 shadow-sm transition-colors cursor-pointer shrink-0"
+            >
+              <FloppyDisk className="size-4 text-slate-600" weight="bold" />
+            </button>
+          </Tooltip>
+          <Tooltip content="Đặt lại bộ lọc mặc định" side="top" className="inline-flex w-auto shrink-0">
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              aria-label="Đặt lại bộ lọc mặc định"
+              className="flex items-center justify-center p-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 hover:border-slate-400 text-slate-700 shadow-sm transition-colors cursor-pointer shrink-0"
+            >
+              <ArrowCounterClockwise className="size-4 text-slate-600" weight="bold" />
+            </button>
+          </Tooltip>
+        </div>
+      </div>
 
       <div className="border-t border-slate-300 pt-3 mb-4">
         <button
@@ -1116,44 +1399,6 @@ function EpicAlerts15Screen() {
           </div>
         )}
       </div>
-
-      {data && (
-        <EpicStatWidgets
-          gateMessage={statWidgetsGateMessage}
-          items={[
-            {
-              icon: XCircle, isActive: alertFilter === 'FAIL', key: 'fail-cntt', label: 'Epic Fail TTM-CNTT',
-              onClick: () => { setAlertFilter((current) => (current === 'FAIL' ? '' : 'FAIL')); setPage(1); },
-              tone: 'danger', value: statCounts.failCntt,
-            },
-            {
-              icon: Prohibit, isActive: alertFilter === 'FAIL_E2E', key: 'fail-e2e', label: 'Epic Fail TTM-E2E',
-              onClick: () => { setAlertFilter((current) => (current === 'FAIL_E2E' ? '' : 'FAIL_E2E')); setPage(1); },
-              tone: 'danger', value: statCounts.failE2e,
-            },
-            {
-              icon: ClockCountdown, isActive: alertFilter === 'LATE', key: 'late', label: 'Epic Cảnh báo muộn',
-              onClick: () => { setAlertFilter((current) => (current === 'LATE' ? '' : 'LATE')); setPage(1); },
-              tone: 'warning', value: statCounts.late,
-            },
-            {
-              icon: WarningOctagon, isActive: dataIssueFilter, key: 'data-issue', label: 'Epic sai lệch dữ liệu',
-              onClick: () => { setDataIssueFilter((current) => !current); setPage(1); },
-              tone: 'warning', value: statCounts.dataIssue,
-            },
-            {
-              icon: HourglassMedium, isActive: isExactStatusSet(pendingStatusValues), key: 'pending', label: 'Epic Pending',
-              onClick: () => { setStatusFilters(isExactStatusSet(pendingStatusValues) ? [] : pendingStatusValues); setPage(1); },
-              tone: 'neutral', value: statCounts.pending,
-            },
-            {
-              icon: ListChecks, isActive: isExactStatusSet(todoStatusValues), key: 'todo', label: 'Epic To Do',
-              onClick: () => { setStatusFilters(isExactStatusSet(todoStatusValues) ? [] : todoStatusValues); setPage(1); },
-              tone: 'neutral', value: statCounts.todo,
-            },
-          ]}
-        />
-      )}
 
       {isLoading ? (
         <TableSkeleton rows={8} />

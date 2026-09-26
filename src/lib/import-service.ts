@@ -16,7 +16,7 @@ import { computeMilestoneCandidates, recordEpicMilestone } from './epic-mileston
 import { EPIC_ISSUE_TYPES_SQL } from './issue-resolution-sql';
 import { getActiveHolidaySet } from './master-data-service';
 import { listActiveStatusAlertRules } from './status-alert-rule-service';
-import { listTtmPolicies } from './ttm-policy-service';
+import { findActiveTtmPolicy, listTtmPolicies } from './ttm-policy-service';
 import { ADAPTER_TYPES, DEFAULT_ADAPTER, type AdapterType } from './adapters/index';
 import { parsePyJiraApi } from './adapters/py-jira-api-adapter';
 import { parsePureJiraExport } from './adapters/pure-jira-export-adapter';
@@ -245,7 +245,8 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
     const missingStartDateViolation = anomalyViolations.find((v) => v.code === 'MISSING_START_DATE') ?? null;
     const otherAnomalyViolations = anomalyViolations.filter((v) => v.code !== 'MISSING_START_DATE');
     anomalyViolationsByEpic.set(epic.epicKey, anomalyViolations);
-    const ttmE2eRelease = resolveTtmE2eRelease(epic, evaluation.ttm.e2e.workingDays ?? 0, aggregatedAtDate, holidays);
+    const ttmE2eToField = findActiveTtmPolicy(ttmPolicies, 'TTM_E2E', (epic.complexity as EpicComplexity | null) ?? 'CT-Lv12')?.toTtmField ?? 'R4G_DATE';
+    const ttmE2eRelease = resolveTtmE2eRelease(epic, evaluation.ttm.e2e.workingDays ?? 0, ttmE2eToField, aggregatedAtDate, holidays);
 
     // Same narrow gate as the live screens (epic-alert-service.ts / epic-alert-phase-service.ts):
     // only a genuinely broken TTM-CNTT/E2E calculation suppresses these — NOT the full 6-rule

@@ -7,7 +7,7 @@ import { addWorkingDays, diffWorkingDays, toDateKey } from '@/lib/working-days';
 import type { HolidaySet } from '@/lib/working-days';
 import { getActiveHolidaySet, getDomainByProjectKeyMap, getProjectMetaByProjectKeyMap } from '@/lib/master-data-service';
 import { listActiveStatusAlertRules } from '@/lib/status-alert-rule-service';
-import { listTtmPolicies } from '@/lib/ttm-policy-service';
+import { findActiveTtmPolicy, listTtmPolicies } from '@/lib/ttm-policy-service';
 import { getEpicKeysWithAlertHistory } from '@/lib/epic-alert-history-service';
 import { EPIC_WORKFLOW_STATUS_ORDER, epicWorkflowStatusIndex } from '@/lib/ttm-phase-rules';
 import { isCancelledStatus, isPendingStatus } from '@/lib/issue-status-rules';
@@ -142,20 +142,35 @@ export interface TtmE2eRelease {
   elapsedWorkingDays: number | null;
 }
 
+/** Which recorded date TTM-E2E measures its "stripe thực tế" end point against — configured per
+ * (TTM_E2E, complexity) policy row's `to_ttm_field` (Tiêu chí Time to Market screen), instead of a
+ * hardcoded field choice. Any value other than 'DUE_DATE' (case/separator-insensitive, matching
+ * epic-compliance-engine.ts's fieldDate normalization) falls back to R4G Date — today's default and
+ * the only other value this axis has ever used (see the 2026-09-24 rule-change comment below) — so
+ * an empty/unrecognized policy field never silently breaks the calculation. */
+function resolveTtmE2eEndDateField(row: Pick<EpicRow, 'dueDate' | 'r4gDate'>, toTtmField: string): string | null {
+  const normalized = toTtmField.trim().toLocaleUpperCase('en-US').replace(/[ _-]+/g, '');
+  return normalized === 'DUEDATE' ? row.dueDate : row.r4gDate;
+}
+
 /**
  * TTM-E2E's own baseline/actual pair, shared by every screen that shows a TTM-E2E stripe or its
  * Đạt/Fail badge — same T0 fallback chain "đầy đủ" already used for its Release stage cell (Idea
  * Approved Date → Jira creation date, always resolves, since the Jira `created` field is always
  * present), so a Fail TTM-E2E badge can never disagree with that screen's own TTM-E2E stripe color.
  *
- * 2026-09-24 rule change: TTM-E2E's own end point is now R4G Date instead of Due Date — Due Date's
- * discipline against R4G Date (must land within RELEASE_DUE_GRACE_WORKING_DAYS of it) is now a
- * wholly separate axis, see resolveReleaseAxis. "Đạt TTM-E2E" (frontend) additionally requires the
+ * 2026-09-24 rule change: TTM-E2E's own end point is now R4G Date instead of Due Date by default —
+ * Due Date's discipline against R4G Date (must land within RELEASE_DUE_GRACE_WORKING_DAYS of it) is
+ * now a wholly separate axis, see resolveReleaseAxis. Which field this axis actually measures is
+ * configurable per complexity via the TTM_E2E policy's `to_ttm_field` (see resolveTtmE2eEndDateField
+ * above) — no longer hardcoded, so a future rule change can happen from the "Tiêu chí Time to
+ * Market" screen instead of a code change. "Đạt TTM-E2E" (frontend) additionally requires the
  * Epic's status to actually be Released, not just derived here (see each page's isTtmE2eAchieved).
  */
 export function resolveTtmE2eRelease(
-  row: Pick<EpicRow, 'ideaApprovedDate' | 'jiraCreatedAt' | 'r4gDate' | 'status'>,
+  row: Pick<EpicRow, 'dueDate' | 'ideaApprovedDate' | 'jiraCreatedAt' | 'r4gDate' | 'status'>,
   ttmE2eTargetWorkingDays: number,
+  toTtmField: string,
   now: Date,
   holidays: HolidaySet,
 ): TtmE2eRelease {
@@ -164,11 +179,11 @@ export function resolveTtmE2eRelease(
     ? [ideaApprovedDate, RELEASE_BASELINE_SOURCE_LABEL.ideaApproved]
     : [parseDate(row.jiraCreatedAt), RELEASE_BASELINE_SOURCE_LABEL.jiraCreated];
   const baselineDate = baselineSourceDate && ttmE2eTargetWorkingDays ? addWorkingDays(baselineSourceDate, ttmE2eTargetWorkingDays, holidays) : null;
-  // "Stripe thực tế" end point (X): R4G Date once it's already in the past (R4G Date <= today) and
-  // isn't chronologically nonsense (before T0 — a data anomaly, see hasDataAnomaly), same convention
-  // as resolveTtmActualRange's R4G Date handling for TTM-CNTT. Otherwise (no R4G Date yet, a future
-  // one, or an anomalous one) X stays "today", tracking forward live.
-  const r4gDate = parseDate(row.r4gDate);
+  // "Stripe thực tế" end point (X): the configured end-date field once it's already in the past
+  // (<= today) and isn't chronologically nonsense (before T0 — a data anomaly, see hasDataAnomaly),
+  // same convention as resolveTtmActualRange's R4G Date handling for TTM-CNTT. Otherwise (not
+  // recorded yet, a future date, or an anomalous one) X stays "today", tracking forward live.
+  const r4gDate = parseDate(resolveTtmE2eEndDateField(row, toTtmField));
   const r4gDateAlreadyPassed = Boolean(r4gDate && toDateKey(r4gDate) <= toDateKey(now));
   const r4gDateIsChronological = Boolean(r4gDate && baselineSourceDate && r4gDate.getTime() >= baselineSourceDate.getTime());
   const actualToDate = r4gDateAlreadyPassed && r4gDateIsChronological && r4gDate ? r4gDate : now;
@@ -571,7 +586,10 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole, filt
     }, now, holidays, statusAlertRules, ttmPolicies);
 
     const ttmE2eTarget = evaluation.ttm.e2e.workingDays ?? 0;
-    const ttmE2eRelease = resolveTtmE2eRelease(row, ttmE2eTarget, now, holidays);
+    // Falls back to 'R4G_DATE' (today's default) when no active TTM_E2E policy exists for this
+    // complexity — see resolveTtmE2eEndDateField's own fallback for unrecognized values too.
+    const ttmE2eToField = findActiveTtmPolicy(ttmPolicies, 'TTM_E2E', complexity)?.toTtmField ?? 'R4G_DATE';
+    const ttmE2eRelease = resolveTtmE2eRelease(row, ttmE2eTarget, ttmE2eToField, now, holidays);
     // Guarded the same narrow way alertLevel itself is (breaksTtmCnttCalculation) — a row whose
     // underlying calc is already broken (e.g. missing Start Date) shouldn't also claim "Sai Status".
     const ttmCnttStatusMismatch = !breaksTtmCnttCalculation(row) && resolveTtmCnttStatusMismatch(row, epicStatusIndex, evaluation.ttm.cntt.targetDate, todayIso);

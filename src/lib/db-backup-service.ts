@@ -498,6 +498,30 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
       for (let chunkStart = 0; chunkStart < insertsForTable.length; chunkStart += INSERT_BATCH_CHUNK_SIZE) {
         const chunk = insertsForTable.slice(chunkStart, chunkStart + INSERT_BATCH_CHUNK_SIZE);
         const tuples = chunk.map((item) => `(${item.valuesTuple})`).join(', ');
+        // epic_alert_timeline has a SECOND uniqueness rule beyond its primary key — at most one
+        // OPEN run (end_date IS NULL) per (epic_key, alert_type), enforced by the partial unique
+        // index idx_epic_alert_timeline_open_run. The file's own ON CONFLICT clause only ever
+        // targets the primary key (id), so it can't also arbitrate this second constraint — a
+        // Postgres INSERT can only declare one arbiter per statement. Two independently-imported
+        // databases (e.g. production vs. local, each running its own day-to-day alert-timeline
+        // transitions) routinely end up with their OWN open run for the same Epic/alert type under
+        // a DIFFERENT id, which the id-only ON CONFLICT can't catch: the INSERT then crashes with
+        // "duplicate key value violates unique constraint idx_epic_alert_timeline_open_run" instead
+        // of upserting. Fix: before inserting this chunk, delete whichever LOCAL open run(s) collide
+        // with an OPEN run in the incoming chunk — the INSERT right after this then upserts cleanly
+        // (by id where it happens to match, otherwise a fresh insert with a clear path), converging
+        // local's open-run state to match the imported file exactly, same intent as the id-based
+        // upsert already does for every other column.
+        if (tableName === 'epic_alert_timeline') {
+          await client.query(`
+            DELETE FROM epic_alert_timeline AS t
+            USING (VALUES ${tuples}) AS incoming(${columns})
+            WHERE t.end_date IS NULL
+              AND incoming.end_date IS NULL
+              AND t.epic_key = incoming.epic_key
+              AND t.alert_type = incoming.alert_type;
+          `);
+        }
         const result = await client.query<{ isNewRow: boolean }>(
           `INSERT INTO ${quoteIdent(tableName)} (${columns}) VALUES ${tuples} ${conflictClause} RETURNING (xmax = 0) AS "isNewRow";`,
         );

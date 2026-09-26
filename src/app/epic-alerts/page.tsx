@@ -540,6 +540,10 @@ export default function EpicAlertsPage() {
       )}
 
       <section className="ttm-toolbar" aria-label="Bộ lọc Epic">
+        <div className="flex items-center gap-1.5 text-xs font-bold text-black shrink-0 mr-1 select-none">
+          <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
+          <span>Filters:</span>
+        </div>
         {isAdminTierAccess && (
           <select
             className={`ttm-select${domainFilter ? ' has-filter' : ''}`}

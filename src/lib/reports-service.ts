@@ -1,6 +1,6 @@
 import pool from '@/lib/db';
 import { getActiveHolidaySet } from '@/lib/master-data-service';
-import { listTtmPolicies, resolveTtmCnttWorkingDays } from '@/lib/ttm-policy-service';
+import { findActiveTtmPolicy, listTtmPolicies, resolveTtmCnttWorkingDays } from '@/lib/ttm-policy-service';
 import { parseDate, resolveTtmE2eRelease } from '@/lib/epic-alert-service';
 import { evaluateIssueCompliance } from '@/lib/epic-compliance-engine';
 import { breaksTtmCnttCalculation, breaksTtmE2eCalculation, evaluateEpicDataAnomaly } from '@/lib/epic-data-anomaly';
@@ -327,7 +327,8 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
     const targetCnttDate = complianceEvaluation.ttm.cntt.targetDate;
 
     const e2eTargetDays = complianceEvaluation.ttm.e2e.workingDays ?? 0;
-    const e2eEval = resolveTtmE2eRelease(epicDataRow, e2eTargetDays, now, holidays);
+    const e2eToField = findActiveTtmPolicy(ttmPolicies, 'TTM_E2E', (row.complexity as EpicComplexityType | null) ?? 'CT-Lv12')?.toTtmField ?? 'R4G_DATE';
+    const e2eEval = resolveTtmE2eRelease(epicDataRow, e2eTargetDays, e2eToField, now, holidays);
     const e2eBroken = breaksTtmE2eCalculation(row);
     const e2eAlertLevel = e2eBroken ? 'NONE' : e2eEval.alertLevel;
     const targetE2eDate = e2eEval.baselineDate;

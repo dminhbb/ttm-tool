@@ -25,6 +25,7 @@ import { Modal } from '@/components/ui/Modal';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { TableAction } from '@/components/ui/TableAction';
+import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
 import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import { DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
@@ -32,9 +33,44 @@ import { compareValues, useSortableList } from '@/lib/use-sortable-list';
 import { formatTtmPct1, isTtmCnttQaInScope, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import { buildEpicAlertsDeepLink } from '@/lib/epic-alerts-deep-link';
-import type { EpicAlertsDeepLinkParams } from '@/lib/epic-alerts-deep-link';
+import type { EpicAlertsDeepLinkAlert, EpicAlertsDeepLinkParams } from '@/lib/epic-alerts-deep-link';
 import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
+import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
+import { DonutChartCard, type DonutDataItem } from '@/components/dashboard-new/DonutChartCard';
+import '@/app/epic-alerts-15/epic-alerts-15.css';
+
+function computeDimensionDonuts(
+  rows: EpicAlertRowPhased[],
+  getDimensionKey: (row: EpicAlertRowPhased) => string,
+) {
+  const totalMap = new Map<string, number>();
+  const passMap = new Map<string, number>();
+  const failMap = new Map<string, number>();
+
+  for (const row of rows) {
+    const key = (getDimensionKey(row) || '').trim() || 'Chưa xác định';
+
+    // Total
+    totalMap.set(key, (totalMap.get(key) ?? 0) + 1);
+
+    // Pass TTM-CNTT (pm): Epic có R4G Date, không có data anomaly, alertLevel === 'NONE'
+    if (row.r4gDate && !row.hasDataAnomaly && row.alertLevel === 'NONE') {
+      passMap.set(key, (passMap.get(key) ?? 0) + 1);
+    }
+
+    // Fail TTM (pm): Epic có alertLevel === 'FAIL' hoặc ttmE2eAlertLevel === 'FAIL'
+    if (row.alertLevel === 'FAIL' || row.ttmE2eAlertLevel === 'FAIL') {
+      failMap.set(key, (failMap.get(key) ?? 0) + 1);
+    }
+  }
+
+  const totalData: DonutDataItem[] = Array.from(totalMap.entries()).map(([name, value]) => ({ name, value }));
+  const passData: DonutDataItem[] = Array.from(passMap.entries()).map(([name, value]) => ({ name, value }));
+  const failData: DonutDataItem[] = Array.from(failMap.entries()).map(([name, value]) => ({ name, value }));
+
+  return { failData, passData, totalData };
+}
 
 interface ManagedUserItem {
   domainIds: number[];
@@ -58,6 +94,7 @@ interface DashboardNewPayload {
 type DimensionKey = 'domain' | 'epicType' | 'pmsm' | 'project';
 type OperationalTab = 'ANOMALY' | 'PENDING' | 'PROGRESS';
 type MatrixSortKey = 'late' | 'name' | 'ok' | 'qaPct' | 'qldaFail' | 'qldaPass' | 'qldaPct' | 'total';
+type AlertFilterValue = AlertLevel | 'ACHIEVED_CNTT' | 'ACHIEVED_E2E' | 'DATA_ANOMALY' | 'FAIL_E2E' | 'JUSTIFY_GOLIVE' | 'RELEASE_EARLY' | 'STATUS_MISMATCH' | 'WAITING_GOLIVE' | '';
 
 const DIMENSION_LABELS: Record<DimensionKey, string> = {
   domain: 'Theo Domain',
@@ -65,6 +102,47 @@ const DIMENSION_LABELS: Record<DimensionKey, string> = {
   pmsm: 'Theo PM/SM',
   project: 'Theo Dự án',
 };
+
+const ALERT_FILTER_OPTIONS: { label: string; value: AlertFilterValue }[] = [
+  { label: 'Tất cả nhận xét', value: '' },
+  { label: 'Đạt TTM-CNTT', value: 'ACHIEVED_CNTT' },
+  { label: 'Đạt TTM-E2E', value: 'ACHIEVED_E2E' },
+  { label: 'Cảnh báo sớm', value: 'EARLY' },
+  { label: 'Cảnh báo muộn', value: 'LATE' },
+  { label: 'Fail TTM-CNTT', value: 'FAIL' },
+  { label: 'Fail TTM-E2E', value: 'FAIL_E2E' },
+  { label: 'Sai Status', value: 'STATUS_MISMATCH' },
+  { label: 'Sai lệch dữ liệu', value: 'DATA_ANOMALY' },
+  { label: 'Chờ golive', value: 'WAITING_GOLIVE' },
+  { label: 'Cảnh báo sớm Release', value: 'RELEASE_EARLY' },
+  { label: 'Giải trình Golive', value: 'JUSTIFY_GOLIVE' },
+];
+
+function matchesAlertFilter(row: EpicAlertRowPhased, alertFilter: AlertFilterValue): boolean {
+  switch (alertFilter) {
+    case '': return true;
+    case 'FAIL_E2E': return row.ttmE2eAlertLevel === 'FAIL';
+    case 'ACHIEVED_CNTT': return row.alertLevel === 'NONE' && Boolean(row.r4gDate) && !row.ttmCnttStatusMismatch && row.ttmActualToDate === row.r4gDate;
+    case 'ACHIEVED_E2E': return row.ttmE2eAlertLevel === 'NONE' && (row.currentStatus || '').toUpperCase() === 'RELEASED' && Boolean(row.r4gDate) && row.ttmE2eActualToDate === row.r4gDate;
+    case 'STATUS_MISMATCH': return row.ttmCnttStatusMismatch;
+    case 'DATA_ANOMALY': return row.hasDataAnomaly;
+    case 'WAITING_GOLIVE': return row.releaseAxisState === 'WAITING_GOLIVE';
+    case 'RELEASE_EARLY': return row.releaseAxisState === 'EARLY_WARNING';
+    case 'JUSTIFY_GOLIVE': return row.releaseAxisState === 'JUSTIFY_GOLIVE';
+    default: return row.alertLevel === alertFilter;
+  }
+}
+
+function formatDateTime(value: string | null): string {
+  if (!value) return 'Chưa có dữ liệu';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  return `${day}/${month}/${date.getFullYear()} ${hour}:${minute}`;
+}
 
 interface DimensionMatrixItem {
   late: number;
@@ -126,10 +204,26 @@ export default function DashboardNewPage() {
   const [operationalTab, setOperationalTab] = useState<OperationalTab>('PROGRESS');
   const [selectedEpicKey, setSelectedEpicKey] = useState<string | null>(null);
 
-  // Filters
-  const [filterProject, setFilterProject] = useState<string>('');
+  // Accordion state for LEAD view sections (lazy loading)
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    domain: false,
+    epicType: false,
+    pmsm: false,
+    project: false,
+    requestingUnit: false,
+  });
+
+  const toggleSection = (key: string) => {
+    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // Filters — standardized matching Quản trị Epic toolbar
+  const [filterProjects, setFilterProjects] = useState<string[]>([]);
   const [filterDomain, setFilterDomain] = useState<string>('');
   const [filterPmSm, setFilterPmSm] = useState<string>('');
+  const [filterAlert, setFilterAlert] = useState<AlertFilterValue>('');
+  const [filterType, setFilterType] = useState<string>('');
+  const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
   const [filterRequestingUnit, setFilterRequestingUnit] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -187,23 +281,27 @@ export default function DashboardNewPage() {
   const filteredRows = useMemo(() => {
     if (!data) return [];
     return data.rows.filter((row) => {
-      if (filterProject && row.projectKey !== filterProject) return false;
+      if (filterProjects.length > 0 && !filterProjects.includes(row.projectKey)) return false;
       if (filterDomain && row.domainName !== filterDomain) return false;
       // ownerName is comma-joined when a project has several PM/SM users (see
       // getProjectMetaByProjectKeyMap) — split back out, same convention as epic-alerts-15's own
       // PM/SM filter, so selecting one shows every Epic whose project lists them.
       if (filterPmSm && !row.ownerName.split(',').map((name) => name.trim()).includes(filterPmSm)) return false;
+      if (filterAlert && !matchesAlertFilter(row, filterAlert)) return false;
+      if (filterType && row.epicType !== filterType) return false;
+      if (filterStatuses.length > 0 && !filterStatuses.includes(row.currentStatus)) return false;
       if (filterRequestingUnit && row.requestingUnit !== filterRequestingUnit) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        const matchKey = row.epicKey.toLowerCase().includes(q);
-        const matchName = row.epicName.toLowerCase().includes(q);
+        const matchKey = (row.epicKey || '').toLowerCase().includes(q);
+        const matchName = (row.epicName || '').toLowerCase().includes(q);
         const matchPm = (row.ownerName || '').toLowerCase().includes(q);
-        if (!matchKey && !matchName && !matchPm) return false;
+        const matchUnit = (row.requestingUnit || '').toLowerCase().includes(q);
+        if (!matchKey && !matchName && !matchPm && !matchUnit) return false;
       }
       return true;
     });
-  }, [data, filterProject, filterDomain, filterPmSm, filterRequestingUnit, searchQuery]);
+  }, [data, filterProjects, filterDomain, filterPmSm, filterAlert, filterType, filterStatuses, filterRequestingUnit, searchQuery]);
 
   // Executive Metrics. TTM-CNTT-specific numbers (eligibleTtm/passTtm/failCntt/ttmHealthPct) come
   // from the shared summarizeTtmCntt helper so this stays byte-for-byte the same ratio as the
@@ -255,13 +353,16 @@ export default function DashboardNewPage() {
   // what produced that number — carries over whatever project/domain/PM-SM/requesting-unit/search
   // the dashboard itself is currently scoped to, so the target screen's count matches the tile the
   // user clicked.
-  const toEpicAlertsLink = (extra: Omit<EpicAlertsDeepLinkParams, 'domain' | 'pmSm' | 'projects' | 'requestingUnit' | 'search'>) => buildEpicAlertsDeepLink({
+  const toEpicAlertsLink = (extra: Omit<EpicAlertsDeepLinkParams, 'domain' | 'pmSm' | 'projects' | 'requestingUnit' | 'search'> & { alert?: EpicAlertsDeepLinkAlert }) => buildEpicAlertsDeepLink({
     ...extra,
-    domain: filterProject ? undefined : (filterDomain || undefined),
-    projects: filterProject ? [filterProject] : undefined,
+    alert: extra.alert ?? (filterAlert && filterAlert !== 'ACHIEVED_CNTT' && filterAlert !== 'ACHIEVED_E2E' ? filterAlert as EpicAlertsDeepLinkAlert : undefined),
+    domain: filterProjects.length > 0 ? undefined : (filterDomain || undefined),
+    projects: filterProjects.length > 0 ? filterProjects : undefined,
     pmSm: filterPmSm || undefined,
     requestingUnit: filterRequestingUnit || undefined,
     search: searchQuery || undefined,
+    status: filterStatuses.length > 0 ? filterStatuses : undefined,
+    type: filterType || undefined,
   });
 
   // Breakdown Matrix Table Data
@@ -371,26 +472,51 @@ export default function DashboardNewPage() {
     return filteredRows.slice(start, start + PROGRESS_PAGE_SIZE);
   }, [filteredRows, progressPageClamped]);
 
-  // Projects & Domains options
+  // Projects, Domains, Types, Statuses & other filter options
   const projectOptions = useMemo(() => {
     if (!data) return [];
-    return [...new Set(data.rows.map((r) => r.projectKey).filter(Boolean))].sort();
+    return [...new Set(data.rows.map((r) => r.projectKey).filter((v): v is string => Boolean(v)))].sort();
   }, [data]);
 
   const domainOptions = useMemo(() => {
     if (!data) return [];
-    return [...new Set(data.rows.map((r) => r.domainName).filter(Boolean))].sort();
+    return [...new Set(data.rows.map((r) => r.domainName).filter((v): v is string => Boolean(v)))].sort();
   }, [data]);
 
   const pmSmOptions = useMemo(() => {
     if (!data) return [];
-    return [...new Set(data.rows.flatMap((r) => r.ownerName.split(',').map((name) => name.trim()).filter(Boolean)))].sort((a, b) => a.localeCompare(b, 'vi'));
+    return [...new Set(data.rows.flatMap((r) => (r.ownerName || '').split(',').map((name) => name.trim()).filter(Boolean)))].sort((a, b) => a.localeCompare(b, 'vi'));
+  }, [data]);
+
+  const statusOptions = useMemo(() => {
+    if (!data) return [];
+    return [...new Set(data.rows.map((r) => r.currentStatus).filter((v): v is string => Boolean(v)))].sort();
   }, [data]);
 
   const requestingUnitOptions = useMemo(() => {
     if (!data) return [];
     return [...new Set(data.rows.map((r) => r.requestingUnit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, 'vi'));
   }, [data]);
+
+  // Domain → Project Keys, selecting a Domain auto-selects every project under it
+  const domainProjectKeys = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    if (!data) return map;
+    for (const row of data.rows) {
+      if (!row.domainName || !row.projectKey) continue;
+      const set = map.get(row.domainName) ?? new Set<string>();
+      set.add(row.projectKey);
+      map.set(row.domainName, set);
+    }
+    return map;
+  }, [data]);
+
+  const handleDomainFilterChange = (domain: string) => {
+    setFilterDomain(domain);
+    const projects = domain ? Array.from(domainProjectKeys.get(domain) ?? []) : [];
+    setFilterProjects(projects);
+    setProgressPage(1);
+  };
 
   const filteredUsersForModal = useMemo(() => {
     if (!data) return [];
@@ -399,8 +525,40 @@ export default function DashboardNewPage() {
     return data.managedUsers.filter((u) => u.fullName.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q));
   }, [data, userSearchText]);
 
+  // User effective role (for preview vs actual actor)
+  const effectiveRole = data?.viewAsUser?.role || data?.actor.role || 'USER';
+  const showDomainSection = domainOptions.length > 1;
+  const showPmsmSection = effectiveRole !== 'USER';
+  const showProjectSection = !(effectiveRole === 'USER' && projectOptions.length <= 1);
+
+  // Lazy Donut Datasets (only computed when section is open)
+  const requestingUnitDonuts = useMemo(() => {
+    if (!openSections.requestingUnit) return null;
+    return computeDimensionDonuts(filteredRows, (r) => r.requestingUnit || 'Chưa xác định');
+  }, [openSections.requestingUnit, filteredRows]);
+
+  const domainDonuts = useMemo(() => {
+    if (!openSections.domain) return null;
+    return computeDimensionDonuts(filteredRows, (r) => r.domainName || 'Chưa gán Domain');
+  }, [openSections.domain, filteredRows]);
+
+  const epicTypeDonuts = useMemo(() => {
+    if (!openSections.epicType) return null;
+    return computeDimensionDonuts(filteredRows, (r) => r.epicType || 'CT-Lv12');
+  }, [openSections.epicType, filteredRows]);
+
+  const pmsmDonuts = useMemo(() => {
+    if (!openSections.pmsm) return null;
+    return computeDimensionDonuts(filteredRows, (r) => r.ownerName || 'Chưa gán PM/SM');
+  }, [openSections.pmsm, filteredRows]);
+
+  const projectDonuts = useMemo(() => {
+    if (!openSections.project) return null;
+    return computeDimensionDonuts(filteredRows, (r) => r.projectName || r.projectKey || 'Chưa gán');
+  }, [openSections.project, filteredRows]);
+
   return (
-    <div className="flex flex-col gap-5 p-4 md:p-6 text-app bg-fb-bg min-h-screen">
+    <div className="ttm-app flex flex-col gap-5 p-4 md:p-6 text-app bg-fb-bg min-h-screen">
       {/* Header Banner & Switcher Controls */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-fb-border bg-fb-surface p-4 shadow-xs">
         <div>
@@ -472,97 +630,87 @@ export default function DashboardNewPage() {
         </div>
       </div>
 
-      {/* Common Filter Bar */}
-      <Card>
-        <CardBody className="p-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-fb-text-secondary uppercase tracking-wider">
-                <Funnel className="size-4" weight="bold" /> Bộ lọc:
-              </div>
-
-              <div className="relative inline-flex items-center min-w-[170px]">
-                <select
-                  aria-label="Chọn Dự án"
-                  value={filterProject}
-                  onChange={(e) => setFilterProject(e.target.value)}
-                  className="w-full appearance-none rounded-lg border border-fb-border bg-fb-surface pl-3 pr-8 h-8 text-xs font-semibold text-fb-text-primary outline-none focus:border-fb-blue focus:ring-1 focus:ring-fb-blue cursor-pointer"
-                >
-                  <option value="">Tất cả Dự án ({projectOptions.length})</option>
-                  {projectOptions.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-                <CaretDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 size-4 text-fb-text-secondary" weight="bold" />
-              </div>
-
-              <div className="relative inline-flex items-center min-w-[170px]">
-                <select
-                  aria-label="Chọn Domain"
-                  value={filterDomain}
-                  onChange={(e) => setFilterDomain(e.target.value)}
-                  className="w-full appearance-none rounded-lg border border-fb-border bg-fb-surface pl-3 pr-8 h-8 text-xs font-semibold text-fb-text-primary outline-none focus:border-fb-blue focus:ring-1 focus:ring-fb-blue cursor-pointer"
-                >
-                  <option value="">Tất cả Domain ({domainOptions.length})</option>
-                  {domainOptions.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
-                <CaretDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 size-4 text-fb-text-secondary" weight="bold" />
-              </div>
-
-              <div className="relative inline-flex items-center min-w-[170px]">
-                <select
-                  aria-label="Chọn PM/SM"
-                  value={filterPmSm}
-                  onChange={(e) => setFilterPmSm(e.target.value)}
-                  className="w-full appearance-none rounded-lg border border-fb-border bg-fb-surface pl-3 pr-8 h-8 text-xs font-semibold text-fb-text-primary outline-none focus:border-fb-blue focus:ring-1 focus:ring-fb-blue cursor-pointer"
-                >
-                  <option value="">Tất cả PM/SM ({pmSmOptions.length})</option>
-                  {pmSmOptions.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-                <CaretDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 size-4 text-fb-text-secondary" weight="bold" />
-              </div>
-
-              <div className="relative inline-flex items-center min-w-[170px]">
-                <select
-                  aria-label="Chọn Đơn vị yêu cầu"
-                  value={filterRequestingUnit}
-                  onChange={(e) => setFilterRequestingUnit(e.target.value)}
-                  className="w-full appearance-none rounded-lg border border-fb-border bg-fb-surface pl-3 pr-8 h-8 text-xs font-semibold text-fb-text-primary outline-none focus:border-fb-blue focus:ring-1 focus:ring-fb-blue cursor-pointer"
-                >
-                  <option value="">Tất cả Đơn vị yêu cầu ({requestingUnitOptions.length})</option>
-                  {requestingUnitOptions.map((unit) => (
-                    <option key={unit} value={unit}>
-                      {unit}
-                    </option>
-                  ))}
-                </select>
-                <CaretDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 size-4 text-fb-text-secondary" weight="bold" />
-              </div>
-            </div>
-
-            <div className="relative w-64">
-              <MagnifyingGlass className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-fb-text-secondary" />
-              <input
-                type="text"
-                placeholder="Tìm Epic Key, tên, PM..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-lg border border-fb-border bg-fb-surface pl-8 pr-3 h-8 text-xs text-fb-text-primary outline-none focus:border-fb-blue focus:ring-1 focus:ring-fb-blue"
-              />
-            </div>
+      {/* Common Filter Toolbar matching Quản trị Epic */}
+      <section className="ttm-toolbar" aria-label="Bộ lọc Dashboard">
+        <div className="flex items-center gap-1.5 text-xs font-bold text-black shrink-0 mr-1 select-none">
+          <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
+          <span>Filters:</span>
+        </div>
+        {isAdminOrSupervisor && (
+          <select
+            className={`ttm-select${filterDomain ? ' has-filter' : ''}`}
+            aria-label="Domain"
+            value={filterDomain}
+            onChange={(event) => handleDomainFilterChange(event.target.value)}
+          >
+            <option value="">Chọn Domain…</option>
+            {domainOptions.map((domain) => <option key={domain} value={domain}>{domain}</option>)}
+          </select>
+        )}
+        <ToolbarMultiSelect
+          ariaLabel="Dự án"
+          allLabel="Tất cả dự án của tôi"
+          options={projectOptions}
+          value={filterProjects}
+          onChange={(values) => { setFilterDomain(''); setFilterProjects(values); setProgressPage(1); }}
+        />
+        <select
+          className={`ttm-select${filterPmSm ? ' has-filter' : ''}`}
+          aria-label="PM/SM"
+          value={filterPmSm}
+          onChange={(event) => { setFilterPmSm(event.target.value); setProgressPage(1); }}
+          title="Lọc theo PM/SM của dự án"
+        >
+          <option value="">Tất cả PM/SM</option>
+          {pmSmOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+        </select>
+        <select
+          className={`ttm-select${filterAlert ? ' has-filter' : ''}`}
+          aria-label="Lọc Nhận xét"
+          value={filterAlert}
+          onChange={(event) => { setFilterAlert(event.target.value as AlertFilterValue); setProgressPage(1); }}
+        >
+          {ALERT_FILTER_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+        <select
+          className={`ttm-select${filterType ? ' has-filter' : ''}`}
+          aria-label="Loại Epic"
+          value={filterType}
+          onChange={(event) => { setFilterType(event.target.value); setProgressPage(1); }}
+        >
+          <option value="">Tất cả loại Epic</option>
+          {EPIC_COMPLEXITY_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+        </select>
+        <ToolbarMultiSelect
+          ariaLabel="Status"
+          allLabel="Tất cả status"
+          options={statusOptions}
+          value={filterStatuses}
+          onChange={(values) => { setFilterStatuses(values); setProgressPage(1); }}
+        />
+        <select
+          className={`ttm-select${filterRequestingUnit ? ' has-filter' : ''}`}
+          aria-label="Đơn vị yêu cầu"
+          value={filterRequestingUnit}
+          onChange={(event) => { setFilterRequestingUnit(event.target.value); setProgressPage(1); }}
+        >
+          <option value="">Tất cả đơn vị yêu cầu</option>
+          {requestingUnitOptions.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+        </select>
+        <input
+          className={`ttm-field ttm-search-field${searchQuery.trim() ? ' has-filter' : ''}`}
+          type="search"
+          aria-label="Tìm epic"
+          placeholder="Tìm epic"
+          value={searchQuery}
+          onChange={(event) => { setSearchQuery(event.target.value); setProgressPage(1); }}
+        />
+        {data?.lastAggregatedAt && (
+          <div className="ttm-report-date ml-auto text-xs text-fb-text-secondary">
+            Dữ liệu cập nhật: <b>{formatDateTime(data.lastAggregatedAt)}</b>
           </div>
-        </CardBody>
-      </Card>
+        )}
+      </section>
 
       {error && <Alert variant="error" title="Lỗi">{error}</Alert>}
 
@@ -778,83 +926,191 @@ export default function DashboardNewPage() {
                 </CardBody>
               </Card>
 
-              {/* Dual Analytical Charts / Summaries */}
-              <div className="grid gap-5 lg:grid-cols-2">
-                {/* Top Risk Projects */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-sm">
-                      <WarningCircle className="size-4 text-status-danger" weight="bold" /> Top Dự án có Số Epic Fail TTM Cao nhất
-                    </CardTitle>
-                  </CardHeader>
-                  <CardBody className="gap-3">
-                    {topRiskProjects.map((p) => {
-                      const failPct = p.total > 0 ? Math.round((p.fail / p.total) * 100) : 0;
-                      return (
-                        <div key={p.name} className="flex flex-col gap-1">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-bold text-fb-text-primary">{p.name}</span>
-                            <span className="text-fb-text-secondary">
-                              <strong className="text-status-danger">{p.fail}</strong> / {p.total} Epics ({failPct}%)
-                            </span>
-                          </div>
-                          <div className="h-2 rounded-full bg-fb-control overflow-hidden">
-                            <div className="h-full bg-status-danger rounded-full" style={{ width: `${Math.max(5, failPct)}%` }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </CardBody>
-                </Card>
-
-                {/* High-Risk Epics Quick Action List */}
-                <Card>
-                  <CardHeader className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2 text-sm">
-                      <Warning className="size-4 text-status-warning" weight="bold" /> Epic Cần chú ý (Fail / Cảnh báo muộn)
-                    </CardTitle>
-                    <span className="text-xs text-fb-text-secondary">Hiển thị top rủi ro</span>
-                  </CardHeader>
-                  <CardBody className="gap-2">
-                    {filteredRows
-                      .filter((r) => r.alertLevel === 'FAIL' || r.alertLevel === 'LATE' || r.ttmE2eAlertLevel === 'FAIL')
-                      .slice(0, 5)
-                      .map((row) => (
-                        <div
-                          key={row.epicKey}
-                          className="flex items-center justify-between rounded-lg border border-fb-border p-2 hover:bg-fb-surface-muted transition-all"
-                        >
-                          <div className="min-w-0 flex-1 pr-2">
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => setSelectedEpicKey(row.epicKey)}
-                                className="font-bold text-fb-blue hover:underline"
-                              >
-                                {row.epicKey}
-                              </button>
-                              <Badge variant="neutral">{row.projectKey}</Badge>
-                              {row.alertLevel !== 'NONE' && (
-                                <Badge variant={ALERT_BADGE_VARIANT[row.alertLevel]}>{ALERT_BADGE_LABEL[row.alertLevel]}</Badge>
-                              )}
-                              {row.ttmE2eAlertLevel === 'FAIL' && <Badge variant="danger">Fail TTM-E2E</Badge>}
-                            </div>
-                            <p className="truncate text-xs text-fb-text-secondary mt-0.5" title={row.epicName}>
-                              {row.epicName}
-                            </p>
-                          </div>
-                          <TableAction
-                            icon={<Eye className="size-3.5" />}
-                            variant="info"
-                            onClick={() => setSelectedEpicKey(row.epicKey)}
-                          >
-                            Xem
-                          </TableAction>
-                        </div>
-                      ))}
-                  </CardBody>
-                </Card>
+              {/* Section 1: Theo Đơn vị yêu cầu */}
+              <div className="border-t border-slate-300 pt-3 mb-4">
+                <button
+                  type="button"
+                  onClick={() => toggleSection('requestingUnit')}
+                  className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[#1463f7] transition-colors cursor-pointer select-none"
+                >
+                  {openSections.requestingUnit ? (
+                    <CaretDown className="size-4 text-[#1463f7]" weight="bold" />
+                  ) : (
+                    <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
+                  )}
+                  <span>Theo Đơn vị yêu cầu</span>
+                </button>
+                {openSections.requestingUnit && requestingUnitDonuts && (
+                  <div className="mt-3 pl-3 border-l-2 border-[#1463f7] pt-1">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                      <DonutChartCard
+                        title="% Tổng số Epic"
+                        data={requestingUnitDonuts.totalData}
+                      />
+                      <DonutChartCard
+                        title="% Epic Pass TTM-CNTT (pm)"
+                        data={requestingUnitDonuts.passData}
+                        emptyMessage="Không có Epic đạt TTM"
+                      />
+                      <DonutChartCard
+                        title="% Epic Fail TTM (pm)"
+                        data={requestingUnitDonuts.failData}
+                        emptyMessage="Không có Epic Fail TTM"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
+
+              {/* Section 2: Theo Domain nghiệp vụ (chỉ hiển thị nếu > 1 domain) */}
+              {showDomainSection && (
+                <div className="border-t border-slate-300 pt-3 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection('domain')}
+                    className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[#1463f7] transition-colors cursor-pointer select-none"
+                  >
+                    {openSections.domain ? (
+                      <CaretDown className="size-4 text-[#1463f7]" weight="bold" />
+                    ) : (
+                      <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
+                    )}
+                    <span>Theo Domain nghiệp vụ</span>
+                  </button>
+                  {openSections.domain && domainDonuts && (
+                    <div className="mt-3 pl-3 border-l-2 border-[#1463f7] pt-1">
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <DonutChartCard
+                          title="% Tổng số Epic"
+                          data={domainDonuts.totalData}
+                        />
+                        <DonutChartCard
+                          title="% Epic Pass TTM-CNTT (pm)"
+                          data={domainDonuts.passData}
+                          emptyMessage="Không có Epic đạt TTM"
+                        />
+                        <DonutChartCard
+                          title="% Epic Fail TTM (pm)"
+                          data={domainDonuts.failData}
+                          emptyMessage="Không có Epic Fail TTM"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Section 3: Theo Phân loại Epic */}
+              <div className="border-t border-slate-300 pt-3 mb-4">
+                <button
+                  type="button"
+                  onClick={() => toggleSection('epicType')}
+                  className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[#1463f7] transition-colors cursor-pointer select-none"
+                >
+                  {openSections.epicType ? (
+                    <CaretDown className="size-4 text-[#1463f7]" weight="bold" />
+                  ) : (
+                    <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
+                  )}
+                  <span>Theo Phân loại Epic</span>
+                </button>
+                {openSections.epicType && epicTypeDonuts && (
+                  <div className="mt-3 pl-3 border-l-2 border-[#1463f7] pt-1">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                      <DonutChartCard
+                        title="% Tổng số Epic"
+                        data={epicTypeDonuts.totalData}
+                      />
+                      <DonutChartCard
+                        title="% Epic Pass TTM-CNTT (pm)"
+                        data={epicTypeDonuts.passData}
+                        emptyMessage="Không có Epic đạt TTM"
+                      />
+                      <DonutChartCard
+                        title="% Epic Fail TTM (pm)"
+                        data={epicTypeDonuts.failData}
+                        emptyMessage="Không có Epic Fail TTM"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Section 4: Theo PM/SM (chỉ hiển thị nếu role !== USER) */}
+              {showPmsmSection && (
+                <div className="border-t border-slate-300 pt-3 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection('pmsm')}
+                    className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[#1463f7] transition-colors cursor-pointer select-none"
+                  >
+                    {openSections.pmsm ? (
+                      <CaretDown className="size-4 text-[#1463f7]" weight="bold" />
+                    ) : (
+                      <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
+                    )}
+                    <span>Theo PM/SM</span>
+                  </button>
+                  {openSections.pmsm && pmsmDonuts && (
+                    <div className="mt-3 pl-3 border-l-2 border-[#1463f7] pt-1">
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <DonutChartCard
+                          title="% Tổng số Epic"
+                          data={pmsmDonuts.totalData}
+                        />
+                        <DonutChartCard
+                          title="% Epic Pass TTM-CNTT (pm)"
+                          data={pmsmDonuts.passData}
+                          emptyMessage="Không có Epic đạt TTM"
+                        />
+                        <DonutChartCard
+                          title="% Epic Fail TTM (pm)"
+                          data={pmsmDonuts.failData}
+                          emptyMessage="Không có Epic Fail TTM"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Section 5: Theo Dự án (chỉ hiển thị nếu không phải USER có 1 dự án) */}
+              {showProjectSection && (
+                <div className="border-t border-slate-300 pt-3 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection('project')}
+                    className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[#1463f7] transition-colors cursor-pointer select-none"
+                  >
+                    {openSections.project ? (
+                      <CaretDown className="size-4 text-[#1463f7]" weight="bold" />
+                    ) : (
+                      <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
+                    )}
+                    <span>Theo Dự án</span>
+                  </button>
+                  {openSections.project && projectDonuts && (
+                    <div className="mt-3 pl-3 border-l-2 border-[#1463f7] pt-1">
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <DonutChartCard
+                          title="% Tổng số Epic"
+                          data={projectDonuts.totalData}
+                        />
+                        <DonutChartCard
+                          title="% Epic Pass TTM-CNTT (pm)"
+                          data={projectDonuts.passData}
+                          emptyMessage="Không có Epic đạt TTM"
+                        />
+                        <DonutChartCard
+                          title="% Epic Fail TTM (pm)"
+                          data={projectDonuts.failData}
+                          emptyMessage="Không có Epic Fail TTM"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

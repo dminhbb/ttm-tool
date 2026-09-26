@@ -39,6 +39,7 @@ import { AppConfigModal } from '@/components/settings/AppConfigModal';
 import { SystemAdminModal } from '@/components/settings/SystemAdminModal';
 import { AdPopupDisplay } from '@/components/layout/AdPopupDisplay';
 import { SystemStatusFooter } from '@/components/layout/SystemStatusFooter';
+import { ToastProvider } from '@/components/ui/Toast';
 
 interface NavigationItem {
   disabled?: boolean;
@@ -458,8 +459,8 @@ function AppShellInner({ children }: AppShellProps) {
           {pathname === '/epic-alerts-15' && epicHeaderWidgetItems && (
             <div className="ml-auto hidden shrink-0 items-center gap-1.5 lg:flex">
               {epicHeaderWidgetItems.map((item) => (
-                <Tooltip key={item.key} multiline side="left" content={item.tooltip} className="inline-flex w-auto">
-                  <div className="flex flex-col items-end gap-0 rounded-md border border-fb-border bg-fb-surface-muted px-2 py-1 leading-none">
+                <Tooltip key={item.key} multiline side="bottom" align="end" content={item.tooltip} className="inline-flex w-auto">
+                  <div className="flex flex-col items-end gap-0 rounded-md border border-fb-border bg-fb-surface-muted px-2 py-1 leading-none cursor-help hover:bg-fb-control transition-colors">
                     <span className="text-[9px] font-bold uppercase tracking-wide text-fb-text-secondary">{item.label}</span>
                     <span className={cn('text-sm font-extrabold', item.tone === 'qa' ? 'text-purple-700' : 'text-fb-blue')}>{item.value}</span>
                   </div>
@@ -493,7 +494,9 @@ function AppShellInner({ children }: AppShellProps) {
 export function AppShell({ children }: AppShellProps) {
   return (
     <EpicHeaderWidgetsProvider>
-      <AppShellInner>{children}</AppShellInner>
+      <ToastProvider>
+        <AppShellInner>{children}</AppShellInner>
+      </ToastProvider>
     </EpicHeaderWidgetsProvider>
   );
 }

@@ -11,6 +11,13 @@ function authError(error: unknown): NextResponse | null {
   return null;
 }
 
+const ROLE_RANK: Record<string, number> = {
+  SUPERADMIN: 4,
+  SUPERVISOR: 3,
+  ADMIN: 2,
+  USER: 1,
+};
+
 export async function GET(request: NextRequest) {
   try {
     const actor = await requireUser(request);
@@ -23,6 +30,7 @@ export async function GET(request: NextRequest) {
     let viewAsUser: { email: string; fullName: string; id: number; role: string } | null = null;
 
     const isAdminOrSupervisor = ['SUPERADMIN', 'ADMIN', 'SUPERVISOR'].includes(actor.role);
+    const actorRank = ROLE_RANK[actor.role] ?? 1;
 
     if (isAdminOrSupervisor && viewAsUserId && viewAsUserId !== actor.id) {
       const userRes = await pool.query<{ email: string; fullName: string; id: number; role: string }>(
@@ -31,9 +39,13 @@ export async function GET(request: NextRequest) {
       );
       if (userRes.rows.length > 0) {
         const u = userRes.rows[0];
-        targetUserId = u.id;
-        targetRole = 'USER';
-        viewAsUser = { email: u.email, fullName: u.fullName, id: u.id, role: u.role };
+        const targetRank = ROLE_RANK[u.role] ?? 1;
+        // Only allow switching to users with role equal to or lower than actor's role
+        if (targetRank <= actorRank) {
+          targetUserId = u.id;
+          targetRole = 'USER';
+          viewAsUser = { email: u.email, fullName: u.fullName, id: u.id, role: u.role };
+        }
       }
     }
 
@@ -43,7 +55,7 @@ export async function GET(request: NextRequest) {
     if (isAdminOrSupervisor) {
       const allUsers = await listManagedUsers();
       managedUsers = allUsers
-        .filter((u) => u.isActive)
+        .filter((u) => u.isActive && (ROLE_RANK[u.role] ?? 1) <= actorRank)
         .map((u) => ({
           domainIds: u.domainIds,
           email: u.email,
