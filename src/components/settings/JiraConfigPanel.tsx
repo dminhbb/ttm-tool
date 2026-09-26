@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Alert } from '@/components/ui/Alert';
+import { showToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -40,7 +41,8 @@ export function JiraConfigPanel() {
       const payload: unknown = await response.json();
       if (!response.ok) throw new Error(readError(payload, 'Không thể lưu cấu hình Jira.'));
       setForm(payload as JiraSettings);
-      setNotice({ text: 'Đã lưu cấu hình Jira.', type: 'success' });
+      showToast('Đã lưu cấu hình Jira.', 5000);
+      setNotice(null);
     } catch (error) {
       setNotice({ text: error instanceof Error ? error.message : 'Không thể lưu cấu hình Jira.', type: 'error' });
     } finally {
@@ -50,7 +52,7 @@ export function JiraConfigPanel() {
 
   return (
     <div className="flex flex-col gap-6">
-      {notice && <Alert title={notice.type === 'success' ? 'Thành công' : 'Lỗi'} variant={notice.type === 'success' ? 'success' : 'error'}>{notice.text}</Alert>}
+      {notice && notice.type === 'error' && <Alert title="Lỗi" variant="error">{notice.text}</Alert>}
       <Card>
         <CardHeader>
           <div>

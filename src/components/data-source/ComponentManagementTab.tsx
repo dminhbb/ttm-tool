@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, PencilSimple, Trash } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
+import { showToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -81,7 +82,8 @@ export function ComponentManagementTab() {
       });
       const result = await response.json();
       if (!response.ok) { setMessage({ text: result.error || 'Lỗi hệ thống.', type: 'error' }); return; }
-      setMessage({ text: editingId ? 'Đã cập nhật Component.' : 'Đã thêm Component mới.', type: 'success' });
+      showToast(editingId ? 'Đã cập nhật Component.' : 'Đã thêm Component mới.', 5000);
+      setMessage(null);
       setShowModal(false);
       void load();
     } catch {
@@ -94,7 +96,7 @@ export function ComponentManagementTab() {
   const handleDelete = async () => {
     if (!deleting) return;
     const response = await fetch(`/api/project-components?id=${deleting.id}`, { method: 'DELETE' });
-    if (response.ok) { setMessage({ text: 'Đã xóa Component.', type: 'success' }); setDeleting(null); void load(); }
+    if (response.ok) { showToast('Đã xóa Component.', 5000); setMessage(null); setDeleting(null); void load(); }
     else { const result = await response.json(); setMessage({ text: result.error || 'Xóa thất bại.', type: 'error' }); }
   };
 
@@ -106,7 +108,7 @@ export function ComponentManagementTab() {
 
   return (
     <div className="flex flex-col gap-6">
-      {message && <Alert variant={message.type === 'success' ? 'success' : 'error'} title={message.type === 'success' ? 'Thành công' : 'Lỗi'}>{message.text}</Alert>}
+      {message && message.type === 'error' && <Alert variant="error" title="Lỗi">{message.text}</Alert>}
 
       <Card>
         <CardHeader>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, PencilSimple, Trash } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
+import { showToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -87,7 +88,8 @@ export function MakeupWorkdaysPanel({ year }: MakeupWorkdaysPanelProps) {
         setMessage({ text: result.error || 'Lỗi hệ thống.', type: 'error' });
         return;
       }
-      setMessage({ text: editingId ? 'Đã cập nhật Ngày làm bù.' : 'Đã tạo Ngày làm bù mới.', type: 'success' });
+      showToast(editingId ? 'Đã cập nhật Ngày làm bù.' : 'Đã tạo Ngày làm bù mới.', 5000);
+      setMessage(null);
       setShowModal(false);
       fetchWorkdays();
     } catch {
@@ -105,7 +107,8 @@ export function MakeupWorkdaysPanel({ year }: MakeupWorkdaysPanelProps) {
     if (!confirm(`Xóa Ngày làm bù "${formatDate(workday.workDate)}"?`)) return;
     const res = await fetch(`/api/makeup-workdays?id=${workday.id}`, { method: 'DELETE' });
     if (res.ok) {
-      setMessage({ text: 'Đã xóa Ngày làm bù.', type: 'success' });
+      showToast('Đã xóa Ngày làm bù.', 5000);
+      setMessage(null);
       fetchWorkdays();
     } else {
       const result = await res.json();
@@ -115,8 +118,8 @@ export function MakeupWorkdaysPanel({ year }: MakeupWorkdaysPanelProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      {message && (
-        <Alert variant={message.type === 'success' ? 'success' : 'error'} title={message.type === 'success' ? 'Thành công' : 'Lỗi'}>
+      {message && message.type === 'error' && (
+        <Alert variant="error" title="Lỗi">
           {message.text}
         </Alert>
       )}

@@ -42,7 +42,8 @@ interface SavedFilterConfig {
   dataIssueFilter: boolean;
   domainFilter?: string;
   dueDateFromFilter?: string;
-  pmSmFilter: string;
+  pmSmFilter?: string | string[];
+  pmSmFilters?: string[];
   projectFilters: string[];
   requestingUnitFilter: string;
   search: string;
@@ -129,7 +130,7 @@ interface EpicAlertsDeepLinkFilters {
   dataIssue: boolean;
   domain: string;
   hasAny: boolean;
-  pmSm: string;
+  pmSm: string[];
   projects: string[];
   requestingUnit: string;
   search: string;
@@ -145,7 +146,7 @@ function parseDeepLinkFilters(searchParams: URLSearchParams): EpicAlertsDeepLink
   const status = splitList('status');
   const typeRaw = searchParams.get('type') ?? '';
   const type = (EPIC_COMPLEXITY_TYPES as readonly string[]).includes(typeRaw) ? typeRaw : '';
-  const pmSm = searchParams.get('pmSm') ?? '';
+  const pmSm = splitList('pmSm');
   const requestingUnit = searchParams.get('requestingUnit') ?? '';
   const dataIssue = searchParams.get('dataIssue') === '1';
   const search = searchParams.get('search') ?? '';
@@ -154,7 +155,7 @@ function parseDeepLinkFilters(searchParams: URLSearchParams): EpicAlertsDeepLink
     alert,
     dataIssue,
     domain,
-    hasAny: Boolean(alert || projects.length || status.length || type || pmSm || requestingUnit || dataIssue || search || domain),
+    hasAny: Boolean(alert || projects.length || status.length || type || pmSm.length || requestingUnit || dataIssue || search || domain),
     pmSm,
     projects,
     requestingUnit,
@@ -629,6 +630,7 @@ export default function EpicAlerts15Page() {
 
 function EpicAlerts15Screen() {
   const searchParams = useSearchParams();
+  const isEmbedded = searchParams.get('embedded') === 'true' || searchParams.get('embedded') === '1';
   // Read once at mount, from whatever URL navigated here (see epic-alerts-deep-link.ts) — later
   // edits to these state values via the toolbar must never get overridden by a stale re-parse.
   const [deepLinkFilters] = useState(() => parseDeepLinkFilters(searchParams));
@@ -639,7 +641,7 @@ function EpicAlerts15Screen() {
 
   const [projectFilters, setProjectFilters] = useState<string[]>(deepLinkFilters.projects);
   const [domainFilter, setDomainFilter] = useState(deepLinkFilters.domain);
-  const [pmSmFilter, setPmSmFilter] = useState(deepLinkFilters.pmSm);
+  const [pmSmFilters, setPmSmFilters] = useState<string[]>(deepLinkFilters.pmSm);
   const [componentFilters, setComponentFilters] = useState<string[]>([]);
   const [projectComponents, setProjectComponents] = useState<ProjectComponent[]>([]);
   const [alertFilter, setAlertFilter] = useState<AlertFilterValue>(deepLinkFilters.alert);
@@ -717,7 +719,7 @@ function EpicAlerts15Screen() {
       // request (see the API route); ignored by the fallback path, which keeps filtering `rows`
       // client-side exactly like before this cache existed.
       if (projectFilters.length > 0) query.set('projectKeys', projectFilters.join(','));
-      if (pmSmFilter) query.set('pmSm', pmSmFilter);
+      if (pmSmFilters.length > 0) query.set('pmSm', pmSmFilters.join(','));
       if (componentFilters.length > 0) query.set('components', componentFilters.join(','));
       if (alertFilter) query.set('alertFilter', alertFilter);
       if (typeFilter) query.set('epicType', typeFilter);
@@ -749,7 +751,7 @@ function EpicAlerts15Screen() {
     void Promise.resolve().then(fetchData);
   }, [
     layerWindowKey, createdDateFrom, startDateFromFilter, dueDateFromFilter,
-    projectFilters, pmSmFilter, componentFilters, alertFilter, typeFilter, statusFilters,
+    projectFilters, pmSmFilters, componentFilters, alertFilter, typeFilter, statusFilters,
     dataIssueFilter, requestingUnitFilter, debouncedSearch, page,
   ]);
 
@@ -894,7 +896,11 @@ function EpicAlerts15Screen() {
     void Promise.resolve().then(() => {
       if (saved.projectFilters && saved.projectFilters.length > 0) setProjectFilters(saved.projectFilters);
       if (saved.domainFilter) setDomainFilter(saved.domainFilter);
-      if (saved.pmSmFilter) setPmSmFilter(saved.pmSmFilter);
+      if (saved.pmSmFilters && saved.pmSmFilters.length > 0) {
+        setPmSmFilters(saved.pmSmFilters);
+      } else if (saved.pmSmFilter) {
+        setPmSmFilters(typeof saved.pmSmFilter === 'string' ? saved.pmSmFilter.split(',').map((s) => s.trim()).filter(Boolean) : saved.pmSmFilter);
+      }
       if (saved.componentFilters && saved.componentFilters.length > 0) setComponentFilters(saved.componentFilters);
       if (saved.alertFilter) setAlertFilter(saved.alertFilter);
       if (saved.typeFilter) setTypeFilter(saved.typeFilter);
@@ -985,7 +991,8 @@ function EpicAlerts15Screen() {
       dataIssueFilter,
       domainFilter,
       dueDateFromFilter,
-      pmSmFilter,
+      pmSmFilter: pmSmFilters.join(','),
+      pmSmFilters,
       projectFilters,
       requestingUnitFilter,
       search,
@@ -1008,7 +1015,7 @@ function EpicAlerts15Screen() {
     } catch {}
     setProjectFilters([]);
     setDomainFilter('');
-    setPmSmFilter('');
+    setPmSmFilters([]);
     setComponentFilters([]);
     setAlertFilter('');
     setTypeFilter('');
@@ -1033,7 +1040,7 @@ function EpicAlerts15Screen() {
     return rows.filter((row) => {
       const normalizedSearch = search.trim().toLocaleLowerCase('vi-VN');
       return (projectFilters.length === 0 || projectFilters.includes(row.projectKey))
-        && (!pmSmFilter || row.ownerName.split(',').map((name) => name.trim()).includes(pmSmFilter))
+        && (pmSmFilters.length === 0 || row.ownerName.split(',').map((name) => name.trim()).some((name) => pmSmFilters.includes(name)))
         && (componentFilters.length === 0 || row.components.some((component) => componentFilters.includes(component)))
         && matchesAlertFilter(row, alertFilter)
         && (!typeFilter || row.epicType === typeFilter)
@@ -1042,7 +1049,7 @@ function EpicAlerts15Screen() {
         && (!requestingUnitFilter || row.requestingUnit === requestingUnitFilter)
         && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch));
     }).sort((a, b) => bottomStatusRankOf(a.currentStatus) - bottomStatusRankOf(b.currentStatus));
-  }, [data?.mode, rows, projectFilters, pmSmFilter, componentFilters, alertFilter, typeFilter, statusFilters, dataIssueFilter, requestingUnitFilter, search]);
+  }, [data?.mode, rows, projectFilters, pmSmFilters, componentFilters, alertFilter, typeFilter, statusFilters, dataIssueFilter, requestingUnitFilter, search]);
 
   // Raw status strings (case as stored) whose normalized form is PENDING/TO DO — the Pending/To Do
   // stat widgets set the Status filter (a multi-select) to exactly this set.
@@ -1092,7 +1099,7 @@ function EpicAlerts15Screen() {
 
   return (
     <div className="ttm-app">
-      <InfoBannerDisplay pathname="/epic-alerts-15" />
+      {!isEmbedded && <InfoBannerDisplay pathname="/epic-alerts-15" />}
       {error && <div className="ttm-note" style={{ background: 'var(--ttm-danger-050)', borderColor: '#f3b3b3', color: 'var(--ttm-danger-700)' }}>{error}</div>}
       {data?.asOfDate && (
         <div className="ttm-note" style={{ background: '#fff7e6', borderColor: '#f0c36d', color: '#7a5200', fontWeight: 700 }}>
@@ -1100,7 +1107,7 @@ function EpicAlerts15Screen() {
         </div>
       )}
 
-      {data && (
+      {data && !isEmbedded && (
         <div className="border-b border-slate-300 pb-3 mb-3">
           <EpicStatWidgets
             gateMessage={statWidgetsGateMessage}
@@ -1173,16 +1180,13 @@ function EpicAlerts15Screen() {
           value={projectFilters}
           onChange={(values) => { setDomainFilter(''); handleProjectFiltersChange(values); }}
         />
-        <select
-          className={`ttm-select${pmSmFilter ? ' has-filter' : ''}`}
-          aria-label="PM/SM"
-          value={pmSmFilter}
-          onChange={(event) => { setPmSmFilter(event.target.value); setPage(1); }}
-          title="Lọc theo PM/SM của dự án — hiển thị Epic của mọi dự án do người này phụ trách"
-        >
-          <option value="">Tất cả PM/SM</option>
-          {pmSmOptions.map((name) => <option key={name} value={name}>{name}</option>)}
-        </select>
+        <ToolbarMultiSelect
+          ariaLabel="PM/SM"
+          allLabel="Tất cả PM/SM"
+          options={pmSmOptions}
+          value={pmSmFilters}
+          onChange={(values) => { setPmSmFilters(values); setPage(1); }}
+        />
         <ToolbarMultiSelect
           ariaLabel="Components"
           allLabel={projectFilters.length === 0 ? 'Chọn dự án trước' : 'Tất cả Components'}

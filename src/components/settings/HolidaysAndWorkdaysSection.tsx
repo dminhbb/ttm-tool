@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { CopySimple } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
+import { showToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
 import { HolidaysPanel } from '@/components/settings/HolidaysPanel';
@@ -48,7 +49,8 @@ export function HolidaysAndWorkdaysSection() {
         setMessage({ text: result.error || 'Lỗi hệ thống.', type: 'error' });
         return;
       }
-      setMessage({ text: `Đã copy ${result.holidaysCopied} Ngày nghỉ lễ và ${result.workdaysCopied} Ngày làm bù sang năm ${result.targetYear}.`, type: 'success' });
+      showToast(`Đã copy ${result.holidaysCopied} Ngày nghỉ lễ và ${result.workdaysCopied} Ngày làm bù sang năm ${result.targetYear}.`, 5000);
+      setMessage(null);
       if (year + 1 <= MAX_YEAR) setYear(year + 1);
       setRefreshKey((current) => current + 1);
     } catch {
@@ -69,8 +71,8 @@ export function HolidaysAndWorkdaysSection() {
         </Button>
       </div>
 
-      {message && (
-        <Alert variant={message.type === 'success' ? 'success' : 'error'} title={message.type === 'success' ? 'Thành công' : 'Lỗi'}>
+      {message && message.type === 'error' && (
+        <Alert variant="error" title="Lỗi">
           {message.text}
         </Alert>
       )}

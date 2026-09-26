@@ -8,6 +8,41 @@
 
 ## 2026-09-26
 
+- **Hỗ trợ lọc nhiều PM/SM qua deep-link popup, chuẩn hóa Toast thành công và đổi tên TTM dashboard**:
+  - **Lọc nhiều PM/SM khi chuyển tiếp sang Quản trị Epic** ([`src/lib/epic-alerts-deep-link.ts`](file:///d:/git/ttm-tool/src/lib/epic-alerts-deep-link.ts), [`src/lib/epic-alert-row-cache-query-service.ts`](file:///d:/git/ttm-tool/src/lib/epic-alert-row-cache-query-service.ts), [`src/app/api/epic-alerts-15/route.ts`](file:///d:/git/ttm-tool/src/app/api/epic-alerts-15/route.ts), [`src/app/epic-alerts-15/page.tsx`](file:///d:/git/ttm-tool/src/app/epic-alerts-15/page.tsx), [`src/app/dashboard-new/page.tsx`](file:///d:/git/ttm-tool/src/app/dashboard-new/page.tsx)):
+    - Với các item biểu đồ/ma trận có nhiều hơn 1 PM/SM (ví dụ `'longnx1, tanlt4'`), hệ thống tự động tách chuỗi thành mảng danh sách PM/SM và truyền dạng danh sách qua URL param `pmSm=longnx1,tanlt4`.
+    - Phía API `epic-alerts-15` và service truy vấn cache Postgres sử dụng toán tử mảng Postgres `owner_names && $N::text[]` để lấy ra toàn bộ các Epic thuộc về bất kỳ PM/SM nào trong danh sách.
+    - Phía giao diện Quản trị Epic (`/epic-alerts-15`), nâng cấp thanh lọc PM/SM thành `ToolbarMultiSelect` hỗ trợ chọn đồng thời nhiều PM/SM và tự động nhận diện danh sách PM/SM từ deep link.
+  - **Chuẩn hóa thông báo Toast và di chuyển thông báo thành công trên toàn bộ tính năng Quản trị** ([`src/components/ui/Toast.tsx`](file:///d:/git/ttm-tool/src/components/ui/Toast.tsx), [`src/app/admin/*`](file:///d:/git/ttm-tool/src/app/admin), [`src/components/*`](file:///d:/git/ttm-tool/src/components)):
+    - Bổ sung tham số thời gian hiển thị `durationMs` trong `showToast` với mặc định là 3 giây (`3000ms`).
+    - Rà soát toàn bộ các màn hình Quản trị hệ thống (`admin/users`, `admin/domains`, `admin/projects`, `admin/database`, `PermissionMatrixSettings`, `StatusAlertRulesSettings`, `HolidaysPanel`, `HolidaysAndWorkdaysSection`, `MakeupWorkdaysPanel`, `ApiKeysPanel`, `JiraConfigPanel`, `AdPopupsPanel`, `InfoBannersPanel`, `IssueTypeRolesPanel`, `McpServerPanel`, `PersonalAccessTokensPanel`, `RawImportRetentionSettings`, `RecomputeCachePanel`, `ComponentManagementTab`, `CompleteDataModal`): chuyển đổi toàn bộ thông báo kết quả thực hiện thành công sang dạng Toast với thời gian hiển thị 5 giây (`showToast(..., 5000)`). Các thông báo lỗi vẫn giữ nguyên ở dạng Alert/inline error.
+  - **Bổ sung liên kết mở popup Quản trị Epic cho toàn bộ chỉ số trong Ma trận Phân bổ Tiến độ Đa chiều** ([`src/app/dashboard-new/page.tsx`](file:///d:/git/ttm-tool/src/app/dashboard-new/page.tsx)):
+    - Người dùng có thể click vào tên item/danh mục để mở popup xem toàn bộ Epic thuộc item đó.
+    - Click vào thanh tiến độ và chỉ số % của TTM-CNTT QLDA hoặc TTM-CNTT QA để mở popup xem danh sách Epic tương ứng của mục được chọn.
+  - **Đổi tên màn hình Dashboard New thành TTM dashboard**:
+    - Cập nhật định danh màn hình trong `src/lib/app-screens.ts` (`title: 'TTM dashboard'`).
+    - Cập nhật menu điều hướng trên thanh sidebar/header (`src/components/layout/AppShell.tsx`).
+    - Tạo migration `20260926_rename_dashboard_new_to_ttm_dashboard.sql` cập nhật bảng `permission_features` trên các target database (`local`, `supabase`).
+    - Cập nhật tiêu đề lớn thành `'TIME TO MARKET DASHBOARD'` và phụ đề phân quyền: `'Dashboard quản lý cho CBQL/Lead'` và `'Dashboard quản lý cho PM/SM'`.
+
+- **Tinh gọn thanh công cụ bộ lọc (Filters toolbar) trên Dashboard New** ([`src/app/dashboard-new/page.tsx`](file:///d:/git/ttm-tool/src/app/dashboard-new/page.tsx)):
+  - Loại bỏ 5 ô filter cấp độ chi tiết khỏi thanh Filters toolbar trên màn hình Dashboard New: *Lọc Nhận xét*, *Loại Epic*, *Status*, *Đơn vị yêu cầu* và ô tìm kiếm *Tìm epic*.
+  - Giữ lại các bộ lọc vĩ mô phục vụ phân cấp lãnh đạo/quản lý: *Domain* (dành cho Admin/Supervisor), *Dự án* (multi-select) và *PM/SM* (select), cùng nhãn *Filters:* và tem thời gian cập nhật dữ liệu.
+  - Tinh gọn hàm tạo liên kết deep-link `toEpicAlertsLink`, loại bỏ các state và options thừa (`statusOptions`, `requestingUnitOptions`, `EPIC_COMPLEXITY_TYPES`, `filterAlert`, `filterType`, `filterStatuses`, `filterRequestingUnit`, `searchQuery`), giữ nguyên khả năng nhận tham số ngữ cảnh khi người dùng click vào KPI Cards, Ma trận Đa chiều hay Biểu đồ Donut để mở Modal Quản trị Epic.
+
+- **Triển khai tính năng In-Page Popup Modal Quản trị Epic trong Dashboard New**:
+  - **Chế độ hiển thị nhúng `embedded=true`** ([`src/components/layout/AppShell.tsx`](file:///d:/git/ttm-tool/src/components/layout/AppShell.tsx), [`src/app/epic-alerts-15/page.tsx`](file:///d:/git/ttm-tool/src/app/epic-alerts-15/page.tsx)):
+    - Khi nhận cờ `embedded=true` qua URL query, `AppShell` tự động ẩn Header điều hướng, Sidebar, Footer hệ thống và banner để màn hình bên trong iframe được tối ưu không gian hiển thị toàn màn hình.
+    - Màn hình Quản trị Epic ẩn khối `EpicStatWidgets` tổng phía trên để đưa Toolbar bộ lọc và Bảng dữ liệu lên ngay đầu trang.
+  - **Component EpicAlertsIframeModal** ([`src/components/dashboard-new/EpicAlertsIframeModal.tsx`](file:///d:/git/ttm-tool/src/components/dashboard-new/EpicAlertsIframeModal.tsx)):
+    - Xây dựng Modal kích thước lớn (`96vw x 92vh`) nhúng iframe trỏ đến URL route deep-link của Quản trị Epic kèm cờ `embedded=true`.
+    - Hỗ trợ tiêu đề ngữ cảnh động, nút *Mở tab mới* (`ArrowSquareOut`) để mở trang độc lập, nút đóng (`X`), phím `Esc`, khóa cuộn trang nền và spinner tải mượt mà.
+  - **Tích hợp điểm mở Modal trên Dashboard New** ([`src/app/dashboard-new/page.tsx`](file:///d:/git/ttm-tool/src/app/dashboard-new/page.tsx), [`src/components/dashboard-new/DonutChartCard.tsx`](file:///d:/git/ttm-tool/src/components/dashboard-new/DonutChartCard.tsx)):
+    - **Cụm KPI Cards**: Click các thẻ *Tổng số Epic, Fail TTM-CNTT, Fail TTM-E2E, Cảnh báo sớm/muộn, Sai lệch dữ liệu, Chờ golive, Giải trình golive* để mở popup lọc danh sách Epic tương ứng.
+    - **Ma trận Phân bổ Tiến độ Đa chiều**: Click vào các số liệu ở cột *Tổng số Epic, Pass TTM, Fail TTM, Đúng tiến độ, Chậm tiến độ* của từng dòng (Domain, PM/SM, Dự án, Loại Epic) để mở popup kết hợp bộ lọc dòng + cột.
+    - **5 Section Biểu đồ Donut**: Bổ sung prop `onItemClick` trên `DonutChartCard`, cho phép click vào từng lát cắt hoặc dòng số liệu của 5 section (Đơn vị yêu cầu, Domain, PM/SM, Loại hình, Dự án) để mở popup duyệt danh sách Epic tương ứng.
+
+
 - **Triệt tiêu hiện tượng rung giật (layout shift) và tinh chỉnh tương tác Biểu đồ Donut**:
   - **Giữ nguyên 100% độ rõ (không làm mờ các item khác)** ([`src/components/dashboard-new/DonutChartCard.tsx`](file:///d:/git/ttm-tool/src/components/dashboard-new/DonutChartCard.tsx)):
     - Loại bỏ hoàn toàn cơ chế làm mờ `opacity: 0.4` của các lát cắt Donut và `opacity-35` của các dòng trong bảng chú giải. Mọi lát cắt và mục dữ liệu luôn hiển thị rõ ràng, chỉ làm nổi bật duy nhất lát cắt/mục được chọn.

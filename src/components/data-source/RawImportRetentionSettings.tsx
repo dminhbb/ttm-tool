@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Alert } from '@/components/ui/Alert';
+import { showToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -68,7 +69,8 @@ export function RawImportRetentionSettings() {
         return;
       }
       setRetentionDays(result.rawImportRetentionDays);
-      setMessage({ text: 'Đã lưu cấu hình. Hệ thống tự dọn raw import sau mỗi lần import được lưu.', type: 'success' });
+      showToast('Đã lưu cấu hình. Hệ thống tự dọn raw import sau mỗi lần import được lưu.', 5000);
+      setMessage(null);
     } catch {
       setMessage({ text: 'Không thể kết nối dịch vụ cấu hình lưu trữ.', type: 'error' });
     } finally {
@@ -96,7 +98,7 @@ export function RawImportRetentionSettings() {
           type="number"
           value={retentionDays}
         />
-        {message && <Alert title={message.type === 'success' ? 'Thông báo' : 'Lỗi'} variant={message.type}>{message.text}</Alert>}
+        {message && message.type === 'error' && <Alert title="Lỗi" variant="error">{message.text}</Alert>}
       </CardBody>
       <CardFooter>
         <Button isLoading={isSaving} onClick={save}>Lưu cấu hình</Button>

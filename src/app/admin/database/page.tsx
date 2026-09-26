@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CloudArrowDown, CloudArrowUp, Trash, Warning } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
+import { showToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -132,7 +133,8 @@ export default function DatabaseBackupPage() {
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      setMessage({ text: `Đã export ${selectedTables.size} bảng thành công.`, type: 'success' });
+      showToast(`Đã export ${selectedTables.size} bảng thành công.`, 5000);
+      setMessage(null);
       setShowExportModal(false);
     } catch {
       setMessage({ text: 'Không thể kết nối API export.', type: 'error' });
@@ -171,7 +173,8 @@ export default function DatabaseBackupPage() {
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      setMessage({ text: `Đã export dữ liệu từ lớp ${formatLayerDate(startLayerDate)} đến ${formatLayerDate(endLayerDate)} thành công.`, type: 'success' });
+      showToast(`Đã export dữ liệu từ lớp ${formatLayerDate(startLayerDate)} đến ${formatLayerDate(endLayerDate)} thành công.`, 5000);
+      setMessage(null);
     } catch {
       setMessage({ text: 'Không thể kết nối API export.', type: 'error' });
     } finally {
@@ -234,7 +237,8 @@ export default function DatabaseBackupPage() {
       const result: ImportResult = await res.json();
       setImportResult(result);
       if (result.ok) {
-        setMessage({ text: 'Import hoàn tất.', type: 'success' });
+        showToast('Import hoàn tất.', 5000);
+        setMessage(null);
         setImportFile(null);
         setImportPreview(null);
         setImportSelectedTables(new Set());
@@ -293,7 +297,8 @@ export default function DatabaseBackupPage() {
         setMessage({ text: result.error || 'Dọn dữ liệu thất bại.', type: 'error' });
         return;
       }
-      setMessage({ text: `Đã xóa ${formatNumber(result.batchesDeleted)} đợt import cũ hơn ${retentionDays} ngày.`, type: 'success' });
+      showToast(`Đã xóa ${formatNumber(result.batchesDeleted)} đợt import cũ hơn ${retentionDays} ngày.`, 5000);
+      setMessage(null);
       setCleanupPreview(null);
       void fetchTables();
     } catch {
@@ -307,7 +312,7 @@ export default function DatabaseBackupPage() {
     <div className="flex flex-col gap-6">
       <InfoBannerDisplay pathname="/admin/database" />
       {message && (
-        <Alert variant={message.type === 'success' ? 'success' : 'error'} title={message.type === 'success' ? 'Thành công' : 'Lỗi'}>
+        <Alert variant="error" title="Lỗi">
           {message.text}
         </Alert>
       )}

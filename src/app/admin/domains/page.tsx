@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { PencilSimple, Plus, Trash } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
+import { showToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -54,14 +55,14 @@ export default function DomainsAdminPage() {
       const response = await fetch('/api/domains', { method: editingId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editingId ? { ...form, id: editingId } : form) });
       const result = await response.json();
       if (!response.ok) { setMessage({ text: result.error || 'Lỗi hệ thống.', type: 'error' }); return; }
-      setMessage({ text: editingId ? 'Đã cập nhật Domain.' : 'Đã tạo Domain mới.', type: 'success' }); setShowModal(false); void load();
+      showToast(editingId ? 'Đã cập nhật Domain.' : 'Đã tạo Domain mới.', 5000); setMessage(null); setShowModal(false); void load();
     } catch { setMessage({ text: 'Không thể kết nối API.', type: 'error' }); } finally { setIsSaving(false); }
   };
 
   const handleDelete = async (domain: Domain) => {
     if (!confirm(`Xóa Domain "${domain.domainName}"?`)) return;
     const response = await fetch(`/api/domains?id=${domain.id}`, { method: 'DELETE' });
-    if (response.ok) { setMessage({ text: 'Đã xóa Domain.', type: 'success' }); void load(); }
+    if (response.ok) { showToast('Đã xóa Domain.', 5000); setMessage(null); void load(); }
     else { const result = await response.json(); setMessage({ text: result.error || 'Xóa thất bại.', type: 'error' }); }
   };
 
@@ -73,7 +74,7 @@ export default function DomainsAdminPage() {
     .sort((a, b) => compareValues(domainSortValue(a, domainSortKey), domainSortValue(b, domainSortKey), domainSortDirection(domainSortKey) ?? 'asc'));
   return <div className="flex flex-col gap-6">
     <InfoBannerDisplay pathname="/admin/domains" />
-    {message && <Alert variant={message.type === 'success' ? 'success' : 'error'} title={message.type === 'success' ? 'Thành công' : 'Lỗi'}>{message.text}</Alert>}
+    {message && <Alert variant="error" title="Lỗi">{message.text}</Alert>}
     <Card><CardHeader><CardTitle>Danh mục Domain nghiệp vụ ({domains.length})</CardTitle><Button size="sm" icon={<Plus className="size-4" weight="bold" />} onClick={openCreate}>Thêm Domain</Button></CardHeader><CardBody>
       {isLoading ? <TableSkeleton rows={4} /> : domains.length === 0 ? <EmptyState title="Chưa có Domain nào" description="Thêm Domain nghiệp vụ đầu tiên để phân loại các dự án." /> : <><DataTableToolbar onReset={() => setSearchTerm('')} onSearchChange={setSearchTerm} placeholder="Tìm Domain, Lead hoặc mô tả" searchValue={searchTerm} />{filteredDomains.length === 0 ? <EmptyState title="Không tìm thấy Domain phù hợp" description="Hãy thay đổi từ khóa hoặc đặt lại tìm kiếm." /> : <TableContainer><Table><THead><TR>
         <TH>STT</TH>

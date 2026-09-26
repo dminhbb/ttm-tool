@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Eye, Plus, PencilSimple, Trash } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
+import { showToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -112,7 +113,8 @@ export function AdPopupsPanel() {
         setMessage({ text: result.error || 'Lỗi hệ thống.', type: 'error' });
         return;
       }
-      setMessage({ text: editingId ? 'Đã cập nhật Popup quảng cáo.' : 'Đã thêm Popup quảng cáo mới.', type: 'success' });
+      showToast(editingId ? 'Đã cập nhật Popup quảng cáo.' : 'Đã thêm Popup quảng cáo mới.', 5000);
+      setMessage(null);
       setShowModal(false);
       fetchPopups();
     } catch {
@@ -126,7 +128,8 @@ export function AdPopupsPanel() {
     if (!confirm(`Xóa campaign "${popup.campaignName}"?`)) return;
     const res = await fetch(`/api/ad-popups?id=${popup.id}`, { method: 'DELETE' });
     if (res.ok) {
-      setMessage({ text: 'Đã xóa Popup quảng cáo.', type: 'success' });
+      showToast('Đã xóa Popup quảng cáo.', 5000);
+      setMessage(null);
       fetchPopups();
     } else {
       const result = await res.json();
@@ -141,8 +144,8 @@ export function AdPopupsPanel() {
 
   return (
     <div className="flex flex-col gap-6">
-      {message && (
-        <Alert variant={message.type === 'success' ? 'success' : 'error'} title={message.type === 'success' ? 'Thành công' : 'Lỗi'}>
+      {message && message.type === 'error' && (
+        <Alert variant="error" title="Lỗi">
           {message.text}
         </Alert>
       )}

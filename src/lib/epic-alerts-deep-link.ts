@@ -17,7 +17,7 @@ export interface EpicAlertsDeepLinkParams {
    * is itself given, which always wins. */
   domain?: string;
   dataIssue?: boolean;
-  pmSm?: string;
+  pmSm?: string | string[];
   /** Jira Project Keys — pre-selects the "Dự án" multi-select. */
   projects?: string[];
   requestingUnit?: string;
@@ -36,7 +36,10 @@ export function buildEpicAlertsDeepLink(params: EpicAlertsDeepLinkParams): strin
   if (params.projects && params.projects.length > 0) query.set('projects', params.projects.join(','));
   if (params.status && params.status.length > 0) query.set('status', params.status.join(','));
   if (params.type) query.set('type', params.type);
-  if (params.pmSm) query.set('pmSm', params.pmSm);
+  if (params.pmSm) {
+    const pmSmVal = Array.isArray(params.pmSm) ? params.pmSm.join(',') : params.pmSm;
+    if (pmSmVal) query.set('pmSm', pmSmVal);
+  }
   if (params.requestingUnit) query.set('requestingUnit', params.requestingUnit);
   if (params.dataIssue) query.set('dataIssue', '1');
   if (params.search) query.set('search', params.search);

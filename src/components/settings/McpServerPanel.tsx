@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Broadcast, Key, Plugs, Trophy, Users } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
+import { showToast } from '@/components/ui/Toast';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
@@ -65,7 +66,8 @@ export function McpServerPanel() {
         return;
       }
       setData((prev) => (prev ? { ...prev, settings: result } : prev));
-      setMessage({ text: nextEnabled ? 'Đã bật MCP Server.' : 'Đã tắt MCP Server.', type: 'success' });
+      showToast(nextEnabled ? 'Đã bật MCP Server.' : 'Đã tắt MCP Server.', 5000);
+      setMessage(null);
     } catch {
       setMessage({ text: 'Không thể kết nối API.', type: 'error' });
     } finally {
@@ -75,8 +77,8 @@ export function McpServerPanel() {
 
   return (
     <div className="flex flex-col gap-6">
-      {message && (
-        <Alert variant={message.type === 'success' ? 'success' : 'error'} title={message.type === 'success' ? 'Thành công' : 'Lỗi'}>
+      {message && message.type === 'error' && (
+        <Alert variant="error" title="Lỗi">
           {message.text}
         </Alert>
       )}

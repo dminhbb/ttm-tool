@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FloppyDisk } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
+import { showToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
@@ -82,7 +83,8 @@ export function PermissionMatrixSettings() {
       setFeatures(data.features);
       setPermissions(new Map(data.permissions.map((permission) => [permissionKey(permission.featureKey, permission.role), permission])));
       setDirty(false);
-      setNotice({ text: 'Đã lưu ma trận phân quyền.', type: 'success' });
+      showToast('Đã lưu ma trận phân quyền.', 5000);
+      setNotice(null);
     } catch (error) {
       setNotice({ text: error instanceof Error ? error.message : 'Không thể lưu ma trận phân quyền.', type: 'error' });
     } finally {
@@ -143,7 +145,7 @@ export function PermissionMatrixSettings() {
 
   return (
     <div className="flex flex-col gap-6">
-      {notice && <Alert title={notice.type === 'success' ? 'Thành công' : 'Lỗi'} variant={notice.type === 'success' ? 'success' : 'error'}>{notice.text}</Alert>}
+      {notice && notice.type === 'error' && <Alert title="Lỗi" variant="error">{notice.text}</Alert>}
       <Card>
         <CardHeader>
           <div>

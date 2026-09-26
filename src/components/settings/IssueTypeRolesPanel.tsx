@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, PencilSimple, Trash } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
+import { showToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -79,7 +80,8 @@ export function IssueTypeRolesPanel() {
         setMessage({ text: result.error || 'Lỗi hệ thống.', type: 'error' });
         return;
       }
-      setMessage({ text: editingId ? 'Đã cập nhật Issue Type.' : 'Đã thêm Issue Type mới.', type: 'success' });
+      showToast(editingId ? 'Đã cập nhật Issue Type.' : 'Đã thêm Issue Type mới.', 5000);
+      setMessage(null);
       setShowModal(false);
       fetchMappings();
     } catch {
@@ -96,7 +98,8 @@ export function IssueTypeRolesPanel() {
     if (!confirm(`Xóa khai báo Issue Type "${mapping.issueType}"?`)) return;
     const res = await fetch(`/api/issue-type-roles?id=${mapping.id}`, { method: 'DELETE' });
     if (res.ok) {
-      setMessage({ text: 'Đã xóa Issue Type.', type: 'success' });
+      showToast('Đã xóa Issue Type.', 5000);
+      setMessage(null);
       fetchMappings();
     } else {
       const result = await res.json();
@@ -106,8 +109,8 @@ export function IssueTypeRolesPanel() {
 
   return (
     <div className="flex flex-col gap-6">
-      {message && (
-        <Alert variant={message.type === 'success' ? 'success' : 'error'} title={message.type === 'success' ? 'Thành công' : 'Lỗi'}>
+      {message && message.type === 'error' && (
+        <Alert variant="error" title="Lỗi">
           {message.text}
         </Alert>
       )}

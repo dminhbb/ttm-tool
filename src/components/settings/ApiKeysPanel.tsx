@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, PencilSimple, Trash, Eye, EyeSlash, Copy, Check, ArrowsClockwise, Key } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
+import { showToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -111,7 +112,8 @@ export function ApiKeysPanel() {
         setMessage({ text: result.error || 'Lỗi hệ thống khi lưu API Key.', type: 'error' });
         return;
       }
-      setMessage({ text: editingId ? 'Đã cập nhật API Key.' : 'Đã tạo API Key mới thành công.', type: 'success' });
+      showToast(editingId ? 'Đã cập nhật API Key.' : 'Đã tạo API Key mới thành công.', 5000);
+      setMessage(null);
       setShowModal(false);
       fetchApiKeys();
     } catch {
@@ -126,7 +128,8 @@ export function ApiKeysPanel() {
     try {
       const res = await fetch(`/api/admin/api-keys?id=${item.id}`, { method: 'DELETE' });
       if (res.ok) {
-        setMessage({ text: 'Đã xóa API Key.', type: 'success' });
+        showToast('Đã xóa API Key.', 5000);
+        setMessage(null);
         fetchApiKeys();
       } else {
         const result = await res.json();
@@ -161,8 +164,8 @@ export function ApiKeysPanel() {
 
   return (
     <div className="flex flex-col gap-6">
-      {message && (
-        <Alert variant={message.type === 'success' ? 'success' : 'error'} title={message.type === 'success' ? 'Thành công' : 'Lỗi'}>
+      {message && message.type === 'error' && (
+        <Alert variant="error" title="Lỗi">
           {message.text}
         </Alert>
       )}

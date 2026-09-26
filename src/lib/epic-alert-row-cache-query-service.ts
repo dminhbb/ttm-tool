@@ -15,7 +15,7 @@ import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
  */
 export interface EpicAlertRowCacheFilters {
   projectKeys?: string[];
-  pmSm?: string;
+  pmSm?: string[];
   components?: string[];
   alertFilter?: string;
   epicType?: string;
@@ -76,9 +76,9 @@ function buildFilterClause(scope: AccessScope, filters: EpicAlertRowCacheFilters
     params.push(filters.projectKeys);
     clauses.push(`project_key = ANY($${params.length}::text[])`);
   }
-  if (filters.pmSm) {
+  if (filters.pmSm && filters.pmSm.length > 0) {
     params.push(filters.pmSm);
-    clauses.push(`$${params.length} = ANY(owner_names)`);
+    clauses.push(`owner_names && $${params.length}::text[]`);
   }
   if (filters.components && filters.components.length > 0) {
     params.push(filters.components);

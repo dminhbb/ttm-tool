@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { USER_ROLES, type UserRole } from '@/lib/auth-types';
 import { PAGE_HEADERS } from '@/lib/app-screens';
 import { EpicHeaderWidgetsProvider, useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
@@ -88,7 +88,7 @@ const navigation: NavigationSection[] = [
     label: 'Giám sát',
     items: [
       { href: '/reports', icon: Bandaids, label: 'Báo cáo Epic (beta 2)' },
-      { href: '/dashboard-new', icon: ChartPie, label: 'Dashboard New' },
+      { href: '/dashboard-new', icon: ChartPie, label: 'TTM dashboard' },
       { href: '/dashboard', icon: Gauge, label: 'Dashboard' },
       // { href: '/epic-alerts', icon: Browser, label: 'Quản trị Epic (rút gọn)', roles: ADMIN_VIEW_ROLES },
       { href: '/epic-alerts-15', icon: Browsers, label: 'Quản trị Epic' },
@@ -322,6 +322,8 @@ function AppShellInner({ children }: AppShellProps) {
   // Best-effort last-known role for this tab, used only to avoid flashing the "no role" nav —
   // never to decide `isAuthorized` below, so a stale/downgraded cache can't skip the real gate.
   const cachedRole = React.useSyncExternalStore(subscribeToRoleCache, readCachedRole, () => null);
+  const searchParams = useSearchParams();
+  const isEmbedded = searchParams?.get('embedded') === 'true' || searchParams?.get('embedded') === '1';
   const displayRole = role ?? cachedRole;
   const pathname = usePathname();
   const router = useRouter();
@@ -384,6 +386,27 @@ function AppShellInner({ children }: AppShellProps) {
   }, [mobileNavigationOpen]);
 
   if (pathname === '/login') return <>{children}</>;
+
+  if (isEmbedded) {
+    return (
+      <div className="app-type-unified min-h-screen bg-fb-bg text-fb-text-primary">
+        <main className="w-full min-h-screen p-2 sm:p-4">
+          {mustChangePassword ? (
+            <div className="flex flex-1 flex-col items-center justify-center py-24 text-center">
+              <p className="text-base font-bold text-fb-text-primary">Yêu cầu đổi mật khẩu lần đầu</p>
+              <p className="mt-2 text-sm text-fb-text-secondary">
+                Tài khoản của bạn cần đổi mật khẩu lần đầu để đảm bảo bảo mật trước khi tiếp tục sử dụng hệ thống.
+              </p>
+            </div>
+          ) : isAuthorized ? children : (
+            <div className="flex flex-1 items-center justify-center py-24 text-sm text-fb-text-secondary">
+              Đang kiểm tra quyền truy cập…
+            </div>
+          )}
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="app-type-unified min-h-[100dvh] bg-fb-bg text-fb-text-primary">
@@ -495,7 +518,9 @@ export function AppShell({ children }: AppShellProps) {
   return (
     <EpicHeaderWidgetsProvider>
       <ToastProvider>
-        <AppShellInner>{children}</AppShellInner>
+        <React.Suspense fallback={<div className="min-h-screen bg-fb-bg" />}>
+          <AppShellInner>{children}</AppShellInner>
+        </React.Suspense>
       </ToastProvider>
     </EpicHeaderWidgetsProvider>
   );

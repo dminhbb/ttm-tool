@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Check, Copy, Plugs, Plus, Trash, Warning } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
+import { showToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -73,7 +74,8 @@ export function PersonalAccessTokensPanel() {
     try {
       const res = await fetch(`/api/mcp-tokens?id=${item.id}`, { method: 'DELETE' });
       if (res.ok) {
-        setMessage({ text: 'Đã thu hồi token.', type: 'success' });
+        showToast('Đã thu hồi token.', 5000);
+        setMessage(null);
         fetchTokens();
       } else {
         const result = await res.json();
@@ -107,8 +109,8 @@ export function PersonalAccessTokensPanel() {
         trong Quản trị hệ thống trước khi token hoạt động được.
       </p>
 
-      {message && (
-        <Alert variant={message.type === 'success' ? 'success' : 'error'} title={message.type === 'success' ? 'Thành công' : 'Lỗi'}>
+      {message && message.type === 'error' && (
+        <Alert variant="error" title="Lỗi">
           {message.text}
         </Alert>
       )}

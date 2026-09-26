@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Eye, EyeSlash, Plus } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
+import { showToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -116,7 +117,8 @@ export default function UsersPage() {
       if (!pwResponse.ok) { setMessage({ text: pwResult.error || 'Đã cập nhật user nhưng không thể cấp lại mật khẩu.', type: 'error' }); void load(); return; }
     }
     closeEdit();
-    setMessage({ text: 'Đã cập nhật user.', type: 'success' });
+    showToast('Đã cập nhật user.', 5000);
+    setMessage(null);
     void load();
   };
 
@@ -124,7 +126,7 @@ export default function UsersPage() {
     if (createForm.isActive && createForm.domainIds.length === 0) { setMessage({ text: 'User active phải thuộc ít nhất một Domain.', type: 'error' }); return; }
     const response = await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(createForm) });
     const result = await response.json();
-    if (response.ok) { setCreating(false); setMessage({ text: 'Đã tạo user.', type: 'success' }); void load(); }
+    if (response.ok) { setCreating(false); showToast('Đã tạo user.', 5000); setMessage(null); void load(); }
     else setMessage({ text: result.error || 'Không thể tạo user.', type: 'error' });
   };
 
@@ -137,7 +139,8 @@ export default function UsersPage() {
       const result = await response.json();
       if (!response.ok) { setMessage({ text: result.error || 'Không thể thêm nhiều user.', type: 'error' }); return; }
       setCreatingBulk(false); setBulkUsernames('');
-      setMessage({ text: `Đã thêm ${result.created.length} user inactive${result.skipped.length ? `; bỏ qua ${result.skipped.length} user đã tồn tại` : ''}.`, type: 'success' });
+      showToast(`Đã thêm ${result.created.length} user inactive${result.skipped.length ? `; bỏ qua ${result.skipped.length} user đã tồn tại` : ''}.`, 5000);
+      setMessage(null);
       void load();
     } catch { setMessage({ text: 'Không thể kết nối API.', type: 'error' }); } finally { setIsBulkSaving(false); }
   };
@@ -146,7 +149,7 @@ export default function UsersPage() {
     if (!deleting) return;
     const response = await fetch(`/api/users?id=${deleting.id}`, { method: 'DELETE' });
     const result = await response.json();
-    if (response.ok) { setDeleting(null); setEditing(null); setMessage({ text: 'Đã xóa user.', type: 'success' }); void load(); }
+    if (response.ok) { setDeleting(null); setEditing(null); showToast('Đã xóa user.', 5000); setMessage(null); void load(); }
     else setMessage({ text: result.error || 'Không thể xóa user.', type: 'error' });
   };
 
@@ -156,7 +159,7 @@ export default function UsersPage() {
     if (!v.isValid) { setMessage({ text: v.error || 'Mật khẩu mới không hợp lệ.', type: 'error' }); return; }
     const response = await fetch('/api/password-reset-requests', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tickets: resetTickets.map(({ id, userId }) => ({ id, userId })), password }) });
     const result = await response.json();
-    if (response.ok) { const count = resetTickets.length; setResetTickets([]); setSelectedTicketIds([]); setMessage({ text: `Đã cấp lại mật khẩu cho ${count} user.`, type: 'success' }); void load(); }
+    if (response.ok) { const count = resetTickets.length; setResetTickets([]); setSelectedTicketIds([]); showToast(`Đã cấp lại mật khẩu cho ${count} user.`, 5000); setMessage(null); void load(); }
     else setMessage({ text: result.error || 'Không thể cấp lại mật khẩu.', type: 'error' });
   };
 
@@ -164,7 +167,7 @@ export default function UsersPage() {
     try {
       const response = await fetch('/api/users/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids, ...(domainId ? { domainId } : {}) }) });
       const result = await response.json();
-      if (response.ok) { setApprovalUserIds([]); setApprovalDomainId(''); setSelectedRegistrationIds([]); setMessage({ text: `Đã duyệt ${result.approved} đăng ký mới${result.domainAssigned ? ` và gán Domain cho ${result.domainAssigned} user` : ''}.`, type: 'success' }); void load(); }
+      if (response.ok) { setApprovalUserIds([]); setApprovalDomainId(''); setSelectedRegistrationIds([]); showToast(`Đã duyệt ${result.approved} đăng ký mới${result.domainAssigned ? ` và gán Domain cho ${result.domainAssigned} user` : ''}.`, 5000); setMessage(null); void load(); }
       else setMessage({ text: result.error || 'Không thể duyệt đăng ký.', type: 'error' });
     } catch { setMessage({ text: 'Không thể kết nối dịch vụ duyệt đăng ký.', type: 'error' }); }
   };
@@ -181,7 +184,7 @@ export default function UsersPage() {
       ? await fetch('/api/password-reset-requests', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: bulkDelete.ids }) })
       : await fetch('/api/users', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: bulkDelete.ids }) });
     const result = await response.json();
-    if (response.ok) { const count = typeof result.deleted === 'number' ? result.deleted : bulkDelete.ids.length; setMessage({ text: `Đã xóa ${count} yêu cầu.`, type: 'success' }); if (bulkDelete.type === 'tickets') setSelectedTicketIds([]); else setSelectedRegistrationIds([]); setBulkDelete(null); void load(); }
+    if (response.ok) { const count = typeof result.deleted === 'number' ? result.deleted : bulkDelete.ids.length; showToast(`Đã xóa ${count} yêu cầu.`, 5000); setMessage(null); if (bulkDelete.type === 'tickets') setSelectedTicketIds([]); else setSelectedRegistrationIds([]); setBulkDelete(null); void load(); }
     else setMessage({ text: result.error || 'Không thể xóa các mục đã chọn.', type: 'error' });
   };
 

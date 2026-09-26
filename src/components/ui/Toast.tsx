@@ -17,7 +17,7 @@ const ToastContext = createContext<ToastContextType>({
 
 let globalShowToast: ((message: string, durationMs?: number) => void) | null = null;
 
-export function showToast(message: string, durationMs = 2000) {
+export function showToast(message: string, durationMs = 3000) {
   if (globalShowToast) {
     globalShowToast(message, durationMs);
   } else if (typeof window !== 'undefined') {
@@ -32,7 +32,7 @@ export function useToast() {
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
-  const showToastCallback = useCallback((message: string, durationMs = 2000) => {
+  const showToastCallback = useCallback((message: string, durationMs = 3000) => {
     const id = Date.now() + Math.random();
     setToasts((prev) => [...prev, { id, message }]);
     setTimeout(() => {
@@ -45,7 +45,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     const handleCustomEvent = (event: Event) => {
       const customEvent = event as CustomEvent<{ durationMs?: number; message: string }>;
       if (customEvent.detail?.message) {
-        showToastCallback(customEvent.detail.message, customEvent.detail.durationMs ?? 2000);
+        showToastCallback(customEvent.detail.message, customEvent.detail.durationMs ?? 3000);
       }
     };
     window.addEventListener('ttm-show-toast', handleCustomEvent);

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Alert } from '@/components/ui/Alert';
+import { showToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
@@ -95,10 +96,8 @@ export function CompleteDataModal({ isOpen, onClose, onCompleted, startDate }: C
         setMessage({ text: result.error || 'Lỗi hệ thống.', type: 'error' });
         return;
       }
-      setMessage({
-        text: `Đã tạo ${result.createdEpics.length} Epic và ${result.createdStories.length} Story (Start Date ${formatDate(startDate)}).`,
-        type: 'success',
-      });
+      showToast(`Đã tạo ${result.createdEpics.length} Epic và ${result.createdStories.length} Story (Start Date ${formatDate(startDate)}).`, 5000);
+      setMessage(null);
       await fetchCandidates();
       onCompleted();
     } catch {
@@ -124,7 +123,7 @@ export function CompleteDataModal({ isOpen, onClose, onCompleted, startDate }: C
       }
     >
       <div className="flex flex-col gap-4">
-        {message && <Alert title={message.type === 'success' ? 'Thành công' : 'Lỗi'} variant={message.type}>{message.text}</Alert>}
+        {message && message.type === 'error' && <Alert title="Lỗi" variant="error">{message.text}</Alert>}
         {isLoading ? (
           <Skeleton className="h-40 w-full" />
         ) : epics.length === 0 && stories.length === 0 ? (

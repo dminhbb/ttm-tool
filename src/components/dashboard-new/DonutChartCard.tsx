@@ -10,6 +10,7 @@ export interface DonutDataItem {
 export interface DonutChartCardProps {
   data: DonutDataItem[];
   emptyMessage?: string;
+  onItemClick?: (item: DonutDataItem) => void;
   title: string;
   unitLabel?: string;
 }
@@ -25,6 +26,7 @@ const PALETTE = [
 export function DonutChartCard({
   data,
   emptyMessage = 'Không có dữ liệu',
+  onItemClick,
   title,
   unitLabel = 'Epic',
 }: DonutChartCardProps) {
@@ -141,6 +143,11 @@ export function DonutChartCard({
             <div className="mt-0.5 text-[11px] text-slate-300">
               {activeItem.value} {unitLabel} &bull; <strong className="text-amber-300 font-bold text-xs">{activeItem.pct}%</strong>
             </div>
+            {onItemClick && (
+              <div className="mt-1 border-t border-slate-700/80 pt-1 text-[10px] text-blue-300">
+                Click để duyệt danh sách Epic
+              </div>
+            )}
           </div>
         )}
 
@@ -187,6 +194,12 @@ export function DonutChartCard({
                     onMouseEnter={() => setHoveredIndex(seg.index)}
                     onMouseMove={(e) => handleMouseMove(e, seg.index)}
                     onMouseLeave={handleMouseLeave}
+                    onClick={() => {
+                      if (onItemClick) {
+                        const raw = displayItems[seg.index];
+                        if (raw) onItemClick({ name: raw.name, value: raw.value });
+                      }
+                    }}
                   />
                 );
               })
@@ -225,6 +238,9 @@ export function DonutChartCard({
                 key={item.name}
                 onMouseEnter={() => setHoveredIndex(idx)}
                 onMouseLeave={() => setHoveredIndex(null)}
+                onClick={() => {
+                  if (onItemClick) onItemClick({ name: item.name, value: item.value });
+                }}
                 className={`flex h-8 items-center justify-between text-xs px-2.5 rounded-lg border transition-colors cursor-pointer select-none ${
                   isHovered
                     ? 'bg-blue-50/90 text-blue-900 border-blue-300/80 shadow-xs'

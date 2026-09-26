@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ArrowsClockwise } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
+import { showToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
 
@@ -40,6 +41,7 @@ export function RecomputeCachePanel() {
         return;
       }
       setResult(body);
+      showToast(`Đã tổng hợp lại xong (mất ${formatNumber(body.durationMs)} ms — ${formatNumber(body.epicAlertRowCacheCount)} Epic trong bảng dữ liệu).`, 5000);
     } catch {
       setError('Không thể kết nối API.');
     } finally {
@@ -61,12 +63,6 @@ export function RecomputeCachePanel() {
         </Alert>
 
         {error && <Alert variant="error" title="Lỗi">{error}</Alert>}
-
-        {result && (
-          <Alert variant="success" title="Đã tổng hợp lại xong">
-            Mất {formatNumber(result.durationMs)} ms — {formatNumber(result.epicAlertRowCacheCount)} Epic trong bảng dữ liệu, tính theo đợt import #{result.sourceImportBatchId ?? '—'}.
-          </Alert>
-        )}
       </CardBody>
       <CardFooter>
         <Button variant="primary" isLoading={isRunning} onClick={handleRecompute}>

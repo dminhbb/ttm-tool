@@ -21,7 +21,7 @@ function parseCacheFilters(searchParams: URLSearchParams): EpicAlertRowCacheFilt
   };
   return {
     projectKeys: csv('projectKeys'),
-    pmSm: searchParams.get('pmSm') || undefined,
+    pmSm: csv('pmSm'),
     components: csv('components'),
     alertFilter: searchParams.get('alertFilter') || undefined,
     epicType: searchParams.get('epicType') || undefined,

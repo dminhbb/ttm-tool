@@ -3,6 +3,7 @@
 import { ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { ArrowCounterClockwise, FileArrowUp, PencilSimple, Plus, Trash } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
+import { showToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -80,20 +81,20 @@ export default function ProjectsAdminPage() {
       const response = await fetch('/api/projects', { method: editingId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editingId ? { ...form, id: editingId } : form) });
       const result = await response.json();
       if (!response.ok) { setMessage({ text: result.error || 'Lỗi hệ thống.', type: 'error' }); return; }
-      setMessage({ text: editingId ? 'Đã cập nhật dự án.' : 'Đã tạo dự án mới.', type: 'success' }); setShowModal(false); void fetchAll();
+      showToast(editingId ? 'Đã cập nhật dự án.' : 'Đã tạo dự án mới.', 5000); setMessage(null); setShowModal(false); void fetchAll();
     } catch { setMessage({ text: 'Không thể kết nối API.', type: 'error' }); } finally { setIsSaving(false); }
   };
-  const handleDelete = async (project: Project) => { if (!confirm(`Xóa dự án "${project.projectName}"?`)) return; const response = await fetch(`/api/projects?id=${project.id}`, { method: 'DELETE' }); if (response.ok) { setMessage({ text: 'Đã xóa dự án.', type: 'success' }); void fetchAll(); } else { const result = await response.json(); setMessage({ text: result.error || 'Xóa thất bại.', type: 'error' }); } };
+  const handleDelete = async (project: Project) => { if (!confirm(`Xóa dự án "${project.projectName}"?`)) return; const response = await fetch(`/api/projects?id=${project.id}`, { method: 'DELETE' }); if (response.ok) { showToast('Đã xóa dự án.', 5000); setMessage(null); void fetchAll(); } else { const result = await response.json(); setMessage({ text: result.error || 'Xóa thất bại.', type: 'error' }); } };
   const uploadProjects = async () => {
     if (!importFile) { setMessage({ text: 'Vui lòng chọn file CSV.', type: 'error' }); return; }
     setIsImporting(true); setMessage(null);
-    try { const data = new FormData(); data.append('file', importFile); const response = await fetch('/api/projects', { method: 'PATCH', body: data }); const result = await response.json(); if (!response.ok) { setMessage({ text: result.error || 'Import dự án thất bại.', type: 'error' }); return; } setMessage({ text: `Đã import ${result.imported} dự án${result.unresolvedLeadCount ? `; để trống PM/SM cho ${result.unresolvedLeadCount} dự án vì user không tồn tại hoặc inactive` : ''}.`, type: 'success' }); setShowImportModal(false); setImportFile(null); void fetchAll(); } catch { setMessage({ text: 'Không thể kết nối API.', type: 'error' }); } finally { setIsImporting(false); }
+    try { const data = new FormData(); data.append('file', importFile); const response = await fetch('/api/projects', { method: 'PATCH', body: data }); const result = await response.json(); if (!response.ok) { setMessage({ text: result.error || 'Import dự án thất bại.', type: 'error' }); return; } showToast(`Đã import ${result.imported} dự án${result.unresolvedLeadCount ? `; để trống PM/SM cho ${result.unresolvedLeadCount} dự án vì user không tồn tại hoặc inactive` : ''}.`, 5000); setMessage(null); setShowImportModal(false); setImportFile(null); void fetchAll(); } catch { setMessage({ text: 'Không thể kết nối API.', type: 'error' }); } finally { setIsImporting(false); }
   };
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => setImportFile(event.target.files?.[0] ?? null);
 
   return <div className="flex flex-col gap-6">
     <InfoBannerDisplay pathname="/admin/projects" />
-    {message && <Alert variant={message.type === 'success' ? 'success' : 'error'} title={message.type === 'success' ? 'Thành công' : 'Lỗi'}>{message.text}</Alert>}
+    {message && <Alert variant="error" title="Lỗi">{message.text}</Alert>}
     <Card><CardHeader><CardTitle>Danh mục Dự án ({filteredProjects.length})</CardTitle><div className="flex gap-2"><Button icon={<FileArrowUp className="size-4" weight="bold" />} onClick={() => setShowImportModal(true)} size="sm" variant="outline">Thêm nhiều dự án</Button><Button icon={<Plus className="size-4" weight="bold" />} onClick={openCreate} size="sm">Thêm dự án</Button></div></CardHeader><CardBody>
       <div className="ui-table-toolbar grid gap-3 md:grid-cols-[repeat(4,minmax(0,1fr))_auto]"><Input aria-label="Tìm project key hoặc tên dự án" label="Tìm kiếm" onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Project Key hoặc tên dự án" value={query} /><Select label="Domain" onChange={(event) => { setFilterDomain(event.target.value); setPage(1); }} options={[{ value: '', label: 'Tất cả Domain' }, ...domains.map((domain) => ({ value: String(domain.id), label: domain.domainName }))]} value={filterDomain} /><Input label="PM/SM" onChange={(event) => { setFilterLead(event.target.value); setPage(1); }} placeholder="Nhập tên hoặc email PM/SM" value={filterLead} /><Select label="Trạng thái" onChange={(event) => { setFilterStatus(event.target.value); setPage(1); }} options={[{ value: '', label: 'Tất cả trạng thái' }, { value: 'true', label: 'Active' }, { value: 'false', label: 'Inactive' }]} value={filterStatus} /><button aria-label="Đặt lại tìm kiếm và bộ lọc" className="ui-icon-button self-end" onClick={() => { setQuery(''); setFilterDomain(''); setFilterLead(''); setFilterStatus(''); setPage(1); }} title="Đặt lại tìm kiếm và bộ lọc" type="button"><ArrowCounterClockwise aria-hidden="true" className="size-4" weight="bold" /></button></div>
       {isLoading ? <TableSkeleton rows={4} /> : filteredProjects.length === 0 ? <EmptyState title="Không có dự án phù hợp" description="Điều chỉnh bộ lọc hoặc thêm dự án mới." /> : <><TableContainer><Table><THead><TR>
