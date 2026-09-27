@@ -1,29 +1,11 @@
-import { ScreenKey } from '@/lib/visit-counter-types';
+import { resolveScreenKeyFromPath, type ScreenKey } from '@/lib/visit-counter-types';
 
 const DEBOUNCE_MS = 30_000;
 const STORAGE_PREFIX = 'ttm_last_screen_track_';
 
-/**
- * Resolves a URL pathname to one of the 4 tracked ScreenKeys, or null if untracked.
- */
+/** Client-side alias kept for existing callers (AppShell); logic lives in visit-counter-types. */
 export function resolveScreenKeyFromPathname(pathname: string): ScreenKey | null {
-  if (!pathname) return null;
-  const normalized = pathname.split('?')[0].replace(/\/+$/, '') || '/';
-
-  if (normalized === '/dashboard-new' || normalized === '/dashboard') {
-    return 'dashboard';
-  }
-  if (normalized === '/epic-alerts-15' || normalized === '/epic-alerts') {
-    return 'epic_alerts';
-  }
-  if (normalized === '/reports') {
-    return 'epic_reports';
-  }
-  if (normalized === '/epic-in-po') {
-    return 'epic_in_po';
-  }
-
-  return null;
+  return resolveScreenKeyFromPath(pathname);
 }
 
 /**

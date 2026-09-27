@@ -22,8 +22,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // proxy.ts already rejects requests without a valid session; this is defense in depth so the
+    // route never records an anonymous (user_id NULL) view if it's ever made public.
     const user = await getCurrentUser(request);
-    await recordScreenView(user?.id ?? null, screenKey);
+    if (!user) {
+      return NextResponse.json({ error: 'UNAUTHENTICATED' }, { status: 401 });
+    }
+    await recordScreenView(user.id, screenKey);
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

@@ -6,6 +6,15 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-09-27
+
+- **Chuyển "Thống kê truy cập" (Visit Counter) thành menu riêng, mở cho mọi role**:
+  - Màn hình mới `/visit-stats` ([`src/app/visit-stats/page.tsx`](src/app/visit-stats/page.tsx)), menu "Thống kê truy cập" (icon `ChartLineUp`) ở nhóm **Giám sát** trên left panel, không gắn `roles` → mọi role đã đăng nhập đều thấy ([`src/components/layout/AppShell.tsx`](src/components/layout/AppShell.tsx), header trang ở [`src/lib/app-screens.ts`](src/lib/app-screens.ts)).
+  - Bỏ tab Visit counter khỏi modal "Cấu hình ứng dụng" (`AppConfigModal.tsx`); panel chuyển sang `src/components/visit-counter/VisitCounterPanel.tsx`, thêm prop `hideTitle` (trang đã có header từ AppShell).
+  - Ma trận phân quyền: migration `db/migrations/20260927_add_visit_counter_permission.sql` (+ down) thêm chức năng `visit_counter` "Thống kê truy cập" (VIEW_ONLY, display_order 107), quyền Xem cho SUPERADMIN/ADMIN/SUPERVISOR/USER. **Cần chạy `db:migrate:local` + `db:migrate:supabase`** (chưa chạy — phiên làm việc trên cloud không có kết nối DB).
+  - Review/sửa nhỏ: `POST /api/visit-counter/track` trả 401 thay vì ghi lượt xem ẩn danh (`user_id` NULL); gom hàm nhận diện màn hình về 1 chỗ `resolveScreenKeyFromPath` trong `src/lib/visit-counter-types.ts` (trước đây trùng lặp ở `footer/route.ts` và `visit-counter-client.ts`, và route file export thêm hàm không phải handler); sửa lỗi lint `react-hooks/set-state-in-effect` trong `VisitCounterPanel`.
+  - Cập nhật tài liệu: `README.md`, `public/docs/product-guide.html` (mục 13.2, 18.3, bảng quyền USER), `HelpPanels.tsx`.
+
 ## 2026-09-26
 
 - **Tinh chỉnh giao diện Visit Counter Panel ([`src/components/settings/VisitCounterPanel.tsx`](file:///d:/git/ttm-tool/src/components/settings/VisitCounterPanel.tsx))**:

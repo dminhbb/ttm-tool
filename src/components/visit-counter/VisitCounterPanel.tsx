@@ -21,8 +21,6 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { cn } from '@/lib/utils';
 import type {
   DetailedVisitStats,
-  DomainVisitStat,
-  RecentLoginUser,
   ScreenVisitStat,
   TrendLinePoint,
 } from '@/lib/visit-counter-types';
@@ -63,7 +61,12 @@ function formatTimeOnly(date: Date): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
-export function VisitCounterPanel() {
+export interface VisitCounterPanelProps {
+  /** Hide the panel's own title block — used on /visit-stats, where AppShell already renders the page header. */
+  hideTitle?: boolean;
+}
+
+export function VisitCounterPanel({ hideTitle = false }: VisitCounterPanelProps = {}) {
   const [stats, setStats] = React.useState<DetailedVisitStats | null>(null);
   const [isLoading, setIsLoading] = React.useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = React.useState<boolean>(false);
@@ -71,13 +74,13 @@ export function VisitCounterPanel() {
   const [lastFetchedAt, setLastFetchedAt] = React.useState<Date | null>(null);
   const [expandedDomainKeys, setExpandedDomainKeys] = React.useState<Set<string>>(new Set());
 
+  // Initial load relies on the default state (isLoading = true, error = null), so only a manual
+  // refresh touches state before the await — keeps the mount effect free of synchronous setState.
   const fetchStats = React.useCallback(async (manual = false) => {
     if (manual) {
       setIsRefreshing(true);
-    } else {
-      setIsLoading(true);
+      setError(null);
     }
-    setError(null);
 
     try {
       const res = await fetch('/api/visit-counter/stats', { cache: 'no-store' });
@@ -96,8 +99,9 @@ export function VisitCounterPanel() {
     }
   }, []);
 
+  // Same deferral as PermissionMatrixSettings — keeps setState out of the effect body itself.
   React.useEffect(() => {
-    void fetchStats(false);
+    void Promise.resolve().then(() => fetchStats(false));
   }, [fetchStats]);
 
   const toggleDomain = (key: string) => {
@@ -124,7 +128,8 @@ export function VisitCounterPanel() {
   return (
     <div className="space-y-6">
       {/* Header & Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-fb-border pb-4">
+      <div className={cn('flex flex-col gap-3 sm:flex-row sm:items-center', hideTitle ? 'sm:justify-end' : 'sm:justify-between border-b border-fb-border pb-4')}>
+        {!hideTitle && (
         <div>
           <h3 className="text-base font-bold text-fb-text-primary flex items-center gap-2">
             <ChartLineUp className="size-5 text-fb-blue" weight="bold" />
@@ -134,6 +139,7 @@ export function VisitCounterPanel() {
             Tổng quan lưu lượng đăng nhập và lượt sử dụng các màn hình chức năng trên hệ thống
           </p>
         </div>
+        )}
 
         <div className="flex items-center gap-2.5 self-end sm:self-auto">
           {lastFetchedAt && (
