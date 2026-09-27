@@ -8,6 +8,18 @@
 
 ## 2026-09-27
 
+- **Tối ưu tỷ lệ 40/60 & Responsive tối đa cho màn hình Thống kê truy cập (`/visit-stats`)**:
+  - **Panel "Lượt truy cập theo 4 màn hình chức năng"**: Điều chỉnh tỷ lệ phần biểu đồ cột kép chiếm 40% (`lg:col-span-2`) và phần bảng thống kê chiếm 60% (`lg:col-span-3`) trên hệ lưới 5 cột (`lg:grid-cols-5`).
+  - **Header bảng Domain**: Đổi tiêu đề cột `Hôm nay (T)` thành `Hôm nay` và `Tuần này (T-7 → T)` thành `Tuần này`.
+  - **Responsive chống tràn ngang**: Áp dụng layout cố định `table-fixed w-full`, tỷ lệ cột theo phần trăm chính xác, thu gọn padding và xử lý `truncate` kèm tooltip/title cho các chuỗi dài (username, họ tên, email) trên cả bảng Domain (bảng cha + bảng top 5 user) và bảng "Danh sách 10 user login gần nhất", loại bỏ thanh cuộn ngang không cần thiết trên màn hình máy tính ([`src/components/visit-counter/VisitCounterPanel.tsx`](src/components/visit-counter/VisitCounterPanel.tsx)).
+
+- **Tái cấu trúc bố cục giao diện màn hình Thống kê truy cập (`/visit-stats`)**:
+  - **Hàng 1**: Bố trí cụm 3 widget thống kê (Tổng số, Tuần này, Hôm nay) ở bên trái chiếm 1/3 chiều rộng hàng theo dạng lưới 2 cột (Box 1 và Box 2 ở dòng trên, Box 3 ở dòng dưới) bên cạnh Biểu đồ "Xu hướng truy cập ứng dụng trong tuần (T-7 → T)" chiếm 2/3 chiều rộng (gấp 2 lần chiều dài của cụm widget).
+  - **Khắc phục lỗi giãn hình/chữ của biểu đồ đường**: Chuyển nhãn trục Y và trục X sang HTML text kết hợp với SVG `vectorEffect="non-scaling-stroke"` và đường gióng HTML, loại bỏ hoàn toàn hiện tượng méo và giãn chữ theo tỷ lệ SVG `preserveAspectRatio="none"`.
+  - **Hàng 2**: Đặt biểu đồ cột kép và bảng thống kê chi tiết của panel "Lượt truy cập theo 4 màn hình chức năng" cùng hàng, bảng thống kê chiếm 50% chiều dài panel.
+  - **Hàng 3**: Đặt panel "Lượt truy cập theo Domain & Người dùng" cùng hàng với panel "Danh sách 10 user login gần nhất", mỗi panel chiếm 50% khung nhìn (`lg:grid-cols-2`).
+  - **Bảng người dùng của từng Domain**: Chỉ hiển thị top 5 người dùng có lượt truy cập cao nhất, đồng thời căn giữa toàn bộ tiêu đề (header) và dữ liệu (data) trong bảng con này ([`src/components/visit-counter/VisitCounterPanel.tsx`](src/components/visit-counter/VisitCounterPanel.tsx)).
+
 - **Chuyển "Thống kê truy cập" (Visit Counter) thành menu riêng, mở cho mọi role**:
   - Màn hình mới `/visit-stats` ([`src/app/visit-stats/page.tsx`](src/app/visit-stats/page.tsx)), menu "Thống kê truy cập" (icon `ChartLineUp`) ở nhóm **Giám sát** trên left panel, không gắn `roles` → mọi role đã đăng nhập đều thấy ([`src/components/layout/AppShell.tsx`](src/components/layout/AppShell.tsx), header trang ở [`src/lib/app-screens.ts`](src/lib/app-screens.ts)).
   - Bỏ tab Visit counter khỏi modal "Cấu hình ứng dụng" (`AppConfigModal.tsx`); panel chuyển sang `src/components/visit-counter/VisitCounterPanel.tsx`, thêm prop `hideTitle` (trang đã có header từ AppShell).
