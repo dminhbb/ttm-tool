@@ -1,6 +1,6 @@
 import pool from '@/lib/db';
 import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
-import { isTtmCnttQaInScope, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
+import { summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
 import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 
@@ -75,7 +75,7 @@ export async function getTtmIndexGlobalCache(): Promise<TtmIndexGlobalCache | nu
 export async function refreshTtmIndexGlobalCache(batchId: number | null, precomputedRows?: EpicAlertRowPhased[]): Promise<void> {
   const rows = precomputedRows ?? (await getEpicAlertRowsPhased(0, 'SUPERVISOR', {})).rows;
   const ttm = summarizeTtmCntt(rows);
-  const qa = summarizeTtmCntt(rows.filter((row) => isTtmCnttQaInScope(row.currentStatus)));
+  const qa = summarizeQaIndex(rows);
 
   await pool.query(
     `

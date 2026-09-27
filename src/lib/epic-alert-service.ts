@@ -15,6 +15,8 @@ import { breaksTtmCnttCalculation, breaksTtmE2eCalculation, evaluateEpicDataAnom
 import type { EpicAnomalyInput } from '@/lib/epic-data-anomaly';
 import { EPIC_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 import type { EpicAlertAccessRole, EpicAlertResponse, EpicAlertRow, StageCell } from '@/lib/epic-alert-types';
+import { getTtmScopeConfig } from '@/lib/ttm-scope-config-service';
+import { computeQaInScope, computeTtmCnttInScope } from '@/lib/ttm-scope-rules';
 
 
 // Canonical Epic workflow order (core logic — an Epic moves through these statuses strictly in
@@ -392,6 +394,9 @@ export interface EvaluatedEpicEntry {
   releaseAxis: ReleaseAxisResult;
   row: EpicRow;
   startDate: Date | null;
+  /** See computeTtmCnttInScope (ttm-scope-rules.ts) — "Phạm vi dữ liệu cho TTM" gate. */
+  ttmCnttInScope: boolean;
+  qaInScope: boolean;
   /** See resolveTtmCnttStatusMismatch — "Sai Status" on the TTM-CNTT axis. */
   ttmCnttStatusMismatch: boolean;
   /** Precomputed once here (shared by every screen) instead of recomputed per consumer. */
@@ -439,6 +444,14 @@ export interface EpicAlertFilters {
   layerDates?: string[] | null;
   /** Epic start date từ (Start CNTT / T1 ≥) — compared against issues.start_date; Epics without one are excluded once set. */
   startDateFrom?: string | null;
+  /** "Phạm vi dữ liệu cho TTM" override (Dashboard 2's Advanced Filters deep-link) — undefined uses
+   * the persisted admin default (ttm-scope-config-service.ts); null/'' is an explicit "no bound"
+   * that OVERRIDES the default. See computeTtmCnttInScope/computeQaInScope in ttm-scope-rules.ts.
+   * The CNTT and QA axes are independent. */
+  ttmScopeCnttFrom?: string | null;
+  ttmScopeCnttTo?: string | null;
+  ttmScopeQaFrom?: string | null;
+  ttmScopeQaTo?: string | null;
 }
 
 /**
@@ -481,7 +494,7 @@ export async function fetchEpicAlertHeaderContext(userId: number, role: UserRole
 }
 
 export async function fetchEpicAlertContext(userId: number, role: UserRole, filters: EpicAlertFilters = {}): Promise<EpicAlertContext> {
-  const [scope, holidays, domainByProjectKey, projectMetaByProjectKey, statusAlertRules, ttmPolicies, epicKeysWithAlertHistory, viewer, latestBatch, layerDatesResult] = await Promise.all([
+  const [scope, holidays, domainByProjectKey, projectMetaByProjectKey, statusAlertRules, ttmPolicies, epicKeysWithAlertHistory, viewer, latestBatch, layerDatesResult, ttmScopeConfig] = await Promise.all([
     resolveAccessScope(userId, role),
     getActiveHolidaySet(),
     getDomainByProjectKeyMap(),
@@ -492,12 +505,22 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole, filt
     pool.query<{ fullName: string }>('SELECT full_name AS "fullName" FROM users WHERE id = $1', [userId]),
     pool.query<{ aggregatedAt: string; id: number }>('SELECT id, aggregated_at::text AS "aggregatedAt" FROM import_batches ORDER BY aggregated_at DESC LIMIT 1;'),
     pool.query<{ layerDate: string }>('SELECT DISTINCT aggregated_at::date::text AS "layerDate" FROM issues ORDER BY "layerDate" DESC LIMIT 365;'),
+    getTtmScopeConfig(),
   ]);
 
   const viewerName = viewer.rows[0]?.fullName ?? '';
   const latestAggregatedAt = latestBatch.rows[0]?.aggregatedAt ?? null;
   const lastBatchId = latestBatch.rows[0]?.id ?? null;
   const availableLayerDates = layerDatesResult.rows.map((row) => row.layerDate);
+  // "Phạm vi dữ liệu cho TTM" — a deep-link override (see EpicAlertFilters) replaces the persisted
+  // admin default per-axis; `undefined` means "not overridden, use the admin default" while
+  // null/'' is a deliberate "no bound" override (see buildEpicAlertsDeepLink's doc comment).
+  const effectiveTtmScopeConfig = {
+    cnttFrom: filters.ttmScopeCnttFrom !== undefined ? filters.ttmScopeCnttFrom : ttmScopeConfig.cnttFrom,
+    cnttTo: filters.ttmScopeCnttTo !== undefined ? filters.ttmScopeCnttTo : ttmScopeConfig.cnttTo,
+    qaFrom: filters.ttmScopeQaFrom !== undefined ? filters.ttmScopeQaFrom : ttmScopeConfig.qaFrom,
+    qaTo: filters.ttmScopeQaTo !== undefined ? filters.ttmScopeQaTo : ttmScopeConfig.qaTo,
+  };
   // Viewing a past "Chọn lớp dữ liệu" layer must evaluate FAIL/EARLY/LATE/stripe/remaining-days as
   // of THAT layer's date, not today — filters.asOfDate (set together with an older layerDates
   // window) pins `now` accordingly; the default (no asOfDate) keeps today's real date.
@@ -594,8 +617,10 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole, filt
     // underlying calc is already broken (e.g. missing Start Date) shouldn't also claim "Sai Status".
     const ttmCnttStatusMismatch = !breaksTtmCnttCalculation(row) && resolveTtmCnttStatusMismatch(row, epicStatusIndex, evaluation.ttm.cntt.targetDate, todayIso);
     const releaseAxis = resolveReleaseAxis(row, epicStatusIndex, now, holidays);
+    const ttmCnttInScope = computeTtmCnttInScope(row.r4gDate, evaluation.ttm.cntt.targetDate, effectiveTtmScopeConfig);
+    const qaInScope = computeQaInScope(row.r4gDate, effectiveTtmScopeConfig);
 
-    entries.push({ complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, projectName, releaseAxis, row, startDate, ttmCnttStatusMismatch, ttmE2eRelease, ttmE2eTarget });
+    entries.push({ complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, projectName, qaInScope, releaseAxis, row, startDate, ttmCnttInScope, ttmCnttStatusMismatch, ttmE2eRelease, ttmE2eTarget });
   }
 
   return { accessRole: scope.accessRole, asOfDate, availableLayerDates, entries, holidays, lastAggregatedAt: latestAggregatedAt, lastBatchId, now, statusAlertRules, viewerName };
@@ -617,7 +642,7 @@ export async function getEpicAlertRows(userId: number, role: UserRole, filters: 
   const rows: EpicAlertRow[] = [];
   const releasedStatusIndex = statusOrderIndex('Released');
 
-  for (const { complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, releaseAxis, row, startDate, ttmCnttStatusMismatch, ttmE2eRelease, ttmE2eTarget } of entries) {
+  for (const { complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, qaInScope, releaseAxis, row, startDate, ttmCnttInScope, ttmCnttStatusMismatch, ttmE2eRelease, ttmE2eTarget } of entries) {
     // Default visibility rule for THIS screen only ("Quản trị Epic (rút gọn)"): Released epics
     // only stay on the list if they were ever flagged Cảnh báo muộn/Fail TTM in their accumulated
     // alert history — everything else always shows. "Quản trị Epic (đầy đủ)" deliberately shows
@@ -693,6 +718,8 @@ export async function getEpicAlertRows(userId: number, role: UserRole, filters: 
       stages: { design: designCell, inProgress: inProgressCell, r4g: r4gCell, release: releaseCell },
       t0IdeaApprovedDate: row.ideaApprovedDate,
       t1StartDate: row.startDate,
+      ttmCnttInScope,
+      qaInScope,
       ttmActualElapsedWorkingDays: ttmActualElapsed,
       ttmActualFromDate: ttmActualRange.fromDate,
       ttmActualToDate: ttmActualRange.toDate,

@@ -17,7 +17,7 @@ import { ALERT_RANK, bottomStatusRankOf } from '@/lib/epic-alert-sort-rules';
  * caller only logs on failure — mirrors refreshTtmIndexGlobalCache.
  */
 const INSERT_CHUNK_SIZE = 200;
-const INSERT_COLUMN_COUNT = 17;
+const INSERT_COLUMN_COUNT = 19;
 
 /** `precomputedRows` — same as refreshTtmIndexGlobalCache's: lets refreshDerivedCaches
  * (daily-cache-service.ts) compute the unscoped row set once for both caches. */
@@ -56,10 +56,12 @@ export async function refreshEpicAlertRowCache(batchId: number | null, precomput
           ALERT_RANK[row.alertLevel],
           bottomStatusRankOf(row.currentStatus),
           row.remainingWorkingDays ?? 2147483647,
+          row.ttmCnttInScope,
+          row.qaInScope,
         );
         const base = params.length - INSERT_COLUMN_COUNT;
         const p = (index: number) => `$${base + index}`;
-        return `(${p(1)}, ${p(2)}, ${p(3)}, ${p(4)}, ${p(5)}, ${p(6)}, ${p(7)}, ${p(8)}, ${p(9)}, ${p(10)}, ${p(11)}, ${p(12)}, ${p(13)}, ${p(14)}, NOW(), ${p(15)}, ${p(16)}, ${p(17)})`;
+        return `(${p(1)}, ${p(2)}, ${p(3)}, ${p(4)}, ${p(5)}, ${p(6)}, ${p(7)}, ${p(8)}, ${p(9)}, ${p(10)}, ${p(11)}, ${p(12)}, ${p(13)}, ${p(14)}, NOW(), ${p(15)}, ${p(16)}, ${p(17)}, ${p(18)}, ${p(19)})`;
       });
       await client.query(
         `
@@ -67,7 +69,8 @@ export async function refreshEpicAlertRowCache(batchId: number | null, precomput
           epic_key, project_key, current_status, epic_type, requesting_unit, owner_names,
           components, alert_level, ttm_e2e_alert_level, has_data_anomaly, remaining_working_days,
           epic_name, row_data, source_import_batch_id, computed_at,
-          alert_rank, bottom_status_rank, remaining_working_days_rank
+          alert_rank, bottom_status_rank, remaining_working_days_rank,
+          ttm_cntt_in_scope, qa_in_scope
         ) VALUES ${valuesSql.join(', ')};
         `,
         params,

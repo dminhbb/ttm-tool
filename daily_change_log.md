@@ -6,6 +6,90 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-09-28
+
+- **"Phạm vi dữ liệu cho TTM" — gate theo khoảng ngày R4G cho TTM-Index/QA-Index, panel Admin, Advanced Filters ở Dashboard 2, tài liệu rule TTM-Index (Phase 2+3, đã thảo luận & thống nhất thiết kế trước khi làm)**:
+  - **Schema**: bảng mới `ttm_scope_config` (1 dòng: `cntt_from/to`, `qa_from/to`, migration
+    `20260927b_create_ttm_scope_config`); thêm cột `ttm_cntt_in_scope`/`qa_in_scope` vào
+    `epic_alert_row_cache` (migration `20260927c_...`). Đã chạy `db:migrate:supabase`; `local` chưa
+    chạy được từ máy này (không có Postgres local cấu hình).
+  - **Lõi tính toán** (`src/lib/ttm-scope-rules.ts` — module thuần, không import `pool`, để dùng
+    được cả ở client lẫn server): `computeTtmCnttInScope(r4gDate, targetR4gDate, config)` — lọc theo
+    A<R4G Date<B, fallback sang TTM-CNTT baseline (targetR4gDate) khi chưa có R4G Date; cả 2 đầu
+    trống = luôn `true` (không đổi hành vi mặc định). `computeQaInScope(r4gDate, config)` — lọc theo
+    C<R4G Date<D, KHÔNG có fallback baseline (Epic thiếu R4G Date bị loại khi có thiết lập). Đã viết
+    18 test case tay (`node --experimental-strip-types`) cho mọi biên (trống/1 đầu/2 đầu, có/thiếu
+    R4G+baseline, r4g ưu tiên hơn baseline) — tất cả PASS.
+  - `src/lib/ttm-scope-config-service.ts`: CRUD `ttm_scope_config` (server-only, dùng `pool`).
+  - **Áp dụng vào pipeline tính TTM-CNTT** (`src/lib/epic-alert-service.ts`): `fetchEpicAlertContext`
+    fetch cấu hình mặc định + gộp với override từ deep-link (`EpicAlertFilters.ttmScopeCnttFrom/To`,
+    `ttmScopeQaFrom/To` — `undefined` = dùng mặc định Admin, `null`/`''` = ghi đè tường minh "không
+    giới hạn"), tính `ttmCnttInScope`/`qaInScope` 1 lần/Epic, gắn vào `EvaluatedEpicEntry` →
+    `EpicAlertRow` (`getEpicAlertRows`) và `EpicAlertRowPhased` (`getEpicAlertRowsPhased`,
+    `epic-alert-phase-service.ts`). Thêm 2 field vào `epic-alert-types.ts` + `DASHBOARD_EPIC_ROW_KEYS`
+    (kèm `targetR4gDate` — thiếu trước đó, cần cho fallback baseline ở Dashboard).
+  - `src/lib/ttm-cntt-qa.ts`: `summarizeTtmCntt` loại `!ttmCnttInScope` khỏi tử/mẫu/tổng; thêm hàm
+    mới `summarizeQaIndex` (loại theo `qaInScope`, tách khỏi `summarizeTtmCntt` vì 2 cờ độc lập nhau)
+    — cập nhật mọi nơi gọi `summarizeTtmCntt(rows.filter(isTtmCnttQaInScope))` sang gọi thẳng
+    `summarizeQaIndex(rows)` (`ttm-index-global-cache-service.ts`, `dashboard-new/page.tsx`,
+    `epic-alerts-15/page.tsx`).
+  - **Cache**: `epic-alert-row-cache-service.ts` ghi thêm 2 cột mới khi rebuild;
+    `epic-alert-row-cache-query-service.ts` thêm `AND ttm_cntt_in_scope`/`qa_in_scope` vào
+    `queryTtmQaIndexPm` và vào `failCntt`/`late` của `queryEpicAlertStatCounts` (không đụng
+    `failE2e`/`dataIssue`/`pending`/`todo` — các số này không thuộc trục TTM-CNTT).
+  - **Badge "Nhận xét"** (Quản trị Epic đầy đủ/rút gọn, Epic in PO — 3 file gần như trùng logic):
+    `!row.ttmCnttInScope` luôn thắng mọi badge TTM-CNTT khác (Sai Status/Fail/Late/Early/Đạt), hiện
+    badge mới **"Ngoài phạm vi TTM-CNTT"** (class `.ttm-badge.out-of-scope`, thêm CSS 3 file
+    `epic-alerts-15.css`/`epic-alerts.css`/`epic-in-po.css`, cả light/dark) — Epic vẫn hiện trong
+    bảng, chỉ ẩn phán quyết TTM-CNTT. `matchesAlertFilter` (lọc "Nhận xét" ở client) và
+    `buildAlertFilterClause` (lọc SQL) đều thêm guard `ttm_cntt_in_scope`/`ttmCnttInScope` cho
+    FAIL/LATE/EARLY/NONE/ACHIEVED_CNTT/STATUS_MISMATCH — KHÔNG đụng FAIL_E2E/ACHIEVED_E2E/
+    WAITING_GOLIVE/RELEASE_EARLY/JUSTIFY_GOLIVE/DATA_ANOMALY (trục khác, không bị Phạm vi TTM chi
+    phối). TTM-E2E xác nhận hoàn toàn KHÔNG bị ảnh hưởng bởi tính năng này ở bất kỳ đâu.
+  - **Panel Admin** ("Cấu hình cảnh báo" → `StatusAlertRulesSettings.tsx`, component mới
+    `TtmScopeConfigPanel`): 2 form ngày (R4G for TTM CNTT A-B, R4G for TTM QA C-D), mỗi ô có nút "Để
+    trống" tường minh (không chỉ dựa vào việc xoá tay ô `input type=date`). Lưu → gọi
+    `PUT /api/ttm-scope-config` (route mới, SUPERADMIN, validate A≤B/C≤D) → `saveTtmScopeConfig` rồi
+    `after(() => refreshDerivedCaches(batchId))` (chạy nền, không block response — tái dùng đúng hàm
+    `daily-cache-service.ts` đã dùng cho auto-cache hàng ngày, tính lại CẢ 2 cache
+    `epic_alert_row_cache` và `ttm_index_global_cache` cùng lúc).
+  - **Dashboard 2** (`dashboard-new/page.tsx`): section "Advanced Filters" mới ngay dưới toolbar bộ
+    lọc chính, **thu gọn mặc định** (chỉ hiện icon+tiêu đề, cùng pattern "Bộ lọc nâng cao" đã có ở
+    Quản trị Epic) — 2 khối "Filter R4G for TTM (CNTT)"/"Filter R4G for TTM (QA)", mỗi ô ngày có nút
+    "Để trống". Giá trị mặc định lấy từ `GET /api/ttm-scope-config` khi trang tải (GET nới quyền cho
+    mọi role đã đăng nhập, trước đó chỉ SUPERADMIN/SUPERVISOR — Dashboard cần mọi role đọc được).
+    Áp dụng **live, không cache**: `filteredRows` tính lại `ttmCnttInScope`/`qaInScope` theo state 4 ô
+    này (đè lên giá trị baked-in từ cache), mọi widget đọc từ `filteredRows` tự động theo (đã audit
+    và sửa toàn bộ điểm đọc `alertLevel` trực tiếp mà thiếu guard: `executiveMetrics`
+    lateWarning/earlyWarning, `dimensionMatrix` late/ok + `isQldaJudged`, `topRiskProjects`,
+    `pipelinePhases.alertCount`, `computeDimensionDonuts`, badge ở tab Pending — tất cả giờ đều
+    check `ttmCnttInScope` trước khi đếm alertLevel, trừ phần `ttmE2eAlertLevel` cố tình giữ nguyên).
+  - **Deep-link mang filter sang Quản trị Epic** (`epic-alerts-deep-link.ts`): thêm 4 param
+    `ttmScopeCnttFrom/To`, `ttmScopeQaFrom/To` (`undefined` = bỏ qua param, dùng mặc định màn đích;
+    `null`/`''` = gửi tường minh "không giới hạn" — phân biệt bằng `URLSearchParams.has()` phía
+    server, `searchParams.has()` phía client). `toEpicAlertsLink` ở Dashboard luôn gửi kèm 4 giá trị
+    hiện tại (chỉ sau khi đã tải xong mặc định Admin — tránh gửi nhầm "không giới hạn" trong khoảnh
+    khắc trước khi fetch xong). Phía Quản trị Epic: `parseDeepLinkFilters` đọc 4 param này,
+    `fetchData` forward vào query string; API route (`/api/epic-alerts-15`) coi sự xuất hiện của bất
+    kỳ param nào trong 4 param này là "advanced filter" → bỏ qua cache, tính live qua
+    `fetchEpicAlertContext` (đúng pattern đã có sẵn cho `createdDateFrom`/`startDateFrom`/
+    `dueDateFrom`) — không cần sửa gì thêm ở tầng cache SQL cho nhánh này.
+  - **Không đụng tới**: `reports-service.ts` (Báo cáo Epic) — dùng engine tính toán hoàn toàn độc
+    lập (`evaluateIssueCompliance`, không qua `fetchEpicAlertContext`), CHƯA áp dụng "Phạm vi dữ liệu
+    cho TTM" ở đó — cần 1 lượt riêng nếu muốn mở rộng, không rush vào lần này để tránh sửa nhầm 1
+    engine hoàn toàn khác mà chưa research kỹ.
+  - **Tài liệu**: file mới `brd/16-ttm-indexes.md` (rule tính toán đầy đủ: tử/mẫu số, phạm vi dữ
+    liệu, bảng liệt kê mọi trường hợp bị loại khỏi tính toán), đăng ký vào `brd/00-ai-agent-index.md`
+    (mục 3 + mapping "task liên quan cảnh báo TTM-CNTT"). `public/docs/product-guide.html` mục 8.7
+    mới (TTM-Index/QA-Index QLDA vs PM + Phạm vi dữ liệu cho TTM), không renumber các mục sau.
+  - **Backup**: mọi file bị sửa đã copy nguyên bản trước khi sửa vào `/backups/<tên>-20260927-233007-backup`
+    (thư mục mới, đã thêm vào `.gitignore` — chỉ là lưới an toàn thao tác tay, không thay thế git).
+  - Đã xác minh bằng `tsc --noEmit`, `eslint` (không phát sinh lỗi mới so với trước khi sửa — đối
+    chiếu qua `git stash`) và **2 lần `npm run build` thành công** (bắt lỗi ranh giới client/server
+    khi tách `ttm-scope-rules.ts` client-safe khỏi `ttm-scope-config-service.ts` server-only).
+    **Chưa kiểm thử được trên trình duyệt thật** (không có tài khoản đăng nhập trên máy này) — cần
+    người dùng tự xác nhận UI/luồng thực tế trước khi coi là hoàn tất.
+
 ## 2026-09-27
 
 - **Tối ưu tỷ lệ 40/60 & Responsive tối đa cho màn hình Thống kê truy cập (`/visit-stats`)**:

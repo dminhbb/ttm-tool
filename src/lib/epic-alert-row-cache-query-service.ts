@@ -123,11 +123,11 @@ function buildAlertFilterClause(alertFilter: string | undefined, params: unknown
     case 'FAIL_E2E':
       return "ttm_e2e_alert_level = 'FAIL'";
     case 'ACHIEVED_CNTT':
-      return "alert_level = 'NONE' AND (row_data->>'r4gDate') IS NOT NULL AND (row_data->>'ttmCnttStatusMismatch')::boolean = FALSE AND row_data->>'ttmActualToDate' = row_data->>'r4gDate'";
+      return "ttm_cntt_in_scope AND alert_level = 'NONE' AND (row_data->>'r4gDate') IS NOT NULL AND (row_data->>'ttmCnttStatusMismatch')::boolean = FALSE AND row_data->>'ttmActualToDate' = row_data->>'r4gDate'";
     case 'ACHIEVED_E2E':
       return "ttm_e2e_alert_level = 'NONE' AND bottom_status_rank = 3 AND (row_data->>'r4gDate') IS NOT NULL AND row_data->>'ttmE2eActualToDate' = row_data->>'r4gDate'";
     case 'STATUS_MISMATCH':
-      return "(row_data->>'ttmCnttStatusMismatch')::boolean = TRUE";
+      return "ttm_cntt_in_scope AND (row_data->>'ttmCnttStatusMismatch')::boolean = TRUE";
     case 'DATA_ANOMALY':
       return 'has_data_anomaly = TRUE';
     case 'WAITING_GOLIVE':
@@ -137,8 +137,11 @@ function buildAlertFilterClause(alertFilter: string | undefined, params: unknown
     case 'JUSTIFY_GOLIVE':
       return "row_data->>'releaseAxisState' = 'JUSTIFY_GOLIVE'";
     default:
+      // FAIL/LATE/EARLY/NONE — every one of them is a TTM-CNTT-axis label, so an out-of-scope row
+      // (whose Nhận xét cell shows "Ngoài phạm vi TTM-CNTT" instead, see ttm-scope-rules.ts) must
+      // never match any of them here either.
       params.push(alertFilter);
-      return `alert_level = $${params.length}`;
+      return `ttm_cntt_in_scope AND alert_level = $${params.length}`;
   }
 }
 
@@ -184,9 +187,9 @@ export async function queryEpicAlertStatCounts(scope: AccessScope, filters: Epic
     `
     SELECT
       count(*) FILTER (WHERE has_data_anomaly)::text AS "dataIssue",
-      count(*) FILTER (WHERE alert_level = 'FAIL')::text AS "failCntt",
+      count(*) FILTER (WHERE ttm_cntt_in_scope AND alert_level = 'FAIL')::text AS "failCntt",
       count(*) FILTER (WHERE ttm_e2e_alert_level = 'FAIL')::text AS "failE2e",
-      count(*) FILTER (WHERE alert_level = 'LATE')::text AS "late",
+      count(*) FILTER (WHERE ttm_cntt_in_scope AND alert_level = 'LATE')::text AS "late",
       count(*) FILTER (WHERE UPPER(TRIM(current_status)) = 'PENDING')::text AS "pending",
       count(*) FILTER (WHERE UPPER(TRIM(current_status)) = 'TO DO')::text AS "todo"
     FROM epic_alert_row_cache WHERE ${whereSql};
@@ -216,14 +219,14 @@ export async function queryTtmQaIndexPm(scope: AccessScope): Promise<{ ttm: TtmC
   }>(
     `
     SELECT
-      count(*) FILTER (WHERE alert_level = 'FAIL')::text AS "ttmFail",
-      count(*) FILTER (WHERE (row_data->>'r4gDate') IS NOT NULL AND NOT has_data_anomaly)::text AS "ttmEligible",
-      count(*) FILTER (WHERE (row_data->>'r4gDate') IS NOT NULL AND NOT has_data_anomaly AND alert_level = 'NONE')::text AS "ttmPass",
-      count(*)::text AS "ttmTotal",
-      count(*) FILTER (WHERE UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED') AND alert_level = 'FAIL')::text AS "qaFail",
-      count(*) FILTER (WHERE UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED') AND (row_data->>'r4gDate') IS NOT NULL AND NOT has_data_anomaly)::text AS "qaEligible",
-      count(*) FILTER (WHERE UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED') AND (row_data->>'r4gDate') IS NOT NULL AND NOT has_data_anomaly AND alert_level = 'NONE')::text AS "qaPass",
-      count(*) FILTER (WHERE UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED'))::text AS "qaTotal"
+      count(*) FILTER (WHERE ttm_cntt_in_scope AND alert_level = 'FAIL')::text AS "ttmFail",
+      count(*) FILTER (WHERE ttm_cntt_in_scope AND (row_data->>'r4gDate') IS NOT NULL AND NOT has_data_anomaly)::text AS "ttmEligible",
+      count(*) FILTER (WHERE ttm_cntt_in_scope AND (row_data->>'r4gDate') IS NOT NULL AND NOT has_data_anomaly AND alert_level = 'NONE')::text AS "ttmPass",
+      count(*) FILTER (WHERE ttm_cntt_in_scope)::text AS "ttmTotal",
+      count(*) FILTER (WHERE qa_in_scope AND UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED') AND alert_level = 'FAIL')::text AS "qaFail",
+      count(*) FILTER (WHERE qa_in_scope AND UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED') AND (row_data->>'r4gDate') IS NOT NULL AND NOT has_data_anomaly)::text AS "qaEligible",
+      count(*) FILTER (WHERE qa_in_scope AND UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED') AND (row_data->>'r4gDate') IS NOT NULL AND NOT has_data_anomaly AND alert_level = 'NONE')::text AS "qaPass",
+      count(*) FILTER (WHERE qa_in_scope AND UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED'))::text AS "qaTotal"
     FROM epic_alert_row_cache WHERE ${accessClause} AND current_status !~* 'cancel';
     `,
     params,

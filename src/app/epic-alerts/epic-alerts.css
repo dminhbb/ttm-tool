@@ -310,6 +310,7 @@
    (see resolveTtmCnttStatusMismatch in epic-alert-service.ts). Deliberately its own violet tone,
    distinct from fail (orange/yellow/red) and achieved (blue). */
 .ttm-badge.status-mismatch { background: #6b5b95; color: var(--ttm-white); cursor: help; }
+.ttm-badge.out-of-scope { background: var(--ttm-neutral-100); color: var(--ttm-neutral-600); border: 1px solid var(--ttm-neutral-300); cursor: help; }
 /* "Trục Release" badges (resolveReleaseAxis, epic-alert-service.ts) — waiting-golive is neutral
    (nothing wrong yet), justify-golive is a stronger escalation tone than fail-cntt/fail-e2e since
    it signals a management explanation is owed, not just a missed internal target. */
@@ -703,6 +704,11 @@
   background: rgba(179, 157, 219, 0.2);
   color: #b39ddb;
   border-color: rgba(179, 157, 219, 0.4);
+}
+:root[data-theme="dark"] .ttm-badge.out-of-scope {
+  background: rgba(148, 163, 184, 0.16);
+  color: #94a3b8;
+  border-color: rgba(148, 163, 184, 0.35);
 }
 :root[data-theme="dark"] .ttm-strip-status-mismatch-mark {
   color: #b39ddb;

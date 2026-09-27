@@ -57,6 +57,10 @@ scripts/*.jira-key-mask-map.json
 *.user
 Thumbs.db
 
+# manual pre-change file snapshots (see AGENTS.md/daily_change_log.md) — a local safety net on top
+# of git history, never meant to ship
+/backups
+
 # vercel
 .vercel
 

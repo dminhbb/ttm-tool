@@ -817,6 +817,38 @@
         </tbody>
       </table>
       <p>Due Date ghi nhận đúng trong hạn (≤ R4G Date + 5 ngày làm việc) thì trục này không hiện badge nào — lúc đó nếu status vẫn chưa Released, rule R7 (mục 9) sẽ báo "Sai lệch dữ liệu" thay vào đó.</p>
+
+      <h3>8.7. TTM-Index / QA-Index — QLDA vs PM, và "Phạm vi dữ liệu cho TTM" (từ 27-28/09/2026)</h3>
+      <p>
+        Ratio phần trăm hiển thị trên Dashboard 2 và header "Quản trị Epic" đều dùng chung 1 công thức
+        (<code>eligible</code> = Epic có R4G Date + không sai lệch dữ liệu; <code>pass</code> = trong
+        đó <code>alertLevel = NONE</code>; <code>%</code> = <code>pass/eligible</code>), chỉ khác nhau
+        ở <strong>2 trục phạm vi độc lập</strong>:
+      </p>
+      <table>
+        <thead><tr><th>Trục</th><th>Giá trị</th><th>Ý nghĩa</th></tr></thead>
+        <tbody>
+          <tr><td rowspan="2">Phân quyền</td><td><strong>(QLDA)</strong></td><td>Toàn bộ Epic trong hệ thống, không phụ thuộc quyền — 1 con số duy nhất, có cache (tính lại sau mỗi lần import/khi Admin lưu cấu hình mục dưới).</td></tr>
+          <tr><td><strong>(PM)</strong></td><td>Epic thuộc quyền của user đang xem — tính trực tiếp (không cache); ở Dashboard 2 còn bị thu hẹp thêm theo bộ lọc Dự án/Domain/PM-SM đang chọn.</td></tr>
+          <tr><td rowspan="2">Trạng thái Epic</td><td><strong>TTM-Index</strong></td><td>Toàn bộ Epic, mọi trạng thái.</td></tr>
+          <tr><td><strong>QA-Index</strong></td><td>Chỉ Epic đang ở status "MVP Done" hoặc "Released".</td></tr>
+        </tbody>
+      </table>
+      <p>2 trục kết hợp tự do: <code>TTM-Index (QLDA)</code>, <code>TTM-Index (PM)</code>,
+        <code>QA-Index (QLDA)</code>, <code>QA-Index (PM)</code>. Epic Cancelled luôn bị loại khỏi
+        cả 4 chỉ số này (không tính tử số lẫn mẫu số). Xem <code>brd/16-ttm-indexes.md</code> để có
+        công thức đầy đủ kèm bảng liệt kê mọi trường hợp bị loại khỏi phạm vi tính toán.</p>
+      <div class="callout">
+        <strong>"Phạm vi dữ liệu cho TTM"</strong> (panel mới ở "Cấu hình cảnh báo"): Admin có thể
+        giới hạn thêm — chỉ Epic có R4G Date (hoặc, nếu chưa có, mốc mục tiêu TTM-CNTT) nằm trong
+        khoảng ngày A–B mới được tính vào TTM-Index; khoảng ngày C–D riêng cho QA-Index. Để trống =
+        không giới hạn (mặc định, không đổi hành vi hiện tại). Epic ngoài phạm vi này hiện badge
+        "Ngoài phạm vi TTM-CNTT" ở cột Nhận xét thay vì Fail/Late/Early/Đạt — vẫn hiển thị trong bảng,
+        chỉ ẩn phán quyết TTM-CNTT. Lưu cấu hình sẽ tự động tính lại và lưu cache ngay. Dashboard 2 có
+        thêm mục "Advanced Filters" (thu gọn mặc định) cho phép người xem tạm thời ghi đè khoảng ngày
+        này riêng cho phiên xem của mình (không lưu lại), và mang theo đúng khoảng ngày đó khi bấm
+        vào 1 số liệu để mở "Quản trị Epic" xem chi tiết.
+      </div>
     </section>
 
     <section id="data-anomaly">

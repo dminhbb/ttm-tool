@@ -20,6 +20,7 @@ import type { EpicComplexityType, StatusAlertRule, StatusAlertRuleInput } from '
 import { TTM_TYPES } from '@/lib/ttm-policy-types';
 import type { TtmPolicy, TtmPolicyInput } from '@/lib/ttm-policy-types';
 import { compareValues, useSortableList } from '@/lib/use-sortable-list';
+import type { TtmScopeConfigWithMeta } from '@/lib/ttm-scope-config-service';
 
 type RuleSortKey = 'epicComplexityType' | 'epicStatus' | 'earlyAlertOffsetDays' | 'lateAlertOffsetDays' | 'status';
 type PolicySortKey = 'ttmType' | 'epicComplexityType' | 'fromTtmField' | 'toTtmField' | 'workingDays' | 'status';
@@ -77,5 +78,126 @@ export function StatusAlertRulesSettings() {
     <Modal isOpen={ruleModal} maxWidth="sm" onClose={() => setRuleModal(false)} title={editingRule === null ? 'Thêm rule cảnh báo' : 'Chỉnh sửa rule cảnh báo'} footer={<><Button onClick={() => setRuleModal(false)} variant="outline">Hủy</Button>{editingRule !== null && <Button icon={<Trash className="size-4" />} onClick={() => setDeleteTarget({ id: editingRule, kind: 'rule', label: ruleForm.epicStatus })} variant="danger">Xóa tiêu chí</Button>}<Button isLoading={saving} onClick={saveRule}>Lưu cấu hình</Button></>}><div className="flex flex-col gap-4">{editingRule === null ? <><Select label="Loại Epic" options={ruleOptions} value={ruleForm.epicComplexityType} onChange={(e) => setRuleForm((x) => ({ ...x, epicComplexityType: e.target.value as StatusAlertRuleInput['epicComplexityType'] }))} /><Input label="Trạng thái Epic" required maxLength={50} value={ruleForm.epicStatus} onChange={(e) => setRuleForm((x) => ({ ...x, epicStatus: e.target.value }))} /></> : <div className="rounded-md border border-fb-border bg-fb-surface-muted px-3 py-2">{typeLabel(ruleForm.epicComplexityType)} · {ruleForm.epicStatus}</div>}<Input label="Offset cảnh báo sớm" type="number" min={0} required value={ruleForm.earlyAlertOffsetDays} onChange={(e) => setRuleForm((x) => ({ ...x, earlyAlertOffsetDays: Number(e.target.value) || 0 }))} /><Input label="Offset cảnh báo muộn" type="number" min={0} required value={ruleForm.lateAlertOffsetDays} onChange={(e) => setRuleForm((x) => ({ ...x, lateAlertOffsetDays: Number(e.target.value) || 0 }))} /><label className="ui-check"><input type="checkbox" checked={ruleForm.isActive} onChange={(e) => setRuleForm((x) => ({ ...x, isActive: e.target.checked }))} />Rule đang hoạt động</label><p className="ui-helper">Cảnh báo sớm phải nhỏ hơn cảnh báo muộn.</p></div></Modal>
     <Modal isOpen={policyModal} maxWidth="sm" onClose={() => setPolicyModal(false)} title={editingPolicy === null ? 'Thêm tiêu chí Time to Market' : 'Chỉnh sửa tiêu chí Time to Market'} footer={<><Button onClick={() => setPolicyModal(false)} variant="outline">Hủy</Button>{editingPolicy !== null && <Button icon={<Trash className="size-4" />} onClick={() => setDeleteTarget({ id: editingPolicy, kind: 'policy', label: policyForm.ttmType })} variant="danger">Xóa tiêu chí</Button>}<Button isLoading={saving} onClick={savePolicy}>Lưu cấu hình</Button></>}><div className="flex flex-col gap-4"><Select label="Loại TTM" options={TTM_TYPES.map((x) => ({ value: x, label: x === 'TTM_CNTT' ? 'TTM-CNTT' : 'TTM-E2E' }))} value={policyForm.ttmType} onChange={(e) => setPolicyForm((x) => ({ ...x, ttmType: e.target.value as TtmPolicyInput['ttmType'] }))} /><Select label="Loại Epic" options={ruleOptions} value={policyForm.epicComplexityType} onChange={(e) => setPolicyForm((x) => ({ ...x, epicComplexityType: e.target.value as TtmPolicyInput['epicComplexityType'] }))} /><Input label="From TTM Field" maxLength={100} required value={policyForm.fromTtmField} onChange={(e) => setPolicyForm((x) => ({ ...x, fromTtmField: e.target.value }))} /><Input label="To TTM Field" maxLength={100} required value={policyForm.toTtmField} onChange={(e) => setPolicyForm((x) => ({ ...x, toTtmField: e.target.value }))} /><Input label="Số ngày làm việc" type="number" min={1} required value={policyForm.workingDays} onChange={(e) => setPolicyForm((x) => ({ ...x, workingDays: Number(e.target.value) || 0 }))} /><label className="ui-check"><input type="checkbox" checked={policyForm.isActive} onChange={(e) => setPolicyForm((x) => ({ ...x, isActive: e.target.checked }))} />Tiêu chí đang hoạt động</label></div></Modal>
     <ConfirmDialog isOpen={deleteTarget !== null} onClose={() => setDeleteTarget(null)} onConfirm={() => void remove()} title="Xóa tiêu chí" description={`Bạn có chắc muốn xóa “${deleteTarget?.label ?? ''}”? Thao tác này xác nhận một bước.`} confirmLabel="Xóa" steps={1} />
+    <TtmScopeConfigPanel />
   </div>;
+}
+
+type ScopeFormState = { cnttFrom: string; cnttTo: string; qaFrom: string; qaTo: string };
+const EMPTY_SCOPE_FORM: ScopeFormState = { cnttFrom: '', cnttTo: '', qaFrom: '', qaTo: '' };
+
+/**
+ * "Phạm vi dữ liệu cho TTM" — admin default for the R4G-date-range gate every TTM-CNTT/QA-Index
+ * calculation now respects (ttmCnttInScope/qaInScope — see ttm-scope-rules.ts). Saving triggers an
+ * immediate cache rebuild server-side (see /api/ttm-scope-config's PUT), so this panel just shows a
+ * "đang tính toán lại" toast rather than waiting on it — the rebuild runs past the response.
+ */
+function TtmScopeConfigPanel() {
+  const [form, setForm] = useState<ScopeFormState>(EMPTY_SCOPE_FORM);
+  const [meta, setMeta] = useState<{ updatedAt: string | null; updatedByName: string | null }>({ updatedAt: null, updatedByName: null });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<Notice | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/ttm-scope-config');
+      const payload: unknown = await response.json();
+      if (!response.ok) throw new Error(readError(payload, 'Không thể tải Phạm vi dữ liệu cho TTM.'));
+      const data = payload as TtmScopeConfigWithMeta;
+      setForm({ cnttFrom: data.cnttFrom ?? '', cnttTo: data.cnttTo ?? '', qaFrom: data.qaFrom ?? '', qaTo: data.qaTo ?? '' });
+      setMeta({ updatedAt: data.updatedAt, updatedByName: data.updatedByName });
+    } catch (error) {
+      setNotice({ text: error instanceof Error ? error.message : 'Không thể tải Phạm vi dữ liệu cho TTM.', type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { void Promise.resolve().then(load); }, []);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const response = await fetch('/api/ttm-scope-config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cnttFrom: form.cnttFrom || null,
+          cnttTo: form.cnttTo || null,
+          qaFrom: form.qaFrom || null,
+          qaTo: form.qaTo || null,
+        }),
+      });
+      const payload: unknown = await response.json();
+      if (!response.ok) throw new Error(readError(payload, 'Không thể lưu Phạm vi dữ liệu cho TTM.'));
+      showToast('Đã lưu Phạm vi dữ liệu cho TTM — đang tính toán lại cache, có thể mất vài chục giây.', 6000);
+      setNotice(null);
+      await load();
+    } catch (error) {
+      setNotice({ text: error instanceof Error ? error.message : 'Không thể lưu Phạm vi dữ liệu cho TTM.', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const clear = (key: keyof ScopeFormState) => setForm((current) => ({ ...current, [key]: '' }));
+
+  return (
+    <Card>
+      <CardHeader>
+        <div>
+          <CardTitle>Phạm vi dữ liệu cho TTM</CardTitle>
+          <p className="mt-1 text-fb-text-secondary">
+            Giới hạn Epic được tính vào TTM-Index/QA-Index theo khoảng ngày R4G Date. Để trống một
+            hoặc cả hai đầu = không giới hạn phía đó — mặc định hệ thống tính như hiện nay.
+          </p>
+        </div>
+      </CardHeader>
+      <CardBody className="flex flex-col gap-5">
+        {loading ? <TableSkeleton rows={2} /> : (
+          <>
+            {notice && <Alert title="Lỗi" variant="error">{notice.text}</Alert>}
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-semibold text-fb-text-primary">R4G for TTM (CNTT)</p>
+              <p className="text-xs text-fb-text-secondary">
+                Lọc theo A &lt; R4G Date &lt; B; Epic chưa có R4G Date dùng TTM-CNTT baseline (Start
+                Date + số ngày làm việc theo policy) thay thế. Áp dụng cho TTM-Index (QLDA),
+                TTM-Index (PM), TTM-CNTT (QLDA) và TTM-CNTT nói chung (badge Nhận xét, Fail TTM-CNTT,
+                Cảnh báo muộn/sớm... ở Quản trị Epic, Epic in PO, Báo cáo).
+              </p>
+              <div className="flex flex-wrap items-end gap-2">
+                <Input label="Từ ngày (A)" type="date" value={form.cnttFrom} onChange={(event) => setForm((x) => ({ ...x, cnttFrom: event.target.value }))} />
+                <Button disabled={!form.cnttFrom} onClick={() => clear('cnttFrom')} size="sm" variant="outline">Để trống</Button>
+                <Input label="Đến ngày (B)" type="date" value={form.cnttTo} onChange={(event) => setForm((x) => ({ ...x, cnttTo: event.target.value }))} />
+                <Button disabled={!form.cnttTo} onClick={() => clear('cnttTo')} size="sm" variant="outline">Để trống</Button>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 border-t border-fb-border pt-4">
+              <p className="text-sm font-semibold text-fb-text-primary">R4G for TTM (QA)</p>
+              <p className="text-xs text-fb-text-secondary">
+                Lọc theo C &lt; R4G Date &lt; D — Epic chưa có R4G Date bị loại khỏi phạm vi QA khi
+                có thiết lập (không có baseline thay thế). Áp dụng cho QA-Index (QLDA) và
+                QA-Index (PM); không ảnh hưởng badge Nhận xét TTM-CNTT hay chỉ số TTM-CNTT khác.
+              </p>
+              <div className="flex flex-wrap items-end gap-2">
+                <Input label="Từ ngày (C)" type="date" value={form.qaFrom} onChange={(event) => setForm((x) => ({ ...x, qaFrom: event.target.value }))} />
+                <Button disabled={!form.qaFrom} onClick={() => clear('qaFrom')} size="sm" variant="outline">Để trống</Button>
+                <Input label="Đến ngày (D)" type="date" value={form.qaTo} onChange={(event) => setForm((x) => ({ ...x, qaTo: event.target.value }))} />
+                <Button disabled={!form.qaTo} onClick={() => clear('qaTo')} size="sm" variant="outline">Để trống</Button>
+              </div>
+            </div>
+            {meta.updatedAt && (
+              <p className="text-xs text-fb-text-secondary">
+                Cập nhật lần cuối: {new Date(meta.updatedAt).toLocaleString('vi-VN')}
+                {meta.updatedByName ? ` bởi ${meta.updatedByName}` : ''}.
+              </p>
+            )}
+            <div className="flex justify-end">
+              <Button isLoading={saving} onClick={save}>Lưu & tính toán lại cache</Button>
+            </div>
+          </>
+        )}
+      </CardBody>
+    </Card>
+  );
 }

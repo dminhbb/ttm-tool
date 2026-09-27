@@ -28,6 +28,15 @@ export interface EpicAlertsDeepLinkParams {
   status?: string[];
   /** One of EPIC_COMPLEXITY_TYPES (status-alert-rule-types.ts), e.g. 'CT-Lv12'. */
   type?: string;
+  /** "Phạm vi dữ liệu cho TTM" override (Dashboard 2's Advanced Filters, see ttm-scope-rules.ts) —
+   * omit entirely to let the target screen use its own default (Cấu hình cảnh báo); pass `null`
+   * (or '') for an explicit "no bound" that OVERRIDES the default rather than falling back to it —
+   * e.g. Dashboard's Advanced Filter cleared that side deliberately. The CNTT and QA axes are
+   * independent; set only the one(s) actually overridden on the caller's side. */
+  ttmScopeCnttFrom?: string | null;
+  ttmScopeCnttTo?: string | null;
+  ttmScopeQaFrom?: string | null;
+  ttmScopeQaTo?: string | null;
 }
 
 export function buildEpicAlertsDeepLink(params: EpicAlertsDeepLinkParams = {}): string {
@@ -44,6 +53,10 @@ export function buildEpicAlertsDeepLink(params: EpicAlertsDeepLinkParams = {}): 
   if (params.dataIssue) query.set('dataIssue', '1');
   if (params.search) query.set('search', params.search);
   if (params.domain) query.set('domain', params.domain);
+  if (params.ttmScopeCnttFrom !== undefined) query.set('cnttFrom', params.ttmScopeCnttFrom ?? '');
+  if (params.ttmScopeCnttTo !== undefined) query.set('cnttTo', params.ttmScopeCnttTo ?? '');
+  if (params.ttmScopeQaFrom !== undefined) query.set('qaFrom', params.ttmScopeQaFrom ?? '');
+  if (params.ttmScopeQaTo !== undefined) query.set('qaTo', params.ttmScopeQaTo ?? '');
 
   const queryString = query.toString();
   return queryString ? `${EPIC_ALERTS_ROUTE}?${queryString}` : EPIC_ALERTS_ROUTE;

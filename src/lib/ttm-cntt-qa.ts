@@ -44,7 +44,7 @@ export function formatTtmPct1(value: number): string {
   return PERCENT_1_DECIMAL_FORMATTER.format(value);
 }
 
-export function summarizeTtmCntt(rows: Pick<EpicAlertRowPhased, 'alertLevel' | 'currentStatus' | 'hasDataAnomaly' | 'r4gDate'>[]): TtmCnttSummary {
+export function summarizeTtmCntt(rows: Pick<EpicAlertRowPhased, 'alertLevel' | 'currentStatus' | 'hasDataAnomaly' | 'r4gDate' | 'ttmCnttInScope'>[]): TtmCnttSummary {
   let eligible = 0;
   let pass = 0;
   let fail = 0;
@@ -52,6 +52,34 @@ export function summarizeTtmCntt(rows: Pick<EpicAlertRowPhased, 'alertLevel' | '
 
   for (const row of rows) {
     if (isCancelledStatus(row.currentStatus || '')) continue;
+    // "Phạm vi dữ liệu cho TTM" (Cấu hình cảnh báo) — see computeTtmCnttInScope in
+    // ttm-scope-rules.ts. True for every Epic while no admin bound is configured, so this is a
+    // no-op until an admin actually sets one.
+    if (!row.ttmCnttInScope) continue;
+    total += 1;
+    if (row.alertLevel === 'FAIL') fail += 1;
+    if (row.r4gDate && !row.hasDataAnomaly) {
+      eligible += 1;
+      if (row.alertLevel === 'NONE') pass += 1;
+    }
+  }
+
+  return summarizeTtmCnttFromCounts(eligible, pass, fail, total);
+}
+
+/** Same shape as summarizeTtmCntt, for the QA-Index ratio: scoped to MVP Done/Released status
+ * (isTtmCnttQaInScope) AND the "R4G for TTM (QA)" gate (row.qaInScope) instead of ttmCnttInScope —
+ * the two date-range gates are independent (see ttm-scope-rules.ts). */
+export function summarizeQaIndex(rows: Pick<EpicAlertRowPhased, 'alertLevel' | 'currentStatus' | 'hasDataAnomaly' | 'qaInScope' | 'r4gDate'>[]): TtmCnttSummary {
+  let eligible = 0;
+  let pass = 0;
+  let fail = 0;
+  let total = 0;
+
+  for (const row of rows) {
+    if (isCancelledStatus(row.currentStatus || '')) continue;
+    if (!isTtmCnttQaInScope(row.currentStatus)) continue;
+    if (!row.qaInScope) continue;
     total += 1;
     if (row.alertLevel === 'FAIL') fail += 1;
     if (row.r4gDate && !row.hasDataAnomaly) {

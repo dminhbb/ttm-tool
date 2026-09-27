@@ -19,7 +19,7 @@ import type { EpicAlertAccessRole, EpicAlertPhasedResponse, EpicAlertRowPhased, 
 import type { EpicMilestoneHistoryEntry } from '@/lib/epic-milestone-history-service';
 import type { ProjectComponent } from '@/lib/master-data-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
-import { formatTtmPct1, isTtmCnttQaInScope, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
+import { formatTtmPct1, summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import type { TtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
@@ -136,6 +136,13 @@ interface EpicAlertsDeepLinkFilters {
   requestingUnit: string;
   search: string;
   status: string[];
+  /** "Phạm vi dữ liệu cho TTM" override (Dashboard 2's Advanced Filters) — undefined = key absent
+   * from the URL, use this screen's own admin default; null = key present but empty ("no bound",
+   * an explicit override). See buildEpicAlertsDeepLink's doc comment. */
+  ttmScopeCnttFrom: string | null | undefined;
+  ttmScopeCnttTo: string | null | undefined;
+  ttmScopeQaFrom: string | null | undefined;
+  ttmScopeQaTo: string | null | undefined;
   type: string;
 }
 
@@ -152,16 +159,25 @@ function parseDeepLinkFilters(searchParams: URLSearchParams): EpicAlertsDeepLink
   const dataIssue = searchParams.get('dataIssue') === '1';
   const search = searchParams.get('search') ?? '';
   const domain = searchParams.get('domain') ?? '';
+  const dateOrNull = (key: string) => (searchParams.has(key) ? (searchParams.get(key) || null) : undefined);
   return {
     alert,
     dataIssue,
     domain,
-    hasAny: Boolean(alert || projects.length || status.length || type || pmSm.length || requestingUnit || dataIssue || search || domain),
+    hasAny: Boolean(
+      alert || projects.length || status.length || type || pmSm.length || requestingUnit || dataIssue || search || domain
+      || dateOrNull('cnttFrom') !== undefined || dateOrNull('cnttTo') !== undefined
+      || dateOrNull('qaFrom') !== undefined || dateOrNull('qaTo') !== undefined,
+    ),
     pmSm,
     projects,
     requestingUnit,
     search,
     status,
+    ttmScopeCnttFrom: dateOrNull('cnttFrom'),
+    ttmScopeCnttTo: dateOrNull('cnttTo'),
+    ttmScopeQaFrom: dateOrNull('qaFrom'),
+    ttmScopeQaTo: dateOrNull('qaTo'),
     type,
   };
 }
@@ -180,14 +196,16 @@ function matchesAlertFilter(row: EpicAlertRowPhased, alertFilter: AlertFilterVal
   switch (alertFilter) {
     case '': return true;
     case 'FAIL_E2E': return row.ttmE2eAlertLevel === 'FAIL';
-    case 'ACHIEVED_CNTT': return row.alertLevel === 'NONE' && Boolean(row.r4gDate) && !row.ttmCnttStatusMismatch && row.ttmActualToDate === row.r4gDate;
+    case 'ACHIEVED_CNTT': return row.ttmCnttInScope && row.alertLevel === 'NONE' && Boolean(row.r4gDate) && !row.ttmCnttStatusMismatch && row.ttmActualToDate === row.r4gDate;
     case 'ACHIEVED_E2E': return row.ttmE2eAlertLevel === 'NONE' && normalizeEpicWorkflowStatus(row.currentStatus) === 'RELEASED' && Boolean(row.r4gDate) && row.ttmE2eActualToDate === row.r4gDate;
-    case 'STATUS_MISMATCH': return row.ttmCnttStatusMismatch;
+    case 'STATUS_MISMATCH': return row.ttmCnttInScope && row.ttmCnttStatusMismatch;
     case 'DATA_ANOMALY': return row.hasDataAnomaly;
     case 'WAITING_GOLIVE': return row.releaseAxisState === 'WAITING_GOLIVE';
     case 'RELEASE_EARLY': return row.releaseAxisState === 'EARLY_WARNING';
     case 'JUSTIFY_GOLIVE': return row.releaseAxisState === 'JUSTIFY_GOLIVE';
-    default: return row.alertLevel === alertFilter;
+    // FAIL/LATE/EARLY/NONE — every one of them is a TTM-CNTT-axis label, so an out-of-scope row
+    // (whose Nhận xét cell shows "Ngoài phạm vi TTM-CNTT" instead) must never match any of them.
+    default: return row.ttmCnttInScope && row.alertLevel === alertFilter;
   }
 }
 
@@ -722,6 +740,13 @@ function EpicAlerts15Screen() {
       if (createdDateFrom) query.set('createdDateFrom', createdDateFrom);
       if (startDateFromFilter) query.set('startDateFrom', startDateFromFilter);
       if (dueDateFromFilter) query.set('dueDateFrom', dueDateFromFilter);
+      // "Phạm vi dữ liệu cho TTM" override, read once from the deep link that navigated here (e.g. a
+      // Dashboard 2 KPI tile with its own Advanced Filter active) — never edited on this screen, so
+      // it's forwarded as-is rather than backed by its own toolbar control.
+      if (deepLinkFilters.ttmScopeCnttFrom !== undefined) query.set('cnttFrom', deepLinkFilters.ttmScopeCnttFrom ?? '');
+      if (deepLinkFilters.ttmScopeCnttTo !== undefined) query.set('cnttTo', deepLinkFilters.ttmScopeCnttTo ?? '');
+      if (deepLinkFilters.ttmScopeQaFrom !== undefined) query.set('qaFrom', deepLinkFilters.ttmScopeQaFrom ?? '');
+      if (deepLinkFilters.ttmScopeQaTo !== undefined) query.set('qaTo', deepLinkFilters.ttmScopeQaTo ?? '');
       // Every other toolbar filter — server-side when the fast (cache-backed) path serves the
       // request (see the API route); ignored by the fallback path, which keeps filtering `rows`
       // client-side exactly like before this cache existed.
@@ -770,7 +795,7 @@ function EpicAlerts15Screen() {
   // access scope instead (see queryTtmQaIndexPm) — the client-side fallback below only applies in
   // 'full' mode, where `rows` genuinely is the whole access-scoped set.
   const clientTtmIndexPm = useMemo(() => summarizeTtmCntt(rows), [rows]);
-  const clientQaIndexPm = useMemo(() => summarizeTtmCntt(rows.filter((row) => isTtmCnttQaInScope(row.currentStatus))), [rows]);
+  const clientQaIndexPm = useMemo(() => summarizeQaIndex(rows), [rows]);
   const ttmIndexPm = data?.mode === 'paged' && data.ttmIndexPm ? data.ttmIndexPm : clientTtmIndexPm;
   const qaIndexPm = data?.mode === 'paged' && data.qaIndexPm ? data.qaIndexPm : clientQaIndexPm;
 
@@ -1092,9 +1117,9 @@ function EpicAlerts15Screen() {
     let pending = 0;
     let todo = 0;
     for (const row of filteredRows) {
-      if (row.alertLevel === 'FAIL') failCntt += 1;
+      if (row.ttmCnttInScope && row.alertLevel === 'FAIL') failCntt += 1;
       if (row.ttmE2eAlertLevel === 'FAIL') failE2e += 1;
-      if (row.alertLevel === 'LATE') late += 1;
+      if (row.ttmCnttInScope && row.alertLevel === 'LATE') late += 1;
       if (row.hasDataAnomaly) dataIssue += 1;
       const normalizedStatus = row.currentStatus.trim().toLocaleUpperCase('en-US');
       if (normalizedStatus === 'PENDING') pending += 1;
@@ -1498,14 +1523,22 @@ function EpicAlerts15Screen() {
                         // "Đạt TTM-E2E" (2026-09-24 rule): status Released AND T0→R4G Date on schedule —
                         // see resolveTtmE2eRelease's doc comment for why status alone isn't derived there.
                         const isTtmE2eAchieved = row.ttmE2eAlertLevel === 'NONE' && normalizeEpicWorkflowStatus(row.currentStatus) === 'RELEASED' && Boolean(row.r4gDate) && row.ttmE2eActualToDate === row.r4gDate;
-                        const hasCnttBadge = row.ttmCnttStatusMismatch || row.alertLevel !== 'NONE' || isTtmCnttAchieved;
+                        // "Phạm vi dữ liệu cho TTM" (Cấu hình cảnh báo, 2026-09-27) — !ttmCnttInScope
+                        // always wins over every other TTM-CNTT badge below (Sai Status/Fail/Late/
+                        // Early/Đạt): the underlying alertLevel is still computed as usual, it's just
+                        // not honest to show it for an Epic outside the admin-configured R4G window.
+                        const hasCnttBadge = !row.ttmCnttInScope || row.ttmCnttStatusMismatch || row.alertLevel !== 'NONE' || isTtmCnttAchieved;
                         const hasE2eBadge = row.ttmE2eAlertLevel === 'FAIL' || isTtmE2eAchieved;
                         const hasReleaseBadge = row.releaseAxisState !== 'NONE';
                         const hasAnyBadge = hasCnttBadge || hasE2eBadge || hasReleaseBadge || row.hasDataAnomaly;
 
                         return (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
-                            {row.ttmCnttStatusMismatch ? (
+                            {!row.ttmCnttInScope ? (
+                              <Tooltip content="Epic nằm ngoài phạm vi dữ liệu TTM-CNTT đang cấu hình (R4G Date/baseline nằm ngoài khoảng ngày thiết lập tại 'Cấu hình cảnh báo')." className="inline-flex w-auto">
+                                <span className="ttm-badge out-of-scope">Ngoài phạm vi TTM-CNTT</span>
+                              </Tooltip>
+                            ) : row.ttmCnttStatusMismatch ? (
                               <Tooltip content="R4G Date đã ghi nhận và đúng hạn theo TTM-CNTT, nhưng status Epic chưa chuyển sang R4GOLIVE — vui lòng cập nhật status đúng quy định." className="inline-flex w-auto">
                                 <span className="ttm-badge status-mismatch">Sai Status</span>
                               </Tooltip>

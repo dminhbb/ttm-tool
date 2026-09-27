@@ -60,6 +60,15 @@ export interface EpicAlertRow {
   };
   t0IdeaApprovedDate: string | null;
   t1StartDate: string | null;
+  /** "Phạm vi dữ liệu cho TTM" (Cấu hình cảnh báo) — see computeTtmCnttInScope in
+   * ttm-scope-config-service.ts. False hides the Nhận xét cell's TTM-CNTT badges (FAIL/LATE/EARLY/
+   * NONE/Sai Status/Đạt) behind a neutral "Ngoài phạm vi TTM-CNTT" state instead, and excludes this
+   * row from every TTM-CNTT pass/fail/eligible count (summarizeTtmCntt). True for every Epic while
+   * no admin bound is configured (the default) — never changes existing behavior on its own. */
+  ttmCnttInScope: boolean;
+  /** Same gate, "R4G for TTM (QA)" bounds — see computeQaInScope. Only narrows QA-Index's own
+   * eligible/pass/fail/total; does not affect the TTM-CNTT badge or ttmCnttInScope. */
+  qaInScope: boolean;
   /** Start of the "stripe thực tế" (actual strip) — see resolveTtmActualRange in epic-alert-service.ts. */
   ttmActualElapsedWorkingDays: number | null;
   ttmActualFromDate: string | null;
@@ -173,6 +182,15 @@ export interface EpicAlertRowPhased {
   t0IdeaApprovedDate: string | null;
   t1StartDate: string | null;
   targetR4gDate: string | null;
+  /** "Phạm vi dữ liệu cho TTM" (Cấu hình cảnh báo) — see computeTtmCnttInScope in
+   * ttm-scope-config-service.ts. False hides the Nhận xét cell's TTM-CNTT badges (FAIL/LATE/EARLY/
+   * NONE/Sai Status/Đạt) behind a neutral "Ngoài phạm vi TTM-CNTT" state instead, and excludes this
+   * row from every TTM-CNTT pass/fail/eligible count (summarizeTtmCntt). True for every Epic while
+   * no admin bound is configured (the default) — never changes existing behavior on its own. */
+  ttmCnttInScope: boolean;
+  /** Same gate, "R4G for TTM (QA)" bounds — see computeQaInScope. Only narrows QA-Index's own
+   * eligible/pass/fail/total; does not affect the TTM-CNTT badge or ttmCnttInScope. */
+  qaInScope: boolean;
   /** Range of the "stripe thực tế" (actual strip) — see resolveTtmActualRange in epic-alert-service.ts. */
   ttmActualElapsedWorkingDays: number | null;
   ttmActualFromDate: string | null;
@@ -203,8 +221,9 @@ export interface EpicAlertRowPhased {
  * Keep DASHBOARD_EPIC_ROW_KEYS in sync: the cache-backed read builds the same shape in SQL from it. */
 export const DASHBOARD_EPIC_ROW_KEYS = [
   'alertLevel', 'currentStatus', 'dataAnomalyViolations', 'domainName', 'dueDate', 'epicKey', 'epicName',
-  'epicType', 'hasDataAnomaly', 'ownerName', 'projectKey', 'projectName', 'r4gDate', 'releaseAxisState',
-  'releaseGraceDeadline', 'requestingUnit', 'ttmE2eAlertLevel',
+  'epicType', 'hasDataAnomaly', 'ownerName', 'projectKey', 'projectName', 'qaInScope', 'r4gDate',
+  'releaseAxisState', 'releaseGraceDeadline', 'requestingUnit', 'targetR4gDate', 'ttmCnttInScope',
+  'ttmE2eAlertLevel',
 ] as const satisfies readonly (keyof EpicAlertRowPhased)[];
 
 export type DashboardEpicRow = Pick<EpicAlertRowPhased, (typeof DASHBOARD_EPIC_ROW_KEYS)[number]> & {

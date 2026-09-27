@@ -47,7 +47,11 @@ export async function GET(request: NextRequest) {
     // only the default (newest layer, no date filter) view can be served from the cache. This is
     // the overwhelming majority of traffic (every plain page load / toolbar-filter change), and is
     // the one true server-side paginated + filtered read — see epic-alert-row-cache-query-service.ts.
-    const usesAdvancedFilter = Boolean(filters.layerDates || filters.createdDateFrom || filters.startDateFrom || filters.dueDateFrom);
+    const usesAdvancedFilter = Boolean(
+      filters.layerDates || filters.createdDateFrom || filters.startDateFrom || filters.dueDateFrom
+      || filters.ttmScopeCnttFrom !== undefined || filters.ttmScopeCnttTo !== undefined
+      || filters.ttmScopeQaFrom !== undefined || filters.ttmScopeQaTo !== undefined,
+    );
     const cacheMeta = usesAdvancedFilter ? null : await getEpicAlertRowCacheMeta();
 
     if (cacheMeta?.hasCache) {

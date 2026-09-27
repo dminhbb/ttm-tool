@@ -90,14 +90,16 @@ function matchesAlertFilter(row: EpicAlertRowPhased, alertFilter: AlertFilterVal
   switch (alertFilter) {
     case '': return true;
     case 'FAIL_E2E': return row.ttmE2eAlertLevel === 'FAIL';
-    case 'ACHIEVED_CNTT': return row.alertLevel === 'NONE' && Boolean(row.r4gDate) && !row.ttmCnttStatusMismatch && row.ttmActualToDate === row.r4gDate;
+    case 'ACHIEVED_CNTT': return row.ttmCnttInScope && row.alertLevel === 'NONE' && Boolean(row.r4gDate) && !row.ttmCnttStatusMismatch && row.ttmActualToDate === row.r4gDate;
     case 'ACHIEVED_E2E': return row.ttmE2eAlertLevel === 'NONE' && normalizeEpicWorkflowStatus(row.currentStatus) === 'RELEASED' && Boolean(row.r4gDate) && row.ttmE2eActualToDate === row.r4gDate;
-    case 'STATUS_MISMATCH': return row.ttmCnttStatusMismatch;
+    case 'STATUS_MISMATCH': return row.ttmCnttInScope && row.ttmCnttStatusMismatch;
     case 'DATA_ANOMALY': return row.hasDataAnomaly;
     case 'WAITING_GOLIVE': return row.releaseAxisState === 'WAITING_GOLIVE';
     case 'RELEASE_EARLY': return row.releaseAxisState === 'EARLY_WARNING';
     case 'JUSTIFY_GOLIVE': return row.releaseAxisState === 'JUSTIFY_GOLIVE';
-    default: return row.alertLevel === alertFilter;
+    // FAIL/LATE/EARLY/NONE — every one of them is a TTM-CNTT-axis label, so an out-of-scope row
+    // (whose Nhận xét cell shows "Ngoài phạm vi TTM-CNTT" instead) must never match any of them.
+    default: return row.ttmCnttInScope && row.alertLevel === alertFilter;
   }
 }
 
@@ -971,14 +973,20 @@ export default function EpicInPoPage() {
                         // "Đạt TTM-E2E" (2026-09-24 rule): status Released AND T0→R4G Date on schedule —
                         // see resolveTtmE2eRelease's doc comment for why status alone isn't derived there.
                         const isTtmE2eAchieved = row.ttmE2eAlertLevel === 'NONE' && normalizeEpicWorkflowStatus(row.currentStatus) === 'RELEASED' && Boolean(row.r4gDate) && row.ttmE2eActualToDate === row.r4gDate;
-                        const hasCnttBadge = row.ttmCnttStatusMismatch || row.alertLevel !== 'NONE' || isTtmCnttAchieved;
+                        // "Phạm vi dữ liệu cho TTM" (Cấu hình cảnh báo, 2026-09-27) — !ttmCnttInScope
+                        // always wins over every other TTM-CNTT badge below.
+                        const hasCnttBadge = !row.ttmCnttInScope || row.ttmCnttStatusMismatch || row.alertLevel !== 'NONE' || isTtmCnttAchieved;
                         const hasE2eBadge = row.ttmE2eAlertLevel === 'FAIL' || isTtmE2eAchieved;
                         const hasReleaseBadge = row.releaseAxisState !== 'NONE';
                         const hasAnyBadge = hasCnttBadge || hasE2eBadge || hasReleaseBadge || row.hasDataAnomaly;
 
                         return (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
-                            {row.ttmCnttStatusMismatch ? (
+                            {!row.ttmCnttInScope ? (
+                              <Tooltip content="Epic nằm ngoài phạm vi dữ liệu TTM-CNTT đang cấu hình (R4G Date/baseline nằm ngoài khoảng ngày thiết lập tại 'Cấu hình cảnh báo')." className="inline-flex w-auto">
+                                <span className="ttm-badge out-of-scope">Ngoài phạm vi TTM-CNTT</span>
+                              </Tooltip>
+                            ) : row.ttmCnttStatusMismatch ? (
                               <Tooltip content="R4G Date đã ghi nhận và đúng hạn theo TTM-CNTT, nhưng status Epic chưa chuyển sang R4GOLIVE — vui lòng cập nhật status đúng quy định." className="inline-flex w-auto">
                                 <span className="ttm-badge status-mismatch">Sai Status</span>
                               </Tooltip>

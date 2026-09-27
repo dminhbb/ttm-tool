@@ -30,8 +30,9 @@ import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import { DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
 import { compareValues, useSortableList } from '@/lib/use-sortable-list';
-import { formatTtmPct1, isTtmCnttQaInScope, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
+import { formatTtmPct1, summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
+import { computeQaInScope, computeTtmCnttInScope } from '@/lib/ttm-scope-rules';
 import { buildEpicAlertsDeepLink } from '@/lib/epic-alerts-deep-link';
 import type { EpicAlertsDeepLinkParams } from '@/lib/epic-alerts-deep-link';
 import type { DashboardEpicRow } from '@/lib/epic-alert-types';
@@ -56,13 +57,15 @@ function computeDimensionDonuts(
     // Total
     totalMap.set(key, (totalMap.get(key) ?? 0) + 1);
 
-    // Pass TTM-CNTT (pm): Epic có R4G Date, không có data anomaly, alertLevel === 'NONE'
-    if (row.r4gDate && !row.hasDataAnomaly && row.alertLevel === 'NONE') {
+    // Pass TTM-CNTT (pm): trong phạm vi dữ liệu TTM (ttmCnttInScope), có R4G Date, không có data
+    // anomaly, alertLevel === 'NONE'.
+    if (row.ttmCnttInScope && row.r4gDate && !row.hasDataAnomaly && row.alertLevel === 'NONE') {
       passMap.set(key, (passMap.get(key) ?? 0) + 1);
     }
 
-    // Fail TTM (pm): Epic có alertLevel === 'FAIL' hoặc ttmE2eAlertLevel === 'FAIL'
-    if (row.alertLevel === 'FAIL' || row.ttmE2eAlertLevel === 'FAIL') {
+    // Fail TTM (pm): alertLevel === 'FAIL' trong phạm vi TTM-CNTT, hoặc ttmE2eAlertLevel === 'FAIL'
+    // (TTM-E2E không bị giới hạn bởi Phạm vi dữ liệu cho TTM).
+    if ((row.ttmCnttInScope && row.alertLevel === 'FAIL') || row.ttmE2eAlertLevel === 'FAIL') {
       failMap.set(key, (failMap.get(key) ?? 0) + 1);
     }
   }
@@ -219,6 +222,40 @@ export default function DashboardNewPage() {
   const [filterDomain, setFilterDomain] = useState<string>('');
   const [filterPmSm, setFilterPmSm] = useState<string>('');
 
+  // "Advanced Filters" — Phạm vi dữ liệu cho TTM (2026-09-28), collapsed by default. A live,
+  // per-view override of the admin default ("Cấu hình cảnh báo" § Phạm vi dữ liệu cho TTM) — never
+  // saved/cached; applying it just recomputes this page's own TTM-CNTT/QA-Index gate for every
+  // widget below (see computeTtmCnttInScope/computeQaInScope in ttm-scope-rules.ts). Seeded once
+  // from the admin default (scopeDefaultsLoaded guards both the seeding and the deep-link forward
+  // below, so a click before the fetch resolves never sends an accidentally-unbounded override).
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
+  const [scopeDefaultsLoaded, setScopeDefaultsLoaded] = useState(false);
+  const [filterCnttFrom, setFilterCnttFrom] = useState('');
+  const [filterCnttTo, setFilterCnttTo] = useState('');
+  const [filterQaFrom, setFilterQaFrom] = useState('');
+  const [filterQaTo, setFilterQaTo] = useState('');
+
+  useEffect(() => {
+    void Promise.resolve().then(async () => {
+      try {
+        const res = await fetch('/api/ttm-scope-config');
+        const payload: unknown = await res.json();
+        if (res.ok && payload && typeof payload === 'object') {
+          const config = payload as { cnttFrom: string | null; cnttTo: string | null; qaFrom: string | null; qaTo: string | null };
+          setFilterCnttFrom(config.cnttFrom ?? '');
+          setFilterCnttTo(config.cnttTo ?? '');
+          setFilterQaFrom(config.qaFrom ?? '');
+          setFilterQaTo(config.qaTo ?? '');
+        }
+      } catch {
+        // Best-effort — leave the 4 fields blank (no bound), matching the admin default's own
+        // fallback when ttm_scope_config has never been saved.
+      } finally {
+        setScopeDefaultsLoaded(true);
+      }
+    });
+  }, []);
+
   // Epic Alerts Iframe Modal state (in-page drilldown popup)
   const [epicModalUrl, setEpicModalUrl] = useState<string | null>(null);
   const [epicModalTitle, setEpicModalTitle] = useState<string>('Quản trị Epic');
@@ -279,18 +316,34 @@ export default function DashboardNewPage() {
     return data ? ['SUPERADMIN', 'ADMIN', 'SUPERVISOR'].includes(data.actor.role) : false;
   }, [data]);
 
-  // Filtered Epic Rows
+  // Filtered Epic Rows — also re-derives ttmCnttInScope/qaInScope per row from the Advanced Filter's
+  // current A/B/C/D (see ttm-scope-rules.ts), overriding whatever epic_alert_row_cache baked in from
+  // the admin default. Every downstream widget already reads row.ttmCnttInScope/qaInScope (same as
+  // Quản trị Epic's badge/summarizeTtmCntt/summarizeQaIndex), so this is the single place the
+  // Advanced Filter needs to touch for its effect to reach the whole page.
   const filteredRows = useMemo(() => {
     if (!data) return [];
-    return data.rows.filter((row) => {
-      if (isCancelledStatus(row.currentStatus || '')) return false;
-      if (filterProjects.length > 0 && !filterProjects.includes(row.projectKey)) return false;
-      if (filterDomain && row.domainName !== filterDomain) return false;
-      // In PM/SM view (OPERATIONAL), PM/SM filter is removed / not applied.
-      if (viewMode === 'EXECUTIVE' && filterPmSm && !row.ownerName.split(',').map((name) => name.trim()).includes(filterPmSm)) return false;
-      return true;
-    });
-  }, [data, filterProjects, filterDomain, filterPmSm, viewMode]);
+    const scopeConfig = {
+      cnttFrom: filterCnttFrom || null,
+      cnttTo: filterCnttTo || null,
+      qaFrom: filterQaFrom || null,
+      qaTo: filterQaTo || null,
+    };
+    return data.rows
+      .filter((row) => {
+        if (isCancelledStatus(row.currentStatus || '')) return false;
+        if (filterProjects.length > 0 && !filterProjects.includes(row.projectKey)) return false;
+        if (filterDomain && row.domainName !== filterDomain) return false;
+        // In PM/SM view (OPERATIONAL), PM/SM filter is removed / not applied.
+        if (viewMode === 'EXECUTIVE' && filterPmSm && !row.ownerName.split(',').map((name) => name.trim()).includes(filterPmSm)) return false;
+        return true;
+      })
+      .map((row) => ({
+        ...row,
+        ttmCnttInScope: computeTtmCnttInScope(row.r4gDate, row.targetR4gDate, scopeConfig),
+        qaInScope: computeQaInScope(row.r4gDate, scopeConfig),
+      }));
+  }, [data, filterProjects, filterDomain, filterPmSm, viewMode, filterCnttFrom, filterCnttTo, filterQaFrom, filterQaTo]);
 
   // Executive Metrics. TTM-CNTT-specific numbers (eligibleTtm/passTtm/failCntt/ttmHealthPct) come
   // from the shared summarizeTtmCntt helper so this stays byte-for-byte the same ratio as the
@@ -305,8 +358,8 @@ export default function DashboardNewPage() {
     let justifyGolive = 0;
 
     for (const row of filteredRows) {
-      if (row.alertLevel === 'LATE') lateWarning += 1;
-      else if (row.alertLevel === 'EARLY') earlyWarning += 1;
+      if (row.ttmCnttInScope && row.alertLevel === 'LATE') lateWarning += 1;
+      else if (row.ttmCnttInScope && row.alertLevel === 'EARLY') earlyWarning += 1;
 
       if (row.ttmE2eAlertLevel === 'FAIL') failE2e += 1;
       if (row.hasDataAnomaly) anomalyCount += 1;
@@ -332,11 +385,11 @@ export default function DashboardNewPage() {
     };
   }, [filteredRows]);
 
-  // TTM-CNTT-QA: the exact same TTM-CNTT ratio (summarizeTtmCntt), scoped to Epics currently
-  // 'MVP Done' or 'Released' — always over filteredRows, i.e. within the user's data-access scope
-  // and whatever project/domain/search filter is active, same as executiveMetrics above.
-  const qaScopedRows = useMemo(() => filteredRows.filter((row) => isTtmCnttQaInScope(row.currentStatus)), [filteredRows]);
-  const qaMetrics = useMemo(() => summarizeTtmCntt(qaScopedRows), [qaScopedRows]);
+  // TTM-CNTT-QA: the exact same TTM-CNTT ratio (summarizeQaIndex), scoped to Epics currently
+  // 'MVP Done' or 'Released' plus the "R4G for TTM (QA)" gate — always over filteredRows, i.e.
+  // within the user's data-access scope and whatever project/domain/search filter is active, same
+  // as executiveMetrics above.
+  const qaMetrics = useMemo(() => summarizeQaIndex(filteredRows), [filteredRows]);
 
   // Drills a KPI tile/matrix cell down into "Quản trị Epic" (epic-alerts-15) pre-filtered to exactly
   // what produced that number — carries over whatever project/domain/PM-SM/requesting-unit/search
@@ -352,6 +405,15 @@ export default function DashboardNewPage() {
     search: extra.search,
     status: extra.status,
     type: extra.type,
+    // "Phạm vi dữ liệu cho TTM" Advanced Filter — always forwarded as an explicit override so the
+    // target screen's count matches this dashboard's own (already-loaded admin default or whatever
+    // the user edited it to) exactly, rather than re-resolving its own admin default independently.
+    ...(scopeDefaultsLoaded ? {
+      ttmScopeCnttFrom: extra.ttmScopeCnttFrom ?? (filterCnttFrom || null),
+      ttmScopeCnttTo: extra.ttmScopeCnttTo ?? (filterCnttTo || null),
+      ttmScopeQaFrom: extra.ttmScopeQaFrom ?? (filterQaFrom || null),
+      ttmScopeQaTo: extra.ttmScopeQaTo ?? (filterQaTo || null),
+    } : {}),
   });
 
   const toEpicAlertsLinkForMatrixItem = (item: { name: string }, metricType: 'total' | 'pass' | 'fail' | 'ok' | 'late' | 'qa' | 'qaPass') => {
@@ -408,13 +470,16 @@ export default function DashboardNewPage() {
       curr.rows.push(row);
 
       // "Đúng/Chậm tiến độ" only tracks Epics that don't have a TTM-CNTT verdict yet — the same
-      // eligibility gate summarizeTtmCntt uses below (recorded R4G Date + no data anomaly). Once a
-      // row is QLDA-judged it's counted there instead, so every row in the bucket lands in exactly
-      // one of {qlda pass/fail, late/ok} and "Tổng số Epic" never silently outgrows the columns
-      // that add up to it (a Released Epic with a data anomaly or a missing R4G Date used to vanish
-      // from every column here otherwise).
-      const isQldaJudged = Boolean(row.r4gDate && !row.hasDataAnomaly);
-      if (!isQldaJudged) {
+      // eligibility gate summarizeTtmCntt uses below (recorded R4G Date + no data anomaly), AND are
+      // in the current "Phạm vi dữ liệu cho TTM" scope. Once a row is QLDA-judged it's counted there
+      // instead, so every row in the bucket lands in exactly one of {qlda pass/fail, late/ok} and
+      // "Tổng số Epic" never silently outgrows the columns that add up to it (a Released Epic with a
+      // data anomaly or a missing R4G Date used to vanish from every column here otherwise). A row
+      // outside the configured TTM scope lands in NEITHER — same "not counted anywhere TTM-CNTT"
+      // treatment as its Nhận xét badge on Quản trị Epic — only possible once an admin has actually
+      // narrowed the default (unbounded) scope.
+      const isQldaJudged = Boolean(row.ttmCnttInScope && row.r4gDate && !row.hasDataAnomaly);
+      if (row.ttmCnttInScope && !isQldaJudged) {
         if (row.alertLevel === 'FAIL' || row.alertLevel === 'LATE') curr.late += 1;
         else curr.ok += 1;
       }
@@ -423,7 +488,7 @@ export default function DashboardNewPage() {
 
     const items = [...map.entries()].map(([name, bucket]) => {
       const qlda = summarizeTtmCntt(bucket.rows);
-      const qa = summarizeTtmCntt(bucket.rows.filter((row) => isTtmCnttQaInScope(row.currentStatus)));
+      const qa = summarizeQaIndex(bucket.rows);
       return { late: bucket.late, name, ok: bucket.ok, qa, qlda, total: bucket.rows.length };
     });
     return items.sort((a, b) => compareValues(matrixSortValue(a, matrixSortKey), matrixSortValue(b, matrixSortKey), matrixSortDirection));
@@ -437,7 +502,7 @@ export default function DashboardNewPage() {
       const pName = row.projectName || pKey;
       const curr = map.get(pKey) ?? { fail: 0, name: pName, total: 0 };
       curr.total += 1;
-      if (row.alertLevel === 'FAIL' || row.ttmE2eAlertLevel === 'FAIL') curr.fail += 1;
+      if ((row.ttmCnttInScope && row.alertLevel === 'FAIL') || row.ttmE2eAlertLevel === 'FAIL') curr.fail += 1;
       map.set(pKey, curr);
     }
     return [...map.values()].sort((a, b) => b.fail - a.fail).slice(0, 5);
@@ -477,7 +542,7 @@ export default function DashboardNewPage() {
 
     return phases.map((phase) => {
       const count = phase.rows.length;
-      const alertCount = phase.rows.filter((r) => r.alertLevel === 'FAIL' || r.alertLevel === 'LATE' || r.ttmE2eAlertLevel === 'FAIL').length;
+      const alertCount = phase.rows.filter((r) => (r.ttmCnttInScope && (r.alertLevel === 'FAIL' || r.alertLevel === 'LATE')) || r.ttmE2eAlertLevel === 'FAIL').length;
       return { ...phase, alertCount, count };
     });
   }, [filteredRows]);
@@ -1152,6 +1217,73 @@ export default function DashboardNewPage() {
         )}
       </section>
 
+      {/* Advanced Filters — "Phạm vi dữ liệu cho TTM" override, live/uncached (2026-09-28). Collapsed
+          by default: only the icon + title show until expanded, same pattern as Quản trị Epic's own
+          "Bộ lọc nâng cao". */}
+      <div className="border-t border-slate-300 pt-3 mb-4" aria-label="Advanced Filters">
+        <button
+          type="button"
+          onClick={() => setAdvancedFiltersOpen((prev) => !prev)}
+          className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[#1463f7] transition-colors"
+        >
+          {advancedFiltersOpen ? <CaretDown className="size-4 text-[#1463f7]" weight="bold" /> : <CaretRight className="size-4 text-[#1463f7]" weight="bold" />}
+          <span>Advanced Filters</span>
+        </button>
+        {advancedFiltersOpen && (
+          <div className="mt-3 grid grid-cols-1 gap-4 border-l-2 border-[#1463f7] pl-3 pt-1 md:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-[11px] font-bold text-black">Filter R4G for TTM (CNTT)</label>
+              <p className="mb-1.5 text-[10px] text-gray-600">
+                Epic có R4G Date: lọc A &lt; R4G Date &lt; B. Chưa có R4G Date: lọc theo TTM-CNTT
+                baseline. Để trống A/B = không giới hạn phía đó. Áp dụng cho TTM-Index (PM) và mọi
+                tính toán Pass/Fail liên quan tới TTM-CNTT trên trang này.
+              </p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <input
+                  type="date"
+                  value={filterCnttFrom}
+                  onChange={(event) => setFilterCnttFrom(event.target.value)}
+                  className={`rounded-none border ${filterCnttFrom ? 'border-red-600 has-filter' : 'border-slate-400'} bg-white px-2 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono`}
+                />
+                <button type="button" disabled={!filterCnttFrom} onClick={() => setFilterCnttFrom('')} className="rounded-none border border-slate-400 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-600 hover:border-[#1463f7] hover:text-[#1463f7] disabled:cursor-not-allowed disabled:opacity-40">Để trống</button>
+                <span className="text-[11px] text-gray-500">đến</span>
+                <input
+                  type="date"
+                  value={filterCnttTo}
+                  onChange={(event) => setFilterCnttTo(event.target.value)}
+                  className={`rounded-none border ${filterCnttTo ? 'border-red-600 has-filter' : 'border-slate-400'} bg-white px-2 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono`}
+                />
+                <button type="button" disabled={!filterCnttTo} onClick={() => setFilterCnttTo('')} className="rounded-none border border-slate-400 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-600 hover:border-[#1463f7] hover:text-[#1463f7] disabled:cursor-not-allowed disabled:opacity-40">Để trống</button>
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-bold text-black">Filter R4G for TTM (QA)</label>
+              <p className="mb-1.5 text-[10px] text-gray-600">
+                Lọc theo C &lt; R4G Date &lt; D — Epic chưa có R4G Date bị loại khỏi phạm vi QA khi
+                có thiết lập. Để trống C/D = không giới hạn phía đó. Áp dụng cho QA-Index (PM).
+              </p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <input
+                  type="date"
+                  value={filterQaFrom}
+                  onChange={(event) => setFilterQaFrom(event.target.value)}
+                  className={`rounded-none border ${filterQaFrom ? 'border-red-600 has-filter' : 'border-slate-400'} bg-white px-2 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono`}
+                />
+                <button type="button" disabled={!filterQaFrom} onClick={() => setFilterQaFrom('')} className="rounded-none border border-slate-400 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-600 hover:border-[#1463f7] hover:text-[#1463f7] disabled:cursor-not-allowed disabled:opacity-40">Để trống</button>
+                <span className="text-[11px] text-gray-500">đến</span>
+                <input
+                  type="date"
+                  value={filterQaTo}
+                  onChange={(event) => setFilterQaTo(event.target.value)}
+                  className={`rounded-none border ${filterQaTo ? 'border-red-600 has-filter' : 'border-slate-400'} bg-white px-2 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono`}
+                />
+                <button type="button" disabled={!filterQaTo} onClick={() => setFilterQaTo('')} className="rounded-none border border-slate-400 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-600 hover:border-[#1463f7] hover:text-[#1463f7] disabled:cursor-not-allowed disabled:opacity-40">Để trống</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       {error && <Alert variant="error" title="Lỗi">{error}</Alert>}
 
       {loading ? (
@@ -1555,7 +1687,11 @@ export default function DashboardNewPage() {
                                 <TD>{row.projectKey}</TD>
                                 <TD className="text-center font-bold text-amber-700">{row.currentStatus}</TD>
                                 <TD className="text-center">
-                                  <Badge variant={ALERT_BADGE_VARIANT[row.alertLevel]}>{ALERT_BADGE_LABEL[row.alertLevel]}</Badge>
+                                  {row.ttmCnttInScope ? (
+                                    <Badge variant={ALERT_BADGE_VARIANT[row.alertLevel]}>{ALERT_BADGE_LABEL[row.alertLevel]}</Badge>
+                                  ) : (
+                                    <Badge variant="neutral">Ngoài phạm vi TTM-CNTT</Badge>
+                                  )}
                                 </TD>
                               </TR>
                             ))}

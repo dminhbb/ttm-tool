@@ -117,7 +117,7 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole, fil
   const rows: EpicAlertRowPhased[] = [];
   const lateAlertsToRecord: { epicKey: string; phase: EpicAlertHistoryPhase; status: string }[] = [];
 
-  for (const { complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, projectName, releaseAxis, row, startDate, ttmCnttStatusMismatch, ttmE2eRelease, ttmE2eTarget } of entries) {
+  for (const { complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, projectName, qaInScope, releaseAxis, row, startDate, ttmCnttInScope, ttmCnttStatusMismatch, ttmE2eRelease, ttmE2eTarget } of entries) {
     const ttmCnttStartDate = parseDate(evaluation.ttm.cntt.fromDate);
     const ttmCnttTarget = evaluation.ttm.cntt.workingDays ?? 0;
     const ttmCnttElapsed = ttmCnttStartDate ? Math.max(0, diffWorkingDays(ttmCnttStartDate, now, holidays)) : null;
@@ -210,6 +210,8 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole, fil
       t0IdeaApprovedDate: row.ideaApprovedDate,
       t1StartDate: row.startDate,
       targetR4gDate: toIsoDate(targetR4gDate) ?? row.targetR4gDate,
+      ttmCnttInScope,
+      qaInScope,
       ttmE2eAlertLevel: breaksTtmE2eCalculation(row) ? 'NONE' : ttmE2eRelease.alertLevel,
       ttmActualElapsedWorkingDays: ttmActualElapsed,
       ttmActualFromDate: ttmActualRange.fromDate,

@@ -46,6 +46,7 @@ Nếu các tài liệu cũ còn nhắc tới ngày lịch, logic cũ hoặc tr�
 | `13-epic-15-and-epic-30-management.md` | Quản lý Epic 30 và Quản lý Epic 15 (5 pha milestone) | Khi code màn hình Epic 30 / Epic 15 |
 | `14-issue-hierarchy-and-workflows.md` | Cấu trúc phân cấp Issue Jira & quy trình workflow | Khi xử lý dữ liệu issue & cây quan hệ |
 | `15-mcp-sso-and-reports.md` | Báo cáo Epic (`/reports`), MCP Server (AI chatbot), SSO/API Key (SSO Provider) | Khi code màn Báo cáo, tích hợp MCP hoặc SSO |
+| `16-ttm-indexes.md` | Rule tính toán chi tiết TTM-Index/QA-Index (QLDA/PM), TTM-CNTT, TTM-E2E — tử số/mẫu số, phạm vi dữ liệu, "Phạm vi dữ liệu cho TTM", các trường hợp bị loại khỏi tính toán | Khi cần biết chính xác một chỉ số TTM/QA được tính ra sao, hoặc sửa logic liên quan |
 
 ## 4. Mapping task → file cần đọc
 
@@ -55,8 +56,9 @@ Nếu các tài liệu cũ còn nhắc tới ngày lịch, logic cũ hoặc tr�
 
 1. `02-ttm-concepts-and-rules.md`
 2. `03-mvp1-working-days-alert-rules.md`
-3. `08-data-model.md`
-4. `10-security-and-non-functional.md`
+3. `16-ttm-indexes.md`
+4. `08-data-model.md`
+5. `10-security-and-non-functional.md`
 
 ### Nếu task liên quan Homepage hoặc bảng Epic
 
