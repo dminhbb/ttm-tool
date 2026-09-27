@@ -71,3 +71,21 @@ export interface DetailedVisitStats {
   domainStats: DomainVisitStat[];
   recentLogins: RecentLoginUser[];
 }
+
+/**
+ * Resolves a URL path (query/hash/trailing slash tolerated) to one of the tracked ScreenKeys, or
+ * null if the screen isn't tracked. Shared by the client tracker and the footer API so both always
+ * agree on which paths count — previously each kept its own copy.
+ */
+export function resolveScreenKeyFromPath(rawPath?: string | null): ScreenKey | null {
+  if (!rawPath) return null;
+  const pathWithoutQuery = rawPath.split('?')[0].split('#')[0].trim();
+  const cleanPath = pathWithoutQuery.replace(/\/+$/, '');
+  const normalized = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+
+  if (normalized === '/dashboard-new' || normalized === '/dashboard') return 'dashboard';
+  if (normalized === '/epic-alerts-15' || normalized === '/epic-alerts') return 'epic_alerts';
+  if (normalized === '/reports') return 'epic_reports';
+  if (normalized === '/epic-in-po') return 'epic_in_po';
+  return null;
+}

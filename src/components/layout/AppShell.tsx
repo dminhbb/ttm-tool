@@ -13,6 +13,7 @@ import {
   Browsers,
   CaretDoubleLeft,
   CaretDoubleRight,
+  ChartLineUp,
   ChartPie,
   ClockCounterClockwise,
   Database,
@@ -95,6 +96,8 @@ const navigation: NavigationSection[] = [
       // { href: '/epic-alerts', icon: Browser, label: 'Quản trị Epic (rút gọn)', roles: ADMIN_VIEW_ROLES },
       { href: '/epic-alerts-15', icon: Browsers, label: 'Quản trị Epic' },
       { href: '/epic-in-po', icon: BriefcaseMetal, label: 'Epic in PO' },
+      // Open to every role (permission matrix feature 'visit_counter' is View for all roles).
+      { href: '/visit-stats', icon: ChartLineUp, label: 'Thống kê truy cập' },
     ],
   },
   {

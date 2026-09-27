@@ -48,6 +48,7 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
             <li><strong className="text-fb-text-primary">Quản trị Epic (/epic-alerts-15)</strong> — theo dõi chi tiết theo 5 pha: Design (20%), Dev (50%), Test (80%), Pentest (90%), R4Golive (100%). Mốc thời gian mỗi pha tính tự động theo tỷ lệ % TTM-CNTT tích lũy. Mở cho <strong className="text-fb-text-primary">mọi role đã đăng nhập</strong> (theo phạm vi dự án được phân quyền).</li>
             <li><strong className="text-fb-text-primary">Quản trị Epic (rút gọn) (/epic-alerts)</strong> — theo dõi tổng quan theo mốc TTM-CNTT. (*Tạm ẩn trên menu chính, chỉ ADMIN/SUPERADMIN/SUPERVISOR truy cập được nếu gõ thẳng URL*).</li>
             <li><strong className="text-fb-text-primary">Epic in PO (/epic-in-po)</strong> — cùng dữ liệu/logic với màn hình Quản trị Epic, chỉ lọc còn Epic đang ở trạng thái To Do, In PO hoặc Released. Mở cho mọi role.</li>
+            <li><strong className="text-fb-text-primary">Thống kê truy cập (/visit-stats)</strong> — lượt đăng nhập, lượt xem 4 màn hình được theo dõi, phân rã theo Domain/User và danh sách user login gần nhất. Mở cho mọi role.</li>
             <li><strong className="text-fb-text-primary">Dashboard (/dashboard)</strong> — thống kê tổng hợp theo dự án (số Epic, phân bố trạng thái, số lượng từng loại cảnh báo, tỷ lệ Đạt TTM, Epic sắp đến hạn), tính live từ cùng dữ liệu các màn hình trên, không có bảng tổng hợp riêng.</li>
           </ul>
         </section>

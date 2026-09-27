@@ -132,7 +132,7 @@
           <tr><td><span class="badge info">SUPERADMIN</span></td><td>Toàn bộ Epic mọi dự án (vai trò CBQL Phòng)</td><td>Toàn quyền: User, Domain, Dự án, ngày nghỉ, Ngày làm bù, rule cảnh báo, tiêu chí TTM, Ma trận phân quyền, Cấu hình Jira, sao lưu/phục hồi, quản lý lớp dữ liệu tổng hợp</td></tr>
           <tr><td><span class="badge info">SUPERVISOR</span></td><td>Toàn bộ Epic mọi dự án — cùng phạm vi xem như SUPERADMIN</td><td><strong>Chỉ xem</strong> — không tạo/sửa/xóa ở bất kỳ màn hình quản trị nào, không truy cập import/backup/purge dữ liệu</td></tr>
           <tr><td><span class="badge info">ADMIN</span></td><td>Epic thuộc Domain được phân quyền (vai trò Lead)</td><td>Xem các menu Quản trị hệ thống (User/Domain/Dự án); một số hành động (Ma trận phân quyền, cấu hình lưu trữ, chạy lại dữ liệu tổng hợp, Nguồn dữ liệu) giới hạn SUPERADMIN</td></tr>
-          <tr><td><span class="badge neutral" style="background:#eef1f7;color:#5b6475">USER</span></td><td>Epic thuộc dự án được phân quyền PM/SM — có thể bị thu hẹp thêm theo Component cụ thể trong dự án đó</td><td>Chỉ xem màn hình giám sát (Quản trị Epic đầy đủ, Epic in PO, Dashboard), không truy cập menu Quản trị</td></tr>
+          <tr><td><span class="badge neutral" style="background:#eef1f7;color:#5b6475">USER</span></td><td>Epic thuộc dự án được phân quyền PM/SM — có thể bị thu hẹp thêm theo Component cụ thể trong dự án đó</td><td>Chỉ xem màn hình giám sát (Quản trị Epic đầy đủ, Epic in PO, Dashboard, Thống kê truy cập), không truy cập menu Quản trị</td></tr>
         </tbody>
       </table>
       <div class="callout warn">
@@ -1003,7 +1003,6 @@
         <tbody>
           <tr><td>Quản lý ngày nghỉ/làm bù</td><td>Danh sách ngày nghỉ + <strong>Ngày làm bù</strong> (khai báo 1 Thứ Bảy/Chủ Nhật là ngày làm việc bình thường) dùng để tính ngày làm việc</td></tr>
           <tr><td>Quản lý Issue Type</td><td>Mapping loại Subtask Jira (<code>issue_type_role_mapping</code>) sang team-role <strong>BA/DEV/TEST/PM</strong> — dùng để xác định Subtask nào tính là &quot;hoàn thành&quot; một pha (DEV/TEST/PENTEST) của Epic 15</td></tr>
-          <tr><td>Thống kê truy cập (Visit counter)</td><td>Bảng điều khiển trực quan phân tích số liệu truy cập ứng dụng &amp; 4 màn hình trọng điểm: 3 thẻ KPI, biểu đồ trend line 7 ngày qua, biểu đồ cột kép so sánh 2 tuần, bảng phân rã Domain/User và top 10 user login gần nhất (chi tiết xem mục 18)</td></tr>
         </tbody>
       </table>
       <h3>13.3. Modal &quot;Quản trị hệ thống&quot; — chỉ SUPERADMIN</h3>
@@ -1237,9 +1236,9 @@
       <h3>18.3. Vị trí hiển thị trên giao diện người dùng</h3>
       <p>Dữ liệu Visit Counter được trực quan hóa tại 2 vị trí chính trên giao diện:</p>
 
-      <h4>1. Tab &quot;Thống kê truy cập (Visit counter)&quot; trong Panel &quot;Cấu hình ứng dụng&quot;</h4>
+      <h4>1. Màn hình &quot;Thống kê truy cập&quot; (<code>/visit-stats</code>) — mọi role đã đăng nhập</h4>
       <p>
-        Mở từ sidebar → <strong>Cấu hình ứng dụng</strong> (dành cho vai trò từ ADMIN trở lên) → chọn tab <strong>Thống kê truy cập (Visit counter)</strong>. Giao diện cung cấp bảng điều khiển chi tiết gồm 5 khu vực:
+        Mở từ sidebar → nhóm <strong>Giám sát</strong> → <strong>Thống kê truy cập</strong>. Mở cho mọi role (chức năng <code>visit_counter</code> trong Ma trận phân quyền, quyền Xem cho tất cả vai trò). Giao diện cung cấp bảng điều khiển chi tiết gồm 5 khu vực:
       </p>
       <ul>
         <li><strong>3 thẻ KPI nổi bật</strong>: Hiển thị Tổng số lượt truy cập ứng dụng lũy kế, Số lượt trong Tuần này ($T-7 \to T$), và Số lượt Hôm nay ($T$) với định dạng số phân cách hàng nghìn chuẩn tiếng Việt (<code>vi-VN</code>).</li>

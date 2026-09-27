@@ -61,7 +61,7 @@ Hệ thống tích hợp bộ đo lường và phân tích lượt truy cập đ
 - **Phân rã đa chiều**: Thống kê theo Domain nghiệp vụ, theo từng User, theo tuần/ngày/giờ, và danh sách 10 user login gần nhất.
 - **Hiển thị trên giao diện**:
   - **Chân trang chung (`SystemStatusFooter`)**: Xuất hiện cố định ở đáy mọi màn hình, dòng 1 hiển thị Tổng truy cập (A), Tuần này (B), Màn hình hiện tại (C - nếu thuộc 4 màn hình), và 5 user login gần nhất (D - hover tooltip ngày giờ login `DD/MM/YYYY HH:mm:ss`); dòng 2 hiển thị bản quyền và trạng thái kết nối DB.
-  - **Panel Cấu hình ứng dụng**: Tab "Thống kê truy cập (Visit counter)" trong modal Cấu hình ứng dụng (ADMIN trở lên), trực quan hoá qua 3 thẻ KPI, biểu đồ SVG trend line 7 ngày qua, biểu đồ cột kép so sánh 4 màn hình giữa 2 tuần, bảng phân rã Domain/User và danh sách 10 user login gần nhất.
+  - **Màn hình Thống kê truy cập (`/visit-stats`)**: Menu "Thống kê truy cập" ở nhóm Giám sát trên sidebar, mở cho mọi role (chức năng `visit_counter` trong Ma trận phân quyền), trực quan hoá qua 3 thẻ KPI, biểu đồ SVG trend line 7 ngày qua, biểu đồ cột kép so sánh 4 màn hình giữa 2 tuần, bảng phân rã Domain/User và danh sách 10 user login gần nhất.
 
 Xem [`AGENTS.md`](AGENTS.md) để biết quy ước dành cho coding agent khi sửa code trong repo này
 (đa CSDL, version stamp, icon standard...).
