@@ -70,3 +70,7 @@ next-env.d.ts
 public/reports/pr-review-ttm-monitor.zip
 public/reports/pr-review-ttm-monitor.html
 public/docs/product-guide.zip
+
+# ad-hoc pre-change file copies (foo.ts.bak, foo.ts.bak2, ...) — git history is the backup
+*.bak
+*.bak[0-9]*

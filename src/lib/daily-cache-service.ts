@@ -107,6 +107,16 @@ export async function refreshDerivedCaches(batchId: number | null): Promise<numb
   return count.rows[0]?.n ?? 0;
 }
 
+/** For after() callbacks (scope/domain saves): refreshDerivedCaches throws on failure, and a
+ * rejection inside after() would otherwise vanish with nothing logged. Never throws. */
+export async function refreshDerivedCachesInBackground(batchId: number | null, source: string): Promise<void> {
+  try {
+    await refreshDerivedCaches(batchId);
+  } catch (error: unknown) {
+    console.error(`Background derived-cache refresh failed (${source}):`, error);
+  }
+}
+
 export async function getLatestImportBatchId(): Promise<number | null> {
   const result = await pool.query<{ id: number }>('SELECT id FROM import_batches ORDER BY aggregated_at DESC, id DESC LIMIT 1;');
   return result.rows[0]?.id ?? null;

@@ -1234,7 +1234,7 @@ export default function DashboardNewPage() {
             <div>
               <label className="mb-1 block text-[11px] font-bold text-black">Filter R4G for TTM (CNTT)</label>
               <p className="mb-1.5 text-[10px] text-gray-600">
-                Epic có R4G Date: lọc A &lt; R4G Date &lt; B. Chưa có R4G Date: lọc theo TTM-CNTT
+                Epic có R4G Date: lọc A ≤ R4G Date ≤ B. Chưa có R4G Date: lọc theo TTM-CNTT
                 baseline. Để trống A/B = không giới hạn phía đó. Áp dụng cho TTM-Index (PM) và mọi
                 tính toán Pass/Fail liên quan tới TTM-CNTT trên trang này.
               </p>
@@ -1259,7 +1259,7 @@ export default function DashboardNewPage() {
             <div>
               <label className="mb-1 block text-[11px] font-bold text-black">Filter R4G for TTM (QA)</label>
               <p className="mb-1.5 text-[10px] text-gray-600">
-                Lọc theo C &lt; R4G Date &lt; D — Epic chưa có R4G Date bị loại khỏi phạm vi QA khi
+                Lọc theo C ≤ R4G Date ≤ D — Epic chưa có R4G Date bị loại khỏi phạm vi QA khi
                 có thiết lập. Để trống C/D = không giới hạn phía đó. Áp dụng cho QA-Index (PM).
               </p>
               <div className="flex flex-wrap items-center gap-1.5">

@@ -13,10 +13,12 @@ import { ALERT_RANK, bottomStatusRankOf } from '@/lib/epic-alert-sort-rules';
  * of recomputing per page view. Only ever holds the newest layer — "layer cũ hơn" drill-down on
  * Quản trị Epic keeps using the existing live computation path (getEpicAlertRowsPhased directly).
  *
- * Never throws: a stale/missing cache is far less harmful than failing the import itself, so the
- * caller only logs on failure — mirrors refreshTtmIndexGlobalCache.
+ * Throws on failure (after rolling back) — callers decide: the import catches and only logs, since a
+ * stale/missing cache is far less harmful than failing the import itself.
  */
 const INSERT_CHUNK_SIZE = 200;
+/** Arbitrary constant key for pg_advisory_xact_lock — unique to this cache's rebuild. */
+const EPIC_ALERT_ROW_CACHE_LOCK_KEY = 7_260_925;
 const INSERT_COLUMN_COUNT = 19;
 
 /** `precomputedRows` — same as refreshTtmIndexGlobalCache's: lets refreshDerivedCaches
@@ -29,6 +31,11 @@ export async function refreshEpicAlertRowCache(batchId: number | null, precomput
   const client = await getClient();
   try {
     await client.query('BEGIN');
+    // Serializes concurrent rebuilds (import, daily run, scope/domain save, manual recompute can all
+    // overlap): without it the later DELETE misses the earlier run's fresh INSERTs, the later INSERT
+    // then hits a duplicate epic_key and rolls back — silently keeping the earlier (possibly stale-
+    // config) rows. Transaction-scoped, so it's safe through Supabase's transaction pooler.
+    await client.query('SELECT pg_advisory_xact_lock($1)', [EPIC_ALERT_ROW_CACHE_LOCK_KEY]);
     await client.query('DELETE FROM epic_alert_row_cache');
     // Batched multi-row INSERTs instead of one round trip per Epic: on a hosted DB (~100ms per
     // round trip) a few thousand single-row INSERTs outlived the serverless function's time limit,

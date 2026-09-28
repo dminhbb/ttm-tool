@@ -1,7 +1,7 @@
 import { after, NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
 import { getTtmScopeConfigWithMeta, saveTtmScopeConfig } from '@/lib/ttm-scope-config-service';
-import { getLatestImportBatchId, refreshDerivedCaches } from '@/lib/daily-cache-service';
+import { getLatestImportBatchId, refreshDerivedCachesInBackground } from '@/lib/daily-cache-service';
 
 // The cache rebuild runs in after() — past the response — since it re-derives every Epic's row from
 // scratch (same cost as a post-import refresh, see daily-cache-service.ts's own maxDuration).
@@ -60,7 +60,7 @@ export async function PUT(request: NextRequest) {
     // daily-cache-service.ts) — so TTM-Index (QLDA)/QA-Index (QLDA) and every Epic's "Nhận xét" badge
     // reflect the new scope right away instead of waiting for the next import/daily run.
     const batchId = await getLatestImportBatchId();
-    after(() => refreshDerivedCaches(batchId));
+    after(() => refreshDerivedCachesInBackground(batchId, 'ttm-scope-config'));
 
     return NextResponse.json({ ...(await getTtmScopeConfigWithMeta()), refreshing: true });
   } catch (error: unknown) {

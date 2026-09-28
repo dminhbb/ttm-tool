@@ -8,6 +8,19 @@
 
 ## 2026-09-28
 
+- **Sửa các vấn đề từ review sau khi pull (mục 1–4)**:
+  - Chống 2 lần tính lại cache chạy chồng nhau (import / chạy hằng ngày / lưu Phạm vi TTM / lưu Domain /
+    Recompute): `refreshEpicAlertRowCache` lấy `pg_advisory_xact_lock` trước khi `DELETE`+`INSERT` —
+    trước đây lần sau bị lỗi trùng `epic_key`, rollback và giữ lại cache tính theo cấu hình cũ
+    (`src/lib/epic-alert-row-cache-service.ts`). Thêm `refreshDerivedCachesInBackground` (bắt + log lỗi)
+    cho các lời gọi `after()` ở `api/ttm-scope-config` và `api/domains` (`src/lib/daily-cache-service.ts`).
+  - Đổi tên Domain giờ cũng tính lại cache (cache lưu `domainName` và dùng làm khoá lọc Domain/deep-link):
+    `DomainSaveResult.nameChanged` (`src/lib/master-data-service.ts`, `master-data-types.ts`, `api/domains/route.ts`).
+  - Thống nhất rule "Phạm vi dữ liệu cho TTM" là **tính cả 2 đầu mút** (`A ≤ R4G Date ≤ B`, `C ≤ R4G Date ≤ D`)
+    đúng như code: sửa `brd/16-ttm-indexes.md`, `public/docs/product-guide.html` (mục 8.7), text hướng dẫn
+    ở `StatusAlertRulesSettings.tsx`, `dashboard-new/page.tsx`, comment `ttm-scope-rules.ts`.
+  - Xoá 25 file `*.bak`/`*.bak2` khỏi repo, thêm `*.bak`, `*.bak[0-9]*` vào `.gitignore`.
+
 - **Quản lý Domain: cột "Dự án trong Domain" + chọn nhiều dự án khi Thêm/Sửa Domain** (để deep-link
   `domain=...` luôn map được sang danh sách dự án):
   - `listDomains` trả thêm `projects` (theo `projects.domain_id`, không đổi schema); `createDomain`/

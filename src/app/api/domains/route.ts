@@ -1,7 +1,7 @@
 import { after, NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
 import { createDomain, deleteDomain, listDomains, updateDomain } from '@/lib/master-data-service';
-import { getLatestImportBatchId, refreshDerivedCaches } from '@/lib/daily-cache-service';
+import { getLatestImportBatchId, refreshDerivedCachesInBackground } from '@/lib/daily-cache-service';
 import type { DomainInput, DomainSaveResult } from '@/lib/master-data-types';
 
 // Reassigning projects between Domains rebuilds the derived caches in after() (see respond below),
@@ -17,14 +17,15 @@ function validateProjectIds(value: unknown): string | null {
 }
 
 /** epic_alert_row_cache stores each Epic's domainName (and "Quản trị Epic"'s Domain filter maps
- * domain → projects from it), so a changed project ↔ Domain assignment only shows up there after a
- * rebuild — kicked off in the background so saving stays instant. */
+ * domain → projects from it), so a changed project ↔ Domain assignment or a renamed Domain only
+ * shows up there after a rebuild — kicked off in the background so saving stays instant. */
 async function respond(result: DomainSaveResult, status = 200): Promise<NextResponse> {
-  if (result.projectsChanged) {
+  const cacheAffected = result.projectsChanged || result.nameChanged;
+  if (cacheAffected) {
     const batchId = await getLatestImportBatchId();
-    after(() => refreshDerivedCaches(batchId));
+    after(() => refreshDerivedCachesInBackground(batchId, 'domains'));
   }
-  return NextResponse.json({ ...result.domain, cacheRefreshing: result.projectsChanged }, { status });
+  return NextResponse.json({ ...result.domain, cacheRefreshing: cacheAffected }, { status });
 }
 
 function authError(error: unknown): NextResponse | null {

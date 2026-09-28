@@ -174,7 +174,7 @@ function TtmScopeConfigPanel() {
                     <TD className="w-1/2 whitespace-normal align-top p-4 border-r border-fb-border">
                       <div className="flex flex-col gap-3">
                         <p className="text-xs text-fb-text-secondary leading-relaxed">
-                          Lọc theo A &lt; R4G Date &lt; B; Epic chưa có R4G Date dùng TTM-CNTT baseline (Start
+                          Lọc theo A ≤ R4G Date ≤ B; Epic chưa có R4G Date dùng TTM-CNTT baseline (Start
                           Date + số ngày làm việc theo policy) thay thế. Áp dụng cho TTM-Index (QLDA),
                           TTM-Index (PM), TTM-CNTT (QLDA) và TTM-CNTT nói chung (badge Nhận xét, Fail TTM-CNTT,
                           Cảnh báo muộn/sớm... ở Quản trị Epic, Epic in PO, Báo cáo).
@@ -194,7 +194,7 @@ function TtmScopeConfigPanel() {
                     <TD className="w-1/2 whitespace-normal align-top p-4">
                       <div className="flex flex-col gap-3">
                         <p className="text-xs text-fb-text-secondary leading-relaxed">
-                          Lọc theo C &lt; R4G Date &lt; D — Epic chưa có R4G Date bị loại khỏi phạm vi QA khi
+                          Lọc theo C ≤ R4G Date ≤ D — Epic chưa có R4G Date bị loại khỏi phạm vi QA khi
                           có thiết lập (không có baseline thay thế). Áp dụng cho QA-Index (QLDA) và
                           QA-Index (PM); không ảnh hưởng badge Nhận xét TTM-CNTT hay chỉ số TTM-CNTT khác.
                         </p>

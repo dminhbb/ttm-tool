@@ -32,9 +32,9 @@ function isWithinRange(dateIso: string | null, from: string | null, to: string |
 }
 
 /**
- * "R4G for TTM (CNTT)" gate — A < R4G Date < B once the Epic has one recorded; while it doesn't,
- * A < TTM-CNTT baseline (targetR4gDate — the Start Date + working-day-budget deadline shown as the
- * TTM-CNTT stripe's baseline end) < B instead. An Epic with neither date at all (e.g. missing Start
+ * "R4G for TTM (CNTT)" gate — A ≤ R4G Date ≤ B (both bounds inclusive) once the Epic has one recorded; while it doesn't,
+ * A ≤ TTM-CNTT baseline (targetR4gDate — the Start Date + working-day-budget deadline shown as the
+ * TTM-CNTT stripe's baseline end) ≤ B instead. An Epic with neither date at all (e.g. missing Start
  * Date, so no baseline can be computed either) is excluded whenever a bound is configured — same
  * "nothing to compare against" convention as the QA gate below.
  */
@@ -44,7 +44,7 @@ export function computeTtmCnttInScope(r4gDate: string | null, targetR4gDate: str
 }
 
 /**
- * "R4G for TTM (QA)" gate — C < R4G Date < D. Unlike the CNTT gate above, there is no baseline
+ * "R4G for TTM (QA)" gate — C ≤ R4G Date ≤ D (inclusive). Unlike the CNTT gate above, there is no baseline
  * fallback: an Epic without a recorded R4G Date is excluded from QA scope whenever a bound is
  * configured (confirmed 2026-09-27) — nothing to compare against C/D otherwise.
  */

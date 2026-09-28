@@ -36,6 +36,9 @@ export interface DomainSaveResult {
   /** True when at least one project's domain_id actually changed — callers then rebuild the
    * derived caches (epic_alert_row_cache stores each Epic's domainName). */
   projectsChanged: boolean;
+  /** True when an existing Domain's domain_name changed — same cache rebuild needed, since the
+   * cached domainName is also the key Quản trị Epic's Domain filter/deep-link matches on. */
+  nameChanged: boolean;
 }
 
 export interface Project {

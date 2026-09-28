@@ -129,15 +129,15 @@ Cấu hình tại "Cấu hình cảnh báo" § Phạm vi dữ liệu cho TTM (m�
 mục 8), có thể override tạm thời (không lưu) qua Advanced Filters ở Dashboard 2.
 
 - **`ttmCnttInScope`** (áp dụng cho TTM-Index/TTM-CNTT, mọi phạm vi QLDA/PM):
-  - Có R4G Date: `A < R4G Date < B`.
-  - Chưa có R4G Date: `A < TTM-CNTT baseline (target R4G Date) < B` thay thế.
+  - Có R4G Date: `A ≤ R4G Date ≤ B` (tính cả 2 đầu mút).
+  - Chưa có R4G Date: `A ≤ TTM-CNTT baseline (target R4G Date) ≤ B` thay thế.
   - Cả A và B trống → luôn `true` (không giới hạn — hành vi mặc định, giống hệt trước khi tính năng
     này tồn tại).
   - Epic không có **cả** R4G Date lẫn baseline (ví dụ thiếu luôn Start Date) mà đang có ít nhất 1
     trong A/B được cấu hình → bị loại (không có gì để so sánh).
 - **`qaInScope`** (áp dụng cho QA-Index/TTM-CNTT (QA) — **độc lập** với `ttmCnttInScope`, không có
   fallback baseline):
-  - `C < R4G Date < D`.
+  - `C ≤ R4G Date ≤ D` (tính cả 2 đầu mút).
   - Cả C và D trống → luôn `true`.
   - Epic **chưa có R4G Date** mà đang có ít nhất 1 trong C/D được cấu hình → **luôn bị loại** khỏi
     phạm vi QA (không có baseline thay thế, khác với `ttmCnttInScope`).
