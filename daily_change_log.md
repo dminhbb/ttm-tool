@@ -8,6 +8,17 @@
 
 ## 2026-09-28
 
+- **Quản trị Epic: sửa "chớp 2 lần" khi mở từ màn khác (deep-link, vd. từ TTM dashboard)**:
+  - Nguyên nhân 1: deep-link có `domain` nhưng không có `projects` → lần tải đầu chưa lọc domain (chưa
+    có map domain→dự án) nên hiện danh sách chưa lọc, rồi mới áp domain và tải/hiển thị lại. Sửa: state
+    `domainPending` giữ skeleton (ẩn cả stat widgets) cho tới khi danh sách đã phản ánh đúng domain
+    (`src/app/epic-alerts-15/page.tsx`).
+  - Nguyên nhân 2: TTM dashboard luôn gửi kèm `cnttFrom/cnttTo/qaFrom/qaTo` → API luôn đi đường tính
+    live (chậm, mode `full`), và mỗi lần đổi filter/trang ở client lại gọi lại API tính live toàn bộ. Sửa:
+    (a) `api/epic-alerts-15/route.ts` bỏ qua override khi trùng cấu hình mặc định (`dropNoOpTtmScopeOverride`)
+    → đi đường cache nhanh; (b) ở mode `full`, đổi filter toolbar/trang không gọi lại API nữa (client tự
+    lọc — `serverQueryKey`/`lastFetchRef`), chỉ gọi lại khi đổi lớp dữ liệu/bộ lọc ngày nâng cao.
+
 - **Quản trị Epic (`/epic-alerts-15`): nhóm "Ngoài phạm vi TTM-CNTT" + option lọc mới**:
   - Thứ tự nhóm mới: Epic thường → In PO → To Do → **Ngoài phạm vi TTM-CNTT** (mọi status) → Released.
     Hàm mới `listGroupRankOf`/`LIST_GROUP_RANK_SQL` (`src/lib/epic-alert-sort-rules.ts`) dùng cho cả

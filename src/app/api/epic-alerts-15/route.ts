@@ -3,6 +3,8 @@ import { AuthError, requireUser } from '@/lib/auth-service';
 import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
 import { parseEpicAlertFiltersFromSearchParams } from '@/lib/epic-alert-filter-params';
 import { getTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
+import { getTtmScopeConfig } from '@/lib/ttm-scope-config-service';
+import type { EpicAlertFilters } from '@/lib/epic-alert-service';
 import { fetchEpicAlertHeaderContext } from '@/lib/epic-alert-service';
 import type { EpicAlertRowCacheFilters } from '@/lib/epic-alert-row-cache-query-service';
 import { getEpicAlertRowCacheMeta, queryEpicAlertFilterOptions, queryEpicAlertRowCachePage, queryEpicAlertStatCounts, queryTtmQaIndexPm } from '@/lib/epic-alert-row-cache-query-service';
@@ -32,11 +34,28 @@ function parseCacheFilters(searchParams: URLSearchParams): EpicAlertRowCacheFilt
   };
 }
 
+/**
+ * TTM dashboard always forwards its "Phạm vi dữ liệu cho TTM" as an explicit override on every
+ * deep link (see buildEpicAlertsDeepLink) — even when it's just the untouched admin default. Such
+ * an override changes nothing (epic_alert_row_cache's ttm_cntt_in_scope/qa_in_scope were computed
+ * with that same default), so it's dropped here to keep the request on the fast cache path instead
+ * of forcing the slow live recompute of every Epic. A genuinely different range still goes live.
+ */
+async function dropNoOpTtmScopeOverride(filters: EpicAlertFilters): Promise<EpicAlertFilters> {
+  const keys = ['ttmScopeCnttFrom', 'ttmScopeCnttTo', 'ttmScopeQaFrom', 'ttmScopeQaTo'] as const;
+  if (keys.every((key) => filters[key] === undefined)) return filters;
+  const defaults = await getTtmScopeConfig();
+  const defaultByKey = { ttmScopeCnttFrom: defaults.cnttFrom, ttmScopeCnttTo: defaults.cnttTo, ttmScopeQaFrom: defaults.qaFrom, ttmScopeQaTo: defaults.qaTo };
+  const matchesDefault = keys.every((key) => filters[key] === undefined || (filters[key] || null) === (defaultByKey[key] || null));
+  if (!matchesDefault) return filters;
+  return { ...filters, ttmScopeCnttFrom: undefined, ttmScopeCnttTo: undefined, ttmScopeQaFrom: undefined, ttmScopeQaTo: undefined };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = await requireUser(request);
     const searchParams = request.nextUrl.searchParams;
-    const filters = parseEpicAlertFiltersFromSearchParams(searchParams);
+    const filters = await dropNoOpTtmScopeOverride(parseEpicAlertFiltersFromSearchParams(searchParams));
     // ttmIndexGlobal is a cheap cached read (see ttm-index-global-cache-service.ts) — it never
     // re-runs the company-wide, permission-unscoped Epic query on this (very frequently viewed)
     // request; it's only ever recomputed once per CSV import.

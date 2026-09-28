@@ -658,6 +658,14 @@ function EpicAlerts15Screen() {
 
   const [data, setData] = useState<EpicAlerts15Payload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // A `domain` deep link (e.g. from a TTM dashboard tile) with no explicit `projects` can only be
+  // turned into a Project filter once the first response's domain → project map arrives. Until the
+  // list actually reflects that domain, keep showing the skeleton instead of first rendering the
+  // unfiltered list and then re-rendering the filtered one ("chớp 2 lần"). Cleared by fetchData's
+  // success path (paged mode) or the fetch effect's skip path (full mode — filtered client-side),
+  // or by the domain effect when the domain turns out not to exist in this viewer's scope.
+  const [domainPending, setDomainPending] = useState(Boolean(deepLinkFilters.domain) && deepLinkFilters.projects.length === 0);
+  const domainAppliedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   const [projectFilters, setProjectFilters] = useState<string[]>(deepLinkFilters.projects);
@@ -727,7 +735,15 @@ function EpicAlerts15Screen() {
   // Only the newest request may write `data` — a slower, older response (e.g. the pre-filter one
   // still in flight when a filter changes) must never overwrite the list the user is now looking at.
   const fetchAbortRef = useRef<AbortController | null>(null);
+  // In 'full' mode the API ignores every toolbar filter and returns the whole access-scoped set
+  // (the client filters/sorts/paginates it itself), so only these params change what it returns —
+  // re-fetching the (slow, live-computed) full set for a toolbar/page change would just reload the
+  // identical data behind a skeleton. See the fetch effect's skip check below.
+  const serverQueryKey = [layerWindowKey, createdDateFrom, startDateFromFilter, dueDateFromFilter].join('|');
+  const lastFetchRef = useRef<{ mode: 'paged' | 'full'; serverQueryKey: string } | null>(null);
   const fetchData = async () => {
+    const requestServerQueryKey = serverQueryKey;
+    const isDomainFilteredRequest = domainAppliedRef.current;
     fetchAbortRef.current?.abort();
     const controller = new AbortController();
     fetchAbortRef.current = controller;
@@ -769,12 +785,16 @@ function EpicAlerts15Screen() {
       if (controller.signal.aborted) return;
       if (!res.ok) {
         setError(result.error || 'Lỗi hệ thống khi tải dữ liệu.');
+        setDomainPending(false);
       } else {
+        lastFetchRef.current = { mode: result.mode === 'full' ? 'full' : 'paged', serverQueryKey: requestServerQueryKey };
         setData(result);
+        if (isDomainFilteredRequest) setDomainPending(false);
       }
     } catch {
       if (controller.signal.aborted) return;
       setError('Không thể kết nối API Quản trị Epic.');
+      setDomainPending(false);
     }
     // Not in `finally`: an aborted request's replacement is already loading, so it must not flip
     // isLoading off (that was the "list flashes, then keeps waiting" on first load).
@@ -957,8 +977,14 @@ function EpicAlerts15Screen() {
     const targetDomain = domainFilter || deepLinkFilters.domain;
     if (hasAppliedDomainFilter.current || !targetDomain || domainProjectKeys.size === 0) return;
     const projectKeysForDomain = domainProjectKeys.get(targetDomain);
-    if (!projectKeysForDomain) return;
+    if (!projectKeysForDomain) {
+      // Domain not in this viewer's scope — nothing to narrow to, so stop holding the list back.
+      hasAppliedDomainFilter.current = true;
+      void Promise.resolve().then(() => setDomainPending(false));
+      return;
+    }
     hasAppliedDomainFilter.current = true;
+    domainAppliedRef.current = true;
     void Promise.resolve().then(() => {
       setDomainFilter(targetDomain);
       setProjectFilters([...projectKeysForDomain].sort());
@@ -986,12 +1012,19 @@ function EpicAlerts15Screen() {
     // Held back until saved filters (if any) have been restored, so a returning user's first
     // request already carries their filters instead of fetching the defaults first.
     if (!savedFiltersReady) return;
+    // 'full' mode: the last response already holds the whole set for these server params — every
+    // toolbar filter/page change is applied client-side (filteredRows), so no refetch.
+    const last = lastFetchRef.current;
+    if (last?.mode === 'full' && last.serverQueryKey === serverQueryKey) {
+      if (domainAppliedRef.current) void Promise.resolve().then(() => setDomainPending(false));
+      return;
+    }
     // Deferring the initial request prevents a synchronous state update during effect setup. Also
     // re-runs whenever any toolbar filter or the page changes — every filter setter already resets
     // page to 1 in the same event, so a filter change and its page reset land in one fetch.
     void Promise.resolve().then(fetchData);
   }, [
-    savedFiltersReady, layerWindowKey, createdDateFrom, startDateFromFilter, dueDateFromFilter,
+    savedFiltersReady, serverQueryKey, layerWindowKey, createdDateFrom, startDateFromFilter, dueDateFromFilter,
     projectFilters, pmSmFilters, componentFilters, alertFilter, typeFilter, statusQuery,
     dataIssueFilter, requestingUnitFilter, debouncedSearch, page,
   ]);
@@ -1159,7 +1192,7 @@ function EpicAlerts15Screen() {
         </div>
       )}
 
-      {data && !isEmbedded && (
+      {data && !isEmbedded && !domainPending && (
         <div className="border-b border-slate-300 pb-3 mb-3">
           <EpicStatWidgets
             gateMessage={statWidgetsGateMessage}
@@ -1456,7 +1489,7 @@ function EpicAlerts15Screen() {
         )}
       </div>
 
-      {isLoading ? (
+      {isLoading || domainPending ? (
         <TableSkeleton rows={8} />
       ) : filteredRows.length === 0 ? (
         <EmptyState title="Không có Epic phù hợp" description="Thử thay đổi bộ lọc." />
