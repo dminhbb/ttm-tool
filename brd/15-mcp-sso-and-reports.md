@@ -84,6 +84,9 @@ không hợp lệ/đã thu hồi/user đã inactive đều trả `401` kèm head
 | `list_holidays` | Danh mục ngày nghỉ, lọc theo năm | Chỉ `ADMIN`/`SUPERVISOR`/`SUPERADMIN` |
 | `get_ttm_policies` | Toàn bộ tiêu chí Time to Market đang active | Chỉ `SUPERVISOR`/`SUPERADMIN` |
 | `list_report_filters` | Danh mục domain/dự án/component/lớp dữ liệu — hỗ trợ hỏi sâu kiểu Báo cáo Epic | Mọi role đã xác thực |
+| `get_ttm_dashboard` | Toàn bộ số liệu màn TTM dashboard (`/dashboard-new`): KPI, TTM-Index/QA-Index, pipeline 5 pha, top dự án rủi ro, breakdown theo chiều, danh sách Epic chi tiết; lọc theo dự án/domain/PM-SM, ghi đè Phạm vi dữ liệu cho TTM. Tính ở server bằng đúng các helper của màn hình (`src/lib/ttm-dashboard-summary-service.ts`) | Theo RBAC dự án của user gọi |
+| `search_product_docs` | Tìm kiếm (không phân biệt dấu) trong Tài liệu sản phẩm (`public/docs/product-guide.html`, chia theo mục h2/h3) — hỏi đáp chức năng, rule cảnh báo & tính toán | Mọi role đã xác thực |
+| `get_product_doc_section` | Đọc đầy đủ 1 mục Tài liệu sản phẩm theo số mục; bỏ trống = mục lục | Mọi role đã xác thực |
 
 Mỗi lần gọi tool thành công gọi `recordMcpAccessEvent(userId, tokenId)`: cộng dồn
 `mcp_access_daily_stats` (theo user/ngày, tự dọn sau 90 ngày) và cập nhật `last_used_at` của token.

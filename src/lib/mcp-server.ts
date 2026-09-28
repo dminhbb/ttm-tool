@@ -8,6 +8,8 @@ import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
 import { listDomains, listHolidays, listProjectComponents, listProjects } from '@/lib/master-data-service';
 import { recordMcpAccessEvent } from '@/lib/mcp-service';
 import { getReportLayerDates } from '@/lib/reports-service';
+import { getProductDocSections, PRODUCT_DOC_URL_PATH, searchProductDocs } from '@/lib/product-doc-service';
+import { getTtmDashboardSummary } from '@/lib/ttm-dashboard-summary-service';
 import { listTtmPolicies } from '@/lib/ttm-policy-service';
 import type { AuthUser, UserRole } from '@/lib/auth-types';
 
@@ -58,7 +60,16 @@ function summarizeAlertRow(row: Awaited<ReturnType<typeof getEpicAlertRowsPhased
  * always sees exactly what that user would see in the app's own screens (same RBAC).
  */
 export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
-  const server = new McpServer({ name: 'ttm-tool', version: '1.0.0' });
+  const server = new McpServer(
+    { name: 'ttm-tool', version: '1.1.0' },
+    {
+      instructions:
+        'ttm-tool (TTM Monitor) — công cụ cảnh báo rủi ro chậm Time to Market cho Epic Jira. '
+        + 'Số liệu: get_ttm_dashboard (màn TTM dashboard), list_epic_alerts / get_epic_detail (từng Epic). '
+        + 'Rule, cách tính, ý nghĩa badge/cảnh báo, hướng dẫn dùng màn hình: search_product_docs rồi get_product_doc_section — '
+        + 'trả lời dựa trên Tài liệu sản phẩm và nêu số mục tham chiếu, không tự suy đoán rule.',
+    },
+  );
   const touch = () => recordMcpAccessEvent(user.id, tokenId);
 
   server.registerTool(
@@ -117,7 +128,8 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
     {
       title: 'Tổng quan Dashboard TTM',
       description:
-        'Trả về số liệu tổng hợp (số epic đạt/trễ TTM, phân bố trạng thái, top epic rủi ro cao...) — tương đương màn hình Dashboard. '
+        'Trả về số liệu tổng hợp (số epic đạt/trễ TTM, phân bố trạng thái, top epic rủi ro cao...) — tương đương màn hình Dashboard CŨ (/dashboard). '
+        + 'Với câu hỏi về màn hình "TTM dashboard" hiện hành (TTM-Index, QA-Index, Chờ golive, Giải trình Golive...), ưu tiên dùng get_ttm_dashboard. '
         + 'Có thể chọn 1-3 dự án cụ thể; nếu bỏ trống, trả về theo phạm vi mặc định của người dùng.',
       inputSchema: {
         projectKeys: z.array(z.string().trim().max(50)).min(1).max(3).optional().describe('Danh sách 1-3 mã dự án muốn xem (project key).'),
@@ -127,6 +139,87 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
       const data = await getDashboardData(user.id, user.role, projectKeys ?? null);
       await touch();
       return json(data);
+    },
+  );
+
+  server.registerTool(
+    'get_ttm_dashboard',
+    {
+      title: 'Số liệu màn hình TTM dashboard',
+      description:
+        'Trả về toàn bộ số liệu của màn hình "TTM dashboard" (/dashboard-new) theo đúng quyền dữ liệu (RBAC) của người dùng đang gọi: '
+        + 'KPI (tổng số Epic, TTM-Index QLDA, QA-Index, Fail TTM-CNTT/E2E, Cảnh báo sớm/muộn, Sai lệch dữ liệu, Chờ golive, Cảnh báo sớm Release, '
+        + 'Giải trình Golive, Ngoài phạm vi TTM-CNTT), TTM-Index toàn hệ thống, phân bố trạng thái, pipeline 5 pha, top 5 dự án rủi ro, '
+        + 'bảng phân tích theo chiều (dự án/domain/PM-SM/Epic type/đơn vị yêu cầu) và danh sách Epic chi tiết cho từng nhóm. '
+        + 'Dùng cho câu hỏi kiểu "TTM-Index domain X bao nhiêu", "có bao nhiêu epic chờ golive", "dự án nào rủi ro nhất". '
+        + 'Muốn biết rule/cách tính của một chỉ số, dùng search_product_docs.',
+      inputSchema: {
+        projectKeys: z.array(z.string().trim().min(1).max(50)).max(20).optional().describe('Lọc theo danh sách mã dự án (project key).'),
+        domain: z.string().trim().max(200).optional().describe('Lọc theo tên domain (khớp chính xác, không phân biệt hoa/thường).'),
+        pmSm: z.string().trim().max(200).optional().describe('Lọc theo tên PM/SM phụ trách.'),
+        dimension: z.enum(['project', 'domain', 'pmsm', 'epicType', 'requestingUnit']).optional().describe('Chiều phân tích cho bảng breakdown (mặc định project).'),
+        ttmScopeCnttFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().describe('Ghi đè "R4G for TTM (CNTT)" từ ngày (yyyy-mm-dd); null = không giới hạn; bỏ trống = dùng cấu hình mặc định.'),
+        ttmScopeCnttTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().describe('Ghi đè "R4G for TTM (CNTT)" đến ngày (yyyy-mm-dd).'),
+        ttmScopeQaFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().describe('Ghi đè "R4G for TTM (QA)" từ ngày (yyyy-mm-dd).'),
+        ttmScopeQaTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().describe('Ghi đè "R4G for TTM (QA)" đến ngày (yyyy-mm-dd).'),
+        listLimit: z.number().int().min(0).max(100).optional().describe('Số Epic tối đa trong mỗi danh sách chi tiết (mặc định 20).'),
+      },
+    },
+    async (filters) => {
+      const summary = await getTtmDashboardSummary(user.id, user.role, filters);
+      await touch();
+      return json(summary);
+    },
+  );
+
+  server.registerTool(
+    'search_product_docs',
+    {
+      title: 'Tra cứu Tài liệu sản phẩm TTM Tool',
+      description:
+        'Tìm kiếm trong "Tài liệu sản phẩm" của ứng dụng ttm-tool (TTM Monitor) — nguồn chính thức mô tả workflow, chức năng từng màn hình, '
+        + 'phân quyền, import dữ liệu và ĐẶC BIỆT là các rule logic cảnh báo & tính toán: TTM-CNTT/TTM-E2E, cảnh báo sớm/muộn/Fail, baseline từng pha, '
+        + 'Sai Status, trục Release (Chờ golive/Giải trình Golive), sai lệch dữ liệu, TTM-Index/QA-Index, Phạm vi dữ liệu cho TTM, Epic Type... '
+        + 'Trả về các mục liên quan nhất kèm nội dung. Luôn dùng tool này trước khi trả lời câu hỏi "tại sao/cách tính/rule" về ứng dụng, '
+        + 'và trích dẫn số mục (id) khi trả lời. Tìm kiếm không phân biệt dấu tiếng Việt.',
+      inputSchema: {
+        query: z.string().trim().min(2).max(300).describe('Câu hỏi hoặc từ khoá, ví dụ "cách tính cảnh báo muộn", "QA-Index", "Giải trình Golive".'),
+        limit: z.number().int().min(1).max(10).optional().describe('Số mục trả về (mặc định 4).'),
+      },
+    },
+    async ({ query, limit }) => {
+      const hits = await searchProductDocs(query, limit ?? 4);
+      await touch();
+      if (hits.length === 0) {
+        return json({ query, hits: [], hint: 'Không tìm thấy mục phù hợp — thử từ khoá khác, hoặc gọi get_product_doc_section (không truyền id) để xem mục lục.' });
+      }
+      return json({ query, source: `Tài liệu sản phẩm (${PRODUCT_DOC_URL_PATH})`, hits });
+    },
+  );
+
+  server.registerTool(
+    'get_product_doc_section',
+    {
+      title: 'Đọc một mục trong Tài liệu sản phẩm',
+      description:
+        'Đọc đầy đủ nội dung một mục của "Tài liệu sản phẩm" ttm-tool theo id (số mục, ví dụ "8.3", "8.7", "11.5"). '
+        + 'Không truyền id để lấy mục lục (danh sách id + tiêu đề) của toàn bộ tài liệu.',
+      inputSchema: {
+        id: z.string().trim().max(20).optional().describe('Số mục, ví dụ "8.6". Bỏ trống để lấy mục lục.'),
+      },
+    },
+    async ({ id }) => {
+      const sections = await getProductDocSections();
+      await touch();
+      if (!id) {
+        return json({ source: `Tài liệu sản phẩm (${PRODUCT_DOC_URL_PATH})`, toc: sections.map(({ id: sectionId, level, title }) => ({ id: sectionId, level, title })) });
+      }
+      const normalizedId = id.replace(/\.$/, '');
+      const section = sections.find((item) => item.id === normalizedId);
+      if (!section) return forbidden(`Không có mục "${id}" trong Tài liệu sản phẩm. Gọi get_product_doc_section không truyền id để xem mục lục.`);
+      // A chapter heading (h2) also returns its sub-sections, so "8" gives the whole chapter.
+      const children = section.level === 2 ? sections.filter((item) => item.level === 3 && item.id.startsWith(`${section.id}.`)) : [];
+      return json({ source: `Tài liệu sản phẩm (${PRODUCT_DOC_URL_PATH})`, section, subSections: children });
     },
   );
 

@@ -1,6 +1,7 @@
 import pool from '@/lib/db';
 import type { AccessScope } from '@/lib/epic-alert-service';
 import { DASHBOARD_EPIC_ROW_KEYS } from '@/lib/epic-alert-types';
+import { LIST_GROUP_RANK_SQL } from '@/lib/epic-alert-sort-rules';
 import type { DashboardEpicRow, EpicAlertRowPhased } from '@/lib/epic-alert-types';
 import { summarizeTtmCnttFromCounts } from '@/lib/ttm-cntt-qa';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
@@ -130,6 +131,8 @@ function buildAlertFilterClause(alertFilter: string | undefined, params: unknown
       return "ttm_cntt_in_scope AND (row_data->>'ttmCnttStatusMismatch')::boolean = TRUE";
     case 'DATA_ANOMALY':
       return 'has_data_anomaly = TRUE';
+    case 'OUT_OF_SCOPE_CNTT':
+      return 'NOT ttm_cntt_in_scope';
     case 'WAITING_GOLIVE':
       return "row_data->>'releaseAxisState' = 'WAITING_GOLIVE'";
     case 'RELEASE_EARLY':
@@ -145,7 +148,7 @@ function buildAlertFilterClause(alertFilter: string | undefined, params: unknown
   }
 }
 
-const ORDER_BY = 'bottom_status_rank ASC, has_data_anomaly ASC, alert_rank ASC, remaining_working_days_rank ASC, epic_key ASC';
+const ORDER_BY = `${LIST_GROUP_RANK_SQL} ASC, has_data_anomaly ASC, alert_rank ASC, remaining_working_days_rank ASC, epic_key ASC`;
 
 export async function queryEpicAlertRowCachePage(
   scope: AccessScope,

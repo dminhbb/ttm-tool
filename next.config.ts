@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // The MCP tools search_product_docs/get_product_doc_section (src/lib/product-doc-service.ts)
+  // read the "Tài liệu sản phẩm" HTML from disk at runtime; public/ isn't traced into serverless
+  // function bundles by default, so ship it explicitly with the /api/mcp route.
+  outputFileTracingIncludes: {
+    '/api/mcp': ['./public/docs/product-guide.html'],
+  },
   experimental: {
     // Next 16's proxy.ts (renamed middleware.ts) buffers every request body to let both proxy
     // and the route handler read it, capped at a default 10MB — past that it silently truncates

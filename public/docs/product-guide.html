@@ -938,6 +938,8 @@
       <h3>11.2. Quản trị Epic (đầy đủ) (<code>/epic-alerts-15</code>) — mọi role đã đăng nhập</h3>
       <p>Theo dõi chuyên sâu theo 5 pha mốc thời gian: <strong>Design (20%)</strong>, <strong>Dev (50%)</strong>, <strong>Test (80%)</strong>, <strong>Pentest (90%)</strong>, <strong>R4Golive (100%)</strong>. Ngày baseline mỗi pha được tính tự động dựa trên số ngày làm việc tích lũy từ Start Date (T1); cột Release lấy baseline từ T0 + tiêu chí TTM-E2E, độc lập với Start Date. Trên sidebar, mục này chỉ hiển thị nhãn ngắn <strong>&quot;Quản trị Epic&quot;</strong> (không còn hậu tố &quot;(đầy đủ)&quot;).</p>
       <p><strong>Quy tắc lọc trạng thái mặc định:</strong> Bộ lọc Status trên thanh công cụ luôn mặc định tích chọn (checked) tất cả các trạng thái ngoại trừ <code>Cancelled</code>, đảm bảo các Epic đã bị huỷ mặc định không xuất hiện khi truy cập màn hình này hay ở tất cả các danh sách route liên kết từ màn hình khác (người dùng vẫn có thể tích chọn Cancelled thủ công nếu có nhu cầu tra cứu).</p>
+      <p><strong>Thứ tự nhóm trong bảng (từ 28/09/2026):</strong> Epic thông thường hiển thị trước, sau đó lần lượt là nhóm <code>In PO</code> → <code>To Do</code> → nhóm Epic có Nhận xét <strong>“Ngoài phạm vi TTM-CNTT”</strong> (bất kể status) → <code>Released</code> ở cuối. Trong mỗi nhóm vẫn giữ thứ tự cũ: Epic sai lệch dữ liệu xuống cuối nhóm, rồi theo mức cảnh báo (FAIL → LATE → EARLY → NONE) và số ngày làm việc còn lại.</p>
+      <p><strong>Bộ lọc Nhận xét:</strong> ngoài các giá trị Đạt/Fail/Cảnh báo/Sai Status/Sai lệch dữ liệu/trục Release, có thêm lựa chọn <strong>“Ngoài phạm vi TTM-CNTT”</strong> để lọc riêng các Epic nằm ngoài khoảng ngày “R4G for TTM (CNTT)” đang cấu hình (mục 8.7).</p>
       <h3>11.3. Epic in PO (<code>/epic-in-po</code>) — mọi role đã đăng nhập</h3>
       <p>Cùng dữ liệu/logic với màn (đầy đủ), chỉ lọc còn Epic đang ở trạng thái <strong>To Do</strong>, <strong>In PO</strong> hoặc <strong>Released</strong> — dùng để theo dõi Epic chưa/vừa qua giai đoạn lập kế hoạch.</p>
       <h3>11.4. Dashboard cũ (<code>/dashboard</code>) — mọi role đã đăng nhập</h3>
@@ -1175,9 +1177,12 @@
         <tbody>
           <tr><td><code>list_epic_alerts</code></td><td>Danh sách Epic + mức cảnh báo, lọc theo dự án/mức cảnh báo/từ khoá</td><td>Theo RBAC dự án của user gọi</td></tr>
           <tr><td><code>get_epic_detail</code></td><td>Chi tiết 1 Epic theo mã</td><td>Theo RBAC dự án của user gọi</td></tr>
-          <tr><td><code>get_dashboard_summary</code></td><td>Số liệu tổng hợp tương đương màn Dashboard, chọn được 1-3 dự án</td><td>Theo RBAC dự án của user gọi</td></tr>
+          <tr><td><code>get_dashboard_summary</code></td><td>Số liệu tổng hợp tương đương màn Dashboard cũ (mục 11.4), chọn được 1-3 dự án</td><td>Theo RBAC dự án của user gọi</td></tr>
           <tr><td><code>list_projects</code> / <code>list_domains</code> / <code>list_holidays</code></td><td>Danh mục dự án / domain / ngày nghỉ</td><td>Chỉ ADMIN/SUPERVISOR/SUPERADMIN</td></tr>
           <tr><td><code>get_ttm_policies</code></td><td>Toàn bộ tiêu chí Time to Market đang active</td><td>Chỉ SUPERVISOR/SUPERADMIN</td></tr>
+          <tr><td><code>get_ttm_dashboard</code></td><td>Toàn bộ số liệu màn TTM Dashboard (mục 11.5): KPI, TTM-Index/QA-Index, pipeline 5 pha, top dự án rủi ro, bảng phân tích theo dự án/domain/PM-SM/Epic type/đơn vị yêu cầu, danh sách Epic Chờ golive/Giải trình Golive/Pending/Sai lệch/Fail; lọc được theo dự án, domain, PM/SM và ghi đè “Phạm vi dữ liệu cho TTM”</td><td>Theo RBAC dự án của user gọi</td></tr>
+          <tr><td><code>search_product_docs</code></td><td>Tìm kiếm (không phân biệt dấu) trong chính Tài liệu sản phẩm này — dùng để hỏi đáp về chức năng, rule cảnh báo và cách tính toán của ứng dụng</td><td>Mọi role đã xác thực</td></tr>
+          <tr><td><code>get_product_doc_section</code></td><td>Đọc đầy đủ một mục của Tài liệu sản phẩm theo số mục (vd. <code>8.3</code>); không truyền số mục để lấy mục lục</td><td>Mọi role đã xác thực</td></tr>
           <tr><td><code>list_report_filters</code></td><td>Danh mục domain/dự án/component/lớp dữ liệu — phục vụ tra cứu sâu kiểu Báo cáo Epic (mục 11.5)</td><td>Mọi role đã xác thực</td></tr>
         </tbody>
       </table>

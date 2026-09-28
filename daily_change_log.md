@@ -8,6 +8,28 @@
 
 ## 2026-09-28
 
+- **Quản trị Epic (`/epic-alerts-15`): nhóm "Ngoài phạm vi TTM-CNTT" + option lọc mới**:
+  - Thứ tự nhóm mới: Epic thường → In PO → To Do → **Ngoài phạm vi TTM-CNTT** (mọi status) → Released.
+    Hàm mới `listGroupRankOf`/`LIST_GROUP_RANK_SQL` (`src/lib/epic-alert-sort-rules.ts`) dùng cho cả
+    sort client (`epic-alerts-15/page.tsx`) lẫn `ORDER BY` SQL (`epic-alert-row-cache-query-service.ts`).
+    Cột `bottom_status_rank` trong cache giữ nguyên ý nghĩa (3 = RELEASED, filter ACHIEVED_E2E dựa vào
+    nó) → không cần migration, không cần rebuild cache.
+  - Thêm option **"Ngoài phạm vi TTM-CNTT"** (`OUT_OF_SCOPE_CNTT`) vào filter "Tất cả nhận xét":
+    `matchesAlertFilter` (client) + `buildAlertFilterClause` (SQL `NOT ttm_cntt_in_scope`), thêm vào
+    type deep-link `EpicAlertsDeepLinkAlert`.
+- **MCP Server: mở rộng phạm vi cho AI chatbot** (`src/lib/mcp-server.ts`, version 1.1.0, có `instructions`):
+  - Tool `get_ttm_dashboard` — số liệu màn TTM dashboard (KPI, TTM-Index/QA-Index, pipeline 5 pha, top
+    dự án rủi ro, breakdown theo chiều, danh sách Epic chi tiết), tính ở server trong service mới
+    `src/lib/ttm-dashboard-summary-service.ts` bằng đúng helper/rule của `dashboard-new/page.tsx`.
+    Tách `loadDashboardEpicRows` ra service và `api/dashboard-new/route.ts` dùng lại (không đổi hành vi).
+  - Tool `search_product_docs` + `get_product_doc_section` — hỏi đáp trên "Tài liệu sản phẩm"
+    (`public/docs/product-guide.html`, parse runtime theo mục h2/h3, tìm không phân biệt dấu) trong
+    `src/lib/product-doc-service.ts`; `next.config.ts` thêm `outputFileTracingIncludes` để Vercel đóng
+    gói file HTML vào function `/api/mcp`.
+  - Cập nhật bảng tool MCP ở Tài liệu sản phẩm (mục 16.3) + `brd/15-mcp-sso-and-reports.md`; mô tả thứ
+    tự nhóm/option lọc mới ở mục 11.2.
+  - `next build` chưa chạy được trong môi trường làm việc này (không tải được Google Fonts); `tsc` pass.
+
 - **Cấu hình cảnh báo: Sắp xếp lại giao diện panel "Phạm vi dữ liệu cho TTM"** ([`src/components/status-alert-rules/StatusAlertRulesSettings.tsx`](file:///d:/AI/ttm-tool/src/components/status-alert-rules/StatusAlertRulesSettings.tsx)):
   - Chuyển bố cục 2 cụm cấu hình ngày sang bảng 2 cột 1 hàng (cột 1: R4G for TTM (CNTT), cột 2: R4G for TTM (QA)) với header `TH` và `TableContainer` đồng bộ chuẩn giao diện.
   - Cập nhật các nút "Để trống" sang style primary button (`size="sm"`) đồng bộ với nút "Thêm tiêu chí" của panel Tiêu chí Time to Market trong cùng màn hình.

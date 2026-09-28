@@ -26,7 +26,7 @@ import { useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import { ArrowBendUpRight, ArrowCounterClockwise, ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, FloppyDisk, FolderSimple, HourglassMedium, Lightning, ListChecks, Prohibit, Sparkle, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
-import { bottomStatusRankOf } from '@/lib/epic-alert-sort-rules';
+import { listGroupRankOf } from '@/lib/epic-alert-sort-rules';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import { trackDataUsage } from '@/lib/usage-tracking';
@@ -101,7 +101,7 @@ function formatDateTime(value: string | null): string {
   return `${day}/${month}/${date.getFullYear()} ${hour}:${minute}`;
 }
 
-type AlertFilterValue = AlertLevel | 'FAIL_E2E' | 'ACHIEVED_CNTT' | 'ACHIEVED_E2E' | 'STATUS_MISMATCH' | 'DATA_ANOMALY' | 'WAITING_GOLIVE' | 'RELEASE_EARLY' | 'JUSTIFY_GOLIVE' | '';
+type AlertFilterValue = AlertLevel | 'FAIL_E2E' | 'ACHIEVED_CNTT' | 'ACHIEVED_E2E' | 'STATUS_MISMATCH' | 'DATA_ANOMALY' | 'WAITING_GOLIVE' | 'RELEASE_EARLY' | 'JUSTIFY_GOLIVE' | 'OUT_OF_SCOPE_CNTT' | '';
 
 const ALERT_FILTER_OPTIONS: { label: string; value: AlertFilterValue }[] = [
   { label: 'Tất cả nhận xét', value: '' },
@@ -116,6 +116,7 @@ const ALERT_FILTER_OPTIONS: { label: string; value: AlertFilterValue }[] = [
   { label: 'Chờ golive', value: 'WAITING_GOLIVE' },
   { label: 'Cảnh báo sớm Release', value: 'RELEASE_EARLY' },
   { label: 'Giải trình Golive', value: 'JUSTIFY_GOLIVE' },
+  { label: 'Ngoài phạm vi TTM-CNTT', value: 'OUT_OF_SCOPE_CNTT' },
 ];
 
 const ALERT_FILTER_VALUES = new Set<AlertFilterValue>(ALERT_FILTER_OPTIONS.map((option) => option.value));
@@ -203,6 +204,7 @@ function matchesAlertFilter(row: EpicAlertRowPhased, alertFilter: AlertFilterVal
     case 'WAITING_GOLIVE': return row.releaseAxisState === 'WAITING_GOLIVE';
     case 'RELEASE_EARLY': return row.releaseAxisState === 'EARLY_WARNING';
     case 'JUSTIFY_GOLIVE': return row.releaseAxisState === 'JUSTIFY_GOLIVE';
+    case 'OUT_OF_SCOPE_CNTT': return !row.ttmCnttInScope;
     // FAIL/LATE/EARLY/NONE — every one of them is a TTM-CNTT-axis label, so an out-of-scope row
     // (whose Nhận xét cell shows "Ngoài phạm vi TTM-CNTT" instead) must never match any of them.
     default: return row.ttmCnttInScope && row.alertLevel === alertFilter;
@@ -1098,7 +1100,7 @@ function EpicAlerts15Screen() {
         && (!dataIssueFilter || row.hasDataAnomaly)
         && (!requestingUnitFilter || row.requestingUnit === requestingUnitFilter)
         && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch));
-    }).sort((a, b) => bottomStatusRankOf(a.currentStatus) - bottomStatusRankOf(b.currentStatus));
+    }).sort((a, b) => listGroupRankOf(a.currentStatus, a.ttmCnttInScope) - listGroupRankOf(b.currentStatus, b.ttmCnttInScope));
   }, [data?.mode, rows, projectFilters, pmSmFilters, componentFilters, alertFilter, typeFilter, statusFilters, dataIssueFilter, requestingUnitFilter, search]);
 
   // Raw status strings (case as stored) whose normalized form is PENDING/TO DO — the Pending/To Do
