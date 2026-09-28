@@ -8,6 +8,11 @@
 
 ## 2026-09-28
 
+- **Cấu hình cảnh báo: Sắp xếp lại giao diện panel "Phạm vi dữ liệu cho TTM"** ([`src/components/status-alert-rules/StatusAlertRulesSettings.tsx`](file:///d:/AI/ttm-tool/src/components/status-alert-rules/StatusAlertRulesSettings.tsx)):
+  - Chuyển bố cục 2 cụm cấu hình ngày sang bảng 2 cột 1 hàng (cột 1: R4G for TTM (CNTT), cột 2: R4G for TTM (QA)) với header `TH` và `TableContainer` đồng bộ chuẩn giao diện.
+  - Cập nhật các nút "Để trống" sang style primary button (`size="sm"`) đồng bộ với nút "Thêm tiêu chí" của panel Tiêu chí Time to Market trong cùng màn hình.
+  - Bố trí dòng thông tin "Cập nhật lần cuối {......}" trực tiếp ngay dưới bảng cấu hình, cùng với nút "Lưu & tính toán lại cache".
+
 - **"Phạm vi dữ liệu cho TTM" — gate theo khoảng ngày R4G cho TTM-Index/QA-Index, panel Admin, Advanced Filters ở Dashboard 2, tài liệu rule TTM-Index (Phase 2+3, đã thảo luận & thống nhất thiết kế trước khi làm)**:
   - **Schema**: bảng mới `ttm_scope_config` (1 dòng: `cntt_from/to`, `qa_from/to`, migration
     `20260927b_create_ttm_scope_config`); thêm cột `ttm_cntt_in_scope`/`qa_in_scope` vào

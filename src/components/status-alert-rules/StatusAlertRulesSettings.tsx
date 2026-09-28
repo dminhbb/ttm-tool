@@ -153,46 +153,71 @@ function TtmScopeConfigPanel() {
           </p>
         </div>
       </CardHeader>
-      <CardBody className="flex flex-col gap-5">
+      <CardBody className="flex flex-col gap-4">
         {loading ? <TableSkeleton rows={2} /> : (
           <>
             {notice && <Alert title="Lỗi" variant="error">{notice.text}</Alert>}
-            <div className="flex flex-col gap-2">
-              <p className="text-sm font-semibold text-fb-text-primary">R4G for TTM (CNTT)</p>
+            <TableContainer>
+              <Table className="min-w-[760px] w-full">
+                <THead>
+                  <TR>
+                    <TH className="w-1/2 py-2.5 px-4 text-xs font-bold uppercase tracking-wider text-fb-text-secondary border-r border-fb-border">
+                      R4G for TTM (CNTT)
+                    </TH>
+                    <TH className="w-1/2 py-2.5 px-4 text-xs font-bold uppercase tracking-wider text-fb-text-secondary">
+                      R4G for TTM (QA)
+                    </TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  <TR>
+                    <TD className="w-1/2 whitespace-normal align-top p-4 border-r border-fb-border">
+                      <div className="flex flex-col gap-3">
+                        <p className="text-xs text-fb-text-secondary leading-relaxed">
+                          Lọc theo A &lt; R4G Date &lt; B; Epic chưa có R4G Date dùng TTM-CNTT baseline (Start
+                          Date + số ngày làm việc theo policy) thay thế. Áp dụng cho TTM-Index (QLDA),
+                          TTM-Index (PM), TTM-CNTT (QLDA) và TTM-CNTT nói chung (badge Nhận xét, Fail TTM-CNTT,
+                          Cảnh báo muộn/sớm... ở Quản trị Epic, Epic in PO, Báo cáo).
+                        </p>
+                        <div className="flex flex-wrap items-end gap-3 pt-1">
+                          <div className="flex items-end gap-2">
+                            <Input label="Từ ngày (A)" type="date" value={form.cnttFrom} onChange={(event) => setForm((x) => ({ ...x, cnttFrom: event.target.value }))} />
+                            <Button disabled={!form.cnttFrom} onClick={() => clear('cnttFrom')} size="sm">Để trống</Button>
+                          </div>
+                          <div className="flex items-end gap-2">
+                            <Input label="Đến ngày (B)" type="date" value={form.cnttTo} onChange={(event) => setForm((x) => ({ ...x, cnttTo: event.target.value }))} />
+                            <Button disabled={!form.cnttTo} onClick={() => clear('cnttTo')} size="sm">Để trống</Button>
+                          </div>
+                        </div>
+                      </div>
+                    </TD>
+                    <TD className="w-1/2 whitespace-normal align-top p-4">
+                      <div className="flex flex-col gap-3">
+                        <p className="text-xs text-fb-text-secondary leading-relaxed">
+                          Lọc theo C &lt; R4G Date &lt; D — Epic chưa có R4G Date bị loại khỏi phạm vi QA khi
+                          có thiết lập (không có baseline thay thế). Áp dụng cho QA-Index (QLDA) và
+                          QA-Index (PM); không ảnh hưởng badge Nhận xét TTM-CNTT hay chỉ số TTM-CNTT khác.
+                        </p>
+                        <div className="flex flex-wrap items-end gap-3 pt-1">
+                          <div className="flex items-end gap-2">
+                            <Input label="Từ ngày (C)" type="date" value={form.qaFrom} onChange={(event) => setForm((x) => ({ ...x, qaFrom: event.target.value }))} />
+                            <Button disabled={!form.qaFrom} onClick={() => clear('qaFrom')} size="sm">Để trống</Button>
+                          </div>
+                          <div className="flex items-end gap-2">
+                            <Input label="Đến ngày (D)" type="date" value={form.qaTo} onChange={(event) => setForm((x) => ({ ...x, qaTo: event.target.value }))} />
+                            <Button disabled={!form.qaTo} onClick={() => clear('qaTo')} size="sm">Để trống</Button>
+                          </div>
+                        </div>
+                      </div>
+                    </TD>
+                  </TR>
+                </TBody>
+              </Table>
+            </TableContainer>
+            <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
               <p className="text-xs text-fb-text-secondary">
-                Lọc theo A &lt; R4G Date &lt; B; Epic chưa có R4G Date dùng TTM-CNTT baseline (Start
-                Date + số ngày làm việc theo policy) thay thế. Áp dụng cho TTM-Index (QLDA),
-                TTM-Index (PM), TTM-CNTT (QLDA) và TTM-CNTT nói chung (badge Nhận xét, Fail TTM-CNTT,
-                Cảnh báo muộn/sớm... ở Quản trị Epic, Epic in PO, Báo cáo).
+                Cập nhật lần cuối: {meta.updatedAt ? `${new Date(meta.updatedAt).toLocaleString('vi-VN')}${meta.updatedByName ? ` bởi ${meta.updatedByName}` : ''}` : 'Chưa có thông tin'}.
               </p>
-              <div className="flex flex-wrap items-end gap-2">
-                <Input label="Từ ngày (A)" type="date" value={form.cnttFrom} onChange={(event) => setForm((x) => ({ ...x, cnttFrom: event.target.value }))} />
-                <Button disabled={!form.cnttFrom} onClick={() => clear('cnttFrom')} size="sm" variant="outline">Để trống</Button>
-                <Input label="Đến ngày (B)" type="date" value={form.cnttTo} onChange={(event) => setForm((x) => ({ ...x, cnttTo: event.target.value }))} />
-                <Button disabled={!form.cnttTo} onClick={() => clear('cnttTo')} size="sm" variant="outline">Để trống</Button>
-              </div>
-            </div>
-            <div className="flex flex-col gap-2 border-t border-fb-border pt-4">
-              <p className="text-sm font-semibold text-fb-text-primary">R4G for TTM (QA)</p>
-              <p className="text-xs text-fb-text-secondary">
-                Lọc theo C &lt; R4G Date &lt; D — Epic chưa có R4G Date bị loại khỏi phạm vi QA khi
-                có thiết lập (không có baseline thay thế). Áp dụng cho QA-Index (QLDA) và
-                QA-Index (PM); không ảnh hưởng badge Nhận xét TTM-CNTT hay chỉ số TTM-CNTT khác.
-              </p>
-              <div className="flex flex-wrap items-end gap-2">
-                <Input label="Từ ngày (C)" type="date" value={form.qaFrom} onChange={(event) => setForm((x) => ({ ...x, qaFrom: event.target.value }))} />
-                <Button disabled={!form.qaFrom} onClick={() => clear('qaFrom')} size="sm" variant="outline">Để trống</Button>
-                <Input label="Đến ngày (D)" type="date" value={form.qaTo} onChange={(event) => setForm((x) => ({ ...x, qaTo: event.target.value }))} />
-                <Button disabled={!form.qaTo} onClick={() => clear('qaTo')} size="sm" variant="outline">Để trống</Button>
-              </div>
-            </div>
-            {meta.updatedAt && (
-              <p className="text-xs text-fb-text-secondary">
-                Cập nhật lần cuối: {new Date(meta.updatedAt).toLocaleString('vi-VN')}
-                {meta.updatedByName ? ` bởi ${meta.updatedByName}` : ''}.
-              </p>
-            )}
-            <div className="flex justify-end">
               <Button isLoading={saving} onClick={save}>Lưu & tính toán lại cache</Button>
             </div>
           </>
