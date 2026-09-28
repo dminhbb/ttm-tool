@@ -1,3 +1,11 @@
+/** A project as listed under its Domain (projects.domain_id) on "Quản lý Domain". */
+export interface DomainProjectRef {
+  id: number;
+  isActive: boolean;
+  projectName: string;
+  sourceProjectKey: string;
+}
+
 export interface Domain {
   createdAt: string;
   description: string;
@@ -6,6 +14,8 @@ export interface Domain {
   id: number;
   isActive: boolean;
   leadName: string;
+  /** Every project whose projects.domain_id points at this Domain, ordered by project key. */
+  projects: DomainProjectRef[];
 }
 
 export interface DomainInput {
@@ -14,6 +24,18 @@ export interface DomainInput {
   domainName: string;
   isActive: boolean;
   leadName: string;
+  /** Full set of projects that should belong to this Domain after saving (projects.domain_id). A
+   * project is in at most one Domain, so picking one that belongs to another Domain moves it here;
+   * a project previously in this Domain and no longer listed has its domain_id cleared. Omit
+   * (undefined) to leave project assignments untouched. */
+  projectIds?: number[];
+}
+
+export interface DomainSaveResult {
+  domain: Domain;
+  /** True when at least one project's domain_id actually changed — callers then rebuild the
+   * derived caches (epic_alert_row_cache stores each Epic's domainName). */
+  projectsChanged: boolean;
 }
 
 export interface Project {

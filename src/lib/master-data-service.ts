@@ -1,10 +1,11 @@
-import pool from '@/lib/db';
+import pool, { getClient } from '@/lib/db';
 import { expandHolidayRanges } from '@/lib/working-days';
 import type { HolidaySet } from '@/lib/working-days';
 import { LATEST_ISSUES_CTE } from '@/lib/issue-resolution-sql';
 import type {
   Domain,
   DomainInput,
+  DomainSaveResult,
   Holiday,
   HolidayInput,
   IssueTypeRoleMapping,
@@ -19,39 +20,79 @@ import type {
 
 // ---------- Domains ----------
 
+const DOMAIN_COLUMNS_SQL = `
+  d.id, d.domain_code AS "domainCode", d.domain_name AS "domainName",
+  COALESCE(d.description, '') AS description, COALESCE(d.lead_name, '') AS "leadName",
+  d.is_active AS "isActive", d.created_at::text AS "createdAt",
+  COALESCE((
+    SELECT json_agg(json_build_object(
+      'id', p.id, 'projectName', p.project_name, 'sourceProjectKey', p.source_project_key, 'isActive', p.is_active
+    ) ORDER BY p.source_project_key)
+    FROM projects p WHERE p.domain_id = d.id
+  ), '[]'::json) AS projects
+`;
+
+type Queryable = Pick<typeof pool, 'query'>;
+
+async function getDomainById(db: Queryable, id: number): Promise<Domain> {
+  const result = await db.query<Domain>(`SELECT ${DOMAIN_COLUMNS_SQL} FROM domains d WHERE d.id = $1;`, [id]);
+  return result.rows[0];
+}
+
 export async function listDomains(): Promise<Domain[]> {
-  const result = await pool.query<Domain>(`
-    SELECT
-      id, domain_code AS "domainCode", domain_name AS "domainName",
-      COALESCE(description, '') AS description, COALESCE(lead_name, '') AS "leadName",
-      is_active AS "isActive", created_at::text AS "createdAt"
-    FROM domains
-    ORDER BY domain_code ASC;
-  `);
+  const result = await pool.query<Domain>(`SELECT ${DOMAIN_COLUMNS_SQL} FROM domains d ORDER BY d.domain_code ASC;`);
   return result.rows;
 }
 
-export async function createDomain(input: DomainInput): Promise<Domain> {
-  const result = await pool.query<Domain>(`
-    INSERT INTO domains (domain_code, domain_name, description, lead_name, is_active)
-    VALUES ($1, $2, $3, $4, $5)
-    RETURNING id, domain_code AS "domainCode", domain_name AS "domainName",
-      COALESCE(description, '') AS description, COALESCE(lead_name, '') AS "leadName",
-      is_active AS "isActive", created_at::text AS "createdAt";
-  `, [input.domainCode, input.domainName, input.description || null, input.leadName || null, input.isActive]);
-  return result.rows[0];
+/** Makes `projectIds` exactly the set of projects in Domain `domainId`: moves the listed ones here
+ * (from no Domain or from another one) and releases (domain_id = NULL) the ones no longer listed.
+ * Returns how many project rows actually changed. */
+async function syncDomainProjects(db: Queryable, domainId: number, projectIds: number[]): Promise<number> {
+  const released = await db.query(
+    'UPDATE projects SET domain_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE domain_id = $1 AND NOT (id = ANY($2::int[]));',
+    [domainId, projectIds],
+  );
+  const assigned = await db.query(
+    'UPDATE projects SET domain_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = ANY($2::int[]) AND domain_id IS DISTINCT FROM $1;',
+    [domainId, projectIds],
+  );
+  return (released.rowCount ?? 0) + (assigned.rowCount ?? 0);
 }
 
-export async function updateDomain(id: number, input: DomainInput): Promise<Domain> {
-  const result = await pool.query<Domain>(`
-    UPDATE domains SET
-      domain_code = $2, domain_name = $3, description = $4, lead_name = $5, is_active = $6, updated_at = CURRENT_TIMESTAMP
-    WHERE id = $1
-    RETURNING id, domain_code AS "domainCode", domain_name AS "domainName",
-      COALESCE(description, '') AS description, COALESCE(lead_name, '') AS "leadName",
-      is_active AS "isActive", created_at::text AS "createdAt";
-  `, [id, input.domainCode, input.domainName, input.description || null, input.leadName || null, input.isActive]);
-  return result.rows[0];
+async function saveDomain(id: number | null, input: DomainInput): Promise<DomainSaveResult> {
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+    const params = [input.domainCode, input.domainName, input.description || null, input.leadName || null, input.isActive];
+    const saved = id === null
+      ? await client.query<{ id: number }>(
+        'INSERT INTO domains (domain_code, domain_name, description, lead_name, is_active) VALUES ($1, $2, $3, $4, $5) RETURNING id;',
+        params,
+      )
+      : await client.query<{ id: number }>(
+        `UPDATE domains SET domain_code = $2, domain_name = $3, description = $4, lead_name = $5, is_active = $6, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1 RETURNING id;`,
+        [id, ...params],
+      );
+    const domainId = saved.rows[0].id;
+    const changedProjects = input.projectIds ? await syncDomainProjects(client, domainId, input.projectIds) : 0;
+    const domain = await getDomainById(client, domainId);
+    await client.query('COMMIT');
+    return { domain, projectsChanged: changedProjects > 0 };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function createDomain(input: DomainInput): Promise<DomainSaveResult> {
+  return saveDomain(null, input);
+}
+
+export async function updateDomain(id: number, input: DomainInput): Promise<DomainSaveResult> {
+  return saveDomain(id, input);
 }
 
 export async function deleteDomain(id: number): Promise<void> {

@@ -34,6 +34,9 @@ Quản trị hệ thống
 
 Màn hình Domain cho phép CRUD domain nghiệp vụ.
 
+- Bảng danh sách có cột **Dự án trong Domain** (mã dự án, tooltip tên dự án; dự án Inactive hiển thị màu xám), tìm kiếm được theo mã/tên dự án, sắp xếp được theo số lượng dự án.
+- Form Thêm/Sửa Domain có ô **chọn nhiều Dự án trong Domain** (ghi `projects.domain_id`). Một dự án chỉ thuộc 1 domain: chọn dự án đang thuộc domain khác sẽ chuyển sang domain đang sửa; bỏ chọn sẽ đặt `domain_id = NULL`. Khi phân bổ thay đổi, hệ thống tính lại ngầm `epic_alert_row_cache`/`ttm_index_global_cache` (vì cache lưu `domainName` của Epic).
+
 Thông tin chính:
 
 - Domain Code.

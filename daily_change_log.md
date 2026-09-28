@@ -8,6 +8,16 @@
 
 ## 2026-09-28
 
+- **Quản lý Domain: cột "Dự án trong Domain" + chọn nhiều dự án khi Thêm/Sửa Domain** (để deep-link
+  `domain=...` luôn map được sang danh sách dự án):
+  - `listDomains` trả thêm `projects` (theo `projects.domain_id`, không đổi schema); `createDomain`/
+    `updateDomain` nhận `projectIds` và đồng bộ trong 1 transaction (chọn dự án của domain khác = chuyển
+    sang; bỏ chọn = `domain_id NULL`) — `src/lib/master-data-service.ts`, `master-data-types.ts`.
+  - `api/domains/route.ts`: validate `projectIds`; nếu phân bổ thay đổi thì `after(refreshDerivedCaches)`
+    tính lại cache ngầm (cache lưu `domainName` của Epic).
+  - UI `src/app/admin/domains/page.tsx`: cột badge mã dự án (tooltip tên, sắp xếp theo số dự án, tìm theo
+    dự án), `MultiSelect` "Dự án trong Domain" kèm nhãn "đang thuộc <domain khác>" và cảnh báo chuyển/gỡ.
+
 - **Quản trị Epic: sửa "chớp 2 lần" khi mở từ màn khác (deep-link, vd. từ TTM dashboard)**:
   - Nguyên nhân 1: deep-link có `domain` nhưng không có `projects` → lần tải đầu chưa lọc domain (chưa
     có map domain→dự án) nên hiện danh sách chưa lọc, rồi mới áp domain và tải/hiển thị lại. Sửa: state
