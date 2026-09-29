@@ -1,6 +1,7 @@
 import type { AlertLevel, EpicComplexity } from '@/lib/ttm-rules';
 import type { EpicAnomalyViolation } from '@/lib/epic-data-anomaly';
 import type { ReleaseAxisState } from '@/lib/epic-alert-service';
+import type { Finding } from '@/lib/scoring/types';
 
 export type { EpicAnomalyViolation } from '@/lib/epic-data-anomaly';
 export type { ReleaseAxisState } from '@/lib/epic-alert-service';
@@ -205,6 +206,15 @@ export interface EpicAlertRowPhased {
    * yet. The "Nhận xét" cell shows a "Sai Status" badge instead of Đạt/Fail while this is true, and
    * the TTM-CNTT actual stripe stays red (with a "*") even though its length is within budget. */
   ttmCnttStatusMismatch: boolean;
+  /** Epic Scoring Service result, present only when the display engine is 'scoring' (see
+   * scoring/projection.ts) — the legacy fields above then already carry the projected verdicts.
+   * `scoringBadges`: active badge codes (subject-qualified ones twice, e.g. "PHASE_LATE:DEV");
+   * `scoringIndexFlags`: TTM-/QA-Index membership (e.g. "TTM_ELIGIBLE"); `scoringFindings`: every
+   * finding with its message, for tooltips/detail. */
+  scoringAsOf?: string;
+  scoringBadges?: string[];
+  scoringIndexFlags?: string[];
+  scoringFindings?: Finding[];
   ttmCnttTargetWorkingDays: number;
   ttmCnttToField: string | null;
   /** Ends the TTM-E2E "stripe thực tế" (bottom strip) — R4G Date once recorded and in the past,
@@ -222,8 +232,8 @@ export interface EpicAlertRowPhased {
 export const DASHBOARD_EPIC_ROW_KEYS = [
   'alertLevel', 'currentStatus', 'dataAnomalyViolations', 'domainName', 'dueDate', 'epicKey', 'epicName',
   'epicType', 'hasDataAnomaly', 'ownerName', 'projectKey', 'projectName', 'qaInScope', 'r4gDate',
-  'releaseAxisState', 'releaseGraceDeadline', 'requestingUnit', 'targetR4gDate', 'ttmCnttInScope',
-  'ttmE2eAlertLevel',
+  'releaseAxisState', 'releaseGraceDeadline', 'requestingUnit', 'scoringBadges', 'scoringIndexFlags',
+  'targetR4gDate', 'ttmCnttInScope', 'ttmE2eAlertLevel',
 ] as const satisfies readonly (keyof EpicAlertRowPhased)[];
 
 export type DashboardEpicRow = Pick<EpicAlertRowPhased, (typeof DASHBOARD_EPIC_ROW_KEYS)[number]> & {
@@ -254,6 +264,8 @@ export interface EpicAlertPhasedResponse {
   availableLayerDates: string[];
   /** Echoes EpicAlertFilters.asOfDate — see EpicAlertResponse.asOfDate. */
   asOfDate: string | null;
+  /** Which evaluation engine produced `rows` — see scoring-mode-service.ts. */
+  engineMode?: 'legacy' | 'scoring';
   lastAggregatedAt: string | null;
   rows: EpicAlertRowPhased[];
   viewerName: string;

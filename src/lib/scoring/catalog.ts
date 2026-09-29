@@ -1,0 +1,303 @@
+/**
+ * Epic Scoring Service — badge catalog: the single source of truth for the Axis → FindingGroup →
+ * Badge model (docs/superpowers/specs/2026-09-29-scoring-service-design.md). Every badge belongs to
+ * exactly one axis and exactly one finding group; rules only ever emit a badge id, so a badge's
+ * group/axis/label/formula live here and nowhere else. The "Logic cảnh báo" popup
+ * (components/layout/HelpPanels.tsx) renders straight from this file.
+ *
+ * Pure data (no pool/db import) so both client and server can import it.
+ */
+
+export type FindingGroup = 'ALERT' | 'PASS' | 'FAIL' | 'RECOMMENDATION' | 'NOTE';
+export type ScoringAxis = 'TTM_CNTT' | 'TTM_E2E' | 'RELEASE' | 'PHASE' | 'DATA_QUALITY' | 'SCOPE';
+
+export interface FindingGroupDefinition {
+  id: FindingGroup;
+  label: string;
+  description: string;
+}
+
+export interface ScoringAxisDefinition {
+  id: ScoringAxis;
+  label: string;
+  description: string;
+}
+
+export interface BadgeDefinition {
+  readonly id: string;
+  readonly axis: ScoringAxis;
+  readonly group: FindingGroup;
+  readonly label: string;
+  /** Display order within the axis — lower wins when an app shows only one badge per axis. */
+  readonly precedence: number;
+  readonly meaning: string;
+  readonly formula: string;
+  /** Legacy function/field producing the equivalent result today (parity check), if any. */
+  readonly legacySource?: string;
+  /** false = the rule ships disabled until enabled in scoring_rule_settings. */
+  readonly defaultEnabled: boolean;
+  /** Core gates can't be disabled — turning them off would let an unreliable verdict through. */
+  readonly core?: boolean;
+}
+
+export const FINDING_GROUPS: FindingGroupDefinition[] = [
+  { id: 'FAIL', label: 'Đánh giá Fail', description: 'Epic đã không đạt một tiêu chí — kết quả khách quan, không thể "cứu" bằng cách làm nhanh hơn.' },
+  { id: 'ALERT', label: 'Cảnh báo', description: 'Rủi ro đang diễn ra hoặc dữ liệu có vấn đề cần chú ý; chưa phải kết luận không đạt.' },
+  { id: 'RECOMMENDATION', label: 'Khuyến nghị', description: 'Việc cụ thể người phụ trách nên làm (cập nhật status, bổ sung trường, xử lý Epic Pending…).' },
+  { id: 'PASS', label: 'Đánh giá Đạt', description: 'Epic đã hoàn thành một tiêu chí đúng hạn theo rule.' },
+  { id: 'NOTE', label: 'Ghi nhận', description: 'Thông tin trung tính — không phải cảnh báo hay đánh giá (ví dụ: ngoài phạm vi, không tính được, pha hiện tại).' },
+];
+
+export const SCORING_AXES: ScoringAxisDefinition[] = [
+  { id: 'TTM_CNTT', label: 'TTM-CNTT', description: 'T1 (Start Date) → R4G Date so với ngân sách ngày làm việc TTM-CNTT.' },
+  { id: 'TTM_E2E', label: 'TTM-E2E', description: 'T0 (Idea Approved Date) → R4G Date (hoặc Due Date theo policy) so với ngân sách TTM-E2E.' },
+  { id: 'RELEASE', label: 'Release', description: 'Kỷ luật Due Date / status Released so với R4G Date + thời hạn grace.' },
+  { id: 'PHASE', label: 'Pha', description: '5 pha DESIGN / DEV / TEST / PENTEST / R4GOLIVE, mỗi pha có baseline theo % ngân sách TTM-CNTT.' },
+  { id: 'DATA_QUALITY', label: 'Chất lượng dữ liệu', description: 'Dữ liệu Jira thiếu hoặc mâu thuẫn. Badge Cảnh báo của axis này = "Sai lệch dữ liệu".' },
+  { id: 'SCOPE', label: 'Phạm vi', description: 'Epic có nằm trong "Phạm vi dữ liệu cho TTM" (Cấu hình cảnh báo) hay không.' },
+];
+
+export const BADGES = [
+  // ---------- TTM_CNTT ----------
+  {
+    id: 'CNTT_CALC_BROKEN', axis: 'TTM_CNTT', group: 'NOTE', label: 'Không tính được', precedence: 10, defaultEnabled: true, core: true,
+    meaning: 'Không đủ dữ liệu tin cậy để tính TTM-CNTT; mọi badge TTM-CNTT khác bị che.',
+    formula: 'T1 trống  HOẶC  R4G < T1',
+    legacySource: 'breaksTtmCnttCalculation',
+  },
+  {
+    id: 'CNTT_STATUS_MISMATCH', axis: 'TTM_CNTT', group: 'RECOMMENDATION', label: 'Sai Status', precedence: 20, defaultEnabled: true,
+    meaning: 'R4G Date đã tới và đúng hạn nhưng status Epic chưa lên R4GOLIVE — cần chuyển status sang R4GOLIVE. Không tính "Đạt TTM-CNTT" (badge lẫn TTM-Index), vẫn nằm trong mẫu số Index.',
+    formula: 'R4G ≤ asOf  VÀ  R4G ≤ Target_CNTT  VÀ  status < R4GOLIVE',
+    legacySource: 'resolveTtmCnttStatusMismatch',
+  },
+  {
+    id: 'CNTT_FAIL', axis: 'TTM_CNTT', group: 'FAIL', label: 'Fail TTM-CNTT', precedence: 30, defaultEnabled: true,
+    meaning: 'Đã vượt ngân sách TTM-CNTT.',
+    formula: 'Có R4G: R4G > Target_CNTT.  Chưa có R4G: asOf > Target_CNTT.   Target_CNTT = T1 +wd (N_CNTT − 1)  (Start Date là ngày 1)',
+    legacySource: 'computeTtmAlert → FAIL',
+  },
+  {
+    id: 'CNTT_LATE', axis: 'TTM_CNTT', group: 'ALERT', label: 'Cảnh báo muộn', precedence: 40, defaultEnabled: true,
+    meaning: 'Chưa có R4G Date, đã qua mốc cảnh báo muộn của status hiện tại, chưa quá Target.',
+    formula: 'R4G trống  VÀ  T1 +wd Offset_muộn(loại Epic, status) ≤ asOf ≤ Target_CNTT',
+    legacySource: 'computeTtmAlert → LATE',
+  },
+  {
+    id: 'CNTT_PASS', axis: 'TTM_CNTT', group: 'PASS', label: 'Đạt TTM-CNTT', precedence: 60, defaultEnabled: true,
+    meaning: 'Đã tới R4G Date trong ngân sách và status khớp.',
+    formula: 'R4G ≤ asOf  VÀ  R4G ≤ Target_CNTT  VÀ  không "Sai Status"',
+    legacySource: 'isTtmCnttAchieved (3 page)',
+  },
+  {
+    id: 'CNTT_NOT_APPLICABLE', axis: 'TTM_CNTT', group: 'NOTE', label: 'Không áp dụng', precedence: 90, defaultEnabled: true, core: true,
+    meaning: 'Epic đã Cancelled — không đánh giá TTM-CNTT.',
+    formula: 'status = Cancelled',
+    legacySource: 'computeTtmAlert → NONE',
+  },
+
+  // ---------- TTM_E2E ----------
+  {
+    id: 'E2E_CALC_BROKEN', axis: 'TTM_E2E', group: 'NOTE', label: 'Không tính được', precedence: 10, defaultEnabled: true, core: true,
+    meaning: 'R4G Date phi logic so với T0; badge TTM-E2E khác bị che.',
+    formula: 'Idea Approved Date có giá trị  VÀ  R4G < Idea Approved Date',
+    legacySource: 'breaksTtmE2eCalculation',
+  },
+  {
+    id: 'E2E_FAIL', axis: 'TTM_E2E', group: 'FAIL', label: 'Fail TTM-E2E', precedence: 30, defaultEnabled: true,
+    meaning: 'Đã vượt ngân sách TTM-E2E.',
+    formula: 'Target_E2E = T0 +wd N_E2E.  Đã có ngày kết thúc (R4G, hoặc Due nếu policy to_ttm_field = DUE_DATE) ≤ asOf: ngày đó > Target_E2E.  Chưa có: asOf ≥ Target_E2E',
+    legacySource: 'resolveTtmE2eRelease → FAIL',
+  },
+  {
+    id: 'E2E_PASS', axis: 'TTM_E2E', group: 'PASS', label: 'Đạt TTM-E2E', precedence: 60, defaultEnabled: true,
+    meaning: 'Đã Released và T0 → R4G Date trong ngân sách TTM-E2E.',
+    formula: 'Không Fail TTM-E2E  VÀ  status = RELEASED  VÀ  ngày kết thúc TTM-E2E = R4G ≤ asOf',
+    legacySource: 'isTtmE2eAchieved (3 page)',
+  },
+  {
+    id: 'REC_FILL_IDEA_APPROVED_DATE', axis: 'TTM_E2E', group: 'RECOMMENDATION', label: 'Bổ sung T0', precedence: 80, defaultEnabled: true,
+    meaning: 'Bổ sung Idea Approved Date để TTM-E2E tính đúng mốc gốc.',
+    formula: 'Có badge "Baseline từ ngày tạo Jira"  VÀ  không Cancelled',
+  },
+  {
+    id: 'E2E_BASELINE_FROM_JIRA_CREATED', axis: 'TTM_E2E', group: 'NOTE', label: 'Baseline từ ngày tạo Jira', precedence: 95, defaultEnabled: true,
+    meaning: 'Thiếu Idea Approved Date nên T0 lấy ngày tạo Epic trên Jira.',
+    formula: 'Idea Approved Date trống → T0 = ngày tạo Jira',
+    legacySource: 'baselineSourceLabel',
+  },
+
+  // ---------- RELEASE ----------
+  {
+    id: 'RELEASE_JUSTIFY_GOLIVE', axis: 'RELEASE', group: 'FAIL', label: 'Giải trình Golive', precedence: 20, defaultEnabled: true,
+    meaning: 'Golive vượt thời hạn grace sau R4G — cần giải trình.',
+    formula: 'Có R4G  VÀ  ( Due > R4G +wd G   HOẶC   Due trống VÀ asOf > R4G +wd G )',
+    legacySource: 'resolveReleaseAxis → JUSTIFY_GOLIVE',
+  },
+  {
+    id: 'RELEASE_STATUS_MISMATCH', axis: 'RELEASE', group: 'RECOMMENDATION', label: 'Sai Status', precedence: 30, defaultEnabled: true,
+    meaning: 'Due Date đúng hạn nhưng status chưa Released — cần chuyển status sang Released. Trước đây là rule R7 "Sai lệch dữ liệu"; nay không còn tính là Sai lệch dữ liệu.',
+    formula: 'status ∉ {Cancelled, To Do, In PO, Backlog}  VÀ  Có R4G  VÀ  Due ≤ R4G +wd G  VÀ  status ≠ RELEASED',
+    legacySource: 'evaluateEpicDataAnomaly R7',
+  },
+  {
+    id: 'RELEASE_WAITING_GOLIVE', axis: 'RELEASE', group: 'ALERT', label: 'Chờ golive', precedence: 40, defaultEnabled: true,
+    meaning: 'Đã R4G, đang trong thời hạn grace, chưa có Due Date.',
+    formula: 'Có R4G  VÀ  Due trống  VÀ  asOf ≤ R4G +wd G  VÀ  status ≤ R4GOLIVE',
+    legacySource: 'resolveReleaseAxis → WAITING_GOLIVE',
+  },
+  {
+    id: 'REC_PREPARE_GOLIVE_JUSTIFICATION', axis: 'RELEASE', group: 'RECOMMENDATION', label: 'Chuẩn bị giải trình', precedence: 60, defaultEnabled: true,
+    meaning: 'Chuẩn bị nội dung giải trình Golive trễ hạn.',
+    formula: 'Có badge "Giải trình Golive"',
+  },
+  {
+    id: 'RELEASE_ON_TIME', axis: 'RELEASE', group: 'PASS', label: 'Release đúng hạn', precedence: 70, defaultEnabled: false,
+    meaning: 'Đã Released với Due Date trong thời hạn grace. Mới — mặc định TẮT.',
+    formula: 'Có R4G  VÀ  Due ≤ R4G +wd G  VÀ  status = RELEASED',
+  },
+
+  // ---------- DATA_QUALITY ----------
+  {
+    id: 'ANOMALY_R1_MISSING_START_DATE', axis: 'DATA_QUALITY', group: 'ALERT', label: 'Thiếu Start Date', precedence: 10, defaultEnabled: true,
+    meaning: 'R1 — Epic đã tới DEV nhưng chưa có Start Date.',
+    formula: 'status ≥ DEV  VÀ  không Pending  VÀ  T1 trống',
+    legacySource: 'evaluateEpicDataAnomaly R1',
+  },
+  {
+    id: 'ANOMALY_R3_DATE_OUT_OF_SEQUENCE', axis: 'DATA_QUALITY', group: 'ALERT', label: 'Sai thứ tự ngày', precedence: 30, defaultEnabled: true,
+    meaning: 'R3 — Các mốc ngày không theo đúng thứ tự.',
+    formula: 'Vi phạm  T0 ≤ T1 < R4G ≤ Due  (chỉ xét mốc đã có giá trị; T0 = Idea Approved Date)',
+    legacySource: 'evaluateEpicDataAnomaly R3',
+  },
+  {
+    id: 'ANOMALY_R4_MISSING_REQUEST_TYPE', axis: 'DATA_QUALITY', group: 'ALERT', label: 'Thiếu Phân loại yêu cầu', precedence: 40, defaultEnabled: true,
+    meaning: 'R4 — Chưa có Phân loại yêu cầu.',
+    formula: 'Phân loại yêu cầu trống hoặc "none"',
+    legacySource: 'evaluateEpicDataAnomaly R4',
+  },
+  {
+    id: 'ANOMALY_R5_MISSING_REQUIREMENT_LEVEL', axis: 'DATA_QUALITY', group: 'ALERT', label: 'Thiếu Requirement Level', precedence: 50, defaultEnabled: true,
+    meaning: 'R5 — Chưa có Requirement Level.',
+    formula: 'Requirement Level trống hoặc "none"',
+    legacySource: 'evaluateEpicDataAnomaly R5',
+  },
+  {
+    id: 'ANOMALY_R6_SP_LEVEL_MISMATCH', axis: 'DATA_QUALITY', group: 'ALERT', label: 'SP nhưng Level thấp', precedence: 60, defaultEnabled: true,
+    meaning: 'R6 — Loại Epic SP nhưng Requirement Level 1–2.',
+    formula: 'Loại Epic ∈ {SP-Lv12, SP-Lv34}  VÀ  Requirement Level ∈ {1, 2}',
+    legacySource: 'evaluateEpicDataAnomaly R6',
+  },
+  {
+    id: 'ANOMALY_R2_PENDING_TOO_LONG', axis: 'DATA_QUALITY', group: 'RECOMMENDATION', label: 'Pending lâu', precedence: 65, defaultEnabled: true,
+    meaning: 'R2 — Epic Pending quá tỉ lệ cho phép của chu trình TTM-CNTT; nên quyết định tiếp tục hay huỷ. Không còn tính là "Sai lệch dữ liệu".',
+    formula: 'status = Pending  VÀ  WD(T1, hoặc ngày tạo Jira nếu thiếu T1; asOf) ≥ 20% × N_CNTT',
+    legacySource: 'evaluateEpicDataAnomaly R2',
+  },
+  {
+    id: 'REC_FILL_START_DATE', axis: 'DATA_QUALITY', group: 'RECOMMENDATION', label: 'Bổ sung Start Date', precedence: 70, defaultEnabled: true,
+    meaning: 'Bổ sung Start Date (T1) trên Jira.',
+    formula: 'Có "Thiếu Start Date"  HOẶC  TTM-CNTT "Không tính được" do thiếu T1 (status ≥ DESIGN, không Cancelled)',
+  },
+  {
+    id: 'REC_FIX_DATE_ORDER', axis: 'DATA_QUALITY', group: 'RECOMMENDATION', label: 'Sửa thứ tự ngày', precedence: 71, defaultEnabled: true,
+    meaning: 'Kiểm tra lại các mốc ngày trên Jira.',
+    formula: 'Có "Sai thứ tự ngày"  HOẶC  "Không tính được" do R4G phi logic',
+  },
+  {
+    id: 'REC_FILL_REQUEST_TYPE', axis: 'DATA_QUALITY', group: 'RECOMMENDATION', label: 'Bổ sung Phân loại yêu cầu', precedence: 72, defaultEnabled: true,
+    meaning: 'Bổ sung trường Phân loại yêu cầu.',
+    formula: 'Có "Thiếu Phân loại yêu cầu"',
+  },
+  {
+    id: 'REC_FILL_REQUIREMENT_LEVEL', axis: 'DATA_QUALITY', group: 'RECOMMENDATION', label: 'Bổ sung Requirement Level', precedence: 73, defaultEnabled: true,
+    meaning: 'Bổ sung trường Requirement Level.',
+    formula: 'Có "Thiếu Requirement Level"',
+  },
+  {
+    id: 'REC_REVIEW_SP_LEVEL', axis: 'DATA_QUALITY', group: 'RECOMMENDATION', label: 'Rà soát loại yêu cầu', precedence: 74, defaultEnabled: true,
+    meaning: 'Rà soát lại Phân loại yêu cầu / Requirement Level.',
+    formula: 'Có "SP nhưng Level thấp"',
+  },
+
+  // ---------- SCOPE ----------
+  {
+    id: 'SCOPE_CNTT_OUT', axis: 'SCOPE', group: 'NOTE', label: 'Ngoài phạm vi TTM-CNTT', precedence: 10, defaultEnabled: true,
+    meaning: 'Epic nằm ngoài khoảng ngày "R4G for TTM (CNTT)"; badge TTM-CNTT bị che, không tính vào TTM-Index.',
+    formula: 'Có cấu hình A/B  VÀ  NOT( A ≤ (R4G, nếu trống thì Target_CNTT) ≤ B )',
+    legacySource: 'computeTtmCnttInScope',
+  },
+  {
+    id: 'SCOPE_QA_OUT', axis: 'SCOPE', group: 'NOTE', label: 'Ngoài phạm vi QA', precedence: 20, defaultEnabled: true,
+    meaning: 'Epic nằm ngoài khoảng ngày "R4G for TTM (QA)"; không tính vào QA-Index.',
+    formula: 'Có cấu hình C/D  VÀ  NOT( C ≤ R4G ≤ D )  (R4G trống → ngoài phạm vi)',
+    legacySource: 'computeQaInScope',
+  },
+
+  // ---------- PHASE (mỗi finding gắn 1 pha qua `subject`: DESIGN/DEV/TEST/PENTEST/R4GOLIVE) ----------
+  {
+    id: 'PHASE_LATE', axis: 'PHASE', group: 'ALERT', label: 'Trễ pha', precedence: 10, defaultEnabled: true,
+    meaning: 'Pha chưa hoàn thành tại asOf và đã qua baseline của pha.',
+    formula: 'Pha chưa xong tại asOf  VÀ  asOf > Baseline_pha.   Baseline_pha: DESIGN 20% → DEV 50% → TEST 80% → PENTEST 90% → R4GOLIVE = Target_CNTT',
+    legacySource: 'computePhaseAlertLevel → LATE',
+  },
+  {
+    id: 'REC_ACCELERATE_PHASE', axis: 'PHASE', group: 'RECOMMENDATION', label: 'Đẩy nhanh pha', precedence: 20, defaultEnabled: true,
+    meaning: 'Đẩy nhanh pha hiện tại đang trễ.',
+    formula: 'Có "Trễ pha" ở đúng pha hiện tại',
+  },
+  {
+    id: 'PHASE_DONE', axis: 'PHASE', group: 'NOTE', label: 'Hoàn thành pha', precedence: 30, defaultEnabled: true,
+    meaning: 'Pha đã hoàn thành tại asOf (theo status story/subtask tại asOf).',
+    formula: 'DESIGN: status Epic = In Progress hoặc mọi subtask BA Done. DEV: mọi story ≥ READY FOR TEST. TEST: mọi story ≥ UAT DONE. R4GOLIVE: status = R4GOLIVE hoặc có R4G hoặc mọi story ≥ READY FOR GOLIVE. PENTEST: chưa có rule.',
+    legacySource: 'computeEpicPhaseCompletionByEpicKey',
+  },
+  {
+    id: 'PHASE_CURRENT', axis: 'PHASE', group: 'NOTE', label: 'Pha hiện tại', precedence: 40, defaultEnabled: true,
+    meaning: 'Pha Epic đang thực hiện.',
+    formula: 'DESIGN nếu status = DESIGN; R4GOLIVE nếu status ≥ R4GOLIVE; còn lại là pha đầu tiên chưa xong trong DEV → TEST → PENTEST',
+    legacySource: 'resolveCurrentStage',
+  },
+  {
+    id: 'PHASE_NOT_COMPUTABLE', axis: 'PHASE', group: 'NOTE', label: 'Không tính được', precedence: 50, defaultEnabled: true, core: true,
+    meaning: 'Không tính được baseline pha.',
+    formula: 'T1 trống  HOẶC  không có ngân sách N_CNTT',
+    legacySource: 'naPhaseCell',
+  },
+  {
+    id: 'PHASE_COMPLETION_UNAVAILABLE', axis: 'PHASE', group: 'NOTE', label: 'Thiếu dữ liệu hoàn thành', precedence: 60, defaultEnabled: true, core: true,
+    meaning: 'Không có dữ liệu story/subtask tại asOf (quá thời hạn lưu trữ) — không xác định được pha đã xong hay chưa.',
+    formula: 'Không có dữ liệu hoàn thành pha cho Epic tại asOf',
+  },
+] as const satisfies readonly BadgeDefinition[];
+
+export type BadgeId = (typeof BADGES)[number]['id'];
+
+/** Widened view for UI code that reads optional fields (legacySource, core). */
+export const BADGE_LIST: readonly BadgeDefinition[] = BADGES;
+
+export const BADGE_BY_ID: ReadonlyMap<BadgeId, BadgeDefinition> = new Map(BADGES.map((badge) => [badge.id, badge]));
+
+/** Resolver: while `when` is active, each badge in `suppress` is still returned but marked suppressed. */
+export const SUPPRESSIONS: readonly { when: BadgeId; suppress: readonly BadgeId[] }[] = [
+  { when: 'CNTT_NOT_APPLICABLE', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH'] },
+  { when: 'CNTT_CALC_BROKEN', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH'] },
+  { when: 'SCOPE_CNTT_OUT', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH'] },
+  { when: 'CNTT_STATUS_MISMATCH', suppress: ['CNTT_PASS'] },
+  { when: 'E2E_CALC_BROKEN', suppress: ['E2E_FAIL', 'E2E_PASS'] },
+];
+
+/** TTM-Index / QA-Index membership — not badges; aggregates only count these flags. */
+export const INDEX_MEMBERSHIP_RULES: { index: 'TTM-Index' | 'QA-Index'; flag: string; formula: string }[] = [
+  { index: 'TTM-Index', flag: 'Tính (counted)', formula: 'không Cancelled  VÀ  không "Ngoài phạm vi TTM-CNTT"' },
+  { index: 'TTM-Index', flag: 'Mẫu số (eligible)', formula: 'counted  VÀ  có R4G (kể cả ngày tương lai)  VÀ  không có badge Cảnh báo của axis Chất lượng dữ liệu' },
+  { index: 'TTM-Index', flag: 'Đạt (pass)', formula: 'eligible  VÀ  có badge "Đạt TTM-CNTT" (Epic "Sai Status" hoặc R4G chưa tới: trong mẫu số, không Đạt)' },
+  { index: 'TTM-Index', flag: 'Fail', formula: 'counted  VÀ  có "Fail TTM-CNTT"' },
+  { index: 'QA-Index', flag: 'Tính / Mẫu số / Đạt / Fail', formula: 'Như TTM-Index, thêm status ∈ {MVP DONE, RELEASED} và thay "Ngoài phạm vi TTM-CNTT" bằng "Ngoài phạm vi QA"' },
+];
+
+export const INDEX_PERCENT_FORMULA = 'Index % = Đạt / Mẫu số × 100.  Nếu Mẫu số = 0: (Tính − Fail) / Tính × 100;  không có Epic nào: 100.';
+
+export function badgesOf(axis: ScoringAxis, group: FindingGroup): BadgeDefinition[] {
+  return BADGE_LIST.filter((badge) => badge.axis === axis && badge.group === group).sort((a, b) => a.precedence - b.precedence);
+}

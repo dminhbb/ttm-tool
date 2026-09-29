@@ -12,6 +12,9 @@ import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
 import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import { EpicAlertTimeline } from '@/components/epic-alerts/EpicAlertTimeline';
 import { DataAnomalyBadge, DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
+import { hasScoringExtraBadges, ScoringExtraBadges } from '@/components/epic-alerts/ScoringBadges';
+import { alertFilterOptionsFor, isTtmCnttAchieved, isTtmE2eAchieved, matchesAlertFilter } from '@/lib/epic-row-verdicts';
+import type { AlertFilterValue } from '@/lib/epic-row-verdicts';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import type { EpicAlertAccessRole, EpicAlertPhasedResponse, EpicAlertRowPhased, PhaseCell } from '@/lib/epic-alert-types';
 import type { EpicMilestoneHistoryEntry } from '@/lib/epic-milestone-history-service';
@@ -57,50 +60,6 @@ function formatDateTime(value: string | null): string {
   const hour = String(date.getHours()).padStart(2, '0');
   const minute = String(date.getMinutes()).padStart(2, '0');
   return `${day}/${month}/${date.getFullYear()} ${hour}:${minute}`;
-}
-
-type AlertFilterValue = AlertLevel | 'FAIL_E2E' | 'ACHIEVED_CNTT' | 'ACHIEVED_E2E' | 'STATUS_MISMATCH' | 'DATA_ANOMALY' | 'WAITING_GOLIVE' | 'RELEASE_EARLY' | 'JUSTIFY_GOLIVE' | '';
-
-const ALERT_FILTER_OPTIONS: { label: string; value: AlertFilterValue }[] = [
-  { label: 'Tất cả nhận xét', value: '' },
-  { label: 'Đạt TTM-CNTT', value: 'ACHIEVED_CNTT' },
-  { label: 'Đạt TTM-E2E', value: 'ACHIEVED_E2E' },
-  { label: 'Cảnh báo sớm', value: 'EARLY' },
-  { label: 'Cảnh báo muộn', value: 'LATE' },
-  { label: 'Fail TTM-CNTT', value: 'FAIL' },
-  { label: 'Fail TTM-E2E', value: 'FAIL_E2E' },
-  { label: 'Sai Status', value: 'STATUS_MISMATCH' },
-  { label: 'Sai lệch dữ liệu', value: 'DATA_ANOMALY' },
-  { label: 'Chờ golive', value: 'WAITING_GOLIVE' },
-  { label: 'Cảnh báo sớm Release', value: 'RELEASE_EARLY' },
-  { label: 'Giải trình Golive', value: 'JUSTIFY_GOLIVE' },
-];
-
-/**
- * "Lọc Nhận xét" (formerly "Cảnh báo") — matches the same "Nhận xét" badges rendered in the table
- * (see the Nhận xét TD below): FAIL_E2E, ACHIEVED_CNTT, ACHIEVED_E2E, STATUS_MISMATCH,
- * DATA_ANOMALY, WAITING_GOLIVE, RELEASE_EARLY and JUSTIFY_GOLIVE are sentinel values layered on top
- * of the raw AlertLevel values (EARLY/LATE/FAIL) already used elsewhere (sorting, stat widgets). A
- * "Sai Status" row never also matches ACHIEVED_CNTT — see resolveTtmCnttStatusMismatch in
- * epic-alert-service.ts, which only ever flags status mismatch when the underlying axis is
- * objectively on schedule (alertLevel NONE). "Đạt TTM-E2E" (2026-09-24 rule) requires status
- * Released, not just an on-schedule R4G Date — see resolveTtmE2eRelease's own doc comment.
- */
-function matchesAlertFilter(row: EpicAlertRowPhased, alertFilter: AlertFilterValue): boolean {
-  switch (alertFilter) {
-    case '': return true;
-    case 'FAIL_E2E': return row.ttmE2eAlertLevel === 'FAIL';
-    case 'ACHIEVED_CNTT': return row.ttmCnttInScope && row.alertLevel === 'NONE' && Boolean(row.r4gDate) && !row.ttmCnttStatusMismatch && row.ttmActualToDate === row.r4gDate;
-    case 'ACHIEVED_E2E': return row.ttmE2eAlertLevel === 'NONE' && normalizeEpicWorkflowStatus(row.currentStatus) === 'RELEASED' && Boolean(row.r4gDate) && row.ttmE2eActualToDate === row.r4gDate;
-    case 'STATUS_MISMATCH': return row.ttmCnttInScope && row.ttmCnttStatusMismatch;
-    case 'DATA_ANOMALY': return row.hasDataAnomaly;
-    case 'WAITING_GOLIVE': return row.releaseAxisState === 'WAITING_GOLIVE';
-    case 'RELEASE_EARLY': return row.releaseAxisState === 'EARLY_WARNING';
-    case 'JUSTIFY_GOLIVE': return row.releaseAxisState === 'JUSTIFY_GOLIVE';
-    // FAIL/LATE/EARLY/NONE — every one of them is a TTM-CNTT-axis label, so an out-of-scope row
-    // (whose Nhận xét cell shows "Ngoài phạm vi TTM-CNTT" instead) must never match any of them.
-    default: return row.ttmCnttInScope && row.alertLevel === alertFilter;
-  }
 }
 
 const ACCESS_ROLE_LABEL: Record<EpicAlertAccessRole, string> = {
@@ -775,7 +734,7 @@ export default function EpicInPoPage() {
           value={alertFilter}
           onChange={(event) => { setAlertFilter(event.target.value as AlertFilterValue); setPage(1); }}
         >
-          {ALERT_FILTER_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          {alertFilterOptionsFor(data?.engineMode).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
         <select
           className={`ttm-select${typeFilter ? ' has-filter' : ''}`}
@@ -969,16 +928,16 @@ export default function EpicInPoPage() {
                         // ttmActualToDate only equals r4gDate once it's chronological AND <= today (see
                         // resolveTtmActualRange); a future-dated R4G Date (still "in progress") must not
                         // be praised as achieved just because it exists.
-                        const isTtmCnttAchieved = !row.ttmCnttStatusMismatch && row.alertLevel === 'NONE' && Boolean(row.r4gDate) && row.ttmActualToDate === row.r4gDate;
+                        const ttmCnttAchieved = isTtmCnttAchieved(row);
                         // "Đạt TTM-E2E" (2026-09-24 rule): status Released AND T0→R4G Date on schedule —
                         // see resolveTtmE2eRelease's doc comment for why status alone isn't derived there.
-                        const isTtmE2eAchieved = row.ttmE2eAlertLevel === 'NONE' && normalizeEpicWorkflowStatus(row.currentStatus) === 'RELEASED' && Boolean(row.r4gDate) && row.ttmE2eActualToDate === row.r4gDate;
+                        const ttmE2eAchieved = isTtmE2eAchieved(row);
                         // "Phạm vi dữ liệu cho TTM" (Cấu hình cảnh báo, 2026-09-27) — !ttmCnttInScope
                         // always wins over every other TTM-CNTT badge below.
-                        const hasCnttBadge = !row.ttmCnttInScope || row.ttmCnttStatusMismatch || row.alertLevel !== 'NONE' || isTtmCnttAchieved;
-                        const hasE2eBadge = row.ttmE2eAlertLevel === 'FAIL' || isTtmE2eAchieved;
+                        const hasCnttBadge = !row.ttmCnttInScope || row.ttmCnttStatusMismatch || row.alertLevel !== 'NONE' || ttmCnttAchieved;
+                        const hasE2eBadge = row.ttmE2eAlertLevel === 'FAIL' || ttmE2eAchieved;
                         const hasReleaseBadge = row.releaseAxisState !== 'NONE';
-                        const hasAnyBadge = hasCnttBadge || hasE2eBadge || hasReleaseBadge || row.hasDataAnomaly;
+                        const hasAnyBadge = hasCnttBadge || hasE2eBadge || hasReleaseBadge || row.hasDataAnomaly || hasScoringExtraBadges(row);
 
                         return (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
@@ -996,13 +955,13 @@ export default function EpicInPoPage() {
                               <span className="ttm-badge late-warning">Cảnh báo muộn</span>
                             ) : row.alertLevel === 'EARLY' ? (
                               <span className="ttm-badge early-warning">Cảnh báo sớm</span>
-                            ) : isTtmCnttAchieved ? (
+                            ) : ttmCnttAchieved ? (
                               <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT đúng hạn theo rule">Đạt TTM-CNTT</span>
                             ) : null}
 
                             {row.ttmE2eAlertLevel === 'FAIL' ? (
                               <span className="ttm-badge fail-e2e">Fail TTM-E2E</span>
-                            ) : isTtmE2eAchieved ? (
+                            ) : ttmE2eAchieved ? (
                               <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-E2E đúng hạn theo rule (T0 → R4G Date) và đã Released">Đạt TTM-e2e</span>
                             ) : null}
 
@@ -1021,6 +980,8 @@ export default function EpicInPoPage() {
                             ) : null}
 
                             {!hasAnyBadge && <span className="ttm-empty-warning">—</span>}
+
+                            <ScoringExtraBadges row={row} />
 
                             {row.hasDataAnomaly && <DataAnomalyBadge violations={row.dataAnomalyViolations} />}
                           </div>

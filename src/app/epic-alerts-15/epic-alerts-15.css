@@ -397,6 +397,9 @@
    (see resolveTtmCnttStatusMismatch in epic-alert-service.ts). Deliberately its own violet tone,
    distinct from fail (orange/yellow/red) and achieved (blue). */
 .ttm-badge.status-mismatch { background: #6b5b95; color: var(--ttm-white); cursor: help; }
+/* Epic Scoring Service — group "Khuyến nghị" (Pending lâu, Khuyến nghị (n)). */
+.ttm-badge.recommendation { background: rgb(124 58 237 / 0.12); color: #6d28d9; border: 1px solid rgb(124 58 237 / 0.35); cursor: help; }
+:root[data-theme="dark"] .ttm-badge.recommendation { background: rgb(167 139 250 / 0.16); color: #c4b5fd; border-color: rgb(167 139 250 / 0.4); }
 .ttm-badge.out-of-scope { background: var(--ttm-neutral-100); color: var(--ttm-neutral-600); border: 1px solid var(--ttm-neutral-300); cursor: help; }
 /* "Trục Release" badges (resolveReleaseAxis, epic-alert-service.ts) — waiting-golive is neutral
    (nothing wrong yet), justify-golive is a stronger escalation tone than fail-cntt/fail-e2e since

@@ -20,8 +20,7 @@ import { findActiveTtmPolicy, listTtmPolicies } from './ttm-policy-service';
 import { ADAPTER_TYPES, DEFAULT_ADAPTER, type AdapterType } from './adapters/index';
 import { parsePyJiraApi } from './adapters/py-jira-api-adapter';
 import { parsePureJiraExport } from './adapters/pure-jira-export-adapter';
-import { refreshTtmIndexGlobalCache } from './ttm-index-global-cache-service';
-import { refreshEpicAlertRowCache } from './epic-alert-row-cache-service';
+import { refreshDerivedCaches } from './daily-cache-service';
 
 // See the write-loop this guards, near the bottom of aggregateBatchData.
 const MILESTONE_RECORDING_ENABLED = false;
@@ -661,22 +660,15 @@ export async function processImport(
 
     await client.query('COMMIT');
 
-    // Refresh the company-wide TTM-Index/QA-Index cache now that the new data is committed and
-    // visible — must run via the shared pool, after COMMIT, since `client`'s transaction is the
-    // only connection that could see this batch's rows before commit. Never lets a cache-refresh
-    // failure fail an otherwise-successful import.
+    // Refresh the derived caches (company-wide TTM-Index/QA-Index + "Quản trị Epic" rows + the
+    // Scoring Service's shadow scorecards) now that the new data is committed and visible — must run
+    // via the shared pool, after COMMIT, since `client`'s transaction is the only connection that
+    // could see this batch's rows before commit. One unscoped recompute feeds every cache (see
+    // refreshDerivedCaches). Never lets a cache-refresh failure fail an otherwise-successful import.
     try {
-      await refreshTtmIndexGlobalCache(batchId);
+      await refreshDerivedCaches(batchId);
     } catch (cacheError) {
-      console.error('Failed to refresh TTM index global cache after import:', cacheError);
-    }
-
-    // Same rationale as above: pre-computes "Quản trị Epic" rows (alertLevel/hasDataAnomaly/stages/
-    // etc.) once here instead of on every page view — see epic-alert-row-cache-service.ts.
-    try {
-      await refreshEpicAlertRowCache(batchId);
-    } catch (cacheError) {
-      console.error('Failed to refresh Epic alert row cache after import:', cacheError);
+      console.error('Failed to refresh derived caches after import:', cacheError);
     }
 
     return {

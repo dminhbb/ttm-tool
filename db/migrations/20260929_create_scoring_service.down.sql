@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS scoring_parity_runs;
+DROP INDEX IF EXISTS idx_epic_alert_row_cache_index_flags;
+DROP INDEX IF EXISTS idx_epic_alert_row_cache_badge_codes;
+ALTER TABLE epic_alert_row_cache DROP COLUMN IF EXISTS scored_as_of;
+ALTER TABLE epic_alert_row_cache DROP COLUMN IF EXISTS scoring_ruleset_version;
+ALTER TABLE epic_alert_row_cache DROP COLUMN IF EXISTS findings;
+ALTER TABLE epic_alert_row_cache DROP COLUMN IF EXISTS index_flags;
+ALTER TABLE epic_alert_row_cache DROP COLUMN IF EXISTS badge_codes;
+DROP TABLE IF EXISTS scoring_rule_settings;
+DROP TABLE IF EXISTS scoring_parameters;

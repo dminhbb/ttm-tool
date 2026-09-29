@@ -2,6 +2,8 @@ import { getClient } from '@/lib/db';
 import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
 import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
 import { ALERT_RANK, bottomStatusRankOf } from '@/lib/epic-alert-sort-rules';
+import { badgeCodesOf, indexFlagsOf } from '@/lib/scoring/select';
+import type { EpicScorecard } from '@/lib/scoring/types';
 
 /**
  * Recomputes and caches the full "Quản trị Epic" (đầy đủ) row set — permission-unscoped, newest
@@ -19,11 +21,13 @@ import { ALERT_RANK, bottomStatusRankOf } from '@/lib/epic-alert-sort-rules';
 const INSERT_CHUNK_SIZE = 200;
 /** Arbitrary constant key for pg_advisory_xact_lock — unique to this cache's rebuild. */
 const EPIC_ALERT_ROW_CACHE_LOCK_KEY = 7_260_925;
-const INSERT_COLUMN_COUNT = 19;
+const INSERT_COLUMN_COUNT = 24;
 
 /** `precomputedRows` — same as refreshTtmIndexGlobalCache's: lets refreshDerivedCaches
- * (daily-cache-service.ts) compute the unscoped row set once for both caches. */
-export async function refreshEpicAlertRowCache(batchId: number | null, precomputedRows?: EpicAlertRowPhased[]): Promise<void> {
+ * (daily-cache-service.ts) compute the unscoped row set once for both caches. `scorecards` — the
+ * Scoring Service's shadow result (see scoring-run-service.ts), stored in the badge_codes/
+ * index_flags/findings columns next to the legacy row; an Epic without one keeps the column defaults. */
+export async function refreshEpicAlertRowCache(batchId: number | null, precomputedRows?: EpicAlertRowPhased[], scorecards?: ReadonlyMap<string, EpicScorecard> | null): Promise<void> {
   const rows = precomputedRows ?? (await getEpicAlertRowsPhased(0, 'SUPERVISOR', {})).rows;
   // Last row per epic_key wins — same outcome the previous row-by-row ON CONFLICT upsert gave,
   // but a single multi-row INSERT can't touch the same key twice, so dedupe up front.
@@ -65,10 +69,11 @@ export async function refreshEpicAlertRowCache(batchId: number | null, precomput
           row.remainingWorkingDays ?? 2147483647,
           row.ttmCnttInScope,
           row.qaInScope,
+          ...scorecardColumns(scorecards?.get(row.epicKey)),
         );
         const base = params.length - INSERT_COLUMN_COUNT;
         const p = (index: number) => `$${base + index}`;
-        return `(${p(1)}, ${p(2)}, ${p(3)}, ${p(4)}, ${p(5)}, ${p(6)}, ${p(7)}, ${p(8)}, ${p(9)}, ${p(10)}, ${p(11)}, ${p(12)}, ${p(13)}, ${p(14)}, NOW(), ${p(15)}, ${p(16)}, ${p(17)}, ${p(18)}, ${p(19)})`;
+        return `(${p(1)}, ${p(2)}, ${p(3)}, ${p(4)}, ${p(5)}, ${p(6)}, ${p(7)}, ${p(8)}, ${p(9)}, ${p(10)}, ${p(11)}, ${p(12)}, ${p(13)}, ${p(14)}, NOW(), ${p(15)}, ${p(16)}, ${p(17)}, ${p(18)}, ${p(19)}, ${p(20)}, ${p(21)}, ${p(22)}, ${p(23)}, ${p(24)})`;
       });
       await client.query(
         `
@@ -77,7 +82,8 @@ export async function refreshEpicAlertRowCache(batchId: number | null, precomput
           components, alert_level, ttm_e2e_alert_level, has_data_anomaly, remaining_working_days,
           epic_name, row_data, source_import_batch_id, computed_at,
           alert_rank, bottom_status_rank, remaining_working_days_rank,
-          ttm_cntt_in_scope, qa_in_scope
+          ttm_cntt_in_scope, qa_in_scope,
+          badge_codes, index_flags, findings, scoring_ruleset_version, scored_as_of
         ) VALUES ${valuesSql.join(', ')};
         `,
         params,
@@ -90,6 +96,11 @@ export async function refreshEpicAlertRowCache(batchId: number | null, precomput
   } finally {
     client.release();
   }
+}
+
+function scorecardColumns(card: EpicScorecard | undefined): unknown[] {
+  if (!card) return [[], [], '[]', null, null];
+  return [badgeCodesOf(card), indexFlagsOf(card), JSON.stringify(card.findings), card.rulesetVersion, card.asOf];
 }
 
 function ownerNamesOf(row: EpicAlertRowPhased): string[] {

@@ -2,6 +2,9 @@ import pool from '@/lib/db';
 import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
 import { refreshEpicAlertRowCache } from '@/lib/epic-alert-row-cache-service';
 import { refreshTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
+import { runShadowScoring } from '@/lib/scoring-run-service';
+import { getStoredScoringEngineMode } from '@/lib/scoring-mode-service';
+import { projectRows } from '@/lib/scoring/projection';
 
 /**
  * "Caching dữ liệu trong ngày": epic_alert_row_cache / ttm_index_global_cache are normally rebuilt
@@ -101,8 +104,15 @@ export async function claimDailyCacheRun(userId: number): Promise<string | null>
  * expensive part), instead of each refresher recomputing it on its own. Returns the Epic count. */
 export async function refreshDerivedCaches(batchId: number | null): Promise<number> {
   const { rows } = await getEpicAlertRowsPhased(0, 'SUPERVISOR', {});
-  await refreshTtmIndexGlobalCache(batchId, rows);
-  await refreshEpicAlertRowCache(batchId, rows);
+  // Epic Scoring Service in shadow mode: stored next to the legacy row + compared against it
+  // (scoring_parity_runs). Returns null on failure — the legacy cache is still rebuilt.
+  const scorecards = await runShadowScoring(rows);
+  // Display engine 'scoring' (M4): the caches store the rows with the Scoring Service's verdicts
+  // projected on — every cache reader (Quản trị Epic, TTM-Index, Dashboard) then shows them. If
+  // shadow scoring failed, fall back to the legacy rows rather than leaving the caches stale.
+  const displayRows = scorecards && (await getStoredScoringEngineMode()) === 'scoring' ? projectRows(rows, scorecards) : rows;
+  await refreshTtmIndexGlobalCache(batchId, displayRows);
+  await refreshEpicAlertRowCache(batchId, displayRows, scorecards);
   const count = await pool.query<{ n: number }>('SELECT count(*)::int AS n FROM epic_alert_row_cache;');
   return count.rows[0]?.n ?? 0;
 }

@@ -5,6 +5,8 @@ import { LIST_GROUP_RANK_SQL } from '@/lib/epic-alert-sort-rules';
 import type { DashboardEpicRow, EpicAlertRowPhased } from '@/lib/epic-alert-types';
 import { summarizeTtmCnttFromCounts } from '@/lib/ttm-cntt-qa';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
+import { FILTER_PRESETS } from '@/lib/scoring/select';
+import type { ScoringEngineMode } from '@/lib/scoring-mode-service';
 
 /**
  * Server-side filter/sort/pagination reads for "Quản trị Epic" (đầy đủ), backed by
@@ -25,6 +27,9 @@ export interface EpicAlertRowCacheFilters {
   dataIssueOnly?: boolean;
   requestingUnit?: string;
   search?: string;
+  /** 'scoring' → the "Nhận xét" filter matches badge_codes (Epic Scoring Service) instead of
+   * re-deriving each verdict from the legacy columns. */
+  engineMode?: ScoringEngineMode;
 }
 
 export interface EpicAlertRowCachePage {
@@ -107,10 +112,20 @@ function buildFilterClause(scope: AccessScope, filters: EpicAlertRowCacheFilters
     params.push(`%${filters.search}%`);
     clauses.push(`(epic_key ILIKE $${params.length} OR epic_name ILIKE $${params.length})`);
   }
-  const alertClause = buildAlertFilterClause(filters.alertFilter, params);
+  const alertClause = filters.engineMode === 'scoring' ? buildBadgeFilterClause(filters.alertFilter, params) : buildAlertFilterClause(filters.alertFilter, params);
   if (alertClause) clauses.push(alertClause);
 
   return { sql: clauses.join(' AND '), params };
+}
+
+/** Scoring engine: a "Nhận xét" filter value is a set of badge codes (FILTER_PRESETS); a value with
+ * no preset (e.g. the removed "Cảnh báo sớm") matches nothing. */
+function buildBadgeFilterClause(alertFilter: string | undefined, params: unknown[]): string | null {
+  if (!alertFilter) return null;
+  const badges = FILTER_PRESETS[alertFilter];
+  if (!badges?.length) return 'FALSE';
+  params.push([...badges]);
+  return `badge_codes && $${params.length}::text[]`;
 }
 
 /** Mirrors matchesAlertFilter in epic-alerts-15/page.tsx exactly — see that function's doc comment
@@ -213,9 +228,10 @@ export async function queryEpicAlertStatCounts(scope: AccessScope, filters: Epic
 /** TTM-Index (PM)/QA-Index (PM) — same ratio as summarizeTtmCntt (ttm-cntt-qa.ts), computed as a
  * SQL aggregate over every Epic in the viewer's access scope (unfiltered by their toolbar
  * selections, per that badge's own contract) instead of hydrating rows into JS. */
-export async function queryTtmQaIndexPm(scope: AccessScope): Promise<{ ttm: TtmCnttSummary; qa: TtmCnttSummary }> {
+export async function queryTtmQaIndexPm(scope: AccessScope, engineMode: ScoringEngineMode = 'legacy'): Promise<{ ttm: TtmCnttSummary; qa: TtmCnttSummary }> {
   const params: unknown[] = [];
   const accessClause = buildAccessScopeClause(scope, params);
+  if (engineMode === 'scoring') return queryScoringIndexPm(accessClause, params);
   const result = await pool.query<{
     ttmFail: string; ttmEligible: string; ttmPass: string; ttmTotal: string;
     qaFail: string; qaEligible: string; qaPass: string; qaTotal: string;
@@ -238,6 +254,20 @@ export async function queryTtmQaIndexPm(scope: AccessScope): Promise<{ ttm: TtmC
   return {
     ttm: summarizeTtmCnttFromCounts(Number(row?.ttmEligible ?? 0), Number(row?.ttmPass ?? 0), Number(row?.ttmFail ?? 0), Number(row?.ttmTotal ?? 0)),
     qa: summarizeTtmCnttFromCounts(Number(row?.qaEligible ?? 0), Number(row?.qaPass ?? 0), Number(row?.qaFail ?? 0), Number(row?.qaTotal ?? 0)),
+  };
+}
+
+/** Scoring engine: TTM-/QA-Index counts straight from each Epic's index_flags (scoring/select.ts
+ * indexFlagsOf) — "Đạt" is exactly the "Đạt TTM-CNTT" badge (decision D1). */
+async function queryScoringIndexPm(accessClause: string, params: unknown[]): Promise<{ ttm: TtmCnttSummary; qa: TtmCnttSummary }> {
+  const count = (flag: string) => `count(*) FILTER (WHERE index_flags @> ARRAY['${flag}'])::text AS "${flag}"`;
+  const flags = ['TTM_COUNTED', 'TTM_ELIGIBLE', 'TTM_PASS', 'TTM_FAIL', 'QA_COUNTED', 'QA_ELIGIBLE', 'QA_PASS', 'QA_FAIL'];
+  const result = await pool.query<Record<string, string>>(`SELECT ${flags.map(count).join(', ')} FROM epic_alert_row_cache WHERE ${accessClause};`, params);
+  const row = result.rows[0] ?? {};
+  const n = (flag: string) => Number(row[flag] ?? 0);
+  return {
+    ttm: summarizeTtmCnttFromCounts(n('TTM_ELIGIBLE'), n('TTM_PASS'), n('TTM_FAIL'), n('TTM_COUNTED')),
+    qa: summarizeTtmCnttFromCounts(n('QA_ELIGIBLE'), n('QA_PASS'), n('QA_FAIL'), n('QA_COUNTED')),
   };
 }
 

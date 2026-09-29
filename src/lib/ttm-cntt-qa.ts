@@ -44,7 +44,29 @@ export function formatTtmPct1(value: number): string {
   return PERCENT_1_DECIMAL_FORMATTER.format(value);
 }
 
-export function summarizeTtmCntt(rows: Pick<EpicAlertRowPhased, 'alertLevel' | 'currentStatus' | 'hasDataAnomaly' | 'r4gDate' | 'ttmCnttInScope'>[]): TtmCnttSummary {
+/** Epic Scoring Service rows carry their Index membership precomputed (scoring/select.ts
+ * indexFlagsOf) — "Đạt" then means exactly the "Đạt TTM-CNTT" badge (decision D1), so the counts
+ * come from those flags instead of the legacy alertLevel formula below. */
+function countFromScoringFlags(rows: Pick<EpicAlertRowPhased, 'scoringIndexFlags'>[], prefix: 'TTM' | 'QA'): TtmCnttSummary | null {
+  if (!rows.length || rows.some((row) => !row.scoringIndexFlags)) return null;
+  let eligible = 0;
+  let pass = 0;
+  let fail = 0;
+  let total = 0;
+  for (const row of rows) {
+    const flags = row.scoringIndexFlags ?? [];
+    if (!flags.includes(`${prefix}_COUNTED`)) continue;
+    total += 1;
+    if (flags.includes(`${prefix}_FAIL`)) fail += 1;
+    if (flags.includes(`${prefix}_ELIGIBLE`)) eligible += 1;
+    if (flags.includes(`${prefix}_PASS`)) pass += 1;
+  }
+  return summarizeTtmCnttFromCounts(eligible, pass, fail, total);
+}
+
+export function summarizeTtmCntt(rows: Pick<EpicAlertRowPhased, 'alertLevel' | 'currentStatus' | 'hasDataAnomaly' | 'r4gDate' | 'scoringIndexFlags' | 'ttmCnttInScope'>[]): TtmCnttSummary {
+  const scored = countFromScoringFlags(rows, 'TTM');
+  if (scored) return scored;
   let eligible = 0;
   let pass = 0;
   let fail = 0;
@@ -70,7 +92,9 @@ export function summarizeTtmCntt(rows: Pick<EpicAlertRowPhased, 'alertLevel' | '
 /** Same shape as summarizeTtmCntt, for the QA-Index ratio: scoped to MVP Done/Released status
  * (isTtmCnttQaInScope) AND the "R4G for TTM (QA)" gate (row.qaInScope) instead of ttmCnttInScope —
  * the two date-range gates are independent (see ttm-scope-rules.ts). */
-export function summarizeQaIndex(rows: Pick<EpicAlertRowPhased, 'alertLevel' | 'currentStatus' | 'hasDataAnomaly' | 'qaInScope' | 'r4gDate'>[]): TtmCnttSummary {
+export function summarizeQaIndex(rows: Pick<EpicAlertRowPhased, 'alertLevel' | 'currentStatus' | 'hasDataAnomaly' | 'qaInScope' | 'r4gDate' | 'scoringIndexFlags'>[]): TtmCnttSummary {
+  const scored = countFromScoringFlags(rows, 'QA');
+  if (scored) return scored;
   let eligible = 0;
   let pass = 0;
   let fail = 0;

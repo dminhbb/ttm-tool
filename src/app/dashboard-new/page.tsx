@@ -31,6 +31,7 @@ import { DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
 import { compareValues, useSortableList } from '@/lib/use-sortable-list';
 import { formatTtmPct1, summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
+import { isTtmIndexEligible, isTtmIndexPass } from '@/lib/epic-row-verdicts';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import { computeQaInScope, computeTtmCnttInScope } from '@/lib/ttm-scope-rules';
 import { buildEpicAlertsDeepLink } from '@/lib/epic-alerts-deep-link';
@@ -59,7 +60,7 @@ function computeDimensionDonuts(
 
     // Pass TTM-CNTT (pm): trong phạm vi dữ liệu TTM (ttmCnttInScope), có R4G Date, không có data
     // anomaly, alertLevel === 'NONE'.
-    if (row.ttmCnttInScope && row.r4gDate && !row.hasDataAnomaly && row.alertLevel === 'NONE') {
+    if (isTtmIndexPass(row)) {
       passMap.set(key, (passMap.get(key) ?? 0) + 1);
     }
 
@@ -348,6 +349,8 @@ export default function DashboardNewPage() {
   // Executive Metrics. TTM-CNTT-specific numbers (eligibleTtm/passTtm/failCntt/ttmHealthPct) come
   // from the shared summarizeTtmCntt helper so this stays byte-for-byte the same ratio as the
   // TTM-CNTT-QA metrics below and as dashboard-service.ts's achievedTtmCount/achievedTtmEligibleCount.
+  // Epic Scoring Service rows (display engine 'scoring') have no "Cảnh báo sớm" any more (D4).
+  const isScoringEngine = useMemo(() => filteredRows.some((row) => Boolean(row.scoringBadges)), [filteredRows]);
   const executiveMetrics = useMemo(() => {
     const total = filteredRows.length;
     let failE2e = 0;
@@ -478,7 +481,7 @@ export default function DashboardNewPage() {
       // outside the configured TTM scope lands in NEITHER — same "not counted anywhere TTM-CNTT"
       // treatment as its Nhận xét badge on Quản trị Epic — only possible once an admin has actually
       // narrowed the default (unbounded) scope.
-      const isQldaJudged = Boolean(row.ttmCnttInScope && row.r4gDate && !row.hasDataAnomaly);
+      const isQldaJudged = isTtmIndexEligible(row);
       if (row.ttmCnttInScope && !isQldaJudged) {
         if (row.alertLevel === 'FAIL' || row.alertLevel === 'LATE') curr.late += 1;
         else curr.ok += 1;
@@ -721,7 +724,7 @@ export default function DashboardNewPage() {
       </button>
 
       <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 shadow-xs">
-        <p className="text-[10px] font-bold uppercase text-status-warning">Cảnh báo (Sớm/Muộn)</p>
+        <p className="text-[10px] font-bold uppercase text-status-warning">{isScoringEngine ? 'Cảnh báo muộn' : 'Cảnh báo (Sớm/Muộn)'}</p>
         <p className="mt-1 text-xl font-extrabold text-status-warning">{executiveMetrics.lateWarning + executiveMetrics.earlyWarning}</p>
         <p className="text-[10px] text-amber-700 font-medium">
           <button
@@ -732,15 +735,15 @@ export default function DashboardNewPage() {
           >
             {executiveMetrics.lateWarning} muộn
           </button>
-          {' · '}
-          <button
+          {!isScoringEngine && ' · '}
+          {!isScoringEngine && <button
             type="button"
             onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'EARLY' }), 'Danh sách Epic - Cảnh báo sớm')}
             className="underline-offset-2 hover:underline cursor-pointer font-bold"
             title="Xem danh sách Epic Cảnh báo sớm ở Quản trị Epic"
           >
             {executiveMetrics.earlyWarning} sớm
-          </button>
+          </button>}
         </p>
       </div>
 

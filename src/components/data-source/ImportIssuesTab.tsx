@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ADAPTER_TYPES, DEFAULT_ADAPTER, ADAPTER_LABELS, type AdapterType } from '@/lib/adapters/index';
 import { AggregatedDataLayersPanel } from '@/components/data-source/AggregatedDataLayersPanel';
 import { CacheStatusPanel } from '@/components/data-source/CacheStatusPanel';
+import { ScoringParityPanel } from '@/components/data-source/ScoringParityPanel';
 import { CompleteDataPanel } from '@/components/data-source/CompleteDataPanel';
 import { FileDropzone } from '@/components/data-source/FileDropzone';
 import { PurgeRecentLayersPanel } from '@/components/data-source/PurgeRecentLayersPanel';
@@ -564,6 +565,8 @@ export function ImportIssuesTab() {
           <AggregatedDataLayersPanel />
 
           <CacheStatusPanel />
+
+          <ScoringParityPanel />
         </div>
 
         <RightPanel

@@ -79,6 +79,27 @@ Like the version-stamp rule above, this applies no matter which coding agent is 
 Claude Code, Codex, Cursor, Antigravity, a human, whatever reads this file — since the point is one
 reliable running log that every environment and every agent can trust and add to.
 
+# Epic Scoring Service — where Epic rules live
+
+Every rule that judges an Epic (TTM-CNTT, TTM-E2E, Release, data quality, "Phạm vi", phases,
+TTM-Index/QA-Index membership) belongs in `src/lib/scoring/` — see
+`docs/superpowers/specs/2026-09-29-scoring-service-design.md`. Badges (Axis → Finding Group → Badge)
+are declared once in `src/lib/scoring/catalog.ts`; the "Logic cảnh báo" popup renders from it.
+
+- Add/change/remove a rule in `src/lib/scoring/rules/*` + `catalog.ts` (+ `registry.ts`), bump
+  `SCORING_CODE_VERSION`, and run `npm test`.
+- The core is pure: no `@/lib/db`, no system clock — "now" is always `ScoringContext.asOf` (lint-enforced).
+- Display engine switch (M4): `scoring_engine_settings.mode` ('legacy' | 'scoring', SUPERADMIN toggles it
+  in Quản trị nguồn dữ liệu → "Đối chiếu Scoring Service"). In 'scoring', `scoring/projection.ts` overwrites
+  the verdict fields of each legacy row, so screens keep reading `EpicAlertRowPhased`. Screens/APIs must get
+  Epic rows via `getEpicAlertRowsForDisplay` (not `getEpicAlertRowsPhased`) and judge "Đạt"/filters via
+  `src/lib/epic-row-verdicts.ts`. Anything written to shared caches follows `getStoredScoringEngineMode()`;
+  `SCORING_ENGINE_MODE` in `.env.local` only overrides what one machine displays.
+- The legacy engine (`epic-alert-service.ts`, `epic-alert-phase-service.ts`, `epic-data-anomaly.ts`,
+  `ttm-rules.ts`…) stays as the 'legacy' mode and must stay untouched until the owner approves removing it;
+  `refreshDerivedCaches` always scores in shadow and records a comparison in `scoring_parity_runs`. A new
+  difference that isn't an approved decision shows up there as "Chưa giải thích được".
+
 # Icons standard — phosphoricons.com
 
 All UI icons across the application must be imported exclusively from Phosphor Icons (`@phosphor-icons/react` from `phosphoricons.com`).

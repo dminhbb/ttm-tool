@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
-import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
+import { getEpicAlertRowsForDisplay } from '@/lib/epic-scoring-display-service';
+import { getScoringEngineMode, getStoredScoringEngineMode } from '@/lib/scoring-mode-service';
 import { parseEpicAlertFiltersFromSearchParams } from '@/lib/epic-alert-filter-params';
 import { getTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { getTtmScopeConfig } from '@/lib/ttm-scope-config-service';
@@ -71,24 +72,28 @@ export async function GET(request: NextRequest) {
       || filters.ttmScopeCnttFrom !== undefined || filters.ttmScopeCnttTo !== undefined
       || filters.ttmScopeQaFrom !== undefined || filters.ttmScopeQaTo !== undefined,
     );
-    const cacheMeta = usesAdvancedFilter ? null : await getEpicAlertRowCacheMeta();
+    // The cache holds rows built with the STORED engine; a per-machine SCORING_ENGINE_MODE override
+    // that differs from it can only be served by the live path.
+    const [engineMode, cacheEngineMode] = await Promise.all([getScoringEngineMode(), getStoredScoringEngineMode()]);
+    const cacheMeta = usesAdvancedFilter || engineMode !== cacheEngineMode ? null : await getEpicAlertRowCacheMeta();
 
     if (cacheMeta?.hasCache) {
       const header = await fetchEpicAlertHeaderContext(user.id, user.role);
-      const cacheFilters = parseCacheFilters(searchParams);
+      const cacheFilters = { ...parseCacheFilters(searchParams), engineMode };
       const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
       const pageSize = Math.min(200, Math.max(1, Number(searchParams.get('pageSize') ?? '20') || 20));
 
       const [pageResult, statCounts, ttmQaIndexPm, filterOptions, ttmIndexGlobal] = await Promise.all([
         queryEpicAlertRowCachePage(header.scope, cacheFilters, page, pageSize),
         queryEpicAlertStatCounts(header.scope, cacheFilters),
-        queryTtmQaIndexPm(header.scope),
+        queryTtmQaIndexPm(header.scope, engineMode),
         queryEpicAlertFilterOptions(header.scope),
         ttmIndexGlobalPromise,
       ]);
 
       return NextResponse.json({
         mode: 'paged',
+        engineMode,
         accessRole: header.accessRole,
         asOfDate: null,
         availableLayerDates: header.availableLayerDates,
@@ -109,7 +114,7 @@ export async function GET(request: NextRequest) {
     // Fallback: advanced date filter active, or the cache hasn't been populated yet (e.g. no
     // import has completed since this table was introduced) — recompute live, same as before.
     const [data, ttmIndexGlobal] = await Promise.all([
-      getEpicAlertRowsPhased(user.id, user.role, filters),
+      getEpicAlertRowsForDisplay(user.id, user.role, filters),
       ttmIndexGlobalPromise,
     ]);
     return NextResponse.json({ mode: 'full', ...data, ttmIndexGlobal });

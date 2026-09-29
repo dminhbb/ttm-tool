@@ -4,7 +4,9 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { getDashboardData } from '@/lib/dashboard-service';
 import { getEpicBrowserRoot } from '@/lib/epic-browser-service';
-import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
+import { getEpicAlertRowsForDisplay } from '@/lib/epic-scoring-display-service';
+import { scoreEpicByKey } from '@/lib/scoring-run-service';
+import { BADGE_BY_ID, FINDING_GROUPS, SCORING_AXES } from '@/lib/scoring/catalog';
 import { listDomains, listHolidays, listProjectComponents, listProjects } from '@/lib/master-data-service';
 import { recordMcpAccessEvent } from '@/lib/mcp-service';
 import { getReportLayerDates } from '@/lib/reports-service';
@@ -33,7 +35,7 @@ function hasRole(user: AuthUser, roles: readonly UserRole[]): boolean {
 /** Compact projection of EpicAlertRowPhased — the full row also carries per-phase baseline cells
  * (stages.*) which are UI-rendering detail an AI chatbot answer has no use for and would just
  * bloat the tool response; ask get_epic_detail for the full picture on one specific Epic. */
-function summarizeAlertRow(row: Awaited<ReturnType<typeof getEpicAlertRowsPhased>>['rows'][number]) {
+function summarizeAlertRow(row: Awaited<ReturnType<typeof getEpicAlertRowsForDisplay>>['rows'][number]) {
   return {
     alertLevel: row.alertLevel,
     currentStatus: row.currentStatus,
@@ -49,6 +51,29 @@ function summarizeAlertRow(row: Awaited<ReturnType<typeof getEpicAlertRowsPhased
     r4gDate: row.r4gDate,
     remainingWorkingDays: row.remainingWorkingDays,
     ttmE2eAlertLevel: row.ttmE2eAlertLevel,
+    // Present when the display engine is the Epic Scoring Service: active badge codes (see
+    // get_epic_detail's `danhGia` for labels/messages).
+    ...(row.scoringBadges ? { badges: row.scoringBadges } : {}),
+  };
+}
+
+/** Epic Scoring Service verdicts for one Epic, labelled from the badge catalog (active findings only). */
+async function describeScorecard(epicKey: string) {
+  const card = await scoreEpicByKey(epicKey);
+  if (!card) return null;
+  return {
+    asOf: card.asOf,
+    findings: card.findings.filter((item) => !item.suppressedBy).map((item) => {
+      const badge = BADGE_BY_ID.get(item.badge);
+      return {
+        badge: item.badge,
+        label: badge?.label ?? item.badge,
+        group: FINDING_GROUPS.find((group) => group.id === badge?.group)?.label ?? badge?.group,
+        axis: SCORING_AXES.find((axis) => axis.id === badge?.axis)?.label ?? badge?.axis,
+        ...(item.subject ? { phase: item.subject } : {}),
+        message: item.message,
+      };
+    }),
   };
 }
 
@@ -88,7 +113,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
       },
     },
     async ({ projectKey, alertLevel, search, limit }) => {
-      const { rows, lastAggregatedAt, viewerName } = await getEpicAlertRowsPhased(user.id, user.role);
+      const { rows, lastAggregatedAt, viewerName } = await getEpicAlertRowsForDisplay(user.id, user.role);
       const searchLower = search?.toLowerCase();
       const filtered = rows.filter((row) =>
         (!projectKey || row.projectKey.toLowerCase() === projectKey.toLowerCase())
@@ -110,7 +135,8 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
     'get_epic_detail',
     {
       title: 'Chi tiết một Epic',
-      description: 'Tra cứu chi tiết một Epic theo mã (epicKey) — trạng thái Jira, người phụ trách, ngày due/start/R4G, dự án.',
+      description: 'Tra cứu chi tiết một Epic theo mã (epicKey) — trạng thái Jira, người phụ trách, ngày due/start/R4G, dự án, và `danhGia`: '
+        + 'danh sách đánh giá của Scoring Service (badge, nhóm Cảnh báo/Đạt/Fail/Khuyến nghị/Ghi nhận, trục, nội dung).',
       inputSchema: {
         epicKey: z.string().trim().min(1).max(50).describe('Mã Epic trên Jira, ví dụ "TTM-1234".'),
       },
@@ -119,7 +145,8 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
       const issue = await getEpicBrowserRoot(epicKey);
       await touch();
       if (!issue) return forbidden(`Không tìm thấy Epic "${epicKey}".`);
-      return json(issue);
+      const danhGia = await describeScorecard(epicKey).catch(() => null);
+      return json({ ...issue, danhGia });
     },
   );
 

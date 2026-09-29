@@ -2,162 +2,191 @@
 
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
+import { BADGE_LIST, FINDING_GROUPS, INDEX_MEMBERSHIP_RULES, INDEX_PERCENT_FORMULA, SCORING_AXES, SUPPRESSIONS, badgesOf } from '@/lib/scoring/catalog';
+import type { BadgeDefinition, FindingGroup } from '@/lib/scoring/catalog';
 
 interface HelpPanelProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-/** Timeline diagram: T1 → mốc sớm → mốc muộn (Target), 3 zones matching the epic-alerts stage-cell colors. */
-function AlertTimelineDiagram() {
+const GROUP_TONE: Record<FindingGroup, string> = {
+  FAIL: 'bg-status-danger-soft text-status-danger border-status-danger/30',
+  ALERT: 'bg-status-warning-soft text-status-warning border-status-warning/30',
+  RECOMMENDATION: 'bg-[rgb(124_58_237/0.12)] text-[#7c3aed] border-[#7c3aed]/30',
+  PASS: 'bg-status-success-soft text-status-success border-status-success/30',
+  NOTE: 'bg-fb-surface-muted text-fb-text-secondary border-fb-border',
+};
+
+function BadgeChip({ badge }: { badge: BadgeDefinition }) {
   return (
-    <svg viewBox="0 0 640 150" role="img" aria-label="Sơ đồ mốc thời gian cảnh báo Epic" className="w-full">
-      <line x1="40" y1="70" x2="600" y2="70" stroke="#c7ccd6" strokeWidth="2" />
-      <rect x="40" y="60" width="180" height="20" fill="#eef1f7" />
-      <rect x="220" y="60" width="140" height="20" fill="#fff4cf" />
-      <rect x="360" y="60" width="240" height="20" fill="#fdeaea" />
-
-      <circle cx="40" cy="70" r="6" fill="#2f5bd6" />
-      <text x="40" y="40" fontSize="12" fontWeight="700" textAnchor="middle" fill="#1f2430">T1 (Start Date)</text>
-
-      <circle cx="220" cy="70" r="6" fill="#b77900" />
-      <text x="220" y="40" fontSize="12" fontWeight="700" textAnchor="middle" fill="#1f2430">Mốc cảnh báo sớm</text>
-      <text x="220" y="110" fontSize="10.5" textAnchor="middle" fill="#6b7280">TTM-CNTT-3: badge &quot;Cảnh báo sớm&quot;</text>
-
-      <circle cx="360" cy="70" r="6" fill="#c62828" />
-      <text x="360" y="40" fontSize="12" fontWeight="700" textAnchor="middle" fill="#1f2430">Mốc cảnh báo muộn (Target)</text>
-      <text x="360" y="110" fontSize="10.5" textAnchor="middle" fill="#6b7280">TTM-CNTT-4/5: badge &quot;Cảnh báo muộn&quot;</text>
-
-      <text x="130" y="95" fontSize="10.5" textAnchor="middle" fill="#6b7280">TTM-CNTT-1/2: &quot;Target: dd/mm/yyyy&quot;</text>
-      <text x="480" y="95" fontSize="10.5" textAnchor="middle" fill="#6b7280">Vẫn &quot;Cảnh báo muộn&quot; cho tới khi qua status</text>
-
-      <rect x="360" y="118" width="14" height="14" fill="#e6f4ea" stroke="#cfe8d6" />
-      <text x="382" y="129" fontSize="10.5" fill="#6b7280">Khi status Epic đã đi qua cột này → hiển thị icon hoàn thành (Pass), không phụ thuộc mốc ngày.</text>
-    </svg>
+    <span
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold ${GROUP_TONE[badge.group]} ${badge.defaultEnabled ? '' : 'opacity-60'}`}
+      title={badge.meaning}
+    >
+      {badge.label}
+      {!badge.defaultEnabled && <span className="font-normal">(tắt)</span>}
+    </span>
   );
 }
 
+function GroupChip({ group }: { group: FindingGroup }) {
+  const label = FINDING_GROUPS.find((item) => item.id === group)?.label ?? group;
+  return <span className={`inline-flex whitespace-nowrap rounded border px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wide ${GROUP_TONE[group]}`}>{label}</span>;
+}
+
+const badgeLabel = (id: string) => BADGE_LIST.find((badge) => badge.id === id)?.label ?? id;
+const badgeAxisLabel = (id: string) => {
+  const axis = BADGE_LIST.find((badge) => badge.id === id)?.axis;
+  return SCORING_AXES.find((item) => item.id === axis)?.label ?? '';
+};
+
+/**
+ * "Logic cảnh báo" — the Epic Scoring Service's Axis → Finding Group → Badge matrix, rendered
+ * straight from src/lib/scoring/catalog.ts (see docs/superpowers/specs/2026-09-29-scoring-service-design.md)
+ * so this help text can never drift from the catalog the service itself uses.
+ */
 export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Logic cảnh báo Epic" maxWidth="xl" footer={<Button variant="outline" onClick={onClose}>Đóng</Button>}>
-      <div className="flex flex-col gap-5 text-fb-text-secondary">
+    <Modal isOpen={isOpen} onClose={onClose} title="Logic cảnh báo Epic — Scoring Service" maxWidth="2xl" footer={<Button variant="outline" onClick={onClose}>Đóng</Button>}>
+      <div className="flex flex-col gap-6 text-sm text-fb-text-secondary">
+        <section className="rounded-md border border-status-warning/30 bg-status-warning-soft px-3 py-2 text-xs text-fb-text-primary">
+          <strong>Scoring Service.</strong> Mọi Epic được chấm điểm lại mỗi lần tạo cache và được đối chiếu với logic cũ (Quản trị nguồn dữ liệu →
+          Đối chiếu Scoring Service). SUPERADMIN chọn các màn hình hiển thị theo Scoring Service hay logic cũ tại đó; màn &quot;Quản trị Epic (rút gọn)&quot; luôn dùng logic cũ.
+          Ở chế độ Scoring Service, cột Nhận xét hiện thêm &quot;Sai Status (Release)&quot;, &quot;Pending lâu&quot; và &quot;Khuyến nghị (n)&quot;.
+        </section>
+
         <section>
-          <h3 className="ui-card-title mb-1">1. Các màn hình giám sát Epic</h3>
+          <h3 className="ui-card-title mb-1">1. Nguyên tắc</h3>
           <ul className="ml-5 list-disc space-y-1">
-            <li><strong className="text-fb-text-primary">Báo cáo Epic (beta 2) (/reports)</strong> — báo cáo theo dự án, chọn 1 dự án + component + tối đa 7 lớp dữ liệu gần nhất, gộp Epic vào 6 nhóm: Released, Đạt TTM-CNTT &amp; TTM-E2E, Fail TTM-CNTT/TTM-E2E, In PO (To Do/In PO), Sai lệch dữ liệu, Pending. Dùng chung engine tính cảnh báo/sai lệch với 3 màn hình dưới đây. Mở cho mọi role đã đăng nhập.</li>
-            <li><strong className="text-fb-text-primary">Quản trị Epic (/epic-alerts-15)</strong> — theo dõi chi tiết theo 5 pha: Design (20%), Dev (50%), Test (80%), Pentest (90%), R4Golive (100%). Mốc thời gian mỗi pha tính tự động theo tỷ lệ % TTM-CNTT tích lũy. Mở cho <strong className="text-fb-text-primary">mọi role đã đăng nhập</strong> (theo phạm vi dự án được phân quyền).</li>
-            <li><strong className="text-fb-text-primary">Quản trị Epic (rút gọn) (/epic-alerts)</strong> — theo dõi tổng quan theo mốc TTM-CNTT. (*Tạm ẩn trên menu chính, chỉ ADMIN/SUPERADMIN/SUPERVISOR truy cập được nếu gõ thẳng URL*).</li>
-            <li><strong className="text-fb-text-primary">Epic in PO (/epic-in-po)</strong> — cùng dữ liệu/logic với màn hình Quản trị Epic, chỉ lọc còn Epic đang ở trạng thái To Do, In PO hoặc Released. Mở cho mọi role.</li>
-            <li><strong className="text-fb-text-primary">Thống kê truy cập (/visit-stats)</strong> — lượt đăng nhập, lượt xem 4 màn hình được theo dõi, phân rã theo Domain/User và danh sách user login gần nhất. Mở cho mọi role.</li>
-            <li><strong className="text-fb-text-primary">Dashboard (/dashboard)</strong> — thống kê tổng hợp theo dự án (số Epic, phân bố trạng thái, số lượng từng loại cảnh báo, tỷ lệ Đạt TTM, Epic sắp đến hạn), tính live từ cùng dữ liệu các màn hình trên, không có bảng tổng hợp riêng.</li>
+            <li>Mọi rule nằm trong <strong className="text-fb-text-primary">1 Scoring Service duy nhất</strong>. Đầu vào là dữ liệu 1 Epic và mốc <code>asOf</code>; đầu ra là <strong className="text-fb-text-primary">danh sách finding</strong>, mỗi finding gắn đúng 1 badge.</li>
+            <li>Mỗi badge thuộc <strong className="text-fb-text-primary">đúng 1 Axis</strong> và <strong className="text-fb-text-primary">đúng 1 Finding Group</strong>. Một Epic có thể có nhiều badge cùng lúc trên nhiều axis; màn hình tự chọn badge cần hiển thị.</li>
+            <li><code>asOf</code> là mốc &quot;hôm nay&quot; tương đối theo giờ Việt Nam: bằng hôm nay khi xem hiện tại, bằng ngày của lớp dữ liệu khi xem quá khứ. Dữ liệu Epic và story/subtask đều lấy tại <code>asOf</code>.</li>
+            <li>Tham số (offset, thời hạn grace, khoảng ngày, tỉ lệ…) và việc bật/tắt từng rule lấy từ cấu hình trong DB; logic nằm trong code.</li>
           </ul>
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">2. Ba lớp cảnh báo trên màn hình</h3>
-          <ul className="ml-5 list-disc space-y-1">
-            <li><strong className="text-fb-text-primary">Cột Nhận xét — Fail TTM-CNTT</strong>: mức cảnh báo tổng thể (Cảnh báo sớm / Cảnh báo muộn / Fail TTM-CNTT), tính theo tiêu chí Time to Market (TTM-CNTT) đang active cho loại Epic đó, so R4G Date (hoặc ngày hiện tại) với mốc chuẩn từ T1 (Start Date).</li>
-            <li><strong className="text-fb-text-primary">Cột Nhận xét — Fail/Đạt TTM-E2E</strong> (badge riêng, độc lập với TTM-CNTT): chỉ có FAIL/NONE, không có mức Cảnh báo sớm/muộn. Từ 24/09/2026, tính từ T0 (Idea Approved Date, nếu thiếu thì tự dùng ngày tạo Epic trên Jira) tới <strong>R4G Date</strong> (hoặc hôm nay nếu chưa có) — không còn dùng Due Date. Badge &quot;Đạt TTM-e2e&quot; chỉ hiện khi status Epic = Released VÀ khoảng T0→R4G Date đạt chuẩn. Vì T0 luôn tính được, badge và cột stripe TTM-E2E hiển thị ở cả 3 màn hình kể cả khi Epic thiếu Start Date.</li>
-            <li><strong className="text-fb-text-primary">Trục Release</strong> (mới 24/09/2026, badge riêng thứ 3 ở cột Nhận xét): kỷ luật Due Date so với R4G Date + 5 ngày làm việc — &quot;Chờ golive&quot;, &quot;Cảnh báo sớm&quot;, &quot;Giải trình Golive&quot;, hoặc &quot;Sai lệch dữ liệu&quot; (rule R7) khi Due Date đúng hạn nhưng status chưa Released. Xem mục 4 bên dưới.</li>
-            <li><strong className="text-fb-text-primary">Các cột Trạng thái/Pha</strong> — cảnh báo theo từng trạng thái cụ thể trong quy trình Epic, dựa trên rule cấu hình tại &quot;Cấu hình cảnh báo&quot; (mốc sớm/muộn theo Loại Epic × Trạng thái).</li>
+          <h3 className="ui-card-title mb-2">2. Finding Groups</h3>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {FINDING_GROUPS.map((group) => (
+              <div key={group.id} className="rounded-md border border-fb-border p-2">
+                <GroupChip group={group.id} />
+                <p className="mt-1 text-xs">{group.description}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <h3 className="ui-card-title mb-2">3. Ma trận Axis × Finding Group</h3>
+          <div className="overflow-x-auto">
+            <table className="ui-table w-full text-xs">
+              <thead>
+                <tr>
+                  <th className="text-left">Axis</th>
+                  {FINDING_GROUPS.map((group) => <th key={group.id} className="text-left"><GroupChip group={group.id} /></th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {SCORING_AXES.map((axis) => (
+                  <tr key={axis.id}>
+                    <td className="align-top">
+                      <div className="font-semibold text-fb-text-primary">{axis.label}</div>
+                      <div className="text-[11px]">{axis.description}</div>
+                    </td>
+                    {FINDING_GROUPS.map((group) => {
+                      const badges = badgesOf(axis.id, group.id);
+                      return (
+                        <td key={group.id} className="align-top">
+                          {badges.length ? <div className="flex flex-col items-start gap-1">{badges.map((badge) => <BadgeChip key={badge.id} badge={badge} />)}</div> : <span className="text-fb-text-placeholder">—</span>}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-1 text-[11px]">(tắt) = rule có sẵn nhưng mặc định tắt. Di chuột lên badge để xem ý nghĩa. Riêng axis Chất lượng dữ liệu: chỉ badge nhóm Cảnh báo được tính là &quot;Sai lệch dữ liệu&quot;.</p>
+        </section>
+
+        <section>
+          <h3 className="ui-card-title mb-1">4. Ký hiệu dùng trong công thức</h3>
+          <ul className="ml-5 list-disc space-y-0.5 text-xs">
+            <li><code>T0</code> = Idea Approved Date (trống thì dùng ngày tạo Epic trên Jira) · <code>T1</code> = Start Date · <code>R4G</code> = R4G Date · <code>Due</code> = Due Date.</li>
+            <li><code>X +wd n</code> = cộng n ngày làm việc (bỏ Thứ Bảy, Chủ Nhật, ngày nghỉ; tính cả ngày làm bù) · <code>WD(a, b)</code> = số ngày làm việc từ a tới b.</li>
+            <li><code>N_CNTT</code>, <code>N_E2E</code> = ngân sách ngày làm việc theo &quot;Tiêu chí Time to Market&quot; của loại Epic · <code>Target_CNTT = T1 +wd (N_CNTT − 1)</code> (Start Date là ngày 1; trùng baseline pha R4GOLIVE và dải TTM-CNTT) · <code>Target_E2E = T0 +wd N_E2E</code>.</li>
+            <li><code>G</code> = thời hạn grace của trục Release (mặc định 5 ngày làm việc) · <code>Offset_muộn</code> = mốc cảnh báo muộn theo loại Epic × status (&quot;Cấu hình cảnh báo&quot;).</li>
+            <li>So sánh status theo thứ tự workflow: TO DO → IN PO → DESIGN → DEV → TEST → PENTEST → R4GOLIVE → MVPDONE → RELEASED.</li>
           </ul>
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">3. Cột TTM-CNTT và TTM-E2E (2 dải/stripe)</h3>
-          <p>Mỗi cột có 2 dải: dải trên là <strong>baseline</strong> (kế hoạch — từ mốc gốc tới hạn chuẩn), dải dưới là <strong>thực tế</strong> (từ mốc gốc tới ngày hoàn thành thật hoặc hôm nay nếu chưa xong). Dải thực tế tô đỏ khi đã vượt baseline, tô xanh khi vẫn trong hạn.</p>
-          <ul className="ml-5 list-disc space-y-1">
-            <li>TTM-CNTT: mốc gốc = Start Date (T1); hạn = Target R4G Date.</li>
-            <li>TTM-E2E: mốc gốc = T0 (cột START-E2E); hạn = T0 + số ngày làm việc TTM-E2E đang active; điểm kết thúc thực tế = R4G Date (từ 24/09/2026, trước đó là Due Date).</li>
-          </ul>
+          <h3 className="ui-card-title mb-2">5. Chi tiết badge — ý nghĩa &amp; công thức</h3>
+          <div className="overflow-x-auto">
+            <table className="ui-table w-full text-xs">
+              <thead>
+                <tr><th className="text-left">Badge</th><th className="text-left">Group</th><th className="text-left">Ý nghĩa</th><th className="text-left">Công thức</th><th className="text-left">Tương ứng logic cũ</th></tr>
+              </thead>
+              <tbody>
+                {SCORING_AXES.flatMap((axis) => [
+                  <tr key={axis.id}><td colSpan={5} className="bg-fb-surface-muted font-semibold text-fb-text-primary">{axis.label}</td></tr>,
+                  ...BADGE_LIST.filter((badge) => badge.axis === axis.id).sort((a, b) => a.precedence - b.precedence).map((badge) => (
+                    <tr key={badge.id}>
+                      <td className="align-top"><BadgeChip badge={badge} /></td>
+                      <td className="align-top"><GroupChip group={badge.group} /></td>
+                      <td className="align-top">{badge.meaning}</td>
+                      <td className="align-top"><code className="whitespace-pre-wrap text-[11px]">{badge.formula}</code></td>
+                      <td className="align-top text-[11px]">{badge.legacySource ?? <em>Mới</em>}</td>
+                    </tr>
+                  )),
+                ])}
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">4. Trục Release — Due Date vs R4G Date (mới 24/09/2026)</h3>
-          <p>Tách riêng khỏi phép tính TTM-E2E: kỷ luật ghi nhận Due Date so với R4G Date, hiển thị badge thứ 3 ở cột Nhận xét (song song với badge TTM-CNTT và TTM-E2E). Chỉ áp dụng cho Epic <strong>đã có R4G Date</strong> — chưa có R4G Date thì không hiện badge nào ở trục này.</p>
-          <ul className="ml-5 list-disc space-y-1">
-            <li><strong>Hợp lệ</strong> (không badge) — status = Released VÀ Due Date ≤ R4G Date + 5 ngày làm việc.</li>
-            <li><strong>Chờ golive</strong> (cập nhật 24/09/2026) — đã có R4G Date, hôm nay còn trong khoảng R4G Date → R4G Date + 5 ngày làm việc, chưa có Due Date, VÀ status Epic vẫn ≤ R4GOLIVE.</li>
-            <li><strong>Cảnh báo sớm</strong> — cùng điều kiện thời gian với &quot;Chờ golive&quot; (còn trong hạn R4G Date + 5 ngày làm việc, chưa có Due Date), nhưng status Epic đã qua R4GOLIVE (ví dụ MVPDONE).</li>
-            <li><strong>Giải trình Golive</strong> — đã có R4G Date, và (Due Date &gt; R4G Date + 5 ngày làm việc) hoặc (chưa có Due Date và hôm nay đã quá hạn đó) — không phụ thuộc status hiện tại.</li>
-            <li><strong>Sai lệch dữ liệu</strong> (rule R7 — xem mục 7 dưới) — Due Date đúng hạn (≤ R4G Date + 5 ngày làm việc) nhưng status chưa Released; badge này thay thế Cảnh báo sớm/Giải trình Golive trong trường hợp này.</li>
-          </ul>
-        </section>
-
-        <section>
-          <h3 className="ui-card-title mb-2">5. Mốc thời gian khuyến nghị cho một trạng thái (TTM-CNTT)</h3>
-          <AlertTimelineDiagram />
-          <p className="mt-2 text-xs">
-            <code>Target = addWorkingDays(T1, offset &quot;cảnh báo muộn&quot;)</code> — tính bằng ngày làm việc (bỏ qua Thứ Bảy, Chủ Nhật, các ngày nghỉ tại &quot;Cấu hình ngày nghỉ&quot;, và tôn trọng &quot;Ngày làm bù&quot; — một Thứ Bảy/Chủ Nhật được khai báo là ngày làm việc bình thường).
-          </p>
-        </section>
-
-        <section>
-          <h3 className="ui-card-title mb-1">6. Quy tắc hiển thị từng ô trạng thái (TTM-CNTT-1…6)</h3>
-          <table className="ui-table w-full text-xs">
-            <thead>
-              <tr><th className="text-left">Rule</th><th className="text-left">Điều kiện</th><th className="text-left">Hiển thị</th></tr>
-            </thead>
+          <h3 className="ui-card-title mb-1">6. Thứ tự ưu tiên — badge bị che</h3>
+          <p className="text-xs">Badge bị che vẫn được trả về (để tra cứu) nhưng màn hình mặc định không hiển thị. Trong cùng axis, badge có thứ tự ưu tiên cao hơn hiển thị trước (theo thứ tự các dòng ở mục 5).</p>
+          <table className="ui-table mt-1 w-full text-xs">
+            <thead><tr><th className="text-left">Khi có badge</th><th className="text-left">Thì che các badge</th></tr></thead>
             <tbody>
-              <tr><td>TTM-CNTT-1/2</td><td>Status Epic ở trước hoặc đúng cột, chưa tới/chưa qua mốc muộn</td><td>Text &quot;Target: dd/mm/yyyy&quot; (hoặc &quot;Past target&quot; nếu đã qua mốc sớm mà chưa tới trạng thái)</td></tr>
-              <tr><td>TTM-CNTT-3</td><td>Đúng ngày mốc sớm, status Epic = status của cột</td><td>Badge &quot;Cảnh báo sớm&quot; (light orange)</td></tr>
-              <tr><td>TTM-CNTT-4/5</td><td>Từ ngày mốc muộn trở đi, status Epic = status của cột</td><td>Badge &quot;Cảnh báo muộn&quot; (light red)</td></tr>
-              <tr><td>TTM-CNTT-6</td><td>Status Epic đã đi qua status của cột</td><td>Icon hoàn thành (Pass) — cột Ready4Golive hiện ngày R4G Date thực tế nếu có</td></tr>
+              {SUPPRESSIONS.map((rule) => (
+                <tr key={rule.when}>
+                  <td>{badgeAxisLabel(rule.when)}: <strong className="text-fb-text-primary">{badgeLabel(rule.when)}</strong></td>
+                  <td>{rule.suppress.map(badgeLabel).join(', ')}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">7. Epic có dữ liệu bất thường — nhóm cuối bảng</h3>
-          <p>
-            Một hàm dùng chung <code>evaluateEpicDataAnomaly()</code> (áp dụng cho cả 3 màn hình giám sát Epic, Báo cáo và Dashboard) đánh dấu Epic
-            <strong className="text-fb-text-primary"> dữ liệu bất thường</strong> khi vi phạm ít nhất 1 trong 7 rule sau, mỗi rule có index R1-R7 cố định
-            (lưu kèm mỗi vi phạm trong bảng <code>epic_data_anomaly_violations</code> để thống kê riêng theo từng nhóm rule). Epic ở trạng thái Cancelled/To Do/In PO/Backlog
-            được miễn toàn bộ các rule này:
-          </p>
-          <ul className="ml-5 list-disc space-y-1">
-            <li><strong>R1 — Thiếu T1</strong> — trạng thái ≥ In Progress/DEV nhưng chưa có Start Date.</li>
-            <li><strong>R2 — Pending quá lâu</strong> — Epic đang Pending, số ngày làm việc từ Start Date (T1) tới hôm nay ≥ 20% chu trình TTM-CNTT; nếu chưa có T1 thì tính từ ngày tạo Epic trên Jira.</li>
-            <li><strong>R3 — Sai thứ tự ngày</strong> — không thoả chuỗi <code>T0 ≤ T1 &lt; R4G Date ≤ Due Date</code> (chỉ xét mốc đã có giá trị; R4G Date = Due Date vẫn coi là hợp lệ).</li>
-            <li><strong>R4 — Thiếu Phân loại yêu cầu</strong> (epic_request_type).</li>
-            <li><strong>R5 — Thiếu Requirement Level</strong> (epic_request_level).</li>
-            <li><strong>R6 — SP nhưng mức thấp</strong> — Epic được đánh giá độ phức tạp SP (SP-Lv12/SP-Lv34) nhưng Requirement Level = 1 hoặc 2.</li>
-            <li><strong>R7 — Due Date đúng hạn nhưng sai status</strong> — đã có R4G Date và Due Date, Due Date ≤ R4G Date + 5 ngày làm việc, nhưng status Epic chưa chuyển sang Released (xem mục 4 &quot;Trục Release&quot;).</li>
-          </ul>
-          <p>Epic vi phạm <strong>vẫn được nhập đầy đủ vào hệ thống</strong> (không bị chặn import), nhưng:</p>
-          <ul className="ml-5 list-disc space-y-1">
-            <li>Bị đẩy xuống <strong>cuối bảng</strong> và tô nền highlight trên cả 3 màn hình, để dễ nhận biết cần làm sạch dữ liệu nguồn trên Jira.</li>
-            <li>Cột Nhận xét hiện thêm badge <strong className="text-fb-text-primary">&quot;Sai lệch dữ liệu (x)&quot;</strong> — hiển thị <em>song song</em> với badge Cảnh báo/Fail/&quot;Đạt TTM-CNTT&quot;/&quot;Đạt TTM-e2e&quot;/trục Release bình thường (không thay thế nhau); di chuột lên badge để xem chi tiết từng rule vi phạm.</li>
-            <li>Cảnh báo TTM-CNTT/TTM-E2E chỉ bị ép về &quot;Không tính được&quot; khi bản thân phép tính không còn đáng tin — <strong>thiếu Start Date</strong> (TTM-CNTT), hoặc <strong>R4G Date phi logic</strong> so với mốc gốc (TTM-E2E, từ 24/09/2026) — chứ không phải mọi vết trong 7 rule ở trên; ví dụ Epic chỉ thiếu Requirement Level vẫn hiện đúng Cảnh báo sớm/muộn/Fail bình thường.</li>
-            <li>Riêng khi vẫn có Start Date (chỉ R4G Date phi logic): dải TTM-CNTT vẫn vẽ bình thường (baseline theo Start Date, thực tế = Start Date → hôm nay, bỏ qua ngày phi logic).</li>
-          </ul>
-        </section>
-
-        <section>
-          <h3 className="ui-card-title mb-1">8. Chú giải màu &amp; loại Epic</h3>
-          <p>Cuối mỗi bảng có chú giải màu nền <strong>Done</strong> (xanh) / <strong>Warning</strong> (vàng) / <strong>Failed</strong> (đỏ) dùng chung cho các ô trạng thái/pha.</p>
-          <p>Loại Epic (epic-type) hiển thị bằng text ngay trước thông tin PM/SM trên cột Epic, dạng <code>&quot;&lt;Loại Epic&gt;. PM/SM: &lt;tên&gt;&quot;</code>. Có 4 loại, tính từ loại và mức yêu cầu của Epic trên Jira (mặc định <strong>CT-Lv12</strong> khi dữ liệu thiếu/không khớp). CT = Cải tiến/Tính năng mới/rỗng; SP = mọi loại yêu cầu còn lại (không còn là danh sách liệt kê riêng):</p>
-          <table className="ui-table w-full text-xs">
-            <thead>
-              <tr><th className="text-left">Epic-type</th><th className="text-left">Điều kiện</th><th className="text-right">TTM-CNTT</th><th className="text-right">TTM-E2E</th></tr>
-            </thead>
+          <h3 className="ui-card-title mb-1">7. TTM-Index / QA-Index</h3>
+          <p className="text-xs">Index chỉ đếm các cờ dưới đây (không phải badge), nên &quot;Đạt&quot; của Index luôn trùng với badge &quot;Đạt TTM-CNTT&quot;.</p>
+          <table className="ui-table mt-1 w-full text-xs">
+            <thead><tr><th className="text-left">Index</th><th className="text-left">Cờ</th><th className="text-left">Điều kiện</th></tr></thead>
             <tbody>
-              <tr><td>CT-Lv12</td><td>Cải tiến / Tính năng mới / rỗng, mức 1-2</td><td className="text-right">15 ngày làm việc</td><td className="text-right">20 ngày làm việc</td></tr>
-              <tr><td>CT-Lv34</td><td>Cải tiến / Tính năng mới / rỗng, mức 3-4</td><td className="text-right">25 ngày làm việc</td><td className="text-right">30 ngày làm việc</td></tr>
-              <tr><td>SP-Lv12</td><td>Loại yêu cầu khác CT, mức 1-2 (luôn bị đánh dấu Sai lệch dữ liệu — rule R6)</td><td className="text-right">30 ngày làm việc</td><td className="text-right">50 ngày làm việc</td></tr>
-              <tr><td>SP-Lv34</td><td>Loại yêu cầu khác CT, mức 3-4</td><td className="text-right">30 ngày làm việc</td><td className="text-right">50 ngày làm việc</td></tr>
+              {INDEX_MEMBERSHIP_RULES.map((rule) => (
+                <tr key={`${rule.index}-${rule.flag}`}><td>{rule.index}</td><td className="font-semibold text-fb-text-primary">{rule.flag}</td><td><code className="whitespace-pre-wrap text-[11px]">{rule.formula}</code></td></tr>
+              ))}
             </tbody>
           </table>
-          <p className="mt-1 text-xs">Số ngày làm việc trên do CBQL Phòng tự cấu hình tại panel &quot;Tiêu chí Time to Market&quot; (mục &quot;Cấu hình cảnh báo&quot;) và có thể thay đổi bất kỳ lúc nào — bảng trên chỉ là giá trị đang active tại thời điểm hiển thị trợ giúp này.</p>
+          <p className="mt-1 text-xs"><code>{INDEX_PERCENT_FORMULA}</code></p>
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">9. Badge &quot;Đạt TTM-CNTT&quot; / &quot;Đạt TTM-e2e&quot; &amp; Lịch sử cảnh báo tích lũy</h3>
-          <p>Badge <strong>&quot;Đạt TTM-CNTT&quot;</strong> hiển thị ở cột Nhận xét khi Epic đã có R4G Date và không bị cảnh báo. Badge <strong>&quot;Đạt TTM-e2e&quot;</strong> (từ 24/09/2026) hiển thị khi Epic đã <strong>Released</strong> VÀ khoảng T0 → R4G Date đạt chuẩn TTM-E2E — không còn dựa vào Due Date (kỷ luật Due Date nay là badge riêng ở &quot;Trục Release&quot;, mục 4). Icon tam giác vàng ở cột Epic cho phép mở popup <strong className="text-fb-text-primary">Epic History</strong> để tra cứu lịch sử cảnh báo muộn/fail TTM-CNTT tổng thể qua các đợt import dữ liệu.</p>
-          <p>Popup Epic History còn có mục <strong className="text-fb-text-primary">Dòng thời gian cảnh báo</strong>, dựng từ bảng <code>epic_alert_timeline</code>: theo dõi 5 loại cảnh báo (Fail TTM-CNTT, Cảnh báo muộn TTM-CNTT, Fail TTM-E2E, Thiếu Start Date, Sai lệch dữ liệu) dưới dạng các &quot;đợt&quot; có ngày bắt đầu/kết thúc liên tục — cho biết chính xác Epic đã ở trạng thái đó từ ngày nào đến ngày nào, không chỉ ngày phát hiện. Bảng này luôn được ghi ở mỗi lần tổng hợp dữ liệu (không tạm tắt như lịch sử theo pha bên dưới).</p>
-          <p className="rounded-md border border-fb-border bg-fb-surface-muted px-3 py-2 text-xs">
-            Lịch sử cảnh báo <strong>theo từng pha</strong> (DEV/TEST/PENTEST của Epic 15) hiện <strong>tạm tắt ghi nhận</strong> do giới hạn kết nối của hạ tầng DB miễn phí — bảng vẫn còn nguyên, chỉ chưa ghi thêm dòng mới. Trạng thái hoàn thành từng pha vẫn được tính <strong>live</strong> mỗi lần tải trang, không phụ thuộc lịch sử này.
-          </p>
+          <h3 className="ui-card-title mb-1">8. Thay đổi so với logic hiện tại (đã chốt 29/09/2026)</h3>
+          <ul className="ml-5 list-disc space-y-1 text-xs">
+            <li><strong className="text-fb-text-primary">Bỏ &quot;Cảnh báo sớm&quot;</strong> ở cả TTM-CNTT, trục Release và cột pha. Offset &quot;sớm&quot; trong Cấu hình cảnh báo không còn được dùng. Trường hợp trục Release trước đây hiện &quot;Cảnh báo sớm&quot; (status đã qua R4GOLIVE, chưa có Due Date, còn trong hạn) nay không hiện badge nào cho tới khi quá hạn thành &quot;Giải trình Golive&quot;.</li>
+            <li><strong className="text-fb-text-primary">&quot;Sai Status&quot; (TTM-CNTT)</strong> thuộc nhóm Khuyến nghị, không tính Đạt; vẫn nằm trong mẫu số TTM-Index. Epic có R4G Date ở tương lai cũng nằm trong mẫu số nhưng chưa Đạt — TTM-Index có thể giảm so với hiện tại.</li>
+            <li><strong className="text-fb-text-primary">R7 thành &quot;Sai Status&quot; (Release)</strong> thuộc nhóm Khuyến nghị: Epic chỉ vi phạm R7 không còn bị đánh dấu &quot;Sai lệch dữ liệu&quot; (không bị đẩy xuống cuối bảng) và được tính vào mẫu số TTM-Index.</li>
+            <li><strong className="text-fb-text-primary">R2 &quot;Pending lâu&quot;</strong> thuộc nhóm Khuyến nghị, không còn bị đánh dấu &quot;Sai lệch dữ liệu&quot;.</li>
+            <li><strong className="text-fb-text-primary">Hoàn thành pha theo asOf</strong>: khi xem lớp dữ liệu cũ, trạng thái story/subtask được lấy tại ngày đó thay vì hôm nay.</li>
+            <li><strong className="text-fb-text-primary">Mốc Target_CNTT thống nhất</strong> = <code>T1 +wd (N_CNTT − 1)</code> cho mọi badge (Fail, Cảnh báo muộn, Sai Status, Đạt, Phạm vi) — logic cũ dùng <code>T1 +wd N_CNTT</code> cho badge nên Fail sớm hơn tối đa 1 ngày làm việc.</li>
+          </ul>
         </section>
       </div>
     </Modal>
@@ -248,7 +277,7 @@ export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
           <p>
             Ở tầng đọc (mỗi lần tải màn hình), hàm dùng chung <code>evaluateEpicDataAnomaly()</code> đánh giá lại đầy đủ <strong>7 rule (R1-R7)</strong> — không chỉ riêng
             ngày sai thứ tự, mà cả thiếu T1 theo trạng thái, Pending quá lâu, thiếu Phân loại yêu cầu/Requirement Level, SP nhưng mức thấp, Due Date đúng hạn nhưng status chưa Released (chi tiết ở popup &quot;Logic cảnh báo
-            Epic&quot; mục 7) — để gắn badge <strong className="text-fb-text-primary">&quot;Sai lệch dữ liệu&quot;</strong>, nhóm cuối bảng và highlight trên mọi
+            Epic&quot;) — để gắn badge <strong className="text-fb-text-primary">&quot;Sai lệch dữ liệu&quot;</strong>, nhóm cuối bảng và highlight trên mọi
             màn hình Epic Alerts/Báo cáo/Dashboard. Mỗi vi phạm còn được ghi vào bảng <code>epic_data_anomaly_violations</code> (xem mục 3) để thống kê riêng theo
             từng nhóm rule. Màn hình Nguồn dữ liệu vẫn chỉ hiện đúng badge &quot;Cảnh báo&quot; (không còn &quot;Lỗi&quot;) kèm message chi
             tiết cho các dòng ngày sai thứ tự lúc import.

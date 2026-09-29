@@ -1,6 +1,6 @@
 import 'server-only';
 import pool from '@/lib/db';
-import { EPIC_ISSUE_TYPES_SQL, LATEST_ISSUES_CTE, STORY_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
+import { EPIC_ISSUE_TYPES_SQL, LATEST_ISSUES_CTE, latestIssuesAsOfCte, STORY_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 import { storyWorkflowStatusIndex } from '@/lib/story-workflow-rules';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
 
@@ -66,10 +66,13 @@ function deriveCompletion(row: EpicPhaseSignalsRow): EpicPhaseCompletion {
  *   `epic_key`/resolved epic matches) is a real, expected shape (BA work done before any Story
  *   exists yet) and is included in the DESIGN rule's BA-subtask count via `epic_level_subtasks`.
  * - Cancelled Stories and Cancelled Subtasks are excluded everywhere (never block, never count).
+ *
+ * `asOf` ("YYYY-MM-DD", optional): evaluate with every issue's state as known on that date instead
+ * of the newest one (Scoring Service, decision D3) — omitted = unchanged legacy behavior.
  */
-export async function computeEpicPhaseCompletionByEpicKey(): Promise<Map<string, EpicPhaseCompletion>> {
+export async function computeEpicPhaseCompletionByEpicKey(asOf?: string): Promise<Map<string, EpicPhaseCompletion>> {
   const result = await pool.query<EpicPhaseSignalsRow>(`
-    WITH ${LATEST_ISSUES_CTE},
+    WITH ${asOf ? latestIssuesAsOfCte('$1') : LATEST_ISSUES_CTE},
     epics AS (
       SELECT issue_key, current_status, r4g_date::text AS r4g_date, due_date::text AS due_date, epic_stories
       FROM latest_issues
@@ -146,7 +149,7 @@ export async function computeEpicPhaseCompletionByEpicKey(): Promise<Map<string,
     FROM epics e
     LEFT JOIN ba_agg ba ON ba.epic_key = e.issue_key
     LEFT JOIN stories_agg sa ON sa.epic_key = e.issue_key;
-  `);
+  `, asOf ? [asOf] : []);
 
   const map = new Map<string, EpicPhaseCompletion>();
   for (const row of result.rows) map.set(row.epicKey, deriveCompletion(row));

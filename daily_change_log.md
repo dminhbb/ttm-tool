@@ -6,6 +6,56 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-09-30
+
+- **Epic Scoring Service — M4: chuyển màn hình sang Scoring Service (công tắc chế độ, mặc định vẫn là logic cũ)**:
+  - Công tắc `scoring_engine_settings.mode` (`legacy`/`scoring`, migration `20260930_create_scoring_engine_settings`
+    — đã chạy Supabase, **local chưa chạy**), `scoring-mode-service.ts`, API `api/admin/scoring/mode`, nút bật/tắt
+    trong panel "Đối chiếu Scoring Service"; đổi chế độ ⇒ tạo lại cache nền. `SCORING_ENGINE_MODE` trong
+    `.env.local` chỉ ghi đè phần hiển thị trên 1 máy (cache chung luôn theo chế độ lưu trong DB).
+  - `scoring/projection.ts`: chiếu scorecard lên `EpicAlertRowPhased` (+ `scoringBadges`/`scoringIndexFlags`/
+    `scoringFindings`); `epic-scoring-display-service.ts` (`getEpicAlertRowsForDisplay`) dùng cho route Quản trị
+    Epic, Dashboard, TTM Dashboard, MCP; cache ghi dòng đã chiếu khi chế độ `scoring`.
+  - Bộ lọc SQL theo `badge_codes`, TTM-/QA-Index theo `index_flags` (SQL + `summarizeTtmCntt`/`summarizeQaIndex`).
+  - `src/lib/epic-row-verdicts.ts` thay các bản copy logic "Đạt"/bộ lọc ở Quản trị Epic & Epic in PO; badge mới
+    `components/epic-alerts/ScoringBadges.tsx` ("Sai Status (Release)", "Pending lâu", "Khuyến nghị (n)"); bộ lọc
+    thêm "Pending lâu", ẩn "Cảnh báo sớm" khi chế độ `scoring`. TTM Dashboard, Báo cáo Epic, MCP (`danhGia`) theo scoring.
+  - Kiểm chứng dữ liệu thật: TTM-Index 93,8% → 89,0% ở chế độ scoring; luồng cache và luồng tính trực tiếp cho
+    cùng số liệu. 31 test pass (thêm test projection/verdict/Index).
+  - Đã chạy `refreshDerivedCaches` bằng code mới (chế độ legacy) để điền cột shadow `badge_codes`/`index_flags`.
+
+## 2026-09-29
+
+- **Triển khai Epic Scoring Service — M1–M3 (chạy song song, màn hình vẫn dùng logic cũ)**:
+  - Chốt quyết định vòng 2: bỏ badge "Cần ghi nhận Due Date"; Target_CNTT = T1 +wd (N − 1) cho mọi badge;
+    R2 "Pending lâu" → nhóm Khuyến nghị (không còn là Sai lệch dữ liệu). Spec + popup "Logic cảnh báo" cập nhật.
+  - Thư viện thuần `src/lib/scoring/` (catalog, derive, rules theo axis, resolver, `scoreEpic`, select, parity)
+    + số học ngày làm việc trên chuỗi ISO (không phụ thuộc múi giờ server); lint cấm system clock/DB trong
+    thư mục này. `npm test` mới (Node test runner, `scripts/test-register.mjs`) — 26 test pass.
+  - Server: `scoring-context-service.ts` (cấu hình + `rulesetVersion`), `scoring-facts-service.ts` (facts tại
+    asOf, story/subtask theo asOf qua `computeEpicPhaseCompletionByEpicKey(asOf)` / `latestIssuesAsOfCte`),
+    `scoring-run-service.ts` (chấm điểm hàng loạt, shadow, đối chiếu).
+  - Migration `20260929_create_scoring_service` (bảng `scoring_parameters`, `scoring_rule_settings`,
+    `scoring_parity_runs`; 5 cột mới trên `epic_alert_row_cache`) — đã chạy Supabase; **local chưa chạy**
+    (máy này không có Postgres local).
+  - `refreshDerivedCaches` chấm điểm shadow + ghi scorecard vào cache + lưu kết quả đối chiếu; luồng import
+    chuyển sang `refreshDerivedCaches` (tính 1 lần cho cả 2 cache).
+  - SUPERADMIN: `api/admin/scoring/parity` + panel "Đối chiếu Scoring Service" (Quản trị nguồn dữ liệu).
+  - Đối chiếu dữ liệu thật: 29/09 — 1.120 Epic, 1.040 khớp, 80 lệch có chủ đích, 0 chưa giải thích;
+    15/09 — 897 Epic, 0 chưa giải thích. Phát hiện 2 lỗi logic cũ (E2E Fail khi ngày kết thúc = hạn trên
+    server giờ VN; Epic Cancelled hiện "Đạt TTM-CNTT") — service không lặp lại.
+  - `AGENTS.md`: mục mới "Epic Scoring Service — where Epic rules live".
+
+- **Thiết kế Epic Scoring Service (bản nháp, chưa áp dụng vào tính toán)**:
+  - Spec `docs/superpowers/specs/2026-09-29-scoring-service-design.md`: mô hình Axis → Finding Group
+    (ALERT/PASS/FAIL/RECOMMENDATION/NOTE) → Badge, mốc `asOf` tương đối, schema cache/cấu hình, lộ trình
+    chạy song song với logic cũ; đã chốt D1–D4, Q1–Q7; còn mở O1 (badge "Cần ghi nhận Due Date") và O2
+    (mốc Target_CNTT lệch 1 ngày làm việc giữa badge Fail và baseline pha R4GOLIVE).
+  - Danh mục badge dùng chung `src/lib/scoring/catalog.ts` (dữ liệu thuần, chưa có rule nào chạy).
+  - Popup "Logic cảnh báo" (`src/components/layout/HelpPanels.tsx` → `AlertLogicModal`) thay toàn bộ nội
+    dung: ma trận Axis × Finding Group, bảng ý nghĩa + công thức từng badge, thứ tự che, công thức
+    TTM-Index/QA-Index, các thay đổi so với logic hiện tại — render trực tiếp từ catalog để duyệt.
+
 ## 2026-09-28
 
 - **Sửa các vấn đề từ review sau khi pull (mục 1–4)**:

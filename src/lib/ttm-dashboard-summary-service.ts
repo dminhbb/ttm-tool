@@ -1,12 +1,14 @@
 import 'server-only';
 import pool from '@/lib/db';
-import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
+import { getEpicAlertRowsForDisplay } from '@/lib/epic-scoring-display-service';
 import { getEpicAlertRowCacheMeta, queryDashboardEpicRows } from '@/lib/epic-alert-row-cache-query-service';
 import { resolveAccessScope } from '@/lib/epic-alert-service';
 import { toDashboardEpicRow } from '@/lib/epic-alert-types';
 import type { DashboardEpicRow } from '@/lib/epic-alert-types';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
 import { summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
+import { isTtmIndexEligible } from '@/lib/epic-row-verdicts';
+import { getScoringEngineMode, getStoredScoringEngineMode } from '@/lib/scoring-mode-service';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import { getTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { computeQaInScope, computeTtmCnttInScope } from '@/lib/ttm-scope-rules';
@@ -24,15 +26,17 @@ import type { UserRole } from '@/lib/auth-types';
 /** Same row source as GET /api/dashboard-new: epic_alert_row_cache scoped to this viewer when the
  * cache exists, otherwise the live computation. Cancelled Epics are always excluded. */
 export async function loadDashboardEpicRows(userId: number, role: UserRole): Promise<{ lastAggregatedAt: string | null; rows: DashboardEpicRow[] }> {
-  const cacheMeta = await getEpicAlertRowCacheMeta();
-  if (cacheMeta.hasCache) {
+  // The cache holds rows built with the STORED display engine; a per-machine SCORING_ENGINE_MODE
+  // override that differs from it is served live instead.
+  const [cacheMeta, engineMode, cacheEngineMode] = await Promise.all([getEpicAlertRowCacheMeta(), getScoringEngineMode(), getStoredScoringEngineMode()]);
+  if (cacheMeta.hasCache && engineMode === cacheEngineMode) {
     const [scope, latestBatch] = await Promise.all([
       resolveAccessScope(userId, role),
       pool.query<{ aggregatedAt: string }>('SELECT aggregated_at::text AS "aggregatedAt" FROM import_batches ORDER BY aggregated_at DESC LIMIT 1;'),
     ]);
     return { lastAggregatedAt: latestBatch.rows[0]?.aggregatedAt ?? null, rows: await queryDashboardEpicRows(scope) };
   }
-  const context = await getEpicAlertRowsPhased(userId, role);
+  const context = await getEpicAlertRowsForDisplay(userId, role);
   return {
     lastAggregatedAt: context.lastAggregatedAt,
     rows: context.rows.filter((row) => !isCancelledStatus(row.currentStatus || '')).map(toDashboardEpicRow),
@@ -185,7 +189,7 @@ export async function getTtmDashboardSummary(userId: number, role: UserRole, fil
     const key = dimensionKeyOf(row, dimension);
     const bucket = matrix.get(key) ?? { late: 0, ok: 0, rows: [] };
     bucket.rows.push(row);
-    const isQldaJudged = Boolean(row.ttmCnttInScope && row.r4gDate && !row.hasDataAnomaly);
+    const isQldaJudged = isTtmIndexEligible(row);
     if (row.ttmCnttInScope && !isQldaJudged) {
       if (row.alertLevel === 'FAIL' || row.alertLevel === 'LATE') bucket.late += 1;
       else bucket.ok += 1;

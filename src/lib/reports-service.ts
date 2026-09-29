@@ -9,6 +9,15 @@ import type { EpicComplexityType } from '@/lib/status-alert-rule-types';
 import { normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { EPIC_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 import { diffWorkingDays, toDateKey } from '@/lib/working-days';
+import { getScoringEngineMode } from '@/lib/scoring-mode-service';
+import { loadScoringContext, vnToday } from '@/lib/scoring-context-service';
+import { BADGE_BY_ID } from '@/lib/scoring/catalog';
+import type { BadgeId } from '@/lib/scoring/catalog';
+import { toIsoDate } from '@/lib/scoring/dates';
+import { scoreEpic } from '@/lib/scoring/score-epic';
+import type { EpicComplexity, EpicScorecard } from '@/lib/scoring/types';
+
+const VALID_COMPLEXITY = new Set(['CT-Lv12', 'CT-Lv34', 'SP-Lv12', 'SP-Lv34']);
 
 export interface ReportFilterOptions {
   /** Pins every FAIL/EARLY/LATE and "sai lệch dữ liệu" calculation to this date instead of the real
@@ -218,10 +227,11 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
   }
 
   // Fetch TTM rules & holidays for TTM calculations
-  const [holidays, ttmPolicies, statusAlertRules] = await Promise.all([
+  const [holidays, ttmPolicies, statusAlertRules, engineMode] = await Promise.all([
     getActiveHolidaySet(),
     listTtmPolicies(true),
     listActiveStatusAlertRules(),
+    getScoringEngineMode(),
   ]);
 
   // Viewing a past "Chọn lớp dữ liệu" layer must evaluate FAIL/EARLY/LATE/anomaly rules as of THAT
@@ -230,6 +240,9 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
   const asOfDate = asOfDateOption ? toDateKey(parseDate(asOfDateOption) ?? new Date()) : null;
   const now = asOfDate ? (parseDate(asOfDate) ?? new Date()) : new Date();
   const todayKey = toDateKey(now);
+  // Display engine 'scoring': Pass/Fail/Sai lệch dữ liệu per Epic come from the Epic Scoring Service
+  // (same verdicts as every Epic screen) instead of the legacy evaluation below.
+  const scoringCtx = engineMode === 'scoring' ? await loadScoringContext(asOfDate ?? vnToday()) : null;
 
   const releasedEpics: ReportEpicItem[] = [];
   const passedEpics: ReportEpicItem[] = [];
@@ -273,6 +286,23 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
       aggregatedAt: row.aggregatedAt,
     };
 
+    const scorecard: EpicScorecard | null = scoringCtx ? scoreEpic({
+      epicKey: row.epicKey,
+      status: row.status,
+      complexity: row.complexity && VALID_COMPLEXITY.has(row.complexity) ? (row.complexity as EpicComplexity) : null,
+      ideaApprovedDate: toIsoDate(row.ideaApprovedDate),
+      jiraCreatedAt: toIsoDate(row.jiraCreatedAt),
+      startDate: toIsoDate(row.startDate),
+      r4gDate: toIsoDate(row.r4gDate),
+      dueDate: toIsoDate(row.dueDate),
+      requestType: row.epicType,
+      requirementLevel: row.requirementLevel,
+      phaseCompletion: null,
+    }, scoringCtx) : null;
+    // Reports ignore the "Phạm vi" gate (no out-of-scope table) — verdicts hidden only by it still count.
+    const scoredVerdicts = new Set<BadgeId>(scorecard?.findings.filter((item) => !item.suppressedBy || item.suppressedBy.every((by) => by === 'SCOPE_CNTT_OUT')).map((item) => item.badge) ?? []);
+    const scoredAnomalies = scorecard?.findings.filter((item) => !item.suppressedBy && BADGE_BY_ID.get(item.badge)?.axis === 'DATA_QUALITY' && BADGE_BY_ID.get(item.badge)?.group === 'ALERT') ?? [];
+
     // "Sai lệch dữ liệu" — unified engine shared with every Epic screen, Dashboard and the alert
     // timeline (see epic-data-anomaly.ts). Cancelled Epics are already skipped above; To Do / In PO
     // Epics are exempt inside the engine itself (rule a).
@@ -289,11 +319,12 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
       status: row.status,
       ttmCnttWorkingDays,
     }, now, holidays);
-    const isAnomaly = anomalyViolations.length > 0;
-    const anomalyDetails: string[] = anomalyViolations.map((violation) => violation.message);
+    const isAnomaly = scorecard ? scoredAnomalies.length > 0 : anomalyViolations.length > 0;
+    const anomalyDetails: string[] = scorecard ? scoredAnomalies.map((item) => item.message) : anomalyViolations.map((violation) => violation.message);
 
     // Released Date determination
     const releasedDate = isReleased ? (row.dueDate || row.r4gDate || row.aggregatedAt?.slice(0, 10) || null) : null;
+
 
     // Actual TTM calculation (working days from Start CNTT to R4G Date)
     let actualTtmDays: number | null = null;
@@ -335,27 +366,29 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
 
     // Pass: the Epic actually reached R4G/Released status AND the canonical engine says it did so
     // within its TTM budget (not FAIL).
-    const ttmCnttPassed = Boolean(row.r4gDate) && !cnttBroken && cnttAlertLevel !== 'FAIL' && isStatusValidForPass;
+    const ttmCnttPassed = scorecard ? scoredVerdicts.has('CNTT_PASS') && !scoredVerdicts.has('CNTT_STATUS_MISMATCH') : Boolean(row.r4gDate) && !cnttBroken && cnttAlertLevel !== 'FAIL' && isStatusValidForPass;
     // TTM-E2E "Pass" (2026-09-24 rule): status must actually be Released (not just R4GOLIVE), and
     // the axis is now T0 → R4G Date, not T0 → Due Date — see resolveTtmE2eRelease's own doc comment.
-    const ttmE2ePassed = Boolean(row.r4gDate) && !e2eBroken && e2eAlertLevel !== 'FAIL' && isReleased;
+    const ttmE2ePassed = scorecard ? scoredVerdicts.has('E2E_PASS') : Boolean(row.r4gDate) && !e2eBroken && e2eAlertLevel !== 'FAIL' && isReleased;
 
     // Fail: the canonical engine's FAIL determination — no separate "wrong status" fail concept.
     let actualCnttFail = false;
     let cnttFailReason: string | null = null;
-    if (cnttAlertLevel === 'FAIL') {
+    const cnttTarget = scorecard ? scorecard.derived.cnttTargetDate : targetCnttDate;
+    if (scorecard ? scoredVerdicts.has('CNTT_FAIL') : cnttAlertLevel === 'FAIL') {
       actualCnttFail = true;
-      cnttFailReason = targetCnttDate
-        ? `Fail TTM-CNTT (${formatDateVietnamese(row.r4gDate ?? todayKey)}>${formatDateVietnamese(targetCnttDate)})`
+      cnttFailReason = cnttTarget
+        ? `Fail TTM-CNTT (${formatDateVietnamese(row.r4gDate ?? (scorecard?.asOf ?? todayKey))}>${formatDateVietnamese(cnttTarget)})`
         : 'Fail TTM-CNTT';
     }
 
     let actualE2eFail = false;
     let e2eFailReason: string | null = null;
-    if (e2eAlertLevel === 'FAIL') {
+    const e2eTarget = scorecard ? scorecard.derived.e2eTargetDate : targetE2eDate;
+    if (scorecard ? scoredVerdicts.has('E2E_FAIL') : e2eAlertLevel === 'FAIL') {
       actualE2eFail = true;
-      e2eFailReason = targetE2eDate
-        ? `Fail TTM-e2e (${formatDateVietnamese(e2eEval.actualToDate)}>${formatDateVietnamese(targetE2eDate)})`
+      e2eFailReason = e2eTarget
+        ? `Fail TTM-e2e (${formatDateVietnamese(scorecard ? scorecard.derived.e2eActualToDate : e2eEval.actualToDate)}>${formatDateVietnamese(e2eTarget)})`
         : 'Fail TTM-e2e';
     }
 

@@ -35,6 +35,26 @@ export const LATEST_ISSUES_CTE = `
   )
 `;
 
+/**
+ * Same resolution as LATEST_ISSUES_CTE, but "as known at a date": only rows whose data layer
+ * (aggregated_at::date) is on/before the `asOf` date bound to SQL parameter `paramRef` (e.g. '$1').
+ * Used by the Scoring Service so story/subtask phase completion is read at the same asOf as the Epic.
+ */
+export function latestIssuesAsOfCte(paramRef: string): string {
+  return `
+  latest_issues AS (
+    SELECT DISTINCT ON (issue_key)
+      id, issue_key, issue_type, current_status, epic_key, parent_key, jira_id,
+      issue_name, assignee_name, start_date, r4g_date, due_date,
+      epic_stories, story_subtasks, components,
+      source_import_batch_id, aggregated_at
+    FROM issues
+    WHERE aggregated_at::date <= ${paramRef}::date
+    ORDER BY issue_key, aggregated_at DESC
+  )
+`;
+}
+
 /** Story rows (hierarchy level 2) from latest_issues, keyed for parent-chain resolution. Must
  * follow LATEST_ISSUES_CTE in the same WITH clause. */
 export const STORIES_CTE = `

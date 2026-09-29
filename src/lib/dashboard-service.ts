@@ -2,7 +2,7 @@ import type { UserRole } from '@/lib/auth-types';
 import type { AlertLevel, EpicComplexity } from '@/lib/ttm-rules';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
-import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
+import { getEpicAlertRowsForDisplay } from '@/lib/epic-scoring-display-service';
 import type {
   DashboardAtRiskEpic,
   DashboardAvailableProject,
@@ -108,7 +108,7 @@ function projectDisplayName(rows: EpicAlertRowPhased[]): string {
  * no separate snapshot/aggregate table exists to read from instead (see epic-alert-phase-service.ts).
  */
 export async function getDashboardData(userId: number, role: UserRole, selectedProjectKeys: string[] | null): Promise<DashboardResponse> {
-  const context = await getEpicAlertRowsPhased(userId, role);
+  const context = await getEpicAlertRowsForDisplay(userId, role);
 
   const rowsByProject = new Map<string, EpicAlertRowPhased[]>();
   for (const row of context.rows) {
