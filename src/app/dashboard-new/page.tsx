@@ -173,7 +173,7 @@ const ALERT_BADGE_VARIANT: Record<AlertLevel, 'danger' | 'info' | 'neutral' | 'w
 
 const ALERT_BADGE_LABEL: Record<AlertLevel, string> = {
   EARLY: 'Cảnh báo sớm',
-  FAIL: 'Fail TTM-CNTT',
+  FAIL: 'Fail TTM-CNTT (QLDA)',
   LATE: 'Cảnh báo muộn',
   NONE: 'Đạt / Không cảnh báo',
 };
@@ -221,7 +221,7 @@ export default function DashboardNewPage() {
   // Filters — High-level dashboard scope
   const [filterProjects, setFilterProjects] = useState<string[]>([]);
   const [filterDomain, setFilterDomain] = useState<string>('');
-  const [filterPmSm, setFilterPmSm] = useState<string>('');
+  const [filterPmSms, setFilterPmSms] = useState<string[]>([]);
 
   // "Advanced Filters" — Phạm vi dữ liệu cho TTM (2026-09-28), collapsed by default. A live,
   // per-view override of the admin default ("Cấu hình cảnh báo" § Phạm vi dữ liệu cho TTM) — never
@@ -291,10 +291,10 @@ export default function DashboardNewPage() {
       const isAdminOrSupervisor = ['SUPERADMIN', 'ADMIN', 'SUPERVISOR'].includes(payload.actor.role);
       if (isAdminOrSupervisor && payload.isUserPreview) {
         setViewMode('OPERATIONAL');
-        setFilterPmSm('');
+        setFilterPmSms([]);
       } else if (!isAdminOrSupervisor) {
         setViewMode('OPERATIONAL');
-        setFilterPmSm('');
+        setFilterPmSms([]);
       } else {
         setViewMode('EXECUTIVE');
       }
@@ -336,7 +336,7 @@ export default function DashboardNewPage() {
         if (filterProjects.length > 0 && !filterProjects.includes(row.projectKey)) return false;
         if (filterDomain && row.domainName !== filterDomain) return false;
         // In PM/SM view (OPERATIONAL), PM/SM filter is removed / not applied.
-        if (viewMode === 'EXECUTIVE' && filterPmSm && !row.ownerName.split(',').map((name) => name.trim()).includes(filterPmSm)) return false;
+        if (viewMode === 'EXECUTIVE' && filterPmSms.length > 0 && !row.ownerName.split(',').map((name) => name.trim()).some((name) => filterPmSms.includes(name))) return false;
         return true;
       })
       .map((row) => ({
@@ -344,7 +344,7 @@ export default function DashboardNewPage() {
         ttmCnttInScope: computeTtmCnttInScope(row.r4gDate, row.targetR4gDate, scopeConfig),
         qaInScope: computeQaInScope(row.r4gDate, scopeConfig),
       }));
-  }, [data, filterProjects, filterDomain, filterPmSm, viewMode, filterCnttFrom, filterCnttTo, filterQaFrom, filterQaTo]);
+  }, [data, filterProjects, filterDomain, filterPmSms, viewMode, filterCnttFrom, filterCnttTo, filterQaFrom, filterQaTo]);
 
   // Executive Metrics. TTM-CNTT-specific numbers (eligibleTtm/passTtm/failCntt/ttmHealthPct) come
   // from the shared summarizeTtmCntt helper so this stays byte-for-byte the same ratio as the
@@ -402,7 +402,7 @@ export default function DashboardNewPage() {
     alert: extra.alert,
     dataIssue: extra.dataIssue,
     domain: extra.domain ?? (filterProjects.length > 0 ? undefined : (filterDomain || undefined)),
-    pmSm: extra.pmSm ?? (viewMode === 'EXECUTIVE' && filterPmSm ? [filterPmSm] : undefined),
+    pmSm: extra.pmSm ?? (viewMode === 'EXECUTIVE' && filterPmSms.length > 0 ? filterPmSms : undefined),
     projects: extra.projects ?? (filterProjects.length > 0 ? filterProjects : undefined),
     requestingUnit: extra.requestingUnit,
     search: extra.search,
@@ -650,7 +650,7 @@ export default function DashboardNewPage() {
 
   const renderKpiStrip = () => (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-9">
-      {/* Health Index Ring — TTM-Index (PM) */}
+      {/* Health Index Ring — TTM-CNTT (QLDA), scoped to this dashboard's filters (filteredRows) */}
       <div className="col-span-2 sm:col-span-2 lg:col-span-1 rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs flex items-center justify-start gap-3">
         <div
           className="relative flex size-14 shrink-0 items-center justify-center rounded-full"
@@ -663,12 +663,12 @@ export default function DashboardNewPage() {
           </div>
         </div>
         <div className="min-w-0">
-          <p className="text-xs font-bold text-fb-text-primary">TTM-Index (PM)</p>
+          <p className="text-xs font-bold text-fb-text-primary">TTM-CNTT (QLDA)</p>
           <p className="text-[10px] text-fb-text-secondary">{executiveMetrics.passTtm}/{executiveMetrics.eligibleTtm}</p>
         </div>
       </div>
 
-      {/* Health Index Ring — QA-Index (PM) */}
+      {/* Health Index Ring — TTM-CNTT (QA), scoped to this dashboard's filters (filteredRows) */}
       <div className="col-span-2 sm:col-span-2 lg:col-span-1 rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs flex items-center justify-start gap-3">
         <div
           className="relative flex size-14 shrink-0 items-center justify-center rounded-full"
@@ -683,7 +683,7 @@ export default function DashboardNewPage() {
           </div>
         </div>
         <div className="min-w-0">
-          <p className="text-xs font-bold text-fb-text-primary">QA-Index (PM)</p>
+          <p className="text-xs font-bold text-fb-text-primary">TTM-CNTT (QA)</p>
           <p className="text-[10px] text-fb-text-secondary">
             {qaMetrics.total > 0 ? `${qaMetrics.pass}/${qaMetrics.eligible}` : 'Chưa có Epic MVP Done/Released'}
           </p>
@@ -703,11 +703,11 @@ export default function DashboardNewPage() {
 
       <button
         type="button"
-        onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'FAIL' }), 'Danh sách Epic - Fail TTM-CNTT')}
+        onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'FAIL' }), 'Danh sách Epic - Fail TTM-CNTT (QLDA)')}
         className="block text-left rounded-xl border border-red-200 bg-red-50/50 p-3 shadow-xs transition-all hover:border-red-400 hover:shadow-sm cursor-pointer w-full"
-        title="Xem danh sách Epic Fail TTM-CNTT ở Quản trị Epic"
+        title="Xem danh sách Epic Fail TTM-CNTT (QLDA) ở Quản trị Epic"
       >
-        <p className="text-[10px] font-bold uppercase text-status-danger">Fail TTM-CNTT</p>
+        <p className="text-[10px] font-bold uppercase text-status-danger">Fail TTM-CNTT (QLDA)</p>
         <p className="mt-1 text-xl font-extrabold text-status-danger">{executiveMetrics.failCntt}</p>
         <p className="text-[10px] text-red-600 font-medium">Vượt R4G Target</p>
       </button>
@@ -1028,7 +1028,7 @@ export default function DashboardNewPage() {
               )}
             />
             <DonutChartCard
-              title="% Epic Pass TTM-CNTT (pm)"
+              title="% Epic Pass TTM-CNTT (QLDA)"
               data={epicTypeDonuts.passData}
               emptyMessage="Không có Epic đạt TTM"
               onItemClick={(item) => openEpicModal(
@@ -1071,17 +1071,18 @@ export default function DashboardNewPage() {
 
         {/* Control Buttons & User Switcher */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Header Widgets: TTM-Index (QLDA) & QA-Index (QLDA) positioned to the left of toggle */}
+          {/* Header Widgets: company-wide TTM-CNTT (QLDA) & TTM-CNTT (QA) — every Epic in the app (cached,
+              same value for every user), positioned to the left of toggle */}
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => openEpicModal(buildEpicAlertsDeepLink({}), 'Quản trị Epic - TTM-Index (QLDA)')}
+              onClick={() => openEpicModal(buildEpicAlertsDeepLink({}), 'Quản trị Epic - TTM-CNTT (QLDA)')}
               className="flex h-9 items-center gap-2 rounded-lg border border-fb-border bg-fb-surface-muted px-3 shrink-0 text-left transition-all hover:border-fb-blue hover:bg-fb-surface shadow-2xs cursor-pointer group"
-              title={formatTtmIndexTooltip('Chỉ số TTM-Index của Phòng QLDA tính trên toàn bộ Epic của Phòng', data?.ttmIndexGlobal?.ttm)}
+              title={formatTtmIndexTooltip('Chỉ số TTM-CNTT (QLDA) tính trên toàn bộ Epic trong ứng dụng (giống nhau với mọi người dùng)', data?.ttmIndexGlobal?.ttm)}
             >
               <div className="flex flex-col justify-center leading-none">
                 <span className="text-[9px] font-bold uppercase tracking-wider text-fb-text-secondary group-hover:text-fb-blue transition-colors">
-                  TTM-Index (QLDA)
+                  TTM-CNTT (QLDA)
                 </span>
                 <div className="flex items-baseline gap-1 mt-0.5">
                   <span className="text-xs font-black text-fb-blue">
@@ -1098,13 +1099,13 @@ export default function DashboardNewPage() {
 
             <button
               type="button"
-              onClick={() => openEpicModal(buildEpicAlertsDeepLink({ status: ['MVP Done', 'Released'] }), 'Quản trị Epic - QA-Index (QLDA)')}
+              onClick={() => openEpicModal(buildEpicAlertsDeepLink({ status: ['MVP Done', 'Released'] }), 'Quản trị Epic - TTM-CNTT (QA)')}
               className="flex h-9 items-center gap-2 rounded-lg border border-fb-border bg-fb-surface-muted px-3 shrink-0 text-left transition-all hover:border-purple-400 hover:bg-fb-surface shadow-2xs cursor-pointer group"
-              title={formatTtmIndexTooltip('Chỉ số QA-Index của Phòng QLDA tính trên toàn bộ Epic của Phòng, theo cách tính của QA', data?.ttmIndexGlobal?.qa)}
+              title={formatTtmIndexTooltip('Chỉ số TTM-CNTT (QA) tính trên toàn bộ Epic trong ứng dụng, theo cách tính của QA (giống nhau với mọi người dùng)', data?.ttmIndexGlobal?.qa)}
             >
               <div className="flex flex-col justify-center leading-none">
                 <span className="text-[9px] font-bold uppercase tracking-wider text-fb-text-secondary group-hover:text-purple-700 transition-colors">
-                  QA-Index (QLDA)
+                  TTM-CNTT (QA)
                 </span>
                 <div className="flex items-baseline gap-1 mt-0.5">
                   <span className="text-xs font-black text-purple-700">
@@ -1159,7 +1160,7 @@ export default function DashboardNewPage() {
                 type="button"
                 onClick={() => {
                   if (viewMode !== 'OPERATIONAL') {
-                    setFilterPmSm('');
+                    setFilterPmSms([]);
                     setShowUserModal(true);
                   }
                 }}
@@ -1201,16 +1202,13 @@ export default function DashboardNewPage() {
           onChange={(values) => { setFilterDomain(''); setFilterProjects(values); }}
         />
         {viewMode === 'EXECUTIVE' && (
-          <select
-            className={`ttm-select${filterPmSm ? ' has-filter' : ''}`}
-            aria-label="PM/SM"
-            value={filterPmSm}
-            onChange={(event) => { setFilterPmSm(event.target.value); }}
-            title="Lọc theo PM/SM của dự án"
-          >
-            <option value="">Tất cả PM/SM</option>
-            {pmSmOptions.map((name) => <option key={name} value={name}>{name}</option>)}
-          </select>
+          <ToolbarMultiSelect
+            ariaLabel="PM/SM"
+            allLabel="Tất cả PM/SM"
+            options={pmSmOptions}
+            value={filterPmSms}
+            onChange={setFilterPmSms}
+          />
         )}
 
         {data?.lastAggregatedAt && (
@@ -1237,9 +1235,9 @@ export default function DashboardNewPage() {
             <div>
               <label className="mb-1 block text-[11px] font-bold text-black">Filter R4G for TTM (CNTT)</label>
               <p className="mb-1.5 text-[10px] text-gray-600">
-                Epic có R4G Date: lọc A ≤ R4G Date ≤ B. Chưa có R4G Date: lọc theo TTM-CNTT
-                baseline. Để trống A/B = không giới hạn phía đó. Áp dụng cho TTM-Index (PM) và mọi
-                tính toán Pass/Fail liên quan tới TTM-CNTT trên trang này.
+                Epic có R4G Date: lọc A ≤ R4G Date ≤ B. Chưa có R4G Date: lọc theo TTM-CNTT (QLDA)
+                baseline. Để trống A/B = không giới hạn phía đó. Áp dụng cho TTM-CNTT (QLDA) và mọi
+                tính toán Pass/Fail liên quan tới TTM-CNTT (QLDA) trên trang này.
               </p>
               <div className="flex flex-wrap items-center gap-1.5">
                 <input
@@ -1263,7 +1261,7 @@ export default function DashboardNewPage() {
               <label className="mb-1 block text-[11px] font-bold text-black">Filter R4G for TTM (QA)</label>
               <p className="mb-1.5 text-[10px] text-gray-600">
                 Lọc theo C ≤ R4G Date ≤ D — Epic chưa có R4G Date bị loại khỏi phạm vi QA khi
-                có thiết lập. Để trống C/D = không giới hạn phía đó. Áp dụng cho QA-Index (PM).
+                có thiết lập. Để trống C/D = không giới hạn phía đó. Áp dụng cho TTM-CNTT (QA).
               </p>
               <div className="flex flex-wrap items-center gap-1.5">
                 <input
@@ -1328,7 +1326,7 @@ export default function DashboardNewPage() {
                         )}
                       />
                       <DonutChartCard
-                        title="% Epic Pass TTM-CNTT (pm)"
+                        title="% Epic Pass TTM-CNTT (QLDA)"
                         data={requestingUnitDonuts.passData}
                         emptyMessage="Không có Epic đạt TTM"
                         onItemClick={(item) => openEpicModal(
@@ -1377,7 +1375,7 @@ export default function DashboardNewPage() {
                           )}
                         />
                         <DonutChartCard
-                          title="% Epic Pass TTM-CNTT (pm)"
+                          title="% Epic Pass TTM-CNTT (QLDA)"
                           data={domainDonuts.passData}
                           emptyMessage="Không có Epic đạt TTM"
                           onItemClick={(item) => openEpicModal(
@@ -1434,7 +1432,7 @@ export default function DashboardNewPage() {
                           )}
                         />
                         <DonutChartCard
-                          title="% Epic Pass TTM-CNTT (pm)"
+                          title="% Epic Pass TTM-CNTT (QLDA)"
                           data={pmsmDonuts.passData}
                           emptyMessage="Không có Epic đạt TTM"
                           onItemClick={(item) => openEpicModal(
@@ -1494,7 +1492,7 @@ export default function DashboardNewPage() {
                           )}
                         />
                         <DonutChartCard
-                          title="% Epic Pass TTM-CNTT (pm)"
+                          title="% Epic Pass TTM-CNTT (QLDA)"
                           data={projectDonuts.passData}
                           emptyMessage="Không có Epic đạt TTM"
                           onItemClick={(item) => openEpicModal(
@@ -1693,7 +1691,7 @@ export default function DashboardNewPage() {
                                   {row.ttmCnttInScope ? (
                                     <Badge variant={ALERT_BADGE_VARIANT[row.alertLevel]}>{ALERT_BADGE_LABEL[row.alertLevel]}</Badge>
                                   ) : (
-                                    <Badge variant="neutral">Ngoài phạm vi TTM-CNTT</Badge>
+                                    <Badge variant="neutral">Ngoài phạm vi TTM-CNTT (QLDA)</Badge>
                                   )}
                                 </TD>
                               </TR>

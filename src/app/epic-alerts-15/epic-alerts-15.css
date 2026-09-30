@@ -656,6 +656,37 @@
   .ttm-toolbar-group { width: 100%; }
   .ttm-field, .ttm-select, .ttm-button { width: 100%; }
 }
+/* Quản trị Epic's filter toolbar — one line, no wrapping: every filter control shares the row
+   width equally (flex: 1 1 0) and shrinks down to a readable minimum; the long selected-value text
+   is ellipsized (full text on hover via the trigger's title). Declared after the 1024px rule above
+   so `.ttm-toolbar-row .ttm-select` beats its `width: 100%` stacking. Only below tablet width, where
+   ~9 controls physically can't fit, does it fall back to wrapping. */
+.ttm-toolbar.ttm-toolbar-row { flex-wrap: nowrap; align-items: center; gap: 6px; }
+.ttm-toolbar-row > .ttm-select,
+.ttm-toolbar-row > .ttm-multiselect,
+.ttm-toolbar-row > .ttm-search-field {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 64px;
+  max-width: 170px;
+}
+.ttm-toolbar-row > .ttm-search-field { max-width: 130px; }
+.ttm-toolbar-row .ttm-select,
+.ttm-toolbar-row .ttm-field {
+  min-height: 32px;
+  padding: 5px 8px;
+  font-size: var(--ttm-font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ttm-toolbar-row .ttm-multiselect-trigger { width: 100%; max-width: none; justify-content: space-between; gap: 4px; }
+.ttm-toolbar-row .ttm-collapse-all-toggle { flex: 0 0 32px; width: 32px; min-height: 32px; }
+@media (max-width: 767px) {
+  .ttm-toolbar.ttm-toolbar-row { flex-wrap: wrap; }
+  .ttm-toolbar-row > .ttm-select,
+  .ttm-toolbar-row > .ttm-multiselect,
+  .ttm-toolbar-row > .ttm-search-field { flex: 1 1 140px; max-width: none; }
+}
 @media (max-width: 640px) {
   .ttm-topbar { padding: 12px 16px; }
   .ttm-brand { font-size: 16px; }

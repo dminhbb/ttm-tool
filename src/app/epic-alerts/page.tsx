@@ -99,11 +99,11 @@ type AlertFilterValue = AlertLevel | 'FAIL_E2E' | 'ACHIEVED_CNTT' | 'ACHIEVED_E2
 
 const ALERT_FILTER_OPTIONS: { label: string; value: AlertFilterValue }[] = [
   { label: 'Tất cả nhận xét', value: '' },
-  { label: 'Đạt TTM-CNTT', value: 'ACHIEVED_CNTT' },
+  { label: 'Đạt TTM-CNTT (QLDA)', value: 'ACHIEVED_CNTT' },
   { label: 'Đạt TTM-E2E', value: 'ACHIEVED_E2E' },
   { label: 'Cảnh báo sớm', value: 'EARLY' },
   { label: 'Cảnh báo muộn', value: 'LATE' },
-  { label: 'Fail TTM-CNTT', value: 'FAIL' },
+  { label: 'Fail TTM-CNTT (QLDA)', value: 'FAIL' },
   { label: 'Fail TTM-E2E', value: 'FAIL_E2E' },
   { label: 'Sai Status', value: 'STATUS_MISMATCH' },
   { label: 'Sai lệch dữ liệu', value: 'DATA_ANOMALY' },
@@ -274,7 +274,7 @@ function Ready4GoliveCell({ row }: { row: EpicAlertRow }) {
 }
 
 const ALERT_HISTORY_TYPE_LABEL: Record<EpicAlertHistoryEntry['alertType'], string> = {
-  FAIL: 'Fail TTM-CNTT',
+  FAIL: 'Fail TTM-CNTT (QLDA)',
   LATE: 'Cảnh báo muộn',
 };
 
@@ -715,7 +715,7 @@ export default function EpicAlertsPage() {
           gateMessage={statWidgetsGateMessage}
           items={[
             {
-              icon: XCircle, isActive: alertFilter === 'FAIL', key: 'fail-cntt', label: 'Epic Fail TTM-CNTT',
+              icon: XCircle, isActive: alertFilter === 'FAIL', key: 'fail-cntt', label: 'Epic Fail TTM-CNTT (QLDA)',
               onClick: () => { setAlertFilter((current) => (current === 'FAIL' ? '' : 'FAIL')); setPage(1); },
               tone: 'danger', value: statCounts.failCntt,
             },
@@ -767,7 +767,7 @@ export default function EpicAlertsPage() {
                 <TH className="min-w-[180px] ttm-col-border-right" title="issues.issue_key / issues.issue_name">Epic</TH>
                 <TH className="min-w-[100px]" title="T0 = Idea Approved Date, hoặc ngày tạo Jira nếu không có — điểm bắt đầu chu kỳ TTM-E2E">START-E2E</TH>
                 <TH title="issues.start_date">START-CNTT</TH>
-                <TH title="Tính từ issues.start_date + issues.epic_complexity_type (số ngày làm việc thực tế / chuẩn)">TTM-CNTT</TH>
+                <TH title="Tính từ issues.start_date + issues.epic_complexity_type (số ngày làm việc thực tế / chuẩn)">TTM-CNTT (QLDA)</TH>
                 <TH className="ttm-col-border-right" title="Baseline (dòng trên) = T0 + TTM-E2E; Thực tế (dòng dưới) = T0 → Due Date (hoặc hôm nay nếu chưa có). T0 = Idea Approved Date, hoặc Start Date, hoặc ngày tạo Jira">TTM-E2E</TH>
                 <TH title="issues.current_status">Status</TH>
                 <TH className="min-w-[120px]" title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">Nhận xét</TH>
@@ -858,21 +858,21 @@ export default function EpicAlertsPage() {
                         return (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
                             {!row.ttmCnttInScope ? (
-                              <Tooltip content="Epic nằm ngoài phạm vi dữ liệu TTM-CNTT đang cấu hình (R4G Date/baseline nằm ngoài khoảng ngày thiết lập tại 'Cấu hình cảnh báo')." className="inline-flex w-auto">
-                                <span className="ttm-badge out-of-scope">Ngoài phạm vi TTM-CNTT</span>
+                              <Tooltip content="Epic nằm ngoài phạm vi dữ liệu TTM-CNTT (QLDA) đang cấu hình (R4G Date/baseline nằm ngoài khoảng ngày thiết lập tại 'Cấu hình cảnh báo')." className="inline-flex w-auto">
+                                <span className="ttm-badge out-of-scope">Ngoài phạm vi TTM-CNTT (QLDA)</span>
                               </Tooltip>
                             ) : row.ttmCnttStatusMismatch ? (
-                              <Tooltip content="R4G Date đã ghi nhận và đúng hạn theo TTM-CNTT, nhưng status Epic chưa chuyển sang R4GOLIVE — vui lòng cập nhật status đúng quy định." className="inline-flex w-auto">
+                              <Tooltip content="R4G Date đã ghi nhận và đúng hạn theo TTM-CNTT (QLDA), nhưng status Epic chưa chuyển sang R4GOLIVE — vui lòng cập nhật status đúng quy định." className="inline-flex w-auto">
                                 <span className="ttm-badge status-mismatch">Sai Status</span>
                               </Tooltip>
                             ) : row.alertLevel === 'FAIL' ? (
-                              <span className="ttm-badge fail-cntt">Fail TTM-CNTT</span>
+                              <span className="ttm-badge fail-cntt">Fail TTM-CNTT (QLDA)</span>
                             ) : row.alertLevel === 'LATE' ? (
                               <span className="ttm-badge late-warning">Cảnh báo muộn</span>
                             ) : row.alertLevel === 'EARLY' ? (
                               <span className="ttm-badge early-warning">Cảnh báo sớm</span>
                             ) : isTtmCnttAchieved ? (
-                              <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT đúng hạn theo rule">Đạt TTM-CNTT</span>
+                              <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT (QLDA) đúng hạn theo rule">Đạt TTM-CNTT (QLDA)</span>
                             ) : null}
 
                             {row.ttmE2eAlertLevel === 'FAIL' ? (
@@ -903,7 +903,7 @@ export default function EpicAlertsPage() {
                       })()}
                     </TD>
                     {isMissingCore ? (
-                      <TD colSpan={3} className="ttm-metric na">Chưa thể tính lịch TTM-CNTT do thiếu dữ liệu bắt buộc.</TD>
+                      <TD colSpan={3} className="ttm-metric na">Chưa thể tính lịch TTM-CNTT (QLDA) do thiếu dữ liệu bắt buộc.</TD>
                     ) : (
                       <>
                         <StagePill cell={row.stages.design} />

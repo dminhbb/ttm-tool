@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Giới thiệu sản phẩm — TTM Monitor Document & Specification</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'Geist Mono', monospace;
+
+      /* Dark Theme (Default Gecko Dark Tech) */
+      --bg-app: #0f111a;
+      --bg-sidebar: #151824;
+      --bg-panel: #1b1e2e;
+      --bg-elevated: #24283d;
+      --bg-hover: #2d324d;
+      --border-subtle: #292d42;
+      --border-strong: #3b415e;
+      
+      --text-main: #e2e8f0;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      
+      --accent-cyan: #06b6d4;
+      --accent-blue: #3b82f6;
+      --accent-purple: #8b5cf6;
+
+      --group-fail: #ef4444;
+      --group-fail-bg: rgba(239, 68, 68, 0.15);
+      --group-alert: #f59e0b;
+      --group-alert-bg: rgba(245, 158, 11, 0.15);
+      --group-rec: #3b82f6;
+      --group-rec-bg: rgba(59, 130, 246, 0.15);
+      --group-pass: #10b981;
+      --group-pass-bg: rgba(16, 185, 129, 0.15);
+      --group-note: #64748b;
+      --group-note-bg: rgba(100, 116, 139, 0.15);
+
+      --sidebar-width: 300px;
+      --header-height: 64px;
+    }
+
+    [data-theme="light"] {
+      --bg-app: #f1f5f9;
+      --bg-sidebar: #ffffff;
+      --bg-panel: #ffffff;
+      --bg-elevated: #f8fafc;
+      --bg-hover: #e2e8f0;
+      --border-subtle: #cbd5e1;
+      --border-strong: #94a3b8;
+      
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --text-dim: #64748b;
+      
+      --accent-cyan: #0891b2;
+      --accent-blue: #2563eb;
+      --accent-purple: #7c3aed;
+
+      --group-fail: #dc2626;
+      --group-fail-bg: #fee2e2;
+      --group-alert: #d97706;
+      --group-alert-bg: #fef3c7;
+      --group-rec: #2563eb;
+      --group-rec-bg: #dbeafe;
+      --group-pass: #059669;
+      --group-pass-bg: #d1fae5;
+      --group-note: #475569;
+      --group-note-bg: #f1f5f9;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      font-size: 14px;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg-app);
+      color: var(--text-main);
+      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* Top Navigation Header */
+    header.top-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: var(--header-height);
+      background: var(--bg-sidebar);
+      border-bottom: 1px solid var(--border-subtle);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      backdrop-filter: blur(8px);
+    }
+
+    .brand-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      font-size: 1.25rem;
+      color: var(--text-main);
+      text-decoration: none;
+    }
+
+    .brand-badge {
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: rgba(6, 182, 212, 0.15);
+      color: var(--accent-cyan);
+      border: 1px solid var(--accent-cyan);
+      font-weight: 600;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .search-box {
+      position: relative;
+      width: 240px;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 6px 12px 6px 32px;
+      border-radius: 6px;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-panel);
+      color: var(--text-main);
+      font-size: 0.85rem;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .search-box input:focus {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.2);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+      pointer-events: none;
+    }
+
+    .theme-toggle {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .theme-toggle:hover {
+      background: var(--bg-hover);
+      border-color: var(--border-strong);
+    }
+
+    /* Main Container Layout */
+    .app-container {
+      display: flex;
+      margin-top: var(--header-height);
+      min-height: calc(100vh - var(--header-height));
+    }
+
+    /* Left Sidebar Navigation */
+    aside.sidebar-nav {
+      width: var(--sidebar-width);
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border-subtle);
+      position: fixed;
+      top: var(--header-height);
+      bottom: 0;
+      left: 0;
+      overflow-y: auto;
+      padding: 20px 16px;
+      z-index: 90;
+    }
+
+    .nav-group-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      font-weight: 700;
+      margin: 16px 0 8px 8px;
+    }
+
+    .nav-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .nav-item a {
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      border-radius: 6px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+
+    .nav-item a:hover {
+      background: var(--bg-hover);
+      color: var(--text-main);
+    }
+
+    .nav-item.active a {
+      background: rgba(6, 182, 212, 0.12);
+      color: var(--accent-cyan);
+      font-weight: 600;
+      border-left: 3px solid var(--accent-cyan);
+    }
+
+    .nav-sublist {
+      list-style: none;
+      padding-left: 16px;
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .nav-subitem a {
+      padding: 4px 10px;
+      font-size: 0.825rem;
+      color: var(--text-dim);
+    }
+
+    .nav-subitem a:hover {
+      color: var(--text-main);
+    }
+
+    .nav-subitem.active a {
+      color: var(--accent-cyan);
+      font-weight: 600;
+    }
+
+    /* Main Content Area */
+    main.main-content {
+      margin-left: var(--sidebar-width);
+      flex: 1;
+      padding: 32px 48px 64px 48px;
+      max-width: 1200px;
+    }
+
+    .doc-section {
+      margin-bottom: 56px;
+      scroll-margin-top: calc(var(--header-height) + 24px);
+    }
+
+    .section-header {
+      margin-bottom: 24px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .chapter-num {
+      color: var(--accent-cyan);
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    h1.chapter-title {
+      font-size: 2.25rem;
+      font-weight: 800;
+      color: var(--text-main);
+      letter-spacing: -0.02em;
+    }
+
+    h2.subsection-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin: 32px 0 16px 0;
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      scroll-margin-top: calc(var(--header-height) + 24px);
+    }
+
+    h3.topic-title {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--text-main);
+      margin: 20px 0 10px 0;
+    }
+
+    p {
+      margin-bottom: 16px;
+      color: var(--text-muted);
+      font-size: 1rem;
+    }
+
+    ul, ol {
+      margin-bottom: 16px;
+      padding-left: 24px;
+      color: var(--text-muted);
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    code {
+      font-family: var(--font-mono);
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.875em;
+      color: var(--accent-cyan);
+    }
+
+    /* Cards Grid & Info Boxes */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+      margin: 20px 0;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin: 20px 0;
+    }
+
+    .card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 20px;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .card:hover {
+      border-color: var(--border-strong);
+    }
+
+    .card-accent-blue { border-top: 3px solid var(--accent-blue); }
+    .card-accent-cyan { border-top: 3px solid var(--accent-cyan); }
+    .card-accent-purple { border-top: 3px solid var(--accent-purple); }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 8px;
+    }
+
+    .info-callout {
+      background: rgba(6, 182, 212, 0.08);
+      border-left: 4px solid var(--accent-cyan);
+      padding: 16px 20px;
+      border-radius: 0 8px 8px 0;
+      margin: 20px 0;
+    }
+
+    .info-callout p {
+      margin-bottom: 0;
+      color: var(--text-main);
+    }
+
+    /* Tables */
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      margin: 20px 0;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.925rem;
+    }
+
+    th {
+      background: var(--bg-elevated);
+      color: var(--text-main);
+      font-weight: 700;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      vertical-align: top;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background: var(--bg-hover);
+    }
+
+    /* Badges & Status Pills */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      white-space: nowrap;
+      font-family: var(--font-sans);
+    }
+
+    .badge-fail { background: var(--group-fail-bg); color: var(--group-fail); border: 1px solid var(--group-fail); }
+    .badge-alert { background: var(--group-alert-bg); color: var(--group-alert); border: 1px solid var(--group-alert); }
+    .badge-rec { background: var(--group-rec-bg); color: var(--group-rec); border: 1px solid var(--group-rec); }
+    .badge-pass { background: var(--group-pass-bg); color: var(--group-pass); border: 1px solid var(--group-pass); }
+    .badge-note { background: var(--group-note-bg); color: var(--group-note); border: 1px solid var(--group-note); }
+
+    /* Diagram Containers & SVG */
+    .svg-diagram-wrapper {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 24px;
+      margin: 24px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+
+    .svg-diagram-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    svg.interactive-diagram {
+      width: 100%;
+      height: auto;
+      max-width: 1000px;
+    }
+
+    /* Footer */
+    footer.doc-footer {
+      margin-top: auto;
+      padding: 24px 48px;
+      background: var(--bg-sidebar);
+      border-top: 1px solid var(--border-subtle);
+      margin-left: var(--sidebar-width);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--text-dim);
+      font-size: 0.85rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 992px) {
+      aside.sidebar-nav {
+        transform: translateX(-100%);
+        transition: transform 0.3s;
+      }
+      aside.sidebar-nav.open {
+        transform: translateX(0);
+      }
+      main.main-content {
+        margin-left: 0;
+        padding: 20px;
+      }
+      footer.doc-footer {
+        margin-left: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header class="top-header">
+    <a href="#" class="brand-title">
+      <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="32" height="32" rx="8" fill="#06B6D4"/>
+        <path d="M8 12L16 7L24 12V20L16 25L8 20V12Z" stroke="#0F111A" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M16 7V25" stroke="#0F111A" stroke-width="2"/>
+        <path d="M8 12L24 20" stroke="#0F111A" stroke-width="2"/>
+        <path d="M24 12L8 20" stroke="#0F111A" stroke-width="2"/>
+      </svg>
+      TTM Monitor
+      <span class="brand-badge">v2026.09</span>
+    </a>
+
+    <div class="header-actions">
+      <div class="search-box">
+        <svg class="search-icon" width="16" height="16" fill="currentColor" viewBox="0 0 256 256">
+          <path d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"></path>
+        </svg>
+        <input type="text" id="docSearchInput" placeholder="Tìm kiếm tài liệu...">
+      </div>
+
+      <button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()">
+        <svg width="16" height="16" fill="currentColor" viewBox="0 0 256 256">
+          <path d="M120,40V16a8,8,0,0,1,16,0V40a8,8,0,0,1-16,0Zm72,88a64,64,0,1,1-64-64A64.07,64.07,0,0,1,192,128Zm-16,0a48,48,0,1,0-48,48A48.05,48.05,0,0,0,176,128ZM58.34,69.66a8,8,0,0,0,11.32-11.32l-16-16a8,8,0,0,0-11.32,11.32Zm0,116.68-16,16a8,8,0,0,0,11.32,11.32l16-16a8,8,0,0,0-11.32-11.32Zm138.66-116.68,16-16a8,8,0,0,0-11.32-11.32l-16,16a8,8,0,0,0,11.32,11.32Zm0,116.68a8,8,0,0,0-11.32,11.32l16,16a8,8,0,0,0,11.32-11.32ZM240,120H216a8,8,0,0,0,0,16h24a8,8,0,0,0,0-16ZM40,120H16a8,8,0,0,0,0,16H40a8,8,0,0,0,0-16ZM120,216v24a8,8,0,0,0,16,0V216a8,8,0,0,0-16,0Z"></path>
+        </svg>
+        <span>Giao diện</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Container -->
+  <div class="app-container">
+
+    <!-- Left Sidebar Navigation -->
+    <aside class="sidebar-nav">
+      <div class="nav-group-title">Mục lục Tài liệu</div>
+      <ul class="nav-list" id="sidebarNavList">
+        <li class="nav-item active">
+          <a href="#ch1-tong-quan">1. Tổng quan & Luồng Nghiệp vụ</a>
+          <ul class="nav-sublist">
+            <li class="nav-subitem"><a href="#ch1-1-muc-tieu">1.1. Mục tiêu & Phạm vi MVP1</a></li>
+            <li class="nav-subitem"><a href="#ch1-2-phan-loai-epic">1.2. Phân loại 4 Epic-Types</a></li>
+            <li class="nav-subitem"><a href="#ch1-3-moc-t-va-tieu-chi">1.3. Hai mốc T & Tiêu chí TTM</a></li>
+            <li class="nav-subitem"><a href="#ch1-4-so-do-luong">1.4. Sơ đồ Luồng Nghiệp vụ TTM</a></li>
+          </ul>
+        </li>
+        <li class="nav-item">
+          <a href="#ch2-ui-ux">2. Thiết kế Giao diện UI/UX</a>
+          <ul class="nav-sublist">
+            <li class="nav-subitem"><a href="#ch2-1-gecko-ui">2.1. Gecko-Inspired Foundation</a></li>
+            <li class="nav-subitem"><a href="#ch2-2-icons-standard">2.2. Chuẩn mực Icon Phosphor</a></li>
+            <li class="nav-subitem"><a href="#ch2-3-so-do-shell">2.3. Sơ đồ Cấu trúc Giao diện</a></li>
+          </ul>
+        </li>
+        <li class="nav-item">
+          <a href="#ch3-kien-truc">3. Kiến trúc Hệ thống & Kỹ thuật</a>
+          <ul class="nav-sublist">
+            <li class="nav-subitem"><a href="#ch3-1-tech-stack">3.1. Technical Stack</a></li>
+            <li class="nav-subitem"><a href="#ch3-2-multi-db">3.2. Mô hình Multi-Database Target</a></li>
+            <li class="nav-subitem"><a href="#ch3-3-versioning">3.3. Quy trình Versioning & Log</a></li>
+            <li class="nav-subitem"><a href="#ch3-4-so-do-kien-truc">3.4. Sơ đồ Kiến trúc Hệ thống</a></li>
+            <li class="nav-subitem"><a href="#ch3-5-data-layers">3.5. Thu thập & Lớp Dữ liệu Multi-Layer</a></li>
+          </ul>
+        </li>
+        <li class="nav-item">
+          <a href="#ch4-scoring-service">4. Chi tiết Epic Scoring Service</a>
+          <ul class="nav-sublist">
+            <li class="nav-subitem"><a href="#ch4-1-pure-core">4.1. Kiến trúc Pure Core & asOf</a></li>
+            <li class="nav-subitem"><a href="#ch4-2-mo-hinh-badges">4.2. Mô hình Axis & Finding Groups</a></li>
+            <li class="nav-subitem"><a href="#ch4-3-catalog-badges">4.3. Bảng Tra cứu Badges Catalog</a></li>
+            <li class="nav-subitem"><a href="#ch4-4-suppressions">4.4. Bảng Quy tắc Che Badges</a></li>
+            <li class="nav-subitem"><a href="#ch4-5-index-rules">4.5. Quy tắc TTM-Index & QA-Index</a></li>
+            <li class="nav-subitem"><a href="#ch4-6-projection-switch">4.6. Đèn chuyển Engine & Projection</a></li>
+            <li class="nav-subitem"><a href="#ch4-7-so-do-scoring">4.7. Sơ đồ Luồng Đánh giá Scoring</a></li>
+          </ul>
+        </li>
+      </ul>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+      <!-- CHƯƠNG 1 -->
+      <section class="doc-section" id="ch1-tong-quan">
+        <div class="section-header">
+          <div class="chapter-num">Chương 1</div>
+          <h1 class="chapter-title">Tổng quan Sản phẩm & Luồng Nghiệp vụ</h1>
+        </div>
+
+        <p class="lead">
+          <strong>TTM Monitor</strong> là hệ thống quản trị và giám sát rủi ro trễ hạn <strong>Time to Market (TTM)</strong> đối với các yêu cầu phát triển phần mềm (Epic), ưu tiên phục vụ khối Công nghệ Thông tin (CNTT).
+        </p>
+
+        <h2 class="subsection-title" id="ch1-1-muc-tieu">1.1. Mục tiêu Kinh doanh & Phạm vi MVP1</h2>
+        <div class="grid-2">
+          <div class="card card-accent-cyan">
+            <div class="card-title">🎯 Mục tiêu Kinh doanh</div>
+            <ul>
+              <li>Phát hiện sớm các Epic có nguy cơ trễ mốc TTM-CNTT và TTM-E2E.</li>
+              <li>Nhận diện các Epic thiếu thông tin tiêu chuẩn (Start Date, T0, Loại Epic, Owner).</li>
+              <li>Giám sát 5 pha tiến độ: DESIGN, DEV, TEST, PENTEST, R4GOLIVE.</li>
+              <li>Theo dõi thời gian Pending và phân tích nguyên nhân gây nghẽn.</li>
+              <li>Cung cấp bộ chỉ số TTM-Index và QA-Index chính xác cho Lãnh đạo Phòng & PMs.</li>
+            </ul>
+          </div>
+          <div class="card card-accent-purple">
+            <div class="card-title">🛡️ Nguyên tắc Read-Only & Phạm vi MVP1</div>
+            <ul>
+              <li><strong>Read-Only Jira</strong>: Chỉ thu thập dữ liệu từ Jira (qua file CSV Import trong MVP1, không write-back).</li>
+              <li><strong>Cấu hình Nội bộ</strong>: Lưu trữ RBAC, alert rules, holiday configs trong PostgreSQL local.</li>
+              <li><strong>Tính toán bằng Ngày làm việc</strong>: Loại bỏ Thứ 7, Chủ Nhật và Ngày lễ khỏi mọi công thức thời gian.</li>
+            </ul>
+          </div>
+        </div>
+
+        <h2 class="subsection-title" id="ch1-2-phan-loai-epic">1.2. Phân loại 4 Epic-Types (Epic Complexity)</h2>
+        <p>Hệ thống tự động phân loại Epic thành 1 trong 4 loại dựa trên cặp thông tin <code>epic_request_type</code> (Loại yêu cầu) và <code>epic_request_level</code> (Mức độ yêu cầu 1-4):</p>
+        
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Epic-Type</th>
+                <th>Điều kiện Phân loại (Request Type × Level)</th>
+                <th>Ngân sách TTM-CNTT</th>
+                <th>Ngân sách TTM-E2E</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>CT-Lv12</code></td>
+                <td>Request type ∈ {"Cải tiến", "Tính năng mới"} hoặc rỗng × Mức 1-2 <em>(Mặc định)</em></td>
+                <td><strong>15 ngày làm việc</strong></td>
+                <td><strong>20 ngày làm việc</strong></td>
+              </tr>
+              <tr>
+                <td><code>CT-Lv34</code></td>
+                <td>Request type ∈ {"Cải tiến", "Tính năng mới"} hoặc rỗng × Mức 3-4</td>
+                <td><strong>25 ngày làm việc</strong></td>
+                <td><strong>30 ngày làm việc</strong></td>
+              </tr>
+              <tr>
+                <td><code>SP-Lv12</code></td>
+                <td>Request type khác CT × Mức 1-2 <em>(Bị cảnh báo Sai lệch dữ liệu R6)</em></td>
+                <td><strong>30 ngày làm việc</strong></td>
+                <td><strong>50 ngày làm việc</strong></td>
+              </tr>
+              <tr>
+                <td><code>SP-Lv34</code></td>
+                <td>Request type khác CT × Mức 3-4</td>
+                <td><strong>30 ngày làm việc</strong></td>
+                <td><strong>50 ngày làm việc</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 class="subsection-title" id="ch1-3-moc-t-va-tieu-chi">1.3. Hai mốc T & Ba Tiêu chí Đánh giá</h2>
+        <div class="grid-4">
+          <div class="card">
+            <div class="card-title">Mốc T0</div>
+            <p><strong>Ngày duyệt ý tưởng</strong> (Idea Approved Date). Bắt đầu mốc TTM-E2E. <em>(Thiếu T0 $\rightarrow$ Tự động Fallback sang Ngày tạo Epic trên Jira <code>jira_created_at</code>)</em>.</p>
+          </div>
+          <div class="card">
+            <div class="card-title">Mốc T1</div>
+            <p><strong>Start Date</strong>. Ngày CNTT chính thức bắt đầu thực hiện. Bắt đầu mốc TTM-CNTT.</p>
+          </div>
+          <div class="card">
+            <div class="card-title">TTM-CNTT</div>
+            <p>Đo từ <strong>T1 $\rightarrow$ R4G Date</strong> so với ngân sách ngày làm việc. Tiêu chí ưu tiên hàng đầu của khối CNTT.</p>
+          </div>
+          <div class="card">
+            <div class="card-title">Trục Release</div>
+            <p>Đo kỷ luật Due Date so với <strong>R4G Date + 5 ngày làm việc</strong> (Grace period) và bắt buộc Status = <code>Released</code>.</p>
+          </div>
+        </div>
+
+        <h2 class="subsection-title" id="ch1-4-so-do-luong">1.4. Sơ đồ Luồng Nghiệp vụ TTM</h2>
+        
+        <!-- SVG DIAGRAM 1: Business Workflow -->
+        <div class="svg-diagram-wrapper">
+          <div class="svg-diagram-title">Sơ đồ 1.1: Hành trình Yêu cầu Epic & Các Mốc Đánh giá TTM</div>
+          <svg class="interactive-diagram" viewBox="0 0 980 410" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Main Panel Box -->
+            <rect x="10" y="10" width="960" height="390" rx="12" fill="var(--bg-elevated)" stroke="var(--border-subtle)" stroke-width="1.5"/>
+            
+            <!-- Header Labels -->
+            <text x="40" y="38" fill="#A78BFA" font-weight="700" font-size="12" font-family="Geist, sans-serif">🟣 HÀNH TRÌNH TTM-E2E (Ý TƯỞNG ──► R4G DATE)</text>
+            <text x="430" y="38" fill="#67E8F9" font-weight="700" font-size="12" font-family="Geist, sans-serif">🔵 HÀNH TRÌNH TTM-CNTT (START DATE ──► R4G DATE)</text>
+            <text x="760" y="38" fill="#6EE7B7" font-weight="700" font-size="12" font-family="Geist, sans-serif">🟢 TRỤC RELEASE (DUE DATE)</text>
+
+            <!-- Track 1: TTM-E2E Bar -->
+            <rect x="40" y="55" width="700" height="54" rx="8" fill="rgba(139, 92, 246, 0.12)" stroke="#8B5CF6" stroke-width="1.5" stroke-dasharray="4 4"/>
+            <text x="360" y="87" text-anchor="middle" fill="#A78BFA" font-weight="700" font-size="13" font-family="Geist, sans-serif">HÀNH TRÌNH TTM-E2E (Ngân sách: 20d - 50d ngày làm việc)</text>
+
+            <!-- T0 Node (Idea Approved) -->
+            <circle cx="70" cy="82" r="16" fill="#8B5CF6" stroke="#FFFFFF" stroke-width="2"/>
+            <text x="70" y="87" text-anchor="middle" fill="#FFFFFF" font-weight="800" font-size="11">T0</text>
+            <text x="70" y="128" text-anchor="middle" fill="var(--text-main)" font-weight="700" font-size="12">Duyệt ý tưởng</text>
+
+            <!-- Fallback Box for T0 -->
+            <rect x="140" y="114" width="310" height="22" rx="4" fill="var(--bg-panel)" stroke="#8B5CF6" stroke-width="1"/>
+            <text x="295" y="129" text-anchor="middle" fill="#A78BFA" font-weight="600" font-size="10">⚠️ Nếu thiếu T0: Lấy ngày tạo Epic trên Jira (jira_created_at)</text>
+            <path d="M70 98 V125 H136" stroke="#8B5CF6" stroke-width="1.2" stroke-dasharray="3 3"/>
+
+            <!-- Track 2: TTM-CNTT Bar -->
+            <rect x="230" y="160" width="510" height="60" rx="8" fill="rgba(6, 182, 212, 0.12)" stroke="#06B6D4" stroke-width="2"/>
+            <text x="480" y="182" text-anchor="middle" fill="#67E8F9" font-weight="700" font-size="13" font-family="Geist, sans-serif">HÀNH TRÌNH TTM-CNTT (Ngân sách: 15d - 30d ngày làm việc)</text>
+
+            <!-- T1 Node (Start Date) -->
+            <circle cx="230" cy="190" r="16" fill="#06B6D4" stroke="#FFFFFF" stroke-width="2"/>
+            <text x="230" y="195" text-anchor="middle" fill="#FFFFFF" font-weight="800" font-size="11">T1</text>
+            <text x="230" y="238" text-anchor="middle" fill="var(--text-main)" font-weight="700" font-size="12">Start Date (CNTT)</text>
+
+            <!-- 5 Phase Blocks inside CNTT Bar -->
+            <g transform="translate(265, 192)">
+              <rect x="0" y="0" width="82" height="22" rx="4" fill="var(--bg-panel)" stroke="var(--border-strong)"/>
+              <text x="41" y="15" text-anchor="middle" fill="var(--text-muted)" font-size="10" font-weight="600">DESIGN 20%</text>
+
+              <rect x="88" y="0" width="82" height="22" rx="4" fill="var(--bg-panel)" stroke="var(--border-strong)"/>
+              <text x="129" y="15" text-anchor="middle" fill="var(--text-muted)" font-size="10" font-weight="600">DEV 30%</text>
+
+              <rect x="176" y="0" width="82" height="22" rx="4" fill="var(--bg-panel)" stroke="var(--border-strong)"/>
+              <text x="217" y="15" text-anchor="middle" fill="var(--text-muted)" font-size="10" font-weight="600">TEST 30%</text>
+
+              <rect x="264" y="0" width="76" height="22" rx="4" fill="var(--bg-panel)" stroke="var(--border-strong)"/>
+              <text x="302" y="15" text-anchor="middle" fill="var(--text-muted)" font-size="9" font-weight="600">PENTEST 10%</text>
+
+              <rect x="346" y="0" width="80" height="22" rx="4" fill="var(--bg-panel)" stroke="var(--border-strong)"/>
+              <text x="386" y="15" text-anchor="middle" fill="var(--text-muted)" font-size="9" font-weight="600">R4GOLIVE 10%</text>
+            </g>
+
+            <!-- R4G Node -->
+            <circle cx="740" cy="190" r="16" fill="#3B82F6" stroke="#FFFFFF" stroke-width="2"/>
+            <text x="740" y="194" text-anchor="middle" fill="#FFFFFF" font-weight="800" font-size="10">R4G</text>
+            <text x="740" y="238" text-anchor="middle" fill="var(--text-main)" font-weight="700" font-size="12">R4G Date</text>
+
+            <!-- Track 3: Release Grace Bar -->
+            <rect x="740" y="160" width="180" height="60" rx="8" fill="rgba(16, 185, 129, 0.12)" stroke="#10B981" stroke-width="1.5"/>
+            <text x="830" y="182" text-anchor="middle" fill="#6EE7B7" font-weight="700" font-size="11">+5d Grace Period</text>
+            <text x="830" y="202" text-anchor="middle" fill="#A7F3D0" font-size="10">Kỷ luật Due Date</text>
+
+            <!-- REL Node -->
+            <circle cx="920" cy="190" r="16" fill="#10B981" stroke="#FFFFFF" stroke-width="2"/>
+            <text x="920" y="194" text-anchor="middle" fill="#FFFFFF" font-weight="800" font-size="10">REL</text>
+            <text x="920" y="238" text-anchor="middle" fill="var(--text-main)" font-weight="700" font-size="12">Released (Due)</text>
+
+            <!-- Connecting Arrows -->
+            <path d="M86 82 H740" stroke="#8B5CF6" stroke-width="1.5" stroke-dasharray="4 4"/>
+            <path d="M246 190 H724" stroke="#06B6D4" stroke-width="2"/>
+            <path d="M756 190 H904" stroke="#10B981" stroke-width="2"/>
+
+            <!-- Bottom Explanatory Legend Box -->
+            <g transform="translate(40, 262)">
+              <rect x="0" y="0" width="900" height="120" rx="8" fill="var(--bg-panel)" stroke="var(--border-subtle)" stroke-width="1"/>
+              
+              <text x="16" y="24" fill="#A78BFA" font-weight="700" font-size="11">🟣 TTM-E2E (T0 ──► R4G Date):</text>
+              <text x="210" y="24" fill="var(--text-muted)" font-size="11">Đo toàn bộ hành trình từ Duyệt ý tưởng (T0) đến R4G Date. Nếu thiếu T0, hệ thống tự động fallback lấy Ngày tạo Epic trên Jira (jira_created_at) & gắn badge "Baseline từ ngày tạo Jira" (E2E_BASELINE_FROM_JIRA_CREATED). Bắt buộc status = Released để Đạt TTM-E2E.</text>
+              
+              <text x="16" y="56" fill="#67E8F9" font-weight="700" font-size="11">🔵 TTM-CNTT (T1 ──► R4G Date):</text>
+              <text x="210" y="56" fill="var(--text-muted)" font-size="11">Đo thời gian thực hiện trong phạm vi CNTT từ Start Date (T1) đến R4G Date. Mốc ưu tiên số 1 của khối CNTT. Ngân sách từ 15 đến 30 ngày làm việc tùy loại Epic.</text>
+              
+              <text x="16" y="88" fill="#6EE7B7" font-weight="700" font-size="11">🟢 Trục Release (R4G ──► Due):</text>
+              <text x="210" y="88" fill="var(--text-muted)" font-size="11">Theo dõi kỷ luật ghi nhận Due Date. Cho phép thời hạn grace +5 ngày làm việc kể từ R4G Date. Nếu Due Date đúng hạn nhưng status chưa Released ──► Badge "Sai Status" (Release).</text>
+            </g>
+          </svg>
+        </div>
+      </section>
+
+      <!-- CHƯƠNG 2 -->
+      <section class="doc-section" id="ch2-ui-ux">
+        <div class="section-header">
+          <div class="chapter-num">Chương 2</div>
+          <h1 class="chapter-title">Thiết kế Giao diện UI/UX & Design System</h1>
+        </div>
+
+        <h2 class="subsection-title" id="ch2-1-gecko-ui">2.1. Triết lý Gecko-Inspired Foundation</h2>
+        <p>Giao diện TTM Monitor áp dụng chuẩn <strong>Gecko-Inspired Data-First UI</strong> (tối ưu hiển thị bảng dữ liệu mật độ cao, loại bỏ các chi tiết trang trí thừa như gradient hay frosted glass):</p>
+        
+        <ul>
+          <li><strong>Typography duy nhất</strong>: Cỡ chữ chuẩn toàn bộ ứng dụng là <code>--text-app = 11.5px</code> (Font <em>Geist</em> & <em>Geist Mono</em>).</li>
+          <li><strong>Màu sắc Surface</strong>: Phân tầng rõ ràng giữa App Canvas (<code>#0f111a</code>), Sidebar (<code>#151824</code>), Panel (<code>#1b1e2e</code>), và Elevated Controls. Accent Cyan (<code>#06b6d4</code>) làm điểm nhấn tương tác duy nhất.</li>
+          <li><strong>Border & Shadow</strong>: Bề mặt phân tách bằng border sắc nét; shadow chỉ sử dụng cho Modal Dialog.</li>
+        </ul>
+
+        <h2 class="subsection-title" id="ch2-2-icons-standard">2.2. Chuẩn mực Icon Phosphor</h2>
+        <p>Toàn bộ biểu tượng trong hệ thống được nhập độc quyền từ bộ <code>@phosphor-icons/react</code>:</p>
+        
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Biểu tượng Icon</th>
+                <th>Tên Icon Component</th>
+                <th>Vị trí Cột / Ô áp dụng</th>
+                <th>Định dạng & Phong cách Style</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>⚠️ <code>Warning</code></td>
+                <td><code>Warning</code></td>
+                <td>Cột Epic</td>
+                <td>Màu cảnh báo (Hổ phách / Đỏ) cho Trigger Alert</td>
+              </tr>
+              <tr>
+                <td>↗️ <code>ArrowSquareOut</code></td>
+                <td><code>ArrowSquareOut</code></td>
+                <td>Cột Epic</td>
+                <td>Link mở chi tiết Epic trên Jira sang tab mới</td>
+              </tr>
+              <tr>
+                <td>► <code>CaretRight</code></td>
+                <td><code>CaretRight</code></td>
+                <td>Cột START-E2E</td>
+                <td>Đặt trước ngày START-E2E, font size 11px, màu <code>#64748b</code></td>
+              </tr>
+              <tr>
+                <td>►▌ <code>CaretLineRight</code></td>
+                <td><code>CaretLineRight</code></td>
+                <td>Cột START-CNTT</td>
+                <td>Đặt trước ngày START-CNTT, font size 11px, màu <code>#64748b</code></td>
+              </tr>
+              <tr>
+                <td>↳ <code>ArrowBendUpRight</code></td>
+                <td><code>ArrowBendUpRight</code></td>
+                <td>Các ô Pha Tiến độ (Phase Stage)</td>
+                <td>Đặt trước ngày baseline cùng dòng, màu <code>#64748b</code></td>
+              </tr>
+              <tr>
+                <td>✓✓ <code>Checks</code></td>
+                <td><code>Checks</code></td>
+                <td>Cột R4Golive & Released</td>
+                <td>Đặt trước ngày thực tế ghi nhận, màu Đen nguyên bản (<code>#000000</code>)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 class="subsection-title" id="ch2-3-so-do-shell">2.3. Sơ đồ Cấu trúc Giao diện Shell</h2>
+        
+        <!-- SVG DIAGRAM 2: UI Architecture -->
+        <div class="svg-diagram-wrapper">
+          <div class="svg-diagram-title">Sơ đồ 2.1: Khung Bố cục App Shell & Các Khối Giao diện Chính</div>
+          <svg class="interactive-diagram" viewBox="0 0 960 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- App Window Frame -->
+            <rect x="20" y="20" width="920" height="260" rx="8" fill="var(--bg-app)" stroke="var(--border-strong)" stroke-width="2"/>
+            
+            <!-- Header Dock -->
+            <rect x="20" y="20" width="920" height="40" rx="8" fill="var(--bg-sidebar)" stroke="var(--border-subtle)"/>
+            <circle cx="42" cy="40" r="5" fill="#EF4444"/>
+            <circle cx="58" cy="40" r="5" fill="#F59E0B"/>
+            <circle cx="74" cy="40" r="5" fill="#10B981"/>
+            <text x="480" y="45" text-anchor="middle" fill="var(--text-dim)" font-size="11" font-weight="600">TTM Monitor — Quản trị Epic & Giám sát Rủi ro</text>
+
+            <!-- Collapsible Sidebar -->
+            <rect x="20" y="60" width="180" height="220" fill="var(--bg-sidebar)" stroke="var(--border-subtle)"/>
+            <text x="35" y="85" fill="var(--accent-cyan)" font-size="11" font-weight="700">DASHBOARDS</text>
+            <rect x="30" y="95" width="160" height="24" rx="4" fill="rgba(6, 182, 212, 0.15)"/>
+            <text x="40" y="111" fill="var(--accent-cyan)" font-size="11" font-weight="600">Quản trị Epic (15d)</text>
+            <text x="40" y="135" fill="var(--text-muted)" font-size="11">Epic in PO</text>
+            <text x="40" y="155" fill="var(--text-muted)" font-size="11">Báo cáo Chỉ số TTM</text>
+            
+            <text x="35" y="185" fill="var(--text-dim)" font-size="11" font-weight="700">QUẢN TRỊ NGUỒN</text>
+            <text x="40" y="205" fill="var(--text-muted)" font-size="11">Import CSV</text>
+            <text x="40" y="225" fill="var(--text-muted)" font-size="11">Cấu hình Cảnh báo</text>
+
+            <!-- Main Content Area -->
+            <rect x="210" y="70" width="720" height="200" rx="6" fill="var(--bg-panel)" stroke="var(--border-subtle)"/>
+            
+            <!-- Summary Stats Ribbon -->
+            <rect x="225" y="85" width="160" height="45" rx="6" fill="var(--bg-elevated)" stroke="var(--border-subtle)"/>
+            <text x="235" y="102" fill="var(--text-dim)" font-size="10">TTM-INDEX CÔNG TY</text>
+            <text x="235" y="122" fill="#10B981" font-size="16" font-weight="800">89.0%</text>
+
+            <rect x="395" y="85" width="160" height="45" rx="6" fill="var(--bg-elevated)" stroke="var(--border-subtle)"/>
+            <text x="405" y="102" fill="var(--text-dim)" font-size="10">EPIC CẢNH BÁO MUỘN</text>
+            <text x="405" y="122" fill="#F59E0B" font-size="16" font-weight="800">46 Epic</text>
+
+            <rect x="565" y="85" width="160" height="45" rx="6" fill="var(--bg-elevated)" stroke="var(--border-subtle)"/>
+            <text x="575" y="102" fill="var(--text-dim)" font-size="10">SAI LỆCH DỮ LIỆU</text>
+            <text x="575" y="122" fill="#EF4444" font-size="16" font-weight="800">198 Epic</text>
+
+            <!-- Data Table Mockup -->
+            <rect x="225" y="140" width="690" height="115" rx="4" fill="var(--bg-elevated)" stroke="var(--border-subtle)"/>
+            <line x1="225" y1="162" x2="915" y2="162" stroke="var(--border-subtle)" stroke-width="1"/>
+            <text x="235" y="155" fill="var(--text-main)" font-size="10" font-weight="700">EPIC KEY</text>
+            <text x="320" y="155" fill="var(--text-main)" font-size="10" font-weight="700">TÊN EPIC</text>
+            <text x="540" y="155" fill="var(--text-main)" font-size="10" font-weight="700">START-CNTT</text>
+            <text x="650" y="155" fill="var(--text-main)" font-size="10" font-weight="700">NHẬN XÉT (BADGES)</text>
+
+            <text x="235" y="180" fill="var(--accent-cyan)" font-size="10" font-family="Geist Mono">PROJ-1024</text>
+            <text x="320" y="180" fill="var(--text-muted)" font-size="10">Nâng cấp lõi Chuyển tiền 24/7</text>
+            <text x="540" y="180" fill="var(--text-muted)" font-size="10">►▌ 15/08/2026</text>
+            <rect x="650" y="170" width="80" height="16" rx="8" fill="rgba(239, 68, 68, 0.15)"/>
+            <text x="690" y="181" text-anchor="middle" fill="#EF4444" font-size="9" font-weight="700">Fail TTM-CNTT</text>
+
+            <text x="235" y="202" fill="var(--accent-cyan)" font-size="10" font-family="Geist Mono">PROJ-1088</text>
+            <text x="320" y="202" fill="var(--text-muted)" font-size="10">Tích hợp VNPay Merchant QR</text>
+            <text x="540" y="202" fill="var(--text-muted)" font-size="10">►▌ 01/09/2026</text>
+            <rect x="650" y="192" width="70" height="16" rx="8" fill="rgba(16, 185, 129, 0.15)"/>
+            <text x="685" y="203" text-anchor="middle" fill="#10B981" font-size="9" font-weight="700">Đạt TTM-CNTT</text>
+          </svg>
+        </div>
+      </section>
+
+      <!-- CHƯƠNG 3 -->
+      <section class="doc-section" id="ch3-kien-truc">
+        <div class="section-header">
+          <div class="chapter-num">Chương 3</div>
+          <h1 class="chapter-title">Kiến trúc Hệ thống & Kỹ thuật</h1>
+        </div>
+
+        <h2 class="subsection-title" id="ch3-1-tech-stack">3.1. Full Technical Stack</h2>
+        <div class="grid-4">
+          <div class="card">
+            <div class="card-title">Next.js 16</div>
+            <p>App Router, React 19 Server Components, API Route handlers tối ưu hiệu năng.</p>
+          </div>
+          <div class="card">
+            <div class="card-title">PostgreSQL</div>
+            <p>Lưu trữ dữ liệu Jira issues, configs, alert rules, cache và audit logs.</p>
+          </div>
+          <div class="card">
+            <div class="card-title">Tailwind CSS v4</div>
+            <p>Styling qua <code>@tailwindcss/postcss</code>, kết hợp CSS Variables chuẩn Gecko.</p>
+          </div>
+          <div class="card">
+            <div class="card-title">MCP Integration</div>
+            <p>Tích hợp Model Context Protocol cung cấp dữ liệu chỉ số cho AI Assistant.</p>
+          </div>
+        </div>
+
+        <h2 class="subsection-title" id="ch3-2-multi-db">3.2. Mô hình Multi-Database Target</h2>
+        <div class="info-callout">
+          <p><strong>⚠️ Quy định Multi-DB Target (Local + Supabase)</strong></p>
+          <p>Dự án kết nối song song 2 môi trường PostgreSQL Target. Khi có bất kỳ thay đổi nào về Schema (Migration), phải áp dụng cho <strong>cả hai</strong> trước khi hoàn thành task:</p>
+          <p><code>npm run db:migrate:local</code> &nbsp;và&nbsp; <code>npm run db:migrate:supabase</code></p>
+          <p><em>(Lưu ý: Aiven đã dừng hoạt động từ 26/09/2026. Môi trường Supabase ưu tiên dùng kết nối Transaction Pooler cổng 6543)</em>.</p>
+        </div>
+
+        <h2 class="subsection-title" id="ch3-3-versioning">3.3. Quy trình Versioning & Daily Change Log</h2>
+        <ul>
+          <li><strong>Version Stamp (<code>version.json</code>)</strong>: Tự động cập nhật file <code>version.json</code> ở gốc với timestamp <code>"build": "yymmdd.hhmm"</code> (Ví dụ: <code>260930.2240</code>). Thông tin này hiển thị ở footer màn hình Login.</li>
+          <li><strong>Daily Change Log (<code>daily_change_log.md</code>)</strong>: Bổ sung ghi chú tổng hợp thay đổi theo ngày ở đầu file bằng tiếng Việt.</li>
+        </ul>
+
+        <h2 class="subsection-title" id="ch3-4-so-do-kien-truc">3.4. Sơ đồ Kiến trúc Hệ thống</h2>
+
+        <!-- SVG DIAGRAM 3: System Architecture -->
+        <div class="svg-diagram-wrapper">
+          <div class="svg-diagram-title">Sơ đồ 3.1: Luồng Dữ liệu Kiến trúc từ Nguồn vào đến Giao diện & Cache</div>
+          <svg class="interactive-diagram" viewBox="0 0 960 280" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Data Sources -->
+            <rect x="30" y="40" width="160" height="200" rx="8" fill="var(--bg-elevated)" stroke="var(--border-subtle)"/>
+            <text x="110" y="65" text-anchor="middle" fill="var(--text-dim)" font-size="11" font-weight="700">DATA SOURCES</text>
+            
+            <rect x="45" y="85" width="130" height="40" rx="6" fill="var(--bg-panel)" stroke="#06B6D4"/>
+            <text x="110" y="110" text-anchor="middle" fill="var(--accent-cyan)" font-size="11" font-weight="600">Jira CSV Import</text>
+
+            <rect x="45" y="140" width="130" height="40" rx="6" fill="var(--bg-panel)" stroke="var(--border-subtle)"/>
+            <text x="110" y="165" text-anchor="middle" fill="var(--text-muted)" font-size="11">Jira API (Tương lai)</text>
+
+            <!-- Arrow 1 -->
+            <path d="M190 140 H240" stroke="var(--accent-cyan)" stroke-width="2" marker-end="url(#arrow)"/>
+
+            <!-- App Backend Core -->
+            <rect x="250" y="40" width="260" height="200" rx="8" fill="var(--bg-elevated)" stroke="var(--accent-cyan)"/>
+            <text x="380" y="65" text-anchor="middle" fill="var(--accent-cyan)" font-size="11" font-weight="700">NEXT.JS BACKEND CORE</text>
+
+            <rect x="270" y="85" width="220" height="45" rx="6" fill="var(--bg-panel)" stroke="var(--border-strong)"/>
+            <text x="380" y="105" text-anchor="middle" fill="var(--text-main)" font-size="11" font-weight="700">Import Service</text>
+            <text x="380" y="120" text-anchor="middle" fill="var(--text-dim)" font-size="10">computeEpicComplexity</text>
+
+            <rect x="270" y="145" width="220" height="70" rx="6" fill="rgba(139, 92, 246, 0.15)" stroke="#8B5CF6"/>
+            <text x="380" y="170" text-anchor="middle" fill="#A78BFA" font-size="12" font-weight="800">Epic Scoring Service</text>
+            <text x="380" y="190" text-anchor="middle" fill="var(--text-muted)" font-size="10">Pure Core • asOf • 6 Axes</text>
+
+            <!-- Arrow 2 -->
+            <path d="M510 140 H560" stroke="#8B5CF6" stroke-width="2"/>
+
+            <!-- Database Layer -->
+            <rect x="570" y="40" width="160" height="200" rx="8" fill="var(--bg-elevated)" stroke="var(--border-subtle)"/>
+            <text x="650" y="65" text-anchor="middle" fill="var(--text-dim)" font-size="11" font-weight="700">DATABASES</text>
+
+            <rect x="585" y="85" width="130" height="40" rx="6" fill="var(--bg-panel)" stroke="var(--border-subtle)"/>
+            <text x="650" y="110" text-anchor="middle" fill="var(--text-main)" font-size="11" font-weight="600">Local Postgres</text>
+
+            <rect x="585" y="135" width="130" height="40" rx="6" fill="var(--bg-panel)" stroke="var(--border-subtle)"/>
+            <text x="650" y="160" text-anchor="middle" fill="var(--text-main)" font-size="11" font-weight="600">Supabase Pooler</text>
+
+            <rect x="585" y="185" width="130" height="40" rx="6" fill="rgba(16, 185, 129, 0.15)" stroke="#10B981"/>
+            <text x="650" y="208" text-anchor="middle" fill="#10B981" font-size="10" font-weight="700">Cache & Scorecard</text>
+
+            <!-- Arrow 3 -->
+            <path d="M730 140 H780" stroke="#10B981" stroke-width="2"/>
+
+            <!-- UI & Clients -->
+            <rect x="790" y="40" width="140" height="200" rx="8" fill="var(--bg-elevated)" stroke="var(--border-subtle)"/>
+            <text x="860" y="65" text-anchor="middle" fill="var(--text-dim)" font-size="11" font-weight="700">CONSUMERS</text>
+
+            <rect x="805" y="90" width="110" height="35" rx="6" fill="var(--bg-panel)" stroke="var(--border-subtle)"/>
+            <text x="860" y="112" text-anchor="middle" fill="var(--text-main)" font-size="11" font-weight="600">UI Dashboard</text>
+
+            <rect x="805" y="135" width="110" height="35" rx="6" fill="var(--bg-panel)" stroke="var(--border-subtle)"/>
+            <text x="860" y="157" text-anchor="middle" fill="var(--text-main)" font-size="11" font-weight="600">Báo cáo PDF</text>
+
+            <rect x="805" y="180" width="110" height="35" rx="6" fill="var(--bg-panel)" stroke="var(--border-subtle)"/>
+            <text x="860" y="202" text-anchor="middle" fill="var(--text-main)" font-size="11" font-weight="600">MCP Protocol</text>
+          </svg>
+        </div>
+
+        <!-- MỤC BỔ SUNG 3.5: CHỨC NĂNG THU THẬP DỮ LIỆU & MULTI-LAYER -->
+        <h2 class="subsection-title" id="ch3-5-data-layers">3.5. Chức năng Thu thập Dữ liệu, Cấu trúc Lớp Dữ liệu & Logic Multi-Layer</h2>
+
+        <h3 class="topic-title">3.5.1. Chức năng Thu thập Dữ liệu (Data Collection Engine)</h3>
+        <p>
+          TTM Monitor thiết kế cơ chế thu thập dữ liệu theo mô hình <strong>DataSourceAdapter</strong> linh hoạt. Trong phiên bản hiện tại, dữ liệu được nạp vào hệ thống thông qua công cụ CSV Import:
+        </p>
+        <ul>
+          <li><strong>Nguồn dữ liệu CSV (Py Jira API Adapter)</strong>: Một script tự động hóa truy vấn Jira REST API và xuất ra các file CSV chuẩn hóa chứa cây cấu trúc Jira Issues (Epic, Story, Subtask).</li>
+          <li><strong>Cơ chế Staging & Validation</strong>:
+            <ul>
+              <li>Dữ liệu thô CSV được tải lên và lưu tạm tại bảng <code>import_rows</code> dạng JSONB.</li>
+              <li>Chế độ <strong>Validate Only</strong>: Kiểm tra tính hợp lệ dữ liệu (thiếu Start Date, sai thứ tự ngày, thiếu loại yêu cầu...) và hiển thị preview trên UI mà KHÔNG lưu vào CSDL.</li>
+              <li>Chế độ <strong>Import & Validate</strong>: Thực thi chuyển đổi sang mô hình chuẩn Canonical <code>issues</code>.</li>
+            </ul>
+          </li>
+          <li><strong>Import tự động 1 lần/ngày</strong>: Khi tài khoản thuộc role CBQL Phòng (SUPERADMIN) đăng nhập đầu tiên trong ngày, hệ thống tự động kiểm tra và chạy tiến trình import nếu hôm nay chưa có đợt import thành công nào.</li>
+          <li><strong>Nhật ký Batch (<code>import_batches</code>)</strong>: Mỗi lần nạp dữ liệu tạo ra một Batch mới lưu lịch sử: ID batch, tên file, số lượng bản ghi thành công/lỗi, người thực hiện và mốc thời gian chốt dữ liệu <code>aggregated_at</code>.</li>
+        </ul>
+
+        <h3 class="topic-title">3.5.2. Cấu trúc Lớp Dữ liệu (Data Layer Architecture)</h3>
+        <p>
+          Đặc thù của TTM Monitor là theo dõi biến động tiến độ theo thời gian. Hệ thống xây dựng kiến trúc <strong>Lớp dữ liệu (Layer Date)</strong> dựa trên mốc chốt dữ liệu <code>aggregated_at</code>:
+        </p>
+        <div class="grid-2">
+          <div class="card card-accent-cyan">
+            <div class="card-title">🗂️ Khóa định danh theo Lớp</div>
+            <p>Bảng <code>issues</code> lưu trữ khóa duy nhất là <code>(issue_key, source_import_batch_id)</code>. Cho phép cùng 1 Epic/Story (ví dụ: <code>PROJ-1024</code>) tồn tại nhiều bản ghi ở các đợt import (lớp dữ liệu) khác nhau, phản ánh đúng lịch sử thay đổi của Epic qua các thời kỳ.</p>
+          </div>
+          <div class="card card-accent-purple">
+            <div class="card-title">🔍 Truy vấn Trạng thái theo Mốc Lớp</div>
+            <p>Khi cần truy vấn dữ liệu tại một mốc quá khứ (ví dụ: xem lớp ngày 15/09/2026), hệ thống sử dụng CTE <code>LATEST_ISSUES_CTE</code> / hàm <code>latestIssuesAsOf(asOf)</code> để lọc ra bản ghi cuối cùng của mỗi Issue tính tới ngày <code>asOf</code> đó (<code>WHERE aggregated_at &lt;= asOf</code>).</p>
+          </div>
+        </div>
+
+        <h3 class="topic-title">3.5.3. Logic Tính toán & Đánh giá Dữ liệu Multi-Layer</h3>
+        <p>
+          Khi người dùng chuyển đổi chọn các "Lớp dữ liệu quá khứ" trên giao diện Quản trị Epic hoặc Dashboard, toàn bộ bộ máy tính toán hoạt động theo logic Multi-Layer:
+        </p>
+        <ul>
+          <li><strong>Chấm điểm theo Mốc <code>asOf</code> Quá khứ (Quyết định D3)</strong>:
+            Epic Scoring Service nhận mốc <code>asOf</code> trùng với ngày của Lớp dữ liệu được chọn. Trạng thái hoàn thành các pha (DESIGN, DEV, TEST...) được tính toán dựa trên trạng thái của các Story/Subtask <strong>tại đúng mốc Lớp dữ liệu đó</strong>, đảm bảo bức tranh đánh giá rủi ro trong quá khứ không bị sai lệch bởi trạng thái hiện tại.
+          </li>
+          <li><strong>Cơ chế Cache Scorecard theo Lớp (<code>epic_alert_row_cache</code>)</strong>:
+            Để tối ưu tốc độ phản hồi cho hàng ngàn Epic qua nhiều lớp dữ liệu, kết quả sau khi chấm điểm được lưu vào cache <code>epic_alert_row_cache</code> kèm các cột chỉ mục GIN Index:
+            <ul>
+              <li><code>badge_codes</code>: Mảng chứa toàn bộ mã Badge active (ví dụ: <code>['CNTT_FAIL', 'ANOMALY_R1']</code>). Bộ lọc SQL sử dụng toán tử <code>badge_codes &amp;&amp; $1</code> cho tốc độ phản hồi tính bằng milisecond.</li>
+              <li><code>index_flags</code>: Mảng chứa các cờ thành viên TTM-Index / QA-Index (<code>TTM_COUNTED</code>, <code>TTM_ELIGIBLE</code>, <code>TTM_PASS</code>...).</li>
+              <li><code>findings</code>: Chuỗi JSONB chứa chi tiết bằng chứng evidence của từng phán quyết.</li>
+              <li><code>scored_as_of</code> &amp; <code>scoring_ruleset_version</code>: Đảm bảo cache tự động vô hiệu hóa (Stale) và tính toán lại khi có sự thay đổi về quy tắc chấm điểm hoặc cấu hình.</li>
+            </ul>
+          </li>
+        </ul>
+      </section>
+
+      <!-- CHƯƠNG 4 -->
+      <section class="doc-section" id="ch4-scoring-service">
+        <div class="section-header">
+          <div class="chapter-num">Chương 4</div>
+          <h1 class="chapter-title">Chi tiết Thông tin & Rules của Epic Scoring Service</h1>
+        </div>
+
+        <p class="lead">
+          <strong>Epic Scoring Service</strong> (<code>src/lib/scoring/</code>) là trái tim xử lý phán quyết của TTM Monitor. Toàn bộ các quy tắc đánh giá Epic từ 8+ module legacy cũ đã được gom về 1 điểm duy nhất.
+        </p>
+
+        <h2 class="subsection-title" id="ch4-1-pure-core">4.1. Kiến trúc Pure Core & Nguyên tắc mốc thời gian <code>asOf</code></h2>
+        <div class="grid-2">
+          <div class="card card-accent-purple">
+            <div class="card-title">⚡ Thuần tính (Pure Functional Core)</div>
+            <ul>
+              <li>Toàn bộ thư mục <code>src/lib/scoring/</code> là <strong>pure TypeScript</strong>.</li>
+              <li>KHÔNG import <code>@/lib/db</code> hay kết nối pool cơ sở dữ liệu.</li>
+              <li>Chạy mượt mà ở cả phía Client lẫn Server, hỗ trợ unit test tức thì mà không cần kết nối DB.</li>
+            </ul>
+          </div>
+          <div class="card card-accent-cyan">
+            <div class="card-title">🕒 Mốc thời gian tương đối <code>asOf</code></div>
+            <ul>
+              <li>Service <strong>không bao giờ đọc đồng hồ hệ thống</strong> (nghiêm cấm <code>new Date()</code> không tham số).</li>
+              <li>Tham số <code>asOf</code> (dạng ISO Date string <code>"YYYY-MM-DD"</code> theo giờ Việt Nam) được truyền từ bên ngoài vào.</li>
+              <li>Cho phép chấm điểm chính xác lại lịch sử ở bất kỳ mốc quá khứ nào.</li>
+            </ul>
+          </div>
+        </div>
+
+        <h2 class="subsection-title" id="ch4-2-mo-hinh-badges">4.2. Mô hình Axis & Finding Groups</h2>
+        <p>Mỗi phán quyết của hệ thống sinh ra một <strong>Finding</strong> chứa một <strong>Badge</strong> chuẩn hóa:</p>
+        <p><code>Axis (6 Trục) ──► Finding Group (5 Nhóm) ──► Badge Definition (catalog.ts)</code></p>
+
+        <div class="grid-4">
+          <div class="card">
+            <span class="badge badge-fail">FAIL</span>
+            <p><strong>Đánh giá Fail</strong>: Đã không đạt tiêu chí. Không thể "cứu" bằng cách làm nhanh hơn.</p>
+          </div>
+          <div class="card">
+            <span class="badge badge-alert">ALERT</span>
+            <p><strong>Cảnh báo</strong>: Rủi ro đang diễn ra hoặc dữ liệu có vấn đề cần chú ý.</p>
+          </div>
+          <div class="card">
+            <span class="badge badge-rec">RECOMMENDATION</span>
+            <p><strong>Khuyến nghị</strong>: Việc cụ thể người phụ trách nên làm (cập nhật status, bổ sung trường...).</p>
+          </div>
+          <div class="card">
+            <span class="badge badge-pass">PASS</span>
+            <p><strong>Đánh giá Đạt</strong>: Đã hoàn thành đúng hạn theo quy định.</p>
+          </div>
+        </div>
+
+        <h2 class="subsection-title" id="ch4-3-catalog-badges">4.3. Bảng Tra cứu Chi tiết Badges Catalog</h2>
+        <p>Nguồn dữ liệu duy nhất từ <code>src/lib/scoring/catalog.ts</code> (được render trực tiếp lên popup "Logic cảnh báo"):</p>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Axis (Trục)</th>
+                <th>Mã Badge (ID)</th>
+                <th>Group</th>
+                <th>Nhãn VN (Label)</th>
+                <th>Ý nghĩa & Công thức (Formula)</th>
+                <th>Gate Core</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- TTM_CNTT -->
+              <tr>
+                <td rowspan="6"><strong>TTM_CNTT</strong></td>
+                <td><code>CNTT_CALC_BROKEN</code></td>
+                <td><span class="badge badge-note">NOTE</span></td>
+                <td>Không tính được</td>
+                <td>T1 trống HOẶC R4G &lt; T1. <em>(Che mọi badge TTM-CNTT khác)</em></td>
+                <td>Core 🔒</td>
+              </tr>
+              <tr>
+                <td><code>CNTT_STATUS_MISMATCH</code></td>
+                <td><span class="badge badge-rec">RECOMMENDATION</span></td>
+                <td>Sai Status</td>
+                <td>R4G ≤ asOf VÀ R4G ≤ Target_CNTT VÀ status &lt; R4GOLIVE. <em>(Cần chuyển status sang R4GOLIVE. Không đếm Đạt)</em></td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><code>CNTT_FAIL</code></td>
+                <td><span class="badge badge-fail">FAIL</span></td>
+                <td>Fail TTM-CNTT</td>
+                <td>Có R4G: R4G &gt; Target_CNTT. Chưa R4G: asOf &gt; Target_CNTT. <code>Target_CNTT = T1 +wd (N_CNTT − 1)</code></td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><code>CNTT_LATE</code></td>
+                <td><span class="badge badge-alert">ALERT</span></td>
+                <td>Cảnh báo muộn</td>
+                <td>R4G trống VÀ T1 +wd Offset_muộn ≤ asOf ≤ Target_CNTT</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><code>CNTT_PASS</code></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>Đạt TTM-CNTT</td>
+                <td>R4G ≤ asOf VÀ R4G ≤ Target_CNTT VÀ không "Sai Status"</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><code>CNTT_NOT_APPLICABLE</code></td>
+                <td><span class="badge badge-note">NOTE</span></td>
+                <td>Không áp dụng</td>
+                <td>Status = Cancelled <em>(Miễn đánh giá TTM-CNTT)</em></td>
+                <td>Core 🔒</td>
+              </tr>
+
+              <!-- TTM_E2E -->
+              <tr>
+                <td rowspan="4"><strong>TTM_E2E</strong></td>
+                <td><code>E2E_CALC_BROKEN</code></td>
+                <td><span class="badge badge-note">NOTE</span></td>
+                <td>Không tính được</td>
+                <td>T0 có giá trị VÀ R4G &lt; T0</td>
+                <td>Core 🔒</td>
+              </tr>
+              <tr>
+                <td><code>E2E_FAIL</code></td>
+                <td><span class="badge badge-fail">FAIL</span></td>
+                <td>Fail TTM-E2E</td>
+                <td>Target_E2E = T0 +wd N_E2E. Ngày kết thúc TTM-E2E &gt; Target_E2E</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><code>E2E_PASS</code></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>Đạt TTM-E2E</td>
+                <td>Không Fail TTM-E2E VÀ status = RELEASED VÀ ngày kết thúc R4G ≤ asOf</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><code>E2E_BASELINE_FROM_JIRA_CREATED</code></td>
+                <td><span class="badge badge-note">NOTE</span></td>
+                <td>Baseline từ ngày tạo Jira</td>
+                <td>Thiếu Idea Approved Date (T0) $\rightarrow$ Lấy ngày tạo Epic trên Jira</td>
+                <td>—</td>
+              </tr>
+
+              <!-- RELEASE -->
+              <tr>
+                <td rowspan="4"><strong>RELEASE</strong></td>
+                <td><code>RELEASE_JUSTIFY_GOLIVE</code></td>
+                <td><span class="badge badge-fail">FAIL</span></td>
+                <td>Giải trình Golive</td>
+                <td>Có R4G VÀ (Due &gt; R4G +wd 5 HOẶC Due trống VÀ asOf &gt; R4G +wd 5)</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><code>RELEASE_STATUS_MISMATCH</code></td>
+                <td><span class="badge badge-rec">RECOMMENDATION</span></td>
+                <td>Sai Status</td>
+                <td>Có R4G VÀ Due ≤ R4G +wd 5 VÀ status ≠ RELEASED <em>(Trước đây là R7)</em></td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><code>RELEASE_WAITING_GOLIVE</code></td>
+                <td><span class="badge badge-alert">ALERT</span></td>
+                <td>Chờ golive</td>
+                <td>Có R4G VÀ Due trống VÀ asOf ≤ R4G +wd 5 VÀ status ≤ R4GOLIVE</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><code>RELEASE_ON_TIME</code></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>Release đúng hạn</td>
+                <td>Có R4G VÀ Due ≤ R4G +wd 5 VÀ status = RELEASED <em>(Mặc định tắt)</em></td>
+                <td>—</td>
+              </tr>
+
+              <!-- DATA_QUALITY -->
+              <tr>
+                <td rowspan="6"><strong>DATA_QUALITY</strong></td>
+                <td><code>ANOMALY_R1_MISSING_START_DATE</code></td>
+                <td><span class="badge badge-alert">ALERT</span></td>
+                <td>Thiếu Start Date</td>
+                <td>R1 — Status ≥ DEV VÀ không Pending VÀ T1 trống</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><code>ANOMALY_R3_DATE_OUT_OF_SEQUENCE</code></td>
+                <td><span class="badge badge-alert">ALERT</span></td>
+                <td>Sai thứ tự ngày</td>
+                <td>R3 — Vi phạm thứ tự ngày T0 ≤ T1 &lt; R4G ≤ Due</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><code>ANOMALY_R4_MISSING_REQUEST_TYPE</code></td>
+                <td><span class="badge badge-alert">ALERT</span></td>
+                <td>Thiếu Phân loại yêu cầu</td>
+                <td>R4 — Trường Phân loại yêu cầu trống hoặc "none"</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><code>ANOMALY_R5_MISSING_REQUIREMENT_LEVEL</code></td>
+                <td><span class="badge badge-alert">ALERT</span></td>
+                <td>Thiếu Requirement Level</td>
+                <td>R5 — Trường Requirement Level trống hoặc "none"</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><code>ANOMALY_R6_SP_LEVEL_MISMATCH</code></td>
+                <td><span class="badge badge-alert">ALERT</span></td>
+                <td>SP nhưng Level thấp</td>
+                <td>R6 — Loại Epic SP nhưng Requirement Level 1-2</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><code>ANOMALY_R2_PENDING_TOO_LONG</code></td>
+                <td><span class="badge badge-rec">RECOMMENDATION</span></td>
+                <td>Pending lâu</td>
+                <td>R2 — Pending ≥ 20% × Ngân sách TTM-CNTT <em>(Không tính là Sai lệch dữ liệu)</em></td>
+                <td>—</td>
+              </tr>
+
+              <!-- SCOPE & PHASE -->
+              <tr>
+                <td><strong>SCOPE</strong></td>
+                <td><code>SCOPE_CNTT_OUT</code></td>
+                <td><span class="badge badge-note">NOTE</span></td>
+                <td>Ngoài phạm vi TTM-CNTT</td>
+                <td>R4G (hoặc Target_CNTT) nằm ngoài khoảng cấu hình A $\le$ R4G $\le$ B</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td rowspan="2"><strong>PHASE</strong></td>
+                <td><code>PHASE_LATE</code></td>
+                <td><span class="badge badge-alert">ALERT</span></td>
+                <td>Trễ pha</td>
+                <td>Pha chưa xong tại asOf VÀ asOf &gt; Baseline_pha</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><code>PHASE_DONE</code></td>
+                <td><span class="badge badge-note">NOTE</span></td>
+                <td>Hoàn thành pha</td>
+                <td>DESIGN: Story/Subtask BA Done. DEV: Story ≥ READY FOR TEST. TEST: Story ≥ UAT DONE.</td>
+                <td>—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 class="subsection-title" id="ch4-4-suppressions">4.4. Bảng Quy tắc Che Badges (SUPPRESSIONS)</h2>
+        <p>Khi xuất hiện các nguyên nhân gốc gây thiếu/hỏng dữ liệu, Resolver sẽ tự động gắn cờ <code>suppressedBy</code> che các badge hệ quả để không gây nhiễu phán quyết:</p>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Kích hoạt Che khi có Badge (When Active)</th>
+                <th>Các Badges bị Che (Suppressed Badges)</th>
+                <th>Giải thích Lý do Che</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>CNTT_NOT_APPLICABLE</code> (Cancelled)</td>
+                <td><code>CNTT_FAIL</code>, <code>CNTT_LATE</code>, <code>CNTT_PASS</code>, <code>CNTT_STATUS_MISMATCH</code></td>
+                <td>Epic đã bị hủy, không còn giá trị đánh giá đạt/fail TTM-CNTT.</td>
+              </tr>
+              <tr>
+                <td><code>CNTT_CALC_BROKEN</code> (Hỏng dữ liệu T1)</td>
+                <td><code>CNTT_FAIL</code>, <code>CNTT_LATE</code>, <code>CNTT_PASS</code>, <code>CNTT_STATUS_MISMATCH</code></td>
+                <td>Thiếu Start Date hoặc R4G &lt; T1 nên công thức không còn điểm tựa tin cậy.</td>
+              </tr>
+              <tr>
+                <td><code>SCOPE_CNTT_OUT</code> (Ngoài phạm vi)</td>
+                <td><code>CNTT_FAIL</code>, <code>CNTT_LATE</code>, <code>CNTT_PASS</code>, <code>CNTT_STATUS_MISMATCH</code></td>
+                <td>Epic không thuộc đợt theo dõi TTM-CNTT hiện tại.</td>
+              </tr>
+              <tr>
+                <td><code>CNTT_STATUS_MISMATCH</code> (Sai Status)</td>
+                <td><code>CNTT_PASS</code></td>
+                <td>R4G Date đã tới đúng hạn nhưng status chưa lên R4GOLIVE $\rightarrow$ Che "Đạt TTM-CNTT".</td>
+              </tr>
+              <tr>
+                <td><code>E2E_CALC_BROKEN</code> (Hỏng dữ liệu T0)</td>
+                <td><code>E2E_FAIL</code>, <code>E2E_PASS</code></td>
+                <td>R4G Date phi logic so với T0.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 class="subsection-title" id="ch4-5-index-rules">4.5. Quy tắc Tính TTM-Index & QA-Index</h2>
+        <div class="card card-accent-blue">
+          <div class="card-title">📊 Công thức TTM-Index & QA-Index (Đã chốt D1)</div>
+          <ul>
+            <li><strong>Tính (Counted)</strong>: Epic không Cancelled và KHÔNG có <code>SCOPE_CNTT_OUT</code>.</li>
+            <li><strong>Mẫu số (Eligible)</strong>: Counted + Có R4G Date (kể cả tương lai) + KHÔNG có badge ALERT ở axis Chất lượng dữ liệu.</li>
+            <li><strong>Đạt (Pass)</strong>: Eligible + <strong>Bắt buộc có Badge <code>CNTT_PASS</code> Active</strong>. <em>(Epic "Sai Status" hoặc R4G Date ở tương lai: Nằm trong mẫu số nhưng KHÔNG được tính là Đạt)</em>.</li>
+            <li><strong>Fail</strong>: Counted + Có badge <code>CNTT_FAIL</code>.</li>
+            <li><strong>Công thức Index %</strong>: <code>Index % = (Số Epic Đạt / Số Epic Mẫu số) × 100</code>.</li>
+          </ul>
+        </div>
+
+        <h2 class="subsection-title" id="ch4-6-projection-switch">4.6. Đèn chuyển Engine & Lớp Projection (M4)</h2>
+        <p>
+          SUPERADMIN có quyền chuyển đổi chế độ engine qua bảng <code>scoring_engine_settings</code> trong menu <em>"Đối chiếu Scoring Service"</em>:
+        </p>
+        <ul>
+          <li>Mode <code>legacy</code>: Giao diện hiển thị theo engine tính toán cũ.</li>
+          <li>Mode <code>scoring</code>: Lớp <code>scoring/projection.ts</code> chiếu trực tiếp kết quả Scorecard mới đè lên các trường dữ liệu của <code>EpicAlertRowPhased</code>.</li>
+        </ul>
+
+        <h2 class="subsection-title" id="ch4-7-so-do-scoring">4.7. Sơ đồ Luồng Đánh giá Scoring Engine</h2>
+
+        <!-- SVG DIAGRAM 4: Scoring Engine Flow -->
+        <div class="svg-diagram-wrapper">
+          <div class="svg-diagram-title">Sơ đồ 4.1: Quy trình Đánh giá Epic Scoring Engine & Resolver Che Badges</div>
+          <svg class="interactive-diagram" viewBox="0 0 960 260" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Facts Input -->
+            <rect x="30" y="50" width="150" height="160" rx="8" fill="var(--bg-elevated)" stroke="var(--border-subtle)"/>
+            <text x="105" y="75" text-anchor="middle" fill="var(--text-dim)" font-size="11" font-weight="700">INPUT FACTS</text>
+            <rect x="45" y="90" width="120" height="30" rx="4" fill="var(--bg-panel)" stroke="var(--border-subtle)"/>
+            <text x="105" y="109" text-anchor="middle" fill="var(--text-main)" font-size="10">EpicFacts (Jira)</text>
+            <rect x="45" y="130" width="120" height="30" rx="4" fill="var(--bg-panel)" stroke="var(--border-subtle)"/>
+            <text x="105" y="149" text-anchor="middle" fill="var(--text-main)" font-size="10">ScoringContext</text>
+            <text x="105" y="185" text-anchor="middle" fill="var(--accent-cyan)" font-size="10" font-weight="700">asOf (VN Date)</text>
+
+            <!-- Arrow -->
+            <path d="M180 130 H220" stroke="var(--accent-cyan)" stroke-width="2"/>
+
+            <!-- Derive & Core Engine -->
+            <rect x="220" y="50" width="220" height="160" rx="8" fill="rgba(139, 92, 246, 0.12)" stroke="#8B5CF6"/>
+            <text x="330" y="75" text-anchor="middle" fill="#A78BFA" font-size="11" font-weight="700">PURE SCORING ENGINE</text>
+            <rect x="235" y="90" width="190" height="30" rx="4" fill="var(--bg-panel)" stroke="var(--border-subtle)"/>
+            <text x="330" y="109" text-anchor="middle" fill="var(--text-main)" font-size="10">1. derive.ts (Baselines)</text>
+            <rect x="235" y="130" width="190" height="60" rx="4" fill="var(--bg-panel)" stroke="#8B5CF6"/>
+            <text x="330" y="152" text-anchor="middle" fill="var(--text-main)" font-size="10" font-weight="700">2. Rules Registry</text>
+            <text x="330" y="172" text-anchor="middle" fill="var(--text-muted)" font-size="9">Evaluates 6 Axes Rules</text>
+
+            <!-- Arrow -->
+            <path d="M440 130 H480" stroke="#8B5CF6" stroke-width="2"/>
+
+            <!-- Suppressions Resolver -->
+            <rect x="480" y="50" width="200" height="160" rx="8" fill="var(--bg-elevated)" stroke="#F59E0B"/>
+            <text x="580" y="75" text-anchor="middle" fill="#F59E0B" font-size="11" font-weight="700">3. RESOLVER LAYER</text>
+            <rect x="495" y="95" width="170" height="95" rx="4" fill="var(--bg-panel)" stroke="var(--border-subtle)"/>
+            <text x="580" y="118" text-anchor="middle" fill="var(--text-main)" font-size="10" font-weight="700">Apply SUPPRESSIONS</text>
+            <text x="580" y="138" text-anchor="middle" fill="var(--text-dim)" font-size="9">CNTT_CALC_BROKEN ──► Suppress</text>
+            <text x="580" y="153" text-anchor="middle" fill="var(--text-dim)" font-size="9">CNTT_FAIL / LATE / PASS</text>
+            <text x="580" y="173" text-anchor="middle" fill="#10B981" font-size="9" font-weight="700">Emit Active vs Suppressed</text>
+
+            <!-- Arrow -->
+            <path d="M680 130 H720" stroke="#10B981" stroke-width="2"/>
+
+            <!-- Scorecard & Projection Output -->
+            <rect x="720" y="50" width="210" height="160" rx="8" fill="var(--bg-elevated)" stroke="#10B981"/>
+            <text x="825" y="75" text-anchor="middle" fill="#10B981" font-size="11" font-weight="700">SCORECARD & PROJECTION</text>
+            <rect x="735" y="90" width="180" height="30" rx="4" fill="var(--bg-panel)" stroke="var(--border-subtle)"/>
+            <text x="825" y="109" text-anchor="middle" fill="var(--text-main)" font-size="10">EpicScorecard (Findings[])</text>
+            <rect x="735" y="130" width="180" height="65" rx="4" fill="rgba(16, 185, 129, 0.15)" stroke="#10B981"/>
+            <text x="825" y="152" text-anchor="middle" fill="#10B981" font-size="10" font-weight="700">projection.ts (M4 Mode)</text>
+            <text x="825" y="172" text-anchor="middle" fill="var(--text-muted)" font-size="9">Populates EpicAlertRowPhased</text>
+          </svg>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Footer -->
+  <footer class="doc-footer">
+    <div>
+      <strong>TTM Monitor Specification & Product Brochure</strong> — Cập nhật ngày 30/09/2026.
+    </div>
+    <div>
+      Lưu tại: <code>/public/docs/Product_brochures.html</code>
+    </div>
+  </footer>
+
+  <!-- Interactive JavaScript for ScrollSpy & Theme Toggle -->
+  <script>
+    // Theme Toggle Functionality
+    function toggleTheme() {
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('ttm-monitor-doc-theme', newTheme);
+    }
+
+    // Load saved theme
+    const savedTheme = localStorage.getItem('ttm-monitor-doc-theme');
+    if (savedTheme) {
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    }
+
+    // ScrollSpy & Navigation Active State Highlight
+    document.addEventListener('DOMContentLoaded', () => {
+      const sections = document.querySelectorAll('.doc-section, .subsection-title');
+      const navLinks = document.querySelectorAll('.sidebar-nav a');
+
+      const observerOptions = {
+        root: null,
+        rootMargin: '-80px 0px -60% 0px',
+        threshold: 0
+      };
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const id = entry.target.getAttribute('id');
+            if (id) {
+              navLinks.forEach(link => {
+                const href = link.getAttribute('href');
+                if (href === '#' + id) {
+                  link.parentElement.classList.add('active');
+                } else {
+                  link.parentElement.classList.remove('active');
+                }
+              });
+            }
+          }
+        });
+      }, observerOptions);
+
+      sections.forEach(section => observer.observe(section));
+
+      // Quick Search Filter for Document Sections
+      const searchInput = document.getElementById('docSearchInput');
+      searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase();
+        const cards = document.querySelectorAll('.card, .table-container, p, li');
+        
+        if (query.trim() === '') {
+          cards.forEach(el => el.style.opacity = '1');
+          return;
+        }
+
+        cards.forEach(el => {
+          if (el.textContent.toLowerCase().includes(query)) {
+            el.style.opacity = '1';
+          } else {
+            el.style.opacity = '0.3';
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>

@@ -116,7 +116,7 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
           <ul className="ml-5 list-disc space-y-0.5 text-xs">
             <li><code>T0</code> = Idea Approved Date (trống thì dùng ngày tạo Epic trên Jira) · <code>T1</code> = Start Date · <code>R4G</code> = R4G Date · <code>Due</code> = Due Date.</li>
             <li><code>X +wd n</code> = cộng n ngày làm việc (bỏ Thứ Bảy, Chủ Nhật, ngày nghỉ; tính cả ngày làm bù) · <code>WD(a, b)</code> = số ngày làm việc từ a tới b.</li>
-            <li><code>N_CNTT</code>, <code>N_E2E</code> = ngân sách ngày làm việc theo &quot;Tiêu chí Time to Market&quot; của loại Epic · <code>Target_CNTT = T1 +wd (N_CNTT − 1)</code> (Start Date là ngày 1; trùng baseline pha R4GOLIVE và dải TTM-CNTT) · <code>Target_E2E = T0 +wd N_E2E</code>.</li>
+            <li><code>N_CNTT</code>, <code>N_E2E</code> = ngân sách ngày làm việc theo &quot;Tiêu chí Time to Market&quot; của loại Epic · <code>Target_CNTT = T1 +wd (N_CNTT − 1)</code> (Start Date là ngày 1; trùng baseline pha R4GOLIVE và dải TTM-CNTT (QLDA)) · <code>Target_E2E = T0 +wd N_E2E</code>.</li>
             <li><code>G</code> = thời hạn grace của trục Release (mặc định 5 ngày làm việc) · <code>Offset_muộn</code> = mốc cảnh báo muộn theo loại Epic × status (&quot;Cấu hình cảnh báo&quot;).</li>
             <li>So sánh status theo thứ tự workflow: TO DO → IN PO → DESIGN → DEV → TEST → PENTEST → R4GOLIVE → MVPDONE → RELEASED.</li>
           </ul>
@@ -164,10 +164,10 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">7. TTM-Index / QA-Index</h3>
-          <p className="text-xs">Index chỉ đếm các cờ dưới đây (không phải badge), nên &quot;Đạt&quot; của Index luôn trùng với badge &quot;Đạt TTM-CNTT&quot;.</p>
+          <h3 className="ui-card-title mb-1">7. Chỉ số TTM-CNTT (QLDA) / TTM-CNTT (QA)</h3>
+          <p className="text-xs">Chỉ số chỉ đếm các cờ dưới đây (không phải badge), nên &quot;Đạt&quot; của chỉ số luôn trùng với badge &quot;Đạt TTM-CNTT (QLDA)&quot;. Nếu không nói rõ khác, chỉ số tính trên đúng các Epic đang hiển thị trong bảng của màn hình (theo bộ lọc); riêng 2 widget cố định trên banner TTM dashboard tính trên toàn bộ Epic trong ứng dụng.</p>
           <table className="ui-table mt-1 w-full text-xs">
-            <thead><tr><th className="text-left">Index</th><th className="text-left">Cờ</th><th className="text-left">Điều kiện</th></tr></thead>
+            <thead><tr><th className="text-left">Chỉ số</th><th className="text-left">Cờ</th><th className="text-left">Điều kiện</th></tr></thead>
             <tbody>
               {INDEX_MEMBERSHIP_RULES.map((rule) => (
                 <tr key={`${rule.index}-${rule.flag}`}><td>{rule.index}</td><td className="font-semibold text-fb-text-primary">{rule.flag}</td><td><code className="whitespace-pre-wrap text-[11px]">{rule.formula}</code></td></tr>
@@ -180,9 +180,9 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
         <section>
           <h3 className="ui-card-title mb-1">8. Thay đổi so với logic hiện tại (đã chốt 29/09/2026)</h3>
           <ul className="ml-5 list-disc space-y-1 text-xs">
-            <li><strong className="text-fb-text-primary">Bỏ &quot;Cảnh báo sớm&quot;</strong> ở cả TTM-CNTT, trục Release và cột pha. Offset &quot;sớm&quot; trong Cấu hình cảnh báo không còn được dùng. Trường hợp trục Release trước đây hiện &quot;Cảnh báo sớm&quot; (status đã qua R4GOLIVE, chưa có Due Date, còn trong hạn) nay không hiện badge nào cho tới khi quá hạn thành &quot;Giải trình Golive&quot;.</li>
-            <li><strong className="text-fb-text-primary">&quot;Sai Status&quot; (TTM-CNTT)</strong> thuộc nhóm Khuyến nghị, không tính Đạt; vẫn nằm trong mẫu số TTM-Index. Epic có R4G Date ở tương lai cũng nằm trong mẫu số nhưng chưa Đạt — TTM-Index có thể giảm so với hiện tại.</li>
-            <li><strong className="text-fb-text-primary">R7 thành &quot;Sai Status&quot; (Release)</strong> thuộc nhóm Khuyến nghị: Epic chỉ vi phạm R7 không còn bị đánh dấu &quot;Sai lệch dữ liệu&quot; (không bị đẩy xuống cuối bảng) và được tính vào mẫu số TTM-Index.</li>
+            <li><strong className="text-fb-text-primary">Bỏ &quot;Cảnh báo sớm&quot;</strong> ở cả TTM-CNTT (QLDA), trục Release và cột pha. Offset &quot;sớm&quot; trong Cấu hình cảnh báo không còn được dùng. Trường hợp trục Release trước đây hiện &quot;Cảnh báo sớm&quot; (status đã qua R4GOLIVE, chưa có Due Date, còn trong hạn) nay không hiện badge nào cho tới khi quá hạn thành &quot;Giải trình Golive&quot;.</li>
+            <li><strong className="text-fb-text-primary">&quot;Sai Status&quot; (TTM-CNTT (QLDA))</strong> thuộc nhóm Khuyến nghị, không tính Đạt; vẫn nằm trong mẫu số TTM-CNTT (QLDA). Epic có R4G Date ở tương lai cũng nằm trong mẫu số nhưng chưa Đạt — TTM-CNTT (QLDA) có thể giảm so với hiện tại.</li>
+            <li><strong className="text-fb-text-primary">R7 thành &quot;Sai Status&quot; (Release)</strong> thuộc nhóm Khuyến nghị: Epic chỉ vi phạm R7 không còn bị đánh dấu &quot;Sai lệch dữ liệu&quot; (không bị đẩy xuống cuối bảng) và được tính vào mẫu số TTM-CNTT (QLDA).</li>
             <li><strong className="text-fb-text-primary">R2 &quot;Pending lâu&quot;</strong> thuộc nhóm Khuyến nghị, không còn bị đánh dấu &quot;Sai lệch dữ liệu&quot;.</li>
             <li><strong className="text-fb-text-primary">Hoàn thành pha theo asOf</strong>: khi xem lớp dữ liệu cũ, trạng thái story/subtask được lấy tại ngày đó thay vì hôm nay.</li>
             <li><strong className="text-fb-text-primary">Mốc Target_CNTT thống nhất</strong> = <code>T1 +wd (N_CNTT − 1)</code> cho mọi badge (Fail, Cảnh báo muộn, Sai Status, Đạt, Phạm vi) — logic cũ dùng <code>T1 +wd N_CNTT</code> cho badge nên Fail sớm hơn tối đa 1 ngày làm việc.</li>
@@ -259,8 +259,8 @@ export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
               <tr><td>issues</td><td>Dữ liệu Epic/Story/Subtask canonical, 1 dòng/issue/batch</td><td>Cascade xóa theo batch</td></tr>
               <tr><td>epic_ttm_snapshots</td><td>Lịch sử gọn theo Epic, phục vụ tra cứu dài hạn</td><td><strong className="text-fb-text-primary">Giữ lại</strong> (source_import_batch_id → NULL)</td></tr>
               <tr><td>issue_daily_snapshots</td><td>Lịch sử gọn theo ngày cho mọi cấp (Epic/Story/Subtask)</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
-              <tr><td>epic_alert_history</td><td>Tích lũy các lần Epic bị Cảnh báo muộn/Fail TTM-CNTT tổng thể (ghi tại thời điểm import), kèm ngày và status lúc đó. Cảnh báo <strong>theo từng pha</strong> (DEV/TEST/PENTEST của Epic 15) cũng ghi vào bảng này nhưng <strong className="text-fb-text-primary">đang tạm tắt</strong> (xem mục 5).</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
-              <tr><td>epic_alert_timeline</td><td>Theo dõi 5 loại cảnh báo (Fail TTM-CNTT, Cảnh báo muộn TTM-CNTT, Fail TTM-E2E, Thiếu Start Date, Sai lệch dữ liệu) dưới dạng các &quot;đợt&quot; có ngày bắt đầu/kết thúc liên tục — phục vụ mục &quot;Dòng thời gian cảnh báo&quot; trong popup Epic History. Luôn ghi ở mỗi lần <code>aggregateBatchData()</code> chạy (không tạm tắt như 2 dòng dưới).</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
+              <tr><td>epic_alert_history</td><td>Tích lũy các lần Epic bị Cảnh báo muộn/Fail TTM-CNTT (QLDA) tổng thể (ghi tại thời điểm import), kèm ngày và status lúc đó. Cảnh báo <strong>theo từng pha</strong> (DEV/TEST/PENTEST của Epic 15) cũng ghi vào bảng này nhưng <strong className="text-fb-text-primary">đang tạm tắt</strong> (xem mục 5).</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
+              <tr><td>epic_alert_timeline</td><td>Theo dõi 5 loại cảnh báo (Fail TTM-CNTT (QLDA), Cảnh báo muộn TTM-CNTT (QLDA), Fail TTM-E2E, Thiếu Start Date, Sai lệch dữ liệu) dưới dạng các &quot;đợt&quot; có ngày bắt đầu/kết thúc liên tục — phục vụ mục &quot;Dòng thời gian cảnh báo&quot; trong popup Epic History. Luôn ghi ở mỗi lần <code>aggregateBatchData()</code> chạy (không tạm tắt như 2 dòng dưới).</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
               <tr><td>epic_data_anomaly_violations</td><td>Trạng thái hiện tại (không phải lịch sử &quot;đợt&quot;) của từng rule R1-R6 &quot;Sai lệch dữ liệu&quot; đang vi phạm trên mỗi Epic — 1 dòng/Epic/rule, ghi đè hoặc xoá ở mỗi lần <code>aggregateBatchData()</code> chạy. Phục vụ thống kê số Epic vi phạm theo từng nhóm rule; badge trên UI vẫn tính live, không đọc bảng này.</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
               <tr><td>epic_milestone_history</td><td>Lịch sử mốc DESIGN_DONE/DEV_DONE/TEST_DONE — bảng vẫn tồn tại nhưng việc ghi mới <strong className="text-fb-text-primary">đang tạm tắt</strong>; trạng thái hoàn thành từng pha của Epic 15 hiện tính <strong>live</strong> từ status Story/Subtask hiện tại (xem mục 5), không đọc bảng này.</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
             </tbody>

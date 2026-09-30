@@ -156,7 +156,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
       title: 'Tổng quan Dashboard TTM',
       description:
         'Trả về số liệu tổng hợp (số epic đạt/trễ TTM, phân bố trạng thái, top epic rủi ro cao...) — tương đương màn hình Dashboard CŨ (/dashboard). '
-        + 'Với câu hỏi về màn hình "TTM dashboard" hiện hành (TTM-Index, QA-Index, Chờ golive, Giải trình Golive...), ưu tiên dùng get_ttm_dashboard. '
+        + 'Với câu hỏi về màn hình "TTM dashboard" hiện hành (TTM-CNTT (QLDA), TTM-CNTT (QA), Chờ golive, Giải trình Golive...), ưu tiên dùng get_ttm_dashboard. '
         + 'Có thể chọn 1-3 dự án cụ thể; nếu bỏ trống, trả về theo phạm vi mặc định của người dùng.',
       inputSchema: {
         projectKeys: z.array(z.string().trim().max(50)).min(1).max(3).optional().describe('Danh sách 1-3 mã dự án muốn xem (project key).'),
@@ -175,10 +175,10 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
       title: 'Số liệu màn hình TTM dashboard',
       description:
         'Trả về toàn bộ số liệu của màn hình "TTM dashboard" (/dashboard-new) theo đúng quyền dữ liệu (RBAC) của người dùng đang gọi: '
-        + 'KPI (tổng số Epic, TTM-Index QLDA, QA-Index, Fail TTM-CNTT/E2E, Cảnh báo sớm/muộn, Sai lệch dữ liệu, Chờ golive, Cảnh báo sớm Release, '
-        + 'Giải trình Golive, Ngoài phạm vi TTM-CNTT), TTM-Index toàn hệ thống, phân bố trạng thái, pipeline 5 pha, top 5 dự án rủi ro, '
+        + 'KPI (tổng số Epic, chỉ số TTM-CNTT (QLDA) và TTM-CNTT (QA) — tên cũ TTM-Index/QA-Index, Fail TTM-CNTT (QLDA)/E2E, Cảnh báo sớm/muộn, Sai lệch dữ liệu, Chờ golive, Cảnh báo sớm Release, '
+        + 'Giải trình Golive, Ngoài phạm vi TTM-CNTT (QLDA)), TTM-CNTT (QLDA)/(QA) toàn ứng dụng (widget banner), phân bố trạng thái, pipeline 5 pha, top 5 dự án rủi ro, '
         + 'bảng phân tích theo chiều (dự án/domain/PM-SM/Epic type/đơn vị yêu cầu) và danh sách Epic chi tiết cho từng nhóm. '
-        + 'Dùng cho câu hỏi kiểu "TTM-Index domain X bao nhiêu", "có bao nhiêu epic chờ golive", "dự án nào rủi ro nhất". '
+        + 'Dùng cho câu hỏi kiểu "TTM-CNTT (QLDA) domain X bao nhiêu", "có bao nhiêu epic chờ golive", "dự án nào rủi ro nhất". '
         + 'Muốn biết rule/cách tính của một chỉ số, dùng search_product_docs.',
       inputSchema: {
         projectKeys: z.array(z.string().trim().min(1).max(50)).max(20).optional().describe('Lọc theo danh sách mã dự án (project key).'),
@@ -205,12 +205,12 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
       title: 'Tra cứu Tài liệu sản phẩm TTM Tool',
       description:
         'Tìm kiếm trong "Tài liệu sản phẩm" của ứng dụng ttm-tool (TTM Monitor) — nguồn chính thức mô tả workflow, chức năng từng màn hình, '
-        + 'phân quyền, import dữ liệu và ĐẶC BIỆT là các rule logic cảnh báo & tính toán: TTM-CNTT/TTM-E2E, cảnh báo sớm/muộn/Fail, baseline từng pha, '
-        + 'Sai Status, trục Release (Chờ golive/Giải trình Golive), sai lệch dữ liệu, TTM-Index/QA-Index, Phạm vi dữ liệu cho TTM, Epic Type... '
+        + 'phân quyền, import dữ liệu và ĐẶC BIỆT là các rule logic cảnh báo & tính toán: TTM-CNTT (QLDA)/TTM-E2E, cảnh báo sớm/muộn/Fail, baseline từng pha, '
+        + 'Sai Status, trục Release (Chờ golive/Giải trình Golive), sai lệch dữ liệu, chỉ số TTM-CNTT (QLDA)/TTM-CNTT (QA), Phạm vi dữ liệu cho TTM, Epic Type... '
         + 'Trả về các mục liên quan nhất kèm nội dung. Luôn dùng tool này trước khi trả lời câu hỏi "tại sao/cách tính/rule" về ứng dụng, '
         + 'và trích dẫn số mục (id) khi trả lời. Tìm kiếm không phân biệt dấu tiếng Việt.',
       inputSchema: {
-        query: z.string().trim().min(2).max(300).describe('Câu hỏi hoặc từ khoá, ví dụ "cách tính cảnh báo muộn", "QA-Index", "Giải trình Golive".'),
+        query: z.string().trim().min(2).max(300).describe('Câu hỏi hoặc từ khoá, ví dụ "cách tính cảnh báo muộn", "TTM-CNTT (QA)", "Giải trình Golive".'),
         limit: z.number().int().min(1).max(10).optional().describe('Số mục trả về (mặc định 4).'),
       },
     },

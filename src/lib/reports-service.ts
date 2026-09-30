@@ -378,8 +378,8 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
     if (scorecard ? scoredVerdicts.has('CNTT_FAIL') : cnttAlertLevel === 'FAIL') {
       actualCnttFail = true;
       cnttFailReason = cnttTarget
-        ? `Fail TTM-CNTT (${formatDateVietnamese(row.r4gDate ?? (scorecard?.asOf ?? todayKey))}>${formatDateVietnamese(cnttTarget)})`
-        : 'Fail TTM-CNTT';
+        ? `Fail TTM-CNTT (QLDA) (${formatDateVietnamese(row.r4gDate ?? (scorecard?.asOf ?? todayKey))}>${formatDateVietnamese(cnttTarget)})`
+        : 'Fail TTM-CNTT (QLDA)';
     }
 
     let actualE2eFail = false;
@@ -442,8 +442,8 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
 
     // 3. Passed TTM Table (Rule 1 & 3: ONLY epics satisfying Pass rule + Table 1,2,3 date filters)
     if (passesTable123DateFilters && (ttmCnttPassed || ttmE2ePassed) && !isAnomaly) {
-      let passType = 'Đạt TTM-CNTT';
-      if (ttmCnttPassed && ttmE2ePassed) passType = 'Đạt cả TTM-CNTT & TTM-e2e';
+      let passType = 'Đạt TTM-CNTT (QLDA)';
+      if (ttmCnttPassed && ttmE2ePassed) passType = 'Đạt cả TTM-CNTT (QLDA) & TTM-e2e';
       else if (ttmE2ePassed && !ttmCnttPassed) passType = 'Đạt TTM-e2e';
 
       passedEpics.push({

@@ -252,10 +252,11 @@ export async function getTtmDashboardSummary(userId: number, role: UserRole, fil
       failTtmE2e: listOf((row) => row.ttmE2eAlertLevel === 'FAIL'),
     },
     glossary: {
-      ttmIndexQlda: 'TTM-Index (QLDA): tỉ lệ Epic Đạt TTM-CNTT trên số Epic đủ điều kiện (đã có R4G Date, không sai lệch dữ liệu, trong phạm vi TTM-CNTT). pct tính theo %.',
-      qaIndex: 'QA-Index: cùng tỉ lệ TTM-CNTT nhưng chỉ xét Epic status MVP Done/Released và nằm trong phạm vi "R4G for TTM (QA)".',
-      dungTienDo_chamTienDo: 'Chỉ đếm các Epic chưa có phán quyết TTM-CNTT (chưa có R4G Date hoặc đang sai lệch dữ liệu) trong phạm vi TTM-CNTT; Chậm = đang FAIL/LATE.',
-      pipelinePhases: 'alertCount = số Epic trong pha đang FAIL/LATE TTM-CNTT hoặc FAIL TTM-E2E.',
+      ttmIndexQlda: 'Chỉ số TTM-CNTT (QLDA) (tên cũ: TTM-Index): tỉ lệ Epic Đạt TTM-CNTT (QLDA) trên số Epic đủ điều kiện (đã có R4G Date, không sai lệch dữ liệu, trong phạm vi TTM-CNTT (QLDA)), tính trên đúng phạm vi đang lọc. pct tính theo %.',
+      qaIndex: 'Chỉ số TTM-CNTT (QA) (tên cũ: QA-Index): cùng tỉ lệ TTM-CNTT (QLDA) nhưng chỉ xét Epic status MVP Done/Released và nằm trong phạm vi "R4G for TTM (QA)", tính trên đúng phạm vi đang lọc.',
+      ttmIndexGlobal: 'Widget cố định trên banner TTM dashboard: TTM-CNTT (QLDA) (ttm) và TTM-CNTT (QA) (qa) tính trên toàn bộ Epic trong ứng dụng, không phụ thuộc quyền/bộ lọc — giống nhau với mọi người dùng.',
+      dungTienDo_chamTienDo: 'Chỉ đếm các Epic chưa có phán quyết TTM-CNTT (QLDA) (chưa có R4G Date hoặc đang sai lệch dữ liệu) trong phạm vi TTM-CNTT (QLDA); Chậm = đang FAIL/LATE.',
+      pipelinePhases: 'alertCount = số Epic trong pha đang FAIL/LATE TTM-CNTT (QLDA) hoặc FAIL TTM-E2E.',
       chiTietRule: 'Dùng tool search_product_docs để tra cứu chi tiết các rule tính toán/cảnh báo trong Tài liệu sản phẩm.',
     },
   };

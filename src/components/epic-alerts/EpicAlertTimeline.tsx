@@ -10,7 +10,7 @@ const DAY_WIDTH_PX = 16;
 const LONG_RUN_THRESHOLD_DAYS = 3;
 
 const ALERT_TYPE_LABEL: Record<EpicAlertTimelineType, string> = {
-  FAIL_TTM_CNTT: 'Fail TTM-CNTT',
+  FAIL_TTM_CNTT: 'Fail TTM-CNTT (QLDA)',
   LATE_TTM_CNTT: 'Cảnh báo muộn',
   FAIL_TTM_E2E: 'Fail TTM-E2E',
   MISSING_START_DATE: 'Thiếu Start Date',

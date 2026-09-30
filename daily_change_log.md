@@ -8,6 +8,36 @@
 
 ## 2026-09-30
 
+- **Quy ước "TTM-CNTT" = "TTM-CNTT (QLDA)"** trên mọi màn hình + Scoring Service: đổi text hiển thị
+  (badge/bộ lọc Nhận xét, cột TTM-CNTT, baseline pha, KPI/stat widget Fail, tiêu chí Time to Market, subtitle
+  màn hình, nội dung finding trong `scoring/rules/*`, `catalog.ts`, Báo cáo, MCP). Không đổi logic: đã rà — phạm vi
+  QA (`qaInScope`) chỉ dùng cho chỉ số TTM-CNTT (QA). Bump `SCORING_CODE_VERSION` → `scoring-2` (text finding
+  lưu trong cache đổi; cache mới sau lần tổng hợp kế tiếp). Nhãn đối chiếu trong `scoring/parity.ts` giữ nguyên.
+- **Cơ cấu lại 3 chỉ số TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E** (công thức không đổi; chỉ số mặc định
+  tính theo phạm vi bảng đang hiển thị):
+  - Quản trị Epic: bỏ 2 widget banner TTM-Index (QLDA)/QA-Index (QLDA); 2 widget còn lại đổi tên
+    TTM-CNTT (QLDA)/TTM-CNTT (QA) và giờ tính theo **bảng Danh sách Epic đang lọc** (trước: toàn bộ phạm vi
+    quyền, bỏ qua bộ lọc) — `queryTtmQaIndexPm` → `queryTtmCnttIndexes(scope, filters)` dùng chung
+    `buildFilterClause`; chế độ 'full' tính từ `filteredRows`. `/api/epic-alerts-15` không trả `ttmIndexGlobal` nữa.
+  - TTM dashboard: vòng KPI TTM-Index (PM)/QA-Index (PM) → TTM-CNTT (QLDA)/TTM-CNTT (QA); widget banner
+    TTM-Index (QLDA)/QA-Index (QLDA) → TTM-CNTT (QLDA)/TTM-CNTT (QA) (vẫn toàn bộ Epic, cache toàn ứng dụng).
+  - Đổi tên hiển thị đồng bộ: Cấu hình "Phạm vi dữ liệu cho TTM", popup Logic cảnh báo (`scoring/catalog.ts`
+    — chỉ text, không đổi rule), panel cache, mô tả tool MCP, `public/docs/product-guide.html` mục 8.7/11.2/11.5,
+    `brd/16-ttm-indexes.md` mục 0.
+- **Cập nhật tài liệu Giới thiệu Sản phẩm (`public/docs/Product_brochures.html`)**:
+  - Vẽ lại Sơ đồ SVG 1.1 (Mục 1.4) thông thoáng, bố cục 3 luồng rõ ràng (TTM-E2E, TTM-CNTT, Trục Release), sửa triệt để lỗi đè chữ/nút. Bổ sung chi tiết trường hợp T0 bị thiếu sẽ tự động fallback về ngày tạo Epic trên Jira (`jira_created_at`) kèm badge `E2E_BASELINE_FROM_JIRA_CREATED`.
+  - Bổ sung **Mục 3.5: Chức năng Thu thập Dữ liệu, Cấu trúc Lớp Dữ liệu & Logic Multi-Layer**: Trình bày chi tiết cơ chế DataSourceAdapter (CSV/Jira), Validate Only vs Import & Validate, tự động import 1 lần/ngày, cấu trúc lớp dữ liệu `aggregated_at` (`layerDates`), truy vấn trạng thái mới nhất (`LATEST_ISSUES_CTE` / `latestIssuesAsOf`), logic chấm điểm quá khứ theo mốc `asOf` (Quyết định D3) và cơ chế cache scorecard GIN Index (`epic_alert_row_cache`).
+
+- **Tạo tài liệu Giới thiệu Sản phẩm (`public/docs/Product_brochures.html`)**: Tạo file HTML tài liệu tóm tắt sản phẩm toàn diện, thiết kế theo chuẩn Gecko-inspired UI, tích hợp sidebar mục lục điều hướng sticky, tìm kiếm nhanh, switch Dark/Light theme, 4 sơ đồ SVG quy trình/kiến trúc/scoring engine, và bổ sung riêng Chương 4 quy định chi tiết 6 Axes, 5 Finding Groups, 35+ Badges Catalog, SUPPRESSIONS resolver và công thức TTM-Index / QA-Index của Epic Scoring Service.
+
+- **Quản trị Epic — hàng Filters gọn 1 dòng + multi-select**: "Loại Epic" và "Nhận xét" đổi sang
+  `ToolbarMultiSelect` (khớp BẤT KỲ giá trị nào đã chọn; API `alertFilter`/`epicType` nhận danh sách
+  phân tách dấu phẩy — `epic-alert-row-cache-query-service.ts`, `api/epic-alerts-15/route.ts`; deep link
+  và filter đã lưu kiểu cũ 1 giá trị vẫn đọc được). Nhãn rỗng rút gọn (Projects, PM/SM, Components,
+  Nhận xét, Loại Epic, Status, Đơn vị yêu cầu, Domain); class `.ttm-toolbar-row` trong
+  `epic-alerts-15.css` giữ mọi filter trên 1 hàng (co giãn đều, chỉ xuống dòng khi < 768px).
+  "Bộ lọc nâng cao..." → "Advanced Filters". `ToolbarMultiSelect` nhận thêm option `{label, value}` và `title`.
+- **TTM dashboard**: filter PM/SM đổi sang multi-select (`filterPmSms`, deep link sang Quản trị Epic mang theo cả danh sách).
 - **Epic Scoring Service — M4: chuyển màn hình sang Scoring Service (công tắc chế độ, mặc định vẫn là logic cũ)**:
   - Công tắc `scoring_engine_settings.mode` (`legacy`/`scoring`, migration `20260930_create_scoring_engine_settings`
     — đã chạy Supabase, **local chưa chạy**), `scoring-mode-service.ts`, API `api/admin/scoring/mode`, nút bật/tắt

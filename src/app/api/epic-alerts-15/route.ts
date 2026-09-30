@@ -3,12 +3,11 @@ import { AuthError, requireUser } from '@/lib/auth-service';
 import { getEpicAlertRowsForDisplay } from '@/lib/epic-scoring-display-service';
 import { getScoringEngineMode, getStoredScoringEngineMode } from '@/lib/scoring-mode-service';
 import { parseEpicAlertFiltersFromSearchParams } from '@/lib/epic-alert-filter-params';
-import { getTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { getTtmScopeConfig } from '@/lib/ttm-scope-config-service';
 import type { EpicAlertFilters } from '@/lib/epic-alert-service';
 import { fetchEpicAlertHeaderContext } from '@/lib/epic-alert-service';
 import type { EpicAlertRowCacheFilters } from '@/lib/epic-alert-row-cache-query-service';
-import { getEpicAlertRowCacheMeta, queryEpicAlertFilterOptions, queryEpicAlertRowCachePage, queryEpicAlertStatCounts, queryTtmQaIndexPm } from '@/lib/epic-alert-row-cache-query-service';
+import { getEpicAlertRowCacheMeta, queryEpicAlertFilterOptions, queryEpicAlertRowCachePage, queryEpicAlertStatCounts, queryTtmCnttIndexes } from '@/lib/epic-alert-row-cache-query-service';
 
 function authError(error: unknown): NextResponse | null {
   if (error instanceof AuthError) {
@@ -26,8 +25,8 @@ function parseCacheFilters(searchParams: URLSearchParams): EpicAlertRowCacheFilt
     projectKeys: csv('projectKeys'),
     pmSm: csv('pmSm'),
     components: csv('components'),
-    alertFilter: searchParams.get('alertFilter') || undefined,
-    epicType: searchParams.get('epicType') || undefined,
+    alertFilters: csv('alertFilter'),
+    epicTypes: csv('epicType'),
     statuses: csv('statuses'),
     dataIssueOnly: searchParams.get('dataIssueOnly') === '1',
     requestingUnit: searchParams.get('requestingUnit') || undefined,
@@ -57,10 +56,6 @@ export async function GET(request: NextRequest) {
     const user = await requireUser(request);
     const searchParams = request.nextUrl.searchParams;
     const filters = await dropNoOpTtmScopeOverride(parseEpicAlertFiltersFromSearchParams(searchParams));
-    // ttmIndexGlobal is a cheap cached read (see ttm-index-global-cache-service.ts) — it never
-    // re-runs the company-wide, permission-unscoped Epic query on this (very frequently viewed)
-    // request; it's only ever recomputed once per CSV import.
-    const ttmIndexGlobalPromise = getTtmIndexGlobalCache();
 
     // Fast path: no "layer cũ hơn" drill-down and no advanced date filter active — those change
     // WHICH Epics are even in scope (a WHERE on `issues`, upstream of epic_alert_row_cache), so
@@ -83,12 +78,11 @@ export async function GET(request: NextRequest) {
       const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
       const pageSize = Math.min(200, Math.max(1, Number(searchParams.get('pageSize') ?? '20') || 20));
 
-      const [pageResult, statCounts, ttmQaIndexPm, filterOptions, ttmIndexGlobal] = await Promise.all([
+      const [pageResult, statCounts, ttmCnttIndexes, filterOptions] = await Promise.all([
         queryEpicAlertRowCachePage(header.scope, cacheFilters, page, pageSize),
         queryEpicAlertStatCounts(header.scope, cacheFilters),
-        queryTtmQaIndexPm(header.scope, engineMode),
+        queryTtmCnttIndexes(header.scope, cacheFilters),
         queryEpicAlertFilterOptions(header.scope),
-        ttmIndexGlobalPromise,
       ]);
 
       return NextResponse.json({
@@ -104,20 +98,16 @@ export async function GET(request: NextRequest) {
         page,
         pageSize,
         statCounts,
-        ttmIndexPm: ttmQaIndexPm.ttm,
-        qaIndexPm: ttmQaIndexPm.qa,
+        ttmIndexPm: ttmCnttIndexes.ttm,
+        qaIndexPm: ttmCnttIndexes.qa,
         filterOptions,
-        ttmIndexGlobal,
       });
     }
 
     // Fallback: advanced date filter active, or the cache hasn't been populated yet (e.g. no
     // import has completed since this table was introduced) — recompute live, same as before.
-    const [data, ttmIndexGlobal] = await Promise.all([
-      getEpicAlertRowsForDisplay(user.id, user.role, filters),
-      ttmIndexGlobalPromise,
-    ]);
-    return NextResponse.json({ mode: 'full', ...data, ttmIndexGlobal });
+    const data = await getEpicAlertRowsForDisplay(user.id, user.role, filters);
+    return NextResponse.json({ mode: 'full', ...data });
   } catch (error: unknown) {
     console.error('API Error in epic-alerts-15 route:', error);
     const message = error instanceof Error ? error.message : 'Lỗi hệ thống khi tải dữ liệu Quản lý Epic 15';

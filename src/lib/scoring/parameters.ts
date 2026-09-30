@@ -32,11 +32,11 @@ export type ScoringParameterKey = keyof ScoringParameters;
 
 export const SCORING_PARAMETER_LABELS: Record<ScoringParameterKey, string> = {
   'release.graceWorkingDays': 'Thời hạn grace trục Release (ngày làm việc)',
-  'anomaly.pendingStaleRatio': 'Ngưỡng "Pending lâu" (tỉ lệ ngân sách TTM-CNTT)',
+  'anomaly.pendingStaleRatio': 'Ngưỡng "Pending lâu" (tỉ lệ ngân sách TTM-CNTT (QLDA))',
   'anomaly.exemptStatuses': 'Status được miễn rule chất lượng dữ liệu (ngoài Cancelled)',
   'anomaly.spMismatchLevels': 'Requirement Level mâu thuẫn với loại SP',
   'phase.percentages': 'Tỉ lệ ngân sách từng pha',
-  'index.qaStatuses': 'Status tính vào QA-Index',
+  'index.qaStatuses': 'Status tính vào TTM-CNTT (QA)',
 };
 
 function isStringArray(value: unknown): value is string[] {

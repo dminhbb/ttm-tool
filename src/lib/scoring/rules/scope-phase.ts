@@ -8,7 +8,7 @@ import type { Finding } from '../types';
 export const scopeRule: PrimaryRule = ({ facts, derived, ctx }) => {
   const findings: Finding[] = [];
   if (!computeTtmCnttInScope(facts.r4gDate, derived.cnttTargetDate, ctx.scope)) {
-    findings.push(finding('SCOPE_CNTT_OUT', `Ngoài phạm vi dữ liệu TTM-CNTT (${ctx.scope.cnttFrom ?? '…'} → ${ctx.scope.cnttTo ?? '…'}).`, { from: ctx.scope.cnttFrom, to: ctx.scope.cnttTo, comparedDate: facts.r4gDate ?? derived.cnttTargetDate }));
+    findings.push(finding('SCOPE_CNTT_OUT', `Ngoài phạm vi dữ liệu TTM-CNTT (QLDA) (${ctx.scope.cnttFrom ?? '…'} → ${ctx.scope.cnttTo ?? '…'}).`, { from: ctx.scope.cnttFrom, to: ctx.scope.cnttTo, comparedDate: facts.r4gDate ?? derived.cnttTargetDate }));
   }
   if (!computeQaInScope(facts.r4gDate, ctx.scope)) {
     findings.push(finding('SCOPE_QA_OUT', `Ngoài phạm vi dữ liệu QA (${ctx.scope.qaFrom ?? '…'} → ${ctx.scope.qaTo ?? '…'}).`, { from: ctx.scope.qaFrom, to: ctx.scope.qaTo, comparedDate: facts.r4gDate }));
@@ -23,7 +23,7 @@ export const scopeRule: PrimaryRule = ({ facts, derived, ctx }) => {
 export const phaseRule: PrimaryRule = ({ facts, derived, ctx }) => {
   const findings: Finding[] = [];
   if (!derived.phases) {
-    findings.push(finding('PHASE_NOT_COMPUTABLE', facts.startDate ? 'Không có ngân sách TTM-CNTT cho loại Epic này — không tính được baseline pha.' : 'Thiếu Start Date (T1) — không tính được baseline pha.'));
+    findings.push(finding('PHASE_NOT_COMPUTABLE', facts.startDate ? 'Không có ngân sách TTM-CNTT (QLDA) cho loại Epic này — không tính được baseline pha.' : 'Thiếu Start Date (T1) — không tính được baseline pha.'));
     return findings;
   }
   if (!facts.phaseCompletion) {

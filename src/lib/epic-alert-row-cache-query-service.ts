@@ -21,8 +21,9 @@ export interface EpicAlertRowCacheFilters {
   projectKeys?: string[];
   pmSm?: string[];
   components?: string[];
-  alertFilter?: string;
-  epicType?: string;
+  /** "Nhận xét" — several values match an Epic that matches ANY of them. */
+  alertFilters?: string[];
+  epicTypes?: string[];
   statuses?: string[];
   dataIssueOnly?: boolean;
   requestingUnit?: string;
@@ -91,9 +92,9 @@ function buildFilterClause(scope: AccessScope, filters: EpicAlertRowCacheFilters
     params.push(filters.components);
     clauses.push(`components && $${params.length}::text[]`);
   }
-  if (filters.epicType) {
-    params.push(filters.epicType);
-    clauses.push(`epic_type = $${params.length}`);
+  if (filters.epicTypes && filters.epicTypes.length > 0) {
+    params.push(filters.epicTypes);
+    clauses.push(`epic_type = ANY($${params.length}::text[])`);
   }
   if (filters.statuses && filters.statuses.length > 0) {
     params.push(filters.statuses);
@@ -112,8 +113,10 @@ function buildFilterClause(scope: AccessScope, filters: EpicAlertRowCacheFilters
     params.push(`%${filters.search}%`);
     clauses.push(`(epic_key ILIKE $${params.length} OR epic_name ILIKE $${params.length})`);
   }
-  const alertClause = filters.engineMode === 'scoring' ? buildBadgeFilterClause(filters.alertFilter, params) : buildAlertFilterClause(filters.alertFilter, params);
-  if (alertClause) clauses.push(alertClause);
+  const alertClauses = (filters.alertFilters ?? [])
+    .map((alertFilter) => (filters.engineMode === 'scoring' ? buildBadgeFilterClause(alertFilter, params) : buildAlertFilterClause(alertFilter, params)))
+    .filter((clause): clause is string => Boolean(clause));
+  if (alertClauses.length > 0) clauses.push(`(${alertClauses.map((clause) => `(${clause})`).join(' OR ')})`);
 
   return { sql: clauses.join(' AND '), params };
 }
@@ -225,13 +228,14 @@ export async function queryEpicAlertStatCounts(scope: AccessScope, filters: Epic
   };
 }
 
-/** TTM-Index (PM)/QA-Index (PM) — same ratio as summarizeTtmCntt (ttm-cntt-qa.ts), computed as a
- * SQL aggregate over every Epic in the viewer's access scope (unfiltered by their toolbar
- * selections, per that badge's own contract) instead of hydrating rows into JS. */
-export async function queryTtmQaIndexPm(scope: AccessScope, engineMode: ScoringEngineMode = 'legacy'): Promise<{ ttm: TtmCnttSummary; qa: TtmCnttSummary }> {
-  const params: unknown[] = [];
-  const accessClause = buildAccessScopeClause(scope, params);
-  if (engineMode === 'scoring') return queryScoringIndexPm(accessClause, params);
+/** TTM-CNTT (QLDA) / TTM-CNTT (QA) over exactly the Epic set the "Quản trị Epic" table is showing —
+ * same WHERE as the page query (access scope + every toolbar filter), so the header badges move
+ * with the table's data scope instead of staying fixed to the viewer's whole permitted scope. Same
+ * ratio as summarizeTtmCntt/summarizeQaIndex (ttm-cntt-qa.ts), computed as a SQL aggregate instead
+ * of hydrating rows into JS. Cancelled Epics never count, even when the Status filter includes them. */
+export async function queryTtmCnttIndexes(scope: AccessScope, filters: EpicAlertRowCacheFilters): Promise<{ ttm: TtmCnttSummary; qa: TtmCnttSummary }> {
+  const { sql: accessClause, params } = buildFilterClause(scope, filters);
+  if (filters.engineMode === 'scoring') return queryScoringIndexPm(accessClause, params);
   const result = await pool.query<{
     ttmFail: string; ttmEligible: string; ttmPass: string; ttmTotal: string;
     qaFail: string; qaEligible: string; qaPass: string; qaTotal: string;

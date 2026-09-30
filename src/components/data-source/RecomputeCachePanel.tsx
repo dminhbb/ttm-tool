@@ -29,7 +29,7 @@ export function RecomputeCachePanel() {
   const [error, setError] = useState<string | null>(null);
 
   const handleRecompute = async () => {
-    if (!confirm('Tổng hợp lại toàn bộ dữ liệu cache (TTM-Index/QA-Index và bảng dữ liệu Quản trị Epic) ngay bây giờ, không cần đợi import mới?')) return;
+    if (!confirm('Tổng hợp lại toàn bộ dữ liệu cache (chỉ số TTM-CNTT (QLDA)/(QA) toàn ứng dụng và bảng dữ liệu Quản trị Epic) ngay bây giờ, không cần đợi import mới?')) return;
     setIsRunning(true);
     setError(null);
     setResult(null);
@@ -56,7 +56,7 @@ export function RecomputeCachePanel() {
       </CardHeader>
       <CardBody className="gap-4">
         <Alert variant="info" title="Khi nào cần dùng">
-          TTM-Index/QA-Index và dữ liệu bảng &quot;Quản trị Epic&quot;/&quot;Epic in PO&quot; được tổng hợp sẵn 1 lần sau
+          Chỉ số TTM-CNTT (QLDA)/(QA) toàn ứng dụng và dữ liệu bảng &quot;Quản trị Epic&quot;/&quot;Epic in PO&quot; được tổng hợp sẵn 1 lần sau
           mỗi đợt import, không tính lại mỗi lần người dùng vào màn hình. Dùng nút này khi vừa sửa dữ
           liệu trực tiếp trong DB (không qua import), vừa restore dữ liệu, hoặc nghi ngờ lần tổng hợp
           tự động lúc import trước đó bị lỗi — không cần chờ đợt import kế tiếp.

@@ -88,7 +88,7 @@ const AT_RISK_BADGE_VARIANT: Record<AlertLevel, 'danger' | 'warning' | 'info' | 
   NONE: 'neutral',
 };
 const AT_RISK_BADGE_LABEL: Record<AlertLevel, string> = {
-  FAIL: 'Fail TTM-CNTT',
+  FAIL: 'Fail TTM-CNTT (QLDA)',
   LATE: 'Cảnh báo muộn',
   EARLY: 'Cảnh báo sớm',
   NONE: '',
@@ -123,7 +123,7 @@ function DashboardStatsPanel({ onOpenEpic, showProjectInAtRisk, stats, subtitle,
       <CardBody className="gap-5">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <StatTile hero icon={Gauge} label="Tổng số Epic" value={stats.epicCount} />
-          <StatTile icon={WarningCircle} label="Fail TTM-CNTT" tone="danger" value={stats.alerts.failCntt} />
+          <StatTile icon={WarningCircle} label="Fail TTM-CNTT (QLDA)" tone="danger" value={stats.alerts.failCntt} />
           <StatTile icon={WarningCircle} label="Fail TTM-E2E" tone="danger" value={stats.alerts.failE2e} />
           <StatTile icon={WarningCircle} label="Cảnh báo muộn" tone="warning" value={stats.alerts.lateWarning} />
           <StatTile icon={WarningCircle} label="Cảnh báo sớm" tone="warning" value={stats.alerts.earlyWarning} />

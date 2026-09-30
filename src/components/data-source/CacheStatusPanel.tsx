@@ -136,7 +136,7 @@ export function CacheStatusPanel() {
                 <dd className="text-[12px] text-fb-text-secondary">Tạo lúc {formatDateTime(overview.epicRowCache.computedAt)}</dd>
               </div>
               <div className="rounded-xl border border-fb-border p-3">
-                <dt className="text-[11px] font-bold uppercase text-fb-text-secondary">Cache TTM/QA-Index (QLDA)</dt>
+                <dt className="text-[11px] font-bold uppercase text-fb-text-secondary">Cache TTM-CNTT (QLDA)/(QA) toàn ứng dụng</dt>
                 <dd className="mt-1.5 text-[12px] text-fb-text-secondary">Tạo lúc {formatDateTime(overview.ttmIndexGlobalCache?.computedAt ?? null)}</dd>
                 <dd className="text-[12px] text-fb-text-secondary">Từ đợt import #{overview.ttmIndexGlobalCache?.sourceImportBatchId ?? '—'}</dd>
               </div>

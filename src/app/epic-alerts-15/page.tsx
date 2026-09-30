@@ -24,7 +24,6 @@ import type { ProjectComponent } from '@/lib/master-data-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
 import { formatTtmPct1, summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
-import type { TtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import { ArrowBendUpRight, ArrowCounterClockwise, ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, FloppyDisk, FolderSimple, HourglassMedium, Lightning, ListChecks, Prohibit, Sparkle, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
@@ -40,7 +39,9 @@ const EXCLUDED_NOT_IN_PO = new Set(['CANCELLED', 'TO DO', 'IN PO', 'RELEASED']);
 
 interface SavedFilterConfig {
   activeQuickFilter: 'PENDING' | 'IN_PO' | 'NOT_IN_PO' | null;
-  alertFilter: AlertFilterValue;
+  /** Pre-multi-select saves stored a single value — still read on restore. */
+  alertFilter?: AlertFilterValue;
+  alertFilters?: AlertFilterValue[];
   componentFilters: string[];
   createdDateFrom?: string;
   dataIssueFilter: boolean;
@@ -54,7 +55,8 @@ interface SavedFilterConfig {
   selectedLayerAnchor?: string;
   startDateFromFilter?: string;
   statusFilters: string[];
-  typeFilter: string;
+  typeFilter?: string;
+  typeFilters?: string[];
 }
 
 function loadSavedFilters(): SavedFilterConfig | null {
@@ -111,7 +113,7 @@ function formatDateTime(value: string | null): string {
  * multi-select filters (projects/status); everything else is a single value.
  */
 interface EpicAlertsDeepLinkFilters {
-  alert: AlertFilterValue;
+  alerts: AlertFilterValue[];
   dataIssue: boolean;
   domain: string;
   hasAny: boolean;
@@ -127,17 +129,15 @@ interface EpicAlertsDeepLinkFilters {
   ttmScopeCnttTo: string | null | undefined;
   ttmScopeQaFrom: string | null | undefined;
   ttmScopeQaTo: string | null | undefined;
-  type: string;
+  types: string[];
 }
 
 function parseDeepLinkFilters(searchParams: URLSearchParams): EpicAlertsDeepLinkFilters {
   const splitList = (key: string) => (searchParams.get(key) ?? '').split(',').map((value) => value.trim()).filter(Boolean);
-  const alertRaw = searchParams.get('alert') ?? '';
-  const alert = ALERT_FILTER_VALUES.has(alertRaw as AlertFilterValue) ? (alertRaw as AlertFilterValue) : '';
+  const alerts = splitList('alert').filter((value): value is Exclude<AlertFilterValue, ''> => ALERT_FILTER_VALUES.has(value as AlertFilterValue) && value !== '');
   const projects = splitList('projects');
   const status = splitList('status');
-  const typeRaw = searchParams.get('type') ?? '';
-  const type = (EPIC_COMPLEXITY_TYPES as readonly string[]).includes(typeRaw) ? typeRaw : '';
+  const types = splitList('type').filter((value) => (EPIC_COMPLEXITY_TYPES as readonly string[]).includes(value));
   const pmSm = splitList('pmSm');
   const requestingUnit = searchParams.get('requestingUnit') ?? '';
   const dataIssue = searchParams.get('dataIssue') === '1';
@@ -145,11 +145,11 @@ function parseDeepLinkFilters(searchParams: URLSearchParams): EpicAlertsDeepLink
   const domain = searchParams.get('domain') ?? '';
   const dateOrNull = (key: string) => (searchParams.has(key) ? (searchParams.get(key) || null) : undefined);
   return {
-    alert,
+    alerts,
     dataIssue,
     domain,
     hasAny: Boolean(
-      alert || projects.length || status.length || type || pmSm.length || requestingUnit || dataIssue || search || domain
+      alerts.length || projects.length || status.length || types.length || pmSm.length || requestingUnit || dataIssue || search || domain
       || dateOrNull('cnttFrom') !== undefined || dateOrNull('cnttTo') !== undefined
       || dateOrNull('qaFrom') !== undefined || dateOrNull('qaTo') !== undefined,
     ),
@@ -162,7 +162,7 @@ function parseDeepLinkFilters(searchParams: URLSearchParams): EpicAlertsDeepLink
     ttmScopeCnttTo: dateOrNull('cnttTo'),
     ttmScopeQaFrom: dateOrNull('qaFrom'),
     ttmScopeQaTo: dateOrNull('qaTo'),
-    type,
+    types,
   };
 }
 
@@ -219,10 +219,10 @@ type CollapsiblePhase = 'DESIGN' | 'DEV' | 'TEST' | 'PENTEST';
 const COLLAPSIBLE_PHASES: CollapsiblePhase[] = ['DESIGN', 'DEV', 'TEST', 'PENTEST'];
 
 const PHASE_COLUMN_META: Record<CollapsiblePhase, { char: string; title: string }> = {
-  DESIGN: { char: 'D', title: 'Baseline = Start Date + 20% TTM-CNTT (làm tròn ngày)' },
-  DEV: { char: 'V', title: 'Baseline = Start Date + (20%+30%) TTM-CNTT (làm tròn ngày)' },
-  TEST: { char: 'T', title: 'Baseline = Start Date + (20%+30%+30%) TTM-CNTT (làm tròn ngày)' },
-  PENTEST: { char: 'P', title: 'Baseline = Start Date + (20%+30%+30%+10%) TTM-CNTT (làm tròn ngày)' },
+  DESIGN: { char: 'D', title: 'Baseline = Start Date + 20% TTM-CNTT (QLDA) (làm tròn ngày)' },
+  DEV: { char: 'V', title: 'Baseline = Start Date + (20%+30%) TTM-CNTT (QLDA) (làm tròn ngày)' },
+  TEST: { char: 'T', title: 'Baseline = Start Date + (20%+30%+30%) TTM-CNTT (QLDA) (làm tròn ngày)' },
+  PENTEST: { char: 'P', title: 'Baseline = Start Date + (20%+30%+30%+10%) TTM-CNTT (QLDA) (làm tròn ngày)' },
 };
 
 /** Expanded: full name, click to collapse. Collapsed: thin stub showing one representative
@@ -562,9 +562,7 @@ interface EpicAlertStatCounts {
   todo: number;
 }
 
-/** `/api/epic-alerts-15`'s payload is EpicAlertPhasedResponse plus a cached, permission-unscoped
- * "(QLDA)" TTM/QA Index snapshot (see ttm-index-global-cache-service.ts) — null before the very
- * first CSV import has ever completed.
+/** `/api/epic-alerts-15`'s payload is EpicAlertPhasedResponse plus paging/aggregate extras.
  *
  * `mode: 'paged'` (the common case — see epic-alert-row-cache-query-service.ts) means `rows` is
  * already the current page, server-filtered/sorted by every toolbar filter, with `totalCount`/
@@ -573,7 +571,6 @@ interface EpicAlertStatCounts {
  * an advanced date filter — see the API route) means `rows` is the full access-scoped set, exactly
  * like before this cache existed: the client still does its own filter/sort/paginate/stat pipeline. */
 interface EpicAlerts15Payload extends EpicAlertPhasedResponse {
-  ttmIndexGlobal: TtmIndexGlobalCache | null;
   mode: 'paged' | 'full';
   totalCount?: number;
   page?: number;
@@ -584,10 +581,10 @@ interface EpicAlerts15Payload extends EpicAlertPhasedResponse {
   filterOptions?: EpicAlertFilterOptions;
 }
 
-/** "(QLDA)"/"(PM)" TTM-Index or QA-Index value + 2-line tooltip text, formatted for the
+/** TTM-CNTT (QLDA) or TTM-CNTT (QA) value + 2-line tooltip text, formatted for the
  * EpicHeaderWidgetItem AppShell renders in its sticky header — see ttm-cntt-qa.ts for what
  * eligible/pass/fail mean. `summary` null (no cache yet) or `total === 0` (nothing to rate, e.g. no
- * MVP Done/Released Epic yet for QA-Index) both render "—" instead of a misleading 0,0%/100,0%. */
+ * MVP Done/Released Epic yet for TTM-CNTT (QA)) both render "—" instead of a misleading 0,0%/100,0%. */
 function formatTtmIndexValue(summary: TtmCnttSummary | null): string {
   return summary && summary.total > 0 ? `${formatTtmPct1(summary.pctPrecise)}%` : '—';
 }
@@ -628,8 +625,8 @@ function EpicAlerts15Screen() {
   const [pmSmFilters, setPmSmFilters] = useState<string[]>(deepLinkFilters.pmSm);
   const [componentFilters, setComponentFilters] = useState<string[]>([]);
   const [projectComponents, setProjectComponents] = useState<ProjectComponent[]>([]);
-  const [alertFilter, setAlertFilter] = useState<AlertFilterValue>(deepLinkFilters.alert);
-  const [typeFilter, setTypeFilter] = useState(deepLinkFilters.type);
+  const [alertFilters, setAlertFilters] = useState<AlertFilterValue[]>(deepLinkFilters.alerts);
+  const [typeFilters, setTypeFilters] = useState<string[]>(deepLinkFilters.types);
   const [statusFilters, setStatusFilters] = useState<string[]>(deepLinkFilters.status);
   const [requestingUnitFilter, setRequestingUnitFilter] = useState(deepLinkFilters.requestingUnit);
   const [dataIssueFilter, setDataIssueFilter] = useState(deepLinkFilters.dataIssue);
@@ -726,8 +723,8 @@ function EpicAlerts15Screen() {
       if (projectFilters.length > 0) query.set('projectKeys', projectFilters.join(','));
       if (pmSmFilters.length > 0) query.set('pmSm', pmSmFilters.join(','));
       if (componentFilters.length > 0) query.set('components', componentFilters.join(','));
-      if (alertFilter) query.set('alertFilter', alertFilter);
-      if (typeFilter) query.set('epicType', typeFilter);
+      if (alertFilters.length > 0) query.set('alertFilter', alertFilters.join(','));
+      if (typeFilters.length > 0) query.set('epicType', typeFilters.join(','));
       if (statusQuery) query.set('statuses', statusQuery);
       if (dataIssueFilter) query.set('dataIssueOnly', '1');
       if (requestingUnitFilter) query.set('requestingUnit', requestingUnitFilter);
@@ -762,60 +759,14 @@ function EpicAlerts15Screen() {
 
   const rows = data?.rows ?? EMPTY_ROWS;
 
-  // TTM-Index (PM) / QA-Index (PM) — the "(QLDA)" ratios (see ttm-cntt-qa.ts) scoped to everything
-  // this logged-in user is permitted to see (`rows`, already access-scoped server-side), computed
-  // live off data the page already fetched for its own table — deliberately NOT narrowed further by
-  // this screen's own toolbar filters (Dự án/Domain/Status/…), so it reads as a stable "my whole
-  // permitted scope" badge rather than shifting with whatever filter happens to be active. Free to
-  // compute (no extra query): unlike the "(QLDA)" company-wide badges, this never needs caching.
-  // Paged mode only ever holds one page of `rows` here, so the server computes these over the full
-  // access scope instead (see queryTtmQaIndexPm) — the client-side fallback below only applies in
-  // 'full' mode, where `rows` genuinely is the whole access-scoped set.
-  const clientTtmIndexPm = useMemo(() => summarizeTtmCntt(rows), [rows]);
-  const clientQaIndexPm = useMemo(() => summarizeQaIndex(rows), [rows]);
-  const ttmIndexPm = data?.mode === 'paged' && data.ttmIndexPm ? data.ttmIndexPm : clientTtmIndexPm;
-  const qaIndexPm = data?.mode === 'paged' && data.qaIndexPm ? data.qaIndexPm : clientQaIndexPm;
-
-  // Publish the 4 index badges into AppShell's shared sticky header (see
-  // epic-header-widgets-context.tsx). Clearing lives in its own effect (cleanup-only, on unmount)
-  // so navigating away never leaves this screen's numbers on another page's header, without also
-  // flashing the badges empty-then-full on every ordinary data refresh (a cleanup fires before each
-  // re-run of an effect with dependencies, not just on unmount).
+  // TTM-CNTT (QLDA) / TTM-CNTT (QA) header badges — computed over exactly the Epic set the table
+  // below is showing (access scope + every toolbar/advanced filter), so they move with the table's
+  // data scope. Paged mode only ever holds one page of `rows`, so the server aggregates them over
+  // the same WHERE as the page query (see queryTtmCnttIndexes); 'full' mode computes them from
+  // filteredRows, which there is the whole filtered set. Declared further down, after filteredRows.
+  // The company-wide snapshot (ttm-index-global-cache-service.ts) is shown only on TTM dashboard's banner.
   const { setItems: setHeaderWidgetItems } = useEpicHeaderWidgets();
   useEffect(() => () => setHeaderWidgetItems(null), [setHeaderWidgetItems]);
-  useEffect(() => {
-    if (!data) return;
-    setHeaderWidgetItems([
-      {
-        key: 'ttm-qlda',
-        label: 'TTM-Index (QLDA)',
-        tone: 'ttm',
-        value: formatTtmIndexValue(data.ttmIndexGlobal?.ttm ?? null),
-        tooltip: formatTtmIndexTooltip('Chỉ số TTM-Index của Phòng QLDA tính trên toàn bộ Epic của Phòng', data.ttmIndexGlobal?.ttm ?? null),
-      },
-      {
-        key: 'ttm-pm',
-        label: 'TTM-Index (PM)',
-        tone: 'ttm',
-        value: formatTtmIndexValue(ttmIndexPm),
-        tooltip: formatTtmIndexTooltip('Chỉ số TTM-Index các dự án của PM tính trên các Epic của dự án được phân quyền', ttmIndexPm),
-      },
-      {
-        key: 'qa-qlda',
-        label: 'QA-Index (QLDA)',
-        tone: 'qa',
-        value: formatTtmIndexValue(data.ttmIndexGlobal?.qa ?? null),
-        tooltip: formatTtmIndexTooltip('Chỉ số QA-Index của Phòng QLDA tính trên toàn bộ Epic của Phòng, theo cách tính của QA', data.ttmIndexGlobal?.qa ?? null),
-      },
-      {
-        key: 'qa-pm',
-        label: 'QA-Index (PM)',
-        tone: 'qa',
-        value: formatTtmIndexValue(qaIndexPm),
-        tooltip: formatTtmIndexTooltip('Chỉ số QA-Index các dự án của PM tính trên các Epic của dự án được phân quyền', qaIndexPm),
-      },
-    ]);
-  }, [data, qaIndexPm, setHeaderWidgetItems, ttmIndexPm]);
 
   // Paged mode: `rows` is only the current page, so every filter dropdown's option list instead
   // comes from the server's filterOptions — computed over the viewer's FULL access scope (see
@@ -906,8 +857,10 @@ function EpicAlerts15Screen() {
         setPmSmFilters(typeof saved.pmSmFilter === 'string' ? saved.pmSmFilter.split(',').map((s) => s.trim()).filter(Boolean) : saved.pmSmFilter);
       }
       if (saved.componentFilters && saved.componentFilters.length > 0) setComponentFilters(saved.componentFilters);
-      if (saved.alertFilter) setAlertFilter(saved.alertFilter);
-      if (saved.typeFilter) setTypeFilter(saved.typeFilter);
+      if (saved.alertFilters && saved.alertFilters.length > 0) setAlertFilters(saved.alertFilters);
+      else if (saved.alertFilter) setAlertFilters([saved.alertFilter]);
+      if (saved.typeFilters && saved.typeFilters.length > 0) setTypeFilters(saved.typeFilters);
+      else if (saved.typeFilter) setTypeFilters([saved.typeFilter]);
       if (saved.statusFilters && saved.statusFilters.length > 0) {
         // Pre-empts the default-status-filter effect below (same ref) so a saved selection is
         // never immediately clobbered by the default exclusion set once statusOptions loads.
@@ -980,7 +933,7 @@ function EpicAlerts15Screen() {
     void Promise.resolve().then(fetchData);
   }, [
     savedFiltersReady, serverQueryKey, layerWindowKey, createdDateFrom, startDateFromFilter, dueDateFromFilter,
-    projectFilters, pmSmFilters, componentFilters, alertFilter, typeFilter, statusQuery,
+    projectFilters, pmSmFilters, componentFilters, alertFilters, typeFilters, statusQuery,
     dataIssueFilter, requestingUnitFilter, debouncedSearch, page,
   ]);
   useEffect(() => () => fetchAbortRef.current?.abort(), []);
@@ -1025,7 +978,7 @@ function EpicAlerts15Screen() {
   const handleSaveFilters = () => {
     const config: SavedFilterConfig = {
       activeQuickFilter,
-      alertFilter,
+      alertFilters,
       componentFilters,
       createdDateFrom,
       dataIssueFilter,
@@ -1039,7 +992,7 @@ function EpicAlerts15Screen() {
       selectedLayerAnchor,
       startDateFromFilter,
       statusFilters,
-      typeFilter,
+      typeFilters,
     };
     try {
       localStorage.setItem(SAVED_FILTER_STORAGE_KEY, JSON.stringify(config));
@@ -1057,8 +1010,8 @@ function EpicAlerts15Screen() {
     setDomainFilter('');
     setPmSmFilters([]);
     setComponentFilters([]);
-    setAlertFilter('');
-    setTypeFilter('');
+    setAlertFilters([]);
+    setTypeFilters([]);
     setStatusFilters(statusOptions.filter((status) => !isCancelledStatus(status)));
     setRequestingUnitFilter('');
     setDataIssueFilter(false);
@@ -1072,6 +1025,14 @@ function EpicAlerts15Screen() {
     showToast('Đã đặt lại bộ lọc mặc định');
   };
 
+  // Stat widgets (Fail TTM-CNTT/E2E, Cảnh báo muộn) act on "Nhận xét": active only while that value
+  // is the sole selection; clicking replaces whatever is selected with just it (or clears it).
+  const isOnlyAlertFilter = (value: AlertFilterValue) => alertFilters.length === 1 && alertFilters[0] === value;
+  const toggleOnlyAlertFilter = (value: AlertFilterValue) => {
+    setAlertFilters(isOnlyAlertFilter(value) ? [] : [value]);
+    setPage(1);
+  };
+
   // Paged mode: the server already filtered/sorted `rows` down to exactly this page (see the API
   // route) — re-filtering here would double-apply the same filters against a set that's already
   // narrowed, silently dropping rows. 'full' mode keeps the original client-side pipeline.
@@ -1082,14 +1043,41 @@ function EpicAlerts15Screen() {
       return (projectFilters.length === 0 || projectFilters.includes(row.projectKey))
         && (pmSmFilters.length === 0 || row.ownerName.split(',').map((name) => name.trim()).some((name) => pmSmFilters.includes(name)))
         && (componentFilters.length === 0 || row.components.some((component) => componentFilters.includes(component)))
-        && matchesAlertFilter(row, alertFilter)
-        && (!typeFilter || row.epicType === typeFilter)
+        && (alertFilters.length === 0 || alertFilters.some((alertFilter) => matchesAlertFilter(row, alertFilter)))
+        && (typeFilters.length === 0 || (row.epicType !== null && typeFilters.includes(row.epicType)))
         && (statusFilters.length === 0 ? !isCancelledStatus(row.currentStatus) : statusFilters.includes(row.currentStatus))
         && (!dataIssueFilter || row.hasDataAnomaly)
         && (!requestingUnitFilter || row.requestingUnit === requestingUnitFilter)
         && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch));
     }).sort((a, b) => listGroupRankOf(a.currentStatus, a.ttmCnttInScope) - listGroupRankOf(b.currentStatus, b.ttmCnttInScope));
-  }, [data?.mode, rows, projectFilters, pmSmFilters, componentFilters, alertFilter, typeFilter, statusFilters, dataIssueFilter, requestingUnitFilter, search]);
+  }, [data?.mode, rows, projectFilters, pmSmFilters, componentFilters, alertFilters, typeFilters, statusFilters, dataIssueFilter, requestingUnitFilter, search]);
+
+  const clientTtmCnttQlda = useMemo(() => summarizeTtmCntt(filteredRows), [filteredRows]);
+  const clientTtmCnttQa = useMemo(() => summarizeQaIndex(filteredRows), [filteredRows]);
+  const ttmCnttQlda = data?.mode === 'paged' && data.ttmIndexPm ? data.ttmIndexPm : clientTtmCnttQlda;
+  const ttmCnttQa = data?.mode === 'paged' && data.qaIndexPm ? data.qaIndexPm : clientTtmCnttQa;
+  // Publishes the badges into AppShell's shared sticky header (see epic-header-widgets-context.tsx).
+  // Clearing lives in its own cleanup-only effect above, so an ordinary data refresh never flashes
+  // them empty-then-full.
+  useEffect(() => {
+    if (!data) return;
+    setHeaderWidgetItems([
+      {
+        key: 'ttm-cntt-qlda',
+        label: 'TTM-CNTT (QLDA)',
+        tone: 'ttm',
+        value: formatTtmIndexValue(ttmCnttQlda),
+        tooltip: formatTtmIndexTooltip('Chỉ số TTM-CNTT (QLDA) tính trên các Epic đang hiển thị trong bảng Danh sách Epic (theo bộ lọc)', ttmCnttQlda),
+      },
+      {
+        key: 'ttm-cntt-qa',
+        label: 'TTM-CNTT (QA)',
+        tone: 'qa',
+        value: formatTtmIndexValue(ttmCnttQa),
+        tooltip: formatTtmIndexTooltip('Chỉ số TTM-CNTT (QA) tính trên các Epic đang hiển thị trong bảng Danh sách Epic (theo bộ lọc), theo cách tính của QA', ttmCnttQa),
+      },
+    ]);
+  }, [data, setHeaderWidgetItems, ttmCnttQa, ttmCnttQlda]);
 
   // Raw status strings (case as stored) whose normalized form is PENDING/TO DO — the Pending/To Do
   // stat widgets set the Status filter (a multi-select) to exactly this set.
@@ -1153,18 +1141,18 @@ function EpicAlerts15Screen() {
             gateMessage={statWidgetsGateMessage}
             items={[
               {
-                icon: XCircle, isActive: alertFilter === 'FAIL', key: 'fail-cntt', label: 'Epic Fail TTM-CNTT',
-                onClick: () => { setAlertFilter((current) => (current === 'FAIL' ? '' : 'FAIL')); setPage(1); },
+                icon: XCircle, isActive: isOnlyAlertFilter('FAIL'), key: 'fail-cntt', label: 'Epic Fail TTM-CNTT (QLDA)',
+                onClick: () => toggleOnlyAlertFilter('FAIL'),
                 tone: 'danger', value: statCounts.failCntt,
               },
               {
-                icon: Prohibit, isActive: alertFilter === 'FAIL_E2E', key: 'fail-e2e', label: 'Epic Fail TTM-E2E',
-                onClick: () => { setAlertFilter((current) => (current === 'FAIL_E2E' ? '' : 'FAIL_E2E')); setPage(1); },
+                icon: Prohibit, isActive: isOnlyAlertFilter('FAIL_E2E'), key: 'fail-e2e', label: 'Epic Fail TTM-E2E',
+                onClick: () => toggleOnlyAlertFilter('FAIL_E2E'),
                 tone: 'danger', value: statCounts.failE2e,
               },
               {
-                icon: ClockCountdown, isActive: alertFilter === 'LATE', key: 'late', label: 'Epic Cảnh báo muộn',
-                onClick: () => { setAlertFilter((current) => (current === 'LATE' ? '' : 'LATE')); setPage(1); },
+                icon: ClockCountdown, isActive: isOnlyAlertFilter('LATE'), key: 'late', label: 'Epic Cảnh báo muộn',
+                onClick: () => toggleOnlyAlertFilter('LATE'),
                 tone: 'warning', value: statCounts.late,
               },
               {
@@ -1197,8 +1185,10 @@ function EpicAlerts15Screen() {
         </div>
       )}
 
-      <section className="ttm-toolbar" aria-label="Bộ lọc Epic">
-        <div className="flex items-center gap-1.5 text-xs font-bold text-black shrink-0 mr-1 select-none">
+      {/* Single-row toolbar (.ttm-toolbar-row): every control shrinks to share one line instead of
+          wrapping — see epic-alerts-15.css. Empty-state labels are the short filter names. */}
+      <section className="ttm-toolbar ttm-toolbar-row" aria-label="Bộ lọc Epic">
+        <div className="ttm-toolbar-title flex items-center gap-1.5 text-xs font-bold text-black shrink-0 select-none">
           <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
           <span>Filters:</span>
         </div>
@@ -1206,55 +1196,54 @@ function EpicAlerts15Screen() {
           <select
             className={`ttm-select${domainFilter ? ' has-filter' : ''}`}
             aria-label="Domain"
+            title="Domain"
             value={domainFilter}
             onChange={(event) => handleDomainFilterChange(event.target.value)}
           >
-            <option value="">Chọn Domain…</option>
+            <option value="">Domain</option>
             {domainOptions.map((domain) => <option key={domain} value={domain}>{domain}</option>)}
           </select>
         )}
         <ToolbarMultiSelect
           ariaLabel="Dự án"
-          allLabel="Tất cả dự án của tôi"
+          allLabel="Projects"
           options={projectOptions}
           value={projectFilters}
           onChange={(values) => { setDomainFilter(''); handleProjectFiltersChange(values); }}
         />
         <ToolbarMultiSelect
           ariaLabel="PM/SM"
-          allLabel="Tất cả PM/SM"
+          allLabel="PM/SM"
           options={pmSmOptions}
           value={pmSmFilters}
           onChange={(values) => { setPmSmFilters(values); setPage(1); }}
         />
         <ToolbarMultiSelect
           ariaLabel="Components"
-          allLabel={projectFilters.length === 0 ? 'Chọn dự án trước' : 'Tất cả Components'}
+          allLabel="Components"
+          title={projectFilters.length === 0 ? 'Chọn dự án trước' : undefined}
           disabled={projectFilters.length === 0}
           options={componentOptions}
           value={componentFilters}
           onChange={(values) => { setComponentFilters(values); setPage(1); }}
         />
-        <select
-          className={`ttm-select${alertFilter ? ' has-filter' : ''}`}
-          aria-label="Lọc Nhận xét"
-          value={alertFilter}
-          onChange={(event) => { setAlertFilter(event.target.value as AlertFilterValue); setPage(1); }}
-        >
-          {alertFilterOptionsFor(data?.engineMode).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
-        <select
-          className={`ttm-select${typeFilter ? ' has-filter' : ''}`}
-          aria-label="Loại Epic"
-          value={typeFilter}
-          onChange={(event) => { setTypeFilter(event.target.value); setPage(1); }}
-        >
-          <option value="">Tất cả loại Epic</option>
-          {EPIC_COMPLEXITY_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
-        </select>
+        <ToolbarMultiSelect
+          ariaLabel="Lọc Nhận xét"
+          allLabel="Nhận xét"
+          options={alertFilterOptionsFor(data?.engineMode).filter((option) => option.value !== '')}
+          value={alertFilters}
+          onChange={(values) => { setAlertFilters(values as AlertFilterValue[]); setPage(1); }}
+        />
+        <ToolbarMultiSelect
+          ariaLabel="Loại Epic"
+          allLabel="Loại Epic"
+          options={EPIC_COMPLEXITY_TYPES}
+          value={typeFilters}
+          onChange={(values) => { setTypeFilters(values); setPage(1); }}
+        />
         <ToolbarMultiSelect
           ariaLabel="Status"
-          allLabel="Tất cả status"
+          allLabel="Status"
           options={statusOptions}
           value={statusFilters}
           onChange={(values) => { setStatusFilters(values); setActiveQuickFilter(null); setPage(1); }}
@@ -1262,10 +1251,11 @@ function EpicAlerts15Screen() {
         <select
           className={`ttm-select${requestingUnitFilter ? ' has-filter' : ''}`}
           aria-label="Đơn vị yêu cầu"
+          title="Đơn vị yêu cầu"
           value={requestingUnitFilter}
           onChange={(event) => { setRequestingUnitFilter(event.target.value); setPage(1); }}
         >
-          <option value="">Tất cả đơn vị yêu cầu</option>
+          <option value="">Đơn vị yêu cầu</option>
           {requestingUnitOptions.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
         </select>
         <input
@@ -1368,7 +1358,7 @@ function EpicAlerts15Screen() {
           className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[#1463f7] transition-colors"
         >
           {advancedFiltersOpen ? <CaretDown className="size-4 text-[#1463f7]" weight="bold" /> : <CaretRight className="size-4 text-[#1463f7]" weight="bold" />}
-          <span>Bộ lọc nâng cao...</span>
+          <span>Advanced Filters</span>
         </button>
         {advancedFiltersOpen && (
           <div className="mt-3 space-y-3 pl-2 border-l-2 border-[#1463f7] pt-1">
@@ -1455,7 +1445,7 @@ function EpicAlerts15Screen() {
               <TR>
                 <TH className={`ttm-epic-col-sticky ttm-col-border-right ${allColumnsCollapsed ? 'min-w-[150px]' : 'min-w-[180px]'}`} title="issues.issue_key / issues.issue_name">Epic</TH>
                 <TH className={allColumnsCollapsed ? 'min-w-[90px]' : 'min-w-[120px]'} title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">Nhận xét</TH>
-                <TH title="Baseline (dòng trên) = Start Date + TTM-CNTT; Thực tế (dòng dưới) = Start Date → R4G Date (hoặc hôm nay nếu chưa có)">TTM-CNTT</TH>
+                <TH title="Baseline (dòng trên) = Start Date + TTM-CNTT (QLDA); Thực tế (dòng dưới) = Start Date → R4G Date (hoặc hôm nay nếu chưa có)">TTM-CNTT (QLDA)</TH>
                 <TH className="ttm-col-border-right" title="Baseline (dòng trên) = T0 + TTM-E2E; Thực tế (dòng dưới) = T0 → Due Date (hoặc hôm nay nếu chưa có). T0 = Idea Approved Date, hoặc Start Date, hoặc ngày tạo Jira">TTM-E2E</TH>
                 <TH className={allColumnsCollapsed ? 'ttm-col-compact-status' : undefined} title="issues.current_status">Status</TH>
                 <TH className={allColumnsCollapsed ? 'min-w-[92px]' : 'min-w-[100px]'} title="T0 = Idea Approved Date, hoặc ngày tạo Jira nếu không có — điểm bắt đầu chu kỳ TTM-E2E">START-E2E</TH>
@@ -1464,7 +1454,7 @@ function EpicAlerts15Screen() {
                 <CollapsiblePhaseHeader phase="DEV" isCollapsed={collapsedColumns.has('DEV')} onToggle={toggleColumn} />
                 <CollapsiblePhaseHeader phase="TEST" isCollapsed={collapsedColumns.has('TEST')} onToggle={toggleColumn} />
                 <CollapsiblePhaseHeader phase="PENTEST" isCollapsed={collapsedColumns.has('PENTEST')} onToggle={toggleColumn} />
-                <TH className={allColumnsCollapsed ? 'min-w-[92px]' : 'min-w-[110px]'} title="Baseline = Start Date + 100% TTM-CNTT; dòng dưới = issues.r4g_date">R4GOLIVE</TH>
+                <TH className={allColumnsCollapsed ? 'min-w-[92px]' : 'min-w-[110px]'} title="Baseline = Start Date + 100% TTM-CNTT (QLDA); dòng dưới = issues.r4g_date">R4GOLIVE</TH>
                 <TH className={allColumnsCollapsed ? 'min-w-[98px]' : 'min-w-[118px]'} title="Baseline = Ngày duyệt ý tưởng (hoặc Ngày epic created nếu không có) + 20 ngày làm việc, không tính holiday. Dòng dưới = issues.due_date">Release</TH>
               </TR>
             </THead>
@@ -1525,21 +1515,21 @@ function EpicAlerts15Screen() {
                         return (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
                             {!row.ttmCnttInScope ? (
-                              <Tooltip content="Epic nằm ngoài phạm vi dữ liệu TTM-CNTT đang cấu hình (R4G Date/baseline nằm ngoài khoảng ngày thiết lập tại 'Cấu hình cảnh báo')." className="inline-flex w-auto">
-                                <span className="ttm-badge out-of-scope">Ngoài phạm vi TTM-CNTT</span>
+                              <Tooltip content="Epic nằm ngoài phạm vi dữ liệu TTM-CNTT (QLDA) đang cấu hình (R4G Date/baseline nằm ngoài khoảng ngày thiết lập tại 'Cấu hình cảnh báo')." className="inline-flex w-auto">
+                                <span className="ttm-badge out-of-scope">Ngoài phạm vi TTM-CNTT (QLDA)</span>
                               </Tooltip>
                             ) : row.ttmCnttStatusMismatch ? (
-                              <Tooltip content="R4G Date đã ghi nhận và đúng hạn theo TTM-CNTT, nhưng status Epic chưa chuyển sang R4GOLIVE — vui lòng cập nhật status đúng quy định." className="inline-flex w-auto">
+                              <Tooltip content="R4G Date đã ghi nhận và đúng hạn theo TTM-CNTT (QLDA), nhưng status Epic chưa chuyển sang R4GOLIVE — vui lòng cập nhật status đúng quy định." className="inline-flex w-auto">
                                 <span className="ttm-badge status-mismatch">Sai Status</span>
                               </Tooltip>
                             ) : row.alertLevel === 'FAIL' ? (
-                              <span className="ttm-badge fail-cntt">Fail TTM-CNTT</span>
+                              <span className="ttm-badge fail-cntt">Fail TTM-CNTT (QLDA)</span>
                             ) : row.alertLevel === 'LATE' ? (
                               <span className="ttm-badge late-warning">Cảnh báo muộn</span>
                             ) : row.alertLevel === 'EARLY' ? (
                               <span className="ttm-badge early-warning">Cảnh báo sớm</span>
                             ) : ttmCnttAchieved ? (
-                              <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT đúng hạn theo rule">Đạt TTM-CNTT</span>
+                              <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT (QLDA) đúng hạn theo rule">Đạt TTM-CNTT (QLDA)</span>
                             ) : null}
 
                             {row.ttmE2eAlertLevel === 'FAIL' ? (
@@ -1602,7 +1592,7 @@ function EpicAlerts15Screen() {
                       </TD>
                     )}
                     {isMissingCore ? (
-                      <TD colSpan={5} className="ttm-metric na">Chưa thể tính lịch TTM-CNTT do thiếu dữ liệu bắt buộc.</TD>
+                      <TD colSpan={5} className="ttm-metric na">Chưa thể tính lịch TTM-CNTT (QLDA) do thiếu dữ liệu bắt buộc.</TD>
                     ) : (
                       <>
                         <CollapsiblePhaseCell cell={row.stages.design} isCollapsed={collapsedColumns.has('DESIGN')} />

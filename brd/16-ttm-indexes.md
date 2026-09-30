@@ -11,6 +11,24 @@
 > định), `src/lib/epic-alert-service.ts`/`epic-alert-phase-service.ts` (nguồn tính alertLevel/
 > ttmE2eAlertLevel per Epic), `src/lib/ttm-rules.ts` (computeTtmAlert — công thức TTM-CNTT gốc).
 
+## 0. Cập nhật 2026-09-30 — cơ cấu lại đúng 3 chỉ số (ưu tiên hơn các mục bên dưới)
+
+Toàn bộ ứng dụng chỉ còn **3 chỉ số**: **TTM-CNTT (QLDA)** (tên cũ TTM-Index), **TTM-CNTT (QA)**
+(tên cũ QA-Index) và **TTM-E2E**. Công thức và rule phạm vi của từng chỉ số (mục 2–6) **không đổi**.
+Trục "(QLDA)/(PM)" ở mục 1 không còn là tên hiển thị; thay vào đó:
+
+- **Mặc định**, chỉ số tính trên **đúng tập Epic mà bảng/màn hình đang hiển thị** (quyền dữ liệu +
+  mọi bộ lọc: 1 Epic, dự án, domain, PM/SM, khoảng thời gian...). Quản trị Epic: widget banner
+  TTM-CNTT (QLDA)/(QA) theo bảng Danh sách Epic đang lọc (`queryTtmCnttIndexes`, cùng WHERE với
+  query trang). TTM Dashboard: 2 vòng chỉ số trong KPI theo bộ lọc Dashboard.
+- **Quy ước tên**: khái niệm "TTM-CNTT" ở mọi màn hình và Scoring Service (badge, cột, baseline pha,
+  bộ lọc, KPI, nội dung finding) luôn hiển thị là **TTM-CNTT (QLDA)**; phán quyết từng Epic chỉ dùng
+  phạm vi `ttmCnttInScope`. **TTM-CNTT (QA)** (`qaInScope` + status MVP Done/Released) chỉ dùng cho chỉ
+  số TTM-CNTT (QA) và cấu hình "R4G for TTM (QA)".
+- **Ngoại lệ**: 2 widget cố định trên banner TTM Dashboard — TTM-CNTT (QLDA) và TTM-CNTT (QA) — tính
+  trên toàn bộ Epic trong ứng dụng (`ttm_index_global_cache`), cùng giá trị với mọi người dùng. Hai
+  widget này đã bỏ khỏi banner Quản trị Epic.
+
 ## 1. Hai trục khái niệm cần phân biệt trước
 
 **Trục 1 — Phạm vi phân quyền** (tên gọi "(QLDA)" / "(PM)"):

@@ -148,7 +148,7 @@ export function evaluateEpicDataAnomaly(input: EpicAnomalyInput, now: Date, holi
       const threshold = PENDING_STALE_RATIO * input.ttmCnttWorkingDays;
       if (elapsedWorkingDays >= threshold) {
         const anchorLabel = t1 ? 'Start Date (T1)' : 'ngày tạo Jira (Epic Pending chưa có Start Date)';
-        violations.push(violation('PENDING_TOO_LONG', `Epic Pending đã quá ${Math.round(threshold)} ngày làm việc (20% chu trình TTM-CNTT) kể từ ${anchorLabel}`));
+        violations.push(violation('PENDING_TOO_LONG', `Epic Pending đã quá ${Math.round(threshold)} ngày làm việc (20% chu trình TTM-CNTT (QLDA)) kể từ ${anchorLabel}`));
       }
     }
   } else {

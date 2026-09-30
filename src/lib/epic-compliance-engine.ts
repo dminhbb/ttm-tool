@@ -77,15 +77,15 @@ export function evaluateIssueCompliance(input: ComplianceIssueInput, evaluatedAt
   const dueDate = toDate(input.dueDate);
   const cntt = ttmBaseline(input, findActiveTtmPolicy(ttmPolicies, 'TTM_CNTT', complexity), holidays);
   const e2e = ttmBaseline(input, findActiveTtmPolicy(ttmPolicies, 'TTM_E2E', complexity), holidays);
-  if (!cntt.workingDays) findings.push({ code: 'NO_ACTIVE_TTM_CNTT_POLICY', message: 'Chưa có tiêu chí TTM-CNTT active cho loại Epic này.', severity: 'ERROR' });
-  if (!cntt.fromDate) findings.push({ code: 'MISSING_TTM_CNTT_FROM_DATE', message: 'Epic thiếu ngày bắt đầu theo tiêu chí TTM-CNTT.', severity: 'ERROR' });
+  if (!cntt.workingDays) findings.push({ code: 'NO_ACTIVE_TTM_CNTT_POLICY', message: 'Chưa có tiêu chí TTM-CNTT (QLDA) active cho loại Epic này.', severity: 'ERROR' });
+  if (!cntt.fromDate) findings.push({ code: 'MISSING_TTM_CNTT_FROM_DATE', message: 'Epic thiếu ngày bắt đầu theo tiêu chí TTM-CNTT (QLDA).', severity: 'ERROR' });
   if (!e2e.workingDays) findings.push({ code: 'NO_ACTIVE_TTM_E2E_POLICY', message: 'Chưa có tiêu chí TTM-E2E active cho loại Epic này.', severity: 'WARNING' });
   if (!e2e.fromDate) findings.push({ code: 'MISSING_TTM_E2E_FROM_DATE', message: 'Epic thiếu ngày bắt đầu theo tiêu chí TTM-E2E.', severity: 'WARNING' });
   if (R4G_STATUS.test(input.status) && !r4gDate) findings.push({ code: 'MISSING_R4G_DATE', message: 'Epic ở trạng thái R4G nhưng chưa có R4G Date.', severity: 'WARNING' });
   if (RELEASED_STATUS.test(input.status) && !dueDate) findings.push({ code: 'MISSING_DUE_DATE', message: 'Epic đã Released nhưng chưa có Due Date.', severity: 'WARNING' });
   const targetR4gDate = toDate(cntt.targetDate);
   const targetReleaseDate = toDate(e2e.targetDate);
-  if (r4gDate && targetR4gDate && r4gDate > targetR4gDate) findings.push({ code: 'R4G_AFTER_TARGET', message: 'R4G Date muộn hơn baseline TTM-CNTT.', severity: 'ERROR' });
+  if (r4gDate && targetR4gDate && r4gDate > targetR4gDate) findings.push({ code: 'R4G_AFTER_TARGET', message: 'R4G Date muộn hơn baseline TTM-CNTT (QLDA).', severity: 'ERROR' });
   if (dueDate && targetReleaseDate && dueDate > targetReleaseDate) findings.push({ code: 'RELEASE_AFTER_TARGET', message: 'Due Date muộn hơn baseline TTM-E2E.', severity: 'WARNING' });
   const computed = computeTtmAlert({ complexity, currentDate: evaluatedAt, holidays, r4gDate, startDate: toDate(cntt.fromDate), status: input.status, statusAlertRules, targetR4gDate });
   if (resolveOffsetRule(complexity, input.status, statusAlertRules) === null && cntt.fromDate && !r4gDate && !RELEASED_STATUS.test(input.status)) findings.push({ code: 'NO_ACTIVE_STATUS_RULE', message: 'Status hiện tại chưa có rule cảnh báo active.', severity: 'INFO' });

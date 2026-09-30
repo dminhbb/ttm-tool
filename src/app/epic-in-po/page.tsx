@@ -115,10 +115,10 @@ type CollapsiblePhase = 'DESIGN' | 'DEV' | 'TEST' | 'PENTEST';
 const COLLAPSIBLE_PHASES: CollapsiblePhase[] = ['DESIGN', 'DEV', 'TEST', 'PENTEST'];
 
 const PHASE_COLUMN_META: Record<CollapsiblePhase, { char: string; title: string }> = {
-  DESIGN: { char: 'D', title: 'Baseline = Start Date + 20% TTM-CNTT (làm tròn ngày)' },
-  DEV: { char: 'V', title: 'Baseline = Start Date + (20%+30%) TTM-CNTT (làm tròn ngày)' },
-  TEST: { char: 'T', title: 'Baseline = Start Date + (20%+30%+30%) TTM-CNTT (làm tròn ngày)' },
-  PENTEST: { char: 'P', title: 'Baseline = Start Date + (20%+30%+30%+10%) TTM-CNTT (làm tròn ngày)' },
+  DESIGN: { char: 'D', title: 'Baseline = Start Date + 20% TTM-CNTT (QLDA) (làm tròn ngày)' },
+  DEV: { char: 'V', title: 'Baseline = Start Date + (20%+30%) TTM-CNTT (QLDA) (làm tròn ngày)' },
+  TEST: { char: 'T', title: 'Baseline = Start Date + (20%+30%+30%) TTM-CNTT (QLDA) (làm tròn ngày)' },
+  PENTEST: { char: 'P', title: 'Baseline = Start Date + (20%+30%+30%+10%) TTM-CNTT (QLDA) (làm tròn ngày)' },
 };
 
 /** Expanded: full name, click to collapse. Collapsed: thin stub showing one representative
@@ -874,7 +874,7 @@ export default function EpicInPoPage() {
               <TR>
                 <TH className={`ttm-epic-col-sticky ttm-col-border-right ${allColumnsCollapsed ? 'min-w-[150px]' : 'min-w-[180px]'}`} title="issues.issue_key / issues.issue_name">Epic</TH>
                 <TH className={allColumnsCollapsed ? 'min-w-[90px]' : 'min-w-[120px]'} title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">Nhận xét</TH>
-                <TH title="Baseline (dòng trên) = Start Date + TTM-CNTT; Thực tế (dòng dưới) = Start Date → R4G Date (hoặc hôm nay nếu chưa có)">TTM-CNTT</TH>
+                <TH title="Baseline (dòng trên) = Start Date + TTM-CNTT (QLDA); Thực tế (dòng dưới) = Start Date → R4G Date (hoặc hôm nay nếu chưa có)">TTM-CNTT (QLDA)</TH>
                 <TH className="ttm-col-border-right" title="Baseline (dòng trên) = T0 + TTM-E2E; Thực tế (dòng dưới) = T0 → Due Date (hoặc hôm nay nếu chưa có). T0 = Idea Approved Date, hoặc Start Date, hoặc ngày tạo Jira">TTM-E2E</TH>
                 <TH className={allColumnsCollapsed ? 'ttm-col-compact-status' : undefined} title="issues.current_status">Status</TH>
                 <TH className={allColumnsCollapsed ? 'min-w-[92px]' : 'min-w-[100px]'} title="T0 = Idea Approved Date, hoặc ngày tạo Jira nếu không có — điểm bắt đầu chu kỳ TTM-E2E">START-E2E</TH>
@@ -883,7 +883,7 @@ export default function EpicInPoPage() {
                 <CollapsiblePhaseHeader phase="DEV" isCollapsed={collapsedColumns.has('DEV')} onToggle={toggleColumn} />
                 <CollapsiblePhaseHeader phase="TEST" isCollapsed={collapsedColumns.has('TEST')} onToggle={toggleColumn} />
                 <CollapsiblePhaseHeader phase="PENTEST" isCollapsed={collapsedColumns.has('PENTEST')} onToggle={toggleColumn} />
-                <TH className={allColumnsCollapsed ? 'min-w-[92px]' : 'min-w-[110px]'} title="Baseline = Start Date + 100% TTM-CNTT; dòng dưới = issues.r4g_date">R4GOLIVE</TH>
+                <TH className={allColumnsCollapsed ? 'min-w-[92px]' : 'min-w-[110px]'} title="Baseline = Start Date + 100% TTM-CNTT (QLDA); dòng dưới = issues.r4g_date">R4GOLIVE</TH>
                 <TH className={allColumnsCollapsed ? 'min-w-[98px]' : 'min-w-[118px]'} title="Baseline = Ngày duyệt ý tưởng (hoặc Ngày epic created nếu không có) + 20 ngày làm việc, không tính holiday. Dòng dưới = issues.due_date">Release</TH>
               </TR>
             </THead>
@@ -942,21 +942,21 @@ export default function EpicInPoPage() {
                         return (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
                             {!row.ttmCnttInScope ? (
-                              <Tooltip content="Epic nằm ngoài phạm vi dữ liệu TTM-CNTT đang cấu hình (R4G Date/baseline nằm ngoài khoảng ngày thiết lập tại 'Cấu hình cảnh báo')." className="inline-flex w-auto">
-                                <span className="ttm-badge out-of-scope">Ngoài phạm vi TTM-CNTT</span>
+                              <Tooltip content="Epic nằm ngoài phạm vi dữ liệu TTM-CNTT (QLDA) đang cấu hình (R4G Date/baseline nằm ngoài khoảng ngày thiết lập tại 'Cấu hình cảnh báo')." className="inline-flex w-auto">
+                                <span className="ttm-badge out-of-scope">Ngoài phạm vi TTM-CNTT (QLDA)</span>
                               </Tooltip>
                             ) : row.ttmCnttStatusMismatch ? (
-                              <Tooltip content="R4G Date đã ghi nhận và đúng hạn theo TTM-CNTT, nhưng status Epic chưa chuyển sang R4GOLIVE — vui lòng cập nhật status đúng quy định." className="inline-flex w-auto">
+                              <Tooltip content="R4G Date đã ghi nhận và đúng hạn theo TTM-CNTT (QLDA), nhưng status Epic chưa chuyển sang R4GOLIVE — vui lòng cập nhật status đúng quy định." className="inline-flex w-auto">
                                 <span className="ttm-badge status-mismatch">Sai Status</span>
                               </Tooltip>
                             ) : row.alertLevel === 'FAIL' ? (
-                              <span className="ttm-badge fail-cntt">Fail TTM-CNTT</span>
+                              <span className="ttm-badge fail-cntt">Fail TTM-CNTT (QLDA)</span>
                             ) : row.alertLevel === 'LATE' ? (
                               <span className="ttm-badge late-warning">Cảnh báo muộn</span>
                             ) : row.alertLevel === 'EARLY' ? (
                               <span className="ttm-badge early-warning">Cảnh báo sớm</span>
                             ) : ttmCnttAchieved ? (
-                              <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT đúng hạn theo rule">Đạt TTM-CNTT</span>
+                              <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT (QLDA) đúng hạn theo rule">Đạt TTM-CNTT (QLDA)</span>
                             ) : null}
 
                             {row.ttmE2eAlertLevel === 'FAIL' ? (
@@ -1019,7 +1019,7 @@ export default function EpicInPoPage() {
                       </TD>
                     )}
                     {isMissingCore ? (
-                      <TD colSpan={5} className="ttm-metric na">Chưa thể tính lịch TTM-CNTT do thiếu dữ liệu bắt buộc.</TD>
+                      <TD colSpan={5} className="ttm-metric na">Chưa thể tính lịch TTM-CNTT (QLDA) do thiếu dữ liệu bắt buộc.</TD>
                     ) : (
                       <>
                         <CollapsiblePhaseCell cell={row.stages.design} isCollapsed={collapsedColumns.has('DESIGN')} />

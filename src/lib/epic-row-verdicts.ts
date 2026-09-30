@@ -56,11 +56,11 @@ export type AlertFilterValue =
 
 const ALL_ALERT_FILTER_OPTIONS: { label: string; value: AlertFilterValue; engines: ('legacy' | 'scoring')[] }[] = [
   { label: 'Tất cả nhận xét', value: '', engines: ['legacy', 'scoring'] },
-  { label: 'Đạt TTM-CNTT', value: 'ACHIEVED_CNTT', engines: ['legacy', 'scoring'] },
+  { label: 'Đạt TTM-CNTT (QLDA)', value: 'ACHIEVED_CNTT', engines: ['legacy', 'scoring'] },
   { label: 'Đạt TTM-E2E', value: 'ACHIEVED_E2E', engines: ['legacy', 'scoring'] },
   { label: 'Cảnh báo sớm', value: 'EARLY', engines: ['legacy'] },
   { label: 'Cảnh báo muộn', value: 'LATE', engines: ['legacy', 'scoring'] },
-  { label: 'Fail TTM-CNTT', value: 'FAIL', engines: ['legacy', 'scoring'] },
+  { label: 'Fail TTM-CNTT (QLDA)', value: 'FAIL', engines: ['legacy', 'scoring'] },
   { label: 'Fail TTM-E2E', value: 'FAIL_E2E', engines: ['legacy', 'scoring'] },
   { label: 'Sai Status', value: 'STATUS_MISMATCH', engines: ['legacy', 'scoring'] },
   { label: 'Sai lệch dữ liệu', value: 'DATA_ANOMALY', engines: ['legacy', 'scoring'] },
@@ -68,7 +68,7 @@ const ALL_ALERT_FILTER_OPTIONS: { label: string; value: AlertFilterValue; engine
   { label: 'Chờ golive', value: 'WAITING_GOLIVE', engines: ['legacy', 'scoring'] },
   { label: 'Cảnh báo sớm Release', value: 'RELEASE_EARLY', engines: ['legacy'] },
   { label: 'Giải trình Golive', value: 'JUSTIFY_GOLIVE', engines: ['legacy', 'scoring'] },
-  { label: 'Ngoài phạm vi TTM-CNTT', value: 'OUT_OF_SCOPE_CNTT', engines: ['legacy', 'scoring'] },
+  { label: 'Ngoài phạm vi TTM-CNTT (QLDA)', value: 'OUT_OF_SCOPE_CNTT', engines: ['legacy', 'scoring'] },
 ];
 
 export const ALERT_FILTER_VALUES = new Set<AlertFilterValue>(ALL_ALERT_FILTER_OPTIONS.map((option) => option.value));

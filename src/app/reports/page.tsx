@@ -799,7 +799,7 @@ export default function ReportsPage() {
           <ReportSectionBlockSquare
             jiraViewIssueBaseUrl={jiraViewIssueBaseUrl}
             onOpenEpicBrowser={(epicKey) => setBrowsingEpicKey(epicKey)}
-            title="2. DANH SÁCH CÁC EPIC ĐẠT TTM-CNTT VÀ TTM-E2E"
+            title="2. DANH SÁCH CÁC EPIC ĐẠT TTM-CNTT (QLDA) VÀ TTM-E2E"
             totalCount={report.totalPassedCount}
             items={report.passedEpics}
             compareItems={compareReport ? compareReport.passedEpics : undefined}
@@ -818,7 +818,7 @@ export default function ReportsPage() {
           <ReportSectionBlockSquare
             jiraViewIssueBaseUrl={jiraViewIssueBaseUrl}
             onOpenEpicBrowser={(epicKey) => setBrowsingEpicKey(epicKey)}
-            title="3. DANH SÁCH CÁC EPIC FAIL TTM-CNTT VÀ TTM-E2E"
+            title="3. DANH SÁCH CÁC EPIC FAIL TTM-CNTT (QLDA) VÀ TTM-E2E"
             totalCount={report.totalFailedCount}
             items={report.failedEpics}
             compareItems={compareReport ? compareReport.failedEpics : undefined}

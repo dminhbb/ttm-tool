@@ -138,5 +138,5 @@ export const ALERT_LABELS: Record<AlertLevel, string> = {
   NONE: '',
   EARLY: 'Cảnh báo sớm',
   LATE: 'Cảnh báo muộn',
-  FAIL: 'Fail TTM-CNTT',
+  FAIL: 'Fail TTM-CNTT (QLDA)',
 };

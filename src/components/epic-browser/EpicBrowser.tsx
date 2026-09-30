@@ -194,7 +194,7 @@ interface EpicHistoryResponse {
 }
 
 const ALERT_TYPE_LABEL: Record<EpicAlertHistoryEntry['alertType'], string> = {
-  FAIL: 'Fail TTM-CNTT',
+  FAIL: 'Fail TTM-CNTT (QLDA)',
   LATE: 'Cảnh báo muộn',
 };
 const MILESTONE_LABEL: Record<string, string> = {

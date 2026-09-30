@@ -818,30 +818,41 @@
       </table>
       <p>Due Date ghi nhận đúng trong hạn (≤ R4G Date + 5 ngày làm việc) thì trục này không hiện badge nào — lúc đó nếu status vẫn chưa Released, rule R7 (mục 9) sẽ báo "Sai lệch dữ liệu" thay vào đó.</p>
 
-      <h3>8.7. TTM-Index / QA-Index — QLDA vs PM, và "Phạm vi dữ liệu cho TTM" (từ 27-28/09/2026)</h3>
+      <h3>8.7. Chỉ số TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E — phạm vi tính và "Phạm vi dữ liệu cho TTM" (cập nhật 30/09/2026)</h3>
       <p>
-        Ratio phần trăm hiển thị trên Dashboard 2 và header "Quản trị Epic" đều dùng chung 1 công thức
+        Toàn bộ ứng dụng thống nhất <strong>3 chỉ số</strong>: <strong>TTM-CNTT (QLDA)</strong> (tên cũ
+        <em>TTM-Index</em>), <strong>TTM-CNTT (QA)</strong> (tên cũ <em>QA-Index</em>) và <strong>TTM-E2E</strong>.
+        Công thức không đổi: TTM-CNTT (QLDA) và TTM-CNTT (QA) cùng dùng 1 công thức
         (<code>eligible</code> = Epic có R4G Date + không sai lệch dữ liệu; <code>pass</code> = trong
-        đó <code>alertLevel = NONE</code>; <code>%</code> = <code>pass/eligible</code>), chỉ khác nhau
-        ở <strong>2 trục phạm vi độc lập</strong>:
+        đó Đạt TTM-CNTT; <code>%</code> = <code>pass/eligible</code>), chỉ khác nhau ở tập Epic được xét:
       </p>
       <table>
-        <thead><tr><th>Trục</th><th>Giá trị</th><th>Ý nghĩa</th></tr></thead>
+        <thead><tr><th>Chỉ số</th><th>Epic được xét</th></tr></thead>
         <tbody>
-          <tr><td rowspan="2">Phân quyền</td><td><strong>(QLDA)</strong></td><td>Toàn bộ Epic trong hệ thống, không phụ thuộc quyền — 1 con số duy nhất, có cache (tính lại sau mỗi lần import/khi Admin lưu cấu hình mục dưới).</td></tr>
-          <tr><td><strong>(PM)</strong></td><td>Epic thuộc quyền của user đang xem — tính trực tiếp (không cache); ở Dashboard 2 còn bị thu hẹp thêm theo bộ lọc Dự án/Domain/PM-SM đang chọn.</td></tr>
-          <tr><td rowspan="2">Trạng thái Epic</td><td><strong>TTM-Index</strong></td><td>Toàn bộ Epic, mọi trạng thái.</td></tr>
-          <tr><td><strong>QA-Index</strong></td><td>Chỉ Epic đang ở status "MVP Done" hoặc "Released".</td></tr>
+          <tr><td><strong>TTM-CNTT (QLDA)</strong></td><td>Mọi trạng thái (trừ Cancelled), nằm trong khoảng "R4G for TTM (CNTT)".</td></tr>
+          <tr><td><strong>TTM-CNTT (QA)</strong></td><td>Chỉ Epic đang ở status "MVP Done" hoặc "Released", nằm trong khoảng "R4G for TTM (QA)".</td></tr>
+          <tr><td><strong>TTM-E2E</strong></td><td>Phán quyết Đạt/Fail TTM-E2E của từng Epic (mục 8) — không bị giới hạn bởi "Phạm vi dữ liệu cho TTM".</td></tr>
         </tbody>
       </table>
-      <p>2 trục kết hợp tự do: <code>TTM-Index (QLDA)</code>, <code>TTM-Index (PM)</code>,
-        <code>QA-Index (QLDA)</code>, <code>QA-Index (PM)</code>. Epic Cancelled luôn bị loại khỏi
-        cả 4 chỉ số này (không tính tử số lẫn mẫu số). Xem <code>brd/16-ttm-indexes.md</code> để có
-        công thức đầy đủ kèm bảng liệt kê mọi trường hợp bị loại khỏi phạm vi tính toán.</p>
+      <p><strong>Quy ước tên gọi:</strong> ở mọi màn hình và trong Scoring Service, khái niệm <strong>TTM-CNTT</strong>
+        luôn là <strong>TTM-CNTT (QLDA)</strong> — badge Nhận xét (Đạt/Fail/Cảnh báo muộn/Ngoài phạm vi), cột TTM-CNTT, baseline các pha,
+        bộ lọc, KPI Fail... Trong tài liệu này, "TTM-CNTT" không kèm hậu tố cũng hiểu là TTM-CNTT (QLDA).
+        <strong>TTM-CNTT (QA)</strong> chỉ dùng ở các vị trí chỉ định: chỉ số TTM-CNTT (QA) (widget/vòng KPI, cột ma trận TTM Dashboard),
+        khoảng ngày "R4G for TTM (QA)" và badge ghi chú "Ngoài phạm vi QA" trong danh mục Logic cảnh báo.</p>
+      <p><strong>Phạm vi dữ liệu:</strong> nếu không nói rõ khác, các chỉ số luôn tính trên <strong>đúng tập Epic
+        mà bảng/màn hình đang hiển thị</strong> — theo quyền dữ liệu của người xem và mọi bộ lọc đang chọn (1 Epic, 1 dự án,
+        1 domain, 1 PM/SM, khoảng thời gian...). Ví dụ: widget TTM-CNTT (QLDA)/TTM-CNTT (QA) trên banner
+        "Quản trị Epic" tính theo bảng Danh sách Epic đang lọc; 2 vòng chỉ số trong KPI của TTM Dashboard tính theo
+        bộ lọc Dự án/Domain/PM-SM của Dashboard.</p>
+      <p><strong>Ngoại lệ:</strong> 2 widget cố định trên banner <strong>TTM Dashboard</strong> — TTM-CNTT (QLDA) và
+        TTM-CNTT (QA) — tính trên <strong>toàn bộ Epic trong ứng dụng</strong> (vẫn theo rule phạm vi của chỉ số), không
+        phụ thuộc quyền hay bộ lọc: cùng 1 giá trị với mọi người dùng, có cache (tính lại sau mỗi lần import/khi Admin lưu
+        cấu hình mục dưới). Epic Cancelled luôn bị loại khỏi mọi chỉ số (không tính tử số lẫn mẫu số). Xem
+        <code>brd/16-ttm-indexes.md</code> để có công thức đầy đủ kèm bảng liệt kê mọi trường hợp bị loại khỏi phạm vi tính toán.</p>
       <div class="callout">
         <strong>"Phạm vi dữ liệu cho TTM"</strong> (panel mới ở "Cấu hình cảnh báo"): Admin có thể
         giới hạn thêm — chỉ Epic có R4G Date (hoặc, nếu chưa có, mốc mục tiêu TTM-CNTT) nằm trong
-        khoảng ngày A–B (tính cả ngày A và B) mới được tính vào TTM-Index; khoảng ngày C–D riêng cho QA-Index. Để trống =
+        khoảng ngày A–B (tính cả ngày A và B) mới được tính vào TTM-CNTT (QLDA); khoảng ngày C–D riêng cho TTM-CNTT (QA). Để trống =
         không giới hạn (mặc định, không đổi hành vi hiện tại). Epic ngoài phạm vi này hiện badge
         "Ngoài phạm vi TTM-CNTT" ở cột Nhận xét thay vì Fail/Late/Early/Đạt — vẫn hiển thị trong bảng,
         chỉ ẩn phán quyết TTM-CNTT. Lưu cấu hình sẽ tự động tính lại và lưu cache ngay. Dashboard 2 có
@@ -939,6 +950,7 @@
       <p>Theo dõi chuyên sâu theo 5 pha mốc thời gian: <strong>Design (20%)</strong>, <strong>Dev (50%)</strong>, <strong>Test (80%)</strong>, <strong>Pentest (90%)</strong>, <strong>R4Golive (100%)</strong>. Ngày baseline mỗi pha được tính tự động dựa trên số ngày làm việc tích lũy từ Start Date (T1); cột Release lấy baseline từ T0 + tiêu chí TTM-E2E, độc lập với Start Date. Trên sidebar, mục này chỉ hiển thị nhãn ngắn <strong>&quot;Quản trị Epic&quot;</strong> (không còn hậu tố &quot;(đầy đủ)&quot;).</p>
       <p><strong>Quy tắc lọc trạng thái mặc định:</strong> Bộ lọc Status trên thanh công cụ luôn mặc định tích chọn (checked) tất cả các trạng thái ngoại trừ <code>Cancelled</code>, đảm bảo các Epic đã bị huỷ mặc định không xuất hiện khi truy cập màn hình này hay ở tất cả các danh sách route liên kết từ màn hình khác (người dùng vẫn có thể tích chọn Cancelled thủ công nếu có nhu cầu tra cứu).</p>
       <p><strong>Thứ tự nhóm trong bảng (từ 28/09/2026):</strong> Epic thông thường hiển thị trước, sau đó lần lượt là nhóm <code>In PO</code> → <code>To Do</code> → nhóm Epic có Nhận xét <strong>“Ngoài phạm vi TTM-CNTT”</strong> (bất kể status) → <code>Released</code> ở cuối. Trong mỗi nhóm vẫn giữ thứ tự cũ: Epic sai lệch dữ liệu xuống cuối nhóm, rồi theo mức cảnh báo (FAIL → LATE → EARLY → NONE) và số ngày làm việc còn lại.</p>
+      <p><strong>Widget trên banner (từ 30/09/2026):</strong> chỉ còn <strong>TTM-CNTT (QLDA)</strong> và <strong>TTM-CNTT (QA)</strong>, tính trên đúng các Epic của bảng Danh sách Epic đang lọc (mọi bộ lọc trên thanh công cụ và Advanced Filters) — đổi bộ lọc thì chỉ số đổi theo. Hai widget toàn ứng dụng (QLDA) đã bỏ khỏi màn này, chỉ còn trên TTM Dashboard.</p>
       <p><strong>Bộ lọc Nhận xét:</strong> ngoài các giá trị Đạt/Fail/Cảnh báo/Sai Status/Sai lệch dữ liệu/trục Release, có thêm lựa chọn <strong>“Ngoài phạm vi TTM-CNTT”</strong> để lọc riêng các Epic nằm ngoài khoảng ngày “R4G for TTM (CNTT)” đang cấu hình (mục 8.7).</p>
       <h3>11.3. Epic in PO (<code>/epic-in-po</code>) — mọi role đã đăng nhập</h3>
       <p>Cùng dữ liệu/logic với màn (đầy đủ), chỉ lọc còn Epic đang ở trạng thái <strong>To Do</strong>, <strong>In PO</strong> hoặc <strong>Released</strong> — dùng để theo dõi Epic chưa/vừa qua giai đoạn lập kế hoạch.</p>
@@ -950,7 +962,8 @@
         <strong>TTM Dashboard</strong> là trung tâm chỉ huy và điều hành chính của hệ thống, được thiết lập làm <strong>màn hình mặc định khi đăng nhập</strong> cho mọi người dùng. Màn hình hoàn toàn <strong>loại bỏ các Epic có trạng thái Cancelled</strong> ra khỏi toàn bộ các công thức tính toán (ở cả tử số lẫn mẫu số) trên mọi widget, phễu, ma trận và biểu đồ.
       </p>
       <ul>
-        <li><strong>Header Banner & Chỉ số toàn phòng:</strong> Tích hợp 2 widget độc lập <strong>TTM-Index (QLDA)</strong> và <strong>QA-Index (QLDA)</strong> ngay cạnh nút chuyển chế độ xem, tính toán tỷ lệ Đạt TTM trên phạm vi toàn bộ CSDL hệ thống (đọc từ cache), hỗ trợ click để mở Popup Quản trị Epic lọc nhanh danh sách tương ứng.</li>
+        <li><strong>Header Banner & Chỉ số toàn phòng:</strong> Tích hợp 2 widget cố định <strong>TTM-CNTT (QLDA)</strong> và <strong>TTM-CNTT (QA)</strong> (tên cũ TTM-Index (QLDA)/QA-Index (QLDA)) ngay cạnh nút chuyển chế độ xem, tính trên toàn bộ Epic trong ứng dụng (đọc từ cache, cùng giá trị với mọi người dùng), hỗ trợ click để mở Popup Quản trị Epic lọc nhanh danh sách tương ứng.</li>
+        <li><strong>Vòng chỉ số trong KPI:</strong> <strong>TTM-CNTT (QLDA)</strong> và <strong>TTM-CNTT (QA)</strong> (tên cũ TTM-Index (PM)/QA-Index (PM)) tính theo phạm vi Dashboard đang lọc (quyền dữ liệu + Dự án/Domain/PM-SM + Advanced Filters). Bộ lọc PM/SM chọn được nhiều người.</li>
         <li><strong>Lead Command Center (Executive View):</strong> Dành cho CBQL/Lead với 9 KPI cards tổng quan, Phễu Tiến độ Epic 5 giai đoạn, Ma trận Phân bổ Tiến độ Epic Đa chiều (4 tab: Theo Domain, Theo Phân loại Epic, Theo PM/SM, Theo Dự án) hỗ trợ sort theo từng cột, và 5 Section Biểu đồ Donut chuyên sâu (trong đó Section <em>Theo Phân loại Epic</em> được mặc định mở rộng).</li>
         <li><strong>PM/SM Workbench (Operational View):</strong> Dành cho PM/SM, dữ liệu gắn chặt theo phạm vi phân quyền của user (ẩn bộ lọc PM/SM). Thừa hưởng trọn vẹn 9 KPI cards và Phễu Tiến độ 5 giai đoạn của Lead view; bổ sung Ma trận Đa chiều (2 tab: Theo Phân loại Epic &amp; Theo Dự án), Section Biểu đồ Donut Theo Phân loại Epic; và Bảng danh sách Epic Vận hành dạng Card đồng bộ với bộ chuyển tab (switch pills): <em>1. Chờ golive</em>, <em>2. Phân tích Pending</em>, <em>3. Giám sát Dữ liệu bất thường R1-R6</em>.</li>
         <li><strong>Tương tác mở Popup Quản trị Epic tại chỗ:</strong> Người dùng có thể click vào bất kỳ KPI card, ô ma trận, phễu giai đoạn hoặc danh mục trên biểu đồ Donut để mở Modal nhúng iframe Quản trị Epic xem danh sách chi tiết ngay trên trang mà không phải rời màn hình Dashboard.</li>
@@ -1180,7 +1193,7 @@
           <tr><td><code>get_dashboard_summary</code></td><td>Số liệu tổng hợp tương đương màn Dashboard cũ (mục 11.4), chọn được 1-3 dự án</td><td>Theo RBAC dự án của user gọi</td></tr>
           <tr><td><code>list_projects</code> / <code>list_domains</code> / <code>list_holidays</code></td><td>Danh mục dự án / domain / ngày nghỉ</td><td>Chỉ ADMIN/SUPERVISOR/SUPERADMIN</td></tr>
           <tr><td><code>get_ttm_policies</code></td><td>Toàn bộ tiêu chí Time to Market đang active</td><td>Chỉ SUPERVISOR/SUPERADMIN</td></tr>
-          <tr><td><code>get_ttm_dashboard</code></td><td>Toàn bộ số liệu màn TTM Dashboard (mục 11.5): KPI, TTM-Index/QA-Index, pipeline 5 pha, top dự án rủi ro, bảng phân tích theo dự án/domain/PM-SM/Epic type/đơn vị yêu cầu, danh sách Epic Chờ golive/Giải trình Golive/Pending/Sai lệch/Fail; lọc được theo dự án, domain, PM/SM và ghi đè “Phạm vi dữ liệu cho TTM”</td><td>Theo RBAC dự án của user gọi</td></tr>
+          <tr><td><code>get_ttm_dashboard</code></td><td>Toàn bộ số liệu màn TTM Dashboard (mục 11.5): KPI, chỉ số TTM-CNTT (QLDA)/TTM-CNTT (QA), pipeline 5 pha, top dự án rủi ro, bảng phân tích theo dự án/domain/PM-SM/Epic type/đơn vị yêu cầu, danh sách Epic Chờ golive/Giải trình Golive/Pending/Sai lệch/Fail; lọc được theo dự án, domain, PM/SM và ghi đè “Phạm vi dữ liệu cho TTM”</td><td>Theo RBAC dự án của user gọi</td></tr>
           <tr><td><code>search_product_docs</code></td><td>Tìm kiếm (không phân biệt dấu) trong chính Tài liệu sản phẩm này — dùng để hỏi đáp về chức năng, rule cảnh báo và cách tính toán của ứng dụng</td><td>Mọi role đã xác thực</td></tr>
           <tr><td><code>get_product_doc_section</code></td><td>Đọc đầy đủ một mục của Tài liệu sản phẩm theo số mục (vd. <code>8.3</code>); không truyền số mục để lấy mục lục</td><td>Mọi role đã xác thực</td></tr>
           <tr><td><code>list_report_filters</code></td><td>Danh mục domain/dự án/component/lớp dữ liệu — phục vụ tra cứu sâu kiểu Báo cáo Epic (mục 11.5)</td><td>Mọi role đã xác thực</td></tr>
