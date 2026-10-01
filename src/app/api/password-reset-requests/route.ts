@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AuthError, requireUser, resetUserPassword } from '@/lib/auth-service';
+import { AuthError, getUserRolesByIds, requireUser, resetUserPassword } from '@/lib/auth-service';
+import { canManageUserWithRole } from '@/lib/auth-types';
 import { verifyCaptcha } from '@/lib/captcha-service';
 import { validatePassword } from '@/lib/password-rules';
 
@@ -41,6 +42,12 @@ export async function PATCH(request: NextRequest) {
     const { default: pool } = await import('@/lib/db');
     const pending = await pool.query<{ id: number; userId: number | null }>('SELECT pr.id, u.id AS "userId" FROM password_reset_requests pr LEFT JOIN users u ON u.email = pr.email WHERE pr.status = \'PENDING\' AND pr.id = ANY($1::int[])', [targets.map((target) => target.id)]);
     if (pending.rowCount !== targets.length || pending.rows.some((row) => row.userId === null || row.userId !== targets.find((target) => target.id === row.id)?.userId)) return NextResponse.json({ error: 'Có yêu cầu không còn hợp lệ hoặc không khớp user.' }, { status: 409 });
+    // Anyone can file a reset ticket for any email (public POST above) — so approving one must obey
+    // the same role hierarchy as /api/users, or an ADMIN could take over a SUPERADMIN account.
+    const targetRoles = await getUserRolesByIds(targets.map((target) => target.userId));
+    if ([...targetRoles.values()].some((role) => !canManageUserWithRole(actor.role, role))) {
+      return NextResponse.json({ error: 'Bạn không có quyền cấp lại mật khẩu cho user có role ngang hoặc cao hơn role của bạn.' }, { status: 403 });
+    }
     for (const target of targets) await resetUserPassword(target.userId, body.password, actor.id);
     await pool.query('UPDATE password_reset_requests SET status = \'RESOLVED\', resolved_at = CURRENT_TIMESTAMP, resolved_by = $2 WHERE id = ANY($1::int[]) AND status = \'PENDING\'', [targets.map((target) => target.id), actor.id]);
     return NextResponse.json({ success: true, processed: targets.length });

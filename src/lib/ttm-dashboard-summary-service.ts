@@ -7,7 +7,7 @@ import { toDashboardEpicRow } from '@/lib/epic-alert-types';
 import type { DashboardEpicRow } from '@/lib/epic-alert-types';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
 import { summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
-import { isTtmIndexEligible } from '@/lib/epic-row-verdicts';
+import { isJustifyGolive, isTtmIndexEligible, isWaitingGolive } from '@/lib/epic-row-verdicts';
 import { getScoringEngineMode, getStoredScoringEngineMode } from '@/lib/scoring-mode-service';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import { getTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
@@ -148,9 +148,9 @@ export async function getTtmDashboardSummary(userId: number, role: UserRole, fil
     if (!row.ttmCnttInScope) outOfScopeCntt += 1;
     if (row.ttmE2eAlertLevel === 'FAIL') failE2e += 1;
     if (row.hasDataAnomaly) dataAnomaly += 1;
-    if (row.releaseAxisState === 'WAITING_GOLIVE') waitingGolive += 1;
-    else if (row.releaseAxisState === 'EARLY_WARNING') releaseEarlyWarning += 1;
-    else if (row.releaseAxisState === 'JUSTIFY_GOLIVE') justifyGolive += 1;
+    if (isWaitingGolive(row)) waitingGolive += 1;
+    if (row.releaseAxisState === 'EARLY_WARNING') releaseEarlyWarning += 1;
+    if (isJustifyGolive(row)) justifyGolive += 1;
     const status = row.currentStatus || '(trống)';
     statusDistribution.set(status, (statusDistribution.get(status) ?? 0) + 1);
   }
@@ -244,8 +244,8 @@ export async function getTtmDashboardSummary(userId: number, role: UserRole, fil
     topRiskProjects,
     breakdown,
     lists: {
-      choGolive: listOf((row) => row.releaseAxisState === 'WAITING_GOLIVE'),
-      giaiTrinhGolive: listOf((row) => row.releaseAxisState === 'JUSTIFY_GOLIVE'),
+      choGolive: listOf((row) => isWaitingGolive(row)),
+      giaiTrinhGolive: listOf((row) => isJustifyGolive(row)),
       pending: listOf((row) => (row.currentStatus || '').toLowerCase().includes('pending')),
       saiLechDuLieu: listOf((row) => row.hasDataAnomaly),
       failTtmCntt: listOf((row) => row.ttmCnttInScope && row.alertLevel === 'FAIL'),

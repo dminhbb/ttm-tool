@@ -8,6 +8,58 @@
 
 ## 2026-10-01
 
+- **Bộ lọc "Đơn vị yêu cầu" — chọn nhiều + tìm free-text** ở Quản trị Epic, Epic in PO (đổi từ `<select>` chọn 1 sang
+  `ToolbarMultiSelect searchable`) và **thêm mới** vào thanh lọc TTM Dashboard (lọc mọi widget/ma trận, mang theo khi
+  bấm sang Quản trị Epic). Truyền bằng tham số `requestingUnit` lặp lại (tên đơn vị có thể chứa dấu phẩy):
+  `epic-alerts-deep-link.ts`, `api/epic-alerts-15/route.ts` (`getAll`), SQL `requesting_unit = ANY(...)`
+  (`epic-alert-row-cache-query-service.ts`). Bộ lọc đã lưu kiểu cũ (1 đơn vị) vẫn đọc được.
+
+- **Bộ lọc PM/SM có ô tìm free-text** (prop `searchable` của `ToolbarMultiSelect`) ở TTM Dashboard, Quản trị Epic,
+  Epic in PO. Riêng Epic in PO: bộ lọc PM/SM đổi từ `<select>` chọn 1 sang chọn nhiều giống Quản trị Epic
+  (`pmSmFilters`, gửi `pmSm` dạng danh sách — API `/api/epic-alerts-15` đã hỗ trợ sẵn) (`src/app/epic-in-po/page.tsx`).
+
+- **Giao diện**: (1) TTM Dashboard — hàng widget đổi thứ tự: "Tổng số Epic" đứng đầu, kế đến "Fail TTM-CNTT (QLDA)",
+  rồi 3 vòng TTM-CNTT (QLDA)/TTM-CNTT (QA)/TTM-E2E (`src/app/dashboard-new/page.tsx`). (2) Bộ lọc Dự án ở TTM
+  Dashboard, Quản trị Epic, Epic in PO có ô tìm free-text (không phân biệt dấu/hoa thường) — prop `searchable` mới
+  của `src/components/ui/ToolbarMultiSelect.tsx`; khi đang tìm, "Chọn tất cả/Bỏ chọn" chỉ áp dụng cho kết quả đang hiện.
+
+- **TTM Dashboard — widget "Fail TTM-CNTT (QLDA)"** (hàng trên cùng): tách cùng cách với cột "Fail TTM" của ma trận —
+  tiêu đề vẫn mở danh sách Fail, thêm 2 sub-link "n Trễ R4G · m Thiếu R4G" (`FAIL_LATE_R4G` / `FAIL_MISSING_R4G`),
+  thay dòng chú thích "Vượt R4G Target" (`src/app/dashboard-new/page.tsx`).
+
+- **TTM Dashboard — Ma trận Phân bổ: tách cột "Fail TTM"** thành 2 sub-link "n Trễ R4G · m Thiếu R4G" (giữ nguyên
+  rule). Lý do: Fail gồm cả Epic chưa có R4G Date mà đã quá Target (ngoài mẫu số TTM-CNTT QLDA), nên Pass + Fail có
+  thể lớn hơn "Epic tính TTM" (vd. WM: mẫu số 3, Pass 1, Fail 3 = 2 Trễ R4G + 1 Thiếu R4G). Thêm `ttmFailKind` và
+  bộ lọc `FAIL_LATE_R4G` / `FAIL_MISSING_R4G` (`src/lib/epic-row-verdicts.ts`, `epic-alerts-deep-link.ts`, SQL trong
+  `epic-alert-row-cache-query-service.ts`), hiển thị ở `src/app/dashboard-new/page.tsx`.
+
+- **Scoring Service — đổi rule theo quyết định 01/10** (`SCORING_CODE_VERSION` → `scoring-4`, spec §15):
+  - **Sai lệch dữ liệu xét trước**: `scoreEpic` chạy `dataQualityRule` trước, Epic có Sai lệch dữ liệu (R1, R3–R6)
+    không được chấm Đạt/Fail/Cảnh báo muộn/Sai Status trên TTM-CNTT (QLDA/QA) và TTM-E2E (`score-epic.ts`,
+    `rules/rule-types.ts` `hasDataAnomaly`, `registry.ts`).
+  - **"Sai Status" vẫn tính Đạt** (TTM-CNTT): `CNTT_PASS` + `CNTT_STATUS_MISMATCH` cùng active, bỏ dòng che trong
+    `catalog.ts`; cột Nhận xét (Quản trị Epic, Epic in PO) hiện cả 2 badge; Báo cáo Epic tính Đạt theo `CNTT_PASS`.
+  - **TTM-E2E**: `Target_E2E = T0 +wd (N − 1)` (`derive.ts`); Fail khi ngày kết thúc > Target hoặc chưa có mà
+    asOf > Target; Đạt khi ngày kết thúc ≤ asOf và ≤ Target, bỏ điều kiện Released; badge mới
+    `E2E_STATUS_MISMATCH` ("Sai Status") khi status < R4GOLIVE (`rules/ttm-e2e.ts`, `ScoringBadges.tsx`);
+    mẫu số chỉ số TTM-E2E loại Epic Sai lệch dữ liệu (`ttm-cntt-qa.ts`).
+  - Đối chiếu: nhãn mới `D8_ANOMALY_CHECKED_FIRST`, `D9_E2E_RULE_REDEFINED` (`parity.ts`); dữ liệu thật 1.181 Epic,
+    0 lệch chưa giải thích. Cập nhật popup "Logic cảnh báo", `brd/16-ttm-indexes.md`, `public/docs/product-guide.html`.
+    44 test pass. **Cache cần tạo lại** (Quản trị nguồn dữ liệu → Tổng hợp lại ngay) để áp dụng rule mới.
+
+- **Sửa 3 lỗi từ review commit `b0b1b39`**:
+  - **Phân quyền user (bảo mật)**: `canGrantRole` chỉ kiểm tra role MỚI nên ADMIN vẫn đặt lại mật khẩu / hạ role /
+    xoá được SUPERADMIN. Thêm `canManageUserWithRole` (`src/lib/auth-types.ts`) + `getUserRolesByIds`
+    (`auth-service.ts`); `api/users` PUT/PATCH/DELETE và `api/password-reset-requests` PATCH (duyệt ticket — ai
+    cũng tạo được ticket cho email bất kỳ) trả 403 khi user đích có role ngang/cao hơn actor.
+  - **6 bộ lọc sub-link của TTM Dashboard trả danh sách rỗng ở luồng cache**: thêm `buildFieldFilterClause`
+    (`src/lib/epic-alert-row-cache-query-service.ts`) cho `DATA_ANOMALY_IN_SCOPE`, `MISSING_R4G_IN_SCOPE`,
+    `TTM_ELIGIBLE_IN_SCOPE`, `WAITING_GOLIVE_MISSING_R4G/WITHIN_GRACE/OVERDUE` — khớp đúng matcher phía client.
+  - **"Chờ golive" bị "Giải trình Golive" che** (2 badge cùng tồn tại nhưng `releaseAxisState` chỉ giữ 1): thêm
+    `isWaitingGolive`/`isJustifyGolive`/`waitingGoliveBucket` (`src/lib/epic-row-verdicts.ts`) đọc theo badge; dùng
+    ở cột Nhận xét (Quản trị Epic, Epic in PO), widget + sub-link TTM Dashboard, MCP summary. Trên dữ liệu thật:
+    widget 30 → 151 (khớp danh sách), "quá hạn" 6 → 127.
+
 - **Scoring Service — rule mới "Chờ golive" (`RELEASE_WAITING_GOLIVE`)**: đổi sang theo status,
   không còn phụ thuộc R4G Date/grace — fire khi Epic trong phạm vi TTM-CNTT (QLDA) có
   `status = 'r4golive'` HOẶC (`status = 'released'` AND không có `due`). "Giải trình Golive" giữ

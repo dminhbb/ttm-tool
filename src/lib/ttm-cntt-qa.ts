@@ -131,7 +131,8 @@ export function summarizeE2e(rows: Pick<EpicAlertRowPhased, 'currentStatus' | 'h
     if (isCancelledStatus(row.currentStatus || '')) continue;
     total += 1;
     const badges = row.scoringBadges;
-    const calcBroken = badges ? badges.includes('E2E_CALC_BROKEN') : row.hasDataAnomaly;
+    // Scoring: mẫu số = có R4G Date, không Sai lệch dữ liệu, phép tính không hỏng (decision 2026-10-01).
+    const calcBroken = badges ? badges.includes('E2E_CALC_BROKEN') || row.hasDataAnomaly : row.hasDataAnomaly;
     if (badges ? badges.includes('E2E_FAIL') : row.ttmE2eAlertLevel === 'FAIL') fail += 1;
     if (!row.r4gDate || calcBroken) continue;
     eligible += 1;

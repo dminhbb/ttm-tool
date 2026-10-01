@@ -8,7 +8,7 @@
 export const EPIC_ALERTS_ROUTE = '/epic-alerts-15';
 
 /** Mirrors AlertFilterValue in epic-row-verdicts.ts, minus the '' (no filter) case. */
-export type EpicAlertsDeepLinkAlert = 'ACHIEVED_CNTT' | 'ACHIEVED_E2E' | 'DATA_ANOMALY' | 'DATA_ANOMALY_IN_SCOPE' | 'MISSING_R4G_IN_SCOPE' | 'TTM_ELIGIBLE_IN_SCOPE' | 'EARLY' | 'FAIL' | 'FAIL_E2E' | 'JUSTIFY_GOLIVE' | 'LATE' | 'OUT_OF_SCOPE_CNTT' | 'PENDING_TOO_LONG' | 'RELEASE_EARLY' | 'STATUS_MISMATCH' | 'WAITING_GOLIVE' | 'WAITING_GOLIVE_MISSING_R4G' | 'WAITING_GOLIVE_WITHIN_GRACE' | 'WAITING_GOLIVE_OVERDUE';
+export type EpicAlertsDeepLinkAlert = 'ACHIEVED_CNTT' | 'ACHIEVED_E2E' | 'DATA_ANOMALY' | 'DATA_ANOMALY_IN_SCOPE' | 'MISSING_R4G_IN_SCOPE' | 'TTM_ELIGIBLE_IN_SCOPE' | 'EARLY' | 'FAIL' | 'FAIL_E2E' | 'FAIL_LATE_R4G' | 'FAIL_MISSING_R4G' | 'JUSTIFY_GOLIVE' | 'LATE' | 'OUT_OF_SCOPE_CNTT' | 'PENDING_TOO_LONG' | 'RELEASE_EARLY' | 'STATUS_MISMATCH' | 'WAITING_GOLIVE' | 'WAITING_GOLIVE_MISSING_R4G' | 'WAITING_GOLIVE_WITHIN_GRACE' | 'WAITING_GOLIVE_OVERDUE';
 
 export interface EpicAlertsDeepLinkParams {
   /** "Lọc Nhận xét" — same values as the table's Nhận xét badges (FAIL = Fail TTM-CNTT, etc.). */
@@ -20,7 +20,9 @@ export interface EpicAlertsDeepLinkParams {
   pmSm?: string | string[];
   /** Jira Project Keys — pre-selects the "Dự án" multi-select. */
   projects?: string[];
-  requestingUnit?: string;
+  /** "Đơn vị yêu cầu" — one or several; sent as a repeated `requestingUnit` param (unit names may
+   * contain commas, so no comma-joined list). */
+  requestingUnit?: string | string[];
   search?: string;
   /** Raw currentStatus values — pre-selects the "Status" multi-select. When omitted, the target
    * screen shows every status (no implicit default exclusions) so counts match whatever the caller
@@ -49,7 +51,9 @@ export function buildEpicAlertsDeepLink(params: EpicAlertsDeepLinkParams = {}): 
     const pmSmVal = Array.isArray(params.pmSm) ? params.pmSm.join(',') : params.pmSm;
     if (pmSmVal) query.set('pmSm', pmSmVal);
   }
-  if (params.requestingUnit) query.set('requestingUnit', params.requestingUnit);
+  for (const unit of Array.isArray(params.requestingUnit) ? params.requestingUnit : params.requestingUnit ? [params.requestingUnit] : []) {
+    if (unit) query.append('requestingUnit', unit);
+  }
   if (params.dataIssue) query.set('dataIssue', '1');
   if (params.search) query.set('search', params.search);
   if (params.domain) query.set('domain', params.domain);

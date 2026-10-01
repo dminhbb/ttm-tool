@@ -9,7 +9,7 @@ import type { Finding } from '../types';
  * Verdicts are emitted even when a gate (Cancelled / Không tính được / out of scope) applies — the
  * resolver marks them suppressed instead of dropping them.
  */
-export const ttmCnttRule: PrimaryRule = ({ facts, derived, ctx }) => {
+export const ttmCnttRule: PrimaryRule = ({ facts, derived, ctx, hasDataAnomaly }) => {
   const findings: Finding[] = [];
   const { asOf } = ctx;
   const target = derived.cnttTargetDate;
@@ -26,16 +26,19 @@ export const ttmCnttRule: PrimaryRule = ({ facts, derived, ctx }) => {
       ? 'R4G Date sớm hơn Start Date — không tính được TTM-CNTT (QLDA).'
       : 'Thiếu Start Date (T1) — không tính được TTM-CNTT (QLDA).', { startDate: facts.startDate, r4gDate: facts.r4gDate }));
   }
-  if (!target || !derived.cnttFromDate) return findings;
+  if (!target || !derived.cnttFromDate || hasDataAnomaly) return findings;
 
   if (facts.r4gDate) {
     if (facts.r4gDate > target) {
       findings.push(finding('CNTT_FAIL', `R4G Date ${facts.r4gDate} muộn hơn Target TTM-CNTT (QLDA) ${target}.`, evidence));
     } else if (facts.r4gDate <= asOf) {
+      // On time and already reached → Đạt. A status still below R4GOLIVE doesn't take the pass away
+      // (decision 2026-10-01); it adds the "Sai Status" recommendation next to it. A future-dated
+      // R4G Date gets neither until asOf reaches it.
+      findings.push(finding('CNTT_PASS', `Đạt TTM-CNTT (QLDA): R4G Date ${facts.r4gDate} ≤ Target ${target}.`, evidence));
       if (derived.statusIndex < STATUS_INDEX.R4GOLIVE) {
         findings.push(finding('CNTT_STATUS_MISMATCH', 'R4G Date đã ghi nhận và đúng hạn nhưng status Epic chưa chuyển sang R4GOLIVE — vui lòng cập nhật status.', evidence));
       }
-      findings.push(finding('CNTT_PASS', `Đạt TTM-CNTT (QLDA): R4G Date ${facts.r4gDate} ≤ Target ${target}.`, evidence));
     }
     return findings;
   }

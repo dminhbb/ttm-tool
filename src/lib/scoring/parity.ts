@@ -42,6 +42,8 @@ export type ParityTag =
   | 'D4_EARLY_REMOVED'
   | 'D5_TARGET_N_MINUS_1'
   | 'D7_WAITING_GOLIVE_REDEFINED'
+  | 'D8_ANOMALY_CHECKED_FIRST'
+  | 'D9_E2E_RULE_REDEFINED'
   | 'R2_R7_NOT_ANOMALY'
   | 'LEGACY_TIME_OF_DAY'
   | 'CANCELLED_NOT_APPLICABLE'
@@ -96,19 +98,25 @@ export function compareWithLegacy(card: EpicScorecard, legacy: LegacyRowSnapshot
   const inD5Window = (value: string | null) => Boolean(value && d.cnttTargetDate && legacyTarget && value > d.cnttTargetDate && value <= legacyTarget);
   const cnttCompared = legacy.r4gDate ?? ctx.asOf;
 
+  // D8 (2026-10-01): data quality is checked first — an Epic with "Sai lệch dữ liệu" gets no
+  // Đạt/Fail/Cảnh báo muộn/Sai Status on the TTM axes, where the legacy engine still judged it.
+  const anomalyGate = hasDataAnomalyBadge(active);
+
   // ---- TTM-CNTT verdict ----
   const scoringCntt: LegacyAlertLevel = verdicts.has('CNTT_FAIL') ? 'FAIL' : verdicts.has('CNTT_LATE') ? 'LATE' : 'NONE';
   if (legacy.alertLevel !== scoringCntt) {
-    const tag: ParityTag = legacy.alertLevel === 'EARLY' && scoringCntt === 'NONE' ? 'D4_EARLY_REMOVED' : inD5Window(cnttCompared) ? 'D5_TARGET_N_MINUS_1' : 'UNEXPLAINED';
+    const tag: ParityTag = legacy.alertLevel === 'EARLY' && scoringCntt === 'NONE' ? 'D4_EARLY_REMOVED' : anomalyGate && scoringCntt === 'NONE' ? 'D8_ANOMALY_CHECKED_FIRST' : inD5Window(cnttCompared) ? 'D5_TARGET_N_MINUS_1' : 'UNEXPLAINED';
     push('TTM-CNTT alertLevel', legacy.alertLevel, scoringCntt, tag);
   }
   const scoringMismatch = verdicts.has('CNTT_STATUS_MISMATCH');
-  if (legacy.ttmCnttStatusMismatch !== scoringMismatch) push('TTM-CNTT Sai Status', legacy.ttmCnttStatusMismatch, scoringMismatch, inD5Window(legacy.r4gDate) ? 'D5_TARGET_N_MINUS_1' : 'UNEXPLAINED');
+  if (legacy.ttmCnttStatusMismatch !== scoringMismatch) push('TTM-CNTT Sai Status', legacy.ttmCnttStatusMismatch, scoringMismatch, anomalyGate && !scoringMismatch ? 'D8_ANOMALY_CHECKED_FIRST' : inD5Window(legacy.r4gDate) ? 'D5_TARGET_N_MINUS_1' : 'UNEXPLAINED');
   const legacyAchieved = !legacy.ttmCnttStatusMismatch && legacy.alertLevel === 'NONE' && Boolean(legacy.r4gDate) && legacy.ttmActualToDate === legacy.r4gDate;
+  // Since 2026-10-01 a "Sai Status" Epic keeps its pass; the legacy "Đạt" badge excluded it, so the
+  // like-for-like comparison is "Đạt without Sai Status".
   const scoringAchieved = verdicts.has('CNTT_PASS') && !verdicts.has('CNTT_STATUS_MISMATCH');
   // Legacy shows "Đạt TTM-CNTT" even on a Cancelled Epic (its alertLevel is forced NONE); the
   // service reports "Không áp dụng" instead.
-  if (legacyAchieved !== scoringAchieved) push('Đạt TTM-CNTT', legacyAchieved, scoringAchieved, d.isCancelled ? 'CANCELLED_NOT_APPLICABLE' : inD5Window(legacy.r4gDate) ? 'D5_TARGET_N_MINUS_1' : 'UNEXPLAINED');
+  if (legacyAchieved !== scoringAchieved) push('Đạt TTM-CNTT', legacyAchieved, scoringAchieved, d.isCancelled ? 'CANCELLED_NOT_APPLICABLE' : anomalyGate && !scoringAchieved ? 'D8_ANOMALY_CHECKED_FIRST' : inD5Window(legacy.r4gDate) ? 'D5_TARGET_N_MINUS_1' : 'UNEXPLAINED');
 
   // ---- TTM-E2E ----
   // Legacy compares Date objects: a recorded end date parsed as UTC midnight (07:00 in Vietnam)
@@ -120,11 +128,14 @@ export function compareWithLegacy(card: EpicScorecard, legacy: LegacyRowSnapshot
   if ((legacy.ttmE2eAlertLevel === 'FAIL') !== scoringE2eFail) {
     const recordedOnTarget = d.e2eEndRecorded && d.e2eEndDate === d.e2eTargetDate;
     const ongoingOnTarget = !options.legacyLiveClock && !d.e2eEndRecorded && ctx.asOf === d.e2eTargetDate;
-    e2eTag = recordedOnTarget || ongoingOnTarget ? 'LEGACY_TIME_OF_DAY' : 'UNEXPLAINED';
+    // D9 (2026-10-01): TTM-E2E was redefined — Target = T0 +wd (N − 1), a future end date past
+    // Target already fails, "ongoing" fails only after Target — so it legitimately differs from the
+    // legacy T0 +wd N formula.
+    e2eTag = anomalyGate && !scoringE2eFail ? 'D8_ANOMALY_CHECKED_FIRST' : recordedOnTarget || ongoingOnTarget ? 'LEGACY_TIME_OF_DAY' : 'D9_E2E_RULE_REDEFINED';
     push('TTM-E2E Fail', legacy.ttmE2eAlertLevel, scoringE2eFail ? 'FAIL' : 'NONE', e2eTag);
   }
   const legacyE2eAchieved = legacy.ttmE2eAlertLevel === 'NONE' && normalizeWorkflowStatus(legacy.currentStatus) === 'RELEASED' && Boolean(legacy.r4gDate) && legacy.ttmE2eActualToDate === legacy.r4gDate;
-  if (legacyE2eAchieved !== active.has('E2E_PASS')) push('Đạt TTM-E2E', legacyE2eAchieved, active.has('E2E_PASS'), e2eTag ?? 'UNEXPLAINED');
+  if (legacyE2eAchieved !== active.has('E2E_PASS')) push('Đạt TTM-E2E', legacyE2eAchieved, active.has('E2E_PASS'), anomalyGate && !active.has('E2E_PASS') ? 'D8_ANOMALY_CHECKED_FIRST' : 'D9_E2E_RULE_REDEFINED');
 
   // ---- Release ----
   const scoringRelease = active.has('RELEASE_JUSTIFY_GOLIVE') ? 'JUSTIFY_GOLIVE' : active.has('RELEASE_WAITING_GOLIVE') ? 'WAITING_GOLIVE' : 'NONE';

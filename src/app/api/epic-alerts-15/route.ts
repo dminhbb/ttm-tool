@@ -29,7 +29,7 @@ function parseCacheFilters(searchParams: URLSearchParams): EpicAlertRowCacheFilt
     epicTypes: csv('epicType'),
     statuses: csv('statuses'),
     dataIssueOnly: searchParams.get('dataIssueOnly') === '1',
-    requestingUnit: searchParams.get('requestingUnit') || undefined,
+    requestingUnits: searchParams.getAll('requestingUnit').map((value) => value.trim()).filter(Boolean),
     search: searchParams.get('search') || undefined,
   };
 }

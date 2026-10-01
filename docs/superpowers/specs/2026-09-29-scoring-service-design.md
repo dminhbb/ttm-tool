@@ -687,3 +687,31 @@ nay trừ Epic "Ngoài phạm vi TTM-CNTT (QLDA)", có thêm sub-link "Sai lệc
 hàm `summarizeE2e` dùng chung giữa ring theo bộ lọc và cache toàn công ty); thêm widget TTM-E2E toàn
 công ty (cached, `ttm_index_global_cache` + cột `e2e_*`, migration `20261001_add_e2e_to_ttm_index_global_cache`)
 trên banner cả TTM Dashboard và Quản trị Epic.
+
+## 15. Thay đổi rule — Sai lệch dữ liệu xét trước, "Sai Status" vẫn Đạt, TTM-E2E (2026-10-01)
+
+Quyết định của chủ sở hữu (thay cho D1 và phần TTM-E2E ở §6.2; `SCORING_CODE_VERSION` → `scoring-4`):
+
+1. **Sai lệch dữ liệu được xét trước.** `scoreEpic` chạy `dataQualityRule` trước; nếu Epic có badge ALERT
+   của axis DATA_QUALITY (R1, R3–R6, đang bật) thì `RuleInput.hasDataAnomaly = true` và các rule TTM-CNTT /
+   TTM-E2E **không chấm** (không sinh `*_PASS`, `*_FAIL`, `CNTT_LATE`, `*_STATUS_MISMATCH`) — không phải chấm
+   rồi che. Áp dụng cho TTM-CNTT (QLDA), TTM-CNTT (QA) (cùng badge, khác phạm vi) và TTM-E2E. "Pending lâu"
+   (R2) và "Sai Status (Release)" (R7) là Khuyến nghị nên không chặn. Các badge ghi nhận (Không tính được,
+   Không áp dụng, Baseline từ ngày tạo Jira) vẫn giữ.
+2. **"Sai Status" vẫn tính Đạt** (đảo quyết định D1). TTM-CNTT: R4G ≤ asOf và R4G ≤ Target_CNTT ⇒ `CNTT_PASS`;
+   nếu status < R4GOLIVE thì thêm `CNTT_STATUS_MISMATCH` (hai badge cùng active, bỏ dòng che trong
+   `SUPPRESSIONS`). TTM-Index đếm các Epic này là Đạt. R4G Date ở tương lai: chưa có badge nào.
+3. **TTM-E2E** (cùng dạng TTM-CNTT): `Target_E2E = T0 +wd (N_E2E − 1)`; ngày kết thúc = R4G Date, vẫn đổi
+   được qua `to_ttm_field` của "Tiêu chí Time to Market".
+   - `E2E_FAIL`: ngày kết thúc > Target_E2E (kể cả ngày ở tương lai), hoặc chưa có ngày kết thúc và asOf > Target_E2E.
+   - `E2E_PASS`: ngày kết thúc ≤ asOf và ≤ Target_E2E. **Không còn yêu cầu status Released.**
+   - `E2E_STATUS_MISMATCH` (mới, RECOMMENDATION, nhãn "Sai Status"): có `E2E_PASS` và status < R4GOLIVE.
+     Ở cột Nhận xét chỉ hiện thêm khi chưa có "Sai Status" của TTM-CNTT (cùng nguyên nhân).
+   - Chỉ số TTM-E2E (`summarizeE2e`): mẫu số = không Cancelled, có R4G Date, không Sai lệch dữ liệu, phép tính không hỏng.
+
+**Hiển thị:** cột Nhận xét hiện đồng thời "Đạt TTM-CNTT (QLDA)" + "Sai Status"; bộ lọc "Sai Status" gồm
+`CNTT_STATUS_MISMATCH`, `E2E_STATUS_MISMATCH`, `RELEASE_STATUS_MISMATCH`. Báo cáo Epic: Đạt TTM-CNTT = có `CNTT_PASS`.
+
+**Đối chiếu (01/10, 1.181 Epic):** 922 khớp, 259 chỉ lệch có chủ đích, 0 chưa giải thích. Nhãn mới:
+`D8_ANOMALY_CHECKED_FIRST` (289), `D9_E2E_RULE_REDEFINED` (39). So với logic cũ trên cùng dữ liệu: Fail TTM-CNTT
+90 → 55, Cảnh báo muộn 10 → 2, Fail TTM-E2E 334 → 237, TTM-CNTT (QLDA) 92,3% → 90,0%, TTM-CNTT (QA) 92,5% → 91,8%.

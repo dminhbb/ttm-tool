@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { canGrantRole, USER_ROLES } from '../auth-types';
+import { canGrantRole, canManageUserWithRole, USER_ROLES } from '../auth-types';
 import type { UserRole } from '../auth-types';
 
 describe('canGrantRole', () => {
@@ -29,5 +29,15 @@ describe('canGrantRole', () => {
   it('hierarchy order matches USER_ROLES declaration (most to least privileged)', () => {
     const expected: UserRole[] = ['SUPERADMIN', 'ADMIN', 'SUPERVISOR', 'USER'];
     assert.deepEqual([...USER_ROLES], expected);
+  });
+});
+
+describe('canManageUserWithRole', () => {
+  it('ADMIN cannot touch an existing SUPERADMIN or ADMIN, only SUPERVISOR/USER; SUPERADMIN can touch anyone', () => {
+    assert.equal(canManageUserWithRole('ADMIN', 'SUPERADMIN'), false);
+    assert.equal(canManageUserWithRole('ADMIN', 'ADMIN'), false);
+    assert.equal(canManageUserWithRole('ADMIN', 'SUPERVISOR'), true);
+    assert.equal(canManageUserWithRole('ADMIN', 'USER'), true);
+    for (const role of USER_ROLES) assert.equal(canManageUserWithRole('SUPERADMIN', role), true);
   });
 });

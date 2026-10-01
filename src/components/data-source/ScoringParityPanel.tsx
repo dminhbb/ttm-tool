@@ -47,6 +47,9 @@ const TAG_LABEL: Record<string, string> = {
   R2_R7_NOT_ANOMALY: 'R2/R7 không còn là Sai lệch dữ liệu',
   LEGACY_TIME_OF_DAY: 'Logic cũ lệch múi giờ khi ngày kết thúc = hạn',
   CANCELLED_NOT_APPLICABLE: 'Epic Cancelled: "Không áp dụng" thay vì "Đạt"',
+  D7_WAITING_GOLIVE_REDEFINED: 'D7 — "Chờ golive" tính theo status',
+  D8_ANOMALY_CHECKED_FIRST: 'D8 — Sai lệch dữ liệu xét trước, không chấm Đạt/Fail',
+  D9_E2E_RULE_REDEFINED: 'D9 — TTM-E2E: Target N − 1, bỏ điều kiện Released',
   UNEXPLAINED: 'Chưa giải thích được',
 };
 

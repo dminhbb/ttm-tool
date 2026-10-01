@@ -113,7 +113,8 @@ export function deriveMetrics(facts: EpicFacts, ctx: ScoringContext): DerivedMet
   const e2ePolicy = findActivePolicy(ctx.ttmPolicies, 'TTM_E2E', complexity);
   const e2eBudget = e2ePolicy?.workingDays ?? null;
   const e2eBaselineSourceDate = facts.ideaApprovedDate ?? toIsoDate(facts.jiraCreatedAt);
-  const e2eTargetDate = e2eBaselineSourceDate && e2eBudget ? addWorkingDays(e2eBaselineSourceDate, e2eBudget, holidays) : null;
+  // Target_E2E = T0 +wd (N − 1) — T0 is day 1, same convention as Target_CNTT (decision 2026-10-01).
+  const e2eTargetDate = e2eBaselineSourceDate && e2eBudget ? addWorkingDays(e2eBaselineSourceDate, Math.max(0, e2eBudget - 1), holidays) : null;
   const endField = (e2ePolicy?.toTtmField ?? 'R4G_DATE').trim().toLocaleUpperCase('en-US').replace(/[ _-]+/g, '');
   const e2eEndDate = endField === 'DUEDATE' ? facts.dueDate : facts.r4gDate;
   const endRecorded = Boolean(e2eEndDate && e2eEndDate <= ctx.asOf && e2eBaselineSourceDate && e2eEndDate >= e2eBaselineSourceDate);

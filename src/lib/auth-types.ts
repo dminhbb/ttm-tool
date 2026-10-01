@@ -13,6 +13,16 @@ export function canGrantRole(actorRole: UserRole, targetRole: UserRole): boolean
   return USER_ROLES.indexOf(targetRole) > USER_ROLES.indexOf(actorRole);
 }
 
+/**
+ * Whether `actorRole` may modify, reset the password of, or delete an EXISTING user whose current
+ * role is `targetRole` — same hierarchy as canGrantRole. Without this, an ADMIN could reset a
+ * SUPERADMIN's password (and sign in as them), demote or delete them, even though they could never
+ * grant that role.
+ */
+export function canManageUserWithRole(actorRole: UserRole, targetRole: UserRole): boolean {
+  return canGrantRole(actorRole, targetRole);
+}
+
 export interface AuthUser {
   email: string;
   fullName: string;

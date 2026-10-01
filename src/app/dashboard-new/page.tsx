@@ -31,7 +31,7 @@ import { DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
 import { compareValues, useSortableList } from '@/lib/use-sortable-list';
 import { formatTtmPct1, summarizeE2e, summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
-import { isTtmIndexEligible, isTtmIndexPass, vnTodayIso } from '@/lib/epic-row-verdicts';
+import { ttmFailKind, isJustifyGolive, isTtmIndexEligible, isTtmIndexPass, isWaitingGolive, waitingGoliveBucket, vnTodayIso } from '@/lib/epic-row-verdicts';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import { computeQaInScope, computeTtmCnttInScope } from '@/lib/ttm-scope-rules';
 import { buildEpicAlertsDeepLink } from '@/lib/epic-alerts-deep-link';
@@ -223,6 +223,7 @@ export default function DashboardNewPage() {
   const [filterProjects, setFilterProjects] = useState<string[]>([]);
   const [filterDomain, setFilterDomain] = useState<string>('');
   const [filterPmSms, setFilterPmSms] = useState<string[]>([]);
+  const [filterRequestingUnits, setFilterRequestingUnits] = useState<string[]>([]);
 
   // "Advanced Filters" — Phạm vi dữ liệu cho TTM (2026-09-28), collapsed by default. A live,
   // per-view override of the admin default ("Cấu hình cảnh báo" § Phạm vi dữ liệu cho TTM) — never
@@ -338,6 +339,7 @@ export default function DashboardNewPage() {
         if (filterDomain && row.domainName !== filterDomain) return false;
         // In PM/SM view (OPERATIONAL), PM/SM filter is removed / not applied.
         if (viewMode === 'EXECUTIVE' && filterPmSms.length > 0 && !row.ownerName.split(',').map((name) => name.trim()).some((name) => filterPmSms.includes(name))) return false;
+        if (filterRequestingUnits.length > 0 && (!row.requestingUnit || !filterRequestingUnits.includes(row.requestingUnit))) return false;
         return true;
       })
       .map((row) => ({
@@ -345,7 +347,7 @@ export default function DashboardNewPage() {
         ttmCnttInScope: computeTtmCnttInScope(row.r4gDate, row.targetR4gDate, scopeConfig),
         qaInScope: computeQaInScope(row.r4gDate, scopeConfig),
       }));
-  }, [data, filterProjects, filterDomain, filterPmSms, viewMode, filterCnttFrom, filterCnttTo, filterQaFrom, filterQaTo]);
+  }, [data, filterProjects, filterDomain, filterPmSms, filterRequestingUnits, viewMode, filterCnttFrom, filterCnttTo, filterQaFrom, filterQaTo]);
 
   // Executive Metrics. TTM-CNTT-specific numbers (eligibleTtm/passTtm/failCntt/ttmHealthPct) come
   // from the shared summarizeTtmCntt helper so this stays byte-for-byte the same ratio as the
@@ -384,12 +386,13 @@ export default function DashboardNewPage() {
       else if (row.ttmCnttInScope && row.alertLevel === 'EARLY') earlyWarning += 1;
 
       if (row.hasDataAnomaly) anomalyCount += 1;
-      if (row.releaseAxisState === 'WAITING_GOLIVE') {
-        waitingGolive += 1;
-        if (!row.r4gDate) waitingGoliveMissingR4g += 1;
-        else if (row.releaseGraceDeadline && today <= row.releaseGraceDeadline) waitingGoliveWithinGrace += 1;
-        else waitingGoliveOverdue += 1;
-      } else if (row.releaseAxisState === 'JUSTIFY_GOLIVE') justifyGolive += 1;
+      // "Chờ golive" and "Giải trình Golive" are independent badges (an Epic can carry both).
+      const bucket = waitingGoliveBucket(row, today);
+      if (bucket) waitingGolive += 1;
+      if (bucket === 'MISSING_R4G') waitingGoliveMissingR4g += 1;
+      else if (bucket === 'WITHIN_GRACE') waitingGoliveWithinGrace += 1;
+      else if (bucket === 'OVERDUE') waitingGoliveOverdue += 1;
+      if (isJustifyGolive(row)) justifyGolive += 1;
     }
 
     const ttmCntt = summarizeTtmCntt(filteredRows);
@@ -401,6 +404,10 @@ export default function DashboardNewPage() {
       earlyWarning,
       eligibleTtm: ttmCntt.eligible,
       failCntt: ttmCntt.fail,
+      // Split of failCntt — see ttmFailKind: with an R4G Date past Target (inside the TTM-CNTT
+      // denominator) vs. no R4G Date yet and already past Target (outside it).
+      failCnttLateR4g: filteredRows.filter((row) => !isCancelledStatus(row.currentStatus || '') && ttmFailKind(row) === 'LATE_R4G').length,
+      failCnttMissingR4g: filteredRows.filter((row) => !isCancelledStatus(row.currentStatus || '') && ttmFailKind(row) === 'MISSING_R4G').length,
       justifyGolive,
       lateWarning,
       passTtm: ttmCntt.pass,
@@ -434,7 +441,7 @@ export default function DashboardNewPage() {
     domain: extra.domain ?? (filterProjects.length > 0 ? undefined : (filterDomain || undefined)),
     pmSm: extra.pmSm ?? (viewMode === 'EXECUTIVE' && filterPmSms.length > 0 ? filterPmSms : undefined),
     projects: extra.projects ?? (filterProjects.length > 0 ? filterProjects : undefined),
-    requestingUnit: extra.requestingUnit,
+    requestingUnit: extra.requestingUnit ?? (filterRequestingUnits.length > 0 ? filterRequestingUnits : undefined),
     search: extra.search,
     status: extra.status,
     type: extra.type,
@@ -449,7 +456,7 @@ export default function DashboardNewPage() {
     } : {}),
   });
 
-  const toEpicAlertsLinkForMatrixItem = (item: { name: string }, metricType: 'total' | 'pass' | 'fail' | 'ok' | 'late' | 'qa' | 'qaPass' | 'ttmEligible') => {
+  const toEpicAlertsLinkForMatrixItem = (item: { name: string }, metricType: 'total' | 'pass' | 'fail' | 'failLateR4g' | 'failMissingR4g' | 'ok' | 'late' | 'qa' | 'qaPass' | 'ttmEligible') => {
     const extraParams: EpicAlertsDeepLinkParams = {};
 
     // Dimension scope
@@ -476,6 +483,10 @@ export default function DashboardNewPage() {
       extraParams.alert = 'ACHIEVED_CNTT';
     } else if (metricType === 'fail') {
       extraParams.alert = 'FAIL';
+    } else if (metricType === 'failLateR4g') {
+      extraParams.alert = 'FAIL_LATE_R4G';
+    } else if (metricType === 'failMissingR4g') {
+      extraParams.alert = 'FAIL_MISSING_R4G';
     } else if (metricType === 'late') {
       extraParams.alert = 'LATE';
     } else if (metricType === 'qa') {
@@ -524,7 +535,11 @@ export default function DashboardNewPage() {
     const items = [...map.entries()].map(([name, bucket]) => {
       const qlda = summarizeTtmCntt(bucket.rows);
       const qa = summarizeQaIndex(bucket.rows);
-      return { late: bucket.late, name, ok: bucket.ok, qa, qlda, total: bucket.rows.length };
+      // "Fail TTM" split: with an R4G Date past Target (inside the denominator) vs. no R4G Date yet
+      // and already past Target (outside it) — see ttmFailKind.
+      const failLateR4g = bucket.rows.filter((row) => !isCancelledStatus(row.currentStatus || '') && ttmFailKind(row) === 'LATE_R4G').length;
+      const failMissingR4g = bucket.rows.filter((row) => !isCancelledStatus(row.currentStatus || '') && ttmFailKind(row) === 'MISSING_R4G').length;
+      return { failLateR4g, failMissingR4g, late: bucket.late, name, ok: bucket.ok, qa, qlda, total: bucket.rows.length };
     });
     return items.sort((a, b) => compareValues(matrixSortValue(a, matrixSortKey), matrixSortValue(b, matrixSortKey), matrixSortDirection));
   }, [filteredRows, dimensionKey, matrixSortKey, matrixSortDirection]);
@@ -584,7 +599,7 @@ export default function DashboardNewPage() {
 
   // Waiting Golive Epics List
   const waitingGoliveEpics = useMemo(() => {
-    return filteredRows.filter((r) => r.releaseAxisState === 'WAITING_GOLIVE');
+    return filteredRows.filter((r) => isWaitingGolive(r));
   }, [filteredRows]);
 
   // Pending Epics List
@@ -606,6 +621,11 @@ export default function DashboardNewPage() {
   const domainOptions = useMemo(() => {
     if (!data) return [];
     return [...new Set(data.rows.filter((r) => !isCancelledStatus(r.currentStatus || '')).map((r) => r.domainName).filter((v): v is string => Boolean(v)))].sort();
+  }, [data]);
+
+  const requestingUnitOptions = useMemo(() => {
+    if (!data) return [];
+    return [...new Set(data.rows.filter((r) => !isCancelledStatus(r.currentStatus || '')).map((r) => r.requestingUnit).filter((unit): unit is string => Boolean(unit)))].sort((a, b) => a.localeCompare(b, 'vi'));
   }, [data]);
 
   const pmSmOptions = useMemo(() => {
@@ -683,6 +703,74 @@ export default function DashboardNewPage() {
   const renderKpiStrip = () => (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
     <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+      <div className="rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs">
+        <p className="text-[10px] font-bold uppercase text-fb-text-secondary">
+          <button
+            type="button"
+            onClick={() => openEpicModal(toEpicAlertsLink(), 'Danh sách Epic - Tổng số Epic')}
+            className="hover:underline cursor-pointer"
+            title="Xem tất cả Epic trong phạm vi lọc"
+          >
+            Tổng số Epic
+          </button>
+        </p>
+        <p className="mt-1 text-xl font-extrabold text-fb-text-primary">{executiveMetrics.total}</p>
+        <p className="text-[10px] text-fb-text-secondary flex flex-wrap gap-x-1.5">
+          <button
+            type="button"
+            onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'DATA_ANOMALY_IN_SCOPE' }), 'Danh sách Epic - Sai lệch dữ liệu (trong phạm vi TTM-CNTT)')}
+            className="underline-offset-2 hover:underline cursor-pointer font-bold"
+            title="Xem danh sách Epic Sai lệch dữ liệu (trong phạm vi TTM-CNTT) ở Quản trị Epic"
+          >
+            {executiveMetrics.anomalyInScopeCount} sai lệch dữ liệu
+          </button>
+          ·
+          <button
+            type="button"
+            onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'MISSING_R4G_IN_SCOPE' }), 'Danh sách Epic - Chưa có R4G Date (trong phạm vi TTM-CNTT)')}
+            className="underline-offset-2 hover:underline cursor-pointer font-bold"
+            title="Xem danh sách Epic chưa có R4G Date (trong phạm vi TTM-CNTT) ở Quản trị Epic — Tổng số Epic trừ Sai lệch dữ liệu trừ Chưa có R4G Date = mẫu số TTM-CNTT (QLDA)"
+          >
+            {executiveMetrics.missingR4gInScopeCount} chưa có R4G Date
+          </button>
+        </p>
+      </div>
+
+      {/* Fail = Trễ R4G (trong mẫu số TTM-CNTT) + Thiếu R4G (ngoài mẫu số) — same split as the matrix's
+          "Fail TTM" column, so this tile can be reconciled with the TTM-CNTT (QLDA) ring next to it. */}
+      <div className="rounded-xl border border-red-200 bg-red-50/50 p-3 shadow-xs">
+        <p className="text-[10px] font-bold uppercase text-status-danger">
+          <button
+            type="button"
+            onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'FAIL' }), 'Danh sách Epic - Fail TTM-CNTT (QLDA)')}
+            className="hover:underline cursor-pointer uppercase"
+            title="Xem danh sách Epic Fail TTM-CNTT (QLDA) ở Quản trị Epic"
+          >
+            Fail TTM-CNTT (QLDA)
+          </button>
+        </p>
+        <p className="mt-1 text-xl font-extrabold text-status-danger">{executiveMetrics.failCntt}</p>
+        <p className="text-[10px] text-red-600 font-medium flex flex-wrap gap-x-1.5">
+          <button
+            type="button"
+            onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'FAIL_LATE_R4G' }), 'Danh sách Epic - Fail TTM-CNTT (QLDA): Trễ R4G')}
+            className="underline-offset-2 hover:underline cursor-pointer font-bold"
+            title="Có R4G Date nhưng muộn hơn Target — nằm trong mẫu số TTM-CNTT (QLDA)"
+          >
+            {executiveMetrics.failCnttLateR4g} Trễ R4G
+          </button>
+          ·
+          <button
+            type="button"
+            onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'FAIL_MISSING_R4G' }), 'Danh sách Epic - Fail TTM-CNTT (QLDA): Thiếu R4G')}
+            className="underline-offset-2 hover:underline cursor-pointer font-bold"
+            title="Chưa có R4G Date và đã quá Target — không nằm trong mẫu số TTM-CNTT (QLDA)"
+          >
+            {executiveMetrics.failCnttMissingR4g} Thiếu R4G
+          </button>
+        </p>
+      </div>
+
       {/* Health Index Ring — TTM-CNTT (QLDA), scoped to this dashboard's filters (filteredRows) */}
       <div className="col-span-2 sm:col-span-2 lg:col-span-1 rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs flex items-center justify-start gap-3">
         <div
@@ -749,50 +837,6 @@ export default function DashboardNewPage() {
             {e2eMetrics.total > 0 ? `${e2eMetrics.pass}/${e2eMetrics.eligible}` : 'Chưa có Epic'}
           </p>
         </div>
-      </button>
-
-      <div className="rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs">
-        <p className="text-[10px] font-bold uppercase text-fb-text-secondary">
-          <button
-            type="button"
-            onClick={() => openEpicModal(toEpicAlertsLink(), 'Danh sách Epic - Tổng số Epic')}
-            className="hover:underline cursor-pointer"
-            title="Xem tất cả Epic trong phạm vi lọc"
-          >
-            Tổng số Epic
-          </button>
-        </p>
-        <p className="mt-1 text-xl font-extrabold text-fb-text-primary">{executiveMetrics.total}</p>
-        <p className="text-[10px] text-fb-text-secondary flex flex-wrap gap-x-1.5">
-          <button
-            type="button"
-            onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'DATA_ANOMALY_IN_SCOPE' }), 'Danh sách Epic - Sai lệch dữ liệu (trong phạm vi TTM-CNTT)')}
-            className="underline-offset-2 hover:underline cursor-pointer font-bold"
-            title="Xem danh sách Epic Sai lệch dữ liệu (trong phạm vi TTM-CNTT) ở Quản trị Epic"
-          >
-            {executiveMetrics.anomalyInScopeCount} sai lệch dữ liệu
-          </button>
-          ·
-          <button
-            type="button"
-            onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'MISSING_R4G_IN_SCOPE' }), 'Danh sách Epic - Chưa có R4G Date (trong phạm vi TTM-CNTT)')}
-            className="underline-offset-2 hover:underline cursor-pointer font-bold"
-            title="Xem danh sách Epic chưa có R4G Date (trong phạm vi TTM-CNTT) ở Quản trị Epic — Tổng số Epic trừ Sai lệch dữ liệu trừ Chưa có R4G Date = mẫu số TTM-CNTT (QLDA)"
-          >
-            {executiveMetrics.missingR4gInScopeCount} chưa có R4G Date
-          </button>
-        </p>
-      </div>
-
-      <button
-        type="button"
-        onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'FAIL' }), 'Danh sách Epic - Fail TTM-CNTT (QLDA)')}
-        className="block text-left rounded-xl border border-red-200 bg-red-50/50 p-3 shadow-xs transition-all hover:border-red-400 hover:shadow-sm cursor-pointer w-full"
-        title="Xem danh sách Epic Fail TTM-CNTT (QLDA) ở Quản trị Epic"
-      >
-        <p className="text-[10px] font-bold uppercase text-status-danger">Fail TTM-CNTT (QLDA)</p>
-        <p className="mt-1 text-xl font-extrabold text-status-danger">{executiveMetrics.failCntt}</p>
-        <p className="text-[10px] text-red-600 font-medium">Vượt R4G Target</p>
       </button>
 
     </div>
@@ -1023,6 +1067,28 @@ export default function DashboardNewPage() {
                     >
                       {item.qlda.fail}
                     </button>
+                    {/* Fail = Trễ R4G (trong mẫu số TTM-CNTT) + Thiếu R4G (ngoài mẫu số) — nên Pass + Fail có thể lớn hơn "Epic tính TTM". */}
+                    {item.qlda.fail > 0 && (
+                      <p className="text-[10px] font-medium text-fb-text-secondary whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => openEpicModal(toEpicAlertsLinkForMatrixItem(item, 'failLateR4g'), `Danh sách Epic Fail TTM: Trễ R4G - ${item.name}`)}
+                          className="underline-offset-2 hover:underline cursor-pointer"
+                          title="Có R4G Date nhưng muộn hơn Target — nằm trong mẫu số TTM-CNTT (QLDA)"
+                        >
+                          {item.failLateR4g} Trễ R4G
+                        </button>
+                        {' · '}
+                        <button
+                          type="button"
+                          onClick={() => openEpicModal(toEpicAlertsLinkForMatrixItem(item, 'failMissingR4g'), `Danh sách Epic Fail TTM: Thiếu R4G - ${item.name}`)}
+                          className="underline-offset-2 hover:underline cursor-pointer"
+                          title="Chưa có R4G Date và đã quá Target — không nằm trong mẫu số TTM-CNTT (QLDA)"
+                        >
+                          {item.failMissingR4g} Thiếu R4G
+                        </button>
+                      </p>
+                    )}
                   </TD>
                   <TD>
                     {item.qa.total > 0 ? (
@@ -1345,6 +1411,7 @@ export default function DashboardNewPage() {
         )}
         <ToolbarMultiSelect
           ariaLabel="Dự án"
+          searchable
           allLabel="Tất cả dự án của tôi"
           options={projectOptions}
           value={filterProjects}
@@ -1353,12 +1420,21 @@ export default function DashboardNewPage() {
         {viewMode === 'EXECUTIVE' && (
           <ToolbarMultiSelect
             ariaLabel="PM/SM"
+            searchable
             allLabel="Tất cả PM/SM"
             options={pmSmOptions}
             value={filterPmSms}
             onChange={setFilterPmSms}
           />
         )}
+        <ToolbarMultiSelect
+          ariaLabel="Đơn vị yêu cầu"
+          searchable
+          allLabel="Tất cả đơn vị yêu cầu"
+          options={requestingUnitOptions}
+          value={filterRequestingUnits}
+          onChange={setFilterRequestingUnits}
+        />
 
         {data?.lastAggregatedAt && (
           <div className="ttm-report-date ml-auto text-xs text-fb-text-secondary">

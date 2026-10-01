@@ -2,6 +2,7 @@ import { BADGE_BY_ID, SUPPRESSIONS } from './catalog';
 import type { BadgeId } from './catalog';
 import { deriveMetrics, isCancelledStatus } from './derive';
 import { DERIVED_RULES, PRIMARY_RULES } from './registry';
+import { dataQualityRule } from './rules/data-quality';
 import type { RuleInput } from './rules/rule-types';
 import type { EpicFacts, EpicScorecard, Finding, IndexMembership, ScoringContext } from './types';
 
@@ -59,9 +60,12 @@ function indexMembership(facts: EpicFacts, active: ReadonlySet<BadgeId>, ctx: Sc
  */
 export function scoreEpic(facts: EpicFacts, ctx: ScoringContext): EpicScorecard {
   const derived = deriveMetrics(facts, ctx);
-  const input: RuleInput = { facts, derived, ctx };
+  // Data quality is evaluated first: its verdict gates every TTM rule (see RuleInput.hasDataAnomaly).
+  const baseInput: RuleInput = { facts, derived, ctx, hasDataAnomaly: false };
+  const dataQuality = dataQualityRule(baseInput).filter((item) => isEnabled(item.badge, ctx));
+  const input: RuleInput = { ...baseInput, hasDataAnomaly: hasDataAnomalyBadge(new Set(dataQuality.map((item) => item.badge))) };
 
-  const primary = PRIMARY_RULES.flatMap((rule) => rule(input)).filter((item) => isEnabled(item.badge, ctx));
+  const primary = [...dataQuality, ...PRIMARY_RULES.flatMap((rule) => rule(input)).filter((item) => isEnabled(item.badge, ctx))];
   const resolved = resolveSuppressions(primary);
   const active = activeBadges(resolved);
   const secondary = DERIVED_RULES.flatMap((rule) => rule(input, active, resolved)).filter((item) => isEnabled(item.badge, ctx));

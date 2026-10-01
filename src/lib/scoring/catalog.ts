@@ -67,26 +67,26 @@ export const BADGES = [
   },
   {
     id: 'CNTT_STATUS_MISMATCH', axis: 'TTM_CNTT', group: 'RECOMMENDATION', label: 'Sai Status', precedence: 20, defaultEnabled: true,
-    meaning: 'R4G Date đã tới và đúng hạn nhưng status Epic chưa lên R4GOLIVE — cần chuyển status sang R4GOLIVE. Không tính "Đạt TTM-CNTT (QLDA)" (badge lẫn chỉ số TTM-CNTT (QLDA)/(QA)), vẫn nằm trong mẫu số chỉ số.',
-    formula: 'R4G ≤ asOf  VÀ  R4G ≤ Target_CNTT  VÀ  status < R4GOLIVE',
+    meaning: 'R4G Date đã tới và đúng hạn nhưng status Epic chưa lên R4GOLIVE — cần chuyển status sang R4GOLIVE. Epic vẫn được tính "Đạt TTM-CNTT (QLDA)"; badge này hiện kèm bên cạnh.',
+    formula: 'Không Sai lệch dữ liệu  VÀ  R4G ≤ asOf  VÀ  R4G ≤ Target_CNTT  VÀ  status < R4GOLIVE',
     legacySource: 'resolveTtmCnttStatusMismatch',
   },
   {
     id: 'CNTT_FAIL', axis: 'TTM_CNTT', group: 'FAIL', label: 'Fail TTM-CNTT (QLDA)', precedence: 30, defaultEnabled: true,
     meaning: 'Đã vượt ngân sách TTM-CNTT (QLDA).',
-    formula: 'Có R4G: R4G > Target_CNTT.  Chưa có R4G: asOf > Target_CNTT.   Target_CNTT = T1 +wd (N_CNTT − 1)  (Start Date là ngày 1)',
+    formula: 'Không Sai lệch dữ liệu  VÀ  ( Có R4G: R4G > Target_CNTT.  Chưa có R4G: asOf > Target_CNTT ).   Target_CNTT = T1 +wd (N_CNTT − 1)  (Start Date là ngày 1)',
     legacySource: 'computeTtmAlert → FAIL',
   },
   {
     id: 'CNTT_LATE', axis: 'TTM_CNTT', group: 'ALERT', label: 'Cảnh báo muộn', precedence: 40, defaultEnabled: true,
     meaning: 'Chưa có R4G Date, đã qua mốc cảnh báo muộn của status hiện tại, chưa quá Target.',
-    formula: 'R4G trống  VÀ  T1 +wd Offset_muộn(loại Epic, status) ≤ asOf ≤ Target_CNTT',
+    formula: 'Không Sai lệch dữ liệu  VÀ  R4G trống  VÀ  T1 +wd Offset_muộn(loại Epic, status) ≤ asOf ≤ Target_CNTT',
     legacySource: 'computeTtmAlert → LATE',
   },
   {
     id: 'CNTT_PASS', axis: 'TTM_CNTT', group: 'PASS', label: 'Đạt TTM-CNTT (QLDA)', precedence: 60, defaultEnabled: true,
-    meaning: 'Đã tới R4G Date trong ngân sách và status khớp.',
-    formula: 'R4G ≤ asOf  VÀ  R4G ≤ Target_CNTT  VÀ  không "Sai Status"',
+    meaning: 'Đã tới R4G Date trong ngân sách. Status chưa lên R4GOLIVE vẫn tính Đạt (kèm badge "Sai Status"). R4G Date ở tương lai chưa được tính.',
+    formula: 'Không Sai lệch dữ liệu  VÀ  R4G ≤ asOf  VÀ  R4G ≤ Target_CNTT',
     legacySource: 'isTtmCnttAchieved (3 page)',
   },
   {
@@ -106,14 +106,19 @@ export const BADGES = [
   {
     id: 'E2E_FAIL', axis: 'TTM_E2E', group: 'FAIL', label: 'Fail TTM-E2E', precedence: 30, defaultEnabled: true,
     meaning: 'Đã vượt ngân sách TTM-E2E.',
-    formula: 'Target_E2E = T0 +wd N_E2E.  Đã có ngày kết thúc (R4G, hoặc Due nếu policy to_ttm_field = DUE_DATE) ≤ asOf: ngày đó > Target_E2E.  Chưa có: asOf ≥ Target_E2E',
+    formula: 'Không Sai lệch dữ liệu  VÀ  ( Có ngày kết thúc: ngày đó > Target_E2E.  Chưa có: asOf > Target_E2E ).   Target_E2E = T0 +wd (N_E2E − 1);  ngày kết thúc = R4G (hoặc Due nếu "Tiêu chí Time to Market" cấu hình to_ttm_field = DUE_DATE)',
     legacySource: 'resolveTtmE2eRelease → FAIL',
   },
   {
     id: 'E2E_PASS', axis: 'TTM_E2E', group: 'PASS', label: 'Đạt TTM-E2E', precedence: 60, defaultEnabled: true,
-    meaning: 'Đã Released và T0 → R4G Date trong ngân sách TTM-E2E.',
-    formula: 'Không Fail TTM-E2E  VÀ  status = RELEASED  VÀ  ngày kết thúc TTM-E2E = R4G ≤ asOf',
+    meaning: 'T0 → ngày kết thúc (R4G Date) trong ngân sách TTM-E2E và ngày đó đã tới. Status chưa lên R4GOLIVE vẫn tính Đạt (kèm badge "Sai Status"). Ngày ở tương lai chưa được tính.',
+    formula: 'Không Sai lệch dữ liệu  VÀ  ngày kết thúc ≤ asOf  VÀ  ngày kết thúc ≤ Target_E2E',
     legacySource: 'isTtmE2eAchieved (3 page)',
+  },
+  {
+    id: 'E2E_STATUS_MISMATCH', axis: 'TTM_E2E', group: 'RECOMMENDATION', label: 'Sai Status', precedence: 65, defaultEnabled: true,
+    meaning: 'TTM-E2E đã Đạt theo ngày ghi nhận nhưng status Epic chưa lên R4GOLIVE — cần chuyển status. Hiện kèm "Đạt TTM-E2E".',
+    formula: 'Có "Đạt TTM-E2E"  VÀ  status < R4GOLIVE',
   },
   {
     id: 'REC_FILL_IDEA_APPROVED_DATE', axis: 'TTM_E2E', group: 'RECOMMENDATION', label: 'Bổ sung T0', precedence: 80, defaultEnabled: true,
@@ -283,17 +288,17 @@ export const SUPPRESSIONS: readonly { when: BadgeId; suppress: readonly BadgeId[
   { when: 'CNTT_NOT_APPLICABLE', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH'] },
   { when: 'CNTT_CALC_BROKEN', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH'] },
   { when: 'SCOPE_CNTT_OUT', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH', 'RELEASE_WAITING_GOLIVE'] },
-  { when: 'CNTT_STATUS_MISMATCH', suppress: ['CNTT_PASS'] },
-  { when: 'E2E_CALC_BROKEN', suppress: ['E2E_FAIL', 'E2E_PASS'] },
+  { when: 'E2E_CALC_BROKEN', suppress: ['E2E_FAIL', 'E2E_PASS', 'E2E_STATUS_MISMATCH'] },
 ];
 
 /** TTM-CNTT (QLDA) / TTM-CNTT (QA) membership — not badges; aggregates only count these flags. */
-export const INDEX_MEMBERSHIP_RULES: { index: 'TTM-CNTT (QLDA)' | 'TTM-CNTT (QA)'; flag: string; formula: string }[] = [
+export const INDEX_MEMBERSHIP_RULES: { index: 'TTM-CNTT (QLDA)' | 'TTM-CNTT (QA)' | 'TTM-E2E'; flag: string; formula: string }[] = [
   { index: 'TTM-CNTT (QLDA)', flag: 'Tính (counted)', formula: 'không Cancelled  VÀ  không "Ngoài phạm vi TTM-CNTT (QLDA)"' },
-  { index: 'TTM-CNTT (QLDA)', flag: 'Mẫu số (eligible)', formula: 'counted  VÀ  có R4G (kể cả ngày tương lai)  VÀ  không có badge Cảnh báo của axis Chất lượng dữ liệu' },
-  { index: 'TTM-CNTT (QLDA)', flag: 'Đạt (pass)', formula: 'eligible  VÀ  có badge "Đạt TTM-CNTT (QLDA)" (Epic "Sai Status" hoặc R4G chưa tới: trong mẫu số, không Đạt)' },
-  { index: 'TTM-CNTT (QLDA)', flag: 'Fail', formula: 'counted  VÀ  có "Fail TTM-CNTT (QLDA)"' },
+  { index: 'TTM-CNTT (QLDA)', flag: 'Mẫu số (eligible)', formula: 'counted  VÀ  có R4G (kể cả ngày tương lai)  VÀ  không Sai lệch dữ liệu' },
+  { index: 'TTM-CNTT (QLDA)', flag: 'Đạt (pass)', formula: 'eligible  VÀ  có badge "Đạt TTM-CNTT (QLDA)" (Epic "Sai Status" vẫn Đạt; R4G chưa tới: trong mẫu số, chưa Đạt)' },
+  { index: 'TTM-CNTT (QLDA)', flag: 'Fail', formula: 'counted  VÀ  có "Fail TTM-CNTT (QLDA)" (Epic Sai lệch dữ liệu không được chấm Fail)' },
   { index: 'TTM-CNTT (QA)', flag: 'Tính / Mẫu số / Đạt / Fail', formula: 'Như TTM-CNTT (QLDA), thêm status ∈ {MVP DONE, RELEASED} và thay "Ngoài phạm vi TTM-CNTT (QLDA)" bằng "Ngoài phạm vi QA"' },
+  { index: 'TTM-E2E', flag: 'Mẫu số / Đạt / Fail', formula: 'Mẫu số: không Cancelled, có R4G, không Sai lệch dữ liệu, không "Không tính được".  Đạt: có badge "Đạt TTM-E2E".  Fail: có "Fail TTM-E2E"' },
 ];
 
 export const INDEX_PERCENT_FORMULA = 'Chỉ số % = Đạt / Mẫu số × 100.  Nếu Mẫu số = 0: (Tính − Fail) / Tính × 100;  không có Epic nào: 100.';

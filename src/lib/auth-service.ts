@@ -288,6 +288,14 @@ export async function createManagedUser(input: UserInput): Promise<ManagedUser> 
   return (await listManagedUsers()).find((user) => user.id === userId)!;
 }
 
+/** Current role of each given user id (unknown ids are simply absent) — for the role-hierarchy
+ * guard on user-management routes (canManageUserWithRole in auth-types.ts). */
+export async function getUserRolesByIds(ids: number[]): Promise<Map<number, UserRole>> {
+  if (ids.length === 0) return new Map();
+  const result = await pool.query<{ id: number; role: UserRole }>('SELECT id, role FROM users WHERE id = ANY($1::int[]);', [ids]);
+  return new Map(result.rows.map((row) => [row.id, row.role]));
+}
+
 export async function updateManagedUser(id: number, input: UserInput): Promise<ManagedUser | null> {
   const client = await getClient();
   try {

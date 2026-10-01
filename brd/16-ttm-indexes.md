@@ -133,6 +133,10 @@ nếu total = 0:  pct = 100
   tương lai/bất thường thì lấy hôm nay — vẫn đang đếm tiếp).
 - **Fail TTM-E2E** = thực tế > baseline. Chỉ 2 mức Fail/Đạt (`FAIL`/`NONE`), không có EARLY/LATE.
   "Đạt TTM-E2E" (hiển thị ở UI) còn yêu cầu thêm status = **Released**.
+  **Scoring Service (từ 2026-10-01):** Target_E2E = T0 + (N − 1) ngày làm việc; "Đạt TTM-E2E" = ngày kết
+  thúc (R4G Date) đã tới và ≤ Target_E2E, **không** yêu cầu Released; status < R4GOLIVE vẫn Đạt kèm badge
+  "Sai Status". Epic có Sai lệch dữ liệu (R1, R3–R6) không được chấm Đạt/Fail/Cảnh báo muộn/Sai Status trên
+  TTM-CNTT (QLDA/QA) và TTM-E2E. Chi tiết: spec `docs/superpowers/specs/2026-09-29-scoring-service-design.md` §15.
 - Đổi rule 2026-09-24: trước đó "thực tế" là Due Date, nay là R4G Date. Kỷ luật Due Date so với R4G
   Date (trong hạn 5 ngày làm việc hay không) tách thành khái niệm riêng **"Trục Release"** (badge
   Chờ golive/Cảnh báo sớm/Giải trình Golive, xem `resolveReleaseAxis`) + rule sai lệch dữ liệu R7

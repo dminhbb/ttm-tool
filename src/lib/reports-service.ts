@@ -366,7 +366,7 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
 
     // Pass: the Epic actually reached R4G/Released status AND the canonical engine says it did so
     // within its TTM budget (not FAIL).
-    const ttmCnttPassed = scorecard ? scoredVerdicts.has('CNTT_PASS') && !scoredVerdicts.has('CNTT_STATUS_MISMATCH') : Boolean(row.r4gDate) && !cnttBroken && cnttAlertLevel !== 'FAIL' && isStatusValidForPass;
+    const ttmCnttPassed = scorecard ? scoredVerdicts.has('CNTT_PASS') : Boolean(row.r4gDate) && !cnttBroken && cnttAlertLevel !== 'FAIL' && isStatusValidForPass;
     // TTM-E2E "Pass" (2026-09-24 rule): status must actually be Released (not just R4GOLIVE), and
     // the axis is now T0 → R4G Date, not T0 → Due Date — see resolveTtmE2eRelease's own doc comment.
     const ttmE2ePassed = scorecard ? scoredVerdicts.has('E2E_PASS') : Boolean(row.r4gDate) && !e2eBroken && e2eAlertLevel !== 'FAIL' && isReleased;
@@ -388,7 +388,7 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
     if (scorecard ? scoredVerdicts.has('E2E_FAIL') : e2eAlertLevel === 'FAIL') {
       actualE2eFail = true;
       e2eFailReason = e2eTarget
-        ? `Fail TTM-e2e (${formatDateVietnamese(scorecard ? scorecard.derived.e2eActualToDate : e2eEval.actualToDate)}>${formatDateVietnamese(e2eTarget)})`
+        ? `Fail TTM-e2e (${formatDateVietnamese(scorecard ? (scorecard.derived.e2eEndDate ?? scorecard.asOf) : e2eEval.actualToDate)}>${formatDateVietnamese(e2eTarget)})`
         : 'Fail TTM-e2e';
     }
 

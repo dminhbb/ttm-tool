@@ -15,7 +15,7 @@ import { EpicAlertTimeline } from '@/components/epic-alerts/EpicAlertTimeline';
 import { EpicStatWidgets } from '@/components/epic-alerts/EpicStatWidgets';
 import { DataAnomalyBadge, DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
 import { hasScoringExtraBadges, ScoringExtraBadges } from '@/components/epic-alerts/ScoringBadges';
-import { ALERT_FILTER_VALUES, alertFilterOptionsFor, isTtmCnttAchieved, isTtmE2eAchieved, matchesAlertFilter } from '@/lib/epic-row-verdicts';
+import { ALERT_FILTER_VALUES, alertFilterOptionsFor, findingOf, isWaitingGolive, isTtmCnttAchieved, isTtmE2eAchieved, matchesAlertFilter } from '@/lib/epic-row-verdicts';
 import type { AlertFilterValue } from '@/lib/epic-row-verdicts';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import type { EpicAlertAccessRole, EpicAlertPhasedResponse, EpicAlertRowPhased, PhaseCell } from '@/lib/epic-alert-types';
@@ -51,7 +51,9 @@ interface SavedFilterConfig {
   pmSmFilter?: string | string[];
   pmSmFilters?: string[];
   projectFilters: string[];
-  requestingUnitFilter: string;
+  /** Pre-2026-10 saved filters stored a single unit here. */
+  requestingUnitFilter?: string;
+  requestingUnitFilters?: string[];
   search: string;
   selectedLayerAnchor?: string;
   startDateFromFilter?: string;
@@ -120,7 +122,7 @@ interface EpicAlertsDeepLinkFilters {
   hasAny: boolean;
   pmSm: string[];
   projects: string[];
-  requestingUnit: string;
+  requestingUnits: string[];
   search: string;
   status: string[];
   /** "Phạm vi dữ liệu cho TTM" override (Dashboard 2's Advanced Filters) — undefined = key absent
@@ -140,7 +142,7 @@ function parseDeepLinkFilters(searchParams: URLSearchParams): EpicAlertsDeepLink
   const status = splitList('status');
   const types = splitList('type').filter((value) => (EPIC_COMPLEXITY_TYPES as readonly string[]).includes(value));
   const pmSm = splitList('pmSm');
-  const requestingUnit = searchParams.get('requestingUnit') ?? '';
+  const requestingUnits = searchParams.getAll('requestingUnit').map((value) => value.trim()).filter(Boolean);
   const dataIssue = searchParams.get('dataIssue') === '1';
   const search = searchParams.get('search') ?? '';
   const domain = searchParams.get('domain') ?? '';
@@ -150,13 +152,13 @@ function parseDeepLinkFilters(searchParams: URLSearchParams): EpicAlertsDeepLink
     dataIssue,
     domain,
     hasAny: Boolean(
-      alerts.length || projects.length || status.length || types.length || pmSm.length || requestingUnit || dataIssue || search || domain
+      alerts.length || projects.length || status.length || types.length || pmSm.length || requestingUnits.length || dataIssue || search || domain
       || dateOrNull('cnttFrom') !== undefined || dateOrNull('cnttTo') !== undefined
       || dateOrNull('qaFrom') !== undefined || dateOrNull('qaTo') !== undefined,
     ),
     pmSm,
     projects,
-    requestingUnit,
+    requestingUnits,
     search,
     status,
     ttmScopeCnttFrom: dateOrNull('cnttFrom'),
@@ -629,7 +631,7 @@ function EpicAlerts15Screen() {
   const [alertFilters, setAlertFilters] = useState<AlertFilterValue[]>(deepLinkFilters.alerts);
   const [typeFilters, setTypeFilters] = useState<string[]>(deepLinkFilters.types);
   const [statusFilters, setStatusFilters] = useState<string[]>(deepLinkFilters.status);
-  const [requestingUnitFilter, setRequestingUnitFilter] = useState(deepLinkFilters.requestingUnit);
+  const [requestingUnitFilters, setRequestingUnitFilters] = useState<string[]>(deepLinkFilters.requestingUnits);
   const [dataIssueFilter, setDataIssueFilter] = useState(deepLinkFilters.dataIssue);
   const [search, setSearch] = useState(deepLinkFilters.search);
   const [activeQuickFilter, setActiveQuickFilter] = useState<'PENDING' | 'IN_PO' | 'NOT_IN_PO' | null>(null);
@@ -728,7 +730,7 @@ function EpicAlerts15Screen() {
       if (typeFilters.length > 0) query.set('epicType', typeFilters.join(','));
       if (statusQuery) query.set('statuses', statusQuery);
       if (dataIssueFilter) query.set('dataIssueOnly', '1');
-      if (requestingUnitFilter) query.set('requestingUnit', requestingUnitFilter);
+      for (const unit of requestingUnitFilters) query.append('requestingUnit', unit);
       if (debouncedSearch) query.set('search', debouncedSearch);
       query.set('page', String(page));
       query.set('pageSize', String(PAGE_SIZE));
@@ -877,7 +879,8 @@ function EpicAlerts15Screen() {
         hasAppliedDefaultStatusFilter.current = true;
         setStatusFilters(saved.statusFilters);
       }
-      if (saved.requestingUnitFilter) setRequestingUnitFilter(saved.requestingUnitFilter);
+      if (saved.requestingUnitFilters && saved.requestingUnitFilters.length > 0) setRequestingUnitFilters(saved.requestingUnitFilters);
+      else if (saved.requestingUnitFilter) setRequestingUnitFilters([saved.requestingUnitFilter]);
       if (saved.dataIssueFilter) setDataIssueFilter(saved.dataIssueFilter);
       if (saved.search) setSearch(saved.search);
       if (saved.activeQuickFilter) setActiveQuickFilter(saved.activeQuickFilter);
@@ -943,7 +946,7 @@ function EpicAlerts15Screen() {
   }, [
     savedFiltersReady, serverQueryKey, layerWindowKey, createdDateFrom, startDateFromFilter, dueDateFromFilter,
     projectFilters, pmSmFilters, componentFilters, alertFilters, typeFilters, statusQuery,
-    dataIssueFilter, requestingUnitFilter, debouncedSearch, page,
+    dataIssueFilter, requestingUnitFilters, debouncedSearch, page,
   ]);
   useEffect(() => () => fetchAbortRef.current?.abort(), []);
 
@@ -996,7 +999,7 @@ function EpicAlerts15Screen() {
       pmSmFilter: pmSmFilters.join(','),
       pmSmFilters,
       projectFilters,
-      requestingUnitFilter,
+      requestingUnitFilters,
       search,
       selectedLayerAnchor,
       startDateFromFilter,
@@ -1022,7 +1025,7 @@ function EpicAlerts15Screen() {
     setAlertFilters([]);
     setTypeFilters([]);
     setStatusFilters(statusOptions.filter((status) => !isCancelledStatus(status)));
-    setRequestingUnitFilter('');
+    setRequestingUnitFilters([]);
     setDataIssueFilter(false);
     setSearch('');
     setActiveQuickFilter(null);
@@ -1056,10 +1059,10 @@ function EpicAlerts15Screen() {
         && (typeFilters.length === 0 || (row.epicType !== null && typeFilters.includes(row.epicType)))
         && (statusFilters.length === 0 ? !isCancelledStatus(row.currentStatus) : statusFilters.includes(row.currentStatus))
         && (!dataIssueFilter || row.hasDataAnomaly)
-        && (!requestingUnitFilter || row.requestingUnit === requestingUnitFilter)
+        && (requestingUnitFilters.length === 0 || (row.requestingUnit !== null && requestingUnitFilters.includes(row.requestingUnit)))
         && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch));
     }).sort((a, b) => listGroupRankOf(a.currentStatus, a.ttmCnttInScope) - listGroupRankOf(b.currentStatus, b.ttmCnttInScope));
-  }, [data?.mode, rows, projectFilters, pmSmFilters, componentFilters, alertFilters, typeFilters, statusFilters, dataIssueFilter, requestingUnitFilter, search]);
+  }, [data?.mode, rows, projectFilters, pmSmFilters, componentFilters, alertFilters, typeFilters, statusFilters, dataIssueFilter, requestingUnitFilters, search]);
 
   const clientTtmCnttQlda = useMemo(() => summarizeTtmCntt(filteredRows), [filteredRows]);
   const clientTtmCnttQa = useMemo(() => summarizeQaIndex(filteredRows), [filteredRows]);
@@ -1222,6 +1225,7 @@ function EpicAlerts15Screen() {
         )}
         <ToolbarMultiSelect
           ariaLabel="Dự án"
+          searchable
           allLabel="Projects"
           options={projectOptions}
           value={projectFilters}
@@ -1229,6 +1233,7 @@ function EpicAlerts15Screen() {
         />
         <ToolbarMultiSelect
           ariaLabel="PM/SM"
+          searchable
           allLabel="PM/SM"
           options={pmSmOptions}
           value={pmSmFilters}
@@ -1264,16 +1269,14 @@ function EpicAlerts15Screen() {
           value={statusFilters}
           onChange={(values) => { setStatusFilters(values); setActiveQuickFilter(null); setPage(1); }}
         />
-        <select
-          className={`ttm-select${requestingUnitFilter ? ' has-filter' : ''}`}
-          aria-label="Đơn vị yêu cầu"
-          title="Đơn vị yêu cầu"
-          value={requestingUnitFilter}
-          onChange={(event) => { setRequestingUnitFilter(event.target.value); setPage(1); }}
-        >
-          <option value="">Đơn vị yêu cầu</option>
-          {requestingUnitOptions.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
-        </select>
+        <ToolbarMultiSelect
+          ariaLabel="Đơn vị yêu cầu"
+          searchable
+          allLabel="Đơn vị yêu cầu"
+          options={requestingUnitOptions}
+          value={requestingUnitFilters}
+          onChange={(values) => { setRequestingUnitFilters(values); setPage(1); }}
+        />
         <input
           className={`ttm-field ttm-search-field${search.trim() ? ' has-filter' : ''}`}
           type="search"
@@ -1525,7 +1528,7 @@ function EpicAlerts15Screen() {
                         // not honest to show it for an Epic outside the admin-configured R4G window.
                         const hasCnttBadge = !row.ttmCnttInScope || row.ttmCnttStatusMismatch || row.alertLevel !== 'NONE' || ttmCnttAchieved;
                         const hasE2eBadge = row.ttmE2eAlertLevel === 'FAIL' || ttmE2eAchieved;
-                        const hasReleaseBadge = row.releaseAxisState !== 'NONE';
+                        const hasReleaseBadge = row.releaseAxisState !== 'NONE' || isWaitingGolive(row);
                         const hasAnyBadge = hasCnttBadge || hasE2eBadge || hasReleaseBadge || row.hasDataAnomaly || hasScoringExtraBadges(row);
 
                         return (
@@ -1547,6 +1550,10 @@ function EpicAlerts15Screen() {
                             ) : ttmCnttAchieved ? (
                               <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT (QLDA) đúng hạn theo rule">Đạt TTM-CNTT (QLDA)</span>
                             ) : null}
+                            {/* Scoring Service (2026-10-01): "Sai Status" no longer takes the pass away — both show. */}
+                            {row.ttmCnttInScope && row.ttmCnttStatusMismatch && ttmCnttAchieved && (
+                              <span className="ttm-badge-achieved" title="R4G Date đúng hạn — vẫn tính Đạt; cần cập nhật status Epic sang R4GOLIVE">Đạt TTM-CNTT (QLDA)</span>
+                            )}
 
                             {row.ttmE2eAlertLevel === 'FAIL' ? (
                               <span className="ttm-badge fail-e2e">Fail TTM-E2E</span>
@@ -1554,11 +1561,12 @@ function EpicAlerts15Screen() {
                               <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-E2E đúng hạn theo rule (T0 → R4G Date) và đã Released">Đạt TTM-e2e</span>
                             ) : null}
 
-                            {row.releaseAxisState === 'WAITING_GOLIVE' ? (
-                              <Tooltip content={`Epic đã có R4G Date, còn trong hạn ${formatDate(row.releaseGraceDeadline)} (R4G Date + 5 ngày làm việc) và chưa có Due Date.`} className="inline-flex w-auto">
+                            {isWaitingGolive(row) && (
+                              <Tooltip content={findingOf(row, 'RELEASE_WAITING_GOLIVE')?.message ?? `Epic đã có R4G Date, còn trong hạn ${formatDate(row.releaseGraceDeadline)} (R4G Date + 5 ngày làm việc) và chưa có Due Date.`} className="inline-flex w-auto">
                                 <span className="ttm-badge waiting-golive">Chờ golive</span>
                               </Tooltip>
-                            ) : row.releaseAxisState === 'EARLY_WARNING' ? (
+                            )}
+                            {row.releaseAxisState === 'EARLY_WARNING' ? (
                               <Tooltip content={`Đã qua R4GOLIVE, còn trong hạn ${formatDate(row.releaseGraceDeadline)} để có Due Date hợp lệ và chuyển status Released.`} className="inline-flex w-auto">
                                 <span className="ttm-badge early-warning">Cảnh báo sớm</span>
                               </Tooltip>

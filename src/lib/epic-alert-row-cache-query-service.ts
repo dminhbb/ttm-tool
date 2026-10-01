@@ -26,7 +26,7 @@ export interface EpicAlertRowCacheFilters {
   epicTypes?: string[];
   statuses?: string[];
   dataIssueOnly?: boolean;
-  requestingUnit?: string;
+  requestingUnits?: string[];
   search?: string;
   /** 'scoring' → the "Nhận xét" filter matches badge_codes (Epic Scoring Service) instead of
    * re-deriving each verdict from the legacy columns. */
@@ -105,20 +105,47 @@ function buildFilterClause(scope: AccessScope, filters: EpicAlertRowCacheFilters
   if (filters.dataIssueOnly) {
     clauses.push('has_data_anomaly = TRUE');
   }
-  if (filters.requestingUnit) {
-    params.push(filters.requestingUnit);
-    clauses.push(`requesting_unit = $${params.length}`);
+  if (filters.requestingUnits && filters.requestingUnits.length > 0) {
+    params.push(filters.requestingUnits);
+    clauses.push(`requesting_unit = ANY($${params.length}::text[])`);
   }
   if (filters.search) {
     params.push(`%${filters.search}%`);
     clauses.push(`(epic_key ILIKE $${params.length} OR epic_name ILIKE $${params.length})`);
   }
   const alertClauses = (filters.alertFilters ?? [])
-    .map((alertFilter) => (filters.engineMode === 'scoring' ? buildBadgeFilterClause(alertFilter, params) : buildAlertFilterClause(alertFilter, params)))
+    .map((alertFilter) => buildFieldFilterClause(alertFilter, filters.engineMode)
+      ?? (filters.engineMode === 'scoring' ? buildBadgeFilterClause(alertFilter, params) : buildAlertFilterClause(alertFilter, params)))
     .filter((clause): clause is string => Boolean(clause));
   if (alertClauses.length > 0) clauses.push(`(${alertClauses.map((clause) => `(${clause})`).join(' OR ')})`);
 
   return { sql: clauses.join(' AND '), params };
+}
+
+/** Vietnam calendar date as "YYYY-MM-DD" text — comparable with the ISO date strings in row_data. */
+const VN_TODAY_TEXT_SQL = "to_char((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date, 'YYYY-MM-DD')";
+
+/**
+ * TTM Dashboard sub-link filters (2026-10-01) — plain field checks, same for both engines except
+ * where "Chờ golive" is read (badge in scoring, releaseAxisState in legacy). Mirrors the first
+ * switch in matchesAlertFilter / waitingGoliveBucket (epic-row-verdicts.ts) exactly; returns null
+ * for every other filter value so the engine-specific builders handle those.
+ */
+function buildFieldFilterClause(alertFilter: string | undefined, engineMode: ScoringEngineMode | undefined): string | null {
+  const hasR4g = "(row_data->>'r4gDate') IS NOT NULL";
+  const waiting = engineMode === 'scoring' ? "badge_codes @> ARRAY['RELEASE_WAITING_GOLIVE']" : "row_data->>'releaseAxisState' = 'WAITING_GOLIVE'";
+  const withinGrace = `(row_data->>'releaseGraceDeadline') IS NOT NULL AND ${VN_TODAY_TEXT_SQL} <= (row_data->>'releaseGraceDeadline')`;
+  switch (alertFilter) {
+    case 'FAIL_LATE_R4G': return `ttm_cntt_in_scope AND alert_level = 'FAIL' AND ${hasR4g}`;
+    case 'FAIL_MISSING_R4G': return `ttm_cntt_in_scope AND alert_level = 'FAIL' AND NOT ${hasR4g}`;
+    case 'DATA_ANOMALY_IN_SCOPE': return 'ttm_cntt_in_scope AND has_data_anomaly';
+    case 'MISSING_R4G_IN_SCOPE': return `ttm_cntt_in_scope AND NOT has_data_anomaly AND NOT ${hasR4g}`;
+    case 'TTM_ELIGIBLE_IN_SCOPE': return `ttm_cntt_in_scope AND ${hasR4g} AND NOT has_data_anomaly`;
+    case 'WAITING_GOLIVE_MISSING_R4G': return `${waiting} AND NOT ${hasR4g}`;
+    case 'WAITING_GOLIVE_WITHIN_GRACE': return `${waiting} AND ${hasR4g} AND (${withinGrace})`;
+    case 'WAITING_GOLIVE_OVERDUE': return `${waiting} AND ${hasR4g} AND NOT (${withinGrace})`;
+    default: return null;
+  }
 }
 
 /** Scoring engine: a "Nhận xét" filter value is a set of badge codes (FILTER_PRESETS); a value with

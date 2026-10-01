@@ -13,7 +13,7 @@ import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import { EpicAlertTimeline } from '@/components/epic-alerts/EpicAlertTimeline';
 import { DataAnomalyBadge, DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
 import { hasScoringExtraBadges, ScoringExtraBadges } from '@/components/epic-alerts/ScoringBadges';
-import { alertFilterOptionsFor, isTtmCnttAchieved, isTtmE2eAchieved, matchesAlertFilter } from '@/lib/epic-row-verdicts';
+import { alertFilterOptionsFor, findingOf, isWaitingGolive, isTtmCnttAchieved, isTtmE2eAchieved, matchesAlertFilter } from '@/lib/epic-row-verdicts';
 import type { AlertFilterValue } from '@/lib/epic-row-verdicts';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import type { EpicAlertAccessRole, EpicAlertPhasedResponse, EpicAlertRowPhased, PhaseCell } from '@/lib/epic-alert-types';
@@ -457,13 +457,13 @@ export default function EpicInPoPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [projectFilters, setProjectFilters] = useState<string[]>([]);
-  const [pmSmFilter, setPmSmFilter] = useState('');
+  const [pmSmFilters, setPmSmFilters] = useState<string[]>([]);
   const [componentFilters, setComponentFilters] = useState<string[]>([]);
   const [projectComponents, setProjectComponents] = useState<ProjectComponent[]>([]);
   const [alertFilter, setAlertFilter] = useState<AlertFilterValue>('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
-  const [requestingUnitFilter, setRequestingUnitFilter] = useState('');
+  const [requestingUnitFilters, setRequestingUnitFilters] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   // "Bộ lọc nâng cao" — collapsed by default; see epic-alerts-15/page.tsx for the shared pattern
@@ -545,12 +545,12 @@ export default function EpicInPoPage() {
       // is always sent once known (see inPoRawStatuses above) — this screen's whole scope depends
       // on it, unlike epic-alerts-15 where an empty Status filter genuinely means "no filter".
       if (projectFilters.length > 0) query.set('projectKeys', projectFilters.join(','));
-      if (pmSmFilter) query.set('pmSm', pmSmFilter);
+      if (pmSmFilters.length > 0) query.set('pmSm', pmSmFilters.join(','));
       if (componentFilters.length > 0) query.set('components', componentFilters.join(','));
       if (alertFilter) query.set('alertFilter', alertFilter);
       if (typeFilter) query.set('epicType', typeFilter);
       if (effectiveStatuses.length > 0) query.set('statuses', effectiveStatuses.join(','));
-      if (requestingUnitFilter) query.set('requestingUnit', requestingUnitFilter);
+      for (const unit of requestingUnitFilters) query.append('requestingUnit', unit);
       if (debouncedSearch) query.set('search', debouncedSearch);
       query.set('page', String(page));
       query.set('pageSize', String(PAGE_SIZE));
@@ -576,8 +576,8 @@ export default function EpicInPoPage() {
     void Promise.resolve().then(fetchData);
   }, [
     layerWindowKey, createdDateFrom, startDateFromFilter, dueDateFromFilter,
-    projectFilters, pmSmFilter, componentFilters, alertFilter, typeFilter, effectiveStatusesKey,
-    requestingUnitFilter, debouncedSearch, page,
+    projectFilters, pmSmFilters, componentFilters, alertFilter, typeFilter, effectiveStatusesKey,
+    requestingUnitFilters, debouncedSearch, page,
   ]);
 
   useEffect(() => {
@@ -658,15 +658,15 @@ export default function EpicInPoPage() {
     return rows.filter((row) => {
       const normalizedSearch = search.trim().toLocaleLowerCase('vi-VN');
       return (projectFilters.length === 0 || projectFilters.includes(row.projectKey))
-        && (!pmSmFilter || row.ownerName.split(',').map((name) => name.trim()).includes(pmSmFilter))
+        && (pmSmFilters.length === 0 || row.ownerName.split(',').map((name) => name.trim()).some((name) => pmSmFilters.includes(name)))
         && (componentFilters.length === 0 || row.components.some((component) => componentFilters.includes(component)))
         && matchesAlertFilter(row, alertFilter)
         && (!typeFilter || row.epicType === typeFilter)
         && (statusFilters.length === 0 || statusFilters.includes(row.currentStatus))
-        && (!requestingUnitFilter || row.requestingUnit === requestingUnitFilter)
+        && (requestingUnitFilters.length === 0 || (row.requestingUnit !== null && requestingUnitFilters.includes(row.requestingUnit)))
         && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch));
     });
-  }, [data?.mode, rows, projectFilters, pmSmFilter, componentFilters, alertFilter, typeFilter, statusFilters, requestingUnitFilter, search]);
+  }, [data?.mode, rows, projectFilters, pmSmFilters, componentFilters, alertFilter, typeFilter, statusFilters, requestingUnitFilters, search]);
 
   const totalPages = data?.mode === 'paged'
     ? Math.max(1, Math.ceil((data.totalCount ?? 0) / (data.pageSize ?? PAGE_SIZE)))
@@ -705,21 +705,20 @@ export default function EpicInPoPage() {
         )}
         <ToolbarMultiSelect
           ariaLabel="Dự án"
+          searchable
           allLabel="Tất cả dự án của tôi"
           options={projectOptions}
           value={projectFilters}
           onChange={(values) => { setDomainFilter(''); handleProjectFiltersChange(values); }}
         />
-        <select
-          className={`ttm-select${pmSmFilter ? ' has-filter' : ''}`}
-          aria-label="PM/SM"
-          value={pmSmFilter}
-          onChange={(event) => { setPmSmFilter(event.target.value); setPage(1); }}
-          title="Lọc theo PM/SM của dự án — hiển thị Epic của mọi dự án do người này phụ trách"
-        >
-          <option value="">Tất cả PM/SM</option>
-          {pmSmOptions.map((name) => <option key={name} value={name}>{name}</option>)}
-        </select>
+        <ToolbarMultiSelect
+          ariaLabel="PM/SM"
+          searchable
+          allLabel="Tất cả PM/SM"
+          options={pmSmOptions}
+          value={pmSmFilters}
+          onChange={(values) => { setPmSmFilters(values); setPage(1); }}
+        />
         <ToolbarMultiSelect
           ariaLabel="Components"
           allLabel={projectFilters.length === 0 ? 'Chọn dự án trước' : 'Tất cả Components'}
@@ -752,15 +751,14 @@ export default function EpicInPoPage() {
           value={statusFilters}
           onChange={(values) => { setStatusFilters(values); setPage(1); }}
         />
-        <select
-          className={`ttm-select${requestingUnitFilter ? ' has-filter' : ''}`}
-          aria-label="Đơn vị yêu cầu"
-          value={requestingUnitFilter}
-          onChange={(event) => { setRequestingUnitFilter(event.target.value); setPage(1); }}
-        >
-          <option value="">Tất cả đơn vị yêu cầu</option>
-          {requestingUnitOptions.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
-        </select>
+        <ToolbarMultiSelect
+          ariaLabel="Đơn vị yêu cầu"
+          searchable
+          allLabel="Tất cả đơn vị yêu cầu"
+          options={requestingUnitOptions}
+          value={requestingUnitFilters}
+          onChange={(values) => { setRequestingUnitFilters(values); setPage(1); }}
+        />
         <input
           className={`ttm-field ttm-search-field${search.trim() ? ' has-filter' : ''}`}
           type="search"
@@ -936,7 +934,7 @@ export default function EpicInPoPage() {
                         // always wins over every other TTM-CNTT badge below.
                         const hasCnttBadge = !row.ttmCnttInScope || row.ttmCnttStatusMismatch || row.alertLevel !== 'NONE' || ttmCnttAchieved;
                         const hasE2eBadge = row.ttmE2eAlertLevel === 'FAIL' || ttmE2eAchieved;
-                        const hasReleaseBadge = row.releaseAxisState !== 'NONE';
+                        const hasReleaseBadge = row.releaseAxisState !== 'NONE' || isWaitingGolive(row);
                         const hasAnyBadge = hasCnttBadge || hasE2eBadge || hasReleaseBadge || row.hasDataAnomaly || hasScoringExtraBadges(row);
 
                         return (
@@ -958,6 +956,10 @@ export default function EpicInPoPage() {
                             ) : ttmCnttAchieved ? (
                               <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT (QLDA) đúng hạn theo rule">Đạt TTM-CNTT (QLDA)</span>
                             ) : null}
+                            {/* Scoring Service (2026-10-01): "Sai Status" no longer takes the pass away — both show. */}
+                            {row.ttmCnttInScope && row.ttmCnttStatusMismatch && ttmCnttAchieved && (
+                              <span className="ttm-badge-achieved" title="R4G Date đúng hạn — vẫn tính Đạt; cần cập nhật status Epic sang R4GOLIVE">Đạt TTM-CNTT (QLDA)</span>
+                            )}
 
                             {row.ttmE2eAlertLevel === 'FAIL' ? (
                               <span className="ttm-badge fail-e2e">Fail TTM-E2E</span>
@@ -965,11 +967,12 @@ export default function EpicInPoPage() {
                               <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-E2E đúng hạn theo rule (T0 → R4G Date) và đã Released">Đạt TTM-e2e</span>
                             ) : null}
 
-                            {row.releaseAxisState === 'WAITING_GOLIVE' ? (
-                              <Tooltip content={`Epic đã có R4G Date, còn trong hạn ${formatDate(row.releaseGraceDeadline)} (R4G Date + 5 ngày làm việc) và chưa có Due Date.`} className="inline-flex w-auto">
+                            {isWaitingGolive(row) && (
+                              <Tooltip content={findingOf(row, 'RELEASE_WAITING_GOLIVE')?.message ?? `Epic đã có R4G Date, còn trong hạn ${formatDate(row.releaseGraceDeadline)} (R4G Date + 5 ngày làm việc) và chưa có Due Date.`} className="inline-flex w-auto">
                                 <span className="ttm-badge waiting-golive">Chờ golive</span>
                               </Tooltip>
-                            ) : row.releaseAxisState === 'EARLY_WARNING' ? (
+                            )}
+                            {row.releaseAxisState === 'EARLY_WARNING' ? (
                               <Tooltip content={`Đã qua R4GOLIVE, còn trong hạn ${formatDate(row.releaseGraceDeadline)} để có Due Date hợp lệ và chuyển status Released.`} className="inline-flex w-auto">
                                 <span className="ttm-badge early-warning">Cảnh báo sớm</span>
                               </Tooltip>

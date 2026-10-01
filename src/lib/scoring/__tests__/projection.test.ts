@@ -62,20 +62,48 @@ describe('projection onto legacy rows (display engine "scoring")', () => {
     assert.equal(isTtmCnttAchieved(row), false);
   });
 
-  it('Sai Status: filter STATUS_MISMATCH matches, ACHIEVED_CNTT does not, Index counts it as not passed', () => {
+  it('Sai Status: filters STATUS_MISMATCH and ACHIEVED_CNTT both match, Index counts it as passed', () => {
     const card = scoreEpic(makeFacts({ r4gDate: '2026-08-20', status: 'TEST' }), makeContext());
     const row = projectScorecardOntoRow(legacyRow({ r4gDate: '2026-08-20' }), card);
     assert.ok(matchesAlertFilter(row, 'STATUS_MISMATCH'));
-    assert.ok(!matchesAlertFilter(row, 'ACHIEVED_CNTT'));
+    assert.ok(matchesAlertFilter(row, 'ACHIEVED_CNTT'));
+    assert.ok(row.ttmCnttStatusMismatch && isTtmCnttAchieved(row));
     assert.ok(!matchesAlertFilter(row, 'EARLY'));
-    assert.equal(isTtmIndexPass(row), false);
+    assert.equal(isTtmIndexPass(row), true);
     const summary = summarizeTtmCntt([row]);
-    assert.deepEqual([summary.eligible, summary.pass], [1, 0]);
+    assert.deepEqual([summary.eligible, summary.pass], [1, 1]);
   });
 
   it('legacy rows (no scoring fields) keep the legacy formulas', () => {
     const row = legacyRow({ alertLevel: 'NONE', r4gDate: '2026-08-20', ttmActualToDate: '2026-08-20', hasDataAnomaly: false, ttmCnttStatusMismatch: true });
     assert.ok(matchesAlertFilter(row, 'STATUS_MISMATCH'));
     assert.equal(isTtmIndexPass(row), true); // legacy D1 behavior, unchanged in legacy mode
+  });
+});
+
+describe('"Chờ golive" + "Giải trình Golive" on the same Epic (rule 2026-10-01)', () => {
+  it('both badges are readable although releaseAxisState keeps only one', async () => {
+    const { isJustifyGolive, isWaitingGolive, waitingGoliveBucket } = await import('@/lib/epic-row-verdicts');
+    const card = scoreEpic(makeFacts({ status: 'R4GOLIVE', r4gDate: '2026-08-20' }), makeContext({ asOf: '2026-09-15' }));
+    const row = projectScorecardOntoRow(legacyRow({ r4gDate: '2026-08-20' }), card);
+    assert.equal(row.releaseAxisState, 'JUSTIFY_GOLIVE');
+    assert.ok(isWaitingGolive(row) && isJustifyGolive(row));
+    assert.equal(waitingGoliveBucket(row, '2026-09-15'), 'OVERDUE');
+    assert.equal(waitingGoliveBucket(row, '2026-08-21'), 'WITHIN_GRACE');
+    assert.ok(matchesAlertFilter(row, 'WAITING_GOLIVE') && matchesAlertFilter(row, 'JUSTIFY_GOLIVE'));
+  });
+});
+
+describe('"Fail TTM" split (Ma trận Phân bổ)', () => {
+  it('Trễ R4G (in the denominator) vs Thiếu R4G (outside it)', async () => {
+    const { ttmFailKind } = await import('@/lib/epic-row-verdicts');
+    const lateR4g = projectScorecardOntoRow(legacyRow({ r4gDate: '2026-08-24' }), scoreEpic(makeFacts({ r4gDate: '2026-08-24', status: 'R4GOLIVE' }), makeContext()));
+    const noR4g = projectScorecardOntoRow(legacyRow(), scoreEpic(makeFacts(), makeContext({ asOf: '2026-08-31' })));
+    assert.equal(ttmFailKind(lateR4g), 'LATE_R4G');
+    assert.ok(lateR4g.scoringIndexFlags?.includes('TTM_ELIGIBLE'));
+    assert.equal(ttmFailKind(noR4g), 'MISSING_R4G');
+    assert.ok(!noR4g.scoringIndexFlags?.includes('TTM_ELIGIBLE'));
+    assert.ok(matchesAlertFilter(lateR4g, 'FAIL_LATE_R4G') && !matchesAlertFilter(lateR4g, 'FAIL_MISSING_R4G'));
+    assert.ok(matchesAlertFilter(noR4g, 'FAIL_MISSING_R4G') && matchesAlertFilter(noR4g, 'FAIL'));
   });
 });

@@ -84,11 +84,28 @@ describe('TTM-CNTT', () => {
     assert.ok(active({ ...facts, r4gDate: '2026-08-24' }, ctx).has('CNTT_FAIL'));
   });
 
-  it('Sai Status (D1): R4G reached on time but status < R4GOLIVE → RECOMMENDATION, never Đạt, not Index pass', () => {
+  it('Sai Status (2026-10-01): R4G reached on time but status < R4GOLIVE → still Đạt, plus the Sai Status recommendation', () => {
     const card = scoreEpic(makeFacts({ r4gDate: '2026-08-20', status: 'TEST' }), ctx);
     assert.ok(hasBadge(card, 'CNTT_STATUS_MISMATCH'));
-    assert.ok(!hasBadge(card, 'CNTT_PASS'));
-    assert.deepEqual(card.indexMembership.ttm, { counted: true, eligible: true, pass: false, fail: false });
+    assert.ok(hasBadge(card, 'CNTT_PASS'));
+    assert.deepEqual(card.indexMembership.ttm, { counted: true, eligible: true, pass: true, fail: false });
+    // A future-dated R4G Date gets neither badge until asOf reaches it.
+    const future = active(makeFacts({ r4gDate: '2026-08-20', status: 'TEST' }), makeContext({ asOf: '2026-08-10' }));
+    assert.ok(!future.has('CNTT_PASS') && !future.has('CNTT_STATUS_MISMATCH'));
+  });
+
+  it('Sai lệch dữ liệu is checked first: no Đạt/Fail/Cảnh báo muộn/Sai Status on any TTM axis', () => {
+    const late = makeContext({ asOf: '2026-12-01' });
+    const failing = scoreEpic(makeFacts({ requirementLevel: '' }), late);
+    assert.ok(hasBadge(failing, 'ANOMALY_R5_MISSING_REQUIREMENT_LEVEL'));
+    assert.ok(!failing.findings.some((item) => ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH', 'E2E_FAIL', 'E2E_PASS', 'E2E_STATUS_MISMATCH'].includes(item.badge)));
+    assert.deepEqual(failing.indexMembership.ttm, { counted: true, eligible: false, pass: false, fail: false });
+    const passing = scoreEpic(makeFacts({ requirementLevel: '', r4gDate: '2026-08-20', status: 'TEST' }), late);
+    assert.ok(!passing.findings.some((item) => item.badge === 'CNTT_PASS' || item.badge === 'E2E_PASS'));
+    // "Pending lâu" (R2) and Release "Sai Status" (R7) are recommendations — they don't gate.
+    assert.ok(active(makeFacts({ status: 'Pending' }), late).has('CNTT_FAIL'));
+    // A disabled anomaly rule doesn't gate either.
+    assert.ok(active(makeFacts({ requirementLevel: '' }), makeContext({ asOf: '2026-12-01', ruleEnabled: { ANOMALY_R5_MISSING_REQUIREMENT_LEVEL: false } })).has('CNTT_FAIL'));
   });
 
   it('future R4G Date: in the Index denominator but not passed yet (Q3)', () => {
@@ -121,13 +138,27 @@ describe('TTM-CNTT', () => {
 });
 
 describe('TTM-E2E', () => {
-  it('fails from the Target day while the end date is not recorded; recorded end compares strictly', () => {
+  it('Target_E2E = T0 +wd (N − 1); without an end date the Epic fails once asOf passes Target', () => {
     const facts = makeFacts();
     const target = deriveMetrics(facts, makeContext()).e2eTargetDate!;
-    assert.ok(!active(facts, makeContext({ asOf: addWorkingDays(target, -1, NO_HOLIDAYS) })).has('E2E_FAIL'));
-    assert.ok(active(facts, makeContext({ asOf: target })).has('E2E_FAIL'));
-    const released = makeFacts({ r4gDate: target, status: 'Released', dueDate: target });
-    assert.ok(active(released, makeContext({ asOf: '2026-12-01' })).has('E2E_PASS'));
+    assert.equal(target, addWorkingDays('2026-07-27', 19, NO_HOLIDAYS));
+    assert.ok(!active(facts, makeContext({ asOf: target })).has('E2E_FAIL'));
+    assert.ok(active(facts, makeContext({ asOf: addWorkingDays(target, 1, NO_HOLIDAYS) })).has('E2E_FAIL'));
+  });
+
+  it('Đạt: end date reached and ≤ Target — no Released requirement; status < R4GOLIVE adds Sai Status', () => {
+    const target = deriveMetrics(makeFacts(), makeContext()).e2eTargetDate!;
+    const late = makeContext({ asOf: '2026-12-01' });
+    const atR4g = active(makeFacts({ r4gDate: target, status: 'R4GOLIVE' }), late);
+    assert.ok(atR4g.has('E2E_PASS') && !atR4g.has('E2E_STATUS_MISMATCH'));
+    const lowStatus = active(makeFacts({ r4gDate: target, status: 'TEST' }), late);
+    assert.ok(lowStatus.has('E2E_PASS') && lowStatus.has('E2E_STATUS_MISMATCH'));
+    assert.ok(active(makeFacts({ r4gDate: addWorkingDays(target, 1, NO_HOLIDAYS), status: 'Released' }), late).has('E2E_FAIL'));
+    // Future-dated end: not judged yet when on time, already Fail when past Target.
+    const before = makeContext({ asOf: '2026-08-03' });
+    const onTimeFuture = active(makeFacts({ r4gDate: target, status: 'R4GOLIVE' }), before);
+    assert.ok(!onTimeFuture.has('E2E_PASS') && !onTimeFuture.has('E2E_FAIL'));
+    assert.ok(active(makeFacts({ r4gDate: addWorkingDays(target, 1, NO_HOLIDAYS) }), before).has('E2E_FAIL'));
   });
 
   it('missing T0 → baseline from Jira creation date + recommendation', () => {
