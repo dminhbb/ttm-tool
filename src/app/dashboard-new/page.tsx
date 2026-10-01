@@ -30,8 +30,8 @@ import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import { DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
 import { compareValues, useSortableList } from '@/lib/use-sortable-list';
-import { formatTtmPct1, summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
-import { isTtmIndexEligible, isTtmIndexPass } from '@/lib/epic-row-verdicts';
+import { formatTtmPct1, summarizeE2e, summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
+import { isTtmIndexEligible, isTtmIndexPass, vnTodayIso } from '@/lib/epic-row-verdicts';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import { computeQaInScope, computeTtmCnttInScope } from '@/lib/ttm-scope-rules';
 import { buildEpicAlertsDeepLink } from '@/lib/epic-alerts-deep-link';
@@ -100,7 +100,7 @@ interface DashboardNewPayload {
 
 type DimensionKey = 'domain' | 'epicType' | 'pmsm' | 'project';
 type OperationalTab = 'WAITING_GOLIVE' | 'PENDING' | 'ANOMALY';
-type MatrixSortKey = 'late' | 'name' | 'ok' | 'qaPct' | 'qldaFail' | 'qldaPass' | 'qldaPct' | 'total';
+type MatrixSortKey = 'late' | 'name' | 'ok' | 'qaPct' | 'qldaFail' | 'qldaPass' | 'qldaPct' | 'ttmEligible' | 'total';
 
 const DIMENSION_LABELS: Record<DimensionKey, string> = {
   domain: 'Theo Domain',
@@ -154,6 +154,7 @@ function matrixSortValue(item: DimensionMatrixItem, key: MatrixSortKey): number 
   switch (key) {
     case 'name': return item.name;
     case 'total': return item.total;
+    case 'ttmEligible': return item.qlda.eligible;
     case 'qldaPct': return item.qlda.pctPrecise;
     case 'qldaPass': return item.qlda.pass;
     case 'qldaFail': return item.qlda.fail;
@@ -174,7 +175,7 @@ const ALERT_BADGE_VARIANT: Record<AlertLevel, 'danger' | 'info' | 'neutral' | 'w
 const ALERT_BADGE_LABEL: Record<AlertLevel, string> = {
   EARLY: 'Cảnh báo sớm',
   FAIL: 'Fail TTM-CNTT (QLDA)',
-  LATE: 'Cảnh báo muộn',
+  LATE: 'Chậm tiến độ',
   NONE: 'Đạt / Không cảnh báo',
 };
 
@@ -352,36 +353,61 @@ export default function DashboardNewPage() {
   // Epic Scoring Service rows (display engine 'scoring') have no "Cảnh báo sớm" any more (D4).
   const isScoringEngine = useMemo(() => filteredRows.some((row) => Boolean(row.scoringBadges)), [filteredRows]);
   const executiveMetrics = useMemo(() => {
-    const total = filteredRows.length;
-    let failE2e = 0;
+    // "Tổng số Epic" excludes Epic "Ngoài phạm vi dữ liệu cho TTM" (SCOPE_CNTT_OUT /
+    // !ttmCnttInScope) — same universe the TTM-CNTT (QLDA) ring's mẫu số is drawn from, so the two
+    // numbers on this header are always directly comparable.
+    const inScopeRows = filteredRows.filter((row) => row.ttmCnttInScope);
+    const total = inScopeRows.length;
+    // "Sai lệch dữ liệu" sub-link under "Tổng số Epic" — same scope (ttmCnttInScope) as `total`
+    // itself, so the sub-link's count is always a true subset of the tile above it.
+    const anomalyInScopeCount = inScopeRows.filter((row) => row.hasDataAnomaly).length;
+    // "Chưa có R4G Date" sub-link — mutually exclusive with anomalyInScopeCount (excludes
+    // hasDataAnomaly rows) so total − anomalyInScopeCount − missingR4gInScopeCount always lands
+    // exactly on eligibleTtm (mẫu số TTM-CNTT (QLDA)), matching isTtmIndexEligible's own gate.
+    const missingR4gInScopeCount = inScopeRows.filter((row) => !row.hasDataAnomaly && !row.r4gDate).length;
     let lateWarning = 0;
     let earlyWarning = 0;
     let anomalyCount = 0;
     let waitingGolive = 0;
+    // "Chờ golive" (rule 2026-10-01) no longer needs R4G Date, so it splits 3 ways: no R4G Date yet,
+    // or R4G Date recorded and still within/past the 5-working-day grace deadline — same `vnTodayIso`
+    // used by matchesAlertFilter's WAITING_GOLIVE_* filters, so these counts and what the sub-link
+    // click opens always agree.
+    let waitingGoliveMissingR4g = 0;
+    let waitingGoliveWithinGrace = 0;
+    let waitingGoliveOverdue = 0;
     let justifyGolive = 0;
+    const today = vnTodayIso();
 
     for (const row of filteredRows) {
       if (row.ttmCnttInScope && row.alertLevel === 'LATE') lateWarning += 1;
       else if (row.ttmCnttInScope && row.alertLevel === 'EARLY') earlyWarning += 1;
 
-      if (row.ttmE2eAlertLevel === 'FAIL') failE2e += 1;
       if (row.hasDataAnomaly) anomalyCount += 1;
-      if (row.releaseAxisState === 'WAITING_GOLIVE') waitingGolive += 1;
-      else if (row.releaseAxisState === 'JUSTIFY_GOLIVE') justifyGolive += 1;
+      if (row.releaseAxisState === 'WAITING_GOLIVE') {
+        waitingGolive += 1;
+        if (!row.r4gDate) waitingGoliveMissingR4g += 1;
+        else if (row.releaseGraceDeadline && today <= row.releaseGraceDeadline) waitingGoliveWithinGrace += 1;
+        else waitingGoliveOverdue += 1;
+      } else if (row.releaseAxisState === 'JUSTIFY_GOLIVE') justifyGolive += 1;
     }
 
     const ttmCntt = summarizeTtmCntt(filteredRows);
 
     return {
       anomalyCount,
+      anomalyInScopeCount,
+      missingR4gInScopeCount,
       earlyWarning,
       eligibleTtm: ttmCntt.eligible,
       failCntt: ttmCntt.fail,
-      failE2e,
       justifyGolive,
       lateWarning,
       passTtm: ttmCntt.pass,
       waitingGolive,
+      waitingGoliveMissingR4g,
+      waitingGoliveWithinGrace,
+      waitingGoliveOverdue,
       total,
       ttmHealthPct: ttmCntt.pct,
       ttmHealthPctPrecise: ttmCntt.pctPrecise,
@@ -393,6 +419,10 @@ export default function DashboardNewPage() {
   // within the user's data-access scope and whatever project/domain/search filter is active, same
   // as executiveMetrics above.
   const qaMetrics = useMemo(() => summarizeQaIndex(filteredRows), [filteredRows]);
+
+  // TTM-E2E "Health Index Ring" — same summarizeE2e() the company-wide cache uses (see
+  // ttm-index-global-cache-service.ts), just over filteredRows instead of every Epic in the system.
+  const e2eMetrics = useMemo(() => summarizeE2e(filteredRows), [filteredRows]);
 
   // Drills a KPI tile/matrix cell down into "Quản trị Epic" (epic-alerts-15) pre-filtered to exactly
   // what produced that number — carries over whatever project/domain/PM-SM/requesting-unit/search
@@ -419,7 +449,7 @@ export default function DashboardNewPage() {
     } : {}),
   });
 
-  const toEpicAlertsLinkForMatrixItem = (item: { name: string }, metricType: 'total' | 'pass' | 'fail' | 'ok' | 'late' | 'qa' | 'qaPass') => {
+  const toEpicAlertsLinkForMatrixItem = (item: { name: string }, metricType: 'total' | 'pass' | 'fail' | 'ok' | 'late' | 'qa' | 'qaPass' | 'ttmEligible') => {
     const extraParams: EpicAlertsDeepLinkParams = {};
 
     // Dimension scope
@@ -453,6 +483,8 @@ export default function DashboardNewPage() {
     } else if (metricType === 'qaPass') {
       extraParams.status = ['MVP Done', 'Released'];
       extraParams.alert = 'ACHIEVED_CNTT';
+    } else if (metricType === 'ttmEligible') {
+      extraParams.alert = 'TTM_ELIGIBLE_IN_SCOPE';
     }
 
     return toEpicAlertsLink(extraParams);
@@ -649,7 +681,8 @@ export default function DashboardNewPage() {
   }, [pipelinePhases]);
 
   const renderKpiStrip = () => (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-9">
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
+    <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
       {/* Health Index Ring — TTM-CNTT (QLDA), scoped to this dashboard's filters (filteredRows) */}
       <div className="col-span-2 sm:col-span-2 lg:col-span-1 rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs flex items-center justify-start gap-3">
         <div
@@ -690,16 +723,66 @@ export default function DashboardNewPage() {
         </div>
       </div>
 
+      {/* Health Index Ring — TTM-E2E, scoped to this dashboard's filters (filteredRows). Clicking
+          opens "Quản trị Epic" filtered to Fail TTM-E2E (replaces the old "Fail TTM-E2E" tile). */}
       <button
         type="button"
-        onClick={() => openEpicModal(toEpicAlertsLink(), 'Danh sách Epic - Tổng số Epic')}
-        className="block text-left rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs transition-all hover:border-fb-blue hover:shadow-sm cursor-pointer w-full"
-        title="Xem tất cả Epic trong phạm vi lọc"
+        onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'FAIL_E2E' }), 'Danh sách Epic - Fail TTM-E2E')}
+        className="col-span-2 sm:col-span-2 lg:col-span-1 flex items-center justify-start gap-3 rounded-xl border border-fb-border bg-fb-surface p-3 text-left shadow-xs transition-all hover:border-emerald-400 hover:shadow-sm cursor-pointer w-full"
+        title="Xem danh sách Epic Fail TTM-E2E ở Quản trị Epic"
       >
-        <p className="text-[10px] font-bold uppercase text-fb-text-secondary">Tổng số Epic</p>
-        <p className="mt-1 text-xl font-extrabold text-fb-text-primary">{executiveMetrics.total}</p>
-        <p className="text-[10px] text-fb-text-secondary">Thuộc phạm vi lọc</p>
+        <div
+          className="relative flex size-14 shrink-0 items-center justify-center rounded-full"
+          style={{
+            background: e2eMetrics.total > 0
+              ? `conic-gradient(#059669 0% ${e2eMetrics.pctPrecise}%, #e4e6eb ${e2eMetrics.pctPrecise}% 100%)`
+              : '#e4e6eb',
+          }}
+        >
+          <div className="flex size-10 items-center justify-center rounded-full bg-fb-surface font-extrabold text-xs text-emerald-700">
+            {e2eMetrics.total > 0 ? `${formatTtmPct1(e2eMetrics.pctPrecise)}%` : '—'}
+          </div>
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-bold text-fb-text-primary">Hoàn thành TTM-E2E</p>
+          <p className="text-[10px] text-fb-text-secondary">
+            {e2eMetrics.total > 0 ? `${e2eMetrics.pass}/${e2eMetrics.eligible}` : 'Chưa có Epic'}
+          </p>
+        </div>
       </button>
+
+      <div className="rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs">
+        <p className="text-[10px] font-bold uppercase text-fb-text-secondary">
+          <button
+            type="button"
+            onClick={() => openEpicModal(toEpicAlertsLink(), 'Danh sách Epic - Tổng số Epic')}
+            className="hover:underline cursor-pointer"
+            title="Xem tất cả Epic trong phạm vi lọc"
+          >
+            Tổng số Epic
+          </button>
+        </p>
+        <p className="mt-1 text-xl font-extrabold text-fb-text-primary">{executiveMetrics.total}</p>
+        <p className="text-[10px] text-fb-text-secondary flex flex-wrap gap-x-1.5">
+          <button
+            type="button"
+            onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'DATA_ANOMALY_IN_SCOPE' }), 'Danh sách Epic - Sai lệch dữ liệu (trong phạm vi TTM-CNTT)')}
+            className="underline-offset-2 hover:underline cursor-pointer font-bold"
+            title="Xem danh sách Epic Sai lệch dữ liệu (trong phạm vi TTM-CNTT) ở Quản trị Epic"
+          >
+            {executiveMetrics.anomalyInScopeCount} sai lệch dữ liệu
+          </button>
+          ·
+          <button
+            type="button"
+            onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'MISSING_R4G_IN_SCOPE' }), 'Danh sách Epic - Chưa có R4G Date (trong phạm vi TTM-CNTT)')}
+            className="underline-offset-2 hover:underline cursor-pointer font-bold"
+            title="Xem danh sách Epic chưa có R4G Date (trong phạm vi TTM-CNTT) ở Quản trị Epic — Tổng số Epic trừ Sai lệch dữ liệu trừ Chưa có R4G Date = mẫu số TTM-CNTT (QLDA)"
+          >
+            {executiveMetrics.missingR4gInScopeCount} chưa có R4G Date
+          </button>
+        </p>
+      </div>
 
       <button
         type="button"
@@ -712,26 +795,23 @@ export default function DashboardNewPage() {
         <p className="text-[10px] text-red-600 font-medium">Vượt R4G Target</p>
       </button>
 
-      <button
-        type="button"
-        onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'FAIL_E2E' }), 'Danh sách Epic - Fail TTM-E2E')}
-        className="block text-left rounded-xl border border-red-200 bg-red-50/50 p-3 shadow-xs transition-all hover:border-red-400 hover:shadow-sm cursor-pointer w-full"
-        title="Xem danh sách Epic Fail TTM-E2E ở Quản trị Epic"
-      >
-        <p className="text-[10px] font-bold uppercase text-status-danger">Fail TTM-E2E</p>
-        <p className="mt-1 text-xl font-extrabold text-status-danger">{executiveMetrics.failE2e}</p>
-        <p className="text-[10px] text-red-600 font-medium">Vượt Due Date Target</p>
-      </button>
+    </div>
 
+    {/* Vertical divider: separates the "identity" tiles (rings, Tổng số Epic, Fail TTM-CNTT) from
+        the operational-alert tiles to their right. lg-only — below that breakpoint the two grids
+        stack full-width, where a vertical line would have nothing to separate side-by-side. */}
+    <div className="hidden w-px shrink-0 bg-fb-border lg:block" aria-hidden="true" />
+
+    <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-4">
       <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 shadow-xs">
-        <p className="text-[10px] font-bold uppercase text-status-warning">{isScoringEngine ? 'Cảnh báo muộn' : 'Cảnh báo (Sớm/Muộn)'}</p>
+        <p className="text-[10px] font-bold uppercase text-status-warning">{isScoringEngine ? 'Chậm tiến độ' : 'Cảnh báo (Sớm/Muộn)'}</p>
         <p className="mt-1 text-xl font-extrabold text-status-warning">{executiveMetrics.lateWarning + executiveMetrics.earlyWarning}</p>
         <p className="text-[10px] text-amber-700 font-medium">
           <button
             type="button"
-            onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'LATE' }), 'Danh sách Epic - Cảnh báo muộn')}
+            onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'LATE' }), 'Danh sách Epic - Chậm tiến độ')}
             className="underline-offset-2 hover:underline cursor-pointer font-bold"
-            title="Xem danh sách Epic Cảnh báo muộn ở Quản trị Epic"
+            title="Xem danh sách Epic Chậm tiến độ ở Quản trị Epic"
           >
             {executiveMetrics.lateWarning} muộn
           </button>
@@ -758,16 +838,47 @@ export default function DashboardNewPage() {
         <p className="text-[10px] text-purple-600 font-medium">Vi phạm rule R1-R7</p>
       </button>
 
-      <button
-        type="button"
-        onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'WAITING_GOLIVE' }), 'Danh sách Epic - Chờ golive')}
-        className="block text-left rounded-xl border border-sky-200 bg-sky-50/50 p-3 shadow-xs transition-all hover:border-sky-400 hover:shadow-sm cursor-pointer w-full"
-        title="Xem danh sách Epic Chờ golive ở Quản trị Epic"
-      >
-        <p className="text-[10px] font-bold uppercase text-sky-700">Chờ golive</p>
+      <div className="rounded-xl border border-sky-200 bg-sky-50/50 p-3 shadow-xs">
+        <p className="text-[10px] font-bold uppercase text-sky-700">
+          <button
+            type="button"
+            onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'WAITING_GOLIVE' }), 'Danh sách Epic - Chờ golive')}
+            className="hover:underline cursor-pointer"
+            title="Xem danh sách Epic Chờ golive ở Quản trị Epic"
+          >
+            Chờ golive
+          </button>
+        </p>
         <p className="mt-1 text-xl font-extrabold text-sky-700">{executiveMetrics.waitingGolive}</p>
-        <p className="text-[10px] text-sky-600 font-medium">Trong hạn R4G Date + 5 ngày</p>
-      </button>
+        <p className="text-[10px] text-sky-700 font-medium flex flex-wrap gap-x-1.5">
+          <button
+            type="button"
+            onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'WAITING_GOLIVE_MISSING_R4G' }), 'Danh sách Epic - Chờ golive: Thiếu R4G Date')}
+            className="underline-offset-2 hover:underline cursor-pointer font-bold"
+            title="Xem danh sách Epic Chờ golive nhưng thiếu R4G Date ở Quản trị Epic"
+          >
+            {executiveMetrics.waitingGoliveMissingR4g} thiếu R4G
+          </button>
+          ·
+          <button
+            type="button"
+            onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'WAITING_GOLIVE_WITHIN_GRACE' }), 'Danh sách Epic - Chờ golive: Trong hạn')}
+            className="underline-offset-2 hover:underline cursor-pointer font-bold"
+            title="Xem danh sách Epic Chờ golive còn trong hạn R4G Date + 5 ngày làm việc ở Quản trị Epic"
+          >
+            {executiveMetrics.waitingGoliveWithinGrace} trong hạn
+          </button>
+          ·
+          <button
+            type="button"
+            onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'WAITING_GOLIVE_OVERDUE' }), 'Danh sách Epic - Chờ golive: Quá hạn')}
+            className="underline-offset-2 hover:underline cursor-pointer font-bold"
+            title="Xem danh sách Epic Chờ golive đã quá hạn R4G Date + 5 ngày làm việc ở Quản trị Epic"
+          >
+            {executiveMetrics.waitingGoliveOverdue} quá hạn
+          </button>
+        </p>
+      </div>
 
       <button
         type="button"
@@ -779,6 +890,7 @@ export default function DashboardNewPage() {
         <p className="mt-1 text-xl font-extrabold text-status-danger">{executiveMetrics.justifyGolive}</p>
         <p className="text-[10px] text-red-600 font-medium">Quá hạn R4G Date + 5 ngày</p>
       </button>
+    </div>
     </div>
   );
 
@@ -818,6 +930,7 @@ export default function DashboardNewPage() {
               <TR>
                 <TH sortDirection={matrixSortDirectionFor('name')} onClick={() => toggleMatrixSort('name')}>{DIMENSION_LABELS[dimensionKey]}</TH>
                 <TH className="text-center" sortDirection={matrixSortDirectionFor('total')} onClick={() => toggleMatrixSort('total')}>Tổng số Epic</TH>
+                <TH className="text-center" sortDirection={matrixSortDirectionFor('ttmEligible')} onClick={() => toggleMatrixSort('ttmEligible')} title="Mẫu số TTM-CNTT (QLDA) = Tổng số Epic − Sai lệch dữ liệu − Chưa có R4G Date">Epic tính TTM</TH>
                 <TH className="w-56" sortDirection={matrixSortDirectionFor('qldaPct')} onClick={() => toggleMatrixSort('qldaPct')}>TTM-CNTT (QLDA)</TH>
                 <TH className="text-center" sortDirection={matrixSortDirectionFor('qldaPass')} onClick={() => toggleMatrixSort('qldaPass')}>Pass TTM</TH>
                 <TH className="text-center" sortDirection={matrixSortDirectionFor('qldaFail')} onClick={() => toggleMatrixSort('qldaFail')}>Fail TTM</TH>
@@ -853,6 +966,19 @@ export default function DashboardNewPage() {
                       title={`Xem tất cả Epic của ${item.name}`}
                     >
                       {item.total}
+                    </button>
+                  </TD>
+                  <TD className="text-center font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => openEpicModal(
+                        toEpicAlertsLinkForMatrixItem(item, 'ttmEligible'),
+                        `Danh sách Epic - ${item.name} (Epic tính TTM)`
+                      )}
+                      className="text-fb-blue hover:underline cursor-pointer font-bold inline-block px-1.5 py-0.5 rounded-sm hover:bg-blue-50 transition-colors"
+                      title={`Xem danh sách Epic tính vào mẫu số TTM-CNTT (QLDA) của ${item.name}`}
+                    >
+                      {item.qlda.eligible}
                     </button>
                   </TD>
                   <TD>
@@ -1114,6 +1240,29 @@ export default function DashboardNewPage() {
                   {data?.ttmIndexGlobal?.qa && data.ttmIndexGlobal.qa.total > 0 && (
                     <span className="text-[10px] font-medium text-fb-text-secondary">
                       ({data.ttmIndexGlobal.qa.pass}/{data.ttmIndexGlobal.qa.eligible})
+                    </span>
+                  )}
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => openEpicModal(buildEpicAlertsDeepLink({ alert: 'FAIL_E2E' }), 'Quản trị Epic - Fail TTM-E2E')}
+              className="flex h-9 items-center gap-2 rounded-lg border border-fb-border bg-fb-surface-muted px-3 shrink-0 text-left transition-all hover:border-emerald-400 hover:bg-fb-surface shadow-2xs cursor-pointer group"
+              title={formatTtmIndexTooltip('Chỉ số Hoàn thành TTM-E2E tính trên toàn bộ Epic trong ứng dụng (giống nhau với mọi người dùng)', data?.ttmIndexGlobal?.e2e)}
+            >
+              <div className="flex flex-col justify-center leading-none">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-fb-text-secondary group-hover:text-emerald-700 transition-colors">
+                  TTM-E2E
+                </span>
+                <div className="flex items-baseline gap-1 mt-0.5">
+                  <span className="text-xs font-black text-emerald-700">
+                    {formatTtmIndexValue(data?.ttmIndexGlobal?.e2e)}
+                  </span>
+                  {data?.ttmIndexGlobal?.e2e && data.ttmIndexGlobal.e2e.total > 0 && (
+                    <span className="text-[10px] font-medium text-fb-text-secondary">
+                      ({data.ttmIndexGlobal.e2e.pass}/{data.ttmIndexGlobal.e2e.eligible})
                     </span>
                   )}
                 </div>

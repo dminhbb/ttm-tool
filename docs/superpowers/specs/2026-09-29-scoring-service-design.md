@@ -1,7 +1,7 @@
 # Design Specification: Epic Scoring Service
 
 - **Date:** 2026-09-29
-- **Status:** v4 — mọi quyết định đã chốt (2026-09-29). **M1–M4 đã triển khai** (2026-09-30): thư viện + test, migration, shadow + đối chiếu, và công tắc chế độ hiển thị `legacy`/`scoring` cho mọi màn hình (mặc định `legacy` cho tới khi SUPERADMIN bật)
+- **Status:** v4 — mọi quyết định đã chốt (2026-09-29). **M1–M4 đã triển khai** (2026-09-30): thư viện + test, migration, shadow + đối chiếu, và công tắc chế độ hiển thị `legacy`/`scoring` cho mọi màn hình (mặc định `legacy` cho tới khi SUPERADMIN bật). **01/10/2026**: đổi rule "Chờ golive" sau go-live, xem §14.
 - **Danh mục badge (nguồn duy nhất):** `src/lib/scoring/catalog.ts` — popup "Logic cảnh báo" (`HelpPanels.tsx`) render trực tiếp từ file này
 - **Feature:** Gom toàn bộ rule đánh giá Epic về 1 Scoring Service duy nhất
 
@@ -301,7 +301,7 @@ Badge "Cảnh báo sớm" đã bị loại bỏ trên mọi axis (quyết địn
 |---|---|---|---|---|---|
 | `RELEASE_JUSTIFY_GOLIVE` | Giải trình Golive | FAIL | 20 | Due > R4G + grace, hoặc chưa có Due mà asOf > R4G + grace | `releaseAxisState = JUSTIFY_GOLIVE` |
 | `RELEASE_STATUS_MISMATCH` | Sai Status | RECOMMENDATION | 30 | Due ≤ R4G + grace nhưng status chưa RELEASED — "Chuyển status sang Released" (trước đây là rule R7 Sai lệch dữ liệu) | `evaluateEpicDataAnomaly` R7 |
-| `RELEASE_WAITING_GOLIVE` | Chờ golive | ALERT | 40 | Trong hạn grace, chưa có Due, status ≤ R4GOLIVE | `WAITING_GOLIVE` |
+| `RELEASE_WAITING_GOLIVE` | Chờ golive | ALERT | 40 | **Đổi 2026-10-01** (§14): status = R4GOLIVE, HOẶC (status = RELEASED VÀ chưa có Due) — trong Phạm vi TTM-CNTT (QLDA); không còn phụ thuộc R4G Date/grace | `WAITING_GOLIVE` (nay đã lệch khỏi legacy) |
 | `RELEASE_ON_TIME` | Release đúng hạn | PASS | 70 | **Mới, mặc định TẮT**: Due ≤ R4G + grace và status RELEASED | — (chưa có) |
 
 `evidence`: `graceDeadline`, `graceWorkingDays`.
@@ -649,3 +649,41 @@ báo sớm 4 → 0 và Release "Cảnh báo sớm" 11 → 0 (D4), Sai lệch d�
 
 **Chưa làm:** M5 (màn quản trị rule/tham số, cập nhật Tài liệu sản phẩm + BRD), M6 (kiểm chứng D2 trên production),
 M7 (gỡ code legacy — chỉ khi anh duyệt). `db:migrate:local` cho 2 migration mới cần chạy ở máy có Postgres local.
+
+## 14. Thay đổi rule sau go-live — "Chờ golive" (2026-10-01)
+
+Sau khi M4 lên production (`scoring_engine_settings.mode = 'scoring'`), badge `RELEASE_WAITING_GOLIVE`
+("Chờ golive") được định nghĩa lại theo yêu cầu nghiệp vụ mới — **chỉ áp dụng cho Scoring Service**,
+logic legacy (`resolveReleaseAxis`, `epic-alert-service.ts`) giữ nguyên không đổi:
+
+```
+RELEASE_WAITING_GOLIVE = Trong "Phạm vi dữ liệu cho TTM" (QLDA)
+                         VÀ ( status = R4GOLIVE  HOẶC  (status = RELEASED VÀ chưa có Due Date) )
+```
+
+So với bản §6.3 gốc:
+- **Bỏ hoàn toàn điều kiện R4G Date/hạn grace** — badge này giờ tính được cả khi Epic chưa từng có
+  R4G Date (trước đây hàm `releaseRule` return sớm nếu thiếu R4G Date/`releaseGraceDeadline`, nên
+  không thể tính WAITING_GOLIVE cho Epic thiếu R4G Date).
+- **Thêm gate phạm vi** — trước đây trục Release không bị ảnh hưởng bởi "Phạm vi dữ liệu cho TTM"
+  (chỉ CNTT/QA mới có gate này); nay riêng `RELEASE_WAITING_GOLIVE` bị che khi Epic có `SCOPE_CNTT_OUT`
+  (thêm vào bảng SUPPRESSIONS trong `catalog.ts`, không sửa gì trong `ttm-scope-rules.ts`).
+- **Không còn loại trừ `RELEASE_JUSTIFY_GOLIVE`** — quyết định (owner, 2026-10-01): giữ nguyên logic
+  "Giải trình Golive" hiện có, chấp nhận 2 badge cùng active trên 1 Epic (ví dụ: status RELEASED,
+  chưa có Due Date, đã quá hạn R4G + grace → vừa "Chờ golive" vừa "Giải trình Golive", vì chúng thuộc
+  2 Finding Group khác nhau — ALERT vs FAIL).
+- **Parity**: thêm tag `D7_WAITING_GOLIVE_REDEFINED` (`parity.ts`) cho mọi khác biệt trục Release liên
+  quan tới `WAITING_GOLIVE` ở 1 trong 2 phía — tránh báo "chưa giải thích được" giả sau thay đổi này.
+- `SCORING_CODE_VERSION` bump lên `scoring-3`.
+
+**Hệ quả UI — TTM Dashboard**: widget "Chờ golive" tách thêm 3 sub-link theo thời gian (vì rule badge
+không còn mang thông tin thời gian): **Thiếu R4G Date** (chưa có R4G Date), **Trong hạn** (có R4G Date,
+hôm nay ≤ R4G Date + `release.graceWorkingDays` ngày làm việc), **Quá hạn** (còn lại) — 3 giá trị filter
+mới `WAITING_GOLIVE_MISSING_R4G`/`WAITING_GOLIVE_WITHIN_GRACE`/`WAITING_GOLIVE_OVERDUE`
+(`epic-row-verdicts.ts`), tính trực tiếp từ field (`r4gDate`, `releaseGraceDeadline`), dùng chung cho
+cả 2 display engine chứ không qua badge/`FILTER_PRESETS`. Đồng thời: widget "Tổng số Epic" (TTM Dashboard)
+nay trừ Epic "Ngoài phạm vi TTM-CNTT (QLDA)", có thêm sub-link "Sai lệch dữ liệu" (filter mới
+`DATA_ANOMALY_IN_SCOPE`); bổ sung vòng tròn "Hoàn thành TTM-E2E" (mẫu số/tử số cùng công thức TTM-CNTT,
+hàm `summarizeE2e` dùng chung giữa ring theo bộ lọc và cache toàn công ty); thêm widget TTM-E2E toàn
+công ty (cached, `ttm_index_global_cache` + cột `e2e_*`, migration `20261001_add_e2e_to_ttm_index_global_cache`)
+trên banner cả TTM Dashboard và Quản trị Epic.

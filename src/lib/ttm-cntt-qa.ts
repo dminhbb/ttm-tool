@@ -115,6 +115,33 @@ export function summarizeQaIndex(rows: Pick<EpicAlertRowPhased, 'alertLevel' | '
   return summarizeTtmCnttFromCounts(eligible, pass, fail, total);
 }
 
+/** TTM-E2E ratio, same shape/formula as summarizeTtmCntt but on the E2E axis — no "Phạm vi dữ liệu
+ * cho TTM" gate (that only ever applies to CNTT/QA, see ttm-scope-rules.ts). "Eligible" (mẫu số) =
+ * Epic has a recorded R4G Date and the TTM-E2E calc isn't broken (R4G < T0); "pass" (tử số) = among
+ * those, the Epic has "Đạt TTM-E2E". "fail" counts E2E_FAIL independently of eligibility, same as
+ * TTM-CNTT's fail. Shared by the per-filter "Hoàn thành TTM-E2E" ring (dashboard-new/page.tsx) and
+ * the company-wide cache (ttm-index-global-cache-service.ts) so both never disagree on the formula. */
+export function summarizeE2e(rows: Pick<EpicAlertRowPhased, 'currentStatus' | 'hasDataAnomaly' | 'r4gDate' | 'scoringBadges' | 'ttmE2eAlertLevel'>[]): TtmCnttSummary {
+  let eligible = 0;
+  let pass = 0;
+  let fail = 0;
+  let total = 0;
+
+  for (const row of rows) {
+    if (isCancelledStatus(row.currentStatus || '')) continue;
+    total += 1;
+    const badges = row.scoringBadges;
+    const calcBroken = badges ? badges.includes('E2E_CALC_BROKEN') : row.hasDataAnomaly;
+    if (badges ? badges.includes('E2E_FAIL') : row.ttmE2eAlertLevel === 'FAIL') fail += 1;
+    if (!row.r4gDate || calcBroken) continue;
+    eligible += 1;
+    const achieved = badges ? badges.includes('E2E_PASS') : row.ttmE2eAlertLevel === 'NONE' && (row.currentStatus ?? '').trim().toUpperCase() === 'RELEASED';
+    if (achieved) pass += 1;
+  }
+
+  return summarizeTtmCnttFromCounts(eligible, pass, fail, total);
+}
+
 /** Same eligible/pass/fail/total → pct/pctPrecise formula as summarizeTtmCntt, for callers that
  * already have the counts (e.g. a SQL aggregate) instead of the row array itself — see
  * epic-alert-row-cache-query-service.ts's queryTtmQaIndexPm. */

@@ -123,6 +123,18 @@ Trong MVP1, TTM-E2E có thể được lưu và hiển thị tham khảo nhưng 
 
 ### 6.1. Trục Release (Due Date vs R4G Date) — mới 24/09/2026
 
+> **Cập nhật (01/10/2026) — chỉ áp dụng cho Epic Scoring Service, KHÔNG áp dụng cho logic cũ bên
+> dưới:** badge "Chờ golive" (`RELEASE_WAITING_GOLIVE`) trong Scoring Service đã đổi hoàn toàn sang
+> điều kiện theo status, không còn phụ thuộc R4G Date/hạn 5 ngày: **status = R4GOLIVE, HOẶC (status =
+> RELEASED VÀ chưa có Due Date)** — và chỉ tính khi Epic nằm trong "Phạm vi dữ liệu cho TTM (QLDA)".
+> Vì không còn gắn với mốc ngày, badge này giờ **có thể cùng active với "Giải trình Golive"** trên
+> cùng 1 Epic (trước đây 2 badge loại trừ nhau). Trên TTM Dashboard, widget "Chờ golive" có thêm 3
+> sub-link tách theo thời gian: "Thiếu R4G Date", "Trong hạn" (hôm nay ≤ R4G Date + 5 ngày làm việc),
+> "Quá hạn" (còn lại) — xem `docs/superpowers/specs/2026-09-29-scoring-service-design.md` §6.3 và
+> `src/lib/scoring/rules/release.ts`. Nội dung §6.1 bên dưới ("Chờ golive"/"Cảnh báo sớm" theo R4G
+> Date + 5 ngày) mô tả đúng **logic cũ (legacy)** — vẫn còn hiệu lực khi `scoring_engine_settings.mode
+> = 'legacy'`, không bị thay đổi bởi cập nhật này.
+
 Sau khi TTM-E2E không còn dùng Due Date, kỷ luật ghi nhận Due Date được tách thành "trục Release"
 riêng, độc lập với TTM-E2E, với 3 badge mới hiển thị trên cột **Nhận xét** (song song với các badge
 Đạt/Fail/Sai Status/Sai lệch dữ liệu hiện có):

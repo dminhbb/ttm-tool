@@ -803,20 +803,27 @@
         luôn rơi đúng ngày làm việc thứ 29 kể từ Start Date (30 − 1), bất kể tổng 4 pha trước cộng dồn ra bao nhiêu ngày.
       </div>
 
-      <h3>8.6. Trục Release — "Chờ golive" / "Cảnh báo sớm" / "Giải trình Golive" (từ 24/09/2026)</h3>
+      <h3>8.6. Trục Release — "Chờ golive" / "Cảnh báo sớm" / "Giải trình Golive" (từ 24/09/2026, "Chờ golive" đổi rule 01/10/2026)</h3>
       <p>
-        Badge thứ 3 ở cột Nhận xét, hoàn toàn độc lập với Fail TTM-CNTT/Fail TTM-E2E (mục 8.3) và với "Sai lệch dữ liệu" (mục 9) — chỉ áp dụng
-        <strong>khi Epic đã có R4G Date</strong> (chưa có R4G Date → không hiện badge nào ở trục này, kể cả khi status còn DESIGN/DEV/TEST/PENTEST):
+        Badge thứ 3 ở cột Nhận xét, hoàn toàn độc lập với Fail TTM-CNTT/Fail TTM-E2E (mục 8.3) và với "Sai lệch dữ liệu" (mục 9).
       </p>
+      <div class="callout warn">
+        <strong>Cập nhật 01/10/2026 (chỉ Scoring Service — chế độ hiển thị đang active):</strong> "Chờ golive" không còn phụ thuộc R4G Date/hạn 5 ngày nữa,
+        chỉ còn xét <strong>status</strong> và <strong>Phạm vi dữ liệu cho TTM (QLDA)</strong>:
+        <code>status = R4GOLIVE</code> <strong>HOẶC</strong> <code>(status = RELEASED VÀ chưa có Due Date)</code>, và Epic phải nằm trong "Phạm vi dữ liệu cho TTM (QLDA)"
+        (Epic ngoài phạm vi thì ẩn badge này, giống hệt cách TTM-CNTT bị ẩn khi ngoài phạm vi). Vì không còn mốc ngày, badge này giờ
+        <strong>có thể hiện đồng thời</strong> với "Giải trình Golive" trên cùng 1 Epic (trước đây 2 badge loại trừ nhau tuyệt đối). "Cảnh báo sớm" và "Giải trình Golive"
+        <strong>không đổi</strong> — vẫn theo đúng công thức R4G Date + 5 ngày làm việc ở bảng dưới.
+      </div>
       <table>
-        <thead><tr><th>Badge</th><th>Điều kiện</th></tr></thead>
+        <thead><tr><th>Badge</th><th>Điều kiện (Scoring Service, đang active)</th></tr></thead>
         <tbody>
-          <tr><td><span class="badge warning">Chờ golive</span></td><td>Có R4G Date, hôm nay còn trong hạn <strong>R4G Date + 5 ngày làm việc</strong>, chưa có Due Date, và status Epic vẫn ≤ R4GOLIVE.</td></tr>
-          <tr><td><span class="badge warning">Cảnh báo sớm</span></td><td>Cùng điều kiện "còn trong hạn, chưa có Due Date" ở trên, nhưng status Epic đã <strong>vượt qua R4GOLIVE</strong> (ví dụ MVPDONE) mà vẫn chưa có Due Date.</td></tr>
-          <tr><td><span class="badge danger">Giải trình Golive</span></td><td>Due Date đã ghi nhận nhưng <strong>vượt hạn</strong> (&gt; R4G Date + 5 ngày làm việc) — bất kể status; <strong>hoặc</strong> chưa có Due Date mà hôm nay đã vượt hạn đó.</td></tr>
+          <tr><td><span class="badge warning">Chờ golive</span></td><td>Trong "Phạm vi dữ liệu cho TTM (QLDA)" <strong>VÀ</strong> ( status = R4GOLIVE <strong>HOẶC</strong> (status = RELEASED <strong>VÀ</strong> chưa có Due Date) ) — không cần có R4G Date.</td></tr>
+          <tr><td><span class="badge warning">Cảnh báo sớm</span></td><td>Có R4G Date, hôm nay còn trong hạn R4G Date + 5 ngày làm việc, chưa có Due Date, status Epic đã <strong>vượt qua R4GOLIVE</strong> (ví dụ MVPDONE) mà vẫn chưa Released.</td></tr>
+          <tr><td><span class="badge danger">Giải trình Golive</span></td><td>Có R4G Date, và Due Date đã ghi nhận nhưng <strong>vượt hạn</strong> (&gt; R4G Date + 5 ngày làm việc) — bất kể status; <strong>hoặc</strong> chưa có Due Date mà hôm nay đã vượt hạn đó.</td></tr>
         </tbody>
       </table>
-      <p>Due Date ghi nhận đúng trong hạn (≤ R4G Date + 5 ngày làm việc) thì trục này không hiện badge nào — lúc đó nếu status vẫn chưa Released, rule R7 (mục 9) sẽ báo "Sai lệch dữ liệu" thay vào đó.</p>
+      <p>Due Date ghi nhận đúng trong hạn (≤ R4G Date + 5 ngày làm việc) thì không hiện "Giải trình Golive"/"Cảnh báo sớm" — lúc đó nếu status vẫn chưa Released, rule R7 (mục 9) sẽ báo "Sai lệch dữ liệu" thay vào đó. Trên <strong>TTM Dashboard</strong> (mục 11), widget "Chờ golive" nay có thêm 3 sub-link tách theo thời gian — <strong>Thiếu R4G Date</strong>, <strong>Trong hạn</strong> (hôm nay ≤ R4G Date + 5 ngày làm việc), <strong>Quá hạn</strong> (còn lại) — để bù lại thông tin thời gian mà bản thân badge không còn mang theo.</p>
 
       <h3>8.7. Chỉ số TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E — phạm vi tính và "Phạm vi dữ liệu cho TTM" (cập nhật 30/09/2026)</h3>
       <p>
@@ -950,7 +957,7 @@
       <p>Theo dõi chuyên sâu theo 5 pha mốc thời gian: <strong>Design (20%)</strong>, <strong>Dev (50%)</strong>, <strong>Test (80%)</strong>, <strong>Pentest (90%)</strong>, <strong>R4Golive (100%)</strong>. Ngày baseline mỗi pha được tính tự động dựa trên số ngày làm việc tích lũy từ Start Date (T1); cột Release lấy baseline từ T0 + tiêu chí TTM-E2E, độc lập với Start Date. Trên sidebar, mục này chỉ hiển thị nhãn ngắn <strong>&quot;Quản trị Epic&quot;</strong> (không còn hậu tố &quot;(đầy đủ)&quot;).</p>
       <p><strong>Quy tắc lọc trạng thái mặc định:</strong> Bộ lọc Status trên thanh công cụ luôn mặc định tích chọn (checked) tất cả các trạng thái ngoại trừ <code>Cancelled</code>, đảm bảo các Epic đã bị huỷ mặc định không xuất hiện khi truy cập màn hình này hay ở tất cả các danh sách route liên kết từ màn hình khác (người dùng vẫn có thể tích chọn Cancelled thủ công nếu có nhu cầu tra cứu).</p>
       <p><strong>Thứ tự nhóm trong bảng (từ 28/09/2026):</strong> Epic thông thường hiển thị trước, sau đó lần lượt là nhóm <code>In PO</code> → <code>To Do</code> → nhóm Epic có Nhận xét <strong>“Ngoài phạm vi TTM-CNTT”</strong> (bất kể status) → <code>Released</code> ở cuối. Trong mỗi nhóm vẫn giữ thứ tự cũ: Epic sai lệch dữ liệu xuống cuối nhóm, rồi theo mức cảnh báo (FAIL → LATE → EARLY → NONE) và số ngày làm việc còn lại.</p>
-      <p><strong>Widget trên banner (từ 30/09/2026):</strong> chỉ còn <strong>TTM-CNTT (QLDA)</strong> và <strong>TTM-CNTT (QA)</strong>, tính trên đúng các Epic của bảng Danh sách Epic đang lọc (mọi bộ lọc trên thanh công cụ và Advanced Filters) — đổi bộ lọc thì chỉ số đổi theo. Hai widget toàn ứng dụng (QLDA) đã bỏ khỏi màn này, chỉ còn trên TTM Dashboard.</p>
+      <p><strong>Widget trên banner (từ 30/09/2026):</strong> <strong>TTM-CNTT (QLDA)</strong> và <strong>TTM-CNTT (QA)</strong>, tính trên đúng các Epic của bảng Danh sách Epic đang lọc (mọi bộ lọc trên thanh công cụ và Advanced Filters) — đổi bộ lọc thì chỉ số đổi theo. Hai widget toàn ứng dụng (QLDA) đã bỏ khỏi màn này — <strong>riêng từ 01/10/2026</strong>, có thêm 1 widget thứ 3 cố định <strong>TTM-E2E</strong> (toàn công ty, đọc từ cache <code>ttm_index_global_cache</code>, giống nhau với mọi người dùng, không đổi theo bộ lọc — xem mục 11.5).</p>
       <p><strong>Bộ lọc Nhận xét:</strong> ngoài các giá trị Đạt/Fail/Cảnh báo/Sai Status/Sai lệch dữ liệu/trục Release, có thêm lựa chọn <strong>“Ngoài phạm vi TTM-CNTT”</strong> để lọc riêng các Epic nằm ngoài khoảng ngày “R4G for TTM (CNTT)” đang cấu hình (mục 8.7).</p>
       <h3>11.3. Epic in PO (<code>/epic-in-po</code>) — mọi role đã đăng nhập</h3>
       <p>Cùng dữ liệu/logic với màn (đầy đủ), chỉ lọc còn Epic đang ở trạng thái <strong>To Do</strong>, <strong>In PO</strong> hoặc <strong>Released</strong> — dùng để theo dõi Epic chưa/vừa qua giai đoạn lập kế hoạch.</p>
@@ -962,8 +969,9 @@
         <strong>TTM Dashboard</strong> là trung tâm chỉ huy và điều hành chính của hệ thống, được thiết lập làm <strong>màn hình mặc định khi đăng nhập</strong> cho mọi người dùng. Màn hình hoàn toàn <strong>loại bỏ các Epic có trạng thái Cancelled</strong> ra khỏi toàn bộ các công thức tính toán (ở cả tử số lẫn mẫu số) trên mọi widget, phễu, ma trận và biểu đồ.
       </p>
       <ul>
-        <li><strong>Header Banner & Chỉ số toàn phòng:</strong> Tích hợp 2 widget cố định <strong>TTM-CNTT (QLDA)</strong> và <strong>TTM-CNTT (QA)</strong> (tên cũ TTM-Index (QLDA)/QA-Index (QLDA)) ngay cạnh nút chuyển chế độ xem, tính trên toàn bộ Epic trong ứng dụng (đọc từ cache, cùng giá trị với mọi người dùng), hỗ trợ click để mở Popup Quản trị Epic lọc nhanh danh sách tương ứng.</li>
-        <li><strong>Vòng chỉ số trong KPI:</strong> <strong>TTM-CNTT (QLDA)</strong> và <strong>TTM-CNTT (QA)</strong> (tên cũ TTM-Index (PM)/QA-Index (PM)) tính theo phạm vi Dashboard đang lọc (quyền dữ liệu + Dự án/Domain/PM-SM + Advanced Filters). Bộ lọc PM/SM chọn được nhiều người.</li>
+        <li><strong>Header Banner & Chỉ số toàn phòng:</strong> Tích hợp 3 widget cố định <strong>TTM-CNTT (QLDA)</strong>, <strong>TTM-CNTT (QA)</strong> (tên cũ TTM-Index (QLDA)/QA-Index (QLDA)) và <strong>TTM-E2E</strong> (thêm 01/10/2026) ngay cạnh nút chuyển chế độ xem, tính trên toàn bộ Epic trong ứng dụng (đọc từ cache <code>ttm_index_global_cache</code>, cùng giá trị với mọi người dùng — không tính lại mỗi lần xem trang, chỉ cập nhật sau import/khi cache được làm mới), hỗ trợ click để mở Popup Quản trị Epic lọc nhanh danh sách tương ứng. Cùng 3 widget này cũng được gắn ở banner màn hình <strong>Quản trị Epic</strong> (mục 11.2).</li>
+        <li><strong>Vòng chỉ số trong KPI:</strong> <strong>TTM-CNTT (QLDA)</strong>, <strong>TTM-CNTT (QA)</strong> (tên cũ TTM-Index (PM)/QA-Index (PM)) và <strong>Hoàn thành TTM-E2E</strong> (thêm 01/10/2026) — cả 3 cùng công thức mẫu số/tử số (eligible/pass), tính theo phạm vi Dashboard đang lọc (quyền dữ liệu + Dự án/Domain/PM-SM + Advanced Filters). Riêng vòng TTM-E2E không bị ảnh hưởng bởi "Phạm vi dữ liệu cho TTM" (mục 8.7) vì trục E2E không có khái niệm phạm vi này; bấm vào mở danh sách Epic Fail TTM-E2E. Bộ lọc PM/SM chọn được nhiều người.</li>
+        <li><strong>Tổng số Epic &amp; Chờ golive (cập nhật 01/10/2026):</strong> Widget "Tổng số Epic" nay <strong>trừ Epic "Ngoài phạm vi TTM-CNTT (QLDA)"</strong> — cùng tập Epic với mẫu số vòng tròn TTM-CNTT (QLDA) bên cạnh — và có thêm sub-link "<em>n</em> sai lệch dữ liệu" (trong đúng phạm vi đó). Widget "Chờ golive" (theo rule mới ở mục 8.6) có thêm 3 sub-link: <strong>Thiếu R4G Date</strong>, <strong>Trong hạn</strong> (hôm nay ≤ R4G Date + 5 ngày làm việc), <strong>Quá hạn</strong> — mỗi sub-link bấm vào mở đúng danh sách con tương ứng. Widget "Fail TTM-E2E" dạng số đếm riêng đã được thay bằng vòng tròn "Hoàn thành TTM-E2E" ở trên.</li>
         <li><strong>Lead Command Center (Executive View):</strong> Dành cho CBQL/Lead với 9 KPI cards tổng quan, Phễu Tiến độ Epic 5 giai đoạn, Ma trận Phân bổ Tiến độ Epic Đa chiều (4 tab: Theo Domain, Theo Phân loại Epic, Theo PM/SM, Theo Dự án) hỗ trợ sort theo từng cột, và 5 Section Biểu đồ Donut chuyên sâu (trong đó Section <em>Theo Phân loại Epic</em> được mặc định mở rộng).</li>
         <li><strong>PM/SM Workbench (Operational View):</strong> Dành cho PM/SM, dữ liệu gắn chặt theo phạm vi phân quyền của user (ẩn bộ lọc PM/SM). Thừa hưởng trọn vẹn 9 KPI cards và Phễu Tiến độ 5 giai đoạn của Lead view; bổ sung Ma trận Đa chiều (2 tab: Theo Phân loại Epic &amp; Theo Dự án), Section Biểu đồ Donut Theo Phân loại Epic; và Bảng danh sách Epic Vận hành dạng Card đồng bộ với bộ chuyển tab (switch pills): <em>1. Chờ golive</em>, <em>2. Phân tích Pending</em>, <em>3. Giám sát Dữ liệu bất thường R1-R6</em>.</li>
         <li><strong>Tương tác mở Popup Quản trị Epic tại chỗ:</strong> Người dùng có thể click vào bất kỳ KPI card, ô ma trận, phễu giai đoạn hoặc danh mục trên biểu đồ Donut để mở Modal nhúng iframe Quản trị Epic xem danh sách chi tiết ngay trên trang mà không phải rời màn hình Dashboard.</li>
@@ -985,7 +993,7 @@
         <li>Epic <strong>Pending</strong>.</li>
       </ol>
       <p>Mỗi dòng Epic có thể bấm mã để mở popup Duyệt Epic hoặc mở thẳng Jira ở tab mới. Đây cũng là báo cáo duy nhất được expose sẵn cho AI chatbot qua MCP Server (tool <code>list_report_filters</code>, mục 16).</p>
-      <h3>11.6. Quy tắc hiển thị &amp; Lịch sử Cảnh báo (rút gọn/đầy đủ)</h3>
+      <h3>11.7. Quy tắc hiển thị &amp; Lịch sử Cảnh báo (rút gọn/đầy đủ)</h3>
       <ul>
         <li>Epic ở trạng thái <strong>khác Released</strong>: luôn hiển thị.</li>
         <li>Màn <strong>rút gọn</strong>: Epic ở trạng thái <strong>= Released</strong> chỉ hiển thị nếu từng có lịch sử Cảnh báo muộn/Fail TTM; nếu chưa từng bị cảnh báo, Epic sẽ biến mất khỏi danh sách sau khi Released. Màn <strong>đầy đủ/Epic in PO/Dashboard không áp dụng</strong> rule ẩn này — luôn hiện mọi Epic trong phạm vi được phân quyền.</li>

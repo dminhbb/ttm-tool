@@ -24,6 +24,7 @@ import type { ProjectComponent } from '@/lib/master-data-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
 import { formatTtmPct1, summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
+import type { TtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import { ArrowBendUpRight, ArrowCounterClockwise, ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, FloppyDisk, FolderSimple, HourglassMedium, Lightning, ListChecks, Prohibit, Sparkle, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
@@ -757,6 +758,14 @@ function EpicAlerts15Screen() {
     fetch('/api/project-components').then((res) => (res.ok ? res.json() : [])).then(setProjectComponents).catch(() => undefined);
   }, []);
 
+  // Company-wide TTM-E2E ("Hoàn thành TTM-E2E"), cached (ttm-index-global-cache-service.ts) — same
+  // source as the TTM Dashboard banner widget, fetched standalone so this page doesn't need the
+  // dashboard's full company-wide row set just to show one more header pill.
+  const [ttmIndexGlobal, setTtmIndexGlobal] = useState<TtmIndexGlobalCache | null>(null);
+  useEffect(() => {
+    fetch('/api/ttm-index-global').then((res) => (res.ok ? res.json() : null)).then((payload: { ttmIndexGlobal: TtmIndexGlobalCache | null } | null) => setTtmIndexGlobal(payload?.ttmIndexGlobal ?? null)).catch(() => undefined);
+  }, []);
+
   const rows = data?.rows ?? EMPTY_ROWS;
 
   // TTM-CNTT (QLDA) / TTM-CNTT (QA) header badges — computed over exactly the Epic set the table
@@ -1076,8 +1085,15 @@ function EpicAlerts15Screen() {
         value: formatTtmIndexValue(ttmCnttQa),
         tooltip: formatTtmIndexTooltip('Chỉ số TTM-CNTT (QA) tính trên các Epic đang hiển thị trong bảng Danh sách Epic (theo bộ lọc), theo cách tính của QA', ttmCnttQa),
       },
+      {
+        key: 'ttm-e2e-global',
+        label: 'TTM-E2E',
+        tone: 'e2e',
+        value: formatTtmIndexValue(ttmIndexGlobal?.e2e ?? null),
+        tooltip: formatTtmIndexTooltip('Chỉ số Hoàn thành TTM-E2E tính trên toàn bộ Epic trong ứng dụng (giống nhau với mọi người dùng, không đổi theo bộ lọc)', ttmIndexGlobal?.e2e ?? null),
+      },
     ]);
-  }, [data, setHeaderWidgetItems, ttmCnttQa, ttmCnttQlda]);
+  }, [data, setHeaderWidgetItems, ttmCnttQa, ttmCnttQlda, ttmIndexGlobal]);
 
   // Raw status strings (case as stored) whose normalized form is PENDING/TO DO — the Pending/To Do
   // stat widgets set the Status filter (a multi-select) to exactly this set.

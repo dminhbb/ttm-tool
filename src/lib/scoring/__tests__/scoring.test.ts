@@ -157,6 +157,34 @@ describe('Release', () => {
     assert.ok(!active(released, makeContext({ asOf: '2026-09-01' })).has('RELEASE_ON_TIME'));
     assert.ok(active(released, makeContext({ asOf: '2026-09-01', ruleEnabled: { RELEASE_ON_TIME: true } })).has('RELEASE_ON_TIME'));
   });
+
+  describe('Chờ golive (rule đổi 2026-10-01: status-based, không phụ thuộc R4G Date/grace)', () => {
+    it('status R4GOLIVE fires even with no R4G Date at all ("Thiếu R4G Date")', () => {
+      const noR4g = { ...base, r4gDate: null };
+      assert.ok(active(noR4g, makeContext({ asOf: '2026-08-24' })).has('RELEASE_WAITING_GOLIVE'));
+    });
+
+    it('status RELEASED with no Due Date fires regardless of grace timing; Due Date present does not', () => {
+      const releasedNoDue = { ...base, status: 'Released', dueDate: null };
+      assert.ok(active(releasedNoDue, makeContext({ asOf: '2026-08-24' })).has('RELEASE_WAITING_GOLIVE'));
+      // Long overdue (asOf far past R4G + grace) still counts — timing moved to a Dashboard sub-filter, not the badge itself.
+      assert.ok(active(releasedNoDue, makeContext({ asOf: '2026-12-01' })).has('RELEASE_WAITING_GOLIVE'));
+      const releasedWithDue = { ...base, status: 'Released', dueDate: '2026-08-25' };
+      assert.ok(!active(releasedWithDue, makeContext({ asOf: '2026-08-24' })).has('RELEASE_WAITING_GOLIVE'));
+    });
+
+    it('can coexist with Giải trình Golive (2 nhóm finding khác nhau, không loại trừ nhau nữa)', () => {
+      const releasedNoDue = { ...base, status: 'Released', dueDate: null };
+      const activeBadges = active(releasedNoDue, makeContext({ asOf: '2026-08-28' })); // past grace (R4G 08-20 + 5wd = 08-27)
+      assert.ok(activeBadges.has('RELEASE_WAITING_GOLIVE'));
+      assert.ok(activeBadges.has('RELEASE_JUSTIFY_GOLIVE'));
+    });
+
+    it('ngoài "Phạm vi dữ liệu cho TTM" (SCOPE_CNTT_OUT) thì bị che', () => {
+      const outOfScopeCtx = makeContext({ asOf: '2026-08-24', scope: { cnttFrom: '2026-09-01', cnttTo: null, qaFrom: null, qaTo: null } });
+      assert.ok(!active(base, outOfScopeCtx).has('RELEASE_WAITING_GOLIVE'));
+    });
+  });
 });
 
 describe('Data quality', () => {

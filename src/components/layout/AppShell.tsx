@@ -501,7 +501,7 @@ function AppShellInner({ children }: AppShellProps) {
                 <Tooltip key={item.key} multiline side="bottom" align="end" content={item.tooltip} className="inline-flex w-auto">
                   <div className="flex flex-col items-end gap-0 rounded-md border border-fb-border bg-fb-surface-muted px-2 py-1 leading-none cursor-help hover:bg-fb-control transition-colors">
                     <span className="text-[9px] font-bold uppercase tracking-wide text-fb-text-secondary">{item.label}</span>
-                    <span className={cn('text-sm font-extrabold', item.tone === 'qa' ? 'text-purple-700' : 'text-fb-blue')}>{item.value}</span>
+                    <span className={cn('text-sm font-extrabold', item.tone === 'qa' ? 'text-purple-700' : item.tone === 'e2e' ? 'text-emerald-700' : 'text-fb-blue')}>{item.value}</span>
                   </div>
                 </Tooltip>
               ))}

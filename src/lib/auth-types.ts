@@ -3,6 +3,16 @@ import type { UsageStatsTotals } from '@/lib/usage-stats-types';
 export const USER_ROLES = ['SUPERADMIN', 'ADMIN', 'SUPERVISOR', 'USER'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
+/**
+ * Role hierarchy gate for granting/changing a user's role: SUPERADMIN may grant any role; every
+ * other actor may only grant a role strictly below their own (lower index in USER_ROLES = higher
+ * privilege). Prevents an ADMIN/SUPERVISOR from elevating a user to or above their own level.
+ */
+export function canGrantRole(actorRole: UserRole, targetRole: UserRole): boolean {
+  if (actorRole === 'SUPERADMIN') return true;
+  return USER_ROLES.indexOf(targetRole) > USER_ROLES.indexOf(actorRole);
+}
+
 export interface AuthUser {
   email: string;
   fullName: string;

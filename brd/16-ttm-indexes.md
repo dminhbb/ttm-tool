@@ -164,6 +164,12 @@ mục 8), có thể override tạm thời (không lưu) qua Advanced Filters ở
   hiển thị bình thường** trong bảng (không biến mất), chỉ riêng phán quyết TTM-CNTT bị ẩn.
 - Badge/tính toán **TTM-E2E** và **Trục Release** (Chờ golive/Giải trình Golive) **không** bị ảnh
   hưởng bởi 2 cờ này.
+  > **Ngoại lệ (01/10/2026, chỉ Scoring Service):** riêng badge `RELEASE_WAITING_GOLIVE` ("Chờ
+  > golive") của Scoring Service nay bị che khi Epic `!ttmCnttInScope` (SCOPE_CNTT_OUT) — hệ quả của
+  > việc đổi rule sang điều kiện theo status, xem
+  > `docs/superpowers/specs/2026-09-29-scoring-service-design.md` §14. "Giải trình Golive" và mọi
+  > badge khác của trục Release, cùng toàn bộ TTM-E2E, vẫn không bị ảnh hưởng — kể cả ở chế độ
+  > `scoring`. Logic legacy (`resolveReleaseAxis`) không đổi.
 
 ## 8. Phạm vi mặc định "Tổng số Epic" (khi chưa cấu hình gì ở mục 7)
 

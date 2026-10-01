@@ -6,6 +6,49 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-10-01
+
+- **Scoring Service — rule mới "Chờ golive" (`RELEASE_WAITING_GOLIVE`)**: đổi sang theo status,
+  không còn phụ thuộc R4G Date/grace — fire khi Epic trong phạm vi TTM-CNTT (QLDA) có
+  `status = 'r4golive'` HOẶC (`status = 'released'` AND không có `due`). "Giải trình Golive" giữ
+  nguyên, 2 badge độc lập/cùng tồn tại (`src/lib/scoring/rules/release.ts`, `catalog.ts`). Thêm tag
+  đối chiếu `D7_WAITING_GOLIVE_REDEFINED` (`parity.ts`), bump `SCORING_CODE_VERSION` → `scoring-3`,
+  thêm 4 test (`scoring.test.ts`).
+- **TTM Dashboard — widget "Chờ golive"**: tính theo rule mới ở trên, bổ sung 3 sub-link (Thiếu R4G
+  Date; Trong hạn — `now - r4gDate` ≤ `release.graceWorkingDays` ngày làm việc; Quá hạn — lớn hơn),
+  bấm vào mở popup Quản trị Epic theo phạm vi dữ liệu user + filter dashboard + điều kiện sub-link
+  (`src/app/dashboard-new/page.tsx`, `src/lib/epic-row-verdicts.ts`, `src/lib/epic-alerts-deep-link.ts`).
+- **TTM Dashboard — widget "Tổng số Epic"**: thêm sub-link "Sai lệch dữ liệu" (đếm Epic Sai lệch dữ
+  liệu trong đúng phạm vi tính của widget), cùng cơ chế deep-link như trên.
+- **Widget TTM-E2E toàn công ty**: thêm vào page title banner của "TTM Dashboard" và "Quản trị Epic"
+  (bên phải TTM-CNTT (QA)), tính giống nhau cho mọi user nên được gộp vào cache toàn ứng dụng
+  (`ttm_index_global_cache` — migration `db/migrations/20261001_add_e2e_to_ttm_index_global_cache*`,
+  `src/lib/ttm-index-global-cache-service.ts`, `src/lib/ttm-cntt-qa.ts` hàm `summarizeE2e` dùng chung
+  với vòng KPI "Hoàn thành TTM-E2E" trên dashboard, API mới `src/app/api/ttm-index-global/route.ts`,
+  header widget context `epic-header-widgets-context.tsx`/`AppShell.tsx`/`epic-alerts-15/page.tsx`).
+- **Cập nhật tài liệu** theo rule "Chờ golive" mới: popup "Logic cảnh báo" (`catalog.ts`),
+  `brd/02-ttm-concepts-and-rules.md` §6.1, `brd/16-ttm-indexes.md`, spec
+  `docs/superpowers/specs/2026-09-29-scoring-service-design.md` (thêm mục 14), và
+  `public/docs/product-guide.html` (viết lại §8.6, cập nhật §11.2/§11.5).
+- **Fix bảo mật — chặn leo thang đặc quyền khi gán Role user**: trước đây ADMIN có thể tạo/sửa user
+  với role bất kỳ kể cả SUPERADMIN. Thêm `canGrantRole()` (`src/lib/auth-types.ts`): actor chỉ được
+  gán role THẤP HƠN role của chính mình (Superadmin > Admin > Supervisor > User); riêng SUPERADMIN
+  được gán bất kỳ role nào. Chặn ở server (`src/app/api/users/route.ts` POST/PUT, trả 403 nếu vi
+  phạm) và ẩn/khóa lựa chọn Role không được phép ở UI (`src/app/admin/users/page.tsx`). Thêm test
+  `src/lib/__tests__/auth-types.test.ts`.
+- **TTM Dashboard — widget "Tổng số Epic"**: thêm sub-link "Chưa có R4G Date" (trong phạm vi
+  TTM-CNTT), tách biệt hoàn toàn với "Sai lệch dữ liệu" để phép trừ luôn đúng: Tổng số Epic − Sai
+  lệch dữ liệu − Chưa có R4G Date = mẫu số TTM-CNTT (QLDA). Thêm filter `MISSING_R4G_IN_SCOPE`
+  (`src/lib/epic-row-verdicts.ts`, `src/lib/epic-alerts-deep-link.ts`) dùng chung bởi sub-link và
+  deep-link sang Quản trị Epic.
+- **TTM Dashboard — widget "Cảnh báo muộn" → "Chậm tiến độ"**: đổi tên hiển thị (tiêu đề widget,
+  modal/tooltip khi click, `ALERT_BADGE_LABEL.LATE`) ở chế độ Scoring Service; nhãn legacy
+  "Cảnh báo (Sớm/Muộn)" giữ nguyên.
+- **TTM Dashboard — bảng "Ma trận Phân bổ Tiến độ Epic Đa chiều"**: thêm cột "Epic tính TTM" (mẫu
+  số TTM-CNTT QLDA = `item.qlda.eligible`) ngay bên phải cột "Tổng số Epic", sortable, click mở
+  popup Quản trị Epic lọc đúng tập Epic này. Thêm filter `TTM_ELIGIBLE_IN_SCOPE`
+  (`src/lib/epic-row-verdicts.ts`, `src/lib/epic-alerts-deep-link.ts`).
+
 ## 2026-09-30
 
 - **Quy ước "TTM-CNTT" = "TTM-CNTT (QLDA)"** trên mọi màn hình + Scoring Service: đổi text hiển thị

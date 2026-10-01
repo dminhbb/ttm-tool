@@ -41,6 +41,7 @@ export type ParityTag =
   | 'D3_PHASE_AS_OF'
   | 'D4_EARLY_REMOVED'
   | 'D5_TARGET_N_MINUS_1'
+  | 'D7_WAITING_GOLIVE_REDEFINED'
   | 'R2_R7_NOT_ANOMALY'
   | 'LEGACY_TIME_OF_DAY'
   | 'CANCELLED_NOT_APPLICABLE'
@@ -128,7 +129,15 @@ export function compareWithLegacy(card: EpicScorecard, legacy: LegacyRowSnapshot
   // ---- Release ----
   const scoringRelease = active.has('RELEASE_JUSTIFY_GOLIVE') ? 'JUSTIFY_GOLIVE' : active.has('RELEASE_WAITING_GOLIVE') ? 'WAITING_GOLIVE' : 'NONE';
   if (legacy.releaseAxisState !== scoringRelease) {
-    push('Trục Release', legacy.releaseAxisState, scoringRelease, legacy.releaseAxisState === 'EARLY_WARNING' && scoringRelease === 'NONE' ? 'D4_EARLY_REMOVED' : 'UNEXPLAINED');
+    // D7 (2026-10-01): "Chờ golive" is now status-based (R4GOLIVE, or RELEASED without Due Date) and
+    // no longer tied to R4G Date/grace timing, so it legitimately disagrees with the legacy
+    // (R4G Date + grace + status ≤ R4GOLIVE) formula on either side of this comparison.
+    const tag: ParityTag = legacy.releaseAxisState === 'EARLY_WARNING' && scoringRelease === 'NONE'
+      ? 'D4_EARLY_REMOVED'
+      : legacy.releaseAxisState === 'WAITING_GOLIVE' || scoringRelease === 'WAITING_GOLIVE'
+        ? 'D7_WAITING_GOLIVE_REDEFINED'
+        : 'UNEXPLAINED';
+    push('Trục Release', legacy.releaseAxisState, scoringRelease, tag);
   }
 
   // ---- Data quality rules (R1–R7, same badge presence) ----

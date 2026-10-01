@@ -1,11 +1,12 @@
 import pool from '@/lib/db';
 import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
-import { summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
+import { summarizeE2e, summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
 import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 
 export interface TtmIndexGlobalCache {
   computedAt: string;
+  e2e: TtmCnttSummary;
   qa: TtmCnttSummary;
   sourceImportBatchId: number | null;
   ttm: TtmCnttSummary;
@@ -13,6 +14,11 @@ export interface TtmIndexGlobalCache {
 
 interface TtmIndexGlobalCacheDbRow {
   computedAt: string;
+  e2eEligible: number;
+  e2eFail: number;
+  e2ePass: number;
+  e2ePctPrecise: string;
+  e2eTotal: number;
   qaEligible: number;
   qaFail: number;
   qaPass: number;
@@ -37,6 +43,7 @@ export async function getTtmIndexGlobalCache(): Promise<TtmIndexGlobalCache | nu
   const result = await pool.query<TtmIndexGlobalCacheDbRow>(`
     SELECT
       computed_at::text AS "computedAt",
+      e2e_eligible AS "e2eEligible", e2e_fail AS "e2eFail", e2e_pass AS "e2ePass", e2e_pct_precise::text AS "e2ePctPrecise", e2e_total AS "e2eTotal",
       qa_eligible AS "qaEligible", qa_fail AS "qaFail", qa_pass AS "qaPass", qa_pct_precise::text AS "qaPctPrecise", qa_total AS "qaTotal",
       source_import_batch_id AS "sourceImportBatchId",
       ttm_eligible AS "ttmEligible", ttm_fail AS "ttmFail", ttm_pass AS "ttmPass", ttm_pct_precise::text AS "ttmPctPrecise", ttm_total AS "ttmTotal"
@@ -48,6 +55,7 @@ export async function getTtmIndexGlobalCache(): Promise<TtmIndexGlobalCache | nu
   return {
     computedAt: row.computedAt,
     sourceImportBatchId: row.sourceImportBatchId,
+    e2e: toSummary(row.e2eEligible, row.e2ePass, row.e2eFail, row.e2eTotal, row.e2ePctPrecise),
     qa: toSummary(row.qaEligible, row.qaPass, row.qaFail, row.qaTotal, row.qaPctPrecise),
     ttm: toSummary(row.ttmEligible, row.ttmPass, row.ttmFail, row.ttmTotal, row.ttmPctPrecise),
   };
@@ -76,14 +84,16 @@ export async function refreshTtmIndexGlobalCache(batchId: number | null, precomp
   const rows = precomputedRows ?? (await getEpicAlertRowsPhased(0, 'SUPERVISOR', {})).rows;
   const ttm = summarizeTtmCntt(rows);
   const qa = summarizeQaIndex(rows);
+  const e2e = summarizeE2e(rows);
 
   await pool.query(
     `
     INSERT INTO ttm_index_global_cache (
       id, ttm_eligible, ttm_pass, ttm_fail, ttm_total, ttm_pct_precise,
       qa_eligible, qa_pass, qa_fail, qa_total, qa_pct_precise,
+      e2e_eligible, e2e_pass, e2e_fail, e2e_total, e2e_pct_precise,
       source_import_batch_id, computed_at
-    ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+    ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW())
     ON CONFLICT (id) DO UPDATE SET
       ttm_eligible = EXCLUDED.ttm_eligible,
       ttm_pass = EXCLUDED.ttm_pass,
@@ -95,9 +105,19 @@ export async function refreshTtmIndexGlobalCache(batchId: number | null, precomp
       qa_fail = EXCLUDED.qa_fail,
       qa_total = EXCLUDED.qa_total,
       qa_pct_precise = EXCLUDED.qa_pct_precise,
+      e2e_eligible = EXCLUDED.e2e_eligible,
+      e2e_pass = EXCLUDED.e2e_pass,
+      e2e_fail = EXCLUDED.e2e_fail,
+      e2e_total = EXCLUDED.e2e_total,
+      e2e_pct_precise = EXCLUDED.e2e_pct_precise,
       source_import_batch_id = EXCLUDED.source_import_batch_id,
       computed_at = NOW();
     `,
-    [ttm.eligible, ttm.pass, ttm.fail, ttm.total, ttm.pctPrecise, qa.eligible, qa.pass, qa.fail, qa.total, qa.pctPrecise, batchId],
+    [
+      ttm.eligible, ttm.pass, ttm.fail, ttm.total, ttm.pctPrecise,
+      qa.eligible, qa.pass, qa.fail, qa.total, qa.pctPrecise,
+      e2e.eligible, e2e.pass, e2e.fail, e2e.total, e2e.pctPrecise,
+      batchId,
+    ],
   );
 }

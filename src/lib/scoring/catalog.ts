@@ -142,9 +142,9 @@ export const BADGES = [
   },
   {
     id: 'RELEASE_WAITING_GOLIVE', axis: 'RELEASE', group: 'ALERT', label: 'Chờ golive', precedence: 40, defaultEnabled: true,
-    meaning: 'Đã R4G, đang trong thời hạn grace, chưa có Due Date.',
-    formula: 'Có R4G  VÀ  Due trống  VÀ  asOf ≤ R4G +wd G  VÀ  status ≤ R4GOLIVE',
-    legacySource: 'resolveReleaseAxis → WAITING_GOLIVE',
+    meaning: 'Epic đã lên R4GOLIVE, hoặc đã Released mà chưa ghi Due Date — đang chờ hoàn tất thủ tục golive. Chỉ tính trong "Phạm vi dữ liệu cho TTM" (QLDA — che bởi SCOPE_CNTT_OUT); không phụ thuộc R4G Date/hạn grace nên có thể cùng active với "Giải trình Golive".',
+    formula: 'Trong Phạm vi TTM-CNTT (QLDA)  VÀ  ( status = R4GOLIVE  HOẶC  (status = RELEASED  VÀ  Due trống) )',
+    legacySource: 'resolveReleaseAxis → WAITING_GOLIVE (rule đổi 2026-10-01)',
   },
   {
     id: 'REC_PREPARE_GOLIVE_JUSTIFICATION', axis: 'RELEASE', group: 'RECOMMENDATION', label: 'Chuẩn bị giải trình', precedence: 60, defaultEnabled: true,
@@ -282,7 +282,7 @@ export const BADGE_BY_ID: ReadonlyMap<BadgeId, BadgeDefinition> = new Map(BADGES
 export const SUPPRESSIONS: readonly { when: BadgeId; suppress: readonly BadgeId[] }[] = [
   { when: 'CNTT_NOT_APPLICABLE', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH'] },
   { when: 'CNTT_CALC_BROKEN', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH'] },
-  { when: 'SCOPE_CNTT_OUT', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH'] },
+  { when: 'SCOPE_CNTT_OUT', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH', 'RELEASE_WAITING_GOLIVE'] },
   { when: 'CNTT_STATUS_MISMATCH', suppress: ['CNTT_PASS'] },
   { when: 'E2E_CALC_BROKEN', suppress: ['E2E_FAIL', 'E2E_PASS'] },
 ];

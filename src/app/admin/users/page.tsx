@@ -18,7 +18,7 @@ import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui
 import { DataTableToolbar } from '@/components/ui/DataTableToolbar';
 import { TableAction } from '@/components/ui/TableAction';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
-import { USER_ROLES } from '@/lib/auth-types';
+import { canGrantRole, USER_ROLES } from '@/lib/auth-types';
 import { generateCompliantPassword, PASSWORD_REQUIREMENTS_GUIDE, validatePassword } from '@/lib/password-rules';
 import { fuzzyIncludes } from '@/lib/fuzzy-search';
 import { compareValues, useSortableList } from '@/lib/use-sortable-list';
@@ -37,6 +37,11 @@ const PAGE_SIZE = 20;
 
 export default function UsersPage() {
   const [tab, setTab] = useState<Tab>('users');
+  // Which roles THIS logged-in actor may grant — mirrors the server-side canGrantRole check in
+  // /api/users (ADMIN/SUPERVISOR can only grant a role below their own; SUPERADMIN grants any role).
+  // null while /api/auth/me hasn't resolved yet, so the Role select stays fully restricted (safe
+  // default) rather than briefly offering every role.
+  const [currentUserRole, setCurrentUserRole] = useState<UserRole | null>(null);
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [domains, setDomains] = useState<Domain[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -75,6 +80,7 @@ export default function UsersPage() {
   };
 
   useEffect(() => { void Promise.resolve().then(load); }, []);
+  useEffect(() => { fetch('/api/auth/me').then((response) => (response.ok ? response.json() : null)).then((data: { user?: { role: UserRole } } | null) => { if (data?.user) setCurrentUserRole(data.user.role); }).catch(() => undefined); }, []);
   const domainOptions = [{ value: '', label: 'Chọn Domain' }, ...domains.map((domain) => ({ value: String(domain.id), label: `${domain.domainCode} — ${domain.domainName}` }))];
   const domainMultiOptions = domains.map((domain) => ({ value: String(domain.id), label: `${domain.domainCode} — ${domain.domainName}` }));
   const projectMultiOptions = projects.map((project) => ({ value: String(project.id), label: `${project.sourceProjectKey} — ${project.projectName}${project.isActive ? '' : ' (Inactive)'}` }));
@@ -214,7 +220,7 @@ export default function UsersPage() {
       {tab === 'reset' && (tickets.length ? (visibleTickets.length ? <TableContainer><Table><THead><TR><TH className="text-center"><input aria-label="Chọn tất cả yêu cầu cấp lại mật khẩu" checked={visibleTickets.length > 0 && visibleTickets.every((ticket) => selectedTicketIds.includes(ticket.id))} onChange={(event) => setSelectedTicketIds(event.target.checked ? [...new Set([...selectedTicketIds, ...visibleTickets.map((ticket) => ticket.id)])] : selectedTicketIds.filter((id) => !visibleTickets.some((ticket) => ticket.id === id)))} type="checkbox" /></TH><TH>Email</TH><TH>Thời gian gửi</TH><TH>Hành động</TH></TR></THead><TBody>{visibleTickets.map((ticket) => <TR key={ticket.id}><TD className="text-center"><input aria-label={`Chọn yêu cầu của ${ticket.email}`} checked={selectedTicketIds.includes(ticket.id)} onChange={(event) => toggle(ticket.id, event.target.checked, selectedTicketIds, setSelectedTicketIds)} type="checkbox" /></TD><TD>{ticket.email}</TD><TD>{ticket.createdAt}</TD><TD>{ticket.userId ? <TableAction onClick={() => { setResetTickets([ticket]); setPassword(randomPassword()); }} variant="warning">Cấp lại</TableAction> : 'Không tìm thấy user'}</TD></TR>)}</TBody></Table></TableContainer> : <p className="text-fb-text-secondary">Không tìm thấy ticket phù hợp.</p>) : <p className="text-fb-text-secondary">Không có ticket đang chờ.</p>)}
       {tab === 'registrations' && (visibleInactiveUsers.length ? <TableContainer><Table><THead><TR><TH className="text-center"><input aria-label="Chọn tất cả đăng ký mới" checked={visibleInactiveUsers.length > 0 && visibleInactiveUsers.every((user) => selectedRegistrationIds.includes(user.id))} onChange={(event) => setSelectedRegistrationIds(event.target.checked ? [...new Set([...selectedRegistrationIds, ...visibleInactiveUsers.map((user) => user.id)])] : selectedRegistrationIds.filter((id) => !visibleInactiveUsers.some((user) => user.id === id)))} type="checkbox" /></TH><TH>Email</TH><TH>Họ tên</TH><TH>Domain</TH><TH>Hành động</TH></TR></THead><TBody>{visibleInactiveUsers.map((user) => <TR key={user.id}><TD className="text-center"><input aria-label={`Chọn đăng ký của ${user.email}`} checked={selectedRegistrationIds.includes(user.id)} onChange={(event) => toggle(user.id, event.target.checked, selectedRegistrationIds, setSelectedRegistrationIds)} type="checkbox" /></TD><TD>{user.email}</TD><TD>{user.fullName}</TD><TD>{domainName(user)}</TD><TD><TableAction onClick={() => requestApproval([user])} variant="info">Duyệt</TableAction></TD></TR>)}</TBody></Table></TableContainer> : <p className="text-fb-text-secondary">Không tìm thấy đăng ký phù hợp.</p>)}
     </CardBody></Card>
-    <Modal isOpen={creating} onClose={() => setCreating(false)} maxWidth="xl" title="Thêm user mới" footer={<><Button onClick={() => setCreating(false)} variant="outline">Hủy</Button><Button onClick={create}>Lưu</Button></>}><UserForm allProjects={projects} allProjectComponents={projectComponents} domains={domainMultiOptions} onChange={setCreateForm} projects={projectMultiOptions} user={createForm} withPassword /></Modal>
+    <Modal isOpen={creating} onClose={() => setCreating(false)} maxWidth="xl" title="Thêm user mới" footer={<><Button onClick={() => setCreating(false)} variant="outline">Hủy</Button><Button onClick={create}>Lưu</Button></>}><UserForm allProjects={projects} allProjectComponents={projectComponents} currentUserRole={currentUserRole} domains={domainMultiOptions} onChange={setCreateForm} projects={projectMultiOptions} user={createForm} withPassword /></Modal>
     <Modal isOpen={creatingBulk} onClose={() => setCreatingBulk(false)} title="Thêm nhiều user" footer={<><Button onClick={() => setCreatingBulk(false)} variant="outline">Hủy</Button><Button isLoading={isBulkSaving} onClick={createBulkUsers}>Thêm user</Button></>}><div className="ui-form flex flex-col gap-4"><FormField id="bulk-usernames" label="Danh sách username" helperText="Nhập username, ngăn cách bằng dấu phẩy; không cần @mbbank.com.vn."><textarea className="ui-textarea form-control-compact" onChange={(event) => setBulkUsernames(event.target.value)} placeholder="minhnd7, ngothanhha, congha" value={bulkUsernames} /></FormField><p className="text-fb-text-secondary">User mới có Họ tên là username, email dạng username@mbbank.com.vn, role USER, inactive, chưa gán Domain và mật khẩu mặc định theo cấu hình yêu cầu.</p></div></Modal>
     <Modal isOpen={approvalUserIds.length > 0} onClose={() => setApprovalUserIds([])} title="Chọn Domain để duyệt đăng ký" footer={<><Button onClick={() => setApprovalUserIds([])} variant="outline">Hủy</Button><Button disabled={!approvalDomainId} onClick={() => void approve(approvalUserIds, Number(approvalDomainId))}>Duyệt đăng ký</Button></>}><div className="ui-form flex flex-col gap-4"><p className="text-fb-text-secondary">Các user được chọn chưa có Domain. Chọn một Domain active để gán trước khi kích hoạt {approvalUserIds.length} user.</p><Select label="Domain" onChange={(event) => setApprovalDomainId(event.target.value)} options={domainOptions} required value={approvalDomainId} /></div></Modal>
     <Modal isOpen={editing !== null} onClose={closeEdit} maxWidth="xl" title="Chỉnh sửa user" footer={<><Button onClick={save}>Lưu</Button><Button onClick={() => setDeleting(editing)} title="Xóa user" variant="danger">Xóa user</Button></>}>{editing && <div className="flex flex-col gap-4">
@@ -224,7 +230,7 @@ export default function UsersPage() {
         <label className="ui-check"><input checked={editing.isActive} onChange={(event) => setEditing({ ...editing, isActive: event.target.checked })} type="checkbox" />Đang hoạt động (Active)</label>
       </div>}
       {editTab === 'permission' && <div className="ui-form flex flex-col gap-4">
-        <UserPermissionFields allProjectComponents={projectComponents} allProjects={projects} onChange={(user) => setEditing(user as ManagedUser)} projects={projectMultiOptions} user={editing} />
+        <UserPermissionFields allProjectComponents={projectComponents} allProjects={projects} currentUserRole={currentUserRole} onChange={(user) => setEditing(user as ManagedUser)} projects={projectMultiOptions} user={editing} />
       </div>}
       {editTab === 'password' && <section className="ui-form-section" aria-labelledby="edit-user-reset-password-title">
         <div className="flex items-start justify-between">
@@ -270,7 +276,13 @@ function UserIdentityFields({ domains, onChange, user, withPassword = false }: {
 }
 
 /** Dự án + Component narrowing + Role — used both flat (Create popup) and inside the "Phân quyền" tab (Edit popup). */
-function UserPermissionFields({ allProjectComponents, allProjects, onChange, projects, user }: { allProjectComponents: ProjectComponent[]; allProjects: Project[]; onChange: (user: UserInput) => void; projects: { value: string; label: string }[]; user: UserInput }) {
+function UserPermissionFields({ allProjectComponents, allProjects, currentUserRole, onChange, projects, user }: { allProjectComponents: ProjectComponent[]; allProjects: Project[]; currentUserRole: UserRole | null; onChange: (user: UserInput) => void; projects: { value: string; label: string }[]; user: UserInput }) {
+  // Chỉ hiện các role mà actor hiện tại được phép gán (xem canGrantRole); role hiện tại của user
+  // vẫn được hiện trong danh sách (dù actor không gán được) để không mất giá trị đang chọn, nhưng
+  // Select bị khóa trong trường hợp đó — khớp với rule chặn ở server (/api/users).
+  const grantableRoles = currentUserRole ? USER_ROLES.filter((role) => canGrantRole(currentUserRole, role)) : [];
+  const roleOptions = USER_ROLES.filter((role) => grantableRoles.includes(role) || role === user.role).map((value) => ({ value, label: value }));
+  const roleLocked = !grantableRoles.includes(user.role);
   const selectedProjects = user.projectIds
     .map((projectId) => allProjects.find((project) => project.id === projectId))
     .filter((project): project is Project => Boolean(project));
@@ -298,15 +310,15 @@ function UserPermissionFields({ allProjectComponents, allProjects, onChange, pro
         />;
       })}
     </div>}
-    <Select label="Role" onChange={(event) => onChange({ ...user, role: event.target.value as UserRole })} options={USER_ROLES.map((value) => ({ value, label: value }))} value={user.role} />
+    <Select disabled={roleLocked} helperText={roleLocked ? 'Bạn không có quyền gán hoặc thay đổi role này.' : undefined} label="Role" onChange={(event) => onChange({ ...user, role: event.target.value as UserRole })} options={roleOptions} value={user.role} />
   </>;
 }
 
 /** Flat single-form layout — only used by the Create popup (the Edit popup composes the same pieces across tabs). */
-function UserForm({ allProjectComponents, allProjects, domains, onChange, projects, user, withPassword = false }: { allProjectComponents: ProjectComponent[]; allProjects: Project[]; domains: { value: string; label: string }[]; onChange: (user: UserInput) => void; projects: { value: string; label: string }[]; user: UserInput; withPassword?: boolean }) {
+function UserForm({ allProjectComponents, allProjects, currentUserRole, domains, onChange, projects, user, withPassword = false }: { allProjectComponents: ProjectComponent[]; allProjects: Project[]; currentUserRole: UserRole | null; domains: { value: string; label: string }[]; onChange: (user: UserInput) => void; projects: { value: string; label: string }[]; user: UserInput; withPassword?: boolean }) {
   return <div className="ui-form flex flex-col gap-4">
     <UserIdentityFields domains={domains} onChange={onChange} user={user} withPassword={withPassword} />
-    <UserPermissionFields allProjectComponents={allProjectComponents} allProjects={allProjects} onChange={onChange} projects={projects} user={user} />
+    <UserPermissionFields allProjectComponents={allProjectComponents} allProjects={allProjects} currentUserRole={currentUserRole} onChange={onChange} projects={projects} user={user} />
     <label className="ui-check"><input checked={user.isActive} onChange={(event) => onChange({ ...user, isActive: event.target.checked })} type="checkbox" />Đang hoạt động (Active)</label>
   </div>;
 }

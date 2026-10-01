@@ -16,7 +16,7 @@ export interface EpicHeaderWidgetItem {
   /** Multi-line tooltip text (rendered with the same `Tooltip` component used by the "Nhận xét"
    * badges elsewhere) — join lines with '\n'. */
   tooltip: string;
-  tone: 'qa' | 'ttm';
+  tone: 'e2e' | 'qa' | 'ttm';
   /** Already formatted for display, e.g. "91,5%" or "—" when there's nothing to show yet. */
   value: string;
 }
