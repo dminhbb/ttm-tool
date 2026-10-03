@@ -144,6 +144,22 @@ function buildFieldFilterClause(alertFilter: string | undefined, engineMode: Sco
     case 'WAITING_GOLIVE_MISSING_R4G': return `${waiting} AND NOT ${hasR4g}`;
     case 'WAITING_GOLIVE_WITHIN_GRACE': return `${waiting} AND ${hasR4g} AND (${withinGrace})`;
     case 'WAITING_GOLIVE_OVERDUE': return `${waiting} AND ${hasR4g} AND NOT (${withinGrace})`;
+    default: break;
+  }
+  // TTM Dashboard 2 funnel leaves — SQL twin of ttmFunnelBucket (epic-row-verdicts.ts), which also
+  // excludes Cancelled rows on its own (not just via the default status filter).
+  const clean = "current_status !~* 'cancel' AND NOT has_data_anomaly";
+  const inScopeR4g = `${clean} AND ttm_cntt_in_scope AND ${hasR4g}`;
+  const inScopeNoR4g = `${clean} AND ttm_cntt_in_scope AND NOT ${hasR4g}`;
+  // isTtmIndexPass: the TTM_PASS index flag in scoring, alertLevel NONE in legacy.
+  const pass = engineMode === 'scoring' ? "index_flags @> ARRAY['TTM_PASS']" : "alert_level = 'NONE'";
+  switch (alertFilter) {
+    case 'TTM_PASS_IN_SCOPE': return `${inScopeR4g} AND ${pass}`;
+    case 'TTM_LATE_IN_SCOPE': return `${inScopeR4g} AND NOT (${pass}) AND alert_level = 'FAIL'`;
+    case 'TTM_NOT_SCORED_IN_SCOPE': return `${inScopeR4g} AND NOT (${pass}) AND alert_level IS DISTINCT FROM 'FAIL'`;
+    case 'OVERDUE_MISSING_R4G_IN_SCOPE': return `${inScopeNoR4g} AND alert_level = 'FAIL'`;
+    case 'WITHIN_TARGET_MISSING_R4G': return `${inScopeNoR4g} AND alert_level IS DISTINCT FROM 'FAIL'`;
+    case 'OUT_OF_SCOPE_NO_ANOMALY': return `${clean} AND NOT ttm_cntt_in_scope`;
     default: return null;
   }
 }
@@ -349,7 +365,7 @@ export async function queryEpicAlertFilterOptions(scope: AccessScope): Promise<E
 /** TTM Dashboard's full row set — every non-cancelled Epic in the viewer's access scope (the
  * dashboard drops Cancelled everywhere, and filters/aggregates the rest client-side), already
  * slimmed to DashboardEpicRow in SQL so the unused bulk of row_data never leaves the database. */
-export async function queryDashboardEpicRows(scope: AccessScope): Promise<DashboardEpicRow[]> {
+export async function queryDashboardEpicRows(scope: AccessScope, options: { includeCancelled?: boolean } = {}): Promise<DashboardEpicRow[]> {
   const params: unknown[] = [];
   const accessClause = buildAccessScopeClause(scope, params);
   const fieldsSql = DASHBOARD_EPIC_ROW_KEYS.map((key) => `'${key}', row_data->'${key}'`).join(', ');
@@ -364,7 +380,7 @@ export async function queryDashboardEpicRows(scope: AccessScope): Promise<Dashbo
       )
     ) AS row
     FROM epic_alert_row_cache
-    WHERE ${accessClause} AND current_status !~* 'cancel'
+    WHERE ${accessClause}${options.includeCancelled ? '' : " AND current_status !~* 'cancel'"}
     ORDER BY ${ORDER_BY};
     `,
     params,

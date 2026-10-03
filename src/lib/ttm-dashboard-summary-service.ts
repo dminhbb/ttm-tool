@@ -25,7 +25,8 @@ import type { UserRole } from '@/lib/auth-types';
 
 /** Same row source as GET /api/dashboard-new: epic_alert_row_cache scoped to this viewer when the
  * cache exists, otherwise the live computation. Cancelled Epics are always excluded. */
-export async function loadDashboardEpicRows(userId: number, role: UserRole): Promise<{ lastAggregatedAt: string | null; rows: DashboardEpicRow[] }> {
+/** Cancelled Epics are left out unless `includeCancelled` (TTM Dashboard 2's funnel shows them as its own layer). */
+export async function loadDashboardEpicRows(userId: number, role: UserRole, options: { includeCancelled?: boolean } = {}): Promise<{ lastAggregatedAt: string | null; rows: DashboardEpicRow[] }> {
   // The cache holds rows built with the STORED display engine; a per-machine SCORING_ENGINE_MODE
   // override that differs from it is served live instead.
   const [cacheMeta, engineMode, cacheEngineMode] = await Promise.all([getEpicAlertRowCacheMeta(), getScoringEngineMode(), getStoredScoringEngineMode()]);
@@ -34,12 +35,12 @@ export async function loadDashboardEpicRows(userId: number, role: UserRole): Pro
       resolveAccessScope(userId, role),
       pool.query<{ aggregatedAt: string }>('SELECT aggregated_at::text AS "aggregatedAt" FROM import_batches ORDER BY aggregated_at DESC LIMIT 1;'),
     ]);
-    return { lastAggregatedAt: latestBatch.rows[0]?.aggregatedAt ?? null, rows: await queryDashboardEpicRows(scope) };
+    return { lastAggregatedAt: latestBatch.rows[0]?.aggregatedAt ?? null, rows: await queryDashboardEpicRows(scope, options) };
   }
   const context = await getEpicAlertRowsForDisplay(userId, role);
   return {
     lastAggregatedAt: context.lastAggregatedAt,
-    rows: context.rows.filter((row) => !isCancelledStatus(row.currentStatus || '')).map(toDashboardEpicRow),
+    rows: context.rows.filter((row) => options.includeCancelled || !isCancelledStatus(row.currentStatus || '')).map(toDashboardEpicRow),
   };
 }
 

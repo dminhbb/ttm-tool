@@ -4,6 +4,7 @@ import { getEpicAlertRowsForDisplay } from '@/lib/epic-scoring-display-service';
 import { getScoringEngineMode, getStoredScoringEngineMode } from '@/lib/scoring-mode-service';
 import { parseEpicAlertFiltersFromSearchParams } from '@/lib/epic-alert-filter-params';
 import { getTtmScopeConfig } from '@/lib/ttm-scope-config-service';
+import { resolveViewAsTarget } from '@/lib/view-as-user-service';
 import type { EpicAlertFilters } from '@/lib/epic-alert-service';
 import { fetchEpicAlertHeaderContext } from '@/lib/epic-alert-service';
 import type { EpicAlertRowCacheFilters } from '@/lib/epic-alert-row-cache-query-service';
@@ -53,8 +54,11 @@ async function dropNoOpTtmScopeOverride(filters: EpicAlertFilters): Promise<Epic
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireUser(request);
+    const actor = await requireUser(request);
     const searchParams = request.nextUrl.searchParams;
+    // "Xem dưới quyền" from a TTM dashboard drill-down: list exactly what the previewed user sees
+    // (ignored unless the actor may preview that user — see view-as-user-service.ts).
+    const { userId, role, viewAsUser } = await resolveViewAsTarget(actor, searchParams.get('viewAsUserId'));
     const filters = await dropNoOpTtmScopeOverride(parseEpicAlertFiltersFromSearchParams(searchParams));
 
     // Fast path: no "layer cũ hơn" drill-down and no advanced date filter active — those change
@@ -73,7 +77,7 @@ export async function GET(request: NextRequest) {
     const cacheMeta = usesAdvancedFilter || engineMode !== cacheEngineMode ? null : await getEpicAlertRowCacheMeta();
 
     if (cacheMeta?.hasCache) {
-      const header = await fetchEpicAlertHeaderContext(user.id, user.role);
+      const header = await fetchEpicAlertHeaderContext(userId, role);
       const cacheFilters = { ...parseCacheFilters(searchParams), engineMode };
       const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
       const pageSize = Math.min(200, Math.max(1, Number(searchParams.get('pageSize') ?? '20') || 20));
@@ -93,6 +97,7 @@ export async function GET(request: NextRequest) {
         availableLayerDates: header.availableLayerDates,
         lastAggregatedAt: header.lastAggregatedAt,
         viewerName: header.viewerName,
+        viewAsUser,
         rows: pageResult.rows,
         totalCount: pageResult.totalCount,
         page,
@@ -106,8 +111,8 @@ export async function GET(request: NextRequest) {
 
     // Fallback: advanced date filter active, or the cache hasn't been populated yet (e.g. no
     // import has completed since this table was introduced) — recompute live, same as before.
-    const data = await getEpicAlertRowsForDisplay(user.id, user.role, filters);
-    return NextResponse.json({ mode: 'full', ...data });
+    const data = await getEpicAlertRowsForDisplay(userId, role, filters);
+    return NextResponse.json({ mode: 'full', ...data, viewAsUser });
   } catch (error: unknown) {
     console.error('API Error in epic-alerts-15 route:', error);
     const message = error instanceof Error ? error.message : 'Lỗi hệ thống khi tải dữ liệu Quản lý Epic 15';

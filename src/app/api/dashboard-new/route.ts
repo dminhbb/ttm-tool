@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser, listManagedUsers } from '@/lib/auth-service';
 import { loadDashboardEpicRows } from '@/lib/ttm-dashboard-summary-service';
 import { getTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
-import pool from '@/lib/db';
-import type { UserRole } from '@/lib/auth-types';
+import { resolveViewAsTarget, VIEW_AS_ALLOWED_ROLES, VIEW_AS_ROLE_RANK } from '@/lib/view-as-user-service';
 
 function authError(error: unknown): NextResponse | null {
   if (error instanceof AuthError) {
@@ -12,43 +11,12 @@ function authError(error: unknown): NextResponse | null {
   return null;
 }
 
-const ROLE_RANK: Record<string, number> = {
-  SUPERADMIN: 4,
-  SUPERVISOR: 3,
-  ADMIN: 2,
-  USER: 1,
-};
-
 export async function GET(request: NextRequest) {
   try {
     const actor = await requireUser(request);
-    const searchParams = request.nextUrl.searchParams;
-    const viewAsUserIdStr = searchParams.get('viewAsUserId');
-    const viewAsUserId = viewAsUserIdStr ? parseInt(viewAsUserIdStr, 10) : null;
-
-    let targetUserId = actor.id;
-    let targetRole: UserRole = actor.role;
-    let viewAsUser: { email: string; fullName: string; id: number; role: string } | null = null;
-
-    const isAdminOrSupervisor = ['SUPERADMIN', 'ADMIN', 'SUPERVISOR'].includes(actor.role);
-    const actorRank = ROLE_RANK[actor.role] ?? 1;
-
-    if (isAdminOrSupervisor && viewAsUserId && viewAsUserId !== actor.id) {
-      const userRes = await pool.query<{ email: string; fullName: string; id: number; role: string }>(
-        `SELECT id, full_name AS "fullName", email, role FROM users WHERE id = $1 AND is_active = TRUE`,
-        [viewAsUserId]
-      );
-      if (userRes.rows.length > 0) {
-        const u = userRes.rows[0];
-        const targetRank = ROLE_RANK[u.role] ?? 1;
-        // Only allow switching to users with role equal to or lower than actor's role
-        if (targetRank <= actorRank) {
-          targetUserId = u.id;
-          targetRole = 'USER';
-          viewAsUser = { email: u.email, fullName: u.fullName, id: u.id, role: u.role };
-        }
-      }
-    }
+    const isAdminOrSupervisor = VIEW_AS_ALLOWED_ROLES.includes(actor.role);
+    const actorRank = VIEW_AS_ROLE_RANK[actor.role] ?? 1;
+    const { userId: targetUserId, role: targetRole, viewAsUser } = await resolveViewAsTarget(actor, request.nextUrl.searchParams.get('viewAsUserId'));
 
     // Same row source the MCP tool get_ttm_dashboard uses — see loadDashboardEpicRows
     // (ttm-dashboard-summary-service.ts): epic_alert_row_cache scoped to this viewer, falling back
@@ -65,7 +33,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     const managedUsers: Array<{ domainIds: number[]; email: string; fullName: string; id: number; isActive: boolean; projectIds: number[]; role: string }> = allUsers
-      .filter((u) => u.isActive && (ROLE_RANK[u.role] ?? 1) <= actorRank)
+      .filter((u) => u.isActive && (VIEW_AS_ROLE_RANK[u.role] ?? 1) <= actorRank)
       .map((u) => ({
         domainIds: u.domainIds,
         email: u.email,

@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser, listManagedUsers } from '@/lib/auth-service';
 import { loadDashboardEpicRows } from '@/lib/ttm-dashboard-summary-service';
 import { getTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
-import pool from '@/lib/db';
-import type { UserRole } from '@/lib/auth-types';
+import { resolveViewAsTarget, VIEW_AS_ALLOWED_ROLES, VIEW_AS_ROLE_RANK } from '@/lib/view-as-user-service';
 
 function authError(error: unknown): NextResponse | null {
   if (error instanceof AuthError) {
@@ -15,54 +14,24 @@ function authError(error: unknown): NextResponse | null {
   return null;
 }
 
-const ROLE_RANK: Record<string, number> = {
-  SUPERADMIN: 4,
-  SUPERVISOR: 3,
-  ADMIN: 2,
-  USER: 1,
-};
-
 export async function GET(request: NextRequest) {
   try {
     const actor = await requireUser(request);
 
     // Only allow Supervisor, Admin, or Superadmin
-    const isAdminOrSupervisor = ['SUPERADMIN', 'ADMIN', 'SUPERVISOR'].includes(actor.role);
-    if (!isAdminOrSupervisor) {
+    if (!VIEW_AS_ALLOWED_ROLES.includes(actor.role)) {
       return NextResponse.json(
         { error: 'Bạn không có quyền truy cập chức năng này (Yêu cầu role Supervisor trở lên).' },
         { status: 403 }
       );
     }
 
-    const searchParams = request.nextUrl.searchParams;
-    const viewAsUserIdStr = searchParams.get('viewAsUserId');
-    const viewAsUserId = viewAsUserIdStr ? parseInt(viewAsUserIdStr, 10) : null;
-
-    let targetUserId = actor.id;
-    let targetRole: UserRole = actor.role;
-    let viewAsUser: { email: string; fullName: string; id: number; role: string } | null = null;
-    const actorRank = ROLE_RANK[actor.role] ?? 1;
-
-    if (viewAsUserId && viewAsUserId !== actor.id) {
-      const userRes = await pool.query<{ email: string; fullName: string; id: number; role: string }>(
-        `SELECT id, full_name AS "fullName", email, role FROM users WHERE id = $1 AND is_active = TRUE`,
-        [viewAsUserId]
-      );
-      if (userRes.rows.length > 0) {
-        const u = userRes.rows[0];
-        const targetRank = ROLE_RANK[u.role] ?? 1;
-        // Only allow switching to users with role equal to or lower than actor's role
-        if (targetRank <= actorRank) {
-          targetUserId = u.id;
-          targetRole = 'USER';
-          viewAsUser = { email: u.email, fullName: u.fullName, id: u.id, role: u.role };
-        }
-      }
-    }
+    const target = await resolveViewAsTarget(actor, request.nextUrl.searchParams.get('viewAsUserId'));
+    const actorRank = VIEW_AS_ROLE_RANK[actor.role] ?? 1;
 
     const [context, ttmIndexGlobal, allUsers] = await Promise.all([
-      loadDashboardEpicRows(targetUserId, targetRole),
+      // Cancelled Epics included: the funnel's Layer 2 ("Lọc Cancelled") subtracts them itself.
+      loadDashboardEpicRows(target.userId, target.role, { includeCancelled: true }),
       getTtmIndexGlobalCache().catch((err) => {
         console.error('Failed to get TTM Index Global Cache:', err);
         return null;
@@ -71,7 +40,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     const managedUsers = allUsers
-      .filter((u) => u.isActive && (ROLE_RANK[u.role] ?? 1) <= actorRank)
+      .filter((u) => u.isActive && (VIEW_AS_ROLE_RANK[u.role] ?? 1) <= actorRank)
       .map((u) => ({
         domainIds: u.domainIds,
         email: u.email,
@@ -84,12 +53,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       actor: { email: actor.email, fullName: actor.fullName, id: actor.id, role: actor.role },
-      isUserPreview: Boolean(viewAsUser),
+      isUserPreview: Boolean(target.viewAsUser),
       lastAggregatedAt: context.lastAggregatedAt,
       managedUsers,
       rows: context.rows,
       ttmIndexGlobal,
-      viewAsUser,
+      viewAsUser: target.viewAsUser,
     });
   } catch (error) {
     console.error('TTM Dashboard 2 API error:', error);

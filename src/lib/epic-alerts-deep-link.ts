@@ -5,10 +5,12 @@
  * half; keep both in sync if a param is added or renamed here.
  */
 
+import type { TtmFunnelFilterValue } from '@/lib/epic-row-verdicts';
+
 export const EPIC_ALERTS_ROUTE = '/epic-alerts-15';
 
 /** Mirrors AlertFilterValue in epic-row-verdicts.ts, minus the '' (no filter) case. */
-export type EpicAlertsDeepLinkAlert = 'ACHIEVED_CNTT' | 'ACHIEVED_E2E' | 'DATA_ANOMALY' | 'DATA_ANOMALY_IN_SCOPE' | 'MISSING_R4G_IN_SCOPE' | 'TTM_ELIGIBLE_IN_SCOPE' | 'EARLY' | 'FAIL' | 'FAIL_E2E' | 'FAIL_LATE_R4G' | 'FAIL_MISSING_R4G' | 'JUSTIFY_GOLIVE' | 'LATE' | 'OUT_OF_SCOPE_CNTT' | 'PENDING_TOO_LONG' | 'RELEASE_EARLY' | 'STATUS_MISMATCH' | 'WAITING_GOLIVE' | 'WAITING_GOLIVE_MISSING_R4G' | 'WAITING_GOLIVE_WITHIN_GRACE' | 'WAITING_GOLIVE_OVERDUE';
+export type EpicAlertsDeepLinkAlert = 'ACHIEVED_CNTT' | 'ACHIEVED_E2E' | 'DATA_ANOMALY' | 'DATA_ANOMALY_IN_SCOPE' | 'MISSING_R4G_IN_SCOPE' | 'TTM_ELIGIBLE_IN_SCOPE' | TtmFunnelFilterValue | 'EARLY' | 'FAIL' | 'FAIL_E2E' | 'FAIL_LATE_R4G' | 'FAIL_MISSING_R4G' | 'JUSTIFY_GOLIVE' | 'LATE' | 'OUT_OF_SCOPE_CNTT' | 'PENDING_TOO_LONG' | 'RELEASE_EARLY' | 'STATUS_MISMATCH' | 'WAITING_GOLIVE' | 'WAITING_GOLIVE_MISSING_R4G' | 'WAITING_GOLIVE_WITHIN_GRACE' | 'WAITING_GOLIVE_OVERDUE';
 
 export interface EpicAlertsDeepLinkParams {
   /** "Lọc Nhận xét" — same values as the table's Nhận xét badges (FAIL = Fail TTM-CNTT, etc.). */
@@ -39,6 +41,9 @@ export interface EpicAlertsDeepLinkParams {
   ttmScopeCnttTo?: string | null;
   ttmScopeQaFrom?: string | null;
   ttmScopeQaTo?: string | null;
+  /** "Xem dưới quyền" (user preview on the TTM dashboards): list the Epics as this user sees them.
+   * The API only honours it for viewers allowed to preview that user (see view-as-user-service.ts). */
+  viewAsUserId?: number | null;
 }
 
 export function buildEpicAlertsDeepLink(params: EpicAlertsDeepLinkParams = {}): string {
@@ -61,6 +66,7 @@ export function buildEpicAlertsDeepLink(params: EpicAlertsDeepLinkParams = {}): 
   if (params.ttmScopeCnttTo !== undefined) query.set('cnttTo', params.ttmScopeCnttTo ?? '');
   if (params.ttmScopeQaFrom !== undefined) query.set('qaFrom', params.ttmScopeQaFrom ?? '');
   if (params.ttmScopeQaTo !== undefined) query.set('qaTo', params.ttmScopeQaTo ?? '');
+  if (params.viewAsUserId) query.set('viewAsUserId', String(params.viewAsUserId));
 
   const queryString = query.toString();
   return queryString ? `${EPIC_ALERTS_ROUTE}?${queryString}` : EPIC_ALERTS_ROUTE;

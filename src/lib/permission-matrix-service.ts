@@ -28,9 +28,13 @@ export async function saveRoleFeaturePermissions(updates: RoleFeaturePermission[
     await client.query('BEGIN');
     for (const update of updates) {
       await client.query(`
-        UPDATE role_feature_permissions
-        SET can_view = $3, can_add = $4, can_edit = $5, can_delete = $6
-        WHERE feature_key = $1 AND role = $2;
+        INSERT INTO role_feature_permissions (feature_key, role, can_view, can_add, can_edit, can_delete)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (feature_key, role) DO UPDATE
+        SET can_view = EXCLUDED.can_view,
+            can_add = EXCLUDED.can_add,
+            can_edit = EXCLUDED.can_edit,
+            can_delete = EXCLUDED.can_delete;
       `, [update.featureKey, update.role, update.canView, update.canAdd, update.canEdit, update.canDelete]);
     }
     await client.query('COMMIT');

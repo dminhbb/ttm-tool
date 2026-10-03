@@ -582,6 +582,8 @@ interface EpicAlerts15Payload extends EpicAlertPhasedResponse {
   ttmIndexPm?: TtmCnttSummary;
   qaIndexPm?: TtmCnttSummary;
   filterOptions?: EpicAlertFilterOptions;
+  /** Set when the list is shown "dưới quyền" another user (viewAsUserId deep link from a TTM dashboard). */
+  viewAsUser?: { email: string; fullName: string } | null;
 }
 
 /** TTM-CNTT (QLDA) or TTM-CNTT (QA) value + 2-line tooltip text, formatted for the
@@ -610,6 +612,9 @@ function EpicAlerts15Screen() {
   // Read once at mount, from whatever URL navigated here (see epic-alerts-deep-link.ts) — later
   // edits to these state values via the toolbar must never get overridden by a stale re-parse.
   const [deepLinkFilters] = useState(() => parseDeepLinkFilters(searchParams));
+  // "Xem dưới quyền" carried over from a TTM dashboard drill-down — forwarded as-is to the API, which
+  // decides whether this viewer may actually preview that user (view-as-user-service.ts).
+  const [viewAsUserId] = useState(() => searchParams.get('viewAsUserId') ?? '');
 
   const [data, setData] = useState<EpicAlerts15Payload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -732,6 +737,7 @@ function EpicAlerts15Screen() {
       if (dataIssueFilter) query.set('dataIssueOnly', '1');
       for (const unit of requestingUnitFilters) query.append('requestingUnit', unit);
       if (debouncedSearch) query.set('search', debouncedSearch);
+      if (viewAsUserId) query.set('viewAsUserId', viewAsUserId);
       query.set('page', String(page));
       query.set('pageSize', String(PAGE_SIZE));
       const queryString = query.toString();
@@ -1148,6 +1154,11 @@ function EpicAlerts15Screen() {
     <div className="ttm-app">
       {!isEmbedded && <InfoBannerDisplay pathname="/epic-alerts-15" />}
       {error && <div className="ttm-note" style={{ background: 'var(--ttm-danger-050)', borderColor: '#f3b3b3', color: 'var(--ttm-danger-700)' }}>{error}</div>}
+      {data?.viewAsUser && (
+        <div className="ttm-note" style={{ background: '#fffbeb', borderColor: '#fcd34d', color: '#78350f', fontWeight: 600 }}>
+          Đang xem danh sách dưới quyền của: {data.viewAsUser.fullName} ({data.viewAsUser.email})
+        </div>
+      )}
       {data?.asOfDate && (
         <div className="ttm-note" style={{ background: '#fff7e6', borderColor: '#f0c36d', color: '#7a5200', fontWeight: 700 }}>
           Đang xem dữ liệu &amp; đánh giá cảnh báo tại thời điểm {data.asOfDate.split('-').reverse().join('/')} (không phải hôm nay thực tế).

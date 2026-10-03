@@ -8,6 +8,52 @@
 
 ## 2026-10-03
 
+- **TTM Dashboard 2 — sửa số liệu phễu, accordion, popup Quản trị Epic** (theo review; phương án a):
+  - **Layer 2 "Lọc Cancelled" luôn = 0**: API trước đây lấy dữ liệu đã loại sẵn Epic Cancelled. Nay
+    `loadDashboardEpicRows`/`queryDashboardEpicRows` có tuỳ chọn `includeCancelled` (chỉ TTM Dashboard 2 dùng).
+  - **Một định nghĩa duy nhất cho mọi tầng/nhóm**: `ttmFunnelBucket` (`src/lib/epic-row-verdicts.ts`) xếp mỗi Epic
+    vào đúng 1 lá; bộ lọc "Nhận xét" mới (`TTM_PASS_IN_SCOPE`, `TTM_LATE_IN_SCOPE`, `TTM_NOT_SCORED_IN_SCOPE`,
+    `OVERDUE_MISSING_R4G_IN_SCOPE`, `WITHIN_TARGET_MISSING_R4G`, `OUT_OF_SCOPE_NO_ANOMALY`) có bản SQL song song
+    trong `epic-alert-row-cache-query-service.ts`, nên số trên phễu luôn bằng số dòng danh sách mở ra.
+  - **Nhóm 5AB chỉ còn Fail thật (Trễ R4G)**; thêm **nhóm 5AC "Chưa chấm"** (R4G Date tương lai / không tính được
+    Target, vẫn trong mẫu số). Thêm **Layer 4C "Ngoài phạm vi TTM-CNTT"** (chỉ hiện khi > 0) để L3 = 4A + 4B + 4C.
+  - **Xem dưới quyền**: logic chung `src/lib/view-as-user-service.ts` (dùng cho TTM Dashboard, TTM Dashboard 2 và
+    `/api/epic-alerts-15`); Quản trị Epic nhận `viewAsUserId` từ deep-link nên danh sách đúng phạm vi user đang xem
+    trước (có dòng báo "Đang xem danh sách dưới quyền của …").
+  - **Popup Quản trị Epic** dùng chung `EpicAlertsIframeModal` với TTM Dashboard (cùng kích thước, nền mờ); bỏ
+    `maxWidth="full"` vừa thêm vào `Modal`. Text quy tắc Layer 2 ghi đúng quy tắc `/cancel/i`.
+  - **Accordion**: nguyên nhân không thấy hiệu ứng — Windows tắt "Animation effects" ⇒ `prefers-reduced-motion`,
+    và CSS toàn cục ép mọi transition về 0.01ms. Nay accordion dùng `grid-template-columns`/`rows` (0.7s, class
+    `!important`), có hiệu ứng cả khi mở lẫn khi đóng, hết tràn ngang 24px; Layer 4 bấm được bằng bàn phím.
+  - Vẽ phễu tách ra `src/components/ttm-dashboard-2/FunnelLayers.tsx` (chia nhóm theo tỷ lệ, callout tự động);
+    test `src/lib/__tests__/ttm-funnel-bucket.test.ts`. Đã đối chiếu phễu ↔ danh sách trên dữ liệu thật: 39 tổ
+    hợp (admin + 31 user xem dưới quyền, lọc dự án/domain/PM-SM/đơn vị) khớp 100%.
+
+- **Sửa lỗi lưu ma trận phân quyền cho role SUPERVISOR trên tính năng "Báo cáo Epic" (`/admin/permissions`)**:
+  - **Nguyên nhân**: Migration tạo quyền `epic_reports` trước đó (`20260909_add_epic_reports_permission.sql`) thiếu dòng khởi tạo cho role `SUPERVISOR`. Đồng thời hàm `saveRoleFeaturePermissions` trong [permission-matrix-service.ts](file:///d:/git/ttm-tool/src/lib/permission-matrix-service.ts) chỉ dùng lệnh `UPDATE`, khiến các cặp `(feature_key, role)` chưa tồn tại trong bảng `role_feature_permissions` không được insert khi Superadmin bấm Lưu ma trận.
+  - **Khắc phục**:
+    - Chuyển câu lệnh cập nhật trong `saveRoleFeaturePermissions` sang dạng `INSERT ... ON CONFLICT (feature_key, role) DO UPDATE` (UPSERT) để tự động khởi tạo bản ghi nếu chưa có.
+    - Tạo migration `20261003b_fix_epic_reports_supervisor_permission.sql` bổ sung toàn bộ các cặp role/feature còn thiếu cho tất cả các role trong hệ thống và đã chạy migrate lên database `supabase`.
+
+- **Điều chỉnh tốc độ Accordion 1.5s & Đồng bộ chính xác tiêu chí lọc sang Popup Quản trị Epic (`/ttm-dashboard-2`)**:
+  - **Tốc độ Animation Accordion 1.5s (`duration-[1500ms]`)**: Tăng thời gian chuyển động thu hẹp Panel 1 và mở rộng Panel 2/3 lên 1.5s giúp hiệu ứng accordion hiển thị rất mượt mà, trực quan và rõ nét khi người dùng click vào từng nửa của Layer 4.
+  - **Đồng bộ bộ lọc chính xác khi mở Quản trị Epic từ Popup Diễn giải**:
+    - `LAYER-04A` (Epic Hoàn thành): Gửi tham số `alert=TTM_ELIGIBLE_IN_SCOPE` để lọc chính xác các Epic đã có mốc `R4G Date` thực tế, không bị Data Anomaly và nằm trong phạm vi tính TTM-CNTT (khắc phục lỗi hiển thị 92 Epic sang đúng 34 Epic hoàn thành của dự án API).
+    - `LAYER-04B` (Epic Chưa hoàn thành): Gửi tham số `alert=MISSING_R4G_IN_SCOPE` lọc đúng các Epic chưa có `R4G Date` trong phạm vi.
+    - `GROUP-05AA` (Đạt TTM-CNTT): Gửi tham số `alert=ACHIEVED_CNTT`.
+    - `GROUP-05AB` (Fail TTM-CNTT - Trễ hạn): Gửi tham số `alert=FAIL_LATE_R4G`.
+    - `GROUP-05BA` (Fail TTM-CNTT - Quá Target): Gửi tham số `alert=FAIL_MISSING_R4G`.
+    - `GROUP-05BB` (Chưa hoàn thành - Đang trong hạn): Bổ sung tiêu chí `alert=WITHIN_TARGET_MISSING_R4G` trên toàn bộ hệ thống (`epic-row-verdicts.ts`, `epic-alert-row-cache-query-service.ts`, `epic-alerts-deep-link.ts`).
+    - `LAYER-03` (Sai lệch dữ liệu): Gửi tham số `alert=DATA_ANOMALY` và `dataIssue=true`.
+    - `LAYER-02` (Epic Đã hủy): Gửi `status=Cancelled,Closed,Rejected`.
+
+
+- **Hiệu ứng Accordion 0.7s, Tăng 100% kích thước Modal Diễn giải & Popup Nhúng Quản trị Epic (`/ttm-dashboard-2`)**:
+  - **Hiệu ứng Accordion 0.7x (`transition-all duration-700 ease-in-out`)**: Khi bấm vào một trong hai nửa của Layer 4 (Epic Hoàn thành / Epic Chưa hoàn thành), Panel 1 chuyển đổi mượt mà từ chiều rộng 100% về 50%, đồng thời Panel 2 hoặc 3 mở rộng từ 0% sang 50% theo dạng accordion mượt mà với tốc độ 0.7s.
+  - **Tăng 100% kích thước Popup Diễn giải số liệu**: Nâng cấp kích thước Modal lên `maxWidth="2xl"` (`max-w-6xl` = 1152px) và cấu trúc layout 2 cột thông thoáng: Cột trái thể hiện Số liệu tóm tắt & Quy tắc lọc chi tiết; Cột phải thể hiện Công thức tính toán, Thống kê phạm vi dữ liệu và Nút thao tác nhanh.
+  - **Nút "Xem danh sách các Epic" mở Popup Quản trị Epic nhúng trong trang**: Bấm nút xem danh sách sẽ mở Modal toàn màn hình (`maxWidth="full"`) chứa `iframe` nhúng trực tiếp màn hình Quản trị Epic (`/epic-alerts-15?embedded=1&...`) kế thừa toàn bộ bộ lọc và ngữ cảnh dữ liệu hiện tại từ TTM Dashboard 2 (`domain`, `projects`, `pmSm`, `requestingUnit`, `alert`, `dataIssue`, `status`, `viewAsUserId`) mà không cần rời trang, kèm nút mở tab mới.
+
+
 - **Cải tiến hiển thị động & Đưa toàn bộ text của nhóm nhỏ ra Callout Line (`/ttm-dashboard-2`)**:
   - **Mặc định ẩn Panel 2 & 3 (Full-width ban đầu)**: Mặc định khi vào màn hình, Panel 1 chiếm trọn $100\%$ chiều rộng màn hình. Chỉ khi người dùng bấm vào một trong hai nhóm của Layer 4 (Hoàn thành hoặc Chưa xong), Panel 1 mới tự động co lại $50\%$ chiều rộng bên trái để nhường chỗ cho Panel chi tiết tương ứng xuất hiện ở bên phải. Bổ sung nút đóng `X` để dễ dàng thu gọn lại toàn màn hình.
   - **Đưa toàn bộ Text + Số liệu của nhóm nhỏ ra ngoài đường kẻ Callout Line**: Với các nhóm nhỏ hơn (Nhóm 5ab `Fail Trễ hạn` và Nhóm 5ba `Fail Quá Target`), trong lòng layer hoàn toàn để trống để không bị chèn ép text; toàn bộ **Text chính (`Fail`)**, **Số liệu (`{count}`)**, và **Text phụ (`Trễ hạn` / `Quá Target`)** được đưa ra ngoài đầu đường kẻ chỉ dẫn màu đỏ gập khúc.
