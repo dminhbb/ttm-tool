@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TTM Funnel - 3D Conical Ring Dashboard (Minimalist Light)</title>
+  <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            canvas: '#f8fafc',
+            surface: '#ffffff',
+            borderSubtle: '#e2e8f0',
+            borderStrong: '#cbd5e1',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+    
+    /* 3D Ring Funnel Interactive Elements */
+    .funnel-layer-group {
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .funnel-layer-group:hover {
+      filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.15)) brightness(1.04);
+      transform: translateY(-2px);
+    }
+    .funnel-layer-group.active-layer {
+      filter: drop-shadow(0 10px 20px rgba(2, 132, 199, 0.3)) brightness(1.08);
+      transform: translateY(-3px) scale(1.01);
+    }
+
+    .caption-card {
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: 1px solid transparent;
+    }
+    .caption-card:hover {
+      background-color: #ffffff;
+      border-color: #e2e8f0;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+      transform: translateX(4px);
+    }
+    .caption-card.active-caption {
+      background-color: #ffffff;
+      border-color: #0284c7;
+      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.12);
+      transform: translateX(6px);
+    }
+
+    /* Minimalist Inputs */
+    .filter-select {
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      color: #1e293b;
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: 12px;
+      width: 100%;
+      outline: none;
+      transition: all 0.2s;
+    }
+    .filter-select:focus {
+      background-color: #ffffff;
+      border-color: #0284c7;
+      box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
+    }
+
+    .minimal-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.02);
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans antialiased selection:bg-teal-100 selection:text-teal-900">
+
+  <!-- Header -->
+  <header class="bg-surface border-b border-borderSubtle sticky top-0 z-30 px-8 py-3.5 flex items-center justify-between shadow-sm">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-teal-500 to-cyan-600 flex items-center justify-center text-white shadow-sm">
+        <i class="ph-bold ph-funnel text-lg"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-sm font-bold text-slate-900 uppercase tracking-tight">TTM Data Pipeline Funnel</h1>
+          <span class="px-2.5 py-0.5 text-[10px] font-semibold bg-teal-50 text-teal-700 border border-teal-200 rounded-full font-mono">3D Slide Funnel Style</span>
+        </div>
+        <p class="text-[11px] text-slate-500">Thiết kế phễu nón 3D xếp tầng (Conical Slices) • Nhánh 70/30 tại Lớp 3 & Lớp 6</p>
+      </div>
+    </div>
+
+    <!-- Header Stats -->
+    <div class="flex items-center gap-3 text-xs">
+      <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 font-mono">
+        <span class="text-slate-500 text-[11px]">Tổng đầu vào:</span>
+        <span class="font-bold text-slate-800" id="statInput">1,000,000</span>
+      </div>
+      <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 font-mono">
+        <span class="text-slate-500 text-[11px]">Tập tính toán (L5):</span>
+        <span class="font-bold text-emerald-600" id="statValid">600,000 (60.0%)</span>
+      </div>
+      <div class="h-5 w-[1px] bg-slate-200"></div>
+      <a href="./funnel-minimalist-light.html" class="px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 text-xs font-medium transition flex items-center gap-1.5">
+        <i class="ph ph-layout"></i> Mẫu Ruy-băng
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Grid: 3D Funnel & Captions (Col 9) + 5-Filter Sidebar (Col 3) -->
+  <main class="flex-1 p-6 md:p-8 max-w-[1700px] w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- LEFT & CENTER: 3D Slide Funnel Layout (Col 9) -->
+    <div class="lg:col-span-9 minimal-card p-6 md:p-8 flex flex-col justify-between">
+      
+      <!-- Card Title -->
+      <div class="text-center pb-6 mb-2">
+        <h2 class="text-2xl md:text-3xl font-serif tracking-tight text-slate-800">
+          Slide Funnel Dashboard
+        </h2>
+        <p class="text-xs text-slate-500 mt-1 font-sans">
+          Mô hình phễu 3D nón cụt xếp tầng theo sát layout ảnh mẫu — Tích hợp 6 lớp dữ liệu & tách nhánh 70/30
+        </p>
+      </div>
+
+      <!-- Funnel Graphics + Captions Container (Grid 12) -->
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center flex-1 py-2">
+        
+        <!-- LEFT: 3D Conical Slices SVG Funnel (Col 5) -->
+        <div class="md:col-span-5 flex justify-center items-center">
+          <svg class="w-full max-w-[340px] drop-shadow-md" viewBox="0 0 360 620" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <!-- Layer 3 Body Split (70% Blue #0284c7 / 30% Gold #f59e0b) -->
+              <linearGradient id="bodyGrad3" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#0284c7"/>
+                <stop offset="69.8%" stop-color="#0284c7"/>
+                <stop offset="70%" stop-color="#f59e0b"/>
+                <stop offset="100%" stop-color="#f59e0b"/>
+              </linearGradient>
+
+              <!-- Layer 3 Lid Split (70% Darker Blue #0369a1 / 30% Darker Gold #d97706) -->
+              <linearGradient id="lidGrad3" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#0369a1"/>
+                <stop offset="69.8%" stop-color="#0369a1"/>
+                <stop offset="70%" stop-color="#d97706"/>
+                <stop offset="100%" stop-color="#d97706"/>
+              </linearGradient>
+
+              <!-- Layer 6 Body Split (70% Teal #0d9488 / 30% Rose #e11d48) -->
+              <linearGradient id="bodyGrad6" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#0d9488"/>
+                <stop offset="69.8%" stop-color="#0d9488"/>
+                <stop offset="70%" stop-color="#e11d48"/>
+                <stop offset="100%" stop-color="#e11d48"/>
+              </linearGradient>
+
+              <!-- Layer 6 Lid Split (70% Darker Teal #0f766e / 30% Darker Rose #9f1239) -->
+              <linearGradient id="lidGrad6" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#0f766e"/>
+                <stop offset="69.8%" stop-color="#0f766e"/>
+                <stop offset="70%" stop-color="#9f1239"/>
+                <stop offset="100%" stop-color="#9f1239"/>
+              </linearGradient>
+            </defs>
+            
+            <!-- ==============================================
+                 LAYER 1: Teal / Cyan Conical Slice (01)
+                 ============================================== -->
+            <g class="funnel-layer-group active-layer" id="svg-layer-1" onclick="selectLayer(1)">
+              <!-- Outer body (truncated cone) -->
+              <path d="M 20 40 
+                       A 160 22 0 0 0 340 40 
+                       L 310 105 
+                       A 130 18 0 0 1 50 105 
+                       Z" 
+                    fill="#00b4d8"/>
+              <!-- Top rim / elliptical lid (darker shade for 3D depth) -->
+              <ellipse cx="180" cy="40" rx="160" ry="22" fill="#00838f"/>
+              <!-- Inner accent reflection -->
+              <ellipse cx="180" cy="38" rx="150" ry="18" fill="#0097a7" opacity="0.6"/>
+              <!-- Layer Text on 3D Body -->
+              <text x="180" y="80" fill="#ffffff" font-size="13" font-weight="700" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif">
+                1. RAW INGESTION (1M)
+              </text>
+            </g>
+
+            <!-- ==============================================
+                 LAYER 2: Coral Red Conical Slice (02)
+                 ============================================== -->
+            <g class="funnel-layer-group" id="svg-layer-2" onclick="selectLayer(2)">
+              <!-- Body -->
+              <path d="M 45 125 
+                       A 135 18 0 0 0 315 125 
+                       L 285 190 
+                       A 105 15 0 0 1 75 190 
+                       Z" 
+                    fill="#ff4d4f"/>
+              <!-- Top lid -->
+              <ellipse cx="180" cy="125" rx="135" ry="18" fill="#cf1322"/>
+              <!-- Text -->
+              <text x="180" y="165" fill="#ffffff" font-size="12.5" font-weight="700" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif">
+                2. DATA CLEANSING (850K)
+              </text>
+            </g>
+
+            <!-- ==============================================
+                 LAYER 3: Split 70% Blue vs 30% Gold Conical Slice (03)
+                 ============================================== -->
+            <g class="funnel-layer-group" id="svg-layer-3" onclick="selectLayer(3)">
+              <!-- 70% Core Sector Body (Blue) -->
+              <path d="M 70 210 
+                       A 110 15 0 0 0 224 223.75 
+                       L 214 286 
+                       A 85 12 0 0 1 95 275 
+                       Z" 
+                    fill="#0284c7"/>
+              <!-- 30% Sub Sector Body (Amber/Gold) -->
+              <path d="M 224 223.75 
+                       A 110 15 0 0 0 290 210 
+                       L 265 275 
+                       A 85 12 0 0 1 214 286 
+                       Z" 
+                    fill="#f59e0b"/>
+              
+              <!-- 70% Top Lid Sector (Darker Blue) -->
+              <path d="M 70 210 
+                       A 110 15 0 0 0 224 223.75 
+                       L 224 196.25 
+                       A 110 15 0 0 0 70 210 
+                       Z" 
+                    fill="#0369a1"/>
+              <!-- 30% Top Lid Sector (Darker Gold) -->
+              <path d="M 224 223.75 
+                       A 110 15 0 0 0 290 210 
+                       A 110 15 0 0 0 224 196.25 
+                       Z" 
+                    fill="#d97706"/>
+
+              <!-- Seamless Seam Divider at 70% (Lid & Front Body) -->
+              <line x1="224" y1="196.25" x2="224" y2="223.75" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="2 2" opacity="0.6"/>
+              <line x1="224" y1="223.75" x2="214" y2="286" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="3 2" opacity="0.95"/>
+              
+              <!-- Text Labels -->
+              <text x="155" y="250" fill="#ffffff" font-size="11.5" font-weight="700" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif">
+                3A. 70% (595K)
+              </text>
+              <text x="250" y="250" fill="#ffffff" font-size="10.5" font-weight="700" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif">
+                3B. 30% (255K)
+              </text>
+            </g>
+
+            <!-- ==============================================
+                 LAYER 4: Medium Blue Conical Slice (04)
+                 ============================================== -->
+            <g class="funnel-layer-group" id="svg-layer-4" onclick="selectLayer(4)">
+              <!-- Body -->
+              <path d="M 90 295 
+                       A 90 13 0 0 0 270 295 
+                       L 245 360 
+                       A 65 10 0 0 1 115 360 
+                       Z" 
+                    fill="#0077b6"/>
+              <!-- Top lid -->
+              <ellipse cx="180" cy="295" rx="90" ry="13" fill="#023e8a"/>
+              <!-- Text -->
+              <text x="180" y="335" fill="#ffffff" font-size="12" font-weight="700" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif">
+                4. BUSINESS RULES (720K)
+              </text>
+            </g>
+
+            <!-- ==============================================
+                 LAYER 5: Golden Yellow Conical Slice (05)
+                 ============================================== -->
+            <g class="funnel-layer-group" id="svg-layer-5" onclick="selectLayer(5)">
+              <!-- Body -->
+              <path d="M 110 380 
+                       A 70 11 0 0 0 250 380 
+                       L 230 445 
+                       A 50 8 0 0 1 130 445 
+                       Z" 
+                    fill="#ffb703"/>
+              <!-- Top lid -->
+              <ellipse cx="180" cy="380" rx="70" ry="11" fill="#d48b00"/>
+              <!-- Text -->
+              <text x="180" y="420" fill="#ffffff" font-size="11.5" font-weight="700" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif">
+                5. CALCULATION DATASET (600K)
+              </text>
+            </g>
+
+            <!-- ==============================================
+                 LAYER 6: Split 70% Teal vs 30% Rose Conical Slice (06)
+                 ============================================== -->
+            <g class="funnel-layer-group" id="svg-layer-6" onclick="selectLayer(6)">
+              <!-- 70% Executive Sector Body (Teal) -->
+              <path d="M 125 465 
+                       A 55 9 0 0 0 202 473.25 
+                       L 194 535.5 
+                       A 35 6 0 0 1 145 530 
+                       Z" 
+                    fill="#0d9488"/>
+              <!-- 30% Alert Sector Body (Rose) -->
+              <path d="M 202 473.25 
+                       A 55 9 0 0 0 235 465 
+                       L 215 530 
+                       A 35 6 0 0 1 194 535.5 
+                       Z" 
+                    fill="#e11d48"/>
+              
+              <!-- 70% Top Lid Sector (Darker Teal) -->
+              <path d="M 125 465 
+                       A 55 9 0 0 0 202 473.25 
+                       L 202 456.75 
+                       A 55 9 0 0 0 125 465 
+                       Z" 
+                    fill="#0f766e"/>
+              <!-- 30% Top Lid Sector (Darker Rose) -->
+              <path d="M 202 473.25 
+                       A 55 9 0 0 0 235 465 
+                       A 55 9 0 0 0 202 456.75 
+                       Z" 
+                    fill="#9f1239"/>
+
+              <!-- Seamless Seam Divider at 70% (Lid & Front Body) -->
+              <line x1="202" y1="456.75" x2="202" y2="473.25" stroke="#ffffff" stroke-width="1.2" stroke-dasharray="2 2" opacity="0.6"/>
+              <line x1="202" y1="473.25" x2="194" y2="535.5" stroke="#ffffff" stroke-width="1.2" stroke-dasharray="2 2" opacity="0.95"/>
+              
+              <!-- Text -->
+              <text x="165" y="505" fill="#ffffff" font-size="10" font-weight="700" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif">
+                70% KPI
+              </text>
+              <text x="218" y="505" fill="#ffffff" font-size="9" font-weight="700" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif">
+                30%
+              </text>
+            </g>
+
+            <!-- Bottom Cup / Tip (Orange Cup) -->
+            <g class="funnel-layer-group" onclick="selectLayer(6)">
+              <path d="M 140 548 
+                       A 35 6 0 0 0 220 548 
+                       L 195 608 
+                       A 15 3 0 0 1 165 608 
+                       Z" 
+                    fill="#fb8500"/>
+              <ellipse cx="180" cy="548" rx="35" ry="6" fill="#c25e00"/>
+            </g>
+
+          </svg>
+        </div>
+
+        <!-- RIGHT: Aligned Circular Badges + Captions (Col 7) -->
+        <div class="md:col-span-7 flex flex-col justify-between space-y-3 pl-2">
+          
+          <!-- Caption 01 -->
+          <div id="caption-1" onclick="selectLayer(1)" class="caption-card active-caption p-3 rounded-xl flex items-start gap-4">
+            <div class="w-10 h-10 rounded-full bg-[#00b4d8] text-white flex items-center justify-center font-bold text-sm font-mono shadow-sm flex-shrink-0">
+              01
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <h4 class="font-bold text-xs uppercase tracking-wide text-slate-900">01. Dữ Liệu Đầu Vào Thô (Raw Ingestion)</h4>
+                <span class="text-[11px] font-mono font-bold text-[#00b4d8]">1,000,000 (100%)</span>
+              </div>
+              <p class="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                Thu thập và đồng bộ tự động toàn bộ bản ghi từ Jira API, ERP, CRM, System Logs và các đối tác.
+              </p>
+            </div>
+          </div>
+
+          <!-- Caption 02 -->
+          <div id="caption-2" onclick="selectLayer(2)" class="caption-card p-3 rounded-xl flex items-start gap-4">
+            <div class="w-10 h-10 rounded-full bg-[#ff4d4f] text-white flex items-center justify-center font-bold text-sm font-mono shadow-sm flex-shrink-0">
+              02
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <h4 class="font-bold text-xs uppercase tracking-wide text-slate-900">02. Bộ Lọc Chuẩn Hóa & Làm Sạch</h4>
+                <span class="text-[11px] font-mono font-bold text-[#ff4d4f]">850,000 (85.0%)</span>
+              </div>
+              <p class="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                Loại trừ 150K bản ghi lỗi format, trùng lặp, thiếu mã Epic Key hoặc ngày khởi tạo.
+              </p>
+            </div>
+          </div>
+
+          <!-- Caption 03 (Split 70/30) -->
+          <div id="caption-3" onclick="selectLayer(3)" class="caption-card p-3 rounded-xl flex items-start gap-4 bg-sky-50/40">
+            <div class="w-10 h-10 rounded-full bg-[#0284c7] text-white flex items-center justify-center font-bold text-sm font-mono shadow-sm flex-shrink-0">
+              03
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <h4 class="font-bold text-xs uppercase tracking-wide text-slate-900">03. Phân Nhánh Phạm Vi Tính (Scope Split)</h4>
+                <span class="text-[11px] font-mono font-bold text-[#0284c7]">70% / 30%</span>
+              </div>
+              <div class="grid grid-cols-2 gap-2 mt-1.5 text-[11px]">
+                <div class="bg-white p-2 rounded-lg border border-sky-100 shadow-xs">
+                  <span class="font-bold text-[#0284c7]">70% Nhánh Chính (Core):</span>
+                  <p class="text-slate-500 text-[10.5px]">595K Epic dự án chiến lược trọng điểm.</p>
+                </div>
+                <div class="bg-white p-2 rounded-lg border border-amber-100 shadow-xs">
+                  <span class="font-bold text-amber-600">30% Nhánh Phụ:</span>
+                  <p class="text-slate-500 text-[10.5px]">255K Epic vendor ngoài & bảo trì.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Caption 04 -->
+          <div id="caption-4" onclick="selectLayer(4)" class="caption-card p-3 rounded-xl flex items-start gap-4">
+            <div class="w-10 h-10 rounded-full bg-[#0077b6] text-white flex items-center justify-center font-bold text-sm font-mono shadow-sm flex-shrink-0">
+              04
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <h4 class="font-bold text-xs uppercase tracking-wide text-slate-900">04. Áp Dụng Rule Nghiệp Vụ TTM</h4>
+                <span class="text-[11px] font-mono font-bold text-[#0077b6]">720,000 (72.0%)</span>
+              </div>
+              <p class="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                Ánh xạ 4 pha tiến độ R1-R4, kiểm tra timeline anomaly và gán trọng số KPI.
+              </p>
+            </div>
+          </div>
+
+          <!-- Caption 05 -->
+          <div id="caption-5" onclick="selectLayer(5)" class="caption-card p-3 rounded-xl flex items-start gap-4">
+            <div class="w-10 h-10 rounded-full bg-[#ffb703] text-slate-900 flex items-center justify-center font-bold text-sm font-mono shadow-sm flex-shrink-0">
+              05
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <h4 class="font-bold text-xs uppercase tracking-wide text-slate-900">05. Tập Dữ Liệu Tính Toán (Calculation Dataset)</h4>
+                <span class="text-[11px] font-mono font-bold text-amber-700">600,000 (60.0%)</span>
+              </div>
+              <p class="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                Golden Dataset đóng băng ngày 25 hàng tháng, sẵn sàng đưa vào Engine tính chỉ số TTM.
+              </p>
+            </div>
+          </div>
+
+          <!-- Caption 06 (Split 70/30) -->
+          <div id="caption-6" onclick="selectLayer(6)" class="caption-card p-3 rounded-xl flex items-start gap-4 bg-teal-50/40">
+            <div class="w-10 h-10 rounded-full bg-[#0d9488] text-white flex items-center justify-center font-bold text-sm font-mono shadow-sm flex-shrink-0">
+              06
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <h4 class="font-bold text-xs uppercase tracking-wide text-slate-900">06. Phân Bổ Đầu Ra & Hành Động</h4>
+                <span class="text-[11px] font-mono font-bold text-[#0d9488]">70% / 30%</span>
+              </div>
+              <div class="grid grid-cols-2 gap-2 mt-1.5 text-[11px]">
+                <div class="bg-white p-2 rounded-lg border border-teal-100 shadow-xs">
+                  <span class="font-bold text-[#0d9488]">70% Dashboard Lãnh Đạo:</span>
+                  <p class="text-slate-500 text-[10.5px]">420K bản ghi xuất báo cáo điều hành.</p>
+                </div>
+                <div class="bg-white p-2 rounded-lg border border-rose-100 shadow-xs">
+                  <span class="font-bold text-rose-600">30% Cảnh Báo PO/PM:</span>
+                  <p class="text-slate-500 text-[10.5px]">180K bản ghi cảnh báo sâu cần xử lý.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Footer Info -->
+      <div class="mt-4 pt-3.5 border-t border-borderSubtle flex items-center justify-between text-xs text-slate-500">
+        <div class="flex items-center gap-2">
+          <i class="ph-bold ph-info text-teal-600"></i>
+          <span id="footerStatus">Đang chọn: <strong class="text-slate-800 font-semibold">Lớp 1 • Dữ Liệu Đầu Vào Thô (1,000,000)</strong></span>
+        </div>
+        <span class="text-slate-400 text-[11px]">Bấm vào hình khối nón 3D hoặc khối caption để xem quy tắc chi tiết</span>
+      </div>
+
+    </div>
+
+    <!-- RIGHT SIDEBAR: 5 MOCK FILTERS (Col 3) -->
+    <aside class="lg:col-span-3 flex flex-col gap-4">
+      
+      <!-- Filters Panel -->
+      <div class="minimal-card p-5 space-y-4">
+        <div class="flex items-center justify-between pb-3 border-b border-borderSubtle">
+          <div class="flex items-center gap-2">
+            <i class="ph-bold ph-sliders-horizontal text-teal-600 text-base"></i>
+            <h3 class="font-bold text-xs uppercase tracking-wide text-slate-900">Bộ Lọc Tham Số (5 Filters)</h3>
+          </div>
+          <button onclick="resetFilters()" class="text-[11px] text-slate-400 hover:text-teal-600 flex items-center gap-1 transition font-medium">
+            <i class="ph ph-arrow-counter-clockwise"></i> Đặt lại
+          </button>
+        </div>
+
+        <!-- FILTER 1: Project -->
+        <div class="space-y-1">
+          <label class="text-xs font-semibold text-slate-700 flex items-center justify-between">
+            <span class="flex items-center gap-1.5"><i class="ph ph-folder text-cyan-600"></i> 1. Dự Án / Project</span>
+            <span class="text-[10px] text-slate-400 font-mono">Bắt buộc</span>
+          </label>
+          <select id="fProject" onchange="applyFilters()" class="filter-select">
+            <option value="all">Tất cả dự án (All Projects)</option>
+            <option value="core">Core Banking Transformation</option>
+            <option value="omni">Omni-Channel Mobile App</option>
+            <option value="payment">Payment Gateway 2.0</option>
+            <option value="lending">Digital Lending Platform</option>
+          </select>
+        </div>
+
+        <!-- FILTER 2: BU / IT Division -->
+        <div class="space-y-1">
+          <label class="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+            <i class="ph ph-buildings text-rose-500"></i> 2. Đơn Vị / Khối CNTT
+          </label>
+          <select id="fBU" onchange="applyFilters()" class="filter-select">
+            <option value="all">Tất cả các khối (All Divisions)</option>
+            <option value="cntt">Khối Công Nghệ Thông Tin</option>
+            <option value="digital">Khối Ngân Hàng Số</option>
+            <option value="vanhanh">Khối Vận Hành & Dịch Vụ</option>
+            <option value="qa">Trung Tâm Kiểm Thử & QA</option>
+          </select>
+        </div>
+
+        <!-- FILTER 3: Time Window -->
+        <div class="space-y-1">
+          <label class="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+            <i class="ph ph-calendar text-blue-600"></i> 3. Chu Kỳ Tính Toán
+          </label>
+          <select id="fTime" onchange="applyFilters()" class="filter-select">
+            <option value="q4_2026">Quý 4/2026 (Hiện tại)</option>
+            <option value="q3_2026">Quý 3/2026 (Đã chốt)</option>
+            <option value="q2_2026">Quý 2/2026</option>
+            <option value="ytd_2026">Lũy kế năm 2026 (YTD)</option>
+          </select>
+        </div>
+
+        <!-- FILTER 4: Epic Type -->
+        <div class="space-y-1">
+          <label class="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+            <i class="ph ph-tag text-amber-500"></i> 4. Loại Yêu Cầu (Epic Type)
+          </label>
+          <select id="fType" onchange="applyFilters()" class="filter-select">
+            <option value="all">Tất cả loại Epic (Feature & Enabler)</option>
+            <option value="feature">Chỉ Epic Tính Năng (Features)</option>
+            <option value="enabler">Chỉ Epic Hạ Tầng (Enablers)</option>
+            <option value="fasttrack">Quy trình Rút gọn (Fast-track)</option>
+          </select>
+        </div>
+
+        <!-- FILTER 5: Scoring Engine Mode -->
+        <div class="space-y-1">
+          <label class="text-xs font-semibold text-slate-700 flex items-center justify-between">
+            <span class="flex items-center gap-1.5"><i class="ph ph-gear-six text-teal-600"></i> 5. Chế Độ Rule Engine</span>
+            <span class="px-1.5 py-0.2 bg-teal-50 text-teal-700 border border-teal-200 text-[9px] font-mono font-bold rounded">M4</span>
+          </label>
+          <select id="fEngine" onchange="applyFilters()" class="filter-select">
+            <option value="scoring">Scoring Engine Mới (Scoring Service)</option>
+            <option value="legacy">Legacy Engine (Quy tắc cũ)</option>
+            <option value="shadow">Shadow Parity Run (Đối chiếu)</option>
+          </select>
+        </div>
+
+        <!-- Apply Button -->
+        <div class="pt-2">
+          <button onclick="applyFilters(true)" class="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-lg shadow-sm transition flex items-center justify-center gap-2">
+            <i class="ph-bold ph-funnel"></i> Áp Dụng Bộ Lọc (Apply)
+          </button>
+        </div>
+      </div>
+
+      <!-- Rule Inspector for Selected Layer -->
+      <div class="minimal-card p-5 space-y-3">
+        <div class="flex items-center justify-between pb-2 border-b border-borderSubtle">
+          <h4 class="text-xs font-bold uppercase tracking-wide text-slate-900 flex items-center gap-1.5">
+            <i class="ph-bold ph-list-checks text-teal-600"></i> Rule Áp Dụng Tại Lớp
+          </h4>
+          <span id="layerBadge" class="text-[10px] font-mono font-bold px-2 py-0.5 bg-slate-100 text-slate-700 rounded">LỚP 1</span>
+        </div>
+
+        <div id="rulesContainer" class="space-y-2 text-xs">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+    </aside>
+
+  </main>
+
+  <!-- Interaction Logic -->
+  <script>
+    const layerRules = {
+      1: {
+        badge: "LỚP 1",
+        statusText: "Lớp 1 • Dữ Liệu Đầu Vào Thô (Raw Ingestion - 1,000,000 records)",
+        rules: [
+          { name: "CDC Sync Pipeline Jira & ERP", desc: "Đồng bộ realtime qua Webhook & CDC Database", type: "Connect", status: "Active" },
+          { name: "UTF-8 Payload Sanitization", desc: "Kiểm tra mã hóa và format chuẩn", type: "Format", status: "Active" }
+        ]
+      },
+      2: {
+        badge: "LỚP 2",
+        statusText: "Lớp 2 • Bộ Lọc Chuẩn Hóa & Làm Sạch (850,000 records)",
+        rules: [
+          { name: "Check Mandatory Primary Key", desc: "Bắt buộc có Issue Key & Project ID", type: "Validate", status: "Drop 75K" },
+          { name: "Deduplication Check", desc: "Khử trùng lặp bản ghi lặp sự kiện", type: "Validate", status: "Drop 45K" },
+          { name: "ISO-8601 Datetime Validator", desc: "Chuẩn hóa định dạng mốc thời gian (+7)", type: "Format", status: "Drop 30K" }
+        ]
+      },
+      3: {
+        badge: "LỚP 3 (70/30)",
+        statusText: "Lớp 3 • Tách Nhánh 70% Core (595K) & 30% Sub (255K)",
+        rules: [
+          { name: "Core Scope Classifier", desc: "Gán nhãn 70% Epic dự án chuẩn SLA trọng điểm", type: "Routing", status: "70% Core" },
+          { name: "Secondary / Fast-track Classifier", desc: "Gán nhãn 30% Epic thuê ngoài và bảo trì phụ", type: "Routing", status: "30% Sub" }
+        ]
+      },
+      4: {
+        badge: "LỚP 4",
+        statusText: "Lớp 4 • Áp Dụng Rule Nghiệp Vụ TTM (720,000 records)",
+        rules: [
+          { name: "Baseline vs Actual Golive Match", desc: "Đối chiếu ngày Golive thực tế với Baseline", type: "Business", status: "Drop 60K" },
+          { name: "Phase Mapping Engine (R1-R4)", desc: "Ánh xạ tiến độ sang 4 mốc chuẩn", type: "Enrich", status: "Active" },
+          { name: "Timeline Anomaly Detection", desc: "Loại trừ mốc ngày phi logic", type: "Audit", status: "Drop 70K" }
+        ]
+      },
+      5: {
+        badge: "LỚP 5",
+        statusText: "Lớp 5 • Golden Dataset Đưa Vào Tính Điểm (600,000 records)",
+        rules: [
+          { name: "Monthly Cut-off Freeze", desc: "Khóa dữ liệu ngày 25 hàng tháng", type: "Period", status: "Drop 120K" },
+          { name: "Project Scale Weighting", desc: "Gán trọng số S, M, L, XL", type: "Formula", status: "Active" },
+          { name: "Engine Parity Verification", desc: "Đối chiếu parity đạt 100%", type: "Audit", status: "Passed" }
+        ]
+      },
+      6: {
+        badge: "LỚP 6 (70/30)",
+        statusText: "Lớp 6 • Phân Bổ 70% Báo Cáo Chuẩn (420K) & 30% Cảnh Báo (180K)",
+        rules: [
+          { name: "Executive KPI Dashboard Feed", desc: "Xuất dữ liệu đạt chuẩn lên Dashboard Lãnh đạo", type: "Export", status: "70% KPI" },
+          { name: "Operational Alert Queue", desc: "Tạo trigger cảnh báo cho PM/PO xử lý", type: "Alert", status: "30% Alert" }
+        ]
+      }
+    };
+
+    function selectLayer(layerId) {
+      // Toggle SVG classes
+      for (let i = 1; i <= 6; i++) {
+        const svgL = document.getElementById(`svg-layer-${i}`);
+        const cap = document.getElementById(`caption-${i}`);
+        if (svgL) svgL.classList.remove('active-layer');
+        if (cap) cap.classList.remove('active-caption');
+      }
+
+      const activeSvg = document.getElementById(`svg-layer-${layerId}`);
+      const activeCap = document.getElementById(`caption-${layerId}`);
+      if (activeSvg) activeSvg.classList.add('active-layer');
+      if (activeCap) activeCap.classList.add('active-caption');
+
+      const data = layerRules[layerId];
+      if (!data) return;
+
+      document.getElementById('footerStatus').innerHTML = `Đang chọn: <strong class="text-slate-800 font-semibold">${data.statusText}</strong>`;
+      document.getElementById('layerBadge').innerText = data.badge;
+
+      const container = document.getElementById('rulesContainer');
+      container.innerHTML = '';
+      data.rules.forEach(r => {
+        const item = document.createElement('div');
+        item.className = "p-2.5 rounded-lg bg-slate-50 border border-slate-200 flex items-start justify-between gap-2";
+        item.innerHTML = `
+          <div>
+            <div class="font-semibold text-slate-800 flex items-center gap-1.5">
+              <span class="text-[9px] font-mono px-1 py-0.2 bg-white text-slate-600 border border-slate-200 rounded">${r.type}</span>
+              ${r.name}
+            </div>
+            <div class="text-[11px] text-slate-500 mt-0.5">${r.desc}</div>
+          </div>
+          <span class="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 border border-teal-200 whitespace-nowrap">
+            ${r.status}
+          </span>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    function applyFilters(isManual = false) {
+      const p = document.getElementById('fProject').value;
+      const b = document.getElementById('fBU').value;
+      const type = document.getElementById('fType').value;
+
+      let factor = 1.0;
+      if (p !== 'all') factor *= 0.45;
+      if (b !== 'all') factor *= 0.6;
+      if (type !== 'all') factor *= 0.7;
+
+      const total = Math.round(1000000 * factor);
+      const valid = Math.round(600000 * factor);
+
+      document.getElementById('statInput').innerText = total.toLocaleString('en-US');
+      document.getElementById('statValid').innerText = `${valid.toLocaleString('en-US')} (60.0%)`;
+    }
+
+    function resetFilters() {
+      document.getElementById('fProject').value = 'all';
+      document.getElementById('fBU').value = 'all';
+      document.getElementById('fTime').value = 'q4_2026';
+      document.getElementById('fType').value = 'all';
+      document.getElementById('fEngine').value = 'scoring';
+      applyFilters();
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      selectLayer(1);
+    });
+  </script>
+</body>
+</html>

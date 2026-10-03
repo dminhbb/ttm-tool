@@ -18,6 +18,7 @@ import {
   ClockCounterClockwise,
   Database,
   FileText,
+  Funnel,
   Gauge,
   GearSix,
   Globe,
@@ -92,6 +93,7 @@ const navigation: NavigationSection[] = [
     items: [
       { href: '/reports', icon: Bandaids, label: 'Báo cáo Epic (beta 2)' },
       { href: '/dashboard-new', icon: ChartPie, label: 'TTM dashboard' },
+      { href: '/ttm-dashboard-2', icon: Funnel, label: 'TTM dashboard 2', roles: ADMIN_VIEW_ROLES },
       // { href: '/dashboard', icon: Gauge, label: 'Dashboard' },
       // { href: '/epic-alerts', icon: Browser, label: 'Quản trị Epic (rút gọn)', roles: ADMIN_VIEW_ROLES },
       { href: '/epic-alerts-15', icon: Browsers, label: 'Quản trị Epic' },

@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data Pipeline Funnel Dashboard - Thiết kế Mô phỏng Phễu Dữ Liệu 6 Lớp</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#f0f7ff',
+              100: '#e0effe',
+              500: '#0284c7',
+              600: '#0369a1',
+              700: '#075985',
+              900: '#0c4a6e',
+            },
+            surface: {
+              dark: '#0b0f19',
+              card: '#131b2e',
+              border: '#1f2b45',
+              hover: '#1b2742'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom Funnel Geometry & Animations */
+    .funnel-layer {
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .funnel-layer:hover {
+      transform: translateY(-2px);
+      filter: drop-shadow(0 10px 20px rgba(2, 132, 199, 0.2));
+    }
+    .funnel-layer.active {
+      ring-width: 2px;
+      ring-color: #38bdf8;
+      box-shadow: 0 0 25px rgba(56, 189, 248, 0.35);
+    }
+    .gradient-flow {
+      background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.01) 100%);
+    }
+    .connector-line {
+      background: repeating-linear-gradient(
+        180deg,
+        #38bdf8,
+        #38bdf8 6px,
+        transparent 6px,
+        transparent 12px
+      );
+      animation: flowAnim 1.2s linear infinite;
+    }
+    @keyframes flowAnim {
+      0% { background-position: 0 0; }
+      100% { background-position: 0 24px; }
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0b0f19;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1f2b45;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #38bdf8;
+    }
+  </style>
+</head>
+<body class="bg-[#0b0f19] text-slate-100 font-sans min-h-screen antialiased flex flex-col selection:bg-sky-500 selection:text-white">
+
+  <!-- Top Navigation / Header -->
+  <header class="border-b border-surface-border bg-surface-dark/90 backdrop-blur sticky top-0 z-30 px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-sky-500/25">
+        <i class="ph-bold ph-funnel text-xl"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-lg font-bold tracking-tight text-white">Data Pipeline & Quality Funnel</h1>
+          <span class="px-2 py-0.5 text-xs font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/30 rounded-full">Bản Thiết Kế Prototype</span>
+        </div>
+        <p class="text-xs text-slate-400">Trực quan hóa luồng 6 lớp dữ liệu • Phân tách nhánh 70/30 tại Lớp 3 & Lớp 6</p>
+      </div>
+    </div>
+
+    <!-- Actions & Filter Controls -->
+    <div class="flex items-center gap-3">
+      <div class="flex items-center bg-surface-card border border-surface-border rounded-lg p-1 text-xs">
+        <button id="btnViewCount" onclick="setViewMode('count')" class="px-3 py-1.5 rounded-md font-semibold transition bg-sky-500 text-white shadow">
+          <i class="ph ph-hash mr-1"></i> Số lượng bản ghi
+        </button>
+        <button id="btnViewPct" onclick="setViewMode('pct')" class="px-3 py-1.5 rounded-md font-semibold text-slate-400 hover:text-white transition">
+          <i class="ph ph-percent mr-1"></i> Tỷ lệ %
+        </button>
+      </div>
+
+      <div class="h-6 w-[1px] bg-surface-border"></div>
+
+      <select class="bg-surface-card border border-surface-border text-xs rounded-lg px-3 py-2 text-slate-300 focus:outline-none focus:border-sky-500">
+        <option>Kỳ báo cáo: Tháng 10/2026</option>
+        <option>Kỳ báo cáo: Quý 3/2026</option>
+        <option>Toàn bộ năm 2026</option>
+      </select>
+
+      <button onclick="resetLayers()" class="p-2 bg-surface-card hover:bg-surface-hover border border-surface-border rounded-lg text-slate-300 hover:text-white transition" title="Làm mới góc nhìn">
+        <i class="ph ph-arrow-counter-clockwise text-base"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <main class="flex-1 p-6 max-w-7xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- Top Summary Metrics (Span 12) -->
+    <div class="lg:col-span-12 grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="bg-surface-card border border-surface-border rounded-xl p-4 relative overflow-hidden group">
+        <div class="absolute -right-2 -bottom-2 opacity-10 group-hover:opacity-20 transition text-sky-400 text-6xl">
+          <i class="ph-duotone ph-database"></i>
+        </div>
+        <div class="text-xs text-slate-400 font-medium">Lớp 1 • Tổng Dữ Liệu Nạp</div>
+        <div class="text-2xl font-bold text-white mt-1 font-mono" id="statInput">1,000,000</div>
+        <div class="flex items-center gap-1.5 mt-2 text-xs text-sky-400">
+          <i class="ph-bold ph-caret-up"></i> 100% Khối lượng đầu vào
+        </div>
+      </div>
+
+      <div class="bg-surface-card border border-surface-border rounded-xl p-4 relative overflow-hidden group">
+        <div class="absolute -right-2 -bottom-2 opacity-10 group-hover:opacity-20 transition text-rose-400 text-6xl">
+          <i class="ph-duotone ph-funnel-x"></i>
+        </div>
+        <div class="text-xs text-slate-400 font-medium">Bị Loại Trừ Qua 6 Lớp (Drop-off)</div>
+        <div class="text-2xl font-bold text-rose-400 mt-1 font-mono" id="statDropped">400,000</div>
+        <div class="flex items-center gap-1.5 mt-2 text-xs text-rose-400/90">
+          <i class="ph-bold ph-arrow-down-right"></i> 40.0% Do Rule & Lỗi chuẩn hóa
+        </div>
+      </div>
+
+      <div class="bg-surface-card border border-surface-border rounded-xl p-4 relative overflow-hidden group">
+        <div class="absolute -right-2 -bottom-2 opacity-10 group-hover:opacity-20 transition text-emerald-400 text-6xl">
+          <i class="ph-duotone ph-check-circle"></i>
+        </div>
+        <div class="text-xs text-slate-400 font-medium">Lớp 5 • Tập Tính Toán Cuối</div>
+        <div class="text-2xl font-bold text-emerald-400 mt-1 font-mono" id="statValid">600,000</div>
+        <div class="flex items-center gap-1.5 mt-2 text-xs text-emerald-400/90">
+          <i class="ph-bold ph-chart-polar"></i> 60.0% Tỷ lệ đạt điều kiện
+        </div>
+      </div>
+
+      <div class="bg-surface-card border border-surface-border rounded-xl p-4 relative overflow-hidden group">
+        <div class="absolute -right-2 -bottom-2 opacity-10 group-hover:opacity-20 transition text-indigo-400 text-6xl">
+          <i class="ph-duotone ph-git-fork"></i>
+        </div>
+        <div class="text-xs text-slate-400 font-medium">Tách Nhánh Trọng Điểm</div>
+        <div class="text-2xl font-bold text-indigo-300 mt-1 font-mono">70% / 30%</div>
+        <div class="flex items-center gap-1.5 mt-2 text-xs text-indigo-300/90">
+          <i class="ph-bold ph-split-horizontal"></i> Áp dụng tại Lớp 3 & Lớp 6
+        </div>
+      </div>
+    </div>
+
+    <!-- LEFT COLUMN: The Interactive 6-Layer Visual Funnel (Span 7) -->
+    <div class="lg:col-span-7 bg-surface-card/60 border border-surface-border rounded-2xl p-6 backdrop-blur flex flex-col justify-between relative shadow-xl">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-sky-400 animate-pulse"></span>
+          <h2 class="font-bold text-slate-100 text-sm tracking-wide uppercase">Cấu Trúc Phễu 6 Lớp Dữ Liệu</h2>
+        </div>
+        <span class="text-xs text-slate-400 flex items-center gap-1">
+          <i class="ph ph-cursor-click"></i> Bấm vào từng lớp để xem rule chi tiết
+        </span>
+      </div>
+
+      <!-- Funnel Flow Container -->
+      <div class="space-y-3 flex-1 flex flex-col justify-center py-2" id="funnelContainer">
+
+        <!-- LAYER 1 -->
+        <div onclick="selectLayer(1)" id="layer-card-1" class="funnel-layer cursor-pointer bg-gradient-to-r from-blue-900/40 via-blue-800/30 to-blue-950/40 border border-blue-500/40 rounded-xl p-3.5 relative overflow-hidden group active">
+          <div class="absolute top-0 left-0 bottom-0 w-1.5 bg-blue-500"></div>
+          <div class="flex items-center justify-between pl-2">
+            <div class="flex items-center gap-3">
+              <span class="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs font-mono border border-blue-500/30">L1</span>
+              <div>
+                <div class="font-semibold text-sm text-white group-hover:text-blue-300 transition">1. Dữ liệu Đầu Vào Thô (Raw Ingestion)</div>
+                <div class="text-[11px] text-slate-400">Nguồn: Jira, CRM, Logs, ERP, Partner APIs</div>
+              </div>
+            </div>
+            <div class="text-right font-mono">
+              <div class="text-base font-bold text-white layer-val" data-val="1,000,000" data-pct="100%">1,000,000</div>
+              <div class="text-[10px] text-slate-400">100% tổng nạp</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connector 1->2 with drop rate badge -->
+        <div class="flex items-center justify-center relative py-0.5">
+          <div class="w-0.5 h-4 bg-slate-700"></div>
+          <span class="absolute text-[10px] font-mono bg-rose-950/80 text-rose-400 border border-rose-800/60 px-2 py-0.2 rounded-full transform scale-90">
+            -15% (150K lỗi/thiếu trường)
+          </span>
+        </div>
+
+        <!-- LAYER 2 -->
+        <div onclick="selectLayer(2)" id="layer-card-2" class="funnel-layer cursor-pointer bg-gradient-to-r from-cyan-900/40 via-cyan-800/30 to-cyan-950/40 border border-cyan-500/30 rounded-xl p-3.5 relative overflow-hidden group mx-3">
+          <div class="absolute top-0 left-0 bottom-0 w-1.5 bg-cyan-400"></div>
+          <div class="flex items-center justify-between pl-2">
+            <div class="flex items-center gap-3">
+              <span class="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-300 flex items-center justify-center font-bold text-xs font-mono border border-cyan-500/30">L2</span>
+              <div>
+                <div class="font-semibold text-sm text-white group-hover:text-cyan-300 transition">2. Bộ Lọc Chuẩn Hóa & Làm Sạch (Data Cleansing)</div>
+                <div class="text-[11px] text-slate-400">Kiểm tra schema, khử trùng lặp, format datetime</div>
+              </div>
+            </div>
+            <div class="text-right font-mono">
+              <div class="text-base font-bold text-white layer-val" data-val="850,000" data-pct="85.0%">850,000</div>
+              <div class="text-[10px] text-cyan-400 font-semibold">85.0% giữ lại</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connector 2->3 with split indicator -->
+        <div class="flex items-center justify-center relative py-0.5">
+          <div class="w-0.5 h-4 bg-slate-700"></div>
+          <span class="absolute text-[10px] font-mono bg-indigo-950/90 text-indigo-300 border border-indigo-700/60 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+            <i class="ph-bold ph-git-branch text-xs"></i> Tách 2 Nhánh (70% - 30%)
+          </span>
+        </div>
+
+        <!-- LAYER 3: SPLIT 70% / 30% -->
+        <div onclick="selectLayer(3)" id="layer-card-3" class="funnel-layer cursor-pointer bg-surface-card border border-indigo-500/40 rounded-xl p-3 relative overflow-hidden mx-6 group">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <span class="w-6 h-6 rounded-md bg-indigo-500/20 text-indigo-300 flex items-center justify-center font-bold text-xs font-mono border border-indigo-500/30">L3</span>
+              <span class="font-semibold text-xs text-indigo-200">3. Phân Nhánh Phạm Vi Tính (Scope Segmentation)</span>
+            </div>
+            <span class="text-[11px] font-mono font-bold text-slate-300 layer-val" data-val="850,000 records" data-pct="100% của L2">850,000 records</span>
+          </div>
+
+          <!-- The 70 / 30 Visual Split Cards -->
+          <div class="grid grid-cols-10 gap-2">
+            <!-- 70% Sub-layer -->
+            <div class="col-span-7 bg-indigo-950/50 border border-indigo-400/40 rounded-lg p-2.5 relative hover:bg-indigo-900/40 transition">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-indigo-300 flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+                  Nhánh Chính (Core)
+                </span>
+                <span class="text-xs font-bold px-1.5 py-0.5 bg-indigo-500/30 text-indigo-200 rounded font-mono">70%</span>
+              </div>
+              <div class="mt-1 flex items-baseline justify-between font-mono">
+                <span class="text-sm font-bold text-white layer-val" data-val="595,000" data-pct="70.0%">595,000</span>
+                <span class="text-[10px] text-slate-400">Ưu tiên xử lý</span>
+              </div>
+            </div>
+
+            <!-- 30% Sub-layer -->
+            <div class="col-span-3 bg-amber-950/30 border border-amber-500/30 rounded-lg p-2.5 relative hover:bg-amber-900/30 transition">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-amber-300 flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                  Nhánh Phụ
+                </span>
+                <span class="text-xs font-bold px-1.5 py-0.5 bg-amber-500/30 text-amber-200 rounded font-mono">30%</span>
+              </div>
+              <div class="mt-1 flex items-baseline justify-between font-mono">
+                <span class="text-sm font-bold text-white layer-val" data-val="255,000" data-pct="30.0%">255,000</span>
+                <span class="text-[10px] text-slate-400">Ngoại lệ</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connector 3->4 -->
+        <div class="flex items-center justify-center relative py-0.5">
+          <div class="w-0.5 h-4 bg-slate-700"></div>
+          <span class="absolute text-[10px] font-mono bg-rose-950/80 text-rose-400 border border-rose-800/60 px-2 py-0.2 rounded-full transform scale-90">
+            -15.3% (Lọc rule nghiệp vụ)
+          </span>
+        </div>
+
+        <!-- LAYER 4 -->
+        <div onclick="selectLayer(4)" id="layer-card-4" class="funnel-layer cursor-pointer bg-gradient-to-r from-violet-900/40 via-violet-800/30 to-violet-950/40 border border-violet-500/30 rounded-xl p-3.5 relative overflow-hidden group mx-10">
+          <div class="absolute top-0 left-0 bottom-0 w-1.5 bg-violet-400"></div>
+          <div class="flex items-center justify-between pl-2">
+            <div class="flex items-center gap-3">
+              <span class="w-7 h-7 rounded-lg bg-violet-500/20 text-violet-300 flex items-center justify-center font-bold text-xs font-mono border border-violet-500/30">L4</span>
+              <div>
+                <div class="font-semibold text-sm text-white group-hover:text-violet-300 transition">4. Áp Dụng Rule Nghiệp Vụ (Business Logic & Enrichment)</div>
+                <div class="text-[11px] text-slate-400">Gán trọng số SLA, tính Leadtime, đối chiếu trạng thái TTM</div>
+              </div>
+            </div>
+            <div class="text-right font-mono">
+              <div class="text-base font-bold text-white layer-val" data-val="720,000" data-pct="72.0%">720,000</div>
+              <div class="text-[10px] text-violet-400 font-semibold">Hợp lệ sau rule</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connector 4->5 -->
+        <div class="flex items-center justify-center relative py-0.5">
+          <div class="w-0.5 h-4 bg-slate-700"></div>
+          <span class="absolute text-[10px] font-mono bg-rose-950/80 text-rose-400 border border-rose-800/60 px-2 py-0.2 rounded-full transform scale-90">
+            -16.6% (Loại bỏ bản ghi không đủ ngày/trạng thái)
+          </span>
+        </div>
+
+        <!-- LAYER 5 -->
+        <div onclick="selectLayer(5)" id="layer-card-5" class="funnel-layer cursor-pointer bg-gradient-to-r from-emerald-900/40 via-emerald-800/30 to-emerald-950/40 border border-emerald-500/40 rounded-xl p-3.5 relative overflow-hidden group mx-14">
+          <div class="absolute top-0 left-0 bottom-0 w-1.5 bg-emerald-400"></div>
+          <div class="flex items-center justify-between pl-2">
+            <div class="flex items-center gap-3">
+              <span class="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-300 flex items-center justify-center font-bold text-xs font-mono border border-emerald-500/30">L5</span>
+              <div>
+                <div class="font-semibold text-sm text-white group-hover:text-emerald-300 transition">5. Tập Dữ Liệu Tính Toán (Calculation-Ready Dataset)</div>
+                <div class="text-[11px] text-slate-400">Bộ dữ liệu hoàn chỉnh đưa vào công thức tính chỉ số TTM</div>
+              </div>
+            </div>
+            <div class="text-right font-mono">
+              <div class="text-base font-bold text-emerald-400 layer-val" data-val="600,000" data-pct="60.0%">600,000</div>
+              <div class="text-[10px] text-emerald-300 font-semibold">60.0% phễu chung</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connector 5->6 with split indicator -->
+        <div class="flex items-center justify-center relative py-0.5">
+          <div class="w-0.5 h-4 bg-slate-700"></div>
+          <span class="absolute text-[10px] font-mono bg-teal-950/90 text-teal-300 border border-teal-700/60 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+            <i class="ph-bold ph-chart-pie-slice text-xs"></i> Phân Bổ Đầu Ra (70% - 30%)
+          </span>
+        </div>
+
+        <!-- LAYER 6: SPLIT 70% / 30% -->
+        <div onclick="selectLayer(6)" id="layer-card-6" class="funnel-layer cursor-pointer bg-surface-card border border-teal-500/40 rounded-xl p-3 relative overflow-hidden mx-16 group">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <span class="w-6 h-6 rounded-md bg-teal-500/20 text-teal-300 flex items-center justify-center font-bold text-xs font-mono border border-teal-500/30">L6</span>
+              <span class="font-semibold text-xs text-teal-200">6. Phân Bổ Đầu Ra Báo Cáo (Output & Action Delivery)</span>
+            </div>
+            <span class="text-[11px] font-mono font-bold text-slate-300 layer-val" data-val="600,000 records" data-pct="100% của L5">600,000 records</span>
+          </div>
+
+          <!-- The 70 / 30 Visual Split Cards -->
+          <div class="grid grid-cols-10 gap-2">
+            <!-- 70% Sub-layer -->
+            <div class="col-span-7 bg-teal-950/50 border border-teal-400/40 rounded-lg p-2.5 relative hover:bg-teal-900/40 transition">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-teal-300 flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-teal-400"></span>
+                  Báo Cáo Chuẩn (Standard KPI)
+                </span>
+                <span class="text-xs font-bold px-1.5 py-0.5 bg-teal-500/30 text-teal-200 rounded font-mono">70%</span>
+              </div>
+              <div class="mt-1 flex items-baseline justify-between font-mono">
+                <span class="text-sm font-bold text-white layer-val" data-val="420,000" data-pct="70.0%">420,000</span>
+                <span class="text-[10px] text-teal-300">Xuất Dashboard Lãnh đạo</span>
+              </div>
+            </div>
+
+            <!-- 30% Sub-layer -->
+            <div class="col-span-3 bg-fuchsia-950/30 border border-fuchsia-500/30 rounded-lg p-2.5 relative hover:bg-fuchsia-900/30 transition">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-fuchsia-300 flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-fuchsia-400"></span>
+                  Cảnh Báo Chuyên Sâu
+                </span>
+                <span class="text-xs font-bold px-1.5 py-0.5 bg-fuchsia-500/30 text-fuchsia-200 rounded font-mono">30%</span>
+              </div>
+              <div class="mt-1 flex items-baseline justify-between font-mono">
+                <span class="text-sm font-bold text-white layer-val" data-val="180,000" data-pct="30.0%">180,000</span>
+                <span class="text-[10px] text-fuchsia-300">Cần hành động / Audit</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Funnel Legend Footer -->
+      <div class="mt-4 pt-3 border-t border-surface-border flex flex-wrap items-center justify-between text-[11px] text-slate-400">
+        <div class="flex items-center gap-4">
+          <span class="flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded bg-blue-500"></span> Dữ liệu nạp
+          </span>
+          <span class="flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded bg-indigo-500"></span> Nhánh chính 70%
+          </span>
+          <span class="flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded bg-amber-500"></span> Nhánh phụ 30%
+          </span>
+          <span class="flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded bg-emerald-500"></span> Tập tính toán đạt
+          </span>
+        </div>
+        <div class="text-slate-500">
+          Tổng thời gian xử lý qua 6 lớp: <span class="font-mono text-slate-300">1.4s</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN: Detail Inspector & Rule Breakdown (Span 5) -->
+    <div class="lg:col-span-5 flex flex-col gap-4">
+      
+      <!-- Selected Layer Header & Summary Card -->
+      <div class="bg-surface-card border border-surface-border rounded-2xl p-5 shadow-lg relative">
+        <div class="flex items-start justify-between">
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="detailBadge" class="px-2 py-0.5 text-xs font-mono font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-md">LỚP 1</span>
+              <h3 id="detailTitle" class="font-bold text-base text-white">Dữ Liệu Đầu Vào Thô (Raw Data)</h3>
+            </div>
+            <p id="detailDesc" class="text-xs text-slate-400 mt-1">Thu thập và đồng bộ toàn bộ bản ghi từ các hệ thống nguồn trước khi áp dụng bất kỳ bộ lọc nào.</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-surface-border/80">
+          <div class="bg-surface-dark/70 rounded-xl p-3 border border-surface-border">
+            <div class="text-[11px] text-slate-400">Số lượng bản ghi lớp này</div>
+            <div id="detailCount" class="text-xl font-bold text-white font-mono mt-0.5">1,000,000</div>
+            <div id="detailSubtext" class="text-[10px] text-sky-400 mt-1">100% so với đầu vào</div>
+          </div>
+          <div class="bg-surface-dark/70 rounded-xl p-3 border border-surface-border">
+            <div class="text-[11px] text-slate-400">Tỷ lệ hao hụt (Drop rate)</div>
+            <div id="detailDrop" class="text-xl font-bold text-slate-300 font-mono mt-0.5">0%</div>
+            <div id="detailDropSubtext" class="text-[10px] text-slate-500 mt-1">Chưa qua bộ lọc</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Split Ratio Deep-Dive (Visible when Layer 3 or 6 selected, or toggled) -->
+      <div id="splitDeepDiveCard" class="bg-gradient-to-br from-indigo-950/40 to-surface-card border border-indigo-500/30 rounded-2xl p-5 shadow-lg">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <i class="ph-bold ph-chart-donut text-indigo-400 text-lg"></i>
+            <h4 class="font-bold text-sm text-white">Chi Tiết Phân Tách Tỷ Lệ (70% vs 30%)</h4>
+          </div>
+          <span id="splitLayerTag" class="text-[10px] font-mono font-semibold px-2 py-0.5 bg-indigo-500/20 text-indigo-300 rounded border border-indigo-500/30">Tại Lớp 3 & Lớp 6</span>
+        </div>
+
+        <div class="space-y-3">
+          <!-- 70% bar -->
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-indigo-300 font-medium flex items-center gap-1.5">
+                <i class="ph-fill ph-check-circle text-indigo-400"></i> <span id="splitPrimaryName">Phần chính (Core Tier)</span>
+              </span>
+              <span class="font-mono font-bold text-white" id="splitPrimaryStat">70.0% (595,000 records)</span>
+            </div>
+            <div class="w-full h-2.5 bg-surface-dark rounded-full overflow-hidden border border-surface-border">
+              <div id="splitPrimaryBar" class="h-full bg-gradient-to-r from-indigo-500 to-sky-400 rounded-full transition-all duration-500" style="width: 70%"></div>
+            </div>
+            <p id="splitPrimaryDesc" class="text-[11px] text-slate-400 mt-1">Áp dụng cho các dự án chuẩn, đầy đủ mốc CNTT & E2E.</p>
+          </div>
+
+          <!-- 30% bar -->
+          <div class="pt-2">
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-amber-300 font-medium flex items-center gap-1.5">
+                <i class="ph-fill ph-warning-circle text-amber-400"></i> <span id="splitSecondaryName">Phần phụ / Ngoại lệ (Exceptions)</span>
+              </span>
+              <span class="font-mono font-bold text-white" id="splitSecondaryStat">30.0% (255,000 records)</span>
+            </div>
+            <div class="w-full h-2.5 bg-surface-dark rounded-full overflow-hidden border border-surface-border">
+              <div id="splitSecondaryBar" class="h-full bg-gradient-to-r from-amber-500 to-orange-400 rounded-full transition-all duration-500" style="width: 30%"></div>
+            </div>
+            <p id="splitSecondaryDesc" class="text-[11px] text-slate-400 mt-1">Dành cho quy trình đặc thù, vendor ngoài, hoặc dự án phụ trợ.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rule & Filter Inspector -->
+      <div class="bg-surface-card border border-surface-border rounded-2xl p-5 shadow-lg flex-1">
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="font-bold text-sm text-white flex items-center gap-2">
+            <i class="ph-bold ph-list-checks text-sky-400"></i> Danh Sách Rule Áp Dụng Tại Lớp Này
+          </h4>
+          <span id="ruleCountBadge" class="text-xs font-mono text-slate-400">4 Rules Active</span>
+        </div>
+
+        <div class="space-y-2.5 max-h-[220px] overflow-y-auto pr-1" id="rulesListContainer">
+          <!-- Rule Items populated via JS -->
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Interactive Script -->
+  <script>
+    // Layer Data Store
+    const layersData = {
+      1: {
+        id: 1,
+        badge: "LỚP 1",
+        title: "1. Dữ Liệu Đầu Vào Thô (Raw Data Ingestion)",
+        desc: "Lớp tiếp nhận toàn bộ dữ liệu từ các hệ thống nguồn (Jira API, ERP, Database nội bộ, CRM). Chưa có bất kỳ bộ lọc hay kiểm tra nào được áp dụng.",
+        count: "1,000,000",
+        countPct: "100%",
+        subtext: "100% Tổng nạp toàn hệ thống",
+        drop: "0",
+        dropPct: "0%",
+        dropSubtext: "Không hao hụt ở lớp nạp ban đầu",
+        splitInfo: null,
+        rules: [
+          { name: "Ingestion Pipeline Jira & ERP", type: "Connect", desc: "Đồng bộ realtime qua Webhook & CDC Database", status: "Active" },
+          { name: "Encoding & Payload Sanitization", type: "Security", desc: "Chuyển mã UTF-8 và lọc ký tự bất hợp lệ", status: "Active" }
+        ]
+      },
+      2: {
+        id: 2,
+        badge: "LỚP 2",
+        title: "2. Bộ Lọc Chuẩn Hóa & Làm Sạch (Data Cleansing)",
+        desc: "Loại bỏ các bản ghi trùng lặp, thiếu thông tin bắt buộc (mã Epic, ngày khởi tạo, người phụ trách) hoặc sai định dạng thời gian.",
+        count: "850,000",
+        countPct: "85.0%",
+        subtext: "Giữ lại 85% bản ghi hợp lệ cấu trúc",
+        drop: "150,000",
+        dropPct: "15.0%",
+        dropSubtext: "150,000 bản ghi lỗi cấu trúc / thiếu ID",
+        splitInfo: null,
+        rules: [
+          { name: "Rule Check Not-Null Primary Key", type: "Validation", desc: "Yêu cầu bắt buộc phải có Issue Key & Project ID", status: "Drop 75,000" },
+          { name: "Rule Deduplication", type: "Validation", desc: "Khử trùng lặp bản ghi phát sinh do retry đồng bộ", status: "Drop 45,000" },
+          { name: "Rule Datetime ISO-8601 Format", type: "Format", desc: "Chuẩn hóa mốc thời gian về múi giờ chuẩn VN (+7)", status: "Drop 30,000" }
+        ]
+      },
+      3: {
+        id: 3,
+        badge: "LỚP 3 • TÁCH 70/30",
+        title: "3. Phân Nhánh Phạm Vi Tính (Scope Segmentation)",
+        desc: "Phân chia 850,000 bản ghi đạt chuẩn ở Lớp 2 thành 2 nhánh dữ liệu độc lập theo tiêu chí phân loại phạm vi (70% Nhánh chính vs 30% Nhánh phụ).",
+        count: "850,000",
+        countPct: "85.0%",
+        subtext: "Được chia tách: 70% (595K) & 30% (255K)",
+        drop: "0",
+        dropPct: "0%",
+        dropSubtext: "Không loại bỏ, chuyển tiếp toàn bộ theo nhánh",
+        splitInfo: {
+          tag: "Tại Lớp 3 - Phân nhóm dữ liệu",
+          primaryName: "Nhánh 1: Core Scope (Dự án Trọng điểm)",
+          primaryStat: "70.0% (595,000 bản ghi)",
+          primaryPct: 70,
+          primaryDesc: "Các Epic thuộc dự án chiến lược, đầy đủ team Dev nội bộ & kiểm thử E2E.",
+          secondaryName: "Nhánh 2: Secondary Scope (Dự án Phụ trợ/Ngoại lệ)",
+          secondaryStat: "30.0% (255,000 bản ghi)",
+          secondaryPct: 30,
+          secondaryDesc: "Các dự án thuê ngoài (Vendor), dự án bảo trì nhỏ hoặc hạng mục độc lập."
+        },
+        rules: [
+          { name: "Rule Phân loại Dự án Chiến lược", type: "Routing", desc: "Gán nhãn Core cho 70% khối lượng đủ điều kiện SLA", status: "Split 70%" },
+          { name: "Rule Phân loại Dự án Đặc thù / Fast-track", type: "Routing", desc: "Gán nhãn Secondary cho 30% trường hợp ngoại lệ", status: "Split 30%" }
+        ]
+      },
+      4: {
+        id: 4,
+        badge: "LỚP 4",
+        title: "4. Áp Dụng Rule Nghiệp Vụ (Business Enrichment)",
+        desc: "Tính toán các trường dẫn xuất (Leadtime, Phase Duration, SLA Delay), đối chiếu chéo với danh mục chuẩn và gán nhãn trạng thái cảnh báo.",
+        count: "720,000",
+        countPct: "72.0%",
+        subtext: "72.0% bản ghi vượt qua kiểm định nghiệp vụ",
+        drop: "130,000",
+        dropPct: "15.3%",
+        dropSubtext: "130,000 bản ghi không thỏa mãn rule nghiệp vụ",
+        splitInfo: null,
+        rules: [
+          { name: "Rule Baseline & Target Match", type: "Business", desc: "Kiểm tra sự tồn tại của mốc Golive dự kiến so với thực tế", status: "Drop 60,000" },
+          { name: "Rule TTM Status Mapping", type: "Enrichment", desc: "Ánh xạ trạng thái từ Jira sang 4 pha chuẩn (R1-R4)", status: "Active" },
+          { name: "Rule Anomaly Detection", type: "Data Quality", desc: "Loại trừ mốc ngày phi logic (Ngày kết thúc < Ngày bắt đầu)", status: "Drop 70,000" }
+        ]
+      },
+      5: {
+        id: 5,
+        badge: "LỚP 5",
+        title: "5. Tập Dữ Liệu Sẵn Sàng Tính Toán (Calculation-Ready)",
+        desc: "Bộ dữ liệu vàng (Golden Dataset) đã qua tất cả các chốt chặn kiểm duyệt, được đóng băng kỳ và nạp vào Engine tính điểm TTM / SLA.",
+        count: "600,000",
+        countPct: "60.0%",
+        subtext: "60% tổng thể đầu vào đủ điều kiện tính toán",
+        drop: "120,000",
+        dropPct: "16.6%",
+        dropSubtext: "120,000 bản ghi chưa chốt kỳ hoặc ngoài chu kỳ",
+        splitInfo: null,
+        rules: [
+          { name: "Rule Cut-off Date & Freeze Period", type: "Period", desc: "Chốt danh sách bản ghi trước ngày 25 hàng tháng", status: "Drop 120,000" },
+          { name: "Rule Weight & Factor Calibration", type: "Calculation", desc: "Gán hệ số trọng số theo quy mô dự án (S, M, L, XL)", status: "Active" },
+          { name: "Parity Check With Scoring Engine", type: "Audit", desc: "Đối chiếu parity kết quả giữa 2 engine tính toán", status: "Passed 100%" }
+        ]
+      },
+      6: {
+        id: 6,
+        badge: "LỚP 6 • TÁCH 70/30",
+        title: "6. Phân Bổ Đầu Ra Báo Cáo (Output & Action Delivery)",
+        desc: "Phân bổ 600,000 bản ghi thành phẩm thành 2 luồng phục vụ: 70% Báo cáo Quản trị Tiêu chuẩn và 30% Cảnh báo Chuyên sâu cho Khối Vận hành.",
+        count: "600,000",
+        countPct: "60.0%",
+        subtext: "Được chia tách: 70% (420K) & 30% (180K)",
+        drop: "0",
+        dropPct: "0%",
+        dropSubtext: "100% bản ghi lớp 5 được phân phối xuất báo cáo",
+        splitInfo: {
+          tag: "Tại Lớp 6 - Phân phối đầu ra",
+          primaryName: "Luồng 1: Dashboard Báo Cáo Chuẩn (Executive KPI)",
+          primaryStat: "70.0% (420,000 bản ghi)",
+          primaryPct: 70,
+          primaryDesc: "Hiển thị trên biểu đồ điều hành cấp Lãnh đạo, báo cáo xu hướng TTM và QA Index.",
+          secondaryName: "Luồng 2: Danh Sách Cảnh Báo Sâu (Operational Audit)",
+          secondaryStat: "30.0% (180,000 bản ghi)",
+          secondaryPct: 30,
+          secondaryDesc: "Gửi tới các PM/PO có cảnh báo trễ hạn, lệch baseline để xử lý khắc phục kịp thời."
+        },
+        rules: [
+          { name: "Rule Routing Dashboard Điều Hành", type: "Output", desc: "Xuất dữ liệu đạt chuẩn lên Báo cáo Tổng quan", status: "Export 70%" },
+          { name: "Rule Routing Alert & Trigger Mail", type: "Alert", desc: "Tạo trigger thông báo cho các Epic có rủi ro", status: "Export 30%" }
+        ]
+      }
+    };
+
+    let currentLayer = 1;
+    let viewMode = 'count'; // 'count' | 'pct'
+
+    function selectLayer(layerId) {
+      currentLayer = layerId;
+      
+      // Update Active class on cards
+      for (let i = 1; i <= 6; i++) {
+        const card = document.getElementById(`layer-card-${i}`);
+        if (card) {
+          if (i === layerId) {
+            card.classList.add('active', 'ring-2', 'ring-sky-400');
+          } else {
+            card.classList.remove('active', 'ring-2', 'ring-sky-400');
+          }
+        }
+      }
+
+      const data = layersData[layerId];
+      if (!data) return;
+
+      // Update Top Detail Card
+      document.getElementById('detailBadge').innerText = data.badge;
+      document.getElementById('detailTitle').innerText = data.title;
+      document.getElementById('detailDesc').innerText = data.desc;
+      
+      document.getElementById('detailCount').innerText = viewMode === 'count' ? data.count : data.countPct;
+      document.getElementById('detailSubtext').innerText = data.subtext;
+
+      document.getElementById('detailDrop').innerText = viewMode === 'count' ? data.drop : data.dropPct;
+      document.getElementById('detailDropSubtext').innerText = data.dropSubtext;
+
+      // Update Split Card
+      const splitCard = document.getElementById('splitDeepDiveCard');
+      if (data.splitInfo) {
+        splitCard.classList.remove('opacity-40');
+        document.getElementById('splitLayerTag').innerText = data.splitInfo.tag;
+        document.getElementById('splitPrimaryName').innerText = data.splitInfo.primaryName;
+        document.getElementById('splitPrimaryStat').innerText = data.splitInfo.primaryStat;
+        document.getElementById('splitPrimaryBar').style.width = `${data.splitInfo.primaryPct}%`;
+        document.getElementById('splitPrimaryDesc').innerText = data.splitInfo.primaryDesc;
+
+        document.getElementById('splitSecondaryName').innerText = data.splitInfo.secondaryName;
+        document.getElementById('splitSecondaryStat').innerText = data.splitInfo.secondaryStat;
+        document.getElementById('splitSecondaryBar').style.width = `${data.splitInfo.secondaryPct}%`;
+        document.getElementById('splitSecondaryDesc').innerText = data.splitInfo.secondaryDesc;
+      } else {
+        // Fallback default split view for comparison
+        document.getElementById('splitLayerTag').innerText = `Lớp ${layerId} (Không tách nhánh trực tiếp)`;
+        document.getElementById('splitPrimaryName').innerText = "Tỷ lệ tích lũy chính";
+        document.getElementById('splitPrimaryStat').innerText = "70% Mục tiêu";
+        document.getElementById('splitSecondaryName').innerText = "Tỷ lệ dự phòng";
+        document.getElementById('splitSecondaryStat').innerText = "30% Mục tiêu";
+        document.getElementById('splitPrimaryDesc').innerText = "Xem cấu trúc phân tách 70/30 mẫu tại Lớp 3 hoặc Lớp 6.";
+        document.getElementById('splitSecondaryDesc').innerText = "Xem cấu trúc phân tách 70/30 mẫu tại Lớp 3 hoặc Lớp 6.";
+      }
+
+      // Update Rules List
+      const ruleContainer = document.getElementById('rulesListContainer');
+      ruleContainer.innerHTML = '';
+      document.getElementById('ruleCountBadge').innerText = `${data.rules.length} Rules Áp Dụng`;
+
+      data.rules.forEach(rule => {
+        const item = document.createElement('div');
+        item.className = "p-3 bg-surface-dark/70 rounded-xl border border-surface-border flex items-start justify-between gap-3 text-xs";
+        item.innerHTML = `
+          <div>
+            <div class="font-semibold text-slate-200 flex items-center gap-2">
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-sky-400 border border-slate-700">${rule.type}</span>
+              ${rule.name}
+            </div>
+            <div class="text-[11px] text-slate-400 mt-1">${rule.desc}</div>
+          </div>
+          <span class="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-sky-950 text-sky-300 border border-sky-800 whitespace-nowrap">
+            ${rule.status}
+          </span>
+        `;
+        ruleContainer.appendChild(item);
+      });
+    }
+
+    function setViewMode(mode) {
+      viewMode = mode;
+      const btnCount = document.getElementById('btnViewCount');
+      const btnPct = document.getElementById('btnViewPct');
+
+      if (mode === 'count') {
+        btnCount.className = "px-3 py-1.5 rounded-md font-semibold transition bg-sky-500 text-white shadow";
+        btnPct.className = "px-3 py-1.5 rounded-md font-semibold text-slate-400 hover:text-white transition";
+      } else {
+        btnPct.className = "px-3 py-1.5 rounded-md font-semibold transition bg-sky-500 text-white shadow";
+        btnCount.className = "px-3 py-1.5 rounded-md font-semibold text-slate-400 hover:text-white transition";
+      }
+
+      // Toggle all layer-val display
+      document.querySelectorAll('.layer-val').forEach(el => {
+        const val = el.getAttribute('data-val');
+        const pct = el.getAttribute('data-pct');
+        if (mode === 'count') {
+          el.innerText = val;
+        } else {
+          el.innerText = pct;
+        }
+      });
+
+      selectLayer(currentLayer);
+    }
+
+    function resetLayers() {
+      selectLayer(1);
+      setViewMode('count');
+    }
+
+    // Init with Layer 1
+    window.addEventListener('DOMContentLoaded', () => {
+      selectLayer(1);
+    });
+  </script>
+</body>
+</html>

@@ -6,6 +6,45 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-10-03
+
+- **Cải tiến hiển thị động & Đưa toàn bộ text của nhóm nhỏ ra Callout Line (`/ttm-dashboard-2`)**:
+  - **Mặc định ẩn Panel 2 & 3 (Full-width ban đầu)**: Mặc định khi vào màn hình, Panel 1 chiếm trọn $100\%$ chiều rộng màn hình. Chỉ khi người dùng bấm vào một trong hai nhóm của Layer 4 (Hoàn thành hoặc Chưa xong), Panel 1 mới tự động co lại $50\%$ chiều rộng bên trái để nhường chỗ cho Panel chi tiết tương ứng xuất hiện ở bên phải. Bổ sung nút đóng `X` để dễ dàng thu gọn lại toàn màn hình.
+  - **Đưa toàn bộ Text + Số liệu của nhóm nhỏ ra ngoài đường kẻ Callout Line**: Với các nhóm nhỏ hơn (Nhóm 5ab `Fail Trễ hạn` và Nhóm 5ba `Fail Quá Target`), trong lòng layer hoàn toàn để trống để không bị chèn ép text; toàn bộ **Text chính (`Fail`)**, **Số liệu (`{count}`)**, và **Text phụ (`Trễ hạn` / `Quá Target`)** được đưa ra ngoài đầu đường kẻ chỉ dẫn màu đỏ gập khúc.
+  - **Cập nhật tài liệu**: Đồng bộ đặc tả tại [docs/ttm-dashboard-2-spec.md](file:///d:/git/ttm-tool/docs/ttm-dashboard-2-spec.md).
+
+- **Nâng cấp Layout 2 cột tương tác & Phễu phân nhánh tỉ lệ diện tích (`/ttm-dashboard-2`)**:
+  - **Bổ sung Layer 4 chia 2 nửa vào Panel 1**: Tầng 4 của phễu chính được phân thành 2 nửa: **Epic Hoàn thành (4a)** và **Epic Chưa hoàn thành (4b)**. Click chuột trái vào nửa tương ứng sẽ tự động kích hoạt hiển thị phễu chi tiết bên phải.
+  - **Bố cục 2 cột gọn gàng**: Đưa Panel 1 sang cột trái và Panel 2 (Epic Hoàn Thành) / Panel 3 (Epic Chưa Hoàn Thành) sang cột phải, ẩn các panel đáy dư thừa.
+  - **Tỉ lệ diện tích động (Min 20% - Max 80%)**: Toàn bộ các tầng chia nhóm (Layer 4 của Panel 1, Layer 5a của Panel 2, Layer 5b của Panel 3) tự động tính toán tọa độ cắt hình học theo tỉ lệ số liệu thực tế kẹp trong khoảng $[20\%, 80\%]$.
+  - **Đường chỉ dẫn gập khúc (Callout pointer line)**: Thiết kế đường line màu đỏ trỏ từ mép thân phễu ra nhãn chữ bên ngoài (`"Trễ hạn"`, `"Quá Target"`) như thiết kế mẫu, giúp text trong layer không bị chật chội.
+  - **Khớp khít nắp 3D bằng `<clipPath>`**: Toàn bộ nắp elip đỉnh được cắt bằng SVG clip path theo chính xác tọa độ phân chia, khắc phục triệt để lỗi hở nắp và hở thân hình nón.
+  - **Cập nhật tài liệu**: Đồng bộ tài liệu [ttm-dashboard-2-spec.md](file:///d:/git/ttm-tool/docs/ttm-dashboard-2-spec.md) với kiến trúc 2 cột mới.
+
+- **Hoàn thiện TTM Dashboard 2 (`/ttm-dashboard-2`) theo thiết kế phễu phân nhánh**:
+  - **Khớp kín hình học nắp nón (Conical Lids Geometry)**: Hiệu chỉnh chính xác phương trình tiếp tuyến của Elip nắp và thân phễu cho các Layer 1, 2, 3 và Layer 4a/4b, loại bỏ hoàn toàn hiện tượng tai bè/hở mép nắp phễu.
+  - **Banner đầu trang & Xem dưới quyền User**: Đồng bộ hoàn toàn theo phong cách của TTM Dashboard (`dashboard-new`), tích hợp 3 chỉ số TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E toàn hệ thống và nút chuyển đổi góc nhìn Lead vs PM/SM.
+  - **Tương tác Popup chỉ mở khi Chuột Phải**: Chuyển toàn bộ hành vi mở modal diễn giải công thức / quy tắc lọc sang sự kiện **Right-Click (Context Menu)**; click chuột trái giữ nguyên trải nghiệm trực quan.
+  - **Mã định vị ID góc trái Popup**: Bổ sung badge mã định vị `[LAYER-01]`, `[LAYER-02]`, `[LAYER-03]`, `[LAYER-04A]`, `[GROUP-05AA]`, `[GROUP-05AB]`, `[LAYER-04B]`, `[GROUP-05BA]`, `[GROUP-05BB]` ở góc trái phía trên tiêu đề Popup để hỗ trợ kiểm tra và audit dữ liệu.
+  - **Khu vực 2 Panel phễu phân nhánh (Tách từ Layer 3)**:
+    - **Panel 2A (Bên trái) - Epic Hoàn thành**: Layer 4a (Tổng Epic có `r4gDate` thực tế) phân nhánh thành 2 nhóm song song: Nhóm 5aa (**Đạt TTM-CNTT**) và Nhóm 5ab (**Fail TTM-CNTT - Trễ hạn**).
+    - **Panel 2B (Bên phải) - Epic Chưa hoàn thành**: Layer 4b (Tổng Epic chưa có `r4gDate` = Layer 3 - Layer 4a) phân nhánh thành 2 nhóm song song: Nhóm 5ba (**Fail TTM-CNTT - Quá Target**) và Nhóm 5bb (**Còn lại - Đang trong hạn**).
+  - **Tài liệu đặc tả**: Khởi tạo và cập nhật chi tiết tài liệu [ttm-dashboard-2-spec.md](file:///d:/git/ttm-tool/docs/ttm-dashboard-2-spec.md) mô tả toàn bộ luồng dữ liệu, công thức toán học và điều kiện lọc.
+
+- **Cải tiến giao diện TTM Dashboard 2 (`/ttm-dashboard-2`)**:
+  - **Văn bản bên trong mỗi Layer**: Đặt số tổng to đậm ở chính giữa (`fontSize: 20-22px`, `fontWeight: 800`), dòng tiêu đề nhỏ hơn ở dưới và định dạng thường không đậm (`fontSize: 12px`, `fontWeight: 400`).
+  - **Thanh bộ lọc 1 dòng**: Chuyển toàn bộ bộ lọc thành thanh toolbar ngang duy nhất ở trên cùng theo đúng phong cách của TTM Dashboard (`ttm-toolbar`: Domain, Dự án, PM/SM, Đơn vị yêu cầu, Đặt lại).
+  - **Popup chi tiết & Công thức (Modal)**: Đưa toàn bộ mô tả chi tiết của từng tầng vào Popup Modal kích hoạt khi **Click chuột trái hoặc Click chuột phải (Context Menu)** vào tầng phễu / thẻ tóm tắt tương ứng.
+  - **Khung nhìn Full-width & Bỏ layer đáy**: Mở rộng biểu đồ phễu chiếm trọn chiều rộng khung nhìn và loại bỏ khối hình nón đáy để tập trung trọn vẹn vào 3 lớp xử lý dữ liệu chính.
+
+- **Thêm màn hình mới TTM Dashboard 2 (`/ttm-dashboard-2`)**:
+  - Giao diện gồm **Biểu đồ Phễu 3D Nón (3D Conical Slice Funnel)** trực quan hóa 3 lớp xử lý dữ liệu:
+    - **Layer 1 (Tổng Epic nguồn)**: Hiển thị tổng số Epic trong phạm vi phân quyền và bộ lọc; box mô tả thống kê chi tiết số lượng Domain, Dự án, PM/SM, Đơn vị yêu cầu.
+    - **Layer 2 (Lọc Cancelled)**: Khấu trừ các Epic trạng thái Đã hủy (`Cancelled`, `Closed (Cancelled)`, `Rejected`...), hiển thị công thức và tỷ lệ giữ lại.
+    - **Layer 3 (Lọc Sai lệch dữ liệu)**: Khấu trừ các Epic vi phạm toàn vẹn dữ liệu (Data Anomaly), hiển thị công thức, số lượng và danh sách top lỗi vi phạm phổ biến.
+  - Cột bên phải gồm 4 bộ lọc đồng bộ với TTM Dashboard: **Chọn Domain**, **Chọn Dự án**, **Chọn PM/SM**, **Chọn 'Đơn vị yêu cầu'** cùng tính năng **User Preview Switcher** cho vai trò Quản trị/Giám sát.
+  - Phân quyền & Điều hướng: Bổ sung quyền `ttm_dashboard_2` vào Ma trận phân quyền (migration `20261003_add_ttm_dashboard_2_permission.sql`), mở quyền cho role `Supervisor` trở lên (`SUPERADMIN`, `ADMIN`, `SUPERVISOR`); thêm menu điều hướng trên Left Panel (`src/components/layout/AppShell.tsx`, `src/lib/app-screens.ts`).
+
 ## 2026-10-01
 
 - **Bộ lọc "Đơn vị yêu cầu" — chọn nhiều + tìm free-text** ở Quản trị Epic, Epic in PO (đổi từ `<select>` chọn 1 sang

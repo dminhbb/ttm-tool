@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TTM Data Funnel - 3D Ribbon Funnel Dashboard</title>
+  <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            app: {
+              bg: '#17182b',
+              sidebar: '#1d1e35',
+              panel: '#252740',
+              elevated: '#2c2f4b',
+              border: '#373a5e',
+              borderStrong: '#4a4e7a'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* 3D Folded Ribbon Funnel Styling */
+    .funnel-svg {
+      filter: drop-shadow(0 15px 25px rgba(0, 0, 0, 0.45));
+    }
+    .ribbon-segment {
+      cursor: pointer;
+      transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .ribbon-segment:hover {
+      filter: brightness(1.22) drop-shadow(0 0 14px currentColor);
+      transform: scale(1.015);
+      transform-origin: center;
+    }
+    .ribbon-segment.active-segment {
+      filter: brightness(1.3) drop-shadow(0 0 18px currentColor);
+    }
+    
+    .callout-row {
+      transition: all 0.2s ease;
+    }
+    .callout-row:hover, .callout-row.active-row {
+      background-color: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+    }
+
+    /* Custom Form Controls */
+    .filter-select {
+      background-color: #17182b;
+      border: 1px solid #373a5e;
+      color: #e2e8f0;
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: 12px;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .filter-select:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #17182b;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #373a5e;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #818cf8;
+    }
+  </style>
+</head>
+<body class="bg-app-bg text-slate-100 font-sans min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white">
+
+  <!-- Header bar -->
+  <header class="border-b border-app-border bg-app-sidebar/95 backdrop-blur sticky top-0 z-40 px-6 py-3.5 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-sky-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
+        <i class="ph-bold ph-funnel text-lg"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-sm font-bold tracking-tight text-white uppercase">TTM Data Processing Funnel</h1>
+          <span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 rounded-full">3D Folded Ribbon Design</span>
+        </div>
+        <p class="text-[11px] text-slate-400">Trực quan hóa luồng 6 lớp dữ liệu từ Nạp thô → Rule lọc → Tập tính toán chỉ số TTM (Nhánh 70/30 tại Lớp 3 & 6)</p>
+      </div>
+    </div>
+
+    <!-- Quick Stats in Header -->
+    <div class="flex items-center gap-4 text-xs font-mono">
+      <div class="hidden md:flex items-center gap-2 bg-app-panel px-3 py-1.5 rounded-lg border border-app-border">
+        <span class="text-slate-400">Tổng đầu vào:</span>
+        <span class="text-white font-bold" id="headTotal">1,000,000</span>
+      </div>
+      <div class="hidden md:flex items-center gap-2 bg-app-panel px-3 py-1.5 rounded-lg border border-app-border">
+        <span class="text-slate-400">Tỷ lệ qua phễu:</span>
+        <span class="text-emerald-400 font-bold" id="headRetention">60.0%</span>
+      </div>
+      <a href="./funnel-dashboard.html" class="px-3 py-1.5 rounded-lg bg-app-panel hover:bg-app-elevated border border-app-border text-xs text-slate-300 hover:text-white transition flex items-center gap-1.5">
+        <i class="ph ph-squares-four"></i> Mẫu Phễu 1
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Content Grid: Funnel Visual + 5-Filter Sidebar -->
+  <main class="flex-1 p-6 max-w-[1600px] w-full mx-auto grid grid-cols-1 xl:grid-cols-12 gap-6">
+
+    <!-- LEFT & CENTER AREA: 3D Ribbon Funnel Chart Canvas (Span 9) -->
+    <div class="xl:col-span-9 flex flex-col bg-app-sidebar/70 border border-app-border rounded-2xl p-6 relative overflow-hidden shadow-2xl backdrop-blur">
+      
+      <!-- Top Title inside Canvas (similar to template) -->
+      <div class="text-center mb-6">
+        <h2 class="text-xl md:text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-sky-400 uppercase font-sans">
+          LUỒNG XỬ LÝ & BỘ LỌC DỮ LIỆU TTM 6 LỚP
+        </h2>
+        <p class="text-xs text-slate-400 mt-1 max-w-2xl mx-auto">
+          Mô hình phễu gấp khúc 3D thể hiện các chặng tinh lọc dữ liệu từ Ingestion, Cleansing, Phân nhánh 70/30, Rule nghiệp vụ đến Kết quả tính toán.
+        </p>
+      </div>
+
+      <!-- Main Funnel Graphic & Callouts Container -->
+      <div class="flex-1 flex flex-col justify-center items-center py-2">
+        <div class="w-full max-w-4xl grid grid-cols-12 gap-4 items-center">
+          
+          <!-- Funnel SVG with Left Numbers & Ribbons (Col 7) -->
+          <div class="col-span-12 md:col-span-7 flex justify-center relative">
+            <svg class="funnel-svg w-full max-w-[500px]" viewBox="0 0 520 620" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <!-- Layer 1 Gradients -->
+                <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#8b5cf6"/>
+                  <stop offset="100%" stop-color="#7c3aed"/>
+                </linearGradient>
+                <linearGradient id="fold1" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#4c1d95"/>
+                  <stop offset="100%" stop-color="#2e1065"/>
+                </linearGradient>
+
+                <!-- Layer 2 Gradients -->
+                <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#ec4899"/>
+                  <stop offset="100%" stop-color="#db2777"/>
+                </linearGradient>
+                <linearGradient id="fold2" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#831843"/>
+                  <stop offset="100%" stop-color="#500724"/>
+                </linearGradient>
+
+                <!-- Layer 3 Gradients (Split 70% / 30%) -->
+                <linearGradient id="grad3_70" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#06b6d4"/>
+                  <stop offset="100%" stop-color="#0284c7"/>
+                </linearGradient>
+                <linearGradient id="grad3_30" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#f59e0b"/>
+                  <stop offset="100%" stop-color="#d97706"/>
+                </linearGradient>
+                <linearGradient id="fold3" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#0e7490"/>
+                  <stop offset="100%" stop-color="#164e63"/>
+                </linearGradient>
+
+                <!-- Layer 4 Gradients -->
+                <linearGradient id="grad4" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#3b82f6"/>
+                  <stop offset="100%" stop-color="#2563eb"/>
+                </linearGradient>
+                <linearGradient id="fold4" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#1e3a8a"/>
+                  <stop offset="100%" stop-color="#172554"/>
+                </linearGradient>
+
+                <!-- Layer 5 Gradients -->
+                <linearGradient id="grad5" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#10b981"/>
+                  <stop offset="100%" stop-color="#059669"/>
+                </linearGradient>
+                <linearGradient id="fold5" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#064e3b"/>
+                  <stop offset="100%" stop-color="#022c22"/>
+                </linearGradient>
+
+                <!-- Layer 6 Gradients (Split 70% / 30%) -->
+                <linearGradient id="grad6_70" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#14b8a6"/>
+                  <stop offset="100%" stop-color="#0d9488"/>
+                </linearGradient>
+                <linearGradient id="grad6_30" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#e11d48"/>
+                  <stop offset="100%" stop-color="#be123c"/>
+                </linearGradient>
+              </defs>
+
+              <!-- ==============================================
+                   LAYER 1: Trapezoid (01)
+                   ============================================== -->
+              <!-- Left Big Number 01 -->
+              <text x="35" y="48" fill="#a78bfa" font-size="34" font-weight="900" font-family="'Plus Jakarta Sans', sans-serif" opacity="0.95">01</text>
+              
+              <!-- Layer 1 Trapezoid Ribbon -->
+              <g class="ribbon-segment" onclick="highlightLayer(1)" id="svg-seg-1">
+                <polygon points="100,15 500,15 460,65 140,65" fill="url(#grad1)" stroke="#c4b5fd" stroke-width="1"/>
+                <text x="300" y="45" fill="#ffffff" font-size="14" font-weight="700" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif" letter-spacing="0.5">
+                  1. DỮ LIỆU ĐẦU VÀO THÔ (1,000,000)
+                </text>
+              </g>
+
+              <!-- Fold 1 -> 2 (Ribbon Underfold right to left) -->
+              <polygon points="460,65 140,65 425,115" fill="url(#fold1)" opacity="0.9"/>
+
+              <!-- ==============================================
+                   LAYER 2: Trapezoid (02)
+                   ============================================== -->
+              <!-- Left Big Number 02 -->
+              <text x="60" y="148" fill="#f472b6" font-size="34" font-weight="900" font-family="'Plus Jakarta Sans', sans-serif" opacity="0.95">02</text>
+
+              <!-- Layer 2 Trapezoid Ribbon -->
+              <g class="ribbon-segment" onclick="highlightLayer(2)" id="svg-seg-2">
+                <polygon points="135,115 465,115 430,165 170,165" fill="url(#grad2)" stroke="#fbcfe8" stroke-width="1"/>
+                <text x="300" y="145" fill="#ffffff" font-size="13.5" font-weight="700" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif" letter-spacing="0.5">
+                  2. BỘ LỌC CHUẨN HÓA & LÀM SẠCH (850,000)
+                </text>
+              </g>
+
+              <!-- Fold 2 -> 3 (Ribbon Underfold left to right) -->
+              <polygon points="170,165 430,165 195,215" fill="url(#fold2)" opacity="0.9"/>
+
+              <!-- ==============================================
+                   LAYER 3: Trapezoid (03) [SPLIT 70% / 30%]
+                   ============================================== -->
+              <!-- Left Big Number 03 -->
+              <text x="85" y="248" fill="#38bdf8" font-size="34" font-weight="900" font-family="'Plus Jakarta Sans', sans-serif" opacity="0.95">03</text>
+
+              <!-- Layer 3 Split 70% (Cyan) & 30% (Amber) Ribbon -->
+              <g class="ribbon-segment" onclick="highlightLayer(3)" id="svg-seg-3">
+                <!-- 70% Part -->
+                <polygon points="165,215 375,215 352,265 195,265" fill="url(#grad3_70)" stroke="#bae6fd" stroke-width="1"/>
+                <text x="270" y="245" fill="#ffffff" font-size="12" font-weight="700" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif">
+                  3A. CORE 70% (595K)
+                </text>
+
+                <!-- 30% Part -->
+                <polygon points="378,215 435,215 405,265 355,265" fill="url(#grad3_30)" stroke="#fde68a" stroke-width="1"/>
+                <text x="388" y="245" fill="#ffffff" font-size="11" font-weight="700" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif">
+                  3B. 30% (255K)
+                </text>
+              </g>
+
+              <!-- Fold 3 -> 4 -->
+              <polygon points="405,265 195,265 385,315" fill="url(#fold3)" opacity="0.9"/>
+
+              <!-- ==============================================
+                   LAYER 4: Trapezoid (04)
+                   ============================================== -->
+              <!-- Left Big Number 04 -->
+              <text x="115" y="348" fill="#60a5fa" font-size="34" font-weight="900" font-family="'Plus Jakarta Sans', sans-serif" opacity="0.95">04</text>
+
+              <!-- Layer 4 Trapezoid Ribbon -->
+              <g class="ribbon-segment" onclick="highlightLayer(4)" id="svg-seg-4">
+                <polygon points="190,315 410,315 380,365 220,365" fill="url(#grad4)" stroke="#bfdbfe" stroke-width="1"/>
+                <text x="300" y="345" fill="#ffffff" font-size="13" font-weight="700" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif">
+                  4. RULE NGHIỆP VỤ TTM (720,000)
+                </text>
+              </g>
+
+              <!-- Fold 4 -> 5 -->
+              <polygon points="220,365 380,365 245,415" fill="url(#fold4)" opacity="0.9"/>
+
+              <!-- ==============================================
+                   LAYER 5: Trapezoid (05)
+                   ============================================== -->
+              <!-- Left Big Number 05 -->
+              <text x="145" y="448" fill="#34d399" font-size="34" font-weight="900" font-family="'Plus Jakarta Sans', sans-serif" opacity="0.95">05</text>
+
+              <!-- Layer 5 Trapezoid Ribbon -->
+              <g class="ribbon-segment" onclick="highlightLayer(5)" id="svg-seg-5">
+                <polygon points="220,415 380,415 355,465 245,465" fill="url(#grad5)" stroke="#a7f3d0" stroke-width="1"/>
+                <text x="300" y="445" fill="#ffffff" font-size="12.5" font-weight="700" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif">
+                  5. TẬP TÍNH TOÁN (600,000)
+                </text>
+              </g>
+
+              <!-- Fold 5 -> 6 -->
+              <polygon points="355,465 245,465 330,515" fill="url(#fold5)" opacity="0.9"/>
+
+              <!-- ==============================================
+                   LAYER 6: Trapezoid (06) [SPLIT 70% / 30%]
+                   ============================================== -->
+              <!-- Left Big Number 06 -->
+              <text x="175" y="548" fill="#2dd4bf" font-size="34" font-weight="900" font-family="'Plus Jakarta Sans', sans-serif" opacity="0.95">06</text>
+
+              <!-- Layer 6 Split 70% (Teal) & 30% (Rose) Ribbon -->
+              <g class="ribbon-segment" onclick="highlightLayer(6)" id="svg-seg-6">
+                <!-- 70% Part -->
+                <polygon points="245,515 320,515 308,565 260,565" fill="url(#grad6_70)" stroke="#99f6e4" stroke-width="1"/>
+                <text x="286" y="545" fill="#ffffff" font-size="10.5" font-weight="700" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif">
+                  70% KPI (420K)
+                </text>
+
+                <!-- 30% Part -->
+                <polygon points="322,515 355,515 338,565 310,565" fill="url(#grad6_30)" stroke="#fecdd3" stroke-width="1"/>
+                <text x="330" y="545" fill="#ffffff" font-size="9" font-weight="700" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif">
+                  30% (180K)
+                </text>
+              </g>
+
+              <!-- Bottom Tip Triangle -->
+              <polygon points="268,575 332,575 300,612" fill="#6366f1" stroke="#a5b4fc" stroke-width="1"/>
+            </svg>
+          </div>
+
+          <!-- RIGHT CALLOUT TEXT BLOCKS (Col 5) - Styled directly with connecting lines -->
+          <div class="col-span-12 md:col-span-5 flex flex-col justify-between space-y-3.5 pl-2">
+            
+            <!-- Callout 1 -->
+            <div id="callout-1" onclick="highlightLayer(1)" class="callout-row cursor-pointer p-2 rounded-lg border-l-2 border-purple-400 pl-3">
+              <div class="text-xs font-bold text-purple-300 flex items-center justify-between">
+                <span>01. Dữ Liệu Nguồn Đầu Vào</span>
+                <span class="text-[10px] font-mono bg-purple-500/20 px-1.5 py-0.5 rounded text-purple-200">100% (1M)</span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                Nạp tự động từ Jira API, ERP, CRM, System Logs và các đối tác bên ngoài.
+              </p>
+            </div>
+
+            <!-- Callout 2 -->
+            <div id="callout-2" onclick="highlightLayer(2)" class="callout-row cursor-pointer p-2 rounded-lg border-l-2 border-pink-400 pl-3">
+              <div class="text-xs font-bold text-pink-300 flex items-center justify-between">
+                <span>02. Lọc Chuẩn Hóa Schema</span>
+                <span class="text-[10px] font-mono bg-pink-500/20 px-1.5 py-0.5 rounded text-pink-200">85% (850K)</span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                Khử trùng lặp, xác thực trường bắt buộc (Key, Project, Date ISO-8601).
+              </p>
+            </div>
+
+            <!-- Callout 3 (Split 70/30) -->
+            <div id="callout-3" onclick="highlightLayer(3)" class="callout-row cursor-pointer p-2 rounded-lg border-l-2 border-sky-400 pl-3 bg-sky-950/20">
+              <div class="text-xs font-bold text-sky-300 flex items-center justify-between">
+                <span>03. Tách Phân Nhánh Phạm Vi</span>
+                <span class="text-[10px] font-mono bg-sky-500/20 px-1.5 py-0.5 rounded text-sky-200">70% / 30%</span>
+              </div>
+              <div class="grid grid-cols-2 gap-2 mt-1">
+                <div class="bg-sky-950/60 p-1.5 rounded border border-sky-500/30 text-[10px]">
+                  <span class="text-sky-300 font-bold">70% Core (595K):</span>
+                  <p class="text-slate-400">Epic dự án trọng điểm nội bộ.</p>
+                </div>
+                <div class="bg-amber-950/40 p-1.5 rounded border border-amber-500/30 text-[10px]">
+                  <span class="text-amber-300 font-bold">30% Sub (255K):</span>
+                  <p class="text-slate-400">Vendor & bảo trì phụ.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Callout 4 -->
+            <div id="callout-4" onclick="highlightLayer(4)" class="callout-row cursor-pointer p-2 rounded-lg border-l-2 border-blue-400 pl-3">
+              <div class="text-xs font-bold text-blue-300 flex items-center justify-between">
+                <span>04. Áp Dụng Rule Nghiệp Vụ</span>
+                <span class="text-[10px] font-mono bg-blue-500/20 px-1.5 py-0.5 rounded text-blue-200">72% (720K)</span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                Tính Leadtime, ánh xạ trạng thái R1-R4, kiểm tra anomaly mốc ngày.
+              </p>
+            </div>
+
+            <!-- Callout 5 -->
+            <div id="callout-5" onclick="highlightLayer(5)" class="callout-row cursor-pointer p-2 rounded-lg border-l-2 border-emerald-400 pl-3">
+              <div class="text-xs font-bold text-emerald-300 flex items-center justify-between">
+                <span>05. Tập Dữ Liệu Tính Toán</span>
+                <span class="text-[10px] font-mono bg-emerald-500/20 px-1.5 py-0.5 rounded text-emerald-200">60% (600K)</span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                Golden Dataset hoàn chỉnh, chốt kỳ tính điểm TTM / QA Index.
+              </p>
+            </div>
+
+            <!-- Callout 6 (Split 70/30) -->
+            <div id="callout-6" onclick="highlightLayer(6)" class="callout-row cursor-pointer p-2 rounded-lg border-l-2 border-teal-400 pl-3 bg-teal-950/20">
+              <div class="text-xs font-bold text-teal-300 flex items-center justify-between">
+                <span>06. Phân Bổ Đầu Ra Báo Cáo</span>
+                <span class="text-[10px] font-mono bg-teal-500/20 px-1.5 py-0.5 rounded text-teal-200">70% / 30%</span>
+              </div>
+              <div class="grid grid-cols-2 gap-2 mt-1">
+                <div class="bg-teal-950/60 p-1.5 rounded border border-teal-400/30 text-[10px]">
+                  <span class="text-teal-300 font-bold">70% Executive (420K):</span>
+                  <p class="text-slate-400">Dashboard Lãnh đạo.</p>
+                </div>
+                <div class="bg-rose-950/40 p-1.5 rounded border border-rose-500/30 text-[10px]">
+                  <span class="text-rose-300 font-bold">30% Alert (180K):</span>
+                  <p class="text-slate-400">Cảnh báo sâu cho PM/PO.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Bottom Interactive Layer Inspector Info -->
+      <div id="layerDetailPanel" class="mt-4 pt-3 border-t border-app-border flex items-center justify-between text-xs">
+        <div class="flex items-center gap-2">
+          <i class="ph-bold ph-info text-sky-400"></i>
+          <span id="detailStatusText" class="text-slate-300">Đang chọn: <strong class="text-white">Lớp 1 - Dữ liệu Đầu Vào Thô</strong></span>
+        </div>
+        <span class="text-slate-500 text-[11px]">Bấm vào từng dải ruy-băng để highlight và lọc tương ứng</span>
+      </div>
+
+    </div>
+
+    <!-- RIGHT SIDEBAR: 5 MOCK FILTERS (Span 3) -->
+    <aside class="xl:col-span-3 flex flex-col bg-app-sidebar border border-app-border rounded-2xl p-5 shadow-xl space-y-4">
+      
+      <!-- Filter Sidebar Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-app-border">
+        <div class="flex items-center gap-2">
+          <i class="ph-bold ph-sliders-horizontal text-sky-400 text-lg"></i>
+          <h3 class="font-bold text-sm text-white">Bộ Lọc Tham Số (5 Filters)</h3>
+        </div>
+        <button onclick="resetFilters()" class="text-[11px] text-slate-400 hover:text-sky-400 flex items-center gap-1 transition">
+          <i class="ph ph-arrow-counter-clockwise"></i> Đặt lại
+        </button>
+      </div>
+
+      <!-- FILTER 1: Project / Phạm vi dự án -->
+      <div class="space-y-1.5">
+        <label class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+          <span class="flex items-center gap-1.5">
+            <i class="ph ph-folder text-purple-400"></i> 1. Dự Án / Project
+          </span>
+          <span class="text-[10px] text-slate-500 font-mono">Bắt buộc</span>
+        </label>
+        <select id="filterProject" onchange="applyFilters()" class="filter-select">
+          <option value="all">Tất cả dự án (All Projects)</option>
+          <option value="core">Core Banking Transformation</option>
+          <option value="omni">Omni-Channel Mobile App</option>
+          <option value="payment">Payment Gateway 2.0</option>
+          <option value="lending">Digital Lending Platform</option>
+        </select>
+        <p class="text-[10px] text-slate-500">Lọc theo mã dự án hoặc nhóm Epic quản trị.</p>
+      </div>
+
+      <!-- FILTER 2: Đơn vị / BU / IT Division -->
+      <div class="space-y-1.5">
+        <label class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+          <span class="flex items-center gap-1.5">
+            <i class="ph ph-buildings text-pink-400"></i> 2. Đơn Vị / Khối CNTT
+          </span>
+        </label>
+        <select id="filterBU" onchange="applyFilters()" class="filter-select">
+          <option value="all">Tất cả các khối (All Divisions)</option>
+          <option value="cntt">Khối Công Nghệ Thông Tin</option>
+          <option value="digital">Khối Ngân Hàng Số</option>
+          <option value="vanhanh">Khối Vận Hành & Dịch Vụ</option>
+          <option value="qa">Trung Tâm Kiểm Thử & QA</option>
+        </select>
+        <p class="text-[10px] text-slate-500">Phân quyền dữ liệu theo đơn vị chủ trì.</p>
+      </div>
+
+      <!-- FILTER 3: Chu kỳ / Time Window & Quarter -->
+      <div class="space-y-1.5">
+        <label class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+          <span class="flex items-center gap-1.5">
+            <i class="ph ph-calendar text-sky-400"></i> 3. Chu Kỳ Tính Toán (Time Window)
+          </span>
+        </label>
+        <select id="filterTime" onchange="applyFilters()" class="filter-select">
+          <option value="q4_2026">Quý 4/2026 (Hiện tại)</option>
+          <option value="q3_2026">Quý 3/2026 (Đã chốt sổ)</option>
+          <option value="q2_2026">Quý 2/2026</option>
+          <option value="ytd_2026">Lũy kế năm 2026 (YTD)</option>
+        </select>
+        <p class="text-[10px] text-slate-500">Mốc thời gian ghi nhận và áp dụng rule cắt kỳ.</p>
+      </div>
+
+      <!-- FILTER 4: Loại Issue / Epic Type -->
+      <div class="space-y-1.5">
+        <label class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+          <span class="flex items-center gap-1.5">
+            <i class="ph ph-tag text-blue-400"></i> 4. Loại Yêu Cầu (Epic Type)
+          </span>
+        </label>
+        <select id="filterType" onchange="applyFilters()" class="filter-select">
+          <option value="all">Tất cả loại Epic (Feature & Enabler)</option>
+          <option value="feature">Chỉ Epic Tính Năng (Business Features)</option>
+          <option value="enabler">Chỉ Epic Hạ Tầng / Enabler</option>
+          <option value="fasttrack">Epic Quy trình Rút gọn (Fast-track)</option>
+        </select>
+        <p class="text-[10px] text-slate-500">Phân biệt trọng số theo tính chất phát triển.</p>
+      </div>
+
+      <!-- FILTER 5: Chế độ Rule Engine / Parity Mode -->
+      <div class="space-y-1.5">
+        <label class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+          <span class="flex items-center gap-1.5">
+            <i class="ph ph-gear-six text-emerald-400"></i> 5. Chế Độ Rule Engine (Scoring)
+          </span>
+          <span class="px-1.5 py-0.2 bg-emerald-500/20 text-emerald-300 text-[9px] font-mono rounded">M4</span>
+        </label>
+        <select id="filterEngine" onchange="applyFilters()" class="filter-select">
+          <option value="scoring">Scoring Engine Mới (Scoring Service)</option>
+          <option value="legacy">Legacy Engine (Quy tắc cũ)</option>
+          <option value="shadow">Shadow Parity Run (Chạy đối sánh)</option>
+        </select>
+        <p class="text-[10px] text-slate-500">Chuyển đổi engine tính toán theo kiến trúc M4.</p>
+      </div>
+
+      <!-- Filter Actions & Summary -->
+      <div class="pt-3 border-t border-app-border space-y-2">
+        <button onclick="applyFilters(true)" class="w-full py-2 bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition flex items-center justify-center gap-2">
+          <i class="ph-bold ph-funnel"></i> Áp Dụng Bộ Lọc (Apply)
+        </button>
+
+        <div class="bg-app-panel rounded-xl p-3 border border-app-border text-[11px] space-y-1">
+          <div class="flex justify-between text-slate-400">
+            <span>Trạng thái bộ lọc:</span>
+            <span class="text-emerald-400 font-semibold" id="filterStatusBadge">Đã nạp 5 tiêu chí</span>
+          </div>
+          <div class="flex justify-between text-slate-400">
+            <span>Dữ liệu lọc được:</span>
+            <span class="text-white font-mono font-bold" id="filteredCount">600,000 / 1M</span>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+  </main>
+
+  <!-- Interactive Script -->
+  <script>
+    const layerNames = {
+      1: "Lớp 1: Dữ Liệu Đầu Vào Thô (Raw Ingestion - 1,000,000)",
+      2: "Lớp 2: Bộ Lọc Chuẩn Hóa & Làm Sạch (Data Cleansing - 850,000)",
+      3: "Lớp 3: Phân Nhánh Phạm Vi Tính (Split 70% Core: 595K vs 30% Sub: 255K)",
+      4: "Lớp 4: Áp Dụng Rule Nghiệp Vụ TTM (Business Rules - 720,000)",
+      5: "Lớp 5: Tập Dữ Liệu Tính Toán (Calculation-Ready Dataset - 600,000)",
+      6: "Lớp 6: Phân Bổ Đầu Ra Báo Cáo (Split 70% Executive: 420K vs 30% Alert: 180K)"
+    };
+
+    function highlightLayer(layerId) {
+      // Clear previous active classes
+      for (let i = 1; i <= 6; i++) {
+        const seg = document.getElementById(`svg-seg-${i}`);
+        const callout = document.getElementById(`callout-${i}`);
+        if (seg) seg.classList.remove('active-segment');
+        if (callout) callout.classList.remove('active-row');
+      }
+
+      // Highlight target
+      const targetSeg = document.getElementById(`svg-seg-${layerId}`);
+      const targetCallout = document.getElementById(`callout-${layerId}`);
+      if (targetSeg) targetSeg.classList.add('active-segment');
+      if (targetCallout) targetCallout.classList.add('active-row');
+
+      // Update bottom status bar
+      document.getElementById('detailStatusText').innerHTML = `Đang chọn: <strong class="text-white">${layerNames[layerId]}</strong>`;
+    }
+
+    function applyFilters(isManual = false) {
+      const p = document.getElementById('filterProject').value;
+      const b = document.getElementById('filterBU').value;
+      const t = document.getElementById('filterTime').value;
+      const type = document.getElementById('filterType').value;
+      const eng = document.getElementById('filterEngine').value;
+
+      // Mock calculation based on filters
+      let factor = 1.0;
+      if (p !== 'all') factor *= 0.45;
+      if (b !== 'all') factor *= 0.6;
+      if (type !== 'all') factor *= 0.7;
+
+      const totalInput = Math.round(1000000 * factor);
+      const passedOutput = Math.round(600000 * factor);
+
+      document.getElementById('headTotal').innerText = totalInput.toLocaleString('en-US');
+      document.getElementById('filteredCount').innerText = `${passedOutput.toLocaleString('en-US')} / ${(totalInput).toLocaleString('en-US')}`;
+      
+      const badge = document.getElementById('filterStatusBadge');
+      badge.innerText = isManual ? "Đã cập nhật dữ liệu!" : "Đang đồng bộ...";
+      badge.className = "text-sky-400 font-semibold";
+      setTimeout(() => {
+        badge.innerText = "Đã nạp 5 tiêu chí";
+        badge.className = "text-emerald-400 font-semibold";
+      }, 1500);
+    }
+
+    function resetFilters() {
+      document.getElementById('filterProject').value = 'all';
+      document.getElementById('filterBU').value = 'all';
+      document.getElementById('filterTime').value = 'q4_2026';
+      document.getElementById('filterType').value = 'all';
+      document.getElementById('filterEngine').value = 'scoring';
+      applyFilters();
+    }
+
+    // Default highlight Layer 1
+    window.addEventListener('DOMContentLoaded', () => {
+      highlightLayer(1);
+    });
+  </script>
+</body>
+</html>
