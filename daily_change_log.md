@@ -8,6 +8,32 @@
 
 ## 2026-10-04
 
+- **TTM Dashboard 2 — thêm widget row, Ma trận Phân bổ và Pie chart** (không đổi schema; cache `ttm_dashboard_2_cache` lên `PAYLOAD_VERSION = 3`, tự dựng lại):
+  - Số liệu mới nằm trong `TtmFunnelSummary.insights` (`src/lib/ttm-funnel-summary.ts`), tính cùng lượt với phễu nên luôn khớp phễu; `TTM_FUNNEL_ROW_KEYS`
+    thêm `epicType`, `projectName`, `qaInScope`, `releaseAxisState`, `releaseGraceDeadline`, `scoringBadges`, `ttmE2eAlertLevel`.
+  - Giao diện ở `src/components/ttm-dashboard-2/DashboardInsights.tsx`: **widget row** (Tổng số Epic = L02 + "Trừ Cancelled=", Fail TTM-CNTT = L05ab + L05ba +
+    "/Số Epic=", 3 vòng TTM-CNTT (QLDA)/(QA)/TTM-E2E kèm tử số/mẫu số, và 4 widget Chậm tiến độ / Sai lệch dữ liệu / Chờ golive / Giải trình Golive như TTM
+    Dashboard); **ma trận** (Tổng số Epic = L02, Pass TTM = L05aa, Epic đánh giá = L05aa + L05ab + L05ba, Fail TTM = L05ab + L05ba; Lead 4 tab, PM/SM 2 tab);
+    **pie chart** theo 5 chiều (% Tổng số Epic = L02, % Pass TTM = L05aa, % Fail TTM = L05ab + L05ba).
+  - Deep link Quản trị Epic nhận nhiều giá trị "Nhận xét" cùng lúc (`alert` là mảng — `epic-alerts-deep-link.ts`) để mở đúng danh sách Fail / Epic đánh giá.
+  - Phễu: bỏ mã tiêu chí khỏi nhãn (mã chỉ còn trong popup chuột phải); chữ trong phễu dùng font của trang thay cho 'Plus Jakarta Sans' chưa được nạp
+    (gây vỡ dấu tiếng Việt ở ghi chú nhóm phụ) — `FunnelLayers.tsx`.
+  - Tài liệu: `docs/ttm-dashboard-2-spec.md` §7, `public/docs/product-guide.html` mục 21.6–21.8.
+- **Tên tiêu chí L01–L05bb + công thức % mới của TTM-CNTT (QLDA) / TTM-CNTT (QA)** (không đổi schema):
+  - Tên tiêu chí phễu TTM Dashboard 2 khai báo 1 chỗ ở `TTM_FUNNEL_CRITERIA` (`src/lib/ttm-funnel-summary.ts`): L01 Tổng epic, L02 Epic loại bỏ
+    Cancelled, L03 Epic chuẩn hoá dữ liệu, L04a/L04b Epic hoàn thành / chưa hoàn thành, L05aa Đạt, L05ab Không đạt (nhóm 1), L05ac Chưa kết luận,
+    L05ba Không đạt (nhóm 2), L05bb Trong hạn. Màn hình `ttm-dashboard-2/page.tsx` đổi toàn bộ nhãn/popup theo mã mới.
+  - **Phễu chỉ tính trong "Phạm vi dữ liệu cho TTM"**: Epic ngoài phạm vi không còn nằm trong L01 (bỏ nhóm "4C"), hiện thành dòng số riêng dưới phễu
+    (`ttmFunnelBucket` xét ngoài phạm vi trước tiên — `epic-row-verdicts.ts`). Bộ lọc "Nhận xét" mới `IN_SCOPE_CNTT` cho danh sách L01/L02.
+  - **Công thức**: Tỷ lệ % Pass = L05aa / (L05aa + L05ab + L05ba); % Fail = (L05ab + L05ba) / cùng mẫu số — thay cho `pass / eligible`
+    (`summarizeTtmCnttFromCounts`, `src/lib/ttm-cntt-qa.ts`; `TtmCnttSummary` thêm `denominator`, `failPct`, `failPctPrecise`; `fail` không còn đếm Epic
+    Sai lệch dữ liệu ở engine cũ). TTM-CNTT (QA) dùng cùng công thức, chỉ lấy Epic MVP Done / Released. TTM-E2E giữ công thức cũ (`summarizeE2eFromCounts`).
+  - Áp dụng cho chỉ số toàn công ty (`ttm-index-global-cache-service.ts` tính lại % từ số đếm đã lưu) và mọi chỉ số theo bộ lọc + phân quyền: TTM
+    Dashboard (vòng KPI, ma trận — cột "Epic tính TTM" đổi tên "Epic hoàn thành"), Quản trị Epic (`queryTtmCnttIndexes`), TTM Dashboard 2, MCP. Số cạnh
+    chỉ số nay là Đạt / (Đạt + Fail).
+  - Cache `ttm_dashboard_2_cache` thêm `PAYLOAD_VERSION = 2` trong JSON — dòng cache cũ tự bị bỏ qua và dựng lại.
+  - Tài liệu: chương 21 "TTM Dashboard 2" + mục 8.7 (công thức chung) trong `public/docs/product-guide.html`, `docs/ttm-dashboard-2-spec.md`,
+    `brd/16-ttm-indexes.md` §0.1, popup "Logic cảnh báo" (`catalog.ts`, `HelpPanels.tsx`).
 - **Scoring Engine — Chất lượng dữ liệu** (`SCORING_CODE_VERSION` → `scoring-5`, spec §16; logic cũ không đổi):
   - Rule mới **R8** `ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE` (có R4G Date nhưng status < R4GOLIVE) và **R9**
     `ANOMALY_R9_MISSING_R4G_DATE` (status ≥ R4GOLIVE, không Pending, thiếu R4G Date) — đều là "Sai lệch dữ liệu", kèm khuyến nghị

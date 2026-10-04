@@ -47,7 +47,14 @@ export interface TtmDashboard2Snapshot {
 interface CachedPayload {
   filterOptions: TtmDashboard2FilterOptions;
   summary: TtmFunnelSummary;
+  /** PAYLOAD_VERSION the entry was built with — an entry of another version is rebuilt. */
+  version?: number;
 }
+
+/** Bump whenever the meaning/shape of TtmFunnelSummary changes, so entries cached by older code are
+ * not served. 2 = funnel limited to "Phạm vi dữ liệu cho TTM" (criteria L01…L05bb, 2026-10-04);
+ * 3 = + insights (widget row, breakdown matrix, pie charts). */
+const PAYLOAD_VERSION = 3;
 
 const ALL_SCOPE: AccessScope = { accessRole: 'CBQL_PHONG', projectComponents: new Map(), sourceProjectKeys: null };
 
@@ -65,7 +72,7 @@ function scopeFingerprint(scope: AccessScope): string {
 }
 
 function buildPayload(rows: readonly TtmFunnelRow[]): CachedPayload {
-  return { filterOptions: buildTtmDashboard2FilterOptions(rows), summary: summarizeTtmFunnel(rows) };
+  return { filterOptions: buildTtmDashboard2FilterOptions(rows), summary: summarizeTtmFunnel(rows), version: PAYLOAD_VERSION };
 }
 
 const UPSERT_SQL = `
@@ -102,7 +109,9 @@ export async function getTtmDashboard2Snapshot(userId: number, role: UserRole): 
       [scopeKey, fingerprint, cacheMeta.computedAt, storedMode],
     );
     const hit = cached.rows[0];
-    if (hit) return { ...hit.summary, cache: { computedAt: hit.computedAt, scopeKey, status: 'HIT' } };
+    if (hit && hit.summary.version === PAYLOAD_VERSION) {
+      return { filterOptions: hit.summary.filterOptions, summary: hit.summary.summary, cache: { computedAt: hit.computedAt, scopeKey, status: 'HIT' } };
+    }
   } catch (error: unknown) {
     // e.g. the migration hasn't reached this database yet — still serve the screen, just uncached.
     console.error('TTM Dashboard 2 cache read failed:', error);

@@ -115,7 +115,7 @@ function formatTtmIndexValue(summary: TtmCnttSummary | null | undefined): string
 }
 
 function formatTtmIndexTooltip(firstLine: string, summary: TtmCnttSummary | null | undefined): string {
-  const secondLine = summary && summary.total > 0 ? `${summary.pass}/${summary.eligible} Epic đạt TTM` : '—';
+  const secondLine = summary && summary.total > 0 ? `${summary.pass}/${summary.denominator} Epic đạt TTM` : '—';
   return `${firstLine}\n${secondLine}`;
 }
 
@@ -350,9 +350,10 @@ export default function DashboardNewPage() {
       }));
   }, [data, filterProjects, filterDomain, filterPmSms, filterRequestingUnits, viewMode, filterCnttFrom, filterCnttTo, filterQaFrom, filterQaTo]);
 
-  // Executive Metrics. TTM-CNTT-specific numbers (eligibleTtm/passTtm/failCntt/ttmHealthPct) come
-  // from the shared summarizeTtmCntt helper so this stays byte-for-byte the same ratio as the
-  // TTM-CNTT-QA metrics below and as dashboard-service.ts's achievedTtmCount/achievedTtmEligibleCount.
+  // Executive Metrics. TTM-CNTT-specific numbers (judgedTtm/passTtm/failCntt/ttmHealthPct) come
+  // from the shared summarizeTtmCntt helper so this stays byte-for-byte the same ratio — Tỷ lệ % Pass =
+  // L05aa / (L05aa + L05ab + L05ba), see ttm-cntt-qa.ts — as the TTM-CNTT-QA metrics below and as the
+  // TTM Dashboard 2 funnel.
   // Epic Scoring Service rows (display engine 'scoring') have no "Cảnh báo sớm" any more (D4).
   const isScoringEngine = useMemo(() => filteredRows.some((row) => Boolean(row.scoringBadges)), [filteredRows]);
   const executiveMetrics = useMemo(() => {
@@ -366,7 +367,7 @@ export default function DashboardNewPage() {
     const anomalyInScopeCount = inScopeRows.filter((row) => row.hasDataAnomaly).length;
     // "Chưa có R4G Date" sub-link — mutually exclusive with anomalyInScopeCount (excludes
     // hasDataAnomaly rows) so total − anomalyInScopeCount − missingR4gInScopeCount always lands
-    // exactly on eligibleTtm (mẫu số TTM-CNTT (QLDA)), matching isTtmIndexEligible's own gate.
+    // exactly on L04a "Epic hoàn thành" (isTtmIndexEligible's own gate).
     const missingR4gInScopeCount = inScopeRows.filter((row) => !row.hasDataAnomaly && !row.r4gDate).length;
     let lateWarning = 0;
     let earlyWarning = 0;
@@ -403,10 +404,10 @@ export default function DashboardNewPage() {
       anomalyInScopeCount,
       missingR4gInScopeCount,
       earlyWarning,
-      eligibleTtm: ttmCntt.eligible,
       failCntt: ttmCntt.fail,
-      // Split of failCntt — see ttmFailKind: with an R4G Date past Target (inside the TTM-CNTT
-      // denominator) vs. no R4G Date yet and already past Target (outside it).
+      // Split of failCntt — see ttmFailKind: with an R4G Date past Target (L05ab) vs. no R4G Date yet
+      // and already past Target (L05ba). Both are in the TTM-CNTT (QLDA) denominator.
+      judgedTtm: ttmCntt.denominator,
       failCnttLateR4g: filteredRows.filter((row) => !isCancelledStatus(row.currentStatus || '') && ttmFailKind(row) === 'LATE_R4G').length,
       failCnttMissingR4g: filteredRows.filter((row) => !isCancelledStatus(row.currentStatus || '') && ttmFailKind(row) === 'MISSING_R4G').length,
       justifyGolive,
@@ -730,15 +731,15 @@ export default function DashboardNewPage() {
             type="button"
             onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'MISSING_R4G_IN_SCOPE' }), 'Danh sách Epic - Chưa có R4G Date (trong phạm vi TTM-CNTT)')}
             className="underline-offset-2 hover:underline cursor-pointer font-bold"
-            title="Xem danh sách Epic chưa có R4G Date (trong phạm vi TTM-CNTT) ở Quản trị Epic — Tổng số Epic trừ Sai lệch dữ liệu trừ Chưa có R4G Date = mẫu số TTM-CNTT (QLDA)"
+            title="Xem danh sách Epic chưa có R4G Date (trong phạm vi TTM-CNTT) ở Quản trị Epic — Tổng số Epic trừ Sai lệch dữ liệu trừ Chưa có R4G Date = Epic hoàn thành (L04a)"
           >
             {executiveMetrics.missingR4gInScopeCount} chưa có R4G Date
           </button>
         </p>
       </div>
 
-      {/* Fail = Trễ R4G (trong mẫu số TTM-CNTT) + Thiếu R4G (ngoài mẫu số) — same split as the matrix's
-          "Fail TTM" column, so this tile can be reconciled with the TTM-CNTT (QLDA) ring next to it. */}
+      {/* Fail = Trễ R4G (L05ab) + Thiếu R4G (L05ba) — same split as the matrix's "Fail TTM" column; both
+          are in the TTM-CNTT (QLDA) ring's denominator (Đạt + Fail) next to it. */}
       <div className="rounded-xl border border-red-200 bg-red-50/50 p-3 shadow-xs">
         <p className="text-[10px] font-bold uppercase text-status-danger">
           <button
@@ -756,7 +757,7 @@ export default function DashboardNewPage() {
             type="button"
             onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'FAIL_LATE_R4G' }), 'Danh sách Epic - Fail TTM-CNTT (QLDA): Trễ R4G')}
             className="underline-offset-2 hover:underline cursor-pointer font-bold"
-            title="Có R4G Date nhưng muộn hơn Target — nằm trong mẫu số TTM-CNTT (QLDA)"
+            title="L05ab — Có R4G Date nhưng muộn hơn Target"
           >
             {executiveMetrics.failCnttLateR4g} Trễ R4G
           </button>
@@ -765,7 +766,7 @@ export default function DashboardNewPage() {
             type="button"
             onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'FAIL_MISSING_R4G' }), 'Danh sách Epic - Fail TTM-CNTT (QLDA): Thiếu R4G')}
             className="underline-offset-2 hover:underline cursor-pointer font-bold"
-            title="Chưa có R4G Date và đã quá Target — không nằm trong mẫu số TTM-CNTT (QLDA)"
+            title="L05ba — Chưa có R4G Date và đã quá Target"
           >
             {executiveMetrics.failCnttMissingR4g} Thiếu R4G
           </button>
@@ -784,9 +785,9 @@ export default function DashboardNewPage() {
             {formatTtmPct1(executiveMetrics.ttmHealthPctPrecise)}%
           </div>
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0" title="Tỷ lệ % Pass TTM-CNTT = Đạt / (Đạt + Fail) = L05aa / (L05aa + L05ab + L05ba)">
           <p className="text-xs font-bold text-fb-text-primary">TTM-CNTT (QLDA)</p>
-          <p className="text-[10px] text-fb-text-secondary">{executiveMetrics.passTtm}/{executiveMetrics.eligibleTtm}</p>
+          <p className="text-[10px] text-fb-text-secondary">{executiveMetrics.passTtm}/{executiveMetrics.judgedTtm}</p>
         </div>
       </div>
 
@@ -804,10 +805,10 @@ export default function DashboardNewPage() {
             {qaMetrics.total > 0 ? `${formatTtmPct1(qaMetrics.pctPrecise)}%` : '—'}
           </div>
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0" title="Cùng công thức TTM-CNTT (QLDA): Đạt / (Đạt + Fail), chỉ lấy Epic MVP Done / Released">
           <p className="text-xs font-bold text-fb-text-primary">TTM-CNTT (QA)</p>
           <p className="text-[10px] text-fb-text-secondary">
-            {qaMetrics.total > 0 ? `${qaMetrics.pass}/${qaMetrics.eligible}` : 'Chưa có Epic MVP Done/Released'}
+            {qaMetrics.total > 0 ? `${qaMetrics.pass}/${qaMetrics.denominator}` : 'Chưa có Epic MVP Done/Released'}
           </p>
         </div>
       </div>
@@ -975,7 +976,7 @@ export default function DashboardNewPage() {
               <TR>
                 <TH sortDirection={matrixSortDirectionFor('name')} onClick={() => toggleMatrixSort('name')}>{DIMENSION_LABELS[dimensionKey]}</TH>
                 <TH className="text-center" sortDirection={matrixSortDirectionFor('total')} onClick={() => toggleMatrixSort('total')}>Tổng số Epic</TH>
-                <TH className="text-center" sortDirection={matrixSortDirectionFor('ttmEligible')} onClick={() => toggleMatrixSort('ttmEligible')} title="Mẫu số TTM-CNTT (QLDA) = Tổng số Epic − Sai lệch dữ liệu − Chưa có R4G Date">Epic tính TTM</TH>
+                <TH className="text-center" sortDirection={matrixSortDirectionFor('ttmEligible')} onClick={() => toggleMatrixSort('ttmEligible')} title="L04a — Epic hoàn thành = Tổng số Epic − Sai lệch dữ liệu − Chưa có R4G Date. Tỷ lệ TTM-CNTT (QLDA) = Pass / (Pass + Fail)">Epic hoàn thành</TH>
                 <TH className="w-56" sortDirection={matrixSortDirectionFor('qldaPct')} onClick={() => toggleMatrixSort('qldaPct')}>TTM-CNTT (QLDA)</TH>
                 <TH className="text-center" sortDirection={matrixSortDirectionFor('qldaPass')} onClick={() => toggleMatrixSort('qldaPass')}>Pass TTM</TH>
                 <TH className="text-center" sortDirection={matrixSortDirectionFor('qldaFail')} onClick={() => toggleMatrixSort('qldaFail')}>Fail TTM</TH>
@@ -1018,10 +1019,10 @@ export default function DashboardNewPage() {
                       type="button"
                       onClick={() => openEpicModal(
                         toEpicAlertsLinkForMatrixItem(item, 'ttmEligible'),
-                        `Danh sách Epic - ${item.name} (Epic tính TTM)`
+                        `Danh sách Epic - ${item.name} (Epic hoàn thành)`
                       )}
                       className="text-fb-blue hover:underline cursor-pointer font-bold inline-block px-1.5 py-0.5 rounded-sm hover:bg-blue-50 transition-colors"
-                      title={`Xem danh sách Epic tính vào mẫu số TTM-CNTT (QLDA) của ${item.name}`}
+                      title={`Xem danh sách Epic hoàn thành (L04a — có R4G Date) của ${item.name}`}
                     >
                       {item.qlda.eligible}
                     </button>
@@ -1068,14 +1069,14 @@ export default function DashboardNewPage() {
                     >
                       {item.qlda.fail}
                     </button>
-                    {/* Fail = Trễ R4G (trong mẫu số TTM-CNTT) + Thiếu R4G (ngoài mẫu số) — nên Pass + Fail có thể lớn hơn "Epic tính TTM". */}
+                    {/* Fail = Trễ R4G (L05ab) + Thiếu R4G (L05ba); TTM-CNTT (QLDA) = Pass / (Pass + Fail). */}
                     {item.qlda.fail > 0 && (
                       <p className="text-[10px] font-medium text-fb-text-secondary whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => openEpicModal(toEpicAlertsLinkForMatrixItem(item, 'failLateR4g'), `Danh sách Epic Fail TTM: Trễ R4G - ${item.name}`)}
                           className="underline-offset-2 hover:underline cursor-pointer"
-                          title="Có R4G Date nhưng muộn hơn Target — nằm trong mẫu số TTM-CNTT (QLDA)"
+                          title="L05ab — Có R4G Date nhưng muộn hơn Target"
                         >
                           {item.failLateR4g} Trễ R4G
                         </button>
@@ -1084,7 +1085,7 @@ export default function DashboardNewPage() {
                           type="button"
                           onClick={() => openEpicModal(toEpicAlertsLinkForMatrixItem(item, 'failMissingR4g'), `Danh sách Epic Fail TTM: Thiếu R4G - ${item.name}`)}
                           className="underline-offset-2 hover:underline cursor-pointer"
-                          title="Chưa có R4G Date và đã quá Target — không nằm trong mẫu số TTM-CNTT (QLDA)"
+                          title="L05ba — Chưa có R4G Date và đã quá Target"
                         >
                           {item.failMissingR4g} Thiếu R4G
                         </button>
@@ -1109,7 +1110,7 @@ export default function DashboardNewPage() {
                           </div>
                           <span className="w-9 text-right text-xs font-bold text-purple-700 group-hover:underline">{item.qa.pct}%</span>
                         </div>
-                        <p className="text-[10px] text-fb-text-secondary group-hover:underline">{item.qa.pass}/{item.qa.eligible} Epic MVP Done/Released</p>
+                        <p className="text-[10px] text-fb-text-secondary group-hover:underline">{item.qa.pass}/{item.qa.denominator} Epic MVP Done/Released</p>
                       </button>
                     ) : (
                       <span className="text-xs text-fb-text-placeholder">— Chưa có Epic MVP Done/Released</span>
@@ -1284,7 +1285,7 @@ export default function DashboardNewPage() {
                   </span>
                   {data?.ttmIndexGlobal?.ttm && data.ttmIndexGlobal.ttm.total > 0 && (
                     <span className="text-[10px] font-medium text-fb-text-secondary">
-                      ({data.ttmIndexGlobal.ttm.pass}/{data.ttmIndexGlobal.ttm.eligible})
+                      ({data.ttmIndexGlobal.ttm.pass}/{data.ttmIndexGlobal.ttm.denominator})
                     </span>
                   )}
                 </div>
@@ -1307,7 +1308,7 @@ export default function DashboardNewPage() {
                   </span>
                   {data?.ttmIndexGlobal?.qa && data.ttmIndexGlobal.qa.total > 0 && (
                     <span className="text-[10px] font-medium text-fb-text-secondary">
-                      ({data.ttmIndexGlobal.qa.pass}/{data.ttmIndexGlobal.qa.eligible})
+                      ({data.ttmIndexGlobal.qa.pass}/{data.ttmIndexGlobal.qa.denominator})
                     </span>
                   )}
                 </div>

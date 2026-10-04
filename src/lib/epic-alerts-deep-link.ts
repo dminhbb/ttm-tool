@@ -10,11 +10,12 @@ import type { TtmFunnelFilterValue } from '@/lib/epic-row-verdicts';
 export const EPIC_ALERTS_ROUTE = '/epic-alerts-15';
 
 /** Mirrors AlertFilterValue in epic-row-verdicts.ts, minus the '' (no filter) case. */
-export type EpicAlertsDeepLinkAlert = 'ACHIEVED_CNTT' | 'ACHIEVED_E2E' | 'DATA_ANOMALY' | 'DATA_ANOMALY_IN_SCOPE' | 'MISSING_R4G_IN_SCOPE' | 'TTM_ELIGIBLE_IN_SCOPE' | TtmFunnelFilterValue | 'EARLY' | 'FAIL' | 'FAIL_E2E' | 'FAIL_LATE_R4G' | 'FAIL_MISSING_R4G' | 'JUSTIFY_GOLIVE' | 'LATE' | 'OUT_OF_SCOPE_CNTT' | 'PENDING_TOO_LONG' | 'RELEASE_EARLY' | 'STATUS_MISMATCH' | 'WAITING_GOLIVE' | 'WAITING_GOLIVE_MISSING_R4G' | 'WAITING_GOLIVE_WITHIN_GRACE' | 'WAITING_GOLIVE_OVERDUE';
+export type EpicAlertsDeepLinkAlert = 'ACHIEVED_CNTT' | 'ACHIEVED_E2E' | 'DATA_ANOMALY' | 'DATA_ANOMALY_IN_SCOPE' | 'IN_SCOPE_CNTT' | 'OUT_OF_SCOPE_NO_ANOMALY' | 'MISSING_R4G_IN_SCOPE' | 'TTM_ELIGIBLE_IN_SCOPE' | TtmFunnelFilterValue | 'EARLY' | 'FAIL' | 'FAIL_E2E' | 'FAIL_LATE_R4G' | 'FAIL_MISSING_R4G' | 'JUSTIFY_GOLIVE' | 'LATE' | 'OUT_OF_SCOPE_CNTT' | 'PENDING_TOO_LONG' | 'RELEASE_EARLY' | 'STATUS_MISMATCH' | 'WAITING_GOLIVE' | 'WAITING_GOLIVE_MISSING_R4G' | 'WAITING_GOLIVE_WITHIN_GRACE' | 'WAITING_GOLIVE_OVERDUE';
 
 export interface EpicAlertsDeepLinkParams {
-  /** "Lọc Nhận xét" — same values as the table's Nhận xét badges (FAIL = Fail TTM-CNTT, etc.). */
-  alert?: EpicAlertsDeepLinkAlert;
+  /** "Lọc Nhận xét" — same values as the table's Nhận xét badges (FAIL = Fail TTM-CNTT, etc.).
+   * Several values list the Epics matching ANY of them. */
+  alert?: EpicAlertsDeepLinkAlert | EpicAlertsDeepLinkAlert[];
   /** Domain filter — also auto-selects every project under it into `projects`, unless `projects`
    * is itself given, which always wins. */
   domain?: string;
@@ -48,7 +49,8 @@ export interface EpicAlertsDeepLinkParams {
 
 export function buildEpicAlertsDeepLink(params: EpicAlertsDeepLinkParams = {}): string {
   const query = new URLSearchParams();
-  if (params.alert) query.set('alert', params.alert);
+  const alerts = Array.isArray(params.alert) ? params.alert : params.alert ? [params.alert] : [];
+  if (alerts.length > 0) query.set('alert', alerts.join(','));
   if (params.projects && params.projects.length > 0) query.set('projects', params.projects.join(','));
   if (params.status && params.status.length > 0) query.set('status', params.status.join(','));
   if (params.type) query.set('type', params.type);

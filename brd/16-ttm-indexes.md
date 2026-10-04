@@ -29,6 +29,39 @@ Trục "(QLDA)/(PM)" ở mục 1 không còn là tên hiển thị; thay vào đ
   trên toàn bộ Epic trong ứng dụng (`ttm_index_global_cache`), cùng giá trị với mọi người dùng. Hai
   widget này đã bỏ khỏi banner Quản trị Epic.
 
+## 0.1. Cập nhật 2026-10-04 — công thức % mới của TTM-CNTT (QLDA) / TTM-CNTT (QA) (ưu tiên hơn mục 2–4)
+
+Tên các tiêu chí theo phễu TTM Dashboard 2 (`TTM_FUNNEL_CRITERIA`, `src/lib/ttm-funnel-summary.ts`;
+đặc tả `docs/ttm-dashboard-2-spec.md`), tất cả tính trong "Phạm vi dữ liệu cho TTM":
+
+| Mã | Tên | Cách tính |
+|---|---|---|
+| L01 | Tổng epic | Mọi Epic trong phạm vi dữ liệu để tính toán (kể cả Cancelled) |
+| L02 | Epic loại bỏ Cancelled | L01 − Epic status Cancelled |
+| L03 | Epic chuẩn hoá dữ liệu | L02 − Epic "Sai lệch dữ liệu" |
+| L04a | Epic hoàn thành | Epic có R4G Date trong L03 |
+| L04b | Epic chưa hoàn thành | Epic không có R4G Date trong L03 |
+| L05aa | Epic đạt TTM-CNTT | Epic Đạt TTM-CNTT trong L04a |
+| L05ab | Epic không đạt TTM-CNTT (nhóm 1) | Epic không Đạt trong L04a (R4G Date > Target) |
+| L05ac | Epic chưa kết luận | Epic trong L04a có R4G Date tương lai, hoặc không tính được Target |
+| L05ba | Epic không đạt TTM-CNTT (nhóm 2) | Epic trong L04b đã quá Target (Fail) |
+| L05bb | Epic trong hạn | Epic trong L04b chưa quá Target |
+
+```
+Tỷ lệ % Pass TTM-CNTT = L05aa / (L05aa + L05ab + L05ba) × 100
+Tỷ lệ % Fail TTM-CNTT = (L05ab + L05ba) / (L05aa + L05ab + L05ba) × 100
+mẫu số = 0 (chưa Epic nào được kết luận):  Pass = 100, Fail = 0
+```
+
+- Thay cho `pass / eligible` ở mục 2: mẫu số **không còn** gồm L05ac và **có thêm** L05ba; `fail` chỉ đếm
+  Epic không Sai lệch dữ liệu; bỏ nhánh fallback `(total − fail) / total`.
+- **TTM-CNTT (QA)** = cùng công thức, chỉ lấy Epic status MVP Done / Released trong "R4G for TTM (QA)".
+- Áp dụng cho chỉ số toàn công ty (`ttm_index_global_cache`) và mọi chỉ số theo phạm vi lọc + phân quyền
+  (`summarizeTtmCntt`, `summarizeQaIndex`, `queryTtmCnttIndexes`, MCP). Một chỗ tính duy nhất:
+  `summarizeTtmCnttFromCounts` (`src/lib/ttm-cntt-qa.ts`); `TtmCnttSummary` có thêm `denominator`,
+  `failPct`, `failPctPrecise`. **TTM-E2E không đổi** (`summarizeE2eFromCounts`, vẫn `pass / eligible`).
+- "Epic tính TTM" ở Ma trận Phân bổ (TTM Dashboard) đổi tên cột thành "Epic hoàn thành" (= L04a).
+
 ## 1. Hai trục khái niệm cần phân biệt trước
 
 **Trục 1 — Phạm vi phân quyền** (tên gọi "(QLDA)" / "(PM)"):

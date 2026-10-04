@@ -15,24 +15,36 @@ export function isTtmCnttQaInScope(status: string | null | undefined): boolean {
   return TTM_CNTT_QA_STATUSES.has((status ?? '').trim().toUpperCase());
 }
 
+/**
+ * TTM-CNTT (QLDA) / TTM-CNTT (QA) — owner rule 2026-10-04, named after the TTM Dashboard 2 funnel
+ * criteria (ttm-funnel-summary.ts, docs/ttm-dashboard-2-spec.md), all within "Phạm vi dữ liệu cho TTM":
+ *   Tỷ lệ % Pass = L05aa / (L05aa + L05ab + L05ba)
+ *   Tỷ lệ % Fail = (L05ab + L05ba) / (L05aa + L05ab + L05ba)
+ * i.e. only Epics with a final verdict count: Đạt (L05aa), Fail with an R4G Date past Target (L05ab)
+ * and Fail without an R4G Date, already past Target (L05ba). Epics not concluded yet (L05ac, L05bb),
+ * Cancelled ones and "Sai lệch dữ liệu" ones are outside the ratio. TTM-E2E keeps its own formula
+ * (pass / eligible — summarizeE2e).
+ */
 export interface TtmCnttSummary {
-  /** Epics with a recorded R4G Date and no data anomaly — the denominator `pass`/`pct` are a ratio
-   * of (see achievedTtmEligibleCount in dashboard-service.ts, the same eligibility gate). */
+  /** Epics with a recorded R4G Date and no data anomaly (L04a "Epic hoàn thành"). For TTM-E2E this
+   * is also the ratio's denominator; for TTM-CNTT the denominator is `denominator` below. */
   eligible: number;
-  /** alertLevel === 'FAIL' count — independent of the eligibility gate above, since an Epic can
-   * already blow its TTM-CNTT budget before ever reaching R4G. */
+  /** Fail TTM-CNTT among Epics without "Sai lệch dữ liệu" = L05ab + L05ba — an Epic can blow its
+   * budget before ever reaching R4G, so this is independent of `eligible`. */
   fail: number;
-  /** alertLevel === 'NONE' among eligible Epics — "Đạt TTM-CNTT". */
+  /** "Đạt TTM-CNTT" (L05aa). */
   pass: number;
-  /** pass/eligible as a percentage, rounded to a whole number — used wherever the ratio is shown
-   * compactly (matrix table bars/cells). When nothing is eligible yet (no Epic has reached R4G),
-   * falls back to (total-fail)/total so an Epic that already blew its TTM-CNTT budget pre-R4G still
-   * pulls the ratio down instead of rendering a false 100% "healthy"; 100 only when there are no
-   * rows at all. */
+  /** What `pct` is a ratio of: pass + fail for TTM-CNTT (QLDA/QA), `eligible` for TTM-E2E. */
+  denominator: number;
+  /** Tỷ lệ % Pass, rounded to a whole number — used wherever the ratio is shown compactly (matrix
+   * table bars/cells). 100 when nothing has a verdict yet (denominator = 0). */
   pct: number;
-  /** Same ratio as `pct`, unrounded — for displays that show 1 decimal place (the two "TTM Index"
-   * ring widgets on Dashboard 2's Executive view) instead of a whole-number percentage. */
+  /** Same ratio as `pct`, unrounded — for displays that show 1 decimal place. */
   pctPrecise: number;
+  /** Tỷ lệ % Fail = 100 − Tỷ lệ % Pass (0 when the denominator is 0). */
+  failPct: number;
+  failPctPrecise: number;
+  /** Epics counted at all: not Cancelled, inside the index's "Phạm vi dữ liệu cho TTM". */
   total: number;
 }
 
@@ -79,8 +91,10 @@ export function summarizeTtmCntt(rows: Pick<EpicAlertRowPhased, 'alertLevel' | '
     // no-op until an admin actually sets one.
     if (!row.ttmCnttInScope) continue;
     total += 1;
+    // "Sai lệch dữ liệu" Epics are outside the ratio altogether (L03) — neither Đạt nor Fail.
+    if (row.hasDataAnomaly) continue;
     if (row.alertLevel === 'FAIL') fail += 1;
-    if (row.r4gDate && !row.hasDataAnomaly) {
+    if (row.r4gDate) {
       eligible += 1;
       if (row.alertLevel === 'NONE') pass += 1;
     }
@@ -105,8 +119,9 @@ export function summarizeQaIndex(rows: Pick<EpicAlertRowPhased, 'alertLevel' | '
     if (!isTtmCnttQaInScope(row.currentStatus)) continue;
     if (!row.qaInScope) continue;
     total += 1;
+    if (row.hasDataAnomaly) continue;
     if (row.alertLevel === 'FAIL') fail += 1;
-    if (row.r4gDate && !row.hasDataAnomaly) {
+    if (row.r4gDate) {
       eligible += 1;
       if (row.alertLevel === 'NONE') pass += 1;
     }
@@ -140,17 +155,27 @@ export function summarizeE2e(rows: Pick<EpicAlertRowPhased, 'currentStatus' | 'h
     if (achieved) pass += 1;
   }
 
-  return summarizeTtmCnttFromCounts(eligible, pass, fail, total);
+  return summarizeE2eFromCounts(eligible, pass, fail, total);
 }
 
-/** Same eligible/pass/fail/total → pct/pctPrecise formula as summarizeTtmCntt, for callers that
- * already have the counts (e.g. a SQL aggregate) instead of the row array itself — see
- * epic-alert-row-cache-query-service.ts's queryTtmQaIndexPm. */
+/** TTM-CNTT (QLDA/QA) ratio from counts — the single place the formula lives, for both the row-based
+ * summaries above and callers that already have the counts (a SQL aggregate, the company-wide cache
+ * row). `fail` must already exclude "Sai lệch dữ liệu" Epics (= L05ab + L05ba). */
 export function summarizeTtmCnttFromCounts(eligible: number, pass: number, fail: number, total: number): TtmCnttSummary {
+  const denominator = pass + fail;
+  const pctPrecise = denominator > 0 ? (pass / denominator) * 100 : 100;
+  const failPctPrecise = denominator > 0 ? (fail / denominator) * 100 : 0;
+  return { denominator, eligible, fail, failPct: Math.round(failPctPrecise), failPctPrecise, pass, pct: Math.round(pctPrecise), pctPrecise, total };
+}
+
+/** TTM-E2E keeps the pre-2026-10-04 ratio: pass / eligible; when nothing is eligible yet,
+ * (total − fail) / total so an Epic that already failed still pulls the ratio down; 100 with no rows. */
+export function summarizeE2eFromCounts(eligible: number, pass: number, fail: number, total: number): TtmCnttSummary {
   const pctPrecise = eligible > 0
     ? (pass / eligible) * 100
     : total > 0
       ? ((total - fail) / total) * 100
       : 100;
-  return { eligible, fail, pass, pct: Math.round(pctPrecise), pctPrecise, total };
+  const failPctPrecise = 100 - pctPrecise;
+  return { denominator: eligible, eligible, fail, failPct: Math.round(failPctPrecise), failPctPrecise, pass, pct: Math.round(pctPrecise), pctPrecise, total };
 }

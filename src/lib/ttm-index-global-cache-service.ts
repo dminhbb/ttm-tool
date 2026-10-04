@@ -1,6 +1,6 @@
 import pool from '@/lib/db';
 import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
-import { summarizeE2e, summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
+import { summarizeE2e, summarizeE2eFromCounts, summarizeQaIndex, summarizeTtmCntt, summarizeTtmCnttFromCounts } from '@/lib/ttm-cntt-qa';
 import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 
@@ -32,9 +32,10 @@ interface TtmIndexGlobalCacheDbRow {
   ttmTotal: number;
 }
 
-function toSummary(eligible: number, pass: number, fail: number, total: number, pctPrecise: string): TtmCnttSummary {
+/** TTM-E2E: the stored ratio as-is. */
+function toE2eSummary(eligible: number, pass: number, fail: number, total: number, pctPrecise: string): TtmCnttSummary {
   const precise = Number(pctPrecise);
-  return { eligible, fail, pass, pct: Math.round(precise), pctPrecise: precise, total };
+  return { ...summarizeE2eFromCounts(eligible, pass, fail, total), pct: Math.round(precise), pctPrecise: precise, failPct: Math.round(100 - precise), failPctPrecise: 100 - precise };
 }
 
 /** Company-wide TTM-Index (QLDA)/QA-Index (QLDA) — read by every screen that shows the "(QLDA)"
@@ -55,9 +56,11 @@ export async function getTtmIndexGlobalCache(): Promise<TtmIndexGlobalCache | nu
   return {
     computedAt: row.computedAt,
     sourceImportBatchId: row.sourceImportBatchId,
-    e2e: toSummary(row.e2eEligible, row.e2ePass, row.e2eFail, row.e2eTotal, row.e2ePctPrecise),
-    qa: toSummary(row.qaEligible, row.qaPass, row.qaFail, row.qaTotal, row.qaPctPrecise),
-    ttm: toSummary(row.ttmEligible, row.ttmPass, row.ttmFail, row.ttmTotal, row.ttmPctPrecise),
+    e2e: toE2eSummary(row.e2eEligible, row.e2ePass, row.e2eFail, row.e2eTotal, row.e2ePctPrecise),
+    // TTM-CNTT (QLDA/QA): the ratio is always derived from the stored counts — Pass / (Pass + Fail),
+    // see summarizeTtmCnttFromCounts — so a row cached before a formula change still reads correctly.
+    qa: summarizeTtmCnttFromCounts(row.qaEligible, row.qaPass, row.qaFail, row.qaTotal),
+    ttm: summarizeTtmCnttFromCounts(row.ttmEligible, row.ttmPass, row.ttmFail, row.ttmTotal),
   };
 }
 

@@ -103,7 +103,15 @@ function dimensionKeyOf(row: DashboardEpicRow, dimension: DashboardDimension): s
 }
 
 function describeIndex(summary: TtmCnttSummary) {
-  return { eligible: summary.eligible, fail: summary.fail, pass: summary.pass, pct: Math.round(summary.pctPrecise * 10) / 10, total: summary.total };
+  return {
+    denominator: summary.denominator,
+    eligible: summary.eligible,
+    fail: summary.fail,
+    failPct: Math.round(summary.failPctPrecise * 10) / 10,
+    pass: summary.pass,
+    pct: Math.round(summary.pctPrecise * 10) / 10,
+    total: summary.total,
+  };
 }
 
 export async function getTtmDashboardSummary(userId: number, role: UserRole, filters: TtmDashboardSummaryFilters = {}) {
@@ -253,8 +261,8 @@ export async function getTtmDashboardSummary(userId: number, role: UserRole, fil
       failTtmE2e: listOf((row) => row.ttmE2eAlertLevel === 'FAIL'),
     },
     glossary: {
-      ttmIndexQlda: 'Chỉ số TTM-CNTT (QLDA) (tên cũ: TTM-Index): tỉ lệ Epic Đạt TTM-CNTT (QLDA) trên số Epic đủ điều kiện (đã có R4G Date, không sai lệch dữ liệu, trong phạm vi TTM-CNTT (QLDA)), tính trên đúng phạm vi đang lọc. pct tính theo %.',
-      qaIndex: 'Chỉ số TTM-CNTT (QA) (tên cũ: QA-Index): cùng tỉ lệ TTM-CNTT (QLDA) nhưng chỉ xét Epic status MVP Done/Released và nằm trong phạm vi "R4G for TTM (QA)", tính trên đúng phạm vi đang lọc.',
+      ttmIndexQlda: 'Chỉ số TTM-CNTT (QLDA) (tên cũ: TTM-Index), công thức từ 04/10/2026: pct = Tỷ lệ % Pass = pass / denominator, với denominator = pass + fail = L05aa + L05ab + L05ba (Epic Đạt + Epic Fail có R4G Date muộn hơn Target + Epic Fail chưa có R4G Date đã quá Target); failPct = Tỷ lệ % Fail = fail / denominator. Chỉ xét Epic trong "Phạm vi dữ liệu cho TTM", không Cancelled, không Sai lệch dữ liệu; Epic chưa kết luận (R4G tương lai, chưa quá Target) không tính. eligible = L04a (Epic có R4G Date). Tính trên đúng phạm vi đang lọc.',
+      qaIndex: 'Chỉ số TTM-CNTT (QA) (tên cũ: QA-Index): cùng công thức TTM-CNTT (QLDA) — pass / (pass + fail) — nhưng chỉ lấy Epic status MVP Done/Released và nằm trong phạm vi "R4G for TTM (QA)", tính trên đúng phạm vi đang lọc.',
       ttmIndexGlobal: 'Widget cố định trên banner TTM dashboard: TTM-CNTT (QLDA) (ttm) và TTM-CNTT (QA) (qa) tính trên toàn bộ Epic trong ứng dụng, không phụ thuộc quyền/bộ lọc — giống nhau với mọi người dùng.',
       dungTienDo_chamTienDo: 'Chỉ đếm các Epic chưa có phán quyết TTM-CNTT (QLDA) (chưa có R4G Date hoặc đang sai lệch dữ liệu) trong phạm vi TTM-CNTT (QLDA); Chậm = đang FAIL/LATE.',
       pipelinePhases: 'alertCount = số Epic trong pha đang FAIL/LATE TTM-CNTT (QLDA) hoặc FAIL TTM-E2E.',

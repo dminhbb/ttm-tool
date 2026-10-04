@@ -148,6 +148,7 @@ function buildFieldFilterClause(alertFilter: string | undefined, engineMode: Sco
   switch (alertFilter) {
     case 'FAIL_LATE_R4G': return `ttm_cntt_in_scope AND alert_level = 'FAIL' AND ${hasR4g}`;
     case 'FAIL_MISSING_R4G': return `ttm_cntt_in_scope AND alert_level = 'FAIL' AND NOT ${hasR4g}`;
+    case 'IN_SCOPE_CNTT': return 'ttm_cntt_in_scope';
     case 'DATA_ANOMALY_IN_SCOPE': return 'ttm_cntt_in_scope AND has_data_anomaly';
     case 'MISSING_R4G_IN_SCOPE': return `ttm_cntt_in_scope AND NOT has_data_anomaly AND NOT ${hasR4g}`;
     case 'TTM_ELIGIBLE_IN_SCOPE': return `ttm_cntt_in_scope AND ${hasR4g} AND NOT has_data_anomaly`;
@@ -295,11 +296,11 @@ export async function queryTtmCnttIndexes(scope: AccessScope, filters: EpicAlert
   }>(
     `
     SELECT
-      count(*) FILTER (WHERE ttm_cntt_in_scope AND alert_level = 'FAIL')::text AS "ttmFail",
+      count(*) FILTER (WHERE ttm_cntt_in_scope AND alert_level = 'FAIL' AND NOT has_data_anomaly)::text AS "ttmFail",
       count(*) FILTER (WHERE ttm_cntt_in_scope AND (row_data->>'r4gDate') IS NOT NULL AND NOT has_data_anomaly)::text AS "ttmEligible",
       count(*) FILTER (WHERE ttm_cntt_in_scope AND (row_data->>'r4gDate') IS NOT NULL AND NOT has_data_anomaly AND alert_level = 'NONE')::text AS "ttmPass",
       count(*) FILTER (WHERE ttm_cntt_in_scope)::text AS "ttmTotal",
-      count(*) FILTER (WHERE qa_in_scope AND UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED') AND alert_level = 'FAIL')::text AS "qaFail",
+      count(*) FILTER (WHERE qa_in_scope AND UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED') AND alert_level = 'FAIL' AND NOT has_data_anomaly)::text AS "qaFail",
       count(*) FILTER (WHERE qa_in_scope AND UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED') AND (row_data->>'r4gDate') IS NOT NULL AND NOT has_data_anomaly)::text AS "qaEligible",
       count(*) FILTER (WHERE qa_in_scope AND UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED') AND (row_data->>'r4gDate') IS NOT NULL AND NOT has_data_anomaly AND alert_level = 'NONE')::text AS "qaPass",
       count(*) FILTER (WHERE qa_in_scope AND UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED'))::text AS "qaTotal"

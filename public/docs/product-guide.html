@@ -79,6 +79,7 @@
     <a href="#screen-epic-alerts">11. Các màn hình giám sát Epic</a>
     <a href="#screen-data-source">12. Màn hình Nguồn dữ liệu</a>
     <a href="#screen-admin">13. Các màn hình Quản trị hệ thống</a>
+    <a href="#ttm-dashboard-2">21. TTM Dashboard 2 — phễu Epic &amp; tiêu chí L01–L05bb</a>
     <div class="toc-block">Thông báo trong ứng dụng</div>
     <a href="#ad-popup">14. Popup quảng cáo (AD Popup)</a>
     <a href="#info-banner">15. Banner thông báo (Information Banner)</a>
@@ -825,22 +826,36 @@
       </table>
       <p>Due Date ghi nhận đúng trong hạn (≤ R4G Date + 5 ngày làm việc) thì không hiện "Giải trình Golive"/"Cảnh báo sớm" — lúc đó nếu status vẫn chưa Released, rule R7 (mục 9) sẽ báo "Sai lệch dữ liệu" thay vào đó. Trên <strong>TTM Dashboard</strong> (mục 11), widget "Chờ golive" nay có thêm 3 sub-link tách theo thời gian — <strong>Thiếu R4G Date</strong>, <strong>Trong hạn</strong> (hôm nay ≤ R4G Date + 5 ngày làm việc), <strong>Quá hạn</strong> (còn lại) — để bù lại thông tin thời gian mà bản thân badge không còn mang theo.</p>
 
-      <h3>8.7. Chỉ số TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E — phạm vi tính và "Phạm vi dữ liệu cho TTM" (cập nhật 30/09/2026)</h3>
+      <h3>8.7. Chỉ số TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E — công thức, phạm vi tính và "Phạm vi dữ liệu cho TTM" (cập nhật 04/10/2026)</h3>
       <p>
         Toàn bộ ứng dụng thống nhất <strong>3 chỉ số</strong>: <strong>TTM-CNTT (QLDA)</strong> (tên cũ
         <em>TTM-Index</em>), <strong>TTM-CNTT (QA)</strong> (tên cũ <em>QA-Index</em>) và <strong>TTM-E2E</strong>.
-        Công thức không đổi: TTM-CNTT (QLDA) và TTM-CNTT (QA) cùng dùng 1 công thức
-        (<code>eligible</code> = Epic có R4G Date + không sai lệch dữ liệu; <code>pass</code> = trong
-        đó Đạt TTM-CNTT; <code>%</code> = <code>pass/eligible</code>), chỉ khác nhau ở tập Epic được xét:
       </p>
+      <p>
+        <strong>Công thức TTM-CNTT (QLDA) và TTM-CNTT (QA) — từ 04/10/2026</strong> (tên các tiêu chí L01–L05bb: xem mục 21.2):
+      </p>
+      <div class="callout">
+        <code>Tỷ lệ % Pass TTM-CNTT = L05aa / (L05aa + L05ab + L05ba) × 100</code><br>
+        <code>Tỷ lệ % Fail TTM-CNTT = (L05ab + L05ba) / (L05aa + L05ab + L05ba) × 100</code>
+      </div>
+      <ul>
+        <li><strong>L05aa</strong> — Epic đạt TTM-CNTT: có R4G Date, đã tới ngày và không muộn hơn Target R4G.</li>
+        <li><strong>L05ab</strong> — Epic không đạt TTM-CNTT (nhóm 1): có R4G Date nhưng muộn hơn Target R4G.</li>
+        <li><strong>L05ba</strong> — Epic không đạt TTM-CNTT (nhóm 2): chưa có R4G Date và đã quá Target R4G.</li>
+        <li>Chỉ Epic <strong>đã có kết luận</strong> mới vào mẫu số. Không tính: Epic Cancelled, Epic Sai lệch dữ liệu, Epic ngoài "Phạm vi dữ liệu cho TTM", Epic có R4G Date còn ở tương lai hoặc không tính được Target (L05ac), Epic chưa có R4G Date và chưa quá Target (L05bb).</li>
+        <li>Con số hiện cạnh chỉ số (ví dụ <code>120/150</code>) là <code>L05aa / (L05aa + L05ab + L05ba)</code>. Khi chưa có Epic nào được kết luận, chỉ số hiện 100%.</li>
+        <li><strong>Trước 04/10/2026</strong> công thức là <code>pass/eligible</code> với <code>eligible</code> = mọi Epic có R4G Date và không sai lệch dữ liệu — tức mẫu số gồm cả Epic R4G tương lai (L05ac) và <strong>không</strong> gồm Epic Fail chưa có R4G Date (L05ba).</li>
+      </ul>
+      <p>Hai chỉ số dùng chung công thức trên, chỉ khác nhau ở tập Epic được xét; TTM-E2E giữ công thức riêng (Đạt / số Epic có R4G Date hợp lệ):</p>
       <table>
         <thead><tr><th>Chỉ số</th><th>Epic được xét</th></tr></thead>
         <tbody>
           <tr><td><strong>TTM-CNTT (QLDA)</strong></td><td>Mọi trạng thái (trừ Cancelled), nằm trong khoảng "R4G for TTM (CNTT)".</td></tr>
-          <tr><td><strong>TTM-CNTT (QA)</strong></td><td>Chỉ Epic đang ở status "MVP Done" hoặc "Released", nằm trong khoảng "R4G for TTM (QA)".</td></tr>
+          <tr><td><strong>TTM-CNTT (QA)</strong></td><td>= Tỷ lệ % Pass TTM-CNTT nhưng <strong>chỉ lấy Epic đang ở status "MVP Done" hoặc "Released"</strong>, nằm trong khoảng "R4G for TTM (QA)".</td></tr>
           <tr><td><strong>TTM-E2E</strong></td><td>Phán quyết Đạt/Fail TTM-E2E của từng Epic (mục 8) — không bị giới hạn bởi "Phạm vi dữ liệu cho TTM".</td></tr>
         </tbody>
       </table>
+      <p><strong>Nơi áp dụng:</strong> cùng một công thức cho chỉ số toàn công ty (widget cố định trên banner TTM Dashboard, TTM Dashboard 2, Quản trị Epic) và cho chỉ số theo phạm vi sau khi lọc + theo phân quyền người xem (vòng KPI và ma trận của TTM Dashboard, widget theo bảng của Quản trị Epic, dòng tỷ lệ dưới phễu TTM Dashboard 2, công cụ MCP).</p>
       <p><strong>Quy ước tên gọi:</strong> ở mọi màn hình và trong Scoring Service, khái niệm <strong>TTM-CNTT</strong>
         luôn là <strong>TTM-CNTT (QLDA)</strong> — badge Nhận xét (Đạt/Fail/Cảnh báo muộn/Ngoài phạm vi), cột TTM-CNTT, baseline các pha,
         bộ lọc, KPI Fail... Trong tài liệu này, "TTM-CNTT" không kèm hậu tố cũng hiểu là TTM-CNTT (QLDA).
@@ -971,7 +986,7 @@
       </p>
       <ul>
         <li><strong>Header Banner & Chỉ số toàn phòng:</strong> Tích hợp 3 widget cố định <strong>TTM-CNTT (QLDA)</strong>, <strong>TTM-CNTT (QA)</strong> (tên cũ TTM-Index (QLDA)/QA-Index (QLDA)) và <strong>TTM-E2E</strong> (thêm 01/10/2026) ngay cạnh nút chuyển chế độ xem, tính trên toàn bộ Epic trong ứng dụng (đọc từ cache <code>ttm_index_global_cache</code>, cùng giá trị với mọi người dùng — không tính lại mỗi lần xem trang, chỉ cập nhật sau import/khi cache được làm mới), hỗ trợ click để mở Popup Quản trị Epic lọc nhanh danh sách tương ứng. Cùng 3 widget này cũng được gắn ở banner màn hình <strong>Quản trị Epic</strong> (mục 11.2).</li>
-        <li><strong>Vòng chỉ số trong KPI:</strong> <strong>TTM-CNTT (QLDA)</strong>, <strong>TTM-CNTT (QA)</strong> (tên cũ TTM-Index (PM)/QA-Index (PM)) và <strong>Hoàn thành TTM-E2E</strong> (thêm 01/10/2026) — cả 3 cùng công thức mẫu số/tử số (eligible/pass), tính theo phạm vi Dashboard đang lọc (quyền dữ liệu + Dự án/Domain/PM-SM + Advanced Filters). Riêng vòng TTM-E2E không bị ảnh hưởng bởi "Phạm vi dữ liệu cho TTM" (mục 8.7) vì trục E2E không có khái niệm phạm vi này; bấm vào mở danh sách Epic Fail TTM-E2E. Bộ lọc PM/SM chọn được nhiều người.</li>
+        <li><strong>Vòng chỉ số trong KPI:</strong> <strong>TTM-CNTT (QLDA)</strong>, <strong>TTM-CNTT (QA)</strong> (tên cũ TTM-Index (PM)/QA-Index (PM)) và <strong>Hoàn thành TTM-E2E</strong> (thêm 01/10/2026) — TTM-CNTT (QLDA)/(QA) theo công thức Đạt / (Đạt + Fail) từ 04/10/2026 (mục 8.7), TTM-E2E theo Đạt / số Epic có R4G Date hợp lệ; tính theo phạm vi Dashboard đang lọc (quyền dữ liệu + Dự án/Domain/PM-SM + Advanced Filters). Riêng vòng TTM-E2E không bị ảnh hưởng bởi "Phạm vi dữ liệu cho TTM" (mục 8.7) vì trục E2E không có khái niệm phạm vi này; bấm vào mở danh sách Epic Fail TTM-E2E. Bộ lọc PM/SM chọn được nhiều người.</li>
         <li><strong>Tổng số Epic &amp; Chờ golive (cập nhật 01/10/2026):</strong> Widget "Tổng số Epic" nay <strong>trừ Epic "Ngoài phạm vi TTM-CNTT (QLDA)"</strong> — cùng tập Epic với mẫu số vòng tròn TTM-CNTT (QLDA) bên cạnh — và có thêm sub-link "<em>n</em> sai lệch dữ liệu" (trong đúng phạm vi đó). Widget "Chờ golive" (theo rule mới ở mục 8.6) có thêm 3 sub-link: <strong>Thiếu R4G Date</strong>, <strong>Trong hạn</strong> (hôm nay ≤ R4G Date + 5 ngày làm việc), <strong>Quá hạn</strong> — mỗi sub-link bấm vào mở đúng danh sách con tương ứng. Widget "Fail TTM-E2E" dạng số đếm riêng đã được thay bằng vòng tròn "Hoàn thành TTM-E2E" ở trên.</li>
         <li><strong>Lead Command Center (Executive View):</strong> Dành cho CBQL/Lead với 9 KPI cards tổng quan, Phễu Tiến độ Epic 5 giai đoạn, Ma trận Phân bổ Tiến độ Epic Đa chiều (4 tab: Theo Domain, Theo Phân loại Epic, Theo PM/SM, Theo Dự án) hỗ trợ sort theo từng cột, và 5 Section Biểu đồ Donut chuyên sâu (trong đó Section <em>Theo Phân loại Epic</em> được mặc định mở rộng).</li>
         <li><strong>PM/SM Workbench (Operational View):</strong> Dành cho PM/SM, dữ liệu gắn chặt theo phạm vi phân quyền của user (ẩn bộ lọc PM/SM). Thừa hưởng trọn vẹn 9 KPI cards và Phễu Tiến độ 5 giai đoạn của Lead view; bổ sung Ma trận Đa chiều (2 tab: Theo Phân loại Epic &amp; Theo Dự án), Section Biểu đồ Donut Theo Phân loại Epic; và Bảng danh sách Epic Vận hành dạng Card đồng bộ với bộ chuyển tab (switch pills): <em>1. Chờ golive</em>, <em>2. Phân tích Pending</em>, <em>3. Giám sát Dữ liệu bất thường R1-R6</em>.</li>
@@ -1395,6 +1410,7 @@
           <tr><td>TTM-CNTT</td><td>Time to Market — Công nghệ thông tin (T1 → R4G). Có 3 mức cảnh báo: Cảnh báo sớm/muộn/Fail</td></tr>
           <tr><td>TTM-E2E</td><td>Time to Market — End to End (T0 → Release/Due Date). Chỉ có Fail/NONE, không có mức sớm/muộn</td></tr>
           <tr><td>Epic sai lệch dữ liệu</td><td>Epic vi phạm ≥ 1 trong 6 rule R1-R6 (mục 9): thiếu T1 theo trạng thái, Pending quá lâu, ngày sai thứ tự, thiếu Phân loại yêu cầu, thiếu Requirement Level, hoặc Epic SP nhưng Requirement Level thấp (1-2). Không bị chặn import; bị nhóm cuối bảng, highlight, cột Nhận xét hiện badge "Sai lệch dữ liệu" + danh sách rule vi phạm. Đánh giá bằng một hàm dùng chung cho mọi màn hình, lưu trạng thái hiện tại vào <code>epic_data_anomaly_violations</code> (mục 5.2).</td></tr>
+          <tr><td>L01 … L05bb</td><td>Mã các tiêu chí tính toán của phễu TTM Dashboard 2 (Tổng epic → Epic loại bỏ Cancelled → Epic chuẩn hoá dữ liệu → Epic hoàn thành / chưa hoàn thành → 5 nhóm kết quả). Tỷ lệ % Pass TTM-CNTT = L05aa / (L05aa + L05ab + L05ba) (mục 21.2, 21.3, 8.7)</td></tr>
           <tr><td>SUPERVISOR</td><td>Role thứ 4, cùng phạm vi xem toàn hệ thống như SUPERADMIN nhưng chỉ đọc, không có quyền tạo/sửa/xóa</td></tr>
           <tr><td>4 Epic Type (CT-Lv12 / CT-Lv34 / SP-Lv12 / SP-Lv34)</td><td>Phân loại tự động theo <code>Loại yêu cầu</code> + <code>Mức yêu cầu</code> của Epic (mục 5.2), quyết định TTM-CNTT 15, 25 hoặc 30 ngày làm việc</td></tr>
           <tr><td>epic_alert_timeline</td><td>Lịch sử 5 loại cảnh báo của Epic dưới dạng các "đợt" có ngày bắt đầu/kết thúc, phục vụ mục "Dòng thời gian cảnh báo" (mục 10.2)</td></tr>
@@ -1411,6 +1427,123 @@
           <tr><td>Visit Counter</td><td>Hệ thống đo lường và phân tích lưu lượng truy cập đa chiều (đăng nhập ứng dụng &amp; 4 màn hình trọng điểm), lưu tại bảng <code>visit_logs</code> (mục 18)</td></tr>
           <tr><td>Tuần này ($T-7 \to T$) / Tuần trước ($T-15 \to T-8$)</td><td>Khung thời gian trượt dùng trong thống kê Visit Counter để so sánh tốc độ tăng/giảm tương tác người dùng giữa 2 tuần liên tiếp</td></tr>
           <tr><td>SystemStatusFooter</td><td>Chân trang chung cố định tại mọi màn hình, hiển thị phiên bản hệ thống, trạng thái CSDL, tổng lượt truy cập, lượt truy cập tuần này, màn hình hiện tại và 5 user đăng nhập gần nhất (mục 18.3)</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="ttm-dashboard-2">
+      <div class="kicker">Khối màn hình</div>
+      <h2>21. TTM Dashboard 2 (<code>/ttm-dashboard-2</code>) — phễu Epic &amp; tiêu chí L01–L05bb</h2>
+      <p>
+        <strong>TTM Dashboard 2</strong> trình bày toàn bộ Epic dưới dạng <strong>phễu tinh lọc</strong>: từ tổng số Epic, loại dần Epic
+        Cancelled và Epic Sai lệch dữ liệu, rồi phân nhóm theo việc đã có R4G Date hay chưa và kết quả chấm
+        <strong>TTM-CNTT (QLDA)</strong>. Màn hình dành cho role <strong>SUPERADMIN / ADMIN / SUPERVISOR</strong>; số liệu luôn theo
+        phạm vi quyền của người xem (hoặc của user đang được "xem dưới quyền") và các bộ lọc <em>Domain, Dự án, PM/SM, Đơn vị yêu cầu</em>.
+        Đặc tả kỹ thuật: <code>docs/ttm-dashboard-2-spec.md</code>.
+      </p>
+
+      <h3>21.1. Bố cục màn hình</h3>
+      <ul>
+        <li><strong>Banner:</strong> 3 chỉ số toàn công ty TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E (cùng giá trị với TTM Dashboard — mục 11.5), nút Lead / PM-SM để xem dưới quyền một user.</li>
+        <li><strong>Thanh bộ lọc 1 dòng:</strong> Domain, Dự án, PM/SM, Đơn vị yêu cầu. Chưa lọc: số liệu đọc từ cache theo phạm vi quyền; có lọc: tính lại trên trình duyệt bằng cùng công thức.</li>
+        <li><strong>Widget row:</strong> hàng widget của TTM Dashboard, tính lại theo tiêu chí của phễu (mục 21.6).</li>
+        <li><strong>Panel 1 — Phễu tổng quan:</strong> L01 → L02 → L03 → tầng cuối chia 2 nửa L04a | L04b. Dòng dưới phễu hiện L03, <strong>Tỷ lệ % Pass / % Fail TTM-CNTT (QLDA)</strong> của đúng tập Epic đang xem, và số Epic nằm ngoài "Phạm vi dữ liệu cho TTM" (nếu có).</li>
+        <li><strong>Panel 2 / Panel 3:</strong> bấm chuột trái vào nửa "Hoàn thành" (L04a) mở Panel 2 (L05aa, L05ab, L05ac); vào nửa "Chưa hoàn thành" (L04b) mở Panel 3 (L05ba, L05bb).</li>
+        <li><strong>Ma trận Phân bổ Tiến độ Epic Đa chiều</strong> (mục 21.7) và bên dưới là các <strong>section Pie chart</strong> (mục 21.8).</li>
+        <li><strong>Chuột phải</strong> vào bất kỳ tiêu chí nào: mở popup diễn giải (mã tiêu chí, số Epic, quy tắc, công thức) kèm nút mở danh sách Epic tương ứng trên Quản trị Epic. Nhãn trên phễu chỉ ghi tên tiêu chí; mã L01…L05bb hiện trong popup này.</li>
+      </ul>
+
+      <h3>21.2. Tên và định nghĩa các tiêu chí tính toán (từ 04/10/2026)</h3>
+      <p>
+        Mọi tiêu chí đều tính <strong>trong phạm vi dữ liệu để tính toán</strong>: Epic thuộc "Phạm vi dữ liệu cho TTM" (khoảng ngày
+        "R4G for TTM (CNTT)", mục 8.7), trong quyền dữ liệu của người xem và các bộ lọc đang chọn. Epic ngoài "Phạm vi dữ liệu cho TTM"
+        không nằm trong L01 — màn hình chỉ hiện số lượng riêng để đối chiếu. Mỗi Epic thuộc đúng một nhóm cuối (L05xx, hoặc bị loại ở L02/L03),
+        nên không có Epic nào bị đếm hai lần.
+      </p>
+      <table>
+        <thead><tr><th>Mã</th><th>Tên tiêu chí</th><th>Cách tính</th></tr></thead>
+        <tbody>
+          <tr><td><strong>L01</strong></td><td>Tổng epic</td><td>Mọi Epic trong phạm vi dữ liệu để tính toán (kể cả Cancelled).</td></tr>
+          <tr><td><strong>L02</strong></td><td>Epic loại bỏ Cancelled</td><td>L01 − các Epic có status Cancelled (status chứa chữ "cancel", không phân biệt hoa/thường).</td></tr>
+          <tr><td><strong>L03</strong></td><td>Epic chuẩn hoá dữ liệu</td><td>L02 − các Epic bị đánh dấu "Sai lệch dữ liệu" (mục 9). L03 = L04a + L04b.</td></tr>
+          <tr><td><strong>L04a</strong></td><td>Epic hoàn thành</td><td>Các Epic <strong>có R4G Date</strong> trong L03. L04a = L05aa + L05ab + L05ac.</td></tr>
+          <tr><td><strong>L04b</strong></td><td>Epic chưa hoàn thành</td><td>Các Epic <strong>không có R4G Date</strong> trong L03. L04b = L05ba + L05bb.</td></tr>
+          <tr><td><strong>L05aa</strong></td><td>Epic đạt TTM-CNTT</td><td>Các Epic Đạt TTM-CNTT trong L04a: R4G Date đã tới và không muộn hơn Target R4G.</td></tr>
+          <tr><td><strong>L05ab</strong></td><td>Epic không đạt TTM-CNTT (nhóm 1)</td><td>Các Epic không Đạt TTM-CNTT trong L04a: R4G Date muộn hơn Target R4G (Fail — "Trễ R4G" ở TTM Dashboard).</td></tr>
+          <tr><td><strong>L05ac</strong></td><td>Epic chưa kết luận</td><td>Các Epic trong L04a có R4G Date còn ở tương lai (chưa tới ngày), hoặc không tính được Target R4G TTM-CNTT.</td></tr>
+          <tr><td><strong>L05ba</strong></td><td>Epic không đạt TTM-CNTT (nhóm 2)</td><td>Các Epic trong L04b chưa có R4G Date và đã quá Target R4G → Fail TTM-CNTT (QLDA) ("Thiếu R4G" ở TTM Dashboard).</td></tr>
+          <tr><td><strong>L05bb</strong></td><td>Epic trong hạn</td><td>Các Epic trong L04b chưa có R4G Date và chưa quá Target R4G — vẫn còn cơ hội Đạt TTM-CNTT.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>21.3. Tỷ lệ % Pass / % Fail TTM-CNTT</h3>
+      <div class="callout">
+        <code>Tỷ lệ % Pass TTM-CNTT = L05aa / (L05aa + L05ab + L05ba) × 100</code><br>
+        <code>Tỷ lệ % Fail TTM-CNTT = (L05ab + L05ba) / (L05aa + L05ab + L05ba) × 100</code>
+      </div>
+      <ul>
+        <li>Mẫu số chỉ gồm Epic <strong>đã có kết luận</strong>: Đạt (L05aa), không đạt nhóm 1 (L05ab), không đạt nhóm 2 (L05ba). Epic chưa kết luận (L05ac), Epic trong hạn (L05bb), Epic Cancelled và Epic Sai lệch dữ liệu không tham gia.</li>
+        <li>% Pass + % Fail = 100%. Khi chưa có Epic nào được kết luận (mẫu số = 0), phễu hiện "—"; các widget chỉ số hiện 100%.</li>
+        <li>Đây chính là công thức của chỉ số <strong>TTM-CNTT (QLDA)</strong> và <strong>TTM-CNTT (QA)</strong> trên mọi màn hình (mục 8.7) — nên tỷ lệ ở phễu luôn bằng chỉ số TTM-CNTT (QLDA) của cùng tập Epic.</li>
+      </ul>
+
+      <h3>21.4. Danh sách Epic sau mỗi con số</h3>
+      <p>Nút "Xem … Epic" trong popup diễn giải mở Quản trị Epic nhúng ngay trong trang, đã lọc sẵn theo: quyền của người xem (hoặc user đang được xem dưới quyền), bộ lọc của TTM Dashboard 2, và điều kiện của tiêu chí. Bộ lọc "Nhận xét" tương ứng:</p>
+      <table>
+        <thead><tr><th>Tiêu chí</th><th>Danh sách mở ra</th><th>Giá trị bộ lọc "Nhận xét"</th></tr></thead>
+        <tbody>
+          <tr><td>L01</td><td>Mọi Epic trong phạm vi (mọi status)</td><td><code>IN_SCOPE_CNTT</code> + mọi status</td></tr>
+          <tr><td>L02</td><td>Các Epic Cancelled bị loại</td><td><code>IN_SCOPE_CNTT</code> + status Cancelled</td></tr>
+          <tr><td>L03</td><td>Các Epic Sai lệch dữ liệu bị loại</td><td><code>DATA_ANOMALY_IN_SCOPE</code></td></tr>
+          <tr><td>L04a</td><td>Epic hoàn thành</td><td><code>TTM_ELIGIBLE_IN_SCOPE</code></td></tr>
+          <tr><td>L05aa / L05ab / L05ac</td><td>Đạt / Không đạt nhóm 1 / Chưa kết luận</td><td><code>TTM_PASS_IN_SCOPE</code> / <code>TTM_LATE_IN_SCOPE</code> / <code>TTM_NOT_SCORED_IN_SCOPE</code></td></tr>
+          <tr><td>L04b</td><td>Epic chưa hoàn thành</td><td><code>MISSING_R4G_IN_SCOPE</code></td></tr>
+          <tr><td>L05ba / L05bb</td><td>Không đạt nhóm 2 / Trong hạn</td><td><code>OVERDUE_MISSING_R4G_IN_SCOPE</code> / <code>WITHIN_TARGET_MISSING_R4G</code></td></tr>
+          <tr><td>Ngoài phạm vi</td><td>Epic ngoài "Phạm vi dữ liệu cho TTM"</td><td><code>OUT_OF_SCOPE_CNTT</code> + mọi status</td></tr>
+        </tbody>
+      </table>
+      <p>Phễu và danh sách dùng chung một định nghĩa nên con số trên phễu luôn bằng số dòng của danh sách.</p>
+
+      <h3>21.5. Cache số liệu</h3>
+      <p>Số liệu phễu, widget, ma trận và pie chart chưa lọc được lưu sẵn theo phạm vi quyền trong bảng <code>ttm_dashboard_2_cache</code> (một bộ chung cho SUPERADMIN + SUPERVISOR, một bộ cho từng ADMIN/USER) và tự dựng lại sau mỗi lần cache dữ liệu Epic được tạo lại, khi đổi engine hiển thị hoặc khi phân quyền user–domain–dự án thay đổi. Khi người dùng chọn bộ lọc, trang tải danh sách Epic của phạm vi một lần rồi tính lại bằng cùng hàm đã dùng để dựng cache.</p>
+
+      <h3>21.6. Widget row</h3>
+      <p>Cùng bố cục với hàng widget của TTM Dashboard (mục 11.5); các widget chính lấy số theo tiêu chí của phễu. Bấm vào số nào mở danh sách Epic tương ứng trên Quản trị Epic.</p>
+      <table>
+        <thead><tr><th>Widget</th><th>Giá trị</th><th>Dòng phụ</th></tr></thead>
+        <tbody>
+          <tr><td>Tổng số Epic</td><td><strong>L02</strong> — Epic loại bỏ Cancelled</td><td>"Trừ Cancelled= " + số Epic có status Cancelled</td></tr>
+          <tr><td>Fail TTM-CNTT (QLDA)</td><td><strong>L05ab + L05ba</strong></td><td>"/Số Epic= " + (L05aa + L05ab + L05ba)</td></tr>
+          <tr><td>TTM-CNTT (QLDA)</td><td>Tỷ lệ % Pass = L05aa / (L05aa + L05ab + L05ba)</td><td>Tử số / mẫu số</td></tr>
+          <tr><td>TTM-CNTT (QA)</td><td>Cùng công thức, chỉ lấy Epic MVP Done / Released (mục 8.7)</td><td>Tử số / mẫu số</td></tr>
+          <tr><td>Hoàn thành TTM-E2E</td><td>Epic đạt TTM-E2E / Epic có R4G Date hợp lệ (công thức riêng của TTM-E2E)</td><td>Tử số / mẫu số</td></tr>
+          <tr><td>Chậm tiến độ · Sai lệch Dữ liệu · Chờ golive · Giải trình Golive</td><td>Như TTM Dashboard: đếm trên mọi Epic không Cancelled của tập đang xem</td><td>Chờ golive tách Thiếu R4G / Trong hạn / Quá hạn</td></tr>
+        </tbody>
+      </table>
+
+      <h3>21.7. Ma trận Phân bổ Tiến độ Epic Đa chiều</h3>
+      <p>Lead view có 4 tab (Theo Domain, Theo Phân loại Epic, Theo PM/SM, Theo Dự án); PM/SM view có 2 tab (Theo Phân loại Epic, Theo Dự án). Bấm tiêu đề cột để sắp xếp. Tổng theo cột của một chiều luôn bằng tiêu chí tương ứng của phễu.</p>
+      <table>
+        <thead><tr><th>Cột</th><th>Giá trị</th></tr></thead>
+        <tbody>
+          <tr><td>Tổng số Epic</td><td>L02 của dòng</td></tr>
+          <tr><td>Pass TTM</td><td>L05aa</td></tr>
+          <tr><td>TTM-CNTT (QLDA)</td><td>Pass TTM / Epic đánh giá</td></tr>
+          <tr><td>Epic đánh giá</td><td>L05aa + L05ab + L05ba</td></tr>
+          <tr><td>Fail TTM</td><td>L05ab + L05ba (dòng phụ: Trễ R4G = L05ab, Thiếu R4G = L05ba)</td></tr>
+          <tr><td>TTM-CNTT (QA)</td><td>Tỷ lệ QA của dòng, kèm tử số / mẫu số</td></tr>
+          <tr><td>Đúng tiến độ / Chậm tiến độ</td><td>Epic của L02 chưa có kết luận (chưa có R4G Date hoặc Sai lệch dữ liệu): Chậm = đang Fail hoặc Cảnh báo muộn; còn lại là Đúng</td></tr>
+        </tbody>
+      </table>
+
+      <h3>21.8. Các section Pie chart</h3>
+      <p>Lead view: Theo Đơn vị yêu cầu, Theo Domain nghiệp vụ (khi có hơn 1 domain), Theo Phân loại Epic (mở sẵn), Theo PM/SM, Theo Dự án. PM/SM view: chỉ Theo Phân loại Epic. Mỗi section gồm 3 biểu đồ; bấm vào một phần của biểu đồ để mở danh sách Epic.</p>
+      <table>
+        <thead><tr><th>Biểu đồ</th><th>Số liệu theo từng giá trị của chiều</th></tr></thead>
+        <tbody>
+          <tr><td>% Tổng số Epic</td><td>L02</td></tr>
+          <tr><td>% Pass TTM</td><td>L05aa</td></tr>
+          <tr><td>% Fail TTM</td><td>L05ab + L05ba (chỉ Fail TTM-CNTT; không cộng Fail TTM-E2E như biểu đồ "% Epic Fail TTM (pm)" của TTM Dashboard)</td></tr>
         </tbody>
       </table>
     </section>

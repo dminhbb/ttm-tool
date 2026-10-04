@@ -314,14 +314,15 @@ export const SUPPRESSIONS: readonly { when: BadgeId; suppress: readonly BadgeId[
 /** TTM-CNTT (QLDA) / TTM-CNTT (QA) membership — not badges; aggregates only count these flags. */
 export const INDEX_MEMBERSHIP_RULES: { index: 'TTM-CNTT (QLDA)' | 'TTM-CNTT (QA)' | 'TTM-E2E'; flag: string; formula: string }[] = [
   { index: 'TTM-CNTT (QLDA)', flag: 'Tính (counted)', formula: 'không Cancelled  VÀ  không "Ngoài phạm vi TTM-CNTT (QLDA)"' },
-  { index: 'TTM-CNTT (QLDA)', flag: 'Mẫu số (eligible)', formula: 'counted  VÀ  có R4G (kể cả ngày tương lai)  VÀ  không Sai lệch dữ liệu' },
-  { index: 'TTM-CNTT (QLDA)', flag: 'Đạt (pass)', formula: 'eligible  VÀ  có badge "Đạt TTM-CNTT (QLDA)" (Epic "Sai Status" vẫn Đạt; R4G chưa tới: trong mẫu số, chưa Đạt)' },
-  { index: 'TTM-CNTT (QLDA)', flag: 'Fail', formula: 'counted  VÀ  có "Fail TTM-CNTT (QLDA)" (Epic Sai lệch dữ liệu không được chấm Fail)' },
-  { index: 'TTM-CNTT (QA)', flag: 'Tính / Mẫu số / Đạt / Fail', formula: 'Như TTM-CNTT (QLDA), thêm status ∈ {MVP DONE, RELEASED} và thay "Ngoài phạm vi TTM-CNTT (QLDA)" bằng "Ngoài phạm vi QA"' },
+  { index: 'TTM-CNTT (QLDA)', flag: 'Epic hoàn thành — L04a (eligible)', formula: 'counted  VÀ  có R4G (kể cả ngày tương lai)  VÀ  không Sai lệch dữ liệu' },
+  { index: 'TTM-CNTT (QLDA)', flag: 'Đạt — L05aa (pass)', formula: 'eligible  VÀ  có badge "Đạt TTM-CNTT (QLDA)" (R4G chưa tới ngày: chưa kết luận — L05ac, không vào mẫu số)' },
+  { index: 'TTM-CNTT (QLDA)', flag: 'Fail — L05ab + L05ba', formula: 'counted  VÀ  có "Fail TTM-CNTT (QLDA)": có R4G muộn hơn Target (L05ab) hoặc chưa có R4G mà đã quá Target (L05ba). Epic Sai lệch dữ liệu không được chấm Fail' },
+  { index: 'TTM-CNTT (QLDA)', flag: 'Mẫu số', formula: 'Đạt + Fail = L05aa + L05ab + L05ba (từ 04/10/2026)' },
+  { index: 'TTM-CNTT (QA)', flag: 'Tính / Đạt / Fail / Mẫu số', formula: 'Như TTM-CNTT (QLDA), chỉ lấy Epic status ∈ {MVP DONE, RELEASED} và thay "Ngoài phạm vi TTM-CNTT (QLDA)" bằng "Ngoài phạm vi QA"' },
   { index: 'TTM-E2E', flag: 'Mẫu số / Đạt / Fail', formula: 'Mẫu số: không Cancelled, có R4G, không Sai lệch dữ liệu, không "Không tính được".  Đạt: có badge "Đạt TTM-E2E".  Fail: có "Fail TTM-E2E"' },
 ];
 
-export const INDEX_PERCENT_FORMULA = 'Chỉ số % = Đạt / Mẫu số × 100.  Nếu Mẫu số = 0: (Tính − Fail) / Tính × 100;  không có Epic nào: 100.';
+export const INDEX_PERCENT_FORMULA = 'TTM-CNTT (QLDA) / TTM-CNTT (QA), từ 04/10/2026:  Tỷ lệ % Pass = L05aa / (L05aa + L05ab + L05ba) × 100;  Tỷ lệ % Fail = (L05ab + L05ba) / (L05aa + L05ab + L05ba) × 100;  chưa có Epic nào được kết luận (mẫu số = 0): 100.   TTM-E2E:  Đạt / Mẫu số × 100;  nếu Mẫu số = 0: (Tính − Fail) / Tính × 100;  không có Epic nào: 100.';
 
 export function badgesOf(axis: ScoringAxis, group: FindingGroup): BadgeDefinition[] {
   return BADGE_LIST.filter((badge) => badge.axis === axis && badge.group === group).sort((a, b) => a.precedence - b.precedence);

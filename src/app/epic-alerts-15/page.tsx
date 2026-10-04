@@ -588,13 +588,13 @@ interface EpicAlerts15Payload extends EpicAlertPhasedResponse {
 
 /** TTM-CNTT (QLDA) or TTM-CNTT (QA) value + 2-line tooltip text, formatted for the
  * EpicHeaderWidgetItem AppShell renders in its sticky header — see ttm-cntt-qa.ts for what
- * eligible/pass/fail mean. `summary` null (no cache yet) or `total === 0` (nothing to rate, e.g. no
+ * pass/fail/denominator mean (Tỷ lệ % Pass = Đạt / (Đạt + Fail)). `summary` null (no cache yet) or `total === 0` (nothing to rate, e.g. no
  * MVP Done/Released Epic yet for TTM-CNTT (QA)) both render "—" instead of a misleading 0,0%/100,0%. */
 function formatTtmIndexValue(summary: TtmCnttSummary | null): string {
   return summary && summary.total > 0 ? `${formatTtmPct1(summary.pctPrecise)}%` : '—';
 }
 function formatTtmIndexTooltip(firstLine: string, summary: TtmCnttSummary | null): string {
-  const secondLine = summary && summary.total > 0 ? `${summary.pass}/${summary.eligible}` : '—';
+  const secondLine = summary && summary.total > 0 ? `${summary.pass}/${summary.denominator}` : '—';
   return `${firstLine}\n${secondLine}`;
 }
 

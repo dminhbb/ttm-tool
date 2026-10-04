@@ -5,7 +5,10 @@ import React, { useId } from 'react';
  * groups whose widths follow their counts (docs/ttm-dashboard-2-spec.md §3).
  */
 
-const FONT = "'Plus Jakarta Sans', sans-serif";
+/** Every label — layer counts, layer names and the callout notes of narrow groups — uses the page's
+ * own typeface (Inter with its Vietnamese subset, see app/layout.tsx). A font the app doesn't load
+ * (the previous 'Plus Jakarta Sans') falls back glyph by glyph on Vietnamese text. */
+const FONT = 'inherit';
 
 function fmt(value: number): string {
   return value.toLocaleString('vi-VN');
@@ -166,7 +169,7 @@ export function SplitLayer({ top, bottom, segments, minShare = 0.14, fontMain, f
           <text x={item.endX + (item.side === 'right' ? 6 : -6)} y={item.labelY - 3} fill={item.segment.calloutColor} fontSize="13" fontWeight="800" textAnchor={item.side === 'right' ? 'start' : 'end'} fontFamily={FONT}>
             {item.segment.main}
           </text>
-          <text x={item.endX + (item.side === 'right' ? 6 : -6)} y={item.labelY + 12} fill="#64748b" fontSize="11" fontWeight="600" textAnchor={item.side === 'right' ? 'start' : 'end'} fontFamily={FONT}>
+          <text x={item.endX + (item.side === 'right' ? 6 : -6)} y={item.labelY + 12} fill="#64748b" fontSize="11" fontWeight="500" textAnchor={item.side === 'right' ? 'start' : 'end'} fontFamily={FONT}>
             {item.segment.sub}
           </text>
         </g>

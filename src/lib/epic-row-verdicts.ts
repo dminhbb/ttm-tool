@@ -93,7 +93,7 @@ export function extraRecommendations(row: VerdictRow): Finding[] {
  * "Pending lâu" (see ALERT_FILTER_OPTIONS_FOR). */
 export type AlertFilterValue =
   | '' | 'NONE' | 'EARLY' | 'LATE' | 'FAIL' | 'FAIL_E2E' | 'ACHIEVED_CNTT' | 'ACHIEVED_E2E' | 'STATUS_MISMATCH'
-  | 'FAIL_LATE_R4G' | 'FAIL_MISSING_R4G' | 'DATA_ANOMALY' | 'DATA_ANOMALY_IN_SCOPE' | 'MISSING_R4G_IN_SCOPE' | 'TTM_ELIGIBLE_IN_SCOPE' | 'PENDING_TOO_LONG' | 'WAITING_GOLIVE' | 'WAITING_GOLIVE_MISSING_R4G'
+  | 'FAIL_LATE_R4G' | 'FAIL_MISSING_R4G' | 'DATA_ANOMALY' | 'DATA_ANOMALY_IN_SCOPE' | 'IN_SCOPE_CNTT' | 'OUT_OF_SCOPE_NO_ANOMALY' | 'MISSING_R4G_IN_SCOPE' | 'TTM_ELIGIBLE_IN_SCOPE' | 'PENDING_TOO_LONG' | 'WAITING_GOLIVE' | 'WAITING_GOLIVE_MISSING_R4G'
   | TtmFunnelFilterValue
   | 'WAITING_GOLIVE_WITHIN_GRACE' | 'WAITING_GOLIVE_OVERDUE' | 'RELEASE_EARLY' | 'JUSTIFY_GOLIVE' | 'OUT_OF_SCOPE_CNTT';
 
@@ -109,14 +109,15 @@ const ALL_ALERT_FILTER_OPTIONS: { label: string; value: AlertFilterValue; engine
   { label: 'Fail TTM-E2E', value: 'FAIL_E2E', engines: ['legacy', 'scoring'] },
   { label: 'Sai Status', value: 'STATUS_MISMATCH', engines: ['legacy', 'scoring'] },
   { label: 'Sai lệch dữ liệu', value: 'DATA_ANOMALY', engines: ['legacy', 'scoring'] },
+  { label: 'Trong phạm vi dữ liệu cho TTM (L01 — Tổng epic)', value: 'IN_SCOPE_CNTT', engines: ['legacy', 'scoring'] },
   { label: 'Sai lệch dữ liệu (trong phạm vi TTM-CNTT)', value: 'DATA_ANOMALY_IN_SCOPE', engines: ['legacy', 'scoring'] },
   { label: 'Chưa có R4G Date (trong phạm vi TTM-CNTT)', value: 'MISSING_R4G_IN_SCOPE', engines: ['legacy', 'scoring'] },
-  { label: 'EPIC tính TTM (mẫu số TTM-CNTT QLDA)', value: 'TTM_ELIGIBLE_IN_SCOPE', engines: ['legacy', 'scoring'] },
-  { label: 'EPIC tính TTM: Đạt TTM-CNTT', value: 'TTM_PASS_IN_SCOPE', engines: ['legacy', 'scoring'] },
-  { label: 'EPIC tính TTM: Fail (Trễ R4G)', value: 'TTM_LATE_IN_SCOPE', engines: ['legacy', 'scoring'] },
-  { label: 'EPIC tính TTM: Chưa chấm (R4G tương lai / thiếu Target)', value: 'TTM_NOT_SCORED_IN_SCOPE', engines: ['legacy', 'scoring'] },
-  { label: 'Chưa có R4G: Quá Target', value: 'OVERDUE_MISSING_R4G_IN_SCOPE', engines: ['legacy', 'scoring'] },
-  { label: 'Chưa có R4G: Đang trong hạn', value: 'WITHIN_TARGET_MISSING_R4G', engines: ['legacy', 'scoring'] },
+  { label: 'L04a — Epic hoàn thành (có R4G Date)', value: 'TTM_ELIGIBLE_IN_SCOPE', engines: ['legacy', 'scoring'] },
+  { label: 'L05aa — Epic đạt TTM-CNTT', value: 'TTM_PASS_IN_SCOPE', engines: ['legacy', 'scoring'] },
+  { label: 'L05ab — Epic không đạt TTM-CNTT (nhóm 1: trễ R4G)', value: 'TTM_LATE_IN_SCOPE', engines: ['legacy', 'scoring'] },
+  { label: 'L05ac — Epic chưa kết luận (R4G tương lai / thiếu Target)', value: 'TTM_NOT_SCORED_IN_SCOPE', engines: ['legacy', 'scoring'] },
+  { label: 'L05ba — Epic không đạt TTM-CNTT (nhóm 2: chưa có R4G, quá Target)', value: 'OVERDUE_MISSING_R4G_IN_SCOPE', engines: ['legacy', 'scoring'] },
+  { label: 'L05bb — Epic trong hạn (chưa có R4G)', value: 'WITHIN_TARGET_MISSING_R4G', engines: ['legacy', 'scoring'] },
   { label: 'Ngoài phạm vi TTM-CNTT (không sai lệch dữ liệu)', value: 'OUT_OF_SCOPE_NO_ANOMALY', engines: ['legacy', 'scoring'] },
   { label: 'Pending lâu', value: 'PENDING_TOO_LONG', engines: ['scoring'] },
   { label: 'Chờ golive', value: 'WAITING_GOLIVE', engines: ['legacy', 'scoring'] },
@@ -151,6 +152,9 @@ export function matchesAlertFilter(row: VerdictRow, alertFilter: AlertFilterValu
     // which is why Pass + Fail can exceed the denominator.
     case 'FAIL_LATE_R4G': return ttmFailKind(row) === 'LATE_R4G';
     case 'FAIL_MISSING_R4G': return ttmFailKind(row) === 'MISSING_R4G';
+    // L01 of the TTM Dashboard 2 funnel: every Epic inside "Phạm vi dữ liệu cho TTM".
+    case 'IN_SCOPE_CNTT': return row.ttmCnttInScope;
+    case 'OUT_OF_SCOPE_NO_ANOMALY': return !row.ttmCnttInScope && !row.hasDataAnomaly && !isCancelledStatus(row.currentStatus || '');
     case 'DATA_ANOMALY_IN_SCOPE': return row.ttmCnttInScope && row.hasDataAnomaly;
     // Mutually exclusive with DATA_ANOMALY_IN_SCOPE (excludes hasDataAnomaly rows) so the dashboard's
     // "Tổng số Epic" − "Sai lệch dữ liệu" − "Chưa có R4G Date" arithmetic always lands exactly on
@@ -162,10 +166,9 @@ export function matchesAlertFilter(row: VerdictRow, alertFilter: AlertFilterValu
     case 'TTM_NOT_SCORED_IN_SCOPE':
     case 'OVERDUE_MISSING_R4G_IN_SCOPE':
     case 'WITHIN_TARGET_MISSING_R4G':
-    case 'OUT_OF_SCOPE_NO_ANOMALY':
       return ttmFunnelBucket(row) === TTM_FUNNEL_BUCKET_BY_FILTER[alertFilter];
-    // "EPIC TÍNH TTM" column (Ma trận Phân bổ) — exactly isTtmIndexEligible's own gate, expressed
-    // field-based so it matches both engines like the two filters above.
+    // L04a "Epic hoàn thành" / "EPIC TÍNH TTM" column (Ma trận Phân bổ) — exactly isTtmIndexEligible's
+    // own gate, expressed field-based so it matches both engines like the two filters above.
     case 'TTM_ELIGIBLE_IN_SCOPE': return row.ttmCnttInScope && Boolean(row.r4gDate) && !row.hasDataAnomaly;
     case 'WAITING_GOLIVE_MISSING_R4G': return waitingGoliveBucket(row, vnTodayIso()) === 'MISSING_R4G';
     case 'WAITING_GOLIVE_WITHIN_GRACE': return waitingGoliveBucket(row, vnTodayIso()) === 'WITHIN_GRACE';
@@ -206,19 +209,22 @@ export function isTtmIndexPass(row: IndexRow): boolean {
 }
 
 /**
- * TTM Dashboard 2 funnel (docs/ttm-dashboard-2-spec.md): every Epic falls in exactly ONE leaf, so
- * each layer is the sum of its leaves and nothing is counted twice:
+ * TTM Dashboard 2 funnel (docs/ttm-dashboard-2-spec.md, criteria names of 2026-10-04): every Epic
+ * falls in exactly ONE leaf, so each layer is the sum of its leaves and nothing is counted twice.
+ * The funnel only covers Epics inside "Phạm vi dữ liệu cho TTM" — OUT_OF_SCOPE is peeled off first
+ * and is not part of L01:
  *
- *   Tổng Epic (L1) ─┬─ CANCELLED                                    → L2 = L1 − CANCELLED
- *                   ├─ DATA_ANOMALY                                 → L3 = L2 − DATA_ANOMALY
- *                   ├─ OUT_OF_SCOPE  (ngoài phạm vi TTM-CNTT)        L3 = L4A + L4B + OUT_OF_SCOPE
- *                   ├─ L4A (có R4G Date, = mẫu số TTM-CNTT QLDA):  R4G_PASS | R4G_LATE | R4G_NOT_SCORED
- *                   └─ L4B (chưa có R4G Date):                     NO_R4G_OVERDUE | NO_R4G_WITHIN_TARGET
+ *   OUT_OF_SCOPE (ngoài "Phạm vi dữ liệu cho TTM") — outside the funnel
+ *   L01 Tổng epic ─┬─ CANCELLED                              → L02 = L01 − CANCELLED
+ *                  ├─ DATA_ANOMALY                           → L03 = L02 − DATA_ANOMALY = L04a + L04b
+ *                  ├─ L04a Epic hoàn thành (có R4G Date):       L05aa R4G_PASS | L05ab R4G_LATE | L05ac R4G_NOT_SCORED
+ *                  └─ L04b Epic chưa hoàn thành (chưa có R4G):  L05ba NO_R4G_OVERDUE | L05bb NO_R4G_WITHIN_TARGET
  *
- * R4G_NOT_SCORED = in the denominator but neither Đạt nor Fail yet: R4G Date still in the future, or
- * no Target could be computed. The drill-down lists in Quản trị Epic use the matching "Nhận xét"
- * filter values (TTM_FUNNEL_BUCKET_BY_FILTER; SQL twin in epic-alert-row-cache-query-service.ts), so
- * a funnel number and the list it opens always agree.
+ * Tỷ lệ % Pass TTM-CNTT = L05aa / (L05aa + L05ab + L05ba) — the same ratio summarizeTtmCntt
+ * (ttm-cntt-qa.ts) returns. L05ac = neither Đạt nor Fail yet: R4G Date still in the future, or no
+ * Target could be computed. The drill-down lists in Quản trị Epic use the matching "Nhận xét" filter
+ * values (TTM_FUNNEL_BUCKET_BY_FILTER; SQL twin in epic-alert-row-cache-query-service.ts), so a
+ * funnel number and the list it opens always agree.
  */
 export type TtmFunnelBucket =
   | 'CANCELLED' | 'DATA_ANOMALY' | 'OUT_OF_SCOPE'
@@ -228,9 +234,9 @@ export type TtmFunnelBucket =
 type FunnelRow = Pick<EpicAlertRowPhased, 'alertLevel' | 'currentStatus' | 'hasDataAnomaly' | 'r4gDate' | 'scoringIndexFlags' | 'ttmCnttInScope'>;
 
 export function ttmFunnelBucket(row: FunnelRow): TtmFunnelBucket {
+  if (!row.ttmCnttInScope) return 'OUT_OF_SCOPE';
   if (isCancelledStatus(row.currentStatus || '')) return 'CANCELLED';
   if (row.hasDataAnomaly) return 'DATA_ANOMALY';
-  if (!row.ttmCnttInScope) return 'OUT_OF_SCOPE';
   if (row.r4gDate) {
     if (isTtmIndexPass(row)) return 'R4G_PASS';
     return row.alertLevel === 'FAIL' ? 'R4G_LATE' : 'R4G_NOT_SCORED';
@@ -240,10 +246,9 @@ export function ttmFunnelBucket(row: FunnelRow): TtmFunnelBucket {
 
 export type TtmFunnelFilterValue =
   | 'TTM_PASS_IN_SCOPE' | 'TTM_LATE_IN_SCOPE' | 'TTM_NOT_SCORED_IN_SCOPE'
-  | 'OVERDUE_MISSING_R4G_IN_SCOPE' | 'WITHIN_TARGET_MISSING_R4G' | 'OUT_OF_SCOPE_NO_ANOMALY';
+  | 'OVERDUE_MISSING_R4G_IN_SCOPE' | 'WITHIN_TARGET_MISSING_R4G';
 
 export const TTM_FUNNEL_BUCKET_BY_FILTER: Record<TtmFunnelFilterValue, TtmFunnelBucket> = {
-  OUT_OF_SCOPE_NO_ANOMALY: 'OUT_OF_SCOPE',
   OVERDUE_MISSING_R4G_IN_SCOPE: 'NO_R4G_OVERDUE',
   TTM_LATE_IN_SCOPE: 'R4G_LATE',
   TTM_NOT_SCORED_IN_SCOPE: 'R4G_NOT_SCORED',

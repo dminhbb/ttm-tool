@@ -18,6 +18,7 @@ import { TableSkeleton } from '@/components/ui/Skeleton';
 import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
 import { EpicAlertsIframeModal } from '@/components/dashboard-new/EpicAlertsIframeModal';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
+import { BreakdownDonutSections, BreakdownMatrixCard, KpiStrip, type InsightListParams } from '@/components/ttm-dashboard-2/DashboardInsights';
 import { SolidLayer, SplitLayer, type Ellipse } from '@/components/ttm-dashboard-2/FunnelLayers';
 import { buildEpicAlertsDeepLink, type EpicAlertsDeepLinkAlert } from '@/lib/epic-alerts-deep-link';
 import { formatTtmPct1 } from '@/lib/ttm-cntt-qa';
@@ -25,9 +26,13 @@ import {
   filterTtmDashboard2Rows,
   hasActiveTtmDashboard2Filter,
   summarizeTtmFunnel,
+  TTM_FUNNEL_CRITERIA,
+  ttmFunnelCnttIndex,
   ttmFunnelLayers,
+  type TtmBreakdownDimension,
   type TtmDashboard2FilterOptions,
   type TtmDashboard2Filters,
+  type TtmFunnelCriterionId,
   type TtmFunnelRow,
   type TtmFunnelSummary,
 } from '@/lib/ttm-funnel-summary';
@@ -59,18 +64,8 @@ interface DashboardPayload {
   viewAsUser: { email: string; fullName: string; id: number; role: string } | null;
 }
 
-type NodeId =
-  | 'LAYER-01'
-  | 'LAYER-02'
-  | 'LAYER-03'
-  | 'LAYER-04A'
-  | 'GROUP-05AA'
-  | 'GROUP-05AB'
-  | 'GROUP-05AC'
-  | 'LAYER-04B'
-  | 'GROUP-05BA'
-  | 'GROUP-05BB'
-  | 'LAYER-04C';
+/** A funnel criterion (TTM_FUNNEL_CRITERIA) or the Epics left outside "Phạm vi dữ liệu cho TTM". */
+type NodeId = TtmFunnelCriterionId | 'OUT_OF_SCOPE';
 
 type RightPanel = 'COMPLETED' | 'IN_PROGRESS';
 
@@ -98,7 +93,7 @@ function formatTtmIndexValue(summary: TtmCnttSummary | null | undefined): string
 }
 
 function formatTtmIndexTooltip(firstLine: string, summary: TtmCnttSummary | null | undefined): string {
-  const secondLine = summary && summary.total > 0 ? `${summary.pass}/${summary.eligible} Epic đạt TTM` : '—';
+  const secondLine = summary && summary.total > 0 ? `${summary.pass}/${summary.denominator} Epic đạt TTM` : '—';
   return `${firstLine}\n${secondLine}`;
 }
 
@@ -115,7 +110,7 @@ function fmt(value: number): string {
 // ---------------------------------------------------------------------------------------------
 
 interface DrillParams {
-  alert?: EpicAlertsDeepLinkAlert;
+  alert?: EpicAlertsDeepLinkAlert | EpicAlertsDeepLinkAlert[];
   dataIssue?: boolean;
   status?: string[];
 }
@@ -283,15 +278,22 @@ export default function TtmDashboard2Page() {
 
   /** Quản trị Epic list behind a funnel number: viewer scope (or the previewed user's), this
    * screen's toolbar filters, and the node's own condition. */
-  const openEpicListModal = (params: DrillParams & { title: string }) => {
+  const openEpicListModal = (params: DrillParams & Partial<InsightListParams> & { title: string }) => {
+    // A matrix row / pie slice narrows one dimension further (params.domain/projects/…); everything
+    // else keeps this screen's toolbar filters. A Domain value on top of a Dự án filter becomes the
+    // filtered projects that belong to that Domain (Quản trị Epic lets `projects` win over `domain`).
+    const domainProjects = params.domain && filterProjects.length > 0
+      ? filterProjects.filter((key) => (data?.filterOptions.domainProjectKeys[params.domain ?? ''] ?? []).includes(key))
+      : null;
     const url = buildEpicAlertsDeepLink({
       alert: params.alert,
       dataIssue: params.dataIssue,
-      domain: filterProjects.length > 0 ? undefined : filterDomain || undefined,
-      pmSm: filterPmSms.length > 0 ? filterPmSms : undefined,
-      projects: filterProjects.length > 0 ? filterProjects : undefined,
-      requestingUnit: filterRequestingUnits.length > 0 ? filterRequestingUnits : undefined,
+      domain: domainProjects ? undefined : params.domain ?? (filterProjects.length > 0 ? undefined : filterDomain || undefined),
+      pmSm: params.pmSm ?? (filterPmSms.length > 0 ? filterPmSms : undefined),
+      projects: params.projects ?? domainProjects ?? (params.domain ? undefined : filterProjects.length > 0 ? filterProjects : undefined),
+      requestingUnit: params.requestingUnit ?? (filterRequestingUnits.length > 0 ? filterRequestingUnits : undefined),
       status: params.status,
+      type: params.type,
       viewAsUserId: data?.viewAsUser?.id ?? null,
     });
     setDetailModalId(null);
@@ -352,20 +354,36 @@ export default function TtmDashboard2Page() {
   const notScoredCount = buckets.R4G_NOT_SCORED;
   const overdueCount = buckets.NO_R4G_OVERDUE;
   const withinCount = buckets.NO_R4G_WITHIN_TARGET;
+  // TTM-CNTT (QLDA) of exactly the Epic set on screen: Pass = L05aa / (L05aa + L05ab + L05ba).
+  const cnttIndex = ttmFunnelCnttIndex(funnel);
+  const judgedCount = cnttIndex.denominator;
+  const failCount = cnttIndex.fail;
+  const passRate = judgedCount > 0 ? `${formatTtmPct1(cnttIndex.pctPrecise)}%` : '—';
+  const failRate = judgedCount > 0 ? `${formatTtmPct1(cnttIndex.failPctPrecise)}%` : '—';
+  const name = (id: TtmFunnelCriterionId) => TTM_FUNNEL_CRITERIA[id].name;
+  const rateFormula = (
+    <>
+      Tỷ lệ % Pass TTM-CNTT = L05aa / (L05aa + L05ab + L05ba)<br />
+      = {fmt(passCount)} / ({fmt(passCount)} + {fmt(lateCount)} + {fmt(overdueCount)}) = <b>{passRate}</b><br />
+      Tỷ lệ % Fail TTM-CNTT = (L05ab + L05ba) / (L05aa + L05ab + L05ba)<br />
+      = ({fmt(lateCount)} + {fmt(overdueCount)}) / {fmt(judgedCount)} = <b>{failRate}</b>
+    </>
+  );
 
   // -------------------------------------------------------------------------------------------
-  // Popup content per layer/group (right-click)
+  // Popup content per criterion (right-click)
   // -------------------------------------------------------------------------------------------
   const nodeDetails: Record<NodeId, NodeDetail> = {
-    'LAYER-01': {
-      heading: 'Layer 1 — Tổng Epic nguồn',
+    L01: {
+      heading: `L01 — ${name('L01')}`,
       count: l1,
       countColor: 'text-[#00b4d8]',
       tone: { box: 'bg-sky-50 border-sky-200', strong: 'text-sky-950', soft: 'text-sky-800' },
-      summaryLabel: 'Tổng số Epic từ nguồn:',
-      rule: 'Toàn bộ Epic (kể cả Epic đã Cancelled) thuộc phạm vi quyền của tài khoản — hoặc của user đang được xem dưới quyền — và các bộ lọc Domain, Dự án, PM/SM, Đơn vị yêu cầu đang chọn.',
-      formula: <>Layer 1 = Tổng số Epic = <b>{fmt(l1)} Epic</b></>,
-      drill: { count: l1, label: `Xem ${fmt(l1)} Epic trên Quản trị Epic`, status: funnel.allStatuses, title: 'Danh sách Epic - Layer 1 (Tổng Epic nguồn)' },
+      summaryLabel: `${name('L01')}:`,
+      ratioLine: outOfScopeCount > 0 ? `Không tính: ${fmt(outOfScopeCount)} Epic ngoài "Phạm vi dữ liệu cho TTM"` : undefined,
+      rule: 'Toàn bộ Epic (kể cả Epic đã Cancelled) nằm trong “Phạm vi dữ liệu cho TTM” (Cấu hình cảnh báo), thuộc phạm vi quyền của tài khoản — hoặc của user đang được xem dưới quyền — và các bộ lọc Domain, Dự án, PM/SM, Đơn vị yêu cầu đang chọn.',
+      formula: <>L01 = Tổng số Epic trong phạm vi dữ liệu để tính toán<br />= <b>{fmt(l1)} Epic</b></>,
+      drill: { alert: 'IN_SCOPE_CNTT', count: l1, label: `Xem ${fmt(l1)} Epic trên Quản trị Epic`, status: funnel.allStatuses, title: `Danh sách Epic - L01 (${name('L01')})` },
       buttonClass: 'bg-[#1463f7] hover:bg-blue-700',
       extra: (
         <div className="grid grid-cols-2 gap-2.5 text-xs">
@@ -383,12 +401,12 @@ export default function TtmDashboard2Page() {
         </div>
       ),
     },
-    'LAYER-02': {
-      heading: 'Layer 2 — Lọc Cancelled',
+    L02: {
+      heading: `L02 — ${name('L02')}`,
       count: l2,
       countColor: 'text-[#ff4d4f]',
       tone: { box: 'bg-rose-50 border-rose-200', strong: 'text-rose-950', soft: 'text-rose-800' },
-      summaryLabel: 'Số lượng sau khi lọc Cancelled:',
+      summaryLabel: `${name('L02')}:`,
       ratioLine: `Đã loại trừ: ${fmt(cancelledCount)} Epic · Tỷ lệ giữ lại: ${pct(l2, l1)}`,
       rule: (
         <>
@@ -396,126 +414,139 @@ export default function TtmDashboard2Page() {
           Trạng thái gặp trong phạm vi hiện tại: {funnel.cancelledStatuses.length > 0 ? funnel.cancelledStatuses.map((status) => <code key={status} className="mr-1">{status}</code>) : <i>không có</i>}.
         </>
       ),
-      formula: <>Layer 2 = Layer 1 ({fmt(l1)}) − Cancelled ({fmt(cancelledCount)})<br />= <b>{fmt(l2)} Epic</b></>,
-      drill: { count: cancelledCount, label: `Xem ${fmt(cancelledCount)} Epic Cancelled bị loại`, status: funnel.cancelledStatuses, title: 'Danh sách Epic Cancelled (bị loại ở Layer 2)' },
+      formula: <>L02 = L01 ({fmt(l1)}) − Cancelled ({fmt(cancelledCount)})<br />= <b>{fmt(l2)} Epic</b></>,
+      drill: { alert: 'IN_SCOPE_CNTT', count: cancelledCount, label: `Xem ${fmt(cancelledCount)} Epic Cancelled bị loại`, status: funnel.cancelledStatuses, title: 'Danh sách Epic Cancelled (bị loại ở L02)' },
       buttonClass: 'bg-rose-600 hover:bg-rose-700',
     },
-    'LAYER-03': {
-      heading: 'Layer 3 — Lọc Sai lệch dữ liệu',
+    L03: {
+      heading: `L03 — ${name('L03')}`,
       count: l3,
       countColor: 'text-[#0284c7]',
       tone: { box: 'bg-indigo-50 border-indigo-200', strong: 'text-indigo-950', soft: 'text-indigo-800' },
-      summaryLabel: 'Số lượng sau khi lọc Sai lệch dữ liệu:',
+      summaryLabel: `${name('L03')}:`,
       ratioLine: `Sai lệch dữ liệu: ${fmt(anomalyCount)} Epic · Tỷ lệ đạt chuẩn: ${pct(l3, l2)}`,
       rule: 'Loại các Epic bị đánh dấu Sai lệch dữ liệu (ví dụ thiếu/ngược mốc ngày, trạng thái không khớp mốc ngày). Hệ thống không chấm Đạt/Fail cho các Epic này.',
       formula: (
         <>
-          Layer 3 = Layer 2 ({fmt(l2)}) − Sai lệch ({fmt(anomalyCount)}) = <b>{fmt(l3)} Epic</b><br />
-          = Hoàn thành ({fmt(l4a)}) + Chưa hoàn thành ({fmt(l4b)}){outOfScopeCount > 0 && <> + Ngoài phạm vi TTM-CNTT ({fmt(outOfScopeCount)})</>}
+          L03 = L02 ({fmt(l2)}) − Sai lệch dữ liệu ({fmt(anomalyCount)}) = <b>{fmt(l3)} Epic</b><br />
+          = L04a ({fmt(l4a)}) + L04b ({fmt(l4b)})
         </>
       ),
-      drill: { count: anomalyCount, dataIssue: true, label: `Xem ${fmt(anomalyCount)} Epic Sai lệch dữ liệu`, title: 'Danh sách Epic Sai lệch dữ liệu (bị loại ở Layer 3)' },
+      drill: { alert: 'DATA_ANOMALY_IN_SCOPE', count: anomalyCount, label: `Xem ${fmt(anomalyCount)} Epic Sai lệch dữ liệu`, title: 'Danh sách Epic Sai lệch dữ liệu (bị loại ở L03)' },
       buttonClass: 'bg-[#0284c7] hover:bg-sky-700',
     },
-    'LAYER-04A': {
-      heading: 'Layer 4A — Epic hoàn thành (có R4G Date)',
+    L04a: {
+      heading: `L04a — ${name('L04a')} (có R4G Date)`,
       count: l4a,
       countColor: 'text-teal-700',
       tone: { box: 'bg-teal-50 border-teal-200', strong: 'text-teal-950', soft: 'text-teal-800' },
-      summaryLabel: 'Số lượng Epic hoàn thành (có R4G Date):',
-      ratioLine: `Tỷ lệ trong Layer 3: ${pct(l4a, l3)}`,
-      rule: 'Epic thuộc Layer 3, nằm trong phạm vi TTM-CNTT và đã có R4G Date — chính là mẫu số của chỉ số TTM-CNTT (QLDA).',
-      formula: <>Layer 4A = Đạt ({fmt(passCount)}) + Fail trễ R4G ({fmt(lateCount)}) + Chưa chấm ({fmt(notScoredCount)})<br />= <b>{fmt(l4a)} Epic</b></>,
-      drill: { alert: 'TTM_ELIGIBLE_IN_SCOPE', count: l4a, label: `Xem ${fmt(l4a)} Epic hoàn thành`, title: 'Danh sách Epic hoàn thành (Layer 4A - có R4G Date)' },
+      summaryLabel: `${name('L04a')} (có R4G Date):`,
+      ratioLine: `Tỷ lệ trong L03: ${pct(l4a, l3)}`,
+      rule: 'Các Epic thuộc L03 đã có R4G Date.',
+      formula: <>L04a = L05aa ({fmt(passCount)}) + L05ab ({fmt(lateCount)}) + L05ac ({fmt(notScoredCount)})<br />= <b>{fmt(l4a)} Epic</b></>,
+      drill: { alert: 'TTM_ELIGIBLE_IN_SCOPE', count: l4a, label: `Xem ${fmt(l4a)} Epic hoàn thành`, title: `Danh sách Epic - L04a (${name('L04a')})` },
       buttonClass: 'bg-teal-600 hover:bg-teal-700',
     },
-    'GROUP-05AA': {
-      heading: 'Nhóm 5AA — Đạt TTM-CNTT',
+    L05aa: {
+      heading: `L05aa — ${name('L05aa')}`,
       count: passCount,
       countColor: 'text-emerald-600',
       tone: { box: 'bg-emerald-50 border-emerald-200', strong: 'text-emerald-950', soft: 'text-emerald-800' },
-      summaryLabel: 'Số lượng Đạt TTM-CNTT:',
-      ratioLine: `Tỷ lệ Đạt TTM-CNTT (QLDA): ${pct(passCount, l4a)}`,
-      rule: 'Epic thuộc Layer 4A có R4G Date không muộn hơn Target R4G. Ở engine Scoring đây là badge “Đạt TTM-CNTT” (kể cả Epic Đạt kèm khuyến nghị “Sai Status”).',
-      formula: <>Nhóm 5AA = Epic Layer 4A được chấm Đạt<br />= <b>{fmt(passCount)} Epic</b></>,
-      drill: { alert: 'TTM_PASS_IN_SCOPE', count: passCount, label: `Xem ${fmt(passCount)} Epic Đạt TTM-CNTT`, title: 'Danh sách Epic Đạt TTM-CNTT (Nhóm 5AA)' },
+      summaryLabel: `${name('L05aa')}:`,
+      ratioLine: `Tỷ lệ % Pass TTM-CNTT: ${passRate} (${fmt(passCount)}/${fmt(judgedCount)})`,
+      rule: 'Các Epic thuộc L04a được chấm Đạt TTM-CNTT: R4G Date đã tới và không muộn hơn Target R4G.',
+      formula: rateFormula,
+      drill: { alert: 'TTM_PASS_IN_SCOPE', count: passCount, label: `Xem ${fmt(passCount)} Epic đạt TTM-CNTT`, title: `Danh sách Epic - L05aa (${name('L05aa')})` },
       buttonClass: 'bg-emerald-600 hover:bg-emerald-700',
     },
-    'GROUP-05AB': {
-      heading: 'Nhóm 5AB — Fail TTM-CNTT (Trễ R4G)',
+    L05ab: {
+      heading: `L05ab — ${name('L05ab')}`,
       count: lateCount,
       countColor: 'text-rose-600',
       tone: { box: 'bg-rose-50 border-rose-200', strong: 'text-rose-950', soft: 'text-rose-800' },
-      summaryLabel: 'Số lượng Fail TTM-CNTT (Trễ R4G):',
-      ratioLine: `Tỷ lệ trong Layer 4A: ${pct(lateCount, l4a)}`,
-      rule: 'Epic thuộc Layer 4A có R4G Date muộn hơn Target R4G → Fail TTM-CNTT (QLDA). Cùng con số với “Trễ R4G” ở TTM Dashboard.',
-      formula: <>Nhóm 5AB = Epic Layer 4A bị chấm Fail<br />= <b>{fmt(lateCount)} Epic</b></>,
-      drill: { alert: 'TTM_LATE_IN_SCOPE', count: lateCount, label: `Xem ${fmt(lateCount)} Epic Trễ R4G`, title: 'Danh sách Epic Fail TTM-CNTT - Trễ R4G (Nhóm 5AB)' },
+      summaryLabel: `${name('L05ab')}:`,
+      ratioLine: `Tỷ lệ % Fail TTM-CNTT: ${failRate} (${fmt(failCount)}/${fmt(judgedCount)}) · trong L04a: ${pct(lateCount, l4a)}`,
+      rule: 'Các Epic thuộc L04a không Đạt TTM-CNTT: R4G Date muộn hơn Target R4G → Fail TTM-CNTT (QLDA). Cùng con số với “Trễ R4G” ở TTM Dashboard.',
+      formula: rateFormula,
+      drill: { alert: 'TTM_LATE_IN_SCOPE', count: lateCount, label: `Xem ${fmt(lateCount)} Epic không đạt (nhóm 1)`, title: `Danh sách Epic - L05ab (${name('L05ab')})` },
       buttonClass: 'bg-rose-600 hover:bg-rose-700',
     },
-    'GROUP-05AC': {
-      heading: 'Nhóm 5AC — Chưa chấm (R4G tương lai / thiếu Target)',
+    L05ac: {
+      heading: `L05ac — ${name('L05ac')}`,
       count: notScoredCount,
       countColor: 'text-slate-600',
       tone: { box: 'bg-slate-50 border-slate-200', strong: 'text-slate-900', soft: 'text-slate-700' },
-      summaryLabel: 'Số lượng Epic chưa chấm:',
-      ratioLine: `Tỷ lệ trong Layer 4A: ${pct(notScoredCount, l4a)}`,
-      rule: 'Epic thuộc Layer 4A nhưng chưa thể kết luận Đạt hay Fail: R4G Date còn ở tương lai (chưa tới ngày), hoặc không tính được Target R4G. Các Epic này vẫn nằm trong mẫu số TTM-CNTT (QLDA).',
-      formula: <>Nhóm 5AC = Layer 4A ({fmt(l4a)}) − Đạt ({fmt(passCount)}) − Fail ({fmt(lateCount)})<br />= <b>{fmt(notScoredCount)} Epic</b></>,
-      drill: { alert: 'TTM_NOT_SCORED_IN_SCOPE', count: notScoredCount, label: `Xem ${fmt(notScoredCount)} Epic chưa chấm`, title: 'Danh sách Epic có R4G nhưng chưa chấm (Nhóm 5AC)' },
+      summaryLabel: `${name('L05ac')}:`,
+      ratioLine: `Tỷ lệ trong L04a: ${pct(notScoredCount, l4a)}`,
+      rule: 'Các Epic thuộc L04a chưa thể kết luận Đạt hay Fail: R4G Date còn ở tương lai (chưa tới ngày), hoặc không tính được Target R4G TTM-CNTT. Các Epic này không nằm trong Tỷ lệ % Pass / Fail TTM-CNTT.',
+      formula: <>L05ac = L04a ({fmt(l4a)}) − L05aa ({fmt(passCount)}) − L05ab ({fmt(lateCount)})<br />= <b>{fmt(notScoredCount)} Epic</b></>,
+      drill: { alert: 'TTM_NOT_SCORED_IN_SCOPE', count: notScoredCount, label: `Xem ${fmt(notScoredCount)} Epic chưa kết luận`, title: `Danh sách Epic - L05ac (${name('L05ac')})` },
       buttonClass: 'bg-slate-600 hover:bg-slate-700',
     },
-    'LAYER-04B': {
-      heading: 'Layer 4B — Epic chưa hoàn thành (chưa có R4G Date)',
+    L04b: {
+      heading: `L04b — ${name('L04b')} (chưa có R4G Date)`,
       count: l4b,
       countColor: 'text-amber-600',
       tone: { box: 'bg-amber-50 border-amber-200', strong: 'text-amber-950', soft: 'text-amber-800' },
-      summaryLabel: 'Số lượng Epic chưa hoàn thành:',
-      ratioLine: `Tỷ lệ trong Layer 3: ${pct(l4b, l3)}`,
-      rule: 'Epic thuộc Layer 3, nằm trong phạm vi TTM-CNTT nhưng chưa có R4G Date — chưa vào mẫu số TTM-CNTT (QLDA).',
-      formula: <>Layer 4B = Quá Target ({fmt(overdueCount)}) + Trong hạn ({fmt(withinCount)})<br />= <b>{fmt(l4b)} Epic</b></>,
-      drill: { alert: 'MISSING_R4G_IN_SCOPE', count: l4b, label: `Xem ${fmt(l4b)} Epic chưa hoàn thành`, title: 'Danh sách Epic chưa hoàn thành (Layer 4B - chưa có R4G Date)' },
+      summaryLabel: `${name('L04b')} (chưa có R4G Date):`,
+      ratioLine: `Tỷ lệ trong L03: ${pct(l4b, l3)}`,
+      rule: 'Các Epic thuộc L03 chưa có R4G Date.',
+      formula: <>L04b = L05ba ({fmt(overdueCount)}) + L05bb ({fmt(withinCount)})<br />= <b>{fmt(l4b)} Epic</b></>,
+      drill: { alert: 'MISSING_R4G_IN_SCOPE', count: l4b, label: `Xem ${fmt(l4b)} Epic chưa hoàn thành`, title: `Danh sách Epic - L04b (${name('L04b')})` },
       buttonClass: 'bg-amber-600 hover:bg-amber-700',
     },
-    'GROUP-05BA': {
-      heading: 'Nhóm 5BA — Fail TTM-CNTT (Quá Target)',
+    L05ba: {
+      heading: `L05ba — ${name('L05ba')}`,
       count: overdueCount,
       countColor: 'text-rose-600',
       tone: { box: 'bg-rose-50 border-rose-200', strong: 'text-rose-950', soft: 'text-rose-800' },
-      summaryLabel: 'Số lượng Fail TTM-CNTT (Quá Target):',
-      ratioLine: `Tỷ lệ trong Layer 4B: ${pct(overdueCount, l4b)}`,
-      rule: 'Epic chưa có R4G Date và đã quá Target R4G → Fail TTM-CNTT (QLDA). Cùng con số với “Thiếu R4G” ở TTM Dashboard.',
-      formula: <>Nhóm 5BA = Epic Layer 4B đã quá Target R4G<br />= <b>{fmt(overdueCount)} Epic</b></>,
-      drill: { alert: 'OVERDUE_MISSING_R4G_IN_SCOPE', count: overdueCount, label: `Xem ${fmt(overdueCount)} Epic quá Target`, title: 'Danh sách Epic chưa có R4G - Quá Target (Nhóm 5BA)' },
+      summaryLabel: `${name('L05ba')}:`,
+      ratioLine: `Tỷ lệ % Fail TTM-CNTT: ${failRate} (${fmt(failCount)}/${fmt(judgedCount)}) · trong L04b: ${pct(overdueCount, l4b)}`,
+      rule: 'Các Epic thuộc L04b chưa có R4G Date và đã quá Target R4G → Fail TTM-CNTT (QLDA). Cùng con số với “Thiếu R4G” ở TTM Dashboard.',
+      formula: rateFormula,
+      drill: { alert: 'OVERDUE_MISSING_R4G_IN_SCOPE', count: overdueCount, label: `Xem ${fmt(overdueCount)} Epic không đạt (nhóm 2)`, title: `Danh sách Epic - L05ba (${name('L05ba')})` },
       buttonClass: 'bg-rose-600 hover:bg-rose-700',
     },
-    'GROUP-05BB': {
-      heading: 'Nhóm 5BB — Đang trong hạn',
+    L05bb: {
+      heading: `L05bb — ${name('L05bb')}`,
       count: withinCount,
       countColor: 'text-[#0284c7]',
       tone: { box: 'bg-sky-50 border-sky-200', strong: 'text-sky-950', soft: 'text-sky-800' },
-      summaryLabel: 'Số lượng Epic đang trong hạn:',
-      ratioLine: `Tỷ lệ trong Layer 4B: ${pct(withinCount, l4b)}`,
-      rule: 'Epic chưa có R4G Date và chưa quá Target R4G — vẫn còn cơ hội Đạt TTM-CNTT.',
-      formula: <>Nhóm 5BB = Layer 4B ({fmt(l4b)}) − Quá Target ({fmt(overdueCount)})<br />= <b>{fmt(withinCount)} Epic</b></>,
-      drill: { alert: 'WITHIN_TARGET_MISSING_R4G', count: withinCount, label: `Xem ${fmt(withinCount)} Epic đang trong hạn`, title: 'Danh sách Epic chưa có R4G - Đang trong hạn (Nhóm 5BB)' },
+      summaryLabel: `${name('L05bb')}:`,
+      ratioLine: `Tỷ lệ trong L04b: ${pct(withinCount, l4b)}`,
+      rule: 'Các Epic thuộc L04b chưa có R4G Date và chưa quá Target R4G — vẫn còn cơ hội Đạt TTM-CNTT. Các Epic này chưa nằm trong Tỷ lệ % Pass / Fail TTM-CNTT.',
+      formula: <>L05bb = L04b ({fmt(l4b)}) − L05ba ({fmt(overdueCount)})<br />= <b>{fmt(withinCount)} Epic</b></>,
+      drill: { alert: 'WITHIN_TARGET_MISSING_R4G', count: withinCount, label: `Xem ${fmt(withinCount)} Epic trong hạn`, title: `Danh sách Epic - L05bb (${name('L05bb')})` },
       buttonClass: 'bg-[#0284c7] hover:bg-sky-700',
     },
-    'LAYER-04C': {
-      heading: 'Layer 4C — Ngoài phạm vi TTM-CNTT',
+    OUT_OF_SCOPE: {
+      heading: 'Epic ngoài “Phạm vi dữ liệu cho TTM”',
       count: outOfScopeCount,
       countColor: 'text-slate-600',
       tone: { box: 'bg-slate-50 border-slate-200', strong: 'text-slate-900', soft: 'text-slate-700' },
-      summaryLabel: 'Số lượng Epic ngoài phạm vi TTM-CNTT:',
-      ratioLine: `Tỷ lệ trong Layer 3: ${pct(outOfScopeCount, l3)}`,
-      rule: 'Epic thuộc Layer 3 nhưng nằm ngoài “Phạm vi dữ liệu cho TTM” (cấu hình ở Cấu hình cảnh báo) nên không được chấm TTM-CNTT.',
-      formula: <>Layer 4C = Layer 3 ({fmt(l3)}) − Layer 4A ({fmt(l4a)}) − Layer 4B ({fmt(l4b)})<br />= <b>{fmt(outOfScopeCount)} Epic</b></>,
-      drill: { alert: 'OUT_OF_SCOPE_NO_ANOMALY', count: outOfScopeCount, label: `Xem ${fmt(outOfScopeCount)} Epic ngoài phạm vi`, title: 'Danh sách Epic ngoài phạm vi TTM-CNTT (Layer 4C)' },
+      summaryLabel: 'Epic ngoài phạm vi dữ liệu để tính toán:',
+      ratioLine: 'Không tính vào L01 và mọi tiêu chí bên dưới',
+      rule: 'Epic nằm ngoài “Phạm vi dữ liệu cho TTM” (khoảng ngày “R4G for TTM (CNTT)” ở Cấu hình cảnh báo): R4G Date — hoặc Target R4G khi chưa có R4G Date — không thuộc khoảng đã cấu hình. Các Epic này không được chấm TTM-CNTT và không tham gia phễu.',
+      formula: <>Ngoài phạm vi = <b>{fmt(outOfScopeCount)} Epic</b> (mọi status)<br />L01 = Epic trong phạm vi quyền + bộ lọc − Ngoài phạm vi</>,
+      drill: { alert: 'OUT_OF_SCOPE_CNTT', count: outOfScopeCount, label: `Xem ${fmt(outOfScopeCount)} Epic ngoài phạm vi`, status: funnel.outOfScopeStatuses, title: 'Danh sách Epic ngoài “Phạm vi dữ liệu cho TTM”' },
       buttonClass: 'bg-slate-600 hover:bg-slate-700',
     },
   };
 
   const detail = detailModalId ? nodeDetails[detailModalId] : null;
+
+  // Pie chart sections — same visibility rules as TTM Dashboard: the Lead view shows every dimension
+  // that has something to compare, the PM/SM view only "Theo Phân loại Epic".
+  const effectiveRole = data.viewAsUser?.role || data.actor.role;
+  const donutDimensions: TtmBreakdownDimension[] = viewMode === 'EXECUTIVE'
+    ? [
+        'requestingUnit',
+        ...(domainOptions.length > 1 ? ['domain' as const] : []),
+        'epicType',
+        ...(effectiveRole !== 'USER' ? ['pmsm' as const] : []),
+        ...(effectiveRole === 'USER' && projectOptions.length <= 1 ? [] : ['project' as const]),
+      ]
+    : ['epicType'];
 
   const panelHeader = (panel: RightPanel) => (
     <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-100 mb-2 gap-2">
@@ -540,7 +571,7 @@ export default function TtmDashboard2Page() {
             onClick={() => { setShownRightPanel('IN_PROGRESS'); setActiveRightPanel('IN_PROGRESS'); }}
             className={`px-3 py-1 rounded-md transition-all cursor-pointer ${panel === 'IN_PROGRESS' ? 'bg-white text-amber-700 shadow-2xs font-extrabold' : 'text-slate-500 hover:text-slate-800'}`}
           >
-            Chưa xong ({fmt(l4b)})
+            Chưa hoàn thành ({fmt(l4b)})
           </button>
         </div>
 
@@ -585,8 +616,8 @@ export default function TtmDashboard2Page() {
           {/* Global TTM Indicators */}
           <div className="hidden sm:flex items-center gap-2">
             {([
-              ['TTM-CNTT (QLDA)', 'Chỉ số TTM-CNTT (QLDA) tính trên toàn bộ Epic', data?.ttmIndexGlobal?.ttm, 'text-fb-blue'],
-              ['TTM-CNTT (QA)', 'Chỉ số TTM-CNTT (QA) tính trên toàn bộ Epic', data?.ttmIndexGlobal?.qa, 'text-purple-700'],
+              ['TTM-CNTT (QLDA)', 'Chỉ số TTM-CNTT (QLDA) toàn công ty = L05aa / (L05aa + L05ab + L05ba)', data?.ttmIndexGlobal?.ttm, 'text-fb-blue'],
+              ['TTM-CNTT (QA)', 'Chỉ số TTM-CNTT (QA) toàn công ty — cùng công thức, chỉ lấy Epic MVP Done / Released', data?.ttmIndexGlobal?.qa, 'text-purple-700'],
               ['TTM-E2E', 'Chỉ số Hoàn thành TTM-E2E tính trên toàn bộ Epic', data?.ttmIndexGlobal?.e2e, 'text-emerald-700'],
             ] as const).map(([label, tooltip, summary, color]) => (
               <div
@@ -599,7 +630,7 @@ export default function TtmDashboard2Page() {
                   <div className="flex items-baseline gap-1 mt-0.5">
                     <span className={`text-xs font-black ${color}`}>{formatTtmIndexValue(summary)}</span>
                     {summary && summary.total > 0 && (
-                      <span className="text-[10px] font-medium text-fb-text-secondary">({summary.pass}/{summary.eligible})</span>
+                      <span className="text-[10px] font-medium text-fb-text-secondary">({summary.pass}/{summary.denominator})</span>
                     )}
                   </div>
                 </div>
@@ -743,6 +774,11 @@ export default function TtmDashboard2Page() {
         )}
       </section>
 
+      {/* WIDGET ROW — TTM Dashboard's KPI strip, re-based on the funnel criteria */}
+      <div className={`transition-opacity ${isRecomputing ? 'opacity-60' : ''}`} aria-busy={isRecomputing}>
+        <KpiStrip funnel={funnel} onOpen={openEpicListModal} />
+      </div>
+
       {/* ============================================================= */}
       {/* MAIN LAYOUT — ACCORDION: Panel 1 alone (100%) ↔ Panel 1 + Panel 2/3 (50/50).
           Animated through grid-template-columns (≥ lg) / grid-template-rows (stacked), so both
@@ -791,7 +827,7 @@ export default function TtmDashboard2Page() {
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
               <Info className="size-3.5 text-sky-600 shrink-0" weight="bold" />
-              <span>Bấm <strong>chuột phải</strong> vào tầng để xem công thức • Bấm <strong>chuột trái vào Layer 4</strong> để mở phễu chi tiết</span>
+              <span>Bấm <strong>chuột phải</strong> vào tiêu chí để xem công thức • Bấm <strong>chuột trái vào Hoàn thành / Chưa hoàn thành</strong> để mở phễu chi tiết</span>
             </div>
           </div>
 
@@ -803,10 +839,10 @@ export default function TtmDashboard2Page() {
                 fill="#00b4d8"
                 lidFill="#00838f"
                 count={l1}
-                label="Tổng Epic"
+                label="Tổng epic"
                 labelColor="#e0f7fa"
                 fontMain={22}
-                onContextMenu={(e) => handleContextMenu(e, 'LAYER-01')}
+                onContextMenu={(e) => handleContextMenu(e, 'L01')}
               />
               <SolidLayer
                 top={{ cx: 220, cy: 125, rx: 145, ry: 17 }}
@@ -814,10 +850,10 @@ export default function TtmDashboard2Page() {
                 fill="#ff4d4f"
                 lidFill="#cf1322"
                 count={l2}
-                label="Lọc Cancelled"
+                label="Loại bỏ Cancelled"
                 labelColor="#ffebee"
                 fontMain={21}
-                onContextMenu={(e) => handleContextMenu(e, 'LAYER-02')}
+                onContextMenu={(e) => handleContextMenu(e, 'L02')}
               />
               <SolidLayer
                 top={{ cx: 220, cy: 215, rx: 105, ry: 13 }}
@@ -825,12 +861,12 @@ export default function TtmDashboard2Page() {
                 fill="#0284c7"
                 lidFill="#0369a1"
                 count={l3}
-                label="Lọc Sai lệch dữ liệu"
+                label="Chuẩn hoá dữ liệu"
                 labelColor="#e0f2fe"
                 fontMain={20}
-                onContextMenu={(e) => handleContextMenu(e, 'LAYER-03')}
+                onContextMenu={(e) => handleContextMenu(e, 'L03')}
               />
-              {/* LAYER 4: Hoàn thành | Chưa xong | (Ngoài phạm vi, only when > 0) */}
+              {/* L04: L04a Epic hoàn thành | L04b Epic chưa hoàn thành */}
               <SplitLayer
                 top={{ cx: 220, cy: 305, rx: 70, ry: 9 }}
                 bottom={{ cx: 220, cy: 385, rx: 42, ry: 6 }}
@@ -841,22 +877,17 @@ export default function TtmDashboard2Page() {
                 segments={[
                   {
                     key: '4a', count: l4a, alwaysShow: true, fill: '#00b4d8', lidFill: '#00838f', calloutColor: '#0e7490',
-                    main: fmt(l4a), sub: 'Hoàn thành', ariaLabel: `Layer 4A — ${l4a} Epic hoàn thành: bấm để mở/đóng Panel 2`,
+                    main: fmt(l4a), sub: 'Hoàn thành', ariaLabel: `L04a — ${l4a} Epic hoàn thành: bấm để mở/đóng Panel 2`,
                     active: activeRightPanel === 'COMPLETED', dimmed: activeRightPanel === 'IN_PROGRESS',
                     onActivate: () => toggleRightPanel('COMPLETED'),
-                    onContextMenu: (e) => handleContextMenu(e, 'LAYER-04A'),
+                    onContextMenu: (e) => handleContextMenu(e, 'L04a'),
                   },
                   {
                     key: '4b', count: l4b, alwaysShow: true, fill: '#f59e0b', lidFill: '#b45309', calloutColor: '#b45309',
-                    main: fmt(l4b), sub: 'Chưa xong', ariaLabel: `Layer 4B — ${l4b} Epic chưa hoàn thành: bấm để mở/đóng Panel 3`,
+                    main: fmt(l4b), sub: 'Chưa hoàn thành', ariaLabel: `L04b — ${l4b} Epic chưa hoàn thành: bấm để mở/đóng Panel 3`,
                     active: activeRightPanel === 'IN_PROGRESS', dimmed: activeRightPanel === 'COMPLETED',
                     onActivate: () => toggleRightPanel('IN_PROGRESS'),
-                    onContextMenu: (e) => handleContextMenu(e, 'LAYER-04B'),
-                  },
-                  {
-                    key: '4c', count: outOfScopeCount, fill: '#94a3b8', lidFill: '#64748b', calloutColor: '#475569',
-                    main: fmt(outOfScopeCount), sub: 'Ngoài phạm vi', ariaLabel: `Layer 4C — ${outOfScopeCount} Epic ngoài phạm vi TTM-CNTT`,
-                    onContextMenu: (e) => handleContextMenu(e, 'LAYER-04C'),
+                    onContextMenu: (e) => handleContextMenu(e, 'L04b'),
                   },
                 ]}
               />
@@ -865,14 +896,30 @@ export default function TtmDashboard2Page() {
 
           {/* Footer Summary Strip */}
           <div className="mt-2 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-2">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="size-2 rounded-full bg-emerald-500"></span>
               <span>
-                Tập dữ liệu chuẩn Layer 3:{' '}
+                Epic chuẩn hoá dữ liệu:{' '}
                 <strong className="text-slate-900 font-bold font-mono">
                   {fmt(l3)} Epic ({pct(l3, l1)})
                 </strong>
               </span>
+              <span className="text-slate-300">|</span>
+              <span title="Tỷ lệ % Pass TTM-CNTT = L05aa / (L05aa + L05ab + L05ba); Tỷ lệ % Fail TTM-CNTT = (L05ab + L05ba) / (L05aa + L05ab + L05ba)">
+                TTM-CNTT (QLDA): <strong className="font-mono font-bold text-emerald-600">Pass {passRate}</strong>
+                {' · '}
+                <strong className="font-mono font-bold text-rose-600">Fail {failRate}</strong>
+              </span>
+              {outOfScopeCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setDetailModalId('OUT_OF_SCOPE')}
+                  className="text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline cursor-pointer"
+                  title="Epic nằm ngoài “Phạm vi dữ liệu cho TTM” — không tính vào L01"
+                >
+                  Ngoài phạm vi dữ liệu cho TTM: <strong className="font-mono">{fmt(outOfScopeCount)}</strong>
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-2 text-[11px] font-medium text-slate-600">
               {isRightOpen ? (
@@ -884,7 +931,7 @@ export default function TtmDashboard2Page() {
                 </>
               ) : (
                 <span className="text-sky-700 italic">
-                  Bấm vào nửa Hoàn thành / Chưa xong ở Layer 4 để mở phễu chi tiết
+                  Bấm vào Hoàn thành / Chưa hoàn thành để mở phễu chi tiết
                 </span>
               )}
             </div>
@@ -922,7 +969,7 @@ export default function TtmDashboard2Page() {
                           label="Epic hoàn thành"
                           labelColor="#e0f7fa"
                           fontMain={21}
-                          onContextMenu={(e) => handleContextMenu(e, 'LAYER-04A')}
+                          onContextMenu={(e) => handleContextMenu(e, 'L04a')}
                         />
                         <SplitLayer
                           top={detailMid}
@@ -934,18 +981,18 @@ export default function TtmDashboard2Page() {
                           segments={[
                             {
                               key: '5aa', count: passCount, alwaysShow: true, fill: '#10b981', lidFill: '#047857', calloutColor: '#047857',
-                              main: `Đạt ${fmt(passCount)}`, sub: 'TTM-CNTT', ariaLabel: `Nhóm 5AA — ${passCount} Epic Đạt TTM-CNTT`,
-                              onContextMenu: (e) => handleContextMenu(e, 'GROUP-05AA'),
+                              main: `Đạt ${fmt(passCount)}`, sub: 'TTM-CNTT', ariaLabel: `L05aa — ${passCount} Epic đạt TTM-CNTT`,
+                              onContextMenu: (e) => handleContextMenu(e, 'L05aa'),
                             },
                             {
                               key: '5ac', count: notScoredCount, fill: '#94a3b8', lidFill: '#64748b', calloutColor: '#475569',
-                              main: `Chưa chấm ${fmt(notScoredCount)}`, sub: 'Chưa kết luận', ariaLabel: `Nhóm 5AC — ${notScoredCount} Epic chưa chấm`,
-                              onContextMenu: (e) => handleContextMenu(e, 'GROUP-05AC'),
+                              main: `Chưa kết luận ${fmt(notScoredCount)}`, sub: 'R4G tương lai', ariaLabel: `L05ac — ${notScoredCount} Epic chưa kết luận`,
+                              onContextMenu: (e) => handleContextMenu(e, 'L05ac'),
                             },
                             {
                               key: '5ab', count: lateCount, alwaysShow: true, fill: '#ef4444', lidFill: '#b91c1c', calloutColor: '#dc2626',
-                              main: `Fail ${fmt(lateCount)}`, sub: 'Trễ R4G', ariaLabel: `Nhóm 5AB — ${lateCount} Epic Fail TTM-CNTT trễ R4G`,
-                              onContextMenu: (e) => handleContextMenu(e, 'GROUP-05AB'),
+                              main: `Không đạt ${fmt(lateCount)}`, sub: 'Nhóm 1 · Trễ R4G', ariaLabel: `L05ab — ${lateCount} Epic không đạt TTM-CNTT (nhóm 1: R4G Date muộn hơn Target)`,
+                              onContextMenu: (e) => handleContextMenu(e, 'L05ab'),
                             },
                           ]}
                         />
@@ -953,9 +1000,9 @@ export default function TtmDashboard2Page() {
                     </div>
 
                     <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-                      <span>Tỷ lệ Đạt TTM-CNTT (QLDA):</span>
+                      <span title="L05aa / (L05aa + L05ab + L05ba)">Tỷ lệ % Pass TTM-CNTT (QLDA):</span>
                       <span className="font-mono font-bold text-emerald-600">
-                        {pct(passCount, l4a)} ({fmt(passCount)}/{fmt(l4a)})
+                        {passRate} ({fmt(passCount)}/{fmt(judgedCount)})
                       </span>
                     </div>
                   </>
@@ -972,7 +1019,7 @@ export default function TtmDashboard2Page() {
                           label="Epic chưa hoàn thành"
                           labelColor="#fef3c7"
                           fontMain={21}
-                          onContextMenu={(e) => handleContextMenu(e, 'LAYER-04B')}
+                          onContextMenu={(e) => handleContextMenu(e, 'L04b')}
                         />
                         <SplitLayer
                           top={detailMid}
@@ -984,13 +1031,13 @@ export default function TtmDashboard2Page() {
                           segments={[
                             {
                               key: '5bb', count: withinCount, alwaysShow: true, fill: '#0284c7', lidFill: '#0369a1', calloutColor: '#0369a1',
-                              main: `Trong hạn ${fmt(withinCount)}`, sub: 'Chưa quá Target', ariaLabel: `Nhóm 5BB — ${withinCount} Epic đang trong hạn`,
-                              onContextMenu: (e) => handleContextMenu(e, 'GROUP-05BB'),
+                              main: `Trong hạn ${fmt(withinCount)}`, sub: 'Chưa quá Target', ariaLabel: `L05bb — ${withinCount} Epic trong hạn`,
+                              onContextMenu: (e) => handleContextMenu(e, 'L05bb'),
                             },
                             {
                               key: '5ba', count: overdueCount, alwaysShow: true, fill: '#ef4444', lidFill: '#b91c1c', calloutColor: '#dc2626',
-                              main: `Fail ${fmt(overdueCount)}`, sub: 'Quá Target', ariaLabel: `Nhóm 5BA — ${overdueCount} Epic quá Target`,
-                              onContextMenu: (e) => handleContextMenu(e, 'GROUP-05BA'),
+                              main: `Không đạt ${fmt(overdueCount)}`, sub: 'Nhóm 2 · Quá Target', ariaLabel: `L05ba — ${overdueCount} Epic không đạt TTM-CNTT (nhóm 2: chưa có R4G Date, quá Target)`,
+                              onContextMenu: (e) => handleContextMenu(e, 'L05ba'),
                             },
                           ]}
                         />
@@ -998,9 +1045,9 @@ export default function TtmDashboard2Page() {
                     </div>
 
                     <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-                      <span>Tiến độ Epic chưa hoàn thành:</span>
-                      <span className="font-mono font-bold text-slate-700">
-                        {fmt(withinCount)} trong hạn · <span className="text-rose-600 font-extrabold">{fmt(overdueCount)} quá Target</span>
+                      <span title="(L05ab + L05ba) / (L05aa + L05ab + L05ba)">Tỷ lệ % Fail TTM-CNTT (QLDA):</span>
+                      <span className="font-mono font-bold text-rose-600">
+                        {failRate} ({fmt(failCount)}/{fmt(judgedCount)})
                       </span>
                     </div>
                   </>
@@ -1008,6 +1055,18 @@ export default function TtmDashboard2Page() {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* MA TRẬN PHÂN BỔ + PIE CHART — Lead view: every dimension; PM/SM view: Phân loại Epic & Dự án */}
+      <div className={`flex flex-col gap-5 transition-opacity ${isRecomputing ? 'opacity-60' : ''}`} aria-busy={isRecomputing}>
+        <BreakdownMatrixCard
+          dimensions={viewMode === 'EXECUTIVE' ? ['domain', 'epicType', 'pmsm', 'project'] : ['epicType', 'project']}
+          funnel={funnel}
+          onOpen={openEpicListModal}
+        />
+        <div>
+          <BreakdownDonutSections dimensions={donutDimensions} funnel={funnel} onOpen={openEpicListModal} />
         </div>
       </div>
 
@@ -1022,9 +1081,9 @@ export default function TtmDashboard2Page() {
           title={
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 rounded font-mono font-bold text-xs bg-slate-100 text-slate-700 border border-slate-300">
-                [{detailModalId}]
+                [{detailModalId === 'OUT_OF_SCOPE' ? 'Ngoài phạm vi' : detailModalId}]
               </span>
-              <span>Chi tiết {detail.heading}</span>
+              <span>{detail.heading}</span>
             </div>
           }
         >
