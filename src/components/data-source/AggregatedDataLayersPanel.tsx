@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { ArrowsClockwise, Trash } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
-import { Card, CardBody, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card, CardBody, CardFooter, CardHeader } from '@/components/ui/Card';
+import { CollapsibleCardTitle } from '@/components/ui/CollapsibleCardTitle';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pagination } from '@/components/ui/Pagination';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -39,6 +40,7 @@ export function AggregatedDataLayersPanel() {
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [pendingLayerDate, setPendingLayerDate] = useState<string | null>(null);
   const [layersPage, setLayersPage] = useState(1);
+  const [expanded, setExpanded] = useState(false);
 
   const fetchLayers = async () => {
     setIsLoading(true);
@@ -118,9 +120,12 @@ export function AggregatedDataLayersPanel() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Nhật ký lớp dữ liệu tổng hợp (Epic)</CardTitle>
+        <CollapsibleCardTitle controlsId="aggregated-layers-body" expanded={expanded} onToggle={() => setExpanded((open) => !open)}>
+          Nhật ký lớp dữ liệu tổng hợp (Epic)
+        </CollapsibleCardTitle>
       </CardHeader>
-      <CardBody>
+      {expanded && (
+      <CardBody id="aggregated-layers-body">
         <p className="mb-3 text-fb-text-secondary">
           Mỗi lớp dữ liệu tổng hợp (epic_ttm_snapshots, issue_daily_snapshots, epic_alert_history) được tính từ dữ liệu import gốc cùng ngày. Xóa lớp này không ảnh hưởng dữ liệu import gốc; chạy lại chỉ khả dụng khi dữ liệu import gốc của ngày đó còn tồn tại.
         </p>
@@ -182,7 +187,8 @@ export function AggregatedDataLayersPanel() {
           </TableContainer>
         )}
       </CardBody>
-      {!isLoading && layers.length > LAYERS_PAGE_SIZE && (
+      )}
+      {expanded && !isLoading && layers.length > LAYERS_PAGE_SIZE && (
         <CardFooter>
           <Pagination
             currentPage={Math.min(layersPage, Math.max(1, Math.ceil(layers.length / LAYERS_PAGE_SIZE)))}

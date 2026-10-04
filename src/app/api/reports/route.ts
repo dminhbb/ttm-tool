@@ -3,17 +3,21 @@ import type { NextRequest } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
 import { listDomains, listProjectComponents, listProjects } from '@/lib/master-data-service';
 import { generateEpicReport, getReportLayerDates } from '@/lib/reports-service';
+import { getReportAccessScope, reportAllowedComponents, reportScopeAllowsProject, scopeReportFilterOptions } from '@/lib/report-access-scope';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    await requireUser(request);
+    const user = await requireUser(request);
 
-    const [domains, projects, components, layerDates] = await Promise.all([
+    const [scope, allDomains, allProjects, allComponents, layerDates] = await Promise.all([
+      getReportAccessScope(user),
       listDomains(),
       listProjects(),
       listProjectComponents(),
       getReportLayerDates(),
     ]);
+    // Only what this viewer may report on (same data scope as Quản trị Epic / the dashboards).
+    const { components, domains, projects } = scopeReportFilterOptions(scope, allDomains, allProjects, allComponents);
 
     return NextResponse.json({
       components,
@@ -36,7 +40,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    await requireUser(request);
+    const user = await requireUser(request);
 
     const body = await request.json().catch(() => ({}));
     const { domainId, projectKey, component, selectedLayerDates, compareLayerDates, createdDateFrom, startDateFrom, releasedDateFrom, releasedDateTo, asOfDate, compareAsOfDate } = body;
@@ -45,11 +49,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Thông tin Dự án (projectKey) là bắt buộc.' }, { status: 400 });
     }
 
+    const scope = await getReportAccessScope(user);
+    if (typeof projectKey !== 'string' || !reportScopeAllowsProject(scope, projectKey)) {
+      return NextResponse.json({ error: 'Bạn không có quyền xem báo cáo của dự án này.' }, { status: 403 });
+    }
+    const allowedComponents = reportAllowedComponents(scope, projectKey);
+    if (allowedComponents && component && component !== 'ALL'
+      && !allowedComponents.some((name) => name.toLowerCase() === String(component).toLowerCase())) {
+      return NextResponse.json({ error: 'Bạn không có quyền xem báo cáo của component này.' }, { status: 403 });
+    }
+
     if (!selectedLayerDates || !Array.isArray(selectedLayerDates) || selectedLayerDates.length === 0) {
       return NextResponse.json({ error: 'Bạn phải chọn ít nhất 1 Lớp dữ liệu.' }, { status: 400 });
     }
 
     const reportPromise = generateEpicReport({
+      allowedComponents,
       asOfDate,
       component,
       createdDateFrom,
@@ -63,6 +78,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let compareReportPromise = Promise.resolve<Awaited<ReturnType<typeof generateEpicReport>> | null>(null);
     if (compareLayerDates && Array.isArray(compareLayerDates) && compareLayerDates.length > 0) {
       compareReportPromise = generateEpicReport({
+        allowedComponents,
         asOfDate: compareAsOfDate,
         component,
         createdDateFrom,

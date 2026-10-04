@@ -191,13 +191,15 @@ export async function getUserProfileDetails(userId: number, role: UserRole): Pro
 
   let viewableProjects: ProjectSummary[] | null = null;
   if (role === 'ADMIN') {
-    // Same domain-scoped visibility ADMIN gets in epic-alerts (resolveAccessScope) — every
-    // active project in a domain they're assigned to.
+    // Same visibility ADMIN gets on every Epic screen (resolveAccessScope) — every active project
+    // in a domain they're assigned to, plus the projects they are PM/SM of.
     const result = await pool.query<ProjectSummary>(`
       SELECT DISTINCT p.id, p.source_project_key AS "projectKey", p.project_name AS "projectName"
       FROM projects p
-      JOIN user_domains ud ON ud.domain_id = p.domain_id
-      WHERE ud.user_id = $1 AND p.is_active
+      WHERE p.is_active AND (
+        p.domain_id IN (SELECT ud.domain_id FROM user_domains ud WHERE ud.user_id = $1)
+        OR p.id IN (SELECT up.project_id FROM user_projects up WHERE up.user_id = $1)
+      )
       ORDER BY p.project_name;
     `, [userId]);
     viewableProjects = result.rows;

@@ -7,6 +7,7 @@ import { getEpicBrowserRoot } from '@/lib/epic-browser-service';
 import { getEpicAlertRowsForDisplay } from '@/lib/epic-scoring-display-service';
 import { scoreEpicByKey } from '@/lib/scoring-run-service';
 import { BADGE_BY_ID, FINDING_GROUPS, SCORING_AXES } from '@/lib/scoring/catalog';
+import { getReportAccessScope, scopeReportFilterOptions } from '@/lib/report-access-scope';
 import { listDomains, listHolidays, listProjectComponents, listProjects } from '@/lib/master-data-service';
 import { recordMcpAccessEvent } from '@/lib/mcp-service';
 import { getReportLayerDates } from '@/lib/reports-service';
@@ -320,12 +321,15 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
       inputSchema: {},
     },
     async () => {
-      const [domains, projects, components, layerDates] = await Promise.all([
+      const [scope, allDomains, allProjects, allComponents, layerDates] = await Promise.all([
+        getReportAccessScope(user),
         listDomains(),
         listProjects(),
         listProjectComponents(),
         getReportLayerDates(),
       ]);
+      // Same scope as the Báo cáo Epic screen (report-access-scope.ts).
+      const { components, domains, projects } = scopeReportFilterOptions(scope, allDomains, allProjects, allComponents);
       await touch();
       return json({ domains, projects, components, layerDates });
     },

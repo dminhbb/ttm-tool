@@ -287,11 +287,15 @@ export interface AccessScope {
 export async function resolveAccessScope(userId: number, role: UserRole): Promise<AccessScope> {
   if (role === 'SUPERADMIN' || role === 'SUPERVISOR') return { accessRole: 'CBQL_PHONG', projectComponents: new Map(), sourceProjectKeys: null };
   if (role === 'ADMIN') {
+    // Projects of the Domains this Admin manages + projects they are directly PM/SM of (2026-10-04,
+    // owner rule from the TTM Dashboard 2 cache spec). Whole projects — component narrowing is PM/SM-only.
     const result = await pool.query<{ sourceProjectKey: string }>(`
       SELECT DISTINCT p.source_project_key AS "sourceProjectKey"
       FROM projects p
-      JOIN user_domains ud ON ud.domain_id = p.domain_id
-      WHERE ud.user_id = $1 AND p.is_active;
+      WHERE p.is_active AND (
+        p.domain_id IN (SELECT ud.domain_id FROM user_domains ud WHERE ud.user_id = $1)
+        OR p.id IN (SELECT up.project_id FROM user_projects up WHERE up.user_id = $1)
+      );
     `, [userId]);
     return { accessRole: 'LEAD', projectComponents: new Map(), sourceProjectKeys: result.rows.map((row) => row.sourceProjectKey) };
   }

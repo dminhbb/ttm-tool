@@ -82,7 +82,7 @@ export async function getRecentLoginUsers(limit: number = 5): Promise<RecentLogi
  * Retrieves the visit summary for the system footer:
  * - totalVisits: All-time app logins
  * - weeklyVisits: App logins in the last 8 days (T-7 to T)
- * - screenVisits: Total visits for the current screen, if it's one of the 4 tracked screens
+ * - screenVisits: Total visits for the current screen, if it's one of the tracked screens (TRACKED_SCREEN_KEYS)
  * - lastLoginUsers: 5 most recent login users
  */
 export async function getFooterVisitSummary(screenKey?: ScreenKey | null): Promise<FooterVisitSummary> {

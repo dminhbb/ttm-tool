@@ -25,6 +25,9 @@ export interface ReportFilterOptions {
    * drill-down) so viewing a past data layer also evaluates it as of that layer's own date, not
    * today. Omit/null for the default: evaluate as of the real current date. */
   asOfDate?: string | null;
+  /** Viewer's component narrowing for this project (PM/SM grant, see resolveAccessScope) — only
+   * Epics in one of these components are reported. Omit/empty = the whole project. */
+  allowedComponents?: string[] | null;
   component?: string;
   createdDateFrom?: string; // YYYY-MM-DD (Epic tạo mới từ >=)
   domainId?: number;
@@ -99,7 +102,7 @@ export async function getReportLayerDates(): Promise<string[]> {
  * Generate full Epic Report payload based on project, component, selected layer dates, and date range filters.
  */
 export async function generateEpicReport(options: ReportFilterOptions): Promise<ReportResult> {
-  const { projectKey, component, selectedLayerDates, createdDateFrom, startDateFrom, releasedDateFrom, asOfDate: asOfDateOption } = options;
+  const { projectKey, component, selectedLayerDates, createdDateFrom, startDateFrom, releasedDateFrom, asOfDate: asOfDateOption, allowedComponents } = options;
 
   if (!projectKey) {
     throw new Error('Dự án (projectKey) là thông tin bắt buộc.');
@@ -217,6 +220,11 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
   `, [sortedLayers, projectKey]);
 
   let rows = epicsResult.rows;
+
+  if (allowedComponents && allowedComponents.length > 0) {
+    const allowedLower = allowedComponents.map((name) => name.toLowerCase());
+    rows = rows.filter((r) => (r.components ?? []).some((c) => allowedLower.includes(c.toLowerCase())));
+  }
 
   // Filter component if specified
   if (component && component !== 'ALL') {

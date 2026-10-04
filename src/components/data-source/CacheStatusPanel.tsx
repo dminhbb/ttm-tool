@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowsClockwise } from '@phosphor-icons/react';
+import { ArrowsClockwise, Database } from '@phosphor-icons/react';
+import { showToast } from '@/components/ui/Toast';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -30,6 +31,7 @@ interface CacheOverview {
   epicRowCache: { computedAt: string | null; rowCount: number; sourceImportBatchId: number | null };
   latestImportBatch: { aggregatedAt: string; fileName: string | null; id: number } | null;
   recentRuns: DailyCacheRun[];
+  ttmDashboard2Cache?: { computedAt: string | null; entryCount: number };
   ttmIndexGlobalCache: { computedAt: string; sourceImportBatchId: number | null } | null;
 }
 
@@ -98,6 +100,29 @@ export function CacheStatusPanel() {
     void Promise.resolve().then(load);
   }, []);
 
+  // "Tạo lại cache" — rebuilds every derived cache now (same as after an import), e.g. after editing
+  // data directly in the DB, a restore, or a failed automatic rebuild. Formerly its own right-panel box.
+  const [isRebuilding, setIsRebuilding] = useState(false);
+  const rebuild = async () => {
+    if (!confirm('Tạo lại toàn bộ cache ngay bây giờ (bảng dữ liệu Quản trị Epic/Epic in PO, chỉ số TTM-CNTT (QLDA)/(QA)/TTM-E2E toàn ứng dụng, cache TTM Dashboard 2), không cần đợi đợt import mới?')) return;
+    setIsRebuilding(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/admin/data-source/recompute-cache', { method: 'POST' });
+      const body = await res.json();
+      if (!res.ok) {
+        setError(body.error || 'Tạo lại cache thất bại.');
+        return;
+      }
+      showToast(`Đã tạo lại cache (mất ${formatNumber(body.durationMs)} ms — ${formatNumber(body.epicAlertRowCacheCount)} Epic).`, 5000);
+      await load();
+    } catch {
+      setError('Không thể kết nối API.');
+    } finally {
+      setIsRebuilding(false);
+    }
+  };
+
   const daily = overview?.dailyStatus;
   const cacheBatchId = overview?.epicRowCache.sourceImportBatchId ?? null;
   const latestBatchId = overview?.latestImportBatch?.id ?? null;
@@ -107,10 +132,22 @@ export function CacheStatusPanel() {
     <Card>
       <CardHeader>
         <CardTitle>Theo dõi cache dữ liệu</CardTitle>
-        <Button variant="outline" size="sm" isLoading={isLoading} onClick={() => void load()}>
-          <ArrowsClockwise className="mr-1.5 inline size-4" />
-          Làm mới
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" isLoading={isLoading} onClick={() => void load()} title="Đọc lại trạng thái cache">
+            <ArrowsClockwise className="mr-1.5 inline size-4" />
+            Làm mới
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            isLoading={isRebuilding}
+            onClick={() => void rebuild()}
+            title="Tính lại toàn bộ cache ngay — dùng khi vừa sửa dữ liệu trực tiếp trong DB, vừa restore dữ liệu, hoặc lần tạo cache tự động trước đó bị lỗi"
+          >
+            <Database className="mr-1.5 inline size-4" />
+            Tạo lại cache
+          </Button>
+        </div>
       </CardHeader>
       <CardBody className="gap-4">
         <p className="text-fb-text-secondary">
@@ -125,7 +162,7 @@ export function CacheStatusPanel() {
           <TableSkeleton rows={3} />
         ) : overview && daily ? (
           <>
-            <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <div className="rounded-xl border border-fb-border p-3">
                 <dt className="text-[11px] font-bold uppercase text-fb-text-secondary">Trạng thái hôm nay ({formatDay(daily.today)})</dt>
                 <dd className="mt-1.5"><Badge variant={STATE_BADGE[daily.state].variant}>{STATE_BADGE[daily.state].label}</Badge></dd>
@@ -140,6 +177,11 @@ export function CacheStatusPanel() {
                 <dd className="mt-1.5 text-[12px] text-fb-text-secondary">Tạo lúc {formatDateTime(overview.ttmIndexGlobalCache?.computedAt ?? null)}</dd>
                 <dd className="text-[12px] text-fb-text-secondary">Từ đợt import #{overview.ttmIndexGlobalCache?.sourceImportBatchId ?? '—'}</dd>
               </div>
+              <div className="rounded-xl border border-fb-border p-3" title="Số liệu phễu chưa lọc của TTM Dashboard 2 — 1 bộ chung cho Superadmin + Supervisor, 1 bộ cho mỗi Admin và mỗi User">
+                <dt className="text-[11px] font-bold uppercase text-fb-text-secondary">Cache TTM Dashboard 2</dt>
+                <dd className="mt-1.5 font-bold text-fb-text-primary">{formatNumber(overview.ttmDashboard2Cache?.entryCount ?? 0)} phạm vi</dd>
+                <dd className="text-[12px] text-fb-text-secondary">Tạo lúc {formatDateTime(overview.ttmDashboard2Cache?.computedAt ?? null)}</dd>
+              </div>
               <div className="rounded-xl border border-fb-border p-3">
                 <dt className="text-[11px] font-bold uppercase text-fb-text-secondary">Đợt import mới nhất</dt>
                 <dd className="mt-1.5 font-bold text-fb-text-primary">#{latestBatchId ?? '—'}</dd>
@@ -149,12 +191,12 @@ export function CacheStatusPanel() {
 
             {overview.epicRowCache.rowCount === 0 && (
               <Alert variant="warning" title="Cache đang trống">
-                Quản trị Epic và TTM Dashboard đang phải tính lại trực tiếp (chậm). Dùng &quot;Tổng hợp lại ngay&quot; ở panel bên phải để tạo cache.
+                Quản trị Epic và TTM Dashboard đang phải tính lại trực tiếp (chậm). Dùng nút &quot;Tạo lại cache&quot; ở góc trên bên phải để tạo cache.
               </Alert>
             )}
             {isBehindLatestImport && (
               <Alert variant="warning" title="Cache chưa theo kịp đợt import mới nhất">
-                Cache đang được tạo từ đợt import #{cacheBatchId}, trong khi đợt mới nhất là #{latestBatchId}. Có thể lần tạo cache sau import đã lỗi — dùng &quot;Tổng hợp lại ngay&quot;.
+                Cache đang được tạo từ đợt import #{cacheBatchId}, trong khi đợt mới nhất là #{latestBatchId}. Có thể lần tạo cache sau import đã lỗi — dùng nút &quot;Tạo lại cache&quot; ở góc trên bên phải.
               </Alert>
             )}
             {daily.todayRun?.status === 'FAILED' && daily.todayRun.errorMessage && (

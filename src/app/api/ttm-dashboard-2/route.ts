@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser, listManagedUsers } from '@/lib/auth-service';
-import { loadDashboardEpicRows } from '@/lib/ttm-dashboard-summary-service';
+import pool from '@/lib/db';
+import { getTtmDashboard2Snapshot } from '@/lib/ttm-dashboard-2-cache-service';
 import { getTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { resolveViewAsTarget, VIEW_AS_ALLOWED_ROLES, VIEW_AS_ROLE_RANK } from '@/lib/view-as-user-service';
 
@@ -29,9 +30,11 @@ export async function GET(request: NextRequest) {
     const target = await resolveViewAsTarget(actor, request.nextUrl.searchParams.get('viewAsUserId'));
     const actorRank = VIEW_AS_ROLE_RANK[actor.role] ?? 1;
 
-    const [context, ttmIndexGlobal, allUsers] = await Promise.all([
-      // Cancelled Epics included: the funnel's Layer 2 ("Lọc Cancelled") subtracts them itself.
-      loadDashboardEpicRows(target.userId, target.role, { includeCancelled: true }),
+    // Unfiltered funnel numbers + filter options straight from the per-scope cache; the Epic rows
+    // themselves are only fetched (./rows) once the user applies a toolbar filter.
+    const [snapshot, latestBatch, ttmIndexGlobal, allUsers] = await Promise.all([
+      getTtmDashboard2Snapshot(target.userId, target.role),
+      pool.query<{ aggregatedAt: string }>('SELECT aggregated_at::text AS "aggregatedAt" FROM import_batches ORDER BY aggregated_at DESC LIMIT 1;'),
       getTtmIndexGlobalCache().catch((err) => {
         console.error('Failed to get TTM Index Global Cache:', err);
         return null;
@@ -54,9 +57,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       actor: { email: actor.email, fullName: actor.fullName, id: actor.id, role: actor.role },
       isUserPreview: Boolean(target.viewAsUser),
-      lastAggregatedAt: context.lastAggregatedAt,
+      cache: snapshot.cache,
+      filterOptions: snapshot.filterOptions,
+      lastAggregatedAt: latestBatch.rows[0]?.aggregatedAt ?? null,
       managedUsers,
-      rows: context.rows,
+      summary: snapshot.summary,
       ttmIndexGlobal,
       viewAsUser: target.viewAsUser,
     });

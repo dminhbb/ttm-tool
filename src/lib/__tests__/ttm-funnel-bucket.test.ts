@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { matchesAlertFilter, TTM_FUNNEL_BUCKET_BY_FILTER, ttmFunnelBucket } from '../epic-row-verdicts';
 import type { TtmFunnelFilterValue } from '../epic-row-verdicts';
+import { buildTtmDashboard2FilterOptions, filterTtmDashboard2Rows, hasActiveTtmDashboard2Filter, summarizeTtmFunnel, ttmFunnelLayers } from '../ttm-funnel-summary';
+import type { TtmFunnelRow } from '../ttm-funnel-summary';
 
 type Row = Parameters<typeof ttmFunnelBucket>[0];
 
@@ -52,5 +54,45 @@ describe('ttmFunnelBucket (TTM Dashboard 2 funnel)', () => {
         assert.equal(matchesAlertFilter(verdictRow, filter), ttmFunnelBucket(sample) === bucket, `${filter} on ${JSON.stringify(sample)}`);
       }
     }
+  });
+});
+
+describe('TTM Dashboard 2 summary (cache ↔ filtered recompute share these)', () => {
+  const funnelRow = (patch: Partial<TtmFunnelRow>): TtmFunnelRow => ({
+    alertLevel: 'NONE', currentStatus: 'In Progress', domainName: 'D1', hasDataAnomaly: false, ownerName: 'An, Bình',
+    projectKey: 'P1', r4gDate: null, requestingUnit: 'Khối A', scoringIndexFlags: undefined, ttmCnttInScope: true, ...patch,
+  });
+  const rows = [
+    funnelRow({ currentStatus: 'Cancelled' }),
+    funnelRow({ hasDataAnomaly: true, projectKey: 'P2', domainName: 'D2', ownerName: 'Chi' }),
+    funnelRow({ r4gDate: '2026-09-01' }),
+    funnelRow({ r4gDate: '2026-09-01', alertLevel: 'FAIL', requestingUnit: 'Khối B, C' }),
+    funnelRow({ alertLevel: 'FAIL', projectKey: 'P2', domainName: 'D2', ownerName: 'Chi' }),
+    funnelRow({ requestingUnit: null }),
+  ];
+
+  it('layers add up: L3 = L4A + L4B + L4C', () => {
+    const summary = summarizeTtmFunnel(rows);
+    const { l1, l2, l3, l4a, l4b } = ttmFunnelLayers(summary);
+    assert.deepEqual([l1, l2, l3, l4a, l4b], [6, 5, 4, 2, 2]);
+    assert.equal(l3, l4a + l4b + summary.buckets.OUT_OF_SCOPE);
+    assert.deepEqual(summary.cancelledStatuses, ['Cancelled']);
+    assert.deepEqual(summary.scopeStats, { domains: 2, pms: 3, projects: 2, requestingUnits: 2 });
+  });
+
+  it('filters match TTM Dashboard 2 toolbar semantics (PM/SM is any of a comma-joined owner list)', () => {
+    const none = { domain: '', pmSms: [], projects: [], requestingUnits: [] };
+    assert.equal(hasActiveTtmDashboard2Filter(none), false);
+    assert.equal(filterTtmDashboard2Rows(rows, { ...none, pmSms: ['Bình'] }).length, 4);
+    assert.equal(filterTtmDashboard2Rows(rows, { ...none, domain: 'D2' }).length, 2);
+    assert.equal(filterTtmDashboard2Rows(rows, { ...none, requestingUnits: ['Khối B, C'] }).length, 1);
+    assert.equal(filterTtmDashboard2Rows(rows, { ...none, projects: ['P1'], requestingUnits: ['Khối A'] }).length, 2);
+  });
+
+  it('filter options cover the whole scope, domain → its projects', () => {
+    const options = buildTtmDashboard2FilterOptions(rows);
+    assert.deepEqual(options.domainProjectKeys, { D1: ['P1'], D2: ['P2'] });
+    assert.deepEqual(options.pmSms, ['An', 'Bình', 'Chi']);
+    assert.deepEqual(options.requestingUnits, ['Khối A', 'Khối B, C']);
   });
 });

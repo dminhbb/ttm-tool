@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CaretRight,
   ChartPie,
+  CircleNotch,
   ClockCounterClockwise,
   Eye,
   Info,
@@ -16,11 +17,20 @@ import { Modal } from '@/components/ui/Modal';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
 import { EpicAlertsIframeModal } from '@/components/dashboard-new/EpicAlertsIframeModal';
+import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import { SolidLayer, SplitLayer, type Ellipse } from '@/components/ttm-dashboard-2/FunnelLayers';
 import { buildEpicAlertsDeepLink, type EpicAlertsDeepLinkAlert } from '@/lib/epic-alerts-deep-link';
 import { formatTtmPct1 } from '@/lib/ttm-cntt-qa';
-import { ttmFunnelBucket, type TtmFunnelBucket } from '@/lib/epic-row-verdicts';
-import type { DashboardEpicRow } from '@/lib/epic-alert-types';
+import {
+  filterTtmDashboard2Rows,
+  hasActiveTtmDashboard2Filter,
+  summarizeTtmFunnel,
+  ttmFunnelLayers,
+  type TtmDashboard2FilterOptions,
+  type TtmDashboard2Filters,
+  type TtmFunnelRow,
+  type TtmFunnelSummary,
+} from '@/lib/ttm-funnel-summary';
 import type { TtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import '@/app/epic-alerts-15/epic-alerts-15.css';
@@ -37,10 +47,14 @@ interface ManagedUserItem {
 
 interface DashboardPayload {
   actor: { email: string; fullName: string; id: number; role: string };
+  /** Where `summary` came from — see ttm-dashboard-2-cache-service.ts. */
+  cache: { computedAt: string | null; scopeKey: string; status: 'HIT' | 'MISS' | 'LIVE' };
+  filterOptions: TtmDashboard2FilterOptions;
   isUserPreview: boolean;
   lastAggregatedAt: string | null;
   managedUsers: ManagedUserItem[];
-  rows: DashboardEpicRow[];
+  /** Unfiltered funnel numbers of this viewer's scope (from the cache). */
+  summary: TtmFunnelSummary;
   ttmIndexGlobal: TtmIndexGlobalCache | null;
   viewAsUser: { email: string; fullName: string; id: number; role: string } | null;
 }
@@ -120,16 +134,7 @@ interface NodeDetail {
   extra?: React.ReactNode;
 }
 
-const EMPTY_BUCKETS: Record<TtmFunnelBucket, number> = {
-  CANCELLED: 0,
-  DATA_ANOMALY: 0,
-  NO_R4G_OVERDUE: 0,
-  NO_R4G_WITHIN_TARGET: 0,
-  OUT_OF_SCOPE: 0,
-  R4G_LATE: 0,
-  R4G_NOT_SCORED: 0,
-  R4G_PASS: 0,
-};
+const EMPTY_FILTER_OPTIONS: TtmDashboard2FilterOptions = { domainProjectKeys: {}, domains: [], pmSms: [], projects: [], requestingUnits: [] };
 
 export default function TtmDashboard2Page() {
   const [loading, setLoading] = useState(true);
@@ -213,45 +218,16 @@ export default function TtmDashboard2Page() {
     return data ? ['SUPERADMIN', 'ADMIN', 'SUPERVISOR'].includes(data.actor.role) : false;
   }, [data]);
 
-  // Options for Filters
-  const domainOptions = useMemo(() => {
-    if (!data) return [];
-    return [...new Set(data.rows.map((r) => r.domainName).filter((v): v is string => Boolean(v)))].sort();
-  }, [data]);
-
-  const projectOptions = useMemo(() => {
-    if (!data) return [];
-    return [...new Set(data.rows.map((r) => r.projectKey).filter((v): v is string => Boolean(v)))].sort();
-  }, [data]);
-
-  const pmSmOptions = useMemo(() => {
-    if (!data) return [];
-    return [
-      ...new Set(data.rows.flatMap((r) => (r.ownerName || '').split(',').map((name) => name.trim()).filter(Boolean))),
-    ].sort((a, b) => a.localeCompare(b, 'vi'));
-  }, [data]);
-
-  const requestingUnitOptions = useMemo(() => {
-    if (!data) return [];
-    return [...new Set(data.rows.map((r) => r.requestingUnit).filter((unit): unit is string => Boolean(unit)))].sort((a, b) => a.localeCompare(b, 'vi'));
-  }, [data]);
-
-  const domainProjectKeys = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    if (!data) return map;
-    for (const row of data.rows) {
-      if (!row.domainName || !row.projectKey) continue;
-      const set = map.get(row.domainName) ?? new Set<string>();
-      set.add(row.projectKey);
-      map.set(row.domainName, set);
-    }
-    return map;
-  }, [data]);
+  // Filter options come with the cached snapshot (the viewer's whole scope).
+  const filterOptions = data?.filterOptions ?? EMPTY_FILTER_OPTIONS;
+  const domainOptions = filterOptions.domains;
+  const projectOptions = filterOptions.projects;
+  const pmSmOptions = filterOptions.pmSms;
+  const requestingUnitOptions = filterOptions.requestingUnits;
 
   const handleDomainFilterChange = (domain: string) => {
     setFilterDomain(domain);
-    const projects = domain ? Array.from(domainProjectKeys.get(domain) ?? []) : [];
-    setFilterProjects(projects);
+    setFilterProjects(domain ? [...(filterOptions.domainProjectKeys[domain] ?? [])] : []);
   };
 
   const resetAllFilters = () => {
@@ -261,65 +237,49 @@ export default function TtmDashboard2Page() {
     setFilterRequestingUnits([]);
   };
 
-  // Layer 1: every Epic (Cancelled included) within the viewer's permission and the toolbar filters
-  const layer1Rows = useMemo(() => {
-    if (!data) return [];
-    return data.rows.filter((row) => {
-      if (filterProjects.length > 0 && !filterProjects.includes(row.projectKey)) return false;
-      if (filterDomain && row.domainName !== filterDomain) return false;
-      if (
-        filterPmSms.length > 0 &&
-        !row.ownerName
-          .split(',')
-          .map((name) => name.trim())
-          .some((name) => filterPmSms.includes(name))
-      )
-        return false;
-      if (filterRequestingUnits.length > 0 && (!row.requestingUnit || !filterRequestingUnits.includes(row.requestingUnit)))
-        return false;
-      return true;
-    });
-  }, [data, filterProjects, filterDomain, filterPmSms, filterRequestingUnits]);
+  const filters = useMemo<TtmDashboard2Filters>(
+    () => ({ domain: filterDomain, pmSms: filterPmSms, projects: filterProjects, requestingUnits: filterRequestingUnits }),
+    [filterDomain, filterPmSms, filterProjects, filterRequestingUnits],
+  );
+  const isFiltered = hasActiveTtmDashboard2Filter(filters);
 
-  // Every Epic lands in exactly one funnel leaf (ttmFunnelBucket) — the same definition the
-  // Quản trị Epic drill-down filters use, so each number matches the list it opens.
-  const funnel = useMemo(() => {
-    const buckets = { ...EMPTY_BUCKETS };
-    const allStatuses = new Set<string>();
-    const cancelledStatuses = new Set<string>();
-    for (const row of layer1Rows) {
-      const bucket = ttmFunnelBucket(row);
-      buckets[bucket] += 1;
-      if (row.currentStatus) {
-        allStatuses.add(row.currentStatus);
-        if (bucket === 'CANCELLED') cancelledStatuses.add(row.currentStatus);
-      }
-    }
-    const l1 = layer1Rows.length;
-    const l2 = l1 - buckets.CANCELLED;
-    const l3 = l2 - buckets.DATA_ANOMALY;
-    const l4a = buckets.R4G_PASS + buckets.R4G_LATE + buckets.R4G_NOT_SCORED;
-    const l4b = buckets.NO_R4G_OVERDUE + buckets.NO_R4G_WITHIN_TARGET;
-    return {
-      allStatuses: [...allStatuses].sort(),
-      buckets,
-      cancelledStatuses: [...cancelledStatuses].sort(),
-      l1,
-      l2,
-      l3,
-      l4a,
-      l4b,
-    };
-  }, [layer1Rows]);
+  // Epic rows are fetched only once a toolbar filter is applied (once per viewed scope); the
+  // unfiltered numbers are the cached `data.summary`.
+  const rowsKey = String(data?.viewAsUser?.id ?? 'self');
+  const [rowsState, setRowsState] = useState<{ key: string; rows: TtmFunnelRow[] } | null>(null);
+  const [rowsError, setRowsError] = useState<string | null>(null);
+  const [rowsRetry, setRowsRetry] = useState(0);
+  const rowsRequestRef = useRef<string | null>(null);
+  const filterRows = rowsState?.key === rowsKey ? rowsState.rows : null;
 
-  // Scope statistics for Layer 1
-  const layer1ScopeStats = useMemo(() => {
-    const projects = new Set(layer1Rows.map((r) => r.projectKey).filter(Boolean)).size;
-    const domains = new Set(layer1Rows.map((r) => r.domainName).filter(Boolean)).size;
-    const pms = new Set(layer1Rows.flatMap((r) => (r.ownerName || '').split(',').map((s) => s.trim()).filter(Boolean))).size;
-    const requestingUnits = new Set(layer1Rows.map((r) => r.requestingUnit).filter(Boolean)).size;
-    return { domains, pms, projects, requestingUnits };
-  }, [layer1Rows]);
+  useEffect(() => {
+    if (!data || !isFiltered || filterRows || rowsRequestRef.current === rowsKey) return;
+    rowsRequestRef.current = rowsKey;
+    const url = data.viewAsUser ? `/api/ttm-dashboard-2/rows?viewAsUserId=${data.viewAsUser.id}` : '/api/ttm-dashboard-2/rows';
+    void fetch(url, { cache: 'no-store' })
+      .then(async (res) => {
+        const json = (await res.json()) as { error?: string; rows?: TtmFunnelRow[] };
+        if (!res.ok || !json.rows) throw new Error(json.error || 'Không thể tải dữ liệu Epic cho bộ lọc.');
+        if (rowsRequestRef.current !== rowsKey) return;
+        setRowsState({ key: rowsKey, rows: json.rows });
+        setRowsError(null);
+      })
+      .catch((err: unknown) => {
+        if (rowsRequestRef.current === rowsKey) setRowsError(err instanceof Error ? err.message : 'Không thể tải dữ liệu Epic cho bộ lọc.');
+      })
+      .finally(() => {
+        if (rowsRequestRef.current === rowsKey) rowsRequestRef.current = null;
+      });
+  }, [data, isFiltered, filterRows, rowsKey, rowsRetry]);
+
+  // Unfiltered → the cached snapshot. Filtered → recomputed from the rows with the very same
+  // functions the cache was built with (ttm-funnel-summary.ts). While the rows are still loading,
+  // the last numbers stay on screen behind a "đang tính lại" overlay.
+  const filteredSummary = useMemo(
+    () => (isFiltered && filterRows ? summarizeTtmFunnel(filterTtmDashboard2Rows(filterRows, filters)) : null),
+    [isFiltered, filterRows, filters],
+  );
+  const isRecomputing = isFiltered && !filterRows;
 
   /** Quản trị Epic list behind a funnel number: viewer scope (or the previewed user's), this
    * screen's toolbar filters, and the node's own condition. */
@@ -378,7 +338,12 @@ export default function TtmDashboard2Page() {
     );
   }
 
-  const { buckets, l1, l2, l3, l4a, l4b } = funnel;
+  if (!data) return null;
+
+  const funnel: TtmFunnelSummary = (isFiltered ? filteredSummary : null) ?? data.summary;
+  const { buckets } = funnel;
+  const { l1, l2, l3, l4a, l4b } = ttmFunnelLayers(funnel);
+  const layer1ScopeStats = funnel.scopeStats;
   const cancelledCount = buckets.CANCELLED;
   const anomalyCount = buckets.DATA_ANOMALY;
   const outOfScopeCount = buckets.OUT_OF_SCOPE;
@@ -598,6 +563,7 @@ export default function TtmDashboard2Page() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans antialiased p-4 md:p-6 space-y-4">
+      <InfoBannerDisplay pathname="/ttm-dashboard-2" />
 
       {/* PAGE HEADER BANNER (same style as TTM Dashboard) */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-fb-border bg-fb-surface p-4 shadow-sm">
@@ -760,9 +726,19 @@ export default function TtmDashboard2Page() {
           </button>
         )}
 
-        {data?.lastAggregatedAt && (
+        {data.lastAggregatedAt && (
           <div className="ttm-report-date ml-auto text-xs text-fb-text-secondary hidden sm:block">
             Dữ liệu cập nhật: <b>{formatDateTime(data.lastAggregatedAt)}</b>
+            <span
+              className="ml-1.5"
+              title={isFiltered
+                ? 'Đang lọc: số liệu được tính lại từ danh sách Epic theo bộ lọc'
+                : data.cache.status === 'LIVE'
+                  ? 'Số liệu được tính trực tiếp (không dùng cache)'
+                  : `Số liệu chưa lọc lấy từ cache (${data.cache.status === 'HIT' ? 'có sẵn' : 'vừa tạo'}${data.cache.computedAt ? `, tạo lúc ${formatDateTime(data.cache.computedAt)}` : ''})`}
+            >
+              · {isFiltered ? 'Tính lại theo bộ lọc' : data.cache.status === 'LIVE' ? 'Tính trực tiếp' : 'Từ cache'}
+            </span>
           </div>
         )}
       </section>
@@ -783,7 +759,28 @@ export default function TtmDashboard2Page() {
         {/* ============================================================= */}
         {/* PANEL 1: PHỄU LỌC DỮ LIỆU TỔNG QUAN & PHÂN NHÁNH TIẾN ĐỘ       */}
         {/* ============================================================= */}
-        <div className="min-w-0 bg-white border border-slate-200 rounded-2xl p-5 md:p-6 shadow-sm flex flex-col justify-between relative">
+        <div className="min-w-0 bg-white border border-slate-200 rounded-2xl p-5 md:p-6 shadow-sm flex flex-col justify-between relative" aria-busy={isRecomputing}>
+          {(isRecomputing || rowsError) && (
+            <div className="absolute inset-0 z-10 grid place-items-center rounded-2xl bg-white/70 backdrop-blur-[1px]">
+              {rowsError ? (
+                <div className="flex flex-col items-center gap-2 text-xs text-rose-700">
+                  <span>{rowsError}</span>
+                  <button
+                    type="button"
+                    onClick={() => { setRowsError(null); setRowsRetry((count) => count + 1); }}
+                    className="rounded-md border border-rose-300 bg-white px-2.5 py-1 font-semibold hover:bg-rose-50"
+                  >
+                    Thử lại
+                  </button>
+                </div>
+              ) : (
+                <span className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                  <CircleNotch className="size-4 animate-spin text-[#1463f7]" weight="bold" />
+                  Đang tính lại theo bộ lọc…
+                </span>
+              )}
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-100 mb-2 gap-2">
             <div className="flex items-center gap-2">

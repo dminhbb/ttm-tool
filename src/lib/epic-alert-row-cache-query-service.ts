@@ -74,6 +74,16 @@ function buildAccessScopeClause(scope: AccessScope, params: unknown[]): string {
   return `(${clauses.join(' OR ')})`;
 }
 
+/** In-memory twin of buildAccessScopeClause, for code that already holds the rows (the TTM
+ * Dashboard 2 cache builds every scope off one read of the table). Keep the two in sync. */
+export function rowInAccessScope(scope: AccessScope, projectKey: string, components: readonly string[] | null): boolean {
+  if (scope.sourceProjectKeys === null) return true;
+  if (!scope.sourceProjectKeys.includes(projectKey)) return false;
+  const narrowedComponents = scope.projectComponents.get(projectKey);
+  if (!narrowedComponents || narrowedComponents.length === 0) return true;
+  return (components ?? []).some((component) => narrowedComponents.includes(component));
+}
+
 /** Everything from EpicAlertRowCacheFilters except pagination — shared by the page query, its
  * COUNT, and the stat-widget aggregate, all of which must agree on exactly the same row set. */
 function buildFilterClause(scope: AccessScope, filters: EpicAlertRowCacheFilters): WhereClause {

@@ -72,7 +72,8 @@ Phần mềm read-only với Jira, nhưng có thể lưu dữ liệu locally the
 Quy tắc:
 
 - PM-SM xem theo `user_projects`.
-- Lead xem theo `user_domains` hoặc domain mà Lead phụ trách.
+- Lead (ADMIN) xem theo `user_domains` (domain được gán) cộng các dự án Lead trực tiếp làm PM/SM (`user_projects`).
+- Báo cáo Epic áp dụng cùng phạm vi này (chỉ liệt kê/cho tạo báo cáo dự án trong phạm vi; PM-SM bị thu hẹp Component chỉ thấy Epic của Component được gán).
 - CBQL Phòng xem tất cả.
 
 ## 4. Local authentication trong MVP đầu

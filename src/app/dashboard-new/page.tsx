@@ -41,6 +41,7 @@ import type { AlertLevel } from '@/lib/ttm-rules';
 import type { TtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { DonutChartCard, type DonutDataItem } from '@/components/dashboard-new/DonutChartCard';
 import { EpicAlertsIframeModal } from '@/components/dashboard-new/EpicAlertsIframeModal';
+import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import '@/app/epic-alerts-15/epic-alerts-15.css';
 
 function computeDimensionDonuts(
@@ -1245,6 +1246,7 @@ export default function DashboardNewPage() {
 
   return (
     <div className="ttm-app flex flex-col gap-5 p-4 md:p-6 text-app bg-fb-bg min-h-screen">
+      <InfoBannerDisplay pathname="/dashboard-new" />
       {/* Header Banner & Switcher Controls */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-fb-border bg-fb-surface p-4 shadow-xs">
         <div>

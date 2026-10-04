@@ -97,7 +97,7 @@ Không tồn tại bảng `roles`/`user_roles` — role là một cột CHECK tr
 |---|---|---|---|
 | SUPERADMIN | CBQL Phòng | Toàn hệ thống | Toàn quyền |
 | SUPERVISOR | (không có tên nghiệp vụ riêng) | Toàn hệ thống, **read-only** | Xem như SUPERADMIN nhưng không có quyền tạo/sửa/xóa ở bất kỳ màn hình quản trị nào, không truy cập các thao tác xử lý dữ liệu (import/backup/purge). Thêm bởi `20260824_add_supervisor_role.sql`. |
-| ADMIN | Lead | Theo Domain được gán (`user_domains`) | |
+| ADMIN | Lead | Theo Domain được gán (`user_domains`) **và** các Dự án mà chính Admin làm PM/SM (`user_projects`, cả dự án — không thu hẹp theo Component) | Áp dụng cho mọi màn hình dữ liệu Epic (TTM Dashboard, TTM Dashboard 2, Quản trị Epic, Epic in PO, Báo cáo Epic, MCP) qua `resolveAccessScope` (`epic-alert-service.ts`), từ 2026-10-04. |
 | USER | PM-SM | Theo Dự án được gán (`user_projects`, có thể bị thu hẹp theo Component — xem `user_project_components`) | |
 
 Seed mặc định (`db/schema.sql`): `minhnd7@mbbank.com.vn` (SUPERADMIN), `ngothanhha@mbbank.com.vn`

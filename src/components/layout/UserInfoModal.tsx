@@ -122,8 +122,8 @@ export function UserInfoModal({ isOpen, onClose }: UserInfoModalProps) {
           {data.viewableProjects && (
             <section className="flex flex-col gap-2">
               <h3 className="ui-card-title">Dự án có quyền xem thông tin</h3>
-              <p className="text-xs text-fb-text-secondary">Theo domain được gán — dùng cho các trang giám sát Epic.</p>
-              <ProjectList projects={data.viewableProjects} emptyText="Chưa có dự án nào trong domain được gán." />
+              <p className="text-xs text-fb-text-secondary">Các dự án thuộc domain được gán và các dự án bạn trực tiếp làm PM/SM — dùng cho các trang giám sát Epic.</p>
+              <ProjectList projects={data.viewableProjects} emptyText="Chưa có dự án nào trong domain được gán hoặc do bạn làm PM/SM." />
             </section>
           )}
 

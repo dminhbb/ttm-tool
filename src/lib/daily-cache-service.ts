@@ -2,6 +2,7 @@ import pool from '@/lib/db';
 import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
 import { refreshEpicAlertRowCache } from '@/lib/epic-alert-row-cache-service';
 import { refreshTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
+import { getTtmDashboard2CacheOverview, refreshTtmDashboard2Caches } from '@/lib/ttm-dashboard-2-cache-service';
 import { runShadowScoring } from '@/lib/scoring-run-service';
 import { getStoredScoringEngineMode } from '@/lib/scoring-mode-service';
 import { projectRows } from '@/lib/scoring/projection';
@@ -113,6 +114,9 @@ export async function refreshDerivedCaches(batchId: number | null): Promise<numb
   const displayRows = scorecards && (await getStoredScoringEngineMode()) === 'scoring' ? projectRows(rows, scorecards) : rows;
   await refreshTtmIndexGlobalCache(batchId, displayRows);
   await refreshEpicAlertRowCache(batchId, displayRows, scorecards);
+  // TTM Dashboard 2's per-scope funnel cache is derived from the row cache just written. A failure
+  // here must not fail the whole refresh — the screen rebuilds a missing/stale entry on demand.
+  await refreshTtmDashboard2Caches().catch((error: unknown) => console.error('TTM Dashboard 2 cache refresh failed:', error));
   const count = await pool.query<{ n: number }>('SELECT count(*)::int AS n FROM epic_alert_row_cache;');
   return count.rows[0]?.n ?? 0;
 }
@@ -157,12 +161,13 @@ export interface CacheOverview {
   epicRowCache: { computedAt: string | null; rowCount: number; sourceImportBatchId: number | null };
   latestImportBatch: { aggregatedAt: string; fileName: string | null; id: number } | null;
   recentRuns: DailyCacheRun[];
+  ttmDashboard2Cache: { computedAt: string | null; entryCount: number };
   ttmIndexGlobalCache: { computedAt: string; sourceImportBatchId: number | null } | null;
 }
 
 /** Everything "Theo dõi cache" (Quản trị nguồn dữ liệu) shows, in one round of parallel reads. */
 export async function getCacheOverview(): Promise<CacheOverview> {
-  const [dailyStatus, epicCache, globalCache, latestBatch, recentRuns] = await Promise.all([
+  const [dailyStatus, epicCache, globalCache, latestBatch, recentRuns, ttmDashboard2Cache] = await Promise.all([
     getDailyCacheStatus(),
     pool.query<{ computedAt: string | null; rowCount: number; sourceImportBatchId: number | null }>(
       'SELECT count(*)::int AS "rowCount", max(computed_at)::text AS "computedAt", max(source_import_batch_id) AS "sourceImportBatchId" FROM epic_alert_row_cache;',
@@ -178,12 +183,14 @@ export async function getCacheOverview(): Promise<CacheOverview> {
       FROM daily_cache_runs r LEFT JOIN users u ON u.id = r.triggered_by_user_id
       ORDER BY r.run_date DESC LIMIT 10;
     `),
+    getTtmDashboard2CacheOverview(),
   ]);
   return {
     dailyStatus,
     epicRowCache: epicCache.rows[0] ?? { computedAt: null, rowCount: 0, sourceImportBatchId: null },
     latestImportBatch: latestBatch.rows[0] ?? null,
     recentRuns: recentRuns.rows.map(toRun),
+    ttmDashboard2Cache,
     ttmIndexGlobalCache: globalCache.rows[0] ?? null,
   };
 }

@@ -68,3 +68,9 @@ Vì phễu và danh sách dùng cùng một định nghĩa (`ttmFunnelBucket` �
 3. **Accordion 0.7s**: chuyển `grid-template-columns` (màn hình rộng: Panel 1 100% ↔ 50/50) và `grid-template-rows` (màn hình hẹp, xếp dọc); có hiệu ứng cả khi mở và khi đóng. Các class transition dùng `!important` vì `globals.css` ép mọi transition về 0.01ms khi hệ điều hành bật giảm chuyển động (Windows tắt "Animation effects").
 4. **Chia nhóm theo tỷ lệ**: độ rộng mỗi nhóm tỷ lệ với số lượng, nhóm khác 0 tối thiểu 14%; nắp elip cắt theo từng nhóm bằng `<clipPath>`.
 5. **Callout tự động**: nhóm quá hẹp để chứa chữ sẽ đưa số + nhãn ra ngoài bằng đường chỉ dẫn gập khúc (bên phải hoặc trái tùy vị trí nhóm).
+
+## 5. Cache Số Liệu (2026-10-04)
+
+- Bảng `ttm_dashboard_2_cache` lưu số liệu phễu **chưa lọc** + danh sách lựa chọn bộ lọc theo phạm vi dữ liệu: `ALL` (dùng chung SUPERADMIN + SUPERVISOR), `ADMIN:<id>` (dự án thuộc domain được gán + dự án Admin làm PM/SM), `USER:<id>` (dự án User làm PM/SM, có thu hẹp Component). Phạm vi luôn lấy từ `resolveAccessScope`, giống Quản trị Epic.
+- Mở màn hình: API `/api/ttm-dashboard-2` chỉ đọc 1 dòng cache. Khi người dùng chọn bất kỳ bộ lọc nào, trang tải dữ liệu Epic của phạm vi một lần (`/api/ttm-dashboard-2/rows`) rồi tính lại bằng cùng hàm `summarizeTtmFunnel` (`src/lib/ttm-funnel-summary.ts`) đã dùng để dựng cache.
+- Một dòng cache chỉ được dùng khi khớp: thời điểm dựng `epic_alert_row_cache`, engine hiển thị, và dấu vân tay phạm vi (đổi phân quyền user/domain/dự án ⇒ dựng lại). Thiếu/cũ thì tính ngay và lưu lại. `refreshDerivedCaches` làm ấm lại toàn bộ sau mỗi lần dựng cache dữ liệu.

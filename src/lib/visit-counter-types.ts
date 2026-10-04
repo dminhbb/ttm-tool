@@ -1,13 +1,14 @@
-export type ScreenKey = 'dashboard' | 'epic_alerts' | 'epic_reports' | 'epic_in_po';
+export type ScreenKey = 'dashboard' | 'ttm_dashboard_2' | 'epic_alerts' | 'epic_reports' | 'epic_in_po';
 
 export const SCREEN_NAMES: Record<ScreenKey, string> = {
-  dashboard: 'Dashboard',
+  dashboard: 'TTM Dashboard',
+  ttm_dashboard_2: 'TTM Dashboard 2',
   epic_alerts: 'Quản trị Epic',
   epic_reports: 'Báo cáo Epic',
   epic_in_po: 'Epic in PO',
 };
 
-export const TRACKED_SCREEN_KEYS: ScreenKey[] = ['dashboard', 'epic_alerts', 'epic_reports', 'epic_in_po'];
+export const TRACKED_SCREEN_KEYS: ScreenKey[] = ['dashboard', 'ttm_dashboard_2', 'epic_alerts', 'epic_reports', 'epic_in_po'];
 
 export interface RecentLoginUser {
   userId: number;
@@ -84,6 +85,7 @@ export function resolveScreenKeyFromPath(rawPath?: string | null): ScreenKey | n
   const normalized = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
 
   if (normalized === '/dashboard-new' || normalized === '/dashboard') return 'dashboard';
+  if (normalized === '/ttm-dashboard-2') return 'ttm_dashboard_2';
   if (normalized === '/epic-alerts-15' || normalized === '/epic-alerts') return 'epic_alerts';
   if (normalized === '/reports') return 'epic_reports';
   if (normalized === '/epic-in-po') return 'epic_in_po';

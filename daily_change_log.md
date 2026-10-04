@@ -6,6 +6,29 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-10-04
+
+- **Cache cho TTM Dashboard 2**: bảng mới `ttm_dashboard_2_cache` (migration `20261004_create_ttm_dashboard_2_cache.sql`,
+  đã chạy Supabase; local chưa chạy được — máy không có Postgres local). Lưu số liệu phễu chưa lọc + danh sách lựa chọn
+  bộ lọc theo phạm vi: 1 bộ `ALL` dùng chung SUPERADMIN + SUPERVISOR, `ADMIN:<id>` cho từng Admin, `USER:<id>` cho từng User.
+  - Lần mở đầu chỉ đọc cache (~2 KB, ~0.2 s thay vì ~320 KB / ~1.2 s); khi lọc mới tải dữ liệu Epic (`/api/ttm-dashboard-2/rows`)
+    và tính lại trên trình duyệt bằng cùng hàm với lúc dựng cache (`src/lib/ttm-funnel-summary.ts`).
+  - Cache tự làm ấm sau mỗi lần dựng lại cache dữ liệu (`refreshDerivedCaches`), tự bỏ khi cache dữ liệu đổi / đổi engine /
+    phân quyền user–domain–dự án đổi (dấu vân tay phạm vi), và tự dựng lại khi thiếu (`src/lib/ttm-dashboard-2-cache-service.ts`).
+    Đối chiếu 42/42 tài khoản: cache khớp 100% với tính trực tiếp. "Theo dõi cache dữ liệu" có thêm ô "Cache TTM Dashboard 2".
+- **Phạm vi dữ liệu role ADMIN** = dự án thuộc domain được gán **+ dự án Admin trực tiếp làm PM/SM**, áp dụng mọi màn hình
+  qua `resolveAccessScope` (`epic-alert-service.ts`): TTM Dashboard, TTM Dashboard 2, Quản trị Epic, Epic in PO, Dashboard cũ, MCP;
+  hồ sơ user ("Dự án có quyền xem thông tin") cũng theo quy tắc này. Cập nhật BRD 05/08.
+- **Báo cáo Epic áp dụng phạm vi dữ liệu** (trước đây mọi user xem được mọi dự án): danh sách Domain/Dự án/Component chỉ còn trong
+  phạm vi; API từ chối (403) dự án ngoài phạm vi; PM/SM bị thu hẹp theo Component chỉ thấy Epic của Component được gán
+  (`src/lib/report-access-scope.ts`, `api/reports/route.ts`, `reports-service.ts`). Công cụ MCP `list_report_filters` cùng phạm vi.
+- **Thống kê truy cập**: thêm màn hình "TTM Dashboard 2" (`ttm_dashboard_2`, `visit-counter-types.ts`); "Dashboard" đổi tên
+  hiển thị thành "TTM Dashboard"; biểu đồ cột tự co theo số màn hình.
+- **Banner thông báo**: thêm vào TTM Dashboard và TTM Dashboard 2 (Thống kê truy cập, Báo cáo Epic đã có sẵn).
+- **Quản trị nguồn dữ liệu**: "Nhật ký lớp dữ liệu tổng hợp (Epic)" và "Đối chiếu Scoring Service" ẩn/hiện bằng cách bấm tiêu đề
+  (mặc định ẩn; Đối chiếu chỉ tải dữ liệu khi mở) — `src/components/ui/CollapsibleCardTitle.tsx`. Nút "Tạo lại cache" chuyển lên góc
+  phải "Theo dõi cache dữ liệu"; bỏ box "Tổng hợp lại dữ liệu cache" ở right panel (xoá `RecomputeCachePanel.tsx`).
+
 ## 2026-10-03
 
 - **TTM Dashboard 2 — sửa số liệu phễu, accordion, popup Quản trị Epic** (theo review; phương án a):

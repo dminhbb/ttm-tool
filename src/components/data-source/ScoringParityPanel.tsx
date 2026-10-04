@@ -5,7 +5,8 @@ import { ArrowsClockwise, Scales, ToggleRight } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card, CardBody, CardHeader } from '@/components/ui/Card';
+import { CollapsibleCardTitle } from '@/components/ui/CollapsibleCardTitle';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -109,6 +110,9 @@ export function ScoringParityPanel() {
   const [engine, setEngine] = useState<EngineSettings | null>(null);
   const [isSwitching, setIsSwitching] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // Collapsed by default; the comparison is only fetched the first time the section is opened.
+  const [expanded, setExpanded] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   const load = async () => {
     setIsLoading(true);
@@ -164,21 +168,30 @@ export function ScoringParityPanel() {
   };
 
   useEffect(() => {
-    void Promise.resolve().then(load);
-  }, []);
+    if (!expanded || hasLoaded) return;
+    void Promise.resolve().then(() => {
+      setHasLoaded(true);
+      return load();
+    });
+  }, [expanded, hasLoaded]);
 
   const latest = runs[0];
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Đối chiếu Scoring Service</CardTitle>
-        <Button variant="outline" size="sm" isLoading={isLoading} onClick={() => void load()}>
-          <ArrowsClockwise className="mr-1.5 inline size-4" />
-          Làm mới
-        </Button>
+        <CollapsibleCardTitle controlsId="scoring-parity-body" expanded={expanded} onToggle={() => setExpanded((open) => !open)}>
+          Đối chiếu Scoring Service
+        </CollapsibleCardTitle>
+        {expanded && (
+          <Button variant="outline" size="sm" isLoading={isLoading} onClick={() => void load()}>
+            <ArrowsClockwise className="mr-1.5 inline size-4" />
+            Làm mới
+          </Button>
+        )}
       </CardHeader>
-      <CardBody className="gap-4">
+      {expanded && (
+      <CardBody id="scoring-parity-body" className="gap-4">
         <p className="text-fb-text-secondary">
           Scoring Service đang chạy song song với logic cảnh báo hiện tại: mỗi lần tạo cache, mọi Epic được chấm điểm lại và so sánh với logic cũ.
           Chênh lệch do các quyết định đã chốt (D1, D3, D4, D5, R2/R7) hoặc do lỗi đã biết của logic cũ được xếp là <strong>có chủ đích</strong>; chênh lệch còn lại là <strong>chưa giải thích được</strong> và cần xem trước khi chuyển màn hình sang Scoring Service.
@@ -299,6 +312,7 @@ export function ScoringParityPanel() {
           </>
         )}
       </CardBody>
+      )}
     </Card>
   );
 }

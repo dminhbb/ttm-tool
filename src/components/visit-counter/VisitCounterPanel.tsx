@@ -291,7 +291,7 @@ export function VisitCounterPanel({ hideTitle = false }: VisitCounterPanelProps 
               <div>
                 <h4 className="text-sm font-bold text-fb-text-primary flex items-center gap-2">
                   <Desktop className="size-4 text-fb-blue" weight="bold" />
-                  Lượt truy cập theo 4 màn hình chức năng
+                  Lượt truy cập theo {stats.screenStats.length} màn hình chức năng
                 </h4>
                 <p className="text-xs text-fb-text-secondary">
                   So sánh lượt truy cập màn hình giữa tuần này (T-7 → T) và tuần trước đó (T-15 → T-8)
@@ -781,7 +781,7 @@ function ScreenDualBarChart({ screenStats }: { screenStats: ScreenVisitStat[] })
 
   return (
     <div className="pt-2 pb-1">
-      <div className="grid grid-cols-4 gap-2 sm:gap-4">
+      <div className="grid gap-2 sm:gap-4" style={{ gridTemplateColumns: `repeat(${Math.max(screenStats.length, 1)}, minmax(0, 1fr))` }}>
         {screenStats.map((screen) => {
           const prevPct = Math.min(100, Math.round((screen.prevWeeklyVisits / maxBarValue) * 100));
           const currentPct = Math.min(100, Math.round((screen.weeklyVisits / maxBarValue) * 100));
