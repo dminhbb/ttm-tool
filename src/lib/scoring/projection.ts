@@ -18,6 +18,8 @@ const ANOMALY_BADGE_TO_LEGACY: Partial<Record<BadgeId, { code: EpicAnomalyViolat
   ANOMALY_R4_MISSING_REQUEST_TYPE: { code: 'MISSING_REQUEST_TYPE', ruleIndex: 4 },
   ANOMALY_R5_MISSING_REQUIREMENT_LEVEL: { code: 'MISSING_REQUIREMENT_LEVEL', ruleIndex: 5 },
   ANOMALY_R6_SP_LEVEL_MISMATCH: { code: 'SP_LEVEL_MISMATCH', ruleIndex: 6 },
+  ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE: { code: 'R4G_DATE_BEFORE_R4GOLIVE', ruleIndex: 8 },
+  ANOMALY_R9_MISSING_R4G_DATE: { code: 'MISSING_R4G_DATE', ruleIndex: 9 },
 };
 
 const LEGACY_PHASE_KEY: Record<TtmPhaseKey, 'design' | 'dev' | 'test' | 'pentest' | 'r4golive'> = {

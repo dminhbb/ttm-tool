@@ -8,6 +8,16 @@
 
 ## 2026-10-04
 
+- **Scoring Engine — Chất lượng dữ liệu** (`SCORING_CODE_VERSION` → `scoring-5`, spec §16; logic cũ không đổi):
+  - Rule mới **R8** `ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE` (có R4G Date nhưng status < R4GOLIVE) và **R9**
+    `ANOMALY_R9_MISSING_R4G_DATE` (status ≥ R4GOLIVE, không Pending, thiếu R4G Date) — đều là "Sai lệch dữ liệu", kèm khuyến nghị
+    `REC_FIX_R4G_STATUS` / `REC_FILL_R4G_DATE` (`src/lib/scoring/rules/data-quality.ts`, `catalog.ts`, `rules/recommendations.ts`).
+  - **R1** "Thiếu Start Date" tính từ status DESIGN (trước đây từ DEV); **R5** "Thiếu Requirement Level" chỉ tính khi status > DESIGN.
+  - Hệ quả của R8: Epic có R4G Date đúng hạn nhưng status < R4GOLIVE không còn "Đạt + Sai Status" mà thành Sai lệch dữ liệu
+    (ra khỏi mẫu số TTM-CNTT); badge "Sai Status" TTM-CNTT/E2E chỉ còn hiện khi tắt R8.
+  - `projection.ts` chiếu R8/R9 thành vi phạm mã `R4G_DATE_BEFORE_R4GOLIVE` (8) / `MISSING_R4G_DATE` (9) — chỉ thêm vào kiểu
+    `EpicAnomalyCode` (`epic-data-anomaly.ts`), logic cũ không sinh ra nên không cần migration. Bộ lọc "Sai lệch dữ liệu" gồm cả R8/R9.
+  - Đối chiếu: nhãn mới `D10_DATA_QUALITY_RULES` (`parity.ts`, `ScoringParityPanel.tsx`). Cần "Tạo lại cache" để số liệu áp dụng rule mới.
 - **Cache cho TTM Dashboard 2**: bảng mới `ttm_dashboard_2_cache` (migration `20261004_create_ttm_dashboard_2_cache.sql`,
   đã chạy Supabase; local chưa chạy được — máy không có Postgres local). Lưu số liệu phễu chưa lọc + danh sách lựa chọn
   bộ lọc theo phạm vi: 1 bộ `ALL` dùng chung SUPERADMIN + SUPERVISOR, `ADMIN:<id>` cho từng Admin, `USER:<id>` cho từng User.

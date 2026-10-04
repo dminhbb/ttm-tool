@@ -1,5 +1,5 @@
 import { addWorkingDays } from './dates';
-import { normalizeWorkflowStatus } from './derive';
+import { normalizeWorkflowStatus, STATUS_INDEX } from './derive';
 import { hasDataAnomalyBadge } from './score-epic';
 import type { BadgeId } from './catalog';
 import type { EpicScorecard, Finding, ScoringContext, TtmPhaseKey } from './types';
@@ -44,6 +44,7 @@ export type ParityTag =
   | 'D7_WAITING_GOLIVE_REDEFINED'
   | 'D8_ANOMALY_CHECKED_FIRST'
   | 'D9_E2E_RULE_REDEFINED'
+  | 'D10_DATA_QUALITY_RULES'
   | 'R2_R7_NOT_ANOMALY'
   | 'LEGACY_TIME_OF_DAY'
   | 'CANCELLED_NOT_APPLICABLE'
@@ -73,6 +74,9 @@ const ANOMALY_CODE_TO_BADGE: Record<string, BadgeId> = {
   SP_LEVEL_MISMATCH: 'ANOMALY_R6_SP_LEVEL_MISMATCH',
   RELEASE_STATUS_MISMATCH: 'RELEASE_STATUS_MISMATCH',
 };
+
+/** Data-quality rules the legacy engine doesn't have (added 2026-10-04). */
+const SCORING_ONLY_ANOMALY_BADGES: readonly BadgeId[] = ['ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE', 'ANOMALY_R9_MISSING_R4G_DATE'];
 
 const PHASES: [keyof LegacyRowSnapshot['stages'], TtmPhaseKey][] = [['design', 'DESIGN'], ['dev', 'DEV'], ['test', 'TEST'], ['pentest', 'PENTEST'], ['r4golive', 'R4GOLIVE']];
 
@@ -152,14 +156,26 @@ export function compareWithLegacy(card: EpicScorecard, legacy: LegacyRowSnapshot
   }
 
   // ---- Data quality rules (R1–R7, same badge presence) ----
+  // D10 (2026-10-04): data-quality rules changed in the service only — R1 now starts at DESIGN (legacy:
+  // DEV), R5 no longer applies while the Epic is still at DESIGN, and R8/R9 (R4G Date vs status) are new.
   const legacyRuleBadges = new Set(legacy.dataAnomalyViolations.map((item) => ANOMALY_CODE_TO_BADGE[item.code]).filter(Boolean));
+  let d10 = false;
   for (const badge of Object.values(ANOMALY_CODE_TO_BADGE)) {
-    if (legacyRuleBadges.has(badge) !== active.has(badge)) push(`Rule ${badge}`, legacyRuleBadges.has(badge), active.has(badge), 'UNEXPLAINED');
+    if (legacyRuleBadges.has(badge) === active.has(badge)) continue;
+    const explained = (badge === 'ANOMALY_R1_MISSING_START_DATE' && active.has(badge) && d.statusIndex === STATUS_INDEX.DESIGN)
+      || (badge === 'ANOMALY_R5_MISSING_REQUIREMENT_LEVEL' && !active.has(badge) && d.statusIndex <= STATUS_INDEX.DESIGN);
+    d10 ||= explained;
+    push(`Rule ${badge}`, legacyRuleBadges.has(badge), active.has(badge), explained ? 'D10_DATA_QUALITY_RULES' : 'UNEXPLAINED');
+  }
+  for (const badge of SCORING_ONLY_ANOMALY_BADGES) {
+    if (!active.has(badge)) continue;
+    d10 = true;
+    push(`Rule ${badge}`, false, true, 'D10_DATA_QUALITY_RULES');
   }
   const scoringAnomaly = hasDataAnomalyBadge(active);
   if (legacy.hasDataAnomaly !== scoringAnomaly) {
     const onlyR2R7 = legacy.hasDataAnomaly && !scoringAnomaly && [...legacyRuleBadges].every((badge) => badge === 'ANOMALY_R2_PENDING_TOO_LONG' || badge === 'RELEASE_STATUS_MISMATCH');
-    push('Sai lệch dữ liệu', legacy.hasDataAnomaly, scoringAnomaly, onlyR2R7 ? 'R2_R7_NOT_ANOMALY' : 'UNEXPLAINED');
+    push('Sai lệch dữ liệu', legacy.hasDataAnomaly, scoringAnomaly, onlyR2R7 ? 'R2_R7_NOT_ANOMALY' : d10 ? 'D10_DATA_QUALITY_RULES' : 'UNEXPLAINED');
   }
 
   // ---- Scope ----

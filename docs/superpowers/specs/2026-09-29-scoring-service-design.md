@@ -313,12 +313,14 @@ bật/tắt được. Status Cancelled / To Do / In PO / Backlog được miễn
 
 | Badge | Group | Điều kiện |
 |---|---|---|
-| `ANOMALY_R1_MISSING_START_DATE` (Thiếu Start Date) | ALERT | status ≥ DEV, không Pending, thiếu T1 |
+| `ANOMALY_R1_MISSING_START_DATE` (Thiếu Start Date) | ALERT | status ≥ DESIGN (từ 2026-10-04; trước đó ≥ DEV), không Pending, thiếu T1 |
 | `ANOMALY_R2_PENDING_TOO_LONG` (**Pending lâu**) | **RECOMMENDATION** | Pending ≥ `pendingStaleRatio` × ngân sách TTM-CNTT (tính tới asOf) |
 | `ANOMALY_R3_DATE_OUT_OF_SEQUENCE` (Sai thứ tự ngày) | ALERT | Vi phạm T0 ≤ T1 < R4G ≤ Due (gộp 1 finding) |
 | `ANOMALY_R4_MISSING_REQUEST_TYPE` (Thiếu Phân loại yêu cầu) | ALERT | Thiếu Phân loại yêu cầu |
-| `ANOMALY_R5_MISSING_REQUIREMENT_LEVEL` (Thiếu Requirement Level) | ALERT | Thiếu Requirement Level |
+| `ANOMALY_R5_MISSING_REQUIREMENT_LEVEL` (Thiếu Requirement Level) | ALERT | Thiếu Requirement Level VÀ status > DESIGN (từ 2026-10-04) |
 | `ANOMALY_R6_SP_LEVEL_MISMATCH` (SP nhưng Level thấp) | ALERT | Độ phức tạp SP nhưng Requirement Level 1–2 |
+| `ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE` (Có R4G Date nhưng chưa R4GOLIVE) | ALERT | Có R4G Date VÀ status < R4GOLIVE (mới 2026-10-04, §16) |
+| `ANOMALY_R9_MISSING_R4G_DATE` (Thiếu R4G Date) | ALERT | status ≥ R4GOLIVE, không Pending, thiếu R4G Date (mới 2026-10-04, §16) |
 
 R7 đã chuyển sang axis RELEASE thành badge `RELEASE_STATUS_MISMATCH` "Sai Status" (group RECOMMENDATION, Q2).
 R2 "Pending lâu" thuộc group RECOMMENDATION (quyết định 2026-09-29) — không còn là "Sai lệch dữ liệu".
@@ -361,6 +363,8 @@ sau được sinh bởi derived rule (đọc finding đã resolve). Mỗi badge 
 | `REC_FILL_REQUIREMENT_LEVEL` | DATA_QUALITY | R5 | Bổ sung Requirement Level |
 | `REC_FIX_DATE_ORDER` | DATA_QUALITY | R3 hoặc `*_CALC_BROKEN` do sai thứ tự | Kiểm tra lại thứ tự ngày |
 | `REC_REVIEW_SP_LEVEL` | DATA_QUALITY | R6 | Rà soát loại yêu cầu / Requirement Level |
+| `REC_FIX_R4G_STATUS` | DATA_QUALITY | R8 | Chuyển status sang R4GOLIVE hoặc kiểm tra lại R4G Date |
+| `REC_FILL_R4G_DATE` | DATA_QUALITY | R9 | Bổ sung R4G Date |
 | `REC_PREPARE_GOLIVE_JUSTIFICATION` | RELEASE | `RELEASE_JUSTIFY_GOLIVE` | Chuẩn bị giải trình Golive |
 | `REC_ACCELERATE_PHASE` | PHASE | `PHASE_LATE` (pha hiện tại) | Đẩy nhanh pha đang trễ |
 
@@ -715,3 +719,32 @@ Quyết định của chủ sở hữu (thay cho D1 và phần TTM-E2E ở §6.2
 **Đối chiếu (01/10, 1.181 Epic):** 922 khớp, 259 chỉ lệch có chủ đích, 0 chưa giải thích. Nhãn mới:
 `D8_ANOMALY_CHECKED_FIRST` (289), `D9_E2E_RULE_REDEFINED` (39). So với logic cũ trên cùng dữ liệu: Fail TTM-CNTT
 90 → 55, Cảnh báo muộn 10 → 2, Fail TTM-E2E 334 → 237, TTM-CNTT (QLDA) 92,3% → 90,0%, TTM-CNTT (QA) 92,5% → 91,8%.
+
+## 16. Thay đổi rule — Chất lượng dữ liệu: R8, R9, sửa R1 và R5 (2026-10-04)
+
+Quyết định của chủ sở hữu (`SCORING_CODE_VERSION` → `scoring-5`; chỉ áp dụng cho Scoring Service, logic cũ giữ nguyên):
+
+1. **R8 mới — `ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE`** (ALERT): có R4G Date nhưng status < R4GOLIVE.
+2. **R9 mới — `ANOMALY_R9_MISSING_R4G_DATE`** (ALERT): status ≥ R4GOLIVE (R4GOLIVE / MVP Done / Released; Pending
+   không tính) nhưng chưa có R4G Date.
+3. **R1 sửa:** thiếu Start Date tính từ status DESIGN (Design / In Progress / R4GOLIVE / MVP Done / Released), trước đây từ DEV.
+4. **R5 sửa:** thiếu Requirement Level chỉ tính khi status > DESIGN.
+
+Miễn trừ chung của axis (Cancelled / To Do / In PO / Backlog — tham số `anomaly.exemptStatuses`) vẫn áp dụng cho R8/R9.
+Mỗi rule mới có khuyến nghị riêng (`REC_FIX_R4G_STATUS`, `REC_FILL_R4G_DATE`) và bật/tắt được trong `scoring_rule_settings`.
+
+**Hệ quả:**
+
+- R8 là Sai lệch dữ liệu nên theo §15.1 Epic "có R4G Date đúng hạn nhưng status < R4GOLIVE" **không còn được chấm
+  Đạt kèm "Sai Status"** (§15.2) — chỉ hiện Sai lệch dữ liệu và ra khỏi mẫu số TTM-CNTT cho tới khi sửa status.
+  `CNTT_STATUS_MISMATCH` / `E2E_STATUS_MISMATCH` chỉ còn xuất hiện khi R8 bị tắt.
+- R9: Epic status ≥ R4GOLIVE thiếu R4G Date trước đây bị chấm "Fail TTM-CNTT (Thiếu R4G)" khi quá Target; nay là Sai
+  lệch dữ liệu, không chấm Fail. "Chờ golive" (trục Release) không phụ thuộc Sai lệch dữ liệu nên vẫn hiện.
+- R5: Epic đang DESIGN thiếu Requirement Level không còn là Sai lệch dữ liệu → được chấm TTM bình thường.
+
+**Chiếu sang dòng legacy** (`projection.ts`): R8/R9 thành `dataAnomalyViolations` với mã `R4G_DATE_BEFORE_R4GOLIVE` (8) và
+`MISSING_R4G_DATE` (9) — hai mã này chỉ bổ sung vào kiểu `EpicAnomalyCode`; `evaluateEpicDataAnomaly` không sinh ra, nên
+bảng `epic_data_anomaly_violations` (chỉ ghi kết quả logic cũ) không đổi, không cần migration.
+
+**Đối chiếu:** nhãn mới `D10_DATA_QUALITY_RULES` cho các lệch có chủ đích ở trên (rule R1 tại DESIGN, R5 tại DESIGN, R8, R9
+và cờ "Sai lệch dữ liệu" kéo theo); các lệch Đạt/Fail kéo theo vẫn mang nhãn `D8_ANOMALY_CHECKED_FIRST`.

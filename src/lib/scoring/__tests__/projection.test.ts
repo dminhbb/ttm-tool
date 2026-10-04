@@ -62,8 +62,18 @@ describe('projection onto legacy rows (display engine "scoring")', () => {
     assert.equal(isTtmCnttAchieved(row), false);
   });
 
-  it('Sai Status: filters STATUS_MISMATCH and ACHIEVED_CNTT both match, Index counts it as passed', () => {
-    const card = scoreEpic(makeFacts({ r4gDate: '2026-08-20', status: 'TEST' }), makeContext());
+  it('R8/R9 (2026-10-04) project as legacy violations and match the DATA_ANOMALY filter', () => {
+    const r8 = projectScorecardOntoRow(legacyRow({ r4gDate: '2026-08-20' }), scoreEpic(makeFacts({ r4gDate: '2026-08-20', status: 'TEST' }), makeContext()));
+    assert.deepEqual(r8.dataAnomalyViolations.map((item) => [item.code, item.ruleIndex]), [['R4G_DATE_BEFORE_R4GOLIVE', 8]]);
+    assert.ok(r8.hasDataAnomaly && !r8.ttmCnttStatusMismatch && !isTtmCnttAchieved(r8));
+    assert.ok(matchesAlertFilter(r8, 'DATA_ANOMALY') && !matchesAlertFilter(r8, 'STATUS_MISMATCH'));
+    const r9 = projectScorecardOntoRow(legacyRow(), scoreEpic(makeFacts({ status: 'Released' }), makeContext()));
+    assert.deepEqual(r9.dataAnomalyViolations.map((item) => [item.code, item.ruleIndex]), [['MISSING_R4G_DATE', 9]]);
+    assert.ok(matchesAlertFilter(r9, 'DATA_ANOMALY'));
+  });
+
+  it('Sai Status (R8 switched off): filters STATUS_MISMATCH and ACHIEVED_CNTT both match, Index counts it as passed', () => {
+    const card = scoreEpic(makeFacts({ r4gDate: '2026-08-20', status: 'TEST' }), makeContext({ ruleEnabled: { ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE: false } }));
     const row = projectScorecardOntoRow(legacyRow({ r4gDate: '2026-08-20' }), card);
     assert.ok(matchesAlertFilter(row, 'STATUS_MISMATCH'));
     assert.ok(matchesAlertFilter(row, 'ACHIEVED_CNTT'));

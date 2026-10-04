@@ -67,7 +67,7 @@ export const BADGES = [
   },
   {
     id: 'CNTT_STATUS_MISMATCH', axis: 'TTM_CNTT', group: 'RECOMMENDATION', label: 'Sai Status', precedence: 20, defaultEnabled: true,
-    meaning: 'R4G Date đã tới và đúng hạn nhưng status Epic chưa lên R4GOLIVE — cần chuyển status sang R4GOLIVE. Epic vẫn được tính "Đạt TTM-CNTT (QLDA)"; badge này hiện kèm bên cạnh.',
+    meaning: 'R4G Date đã tới và đúng hạn nhưng status Epic chưa lên R4GOLIVE — cần chuyển status sang R4GOLIVE. Epic vẫn được tính "Đạt TTM-CNTT (QLDA)"; badge này hiện kèm bên cạnh. Từ 04/10/2026 trường hợp này là Sai lệch dữ liệu (R8) nên badge chỉ còn hiện khi rule R8 bị tắt.',
     formula: 'Không Sai lệch dữ liệu  VÀ  R4G ≤ asOf  VÀ  R4G ≤ Target_CNTT  VÀ  status < R4GOLIVE',
     legacySource: 'resolveTtmCnttStatusMismatch',
   },
@@ -117,7 +117,7 @@ export const BADGES = [
   },
   {
     id: 'E2E_STATUS_MISMATCH', axis: 'TTM_E2E', group: 'RECOMMENDATION', label: 'Sai Status', precedence: 65, defaultEnabled: true,
-    meaning: 'TTM-E2E đã Đạt theo ngày ghi nhận nhưng status Epic chưa lên R4GOLIVE — cần chuyển status. Hiện kèm "Đạt TTM-E2E".',
+    meaning: 'TTM-E2E đã Đạt theo ngày ghi nhận nhưng status Epic chưa lên R4GOLIVE — cần chuyển status. Hiện kèm "Đạt TTM-E2E". Từ 04/10/2026 trường hợp có R4G Date là Sai lệch dữ liệu (R8) nên badge chỉ còn hiện khi rule R8 bị tắt hoặc ngày kết thúc lấy theo Due Date.',
     formula: 'Có "Đạt TTM-E2E"  VÀ  status < R4GOLIVE',
   },
   {
@@ -165,8 +165,8 @@ export const BADGES = [
   // ---------- DATA_QUALITY ----------
   {
     id: 'ANOMALY_R1_MISSING_START_DATE', axis: 'DATA_QUALITY', group: 'ALERT', label: 'Thiếu Start Date', precedence: 10, defaultEnabled: true,
-    meaning: 'R1 — Epic đã tới DEV nhưng chưa có Start Date.',
-    formula: 'status ≥ DEV  VÀ  không Pending  VÀ  T1 trống',
+    meaning: 'R1 — Epic đã từ DESIGN trở đi (Design / In Progress / R4GOLIVE / MVP Done / Released) nhưng chưa có Start Date. Từ 04/10/2026 tính cả status DESIGN (trước đây từ DEV).',
+    formula: 'status ≥ DESIGN  VÀ  không Pending  VÀ  T1 trống',
     legacySource: 'evaluateEpicDataAnomaly R1',
   },
   {
@@ -183,8 +183,8 @@ export const BADGES = [
   },
   {
     id: 'ANOMALY_R5_MISSING_REQUIREMENT_LEVEL', axis: 'DATA_QUALITY', group: 'ALERT', label: 'Thiếu Requirement Level', precedence: 50, defaultEnabled: true,
-    meaning: 'R5 — Chưa có Requirement Level.',
-    formula: 'Requirement Level trống hoặc "none"',
+    meaning: 'R5 — Epic đã qua DESIGN nhưng chưa có Requirement Level. Từ 04/10/2026 không xét Epic đang ở status DESIGN.',
+    formula: 'Requirement Level trống hoặc "none"  VÀ  status > DESIGN',
     legacySource: 'evaluateEpicDataAnomaly R5',
   },
   {
@@ -192,6 +192,16 @@ export const BADGES = [
     meaning: 'R6 — Loại Epic SP nhưng Requirement Level 1–2.',
     formula: 'Loại Epic ∈ {SP-Lv12, SP-Lv34}  VÀ  Requirement Level ∈ {1, 2}',
     legacySource: 'evaluateEpicDataAnomaly R6',
+  },
+  {
+    id: 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE', axis: 'DATA_QUALITY', group: 'ALERT', label: 'Có R4G Date nhưng chưa R4GOLIVE', precedence: 62, defaultEnabled: true,
+    meaning: 'R8 — Epic đã ghi R4G Date nhưng status chưa lên R4GOLIVE. Mới từ 04/10/2026; vì là Sai lệch dữ liệu nên Epic không được chấm Đạt / Fail / "Sai Status" trên các trục TTM cho tới khi sửa.',
+    formula: 'Có R4G Date  VÀ  status < R4GOLIVE',
+  },
+  {
+    id: 'ANOMALY_R9_MISSING_R4G_DATE', axis: 'DATA_QUALITY', group: 'ALERT', label: 'Thiếu R4G Date', precedence: 63, defaultEnabled: true,
+    meaning: 'R9 — Epic đã ở status R4GOLIVE trở lên (R4GOLIVE / MVP Done / Released) nhưng chưa có R4G Date. Mới từ 04/10/2026.',
+    formula: 'status ≥ R4GOLIVE  VÀ  không Pending  VÀ  R4G Date trống',
   },
   {
     id: 'ANOMALY_R2_PENDING_TOO_LONG', axis: 'DATA_QUALITY', group: 'RECOMMENDATION', label: 'Pending lâu', precedence: 65, defaultEnabled: true,
@@ -223,6 +233,16 @@ export const BADGES = [
     id: 'REC_REVIEW_SP_LEVEL', axis: 'DATA_QUALITY', group: 'RECOMMENDATION', label: 'Rà soát loại yêu cầu', precedence: 74, defaultEnabled: true,
     meaning: 'Rà soát lại Phân loại yêu cầu / Requirement Level.',
     formula: 'Có "SP nhưng Level thấp"',
+  },
+  {
+    id: 'REC_FIX_R4G_STATUS', axis: 'DATA_QUALITY', group: 'RECOMMENDATION', label: 'Cập nhật status / R4G Date', precedence: 75, defaultEnabled: true,
+    meaning: 'Chuyển status Epic sang R4GOLIVE, hoặc kiểm tra lại R4G Date nếu ghi nhầm.',
+    formula: 'Có "Có R4G Date nhưng chưa R4GOLIVE"',
+  },
+  {
+    id: 'REC_FILL_R4G_DATE', axis: 'DATA_QUALITY', group: 'RECOMMENDATION', label: 'Bổ sung R4G Date', precedence: 76, defaultEnabled: true,
+    meaning: 'Bổ sung R4G Date trên Jira.',
+    formula: 'Có "Thiếu R4G Date"',
   },
 
   // ---------- SCOPE ----------

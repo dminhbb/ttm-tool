@@ -17,6 +17,8 @@ export const recommendationsRule: DerivedRule = ({ facts, derived }, active, fin
   if (active.has('ANOMALY_R4_MISSING_REQUEST_TYPE')) out.push(finding('REC_FILL_REQUEST_TYPE', 'Bổ sung Phân loại yêu cầu trên Jira.', {}, { relatedTo: ['ANOMALY_R4_MISSING_REQUEST_TYPE'] }));
   if (active.has('ANOMALY_R5_MISSING_REQUIREMENT_LEVEL')) out.push(finding('REC_FILL_REQUIREMENT_LEVEL', 'Bổ sung Requirement Level trên Jira.', {}, { relatedTo: ['ANOMALY_R5_MISSING_REQUIREMENT_LEVEL'] }));
   if (active.has('ANOMALY_R6_SP_LEVEL_MISMATCH')) out.push(finding('REC_REVIEW_SP_LEVEL', 'Rà soát lại Phân loại yêu cầu / Requirement Level.', {}, { relatedTo: ['ANOMALY_R6_SP_LEVEL_MISMATCH'] }));
+  if (active.has('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE')) out.push(finding('REC_FIX_R4G_STATUS', 'Chuyển status Epic sang R4GOLIVE, hoặc kiểm tra lại R4G Date trên Jira.', {}, { relatedTo: ['ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'] }));
+  if (active.has('ANOMALY_R9_MISSING_R4G_DATE')) out.push(finding('REC_FILL_R4G_DATE', 'Bổ sung R4G Date trên Jira.', {}, { relatedTo: ['ANOMALY_R9_MISSING_R4G_DATE'] }));
   if (active.has('E2E_BASELINE_FROM_JIRA_CREATED') && !derived.isCancelled) {
     out.push(finding('REC_FILL_IDEA_APPROVED_DATE', 'Bổ sung Idea Approved Date (T0) để TTM-E2E tính đúng mốc gốc.', {}, { relatedTo: ['E2E_BASELINE_FROM_JIRA_CREATED'] }));
   }

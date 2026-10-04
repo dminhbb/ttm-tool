@@ -84,14 +84,22 @@ describe('TTM-CNTT', () => {
     assert.ok(active({ ...facts, r4gDate: '2026-08-24' }, ctx).has('CNTT_FAIL'));
   });
 
-  it('Sai Status (2026-10-01): R4G reached on time but status < R4GOLIVE → still Đạt, plus the Sai Status recommendation', () => {
-    const card = scoreEpic(makeFacts({ r4gDate: '2026-08-20', status: 'TEST' }), ctx);
+  it('Sai Status (2026-10-01): with R8 switched off, R4G reached on time but status < R4GOLIVE → still Đạt, plus the Sai Status recommendation', () => {
+    const r8Off = { ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE: false };
+    const card = scoreEpic(makeFacts({ r4gDate: '2026-08-20', status: 'TEST' }), makeContext({ ruleEnabled: r8Off }));
     assert.ok(hasBadge(card, 'CNTT_STATUS_MISMATCH'));
     assert.ok(hasBadge(card, 'CNTT_PASS'));
     assert.deepEqual(card.indexMembership.ttm, { counted: true, eligible: true, pass: true, fail: false });
     // A future-dated R4G Date gets neither badge until asOf reaches it.
-    const future = active(makeFacts({ r4gDate: '2026-08-20', status: 'TEST' }), makeContext({ asOf: '2026-08-10' }));
+    const future = active(makeFacts({ r4gDate: '2026-08-20', status: 'TEST' }), makeContext({ asOf: '2026-08-10', ruleEnabled: r8Off }));
     assert.ok(!future.has('CNTT_PASS') && !future.has('CNTT_STATUS_MISMATCH'));
+  });
+
+  it('R8 (2026-10-04): the same Epic is "Sai lệch dữ liệu" by default — no Đạt / Sai Status, out of the denominator', () => {
+    const card = scoreEpic(makeFacts({ r4gDate: '2026-08-20', status: 'TEST' }), ctx);
+    assert.ok(hasBadge(card, 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'));
+    assert.ok(!card.findings.some((item) => ['CNTT_PASS', 'CNTT_STATUS_MISMATCH', 'E2E_PASS', 'E2E_STATUS_MISMATCH'].includes(item.badge)));
+    assert.deepEqual(card.indexMembership.ttm, { counted: true, eligible: false, pass: false, fail: false });
   });
 
   it('Sai lệch dữ liệu is checked first: no Đạt/Fail/Cảnh báo muộn/Sai Status on any TTM axis', () => {
@@ -151,14 +159,15 @@ describe('TTM-E2E', () => {
     const late = makeContext({ asOf: '2026-12-01' });
     const atR4g = active(makeFacts({ r4gDate: target, status: 'R4GOLIVE' }), late);
     assert.ok(atR4g.has('E2E_PASS') && !atR4g.has('E2E_STATUS_MISMATCH'));
-    const lowStatus = active(makeFacts({ r4gDate: target, status: 'TEST' }), late);
+    // Status < R4GOLIVE with an R4G Date is a data anomaly (R8) since 2026-10-04 — "Sai Status" only shows with R8 off.
+    const lowStatus = active(makeFacts({ r4gDate: target, status: 'TEST' }), makeContext({ asOf: '2026-12-01', ruleEnabled: { ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE: false } }));
     assert.ok(lowStatus.has('E2E_PASS') && lowStatus.has('E2E_STATUS_MISMATCH'));
     assert.ok(active(makeFacts({ r4gDate: addWorkingDays(target, 1, NO_HOLIDAYS), status: 'Released' }), late).has('E2E_FAIL'));
     // Future-dated end: not judged yet when on time, already Fail when past Target.
     const before = makeContext({ asOf: '2026-08-03' });
     const onTimeFuture = active(makeFacts({ r4gDate: target, status: 'R4GOLIVE' }), before);
     assert.ok(!onTimeFuture.has('E2E_PASS') && !onTimeFuture.has('E2E_FAIL'));
-    assert.ok(active(makeFacts({ r4gDate: addWorkingDays(target, 1, NO_HOLIDAYS) }), before).has('E2E_FAIL'));
+    assert.ok(active(makeFacts({ r4gDate: addWorkingDays(target, 1, NO_HOLIDAYS), status: 'R4GOLIVE' }), before).has('E2E_FAIL'));
   });
 
   it('missing T0 → baseline from Jira creation date + recommendation', () => {
@@ -219,6 +228,45 @@ describe('Release', () => {
 });
 
 describe('Data quality', () => {
+  it('R1 (2026-10-04): missing Start Date counts from DESIGN on, not for Pending', () => {
+    assert.ok(active(makeFacts({ status: 'Design', startDate: null }), makeContext()).has('ANOMALY_R1_MISSING_START_DATE'));
+    for (const status of ['In Progress', 'R4GOLIVE', 'MVP Done', 'Released']) {
+      assert.ok(active(makeFacts({ status, startDate: null }), makeContext()).has('ANOMALY_R1_MISSING_START_DATE'), status);
+    }
+    assert.ok(!active(makeFacts({ status: 'Pending', startDate: null }), makeContext()).has('ANOMALY_R1_MISSING_START_DATE'));
+  });
+
+  it('R5 (2026-10-04): missing Requirement Level only counts past DESIGN', () => {
+    const atDesign = scoreEpic(makeFacts({ status: 'Design', requirementLevel: '' }), makeContext({ asOf: '2026-12-01' }));
+    assert.ok(!hasBadge(atDesign, 'ANOMALY_R5_MISSING_REQUIREMENT_LEVEL') && !hasBadge(atDesign, 'REC_FILL_REQUIREMENT_LEVEL'));
+    assert.ok(hasBadge(atDesign, 'CNTT_FAIL')); // no anomaly → judged normally
+    assert.ok(active(makeFacts({ status: 'In Progress', requirementLevel: 'none' }), makeContext()).has('ANOMALY_R5_MISSING_REQUIREMENT_LEVEL'));
+  });
+
+  it('R8 (2026-10-04): R4G Date recorded but status < R4GOLIVE', () => {
+    for (const status of ['Design', 'In Progress', 'TEST', 'PENTEST']) {
+      const card = scoreEpic(makeFacts({ status, r4gDate: '2026-08-20' }), makeContext());
+      assert.ok(hasBadge(card, 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE') && hasBadge(card, 'REC_FIX_R4G_STATUS'), status);
+      assert.ok(!hasBadge(card, 'ANOMALY_R9_MISSING_R4G_DATE'), status);
+    }
+    for (const status of ['R4GOLIVE', 'MVP Done', 'Released', 'Pending', 'In PO', 'Cancelled']) {
+      assert.ok(!active(makeFacts({ status, r4gDate: '2026-08-20' }), makeContext()).has('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'), status);
+    }
+  });
+
+  it('R9 (2026-10-04): status ≥ R4GOLIVE without an R4G Date', () => {
+    for (const status of ['R4GOLIVE', 'MVP Done', 'Released']) {
+      const card = scoreEpic(makeFacts({ status }), makeContext({ asOf: '2026-12-01' }));
+      assert.ok(hasBadge(card, 'ANOMALY_R9_MISSING_R4G_DATE') && hasBadge(card, 'REC_FILL_R4G_DATE'), status);
+      assert.ok(!hasBadge(card, 'CNTT_FAIL'), status); // Sai lệch dữ liệu is checked first
+      assert.equal(card.indexMembership.ttm.eligible, false);
+    }
+    for (const status of ['Design', 'In Progress', 'TEST', 'Pending', 'Cancelled']) {
+      assert.ok(!active(makeFacts({ status }), makeContext()).has('ANOMALY_R9_MISSING_R4G_DATE'), status);
+    }
+    assert.ok(!active(makeFacts({ status: 'Released', r4gDate: '2026-08-20' }), makeContext()).has('ANOMALY_R9_MISSING_R4G_DATE'));
+  });
+
   it('R1/R3–R6 are "Sai lệch dữ liệu" and remove the Epic from the Index denominator', () => {
     const card = scoreEpic(makeFacts({ requirementLevel: '', r4gDate: '2026-08-20', status: 'R4GOLIVE' }), makeContext());
     assert.ok(hasBadge(card, 'ANOMALY_R5_MISSING_REQUIREMENT_LEVEL'));

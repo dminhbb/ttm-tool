@@ -5,7 +5,7 @@ export interface RuleInput {
   facts: EpicFacts;
   derived: DerivedMetrics;
   ctx: ScoringContext;
-  /** "Sai lệch dữ liệu" (an enabled ALERT badge on the DATA_QUALITY axis — R1, R3–R6) was found.
+  /** "Sai lệch dữ liệu" (an enabled ALERT badge on the DATA_QUALITY axis — R1, R3–R6, R8, R9) was found.
    * Data quality is checked FIRST (decision 2026-10-01): such an Epic is not judged at all on the
    * TTM axes — no Đạt/Fail/Cảnh báo muộn/Sai Status for TTM-CNTT (QLDA/QA) or TTM-E2E. */
   hasDataAnomaly: boolean;

@@ -1273,11 +1273,11 @@
 
               <!-- DATA_QUALITY -->
               <tr>
-                <td rowspan="6"><strong>DATA_QUALITY</strong></td>
+                <td rowspan="8"><strong>DATA_QUALITY</strong></td>
                 <td><code>ANOMALY_R1_MISSING_START_DATE</code></td>
                 <td><span class="badge badge-alert">ALERT</span></td>
                 <td>Thiếu Start Date</td>
-                <td>R1 — Status ≥ DEV VÀ không Pending VÀ T1 trống</td>
+                <td>R1 — Status ≥ DESIGN VÀ không Pending VÀ T1 trống</td>
                 <td>—</td>
               </tr>
               <tr>
@@ -1298,7 +1298,7 @@
                 <td><code>ANOMALY_R5_MISSING_REQUIREMENT_LEVEL</code></td>
                 <td><span class="badge badge-alert">ALERT</span></td>
                 <td>Thiếu Requirement Level</td>
-                <td>R5 — Trường Requirement Level trống hoặc "none"</td>
+                <td>R5 — Trường Requirement Level trống hoặc "none" VÀ status &gt; DESIGN</td>
                 <td>—</td>
               </tr>
               <tr>
@@ -1306,6 +1306,20 @@
                 <td><span class="badge badge-alert">ALERT</span></td>
                 <td>SP nhưng Level thấp</td>
                 <td>R6 — Loại Epic SP nhưng Requirement Level 1-2</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><code>ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE</code></td>
+                <td><span class="badge badge-alert">ALERT</span></td>
+                <td>Có R4G Date nhưng chưa R4GOLIVE</td>
+                <td>R8 — Có R4G Date VÀ status &lt; R4GOLIVE</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><code>ANOMALY_R9_MISSING_R4G_DATE</code></td>
+                <td><span class="badge badge-alert">ALERT</span></td>
+                <td>Thiếu R4G Date</td>
+                <td>R9 — Status ≥ R4GOLIVE VÀ không Pending VÀ R4G Date trống</td>
                 <td>—</td>
               </tr>
               <tr>
