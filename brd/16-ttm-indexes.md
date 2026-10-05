@@ -59,7 +59,7 @@ mẫu số = 0 (chưa Epic nào được kết luận):  Pass = 100, Fail = 0
 - Áp dụng cho chỉ số toàn công ty (`ttm_index_global_cache`) và mọi chỉ số theo phạm vi lọc + phân quyền
   (`summarizeTtmCntt`, `summarizeQaIndex`, `queryTtmCnttIndexes`, MCP). Một chỗ tính duy nhất:
   `summarizeTtmCnttFromCounts` (`src/lib/ttm-cntt-qa.ts`); `TtmCnttSummary` có thêm `denominator`,
-  `failPct`, `failPctPrecise`. **TTM-E2E không đổi** (`summarizeE2eFromCounts`, vẫn `pass / eligible`).
+  `failPct`, `failPctPrecise`. **TTM-E2E**: từ 2026-10-05 cũng là `pass / (pass + fail)` — Đạt TTM-E2E / (Đạt + Fail TTM-E2E), gồm cả Epic Fail chưa có R4G Date; trước đó là `pass / eligible`.
 - "Epic tính TTM" ở Ma trận Phân bổ (TTM Dashboard) đổi tên cột thành "Epic hoàn thành" (= L04a).
 
 ## 1. Hai trục khái niệm cần phân biệt trước

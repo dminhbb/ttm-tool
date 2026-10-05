@@ -183,7 +183,7 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
           summary={e2e}
           value={e2e.total > 0 ? pctOf(e2e) : null}
           subtitle={e2e.total > 0 ? `${fmt(e2e.pass)}/${fmt(e2e.denominator)}` : 'Chưa có Epic'}
-          title="Epic đạt TTM-E2E / Epic có R4G Date hợp lệ — bấm để xem danh sách Epic Fail TTM-E2E"
+          title="Tỷ lệ % Pass TTM-E2E = Epic đạt / (Epic đạt + Epic Fail TTM-E2E) — bấm để xem danh sách Epic Fail TTM-E2E"
           onClick={() => onOpen({ alert: 'FAIL_E2E', title: 'Danh sách Epic - Fail TTM-E2E' })}
         />
       </div>
@@ -260,7 +260,7 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
 // ---------------------------------------------------------------------------------------------
 
 type MatrixDimension = Exclude<TtmBreakdownDimension, 'requestingUnit'>;
-type MatrixSortKey = 'fail' | 'judged' | 'late' | 'name' | 'ok' | 'pass' | 'qaPct' | 'qldaPct' | 'total';
+type MatrixSortKey = 'anomaly' | 'fail' | 'judged' | 'late' | 'name' | 'ok' | 'pass' | 'qaPct' | 'qldaPct' | 'total';
 
 function matrixSortValue(item: TtmBreakdownItem, key: MatrixSortKey): number | string | null {
   const { qa, qlda } = breakdownIndexes(item);
@@ -272,6 +272,7 @@ function matrixSortValue(item: TtmBreakdownItem, key: MatrixSortKey): number | s
     case 'judged': return qlda.denominator;
     case 'fail': return item.fail;
     case 'qaPct': return item.qaTotal > 0 ? qa.pctPrecise : null;
+    case 'anomaly': return item.anomaly;
     case 'ok': return item.ok;
     case 'late': return item.late;
     default: return null;
@@ -327,7 +328,8 @@ export function BreakdownMatrixCard({ dimensions, funnel, onOpen }: { dimensions
                 <TH className="text-center" sortDirection={directionFor('judged')} onClick={() => toggleSort('judged')} title="Epic đã có kết luận = L05aa + L05ab + L05ba (Pass TTM + Fail TTM)">Epic đánh giá</TH>
                 <TH className="text-center" sortDirection={directionFor('fail')} onClick={() => toggleSort('fail')} title="Epic không đạt TTM-CNTT = L05ab + L05ba">Fail TTM</TH>
                 <TH className="w-40" sortDirection={directionFor('qaPct')} onClick={() => toggleSort('qaPct')}>TTM-CNTT (QA)</TH>
-                <TH className="text-center" sortDirection={directionFor('ok')} onClick={() => toggleSort('ok')}>Đúng tiến độ</TH>
+                <TH className="text-center" sortDirection={directionFor('anomaly')} onClick={() => toggleSort('anomaly')} title="Epic Sai lệch dữ liệu (L02 − L03) — chưa được chấm TTM-CNTT, không tính vào Đúng / Chậm tiến độ">Sai lệch dữ liệu</TH>
+                <TH className="text-center" sortDirection={directionFor('ok')} onClick={() => toggleSort('ok')} title="Epic chưa có R4G Date, không Sai lệch dữ liệu và chưa bị cảnh báo">Đúng tiến độ</TH>
                 <TH className="text-center" sortDirection={directionFor('late')} onClick={() => toggleSort('late')}>Chậm tiến độ</TH>
               </TR>
             </THead>
@@ -402,8 +404,13 @@ export function BreakdownMatrixCard({ dimensions, funnel, onOpen }: { dimensions
                         <span className="text-xs text-fb-text-placeholder">— Chưa có Epic MVP Done/Released</span>
                       )}
                     </TD>
+                    <TD className="text-center font-semibold text-purple-700">
+                      <button type="button" onClick={() => open(item, { alert: 'DATA_ANOMALY_IN_SCOPE' }, 'Danh sách Epic Sai lệch dữ liệu')} className={`${numberButton} text-purple-700 hover:bg-purple-50`} title={`Xem các Epic Sai lệch dữ liệu của ${item.name}`}>
+                        {fmt(item.anomaly)}
+                      </button>
+                    </TD>
                     {/* No list behind this one: no "Nhận xét" filter matches exactly this set. */}
-                    <TD className="text-center font-semibold text-fb-text-primary" title={`Epic của ${item.name} chưa có kết luận TTM-CNTT (chưa có R4G Date hoặc Sai lệch dữ liệu) và chưa bị cảnh báo`}>
+                    <TD className="text-center font-semibold text-fb-text-primary" title={`Epic của ${item.name} chưa có R4G Date, không Sai lệch dữ liệu và chưa bị cảnh báo`}>
                       {fmt(item.ok)}
                     </TD>
                     <TD className="text-center font-semibold text-status-warning">
@@ -416,7 +423,7 @@ export function BreakdownMatrixCard({ dimensions, funnel, onOpen }: { dimensions
               })}
               {items.length === 0 && (
                 <TR>
-                  <TD colSpan={9} className="py-6 text-center text-xs text-fb-text-secondary">Không có Epic trong phạm vi đang xem.</TD>
+                  <TD colSpan={10} className="py-6 text-center text-xs text-fb-text-secondary">Không có Epic trong phạm vi đang xem.</TD>
                 </TR>
               )}
             </TBody>

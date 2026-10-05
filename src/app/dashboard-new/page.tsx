@@ -836,7 +836,7 @@ export default function DashboardNewPage() {
         <div className="min-w-0">
           <p className="text-xs font-bold text-fb-text-primary">Hoàn thành TTM-E2E</p>
           <p className="text-[10px] text-fb-text-secondary">
-            {e2eMetrics.total > 0 ? `${e2eMetrics.pass}/${e2eMetrics.eligible}` : 'Chưa có Epic'}
+            {e2eMetrics.total > 0 ? `${e2eMetrics.pass}/${e2eMetrics.denominator}` : 'Chưa có Epic'}
           </p>
         </div>
       </button>
@@ -1331,7 +1331,7 @@ export default function DashboardNewPage() {
                   </span>
                   {data?.ttmIndexGlobal?.e2e && data.ttmIndexGlobal.e2e.total > 0 && (
                     <span className="text-[10px] font-medium text-fb-text-secondary">
-                      ({data.ttmIndexGlobal.e2e.pass}/{data.ttmIndexGlobal.e2e.eligible})
+                      ({data.ttmIndexGlobal.e2e.pass}/{data.ttmIndexGlobal.e2e.denominator})
                     </span>
                   )}
                 </div>

@@ -74,6 +74,7 @@
     <a href="#alert-policy">7. Cấu hình chính sách TTM &amp; rule cảnh báo</a>
     <a href="#alert-logic">8. Logic tính cảnh báo Epic (TTM-CNTT &amp; TTM-E2E)</a>
     <a href="#data-anomaly">9. Epic sai lệch dữ liệu (không còn bị chặn import)</a>
+    <a href="#data-anomaly-rules">9.1. Bảng tra cứu rule Sai lệch dữ liệu đang áp dụng</a>
     <a href="#alert-history">10. Lịch sử cảnh báo tích lũy</a>
     <div class="toc-block">Khối màn hình</div>
     <a href="#screen-epic-alerts">11. Các màn hình giám sát Epic</a>
@@ -751,7 +752,8 @@
       <div class="kicker">Khối cảnh báo</div>
       <h2>8. Logic tính cảnh báo Epic (TTM-CNTT &amp; TTM-E2E)</h2>
       <h3>8.1. Thứ tự trạng thái chuẩn (STATUS_ORDER)</h3>
-      <p><code>TO DO → IN PO → DESIGN → DEV → TEST → PENTEST → R4GOLIVE → MVPDONE → RELEASED</code></p>
+      <p><code>TO DO → IN PO → DESIGN → DEV → TEST → PENTEST → R4GOLIVE → MVP DONE → PILOT → DONE → RELEASED</code></p>
+      <p>Từ 05/10/2026 (Scoring Service): <code>MVP DONE</code> (trước đây ghi <code>MVPDONE</code>), <code>PILOT</code> và <code>DONE</code> là các bước của workflow; <code>Pending</code> và <code>Reopened</code> không phải một bước riêng mà xếp ngang hàng <code>DEV</code> (In Progress). Các menu lọc Status liệt kê status theo đúng thứ tự này. Logic cũ (engine legacy) giữ thứ tự cũ.</p>
       <p>Trường <code>R4G Date</code> trên Epic tương ứng với ngày hoàn thành trạng thái <strong>R4GOLIVE</strong>. Trạng thái không khớp danh sách này (kể cả Cancelled) được xếp sau cùng. Jira status legacy <code>In Progress</code>/<code>In Dev</code> chuẩn hóa thành <code>DEV</code>; <code>Pen Test</code> thành <code>PENTEST</code>; <code>Ready For Golive</code> thành <code>R4GOLIVE</code>.</p>
 
       <h3>8.2. Cột trạng thái/pha trên bảng Epic Alerts</h3>
@@ -846,7 +848,7 @@
         <li>Con số hiện cạnh chỉ số (ví dụ <code>120/150</code>) là <code>L05aa / (L05aa + L05ab + L05ba)</code>. Khi chưa có Epic nào được kết luận, chỉ số hiện 100%.</li>
         <li><strong>Trước 04/10/2026</strong> công thức là <code>pass/eligible</code> với <code>eligible</code> = mọi Epic có R4G Date và không sai lệch dữ liệu — tức mẫu số gồm cả Epic R4G tương lai (L05ac) và <strong>không</strong> gồm Epic Fail chưa có R4G Date (L05ba).</li>
       </ul>
-      <p>Hai chỉ số dùng chung công thức trên, chỉ khác nhau ở tập Epic được xét; TTM-E2E giữ công thức riêng (Đạt / số Epic có R4G Date hợp lệ):</p>
+      <p>Hai chỉ số dùng chung công thức trên, chỉ khác nhau ở tập Epic được xét; từ 05/10/2026 TTM-E2E cũng dùng công thức này trên kết luận của trục E2E — Đạt TTM-E2E / (Đạt TTM-E2E + Fail TTM-E2E), gồm cả Epic Fail chưa có R4G Date, không áp "Phạm vi dữ liệu cho TTM":</p>
       <table>
         <thead><tr><th>Chỉ số</th><th>Epic được xét</th></tr></thead>
         <tbody>
@@ -907,6 +909,30 @@
           <tr><td>R7 — Sai lệch Status/Due Date (từ 24/09/2026)</td><td><code>RELEASE_STATUS_MISMATCH</code>: R4G Date và Due Date đều đã ghi nhận, Due Date nằm <strong>trong hạn</strong> (≤ R4G Date + 5 ngày làm việc — cùng ngưỡng <code>RELEASE_DUE_GRACE_WORKING_DAYS</code> dùng cho Trục Release, mục 8.6) nhưng status Epic <strong>chưa chuyển sang Released</strong>. Ưu tiên hơn 2 badge "Chờ golive"/"Giải trình Golive" ở mục 8.6 khi cùng xảy ra.</td></tr>
         </tbody>
       </table>
+      <div class="callout">Bảng trên là logic của engine cũ (legacy). Ứng dụng đang hiển thị theo <strong>Scoring Service</strong> — các rule đang có hiệu lực xem ở <strong>mục 9.1</strong> bên dưới.</div>
+      <h3 id="data-anomaly-rules">9.1. Bảng tra cứu rule Sai lệch dữ liệu đang áp dụng (Scoring Service — cập nhật 05/10/2026)</h3>
+      <p>Nguồn duy nhất của các rule: <code>src/lib/scoring/rules/data-quality.ts</code> và <code>src/lib/scoring/catalog.ts</code> (popup <strong>“Logic cảnh báo”</strong> hiển thị trực tiếp từ catalog này, nên luôn khớp code). "Ngày tính" = ngày chạy cache (asOf).</p>
+      <table>
+        <thead><tr><th>Rule</th><th>Badge</th><th>Điều kiện vi phạm</th><th>Là "Sai lệch dữ liệu"?</th><th>Khuyến nghị kèm theo</th></tr></thead>
+        <tbody>
+          <tr><td>R1</td><td>Thiếu Start Date</td><td>Status từ <strong>DESIGN</strong> trở đi — kể cả <strong>Pending / Reopened</strong> (ngang hàng In Progress) — và Start Date (T1) trống. <em>04/10/2026: tính từ DESIGN (trước đây từ DEV); 05/10/2026: tính cả Pending.</em></td><td>Có</td><td>Bổ sung Start Date</td></tr>
+          <tr><td>R2</td><td>Pending lâu</td><td>Status Pending và số ngày làm việc từ T1 (hoặc ngày tạo Jira nếu thiếu T1) tới ngày tính ≥ 20% ngân sách TTM-CNTT của loại Epic.</td><td><strong>Không</strong> — chỉ là khuyến nghị (từ 29/09/2026)</td><td>Quyết định tiếp tục hay huỷ Epic</td></tr>
+          <tr><td>R3</td><td>Sai thứ tự ngày</td><td>Không thoả <code>T0 ≤ T1 &lt; R4G Date ≤ Due Date</code> (chỉ xét mốc đã có giá trị); mọi cặp sai gộp thành 1 vi phạm.</td><td>Có</td><td>Rà soát lại các mốc ngày</td></tr>
+          <tr><td>R4</td><td>Thiếu Phân loại yêu cầu</td><td>Phân loại yêu cầu trống hoặc "none".</td><td>Có</td><td>Bổ sung Phân loại yêu cầu</td></tr>
+          <tr><td>R5</td><td>Thiếu Requirement Level</td><td>Requirement Level trống hoặc "none" <strong>và status đã qua DESIGN</strong> (kể cả Pending / Reopened). <em>04/10/2026: không xét Epic đang ở DESIGN.</em></td><td>Có</td><td>Bổ sung Requirement Level</td></tr>
+          <tr><td>R6</td><td>SP nhưng Level thấp</td><td>Loại Epic SP-Lv12 / SP-Lv34 nhưng Requirement Level = 1 hoặc 2.</td><td>Có</td><td>Rà soát Phân loại yêu cầu / Requirement Level</td></tr>
+          <tr><td>R7</td><td>Sai Status (trục Release)</td><td>Due Date trong hạn (≤ R4G Date + 5 ngày làm việc) nhưng status chưa Released.</td><td><strong>Không</strong> — chuyển sang trục Release (từ 29/09/2026)</td><td>Chuyển status sang Released</td></tr>
+          <tr><td>R8</td><td>Có R4G Date nhưng chưa R4GOLIVE</td><td>Có R4G Date, <strong>R4G Date ≤ ngày tính</strong> và status chưa tới R4GOLIVE (kể cả Pending / Reopened). <strong>Áp dụng cả với To Do / In PO / Backlog</strong>; chỉ Cancelled không xét. R4G Date ở tương lai là ngày kế hoạch — không vi phạm, Epic ở nhóm "chưa kết luận" (L05ac). <em>Mới 04/10/2026; điều chỉnh 05/10/2026.</em></td><td>Có</td><td>Chuyển status sang R4GOLIVE hoặc kiểm tra lại R4G Date</td></tr>
+          <tr><td>R9</td><td>Thiếu R4G Date</td><td>Status ∈ {R4GOLIVE, MVP Done, Pilot, Done, Released} nhưng R4G Date trống. Status ngoài workflow, Pending, Reopened không xét. <em>Mới 04/10/2026; điều chỉnh 05/10/2026.</em></td><td>Có</td><td>Bổ sung R4G Date</td></tr>
+        </tbody>
+      </table>
+      <ul>
+        <li><strong>Miễn trừ:</strong> Epic <strong>Cancelled</strong> miễn mọi rule. Epic <strong>To Do / In PO / Backlog</strong> (tham số <code>anomaly.exemptStatuses</code>) miễn mọi rule <strong>trừ R8</strong>.</li>
+        <li><strong>Thứ tự workflow dùng để so sánh status:</strong> <code>TO DO → IN PO → DESIGN → DEV → TEST → PENTEST → R4GOLIVE → MVP DONE → PILOT → DONE → RELEASED</code>; Pending và Reopened ngang hàng DEV (In Progress); status khác (kể cả Cancelled) xếp sau cùng (mục 8.1).</li>
+        <li><strong>Hệ quả khi Epic bị Sai lệch dữ liệu</strong> (xét trước mọi trục TTM, từ 01/10/2026): không được chấm Đạt / Fail / Cảnh báo muộn / Sai Status trên TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E; nằm ngoài tử số và mẫu số của cả ba chỉ số; ở phễu TTM Dashboard 2 bị loại tại L03 và có cột riêng "Sai lệch dữ liệu" trong Ma trận Phân bổ. Các trục Release và Pha vẫn tính bình thường.</li>
+        <li><strong>Bật/tắt từng rule:</strong> bảng <code>scoring_rule_settings</code>; rule đang tắt không tạo Sai lệch dữ liệu.</li>
+        <li><strong>Ví dụ tra cứu:</strong> Epic Pending, thiếu Start Date và thiếu Requirement Level → R1 + R5 (và "Pending lâu" nếu quá ngưỡng). Epic In PO có R4G Date đã qua → R8 (các rule khác được miễn).</li>
+      </ul>
       <p>Epic bị đánh dấu:</p>
       <ul>
         <li>Bị đẩy xuống <strong>cuối bảng</strong> và tô nền highlight trên cả 3 màn hình giám sát.</li>
@@ -973,6 +999,7 @@
       <p><strong>Quy tắc lọc trạng thái mặc định:</strong> Bộ lọc Status trên thanh công cụ luôn mặc định tích chọn (checked) tất cả các trạng thái ngoại trừ <code>Cancelled</code>, đảm bảo các Epic đã bị huỷ mặc định không xuất hiện khi truy cập màn hình này hay ở tất cả các danh sách route liên kết từ màn hình khác (người dùng vẫn có thể tích chọn Cancelled thủ công nếu có nhu cầu tra cứu).</p>
       <p><strong>Thứ tự nhóm trong bảng (từ 28/09/2026):</strong> Epic thông thường hiển thị trước, sau đó lần lượt là nhóm <code>In PO</code> → <code>To Do</code> → nhóm Epic có Nhận xét <strong>“Ngoài phạm vi TTM-CNTT”</strong> (bất kể status) → <code>Released</code> ở cuối. Trong mỗi nhóm vẫn giữ thứ tự cũ: Epic sai lệch dữ liệu xuống cuối nhóm, rồi theo mức cảnh báo (FAIL → LATE → EARLY → NONE) và số ngày làm việc còn lại.</p>
       <p><strong>Widget trên banner (từ 30/09/2026):</strong> <strong>TTM-CNTT (QLDA)</strong> và <strong>TTM-CNTT (QA)</strong>, tính trên đúng các Epic của bảng Danh sách Epic đang lọc (mọi bộ lọc trên thanh công cụ và Advanced Filters) — đổi bộ lọc thì chỉ số đổi theo. Hai widget toàn ứng dụng (QLDA) đã bỏ khỏi màn này — <strong>riêng từ 01/10/2026</strong>, có thêm 1 widget thứ 3 cố định <strong>TTM-E2E</strong> (toàn công ty, đọc từ cache <code>ttm_index_global_cache</code>, giống nhau với mọi người dùng, không đổi theo bộ lọc — xem mục 11.5).</p>
+      <p><strong>Điều chỉnh 05/10/2026:</strong> R8 chỉ tính khi R4G Date đã tới (≤ ngày tính) — R4G Date ở tương lai là ngày kế hoạch, Epic thuộc nhóm "chưa kết luận" (L05ac) cho tới ngày đó; R8 áp dụng cả với status được miễn các rule khác (To Do / In PO / Backlog), chỉ trừ Cancelled; R9 chỉ xét status R4GOLIVE / MVP Done / Pilot / Done / Released (status lạ, Pending, Reopened không bị bắt).</p>
       <p><strong>Quy tắc chấm điểm (Scoring Service, từ 01/10/2026):</strong> Sai lệch dữ liệu được xét trước — Epic có Sai lệch dữ liệu (R1, R3–R6; từ 04/10/2026 thêm R8 "có R4G Date nhưng status &lt; R4GOLIVE" và R9 "status ≥ R4GOLIVE nhưng thiếu R4G Date", R1 tính từ status DESIGN, R5 chỉ tính khi status đã qua DESIGN) không được chấm Đạt / Fail / Cảnh báo muộn / Sai Status trên TTM-CNTT (QLDA), TTM-CNTT (QA) và TTM-E2E cho tới khi dữ liệu được sửa. Epic có ngày ghi nhận đúng hạn nhưng status chưa lên R4GOLIVE vẫn được tính <strong>Đạt</strong> và hiện kèm badge <strong>“Sai Status”</strong>. TTM-E2E: hạn = T0 + (N − 1) ngày làm việc, Đạt không còn yêu cầu status Released. Xem popup “Logic cảnh báo” để biết công thức từng badge.</p>
       <p><strong>Bộ lọc Nhận xét:</strong> ngoài các giá trị Đạt/Fail/Cảnh báo/Sai Status/Sai lệch dữ liệu/trục Release, có thêm lựa chọn <strong>“Ngoài phạm vi TTM-CNTT”</strong> để lọc riêng các Epic nằm ngoài khoảng ngày “R4G for TTM (CNTT)” đang cấu hình (mục 8.7).</p>
       <h3>11.3. Epic in PO (<code>/epic-in-po</code>) — mọi role đã đăng nhập</h3>
@@ -1516,7 +1543,7 @@
           <tr><td>Fail TTM-CNTT (QLDA)</td><td><strong>L05ab + L05ba</strong></td><td>"/Số Epic= " + (L05aa + L05ab + L05ba)</td></tr>
           <tr><td>TTM-CNTT (QLDA)</td><td>Tỷ lệ % Pass = L05aa / (L05aa + L05ab + L05ba)</td><td>Tử số / mẫu số</td></tr>
           <tr><td>TTM-CNTT (QA)</td><td>Cùng công thức, chỉ lấy Epic MVP Done / Released (mục 8.7)</td><td>Tử số / mẫu số</td></tr>
-          <tr><td>Hoàn thành TTM-E2E</td><td>Epic đạt TTM-E2E / Epic có R4G Date hợp lệ (công thức riêng của TTM-E2E)</td><td>Tử số / mẫu số</td></tr>
+          <tr><td>Hoàn thành TTM-E2E</td><td>Epic đạt TTM-E2E / (Epic đạt + Epic Fail TTM-E2E) — cùng công thức TTM-CNTT từ 05/10/2026</td><td>Tử số / mẫu số</td></tr>
           <tr><td>Chậm tiến độ · Sai lệch Dữ liệu · Chờ golive · Giải trình Golive</td><td>Như TTM Dashboard: đếm trên mọi Epic không Cancelled của tập đang xem</td><td>Chờ golive tách Thiếu R4G / Trong hạn / Quá hạn</td></tr>
         </tbody>
       </table>
@@ -1532,7 +1559,8 @@
           <tr><td>Epic đánh giá</td><td>L05aa + L05ab + L05ba</td></tr>
           <tr><td>Fail TTM</td><td>L05ab + L05ba (dòng phụ: Trễ R4G = L05ab, Thiếu R4G = L05ba)</td></tr>
           <tr><td>TTM-CNTT (QA)</td><td>Tỷ lệ QA của dòng, kèm tử số / mẫu số</td></tr>
-          <tr><td>Đúng tiến độ / Chậm tiến độ</td><td>Epic của L02 chưa có kết luận (chưa có R4G Date hoặc Sai lệch dữ liệu): Chậm = đang Fail hoặc Cảnh báo muộn; còn lại là Đúng</td></tr>
+          <tr><td>Sai lệch dữ liệu</td><td>L02 − L03 của dòng — Epic Sai lệch dữ liệu, chưa được chấm TTM-CNTT; từ 05/10/2026 đếm riêng, không còn nằm trong "Đúng tiến độ"</td></tr>
+          <tr><td>Đúng tiến độ / Chậm tiến độ</td><td>Epic chưa có R4G Date và không Sai lệch dữ liệu (L04b): Chậm = đang Fail hoặc Cảnh báo muộn; còn lại là Đúng</td></tr>
         </tbody>
       </table>
 

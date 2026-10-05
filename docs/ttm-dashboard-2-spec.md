@@ -76,7 +76,7 @@ Tỷ lệ % Fail TTM-CNTT = (L05ab + L05ba) / (L05aa + L05ab + L05ba) × 100
 - **Áp dụng chung** (không riêng màn hình này):
   - **TTM-CNTT (QLDA)** toàn công ty (`ttm_index_global_cache`) và theo phạm vi sau khi lọc + theo phân quyền người xem (TTM Dashboard, Quản trị Epic, MCP).
   - **TTM-CNTT (QA)** = cùng Tỷ lệ % Pass, nhưng chỉ lấy Epic có status `MVP Done` hoặc `Released` (trong khoảng "R4G for TTM (QA)") — cả mức toàn công ty lẫn theo phạm vi lọc + phân quyền (`summarizeQaIndex`).
-  - TTM-E2E giữ công thức riêng (`summarizeE2eFromCounts`).
+  - TTM-E2E: từ 2026-10-05 dùng cùng công thức — Đạt TTM-E2E / (Đạt TTM-E2E + Fail TTM-E2E) (`summarizeE2e`).
 - Trước 2026-10-04: tỷ lệ = L05aa / L04a (mẫu số gồm cả L05ac, không gồm L05ba).
 
 ## 4. Danh Sách Epic (popup Quản trị Epic)
@@ -115,7 +115,7 @@ Ba khối này lấy từ TTM Dashboard và tính lại theo tiêu chí của ph
 | Fail TTM-CNTT (QLDA) | **L05ab + L05ba** | `/Số Epic= ` + (L05aa + L05ab + L05ba) |
 | TTM-CNTT (QLDA) | Tỷ lệ % Pass = L05aa / (L05aa + L05ab + L05ba) | tử số / mẫu số |
 | TTM-CNTT (QA) | Cùng công thức, chỉ Epic MVP Done / Released trong "R4G for TTM (QA)" | tử số / mẫu số |
-| Hoàn thành TTM-E2E | Epic đạt TTM-E2E / Epic có R4G Date hợp lệ (công thức riêng của TTM-E2E, không đổi) | tử số / mẫu số |
+| Hoàn thành TTM-E2E | Epic đạt TTM-E2E / (Epic đạt + Epic Fail TTM-E2E) — cùng công thức TTM-CNTT từ 2026-10-05; không áp "Phạm vi dữ liệu cho TTM" | tử số / mẫu số |
 | Chậm tiến độ, Sai lệch Dữ liệu, Chờ golive (thiếu R4G / trong hạn / quá hạn), Giải trình Golive | Như TTM Dashboard: đếm trên mọi Epic không Cancelled của tập đang xem | — |
 
 "Chờ golive: trong hạn / quá hạn" được tách theo ngày hiện tại lúc xem (`splitWaitingGolive`), nên số trong cache không bị cũ qua ngày.
@@ -132,7 +132,8 @@ Lead view: 4 tab (Domain, Phân loại Epic, PM/SM, Dự án); PM/SM view: 2 tab
 | Epic đánh giá | L05aa + L05ab + L05ba |
 | Fail TTM | L05ab + L05ba (dòng phụ: Trễ R4G = L05ab · Thiếu R4G = L05ba) |
 | TTM-CNTT (QA) | Tỷ lệ QA của dòng (tử số / mẫu số) |
-| Đúng tiến độ / Chậm tiến độ | Epic của L02 chưa có kết luận (chưa có R4G Date hoặc Sai lệch dữ liệu): Chậm = đang Fail hoặc Cảnh báo muộn, còn lại là Đúng |
+| Sai lệch dữ liệu | L02 − L03 của dòng — Epic Sai lệch dữ liệu, chưa được chấm TTM-CNTT. Từ 2026-10-05 đếm riêng (`TtmBreakdownItem.anomaly`), không còn nằm trong "Đúng tiến độ" |
+| Đúng tiến độ / Chậm tiến độ | Epic chưa có R4G Date và không Sai lệch dữ liệu (L04b): Chậm = đang Fail hoặc Cảnh báo muộn, còn lại là Đúng |
 
 Tổng theo cột của một chiều luôn bằng tiêu chí tương ứng của phễu (Σ Tổng số Epic = L02, Σ Pass TTM = L05aa, Σ Fail TTM = L05ab + L05ba).
 

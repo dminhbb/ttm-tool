@@ -19,6 +19,7 @@ import type { AlertLevel } from '@/lib/ttm-rules';
 import { ArrowBendUpRight, ArrowSquareOut, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, HourglassMedium, ListChecks, Prohibit, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
+import { compareWorkflowStatus } from '@/lib/scoring/derive';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import { trackDataUsage } from '@/lib/usage-tracking';
 
@@ -439,7 +440,7 @@ export default function EpicAlertsPage() {
     () => [...new Set(rows.flatMap((row) => row.ownerName.split(',').map((name) => name.trim()).filter(Boolean)))].sort((a, b) => a.localeCompare(b, 'vi')),
     [rows],
   );
-  const statusOptions = useMemo(() => [...new Set(rows.map((row) => row.currentStatus).filter(Boolean))].sort(), [rows]);
+  const statusOptions = useMemo(() => [...new Set(rows.map((row) => row.currentStatus).filter(Boolean))].sort(compareWorkflowStatus), [rows]);
   const requestingUnitOptions = useMemo(
     () => [...new Set(rows.map((row) => row.requestingUnit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, 'vi')),
     [rows],

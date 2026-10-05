@@ -108,7 +108,7 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
               </tbody>
             </table>
           </div>
-          <p className="mt-1 text-[11px]">(tắt) = rule có sẵn nhưng mặc định tắt. Di chuột lên badge để xem ý nghĩa. Riêng axis Chất lượng dữ liệu: chỉ badge nhóm Cảnh báo được tính là &quot;Sai lệch dữ liệu&quot;.</p>
+          <p className="mt-1 text-[11px]">(tắt) = rule có sẵn nhưng mặc định tắt. Di chuột lên badge để xem ý nghĩa. Riêng axis Chất lượng dữ liệu: chỉ badge nhóm Cảnh báo được tính là &quot;Sai lệch dữ liệu&quot; — bảng rule R1–R9 đầy đủ (điều kiện, miễn trừ, hệ quả) ở Tài liệu sản phẩm mục 9.1.</p>
         </section>
 
         <section>
@@ -118,7 +118,7 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
             <li><code>X +wd n</code> = cộng n ngày làm việc (bỏ Thứ Bảy, Chủ Nhật, ngày nghỉ; tính cả ngày làm bù) · <code>WD(a, b)</code> = số ngày làm việc từ a tới b.</li>
             <li><code>N_CNTT</code>, <code>N_E2E</code> = ngân sách ngày làm việc theo &quot;Tiêu chí Time to Market&quot; của loại Epic · <code>Target_CNTT = T1 +wd (N_CNTT − 1)</code> (Start Date là ngày 1; trùng baseline pha R4GOLIVE và dải TTM-CNTT (QLDA)) · <code>Target_E2E = T0 +wd (N_E2E − 1)</code>.</li>
             <li><code>G</code> = thời hạn grace của trục Release (mặc định 5 ngày làm việc) · <code>Offset_muộn</code> = mốc cảnh báo muộn theo loại Epic × status (&quot;Cấu hình cảnh báo&quot;).</li>
-            <li>So sánh status theo thứ tự workflow: TO DO → IN PO → DESIGN → DEV → TEST → PENTEST → R4GOLIVE → MVPDONE → RELEASED.</li>
+            <li>So sánh status theo thứ tự workflow: TO DO → IN PO → DESIGN → DEV → TEST → PENTEST → R4GOLIVE → MVP DONE → PILOT → DONE → RELEASED. Pending / Reopened ngang hàng DEV (In Progress).</li>
           </ul>
         </section>
 

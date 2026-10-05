@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { BADGES, BADGE_BY_ID, BADGE_LIST, FINDING_GROUPS, SCORING_AXES, SUPPRESSIONS } from '../catalog';
 import type { BadgeId } from '../catalog';
 import { addWorkingDays, diffWorkingDays, toIsoDate } from '../dates';
-import { deriveMetrics } from '../derive';
+import { compareWorkflowStatus, deriveMetrics, STATUS_INDEX, workflowStatusIndex } from '../derive';
 import { resolveScoringParameters } from '../parameters';
 import { scoreEpic } from '../score-epic';
 import { activeFindings, badgeCodesOf, hasBadge, indexFlagsOf, primaryFinding } from '../select';
@@ -228,12 +228,17 @@ describe('Release', () => {
 });
 
 describe('Data quality', () => {
-  it('R1 (2026-10-04): missing Start Date counts from DESIGN on, not for Pending', () => {
+  it('R1: missing Start Date counts from DESIGN on (2026-10-04), Pending / Reopened included (2026-10-05)', () => {
     assert.ok(active(makeFacts({ status: 'Design', startDate: null }), makeContext()).has('ANOMALY_R1_MISSING_START_DATE'));
-    for (const status of ['In Progress', 'R4GOLIVE', 'MVP Done', 'Released']) {
+    for (const status of ['In Progress', 'R4GOLIVE', 'MVP Done', 'Pilot', 'Done', 'Released', 'Pending', 'Reopened']) {
       assert.ok(active(makeFacts({ status, startDate: null }), makeContext()).has('ANOMALY_R1_MISSING_START_DATE'), status);
     }
-    assert.ok(!active(makeFacts({ status: 'Pending', startDate: null }), makeContext()).has('ANOMALY_R1_MISSING_START_DATE'));
+    // A Pending Epic with no Start Date: Sai lệch dữ liệu + its own "Pending lâu" check still runs.
+    const pending = scoreEpic(makeFacts({ status: 'Pending', startDate: null }), makeContext());
+    assert.ok(hasBadge(pending, 'REC_FILL_START_DATE') && !hasBadge(pending, 'CNTT_FAIL'));
+    for (const status of ['To Do', 'In PO', 'Cancelled']) {
+      assert.ok(!active(makeFacts({ status, startDate: null }), makeContext()).has('ANOMALY_R1_MISSING_START_DATE'), status);
+    }
   });
 
   it('R5 (2026-10-04): missing Requirement Level only counts past DESIGN', () => {
@@ -249,19 +254,52 @@ describe('Data quality', () => {
       assert.ok(hasBadge(card, 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE') && hasBadge(card, 'REC_FIX_R4G_STATUS'), status);
       assert.ok(!hasBadge(card, 'ANOMALY_R9_MISSING_R4G_DATE'), status);
     }
-    for (const status of ['R4GOLIVE', 'MVP Done', 'Released', 'Pending', 'In PO', 'Cancelled']) {
+    // Pending / Reopened rank level with In Progress (2026-10-05) — same rule applies.
+    for (const status of ['Pending', 'Reopened']) {
+      assert.ok(active(makeFacts({ status, r4gDate: '2026-08-20' }), makeContext()).has('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'), status);
+    }
+    // Exempt statuses are exempt from every other rule, not from R8 (2026-10-05).
+    for (const status of ['To Do', 'In PO', 'Backlog']) {
+      const card = scoreEpic(makeFacts({ status, r4gDate: '2026-08-20', startDate: null, requirementLevel: '' }), makeContext());
+      assert.deepEqual(activeFindings(card).map((item) => item.badge).filter((badge) => badge.startsWith('ANOMALY_')), ['ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'], status);
+      assert.ok(!hasBadge(card, 'E2E_PASS') && card.indexMembership.ttm.eligible === false, status);
+    }
+    for (const status of ['R4GOLIVE', 'MVP Done', 'Pilot', 'Done', 'Released', 'Cancelled']) {
       assert.ok(!active(makeFacts({ status, r4gDate: '2026-08-20' }), makeContext()).has('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'), status);
     }
   });
 
+  it('R8 (2026-10-05): a future R4G Date is a plan — no anomaly, Epic stays "chưa kết luận"', () => {
+    const ctx = makeContext();
+    const future = addWorkingDays(ctx.asOf, 1, ctx.holidays);
+    const facts = makeFacts({ status: 'In Progress', startDate: ctx.asOf, r4gDate: future });
+    const card = scoreEpic(facts, ctx);
+    assert.ok(!hasBadge(card, 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE') && !hasBadge(card, 'REC_FIX_R4G_STATUS'));
+    assert.ok(!hasBadge(card, 'CNTT_PASS') && !hasBadge(card, 'CNTT_FAIL') && !hasBadge(card, 'CNTT_STATUS_MISMATCH'));
+    assert.deepEqual(card.indexMembership.ttm, { counted: true, eligible: true, pass: false, fail: false });
+    // The day the R4G Date is reached with the status still behind, it becomes R8.
+    assert.ok(hasBadge(scoreEpic(facts, makeContext({ asOf: future })), 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'));
+  });
+
+  it('workflow (2026-10-05): MVP Done / Pilot / Done are known steps, Pending / Reopened sit with In Progress', () => {
+    const order = ['To Do', 'In PO', 'Design', 'In Progress', 'TEST', 'PENTEST', 'R4GOLIVE', 'MVP Done', 'Pilot', 'Done', 'Released'];
+    assert.deepEqual(order.map(workflowStatusIndex), order.map((_, index) => index));
+    assert.equal(workflowStatusIndex('MVPDONE'), workflowStatusIndex('MVP Done'));
+    for (const status of ['Pending', 'Reopened', 'Reopen']) assert.equal(workflowStatusIndex(status), STATUS_INDEX.DEV, status);
+    assert.ok(workflowStatusIndex('Cancelled') > STATUS_INDEX.RELEASED && workflowStatusIndex('Something else') > STATUS_INDEX.RELEASED);
+    assert.deepEqual(['Released', 'Cancelled', 'Pending', 'Done', 'In Progress', 'To Do', 'Pilot', 'MVP DONE'].sort(compareWorkflowStatus),
+      ['To Do', 'In Progress', 'Pending', 'MVP DONE', 'Pilot', 'Done', 'Released', 'Cancelled']);
+  });
+
   it('R9 (2026-10-04): status ≥ R4GOLIVE without an R4G Date', () => {
-    for (const status of ['R4GOLIVE', 'MVP Done', 'Released']) {
+    for (const status of ['R4GOLIVE', 'MVP Done', 'Pilot', 'Done', 'Released']) {
       const card = scoreEpic(makeFacts({ status }), makeContext({ asOf: '2026-12-01' }));
       assert.ok(hasBadge(card, 'ANOMALY_R9_MISSING_R4G_DATE') && hasBadge(card, 'REC_FILL_R4G_DATE'), status);
       assert.ok(!hasBadge(card, 'CNTT_FAIL'), status); // Sai lệch dữ liệu is checked first
       assert.equal(card.indexMembership.ttm.eligible, false);
     }
-    for (const status of ['Design', 'In Progress', 'TEST', 'Pending', 'Cancelled']) {
+    // Reopened / unrecognized statuses are not "≥ R4GOLIVE" (2026-10-05).
+    for (const status of ['Design', 'In Progress', 'TEST', 'Pending', 'Reopened', 'Something else', 'Cancelled']) {
       assert.ok(!active(makeFacts({ status }), makeContext()).has('ANOMALY_R9_MISSING_R4G_DATE'), status);
     }
     assert.ok(!active(makeFacts({ status: 'Released', r4gDate: '2026-08-20' }), makeContext()).has('ANOMALY_R9_MISSING_R4G_DATE'));
@@ -282,7 +320,7 @@ describe('Data quality', () => {
     assert.equal(card.indexMembership.ttm.eligible, true);
   });
 
-  it('exempt statuses skip every data-quality rule', () => {
+  it('exempt statuses skip every data-quality rule but R8', () => {
     const codes = active(makeFacts({ status: 'In PO', requirementLevel: '', startDate: null }), makeContext());
     assert.ok(![...codes].some((badge) => badge.startsWith('ANOMALY_')));
   });

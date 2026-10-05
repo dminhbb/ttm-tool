@@ -1,5 +1,5 @@
 import { addWorkingDays } from './dates';
-import { normalizeWorkflowStatus, STATUS_INDEX } from './derive';
+import { isDevPeerStatus, normalizeWorkflowStatus, STATUS_INDEX } from './derive';
 import { hasDataAnomalyBadge } from './score-epic';
 import type { BadgeId } from './catalog';
 import type { EpicScorecard, Finding, ScoringContext, TtmPhaseKey } from './types';
@@ -45,6 +45,7 @@ export type ParityTag =
   | 'D8_ANOMALY_CHECKED_FIRST'
   | 'D9_E2E_RULE_REDEFINED'
   | 'D10_DATA_QUALITY_RULES'
+  | 'D11_WORKFLOW_STATUSES'
   | 'R2_R7_NOT_ANOMALY'
   | 'LEGACY_TIME_OF_DAY'
   | 'CANCELLED_NOT_APPLICABLE'
@@ -157,12 +158,13 @@ export function compareWithLegacy(card: EpicScorecard, legacy: LegacyRowSnapshot
 
   // ---- Data quality rules (R1–R7, same badge presence) ----
   // D10 (2026-10-04): data-quality rules changed in the service only — R1 now starts at DESIGN (legacy:
-  // DEV), R5 no longer applies while the Epic is still at DESIGN, and R8/R9 (R4G Date vs status) are new.
+  // DEV) and covers Pending (2026-10-05), R5 no longer applies while the Epic is still at DESIGN, and
+  // R8/R9 (R4G Date vs status) are new.
   const legacyRuleBadges = new Set(legacy.dataAnomalyViolations.map((item) => ANOMALY_CODE_TO_BADGE[item.code]).filter(Boolean));
   let d10 = false;
   for (const badge of Object.values(ANOMALY_CODE_TO_BADGE)) {
     if (legacyRuleBadges.has(badge) === active.has(badge)) continue;
-    const explained = (badge === 'ANOMALY_R1_MISSING_START_DATE' && active.has(badge) && d.statusIndex === STATUS_INDEX.DESIGN)
+    const explained = (badge === 'ANOMALY_R1_MISSING_START_DATE' && active.has(badge) && (d.statusIndex === STATUS_INDEX.DESIGN || /pending/i.test(legacy.currentStatus)))
       || (badge === 'ANOMALY_R5_MISSING_REQUIREMENT_LEVEL' && !active.has(badge) && d.statusIndex <= STATUS_INDEX.DESIGN);
     d10 ||= explained;
     push(`Rule ${badge}`, legacyRuleBadges.has(badge), active.has(badge), explained ? 'D10_DATA_QUALITY_RULES' : 'UNEXPLAINED');
@@ -184,17 +186,20 @@ export function compareWithLegacy(card: EpicScorecard, legacy: LegacyRowSnapshot
 
   // ---- Phases ----
   const historical = ctx.asOf < options.today;
+  // D11 (2026-10-05): Pending / Reopened rank level with "In Progress" in the service's workflow; the
+  // legacy engine sorts them after RELEASED, so it puts such an Epic in the R4GOLIVE phase.
+  const phaseTag: ParityTag = historical ? 'D3_PHASE_AS_OF' : isDevPeerStatus(legacy.currentStatus) ? 'D11_WORKFLOW_STATUSES' : 'UNEXPLAINED';
   for (const [legacyKey, phase] of PHASES) {
     const cell = legacy.stages[legacyKey];
     const has = (badge: BadgeId) => card.findings.some((item) => item.badge === badge && item.subject === phase && !item.suppressedBy);
     const scoringLate = has('PHASE_LATE');
     if ((cell.alertLevel === 'LATE') !== scoringLate || (cell.alertLevel === 'EARLY' && scoringLate)) {
-      push(`Pha ${phase} — Trễ`, cell.alertLevel, scoringLate ? 'LATE' : 'NONE', historical ? 'D3_PHASE_AS_OF' : 'UNEXPLAINED');
+      push(`Pha ${phase} — Trễ`, cell.alertLevel, scoringLate ? 'LATE' : 'NONE', phaseTag);
     } else if (cell.alertLevel === 'EARLY') {
       push(`Pha ${phase} — Cảnh báo sớm`, 'EARLY', 'NONE', 'D4_EARLY_REMOVED');
     }
-    if (cell.isDone !== has('PHASE_DONE')) push(`Pha ${phase} — Hoàn thành`, cell.isDone, has('PHASE_DONE'), historical ? 'D3_PHASE_AS_OF' : 'UNEXPLAINED');
-    if (cell.isCurrentStage !== has('PHASE_CURRENT')) push(`Pha ${phase} — Hiện tại`, cell.isCurrentStage, has('PHASE_CURRENT'), historical ? 'D3_PHASE_AS_OF' : 'UNEXPLAINED');
+    if (cell.isDone !== has('PHASE_DONE')) push(`Pha ${phase} — Hoàn thành`, cell.isDone, has('PHASE_DONE'), phaseTag);
+    if (cell.isCurrentStage !== has('PHASE_CURRENT')) push(`Pha ${phase} — Hiện tại`, cell.isCurrentStage, has('PHASE_CURRENT'), phaseTag);
   }
 
   // ---- TTM-Index membership ----

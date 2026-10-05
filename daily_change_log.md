@@ -6,6 +6,35 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-10-05
+
+- **Scoring Engine — R8 theo ngày + workflow status** (`SCORING_CODE_VERSION` → `scoring-6`, spec §17; logic cũ không đổi, không đổi schema):
+  - **R8** chỉ tính khi R4G Date đã tới (`R4G Date ≤ asOf`): R4G Date ở tương lai là ngày kế hoạch → không còn là Sai lệch dữ liệu,
+    Epic ở nhóm "chưa kết luận" (L05ac) cho tới ngày đó (`src/lib/scoring/rules/data-quality.ts`, `catalog.ts`).
+  - **Workflow** (`EPIC_WORKFLOW_ORDER`, `src/lib/scoring/derive.ts`): `… R4GOLIVE → MVP DONE → PILOT → DONE → RELEASED`
+    (`MVPDONE` đổi thành `MVP DONE`, thêm PILOT / DONE); Pending và Reopened ngang hàng DEV (In Progress). **R9** chỉ xét status
+    R4GOLIVE … RELEASED nên status lạ (Reopened…) không còn bị gắn "Thiếu R4G Date". `ttm-phase-rules.ts` (engine cũ) giữ nguyên.
+  - Menu lọc Status ở Quản trị Epic / Epic in PO xếp theo thứ tự workflow (`compareWorkflowStatus`) thay vì ABC.
+  - Đối chiếu: nhãn mới `D11_WORKFLOW_STATUSES` (pha của Epic Pending / Reopened) — `parity.ts`, `ScoringParityPanel.tsx`.
+  - Cần "Tạo lại cache" để số liệu áp dụng rule mới.
+- **TTM Dashboard 2 — Ma trận Phân bổ**: Epic Sai lệch dữ liệu tách thành cột riêng "Sai lệch dữ liệu" (`TtmBreakdownItem.anomaly`),
+  không còn đếm vào "Đúng tiến độ" (engine scoring luôn cho các Epic này `alertLevel = NONE`). Cache `ttm_dashboard_2_cache` lên
+  `PAYLOAD_VERSION = 4`, tự dựng lại (`ttm-funnel-summary.ts`, `DashboardInsights.tsx`).
+
+- **Chỉ số TTM-E2E dùng cùng công thức TTM-CNTT** (không đổi schema): Tỷ lệ % Pass = Đạt TTM-E2E / (Đạt TTM-E2E + Fail TTM-E2E) thay cho
+  `pass / eligible` — Epic Fail TTM-E2E chưa có R4G Date nay nằm trong mẫu số; Epic Sai lệch dữ liệu / chưa kết luận nằm ngoài
+  (`summarizeE2e` trong `src/lib/ttm-cntt-qa.ts`, bỏ `summarizeE2eFromCounts`). Áp dụng cho vòng "Hoàn thành TTM-E2E" ở TTM Dashboard,
+  TTM Dashboard 2 và chỉ số toàn công ty (`ttm-index-global-cache-service.ts` tính lại % từ số đếm đã lưu). Cache TTM Dashboard 2 lên
+  `PAYLOAD_VERSION = 5`.
+- **Scoring Engine — R8 áp dụng cả với status được miễn** (`SCORING_CODE_VERSION` → `scoring-7`, spec §18): Epic To Do / In PO / Backlog có
+  R4G Date đã tới nay là Sai lệch dữ liệu (chỉ Cancelled không xét); các rule khác vẫn miễn (`src/lib/scoring/rules/data-quality.ts`).
+  Cần "Tạo lại cache".
+
+- **Scoring Engine — R1 "Thiếu Start Date" áp dụng cả với Pending** (`SCORING_CODE_VERSION` → `scoring-8`, spec §19): trước đây Epic Pending
+  thiếu Start Date không bị R1, không có Target nên không bao giờ được chấm TTM-CNTT (`src/lib/scoring/rules/data-quality.ts`). Cần "Tạo lại cache".
+- **Tài liệu tra cứu rule Sai lệch dữ liệu**: `public/docs/product-guide.html` thêm mục **9.1** — bảng R1–R9 đang áp dụng (điều kiện, miễn
+  trừ, hệ quả, ví dụ); popup "Logic cảnh báo" cập nhật mô tả axis Chất lượng dữ liệu + R1 (`catalog.ts`, `HelpPanels.tsx`).
+
 ## 2026-10-04
 
 - **TTM Dashboard 2 — thêm widget row, Ma trận Phân bổ và Pie chart** (không đổi schema; cache `ttm_dashboard_2_cache` lên `PAYLOAD_VERSION = 3`, tự dựng lại):

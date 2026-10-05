@@ -4,7 +4,8 @@ import { finding } from './rule-types';
 import type { PrimaryRule } from './rule-types';
 import type { Finding, ScoringContext } from '../types';
 
-/** Cancelled + the configurable list (default To Do / In PO / Backlog) skip every data-quality rule. */
+/** Cancelled + the configurable list (default To Do / In PO / Backlog) skip the data-quality rules —
+ * except R8, which only Cancelled skips (see dataQualityRule). */
 export function isExemptFromDataQuality(status: string, ctx: ScoringContext): boolean {
   if (isCancelledStatus(status)) return true;
   const normalized = normalizeWorkflowStatus(status);
@@ -21,16 +22,28 @@ function isBlank(value: string | null): boolean {
  * axis) plus R8/R9 (R4G Date vs status, added 2026-10-04). R1/R3–R6/R8/R9 are ALERT ("Sai lệch dữ
  * liệu"); R2 "Pending lâu" is a RECOMMENDATION since 2026-09-29 and no longer counts as a data
  * anomaly. Rule change 2026-10-04: R1 starts at DESIGN (was DEV), R5 only applies past DESIGN.
+ * Rule change 2026-10-05: R8 only once the R4G Date has been reached (a future one is a plan), and
+ * the workflow knows Pilot / Done / Reopened (derive.ts), so R9 no longer hits unrecognized statuses;
+ * R8 also applies to the exempt statuses (To Do / In PO / Backlog); R1 also applies to Pending.
  */
 export const dataQualityRule: PrimaryRule = ({ facts, derived, ctx }) => {
   const findings: Finding[] = [];
-  if (isExemptFromDataQuality(facts.status, ctx)) return findings;
+  const r4g = facts.r4gDate;
+  // R8 — an R4G Date already reached means status ≥ R4GOLIVE. It applies to the exempt statuses too
+  // (To Do / In PO / Backlog — owner rule 2026-10-05), only not to Cancelled: every Epic whose R4G
+  // Date has passed while its status is still behind is "Sai lệch dữ liệu". An R4G Date still in the
+  // future is a planned date (allowed to be entered ahead): no anomaly, and the Epic stays "chưa kết
+  // luận" until asOf reaches it.
+  // (Backlog is exempt but not a workflow step — it counts as "chưa tới R4GOLIVE" like To Do / In PO.)
+  const exempt = isExemptFromDataQuality(facts.status, ctx);
+  if (r4g && r4g <= ctx.asOf && (derived.statusIndex < STATUS_INDEX.R4GOLIVE || exempt) && !isCancelledStatus(facts.status)) {
+    findings.push(finding('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE', `R4G Date (${r4g}) đã tới nhưng status Epic (${facts.status}) chưa tới R4GOLIVE`, { r4gDate: r4g, status: facts.status }));
+  }
+  if (exempt) return findings;
   const { holidays } = ctx;
   const t0 = facts.ideaApprovedDate;
   const t1 = facts.startDate;
-  const r4g = facts.r4gDate;
   const due = facts.dueDate;
-  // Pending sorts after RELEASED in the workflow order — it is never "≥ R4GOLIVE" for R9.
   const pending = isPendingStatus(facts.status);
 
   if (pending) {
@@ -44,8 +57,11 @@ export const dataQualityRule: PrimaryRule = ({ facts, derived, ctx }) => {
         findings.push(finding('ANOMALY_R2_PENDING_TOO_LONG', `Epic Pending đã ${elapsed} ngày làm việc (ngưỡng ${Math.round(threshold)} ngày = ${Math.round(ctx.parameters['anomaly.pendingStaleRatio'] * 100)}% chu trình TTM-CNTT (QLDA)) kể từ ${t1 ? 'Start Date (T1)' : 'ngày tạo Jira'} — cân nhắc tiếp tục hoặc huỷ Epic.`, { anchorDate: anchor, elapsedWorkingDays: elapsed, thresholdWorkingDays: threshold }));
       }
     }
-  } else if (derived.statusIndex >= STATUS_INDEX.DESIGN && !t1) {
-    // R1 — Design / In Progress / R4GOLIVE / MVP Done / Released must have a Start Date.
+  }
+  // R1 — every status from Design on must have a Start Date. Pending / Reopened rank level with In
+  // Progress, so they are included (Pending since 2026-10-05: without it a Pending Epic with no Start
+  // Date had no Target and could never be judged on TTM-CNTT).
+  if (derived.statusIndex >= STATUS_INDEX.DESIGN && !t1) {
     findings.push(finding('ANOMALY_R1_MISSING_START_DATE', 'Thiếu Start Date (T1) — Epic đã từ giai đoạn Design trở đi.'));
   }
 
@@ -64,10 +80,9 @@ export const dataQualityRule: PrimaryRule = ({ facts, derived, ctx }) => {
     findings.push(finding('ANOMALY_R6_SP_LEVEL_MISMATCH', `Epic được đánh giá độ phức tạp Sản phẩm (${facts.complexity}) nhưng Requirement Level = ${level} — không phù hợp với loại yêu cầu Sản phẩm`));
   }
 
-  // R8 / R9 — R4G Date and status must agree: a recorded R4G Date means status ≥ R4GOLIVE, and vice versa.
-  if (r4g && derived.statusIndex < STATUS_INDEX.R4GOLIVE) {
-    findings.push(finding('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE', `Đã có R4G Date (${r4g}) nhưng status Epic (${facts.status}) chưa tới R4GOLIVE`, { r4gDate: r4g, status: facts.status }));
-  } else if (!r4g && !pending && derived.statusIndex >= STATUS_INDEX.R4GOLIVE) {
+  // R9 — the other direction of R8: a status at R4GOLIVE or later needs an R4G Date. Limited to the
+  // workflow's own statuses (R4GOLIVE … RELEASED), so an unrecognized status is never flagged.
+  if (!r4g && derived.statusIndex >= STATUS_INDEX.R4GOLIVE && derived.statusIndex <= STATUS_INDEX.RELEASED) {
     findings.push(finding('ANOMALY_R9_MISSING_R4G_DATE', `Status Epic (${facts.status}) đã từ R4GOLIVE trở lên nhưng chưa có R4G Date`, { status: facts.status }));
   }
   return findings;

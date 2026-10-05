@@ -22,6 +22,7 @@ import type { ProjectComponent } from '@/lib/master-data-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
+import { compareWorkflowStatus } from '@/lib/scoring/derive';
 import type { EpicAlertFilterOptions } from '@/lib/epic-alert-row-cache-query-service';
 import { ArrowBendUpRight, ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, Warning } from '@phosphor-icons/react';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
@@ -515,7 +516,7 @@ export default function EpicInPoPage() {
   // access-scoped set at that point, unlike `rows` below which is already status-narrowed).
   const inPoRawStatuses = useMemo(() => {
     const source = data?.mode === 'paged' && data.filterOptions ? data.filterOptions.statuses : (data?.rows ?? EMPTY_ROWS).map((row) => row.currentStatus);
-    return [...new Set(source)].filter((status) => IN_PO_STATUSES.has(normalizeEpicWorkflowStatus(status))).sort();
+    return [...new Set(source)].filter((status) => IN_PO_STATUSES.has(normalizeEpicWorkflowStatus(status))).sort(compareWorkflowStatus);
   }, [data]);
   // The user's own Status filter narrows WITHIN the 3 in-scope statuses; empty means "all 3".
   const effectiveStatuses = statusFilters.length > 0 ? statusFilters : inPoRawStatuses;
@@ -606,7 +607,7 @@ export default function EpicInPoPage() {
       : [...new Set(rows.flatMap((row) => row.ownerName.split(',').map((name) => name.trim()).filter(Boolean)))].sort((a, b) => a.localeCompare(b, 'vi'))),
     [data, rows],
   );
-  const clientStatusOptions = useMemo(() => [...new Set(rows.map((row) => row.currentStatus).filter(Boolean))].sort(), [rows]);
+  const clientStatusOptions = useMemo(() => [...new Set(rows.map((row) => row.currentStatus).filter(Boolean))].sort(compareWorkflowStatus), [rows]);
   const statusOptions = data?.mode === 'paged' ? inPoRawStatuses : clientStatusOptions;
   const requestingUnitOptions = useMemo(
     () => (data?.mode === 'paged' && data.filterOptions

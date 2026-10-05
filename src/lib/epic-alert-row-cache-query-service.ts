@@ -5,6 +5,7 @@ import { LIST_GROUP_RANK_SQL } from '@/lib/epic-alert-sort-rules';
 import type { DashboardEpicRow, EpicAlertRowPhased } from '@/lib/epic-alert-types';
 import { summarizeTtmCnttFromCounts } from '@/lib/ttm-cntt-qa';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
+import { compareWorkflowStatus } from '@/lib/scoring/derive';
 import { FILTER_PRESETS } from '@/lib/scoring/select';
 import type { ScoringEngineMode } from '@/lib/scoring-mode-service';
 
@@ -369,7 +370,7 @@ export async function queryEpicAlertFilterOptions(scope: AccessScope): Promise<E
     pmSmNames: [...pmSmNames].sort((a, b) => a.localeCompare(b, 'vi')),
     projectKeys: [...projectKeys].sort(),
     requestingUnits: [...requestingUnits].sort((a, b) => a.localeCompare(b, 'vi')),
-    statuses: [...statuses].sort(),
+    statuses: [...statuses].sort(compareWorkflowStatus),
   };
 }
 

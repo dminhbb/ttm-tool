@@ -53,7 +53,7 @@ export const SCORING_AXES: ScoringAxisDefinition[] = [
   { id: 'TTM_E2E', label: 'TTM-E2E', description: 'T0 (Idea Approved Date) → R4G Date (hoặc Due Date theo policy) so với ngân sách TTM-E2E.' },
   { id: 'RELEASE', label: 'Release', description: 'Kỷ luật Due Date / status Released so với R4G Date + thời hạn grace.' },
   { id: 'PHASE', label: 'Pha', description: '5 pha DESIGN / DEV / TEST / PENTEST / R4GOLIVE, mỗi pha có baseline theo % ngân sách TTM-CNTT (QLDA).' },
-  { id: 'DATA_QUALITY', label: 'Chất lượng dữ liệu', description: 'Dữ liệu Jira thiếu hoặc mâu thuẫn. Badge Cảnh báo của axis này = "Sai lệch dữ liệu".' },
+  { id: 'DATA_QUALITY', label: 'Chất lượng dữ liệu', description: 'Dữ liệu Jira thiếu hoặc mâu thuẫn. Badge Cảnh báo của axis này = "Sai lệch dữ liệu" (R1, R3–R6, R8, R9) — được xét trước: Epic Sai lệch dữ liệu không được chấm Đạt / Fail / Cảnh báo muộn trên TTM-CNTT (QLDA/QA) và TTM-E2E, nằm ngoài mẫu số các chỉ số. Miễn trừ: Cancelled miễn mọi rule; To Do / In PO / Backlog miễn mọi rule trừ R8.' },
   { id: 'SCOPE', label: 'Phạm vi', description: 'Epic có nằm trong "Phạm vi dữ liệu cho TTM" (Cấu hình cảnh báo) hay không.' },
 ];
 
@@ -165,8 +165,8 @@ export const BADGES = [
   // ---------- DATA_QUALITY ----------
   {
     id: 'ANOMALY_R1_MISSING_START_DATE', axis: 'DATA_QUALITY', group: 'ALERT', label: 'Thiếu Start Date', precedence: 10, defaultEnabled: true,
-    meaning: 'R1 — Epic đã từ DESIGN trở đi (Design / In Progress / R4GOLIVE / MVP Done / Released) nhưng chưa có Start Date. Từ 04/10/2026 tính cả status DESIGN (trước đây từ DEV).',
-    formula: 'status ≥ DESIGN  VÀ  không Pending  VÀ  T1 trống',
+    meaning: 'R1 — Epic đã từ DESIGN trở đi (Design / In Progress / Test / Pentest / R4GOLIVE / MVP Done / Pilot / Done / Released, và Pending / Reopened — ngang hàng In Progress) nhưng chưa có Start Date. Từ 04/10/2026 tính cả status DESIGN (trước đây từ DEV); từ 05/10/2026 tính cả Pending.',
+    formula: 'status ≥ DESIGN (kể cả Pending / Reopened)  VÀ  T1 trống',
     legacySource: 'evaluateEpicDataAnomaly R1',
   },
   {
@@ -195,13 +195,13 @@ export const BADGES = [
   },
   {
     id: 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE', axis: 'DATA_QUALITY', group: 'ALERT', label: 'Có R4G Date nhưng chưa R4GOLIVE', precedence: 62, defaultEnabled: true,
-    meaning: 'R8 — Epic đã ghi R4G Date nhưng status chưa lên R4GOLIVE. Mới từ 04/10/2026; vì là Sai lệch dữ liệu nên Epic không được chấm Đạt / Fail / "Sai Status" trên các trục TTM cho tới khi sửa.',
-    formula: 'Có R4G Date  VÀ  status < R4GOLIVE',
+    meaning: 'R8 — R4G Date đã tới (≤ ngày tính) nhưng status Epic chưa lên R4GOLIVE (kể cả Pending / Reopened — ngang hàng In Progress). Mới từ 04/10/2026; vì là Sai lệch dữ liệu nên Epic không được chấm Đạt / Fail / "Sai Status" trên các trục TTM cho tới khi sửa. Từ 05/10/2026: R4G Date ở tương lai là ngày kế hoạch — không phải Sai lệch dữ liệu, Epic ở nhóm "chưa kết luận" cho tới ngày đó; R8 áp dụng cả với status được miễn các rule khác (To Do / In PO / Backlog), chỉ trừ Cancelled.',
+    formula: 'Có R4G Date  VÀ  R4G Date ≤ asOf  VÀ  status < R4GOLIVE',
   },
   {
     id: 'ANOMALY_R9_MISSING_R4G_DATE', axis: 'DATA_QUALITY', group: 'ALERT', label: 'Thiếu R4G Date', precedence: 63, defaultEnabled: true,
-    meaning: 'R9 — Epic đã ở status R4GOLIVE trở lên (R4GOLIVE / MVP Done / Released) nhưng chưa có R4G Date. Mới từ 04/10/2026.',
-    formula: 'status ≥ R4GOLIVE  VÀ  không Pending  VÀ  R4G Date trống',
+    meaning: 'R9 — Epic đã ở status R4GOLIVE trở lên (R4GOLIVE / MVP Done / Pilot / Done / Released) nhưng chưa có R4G Date. Mới từ 04/10/2026. Status được miễn (To Do / In PO / Backlog), status ngoài workflow (kể cả Pending / Reopened — ngang hàng In Progress) không xét.',
+    formula: 'status ∈ {R4GOLIVE, MVP DONE, PILOT, DONE, RELEASED}  VÀ  R4G Date trống',
   },
   {
     id: 'ANOMALY_R2_PENDING_TOO_LONG', axis: 'DATA_QUALITY', group: 'RECOMMENDATION', label: 'Pending lâu', precedence: 65, defaultEnabled: true,
@@ -319,10 +319,10 @@ export const INDEX_MEMBERSHIP_RULES: { index: 'TTM-CNTT (QLDA)' | 'TTM-CNTT (QA)
   { index: 'TTM-CNTT (QLDA)', flag: 'Fail — L05ab + L05ba', formula: 'counted  VÀ  có "Fail TTM-CNTT (QLDA)": có R4G muộn hơn Target (L05ab) hoặc chưa có R4G mà đã quá Target (L05ba). Epic Sai lệch dữ liệu không được chấm Fail' },
   { index: 'TTM-CNTT (QLDA)', flag: 'Mẫu số', formula: 'Đạt + Fail = L05aa + L05ab + L05ba (từ 04/10/2026)' },
   { index: 'TTM-CNTT (QA)', flag: 'Tính / Đạt / Fail / Mẫu số', formula: 'Như TTM-CNTT (QLDA), chỉ lấy Epic status ∈ {MVP DONE, RELEASED} và thay "Ngoài phạm vi TTM-CNTT (QLDA)" bằng "Ngoài phạm vi QA"' },
-  { index: 'TTM-E2E', flag: 'Mẫu số / Đạt / Fail', formula: 'Mẫu số: không Cancelled, có R4G, không Sai lệch dữ liệu, không "Không tính được".  Đạt: có badge "Đạt TTM-E2E".  Fail: có "Fail TTM-E2E"' },
+  { index: 'TTM-E2E', flag: 'Mẫu số / Đạt / Fail', formula: 'Đạt: có badge "Đạt TTM-E2E".  Fail: có "Fail TTM-E2E" (kể cả Epic chưa có ngày kết thúc mà đã quá Target).  Mẫu số: Đạt + Fail (từ 05/10/2026, cùng công thức TTM-CNTT) — không Cancelled, không Sai lệch dữ liệu; Epic chưa kết luận không tính. Không áp "Phạm vi dữ liệu cho TTM"' },
 ];
 
-export const INDEX_PERCENT_FORMULA = 'TTM-CNTT (QLDA) / TTM-CNTT (QA), từ 04/10/2026:  Tỷ lệ % Pass = L05aa / (L05aa + L05ab + L05ba) × 100;  Tỷ lệ % Fail = (L05ab + L05ba) / (L05aa + L05ab + L05ba) × 100;  chưa có Epic nào được kết luận (mẫu số = 0): 100.   TTM-E2E:  Đạt / Mẫu số × 100;  nếu Mẫu số = 0: (Tính − Fail) / Tính × 100;  không có Epic nào: 100.';
+export const INDEX_PERCENT_FORMULA = 'TTM-CNTT (QLDA) / TTM-CNTT (QA), từ 04/10/2026:  Tỷ lệ % Pass = L05aa / (L05aa + L05ab + L05ba) × 100;  Tỷ lệ % Fail = (L05ab + L05ba) / (L05aa + L05ab + L05ba) × 100;  chưa có Epic nào được kết luận (mẫu số = 0): 100.   TTM-E2E, từ 05/10/2026 cùng công thức:  Đạt TTM-E2E / (Đạt TTM-E2E + Fail TTM-E2E) × 100.';
 
 export function badgesOf(axis: ScoringAxis, group: FindingGroup): BadgeDefinition[] {
   return BADGE_LIST.filter((badge) => badge.axis === axis && badge.group === group).sort((a, b) => a.precedence - b.precedence);

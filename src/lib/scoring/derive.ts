@@ -1,25 +1,46 @@
 import { addWorkingDays, diffWorkingDays, toIsoDate } from './dates';
 import type { DerivedMetrics, EpicComplexity, EpicFacts, IsoDate, PhaseDerived, ScoringContext, ScoringTtmPolicy, TtmPhaseKey } from './types';
 
-/** Canonical Epic workflow (same as ttm-phase-rules.ts). Jira's legacy "In Progress" is DEV. */
-export const EPIC_WORKFLOW_ORDER = ['TO DO', 'IN PO', 'DESIGN', 'DEV', 'TEST', 'PENTEST', 'R4GOLIVE', 'MVPDONE', 'RELEASED'] as const;
+/**
+ * Canonical Epic workflow. Jira's legacy "In Progress" is DEV. Owner rule 2026-10-05: 'MVP DONE'
+ * (was spelled 'MVPDONE', which never matched Jira's "MVP Done"), PILOT and DONE are workflow
+ * statuses of their own — DONE right after PILOT — and Pending / Reopened rank level with
+ * "In Progress" (WORKFLOW_PEER_OF_DEV). The legacy engine keeps its own, older order in
+ * ttm-phase-rules.ts.
+ */
+export const EPIC_WORKFLOW_ORDER = ['TO DO', 'IN PO', 'DESIGN', 'DEV', 'TEST', 'PENTEST', 'R4GOLIVE', 'MVP DONE', 'PILOT', 'DONE', 'RELEASED'] as const;
 const STATUS_ALIASES: Record<string, string> = {
   'IN PROGRESS': 'DEV',
   'IN DEV': 'DEV',
   'PEN TEST': 'PENTEST',
   'READY FOR GOLIVE': 'R4GOLIVE',
   'READY4GOLIVE': 'R4GOLIVE',
+  MVPDONE: 'MVP DONE',
 };
+/** Statuses that are not a step of the workflow but sit level with DEV ("In Progress") in it. */
+const WORKFLOW_PEER_OF_DEV = new Set(['REOPENED', 'REOPEN']);
 
 export function normalizeWorkflowStatus(status: string): string {
   const normalized = status.trim().toLocaleUpperCase('en-US').replace(/\s+/g, ' ');
   return STATUS_ALIASES[normalized] ?? normalized;
 }
 
-/** Unknown statuses (Pending, Cancelled, "MVP Done"…) sort after RELEASED — same as legacy. */
+/** Pending / Reopened: outside the workflow steps, ranked level with DEV ("In Progress"). */
+export function isDevPeerStatus(status: string): boolean {
+  return isPendingStatus(status) || WORKFLOW_PEER_OF_DEV.has(normalizeWorkflowStatus(status));
+}
+
+/** Statuses outside the workflow (Cancelled, anything unrecognized) sort after RELEASED. */
 export function workflowStatusIndex(status: string): number {
   const index = (EPIC_WORKFLOW_ORDER as readonly string[]).indexOf(normalizeWorkflowStatus(status));
-  return index === -1 ? EPIC_WORKFLOW_ORDER.length : index;
+  if (index !== -1) return index;
+  return isDevPeerStatus(status) ? (EPIC_WORKFLOW_ORDER as readonly string[]).indexOf('DEV') : EPIC_WORKFLOW_ORDER.length;
+}
+
+/** Status filter menus: workflow order (Pending / Reopened next to In Progress), then by name;
+ * Cancelled and unrecognized statuses last. */
+export function compareWorkflowStatus(a: string, b: string): number {
+  return workflowStatusIndex(a) - workflowStatusIndex(b) || a.localeCompare(b);
 }
 
 export const STATUS_INDEX = {

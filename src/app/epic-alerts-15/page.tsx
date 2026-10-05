@@ -30,6 +30,7 @@ import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import { ArrowBendUpRight, ArrowCounterClockwise, ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, FloppyDisk, FolderSimple, HourglassMedium, Lightning, ListChecks, Prohibit, Sparkle, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { listGroupRankOf } from '@/lib/epic-alert-sort-rules';
+import { compareWorkflowStatus } from '@/lib/scoring/derive';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import { trackDataUsage } from '@/lib/usage-tracking';
@@ -803,7 +804,7 @@ function EpicAlerts15Screen() {
     [data, rows],
   );
   const statusOptions = useMemo(
-    () => (data?.mode === 'paged' && data.filterOptions ? data.filterOptions.statuses : [...new Set(rows.map((row) => row.currentStatus).filter(Boolean))].sort()),
+    () => (data?.mode === 'paged' && data.filterOptions ? [...data.filterOptions.statuses].sort(compareWorkflowStatus) : [...new Set(rows.map((row) => row.currentStatus).filter(Boolean))].sort(compareWorkflowStatus)),
     [data, rows],
   );
   const requestingUnitOptions = useMemo(

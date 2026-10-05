@@ -748,3 +748,45 @@ bảng `epic_data_anomaly_violations` (chỉ ghi kết quả logic cũ) không �
 
 **Đối chiếu:** nhãn mới `D10_DATA_QUALITY_RULES` cho các lệch có chủ đích ở trên (rule R1 tại DESIGN, R5 tại DESIGN, R8, R9
 và cờ "Sai lệch dữ liệu" kéo theo); các lệch Đạt/Fail kéo theo vẫn mang nhãn `D8_ANOMALY_CHECKED_FIRST`.
+
+## 17. Thay đổi rule — R8 theo ngày, workflow status (2026-10-05)
+
+Quyết định của chủ sở hữu (`SCORING_CODE_VERSION` → `scoring-6`; chỉ áp dụng cho Scoring Service, logic cũ giữ nguyên):
+
+1. **R8 chỉ tính khi R4G Date đã tới:** `Có R4G Date VÀ R4G Date ≤ asOf VÀ status < R4GOLIVE`. R4G Date ở tương lai là
+   ngày kế hoạch (được phép nhập trước) — không phải Sai lệch dữ liệu; Epic vẫn có R4G Date nên thuộc L04a và ở nhóm
+   "chưa kết luận" (L05ac) cho tới ngày đó. Rule TTM-CNTT không đổi: R4G Date (kể cả tương lai) muộn hơn Target vẫn là Fail.
+2. **Workflow** (`EPIC_WORKFLOW_ORDER`, `derive.ts`):
+   `TO DO → IN PO → DESIGN → DEV → TEST → PENTEST → R4GOLIVE → MVP DONE → PILOT → DONE → RELEASED`.
+   - `MVP DONE` thay cho `MVPDONE` (cách viết cũ không khớp status "MVP Done" của Jira; `MVPDONE` còn là alias).
+   - `PILOT`, `DONE` là bước của workflow (DONE ngay sau PILOT) — đều ≥ R4GOLIVE.
+   - `Pending`, `Reopened` không phải một bước riêng: xếp ngang hàng DEV (In Progress) — `isDevPeerStatus`. Hệ quả: R8 áp
+     dụng cho hai status này; pha hiện tại của chúng là DEV/TEST/PENTEST thay vì R4GOLIVE.
+   - Status ngoài workflow (Cancelled, status lạ) vẫn xếp sau RELEASED.
+3. **R9** chỉ xét status trong khoảng R4GOLIVE … RELEASED của workflow, nên status lạ không còn bị gắn "Thiếu R4G Date".
+4. **Menu lọc Status** (Quản trị Epic, Epic in PO) liệt kê theo thứ tự workflow (`compareWorkflowStatus`) thay vì ABC.
+
+**Đối chiếu:** nhãn mới `D11_WORKFLOW_STATUSES` cho lệch về pha của Epic Pending / Reopened (logic cũ xếp hai status này
+sau RELEASED nên coi là pha R4GOLIVE).
+
+**TTM Dashboard 2:** ở Ma trận Phân bổ, Epic Sai lệch dữ liệu có cột riêng và không còn được đếm vào "Đúng tiến độ"
+(`ttm_dashboard_2_cache` lên `PAYLOAD_VERSION = 4`).
+
+## 18. R8 với status được miễn, công thức TTM-E2E (2026-10-05)
+
+Quyết định của chủ sở hữu (`SCORING_CODE_VERSION` → `scoring-7`):
+
+1. **R8 áp dụng cả với status được miễn** (`anomaly.exemptStatuses`: To Do / In PO / Backlog) — chỉ Cancelled không xét. Mọi
+   Epic có R4G Date đã tới mà status chưa tới R4GOLIVE đều là Sai lệch dữ liệu. Các rule R1–R6, R9 vẫn miễn như cũ. Trước
+   đó một Epic "In PO, có R4G Date, thiếu Start Date" không bị gắn rule nào, được tính vào L04a/L05ac và còn nhận "Đạt TTM-E2E".
+2. **Chỉ số TTM-E2E dùng cùng công thức TTM-CNTT** (`summarizeE2e`, `ttm-cntt-qa.ts`): Tỷ lệ % Pass = Đạt TTM-E2E /
+   (Đạt TTM-E2E + Fail TTM-E2E). Mẫu số cũ (Epic có R4G Date, không Sai lệch dữ liệu, phép tính không hỏng) bỏ sót Epic Fail
+   chưa có R4G Date. Epic Cancelled / Sai lệch dữ liệu / chưa kết luận nằm ngoài tỷ lệ; không áp "Phạm vi dữ liệu cho TTM".
+   Chỉ số toàn công ty (`ttm_index_global_cache`) tính lại % từ số đếm đã lưu, không cần migration.
+
+## 19. R1 áp dụng cả với Pending (2026-10-05)
+
+Quyết định của chủ sở hữu (`SCORING_CODE_VERSION` → `scoring-8`): **R1** "Thiếu Start Date" xét mọi status ≥ DESIGN, kể cả
+Pending (Pending ngang hàng In Progress — §17). Trước đó nhánh Pending chỉ xét R2 "Pending lâu", nên một Epic Pending thiếu
+Start Date không có Target và không bao giờ được chấm TTM-CNTT. R2 vẫn xét độc lập. Đối chiếu: lệch R1 trên Epic Pending mang
+nhãn `D10_DATA_QUALITY_RULES`. Bảng tra cứu rule đang áp dụng: `public/docs/product-guide.html` mục 9.1.

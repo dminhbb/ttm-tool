@@ -44,10 +44,13 @@ export interface TtmBreakdownItem {
   fail: number;
   /** The L05ab part of `fail` (R4G Date past Target); the rest is L05ba (no R4G Date, past Target). */
   failLateR4g: number;
-  /** Epics of L02 without a recorded R4G Date or with "Sai lệch dữ liệu": đúng / chậm tiến độ
-   * (chậm = alertLevel FAIL or LATE) — same rule as TTM Dashboard's matrix. */
+  /** Epics of L03 without a recorded R4G Date (L04b): đúng / chậm tiến độ (chậm = alertLevel FAIL
+   * or LATE). "Sai lệch dữ liệu" Epics are NOT here since 2026-10-05 — they get no TTM verdict
+   * (alertLevel always NONE under the scoring engine), so they used to pass as "đúng tiến độ". */
   ok: number;
   late: number;
+  /** "Sai lệch dữ liệu" Epics of L02 (L02 − L03) — their own column, outside đúng / chậm tiến độ. */
+  anomaly: number;
   /** TTM-CNTT (QA) counts of the same Epics (MVP Done / Released, inside the QA scope). */
   qaPass: number;
   qaFail: number;
@@ -192,7 +195,7 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
       const { key, linkValue, name } = BREAKDOWN_KEY[dimension](row);
       let group = groups.get(key);
       if (!group) {
-        group = { item: { fail: 0, failLateR4g: 0, late: 0, linkValue, name, ok: 0, pass: 0, qaFail: 0, qaPass: 0, qaTotal: 0, total: 0 }, rows: [] };
+        group = { item: { anomaly: 0, fail: 0, failLateR4g: 0, late: 0, linkValue, name, ok: 0, pass: 0, qaFail: 0, qaPass: 0, qaTotal: 0, total: 0 }, rows: [] };
         groups.set(key, group);
       }
       group.rows.push(row);
@@ -202,8 +205,9 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
       if (bucket === 'R4G_PASS') group.item.pass += 1;
       else if (bucket === 'R4G_LATE' || bucket === 'NO_R4G_OVERDUE') group.item.fail += 1;
       if (bucket === 'R4G_LATE') group.item.failLateR4g += 1;
-      // "Đúng / Chậm tiến độ": Epics with no TTM-CNTT verdict possible yet (no R4G Date, or Sai lệch dữ liệu).
-      if (bucket === 'DATA_ANOMALY' || bucket === 'NO_R4G_OVERDUE' || bucket === 'NO_R4G_WITHIN_TARGET') {
+      if (bucket === 'DATA_ANOMALY') group.item.anomaly += 1;
+      // "Đúng / Chậm tiến độ": Epics still on their way to R4G (no R4G Date yet, no Sai lệch dữ liệu).
+      if (bucket === 'NO_R4G_OVERDUE' || bucket === 'NO_R4G_WITHIN_TARGET') {
         if (row.alertLevel === 'FAIL' || row.alertLevel === 'LATE') group.item.late += 1;
         else group.item.ok += 1;
       }

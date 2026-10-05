@@ -22,19 +22,19 @@ export function isTtmCnttQaInScope(status: string | null | undefined): boolean {
  *   Tỷ lệ % Fail = (L05ab + L05ba) / (L05aa + L05ab + L05ba)
  * i.e. only Epics with a final verdict count: Đạt (L05aa), Fail with an R4G Date past Target (L05ab)
  * and Fail without an R4G Date, already past Target (L05ba). Epics not concluded yet (L05ac, L05bb),
- * Cancelled ones and "Sai lệch dữ liệu" ones are outside the ratio. TTM-E2E keeps its own formula
- * (pass / eligible — summarizeE2e).
+ * Cancelled ones and "Sai lệch dữ liệu" ones are outside the ratio. TTM-E2E uses the same ratio on
+ * its own verdicts since 2026-10-05: Đạt TTM-E2E / (Đạt TTM-E2E + Fail TTM-E2E) — summarizeE2e.
  */
 export interface TtmCnttSummary {
-  /** Epics with a recorded R4G Date and no data anomaly (L04a "Epic hoàn thành"). For TTM-E2E this
-   * is also the ratio's denominator; for TTM-CNTT the denominator is `denominator` below. */
+  /** Epics with a recorded R4G Date and no data anomaly (L04a "Epic hoàn thành"). Informational —
+   * the ratio's denominator is `denominator` below. */
   eligible: number;
   /** Fail TTM-CNTT among Epics without "Sai lệch dữ liệu" = L05ab + L05ba — an Epic can blow its
    * budget before ever reaching R4G, so this is independent of `eligible`. */
   fail: number;
   /** "Đạt TTM-CNTT" (L05aa). */
   pass: number;
-  /** What `pct` is a ratio of: pass + fail for TTM-CNTT (QLDA/QA), `eligible` for TTM-E2E. */
+  /** What `pct` is a ratio of: pass + fail (Epics with a final verdict). */
   denominator: number;
   /** Tỷ lệ % Pass, rounded to a whole number — used wherever the ratio is shown compactly (matrix
    * table bars/cells). 100 when nothing has a verdict yet (denominator = 0). */
@@ -130,12 +130,13 @@ export function summarizeQaIndex(rows: Pick<EpicAlertRowPhased, 'alertLevel' | '
   return summarizeTtmCnttFromCounts(eligible, pass, fail, total);
 }
 
-/** TTM-E2E ratio, same shape/formula as summarizeTtmCntt but on the E2E axis — no "Phạm vi dữ liệu
- * cho TTM" gate (that only ever applies to CNTT/QA, see ttm-scope-rules.ts). "Eligible" (mẫu số) =
- * Epic has a recorded R4G Date and the TTM-E2E calc isn't broken (R4G < T0); "pass" (tử số) = among
- * those, the Epic has "Đạt TTM-E2E". "fail" counts E2E_FAIL independently of eligibility, same as
- * TTM-CNTT's fail. Shared by the per-filter "Hoàn thành TTM-E2E" ring (dashboard-new/page.tsx) and
- * the company-wide cache (ttm-index-global-cache-service.ts) so both never disagree on the formula. */
+/** TTM-E2E ratio — same formula as TTM-CNTT since 2026-10-05 (owner rule): Tỷ lệ % Pass = Đạt TTM-E2E /
+ * (Đạt TTM-E2E + Fail TTM-E2E), so an Epic that already blew its E2E budget without an R4G Date is
+ * in the denominator, and one with no verdict yet (end date still in the future) is not. Cancelled
+ * and "Sai lệch dữ liệu" Epics are outside the ratio. No "Phạm vi dữ liệu cho TTM" gate (that only
+ * ever applies to CNTT/QA, see ttm-scope-rules.ts). `eligible` = Epics with a recorded R4G Date whose
+ * E2E calc isn't broken (informational). Shared by the per-filter "Hoàn thành TTM-E2E" ring (TTM
+ * Dashboard, TTM Dashboard 2) and the company-wide cache (ttm-index-global-cache-service.ts). */
 export function summarizeE2e(rows: Pick<EpicAlertRowPhased, 'currentStatus' | 'hasDataAnomaly' | 'r4gDate' | 'scoringBadges' | 'ttmE2eAlertLevel'>[]): TtmCnttSummary {
   let eligible = 0;
   let pass = 0;
@@ -145,22 +146,22 @@ export function summarizeE2e(rows: Pick<EpicAlertRowPhased, 'currentStatus' | 'h
   for (const row of rows) {
     if (isCancelledStatus(row.currentStatus || '')) continue;
     total += 1;
+    // "Sai lệch dữ liệu" Epics are neither Đạt nor Fail (the scoring engine doesn't judge them at all).
+    if (row.hasDataAnomaly) continue;
     const badges = row.scoringBadges;
-    // Scoring: mẫu số = có R4G Date, không Sai lệch dữ liệu, phép tính không hỏng (decision 2026-10-01).
-    const calcBroken = badges ? badges.includes('E2E_CALC_BROKEN') || row.hasDataAnomaly : row.hasDataAnomaly;
     if (badges ? badges.includes('E2E_FAIL') : row.ttmE2eAlertLevel === 'FAIL') fail += 1;
-    if (!row.r4gDate || calcBroken) continue;
-    eligible += 1;
-    const achieved = badges ? badges.includes('E2E_PASS') : row.ttmE2eAlertLevel === 'NONE' && (row.currentStatus ?? '').trim().toUpperCase() === 'RELEASED';
+    const hasR4g = Boolean(row.r4gDate) && !badges?.includes('E2E_CALC_BROKEN');
+    if (hasR4g) eligible += 1;
+    const achieved = badges ? badges.includes('E2E_PASS') : hasR4g && row.ttmE2eAlertLevel === 'NONE' && (row.currentStatus ?? '').trim().toUpperCase() === 'RELEASED';
     if (achieved) pass += 1;
   }
 
-  return summarizeE2eFromCounts(eligible, pass, fail, total);
+  return summarizeTtmCnttFromCounts(eligible, pass, fail, total);
 }
 
-/** TTM-CNTT (QLDA/QA) ratio from counts — the single place the formula lives, for both the row-based
- * summaries above and callers that already have the counts (a SQL aggregate, the company-wide cache
- * row). `fail` must already exclude "Sai lệch dữ liệu" Epics (= L05ab + L05ba). */
+/** TTM-CNTT (QLDA/QA) and TTM-E2E ratio from counts — the single place the formula lives, for both
+ * the row-based summaries above and callers that already have the counts (a SQL aggregate, the
+ * company-wide cache row). `fail` must already exclude "Sai lệch dữ liệu" Epics (= L05ab + L05ba). */
 export function summarizeTtmCnttFromCounts(eligible: number, pass: number, fail: number, total: number): TtmCnttSummary {
   const denominator = pass + fail;
   const pctPrecise = denominator > 0 ? (pass / denominator) * 100 : 100;
@@ -168,14 +169,3 @@ export function summarizeTtmCnttFromCounts(eligible: number, pass: number, fail:
   return { denominator, eligible, fail, failPct: Math.round(failPctPrecise), failPctPrecise, pass, pct: Math.round(pctPrecise), pctPrecise, total };
 }
 
-/** TTM-E2E keeps the pre-2026-10-04 ratio: pass / eligible; when nothing is eligible yet,
- * (total − fail) / total so an Epic that already failed still pulls the ratio down; 100 with no rows. */
-export function summarizeE2eFromCounts(eligible: number, pass: number, fail: number, total: number): TtmCnttSummary {
-  const pctPrecise = eligible > 0
-    ? (pass / eligible) * 100
-    : total > 0
-      ? ((total - fail) / total) * 100
-      : 100;
-  const failPctPrecise = 100 - pctPrecise;
-  return { denominator: eligible, eligible, fail, failPct: Math.round(failPctPrecise), failPctPrecise, pass, pct: Math.round(pctPrecise), pctPrecise, total };
-}

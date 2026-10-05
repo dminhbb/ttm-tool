@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { matchesAlertFilter, TTM_FUNNEL_BUCKET_BY_FILTER, ttmFunnelBucket } from '../epic-row-verdicts';
 import type { TtmFunnelFilterValue } from '../epic-row-verdicts';
-import { summarizeQaIndex, summarizeTtmCntt, summarizeTtmCnttFromCounts } from '../ttm-cntt-qa';
+import { summarizeE2e, summarizeQaIndex, summarizeTtmCntt, summarizeTtmCnttFromCounts } from '../ttm-cntt-qa';
 import { breakdownIndexes, buildTtmDashboard2FilterOptions, filterTtmDashboard2Rows, hasActiveTtmDashboard2Filter, splitWaitingGolive, summarizeTtmFunnel, TTM_BREAKDOWN_DIMENSIONS, TTM_FUNNEL_CRITERIA, ttmFunnelCnttIndex, ttmFunnelLayers } from '../ttm-funnel-summary';
 import { buildEpicAlertsDeepLink } from '../epic-alerts-deep-link';
 import type { TtmFunnelRow } from '../ttm-funnel-summary';
@@ -168,8 +168,9 @@ describe('TTM Dashboard 2 summary (cache ↔ filtered recompute share these)', (
       assert.deepEqual([p2.name, p2.total, p2.pass, p2.fail, p2.failLateR4g, p2.ok, p2.late], ['Dự án 2', 2, 0, 2, 1, 0, 1]);
       assert.deepEqual([breakdownIndexes(p2).qlda.denominator, breakdownIndexes(p2).qlda.pctPrecise], [2, 0]);
       const p1 = summary.insights.breakdowns.project.find((item) => item.linkValue === 'P1')!;
-      // L02 of P1 = 5: 2 Đạt, 1 chưa kết luận, 1 trong hạn đang LATE (chậm), 1 Sai lệch dữ liệu (đúng tiến độ).
-      assert.deepEqual([p1.total, p1.pass, p1.fail, p1.ok, p1.late], [5, 2, 0, 1, 1]);
+      // L02 of P1 = 5: 2 Đạt, 1 chưa kết luận, 1 trong hạn đang LATE (chậm), 1 Sai lệch dữ liệu — counted
+      // on its own, never as "đúng tiến độ" (2026-10-05).
+      assert.deepEqual([p1.total, p1.pass, p1.fail, p1.ok, p1.late, p1.anomaly], [5, 2, 0, 0, 1, 1]);
       assert.deepEqual([breakdownIndexes(p1).qlda.denominator, breakdownIndexes(p1).qlda.pctPrecise], [2, 100]);
       // Placeholders carry no Quản trị Epic filter; an unresolved Epic type counts as CT-Lv12.
       assert.equal(summary.insights.breakdowns.requestingUnit.find((item) => item.name === 'Chưa xác định')?.linkValue, null);
@@ -233,5 +234,29 @@ describe('TTM Dashboard 2 summary (cache ↔ filtered recompute share these)', (
     assert.deepEqual(options.domainProjectKeys, { D1: ['P1'], D2: ['P2'] });
     assert.deepEqual(options.pmSms, ['An', 'Bình', 'Chi']);
     assert.deepEqual(options.requestingUnits, ['Khối A', 'Khối B, C']);
+  });
+});
+
+describe('TTM-E2E ratio (2026-10-05): Đạt / (Đạt + Fail), same formula as TTM-CNTT', () => {
+  const row = (overrides: Partial<Parameters<typeof summarizeE2e>[0][number]>) => ({ currentStatus: 'Released', hasDataAnomaly: false, r4gDate: '2026-09-01', scoringBadges: [] as string[], ttmE2eAlertLevel: 'NONE' as const, ...overrides });
+
+  it('scoring rows: a Fail without R4G Date is in the denominator, an Epic with no verdict is not', () => {
+    const summary = summarizeE2e([
+      row({ scoringBadges: ['E2E_PASS'] }),
+      row({ scoringBadges: ['E2E_FAIL'] }),
+      row({ scoringBadges: ['E2E_FAIL'], r4gDate: null, currentStatus: 'In Progress' }),
+      row({ r4gDate: '2026-12-01' }), // end date still in the future: no verdict yet
+      row({ hasDataAnomaly: true }),
+      row({ currentStatus: 'Cancelled', scoringBadges: ['E2E_FAIL'] }),
+    ]);
+    assert.deepEqual([summary.pass, summary.fail, summary.denominator, summary.eligible, summary.total], [1, 2, 3, 3, 5]);
+    assert.equal(summary.pctPrecise, (1 / 3) * 100);
+  });
+
+  it('legacy rows: Sai lệch dữ liệu is neither Đạt nor Fail; nothing judged yet → 100', () => {
+    const legacy = (overrides: Partial<Parameters<typeof summarizeE2e>[0][number]>) => row({ scoringBadges: undefined, ...overrides });
+    const summary = summarizeE2e([legacy({}), legacy({ ttmE2eAlertLevel: 'FAIL', r4gDate: null }), legacy({ ttmE2eAlertLevel: 'FAIL', hasDataAnomaly: true })]);
+    assert.deepEqual([summary.pass, summary.fail, summary.denominator], [1, 1, 2]);
+    assert.deepEqual([summarizeE2e([]).pctPrecise, summarizeE2e([legacy({ currentStatus: 'In Progress', r4gDate: null })]).pctPrecise], [100, 100]);
   });
 });
