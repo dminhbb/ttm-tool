@@ -4,7 +4,9 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { getDashboardData } from '@/lib/dashboard-service';
 import { getEpicBrowserRoot } from '@/lib/epic-browser-service';
+import { ALERT_FILTER_VALUES, matchesAlertFilter, type AlertFilterValue } from '@/lib/epic-row-verdicts';
 import { getEpicAlertRowsForDisplay } from '@/lib/epic-scoring-display-service';
+import { isCancelledStatus } from '@/lib/issue-status-rules';
 import { scoreEpicByKey } from '@/lib/scoring-run-service';
 import { BADGE_BY_ID, FINDING_GROUPS, SCORING_AXES } from '@/lib/scoring/catalog';
 import { getReportAccessScope, scopeReportFilterOptions } from '@/lib/report-access-scope';
@@ -12,7 +14,7 @@ import { listDomains, listHolidays, listProjectComponents, listProjects } from '
 import { recordMcpAccessEvent } from '@/lib/mcp-service';
 import { getReportLayerDates } from '@/lib/reports-service';
 import { getProductDocSections, PRODUCT_DOC_URL_PATH, searchProductDocs } from '@/lib/product-doc-service';
-import { getTtmDashboardSummary } from '@/lib/ttm-dashboard-summary-service';
+import { getTtmDashboard2Summary } from '@/lib/ttm-dashboard-2-summary-service';
 import { listTtmPolicies } from '@/lib/ttm-policy-service';
 import type { AuthUser, UserRole } from '@/lib/auth-types';
 
@@ -20,6 +22,8 @@ const REPORT_VIEW_ROLES: readonly UserRole[] = ['ADMIN', 'SUPERADMIN', 'SUPERVIS
 const TTM_POLICY_ROLES: readonly UserRole[] = ['SUPERADMIN', 'SUPERVISOR'];
 const MAX_ALERT_ROWS = 200;
 const DEFAULT_ALERT_ROWS = 50;
+/** "Nhận xét" filter values of Quản trị Epic (epic-row-verdicts.ts) — list_epic_alerts' `nhanXet`. */
+const NHAN_XET_VALUES = [...ALERT_FILTER_VALUES].filter(Boolean) as [Exclude<AlertFilterValue, ''>, ...Exclude<AlertFilterValue, ''>[]];
 
 function forbidden(message: string): CallToolResult {
   return { content: [{ type: 'text', text: message }], isError: true };
@@ -87,11 +91,12 @@ async function describeScorecard(epicKey: string) {
  */
 export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
   const server = new McpServer(
-    { name: 'ttm-tool', version: '1.1.0' },
+    { name: 'ttm-tool', version: '1.2.0' },
     {
       instructions:
         'ttm-tool (TTM Monitor) — công cụ cảnh báo rủi ro chậm Time to Market cho Epic Jira. '
-        + 'Số liệu: get_ttm_dashboard (màn TTM dashboard), list_epic_alerts / get_epic_detail (từng Epic). '
+        + 'Số liệu tổng hợp: get_ttm_dashboard (màn TTM Dashboard 2 — phễu L01…L05bb, chỉ số TTM-CNTT (QLDA)/(QA), TTM-E2E). '
+        + 'Danh sách / chi tiết Epic (dữ liệu màn Quản trị Epic): list_epic_alerts (lọc theo nhanXet để lấy Epic sau mỗi con số), get_epic_detail. '
         + 'Rule, cách tính, ý nghĩa badge/cảnh báo, hướng dẫn dùng màn hình: search_product_docs rồi get_product_doc_section — '
         + 'trả lời dựa trên Tài liệu sản phẩm và nêu số mục tham chiếu, không tự suy đoán rule.',
     },
@@ -104,21 +109,29 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
       title: 'Danh sách Epic đang được theo dõi cảnh báo TTM',
       description:
         'Trả về danh sách Epic cùng mức cảnh báo TTM (NONE/EARLY/LATE/FAIL), trạng thái hiện tại, dự án, domain, người phụ trách. '
-        + 'Dữ liệu được lọc theo đúng quyền hạn (RBAC) của người dùng đang gọi. Dùng để trả lời các câu hỏi như "epic nào đang trễ", '
-        + '"epic ABC-123 đang ở trạng thái gì", "dự án X có bao nhiêu cảnh báo mức cao".',
+        + 'Dữ liệu của màn hình "Quản trị Epic", lọc theo đúng quyền hạn (RBAC) của người dùng đang gọi. Dùng để trả lời các câu hỏi như "epic nào đang trễ", '
+        + '"epic ABC-123 đang ở trạng thái gì", "dự án X có bao nhiêu cảnh báo mức cao", và để lấy danh sách Epic sau một con số của get_ttm_dashboard (tham số nhanXet).',
       inputSchema: {
         projectKey: z.string().trim().max(50).optional().describe('Lọc theo mã dự án Jira (project key), ví dụ "TTM".'),
         alertLevel: z.enum(['NONE', 'EARLY', 'LATE', 'FAIL']).optional().describe('Lọc theo mức cảnh báo.'),
+        nhanXet: z.enum(NHAN_XET_VALUES).optional().describe(
+          'Bộ lọc "Nhận xét" của màn Quản trị Epic. Tiêu chí phễu TTM Dashboard 2: IN_SCOPE_CNTT = L02 (thêm includeCancelled = true để ra L01), DATA_ANOMALY_IN_SCOPE = Sai lệch dữ liệu (L02 − L03), '
+          + 'TTM_ELIGIBLE_IN_SCOPE = L04a, MISSING_R4G_IN_SCOPE = L04b, TTM_PASS_IN_SCOPE = L05aa, TTM_LATE_IN_SCOPE = L05ab, TTM_NOT_SCORED_IN_SCOPE = L05ac, '
+          + 'OVERDUE_MISSING_R4G_IN_SCOPE = L05ba, WITHIN_TARGET_MISSING_R4G = L05bb, OUT_OF_SCOPE_CNTT = ngoài "Phạm vi dữ liệu cho TTM". '
+          + 'Khác: ACHIEVED_E2E / FAIL_E2E, LATE (Chậm tiến độ), DATA_ANOMALY, PENDING_TOO_LONG, WAITING_GOLIVE (+ _MISSING_R4G / _WITHIN_GRACE / _OVERDUE), JUSTIFY_GOLIVE, STATUS_MISMATCH.',
+        ),
+        includeCancelled: z.boolean().optional().describe('Chỉ có tác dụng khi dùng nhanXet: true = tính cả Epic Cancelled (mặc định loại, giống màn Quản trị Epic).'),
         search: z.string().trim().max(100).optional().describe('Tìm theo mã hoặc tên Epic (không phân biệt hoa/thường).'),
         limit: z.number().int().min(1).max(MAX_ALERT_ROWS).optional().describe(`Số dòng tối đa trả về (mặc định ${DEFAULT_ALERT_ROWS}, tối đa ${MAX_ALERT_ROWS}).`),
       },
     },
-    async ({ projectKey, alertLevel, search, limit }) => {
+    async ({ projectKey, alertLevel, nhanXet, includeCancelled, search, limit }) => {
       const { rows, lastAggregatedAt, viewerName } = await getEpicAlertRowsForDisplay(user.id, user.role);
       const searchLower = search?.toLowerCase();
       const filtered = rows.filter((row) =>
         (!projectKey || row.projectKey.toLowerCase() === projectKey.toLowerCase())
         && (!alertLevel || row.alertLevel === alertLevel)
+        && (!nhanXet || (matchesAlertFilter(row, nhanXet) && (includeCancelled || !isCancelledStatus(row.currentStatus || ''))))
         && (!searchLower || row.epicKey.toLowerCase().includes(searchLower) || row.epicName.toLowerCase().includes(searchLower)),
       );
       await touch();
@@ -157,7 +170,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
       title: 'Tổng quan Dashboard TTM',
       description:
         'Trả về số liệu tổng hợp (số epic đạt/trễ TTM, phân bố trạng thái, top epic rủi ro cao...) — tương đương màn hình Dashboard CŨ (/dashboard). '
-        + 'Với câu hỏi về màn hình "TTM dashboard" hiện hành (TTM-CNTT (QLDA), TTM-CNTT (QA), Chờ golive, Giải trình Golive...), ưu tiên dùng get_ttm_dashboard. '
+        + 'Với câu hỏi về chỉ số TTM hiện hành (TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E, Chờ golive, Giải trình Golive...), dùng get_ttm_dashboard (màn TTM Dashboard 2). '
         + 'Có thể chọn 1-3 dự án cụ thể; nếu bỏ trống, trả về theo phạm vi mặc định của người dùng.',
       inputSchema: {
         projectKeys: z.array(z.string().trim().max(50)).min(1).max(3).optional().describe('Danh sách 1-3 mã dự án muốn xem (project key).'),
@@ -173,28 +186,25 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
   server.registerTool(
     'get_ttm_dashboard',
     {
-      title: 'Số liệu màn hình TTM dashboard',
+      title: 'Số liệu màn hình TTM Dashboard 2',
       description:
-        'Trả về toàn bộ số liệu của màn hình "TTM dashboard" (/dashboard-new) theo đúng quyền dữ liệu (RBAC) của người dùng đang gọi: '
-        + 'KPI (tổng số Epic, chỉ số TTM-CNTT (QLDA) và TTM-CNTT (QA) — tên cũ TTM-Index/QA-Index, Fail TTM-CNTT (QLDA)/E2E, Cảnh báo sớm/muộn, Sai lệch dữ liệu, Chờ golive, Cảnh báo sớm Release, '
-        + 'Giải trình Golive, Ngoài phạm vi TTM-CNTT (QLDA)), TTM-CNTT (QLDA)/(QA) toàn ứng dụng (widget banner), phân bố trạng thái, pipeline 5 pha, top 5 dự án rủi ro, '
-        + 'bảng phân tích theo chiều (dự án/domain/PM-SM/Epic type/đơn vị yêu cầu) và danh sách Epic chi tiết cho từng nhóm. '
-        + 'Dùng cho câu hỏi kiểu "TTM-CNTT (QLDA) domain X bao nhiêu", "có bao nhiêu epic chờ golive", "dự án nào rủi ro nhất". '
-        + 'Muốn biết rule/cách tính của một chỉ số, dùng search_product_docs.',
+        'Trả về số liệu của màn hình "TTM Dashboard 2" (/ttm-dashboard-2 — màn hình mặc định sau khi đăng nhập) theo đúng quyền dữ liệu (RBAC) của người dùng đang gọi: '
+        + 'phễu Epic theo tiêu chí L01…L05bb (Tổng epic, loại Cancelled, loại Sai lệch dữ liệu, Epic hoàn thành / chưa hoàn thành, Đạt / Không đạt / Chưa kết luận / Trong hạn), '
+        + 'chỉ số TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E (Tỷ lệ % Pass = Đạt / (Đạt + Fail)) của tập đang xem và của toàn công ty, '
+        + 'các widget Fail TTM-CNTT, Chậm tiến độ, Sai lệch dữ liệu, Chờ golive (thiếu R4G / trong hạn / quá hạn), Giải trình Golive, '
+        + 'và bảng phân tích theo chiều (dự án / domain / PM-SM / phân loại Epic / đơn vị yêu cầu). '
+        + 'Dùng cho câu hỏi kiểu "TTM-CNTT (QLDA) domain X bao nhiêu", "có bao nhiêu epic fail TTM", "dự án nào nhiều Epic sai lệch dữ liệu nhất". '
+        + 'Tool chỉ trả số tổng hợp — danh sách Epic sau mỗi con số lấy bằng list_epic_alerts (tham số nhanXet); rule/cách tính: search_product_docs.',
       inputSchema: {
-        projectKeys: z.array(z.string().trim().min(1).max(50)).max(20).optional().describe('Lọc theo danh sách mã dự án (project key).'),
-        domain: z.string().trim().max(200).optional().describe('Lọc theo tên domain (khớp chính xác, không phân biệt hoa/thường).'),
-        pmSm: z.string().trim().max(200).optional().describe('Lọc theo tên PM/SM phụ trách.'),
+        projectKeys: z.array(z.string().trim().min(1).max(50)).max(50).optional().describe('Lọc theo danh sách mã dự án (project key).'),
+        domain: z.string().trim().max(200).optional().describe('Lọc theo tên domain (không phân biệt hoa/thường).'),
+        pmSms: z.array(z.string().trim().min(1).max(200)).max(20).optional().describe('Lọc theo tên PM/SM phụ trách (Epic của bất kỳ người nào trong danh sách).'),
+        requestingUnits: z.array(z.string().trim().min(1).max(200)).max(20).optional().describe('Lọc theo Đơn vị yêu cầu.'),
         dimension: z.enum(['project', 'domain', 'pmsm', 'epicType', 'requestingUnit']).optional().describe('Chiều phân tích cho bảng breakdown (mặc định project).'),
-        ttmScopeCnttFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().describe('Ghi đè "R4G for TTM (CNTT)" từ ngày (yyyy-mm-dd); null = không giới hạn; bỏ trống = dùng cấu hình mặc định.'),
-        ttmScopeCnttTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().describe('Ghi đè "R4G for TTM (CNTT)" đến ngày (yyyy-mm-dd).'),
-        ttmScopeQaFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().describe('Ghi đè "R4G for TTM (QA)" từ ngày (yyyy-mm-dd).'),
-        ttmScopeQaTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().describe('Ghi đè "R4G for TTM (QA)" đến ngày (yyyy-mm-dd).'),
-        listLimit: z.number().int().min(0).max(100).optional().describe('Số Epic tối đa trong mỗi danh sách chi tiết (mặc định 20).'),
       },
     },
     async (filters) => {
-      const summary = await getTtmDashboardSummary(user.id, user.role, filters);
+      const summary = await getTtmDashboard2Summary(user.id, user.role, filters);
       await touch();
       return json(summary);
     },

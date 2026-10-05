@@ -14,11 +14,13 @@ function authError(error: unknown): NextResponse | null {
 export async function GET(request: NextRequest) {
   try {
     const actor = await requireUser(request);
+    // TTM Dashboard is SUPERADMIN-only since 2026-10-05 (every role lands on TTM Dashboard 2 instead).
+    if (actor.role !== 'SUPERADMIN') return NextResponse.json({ error: 'Bạn không có quyền xem màn hình này.' }, { status: 403 });
     const isAdminOrSupervisor = VIEW_AS_ALLOWED_ROLES.includes(actor.role);
     const actorRank = VIEW_AS_ROLE_RANK[actor.role] ?? 1;
     const { userId: targetUserId, role: targetRole, viewAsUser } = await resolveViewAsTarget(actor, request.nextUrl.searchParams.get('viewAsUserId'));
 
-    // Same row source the MCP tool get_ttm_dashboard uses — see loadDashboardEpicRows
+    // Row source shared with TTM Dashboard 2 — see loadDashboardEpicRows
     // (ttm-dashboard-summary-service.ts): epic_alert_row_cache scoped to this viewer, falling back
     // to the live computation only while the cache is still empty.
     const loadRows = () => loadDashboardEpicRows(targetUserId, targetRole);

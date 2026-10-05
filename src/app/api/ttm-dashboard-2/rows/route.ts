@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
 import { loadTtmDashboard2Rows } from '@/lib/ttm-dashboard-2-cache-service';
-import { resolveViewAsTarget, VIEW_AS_ALLOWED_ROLES } from '@/lib/view-as-user-service';
+import { resolveViewAsTarget } from '@/lib/view-as-user-service';
 
 /**
  * The funnel fields of every Epic in the viewer's scope (or the previewed user's) — TTM Dashboard 2
  * fetches this only once a toolbar filter is applied, then recomputes the funnel in the browser
- * (ttm-funnel-summary.ts). The unfiltered numbers come from the cache via the parent route.
+ * (ttm-funnel-summary.ts). The unfiltered numbers come from the cache via the parent route. Open to
+ * every role, like the parent route; resolveViewAsTarget ignores viewAsUserId for a plain USER.
  */
 export async function GET(request: NextRequest) {
   try {
     const actor = await requireUser(request);
-    if (!VIEW_AS_ALLOWED_ROLES.includes(actor.role)) {
-      return NextResponse.json({ error: 'Bạn không có quyền truy cập chức năng này (Yêu cầu role Supervisor trở lên).' }, { status: 403 });
-    }
     const target = await resolveViewAsTarget(actor, request.nextUrl.searchParams.get('viewAsUserId'));
     return NextResponse.json({ rows: await loadTtmDashboard2Rows(target.userId, target.role) });
   } catch (error) {

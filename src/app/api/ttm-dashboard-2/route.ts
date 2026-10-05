@@ -19,14 +19,9 @@ export async function GET(request: NextRequest) {
   try {
     const actor = await requireUser(request);
 
-    // Only allow Supervisor, Admin, or Superadmin
-    if (!VIEW_AS_ALLOWED_ROLES.includes(actor.role)) {
-      return NextResponse.json(
-        { error: 'Bạn không có quyền truy cập chức năng này (Yêu cầu role Supervisor trở lên).' },
-        { status: 403 }
-      );
-    }
-
+    // Open to every role since 2026-10-05 (the landing page after sign-in): a USER sees their own
+    // data scope; "Xem dưới quyền" and the user list stay limited to VIEW_AS_ALLOWED_ROLES.
+    const canPreviewUsers = VIEW_AS_ALLOWED_ROLES.includes(actor.role);
     const target = await resolveViewAsTarget(actor, request.nextUrl.searchParams.get('viewAsUserId'));
     const actorRank = VIEW_AS_ROLE_RANK[actor.role] ?? 1;
 
@@ -39,7 +34,7 @@ export async function GET(request: NextRequest) {
         console.error('Failed to get TTM Index Global Cache:', err);
         return null;
       }),
-      listManagedUsers(),
+      canPreviewUsers ? listManagedUsers() : Promise.resolve([]),
     ]);
 
     const managedUsers = allUsers

@@ -92,8 +92,10 @@ const navigation: NavigationSection[] = [
     label: 'Giám sát',
     items: [
       { href: '/reports', icon: Bandaids, label: 'Báo cáo Epic (beta 2)' },
-      { href: '/dashboard-new', icon: ChartPie, label: 'TTM dashboard' },
-      { href: '/ttm-dashboard-2', icon: Funnel, label: 'TTM dashboard 2', roles: ADMIN_VIEW_ROLES },
+      // Landing page after sign-in, open to every role (permission matrix feature 'ttm_dashboard_2').
+      { href: '/ttm-dashboard-2', icon: Funnel, label: 'TTM dashboard 2' },
+      // SUPERADMIN only since 2026-10-05 (permission matrix feature 'dashboard_new').
+      { href: '/dashboard-new', icon: ChartPie, label: 'TTM dashboard', roles: SUPERADMIN_ONLY },
       // { href: '/dashboard', icon: Gauge, label: 'Dashboard' },
       // { href: '/epic-alerts', icon: Browser, label: 'Quản trị Epic (rút gọn)', roles: ADMIN_VIEW_ROLES },
       { href: '/epic-alerts-15', icon: Browsers, label: 'Quản trị Epic' },
@@ -274,6 +276,7 @@ const PAGE_ROLES: Record<string, UserRole[]> = {
   '/admin/projects': ADMIN_VIEW_ROLES,
   '/admin/status-alert-rules': SUPERADMIN_OR_SUPERVISOR,
   '/admin/users': ADMIN_VIEW_ROLES,
+  '/dashboard-new': SUPERADMIN_ONLY,
   '/epic-alerts': ADMIN_VIEW_ROLES,
   // /data-review/[batchId] drills into "Nguồn dữ liệu" — same SUPERADMIN-only gate as its API.
   '/data-review': SUPERADMIN_ONLY,
@@ -297,8 +300,9 @@ if (process.env.NODE_ENV !== 'production') {
   }
 }
 
-// Every role can reach Epic 15, so it's the safe fallback landing page when access is denied.
-const FALLBACK_PATH = '/epic-alerts-15';
+// Every role can reach TTM Dashboard 2 (the landing page after sign-in), so it's the safe fallback
+// when access is denied.
+const FALLBACK_PATH = '/ttm-dashboard-2';
 
 // Session-only cache of the last known role, keyed per tab. Lets a repeat page load in the same
 // tab restore the nav instantly instead of flashing the "no role" (fully collapsed) menu while

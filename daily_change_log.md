@@ -35,6 +35,18 @@
 - **Tài liệu tra cứu rule Sai lệch dữ liệu**: `public/docs/product-guide.html` thêm mục **9.1** — bảng R1–R9 đang áp dụng (điều kiện, miễn
   trừ, hệ quả, ví dụ); popup "Logic cảnh báo" cập nhật mô tả axis Chất lượng dữ liệu + R1 (`catalog.ts`, `HelpPanels.tsx`).
 
+- **Màn hình mặc định sau khi đăng nhập = TTM Dashboard 2 cho mọi role** (không đổi schema; khớp ma trận phân quyền `ttm_dashboard_2` = mọi role,
+  `dashboard_new` = SUPERADMIN): `login/page.tsx` chuyển về `/ttm-dashboard-2`; `AppShell.tsx` mở menu TTM Dashboard 2 cho mọi role, TTM Dashboard
+  chỉ SUPERADMIN (`PAGE_ROLES`), trang chuyển hướng khi bị từ chối quyền cũng là `/ttm-dashboard-2`. API `/api/ttm-dashboard-2` (+ `/rows`) mở cho
+  USER (thấy đúng phạm vi dữ liệu của mình; danh sách user "Xem dưới quyền" vẫn chỉ trả cho Admin/Supervisor/Superadmin); `/api/dashboard-new`
+  trả 403 cho role khác SUPERADMIN. Ma trận phân quyền chỉ là khai báo — quyền thực tế nằm ở các file trên.
+
+- **MCP — `get_ttm_dashboard` trả số liệu TTM Dashboard 2** (không đổi schema; TTM Dashboard không còn dùng cho MCP): phễu L01…L05bb, chỉ số
+  TTM-CNTT (QLDA)/(QA), TTM-E2E, widget row, breakdown theo chiều — cùng cache/hàm tính với màn hình (`src/lib/ttm-dashboard-2-summary-service.ts`);
+  tham số mới `pmSms`, `requestingUnits`, bỏ `pmSm`, `listLimit` và 4 tham số ghi đè "Phạm vi dữ liệu cho TTM". `list_epic_alerts` (dữ liệu Quản trị
+  Epic) thêm `nhanXet` + `includeCancelled` để lấy danh sách Epic sau mỗi con số. Xoá `getTtmDashboardSummary` (`ttm-dashboard-summary-service.ts`
+  chỉ còn `loadDashboardEpicRows`). `mcp-server.ts` lên version 1.2.0; cập nhật BRD 15, product-guide mục 16.
+
 ## 2026-10-04
 
 - **TTM Dashboard 2 — thêm widget row, Ma trận Phân bổ và Pie chart** (không đổi schema; cache `ttm_dashboard_2_cache` lên `PAYLOAD_VERSION = 3`, tự dựng lại):

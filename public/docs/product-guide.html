@@ -1007,7 +1007,8 @@
       <h3>11.4. Dashboard cũ (<code>/dashboard</code>) — mọi role đã đăng nhập</h3>
       <p>Thống kê tổng hợp theo dự án: số Epic, phân bố trạng thái, số lượng Fail TTM-CNTT/Fail TTM-E2E/Cảnh báo sớm/muộn, tỷ lệ Đạt TTM, Epic sắp đến hạn, top Epic cần chú ý. Không có bảng tổng hợp riêng — tính live từ cùng dữ liệu 3 màn hình trên. Role SUPERVISOR/SUPERADMIN/ADMIN, hoặc USER có từ 4 dự án có dữ liệu Epic trở lên, phải chọn 1–3 dự án trước khi xem số liệu.</p>
       <div class="callout warn">Màn hình Dashboard cũ này <strong>đã được ẩn khỏi menu điều hướng bên trái (sidebar)</strong> để tập trung luồng trải nghiệm vào màn hình <strong>TTM Dashboard</strong> (mục 11.5).</div>
-      <h3>11.5. TTM Dashboard (<code>/dashboard-new</code>) — Màn hình mặc định sau khi đăng nhập</h3>
+      <h3>11.5. TTM Dashboard (<code>/dashboard-new</code>) — chỉ SUPERADMIN (từ 05/10/2026)</h3>
+      <p><strong>Từ 05/10/2026:</strong> màn hình mặc định sau khi đăng nhập của mọi role là <strong>TTM Dashboard 2</strong> (mục 21). TTM Dashboard chỉ còn SUPERADMIN truy cập được (menu, URL trực tiếp và API đều chặn các role khác; URL cũ tự chuyển về TTM Dashboard 2).</p>
       <p>
         <strong>TTM Dashboard</strong> là trung tâm chỉ huy và điều hành chính của hệ thống, được thiết lập làm <strong>màn hình mặc định khi đăng nhập</strong> cho mọi người dùng. Màn hình hoàn toàn <strong>loại bỏ các Epic có trạng thái Cancelled</strong> ra khỏi toàn bộ các công thức tính toán (ở cả tử số lẫn mẫu số) trên mọi widget, phễu, ma trận và biểu đồ.
       </p>
@@ -1239,12 +1240,12 @@
       <table>
         <thead><tr><th>Tool</th><th>Chức năng</th><th>Giới hạn role</th></tr></thead>
         <tbody>
-          <tr><td><code>list_epic_alerts</code></td><td>Danh sách Epic + mức cảnh báo, lọc theo dự án/mức cảnh báo/từ khoá</td><td>Theo RBAC dự án của user gọi</td></tr>
+          <tr><td><code>list_epic_alerts</code></td><td>Danh sách Epic (dữ liệu màn Quản trị Epic) + mức cảnh báo, lọc theo dự án/mức cảnh báo/từ khoá và <code>nhanXet</code> — bộ lọc “Nhận xét”, gồm cả các tiêu chí phễu L01…L05bb của TTM Dashboard 2 (vd. <code>TTM_PASS_IN_SCOPE</code> = L05aa); mặc định loại Epic Cancelled khi dùng <code>nhanXet</code></td><td>Theo RBAC dự án của user gọi</td></tr>
           <tr><td><code>get_epic_detail</code></td><td>Chi tiết 1 Epic theo mã</td><td>Theo RBAC dự án của user gọi</td></tr>
           <tr><td><code>get_dashboard_summary</code></td><td>Số liệu tổng hợp tương đương màn Dashboard cũ (mục 11.4), chọn được 1-3 dự án</td><td>Theo RBAC dự án của user gọi</td></tr>
           <tr><td><code>list_projects</code> / <code>list_domains</code> / <code>list_holidays</code></td><td>Danh mục dự án / domain / ngày nghỉ</td><td>Chỉ ADMIN/SUPERVISOR/SUPERADMIN</td></tr>
           <tr><td><code>get_ttm_policies</code></td><td>Toàn bộ tiêu chí Time to Market đang active</td><td>Chỉ SUPERVISOR/SUPERADMIN</td></tr>
-          <tr><td><code>get_ttm_dashboard</code></td><td>Toàn bộ số liệu màn TTM Dashboard (mục 11.5): KPI, chỉ số TTM-CNTT (QLDA)/TTM-CNTT (QA), pipeline 5 pha, top dự án rủi ro, bảng phân tích theo dự án/domain/PM-SM/Epic type/đơn vị yêu cầu, danh sách Epic Chờ golive/Giải trình Golive/Pending/Sai lệch/Fail; lọc được theo dự án, domain, PM/SM và ghi đè “Phạm vi dữ liệu cho TTM”</td><td>Theo RBAC dự án của user gọi</td></tr>
+          <tr><td><code>get_ttm_dashboard</code></td><td>Số liệu màn <strong>TTM Dashboard 2</strong> (mục 21) — từ 05/10/2026 thay cho TTM Dashboard (mục 11.5, không còn dùng cho MCP): phễu L01…L05bb, chỉ số TTM-CNTT (QLDA)/TTM-CNTT (QA)/TTM-E2E của tập đang xem và toàn công ty, widget Fail TTM-CNTT / Chậm tiến độ / Sai lệch dữ liệu / Chờ golive / Giải trình Golive, bảng phân tích theo dự án/domain/PM-SM/phân loại Epic/đơn vị yêu cầu; lọc được theo dự án, domain, PM/SM, đơn vị yêu cầu. Chỉ trả số tổng hợp — danh sách Epic lấy bằng <code>list_epic_alerts</code></td><td>Theo RBAC dự án của user gọi</td></tr>
           <tr><td><code>search_product_docs</code></td><td>Tìm kiếm (không phân biệt dấu) trong chính Tài liệu sản phẩm này — dùng để hỏi đáp về chức năng, rule cảnh báo và cách tính toán của ứng dụng</td><td>Mọi role đã xác thực</td></tr>
           <tr><td><code>get_product_doc_section</code></td><td>Đọc đầy đủ một mục của Tài liệu sản phẩm theo số mục (vd. <code>8.3</code>); không truyền số mục để lấy mục lục</td><td>Mọi role đã xác thực</td></tr>
           <tr><td><code>list_report_filters</code></td><td>Danh mục domain/dự án/component/lớp dữ liệu — phục vụ tra cứu sâu kiểu Báo cáo Epic (mục 11.5)</td><td>Mọi role đã xác thực</td></tr>
