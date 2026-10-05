@@ -17,7 +17,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isPermissionRow(value: unknown): value is RoleFeaturePermission {
   return isRecord(value)
     && typeof value.featureKey === 'string' && value.featureKey.length > 0
-    && (value.role === 'ADMIN' || value.role === 'SUPERVISOR' || value.role === 'USER')
+    && (value.role === 'SUPERADMIN' || value.role === 'ADMIN' || value.role === 'SUPERVISOR' || value.role === 'USER')
     && typeof value.canView === 'boolean'
     && typeof value.canAdd === 'boolean'
     && typeof value.canEdit === 'boolean'
@@ -49,6 +49,12 @@ export async function PUT(request: NextRequest) {
     for (const update of updates) {
       const feature = featuresByKey.get(update.featureKey);
       if (!feature) return NextResponse.json({ error: `Chức năng "${update.featureKey}" không tồn tại.` }, { status: 400 });
+      // SUPERADMIN may untick its own "Xem" only on VIEW_ONLY features ("Chức năng khác"). Its
+      // rows on ADMIN features stay locked at full rights — otherwise a SUPERADMIN could lock
+      // every SUPERADMIN out of this very screen with nobody left to undo it.
+      if (update.role === 'SUPERADMIN' && feature.category !== 'VIEW_ONLY') {
+        return NextResponse.json({ error: `Không thể thay đổi quyền của Superadmin trên chức năng quản trị "${feature.featureName}".` }, { status: 400 });
+      }
       if (feature.category === 'VIEW_ONLY' && (update.canAdd || update.canEdit || update.canDelete)) {
         return NextResponse.json({ error: `"${feature.featureName}" chỉ có quyền Xem, không có Thêm/Sửa/Xóa.` }, { status: 400 });
       }

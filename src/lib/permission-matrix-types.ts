@@ -19,6 +19,10 @@ export interface RoleFeaturePermission {
   role: UserRole;
 }
 
+/** Fired on `window` after the matrix is saved, so the left panel re-reads which menu items the
+ * current role may still see without waiting for the next navigation. */
+export const PERMISSION_MATRIX_CHANGED_EVENT = 'ttm:permission-matrix-changed';
+
 export interface PermissionMatrix {
   features: PermissionFeature[];
   permissions: RoleFeaturePermission[];

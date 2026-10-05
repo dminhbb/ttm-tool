@@ -9,11 +9,16 @@ import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import type { UserRole } from '@/lib/auth-types';
+import { PERMISSION_MATRIX_CHANGED_EVENT } from '@/lib/permission-matrix-types';
 import type { PermissionFeature, PermissionMatrix, RoleFeaturePermission } from '@/lib/permission-matrix-types';
 
 interface Notice { text: string; type: 'error' | 'success'; }
 
-const EDITABLE_ROLES: UserRole[] = ['ADMIN', 'SUPERVISOR', 'USER'];
+/** SUPERADMIN's own rows are locked at full rights on ADMIN features, but its "Xem" on VIEW_ONLY
+ * features ("Chức năng khác") can be unticked — mirrored by the PUT handler's validation. */
+function isEditable(feature: PermissionFeature, role: UserRole): boolean {
+  return role !== 'SUPERADMIN' || feature.category === 'VIEW_ONLY';
+}
 const ROLE_LABEL: Record<UserRole, string> = { SUPERADMIN: 'Superadmin', ADMIN: 'Admin', SUPERVISOR: 'Supervisor', USER: 'User' };
 const MATRIX_ROLES: UserRole[] = ['SUPERADMIN', 'ADMIN', 'SUPERVISOR', 'USER'];
 const ACTIONS: { key: keyof Pick<RoleFeaturePermission, 'canView' | 'canAdd' | 'canEdit' | 'canDelete'>; label: string }[] = [
@@ -75,7 +80,15 @@ export function PermissionMatrixSettings() {
   const save = async () => {
     setSaving(true);
     try {
-      const body = { permissions: features.flatMap((feature) => EDITABLE_ROLES.map((role) => permissions.get(permissionKey(feature.featureKey, role)) ?? { featureKey: feature.featureKey, role, canView: false, canAdd: false, canEdit: false, canDelete: false })) };
+      const body = {
+        permissions: features.flatMap((feature) => MATRIX_ROLES.filter((role) => isEditable(feature, role)).map((role) => {
+          const row = permissions.get(permissionKey(feature.featureKey, role)) ?? { featureKey: feature.featureKey, role, canView: false, canAdd: false, canEdit: false, canDelete: false };
+          // SUPERADMIN rows were seeded with every action TRUE, VIEW_ONLY features included — and
+          // every one of them is sent now, not just the row that was toggled. Only "Xem" applies
+          // to a VIEW_ONLY feature, so clear the rest or the API rejects the whole save.
+          return feature.category === 'VIEW_ONLY' ? { ...row, canAdd: false, canEdit: false, canDelete: false } : row;
+        })),
+      };
       const response = await fetch('/api/permission-matrix', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const payload: unknown = await response.json();
       if (!response.ok) throw new Error(readError(payload, 'Không thể lưu ma trận phân quyền.'));
@@ -84,6 +97,7 @@ export function PermissionMatrixSettings() {
       setPermissions(new Map(data.permissions.map((permission) => [permissionKey(permission.featureKey, permission.role), permission])));
       setDirty(false);
       showToast('Đã lưu ma trận phân quyền.', 5000);
+      window.dispatchEvent(new Event(PERMISSION_MATRIX_CHANGED_EVENT));
       setNotice(null);
     } catch (error) {
       setNotice({ text: error instanceof Error ? error.message : 'Không thể lưu ma trận phân quyền.', type: 'error' });
@@ -96,8 +110,8 @@ export function PermissionMatrixSettings() {
   const viewOnlyFeatures = useMemo(() => features.filter((feature) => feature.category === 'VIEW_ONLY'), [features]);
 
   const renderCell = (feature: PermissionFeature, role: UserRole, action: (typeof ACTIONS)[number]['key']) => {
-    if (role === 'SUPERADMIN') return <input type="checkbox" checked disabled aria-label={`${ROLE_LABEL[role]} luôn có quyền ${action}`} />;
     if (feature.category === 'VIEW_ONLY' && action !== 'canView') return <span className="text-fb-text-placeholder">—</span>;
+    if (!isEditable(feature, role)) return <input type="checkbox" checked disabled aria-label={`${ROLE_LABEL[role]} luôn có quyền ${action}`} />;
     const value = permissions.get(permissionKey(feature.featureKey, role))?.[action] ?? false;
     return (
       <input
@@ -150,7 +164,7 @@ export function PermissionMatrixSettings() {
         <CardHeader>
           <div>
             <CardTitle>Ma trận phân quyền</CardTitle>
-            <p className="mt-1 text-fb-text-secondary">Superadmin luôn có đầy đủ quyền Xem/Thêm/Sửa/Xóa trên mọi chức năng. Các chức năng mới bổ sung sau sẽ được cập nhật vào ma trận theo yêu cầu riêng.</p>
+            <p className="mt-1 text-fb-text-secondary">Superadmin luôn có đầy đủ quyền Xem/Thêm/Sửa/Xóa trên các chức năng quản trị; ở khối “Chức năng khác” có thể bỏ quyền Xem của chính Superadmin. Bỏ quyền Xem của một vai trò sẽ ẩn menu của chức năng đó trên thanh điều hướng với vai trò đó; tick lại thì menu hiện trở lại. Các chức năng mới bổ sung sau sẽ được cập nhật vào ma trận theo yêu cầu riêng.</p>
           </div>
           <Button icon={<FloppyDisk className="size-4" weight="bold" />} isLoading={saving} disabled={!dirty} onClick={() => void save()} size="sm">Lưu ma trận</Button>
         </CardHeader>

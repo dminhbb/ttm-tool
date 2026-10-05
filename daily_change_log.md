@@ -8,6 +8,29 @@
 
 ## 2026-10-05
 
+- **Left panel — gom menu Quản trị vào 2 popup submenu** (`src/components/layout/AppShell.tsx`, không đổi schema, không đổi quyền):
+  - `Admin: Cấu hình ứng dụng` (icon `Faders`): Quản lý User, Quản lý Dự án, Quản lý Domain, Cấu hình cảnh báo, Cấu hình ứng dụng.
+  - `SuperAdmin: Quản trị hệ thống` (icon `GearSix`): Nguồn dữ liệu, Sao lưu / Phục hồi dữ liệu, Ma trận phân quyền, Quản trị hệ thống.
+  - Popup mở bên phải sidebar (drawer mobile: mở xuống dưới), đóng khi click ngoài / Esc / cuộn. Chấm đỏ ticket chờ xử lý hiện trên
+    nhóm Admin và trên dòng "Quản lý User". Quyền từng item giữ nguyên như trước (`roles` của item + `PAGE_ROLES`); nhóm không còn
+    item nào hiển thị được với role thì ẩn luôn.
+- **Left panel — chốt phạm vi role của 2 nhóm menu** (quyết định của owner, `src/components/layout/AppShell.tsx`): nhóm Admin hiển thị
+  cho ADMIN / SUPERADMIN / SUPERVISOR (SUPERVISOR chỉ xem); nhóm SuperAdmin khai báo `SUPERADMIN_ONLY` — SUPERVISOR không thấy và
+  không vào được trang nào của nhóm này. Hành vi không đổi so với bullet trên, chỉ ghi rõ ý định vào code.
+- **Ma trận phân quyền — bắt đầu điều khiển menu left panel** (không đổi schema, không cần migration):
+  - Khối "Chức năng khác" (`VIEW_ONLY`): SUPERADMIN bỏ/tick được quyền Xem của chính SUPERADMIN. Khối "Chức năng quản trị" vẫn khoá
+    cột SUPERADMIN (API trả 400) để không tự khoá mình khỏi màn Ma trận phân quyền
+    (`src/components/permission-matrix/PermissionMatrixSettings.tsx`, `src/app/api/permission-matrix/route.ts`).
+  - Bỏ quyền Xem của role nào → menu item của chức năng đó ẩn với role đó; tick lại → hiện lại. `GET /api/auth/me` trả thêm
+    `hiddenFeatureKeys` (`getViewDeniedFeatureKeys` trong `src/lib/permission-matrix-service.ts`); mỗi menu item khai báo `featureKey`
+    trong `src/components/layout/AppShell.tsx`, 3 mục Logic cảnh báo / Logic xử lý dữ liệu / Tài liệu sản phẩm trong `UserMenu.tsx`.
+  - Ma trận chỉ **ẩn bớt**, không mở thêm: `roles` hardcode của menu và `PAGE_ROLES` vẫn áp dụng (vd. tick Xem "Nguồn dữ liệu" cho
+    ADMIN không làm menu đó hiện ra). Chỉ ẩn menu — gõ thẳng URL vẫn vào được trang, API chưa kiểm tra ma trận.
+  - Tab vừa lưu ma trận cập nhật menu ngay (event `PERMISSION_MATRIX_CHANGED_EVENT`); phiên khác thấy thay đổi ở lần chuyển trang kế tiếp.
+- **Fix lưu ma trận báo lỗi `"TTM Dashboard 2" chỉ có quyền Xem, không có Thêm/Sửa/Xóa`** khi bỏ quyền Xem của SUPERADMIN: dòng SUPERADMIN
+  được seed Thêm/Sửa/Xóa = TRUE cả ở chức năng `VIEW_ONLY`, nay các dòng đó được gửi lên nên API từ chối. Màn hình xoá 3 cờ này cho
+  mọi dòng `VIEW_ONLY` trước khi gửi (`src/components/permission-matrix/PermissionMatrixSettings.tsx`); lần lưu đầu sẽ dọn luôn dữ liệu seed cũ.
+
 - **Scoring Engine — R8 theo ngày + workflow status** (`SCORING_CODE_VERSION` → `scoring-6`, spec §17; logic cũ không đổi, không đổi schema):
   - **R8** chỉ tính khi R4G Date đã tới (`R4G Date ≤ asOf`): R4G Date ở tương lai là ngày kế hoạch → không còn là Sai lệch dữ liệu,
     Epic ở nhóm "chưa kết luận" (L05ac) cho tới ngày đó (`src/lib/scoring/rules/data-quality.ts`, `catalog.ts`).

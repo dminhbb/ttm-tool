@@ -27,6 +27,9 @@ const THEME_OPTIONS = [
 
 interface UserMenuProps {
   expanded: boolean;
+  /** Permission-matrix features whose "Xem" is unticked for the current role — their entries
+   * ('help_alert_logic', 'help_data_logic', 'product_docs') are left out of this menu. */
+  hiddenFeatureKeys: ReadonlySet<string>;
 }
 
 interface CurrentUser {
@@ -45,7 +48,7 @@ function loadStoredTheme(): AppearanceTheme {
   }
 }
 
-export function UserMenu({ expanded }: UserMenuProps) {
+export function UserMenu({ expanded, hiddenFeatureKeys }: UserMenuProps) {
   const router = useRouter();
   const menuRef = React.useRef<HTMLDivElement>(null);
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
@@ -58,6 +61,9 @@ export function UserMenu({ expanded }: UserMenuProps) {
   const [theme, setTheme] = React.useState<AppearanceTheme>('light');
   const [user, setUser] = React.useState<CurrentUser | null>(null);
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPERADMIN' || user?.role === 'SUPERVISOR';
+  const showAlertLogic = !hiddenFeatureKeys.has('help_alert_logic');
+  const showDataLogic = isAdmin && !hiddenFeatureKeys.has('help_data_logic');
+  const showProductDocs = !hiddenFeatureKeys.has('product_docs');
 
   React.useEffect(() => {
     void Promise.resolve().then(() => {
@@ -160,16 +166,18 @@ export function UserMenu({ expanded }: UserMenuProps) {
             <GearSix className="size-4 shrink-0" weight="bold" aria-hidden="true" />
             <span>Cài đặt</span>
           </button>
-          <button
-            type="button"
-            onClick={() => { trackFeatureUsage(); setIsMenuOpen(false); setIsAlertLogicOpen(true); }}
-            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-fb-text-primary transition-colors hover:bg-fb-control"
-            role="menuitem"
-          >
-            <Warning className="size-4 shrink-0" weight="bold" aria-hidden="true" />
-            <span>Logic cảnh báo</span>
-          </button>
-          {isAdmin && (
+          {showAlertLogic && (
+            <button
+              type="button"
+              onClick={() => { trackFeatureUsage(); setIsMenuOpen(false); setIsAlertLogicOpen(true); }}
+              className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-fb-text-primary transition-colors hover:bg-fb-control"
+              role="menuitem"
+            >
+              <Warning className="size-4 shrink-0" weight="bold" aria-hidden="true" />
+              <span>Logic cảnh báo</span>
+            </button>
+          )}
+          {showDataLogic && (
             <button
               type="button"
               onClick={() => { trackFeatureUsage(); setIsMenuOpen(false); setIsDataLogicOpen(true); }}
@@ -180,15 +188,17 @@ export function UserMenu({ expanded }: UserMenuProps) {
               <span>Logic xử lý dữ liệu</span>
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => { trackFeatureUsage(); setIsMenuOpen(false); router.push('/docs/product'); }}
-            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-fb-text-primary transition-colors hover:bg-fb-control"
-            role="menuitem"
-          >
-            <BookOpen className="size-4 shrink-0" weight="bold" aria-hidden="true" />
-            <span>Tài liệu sản phẩm</span>
-          </button>
+          {showProductDocs && (
+            <button
+              type="button"
+              onClick={() => { trackFeatureUsage(); setIsMenuOpen(false); router.push('/docs/product'); }}
+              className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-fb-text-primary transition-colors hover:bg-fb-control"
+              role="menuitem"
+            >
+              <BookOpen className="size-4 shrink-0" weight="bold" aria-hidden="true" />
+              <span>Tài liệu sản phẩm</span>
+            </button>
+          )}
           <button type="button" onClick={() => { trackFeatureUsage(); void logout(); }} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-status-danger transition-colors hover:bg-fb-control" role="menuitem">
             <SignOut className="size-4 shrink-0" weight="bold" aria-hidden="true" />
             <span>Đăng xuất</span>
@@ -242,7 +252,7 @@ export function UserMenu({ expanded }: UserMenuProps) {
       <UserInfoModal isOpen={isUserInfoOpen} onClose={() => setIsUserInfoOpen(false)} />
       <ChangePasswordModal isForceChangePassword={user?.mustChangePassword} isOpen={isChangePasswordOpen} onClose={() => setIsChangePasswordOpen(false)} />
       <AlertLogicModal isOpen={isAlertLogicOpen} onClose={() => setIsAlertLogicOpen(false)} />
-      {isAdmin && <DataLogicModal isOpen={isDataLogicOpen} onClose={() => setIsDataLogicOpen(false)} />}
+      {showDataLogic && <DataLogicModal isOpen={isDataLogicOpen} onClose={() => setIsDataLogicOpen(false)} />}
     </div>
   );
 }

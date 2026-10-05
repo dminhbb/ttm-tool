@@ -1,10 +1,12 @@
 'use client';
 
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { USER_ROLES, type UserRole } from '@/lib/auth-types';
 import { PAGE_HEADERS } from '@/lib/app-screens';
+import { PERMISSION_MATRIX_CHANGED_EVENT } from '@/lib/permission-matrix-types';
 import { EpicHeaderWidgetsProvider, useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
 import {
   Bandaids,
@@ -13,10 +15,12 @@ import {
   Browsers,
   CaretDoubleLeft,
   CaretDoubleRight,
+  CaretRight,
   ChartLineUp,
   ChartPie,
   ClockCounterClockwise,
   Database,
+  Faders,
   FileText,
   Funnel,
   Gauge,
@@ -47,6 +51,9 @@ import { resolveScreenKeyFromPathname, trackScreenVisit } from '@/lib/visit-coun
 
 interface NavigationItem {
   disabled?: boolean;
+  /** `permission_features.feature_key` this entry belongs to. Unticking "Xem" for a role in
+   * Ma trận phân quyền hides the entry for that role — on top of `roles`, never instead of it. */
+  featureKey?: string;
   href?: string;
   icon: Icon;
   label: string;
@@ -55,9 +62,25 @@ interface NavigationItem {
   roles?: UserRole[];
 }
 
-interface NavigationSection {
+/** A sidebar entry that opens a popup submenu instead of navigating. `roles` gates the whole
+ * group; each child keeps its own `roles` on top of that, and a group left with no visible
+ * child is dropped (see visibleNavigationFor). */
+interface NavigationGroup {
+  icon: Icon;
   items: NavigationItem[];
   label: string;
+  roles?: UserRole[];
+}
+
+type NavigationEntry = NavigationItem | NavigationGroup;
+
+interface NavigationSection {
+  items: NavigationEntry[];
+  label: string;
+}
+
+function isNavigationGroup(entry: NavigationEntry): entry is NavigationGroup {
+  return 'items' in entry;
 }
 
 interface SidebarContentProps {
@@ -67,6 +90,8 @@ interface SidebarContentProps {
   onOpenSystemAdmin: () => void;
   onToggle?: () => void;
   /** Pending password-reset + inactive-registration tickets — drives the red dot on "Quản lý User". */
+  /** Permission-matrix features whose "Xem" is unticked for the current role. */
+  hiddenFeatureKeys: ReadonlySet<string>;
   pendingUserTicketsCount: number;
   role: UserRole | null;
 }
@@ -84,53 +109,244 @@ const SUPERADMIN_OR_SUPERVISOR: UserRole[] = ['SUPERADMIN', 'SUPERVISOR'];
 // not even view, unlike the admin config screens above.
 const SUPERADMIN_ONLY: UserRole[] = ['SUPERADMIN'];
 
-const APP_CONFIG_ITEM: NavigationItem = { icon: GearSix, label: 'Cấu hình ứng dụng', roles: ADMIN_VIEW_ROLES };
+const APP_CONFIG_ITEM: NavigationItem = { icon: GearSix, label: 'Cấu hình ứng dụng', roles: ADMIN_VIEW_ROLES, featureKey: 'general_settings' };
 const SYSTEM_ADMIN_MODAL_ITEM: NavigationItem = { icon: GearSix, label: 'Quản trị hệ thống', roles: SUPERADMIN_ONLY };
 
 const navigation: NavigationSection[] = [
   {
     label: 'Giám sát',
     items: [
-      { href: '/reports', icon: Bandaids, label: 'Báo cáo Epic (beta 2)' },
+      { href: '/reports', featureKey: 'epic_reports', icon: Bandaids, label: 'Báo cáo Epic (beta 2)' },
       // Landing page after sign-in, open to every role (permission matrix feature 'ttm_dashboard_2').
-      { href: '/ttm-dashboard-2', icon: Funnel, label: 'TTM dashboard 2' },
+      { href: '/ttm-dashboard-2', featureKey: 'ttm_dashboard_2', icon: Funnel, label: 'TTM dashboard 2' },
       // SUPERADMIN only since 2026-10-05 (permission matrix feature 'dashboard_new').
-      { href: '/dashboard-new', icon: ChartPie, label: 'TTM dashboard', roles: SUPERADMIN_ONLY },
+      { href: '/dashboard-new', featureKey: 'dashboard_new', icon: ChartPie, label: 'TTM dashboard', roles: SUPERADMIN_ONLY },
       // { href: '/dashboard', icon: Gauge, label: 'Dashboard' },
       // { href: '/epic-alerts', icon: Browser, label: 'Quản trị Epic (rút gọn)', roles: ADMIN_VIEW_ROLES },
-      { href: '/epic-alerts-15', icon: Browsers, label: 'Quản trị Epic' },
-      { href: '/epic-in-po', icon: BriefcaseMetal, label: 'Epic in PO' },
+      { href: '/epic-alerts-15', featureKey: 'epic_alerts_15', icon: Browsers, label: 'Quản trị Epic' },
+      { href: '/epic-in-po', featureKey: 'epic_in_po', icon: BriefcaseMetal, label: 'Epic in PO' },
       // Open to every role (permission matrix feature 'visit_counter' is View for all roles).
-      { href: '/visit-stats', icon: ChartLineUp, label: 'Thống kê truy cập' },
+      { href: '/visit-stats', featureKey: 'visit_counter', icon: ChartLineUp, label: 'Thống kê truy cập' },
     ],
   },
   {
     label: 'Quản trị',
+    // Admin screens are gathered into two popup submenus so the sidebar stays short (a SUPERADMIN
+    // used to get nine separate entries here). Grouping changes nothing about who may open what:
+    // every child keeps the `roles` it had as a flat entry.
     items: [
-      { href: '/', icon: Database, label: 'Nguồn dữ liệu', roles: SUPERADMIN_ONLY },
-      { href: '/admin/users', icon: Users, label: 'Quản lý User', roles: ADMIN_VIEW_ROLES },
-      { href: '/admin/domains', icon: Globe, label: 'Quản lý Domain', roles: ADMIN_VIEW_ROLES },
-      { href: '/admin/projects', icon: ShareNetwork, label: 'Quản lý Dự án', roles: ADMIN_VIEW_ROLES },
-      { href: '/admin/status-alert-rules', icon: Warning, label: 'Cấu hình cảnh báo', roles: SUPERADMIN_OR_SUPERVISOR },
-      { href: '/admin/database', icon: ClockCounterClockwise, label: 'Sao lưu / Phục hồi dữ liệu', roles: SUPERADMIN_ONLY },
-      { href: '/admin/permissions', icon: Lock, label: 'Ma trận phân quyền', roles: SUPERADMIN_ONLY },
-      APP_CONFIG_ITEM,
-      SYSTEM_ADMIN_MODAL_ITEM,
+      {
+        icon: Faders,
+        label: 'Admin: Cấu hình ứng dụng',
+        roles: ADMIN_VIEW_ROLES,
+        items: [
+          { href: '/admin/users', featureKey: 'users', icon: Users, label: 'Quản lý User', roles: ADMIN_VIEW_ROLES },
+          { href: '/admin/projects', featureKey: 'projects', icon: ShareNetwork, label: 'Quản lý Dự án', roles: ADMIN_VIEW_ROLES },
+          { href: '/admin/domains', featureKey: 'domains', icon: Globe, label: 'Quản lý Domain', roles: ADMIN_VIEW_ROLES },
+          { href: '/admin/status-alert-rules', featureKey: 'status_alert_rules', icon: Warning, label: 'Cấu hình cảnh báo', roles: SUPERADMIN_OR_SUPERVISOR },
+          APP_CONFIG_ITEM,
+        ],
+      },
+      {
+        icon: GearSix,
+        label: 'SuperAdmin: Quản trị hệ thống',
+        // SUPERVISOR is deliberately excluded (owner decision 2026-10-05): view-only on the Admin
+        // group above, no access at all — not even view — to anything in this one.
+        roles: SUPERADMIN_ONLY,
+        items: [
+          { href: '/', featureKey: 'data_source', icon: Database, label: 'Nguồn dữ liệu', roles: SUPERADMIN_ONLY },
+          { href: '/admin/database', featureKey: 'database_backup', icon: ClockCounterClockwise, label: 'Sao lưu / Phục hồi dữ liệu', roles: SUPERADMIN_ONLY },
+          { href: '/admin/permissions', featureKey: 'permission_matrix', icon: Lock, label: 'Ma trận phân quyền', roles: SUPERADMIN_ONLY },
+          SYSTEM_ADMIN_MODAL_ITEM,
+        ],
+      },
     ],
   },
 ];
 
+function roleAllowed(roles: UserRole[] | undefined, role: UserRole | null): boolean {
+  return !roles || (role !== null && roles.includes(role));
+}
+
+const NO_HIDDEN_FEATURES: ReadonlySet<string> = new Set();
+
 /** Every "Quản trị" item needs at least ADMIN, so a plain USER always ends up with an
- * empty section — dropped entirely rather than shown as a header with nothing under it. */
-function visibleNavigationFor(role: UserRole | null): NavigationSection[] {
+ * empty section — dropped entirely rather than shown as a header with nothing under it.
+ * Same for a group whose children are all out of reach for the role.
+ * `hiddenFeatureKeys` (permission matrix, "Xem" unticked) only ever removes entries: it narrows
+ * what `roles` already allows and can't reveal a screen the role has no access to. */
+function visibleNavigationFor(role: UserRole | null, hiddenFeatureKeys: ReadonlySet<string>): NavigationSection[] {
+  const itemVisible = (item: NavigationItem) => roleAllowed(item.roles, role) && !(item.featureKey && hiddenFeatureKeys.has(item.featureKey));
   return navigation
-    .map((section) => ({ ...section, items: section.items.filter((item) => !item.roles || (role !== null && item.roles.includes(role))) }))
+    .map((section) => ({
+      ...section,
+      items: section.items.flatMap((entry): NavigationEntry[] => {
+        if (!isNavigationGroup(entry)) return itemVisible(entry) ? [entry] : [];
+        if (!roleAllowed(entry.roles, role)) return [];
+        const items = entry.items.filter(itemVisible);
+        return items.length > 0 ? [{ ...entry, items }] : [];
+      }),
+    }))
     .filter((section) => section.items.length > 0);
 }
 
-function SidebarContent({ expanded, onNavigate, onOpenAppConfig, onOpenSystemAdmin, onToggle, pendingUserTicketsCount, role }: SidebarContentProps) {
+interface NavigationGroupMenuProps {
+  expanded: boolean;
+  group: NavigationGroup;
+  onNavigate?: () => void;
+  onOpenAppConfig: () => void;
+  onOpenSystemAdmin: () => void;
+  pendingUserTicketsCount: number;
+}
+
+/** Gap between the trigger and its popup — wide enough to clear the sidebar's own padding/border. */
+const GROUP_POPUP_GAP = 12;
+const GROUP_POPUP_VIEWPORT_MARGIN = 8;
+
+function NavigationGroupMenu({ expanded, group, onNavigate, onOpenAppConfig, onOpenSystemAdmin, pendingUserTicketsCount }: NavigationGroupMenuProps) {
   const pathname = usePathname();
-  const sections = visibleNavigationFor(role);
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
+  const popupRef = React.useRef<HTMLDivElement>(null);
+  const [open, setOpen] = React.useState(false);
+  const GroupIcon = group.icon;
+  const active = group.items.some((item) => !!item.href && pathname === item.href);
+  const hasPendingTickets = pendingUserTicketsCount > 0 && group.items.some((item) => item.href === '/admin/users');
+
+  // Portalled + fixed (the <nav> scrolls, so an absolutely positioned popup would be clipped).
+  // Opens to the right of the trigger; in the mobile drawer there's no room there, so it drops
+  // below instead. Positioned by writing styles directly — it only needs measuring once per open.
+  React.useLayoutEffect(() => {
+    if (!open || !buttonRef.current || !popupRef.current) return;
+    const trigger = buttonRef.current.getBoundingClientRect();
+    const popup = popupRef.current;
+    const { height, width } = popup.getBoundingClientRect();
+    const maxLeft = window.innerWidth - width - GROUP_POPUP_VIEWPORT_MARGIN;
+    const maxTop = window.innerHeight - height - GROUP_POPUP_VIEWPORT_MARGIN;
+    const fitsRight = trigger.right + GROUP_POPUP_GAP <= maxLeft;
+    const left = fitsRight ? trigger.right + GROUP_POPUP_GAP : Math.min(trigger.left, maxLeft);
+    const top = fitsRight ? trigger.top : trigger.bottom + 4;
+    popup.style.left = `${Math.max(GROUP_POPUP_VIEWPORT_MARGIN, left)}px`;
+    popup.style.top = `${Math.max(GROUP_POPUP_VIEWPORT_MARGIN, Math.min(top, maxTop))}px`;
+    popup.style.visibility = 'visible';
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const close = () => setOpen(false);
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!buttonRef.current?.contains(target) && !popupRef.current?.contains(target)) close();
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close();
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    window.addEventListener('keydown', closeOnEscape);
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      window.removeEventListener('keydown', closeOnEscape);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [open]);
+
+  const popupItemClassName = (itemActive: boolean) => cn(
+    'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold outline-none transition-colors',
+    itemActive ? 'bg-fb-blue-soft text-fb-blue' : 'text-fb-text-primary hover:bg-fb-control',
+  );
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className={cn(
+          'flex min-h-10 w-full items-center rounded-md text-left text-sm font-semibold leading-tight outline-none transition-[background-color,color]',
+          expanded ? 'gap-3 px-3 py-1.5' : 'justify-center px-2',
+          active || open ? 'bg-fb-blue-soft text-fb-blue' : 'text-sidebar-text hover:bg-fb-control hover:text-fb-text-primary',
+        )}
+        aria-label={!expanded ? group.label : undefined}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        title={!expanded && !open ? group.label : undefined}
+      >
+        <span className="relative inline-flex shrink-0">
+          <GroupIcon className="size-5 shrink-0" weight={active ? 'fill' : 'bold'} aria-hidden="true" />
+          {hasPendingTickets && (
+            <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-status-danger ring-2 ring-fb-surface" aria-hidden="true" />
+          )}
+        </span>
+        {expanded && <span className="min-w-0 flex-1">{group.label}</span>}
+        {expanded && <CaretRight className="size-3.5 shrink-0" weight="bold" aria-hidden="true" />}
+        {hasPendingTickets && <span className="sr-only"> (có ticket đang chờ xử lý)</span>}
+      </button>
+      {open && createPortal(
+        <div
+          ref={popupRef}
+          className="fixed z-[60] min-w-60 rounded-lg border border-fb-border bg-fb-surface p-1 shadow-dialog"
+          style={{ left: 0, top: 0, visibility: 'hidden' }}
+          role="menu"
+          aria-label={group.label}
+        >
+          <p className="px-3 py-2 text-xs font-bold text-fb-text-secondary">{group.label}</p>
+          <div className="my-1 border-t border-fb-border" role="separator" />
+          {group.items.map((item) => {
+            const ItemIcon = item.icon;
+            const itemActive = !!item.href && pathname === item.href;
+            const itemHasPendingTickets = item.href === '/admin/users' && pendingUserTicketsCount > 0;
+            const content = (
+              <>
+                <ItemIcon className="size-4 shrink-0" weight={itemActive ? 'fill' : 'bold'} aria-hidden="true" />
+                <span>{item.label}</span>
+                {itemHasPendingTickets && <span className="ml-auto size-2 shrink-0 rounded-full bg-status-danger" aria-hidden="true" />}
+                {itemHasPendingTickets && <span className="sr-only"> (có ticket đang chờ xử lý)</span>}
+              </>
+            );
+            if (item.href) {
+              return (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  onClick={() => { trackFeatureUsage(); setOpen(false); onNavigate?.(); }}
+                  className={popupItemClassName(itemActive)}
+                  aria-current={itemActive ? 'page' : undefined}
+                  role="menuitem"
+                >
+                  {content}
+                </Link>
+              );
+            }
+            return (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => {
+                  trackFeatureUsage();
+                  setOpen(false);
+                  if (item === APP_CONFIG_ITEM) onOpenAppConfig();
+                  if (item === SYSTEM_ADMIN_MODAL_ITEM) onOpenSystemAdmin();
+                  onNavigate?.();
+                }}
+                className={popupItemClassName(false)}
+                role="menuitem"
+              >
+                {content}
+              </button>
+            );
+          })}
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
+
+function SidebarContent({ expanded, hiddenFeatureKeys, onNavigate, onOpenAppConfig, onOpenSystemAdmin, onToggle, pendingUserTicketsCount, role }: SidebarContentProps) {
+  const pathname = usePathname();
+  const sections = visibleNavigationFor(role, hiddenFeatureKeys);
 
   return (
     <>
@@ -156,6 +372,20 @@ function SidebarContent({ expanded, onNavigate, onOpenAppConfig, onOpenSystemAdm
             )}
             <ul className="space-y-1">
               {section.items.map((item) => {
+                if (isNavigationGroup(item)) {
+                  return (
+                    <li key={item.label}>
+                      <NavigationGroupMenu
+                        expanded={expanded}
+                        group={item}
+                        onNavigate={onNavigate}
+                        onOpenAppConfig={onOpenAppConfig}
+                        onOpenSystemAdmin={onOpenSystemAdmin}
+                        pendingUserTicketsCount={pendingUserTicketsCount}
+                      />
+                    </li>
+                  );
+                }
                 const ItemIcon = item.icon;
                 const active = !!item.href && pathname === item.href;
                 const sharedClassName = cn(
@@ -236,7 +466,7 @@ function SidebarContent({ expanded, onNavigate, onOpenAppConfig, onOpenSystemAdm
       </nav>
 
       <div className="border-t border-fb-border p-2">
-        <UserMenu expanded={expanded} />
+        <UserMenu expanded={expanded} hiddenFeatureKeys={hiddenFeatureKeys} />
         {onToggle && (
           <button
             type="button"
@@ -292,7 +522,7 @@ function requiredRolesFor(pathname: string): UserRole[] | undefined {
 // entry: the link would be hidden correctly, but a direct URL visit wouldn't get redirected.
 if (process.env.NODE_ENV !== 'production') {
   for (const section of navigation) {
-    for (const item of section.items) {
+    for (const item of section.items.flatMap((entry) => (isNavigationGroup(entry) ? entry.items : [entry]))) {
       if (item.roles && item.href && !requiredRolesFor(item.href)) {
         console.warn(`[AppShell] "${item.label}" (${item.href}) declares roles but has no PAGE_ROLES entry — direct navigation to it won't be redirect-protected.`);
       }
@@ -330,6 +560,10 @@ function AppShellInner({ children }: AppShellProps) {
   const [mustChangePassword, setMustChangePassword] = React.useState(false);
   const [role, setRole] = React.useState<UserRole | null>(null);
   const [pendingUserTicketsCount, setPendingUserTicketsCount] = React.useState(0);
+  const [hiddenFeatureKeys, setHiddenFeatureKeys] = React.useState<ReadonlySet<string>>(NO_HIDDEN_FEATURES);
+  // Bumped when Ma trận phân quyền is saved in this tab, so the menu follows the new ticks at once
+  // (other sessions pick the change up on their next navigation, via the same /api/auth/me call).
+  const [permissionMatrixRevision, setPermissionMatrixRevision] = React.useState(0);
   // Best-effort last-known role for this tab, used only to avoid flashing the "no role" nav —
   // never to decide `isAuthorized` below, so a stale/downgraded cache can't skip the real gate.
   const cachedRole = React.useSyncExternalStore(subscribeToRoleCache, readCachedRole, () => null);
@@ -350,9 +584,10 @@ function AppShellInner({ children }: AppShellProps) {
     let cancelled = false;
     fetch('/api/auth/me', { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : null))
-      .then((data: { user?: { mustChangePassword?: boolean; role: UserRole } } | null) => {
+      .then((data: { hiddenFeatureKeys?: string[]; user?: { mustChangePassword?: boolean; role: UserRole } } | null) => {
         if (cancelled || !data?.user) return;
         setRole(data.user.role);
+        setHiddenFeatureKeys(new Set(data.hiddenFeatureKeys ?? []));
         window.sessionStorage.setItem(ROLE_CACHE_KEY, data.user.role);
         // Unconditional sync (not just "set true"): AppShell is a shared layout that survives a
         // client-side logout→/login→login-again round trip without unmounting, so a `true` from an
@@ -363,7 +598,13 @@ function AppShellInner({ children }: AppShellProps) {
       })
       .catch(() => undefined);
     return () => { cancelled = true; };
-  }, [pathname]);
+  }, [pathname, permissionMatrixRevision]);
+
+  React.useEffect(() => {
+    const refresh = () => setPermissionMatrixRevision((current) => current + 1);
+    window.addEventListener(PERMISSION_MATRIX_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(PERMISSION_MATRIX_CHANGED_EVENT, refresh);
+  }, []);
 
   React.useEffect(() => {
     if (!role || !requiredRoles) return;
@@ -442,6 +683,7 @@ function AppShellInner({ children }: AppShellProps) {
           onToggle={() => setDesktopNavigationExpanded((current) => !current)}
           pendingUserTicketsCount={pendingUserTicketsCount}
           role={displayRole}
+          hiddenFeatureKeys={hiddenFeatureKeys}
         />
       </aside>
 
@@ -469,6 +711,7 @@ function AppShellInner({ children }: AppShellProps) {
               onOpenSystemAdmin={() => setSystemAdminOpen(true)}
               pendingUserTicketsCount={pendingUserTicketsCount}
               role={displayRole}
+              hiddenFeatureKeys={hiddenFeatureKeys}
             />
           </aside>
         </div>

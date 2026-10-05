@@ -1,4 +1,5 @@
 import pool, { getClient } from '@/lib/db';
+import type { UserRole } from '@/lib/auth-types';
 import type { PermissionFeature, PermissionMatrix, RoleFeaturePermission } from '@/lib/permission-matrix-types';
 
 export async function getPermissionMatrix(): Promise<PermissionMatrix> {
@@ -17,8 +18,23 @@ export async function getPermissionMatrix(): Promise<PermissionMatrix> {
 }
 
 /**
+ * Feature keys whose "Xem" is unticked for `role` — the left panel hides the matching menu item
+ * (see `featureKey` on the nav entries in AppShell / UserMenu). A registered feature with no row
+ * for the role counts as unticked, same as the matrix screen renders it.
+ */
+export async function getViewDeniedFeatureKeys(role: UserRole): Promise<string[]> {
+  const result = await pool.query<{ featureKey: string }>(`
+    SELECT f.feature_key AS "featureKey"
+    FROM permission_features f
+    LEFT JOIN role_feature_permissions p ON p.feature_key = f.feature_key AND p.role = $1
+    WHERE COALESCE(p.can_view, FALSE) = FALSE;
+  `, [role]);
+  return result.rows.map((row) => row.featureKey);
+}
+
+/**
  * Bulk-replaces the given (featureKey, role) permission rows in one transaction. Callers must have
- * already stripped out SUPERADMIN rows and clamped VIEW_ONLY features' add/edit/delete to FALSE —
+ * already rejected SUPERADMIN rows on ADMIN-category features and clamped VIEW_ONLY features' add/edit/delete to FALSE —
  * this only persists what it's given.
  */
 export async function saveRoleFeaturePermissions(updates: RoleFeaturePermission[]): Promise<void> {
