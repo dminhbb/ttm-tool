@@ -114,7 +114,9 @@ export function CacheStatusPanel() {
         setError(body.error || 'Tạo lại cache thất bại.');
         return;
       }
-      showToast(`Đã tạo lại cache (mất ${formatNumber(body.durationMs)} ms — ${formatNumber(body.epicAlertRowCacheCount)} Epic).`, 5000);
+      showToast(body.queued
+        ? 'Đang có một lượt tạo lại cache khác chạy — lượt đó sẽ tự chạy thêm một lần với dữ liệu mới nhất. Tải lại sau ít phút để xem kết quả.'
+        : `Đã tạo lại cache (mất ${formatNumber(body.durationMs)} ms — ${formatNumber(body.epicAlertRowCacheCount)} Epic).`, 6000);
       await load();
     } catch {
       setError('Không thể kết nối API.');

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser, listManagedUsers } from '@/lib/auth-service';
 import { loadDashboardEpicRows } from '@/lib/ttm-dashboard-summary-service';
 import { getTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
-import { resolveViewAsTarget, VIEW_AS_ALLOWED_ROLES, VIEW_AS_ROLE_RANK } from '@/lib/view-as-user-service';
+import { listPreviewableUsers, resolveViewAsTarget, VIEW_AS_ALLOWED_ROLES } from '@/lib/view-as-user-service';
 
 function authError(error: unknown): NextResponse | null {
   if (error instanceof AuthError) {
@@ -17,7 +17,6 @@ export async function GET(request: NextRequest) {
     // TTM Dashboard is SUPERADMIN-only since 2026-10-05 (every role lands on TTM Dashboard 2 instead).
     if (actor.role !== 'SUPERADMIN') return NextResponse.json({ error: 'Bạn không có quyền xem màn hình này.' }, { status: 403 });
     const isAdminOrSupervisor = VIEW_AS_ALLOWED_ROLES.includes(actor.role);
-    const actorRank = VIEW_AS_ROLE_RANK[actor.role] ?? 1;
     const { userId: targetUserId, role: targetRole, viewAsUser } = await resolveViewAsTarget(actor, request.nextUrl.searchParams.get('viewAsUserId'));
 
     // Row source shared with TTM Dashboard 2 — see loadDashboardEpicRows
@@ -31,11 +30,10 @@ export async function GET(request: NextRequest) {
         console.error('Failed to get TTM Index Global Cache:', err);
         return null;
       }),
-      isAdminOrSupervisor ? listManagedUsers() : Promise.resolve([]),
+      isAdminOrSupervisor ? listManagedUsers().then((users) => listPreviewableUsers(actor, users)) : Promise.resolve([]),
     ]);
 
     const managedUsers: Array<{ domainIds: number[]; email: string; fullName: string; id: number; isActive: boolean; projectIds: number[]; role: string }> = allUsers
-      .filter((u) => u.isActive && (VIEW_AS_ROLE_RANK[u.role] ?? 1) <= actorRank)
       .map((u) => ({
         domainIds: u.domainIds,
         email: u.email,

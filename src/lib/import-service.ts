@@ -666,7 +666,7 @@ export async function processImport(
     // could see this batch's rows before commit. One unscoped recompute feeds every cache (see
     // refreshDerivedCaches). Never lets a cache-refresh failure fail an otherwise-successful import.
     try {
-      await refreshDerivedCaches(batchId);
+      await refreshDerivedCaches(batchId, 'import');
     } catch (cacheError) {
       console.error('Failed to refresh derived caches after import:', cacheError);
     }

@@ -3,7 +3,7 @@ import { AuthError, requireUser, listManagedUsers } from '@/lib/auth-service';
 import pool from '@/lib/db';
 import { getTtmDashboard2Snapshot } from '@/lib/ttm-dashboard-2-cache-service';
 import { getTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
-import { resolveViewAsTarget, VIEW_AS_ALLOWED_ROLES, VIEW_AS_ROLE_RANK } from '@/lib/view-as-user-service';
+import { listPreviewableUsers, resolveViewAsTarget, VIEW_AS_ALLOWED_ROLES } from '@/lib/view-as-user-service';
 
 function authError(error: unknown): NextResponse | null {
   if (error instanceof AuthError) {
@@ -23,7 +23,6 @@ export async function GET(request: NextRequest) {
     // data scope; "Xem dưới quyền" and the user list stay limited to VIEW_AS_ALLOWED_ROLES.
     const canPreviewUsers = VIEW_AS_ALLOWED_ROLES.includes(actor.role);
     const target = await resolveViewAsTarget(actor, request.nextUrl.searchParams.get('viewAsUserId'));
-    const actorRank = VIEW_AS_ROLE_RANK[actor.role] ?? 1;
 
     // Unfiltered funnel numbers + filter options straight from the per-scope cache; the Epic rows
     // themselves are only fetched (./rows) once the user applies a toolbar filter.
@@ -34,11 +33,10 @@ export async function GET(request: NextRequest) {
         console.error('Failed to get TTM Index Global Cache:', err);
         return null;
       }),
-      canPreviewUsers ? listManagedUsers() : Promise.resolve([]),
+      canPreviewUsers ? listManagedUsers().then((users) => listPreviewableUsers(actor, users)) : Promise.resolve([]),
     ]);
 
     const managedUsers = allUsers
-      .filter((u) => u.isActive && (VIEW_AS_ROLE_RANK[u.role] ?? 1) <= actorRank)
       .map((u) => ({
         domainIds: u.domainIds,
         email: u.email,

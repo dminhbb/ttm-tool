@@ -10,7 +10,6 @@ import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
-import { TtmBlackListDot } from '@/components/ui/TtmBlackListDot';
 import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import { EpicAlertTimeline } from '@/components/epic-alerts/EpicAlertTimeline';
 import { EpicStatWidgets } from '@/components/epic-alerts/EpicStatWidgets';
@@ -23,7 +22,7 @@ import type { EpicAlertAccessRole, EpicAlertPhasedResponse, EpicAlertRowPhased, 
 import type { EpicMilestoneHistoryEntry } from '@/lib/epic-milestone-history-service';
 import type { ProjectComponent } from '@/lib/master-data-types';
 import type { AlertLevel } from '@/lib/ttm-rules';
-import { formatTtmPct1, summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
+import { formatTtmPassPct, summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import type { TtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
@@ -593,7 +592,7 @@ interface EpicAlerts15Payload extends EpicAlertPhasedResponse {
  * pass/fail/denominator mean (Tỷ lệ % Pass = Đạt / (Đạt + Fail)). `summary` null (no cache yet) or `total === 0` (nothing to rate, e.g. no
  * MVP Done/Released Epic yet for TTM-CNTT (QA)) both render "—" instead of a misleading 0,0%/100,0%. */
 function formatTtmIndexValue(summary: TtmCnttSummary | null): string {
-  return summary && summary.total > 0 ? `${formatTtmPct1(summary.pctPrecise)}%` : '—';
+  return formatTtmPassPct(summary);
 }
 function formatTtmIndexTooltip(firstLine: string, summary: TtmCnttSummary | null): string {
   const secondLine = summary && summary.total > 0 ? `${summary.pass}/${summary.denominator}` : '—';
@@ -1493,6 +1492,7 @@ function EpicAlerts15Screen() {
             <TBody>
               {pageRows.map((row: EpicAlertRowPhased) => {
                 const isMissingCore = !row.t1StartDate;
+                const isTtmExcluded = Boolean(row.ttmBlackListed || row.ttmExclusion);
                 return (
                   <TR key={row.epicKey} className={row.hasDataAnomaly ? 'missing-row' : undefined}>
                     <TD className="ttm-epic-col-sticky ttm-col-border-right">
@@ -1500,13 +1500,12 @@ function EpicAlerts15Screen() {
                       <JiraLinkButton epicKey={row.epicKey} viewIssueBaseUrl={viewIssueBaseUrl} />
                       <button
                         type="button"
-                        className="ttm-epic-key"
+                        className={`ttm-epic-key ${isTtmExcluded ? 'is-ttm-excluded !font-normal' : ''}`}
                         onClick={() => { trackDataUsage(); setBrowsingEpicKey(row.epicKey); }}
-                        title={`Duyệt Epic (Epic Browser) — Lớp dữ liệu: ${formatDate(row.dataLayerDate)}`}
+                        title={`Duyệt Epic (Epic Browser) — Lớp dữ liệu: ${formatDate(row.dataLayerDate)}${isTtmExcluded ? ' (Không tính TTM)' : ''}`}
                       >
-                        {row.epicKey}
+                        {isTtmExcluded ? `(${row.epicKey})` : row.epicKey}
                       </button>
-                      {row.ttmBlackListed && <TtmBlackListDot className="ml-1.5" />}
                       {row.epicName && (
                         <span className="ttm-epic-summary" title={row.epicName}>{truncateSummary(row.epicName)}</span>
                       )}

@@ -159,13 +159,24 @@ export function filterTtmDashboard2Rows<T extends TtmFunnelRow>(rows: readonly T
   });
 }
 
-const BREAKDOWN_KEY: Record<TtmBreakdownDimension, (row: TtmFunnelRow) => { key: string; linkValue: string | null; name: string }> = {
-  requestingUnit: (row) => (row.requestingUnit ? { key: row.requestingUnit, linkValue: row.requestingUnit, name: row.requestingUnit } : { key: '', linkValue: null, name: 'Chưa xác định' }),
-  domain: (row) => (row.domainName ? { key: row.domainName, linkValue: row.domainName, name: row.domainName } : { key: '', linkValue: null, name: 'Chưa gán Domain' }),
+type BreakdownKey = { key: string; linkValue: string | null; name: string };
+
+/** The group(s) a row belongs to per dimension. Every dimension gives exactly one group, except
+ * PM/SM: an Epic with several PM/SMs ("A, B") is counted once under EACH of them (2026-10-05) —
+ * grouping by the raw "A, B" string split one PM's numbers over several rows, and its drill-down
+ * (owner_names && [A, B]) listed every Epic of A or B, so the list never matched the number. With one
+ * name per row the list (owner_names && [A]) is exactly the row's Epics. The PM/SM rows can therefore
+ * add up to more than the funnel total. */
+const BREAKDOWN_KEYS: Record<TtmBreakdownDimension, (row: TtmFunnelRow) => BreakdownKey[]> = {
+  requestingUnit: (row) => [row.requestingUnit ? { key: row.requestingUnit, linkValue: row.requestingUnit, name: row.requestingUnit } : { key: '', linkValue: null, name: 'Chưa xác định' }],
+  domain: (row) => [row.domainName ? { key: row.domainName, linkValue: row.domainName, name: row.domainName } : { key: '', linkValue: null, name: 'Chưa gán Domain' }],
   // An Epic whose type couldn't be resolved is judged as CT-Lv12 (same default as the rule engine).
-  epicType: (row) => ({ key: row.epicType || 'CT-Lv12', linkValue: row.epicType || 'CT-Lv12', name: row.epicType || 'CT-Lv12' }),
-  pmsm: (row) => (row.ownerName ? { key: row.ownerName, linkValue: row.ownerName, name: row.ownerName } : { key: '', linkValue: null, name: 'Chưa gán PM/SM' }),
-  project: (row) => (row.projectKey ? { key: row.projectKey, linkValue: row.projectKey, name: row.projectName || row.projectKey } : { key: '', linkValue: null, name: 'Chưa gán' }),
+  epicType: (row) => [{ key: row.epicType || 'CT-Lv12', linkValue: row.epicType || 'CT-Lv12', name: row.epicType || 'CT-Lv12' }],
+  pmsm: (row) => {
+    const names = ownerNames(row);
+    return names.length > 0 ? names.map((name) => ({ key: name, linkValue: name, name })) : [{ key: '', linkValue: null, name: 'Chưa gán PM/SM' }];
+  },
+  project: (row) => [row.projectKey ? { key: row.projectKey, linkValue: row.projectKey, name: row.projectName || row.projectKey } : { key: '', linkValue: null, name: 'Chưa gán' }],
 };
 
 /** Widget row / matrix / pie chart numbers. `bucketOf` = each row's funnel leaf (already computed by
@@ -197,25 +208,26 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
   for (const dimension of TTM_BREAKDOWN_DIMENSIONS) {
     const groups = new Map<string, { item: TtmBreakdownItem; rows: TtmFunnelRow[] }>();
     for (const row of active) {
-      const { key, linkValue, name } = BREAKDOWN_KEY[dimension](row);
-      let group = groups.get(key);
-      if (!group) {
-        group = { item: { anomaly: 0, fail: 0, failLateR4g: 0, late: 0, linkValue, name, ok: 0, pass: 0, qaFail: 0, qaPass: 0, qaTotal: 0, total: 0 }, rows: [] };
-        groups.set(key, group);
-      }
-      group.rows.push(row);
       const bucket = bucketOf.get(row);
-      // Not part of L02: outside "Phạm vi dữ liệu cho TTM", "Epic ngoại lệ", project Time to Market = N.
-      if (bucket === 'OUT_OF_SCOPE' || bucket === 'BLACK_LISTED' || bucket === 'PROJECT_NON_TTM') continue;
-      group.item.total += 1;
-      if (bucket === 'R4G_PASS') group.item.pass += 1;
-      else if (bucket === 'R4G_LATE' || bucket === 'NO_R4G_OVERDUE') group.item.fail += 1;
-      if (bucket === 'R4G_LATE') group.item.failLateR4g += 1;
-      if (bucket === 'DATA_ANOMALY') group.item.anomaly += 1;
-      // "Đúng / Chậm tiến độ": Epics still on their way to R4G (no R4G Date yet, no Sai lệch dữ liệu).
-      if (bucket === 'NO_R4G_OVERDUE' || bucket === 'NO_R4G_WITHIN_TARGET') {
-        if (row.alertLevel === 'FAIL' || row.alertLevel === 'LATE') group.item.late += 1;
-        else group.item.ok += 1;
+      for (const { key, linkValue, name } of BREAKDOWN_KEYS[dimension](row)) {
+        let group = groups.get(key);
+        if (!group) {
+          group = { item: { anomaly: 0, fail: 0, failLateR4g: 0, late: 0, linkValue, name, ok: 0, pass: 0, qaFail: 0, qaPass: 0, qaTotal: 0, total: 0 }, rows: [] };
+          groups.set(key, group);
+        }
+        group.rows.push(row);
+        // Not part of L02: outside "Phạm vi dữ liệu cho TTM", "Epic ngoại lệ", project Time to Market = N.
+        if (bucket === 'OUT_OF_SCOPE' || bucket === 'BLACK_LISTED' || bucket === 'PROJECT_NON_TTM') continue;
+        group.item.total += 1;
+        if (bucket === 'R4G_PASS') group.item.pass += 1;
+        else if (bucket === 'R4G_LATE' || bucket === 'NO_R4G_OVERDUE') group.item.fail += 1;
+        if (bucket === 'R4G_LATE') group.item.failLateR4g += 1;
+        if (bucket === 'DATA_ANOMALY') group.item.anomaly += 1;
+        // "Đúng / Chậm tiến độ": Epics still on their way to R4G (no R4G Date yet, no Sai lệch dữ liệu).
+        if (bucket === 'NO_R4G_OVERDUE' || bucket === 'NO_R4G_WITHIN_TARGET') {
+          if (row.alertLevel === 'FAIL' || row.alertLevel === 'LATE') group.item.late += 1;
+          else group.item.ok += 1;
+        }
       }
     }
     breakdowns[dimension] = [...groups.values()]

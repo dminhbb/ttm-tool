@@ -19,8 +19,9 @@ export async function getPermissionMatrix(): Promise<PermissionMatrix> {
 
 /**
  * Feature keys whose "Xem" is unticked for `role` — the left panel hides the matching menu item
- * (see `featureKey` on the nav entries in AppShell / UserMenu). A registered feature with no row
- * for the role counts as unticked, same as the matrix screen renders it.
+ * (see `featureKey` on the nav entries in AppShell / UserMenu) and, since 2026-10-05, the page itself
+ * is blocked (src/proxy.ts, feature-access.ts). A registered feature with no row for the role counts
+ * as unticked, same as the matrix screen renders it.
  */
 export async function getViewDeniedFeatureKeys(role: UserRole): Promise<string[]> {
   const result = await pool.query<{ featureKey: string }>(`
@@ -30,6 +31,21 @@ export async function getViewDeniedFeatureKeys(role: UserRole): Promise<string[]
     WHERE COALESCE(p.can_view, FALSE) = FALSE;
   `, [role]);
   return result.rows.map((row) => row.featureKey);
+}
+
+/** Short per-instance cache for the proxy, which checks the matrix on every page request: a saved
+ * matrix clears it on this instance at once; other instances follow within VIEW_DENIED_TTL_MS. */
+const VIEW_DENIED_TTL_MS = 15_000;
+const viewDeniedCache = new Map<UserRole, { expiresAt: number; keys: Promise<ReadonlySet<string>> }>();
+
+export function getViewDeniedFeatureKeySet(role: UserRole): Promise<ReadonlySet<string>> {
+  const cached = viewDeniedCache.get(role);
+  if (cached && cached.expiresAt > Date.now()) return cached.keys;
+  const keys = getViewDeniedFeatureKeys(role).then((list) => new Set(list) as ReadonlySet<string>);
+  viewDeniedCache.set(role, { expiresAt: Date.now() + VIEW_DENIED_TTL_MS, keys });
+  // A failed read must not stick for the whole TTL.
+  keys.catch(() => viewDeniedCache.delete(role));
+  return keys;
 }
 
 /**
@@ -54,6 +70,7 @@ export async function saveRoleFeaturePermissions(updates: RoleFeaturePermission[
       `, [update.featureKey, update.role, update.canView, update.canAdd, update.canEdit, update.canDelete]);
     }
     await client.query('COMMIT');
+    viewDeniedCache.clear();
   } catch (error: unknown) {
     await client.query('ROLLBACK');
     throw error;

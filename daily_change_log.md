@@ -8,6 +8,84 @@
 
 ## 2026-10-05
 
+- **Tinh chỉnh giao diện & Bảng màu 2 nhóm Widget KPI - TTM Dashboard 2** (`src/components/ttm-dashboard-2/DashboardInsights.tsx`):
+  - Thu nhỏ cỡ chữ phần hiển thị phép tính (`pass / denominator`) ở vị trí trung tâm 3 widget chỉ số (TTM-CNTT QLDA, TTM-CNTT QA, TTM-E2E) xuống còn 70% (`text-[8px]` đến `text-[10px]`), giúp bố cục số liệu cân đối, thanh thoát.
+  - Phân tách và chuẩn hóa màu nền 2 nhóm thẻ: nhóm 5 thẻ bên trái sử dụng tông **Light navy pastel** (`bg-[#eaf1fb]` viền `#d0e0f3`), nhóm 4 thẻ bên phải sử dụng tông **Light grey** (`bg-[#f1f5f9]` viền `#e2e8f0`).
+  - Bỏ biểu tượng icon tại widget "TỔNG EPIC"; chuẩn hóa tiêu đề thẻ thứ 2 thành "FAIL TTM-CNTT".
+
+- **Tinh chỉnh tỷ lệ Font & Bố cục 3 tầng thẻ KPI - TTM Dashboard 2** (`src/components/ttm-dashboard-2/DashboardInsights.tsx`):
+  - Giảm kích thước font toàn bộ text của 9 widget xuống 70% (`text-[7px]-text-[8px]` cho title, `text-[6.5px]-text-[7.5px]` cho subtitle) và đặc biệt giảm con số chính trung tâm xuống 60% (`text-[11px]-text-[14px]` font-extrabold).
+  - Tái cấu trúc thống nhất chuẩn 3 tầng cho mọi widget: `widget title` -> `con số chính` -> `subtitle`.
+  - Tại 3 thẻ chỉ số (TTM-CNTT QLDA, TTM-CNTT QA, TTM-E2E): đã có % hiển thị trong vòng tròn tiến độ thì không lặp lại % ở bên cạnh; thay vào đó con số chính hiển thị tỷ lệ phân số đánh giá (ví dụ `234 / 281`), subtitle hiển thị tên phạm vi (`QLDA`, `QA`, `Đạt / Đánh giá`), ngắn gọn, rõ ràng và chống tràn dòng tuyệt đối.
+
+- **Tái thiết kế hàng widget KPI theo phong cách Enterprise Banking / IT Control Tower - TTM Dashboard 2** (`src/components/ttm-dashboard-2/DashboardInsights.tsx`):
+  - Chuyển đổi giao diện hàng 9 thẻ KPI sang phong cách hiện đại, thanh lịch, chuẩn ngân hàng: nền sáng (`bg-white/95`), bo góc mềm mại `rounded-[16px]`, bóng mờ tinh tế, viền nhạt `border-[#d9e3ef]`, phân tách 2 nhóm bằng vách ngăn dọc mảnh.
+  - Sử dụng bảng màu pastel dịu mắt (`bg-[#eff6ff]` cho nhóm tổng quan/e2e, `bg-[#f0fdf4]` cho tỷ lệ đạt/chờ golive, `bg-[#fffbeb]` cho cảnh báo, `bg-[#fef2f2]` cho sai lệch/fail).
+  - Tích hợp biểu đồ vòng tiến độ tròn (`KpiProgressRing`) cho 3 thẻ tỷ lệ (TTM-CNTT QLDA, TTM-CNTT QA, TTM-E2E) hiển thị số % trong tâm vòng tròn.
+  - Tích hợp bộ icon tròn (`KpiIconBadge` với `@phosphor-icons/react`: Stack, WarningCircle, Bell, Warning, CheckCircle, Clock) cho các thẻ chỉ số còn lại.
+  - Rút gọn tiêu đề và phụ đề (TỔNG EPIC, FAIL TTM-CNT, TTM-CNTT, TTM-E2E, CẢNH BÁO, SAI LỆCH, CHỜ GOLIVE, GIẢI TRÌNH) cùng quy tắc chống ngắt dòng tuyệt đối (`whitespace-nowrap overflow-hidden text-ellipsis`) trên 1 hàng ngang desktop.
+  - Bảo lưu 100% logic dữ liệu động và liên kết drill-down tới màn hình Quản trị Epic.
+
+- **Chuẩn hóa hiển thị Epic ngoại lệ & Dự án không tính TTM trong Quản trị Epic** (`src/app/epic-alerts-15/page.tsx`, `epic-alerts-15.css`, `src/app/epic-in-po/page.tsx`, `epic-in-po.css`):
+  - Bỏ chấm đen chỉ thị (`TtmBlackListDot`) cạnh Epic key ở màn hình Quản trị Epic (`/epic-alerts-15`) và Quản trị Epic trong PO (`/epic-in-po`).
+  - Đổi cách hiển thị cho các Epic ngoại lệ (nằm trong TTM Black list) và các Epic thuộc dự án không tính TTM (`Time to Market = N`): đặt mã Epic trong dấu ngoặc đơn `(EPIC-KEY)` và dùng font chữ thường không đậm (`font-weight: 400` / `.is-ttm-excluded !font-normal`).
+  - Các Epic thông thường nằm trong phạm vi tính TTM giữ nguyên định dạng chữ đậm (`font-weight: 800`) không có ngoặc đơn.
+
+- **Nâng cấp Toggle Epic ngoại lệ & Chuẩn hóa Widget dạng Capsule Pill - TTM Dashboard 2** (`src/components/ui/PillToggle.tsx`, `EpicBrowserModal.tsx`, `DashboardInsights.tsx`, `page.tsx`):
+  - **Component PillToggle & BooleanPillToggle**: Xây dựng component toggle dạng viên nhộng (`rounded-full border border-slate-300 bg-[#f0f3f1]`, nút active xanh lá đậm `#1b6b3e`) theo đúng thiết kế toggle Lead - PM/SM.
+  - **Form Epic ngoại lệ**: Chuyển select box đánh dấu TTM Black listed trong popup Duyệt Epic (`EpicBrowserModal.tsx`) sang dạng toggle True/False trực quan; bỏ hoàn toàn popup confirmation, khi chuyển sang True lập tức lưu và bắn toast message cảnh báo tác động loại Epic khỏi phạm vi tính TTM.
+  - **Hàng widget KPI TTM Dashboard 2**: Thiết kế lại toàn bộ 9 thẻ widget thành dạng viên nhộng (capsule pill `rounded-full`) tương tự các widget toàn công ty; giữ nguyên và phân biệt màu font chữ giữa 2 nhóm (Navy `#1e3a8a` cho 5 thẻ bên trái và Xám đậm `#334155` / `slate-800` cho 4 thẻ bên phải).
+  - **Widget "Fail TTM-CNTT"**: Bỏ toàn bộ subtitle; gắn liên kết tra soát trực tiếp vào số liệu chính để mở Quản trị Epic với bộ lọc Fail TTM-CNTT.
+  - **Giảm độ tương phản Funnel Chart**: Giảm độ chói và tương phản gắt của các tầng phễu 3D SVG (chuyển đỏ chói `#ff4d4f` sang rose `#e11d48`, cyan chói sang ocean blue `#0284c7`, amber dịu `#d97706`), giảm độ đổ bóng (`drop-shadow-sm`), điều chỉnh dải chỉ số toàn công ty và dải tổng kết chân phễu sang tông màu trầm, dịu mắt và hài hòa.
+
+- **Tinh chỉnh giao diện hàng widget KPI - TTM Dashboard 2** (`src/components/ttm-dashboard-2/DashboardInsights.tsx`):
+  - Bỏ toàn bộ viền xung quanh thẻ widget (`border`) và dải màu định vị ở đỉnh mỗi widget (`border-t-[3px]`), giữ nguyên màu sắc chữ và số liệu của 2 nhóm (Navy `#1e3a8a` bên trái và Xám đậm `#334155` bên phải).
+  - Điều chỉnh độ bo cong góc của tất cả các widget tương đương độ cong của box bao ngoài (`rounded-2xl`), tạo cảm giác mềm mại và liền mạch thị giác.
+  - Tại widget "Fail TTM-CNTT", đổi text của subtitle từ "Mẫu số đánh giá" thành `/{giá trị mẫu số}` (ví dụ: `/{fmt(qlda.denominator)}`), ngắn gọn và hiển thị trực diện tỷ lệ so với mẫu số.
+  - Tăng kích thước font chữ của tiêu đề widget (title) thêm 20% (từ `text-[7px]` lên `text-[8.5px]`) và làm đậm hơn (`font-extrabold uppercase tracking-wider`).
+
+- **Cập nhật màu nhóm widget bên trái thành Navy - TTM Dashboard 2** (`src/components/ttm-dashboard-2/DashboardInsights.tsx`):
+  - Chuyển màu chủ đạo của nhóm 5 widget bên trái sang màu **Navy** (`#1e3a8a`): đồng nhất cho viền đỉnh thẻ (`border-t-[3px] border-t-[#1e3a8a]`), tiêu đề, giá trị số liệu và thanh tiến độ Metric Gauge, mang lại vẻ ngoài đầm chắc, hiện đại và độ tương phản cao.
+
+- **Cập nhật màu chủ đạo hàng widget KPI - TTM Dashboard 2** (`src/components/ttm-dashboard-2/DashboardInsights.tsx`):
+  - Nhóm 5 widget bên trái: chuyển sang đồng nhất **màu chủ đạo của theme** (`#1463f7` / Blue theme) cho viền đỉnh, tiêu đề, số liệu và thanh đo Metric Gauge.
+  - Nhóm 4 widget bên phải: chuyển sang đồng nhất **màu xám đậm** (`#334155` / `slate-700`) cho viền đỉnh, tiêu đề, số liệu chính và các liên kết tác nghiệp, tạo độ tương phản đầm chắc, hiện đại và chống chói tối đa.
+- **Chuẩn hóa màu sắc & Typography hàng widget KPI - TTM Dashboard 2** (`src/components/ttm-dashboard-2/DashboardInsights.tsx`):
+  - Đồng nhất bảng màu cho 2 nhóm widget: nhóm 5 widget bên trái dùng chung màu **Navy** (`#1e3a8a`), nhóm 4 widget bên phải dùng chung màu **Vàng đất** (`#92400e`), loại bỏ hoàn toàn sự phân mảnh đa màu sắc.
+  - Giảm tỷ lệ font chữ: font chữ tiêu đề giảm xuống 70% (`text-[7px] font-bold uppercase tracking-wider`), số liệu chính giảm xuống 80% (`text-[15px] sm:text-[16px] font-black`), subtitle và nhãn phụ giảm xuống 80% (`text-[8px]`).
+  - Đổi subtitle thẻ "Tổng số Epic" thành "Phạm vi tính", đổi subtitle thẻ "Sai lệch dữ liệu" thành "Cần điều chỉnh.".
+  - Chuyển phần hiển thị phép chia tỷ lệ của các widget chỉ số TTM (ví dụ `234/281`) vào hover tooltip (`title`) để mặt thẻ thông thoáng, tập trung vào con số % và thanh Metric Gauge.
+- **Tinh chỉnh hàng widget KPI - TTM Dashboard 2 (Thanh tiến độ Metric Gauge & Giảm chiều cao)** (`src/components/ttm-dashboard-2/DashboardInsights.tsx`):
+  - Bỏ toàn bộ các dòng subtitle của thẻ "Tổng số Epic" (các thông tin trừ Cancelled, ngoại lệ, TTM=N đã có ở popup giải thích L02).
+  - Đổi title thẻ "Cảnh báo (Sớm/Muộn)" thành "Cảnh báo".
+  - Đổi title thẻ "Fail TTM-CNTT (QLDA)" thành "Fail TTM-CNTT".
+  - Đổi 3 đồng hồ tròn (`IndexRing`) thành **Thanh tiến độ dạng Metric Gauge** (`MetricGaugeCard`): Header tiêu đề rõ ràng, số % nổi bật kèm số phân số, thanh bar ngang bo góc cao 6px sinh động với animation.
+  - Giảm chiều cao toàn hàng widget hơn 35% (từ ~120px xuống chỉ còn ~74px), tất cả 9 thẻ có cùng 3 tầng nội dung cân đối.
+  - Tăng cường tương phản, giảm triệt để độ chói (lightness): bọc hàng widget trong container nền Slate xám đậm hơn (`bg-slate-100 border-slate-300`), loại bỏ hoàn toàn các nền pastel cực nhạt, số liệu dùng font bão hòa sâu đậm nét.
+- **Tối ưu thiết kế hàng widget KPI (Phương án 2 - TTM Dashboard 2)** (`src/components/ttm-dashboard-2/DashboardInsights.tsx`):
+  - Khắc phục triệt để lỗi chèn ép không gian và xô lệch/ngắt dòng chữ vụn vặt khi ở zoom 100% trên 1 hàng ngang.
+  - Chuyển 3 đồng hồ tròn (`IndexRing`: TTM-CNTT QLDA, QA, E2E) sang layout dọc cân đối: vòng conic-gradient thu gọn `size-12` (48px) ở trung tâm, tiêu đề phân tách dứt khoát 2 dòng `TTM-CNTT` và `(QLDA)`/`(QA)`/`(Hoàn thành)` với `whitespace-nowrap`, tỷ lệ số phụ căn giữa chân card.
+  - Chuẩn hóa layout 2 cột key-value (`justify-between`) cho chi tiết trừ Epic (Tổng số Epic) và trạng thái Chờ Golive (Thiếu R4G, Trong hạn, Quá hạn), nhãn căn trái, số liệu căn phải, không còn bị ngắt số xuống hàng.
+  - Tăng cường tương phản và giảm độ chói sáng của theme: bọc toàn bộ hàng widget trong container nền Slate xám dịu (`bg-slate-50/70 border border-slate-200/90`), tất cả 9 thẻ dùng nền trắng sắc nét với viền đỉnh màu nhận diện (`border-t-[3px]` theo chuẩn màu nhận diện của từng chỉ số), typography đậm và sắc nét chuẩn WCAG.
+  - **Ma trận / pie theo PM/SM (TTM Dashboard 2)**: mỗi PM/SM một dòng — Epic nhiều PM/SM ("A, B") được tính cho từng người
+    thay vì gom theo nguyên chuỗi, nên danh sách mở ra (`owner_names && [A]`) khớp đúng con số; có ghi chú "tổng các dòng có thể
+    lớn hơn Tổng số Epic" (`BREAKDOWN_KEYS` trong `src/lib/ttm-funnel-summary.ts`, `DashboardInsights.tsx`). Cache Dashboard 2 lên
+    `PAYLOAD_VERSION = 7`. TTM Dashboard cũ (SUPERADMIN) chưa đổi.
+  - **"Xem dưới quyền" theo phạm vi dữ liệu**: ADMIN chỉ xem dưới quyền được user mà MỌI dự án của user đó nằm trong phạm vi
+    ADMIN (domain được gán + dự án mình làm PM/SM); SUPERADMIN/SUPERVISOR không đổi. Áp dụng cả danh sách chọn user và API
+    (`listPreviewableUsers` / `resolveViewAsTarget` trong `src/lib/view-as-user-service.ts`; TTM Dashboard 2, TTM Dashboard,
+    Quản trị Epic).
+  - **Chỉ số khi mẫu số = 0 hiển thị "—"** thay cho 100% (vòng KPI, badge banner, ô ma trận, sắp xếp) — `hasTtmVerdict` /
+    `formatTtmPassPct` / `formatTtmFailPct` trong `src/lib/ttm-cntt-qa.ts`; MCP vốn đã trả `null`.
+  - **R8 không áp dụng với Reopened** (`SCORING_CODE_VERSION` → `scoring-10`, spec §20): Epic đã golive rồi bị mở lại giữ R4G
+    Date và kết quả TTM, không gắn "Sai Status" TTM-CNTT/E2E. Pending không đổi. Cần "Tạo lại cache" để áp dụng.
+  - **Khoá rebuild cache**: bảng mới `derived_cache_refresh_lock` (migration `20261005b_…`, đã chạy local + Supabase) — chỉ 1 lượt
+    `refreshDerivedCaches` chạy tại một thời điểm trên mọi instance; lượt đến sau chỉ "xin" thêm và lượt đang chạy sẽ chạy lại 1 lần
+    với dữ liệu mới nhất trước khi nhả khoá (`src/lib/daily-cache-service.ts`). Nút "Tạo lại cache" báo khi bị gộp vào lượt đang chạy.
+  - **Ma trận phân quyền chặn đúng quyền "Xem" trang**: bỏ tick Xem của role → `src/proxy.ts` chuyển hướng khỏi trang đó (về trang
+    đầu tiên còn quyền, hoặc `/no-access`) và trả 403 cho API riêng của trang (`/api/ttm-dashboard-2`, `/api/dashboard-new`,
+    `/api/reports`); AppShell chặn luôn trong tab vừa lưu ma trận. Bảng ánh xạ trang ↔ chức năng: `src/lib/feature-access.ts`.
+    Ma trận vẫn chỉ thu hẹp (role hardcode vẫn áp dụng). Lưu ý: DB local đang bỏ tick Xem "TTM Dashboard 2" cho USER (Supabase thì có).
 - **Left panel — gom menu Quản trị vào 2 popup submenu** (`src/components/layout/AppShell.tsx`, không đổi schema, không đổi quyền):
   - `Admin: Cấu hình ứng dụng` (icon `Faders`): Quản lý User, Quản lý Dự án, Quản lý Domain, Cấu hình cảnh báo, Cấu hình ứng dụng.
   - `SuperAdmin: Quản trị hệ thống` (icon `GearSix`): Nguồn dữ liệu, Sao lưu / Phục hồi dữ liệu, Ma trận phân quyền, Quản trị hệ thống.

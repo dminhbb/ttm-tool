@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { SESSION_COOKIE_NAME } from '@/lib/auth-constants';
 import { getCurrentUser } from '@/lib/auth-service';
+import { apiFeatureKey, fallbackPathFor, pageFeatureKey } from '@/lib/feature-access';
+import { getViewDeniedFeatureKeySet } from '@/lib/permission-matrix-service';
 
 // '/api/data-source/import/auto' and '/api/mcp' are "public" only from this proxy's point of
 // view — each has its own bearer-token check inside the route itself (IMPORT_API_TOKEN for the
@@ -30,13 +32,36 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hasSessionCookie = Boolean(request.cookies.get(SESSION_COOKIE_NAME)?.value);
   if (PUBLIC_PATHS.includes(pathname)) return NextResponse.next();
-  if (hasSessionCookie && await getCurrentUser(request)) return NextResponse.next();
+  const user = hasSessionCookie ? await getCurrentUser(request) : null;
+  if (user) return enforceViewPermission(request, user.role);
   if (pathname.startsWith('/api/')) return NextResponse.json({ error: 'Chưa đăng nhập.' }, { status: 401 });
   const loginUrl = new URL('/login', request.url);
   // Keep the query string too — deep links like /epic-alerts-15?alert=FAIL&projects=WM would
   // otherwise land back on the screen with every filter dropped after signing in.
   loginUrl.searchParams.set('next', `${pathname}${request.nextUrl.search}`);
   return NextResponse.redirect(loginUrl);
+}
+
+/**
+ * Ma trận phân quyền — "Xem" unticked for the role blocks the page (redirect to the first landing
+ * page still allowed) and its page-exclusive data API (403); see feature-access.ts. Only narrows:
+ * the hardcoded role checks still apply after this. If the matrix can't be read, access is left to
+ * those role checks rather than locking every user out.
+ */
+async function enforceViewPermission(request: NextRequest, role: Parameters<typeof getViewDeniedFeatureKeySet>[0]): Promise<NextResponse> {
+  const { pathname } = request.nextUrl;
+  const isApi = pathname.startsWith('/api/');
+  const featureKey = isApi ? apiFeatureKey(pathname) : pageFeatureKey(pathname);
+  if (!featureKey) return NextResponse.next();
+  const denied = await getViewDeniedFeatureKeySet(role).catch((error: unknown) => {
+    console.error('Permission matrix lookup failed in proxy — falling back to role checks only:', error);
+    return null;
+  });
+  if (!denied?.has(featureKey)) return NextResponse.next();
+  if (isApi) return NextResponse.json({ error: 'Bạn không có quyền xem chức năng này (Ma trận phân quyền).' }, { status: 403 });
+  const target = new URL(fallbackPathFor(denied, pathname), request.url);
+  target.searchParams.set('denied', featureKey);
+  return NextResponse.redirect(target);
 }
 
 export const config = { matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'] };

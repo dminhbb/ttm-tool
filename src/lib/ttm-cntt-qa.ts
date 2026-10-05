@@ -47,7 +47,8 @@ export interface TtmCnttSummary {
   /** What `pct` is a ratio of: pass + fail (Epics with a final verdict). */
   denominator: number;
   /** Tỷ lệ % Pass, rounded to a whole number — used wherever the ratio is shown compactly (matrix
-   * table bars/cells). 100 when nothing has a verdict yet (denominator = 0). */
+   * table bars/cells). Stays 100 when nothing has a verdict yet (denominator = 0) so arithmetic on it
+   * never breaks, but screens must show "—" then (hasTtmVerdict / formatTtmPassPct). */
   pct: number;
   /** Same ratio as `pct`, unrounded — for displays that show 1 decimal place. */
   pctPrecise: number;
@@ -64,6 +65,24 @@ export interface TtmCnttSummary {
 const PERCENT_1_DECIMAL_FORMATTER = new Intl.NumberFormat('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 export function formatTtmPct1(value: number): string {
   return PERCENT_1_DECIMAL_FORMATTER.format(value);
+}
+
+/** True once at least one Epic has a final verdict (Đạt or Fail) — only then does the ratio mean
+ * anything. A summary cached before `denominator` existed falls back to pass + fail. */
+export function hasTtmVerdict(summary: Pick<TtmCnttSummary, 'denominator' | 'fail' | 'pass'> | null | undefined): boolean {
+  if (!summary) return false;
+  return (summary.denominator ?? summary.pass + summary.fail) > 0;
+}
+
+/** "85,8%" — or "—" while no Epic has a verdict yet (denominator 0), never a misleading 100%
+ * (owner decision 2026-10-05). The one formatter every ring / badge / matrix cell uses. */
+export function formatTtmPassPct(summary: TtmCnttSummary | null | undefined): string {
+  return summary && hasTtmVerdict(summary) ? `${formatTtmPct1(summary.pctPrecise)}%` : '—';
+}
+
+/** Same as formatTtmPassPct for Tỷ lệ % Fail. */
+export function formatTtmFailPct(summary: TtmCnttSummary | null | undefined): string {
+  return summary && hasTtmVerdict(summary) ? `${formatTtmPct1(summary.failPctPrecise)}%` : '—';
 }
 
 /** Epic Scoring Service rows carry their Index membership precomputed (scoring/select.ts

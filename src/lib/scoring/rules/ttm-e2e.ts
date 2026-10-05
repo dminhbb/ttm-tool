@@ -1,4 +1,4 @@
-import { STATUS_INDEX } from '../derive';
+import { isReopenedStatus, STATUS_INDEX } from '../derive';
 import { finding } from './rule-types';
 import type { PrimaryRule } from './rule-types';
 import type { Finding } from '../types';
@@ -35,7 +35,8 @@ export const ttmE2eRule: PrimaryRule = ({ facts, derived, ctx, hasDataAnomaly })
       findings.push(finding('E2E_FAIL', `Ngày kết thúc TTM-E2E ${end} muộn hơn Target ${target}.`, evidence));
     } else if (end <= ctx.asOf && derived.e2eBaselineSourceDate && end >= derived.e2eBaselineSourceDate) {
       findings.push(finding('E2E_PASS', `Đạt TTM-E2E: kết thúc ${end} ≤ Target ${target}.`, evidence));
-      if (derived.statusIndex < STATUS_INDEX.R4GOLIVE) {
+      // Not for Reopened: the Epic went live and was taken back into work on purpose (2026-10-05).
+      if (derived.statusIndex < STATUS_INDEX.R4GOLIVE && !isReopenedStatus(facts.status)) {
         findings.push(finding('E2E_STATUS_MISMATCH', 'TTM-E2E đã đạt theo ngày ghi nhận nhưng status Epic chưa chuyển sang R4GOLIVE — vui lòng cập nhật status.', evidence));
       }
     }

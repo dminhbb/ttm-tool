@@ -153,7 +153,8 @@ describe('TTM Dashboard 2 summary (cache ↔ filtered recompute share these)', (
 
     it('every breakdown adds up to the funnel: Σ total = L02, Σ pass = L05aa, Σ fail = L05ab + L05ba', () => {
       assert.deepEqual([l2, l5aa, l5ab, l5ba, summary.buckets.CANCELLED], [7, 2, 1, 1, 1]);
-      for (const dimension of TTM_BREAKDOWN_DIMENSIONS) {
+      // PM/SM is the exception: an Epic with several PM/SMs counts under each (see the next test).
+      for (const dimension of TTM_BREAKDOWN_DIMENSIONS.filter((key) => key !== 'pmsm')) {
         const items = summary.insights.breakdowns[dimension];
         const sum = (pick: (item: (typeof items)[number]) => number) => items.reduce((total, item) => total + pick(item), 0);
         assert.equal(sum((item) => item.total), l2, `${dimension} total`);
@@ -161,6 +162,17 @@ describe('TTM Dashboard 2 summary (cache ↔ filtered recompute share these)', (
         assert.equal(sum((item) => item.fail), l5ab + l5ba, `${dimension} fail`);
         assert.equal(sum((item) => item.failLateR4g), l5ab, `${dimension} fail nhóm 1`);
       }
+    });
+
+    it('PM/SM (2026-10-05): one row per name — an Epic of "An, Bình" counts under An AND under Bình, never as "An, Bình"', () => {
+      const rows = summary.insights.breakdowns.pmsm;
+      assert.deepEqual(rows.map((item) => [item.name, item.linkValue, item.total, item.pass, item.fail]), [
+        ['An', 'An', 5, 2, 0],
+        ['Bình', 'Bình', 5, 2, 0],
+        ['Chi', 'Chi', 2, 0, 2],
+        ['Dũng', 'Dũng', 0, 0, 0], // outside "Phạm vi dữ liệu cho TTM", kept for its TTM-CNTT (QA) column
+      ]);
+      assert.ok(!rows.some((item) => item.name.includes(',')));
     });
 
     it('a matrix row: Tổng số Epic = L02, Pass TTM = L05aa, Epic đánh giá = L05aa + L05ab + L05ba, Fail TTM = L05ab + L05ba', () => {

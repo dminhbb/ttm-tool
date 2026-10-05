@@ -452,6 +452,9 @@
   font-family: inherit;
   cursor: pointer;
 }
+.ttm-epic-key.is-ttm-excluded {
+  font-weight: 400;
+}
 .ttm-epic-key:hover { text-decoration: underline; }
 .ttm-project-tag {
   display: block;

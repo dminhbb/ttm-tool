@@ -1,5 +1,5 @@
 import { diffWorkingDays, toIsoDate } from '../dates';
-import { isCancelledStatus, isPendingStatus, normalizeWorkflowStatus, STATUS_INDEX } from '../derive';
+import { isCancelledStatus, isPendingStatus, isReopenedStatus, normalizeWorkflowStatus, STATUS_INDEX } from '../derive';
 import { finding } from './rule-types';
 import type { PrimaryRule } from './rule-types';
 import type { Finding, ScoringContext } from '../types';
@@ -24,7 +24,9 @@ function isBlank(value: string | null): boolean {
  * anomaly. Rule change 2026-10-04: R1 starts at DESIGN (was DEV), R5 only applies past DESIGN.
  * Rule change 2026-10-05: R8 only once the R4G Date has been reached (a future one is a plan), and
  * the workflow knows Pilot / Done / Reopened (derive.ts), so R9 no longer hits unrecognized statuses;
- * R8 also applies to the exempt statuses (To Do / In PO / Backlog); R1 also applies to Pending.
+ * R8 also applies to the exempt statuses (To Do / In PO / Backlog); R1 also applies to Pending; R8
+ * doesn't apply to Reopened (an Epic that went live, R4G Date recorded, then got reopened — its R4G
+ * Date is real history, not a data error). Pending keeps R8.
  */
 export const dataQualityRule: PrimaryRule = ({ facts, derived, ctx }) => {
   const findings: Finding[] = [];
@@ -35,8 +37,10 @@ export const dataQualityRule: PrimaryRule = ({ facts, derived, ctx }) => {
   // future is a planned date (allowed to be entered ahead): no anomaly, and the Epic stays "chưa kết
   // luận" until asOf reaches it.
   // (Backlog is exempt but not a workflow step — it counts as "chưa tới R4GOLIVE" like To Do / In PO.)
+  // Reopened is left out (owner rule 2026-10-05): it ranks level with In Progress, but an Epic gets
+  // reopened after it went live, so a reached R4G Date there is genuine, not "Sai lệch dữ liệu".
   const exempt = isExemptFromDataQuality(facts.status, ctx);
-  if (r4g && r4g <= ctx.asOf && (derived.statusIndex < STATUS_INDEX.R4GOLIVE || exempt) && !isCancelledStatus(facts.status)) {
+  if (r4g && r4g <= ctx.asOf && (derived.statusIndex < STATUS_INDEX.R4GOLIVE || exempt) && !isCancelledStatus(facts.status) && !isReopenedStatus(facts.status)) {
     findings.push(finding('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE', `R4G Date (${r4g}) đã tới nhưng status Epic (${facts.status}) chưa tới R4GOLIVE`, { r4gDate: r4g, status: facts.status }));
   }
   if (exempt) return findings;

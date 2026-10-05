@@ -1,10 +1,9 @@
 'use client';
 
 import * as React from 'react';
-import { FloppyDisk, X } from '@phosphor-icons/react';
+import { X } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
-import { Button } from '@/components/ui/Button';
-import { Modal } from '@/components/ui/Modal';
+import { BooleanPillToggle } from '@/components/ui/PillToggle';
 import { showToast } from '@/components/ui/Toast';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { EpicBrowser } from '@/components/epic-browser/EpicBrowser';
@@ -74,30 +73,37 @@ function EpicSummaryPanel({ summary }: { summary: EpicBrowserSummary }) {
 
 /**
  * "TTM Black listed" of one Epic — shown for every Epic (false while it has no row in "Black listed
- * epics"). Saving asks for confirmation first, since it takes the Epic out of (or back into) every
- * Time to Market calculation. Roles without edit rights see the current value, disabled.
+ * epics"). Toggling to true/false automatically saves to API and alerts via toast without confirmation popup.
+ * Roles without edit rights see the current value, disabled.
  */
 function TtmBlackListForm({ canEdit, epicKey, initialValue }: { canEdit: boolean; epicKey: string; initialValue: boolean }) {
-  const selectId = React.useId();
-  const [savedValue, setSavedValue] = React.useState(initialValue);
   const [value, setValue] = React.useState(initialValue);
-  const [confirming, setConfirming] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const save = async () => {
+  const handleToggle = async (nextValue: boolean) => {
+    if (!canEdit || saving || nextValue === value) return;
+    const prevValue = value;
+    setValue(nextValue);
     setSaving(true);
     setError(null);
     try {
-      const response = await fetch('/api/black-listed-epics', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ blackListed: value, epicKey }) });
+      const response = await fetch('/api/black-listed-epics', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blackListed: nextValue, epicKey }),
+      });
       const data = await response.json() as ApiErrorResponse;
       if (!response.ok) throw new Error(data.error ?? 'Không thể lưu TTM Black listed.');
-      setSavedValue(value);
-      setConfirming(false);
-      showToast(`Đã lưu TTM Black listed = ${value} cho ${epicKey}. Số liệu TTM đang được tính lại, vui lòng tải lại màn hình sau ít phút.`, 7000);
+
+      if (nextValue) {
+        showToast(`Cảnh báo: Epic ${epicKey} đã được chuyển sang Epic ngoại lệ (TTM Black listed = true) — bị loại khỏi phạm vi tính toán Time to Market!`, 7000);
+      } else {
+        showToast(`Đã bỏ ngoại lệ cho Epic ${epicKey} (TTM Black listed = false). Epic được đưa trở lại tính toán Time to Market.`, 7000);
+      }
     } catch (requestError: unknown) {
+      setValue(prevValue);
       setError(requestError instanceof Error ? requestError.message : 'Không thể kết nối API.');
-      setConfirming(false);
     } finally {
       setSaving(false);
     }
@@ -106,44 +112,27 @@ function TtmBlackListForm({ canEdit, epicKey, initialValue }: { canEdit: boolean
   return (
     <div className="mt-5 border-t border-fb-border pt-4">
       <h3 className="mb-3 text-xs font-extrabold uppercase tracking-wide text-fb-text-secondary">Epic ngoại lệ</h3>
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <label htmlFor={selectId} className="block text-[11px] font-semibold uppercase tracking-wide text-fb-text-secondary">TTM Black listed</label>
-          <select
-            id={selectId}
-            className="ui-select form-control-compact mt-1 w-40"
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-fb-text-secondary">TTM Black listed:</span>
+          <BooleanPillToggle
+            value={value}
+            onChange={handleToggle}
             disabled={!canEdit || saving}
-            onChange={(event) => setValue(event.target.value === 'true')}
-            value={String(value)}
-          >
-            <option value="false">false</option>
-            <option value="true">true</option>
-          </select>
+            trueLabel="True"
+            falseLabel="False"
+            trueColor="bg-[#1b6b3e]"
+            falseColor="bg-slate-700"
+          />
         </div>
-        <Button icon={<FloppyDisk className="size-4" weight="bold" />} disabled={!canEdit || value === savedValue} isLoading={saving} onClick={() => setConfirming(true)} size="sm">Lưu</Button>
         <p className="min-w-0 flex-1 basis-64 text-xs text-fb-text-secondary">
-          {savedValue
+          {value
             ? 'Epic này đang là Epic ngoại lệ — không nằm trong phạm vi tính toán Time to Market.'
             : 'Epic này đang được tính Time to Market như bình thường.'}
           {!canEdit && ' Bạn chỉ có quyền xem thông tin này.'}
         </p>
       </div>
       {error && <Alert className="mt-3" title="Chưa lưu" variant="error">{error}</Alert>}
-
-      <Modal
-        isOpen={confirming}
-        onClose={() => setConfirming(false)}
-        title="Cảnh báo"
-        maxWidth="sm"
-        footer={<><Button onClick={() => setConfirming(false)} variant="outline">Hủy</Button><Button isLoading={saving} onClick={() => void save()} variant={value ? 'danger' : 'primary'}>Xác nhận</Button></>}
-      >
-        <p className="font-semibold text-fb-text-primary">
-          {value
-            ? 'Epic sẽ được loại bỏ khỏi phạm vi tính toán Time to Market'
-            : 'Epic sẽ được đưa trở lại phạm vi tính toán Time to Market'}
-        </p>
-        <p className="mt-2 text-fb-text-secondary">Epic: <strong>{epicKey}</strong> — TTM Black listed = <strong>{String(value)}</strong>.</p>
-      </Modal>
     </div>
   );
 }

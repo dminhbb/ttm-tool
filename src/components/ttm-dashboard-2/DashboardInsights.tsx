@@ -1,14 +1,26 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { CaretDown, CaretRight, SlidersHorizontal } from '@phosphor-icons/react';
+import {
+  Bell,
+  CaretDown,
+  CaretRight,
+  CheckCircle,
+  Clock,
+  SlidersHorizontal,
+  Warning,
+  WarningCircle,
+  type Icon,
+} from '@phosphor-icons/react';
+
+import { cn } from '@/lib/utils';
 
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { DonutChartCard } from '@/components/dashboard-new/DonutChartCard';
 import type { EpicAlertsDeepLinkAlert } from '@/lib/epic-alerts-deep-link';
 import { vnTodayIso } from '@/lib/epic-row-verdicts';
-import { formatTtmPct1, type TtmCnttSummary } from '@/lib/ttm-cntt-qa';
+import { formatTtmPct1, hasTtmVerdict, type TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import {
   breakdownIndexes,
   splitWaitingGolive,
@@ -74,7 +86,7 @@ function dimensionScope(dimension: TtmBreakdownDimension, linkValue: string | nu
   switch (dimension) {
     case 'domain': return { domain: linkValue };
     case 'epicType': return { type: linkValue };
-    case 'pmsm': return { pmSm: linkValue.split(',').map((name) => name.trim()).filter(Boolean) };
+    case 'pmsm': return { pmSm: [linkValue] };
     case 'project': return { projects: [linkValue] };
     case 'requestingUnit': return { requestingUnit: linkValue };
     default: return {};
@@ -85,196 +97,379 @@ function dimensionScope(dimension: TtmBreakdownDimension, linkValue: string | nu
 // Widget row
 // ---------------------------------------------------------------------------------------------
 
-function IndexRing({ color, label, onClick, subtitle, summary, title, value }: {
-  color: string; label: string; onClick?: () => void; subtitle: string; summary: TtmCnttSummary; title: string; value: string | null;
-}) {
-  const body = (
-    <>
-      <div
-        className="relative flex size-14 shrink-0 items-center justify-center rounded-full"
-        style={{ background: value !== null ? `conic-gradient(${color} 0% ${summary.pctPrecise}%, #e4e6eb ${summary.pctPrecise}% 100%)` : '#e4e6eb' }}
-      >
-        <div className="flex size-10 items-center justify-center rounded-full bg-fb-surface text-xs font-extrabold" style={{ color }}>
-          {value ?? '—'}
-        </div>
+interface KpiCardProps {
+  title: string;
+  value: React.ReactNode;
+  subtitle: React.ReactNode;
+  icon?: React.ReactNode;
+  bgColor: string;
+  borderColor: string;
+  hoverBorderColor?: string;
+  onClick?: () => void;
+  tooltip?: string;
+  valueClassName?: string;
+}
+
+function KpiCard({
+  title,
+  value,
+  subtitle,
+  icon,
+  bgColor,
+  borderColor,
+  hoverBorderColor = 'hover:border-slate-300',
+  onClick,
+  tooltip,
+  valueClassName,
+}: KpiCardProps) {
+  const isClickable = Boolean(onClick);
+
+  return (
+    <div
+      role={isClickable ? 'button' : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        isClickable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick?.();
+              }
+            }
+          : undefined
+      }
+      title={tooltip}
+      className={cn(
+        'group relative flex items-center gap-1.5 xl:gap-2 rounded-[14px] xl:rounded-[16px] px-2 py-1.5 xl:px-2.5 xl:py-2 text-left transition-all duration-150 shadow-[0_1px_2px_rgba(0,0,0,0.02)] h-full min-w-0 select-none',
+        bgColor,
+        borderColor,
+        isClickable ? `cursor-pointer hover:shadow-xs ${hoverBorderColor}` : ''
+      )}
+    >
+      {icon}
+      <div className="flex flex-col min-w-0 flex-1 justify-center">
+        <span className="text-[7px] xl:text-[7.5px] 2xl:text-[8px] font-bold uppercase tracking-wider text-[#274c77] whitespace-nowrap overflow-hidden text-ellipsis">
+          {title}
+        </span>
+        <span
+          className={cn(
+            'font-extrabold text-[#1e293b] leading-tight whitespace-nowrap overflow-hidden text-ellipsis',
+            valueClassName || 'text-[11px] sm:text-[12px] xl:text-[13px] 2xl:text-[14px]'
+          )}
+        >
+          {value}
+        </span>
+        <span className="text-[6.5px] xl:text-[7px] 2xl:text-[7.5px] font-medium text-[#718096] whitespace-nowrap overflow-hidden text-ellipsis">
+          {subtitle}
+        </span>
       </div>
-      <div className="min-w-0">
-        <p className="text-xs font-bold text-fb-text-primary">{label}</p>
-        <p className="text-[10px] text-fb-text-secondary">{subtitle}</p>
-      </div>
-    </>
+    </div>
   );
-  const className = 'col-span-2 sm:col-span-2 lg:col-span-1 flex items-center justify-start gap-3 rounded-xl border border-fb-border bg-fb-surface p-3 text-left shadow-xs';
-  return onClick ? (
-    <button type="button" onClick={onClick} title={title} className={`${className} w-full cursor-pointer transition-all hover:border-emerald-400 hover:shadow-sm`}>
-      {body}
-    </button>
-  ) : (
-    <div className={className} title={title}>{body}</div>
+}
+
+function KpiIconBadge({
+  icon: IconComponent,
+  bgColor,
+  iconColor,
+}: {
+  icon: Icon;
+  bgColor: string;
+  iconColor: string;
+}) {
+  return (
+    <div
+      className={cn(
+        'flex size-[28px] xl:size-[30px] 2xl:size-[32px] items-center justify-center rounded-full shrink-0 shadow-2xs',
+        bgColor
+      )}
+    >
+      <IconComponent className={cn('size-3 xl:size-3.5', iconColor)} weight="fill" />
+    </div>
+  );
+}
+
+function KpiProgressRing({
+  pct,
+  color,
+  bgColor,
+  text,
+  size = 30,
+  strokeWidth = 2.5,
+}: {
+  pct: number;
+  color: string;
+  bgColor: string;
+  text: string;
+  size?: number;
+  strokeWidth?: number;
+}) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const clampedPct = Math.max(0, Math.min(100, isNaN(pct) ? 0 : pct));
+  const offset = circumference - (clampedPct / 100) * circumference;
+
+  return (
+    <div
+      className="relative flex items-center justify-center shrink-0"
+      style={{ width: size, height: size }}
+    >
+      <svg width={size} height={size} className="-rotate-90">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={bgColor}
+          strokeWidth={strokeWidth}
+          fill="none"
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={color}
+          strokeWidth={strokeWidth}
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          style={{ transition: 'stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }}
+        />
+      </svg>
+      <span
+        className="absolute inset-0 flex items-center justify-center text-[6.5px] xl:text-[7px] font-bold tracking-tighter select-none"
+        style={{ color }}
+      >
+        {text}
+      </span>
+    </div>
   );
 }
 
 export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen: OpenList }) {
   const { l2 } = ttmFunnelLayers(funnel);
   const { insights } = funnel;
-  const cancelled = funnel.buckets.CANCELLED;
-  // `?? 0`: a summary cached before L02 dropped these two groups has no such buckets.
-  const blackListed = funnel.buckets.BLACK_LISTED ?? 0;
-  const nonTtmProject = funnel.buckets.PROJECT_NON_TTM ?? 0;
   const qlda = ttmFunnelCnttIndex(funnel);
   const { e2e, qa } = insights;
   const waiting = splitWaitingGolive(insights.waitingGolive, vnTodayIso());
   const pctOf = (summary: TtmCnttSummary) => `${formatTtmPct1(summary.pctPrecise)}%`;
-  const subLink = 'underline-offset-2 hover:underline cursor-pointer font-bold';
+
+  const warningSubtitle = !insights.scoringEngine ? (
+    <span>
+      <span
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen({ alert: 'LATE', title: 'Danh sách Epic - Chậm tiến độ' });
+        }}
+        className="hover:underline cursor-pointer"
+        title="Xem danh sách Epic Chậm tiến độ"
+      >
+        {fmt(insights.lateWarning)} muộn
+      </span>
+      {' · '}
+      <span
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen({ alert: 'EARLY', title: 'Danh sách Epic - Cảnh báo sớm' });
+        }}
+        className="hover:underline cursor-pointer"
+        title="Xem danh sách Epic Cảnh báo sớm"
+      >
+        {fmt(insights.earlyWarning)} sớm
+      </span>
+    </span>
+  ) : (
+    `${fmt(insights.lateWarning)} muộn`
+  );
+
+  const waitingSubtitle = (
+    <span>
+      <span
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen({ alert: 'WAITING_GOLIVE_MISSING_R4G', title: 'Danh sách Epic - Chờ golive: Thiếu R4G Date' });
+        }}
+        className="hover:underline cursor-pointer"
+        title="Epic Chờ golive nhưng thiếu R4G Date"
+      >
+        {fmt(waiting.missingR4g)} thiếu
+      </span>
+      {' · '}
+      <span
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen({ alert: 'WAITING_GOLIVE_WITHIN_GRACE', title: 'Danh sách Epic - Chờ golive: Trong hạn' });
+        }}
+        className="hover:underline cursor-pointer"
+        title="Epic Chờ golive còn trong hạn R4G Date + 5 ngày làm việc"
+      >
+        {fmt(waiting.withinGrace)} hạn
+      </span>
+      {' · '}
+      <span
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen({ alert: 'WAITING_GOLIVE_OVERDUE', title: 'Danh sách Epic - Chờ golive: Quá hạn' });
+        }}
+        className={`${waiting.overdue > 0 ? 'font-bold underline' : ''} hover:underline cursor-pointer`}
+        title="Epic Chờ golive đã quá hạn R4G Date + 5 ngày làm việc"
+      >
+        {fmt(waiting.overdue)} quá
+      </span>
+    </span>
+  );
 
   return (
-    <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
-      <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
-        <div className="rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs">
-          <p className="text-[10px] font-bold uppercase text-fb-text-secondary">
-            <button type="button" onClick={() => onOpen({ alert: 'TTM_COUNTED_IN_SCOPE', title: 'Danh sách Epic - Tổng số Epic (trong phạm vi tính TTM)' })} className="hover:underline cursor-pointer uppercase" title="Epic trong phạm vi tính TTM (L02): đã loại Cancelled, Epic ngoại lệ và dự án Time to Market = N — xem danh sách ở Quản trị Epic">
-              Tổng số Epic
-            </button>
-          </p>
-          <p className="mt-1 text-xl font-extrabold text-fb-text-primary">{fmt(l2)}</p>
-          <p className="text-[10px] text-fb-text-secondary">
-            <button
-              type="button"
-              disabled={cancelled === 0}
-              onClick={() => onOpen({ alert: 'IN_SCOPE_CNTT', status: funnel.cancelledStatuses, title: 'Danh sách Epic Cancelled (đã loại khỏi Tổng số Epic)' })}
-              className={`${subLink} disabled:cursor-default disabled:no-underline`}
-              title="Số Epic có status Cancelled đã loại khỏi Tổng số Epic"
-            >
-              Trừ Cancelled= {fmt(cancelled)}
-            </button>
-          </p>
-          <p className="text-[10px] text-fb-text-secondary">
-            <button
-              type="button"
-              disabled={blackListed === 0}
-              onClick={() => onOpen({ alert: 'TTM_BLACK_LISTED', title: 'Danh sách Epic ngoại lệ (đã loại khỏi Tổng số Epic)' })}
-              className={`${subLink} disabled:cursor-default disabled:no-underline`}
-              title="Số Epic ngoại lệ (TTM Black listed = true) đã loại khỏi Tổng số Epic"
-            >
-              Trừ Epic ngoại lệ= {fmt(blackListed)}
-            </button>
-          </p>
-          <p className="text-[10px] text-fb-text-secondary">
-            <button
-              type="button"
-              disabled={nonTtmProject === 0}
-              onClick={() => onOpen({ alert: 'TTM_PROJECT_NON_TTM', title: 'Danh sách Epic thuộc dự án Time to Market = N (đã loại khỏi Tổng số Epic)' })}
-              className={`${subLink} disabled:cursor-default disabled:no-underline`}
-              title="Số Epic thuộc dự án có Time to Market = N đã loại khỏi Tổng số Epic"
-            >
-              Trừ dự án TTM=N= {fmt(nonTtmProject)}
-            </button>
-          </p>
+    <div className="rounded-2xl border border-[#d9e3ef] bg-white/95 p-2 sm:p-2.5 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
+      <div className="overflow-x-auto lg:overflow-x-visible pb-1 lg:pb-0 scrollbar-none">
+        <div className="flex flex-row items-stretch gap-1.5 xl:gap-2 min-w-[960px] lg:min-w-0">
+          {/* NHÓM BÊN TRÁI: 5 THẺ TỔNG QUAN & HIỆU NĂNG (LIGHT NAVY PASTEL) */}
+          <div className="grid grid-cols-5 gap-1.5 xl:gap-2 flex-[5] min-w-0 items-stretch">
+            {/* 1. Tổng số Epic — Không icon */}
+            <KpiCard
+              title="TỔNG EPIC"
+              value={fmt(l2)}
+              subtitle="Phạm vi tính"
+              bgColor="bg-[#eaf1fb]"
+              borderColor="border border-[#d0e0f3]"
+              hoverBorderColor="hover:border-[#93c5fd]"
+              onClick={() => onOpen({ alert: 'TTM_COUNTED_IN_SCOPE', title: 'Danh sách Epic - Tổng số Epic (trong phạm vi tính TTM)' })}
+              tooltip="Epic trong phạm vi tính TTM (L02): đã loại Cancelled, Epic ngoại lệ và dự án Time to Market = N — xem danh sách ở Quản trị Epic"
+            />
+
+            {/* 2. Fail TTM-CNTT */}
+            <KpiCard
+              title="FAIL TTM-CNTT"
+              value={fmt(qlda.fail)}
+              subtitle="Cần xử lý"
+              icon={<KpiIconBadge icon={WarningCircle} bgColor="bg-[#fee2e2]" iconColor="text-[#ef4444]" />}
+              bgColor="bg-[#eaf1fb]"
+              borderColor="border border-[#d0e0f3]"
+              hoverBorderColor="hover:border-[#93c5fd]"
+              onClick={() => onOpen({ alert: FAIL_ALERTS, title: 'Danh sách Epic - Fail TTM-CNTT' })}
+              tooltip="Epic không đạt TTM-CNTT: nhóm 1 (R4G Date muộn hơn Target) + nhóm 2 (chưa có R4G Date, đã quá Target)"
+            />
+
+            {/* 3. TTM-CNTT (QLDA) — Cỡ chữ phép tính thu nhỏ 70% */}
+            <KpiCard
+              title="TTM-CNTT"
+              value={hasTtmVerdict(qlda) ? `${fmt(qlda.pass)} / ${fmt(qlda.denominator)}` : '—'}
+              valueClassName="text-[8px] sm:text-[8.5px] xl:text-[9px] 2xl:text-[10px] tracking-tight"
+              subtitle="QLDA"
+              icon={
+                <KpiProgressRing
+                  pct={qlda.pctPrecise}
+                  color="#10b981"
+                  bgColor="#dcfce7"
+                  text={hasTtmVerdict(qlda) ? pctOf(qlda) : '—'}
+                />
+              }
+              bgColor="bg-[#eaf1fb]"
+              borderColor="border border-[#d0e0f3]"
+              hoverBorderColor="hover:border-[#93c5fd]"
+              tooltip={`TTM-CNTT (QLDA) — Tỷ lệ % Pass: ${hasTtmVerdict(qlda) ? pctOf(qlda) : '—'} (${fmt(qlda.pass)}/${fmt(qlda.denominator)} Epic đạt)`}
+            />
+
+            {/* 4. TTM-CNTT (QA) — Cỡ chữ phép tính thu nhỏ 70% */}
+            <KpiCard
+              title="TTM-CNTT"
+              value={qa.total > 0 ? `${fmt(qa.pass)} / ${fmt(qa.denominator)}` : '—'}
+              valueClassName="text-[8px] sm:text-[8.5px] xl:text-[9px] 2xl:text-[10px] tracking-tight"
+              subtitle="QA"
+              icon={
+                <KpiProgressRing
+                  pct={qa.pctPrecise}
+                  color="#10b981"
+                  bgColor="#dcfce7"
+                  text={hasTtmVerdict(qa) ? pctOf(qa) : '—'}
+                />
+              }
+              bgColor="bg-[#eaf1fb]"
+              borderColor="border border-[#d0e0f3]"
+              hoverBorderColor="hover:border-[#93c5fd]"
+              tooltip={`TTM-CNTT (QA) — Tỷ lệ % Pass: ${hasTtmVerdict(qa) ? pctOf(qa) : '—'} (${fmt(qa.pass)}/${fmt(qa.denominator)} Epic MVP Done / Released)`}
+            />
+
+            {/* 5. TTM-E2E — Cỡ chữ phép tính thu nhỏ 70% */}
+            <KpiCard
+              title="TTM-E2E"
+              value={e2e.total > 0 ? `${fmt(e2e.pass)} / ${fmt(e2e.denominator)}` : '—'}
+              valueClassName="text-[8px] sm:text-[8.5px] xl:text-[9px] 2xl:text-[10px] tracking-tight"
+              subtitle="Đạt / Đánh giá"
+              icon={
+                <KpiProgressRing
+                  pct={e2e.pctPrecise}
+                  color="#3b82f6"
+                  bgColor="#dbeafe"
+                  text={hasTtmVerdict(e2e) ? pctOf(e2e) : '—'}
+                />
+              }
+              bgColor="bg-[#eaf1fb]"
+              borderColor="border border-[#d0e0f3]"
+              hoverBorderColor="hover:border-[#93c5fd]"
+              onClick={() => onOpen({ alert: 'FAIL_E2E', title: 'Danh sách Epic - Fail TTM-E2E' })}
+              tooltip={`TTM-E2E — Tỷ lệ % Pass: ${hasTtmVerdict(e2e) ? pctOf(e2e) : '—'} (${fmt(e2e.pass)}/${fmt(e2e.denominator)} Epic đạt) — bấm để xem danh sách Fail`}
+            />
+          </div>
+
+          {/* VÁCH NGĂN DỌC TINH TẾ GIỮA 2 NHÓM KPI */}
+          <div className="hidden lg:block w-[1px] bg-slate-200/90 self-stretch my-1.5 shrink-0" aria-hidden="true" />
+
+          {/* NHÓM BÊN PHẢI: 4 THẺ TÁC NGHIỆP & BẤT THƯỜNG (LIGHT GREY) */}
+          <div className="grid grid-cols-4 gap-1.5 xl:gap-2 flex-[4] min-w-0 items-stretch">
+            {/* 6. Cảnh báo */}
+            <KpiCard
+              title="CẢNH BÁO"
+              value={fmt(insights.lateWarning + insights.earlyWarning)}
+              subtitle={warningSubtitle}
+              icon={<KpiIconBadge icon={Bell} bgColor="bg-[#fef3c7]" iconColor="text-[#f59e0b]" />}
+              bgColor="bg-[#f1f5f9]"
+              borderColor="border border-[#e2e8f0]"
+              hoverBorderColor="hover:border-slate-300"
+              onClick={() => onOpen({ alert: 'LATE', title: 'Danh sách Epic - Chậm tiến độ' })}
+              tooltip={`Cảnh báo tiến độ: ${fmt(insights.lateWarning)} muộn · ${fmt(insights.earlyWarning)} sớm — xem ở Quản trị Epic`}
+            />
+
+            {/* 7. Sai lệch */}
+            <KpiCard
+              title="SAI LỆCH"
+              value={fmt(insights.anomalyCount)}
+              subtitle="Cần điều chỉnh"
+              icon={<KpiIconBadge icon={Warning} bgColor="bg-[#fee2e2]" iconColor="text-[#ef4444]" />}
+              bgColor="bg-[#f1f5f9]"
+              borderColor="border border-[#e2e8f0]"
+              hoverBorderColor="hover:border-slate-300"
+              onClick={() => onOpen({ dataIssue: true, title: 'Danh sách Epic - Sai lệch Dữ liệu' })}
+              tooltip="Xem danh sách Epic sai lệch dữ liệu ở Quản trị Epic"
+            />
+
+            {/* 8. Chờ golive */}
+            <KpiCard
+              title="CHỜ GOLIVE"
+              value={fmt(insights.waitingGolive.total)}
+              subtitle={waitingSubtitle}
+              icon={<KpiIconBadge icon={CheckCircle} bgColor="bg-[#dcfce7]" iconColor="text-[#10b981]" />}
+              bgColor="bg-[#f1f5f9]"
+              borderColor="border border-[#e2e8f0]"
+              hoverBorderColor="hover:border-slate-300"
+              onClick={() => onOpen({ alert: 'WAITING_GOLIVE', title: 'Danh sách Epic - Chờ golive' })}
+              tooltip={`Epic Chờ golive: ${fmt(waiting.missingR4g)} thiếu R4G · ${fmt(waiting.withinGrace)} trong hạn · ${fmt(waiting.overdue)} quá hạn`}
+            />
+
+            {/* 9. Giải trình */}
+            <KpiCard
+              title="GIẢI TRÌNH"
+              value={fmt(insights.justifyGolive)}
+              subtitle="Quá hạn R4G +5d"
+              icon={<KpiIconBadge icon={Clock} bgColor="bg-[#dbeafe]" iconColor="text-[#3b82f6]" />}
+              bgColor="bg-[#f1f5f9]"
+              borderColor="border border-[#e2e8f0]"
+              hoverBorderColor="hover:border-slate-300"
+              onClick={() => onOpen({ alert: 'JUSTIFY_GOLIVE', title: 'Danh sách Epic - Cần Giải trình Golive' })}
+              tooltip="Xem danh sách Epic cần Giải trình Golive ở Quản trị Epic (quá hạn R4G Date + 5 ngày làm việc)"
+            />
+          </div>
         </div>
-
-        <div className="rounded-xl border border-red-200 bg-red-50/50 p-3 shadow-xs">
-          <p className="text-[10px] font-bold uppercase text-status-danger">
-            <button type="button" onClick={() => onOpen({ alert: FAIL_ALERTS, title: 'Danh sách Epic - Fail TTM-CNTT (QLDA)' })} className="hover:underline cursor-pointer uppercase" title="Epic không đạt TTM-CNTT: nhóm 1 (R4G Date muộn hơn Target) + nhóm 2 (chưa có R4G Date, đã quá Target)">
-              Fail TTM-CNTT (QLDA)
-            </button>
-          </p>
-          <p className="mt-1 text-xl font-extrabold text-status-danger">{fmt(qlda.fail)}</p>
-          <p className="text-[10px] font-medium text-red-600">
-            <button type="button" onClick={() => onOpen({ alert: JUDGED_ALERTS, title: 'Danh sách Epic đánh giá (Đạt + Fail TTM-CNTT)' })} className={subLink} title="Số Epic đã có kết luận = Đạt + Fail TTM-CNTT">
-              /Số Epic= {fmt(qlda.denominator)}
-            </button>
-          </p>
-        </div>
-
-        <IndexRing
-          color="#0866ff"
-          label="TTM-CNTT (QLDA)"
-          summary={qlda}
-          value={qlda.denominator > 0 ? pctOf(qlda) : null}
-          subtitle={`${fmt(qlda.pass)}/${fmt(qlda.denominator)}`}
-          title="Tỷ lệ % Pass TTM-CNTT = Epic đạt / (Epic đạt + Epic không đạt)"
-        />
-        <IndexRing
-          color="#7c3aed"
-          label="TTM-CNTT (QA)"
-          summary={qa}
-          value={qa.total > 0 ? pctOf(qa) : null}
-          subtitle={qa.total > 0 ? `${fmt(qa.pass)}/${fmt(qa.denominator)}` : 'Chưa có Epic MVP Done/Released'}
-          title="Cùng công thức TTM-CNTT (QLDA), chỉ lấy Epic MVP Done / Released"
-        />
-        <IndexRing
-          color="#059669"
-          label="Hoàn thành TTM-E2E"
-          summary={e2e}
-          value={e2e.total > 0 ? pctOf(e2e) : null}
-          subtitle={e2e.total > 0 ? `${fmt(e2e.pass)}/${fmt(e2e.denominator)}` : 'Chưa có Epic'}
-          title="Tỷ lệ % Pass TTM-E2E = Epic đạt / (Epic đạt + Epic Fail TTM-E2E) — bấm để xem danh sách Epic Fail TTM-E2E"
-          onClick={() => onOpen({ alert: 'FAIL_E2E', title: 'Danh sách Epic - Fail TTM-E2E' })}
-        />
-      </div>
-
-      <div className="hidden w-px shrink-0 bg-fb-border lg:block" aria-hidden="true" />
-
-      <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-4">
-        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 shadow-xs">
-          <p className="text-[10px] font-bold uppercase text-status-warning">{insights.scoringEngine ? 'Chậm tiến độ' : 'Cảnh báo (Sớm/Muộn)'}</p>
-          <p className="mt-1 text-xl font-extrabold text-status-warning">{fmt(insights.lateWarning + insights.earlyWarning)}</p>
-          <p className="text-[10px] font-medium text-amber-700">
-            <button type="button" onClick={() => onOpen({ alert: 'LATE', title: 'Danh sách Epic - Chậm tiến độ' })} className={subLink} title="Xem danh sách Epic Chậm tiến độ ở Quản trị Epic">
-              {fmt(insights.lateWarning)} muộn
-            </button>
-            {!insights.scoringEngine && ' · '}
-            {!insights.scoringEngine && (
-              <button type="button" onClick={() => onOpen({ alert: 'EARLY', title: 'Danh sách Epic - Cảnh báo sớm' })} className={subLink} title="Xem danh sách Epic Cảnh báo sớm ở Quản trị Epic">
-                {fmt(insights.earlyWarning)} sớm
-              </button>
-            )}
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => onOpen({ dataIssue: true, title: 'Danh sách Epic - Sai lệch Dữ liệu' })}
-          className="block w-full cursor-pointer rounded-xl border border-purple-200 bg-purple-50/50 p-3 text-left shadow-xs transition-all hover:border-purple-400 hover:shadow-sm"
-          title="Xem danh sách Epic sai lệch dữ liệu ở Quản trị Epic"
-        >
-          <p className="text-[10px] font-bold uppercase text-purple-700">Sai lệch Dữ liệu</p>
-          <p className="mt-1 text-xl font-extrabold text-purple-700">{fmt(insights.anomalyCount)}</p>
-          <p className="text-[10px] font-medium text-purple-600">Vi phạm rule chất lượng dữ liệu</p>
-        </button>
-
-        <div className="rounded-xl border border-sky-200 bg-sky-50/50 p-3 shadow-xs">
-          <p className="text-[10px] font-bold uppercase text-sky-700">
-            <button type="button" onClick={() => onOpen({ alert: 'WAITING_GOLIVE', title: 'Danh sách Epic - Chờ golive' })} className="hover:underline cursor-pointer uppercase" title="Xem danh sách Epic Chờ golive ở Quản trị Epic">
-              Chờ golive
-            </button>
-          </p>
-          <p className="mt-1 text-xl font-extrabold text-sky-700">{fmt(insights.waitingGolive.total)}</p>
-          <p className="flex flex-wrap gap-x-1.5 text-[10px] font-medium text-sky-700">
-            <button type="button" onClick={() => onOpen({ alert: 'WAITING_GOLIVE_MISSING_R4G', title: 'Danh sách Epic - Chờ golive: Thiếu R4G Date' })} className={subLink} title="Epic Chờ golive nhưng thiếu R4G Date">
-              {fmt(waiting.missingR4g)} thiếu R4G
-            </button>
-            ·
-            <button type="button" onClick={() => onOpen({ alert: 'WAITING_GOLIVE_WITHIN_GRACE', title: 'Danh sách Epic - Chờ golive: Trong hạn' })} className={subLink} title="Epic Chờ golive còn trong hạn R4G Date + 5 ngày làm việc">
-              {fmt(waiting.withinGrace)} trong hạn
-            </button>
-            ·
-            <button type="button" onClick={() => onOpen({ alert: 'WAITING_GOLIVE_OVERDUE', title: 'Danh sách Epic - Chờ golive: Quá hạn' })} className={subLink} title="Epic Chờ golive đã quá hạn R4G Date + 5 ngày làm việc">
-              {fmt(waiting.overdue)} quá hạn
-            </button>
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => onOpen({ alert: 'JUSTIFY_GOLIVE', title: 'Danh sách Epic - Cần Giải trình Golive' })}
-          className="block w-full cursor-pointer rounded-xl border border-red-200 bg-red-50/50 p-3 text-left shadow-xs transition-all hover:border-red-400 hover:shadow-sm"
-          title="Xem danh sách Epic cần Giải trình Golive ở Quản trị Epic"
-        >
-          <p className="text-[10px] font-bold uppercase text-status-danger">Giải trình Golive</p>
-          <p className="mt-1 text-xl font-extrabold text-status-danger">{fmt(insights.justifyGolive)}</p>
-          <p className="text-[10px] font-medium text-red-600">Quá hạn R4G Date + 5 ngày</p>
-        </button>
       </div>
     </div>
   );
@@ -293,16 +488,18 @@ function matrixSortValue(item: TtmBreakdownItem, key: MatrixSortKey): number | s
     case 'name': return item.name;
     case 'total': return item.total;
     case 'pass': return item.pass;
-    case 'qldaPct': return qlda.pctPrecise;
+    case 'qldaPct': return hasTtmVerdict(qlda) ? qlda.pctPrecise : null;
     case 'judged': return qlda.denominator;
     case 'fail': return item.fail;
-    case 'qaPct': return item.qaTotal > 0 ? qa.pctPrecise : null;
+    case 'qaPct': return hasTtmVerdict(qa) ? qa.pctPrecise : null;
     case 'anomaly': return item.anomaly;
     case 'ok': return item.ok;
     case 'late': return item.late;
     default: return null;
   }
 }
+
+const PMSM_SHARED_NOTE = 'Epic có nhiều PM/SM được tính cho từng PM/SM — tổng các dòng có thể lớn hơn Tổng số Epic.';
 
 export function BreakdownMatrixCard({ dimensions, funnel, onOpen }: { dimensions: readonly MatrixDimension[]; funnel: TtmFunnelSummary; onOpen: OpenList }) {
   const [selected, setSelected] = useState<MatrixDimension>(dimensions[0]);
@@ -327,6 +524,7 @@ export function BreakdownMatrixCard({ dimensions, funnel, onOpen }: { dimensions
             Ma trận Phân bổ Tiến độ Epic Đa chiều
           </CardTitle>
           <p className="mt-0.5 text-xs text-fb-text-secondary">Bảng phân tích tỷ lệ Pass/Fail &amp; Tiến độ Epic theo từng chiều dữ liệu — cùng tiêu chí với phễu</p>
+          {dimension === 'pmsm' && <p className="mt-0.5 text-[11px] italic text-fb-text-secondary">{PMSM_SHARED_NOTE}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-1 rounded-lg border border-fb-border bg-fb-surface-muted p-1">
           {dimensions.map((key) => (
@@ -361,7 +559,7 @@ export function BreakdownMatrixCard({ dimensions, funnel, onOpen }: { dimensions
             <TBody>
               {items.map((item) => {
                 const { qa, qlda } = breakdownIndexes(item);
-                const hasVerdict = qlda.denominator > 0;
+                const hasVerdict = hasTtmVerdict(qlda);
                 return (
                   <TR key={`${item.linkValue ?? ''}|${item.name}`}>
                     <TD className="font-bold text-fb-text-primary">
@@ -417,11 +615,16 @@ export function BreakdownMatrixCard({ dimensions, funnel, onOpen }: { dimensions
                       {item.qaTotal > 0 ? (
                         <button type="button" onClick={() => open(item, { status: ['MVP Done', 'Released'] }, 'Danh sách Epic QA (MVP Done / Released)')} className="group flex w-full cursor-pointer flex-col gap-0.5 text-left transition-opacity hover:opacity-80" title={`Xem các Epic MVP Done / Released của ${item.name}`}>
                           <div className="flex items-center gap-2">
+                            {/* No QA verdict yet (denominator 0): grey bar + "—", never a 100% bar. */}
                             <div className="flex h-2 flex-1 overflow-hidden rounded-full bg-fb-control">
-                              <div style={{ width: `${qa.pct}%` }} className="h-full bg-purple-600" />
-                              <div style={{ width: `${100 - qa.pct}%` }} className="h-full bg-status-danger" />
+                              {hasTtmVerdict(qa) && (
+                                <>
+                                  <div style={{ width: `${qa.pct}%` }} className="h-full bg-purple-600" />
+                                  <div style={{ width: `${100 - qa.pct}%` }} className="h-full bg-status-danger" />
+                                </>
+                              )}
                             </div>
-                            <span className="w-9 text-right text-xs font-bold text-purple-700 group-hover:underline">{qa.pct}%</span>
+                            <span className="w-9 text-right text-xs font-bold text-purple-700 group-hover:underline">{hasTtmVerdict(qa) ? `${qa.pct}%` : '—'}</span>
                           </div>
                           <p className="text-[10px] text-fb-text-secondary group-hover:underline">{fmt(item.qaPass)}/{fmt(qa.denominator)} Epic MVP Done/Released</p>
                         </button>
@@ -496,6 +699,7 @@ export function BreakdownDonutSections({ dimensions, funnel, onOpen }: { dimensi
             </button>
             {isOpen && (
               <div className="mt-3 border-l-2 border-[#1463f7] pl-3 pt-1">
+                {dimension === 'pmsm' && <p className="mb-2 text-[11px] italic text-fb-text-secondary">{PMSM_SHARED_NOTE}</p>}
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <DonutChartCard
                     title="% Tổng số Epic"

@@ -9,7 +9,6 @@ import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
-import { TtmBlackListDot } from '@/components/ui/TtmBlackListDot';
 import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import { EpicAlertTimeline } from '@/components/epic-alerts/EpicAlertTimeline';
 import { DataAnomalyBadge, DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
@@ -890,6 +889,7 @@ export default function EpicInPoPage() {
             <TBody>
               {pageRows.map((row: EpicAlertRowPhased) => {
                 const isMissingCore = !row.t1StartDate;
+                const isTtmExcluded = Boolean(row.ttmBlackListed || row.ttmExclusion);
                 return (
                   <TR key={row.epicKey} className={row.hasDataAnomaly ? 'missing-row' : undefined}>
                     <TD className="ttm-epic-col-sticky ttm-col-border-right">
@@ -897,13 +897,12 @@ export default function EpicInPoPage() {
                       <JiraLinkButton epicKey={row.epicKey} viewIssueBaseUrl={viewIssueBaseUrl} />
                       <button
                         type="button"
-                        className="ttm-epic-key"
+                        className={`ttm-epic-key ${isTtmExcluded ? 'is-ttm-excluded !font-normal' : ''}`}
                         onClick={() => { trackDataUsage(); setBrowsingEpicKey(row.epicKey); }}
-                        title={`Duyệt Epic (Epic Browser) — Lớp dữ liệu: ${formatDate(row.dataLayerDate)}`}
+                        title={`Duyệt Epic (Epic Browser) — Lớp dữ liệu: ${formatDate(row.dataLayerDate)}${isTtmExcluded ? ' (Không tính TTM)' : ''}`}
                       >
-                        {row.epicKey}
+                        {isTtmExcluded ? `(${row.epicKey})` : row.epicKey}
                       </button>
-                      {row.ttmBlackListed && <TtmBlackListDot className="ml-1.5" />}
                       {row.epicName && (
                         <span className="ttm-epic-summary" title={row.epicName}>{truncateSummary(row.epicName)}</span>
                       )}

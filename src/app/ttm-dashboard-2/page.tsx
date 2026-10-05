@@ -15,13 +15,14 @@ import {
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { TableSkeleton } from '@/components/ui/Skeleton';
+import { PillToggle } from '@/components/ui/PillToggle';
 import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
 import { EpicAlertsIframeModal } from '@/components/dashboard-new/EpicAlertsIframeModal';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import { BreakdownDonutSections, BreakdownMatrixCard, KpiStrip, type InsightListParams } from '@/components/ttm-dashboard-2/DashboardInsights';
 import { SolidLayer, SplitLayer, type Ellipse } from '@/components/ttm-dashboard-2/FunnelLayers';
 import { buildEpicAlertsDeepLink, type EpicAlertsDeepLinkAlert } from '@/lib/epic-alerts-deep-link';
-import { formatTtmPct1 } from '@/lib/ttm-cntt-qa';
+import { formatTtmFailPct, formatTtmPassPct } from '@/lib/ttm-cntt-qa';
 import {
   filterTtmDashboard2Rows,
   hasActiveTtmDashboard2Filter,
@@ -89,7 +90,7 @@ function formatDateTime(value: string | null): string {
 }
 
 function formatTtmIndexValue(summary: TtmCnttSummary | null | undefined): string {
-  return summary && summary.total > 0 ? `${formatTtmPct1(summary.pctPrecise)}%` : '—';
+  return formatTtmPassPct(summary);
 }
 
 function formatTtmIndexTooltip(firstLine: string, summary: TtmCnttSummary | null | undefined): string {
@@ -363,8 +364,8 @@ export default function TtmDashboard2Page() {
   const cnttIndex = ttmFunnelCnttIndex(funnel);
   const judgedCount = cnttIndex.denominator;
   const failCount = cnttIndex.fail;
-  const passRate = judgedCount > 0 ? `${formatTtmPct1(cnttIndex.pctPrecise)}%` : '—';
-  const failRate = judgedCount > 0 ? `${formatTtmPct1(cnttIndex.failPctPrecise)}%` : '—';
+  const passRate = formatTtmPassPct(cnttIndex);
+  const failRate = formatTtmFailPct(cnttIndex);
   const name = (id: TtmFunnelCriterionId) => TTM_FUNNEL_CRITERIA[id].name;
   const rateFormula = (
     <>
@@ -628,21 +629,21 @@ export default function TtmDashboard2Page() {
           {/* Global TTM Indicators */}
           <div className="hidden sm:flex items-center gap-2">
             {([
-              ['TTM-CNTT (QLDA)', 'Chỉ số TTM-CNTT (QLDA) toàn công ty = L05aa / (L05aa + L05ab + L05ba)', data?.ttmIndexGlobal?.ttm, 'text-fb-blue'],
+              ['TTM-CNTT (QLDA)', 'Chỉ số TTM-CNTT (QLDA) toàn công ty = L05aa / (L05aa + L05ab + L05ba)', data?.ttmIndexGlobal?.ttm, 'text-[#15803d]'],
               ['TTM-CNTT (QA)', 'Chỉ số TTM-CNTT (QA) toàn công ty — cùng công thức, chỉ lấy Epic MVP Done / Released', data?.ttmIndexGlobal?.qa, 'text-purple-700'],
-              ['TTM-E2E', 'Chỉ số Hoàn thành TTM-E2E tính trên toàn bộ Epic', data?.ttmIndexGlobal?.e2e, 'text-emerald-700'],
+              ['TTM-E2E', 'Chỉ số Hoàn thành TTM-E2E tính trên toàn bộ Epic', data?.ttmIndexGlobal?.e2e, 'text-teal-700'],
             ] as const).map(([label, tooltip, summary, color]) => (
               <div
                 key={label}
-                className="flex h-9 items-center gap-2 rounded-lg border border-fb-border bg-fb-surface-muted px-3 shrink-0 text-left shadow-2xs"
+                className="flex h-9 items-center gap-2 rounded-full border border-slate-300 bg-[#f0f3f1] px-3.5 shrink-0 text-left shadow-2xs"
                 title={formatTtmIndexTooltip(tooltip, summary)}
               >
                 <div className="flex flex-col justify-center leading-none">
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-fb-text-secondary">{label}</span>
+                  <span className="text-[8.5px] font-bold uppercase tracking-wider text-slate-600">{label}</span>
                   <div className="flex items-baseline gap-1 mt-0.5">
                     <span className={`text-xs font-black ${color}`}>{formatTtmIndexValue(summary)}</span>
                     {summary && summary.total > 0 && (
-                      <span className="text-[10px] font-medium text-fb-text-secondary">({summary.pass}/{summary.denominator})</span>
+                      <span className="text-[10px] font-medium text-slate-500">({summary.pass}/{summary.denominator})</span>
                     )}
                   </div>
                 </div>
@@ -672,34 +673,24 @@ export default function TtmDashboard2Page() {
 
           {/* View Toggle Pill (Lead vs PM/SM) */}
           {isAdminOrSupervisor && (
-            <div className="flex h-9 items-center rounded-lg border border-fb-border bg-fb-surface-muted p-1 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
+            <PillToggle
+              value={viewMode}
+              onChange={(val) => {
+                if (val === 'EXECUTIVE') {
                   setPreviewUserId(null);
                   setViewMode('EXECUTIVE');
-                }}
-                className={`flex h-7 items-center justify-center rounded-md px-3 text-xs font-bold transition-all ${
-                  viewMode === 'EXECUTIVE' ? 'bg-fb-blue text-white shadow-xs' : 'text-fb-text-secondary hover:text-fb-text-primary'
-                }`}
-              >
-                Lead
-              </button>
-              <button
-                type="button"
-                onClick={() => {
+                } else {
                   if (viewMode !== 'OPERATIONAL') {
                     setFilterPmSms([]);
                     setShowUserModal(true);
                   }
-                }}
-                className={`flex h-7 items-center justify-center rounded-md px-3 text-xs font-bold transition-all ${
-                  viewMode === 'OPERATIONAL' ? 'bg-fb-blue text-white shadow-xs' : 'text-fb-text-secondary hover:text-fb-text-primary'
-                }`}
-              >
-                PM/SM
-              </button>
-            </div>
+                }
+              }}
+              options={[
+                { value: 'EXECUTIVE', label: 'Lead', activeColor: 'bg-[#1b6b3e]' },
+                { value: 'OPERATIONAL', label: 'PM/SM', activeColor: 'bg-[#1b6b3e]' },
+              ]}
+            />
           )}
         </div>
       </div>
@@ -844,37 +835,37 @@ export default function TtmDashboard2Page() {
           </div>
 
           <div className="w-full flex justify-center items-center py-2">
-            <svg className="w-full max-w-[460px] drop-shadow-md select-none" viewBox="0 0 440 430" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg className="w-full max-w-[460px] drop-shadow-sm select-none" viewBox="0 0 440 430" fill="none" xmlns="http://www.w3.org/2000/svg">
               <SolidLayer
                 top={{ cx: 220, cy: 35, rx: 190, ry: 22 }}
                 bottom={{ cx: 220, cy: 110, rx: 145, ry: 17 }}
-                fill="#00b4d8"
-                lidFill="#00838f"
+                fill="#0284c7"
+                lidFill="#0369a1"
                 count={l1}
                 label="Tổng epic"
-                labelColor="#e0f7fa"
+                labelColor="#e0f2fe"
                 fontMain={22}
                 onContextMenu={(e) => handleContextMenu(e, 'L01')}
               />
               <SolidLayer
                 top={{ cx: 220, cy: 125, rx: 145, ry: 17 }}
                 bottom={{ cx: 220, cy: 200, rx: 105, ry: 13 }}
-                fill="#ff4d4f"
-                lidFill="#cf1322"
+                fill="#e11d48"
+                lidFill="#be123c"
                 count={l2}
                 label="Phạm vi tính TTM"
-                labelColor="#ffebee"
+                labelColor="#ffe4e6"
                 fontMain={21}
                 onContextMenu={(e) => handleContextMenu(e, 'L02')}
               />
               <SolidLayer
                 top={{ cx: 220, cy: 215, rx: 105, ry: 13 }}
                 bottom={{ cx: 220, cy: 290, rx: 70, ry: 9 }}
-                fill="#0284c7"
-                lidFill="#0369a1"
+                fill="#2563eb"
+                lidFill="#1d4ed8"
                 count={l3}
                 label="Chuẩn hoá dữ liệu"
-                labelColor="#e0f2fe"
+                labelColor="#dbeafe"
                 fontMain={20}
                 onContextMenu={(e) => handleContextMenu(e, 'L03')}
               />
@@ -888,14 +879,14 @@ export default function TtmDashboard2Page() {
                 calloutEnd={55}
                 segments={[
                   {
-                    key: '4a', count: l4a, alwaysShow: true, fill: '#00b4d8', lidFill: '#00838f', calloutColor: '#0e7490',
+                    key: '4a', count: l4a, alwaysShow: true, fill: '#0284c7', lidFill: '#0369a1', calloutColor: '#0369a1',
                     main: fmt(l4a), sub: 'Hoàn thành', ariaLabel: `L04a — ${l4a} Epic hoàn thành: bấm để mở/đóng Panel 2`,
                     active: activeRightPanel === 'COMPLETED', dimmed: activeRightPanel === 'IN_PROGRESS',
                     onActivate: () => toggleRightPanel('COMPLETED'),
                     onContextMenu: (e) => handleContextMenu(e, 'L04a'),
                   },
                   {
-                    key: '4b', count: l4b, alwaysShow: true, fill: '#f59e0b', lidFill: '#b45309', calloutColor: '#b45309',
+                    key: '4b', count: l4b, alwaysShow: true, fill: '#d97706', lidFill: '#b45309', calloutColor: '#b45309',
                     main: fmt(l4b), sub: 'Chưa hoàn thành', ariaLabel: `L04b — ${l4b} Epic chưa hoàn thành: bấm để mở/đóng Panel 3`,
                     active: activeRightPanel === 'IN_PROGRESS', dimmed: activeRightPanel === 'COMPLETED',
                     onActivate: () => toggleRightPanel('IN_PROGRESS'),
@@ -909,18 +900,18 @@ export default function TtmDashboard2Page() {
           {/* Footer Summary Strip */}
           <div className="mt-2 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-2">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="size-2 rounded-full bg-emerald-500"></span>
+              <span className="size-2 rounded-full bg-emerald-600"></span>
               <span>
                 Epic chuẩn hoá dữ liệu:{' '}
-                <strong className="text-slate-900 font-bold font-mono">
+                <strong className="text-slate-800 font-bold font-mono">
                   {fmt(l3)} Epic ({pct(l3, l1)})
                 </strong>
               </span>
               <span className="text-slate-300">|</span>
               <span title="Tỷ lệ % Pass TTM-CNTT = L05aa / (L05aa + L05ab + L05ba); Tỷ lệ % Fail TTM-CNTT = (L05ab + L05ba) / (L05aa + L05ab + L05ba)">
-                TTM-CNTT (QLDA): <strong className="font-mono font-bold text-emerald-600">Pass {passRate}</strong>
+                TTM-CNTT (QLDA): <strong className="font-mono font-bold text-emerald-700">Pass {passRate}</strong>
                 {' · '}
-                <strong className="font-mono font-bold text-rose-600">Fail {failRate}</strong>
+                <strong className="font-mono font-bold text-rose-700">Fail {failRate}</strong>
               </span>
               {outOfScopeCount > 0 && (
                 <button
@@ -971,15 +962,15 @@ export default function TtmDashboard2Page() {
                 {shownRightPanel === 'COMPLETED' ? (
                   <>
                     <div className="w-full flex justify-center items-center py-2">
-                      <svg className="w-full max-w-[480px] drop-shadow-md select-none" viewBox="0 0 480 280" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <svg className="w-full max-w-[480px] drop-shadow-sm select-none" viewBox="0 0 480 280" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <SolidLayer
                           top={detailTop}
                           bottom={{ ...detailMid, cy: 115 }}
-                          fill="#00b4d8"
-                          lidFill="#00838f"
+                          fill="#0284c7"
+                          lidFill="#0369a1"
                           count={l4a}
                           label="Epic hoàn thành"
-                          labelColor="#e0f7fa"
+                          labelColor="#e0f2fe"
                           fontMain={21}
                           onContextMenu={(e) => handleContextMenu(e, 'L04a')}
                         />
@@ -992,7 +983,7 @@ export default function TtmDashboard2Page() {
                           calloutEnd={90}
                           segments={[
                             {
-                              key: '5aa', count: passCount, alwaysShow: true, fill: '#10b981', lidFill: '#047857', calloutColor: '#047857',
+                              key: '5aa', count: passCount, alwaysShow: true, fill: '#059669', lidFill: '#047857', calloutColor: '#047857',
                               main: `Đạt ${fmt(passCount)}`, sub: 'TTM-CNTT', ariaLabel: `L05aa — ${passCount} Epic đạt TTM-CNTT`,
                               onContextMenu: (e) => handleContextMenu(e, 'L05aa'),
                             },
@@ -1002,7 +993,7 @@ export default function TtmDashboard2Page() {
                               onContextMenu: (e) => handleContextMenu(e, 'L05ac'),
                             },
                             {
-                              key: '5ab', count: lateCount, alwaysShow: true, fill: '#ef4444', lidFill: '#b91c1c', calloutColor: '#dc2626',
+                              key: '5ab', count: lateCount, alwaysShow: true, fill: '#dc2626', lidFill: '#b91c1c', calloutColor: '#dc2626',
                               main: `Không đạt ${fmt(lateCount)}`, sub: 'Nhóm 1 · Trễ R4G', ariaLabel: `L05ab — ${lateCount} Epic không đạt TTM-CNTT (nhóm 1: R4G Date muộn hơn Target)`,
                               onContextMenu: (e) => handleContextMenu(e, 'L05ab'),
                             },
@@ -1013,7 +1004,7 @@ export default function TtmDashboard2Page() {
 
                     <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
                       <span title="L05aa / (L05aa + L05ab + L05ba)">Tỷ lệ % Pass TTM-CNTT (QLDA):</span>
-                      <span className="font-mono font-bold text-emerald-600">
+                      <span className="font-mono font-bold text-emerald-700">
                         {passRate} ({fmt(passCount)}/{fmt(judgedCount)})
                       </span>
                     </div>
@@ -1021,11 +1012,11 @@ export default function TtmDashboard2Page() {
                 ) : (
                   <>
                     <div className="w-full flex justify-center items-center py-2">
-                      <svg className="w-full max-w-[480px] drop-shadow-md select-none" viewBox="0 0 480 280" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <svg className="w-full max-w-[480px] drop-shadow-sm select-none" viewBox="0 0 480 280" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <SolidLayer
                           top={detailTop}
                           bottom={{ ...detailMid, cy: 115 }}
-                          fill="#f59e0b"
+                          fill="#d97706"
                           lidFill="#b45309"
                           count={l4b}
                           label="Epic chưa hoàn thành"
@@ -1042,12 +1033,12 @@ export default function TtmDashboard2Page() {
                           calloutEnd={90}
                           segments={[
                             {
-                              key: '5bb', count: withinCount, alwaysShow: true, fill: '#0284c7', lidFill: '#0369a1', calloutColor: '#0369a1',
+                              key: '5bb', count: withinCount, alwaysShow: true, fill: '#2563eb', lidFill: '#1d4ed8', calloutColor: '#1d4ed8',
                               main: `Trong hạn ${fmt(withinCount)}`, sub: 'Chưa quá Target', ariaLabel: `L05bb — ${withinCount} Epic trong hạn`,
                               onContextMenu: (e) => handleContextMenu(e, 'L05bb'),
                             },
                             {
-                              key: '5ba', count: overdueCount, alwaysShow: true, fill: '#ef4444', lidFill: '#b91c1c', calloutColor: '#dc2626',
+                              key: '5ba', count: overdueCount, alwaysShow: true, fill: '#dc2626', lidFill: '#b91c1c', calloutColor: '#dc2626',
                               main: `Không đạt ${fmt(overdueCount)}`, sub: 'Nhóm 2 · Quá Target', ariaLabel: `L05ba — ${overdueCount} Epic không đạt TTM-CNTT (nhóm 2: chưa có R4G Date, quá Target)`,
                               onContextMenu: (e) => handleContextMenu(e, 'L05ba'),
                             },
@@ -1058,7 +1049,7 @@ export default function TtmDashboard2Page() {
 
                     <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
                       <span title="(L05ab + L05ba) / (L05aa + L05ab + L05ba)">Tỷ lệ % Fail TTM-CNTT (QLDA):</span>
-                      <span className="font-mono font-bold text-rose-600">
+                      <span className="font-mono font-bold text-rose-700">
                         {failRate} ({fmt(failCount)}/{fmt(judgedCount)})
                       </span>
                     </div>

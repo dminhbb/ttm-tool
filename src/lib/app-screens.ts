@@ -28,5 +28,6 @@ export const PAGE_HEADERS: Record<string, AppScreenInfo> = {
   '/admin/permissions': { subtitle: 'Cấu hình quyền Xem/Thêm/Sửa/Xóa theo vai trò cho từng chức năng', title: 'Ma trận phân quyền' },
   '/visit-stats': { subtitle: 'Lượt đăng nhập và lượt sử dụng các màn hình chức năng trên hệ thống', title: 'Thống kê truy cập' },
   '/reports': { subtitle: 'Lựa chọn lớp dữ liệu và các điều kiện lọc', title: 'Báo cáo Epic (beta 2)' },
+  '/no-access': { subtitle: 'Vai trò của bạn chưa được cấp quyền Xem màn hình nào', title: 'Chưa có quyền truy cập' },
   '/docs/product': { subtitle: 'Tài liệu trình bày và đào tạo về hệ thống TTM Monitor', title: 'Tài liệu sản phẩm' },
 };

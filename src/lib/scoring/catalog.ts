@@ -68,7 +68,7 @@ export const BADGES = [
   {
     id: 'CNTT_STATUS_MISMATCH', axis: 'TTM_CNTT', group: 'RECOMMENDATION', label: 'Sai Status', precedence: 20, defaultEnabled: true,
     meaning: 'R4G Date đã tới và đúng hạn nhưng status Epic chưa lên R4GOLIVE — cần chuyển status sang R4GOLIVE. Epic vẫn được tính "Đạt TTM-CNTT (QLDA)"; badge này hiện kèm bên cạnh. Từ 04/10/2026 trường hợp này là Sai lệch dữ liệu (R8) nên badge chỉ còn hiện khi rule R8 bị tắt.',
-    formula: 'Không Sai lệch dữ liệu  VÀ  R4G ≤ asOf  VÀ  R4G ≤ Target_CNTT  VÀ  status < R4GOLIVE',
+    formula: 'Không Sai lệch dữ liệu  VÀ  R4G ≤ asOf  VÀ  R4G ≤ Target_CNTT  VÀ  status < R4GOLIVE  VÀ  status ≠ Reopened',
     legacySource: 'resolveTtmCnttStatusMismatch',
   },
   {
@@ -118,7 +118,7 @@ export const BADGES = [
   {
     id: 'E2E_STATUS_MISMATCH', axis: 'TTM_E2E', group: 'RECOMMENDATION', label: 'Sai Status', precedence: 65, defaultEnabled: true,
     meaning: 'TTM-E2E đã Đạt theo ngày ghi nhận nhưng status Epic chưa lên R4GOLIVE — cần chuyển status. Hiện kèm "Đạt TTM-E2E". Từ 04/10/2026 trường hợp có R4G Date là Sai lệch dữ liệu (R8) nên badge chỉ còn hiện khi rule R8 bị tắt hoặc ngày kết thúc lấy theo Due Date.',
-    formula: 'Có "Đạt TTM-E2E"  VÀ  status < R4GOLIVE',
+    formula: 'Có "Đạt TTM-E2E"  VÀ  status < R4GOLIVE  VÀ  status ≠ Reopened',
   },
   {
     id: 'REC_FILL_IDEA_APPROVED_DATE', axis: 'TTM_E2E', group: 'RECOMMENDATION', label: 'Bổ sung T0', precedence: 80, defaultEnabled: true,
@@ -195,8 +195,8 @@ export const BADGES = [
   },
   {
     id: 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE', axis: 'DATA_QUALITY', group: 'ALERT', label: 'Có R4G Date nhưng chưa R4GOLIVE', precedence: 62, defaultEnabled: true,
-    meaning: 'R8 — R4G Date đã tới (≤ ngày tính) nhưng status Epic chưa lên R4GOLIVE (kể cả Pending / Reopened — ngang hàng In Progress). Mới từ 04/10/2026; vì là Sai lệch dữ liệu nên Epic không được chấm Đạt / Fail / "Sai Status" trên các trục TTM cho tới khi sửa. Từ 05/10/2026: R4G Date ở tương lai là ngày kế hoạch — không phải Sai lệch dữ liệu, Epic ở nhóm "chưa kết luận" cho tới ngày đó; R8 áp dụng cả với status được miễn các rule khác (To Do / In PO / Backlog), chỉ trừ Cancelled.',
-    formula: 'Có R4G Date  VÀ  R4G Date ≤ asOf  VÀ  status < R4GOLIVE',
+    meaning: 'R8 — R4G Date đã tới (≤ ngày tính) nhưng status Epic chưa lên R4GOLIVE (kể cả Pending — ngang hàng In Progress). Mới từ 04/10/2026; vì là Sai lệch dữ liệu nên Epic không được chấm Đạt / Fail / "Sai Status" trên các trục TTM cho tới khi sửa. Từ 05/10/2026: R4G Date ở tương lai là ngày kế hoạch — không phải Sai lệch dữ liệu, Epic ở nhóm "chưa kết luận" cho tới ngày đó; R8 áp dụng cả với status được miễn các rule khác (To Do / In PO / Backlog), chỉ trừ Cancelled. Không áp dụng với Reopened: Epic đã golive (có R4G Date) rồi bị mở lại — R4G Date là lịch sử thật, Epic giữ kết quả TTM của mình (Pending vẫn áp dụng R8).',
+    formula: 'Có R4G Date  VÀ  R4G Date ≤ asOf  VÀ  status < R4GOLIVE  VÀ  status ∉ {Cancelled, Reopened}',
   },
   {
     id: 'ANOMALY_R9_MISSING_R4G_DATE', axis: 'DATA_QUALITY', group: 'ALERT', label: 'Thiếu R4G Date', precedence: 63, defaultEnabled: true,

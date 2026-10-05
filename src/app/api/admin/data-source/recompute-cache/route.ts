@@ -31,12 +31,15 @@ export async function POST(request: NextRequest) {
     const latestBatchId = latestBatch.rows[0]?.id ?? null;
 
     // One unscoped recompute feeding both caches (see refreshDerivedCaches), not one per cache.
-    await refreshDerivedCaches(latestBatchId);
+    // null = a rebuild was already running (another instance / an after() callback); it rebuilds once
+    // more with the latest data before finishing, so this request is covered — tell the screen.
+    const rebuiltCount = await refreshDerivedCaches(latestBatchId, 'recompute-cache');
 
     const rowCacheCount = await pool.query<{ n: string }>('SELECT count(*)::text AS n FROM epic_alert_row_cache;');
 
     return NextResponse.json({
       success: true,
+      queued: rebuiltCount === null,
       durationMs: Date.now() - startedAt,
       sourceImportBatchId: latestBatchId,
       epicAlertRowCacheCount: Number(rowCacheCount.rows[0]?.n ?? 0),

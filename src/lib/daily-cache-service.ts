@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import pool from '@/lib/db';
 import { applyTtmExclusions, loadTtmExclusionSources } from '@/lib/black-listed-epic-service';
 import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
@@ -103,8 +104,9 @@ export async function claimDailyCacheRun(userId: number): Promise<string | null>
 }
 
 /** Rebuilds both derived caches off ONE computation of the unscoped newest-layer row set (the
- * expensive part), instead of each refresher recomputing it on its own. Returns the Epic count. */
-export async function refreshDerivedCaches(batchId: number | null): Promise<number> {
+ * expensive part), instead of each refresher recomputing it on its own. Returns the Epic count.
+ * Only ever called through refreshDerivedCaches (the rebuild lease), never twice at the same time. */
+async function rebuildDerivedCaches(batchId: number | null): Promise<number> {
   const [computed, exclusionSources] = await Promise.all([getEpicAlertRowsPhased(0, 'SUPERVISOR', {}), loadTtmExclusionSources()]);
   // "Epic ngoại lệ" / project Time to Market = N: every cached row carries ttmBlackListed +
   // ttmExclusion, so the caches (Quản trị Epic, TTM-Index, TTM Dashboard 2) all leave the Epic out of
@@ -126,11 +128,107 @@ export async function refreshDerivedCaches(batchId: number | null): Promise<numb
   return count.rows[0]?.n ?? 0;
 }
 
+/**
+ * Rebuild lease (table derived_cache_refresh_lock, migration 20261005b). Saving the black list, a
+ * project's Time to Market flag, the scope config, a domain…, an import and the daily run all
+ * rebuild the derived caches — on serverless, possibly from several instances at once. Without
+ * coordination two rebuilds overlap and the one that started first (reading the OLD black list /
+ * flags) can finish last, leaving the caches stale until the next rebuild.
+ *
+ * Protocol (no lost request, at most one rebuild at a time):
+ *   - every caller bumps request_seq and, in the SAME statement, takes the lease if it is free;
+ *   - a caller that didn't get the lease returns right away (null) — the holder will cover it;
+ *   - the holder rebuilds, then releases ONLY if request_seq hasn't moved since it started;
+ *     otherwise it renews the lease and rebuilds again with the latest data.
+ * A holder killed mid-run (function timeout) leaves the lease to expire after LEASE_INTERVAL; the
+ * next request then takes it over. If the table doesn't exist yet (database the migration hasn't
+ * reached), rebuilds run uncoordinated, exactly as before.
+ */
+const LEASE_INTERVAL = '6 minutes';
+/** Safety net against an endless stream of requests keeping one function busy past its timeout. */
+const MAX_REBUILDS_PER_LEASE = 4;
+
+type LeaseClaim = { claimed: boolean; seq: number } | 'NO_TABLE';
+
+async function requestRebuild(owner: string, source: string): Promise<LeaseClaim> {
+  try {
+    const result = await pool.query<{ claimed: boolean; seq: string }>(`
+      UPDATE derived_cache_refresh_lock SET
+        request_seq = request_seq + 1,
+        last_source = $2,
+        updated_at = CURRENT_TIMESTAMP,
+        lease_owner = CASE WHEN lease_until IS NULL OR lease_until < CURRENT_TIMESTAMP THEN $1 ELSE lease_owner END,
+        lease_until = CASE WHEN lease_until IS NULL OR lease_until < CURRENT_TIMESTAMP THEN CURRENT_TIMESTAMP + INTERVAL '${LEASE_INTERVAL}' ELSE lease_until END
+      WHERE id = 1
+      RETURNING request_seq::text AS seq, lease_owner = $1 AS claimed;
+    `, [owner, source.slice(0, 100)]);
+    const row = result.rows[0];
+    // Table present but its single row missing: behave as uncoordinated rather than never rebuild.
+    return row ? { claimed: row.claimed, seq: Number(row.seq) } : 'NO_TABLE';
+  } catch (error: unknown) {
+    console.error('Derived-cache rebuild lease unavailable — rebuilding without coordination:', error);
+    return 'NO_TABLE';
+  }
+}
+
+/** Releases the lease when nobody asked again since `seq`; otherwise renews it and returns the newer
+ * request_seq to rebuild for (null = the lease was lost to another instance after expiring). */
+async function releaseOrRenew(owner: string, seq: number): Promise<{ released: true } | { released: false; seq: number | null }> {
+  const released = await pool.query(
+    'UPDATE derived_cache_refresh_lock SET lease_owner = NULL, lease_until = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = 1 AND lease_owner = $1 AND request_seq = $2;',
+    [owner, seq],
+  );
+  if ((released.rowCount ?? 0) > 0) return { released: true };
+  const renewed = await pool.query<{ seq: string }>(
+    `UPDATE derived_cache_refresh_lock SET lease_until = CURRENT_TIMESTAMP + INTERVAL '${LEASE_INTERVAL}', updated_at = CURRENT_TIMESTAMP WHERE id = 1 AND lease_owner = $1 RETURNING request_seq::text AS seq;`,
+    [owner],
+  );
+  return { released: false, seq: renewed.rows[0] ? Number(renewed.rows[0].seq) : null };
+}
+
+async function dropLease(owner: string): Promise<void> {
+  await pool.query('UPDATE derived_cache_refresh_lock SET lease_owner = NULL, lease_until = NULL WHERE id = 1 AND lease_owner = $1;', [owner])
+    .catch((error: unknown) => console.error('Failed to release the derived-cache rebuild lease:', error));
+}
+
+/**
+ * Rebuilds the derived caches (see rebuildDerivedCaches) under the rebuild lease. Returns the Epic
+ * count of the last rebuild it ran, or null when another rebuild was already running — that one
+ * then runs again with the latest data before finishing, so the request is never lost. `batchId`
+ * is used for the first rebuild; a repeat picks up the latest import batch.
+ */
+export async function refreshDerivedCaches(batchId: number | null, source = 'manual'): Promise<number | null> {
+  const owner = `${source.slice(0, 20)}:${randomUUID()}`;
+  const claim = await requestRebuild(owner, source);
+  if (claim === 'NO_TABLE') return rebuildDerivedCaches(batchId);
+  if (!claim.claimed) return null;
+
+  let seq = claim.seq;
+  let nextBatchId = batchId;
+  try {
+    for (let run = 1; ; run += 1) {
+      const count = await rebuildDerivedCaches(nextBatchId);
+      const outcome = await releaseOrRenew(owner, seq);
+      if (outcome.released || outcome.seq === null) return count;
+      if (run >= MAX_REBUILDS_PER_LEASE) {
+        console.error(`Derived-cache rebuild: still being asked after ${run} rebuilds in a row (latest: ${source}) — stopping; the next request rebuilds again.`);
+        await dropLease(owner);
+        return count;
+      }
+      seq = outcome.seq;
+      nextBatchId = await getLatestImportBatchId();
+    }
+  } catch (error: unknown) {
+    await dropLease(owner);
+    throw error;
+  }
+}
+
 /** For after() callbacks (scope/domain saves): refreshDerivedCaches throws on failure, and a
  * rejection inside after() would otherwise vanish with nothing logged. Never throws. */
 export async function refreshDerivedCachesInBackground(batchId: number | null, source: string): Promise<void> {
   try {
-    await refreshDerivedCaches(batchId);
+    await refreshDerivedCaches(batchId, source);
   } catch (error: unknown) {
     console.error(`Background derived-cache refresh failed (${source}):`, error);
   }
@@ -146,7 +244,9 @@ export async function runDailyCacheRefresh(runDate: string): Promise<void> {
   const startedAt = Date.now();
   try {
     const batchId = await getLatestImportBatchId();
-    const epicRowCount = await refreshDerivedCaches(batchId);
+    // null = another rebuild was already running; it rebuilds once more before finishing, so today's
+    // cache still ends up fresh — recorded as SUCCESS without a row count.
+    const epicRowCount = await refreshDerivedCaches(batchId, 'daily-cache');
     await pool.query(
       `UPDATE daily_cache_runs SET status = 'SUCCESS', finished_at = CURRENT_TIMESTAMP, duration_ms = $2, epic_row_count = $3, source_import_batch_id = $4 WHERE run_date = $1::date;`,
       [runDate, Date.now() - startedAt, epicRowCount, batchId],

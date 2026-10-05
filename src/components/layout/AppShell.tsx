@@ -48,7 +48,8 @@ import { BlackListedEpicsModal } from '@/components/settings/BlackListedEpicsMod
 import { AdPopupDisplay } from '@/components/layout/AdPopupDisplay';
 import { DailyCacheWarmer } from '@/components/layout/DailyCacheWarmer';
 import { SystemStatusFooter } from '@/components/layout/SystemStatusFooter';
-import { ToastProvider } from '@/components/ui/Toast';
+import { showToast, ToastProvider } from '@/components/ui/Toast';
+import { fallbackPathFor, pageFeatureKey } from '@/lib/feature-access';
 import { resolveScreenKeyFromPathname, trackScreenVisit } from '@/lib/visit-counter-client';
 
 type NavigationModal = 'appConfig' | 'blackListedEpics' | 'systemAdmin';
@@ -533,9 +534,9 @@ if (process.env.NODE_ENV !== 'production') {
   }
 }
 
-// Every role can reach TTM Dashboard 2 (the landing page after sign-in), so it's the safe fallback
-// when access is denied.
-const FALLBACK_PATH = '/ttm-dashboard-2';
+// Where a denied page sends the user: TTM Dashboard 2 (the landing page after sign-in) unless the
+// permission matrix took its "Xem" away too — then the next page the role may still view
+// (fallbackPathFor, feature-access.ts — same rule as src/proxy.ts).
 
 // Session-only cache of the last known role, keyed per tab. Lets a repeat page load in the same
 // tab restore the nav instantly instead of flashing the "no role" (fully collapsed) menu while
@@ -586,7 +587,12 @@ function AppShellInner({ children }: AppShellProps) {
   // Gates `children` below, not just the redirect: a protected page's own effects (data fetches,
   // etc.) must not mount for a role that doesn't belong there, even for the one tick before
   // router.replace takes effect. Deliberately uses the confirmed `role`, not `displayRole`.
-  const isAuthorized = !requiredRoles || (role !== null && requiredRoles.includes(role));
+  // Ma trận phân quyền: "Xem" unticked for this page's feature blocks the page too (2026-10-05). The
+  // proxy already refuses a direct request; this covers the current tab right after the matrix is
+  // saved (hiddenFeatureKeys refreshes via PERMISSION_MATRIX_CHANGED_EVENT / the next navigation).
+  const currentFeatureKey = pageFeatureKey(pathname);
+  const featureDenied = Boolean(currentFeatureKey && hiddenFeatureKeys.has(currentFeatureKey));
+  const isAuthorized = !featureDenied && (!requiredRoles || (role !== null && requiredRoles.includes(role)));
 
   React.useEffect(() => {
     if (pathname === '/login') return;
@@ -616,9 +622,21 @@ function AppShellInner({ children }: AppShellProps) {
   }, []);
 
   React.useEffect(() => {
-    if (!role || !requiredRoles) return;
-    if (!requiredRoles.includes(role)) router.replace(FALLBACK_PATH);
-  }, [pathname, role, requiredRoles, router]);
+    if (!role) return;
+    if (featureDenied || (requiredRoles && !requiredRoles.includes(role))) router.replace(fallbackPathFor(hiddenFeatureKeys, pathname));
+  }, [featureDenied, hiddenFeatureKeys, pathname, role, requiredRoles, router]);
+
+  // Landed here because the proxy refused a page (?denied=<featureKey>): say why once, then drop the
+  // parameter so a reload doesn't repeat it.
+  const deniedFeature = searchParams?.get('denied');
+  React.useEffect(() => {
+    if (!deniedFeature) return;
+    showToast('Bạn không có quyền xem chức năng vừa mở (Ma trận phân quyền) — đã chuyển về màn hình được phép.', 6000);
+    const params = new URLSearchParams(searchParams?.toString() ?? '');
+    params.delete('denied');
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname);
+  }, [deniedFeature, pathname, router, searchParams]);
 
   // Red dot on "Quản lý User" — polled (not just fetched once) so an admin sitting on another page
   // notices a new self-lockout ticket (5 failed logins, see auth-service.ts) without reloading.

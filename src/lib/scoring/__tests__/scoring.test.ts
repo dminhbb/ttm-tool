@@ -254,10 +254,8 @@ describe('Data quality', () => {
       assert.ok(hasBadge(card, 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE') && hasBadge(card, 'REC_FIX_R4G_STATUS'), status);
       assert.ok(!hasBadge(card, 'ANOMALY_R9_MISSING_R4G_DATE'), status);
     }
-    // Pending / Reopened rank level with In Progress (2026-10-05) — same rule applies.
-    for (const status of ['Pending', 'Reopened']) {
-      assert.ok(active(makeFacts({ status, r4gDate: '2026-08-20' }), makeContext()).has('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'), status);
-    }
+    // Pending ranks level with In Progress (2026-10-05) — same rule applies.
+    assert.ok(active(makeFacts({ status: 'Pending', r4gDate: '2026-08-20' }), makeContext()).has('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'));
     // Exempt statuses are exempt from every other rule, not from R8 (2026-10-05).
     for (const status of ['To Do', 'In PO', 'Backlog']) {
       const card = scoreEpic(makeFacts({ status, r4gDate: '2026-08-20', startDate: null, requirementLevel: '' }), makeContext());
@@ -266,6 +264,16 @@ describe('Data quality', () => {
     }
     for (const status of ['R4GOLIVE', 'MVP Done', 'Pilot', 'Done', 'Released', 'Cancelled']) {
       assert.ok(!active(makeFacts({ status, r4gDate: '2026-08-20' }), makeContext()).has('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'), status);
+    }
+  });
+
+  it('R8 (2026-10-05): a Reopened Epic that already went live keeps its R4G Date — no R8, judged normally, no "Sai Status"', () => {
+    for (const status of ['Reopened', 'Reopen']) {
+      const card = scoreEpic(makeFacts({ status, r4gDate: '2026-08-20' }), makeContext());
+      assert.ok(!hasBadge(card, 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE') && !hasBadge(card, 'REC_FIX_R4G_STATUS'), status);
+      assert.ok(hasBadge(card, 'CNTT_PASS') && !hasBadge(card, 'CNTT_STATUS_MISMATCH'), status);
+      assert.ok(!hasBadge(card, 'E2E_STATUS_MISMATCH'), status);
+      assert.equal(card.indexMembership.ttm.pass, true, status);
     }
   });
 

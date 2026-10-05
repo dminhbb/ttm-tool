@@ -1,4 +1,4 @@
-import { STATUS_INDEX } from '../derive';
+import { isReopenedStatus, STATUS_INDEX } from '../derive';
 import { finding } from './rule-types';
 import type { PrimaryRule } from './rule-types';
 import type { Finding } from '../types';
@@ -36,7 +36,8 @@ export const ttmCnttRule: PrimaryRule = ({ facts, derived, ctx, hasDataAnomaly }
       // (decision 2026-10-01); it adds the "Sai Status" recommendation next to it. A future-dated
       // R4G Date gets neither until asOf reaches it.
       findings.push(finding('CNTT_PASS', `Đạt TTM-CNTT (QLDA): R4G Date ${facts.r4gDate} ≤ Target ${target}.`, evidence));
-      if (derived.statusIndex < STATUS_INDEX.R4GOLIVE) {
+      // Not for Reopened: the Epic went live and was taken back into work on purpose (2026-10-05).
+      if (derived.statusIndex < STATUS_INDEX.R4GOLIVE && !isReopenedStatus(facts.status)) {
         findings.push(finding('CNTT_STATUS_MISMATCH', 'R4G Date đã ghi nhận và đúng hạn nhưng status Epic chưa chuyển sang R4GOLIVE — vui lòng cập nhật status.', evidence));
       }
     }

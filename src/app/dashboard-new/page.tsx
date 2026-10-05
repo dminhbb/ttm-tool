@@ -30,7 +30,7 @@ import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import { DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
 import { compareValues, useSortableList } from '@/lib/use-sortable-list';
-import { formatTtmPct1, summarizeE2e, summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
+import { formatTtmPassPct, hasTtmVerdict, summarizeE2e, summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
 import { ttmFailKind, isJustifyGolive, isTtmIndexEligible, isTtmIndexPass, isWaitingGolive, waitingGoliveBucket, vnTodayIso } from '@/lib/epic-row-verdicts';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import { computeQaInScope, computeTtmCnttInScope } from '@/lib/ttm-scope-rules';
@@ -111,7 +111,7 @@ const DIMENSION_LABELS: Record<DimensionKey, string> = {
 };
 
 function formatTtmIndexValue(summary: TtmCnttSummary | null | undefined): string {
-  return summary && summary.total > 0 ? `${formatTtmPct1(summary.pctPrecise)}%` : '—';
+  return formatTtmPassPct(summary);
 }
 
 function formatTtmIndexTooltip(firstLine: string, summary: TtmCnttSummary | null | undefined): string {
@@ -156,10 +156,10 @@ function matrixSortValue(item: DimensionMatrixItem, key: MatrixSortKey): number 
     case 'name': return item.name;
     case 'total': return item.total;
     case 'ttmEligible': return item.qlda.eligible;
-    case 'qldaPct': return item.qlda.pctPrecise;
+    case 'qldaPct': return hasTtmVerdict(item.qlda) ? item.qlda.pctPrecise : null;
     case 'qldaPass': return item.qlda.pass;
     case 'qldaFail': return item.qlda.fail;
-    case 'qaPct': return item.qa.total > 0 ? item.qa.pctPrecise : null;
+    case 'qaPct': return hasTtmVerdict(item.qa) ? item.qa.pctPrecise : null;
     case 'ok': return item.ok;
     case 'late': return item.late;
     default: return null;
@@ -420,6 +420,8 @@ export default function DashboardNewPage() {
       total,
       ttmHealthPct: ttmCntt.pct,
       ttmHealthPctPrecise: ttmCntt.pctPrecise,
+      ttmHealthLabel: formatTtmPassPct(ttmCntt),
+      ttmHasVerdict: hasTtmVerdict(ttmCntt),
     };
   }, [filteredRows]);
 
@@ -778,11 +780,13 @@ export default function DashboardNewPage() {
         <div
           className="relative flex size-14 shrink-0 items-center justify-center rounded-full"
           style={{
-            background: `conic-gradient(#0866ff 0% ${executiveMetrics.ttmHealthPctPrecise}%, #e4e6eb ${executiveMetrics.ttmHealthPctPrecise}% 100%)`,
+            background: executiveMetrics.ttmHasVerdict
+              ? `conic-gradient(#0866ff 0% ${executiveMetrics.ttmHealthPctPrecise}%, #e4e6eb ${executiveMetrics.ttmHealthPctPrecise}% 100%)`
+              : '#e4e6eb',
           }}
         >
           <div className="flex size-10 items-center justify-center rounded-full bg-fb-surface font-extrabold text-xs text-fb-blue">
-            {formatTtmPct1(executiveMetrics.ttmHealthPctPrecise)}%
+            {executiveMetrics.ttmHealthLabel}
           </div>
         </div>
         <div className="min-w-0" title="Tỷ lệ % Pass TTM-CNTT = Đạt / (Đạt + Fail) = L05aa / (L05aa + L05ab + L05ba)">
@@ -796,13 +800,13 @@ export default function DashboardNewPage() {
         <div
           className="relative flex size-14 shrink-0 items-center justify-center rounded-full"
           style={{
-            background: qaMetrics.total > 0
+            background: hasTtmVerdict(qaMetrics)
               ? `conic-gradient(#7c3aed 0% ${qaMetrics.pctPrecise}%, #e4e6eb ${qaMetrics.pctPrecise}% 100%)`
               : '#e4e6eb',
           }}
         >
           <div className="flex size-10 items-center justify-center rounded-full bg-fb-surface font-extrabold text-xs text-purple-700">
-            {qaMetrics.total > 0 ? `${formatTtmPct1(qaMetrics.pctPrecise)}%` : '—'}
+            {formatTtmPassPct(qaMetrics)}
           </div>
         </div>
         <div className="min-w-0" title="Cùng công thức TTM-CNTT (QLDA): Đạt / (Đạt + Fail), chỉ lấy Epic MVP Done / Released">
@@ -824,13 +828,13 @@ export default function DashboardNewPage() {
         <div
           className="relative flex size-14 shrink-0 items-center justify-center rounded-full"
           style={{
-            background: e2eMetrics.total > 0
+            background: hasTtmVerdict(e2eMetrics)
               ? `conic-gradient(#059669 0% ${e2eMetrics.pctPrecise}%, #e4e6eb ${e2eMetrics.pctPrecise}% 100%)`
               : '#e4e6eb',
           }}
         >
           <div className="flex size-10 items-center justify-center rounded-full bg-fb-surface font-extrabold text-xs text-emerald-700">
-            {e2eMetrics.total > 0 ? `${formatTtmPct1(e2eMetrics.pctPrecise)}%` : '—'}
+            {formatTtmPassPct(e2eMetrics)}
           </div>
         </div>
         <div className="min-w-0">
@@ -1035,13 +1039,17 @@ export default function DashboardNewPage() {
                         `Danh sách Epic Pass TTM - ${item.name}`
                       )}
                       className="flex items-center gap-2 w-full hover:opacity-80 transition-opacity cursor-pointer group"
-                      title={`Xem các Epic Pass TTM của ${item.name} (Tỷ lệ: ${item.qlda.pct}%)`}
+                      title={`Xem các Epic Pass TTM của ${item.name} (Tỷ lệ: ${formatTtmPassPct(item.qlda)})`}
                     >
                       <div className="h-2.5 flex-1 rounded-full bg-fb-control overflow-hidden flex">
-                        <div style={{ width: `${item.qlda.pct}%` }} className="bg-status-success h-full" title={`Pass: ${item.qlda.pct}%`} />
-                        <div style={{ width: `${100 - item.qlda.pct}%` }} className="bg-status-danger h-full" title={`Rủi ro: ${100 - item.qlda.pct}%`} />
+                        {hasTtmVerdict(item.qlda) && (
+                          <>
+                            <div style={{ width: `${item.qlda.pct}%` }} className="bg-status-success h-full" title={`Pass: ${item.qlda.pct}%`} />
+                            <div style={{ width: `${100 - item.qlda.pct}%` }} className="bg-status-danger h-full" title={`Rủi ro: ${100 - item.qlda.pct}%`} />
+                          </>
+                        )}
                       </div>
-                      <span className="w-9 text-right text-xs font-bold text-fb-text-primary group-hover:underline">{item.qlda.pct}%</span>
+                      <span className="w-9 text-right text-xs font-bold text-fb-text-primary group-hover:underline">{hasTtmVerdict(item.qlda) ? `${item.qlda.pct}%` : '—'}</span>
                     </button>
                   </TD>
                   <TD className="text-center font-semibold text-status-success">
@@ -1105,10 +1113,14 @@ export default function DashboardNewPage() {
                       >
                         <div className="flex items-center gap-2">
                           <div className="h-2 flex-1 rounded-full bg-fb-control overflow-hidden flex">
-                            <div style={{ width: `${item.qa.pct}%` }} className="bg-purple-600 h-full" title={`Pass QA: ${item.qa.pct}%`} />
-                            <div style={{ width: `${100 - item.qa.pct}%` }} className="bg-status-danger h-full" title={`Rủi ro QA: ${100 - item.qa.pct}%`} />
+                            {hasTtmVerdict(item.qa) && (
+                              <>
+                                <div style={{ width: `${item.qa.pct}%` }} className="bg-purple-600 h-full" title={`Pass QA: ${item.qa.pct}%`} />
+                                <div style={{ width: `${100 - item.qa.pct}%` }} className="bg-status-danger h-full" title={`Rủi ro QA: ${100 - item.qa.pct}%`} />
+                              </>
+                            )}
                           </div>
-                          <span className="w-9 text-right text-xs font-bold text-purple-700 group-hover:underline">{item.qa.pct}%</span>
+                          <span className="w-9 text-right text-xs font-bold text-purple-700 group-hover:underline">{hasTtmVerdict(item.qa) ? `${item.qa.pct}%` : '—'}</span>
                         </div>
                         <p className="text-[10px] text-fb-text-secondary group-hover:underline">{item.qa.pass}/{item.qa.denominator} Epic MVP Done/Released</p>
                       </button>

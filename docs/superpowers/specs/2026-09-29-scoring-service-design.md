@@ -790,3 +790,11 @@ Quyết định của chủ sở hữu (`SCORING_CODE_VERSION` → `scoring-8`):
 Pending (Pending ngang hàng In Progress — §17). Trước đó nhánh Pending chỉ xét R2 "Pending lâu", nên một Epic Pending thiếu
 Start Date không có Target và không bao giờ được chấm TTM-CNTT. R2 vẫn xét độc lập. Đối chiếu: lệch R1 trên Epic Pending mang
 nhãn `D10_DATA_QUALITY_RULES`. Bảng tra cứu rule đang áp dụng: `public/docs/product-guide.html` mục 9.1.
+
+## 20. R8 không áp dụng với Reopened (2026-10-05)
+
+Quyết định của chủ sở hữu (`SCORING_CODE_VERSION` → `scoring-10`): Epic đã golive (có R4G Date) rồi bị **Reopened** không bị
+R8 đánh "Sai lệch dữ liệu" — R4G Date của nó là lịch sử thật. Epic được chấm TTM như bình thường (giữ "Đạt TTM-CNTT" nếu R4G
+Date đúng hạn) và **không** gắn "Sai Status" TTM-CNTT / TTM-E2E (khuyến nghị chuyển status sang R4GOLIVE không đúng với Epic
+được mở lại có chủ đích). Rule với **Pending** không đổi (vẫn áp dụng R8). Reopened vẫn xếp ngang In Progress cho các rule khác
+(R1, pha…). Trục Release ("Sai Status (Release)") không đổi. Engine cũ không có R8 nên đối chiếu không phát sinh nhãn mới.

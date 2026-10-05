@@ -25,6 +25,12 @@ export function normalizeWorkflowStatus(status: string): string {
   return STATUS_ALIASES[normalized] ?? normalized;
 }
 
+/** Reopened: an Epic taken back into work after it had moved on — possibly already past R4GOLIVE
+ * with its R4G Date recorded (owner rule 2026-10-05: R8 doesn't apply to it, see data-quality.ts). */
+export function isReopenedStatus(status: string): boolean {
+  return WORKFLOW_PEER_OF_DEV.has(normalizeWorkflowStatus(status));
+}
+
 /** Pending / Reopened: outside the workflow steps, ranked level with DEV ("In Progress"). */
 export function isDevPeerStatus(status: string): boolean {
   return isPendingStatus(status) || WORKFLOW_PEER_OF_DEV.has(normalizeWorkflowStatus(status));
