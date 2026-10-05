@@ -16,13 +16,23 @@ export function isTtmCnttQaInScope(status: string | null | undefined): boolean {
 }
 
 /**
+ * Outside L02 of the TTM Dashboard 2 funnel (owner rule 2026-10-05) — never part of any TTM ratio:
+ * a Cancelled Epic, an "Epic ngoại lệ" (black listed), or an Epic of a project marked "Time to
+ * Market = N". The last two arrive as `ttmExclusion` (see TtmExclusion in scoring/types.ts).
+ */
+export function isOutsideTtmCalculation(row: Pick<EpicAlertRowPhased, 'currentStatus' | 'ttmExclusion'>): boolean {
+  return isCancelledStatus(row.currentStatus || '') || Boolean(row.ttmExclusion);
+}
+
+/**
  * TTM-CNTT (QLDA) / TTM-CNTT (QA) — owner rule 2026-10-04, named after the TTM Dashboard 2 funnel
  * criteria (ttm-funnel-summary.ts, docs/ttm-dashboard-2-spec.md), all within "Phạm vi dữ liệu cho TTM":
  *   Tỷ lệ % Pass = L05aa / (L05aa + L05ab + L05ba)
  *   Tỷ lệ % Fail = (L05ab + L05ba) / (L05aa + L05ab + L05ba)
  * i.e. only Epics with a final verdict count: Đạt (L05aa), Fail with an R4G Date past Target (L05ab)
  * and Fail without an R4G Date, already past Target (L05ba). Epics not concluded yet (L05ac, L05bb),
- * Cancelled ones and "Sai lệch dữ liệu" ones are outside the ratio. TTM-E2E uses the same ratio on
+ * the ones outside L02 (Cancelled, "Epic ngoại lệ", project Time to Market = N — isOutsideTtmCalculation)
+ * and "Sai lệch dữ liệu" ones are outside the ratio. TTM-E2E uses the same ratio on
  * its own verdicts since 2026-10-05: Đạt TTM-E2E / (Đạt TTM-E2E + Fail TTM-E2E) — summarizeE2e.
  */
 export interface TtmCnttSummary {
@@ -59,13 +69,16 @@ export function formatTtmPct1(value: number): string {
 /** Epic Scoring Service rows carry their Index membership precomputed (scoring/select.ts
  * indexFlagsOf) — "Đạt" then means exactly the "Đạt TTM-CNTT" badge (decision D1), so the counts
  * come from those flags instead of the legacy alertLevel formula below. */
-function countFromScoringFlags(rows: Pick<EpicAlertRowPhased, 'scoringIndexFlags'>[], prefix: 'TTM' | 'QA'): TtmCnttSummary | null {
+function countFromScoringFlags(rows: Pick<EpicAlertRowPhased, 'scoringIndexFlags' | 'ttmExclusion'>[], prefix: 'TTM' | 'QA'): TtmCnttSummary | null {
   if (!rows.length || rows.some((row) => !row.scoringIndexFlags)) return null;
   let eligible = 0;
   let pass = 0;
   let fail = 0;
   let total = 0;
   for (const row of rows) {
+    // The scorecard already drops an excluded Epic's index flags; the row field also keeps out a
+    // row whose black list changed after it was scored.
+    if (row.ttmExclusion) continue;
     const flags = row.scoringIndexFlags ?? [];
     if (!flags.includes(`${prefix}_COUNTED`)) continue;
     total += 1;
@@ -76,7 +89,7 @@ function countFromScoringFlags(rows: Pick<EpicAlertRowPhased, 'scoringIndexFlags
   return summarizeTtmCnttFromCounts(eligible, pass, fail, total);
 }
 
-export function summarizeTtmCntt(rows: Pick<EpicAlertRowPhased, 'alertLevel' | 'currentStatus' | 'hasDataAnomaly' | 'r4gDate' | 'scoringIndexFlags' | 'ttmCnttInScope'>[]): TtmCnttSummary {
+export function summarizeTtmCntt(rows: Pick<EpicAlertRowPhased, 'alertLevel' | 'currentStatus' | 'hasDataAnomaly' | 'r4gDate' | 'scoringIndexFlags' | 'ttmCnttInScope' | 'ttmExclusion'>[]): TtmCnttSummary {
   const scored = countFromScoringFlags(rows, 'TTM');
   if (scored) return scored;
   let eligible = 0;
@@ -85,7 +98,7 @@ export function summarizeTtmCntt(rows: Pick<EpicAlertRowPhased, 'alertLevel' | '
   let total = 0;
 
   for (const row of rows) {
-    if (isCancelledStatus(row.currentStatus || '')) continue;
+    if (isOutsideTtmCalculation(row)) continue;
     // "Phạm vi dữ liệu cho TTM" (Cấu hình cảnh báo) — see computeTtmCnttInScope in
     // ttm-scope-rules.ts. True for every Epic while no admin bound is configured, so this is a
     // no-op until an admin actually sets one.
@@ -106,7 +119,7 @@ export function summarizeTtmCntt(rows: Pick<EpicAlertRowPhased, 'alertLevel' | '
 /** Same shape as summarizeTtmCntt, for the QA-Index ratio: scoped to MVP Done/Released status
  * (isTtmCnttQaInScope) AND the "R4G for TTM (QA)" gate (row.qaInScope) instead of ttmCnttInScope —
  * the two date-range gates are independent (see ttm-scope-rules.ts). */
-export function summarizeQaIndex(rows: Pick<EpicAlertRowPhased, 'alertLevel' | 'currentStatus' | 'hasDataAnomaly' | 'qaInScope' | 'r4gDate' | 'scoringIndexFlags'>[]): TtmCnttSummary {
+export function summarizeQaIndex(rows: Pick<EpicAlertRowPhased, 'alertLevel' | 'currentStatus' | 'hasDataAnomaly' | 'qaInScope' | 'r4gDate' | 'scoringIndexFlags' | 'ttmExclusion'>[]): TtmCnttSummary {
   const scored = countFromScoringFlags(rows, 'QA');
   if (scored) return scored;
   let eligible = 0;
@@ -115,7 +128,7 @@ export function summarizeQaIndex(rows: Pick<EpicAlertRowPhased, 'alertLevel' | '
   let total = 0;
 
   for (const row of rows) {
-    if (isCancelledStatus(row.currentStatus || '')) continue;
+    if (isOutsideTtmCalculation(row)) continue;
     if (!isTtmCnttQaInScope(row.currentStatus)) continue;
     if (!row.qaInScope) continue;
     total += 1;
@@ -137,14 +150,14 @@ export function summarizeQaIndex(rows: Pick<EpicAlertRowPhased, 'alertLevel' | '
  * ever applies to CNTT/QA, see ttm-scope-rules.ts). `eligible` = Epics with a recorded R4G Date whose
  * E2E calc isn't broken (informational). Shared by the per-filter "Hoàn thành TTM-E2E" ring (TTM
  * Dashboard, TTM Dashboard 2) and the company-wide cache (ttm-index-global-cache-service.ts). */
-export function summarizeE2e(rows: Pick<EpicAlertRowPhased, 'currentStatus' | 'hasDataAnomaly' | 'r4gDate' | 'scoringBadges' | 'ttmE2eAlertLevel'>[]): TtmCnttSummary {
+export function summarizeE2e(rows: Pick<EpicAlertRowPhased, 'currentStatus' | 'hasDataAnomaly' | 'r4gDate' | 'scoringBadges' | 'ttmE2eAlertLevel' | 'ttmExclusion'>[]): TtmCnttSummary {
   let eligible = 0;
   let pass = 0;
   let fail = 0;
   let total = 0;
 
   for (const row of rows) {
-    if (isCancelledStatus(row.currentStatus || '')) continue;
+    if (isOutsideTtmCalculation(row)) continue;
     total += 1;
     // "Sai lệch dữ liệu" Epics are neither Đạt nor Fail (the scoring engine doesn't judge them at all).
     if (row.hasDataAnomaly) continue;

@@ -41,7 +41,8 @@ export function hasDataAnomalyBadge(active: ReadonlySet<BadgeId>): boolean {
 }
 
 function indexMembership(facts: EpicFacts, active: ReadonlySet<BadgeId>, ctx: ScoringContext): IndexMembership {
-  const cancelled = isCancelledStatus(facts.status);
+  // Cancelled, "Epic ngoại lệ" and "Dự án không tính TTM" Epics are all outside L02 — never counted.
+  const outsideL02 = isCancelledStatus(facts.status) || Boolean(facts.ttmExclusion);
   const anomaly = hasDataAnomalyBadge(active);
   const flags = (counted: boolean) => {
     const eligible = counted && Boolean(facts.r4gDate) && !anomaly;
@@ -49,8 +50,8 @@ function indexMembership(facts: EpicFacts, active: ReadonlySet<BadgeId>, ctx: Sc
   };
   const qaStatus = ctx.parameters['index.qaStatuses'].includes(facts.status.trim().toUpperCase());
   return {
-    ttm: flags(!cancelled && !active.has('SCOPE_CNTT_OUT')),
-    qa: flags(!cancelled && qaStatus && !active.has('SCOPE_QA_OUT')),
+    ttm: flags(!outsideL02 && !active.has('SCOPE_CNTT_OUT')),
+    qa: flags(!outsideL02 && qaStatus && !active.has('SCOPE_QA_OUT')),
   };
 }
 

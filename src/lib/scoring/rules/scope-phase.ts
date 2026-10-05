@@ -7,6 +7,13 @@ import type { Finding } from '../types';
 /** Axis SCOPE — "Phạm vi dữ liệu cho TTM" (Cấu hình cảnh báo); bounds inclusive, see ttm-scope-rules.ts. */
 export const scopeRule: PrimaryRule = ({ facts, derived, ctx }) => {
   const findings: Finding[] = [];
+  // Taken out of the TTM calculation altogether (L02) — see TtmExclusion; score-epic.ts drops the
+  // Epic from both indexes off the same fact.
+  if (facts.ttmExclusion === 'BLACK_LISTED') {
+    findings.push(finding('SCOPE_TTM_BLACK_LISTED', 'Epic ngoại lệ (TTM Black listed) — bị loại khỏi phạm vi tính toán Time to Market.'));
+  } else if (facts.ttmExclusion === 'PROJECT_NON_TTM') {
+    findings.push(finding('SCOPE_PROJECT_NON_TTM', 'Dự án của Epic có Time to Market = N — bị loại khỏi phạm vi tính toán Time to Market.'));
+  }
   if (!computeTtmCnttInScope(facts.r4gDate, derived.cnttTargetDate, ctx.scope)) {
     findings.push(finding('SCOPE_CNTT_OUT', `Ngoài phạm vi dữ liệu TTM-CNTT (QLDA) (${ctx.scope.cnttFrom ?? '…'} → ${ctx.scope.cnttTo ?? '…'}).`, { from: ctx.scope.cnttFrom, to: ctx.scope.cnttTo, comparedDate: facts.r4gDate ?? derived.cnttTargetDate }));
   }

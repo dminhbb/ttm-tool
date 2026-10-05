@@ -118,6 +118,9 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
   const { l2 } = ttmFunnelLayers(funnel);
   const { insights } = funnel;
   const cancelled = funnel.buckets.CANCELLED;
+  // `?? 0`: a summary cached before L02 dropped these two groups has no such buckets.
+  const blackListed = funnel.buckets.BLACK_LISTED ?? 0;
+  const nonTtmProject = funnel.buckets.PROJECT_NON_TTM ?? 0;
   const qlda = ttmFunnelCnttIndex(funnel);
   const { e2e, qa } = insights;
   const waiting = splitWaitingGolive(insights.waitingGolive, vnTodayIso());
@@ -129,7 +132,7 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
       <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
         <div className="rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs">
           <p className="text-[10px] font-bold uppercase text-fb-text-secondary">
-            <button type="button" onClick={() => onOpen({ alert: 'IN_SCOPE_CNTT', title: 'Danh sách Epic - Tổng số Epic (loại bỏ Cancelled)' })} className="hover:underline cursor-pointer uppercase" title="Epic loại bỏ Cancelled (L02) — xem danh sách ở Quản trị Epic">
+            <button type="button" onClick={() => onOpen({ alert: 'TTM_COUNTED_IN_SCOPE', title: 'Danh sách Epic - Tổng số Epic (trong phạm vi tính TTM)' })} className="hover:underline cursor-pointer uppercase" title="Epic trong phạm vi tính TTM (L02): đã loại Cancelled, Epic ngoại lệ và dự án Time to Market = N — xem danh sách ở Quản trị Epic">
               Tổng số Epic
             </button>
           </p>
@@ -143,6 +146,28 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
               title="Số Epic có status Cancelled đã loại khỏi Tổng số Epic"
             >
               Trừ Cancelled= {fmt(cancelled)}
+            </button>
+          </p>
+          <p className="text-[10px] text-fb-text-secondary">
+            <button
+              type="button"
+              disabled={blackListed === 0}
+              onClick={() => onOpen({ alert: 'TTM_BLACK_LISTED', title: 'Danh sách Epic ngoại lệ (đã loại khỏi Tổng số Epic)' })}
+              className={`${subLink} disabled:cursor-default disabled:no-underline`}
+              title="Số Epic ngoại lệ (TTM Black listed = true) đã loại khỏi Tổng số Epic"
+            >
+              Trừ Epic ngoại lệ= {fmt(blackListed)}
+            </button>
+          </p>
+          <p className="text-[10px] text-fb-text-secondary">
+            <button
+              type="button"
+              disabled={nonTtmProject === 0}
+              onClick={() => onOpen({ alert: 'TTM_PROJECT_NON_TTM', title: 'Danh sách Epic thuộc dự án Time to Market = N (đã loại khỏi Tổng số Epic)' })}
+              className={`${subLink} disabled:cursor-default disabled:no-underline`}
+              title="Số Epic thuộc dự án có Time to Market = N đã loại khỏi Tổng số Epic"
+            >
+              Trừ dự án TTM=N= {fmt(nonTtmProject)}
             </button>
           </p>
         </div>
@@ -322,7 +347,7 @@ export function BreakdownMatrixCard({ dimensions, funnel, onOpen }: { dimensions
             <THead>
               <TR>
                 <TH sortDirection={directionFor('name')} onClick={() => toggleSort('name')}>{DIMENSION_LABELS[dimension]}</TH>
-                <TH className="text-center" sortDirection={directionFor('total')} onClick={() => toggleSort('total')} title="Epic loại bỏ Cancelled (L02)">Tổng số Epic</TH>
+                <TH className="text-center" sortDirection={directionFor('total')} onClick={() => toggleSort('total')} title="Epic trong phạm vi tính TTM (L02): đã loại Cancelled, Epic ngoại lệ và dự án Time to Market = N">Tổng số Epic</TH>
                 <TH className="text-center" sortDirection={directionFor('pass')} onClick={() => toggleSort('pass')} title="Epic đạt TTM-CNTT (L05aa)">Pass TTM</TH>
                 <TH className="w-56" sortDirection={directionFor('qldaPct')} onClick={() => toggleSort('qldaPct')} title="Tỷ lệ % Pass TTM-CNTT = Pass TTM / Epic đánh giá">TTM-CNTT (QLDA)</TH>
                 <TH className="text-center" sortDirection={directionFor('judged')} onClick={() => toggleSort('judged')} title="Epic đã có kết luận = L05aa + L05ab + L05ba (Pass TTM + Fail TTM)">Epic đánh giá</TH>
@@ -345,7 +370,7 @@ export function BreakdownMatrixCard({ dimensions, funnel, onOpen }: { dimensions
                       </button>
                     </TD>
                     <TD className="text-center font-semibold">
-                      <button type="button" onClick={() => open(item, { alert: 'IN_SCOPE_CNTT' }, 'Danh sách Epic (Tổng số Epic)')} className={`${numberButton} text-fb-blue hover:bg-blue-50`} title={`Xem tất cả Epic của ${item.name}`}>
+                      <button type="button" onClick={() => open(item, { alert: 'TTM_COUNTED_IN_SCOPE' }, 'Danh sách Epic (Tổng số Epic)')} className={`${numberButton} text-fb-blue hover:bg-blue-50`} title={`Xem tất cả Epic của ${item.name}`}>
                         {fmt(item.total)}
                       </button>
                     </TD>
@@ -475,7 +500,7 @@ export function BreakdownDonutSections({ dimensions, funnel, onOpen }: { dimensi
                   <DonutChartCard
                     title="% Tổng số Epic"
                     data={items.map((item) => ({ name: item.name, value: item.total }))}
-                    onItemClick={(item) => open(item.name, 'IN_SCOPE_CNTT', 'Danh sách Epic')}
+                    onItemClick={(item) => open(item.name, 'TTM_COUNTED_IN_SCOPE', 'Danh sách Epic')}
                   />
                   <DonutChartCard
                     title="% Pass TTM"

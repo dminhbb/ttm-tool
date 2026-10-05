@@ -1,3 +1,4 @@
+import { loadTtmExclusionSources } from '@/lib/black-listed-epic-service';
 import pool from '@/lib/db';
 import { getActiveHolidaySet } from '@/lib/master-data-service';
 import { findActiveTtmPolicy, listTtmPolicies, resolveTtmCnttWorkingDays } from '@/lib/ttm-policy-service';
@@ -52,6 +53,8 @@ export interface ReportEpicItem {
   startDate: string | null; // Start CNTT (T1)
   status: string;
   summary: string;
+  /** "Epic ngoại lệ" — the Epic has a row in black_listed_epics (black dot next to its key). */
+  ttmBlackListed: boolean;
 }
 
 export interface ReportResult {
@@ -251,6 +254,7 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
   // Display engine 'scoring': Pass/Fail/Sai lệch dữ liệu per Epic come from the Epic Scoring Service
   // (same verdicts as every Epic screen) instead of the legacy evaluation below.
   const scoringCtx = engineMode === 'scoring' ? await loadScoringContext(asOfDate ?? vnToday()) : null;
+  const { blackListedEpicKeys } = await loadTtmExclusionSources();
 
   const releasedEpics: ReportEpicItem[] = [];
   const passedEpics: ReportEpicItem[] = [];
@@ -415,6 +419,7 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
       startDate: row.startDate,
       status: row.status,
       summary: row.summary,
+      ttmBlackListed: blackListedEpicKeys.has(row.epicKey.toUpperCase()),
     };
 
     // Date Range Filters:

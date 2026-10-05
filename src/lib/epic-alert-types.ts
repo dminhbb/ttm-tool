@@ -1,7 +1,7 @@
 import type { AlertLevel, EpicComplexity } from '@/lib/ttm-rules';
 import type { EpicAnomalyViolation } from '@/lib/epic-data-anomaly';
 import type { ReleaseAxisState } from '@/lib/epic-alert-service';
-import type { Finding } from '@/lib/scoring/types';
+import type { Finding, TtmExclusion } from '@/lib/scoring/types';
 
 export type { EpicAnomalyViolation } from '@/lib/epic-data-anomaly';
 export type { ReleaseAxisState } from '@/lib/epic-alert-service';
@@ -215,6 +215,13 @@ export interface EpicAlertRowPhased {
   scoringBadges?: string[];
   scoringIndexFlags?: string[];
   scoringFindings?: Finding[];
+  /** "Epic ngoại lệ" — the Epic has a row in black_listed_epics (shown as a black dot next to its
+   * key). Stamped on by applyTtmExclusions (black-listed-epic-service.ts) for both display engines;
+   * absent on rows no reader has stamped yet (treated as false). */
+  ttmBlackListed?: boolean;
+  /** Why this Epic is outside the TTM calculation although not Cancelled (black listed, or its
+   * project has Time to Market = N) — see TtmExclusion. Null/absent = counted as usual. */
+  ttmExclusion?: TtmExclusion | null;
   ttmCnttTargetWorkingDays: number;
   ttmCnttToField: string | null;
   /** Ends the TTM-E2E "stripe thực tế" (bottom strip) — R4G Date once recorded and in the past,
@@ -233,7 +240,7 @@ export const DASHBOARD_EPIC_ROW_KEYS = [
   'alertLevel', 'currentStatus', 'dataAnomalyViolations', 'domainName', 'dueDate', 'epicKey', 'epicName',
   'epicType', 'hasDataAnomaly', 'ownerName', 'projectKey', 'projectName', 'qaInScope', 'r4gDate',
   'releaseAxisState', 'releaseGraceDeadline', 'requestingUnit', 'scoringBadges', 'scoringIndexFlags',
-  'targetR4gDate', 'ttmCnttInScope', 'ttmE2eAlertLevel',
+  'targetR4gDate', 'ttmBlackListed', 'ttmCnttInScope', 'ttmE2eAlertLevel', 'ttmExclusion',
 ] as const satisfies readonly (keyof EpicAlertRowPhased)[];
 
 export type DashboardEpicRow = Pick<EpicAlertRowPhased, (typeof DASHBOARD_EPIC_ROW_KEYS)[number]> & {

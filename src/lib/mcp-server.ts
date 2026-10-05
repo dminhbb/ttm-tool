@@ -115,7 +115,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
         projectKey: z.string().trim().max(50).optional().describe('Lọc theo mã dự án Jira (project key), ví dụ "TTM".'),
         alertLevel: z.enum(['NONE', 'EARLY', 'LATE', 'FAIL']).optional().describe('Lọc theo mức cảnh báo.'),
         nhanXet: z.enum(NHAN_XET_VALUES).optional().describe(
-          'Bộ lọc "Nhận xét" của màn Quản trị Epic. Tiêu chí phễu TTM Dashboard 2: IN_SCOPE_CNTT = L02 (thêm includeCancelled = true để ra L01), DATA_ANOMALY_IN_SCOPE = Sai lệch dữ liệu (L02 − L03), '
+          'Bộ lọc "Nhận xét" của màn Quản trị Epic. Tiêu chí phễu TTM Dashboard 2: IN_SCOPE_CNTT = L01 (cần includeCancelled = true để tính cả Epic Cancelled), TTM_COUNTED_IN_SCOPE = L02 (L01 − Cancelled − Epic ngoại lệ − dự án Time to Market = N), TTM_BLACK_LISTED = Epic ngoại lệ, TTM_PROJECT_NON_TTM = Epic thuộc dự án Time to Market = N, DATA_ANOMALY_IN_SCOPE = Sai lệch dữ liệu (L02 − L03), '
           + 'TTM_ELIGIBLE_IN_SCOPE = L04a, MISSING_R4G_IN_SCOPE = L04b, TTM_PASS_IN_SCOPE = L05aa, TTM_LATE_IN_SCOPE = L05ab, TTM_NOT_SCORED_IN_SCOPE = L05ac, '
           + 'OVERDUE_MISSING_R4G_IN_SCOPE = L05ba, WITHIN_TARGET_MISSING_R4G = L05bb, OUT_OF_SCOPE_CNTT = ngoài "Phạm vi dữ liệu cho TTM". '
           + 'Khác: ACHIEVED_E2E / FAIL_E2E, LATE (Chậm tiến độ), DATA_ANOMALY, PENDING_TOO_LONG, WAITING_GOLIVE (+ _MISSING_R4G / _WITHIN_GRACE / _OVERDUE), JUSTIFY_GOLIVE, STATUS_MISMATCH.',

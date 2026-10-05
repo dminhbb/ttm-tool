@@ -1,4 +1,5 @@
 import 'server-only';
+import { applyTtmExclusions, loadTtmExclusionSources } from '@/lib/black-listed-epic-service';
 import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
 import type { EpicAlertFilters } from '@/lib/epic-alert-service';
 import type { EpicAlertPhasedResponse } from '@/lib/epic-alert-types';
@@ -30,7 +31,10 @@ function scopeOverrideOf(filters: EpicAlertFilters): Partial<ScoringScopeConfig>
  * getEpicAlertRowsPhased directly from any screen/API.
  */
 export async function getEpicAlertRowsForDisplay(userId: number, role: UserRole, filters: EpicAlertFilters = {}): Promise<EpicAlertPhasedResponse> {
-  const [legacy, mode] = await Promise.all([getEpicAlertRowsPhased(userId, role, filters), getScoringEngineMode()]);
+  const [computed, mode, exclusionSources] = await Promise.all([getEpicAlertRowsPhased(userId, role, filters), getScoringEngineMode(), loadTtmExclusionSources()]);
+  // "Epic ngoại lệ" / project Time to Market = N — stamped on for both engines (the legacy row
+  // builders don't know about them), so every screen can show the black dot and skip the Epic in TTM.
+  const legacy = { ...computed, rows: applyTtmExclusions(computed.rows, exclusionSources) };
   if (mode !== 'scoring' || !legacy.rows.length) return { ...legacy, engineMode: mode };
 
   const asOf = toIsoDate(filters.asOfDate) ?? vnToday();

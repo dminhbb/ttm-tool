@@ -35,7 +35,9 @@ Epic ngoài "Phạm vi dữ liệu cho TTM" **không nằm trong L01** (trước
 (Ngoài "Phạm vi dữ liệu cho TTM" — không thuộc phễu)
 [L01]  Tổng epic (kể cả Cancelled)
    │  − Cancelled                      (trạng thái chứa "cancel", không phân biệt hoa/thường)
-[L02]  Epic loại bỏ Cancelled
+   │  − Epic ngoại lệ                  (TTM Black listed = true — bảng black_listed_epics; từ 05/10/2026)
+   │  − Dự án Time to Market = N       (projects.ttm = 'N'; từ 05/10/2026)
+[L02]  Epic trong phạm vi tính TTM
    │  − Sai lệch dữ liệu               (hasDataAnomaly — không chấm Đạt/Fail)
 [L03]  Epic chuẩn hoá dữ liệu  =  L04a + L04b
    ├── [L04a] Epic hoàn thành: có R4G Date
@@ -50,7 +52,7 @@ Epic ngoài "Phạm vi dữ liệu cho TTM" **không nằm trong L01** (trước
 | Mã | Tên tiêu chí | Cách tính | Nhóm lá (`ttmFunnelBucket`) | Bộ lọc khi mở danh sách |
 |---|---|---|---|---|
 | `L01` | Tổng epic | Mọi Epic trong phạm vi dữ liệu để tính toán (kể cả Cancelled) | mọi nhóm trừ `OUT_OF_SCOPE` | `alert=IN_SCOPE_CNTT` + `status` = mọi trạng thái đang có |
-| `L02` | Epic loại bỏ Cancelled | L01 − các Epic có status Cancelled | − `CANCELLED` | `alert=IN_SCOPE_CNTT` + `status` = các trạng thái Cancelled (danh sách Epic bị loại) |
+| `L02` | Epic trong phạm vi tính TTM | L01 − Cancelled − Epic ngoại lệ (TTM Black listed = true) − Epic thuộc dự án Time to Market = N | − `CANCELLED` − `BLACK_LISTED` − `PROJECT_NON_TTM` | `alert=TTM_COUNTED_IN_SCOPE` (L02); nhóm bị loại: `IN_SCOPE_CNTT` + `status` Cancelled, `TTM_BLACK_LISTED`, `TTM_PROJECT_NON_TTM` |
 | `L03` | Epic chuẩn hoá dữ liệu | L02 − các Epic bị đánh dấu "Sai lệch dữ liệu" | − `DATA_ANOMALY` | `alert=DATA_ANOMALY_IN_SCOPE` (danh sách Epic bị loại) |
 | `L04a` | Epic hoàn thành | Các Epic có R4G Date trong L03 | `R4G_PASS` + `R4G_LATE` + `R4G_NOT_SCORED` | `TTM_ELIGIBLE_IN_SCOPE` |
 | `L04b` | Epic chưa hoàn thành | Các Epic không có R4G Date trong L03 | `NO_R4G_OVERDUE` + `NO_R4G_WITHIN_TARGET` | `MISSING_R4G_IN_SCOPE` |
@@ -111,7 +113,7 @@ Ba khối này lấy từ TTM Dashboard và tính lại theo tiêu chí của ph
 
 | Widget | Giá trị | Dòng phụ |
 |---|---|---|
-| Tổng số Epic | **L02** | `Trừ Cancelled= ` + số Epic status Cancelled (L01 − L02) |
+| Tổng số Epic | **L02** | `Trừ Cancelled= `, `Trừ Epic ngoại lệ= `, `Trừ dự án TTM=N= ` + số Epic của từng nhóm bị loại (tổng = L01 − L02) |
 | Fail TTM-CNTT (QLDA) | **L05ab + L05ba** | `/Số Epic= ` + (L05aa + L05ab + L05ba) |
 | TTM-CNTT (QLDA) | Tỷ lệ % Pass = L05aa / (L05aa + L05ab + L05ba) | tử số / mẫu số |
 | TTM-CNTT (QA) | Cùng công thức, chỉ Epic MVP Done / Released trong "R4G for TTM (QA)" | tử số / mẫu số |

@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   try {
     // Shared by every screen that embeds the Epic Browser (Quản lý Epic 15/30, Nguồn dữ liệu) —
     // any authenticated role, matching whichever of those screens the caller already got past.
-    await requireUser(request);
+    const user = await requireUser(request);
     const url = new URL(request.url);
     const epicKey = url.searchParams.get('epicKey');
     const parentIdParam = url.searchParams.get('parentId');
@@ -26,7 +26,8 @@ export async function GET(request: NextRequest) {
         getEpicBrowserSummary(trimmedEpicKey),
       ]);
       if (!root) return NextResponse.json({ error: `Không tìm thấy Epic ${epicKey}.` }, { status: 404 });
-      return NextResponse.json({ root, summary });
+      // Same roles as PATCH /api/black-listed-epics — the form in Duyệt Epic is read-only for the rest.
+      return NextResponse.json({ canEditBlackList: user.role === 'ADMIN' || user.role === 'SUPERADMIN', root, summary });
     }
 
     if (parentIdParam || level) {

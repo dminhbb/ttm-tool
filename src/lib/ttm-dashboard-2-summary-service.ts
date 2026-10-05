@@ -87,6 +87,8 @@ export async function getTtmDashboard2Summary(userId: number, role: UserRole, in
     funnel: {
       criteria: (Object.keys(TTM_FUNNEL_CRITERIA) as TtmFunnelCriterionId[]).map((id) => ({ id, ...TTM_FUNNEL_CRITERIA[id], count: counts[id] })),
       cancelled: funnel.buckets.CANCELLED,
+      epicNgoaiLe: funnel.buckets.BLACK_LISTED ?? 0,
+      duAnKhongTinhTtm: funnel.buckets.PROJECT_NON_TTM ?? 0,
       saiLechDuLieu: funnel.buckets.DATA_ANOMALY,
       ngoaiPhamViDuLieuChoTtm: funnel.buckets.OUT_OF_SCOPE,
       scopeStats: funnel.scopeStats,
@@ -128,8 +130,8 @@ export async function getTtmDashboard2Summary(userId: number, role: UserRole, in
       : null,
     filterOptions: { domains: options.domains, pmSms: options.pmSms, projectKeys: options.projects, requestingUnits: options.requestingUnits },
     glossary: {
-      funnel: 'Phễu chỉ tính Epic trong "Phạm vi dữ liệu cho TTM" và phạm vi quyền của người gọi. L02 = L01 − Cancelled; L03 = L02 − Sai lệch dữ liệu = L04a + L04b; L04a = L05aa + L05ab + L05ac; L04b = L05ba + L05bb.',
-      indexes: 'Cả 3 chỉ số: pct = Tỷ lệ % Pass = pass / denominator, denominator = pass + fail (chỉ Epic đã có kết luận; Cancelled, Sai lệch dữ liệu, chưa kết luận không tính); pct = null khi chưa có Epic nào được kết luận. TTM-CNTT (QLDA): pass = L05aa, fail = L05ab + L05ba. TTM-CNTT (QA): cùng công thức, chỉ Epic MVP Done / Released trong "R4G for TTM (QA)". TTM-E2E: Đạt / (Đạt + Fail) TTM-E2E, không áp "Phạm vi dữ liệu cho TTM".',
+      funnel: 'Phễu chỉ tính Epic trong "Phạm vi dữ liệu cho TTM" và phạm vi quyền của người gọi. L02 = L01 − Cancelled − Epic ngoại lệ (TTM Black listed) − Epic thuộc dự án có Time to Market = N; L03 = L02 − Sai lệch dữ liệu = L04a + L04b; L04a = L05aa + L05ab + L05ac; L04b = L05ba + L05bb.',
+      indexes: 'Cả 3 chỉ số: pct = Tỷ lệ % Pass = pass / denominator, denominator = pass + fail (chỉ Epic đã có kết luận; Cancelled, Epic ngoại lệ, dự án Time to Market = N, Sai lệch dữ liệu, chưa kết luận không tính); pct = null khi chưa có Epic nào được kết luận. TTM-CNTT (QLDA): pass = L05aa, fail = L05ab + L05ba. TTM-CNTT (QA): cùng công thức, chỉ Epic MVP Done / Released trong "R4G for TTM (QA)". TTM-E2E: Đạt / (Đạt + Fail) TTM-E2E, không áp "Phạm vi dữ liệu cho TTM".',
       widgets: 'tongSoEpic = L02; failTtmCntt = L05ab + L05ba; epicDanhGia = L05aa + L05ab + L05ba. chamTienDo, saiLechDuLieu, choGolive, giaiTrinhGolive đếm trên mọi Epic không Cancelled của tập đang xem.',
       breakdown: 'Mỗi dòng dùng cùng tiêu chí với phễu. dungTienDo / chamTienDo chỉ đếm Epic chưa có R4G Date và không Sai lệch dữ liệu (chậm = đang Fail hoặc Cảnh báo muộn); Epic Sai lệch dữ liệu đếm riêng ở saiLechDuLieu.',
       ttmIndexGlobal: 'Chỉ số toàn công ty trên banner — tính trên toàn bộ Epic, không phụ thuộc quyền/bộ lọc.',

@@ -7,6 +7,7 @@ import {
   STORY_ISSUE_TYPES_SQL,
 } from '@/lib/issue-resolution-sql';
 import type { DataReviewChildrenResponse, DataReviewIssue } from '@/lib/data-review-types';
+import { isEpicBlackListed } from '@/lib/black-listed-epic-service';
 import { getDomainByProjectKeyMap, getProjectMetaByProjectKeyMap } from '@/lib/master-data-service';
 
 /**
@@ -221,7 +222,10 @@ export interface EpicBrowserSummary {
   /** PM/SM of the Epic's project — comma-joined when there are several, derived live from
    * user_projects (getProjectMetaByProjectKeyMap), not the Jira assignee. */
   ownerName: string;
+  projectKey: string;
   projectName: string;
+  /** "Epic ngoại lệ" — true when the Epic has a row in black_listed_epics (false when it has none). */
+  ttmBlackListed: boolean;
   /** "Đơn vị yêu cầu" — issues.requesting_unit, epic rows only (Py Jira API adapter). */
   requestingUnit: string | null;
   startDate: string | null;
@@ -240,7 +244,7 @@ interface EpicBrowserSummaryRow {
 }
 
 export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowserSummary | null> {
-  const [result, domainByProjectKey, projectMetaByProjectKey] = await Promise.all([
+  const [result, domainByProjectKey, projectMetaByProjectKey, ttmBlackListed] = await Promise.all([
     pool.query<EpicBrowserSummaryRow>(`
       SELECT
         issues.issue_key AS "epicKey", issues.issue_name AS "epicName", issues.current_status AS status,
@@ -261,6 +265,8 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
     `, [epicKey]),
     getDomainByProjectKeyMap(),
     getProjectMetaByProjectKeyMap(),
+    // A database the black list migration hasn't reached yet still browses Epics — just as "false".
+    isEpicBlackListed(epicKey).catch(() => false),
   ]);
 
   const row = result.rows[0];
@@ -274,9 +280,11 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
     epicName: row.epicName,
     ideaApprovedDate: row.ideaApprovedDate,
     ownerName: projectMeta?.leadName ?? '',
+    projectKey: row.project ?? '',
     projectName: projectMeta?.projectName ?? '',
     requestingUnit: row.requestingUnit,
     startDate: row.startDate,
     status: row.status,
+    ttmBlackListed,
   };
 }

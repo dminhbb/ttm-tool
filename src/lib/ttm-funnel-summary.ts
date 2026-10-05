@@ -14,7 +14,7 @@ import { summarizeE2e, summarizeQaIndex, summarizeTtmCnttFromCounts, type TtmCnt
 export const TTM_FUNNEL_ROW_KEYS = [
   'alertLevel', 'currentStatus', 'domainName', 'epicType', 'hasDataAnomaly', 'ownerName', 'projectKey', 'projectName',
   'qaInScope', 'r4gDate', 'releaseAxisState', 'releaseGraceDeadline', 'requestingUnit', 'scoringBadges',
-  'scoringIndexFlags', 'ttmCnttInScope', 'ttmE2eAlertLevel',
+  'scoringIndexFlags', 'ttmCnttInScope', 'ttmE2eAlertLevel', 'ttmExclusion',
 ] as const satisfies readonly (keyof DashboardEpicRow)[];
 
 export type TtmFunnelRow = Pick<DashboardEpicRow, (typeof TTM_FUNNEL_ROW_KEYS)[number]>;
@@ -36,7 +36,7 @@ export interface TtmBreakdownItem {
   name: string;
   /** Value to filter Quản trị Epic by (project: its key); null for a placeholder ("Chưa gán…"). */
   linkValue: string | null;
-  /** L02 — Epic loại bỏ Cancelled. */
+  /** L02 — Epic trong phạm vi tính TTM (L01 − Cancelled − Epic ngoại lệ − dự án Time to Market = N). */
   total: number;
   /** L05aa — Epic đạt TTM-CNTT. */
   pass: number;
@@ -82,7 +82,7 @@ export interface TtmDashboard2Insights {
  */
 export const TTM_FUNNEL_CRITERIA = {
   L01: { name: 'Tổng epic', definition: 'Mọi Epic trong phạm vi dữ liệu để tính toán (kể cả Cancelled)' },
-  L02: { name: 'Epic loại bỏ Cancelled', definition: 'L01 − các Epic có status Cancelled' },
+  L02: { name: 'Epic trong phạm vi tính TTM', definition: 'L01 − các Epic có status Cancelled − các Epic ngoại lệ (TTM Black listed = true) − các Epic thuộc dự án có Time to Market = N' },
   L03: { name: 'Epic chuẩn hoá dữ liệu', definition: 'L02 − các Epic bị đánh dấu "Sai lệch dữ liệu"' },
   L04a: { name: 'Epic hoàn thành', definition: 'Các Epic có R4G Date trong L03' },
   L04b: { name: 'Epic chưa hoàn thành', definition: 'Các Epic không có R4G Date trong L03' },
@@ -133,11 +133,13 @@ export function hasActiveTtmDashboard2Filter(filters: TtmDashboard2Filters): boo
 }
 
 export const EMPTY_TTM_FUNNEL_BUCKETS: Readonly<Record<TtmFunnelBucket, number>> = {
+  BLACK_LISTED: 0,
   CANCELLED: 0,
   DATA_ANOMALY: 0,
   NO_R4G_OVERDUE: 0,
   NO_R4G_WITHIN_TARGET: 0,
   OUT_OF_SCOPE: 0,
+  PROJECT_NON_TTM: 0,
   R4G_LATE: 0,
   R4G_NOT_SCORED: 0,
   R4G_PASS: 0,
@@ -169,7 +171,10 @@ const BREAKDOWN_KEY: Record<TtmBreakdownDimension, (row: TtmFunnelRow) => { key:
 /** Widget row / matrix / pie chart numbers. `bucketOf` = each row's funnel leaf (already computed by
  * the caller), so a breakdown's columns always add up to the funnel's criteria. */
 function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<TtmFunnelRow, TtmFunnelBucket>): TtmDashboard2Insights {
-  // Same universe as TTM Dashboard's widgets: every non-Cancelled Epic of the viewed set.
+  // Same universe as TTM Dashboard's widgets: every non-Cancelled Epic of the viewed set. The
+  // operational tiles (Chậm tiến độ, Sai lệch dữ liệu, Chờ / Giải trình golive) keep counting "Epic
+  // ngoại lệ" and non-TTM-project Epics — their drill-down lists in Quản trị Epic show those Epics
+  // too; only the TTM numbers (matrix columns, the QA / E2E rings) leave them out.
   const active = rows.filter((row) => !isCancelledStatus(row.currentStatus || ''));
   const waitingGolive: TtmDashboard2Insights['waitingGolive'] = { byGraceDeadline: {}, missingR4g: 0, total: 0 };
   let anomalyCount = 0;
@@ -200,7 +205,8 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
       }
       group.rows.push(row);
       const bucket = bucketOf.get(row);
-      if (bucket === 'OUT_OF_SCOPE') continue;
+      // Not part of L02: outside "Phạm vi dữ liệu cho TTM", "Epic ngoại lệ", project Time to Market = N.
+      if (bucket === 'OUT_OF_SCOPE' || bucket === 'BLACK_LISTED' || bucket === 'PROJECT_NON_TTM') continue;
       group.item.total += 1;
       if (bucket === 'R4G_PASS') group.item.pass += 1;
       else if (bucket === 'R4G_LATE' || bucket === 'NO_R4G_OVERDUE') group.item.fail += 1;
@@ -289,11 +295,13 @@ export function buildTtmDashboard2FilterOptions(rows: readonly TtmFunnelRow[]): 
   };
 }
 
-/** Every criterion L01…L05bb derived from the leaves (L03 = L04a + L04b). */
+/** Every criterion L01…L05bb derived from the leaves (L02 = L01 − Cancelled − Epic ngoại lệ −
+ * dự án Time to Market = N; L03 = L04a + L04b). */
 export function ttmFunnelLayers(summary: TtmFunnelSummary) {
   const { buckets } = summary;
   const l1 = summary.total;
-  const l2 = l1 - buckets.CANCELLED;
+  // `?? 0`: a summary cached before these two buckets existed has no such keys.
+  const l2 = l1 - buckets.CANCELLED - (buckets.BLACK_LISTED ?? 0) - (buckets.PROJECT_NON_TTM ?? 0);
   const l3 = l2 - buckets.DATA_ANOMALY;
   const l4a = buckets.R4G_PASS + buckets.R4G_LATE + buckets.R4G_NOT_SCORED;
   const l4b = buckets.NO_R4G_OVERDUE + buckets.NO_R4G_WITHIN_TARGET;

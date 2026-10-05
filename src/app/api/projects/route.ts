@@ -1,10 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
 import { parseCSV } from '@/lib/csv-parser';
-import { getClient } from '@/lib/db';
+import { getLatestImportBatchId, refreshDerivedCachesInBackground } from '@/lib/daily-cache-service';
+import pool, { getClient } from '@/lib/db';
 import { createProject, deleteProject, listProjects, updateProject } from '@/lib/master-data-service';
 import { PROJECT_CATEGORIES } from '@/lib/master-data-types';
 import type { ProjectCategory, ProjectInput, TtmOption } from '@/lib/master-data-types';
+
+// A project's "Time to Market" flag decides whether its Epics count from L02 of the TTM Dashboard 2
+// funnel on (N = left out, see TtmExclusion in scoring/types.ts), so a change to it rebuilds the
+// derived caches in after() — past the response — like a black list save does.
+export const maxDuration = 300;
+async function refreshTtmCaches(): Promise<void> { const batchId = await getLatestImportBatchId(); after(() => refreshDerivedCachesInBackground(batchId, 'projects')); }
+async function storedTtmFlag(id: number): Promise<{ sourceProjectKey: string; ttm: string } | null> { const result = await pool.query<{ sourceProjectKey: string; ttm: string }>('SELECT source_project_key AS "sourceProjectKey", ttm FROM projects WHERE id = $1', [id]); return result.rows[0] ?? null; }
 
 const MAX_CSV_BYTES = 1024 * 1024;
 const MAX_IMPORT_ROWS = 500;
@@ -17,9 +25,9 @@ function validCategory(value: string): ProjectCategory | null { return PROJECT_C
 function validateProjectInput(input: ProjectInput): string | null { if (!input.projectName.trim() || !input.sourceProjectKey.trim()) return 'Tên dự án và Project Key (Jira) là bắt buộc.'; if (input.projectName.trim().length > 255 || input.sourceProjectKey.trim().length > 50) return 'Thông tin dự án vượt quá độ dài cho phép.'; return null; }
 
 export async function GET(request: NextRequest) { try { await requireUser(request, ['ADMIN', 'SUPERADMIN', 'SUPERVISOR']); return NextResponse.json(await listProjects()); } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể tải danh sách dự án.' }, { status: 500 }); } }
-export async function POST(request: NextRequest) { try { await requireUser(request, ['ADMIN', 'SUPERADMIN']); const input: unknown = await request.json(); if (!isProjectInput(input)) return NextResponse.json({ error: 'Dữ liệu dự án không hợp lệ.' }, { status: 400 }); const error = validateProjectInput(input); if (error) return NextResponse.json({ error }, { status: 400 }); return NextResponse.json(await createProject({ ...input, projectName: input.projectName.trim(), sourceProjectKey: input.sourceProjectKey.trim() }), { status: 201 }); } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể tạo dự án.' }, { status: 500 }); } }
-export async function PUT(request: NextRequest) { try { await requireUser(request, ['ADMIN', 'SUPERADMIN']); const input: unknown = await request.json(); if (!isProjectInput(input) || !('id' in input) || !Number.isInteger(input.id) || (input.id as number) <= 0) return NextResponse.json({ error: 'Dữ liệu dự án không hợp lệ.' }, { status: 400 }); const project = input as ProjectInput & { id: number }; const error = validateProjectInput(project); if (error) return NextResponse.json({ error }, { status: 400 }); return NextResponse.json(await updateProject(project.id, { ...project, projectName: project.projectName.trim(), sourceProjectKey: project.sourceProjectKey.trim() })); } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể cập nhật dự án.' }, { status: 500 }); } }
-export async function DELETE(request: NextRequest) { try { await requireUser(request, ['ADMIN', 'SUPERADMIN']); const id = Number(new URL(request.url).searchParams.get('id')); if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: 'Project ID không hợp lệ.' }, { status: 400 }); await deleteProject(id); return NextResponse.json({ success: true }); } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể xóa dự án.' }, { status: 500 }); } }
+export async function POST(request: NextRequest) { try { await requireUser(request, ['ADMIN', 'SUPERADMIN']); const input: unknown = await request.json(); if (!isProjectInput(input)) return NextResponse.json({ error: 'Dữ liệu dự án không hợp lệ.' }, { status: 400 }); const error = validateProjectInput(input); if (error) return NextResponse.json({ error }, { status: 400 }); const created = await createProject({ ...input, projectName: input.projectName.trim(), sourceProjectKey: input.sourceProjectKey.trim() }); if (input.ttm === 'N') await refreshTtmCaches(); return NextResponse.json(created, { status: 201 }); } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể tạo dự án.' }, { status: 500 }); } }
+export async function PUT(request: NextRequest) { try { await requireUser(request, ['ADMIN', 'SUPERADMIN']); const input: unknown = await request.json(); if (!isProjectInput(input) || !('id' in input) || !Number.isInteger(input.id) || (input.id as number) <= 0) return NextResponse.json({ error: 'Dữ liệu dự án không hợp lệ.' }, { status: 400 }); const project = input as ProjectInput & { id: number }; const error = validateProjectInput(project); if (error) return NextResponse.json({ error }, { status: 400 }); const previous = await storedTtmFlag(project.id); const updated = await updateProject(project.id, { ...project, projectName: project.projectName.trim(), sourceProjectKey: project.sourceProjectKey.trim() }); if (previous && (previous.ttm !== project.ttm || (project.ttm === 'N' && previous.sourceProjectKey !== project.sourceProjectKey.trim()))) await refreshTtmCaches(); return NextResponse.json(updated); } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể cập nhật dự án.' }, { status: 500 }); } }
+export async function DELETE(request: NextRequest) { try { await requireUser(request, ['ADMIN', 'SUPERADMIN']); const id = Number(new URL(request.url).searchParams.get('id')); if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: 'Project ID không hợp lệ.' }, { status: 400 }); const previous = await storedTtmFlag(id); await deleteProject(id); if (previous?.ttm === 'N') await refreshTtmCaches(); return NextResponse.json({ success: true }); } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể xóa dự án.' }, { status: 500 }); } }
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -59,6 +67,7 @@ export async function PATCH(request: NextRequest) {
       }
       await client.query('COMMIT');
     } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
+    if (projects.some((project) => project.ttm === 'N')) await refreshTtmCaches();
     return NextResponse.json({ success: true, imported: projects.length, unresolvedLeadCount }, { status: 201 });
   } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể import danh sách dự án.' }, { status: 500 }); }
 }

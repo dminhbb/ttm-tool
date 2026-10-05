@@ -30,6 +30,27 @@
 - **Fix lưu ma trận báo lỗi `"TTM Dashboard 2" chỉ có quyền Xem, không có Thêm/Sửa/Xóa`** khi bỏ quyền Xem của SUPERADMIN: dòng SUPERADMIN
   được seed Thêm/Sửa/Xóa = TRUE cả ở chức năng `VIEW_ONLY`, nay các dòng đó được gửi lên nên API từ chối. Màn hình xoá 3 cờ này cho
   mọi dòng `VIEW_ONLY` trước khi gửi (`src/components/permission-matrix/PermissionMatrixSettings.tsx`); lần lưu đầu sẽ dọn luôn dữ liệu seed cũ.
+- **Epic ngoại lệ (black listed epics) + rule L02 mới** (`SCORING_CODE_VERSION` → `scoring-9`; legacy engine không đổi):
+  - **Schema**: bảng mới `black_listed_epics` (`db/migrations/20261005_create_black_listed_epics.sql`) — 1 dòng / Epic có
+    `ttm_black_listed = true`; bỏ ngoại lệ = XOÁ dòng. Đã migrate **Supabase**; **local CHƯA migrate** (Postgres local không chạy trên
+    máy này lúc làm — chạy `npm run db:migrate:local` khi bật lại).
+  - **Popup "Epic ngoại lệ"** (nhóm menu Admin, `src/components/settings/BlackListedEpicsModal.tsx`, API `/api/black-listed-epics`):
+    textarea mỗi dòng `KEY:EPIC-1,EPIC-2`; nút "Kiểm tra thông tin" / "Lưu thông tin" dùng chung parser
+    `src/lib/black-listed-epics-format.ts` (báo lỗi theo dòng + vị trí ký tự, bấm vào lỗi để bôi đen đúng ký tự). ADMIN/SUPERADMIN
+    sửa, SUPERVISOR chỉ xem.
+  - **Duyệt Epic**: form "TTM Black listed" true/false + nút Lưu + popup xác nhận (`EpicBrowserModal.tsx`).
+  - **Chấm đen** cạnh Epic key (`src/components/ui/TtmBlackListDot.tsx`) ở Quản trị Epic, Epic in PO, Báo cáo Epic, Duyệt Epic.
+  - **L02 = L01 − Cancelled − Epic ngoại lệ − Epic thuộc dự án `Time to Market = N`** (đổi tên L02 thành "Epic trong phạm vi tính TTM").
+    Dòng Epic mang `ttmBlackListed` / `ttmExclusion` (`applyTtmExclusions`, `src/lib/black-listed-epic-service.ts`) khi dựng cache và
+    khi tính live; phễu (`epic-row-verdicts.ts`, `ttm-funnel-summary.ts`), TTM-CNTT (QLDA/QA) và TTM-E2E (`ttm-cntt-qa.ts`), index
+    flags của Scoring (`scoring/score-epic.ts`, badge `SCOPE_TTM_BLACK_LISTED` / `SCOPE_PROJECT_NON_TTM`) và bộ lọc SQL của Quản trị
+    Epic đều bỏ các Epic này. Bộ lọc Nhận xét mới: `TTM_COUNTED_IN_SCOPE` (L02), `TTM_BLACK_LISTED`, `TTM_PROJECT_NON_TTM`.
+    4 ô vận hành của Dashboard 2 (Chậm tiến độ, Sai lệch dữ liệu, Chờ / Giải trình golive) KHÔNG đổi. Badge đánh giá của từng Epic vẫn hiện.
+  - **Cache**: lưu Epic ngoại lệ, hoặc đổi `Time to Market` / thêm / xoá dự án TTM = N (`src/app/api/projects/route.ts`) → rebuild
+    cache trong `after()`. Cache TTM Dashboard 2 lên `PAYLOAD_VERSION` 6. Số liệu chỉ đổi sau lần rebuild cache kế tiếp.
+  - **Lưu ý dữ liệu**: Supabase đang có 17 dự án TTM = N với 152 Epic đang tính (trên 862) — sẽ rời khỏi L02 và các chỉ số sau lần rebuild.
+- **Menu popup — đồng bộ font**: `button { font: inherit }` (globals.css, không nằm trong layer) đè `text-sm font-semibold` của Tailwind
+  trên dòng `<button>` nhưng không đè trên `<Link>` → class font chuyển sang nhãn bên trong (`AppShell.tsx`), áp dụng cho cả nút nhóm.
 
 - **Scoring Engine — R8 theo ngày + workflow status** (`SCORING_CODE_VERSION` → `scoring-6`, spec §17; logic cũ không đổi, không đổi schema):
   - **R8** chỉ tính khi R4G Date đã tới (`R4G Date ≤ asOf`): R4G Date ở tương lai là ngày kế hoạch → không còn là Sai lệch dữ liệu,

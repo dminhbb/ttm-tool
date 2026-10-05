@@ -9,6 +9,7 @@ import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
+import { TtmBlackListDot } from '@/components/ui/TtmBlackListDot';
 import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import { EpicAlertTimeline } from '@/components/epic-alerts/EpicAlertTimeline';
 import { DataAnomalyBadge, DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
@@ -902,6 +903,7 @@ export default function EpicInPoPage() {
                       >
                         {row.epicKey}
                       </button>
+                      {row.ttmBlackListed && <TtmBlackListDot className="ml-1.5" />}
                       {row.epicName && (
                         <span className="ttm-epic-summary" title={row.epicName}>{truncateSummary(row.epicName)}</span>
                       )}

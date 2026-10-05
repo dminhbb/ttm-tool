@@ -54,8 +54,9 @@ interface CachedPayload {
 /** Bump whenever the meaning/shape of TtmFunnelSummary changes, so entries cached by older code are
  * not served. 2 = funnel limited to "Phạm vi dữ liệu cho TTM" (criteria L01…L05bb, 2026-10-04);
  * 3 = + insights (widget row, breakdown matrix, pie charts); 4 = matrix: "Sai lệch dữ liệu" counted on
- * its own (TtmBreakdownItem.anomaly), no longer inside "đúng tiến độ"; 5 = TTM-E2E ring = Đạt / (Đạt + Fail). */
-const PAYLOAD_VERSION = 5;
+ * its own (TtmBreakdownItem.anomaly), no longer inside "đúng tiến độ"; 5 = TTM-E2E ring = Đạt / (Đạt + Fail);
+ * 6 = L02 also drops "Epic ngoại lệ" and non-TTM-project Epics (buckets BLACK_LISTED / PROJECT_NON_TTM). */
+const PAYLOAD_VERSION = 6;
 
 const ALL_SCOPE: AccessScope = { accessRole: 'CBQL_PHONG', projectComponents: new Map(), sourceProjectKeys: null };
 

@@ -1,5 +1,6 @@
 import 'server-only';
 import pool from '@/lib/db';
+import { loadTtmExclusionSources, resolveTtmExclusion } from '@/lib/black-listed-epic-service';
 import { computeEpicPhaseCompletionByEpicKey } from '@/lib/epic-phase-completion-service';
 import { EPIC_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 import { toIsoDate } from '@/lib/scoring/dates';
@@ -18,13 +19,15 @@ interface EpicFactRow {
   dueDate: string | null;
   requestType: string;
   requirementLevel: string | null;
+  projectKey: string;
 }
 
 /**
  * Every Epic's facts as known at `asOf`: its newest `issues` row whose data layer is on/before that
  * date (same "latest known row per Epic" rule as fetchEpicAlertContext, bounded by asOf), plus the
  * story/subtask-derived phase completion read at that same date (decision D3). Permission-unscoped —
- * callers filter by access scope when reading.
+ * callers filter by access scope when reading. `ttmExclusion` (Epic ngoại lệ / project Time to
+ * Market = N) is today's configuration, not a per-layer fact.
  *
  * `layerDates` — the "Chọn lớp dữ liệu" window: when given, only those exact data layers are read
  * (same predicate as fetchEpicAlertContext) instead of every layer up to asOf.
@@ -32,7 +35,7 @@ interface EpicFactRow {
 export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]; layerDates?: string[] | null } = {}): Promise<EpicFacts[]> {
   const layerDates = options.layerDates?.length ? options.layerDates : null;
   const epicKeys = options.epicKeys?.length ? options.epicKeys : null;
-  const [rows, completionByEpicKey] = await Promise.all([
+  const [rows, completionByEpicKey, exclusionSources] = await Promise.all([
     pool.query<EpicFactRow>(`
       SELECT DISTINCT ON (issues.issue_key)
         issues.issue_key AS "epicKey",
@@ -44,7 +47,12 @@ export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]
         issues.r4g_date::text AS "r4gDate",
         issues.due_date::text AS "dueDate",
         COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'epicType', ''), '') AS "requestType",
-        issues.requirement_level AS "requirementLevel"
+        issues.requirement_level AS "requirementLevel",
+        COALESCE(
+          NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+          NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),
+          ''
+        ) AS "projectKey"
       FROM issues
       LEFT JOIN import_rows
         ON import_rows.import_batch_id = issues.source_import_batch_id
@@ -56,6 +64,7 @@ export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]
       ORDER BY issues.issue_key ASC, issues.aggregated_at DESC
     `, [asOf, layerDates, epicKeys]),
     computeEpicPhaseCompletionByEpicKey(asOf),
+    loadTtmExclusionSources(),
   ]);
 
   return rows.rows.map((row) => {
@@ -74,6 +83,7 @@ export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]
       phaseCompletion: completion
         ? { designDone: completion.designDone, devDone: completion.devDone, testDone: completion.testDone, r4goliveDone: completion.r4goliveDone }
         : null,
+      ttmExclusion: resolveTtmExclusion(exclusionSources, row.epicKey, row.projectKey),
     };
   });
 }

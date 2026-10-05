@@ -125,6 +125,8 @@ interface NodeDetail {
   rule: React.ReactNode;
   formula: React.ReactNode;
   drill: (DrillParams & { title: string; label: string; count: number }) | null;
+  /** Further drill-down lists of the same node (L02: one per group of Epics it drops). */
+  extraDrills?: (DrillParams & { title: string; label: string; count: number })[];
   buttonClass: string;
   extra?: React.ReactNode;
 }
@@ -347,6 +349,9 @@ export default function TtmDashboard2Page() {
   const { l1, l2, l3, l4a, l4b } = ttmFunnelLayers(funnel);
   const layer1ScopeStats = funnel.scopeStats;
   const cancelledCount = buckets.CANCELLED;
+  // `?? 0`: a summary cached before L02 dropped these two groups has no such buckets.
+  const blackListedCount = buckets.BLACK_LISTED ?? 0;
+  const nonTtmProjectCount = buckets.PROJECT_NON_TTM ?? 0;
   const anomalyCount = buckets.DATA_ANOMALY;
   const outOfScopeCount = buckets.OUT_OF_SCOPE;
   const passCount = buckets.R4G_PASS;
@@ -407,15 +412,22 @@ export default function TtmDashboard2Page() {
       countColor: 'text-[#ff4d4f]',
       tone: { box: 'bg-rose-50 border-rose-200', strong: 'text-rose-950', soft: 'text-rose-800' },
       summaryLabel: `${name('L02')}:`,
-      ratioLine: `Đã loại trừ: ${fmt(cancelledCount)} Epic · Tỷ lệ giữ lại: ${pct(l2, l1)}`,
+      ratioLine: `Đã loại trừ: ${fmt(l1 - l2)} Epic · Tỷ lệ giữ lại: ${pct(l2, l1)}`,
       rule: (
         <>
-          Loại các Epic có trạng thái chứa chữ <code>Cancel</code> (không phân biệt hoa/thường) — cùng quy tắc với các màn hình khác.
-          Trạng thái gặp trong phạm vi hiện tại: {funnel.cancelledStatuses.length > 0 ? funnel.cancelledStatuses.map((status) => <code key={status} className="mr-1">{status}</code>) : <i>không có</i>}.
+          Loại 3 nhóm Epic khỏi phạm vi tính toán Time to Market:
+          <br />1. Epic có trạng thái chứa chữ <code>Cancel</code> (không phân biệt hoa/thường) — trạng thái gặp trong phạm vi hiện tại: {funnel.cancelledStatuses.length > 0 ? funnel.cancelledStatuses.map((status) => <code key={status} className="mr-1">{status}</code>) : <i>không có</i>}.
+          <br />2. <b>Epic ngoại lệ</b> — Epic có <code>TTM Black listed = true</code> (khai báo ở menu “Epic ngoại lệ” hoặc trong màn Duyệt Epic).
+          <br />3. Epic thuộc dự án có trường <b>Time to Market = N</b> (Quản lý Dự án).
+          <br />Mỗi Epic chỉ bị trừ 1 lần, theo đúng thứ tự trên.
         </>
       ),
-      formula: <>L02 = L01 ({fmt(l1)}) − Cancelled ({fmt(cancelledCount)})<br />= <b>{fmt(l2)} Epic</b></>,
+      formula: <>L02 = L01 ({fmt(l1)}) − Cancelled ({fmt(cancelledCount)}) − Epic ngoại lệ ({fmt(blackListedCount)}) − Dự án Time to Market = N ({fmt(nonTtmProjectCount)})<br />= <b>{fmt(l2)} Epic</b></>,
       drill: { alert: 'IN_SCOPE_CNTT', count: cancelledCount, label: `Xem ${fmt(cancelledCount)} Epic Cancelled bị loại`, status: funnel.cancelledStatuses, title: 'Danh sách Epic Cancelled (bị loại ở L02)' },
+      extraDrills: [
+        { alert: 'TTM_BLACK_LISTED', count: blackListedCount, label: `Xem ${fmt(blackListedCount)} Epic ngoại lệ bị loại`, title: 'Danh sách Epic ngoại lệ — TTM Black listed (bị loại ở L02)' },
+        { alert: 'TTM_PROJECT_NON_TTM', count: nonTtmProjectCount, label: `Xem ${fmt(nonTtmProjectCount)} Epic thuộc dự án Time to Market = N`, title: 'Danh sách Epic thuộc dự án Time to Market = N (bị loại ở L02)' },
+      ],
       buttonClass: 'bg-rose-600 hover:bg-rose-700',
     },
     L03: {
@@ -850,7 +862,7 @@ export default function TtmDashboard2Page() {
                 fill="#ff4d4f"
                 lidFill="#cf1322"
                 count={l2}
-                label="Loại bỏ Cancelled"
+                label="Phạm vi tính TTM"
                 labelColor="#ffebee"
                 fontMain={21}
                 onContextMenu={(e) => handleContextMenu(e, 'L02')}
@@ -1114,16 +1126,19 @@ export default function TtmDashboard2Page() {
                 </div>
 
                 {detail.drill && (
-                  <div className="pt-2">
-                    <button
-                      type="button"
-                      disabled={detail.drill.count === 0}
-                      onClick={() => detail.drill && openEpicListModal(detail.drill)}
-                      className={`w-full py-2.5 text-white font-semibold rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 shadow-sm cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${detail.buttonClass}`}
-                    >
-                      <Eye className="size-4" />
-                      <span>{detail.drill.label}</span>
-                    </button>
+                  <div className="space-y-2 pt-2">
+                    {[detail.drill, ...(detail.extraDrills ?? [])].map((drill) => (
+                      <button
+                        key={drill.title}
+                        type="button"
+                        disabled={drill.count === 0}
+                        onClick={() => openEpicListModal(drill)}
+                        className={`w-full py-2.5 text-white font-semibold rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 shadow-sm cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${detail.buttonClass}`}
+                      >
+                        <Eye className="size-4" />
+                        <span>{drill.label}</span>
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>

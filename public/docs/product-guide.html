@@ -1438,7 +1438,7 @@
           <tr><td>TTM-CNTT</td><td>Time to Market — Công nghệ thông tin (T1 → R4G). Có 3 mức cảnh báo: Cảnh báo sớm/muộn/Fail</td></tr>
           <tr><td>TTM-E2E</td><td>Time to Market — End to End (T0 → Release/Due Date). Chỉ có Fail/NONE, không có mức sớm/muộn</td></tr>
           <tr><td>Epic sai lệch dữ liệu</td><td>Epic vi phạm ≥ 1 trong 6 rule R1-R6 (mục 9): thiếu T1 theo trạng thái, Pending quá lâu, ngày sai thứ tự, thiếu Phân loại yêu cầu, thiếu Requirement Level, hoặc Epic SP nhưng Requirement Level thấp (1-2). Không bị chặn import; bị nhóm cuối bảng, highlight, cột Nhận xét hiện badge "Sai lệch dữ liệu" + danh sách rule vi phạm. Đánh giá bằng một hàm dùng chung cho mọi màn hình, lưu trạng thái hiện tại vào <code>epic_data_anomaly_violations</code> (mục 5.2).</td></tr>
-          <tr><td>L01 … L05bb</td><td>Mã các tiêu chí tính toán của phễu TTM Dashboard 2 (Tổng epic → Epic loại bỏ Cancelled → Epic chuẩn hoá dữ liệu → Epic hoàn thành / chưa hoàn thành → 5 nhóm kết quả). Tỷ lệ % Pass TTM-CNTT = L05aa / (L05aa + L05ab + L05ba) (mục 21.2, 21.3, 8.7)</td></tr>
+          <tr><td>L01 … L05bb</td><td>Mã các tiêu chí tính toán của phễu TTM Dashboard 2 (Tổng epic → Epic trong phạm vi tính TTM → Epic chuẩn hoá dữ liệu → Epic hoàn thành / chưa hoàn thành → 5 nhóm kết quả). Tỷ lệ % Pass TTM-CNTT = L05aa / (L05aa + L05ab + L05ba) (mục 21.2, 21.3, 8.7)</td></tr>
           <tr><td>SUPERVISOR</td><td>Role thứ 4, cùng phạm vi xem toàn hệ thống như SUPERADMIN nhưng chỉ đọc, không có quyền tạo/sửa/xóa</td></tr>
           <tr><td>4 Epic Type (CT-Lv12 / CT-Lv34 / SP-Lv12 / SP-Lv34)</td><td>Phân loại tự động theo <code>Loại yêu cầu</code> + <code>Mức yêu cầu</code> của Epic (mục 5.2), quyết định TTM-CNTT 15, 25 hoặc 30 ngày làm việc</td></tr>
           <tr><td>epic_alert_timeline</td><td>Lịch sử 5 loại cảnh báo của Epic dưới dạng các "đợt" có ngày bắt đầu/kết thúc, phục vụ mục "Dòng thời gian cảnh báo" (mục 10.2)</td></tr>
@@ -1492,7 +1492,7 @@
         <thead><tr><th>Mã</th><th>Tên tiêu chí</th><th>Cách tính</th></tr></thead>
         <tbody>
           <tr><td><strong>L01</strong></td><td>Tổng epic</td><td>Mọi Epic trong phạm vi dữ liệu để tính toán (kể cả Cancelled).</td></tr>
-          <tr><td><strong>L02</strong></td><td>Epic loại bỏ Cancelled</td><td>L01 − các Epic có status Cancelled (status chứa chữ "cancel", không phân biệt hoa/thường).</td></tr>
+          <tr><td><strong>L02</strong></td><td>Epic trong phạm vi tính TTM</td><td>L01 − các Epic có status Cancelled (status chứa chữ "cancel", không phân biệt hoa/thường) − các <strong>Epic ngoại lệ</strong> (TTM Black listed = true, khai báo ở menu Admin → "Epic ngoại lệ" hoặc trong màn Duyệt Epic) − các Epic thuộc dự án có trường <strong>Time to Market = N</strong> (Quản lý Dự án). Các Epic bị loại ở L02 cũng không tính vào TTM-CNTT (QLDA/QA) và TTM-E2E; Epic ngoại lệ có chấm đen cạnh Epic key.</td></tr>
           <tr><td><strong>L03</strong></td><td>Epic chuẩn hoá dữ liệu</td><td>L02 − các Epic bị đánh dấu "Sai lệch dữ liệu" (mục 9). L03 = L04a + L04b.</td></tr>
           <tr><td><strong>L04a</strong></td><td>Epic hoàn thành</td><td>Các Epic <strong>có R4G Date</strong> trong L03. L04a = L05aa + L05ab + L05ac.</td></tr>
           <tr><td><strong>L04b</strong></td><td>Epic chưa hoàn thành</td><td>Các Epic <strong>không có R4G Date</strong> trong L03. L04b = L05ba + L05bb.</td></tr>
@@ -1540,7 +1540,7 @@
       <table>
         <thead><tr><th>Widget</th><th>Giá trị</th><th>Dòng phụ</th></tr></thead>
         <tbody>
-          <tr><td>Tổng số Epic</td><td><strong>L02</strong> — Epic loại bỏ Cancelled</td><td>"Trừ Cancelled= " + số Epic có status Cancelled</td></tr>
+          <tr><td>Tổng số Epic</td><td><strong>L02</strong> — Epic trong phạm vi tính TTM</td><td>"Trừ Cancelled= ", "Trừ Epic ngoại lệ= ", "Trừ dự án TTM=N= " + số Epic của từng nhóm bị loại</td></tr>
           <tr><td>Fail TTM-CNTT (QLDA)</td><td><strong>L05ab + L05ba</strong></td><td>"/Số Epic= " + (L05aa + L05ab + L05ba)</td></tr>
           <tr><td>TTM-CNTT (QLDA)</td><td>Tỷ lệ % Pass = L05aa / (L05aa + L05ab + L05ba)</td><td>Tử số / mẫu số</td></tr>
           <tr><td>TTM-CNTT (QA)</td><td>Cùng công thức, chỉ lấy Epic MVP Done / Released (mục 8.7)</td><td>Tử số / mẫu số</td></tr>

@@ -144,15 +144,21 @@ const VN_TODAY_TEXT_SQL = "to_char((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_
  */
 function buildFieldFilterClause(alertFilter: string | undefined, engineMode: ScoringEngineMode | undefined): string | null {
   const hasR4g = "(row_data->>'r4gDate') IS NOT NULL";
+  // "Epic ngoại lệ" / project Time to Market = N (row_data.ttmExclusion, see applyTtmExclusions) —
+  // outside L02, so none of the funnel layers below it may list them.
+  const counted = "(row_data->>'ttmExclusion') IS NULL";
   const waiting = engineMode === 'scoring' ? "badge_codes @> ARRAY['RELEASE_WAITING_GOLIVE']" : "row_data->>'releaseAxisState' = 'WAITING_GOLIVE'";
   const withinGrace = `(row_data->>'releaseGraceDeadline') IS NOT NULL AND ${VN_TODAY_TEXT_SQL} <= (row_data->>'releaseGraceDeadline')`;
   switch (alertFilter) {
     case 'FAIL_LATE_R4G': return `ttm_cntt_in_scope AND alert_level = 'FAIL' AND ${hasR4g}`;
     case 'FAIL_MISSING_R4G': return `ttm_cntt_in_scope AND alert_level = 'FAIL' AND NOT ${hasR4g}`;
     case 'IN_SCOPE_CNTT': return 'ttm_cntt_in_scope';
-    case 'DATA_ANOMALY_IN_SCOPE': return 'ttm_cntt_in_scope AND has_data_anomaly';
-    case 'MISSING_R4G_IN_SCOPE': return `ttm_cntt_in_scope AND NOT has_data_anomaly AND NOT ${hasR4g}`;
-    case 'TTM_ELIGIBLE_IN_SCOPE': return `ttm_cntt_in_scope AND ${hasR4g} AND NOT has_data_anomaly`;
+    case 'DATA_ANOMALY_IN_SCOPE': return `ttm_cntt_in_scope AND has_data_anomaly AND ${counted}`;
+    case 'MISSING_R4G_IN_SCOPE': return `ttm_cntt_in_scope AND NOT has_data_anomaly AND NOT ${hasR4g} AND ${counted}`;
+    case 'TTM_ELIGIBLE_IN_SCOPE': return `ttm_cntt_in_scope AND ${hasR4g} AND NOT has_data_anomaly AND ${counted}`;
+    case 'TTM_COUNTED_IN_SCOPE': return `ttm_cntt_in_scope AND current_status !~* 'cancel' AND ${counted}`;
+    case 'TTM_BLACK_LISTED': return "ttm_cntt_in_scope AND current_status !~* 'cancel' AND row_data->>'ttmExclusion' = 'BLACK_LISTED'";
+    case 'TTM_PROJECT_NON_TTM': return "ttm_cntt_in_scope AND current_status !~* 'cancel' AND row_data->>'ttmExclusion' = 'PROJECT_NON_TTM'";
     case 'WAITING_GOLIVE_MISSING_R4G': return `${waiting} AND NOT ${hasR4g}`;
     case 'WAITING_GOLIVE_WITHIN_GRACE': return `${waiting} AND ${hasR4g} AND (${withinGrace})`;
     case 'WAITING_GOLIVE_OVERDUE': return `${waiting} AND ${hasR4g} AND NOT (${withinGrace})`;
@@ -161,8 +167,8 @@ function buildFieldFilterClause(alertFilter: string | undefined, engineMode: Sco
   // TTM Dashboard 2 funnel leaves — SQL twin of ttmFunnelBucket (epic-row-verdicts.ts), which also
   // excludes Cancelled rows on its own (not just via the default status filter).
   const clean = "current_status !~* 'cancel' AND NOT has_data_anomaly";
-  const inScopeR4g = `${clean} AND ttm_cntt_in_scope AND ${hasR4g}`;
-  const inScopeNoR4g = `${clean} AND ttm_cntt_in_scope AND NOT ${hasR4g}`;
+  const inScopeR4g = `${clean} AND ${counted} AND ttm_cntt_in_scope AND ${hasR4g}`;
+  const inScopeNoR4g = `${clean} AND ${counted} AND ttm_cntt_in_scope AND NOT ${hasR4g}`;
   // isTtmIndexPass: the TTM_PASS index flag in scoring, alertLevel NONE in legacy.
   const pass = engineMode === 'scoring' ? "index_flags @> ARRAY['TTM_PASS']" : "alert_level = 'NONE'";
   switch (alertFilter) {
@@ -287,7 +293,8 @@ export async function queryEpicAlertStatCounts(scope: AccessScope, filters: Epic
  * same WHERE as the page query (access scope + every toolbar filter), so the header badges move
  * with the table's data scope instead of staying fixed to the viewer's whole permitted scope. Same
  * ratio as summarizeTtmCntt/summarizeQaIndex (ttm-cntt-qa.ts), computed as a SQL aggregate instead
- * of hydrating rows into JS. Cancelled Epics never count, even when the Status filter includes them. */
+ * of hydrating rows into JS. Cancelled Epics never count, even when the Status filter includes them;
+ * neither do "Epic ngoại lệ" / non-TTM-project Epics (scoring: their index_flags are already empty). */
 export async function queryTtmCnttIndexes(scope: AccessScope, filters: EpicAlertRowCacheFilters): Promise<{ ttm: TtmCnttSummary; qa: TtmCnttSummary }> {
   const { sql: accessClause, params } = buildFilterClause(scope, filters);
   if (filters.engineMode === 'scoring') return queryScoringIndexPm(accessClause, params);
@@ -305,7 +312,7 @@ export async function queryTtmCnttIndexes(scope: AccessScope, filters: EpicAlert
       count(*) FILTER (WHERE qa_in_scope AND UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED') AND (row_data->>'r4gDate') IS NOT NULL AND NOT has_data_anomaly)::text AS "qaEligible",
       count(*) FILTER (WHERE qa_in_scope AND UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED') AND (row_data->>'r4gDate') IS NOT NULL AND NOT has_data_anomaly AND alert_level = 'NONE')::text AS "qaPass",
       count(*) FILTER (WHERE qa_in_scope AND UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED'))::text AS "qaTotal"
-    FROM epic_alert_row_cache WHERE ${accessClause} AND current_status !~* 'cancel';
+    FROM epic_alert_row_cache WHERE ${accessClause} AND current_status !~* 'cancel' AND (row_data->>'ttmExclusion') IS NULL;
     `,
     params,
   );

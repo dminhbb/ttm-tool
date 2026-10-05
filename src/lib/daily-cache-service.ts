@@ -1,4 +1,5 @@
 import pool from '@/lib/db';
+import { applyTtmExclusions, loadTtmExclusionSources } from '@/lib/black-listed-epic-service';
 import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
 import { refreshEpicAlertRowCache } from '@/lib/epic-alert-row-cache-service';
 import { refreshTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
@@ -104,7 +105,11 @@ export async function claimDailyCacheRun(userId: number): Promise<string | null>
 /** Rebuilds both derived caches off ONE computation of the unscoped newest-layer row set (the
  * expensive part), instead of each refresher recomputing it on its own. Returns the Epic count. */
 export async function refreshDerivedCaches(batchId: number | null): Promise<number> {
-  const { rows } = await getEpicAlertRowsPhased(0, 'SUPERVISOR', {});
+  const [computed, exclusionSources] = await Promise.all([getEpicAlertRowsPhased(0, 'SUPERVISOR', {}), loadTtmExclusionSources()]);
+  // "Epic ngoại lệ" / project Time to Market = N: every cached row carries ttmBlackListed +
+  // ttmExclusion, so the caches (Quản trị Epic, TTM-Index, TTM Dashboard 2) all leave the Epic out of
+  // the TTM calculation from L02 on. Saving the black list or a project's flag re-runs this.
+  const rows = applyTtmExclusions(computed.rows, exclusionSources);
   // Epic Scoring Service in shadow mode: stored next to the legacy row + compared against it
   // (scoring_parity_runs). Returns null on failure — the legacy cache is still rebuilt.
   const scorecards = await runShadowScoring(rows);

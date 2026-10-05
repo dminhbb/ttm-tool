@@ -54,7 +54,7 @@ export const SCORING_AXES: ScoringAxisDefinition[] = [
   { id: 'RELEASE', label: 'Release', description: 'Kỷ luật Due Date / status Released so với R4G Date + thời hạn grace.' },
   { id: 'PHASE', label: 'Pha', description: '5 pha DESIGN / DEV / TEST / PENTEST / R4GOLIVE, mỗi pha có baseline theo % ngân sách TTM-CNTT (QLDA).' },
   { id: 'DATA_QUALITY', label: 'Chất lượng dữ liệu', description: 'Dữ liệu Jira thiếu hoặc mâu thuẫn. Badge Cảnh báo của axis này = "Sai lệch dữ liệu" (R1, R3–R6, R8, R9) — được xét trước: Epic Sai lệch dữ liệu không được chấm Đạt / Fail / Cảnh báo muộn trên TTM-CNTT (QLDA/QA) và TTM-E2E, nằm ngoài mẫu số các chỉ số. Miễn trừ: Cancelled miễn mọi rule; To Do / In PO / Backlog miễn mọi rule trừ R8.' },
-  { id: 'SCOPE', label: 'Phạm vi', description: 'Epic có nằm trong "Phạm vi dữ liệu cho TTM" (Cấu hình cảnh báo) hay không.' },
+  { id: 'SCOPE', label: 'Phạm vi', description: 'Epic có nằm trong "Phạm vi dữ liệu cho TTM" (Cấu hình cảnh báo) hay không, và có bị loại khỏi phạm vi tính toán Time to Market hay không (Epic ngoại lệ, dự án có Time to Market = N).' },
 ];
 
 export const BADGES = [
@@ -247,6 +247,16 @@ export const BADGES = [
 
   // ---------- SCOPE ----------
   {
+    id: 'SCOPE_TTM_BLACK_LISTED', axis: 'SCOPE', group: 'NOTE', label: 'Epic ngoại lệ', precedence: 5, defaultEnabled: true, core: true,
+    meaning: 'Epic được khai báo trong "Epic ngoại lệ" (TTM Black listed = true) — bị loại khỏi phạm vi tính toán Time to Market: không vào phễu TTM Dashboard 2 từ L02, không tính vào TTM-CNTT (QLDA/QA) và TTM-E2E. Các badge đánh giá của riêng Epic vẫn hiển thị.',
+    formula: 'Epic key có trong bảng Black listed epics với ttm_black_listed = true',
+  },
+  {
+    id: 'SCOPE_PROJECT_NON_TTM', axis: 'SCOPE', group: 'NOTE', label: 'Dự án không tính TTM', precedence: 6, defaultEnabled: true, core: true,
+    meaning: 'Epic thuộc dự án có trường "Time to Market" = N (Quản lý Dự án) — bị loại khỏi phạm vi tính toán Time to Market giống Epic ngoại lệ.',
+    formula: 'Không phải Epic ngoại lệ  VÀ  dự án của Epic có Time to Market = N',
+  },
+  {
     id: 'SCOPE_CNTT_OUT', axis: 'SCOPE', group: 'NOTE', label: 'Ngoài phạm vi TTM-CNTT (QLDA)', precedence: 10, defaultEnabled: true,
     meaning: 'Epic nằm ngoài khoảng ngày "R4G for TTM (CNTT)"; badge TTM-CNTT (QLDA) bị che, không tính vào chỉ số TTM-CNTT (QLDA).',
     formula: 'Có cấu hình A/B  VÀ  NOT( A ≤ (R4G, nếu trống thì Target_CNTT) ≤ B )',
@@ -313,13 +323,13 @@ export const SUPPRESSIONS: readonly { when: BadgeId; suppress: readonly BadgeId[
 
 /** TTM-CNTT (QLDA) / TTM-CNTT (QA) membership — not badges; aggregates only count these flags. */
 export const INDEX_MEMBERSHIP_RULES: { index: 'TTM-CNTT (QLDA)' | 'TTM-CNTT (QA)' | 'TTM-E2E'; flag: string; formula: string }[] = [
-  { index: 'TTM-CNTT (QLDA)', flag: 'Tính (counted)', formula: 'không Cancelled  VÀ  không "Ngoài phạm vi TTM-CNTT (QLDA)"' },
+  { index: 'TTM-CNTT (QLDA)', flag: 'Tính (counted) — L02', formula: 'không Cancelled  VÀ  không "Epic ngoại lệ"  VÀ  không "Dự án không tính TTM"  VÀ  không "Ngoài phạm vi TTM-CNTT (QLDA)"' },
   { index: 'TTM-CNTT (QLDA)', flag: 'Epic hoàn thành — L04a (eligible)', formula: 'counted  VÀ  có R4G (kể cả ngày tương lai)  VÀ  không Sai lệch dữ liệu' },
   { index: 'TTM-CNTT (QLDA)', flag: 'Đạt — L05aa (pass)', formula: 'eligible  VÀ  có badge "Đạt TTM-CNTT (QLDA)" (R4G chưa tới ngày: chưa kết luận — L05ac, không vào mẫu số)' },
   { index: 'TTM-CNTT (QLDA)', flag: 'Fail — L05ab + L05ba', formula: 'counted  VÀ  có "Fail TTM-CNTT (QLDA)": có R4G muộn hơn Target (L05ab) hoặc chưa có R4G mà đã quá Target (L05ba). Epic Sai lệch dữ liệu không được chấm Fail' },
   { index: 'TTM-CNTT (QLDA)', flag: 'Mẫu số', formula: 'Đạt + Fail = L05aa + L05ab + L05ba (từ 04/10/2026)' },
   { index: 'TTM-CNTT (QA)', flag: 'Tính / Đạt / Fail / Mẫu số', formula: 'Như TTM-CNTT (QLDA), chỉ lấy Epic status ∈ {MVP DONE, RELEASED} và thay "Ngoài phạm vi TTM-CNTT (QLDA)" bằng "Ngoài phạm vi QA"' },
-  { index: 'TTM-E2E', flag: 'Mẫu số / Đạt / Fail', formula: 'Đạt: có badge "Đạt TTM-E2E".  Fail: có "Fail TTM-E2E" (kể cả Epic chưa có ngày kết thúc mà đã quá Target).  Mẫu số: Đạt + Fail (từ 05/10/2026, cùng công thức TTM-CNTT) — không Cancelled, không Sai lệch dữ liệu; Epic chưa kết luận không tính. Không áp "Phạm vi dữ liệu cho TTM"' },
+  { index: 'TTM-E2E', flag: 'Mẫu số / Đạt / Fail', formula: 'Đạt: có badge "Đạt TTM-E2E".  Fail: có "Fail TTM-E2E" (kể cả Epic chưa có ngày kết thúc mà đã quá Target).  Mẫu số: Đạt + Fail (từ 05/10/2026, cùng công thức TTM-CNTT) — không Cancelled, không "Epic ngoại lệ", không "Dự án không tính TTM", không Sai lệch dữ liệu; Epic chưa kết luận không tính. Không áp "Phạm vi dữ liệu cho TTM"' },
 ];
 
 export const INDEX_PERCENT_FORMULA = 'TTM-CNTT (QLDA) / TTM-CNTT (QA), từ 04/10/2026:  Tỷ lệ % Pass = L05aa / (L05aa + L05ab + L05ba) × 100;  Tỷ lệ % Fail = (L05ab + L05ba) / (L05aa + L05ab + L05ba) × 100;  chưa có Epic nào được kết luận (mẫu số = 0): 100.   TTM-E2E, từ 05/10/2026 cùng công thức:  Đạt TTM-E2E / (Đạt TTM-E2E + Fail TTM-E2E) × 100.';

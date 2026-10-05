@@ -28,6 +28,7 @@ import {
   Globe,
   List,
   Lock,
+  Prohibit,
   Pulse,
   ShareNetwork,
   SlidersHorizontal,
@@ -43,11 +44,14 @@ import { UserMenu } from '@/components/layout/UserMenu';
 import { ChangePasswordModal } from '@/components/layout/ChangePasswordModal';
 import { AppConfigModal } from '@/components/settings/AppConfigModal';
 import { SystemAdminModal } from '@/components/settings/SystemAdminModal';
+import { BlackListedEpicsModal } from '@/components/settings/BlackListedEpicsModal';
 import { AdPopupDisplay } from '@/components/layout/AdPopupDisplay';
 import { DailyCacheWarmer } from '@/components/layout/DailyCacheWarmer';
 import { SystemStatusFooter } from '@/components/layout/SystemStatusFooter';
 import { ToastProvider } from '@/components/ui/Toast';
 import { resolveScreenKeyFromPathname, trackScreenVisit } from '@/lib/visit-counter-client';
+
+type NavigationModal = 'appConfig' | 'blackListedEpics' | 'systemAdmin';
 
 interface NavigationItem {
   disabled?: boolean;
@@ -57,6 +61,8 @@ interface NavigationItem {
   href?: string;
   icon: Icon;
   label: string;
+  /** Set on entries that open a popup (rendered once by AppShell) instead of navigating. */
+  modal?: NavigationModal;
   onClick?: () => void;
   /** Omitted = every authenticated role. Matches the permission matrix (see AGENTS.md-adjacent docs). */
   roles?: UserRole[];
@@ -86,12 +92,11 @@ function isNavigationGroup(entry: NavigationEntry): entry is NavigationGroup {
 interface SidebarContentProps {
   expanded: boolean;
   onNavigate?: () => void;
-  onOpenAppConfig: () => void;
-  onOpenSystemAdmin: () => void;
+  onOpenModal: (modal: NavigationModal) => void;
   onToggle?: () => void;
-  /** Pending password-reset + inactive-registration tickets — drives the red dot on "Quản lý User". */
   /** Permission-matrix features whose "Xem" is unticked for the current role. */
   hiddenFeatureKeys: ReadonlySet<string>;
+  /** Pending password-reset + inactive-registration tickets — drives the red dot on "Quản lý User". */
   pendingUserTicketsCount: number;
   role: UserRole | null;
 }
@@ -109,8 +114,6 @@ const SUPERADMIN_OR_SUPERVISOR: UserRole[] = ['SUPERADMIN', 'SUPERVISOR'];
 // not even view, unlike the admin config screens above.
 const SUPERADMIN_ONLY: UserRole[] = ['SUPERADMIN'];
 
-const APP_CONFIG_ITEM: NavigationItem = { icon: GearSix, label: 'Cấu hình ứng dụng', roles: ADMIN_VIEW_ROLES, featureKey: 'general_settings' };
-const SYSTEM_ADMIN_MODAL_ITEM: NavigationItem = { icon: GearSix, label: 'Quản trị hệ thống', roles: SUPERADMIN_ONLY };
 
 const navigation: NavigationSection[] = [
   {
@@ -144,7 +147,9 @@ const navigation: NavigationSection[] = [
           { href: '/admin/projects', featureKey: 'projects', icon: ShareNetwork, label: 'Quản lý Dự án', roles: ADMIN_VIEW_ROLES },
           { href: '/admin/domains', featureKey: 'domains', icon: Globe, label: 'Quản lý Domain', roles: ADMIN_VIEW_ROLES },
           { href: '/admin/status-alert-rules', featureKey: 'status_alert_rules', icon: Warning, label: 'Cấu hình cảnh báo', roles: SUPERADMIN_OR_SUPERVISOR },
-          APP_CONFIG_ITEM,
+          // "Epic ngoại lệ" (black listed Epics) — SUPERVISOR opens it read-only, like the screens above.
+          { icon: Prohibit, label: 'Epic ngoại lệ', modal: 'blackListedEpics', roles: ADMIN_VIEW_ROLES },
+          { featureKey: 'general_settings', icon: GearSix, label: 'Cấu hình ứng dụng', modal: 'appConfig', roles: ADMIN_VIEW_ROLES },
         ],
       },
       {
@@ -157,7 +162,7 @@ const navigation: NavigationSection[] = [
           { href: '/', featureKey: 'data_source', icon: Database, label: 'Nguồn dữ liệu', roles: SUPERADMIN_ONLY },
           { href: '/admin/database', featureKey: 'database_backup', icon: ClockCounterClockwise, label: 'Sao lưu / Phục hồi dữ liệu', roles: SUPERADMIN_ONLY },
           { href: '/admin/permissions', featureKey: 'permission_matrix', icon: Lock, label: 'Ma trận phân quyền', roles: SUPERADMIN_ONLY },
-          SYSTEM_ADMIN_MODAL_ITEM,
+          { icon: GearSix, label: 'Quản trị hệ thống', modal: 'systemAdmin', roles: SUPERADMIN_ONLY },
         ],
       },
     ],
@@ -194,8 +199,7 @@ interface NavigationGroupMenuProps {
   expanded: boolean;
   group: NavigationGroup;
   onNavigate?: () => void;
-  onOpenAppConfig: () => void;
-  onOpenSystemAdmin: () => void;
+  onOpenModal: (modal: NavigationModal) => void;
   pendingUserTicketsCount: number;
 }
 
@@ -203,7 +207,7 @@ interface NavigationGroupMenuProps {
 const GROUP_POPUP_GAP = 12;
 const GROUP_POPUP_VIEWPORT_MARGIN = 8;
 
-function NavigationGroupMenu({ expanded, group, onNavigate, onOpenAppConfig, onOpenSystemAdmin, pendingUserTicketsCount }: NavigationGroupMenuProps) {
+function NavigationGroupMenu({ expanded, group, onNavigate, onOpenModal, pendingUserTicketsCount }: NavigationGroupMenuProps) {
   const pathname = usePathname();
   const buttonRef = React.useRef<HTMLButtonElement>(null);
   const popupRef = React.useRef<HTMLDivElement>(null);
@@ -253,9 +257,13 @@ function NavigationGroupMenu({ expanded, group, onNavigate, onOpenAppConfig, onO
   }, [open]);
 
   const popupItemClassName = (itemActive: boolean) => cn(
-    'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold outline-none transition-colors',
+    'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left outline-none transition-colors',
     itemActive ? 'bg-fb-blue-soft text-fb-blue' : 'text-fb-text-primary hover:bg-fb-control',
   );
+  // Font utilities sit on the label, not on the row: globals.css has an unlayered
+  // `button { font: inherit }`, which beats Tailwind's layered utilities on a <button> row but not
+  // on a <Link> row — that is what made the popup's modal entries look different from its links.
+  const labelClassName = 'text-sm font-semibold leading-tight';
 
   return (
     <>
@@ -264,7 +272,7 @@ function NavigationGroupMenu({ expanded, group, onNavigate, onOpenAppConfig, onO
         type="button"
         onClick={() => setOpen((current) => !current)}
         className={cn(
-          'flex min-h-10 w-full items-center rounded-md text-left text-sm font-semibold leading-tight outline-none transition-[background-color,color]',
+          'flex min-h-10 w-full items-center rounded-md text-left outline-none transition-[background-color,color]',
           expanded ? 'gap-3 px-3 py-1.5' : 'justify-center px-2',
           active || open ? 'bg-fb-blue-soft text-fb-blue' : 'text-sidebar-text hover:bg-fb-control hover:text-fb-text-primary',
         )}
@@ -279,7 +287,7 @@ function NavigationGroupMenu({ expanded, group, onNavigate, onOpenAppConfig, onO
             <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-status-danger ring-2 ring-fb-surface" aria-hidden="true" />
           )}
         </span>
-        {expanded && <span className="min-w-0 flex-1">{group.label}</span>}
+        {expanded && <span className={cn('min-w-0 flex-1', labelClassName)}>{group.label}</span>}
         {expanded && <CaretRight className="size-3.5 shrink-0" weight="bold" aria-hidden="true" />}
         {hasPendingTickets && <span className="sr-only"> (có ticket đang chờ xử lý)</span>}
       </button>
@@ -300,7 +308,7 @@ function NavigationGroupMenu({ expanded, group, onNavigate, onOpenAppConfig, onO
             const content = (
               <>
                 <ItemIcon className="size-4 shrink-0" weight={itemActive ? 'fill' : 'bold'} aria-hidden="true" />
-                <span>{item.label}</span>
+                <span className={labelClassName}>{item.label}</span>
                 {itemHasPendingTickets && <span className="ml-auto size-2 shrink-0 rounded-full bg-status-danger" aria-hidden="true" />}
                 {itemHasPendingTickets && <span className="sr-only"> (có ticket đang chờ xử lý)</span>}
               </>
@@ -326,8 +334,7 @@ function NavigationGroupMenu({ expanded, group, onNavigate, onOpenAppConfig, onO
                 onClick={() => {
                   trackFeatureUsage();
                   setOpen(false);
-                  if (item === APP_CONFIG_ITEM) onOpenAppConfig();
-                  if (item === SYSTEM_ADMIN_MODAL_ITEM) onOpenSystemAdmin();
+                  if (item.modal) onOpenModal(item.modal);
                   onNavigate?.();
                 }}
                 className={popupItemClassName(false)}
@@ -344,7 +351,7 @@ function NavigationGroupMenu({ expanded, group, onNavigate, onOpenAppConfig, onO
   );
 }
 
-function SidebarContent({ expanded, hiddenFeatureKeys, onNavigate, onOpenAppConfig, onOpenSystemAdmin, onToggle, pendingUserTicketsCount, role }: SidebarContentProps) {
+function SidebarContent({ expanded, hiddenFeatureKeys, onNavigate, onOpenModal, onToggle, pendingUserTicketsCount, role }: SidebarContentProps) {
   const pathname = usePathname();
   const sections = visibleNavigationFor(role, hiddenFeatureKeys);
 
@@ -379,8 +386,7 @@ function SidebarContent({ expanded, hiddenFeatureKeys, onNavigate, onOpenAppConf
                         expanded={expanded}
                         group={item}
                         onNavigate={onNavigate}
-                        onOpenAppConfig={onOpenAppConfig}
-                        onOpenSystemAdmin={onOpenSystemAdmin}
+                        onOpenModal={onOpenModal}
                         pendingUserTicketsCount={pendingUserTicketsCount}
                       />
                     </li>
@@ -415,22 +421,19 @@ function SidebarContent({ expanded, hiddenFeatureKeys, onNavigate, onOpenAppConf
                     {hasPendingTickets && <span className="sr-only"> (có ticket đang chờ xử lý)</span>}
                   </>
                 );
-                const isAppConfig = item === APP_CONFIG_ITEM;
-                const isSystemAdmin = item === SYSTEM_ADMIN_MODAL_ITEM;
-                const isModalItem = isAppConfig || isSystemAdmin;
+                const { modal } = item;
 
                 return (
                   <li key={item.label}>
                     <Tooltip content={item.label} disabled={expanded}>
-                      {isModalItem ? (
+                      {modal ? (
                         <button
                           type="button"
                           className={sharedClassName}
                           aria-label={!expanded ? item.label : undefined}
                           onClick={() => {
                             trackFeatureUsage();
-                            if (isAppConfig) onOpenAppConfig();
-                            if (isSystemAdmin) onOpenSystemAdmin();
+                            onOpenModal(modal);
                             onNavigate?.();
                           }}
                         >
@@ -557,6 +560,12 @@ function AppShellInner({ children }: AppShellProps) {
   const [desktopNavigationExpanded, setDesktopNavigationExpanded] = React.useState(false);
   const [appConfigOpen, setAppConfigOpen] = React.useState(false);
   const [systemAdminOpen, setSystemAdminOpen] = React.useState(false);
+  const [blackListedEpicsOpen, setBlackListedEpicsOpen] = React.useState(false);
+  const openNavigationModal = React.useCallback((modal: NavigationModal) => {
+    if (modal === 'appConfig') setAppConfigOpen(true);
+    else if (modal === 'systemAdmin') setSystemAdminOpen(true);
+    else setBlackListedEpicsOpen(true);
+  }, []);
   const [mustChangePassword, setMustChangePassword] = React.useState(false);
   const [role, setRole] = React.useState<UserRole | null>(null);
   const [pendingUserTicketsCount, setPendingUserTicketsCount] = React.useState(0);
@@ -678,8 +687,7 @@ function AppShellInner({ children }: AppShellProps) {
       >
         <SidebarContent
           expanded={desktopNavigationExpanded}
-          onOpenAppConfig={() => setAppConfigOpen(true)}
-          onOpenSystemAdmin={() => setSystemAdminOpen(true)}
+          onOpenModal={openNavigationModal}
           onToggle={() => setDesktopNavigationExpanded((current) => !current)}
           pendingUserTicketsCount={pendingUserTicketsCount}
           role={displayRole}
@@ -707,8 +715,7 @@ function AppShellInner({ children }: AppShellProps) {
             <SidebarContent
               expanded
               onNavigate={() => setMobileNavigationOpen(false)}
-              onOpenAppConfig={() => setAppConfigOpen(true)}
-              onOpenSystemAdmin={() => setSystemAdminOpen(true)}
+              onOpenModal={openNavigationModal}
               pendingUserTicketsCount={pendingUserTicketsCount}
               role={displayRole}
               hiddenFeatureKeys={hiddenFeatureKeys}
@@ -719,6 +726,7 @@ function AppShellInner({ children }: AppShellProps) {
 
       <AppConfigModal isOpen={appConfigOpen} onClose={() => setAppConfigOpen(false)} role={role} />
       <SystemAdminModal isOpen={systemAdminOpen} onClose={() => setSystemAdminOpen(false)} role={role} />
+      <BlackListedEpicsModal isOpen={blackListedEpicsOpen} onClose={() => setBlackListedEpicsOpen(false)} />
       <AdPopupDisplay />
       <ChangePasswordModal isForceChangePassword isOpen={mustChangePassword} onClose={() => {}} />
       {/* Only in the full shell (never the embedded/iframe branch above), so a dashboard drill-down

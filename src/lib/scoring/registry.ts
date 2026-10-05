@@ -16,4 +16,4 @@ export const PRIMARY_RULES: readonly PrimaryRule[] = [ttmCnttRule, ttmE2eRule, r
 export const DERIVED_RULES: readonly DerivedRule[] = [recommendationsRule];
 
 /** Bump whenever rule code changes, so cached scorecards are recognized as outdated. */
-export const SCORING_CODE_VERSION = 'scoring-8';
+export const SCORING_CODE_VERSION = 'scoring-9';

@@ -6,6 +6,7 @@ import type { ReportEpicItem, ReportResult } from '@/lib/reports-service';
 import { normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
+import { TtmBlackListDot } from '@/components/ui/TtmBlackListDot';
 import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 
 /**
@@ -1107,6 +1108,7 @@ function SingleReportTable({
                     >
                       {item.epicKey}
                     </button>
+                    {item.ttmBlackListed && <TtmBlackListDot />}
                     {jiraHref && (
                       <a
                         href={jiraHref}

@@ -33,7 +33,19 @@ export interface EpicFacts {
   requirementLevel: string | null;
   /** Story/subtask-derived phase completion AT asOf; null = no data for that date. */
   phaseCompletion: EpicPhaseCompletionFacts | null;
+  /** Set when the Epic is taken out of the TTM calculation (see TtmExclusion); absent/null = counted. */
+  ttmExclusion?: TtmExclusion | null;
 }
+
+/**
+ * Why an Epic is outside every Time to Market calculation although it isn't Cancelled (owner rule
+ * 2026-10-05, L02 of the TTM Dashboard 2 funnel):
+ *   BLACK_LISTED    — declared in "Epic ngoại lệ" (table black_listed_epics);
+ *   PROJECT_NON_TTM — its project is marked "Time to Market = N" (Quản lý Dự án).
+ * The Epic keeps its own verdict badges; it just isn't counted in the funnel from L02 on, nor in the
+ * TTM-CNTT (QLDA/QA) and TTM-E2E ratios.
+ */
+export type TtmExclusion = 'BLACK_LISTED' | 'PROJECT_NON_TTM';
 
 export interface ScoringHolidays {
   holidays: ReadonlySet<string>;
