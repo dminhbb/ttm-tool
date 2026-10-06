@@ -6,6 +6,24 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-10-06
+
+- **Hàng widget KPI — TTM Dashboard 2: đồng bộ cỡ chữ, tách màu 2 nhóm** (`src/components/ttm-dashboard-2/DashboardInsights.tsx`):
+  - Title / con số chính / subtitle dùng CHUNG một kiểu chữ ở cả 9 widget (`KPI_TITLE_CLASS`, `KPI_VALUE_CLASS`, `KPI_SUBTITLE_CLASS`) — thẻ tỷ lệ (`351 / 409`) không còn nhỏ hơn các thẻ khác. Cỡ chữ tăng ~20% (17 / 9,5 / 9px) và co theo bề rộng hàng (`cqw`, hàng là `@container`) để màn hình hẹp (1366) không bị cắt số; chiều cao thẻ tăng ~9%.
+  - Nhóm trái nền navy pastel đậm hơn (`#d6e4fa`), nhóm phải xám trung tính (`#eef0f2`); icon / vòng tiến độ nền trắng, cùng kích thước. Bề rộng cột chia theo nội dung từng thẻ.
+  - Vòng tiến độ: mẫu số = 0 thì vòng rỗng + "—" (trước đây vẫn tô kín 100%); phân số cạnh vòng dùng cùng điều kiện `hasTtmVerdict` (cả dải chỉ số toàn công ty ở `src/app/ttm-dashboard-2/page.tsx`).
+  - Thẻ "Cảnh báo" (engine legacy): bấm thẻ mở cả Muộn + Sớm, khớp con số hiển thị.
+  - Thẻ bấm được là `<button>` phủ nền, link con trong subtitle là `<button>` riêng (dùng được bằng bàn phím, không lồng phần tử tương tác); bỏ class `scrollbar-none` không tồn tại.
+- **Lease tạo lại cache — tự phục hồi khi lượt đang chạy bị chết giữa chừng** (`src/lib/daily-cache-service.ts`, `src/app/api/system/daily-cache/route.ts`): lease còn chủ nhưng đã hết hạn = lượt rebuild chết, các yêu cầu đến trong lúc đó (daily, import, lưu black list…) chưa được tính lại. Trạng thái này giờ là `DailyCacheStatus.rebuildInterrupted` → cache coi như STALE và lần tải trang kế tiếp được claim lại lượt trong ngày kể cả khi đã SUCCESS. Dừng sau `MAX_REBUILDS_PER_LEASE` cũng để lại lease ở trạng thái đó thay vì bỏ rơi yêu cầu đang chờ. Không đổi schema.
+- **Mở URL gốc `/` không còn toast "không có quyền"** (`src/proxy.ts`): vai trò không có quyền "Nguồn dữ liệu" vẫn được chuyển về màn hình mặc định nhưng không gắn `?denied=`.
+- **PM/SM trùng tên trong một Epic ("An, An") chỉ đếm một lần** (`ownerNames` trong `src/lib/ttm-funnel-summary.ts`, có test).
+- **Quản trị Epic — bảng danh sách rộng thêm 10% (1540 → 1694px)**, phần tăng dồn vào 5 cột Epic / Nhận xét / TTM-CNTT (QLDA) / TTM-E2E / Status; các cột ngày và pha giữ nguyên (`src/app/epic-alerts-15/page.tsx`, `epic-alerts-15.css`):
+  - Epic: min-width 180 → 230px, tóm tắt Epic hiện 60 ký tự (trước 50). Nhận xét / Status: thêm padding ngang (`.ttm-col-roomy`). TTM-CNTT / TTM-E2E: thanh strip dài hơn 25% (`BASE_WIDTH` 56 → 70, tối đa 112 → 140).
+  - Khung nội dung của riêng `/epic-alerts-15` nới 1600 → 1760px (`src/components/layout/AppShell.tsx`) để bảng rộng hơn hiện đủ trên màn hình lớn. Chế độ thu gọn (ẩn hết cột pha) không đổi.
+- **Popup Quản trị Epic (drill-down từ TTM Dashboard 2) phủ gần hết khung nhìn** (`src/components/dashboard-new/EpicAlertsIframeModal.tsx`): bỏ giới hạn 96vw / 1750px / 92vh, chỉ chừa lề 8px.
+- **3 widget chỉ số — TTM Dashboard 2** (`src/components/ttm-dashboard-2/DashboardInsights.tsx`): vòng tròn to hơn (34 → 46px) và số % bên trong to, đậm hơn — đây là con số chính của widget; phép tính bên cạnh (`351 / 409`) thu nhỏ (17 → 13px, `KPI_FRACTION_CLASS`). Subtitle đổi thành "Toàn phòng QLDA" và "Phạm vi của QA". Tỷ lệ tròn 100 hiện "100%"; số 4 chữ số bỏ khoảng trắng quanh dấu "/" để không bị cắt.
+- **Popup TTM Dashboard 2**: popup Quản trị Epic quay lại 96% bề ngang / 92% chiều cao khung nhìn (không còn trần 1750px) (`src/components/dashboard-new/EpicAlertsIframeModal.tsx`); popup chi tiết mở từ phễu (chuột phải vào tầng L01…L05bb, nút "Ngoài phạm vi") làm mờ nền phía sau giống popup Quản trị Epic — `Modal` có thêm prop `blurBackdrop` (`src/components/ui/Modal.tsx`), các popup khác trong hệ thống không đổi.
+
 ## 2026-10-05
 
 - **Tinh chỉnh giao diện & Bảng màu 2 nhóm Widget KPI - TTM Dashboard 2** (`src/components/ttm-dashboard-2/DashboardInsights.tsx`):

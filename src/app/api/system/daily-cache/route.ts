@@ -33,7 +33,8 @@ export async function POST(request: NextRequest) {
     const status = await getDailyCacheStatus();
     if (status.state !== 'STALE') return NextResponse.json({ ...status, started: false });
 
-    const runDate = await claimDailyCacheRun(user.id);
+    // rebuildInterrupted: a rebuild died mid-run after today's run already succeeded — run it again.
+    const runDate = await claimDailyCacheRun(user.id, status.rebuildInterrupted);
     if (!runDate) return NextResponse.json({ ...(await getDailyCacheStatus()), started: false });
 
     after(() => runDailyCacheRefresh(runDate));

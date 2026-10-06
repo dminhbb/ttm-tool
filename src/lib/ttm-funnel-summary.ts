@@ -146,7 +146,8 @@ export const EMPTY_TTM_FUNNEL_BUCKETS: Readonly<Record<TtmFunnelBucket, number>>
 };
 
 function ownerNames(row: Pick<TtmFunnelRow, 'ownerName'>): string[] {
-  return (row.ownerName || '').split(',').map((name) => name.trim()).filter(Boolean);
+  // Deduplicated: "An, An" must not count the Epic twice under An in the PM/SM breakdown.
+  return [...new Set((row.ownerName || '').split(',').map((name) => name.trim()).filter(Boolean))];
 }
 
 export function filterTtmDashboard2Rows<T extends TtmFunnelRow>(rows: readonly T[], filters: TtmDashboard2Filters): T[] {

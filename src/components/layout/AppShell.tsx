@@ -784,7 +784,8 @@ function AppShellInner({ children }: AppShellProps) {
           )}
         </header>
 
-        <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 p-4 sm:p-6 lg:p-8">
+        {/* Quản trị Epic's 13-column table is 10% wider than the other screens' content (2026-10-06). */}
+        <main className={cn('mx-auto flex w-full flex-col gap-6 p-4 sm:p-6 lg:p-8', pathname === '/epic-alerts-15' ? 'max-w-[1760px]' : 'max-w-[1600px]')}>
           {mustChangePassword ? (
             <div className="flex flex-1 flex-col items-center justify-center py-24 text-center">
               <p className="text-base font-bold text-fb-text-primary">Yêu cầu đổi mật khẩu lần đầu</p>

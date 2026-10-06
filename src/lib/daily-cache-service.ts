@@ -42,6 +42,9 @@ export interface DailyCacheRun {
 
 export interface DailyCacheStatus {
   cacheComputedAt: string | null;
+  /** A cache rebuild died mid-run and left requests uncovered (see isRebuildLeaseOrphaned) — the
+   * next page load re-runs today's rebuild even if today already has a SUCCESS. */
+  rebuildInterrupted: boolean;
   state: DailyCacheState;
   today: string;
   todayRun: DailyCacheRun | null;
@@ -54,7 +57,7 @@ const RUN_COLUMNS_SQL = `
 `;
 
 export async function getDailyCacheStatus(): Promise<DailyCacheStatus> {
-  const result = await pool.query<{
+  const [result, rebuildInterrupted] = await Promise.all([pool.query<{
     cacheComputedAt: string | null; cacheFreshToday: boolean; failedRetryReady: boolean | null;
     runningStale: boolean | null; today: string;
   } & Partial<DailyCacheRun>>(`
@@ -69,22 +72,26 @@ export async function getDailyCacheStatus(): Promise<DailyCacheStatus> {
     FROM cache
     LEFT JOIN daily_cache_runs r ON r.run_date = ${VN_TODAY_SQL}
     LEFT JOIN users u ON u.id = r.triggered_by_user_id;
-  `);
+  `), isRebuildLeaseOrphaned()]);
   const row = result.rows[0];
   const todayRun = row.runDate ? toRun(row) : null;
 
+  // An interrupted rebuild makes even a cache computed today untrustworthy (it may predate an import
+  // or a black-list save that was told "covered"), so it counts as STALE until a rebuild completes.
   let state: DailyCacheState = 'STALE';
   if (todayRun?.status === 'RUNNING' && !row.runningStale) state = 'RUNNING';
-  else if (row.cacheFreshToday) state = 'FRESH';
+  else if (row.cacheFreshToday && !rebuildInterrupted) state = 'FRESH';
   else if (todayRun?.status === 'FAILED' && !row.failedRetryReady) state = 'FAILED';
 
-  return { cacheComputedAt: row.cacheComputedAt, state, today: row.today, todayRun };
+  return { cacheComputedAt: row.cacheComputedAt, rebuildInterrupted, state, today: row.today, todayRun };
 }
 
 /** Atomically claims today's run for this user — true only for the single caller that gets it.
  * Re-claimable only when today's earlier attempt FAILED (after a cool-down) or its RUNNING row went
- * stale (the function that owned it was killed), never while a live run or a SUCCESS exists. */
-export async function claimDailyCacheRun(userId: number): Promise<string | null> {
+ * stale (the function that owned it was killed), never while a live run or a SUCCESS exists —
+ * except `recoverInterruptedRebuild` (DailyCacheStatus.rebuildInterrupted), which lets a SUCCESS be
+ * re-run once: the first caller turns the row back to RUNNING, so everyone else is still refused. */
+export async function claimDailyCacheRun(userId: number, recoverInterruptedRebuild = false): Promise<string | null> {
   const result = await pool.query<{ runDate: string }>(`
     INSERT INTO daily_cache_runs (run_date, status, triggered_by_user_id)
     VALUES (${VN_TODAY_SQL}, 'RUNNING', $1)
@@ -98,8 +105,9 @@ export async function claimDailyCacheRun(userId: number): Promise<string | null>
       attempt_count = daily_cache_runs.attempt_count + 1
     WHERE (daily_cache_runs.status = 'FAILED' AND daily_cache_runs.finished_at < CURRENT_TIMESTAMP - INTERVAL '${FAILED_RETRY_INTERVAL}')
        OR (daily_cache_runs.status = 'RUNNING' AND daily_cache_runs.started_at < CURRENT_TIMESTAMP - INTERVAL '${RUNNING_STALE_INTERVAL}')
+       OR ($2::boolean AND daily_cache_runs.status = 'SUCCESS')
     RETURNING run_date::text AS "runDate";
-  `, [userId]);
+  `, [userId, recoverInterruptedRebuild]);
   return result.rows[0]?.runDate ?? null;
 }
 
@@ -141,8 +149,11 @@ async function rebuildDerivedCaches(batchId: number | null): Promise<number> {
  *   - the holder rebuilds, then releases ONLY if request_seq hasn't moved since it started;
  *     otherwise it renews the lease and rebuilds again with the latest data.
  * A holder killed mid-run (function timeout) leaves the lease to expire after LEASE_INTERVAL; the
- * next request then takes it over. If the table doesn't exist yet (database the migration hasn't
- * reached), rebuilds run uncoordinated, exactly as before.
+ * next request then takes it over. Requests that came in while the dead holder still held the lease
+ * were answered "covered" and weren't — so an owned-but-expired lease is reported as
+ * DailyCacheStatus.rebuildInterrupted and the next signed-in page load re-runs the rebuild
+ * (isRebuildLeaseOrphaned, claimDailyCacheRun). If the table doesn't exist yet (database the
+ * migration hasn't reached), rebuilds run uncoordinated, exactly as before.
  */
 const LEASE_INTERVAL = '6 minutes';
 /** Safety net against an endless stream of requests keeping one function busy past its timeout. */
@@ -191,6 +202,26 @@ async function dropLease(owner: string): Promise<void> {
     .catch((error: unknown) => console.error('Failed to release the derived-cache rebuild lease:', error));
 }
 
+/** Gives the lease up while requests are still pending: left owned-but-expired — the state a killed
+ * holder leaves — so the next request takes it over, or the next page load recovers it. */
+async function abandonLease(owner: string): Promise<void> {
+  await pool.query(`UPDATE derived_cache_refresh_lock SET lease_until = CURRENT_TIMESTAMP - INTERVAL '1 second' WHERE id = 1 AND lease_owner = $1;`, [owner])
+    .catch((error: unknown) => console.error('Failed to abandon the derived-cache rebuild lease:', error));
+}
+
+/** True when a rebuild's holder stopped without finishing: the lease is still owned but has expired
+ * (a clean finish, and a failure, always clear lease_owner). False when the lease table isn't there. */
+async function isRebuildLeaseOrphaned(): Promise<boolean> {
+  try {
+    const result = await pool.query<{ orphaned: boolean | null }>(
+      'SELECT (lease_owner IS NOT NULL AND lease_until < CURRENT_TIMESTAMP) AS orphaned FROM derived_cache_refresh_lock WHERE id = 1;',
+    );
+    return result.rows[0]?.orphaned === true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Rebuilds the derived caches (see rebuildDerivedCaches) under the rebuild lease. Returns the Epic
  * count of the last rebuild it ran, or null when another rebuild was already running — that one
@@ -211,8 +242,8 @@ export async function refreshDerivedCaches(batchId: number | null, source = 'man
       const outcome = await releaseOrRenew(owner, seq);
       if (outcome.released || outcome.seq === null) return count;
       if (run >= MAX_REBUILDS_PER_LEASE) {
-        console.error(`Derived-cache rebuild: still being asked after ${run} rebuilds in a row (latest: ${source}) — stopping; the next request rebuilds again.`);
-        await dropLease(owner);
+        console.error(`Derived-cache rebuild: still being asked after ${run} rebuilds in a row (latest: ${source}) — stopping; the next request or page load rebuilds again.`);
+        await abandonLease(owner);
         return count;
       }
       seq = outcome.seq;
@@ -245,7 +276,9 @@ export async function runDailyCacheRefresh(runDate: string): Promise<void> {
   try {
     const batchId = await getLatestImportBatchId();
     // null = another rebuild was already running; it rebuilds once more before finishing, so today's
-    // cache still ends up fresh — recorded as SUCCESS without a row count.
+    // cache still ends up fresh — recorded as SUCCESS without a row count. Should that rebuild die
+    // instead, its lease is left orphaned and the next page load re-claims today's run
+    // (DailyCacheStatus.rebuildInterrupted).
     const epicRowCount = await refreshDerivedCaches(batchId, 'daily-cache');
     await pool.query(
       `UPDATE daily_cache_runs SET status = 'SUCCESS', finished_at = CURRENT_TIMESTAMP, duration_ms = $2, epic_row_count = $3, source_import_batch_id = $4 WHERE run_date = $1::date;`,

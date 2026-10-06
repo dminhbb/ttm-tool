@@ -252,6 +252,11 @@
    fixed-width layout (horizontal scroll takes over instead). */
 .ttm-table-compact th,
 .ttm-table-compact td { padding-left: 8px; padding-right: 8px; }
+/* Wider Nhận xét / Status columns in the normal (non-compact) layout: their content is nowrap, so the
+   column only grows through its padding (12px → 24px each side). Selectors mirror globals.css's
+   .ui-table thead th / tbody td so this wins on specificity. */
+.ui-table thead th.ttm-col-roomy,
+.ui-table tbody td.ttm-col-roomy { padding-left: 24px; padding-right: 24px; }
 .ttm-col-compact-status { max-width: 92px; }
 .ttm-col-compact-status .ttm-status-badge { max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ttm-metric-compact .ttm-strip-date { font-size: 10px; }

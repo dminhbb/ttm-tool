@@ -66,7 +66,9 @@ export function EpicAlertsIframeModal({
       />
 
       {/* Dialog Frame */}
-      <div className="relative z-10 flex h-[92vh] w-[96vw] max-w-[1750px] flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-[#f8fafc] shadow-2xl">
+      {/* 96% × 92% of the viewport with no pixel cap, so the embedded Quản trị Epic table (1694px wide)
+          gets the full width on large screens while the dashboard stays visible round the edges. */}
+      <div className="relative z-10 flex h-[92vh] w-[96vw] flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-[#f8fafc] shadow-2xl">
         {/* Header */}
         <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-5 shadow-2xs">
           <div className="flex items-center gap-2.5 min-w-0 mr-4">

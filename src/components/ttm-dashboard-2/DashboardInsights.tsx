@@ -97,149 +97,133 @@ function dimensionScope(dimension: TtmBreakdownDimension, linkValue: string | nu
 // Widget row
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * Every widget is Title → Center number → Subtitle, and each of the three uses ONE type style across
+ * all nine widgets (2026-10-06) — never a per-widget size. Sizes are fluid (cqw = % of the row's own
+ * width, see the @container row in KpiStrip): full size from a ~1440px row up, shrinking with the row
+ * on smaller screens so a number is never cut off. The two groups differ by tone only: navy pastel
+ * (overview / indexes) vs neutral grey (follow-up work).
+ *
+ * The three index widgets (TTM-CNTT QLDA / QA, TTM-E2E) are the one variation: their headline figure
+ * is the "%" inside a larger ring (KPI_RING_CLASS), so the "351 / 409" beside it is set smaller
+ * (KPI_FRACTION_CLASS) as supporting detail.
+ */
+const KPI_TITLE_CLASS = 'text-[length:clamp(7px,0.66cqw,9.5px)] font-bold uppercase tracking-wide leading-[1.35]';
+const KPI_VALUE_CLASS = 'text-[length:clamp(12px,1.18cqw,17px)] font-extrabold leading-tight tabular-nums text-[#0f172a]';
+const KPI_FRACTION_CLASS = 'text-[length:clamp(9.5px,0.9cqw,13px)] font-bold leading-tight tabular-nums text-[#0f172a]';
+const KPI_SUBTITLE_CLASS = 'text-[length:clamp(6.5px,0.625cqw,9px)] font-medium leading-[1.35] text-[#475569]';
+const KPI_TRUNCATE_CLASS = 'overflow-hidden text-ellipsis whitespace-nowrap';
+const KPI_ICON_CLASS = 'size-[clamp(26px,2.36cqw,34px)]';
+/** The progress ring fills the card's content height; its "%" is the index widgets' headline figure. */
+const KPI_RING_CLASS = 'size-[clamp(34px,3.2cqw,46px)]';
+const KPI_RING_TEXT_CLASS = 'text-[length:clamp(7.5px,0.72cqw,10.5px)] font-extrabold tracking-tighter';
+/** viewBox units of the ring — it is drawn at 46 and scaled to KPI_RING_CLASS. */
+const KPI_RING_BOX = 46;
+
+const KPI_TONES = {
+  navy: { card: 'border-[#b3cbf1] bg-[#d6e4fa]', hover: 'hover:border-[#7aa5ea]', title: 'text-[#1e3a8a]' },
+  slate: { card: 'border-[#d5d9df] bg-[#eef0f2]', hover: 'hover:border-[#94a3b8]', title: 'text-[#334155]' },
+} as const;
+
+type KpiTone = keyof typeof KPI_TONES;
+
 interface KpiCardProps {
-  title: string;
-  value: React.ReactNode;
-  subtitle: React.ReactNode;
   icon?: React.ReactNode;
-  bgColor: string;
-  borderColor: string;
-  hoverBorderColor?: string;
   onClick?: () => void;
+  subtitle: React.ReactNode;
+  title: string;
+  tone: KpiTone;
   tooltip?: string;
-  valueClassName?: string;
+  value: string;
+  /** Index widgets: the value is the fraction beside the ring, set smaller (KPI_FRACTION_CLASS). */
+  valueAsDetail?: boolean;
 }
 
-function KpiCard({
-  title,
-  value,
-  subtitle,
-  icon,
-  bgColor,
-  borderColor,
-  hoverBorderColor = 'hover:border-slate-300',
-  onClick,
-  tooltip,
-  valueClassName,
-}: KpiCardProps) {
-  const isClickable = Boolean(onClick);
-
+/**
+ * The card's own action is a stretched <button> behind the content (not role="button" on the card),
+ * so the links inside a subtitle stay real, separately focusable buttons instead of interactive
+ * elements nested in a button.
+ */
+function KpiCard({ icon, onClick, subtitle, title, tone, tooltip, value, valueAsDetail = false }: KpiCardProps) {
+  const palette = KPI_TONES[tone];
   return (
     <div
-      role={isClickable ? 'button' : undefined}
-      tabIndex={isClickable ? 0 : undefined}
-      onClick={onClick}
-      onKeyDown={
-        isClickable
-          ? (e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onClick?.();
-              }
-            }
-          : undefined
-      }
       title={tooltip}
       className={cn(
-        'group relative flex items-center gap-1.5 xl:gap-2 rounded-[14px] xl:rounded-[16px] px-2 py-1.5 xl:px-2.5 xl:py-2 text-left transition-all duration-150 shadow-[0_1px_2px_rgba(0,0,0,0.02)] h-full min-w-0 select-none',
-        bgColor,
-        borderColor,
-        isClickable ? `cursor-pointer hover:shadow-xs ${hoverBorderColor}` : ''
+        'relative flex h-full min-w-0 select-none items-center gap-1.5 rounded-[14px] border px-2.5 py-2 text-left shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-all duration-150 xl:rounded-[16px]',
+        palette.card,
+        onClick && `hover:shadow-xs ${palette.hover}`,
       )}
     >
-      {icon}
-      <div className="flex flex-col min-w-0 flex-1 justify-center">
-        <span className="text-[7px] xl:text-[7.5px] 2xl:text-[8px] font-bold uppercase tracking-wider text-[#274c77] whitespace-nowrap overflow-hidden text-ellipsis">
-          {title}
-        </span>
-        <span
-          className={cn(
-            'font-extrabold text-[#1e293b] leading-tight whitespace-nowrap overflow-hidden text-ellipsis',
-            valueClassName || 'text-[11px] sm:text-[12px] xl:text-[13px] 2xl:text-[14px]'
-          )}
-        >
-          {value}
-        </span>
-        <span className="text-[6.5px] xl:text-[7px] 2xl:text-[7.5px] font-medium text-[#718096] whitespace-nowrap overflow-hidden text-ellipsis">
-          {subtitle}
-        </span>
+      {onClick && (
+        <button
+          type="button"
+          onClick={onClick}
+          aria-label={`${title}: ${value}`}
+          className="absolute inset-0 cursor-pointer rounded-[inherit] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#1463f7]"
+        />
+      )}
+      {icon && <div className="pointer-events-none relative shrink-0">{icon}</div>}
+      <div className="pointer-events-none relative flex min-w-0 flex-1 flex-col justify-center">
+        <span className={cn(KPI_TITLE_CLASS, KPI_TRUNCATE_CLASS, palette.title)}>{title}</span>
+        <span className={cn(valueAsDetail ? KPI_FRACTION_CLASS : KPI_VALUE_CLASS, KPI_TRUNCATE_CLASS)}>{value}</span>
+        <span className={cn(KPI_SUBTITLE_CLASS, KPI_TRUNCATE_CLASS)}>{subtitle}</span>
       </div>
     </div>
   );
 }
 
-function KpiIconBadge({
-  icon: IconComponent,
-  bgColor,
-  iconColor,
-}: {
-  icon: Icon;
-  bgColor: string;
-  iconColor: string;
-}) {
+/** A number inside a subtitle that opens its own list — sits above the card's stretched button. */
+function KpiSubLink({ children, emphasized = false, onClick, title }: { children: React.ReactNode; emphasized?: boolean; onClick: () => void; title: string }) {
   return (
-    <div
-      className={cn(
-        'flex size-[28px] xl:size-[30px] 2xl:size-[32px] items-center justify-center rounded-full shrink-0 shadow-2xs',
-        bgColor
-      )}
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className={cn('pointer-events-auto cursor-pointer underline-offset-2 hover:underline focus-visible:underline', emphasized && 'text-[#b91c1c] underline')}
     >
-      <IconComponent className={cn('size-3 xl:size-3.5', iconColor)} weight="fill" />
+      {children}
+    </button>
+  );
+}
+
+function KpiIconBadge({ icon: IconComponent, iconColor }: { icon: Icon; iconColor: string }) {
+  return (
+    <div className={cn('flex items-center justify-center rounded-full bg-white shadow-2xs', KPI_ICON_CLASS)}>
+      <IconComponent className={cn('size-[47%]', iconColor)} weight="fill" />
     </div>
   );
 }
 
-function KpiProgressRing({
-  pct,
-  color,
-  bgColor,
-  text,
-  size = 30,
-  strokeWidth = 2.5,
-}: {
-  pct: number;
-  color: string;
-  bgColor: string;
-  text: string;
-  size?: number;
-  strokeWidth?: number;
-}) {
+/** `pct` null = no Epic has a verdict yet: empty track + "—", never a full ring. */
+function KpiProgressRing({ color, pct, text }: { color: string; pct: number | null; text: string }) {
+  const size = KPI_RING_BOX;
+  const strokeWidth = 4;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const clampedPct = Math.max(0, Math.min(100, isNaN(pct) ? 0 : pct));
+  const clampedPct = pct === null || Number.isNaN(pct) ? 0 : Math.max(0, Math.min(100, pct));
   const offset = circumference - (clampedPct / 100) * circumference;
 
   return (
-    <div
-      className="relative flex items-center justify-center shrink-0"
-      style={{ width: size, height: size }}
-    >
-      <svg width={size} height={size} className="-rotate-90">
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke={bgColor}
-          strokeWidth={strokeWidth}
-          fill="none"
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke={color}
-          strokeWidth={strokeWidth}
-          fill="none"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          style={{ transition: 'stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }}
-        />
+    <div className={cn('relative flex items-center justify-center rounded-full bg-white shadow-2xs', KPI_RING_CLASS)}>
+      <svg viewBox={`0 0 ${size} ${size}`} className="size-full -rotate-90" aria-hidden="true">
+        <circle cx={size / 2} cy={size / 2} r={radius} stroke="#e2e8f0" strokeWidth={strokeWidth} fill="none" />
+        {clampedPct > 0 && (
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={color}
+            strokeWidth={strokeWidth}
+            fill="none"
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            style={{ transition: 'stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }}
+          />
+        )}
       </svg>
-      <span
-        className="absolute inset-0 flex items-center justify-center text-[6.5px] xl:text-[7px] font-bold tracking-tighter select-none"
-        style={{ color }}
-      >
+      <span className={cn('absolute inset-0 flex items-center justify-center', KPI_RING_TEXT_CLASS)} style={{ color }}>
         {text}
       </span>
     </div>
@@ -252,219 +236,149 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
   const qlda = ttmFunnelCnttIndex(funnel);
   const { e2e, qa } = insights;
   const waiting = splitWaitingGolive(insights.waitingGolive, vnTodayIso());
-  const pctOf = (summary: TtmCnttSummary) => `${formatTtmPct1(summary.pctPrecise)}%`;
+  // One rule for the ring, its "%" and the fraction next to it: all three show "—" until at least
+  // one Epic has a verdict (denominator 0 keeps pctPrecise at 100 — see TtmCnttSummary.pct).
+  const index = (summary: TtmCnttSummary) => {
+    const judged = hasTtmVerdict(summary);
+    const [pass, denominator] = [fmt(summary.pass), fmt(summary.denominator)];
+    return {
+      // Four-digit counts ("1.335/1.364") drop the spaces round the slash to stay inside the card.
+      fraction: judged ? `${pass}${pass.length + denominator.length > 6 ? '/' : ' / '}${denominator}` : '—',
+      pct: judged ? summary.pctPrecise : null,
+      // The ring has room for five characters: a full 100 is shown as "100%", not "100,0%".
+      pctText: !judged ? '—' : summary.pctPrecise >= 99.95 ? '100%' : `${formatTtmPct1(summary.pctPrecise)}%`,
+    };
+  };
+  const qldaIndex = index(qlda);
+  const qaIndex = index(qa);
+  const e2eIndex = index(e2e);
 
-  const warningSubtitle = !insights.scoringEngine ? (
-    <span>
-      <span
-        onClick={(e) => {
-          e.stopPropagation();
-          onOpen({ alert: 'LATE', title: 'Danh sách Epic - Chậm tiến độ' });
-        }}
-        className="hover:underline cursor-pointer"
-        title="Xem danh sách Epic Chậm tiến độ"
-      >
-        {fmt(insights.lateWarning)} muộn
-      </span>
-      {' · '}
-      <span
-        onClick={(e) => {
-          e.stopPropagation();
-          onOpen({ alert: 'EARLY', title: 'Danh sách Epic - Cảnh báo sớm' });
-        }}
-        className="hover:underline cursor-pointer"
-        title="Xem danh sách Epic Cảnh báo sớm"
-      >
-        {fmt(insights.earlyWarning)} sớm
-      </span>
-    </span>
-  ) : (
+  // The Scoring Service has no "Cảnh báo sớm": the number is the late ones only. On the legacy engine
+  // the number is late + early, so the card opens both — the list always matches the number.
+  const openWarnings = insights.scoringEngine
+    ? () => onOpen({ alert: 'LATE', title: 'Danh sách Epic - Chậm tiến độ' })
+    : () => onOpen({ alert: ['LATE', 'EARLY'], title: 'Danh sách Epic - Cảnh báo (Muộn + Sớm)' });
+
+  const warningSubtitle = insights.scoringEngine ? (
     `${fmt(insights.lateWarning)} muộn`
+  ) : (
+    <>
+      <KpiSubLink onClick={() => onOpen({ alert: 'LATE', title: 'Danh sách Epic - Chậm tiến độ' })} title="Xem danh sách Epic Chậm tiến độ">
+        {fmt(insights.lateWarning)} muộn
+      </KpiSubLink>
+      {' · '}
+      <KpiSubLink onClick={() => onOpen({ alert: 'EARLY', title: 'Danh sách Epic - Cảnh báo sớm' })} title="Xem danh sách Epic Cảnh báo sớm">
+        {fmt(insights.earlyWarning)} sớm
+      </KpiSubLink>
+    </>
   );
 
   const waitingSubtitle = (
-    <span>
-      <span
-        onClick={(e) => {
-          e.stopPropagation();
-          onOpen({ alert: 'WAITING_GOLIVE_MISSING_R4G', title: 'Danh sách Epic - Chờ golive: Thiếu R4G Date' });
-        }}
-        className="hover:underline cursor-pointer"
-        title="Epic Chờ golive nhưng thiếu R4G Date"
-      >
+    <>
+      <KpiSubLink onClick={() => onOpen({ alert: 'WAITING_GOLIVE_MISSING_R4G', title: 'Danh sách Epic - Chờ golive: Thiếu R4G Date' })} title="Epic Chờ golive nhưng thiếu R4G Date">
         {fmt(waiting.missingR4g)} thiếu
-      </span>
+      </KpiSubLink>
       {' · '}
-      <span
-        onClick={(e) => {
-          e.stopPropagation();
-          onOpen({ alert: 'WAITING_GOLIVE_WITHIN_GRACE', title: 'Danh sách Epic - Chờ golive: Trong hạn' });
-        }}
-        className="hover:underline cursor-pointer"
-        title="Epic Chờ golive còn trong hạn R4G Date + 5 ngày làm việc"
-      >
+      <KpiSubLink onClick={() => onOpen({ alert: 'WAITING_GOLIVE_WITHIN_GRACE', title: 'Danh sách Epic - Chờ golive: Trong hạn' })} title="Epic Chờ golive còn trong hạn R4G Date + 5 ngày làm việc">
         {fmt(waiting.withinGrace)} hạn
-      </span>
+      </KpiSubLink>
       {' · '}
-      <span
-        onClick={(e) => {
-          e.stopPropagation();
-          onOpen({ alert: 'WAITING_GOLIVE_OVERDUE', title: 'Danh sách Epic - Chờ golive: Quá hạn' });
-        }}
-        className={`${waiting.overdue > 0 ? 'font-bold underline' : ''} hover:underline cursor-pointer`}
-        title="Epic Chờ golive đã quá hạn R4G Date + 5 ngày làm việc"
-      >
+      <KpiSubLink emphasized={waiting.overdue > 0} onClick={() => onOpen({ alert: 'WAITING_GOLIVE_OVERDUE', title: 'Danh sách Epic - Chờ golive: Quá hạn' })} title="Epic Chờ golive đã quá hạn R4G Date + 5 ngày làm việc">
         {fmt(waiting.overdue)} quá
-      </span>
-    </span>
+      </KpiSubLink>
+    </>
   );
 
   return (
-    <div className="rounded-2xl border border-[#d9e3ef] bg-white/95 p-2 sm:p-2.5 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
-      <div className="overflow-x-auto lg:overflow-x-visible pb-1 lg:pb-0 scrollbar-none">
-        <div className="flex flex-row items-stretch gap-1.5 xl:gap-2 min-w-[960px] lg:min-w-0">
-          {/* NHÓM BÊN TRÁI: 5 THẺ TỔNG QUAN & HIỆU NĂNG (LIGHT NAVY PASTEL) */}
-          <div className="grid grid-cols-5 gap-1.5 xl:gap-2 flex-[5] min-w-0 items-stretch">
-            {/* 1. Tổng số Epic — Không icon */}
+    <div className="rounded-2xl border border-[#d9e3ef] bg-white/95 p-2 shadow-[0_2px_12px_rgba(0,0,0,0.03)] sm:p-2.5">
+      <div className="overflow-x-auto pb-1 xl:overflow-x-visible xl:pb-0">
+        <div className="@container flex min-w-[1160px] flex-row items-stretch gap-2 xl:min-w-0">
+          {/* Left group — overview & indexes (navy pastel). Column widths follow each card's content. */}
+          <div className="grid min-w-0 flex-[52] grid-cols-[0.62fr_1.15fr_1.14fr_1.14fr_1.1fr] items-stretch gap-2">
             <KpiCard
+              tone="navy"
               title="TỔNG EPIC"
               value={fmt(l2)}
               subtitle="Phạm vi tính"
-              bgColor="bg-[#eaf1fb]"
-              borderColor="border border-[#d0e0f3]"
-              hoverBorderColor="hover:border-[#93c5fd]"
               onClick={() => onOpen({ alert: 'TTM_COUNTED_IN_SCOPE', title: 'Danh sách Epic - Tổng số Epic (trong phạm vi tính TTM)' })}
               tooltip="Epic trong phạm vi tính TTM (L02): đã loại Cancelled, Epic ngoại lệ và dự án Time to Market = N — xem danh sách ở Quản trị Epic"
             />
-
-            {/* 2. Fail TTM-CNTT */}
             <KpiCard
+              tone="navy"
               title="FAIL TTM-CNTT"
               value={fmt(qlda.fail)}
               subtitle="Cần xử lý"
-              icon={<KpiIconBadge icon={WarningCircle} bgColor="bg-[#fee2e2]" iconColor="text-[#ef4444]" />}
-              bgColor="bg-[#eaf1fb]"
-              borderColor="border border-[#d0e0f3]"
-              hoverBorderColor="hover:border-[#93c5fd]"
+              icon={<KpiIconBadge icon={WarningCircle} iconColor="text-[#dc2626]" />}
               onClick={() => onOpen({ alert: FAIL_ALERTS, title: 'Danh sách Epic - Fail TTM-CNTT' })}
               tooltip="Epic không đạt TTM-CNTT: nhóm 1 (R4G Date muộn hơn Target) + nhóm 2 (chưa có R4G Date, đã quá Target)"
             />
-
-            {/* 3. TTM-CNTT (QLDA) — Cỡ chữ phép tính thu nhỏ 70% */}
             <KpiCard
+              tone="navy"
               title="TTM-CNTT"
-              value={hasTtmVerdict(qlda) ? `${fmt(qlda.pass)} / ${fmt(qlda.denominator)}` : '—'}
-              valueClassName="text-[8px] sm:text-[8.5px] xl:text-[9px] 2xl:text-[10px] tracking-tight"
-              subtitle="QLDA"
-              icon={
-                <KpiProgressRing
-                  pct={qlda.pctPrecise}
-                  color="#10b981"
-                  bgColor="#dcfce7"
-                  text={hasTtmVerdict(qlda) ? pctOf(qlda) : '—'}
-                />
-              }
-              bgColor="bg-[#eaf1fb]"
-              borderColor="border border-[#d0e0f3]"
-              hoverBorderColor="hover:border-[#93c5fd]"
-              tooltip={`TTM-CNTT (QLDA) — Tỷ lệ % Pass: ${hasTtmVerdict(qlda) ? pctOf(qlda) : '—'} (${fmt(qlda.pass)}/${fmt(qlda.denominator)} Epic đạt)`}
+              value={qldaIndex.fraction}
+              valueAsDetail
+              subtitle="Toàn phòng QLDA"
+              icon={<KpiProgressRing pct={qldaIndex.pct} color="#059669" text={qldaIndex.pctText} />}
+              tooltip={`TTM-CNTT (QLDA) — Tỷ lệ % Pass: ${qldaIndex.pctText} (${fmt(qlda.pass)}/${fmt(qlda.denominator)} Epic đạt)`}
             />
-
-            {/* 4. TTM-CNTT (QA) — Cỡ chữ phép tính thu nhỏ 70% */}
             <KpiCard
+              tone="navy"
               title="TTM-CNTT"
-              value={qa.total > 0 ? `${fmt(qa.pass)} / ${fmt(qa.denominator)}` : '—'}
-              valueClassName="text-[8px] sm:text-[8.5px] xl:text-[9px] 2xl:text-[10px] tracking-tight"
-              subtitle="QA"
-              icon={
-                <KpiProgressRing
-                  pct={qa.pctPrecise}
-                  color="#10b981"
-                  bgColor="#dcfce7"
-                  text={hasTtmVerdict(qa) ? pctOf(qa) : '—'}
-                />
-              }
-              bgColor="bg-[#eaf1fb]"
-              borderColor="border border-[#d0e0f3]"
-              hoverBorderColor="hover:border-[#93c5fd]"
-              tooltip={`TTM-CNTT (QA) — Tỷ lệ % Pass: ${hasTtmVerdict(qa) ? pctOf(qa) : '—'} (${fmt(qa.pass)}/${fmt(qa.denominator)} Epic MVP Done / Released)`}
+              value={qaIndex.fraction}
+              valueAsDetail
+              subtitle="Phạm vi của QA"
+              icon={<KpiProgressRing pct={qaIndex.pct} color="#059669" text={qaIndex.pctText} />}
+              tooltip={`TTM-CNTT (QA) — Tỷ lệ % Pass: ${qaIndex.pctText} (${fmt(qa.pass)}/${fmt(qa.denominator)} Epic MVP Done / Released)`}
             />
-
-            {/* 5. TTM-E2E — Cỡ chữ phép tính thu nhỏ 70% */}
             <KpiCard
+              tone="navy"
               title="TTM-E2E"
-              value={e2e.total > 0 ? `${fmt(e2e.pass)} / ${fmt(e2e.denominator)}` : '—'}
-              valueClassName="text-[8px] sm:text-[8.5px] xl:text-[9px] 2xl:text-[10px] tracking-tight"
+              value={e2eIndex.fraction}
+              valueAsDetail
               subtitle="Đạt / Đánh giá"
-              icon={
-                <KpiProgressRing
-                  pct={e2e.pctPrecise}
-                  color="#3b82f6"
-                  bgColor="#dbeafe"
-                  text={hasTtmVerdict(e2e) ? pctOf(e2e) : '—'}
-                />
-              }
-              bgColor="bg-[#eaf1fb]"
-              borderColor="border border-[#d0e0f3]"
-              hoverBorderColor="hover:border-[#93c5fd]"
+              icon={<KpiProgressRing pct={e2eIndex.pct} color="#2563eb" text={e2eIndex.pctText} />}
               onClick={() => onOpen({ alert: 'FAIL_E2E', title: 'Danh sách Epic - Fail TTM-E2E' })}
-              tooltip={`TTM-E2E — Tỷ lệ % Pass: ${hasTtmVerdict(e2e) ? pctOf(e2e) : '—'} (${fmt(e2e.pass)}/${fmt(e2e.denominator)} Epic đạt) — bấm để xem danh sách Fail`}
+              tooltip={`TTM-E2E — Tỷ lệ % Pass: ${e2eIndex.pctText} (${fmt(e2e.pass)}/${fmt(e2e.denominator)} Epic đạt) — bấm để xem danh sách Fail`}
             />
           </div>
 
-          {/* VÁCH NGĂN DỌC TINH TẾ GIỮA 2 NHÓM KPI */}
-          <div className="hidden lg:block w-[1px] bg-slate-200/90 self-stretch my-1.5 shrink-0" aria-hidden="true" />
+          <div className="my-1 w-px shrink-0 self-stretch bg-slate-300" aria-hidden="true" />
 
-          {/* NHÓM BÊN PHẢI: 4 THẺ TÁC NGHIỆP & BẤT THƯỜNG (LIGHT GREY) */}
-          <div className="grid grid-cols-4 gap-1.5 xl:gap-2 flex-[4] min-w-0 items-stretch">
-            {/* 6. Cảnh báo */}
+          {/* Right group — follow-up work & anomalies (neutral grey). */}
+          <div className="grid min-w-0 flex-[44] grid-cols-[1.1fr_0.95fr_1.3fr_1.05fr] items-stretch gap-2">
             <KpiCard
+              tone="slate"
               title="CẢNH BÁO"
               value={fmt(insights.lateWarning + insights.earlyWarning)}
               subtitle={warningSubtitle}
-              icon={<KpiIconBadge icon={Bell} bgColor="bg-[#fef3c7]" iconColor="text-[#f59e0b]" />}
-              bgColor="bg-[#f1f5f9]"
-              borderColor="border border-[#e2e8f0]"
-              hoverBorderColor="hover:border-slate-300"
-              onClick={() => onOpen({ alert: 'LATE', title: 'Danh sách Epic - Chậm tiến độ' })}
+              icon={<KpiIconBadge icon={Bell} iconColor="text-[#d97706]" />}
+              onClick={openWarnings}
               tooltip={`Cảnh báo tiến độ: ${fmt(insights.lateWarning)} muộn · ${fmt(insights.earlyWarning)} sớm — xem ở Quản trị Epic`}
             />
-
-            {/* 7. Sai lệch */}
             <KpiCard
+              tone="slate"
               title="SAI LỆCH"
               value={fmt(insights.anomalyCount)}
               subtitle="Cần điều chỉnh"
-              icon={<KpiIconBadge icon={Warning} bgColor="bg-[#fee2e2]" iconColor="text-[#ef4444]" />}
-              bgColor="bg-[#f1f5f9]"
-              borderColor="border border-[#e2e8f0]"
-              hoverBorderColor="hover:border-slate-300"
+              icon={<KpiIconBadge icon={Warning} iconColor="text-[#dc2626]" />}
               onClick={() => onOpen({ dataIssue: true, title: 'Danh sách Epic - Sai lệch Dữ liệu' })}
               tooltip="Xem danh sách Epic sai lệch dữ liệu ở Quản trị Epic"
             />
-
-            {/* 8. Chờ golive */}
             <KpiCard
+              tone="slate"
               title="CHỜ GOLIVE"
               value={fmt(insights.waitingGolive.total)}
               subtitle={waitingSubtitle}
-              icon={<KpiIconBadge icon={CheckCircle} bgColor="bg-[#dcfce7]" iconColor="text-[#10b981]" />}
-              bgColor="bg-[#f1f5f9]"
-              borderColor="border border-[#e2e8f0]"
-              hoverBorderColor="hover:border-slate-300"
+              icon={<KpiIconBadge icon={CheckCircle} iconColor="text-[#059669]" />}
               onClick={() => onOpen({ alert: 'WAITING_GOLIVE', title: 'Danh sách Epic - Chờ golive' })}
               tooltip={`Epic Chờ golive: ${fmt(waiting.missingR4g)} thiếu R4G · ${fmt(waiting.withinGrace)} trong hạn · ${fmt(waiting.overdue)} quá hạn`}
             />
-
-            {/* 9. Giải trình */}
             <KpiCard
+              tone="slate"
               title="GIẢI TRÌNH"
               value={fmt(insights.justifyGolive)}
               subtitle="Quá hạn R4G +5d"
-              icon={<KpiIconBadge icon={Clock} bgColor="bg-[#dbeafe]" iconColor="text-[#3b82f6]" />}
-              bgColor="bg-[#f1f5f9]"
-              borderColor="border border-[#e2e8f0]"
-              hoverBorderColor="hover:border-slate-300"
+              icon={<KpiIconBadge icon={Clock} iconColor="text-[#2563eb]" />}
               onClick={() => onOpen({ alert: 'JUSTIFY_GOLIVE', title: 'Danh sách Epic - Cần Giải trình Golive' })}
               tooltip="Xem danh sách Epic cần Giải trình Golive ở Quản trị Epic (quá hạn R4G Date + 5 ngày làm việc)"
             />

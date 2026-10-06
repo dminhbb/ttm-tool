@@ -9,6 +9,8 @@ export interface ModalProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
+  /** Blur the page behind the dialog (same backdrop as EpicAlertsIframeModal) instead of only dimming it. */
+  blurBackdrop?: boolean;
 }
 
 export const Modal = ({
@@ -18,6 +20,7 @@ export const Modal = ({
   children,
   footer,
   maxWidth = 'md',
+  blurBackdrop = false,
 }: ModalProps) => {
   const titleId = React.useId();
   const closeButtonRef = React.useRef<HTMLButtonElement>(null);
@@ -49,7 +52,7 @@ export const Modal = ({
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="presentation">
       <div
-        className="absolute inset-0 bg-black/60 transition-opacity duration-200"
+        className={cn('absolute inset-0 transition-opacity duration-200', blurBackdrop ? 'bg-slate-900/60 backdrop-blur-xs' : 'bg-black/60')}
         onClick={onClose}
         aria-hidden="true"
       />

@@ -350,10 +350,10 @@ function TtmMetricStrips({
   const elapsedDays = elapsed ?? 0;
   // Compact mode (all four collapsible phase columns collapsed) shrinks these tracks so the whole
   // table fits the viewport with no horizontal scroll — see the toolbar's collapse-all toggle.
-  const BASE_WIDTH = compact ? 30 : 56;
+  const BASE_WIDTH = compact ? 30 : 70;
   // Hard cap in px (not just a ratio multiplier) so an Epic with an unusually long actual
   // duration can never stretch the strip wide enough to break the table's layout.
-  const MAX_ACTUAL_WIDTH = compact ? 56 : 112;
+  const MAX_ACTUAL_WIDTH = compact ? 56 : 140;
   const actualWidth = Math.min(Math.max(6, ratio * BASE_WIDTH), MAX_ACTUAL_WIDTH);
   const mismatchNote = ' — * đã đạt tiến độ theo ngày ghi nhận nhưng status Epic chưa chuyển đúng quy định';
 
@@ -1471,14 +1471,17 @@ function EpicAlerts15Screen() {
         <EmptyState title="Không có Epic phù hợp" description="Thử thay đổi bộ lọc." />
       ) : (
         <TableContainer>
-          <Table className={allColumnsCollapsed ? 'ttm-table-compact' : 'min-w-[1540px]'}>
+          {/* 1694px = 1540 + 10% (2026-10-06). The extra goes to Epic (the only column whose content
+              wraps, so it absorbs table width), Nhận xét / Status (ttm-col-roomy) and the two TTM
+              strips (longer tracks, see MetricStrip) — the date / phase columns keep their width. */}
+          <Table className={allColumnsCollapsed ? 'ttm-table-compact' : 'min-w-[1694px]'}>
             <THead>
               <TR>
-                <TH className={`ttm-epic-col-sticky ttm-col-border-right ${allColumnsCollapsed ? 'min-w-[150px]' : 'min-w-[180px]'}`} title="issues.issue_key / issues.issue_name">Epic</TH>
-                <TH className={allColumnsCollapsed ? 'min-w-[90px]' : 'min-w-[120px]'} title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">Nhận xét</TH>
+                <TH className={`ttm-epic-col-sticky ttm-col-border-right ${allColumnsCollapsed ? 'min-w-[150px]' : 'min-w-[230px]'}`} title="issues.issue_key / issues.issue_name">Epic</TH>
+                <TH className={allColumnsCollapsed ? 'min-w-[90px]' : 'ttm-col-roomy min-w-[144px]'} title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">Nhận xét</TH>
                 <TH title="Baseline (dòng trên) = Start Date + TTM-CNTT (QLDA); Thực tế (dòng dưới) = Start Date → R4G Date (hoặc hôm nay nếu chưa có)">TTM-CNTT (QLDA)</TH>
                 <TH className="ttm-col-border-right" title="Baseline (dòng trên) = T0 + TTM-E2E; Thực tế (dòng dưới) = T0 → Due Date (hoặc hôm nay nếu chưa có). T0 = Idea Approved Date, hoặc Start Date, hoặc ngày tạo Jira">TTM-E2E</TH>
-                <TH className={allColumnsCollapsed ? 'ttm-col-compact-status' : undefined} title="issues.current_status">Status</TH>
+                <TH className={allColumnsCollapsed ? 'ttm-col-compact-status' : 'ttm-col-roomy'} title="issues.current_status">Status</TH>
                 <TH className={allColumnsCollapsed ? 'min-w-[92px]' : 'min-w-[100px]'} title="T0 = Idea Approved Date, hoặc ngày tạo Jira nếu không có — điểm bắt đầu chu kỳ TTM-E2E">START-E2E</TH>
                 <TH title="issues.start_date">START-CNTT</TH>
                 <CollapsiblePhaseHeader phase="DESIGN" isCollapsed={collapsedColumns.has('DESIGN')} onToggle={toggleColumn} />
@@ -1507,7 +1510,7 @@ function EpicAlerts15Screen() {
                         {isTtmExcluded ? `(${row.epicKey})` : row.epicKey}
                       </button>
                       {row.epicName && (
-                        <span className="ttm-epic-summary" title={row.epicName}>{truncateSummary(row.epicName)}</span>
+                        <span className="ttm-epic-summary" title={row.epicName}>{truncateSummary(row.epicName, allColumnsCollapsed ? 50 : 60)}</span>
                       )}
                       {(row.epicType || row.ownerName) && (
                         <span className="ttm-project-tag">{row.epicType ? `${row.epicType}. ` : ''}PM/SM: {row.ownerName || '-'}</span>
@@ -1522,7 +1525,7 @@ function EpicAlerts15Screen() {
                         </span>
                       )}
                     </TD>
-                    <TD>
+                    <TD className={allColumnsCollapsed ? undefined : 'ttm-col-roomy'}>
                       {(() => {
                         // "Sai Status" (see resolveTtmCnttStatusMismatch in epic-alert-service.ts) always
                         // takes priority over Đạt/Fail TTM-CNTT — the recorded date is on schedule, but
@@ -1607,7 +1610,7 @@ function EpicAlerts15Screen() {
                         of Start Date, so this renders the same whether or not the Epic is missing
                         Start Date (see resolveTtmE2eRelease in epic-alert-service.ts). */}
                     <TtmE2eStrips compact={allColumnsCollapsed} row={row} />
-                    <TD className={allColumnsCollapsed ? 'ttm-col-compact-status' : undefined}><StatusBadge status={row.currentStatus} /></TD>
+                    <TD className={allColumnsCollapsed ? 'ttm-col-compact-status' : 'ttm-col-roomy'}><StatusBadge status={row.currentStatus} /></TD>
                     <TD className="ttm-phase-cell pass">
                       {row.stages.release.baselineSourceDate ? (
                         <span className="inline-flex items-center gap-0.5 text-slate-500 font-medium text-[11px]">

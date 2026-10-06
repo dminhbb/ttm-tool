@@ -22,7 +22,7 @@ import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import { BreakdownDonutSections, BreakdownMatrixCard, KpiStrip, type InsightListParams } from '@/components/ttm-dashboard-2/DashboardInsights';
 import { SolidLayer, SplitLayer, type Ellipse } from '@/components/ttm-dashboard-2/FunnelLayers';
 import { buildEpicAlertsDeepLink, type EpicAlertsDeepLinkAlert } from '@/lib/epic-alerts-deep-link';
-import { formatTtmFailPct, formatTtmPassPct } from '@/lib/ttm-cntt-qa';
+import { formatTtmFailPct, formatTtmPassPct, hasTtmVerdict } from '@/lib/ttm-cntt-qa';
 import {
   filterTtmDashboard2Rows,
   hasActiveTtmDashboard2Filter,
@@ -94,7 +94,7 @@ function formatTtmIndexValue(summary: TtmCnttSummary | null | undefined): string
 }
 
 function formatTtmIndexTooltip(firstLine: string, summary: TtmCnttSummary | null | undefined): string {
-  const secondLine = summary && summary.total > 0 ? `${summary.pass}/${summary.denominator} Epic đạt TTM` : '—';
+  const secondLine = summary && hasTtmVerdict(summary) ? `${summary.pass}/${summary.denominator} Epic đạt TTM` : '—';
   return `${firstLine}\n${secondLine}`;
 }
 
@@ -642,7 +642,7 @@ export default function TtmDashboard2Page() {
                   <span className="text-[8.5px] font-bold uppercase tracking-wider text-slate-600">{label}</span>
                   <div className="flex items-baseline gap-1 mt-0.5">
                     <span className={`text-xs font-black ${color}`}>{formatTtmIndexValue(summary)}</span>
-                    {summary && summary.total > 0 && (
+                    {summary && hasTtmVerdict(summary) && (
                       <span className="text-[10px] font-medium text-slate-500">({summary.pass}/{summary.denominator})</span>
                     )}
                   </div>
@@ -1081,6 +1081,7 @@ export default function TtmDashboard2Page() {
           isOpen
           onClose={() => setDetailModalId(null)}
           maxWidth="2xl"
+          blurBackdrop
           title={
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 rounded font-mono font-bold text-xs bg-slate-100 text-slate-700 border border-slate-300">

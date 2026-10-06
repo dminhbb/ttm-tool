@@ -60,7 +60,9 @@ async function enforceViewPermission(request: NextRequest, role: Parameters<type
   if (!denied?.has(featureKey)) return NextResponse.next();
   if (isApi) return NextResponse.json({ error: 'Bạn không có quyền xem chức năng này (Ma trận phân quyền).' }, { status: 403 });
   const target = new URL(fallbackPathFor(denied, pathname), request.url);
-  target.searchParams.set('denied', featureKey);
+  // The bare root URL is how people open the app, not a request for "Nguồn dữ liệu" — send them to
+  // their landing page without the "no permission" notice AppShell shows for ?denied=….
+  if (pathname !== '/') target.searchParams.set('denied', featureKey);
   return NextResponse.redirect(target);
 }
 

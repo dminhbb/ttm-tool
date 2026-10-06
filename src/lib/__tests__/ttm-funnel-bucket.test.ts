@@ -175,6 +175,11 @@ describe('TTM Dashboard 2 summary (cache ↔ filtered recompute share these)', (
       assert.ok(!rows.some((item) => item.name.includes(',')));
     });
 
+    it('PM/SM: a name repeated in one Epic ("An, An, Bình") counts that Epic once under An', () => {
+      const rows = summarizeTtmFunnel([funnelRow({ ownerName: 'An, An , Bình' })]).insights.breakdowns.pmsm;
+      assert.deepEqual(rows.map((item) => [item.name, item.total]), [['An', 1], ['Bình', 1]]);
+    });
+
     it('a matrix row: Tổng số Epic = L02, Pass TTM = L05aa, Epic đánh giá = L05aa + L05ab + L05ba, Fail TTM = L05ab + L05ba', () => {
       const p2 = summary.insights.breakdowns.project.find((item) => item.linkValue === 'P2')!;
       assert.deepEqual([p2.name, p2.total, p2.pass, p2.fail, p2.failLateR4g, p2.ok, p2.late], ['Dự án 2', 2, 0, 2, 1, 0, 1]);
