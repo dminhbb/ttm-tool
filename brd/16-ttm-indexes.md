@@ -50,7 +50,7 @@ Tên các tiêu chí theo phễu TTM Dashboard 2 (`TTM_FUNNEL_CRITERIA`, `src/li
 ```
 Tỷ lệ % Pass TTM-CNTT = L05aa / (L05aa + L05ab + L05ba) × 100
 Tỷ lệ % Fail TTM-CNTT = (L05ab + L05ba) / (L05aa + L05ab + L05ba) × 100
-mẫu số = 0 (chưa Epic nào được kết luận):  Pass = 100, Fail = 0
+mẫu số = 0 (chưa Epic nào được kết luận):  hiển thị "—" (từ 2026-10-05; giá trị nội bộ pct vẫn 100, MCP trả null)
 ```
 
 - Thay cho `pass / eligible` ở mục 2: mẫu số **không còn** gồm L05ac và **có thêm** L05ba; `fail` chỉ đếm

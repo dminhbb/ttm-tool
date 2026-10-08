@@ -64,9 +64,10 @@ async function saveDomain(id: number | null, input: DomainInput): Promise<Domain
   try {
     await client.query('BEGIN');
     const params = [input.domainCode, input.domainName, input.description || null, input.leadName || null, input.isActive];
-    const previousName = id === null
+    const previous = id === null
       ? null
-      : (await client.query<{ domainName: string }>('SELECT domain_name AS "domainName" FROM domains WHERE id = $1 FOR UPDATE;', [id])).rows[0]?.domainName ?? null;
+      : (await client.query<{ domainName: string; isActive: boolean }>('SELECT domain_name AS "domainName", is_active AS "isActive" FROM domains WHERE id = $1 FOR UPDATE;', [id])).rows[0] ?? null;
+    const previousName = previous?.domainName ?? null;
     const saved = id === null
       ? await client.query<{ id: number }>(
         'INSERT INTO domains (domain_code, domain_name, description, lead_name, is_active) VALUES ($1, $2, $3, $4, $5) RETURNING id;',
@@ -82,7 +83,7 @@ async function saveDomain(id: number | null, input: DomainInput): Promise<Domain
     const domain = await getDomainById(client, domainId);
     await client.query('COMMIT');
     const nameChanged = previousName !== null && previousName !== domain.domainName;
-    return { domain, projectsChanged: changedProjects > 0, nameChanged };
+    return { activeChanged: previous !== null && previous.isActive !== domain.isActive, domain, projectsChanged: changedProjects > 0, nameChanged };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

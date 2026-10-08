@@ -277,16 +277,24 @@ describe('Data quality', () => {
     }
   });
 
-  it('R8 (2026-10-05): a future R4G Date is a plan — no anomaly, Epic stays "chưa kết luận"', () => {
+  it('R8 (2026-10-08): a future R4G Date with the status still below R4GOLIVE is "Sai lệch dữ liệu" too', () => {
     const ctx = makeContext();
     const future = addWorkingDays(ctx.asOf, 1, ctx.holidays);
+    // PAMS-98275 / PAMS-98347: In Progress, R4G Date a few days ahead — was "chưa kết luận" 05/10–08/10.
     const facts = makeFacts({ status: 'In Progress', startDate: ctx.asOf, r4gDate: future });
     const card = scoreEpic(facts, ctx);
-    assert.ok(!hasBadge(card, 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE') && !hasBadge(card, 'REC_FIX_R4G_STATUS'));
+    assert.ok(hasBadge(card, 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE') && hasBadge(card, 'REC_FIX_R4G_STATUS'));
+    assert.match(activeFindings(card).find((item) => item.badge === 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE')!.message, /chưa tới ngày/);
     assert.ok(!hasBadge(card, 'CNTT_PASS') && !hasBadge(card, 'CNTT_FAIL') && !hasBadge(card, 'CNTT_STATUS_MISMATCH'));
-    assert.deepEqual(card.indexMembership.ttm, { counted: true, eligible: true, pass: false, fail: false });
-    // The day the R4G Date is reached with the status still behind, it becomes R8.
-    assert.ok(hasBadge(scoreEpic(facts, makeContext({ asOf: future })), 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'));
+    assert.deepEqual(card.indexMembership.ttm, { counted: true, eligible: false, pass: false, fail: false });
+    for (const status of ['Design', 'Pending', 'To Do']) {
+      assert.ok(active(makeFacts({ status, startDate: ctx.asOf, r4gDate: future }), ctx).has('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'), status);
+    }
+    // Status already at R4GOLIVE or later: no R8 — "chưa kết luận" until the date is reached. Reopened: never R8.
+    const atR4g = scoreEpic(makeFacts({ status: 'R4GOLIVE', startDate: ctx.asOf, r4gDate: future }), ctx);
+    assert.ok(!hasBadge(atR4g, 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE') && !hasBadge(atR4g, 'CNTT_PASS') && !hasBadge(atR4g, 'CNTT_FAIL'));
+    assert.deepEqual(atR4g.indexMembership.ttm, { counted: true, eligible: true, pass: false, fail: false });
+    assert.ok(!active(makeFacts({ status: 'Reopened', startDate: ctx.asOf, r4gDate: future }), ctx).has('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'));
   });
 
   it('workflow (2026-10-05): MVP Done / Pilot / Done are known steps, Pending / Reopened sit with In Progress', () => {
@@ -323,9 +331,17 @@ describe('Data quality', () => {
   it('R2 "Pending lâu" is a recommendation only (threshold 20% of 15 = 3 working days)', () => {
     const facts = makeFacts({ status: 'Pending' });
     assert.ok(!active(facts, makeContext({ asOf: '2026-08-05' })).has('ANOMALY_R2_PENDING_TOO_LONG'));
-    const card = scoreEpic({ ...facts, r4gDate: '2026-08-20' }, makeContext({ asOf: '2026-08-06' }));
+    // R2 on its own is not "Sai lệch dữ liệu": it is the only data-quality badge and gates nothing.
+    const card = scoreEpic(facts, makeContext({ asOf: '2026-08-06' }));
     assert.ok(hasBadge(card, 'ANOMALY_R2_PENDING_TOO_LONG'));
-    assert.equal(card.indexMembership.ttm.eligible, true);
+    assert.deepEqual(activeFindings(card).map((item) => item.badge).filter((badge) => badge.startsWith('ANOMALY_')), ['ANOMALY_R2_PENDING_TOO_LONG']);
+    // With an R4G Date a Pending Epic also breaks R8 (any date, since 2026-10-08); R8 switched off shows
+    // R2 itself still leaves the Epic in the denominator.
+    const withR4g = { ...facts, r4gDate: '2026-08-20' };
+    assert.ok(hasBadge(scoreEpic(withR4g, makeContext({ asOf: '2026-08-06' })), 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'));
+    const r8Off = scoreEpic(withR4g, makeContext({ asOf: '2026-08-06', ruleEnabled: { ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE: false } }));
+    assert.ok(hasBadge(r8Off, 'ANOMALY_R2_PENDING_TOO_LONG'));
+    assert.equal(r8Off.indexMembership.ttm.eligible, true);
   });
 
   it('exempt statuses skip every data-quality rule but R8', () => {

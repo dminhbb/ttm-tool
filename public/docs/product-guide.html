@@ -153,10 +153,15 @@
         quyền Xem/Thêm/Sửa/Xóa cho từng cặp (tính năng, role) — lớp RBAC mịn hơn, cho phép SUPERADMIN bật/tắt riêng từng hành động.
       </div>
       <div class="callout warn">
-        <strong>Ma trận phân quyền hiện chỉ mang tính cấu hình/tham chiếu, chưa được các API/màn hình khác thực sự kiểm tra</strong> — không có route nào trong ứng dụng đọc
-        bảng <code>role_feature_permissions</code> để quyết định cho phép/từ chối một hành động; toàn bộ phân quyền thực tế vẫn dựa trên role cố định (bảng ở mục 2) và
-        phạm vi Domain/Dự án/Component. Bảng này cũng <strong>chưa hỗ trợ role SUPERVISOR</strong> (ràng buộc CHECK trên cột role chỉ nhận SUPERADMIN/ADMIN/USER) —
-        khác với dự kiến ban đầu là đưa Supervisor vào ma trận.
+        <strong>Ma trận phân quyền đã có hiệu lực với quyền "Xem" (từ 05/10/2026):</strong> bỏ tick <em>Xem</em> của một role trên một chức năng thì
+        (1) mục menu tương ứng ở left panel ẩn với role đó, (2) gõ thẳng URL của trang sẽ bị chuyển về màn hình đầu tiên role còn quyền xem
+        (TTM Dashboard 2 → Quản trị Epic → Báo cáo Epic → Epic in PO → Thống kê truy cập → TTM Dashboard), hoặc trang <code>/no-access</code> nếu không còn màn hình nào,
+        (3) API dữ liệu riêng của trang trả 403 (<code>/api/ttm-dashboard-2</code>, <code>/api/dashboard-new</code>, <code>/api/reports</code>).
+        Ma trận <strong>chỉ thu hẹp, không mở thêm</strong>: role cố định trong code (bảng ở mục 2) và phạm vi Domain/Dự án/Component vẫn áp dụng trước —
+        ví dụ tick <em>Xem</em> "Nguồn dữ liệu" cho ADMIN không làm màn hình đó mở ra. Các quyền <em>Thêm / Sửa / Xóa</em> trong ma trận vẫn mang tính khai báo,
+        chưa được API kiểm tra. SUPERADMIN tự bỏ/tick được quyền Xem của mình ở nhóm "Chức năng khác"; nhóm "Chức năng quản trị" khoá cột SUPERADMIN để không tự khoá
+        mình khỏi màn Ma trận phân quyền. Ma trận có đủ 4 role (SUPERADMIN, ADMIN, SUPERVISOR, USER). Thay đổi có hiệu lực ngay ở tab vừa lưu; phiên khác nhận trong
+        khoảng 15 giây hoặc ở lần chuyển trang kế tiếp. Từ 08/10/2026 các công cụ MCP cũng tuân theo quyền Xem của ma trận (mục 16.3).
       </div>
       <div class="callout">
         <strong>Component-level narrowing (USER):</strong> tại <code>/admin/users</code>, với mỗi Dự án đã gán cho một user role USER, có thể gán kèm danh sách
@@ -326,7 +331,7 @@
         Sơ đồ trên minh hoạ <strong>7 nhóm nghiệp vụ cốt lõi (28 bảng)</strong> đã có từ MVP1 — bao gồm <code>epic_data_anomaly_violations</code> (nhóm 6, bổ sung
         22/09/2026 cùng rule "Sai lệch dữ liệu" R1-R6, mục 9). Ứng dụng còn <strong>2 nhóm hạ tầng tích hợp</strong> mới hơn (10 bảng)
         phục vụ Popup quảng cáo/Banner thông báo (mục 14-15) và SSO/API Key/MCP Server (mục 16-17), cùng bảng nhật ký <code>visit_logs</code> (nhóm 6, phục vụ Visit Counter — mục 18) — chi tiết trong phần &quot;Bấm để xem chi tiết&quot; ngay dưới đây
-        và bảng danh mục đầy đủ 39 bảng ở mục 5.2.
+        và bảng danh mục đầy đủ 50 bảng ở mục 5.2.
       </div>
 
       <!-- Nút xem chi tiết section ẩn -->
@@ -623,7 +628,7 @@
         </div>
       </details>
 
-      <h3>5.2. Bảng danh mục 39 bảng CSDL trong hệ thống</h3>
+      <h3>5.2. Bảng danh mục 50 bảng CSDL trong hệ thống</h3>
       <table>
         <thead><tr><th>STT</th><th>Bảng CSDL</th><th>Khóa chính / Khóa ngoại</th><th>Vai trò nghiệp vụ &amp; Ghi chú</th></tr></thead>
         <tbody>
@@ -666,6 +671,24 @@
           <tr><td>37</td><td><code>mcp_oauth_authorization_codes</code></td><td><code>code</code> (PK), <code>user_id</code> (FK)</td><td>Mã ủy quyền ngắn hạn cho luồng MCP OAuth 2.0 + PKCE (mục 16).</td></tr>
           <tr><td>38</td><td><code>epic_data_anomaly_violations</code></td><td><code>id</code> (PK), <code>(epic_key, rule_code)</code> (UNIQUE), <code>source_import_batch_id</code> (FK)</td><td>Trạng thái hiện tại (không phải lịch sử "đợt") của từng rule R1-R6 "Sai lệch dữ liệu" (mục 9) đang vi phạm trên mỗi Epic — 1 dòng/Epic/rule, ghi đè hoặc xoá ở mỗi lần <code>aggregateBatchData()</code> chạy. Phục vụ thống kê theo nhóm rule; badge trên UI vẫn tính live, không đọc bảng này.</td></tr>
           <tr><td>39</td><td><code>visit_logs</code></td><td><code>id</code> (PK), <code>user_id</code> (FK)</td><td>Ghi nhận nhật ký lượt đăng nhập ứng dụng (APP_LOGIN) và lượt xem 4 màn hình trọng điểm (SCREEN_VIEW cho Dashboard, Quản trị Epic, Báo cáo Epic, Epic in PO) phục vụ tính năng Visit Counter (mục 18).</td></tr>
+        </tbody>
+      </table>
+
+      <p><strong>Các bảng bổ sung (cache, Scoring Service, cấu hình) — STT 40–50.</strong> Sơ đồ ERD ở mục 5.1 chỉ vẽ 39 bảng nghiệp vụ ở trên; 11 bảng dưới đây không có khoá ngoại tới bảng nghiệp vụ (trừ <code>updated_by_user_id</code> / <code>triggered_by_user_id</code> → <code>users</code>).</p>
+      <table>
+        <thead><tr><th>STT</th><th>Bảng CSDL</th><th>Khóa chính</th><th>Vai trò nghiệp vụ &amp; Ghi chú</th></tr></thead>
+        <tbody>
+          <tr><td>40</td><td><code>epic_alert_row_cache</code></td><td><code>epic_key</code></td><td>Cache dòng Epic của lớp dữ liệu mới nhất cho Quản trị Epic / các Dashboard: <code>row_data</code> (JSON) + các cột lọc/sắp xếp, <code>badge_codes</code>, <code>index_flags</code>, <code>findings</code> của Scoring Service. Dựng lại sau import, đầu ngày và khi cấu hình đổi (mục 6.4).</td></tr>
+          <tr><td>41</td><td><code>ttm_index_global_cache</code></td><td><code>id</code> (= 1)</td><td>Chỉ số toàn công ty TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E (số đếm + %) hiển thị trên banner.</td></tr>
+          <tr><td>42</td><td><code>ttm_dashboard_2_cache</code></td><td><code>scope_key</code></td><td>Số liệu phễu / widget / ma trận / pie chart chưa lọc của TTM Dashboard 2 theo phạm vi quyền (<code>ALL</code>, <code>ADMIN:&lt;id&gt;</code>, <code>USER:&lt;id&gt;</code>) — mục 21.5.</td></tr>
+          <tr><td>43</td><td><code>daily_cache_runs</code></td><td><code>run_date</code></td><td>Mỗi ngày (giờ Việt Nam) 1 dòng: lượt tạo lại cache đầu ngày do lần tải trang đầu tiên kích hoạt (RUNNING / SUCCESS / FAILED, thời lượng, số Epic).</td></tr>
+          <tr><td>44</td><td><code>derived_cache_refresh_lock</code></td><td><code>id</code> (= 1)</td><td><strong>Mới 05/10/2026.</strong> Khoá (lease) điều phối việc tạo lại cache giữa các instance: <code>request_seq</code>, <code>lease_owner</code>, <code>lease_until</code>, <code>last_source</code> — mục 6.4.</td></tr>
+          <tr><td>45</td><td><code>black_listed_epics</code></td><td><code>epic_key</code></td><td><strong>Mới 05/10/2026.</strong> "Epic ngoại lệ": mỗi dòng là 1 Epic bị loại khỏi mọi phép tính Time to Market (<code>project_key</code>, <code>ttm_black_listed</code>, người cập nhật). Bỏ ngoại lệ = xoá dòng — mục 13.4.</td></tr>
+          <tr><td>46</td><td><code>ttm_scope_config</code></td><td><code>id</code> (= 1)</td><td>"Phạm vi dữ liệu cho TTM": khoảng ngày R4G for TTM (CNTT) và (QA) — mục 8.7.</td></tr>
+          <tr><td>47</td><td><code>scoring_engine_settings</code></td><td><code>id</code> (= 1)</td><td>Engine hiển thị đang dùng: <code>legacy</code> hoặc <code>scoring</code>.</td></tr>
+          <tr><td>48</td><td><code>scoring_parameters</code></td><td><code>param_key</code></td><td>Tham số rule do admin ghi đè (grace Release, tỉ lệ Pending lâu, status được miễn…); mặc định nằm trong code.</td></tr>
+          <tr><td>49</td><td><code>scoring_rule_settings</code></td><td><code>badge_id</code></td><td>Bật/tắt từng badge (rule) của Scoring Service; không có dòng = theo mặc định của danh mục badge.</td></tr>
+          <tr><td>50</td><td><code>scoring_parity_runs</code></td><td><code>id</code></td><td>Kết quả mỗi lần đối chiếu Scoring Service với engine cũ (số Epic khớp / lệch có chủ đích / chưa giải thích được, chi tiết JSON).</td></tr>
         </tbody>
       </table>
 
@@ -715,6 +738,15 @@
         trong đó một lớp dữ liệu là một ngày bất kỳ có dữ liệu ở bất kỳ bảng nào trong chuỗi xử lý (raw hoặc tổng hợp). Có bước xem trước (preview) số dòng sẽ bị xoá ở từng bảng
         trước khi xác nhận. Dùng khi cần loại bỏ hẳn một đợt dữ liệu lỗi, khác với "Xoá"/"Chạy lại" vốn chỉ tác động tới lớp tổng hợp.
       </p>
+
+      <h3>6.4. Cache dữ liệu dẫn xuất &amp; khoá tạo lại cache (từ 05/10/2026)</h3>
+      <p>Các màn hình không tính trực tiếp từ dữ liệu import mà đọc 3 cache: <code>epic_alert_row_cache</code> (dòng Epic), <code>ttm_index_global_cache</code> (chỉ số toàn công ty) và <code>ttm_dashboard_2_cache</code> (TTM Dashboard 2). Cả 3 được tạo lại cùng nhau khi: import dữ liệu xong; lần tải trang đầu tiên của mỗi ngày (<code>daily_cache_runs</code>); lưu "Phạm vi dữ liệu cho TTM", Domain (đổi tên, đổi danh sách dự án, bật/tắt, xoá), "Epic ngoại lệ", hoặc Domain / trạng thái / trường Time to Market của một dự án; đổi engine hiển thị; hoặc bấm "Tạo lại cache" ở Quản trị nguồn dữ liệu. Một lượt mất khoảng 20–45 giây.</p>
+      <ul>
+        <li><strong>Chỉ một lượt chạy tại một thời điểm</strong> trên mọi instance, điều phối bằng bảng <code>derived_cache_refresh_lock</code>. Yêu cầu đến trong lúc đang chạy không chạy song song mà được "gộp": lượt đang chạy sẽ chạy lại thêm một lần với dữ liệu mới nhất trước khi nhả khoá, nên không yêu cầu nào bị mất. Nút "Tạo lại cache" báo rõ khi yêu cầu bị gộp.</li>
+        <li><strong>Tự phục hồi:</strong> nếu lượt đang chạy bị chết giữa chừng (hết thời gian chạy của function), khoá hết hạn sau 6 phút; trạng thái này được coi là cache <em>cũ</em> và lần tải trang kế tiếp sẽ chạy lại, kể cả khi lượt trong ngày đã thành công.</li>
+        <li>Thay đổi rule của Scoring Service hoặc cấu hình loại trừ chỉ thể hiện trên số liệu <strong>sau lần tạo lại cache kế tiếp</strong>.</li>
+        <li><strong>Domain của dự án là thông tin hiện hành, không lưu theo lịch sử:</strong> mỗi dòng Epic mang tên Domain <em>hiện tại</em> của dự án (dự án và Domain đều phải đang active). Dự án bị gỡ khỏi Domain (hoặc Domain bị tắt / xoá) thì sau lần tạo lại cache, Epic của dự án đó <strong>không còn tính vào</strong> thống kê của Domain cũ — bộ lọc Domain, dòng Domain trong Ma trận Phân bổ, pie chart "Theo Domain nghiệp vụ" — mà chuyển sang nhóm "Chưa gán Domain"; tổng toàn phòng không đổi. ADMIN của Domain cũ cũng không còn thấy các Epic đó (trừ khi là PM/SM của dự án). Xem lại lớp dữ liệu cũ vẫn dùng Domain hiện hành.</li>
+      </ul>
     </section>
 
     <section id="alert-policy">
@@ -922,7 +954,7 @@
           <tr><td>R5</td><td>Thiếu Requirement Level</td><td>Requirement Level trống hoặc "none" <strong>và status đã qua DESIGN</strong> (kể cả Pending / Reopened). <em>04/10/2026: không xét Epic đang ở DESIGN.</em></td><td>Có</td><td>Bổ sung Requirement Level</td></tr>
           <tr><td>R6</td><td>SP nhưng Level thấp</td><td>Loại Epic SP-Lv12 / SP-Lv34 nhưng Requirement Level = 1 hoặc 2.</td><td>Có</td><td>Rà soát Phân loại yêu cầu / Requirement Level</td></tr>
           <tr><td>R7</td><td>Sai Status (trục Release)</td><td>Due Date trong hạn (≤ R4G Date + 5 ngày làm việc) nhưng status chưa Released.</td><td><strong>Không</strong> — chuyển sang trục Release (từ 29/09/2026)</td><td>Chuyển status sang Released</td></tr>
-          <tr><td>R8</td><td>Có R4G Date nhưng chưa R4GOLIVE</td><td>Có R4G Date, <strong>R4G Date ≤ ngày tính</strong> và status chưa tới R4GOLIVE (kể cả Pending). <strong>Áp dụng cả với To Do / In PO / Backlog</strong>; Cancelled và <strong>Reopened</strong> không xét (Epic đã golive rồi bị mở lại giữ R4G Date và kết quả TTM của mình, không gắn "Sai Status"). R4G Date ở tương lai là ngày kế hoạch — không vi phạm, Epic ở nhóm "chưa kết luận" (L05ac). <em>Mới 04/10/2026; điều chỉnh 05/10/2026.</em></td><td>Có</td><td>Chuyển status sang R4GOLIVE hoặc kiểm tra lại R4G Date</td></tr>
+          <tr><td>R8</td><td>Có R4G Date nhưng chưa R4GOLIVE</td><td>Có R4G Date — <strong>dù đã tới hay còn ở tương lai</strong> — và status chưa tới R4GOLIVE (kể cả Pending). <strong>Áp dụng cả với To Do / In PO / Backlog</strong>; Cancelled và <strong>Reopened</strong> không xét (Epic đã golive rồi bị mở lại giữ R4G Date và kết quả TTM của mình, không gắn "Sai Status"). R4G Date là ngày Epic thực tế đạt R4GOLIVE nên không được nhập trước khi status tới đó; Epic đã ở R4GOLIVE trở lên mà R4G Date còn ở tương lai thì không vi phạm, thuộc nhóm "chưa kết luận" (L05ac) tới ngày đó. <em>Mới 04/10/2026; điều chỉnh 05/10 và 08/10/2026.</em></td><td>Có</td><td>Chuyển status sang R4GOLIVE hoặc kiểm tra lại R4G Date</td></tr>
           <tr><td>R9</td><td>Thiếu R4G Date</td><td>Status ∈ {R4GOLIVE, MVP Done, Pilot, Done, Released} nhưng R4G Date trống. Status ngoài workflow, Pending, Reopened không xét. <em>Mới 04/10/2026; điều chỉnh 05/10/2026.</em></td><td>Có</td><td>Bổ sung R4G Date</td></tr>
         </tbody>
       </table>
@@ -999,7 +1031,8 @@
       <p><strong>Quy tắc lọc trạng thái mặc định:</strong> Bộ lọc Status trên thanh công cụ luôn mặc định tích chọn (checked) tất cả các trạng thái ngoại trừ <code>Cancelled</code>, đảm bảo các Epic đã bị huỷ mặc định không xuất hiện khi truy cập màn hình này hay ở tất cả các danh sách route liên kết từ màn hình khác (người dùng vẫn có thể tích chọn Cancelled thủ công nếu có nhu cầu tra cứu).</p>
       <p><strong>Thứ tự nhóm trong bảng (từ 28/09/2026):</strong> Epic thông thường hiển thị trước, sau đó lần lượt là nhóm <code>In PO</code> → <code>To Do</code> → nhóm Epic có Nhận xét <strong>“Ngoài phạm vi TTM-CNTT”</strong> (bất kể status) → <code>Released</code> ở cuối. Trong mỗi nhóm vẫn giữ thứ tự cũ: Epic sai lệch dữ liệu xuống cuối nhóm, rồi theo mức cảnh báo (FAIL → LATE → EARLY → NONE) và số ngày làm việc còn lại.</p>
       <p><strong>Widget trên banner (từ 30/09/2026):</strong> <strong>TTM-CNTT (QLDA)</strong> và <strong>TTM-CNTT (QA)</strong>, tính trên đúng các Epic của bảng Danh sách Epic đang lọc (mọi bộ lọc trên thanh công cụ và Advanced Filters) — đổi bộ lọc thì chỉ số đổi theo. Hai widget toàn ứng dụng (QLDA) đã bỏ khỏi màn này — <strong>riêng từ 01/10/2026</strong>, có thêm 1 widget thứ 3 cố định <strong>TTM-E2E</strong> (toàn công ty, đọc từ cache <code>ttm_index_global_cache</code>, giống nhau với mọi người dùng, không đổi theo bộ lọc — xem mục 11.5).</p>
-      <p><strong>Điều chỉnh 05/10/2026:</strong> R8 chỉ tính khi R4G Date đã tới (≤ ngày tính) — R4G Date ở tương lai là ngày kế hoạch, Epic thuộc nhóm "chưa kết luận" (L05ac) cho tới ngày đó; R8 áp dụng cả với status được miễn các rule khác (To Do / In PO / Backlog), chỉ trừ Cancelled; R9 chỉ xét status R4GOLIVE / MVP Done / Pilot / Done / Released (status lạ, Pending, Reopened không bị bắt).</p>
+      <p><strong>Điều chỉnh 08/10/2026:</strong> bỏ ngoại lệ "R4G Date ở tương lai là ngày kế hoạch" (áp dụng 05/10–08/10): Epic có R4G Date mà status chưa tới R4GOLIVE là Sai lệch dữ liệu (R8) kể cả khi ngày đó chưa tới — R4G Date là ngày thực tế đạt R4GOLIVE (pha R4GOLIVE "Hoàn thành", L04a "Epic hoàn thành" và trục Release đều đọc theo nghĩa này).</p>
+      <p><strong>Điều chỉnh 05/10/2026:</strong> R8 áp dụng cả với status được miễn các rule khác (To Do / In PO / Backlog), chỉ trừ Cancelled; R9 chỉ xét status R4GOLIVE / MVP Done / Pilot / Done / Released (status lạ, Pending, Reopened không bị bắt).</p>
       <p><strong>Quy tắc chấm điểm (Scoring Service, từ 01/10/2026):</strong> Sai lệch dữ liệu được xét trước — Epic có Sai lệch dữ liệu (R1, R3–R6; từ 04/10/2026 thêm R8 "có R4G Date nhưng status &lt; R4GOLIVE" và R9 "status ≥ R4GOLIVE nhưng thiếu R4G Date", R1 tính từ status DESIGN, R5 chỉ tính khi status đã qua DESIGN) không được chấm Đạt / Fail / Cảnh báo muộn / Sai Status trên TTM-CNTT (QLDA), TTM-CNTT (QA) và TTM-E2E cho tới khi dữ liệu được sửa. Epic có ngày ghi nhận đúng hạn nhưng status chưa lên R4GOLIVE vẫn được tính <strong>Đạt</strong> và hiện kèm badge <strong>“Sai Status”</strong>. TTM-E2E: hạn = T0 + (N − 1) ngày làm việc, Đạt không còn yêu cầu status Released. Xem popup “Logic cảnh báo” để biết công thức từng badge.</p>
       <p><strong>Bộ lọc Nhận xét:</strong> ngoài các giá trị Đạt/Fail/Cảnh báo/Sai Status/Sai lệch dữ liệu/trục Release, có thêm lựa chọn <strong>“Ngoài phạm vi TTM-CNTT”</strong> để lọc riêng các Epic nằm ngoài khoảng ngày “R4G for TTM (CNTT)” đang cấu hình (mục 8.7).</p>
       <h3>11.3. Epic in PO (<code>/epic-in-po</code>) — mọi role đã đăng nhập</h3>
@@ -1074,7 +1107,12 @@
     <section id="screen-admin">
       <div class="kicker">Khối màn hình</div>
       <h2>13. Các màn hình &amp; modal Quản trị</h2>
-      <p>Nhóm &quot;Quản trị&quot; trên sidebar gồm 5 <strong>route riêng</strong> (mở thành trang) và 2 mục cuối mở <strong>modal cấu hình</strong> chồng lên trang hiện tại — không đổi URL.</p>
+      <p>Từ 05/10/2026, nhóm &quot;Quản trị&quot; trên sidebar gom thành <strong>2 mục mở popup submenu</strong> (popup hiện bên phải sidebar, đóng khi bấm ra ngoài / Esc / cuộn):</p>
+      <ul>
+        <li><strong>Admin: Cấu hình ứng dụng</strong> (ADMIN / SUPERADMIN / SUPERVISOR — SUPERVISOR chỉ xem): Quản lý User, Quản lý Dự án, Quản lý Domain, Cấu hình cảnh báo, <strong>Epic ngoại lệ</strong> (mục 13.4), Cấu hình ứng dụng (mục 13.2).</li>
+        <li><strong>SuperAdmin: Quản trị hệ thống</strong> (chỉ SUPERADMIN — SUPERVISOR không thấy và không vào được): Nguồn dữ liệu, Sao lưu / Phục hồi dữ liệu, Ma trận phân quyền, Quản trị hệ thống (mục 13.3).</li>
+      </ul>
+      <p>Quyền của từng mục không đổi so với trước; mục nào role không có quyền (theo role cố định hoặc theo quyền Xem của Ma trận phân quyền — mục 2) thì ẩn, nhóm không còn mục nào thì ẩn cả nhóm. Các mục gồm <strong>route riêng</strong> (mở thành trang) và <strong>modal cấu hình</strong> chồng lên trang hiện tại — không đổi URL.</p>
       <h3>13.1. Các route quản trị dạng trang</h3>
       <table>
         <thead><tr><th>Màn hình</th><th>Route</th><th>Chức năng</th></tr></thead>
@@ -1116,6 +1154,15 @@
           <tr><td>MCP Server</td><td>Mục 16</td></tr>
         </tbody>
       </table>
+      <h3>13.4. Epic ngoại lệ (TTM Black list) — từ 05/10/2026</h3>
+      <p><strong>Epic ngoại lệ</strong> là Epic được chủ động đưa ra khỏi mọi phép tính Time to Market dù không Cancelled. Cùng nhóm bị loại còn có Epic thuộc <strong>dự án có Time to Market = N</strong> (trường "Time to Market" ở Quản lý Dự án). Cả hai không nằm trong L02 của phễu TTM Dashboard 2 (mục 21.2) và không tính vào TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E; badge đánh giá của riêng Epic vẫn hiển thị, các ô vận hành (Chậm tiến độ, Sai lệch dữ liệu, Chờ / Giải trình golive) vẫn đếm các Epic này.</p>
+      <ul>
+        <li><strong>Popup "Epic ngoại lệ"</strong> (menu Admin: Cấu hình ứng dụng; ADMIN / SUPERADMIN sửa, SUPERVISOR chỉ xem): một ô văn bản, mỗi dòng một dự án theo dạng <code>KEY:EPIC-1,EPIC-2</code>. Nút "Kiểm tra thông tin" báo lỗi theo dòng và vị trí ký tự (bấm vào lỗi để bôi đen đúng chỗ); "Lưu thông tin" chỉ lưu khi định dạng hợp lệ và thay thế toàn bộ danh sách — Epic không còn trong danh sách sẽ hết là ngoại lệ.</li>
+        <li><strong>Duyệt Epic</strong> (popup chi tiết Epic): công tắc "TTM Black listed" True / False, lưu ngay khi gạt và báo tác động; chỉ ADMIN / SUPERADMIN gạt được.</li>
+        <li><strong>Nhận biết trên danh sách:</strong> ở Quản trị Epic và Epic in PO, mã Epic ngoại lệ và Epic của dự án Time to Market = N hiện trong ngoặc đơn, chữ thường không đậm — <code>(EPIC-KEY)</code>; Báo cáo Epic và Duyệt Epic hiện chấm đen cạnh mã Epic.</li>
+        <li><strong>Bộ lọc "Nhận xét"</strong> ở Quản trị Epic: "Epic ngoại lệ" (<code>TTM_BLACK_LISTED</code>), "Dự án không tính TTM" (<code>TTM_PROJECT_NON_TTM</code>), "L02 — Epic trong phạm vi tính TTM" (<code>TTM_COUNTED_IN_SCOPE</code>).</li>
+        <li>Lưu danh sách, gạt công tắc, hoặc đổi Time to Market của dự án sẽ tự tạo lại cache (mục 6.4); số liệu đổi sau lượt đó. Dữ liệu lưu ở bảng <code>black_listed_epics</code> (mục 5.2).</li>
+      </ul>
     </section>
 
     <section id="ad-popup">
@@ -1249,6 +1296,22 @@
           <tr><td><code>search_product_docs</code></td><td>Tìm kiếm (không phân biệt dấu) trong chính Tài liệu sản phẩm này — dùng để hỏi đáp về chức năng, rule cảnh báo và cách tính toán của ứng dụng</td><td>Mọi role đã xác thực</td></tr>
           <tr><td><code>get_product_doc_section</code></td><td>Đọc đầy đủ một mục của Tài liệu sản phẩm theo số mục (vd. <code>8.3</code>); không truyền số mục để lấy mục lục</td><td>Mọi role đã xác thực</td></tr>
           <tr><td><code>list_report_filters</code></td><td>Danh mục domain/dự án/component/lớp dữ liệu — phục vụ tra cứu sâu kiểu Báo cáo Epic (mục 11.5)</td><td>Mọi role đã xác thực</td></tr>
+        </tbody>
+      </table>
+      <p><strong>Ma trận phân quyền áp dụng cho MCP (từ 08/10/2026).</strong> Mỗi tool gắn với màn hình hiển thị cùng dữ liệu. Role bị bỏ quyền <em>Xem</em> màn hình đó trong Ma trận phân quyền (mục 2) thì tool trả về thông báo từ chối thay vì dữ liệu — cùng quy tắc với trang và API của màn hình, nên không thể lấy số liệu đi vòng qua chatbot. Ma trận chỉ thu hẹp: điều kiện role của từng tool ở bảng trên vẫn áp dụng trước. Thay đổi ma trận có hiệu lực với MCP trong khoảng 15 giây.</p>
+      <table>
+        <thead><tr><th>Tool</th><th>Chức năng trong Ma trận phân quyền (cần còn quyền Xem)</th></tr></thead>
+        <tbody>
+          <tr><td><code>get_ttm_dashboard</code></td><td>TTM Dashboard 2 (<code>ttm_dashboard_2</code>)</td></tr>
+          <tr><td><code>list_epic_alerts</code></td><td>Quản trị Epic (<code>epic_alerts_15</code>)</td></tr>
+          <tr><td><code>get_epic_detail</code></td><td>Quản trị Epic (<code>epic_alerts_15</code>) <em>hoặc</em> Epic in PO (<code>epic_in_po</code>) — còn một trong hai là được</td></tr>
+          <tr><td><code>get_dashboard_summary</code></td><td>Dashboard cũ (<code>dashboard</code>)</td></tr>
+          <tr><td><code>search_product_docs</code>, <code>get_product_doc_section</code></td><td>Tài liệu sản phẩm (<code>product_docs</code>)</td></tr>
+          <tr><td><code>list_report_filters</code></td><td>Báo cáo Epic (<code>epic_reports</code>)</td></tr>
+          <tr><td><code>list_projects</code></td><td>Quản lý Dự án (<code>projects</code>)</td></tr>
+          <tr><td><code>list_domains</code></td><td>Quản lý Domain (<code>domains</code>)</td></tr>
+          <tr><td><code>list_holidays</code></td><td>Cấu hình ứng dụng / Quản lý chung (<code>general_settings</code>)</td></tr>
+          <tr><td><code>get_ttm_policies</code></td><td>Cấu hình cảnh báo (<code>status_alert_rules</code>)</td></tr>
         </tbody>
       </table>
       <div class="callout">
@@ -1465,14 +1528,14 @@
       <p>
         <strong>TTM Dashboard 2</strong> trình bày toàn bộ Epic dưới dạng <strong>phễu tinh lọc</strong>: từ tổng số Epic, loại dần Epic
         Cancelled và Epic Sai lệch dữ liệu, rồi phân nhóm theo việc đã có R4G Date hay chưa và kết quả chấm
-        <strong>TTM-CNTT (QLDA)</strong>. Màn hình dành cho role <strong>SUPERADMIN / ADMIN / SUPERVISOR</strong>; số liệu luôn theo
+        <strong>TTM-CNTT (QLDA)</strong>. Từ 05/10/2026 đây là <strong>màn hình mặc định sau khi đăng nhập của mọi role</strong> (USER thấy đúng phạm vi dữ liệu của mình; chức năng "xem dưới quyền" chỉ dành cho SUPERADMIN / ADMIN / SUPERVISOR); số liệu luôn theo
         phạm vi quyền của người xem (hoặc của user đang được "xem dưới quyền") và các bộ lọc <em>Domain, Dự án, PM/SM, Đơn vị yêu cầu</em>.
         Đặc tả kỹ thuật: <code>docs/ttm-dashboard-2-spec.md</code>.
       </p>
 
       <h3>21.1. Bố cục màn hình</h3>
       <ul>
-        <li><strong>Banner:</strong> 3 chỉ số toàn công ty TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E (cùng giá trị với TTM Dashboard — mục 11.5), nút Lead / PM-SM để xem dưới quyền một user.</li>
+        <li><strong>Banner:</strong> 3 chỉ số toàn công ty TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E (cùng giá trị với TTM Dashboard — mục 11.5), nút Lead / PM-SM để xem dưới quyền một user. <strong>Xem dưới quyền theo phạm vi dữ liệu (05/10/2026):</strong> SUPERADMIN / SUPERVISOR xem được mọi user cùng hoặc dưới cấp; ADMIN chỉ xem dưới quyền được user mà <em>mọi</em> dự án của user đó nằm trong phạm vi của ADMIN (domain được gán + dự án mình làm PM/SM) — danh sách chọn user và API cùng áp một quy tắc.</li>
         <li><strong>Thanh bộ lọc 1 dòng:</strong> Domain, Dự án, PM/SM, Đơn vị yêu cầu. Chưa lọc: số liệu đọc từ cache theo phạm vi quyền; có lọc: tính lại trên trình duyệt bằng cùng công thức.</li>
         <li><strong>Widget row:</strong> hàng widget của TTM Dashboard, tính lại theo tiêu chí của phễu (mục 21.6).</li>
         <li><strong>Panel 1 — Phễu tổng quan:</strong> L01 → L02 → L03 → tầng cuối chia 2 nửa L04a | L04b. Dòng dưới phễu hiện L03, <strong>Tỷ lệ % Pass / % Fail TTM-CNTT (QLDA)</strong> của đúng tập Epic đang xem, và số Epic nằm ngoài "Phạm vi dữ liệu cho TTM" (nếu có).</li>
@@ -1510,8 +1573,9 @@
         <code>Tỷ lệ % Fail TTM-CNTT = (L05ab + L05ba) / (L05aa + L05ab + L05ba) × 100</code>
       </div>
       <ul>
-        <li>Mẫu số chỉ gồm Epic <strong>đã có kết luận</strong>: Đạt (L05aa), không đạt nhóm 1 (L05ab), không đạt nhóm 2 (L05ba). Epic chưa kết luận (L05ac), Epic trong hạn (L05bb), Epic Cancelled và Epic Sai lệch dữ liệu không tham gia.</li>
-        <li>% Pass + % Fail = 100%. Khi chưa có Epic nào được kết luận (mẫu số = 0), phễu hiện "—"; các widget chỉ số hiện 100%.</li>
+        <li>Mẫu số chỉ gồm Epic <strong>đã có kết luận</strong>: Đạt (L05aa), không đạt nhóm 1 (L05ab), không đạt nhóm 2 (L05ba). Epic chưa kết luận (L05ac), Epic trong hạn (L05bb), Epic Cancelled, Epic ngoại lệ, Epic của dự án Time to Market = N và Epic Sai lệch dữ liệu không tham gia.</li>
+        <li>% Pass + % Fail = 100%. Khi chưa có Epic nào được kết luận (mẫu số = 0), mọi nơi hiển thị "—" (phễu, vòng chỉ số, badge banner, ô ma trận) thay cho 100% — quyết định 05/10/2026.</li>
+        <li><strong>TTM-E2E</strong> dùng cùng công thức từ 05/10/2026: Đạt TTM-E2E / (Đạt TTM-E2E + Fail TTM-E2E).</li>
         <li>Đây chính là công thức của chỉ số <strong>TTM-CNTT (QLDA)</strong> và <strong>TTM-CNTT (QA)</strong> trên mọi màn hình (mục 8.7) — nên tỷ lệ ở phễu luôn bằng chỉ số TTM-CNTT (QLDA) của cùng tập Epic.</li>
       </ul>
 
@@ -1521,7 +1585,7 @@
         <thead><tr><th>Tiêu chí</th><th>Danh sách mở ra</th><th>Giá trị bộ lọc "Nhận xét"</th></tr></thead>
         <tbody>
           <tr><td>L01</td><td>Mọi Epic trong phạm vi (mọi status)</td><td><code>IN_SCOPE_CNTT</code> + mọi status</td></tr>
-          <tr><td>L02</td><td>Các Epic Cancelled bị loại</td><td><code>IN_SCOPE_CNTT</code> + status Cancelled</td></tr>
+          <tr><td>L02</td><td>Epic trong phạm vi tính TTM; và 3 nhóm bị loại: Cancelled / Epic ngoại lệ / dự án Time to Market = N</td><td><code>TTM_COUNTED_IN_SCOPE</code>; <code>IN_SCOPE_CNTT</code> + status Cancelled / <code>TTM_BLACK_LISTED</code> / <code>TTM_PROJECT_NON_TTM</code></td></tr>
           <tr><td>L03</td><td>Các Epic Sai lệch dữ liệu bị loại</td><td><code>DATA_ANOMALY_IN_SCOPE</code></td></tr>
           <tr><td>L04a</td><td>Epic hoàn thành</td><td><code>TTM_ELIGIBLE_IN_SCOPE</code></td></tr>
           <tr><td>L05aa / L05ab / L05ac</td><td>Đạt / Không đạt nhóm 1 / Chưa kết luận</td><td><code>TTM_PASS_IN_SCOPE</code> / <code>TTM_LATE_IN_SCOPE</code> / <code>TTM_NOT_SCORED_IN_SCOPE</code></td></tr>
@@ -1535,22 +1599,26 @@
       <h3>21.5. Cache số liệu</h3>
       <p>Số liệu phễu, widget, ma trận và pie chart chưa lọc được lưu sẵn theo phạm vi quyền trong bảng <code>ttm_dashboard_2_cache</code> (một bộ chung cho SUPERADMIN + SUPERVISOR, một bộ cho từng ADMIN/USER) và tự dựng lại sau mỗi lần cache dữ liệu Epic được tạo lại, khi đổi engine hiển thị hoặc khi phân quyền user–domain–dự án thay đổi. Khi người dùng chọn bộ lọc, trang tải danh sách Epic của phạm vi một lần rồi tính lại bằng cùng hàm đã dùng để dựng cache.</p>
 
-      <h3>21.6. Widget row</h3>
-      <p>Cùng bố cục với hàng widget của TTM Dashboard (mục 11.5); các widget chính lấy số theo tiêu chí của phễu. Bấm vào số nào mở danh sách Epic tương ứng trên Quản trị Epic.</p>
+      <h3>21.6. Widget row (thiết kế lại 05–06/10/2026)</h3>
+      <p>Hàng 9 thẻ KPI, chia 2 nhóm màu: 5 thẻ bên trái (nền xanh navy nhạt) là số liệu TTM theo tiêu chí của phễu, 4 thẻ bên phải (nền xám) là số liệu vận hành. Mỗi thẻ có 3 tầng: tiêu đề → con số chính → dòng phụ. Bấm vào thẻ (hoặc link trong dòng phụ) để mở danh sách Epic tương ứng trên Quản trị Epic.</p>
       <table>
-        <thead><tr><th>Widget</th><th>Giá trị</th><th>Dòng phụ</th></tr></thead>
+        <thead><tr><th>Thẻ</th><th>Con số chính</th><th>Dòng phụ / ghi chú</th></tr></thead>
         <tbody>
-          <tr><td>Tổng số Epic</td><td><strong>L02</strong> — Epic trong phạm vi tính TTM</td><td>"Trừ Cancelled= ", "Trừ Epic ngoại lệ= ", "Trừ dự án TTM=N= " + số Epic của từng nhóm bị loại</td></tr>
-          <tr><td>Fail TTM-CNTT (QLDA)</td><td><strong>L05ab + L05ba</strong></td><td>"/Số Epic= " + (L05aa + L05ab + L05ba)</td></tr>
-          <tr><td>TTM-CNTT (QLDA)</td><td>Tỷ lệ % Pass = L05aa / (L05aa + L05ab + L05ba)</td><td>Tử số / mẫu số</td></tr>
-          <tr><td>TTM-CNTT (QA)</td><td>Cùng công thức, chỉ lấy Epic MVP Done / Released (mục 8.7)</td><td>Tử số / mẫu số</td></tr>
-          <tr><td>Hoàn thành TTM-E2E</td><td>Epic đạt TTM-E2E / (Epic đạt + Epic Fail TTM-E2E) — cùng công thức TTM-CNTT từ 05/10/2026</td><td>Tử số / mẫu số</td></tr>
-          <tr><td>Chậm tiến độ · Sai lệch Dữ liệu · Chờ golive · Giải trình Golive</td><td>Như TTM Dashboard: đếm trên mọi Epic không Cancelled của tập đang xem</td><td>Chờ golive tách Thiếu R4G / Trong hạn / Quá hạn</td></tr>
+          <tr><td>TỔNG EPIC</td><td><strong>L02</strong> — Epic trong phạm vi tính TTM</td><td>"Phạm vi tính". Số Epic bị loại (Cancelled, Epic ngoại lệ, dự án Time to Market = N) xem ở popup diễn giải L02 của phễu.</td></tr>
+          <tr><td>FAIL TTM-CNTT</td><td><strong>L05ab + L05ba</strong></td><td>"Cần xử lý" — bấm mở danh sách Epic Fail TTM-CNTT (nhóm 1 + nhóm 2).</td></tr>
+          <tr><td>TTM-CNTT — Toàn phòng QLDA</td><td>Vòng tròn hiện Tỷ lệ % Pass; bên cạnh là phân số <code>L05aa / (L05aa + L05ab + L05ba)</code></td><td>TTM-CNTT (QLDA) của tập Epic đang xem.</td></tr>
+          <tr><td>TTM-CNTT — Phạm vi của QA</td><td>Vòng % + phân số Đạt / (Đạt + Fail)</td><td>Cùng công thức, chỉ lấy Epic MVP Done / Released (mục 8.7).</td></tr>
+          <tr><td>TTM-E2E</td><td>Vòng % + phân số Đạt TTM-E2E / (Đạt + Fail TTM-E2E)</td><td>"Đạt / Đánh giá" — bấm mở danh sách Epic Fail TTM-E2E.</td></tr>
+          <tr><td>CẢNH BÁO</td><td>Số Epic Chậm tiến độ (Cảnh báo muộn; engine cũ cộng thêm Cảnh báo sớm)</td><td>Link "n muộn" (và "n sớm" ở engine cũ).</td></tr>
+          <tr><td>SAI LỆCH</td><td>Số Epic Sai lệch dữ liệu</td><td>"Cần điều chỉnh".</td></tr>
+          <tr><td>CHỜ GOLIVE</td><td>Số Epic Chờ golive</td><td>Tách Thiếu R4G / Trong hạn / Quá hạn theo ngày hiện tại.</td></tr>
+          <tr><td>GIẢI TRÌNH</td><td>Số Epic cần Giải trình Golive</td><td>"Quá hạn R4G +5d".</td></tr>
         </tbody>
       </table>
+      <p>Bốn thẻ vận hành đếm trên <strong>mọi Epic không Cancelled của tập đang xem</strong> — kể cả Epic ngoại lệ, Epic của dự án Time to Market = N và Epic ngoài "Phạm vi dữ liệu cho TTM" — nên thẻ SAI LỆCH có thể lớn hơn số Epic bị loại ở L03 của phễu. Khi mẫu số = 0, vòng chỉ số để rỗng và hiện "—".</p>
 
       <h3>21.7. Ma trận Phân bổ Tiến độ Epic Đa chiều</h3>
-      <p>Lead view có 4 tab (Theo Domain, Theo Phân loại Epic, Theo PM/SM, Theo Dự án); PM/SM view có 2 tab (Theo Phân loại Epic, Theo Dự án). Bấm tiêu đề cột để sắp xếp. Tổng theo cột của một chiều luôn bằng tiêu chí tương ứng của phễu.</p>
+      <p>Lead view có 4 tab (Theo Domain, Theo Phân loại Epic, Theo PM/SM, Theo Dự án); PM/SM view có 2 tab (Theo Phân loại Epic, Theo Dự án). Bấm tiêu đề cột để sắp xếp. Tổng theo cột của một chiều luôn bằng tiêu chí tương ứng của phễu — <strong>trừ tab Theo PM/SM</strong>: từ 05/10/2026 mỗi PM/SM là một dòng và Epic có nhiều PM/SM được tính cho từng người, nên tổng các dòng có thể lớn hơn Tổng số Epic (đổi lại, danh sách mở ra từ mỗi dòng khớp đúng con số). Ô tỷ lệ hiện "—" khi dòng chưa có Epic nào được đánh giá.</p>
       <table>
         <thead><tr><th>Cột</th><th>Giá trị</th></tr></thead>
         <tbody>

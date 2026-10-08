@@ -753,7 +753,7 @@ và cờ "Sai lệch dữ liệu" kéo theo); các lệch Đạt/Fail kéo theo 
 
 Quyết định của chủ sở hữu (`SCORING_CODE_VERSION` → `scoring-6`; chỉ áp dụng cho Scoring Service, logic cũ giữ nguyên):
 
-1. **R8 chỉ tính khi R4G Date đã tới:** `Có R4G Date VÀ R4G Date ≤ asOf VÀ status < R4GOLIVE`. R4G Date ở tương lai là
+1. **(Đã thay bởi §22 ngày 2026-10-08 — R8 nay áp dụng cả khi R4G Date ở tương lai.)** **R8 chỉ tính khi R4G Date đã tới:** `Có R4G Date VÀ R4G Date ≤ asOf VÀ status < R4GOLIVE`. R4G Date ở tương lai là
    ngày kế hoạch (được phép nhập trước) — không phải Sai lệch dữ liệu; Epic vẫn có R4G Date nên thuộc L04a và ở nhóm
    "chưa kết luận" (L05ac) cho tới ngày đó. Rule TTM-CNTT không đổi: R4G Date (kể cả tương lai) muộn hơn Target vẫn là Fail.
 2. **Workflow** (`EPIC_WORKFLOW_ORDER`, `derive.ts`):
@@ -798,3 +798,31 @@ R8 đánh "Sai lệch dữ liệu" — R4G Date của nó là lịch sử thật
 Date đúng hạn) và **không** gắn "Sai Status" TTM-CNTT / TTM-E2E (khuyến nghị chuyển status sang R4GOLIVE không đúng với Epic
 được mở lại có chủ đích). Rule với **Pending** không đổi (vẫn áp dụng R8). Reopened vẫn xếp ngang In Progress cho các rule khác
 (R1, pha…). Trục Release ("Sai Status (Release)") không đổi. Engine cũ không có R8 nên đối chiếu không phát sinh nhãn mới.
+
+## 21. Đối chiếu — nhãn `D12_TTM_EXCLUSION` cho Epic ngoại lệ / dự án Time to Market = N (2026-10-08)
+
+Từ `scoring-9` (2026-10-05), Epic ngoại lệ (`black_listed_epics`) và Epic thuộc dự án `Time to Market = N` nằm ngoài L02:
+`indexMembership` không còn `counted` cho các Epic này (`score-epic.ts`, fact `ttmExclusion`), kèm badge ghi nhận
+`SCOPE_TTM_BLACK_LISTED` / `SCOPE_PROJECT_NON_TTM` (core, luôn bật). Engine cũ không có khái niệm này nên vẫn đếm — nhưng
+`parity.ts` chưa có nhãn cho quyết định đó: lần đối chiếu ngày 08/10 (1.298 Epic) báo **52 Epic "Chưa giải thích được"**, toàn bộ
+ở các check `TTM-Index: tính / mẫu số / đạt / fail` của đúng nhóm Epic này (cache lúc đó có 11 Epic ngoại lệ và 42 Epic thuộc dự án TTM = N).
+
+Sửa: `compareWithLegacy` gắn `D12_TTM_EXCLUSION` cho `TTM-Index: tính` khi Epic mang một trong hai badge trên và service không
+đếm; ba check còn lại nhận nhãn qua `explainedBy('TTM-Index: tính')` (`TTM-Index: đạt` được bổ sung nguồn giải thích này). Nhãn
+hiển thị ở "Đối chiếu Scoring Service" (`ScoringParityPanel.tsx`); test ở `src/lib/scoring/__tests__/parity.test.ts`. Không đổi rule
+chấm điểm nên không tăng `SCORING_CODE_VERSION`; số "Chưa giải thích được" về 0 sau lần đối chiếu kế tiếp (tạo lại cache).
+
+## 22. R8 áp dụng cả khi R4G Date ở tương lai — bỏ ngoại lệ "ngày kế hoạch" của §17.1 (2026-10-08)
+
+Quyết định của chủ sở hữu (`SCORING_CODE_VERSION` → `scoring-11`; thay cho §17 điểm 1, các điểm khác của §17–§20 giữ nguyên):
+
+- **R8:** `Có R4G Date VÀ (status < R4GOLIVE HOẶC status được miễn) VÀ status ∉ {Cancelled, Reopened}` — không còn điều kiện
+  `R4G Date ≤ asOf`. Epic đang In Progress / Design / Pending / To Do… mà đã ghi R4G Date, dù ngày đó chưa tới, là Sai lệch dữ liệu.
+- **Lý do:** R4G Date là ngày Epic thực tế đạt R4GOLIVE. Các phần khác của hệ thống vẫn đọc theo nghĩa đó nên ngoại lệ "ngày kế
+  hoạch" gây lệch: Epic có R4G Date tương lai được tính pha R4GOLIVE "Hoàn thành" (`epic-phase-completion-service.ts`), nằm ở
+  L04a "Epic hoàn thành" của phễu, và có thể nhận khuyến nghị "Sai Status (Release)" theo Due Date chưa tới.
+- **Không đổi:** Epic đã ở status ≥ R4GOLIVE mà R4G Date còn ở tương lai không vi phạm R8; chưa được chấm Đạt (L05ac "chưa kết
+  luận") cho tới ngày đó, và vẫn Fail ngay nếu R4G Date muộn hơn Target.
+- **Dữ liệu lúc đổi (08/10, Supabase):** 3 Epic chuyển từ "chưa kết luận" sang Sai lệch dữ liệu — PAMS-98275, PAMS-98347
+  (In Progress), MO-32292 (Design). Có hiệu lực sau lần tạo lại cache kế tiếp.
+- **Đối chiếu:** R8 chỉ có ở Scoring Service nên vẫn mang nhãn `D10_DATA_QUALITY_RULES`, không cần nhãn mới.

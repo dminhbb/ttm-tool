@@ -6,12 +6,14 @@ import { getDashboardData } from '@/lib/dashboard-service';
 import { getEpicBrowserRoot } from '@/lib/epic-browser-service';
 import { ALERT_FILTER_VALUES, matchesAlertFilter, type AlertFilterValue } from '@/lib/epic-row-verdicts';
 import { getEpicAlertRowsForDisplay } from '@/lib/epic-scoring-display-service';
+import { isMcpToolName, MCP_TOOL_FEATURES, mcpToolViewDenied } from '@/lib/feature-access';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
 import { scoreEpicByKey } from '@/lib/scoring-run-service';
 import { BADGE_BY_ID, FINDING_GROUPS, SCORING_AXES } from '@/lib/scoring/catalog';
 import { getReportAccessScope, scopeReportFilterOptions } from '@/lib/report-access-scope';
 import { listDomains, listHolidays, listProjectComponents, listProjects } from '@/lib/master-data-service';
 import { recordMcpAccessEvent } from '@/lib/mcp-service';
+import { getViewDeniedFeatureKeySet } from '@/lib/permission-matrix-service';
 import { getReportLayerDates } from '@/lib/reports-service';
 import { getProductDocSections, PRODUCT_DOC_URL_PATH, searchProductDocs } from '@/lib/product-doc-service';
 import { getTtmDashboard2Summary } from '@/lib/ttm-dashboard-2-summary-service';
@@ -88,22 +90,49 @@ async function describeScorecard(epicKey: string) {
  * stateless and different requests can belong to different users. Every tool wraps an existing,
  * already-battle-tested service function instead of querying the DB directly, so an MCP caller
  * always sees exactly what that user would see in the app's own screens (same RBAC).
+ *
+ * Ma trận phân quyền (2026-10-08): every tool is tied to the screen(s) showing the same data
+ * (MCP_TOOL_FEATURES, feature-access.ts). A role whose "Xem" is unticked on all of them gets a
+ * refusal instead of the data — same rule as the page and its API in src/proxy.ts, so the matrix
+ * can't be bypassed through a chatbot. Tools are registered through `registerTool` below, which
+ * adds that check in front of every handler; a tool missing from MCP_TOOL_FEATURES fails loudly.
  */
 export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
   const server = new McpServer(
-    { name: 'ttm-tool', version: '1.2.0' },
+    { name: 'ttm-tool', version: '1.3.0' },
     {
       instructions:
         'ttm-tool (TTM Monitor) — công cụ cảnh báo rủi ro chậm Time to Market cho Epic Jira. '
         + 'Số liệu tổng hợp: get_ttm_dashboard (màn TTM Dashboard 2 — phễu L01…L05bb, chỉ số TTM-CNTT (QLDA)/(QA), TTM-E2E). '
         + 'Danh sách / chi tiết Epic (dữ liệu màn Quản trị Epic): list_epic_alerts (lọc theo nhanXet để lấy Epic sau mỗi con số), get_epic_detail. '
         + 'Rule, cách tính, ý nghĩa badge/cảnh báo, hướng dẫn dùng màn hình: search_product_docs rồi get_product_doc_section — '
-        + 'trả lời dựa trên Tài liệu sản phẩm và nêu số mục tham chiếu, không tự suy đoán rule.',
+        + 'trả lời dựa trên Tài liệu sản phẩm và nêu số mục tham chiếu, không tự suy đoán rule. '
+        + 'Mỗi công cụ gắn với một màn hình của ứng dụng: nếu vai trò của người dùng bị bỏ quyền Xem màn hình đó trong Ma trận phân quyền, '
+        + 'công cụ trả về thông báo từ chối — hãy báo lại cho người dùng, không thử cách khác để lấy cùng dữ liệu.',
     },
   );
   const touch = () => recordMcpAccessEvent(user.id, tokenId);
 
-  server.registerTool(
+  // Read once per request, on the first tool call. If the matrix can't be read, access is left to
+  // the tools' own role checks (same fail-open choice as the proxy) rather than breaking MCP.
+  let viewDenied: Promise<ReadonlySet<string> | null> | null = null;
+  const loadViewDenied = () => (viewDenied ??= getViewDeniedFeatureKeySet(user.role).catch((error: unknown) => {
+    console.error('Permission matrix lookup failed in MCP — falling back to role checks only:', error);
+    return null;
+  }));
+  const registerTool = ((name, config, handler) => {
+    if (!isMcpToolName(name)) throw new Error(`MCP tool "${name}" has no entry in MCP_TOOL_FEATURES (feature-access.ts).`);
+    const guarded = async (...args: unknown[]) => {
+      const denied = await loadViewDenied();
+      if (denied && mcpToolViewDenied(name, denied)) {
+        return forbidden(`Vai trò ${user.role} không có quyền Xem chức năng "${MCP_TOOL_FEATURES[name].screen}" trong Ma trận phân quyền, nên công cụ ${name} không trả dữ liệu. Liên hệ SUPERADMIN nếu cần được cấp quyền.`);
+      }
+      return (handler as (...handlerArgs: unknown[]) => unknown)(...args);
+    };
+    return server.registerTool(name, config, guarded as typeof handler);
+  }) as typeof server.registerTool;
+
+  registerTool(
     'list_epic_alerts',
     {
       title: 'Danh sách Epic đang được theo dõi cảnh báo TTM',
@@ -145,7 +174,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
     },
   );
 
-  server.registerTool(
+  registerTool(
     'get_epic_detail',
     {
       title: 'Chi tiết một Epic',
@@ -164,7 +193,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
     },
   );
 
-  server.registerTool(
+  registerTool(
     'get_dashboard_summary',
     {
       title: 'Tổng quan Dashboard TTM',
@@ -183,7 +212,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
     },
   );
 
-  server.registerTool(
+  registerTool(
     'get_ttm_dashboard',
     {
       title: 'Số liệu màn hình TTM Dashboard 2',
@@ -210,7 +239,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
     },
   );
 
-  server.registerTool(
+  registerTool(
     'search_product_docs',
     {
       title: 'Tra cứu Tài liệu sản phẩm TTM Tool',
@@ -235,7 +264,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
     },
   );
 
-  server.registerTool(
+  registerTool(
     'get_product_doc_section',
     {
       title: 'Đọc một mục trong Tài liệu sản phẩm',
@@ -261,7 +290,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
     },
   );
 
-  server.registerTool(
+  registerTool(
     'list_projects',
     {
       title: 'Danh sách dự án',
@@ -276,7 +305,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
     },
   );
 
-  server.registerTool(
+  registerTool(
     'list_domains',
     {
       title: 'Danh sách domain nghiệp vụ',
@@ -291,7 +320,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
     },
   );
 
-  server.registerTool(
+  registerTool(
     'list_holidays',
     {
       title: 'Danh sách ngày nghỉ lễ',
@@ -308,7 +337,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
     },
   );
 
-  server.registerTool(
+  registerTool(
     'get_ttm_policies',
     {
       title: 'Chính sách / tiêu chí Time to Market',
@@ -323,7 +352,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
     },
   );
 
-  server.registerTool(
+  registerTool(
     'list_report_filters',
     {
       title: 'Danh mục lọc cho Báo cáo Epic',

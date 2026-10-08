@@ -6,6 +6,43 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-10-08
+
+- **Scoring Engine — R8 áp dụng cả khi R4G Date ở tương lai** (`SCORING_CODE_VERSION` → `scoring-11`, spec §22; không đổi schema): bỏ ngoại lệ "R4G Date
+  tương lai là ngày kế hoạch" của 05/10. Epic có R4G Date mà status chưa tới R4GOLIVE là Sai lệch dữ liệu dù ngày đó chưa tới
+  (`src/lib/scoring/rules/data-quality.ts`, `catalog.ts`); Epic đã ở R4GOLIVE trở lên với R4G Date tương lai vẫn là "chưa kết luận". Phát hiện từ
+  PAMS-98275 / PAMS-98347 (In Progress, R4G Date 13/10 và 16/10) đang nằm ở L05ac; cùng với MO-32292 sẽ chuyển sang Sai lệch dữ liệu. **Cần "Tạo lại
+  cache"** để áp dụng. Cập nhật product-guide mục 9.1, Giới thiệu sản phẩm, test.
+- **MCP tuân theo Ma trận phân quyền** (không đổi schema; `mcp-server.ts` lên 1.3.0): mỗi tool gắn với feature key của màn hình hiển thị cùng dữ
+  liệu (`MCP_TOOL_FEATURES` trong `src/lib/feature-access.ts`); role bị bỏ quyền Xem thì tool trả thông báo từ chối thay vì dữ liệu — trước đây bỏ quyền
+  Xem TTM Dashboard 2 chặn trang + API nhưng `get_ttm_dashboard` vẫn trả số liệu. Cả 11 tool đăng ký qua wrapper `registerTool` (kiểm tra ma trận trước
+  handler). `get_epic_detail` cần còn Xem Quản trị Epic hoặc Epic in PO. Chỉ thu hẹp, điều kiện role của tool vẫn áp dụng. Với ma trận hiện tại trên
+  Supabase, thay đổi thực tế duy nhất: `get_dashboard_summary` (Dashboard cũ) chỉ còn SUPERADMIN gọi được. Có test (`feature-access.test.ts`); tài liệu:
+  product-guide mục 16.3 + mục 2, BRD 05 / 15.
+- **Đổi Domain của dự án → tạo lại cache** (không đổi schema): cache dòng Epic lưu `domainName` của dự án tại lúc dựng, nhưng trước đây chỉ màn Quản lý
+  Domain (đổi danh sách dự án / đổi tên) mới kích hoạt tạo lại. Nay tạo lại cả khi: sửa Domain hoặc trạng thái active của dự án ở Quản lý Dự án, tạo dự án
+  có Domain, xoá dự án đang có Domain (`cachesAffected` trong `src/app/api/projects/route.ts`); bật/tắt Domain (`DomainSaveResult.activeChanged`,
+  `master-data-service.ts`); xoá Domain (`src/app/api/domains/route.ts`). Trước đó thống kê theo Domain giữ giá trị cũ tới lần import / lượt cache đầu ngày kế
+  tiếp. Tài liệu sản phẩm mục 6.4 ghi rõ Domain là thông tin hiện hành (không theo lịch sử).
+- **Review các commit 05–06/10 (a2dfa0f … 147cffd) — sửa đối chiếu Scoring + cập nhật tài liệu** (không đổi schema, không đổi rule chấm điểm):
+  - **Đối chiếu Scoring Service**: lần chạy 08/10 báo 52 Epic "Chưa giải thích được", tất cả là Epic ngoại lệ / Epic của dự án Time to Market = N
+    (service không đếm vào TTM-Index từ `scoring-9`, engine cũ vẫn đếm) nhưng chưa có nhãn. Thêm nhãn `D12_TTM_EXCLUSION`
+    (`src/lib/scoring/parity.ts`, `ScoringParityPanel.tsx`, test mới `src/lib/scoring/__tests__/parity.test.ts`); về 0 sau lần tạo lại cache kế tiếp.
+  - Popup "Logic cảnh báo": công thức chỉ số ghi đúng "mẫu số = 0 hiển thị —" (`INDEX_PERCENT_FORMULA`, `catalog.ts`); sửa comment cũ về mẫu số ở
+    bộ lọc `FAIL_LATE_R4G` / `FAIL_MISSING_R4G` (`epic-row-verdicts.ts`).
+  - **Tài liệu sản phẩm** (`public/docs/product-guide.html`): mục 2 — Ma trận phân quyền đã có hiệu lực với quyền Xem (bỏ ghi chú "chỉ tham chiếu");
+    mục 5.2 — bổ sung 11 bảng cache / scoring / cấu hình (tổng 50 bảng, gồm `black_listed_epics`, `derived_cache_refresh_lock`); mục 6.4 mới — cache dẫn
+    xuất & khoá tạo lại cache; mục 13 — 2 nhóm menu popup + mục 13.4 "Epic ngoại lệ"; chương 21 — mở cho mọi role, "xem dưới quyền" theo phạm vi, mẫu số
+    = 0 hiện "—", danh sách L02, hàng 9 thẻ KPI sau thiết kế lại, ma trận theo từng PM/SM.
+  - **Giới thiệu sản phẩm** (`public/docs/Product_brochures.html`, v2026.10): R1 / R8 / R9 theo rule hiện hành, 2 badge SCOPE mới, mục 4.5 viết lại theo
+    công thức Đạt / (Đạt + Fail), mục 4.8 mới tóm tắt cập nhật tháng 10/2026.
+  - **Markdown**: `docs/ttm-dashboard-2-spec.md` (quyền truy cập, thứ tự phân nhóm, §7.1 widget row, ma trận PM/SM), spec Scoring §21 (D12),
+    `brd/08-data-model.md` §23 (bảng cache, lease, Epic ngoại lệ), `brd/05` (ma trận có hiệu lực, xem dưới quyền, màn hình mặc định), `brd/16`.
+  - **Ghi nhận khi review** (chưa sửa, cần quyết định của owner): MCP `get_ttm_dashboard` chưa kiểm tra quyền Xem `ttm_dashboard_2` của Ma trận phân
+    quyền; TTM Dashboard cũ vẫn đếm / liệt kê Epic ngoại lệ ở ô Fail và pie chart; TTM-CNTT (QA) chỉ lấy MVP Done / Released (Pilot, Done chưa tính);
+    3 lỗi lint có từ trước (`dashboard-new/page.tsx`, `EpicAlertsIframeModal.tsx`). Postgres local trên máy này không chạy nên chưa kiểm tra được
+    migration `20261005*` ở local (Supabase đã đủ 73 migration).
+
 ## 2026-10-06
 
 - **Hàng widget KPI — TTM Dashboard 2: đồng bộ cỡ chữ, tách màu 2 nhóm** (`src/components/ttm-dashboard-2/DashboardInsights.tsx`):

@@ -22,26 +22,33 @@ function isBlank(value: string | null): boolean {
  * axis) plus R8/R9 (R4G Date vs status, added 2026-10-04). R1/R3–R6/R8/R9 are ALERT ("Sai lệch dữ
  * liệu"); R2 "Pending lâu" is a RECOMMENDATION since 2026-09-29 and no longer counts as a data
  * anomaly. Rule change 2026-10-04: R1 starts at DESIGN (was DEV), R5 only applies past DESIGN.
- * Rule change 2026-10-05: R8 only once the R4G Date has been reached (a future one is a plan), and
- * the workflow knows Pilot / Done / Reopened (derive.ts), so R9 no longer hits unrecognized statuses;
+ * Rule change 2026-10-05: the workflow knows Pilot / Done / Reopened (derive.ts), so R9 no longer
+ * hits unrecognized statuses;
  * R8 also applies to the exempt statuses (To Do / In PO / Backlog); R1 also applies to Pending; R8
  * doesn't apply to Reopened (an Epic that went live, R4G Date recorded, then got reopened — its R4G
  * Date is real history, not a data error). Pending keeps R8.
+ * Rule change 2026-10-08: R8 no longer waits for the R4G Date to be reached (the 2026-10-05 "a future
+ * R4G Date is a plan" exception is withdrawn) — see the rule below.
  */
 export const dataQualityRule: PrimaryRule = ({ facts, derived, ctx }) => {
   const findings: Finding[] = [];
   const r4g = facts.r4gDate;
-  // R8 — an R4G Date already reached means status ≥ R4GOLIVE. It applies to the exempt statuses too
-  // (To Do / In PO / Backlog — owner rule 2026-10-05), only not to Cancelled: every Epic whose R4G
-  // Date has passed while its status is still behind is "Sai lệch dữ liệu". An R4G Date still in the
-  // future is a planned date (allowed to be entered ahead): no anomaly, and the Epic stays "chưa kết
-  // luận" until asOf reaches it.
+  // R8 — a recorded R4G Date means status ≥ R4GOLIVE. It applies to the exempt statuses too (To Do /
+  // In PO / Backlog — owner rule 2026-10-05), only not to Cancelled: every Epic with an R4G Date while
+  // its status is still behind is "Sai lệch dữ liệu". The date being in the future makes no difference
+  // (owner rule 2026-10-08): R4G Date is the date the Epic actually reached R4GOLIVE — the phase
+  // completion, the "Epic hoàn thành" layer of the funnel and the Release axis all read it that way —
+  // so it must not be entered before the status gets there. (An Epic already at R4GOLIVE or later with
+  // a future R4G Date is not R8; it stays "chưa kết luận" until asOf reaches that date.)
   // (Backlog is exempt but not a workflow step — it counts as "chưa tới R4GOLIVE" like To Do / In PO.)
   // Reopened is left out (owner rule 2026-10-05): it ranks level with In Progress, but an Epic gets
   // reopened after it went live, so a reached R4G Date there is genuine, not "Sai lệch dữ liệu".
   const exempt = isExemptFromDataQuality(facts.status, ctx);
-  if (r4g && r4g <= ctx.asOf && (derived.statusIndex < STATUS_INDEX.R4GOLIVE || exempt) && !isCancelledStatus(facts.status) && !isReopenedStatus(facts.status)) {
-    findings.push(finding('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE', `R4G Date (${r4g}) đã tới nhưng status Epic (${facts.status}) chưa tới R4GOLIVE`, { r4gDate: r4g, status: facts.status }));
+  if (r4g && (derived.statusIndex < STATUS_INDEX.R4GOLIVE || exempt) && !isCancelledStatus(facts.status) && !isReopenedStatus(facts.status)) {
+    const message = r4g > ctx.asOf
+      ? `Đã ghi R4G Date (${r4g}, chưa tới ngày) nhưng status Epic (${facts.status}) chưa tới R4GOLIVE`
+      : `Đã có R4G Date (${r4g}) nhưng status Epic (${facts.status}) chưa tới R4GOLIVE`;
+    findings.push(finding('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE', message, { r4gDate: r4g, status: facts.status }));
   }
   if (exempt) return findings;
   const { holidays } = ctx;

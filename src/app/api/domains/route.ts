@@ -20,7 +20,7 @@ function validateProjectIds(value: unknown): string | null {
  * domain → projects from it), so a changed project ↔ Domain assignment or a renamed Domain only
  * shows up there after a rebuild — kicked off in the background so saving stays instant. */
 async function respond(result: DomainSaveResult, status = 200): Promise<NextResponse> {
-  const cacheAffected = result.projectsChanged || result.nameChanged;
+  const cacheAffected = result.projectsChanged || result.nameChanged || result.activeChanged;
   if (cacheAffected) {
     const batchId = await getLatestImportBatchId();
     after(() => refreshDerivedCachesInBackground(batchId, 'domains'));
@@ -66,6 +66,9 @@ export async function DELETE(request: NextRequest) {
     const id = Number(new URL(request.url).searchParams.get('id'));
     if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: 'Domain ID không hợp lệ.' }, { status: 400 });
     await deleteDomain(id);
+    // The Domain's projects (if any) are left without one — their Epics' cached domainName is stale.
+    const batchId = await getLatestImportBatchId();
+    after(() => refreshDerivedCachesInBackground(batchId, 'domains'));
     return NextResponse.json({ success: true });
   } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Lỗi hệ thống khi xóa Domain.' }, { status: 500 }); }
 }

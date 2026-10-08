@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { apiFeatureKey, fallbackPathFor, NO_ACCESS_PATH, pageFeatureKey } from '../feature-access';
+import { apiFeatureKey, fallbackPathFor, isMcpToolName, MCP_TOOL_FEATURES, mcpToolViewDenied, NO_ACCESS_PATH, pageFeatureKey } from '../feature-access';
 import { formatTtmFailPct, formatTtmPassPct, hasTtmVerdict, summarizeTtmCnttFromCounts } from '../ttm-cntt-qa';
 
 describe('feature-access — Ma trận phân quyền blocks the page (2026-10-05)', () => {
@@ -32,6 +32,29 @@ describe('feature-access — Ma trận phân quyền blocks the page (2026-10-05
     assert.equal(fallbackPathFor(new Set(['ttm_dashboard_2']), '/epic-in-po'), '/epic-alerts-15');
     const everything = new Set(['ttm_dashboard_2', 'epic_alerts_15', 'epic_reports', 'epic_in_po', 'visit_counter', 'dashboard_new']);
     assert.equal(fallbackPathFor(everything, '/reports'), NO_ACCESS_PATH);
+  });
+});
+
+describe('feature-access — Ma trận phân quyền also gates the MCP tools (2026-10-08)', () => {
+  it('a tool is refused only when "Xem" is unticked on every screen showing its data', () => {
+    assert.equal(mcpToolViewDenied('get_ttm_dashboard', new Set(['ttm_dashboard_2'])), true);
+    assert.equal(mcpToolViewDenied('get_ttm_dashboard', new Set(['dashboard_new', 'dashboard'])), false);
+    assert.equal(mcpToolViewDenied('list_epic_alerts', new Set(['epic_alerts_15'])), true);
+    // Duyệt Epic is reachable from two screens — one of them still viewable keeps the tool.
+    assert.equal(mcpToolViewDenied('get_epic_detail', new Set(['epic_alerts_15'])), false);
+    assert.equal(mcpToolViewDenied('get_epic_detail', new Set(['epic_alerts_15', 'epic_in_po'])), true);
+    assert.equal(mcpToolViewDenied('search_product_docs', new Set(['product_docs'])), true);
+    assert.equal(mcpToolViewDenied('get_product_doc_section', new Set()), false);
+  });
+
+  it('every tool names at least one feature; unknown names are not tools', () => {
+    for (const [tool, entry] of Object.entries(MCP_TOOL_FEATURES)) {
+      assert.ok(entry.featureKeys.length > 0 && entry.screen, tool);
+      assert.ok(isMcpToolName(tool));
+    }
+    assert.equal(Object.keys(MCP_TOOL_FEATURES).length, 11);
+    assert.equal(isMcpToolName('delete_everything'), false);
+    assert.equal(isMcpToolName('toString'), false);
   });
 });
 

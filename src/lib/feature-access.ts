@@ -42,6 +42,39 @@ const API_FEATURES: readonly { featureKey: string; prefix: string }[] = [
   { prefix: '/api/reports', featureKey: 'epic_reports' },
 ];
 
+/**
+ * MCP tools → the matrix feature(s) whose screen shows the same data (2026-10-08). A tool is refused
+ * when the caller's role has "Xem" unticked on EVERY feature listed for it — one screen still allowed
+ * to show the data is enough. Like the pages, this only narrows: the tool's own role check
+ * (mcp-server.ts) still applies first. Every tool registered in mcp-server.ts must be listed here.
+ */
+export const MCP_TOOL_FEATURES = {
+  get_dashboard_summary: { featureKeys: ['dashboard'], screen: 'Dashboard (cũ)' },
+  // Duyệt Epic is opened from Quản trị Epic and from Epic in PO.
+  get_epic_detail: { featureKeys: ['epic_alerts_15', 'epic_in_po'], screen: 'Quản trị Epic / Epic in PO' },
+  get_product_doc_section: { featureKeys: ['product_docs'], screen: 'Tài liệu sản phẩm' },
+  get_ttm_dashboard: { featureKeys: ['ttm_dashboard_2'], screen: 'TTM Dashboard 2' },
+  get_ttm_policies: { featureKeys: ['status_alert_rules'], screen: 'Cấu hình cảnh báo' },
+  list_domains: { featureKeys: ['domains'], screen: 'Quản lý Domain' },
+  list_epic_alerts: { featureKeys: ['epic_alerts_15'], screen: 'Quản trị Epic' },
+  // Ngày nghỉ / ngày làm bù live in the "Cấu hình ứng dụng" modal (feature general_settings).
+  list_holidays: { featureKeys: ['general_settings'], screen: 'Cấu hình ứng dụng (Quản lý ngày nghỉ)' },
+  list_projects: { featureKeys: ['projects'], screen: 'Quản lý Dự án' },
+  list_report_filters: { featureKeys: ['epic_reports'], screen: 'Báo cáo Epic' },
+  search_product_docs: { featureKeys: ['product_docs'], screen: 'Tài liệu sản phẩm' },
+} as const satisfies Record<string, { featureKeys: readonly string[]; screen: string }>;
+
+export type McpToolName = keyof typeof MCP_TOOL_FEATURES;
+
+export function isMcpToolName(name: string): name is McpToolName {
+  return Object.hasOwn(MCP_TOOL_FEATURES, name);
+}
+
+/** True when the role may view none of the screens behind `tool`. */
+export function mcpToolViewDenied(tool: McpToolName, deniedFeatureKeys: ReadonlySet<string>): boolean {
+  return MCP_TOOL_FEATURES[tool].featureKeys.every((featureKey) => deniedFeatureKeys.has(featureKey));
+}
+
 /** Where a denied page sends the user — the first of these the role may still view. */
 const LANDING_PATHS: readonly string[] = ['/ttm-dashboard-2', '/epic-alerts-15', '/reports', '/epic-in-po', '/visit-stats', '/dashboard-new'];
 

@@ -304,3 +304,22 @@ And có ô tìm kiếm gần đúng theo mã hoặc tên dự án
   SUPERVISOR/USER trên từng màn hình quản trị, thay vì chỉ dựa vào role cứng trong code.
 - SUPERADMIN luôn có đủ 4 quyền trên mọi tính năng; API từ chối sửa dòng SUPERADMIN để tránh tự khóa
   quyền quản trị cao nhất.
+- **Cập nhật 2026-10-05 — quyền "Xem" của ma trận đã có hiệu lực** (thay cho ghi chú "chỉ là khai báo"):
+  - Bỏ tick Xem của một role → menu của chức năng ẩn với role đó (`GET /api/auth/me` trả `hiddenFeatureKeys`),
+    trang bị `src/proxy.ts` chuyển hướng về trang đầu tiên role còn quyền (`fallbackPathFor`,
+    `src/lib/feature-access.ts`; không còn trang nào → `/no-access`), và API dữ liệu riêng của trang trả 403
+    (`/api/ttm-dashboard-2`, `/api/dashboard-new`, `/api/reports`). API dùng chung (vd. `/api/epic-alerts-15`)
+    không bị chặn theo ma trận.
+  - Ma trận chỉ **thu hẹp**: role cố định trong code (`roles` của menu, `PAGE_ROLES`, `requireUser(..., roles)`)
+    vẫn áp dụng trước. Thêm/Sửa/Xóa vẫn chỉ là khai báo. Proxy cache kết quả 15 giây mỗi instance.
+  - SUPERADMIN được bỏ/tick quyền Xem của chính mình ở nhóm "Chức năng khác" (`VIEW_ONLY`); nhóm
+    "Chức năng quản trị" vẫn khoá cột SUPERADMIN (API trả 400).
+  - Từ 2026-10-08 áp dụng cả cho MCP: mỗi tool gắn với feature key của màn hình cùng dữ liệu
+    (`MCP_TOOL_FEATURES`, xem `15-mcp-sso-and-reports.md`); bị bỏ quyền Xem thì tool từ chối.
+- **Màn hình mặc định sau khi đăng nhập** (2026-10-05): TTM Dashboard 2 cho mọi role; TTM Dashboard
+  (`/dashboard-new`) chỉ SUPERADMIN.
+- **"Xem dưới quyền"** (2026-10-05, `src/lib/view-as-user-service.ts`): SUPERADMIN / SUPERVISOR xem được mọi
+  user cùng hoặc dưới cấp; ADMIN chỉ xem dưới quyền được user mà mọi dự án (đang active) của user đó nằm trong
+  phạm vi của ADMIN (domain được gán + dự án ADMIN làm PM/SM); user không có dự án nào không xuất hiện với ADMIN.
+- **Left panel** (2026-10-05): menu Quản trị gom thành 2 popup — "Admin: Cấu hình ứng dụng" (ADMIN / SUPERADMIN /
+  SUPERVISOR, SUPERVISOR chỉ xem; gồm cả "Epic ngoại lệ") và "SuperAdmin: Quản trị hệ thống" (chỉ SUPERADMIN).

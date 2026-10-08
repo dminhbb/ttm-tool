@@ -1,11 +1,11 @@
 # TTM Dashboard 2 — Tài Liệu Đặc Tả Kiến Trúc & Quy Tắc Tính Phễu Dữ Liệu
 
-> Ngày cập nhật: 2026-10-04
+> Ngày cập nhật: 2026-10-08
 > Module: `src/app/ttm-dashboard-2/page.tsx` (vẽ phễu: `src/components/ttm-dashboard-2/FunnelLayers.tsx`)
 > API Endpoint: `src/app/api/ttm-dashboard-2/route.ts`
 > Quy tắc phân nhóm: `ttmFunnelBucket` trong `src/lib/epic-row-verdicts.ts` (bản SQL song song trong `src/lib/epic-alert-row-cache-query-service.ts`)
 > Tên tiêu chí & tỷ lệ: `TTM_FUNNEL_CRITERIA`, `ttmFunnelLayers`, `ttmFunnelCnttIndex` trong `src/lib/ttm-funnel-summary.ts`
-> Quyền truy cập: Role `Supervisor` trở lên (`SUPERADMIN`, `ADMIN`, `SUPERVISOR`)
+> Quyền truy cập: mọi role từ 2026-10-05 (màn hình mặc định sau khi đăng nhập; USER thấy đúng phạm vi dữ liệu của mình). "Xem dưới quyền" chỉ dành cho `SUPERADMIN` / `ADMIN` / `SUPERVISOR` — ADMIN chỉ xem dưới quyền được user có mọi dự án nằm trong phạm vi của mình (`src/lib/view-as-user-service.ts`). Bỏ quyền Xem `ttm_dashboard_2` của một role trong Ma trận phân quyền sẽ chặn cả trang lẫn API (`src/proxy.ts`, `src/lib/feature-access.ts`).
 
 ---
 
@@ -63,7 +63,7 @@ Epic ngoài "Phạm vi dữ liệu cho TTM" **không nằm trong L01** (trước
 | `L05bb` | Epic trong hạn | Các Epic trong L04b chưa quá Target R4G — vẫn còn cơ hội Đạt TTM-CNTT | `NO_R4G_WITHIN_TARGET` | `WITHIN_TARGET_MISSING_R4G` |
 | — | Ngoài phạm vi dữ liệu cho TTM | Epic có `ttmCnttInScope = false` (mọi status), không tính vào L01 | `OUT_OF_SCOPE` | `alert=OUT_OF_SCOPE_CNTT` + `status` = mọi trạng thái đang có |
 
-Thứ tự xét của `ttmFunnelBucket`: ngoài phạm vi → Cancelled → Sai lệch dữ liệu → có/không có R4G Date → Đạt / Fail / còn lại.
+Thứ tự xét của `ttmFunnelBucket`: ngoài phạm vi → Cancelled → Epic ngoại lệ → dự án Time to Market = N → Sai lệch dữ liệu → có/không có R4G Date → Đạt / Fail / còn lại.
 
 ## 3. Tỷ Lệ % Pass / % Fail TTM-CNTT
 
@@ -72,8 +72,8 @@ Tỷ lệ % Pass TTM-CNTT = L05aa / (L05aa + L05ab + L05ba) × 100
 Tỷ lệ % Fail TTM-CNTT = (L05ab + L05ba) / (L05aa + L05ab + L05ba) × 100
 ```
 
-- Mẫu số chỉ gồm Epic **đã có kết luận**. L05ac, L05bb, Epic Cancelled, Epic Sai lệch dữ liệu và Epic ngoài phạm vi không tham gia.
-- Mẫu số = 0 (chưa Epic nào được kết luận): phễu hiện "—"; các widget chỉ số hiện 100% Pass / 0% Fail.
+- Mẫu số chỉ gồm Epic **đã có kết luận**. L05ac, L05bb, Epic Cancelled, Epic ngoại lệ, Epic của dự án Time to Market = N, Epic Sai lệch dữ liệu và Epic ngoài phạm vi không tham gia.
+- Mẫu số = 0 (chưa Epic nào được kết luận): mọi nơi hiển thị "—" (phễu, vòng chỉ số, badge banner, ô ma trận, MCP trả `null`) thay cho 100% — quyết định 2026-10-05 (`hasTtmVerdict` / `formatTtmPassPct` trong `ttm-cntt-qa.ts`). Giá trị `pct` trong `TtmCnttSummary` vẫn là 100 để phép tính không vỡ.
 - Hàm tính duy nhất: `summarizeTtmCnttFromCounts` (`src/lib/ttm-cntt-qa.ts`). Phễu gọi qua `ttmFunnelCnttIndex`; các chỉ số TTM-CNTT (QLDA) khác gọi qua `summarizeTtmCntt` / `queryTtmCnttIndexes` — nên tỷ lệ ở phễu luôn bằng chỉ số TTM-CNTT (QLDA) của cùng tập Epic.
 - **Áp dụng chung** (không riêng màn hình này):
   - **TTM-CNTT (QLDA)** toàn công ty (`ttm_index_global_cache`) và theo phạm vi sau khi lọc + theo phân quyền người xem (TTM Dashboard, Quản trị Epic, MCP).
@@ -109,18 +109,25 @@ Vì phễu và danh sách dùng cùng một định nghĩa (`ttmFunnelBucket` �
 
 Ba khối này lấy từ TTM Dashboard và tính lại theo tiêu chí của phễu. Số liệu nằm trong `TtmFunnelSummary.insights` (`summarizeTtmFunnel`, `src/lib/ttm-funnel-summary.ts`) — cùng một lần duyệt Epic với phễu, nên luôn khớp phễu; vẽ bởi `src/components/ttm-dashboard-2/DashboardInsights.tsx`. Mọi con số bấm được đều mở Quản trị Epic với quyền người xem + bộ lọc đang chọn.
 
-### 7.1. Widget row
+### 7.1. Widget row (thiết kế lại 2026-10-05 → 10-06)
 
-| Widget | Giá trị | Dòng phụ |
+Hàng 9 thẻ KPI, 2 nhóm màu: 5 thẻ trái (nền navy nhạt) là số liệu TTM theo tiêu chí phễu, 4 thẻ phải (nền xám) là số liệu vận hành. Mỗi thẻ 3 tầng: tiêu đề → con số chính → dòng phụ; cỡ chữ dùng chung (`KPI_TITLE_CLASS`, `KPI_VALUE_CLASS`, `KPI_SUBTITLE_CLASS`) và co theo bề rộng hàng (`cqw`).
+
+| Thẻ | Con số chính | Dòng phụ / hành vi |
 |---|---|---|
-| Tổng số Epic | **L02** | `Trừ Cancelled= `, `Trừ Epic ngoại lệ= `, `Trừ dự án TTM=N= ` + số Epic của từng nhóm bị loại (tổng = L01 − L02) |
-| Fail TTM-CNTT (QLDA) | **L05ab + L05ba** | `/Số Epic= ` + (L05aa + L05ab + L05ba) |
-| TTM-CNTT (QLDA) | Tỷ lệ % Pass = L05aa / (L05aa + L05ab + L05ba) | tử số / mẫu số |
-| TTM-CNTT (QA) | Cùng công thức, chỉ Epic MVP Done / Released trong "R4G for TTM (QA)" | tử số / mẫu số |
-| Hoàn thành TTM-E2E | Epic đạt TTM-E2E / (Epic đạt + Epic Fail TTM-E2E) — cùng công thức TTM-CNTT từ 2026-10-05; không áp "Phạm vi dữ liệu cho TTM" | tử số / mẫu số |
-| Chậm tiến độ, Sai lệch Dữ liệu, Chờ golive (thiếu R4G / trong hạn / quá hạn), Giải trình Golive | Như TTM Dashboard: đếm trên mọi Epic không Cancelled của tập đang xem | — |
+| TỔNG EPIC | **L02** | "Phạm vi tính"; bấm mở `TTM_COUNTED_IN_SCOPE`. Số bị loại (Cancelled / Epic ngoại lệ / dự án TTM = N) xem ở popup L02 của phễu |
+| FAIL TTM-CNTT | **L05ab + L05ba** | "Cần xử lý"; bấm mở `TTM_LATE_IN_SCOPE` + `OVERDUE_MISSING_R4G_IN_SCOPE` |
+| TTM-CNTT — "Toàn phòng QLDA" | Vòng % Pass + phân số L05aa / (L05aa + L05ab + L05ba) | TTM-CNTT (QLDA) của tập Epic đang xem |
+| TTM-CNTT — "Phạm vi của QA" | Vòng % + phân số Đạt / (Đạt + Fail) | Chỉ Epic MVP Done / Released trong "R4G for TTM (QA)" |
+| TTM-E2E | Vòng % + phân số Đạt TTM-E2E / (Đạt + Fail TTM-E2E) | "Đạt / Đánh giá"; bấm mở `FAIL_E2E`; không áp "Phạm vi dữ liệu cho TTM" |
+| CẢNH BÁO | Số Epic Cảnh báo muộn (engine cũ: + Cảnh báo sớm) | Link "n muộn" (/ "n sớm") |
+| SAI LỆCH | Số Epic Sai lệch dữ liệu | "Cần điều chỉnh" |
+| CHỜ GOLIVE | Số Epic Chờ golive | Thiếu R4G / Trong hạn / Quá hạn |
+| GIẢI TRÌNH | Số Epic Giải trình Golive | "Quá hạn R4G +5d" |
 
-"Chờ golive: trong hạn / quá hạn" được tách theo ngày hiện tại lúc xem (`splitWaitingGolive`), nên số trong cache không bị cũ qua ngày.
+- Bốn thẻ vận hành đếm trên **mọi Epic không Cancelled của tập đang xem** — kể cả Epic ngoại lệ, Epic của dự án Time to Market = N và Epic ngoài "Phạm vi dữ liệu cho TTM" (danh sách mở ra ở Quản trị Epic cũng gồm các Epic đó) — nên SAI LỆCH có thể lớn hơn L02 − L03.
+- Mẫu số = 0: vòng rỗng + "—".
+- "Chờ golive: trong hạn / quá hạn" được tách theo ngày hiện tại lúc xem (`splitWaitingGolive`), nên số trong cache không bị cũ qua ngày.
 
 ### 7.2. Ma trận Phân bổ Tiến độ Epic Đa chiều
 
@@ -137,7 +144,7 @@ Lead view: 4 tab (Domain, Phân loại Epic, PM/SM, Dự án); PM/SM view: 2 tab
 | Sai lệch dữ liệu | L02 − L03 của dòng — Epic Sai lệch dữ liệu, chưa được chấm TTM-CNTT. Từ 2026-10-05 đếm riêng (`TtmBreakdownItem.anomaly`), không còn nằm trong "Đúng tiến độ" |
 | Đúng tiến độ / Chậm tiến độ | Epic chưa có R4G Date và không Sai lệch dữ liệu (L04b): Chậm = đang Fail hoặc Cảnh báo muộn, còn lại là Đúng |
 
-Tổng theo cột của một chiều luôn bằng tiêu chí tương ứng của phễu (Σ Tổng số Epic = L02, Σ Pass TTM = L05aa, Σ Fail TTM = L05ab + L05ba).
+Tổng theo cột của một chiều luôn bằng tiêu chí tương ứng của phễu (Σ Tổng số Epic = L02, Σ Pass TTM = L05aa, Σ Fail TTM = L05ab + L05ba) — **trừ chiều PM/SM**: từ 2026-10-05 mỗi PM/SM là một dòng và Epic có nhiều PM/SM ("A, B") được tính cho từng người (`BREAKDOWN_KEYS`), nên tổng các dòng có thể lớn hơn L02; đổi lại danh sách mở ra từ mỗi dòng (`owner_names && [A]`) khớp đúng con số. Tên trùng trong một Epic ("An, An") chỉ đếm một lần. Ô tỷ lệ hiện "—" khi dòng chưa có Epic nào được đánh giá.
 
 ### 7.3. Section Pie chart
 

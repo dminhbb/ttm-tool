@@ -195,8 +195,8 @@ export const BADGES = [
   },
   {
     id: 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE', axis: 'DATA_QUALITY', group: 'ALERT', label: 'Có R4G Date nhưng chưa R4GOLIVE', precedence: 62, defaultEnabled: true,
-    meaning: 'R8 — R4G Date đã tới (≤ ngày tính) nhưng status Epic chưa lên R4GOLIVE (kể cả Pending — ngang hàng In Progress). Mới từ 04/10/2026; vì là Sai lệch dữ liệu nên Epic không được chấm Đạt / Fail / "Sai Status" trên các trục TTM cho tới khi sửa. Từ 05/10/2026: R4G Date ở tương lai là ngày kế hoạch — không phải Sai lệch dữ liệu, Epic ở nhóm "chưa kết luận" cho tới ngày đó; R8 áp dụng cả với status được miễn các rule khác (To Do / In PO / Backlog), chỉ trừ Cancelled. Không áp dụng với Reopened: Epic đã golive (có R4G Date) rồi bị mở lại — R4G Date là lịch sử thật, Epic giữ kết quả TTM của mình (Pending vẫn áp dụng R8).',
-    formula: 'Có R4G Date  VÀ  R4G Date ≤ asOf  VÀ  status < R4GOLIVE  VÀ  status ∉ {Cancelled, Reopened}',
+    meaning: 'R8 — Epic đã ghi R4G Date nhưng status chưa lên R4GOLIVE (kể cả Pending — ngang hàng In Progress), dù R4G Date đã tới hay còn ở tương lai: R4G Date là ngày Epic thực tế đạt R4GOLIVE nên không được nhập trước khi status tới đó. Mới từ 04/10/2026; vì là Sai lệch dữ liệu nên Epic không được chấm Đạt / Fail / "Sai Status" trên các trục TTM cho tới khi sửa. Áp dụng cả với status được miễn các rule khác (To Do / In PO / Backlog), chỉ trừ Cancelled. Không áp dụng với Reopened: Epic đã golive (có R4G Date) rồi bị mở lại — R4G Date là lịch sử thật, Epic giữ kết quả TTM của mình. (05/10–08/10/2026 từng miễn R4G Date ở tương lai với lý do "ngày kế hoạch"; đã bỏ từ 08/10/2026.)',
+    formula: 'Có R4G Date (kể cả ngày tương lai)  VÀ  (status < R4GOLIVE  HOẶC  status ∈ {To Do, In PO, Backlog})  VÀ  status ∉ {Cancelled, Reopened}',
   },
   {
     id: 'ANOMALY_R9_MISSING_R4G_DATE', axis: 'DATA_QUALITY', group: 'ALERT', label: 'Thiếu R4G Date', precedence: 63, defaultEnabled: true,
@@ -332,7 +332,7 @@ export const INDEX_MEMBERSHIP_RULES: { index: 'TTM-CNTT (QLDA)' | 'TTM-CNTT (QA)
   { index: 'TTM-E2E', flag: 'Mẫu số / Đạt / Fail', formula: 'Đạt: có badge "Đạt TTM-E2E".  Fail: có "Fail TTM-E2E" (kể cả Epic chưa có ngày kết thúc mà đã quá Target).  Mẫu số: Đạt + Fail (từ 05/10/2026, cùng công thức TTM-CNTT) — không Cancelled, không "Epic ngoại lệ", không "Dự án không tính TTM", không Sai lệch dữ liệu; Epic chưa kết luận không tính. Không áp "Phạm vi dữ liệu cho TTM"' },
 ];
 
-export const INDEX_PERCENT_FORMULA = 'TTM-CNTT (QLDA) / TTM-CNTT (QA), từ 04/10/2026:  Tỷ lệ % Pass = L05aa / (L05aa + L05ab + L05ba) × 100;  Tỷ lệ % Fail = (L05ab + L05ba) / (L05aa + L05ab + L05ba) × 100;  chưa có Epic nào được kết luận (mẫu số = 0): 100.   TTM-E2E, từ 05/10/2026 cùng công thức:  Đạt TTM-E2E / (Đạt TTM-E2E + Fail TTM-E2E) × 100.';
+export const INDEX_PERCENT_FORMULA = 'TTM-CNTT (QLDA) / TTM-CNTT (QA), từ 04/10/2026:  Tỷ lệ % Pass = L05aa / (L05aa + L05ab + L05ba) × 100;  Tỷ lệ % Fail = (L05ab + L05ba) / (L05aa + L05ab + L05ba) × 100;  chưa có Epic nào được kết luận (mẫu số = 0): hiển thị "—" (từ 05/10/2026, không còn hiện 100%).   TTM-E2E, từ 05/10/2026 cùng công thức:  Đạt TTM-E2E / (Đạt TTM-E2E + Fail TTM-E2E) × 100.';
 
 export function badgesOf(axis: ScoringAxis, group: FindingGroup): BadgeDefinition[] {
   return BADGE_LIST.filter((badge) => badge.axis === axis && badge.group === group).sort((a, b) => a.precedence - b.precedence);

@@ -151,9 +151,10 @@ export function matchesAlertFilter(row: VerdictRow, alertFilter: AlertFilterValu
   // check for both engines, since ttmCnttInScope/hasDataAnomaly/releaseAxisState/r4gDate/
   // releaseGraceDeadline are always plain projected fields regardless of display engine.
   switch (alertFilter) {
-    // "Fail TTM" split (Ma trận Phân bổ, 2026-10-02): a Fail with a recorded R4G Date past Target is
-    // inside the TTM-CNTT denominator; a Fail without R4G Date (already past Target) is outside it —
-    // which is why Pass + Fail can exceed the denominator.
+    // "Fail TTM" split (Ma trận Phân bổ, 2026-10-02): a Fail with a recorded R4G Date past Target
+    // (L05ab) vs. a Fail without R4G Date, already past Target (L05ba). Both are in the TTM-CNTT
+    // denominator since 2026-10-04 (Đạt + Fail). Unlike the L05 funnel filters, these two don't drop
+    // "Epic ngoại lệ" / non-TTM-project Epics — they list every Epic carrying the Fail verdict.
     case 'FAIL_LATE_R4G': return ttmFailKind(row) === 'LATE_R4G';
     case 'FAIL_MISSING_R4G': return ttmFailKind(row) === 'MISSING_R4G';
     // L01 of the TTM Dashboard 2 funnel: every Epic inside "Phạm vi dữ liệu cho TTM".

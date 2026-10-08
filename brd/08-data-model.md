@@ -616,3 +616,23 @@ Bảng `user_domains(user_id, domain_id)` là quan hệ nhiều-nhiều, dùng k
 `(user_id, domain_id)`: một user có thể có một hoặc nhiều Domain và không thể có bản ghi gán trùng.
 User active bắt buộc có ít nhất một Domain; user inactive có thể chưa có Domain. Mọi Domain được
 gán phải active và không trùng lặp.
+
+## 23. Bảng cache dẫn xuất, khoá tạo lại cache và Epic ngoại lệ (bổ sung 2026-10-08)
+
+Các bảng dưới đây được thêm bằng migration sau khi tài liệu này được viết; chi tiết cột xem file migration tương ứng.
+
+| Bảng | Migration | Khoá chính | Vai trò |
+|---|---|---|---|
+| `epic_alert_row_cache` | `20260925_create_epic_alert_row_cache.sql` (+ cột Scoring ở `20260929_create_scoring_service.sql`) | `epic_key` | Dòng Epic của lớp dữ liệu mới nhất (`row_data` JSON + cột lọc/sắp xếp, `badge_codes`, `index_flags`, `findings`). `row_data.ttmExclusion` / `ttmBlackListed` được đóng dấu khi dựng cache. |
+| `ttm_index_global_cache` | `20260925_create_ttm_index_global_cache.sql`, `20261001_add_e2e_to_ttm_index_global_cache.sql` | `id = 1` | Số đếm + % của TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E toàn công ty. |
+| `ttm_dashboard_2_cache` | `20261004_create_ttm_dashboard_2_cache.sql` | `scope_key` (`ALL` / `ADMIN:<id>` / `USER:<id>`) | Số liệu chưa lọc của TTM Dashboard 2 (`summary` JSON có `version` = `PAYLOAD_VERSION`), `scope_fingerprint`, `source_computed_at`, `engine_mode`. |
+| `daily_cache_runs` | `20260926_create_daily_cache_runs.sql` | `run_date` | Lượt tạo lại cache đầu ngày (RUNNING / SUCCESS / FAILED, `duration_ms`, `epic_row_count`, `attempt_count`). |
+| `derived_cache_refresh_lock` | `20261005b_create_derived_cache_refresh_lock.sql` | `id = 1` (CHECK) | Lease điều phối `refreshDerivedCaches` giữa các instance: `request_seq` (mỗi yêu cầu +1), `lease_owner`, `lease_until` (6 phút), `last_source`. Lease còn chủ nhưng đã hết hạn = lượt rebuild bị gián đoạn → `DailyCacheStatus.rebuildInterrupted`. |
+| `black_listed_epics` | `20261005_create_black_listed_epics.sql` | `epic_key` | "Epic ngoại lệ": `project_key`, `ttm_black_listed` (mặc định TRUE), `updated_by_user_id` → `users(id)` ON DELETE SET NULL, `created_at`, `updated_at`; index theo `project_key`. Không còn là ngoại lệ = XOÁ dòng. |
+| `ttm_scope_config`, `scoring_engine_settings`, `scoring_parameters`, `scoring_rule_settings`, `scoring_parity_runs` | `20260927b_create_ttm_scope_config.sql`, `20260929_create_scoring_service.sql`, `20260930_create_scoring_engine_settings.sql` | — | Cấu hình "Phạm vi dữ liệu cho TTM" và Scoring Service (engine hiển thị, tham số, bật/tắt badge, kết quả đối chiếu). |
+
+Quy tắc dùng chung:
+
+- **Loại trừ khỏi TTM** (`TtmExclusion`): `BLACK_LISTED` (có dòng trong `black_listed_epics`) thắng `PROJECT_NON_TTM` (`projects.ttm = 'N'`). Áp dụng cho L02 của phễu TTM Dashboard 2, TTM-CNTT (QLDA/QA), TTM-E2E; `loadTtmExclusionSources` fail-open (không loại trừ gì) nếu bảng chưa tồn tại.
+- **Tạo lại cache**: chỉ qua `refreshDerivedCaches` (import, daily, lưu phạm vi/domain/black list/Time to Market của dự án, nút "Tạo lại cache"). Một DB chưa có `derived_cache_refresh_lock` vẫn rebuild được nhưng không có điều phối.
+- Cả 2 migration `20261005*` phải được áp dụng trên **cả local và Supabase** (xem `AGENTS.md` § Multi-database).

@@ -537,7 +537,7 @@
         <path d="M24 12L8 20" stroke="#0F111A" stroke-width="2"/>
       </svg>
       TTM Monitor
-      <span class="brand-badge">v2026.09</span>
+      <span class="brand-badge">v2026.10</span>
     </a>
 
     <div class="header-actions">
@@ -601,6 +601,7 @@
             <li class="nav-subitem"><a href="#ch4-5-index-rules">4.5. Quy tắc TTM-Index & QA-Index</a></li>
             <li class="nav-subitem"><a href="#ch4-6-projection-switch">4.6. Đèn chuyển Engine & Projection</a></li>
             <li class="nav-subitem"><a href="#ch4-7-so-do-scoring">4.7. Sơ đồ Luồng Đánh giá Scoring</a></li>
+            <li class="nav-subitem"><a href="#ch4-8-cap-nhat-2026-10">4.8. Cập nhật tháng 10/2026</a></li>
           </ul>
         </li>
       </ul>
@@ -1277,7 +1278,7 @@
                 <td><code>ANOMALY_R1_MISSING_START_DATE</code></td>
                 <td><span class="badge badge-alert">ALERT</span></td>
                 <td>Thiếu Start Date</td>
-                <td>R1 — Status ≥ DESIGN VÀ không Pending VÀ T1 trống</td>
+                <td>R1 — Status ≥ DESIGN (kể cả Pending / Reopened — ngang hàng In Progress) VÀ T1 trống</td>
                 <td>—</td>
               </tr>
               <tr>
@@ -1312,14 +1313,14 @@
                 <td><code>ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE</code></td>
                 <td><span class="badge badge-alert">ALERT</span></td>
                 <td>Có R4G Date nhưng chưa R4GOLIVE</td>
-                <td>R8 — Có R4G Date VÀ status &lt; R4GOLIVE</td>
+                <td>R8 — Có R4G Date (kể cả ngày tương lai) VÀ status &lt; R4GOLIVE; áp dụng cả To Do / In PO / Backlog / Pending, không áp dụng Cancelled và Reopened</td>
                 <td>—</td>
               </tr>
               <tr>
                 <td><code>ANOMALY_R9_MISSING_R4G_DATE</code></td>
                 <td><span class="badge badge-alert">ALERT</span></td>
                 <td>Thiếu R4G Date</td>
-                <td>R9 — Status ≥ R4GOLIVE VÀ không Pending VÀ R4G Date trống</td>
+                <td>R9 — Status ∈ {R4GOLIVE, MVP Done, Pilot, Done, Released} VÀ R4G Date trống (status ngoài workflow, Pending, Reopened không xét)</td>
                 <td>—</td>
               </tr>
               <tr>
@@ -1332,7 +1333,21 @@
 
               <!-- SCOPE & PHASE -->
               <tr>
-                <td><strong>SCOPE</strong></td>
+                <td rowspan="3"><strong>SCOPE</strong></td>
+                <td><code>SCOPE_TTM_BLACK_LISTED</code></td>
+                <td><span class="badge badge-note">NOTE</span></td>
+                <td>Epic ngoại lệ</td>
+                <td>Epic được khai báo trong "Epic ngoại lệ" (TTM Black listed = true) — loại khỏi mọi phép tính Time to Market</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><code>SCOPE_PROJECT_NON_TTM</code></td>
+                <td><span class="badge badge-note">NOTE</span></td>
+                <td>Dự án không tính TTM</td>
+                <td>Dự án của Epic có Time to Market = N — loại khỏi mọi phép tính Time to Market</td>
+                <td>—</td>
+              </tr>
+              <tr>
                 <td><code>SCOPE_CNTT_OUT</code></td>
                 <td><span class="badge badge-note">NOTE</span></td>
                 <td>Ngoài phạm vi TTM-CNTT</td>
@@ -1402,13 +1417,14 @@
 
         <h2 class="subsection-title" id="ch4-5-index-rules">4.5. Quy tắc Tính TTM-Index & QA-Index</h2>
         <div class="card card-accent-blue">
-          <div class="card-title">📊 Công thức TTM-Index & QA-Index (Đã chốt D1)</div>
+          <div class="card-title">📊 Công thức TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E (áp dụng từ 04–05/10/2026)</div>
           <ul>
-            <li><strong>Tính (Counted)</strong>: Epic không Cancelled và KHÔNG có <code>SCOPE_CNTT_OUT</code>.</li>
-            <li><strong>Mẫu số (Eligible)</strong>: Counted + Có R4G Date (kể cả tương lai) + KHÔNG có badge ALERT ở axis Chất lượng dữ liệu.</li>
-            <li><strong>Đạt (Pass)</strong>: Eligible + <strong>Bắt buộc có Badge <code>CNTT_PASS</code> Active</strong>. <em>(Epic "Sai Status" hoặc R4G Date ở tương lai: Nằm trong mẫu số nhưng KHÔNG được tính là Đạt)</em>.</li>
-            <li><strong>Fail</strong>: Counted + Có badge <code>CNTT_FAIL</code>.</li>
-            <li><strong>Công thức Index %</strong>: <code>Index % = (Số Epic Đạt / Số Epic Mẫu số) × 100</code>.</li>
+            <li><strong>Tính (Counted) — L02</strong>: Epic không Cancelled, không phải Epic ngoại lệ, không thuộc dự án Time to Market = N và KHÔNG có <code>SCOPE_CNTT_OUT</code>.</li>
+            <li><strong>Đạt (Pass) — L05aa</strong>: Counted + có R4G Date + không Sai lệch dữ liệu + có badge <code>CNTT_PASS</code>.</li>
+            <li><strong>Fail — L05ab + L05ba</strong>: Counted + có badge <code>CNTT_FAIL</code> — R4G Date muộn hơn Target (nhóm 1) hoặc chưa có R4G Date mà đã quá Target (nhóm 2). Epic Sai lệch dữ liệu không được chấm Fail.</li>
+            <li><strong>Công thức</strong>: <code>Tỷ lệ % Pass = Đạt / (Đạt + Fail) × 100</code>; <code>Tỷ lệ % Fail = Fail / (Đạt + Fail) × 100</code>. Epic chưa kết luận (R4G Date ở tương lai, hoặc chưa có R4G Date và chưa quá Target) không vào mẫu số. Mẫu số = 0 thì hiển thị "—".</li>
+            <li><strong>TTM-CNTT (QA)</strong>: cùng công thức, chỉ lấy Epic status MVP Done / Released trong khoảng "R4G for TTM (QA)". <strong>TTM-E2E</strong>: cùng công thức trên badge <code>E2E_PASS</code> / <code>E2E_FAIL</code>.</li>
+            <li><em>Trước 04/10/2026: Index % = Đạt / Mẫu số, với Mẫu số = mọi Epic có R4G Date và không Sai lệch dữ liệu.</em></li>
           </ul>
         </div>
 
@@ -1473,6 +1489,34 @@
             <text x="825" y="172" text-anchor="middle" fill="var(--text-muted)" font-size="9">Populates EpicAlertRowPhased</text>
           </svg>
         </div>
+      
+        <h2 class="subsection-title" id="ch4-8-cap-nhat-2026-10">4.8. Cập nhật tháng 10/2026</h2>
+        <div class="card card-accent-blue">
+          <div class="card-title">🧭 TTM Dashboard 2 — màn hình mặc định sau khi đăng nhập</div>
+          <ul>
+            <li><strong>Phễu Epic L01 → L05bb</strong>: L01 Tổng epic (trong "Phạm vi dữ liệu cho TTM") → L02 Epic trong phạm vi tính TTM (trừ Cancelled, Epic ngoại lệ, dự án Time to Market = N) → L03 Epic chuẩn hoá dữ liệu (trừ Sai lệch dữ liệu) → L04a Epic hoàn thành / L04b Epic chưa hoàn thành → L05aa Đạt, L05ab Không đạt (nhóm 1), L05ac Chưa kết luận, L05ba Không đạt (nhóm 2), L05bb Trong hạn.</li>
+            <li><strong>Hàng 9 thẻ KPI</strong>, <strong>Ma trận Phân bổ Tiến độ Epic Đa chiều</strong> và các <strong>biểu đồ tròn</strong> dùng chung tiêu chí với phễu; mọi con số mở được danh sách Epic tương ứng ở Quản trị Epic.</li>
+            <li>Mở cho mọi role theo đúng phạm vi dữ liệu; TTM Dashboard cũ chỉ còn SUPERADMIN.</li>
+          </ul>
+        </div>
+        <div class="card card-accent-blue">
+          <div class="card-title">🚫 Epic ngoại lệ & dự án không tính TTM</div>
+          <ul>
+            <li>Admin khai báo <strong>Epic ngoại lệ</strong> (TTM Black list) qua popup dạng <code>KEY:EPIC-1,EPIC-2</code> hoặc công tắc trong Duyệt Epic; dự án đặt <strong>Time to Market = N</strong> có hiệu lực tương tự cho mọi Epic của dự án.</li>
+            <li>Các Epic này vẫn hiển thị và vẫn có badge đánh giá riêng, nhưng không vào phễu từ L02 và không tính vào ba chỉ số TTM.</li>
+          </ul>
+        </div>
+        <div class="card card-accent-blue">
+          <div class="card-title">⚙️ Scoring Service, phân quyền & vận hành</div>
+          <ul>
+            <li><strong>Workflow status</strong>: <code>… R4GOLIVE → MVP DONE → PILOT → DONE → RELEASED</code>; Pending và Reopened ngang hàng In Progress. Epic Reopened giữ R4G Date và kết quả TTM, không bị gắn R8 hay "Sai Status".</li>
+            <li><strong>Ma trận phân quyền</strong>: bỏ quyền Xem của một role sẽ ẩn menu, chặn trang và API dữ liệu riêng của trang đó (chỉ thu hẹp, không mở thêm so với role cố định).</li>
+            <li><strong>Xem dưới quyền</strong>: ADMIN chỉ xem dưới quyền được user có toàn bộ dự án nằm trong phạm vi của mình.</li>
+            <li><strong>Tạo lại cache có khoá điều phối</strong>: mỗi thời điểm chỉ một lượt chạy trên mọi instance, yêu cầu đến sau được gộp và tự phục hồi khi lượt đang chạy bị gián đoạn.</li>
+            <li><strong>MCP</strong>: <code>get_ttm_dashboard</code> trả số liệu TTM Dashboard 2; <code>list_epic_alerts</code> lọc được theo "Nhận xét" để lấy danh sách Epic sau mỗi con số.</li>
+          </ul>
+        </div>
+
       </section>
 
     </main>

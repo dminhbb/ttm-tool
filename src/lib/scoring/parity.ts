@@ -46,6 +46,7 @@ export type ParityTag =
   | 'D9_E2E_RULE_REDEFINED'
   | 'D10_DATA_QUALITY_RULES'
   | 'D11_WORKFLOW_STATUSES'
+  | 'D12_TTM_EXCLUSION'
   | 'R2_R7_NOT_ANOMALY'
   | 'LEGACY_TIME_OF_DAY'
   | 'CANCELLED_NOT_APPLICABLE'
@@ -210,11 +211,15 @@ export function compareWithLegacy(card: EpicScorecard, legacy: LegacyRowSnapshot
   const index = card.indexMembership.ttm;
   const tagOf = (check: string): ParityTag | null => diffs.find((item) => item.check === check)?.tag ?? null;
   const explainedBy = (...checks: string[]): ParityTag => checks.map(tagOf).find((tag): tag is ParityTag => Boolean(tag) && tag !== 'UNEXPLAINED') ?? 'UNEXPLAINED';
-  if (legacyCounted !== index.counted) push('TTM-Index: tính', legacyCounted, index.counted, explainedBy('Phạm vi TTM-CNTT'));
+  // D12 (2026-10-05): "Epic ngoại lệ" (black listed) and Epics of a project with Time to Market = N are
+  // outside L02 in the service — never counted — while the legacy engine doesn't know either notion.
+  // The other three flags below follow from this one through explainedBy('TTM-Index: tính').
+  const ttmExcluded = active.has('SCOPE_TTM_BLACK_LISTED') || active.has('SCOPE_PROJECT_NON_TTM');
+  if (legacyCounted !== index.counted) push('TTM-Index: tính', legacyCounted, index.counted, ttmExcluded && !index.counted ? 'D12_TTM_EXCLUSION' : explainedBy('Phạm vi TTM-CNTT'));
   if (legacyEligible !== index.eligible) push('TTM-Index: mẫu số', legacyEligible, index.eligible, explainedBy('Sai lệch dữ liệu', 'TTM-Index: tính'));
   if (legacyPass !== index.pass) {
     const d1 = legacyPass && !index.pass && (legacy.ttmCnttStatusMismatch || !legacyAchieved);
-    push('TTM-Index: đạt', legacyPass, index.pass, d1 ? 'D1_INDEX_PASS' : explainedBy('TTM-Index: mẫu số', 'TTM-CNTT alertLevel', 'Đạt TTM-CNTT'));
+    push('TTM-Index: đạt', legacyPass, index.pass, d1 ? 'D1_INDEX_PASS' : explainedBy('TTM-Index: mẫu số', 'TTM-CNTT alertLevel', 'Đạt TTM-CNTT', 'TTM-Index: tính'));
   }
   const legacyFail = legacyCounted && legacy.alertLevel === 'FAIL';
   if (legacyFail !== index.fail) push('TTM-Index: fail', legacyFail, index.fail, explainedBy('TTM-CNTT alertLevel', 'TTM-Index: tính'));

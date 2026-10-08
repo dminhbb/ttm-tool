@@ -39,6 +39,9 @@ export interface DomainSaveResult {
   /** True when an existing Domain's domain_name changed — same cache rebuild needed, since the
    * cached domainName is also the key Quản trị Epic's Domain filter/deep-link matches on. */
   nameChanged: boolean;
+  /** True when an existing Domain was switched active ↔ inactive — an inactive Domain no longer
+   * names its projects' Epics (getDomainByProjectKeyMap), so the caches need the same rebuild. */
+  activeChanged: boolean;
 }
 
 export interface Project {
