@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AuthError, requireUser, listManagedUsers } from '@/lib/auth-service';
-import pool from '@/lib/db';
-import { getTtmDashboard2Snapshot } from '@/lib/ttm-dashboard-2-cache-service';
-import { getTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
-import { listPreviewableUsers, resolveViewAsTarget, VIEW_AS_ALLOWED_ROLES } from '@/lib/view-as-user-service';
+import { AuthError, requireUser } from '@/modules/iam/public';
+import { getTtmDashboard2 } from '@/modules/ttm/public';
 
 function authError(error: unknown): NextResponse | null {
   if (error instanceof AuthError) {
@@ -18,46 +15,8 @@ function authError(error: unknown): NextResponse | null {
 export async function GET(request: NextRequest) {
   try {
     const actor = await requireUser(request);
-
-    // Open to every role since 2026-10-05 (the landing page after sign-in): a USER sees their own
-    // data scope; "Xem dưới quyền" and the user list stay limited to VIEW_AS_ALLOWED_ROLES.
-    const canPreviewUsers = VIEW_AS_ALLOWED_ROLES.includes(actor.role);
-    const target = await resolveViewAsTarget(actor, request.nextUrl.searchParams.get('viewAsUserId'));
-
-    // Unfiltered funnel numbers + filter options straight from the per-scope cache; the Epic rows
-    // themselves are only fetched (./rows) once the user applies a toolbar filter.
-    const [snapshot, latestBatch, ttmIndexGlobal, allUsers] = await Promise.all([
-      getTtmDashboard2Snapshot(target.userId, target.role),
-      pool.query<{ aggregatedAt: string }>('SELECT aggregated_at::text AS "aggregatedAt" FROM import_batches ORDER BY aggregated_at DESC LIMIT 1;'),
-      getTtmIndexGlobalCache().catch((err) => {
-        console.error('Failed to get TTM Index Global Cache:', err);
-        return null;
-      }),
-      canPreviewUsers ? listManagedUsers().then((users) => listPreviewableUsers(actor, users)) : Promise.resolve([]),
-    ]);
-
-    const managedUsers = allUsers
-      .map((u) => ({
-        domainIds: u.domainIds,
-        email: u.email,
-        fullName: u.fullName,
-        id: u.id,
-        isActive: u.isActive,
-        projectIds: u.projectIds,
-        role: u.role,
-      }));
-
-    return NextResponse.json({
-      actor: { email: actor.email, fullName: actor.fullName, id: actor.id, role: actor.role },
-      isUserPreview: Boolean(target.viewAsUser),
-      cache: snapshot.cache,
-      filterOptions: snapshot.filterOptions,
-      lastAggregatedAt: latestBatch.rows[0]?.aggregatedAt ?? null,
-      managedUsers,
-      summary: snapshot.summary,
-      ttmIndexGlobal,
-      viewAsUser: target.viewAsUser,
-    });
+    const data = await getTtmDashboard2(actor, request.nextUrl.searchParams.get('viewAsUserId'));
+    return NextResponse.json(data);
   } catch (error) {
     console.error('TTM Dashboard 2 API error:', error);
     return authError(error) ?? NextResponse.json({ error: 'Không thể tải dữ liệu TTM Dashboard 2.' }, { status: 500 });

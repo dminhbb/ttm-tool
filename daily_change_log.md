@@ -8,6 +8,32 @@
 
 ## 2026-10-09
 
+- **HLAD kiến trúc PMS + wave 1 cô lập module (không đổi schema, không đổi API/response/behavior của TTM)**:
+  - **`docs/architecture/PMS-HLAD.md`** (mới): HLAD cho việc đưa TTM thành một bounded context trong PMS Platform — module ownership
+    (IAM / Projects / TTM / Integration / Audit), schema ownership dự kiến (`iam`, `project`, `ttm`, `integration`, `audit`), `ProjectId` nội bộ tách
+    khỏi Jira/OPMS key (`integration.project_external_bindings`), Ports & Adapters cho OPMS (API / IL / Excel / Markdown — kênh **chưa chốt**),
+    transactional outbox + durable job trên OCP (`pms-web` / `pms-worker` / CronJob), 8 sơ đồ Mermaid, 8 ADR, risk register 14 mục và roadmap 14 increment.
+    Tài liệu tách rõ *hiện trạng* / *chuyển tiếp* / *mục tiêu*; tên module–schema–API ở trạng thái mục tiêu **chưa tồn tại** trong source.
+  - **`src/modules/{iam,ttm,integration}/public.ts`** (mới): facade công khai cho wave 1. Implementation vẫn gọi nguyên các service cũ
+    (`auth-service`, `view-as-user-service`, `reports-service`, `report-access-scope`, `import-service`, `adapters/index`, `ttm-dashboard-2-cache-service`,
+    `ttm-index-global-cache-service`) nên rule chấm điểm, parser CSV và semantics import **không đổi** — kể cả thứ tự tham số và default
+    `MANUAL`/`System` của `processImport` (export lại dưới tên `executeImport`).
+  - **6 route chuyển sang facade**: `auth/login`, `ttm-dashboard-2`, `ttm-dashboard-2/rows`, `reports`, `data-source/import`, `data-source/import/auto`.
+    Giữ nguyên URL, JSON response, status code, thông báo lỗi và cookie. Riêng `ttm-dashboard-2` được rút orchestration + câu SQL `import_batches` ra khỏi
+    Route Handler: chuyển vào use case `src/modules/ttm/application/get-ttm-dashboard-2.ts` và repository
+    `src/modules/integration/infrastructure/legacy-import-batch-repository.ts` (`getLatestImportAggregatedAt`) — đây là route duy nhất trong nhóm từng
+    `import pool from '@/lib/db'` trực tiếp.
+  - **Enforcement**: thêm 6 block `no-restricted-imports` trong `eslint.config.mjs` (domain không phụ thuộc Next/pg/infrastructure; cross-module chỉ qua
+    `public`; 6 route đã migrate không được import `@/lib/db` và các service cũ) — **chỉ áp cho `src/modules` và 6 route đó**, không áp toàn `src/lib`/`src/app`
+    để không phá legacy. Thêm `src/modules/__tests__/module-boundaries.test.ts` (chạy bằng Node test runner sẵn có).
+  - **Validation**: `npm test` 104/104 pass (102 cũ + 2 boundary test mới); `tsc --noEmit` pass; `next build` pass. Lint còn **2 error `set-state-in-effect`
+    có từ trước** (`dashboard-new/page.tsx:206`, `EpicAlertsIframeModal.tsx:28`) — không nằm trong phạm vi thay đổi này; `src/modules` và 6 route đã migrate
+    không phát sinh error/warning nào.
+  - **Ghi chú môi trường (máy này)**: PowerShell chặn `npm.ps1` (Execution Policy) nên phải gọi `npm.cmd`, hoặc gọi trực tiếp
+    `node node_modules/eslint/bin/eslint.js` / `node node_modules/typescript/bin/tsc` / `node node_modules/next/dist/bin/next build`. Terminal của agent
+    không trả exit code đáng tin (luôn `-1`) và có thể trả về **trước khi** lệnh dài chạy xong — cách kiểm chứng đáng tin là ghi kết quả + file sentinel rồi đọc file.
+  - **Chưa làm (theo đúng kế hoạch)**: module Projects nghiệp vụ (checklist / milestone-Gantt / backlog / health / risk / nhân sự), `ProjectId` + external
+    binding, durable job/outbox, event-driven cache generation, multi-schema migration và `/api/v1`.
 - **Review commit `b788207` ("Fix bug rules") và sửa các điểm phát hiện** (không đổi schema, không đổi code rule chấm điểm — giữ `scoring-11`):
   - **R8 — ghi rõ quy định "R4G Date không được khai báo trước"** (chủ sở hữu xác nhận là quy định công ty): Epic ghi trước R4G Date khi status chưa
     tới R4GOLIVE luôn là Sai lệch dữ liệu; Epic owner xoá trường R4G Date và ghi ngày dự kiến ở trường phụ khác. Hệ quả có chủ đích: Sai lệch dữ liệu

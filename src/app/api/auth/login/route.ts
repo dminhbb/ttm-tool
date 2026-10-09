@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateLocal, createSession, SESSION_COOKIE_NAME } from '@/lib/auth-service';
+import { authenticateLocal, createSession, SESSION_COOKIE_NAME } from '@/modules/iam/public';
 
 export async function POST(request: NextRequest) {
   try {
