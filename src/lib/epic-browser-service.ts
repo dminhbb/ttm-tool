@@ -9,6 +9,9 @@ import {
 import type { DataReviewChildrenResponse, DataReviewIssue } from '@/lib/data-review-types';
 import { isEpicBlackListed } from '@/lib/black-listed-epic-service';
 import { getDomainByProjectKeyMap, getProjectMetaByProjectKeyMap } from '@/lib/master-data-service';
+import { loadScoringContext, vnToday } from '@/lib/scoring-context-service';
+import { loadEpicFacts } from '@/lib/scoring-facts-service';
+import { hasDataAnomalyBadge, scoreEpic } from '@/lib/scoring/score-epic';
 
 /**
  * Canonical row shape + mapper for every Epic Browser query (this file, and data-review-service.ts
@@ -219,6 +222,21 @@ export interface EpicBrowserSummary {
   epicKey: string;
   epicName: string;
   ideaApprovedDate: string | null;
+  r4gDate: string | null;
+  dueDate: string | null;
+  epicComplexityType: string | null;
+  epicType: string | null;
+  requirementLevel: string | null;
+  previousStatus: string | null;
+  khauBa: string | null;
+  khauCo: string | null;
+  khauDev: string | null;
+  khauPmSm: string | null;
+  khauPo: string | null;
+  khauPentest: string | null;
+  khauSa: string | null;
+  khauSitUat: string | null;
+  noteLyDoKhac: string | null;
   /** PM/SM of the Epic's project — comma-joined when there are several, derived live from
    * user_projects (getProjectMetaByProjectKeyMap), not the Jira assignee. */
   ownerName: string;
@@ -230,6 +248,8 @@ export interface EpicBrowserSummary {
   requestingUnit: string | null;
   startDate: string | null;
   status: string;
+  ttmCnttVerdict?: 'PASS' | 'FAIL' | 'DATA_ANOMALY' | 'EXCLUDED' | 'PENDING' | 'N_A';
+  ttmCnttVerdictLabel?: string;
 }
 
 interface EpicBrowserSummaryRow {
@@ -237,6 +257,21 @@ interface EpicBrowserSummaryRow {
   epicKey: string;
   epicName: string;
   ideaApprovedDate: string | null;
+  r4gDate: string | null;
+  dueDate: string | null;
+  epicComplexityType: string | null;
+  epicType: string | null;
+  requirementLevel: string | null;
+  previousStatus: string | null;
+  khauBa: string | null;
+  khauCo: string | null;
+  khauDev: string | null;
+  khauPmSm: string | null;
+  khauPo: string | null;
+  khauPentest: string | null;
+  khauSa: string | null;
+  khauSitUat: string | null;
+  noteLyDoKhac: string | null;
   project: string | null;
   requestingUnit: string | null;
   startDate: string | null;
@@ -244,11 +279,30 @@ interface EpicBrowserSummaryRow {
 }
 
 export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowserSummary | null> {
-  const [result, domainByProjectKey, projectMetaByProjectKey, ttmBlackListed] = await Promise.all([
+  const asOf = vnToday();
+  const [result, domainByProjectKey, projectMetaByProjectKey, ttmBlackListed, ctx, facts] = await Promise.all([
     pool.query<EpicBrowserSummaryRow>(`
       SELECT
         issues.issue_key AS "epicKey", issues.issue_name AS "epicName", issues.current_status AS status,
         issues.start_date::text AS "startDate", issues.idea_approved_date::text AS "ideaApprovedDate",
+        issues.r4g_date::text AS "r4gDate", issues.due_date::text AS "dueDate",
+        issues.requirement_level AS "requirementLevel",
+        issues.epic_complexity_type AS "epicComplexityType",
+        COALESCE(
+          NULLIF(import_rows.normalized_data_json::jsonb ->> 'epicType', ''),
+          NULLIF(import_rows.normalized_data_json::jsonb ->> 'requestType', ''),
+          ''
+        ) AS "epicType",
+        issues.previous_status AS "previousStatus",
+        issues.khau_ba AS "khauBa",
+        issues.khau_co AS "khauCo",
+        issues.khau_dev AS "khauDev",
+        issues.khau_pm_sm AS "khauPmSm",
+        issues.khau_po AS "khauPo",
+        issues.khau_pentest AS "khauPentest",
+        issues.khau_sa AS "khauSa",
+        issues.khau_sit_uat AS "khauSitUat",
+        issues.note_ly_do_khac AS "noteLyDoKhac",
         issues.requesting_unit AS "requestingUnit", issues.aggregated_at::text AS "aggregatedAt",
         COALESCE(
           NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
@@ -267,10 +321,39 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
     getProjectMetaByProjectKeyMap(),
     // A database the black list migration hasn't reached yet still browses Epics — just as "false".
     isEpicBlackListed(epicKey).catch(() => false),
+    loadScoringContext(asOf).catch(() => null),
+    loadEpicFacts(asOf, { epicKeys: [epicKey] }).catch(() => []),
   ]);
 
   const row = result.rows[0];
   if (!row) return null;
+
+  let ttmCnttVerdict: EpicBrowserSummary['ttmCnttVerdict'] = 'PENDING';
+  let ttmCnttVerdictLabel = 'Đang thực hiện';
+
+  if (facts.length > 0 && ctx) {
+    const card = scoreEpic(facts[0], ctx);
+    const activeBadges = new Set(card.findings.filter((f) => !f.suppressedBy).map((f) => f.badge));
+    if (activeBadges.has('CNTT_PASS')) {
+      ttmCnttVerdict = 'PASS';
+      ttmCnttVerdictLabel = 'Pass TTM-CNTT';
+    } else if (activeBadges.has('CNTT_FAIL')) {
+      ttmCnttVerdict = 'FAIL';
+      ttmCnttVerdictLabel = 'Fail TTM-CNTT';
+    } else if (hasDataAnomalyBadge(activeBadges)) {
+      ttmCnttVerdict = 'DATA_ANOMALY';
+      ttmCnttVerdictLabel = 'Sai lệch dữ liệu';
+    } else if (facts[0].ttmExclusion) {
+      ttmCnttVerdict = 'EXCLUDED';
+      ttmCnttVerdictLabel = 'Epic ngoại lệ';
+    } else if (card.findings.some((f) => f.badge === 'CNTT_NOT_APPLICABLE' || f.badge === 'CNTT_CALC_BROKEN')) {
+      ttmCnttVerdict = 'N_A';
+      ttmCnttVerdictLabel = 'Chưa kết luận';
+    }
+  } else if (ttmBlackListed) {
+    ttmCnttVerdict = 'EXCLUDED';
+    ttmCnttVerdictLabel = 'Epic ngoại lệ';
+  }
 
   const projectMeta = row.project ? projectMetaByProjectKey.get(row.project) : undefined;
   return {
@@ -279,6 +362,21 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
     epicKey: row.epicKey,
     epicName: row.epicName,
     ideaApprovedDate: row.ideaApprovedDate,
+    r4gDate: row.r4gDate,
+    dueDate: row.dueDate,
+    epicComplexityType: row.epicComplexityType,
+    epicType: row.epicType,
+    requirementLevel: row.requirementLevel,
+    previousStatus: row.previousStatus,
+    khauBa: row.khauBa,
+    khauCo: row.khauCo,
+    khauDev: row.khauDev,
+    khauPmSm: row.khauPmSm,
+    khauPo: row.khauPo,
+    khauPentest: row.khauPentest,
+    khauSa: row.khauSa,
+    khauSitUat: row.khauSitUat,
+    noteLyDoKhac: row.noteLyDoKhac,
     ownerName: projectMeta?.leadName ?? '',
     projectKey: row.project ?? '',
     projectName: projectMeta?.projectName ?? '',
@@ -286,5 +384,7 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
     startDate: row.startDate,
     status: row.status,
     ttmBlackListed,
+    ttmCnttVerdict,
+    ttmCnttVerdictLabel,
   };
 }

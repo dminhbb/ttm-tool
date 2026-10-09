@@ -8,6 +8,20 @@
 
 ## 2026-10-09
 
+- **Cập nhật Tooltip và các trường thuộc tính tab Details trong Popup Duyệt Epic (`EpicBrowserModal.tsx`)**:
+  - **Sử dụng Hover Tooltip chung**: Chuyển nút toggle `'Epic ngoại lệ'` sang dùng component `<Tooltip>` chung của ứng dụng (`@/components/ui/Tooltip`), với hiệu ứng hiển thị nhất quán, shadow và positioning chuẩn như các badge nhận xét ở màn hình Quản trị Epic.
+  - **Cập nhật thuộc tính tab Details**: Bổ sung hiển thị 2 trường dữ liệu thực tế **Phân loại Epic** (`summary.epicType` / `summary.epicComplexityType`) và **Requirement Level** (`summary.requirementLevel`). Bỏ trường `Epic Status:` trùng lặp (đã có ở mục Status cột phải) và bỏ nhãn `Priority:` giả định từ ảnh ví dụ Jira. Cập nhật query trong `getEpicBrowserSummary` (`epic-browser-service.ts`) để cung cấp 2 trường này.
+
+- **Bổ sung Badge nhận xét TTM-CNTT (`Pass TTM-CNTT` / `Fail TTM-CNTT`) trong Popup Duyệt Epic (`EpicBrowserModal.tsx`)**:
+  - Thêm badge căn lề bên phải trên cùng dòng tiêu đề `'Giải trình Fail TTM'` hiển thị trực quan trạng thái nhận xét TTM-CNTT của Epic (như `Pass TTM-CNTT`, `Fail TTM-CNTT`, `Sai lệch dữ liệu`, `Epic ngoại lệ`).
+  - Cập nhật `getEpicBrowserSummary` (`epic-browser-service.ts`) đánh giá Epic thông qua Epic Scoring Service (`loadScoringContext`, `loadEpicFacts`, `scoreEpic`) để trả về `ttmCnttVerdict` và `ttmCnttVerdictLabel`. Badge giúp người dùng nhận biết nhanh để rà soát đầy đủ các thông tin giải trình khi Epic bị Fail.
+
+- **Tái thiết kế giao diện Popup "Duyệt Epic" (`EpicBrowserModal.tsx`) theo chuẩn Jira Issue View**:
+  - **Header & Nút toggle đơn**: Breadcrumb hiển thị `<ProjectKey> / <EpicKey>`, tiêu đề Epic Summary cỡ lớn. Hàng nút phía trên thay bằng **nút toggle đơn duy nhất `'Epic ngoại lệ'`** kèm hover tooltip hiển thị diễn giải trạng thái True/False; bỏ phần 'Epic ngoại lệ' cũ ở chân popup.
+  - **Tab Details**: Bố trí 2 cụm cột Trái / Phải hiển thị đầy đủ các thuộc tính của Epic; đã loại bỏ link `(View Workflow)` cạnh mục Status.
+  - **Bỏ tab Description**.
+  - **Tab "Issues in Epic" & Bảng phân cấp 4 cột** (`EpicIssuesTree.tsx`): Đổi tên tab Attachments thành `Issues in Epic`, giữ khung border nét đứt xung quanh, bỏ icon đám mây và text tải file. Bên trong hiển thị bảng phân cấp 4 cột (`Issue Type | Issue Key | Summary | Status`). Quy tắc lùi lề: Story lùi 3ch so với Epic, Subtask lùi 3ch so với Story.
+  - **Panel "Giải trình Fail TTM" mới**: Đặt bên dưới panel `Issues in Epic`, thiết kế dạng 2 cụm cột Trái / Phải tương tự Details. Hiển thị thông tin nguyên nhân các khâu (BA, CO, DEV, PM/SM, PO, Pentest, SA, SIT/UAT, Lý do khác) được lấy trực tiếp từ DB/CSV (hiển thị `-` nếu rỗng). Cập nhật `getEpicBrowserSummary` (`epic-browser-service.ts`) để truy vấn đầy đủ 9 trường khâu này.
 - **Bổ sung 10 trường mới vào CSV import adapter và bảng `issues`** (migration `20261009_add_epic_previous_status_and_khau_fields.sql`):
   - **Trường status trước đó**: `epic_previous_status` (CSV) -> `previous_status` (DB `VARCHAR(50)`), lưu trữ status trước đó của Epic (chủ yếu rỗng, chỉ xuất hiện ở một số trường hợp đặc biệt).
   - **9 trường thông tin vai trò nguyên nhân Fail TTM-CNTT & Ghi chú**: `epic_khau_ba`, `epic_khau_co`, `epic_khau_dev`, `epic_khau_pm_sm`, `epic_khau_po`, `epic_khau_pentest`, `epic_khau_sa`, `epic_khau_sit_uat`, `epic_note_ly_do_khac` (CSV) -> `khau_ba`, `khau_co`, `khau_dev`, `khau_pm_sm`, `khau_po`, `khau_pentest`, `khau_sa`, `khau_sit_uat`, `note_ly_do_khac` (DB `TEXT`).

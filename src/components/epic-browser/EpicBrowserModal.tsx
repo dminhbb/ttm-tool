@@ -1,15 +1,15 @@
 'use client';
 
 import * as React from 'react';
-import { TreeStructure } from '@phosphor-icons/react';
+import { CaretDown, CheckCircle, Lightning, TreeStructure, Warning, WarningCircle } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { Alert } from '@/components/ui/Alert';
 import { MODAL_BACKDROP_CLASS, MODAL_FRAME_CLASS, ModalHeader, useModalBehavior } from '@/components/ui/Modal';
-import { BooleanPillToggle } from '@/components/ui/PillToggle';
 import { showToast } from '@/components/ui/Toast';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { TableSkeleton } from '@/components/ui/Skeleton';
-import { EpicBrowser } from '@/components/epic-browser/EpicBrowser';
 import { TtmBlackListDot } from '@/components/ui/TtmBlackListDot';
+import { EpicIssuesTree } from '@/components/epic-browser/EpicIssuesTree';
 import type { DataReviewIssue } from '@/lib/data-review-types';
 import type { EpicBrowserSummary } from '@/lib/epic-browser-service';
 
@@ -43,107 +43,107 @@ function formatDataLayer(value: string | null): string {
   return new Intl.DateTimeFormat('vi-VN').format(date);
 }
 
-/** Same info fields as the left column of the "Epic History" popup (Quản trị Epic / Epic in PO) —
- * shown below the Jira issue tree so a Duyệt Epic viewer sees this context without opening a
- * separate popup. */
-function EpicSummaryPanel({ summary }: { summary: EpicBrowserSummary }) {
-  const fields: { label: string; value: string }[] = [
-    { label: 'Summary', value: summary.epicName || '-' },
-    { label: 'Tên dự án', value: summary.projectName || '-' },
-    { label: 'Ngày duyệt ý tưởng (T0)', value: formatDate(summary.ideaApprovedDate) },
-    { label: 'Start Date (T1)', value: formatDate(summary.startDate) },
-    { label: 'Status', value: summary.status || '-' },
-    { label: 'PM/SM', value: summary.ownerName || '-' },
-    { label: 'Domain (của PM/SM)', value: summary.domainName || '-' },
-    { label: 'Đơn vị yêu cầu', value: summary.requestingUnit || '-' },
-    { label: 'Lớp dữ liệu đang sử dụng', value: formatDataLayer(summary.dataLayerDate) },
-  ];
-  return (
-    <div className="mt-5 border-t border-fb-border pt-4">
-      <h3 className="mb-3 text-xs font-extrabold uppercase tracking-wide text-fb-text-secondary">Thông tin Epic</h3>
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
-        {fields.map((field) => (
-          <div key={field.label}>
-            <dt className="text-[11px] font-semibold uppercase tracking-wide text-fb-text-secondary">{field.label}</dt>
-            <dd className="mt-0.5 text-[12.5px] font-semibold text-fb-text-primary">{field.value}</dd>
-          </div>
-        ))}
-      </dl>
-    </div>
-  );
-}
-
 /**
- * "TTM Black listed" of one Epic — shown for every Epic (false while it has no row in "Black listed
- * epics"). Toggling to true/false automatically saves to API and alerts via toast without confirmation popup.
- * Roles without edit rights see the current value, disabled.
+ * Nút toggle cho "Epic ngoại lệ" ở hàng trên cùng bên dưới tiêu đề Epic.
+ * Hiển thị hover tooltip diễn giải ý nghĩa theo trạng thái True / False.
  */
-function TtmBlackListForm({ canEdit, epicKey, initialValue }: { canEdit: boolean; epicKey: string; initialValue: boolean }) {
+function TtmBlackListTopToggle({
+  canEdit,
+  epicKey,
+  initialValue,
+  onValueChange,
+}: {
+  canEdit: boolean;
+  epicKey: string;
+  initialValue: boolean;
+  onValueChange?: (nextValue: boolean) => void;
+}) {
   const [value, setValue] = React.useState(initialValue);
   const [saving, setSaving] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
 
-  const handleToggle = async (nextValue: boolean) => {
-    if (!canEdit || saving || nextValue === value) return;
+  React.useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
+
+  const handleToggle = async () => {
+    if (!canEdit || saving) return;
+    const nextValue = !value;
     const prevValue = value;
     setValue(nextValue);
     setSaving(true);
-    setError(null);
     try {
       const response = await fetch('/api/black-listed-epics', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ blackListed: nextValue, epicKey }),
       });
-      const data = await response.json() as ApiErrorResponse;
+      const data = (await response.json()) as ApiErrorResponse;
       if (!response.ok) throw new Error(data.error ?? 'Không thể lưu TTM Black listed.');
 
       if (nextValue) {
-        showToast(`Cảnh báo: Epic ${epicKey} đã được chuyển sang Epic ngoại lệ (TTM Black listed = true) — bị loại khỏi phạm vi tính toán Time to Market!`, 7000);
+        showToast(
+          `Cảnh báo: Epic ${epicKey} đã được chuyển sang Epic ngoại lệ (TTM Black listed = true) — bị loại khỏi phạm vi tính toán Time to Market!`,
+          7000
+        );
       } else {
-        showToast(`Đã bỏ ngoại lệ cho Epic ${epicKey} (TTM Black listed = false). Epic được đưa trở lại tính toán Time to Market.`, 7000);
+        showToast(
+          `Đã bỏ ngoại lệ cho Epic ${epicKey} (TTM Black listed = false). Epic được đưa trở lại tính toán Time to Market.`,
+          7000
+        );
       }
+      onValueChange?.(nextValue);
     } catch (requestError: unknown) {
       setValue(prevValue);
-      setError(requestError instanceof Error ? requestError.message : 'Không thể kết nối API.');
+      showToast(
+        requestError instanceof Error ? requestError.message : 'Không thể kết nối API.',
+        5000
+      );
     } finally {
       setSaving(false);
     }
   };
 
+  const tooltipText = value
+    ? 'Epic này đang là Epic ngoại lệ — không nằm trong phạm vi tính toán Time to Market.'
+    : 'Epic này đang được tính Time to Market như bình thường.';
+
   return (
-    <div className="mt-5 border-t border-fb-border pt-4">
-      <h3 className="mb-3 text-xs font-extrabold uppercase tracking-wide text-fb-text-secondary">Epic ngoại lệ</h3>
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-fb-text-secondary">TTM Black listed:</span>
-          <BooleanPillToggle
-            value={value}
-            onChange={handleToggle}
-            disabled={!canEdit || saving}
-            trueLabel="True"
-            falseLabel="False"
-            trueColor="bg-[#1b6b3e]"
-            falseColor="bg-slate-700"
-          />
-        </div>
-        <p className="min-w-0 flex-1 basis-64 text-xs text-fb-text-secondary">
-          {value
-            ? 'Epic này đang là Epic ngoại lệ — không nằm trong phạm vi tính toán Time to Market.'
-            : 'Epic này đang được tính Time to Market như bình thường.'}
-          {!canEdit && ' Bạn chỉ có quyền xem thông tin này.'}
-        </p>
-      </div>
-      {error && <Alert className="mt-3" title="Chưa lưu" variant="error">{error}</Alert>}
-    </div>
+    <Tooltip content={tooltipText} side="bottom" className="inline-flex w-auto">
+      <button
+        type="button"
+        onClick={handleToggle}
+        disabled={!canEdit || saving}
+        className={cn(
+          'inline-flex items-center gap-2 rounded border px-3 py-1.5 text-xs font-semibold transition-all shadow-xs cursor-pointer',
+          value
+            ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100 dark:bg-rose-950/80 dark:text-rose-200 dark:border-rose-800'
+            : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700',
+          (!canEdit || saving) && 'opacity-60 cursor-not-allowed'
+        )}
+      >
+        <TtmBlackListDot />
+        <span>Epic ngoại lệ</span>
+        <span
+          className={cn(
+            'ml-1 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider',
+            value ? 'bg-rose-600 text-white' : 'bg-slate-300 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+          )}
+        >
+          {value ? 'True' : 'False'}
+        </span>
+      </button>
+    </Tooltip>
   );
 }
 
 /**
- * Large (80% viewport height, 95% viewport width — wide enough for the tree's Issue Type column
- * on top of its other columns) popup wrapping the shared EpicBrowser tree — used to drill into
- * one Epic's Story/Subtask hierarchy from a context that only knows the Epic Key (e.g. clicking
- * an Epic Key on "Quản trị Epic"), without navigating away to the batch-scoped review screen.
+ * Large popup "Duyệt Epic" thiết kế theo chuẩn giao diện Jira:
+ * - Breadcrumb: ProjectKey / EpicKey
+ * - Title: Summary của Epic
+ * - Nút duy nhất ở hàng trên: Toggle 'Epic ngoại lệ' kèm hover tooltip
+ * - Panel Details: Bố trí 2 cột (Trái/Phải)
+ * - Panel "Issues in Epic": Khung border nét đứt, chứa bảng phân cấp 4 cột (Issue Type | Issue Key | Summary | Status)
+ * - Panel "Giải trình Fail TTM": Thiết kế giống Details, 2 cột hiển thị các nguyên nhân khâu BA, CO, DEV, PM/SM, PO, Pentest, SA, SIT/UAT, Lý do khác.
  */
 export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
   const [root, setRoot] = React.useState<DataReviewIssue | null>(null);
@@ -151,6 +151,11 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
   const [canEditBlackList, setCanEditBlackList] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  const [detailsOpen, setDetailsOpen] = React.useState(true);
+  const [issuesOpen, setIssuesOpen] = React.useState(true);
+  const [failExplainOpen, setFailExplainOpen] = React.useState(true);
+
   const closeButtonRef = React.useRef<HTMLButtonElement>(null);
   const titleId = React.useId();
 
@@ -169,7 +174,7 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
       setIsLoading(true);
       try {
         const response = await fetch(`/api/epic-browser?epicKey=${encodeURIComponent(epicKey)}`, { signal: controller.signal });
-        const data = await response.json() as EpicBrowserApiResponse & ApiErrorResponse;
+        const data = (await response.json()) as EpicBrowserApiResponse & ApiErrorResponse;
         if (!response.ok) throw new Error(data.error ?? 'Không thể tải dữ liệu Epic.');
         setRoot(data.root);
         setSummary(data.summary);
@@ -190,12 +195,16 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
 
   if (!isOpen) return null;
 
+  const projectKey = summary?.projectKey || (epicKey.includes('-') ? epicKey.split('-')[0] : 'PROJECT');
+  const epicSummaryText = summary?.epicName || root?.summary || epicKey;
+  const currentStatusText = summary?.status || root?.status || 'IN PROGRESS';
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="presentation">
       <div className={MODAL_BACKDROP_CLASS} onClick={onClose} aria-hidden="true" />
 
       <div
-        className={cn(MODAL_FRAME_CLASS, 'h-[80vh] w-[95vw] overflow-hidden')}
+        className={cn(MODAL_FRAME_CLASS, 'h-[88vh] w-[95vw] max-w-6xl overflow-hidden flex flex-col')}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -208,14 +217,287 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
           titleId={titleId}
         />
 
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {error && <Alert variant="error" title="Không thể tải dữ liệu">{error}</Alert>}
           {!error && isLoading && <TableSkeleton rows={8} />}
+
           {!error && !isLoading && root && (
             <>
-              <EpicBrowser key={epicKey} epics={[root]} />
-              {summary && <EpicSummaryPanel summary={summary} />}
-              {summary && <TtmBlackListForm key={`black-list-${epicKey}`} canEdit={canEditBlackList} epicKey={summary.epicKey} initialValue={summary.ttmBlackListed} />}
+              {/* Header section theo Jira */}
+              <div className="space-y-3 pb-4 border-b border-slate-200 dark:border-slate-800">
+                {/* Breadcrumb line */}
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  <Lightning className="size-4 text-violet-600 fill-violet-600 shrink-0" weight="fill" />
+                  <span className="hover:underline cursor-pointer">{projectKey}</span>
+                  <span>/</span>
+                  <span className="text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer">{epicKey}</span>
+                  {summary?.ttmBlackListed && <TtmBlackListDot />}
+                </div>
+
+                {/* Epic Summary Title */}
+                <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+                  {epicSummaryText}
+                </h2>
+
+                {/* Nút duy nhất ở hàng trên: Toggle 'Epic ngoại lệ' */}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {summary && (
+                    <TtmBlackListTopToggle
+                      canEdit={canEditBlackList}
+                      epicKey={summary.epicKey}
+                      initialValue={summary.ttmBlackListed}
+                      onValueChange={(nextVal) => {
+                        setSummary((prev) => (prev ? { ...prev, ttmBlackListed: nextVal } : prev));
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Tab Details Section (2 cụm cột Trái / Phải) */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setDetailsOpen(!detailsOpen)}
+                  className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors cursor-pointer"
+                >
+                  <CaretDown className={cn('size-3.5 transition-transform', !detailsOpen && '-rotate-90')} weight="bold" />
+                  <span>Details</span>
+                </button>
+
+                {detailsOpen && (
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-3 text-xs bg-slate-50/50 dark:bg-slate-900/30 p-4 rounded-lg border border-slate-200/80 dark:border-slate-800">
+                    {/* Cụm Cột Trái */}
+                    <div className="space-y-2.5">
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Type:</span>
+                        <span className="inline-flex items-center gap-1.5 font-medium text-slate-800 dark:text-slate-200">
+                          <Lightning className="size-4 text-violet-600 fill-violet-600" weight="fill" />
+                          Epic
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Phân loại Epic:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {summary?.epicType || summary?.epicComplexityType || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Requirement Level:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {summary?.requirementLevel ? (summary.requirementLevel.startsWith('Mức') ? summary.requirementLevel : `Mức ${summary.requirementLevel}`) : '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Tên dự án:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {summary?.projectName || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">PM / SM:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {summary?.ownerName || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Domain:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {summary?.domainName || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Đơn vị yêu cầu:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {summary?.requestingUnit || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Epic Name:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {summary?.epicName || '-'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Cụm Cột Phải */}
+                    <div className="space-y-2.5">
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Status:</span>
+                        <span className="rounded bg-blue-600 px-2 py-0.5 text-[11px] font-bold text-white uppercase tracking-wider">
+                          {currentStatusText}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Start Date (T1):</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {formatDate(summary?.startDate ?? null)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">R4G Date:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {formatDate(summary?.r4gDate ?? null)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Due Date:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {formatDate(summary?.dueDate ?? null)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Ngày duyệt YT (T0):</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {formatDate(summary?.ideaApprovedDate ?? null)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Lớp dữ liệu:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {formatDataLayer(summary?.dataLayerDate ?? null)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Tab "Issues in Epic" Section (Khung nét đứt, bảng phân cấp 4 cột) */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setIssuesOpen(!issuesOpen)}
+                  className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors cursor-pointer"
+                >
+                  <CaretDown className={cn('size-3.5 transition-transform', !issuesOpen && '-rotate-90')} weight="bold" />
+                  <span>Issues in Epic</span>
+                </button>
+
+                {issuesOpen && (
+                  <div className="mt-3 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 p-3 bg-slate-50/50 dark:bg-slate-900/40">
+                    <EpicIssuesTree root={root} />
+                  </div>
+                )}
+              </div>
+
+              {/* Panel "Giải trình Fail TTM" (2 cụm cột Trái / Phải) */}
+              <div>
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setFailExplainOpen(!failExplainOpen)}
+                    className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors cursor-pointer"
+                  >
+                    <CaretDown className={cn('size-3.5 transition-transform', !failExplainOpen && '-rotate-90')} weight="bold" />
+                    <span>Giải trình Fail TTM</span>
+                  </button>
+
+                  {summary?.ttmCnttVerdictLabel && (
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-xs',
+                        summary.ttmCnttVerdict === 'PASS' && 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-800',
+                        summary.ttmCnttVerdict === 'FAIL' && 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/80 dark:text-rose-300 dark:border-rose-800',
+                        summary.ttmCnttVerdict === 'DATA_ANOMALY' && 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-800',
+                        summary.ttmCnttVerdict === 'EXCLUDED' && 'bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-950/80 dark:text-purple-300 dark:border-purple-800',
+                        (summary.ttmCnttVerdict === 'PENDING' || summary.ttmCnttVerdict === 'N_A' || !summary.ttmCnttVerdict) &&
+                          'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                      )}
+                    >
+                      {summary.ttmCnttVerdict === 'PASS' && <CheckCircle className="size-3.5 text-emerald-600 dark:text-emerald-400" weight="bold" />}
+                      {summary.ttmCnttVerdict === 'FAIL' && <WarningCircle className="size-3.5 text-rose-600 dark:text-rose-400" weight="bold" />}
+                      {summary.ttmCnttVerdict === 'DATA_ANOMALY' && <Warning className="size-3.5 text-amber-600 dark:text-amber-400" weight="bold" />}
+                      <span>{summary.ttmCnttVerdictLabel}</span>
+                    </span>
+                  )}
+                </div>
+
+                {failExplainOpen && (
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-3 text-xs bg-slate-50/50 dark:bg-slate-900/30 p-4 rounded-lg border border-slate-200/80 dark:border-slate-800">
+                    {/* Cụm Cột Trái */}
+                    <div className="space-y-2.5">
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Khâu BA:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {summary?.khauBa || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Khâu CO:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {summary?.khauCo || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Khâu DEV:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {summary?.khauDev || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Khâu PM/SM:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {summary?.khauPmSm || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Khâu PO:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {summary?.khauPo || '-'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Cụm Cột Phải */}
+                    <div className="space-y-2.5">
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Khâu Pentest:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {summary?.khauPentest || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Khâu SA:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {summary?.khauSa || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Khâu SIT/UAT:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {summary?.khauSitUat || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Lý do khác:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {summary?.noteLyDoKhac || '-'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>
