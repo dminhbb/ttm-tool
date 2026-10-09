@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ArrowsClockwise, CheckCircle, Key, LockKey, Pulse, ShieldCheck, SignOut, UserCheck, Warning } from '@phosphor-icons/react';
+import { alertDialog } from '@/components/ui/dialogs';
 
 function SsoDemoContent() {
   const searchParams = useSearchParams();
@@ -84,7 +85,7 @@ function SsoDemoContent() {
 
   const handleStartSso = () => {
     if (!apiKey.trim()) {
-      alert('Vui lòng chọn hoặc nhập 1 API Key hợp lệ để test SSO!');
+      void alertDialog({ title: 'Thiếu API Key', description: 'Vui lòng chọn hoặc nhập 1 API Key hợp lệ để test SSO!' });
       return;
     }
 

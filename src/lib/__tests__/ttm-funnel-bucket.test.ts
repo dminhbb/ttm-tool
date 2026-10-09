@@ -194,6 +194,23 @@ describe('TTM Dashboard 2 summary (cache ↔ filtered recompute share these)', (
       assert.deepEqual(summary.insights.breakdowns.epicType.map((item) => [item.name, item.total]), [['CT-Lv12', 6], ['SP-Lv34', 1]]);
     });
 
+    it('"Chưa gán Domain" / "Chưa gán PM/SM" (2026-10-09): the placeholder carries its projects, so its drill-down lists only its own Epics', () => {
+      // DT: a Jira project never declared in Quản lý Dự án — no Domain, no PM/SM. P7: declared, PM/SM set, no Domain.
+      const withUnassigned = summarizeTtmFunnel([
+        ...sample,
+        funnelRow({ projectKey: 'DT', projectName: '', domainName: '', ownerName: '' }),
+        funnelRow({ projectKey: 'DT', projectName: '', domainName: '', ownerName: '', r4gDate: '2026-09-01' }),
+        funnelRow({ projectKey: 'P7', projectName: 'Dự án 7', domainName: '', ownerName: 'Chi' }),
+      ]).insights.breakdowns;
+      const noDomain = withUnassigned.domain.find((item) => item.name === 'Chưa gán Domain')!;
+      assert.deepEqual([noDomain.linkValue, noDomain.total, noDomain.linkProjects], [null, 3, ['DT', 'P7']]);
+      const noPmSm = withUnassigned.pmsm.find((item) => item.name === 'Chưa gán PM/SM')!;
+      assert.deepEqual([noPmSm.linkValue, noPmSm.total, noPmSm.linkProjects], [null, 2, ['DT']]);
+      // Real values filter by themselves; "Chưa xác định" đơn vị yêu cầu is per Epic, not per project.
+      assert.equal(withUnassigned.domain.find((item) => item.name === 'D2')?.linkProjects, undefined);
+      assert.equal(withUnassigned.requestingUnit.find((item) => item.name === 'Chưa xác định')?.linkProjects, undefined);
+    });
+
     it('an Epic outside "Phạm vi dữ liệu cho TTM" is in no Tổng số Epic, but still in TTM-CNTT (QA)', () => {
       assert.ok(!summary.insights.breakdowns.project.some((item) => item.linkValue === 'P3' && item.total > 0));
       const p3 = summary.insights.breakdowns.project.find((item) => item.linkValue === 'P3')!;

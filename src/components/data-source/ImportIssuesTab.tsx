@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { confirmDialog } from '@/components/ui/dialogs';
 import { ADAPTER_TYPES, DEFAULT_ADAPTER, ADAPTER_LABELS, type AdapterType } from '@/lib/adapters/index';
 import { AggregatedDataLayersPanel } from '@/components/data-source/AggregatedDataLayersPanel';
 import { CacheStatusPanel } from '@/components/data-source/CacheStatusPanel';
@@ -270,7 +271,7 @@ export function ImportIssuesTab() {
   };
 
   const handleDeleteBatch = async (batchId: number) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa đợt import này? Toàn bộ dữ liệu issue thuộc lớp này sẽ bị xóa khỏi cơ sở dữ liệu.')) {
+    if (!(await confirmDialog({ title: 'Xóa đợt import', description: 'Bạn có chắc chắn muốn xóa đợt import này? Toàn bộ dữ liệu issue thuộc lớp này sẽ bị xóa khỏi cơ sở dữ liệu.', confirmLabel: 'Xóa' }))) {
       return;
     }
 

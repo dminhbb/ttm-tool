@@ -70,6 +70,10 @@ describe('projection onto legacy rows (display engine "scoring")', () => {
     const r9 = projectScorecardOntoRow(legacyRow(), scoreEpic(makeFacts({ status: 'Released' }), makeContext()));
     assert.deepEqual(r9.dataAnomalyViolations.map((item) => [item.code, item.ruleIndex]), [['MISSING_R4G_DATE', 9]]);
     assert.ok(matchesAlertFilter(r9, 'DATA_ANOMALY'));
+    // R10 (2026-10-09): a future R4G Date at R4GOLIVE or later.
+    const r10 = projectScorecardOntoRow(legacyRow({ r4gDate: '2026-09-02' }), scoreEpic(makeFacts({ r4gDate: '2026-09-02', startDate: '2026-08-25', status: 'R4GOLIVE' }), makeContext()));
+    assert.deepEqual(r10.dataAnomalyViolations.map((item) => [item.code, item.ruleIndex]), [['R4G_DATE_IN_FUTURE', 10]]);
+    assert.ok(r10.hasDataAnomaly && matchesAlertFilter(r10, 'DATA_ANOMALY') && !isTtmCnttAchieved(r10));
   });
 
   it('Sai Status (R8 switched off): filters STATUS_MISMATCH and ACHIEVED_CNTT both match, Index counts it as passed', () => {

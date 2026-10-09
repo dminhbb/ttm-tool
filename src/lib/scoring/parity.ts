@@ -78,7 +78,7 @@ const ANOMALY_CODE_TO_BADGE: Record<string, BadgeId> = {
 };
 
 /** Data-quality rules the legacy engine doesn't have (added 2026-10-04). */
-const SCORING_ONLY_ANOMALY_BADGES: readonly BadgeId[] = ['ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE', 'ANOMALY_R9_MISSING_R4G_DATE'];
+const SCORING_ONLY_ANOMALY_BADGES: readonly BadgeId[] = ['ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE', 'ANOMALY_R9_MISSING_R4G_DATE', 'ANOMALY_R10_R4G_DATE_IN_FUTURE'];
 
 const PHASES: [keyof LegacyRowSnapshot['stages'], TtmPhaseKey][] = [['design', 'DESIGN'], ['dev', 'DEV'], ['test', 'TEST'], ['pentest', 'PENTEST'], ['r4golive', 'R4GOLIVE']];
 
@@ -160,7 +160,7 @@ export function compareWithLegacy(card: EpicScorecard, legacy: LegacyRowSnapshot
   // ---- Data quality rules (R1–R7, same badge presence) ----
   // D10 (2026-10-04): data-quality rules changed in the service only — R1 now starts at DESIGN (legacy:
   // DEV) and covers Pending (2026-10-05), R5 no longer applies while the Epic is still at DESIGN, and
-  // R8/R9 (R4G Date vs status) are new.
+  // R8/R9 (R4G Date vs status) and R10 (future R4G Date, 2026-10-09) are new.
   const legacyRuleBadges = new Set(legacy.dataAnomalyViolations.map((item) => ANOMALY_CODE_TO_BADGE[item.code]).filter(Boolean));
   let d10 = false;
   for (const badge of Object.values(ANOMALY_CODE_TO_BADGE)) {
@@ -224,6 +224,12 @@ export function compareWithLegacy(card: EpicScorecard, legacy: LegacyRowSnapshot
   const legacyFail = legacyCounted && legacy.alertLevel === 'FAIL';
   if (legacyFail !== index.fail) push('TTM-Index: fail', legacyFail, index.fail, explainedBy('TTM-CNTT alertLevel', 'TTM-Index: tính'));
 
+  // D12, widened 2026-10-09: the service doesn't judge an "Epic ngoại lệ" at all (score-epic.ts), so
+  // every verdict the legacy engine still gives it — TTM-CNTT / E2E, Release, Sai lệch dữ liệu, phases —
+  // is this one approved difference. The two "Phạm vi" checks stay as they are: scope is still read.
+  if (ttmExcluded) {
+    return diffs.map((diff) => (diff.check.startsWith('Phạm vi') ? diff : { ...diff, tag: 'D12_TTM_EXCLUSION' }));
+  }
   return diffs;
 }
 

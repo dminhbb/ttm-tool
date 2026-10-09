@@ -52,11 +52,13 @@ export type EpicAnomalyCode =
   | 'MISSING_REQUIREMENT_LEVEL'
   | 'SP_LEVEL_MISMATCH'
   | 'RELEASE_STATUS_MISMATCH'
-  // R8/R9 (2026-10-04) exist only in the Epic Scoring Service (src/lib/scoring/rules/data-quality.ts);
-  // evaluateEpicDataAnomaly below never emits them. They are listed here only so a row projected
-  // from a scorecard (scoring/projection.ts) can carry them in dataAnomalyViolations.
+  // R8/R9 (2026-10-04) and R10 (2026-10-09) exist only in the Epic Scoring Service
+  // (src/lib/scoring/rules/data-quality.ts); evaluateEpicDataAnomaly below never emits them. They are
+  // listed here only so a row projected from a scorecard (scoring/projection.ts) can carry them in
+  // dataAnomalyViolations.
   | 'R4G_DATE_BEFORE_R4GOLIVE'
-  | 'MISSING_R4G_DATE';
+  | 'MISSING_R4G_DATE'
+  | 'R4G_DATE_IN_FUTURE';
 
 /** Stable numeric index (R1-R7) for each rule — persisted with every violation
  * (epic_data_anomaly_violations.rule_index) so stats can be grouped by rule without depending on
@@ -72,6 +74,7 @@ export const EPIC_ANOMALY_RULE_INDEX: Record<EpicAnomalyCode, number> = {
   RELEASE_STATUS_MISMATCH: 7,
   R4G_DATE_BEFORE_R4GOLIVE: 8,
   MISSING_R4G_DATE: 9,
+  R4G_DATE_IN_FUTURE: 10,
 };
 
 export interface EpicAnomalyViolation {

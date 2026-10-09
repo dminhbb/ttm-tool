@@ -634,5 +634,5 @@ Các bảng dưới đây được thêm bằng migration sau khi tài liệu n�
 Quy tắc dùng chung:
 
 - **Loại trừ khỏi TTM** (`TtmExclusion`): `BLACK_LISTED` (có dòng trong `black_listed_epics`) thắng `PROJECT_NON_TTM` (`projects.ttm = 'N'`). Áp dụng cho L02 của phễu TTM Dashboard 2, TTM-CNTT (QLDA/QA), TTM-E2E; `loadTtmExclusionSources` fail-open (không loại trừ gì) nếu bảng chưa tồn tại.
-- **Tạo lại cache**: chỉ qua `refreshDerivedCaches` (import, daily, lưu phạm vi/domain/black list/Time to Market của dự án, nút "Tạo lại cache"). Một DB chưa có `derived_cache_refresh_lock` vẫn rebuild được nhưng không có điều phối.
+- **Tạo lại cache**: chỉ qua `refreshDerivedCaches` (import, daily, lưu phạm vi/domain/black list/dự án/PM-SM của dự án — các route gọi `scheduleDerivedCacheRefresh` trong `daily-cache-service.ts`, nút "Tạo lại cache"). Một DB chưa có `derived_cache_refresh_lock` vẫn rebuild được nhưng không có điều phối.
 - Cả 2 migration `20261005*` phải được áp dụng trên **cả local và Supabase** (xem `AGENTS.md` § Multi-database).

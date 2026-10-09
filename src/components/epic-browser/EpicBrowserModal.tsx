@@ -1,8 +1,10 @@
 'use client';
 
 import * as React from 'react';
-import { X } from '@phosphor-icons/react';
+import { TreeStructure } from '@phosphor-icons/react';
+import { cn } from '@/lib/utils';
 import { Alert } from '@/components/ui/Alert';
+import { MODAL_BACKDROP_CLASS, MODAL_FRAME_CLASS, ModalHeader, useModalBehavior } from '@/components/ui/Modal';
 import { BooleanPillToggle } from '@/components/ui/PillToggle';
 import { showToast } from '@/components/ui/Toast';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -150,12 +152,7 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const closeButtonRef = React.useRef<HTMLButtonElement>(null);
-  const onCloseRef = React.useRef(onClose);
   const titleId = React.useId();
-
-  React.useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
 
   const isOpen = !!epicKey;
 
@@ -189,48 +186,27 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
     return () => controller.abort();
   }, [epicKey]);
 
-  React.useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onCloseRef.current();
-    };
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-      window.addEventListener('keydown', handleEscape);
-      window.requestAnimationFrame(() => closeButtonRef.current?.focus());
-    }
-    return () => {
-      document.body.style.overflow = '';
-      window.removeEventListener('keydown', handleEscape);
-    };
-  }, [isOpen]);
+  useModalBehavior(isOpen, onClose, closeButtonRef);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="presentation">
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden="true" />
+      <div className={MODAL_BACKDROP_CLASS} onClick={onClose} aria-hidden="true" />
 
       <div
-        className="relative z-10 flex h-[80vh] w-[95vw] flex-col overflow-hidden rounded-xl border border-fb-border bg-fb-surface text-fb-text-primary shadow-dialog"
+        className={cn(MODAL_FRAME_CLASS, 'h-[80vh] w-[95vw] overflow-hidden')}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
       >
-        <div className="flex items-center justify-between border-b border-fb-border px-5 py-4 select-none">
-          <h2 id={titleId} className="flex items-center gap-2 text-lg font-bold tracking-tight text-fb-text-primary">
-            Duyệt Epic — {epicKey}
-            {summary?.ttmBlackListed && <TtmBlackListDot />}
-          </h2>
-          <button
-            ref={closeButtonRef}
-            type="button"
-            onClick={onClose}
-            className="grid size-9 place-items-center rounded-md text-fb-text-secondary outline-none transition-colors hover:bg-fb-control hover:text-fb-text-primary"
-            aria-label="Đóng hộp thoại"
-          >
-            <X className="w-4 h-4" weight="bold" />
-          </button>
-        </div>
+        <ModalHeader
+          closeButtonRef={closeButtonRef}
+          icon={TreeStructure}
+          onClose={onClose}
+          title={<span className="flex items-center gap-2">Duyệt Epic — {epicKey}{summary?.ttmBlackListed && <TtmBlackListDot />}</span>}
+          titleId={titleId}
+        />
 
         <div className="flex-1 overflow-y-auto p-5">
           {error && <Alert variant="error" title="Không thể tải dữ liệu">{error}</Alert>}

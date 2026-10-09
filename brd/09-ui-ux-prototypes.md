@@ -117,6 +117,7 @@ Màn hình triển khai tại `/admin/status-alert-rules`: hiển thị card tab
 - Table header sticky, chữ/dates/status căn trái, số căn phải và action căn phải. Row hover dùng `surface-hover`.
 - Mỗi bảng danh sách dữ liệu dùng toolbar chuẩn có ô tìm kiếm gần đúng và nút reset dạng icon; reset trả bảng về trạng thái tìm kiếm/bộ lọc ban đầu. Không tự thêm bộ lọc trường dữ liệu nếu BRD hoặc yêu cầu nghiệp vụ chưa chỉ định.
 - Form mặc định một cột, chỉ dùng hai cột cho trường ngắn liên quan. Modal chỉ dùng cho form tạo ngắn; primitive Modal chỉ focus khi mở, không được giành focus trong lúc gõ.
+- **Chuẩn popup (2026-10-09):** mọi popup — popup thông tin, popup xác nhận, popup chứa form — dùng chung một style, lấy theo popup "Quản trị Epic" của TTM Dashboard 2 (`EpicAlertsIframeModal`): nền phía sau vừa tối vừa **blur** (`bg-slate-900/60 backdrop-blur-xs`), khung bo góc 16px (`rounded-2xl`) + `shadow-2xl`, header cao 56px gồm ô icon (tuỳ chọn), tiêu đề đậm và nút đóng vuông 32px. Nguồn duy nhất: `src/components/ui/Modal.tsx` — `Modal` là khung chuẩn; popup có bố cục riêng (Cấu hình ứng dụng, Quản trị hệ thống, Duyệt Epic, popup iframe, AD Popup) ghép từ `MODAL_BACKDROP_CLASS`, `MODAL_FRAME_CLASS`, `ModalHeader`, `useModalBehavior` của cùng file. Không dùng `confirm()` / `alert()` / `prompt()` của trình duyệt (không style được): gọi `confirmDialog` / `alertDialog` / `promptDialog` trong `src/components/ui/dialogs.tsx` (host `DialogHost` gắn một lần ở `AppShell`). Khi nhiều popup chồng nhau, chỉ popup trên cùng nhận phím Escape và trang chỉ cuộn lại khi popup cuối cùng đóng. Cỡ `maxWidth`: sm / md / lg / xl / 2xl / 3xl (3xl = 1600px, dùng cho popup "Logic cảnh báo").
 - Avatar ở footer left panel mở popover menu gồm `Thông tin cá nhân` (placeholder cho giai đoạn sau) và `Cài đặt`. Cài đặt hiện có trường Chế độ hiển thị Light/Dark, mặc định Light; preference lưu local storage key `ttm-monitor.appearance-theme` và load lại mỗi lần sử dụng ứng dụng.
 - Light mode dùng canvas xanh-xám đậm hơn panel trắng, border xanh-xám rõ và bề mặt elevated light-blue để card, table, control và right panel không hòa lẫn với background. Primary button dùng blue rõ, secondary/outline dùng nền light-blue.
 
@@ -143,6 +144,8 @@ src/components/
     Badge.tsx
     Button.tsx
     Card.tsx
+    ConfirmDialog.tsx
+    dialogs.tsx
     EmptyState.tsx
     FormField.tsx
     Input.tsx

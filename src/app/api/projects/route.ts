@@ -1,7 +1,7 @@
-import { after, NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
 import { parseCSV } from '@/lib/csv-parser';
-import { getLatestImportBatchId, refreshDerivedCachesInBackground } from '@/lib/daily-cache-service';
+import { scheduleDerivedCacheRefresh } from '@/lib/daily-cache-service';
 import pool, { getClient } from '@/lib/db';
 import { createProject, deleteProject, listProjects, updateProject } from '@/lib/master-data-service';
 import { PROJECT_CATEGORIES } from '@/lib/master-data-types';
@@ -10,19 +10,19 @@ import type { ProjectCategory, ProjectInput, TtmOption } from '@/lib/master-data
 // A project's "Time to Market" flag decides whether its Epics count from L02 of the TTM Dashboard 2
 // funnel on (N = left out, see TtmExclusion in scoring/types.ts), so a change to it rebuilds the
 // derived caches in after() — past the response — like a black list save does. So does a change to
-// the project's Domain or active flag: every cached Epic row carries its project's domainName
-// (getDomainByProjectKeyMap — active project + active Domain), which the Domain filter, the "Theo
-// Domain" matrix / pie charts and an ADMIN's per-Domain numbers are all read from.
+// anything else the cached Epic rows carry from an ACTIVE project, matched by its key: domainName
+// (getDomainByProjectKeyMap), projectName and the PM/SM names (getProjectMetaByProjectKeyMap) — the
+// Domain / project / PM-SM filters, matrices and pie charts are all read from those. (PM/SM
+// assignment itself is saved on the Users screen — see api/users.)
 export const maxDuration = 300;
-async function refreshTtmCaches(): Promise<void> { const batchId = await getLatestImportBatchId(); after(() => refreshDerivedCachesInBackground(batchId, 'projects')); }
-type StoredProjectFlags = { domainId: number | null; isActive: boolean; sourceProjectKey: string; ttm: string };
-async function storedTtmFlag(id: number): Promise<StoredProjectFlags | null> { const result = await pool.query<StoredProjectFlags>('SELECT source_project_key AS "sourceProjectKey", ttm, domain_id AS "domainId", is_active AS "isActive" FROM projects WHERE id = $1', [id]); return result.rows[0] ?? null; }
-/** True when saving `next` over `previous` changes what the caches hold for this project's Epics: its
- * Time to Market flag, its Domain, whether it is active, or — while any of those matter — its key. */
-function cachesAffected(previous: StoredProjectFlags, next: ProjectInput): boolean {
-  const keyChanged = previous.sourceProjectKey !== next.sourceProjectKey.trim();
-  return previous.ttm !== next.ttm || previous.domainId !== next.domainId || previous.isActive !== next.isActive
-    || (keyChanged && (next.ttm === 'N' || next.domainId !== null));
+type CachedProjectFields = Pick<ProjectInput, 'domainId' | 'isActive' | 'projectName' | 'sourceProjectKey'> & { ttm: string };
+async function storedProject(id: number): Promise<CachedProjectFields | null> { const result = await pool.query<CachedProjectFields>('SELECT source_project_key AS "sourceProjectKey", project_name AS "projectName", ttm, domain_id AS "domainId", is_active AS "isActive" FROM projects WHERE id = $1', [id]); return result.rows[0] ?? null; }
+/** What the derived caches hold about a project's Epics, as one comparable string — '' when nothing:
+ * an inactive project names no Epic, only its Time to Market = N still counts (loadTtmExclusionSources
+ * reads every project). A save needs a rebuild exactly when this differs before and after. */
+function cacheFootprint(project: CachedProjectFields | null): string {
+  if (!project || (!project.isActive && project.ttm !== 'N')) return '';
+  return JSON.stringify([project.sourceProjectKey.trim(), project.ttm, ...(project.isActive ? [project.projectName.trim(), project.domainId] : [])]);
 }
 
 const MAX_CSV_BYTES = 1024 * 1024;
@@ -36,9 +36,9 @@ function validCategory(value: string): ProjectCategory | null { return PROJECT_C
 function validateProjectInput(input: ProjectInput): string | null { if (!input.projectName.trim() || !input.sourceProjectKey.trim()) return 'Tên dự án và Project Key (Jira) là bắt buộc.'; if (input.projectName.trim().length > 255 || input.sourceProjectKey.trim().length > 50) return 'Thông tin dự án vượt quá độ dài cho phép.'; return null; }
 
 export async function GET(request: NextRequest) { try { await requireUser(request, ['ADMIN', 'SUPERADMIN', 'SUPERVISOR']); return NextResponse.json(await listProjects()); } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể tải danh sách dự án.' }, { status: 500 }); } }
-export async function POST(request: NextRequest) { try { await requireUser(request, ['ADMIN', 'SUPERADMIN']); const input: unknown = await request.json(); if (!isProjectInput(input)) return NextResponse.json({ error: 'Dữ liệu dự án không hợp lệ.' }, { status: 400 }); const error = validateProjectInput(input); if (error) return NextResponse.json({ error }, { status: 400 }); const created = await createProject({ ...input, projectName: input.projectName.trim(), sourceProjectKey: input.sourceProjectKey.trim() }); if (input.ttm === 'N' || input.domainId !== null) await refreshTtmCaches(); return NextResponse.json(created, { status: 201 }); } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể tạo dự án.' }, { status: 500 }); } }
-export async function PUT(request: NextRequest) { try { await requireUser(request, ['ADMIN', 'SUPERADMIN']); const input: unknown = await request.json(); if (!isProjectInput(input) || !('id' in input) || !Number.isInteger(input.id) || (input.id as number) <= 0) return NextResponse.json({ error: 'Dữ liệu dự án không hợp lệ.' }, { status: 400 }); const project = input as ProjectInput & { id: number }; const error = validateProjectInput(project); if (error) return NextResponse.json({ error }, { status: 400 }); const previous = await storedTtmFlag(project.id); const updated = await updateProject(project.id, { ...project, projectName: project.projectName.trim(), sourceProjectKey: project.sourceProjectKey.trim() }); if (previous && cachesAffected(previous, project)) await refreshTtmCaches(); return NextResponse.json(updated); } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể cập nhật dự án.' }, { status: 500 }); } }
-export async function DELETE(request: NextRequest) { try { await requireUser(request, ['ADMIN', 'SUPERADMIN']); const id = Number(new URL(request.url).searchParams.get('id')); if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: 'Project ID không hợp lệ.' }, { status: 400 }); const previous = await storedTtmFlag(id); await deleteProject(id); if (previous && (previous.ttm === 'N' || previous.domainId !== null)) await refreshTtmCaches(); return NextResponse.json({ success: true }); } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể xóa dự án.' }, { status: 500 }); } }
+export async function POST(request: NextRequest) { try { await requireUser(request, ['ADMIN', 'SUPERADMIN']); const input: unknown = await request.json(); if (!isProjectInput(input)) return NextResponse.json({ error: 'Dữ liệu dự án không hợp lệ.' }, { status: 400 }); const error = validateProjectInput(input); if (error) return NextResponse.json({ error }, { status: 400 }); const created = await createProject({ ...input, projectName: input.projectName.trim(), sourceProjectKey: input.sourceProjectKey.trim() }); if (cacheFootprint(input)) scheduleDerivedCacheRefresh('projects'); return NextResponse.json(created, { status: 201 }); } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể tạo dự án.' }, { status: 500 }); } }
+export async function PUT(request: NextRequest) { try { await requireUser(request, ['ADMIN', 'SUPERADMIN']); const input: unknown = await request.json(); if (!isProjectInput(input) || !('id' in input) || !Number.isInteger(input.id) || (input.id as number) <= 0) return NextResponse.json({ error: 'Dữ liệu dự án không hợp lệ.' }, { status: 400 }); const project = input as ProjectInput & { id: number }; const error = validateProjectInput(project); if (error) return NextResponse.json({ error }, { status: 400 }); const previous = await storedProject(project.id); const updated = await updateProject(project.id, { ...project, projectName: project.projectName.trim(), sourceProjectKey: project.sourceProjectKey.trim() }); if (previous && cacheFootprint(previous) !== cacheFootprint(project)) scheduleDerivedCacheRefresh('projects'); return NextResponse.json(updated); } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể cập nhật dự án.' }, { status: 500 }); } }
+export async function DELETE(request: NextRequest) { try { await requireUser(request, ['ADMIN', 'SUPERADMIN']); const id = Number(new URL(request.url).searchParams.get('id')); if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: 'Project ID không hợp lệ.' }, { status: 400 }); const previous = await storedProject(id); await deleteProject(id); if (cacheFootprint(previous)) scheduleDerivedCacheRefresh('projects'); return NextResponse.json({ success: true }); } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể xóa dự án.' }, { status: 500 }); } }
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -78,7 +78,8 @@ export async function PATCH(request: NextRequest) {
       }
       await client.query('COMMIT');
     } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
-    if (projects.some((project) => project.ttm === 'N')) await refreshTtmCaches();
+    // Every imported project is active, so its name / PM-SM / Time to Market flag now show on its Epics.
+    scheduleDerivedCacheRefresh('projects');
     return NextResponse.json({ success: true, imported: projects.length, unresolvedLeadCount }, { status: 201 });
   } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể import danh sách dự án.' }, { status: 500 }); }
 }

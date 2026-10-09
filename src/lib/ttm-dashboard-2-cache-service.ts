@@ -56,8 +56,10 @@ interface CachedPayload {
  * 3 = + insights (widget row, breakdown matrix, pie charts); 4 = matrix: "Sai lệch dữ liệu" counted on
  * its own (TtmBreakdownItem.anomaly), no longer inside "đúng tiến độ"; 5 = TTM-E2E ring = Đạt / (Đạt + Fail);
  * 6 = L02 also drops "Epic ngoại lệ" and non-TTM-project Epics (buckets BLACK_LISTED / PROJECT_NON_TTM);
- * 7 = PM/SM breakdown: one row per PM/SM name (an Epic with several PM/SMs counts under each). */
-const PAYLOAD_VERSION = 7;
+ * 7 = PM/SM breakdown: one row per PM/SM name (an Epic with several PM/SMs counts under each);
+ * 8 = "Chưa gán Domain" / "Chưa gán PM/SM" rows carry their project keys (TtmBreakdownItem.linkProjects);
+ * 9 = the operational widgets (Cảnh báo, Sai lệch, Chờ / Giải trình golive) leave out "Epic ngoại lệ" too. */
+const PAYLOAD_VERSION = 9;
 
 const ALL_SCOPE: AccessScope = { accessRole: 'CBQL_PHONG', projectComponents: new Map(), sourceProjectKeys: null };
 

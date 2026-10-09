@@ -458,7 +458,7 @@ Các cấu hình **đã có bảng + UI riêng** giữ nguyên nơi lưu, chỉ 
 
 `rulesetVersion = SCORING_CODE_VERSION` (hằng số tăng khi sửa code rule) `+ ":" +` hash của
 (`scoring_parameters`, `scoring_rule_settings`, `epic_status_alert_rules`, `ttm_policies`, `ttm_scope_config`).
-- Lưu thay đổi ở màn cấu hình ⇒ `refreshDerivedCachesInBackground` (cơ chế đã có).
+- Lưu thay đổi ở màn cấu hình ⇒ `scheduleDerivedCacheRefresh` (cơ chế đã có; trước 2026-10-09 tên là `refreshDerivedCachesInBackground`).
 - `getDailyCacheStatus` coi cache là STALE nếu `rulesetVersion` trong cache ≠ hiện tại ⇒ lần tải trang
   đầu tiên sau khi deploy code rule mới sẽ tự tính lại.
 
@@ -821,8 +821,76 @@ Quyết định của chủ sở hữu (`SCORING_CODE_VERSION` → `scoring-11`;
 - **Lý do:** R4G Date là ngày Epic thực tế đạt R4GOLIVE. Các phần khác của hệ thống vẫn đọc theo nghĩa đó nên ngoại lệ "ngày kế
   hoạch" gây lệch: Epic có R4G Date tương lai được tính pha R4GOLIVE "Hoàn thành" (`epic-phase-completion-service.ts`), nằm ở
   L04a "Epic hoàn thành" của phễu, và có thể nhận khuyến nghị "Sai Status (Release)" theo Due Date chưa tới.
-- **Không đổi:** Epic đã ở status ≥ R4GOLIVE mà R4G Date còn ở tương lai không vi phạm R8; chưa được chấm Đạt (L05ac "chưa kết
-  luận") cho tới ngày đó, và vẫn Fail ngay nếu R4G Date muộn hơn Target.
+- **Không đổi (tới 2026-10-09 — đã thay bởi §23, R10):** Epic đã ở status ≥ R4GOLIVE mà R4G Date còn ở tương lai không vi phạm
+  R8; chưa được chấm Đạt (L05ac "chưa kết luận") cho tới ngày đó, và vẫn Fail ngay nếu R4G Date muộn hơn Target.
 - **Dữ liệu lúc đổi (08/10, Supabase):** 3 Epic chuyển từ "chưa kết luận" sang Sai lệch dữ liệu — PAMS-98275, PAMS-98347
   (In Progress), MO-32292 (Design). Có hiệu lực sau lần tạo lại cache kế tiếp.
 - **Đối chiếu:** R8 chỉ có ở Scoring Service nên vẫn mang nhãn `D10_DATA_QUALITY_RULES`, không cần nhãn mới.
+- **Bổ sung 2026-10-09 — quy định của công ty, chủ sở hữu xác nhận:** R4G Date **không được khai báo trước**. Mọi Epic ghi trước
+  R4G Date (ngày còn ở tương lai) khi status chưa tới R4GOLIVE đều là Sai lệch dữ liệu; Epic owner phải **xoá giá trị khỏi trường
+  R4G Date** và ghi ngày dự kiến ở một trường thông tin phụ khác (khuyến nghị `REC_FIX_R4G_STATUS` trong popup "Logic cảnh báo" đã
+  ghi rõ cách xử lý này).
+- **Hệ quả có chủ đích — Sai lệch dữ liệu thắng Fail:** như mọi Sai lệch dữ liệu, R8 chặn kết luận TTM (`ttm-cntt.ts` /
+  `ttm-e2e.ts` dừng khi `hasDataAnomaly`). Vì vậy ngoài nhóm "chưa kết luận → Sai lệch dữ liệu" nêu trên, hai trường hợp trước
+  08/10 là **Fail** nay cũng thành Sai lệch dữ liệu và **rời mẫu số** TTM-CNTT / TTM-E2E cho tới khi trường R4G Date được sửa:
+  (a) status < R4GOLIVE, R4G Date tương lai **muộn hơn Target** (trước là Fail L05ab — §17.1 cũ ghi "R4G Date kể cả tương lai muộn
+  hơn Target vẫn là Fail", câu đó nay chỉ còn đúng với status ≥ R4GOLIVE); (b) Epic đã quá Target chưa có R4G Date (Fail L05ba)
+  rồi được nhập một R4G Date tương lai mà không đổi status. Xoá R4G Date thì Epic (b) trở lại Fail L05ba — số Fail không mất, chỉ
+  tạm nằm ở "Sai lệch dữ liệu" trong lúc dữ liệu sai. Test: `scoring.test.ts` — "R8 (2026-10-09)". Không đổi code rule nên giữ
+  `scoring-11`.
+
+## 23. R10 "R4G Date ở tương lai" — mọi R4G Date khai báo trước đều là Sai lệch dữ liệu (2026-10-09)
+
+Quyết định của chủ sở hữu (`SCORING_CODE_VERSION` → `scoring-12`; thay cho mục "Không đổi" của §22):
+
+- **Rule mới R10** — badge `ANOMALY_R10_R4G_DATE_IN_FUTURE` (axis Chất lượng dữ liệu, nhóm Cảnh báo = Sai lệch dữ liệu, mặc định bật):
+  `R4G Date > asOf VÀ (status ≥ R4GOLIVE HOẶC status = Reopened) VÀ status ≠ Cancelled`. Kèm khuyến nghị mới
+  `REC_CLEAR_FUTURE_R4G_DATE` ("Bỏ R4G Date khai báo trước").
+- **Quan hệ với R8:** R8 giữ nguyên (status chưa tới R4GOLIVE, R4G Date bất kỳ); R10 phủ phần còn lại của ngày tương lai. Hai rule
+  không bao giờ cùng phát sinh trên một Epic. Hợp lại: **mọi Epic có R4G Date ở tương lai đều là Sai lệch dữ liệu, chỉ trừ
+  Cancelled.**
+- **Reopened:** vẫn miễn R8 với R4G Date **đã tới** (lịch sử thật, §20). R4G Date **tương lai** trên Epic Reopened là khai báo
+  trước như mọi Epic khác → R10. (Diễn giải của người thực hiện từ quy định "R4G Date không được khai báo trước"; chủ sở hữu chỉ
+  nêu rõ nhóm status ≥ R4GOLIVE — nếu muốn miễn Reopened thì bỏ nhánh `status = Reopened`.)
+- **Hệ quả:** Epic R10 không được chấm Đạt / Fail trên TTM-CNTT (QLDA/QA) và TTM-E2E, bị loại tại L03 của phễu (không còn ở L04a /
+  L05ac) và rời mẫu số — kể cả Epic có R4G Date tương lai **muộn hơn Target** (trước là Fail L05ab). Nhóm "chưa kết luận" (L05ac)
+  chỉ còn Epic không tính được Target. Tới ngày `asOf = R4G Date` thì hết R10 và Epic được chấm bình thường.
+- **Không đổi schema:** R10 chỉ có ở Scoring Service; bảng `epic_data_anomaly_violations` (CHECK `rule_code`) chỉ nhận vi phạm
+  của engine cũ (`import-service.ts`) nên không cần migration. `EpicAnomalyCode` thêm `R4G_DATE_IN_FUTURE` (index 10) chỉ để dòng
+  chiếu từ scorecard mang được vi phạm này (`projection.ts`).
+- **Đối chiếu:** R10 thuộc `SCORING_ONLY_ANOMALY_BADGES` → nhãn `D10_DATA_QUALITY_RULES`; các lệch kéo theo (Đạt / Fail / mẫu số)
+  được giải thích qua cờ Sai lệch dữ liệu như R8.
+- **Hiển thị:** popup "Logic cảnh báo" (đọc từ `catalog.ts`), Tài liệu sản phẩm mục 9.1, nhãn L05ac ở TTM Dashboard 2 / bộ lọc
+  Nhận xét. Có hiệu lực trên số liệu sau lần tạo lại cache kế tiếp.
+- Test: `scoring.test.ts` — "R10 (2026-10-09)", "future R4G Date at R4GOLIVE"; `projection.test.ts`.
+
+## 24. Epic ngoại lệ — Scoring Service không xét, widget TTM Dashboard 2 không đếm (2026-10-09)
+
+Quyết định của chủ sở hữu (`SCORING_CODE_VERSION` → `scoring-13`; mở rộng quyết định L02 ngày 2026-10-05, §21):
+
+- **Định nghĩa:** "Epic ngoại lệ" là tên gọi chung của (1) Epic trong danh sách Black listed (`black_listed_epics`) và (2) Epic
+  thuộc dự án có `Time to Market = N`. Fact đầu vào không đổi: `EpicFacts.ttmExclusion` = `BLACK_LISTED` | `PROJECT_NON_TTM`
+  (Black listed thắng khi Epic thuộc cả hai).
+- **Scoring Service không xét Epic ngoại lệ** (`score-epic.ts`): khi `ttmExclusion` có giá trị, service **không chạy** rule Chất
+  lượng dữ liệu, TTM-CNTT, TTM-E2E, Release, Pha và rule khuyến nghị. Scorecard chỉ còn finding của axis Phạm vi: badge ghi nhận
+  `SCOPE_TTM_BLACK_LISTED` ("Epic ngoại lệ (Black listed)") hoặc `SCOPE_PROJECT_NON_TTM` ("Epic ngoại lệ (dự án TTM = N)"), và
+  `SCOPE_CNTT_OUT` / `SCOPE_QA_OUT` nếu Epic nằm ngoài "Phạm vi dữ liệu cho TTM". `indexMembership` = không tính ở cả TTM và QA.
+  Trước đó (05/10–09/10) Epic ngoại lệ vẫn được chấm đầy đủ, chỉ không vào chỉ số.
+- **Vì sao giữ badge Phạm vi:** L01 của phễu = Epic trong "Phạm vi dữ liệu cho TTM" (đọc từ `ttmCnttInScope` = không có
+  `SCOPE_CNTT_OUT`), và số Epic ngoại lệ bị trừ ở L02 chỉ tính trong L01. Bỏ rule Phạm vi sẽ làm L01 và số bị loại tăng sai.
+- **`derived` vẫn trả về** (Target, baseline pha, số ngày còn lại): đó là ngày tính toán, không phải kết luận; các cột ngày ở Quản
+  trị Epic vẫn hiển thị. Ô pha không còn dấu hoàn thành / hiện tại / trễ (không có finding `PHASE_*`).
+- **Dòng chiếu (`projection.ts`, không đổi code):** với Epic ngoại lệ, `alertLevel` = NONE, `hasDataAnomaly` = false,
+  `releaseAxisState` = NONE, `ttmE2eAlertLevel` = NONE, không "Sai Status" — nên mọi bộ lọc "Nhận xét" về đánh giá ở Quản trị Epic
+  (Fail, Chậm tiến độ, Sai lệch dữ liệu, Chờ / Giải trình golive…) không còn khớp Epic ngoại lệ. Epic chỉ còn khớp bộ lọc phạm vi
+  (`IN_SCOPE_CNTT`, `TTM_BLACK_LISTED`, `TTM_PROJECT_NON_TTM`, `OUT_OF_SCOPE_CNTT`).
+- **TTM Dashboard 2 (`summarizeInsights`, `ttm-funnel-summary.ts`):** tập tính của các widget đổi từ "mọi Epic không Cancelled"
+  sang "không Cancelled và không phải Epic ngoại lệ" (`isOutsideTtmCalculation`). Bốn thẻ vận hành CẢNH BÁO, SAI LỆCH, CHỜ GOLIVE,
+  GIẢI TRÌNH nay không đếm Epic ngoại lệ (các chỉ số, ma trận, pie chart đã không đếm từ 05/10). Lọc tường minh nên đúng ở cả hai
+  engine hiển thị; `PAYLOAD_VERSION` của `ttm_dashboard_2_cache` → 9. Ở engine `legacy`, danh sách mở từ thẻ vẫn còn Epic ngoại lệ
+  (engine cũ vẫn chấm chúng) — lệch đã biết, engine cũ không sửa.
+- **Dữ liệu lúc đổi (09/10, Supabase, 87 Epic ngoại lệ không Cancelled = 11 Black listed + 76 dự án TTM = N):** thẻ SAI LỆCH
+  194 → 151 (−43), GIẢI TRÌNH 166 → 164 (−2); CẢNH BÁO và CHỜ GOLIVE không đổi. Có hiệu lực sau lần tạo lại cache kế tiếp.
+- **Đối chiếu (`parity.ts`):** với Epic ngoại lệ, mọi khác biệt về kết luận (TTM-CNTT, TTM-E2E, Release, Sai lệch dữ liệu, pha,
+  TTM-Index) mang nhãn `D12_TTM_EXCLUSION`; hai check "Phạm vi" giữ nhãn riêng vì vẫn được tính.
+- Test: `black-listed-epics.test.ts` (3 test Scoring + 1 test widget), `parity.test.ts` — "D12 (2026-10-09)".

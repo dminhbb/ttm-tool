@@ -34,7 +34,8 @@ export const ttmCnttRule: PrimaryRule = ({ facts, derived, ctx, hasDataAnomaly }
     } else if (facts.r4gDate <= asOf) {
       // On time and already reached → Đạt. A status still below R4GOLIVE doesn't take the pass away
       // (decision 2026-10-01); it adds the "Sai Status" recommendation next to it. A future-dated
-      // R4G Date gets neither until asOf reaches it.
+      // R4G Date gets neither until asOf reaches it — and only gets here with R8 / R10 switched off:
+      // since 2026-10-09 every future R4G Date is "Sai lệch dữ liệu" (data-quality.ts).
       findings.push(finding('CNTT_PASS', `Đạt TTM-CNTT (QLDA): R4G Date ${facts.r4gDate} ≤ Target ${target}.`, evidence));
       // Not for Reopened: the Epic went live and was taken back into work on purpose (2026-10-05).
       if (derived.statusIndex < STATUS_INDEX.R4GOLIVE && !isReopenedStatus(facts.status)) {

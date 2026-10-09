@@ -100,6 +100,27 @@ describe('L02 leaves out "Epic ngoại lệ" and non-TTM-project Epics (owner ru
     assert.deepEqual(summary.insights.breakdowns.project.map((item) => [item.name, item.total, item.pass, item.fail]), [['Dự án 1', 2, 1, 1]]);
   });
 
+  it('TTM Dashboard 2 widgets (2026-10-09): Cảnh báo, Sai lệch, Chờ golive, Giải trình leave "Epic ngoại lệ" out', () => {
+    // One of each widget, counted — and the same four as exceptions (2 black listed, 2 of a Time to Market = N project).
+    const flagged: Partial<TtmFunnelRow>[] = [
+      { alertLevel: 'LATE' },
+      { hasDataAnomaly: true },
+      { releaseAxisState: 'WAITING_GOLIVE', r4gDate: '2026-09-01', releaseGraceDeadline: '2026-09-08' },
+      { releaseAxisState: 'JUSTIFY_GOLIVE', r4gDate: '2026-08-01' },
+    ];
+    const counted = flagged.map((patch) => funnelRow(patch));
+    const exceptions = flagged.map((patch, index) => funnelRow({ ...patch, ttmExclusion: index % 2 === 0 ? 'BLACK_LISTED' : 'PROJECT_NON_TTM' }));
+    const widgets = (list: TtmFunnelRow[]) => {
+      const { insights } = summarizeTtmFunnel(list);
+      return [insights.lateWarning, insights.anomalyCount, insights.waitingGolive.total, insights.justifyGolive];
+    };
+    assert.deepEqual(widgets(counted), [1, 1, 1, 1]);
+    assert.deepEqual(widgets([...counted, ...exceptions]), [1, 1, 1, 1]);
+    assert.deepEqual(widgets(exceptions), [0, 0, 0, 0]);
+    // The matrix and the pie charts: a group made of exceptions only has no row.
+    assert.deepEqual(summarizeTtmFunnel(exceptions).insights.breakdowns.project, []);
+  });
+
   it('the row-based TTM-CNTT (QLDA), TTM-CNTT (QA) and TTM-E2E ratios skip them too', () => {
     const ttm = summarizeTtmCntt(rows);
     assert.deepEqual([ttm.total, ttm.pass, ttm.fail], [2, 1, 1]);
@@ -128,19 +149,47 @@ describe('Epic Scoring Service: TTM exclusion', () => {
   const ctx = makeContext();
   const onTime = { r4gDate: '2026-08-20', status: 'R4GOLIVE' };
 
-  it('an excluded Epic keeps its verdict badge but is in no index', () => {
+  it('"Epic ngoại lệ" (2026-10-09): not judged at all — the exception note is its only badge, and it is in no index', () => {
     const counted = scoreEpic(makeFacts(onTime), ctx);
     assert.deepEqual(indexFlagsOf(counted), ['TTM_COUNTED', 'TTM_ELIGIBLE', 'TTM_PASS']);
 
     const blackListed = scoreEpic(makeFacts({ ...onTime, ttmExclusion: 'BLACK_LISTED' }), ctx);
-    assert.ok(hasBadge(blackListed, 'SCOPE_TTM_BLACK_LISTED'));
-    assert.ok(hasBadge(blackListed, 'CNTT_PASS'));
+    assert.deepEqual(blackListed.findings.map((item) => item.badge), ['SCOPE_TTM_BLACK_LISTED']);
     assert.deepEqual(indexFlagsOf(blackListed), []);
+    // Target / baseline dates are still derived — they are dates, not verdicts.
+    assert.equal(blackListed.derived.cnttTargetDate, counted.derived.cnttTargetDate);
 
     const nonTtmProject = scoreEpic(makeFacts({ ...onTime, status: 'Released', ttmExclusion: 'PROJECT_NON_TTM' }), ctx);
-    assert.ok(hasBadge(nonTtmProject, 'SCOPE_PROJECT_NON_TTM'));
-    assert.ok(!hasBadge(nonTtmProject, 'SCOPE_TTM_BLACK_LISTED'));
+    assert.deepEqual(nonTtmProject.findings.map((item) => item.badge), ['SCOPE_PROJECT_NON_TTM']);
     assert.deepEqual(indexFlagsOf(nonTtmProject), []);
+  });
+
+  it('"Epic ngoại lệ": whatever the Epic would be — Fail, Sai lệch dữ liệu, Chờ / Giải trình golive, trễ pha — nothing is raised', () => {
+    const late = makeContext({ asOf: '2026-12-01' });
+    const cases = [
+      makeFacts({ status: 'In Progress' }),                                             // Fail TTM-CNTT + TTM-E2E, phases late
+      makeFacts({ status: 'In Progress', startDate: null, requestType: '' }),           // Sai lệch dữ liệu R1 + R4
+      makeFacts({ status: 'TEST', r4gDate: '2026-08-20' }),                             // R8
+      makeFacts({ status: 'R4GOLIVE', r4gDate: '2026-12-15' }),                         // R10
+      makeFacts({ status: 'R4GOLIVE', r4gDate: '2026-08-20' }),                         // Chờ golive / Giải trình golive
+      makeFacts({ status: 'Pending' }),                                                 // Pending lâu (khuyến nghị)
+      makeFacts({ status: 'Cancelled' }),                                               // Không áp dụng
+    ];
+    for (const facts of cases) {
+      // Sanity: counted, each case does raise something beyond the SCOPE axis.
+      assert.ok(scoreEpic(facts, late).findings.some((item) => !item.badge.startsWith('SCOPE_')), facts.status);
+      for (const ttmExclusion of ['BLACK_LISTED', 'PROJECT_NON_TTM'] as const) {
+        const card = scoreEpic({ ...facts, ttmExclusion }, late);
+        assert.deepEqual(card.findings.map((item) => item.badge), [ttmExclusion === 'BLACK_LISTED' ? 'SCOPE_TTM_BLACK_LISTED' : 'SCOPE_PROJECT_NON_TTM'], `${facts.status} / ${ttmExclusion}`);
+        assert.deepEqual(card.indexMembership, { ttm: { counted: false, eligible: false, pass: false, fail: false }, qa: { counted: false, eligible: false, pass: false, fail: false } });
+      }
+    }
+  });
+
+  it('"Epic ngoại lệ": its place against "Phạm vi dữ liệu cho TTM" is still noted (the funnel reads L01 from it)', () => {
+    const scoped = makeContext({ scope: { cnttFrom: '2027-01-01', cnttTo: null, qaFrom: '2027-01-01', qaTo: null } });
+    const card = scoreEpic(makeFacts({ ...onTime, ttmExclusion: 'BLACK_LISTED' }), scoped);
+    assert.deepEqual(card.findings.map((item) => item.badge), ['SCOPE_TTM_BLACK_LISTED', 'SCOPE_CNTT_OUT', 'SCOPE_QA_OUT']);
   });
 
   it('no exclusion fact → no badge, scorecard unchanged', () => {

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { CopySimple } from '@phosphor-icons/react';
+import { confirmDialog } from '@/components/ui/dialogs';
 import { Alert } from '@/components/ui/Alert';
 import { showToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
@@ -35,7 +36,7 @@ export function HolidaysAndWorkdaysSection() {
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const handleCopyToNextYear = async () => {
-    if (!confirm(`Copy toàn bộ Ngày nghỉ lễ và Ngày làm bù của năm ${year} sang năm ${year + 1}?`)) return;
+    if (!(await confirmDialog({ title: 'Copy sang năm sau', description: `Copy toàn bộ Ngày nghỉ lễ và Ngày làm bù của năm ${year} sang năm ${year + 1}?`, confirmLabel: 'Copy', tone: 'primary' }))) return;
     setIsCopying(true);
     setMessage(null);
     try {

@@ -1,6 +1,6 @@
-import { after, NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
-import { getLatestImportBatchId, refreshDerivedCachesInBackground } from '@/lib/daily-cache-service';
+import { scheduleDerivedCacheRefresh } from '@/lib/daily-cache-service';
 import { getScoringEngineSettings, setScoringEngineMode } from '@/lib/scoring-mode-service';
 
 // Switching rebuilds the caches in after() (same cost as a post-import refresh).
@@ -37,8 +37,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Chế độ không hợp lệ — dùng "legacy" hoặc "scoring".' }, { status: 400 });
     }
     await setScoringEngineMode(mode, user.id);
-    const batchId = await getLatestImportBatchId();
-    after(() => refreshDerivedCachesInBackground(batchId, 'scoring-mode'));
+    scheduleDerivedCacheRefresh('scoring-mode');
     return NextResponse.json({ ...(await getScoringEngineSettings()), refreshing: true });
   } catch (error: unknown) {
     console.error('API Error in admin/scoring/mode PUT:', error);

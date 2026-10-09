@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Check, Copy, Plugs, Plus, Trash, Warning } from '@phosphor-icons/react';
+import { confirmDialog } from '@/components/ui/dialogs';
 import { Alert } from '@/components/ui/Alert';
 import { showToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
@@ -70,7 +71,7 @@ export function PersonalAccessTokensPanel() {
   };
 
   const handleRevoke = async (item: McpAccessToken) => {
-    if (!confirm(`Thu hồi token "${item.tokenName}"? Mọi ứng dụng AI đang dùng token này sẽ mất quyền truy cập ngay lập tức.`)) return;
+    if (!(await confirmDialog({ title: 'Thu hồi token', description: `Thu hồi token "${item.tokenName}"? Mọi ứng dụng AI đang dùng token này sẽ mất quyền truy cập ngay lập tức.`, confirmLabel: 'Thu hồi' }))) return;
     try {
       const res = await fetch(`/api/mcp-tokens?id=${item.id}`, { method: 'DELETE' });
       if (res.ok) {

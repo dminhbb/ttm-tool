@@ -89,19 +89,21 @@ không hợp lệ/đã thu hồi/user đã inactive đều trả `401` kèm head
 | `search_product_docs` | Tìm kiếm (không phân biệt dấu) trong Tài liệu sản phẩm (`public/docs/product-guide.html`, chia theo mục h2/h3) — hỏi đáp chức năng, rule cảnh báo & tính toán | Mọi role đã xác thực |
 | `get_product_doc_section` | Đọc đầy đủ 1 mục Tài liệu sản phẩm theo số mục; bỏ trống = mục lục | Mọi role đã xác thực |
 
-**Ma trận phân quyền áp dụng cho MCP (2026-10-08, `mcp-server.ts` v1.3.0).** Mỗi tool gắn với (các)
+**Ma trận phân quyền áp dụng cho MCP (2026-10-08, `mcp-server.ts` v1.3.0; sửa 2026-10-09, v1.3.1).** Mỗi tool gắn với (các)
 chức năng của ma trận có màn hình hiển thị cùng dữ liệu — bảng `MCP_TOOL_FEATURES` trong
 `src/lib/feature-access.ts`. Role bị bỏ quyền Xem trên **mọi** chức năng của tool thì tool trả thông
 báo từ chối (`isError`) thay vì dữ liệu; chỉ thu hẹp, điều kiện role ở cột "Quyền" vẫn áp dụng trước.
-Mọi tool đăng ký qua wrapper `registerTool` (kiểm tra ma trận trước handler; tool chưa khai báo trong
-`MCP_TOOL_FEATURES` làm `buildMcpServer` báo lỗi ngay). Đọc ma trận qua `getViewDeniedFeatureKeySet`
+Mọi tool đăng ký qua wrapper `registerTool`: kiểm tra role của tool (`MCP_TOOL_ROLES`) **trước**, rồi tới
+ma trận, rồi mới chạy handler — nên role vốn không được dùng tool nhận đúng thông báo về role, không bị
+hướng dẫn đi xin quyền Xem. `registerTool` chỉ nhận tên thuộc `McpToolName`, nên tool chưa khai báo trong
+`MCP_TOOL_FEATURES` không biên dịch được (`tsc`). Đọc ma trận qua `getViewDeniedFeatureKeySet`
 (cache 15 giây / instance); đọc lỗi thì fail-open về kiểm tra role, giống proxy.
 
 | Tool | Feature key cần còn quyền Xem |
 |---|---|
 | `get_ttm_dashboard` | `ttm_dashboard_2` |
-| `list_epic_alerts` | `epic_alerts_15` |
-| `get_epic_detail` | `epic_alerts_15` hoặc `epic_in_po` |
+| `list_epic_alerts` | `epic_alerts_15` hoặc `epic_in_po` (cùng đọc `/api/epic-alerts-15`) |
+| `get_epic_detail` | một trong các màn mở được Duyệt Epic: `epic_alerts_15`, `epic_in_po`, `epic_reports`, `dashboard_new`, `dashboard` |
 | `get_dashboard_summary` | `dashboard` |
 | `search_product_docs`, `get_product_doc_section` | `product_docs` |
 | `list_report_filters` | `epic_reports` |

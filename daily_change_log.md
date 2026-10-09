@@ -6,6 +6,72 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-10-09
+
+- **Review commit `b788207` ("Fix bug rules") và sửa các điểm phát hiện** (không đổi schema, không đổi code rule chấm điểm — giữ `scoring-11`):
+  - **R8 — ghi rõ quy định "R4G Date không được khai báo trước"** (chủ sở hữu xác nhận là quy định công ty): Epic ghi trước R4G Date khi status chưa
+    tới R4GOLIVE luôn là Sai lệch dữ liệu; Epic owner xoá trường R4G Date và ghi ngày dự kiến ở trường phụ khác. Hệ quả có chủ đích: Sai lệch dữ liệu
+    thắng Fail — Epic có R4G Date tương lai muộn hơn Target, hoặc đang Fail vì quá Target rồi được nhập R4G Date tương lai, rời mẫu số cho tới khi
+    sửa. Ghi vào spec §22, product-guide (Điều chỉnh R8), `meaning` của `REC_FIX_R4G_STATUS` (`catalog.ts`), comment `data-quality.ts`; thêm test
+    "R8 (2026-10-09)" trong `scoring.test.ts`.
+  - **Tạo lại cache khi đổi tên dự án / PM-SM**: dòng Epic trong cache còn lưu `projectName` và tên PM/SM, trước đây không kích hoạt tạo lại.
+    `src/app/api/projects/route.ts` so sánh `cacheFootprint` trước/sau (key, Time to Market, và với dự án active: tên + Domain) cho tạo / sửa / xoá;
+    import CSV luôn tạo lại. `src/app/api/users/route.ts` tạo lại khi danh sách dự án của user, hoặc họ tên / việc xoá user đang là PM/SM, thay đổi
+    (`getPmSmCacheFootprint` trong `auth-service.ts`; route có `maxDuration = 300`).
+  - **Bớt tạo lại cache thừa**: đổi tên / bật-tắt / xoá Domain chỉ tạo lại khi Domain có dự án active (`deleteDomain` trả về cờ này); đổi Domain của
+    dự án inactive không tạo lại. Xoá Domain trả thêm `cacheRefreshing` và màn Quản lý Domain báo "đang tính lại".
+  - **`scheduleDerivedCacheRefresh(source)`** (`daily-cache-service.ts`) thay cho cặp `getLatestImportBatchId()` + `after(...)` lặp ở 6 chỗ (domains,
+    projects, black-listed-epics, ttm-scope-config, admin/scoring/mode) và thay `refreshDerivedCachesInBackground`. Batch id nay đọc trong `after()`,
+    nên lỗi đọc batch không còn biến một lần lưu đã thành công thành 500.
+  - **MCP ↔ Ma trận phân quyền** (`mcp-server.ts` 1.3.1, `feature-access.ts`): `list_epic_alerts` được giữ khi còn Xem Quản trị Epic **hoặc** Epic in
+    PO; `get_epic_detail` khi còn Xem một trong 5 màn mở được Duyệt Epic (thêm Báo cáo Epic, TTM dashboard, Dashboard cũ) — trước đó chặn chặt hơn chính
+    quy tắc "còn một màn hiển thị dữ liệu là được". Role của tool (`MCP_TOOL_ROLES`) nay kiểm tra **trước** ma trận, đúng như tài liệu. `registerTool`
+    nhận `McpToolName` nên tool chưa khai báo bị `tsc` chặn (bỏ `throw` lúc chạy và `isMcpToolName`). Cập nhật test, product-guide 16.3, BRD 15.
+  - Dọn: JSDoc `ttmFailKind` (`epic-row-verdicts.ts`) ghi đúng cả hai loại Fail đều trong mẫu số; `storedTtmFlag` → `storedProject`.
+- **Scoring Engine — R10 "R4G Date ở tương lai"** (`SCORING_CODE_VERSION` → `scoring-12`, spec §23; không đổi schema): theo quy định công ty "R4G Date
+  không được khai báo trước", Epic đã ở status ≥ R4GOLIVE (hoặc Reopened) mà R4G Date còn ở tương lai nay là Sai lệch dữ liệu — badge mới
+  `ANOMALY_R10_R4G_DATE_IN_FUTURE` + khuyến nghị `REC_CLEAR_FUTURE_R4G_DATE` (`rules/data-quality.ts`, `recommendations.ts`, `catalog.ts`, `select.ts`,
+  `projection.ts`, `parity.ts` — nhãn đối chiếu D10). Cùng với R8, mọi Epic có R4G Date tương lai đều là Sai lệch dữ liệu (trừ Cancelled); nhóm "chưa
+  kết luận" L05ac chỉ còn Epic không tính được Target (đổi nhãn ở `ttm-dashboard-2/page.tsx`, `epic-row-verdicts.ts`, `ttm-funnel-summary.ts`).
+  `EpicAnomalyCode` thêm `R4G_DATE_IN_FUTURE` (index 10) chỉ để dòng chiếu mang được vi phạm; bảng `epic_data_anomaly_violations` không nhận rule này
+  nên không cần migration. Reopened + R4G tương lai tính là R10 (diễn giải của agent — xem spec §23). **Cần "Tạo lại cache"** để áp dụng. Cập nhật
+  popup "Logic cảnh báo" (mục 8), product-guide mục 9.1 / chương 21, Giới thiệu sản phẩm, BRD 16, `docs/ttm-dashboard-2-spec.md`, test.
+- **Chuẩn popup chung cho toàn ứng dụng** (BRD 09 §8, product-guide mục 13): mọi popup (thông tin, xác nhận, form) dùng chung style của popup
+  "Quản trị Epic" ở TTM Dashboard 2 — nền tối + blur, khung `rounded-2xl` / `shadow-2xl`, header 56px có ô icon và nút đóng vuông.
+  - `src/components/ui/Modal.tsx` là nguồn duy nhất: `Modal` (bỏ prop `blurBackdrop` — nay luôn blur; thêm `icon`, `layer`, cỡ `3xl` = 1600px) và các
+    mảnh dùng chung `MODAL_BACKDROP_CLASS`, `MODAL_FRAME_CLASS`, `ModalHeader`, `useModalBehavior`. Các popup bố cục riêng chuyển sang dùng các mảnh
+    này: `AppConfigModal`, `SystemAdminModal`, `EpicBrowserModal`, `EpicAlertsIframeModal`, `AdPopupCard`.
+  - `useModalBehavior`: popup chồng nhau thì chỉ popup trên cùng nhận Escape, và trang chỉ cuộn lại khi popup cuối cùng đóng (trước đây Escape đóng
+    cả hai, popup con đóng là mở khoá cuộn của popup cha).
+  - **Bỏ `confirm()` / `alert()` / `prompt()` của trình duyệt** (15 + 3 + 1 chỗ): thay bằng `confirmDialog` / `alertDialog` / `promptDialog`
+    (`src/components/ui/dialogs.tsx`, host `DialogHost` gắn ở `AppShell`). Nút "Chèn liên kết" của `RichTextEditor` giữ và khôi phục vùng chọn vì
+    popup lấy focus khỏi editor.
+  - Popup "Logic cảnh báo" rộng hơn: `maxWidth="3xl"` (1600px, cao tối đa 92dvh) thay cho 1152px.
+  - Chưa kiểm tra bằng mắt trên trình duyệt (phiên này chưa chạy app); `next build`, `tsc`, test đều qua. 2 lỗi lint `set-state-in-effect`
+    có từ trước (`dashboard-new/page.tsx`, `EpicAlertsIframeModal.tsx`) vẫn còn.
+- **TTM Dashboard 2 — popup của dòng "Chưa gán Domain" / "Chưa gán PM/SM" liệt kê sai Epic** (không đổi schema): dòng placeholder có
+  `linkValue = null` nên drill-down mở Quản trị Epic **không kèm bộ lọc** và liệt kê Epic của mọi Domain (ON, TESAV…), trong khi con số trên ma
+  trận vẫn đúng. Nay dòng này mang theo danh sách dự án của chính nó (`TtmBreakdownItem.linkProjects`, `src/lib/ttm-funnel-summary.ts`) và popup lọc
+  theo các dự án đó (`dimensionScope` trong `DashboardInsights.tsx`) — Domain và PM/SM đều là thuộc tính của dự án nên danh sách khớp đúng con số.
+  `PAYLOAD_VERSION` của `ttm_dashboard_2_cache` lên 8 (cache cũ tự dựng lại). Lát cắt "Chưa xác định" của pie Đơn vị yêu cầu vẫn chưa lọc được
+  (thuộc tính theo từng Epic, Quản trị Epic chưa có bộ lọc "không có đơn vị"). Kiểm tra dữ liệu Supabase 09/10: 35 Epic "Chưa gán Domain" đều là Epic
+  `DT-…` — Jira project `DT` chưa được khai báo ở Quản lý Dự án (nên không có Domain / tên dự án / PM-SM); ngoài ra dự án `NC` (Time to Market = N)
+  cũng chưa gán Domain nhưng đã bị loại từ L02.
+- **Epic ngoại lệ — Scoring Service không xét, widget TTM Dashboard 2 không đếm** (`SCORING_CODE_VERSION` → `scoring-13`, spec §24; không đổi
+  schema). "Epic ngoại lệ" nay là tên gọi chung của Epic trong danh sách Black listed **và** Epic thuộc dự án Time to Market = N.
+  - **Scoring Service** (`src/lib/scoring/score-epic.ts`): Epic có `ttmExclusion` không chạy rule Chất lượng dữ liệu / TTM-CNTT / TTM-E2E / Release /
+    Pha / khuyến nghị — scorecard chỉ còn badge ghi nhận ngoại lệ (+ "Ngoài phạm vi" nếu có, để L01 của phễu không đổi). Trước đó các Epic này vẫn
+    được chấm đầy đủ, chỉ không vào chỉ số. Hệ quả trên dòng hiển thị: không Sai lệch dữ liệu / Fail / Chậm tiến độ / Chờ – Giải trình golive, ô
+    pha không còn dấu hoàn thành / trễ; cột ngày (Target, baseline) giữ nguyên.
+  - **TTM Dashboard 2** (`summarizeInsights` trong `src/lib/ttm-funnel-summary.ts`): 4 thẻ vận hành CẢNH BÁO, SAI LỆCH, CHỜ GOLIVE, GIẢI TRÌNH nay
+    bỏ Epic ngoại lệ (chỉ số, ma trận, pie chart đã bỏ từ 05/10). `PAYLOAD_VERSION` của `ttm_dashboard_2_cache` → 9. Dữ liệu Supabase 09/10 (87 Epic
+    ngoại lệ không Cancelled): SAI LỆCH 194 → 151, GIẢI TRÌNH 166 → 164, hai thẻ còn lại không đổi.
+  - Badge đổi nhãn: "Epic ngoại lệ (Black listed)" / "Epic ngoại lệ (dự án TTM = N)" (`catalog.ts`); bộ lọc Nhận xét và popup L02 dùng cùng cách gọi.
+    Đối chiếu Scoring: mọi lệch kết luận của Epic ngoại lệ mang nhãn D12 (`parity.ts`).
+  - **Cần "Tạo lại cache"** để áp dụng. Ở engine `legacy`, danh sách mở từ 4 thẻ vận hành vẫn còn Epic ngoại lệ (engine cũ vẫn chấm chúng) — lệch
+    đã biết, production đang chạy `scoring`. Cập nhật popup "Logic cảnh báo", product-guide mục 13.4 / chương 21, Giới thiệu sản phẩm, BRD 16,
+    `docs/ttm-dashboard-2-spec.md`, mô tả MCP; test mới trong `black-listed-epics.test.ts`, `parity.test.ts`.
+
 ## 2026-10-08
 
 - **Scoring Engine — R8 áp dụng cả khi R4G Date ở tương lai** (`SCORING_CODE_VERSION` → `scoring-11`, spec §22; không đổi schema): bỏ ngoại lệ "R4G Date

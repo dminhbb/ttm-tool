@@ -48,6 +48,7 @@ import { BlackListedEpicsModal } from '@/components/settings/BlackListedEpicsMod
 import { AdPopupDisplay } from '@/components/layout/AdPopupDisplay';
 import { DailyCacheWarmer } from '@/components/layout/DailyCacheWarmer';
 import { SystemStatusFooter } from '@/components/layout/SystemStatusFooter';
+import { DialogHost } from '@/components/ui/dialogs';
 import { showToast, ToastProvider } from '@/components/ui/Toast';
 import { fallbackPathFor, pageFeatureKey } from '@/lib/feature-access';
 import { resolveScreenKeyFromPathname, trackScreenVisit } from '@/lib/visit-counter-client';
@@ -813,6 +814,7 @@ export function AppShell({ children }: AppShellProps) {
         <React.Suspense fallback={<div className="min-h-screen bg-fb-bg" />}>
           <AppShellInner>{children}</AppShellInner>
         </React.Suspense>
+        <DialogHost />
       </ToastProvider>
     </EpicHeaderWidgetsProvider>
   );

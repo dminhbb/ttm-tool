@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Plus, PencilSimple, Trash } from '@phosphor-icons/react';
+import { confirmDialog } from '@/components/ui/dialogs';
 import { Alert } from '@/components/ui/Alert';
 import { showToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
@@ -104,7 +105,7 @@ export function MakeupWorkdaysPanel({ year }: MakeupWorkdaysPanelProps) {
   const sortedWorkdays = [...workdays].sort((a, b) => compareValues(workdaySortValue(a, workdaySortKey), workdaySortValue(b, workdaySortKey), workdaySortDirection(workdaySortKey) ?? 'asc'));
 
   const handleDelete = async (workday: MakeupWorkday) => {
-    if (!confirm(`Xóa Ngày làm bù "${formatDate(workday.workDate)}"?`)) return;
+    if (!(await confirmDialog({ title: 'Xóa Ngày làm bù', description: `Xóa Ngày làm bù "${formatDate(workday.workDate)}"?`, confirmLabel: 'Xóa' }))) return;
     const res = await fetch(`/api/makeup-workdays?id=${workday.id}`, { method: 'DELETE' });
     if (res.ok) {
       showToast('Đã xóa Ngày làm bù.', 5000);

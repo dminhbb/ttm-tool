@@ -43,7 +43,7 @@ Tên các tiêu chí theo phễu TTM Dashboard 2 (`TTM_FUNNEL_CRITERIA`, `src/li
 | L04b | Epic chưa hoàn thành | Epic không có R4G Date trong L03 |
 | L05aa | Epic đạt TTM-CNTT | Epic Đạt TTM-CNTT trong L04a |
 | L05ab | Epic không đạt TTM-CNTT (nhóm 1) | Epic không Đạt trong L04a (R4G Date > Target) |
-| L05ac | Epic chưa kết luận | Epic trong L04a có R4G Date tương lai, hoặc không tính được Target |
+| L05ac | Epic chưa kết luận | Epic trong L04a không tính được Target (từ 2026-10-09 Epic có R4G Date tương lai là Sai lệch dữ liệu R8 / R10, bị loại tại L03) |
 | L05ba | Epic không đạt TTM-CNTT (nhóm 2) | Epic trong L04b đã quá Target (Fail) |
 | L05bb | Epic trong hạn | Epic trong L04b chưa quá Target |
 
@@ -56,6 +56,10 @@ mẫu số = 0 (chưa Epic nào được kết luận):  hiển thị "—" (t�
 - Thay cho `pass / eligible` ở mục 2: mẫu số **không còn** gồm L05ac và **có thêm** L05ba; `fail` chỉ đếm
   Epic không Sai lệch dữ liệu; bỏ nhánh fallback `(total − fail) / total`.
 - **TTM-CNTT (QA)** = cùng công thức, chỉ lấy Epic status MVP Done / Released trong "R4G for TTM (QA)".
+- **Epic ngoại lệ (cập nhật 2026-10-09):** tên gọi chung của Epic trong danh sách Black listed và Epic thuộc dự án có
+  Time to Market = N. Ngoài việc bị loại ở L02 và khỏi 3 chỉ số (từ 2026-10-05), từ 2026-10-09 **Scoring Service không
+  xét** các Epic này (không có Sai lệch dữ liệu / Đạt / Fail / cảnh báo / khuyến nghị — chỉ badge ghi nhận ngoại lệ, spec
+  Scoring §24) và **mọi widget của TTM Dashboard 2** — kể cả Cảnh báo, Sai lệch, Chờ golive, Giải trình — không đếm chúng.
 - Áp dụng cho chỉ số toàn công ty (`ttm_index_global_cache`) và mọi chỉ số theo phạm vi lọc + phân quyền
   (`summarizeTtmCntt`, `summarizeQaIndex`, `queryTtmCnttIndexes`, MCP). Một chỗ tính duy nhất:
   `summarizeTtmCnttFromCounts` (`src/lib/ttm-cntt-qa.ts`); `TtmCnttSummary` có thêm `denominator`,
@@ -173,6 +177,9 @@ nếu total = 0:  pct = 100
   **Từ 2026-10-04 (spec §16):** thêm R8 (có R4G Date nhưng status < R4GOLIVE) và R9 (status ≥ R4GOLIVE nhưng thiếu
   R4G Date) là Sai lệch dữ liệu; R1 tính từ DESIGN; R5 chỉ tính khi status > DESIGN. Vì R8, trường hợp
   "status < R4GOLIVE vẫn Đạt kèm Sai Status" chỉ còn xảy ra khi rule R8 bị tắt.
+  **Từ 2026-10-09 (spec §22–§23):** R4G Date không được khai báo trước — mọi Epic có R4G Date ở tương lai là Sai lệch
+  dữ liệu (R8 khi status < R4GOLIVE, R10 mới khi status ≥ R4GOLIVE hoặc Reopened), nên không còn Epic "R4G tương lai"
+  trong nhóm chưa kết luận.
 - Đổi rule 2026-09-24: trước đó "thực tế" là Due Date, nay là R4G Date. Kỷ luật Due Date so với R4G
   Date (trong hạn 5 ngày làm việc hay không) tách thành khái niệm riêng **"Trục Release"** (badge
   Chờ golive/Cảnh báo sớm/Giải trình Golive, xem `resolveReleaseAxis`) + rule sai lệch dữ liệu R7

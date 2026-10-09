@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Plus, PencilSimple, Trash } from '@phosphor-icons/react';
+import { confirmDialog } from '@/components/ui/dialogs';
 import { Alert } from '@/components/ui/Alert';
 import { showToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
@@ -95,7 +96,7 @@ export function IssueTypeRolesPanel() {
   const sortedMappings = [...mappings].sort((a, b) => compareValues(a[mappingSortKey], b[mappingSortKey], mappingSortDirection(mappingSortKey) ?? 'asc'));
 
   const handleDelete = async (mapping: IssueTypeRoleMapping) => {
-    if (!confirm(`Xóa khai báo Issue Type "${mapping.issueType}"?`)) return;
+    if (!(await confirmDialog({ title: 'Xóa Issue Type', description: `Xóa khai báo Issue Type "${mapping.issueType}"?`, confirmLabel: 'Xóa' }))) return;
     const res = await fetch(`/api/issue-type-roles?id=${mapping.id}`, { method: 'DELETE' });
     if (res.ok) {
       showToast('Đã xóa Issue Type.', 5000);

@@ -100,8 +100,16 @@ export async function updateDomain(id: number, input: DomainInput): Promise<Doma
   return saveDomain(id, input);
 }
 
-export async function deleteDomain(id: number): Promise<void> {
+/** Deletes a Domain; its projects are left without one. Returns true when the Domain was naming
+ * Epics — active, with at least one active project (getDomainByProjectKeyMap) — i.e. when the
+ * derived caches need a rebuild. */
+export async function deleteDomain(id: number): Promise<boolean> {
+  const named = await pool.query(
+    'SELECT 1 FROM projects p JOIN domains d ON d.id = p.domain_id WHERE d.id = $1 AND d.is_active AND p.is_active LIMIT 1;',
+    [id],
+  );
   await pool.query('DELETE FROM domains WHERE id = $1;', [id]);
+  return (named.rowCount ?? 0) > 0;
 }
 
 // ---------- Projects ----------

@@ -1,12 +1,14 @@
 import 'server-only';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { ToolCallback } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { AnySchema, ZodRawShapeCompat } from '@modelcontextprotocol/sdk/server/zod-compat.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { getDashboardData } from '@/lib/dashboard-service';
 import { getEpicBrowserRoot } from '@/lib/epic-browser-service';
 import { ALERT_FILTER_VALUES, matchesAlertFilter, type AlertFilterValue } from '@/lib/epic-row-verdicts';
 import { getEpicAlertRowsForDisplay } from '@/lib/epic-scoring-display-service';
-import { isMcpToolName, MCP_TOOL_FEATURES, mcpToolViewDenied } from '@/lib/feature-access';
+import { MCP_TOOL_FEATURES, mcpToolViewDenied, type McpToolName } from '@/lib/feature-access';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
 import { scoreEpicByKey } from '@/lib/scoring-run-service';
 import { BADGE_BY_ID, FINDING_GROUPS, SCORING_AXES } from '@/lib/scoring/catalog';
@@ -22,6 +24,14 @@ import type { AuthUser, UserRole } from '@/lib/auth-types';
 
 const REPORT_VIEW_ROLES: readonly UserRole[] = ['ADMIN', 'SUPERADMIN', 'SUPERVISOR'];
 const TTM_POLICY_ROLES: readonly UserRole[] = ['SUPERADMIN', 'SUPERVISOR'];
+/** Tools open to some roles only, whatever Ma trận phân quyền says. Checked BEFORE the matrix (which
+ * only narrows access), so a role the tool never serves isn't told to go ask for "Xem". */
+const MCP_TOOL_ROLES: Partial<Record<McpToolName, { message: string; roles: readonly UserRole[] }>> = {
+  get_ttm_policies: { roles: TTM_POLICY_ROLES, message: 'Chỉ SUPERVISOR/SUPERADMIN được xem chính sách Time to Market.' },
+  list_domains: { roles: REPORT_VIEW_ROLES, message: 'Chỉ ADMIN/SUPERVISOR/SUPERADMIN được xem danh sách domain.' },
+  list_holidays: { roles: REPORT_VIEW_ROLES, message: 'Chỉ ADMIN/SUPERVISOR/SUPERADMIN được xem danh sách ngày nghỉ.' },
+  list_projects: { roles: REPORT_VIEW_ROLES, message: 'Chỉ ADMIN/SUPERVISOR/SUPERADMIN được xem danh sách dự án.' },
+};
 const MAX_ALERT_ROWS = 200;
 const DEFAULT_ALERT_ROWS = 50;
 /** "Nhận xét" filter values of Quản trị Epic (epic-row-verdicts.ts) — list_epic_alerts' `nhanXet`. */
@@ -33,10 +43,6 @@ function forbidden(message: string): CallToolResult {
 
 function json(data: unknown): CallToolResult {
   return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
-}
-
-function hasRole(user: AuthUser, roles: readonly UserRole[]): boolean {
-  return roles.includes(user.role);
 }
 
 /** Compact projection of EpicAlertRowPhased — the full row also carries per-phase baseline cells
@@ -95,11 +101,12 @@ async function describeScorecard(epicKey: string) {
  * (MCP_TOOL_FEATURES, feature-access.ts). A role whose "Xem" is unticked on all of them gets a
  * refusal instead of the data — same rule as the page and its API in src/proxy.ts, so the matrix
  * can't be bypassed through a chatbot. Tools are registered through `registerTool` below, which
- * adds that check in front of every handler; a tool missing from MCP_TOOL_FEATURES fails loudly.
+ * puts the tool's role check (MCP_TOOL_ROLES) and then that matrix check in front of every handler;
+ * it only takes a McpToolName, so a tool missing from MCP_TOOL_FEATURES doesn't compile.
  */
 export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
   const server = new McpServer(
-    { name: 'ttm-tool', version: '1.3.0' },
+    { name: 'ttm-tool', version: '1.3.1' },
     {
       instructions:
         'ttm-tool (TTM Monitor) — công cụ cảnh báo rủi ro chậm Time to Market cho Epic Jira. '
@@ -120,17 +127,24 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
     console.error('Permission matrix lookup failed in MCP — falling back to role checks only:', error);
     return null;
   }));
-  const registerTool = ((name, config, handler) => {
-    if (!isMcpToolName(name)) throw new Error(`MCP tool "${name}" has no entry in MCP_TOOL_FEATURES (feature-access.ts).`);
-    const guarded = async (...args: unknown[]) => {
+  // Same generic shape as server.registerTool, so each handler is still checked against its inputSchema.
+  const registerTool = <InputArgs extends undefined | ZodRawShapeCompat | AnySchema = undefined>(
+    name: McpToolName,
+    config: { description?: string; inputSchema?: InputArgs; title?: string },
+    handler: ToolCallback<InputArgs>,
+  ) => {
+    const guarded = async (...args: unknown[]): Promise<CallToolResult> => {
+      const roleGate = MCP_TOOL_ROLES[name];
+      if (roleGate && !roleGate.roles.includes(user.role)) return forbidden(roleGate.message);
       const denied = await loadViewDenied();
       if (denied && mcpToolViewDenied(name, denied)) {
         return forbidden(`Vai trò ${user.role} không có quyền Xem chức năng "${MCP_TOOL_FEATURES[name].screen}" trong Ma trận phân quyền, nên công cụ ${name} không trả dữ liệu. Liên hệ SUPERADMIN nếu cần được cấp quyền.`);
       }
-      return (handler as (...handlerArgs: unknown[]) => unknown)(...args);
+      // ToolCallback<InputArgs> is a conditional type TypeScript can't call while InputArgs is open.
+      return (handler as (...handlerArgs: unknown[]) => CallToolResult | Promise<CallToolResult>)(...args);
     };
-    return server.registerTool(name, config, guarded as typeof handler);
-  }) as typeof server.registerTool;
+    return server.registerTool(name, config, guarded as ToolCallback<InputArgs>);
+  };
 
   registerTool(
     'list_epic_alerts',
@@ -144,7 +158,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
         projectKey: z.string().trim().max(50).optional().describe('Lọc theo mã dự án Jira (project key), ví dụ "TTM".'),
         alertLevel: z.enum(['NONE', 'EARLY', 'LATE', 'FAIL']).optional().describe('Lọc theo mức cảnh báo.'),
         nhanXet: z.enum(NHAN_XET_VALUES).optional().describe(
-          'Bộ lọc "Nhận xét" của màn Quản trị Epic. Tiêu chí phễu TTM Dashboard 2: IN_SCOPE_CNTT = L01 (cần includeCancelled = true để tính cả Epic Cancelled), TTM_COUNTED_IN_SCOPE = L02 (L01 − Cancelled − Epic ngoại lệ − dự án Time to Market = N), TTM_BLACK_LISTED = Epic ngoại lệ, TTM_PROJECT_NON_TTM = Epic thuộc dự án Time to Market = N, DATA_ANOMALY_IN_SCOPE = Sai lệch dữ liệu (L02 − L03), '
+          'Bộ lọc "Nhận xét" của màn Quản trị Epic. Tiêu chí phễu TTM Dashboard 2: IN_SCOPE_CNTT = L01 (cần includeCancelled = true để tính cả Epic Cancelled), TTM_COUNTED_IN_SCOPE = L02 (L01 − Cancelled − Epic ngoại lệ), TTM_BLACK_LISTED = Epic ngoại lệ loại Black listed, TTM_PROJECT_NON_TTM = Epic ngoại lệ loại dự án Time to Market = N (Epic ngoại lệ không được Scoring Service xét nên không khớp bộ lọc đánh giá nào khác), DATA_ANOMALY_IN_SCOPE = Sai lệch dữ liệu (L02 − L03), '
           + 'TTM_ELIGIBLE_IN_SCOPE = L04a, MISSING_R4G_IN_SCOPE = L04b, TTM_PASS_IN_SCOPE = L05aa, TTM_LATE_IN_SCOPE = L05ab, TTM_NOT_SCORED_IN_SCOPE = L05ac, '
           + 'OVERDUE_MISSING_R4G_IN_SCOPE = L05ba, WITHIN_TARGET_MISSING_R4G = L05bb, OUT_OF_SCOPE_CNTT = ngoài "Phạm vi dữ liệu cho TTM". '
           + 'Khác: ACHIEVED_E2E / FAIL_E2E, LATE (Chậm tiến độ), DATA_ANOMALY, PENDING_TOO_LONG, WAITING_GOLIVE (+ _MISSING_R4G / _WITHIN_GRACE / _OVERDUE), JUSTIFY_GOLIVE, STATUS_MISMATCH.',
@@ -298,7 +312,6 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
       inputSchema: {},
     },
     async () => {
-      if (!hasRole(user, REPORT_VIEW_ROLES)) return forbidden('Chỉ ADMIN/SUPERVISOR/SUPERADMIN được xem danh sách dự án.');
       const projects = await listProjects();
       await touch();
       return json(projects);
@@ -313,7 +326,6 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
       inputSchema: {},
     },
     async () => {
-      if (!hasRole(user, REPORT_VIEW_ROLES)) return forbidden('Chỉ ADMIN/SUPERVISOR/SUPERADMIN được xem danh sách domain.');
       const domains = await listDomains();
       await touch();
       return json(domains);
@@ -330,7 +342,6 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
       },
     },
     async ({ year }) => {
-      if (!hasRole(user, REPORT_VIEW_ROLES)) return forbidden('Chỉ ADMIN/SUPERVISOR/SUPERADMIN được xem danh sách ngày nghỉ.');
       const holidays = await listHolidays(year);
       await touch();
       return json(holidays);
@@ -345,7 +356,6 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
       inputSchema: {},
     },
     async () => {
-      if (!hasRole(user, TTM_POLICY_ROLES)) return forbidden('Chỉ SUPERVISOR/SUPERADMIN được xem chính sách Time to Market.');
       const policies = await listTtmPolicies();
       await touch();
       return json(policies);

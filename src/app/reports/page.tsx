@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { ArrowSquareOut, ArrowsClockwise, Bandaids, CaretDown, CaretLineRight, CaretRight, ChartBar, Check, CheckCircle, Checks, FileText, Printer, Pulse, Warning } from '@phosphor-icons/react';
+import { alertDialog } from '@/components/ui/dialogs';
 import type { ReportEpicItem, ReportResult } from '@/lib/reports-service';
 import { normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
@@ -191,11 +192,11 @@ export default function ReportsPage() {
 
   const handleGenerateReport = async () => {
     if (!effectiveProjectKey) {
-      alert('Vui lòng chọn Dự án!');
+      void alertDialog({ title: 'Thiếu thông tin', description: 'Vui lòng chọn Dự án!' });
       return;
     }
     if (!selectedLayerAnchor || selectedLayers.length === 0) {
-      alert('Vui lòng chọn 1 Lớp dữ liệu!');
+      void alertDialog({ title: 'Thiếu thông tin', description: 'Vui lòng chọn 1 Lớp dữ liệu!' });
       return;
     }
 

@@ -1,11 +1,11 @@
-import { after, NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
 import { createDomain, deleteDomain, listDomains, updateDomain } from '@/lib/master-data-service';
-import { getLatestImportBatchId, refreshDerivedCachesInBackground } from '@/lib/daily-cache-service';
+import { scheduleDerivedCacheRefresh } from '@/lib/daily-cache-service';
 import type { DomainInput, DomainSaveResult } from '@/lib/master-data-types';
 
 // Reassigning projects between Domains rebuilds the derived caches in after() (see respond below),
-// the same cost as a post-import refresh — see daily-cache-service.ts / api/ttm-scope-config.
+// the same cost as a post-import refresh — see scheduleDerivedCacheRefresh in daily-cache-service.ts.
 export const maxDuration = 300;
 
 /** `projectIds` is optional (undefined = leave project assignments untouched); when present it must
@@ -18,13 +18,13 @@ function validateProjectIds(value: unknown): string | null {
 
 /** epic_alert_row_cache stores each Epic's domainName (and "Quản trị Epic"'s Domain filter maps
  * domain → projects from it), so a changed project ↔ Domain assignment or a renamed Domain only
- * shows up there after a rebuild — kicked off in the background so saving stays instant. */
-async function respond(result: DomainSaveResult, status = 200): Promise<NextResponse> {
-  const cacheAffected = result.projectsChanged || result.nameChanged || result.activeChanged;
-  if (cacheAffected) {
-    const batchId = await getLatestImportBatchId();
-    after(() => refreshDerivedCachesInBackground(batchId, 'domains'));
-  }
+ * shows up there after a rebuild — kicked off in the background so saving stays instant. A new name
+ * or active flag only reaches the caches through the Domain's active projects (getDomainByProjectKeyMap),
+ * so a Domain without one needs no rebuild for those. */
+function respond(result: DomainSaveResult, status = 200): NextResponse {
+  const namesEpics = result.domain.projects.some((project) => project.isActive);
+  const cacheAffected = result.projectsChanged || (namesEpics && (result.nameChanged || result.activeChanged));
+  if (cacheAffected) scheduleDerivedCacheRefresh('domains');
   return NextResponse.json({ ...result.domain, cacheRefreshing: cacheAffected }, { status });
 }
 
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     if (!body.domainCode?.trim() || !body.domainName?.trim()) return NextResponse.json({ error: 'Domain Code và Tên Domain là bắt buộc.' }, { status: 400 });
     const projectIdsError = validateProjectIds(body.projectIds);
     if (projectIdsError) return NextResponse.json({ error: projectIdsError }, { status: 400 });
-    return await respond(await createDomain(body), 201);
+    return respond(await createDomain(body), 201);
   } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Lỗi hệ thống khi tạo Domain.' }, { status: 500 }); }
 }
 
@@ -56,7 +56,7 @@ export async function PUT(request: NextRequest) {
     if (!Number.isInteger(body.id) || body.id <= 0 || !body.domainCode?.trim() || !body.domainName?.trim()) return NextResponse.json({ error: 'Thiếu dữ liệu Domain bắt buộc.' }, { status: 400 });
     const projectIdsError = validateProjectIds(body.projectIds);
     if (projectIdsError) return NextResponse.json({ error: projectIdsError }, { status: 400 });
-    return await respond(await updateDomain(body.id, body));
+    return respond(await updateDomain(body.id, body));
   } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Lỗi hệ thống khi cập nhật Domain.' }, { status: 500 }); }
 }
 
@@ -65,10 +65,10 @@ export async function DELETE(request: NextRequest) {
     await requireUser(request, ['ADMIN', 'SUPERADMIN']);
     const id = Number(new URL(request.url).searchParams.get('id'));
     if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: 'Domain ID không hợp lệ.' }, { status: 400 });
-    await deleteDomain(id);
-    // The Domain's projects (if any) are left without one — their Epics' cached domainName is stale.
-    const batchId = await getLatestImportBatchId();
-    after(() => refreshDerivedCachesInBackground(batchId, 'domains'));
-    return NextResponse.json({ success: true });
+    // The Domain's projects are left without one — when it was naming their Epics, the cached
+    // domainName is now stale.
+    const cacheAffected = await deleteDomain(id);
+    if (cacheAffected) scheduleDerivedCacheRefresh('domains');
+    return NextResponse.json({ success: true, cacheRefreshing: cacheAffected });
   } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Lỗi hệ thống khi xóa Domain.' }, { status: 500 }); }
 }

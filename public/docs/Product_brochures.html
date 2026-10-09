@@ -1324,6 +1324,13 @@
                 <td>—</td>
               </tr>
               <tr>
+                <td><code>ANOMALY_R10_R4G_DATE_IN_FUTURE</code></td>
+                <td><span class="badge badge-alert">ALERT</span></td>
+                <td>R4G Date ở tương lai</td>
+                <td>R10 — R4G Date còn ở tương lai VÀ status ≥ R4GOLIVE hoặc Reopened (không áp dụng Cancelled). R4G Date không được khai báo trước: cùng với R8, mọi Epic có R4G Date tương lai đều là Sai lệch dữ liệu (từ 09/10/2026)</td>
+                <td>—</td>
+              </tr>
+              <tr>
                 <td><code>ANOMALY_R2_PENDING_TOO_LONG</code></td>
                 <td><span class="badge badge-rec">RECOMMENDATION</span></td>
                 <td>Pending lâu</td>
@@ -1336,15 +1343,15 @@
                 <td rowspan="3"><strong>SCOPE</strong></td>
                 <td><code>SCOPE_TTM_BLACK_LISTED</code></td>
                 <td><span class="badge badge-note">NOTE</span></td>
-                <td>Epic ngoại lệ</td>
-                <td>Epic được khai báo trong "Epic ngoại lệ" (TTM Black listed = true) — loại khỏi mọi phép tính Time to Market</td>
+                <td>Epic ngoại lệ (Black listed)</td>
+                <td>Epic ngoại lệ loại 1 — Epic trong danh sách Black listed (TTM Black listed = true). Scoring Service không xét (không có badge nào khác) và loại khỏi mọi phép tính Time to Market</td>
                 <td>—</td>
               </tr>
               <tr>
                 <td><code>SCOPE_PROJECT_NON_TTM</code></td>
                 <td><span class="badge badge-note">NOTE</span></td>
-                <td>Dự án không tính TTM</td>
-                <td>Dự án của Epic có Time to Market = N — loại khỏi mọi phép tính Time to Market</td>
+                <td>Epic ngoại lệ (dự án TTM = N)</td>
+                <td>Epic ngoại lệ loại 2 — dự án của Epic có Time to Market = N. Xử lý giống loại 1: Scoring Service không xét, loại khỏi mọi phép tính Time to Market</td>
                 <td>—</td>
               </tr>
               <tr>
@@ -1500,10 +1507,10 @@
           </ul>
         </div>
         <div class="card card-accent-blue">
-          <div class="card-title">🚫 Epic ngoại lệ & dự án không tính TTM</div>
+          <div class="card-title">🚫 Epic ngoại lệ (Black listed + dự án Time to Market = N)</div>
           <ul>
-            <li>Admin khai báo <strong>Epic ngoại lệ</strong> (TTM Black list) qua popup dạng <code>KEY:EPIC-1,EPIC-2</code> hoặc công tắc trong Duyệt Epic; dự án đặt <strong>Time to Market = N</strong> có hiệu lực tương tự cho mọi Epic của dự án.</li>
-            <li>Các Epic này vẫn hiển thị và vẫn có badge đánh giá riêng, nhưng không vào phễu từ L02 và không tính vào ba chỉ số TTM.</li>
+            <li><strong>Epic ngoại lệ</strong> gồm 2 loại: Epic trong danh sách Black listed — Admin khai báo qua popup dạng <code>KEY:EPIC-1,EPIC-2</code> hoặc công tắc trong Duyệt Epic — và mọi Epic của dự án đặt <strong>Time to Market = N</strong>.</li>
+            <li>Các Epic này vẫn hiển thị trong danh sách nhưng (từ 09/10/2026) <strong>Scoring Service không xét</strong>: không có Sai lệch dữ liệu, Đạt / Fail, cảnh báo hay khuyến nghị — chỉ có badge ghi nhận ngoại lệ. Chúng không vào phễu từ L02, không tính vào ba chỉ số TTM và không tính vào bất kỳ widget nào của TTM Dashboard 2.</li>
           </ul>
         </div>
         <div class="card card-accent-blue">

@@ -5,6 +5,7 @@ import { Warning } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
+import { confirmDialog } from '@/components/ui/dialogs';
 import { Input } from '@/components/ui/Input';
 
 interface PurgePreview {
@@ -60,12 +61,11 @@ export function PurgeRecentLayersPanel() {
 
   const handlePurge = async () => {
     if (!preview || preview.targetDates.length === 0) return;
-    if (!confirm(
-      `Xóa VĨNH VIỄN toàn bộ dữ liệu RAW, dữ liệu lớp tổng hợp và dữ liệu sau tổng hợp (milestone) của ${preview.targetDates.length} lớp dữ liệu gần nhất `
+    const description = `Xóa VĨNH VIỄN toàn bộ dữ liệu RAW, dữ liệu lớp tổng hợp và dữ liệu sau tổng hợp (milestone) của ${preview.targetDates.length} lớp dữ liệu gần nhất `
       + `(${formatDate(preview.targetDates[preview.targetDates.length - 1])} → ${formatDate(preview.targetDates[0])})?\n\n`
       + `Bao gồm: ${formatNumber(preview.batchCount)} đợt import, ${formatNumber(preview.issueCount)} issues, `
-      + `${formatNumber(preview.epicTtmSnapshotCount)} Epic TTM Snapshot, ${formatNumber(preview.epicMilestoneHistoryCount)} milestone. Không thể hoàn tác.`
-    )) return;
+      + `${formatNumber(preview.epicTtmSnapshotCount)} Epic TTM Snapshot, ${formatNumber(preview.epicMilestoneHistoryCount)} milestone. Không thể hoàn tác.`;
+    if (!(await confirmDialog({ title: 'Xóa lớp dữ liệu gần nhất', description, confirmLabel: 'Xóa vĩnh viễn' }))) return;
 
     setIsPurging(true);
     setMessage(null);

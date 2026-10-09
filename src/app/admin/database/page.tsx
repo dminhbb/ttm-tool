@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { CloudArrowDown, CloudArrowUp, Trash, Warning } from '@phosphor-icons/react';
+import { confirmDialog } from '@/components/ui/dialogs';
 import { Alert } from '@/components/ui/Alert';
 import { showToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
@@ -283,7 +284,7 @@ export default function DatabaseBackupPage() {
 
   const handleCleanupExecute = async () => {
     if (!cleanupPreview) return;
-    if (!confirm(`Xóa vĩnh viễn ${formatNumber(cleanupPreview.batchCount)} đợt import cũ (và toàn bộ issues/import_rows liên quan)? Epic TTM Snapshot sẽ được giữ nguyên.`)) return;
+    if (!(await confirmDialog({ title: 'Xóa đợt import cũ', description: `Xóa vĩnh viễn ${formatNumber(cleanupPreview.batchCount)} đợt import cũ (và toàn bộ issues/import_rows liên quan)? Epic TTM Snapshot sẽ được giữ nguyên.`, confirmLabel: 'Xóa vĩnh viễn' }))) return;
     setIsCleaning(true);
     setMessage(null);
     try {

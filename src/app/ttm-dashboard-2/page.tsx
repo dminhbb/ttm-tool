@@ -416,18 +416,18 @@ export default function TtmDashboard2Page() {
       ratioLine: `Đã loại trừ: ${fmt(l1 - l2)} Epic · Tỷ lệ giữ lại: ${pct(l2, l1)}`,
       rule: (
         <>
-          Loại 3 nhóm Epic khỏi phạm vi tính toán Time to Market:
+          Loại Epic Cancelled và <b>Epic ngoại lệ</b> khỏi phạm vi tính toán Time to Market:
           <br />1. Epic có trạng thái chứa chữ <code>Cancel</code> (không phân biệt hoa/thường) — trạng thái gặp trong phạm vi hiện tại: {funnel.cancelledStatuses.length > 0 ? funnel.cancelledStatuses.map((status) => <code key={status} className="mr-1">{status}</code>) : <i>không có</i>}.
-          <br />2. <b>Epic ngoại lệ</b> — Epic có <code>TTM Black listed = true</code> (khai báo ở menu “Epic ngoại lệ” hoặc trong màn Duyệt Epic).
-          <br />3. Epic thuộc dự án có trường <b>Time to Market = N</b> (Quản lý Dự án).
-          <br />Mỗi Epic chỉ bị trừ 1 lần, theo đúng thứ tự trên.
+          <br />2. <b>Epic ngoại lệ — Black listed</b>: Epic có <code>TTM Black listed = true</code> (khai báo ở menu “Epic ngoại lệ” hoặc trong màn Duyệt Epic).
+          <br />3. <b>Epic ngoại lệ — dự án Time to Market = N</b>: Epic thuộc dự án có trường <b>Time to Market = N</b> (Quản lý Dự án).
+          <br />Mỗi Epic chỉ bị trừ 1 lần, theo đúng thứ tự trên. Epic ngoại lệ không được Scoring Service xét (không có Đạt / Fail / Cảnh báo / Sai lệch dữ liệu) và không tính vào bất kỳ widget, ma trận hay biểu đồ nào của màn hình này.
         </>
       ),
-      formula: <>L02 = L01 ({fmt(l1)}) − Cancelled ({fmt(cancelledCount)}) − Epic ngoại lệ ({fmt(blackListedCount)}) − Dự án Time to Market = N ({fmt(nonTtmProjectCount)})<br />= <b>{fmt(l2)} Epic</b></>,
+      formula: <>L02 = L01 ({fmt(l1)}) − Cancelled ({fmt(cancelledCount)}) − Epic ngoại lệ ({fmt(blackListedCount + nonTtmProjectCount)} = {fmt(blackListedCount)} Black listed + {fmt(nonTtmProjectCount)} dự án Time to Market = N)<br />= <b>{fmt(l2)} Epic</b></>,
       drill: { alert: 'IN_SCOPE_CNTT', count: cancelledCount, label: `Xem ${fmt(cancelledCount)} Epic Cancelled bị loại`, status: funnel.cancelledStatuses, title: 'Danh sách Epic Cancelled (bị loại ở L02)' },
       extraDrills: [
-        { alert: 'TTM_BLACK_LISTED', count: blackListedCount, label: `Xem ${fmt(blackListedCount)} Epic ngoại lệ bị loại`, title: 'Danh sách Epic ngoại lệ — TTM Black listed (bị loại ở L02)' },
-        { alert: 'TTM_PROJECT_NON_TTM', count: nonTtmProjectCount, label: `Xem ${fmt(nonTtmProjectCount)} Epic thuộc dự án Time to Market = N`, title: 'Danh sách Epic thuộc dự án Time to Market = N (bị loại ở L02)' },
+        { alert: 'TTM_BLACK_LISTED', count: blackListedCount, label: `Xem ${fmt(blackListedCount)} Epic ngoại lệ — Black listed`, title: 'Danh sách Epic ngoại lệ — TTM Black listed (bị loại ở L02)' },
+        { alert: 'TTM_PROJECT_NON_TTM', count: nonTtmProjectCount, label: `Xem ${fmt(nonTtmProjectCount)} Epic ngoại lệ — dự án Time to Market = N`, title: 'Danh sách Epic ngoại lệ — dự án Time to Market = N (bị loại ở L02)' },
       ],
       buttonClass: 'bg-rose-600 hover:bg-rose-700',
     },
@@ -491,7 +491,7 @@ export default function TtmDashboard2Page() {
       tone: { box: 'bg-slate-50 border-slate-200', strong: 'text-slate-900', soft: 'text-slate-700' },
       summaryLabel: `${name('L05ac')}:`,
       ratioLine: `Tỷ lệ trong L04a: ${pct(notScoredCount, l4a)}`,
-      rule: 'Các Epic thuộc L04a chưa thể kết luận Đạt hay Fail: R4G Date còn ở tương lai (chưa tới ngày), hoặc không tính được Target R4G TTM-CNTT. Các Epic này không nằm trong Tỷ lệ % Pass / Fail TTM-CNTT.',
+      rule: 'Các Epic thuộc L04a chưa thể kết luận Đạt hay Fail vì không tính được Target R4G TTM-CNTT. Các Epic này không nằm trong Tỷ lệ % Pass / Fail TTM-CNTT. Từ 09/10/2026, Epic có R4G Date còn ở tương lai không còn thuộc nhóm này: R4G Date không được khai báo trước nên đó là Sai lệch dữ liệu (R8 / R10).',
       formula: <>L05ac = L04a ({fmt(l4a)}) − L05aa ({fmt(passCount)}) − L05ab ({fmt(lateCount)})<br />= <b>{fmt(notScoredCount)} Epic</b></>,
       drill: { alert: 'TTM_NOT_SCORED_IN_SCOPE', count: notScoredCount, label: `Xem ${fmt(notScoredCount)} Epic chưa kết luận`, title: `Danh sách Epic - L05ac (${name('L05ac')})` },
       buttonClass: 'bg-slate-600 hover:bg-slate-700',
@@ -989,7 +989,7 @@ export default function TtmDashboard2Page() {
                             },
                             {
                               key: '5ac', count: notScoredCount, fill: '#94a3b8', lidFill: '#64748b', calloutColor: '#475569',
-                              main: `Chưa kết luận ${fmt(notScoredCount)}`, sub: 'R4G tương lai', ariaLabel: `L05ac — ${notScoredCount} Epic chưa kết luận`,
+                              main: `Chưa kết luận ${fmt(notScoredCount)}`, sub: 'Thiếu Target', ariaLabel: `L05ac — ${notScoredCount} Epic chưa kết luận`,
                               onContextMenu: (e) => handleContextMenu(e, 'L05ac'),
                             },
                             {
@@ -1081,7 +1081,6 @@ export default function TtmDashboard2Page() {
           isOpen
           onClose={() => setDetailModalId(null)}
           maxWidth="2xl"
-          blurBackdrop
           title={
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 rounded font-mono font-bold text-xs bg-slate-100 text-slate-700 border border-slate-300">

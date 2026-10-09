@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Plus, PencilSimple, Trash, Eye, EyeSlash, Copy, Check, ArrowsClockwise, Key } from '@phosphor-icons/react';
+import { confirmDialog } from '@/components/ui/dialogs';
 import { Alert } from '@/components/ui/Alert';
 import { showToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
@@ -124,7 +125,7 @@ export function ApiKeysPanel() {
   };
 
   const handleDelete = async (item: ApiKey) => {
-    if (!confirm(`Bạn có chắc chắn muốn xóa API Key "${item.keyName}" (${item.appName})?`)) return;
+    if (!(await confirmDialog({ title: 'Xóa API Key', description: `Bạn có chắc chắn muốn xóa API Key "${item.keyName}" (${item.appName})?`, confirmLabel: 'Xóa' }))) return;
     try {
       const res = await fetch(`/api/admin/api-keys?id=${item.id}`, { method: 'DELETE' });
       if (res.ok) {

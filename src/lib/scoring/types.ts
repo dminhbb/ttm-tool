@@ -38,12 +38,14 @@ export interface EpicFacts {
 }
 
 /**
- * Why an Epic is outside every Time to Market calculation although it isn't Cancelled (owner rule
- * 2026-10-05, L02 of the TTM Dashboard 2 funnel):
- *   BLACK_LISTED    — declared in "Epic ngoại lệ" (table black_listed_epics);
+ * "Epic ngoại lệ" — why an Epic is outside every Time to Market calculation although it isn't
+ * Cancelled (owner rule 2026-10-05, L02 of the TTM Dashboard 2 funnel). Both kinds go by that one
+ * name since 2026-10-09:
+ *   BLACK_LISTED    — declared in the black list (table black_listed_epics, menu "Epic ngoại lệ");
  *   PROJECT_NON_TTM — its project is marked "Time to Market = N" (Quản lý Dự án).
- * The Epic keeps its own verdict badges; it just isn't counted in the funnel from L02 on, nor in the
- * TTM-CNTT (QLDA/QA) and TTM-E2E ratios.
+ * Since 2026-10-09 the Scoring Service does not judge such an Epic at all (score-epic.ts): it gets
+ * the exception note only — no verdict, alert or recommendation — besides not being counted in the
+ * funnel from L02 on, the TTM-CNTT (QLDA/QA) and TTM-E2E ratios, or the TTM Dashboard 2 widgets.
  */
 export type TtmExclusion = 'BLACK_LISTED' | 'PROJECT_NON_TTM';
 

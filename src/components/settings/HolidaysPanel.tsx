@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Plus, PencilSimple, Trash } from '@phosphor-icons/react';
+import { confirmDialog } from '@/components/ui/dialogs';
 import { Alert } from '@/components/ui/Alert';
 import { showToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
@@ -127,7 +128,7 @@ export function HolidaysPanel({ year }: HolidaysPanelProps) {
   const sortedHolidays = [...holidays].sort((a, b) => compareValues(holidaySortValue(a, holidaySortKey), holidaySortValue(b, holidaySortKey), holidaySortDirection(holidaySortKey) ?? 'asc'));
 
   const handleDelete = async (holiday: Holiday) => {
-    if (!confirm(`Xóa Holiday "${holiday.name}"?`)) return;
+    if (!(await confirmDialog({ title: 'Xóa Holiday', description: `Xóa Holiday "${holiday.name}"?`, confirmLabel: 'Xóa' }))) return;
     const res = await fetch(`/api/holidays?id=${holiday.id}`, { method: 'DELETE' });
     if (res.ok) {
       showToast('Đã xóa Holiday.', 5000);

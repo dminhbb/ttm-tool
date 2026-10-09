@@ -1,7 +1,6 @@
 import type { DashboardEpicRow } from '@/lib/epic-alert-types';
-import { isCancelledStatus } from '@/lib/issue-status-rules';
 import { isJustifyGolive, isWaitingGolive, ttmFunnelBucket, type TtmFunnelBucket } from '@/lib/epic-row-verdicts';
-import { summarizeE2e, summarizeQaIndex, summarizeTtmCnttFromCounts, type TtmCnttSummary } from '@/lib/ttm-cntt-qa';
+import { isOutsideTtmCalculation, summarizeE2e, summarizeQaIndex, summarizeTtmCnttFromCounts, type TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 
 /**
  * TTM Dashboard 2 numbers, computed the same way whether they come from the per-scope cache
@@ -36,6 +35,11 @@ export interface TtmBreakdownItem {
   name: string;
   /** Value to filter Quản trị Epic by (project: its key); null for a placeholder ("Chưa gán…"). */
   linkValue: string | null;
+  /** Only on the "Chưa gán Domain" / "Chưa gán PM/SM" placeholders: the project keys of their Epics.
+   * Quản trị Epic has no "no Domain" / "no PM/SM" filter, but both are a property of the project
+   * (Quản lý Dự án / Quản lý User), so listing exactly these projects IS the placeholder's Epics.
+   * Without it the drill-down opened unfiltered and listed every Domain's Epics (2026-10-09). */
+  linkProjects?: string[];
   /** L02 — Epic trong phạm vi tính TTM (L01 − Cancelled − Epic ngoại lệ − dự án Time to Market = N). */
   total: number;
   /** L05aa — Epic đạt TTM-CNTT. */
@@ -82,13 +86,13 @@ export interface TtmDashboard2Insights {
  */
 export const TTM_FUNNEL_CRITERIA = {
   L01: { name: 'Tổng epic', definition: 'Mọi Epic trong phạm vi dữ liệu để tính toán (kể cả Cancelled)' },
-  L02: { name: 'Epic trong phạm vi tính TTM', definition: 'L01 − các Epic có status Cancelled − các Epic ngoại lệ (TTM Black listed = true) − các Epic thuộc dự án có Time to Market = N' },
+  L02: { name: 'Epic trong phạm vi tính TTM', definition: 'L01 − các Epic có status Cancelled − các Epic ngoại lệ (Epic trong danh sách Black listed + Epic thuộc dự án có Time to Market = N)' },
   L03: { name: 'Epic chuẩn hoá dữ liệu', definition: 'L02 − các Epic bị đánh dấu "Sai lệch dữ liệu"' },
   L04a: { name: 'Epic hoàn thành', definition: 'Các Epic có R4G Date trong L03' },
   L04b: { name: 'Epic chưa hoàn thành', definition: 'Các Epic không có R4G Date trong L03' },
   L05aa: { name: 'Epic đạt TTM-CNTT', definition: 'Các Epic Đạt TTM-CNTT trong L04a' },
   L05ab: { name: 'Epic không đạt TTM-CNTT (nhóm 1)', definition: 'Các Epic không Đạt TTM-CNTT trong L04a (R4G Date muộn hơn Target R4G)' },
-  L05ac: { name: 'Epic chưa kết luận', definition: 'Các Epic trong L04a có R4G Date còn ở tương lai, hoặc không tính được Target R4G TTM-CNTT' },
+  L05ac: { name: 'Epic chưa kết luận', definition: 'Các Epic trong L04a không tính được Target R4G TTM-CNTT (R4G Date còn ở tương lai là Sai lệch dữ liệu từ 09/10/2026, không còn thuộc nhóm này)' },
   L05ba: { name: 'Epic không đạt TTM-CNTT (nhóm 2)', definition: 'Các Epic trong L04b đã quá Target R4G → Fail TTM-CNTT (QLDA)' },
   L05bb: { name: 'Epic trong hạn', definition: 'Các Epic trong L04b chưa quá Target R4G — vẫn còn cơ hội Đạt TTM-CNTT' },
 } as const;
@@ -183,11 +187,12 @@ const BREAKDOWN_KEYS: Record<TtmBreakdownDimension, (row: TtmFunnelRow) => Break
 /** Widget row / matrix / pie chart numbers. `bucketOf` = each row's funnel leaf (already computed by
  * the caller), so a breakdown's columns always add up to the funnel's criteria. */
 function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<TtmFunnelRow, TtmFunnelBucket>): TtmDashboard2Insights {
-  // Same universe as TTM Dashboard's widgets: every non-Cancelled Epic of the viewed set. The
-  // operational tiles (Chậm tiến độ, Sai lệch dữ liệu, Chờ / Giải trình golive) keep counting "Epic
-  // ngoại lệ" and non-TTM-project Epics — their drill-down lists in Quản trị Epic show those Epics
-  // too; only the TTM numbers (matrix columns, the QA / E2E rings) leave them out.
-  const active = rows.filter((row) => !isCancelledStatus(row.currentStatus || ''));
+  // The widgets' universe: every Epic of the viewed set that is neither Cancelled nor an "Epic ngoại
+  // lệ" (black listed / project Time to Market = N — owner rule 2026-10-09). Before that the
+  // operational tiles (Chậm tiến độ, Sai lệch dữ liệu, Chờ / Giải trình golive) still counted the
+  // exceptions; now no widget, matrix column or pie chart does. Their drill-down lists agree: the
+  // Scoring Service gives an exception no verdict, so no "Nhận xét" filter of Quản trị Epic matches it.
+  const active = rows.filter((row) => !isOutsideTtmCalculation(row));
   const waitingGolive: TtmDashboard2Insights['waitingGolive'] = { byGraceDeadline: {}, missingR4g: 0, total: 0 };
   let anomalyCount = 0;
   let earlyWarning = 0;
@@ -217,8 +222,8 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
           groups.set(key, group);
         }
         group.rows.push(row);
-        // Not part of L02: outside "Phạm vi dữ liệu cho TTM", "Epic ngoại lệ", project Time to Market = N.
-        if (bucket === 'OUT_OF_SCOPE' || bucket === 'BLACK_LISTED' || bucket === 'PROJECT_NON_TTM') continue;
+        // Not part of L02: outside "Phạm vi dữ liệu cho TTM" ("Epic ngoại lệ" never get here — see `active`).
+        if (bucket === 'OUT_OF_SCOPE') continue;
         group.item.total += 1;
         if (bucket === 'R4G_PASS') group.item.pass += 1;
         else if (bucket === 'R4G_LATE' || bucket === 'NO_R4G_OVERDUE') group.item.fail += 1;
@@ -234,7 +239,11 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
     breakdowns[dimension] = [...groups.values()]
       .map(({ item, rows: groupRows }) => {
         const qa = summarizeQaIndex(groupRows);
-        return { ...item, qaFail: qa.fail, qaPass: qa.pass, qaTotal: qa.total };
+        const unassignedByProject = item.linkValue === null && (dimension === 'domain' || dimension === 'pmsm');
+        return {
+          ...item, qaFail: qa.fail, qaPass: qa.pass, qaTotal: qa.total,
+          ...(unassignedByProject ? { linkProjects: [...new Set(groupRows.map((row) => row.projectKey).filter(Boolean))].sort() } : {}),
+        };
       })
       .filter((item) => item.total > 0 || item.qaTotal > 0)
       .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'vi'));

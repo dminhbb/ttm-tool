@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ArrowsClockwise, Trash } from '@phosphor-icons/react';
+import { confirmDialog } from '@/components/ui/dialogs';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { Card, CardBody, CardFooter, CardHeader } from '@/components/ui/Card';
@@ -71,7 +72,7 @@ export function AggregatedDataLayersPanel() {
   }, []);
 
   const handleDelete = async (layerDate: string) => {
-    if (!confirm(`Xóa toàn bộ dữ liệu tổng hợp (Epic TTM Snapshot, Issue Daily Snapshot, Alert History) của lớp dữ liệu ngày ${formatDate(layerDate)}? Dữ liệu import gốc không bị ảnh hưởng.`)) {
+    if (!(await confirmDialog({ title: 'Xóa dữ liệu tổng hợp', description: `Xóa toàn bộ dữ liệu tổng hợp (Epic TTM Snapshot, Issue Daily Snapshot, Alert History) của lớp dữ liệu ngày ${formatDate(layerDate)}? Dữ liệu import gốc không bị ảnh hưởng.`, confirmLabel: 'Xóa' }))) {
       return;
     }
     setPendingLayerDate(layerDate);

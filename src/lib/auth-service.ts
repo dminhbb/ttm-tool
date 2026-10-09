@@ -269,6 +269,25 @@ async function replacePermissions(client: PoolClient, userId: number, input: Use
   }
 }
 
+/**
+ * What the derived caches hold about these users as PM/SM, as one comparable string — '' when none
+ * of them is PM/SM of an active project. Every cached Epic row carries its project's PM/SM names
+ * (getProjectMetaByProjectKeyMap in master-data-service.ts: full names of the user_projects users of
+ * an active project), so a user save needs a cache rebuild exactly when this differs before and after.
+ */
+export async function getPmSmCacheFootprint(userIds: number[]): Promise<string> {
+  const result = await pool.query<{ fullName: string; id: number; projectIds: number[] }>(`
+    SELECT u.id, u.full_name AS "fullName", array_agg(up.project_id ORDER BY up.project_id) AS "projectIds"
+    FROM users u
+    JOIN user_projects up ON up.user_id = u.id
+    JOIN projects p ON p.id = up.project_id AND p.is_active
+    WHERE u.id = ANY($1::int[])
+    GROUP BY u.id, u.full_name
+    ORDER BY u.id;
+  `, [userIds]);
+  return result.rows.length === 0 ? '' : JSON.stringify(result.rows.map((row) => [row.id, row.fullName, row.projectIds]));
+}
+
 export async function createManagedUser(input: UserInput): Promise<ManagedUser> {
   const passwordHash = await bcrypt.hash(input.password!, PASSWORD_HASH_ROUNDS);
   const client = await getClient();

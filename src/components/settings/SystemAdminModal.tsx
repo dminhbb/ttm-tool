@@ -1,9 +1,10 @@
 'use client';
 
 import * as React from 'react';
-import { GearSix, Info, Key, LinkSimple, Megaphone, Plugs, X } from '@phosphor-icons/react';
+import { GearSix, Info, Key, LinkSimple, Megaphone, Plugs } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
+import { MODAL_BACKDROP_CLASS, MODAL_FRAME_CLASS, ModalHeader, useModalBehavior } from '@/components/ui/Modal';
 import type { UserRole } from '@/lib/auth-types';
 import { AdPopupsPanel } from '@/components/settings/AdPopupsPanel';
 import { ApiKeysPanel } from '@/components/settings/ApiKeysPanel';
@@ -36,59 +37,25 @@ export function SystemAdminModal({ isOpen, onClose, role = null }: SystemAdminMo
   const [activeSectionId, setActiveSectionId] = React.useState(SUPERADMIN_SECTIONS[0].id);
   const titleId = React.useId();
   const closeButtonRef = React.useRef<HTMLButtonElement>(null);
-  const onCloseRef = React.useRef(onClose);
-
-  React.useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-
-  React.useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseRef.current();
-    };
-
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-      window.addEventListener('keydown', handleEscape);
-      window.requestAnimationFrame(() => closeButtonRef.current?.focus());
-    }
-
-    return () => {
-      document.body.style.overflow = '';
-      window.removeEventListener('keydown', handleEscape);
-    };
-  }, [isOpen]);
-
   // Safety check: restricted to SUPERADMIN
-  if (!isOpen || role !== 'SUPERADMIN') return null;
+  const isShown = isOpen && role === 'SUPERADMIN';
+  useModalBehavior(isShown, onClose, closeButtonRef);
+
+  if (!isShown) return null;
 
   const activeSection = SUPERADMIN_SECTIONS.find((section) => section.id === activeSectionId) ?? SUPERADMIN_SECTIONS[0];
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="presentation">
-      <div className="absolute inset-0 bg-black/60 transition-opacity duration-200" onClick={onClose} aria-hidden="true" />
+      <div className={MODAL_BACKDROP_CLASS} onClick={onClose} aria-hidden="true" />
 
       <div
-        className="relative z-10 flex h-[85dvh] w-full max-w-[1280px] flex-col overflow-hidden rounded-xl border border-fb-border bg-fb-surface text-fb-text-primary shadow-dialog"
+        className={cn(MODAL_FRAME_CLASS, 'h-[85dvh] w-full max-w-[1280px] overflow-hidden')}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
       >
-        <div className="flex items-center justify-between border-b border-fb-border px-5 py-4 select-none">
-          <div className="flex items-center gap-2">
-            <GearSix className="w-5 h-5 text-fb-blue" weight="bold" />
-            <h2 id={titleId} className="text-lg font-bold tracking-tight text-fb-text-primary">Quản trị hệ thống</h2>
-          </div>
-          <button
-            ref={closeButtonRef}
-            type="button"
-            onClick={onClose}
-            className="grid size-9 place-items-center rounded-md text-fb-text-secondary outline-none transition-colors hover:bg-fb-control hover:text-fb-text-primary"
-            aria-label="Đóng hộp thoại"
-          >
-            <X className="w-4 h-4" weight="bold" />
-          </button>
-        </div>
+        <ModalHeader closeButtonRef={closeButtonRef} icon={GearSix} onClose={onClose} title="Quản trị hệ thống" titleId={titleId} />
 
         <div className="flex min-h-0 flex-1">
           <nav

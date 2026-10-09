@@ -3,6 +3,7 @@ import type { BadgeId } from './catalog';
 import { deriveMetrics, isCancelledStatus } from './derive';
 import { DERIVED_RULES, PRIMARY_RULES } from './registry';
 import { dataQualityRule } from './rules/data-quality';
+import { scopeRule } from './rules/scope-phase';
 import type { RuleInput } from './rules/rule-types';
 import type { EpicFacts, EpicScorecard, Finding, IndexMembership, ScoringContext } from './types';
 
@@ -41,7 +42,7 @@ export function hasDataAnomalyBadge(active: ReadonlySet<BadgeId>): boolean {
 }
 
 function indexMembership(facts: EpicFacts, active: ReadonlySet<BadgeId>, ctx: ScoringContext): IndexMembership {
-  // Cancelled, "Epic ngoại lệ" and "Dự án không tính TTM" Epics are all outside L02 — never counted.
+  // Cancelled Epics and "Epic ngoại lệ" (black listed / project Time to Market = N) are outside L02 — never counted.
   const outsideL02 = isCancelledStatus(facts.status) || Boolean(facts.ttmExclusion);
   const anomaly = hasDataAnomalyBadge(active);
   const flags = (counted: boolean) => {
@@ -61,8 +62,20 @@ function indexMembership(facts: EpicFacts, active: ReadonlySet<BadgeId>, ctx: Sc
  */
 export function scoreEpic(facts: EpicFacts, ctx: ScoringContext): EpicScorecard {
   const derived = deriveMetrics(facts, ctx);
-  // Data quality is evaluated first: its verdict gates every TTM rule (see RuleInput.hasDataAnomaly).
   const baseInput: RuleInput = { facts, derived, ctx, hasDataAnomaly: false };
+
+  // "Epic ngoại lệ" (owner rule 2026-10-09) — a black listed Epic or an Epic of a project with Time to
+  // Market = N (facts.ttmExclusion) — is not judged at all: no data-quality, TTM-CNTT, TTM-E2E, Release
+  // or phase rule runs, so it carries no Sai lệch dữ liệu / Đạt / Fail / cảnh báo / khuyến nghị and is in
+  // no index. Only the SCOPE notes remain: the badge saying WHY it is an exception, and where it sits
+  // against "Phạm vi dữ liệu cho TTM" (the funnel's L01 is read from that). `derived` (Target, baseline
+  // dates) is still returned — those are dates, not verdicts.
+  if (facts.ttmExclusion) {
+    const findings = sortFindings(scopeRule(baseInput).filter((item) => isEnabled(item.badge, ctx)));
+    return { epicKey: facts.epicKey, asOf: ctx.asOf, rulesetVersion: ctx.rulesetVersion, findings, indexMembership: indexMembership(facts, activeBadges(findings), ctx), derived };
+  }
+
+  // Data quality is evaluated first: its verdict gates every TTM rule (see RuleInput.hasDataAnomaly).
   const dataQuality = dataQualityRule(baseInput).filter((item) => isEnabled(item.badge, ctx));
   const input: RuleInput = { ...baseInput, hasDataAnomaly: hasDataAnomalyBadge(new Set(dataQuality.map((item) => item.badge))) };
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Plus, PencilSimple, Trash } from '@phosphor-icons/react';
+import { confirmDialog } from '@/components/ui/dialogs';
 import { Alert } from '@/components/ui/Alert';
 import { showToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
@@ -112,7 +113,7 @@ export function InfoBannersPanel() {
 
   const handleDelete = async (banner: InfoBanner) => {
     if (banner.bannerType === 'DEFAULT') return;
-    if (!confirm(`Xóa banner "${banner.name}"?`)) return;
+    if (!(await confirmDialog({ title: 'Xóa banner', description: `Xóa banner "${banner.name}"?`, confirmLabel: 'Xóa' }))) return;
     const res = await fetch(`/api/info-banners?id=${banner.id}`, { method: 'DELETE' });
     if (res.ok) {
       showToast('Đã xóa Banner thông báo.', 5000);

@@ -2,6 +2,7 @@
 
 import { ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { ArrowCounterClockwise, FileArrowUp, PencilSimple, Plus, Trash } from '@phosphor-icons/react';
+import { confirmDialog } from '@/components/ui/dialogs';
 import { Alert } from '@/components/ui/Alert';
 import { showToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
@@ -84,7 +85,7 @@ export default function ProjectsAdminPage() {
       showToast(editingId ? 'Đã cập nhật dự án.' : 'Đã tạo dự án mới.', 5000); setMessage(null); setShowModal(false); void fetchAll();
     } catch { setMessage({ text: 'Không thể kết nối API.', type: 'error' }); } finally { setIsSaving(false); }
   };
-  const handleDelete = async (project: Project) => { if (!confirm(`Xóa dự án "${project.projectName}"?`)) return; const response = await fetch(`/api/projects?id=${project.id}`, { method: 'DELETE' }); if (response.ok) { showToast('Đã xóa dự án.', 5000); setMessage(null); void fetchAll(); } else { const result = await response.json(); setMessage({ text: result.error || 'Xóa thất bại.', type: 'error' }); } };
+  const handleDelete = async (project: Project) => { if (!(await confirmDialog({ title: 'Xóa dự án', description: `Xóa dự án "${project.projectName}"?`, confirmLabel: 'Xóa' }))) return; const response = await fetch(`/api/projects?id=${project.id}`, { method: 'DELETE' }); if (response.ok) { showToast('Đã xóa dự án.', 5000); setMessage(null); void fetchAll(); } else { const result = await response.json(); setMessage({ text: result.error || 'Xóa thất bại.', type: 'error' }); } };
   const uploadProjects = async () => {
     if (!importFile) { setMessage({ text: 'Vui lòng chọn file CSV.', type: 'error' }); return; }
     setIsImporting(true); setMessage(null);

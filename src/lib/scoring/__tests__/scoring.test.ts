@@ -116,10 +116,14 @@ describe('TTM-CNTT', () => {
     assert.ok(active(makeFacts({ requirementLevel: '' }), makeContext({ asOf: '2026-12-01', ruleEnabled: { ANOMALY_R5_MISSING_REQUIREMENT_LEVEL: false } })).has('CNTT_FAIL'));
   });
 
-  it('future R4G Date: in the Index denominator but not passed yet (Q3)', () => {
-    const card = scoreEpic(makeFacts({ r4gDate: '2026-08-20', status: 'R4GOLIVE' }), makeContext({ asOf: '2026-08-10' }));
-    assert.ok(!hasBadge(card, 'CNTT_PASS'));
-    assert.deepEqual(card.indexMembership.ttm, { counted: true, eligible: true, pass: false, fail: false });
+  it('future R4G Date at R4GOLIVE: "Sai lệch dữ liệu" (R10, 2026-10-09) — with R10 off it is "chưa kết luận" as before (Q3)', () => {
+    const facts = makeFacts({ r4gDate: '2026-08-20', status: 'R4GOLIVE' });
+    const card = scoreEpic(facts, makeContext({ asOf: '2026-08-10' }));
+    assert.ok(hasBadge(card, 'ANOMALY_R10_R4G_DATE_IN_FUTURE') && !hasBadge(card, 'CNTT_PASS'));
+    assert.deepEqual(card.indexMembership.ttm, { counted: true, eligible: false, pass: false, fail: false });
+    const r10Off = scoreEpic(facts, makeContext({ asOf: '2026-08-10', ruleEnabled: { ANOMALY_R10_R4G_DATE_IN_FUTURE: false } }));
+    assert.ok(!hasBadge(r10Off, 'CNTT_PASS'));
+    assert.deepEqual(r10Off.indexMembership.ttm, { counted: true, eligible: true, pass: false, fail: false });
   });
 
   it('missing Start Date → Không tính được, hides every other CNTT badge, recommends filling T1', () => {
@@ -163,11 +167,17 @@ describe('TTM-E2E', () => {
     const lowStatus = active(makeFacts({ r4gDate: target, status: 'TEST' }), makeContext({ asOf: '2026-12-01', ruleEnabled: { ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE: false } }));
     assert.ok(lowStatus.has('E2E_PASS') && lowStatus.has('E2E_STATUS_MISMATCH'));
     assert.ok(active(makeFacts({ r4gDate: addWorkingDays(target, 1, NO_HOLIDAYS), status: 'Released' }), late).has('E2E_FAIL'));
-    // Future-dated end: not judged yet when on time, already Fail when past Target.
-    const before = makeContext({ asOf: '2026-08-03' });
+    // Future-dated end is "Sai lệch dữ liệu" (R10) since 2026-10-09 — no TTM-E2E verdict either way.
+    const lateFuture = makeFacts({ r4gDate: addWorkingDays(target, 1, NO_HOLIDAYS), status: 'R4GOLIVE' });
+    for (const facts of [makeFacts({ r4gDate: target, status: 'R4GOLIVE' }), lateFuture]) {
+      const badges = active(facts, makeContext({ asOf: '2026-08-03' }));
+      assert.ok(badges.has('ANOMALY_R10_R4G_DATE_IN_FUTURE') && !badges.has('E2E_PASS') && !badges.has('E2E_FAIL'));
+    }
+    // With R10 off: not judged yet when on time, already Fail when past Target.
+    const before = makeContext({ asOf: '2026-08-03', ruleEnabled: { ANOMALY_R10_R4G_DATE_IN_FUTURE: false } });
     const onTimeFuture = active(makeFacts({ r4gDate: target, status: 'R4GOLIVE' }), before);
     assert.ok(!onTimeFuture.has('E2E_PASS') && !onTimeFuture.has('E2E_FAIL'));
-    assert.ok(active(makeFacts({ r4gDate: addWorkingDays(target, 1, NO_HOLIDAYS), status: 'R4GOLIVE' }), before).has('E2E_FAIL'));
+    assert.ok(active(lateFuture, before).has('E2E_FAIL'));
   });
 
   it('missing T0 → baseline from Jira creation date + recommendation', () => {
@@ -290,11 +300,57 @@ describe('Data quality', () => {
     for (const status of ['Design', 'Pending', 'To Do']) {
       assert.ok(active(makeFacts({ status, startDate: ctx.asOf, r4gDate: future }), ctx).has('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'), status);
     }
-    // Status already at R4GOLIVE or later: no R8 — "chưa kết luận" until the date is reached. Reopened: never R8.
-    const atR4g = scoreEpic(makeFacts({ status: 'R4GOLIVE', startDate: ctx.asOf, r4gDate: future }), ctx);
-    assert.ok(!hasBadge(atR4g, 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE') && !hasBadge(atR4g, 'CNTT_PASS') && !hasBadge(atR4g, 'CNTT_FAIL'));
-    assert.deepEqual(atR4g.indexMembership.ttm, { counted: true, eligible: true, pass: false, fail: false });
-    assert.ok(!active(makeFacts({ status: 'Reopened', startDate: ctx.asOf, r4gDate: future }), ctx).has('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'));
+    // Status already at R4GOLIVE or later, and Reopened: never R8 — a future date there is R10 (next test).
+    for (const status of ['R4GOLIVE', 'Reopened']) {
+      assert.ok(!active(makeFacts({ status, startDate: ctx.asOf, r4gDate: future }), ctx).has('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'), status);
+    }
+  });
+
+  it('R10 (2026-10-09): a future R4G Date at R4GOLIVE or later (and Reopened) is "Sai lệch dữ liệu" — every future R4G Date is', () => {
+    const ctx = makeContext();
+    const future = addWorkingDays(ctx.asOf, 1, ctx.holidays);
+    for (const status of ['R4GOLIVE', 'MVP Done', 'Pilot', 'Done', 'Released', 'Reopened']) {
+      const card = scoreEpic(makeFacts({ status, startDate: ctx.asOf, r4gDate: future }), ctx);
+      assert.deepEqual(activeFindings(card).map((item) => item.badge).filter((badge) => badge.startsWith('ANOMALY_')), ['ANOMALY_R10_R4G_DATE_IN_FUTURE'], status);
+      assert.ok(hasBadge(card, 'REC_CLEAR_FUTURE_R4G_DATE') && !hasBadge(card, 'REC_FIX_R4G_STATUS'), status);
+      assert.ok(!hasBadge(card, 'CNTT_PASS') && !hasBadge(card, 'CNTT_FAIL') && !hasBadge(card, 'E2E_PASS') && !hasBadge(card, 'E2E_FAIL'), status);
+      assert.deepEqual(card.indexMembership.ttm, { counted: true, eligible: false, pass: false, fail: false }, status);
+    }
+    // Below R4GOLIVE the same date is R8 — never both; Cancelled is exempt from both.
+    for (const status of ['To Do', 'In PO', 'Design', 'In Progress', 'Pending']) {
+      const badges = active(makeFacts({ status, startDate: ctx.asOf, r4gDate: future }), ctx);
+      assert.ok(badges.has('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE') && !badges.has('ANOMALY_R10_R4G_DATE_IN_FUTURE'), status);
+    }
+    const cancelled = active(makeFacts({ status: 'Cancelled', startDate: ctx.asOf, r4gDate: future }), ctx);
+    assert.ok(!cancelled.has('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE') && !cancelled.has('ANOMALY_R10_R4G_DATE_IN_FUTURE'));
+    // A date already reached (asOf itself counts) is not "declared ahead": judged normally, Reopened keeps its result.
+    const reached = scoreEpic(makeFacts({ status: 'R4GOLIVE', startDate: '2026-08-25', r4gDate: ctx.asOf }), ctx);
+    assert.ok(!hasBadge(reached, 'ANOMALY_R10_R4G_DATE_IN_FUTURE') && hasBadge(reached, 'CNTT_PASS'));
+    // A future date later than Target would be Fail (L05ab) on its own — R10 outranks it, like R8.
+    const lateFuture = makeFacts({ status: 'R4GOLIVE', r4gDate: future });
+    assert.ok(!active(lateFuture, ctx).has('CNTT_FAIL'));
+    assert.ok(active(lateFuture, makeContext({ ruleEnabled: { ANOMALY_R10_R4G_DATE_IN_FUTURE: false } })).has('CNTT_FAIL'));
+  });
+
+  it('R8 (2026-10-09): "Sai lệch dữ liệu" outranks Fail — an R4G Date declared ahead takes the Epic out of the denominator', () => {
+    // Target 2026-08-21 is already past at asOf 2026-09-01: without an R4G Date the Epic is Fail (L05ba).
+    const ctx = makeContext();
+    const overdue = makeFacts({ status: 'In Progress' });
+    const failed = scoreEpic(overdue, ctx);
+    assert.ok(hasBadge(failed, 'CNTT_FAIL') && !hasBadge(failed, 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'));
+    assert.equal(failed.indexMembership.ttm.fail, true);
+    // Company rule: R4G Date must not be declared ahead. Doing so — here later than Target, which on
+    // its own would be Fail (L05ab) — is R8: no Đạt / Fail verdict and out of the denominator until
+    // the owner clears the field (a planned date belongs in another field).
+    const declaredAhead = { ...overdue, r4gDate: addWorkingDays(ctx.asOf, 5, ctx.holidays) };
+    const card = scoreEpic(declaredAhead, ctx);
+    assert.ok(hasBadge(card, 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE') && hasBadge(card, 'REC_FIX_R4G_STATUS'));
+    assert.ok(!hasBadge(card, 'CNTT_FAIL') && !hasBadge(card, 'CNTT_PASS'));
+    assert.deepEqual(card.indexMembership.ttm, { counted: true, eligible: false, pass: false, fail: false });
+    // R8 switched off shows the verdict it is covering.
+    const r8Off = scoreEpic(declaredAhead, makeContext({ ruleEnabled: { ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE: false } }));
+    assert.ok(hasBadge(r8Off, 'CNTT_FAIL'));
+    assert.equal(r8Off.indexMembership.ttm.fail, true);
   });
 
   it('workflow (2026-10-05): MVP Done / Pilot / Done are known steps, Pending / Reopened sit with In Progress', () => {

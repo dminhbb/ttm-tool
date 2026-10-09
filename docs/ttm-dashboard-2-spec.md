@@ -35,15 +35,16 @@ Epic ngoài "Phạm vi dữ liệu cho TTM" **không nằm trong L01** (trước
 (Ngoài "Phạm vi dữ liệu cho TTM" — không thuộc phễu)
 [L01]  Tổng epic (kể cả Cancelled)
    │  − Cancelled                      (trạng thái chứa "cancel", không phân biệt hoa/thường)
-   │  − Epic ngoại lệ                  (TTM Black listed = true — bảng black_listed_epics; từ 05/10/2026)
-   │  − Dự án Time to Market = N       (projects.ttm = 'N'; từ 05/10/2026)
+   │  − Epic ngoại lệ — Black listed   (TTM Black listed = true — bảng black_listed_epics; từ 05/10/2026)
+   │  − Epic ngoại lệ — dự án TTM = N  (projects.ttm = 'N'; từ 05/10/2026)
+   │    (hai nhóm gọi chung là "Epic ngoại lệ" từ 09/10/2026: Scoring Service không xét, không tính vào widget nào)
 [L02]  Epic trong phạm vi tính TTM
    │  − Sai lệch dữ liệu               (hasDataAnomaly — không chấm Đạt/Fail)
 [L03]  Epic chuẩn hoá dữ liệu  =  L04a + L04b
    ├── [L04a] Epic hoàn thành: có R4G Date
    │      ├── [L05aa] Epic đạt TTM-CNTT
    │      ├── [L05ab] Epic không đạt TTM-CNTT (nhóm 1) — R4G Date muộn hơn Target  (= "Trễ R4G" ở TTM Dashboard)
-   │      └── [L05ac] Epic chưa kết luận — R4G Date tương lai / không tính được Target
+   │      └── [L05ac] Epic chưa kết luận — không tính được Target (R4G Date tương lai là Sai lệch dữ liệu từ 2026-10-09)
    └── [L04b] Epic chưa hoàn thành: chưa có R4G Date
           ├── [L05ba] Epic không đạt TTM-CNTT (nhóm 2) — đã quá Target  (= "Thiếu R4G" ở TTM Dashboard)
           └── [L05bb] Epic trong hạn — chưa quá Target
@@ -52,13 +53,13 @@ Epic ngoài "Phạm vi dữ liệu cho TTM" **không nằm trong L01** (trước
 | Mã | Tên tiêu chí | Cách tính | Nhóm lá (`ttmFunnelBucket`) | Bộ lọc khi mở danh sách |
 |---|---|---|---|---|
 | `L01` | Tổng epic | Mọi Epic trong phạm vi dữ liệu để tính toán (kể cả Cancelled) | mọi nhóm trừ `OUT_OF_SCOPE` | `alert=IN_SCOPE_CNTT` + `status` = mọi trạng thái đang có |
-| `L02` | Epic trong phạm vi tính TTM | L01 − Cancelled − Epic ngoại lệ (TTM Black listed = true) − Epic thuộc dự án Time to Market = N | − `CANCELLED` − `BLACK_LISTED` − `PROJECT_NON_TTM` | `alert=TTM_COUNTED_IN_SCOPE` (L02); nhóm bị loại: `IN_SCOPE_CNTT` + `status` Cancelled, `TTM_BLACK_LISTED`, `TTM_PROJECT_NON_TTM` |
+| `L02` | Epic trong phạm vi tính TTM | L01 − Cancelled − Epic ngoại lệ (Epic Black listed + Epic thuộc dự án Time to Market = N) | − `CANCELLED` − `BLACK_LISTED` − `PROJECT_NON_TTM` | `alert=TTM_COUNTED_IN_SCOPE` (L02); nhóm bị loại: `IN_SCOPE_CNTT` + `status` Cancelled, `TTM_BLACK_LISTED`, `TTM_PROJECT_NON_TTM` |
 | `L03` | Epic chuẩn hoá dữ liệu | L02 − các Epic bị đánh dấu "Sai lệch dữ liệu" | − `DATA_ANOMALY` | `alert=DATA_ANOMALY_IN_SCOPE` (danh sách Epic bị loại) |
 | `L04a` | Epic hoàn thành | Các Epic có R4G Date trong L03 | `R4G_PASS` + `R4G_LATE` + `R4G_NOT_SCORED` | `TTM_ELIGIBLE_IN_SCOPE` |
 | `L04b` | Epic chưa hoàn thành | Các Epic không có R4G Date trong L03 | `NO_R4G_OVERDUE` + `NO_R4G_WITHIN_TARGET` | `MISSING_R4G_IN_SCOPE` |
 | `L05aa` | Epic đạt TTM-CNTT | Các Epic Đạt TTM-CNTT trong L04a (Scoring: cờ chỉ số `TTM_PASS`; Legacy: `alertLevel = NONE`) | `R4G_PASS` | `TTM_PASS_IN_SCOPE` |
 | `L05ab` | Epic không đạt TTM-CNTT (nhóm 1) | Các Epic không Đạt TTM-CNTT trong L04a: `alertLevel = FAIL` (R4G Date > Target) | `R4G_LATE` | `TTM_LATE_IN_SCOPE` |
-| `L05ac` | Epic chưa kết luận | Các Epic trong L04a có R4G Date còn ở tương lai, hoặc không tính được Target R4G TTM-CNTT | `R4G_NOT_SCORED` | `TTM_NOT_SCORED_IN_SCOPE` |
+| `L05ac` | Epic chưa kết luận | Các Epic trong L04a không tính được Target R4G TTM-CNTT. Từ 2026-10-09 (Scoring `scoring-12`) Epic có R4G Date còn ở tương lai là Sai lệch dữ liệu (R8 / R10) nên bị loại tại L03, không còn ở đây | `R4G_NOT_SCORED` | `TTM_NOT_SCORED_IN_SCOPE` |
 | `L05ba` | Epic không đạt TTM-CNTT (nhóm 2) | Các Epic trong L04b đã quá Target R4G → Fail TTM-CNTT (QLDA) | `NO_R4G_OVERDUE` | `OVERDUE_MISSING_R4G_IN_SCOPE` |
 | `L05bb` | Epic trong hạn | Các Epic trong L04b chưa quá Target R4G — vẫn còn cơ hội Đạt TTM-CNTT | `NO_R4G_WITHIN_TARGET` | `WITHIN_TARGET_MISSING_R4G` |
 | — | Ngoài phạm vi dữ liệu cho TTM | Epic có `ttmCnttInScope = false` (mọi status), không tính vào L01 | `OUT_OF_SCOPE` | `alert=OUT_OF_SCOPE_CNTT` + `status` = mọi trạng thái đang có |
@@ -125,7 +126,7 @@ Hàng 9 thẻ KPI, 2 nhóm màu: 5 thẻ trái (nền navy nhạt) là số li�
 | CHỜ GOLIVE | Số Epic Chờ golive | Thiếu R4G / Trong hạn / Quá hạn |
 | GIẢI TRÌNH | Số Epic Giải trình Golive | "Quá hạn R4G +5d" |
 
-- Bốn thẻ vận hành đếm trên **mọi Epic không Cancelled của tập đang xem** — kể cả Epic ngoại lệ, Epic của dự án Time to Market = N và Epic ngoài "Phạm vi dữ liệu cho TTM" (danh sách mở ra ở Quản trị Epic cũng gồm các Epic đó) — nên SAI LỆCH có thể lớn hơn L02 − L03.
+- Bốn thẻ vận hành đếm trên các Epic của tập đang xem, **không tính Epic Cancelled và Epic ngoại lệ** (Black listed + dự án Time to Market = N — từ 2026-10-09, `summarizeInsights` lọc bằng `isOutsideTtmCalculation`; trước đó vẫn đếm Epic ngoại lệ). Epic ngoài "Phạm vi dữ liệu cho TTM" vẫn được đếm — nên SAI LỆCH có thể lớn hơn L02 − L03. Danh sách mở ra ở Quản trị Epic khớp con số vì Scoring Service không gắn kết luận nào cho Epic ngoại lệ (spec Scoring §24); ở chế độ engine cũ (`legacy`) danh sách vẫn còn các Epic đó.
 - Mẫu số = 0: vòng rỗng + "—".
 - "Chờ golive: trong hạn / quá hạn" được tách theo ngày hiện tại lúc xem (`splitWaitingGolive`), nên số trong cache không bị cũ qua ngày.
 

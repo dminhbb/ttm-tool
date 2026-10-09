@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { PencilSimple, Plus, Trash } from '@phosphor-icons/react';
+import { confirmDialog } from '@/components/ui/dialogs';
 import { Alert } from '@/components/ui/Alert';
 import { showToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
@@ -63,10 +64,11 @@ export default function DomainsAdminPage() {
   };
 
   const handleDelete = async (domain: Domain) => {
-    if (!confirm(`Xóa Domain "${domain.domainName}"?`)) return;
+    if (!(await confirmDialog({ title: 'Xóa Domain', description: `Xóa Domain "${domain.domainName}"?`, confirmLabel: 'Xóa' }))) return;
     const response = await fetch(`/api/domains?id=${domain.id}`, { method: 'DELETE' });
-    if (response.ok) { showToast('Đã xóa Domain.', 5000); setMessage(null); void load(); }
-    else { const result = await response.json(); setMessage({ text: result.error || 'Xóa thất bại.', type: 'error' }); }
+    const result = await response.json();
+    if (response.ok) { showToast(`Đã xóa Domain.${result.cacheRefreshing ? ' Dữ liệu cảnh báo Epic đang được tính lại (vài phút).' : ''}`, 5000); setMessage(null); void load(); }
+    else { setMessage({ text: result.error || 'Xóa thất bại.', type: 'error' }); }
   };
 
   // "Dự án trong Domain" — every project, labelled with its current Domain when it belongs to a

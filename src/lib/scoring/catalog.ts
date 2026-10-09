@@ -53,8 +53,8 @@ export const SCORING_AXES: ScoringAxisDefinition[] = [
   { id: 'TTM_E2E', label: 'TTM-E2E', description: 'T0 (Idea Approved Date) → R4G Date (hoặc Due Date theo policy) so với ngân sách TTM-E2E.' },
   { id: 'RELEASE', label: 'Release', description: 'Kỷ luật Due Date / status Released so với R4G Date + thời hạn grace.' },
   { id: 'PHASE', label: 'Pha', description: '5 pha DESIGN / DEV / TEST / PENTEST / R4GOLIVE, mỗi pha có baseline theo % ngân sách TTM-CNTT (QLDA).' },
-  { id: 'DATA_QUALITY', label: 'Chất lượng dữ liệu', description: 'Dữ liệu Jira thiếu hoặc mâu thuẫn. Badge Cảnh báo của axis này = "Sai lệch dữ liệu" (R1, R3–R6, R8, R9) — được xét trước: Epic Sai lệch dữ liệu không được chấm Đạt / Fail / Cảnh báo muộn trên TTM-CNTT (QLDA/QA) và TTM-E2E, nằm ngoài mẫu số các chỉ số. Miễn trừ: Cancelled miễn mọi rule; To Do / In PO / Backlog miễn mọi rule trừ R8.' },
-  { id: 'SCOPE', label: 'Phạm vi', description: 'Epic có nằm trong "Phạm vi dữ liệu cho TTM" (Cấu hình cảnh báo) hay không, và có bị loại khỏi phạm vi tính toán Time to Market hay không (Epic ngoại lệ, dự án có Time to Market = N).' },
+  { id: 'DATA_QUALITY', label: 'Chất lượng dữ liệu', description: 'Dữ liệu Jira thiếu hoặc mâu thuẫn. Badge Cảnh báo của axis này = "Sai lệch dữ liệu" (R1, R3–R6, R8, R9, R10) — được xét trước: Epic Sai lệch dữ liệu không được chấm Đạt / Fail / Cảnh báo muộn trên TTM-CNTT (QLDA/QA) và TTM-E2E, nằm ngoài mẫu số các chỉ số. Miễn trừ: Cancelled miễn mọi rule; To Do / In PO / Backlog miễn mọi rule trừ R8. R4G Date không được khai báo trước: mọi Epic có R4G Date ở tương lai là Sai lệch dữ liệu (R8 hoặc R10).' },
+  { id: 'SCOPE', label: 'Phạm vi', description: 'Epic có nằm trong "Phạm vi dữ liệu cho TTM" (Cấu hình cảnh báo) hay không, và có phải Epic ngoại lệ hay không — Epic trong danh sách Black listed hoặc Epic thuộc dự án có Time to Market = N. Epic ngoại lệ không được Scoring Service xét (không có badge nào ở các axis khác) và nằm ngoài mọi phép tính Time to Market.' },
 ];
 
 export const BADGES = [
@@ -85,7 +85,7 @@ export const BADGES = [
   },
   {
     id: 'CNTT_PASS', axis: 'TTM_CNTT', group: 'PASS', label: 'Đạt TTM-CNTT (QLDA)', precedence: 60, defaultEnabled: true,
-    meaning: 'Đã tới R4G Date trong ngân sách. Status chưa lên R4GOLIVE vẫn tính Đạt (kèm badge "Sai Status"). R4G Date ở tương lai chưa được tính.',
+    meaning: 'Đã tới R4G Date trong ngân sách. Status chưa lên R4GOLIVE vẫn tính Đạt (kèm badge "Sai Status"). R4G Date ở tương lai không được tính — từ 09/10/2026 đó là Sai lệch dữ liệu (R8 / R10).',
     formula: 'Không Sai lệch dữ liệu  VÀ  R4G ≤ asOf  VÀ  R4G ≤ Target_CNTT',
     legacySource: 'isTtmCnttAchieved (3 page)',
   },
@@ -111,7 +111,7 @@ export const BADGES = [
   },
   {
     id: 'E2E_PASS', axis: 'TTM_E2E', group: 'PASS', label: 'Đạt TTM-E2E', precedence: 60, defaultEnabled: true,
-    meaning: 'T0 → ngày kết thúc (R4G Date) trong ngân sách TTM-E2E và ngày đó đã tới. Status chưa lên R4GOLIVE vẫn tính Đạt (kèm badge "Sai Status"). Ngày ở tương lai chưa được tính.',
+    meaning: 'T0 → ngày kết thúc (R4G Date) trong ngân sách TTM-E2E và ngày đó đã tới. Status chưa lên R4GOLIVE vẫn tính Đạt (kèm badge "Sai Status"). Ngày ở tương lai không được tính — R4G Date tương lai là Sai lệch dữ liệu (R8 / R10) từ 09/10/2026.',
     formula: 'Không Sai lệch dữ liệu  VÀ  ngày kết thúc ≤ asOf  VÀ  ngày kết thúc ≤ Target_E2E',
     legacySource: 'isTtmE2eAchieved (3 page)',
   },
@@ -204,6 +204,11 @@ export const BADGES = [
     formula: 'status ∈ {R4GOLIVE, MVP DONE, PILOT, DONE, RELEASED}  VÀ  R4G Date trống',
   },
   {
+    id: 'ANOMALY_R10_R4G_DATE_IN_FUTURE', axis: 'DATA_QUALITY', group: 'ALERT', label: 'R4G Date ở tương lai', precedence: 64, defaultEnabled: true,
+    meaning: 'R10 — R4G Date còn ở tương lai (chưa tới ngày) trong khi status Epic đã từ R4GOLIVE trở lên (R4GOLIVE / MVP Done / Pilot / Done / Released) hoặc Reopened. Quy định của công ty: R4G Date là ngày Epic thực tế đạt R4GOLIVE, không được khai báo trước — ngày dự kiến ghi ở trường thông tin khác. Mới từ 09/10/2026: trước đó các Epic này ở nhóm "chưa kết luận" (L05ac) cho tới ngày R4G; nay là Sai lệch dữ liệu nên không được chấm Đạt / Fail và nằm ngoài mẫu số cho tới khi sửa. Cùng với R8 (status chưa tới R4GOLIVE), mọi Epic có R4G Date tương lai đều là Sai lệch dữ liệu, chỉ trừ Cancelled.',
+    formula: 'R4G Date > asOf  VÀ  (status ≥ R4GOLIVE  HOẶC  status = Reopened)  VÀ  status ≠ Cancelled',
+  },
+  {
     id: 'ANOMALY_R2_PENDING_TOO_LONG', axis: 'DATA_QUALITY', group: 'RECOMMENDATION', label: 'Pending lâu', precedence: 65, defaultEnabled: true,
     meaning: 'R2 — Epic Pending quá tỉ lệ cho phép của chu trình TTM-CNTT (QLDA); nên quyết định tiếp tục hay huỷ. Không còn tính là "Sai lệch dữ liệu".',
     formula: 'status = Pending  VÀ  WD(T1, hoặc ngày tạo Jira nếu thiếu T1; asOf) ≥ 20% × N_CNTT',
@@ -236,7 +241,7 @@ export const BADGES = [
   },
   {
     id: 'REC_FIX_R4G_STATUS', axis: 'DATA_QUALITY', group: 'RECOMMENDATION', label: 'Cập nhật status / R4G Date', precedence: 75, defaultEnabled: true,
-    meaning: 'Chuyển status Epic sang R4GOLIVE, hoặc kiểm tra lại R4G Date nếu ghi nhầm.',
+    meaning: 'Chuyển status Epic sang R4GOLIVE (khi Epic đã thực sự đạt R4GOLIVE), hoặc kiểm tra lại R4G Date nếu ghi nhầm. R4G Date không được khai báo trước: nếu đó là ngày dự kiến thì Epic owner xoá khỏi trường R4G Date và ghi ở một trường thông tin phụ khác.',
     formula: 'Có "Có R4G Date nhưng chưa R4GOLIVE"',
   },
   {
@@ -244,17 +249,22 @@ export const BADGES = [
     meaning: 'Bổ sung R4G Date trên Jira.',
     formula: 'Có "Thiếu R4G Date"',
   },
+  {
+    id: 'REC_CLEAR_FUTURE_R4G_DATE', axis: 'DATA_QUALITY', group: 'RECOMMENDATION', label: 'Bỏ R4G Date khai báo trước', precedence: 77, defaultEnabled: true,
+    meaning: 'Xoá R4G Date khai báo trước trên Jira và ghi ngày dự kiến ở một trường thông tin phụ khác; chỉ ghi R4G Date khi Epic thực tế đạt R4GOLIVE.',
+    formula: 'Có "R4G Date ở tương lai"',
+  },
 
   // ---------- SCOPE ----------
   {
-    id: 'SCOPE_TTM_BLACK_LISTED', axis: 'SCOPE', group: 'NOTE', label: 'Epic ngoại lệ', precedence: 5, defaultEnabled: true, core: true,
-    meaning: 'Epic được khai báo trong "Epic ngoại lệ" (TTM Black listed = true) — bị loại khỏi phạm vi tính toán Time to Market: không vào phễu TTM Dashboard 2 từ L02, không tính vào TTM-CNTT (QLDA/QA) và TTM-E2E. Các badge đánh giá của riêng Epic vẫn hiển thị.',
+    id: 'SCOPE_TTM_BLACK_LISTED', axis: 'SCOPE', group: 'NOTE', label: 'Epic ngoại lệ (Black listed)', precedence: 5, defaultEnabled: true, core: true,
+    meaning: 'Epic ngoại lệ, loại 1: Epic được khai báo trong danh sách Black listed (menu "Epic ngoại lệ", TTM Black listed = true). Từ 09/10/2026 Scoring Service KHÔNG XÉT Epic ngoại lệ: không chạy rule Chất lượng dữ liệu, TTM-CNTT, TTM-E2E, Release, Pha — Epic không có Sai lệch dữ liệu / Đạt / Fail / Cảnh báo / Khuyến nghị nào, chỉ mang badge này (và badge "Ngoài phạm vi" nếu có). Epic không vào phễu TTM Dashboard 2 từ L02, không tính vào TTM-CNTT (QLDA/QA), TTM-E2E và mọi widget của TTM Dashboard 2.',
     formula: 'Epic key có trong bảng Black listed epics với ttm_black_listed = true',
   },
   {
-    id: 'SCOPE_PROJECT_NON_TTM', axis: 'SCOPE', group: 'NOTE', label: 'Dự án không tính TTM', precedence: 6, defaultEnabled: true, core: true,
-    meaning: 'Epic thuộc dự án có trường "Time to Market" = N (Quản lý Dự án) — bị loại khỏi phạm vi tính toán Time to Market giống Epic ngoại lệ.',
-    formula: 'Không phải Epic ngoại lệ  VÀ  dự án của Epic có Time to Market = N',
+    id: 'SCOPE_PROJECT_NON_TTM', axis: 'SCOPE', group: 'NOTE', label: 'Epic ngoại lệ (dự án TTM = N)', precedence: 6, defaultEnabled: true, core: true,
+    meaning: 'Epic ngoại lệ, loại 2: Epic thuộc dự án có trường "Time to Market" = N (Quản lý Dự án). Được xử lý giống hệt loại 1: Scoring Service không xét, không tính vào phễu từ L02, các chỉ số và widget.',
+    formula: 'Không thuộc danh sách Black listed  VÀ  dự án của Epic có Time to Market = N',
   },
   {
     id: 'SCOPE_CNTT_OUT', axis: 'SCOPE', group: 'NOTE', label: 'Ngoài phạm vi TTM-CNTT (QLDA)', precedence: 10, defaultEnabled: true,
@@ -323,13 +333,13 @@ export const SUPPRESSIONS: readonly { when: BadgeId; suppress: readonly BadgeId[
 
 /** TTM-CNTT (QLDA) / TTM-CNTT (QA) membership — not badges; aggregates only count these flags. */
 export const INDEX_MEMBERSHIP_RULES: { index: 'TTM-CNTT (QLDA)' | 'TTM-CNTT (QA)' | 'TTM-E2E'; flag: string; formula: string }[] = [
-  { index: 'TTM-CNTT (QLDA)', flag: 'Tính (counted) — L02', formula: 'không Cancelled  VÀ  không "Epic ngoại lệ"  VÀ  không "Dự án không tính TTM"  VÀ  không "Ngoài phạm vi TTM-CNTT (QLDA)"' },
-  { index: 'TTM-CNTT (QLDA)', flag: 'Epic hoàn thành — L04a (eligible)', formula: 'counted  VÀ  có R4G (kể cả ngày tương lai)  VÀ  không Sai lệch dữ liệu' },
-  { index: 'TTM-CNTT (QLDA)', flag: 'Đạt — L05aa (pass)', formula: 'eligible  VÀ  có badge "Đạt TTM-CNTT (QLDA)" (R4G chưa tới ngày: chưa kết luận — L05ac, không vào mẫu số)' },
+  { index: 'TTM-CNTT (QLDA)', flag: 'Tính (counted) — L02', formula: 'không Cancelled  VÀ  không Epic ngoại lệ (Black listed / dự án Time to Market = N)  VÀ  không "Ngoài phạm vi TTM-CNTT (QLDA)"' },
+  { index: 'TTM-CNTT (QLDA)', flag: 'Epic hoàn thành — L04a (eligible)', formula: 'counted  VÀ  có R4G  VÀ  không Sai lệch dữ liệu (R4G ở tương lai là Sai lệch dữ liệu R8 / R10 từ 09/10/2026, nên không còn thuộc L04a)' },
+  { index: 'TTM-CNTT (QLDA)', flag: 'Đạt — L05aa (pass)', formula: 'eligible  VÀ  có badge "Đạt TTM-CNTT (QLDA)" (không tính được Target: chưa kết luận — L05ac, không vào mẫu số)' },
   { index: 'TTM-CNTT (QLDA)', flag: 'Fail — L05ab + L05ba', formula: 'counted  VÀ  có "Fail TTM-CNTT (QLDA)": có R4G muộn hơn Target (L05ab) hoặc chưa có R4G mà đã quá Target (L05ba). Epic Sai lệch dữ liệu không được chấm Fail' },
   { index: 'TTM-CNTT (QLDA)', flag: 'Mẫu số', formula: 'Đạt + Fail = L05aa + L05ab + L05ba (từ 04/10/2026)' },
   { index: 'TTM-CNTT (QA)', flag: 'Tính / Đạt / Fail / Mẫu số', formula: 'Như TTM-CNTT (QLDA), chỉ lấy Epic status ∈ {MVP DONE, RELEASED} và thay "Ngoài phạm vi TTM-CNTT (QLDA)" bằng "Ngoài phạm vi QA"' },
-  { index: 'TTM-E2E', flag: 'Mẫu số / Đạt / Fail', formula: 'Đạt: có badge "Đạt TTM-E2E".  Fail: có "Fail TTM-E2E" (kể cả Epic chưa có ngày kết thúc mà đã quá Target).  Mẫu số: Đạt + Fail (từ 05/10/2026, cùng công thức TTM-CNTT) — không Cancelled, không "Epic ngoại lệ", không "Dự án không tính TTM", không Sai lệch dữ liệu; Epic chưa kết luận không tính. Không áp "Phạm vi dữ liệu cho TTM"' },
+  { index: 'TTM-E2E', flag: 'Mẫu số / Đạt / Fail', formula: 'Đạt: có badge "Đạt TTM-E2E".  Fail: có "Fail TTM-E2E" (kể cả Epic chưa có ngày kết thúc mà đã quá Target).  Mẫu số: Đạt + Fail (từ 05/10/2026, cùng công thức TTM-CNTT) — không Cancelled, không Epic ngoại lệ (Black listed / dự án Time to Market = N), không Sai lệch dữ liệu; Epic chưa kết luận không tính. Không áp "Phạm vi dữ liệu cho TTM"' },
 ];
 
 export const INDEX_PERCENT_FORMULA = 'TTM-CNTT (QLDA) / TTM-CNTT (QA), từ 04/10/2026:  Tỷ lệ % Pass = L05aa / (L05aa + L05ab + L05ba) × 100;  Tỷ lệ % Fail = (L05ab + L05ba) / (L05aa + L05ab + L05ba) × 100;  chưa có Epic nào được kết luận (mẫu số = 0): hiển thị "—" (từ 05/10/2026, không còn hiện 100%).   TTM-E2E, từ 05/10/2026 cùng công thức:  Đạt TTM-E2E / (Đạt TTM-E2E + Fail TTM-E2E) × 100.';

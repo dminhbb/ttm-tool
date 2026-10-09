@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { after } from 'next/server';
 import pool from '@/lib/db';
 import { applyTtmExclusions, loadTtmExclusionSources } from '@/lib/black-listed-epic-service';
 import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
@@ -255,14 +256,23 @@ export async function refreshDerivedCaches(batchId: number | null, source = 'man
   }
 }
 
-/** For after() callbacks (scope/domain saves): refreshDerivedCaches throws on failure, and a
- * rejection inside after() would otherwise vanish with nothing logged. Never throws. */
-export async function refreshDerivedCachesInBackground(batchId: number | null, source: string): Promise<void> {
-  try {
-    await refreshDerivedCaches(batchId, source);
-  } catch (error: unknown) {
-    console.error(`Background derived-cache refresh failed (${source}):`, error);
-  }
+/**
+ * For a save that changes what the derived caches hold (scope, Domain, project, PM/SM, black list,
+ * display engine): rebuilds them on the latest import batch in after() — past the response, so the
+ * save stays instant. The route needs `maxDuration = 300`, like a post-import refresh.
+ *
+ * Nothing is read before the response and nothing is thrown: the save it follows is already
+ * committed, so a failure here must not turn its response into an error (refreshDerivedCaches
+ * throws on failure, and a rejection inside after() would otherwise vanish with nothing logged).
+ */
+export function scheduleDerivedCacheRefresh(source: string): void {
+  after(async () => {
+    try {
+      await refreshDerivedCaches(await getLatestImportBatchId(), source);
+    } catch (error: unknown) {
+      console.error(`Background derived-cache refresh failed (${source}):`, error);
+    }
+  });
 }
 
 export async function getLatestImportBatchId(): Promise<number | null> {

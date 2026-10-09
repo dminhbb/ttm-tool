@@ -65,8 +65,9 @@ export function waitingGoliveBucket(row: ReleaseRow & Pick<EpicAlertRowPhased, '
 }
 
 /** Which kind of "Fail TTM-CNTT (QLDA)" a row is, or null when it isn't one: 'LATE_R4G' = R4G Date
- * recorded but past Target (counted in the TTM-CNTT denominator); 'MISSING_R4G' = no R4G Date yet
- * and already past Target (outside the denominator). Same for both display engines. */
+ * recorded but past Target (L05ab); 'MISSING_R4G' = no R4G Date yet and already past Target
+ * (L05ba). Both count in the TTM-CNTT denominator since 2026-10-04 (Đạt + Fail). Same for both
+ * display engines. */
 export function ttmFailKind(row: Pick<EpicAlertRowPhased, 'alertLevel' | 'r4gDate' | 'ttmCnttInScope'>): 'LATE_R4G' | 'MISSING_R4G' | null {
   if (!row.ttmCnttInScope || row.alertLevel !== 'FAIL') return null;
   return row.r4gDate ? 'LATE_R4G' : 'MISSING_R4G';
@@ -112,14 +113,14 @@ const ALL_ALERT_FILTER_OPTIONS: { label: string; value: AlertFilterValue; engine
   { label: 'Sai lệch dữ liệu', value: 'DATA_ANOMALY', engines: ['legacy', 'scoring'] },
   { label: 'Trong phạm vi dữ liệu cho TTM (L01 — Tổng epic)', value: 'IN_SCOPE_CNTT', engines: ['legacy', 'scoring'] },
   { label: 'L02 — Epic trong phạm vi tính TTM', value: 'TTM_COUNTED_IN_SCOPE', engines: ['legacy', 'scoring'] },
-  { label: 'Epic ngoại lệ (TTM Black listed — loại khỏi L02)', value: 'TTM_BLACK_LISTED', engines: ['legacy', 'scoring'] },
-  { label: 'Dự án không tính TTM (Time to Market = N — loại khỏi L02)', value: 'TTM_PROJECT_NON_TTM', engines: ['legacy', 'scoring'] },
+  { label: 'Epic ngoại lệ — TTM Black listed (loại khỏi L02)', value: 'TTM_BLACK_LISTED', engines: ['legacy', 'scoring'] },
+  { label: 'Epic ngoại lệ — dự án Time to Market = N (loại khỏi L02)', value: 'TTM_PROJECT_NON_TTM', engines: ['legacy', 'scoring'] },
   { label: 'Sai lệch dữ liệu (trong phạm vi TTM-CNTT)', value: 'DATA_ANOMALY_IN_SCOPE', engines: ['legacy', 'scoring'] },
   { label: 'Chưa có R4G Date (trong phạm vi TTM-CNTT)', value: 'MISSING_R4G_IN_SCOPE', engines: ['legacy', 'scoring'] },
   { label: 'L04a — Epic hoàn thành (có R4G Date)', value: 'TTM_ELIGIBLE_IN_SCOPE', engines: ['legacy', 'scoring'] },
   { label: 'L05aa — Epic đạt TTM-CNTT', value: 'TTM_PASS_IN_SCOPE', engines: ['legacy', 'scoring'] },
   { label: 'L05ab — Epic không đạt TTM-CNTT (nhóm 1: trễ R4G)', value: 'TTM_LATE_IN_SCOPE', engines: ['legacy', 'scoring'] },
-  { label: 'L05ac — Epic chưa kết luận (R4G tương lai / thiếu Target)', value: 'TTM_NOT_SCORED_IN_SCOPE', engines: ['legacy', 'scoring'] },
+  { label: 'L05ac — Epic chưa kết luận (không tính được Target)', value: 'TTM_NOT_SCORED_IN_SCOPE', engines: ['legacy', 'scoring'] },
   { label: 'L05ba — Epic không đạt TTM-CNTT (nhóm 2: chưa có R4G, quá Target)', value: 'OVERDUE_MISSING_R4G_IN_SCOPE', engines: ['legacy', 'scoring'] },
   { label: 'L05bb — Epic trong hạn (chưa có R4G)', value: 'WITHIN_TARGET_MISSING_R4G', engines: ['legacy', 'scoring'] },
   { label: 'Ngoài phạm vi TTM-CNTT (không sai lệch dữ liệu)', value: 'OUT_OF_SCOPE_NO_ANOMALY', engines: ['legacy', 'scoring'] },
@@ -154,7 +155,8 @@ export function matchesAlertFilter(row: VerdictRow, alertFilter: AlertFilterValu
     // "Fail TTM" split (Ma trận Phân bổ, 2026-10-02): a Fail with a recorded R4G Date past Target
     // (L05ab) vs. a Fail without R4G Date, already past Target (L05ba). Both are in the TTM-CNTT
     // denominator since 2026-10-04 (Đạt + Fail). Unlike the L05 funnel filters, these two don't drop
-    // "Epic ngoại lệ" / non-TTM-project Epics — they list every Epic carrying the Fail verdict.
+    // "Epic ngoại lệ" themselves — they list every Epic carrying the Fail verdict (under the scoring
+    // engine an "Epic ngoại lệ" carries none since 2026-10-09; the legacy engine still judges it).
     case 'FAIL_LATE_R4G': return ttmFailKind(row) === 'LATE_R4G';
     case 'FAIL_MISSING_R4G': return ttmFailKind(row) === 'MISSING_R4G';
     // L01 of the TTM Dashboard 2 funnel: every Epic inside "Phạm vi dữ liệu cho TTM".

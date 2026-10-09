@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { X } from '@phosphor-icons/react';
+import { MODAL_BACKDROP_CLASS, MODAL_FRAME_CLASS } from '@/components/ui/Modal';
 import { sanitizeAdPopupHtml } from '@/lib/sanitize-html';
 
 export interface AdPopupCardProps {
@@ -74,10 +75,10 @@ export function AdPopupCard({
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="presentation">
-      <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
+      <div className={MODAL_BACKDROP_CLASS} aria-hidden="true" />
 
       <div
-        className={`relative z-10 flex w-full flex-col overflow-hidden rounded-xl border border-fb-border bg-fb-surface text-fb-text-primary shadow-dialog${widthPercent ? '' : ' max-w-[420px]'}`}
+        className={`${MODAL_FRAME_CLASS} w-full overflow-hidden${widthPercent ? '' : ' max-w-[420px]'}`}
         style={cardStyle}
         role="dialog"
         aria-label={campaignName}

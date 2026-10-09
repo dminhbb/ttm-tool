@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef } from 'react';
 import type { ClipboardEvent, KeyboardEvent } from 'react';
 import { Eraser, LinkSimple, ListBullets, ListNumbers, TextAlignCenter, TextAlignLeft, TextAlignRight, TextB, TextItalic, TextUnderline } from '@phosphor-icons/react';
+import { promptDialog } from '@/components/ui/dialogs';
 
 export interface RichTextEditorProps {
   helperText?: string;
@@ -76,9 +77,21 @@ export function RichTextEditor({ helperText, id, label, onChange, placeholder, r
     emitChange();
   };
 
-  const insertLink = () => {
-    const url = window.prompt('Nhập URL liên kết:');
-    if (url) exec('createLink', url);
+  const insertLink = async () => {
+    // The popup's input takes the focus, which drops the editor's text selection — unlike the
+    // browser's own prompt() this replaced — so the selection is kept here and put back first.
+    const selection = window.getSelection();
+    const selectedRange = selection && selection.rangeCount > 0 && editorRef.current?.contains(selection.anchorNode) ? selection.getRangeAt(0).cloneRange() : null;
+    const url = await promptDialog({ title: 'Chèn liên kết', label: 'URL liên kết', placeholder: 'https://…', inputType: 'url', confirmLabel: 'Chèn' });
+    if (!url) return;
+    editorRef.current?.focus();
+    if (selectedRange) {
+      const restored = window.getSelection();
+      restored?.removeAllRanges();
+      restored?.addRange(selectedRange);
+    }
+    document.execCommand('createLink', false, url);
+    emitChange();
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -123,7 +136,7 @@ export function RichTextEditor({ helperText, id, label, onChange, placeholder, r
             type="button"
             className="ui-richtext-btn"
             onMouseDown={(event) => event.preventDefault()}
-            onClick={insertLink}
+            onClick={() => void insertLink()}
             aria-label="Chèn liên kết"
             title="Chèn liên kết"
           >

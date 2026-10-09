@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowSquareOut, Browsers, CircleNotch, X } from '@phosphor-icons/react';
+import { MODAL_BACKDROP_CLASS, useModalBehavior } from '@/components/ui/Modal';
 
 export interface EpicAlertsIframeModalProps {
   isOpen: boolean;
@@ -17,27 +18,9 @@ export function EpicAlertsIframeModal({
   url,
 }: EpicAlertsIframeModalProps) {
   const [isLoading, setIsLoading] = useState(true);
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
 
-  // Escape key handler & scroll lock
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onCloseRef.current();
-      }
-    };
-
-    document.body.style.overflow = 'hidden';
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = '';
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen]);
+  // Escape key handler & scroll lock — shared with every other popup (ui/Modal.tsx).
+  useModalBehavior(isOpen && Boolean(url), onClose);
 
   // Reset loading whenever URL changes
   useEffect(() => {
@@ -58,12 +41,8 @@ export function EpicAlertsIframeModal({
       aria-modal="true"
       aria-label={title}
     >
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      {/* Backdrop — this popup is the reference for the app-wide popup style (ui/Modal.tsx). */}
+      <div className={MODAL_BACKDROP_CLASS} onClick={onClose} aria-hidden="true" />
 
       {/* Dialog Frame */}
       {/* 96% × 92% of the viewport with no pixel cap, so the embedded Quản trị Epic table (1694px wide)

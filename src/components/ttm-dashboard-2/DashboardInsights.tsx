@@ -80,9 +80,12 @@ function fmt(value: number): string {
   return value.toLocaleString('vi-VN');
 }
 
-/** Quản trị Epic filter for one value of a dimension (nothing for a "chưa gán" placeholder). */
-function dimensionScope(dimension: TtmBreakdownDimension, linkValue: string | null): Partial<InsightListParams> {
-  if (!linkValue) return {};
+/** Quản trị Epic filter for one value of a dimension. A "chưa gán" placeholder has no value of its
+ * own: "Chưa gán Domain" / "Chưa gán PM/SM" filter by the projects they hold (linkProjects); the
+ * others ("Chưa xác định" đơn vị yêu cầu, the merged "Khác.." slice) carry no dimension filter. */
+function dimensionScope(dimension: TtmBreakdownDimension, item: TtmBreakdownItem | undefined): Partial<InsightListParams> {
+  const linkValue = item?.linkValue;
+  if (!linkValue) return item?.linkProjects && item.linkProjects.length > 0 ? { projects: item.linkProjects } : {};
   switch (dimension) {
     case 'domain': return { domain: linkValue };
     case 'epicType': return { type: linkValue };
@@ -301,7 +304,7 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
               value={fmt(l2)}
               subtitle="Phạm vi tính"
               onClick={() => onOpen({ alert: 'TTM_COUNTED_IN_SCOPE', title: 'Danh sách Epic - Tổng số Epic (trong phạm vi tính TTM)' })}
-              tooltip="Epic trong phạm vi tính TTM (L02): đã loại Cancelled, Epic ngoại lệ và dự án Time to Market = N — xem danh sách ở Quản trị Epic"
+              tooltip="Epic trong phạm vi tính TTM (L02): đã loại Cancelled và Epic ngoại lệ (Black listed + dự án Time to Market = N) — xem danh sách ở Quản trị Epic"
             />
             <KpiCard
               tone="navy"
@@ -353,7 +356,7 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
               subtitle={warningSubtitle}
               icon={<KpiIconBadge icon={Bell} iconColor="text-[#d97706]" />}
               onClick={openWarnings}
-              tooltip={`Cảnh báo tiến độ: ${fmt(insights.lateWarning)} muộn · ${fmt(insights.earlyWarning)} sớm — xem ở Quản trị Epic`}
+              tooltip={`Cảnh báo tiến độ: ${fmt(insights.lateWarning)} muộn · ${fmt(insights.earlyWarning)} sớm (không tính Epic ngoại lệ) — xem ở Quản trị Epic`}
             />
             <KpiCard
               tone="slate"
@@ -362,7 +365,7 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
               subtitle="Cần điều chỉnh"
               icon={<KpiIconBadge icon={Warning} iconColor="text-[#dc2626]" />}
               onClick={() => onOpen({ dataIssue: true, title: 'Danh sách Epic - Sai lệch Dữ liệu' })}
-              tooltip="Xem danh sách Epic sai lệch dữ liệu ở Quản trị Epic"
+              tooltip="Epic sai lệch dữ liệu (không tính Epic Cancelled và Epic ngoại lệ) — xem danh sách ở Quản trị Epic"
             />
             <KpiCard
               tone="slate"
@@ -371,7 +374,7 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
               subtitle={waitingSubtitle}
               icon={<KpiIconBadge icon={CheckCircle} iconColor="text-[#059669]" />}
               onClick={() => onOpen({ alert: 'WAITING_GOLIVE', title: 'Danh sách Epic - Chờ golive' })}
-              tooltip={`Epic Chờ golive: ${fmt(waiting.missingR4g)} thiếu R4G · ${fmt(waiting.withinGrace)} trong hạn · ${fmt(waiting.overdue)} quá hạn`}
+              tooltip={`Epic Chờ golive (không tính Epic ngoại lệ): ${fmt(waiting.missingR4g)} thiếu R4G · ${fmt(waiting.withinGrace)} trong hạn · ${fmt(waiting.overdue)} quá hạn`}
             />
             <KpiCard
               tone="slate"
@@ -380,7 +383,7 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
               subtitle="Quá hạn R4G +5d"
               icon={<KpiIconBadge icon={Clock} iconColor="text-[#2563eb]" />}
               onClick={() => onOpen({ alert: 'JUSTIFY_GOLIVE', title: 'Danh sách Epic - Cần Giải trình Golive' })}
-              tooltip="Xem danh sách Epic cần Giải trình Golive ở Quản trị Epic (quá hạn R4G Date + 5 ngày làm việc)"
+              tooltip="Epic cần Giải trình Golive (quá hạn R4G Date + 5 ngày làm việc; không tính Epic ngoại lệ) — xem danh sách ở Quản trị Epic"
             />
           </div>
         </div>
@@ -426,7 +429,7 @@ export function BreakdownMatrixCard({ dimensions, funnel, onOpen }: { dimensions
       .sort((a, b) => compareValues(matrixSortValue(a, sortKey), matrixSortValue(b, sortKey), sortDirection)),
     [funnel, dimension, sortKey, sortDirection],
   );
-  const open = (item: TtmBreakdownItem, params: Omit<InsightListParams, 'title'>, label: string) => onOpen({ ...dimensionScope(dimension, item.linkValue), ...params, title: `${label} - ${item.name}` });
+  const open = (item: TtmBreakdownItem, params: Omit<InsightListParams, 'title'>, label: string) => onOpen({ ...dimensionScope(dimension, item), ...params, title: `${label} - ${item.name}` });
   const numberButton = 'cursor-pointer font-bold inline-block px-1.5 py-0.5 rounded-sm hover:underline transition-colors';
 
   return (
@@ -459,7 +462,7 @@ export function BreakdownMatrixCard({ dimensions, funnel, onOpen }: { dimensions
             <THead>
               <TR>
                 <TH sortDirection={directionFor('name')} onClick={() => toggleSort('name')}>{DIMENSION_LABELS[dimension]}</TH>
-                <TH className="text-center" sortDirection={directionFor('total')} onClick={() => toggleSort('total')} title="Epic trong phạm vi tính TTM (L02): đã loại Cancelled, Epic ngoại lệ và dự án Time to Market = N">Tổng số Epic</TH>
+                <TH className="text-center" sortDirection={directionFor('total')} onClick={() => toggleSort('total')} title="Epic trong phạm vi tính TTM (L02): đã loại Cancelled và Epic ngoại lệ (Black listed + dự án Time to Market = N)">Tổng số Epic</TH>
                 <TH className="text-center" sortDirection={directionFor('pass')} onClick={() => toggleSort('pass')} title="Epic đạt TTM-CNTT (L05aa)">Pass TTM</TH>
                 <TH className="w-56" sortDirection={directionFor('qldaPct')} onClick={() => toggleSort('qldaPct')} title="Tỷ lệ % Pass TTM-CNTT = Pass TTM / Epic đánh giá">TTM-CNTT (QLDA)</TH>
                 <TH className="text-center" sortDirection={directionFor('judged')} onClick={() => toggleSort('judged')} title="Epic đã có kết luận = L05aa + L05ab + L05ba (Pass TTM + Fail TTM)">Epic đánh giá</TH>
@@ -598,7 +601,7 @@ export function BreakdownDonutSections({ dimensions, funnel, onOpen }: { dimensi
         const items = funnel.insights.breakdowns[dimension];
         const isOpen = Boolean(openSections[dimension]);
         // A slice is named after its item; "Khác.." (the merged tail) carries no dimension filter.
-        const scopeOf = (name: string) => dimensionScope(dimension, items.find((item) => item.name === name)?.linkValue ?? null);
+        const scopeOf = (name: string) => dimensionScope(dimension, items.find((item) => item.name === name));
         const open = (name: string, alert: InsightListParams['alert'], label: string) => onOpen({ ...scopeOf(name), alert, title: `${label} - ${DIMENSION_NOUN[dimension]}: ${name}` });
         return (
           <div key={dimension} className="mb-4 border-t border-slate-300 pt-3">

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Eye, Plus, PencilSimple, Trash } from '@phosphor-icons/react';
+import { confirmDialog } from '@/components/ui/dialogs';
 import { Alert } from '@/components/ui/Alert';
 import { showToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
@@ -125,7 +126,7 @@ export function AdPopupsPanel() {
   };
 
   const handleDelete = async (popup: AdPopup) => {
-    if (!confirm(`Xóa campaign "${popup.campaignName}"?`)) return;
+    if (!(await confirmDialog({ title: 'Xóa campaign', description: `Xóa campaign "${popup.campaignName}"?`, confirmLabel: 'Xóa' }))) return;
     const res = await fetch(`/api/ad-popups?id=${popup.id}`, { method: 'DELETE' });
     if (res.ok) {
       showToast('Đã xóa Popup quảng cáo.', 5000);

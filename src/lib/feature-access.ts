@@ -46,17 +46,22 @@ const API_FEATURES: readonly { featureKey: string; prefix: string }[] = [
  * MCP tools → the matrix feature(s) whose screen shows the same data (2026-10-08). A tool is refused
  * when the caller's role has "Xem" unticked on EVERY feature listed for it — one screen still allowed
  * to show the data is enough. Like the pages, this only narrows: the tool's own role check
- * (mcp-server.ts) still applies first. Every tool registered in mcp-server.ts must be listed here.
+ * (MCP_TOOL_ROLES in mcp-server.ts) still applies first. mcp-server.ts can only register a tool
+ * listed here (its `registerTool` takes a McpToolName).
  */
 export const MCP_TOOL_FEATURES = {
   get_dashboard_summary: { featureKeys: ['dashboard'], screen: 'Dashboard (cũ)' },
-  // Duyệt Epic is opened from Quản trị Epic and from Epic in PO.
-  get_epic_detail: { featureKeys: ['epic_alerts_15', 'epic_in_po'], screen: 'Quản trị Epic / Epic in PO' },
+  // Duyệt Epic (EpicBrowserModal) is opened from all five of these screens.
+  get_epic_detail: {
+    featureKeys: ['epic_alerts_15', 'epic_in_po', 'epic_reports', 'dashboard_new', 'dashboard'],
+    screen: 'Quản trị Epic / Epic in PO / Báo cáo Epic / TTM Dashboard / Dashboard (cũ)',
+  },
   get_product_doc_section: { featureKeys: ['product_docs'], screen: 'Tài liệu sản phẩm' },
   get_ttm_dashboard: { featureKeys: ['ttm_dashboard_2'], screen: 'TTM Dashboard 2' },
   get_ttm_policies: { featureKeys: ['status_alert_rules'], screen: 'Cấu hình cảnh báo' },
   list_domains: { featureKeys: ['domains'], screen: 'Quản lý Domain' },
-  list_epic_alerts: { featureKeys: ['epic_alerts_15'], screen: 'Quản trị Epic' },
+  // Both screens read the same rows from /api/epic-alerts-15 (a shared API — see API_FEATURES).
+  list_epic_alerts: { featureKeys: ['epic_alerts_15', 'epic_in_po'], screen: 'Quản trị Epic / Epic in PO' },
   // Ngày nghỉ / ngày làm bù live in the "Cấu hình ứng dụng" modal (feature general_settings).
   list_holidays: { featureKeys: ['general_settings'], screen: 'Cấu hình ứng dụng (Quản lý ngày nghỉ)' },
   list_projects: { featureKeys: ['projects'], screen: 'Quản lý Dự án' },
@@ -65,10 +70,6 @@ export const MCP_TOOL_FEATURES = {
 } as const satisfies Record<string, { featureKeys: readonly string[]; screen: string }>;
 
 export type McpToolName = keyof typeof MCP_TOOL_FEATURES;
-
-export function isMcpToolName(name: string): name is McpToolName {
-  return Object.hasOwn(MCP_TOOL_FEATURES, name);
-}
 
 /** True when the role may view none of the screens behind `tool`. */
 export function mcpToolViewDenied(tool: McpToolName, deniedFeatureKeys: ReadonlySet<string>): boolean {
