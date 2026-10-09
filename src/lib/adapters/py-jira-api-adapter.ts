@@ -32,7 +32,7 @@
  *           + epic_key  (the grandparent epic)
  */
 
-import { parseCSV, RawJiraIssue } from '../csv-parser';
+import { parseCSV, type RawJiraIssue } from '../csv-parser';
 
 export interface PyJiraApiParseResult {
   issues: RawJiraIssue[];
@@ -102,6 +102,16 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
     epic_components: idx('epic_components'),
     epic_stories: idx('epic_stories'),
     epic_requesting_unit: idx('epic_requesting_unit'),
+    epic_previous_status: idx('epic_previous_status'),
+    epic_khau_ba: idx('epic_khau_ba'),
+    epic_khau_co: idx('epic_khau_co'),
+    epic_khau_dev: idx('epic_khau_dev'),
+    epic_khau_pm_sm: idx('epic_khau_pm_sm'),
+    epic_khau_po: idx('epic_khau_po'),
+    epic_khau_pentest: idx('epic_khau_pentest'),
+    epic_khau_sa: idx('epic_khau_sa'),
+    epic_khau_sit_uat: idx('epic_khau_sit_uat'),
+    epic_note_ly_do_khac: idx('epic_note_ly_do_khac'),
     // epic_request_level is the current column name; epic_requirement_level is kept as a fallback
     // for files exported before the rename, so older files keep importing this field correctly.
     epic_requirement_level: idx('epic_request_level') >= 0 ? idx('epic_request_level') : idx('epic_requirement_level'),
@@ -174,6 +184,16 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
         jiraCreatedAt: get(COL.epic_created),
         jiraUpdatedAt: get(COL.epic_updated),
         epicStories: splitKeyList(get(COL.epic_stories)),
+        previousStatus: get(COL.epic_previous_status) || undefined,
+        khauBa: get(COL.epic_khau_ba) || undefined,
+        khauCo: get(COL.epic_khau_co) || undefined,
+        khauDev: get(COL.epic_khau_dev) || undefined,
+        khauPmSm: get(COL.epic_khau_pm_sm) || undefined,
+        khauPo: get(COL.epic_khau_po) || undefined,
+        khauPentest: get(COL.epic_khau_pentest) || undefined,
+        khauSa: get(COL.epic_khau_sa) || undefined,
+        khauSitUat: get(COL.epic_khau_sit_uat) || undefined,
+        noteLyDoKhac: get(COL.epic_note_ly_do_khac) || undefined,
       };
     } else if (level === 'story') {
       const key = get(COL.story_key);

@@ -208,6 +208,16 @@ requirement_level
 components                 -- TEXT[], Epic/Story's Jira Component/s — dùng cho lọc theo Component
 epic_stories                -- TEXT[], danh sách Story key con trực tiếp của Epic (Py Jira API adapter)
 story_subtasks              -- TEXT[], danh sách Subtask key con trực tiếp của Story (Py Jira API adapter)
+previous_status            -- VARCHAR(50), ghi nhận status trước của status hiện tại (Py Jira API: epic_previous_status)
+khau_ba                    -- TEXT, vai trò khâu BA gây ra vấn đề Fail TTM-CNTT (epic_khau_ba)
+khau_co                    -- TEXT, vai trò khâu CO (epic_khau_co)
+khau_dev                   -- TEXT, vai trò khâu DEV (epic_khau_dev)
+khau_pm_sm                 -- TEXT, vai trò khâu PM/SM (epic_khau_pm_sm)
+khau_po                    -- TEXT, vai trò khâu PO (epic_khau_po)
+khau_pentest               -- TEXT, vai trò khâu Pentest (epic_khau_pentest)
+khau_sa                    -- TEXT, vai trò khâu SA (epic_khau_sa)
+khau_sit_uat               -- TEXT, vai trò khâu SIT/UAT (epic_khau_sit_uat)
+note_ly_do_khac            -- TEXT, ghi chú lý do khác gây ra vấn đề Fail TTM-CNTT (epic_note_ly_do_khac)
 source_import_batch_id     -- FK import_batches(id) ON DELETE CASCADE
 aggregated_at               -- lớp dữ liệu (thời điểm chốt dữ liệu)
 created_at

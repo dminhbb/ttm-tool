@@ -8,6 +8,11 @@
 
 ## 2026-10-09
 
+- **Bổ sung 10 trường mới vào CSV import adapter và bảng `issues`** (migration `20261009_add_epic_previous_status_and_khau_fields.sql`):
+  - **Trường status trước đó**: `epic_previous_status` (CSV) -> `previous_status` (DB `VARCHAR(50)`), lưu trữ status trước đó của Epic (chủ yếu rỗng, chỉ xuất hiện ở một số trường hợp đặc biệt).
+  - **9 trường thông tin vai trò nguyên nhân Fail TTM-CNTT & Ghi chú**: `epic_khau_ba`, `epic_khau_co`, `epic_khau_dev`, `epic_khau_pm_sm`, `epic_khau_po`, `epic_khau_pentest`, `epic_khau_sa`, `epic_khau_sit_uat`, `epic_note_ly_do_khac` (CSV) -> `khau_ba`, `khau_co`, `khau_dev`, `khau_pm_sm`, `khau_po`, `khau_pentest`, `khau_sa`, `khau_sit_uat`, `note_ly_do_khac` (DB `TEXT`).
+  - **Cập nhật Import Engine & Adapters**: Cập nhật `RawJiraIssue` interface (`csv-parser.ts`), `mapCSVToRawIssues`, adapter Py Jira API (`py-jira-api-adapter.ts`) và quy trình upsert `processImport` (`import-service.ts`).
+  - **Cập nhật Mô tả Schema & Tài liệu**: Cập nhật `db/schema.sql`, spec `brd/08-data-model.md` §7, tài liệu `public/docs/product-guide.html` §3.3. Đã chạy migration thành công trên Supabase và viết bổ sung unit test `py-jira-api-adapter.test.ts` (104 tests pass 100%).
 - **Review commit `b788207` ("Fix bug rules") và sửa các điểm phát hiện** (không đổi schema, không đổi code rule chấm điểm — giữ `scoring-11`):
   - **R8 — ghi rõ quy định "R4G Date không được khai báo trước"** (chủ sở hữu xác nhận là quy định công ty): Epic ghi trước R4G Date khi status chưa
     tới R4GOLIVE luôn là Sai lệch dữ liệu; Epic owner xoá trường R4G Date và ghi ngày dự kiến ở trường phụ khác. Hệ quả có chủ đích: Sai lệch dữ liệu

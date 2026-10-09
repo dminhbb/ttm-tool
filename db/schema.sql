@@ -79,6 +79,18 @@ CREATE TABLE issues (
     -- KPI / Alert rules
     epic_complexity_type VARCHAR(50), -- SIMPLE, COMPLEX
     
+    -- Status & TTM Fail cause fields (from CSV import / Py Jira API)
+    previous_status VARCHAR(50),
+    khau_ba TEXT,
+    khau_co TEXT,
+    khau_dev TEXT,
+    khau_pm_sm TEXT,
+    khau_po TEXT,
+    khau_pentest TEXT,
+    khau_sa TEXT,
+    khau_sit_uat TEXT,
+    note_ly_do_khac TEXT,
+    
     -- Metadata
     source_import_batch_id INT REFERENCES import_batches(id) ON DELETE CASCADE,
     aggregated_at TIMESTAMP WITH TIME ZONE NOT NULL, -- Data layer marker

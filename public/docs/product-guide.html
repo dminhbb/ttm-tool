@@ -515,6 +515,8 @@
               <tr><td><code>requirement_level</code></td><td><code>VARCHAR(50)</code></td><td>Mức yêu cầu từ Jira (1, 2, 3, 4)</td></tr>
               <tr><td><code>components</code></td><td><code>TEXT[]</code></td><td>Mảng danh sách Jira Component của Epic/Story</td></tr>
               <tr><td><code>epic_stories</code> / <code>story_subtasks</code></td><td><code>TEXT[]</code></td><td>Mảng lưu danh sách key con trực tiếp</td></tr>
+              <tr><td><code>previous_status</code></td><td><code>VARCHAR(50)</code></td><td>Trạng thái trước đó của Epic (<code>epic_previous_status</code> từ Py Jira API)</td></tr>
+              <tr><td><code>khau_ba</code> / <code>khau_co</code> / <code>khau_dev</code> / <code>khau_pm_sm</code> / <code>khau_po</code> / <code>khau_pentest</code> / <code>khau_sa</code> / <code>khau_sit_uat</code> / <code>note_ly_do_khac</code></td><td><code>TEXT</code></td><td>Thông tin vai trò nguyên nhân Fail TTM-CNTT theo từng khâu &amp; Ghi chú lý do khác</td></tr>
               <tr><td><code>source_import_batch_id</code></td><td><code>INT</code></td><td>FK <code>import_batches(id) ON DELETE CASCADE</code></td></tr>
               <tr><td><code>aggregated_at</code></td><td><code>TIMESTAMP WITH TIME ZONE NOT NULL</code></td><td>Thời điểm chốt lớp dữ liệu</td></tr>
             </tbody>

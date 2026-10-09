@@ -1,0 +1,11 @@
+ALTER TABLE issues
+  DROP COLUMN IF EXISTS previous_status,
+  DROP COLUMN IF EXISTS khau_ba,
+  DROP COLUMN IF EXISTS khau_co,
+  DROP COLUMN IF EXISTS khau_dev,
+  DROP COLUMN IF EXISTS khau_pm_sm,
+  DROP COLUMN IF EXISTS khau_po,
+  DROP COLUMN IF EXISTS khau_pentest,
+  DROP COLUMN IF EXISTS khau_sa,
+  DROP COLUMN IF EXISTS khau_sit_uat,
+  DROP COLUMN IF EXISTS note_ly_do_khac;
