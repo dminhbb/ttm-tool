@@ -8,6 +8,41 @@
 
 ## 2026-10-09
 
+- **PMS Project Core — 5 migration expand-only + DB local trên Docker (CHƯA áp dụng lên Supabase)**:
+  - **Lý do**: module Projects bắt đầu ngày mai, nhưng bảng `projects` hiện tại chưa làm master được cho PMS: cột `ttm` (thuộc TTM) nằm trong bảng
+    dùng chung; `source_project_key` kiêm cả định danh + khoá tích hợp Jira + khoá phân quyền + khoá cache; `project_category` chỉ là CHECK text nên
+    không biểu diễn được năng lực theo loại. Nếu xây Projects lên nền này sẽ phải sửa lại.
+  - **5 migration mới** (`20261009a`…`20261009e`), toàn bộ **chỉ THÊM**, không xoá cột nào đang dùng:
+    - `project_types` + `project_type_capabilities` — danh mục loại dự án, seed 3 loại map từ `project_category` qua cột `legacy_category`;
+      capability `DELIVERY_PROJECT` = CHECKLIST/MILESTONE/GANTT/IMPLEMENTATION_PLAN, `AGILE_TEAM` = PLANNING_PERIOD/BACKLOG/CAPACITY.
+      **`DEPLOYMENT_TEAM` (Team Triển khai) đang gán tạm CHECKLIST+MILESTONE — cần chủ sở hữu nghiệp vụ xác nhận.**
+    - `projects.project_code` + `projects.project_type_id` — mã nghiệp vụ PMS tách khỏi Jira key, backfill `project_code = source_project_key`.
+    - `project_external_bindings` — ánh xạ project PMS ↔ hệ thống ngoài (JIRA/OPMS...), có `valid_from`/`valid_to`, unique theo
+      `(system_code, UPPER(external_project_key))` để chặn đúng rủi ro "ABC" vs "abc" thành 2 master record.
+    - `ttm_project_configs` — đưa cấu hình TTM ra khỏi `projects`; backfill `is_enabled = (projects.ttm = 'Y')`.
+    - `project_members` — roster nhân sự nghiệp vụ (vai trò, allocation %, thời gian vào/ra), KHÁC `user_projects` vốn là grant phân quyền của IAM;
+      backfill PM/SM hiện có thành `role_in_project = 'PM_SM'`.
+  - **TTM không bị ảnh hưởng**: `projects.ttm`, `source_project_key`, `project_category` và `user_projects` giữ nguyên, mọi code TTM đọc như cũ.
+    Khi làm UI Projects phải **dual-write** (`ttm_project_configs` + `projects.ttm`) cho tới khi TTM chuyển hẳn sang bảng mới.
+  - **Trigger `trg_projects_fill_project_code`** (`projects_fill_project_code()`): phát hiện khi test với dữ liệu thật rằng đặt `project_code NOT NULL`
+    làm **vỡ việc tạo dự án mới** — `saveProject` (`master-data-service.ts`) và route bulk import không biết cột này. `DEFAULT` không dùng được vì
+    không tham chiếu được cột khác cùng dòng, nên dùng trigger điền từ `source_project_key`. Đây là cơ chế chuyển tiếp, bỏ ở bước contract.
+  - **Sửa 3 migration lịch sử để `db:init` chạy được trên DB trắng** (lỗi có sẵn, không do lần này): `db/schema.sql` đã bị hand-edit bỏ
+    `projects.lead_name` và `projects.project_key`, nên `20260811_sync_project_lead_assignments` + `20260812_reconcile_project_pm_sm_assignments` vỡ với
+    "column project.lead_name does not exist", và `20260827_drop_project_key_use_source_key` vỡ ở `DROP COLUMN project_key`. Hai migration đầu là
+    backfill dữ liệu một lần → bọc guard `information_schema` + `EXECUTE` (SQL động, vì SQL tĩnh vẫn bị phân giải tên cột kể cả trong nhánh IF không
+    chạy); migration thứ ba đổi sang `DROP COLUMN IF EXISTS` + chỉ thêm UNIQUE khi chưa có. Các DB cũ đã ghi 3 file này trong `schema_migrations` nên
+    không chạy lại.
+  - **DB local trên Docker**: tạo database `ttm_tool` trong container `nextjs_postgres` đang chạy (từ `database/docker-compose.yml`, PostgreSQL 16.15)
+    để không tranh cổng 5432. `.env.local` chuyển `DB_CONNECTION=local` với `devuser`/`ttm_tool`; đổi lại `supabase` để quay về DB hosted.
+  - **Kiểm chứng**: `db:init` trên DB trắng chạy hết 78 migration (exit 0, 57 bảng). Chạy **down → up 2 lần**, lần thứ hai có dữ liệu thật (4 dự án,
+    2 `user_projects`): backfill cho `UPDATE 4` project_code, `UPDATE 3` project_type_id (dự án không có `project_category` để NULL — đúng),
+    `INSERT 4` binding, `INSERT 4` ttm config, `INSERT 2` member. Ba phép đối chiếu nhất quán (`ttm` ↔ `is_enabled`, binding ↔ `source_project_key`,
+    `project_code` ↔ `source_project_key`) đều `true`. `npm test` 104/104, `tsc` pass, `next build` pass, app báo `dbTarget: local` / `dbStatus: pass`.
+    Lint vẫn đúng 29 problems / 2 errors `set-state-in-effect` có từ trước, không phát sinh lỗi mới.
+  - **CHƯA làm**: áp 5 migration này lên Supabase (chờ xác nhận — lưu ý `AGENTS.md` yêu cầu không để lệch schema giữa 2 DB lâu dài); code đọc/ghi các
+    bảng mới; UI module Projects; `project_id` cho các bảng TTM; tách schema `iam`/`project`/`ttm`.
+  - DB local hiện có 4 dự án dữ liệu mẫu (`WM`, `PAMS`, `NC`, `XX`) để màn Quản lý Dự án có nội dung khi test.
 - **HLAD kiến trúc PMS + wave 1 cô lập module (không đổi schema, không đổi API/response/behavior của TTM)**:
   - **`docs/architecture/PMS-HLAD.md`** (mới): HLAD cho việc đưa TTM thành một bounded context trong PMS Platform — module ownership
     (IAM / Projects / TTM / Integration / Audit), schema ownership dự kiến (`iam`, `project`, `ttm`, `integration`, `audit`), `ProjectId` nội bộ tách
