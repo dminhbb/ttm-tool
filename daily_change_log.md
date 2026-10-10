@@ -8,6 +8,36 @@
 
 ## 2026-10-10
 
+- **Cấu hình cảnh báo: Bổ sung panel 'Phạm vi rule Sai lệch dữ liệu', cập nhật Scoring Service và thu gọn các panel (`/admin/status-alert-rules`)**:
+  - **Màn hình Cấu hình cảnh báo (`StatusAlertRulesSettings.tsx`)**:
+    - Chuyển toàn bộ các panel cấu hình sang chế độ mặc định thu gọn (collapse). Cho phép click vào header/title của mỗi panel để đóng/mở linh hoạt kèm icon `CaretDown`.
+    - Thêm panel cấu hình **'Phạm vi rule Sai lệch dữ liệu'** (`AnomalyScopeConfigPanel.tsx`):
+      - Master toggle (`Enabled` / `Disabled`) trên cùng để Bật/Tắt toàn bộ form áp dụng phạm vi đánh giá.
+      - Ma trận cấu hình ma trận gồm 8 rule Sai lệch dữ liệu (`R1`, `R3`, `R4`, `R5`, `R6`, `R8`, `R9`, `R10`) theo chiều dọc; 4 cột điều kiện ngày: `'Ngày tạo Epic >'`, `'Ngày Start Date >'`, `'Ngày R4G Date >'`, `'Ngày Due Date >'`. Mỗi ô gồm date input kèm nút reset icon `ArrowCounterClockwise` để xoá rỗng cấu hình.
+      - Cuối mỗi hàng là 'Rule toggle' (`Enabled` / `Disabled`) để bật/tắt áp dụng phạm vi cho riêng rule đó.
+  - **Scoring Service (`parameters.ts`, `registry.ts`, `data-quality.ts`, `scoring.test.ts`)**:
+    - Bổ sung cấu hình `anomaly.scopeConfig` trong `ScoringParameters`, nâng `SCORING_CODE_VERSION` lên `scoring-15`.
+    - Khi Master toggle = `Enabled`: từng rule có Rule toggle = `Enabled` chỉ đánh giá các Epic thỏa mãn đồng thời các điều kiện ngày được cấu hình: `(jiraCreatedAt > Ngày tạo) AND (startDate > Start Date) AND (r4gDate > R4G Date) AND (dueDate > Due Date)`. Bỏ qua điều kiện nếu trường cấu hình rỗng hoặc `"none"`. Epic không thỏa mãn điều kiện phạm vi sẽ không bị coi là vi phạm rule đó.
+    - Lớp dữ liệu L03 tự động giữ lại các Epic không bị gán Sai lệch dữ liệu trong phạm vi này (`L03 = L02 − Sai lệch dữ liệu`). Khi Master toggle = `Disabled`, áp dụng toàn bộ như hiện nay.
+  - **Backend API & Service (`anomaly-scope-config-service.ts`, `api/anomaly-scope-config/route.ts`)**:
+    - Quản lý đọc/ghi cấu hình qua `scoring_parameters` (param_key `'anomaly.scopeConfig'`), tự động đồng bộ hóa phiên bản và trigger tính lại cache khi lưu.
+
+- **Bổ sung khuyến nghị 'Thiếu lý do Fail TTM' & Cải tiến TTM Dashboard 2, Quản trị Epic và Duyệt Epic**:
+  - **Scoring Service (`src/lib/scoring/rules/recommendations.ts`, `catalog.ts`, `registry.ts`, `types.ts`, `src/lib/scoring-facts-service.ts`)**:
+    - Bổ sung khuyến nghị `REC_MISSING_FAIL_REASON` (`Thiếu lý do Fail TTM`) thuộc trục `TTM_CNTT`.
+    - Điều kiện áp dụng: Epic bị ghi nhận `CNTT_FAIL` (Đánh giá fail TTM-CNTT) và toàn bộ 9 trường lý do fail TTM (`epic_khau_ba`, `epic_khau_co`, `epic_khau_dev`, `epic_khau_pm_sm`, `epic_khau_po`, `epic_khau_pentest`, `epic_khau_sa`, `epic_khau_sit_uat`, `epic_note_ly_do_khac`) đều rỗng, chỉ gồm khoảng trắng hoặc có giá trị `"none"`.
+    - Tăng `SCORING_CODE_VERSION` lên `scoring-14`.
+  - **Quản trị Epic (`/epic-alerts-15`) & Bộ lọc (`ScoringBadges.tsx`, `epic-row-verdicts.ts`, `scoring/select.ts`)**:
+    - Hiển thị badge `'Thiếu lý do Fail TTM'` màu cam (recommendation) cho Epic thỏa mãn điều kiện.
+    - Hỗ trợ bộ lọc preset `MISSING_FAIL_REASON` và deep link `alert=MISSING_FAIL_REASON`.
+  - **TTM Dashboard 2 (`DashboardInsights.tsx`, `ttm-funnel-summary.ts`, `ttm-dashboard-2-cache-service.ts`)**:
+    - Thay thế subtitle của widget KPI `'Fail TTM-CNTT'`: hiển thị `{số lượng} thiếu lý do Fail` với `{số lượng}` in đậm màu đỏ (`text-[#dc2626] font-bold`).
+    - Gắn link mở popup Quản trị Epic lọc danh sách tương ứng (`alert: 'MISSING_FAIL_REASON'`).
+    - Nâng cấp `PAYLOAD_VERSION` của cache TTM Dashboard 2 lên 10.
+  - **Popup Duyệt Epic (`EpicBrowserModal.tsx`, `epic-browser-service.ts`)**:
+    - Cho phép click vào `Epic Key` (ở breadcrumb và header) để mở trực tiếp issue Jira trong tab mới của trình duyệt web (`target="_blank"` kèm icon `ArrowSquareOut`).
+    - Tại tab "Giải trình Fail TTM", bổ sung badge `'Thiếu lý do Fail TTM'` bên cạnh badge `'Fail TTM-CNTT'` nếu Epic bị Scoring Service gán badge này.
+
 - **Cải tiến Popup Duyệt Epic (`EpicBrowserModal.tsx`) & Giám sát tiến trình Cache toàn hệ thống**:
   - **Thêm trường Created Date**: Bổ sung `Created Date` vào cụm cột 2 (cột phải) trong tab Details của `EpicBrowserModal.tsx`, đọc từ `jiraCreatedAt` / `createdAt` trong DB.
   - **Popup cảnh báo khi toggle 'Epic ngoại lệ'**: Tích hợp `ConfirmDialog` trước khi thực hiện toggle:

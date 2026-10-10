@@ -1,5 +1,23 @@
 import type { TtmPhaseKey } from './types';
 
+export interface AnomalyRuleScope {
+  enabled: boolean;
+  createdAfter: string | null;
+  startAfter: string | null;
+  r4gAfter: string | null;
+  dueAfter: string | null;
+}
+
+export interface AnomalyScopeConfig {
+  enabled: boolean;
+  rules: Record<string, AnomalyRuleScope>;
+}
+
+export const DEFAULT_ANOMALY_SCOPE_CONFIG: AnomalyScopeConfig = {
+  enabled: false,
+  rules: {},
+};
+
 /**
  * Tunable rule parameters. Defaults live here (= today's behavior); an admin override is stored per
  * key in scoring_parameters (value JSONB) and merged over these by resolveScoringParameters.
@@ -13,6 +31,8 @@ export interface ScoringParameters {
   'anomaly.exemptStatuses': string[];
   /** Requirement Levels that contradict an SP-type complexity. */
   'anomaly.spMismatchLevels': string[];
+  /** Phạm vi áp dụng các rule Sai lệch dữ liệu theo mốc ngày. */
+  'anomaly.scopeConfig': AnomalyScopeConfig;
   /** Share of the TTM-CNTT budget per phase, walked in order DESIGN → R4GOLIVE. */
   'phase.percentages': Record<TtmPhaseKey, number>;
   /** Statuses counted by QA-Index (upper-cased). */
@@ -24,6 +44,7 @@ export const DEFAULT_SCORING_PARAMETERS: ScoringParameters = {
   'anomaly.pendingStaleRatio': 0.2,
   'anomaly.exemptStatuses': ['TO DO', 'IN PO', 'BACKLOG'],
   'anomaly.spMismatchLevels': ['1', '2'],
+  'anomaly.scopeConfig': DEFAULT_ANOMALY_SCOPE_CONFIG,
   'phase.percentages': { DESIGN: 0.2, DEV: 0.3, TEST: 0.3, PENTEST: 0.1, R4GOLIVE: 0.1 },
   'index.qaStatuses': ['MVP DONE', 'RELEASED'],
 };
@@ -35,6 +56,7 @@ export const SCORING_PARAMETER_LABELS: Record<ScoringParameterKey, string> = {
   'anomaly.pendingStaleRatio': 'Ngưỡng "Pending lâu" (tỉ lệ ngân sách TTM-CNTT (QLDA))',
   'anomaly.exemptStatuses': 'Status được miễn rule chất lượng dữ liệu (ngoài Cancelled)',
   'anomaly.spMismatchLevels': 'Requirement Level mâu thuẫn với loại SP',
+  'anomaly.scopeConfig': 'Phạm vi rule Sai lệch dữ liệu',
   'phase.percentages': 'Tỉ lệ ngân sách từng pha',
   'index.qaStatuses': 'Status tính vào TTM-CNTT (QA)',
 };
@@ -48,6 +70,11 @@ const VALIDATORS: { [K in ScoringParameterKey]: (value: unknown) => value is Sco
   'anomaly.pendingStaleRatio': (value): value is number => typeof value === 'number' && value > 0 && value <= 1,
   'anomaly.exemptStatuses': isStringArray,
   'anomaly.spMismatchLevels': isStringArray,
+  'anomaly.scopeConfig': (value): value is AnomalyScopeConfig => {
+    if (typeof value !== 'object' || value === null) return false;
+    const record = value as Record<string, unknown>;
+    return typeof record.enabled === 'boolean' && typeof record.rules === 'object' && record.rules !== null;
+  },
   'phase.percentages': (value): value is Record<TtmPhaseKey, number> => {
     if (typeof value !== 'object' || value === null) return false;
     const record = value as Record<string, unknown>;

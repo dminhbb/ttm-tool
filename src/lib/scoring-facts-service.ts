@@ -20,6 +20,15 @@ interface EpicFactRow {
   requestType: string;
   requirementLevel: string | null;
   projectKey: string;
+  khauBa: string | null;
+  khauCo: string | null;
+  khauDev: string | null;
+  khauPmSm: string | null;
+  khauPo: string | null;
+  khauPentest: string | null;
+  khauSa: string | null;
+  khauSitUat: string | null;
+  noteLyDoKhac: string | null;
 }
 
 /**
@@ -52,7 +61,16 @@ export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]
           NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
           NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),
           ''
-        ) AS "projectKey"
+        ) AS "projectKey",
+        issues.khau_ba AS "khauBa",
+        issues.khau_co AS "khauCo",
+        issues.khau_dev AS "khauDev",
+        issues.khau_pm_sm AS "khauPmSm",
+        issues.khau_po AS "khauPo",
+        issues.khau_pentest AS "khauPentest",
+        issues.khau_sa AS "khauSa",
+        issues.khau_sit_uat AS "khauSitUat",
+        issues.note_ly_do_khac AS "noteLyDoKhac"
       FROM issues
       LEFT JOIN import_rows
         ON import_rows.import_batch_id = issues.source_import_batch_id
@@ -84,6 +102,15 @@ export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]
         ? { designDone: completion.designDone, devDone: completion.devDone, testDone: completion.testDone, r4goliveDone: completion.r4goliveDone }
         : null,
       ttmExclusion: resolveTtmExclusion(exclusionSources, row.epicKey, row.projectKey),
+      khauBa: row.khauBa,
+      khauCo: row.khauCo,
+      khauDev: row.khauDev,
+      khauPmSm: row.khauPmSm,
+      khauPo: row.khauPo,
+      khauPentest: row.khauPentest,
+      khauSa: row.khauSa,
+      khauSitUat: row.khauSitUat,
+      noteLyDoKhac: row.noteLyDoKhac,
     };
   });
 }

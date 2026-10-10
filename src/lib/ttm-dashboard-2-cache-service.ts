@@ -58,8 +58,9 @@ interface CachedPayload {
  * 6 = L02 also drops "Epic ngoại lệ" and non-TTM-project Epics (buckets BLACK_LISTED / PROJECT_NON_TTM);
  * 7 = PM/SM breakdown: one row per PM/SM name (an Epic with several PM/SMs counts under each);
  * 8 = "Chưa gán Domain" / "Chưa gán PM/SM" rows carry their project keys (TtmBreakdownItem.linkProjects);
- * 9 = the operational widgets (Cảnh báo, Sai lệch, Chờ / Giải trình golive) leave out "Epic ngoại lệ" too. */
-const PAYLOAD_VERSION = 9;
+ * 9 = the operational widgets (Cảnh báo, Sai lệch, Chờ / Giải trình golive) leave out "Epic ngoại lệ" too;
+ * 10 = widget Fail TTM-CNTT shows subtitle with missingFailReason count & link. */
+const PAYLOAD_VERSION = 10;
 
 const ALL_SCOPE: AccessScope = { accessRole: 'CBQL_PHONG', projectComponents: new Map(), sourceProjectKeys: null };
 

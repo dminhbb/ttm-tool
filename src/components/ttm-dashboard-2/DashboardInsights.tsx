@@ -310,7 +310,14 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
               tone="navy"
               title="FAIL TTM-CNTT"
               value={fmt(qlda.fail)}
-              subtitle="Cần xử lý"
+              subtitle={
+                <KpiSubLink
+                  onClick={() => onOpen({ alert: 'MISSING_FAIL_REASON', title: 'Danh sách Epic - Thiếu lý do Fail TTM' })}
+                  title="Xem danh sách Epic thiếu lý do Fail TTM"
+                >
+                  <strong className="font-bold text-[#dc2626]">{fmt(insights.missingFailReason ?? 0)}</strong> thiếu lý do Fail
+                </KpiSubLink>
+              }
               icon={<KpiIconBadge icon={WarningCircle} iconColor="text-[#dc2626]" />}
               onClick={() => onOpen({ alert: FAIL_ALERTS, title: 'Danh sách Epic - Fail TTM-CNTT' })}
               tooltip="Epic không đạt TTM-CNTT: nhóm 1 (R4G Date muộn hơn Target) + nhóm 2 (chưa có R4G Date, đã quá Target)"

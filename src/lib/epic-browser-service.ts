@@ -245,6 +245,7 @@ export interface EpicBrowserSummary {
   status: string;
   ttmCnttVerdict?: 'PASS' | 'FAIL' | 'DATA_ANOMALY' | 'EXCLUDED' | 'PENDING' | 'N_A';
   ttmCnttVerdictLabel?: string;
+  hasMissingFailReason?: boolean;
 }
 
 interface EpicBrowserSummaryRow {
@@ -342,10 +343,12 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
 
   let ttmCnttVerdict: EpicBrowserSummary['ttmCnttVerdict'] = 'PENDING';
   let ttmCnttVerdictLabel = 'Đang thực hiện';
+  let hasMissingFailReason = false;
 
   if (facts.length > 0 && ctx) {
     const card = scoreEpic(facts[0], ctx);
     const activeBadges = new Set(card.findings.filter((f) => !f.suppressedBy).map((f) => f.badge));
+    hasMissingFailReason = activeBadges.has('REC_MISSING_FAIL_REASON');
     if (activeBadges.has('CNTT_PASS')) {
       ttmCnttVerdict = 'PASS';
       ttmCnttVerdictLabel = 'Pass TTM-CNTT';
@@ -399,5 +402,6 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
     ttmBlackListed,
     ttmCnttVerdict,
     ttmCnttVerdictLabel,
+    hasMissingFailReason,
   };
 }

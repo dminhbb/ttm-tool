@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { CaretDown, CheckCircle, Lightning, TreeStructure, Warning, WarningCircle } from '@phosphor-icons/react';
+import { ArrowSquareOut, CaretDown, CheckCircle, Lightning, TreeStructure, Warning, WarningCircle } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { Alert } from '@/components/ui/Alert';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -12,6 +12,7 @@ import { TableSkeleton } from '@/components/ui/Skeleton';
 import { TtmBlackListDot } from '@/components/ui/TtmBlackListDot';
 import { EpicIssuesTree } from '@/components/epic-browser/EpicIssuesTree';
 import { notifyCacheRefreshTriggered } from '@/components/layout/DailyCacheWarmer';
+import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import type { DataReviewIssue } from '@/lib/data-review-types';
 import type { EpicBrowserSummary } from '@/lib/epic-browser-service';
 
@@ -184,6 +185,9 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
   const [issuesOpen, setIssuesOpen] = React.useState(true);
   const [failExplainOpen, setFailExplainOpen] = React.useState(true);
 
+  const viewIssueBaseUrl = useJiraViewIssueUrl();
+  const jiraUrl = viewIssueBaseUrl && epicKey ? `${viewIssueBaseUrl}${epicKey}` : null;
+
   const closeButtonRef = React.useRef<HTMLButtonElement>(null);
   const titleId = React.useId();
 
@@ -241,7 +245,26 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
           closeButtonRef={closeButtonRef}
           icon={TreeStructure}
           onClose={onClose}
-          title={<span className="flex items-center gap-2">Duyệt Epic — {epicKey}{summary?.ttmBlackListed && <TtmBlackListDot />}</span>}
+          title={
+            <span className="flex items-center gap-2">
+              Duyệt Epic —{' '}
+              {jiraUrl ? (
+                <a
+                  href={jiraUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:underline text-blue-600 dark:text-blue-400 inline-flex items-center gap-1"
+                  title="Mở Epic trên Jira (tab mới)"
+                >
+                  {epicKey}
+                  <ArrowSquareOut size={16} weight="bold" />
+                </a>
+              ) : (
+                epicKey
+              )}
+              {summary?.ttmBlackListed && <TtmBlackListDot />}
+            </span>
+          }
           titleId={titleId}
         />
 
@@ -258,7 +281,20 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
                   <Lightning className="size-4 text-violet-600 fill-violet-600 shrink-0" weight="fill" />
                   <span className="hover:underline cursor-pointer">{projectKey}</span>
                   <span>/</span>
-                  <span className="text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer">{epicKey}</span>
+                  {jiraUrl ? (
+                    <a
+                      href={jiraUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer inline-flex items-center gap-1"
+                      title="Mở Epic trên Jira (tab mới)"
+                    >
+                      {epicKey}
+                      <ArrowSquareOut size={13} weight="bold" />
+                    </a>
+                  ) : (
+                    <span className="text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer">{epicKey}</span>
+                  )}
                   {summary?.ttmBlackListed && <TtmBlackListDot />}
                 </div>
 
@@ -440,24 +476,36 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
                     <span>Giải trình Fail TTM</span>
                   </button>
 
-                  {summary?.ttmCnttVerdictLabel && (
-                    <span
-                      className={cn(
-                        'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-xs',
-                        summary.ttmCnttVerdict === 'PASS' && 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-800',
-                        summary.ttmCnttVerdict === 'FAIL' && 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/80 dark:text-rose-300 dark:border-rose-800',
-                        summary.ttmCnttVerdict === 'DATA_ANOMALY' && 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-800',
-                        summary.ttmCnttVerdict === 'EXCLUDED' && 'bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-950/80 dark:text-purple-300 dark:border-purple-800',
-                        (summary.ttmCnttVerdict === 'PENDING' || summary.ttmCnttVerdict === 'N_A' || !summary.ttmCnttVerdict) &&
-                          'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
-                      )}
-                    >
-                      {summary.ttmCnttVerdict === 'PASS' && <CheckCircle className="size-3.5 text-emerald-600 dark:text-emerald-400" weight="bold" />}
-                      {summary.ttmCnttVerdict === 'FAIL' && <WarningCircle className="size-3.5 text-rose-600 dark:text-rose-400" weight="bold" />}
-                      {summary.ttmCnttVerdict === 'DATA_ANOMALY' && <Warning className="size-3.5 text-amber-600 dark:text-amber-400" weight="bold" />}
-                      <span>{summary.ttmCnttVerdictLabel}</span>
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {summary?.ttmCnttVerdictLabel && (
+                      <span
+                        className={cn(
+                          'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-xs',
+                          summary.ttmCnttVerdict === 'PASS' && 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-800',
+                          summary.ttmCnttVerdict === 'FAIL' && 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/80 dark:text-rose-300 dark:border-rose-800',
+                          summary.ttmCnttVerdict === 'DATA_ANOMALY' && 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-800',
+                          summary.ttmCnttVerdict === 'EXCLUDED' && 'bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-950/80 dark:text-purple-300 dark:border-purple-800',
+                          (summary.ttmCnttVerdict === 'PENDING' || summary.ttmCnttVerdict === 'N_A' || !summary.ttmCnttVerdict) &&
+                            'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                        )}
+                      >
+                        {summary.ttmCnttVerdict === 'PASS' && <CheckCircle className="size-3.5 text-emerald-600 dark:text-emerald-400" weight="bold" />}
+                        {summary.ttmCnttVerdict === 'FAIL' && <WarningCircle className="size-3.5 text-rose-600 dark:text-rose-400" weight="bold" />}
+                        {summary.ttmCnttVerdict === 'DATA_ANOMALY' && <Warning className="size-3.5 text-amber-600 dark:text-amber-400" weight="bold" />}
+                        <span>{summary.ttmCnttVerdictLabel}</span>
+                      </span>
+                    )}
+
+                    {summary?.hasMissingFailReason && (
+                      <span
+                        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-xs bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/80 dark:text-rose-300 dark:border-rose-800"
+                        title="Epic bị Scoring Service đánh giá Fail TTM-CNTT nhưng chưa có lý do/giải trình tại các khâu"
+                      >
+                        <Warning className="size-3.5 text-rose-600 dark:text-rose-400" weight="bold" />
+                        <span>Thiếu lý do Fail TTM</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {failExplainOpen && (

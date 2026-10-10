@@ -69,6 +69,8 @@ export interface TtmDashboard2Insights {
   earlyWarning: number;
   justifyGolive: number;
   lateWarning: number;
+  /** Epics judged Fail TTM-CNTT that lack all failure reasons (REC_MISSING_FAIL_REASON). */
+  missingFailReason: number;
   /** True when the rows were scored by the Epic Scoring Service (no "Cảnh báo sớm" then). */
   scoringEngine: boolean;
   /** "Chờ golive": Epics without an R4G Date, and the rest counted per releaseGraceDeadline ('' =
@@ -198,6 +200,7 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
   let earlyWarning = 0;
   let justifyGolive = 0;
   let lateWarning = 0;
+  let missingFailReason = 0;
   for (const row of active) {
     if (row.ttmCnttInScope && row.alertLevel === 'LATE') lateWarning += 1;
     else if (row.ttmCnttInScope && row.alertLevel === 'EARLY') earlyWarning += 1;
@@ -207,6 +210,9 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
       waitingGolive.total += 1;
       if (!row.r4gDate) waitingGolive.missingR4g += 1;
       else waitingGolive.byGraceDeadline[row.releaseGraceDeadline ?? ''] = (waitingGolive.byGraceDeadline[row.releaseGraceDeadline ?? ''] ?? 0) + 1;
+    }
+    if (row.ttmCnttInScope && row.scoringBadges?.includes('REC_MISSING_FAIL_REASON')) {
+      missingFailReason += 1;
     }
   }
 
@@ -256,6 +262,7 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
     earlyWarning,
     justifyGolive,
     lateWarning,
+    missingFailReason,
     qa: summarizeQaIndex(active),
     scoringEngine: rows.some((row) => Boolean(row.scoringBadges)),
     waitingGolive,

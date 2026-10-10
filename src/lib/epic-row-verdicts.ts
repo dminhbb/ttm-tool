@@ -86,7 +86,7 @@ export function findingOf(row: VerdictRow, badge: string): Finding | null {
 /** Active RECOMMENDATION findings that don't already have a badge of their own in the cell
  * ("Sai Status", "Pending lâu") — shown together as "Khuyến nghị (n)". */
 export function extraRecommendations(row: VerdictRow): Finding[] {
-  const ownBadges = new Set(['CNTT_STATUS_MISMATCH', 'E2E_STATUS_MISMATCH', 'RELEASE_STATUS_MISMATCH', 'ANOMALY_R2_PENDING_TOO_LONG']);
+  const ownBadges = new Set(['CNTT_STATUS_MISMATCH', 'E2E_STATUS_MISMATCH', 'RELEASE_STATUS_MISMATCH', 'ANOMALY_R2_PENDING_TOO_LONG', 'REC_MISSING_FAIL_REASON']);
   return (row.scoringFindings ?? []).filter((item) => !item.suppressedBy && !ownBadges.has(item.badge) && BADGE_BY_ID.get(item.badge)?.group === 'RECOMMENDATION');
 }
 
@@ -97,7 +97,7 @@ export type AlertFilterValue =
   | 'FAIL_LATE_R4G' | 'FAIL_MISSING_R4G' | 'DATA_ANOMALY' | 'DATA_ANOMALY_IN_SCOPE' | 'IN_SCOPE_CNTT' | 'OUT_OF_SCOPE_NO_ANOMALY' | 'MISSING_R4G_IN_SCOPE' | 'TTM_ELIGIBLE_IN_SCOPE' | 'PENDING_TOO_LONG' | 'WAITING_GOLIVE' | 'WAITING_GOLIVE_MISSING_R4G'
   | TtmFunnelFilterValue
   | 'WAITING_GOLIVE_WITHIN_GRACE' | 'WAITING_GOLIVE_OVERDUE' | 'RELEASE_EARLY' | 'JUSTIFY_GOLIVE' | 'OUT_OF_SCOPE_CNTT'
-  | 'TTM_COUNTED_IN_SCOPE' | 'TTM_BLACK_LISTED' | 'TTM_PROJECT_NON_TTM';
+  | 'TTM_COUNTED_IN_SCOPE' | 'TTM_BLACK_LISTED' | 'TTM_PROJECT_NON_TTM' | 'MISSING_FAIL_REASON';
 
 const ALL_ALERT_FILTER_OPTIONS: { label: string; value: AlertFilterValue; engines: ('legacy' | 'scoring')[] }[] = [
   { label: 'Tất cả nhận xét', value: '', engines: ['legacy', 'scoring'] },
@@ -125,6 +125,7 @@ const ALL_ALERT_FILTER_OPTIONS: { label: string; value: AlertFilterValue; engine
   { label: 'L05bb — Epic trong hạn (chưa có R4G)', value: 'WITHIN_TARGET_MISSING_R4G', engines: ['legacy', 'scoring'] },
   { label: 'Ngoài phạm vi TTM-CNTT (không sai lệch dữ liệu)', value: 'OUT_OF_SCOPE_NO_ANOMALY', engines: ['legacy', 'scoring'] },
   { label: 'Pending lâu', value: 'PENDING_TOO_LONG', engines: ['scoring'] },
+  { label: 'Thiếu lý do Fail TTM', value: 'MISSING_FAIL_REASON', engines: ['scoring'] },
   { label: 'Chờ golive', value: 'WAITING_GOLIVE', engines: ['legacy', 'scoring'] },
   { label: 'Chờ golive: Thiếu R4G Date', value: 'WAITING_GOLIVE_MISSING_R4G', engines: ['legacy', 'scoring'] },
   { label: 'Chờ golive: Trong hạn', value: 'WAITING_GOLIVE_WITHIN_GRACE', engines: ['legacy', 'scoring'] },

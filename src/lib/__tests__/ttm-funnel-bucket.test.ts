@@ -233,6 +233,15 @@ describe('TTM Dashboard 2 summary (cache ↔ filtered recompute share these)', (
       assert.deepEqual(splitWaitingGolive(insights.waitingGolive, '2026-09-30'), { missingR4g: 1, overdue: 2, withinGrace: 0 });
     });
 
+    it('missingFailReason: counts in-scope non-exempt Epics with REC_MISSING_FAIL_REASON badge', () => {
+      const summary = summarizeTtmFunnel([
+        funnelRow({ scoringBadges: ['CNTT_FAIL', 'REC_MISSING_FAIL_REASON'] }),
+        funnelRow({ ttmCnttInScope: false, scoringBadges: ['REC_MISSING_FAIL_REASON'] }), // out of scope
+        funnelRow({ currentStatus: 'Cancelled', scoringBadges: ['REC_MISSING_FAIL_REASON'] }), // cancelled
+      ]);
+      assert.equal(summary.insights.missingFailReason, 1);
+    });
+
     it('a deep link can list the Epics behind several "Nhận xét" values at once (Fail = nhóm 1 + nhóm 2)', () => {
       const url = buildEpicAlertsDeepLink({ alert: ['TTM_LATE_IN_SCOPE', 'OVERDUE_MISSING_R4G_IN_SCOPE'], projects: ['P2'] });
       assert.equal(new URL(url, 'http://x').searchParams.get('alert'), 'TTM_LATE_IN_SCOPE,OVERDUE_MISSING_R4G_IN_SCOPE');
