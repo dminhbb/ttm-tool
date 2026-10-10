@@ -63,7 +63,7 @@ export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]
         AND ($3::text[] IS NULL OR issues.issue_key = ANY($3::text[]))
       ORDER BY issues.issue_key ASC, issues.aggregated_at DESC
     `, [asOf, layerDates, epicKeys]),
-    computeEpicPhaseCompletionByEpicKey(asOf),
+    computeEpicPhaseCompletionByEpicKey(asOf, epicKeys ?? undefined),
     loadTtmExclusionSources(),
   ]);
 

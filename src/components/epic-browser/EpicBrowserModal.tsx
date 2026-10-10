@@ -4,12 +4,14 @@ import * as React from 'react';
 import { CaretDown, CheckCircle, Lightning, TreeStructure, Warning, WarningCircle } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { Alert } from '@/components/ui/Alert';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { MODAL_BACKDROP_CLASS, MODAL_FRAME_CLASS, ModalHeader, useModalBehavior } from '@/components/ui/Modal';
 import { showToast } from '@/components/ui/Toast';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { TtmBlackListDot } from '@/components/ui/TtmBlackListDot';
 import { EpicIssuesTree } from '@/components/epic-browser/EpicIssuesTree';
+import { notifyCacheRefreshTriggered } from '@/components/layout/DailyCacheWarmer';
 import type { DataReviewIssue } from '@/lib/data-review-types';
 import type { EpicBrowserSummary } from '@/lib/epic-browser-service';
 
@@ -60,12 +62,13 @@ function TtmBlackListTopToggle({
 }) {
   const [value, setValue] = React.useState(initialValue);
   const [saving, setSaving] = React.useState(false);
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
 
   React.useEffect(() => {
     setValue(initialValue);
   }, [initialValue]);
 
-  const handleToggle = async () => {
+  const handleConfirmedToggle = async () => {
     if (!canEdit || saving) return;
     const nextValue = !value;
     const prevValue = value;
@@ -91,6 +94,7 @@ function TtmBlackListTopToggle({
           7000
         );
       }
+      notifyCacheRefreshTriggered();
       onValueChange?.(nextValue);
     } catch (requestError: unknown) {
       setValue(prevValue);
@@ -107,32 +111,56 @@ function TtmBlackListTopToggle({
     ? 'Epic này đang là Epic ngoại lệ — không nằm trong phạm vi tính toán Time to Market.'
     : 'Epic này đang được tính Time to Market như bình thường.';
 
+  const confirmDescription = value
+    ? 'Epic sẽ được đưa trở lại các tính toán và cảnh báo Time to Market, bạn có đồng ý không ?'
+    : 'Đánh dấu Epic này ngoại lệ sẽ loại bỏ khỏi tất cả các tính toán và cảnh báo Time to Market, bạn có đồng ý không ?';
+
+  const confirmTitle = value ? 'Xác nhận đưa Epic trở lại TTM' : 'Xác nhận chuyển sang Epic ngoại lệ';
+
   return (
-    <Tooltip content={tooltipText} side="bottom" className="inline-flex w-auto">
-      <button
-        type="button"
-        onClick={handleToggle}
-        disabled={!canEdit || saving}
-        className={cn(
-          'inline-flex items-center gap-2 rounded border px-3 py-1.5 text-xs font-semibold transition-all shadow-xs cursor-pointer',
-          value
-            ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100 dark:bg-rose-950/80 dark:text-rose-200 dark:border-rose-800'
-            : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700',
-          (!canEdit || saving) && 'opacity-60 cursor-not-allowed'
-        )}
-      >
-        <TtmBlackListDot />
-        <span>Epic ngoại lệ</span>
-        <span
+    <>
+      <Tooltip content={tooltipText} side="bottom" className="inline-flex w-auto">
+        <button
+          type="button"
+          onClick={() => {
+            if (!canEdit || saving) return;
+            setConfirmOpen(true);
+          }}
+          disabled={!canEdit || saving}
           className={cn(
-            'ml-1 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider',
-            value ? 'bg-rose-600 text-white' : 'bg-slate-300 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+            'inline-flex items-center gap-2 rounded border px-3 py-1.5 text-xs font-semibold transition-all shadow-xs cursor-pointer',
+            value
+              ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100 dark:bg-rose-950/80 dark:text-rose-200 dark:border-rose-800'
+              : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700',
+            (!canEdit || saving) && 'opacity-60 cursor-not-allowed'
           )}
         >
-          {value ? 'True' : 'False'}
-        </span>
-      </button>
-    </Tooltip>
+          <TtmBlackListDot />
+          <span>Epic ngoại lệ</span>
+          <span
+            className={cn(
+              'ml-1 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider',
+              value ? 'bg-rose-600 text-white' : 'bg-slate-300 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+            )}
+          >
+            {value ? 'True' : 'False'}
+          </span>
+        </button>
+      </Tooltip>
+
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => {
+          setConfirmOpen(false);
+          void handleConfirmedToggle();
+        }}
+        title={confirmTitle}
+        description={confirmDescription}
+        confirmLabel="Đồng ý"
+        cancelLabel="Hủy"
+      />
+    </>
   );
 }
 
@@ -333,6 +361,13 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
                         <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Status:</span>
                         <span className="rounded bg-blue-600 px-2 py-0.5 text-[11px] font-bold text-white uppercase tracking-wider">
                           {currentStatusText}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-slate-500 dark:text-slate-400">Created Date:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {formatDate(summary?.createdDate ?? null)}
                         </span>
                       </div>
 

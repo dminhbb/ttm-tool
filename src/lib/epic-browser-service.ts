@@ -8,7 +8,6 @@ import {
 } from '@/lib/issue-resolution-sql';
 import type { DataReviewChildrenResponse, DataReviewIssue } from '@/lib/data-review-types';
 import { isEpicBlackListed } from '@/lib/black-listed-epic-service';
-import { getDomainByProjectKeyMap, getProjectMetaByProjectKeyMap } from '@/lib/master-data-service';
 import { loadScoringContext, vnToday } from '@/lib/scoring-context-service';
 import { loadEpicFacts } from '@/lib/scoring-facts-service';
 import { hasDataAnomalyBadge, scoreEpic } from '@/lib/scoring/score-epic';
@@ -69,7 +68,6 @@ function roleJoin(alias: string): string {
  */
 export async function getEpicBrowserRoot(epicKey: string): Promise<DataReviewIssue | null> {
   const result = await pool.query<DataReviewIssueRow>(`
-    WITH ${LATEST_ISSUES_CTE}, ${STORIES_CTE}, ${RESOLVED_DESCENDANTS_CTE}
     SELECT
       li.id, li.jira_id AS "jiraId", li.issue_key AS "issueKey", li.issue_type AS "issueType",
       li.current_status AS status, li.start_date::text AS "startDate", li.r4g_date::text AS "r4gDate",
@@ -82,24 +80,20 @@ export async function getEpicBrowserRoot(epicKey: string): Promise<DataReviewIss
         ''
       ) AS project,
       (
-        EXISTS (SELECT 1 FROM unnest(COALESCE(li.epic_stories, '{}')) AS story_key)
+        (li.epic_stories IS NOT NULL AND array_length(li.epic_stories, 1) > 0)
         OR EXISTS (
-          SELECT 1 FROM descendants d
-          WHERE d.resolved_epic_key = li.issue_key AND UPPER(d.issue_type) IN (${STORY_ISSUE_TYPES_SQL})
-        )
-        OR EXISTS (
-          SELECT 1 FROM descendants d
-          WHERE d.resolved_epic_key = li.issue_key
-            AND UPPER(d.issue_type) NOT IN (${STORY_ISSUE_TYPES_SQL})
-            AND (d.parent_key IS NULL OR d.parent_key = '')
+          SELECT 1 FROM issues child
+          WHERE (child.epic_key = li.issue_key OR child.parent_key = li.issue_key OR child.parent_key = li.jira_id::text)
+          LIMIT 1
         )
       ) AS "hasChildren"
-    FROM latest_issues li
+    FROM issues li
     LEFT JOIN import_rows
       ON import_rows.import_batch_id = li.source_import_batch_id
       AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = li.issue_key
     ${roleJoin('li')}
     WHERE li.issue_key = $1 AND UPPER(li.issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
+    ORDER BY li.aggregated_at DESC
     LIMIT 1;
   `, [epicKey]);
   return result.rows[0] ? toIssue(result.rows[0]) : null;
@@ -217,6 +211,7 @@ export async function getEpicBrowserChildren(
  */
 export interface EpicBrowserSummary {
   /** Which import data layer (aggregated_at) this Epic's latest known row currently comes from. */
+  createdDate: string | null;
   dataLayerDate: string | null;
   domainName: string;
   epicKey: string;
@@ -254,6 +249,8 @@ export interface EpicBrowserSummary {
 
 interface EpicBrowserSummaryRow {
   aggregatedAt: string | null;
+  createdAt: string | null;
+  jiraCreatedAt: string | null;
   epicKey: string;
   epicName: string;
   ideaApprovedDate: string | null;
@@ -280,12 +277,13 @@ interface EpicBrowserSummaryRow {
 
 export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowserSummary | null> {
   const asOf = vnToday();
-  const [result, domainByProjectKey, projectMetaByProjectKey, ttmBlackListed, ctx, facts] = await Promise.all([
+  const [result, projectMetaResult, ttmBlackListed, ctx, facts] = await Promise.all([
     pool.query<EpicBrowserSummaryRow>(`
       SELECT
         issues.issue_key AS "epicKey", issues.issue_name AS "epicName", issues.current_status AS status,
         issues.start_date::text AS "startDate", issues.idea_approved_date::text AS "ideaApprovedDate",
         issues.r4g_date::text AS "r4gDate", issues.due_date::text AS "dueDate",
+        issues.jira_created_at::text AS "jiraCreatedAt", issues.created_at::text AS "createdAt",
         issues.requirement_level AS "requirementLevel",
         issues.epic_complexity_type AS "epicComplexityType",
         COALESCE(
@@ -317,8 +315,22 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
       ORDER BY issues.aggregated_at DESC
       LIMIT 1;
     `, [epicKey]),
-    getDomainByProjectKeyMap(),
-    getProjectMetaByProjectKeyMap(),
+    pool.query<{ domainName: string; leadName: string; projectName: string }>(`
+      SELECT
+        p.project_name AS "projectName",
+        COALESCE(leads.lead_name, '') AS "leadName",
+        COALESCE(d.domain_name, '') AS "domainName"
+      FROM projects p
+      LEFT JOIN domains d ON d.id = p.domain_id AND d.is_active
+      LEFT JOIN (
+        SELECT up.project_id, STRING_AGG(u.full_name, ', ' ORDER BY u.full_name) AS lead_name
+        FROM user_projects up
+        JOIN users u ON u.id = up.user_id
+        GROUP BY up.project_id
+      ) leads ON leads.project_id = p.id
+      WHERE p.source_project_key = SPLIT_PART($1, '-', 1) AND p.is_active
+      LIMIT 1;
+    `, [epicKey]),
     // A database the black list migration hasn't reached yet still browses Epics — just as "false".
     isEpicBlackListed(epicKey).catch(() => false),
     loadScoringContext(asOf).catch(() => null),
@@ -355,10 +367,11 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
     ttmCnttVerdictLabel = 'Epic ngoại lệ';
   }
 
-  const projectMeta = row.project ? projectMetaByProjectKey.get(row.project) : undefined;
+  const projectMeta = projectMetaResult.rows[0];
   return {
+    createdDate: row.jiraCreatedAt || row.createdAt || null,
     dataLayerDate: row.aggregatedAt,
-    domainName: (row.project && domainByProjectKey.get(row.project)) ?? '',
+    domainName: projectMeta?.domainName ?? '',
     epicKey: row.epicKey,
     epicName: row.epicName,
     ideaApprovedDate: row.ideaApprovedDate,
