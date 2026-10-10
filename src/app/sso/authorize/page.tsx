@@ -143,8 +143,8 @@ function SsoAuthorizeContent() {
   if (clientError) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-fb-bg text-fb-text-primary p-4">
-        <div className="w-full max-w-md rounded-2xl border border-red-500/20 bg-fb-surface p-6 shadow-xl text-center">
-          <div className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-red-500/10 text-red-500">
+        <div className="w-full max-w-md rounded-2xl border border-status-danger/20 bg-fb-surface p-6 shadow-xl text-center">
+          <div className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-status-danger/10 text-status-danger">
             <Warning className="size-6" weight="bold" />
           </div>
           <h2 className="text-lg font-bold text-fb-text-primary mb-2">Yêu cầu Đăng nhập Không Hợp lệ</h2>
@@ -187,7 +187,7 @@ function SsoAuthorizeContent() {
         {/* Content */}
         <div className="p-6">
           {authError && (
-            <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-xs font-semibold text-red-500 flex items-center gap-2">
+            <div className="mb-4 rounded-lg bg-status-danger/10 border border-status-danger/20 p-3 text-xs font-semibold text-status-danger flex items-center gap-2">
               <Warning className="size-4 shrink-0" weight="bold" />
               <span>{authError}</span>
             </div>

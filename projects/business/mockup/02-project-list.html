@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Danh mục dự án — PMS Platform</title>
+<link rel="stylesheet" href="assets/pms-tokens.css">
+<link rel="stylesheet" href="assets/pms-ias.css">
+<script src="assets/pms-icons.js"></script>
+</head>
+<body data-active-nav="danh-muc-du-an" data-title="Danh mục dự án"
+      data-subtitle="Toàn bộ dự án đã khai báo — theo dõi tiến độ, sức khoẻ và rủi ro trên một bảng">
+<div id="pms-page">
+
+  <!-- list-panel — ToolbarSimple ⇄ FilterCard + Table + Pagination (DanhSachChuongTrinh) -->
+  <div class="list-panel" id="ias-du-an-list-panel">
+
+    <!-- Dải phân loại danh mục: vừa là cơ cấu danh mục, vừa là bộ lọc 1 nhấp -->
+    <div class="pf-strip" id="pf-strip"></div>
+
+    <!-- ToolbarSimple — trạng thái mặc định -->
+    <div class="toolbar" id="toolbar-simple">
+      <div class="tb-search">
+        <span class="msym">search</span>
+        <input id="q" placeholder="Tìm theo mã, tên dự án hoặc Project Manager" />
+      </div>
+      <button class="btn btn-primary" id="btn-search">
+        <span class="msym" style="font-size:16px">search</span>Tìm kiếm
+      </button>
+      <button class="btn btn-outline" id="btn-adv-show">
+        <span class="msym" style="font-size:16px">tune</span>Tìm kiếm nâng cao
+      </button>
+      <div class="tb-trailing">
+        <button class="btn btn-outline" id="btn-export">
+          <span class="msym" style="font-size:16px">file_download</span>Export
+        </button>
+        <button class="btn-icon" id="btn-cols" title="Thiết lập hiển thị">
+          <span class="msym" style="font-size:19px">settings</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- FilterCard — chỉ hiện sau khi bấm "Tìm kiếm nâng cao" -->
+    <div class="filter-card" id="toolbar-advanced" hidden>
+      <div class="frow" id="frow-1"></div>
+      <div class="frow" id="frow-2" style="margin-bottom:16px"></div>
+      <div class="filter-actions-row">
+        <button class="btn btn-outline" id="btn-reset">
+          <span class="msym" style="font-size:16px">delete_sweep</span>Xóa bộ lọc
+        </button>
+        <button class="btn btn-primary" id="btn-search-adv">
+          <span class="msym" style="font-size:16px">search</span>Tìm kiếm
+        </button>
+        <button class="btn btn-outline" id="btn-adv-hide">
+          <span class="msym" style="font-size:16px">expand_less</span>Ẩn tìm kiếm nâng cao
+        </button>
+        <button class="btn-icon" title="Thiết lập hiển thị">
+          <span class="msym" style="font-size:19px">settings</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Table — 8 cột, thông tin phụ xếp tầng dưới thông tin chính -->
+    <div class="table-wrap">
+      <div class="table-inner" id="table-inner">
+        <table style="min-width:1240px">
+          <thead>
+            <tr>
+              <th style="width:48px">STT</th>
+              <th style="min-width:300px">Dự án</th>
+              <th style="min-width:180px">Phụ trách</th>
+              <th style="min-width:160px" class="td-sep">Thời gian</th>
+              <th style="min-width:190px">Tiến độ</th>
+              <th style="min-width:150px">Sức khoẻ</th>
+              <th style="min-width:140px">Trạng thái</th>
+              <th style="width:84px"><span class="sr-only">Hành động</span></th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="empty" hidden>
+        <span class="msym">folder_off</span>
+        <div class="empty-title">Không có dự án nào khớp điều kiện lọc</div>
+        <div class="hcm-caption">Thử bỏ một vài điều kiện hoặc bấm "Xóa bộ lọc".</div>
+      </div>
+    </div>
+
+    <!-- Pagination bar — đủ 4 phần: số kết quả · trang · số dòng/trang · chuyển đến -->
+    <div class="pagination-bar">
+      <span class="pg-count" id="pg-count"></span>
+      <div class="pg-pages" id="pg-pages"></div>
+      <div class="pg-size">
+        <select id="pg-size"><option>8</option><option>20</option><option>50</option></select>
+      </div>
+      <div class="pg-jump">
+        <span>Chuyển đến</span>
+        <input type="number" min="1" id="pg-jump" placeholder="Trang" />
+        <button class="btn btn-outline" id="pg-jump-go"><span class="msym" style="font-size:14px">arrow_forward</span></button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="assets/pms-util.js"></script>
+<script src="assets/pms-ui.js"></script>
+<script src="assets/mock-data.js"></script>
+<script src="assets/pms-shell.js"></script>
+<script>
+const E = MBUtil.esc;
+let page = 1, pageSize = 8, seg = 'all';
+const F = { q: '', domain: '', type: '', status: '', priority: '', health: '', pm: '' };
+
+/* PageHeader actions — "Khai báo dự án" luôn được promote lên PageHeader,
+   primary ngoài cùng phải. Module dừng ở mức khai báo nên đây là hành động
+   tạo lập duy nhất; không có nút gửi duyệt / trình phê duyệt. */
+PMSShell.setHeaderActions(
+  '<button class="btn btn-outline" id="hdr-history"><span class="msym" style="font-size:16px">history</span>Lịch sử</button>'
+  + '<a class="btn btn-primary" href="03-project-create.html"><span class="msym" style="font-size:16px">add</span>Khai báo dự án</a>'
+);
+document.getElementById('hdr-history').addEventListener('click', () =>
+  PMSNotify.info('Lịch sử thao tác danh mục', 'Minh hoạ trong mockup — chưa nối dữ liệu audit.'));
+
+/* ───────────────────────────── FilterCard: 2 hàng × 4 cột ──────────────── */
+const opts = (arr, all) => [{ value: '', label: all }].concat(arr.map(v => ({ value: v, label: v })));
+document.getElementById('frow-1').innerHTML =
+  '<div class="fg"><label>Domain</label>' + PMSPsel.render('domain', opts(MBData.DOMAINS, 'Tất cả domain'), '', 'Tất cả domain') + '</div>'
+  + '<div class="fg"><label>Loại dự án</label>' + PMSPsel.render('type', opts(MBData.PROJECT_TYPES, 'Tất cả loại'), '', 'Tất cả loại') + '</div>'
+  + '<div class="fg"><label>Trạng thái</label>' + PMSPsel.render('status', opts(MBData.STATUSES, 'Tất cả trạng thái'), '', 'Tất cả trạng thái') + '</div>'
+  + '<div class="fg"><label>Mức độ ưu tiên</label>' + PMSPsel.render('priority', opts(MBData.PRIORITIES, 'Tất cả mức'), '', 'Tất cả mức') + '</div>';
+document.getElementById('frow-2').innerHTML =
+  '<div class="fg"><label>Sức khoẻ dự án</label>'
+  + PMSPsel.render('health', opts(['Tốt', 'Cần chú ý', 'Rủi ro cao', 'Chưa đánh giá'], 'Tất cả'), '', 'Tất cả') + '</div>'
+  + '<div class="fg"><label>Project Manager</label><input id="f-pm" placeholder="Nhập tên PM" /></div>'
+  + '<div class="fg"><label>Ngày bắt đầu từ</label><input type="text" placeholder="dd/mm/yyyy" /></div>'
+  + '<div class="fg"><label>Ngày kết thúc đến</label><input type="text" placeholder="dd/mm/yyyy" /></div>';
+
+PMSPsel.init(document.getElementById('toolbar-advanced'), (name, value) => { F[name] = value; });
+document.getElementById('f-pm').addEventListener('input', (e) => { F.pm = e.target.value.trim(); });
+
+/* ───────────────────────── phân loại danh mục (segment) ────────────────── */
+const SEGMENTS = [
+  { key: 'all', cls: 'seg-all', label: 'Toàn danh mục', note: 'dự án đã khai báo',
+    test: () => true },
+  { key: 'new', cls: 'seg-new', label: 'Mới khai báo', note: 'chưa bắt đầu triển khai',
+    test: (p) => p.status === 'Mới khai báo' },
+  { key: 'run', cls: 'seg-run', label: 'Đang triển khai', note: 'đang trong vòng đời dự án',
+    test: (p) => p.status === 'Đang triển khai' },
+  { key: 'late', cls: 'seg-late', label: 'Lệch tiến độ', note: 'thực tế thấp hơn kỳ vọng >3%',
+    test: (p) => p.status === 'Đang triển khai' && MBData.progress(p).delta < -3 },
+  { key: 'risk', cls: 'seg-risk', label: 'Rủi ro cao', note: 'cần báo cáo cấp Khối',
+    test: (p) => p.health === 'Rủi ro cao' },
+  { key: 'done', cls: 'seg-done', label: 'Hoàn thành', note: 'đã đóng dự án',
+    test: (p) => p.status === 'Hoàn thành' }
+];
+
+function renderStrip() {
+  document.getElementById('pf-strip').innerHTML = SEGMENTS.map(s =>
+    '<button type="button" class="pf-tile ' + s.cls + (s.key === seg ? ' is-on' : '') + '" data-seg="' + s.key + '">'
+    + '<span class="pf-label">' + E(s.label) + '</span>'
+    + '<span class="pf-value">' + MBData.projects.filter(s.test).length + '</span>'
+    + '<span class="pf-note">' + E(s.note) + '</span></button>').join('');
+}
+
+/* ───────────────────────────────── lọc dữ liệu ─────────────────────────── */
+function filtered() {
+  const q = F.q.toLowerCase();
+  const segTest = (SEGMENTS.find(s => s.key === seg) || SEGMENTS[0]).test;
+  return MBData.projects.filter(p => {
+    if (!segTest(p)) return false;
+    if (q && !(p.code + ' ' + p.name + ' ' + p.people.pm).toLowerCase().includes(q)) return false;
+    if (F.domain && p.domain !== F.domain) return false;
+    if (F.type && p.type !== F.type) return false;
+    if (F.status && p.status !== F.status) return false;
+    if (F.priority && p.priority !== F.priority) return false;
+    if (F.health && p.health !== F.health) return false;
+    if (F.pm && !p.people.pm.toLowerCase().includes(F.pm.toLowerCase())) return false;
+    return true;
+  });
+}
+
+/* ──────────────────────────────────── render ───────────────────────────── */
+function deltaPill(delta) {
+  if (!delta) return '<span class="delta d-none">đúng kỳ vọng</span>';
+  const cls = delta >= -3 ? 'd-ok' : (delta < -10 ? 'd-bad' : 'd-warn');
+  return '<span class="delta ' + cls + '">' + MBUtil.signed(delta, '%') + '</span>';
+}
+
+function row(p, idx) {
+  const pr = MBData.progress(p);
+  const high = MBData.highRisks(p).length;
+  const detailHref = p.hasDetail ? '04-detail-overview.html?p=' + p.id : null;
+
+  return '<tr data-id="' + p.id + '">'
+    + '<td class="t-muted">' + String(idx).padStart(2, '0') + '</td>'
+
+    /* Dự án: mã (link) + tên + domain — gộp 3 cột cũ, đọc theo chiều dọc */
+    + '<td class="cell-wide">'
+    + '<div class="cell-main td-truncate" style="max-width:360px">'
+    + '<a href="#" class="td-link" data-detail="' + p.id + '">' + E(p.code) + '</a>'
+    + ' <span class="t-primary">' + E(p.name) + '</span></div>'
+    + '<div class="cell-sub">' + MBUtil.tag(p.domain, 'neutral')
+    + '<span>' + E(p.type) + ' · ưu tiên ' + E(p.priority) + '</span></div></td>'
+
+    /* Phụ trách: PM + lãnh đạo phụ trách */
+    + '<td>' + MBUtil.chip(p.people.pm)
+    + '<div class="cell-sub"><span class="msym">groups</span>' + E(p.leader) + '</div></td>'
+
+    /* Thời gian + giai đoạn hiện tại */
+    + '<td class="td-sep">' + MBUtil.fmtDate(p.startDate) + ' – ' + MBUtil.fmtDate(p.endDate)
+    + '<div class="cell-sub"><span class="msym">flag</span>' + E(p.currentPhase) + '</div></td>'
+
+    /* Tiến độ: thanh + % + lệch so với kỳ vọng */
+    + '<td>' + MBUtil.progress(pr.actual, MBData.progressTone(pr.delta))
+    + '<div class="cell-sub">kỳ vọng ' + pr.expected + '% ' + deltaPill(pr.delta) + '</div></td>'
+
+    /* Sức khoẻ + số rủi ro mức cao đang mở */
+    + '<td>' + MBUtil.status(p.health, MBData.healthTone(p.health))
+    + '<div class="cell-sub"><span class="risk-count' + (high ? '' : ' is-zero') + '">'
+    + '<span class="msym">local_fire_department</span>' + high + ' rủi ro cao</span></div></td>'
+
+    + '<td>' + MBUtil.status(p.status, MBData.statusTone(p.status)) + '</td>'
+
+    + '<td><div class="row-tools">'
+    + '<button class="row-expand-btn" data-quick="' + p.id + '" title="Xem nhanh">'
+    + '<span class="msym" style="font-size:20px">keyboard_double_arrow_right</span></button>'
+    + '<button class="row-menu-trigger" data-menu="' + p.id + '" title="Tùy chọn">'
+    + '<span class="msym" style="font-size:20px">more_vert</span></button>'
+    + '</div></td></tr>';
+}
+
+function render() {
+  renderStrip();
+  const list = filtered();
+  const pages = Math.max(1, Math.ceil(list.length / pageSize));
+  if (page > pages) page = pages;
+  const from = (page - 1) * pageSize;
+  const slice = list.slice(from, from + pageSize);
+
+  document.getElementById('tbody').innerHTML = slice.map((p, i) => row(p, from + i + 1)).join('');
+  document.getElementById('empty').hidden = list.length > 0;
+  document.getElementById('table-inner').hidden = list.length === 0;
+  document.getElementById('pg-count').textContent = list.length
+    ? 'Đã hiển thị ' + (from + 1) + ' - ' + Math.min(from + pageSize, list.length) + ' trên ' + list.length + ' kết quả'
+    : 'Không có kết quả';
+
+  let btns = '<button class="pg-btn" data-p="' + (page - 1) + '"' + (page === 1 ? ' disabled' : '') + '>'
+    + '<span class="msym" style="font-size:16px">chevron_left</span></button>';
+  for (let i = 1; i <= pages; i++) {
+    btns += '<button class="pg-btn' + (i === page ? ' active' : '') + '" data-p="' + i + '">' + i + '</button>';
+  }
+  btns += '<button class="pg-btn" data-p="' + (page + 1) + '"' + (page === pages ? ' disabled' : '') + '>'
+    + '<span class="msym" style="font-size:16px">chevron_right</span></button>';
+  document.getElementById('pg-pages').innerHTML = btns;
+}
+
+/* ───────────────────────────────── Drawer xem nhanh ────────────────────── */
+function quickView(id) {
+  const p = MBData.project(id);
+  const pr = MBData.progress(p);
+  const f = (l, v, full) => '<div class="dr-field' + (full ? ' full' : '') + '"><label>' + E(l) + '</label>'
+    + '<div class="val">' + (v ? E(v) : '—') + '</div></div>';
+  PMSDrawer.open({
+    title: p.code + ' — ' + p.name,
+    badge: { label: p.status, tone: MBData.statusTone(p.status) },
+    expandHref: p.hasDetail ? '04-detail-overview.html?p=' + p.id : null,
+    body: '<div class="dr-grid">'
+      + f('Loại dự án', p.type) + f('Hình thức', p.form)
+      + f('Mức độ ưu tiên', p.priority) + f('Domain', p.domain)
+      + f('Lãnh đạo phụ trách', p.leader) + f('Project Manager', p.people.pm)
+      + f('Ngày bắt đầu', MBUtil.fmtDate(p.startDate)) + f('Ngày kết thúc', MBUtil.fmtDate(p.endDate))
+      + f('Giai đoạn hiện tại', p.currentPhase)
+      + f('Tiến độ', pr.actual + '% (kỳ vọng ' + pr.expected + '%, lệch ' + MBUtil.signed(pr.delta, '%') + ')')
+      + f('Nhân sự huy động', MBUtil.sum(p.members, m => m.fte) + ' FTE')
+      + f('Rủi ro mức cao đang mở', String(MBData.highRisks(p).length))
+      + (p.objective ? f('Mục tiêu triển khai', p.objective, true) : '')
+      + '</div>',
+    footer: p.hasDetail
+      ? [{ label: 'Đóng', variant: 'outline' },
+         { label: 'Mở trang chi tiết', variant: 'primary', icon: 'open_in_new', onClick: () => { location.href = '04-detail-overview.html?p=' + p.id; return false; } }]
+      : [{ label: 'Đóng', variant: 'outline' }]
+  });
+}
+
+/* ──────────────────────────────────── tương tác ────────────────────────── */
+document.getElementById('pf-strip').addEventListener('click', (e) => {
+  const t = e.target.closest('[data-seg]');
+  if (!t) return;
+  seg = t.dataset.seg; page = 1; render();
+});
+document.getElementById('btn-adv-show').addEventListener('click', () => {
+  document.getElementById('toolbar-simple').hidden = true;
+  document.getElementById('toolbar-advanced').hidden = false;
+});
+document.getElementById('btn-adv-hide').addEventListener('click', () => {
+  document.getElementById('toolbar-advanced').hidden = true;
+  document.getElementById('toolbar-simple').hidden = false;
+});
+document.getElementById('btn-search').addEventListener('click', () => {
+  F.q = document.getElementById('q').value.trim(); page = 1; render();
+});
+document.getElementById('q').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('btn-search').click(); });
+document.getElementById('btn-search-adv').addEventListener('click', () => { page = 1; render(); });
+document.getElementById('btn-reset').addEventListener('click', () => {
+  Object.keys(F).forEach(k => { F[k] = ''; });
+  seg = 'all';
+  document.getElementById('q').value = '';
+  document.getElementById('f-pm').value = '';
+  document.querySelectorAll('#toolbar-advanced .psel').forEach(ps => {
+    ps.dataset.value = '';
+    const first = ps.querySelector('.psel-opt');
+    ps.querySelectorAll('.psel-opt').forEach(o => o.classList.toggle('selected', o === first));
+    ps.querySelector('.psel-trigger').textContent = first.textContent;
+  });
+  page = 1; render();
+  PMSNotify.info('Đã xóa bộ lọc', 'Danh mục đang hiển thị toàn bộ dự án.');
+});
+document.getElementById('pg-pages').addEventListener('click', (e) => {
+  const b = e.target.closest('.pg-btn');
+  if (!b || b.disabled) return;
+  page = +b.dataset.p; render();
+});
+document.getElementById('pg-size').addEventListener('change', (e) => { pageSize = +e.target.value; page = 1; render(); });
+document.getElementById('pg-jump-go').addEventListener('click', () => {
+  const v = +document.getElementById('pg-jump').value;
+  if (v > 0) { page = v; render(); }
+});
+document.getElementById('btn-export').addEventListener('click', () =>
+  PMSNotify.info('Export danh mục dự án', 'Minh hoạ trong mockup — chưa tạo file thật.'));
+document.getElementById('btn-cols').addEventListener('click', (e) => {
+  e.currentTarget.classList.toggle('is-on');
+  PMSNotify.info('Thiết lập hiển thị cột', 'ColumnPicker sẽ bật/tắt từng cột trực tiếp trên bảng.');
+});
+
+document.getElementById('tbody').addEventListener('click', (e) => {
+  const quick = e.target.closest('[data-quick]');
+  if (quick) { quickView(quick.dataset.quick); return; }
+  const detail = e.target.closest('[data-detail]');
+  if (detail) {
+    e.preventDefault();
+    const p = MBData.project(detail.dataset.detail);
+    if (p.hasDetail) location.href = '04-detail-overview.html?p=' + p.id;
+    else PMSNotify.warning('Chưa có dữ liệu chi tiết',
+      'Dự án này mới ở mức khai báo — 6 cấu phần theo dõi chưa có số liệu trong mockup.');
+    return;
+  }
+  const menu = e.target.closest('[data-menu]');
+  if (menu) {
+    const p = MBData.project(menu.dataset.menu);
+    /* RowMenu: bỏ "Xem chi tiết" vì cột xem nhanh đã đảm nhiệm.
+       Không có "Gửi duyệt" — module không có bước phê duyệt. */
+    PMSMenu.openAt(menu, [
+      { label: 'Chỉnh sửa khai báo', disabled: !p.hasDetail, onClick: () => { location.href = '10-detail-edit.html?p=' + p.id; } },
+      { label: 'Lịch sử thay đổi', onClick: () => PMSNotify.info('Lịch sử thay đổi ' + p.code, 'Minh hoạ trong mockup.') },
+      { label: 'Xóa', danger: true, onClick: () => PMSModal.confirm({
+          title: 'Xóa dự án',
+          body: 'Xóa dự án <b>' + E(p.code) + ' — ' + E(p.name) + '</b> khỏi danh mục? Hành động này không thể hoàn tác.',
+          okLabel: 'Xóa', okIcon: 'delete',
+          onOk: () => PMSNotify.warning('Đã xóa (mô phỏng)', 'Mockup không thay đổi dữ liệu nguồn.')
+        }) }
+    ]);
+  }
+});
+
+PMSTip.bindTruncated(document.getElementById('table-inner'));
+render();
+</script>
+
+<!--
+## 📊 Component Coverage Report — Danh mục dự án
+
+| # | Element | DS Component used | Status |
+|---|---------|------------------|--------|
+| 1 | Left sidebar | AppSidebar | ✅ DS |
+| 2 | Page title + breadcrumb + actions | PageHeader | ✅ DS |
+| 3 | List container | ListPanel | ✅ DS |
+| 4 | Thanh tìm kiếm mặc định | ToolbarSimple | ✅ DS |
+| 5 | Khối tìm kiếm nâng cao | FilterCard | ✅ DS |
+| 6 | Select trong FilterCard | Select (mode="panel") | ✅ DS |
+| 7 | Bảng danh mục | Table | ✅ DS |
+| 8 | Trạng thái / sức khoẻ trong ô bảng | Badge size="medium" (dot + pill) | ✅ DS |
+| 9 | Domain trong ô bảng | Tag | ✅ DS |
+| 10 | PM trong ô bảng | Chips size="small" | ✅ DS |
+| 11 | Thanh tiến độ | Progress | ✅ DS |
+| 12 | Menu hành động theo dòng | RowMenu | ✅ DS |
+| 13 | Xem nhanh 1 dự án | Drawer | ✅ DS |
+| 14 | Hộp thoại xác nhận xóa | Modal | ✅ DS |
+| 15 | Thông báo kết quả | Notification | ✅ DS |
+| 16 | Tooltip ô bị cắt | Tooltip | ✅ DS |
+| 17 | Phân trang | Pagination (+ pg-size / pg-jump) | ✅ DS |
+| 18 | Trạng thái rỗng | Empty | ✅ DS |
+| 19 | Nút thao tác | Button (primary/outline/icon) | ✅ DS |
+| 20 | Dải phân loại danh mục (`.pf-strip`) | — bespoke, DS không có segment-summary | ⚠️ tokens only |
+
+**DS component coverage: 19 / 20 = 95% · 1 cấu phần bespoke dựng bằng alias token**
+Shell zones: ✅ AppSidebar · ✅ PageHeader · ❌ AppHeader (loại trừ theo mặc định của ias-design)
+
+### Quyết định thiết kế của bản này
+
+1. **Không có bước phê duyệt.** Module dừng ở mức *khai báo* dự án: tạo bản ghi,
+   sửa, xóa, theo dõi. Vì vậy RowMenu không còn "Gửi duyệt", PageHeader đổi nút
+   thành "Khai báo dự án", danh sách trạng thái chỉ còn
+   `Mới khai báo → Đang triển khai → Tạm dừng → Hoàn thành`.
+2. **12 cột → 8 cột.** Bản trước đặt `min-width:1480px` nên ở màn 1366px cột
+   Trạng thái và cột menu bị đẩy ra ngoài vùng nhìn, phải cuộn ngang mới thao tác
+   được. Nay mã + tên + domain gộp vào ô "Dự án"; PM + lãnh đạo gộp vào "Phụ
+   trách"; thời gian kèm giai đoạn; sức khoẻ kèm số rủi ro cao.
+3. **Kẻ ngang thay vì kẻ lưới.** Bảng danh mục cần mắt chạy theo dòng dự án, lưới
+   4 phía làm bảng giống sheet Excel. Header dùng `position:sticky; top:0` nên khi
+   vùng bảng tự cuộn (trang đặt 50 dòng/trang) thì hàng tiêu đề vẫn nằm lại trên
+   cùng; cột "Thời gian" có một vạch dọc nhạt để tách nhóm nhận diện (mã/tên/PM)
+   khỏi nhóm theo dõi (thời gian/tiến độ/sức khoẻ).
+4. **Dải phân loại danh mục.** Người quản lý danh mục mở màn này để trả lời
+   "danh mục đang có gì, chỗ nào đang lệch" — dải segment cho số liệu đó ngay và
+   lọc bằng 1 nhấp, không phải mở FilterCard chọn từng điều kiện.
+
+## 🎨 Color Token Coverage — Danh mục dự án
+
+| # | Element (property) | Location | Original hex | Category | Matched Semantic Alias | Match |
+|---|---|---|---|---|---|---|
+| 1 | Nền trang | `html,body` background | `#F4F6FA` | background | `--color-bg-page` | ✅ Exact |
+| 2 | Nền list-panel / table / card | `.list-panel`, `.table-wrap` | `#FFFFFF` | background | `--color-bg-surface` | ✅ Exact |
+| 3 | Viền panel | `.list-panel` | `#D9DBE9` | border | `--color-border-default` | ✅ Exact |
+| 4 | Kẻ ngang giữa các dòng | `.table-inner td` | `#EDF2F7` | border | `--color-neutral-200` | ✅ Exact |
+| 5 | Nền header bảng | `.table-inner th` | `#F4F6FA` | background | `--color-bg-page` | ✅ Exact |
+| 6 | Chữ header bảng / pg-count | `.table-inner th`, `.pg-count` | `#6E7191` | text | `--color-text-secondary` | ✅ Exact |
+| 7 | Chữ trong ô bảng | `.table-inner td` | `#4E4B66` | text | `--color-text-body` | ✅ Exact |
+| 8 | Mã dự án (link) | `.td-link` | `#141ED2` | text | `--color-text-link` | ✅ Exact |
+| 9 | Hover dòng bảng | `.table-inner tbody tr:hover` | `#F4F5FF` | background | `--color-bg-hover` | ✅ Exact |
+| 10 | Icon search/settings | `.tb-search .msym` | `#A0A3BD` | icon | `--color-icon-muted` | ✅ Exact |
+| 11 | Nút primary | `.btn-primary` | `#141ED2` | background | `--color-bg-brand` | ✅ Exact |
+| 12 | Vạch màu segment | `.pf-tile::before` | token-only | background | `--color-bg-brand` · `--color-text-accent` · `--color-primary-400` · `--color-bg-warning-solid` · `--color-bg-error-solid` · `--color-bg-success-solid` | ✅ Exact |
+| 13 | Pill lệch tiến độ | `.delta` | token-only | background/text | `--color-bg-success/warning/error` + `--color-text-success/warning/error` | ✅ Exact |
+| 14 | Viền nút outline | `.btn-outline` | `#BEC2F4` | border | `--color-primary-200` `#C4C6F7` | ⚠️ Nearest (≈97%) — giá trị Figma-literal của Button, lệch đã được DS ghi nhận |
+| 15 | Nền track Progress | `.prg` | `#EDF2F7` | background | `--color-neutral-200` | ✅ Exact |
+
+**Color token coverage: 14 / 15 exact, 1 ⚠️ nearest (≈97%) = 100% được map vào token khai báo · 0 severe gap**
+
+## 🔤 Typography Scale Coverage — Danh mục dự án
+
+| # | Text element | Rendered size / weight | Matched scale | Match | Class used? |
+|---|---|---|---|---|---|
+| 1 | Page title | 20px / 700 | H4 (22px/500) | ⚠️ Nearest — 20px/700 là spec riêng của PageHeader.jsx | ❌ dùng `.page-title` theo đúng PageHeader |
+| 2 | Breadcrumb | 12px / 500 | Caption (12px/500) | ✅ Exact | ❌ dùng `.bc-link`/`.bc-current` theo đúng Breadcrumb |
+| 3 | Nhãn field trong FilterCard | 12px / 600 | Caption (12px/500) | ⚠️ Nearest | ❌ dùng `.fg label` theo đúng FilterCard |
+| 4 | Header bảng | 10px / 700 / uppercase | Overline (10px/600/1.5px) | ✅ Exact | ❌ áp trực tiếp trên `.table-inner th` |
+| 5 | Nội dung ô bảng | 13px / 400 | Body 2 (14px/400) | ⚠️ Nearest | ❌ dùng `.table-inner td` theo đúng Table |
+| 6 | Dòng phụ trong ô bảng | 11px / 400 | Caption (12px/500) | ⚠️ Nearest — 11px để 2 dòng vừa chiều cao ô | ❌ dùng `.cell-sub` |
+| 7 | Số liệu segment | 22px / 700 | H4 (22px/500) | ⚠️ Nearest — weight nặng hơn để làm số chủ đạo | ❌ dùng `.pf-value` |
+| 8 | Nhãn mục Empty | 14px / 600 | Subtitle 2 (14px/600) | ✅ Exact | ✅ `.empty-title` dùng token subtitle2 |
+| 9 | Phụ đề Empty | 12px / 500 | Caption (12px/500) | ✅ Exact | ✅ `class="hcm-caption"` |
+| 10 | Nhãn nút | 14px / 600 | — | ⚠️ Figma-literal của Button (14px/lh21/0.28px) | ❌ dùng `.btn` theo đúng Button |
+
+**Typography scale coverage: 10 / 10 đều quy về một scale khai báo = 100% · Utility-class adoption: 2 / 10 = 20%**
+Ghi chú: các dòng không dùng `.hcm-*` vì đang tái sử dụng nguyên spec typography của chính component DS
+(`PageHeader`, `Breadcrumb`, `FilterCard`, `Table`, `Button`) — các component này hardcode size/weight riêng
+trong `.jsx`/template và không đọc `--type-*`. Thay chúng bằng `.hcm-*` sẽ làm lệch khỏi component gốc.
+-->
+</body>
+</html>

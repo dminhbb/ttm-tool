@@ -30,4 +30,18 @@ export const PAGE_HEADERS: Record<string, AppScreenInfo> = {
   '/reports': { subtitle: 'Lựa chọn lớp dữ liệu và các điều kiện lọc', title: 'Báo cáo Epic (beta 2)' },
   '/no-access': { subtitle: 'Vai trò của bạn chưa được cấp quyền Xem màn hình nào', title: 'Chưa có quyền truy cập' },
   '/docs/product': { subtitle: 'Tài liệu trình bày và đào tạo về hệ thống TTM Monitor', title: 'Tài liệu sản phẩm' },
+
+  /* Ba entry dưới đây được thêm 2026-10-10 — SỬA LỖI HIỂN THỊ, không đổi hành vi.
+     AppShell lấy tiêu đề theo `PAGE_HEADERS[pathname]` và fallback về `PAGE_HEADERS['/']`
+     khi không khớp. Ba route này trước đây không có entry, nên header của chúng hiện
+     sai hẳn thành "Quản trị nguồn dữ liệu".
+
+     `/data-review` khớp theo prefix: route thật là `/data-review/[batchId]`, nên không
+     có key nào trùng khít — nhưng AppShell cũng không tra prefix, vậy nên entry này
+     chỉ đúng khi pathname là `/data-review`. Giữ lại vì nó vô hại và là chỗ để ghi lại
+     vấn đề; việc cho AppShell tra theo prefix là thay đổi hành vi, nằm ngoài phạm vi
+     đợt chuẩn hoá thuần hình ảnh này. */
+  '/data-review': { subtitle: 'Soát dữ liệu Epic của một lớp dữ liệu đã import', title: 'Soát lớp dữ liệu' },
+  '/sso/authorize': { subtitle: 'Xác nhận cấp quyền truy cập cho ứng dụng bên ngoài', title: 'Uỷ quyền SSO' },
+  '/sso-demo': { subtitle: 'Trang thử nghiệm luồng đăng nhập SSO cho ứng dụng client', title: 'SSO demo' },
 };

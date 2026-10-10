@@ -31,14 +31,14 @@ export function PillToggle<T extends string | boolean>({
   const isSm = size === 'sm';
   return (
     <div
-      className={`inline-flex items-center rounded-full border border-slate-300 bg-[#f0f3f1] p-1 shadow-2xs ${
+      className={`inline-flex items-center rounded-full border border-fb-border bg-[var(--color-bg-page)] p-1 shadow-2xs ${
         disabled ? 'opacity-60 cursor-not-allowed' : ''
       } ${className}`}
       role="radiogroup"
     >
       {options.map((opt) => {
         const selected = opt.value === value;
-        const activeBg = opt.activeColor || 'bg-[#1b6b3e]';
+        const activeBg = opt.activeColor || 'bg-[var(--color-success-300)]';
         return (
           <button
             key={String(opt.value)}
@@ -56,7 +56,7 @@ export function PillToggle<T extends string | boolean>({
             } ${
               selected
                 ? `${activeBg} text-white shadow-xs`
-                : 'text-slate-600 hover:text-slate-900 cursor-pointer'
+                : 'text-fb-text-secondary hover:text-fb-text-primary cursor-pointer'
             } ${disabled ? 'cursor-not-allowed' : ''}`}
           >
             {opt.label}
@@ -76,8 +76,8 @@ export function BooleanPillToggle({
   disabled = false,
   trueLabel = 'True',
   falseLabel = 'False',
-  trueColor = 'bg-[#1b6b3e]',
-  falseColor = 'bg-slate-700',
+  trueColor = 'bg-[var(--color-success-300)]',
+  falseColor = 'bg-fb-text-secondary',
   size = 'md',
 }: {
   value: boolean;

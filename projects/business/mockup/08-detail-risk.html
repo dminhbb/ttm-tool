@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chi tiết dự án · Quản lý rủi ro — PMS Platform</title>
+<link rel="stylesheet" href="assets/pms-tokens.css">
+<link rel="stylesheet" href="assets/pms-ias.css">
+<script src="assets/pms-icons.js"></script>
+</head>
+<body>
+<div id="pms-page"></div>
+
+<script src="assets/pms-util.js"></script>
+<script src="assets/pms-ui.js"></script>
+<script src="assets/mock-data.js"></script>
+<script src="assets/pms-detail.js"></script>
+<script src="assets/pms-shell.js"></script>
+<script src="assets/heatmap.js"></script>
+<script>
+const E = MBUtil.esc;
+const D = PMSDetail;
+const P = PRJ;
+
+/* state session */
+let RISKS = P.risks.slice();
+let ISSUES = P.issues.slice();
+let cellFilter = null;
+let showClosed = false;
+
+const STATUS_TONE = {
+  'Mới ghi nhận': 'blue', 'Đang xử lý': 'warning', 'Theo dõi': 'neutral', 'Đã đóng': 'success'
+};
+
+function openRisks() { return RISKS.filter(r => r.status !== 'Đã đóng'); }
+function visibleRisks() {
+  let list = showClosed ? RISKS : openRisks();
+  if (cellFilter) {
+    const [p, i] = cellFilter.split('-').map(Number);
+    list = list.filter(r => r.p === p && r.i === i);
+  }
+  return list.slice().sort((a, b) => MBData.riskScore(b) - MBData.riskScore(a));
+}
+
+/* ──────────────────────────── chỉ số rủi ro ────────────────────────────── */
+function metricsCard() {
+  const open = openRisks();
+  const crit = open.filter(r => MBData.riskScore(r) >= 20).length;
+  const high = open.filter(r => MBData.riskScore(r) >= 12).length;
+  const avg = open.length ? Math.round(MBUtil.sum(open, MBData.riskScore) / open.length * 10) / 10 : 0;
+  const overdue = open.filter(r => MBUtil.isOverdue(r.due)).length;
+  return D.card('Chỉ số rủi ro',
+    '<div class="metric-grid">'
+    + metric('Rủi ro đang mở', String(open.length),
+        RISKS.length - open.length + ' rủi ro đã đóng', '')
+    + metric('Mức cao và nghiêm trọng', String(high),
+        'trong đó ' + crit + ' nghiêm trọng (điểm ≥ 20)', high ? 't-error' : 't-success')
+    + metric('Điểm rủi ro trung bình', String(avg),
+        'thang điểm P × I, tối đa 25', avg >= 12 ? 't-error' : avg >= 8 ? 't-warning' : 't-success')
+    + metric('Biện pháp quá hạn', String(overdue),
+        'biện pháp ứng phó đã trôi hạn', overdue ? 't-error' : 't-success')
+    + '</div>'
+    + (crit
+      ? '<div class="alert alert-error mt-16"><span class="msym">error</span>'
+        + '<div><b>' + crit + ' rủi ro nghiêm trọng đang mở.</b> Theo quy định quản trị rủi ro dự án, '
+        + 'rủi ro điểm từ 20 phải được báo cáo lên cấp Khối và có phương án ứng phó được phê duyệt.</div></div>'
+      : ''));
+}
+function metric(label, value, note, tone) {
+  return '<div class="metric"><div class="metric-label">' + E(label) + '</div>'
+    + '<div class="metric-value ' + (tone || '') + '">' + E(value) + '</div>'
+    + '<div class="metric-note">' + E(note) + '</div></div>';
+}
+
+/* ───────────────────────────── risk register ───────────────────────────── */
+function registerTable() {
+  const rows = visibleRisks().map((r, k) => {
+    const sc = MBData.riskScore(r);
+    const lv = MBData.riskLevel(sc);
+    const od = MBUtil.isOverdue(r.due) && r.status !== 'Đã đóng';
+    return '<tr>'
+      + '<td>' + String(k + 1).padStart(2, '0') + '</td>'
+      + '<td class="td-link">' + E(r.id) + '</td>'
+      + '<td class="td-truncate">' + E(r.title) + '</td>'
+      + '<td>' + MBUtil.tag(r.category, 'neutral') + '</td>'
+      + '<td class="td-ctr t-mono">' + r.p + '</td>'
+      + '<td class="td-ctr t-mono">' + r.i + '</td>'
+      + '<td class="td-ctr t-mono t-bold">' + sc + '</td>'
+      + '<td>' + MBUtil.status(lv.label, lv.tone) + '</td>'
+      + '<td>' + MBUtil.chip(r.owner) + '</td>'
+      + '<td>' + MBUtil.tag(r.strategy) + '</td>'
+      + '<td class="td-truncate">' + E(r.response) + '</td>'
+      + '<td class="' + (od ? 't-error t-bold' : '') + '">' + MBUtil.fmtDate(r.due) + '</td>'
+      + '<td>' + MBUtil.status(r.status, STATUS_TONE[r.status] || 'neutral') + '</td>'
+      + '<td><button class="row-menu-trigger" data-risk="' + E(r.id) + '" title="Tùy chọn">'
+      + '<span class="msym" style="font-size:20px">more_vert</span></button></td></tr>';
+  });
+  return '<div class="table-wrap"><div class="table-inner" id="risk-wrap">'
+    + '<table style="min-width:1860px"><thead><tr>'
+    + '<th style="width:52px">STT</th><th style="width:80px">Mã</th>'
+    + '<th style="min-width:320px">Nội dung rủi ro</th>'
+    + '<th style="min-width:170px">Phân loại</th>'
+    + '<th style="width:56px">P</th><th style="width:56px">I</th><th style="width:70px">Điểm</th>'
+    + '<th style="min-width:140px">Mức rủi ro</th>'
+    + '<th style="min-width:160px">Người phụ trách</th>'
+    + '<th style="min-width:130px">Chiến lược</th>'
+    + '<th style="min-width:340px">Biện pháp ứng phó</th>'
+    + '<th style="min-width:130px">Hạn xử lý</th>'
+    + '<th style="min-width:140px">Trạng thái</th>'
+    + '<th style="width:52px"><span class="sr-only">Hành động</span></th>'
+    + '</tr></thead><tbody>'
+    + (rows.length ? rows.join('')
+      : '<tr><td colspan="14"><div class="empty"><span class="msym">filter_alt_off</span>'
+      + '<div class="empty-title">Không có rủi ro nào trong ô đã chọn</div>'
+      + '<div class="hcm-caption">Bấm lại ô trên ma trận để bỏ lọc.</div></div></td></tr>')
+    + '</tbody></table></div></div>'
+    + '<button class="add-row-link" id="add-risk">'
+    + '<span class="msym" style="font-size:18px">add</span>Ghi nhận rủi ro mới</button>';
+}
+
+/* ────────────────────── bảng vấn đề / bottleneck ───────────────────────── */
+function issueTable() {
+  const rows = ISSUES.map((s, k) => '<tr>'
+    + '<td>' + String(k + 1).padStart(2, '0') + '</td>'
+    + '<td class="td-link">' + E(s.id) + '</td>'
+    + '<td class="td-truncate">' + E(s.title) + '</td>'
+    + '<td class="td-truncate">' + E(s.impact) + '</td>'
+    + '<td>' + MBUtil.status(s.severity, s.severity === 'Cao' ? 'error' : 'warning') + '</td>'
+    + '<td>' + MBUtil.chip(s.owner) + '</td>'
+    + '<td>' + MBUtil.fmtDate(s.since) + '</td>'
+    + '<td class="td-num">' + MBUtil.diffDays(s.since, MBUtil.iso(MBUtil.today())) + '</td>'
+    + '<td>' + MBUtil.status(s.status, s.status === 'Đang xử lý' ? 'warning' : 'neutral') + '</td></tr>');
+  return '<div class="table-wrap"><div class="table-inner" id="issue-wrap">'
+    + '<table style="min-width:1280px"><thead><tr>'
+    + '<th style="width:52px">STT</th><th style="width:72px">Mã</th>'
+    + '<th style="min-width:340px">Vấn đề / điểm nghẽn</th>'
+    + '<th style="min-width:280px">Ảnh hưởng tới dự án</th>'
+    + '<th style="min-width:130px">Mức độ</th>'
+    + '<th style="min-width:160px">Người xử lý</th>'
+    + '<th style="min-width:130px">Ghi nhận từ</th>'
+    + '<th style="width:110px">Số ngày mở</th>'
+    + '<th style="min-width:140px">Trạng thái</th>'
+    + '</tr></thead><tbody>'
+    + (rows.length ? rows.join('')
+      : '<tr><td colspan="9"><div class="empty"><span class="msym">check_circle</span>'
+      + '<div class="empty-title">Không có vấn đề nào đang mở</div></div></td></tr>')
+    + '</tbody></table></div></div>';
+}
+
+/* ───────────────────────── modal thêm / sửa rủi ro ─────────────────────── */
+function riskModal(existing) {
+  const owners = [P.people.pm, P.people.td, P.people.pd, 'Vũ Thị Mai', 'Phạm Anh Tuấn',
+    'Trần Thu Hà', 'Lê Quốc Dũng'];
+  const scale = (n) => Array.from({ length: 5 }, (_, k) => k + 1)
+    .map(v => '<option value="' + v + '"' + ((existing ? existing[n] : 3) === v ? ' selected' : '') + '>'
+      + v + ' · ' + E(n === 'p' ? MBData.RISK_P_LABEL[v - 1] : MBData.RISK_I_LABEL[v - 1]) + '</option>').join('');
+
+  PMSModal.open({
+    title: existing ? 'Chỉnh sửa rủi ro ' + existing.id : 'Ghi nhận rủi ro mới',
+    size: 'wide',
+    body: '<div class="erow">'
+      + '<div class="ef half"><label>Nội dung rủi ro <span class="req">*</span></label>'
+      + '<input id="rk-title" value="' + E(existing ? existing.title : '') + '" placeholder="Ví dụ: Chuỗi UAT bị dồn, nguy cơ trượt mốc go-live" />'
+      + '<span class="ef-err">Bắt buộc nhập nội dung rủi ro.</span></div>'
+      + '<div class="ef"><label>Phân loại</label><select id="rk-cat">'
+      + MBData.RISK_CATEGORIES.map(c => '<option' + (existing && existing.category === c ? ' selected' : '') + '>'
+        + E(c) + '</option>').join('') + '</select></div>'
+      + '<div class="ef"><label>Người phụ trách</label><select id="rk-owner">'
+      + owners.map(o => '<option' + (existing && existing.owner === o ? ' selected' : '') + '>' + E(o) + '</option>').join('')
+      + '</select></div>'
+      + '</div><div class="erow">'
+      + '<div class="ef"><label>Xác suất xảy ra (P) <span class="req">*</span></label>'
+      + '<select id="rk-p">' + scale('p') + '</select></div>'
+      + '<div class="ef"><label>Mức độ tác động (I) <span class="req">*</span></label>'
+      + '<select id="rk-i">' + scale('i') + '</select></div>'
+      + '<div class="ef"><label>Điểm rủi ro (P × I)</label>'
+      + '<input id="rk-score" readonly value="—" /></div>'
+      + '<div class="ef"><label>Mức rủi ro</label>'
+      + '<div id="rk-level" style="height:40px;display:flex;align-items:center"></div></div>'
+      + '</div><div class="erow">'
+      + '<div class="ef"><label>Chiến lược ứng phó</label><select id="rk-strategy">'
+      + MBData.RISK_STRATEGIES.map(s => '<option' + (existing && existing.strategy === s ? ' selected' : '') + '>'
+        + E(s) + '</option>').join('') + '</select></div>'
+      + '<div class="ef"><label>Hạn xử lý</label><input type="date" id="rk-due" value="'
+      + E(existing ? existing.due : '') + '" /></div>'
+      + '<div class="ef"><label>Trạng thái</label><select id="rk-status">'
+      + MBData.RISK_STATUSES.map(s => '<option' + (existing && existing.status === s ? ' selected' : '') + '>'
+        + E(s) + '</option>').join('') + '</select></div>'
+      + '<div class="ef"></div>'
+      + '</div><div class="erow">'
+      + '<div class="ef full"><label>Biện pháp ứng phó cụ thể <span class="req">*</span></label>'
+      + '<textarea id="rk-response" placeholder="Nêu rõ việc sẽ làm, ai làm, khi nào xong...">'
+      + E(existing ? existing.response : '') + '</textarea>'
+      + '<span class="ef-err">Bắt buộc nhập biện pháp — rủi ro không có biện pháp thì không đóng được.</span></div>'
+      + '</div>',
+    actions: [
+      { label: 'Hủy', variant: 'outline' },
+      {
+        label: existing ? 'Lưu' : 'Ghi nhận rủi ro', variant: 'primary', icon: 'check',
+        onClick: (h) => {
+          const title = h.q('#rk-title'), resp = h.q('#rk-response');
+          let bad = false;
+          [title, resp].forEach(el => {
+            const f = el.closest('.ef');
+            if (!el.value.trim()) { f.classList.add('is-invalid'); bad = true; } else f.classList.remove('is-invalid');
+          });
+          if (bad) { PMSNotify.error('Thiếu thông tin bắt buộc', 'Nội dung rủi ro và biện pháp ứng phó là bắt buộc.'); return false; }
+          const payload = {
+            title: title.value.trim(), category: h.q('#rk-cat').value,
+            p: +h.q('#rk-p').value, i: +h.q('#rk-i').value,
+            owner: h.q('#rk-owner').value, strategy: h.q('#rk-strategy').value,
+            response: resp.value.trim(), due: h.q('#rk-due').value, status: h.q('#rk-status').value
+          };
+          if (existing) {
+            RISKS = RISKS.map(r => (r.id === existing.id ? Object.assign({}, r, payload) : r));
+            PMSNotify.success('Đã cập nhật ' + existing.id,
+              'Điểm mới: ' + (payload.p * payload.i) + ' · ' + MBData.riskLevel(payload.p * payload.i).label);
+          } else {
+            const id = 'R-' + String(RISKS.length + 1).padStart(2, '0');
+            RISKS = RISKS.concat([Object.assign({ id: id }, payload)]);
+            PMSNotify.success('Đã ghi nhận ' + id,
+              'Điểm P × I = ' + (payload.p * payload.i) + ' · mức ' + MBData.riskLevel(payload.p * payload.i).label);
+          }
+          cellFilter = null;
+          render();
+        }
+      }
+    ],
+    onMount: (h) => {
+      const upd = () => {
+        const sc = +h.q('#rk-p').value * +h.q('#rk-i').value;
+        const lv = MBData.riskLevel(sc);
+        h.q('#rk-score').value = String(sc);
+        h.q('#rk-level').innerHTML = MBUtil.status(lv.label, lv.tone, 'lg');
+      };
+      h.q('#rk-p').addEventListener('change', upd);
+      h.q('#rk-i').addEventListener('change', upd);
+      h.qa('#rk-title, #rk-response').forEach(el => el.addEventListener('input', () => {
+        if (el.value.trim()) el.closest('.ef').classList.remove('is-invalid');
+      }));
+      upd();
+    }
+  });
+}
+
+/* ────────────────────────────────── render ─────────────────────────────── */
+function render() {
+  const filterNote = cellFilter
+    ? '<span class="chip chip-toggle on" id="clear-cell">Đang lọc ô P' + cellFilter.split('-')[0]
+      + ' × I' + cellFilter.split('-')[1] + ' · bỏ lọc ✕</span>'
+    : '';
+
+  document.getElementById('pms-page').innerHTML =
+    D.switcher('risk')
+    + D.summaryCard()
+    + metricsCard()
+    + D.card('Ma trận rủi ro 5 × 5 — bấm vào ô để lọc danh sách bên dưới',
+      '<div class="row row-wrap" style="gap:32px;align-items:flex-start">'
+      + '<div id="heatmap"></div>'
+      + '<div style="flex:1;min-width:260px">' + PMSHeatmap.legend()
+      + '<div class="alert alert-info mt-16"><span class="msym">info</span>'
+      + '<div>Điểm rủi ro = <b>Xác suất (P)</b> × <b>Tác động (I)</b>, thang 1–5 mỗi trục. '
+      + 'Ngưỡng: 1–5 Thấp · 6–11 Trung bình · 12–19 Cao · 20–25 Nghiêm trọng.<br>'
+      + 'Số trong ô là số rủi ro đang mở ở toạ độ đó; số nhỏ góc dưới là điểm của ô.</div></div>'
+      + '</div></div>')
+    + D.card('Sổ đăng ký rủi ro (risk register)', registerTable(),
+      '<div class="row" style="gap:8px">' + filterNote
+      + '<label class="cbx"><input type="checkbox" id="show-closed"' + (showClosed ? ' checked' : '') + '>'
+      + 'Hiện cả rủi ro đã đóng</label>'
+      + '<span class="tag">' + visibleRisks().length + ' rủi ro</span></div>')
+    + D.card('Vấn đề và điểm nghẽn đang mở', issueTable(),
+      '<span class="tag' + (ISSUES.length ? '' : ' tag-neutral') + '">' + ISSUES.length + ' vấn đề</span>')
+    + D.footer();
+
+  D.headerActions();
+  PMSHeatmap.render(document.getElementById('heatmap'), openRisks(), {
+    selected: cellFilter,
+    onSelect: (k) => { cellFilter = k; render(); }
+  });
+  PMSTip.bindTruncated(document.getElementById('risk-wrap'));
+  PMSTip.bindTruncated(document.getElementById('issue-wrap'));
+
+  const cc = document.getElementById('clear-cell');
+  if (cc) cc.addEventListener('click', () => { cellFilter = null; render(); });
+  document.getElementById('show-closed').addEventListener('change', (e) => {
+    showClosed = e.target.checked; render();
+  });
+}
+
+document.getElementById('pms-page').addEventListener('click', (e) => {
+  if (e.target.closest('#add-risk')) { riskModal(null); return; }
+  const m = e.target.closest('[data-risk]');
+  if (m) {
+    const r = RISKS.find(x => x.id === m.dataset.risk);
+    PMSMenu.openAt(m, [
+      { label: 'Chỉnh sửa', onClick: () => riskModal(r) },
+      {
+        label: 'Đóng rủi ro', disabled: r.status === 'Đã đóng',
+        onClick: () => {
+          RISKS = RISKS.map(x => (x.id === r.id ? Object.assign({}, x, { status: 'Đã đóng' }) : x));
+          render();
+          PMSNotify.success('Đã đóng ' + r.id, 'Rủi ro không còn tính vào chỉ số đang mở.');
+        }
+      },
+      { label: 'Lịch sử thay đổi', onClick: () => PMSNotify.info('Lịch sử ' + r.id, 'Minh hoạ trong mockup.') },
+      {
+        label: 'Xóa', danger: true,
+        onClick: () => PMSModal.confirm({
+          title: 'Xóa rủi ro',
+          body: 'Xóa <b>' + E(r.id) + '</b> khỏi sổ đăng ký rủi ro?',
+          okLabel: 'Xóa', okIcon: 'delete',
+          onOk: () => { RISKS = RISKS.filter(x => x.id !== r.id); render(); PMSNotify.warning('Đã xóa ' + r.id); }
+        })
+      }
+    ]);
+  }
+});
+
+render();
+D.wire();
+</script>
+
+<!--
+## 📊 Component Coverage Report — Chi tiết dự án · Quản lý rủi ro
+
+| # | Element | DS Component used | Status |
+|---|---------|------------------|--------|
+| 1 | Left sidebar | AppSidebar | ✅ DS |
+| 2 | Breadcrumb + back + title + badge + actions | PageHeader | ✅ DS |
+| 3 | Bộ chuyển 6 cấu phần | section-switcher (bespoke của XemChiTiet) | ⚠️ Bespoke |
+| 4 | Dải chỉ số tóm tắt | Card + Progress | ✅ DS |
+| 5 | 4 ô chỉ số rủi ro | DataCard (metric tile) | ✅ DS |
+| 6 | Cảnh báo rủi ro nghiêm trọng | Alert | ✅ DS |
+| 7 | Giải thích thang điểm P × I | Alert | ✅ DS |
+| 8 | Sổ đăng ký rủi ro | Table | ✅ DS |
+| 9 | Bảng vấn đề / điểm nghẽn | Table | ✅ DS |
+| 10 | Mức rủi ro, trạng thái, mức độ vấn đề | Badge size="medium" | ✅ DS |
+| 11 | Phân loại, chiến lược ứng phó | Tag | ✅ DS |
+| 12 | Người phụ trách / người xử lý | Chips size="small" | ✅ DS |
+| 13 | Chip "đang lọc ô" | Chips (toggle) | ✅ DS |
+| 14 | Hiện cả rủi ro đã đóng | Checkbox | ✅ DS |
+| 15 | Menu hành động theo dòng | RowMenu | ✅ DS |
+| 16 | Modal ghi nhận / sửa rủi ro (tự chấm P × I) | Modal | ✅ DS |
+| 17 | Select / Textarea / Date trong modal | Select · Textarea · Input | ✅ DS |
+| 18 | Link "+ Ghi nhận rủi ro mới" | add-row link (pattern của ChinhSua) | ✅ DS |
+| 19 | Trạng thái rỗng khi lọc | Empty | ✅ DS |
+| 20 | Tooltip trên ô ma trận | Tooltip | ✅ DS |
+| 21 | Thông báo | Notification | ✅ DS |
+| 22 | Hàng đóng màn | DetailFooter align="center" | ✅ DS |
+| 23 | Ma trận rủi ro 5×5 bấm để lọc | — | ⚠️ Bespoke (DS không có component heatmap/matrix) |
+
+**DS component coverage: 21 / 23 = 91%**
+Shell zones: ✅ AppSidebar · ✅ PageHeader · ❌ AppHeader (loại trừ theo mặc định của ias-design)
+
+## 🎨 Color Token Coverage — Chi tiết dự án · Quản lý rủi ro
+
+| # | Element (property) | Location | Original hex | Category | Matched Semantic Alias | Match |
+|---|---|---|---|---|---|---|
+| 1 | Ô ma trận mức Thấp | `.heat-low` | `#00BA88` | background | `--color-bg-success-solid` | ✅ Exact |
+| 2 | Ô ma trận mức Trung bình | `.heat-med` | `#F4B740` | background | `--color-bg-warning-solid` | ✅ Exact |
+| 3 | Ô ma trận mức Cao | `.heat-high` | `#E39114` | background | `--color-warning-400` | ⚠️ Nearest — cần 4 bậc nhiệt nhưng chỉ có 3 alias `--color-bg-*-solid`; dùng raw scale cùng hue cảnh báo |
+| 4 | Ô ma trận mức Nghiêm trọng | `.heat-crit` | `#EB2D4B` | background | `--color-bg-error-solid` | ✅ Exact |
+| 5 | Chữ trong ô ma trận | `.hm-cell` | `#FFFFFF` | text | `--color-text-inverse` | ✅ Exact |
+| 6 | Viền ô ma trận đang chọn | `.hm-cell.on` | `#14142A` | border | `--color-neutral-900` qua `--color-text-primary` | ⚠️ Nearest — không có alias `--color-border-strong-contrast` |
+| 7 | Nhãn trục ma trận | `.hm-rowlab`, `.hm-collab` | `#4E4B66` | text | `--color-text-body` | ✅ Exact |
+| 8 | Tiêu đề trục | `.hm-yaxis`, `.hm-xaxis` | `#6E7191` | text | `--color-text-secondary` | ✅ Exact |
+| 9 | Nền Alert lỗi | `.alert-error` | `#FFF3F8` | background | `--color-bg-error` | ✅ Exact |
+| 10 | Chữ Alert lỗi | `.alert-error` | `#C30052` | text | `--color-text-error` | ✅ Exact |
+| 11 | Hạn xử lý quá hạn | `.t-error` trong ô bảng | `#C30052` | text | `--color-text-error` | ✅ Exact |
+| 12 | Điểm rủi ro (mono) | `.t-mono.t-bold` | `#4E4B66` | text | `--color-text-body` | ✅ Exact |
+
+**Color token coverage: 10 / 12 exact, 2 ⚠️ nearest = 100% được map vào token khai báo · 0 severe gap**
+
+⚠️ Lưu ý cho chủ sở hữu DS: thang nhiệt 4 bậc của ma trận rủi ro hiện phải vay `--color-warning-400`
+cho bậc "Cao" vì bộ Semantic Alias chỉ khai báo 3 nền trạng thái đặc (success/warning/error).
+Nếu ma trận rủi ro trở thành pattern dùng lại trong PMS, nên bổ sung một alias riêng — tôi không tự thêm token.
+
+## 🔤 Typography Scale Coverage — Chi tiết dự án · Quản lý rủi ro
+
+| # | Text element | Rendered size / weight | Matched scale | Match | Class used? |
+|---|---|---|---|---|---|
+| 1 | Detail title | 20px / 700 | H4 (22px/500) | ⚠️ Nearest — spec riêng của PageHeader | ❌ `.detail-title` |
+| 2 | Nhãn section-switcher | 14px / 600 | Subtitle 2 (14px/600) | ✅ Exact | ✅ `class="hcm-subtitle2"` |
+| 3 | Tiêu đề card | 16px / 700 | Subtitle 1 (16px/600) | ⚠️ Nearest | ✅ `.d-card-title` dùng token subtitle1 |
+| 4 | Số rủi ro trong ô ma trận | 14px / 700 | Subtitle 2 (14px/600) | ⚠️ Nearest | ✅ `.hm-cell` dùng `--type-subtitle2-size` |
+| 5 | Điểm nhỏ trong ô ma trận | 9px / 600 | Overline (10px/600) | ⚠️ Nearest | ❌ `.hm-score` |
+| 6 | Nhãn trục ma trận | 10–11px / 600 | Overline (10px/600) | ✅ Exact | ❌ `.hm-rowlab` / `.hm-collab` |
+| 7 | Nhãn / giá trị ô chỉ số | 12px/600 · 18px/700 | Caption · H5 | ⚠️ Nearest | ✅ `.metric-label` / `.metric-value` |
+| 8 | Header / ô bảng | 11px/700 · 13px/400 | Overline · Body 2 | ⚠️ Nearest — spec riêng của Table | ❌ `th` / `td` |
+| 9 | Chú thích Empty | 12px / 500 | Caption (12px/500) | ✅ Exact | ✅ `class="hcm-caption"` |
+
+**Typography scale coverage: 9 / 9 = 100% · Utility-class adoption: 5 / 9 = 56%**
+-->
+</body>
+</html>

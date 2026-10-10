@@ -50,6 +50,7 @@ import { DailyCacheWarmer } from '@/components/layout/DailyCacheWarmer';
 import { SystemStatusFooter } from '@/components/layout/SystemStatusFooter';
 import { DialogHost } from '@/components/ui/dialogs';
 import { showToast, ToastProvider } from '@/components/ui/Toast';
+import { TruncationTooltip } from '@/components/ui/TruncationTooltip';
 import { fallbackPathFor, pageFeatureKey } from '@/lib/feature-access';
 import { resolveScreenKeyFromPathname, trackScreenVisit } from '@/lib/visit-counter-client';
 
@@ -366,7 +367,7 @@ function SidebarContent({ expanded, hiddenFeatureKeys, onNavigate, onOpenModal, 
         {expanded && (
           <div className="min-w-0">
             <p className="truncate text-sm font-extrabold tracking-[-0.02em] text-fb-text-primary">TTM Monitor</p>
-            <p className="text-[9px] font-medium text-sidebar-muted">Theo dõi Time to Market</p>
+            <p className="text-[11px] font-medium text-sidebar-muted">Theo dõi Time to Market</p>
           </div>
         )}
       </div>
@@ -375,7 +376,7 @@ function SidebarContent({ expanded, hiddenFeatureKeys, onNavigate, onOpenModal, 
         {sections.map((section) => (
           <div key={section.label} className="mb-5 last:mb-0">
             {expanded ? (
-              <p className="mb-1.5 px-3 text-[9px] font-bold tracking-wide text-sidebar-muted">{section.label}</p>
+              <p className="mb-1.5 px-3 text-[11px] font-bold tracking-wide text-sidebar-muted">{section.label}</p>
             ) : (
               <div className="mx-2 mb-2 h-px bg-fb-border" aria-hidden="true" />
             )}
@@ -419,7 +420,7 @@ function SidebarContent({ expanded, hiddenFeatureKeys, onNavigate, onOpenModal, 
                     {expanded && hasPendingTickets && (
                       <span className="ml-auto size-2 shrink-0 rounded-full bg-status-danger" aria-hidden="true" />
                     )}
-                    {expanded && item.disabled && <span className="ml-auto text-[8px] font-medium">Sắp có</span>}
+                    {expanded && item.disabled && <span className="ml-auto text-[11px] font-medium">Sắp có</span>}
                     {hasPendingTickets && <span className="sr-only"> (có ticket đang chờ xử lý)</span>}
                   </>
                 );
@@ -776,8 +777,8 @@ function AppShellInner({ children }: AppShellProps) {
               {epicHeaderWidgetItems.map((item) => (
                 <Tooltip key={item.key} multiline side="bottom" align="end" content={item.tooltip} className="inline-flex w-auto">
                   <div className="flex flex-col items-end gap-0 rounded-md border border-fb-border bg-fb-surface-muted px-2 py-1 leading-none cursor-help hover:bg-fb-control transition-colors">
-                    <span className="text-[9px] font-bold uppercase tracking-wide text-fb-text-secondary">{item.label}</span>
-                    <span className={cn('text-sm font-extrabold', item.tone === 'qa' ? 'text-purple-700' : item.tone === 'e2e' ? 'text-emerald-700' : 'text-fb-blue')}>{item.value}</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wide text-fb-text-secondary">{item.label}</span>
+                    <span className={cn('text-sm font-extrabold', item.tone === 'qa' ? 'text-fb-accent' : item.tone === 'e2e' ? 'text-status-success' : 'text-fb-blue')}>{item.value}</span>
                   </div>
                 </Tooltip>
               ))}
@@ -815,6 +816,11 @@ export function AppShell({ children }: AppShellProps) {
           <AppShellInner>{children}</AppShellInner>
         </React.Suspense>
         <DialogHost />
+        {/* Mount một lần cho toàn app: mọi ô mang class `.ias-td-truncate` sẽ hiện
+            đầy đủ nội dung khi hover, qua một delegated listener trên document.
+            Thay cho attribute `title` (hộp tooltip của OS, không phải bubble của DS)
+            và khôi phục phần chữ bị cắt mà hiện không có cách nào đọc được. */}
+        <TruncationTooltip />
       </ToastProvider>
     </EpicHeaderWidgetsProvider>
   );

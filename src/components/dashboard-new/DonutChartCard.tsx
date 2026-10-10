@@ -119,9 +119,9 @@ export function DonutChartCard({
   };
 
   return (
-    <div className="relative flex flex-col rounded-2xl border border-slate-200/90 bg-[#f8fafc] p-5 shadow-xs transition-shadow hover:shadow-sm">
+    <div className="relative flex flex-col rounded-2xl border border-fb-border/90 bg-[var(--color-bg-page)] p-5 shadow-xs transition-shadow hover:shadow-sm">
       {/* Title with fixed height */}
-      <h3 className="flex h-5 items-center justify-center text-center text-sm font-bold text-slate-800 line-clamp-1">
+      <h3 className="flex h-5 items-center justify-center text-center text-sm font-bold text-fb-text-primary line-clamp-1">
         {title}
       </h3>
 
@@ -130,7 +130,7 @@ export function DonutChartCard({
         {/* Floating Tooltip - absolute with zero transition lag to prevent jitter */}
         {tooltipState?.visible && activeItem && (
           <div
-            className="pointer-events-none absolute z-30 -translate-x-1/2 -translate-y-full rounded-lg bg-slate-900/95 px-2.5 py-1.5 text-xs text-white shadow-lg backdrop-blur-xs select-none"
+            className="pointer-events-none absolute z-30 -translate-x-1/2 -translate-y-full rounded-lg bg-fb-text-primary/95 px-2.5 py-1.5 text-xs text-white shadow-lg backdrop-blur-xs select-none"
             style={{ left: tooltipState.x, top: tooltipState.y - 10 }}
           >
             <div className="flex items-center gap-1.5 font-semibold">
@@ -140,11 +140,11 @@ export function DonutChartCard({
               />
               <span className="truncate max-w-[150px]">{activeItem.name}</span>
             </div>
-            <div className="mt-0.5 text-[11px] text-slate-300">
-              {activeItem.value} {unitLabel} &bull; <strong className="text-amber-300 font-bold text-xs">{activeItem.pct}%</strong>
+            <div className="mt-0.5 text-[11px] text-fb-text-placeholder">
+              {activeItem.value} {unitLabel} &bull; <strong className="text-status-warning font-bold text-xs">{activeItem.pct}%</strong>
             </div>
             {onItemClick && (
-              <div className="mt-1 border-t border-slate-700/80 pt-1 text-[10px] text-blue-300">
+              <div className="mt-1 border-t border-fb-border-strong/80 pt-1 text-[11px] text-fb-blue">
                 Click để duyệt danh sách Epic
               </div>
             )}
@@ -215,7 +215,7 @@ export function DonutChartCard({
             {activeItem ? `${activeItem.pct}%` : total}
           </span>
           <span
-            className="text-[11px] font-semibold text-slate-500 mt-1 truncate max-w-[100px] leading-tight"
+            className="text-[11px] font-semibold text-fb-text-placeholder mt-1 truncate max-w-[100px] leading-tight"
             title={activeItem ? activeItem.name : unitLabel}
           >
             {activeItem ? activeItem.name : unitLabel}
@@ -224,9 +224,9 @@ export function DonutChartCard({
       </div>
 
       {/* Legend & Breakdown Table - fixed row height to eliminate any shaking */}
-      <div className="mt-auto space-y-1 border-t border-slate-200/60 pt-3">
+      <div className="mt-auto space-y-1 border-t border-fb-border/60 pt-3">
         {total === 0 || displayItems.length === 0 ? (
-          <p className="py-2 text-center text-xs text-slate-400 italic">
+          <p className="py-2 text-center text-xs text-fb-text-placeholder italic">
             {emptyMessage}
           </p>
         ) : (
@@ -243,21 +243,21 @@ export function DonutChartCard({
                 }}
                 className={`flex h-8 items-center justify-between text-xs px-2.5 rounded-lg border transition-colors cursor-pointer select-none ${
                   isHovered
-                    ? 'bg-blue-50/90 text-blue-900 border-blue-300/80 shadow-xs'
-                    : 'bg-transparent text-slate-700 border-transparent hover:bg-slate-100/70'
+                    ? 'bg-fb-blue-soft/90 text-fb-blue border-fb-blue/80 shadow-xs'
+                    : 'bg-transparent text-fb-text-secondary border-transparent hover:bg-fb-surface-muted/70'
                 }`}
               >
                 {/* Left: Dot & Name */}
                 <div className="flex items-center gap-2 min-w-0 mr-2">
                   <span
                     className={`size-2.5 shrink-0 rounded-full transition-shadow ${
-                      isHovered ? 'ring-2 ring-blue-400 ring-offset-1' : ''
+                      isHovered ? 'ring-2 ring-fb-blue ring-offset-1' : ''
                     }`}
                     style={{ backgroundColor: item.color }}
                   />
                   <span
                     className={`truncate text-xs ${
-                      isHovered ? 'font-bold text-blue-900' : 'font-medium text-slate-700'
+                      isHovered ? 'font-bold text-fb-blue' : 'font-medium text-fb-text-secondary'
                     }`}
                     title={item.name}
                   >
@@ -269,14 +269,14 @@ export function DonutChartCard({
                 <div className="flex items-center gap-2 shrink-0">
                   <span
                     className={`w-9 text-right text-xs tabular-nums ${
-                      isHovered ? 'font-bold text-blue-900' : 'font-semibold text-slate-800'
+                      isHovered ? 'font-bold text-fb-blue' : 'font-semibold text-fb-text-primary'
                     }`}
                   >
                     {item.value}
                   </span>
                   <span
                     className={`w-10 text-right text-xs tabular-nums ${
-                      isHovered ? 'font-bold text-blue-700' : 'font-medium text-slate-400'
+                      isHovered ? 'font-bold text-fb-blue' : 'font-medium text-fb-text-placeholder'
                     }`}
                   >
                     {item.pct}%

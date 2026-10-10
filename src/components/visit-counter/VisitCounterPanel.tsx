@@ -446,7 +446,8 @@ export function VisitCounterPanel({ hideTitle = false }: VisitCounterPanelProps 
                                     {domain.domainName || domain.domainCode}
                                   </span>
                                   {domain.domainCode && (
-                                    <Badge variant="neutral" className="text-[10px] px-1 py-0 shrink-0 hidden sm:inline-flex">
+                                    // 11px là sàn cứng — khớp spec Badge size medium của IAS.
+                                    <Badge variant="neutral" className="text-[11px] px-1 py-0 shrink-0 hidden sm:inline-flex">
                                       {domain.domainCode}
                                     </Badge>
                                   )}
@@ -792,7 +793,7 @@ function ScreenDualBarChart({ screenStats }: { screenStats: ScreenVisitStat[] })
               <div className="flex h-40 w-full items-end justify-center gap-1.5 sm:gap-2.5 border-b border-fb-border px-1 pb-1">
                 {/* Bar 1: Previous Week (Slate) */}
                 <div className="flex flex-col items-center justify-end h-full w-4 sm:w-8">
-                  <span className="mb-1 text-[10px] sm:text-xs font-semibold text-slate-500 whitespace-nowrap">
+                  <span className="mb-1 text-[11px] sm:text-xs font-semibold text-slate-500 whitespace-nowrap">
                     {(screen.prevWeeklyVisits ?? 0).toLocaleString('vi-VN')}
                   </span>
                   <div
@@ -807,7 +808,7 @@ function ScreenDualBarChart({ screenStats }: { screenStats: ScreenVisitStat[] })
 
                 {/* Bar 2: Current Week (Blue) */}
                 <div className="flex flex-col items-center justify-end h-full w-4 sm:w-8">
-                  <span className="mb-1 text-[10px] sm:text-xs font-semibold text-blue-600 dark:text-blue-400 whitespace-nowrap">
+                  <span className="mb-1 text-[11px] sm:text-xs font-semibold text-blue-600 dark:text-blue-400 whitespace-nowrap">
                     {(screen.weeklyVisits ?? 0).toLocaleString('vi-VN')}
                   </span>
                   <div

@@ -1,3 +1,10 @@
+/* Lớp control dùng chung (.ttm-toolbar / .ttm-select / .ttm-field / .has-filter) và bộ
+   remap token --ttm-* sang semantic alias của IAS nằm trong file dưới đây. Khối :root
+   phía sau được GIỮ LẠI làm fallback cho các brand khác; brand `ias` đè nó bằng
+   selector :root[data-brand="ias"] — 0-2-0 thắng 0-1-0, nên không phụ thuộc thứ tự
+   nạp chunk CSS (chính chỗ dựa vào thứ tự nạp là nguồn gốc lỗi màu trước đây). */
+@import '../ttm-shared.css';
+
 /* TTM Epic Management — Design Tokens
    Scope: PM-SM/User Epic monitoring screen, read-only. */
 :root {
@@ -190,28 +197,31 @@
   border-color: var(--ttm-brand-600);
 }
 /* Active / applied filter indicator — viền màu đỏ khi bộ lọc được áp dụng */
+/* `!important` đã được BỎ (2026-10-10) — xem ghi chú cùng nội dung ở
+   src/app/epic-alerts-15/epic-alerts-15.css. */
 .ttm-select.has-filter,
 .ttm-field.has-filter,
-.ttm-multiselect-trigger.has-filter,
-.has-filter {
-  border-color: #dc2626 !important;
+.ttm-multiselect-trigger.has-filter {
+  border-color: var(--color-border-error);
 }
 .ttm-select.has-filter:focus,
 .ttm-field.has-filter:focus,
 .ttm-multiselect-trigger.has-filter.is-open,
 .ttm-multiselect-trigger.has-filter:focus {
-  border-color: #dc2626 !important;
-  outline: 2px solid rgba(220, 38, 38, 0.25) !important;
+  border-color: var(--color-border-error);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(235, 45, 75, 0.12);
 }
 /* Keyword search input — placeholder 'Tìm epic', background matches page background, border preserved */
+/* `!important` đã được BỎ (2026-10-10) — xem ghi chú ở epic-alerts-15.css. */
 .ttm-search-field,
 .ttm-field[type="search"] {
-  background-color: transparent !important;
+  background-color: transparent;
   border: 1px solid var(--ttm-border);
 }
 .ttm-search-field.has-filter,
 .ttm-field[type="search"].has-filter {
-  border-color: #dc2626 !important;
+  border-color: var(--color-border-error);
 }
 .ttm-button { cursor: pointer; font-weight: 600; }
 .ttm-button.primary {

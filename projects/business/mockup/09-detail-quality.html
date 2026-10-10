@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chi tiết dự án · Chất lượng &amp; hiệu quả — PMS Platform</title>
+<link rel="stylesheet" href="assets/pms-tokens.css">
+<link rel="stylesheet" href="assets/pms-ias.css">
+<script src="assets/pms-icons.js"></script>
+</head>
+<body>
+<div id="pms-page"></div>
+
+<script src="assets/pms-util.js"></script>
+<script src="assets/pms-ui.js"></script>
+<script src="assets/mock-data.js"></script>
+<script src="assets/pms-detail.js"></script>
+<script src="assets/pms-shell.js"></script>
+<script>
+const E = MBUtil.esc;
+const D = PMSDetail;
+const P = PRJ;
+const Q = P.quality;
+
+/* ô chỉ số có so sánh với ngưỡng cam kết */
+function qMetric(label, value, unit, target, dir, note) {
+  const ok = dir === 'lte' ? value <= target : value >= target;
+  const tone = ok ? 't-success' : 't-error';
+  return '<div class="metric">'
+    + '<div class="metric-label">' + E(label) + '</div>'
+    + '<div class="metric-value ' + tone + '">' + MBUtil.num(value, 1) + '<span class="hcm-caption t-muted"> '
+    + E(unit) + '</span></div>'
+    + '<div class="row" style="gap:8px;margin-top:6px">'
+    + MBUtil.status(ok ? 'Đạt' : 'Chưa đạt', ok ? 'success' : 'error', 'sm')
+    + '<span class="metric-note">ngưỡng ' + (dir === 'lte' ? '≤ ' : '≥ ') + MBUtil.num(target, 1) + ' ' + E(unit) + '</span>'
+    + '</div>'
+    + (note ? '<div class="metric-note mt-8">' + E(note) + '</div>' : '')
+    + '</div>';
+}
+
+function spark(series, label, suffix) {
+  const max = Math.max.apply(null, series);
+  return '<div style="min-width:200px;flex:1">'
+    + '<div class="hcm-caption t-secondary mb-8">' + E(label) + '</div>'
+    + '<div class="spark">' + series.map((v, i) =>
+      '<span class="spark-bar' + (i === series.length - 1 ? ' last' : '') + '"'
+      + ' style="height:' + Math.max(8, Math.round(v / max * 100)) + '%"'
+      + ' title="' + E(MBUtil.num(v, 1) + (suffix || '')) + '"></span>').join('')
+    + '</div>'
+    + '<div class="hcm-caption t-muted mt-8">8 kỳ gần nhất · hiện tại '
+    + MBUtil.num(series[series.length - 1], 1) + E(suffix || '') + '</div></div>';
+}
+
+/* ───────────────────────────── chất lượng ──────────────────────────────── */
+function qualityCards() {
+  return D.card('Chỉ số chất lượng',
+    '<div class="metric-grid">'
+    + qMetric('Mật độ lỗi (defect density)', Q.defectDensity, 'lỗi/KLOC', Q.defectDensityTarget, 'lte',
+        Q.defectTotal + ' lỗi đã ghi nhận · ' + Q.defectOpen + ' đang mở · ' + Q.defectCriticalOpen + ' mức nghiêm trọng')
+    + qMetric('Lỗi lọt sang UAT', Q.leakageUat, '%', Q.leakageUatTarget, 'lte',
+        'tỷ lệ lỗi không bắt được ở SIT')
+    + qMetric('Lỗi lọt ra PROD', Q.leakageProd, '%', Q.leakageProdTarget, 'lte',
+        'tỷ lệ lỗi phát hiện sau go-live')
+    + qMetric('Tỷ lệ test case pass', Q.passRate, '%', Q.passRateTarget, 'gte',
+        'tính trên toàn bộ bộ test đã chạy')
+    + qMetric('Tỷ lệ làm lại (rework)', Q.reworkRate, '%', Q.reworkRateTarget, 'lte',
+        'công việc phải làm lại do lỗi thiết kế hoặc yêu cầu')
+    + qMetric('Unit test coverage', Q.coverage, '%', Q.coverageTarget, 'gte',
+        'ngưỡng cam kết trong kế hoạch chất lượng')
+    + '</div>'
+    + '<div class="divider"></div>'
+    + '<div class="row row-wrap" style="gap:32px">'
+    + spark(Q.trendDefect, 'Xu hướng số lỗi đang mở', ' lỗi')
+    + spark(Q.trendPass, 'Xu hướng tỷ lệ pass', '%')
+    + '</div>')
+
+  + D.card('Kết quả đánh giá theo giai đoạn',
+    '<div class="table-wrap"><div class="table-inner" id="rev-wrap">'
+    + '<table style="min-width:900px"><thead><tr>'
+    + '<th style="width:52px">STT</th>'
+    + '<th style="min-width:220px">Giai đoạn</th>'
+    + '<th style="min-width:150px">Ngày đánh giá</th>'
+    + '<th style="min-width:180px">Kết quả</th>'
+    + '<th style="min-width:360px">Ghi chú</th>'
+    + '</tr></thead><tbody>'
+    + Q.reviews.map((r, i) => {
+        const tone = r.result === 'Đạt' ? 'success'
+          : r.result === 'Đạt có điều kiện' ? 'warning'
+          : r.result === 'Không đạt' ? 'error' : 'neutral';
+        return '<tr>'
+          + '<td>' + String(i + 1).padStart(2, '0') + '</td>'
+          + '<td>' + E(r.phase) + '</td>'
+          + '<td>' + (r.date ? MBUtil.fmtDate(r.date) : '<span class="t-muted">—</span>') + '</td>'
+          + '<td>' + MBUtil.status(r.result, tone) + '</td>'
+          + '<td class="td-truncate">' + (r.note ? E(r.note) : '<span class="t-muted">—</span>') + '</td></tr>';
+      }).join('')
+    + '</tbody></table></div></div>');
+}
+
+/* ───────────────────────────── hiệu quả ────────────────────────────────── */
+function effectivenessCards() {
+  const c = Q.cost;
+  const budget = c.planned + c.approvedExtra;
+  const usedPct = Math.round(c.actual / budget * 100);
+  const commitPct = Math.round(c.committed / budget * 100);
+
+  const okrHtml = P.okr.map(o =>
+    '<div class="okr"><div class="okr-obj">' + E(o.obj) + '</div>'
+    + '<div class="okr-kr">Key Result: ' + E(o.kr) + '</div>'
+    + '<div class="row mt-12" style="gap:12px">'
+    + '<div style="flex:1">' + MBUtil.progress(o.pct, o.pct >= 80 ? 'ok' : (o.pct >= 50 ? 'warn' : 'bad')) + '</div>'
+    + '<span class="hcm-caption t-secondary" style="min-width:220px">Kết quả thực tế: '
+    + (o.result ? '<b>' + E(o.result) + '</b>' : 'chưa đo') + '</span>'
+    + '</div></div>').join('');
+
+  const ttm = Q.ttm;
+  const ttmNa = ttm.cntt === 'Không áp dụng';
+
+  return D.card('Hiệu quả theo OKR đã đăng ký', okrHtml)
+
+  + D.card('Chi phí và mức sử dụng ngân sách',
+    '<div class="metric-grid">'
+    + '<div class="metric"><div class="metric-label">Dự toán được duyệt</div>'
+    + '<div class="metric-value">' + MBUtil.money(c.planned) + '</div>'
+    + '<div class="metric-note">chưa gồm các CR bổ sung</div></div>'
+    + '<div class="metric"><div class="metric-label">Bổ sung theo CR đã duyệt</div>'
+    + '<div class="metric-value ' + (c.approvedExtra ? 't-warning' : '') + '">+' + MBUtil.money(c.approvedExtra) + '</div>'
+    + '<div class="metric-note">ngân sách sau điều chỉnh: ' + MBUtil.money(budget) + '</div></div>'
+    + '<div class="metric"><div class="metric-label">Đã thực hiện</div>'
+    + '<div class="metric-value">' + MBUtil.money(c.actual) + '</div>'
+    + '<div class="mt-8">' + MBUtil.progress(Math.min(100, usedPct), usedPct > 100 ? 'bad' : 'ok') + '</div>'
+    + '<div class="metric-note">' + usedPct + '% ngân sách sau điều chỉnh</div></div>'
+    + '<div class="metric"><div class="metric-label">Tổng cam kết (dự kiến quyết toán)</div>'
+    + '<div class="metric-value ' + (c.committed > budget ? 't-error' : 't-success') + '">'
+    + MBUtil.money(c.committed) + '</div>'
+    + '<div class="row" style="gap:8px;margin-top:6px">'
+    + MBUtil.status(c.committed > budget ? 'Vượt ngân sách' : 'Trong ngân sách',
+        c.committed > budget ? 'error' : 'success', 'sm')
+    + '<span class="metric-note">' + commitPct + '% ngân sách</span></div></div>'
+    + '</div>'
+    + (c.committed > budget
+      ? '<div class="alert alert-error mt-16"><span class="msym">error</span>'
+        + '<div><b>Dự kiến quyết toán vượt ngân sách ' + MBUtil.money(c.committed - budget) + '.</b> '
+        + 'Cần trình điều chỉnh tổng mức đầu tư trước khi tiếp tục cam kết hạng mục mới.</div></div>'
+      : ''))
+
+  + D.card('Liên kết chỉ số TTM (module Quản lý TTM)',
+    ttmNa
+      ? '<div class="alert alert-info"><span class="msym">info</span>'
+        + '<div>Dự án này <b>chưa bật theo dõi TTM</b> (không ánh xạ sang Jira), nên chưa có TTM-Index. '
+        + 'Khi bật external binding với Jira, module TTM sẽ tự tính TTM-CNTT và TTM-E2E cho các Epic của dự án.</div></div>'
+      : '<div class="metric-grid">'
+        + '<div class="metric"><div class="metric-label">TTM-CNTT</div>'
+        + '<div class="mt-8">' + MBUtil.status(ttm.cntt, ttm.cntt === 'Đạt' ? 'success' : 'error', 'lg') + '</div>'
+        + '<div class="metric-note mt-8">thời gian từ START-CNTT đến R4 Go-live</div></div>'
+        + '<div class="metric"><div class="metric-label">TTM-E2E</div>'
+        + '<div class="mt-8">' + MBUtil.status(ttm.e2e, ttm.e2e === 'Đạt' ? 'success' : 'error', 'lg') + '</div>'
+        + '<div class="metric-note mt-8">thời gian toàn trình từ START-E2E</div></div>'
+        + '<div class="metric"><div class="metric-label">TTM trung bình</div>'
+        + '<div class="metric-value ' + (ttm.avgDays > ttm.targetDays ? 't-error' : 't-success') + '">'
+        + MBUtil.num(ttm.avgDays, 0) + '<span class="hcm-caption t-muted"> ngày</span></div>'
+        + '<div class="metric-note">ngưỡng cam kết ≤ ' + ttm.targetDays + ' ngày</div></div>'
+        + '<div class="metric"><div class="metric-label">Epic trong phạm vi TTM</div>'
+        + '<div class="metric-value">' + ttm.epicCount + '</div>'
+        + '<div class="metric-note">' + ttm.epicLate + ' Epic vượt ngưỡng TTM</div></div>'
+        + '</div>',
+    ttmNa ? '' : '<a class="btn btn-outline btn-sm" href="#" id="ttm-link">'
+      + '<span class="msym" style="font-size:16px">open_in_new</span>Mở bảng điều khiển TTM</a>')
+
+  + D.card('Đánh giá hiệu quả sau go-live',
+    '<div class="field-grid">'
+    + D.field('Trạng thái đánh giá', Q.postGolive, 'full')
+    + D.field('Hạng mục checklist liên quan', 'CK25 · Đánh giá hiệu quả triển khai so với OKR')
+    + D.field('Đơn vị chủ trì đánh giá', 'Ban Dự án và Khối nghiệp vụ chủ quản')
+    + D.field('Chu kỳ đo', 'Sau 3 tháng và sau 12 tháng vận hành')
+    + '</div>');
+}
+
+/* ────────────────────────────────── render ─────────────────────────────── */
+document.getElementById('pms-page').innerHTML =
+  D.switcher('quality')
+  + D.summaryCard()
+  + (Q ? qualityCards() + effectivenessCards()
+       : '<div class="d-card"><div class="empty"><span class="msym">insights</span>'
+         + '<div class="empty-title">Dự án chưa có dữ liệu chất lượng và hiệu quả</div>'
+         + '<div class="hcm-caption">Chỉ số được tạo sau khi dự án bước vào giai đoạn phát triển.</div></div></div>')
+  + D.footer();
+
+D.wire();
+D.headerActions();
+const rv = document.getElementById('rev-wrap');
+if (rv) PMSTip.bindTruncated(rv);
+const tl = document.getElementById('ttm-link');
+if (tl) tl.addEventListener('click', (e) => {
+  e.preventDefault();
+  PMSNotify.info('Bảng điều khiển TTM', 'Module Quản lý TTM nằm ngoài phạm vi mockup này.');
+});
+</script>
+
+<!--
+## 📊 Component Coverage Report — Chi tiết dự án · Chất lượng & hiệu quả
+
+| # | Element | DS Component used | Status |
+|---|---------|------------------|--------|
+| 1 | Left sidebar | AppSidebar | ✅ DS |
+| 2 | Breadcrumb + back + title + badge + actions | PageHeader | ✅ DS |
+| 3 | Bộ chuyển 6 cấu phần | section-switcher (bespoke của XemChiTiet) | ⚠️ Bespoke |
+| 4 | Dải chỉ số tóm tắt | Card + Progress | ✅ DS |
+| 5 | 6 ô chỉ số chất lượng + 4 ô chi phí + 4 ô TTM | DataCard (metric tile) | ✅ DS |
+| 6 | Đạt / Chưa đạt theo ngưỡng cam kết | Badge (size small trong metric, large trong ô TTM) | ✅ DS |
+| 7 | Bảng kết quả đánh giá giai đoạn | Table | ✅ DS |
+| 8 | Mức đạt OKR, mức sử dụng ngân sách | Progress | ✅ DS |
+| 9 | Cảnh báo vượt ngân sách | Alert | ✅ DS |
+| 10 | Giải thích dự án chưa bật TTM | Alert | ✅ DS |
+| 11 | Field đánh giá sau go-live | Field | ✅ DS |
+| 12 | Đường phân cách trong card | Divider | ✅ DS |
+| 13 | Nút mở bảng điều khiển TTM | Button (outline, size small) | ✅ DS |
+| 14 | Thông báo | Notification | ✅ DS |
+| 15 | Trạng thái rỗng khi chưa có dữ liệu | Empty | ✅ DS |
+| 16 | Hàng đóng màn | DetailFooter align="center" | ✅ DS |
+| 17 | Sparkline xu hướng lỗi / tỷ lệ pass | — | ⚠️ Bespoke (DS không có component chart) |
+| 18 | Khối OKR target vs actual | — | ⚠️ Bespoke (ghép Card + Progress bằng token) |
+
+**DS component coverage: 16 / 18 = 89%**
+Shell zones: ✅ AppSidebar · ✅ PageHeader · ❌ AppHeader (loại trừ theo mặc định của ias-design)
+
+## 🎨 Color Token Coverage — Chi tiết dự án · Chất lượng & hiệu quả
+
+| # | Element (property) | Location | Original hex | Category | Matched Semantic Alias | Match |
+|---|---|---|---|---|---|---|
+| 1 | Nền card / metric | `.d-card`, `.metric` | `#FFFFFF` | background | `--color-bg-surface` | ✅ Exact |
+| 2 | Viền card / metric / khối OKR | `.d-card`, `.metric`, `.okr` | `#D9DBE9` | border | `--color-border-default` | ✅ Exact |
+| 3 | Chỉ số đạt ngưỡng | `.metric-value.t-success` | `#00966D` | text | `--color-text-success` | ✅ Exact |
+| 4 | Chỉ số chưa đạt ngưỡng | `.metric-value.t-error` | `#C30052` | text | `--color-text-error` | ✅ Exact |
+| 5 | Chỉ số cảnh báo (CR bổ sung) | `.metric-value.t-warning` | `#946200` | text | `--color-text-warning` | ✅ Exact |
+| 6 | Nhãn chỉ số | `.metric-label` | `#6E7191` | text | `--color-text-secondary` | ✅ Exact |
+| 7 | Ghi chú ngưỡng | `.metric-note` | `#A0A3BD` | text | `--color-text-muted` | ✅ Exact |
+| 8 | Cột sparkline (kỳ trước) | `.spark-bar` | `#C4C6F7` | background | `--color-primary-200` | ⚠️ Nearest — không có alias `--color-bg-brand-subtle`, dùng raw scale cùng hue brand |
+| 9 | Cột sparkline (kỳ hiện tại) | `.spark-bar.last` | `#141ED2` | background | `--color-bg-brand` | ✅ Exact |
+| 10 | Fill Progress mức đạt tốt | `.prg-fill.ok` | `#00BA88` | background | `--color-bg-success-solid` | ✅ Exact |
+| 11 | Fill Progress mức cảnh báo | `.prg-fill.warn` | `#F4B740` | background | `--color-bg-warning-solid` | ✅ Exact |
+| 12 | Fill Progress mức xấu | `.prg-fill.bad` | `#EB2D4B` | background | `--color-bg-error-solid` | ✅ Exact |
+| 13 | Nền Alert lỗi / thông tin | `.alert-error`, `.alert-info` | `#FFF3F8` / `#F4F5FF` | background | `--color-bg-error` / `--color-bg-hover` | ✅ Exact |
+
+**Color token coverage: 12 / 13 exact, 1 ⚠️ nearest = 100% được map vào token khai báo · 0 severe gap**
+
+## 🔤 Typography Scale Coverage — Chi tiết dự án · Chất lượng & hiệu quả
+
+| # | Text element | Rendered size / weight | Matched scale | Match | Class used? |
+|---|---|---|---|---|---|
+| 1 | Detail title | 20px / 700 | H4 (22px/500) | ⚠️ Nearest — spec riêng của PageHeader | ❌ `.detail-title` |
+| 2 | Nhãn section-switcher | 14px / 600 | Subtitle 2 (14px/600) | ✅ Exact | ✅ `class="hcm-subtitle2"` |
+| 3 | Tiêu đề card | 16px / 700 | Subtitle 1 (16px/600) | ⚠️ Nearest | ✅ `.d-card-title` dùng token subtitle1 |
+| 4 | Nhãn chỉ số | 12px / 600 | Caption (12px/500) | ⚠️ Nearest | ✅ `.metric-label` dùng token caption |
+| 5 | Giá trị chỉ số | 18px / 700 | H5 (18px/500) | ⚠️ Nearest | ✅ `.metric-value` dùng `--type-h5-size` |
+| 6 | Đơn vị sau giá trị, nhãn sparkline, ghi chú | 12px / 500 | Caption (12px/500) | ✅ Exact | ✅ `class="hcm-caption"` |
+| 7 | Mục tiêu OKR | 13px / 700 | Subtitle 2 (14px/600) | ⚠️ Nearest | ❌ `.okr-obj` |
+| 8 | Key Result | 12px / 400 | Caption (12px/500) | ⚠️ Nearest | ❌ `.okr-kr` |
+| 9 | Nhãn / giá trị field | 12px/500 · 14px/400 | Caption · Body 2 | ✅ Exact | ❌ theo đúng spec Field |
+| 10 | Header / ô bảng | 11px/700 · 13px/400 | Overline · Body 2 | ⚠️ Nearest — spec riêng của Table | ❌ `th` / `td` |
+
+**Typography scale coverage: 10 / 10 = 100% · Utility-class adoption: 5 / 10 = 50%**
+-->
+</body>
+</html>

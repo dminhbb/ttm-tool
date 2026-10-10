@@ -123,8 +123,8 @@ function TtmBlackListForm({ canEdit, epicKey, initialValue }: { canEdit: boolean
             disabled={!canEdit || saving}
             trueLabel="True"
             falseLabel="False"
-            trueColor="bg-[#1b6b3e]"
-            falseColor="bg-slate-700"
+            trueColor="bg-[var(--color-success-300)]"
+            falseColor="bg-fb-text-secondary"
           />
         </div>
         <p className="min-w-0 flex-1 basis-64 text-xs text-fb-text-secondary">

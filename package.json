@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test-register.mjs --test \"src/**/*.test.ts\"",
+    "ds:check-font": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-font-vietnamese.mjs",
     "db:migrate:local": "node scripts/migrate-db.js --target=local",
     "db:migrate:aiven": "node scripts/migrate-db.js --target=aiven",
     "db:init:aiven": "node scripts/migrate-db.js --target=aiven --init",

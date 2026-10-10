@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chi tiết dự án · Tiến độ — PMS Platform</title>
+<link rel="stylesheet" href="assets/pms-tokens.css">
+<link rel="stylesheet" href="assets/pms-ias.css">
+<script src="assets/pms-icons.js"></script>
+</head>
+<body>
+<div id="pms-page"></div>
+
+<script src="assets/pms-util.js"></script>
+<script src="assets/pms-ui.js"></script>
+<script src="assets/mock-data.js"></script>
+<script src="assets/pms-detail.js"></script>
+<script src="assets/pms-shell.js"></script>
+<script src="assets/gantt.js"></script>
+<script>
+const E = MBUtil.esc;
+const D = PMSDetail;
+const P = PRJ;
+const SS = MBData.scheduleStats(P);
+
+/* ───────────────────────── chỉ số tiến độ của dự án ────────────────────── */
+function scheduleMetrics() {
+  const last = P.schedule.milestones[P.schedule.milestones.length - 1];
+  return '<div class="metric-grid">'
+    + metric('Lệch ngày kết thúc dự án', MBUtil.signed(SS.finishSlip, ' ngày'),
+        last ? 'baseline ' + MBUtil.fmtDate(last.baseDate) + ' → dự kiến ' + MBUtil.fmtDate(last.date) : '—',
+        SS.finishSlip > 0 ? 't-error' : 't-success')
+    + metric('Milestone trễ hạn', SS.milestoneLate + '/' + SS.milestoneTotal,
+        SS.milestoneDone + ' milestone đã hoàn thành', SS.milestoneLate ? 't-error' : 't-success')
+    + metric('Công việc đang trễ', SS.taskLate + '/' + SS.taskTotal,
+        'trễ nhất ' + SS.maxSlip + ' ngày so với baseline', SS.taskLate ? 't-warning' : 't-success')
+    + metric('Milestone kế tiếp', SS.next ? SS.next.name : '—',
+        SS.next ? MBUtil.fmtDate(SS.next.date) + ' · còn ' + MBUtil.diffDays(MBUtil.iso(MBUtil.today()), SS.next.date) + ' ngày' : 'không còn milestone mở',
+        '')
+    + '</div>';
+}
+function metric(label, value, note, tone) {
+  return '<div class="metric"><div class="metric-label">' + E(label) + '</div>'
+    + '<div class="metric-value ' + (tone || '') + '">' + E(value) + '</div>'
+    + '<div class="metric-note">' + E(note) + '</div></div>';
+}
+
+/* ──────────────────────────── bảng milestone ───────────────────────────── */
+function milestoneTable() {
+  const rows = P.schedule.milestones.map((m, i) => {
+    const slip = MBUtil.diffDays(m.baseDate, m.date);
+    const tone = m.status === 'done' ? 'success' : m.status === 'late' ? 'error' : 'blue';
+    const label = m.status === 'done' ? 'Đã hoàn thành' : m.status === 'late' ? 'Trễ hạn' : 'Theo kế hoạch';
+    return '<tr>'
+      + '<td>' + String(i + 1).padStart(2, '0') + '</td>'
+      + '<td class="td-link">' + E(m.id) + '</td>'
+      + '<td class="td-truncate">' + E(m.name) + '</td>'
+      + '<td>' + MBUtil.fmtDate(m.baseDate) + '</td>'
+      + '<td>' + MBUtil.fmtDate(m.date) + '</td>'
+      + '<td class="td-num ' + (slip > 0 ? 't-error' : 't-success') + '">' + MBUtil.signed(slip, '') + '</td>'
+      + '<td>' + MBUtil.status(label, tone) + '</td></tr>';
+  });
+  return '<div class="table-wrap"><div class="table-inner" id="ms-wrap">'
+    + '<table style="min-width:980px"><thead><tr>'
+    + '<th style="width:52px">STT</th><th style="width:72px">Mã</th>'
+    + '<th style="min-width:300px">Tên milestone</th>'
+    + '<th style="min-width:130px">Baseline</th>'
+    + '<th style="min-width:150px">Dự kiến / thực tế</th>'
+    + '<th style="width:110px">Lệch (ngày)</th>'
+    + '<th style="min-width:150px">Trạng thái</th>'
+    + '</tr></thead><tbody>' + rows.join('') + '</tbody></table></div></div>';
+}
+
+/* ────────────────────────────────── render ─────────────────────────────── */
+document.getElementById('pms-page').innerHTML =
+  D.switcher('schedule')
+  + D.summaryCard()
+  + D.card('Chỉ số tiến độ', scheduleMetrics())
+  + D.card('Sơ đồ Gantt — baseline so với thực tế',
+    '<div id="gantt" class="gantt"></div>'
+    + '<div class="legend mt-16">'
+    + '<span class="legend-item"><span class="legend-sw" style="background:var(--color-neutral-400)"></span>Baseline đã chốt</span>'
+    + '<span class="legend-item"><span class="legend-sw" style="background:var(--color-bg-success-solid)"></span>Thực tế đúng hạn</span>'
+    + '<span class="legend-item"><span class="legend-sw" style="background:var(--color-bg-warning-solid)"></span>Trễ 1–10 ngày</span>'
+    + '<span class="legend-item"><span class="legend-sw" style="background:var(--color-bg-error-solid)"></span>Trễ trên 10 ngày</span>'
+    + '<span class="legend-item"><span class="legend-sw" style="background:var(--color-bg-brand)"></span>Chưa bắt đầu</span>'
+    + '<span class="legend-item"><span class="legend-sw" style="background:var(--color-neutral-700)"></span>Nhóm công việc</span>'
+    + '<span class="legend-item"><span class="legend-sw" style="background:var(--color-bg-error-solid);border-radius:50%"></span>Mũi tên đỏ = đường găng</span>'
+    + '</div>',
+    '<div class="row" style="gap:8px">'
+    + '<button class="btn btn-outline btn-sm" id="g-expand"><span class="msym" style="font-size:16px">unfold_more</span>Mở hết</button>'
+    + '<button class="btn btn-outline btn-sm" id="g-collapse"><span class="msym" style="font-size:16px">unfold_less</span>Thu hết</button>'
+    + '<select class="pg-size-sel" id="g-zoom" style="height:32px;border:1px solid var(--color-border-default);border-radius:6px;padding:0 8px;font-size:13px;font-family:inherit;color:var(--color-text-body);background:var(--color-bg-surface)">'
+    + '<option value="week">Phóng: Tuần</option>'
+    + '<option value="month" selected>Phóng: Tháng</option>'
+    + '<option value="quarter">Phóng: Quý</option></select>'
+    + '</div>')
+  + D.card('Danh sách milestone', milestoneTable())
+  + D.footer();
+
+D.wire();
+D.headerActions();
+
+PMSGantt.mount(document.getElementById('gantt'), P, 'month');
+document.getElementById('g-zoom').addEventListener('change', (e) => PMSGantt.setZoom(e.target.value));
+document.getElementById('g-expand').addEventListener('click', () => PMSGantt.expandAll());
+document.getElementById('g-collapse').addEventListener('click', () => PMSGantt.collapseAll());
+PMSTip.bindTruncated(document.getElementById('ms-wrap'));
+</script>
+
+<!--
+## 📊 Component Coverage Report — Chi tiết dự án · Tiến độ
+
+| # | Element | DS Component used | Status |
+|---|---------|------------------|--------|
+| 1 | Left sidebar | AppSidebar | ✅ DS |
+| 2 | Breadcrumb + back + title + badge + actions | PageHeader | ✅ DS |
+| 3 | Bộ chuyển 6 cấu phần | section-switcher (bespoke của XemChiTiet) | ⚠️ Bespoke |
+| 4 | Dải chỉ số tóm tắt | Card + Progress | ✅ DS |
+| 5 | 4 ô chỉ số tiến độ | DataCard (metric tile) | ✅ DS |
+| 6 | Card nội dung thu gọn được | Card / DCard | ✅ DS |
+| 7 | Bảng milestone | Table | ✅ DS |
+| 8 | Trạng thái milestone | Badge size="medium" | ✅ DS |
+| 9 | Chọn mức phóng (Tuần/Tháng/Quý) | Select | ✅ DS |
+| 10 | Nút mở hết / thu hết | Button (outline, size small) | ✅ DS |
+| 11 | Tooltip trên thanh Gantt | Tooltip | ✅ DS |
+| 12 | Hàng đóng màn | DetailFooter align="center" | ✅ DS |
+| 13 | Sơ đồ Gantt 2 lớp (baseline vs thực tế), milestone kim cương, mũi tên phụ thuộc, đường "hôm nay" | — | ⚠️ Bespoke (DS không có component Gantt/timeline) |
+| 14 | Chú giải màu của Gantt | — | ⚠️ Bespoke (dựng bằng token) |
+
+**DS component coverage: 12 / 14 = 86%**
+Shell zones: ✅ AppSidebar · ✅ PageHeader · ❌ AppHeader (loại trừ theo mặc định của ias-design)
+
+## 🎨 Color Token Coverage — Chi tiết dự án · Tiến độ
+
+| # | Element (property) | Location | Original hex | Category | Matched Semantic Alias | Match |
+|---|---|---|---|---|---|---|
+| 1 | Nền khung Gantt | `.gantt` | `#FFFFFF` | background | `--color-bg-surface` | ✅ Exact |
+| 2 | Viền khung, viền dòng | `.gantt`, `.gantt-row-bg` | `#D9DBE9` | border | `--color-border-default` | ✅ Exact |
+| 3 | Nền header timeline / dòng nhóm | `.gantt-head`, `.gantt-row-bg.is-group` | `#F4F6FA` | background | `--color-bg-page` | ✅ Exact |
+| 4 | Nhãn tháng/quý trên header | `.gantt-head-major > div` | `#6E7191` | text | `--color-text-secondary` | ✅ Exact |
+| 5 | Nhãn ngày trên header | `.gantt-head-minor > div` | `#A0A3BD` | text | `--color-text-muted` | ✅ Exact |
+| 6 | Thanh baseline | `.gantt-baseline` | `#C4C4D4` | background | `--color-border-strong` dùng làm nền thanh | ⚠️ Nearest — không có alias `--color-bg-*` cho xám trung tính |
+| 7 | Thanh thực tế đúng hạn | `.gantt-bar.b-ontime` | `#00BA88` | background | `--color-bg-success-solid` | ✅ Exact |
+| 8 | Thanh trễ 1–10 ngày | `.gantt-bar.b-risk` | `#F4B740` | background | `--color-bg-warning-solid` | ✅ Exact |
+| 9 | Thanh trễ trên 10 ngày | `.gantt-bar.b-late` | `#EB2D4B` | background | `--color-bg-error-solid` | ✅ Exact |
+| 10 | Thanh chưa bắt đầu | `.gantt-bar.b-plan` | `#141ED2` | background | `--color-bg-brand` | ✅ Exact |
+| 11 | Thanh nhóm công việc | `.gantt-bar-group` | `#4E4B66` | background | `--color-neutral-700` qua `--color-text-body` | ⚠️ Nearest — dùng neutral đậm làm nền thanh tổng hợp |
+| 12 | Kim cương milestone | `.gantt-ms` | `#141ED2` | background | `--color-bg-brand` | ✅ Exact |
+| 13 | Đường "hôm nay" | `.gantt-today` | `#EB2D4B` | border | `--color-bg-error-solid` | ✅ Exact |
+| 14 | Mũi tên phụ thuộc | `.gantt-deps path` | `#A0A3BD` | border (stroke) | `--color-text-muted` dùng làm stroke | ⚠️ Nearest — không có alias stroke riêng |
+| 15 | Mũi tên đường găng | `.gantt-deps path.critical` | `#EB2D4B` | border (stroke) | `--color-bg-error-solid` | ✅ Exact |
+| 16 | Vạch lưới dọc | `.gantt-grid-line` | `#EDF2F7` | border | `--color-neutral-200` | ⚠️ Nearest (≈96% so với `--color-border-default`) |
+
+**Color token coverage: 12 / 16 exact, 4 ⚠️ nearest = 100% được map vào token khai báo · 0 severe gap**
+
+## 🔤 Typography Scale Coverage — Chi tiết dự án · Tiến độ
+
+| # | Text element | Rendered size / weight | Matched scale | Match | Class used? |
+|---|---|---|---|---|---|
+| 1 | Detail title | 20px / 700 | H4 (22px/500) | ⚠️ Nearest — spec riêng của PageHeader | ❌ `.detail-title` |
+| 2 | Nhãn section-switcher | 14px / 600 | Subtitle 2 (14px/600) | ✅ Exact | ✅ `class="hcm-subtitle2"` |
+| 3 | Tiêu đề card | 16px / 700 | Subtitle 1 (16px/600) | ⚠️ Nearest | ✅ `.d-card-title` dùng token subtitle1 |
+| 4 | Nhãn ô chỉ số | 12px / 600 | Caption (12px/500) | ⚠️ Nearest | ✅ `.metric-label` dùng token caption |
+| 5 | Giá trị ô chỉ số | 18px / 700 | H5 (18px/500) | ⚠️ Nearest | ✅ `.metric-value` dùng `--type-h5-size` |
+| 6 | Header timeline (tháng/quý) | 11px / 700 | Overline (10px/600) | ⚠️ Nearest — đồng bộ header Table | ❌ `.gantt-head-major` |
+| 7 | Nhãn ngày trên timeline | 10px / 400 | Overline (10px/600) | ⚠️ Nearest | ❌ `.gantt-head-minor` |
+| 8 | Tên công việc trong WBS | 13px / 400 | Body 2 (14px/400) | ⚠️ Nearest — đồng bộ mật độ ô Table | ❌ `.gantt-wbs-row` |
+| 9 | Nhãn milestone trên timeline | 10px / 600 | Overline (10px/600) | ✅ Exact | ❌ `.gantt-ms-label` |
+| 10 | Chú giải màu | 12px / 400 | Caption (12px/500) | ⚠️ Nearest | ❌ `.legend` |
+
+**Typography scale coverage: 10 / 10 = 100% · Utility-class adoption: 4 / 10 = 40%**
+-->
+</body>
+</html>

@@ -1,0 +1,452 @@
+/* ============================================================================
+   IAS Design System — tầng token gốc
+   Nguồn: e:\workspace\ias-design\tokens\colors.css + references/color-rules.md
+   ============================================================================
+
+   Đây là TẦNG 1 và TẦNG 2 của kiến trúc token 3 tầng:
+
+     [1] raw scale IAS  →  [2] semantic alias (37 token, TỪ VỰNG DUY NHẤT)
+                              ↓
+     [3] compat layer trong globals.css: --accent / --surface-* / --text-* / --ttm-*
+         trỏ về semantic alias  →  @theme Tailwind (--color-fb-*)  →  class trong JSX
+
+   Quy tắc khi dùng (references/color-rules.md):
+     - CHỈ dùng semantic alias cho màu tự tay đặt. Không hex gõ tay, không rgba ước lượng.
+     - Khớp ĐÚNG nhóm thuộc tính: màu chữ → --color-text-*, viền → --color-border-*,
+       nền → --color-bg-*, icon → --color-icon-*. Không bao giờ dùng chéo nhóm.
+     - Raw scale (--color-primary-500, --color-neutral-300, …) chỉ để DỰNG alias.
+       Không áp trực tiếp lên element.
+     - KHÔNG tự thêm alias mới. Thêm token là quyết định của design system, không phải
+       cách chữa cháy cho một màn hình.
+
+   File này là bản sao giá trị từ ias-design và phải giữ nguyên giá trị đó. Mọi thứ
+   riêng của ttm-tool thuộc về globals.css, không phải ở đây.
+   ========================================================================= */
+
+:root {
+  /* ── Brand Primary ────────────────────────────────────────────────── */
+  --color-primary-900: #00009a;
+  --color-primary-700: #0e15a8;
+  --color-primary-500: #141ed2; /* Core brand blue */
+  --color-primary-400: #4b63e2;
+  --color-primary-300: #7f85f5;
+  --color-primary-200: #c4c6f7;
+  --color-primary-100: #e8eaf6;
+  --color-primary-50: #f4f5ff;
+
+  /* ── Brand Accent / Secondary (Violet) ───────────────────────────── */
+  --color-accent-700: #5500cc;
+  --color-accent-500: #7b61ff;
+  --color-accent-300: #9b40ff;
+  --color-accent-200: #bc80ff;
+  --color-accent-100: #eedfff;
+
+  /* ── Semantic: Success ───────────────────────────────────────────── */
+  --color-success-700: #00966d;
+  --color-success-500: #00ba88;
+  --color-success-300: #0b7659;
+  --color-success-100: #f2fffb;
+
+  /* ── Semantic: Error ─────────────────────────────────────────────── */
+  --color-error-700: #c30052;
+  --color-error-500: #eb2d4b;
+  --color-error-400: #ed2e7e;
+  --color-error-300: #ff84b7;
+  --color-error-100: #fff3f8;
+
+  /* ── Semantic: Warning ───────────────────────────────────────────── */
+  --color-warning-700: #946200;
+  --color-warning-500: #f4b740;
+  --color-warning-400: #e39114;
+  --color-warning-300: #ffd789;
+  --color-warning-100: #fff9ef;
+
+  /* ── Semantic: Alert/Danger ──────────────────────────────────────── */
+  --color-alert-500: #fa0b0b;
+  --color-alert-400: #fa4949;
+  --color-alert-300: #ff8787;
+  --color-alert-100: #ffc9c9;
+
+  /* ── Semantic: Info / Day Blue ───────────────────────────────────── */
+  --color-info-500: #66caff;
+  --color-info-400: #76cce7;
+  --color-info-300: #99dcff;
+  --color-info-100: #d6f1ff;
+
+  /* ── Neutral / Grayscale ─────────────────────────────────────────── */
+  --color-neutral-900: #14142a; /* Near-black text */
+  --color-neutral-800: #262626;
+  --color-neutral-700: #4e4b66; /* Dark body text */
+  --color-neutral-600: #6e7191;
+  --color-neutral-500: #a0a3bd; /* Muted/placeholder */
+  --color-neutral-400: #c4c4d4;
+  --color-neutral-300: #d9dbe9; /* Borders / dividers */
+  --color-neutral-200: #edf2f7; /* Subtle surfaces */
+  --color-neutral-100: #f4f6fa; /* Page background */
+  --color-neutral-50: #fafafa;
+  --color-neutral-0: #ffffff;
+
+  /* ══ Semantic Aliases — 37 token, từ vựng duy nhất ══════════════════ */
+
+  /* Background */
+  --color-bg-page: var(--color-neutral-100);
+  --color-bg-surface: var(--color-neutral-0);
+  --color-bg-overlay: rgba(20, 20, 42, 0.5);
+  --color-bg-hover: var(--color-primary-50);
+  --color-bg-error: var(--color-error-100);
+  --color-bg-success: var(--color-success-100);
+  --color-bg-warning: var(--color-warning-100);
+  /* Nền đặc/rực — cho swatch trạng thái nhỏ (dot, segment chart) và pill đang chọn,
+     khác với 3 tint nhạt phía trên dành cho mặt banner/card. Đừng lẫn hai nhóm. */
+  --color-bg-brand: var(--color-primary-500);
+  --color-bg-success-solid: var(--color-success-500);
+  --color-bg-warning-solid: var(--color-warning-500);
+  --color-bg-error-solid: var(--color-error-500);
+
+  /* Text */
+  --color-text-primary: var(--color-neutral-900);
+  --color-text-body: var(--color-neutral-700);
+  --color-text-secondary: var(--color-neutral-600);
+  --color-text-muted: var(--color-neutral-500);
+  --color-text-inverse: var(--color-neutral-0);
+  --color-text-brand: var(--color-primary-500);
+  --color-text-link: var(--color-primary-500);
+  --color-text-accent: var(--color-accent-500);
+  --color-text-error: var(--color-error-700);
+  --color-text-success: var(--color-success-700);
+  --color-text-warning: var(--color-warning-700);
+
+  /* Border */
+  --color-border-default: var(--color-neutral-300);
+  --color-border-strong: var(--color-neutral-400);
+  --color-border-focus: var(--color-primary-500);
+  --color-border-error: var(--color-error-500);
+  --color-border-success: var(--color-success-500);
+  --color-border-warning: var(--color-warning-500);
+
+  /* Icon */
+  --color-icon-default: var(--color-neutral-600);
+  --color-icon-brand: var(--color-primary-500);
+  --color-icon-accent: var(--color-accent-500);
+  --color-icon-muted: var(--color-neutral-500);
+  --color-icon-error: var(--color-error-500);
+  --color-icon-success: var(--color-success-500);
+  --color-icon-warning: var(--color-warning-500);
+  --color-icon-inverse: var(--color-neutral-0);
+
+  /* ══ Hình khối ═══════════════════════════════════════════════════════
+     Card 12px · input/button 8px · badge 4px (SKILL.md "Key facts").
+     Card KHÔNG có shadow — viền 1px thay cho shadow, bỏ từ 2026-07-31
+     (references/components/display/card.md). */
+  --ias-radius-badge: 4px;
+  --ias-radius-control-sm: 6px;
+  --ias-radius-control: 8px;
+  --ias-radius-card: 12px;
+  --ias-radius-pill: 9999px;
+
+  /* Chỉ 2 shadow tồn tại trong IAS, và không cái nào dùng cho card:
+     popover/dropdown và drawer. Lấy từ template DanhSachChuongTrinh.dc.html. */
+  --ias-shadow-popover: 0 8px 24px rgba(75, 99, 226, 0.12);
+  --ias-shadow-drawer: -8px 0 32px rgba(20, 20, 42, 0.16);
+  --ias-shadow-modal: 0 16px 40px rgba(20, 20, 42, 0.18);
+
+  /* Focus: viền chuyển sang --color-border-focus + vầng sáng 3px 8% brand. */
+  --ias-focus-glow: 0 0 0 3px rgba(20, 30, 210, 0.08);
+
+  /* ══ Sidebar trên mặt navy ═══════════════════════════════════════════
+     Sidebar là bề mặt tối, nên không dùng được các alias text/border ở trên
+     (chúng dành cho mặt sáng). Đây là giá trị nội bộ của component AppSidebar,
+     lấy trực tiếp từ templates/ias-layout + ias-danh-sach-chuong-trinh. */
+  --ias-sidebar-bg: #0d0d2b;
+  --ias-sidebar-search-bg: #1c1c42;
+  --ias-sidebar-item-text: #cbd0e8; /* .nav-item */
+  --ias-sidebar-leaf-text: #8b8fbd; /* .nav-leaf, .sb-brand .sub */
+  --ias-sidebar-border: rgba(255, 255, 255, 0.08); /* .sb-brand border-bottom */
+  --ias-sidebar-hover-bg: rgba(255, 255, 255, 0.07); /* .nav-item:hover */
+  /* Không có trạng thái disabled trong template IAS — giá trị dẫn xuất, đủ tương phản
+     để đọc được nhưng rõ ràng mờ hơn --ias-sidebar-leaf-text. */
+  --ias-sidebar-disabled-text: rgba(255, 255, 255, 0.32);
+}
+
+/* ============================================================================
+   Type scale IAS
+   Nguồn: ias-design/tokens/typography.css + references/typography-rules.md
+   ============================================================================
+
+   Quy tắc khớp (typography-rules.md):
+     - Khớp theo SIZE trước (chênh lệch px nhỏ nhất), WEIGHT là tiêu chí phá hoà.
+     - KHÔNG tự nghĩ ra scale mới, KHÔNG tự nghĩ ra utility class mới.
+     - Overline (10px) BỊ LOẠI khỏi việc khớp vì nó không có utility class trong
+       chính IAS. Chữ ~10px phải leo lên scale gần nhất CÓ class — thực tế luôn là
+       Caption 12px. Cũng KHÔNG được lách bằng cách dùng trực tiếp
+       `var(--type-overline-*)`; vì vậy file này CỐ TÌNH không khai báo nhóm đó.
+       Đây là nguồn gốc của "sàn 12px": app đang có text-[10px], text-[8.5px] và
+       clamp(6.5px, …) — tất cả đều phải lên 12px.
+
+   LỆCH CÓ CHỦ ĐÍCH so với IAS (ghi ở docs/design/IAS-DESIGN-ADOPTION.md):
+     - KHÔNG có `.ias-button` và KHÔNG có `--type-button-transform: uppercase`.
+       IAS tự mâu thuẫn ở điểm này: tokens/typography.css đặt uppercase cho
+       `.hcm-button`, còn references/component-rules.md (mới hơn, rule cross-cutting)
+       lại yêu cầu "Sentence case, never uppercase" cho mọi label tương tác, kèm lý
+       do "tiếng Việt không dùng letter-casing để nhấn". Rule mới thắng.
+     - Prefix `.ias-*` thay cho `.hcm-*`: app này là ttm-tool, không phải HCM–HRIS.
+
+   LƯU Ý VỀ WEIGHT 500: bộ font Averta Std CY không phát hành Medium. H4/H5/Body1/
+   Caption khai báo 500 nhưng sẽ render bằng Regular 400 theo thuật toán khớp font của
+   CSS. Xem ghi chú trong src/app/layout.tsx.
+   ========================================================================= */
+
+:root {
+  /* ── Font weight ─────────────────────────────────────────────────── */
+  --font-weight-light: 300;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  /* ── Type scale ──────────────────────────────────────────────────────
+     H1 (88px) và H2 (44px) được khai báo cho đủ bộ nhưng app không dùng:
+     tiêu đề lớn nhất trên màn hình là `.ias-page-title` 20px bên dưới. */
+  --type-h1-size: 88px;
+  --type-h1-weight: var(--font-weight-light);
+  --type-h1-line-height: 100px;
+  --type-h1-letter-spacing: -1.25px;
+
+  --type-h2-size: 44px;
+  --type-h2-weight: var(--font-weight-medium);
+  --type-h2-line-height: 52px;
+  --type-h2-letter-spacing: 0.25px;
+
+  --type-h3-size: 32px;
+  --type-h3-weight: var(--font-weight-medium);
+  --type-h3-line-height: 36px;
+  --type-h3-letter-spacing: 0.25px;
+
+  --type-h4-size: 22px;
+  --type-h4-weight: var(--font-weight-medium);
+  --type-h4-line-height: 24px;
+  --type-h4-letter-spacing: 0.25px;
+
+  --type-h5-size: 18px;
+  --type-h5-weight: var(--font-weight-medium);
+  --type-h5-line-height: 20px;
+  --type-h5-letter-spacing: 0.15px;
+
+  --type-subtitle1-size: 16px;
+  --type-subtitle1-weight: var(--font-weight-semibold);
+  --type-subtitle1-line-height: 20px;
+  --type-subtitle1-letter-spacing: 0.15px;
+
+  --type-subtitle2-size: 14px;
+  --type-subtitle2-weight: var(--font-weight-semibold);
+  --type-subtitle2-line-height: 20px;
+  --type-subtitle2-letter-spacing: 0.15px;
+
+  --type-body1-size: 16px;
+  --type-body1-weight: var(--font-weight-medium);
+  --type-body1-line-height: 20px;
+  --type-body1-letter-spacing: 0.5px;
+
+  --type-body2-size: 14px;
+  --type-body2-weight: var(--font-weight-regular);
+  --type-body2-line-height: 20px;
+  --type-body2-letter-spacing: 0.25px;
+
+  --type-caption-size: 12px;
+  --type-caption-weight: var(--font-weight-medium);
+  --type-caption-line-height: 16px;
+  --type-caption-letter-spacing: 0.4px;
+
+  /* Cỡ chữ nhỏ nhất được phép xuất hiện trên UI. Dùng trong test chống tái phát. */
+  --ias-type-floor: 12px;
+
+  /* ── Hai cỡ riêng của template, lệch khỏi scale một cách có chủ đích ──
+     Template của IAS tự dùng hai cỡ này thay vì scale, và vì chúng là
+     reference implementation đã ship nên ta theo template:
+       - page-title 20px/700 (.page-title) — scale gần nhất là H4 22px/500.
+       - header bảng 11px/700 (th) — dưới sàn 12px, nhưng đây là spec rõ ràng của
+         component Table, không phải chữ tự đặt. Xem references/components/data/table.md.
+     Cả hai KHÔNG mở đường cho việc tự chọn cỡ mới ở chỗ khác. */
+  --ias-type-page-title-size: 20px;
+  --ias-type-page-title-weight: var(--font-weight-bold);
+  --ias-type-table-header-size: 11px;
+  --ias-type-table-header-weight: var(--font-weight-bold);
+
+  /* Giá trị số KPI, theo anatomy của DataCard (24px bold).
+     Xem references/components/display/datacard.md. */
+  --ias-type-metric-size: 24px;
+  --ias-type-metric-weight: var(--font-weight-bold);
+}
+
+/* ── Utility class ───────────────────────────────────────────────────────
+   10 class, khớp đúng 10 scale có class trong IAS (11 trừ `.hcm-button` đã loại
+   ở trên). Không có `.ias-overline`. */
+.ias-h1 {
+  font-size: var(--type-h1-size);
+  font-weight: var(--type-h1-weight);
+  line-height: var(--type-h1-line-height);
+  letter-spacing: var(--type-h1-letter-spacing);
+}
+.ias-h2 {
+  font-size: var(--type-h2-size);
+  font-weight: var(--type-h2-weight);
+  line-height: var(--type-h2-line-height);
+  letter-spacing: var(--type-h2-letter-spacing);
+}
+.ias-h3 {
+  font-size: var(--type-h3-size);
+  font-weight: var(--type-h3-weight);
+  line-height: var(--type-h3-line-height);
+  letter-spacing: var(--type-h3-letter-spacing);
+}
+.ias-h4 {
+  font-size: var(--type-h4-size);
+  font-weight: var(--type-h4-weight);
+  line-height: var(--type-h4-line-height);
+  letter-spacing: var(--type-h4-letter-spacing);
+}
+.ias-h5 {
+  font-size: var(--type-h5-size);
+  font-weight: var(--type-h5-weight);
+  line-height: var(--type-h5-line-height);
+  letter-spacing: var(--type-h5-letter-spacing);
+}
+.ias-subtitle1 {
+  font-size: var(--type-subtitle1-size);
+  font-weight: var(--type-subtitle1-weight);
+  line-height: var(--type-subtitle1-line-height);
+  letter-spacing: var(--type-subtitle1-letter-spacing);
+}
+.ias-subtitle2 {
+  font-size: var(--type-subtitle2-size);
+  font-weight: var(--type-subtitle2-weight);
+  line-height: var(--type-subtitle2-line-height);
+  letter-spacing: var(--type-subtitle2-letter-spacing);
+}
+.ias-body1 {
+  font-size: var(--type-body1-size);
+  font-weight: var(--type-body1-weight);
+  line-height: var(--type-body1-line-height);
+  letter-spacing: var(--type-body1-letter-spacing);
+}
+.ias-body2 {
+  font-size: var(--type-body2-size);
+  font-weight: var(--type-body2-weight);
+  line-height: var(--type-body2-line-height);
+  letter-spacing: var(--type-body2-letter-spacing);
+}
+.ias-caption {
+  font-size: var(--type-caption-size);
+  font-weight: var(--type-caption-weight);
+  line-height: var(--type-caption-line-height);
+  letter-spacing: var(--type-caption-letter-spacing);
+}
+
+/* Tiêu đề trang, theo `.page-title` của template (20px/700). */
+.ias-page-title {
+  margin: 0;
+  font-size: var(--ias-type-page-title-size);
+  font-weight: var(--ias-type-page-title-weight);
+  line-height: 1.2;
+  color: var(--color-text-primary);
+}
+
+/* Số liệu lớn trong KPI tile — anatomy DataCard. `tabular-nums` để các con số
+   không nhảy ngang khi giá trị đổi, và để cột số trong bảng thẳng hàng. */
+.ias-metric {
+  font-size: var(--ias-type-metric-size);
+  font-weight: var(--ias-type-metric-weight);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+}
+
+/* ── Contract chống tràn ─────────────────────────────────────────────────
+   Một chuẩn duy nhất, thay cho 5 cách xử lý ad-hoc đang có trong app
+   (truncate cứng theo px, clamp font xuống 6.5px, whitespace-nowrap lồng nhau,
+   min-w cố định 1160px, grid-cols fr hardcode). */
+
+/* Cắt một dòng chữ bằng ellipsis, dùng cho element ĐÃ có bề rộng bị chặn bởi
+   cha (flex/grid child kèm `min-width: 0`, ô có width cố định, …).
+
+   Vì sao cần cả class này bên cạnh `.ias-td-truncate`: `min-width: 0` chỉ cho phép
+   flex item CO LẠI — nó không hề cắt nội dung. Nếu con bên trong không có
+   `overflow: hidden` thì chữ vẫn vẽ ra ngoài hộp đã co, và một token không có
+   khoảng trắng (ví dụ "Done/Released") sẽ tràn hẳn qua viền card. Đây đúng là lỗi
+   ở KPI tile của /dashboard-new. */
+.ias-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Cell bảng: như trên, cộng thêm chặn bề rộng. Bảng dùng `table-layout: auto` nên
+   cột tự nở theo nội dung — không có `max-width` thì bề rộng tối thiểu của bảng
+   phình theo giá trị dài nhất trong dữ liệu, và `nowrap` một mình KHÔNG cắt gì cả
+   (nó chỉ chặn xuống dòng). Xem references/components/data/table.md. */
+.ias-td-truncate {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Nhãn 2 dòng cho KPI tile: thay cho việc thu font xuống dưới sàn 12px. */
+.ias-clamp-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+/* Mọi con trong flex/grid phải được phép co lại — thiếu `min-width: 0` là
+   nguyên nhân trực tiếp của tràn viền ở KPI strip và progress bar trong bảng. */
+.ias-shrinkable {
+  min-width: 0;
+}
+
+/* Bubble tooltip cho cell bị cắt. `position: fixed` chứ không phải `absolute`:
+   `.table-inner` có `overflow-x: auto`, và theo spec CSS khi đặt một trục thì trục
+   còn lại thôi là `visible` — nên bubble absolute sẽ bị clip. Tính toạ độ từ
+   getBoundingClientRect() lúc hover. KHÔNG dùng attribute `title` của browser
+   (hộp tooltip của OS, không phải bubble navy của DS). */
+.ias-tooltip-bubble {
+  position: fixed;
+  display: none;
+  z-index: 600;
+  max-width: 320px;
+  padding: 6px 10px;
+  border-radius: var(--ias-radius-control-sm);
+  background: var(--color-text-primary);
+  color: var(--color-text-inverse);
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  white-space: normal;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+.ias-tooltip-bubble[data-open='true'] {
+  display: block;
+}
+
+/* Grid tile tự xuống dòng thay vì nén tile lại cho vừa một hàng.
+   190px là bề rộng tối thiểu để một nhãn KPI tiếng Việt đọc được ở 12px. */
+.ias-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+/* Select trong filter bar: co giãn có chặn hai đầu + ellipsis, thay cho việc để
+   nó tự nở theo <option> dài nhất. */
+.ias-filter-control {
+  flex: 1 1 140px;
+  min-width: 0;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

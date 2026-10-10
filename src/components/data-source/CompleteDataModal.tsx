@@ -143,7 +143,7 @@ export function CompleteDataModal({ isOpen, onClose, onCompleted, startDate }: C
                           <input type="checkbox" checked={selectedEpics.has(item.epicKey)} onChange={() => toggleEpic(item.epicKey)} />
                           <span className="font-bold text-fb-blue">{item.epicKey}</span>
                         </span>
-                        <span className="text-[10.5px] text-fb-text-secondary">{item.referencedCount} issue liên kết</span>
+                        <span className="text-[11px] text-fb-text-secondary">{item.referencedCount} issue liên kết</span>
                       </label>
                     </li>
                   ))}
@@ -163,9 +163,9 @@ export function CompleteDataModal({ isOpen, onClose, onCompleted, startDate }: C
                         <span className="flex items-center gap-2">
                           <input type="checkbox" checked={selectedStories.has(item.storyKey)} onChange={() => toggleStory(item.storyKey)} />
                           <span className="font-bold text-fb-blue">{item.storyKey}</span>
-                          <span className="text-[10.5px] text-fb-text-secondary">(Epic {item.epicKey})</span>
+                          <span className="text-[11px] text-fb-text-secondary">(Epic {item.epicKey})</span>
                         </span>
-                        <span className="text-[10.5px] text-fb-text-secondary">{item.referencedCount} subtask liên kết</span>
+                        <span className="text-[11px] text-fb-text-secondary">{item.referencedCount} subtask liên kết</span>
                       </label>
                     </li>
                   ))}

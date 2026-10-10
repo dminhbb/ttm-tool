@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chi tiết dự án · Quản lý phạm vi — PMS Platform</title>
+<link rel="stylesheet" href="assets/pms-tokens.css">
+<link rel="stylesheet" href="assets/pms-ias.css">
+<script src="assets/pms-icons.js"></script>
+</head>
+<body>
+<div id="pms-page"></div>
+
+<script src="assets/pms-util.js"></script>
+<script src="assets/pms-ui.js"></script>
+<script src="assets/mock-data.js"></script>
+<script src="assets/pms-detail.js"></script>
+<script src="assets/pms-shell.js"></script>
+<script>
+const E = MBUtil.esc;
+const D = PMSDetail;
+const P = PRJ;
+
+/* state session: cho phép thêm CR mới trong phiên làm việc */
+let CRS = P.scope.crs.slice();
+let ITEMS = P.scope.items.slice();
+const CR_STATUSES = ['Chờ duyệt', 'Đã duyệt', 'Từ chối'];
+const CR_TONE = { 'Đã duyệt': 'success', 'Chờ duyệt': 'warning', 'Từ chối': 'purple' };
+
+function stats() {
+  const approved = CRS.filter(c => c.status === 'Đã duyệt');
+  const pending = CRS.filter(c => c.status === 'Chờ duyệt');
+  const base = P.scope.baselineDays || 1;
+  const days = MBUtil.sum(approved, c => c.days);
+  return {
+    approved, pending, days,
+    cost: MBUtil.sum(approved, c => c.cost),
+    fte: MBUtil.sum(approved, c => c.fte),
+    pendingDays: MBUtil.sum(pending, c => c.days),
+    pendingCost: MBUtil.sum(pending, c => c.cost),
+    creep: Math.round(days / base * 1000) / 10,
+    inScope: ITEMS.filter(i => i.type === 'in').length,
+    outScope: ITEMS.filter(i => i.type === 'out').length,
+    added: ITEMS.filter(i => /CR-/.test(i.note || '')).length
+  };
+}
+
+/* ───────────────────────── chỉ số phạm vi / scope creep ────────────────── */
+function metricsCard() {
+  const s = stats();
+  const tone = s.creep > 10 ? 't-error' : s.creep > 5 ? 't-warning' : 't-success';
+  return D.card('Chỉ số quản lý phạm vi',
+    '<div class="metric-grid">'
+    + metric('Scope creep so với baseline', s.creep + '%',
+        '+' + s.days + ' ngày trên baseline ' + P.scope.baselineDays + ' ngày', tone)
+    + metric('Hạng mục trong phạm vi', String(s.inScope),
+        s.added + ' hạng mục phát sinh thêm từ CR · ' + s.outScope + ' hạng mục loại trừ', '')
+    + metric('Chi phí phát sinh đã duyệt', MBUtil.money(s.cost),
+        '+' + s.fte + ' FTE theo các CR đã duyệt', s.cost ? 't-warning' : 't-success')
+    + metric('Đang chờ duyệt', s.pending.length + ' CR',
+        s.pending.length ? 'nếu duyệt hết: +' + s.pendingDays + ' ngày, ' + MBUtil.money(s.pendingCost) : 'không có CR treo',
+        s.pending.length ? 't-warning' : 't-success')
+    + '</div>'
+    + (s.creep > 10
+      ? '<div class="alert alert-warning mt-16"><span class="msym">warning</span>'
+        + '<div><b>Scope creep ' + s.creep + '% vượt ngưỡng cảnh báo 10%.</b> '
+        + 'Cần tái lập baseline (re-baseline) và trình điều chỉnh tổng mức đầu tư thay vì tiếp tục '
+        + 'bù tiến độ trong phạm vi kế hoạch cũ.</div></div>'
+      : ''),
+    '<span class="tag">Baseline ' + E(P.scope.baselineVersion)
+    + (P.scope.baselineDate ? ' · chốt ' + MBUtil.fmtDate(P.scope.baselineDate) : '') + '</span>');
+}
+function metric(label, value, note, tone) {
+  return '<div class="metric"><div class="metric-label">' + E(label) + '</div>'
+    + '<div class="metric-value ' + (tone || '') + '">' + E(value) + '</div>'
+    + '<div class="metric-note">' + E(note) + '</div></div>';
+}
+
+/* ─────────────────────────── bảng scope baseline ───────────────────────── */
+function scopeTable() {
+  const rows = ITEMS.map((i, k) => '<tr>'
+    + '<td>' + String(k + 1).padStart(2, '0') + '</td>'
+    + '<td class="td-link">' + E(i.id) + '</td>'
+    + '<td class="td-truncate">' + E(i.name) + '</td>'
+    + '<td>' + MBUtil.status(i.type === 'in' ? 'Trong phạm vi' : 'Ngoài phạm vi',
+        i.type === 'in' ? 'success' : 'neutral') + '</td>'
+    + '<td>' + (/CR-/.test(i.note || '') ? MBUtil.tag(i.note, 'accent') : MBUtil.tag(i.note || '—', 'neutral')) + '</td>'
+    + '</tr>');
+  return '<div class="table-wrap"><div class="table-inner" id="scope-wrap">'
+    + '<table style="min-width:900px"><thead><tr>'
+    + '<th style="width:52px">STT</th><th style="width:80px">Mã</th>'
+    + '<th style="min-width:360px">Hạng mục phạm vi</th>'
+    + '<th style="min-width:160px">Phân loại</th>'
+    + '<th style="min-width:200px">Nguồn gốc</th>'
+    + '</tr></thead><tbody>' + rows.join('') + '</tbody></table></div></div>';
+}
+
+/* ──────────────────── bảng yêu cầu thay đổi phạm vi (CR) ───────────────── */
+function crTable() {
+  const s = stats();
+  const rows = CRS.map((c, k) => '<tr>'
+    + '<td>' + String(k + 1).padStart(2, '0') + '</td>'
+    + '<td class="td-link">' + E(c.id) + '</td>'
+    + '<td class="td-truncate">' + E(c.title) + '</td>'
+    + '<td class="td-truncate">' + E(c.reason) + '</td>'
+    + '<td class="td-num ' + (c.days > 0 ? 't-error' : 't-muted') + '">' + MBUtil.signed(c.days, '') + '</td>'
+    + '<td class="td-num ' + (c.cost > 0 ? 't-error' : 't-muted') + '">' + MBUtil.num(c.cost, 0) + '</td>'
+    + '<td class="td-num ' + (c.fte > 0 ? 't-error' : 't-muted') + '">' + MBUtil.signed(c.fte, '') + '</td>'
+    + '<td>' + MBUtil.chip(c.requester) + '</td>'
+    + '<td>' + MBUtil.fmtDate(c.date) + '</td>'
+    + '<td>' + MBUtil.status(c.status, CR_TONE[c.status] || 'neutral') + '</td>'
+    + '<td><button class="row-menu-trigger" data-cr="' + E(c.id) + '" title="Tùy chọn">'
+    + '<span class="msym" style="font-size:20px">more_vert</span></button></td>'
+    + '</tr>');
+  rows.push('<tr class="total-row">'
+    + '<td></td><td></td><td>Tổng tác động của các CR đã duyệt</td><td></td>'
+    + '<td class="td-num">' + MBUtil.signed(s.days, '') + '</td>'
+    + '<td class="td-num">' + MBUtil.num(s.cost, 0) + '</td>'
+    + '<td class="td-num">' + MBUtil.signed(s.fte, '') + '</td>'
+    + '<td></td><td></td><td></td><td></td></tr>');
+  return '<div class="table-wrap"><div class="table-inner" id="cr-wrap">'
+    + '<table style="min-width:1480px"><thead><tr>'
+    + '<th style="width:52px">STT</th><th style="width:86px">Mã CR</th>'
+    + '<th style="min-width:300px">Nội dung thay đổi</th>'
+    + '<th style="min-width:300px">Lý do</th>'
+    + '<th style="width:120px">Tiến độ (ngày)</th>'
+    + '<th style="width:130px">Chi phí (trđ)</th>'
+    + '<th style="width:100px">Nhân sự (FTE)</th>'
+    + '<th style="min-width:170px">Đơn vị đề xuất</th>'
+    + '<th style="min-width:130px">Ngày đề xuất</th>'
+    + '<th style="min-width:130px">Trạng thái</th>'
+    + '<th style="width:52px"><span class="sr-only">Hành động</span></th>'
+    + '</tr></thead><tbody>' + rows.join('') + '</tbody></table></div></div>'
+    + '<button class="add-row-link" id="add-cr">'
+    + '<span class="msym" style="font-size:18px">add</span>Thêm yêu cầu thay đổi phạm vi</button>';
+}
+
+/* ────────────────────────── modal thêm / sửa CR ────────────────────────── */
+function crModal(existing) {
+  const requesters = ['Ban Dự án', 'Khối Vận hành', 'Khối QLRR', 'Khối KHDN', 'Khối Tín dụng', 'Khối Tài chính'];
+  PMSModal.open({
+    title: existing ? 'Chỉnh sửa yêu cầu thay đổi phạm vi' : 'Thêm yêu cầu thay đổi phạm vi',
+    size: 'wide',
+    body: '<div class="erow">'
+      + '<div class="ef half"><label>Nội dung thay đổi <span class="req">*</span></label>'
+      + '<input id="cr-title" value="' + E(existing ? existing.title : '') + '" placeholder="Ví dụ: Bổ sung tích hợp kênh đối tác mới" />'
+      + '<span class="ef-err">Bắt buộc nhập nội dung thay đổi.</span></div>'
+      + '<div class="ef half"><label>Lý do phát sinh <span class="req">*</span></label>'
+      + '<input id="cr-reason" value="' + E(existing ? existing.reason : '') + '" placeholder="Ví dụ: Tuân thủ quy định mới của NHNN" />'
+      + '<span class="ef-err">Bắt buộc nhập lý do — đây là căn cứ để hội đồng duyệt CR.</span></div>'
+      + '</div><div class="erow">'
+      + '<div class="ef"><label>Tác động tiến độ (ngày)</label>'
+      + '<input type="number" id="cr-days" min="0" value="' + (existing ? existing.days : 0) + '" /></div>'
+      + '<div class="ef"><label>Tác động chi phí (triệu đồng)</label>'
+      + '<input type="number" id="cr-cost" min="0" value="' + (existing ? existing.cost : 0) + '" /></div>'
+      + '<div class="ef"><label>Tác động nhân sự (FTE)</label>'
+      + '<input type="number" id="cr-fte" min="0" value="' + (existing ? existing.fte : 0) + '" /></div>'
+      + '<div class="ef"><label>Đơn vị đề xuất</label><select id="cr-req">'
+      + requesters.map(r => '<option' + (existing && existing.requester === r ? ' selected' : '') + '>' + E(r) + '</option>').join('')
+      + '</select></div>'
+      + '</div><div class="erow">'
+      + '<div class="ef"><label>Ngày đề xuất</label><input type="date" id="cr-date" value="'
+      + E(existing ? existing.date : MBUtil.iso(MBUtil.today())) + '" /></div>'
+      + '<div class="ef"><label>Trạng thái</label><select id="cr-status">'
+      + CR_STATUSES.map(s => '<option' + (existing && existing.status === s ? ' selected' : '') + '>' + E(s) + '</option>').join('')
+      + '</select></div>'
+      + '<div class="ef half"><label>Tác động cộng dồn sau khi thêm</label>'
+      + '<input id="cr-preview" readonly value="—" /></div>'
+      + '</div>'
+      + '<div class="alert alert-info mt-16"><span class="msym">info</span>'
+      + '<div>CR chỉ cộng vào scope creep và tổng tác động khi trạng thái là <b>Đã duyệt</b>. '
+      + 'CR ở trạng thái <b>Chờ duyệt</b> được theo dõi riêng để lãnh đạo thấy rủi ro tiềm tàng.</div></div>',
+    actions: [
+      { label: 'Hủy', variant: 'outline' },
+      {
+        label: existing ? 'Lưu' : 'Thêm CR', variant: 'primary', icon: 'check',
+        onClick: (h) => {
+          const title = h.q('#cr-title'), reason = h.q('#cr-reason');
+          let bad = false;
+          [title, reason].forEach(el => {
+            const f = el.closest('.ef');
+            if (!el.value.trim()) { f.classList.add('is-invalid'); bad = true; } else f.classList.remove('is-invalid');
+          });
+          if (bad) { PMSNotify.error('Thiếu thông tin bắt buộc', 'Nội dung và lý do là bắt buộc.'); return false; }
+          const payload = {
+            title: title.value.trim(), reason: reason.value.trim(),
+            days: +h.q('#cr-days').value || 0, cost: +h.q('#cr-cost').value || 0,
+            fte: +h.q('#cr-fte').value || 0, requester: h.q('#cr-req').value,
+            date: h.q('#cr-date').value, status: h.q('#cr-status').value
+          };
+          if (existing) {
+            CRS = CRS.map(c => (c.id === existing.id ? Object.assign({}, c, payload) : c));
+            PMSNotify.success('Đã cập nhật ' + existing.id, payload.title);
+          } else {
+            const id = 'CR-' + String(CRS.length + 1).padStart(2, '0');
+            CRS = CRS.concat([Object.assign({ id: id }, payload)]);
+            if (payload.status === 'Đã duyệt') {
+              ITEMS = ITEMS.concat([{
+                id: 'SC' + String(ITEMS.length + 1).padStart(2, '0'),
+                name: payload.title, type: 'in', note: 'Bổ sung theo ' + id
+              }]);
+            }
+            PMSNotify.success('Đã thêm ' + id,
+              'Tác động: +' + payload.days + ' ngày · ' + MBUtil.money(payload.cost) + ' · +' + payload.fte + ' FTE');
+          }
+          render();
+        }
+      }
+    ],
+    onMount: (h) => {
+      const upd = () => {
+        const st = stats();
+        const add = h.q('#cr-status').value === 'Đã duyệt';
+        const d = add ? st.days + (+h.q('#cr-days').value || 0) : st.days;
+        const c = add ? st.cost + (+h.q('#cr-cost').value || 0) : st.cost;
+        h.q('#cr-preview').value = '+' + d + ' ngày · ' + MBUtil.money(c)
+          + ' · scope creep ' + (Math.round(d / (P.scope.baselineDays || 1) * 1000) / 10) + '%';
+      };
+      h.qa('#cr-days, #cr-cost, #cr-status').forEach(el => el.addEventListener('input', upd));
+      h.q('#cr-status').addEventListener('change', upd);
+      h.qa('#cr-title, #cr-reason').forEach(el => el.addEventListener('input', () => {
+        if (el.value.trim()) el.closest('.ef').classList.remove('is-invalid');
+      }));
+      upd();
+    }
+  });
+}
+
+/* ────────────────────────────────── render ─────────────────────────────── */
+function render() {
+  document.getElementById('pms-page').innerHTML =
+    D.switcher('scope')
+    + D.summaryCard()
+    + metricsCard()
+    + D.card('Phạm vi theo baseline đã chốt', scopeTable(),
+        '<span class="tag tag-neutral">' + stats().inScope + ' trong phạm vi · '
+        + stats().outScope + ' loại trừ</span>')
+    + D.card('Log yêu cầu thay đổi phạm vi (Change Request)', crTable(),
+        '<span class="tag">' + CRS.length + ' CR</span>')
+    + D.footer();
+  D.headerActions();
+  PMSTip.bindTruncated(document.getElementById('scope-wrap'));
+  PMSTip.bindTruncated(document.getElementById('cr-wrap'));
+}
+
+document.getElementById('pms-page').addEventListener('click', (e) => {
+  if (e.target.closest('#add-cr')) { crModal(null); return; }
+  const m = e.target.closest('[data-cr]');
+  if (m) {
+    const cr = CRS.find(c => c.id === m.dataset.cr);
+    PMSMenu.openAt(m, [
+      { label: 'Chỉnh sửa', onClick: () => crModal(cr) },
+      {
+        label: 'Duyệt CR', disabled: cr.status === 'Đã duyệt',
+        onClick: () => {
+          CRS = CRS.map(c => (c.id === cr.id ? Object.assign({}, c, { status: 'Đã duyệt' }) : c));
+          ITEMS = ITEMS.concat([{
+            id: 'SC' + String(ITEMS.length + 1).padStart(2, '0'),
+            name: cr.title, type: 'in', note: 'Bổ sung theo ' + cr.id
+          }]);
+          render();
+          PMSNotify.success('Đã duyệt ' + cr.id, 'Hạng mục được đưa vào phạm vi, scope creep cập nhật lại.');
+        }
+      },
+      { label: 'Lịch sử thay đổi', onClick: () => PMSNotify.info('Lịch sử ' + cr.id, 'Minh hoạ trong mockup.') },
+      {
+        label: 'Xóa', danger: true,
+        onClick: () => PMSModal.confirm({
+          title: 'Xóa yêu cầu thay đổi',
+          body: 'Xóa <b>' + E(cr.id) + '</b> khỏi log thay đổi phạm vi?',
+          okLabel: 'Xóa', okIcon: 'delete',
+          onOk: () => { CRS = CRS.filter(c => c.id !== cr.id); render(); PMSNotify.warning('Đã xóa ' + cr.id); }
+        })
+      }
+    ]);
+  }
+});
+
+render();
+D.wire();
+</script>
+
+<!--
+## 📊 Component Coverage Report — Chi tiết dự án · Quản lý phạm vi
+
+| # | Element | DS Component used | Status |
+|---|---------|------------------|--------|
+| 1 | Left sidebar | AppSidebar | ✅ DS |
+| 2 | Breadcrumb + back + title + badge + actions | PageHeader | ✅ DS |
+| 3 | Bộ chuyển 6 cấu phần | section-switcher (bespoke của XemChiTiet) | ⚠️ Bespoke |
+| 4 | Dải chỉ số tóm tắt | Card + Progress | ✅ DS |
+| 5 | 4 ô chỉ số phạm vi / scope creep | DataCard (metric tile) | ✅ DS |
+| 6 | Cảnh báo vượt ngưỡng scope creep | Alert | ✅ DS |
+| 7 | Bảng phạm vi baseline | Table | ✅ DS |
+| 8 | Bảng log CR (có dòng Tổng tác động) | Table (+ tr.total-row) | ✅ DS |
+| 9 | Phân loại trong/ngoài phạm vi, trạng thái CR | Badge size="medium" | ✅ DS |
+| 10 | Nguồn gốc hạng mục, số lượng CR | Tag | ✅ DS |
+| 11 | Đơn vị đề xuất | Chips size="small" | ✅ DS |
+| 12 | Menu hành động theo dòng CR | RowMenu | ✅ DS |
+| 13 | Modal thêm / sửa CR (có ô tính tác động cộng dồn) | Modal | ✅ DS |
+| 14 | Input số / Select / Date trong modal | InputNumber · Select · Input | ✅ DS |
+| 15 | Link "+ Thêm yêu cầu thay đổi" | add-row link (pattern của ChinhSua) | ✅ DS |
+| 16 | Hộp thoại xác nhận xóa | Modal | ✅ DS |
+| 17 | Thông báo | Notification | ✅ DS |
+| 18 | Hàng đóng màn | DetailFooter align="center" | ✅ DS |
+
+**DS component coverage: 17 / 18 = 94%**
+Shell zones: ✅ AppSidebar · ✅ PageHeader · ❌ AppHeader (loại trừ theo mặc định của ias-design)
+
+## 🎨 Color Token Coverage — Chi tiết dự án · Quản lý phạm vi
+
+| # | Element (property) | Location | Original hex | Category | Matched Semantic Alias | Match |
+|---|---|---|---|---|---|---|
+| 1 | Nền card / bảng | `.d-card`, `.table-wrap` | `#FFFFFF` | background | `--color-bg-surface` | ✅ Exact |
+| 2 | Viền card, viền ô bảng | `.d-card`, `td` | `#D9DBE9` | border | `--color-border-default` | ✅ Exact |
+| 3 | Nền header bảng | `th` | `#F4F6FA` | background | `--color-bg-page` | ✅ Exact |
+| 4 | Số tác động dương (ngày/chi phí/FTE) | `.t-error` | `#C30052` | text | `--color-text-error` | ✅ Exact |
+| 5 | Số tác động bằng 0 | `.t-muted` | `#A0A3BD` | text | `--color-text-muted` | ✅ Exact |
+| 6 | Chỉ số scope creep an toàn | `.t-success` | `#00966D` | text | `--color-text-success` | ✅ Exact |
+| 7 | Chỉ số scope creep cảnh báo | `.t-warning` | `#946200` | text | `--color-text-warning` | ✅ Exact |
+| 8 | Nền Alert cảnh báo | `.alert-warning` | `#FFF9EF` | background | `--color-bg-warning` | ✅ Exact |
+| 9 | Viền Alert cảnh báo | `.alert-warning` | `#FFD789` | border | `--color-warning-300` | ⚠️ Nearest — không có alias `--color-border-warning-subtle`, dùng raw scale gần nhất trong cùng hue |
+| 10 | Nền dòng Tổng | `tr.total-row td` | `#F4F5FF` | background | `--color-primary-50` | ✅ Exact |
+| 11 | Viền trên dòng Tổng | `tr.total-row td` | `#C4C6F7` | border | `--color-primary-200` | ✅ Exact |
+| 12 | Tag nguồn gốc từ CR | `.tag.tag-accent` | `#EEDFFF` / `#5500CC` | background/text | `--color-accent-100` / `--color-accent-700` | ✅ Exact |
+
+**Color token coverage: 11 / 12 exact, 1 ⚠️ nearest = 100% được map vào token khai báo · 0 severe gap**
+
+## 🔤 Typography Scale Coverage — Chi tiết dự án · Quản lý phạm vi
+
+| # | Text element | Rendered size / weight | Matched scale | Match | Class used? |
+|---|---|---|---|---|---|
+| 1 | Detail title | 20px / 700 | H4 (22px/500) | ⚠️ Nearest — spec riêng của PageHeader | ❌ `.detail-title` |
+| 2 | Nhãn section-switcher | 14px / 600 | Subtitle 2 (14px/600) | ✅ Exact | ✅ `class="hcm-subtitle2"` |
+| 3 | Tiêu đề card | 16px / 700 | Subtitle 1 (16px/600) | ⚠️ Nearest | ✅ `.d-card-title` dùng token subtitle1 |
+| 4 | Nhãn ô chỉ số | 12px / 600 | Caption (12px/500) | ⚠️ Nearest | ✅ `.metric-label` dùng token caption |
+| 5 | Giá trị ô chỉ số | 18px / 700 | H5 (18px/500) | ⚠️ Nearest | ✅ `.metric-value` dùng `--type-h5-size` |
+| 6 | Nhãn field trong modal | 12px / 600 | Caption (12px/500) | ⚠️ Nearest | ❌ `.ef label` theo đúng spec ChinhSua |
+| 7 | Nội dung Alert | 13px / 400 | Body 2 (14px/400) | ⚠️ Nearest | ❌ `.alert` |
+| 8 | Header / ô bảng | 11px/700 · 13px/400 | Overline · Body 2 | ⚠️ Nearest — spec riêng của Table | ❌ `th` / `td` |
+
+**Typography scale coverage: 8 / 8 = 100% · Utility-class adoption: 4 / 8 = 50%**
+-->
+</body>
+</html>

@@ -55,9 +55,9 @@ type TreeLevel = 1 | 2 | 3;
 const LEVEL_LABEL: Record<TreeLevel, string> = { 1: 'Epic', 2: 'Story', 3: 'Subtask' };
 
 const KIND_ICON = {
-  epic: { className: 'text-violet-600', icon: Lightning },
-  story: { className: 'text-emerald-600', icon: BookmarkSimple },
-  subtask: { className: 'text-sky-600', icon: CheckSquare },
+  epic: { className: 'text-fb-accent', icon: Lightning },
+  story: { className: 'text-status-success', icon: BookmarkSimple },
+  subtask: { className: 'text-fb-blue', icon: CheckSquare },
 };
 
 function IssueTypeIcon({ issueType }: { issueType: string }) {
@@ -146,8 +146,8 @@ function TreeTableRow({ isDimmed, isExpanded, isLastChild, isLoading, issue, lev
       <TD className="px-3 py-2"><StatusText level={level} status={issue.status} /></TD>
       <TD className="px-3 py-2">
         {issue.startDate ? (
-          <span className="inline-flex items-center gap-0.5 font-medium text-slate-500 text-[11px]">
-            <CaretLineRight className="size-3 shrink-0 text-slate-500" weight="bold" />
+          <span className="inline-flex items-center gap-0.5 font-medium text-fb-text-placeholder text-[11px]">
+            <CaretLineRight className="size-3 shrink-0 text-fb-text-placeholder" weight="bold" />
             <span>{formatDate(issue.startDate)}</span>
           </span>
         ) : (
@@ -156,7 +156,7 @@ function TreeTableRow({ isDimmed, isExpanded, isLastChild, isLoading, issue, lev
       </TD>
       <TD className="px-3 py-2">
         {issue.r4gDate ? (
-          <span className="inline-flex items-center gap-0.5 font-medium text-[#1463f7]">
+          <span className="inline-flex items-center gap-0.5 font-medium text-[var(--color-text-brand)]">
             <Checks className="size-3.5 shrink-0" weight="bold" />
             <span>{formatDate(issue.r4gDate)}</span>
           </span>
@@ -166,7 +166,7 @@ function TreeTableRow({ isDimmed, isExpanded, isLastChild, isLoading, issue, lev
       </TD>
       <TD className="px-3 py-2">
         {issue.dueDate ? (
-          <span className="inline-flex items-center gap-0.5 font-medium text-[#2E7D32]">
+          <span className="inline-flex items-center gap-0.5 font-medium text-[var(--color-success-300)]">
             <Checks className="size-3.5 shrink-0" weight="bold" />
             <span>{formatDate(issue.dueDate)}</span>
           </span>

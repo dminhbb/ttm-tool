@@ -138,7 +138,7 @@ export function PermissionMatrixSettings() {
             </TR>
             <TR>
               {MATRIX_ROLES.map((role) => ACTIONS.map((action, index) => (
-                <TH key={`${role}-${action.key}`} className={`text-center text-[10px] font-medium text-fb-text-secondary ${index === 0 ? 'border-l border-fb-border' : ''}`}>{action.label}</TH>
+                <TH key={`${role}-${action.key}`} className={`text-center text-[11px] font-medium text-fb-text-secondary ${index === 0 ? 'border-l border-fb-border' : ''}`}>{action.label}</TH>
               )))}
             </TR>
           </THead>

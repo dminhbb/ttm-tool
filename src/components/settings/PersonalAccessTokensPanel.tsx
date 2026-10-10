@@ -129,7 +129,7 @@ export function PersonalAccessTokensPanel() {
                 className="shrink-0 rounded p-1.5 text-fb-text-secondary hover:bg-fb-control hover:text-fb-text-primary"
                 title="Sao chép token"
               >
-                {isCopied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                {isCopied ? <Check className="w-4 h-4 text-status-success" /> : <Copy className="w-4 h-4" />}
               </button>
             </div>
             <p className="flex items-center gap-1 text-xs text-fb-text-secondary">

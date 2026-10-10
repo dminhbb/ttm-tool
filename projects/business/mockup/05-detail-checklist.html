@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chi tiết dự án · Checklist — PMS Platform</title>
+<link rel="stylesheet" href="assets/pms-tokens.css">
+<link rel="stylesheet" href="assets/pms-ias.css">
+<script src="assets/pms-icons.js"></script>
+</head>
+<body>
+<div id="pms-page"></div>
+
+<script src="assets/pms-util.js"></script>
+<script src="assets/pms-ui.js"></script>
+<script src="assets/mock-data.js"></script>
+<script src="assets/pms-detail.js"></script>
+<script src="assets/pms-shell.js"></script>
+<script>
+const E = MBUtil.esc;
+const D = PMSDetail;
+const P = PRJ;
+const ME = P.people.pm;
+
+/* state sống trong session của tab */
+let ITEMS = MBData.checklistItems(P);
+let quickFilter = 'all';
+
+const STATUS_META = {
+  done:  { label: 'Hoàn thành', tone: 'success', icon: 'check' },
+  doing: { label: 'Đang làm',   tone: 'blue',    icon: 'more_horiz' },
+  todo:  { label: 'Chưa làm',   tone: 'neutral', icon: '' },
+  na:    { label: 'Không áp dụng', tone: 'neutral', icon: 'remove' }
+};
+const CYCLE = ['todo', 'doing', 'done', 'na'];
+
+function visible(items) {
+  return items.filter(i => {
+    if (quickFilter === 'open') return i.status !== 'done' && i.status !== 'na';
+    if (quickFilter === 'overdue') return i.overdue;
+    if (quickFilter === 'mine') return i.owner === ME;
+    return true;
+  });
+}
+
+function itemRow(i) {
+  const m = STATUS_META[i.status];
+  return '<div class="ck-item s-' + i.status + '" data-id="' + E(i.id) + '">'
+    + '<button class="ck-tick s-' + i.status + '" data-tick="' + E(i.id) + '" title="Đổi trạng thái">'
+    + (m.icon ? '<span class="msym">' + m.icon + '</span>' : '') + '</button>'
+    + '<div><div class="ck-name">' + E(i.id) + ' · ' + E(i.name) + '</div>'
+    + '<div class="ck-meta"><span class="msym" style="font-size:14px">attach_file</span>'
+    + E(i.deliverable)
+    + (i.evidence && i.evidence !== '—' ? ' · <span class="t-brand">' + E(i.evidence) + '</span>' : '')
+    + (i.note ? ' · <span class="t-warning">' + E(i.note) + '</span>' : '')
+    + '</div></div>'
+    + '<div>' + (i.owner ? MBUtil.chip(i.owner) : '<span class="t-muted">—</span>') + '</div>'
+    + '<div class="ck-due' + (i.overdue ? ' overdue' : '') + '">'
+    + (i.due ? (i.overdue ? '<span class="msym" style="font-size:14px;vertical-align:-2px">event_busy</span> ' : '')
+      + MBUtil.fmtDate(i.due) : '<span class="t-muted">—</span>') + '</div>'
+    + '<div>' + MBUtil.status(m.label, m.tone) + '</div></div>';
+}
+
+function phaseCard(ph) {
+  const all = ITEMS.filter(i => i.phase === ph.key);
+  const st = MBData.checklistStats(all);
+  const shown = visible(all);
+  const tools = '<div class="row" style="gap:10px">'
+    + '<div style="width:180px">' + MBUtil.progress(st.pct, st.pct === 100 ? 'ok' : (st.overdue ? 'bad' : '')) + '</div>'
+    + '<span class="hcm-caption t-muted">' + st.done + '/' + st.counted + ' hạng mục'
+    + (st.na ? ' · ' + st.na + ' N/A' : '') + '</span>'
+    + (st.overdue ? MBUtil.status(st.overdue + ' quá hạn', 'error', 'sm') : '')
+    + '</div>';
+
+  const body = '<div class="table-wrap">'
+    + '<div class="ck-head-row"><div></div><div>Hạng mục và giao phẩm bắt buộc</div>'
+    + '<div>Người chịu trách nhiệm</div><div>Hạn hoàn thành</div><div>Trạng thái</div></div>'
+    + (shown.length ? shown.map(itemRow).join('')
+      : '<div class="empty"><span class="msym">filter_alt_off</span>'
+      + '<div class="empty-title">Không có hạng mục khớp bộ lọc nhanh</div></div>')
+    + '</div>'
+    + '<button class="add-row-link" data-add="' + ph.key + '">'
+    + '<span class="msym" style="font-size:18px">add</span>Thêm hạng mục cho giai đoạn ' + E(ph.name) + '</button>';
+
+  return D.card(ph.name + ' (' + all.length + ')', body, tools, ph.key !== phaseOpenKey());
+}
+
+/** mặc định mở giai đoạn đang thực hiện */
+function phaseOpenKey() {
+  const map = {
+    'Khởi tạo': 'KHOI_TAO', 'Phân tích': 'PHAN_TICH', 'Phân tích & thiết kế': 'PHAN_TICH',
+    'Phát triển': 'PHAT_TRIEN', 'Kiểm thử': 'KIEM_THU', 'Go-live': 'GOLIVE', 'Hậu go-live': 'HAU_GOLIVE'
+  };
+  return map[P.currentPhase] || 'KIEM_THU';
+}
+
+function overviewCard() {
+  const st = MBData.checklistStats(ITEMS);
+  const chips = [['all', 'Tất cả', ITEMS.length], ['open', 'Chưa hoàn thành', st.doing + st.todo],
+    ['overdue', 'Quá hạn', st.overdue], ['mine', 'Của tôi', ITEMS.filter(i => i.owner === ME).length]];
+  return D.card('Tiến độ checklist triển khai',
+    '<div class="row row-wrap" style="gap:28px;align-items:flex-end">'
+    + '<div style="min-width:280px;flex:1">'
+    + MBUtil.progress(st.pct, st.pct === 100 ? 'ok' : (st.overdue ? 'bad' : ''), true)
+    + '<div class="hcm-caption t-muted mt-8">' + st.done + ' hoàn thành · ' + st.doing + ' đang làm · '
+    + st.todo + ' chưa làm · ' + st.na + ' không áp dụng (loại khỏi mẫu số)</div></div>'
+    + D.metric('Quá hạn', String(st.overdue), 'hạng mục cần xử lý ngay', st.overdue ? 't-error' : 't-success')
+    + D.metric('Tổng hạng mục', String(st.total), 'theo checklist mẫu của MB', '')
+    + '</div>'
+    + '<div class="row row-wrap mt-16" style="gap:8px">'
+    + '<span class="hcm-caption t-secondary">Lọc nhanh:</span>'
+    + chips.map(c => '<span class="chip chip-toggle' + (quickFilter === c[0] ? ' on' : '') + '"'
+      + ' data-qf="' + c[0] + '">' + E(c[1]) + ' · ' + c[2] + '</span>').join('')
+    + '</div>');
+}
+
+function render() {
+  ITEMS = ITEMS.map(i => Object.assign({}, i, {
+    overdue: i.status !== 'done' && i.status !== 'na' && MBUtil.isOverdue(i.due)
+  }));
+  document.getElementById('pms-page').innerHTML =
+    D.switcher('checklist') + D.summaryCard() + overviewCard()
+    + MBData.PHASES.map(phaseCard).join('')
+    + D.footer();
+  D.headerActions();
+}
+
+/* ─────────────────────────────── modal thêm/sửa ────────────────────────── */
+function itemModal(phaseKey, existing) {
+  const ownerOpts = [P.people.pm, P.people.td, P.people.pd, 'Trần Thu Hà', 'Lê Quốc Dũng',
+    'Vũ Thị Mai', 'Phạm Anh Tuấn'];
+  PMSModal.open({
+    title: existing ? 'Chỉnh sửa hạng mục checklist' : 'Thêm hạng mục checklist',
+    size: 'mid',
+    body: '<div class="erow" style="grid-template-columns:repeat(2,1fr)">'
+      + '<div class="ef full"><label>Nội dung hạng mục <span class="req">*</span></label>'
+      + '<input id="ck-name" value="' + E(existing ? existing.name : '') + '" placeholder="Ví dụ: Hoàn thành kiểm thử hồi quy" />'
+      + '<span class="ef-err">Bắt buộc nhập nội dung hạng mục.</span></div>'
+      + '<div class="ef full"><label>Giao phẩm bắt buộc <span class="req">*</span></label>'
+      + '<input id="ck-deliver" value="' + E(existing ? existing.deliverable : '') + '" placeholder="Ví dụ: Báo cáo kiểm thử hồi quy" />'
+      + '<span class="ef-err">Bắt buộc nhập giao phẩm — checklist của MB luôn gắn với bằng chứng.</span></div>'
+      + '<div class="ef"><label>Giai đoạn</label><select id="ck-phase">'
+      + MBData.PHASES.map(p => '<option value="' + p.key + '"'
+        + ((existing ? existing.phase : phaseKey) === p.key ? ' selected' : '') + '>' + E(p.name) + '</option>').join('')
+      + '</select></div>'
+      + '<div class="ef"><label>Người chịu trách nhiệm</label><select id="ck-owner">'
+      + ownerOpts.map(o => '<option' + (existing && existing.owner === o ? ' selected' : '') + '>' + E(o) + '</option>').join('')
+      + '</select></div>'
+      + '<div class="ef"><label>Hạn hoàn thành</label>'
+      + '<input type="date" id="ck-due" value="' + E(existing ? existing.due : '') + '" /></div>'
+      + '<div class="ef"><label>Trạng thái</label><select id="ck-status">'
+      + CYCLE.map(s => '<option value="' + s + '"' + (existing && existing.status === s ? ' selected' : '') + '>'
+        + E(STATUS_META[s].label) + '</option>').join('')
+      + '</select></div>'
+      + '</div>',
+    actions: [
+      { label: 'Hủy', variant: 'outline' },
+      {
+        label: existing ? 'Lưu' : 'Thêm hạng mục', variant: 'primary', icon: 'check',
+        onClick: (h) => {
+          const name = h.q('#ck-name'), deliver = h.q('#ck-deliver');
+          let bad = false;
+          [name, deliver].forEach(el => {
+            const f = el.closest('.ef');
+            if (!el.value.trim()) { f.classList.add('is-invalid'); bad = true; }
+            else f.classList.remove('is-invalid');
+          });
+          if (bad) { PMSNotify.error('Thiếu thông tin bắt buộc', 'Nội dung và giao phẩm là bắt buộc.'); return false; }
+          const payload = {
+            name: name.value.trim(), deliverable: deliver.value.trim(),
+            phase: h.q('#ck-phase').value, owner: h.q('#ck-owner').value,
+            due: h.q('#ck-due').value, status: h.q('#ck-status').value, evidence: '', note: ''
+          };
+          if (existing) {
+            ITEMS = ITEMS.map(i => (i.id === existing.id ? Object.assign({}, i, payload) : i));
+            PMSNotify.success('Đã cập nhật ' + existing.id, payload.name);
+          } else {
+            const n = ITEMS.length + 1;
+            ITEMS = ITEMS.concat([Object.assign({ id: 'CK' + String(n).padStart(2, '0') + 'b' }, payload)]);
+            PMSNotify.success('Đã thêm hạng mục checklist', payload.name);
+          }
+          render();
+        }
+      }
+    ],
+    onMount: (h) => {
+      h.qa('#ck-name, #ck-deliver').forEach(el => el.addEventListener('input', () => {
+        if (el.value.trim()) el.closest('.ef').classList.remove('is-invalid');
+      }));
+    }
+  });
+}
+
+/* ──────────────────────────────────── tương tác ────────────────────────── */
+document.getElementById('pms-page').addEventListener('click', (e) => {
+  const tick = e.target.closest('[data-tick]');
+  if (tick) {
+    const id = tick.dataset.tick;
+    ITEMS = ITEMS.map(i => {
+      if (i.id !== id) return i;
+      const next = CYCLE[(CYCLE.indexOf(i.status) + 1) % CYCLE.length];
+      return Object.assign({}, i, { status: next });
+    });
+    const it = ITEMS.find(i => i.id === id);
+    render();
+    PMSNotify.info(id + ' → ' + STATUS_META[it.status].label,
+      it.status === 'na' ? 'Hạng mục bị loại khỏi mẫu số tính tiến độ.' : it.name);
+    return;
+  }
+  const add = e.target.closest('[data-add]');
+  if (add) { itemModal(add.dataset.add, null); return; }
+  const qf = e.target.closest('[data-qf]');
+  if (qf) { quickFilter = qf.dataset.qf; render(); return; }
+  const item = e.target.closest('.ck-item');
+  if (item && !e.target.closest('button')) {
+    itemModal(null, ITEMS.find(i => i.id === item.dataset.id));
+  }
+});
+
+render();
+D.wire();
+</script>
+
+<!--
+## 📊 Component Coverage Report — Chi tiết dự án · Checklist
+
+| # | Element | DS Component used | Status |
+|---|---------|------------------|--------|
+| 1 | Left sidebar | AppSidebar | ✅ DS |
+| 2 | Breadcrumb + back + title + badge + actions | PageHeader | ✅ DS |
+| 3 | Bộ chuyển 6 cấu phần | section-switcher (bespoke của XemChiTiet) | ⚠️ Bespoke |
+| 4 | Dải chỉ số tóm tắt | Card + Progress | ✅ DS |
+| 5 | 6 card giai đoạn thu gọn được | Card / DCard (collapse) | ✅ DS |
+| 6 | Thanh tiến độ tổng và từng giai đoạn | Progress | ✅ DS |
+| 7 | Chip lọc nhanh (bấm để bật/tắt) | Chips (toggle) | ✅ DS |
+| 8 | Người chịu trách nhiệm | Chips size="small" | ✅ DS |
+| 9 | Trạng thái hạng mục | Badge size="medium" (dot + pill) | ✅ DS |
+| 10 | Cảnh báo "N quá hạn" | Badge size="small" | ✅ DS |
+| 11 | Modal thêm / sửa hạng mục | Modal | ✅ DS |
+| 12 | Input / Select / Date trong modal | Input · Select | ✅ DS |
+| 13 | Link "+ Thêm hạng mục" dưới bảng | add-row link (pattern của ChinhSua) | ✅ DS |
+| 14 | Trạng thái rỗng khi lọc | Empty | ✅ DS |
+| 15 | Thông báo đổi trạng thái | Notification | ✅ DS |
+| 16 | Hàng đóng màn | DetailFooter align="center" | ✅ DS |
+| 17 | Dòng hạng mục checklist (nút tick 4 mức) | — | ⚠️ Bespoke (DS không có component checklist row) |
+
+**DS component coverage: 15 / 17 = 88%**
+Shell zones: ✅ AppSidebar · ✅ PageHeader · ❌ AppHeader (loại trừ theo mặc định của ias-design)
+
+## 🎨 Color Token Coverage — Chi tiết dự án · Checklist
+
+| # | Element (property) | Location | Original hex | Category | Matched Semantic Alias | Match |
+|---|---|---|---|---|---|---|
+| 1 | Nền header bảng checklist | `.ck-head-row` | `#F4F6FA` | background | `--color-bg-page` | ✅ Exact |
+| 2 | Viền dòng hạng mục | `.ck-item` border-bottom | `#D9DBE9` | border | `--color-border-default` | ✅ Exact |
+| 3 | Hover dòng hạng mục | `.ck-item:hover` | `#F4F5FF` | background | `--color-bg-hover` | ✅ Exact |
+| 4 | Tên hạng mục | `.ck-name` | `#14142A` | text | `--color-text-primary` | ✅ Exact |
+| 5 | Giao phẩm / ghi chú phụ | `.ck-meta` | `#A0A3BD` | text | `--color-text-muted` | ✅ Exact |
+| 6 | Nút tick khi hoàn thành | `.ck-tick.s-done` | `#00BA88` | background | `--color-bg-success-solid` | ✅ Exact |
+| 7 | Viền nút tick khi đang làm | `.ck-tick.s-doing` | `#141ED2` | border | `--color-border-focus` | ✅ Exact |
+| 8 | Viền nút tick mặc định | `.ck-tick` | `#C4C4D4` | border | `--color-border-strong` | ✅ Exact |
+| 9 | Nút tick khi không áp dụng | `.ck-tick.s-na` | `#C4C4D4` | border/text | `--color-border-strong` | ✅ Exact |
+| 10 | Hạn quá hạn | `.ck-due.overdue` | `#C30052` | text | `--color-text-error` | ✅ Exact |
+| 11 | Tên hạng mục đã hoàn thành (gạch ngang) | `.ck-item.s-done .ck-name` | `#A0A3BD` | text | `--color-text-muted` | ✅ Exact |
+
+**Color token coverage: 11 / 11 = 100% Exact · 0 severe gap**
+
+## 🔤 Typography Scale Coverage — Chi tiết dự án · Checklist
+
+| # | Text element | Rendered size / weight | Matched scale | Match | Class used? |
+|---|---|---|---|---|---|
+| 1 | Detail title | 20px / 700 | H4 (22px/500) | ⚠️ Nearest — spec riêng của PageHeader | ❌ `.detail-title` |
+| 2 | Nhãn section-switcher | 14px / 600 | Subtitle 2 (14px/600) | ✅ Exact | ✅ `class="hcm-subtitle2"` |
+| 3 | Tiêu đề card giai đoạn | 16px / 700 | Subtitle 1 (16px/600) | ⚠️ Nearest | ✅ `.d-card-title` dùng token subtitle1 |
+| 4 | Header bảng checklist | 11px / 700 | Overline (10px/600) | ⚠️ Nearest — đồng bộ với header Table | ❌ `.ck-head-row` |
+| 5 | Tên hạng mục | 13px / 600 | Subtitle 2 (14px/600) | ⚠️ Nearest | ❌ `.ck-name` (đồng bộ mật độ với ô Table 13px) |
+| 6 | Dòng giao phẩm / chú thích | 11px / 400 | Overline (10px/600) | ⚠️ Nearest | ❌ `.ck-meta` |
+| 7 | Chú thích tiến độ, nhãn lọc | 12px / 500 | Caption (12px/500) | ✅ Exact | ✅ `class="hcm-caption"` |
+| 8 | Giá trị chỉ số | 18px / 700 | H5 (18px/500) | ⚠️ Nearest | ✅ `.metric-value` dùng `--type-h5-size` |
+
+**Typography scale coverage: 8 / 8 = 100% · Utility-class adoption: 3 / 8 = 38%**
+-->
+</body>
+</html>

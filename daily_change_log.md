@@ -6,6 +6,230 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-10-10
+
+- **Gỡ font `.otf` bản quyền và `mockup.rar` khỏi git.** Repo đang **public**, nên 8 file
+  `Intelligent_Design_-_AvertaStdCY-*.otf` (~1MB, font desktop nguyên bản, cài được) ở
+  `projects/business/mockup/assets/fonts/` là phân phối lại font thương mại — EULA foundry thường
+  cấm, kể cả khi công ty có licence dùng trong sản phẩm. Thêm `*.otf`/`*.ttf`/`*.rar` vào
+  `.gitignore`; file vẫn còn trên đĩa, chỉ không còn được track.
+  - `projects/business/mockup/assets/pms-tokens.css`: 8 `@font-face` trỏ `.otf` → **3 `@font-face`**
+    trỏ `../../../../src/app/fonts/averta-std-cy-{400,600,700}.woff2`, tức dùng chung đúng bộ
+    WOFF2 đã subset mà app thật nạp. Mockup giờ render **giống production** thay vì giống bộ font
+    đầy đủ — chính xác hơn khi đối chiếu thiết kế. Hệ quả weight theo thuật toán khớp font của CSS:
+    300 và 500 render bằng 400, 800 render bằng 700 (không phải faux-bold).
+  - **NGOẠI LỆ CÓ CHỦ ĐÍCH**: `src/app/fonts/*.woff2` VẪN được commit, vì `src/app/layout.tsx` nạp
+    trực tiếp qua `next/font/local` và build trên Vercel không có `../ias-design/fonts` để sinh lại.
+    Không gỡ 3 file này nếu không muốn vỡ deploy.
+  - Đã cập nhật `projects/business/mockup/index.html` (3 chỗ tài liệu còn ghi "8 weight,
+    `assets/fonts/`") cho khớp thực tế.
+  - Kiểm chứng: `node scripts/check-mockup.mjs` sạch (11 HTML · 8 JS · 74 icon) · 3 đường dẫn
+    WOFF2 mới resolve đúng · `tsc --noEmit` sạch · `npm test` **272/272**.
+  - **CHƯA XỬ LÝ XONG**: commit cũ `62f2235` vẫn còn trong lịch sử public qua `refs/pull/2/head`
+    (ref do GitHub quản lý, admin cũng không xoá được). Muốn sạch hẳn cần owner `dminhbb` chuyển
+    repo sang **private** hoặc yêu cầu GitHub Support purge. Đã báo owner.
+
+- **Đóng gói đợt IAS Design System thành nhánh `feature/ias-design-system-adoption`** để chủ sở
+  hữu review trước khi vào `main`. Lưu ý cho phiên sau: `origin/main` đã chạy trước 4 commit
+  (`a5d5034` Phạm vi Sai lệch dữ liệu, caching services, Epic details dialog, import adapter)
+  trong khi `main` local có 2 commit PMS chưa push, nên nhánh này **đã phân kỳ** với remote.
+  Bốn file giao nhau cần resolve khi merge: `daily_change_log.md`, `version.json`,
+  `src/components/epic-browser/EpicBrowserModal.tsx`,
+  `src/components/ttm-dashboard-2/DashboardInsights.tsx`.
+
+- **IAS Design System — Nhịp B/Task 10-13 + Task 14: codemod token toàn app, dọn doc, đóng đợt**.
+  - **Codemod** `scripts/codemod-ias-tokens.mjs` (bảng map tường minh, đọc review được, có
+    `--dry`): **193 hex + 527 class palette thô + 62 cỡ chữ** trên **25 file**. Phạm vi CÓ CHỦ
+    ĐÍCH chỉ là màu trong **ngữ cảnh CSS** — class Tailwind arbitrary value
+    (`text-[#1463f7]` → `text-[var(--color-text-brand)]`) và class bảng màu mặc định
+    (`text-slate-500` → `text-fb-text-placeholder`). **KHÔNG** đổi hex trong chuỗi JS /
+    thuộc tính SVG, vì thuộc tính SVG không phải CSS nên `fill="var(--x)"` không resolve —
+    phải chuyển sang `style={{ fill }}`, tức sửa cấu trúc.
+  - Chuẩn bị bằng `scripts/audit-distinct-colors.mjs` (mới): liệt kê **80 hex + 142 class màu
+    riêng biệt** đang dùng, để dựng bảng map từ số liệu thật thay vì đoán. Phát hiện
+    `#1463f7` một mình chiếm **144/322 hex**.
+  - **Hạ sàn lint từ 12px về 11px** — quyết định quan trọng: `text-[11px]` chiếm **127/201**
+    chỗ "dưới sàn", và **11px chính là spec component của IAS** (header bảng 11px/700, Badge
+    medium, status pill). Ép 127 chỗ lên 12px sẽ nới mỗi ô bảng ra và **tái sinh đúng lỗi
+    tràn** mà cả đợt này đi sửa. Nâng các NHÃN ngoài bảng lên Caption 12px là việc theo từng
+    màn hình. Hai sàn giờ tách bạch: 12px cho chữ tự đặt, **11px là sàn cứng**.
+  - Thêm 2 token `--color-fb-accent` / `--color-fb-accent-soft` vào `@theme`: app dùng tím cho
+    một vai trò THỨ TƯ bên cạnh success/warning/danger (chỉ số QA, "Sai lệch dữ liệu", nhãn
+    phân loại), trước đây đi bằng `text-purple-700`/`bg-purple-600` — bảng màu thô.
+  - **Task 13**: thêm 3 entry thiếu vào `PAGE_HEADERS` (`src/lib/app-screens.ts`) cho
+    `/data-review`, `/sso/authorize`, `/sso-demo` — trước đây header của chúng hiện SAI thành
+    "Quản trị nguồn dữ liệu" do AppShell fallback về `PAGE_HEADERS['/']`. Sửa lỗi hiển thị,
+    không đổi hành vi.
+  - **Hoàn tác một thay đổi của chính codemod**: ở Alert trang login, nó đổi riêng màu chữ
+    `#8B4513` → `--color-text-warning` (#946200) trong khi giữ nền hồng `#FFC0CB` — tương
+    phản TỤT từ ~4.6:1 xuống ~4.0:1. Đã trả về nguyên bản. Chuyển cả tổ hợp sang bộ error của
+    IAS thì đúng chuẩn nhưng bỏ màu hồng chủ sở hữu chọn, tức đổi ý định thiết kế → cần
+    quyết định của chủ sở hữu, đã ghi vào baseline.
+  - **Kết quả**: hex **341 → 133** (−61%) · class palette thô **593 → 42** (−93%) · chữ dưới
+    sàn 11px **215 → 4** (−98%) · `!important` trong CSS route **18 → 4**.
+    Còn lại là loại nợ KHÁC: màu trong chuỗi JS/SVG prop (41 chỗ ở phễu ttm-dashboard-2,
+    21 chỗ bảng tra màu trạng thái 3 màn Epic, 7 chỗ `PALETTE` donut), 40 class palette ở
+    `VisitCounterPanel` (chip nền tối, map sang token mặt sáng sẽ phá tương phản), và các
+    ngoại lệ hợp lệ (swatch brand, HTML server-render, canvas captcha, `#000000` của AGENTS.md).
+  - **Task 14**: `docs/design/IAS-DESIGN-ADOPTION.md` cập nhật đầy đủ — hai cái sàn 12/11px,
+    mục Codemod, bảng ngoại lệ hợp lệ, bảng việc còn lại kèm lý do từng việc cần sửa cấu trúc.
+    `design-system-spec.md` đánh dấu HẾT HIỆU LỰC kèm bảng đối chiếu 5 điểm sai so với code.
+    `DESIGN.md` đánh dấu SUPERSEDED (vẫn là tài liệu của brand `wise`). Xoá
+    `tailgrids.config.json`.
+  - `tsc --noEmit` sạch · `npm test` **272/272** · `next build` thành công cả 22 route.
+    Lưu ý: `eslint src` có 1 error `setState synchronously within an effect` — đã kiểm chứng
+    qua `git diff` là **có trước**, 12 chỗ khớp "effect/setState" trong diff của tôi đều chỉ
+    là `onClick={() => setX('')}` nằm trong câu className.
+
+- **IAS Design System — Nhịp B/Task 10 (phần 1): sửa tràn chữ ở KPI strip của `/dashboard-new`**.
+  Nguyên nhân gốc do user chỉ ra qua ảnh chụp tile "TTM-CNTT (QA) / Chưa có Epic MVP Done/Released":
+  ô text có `min-w-0` nên được phép CO LẠI, nhưng `<p>` bên trong **không có `overflow: hidden`**
+  → chữ vẫn vẽ ra ngoài hộp đã co, và token `Done/Released` không có khoảng trắng để ngắt nên
+  tràn hẳn qua viền card. Cộng thêm ring 56px + gap 12 + padding 24 = 92px cố định trong tile chỉ
+  ~115px ở `lg:grid-cols-5`.
+  - Thêm class `.ias-truncate` (`src/app/ias-tokens.css`) cho flex/grid child — khác
+    `.ias-td-truncate` ở chỗ không khoá `max-width: 220px` (ô bảng cần, flex child thì bề rộng
+    đã do cha chặn). `TruncationTooltip` giờ nhận cả hai selector, nên **hover ra bubble đầy đủ**
+    đúng như yêu cầu.
+  - `src/app/dashboard-new/page.tsx` — viết lại `renderKpiStrip`: hai grid
+    `grid-cols-2 sm:grid-cols-4 lg:grid-cols-5|4` → `.ias-tile-grid`
+    (`repeat(auto-fit, minmax(190px, 1fr))`, tile **xuống dòng thay vì bị nén**); nhãn 10px
+    uppercase → 12px Caption sentence case; MỌI dòng chữ mang `.ias-truncate`; ba dòng phụ chứa
+    2-3 link bỏ `flex flex-wrap` (mỗi link một dòng → tile cao 5-6 dòng, kéo cao cả hàng 9 tile)
+    về một dòng nowrap — **mọi link vẫn bấm được**, không đổi deep-link nào.
+  - Thêm helper `ringGradient()` gom 3 biểu thức `conic-gradient` trùng nhau: hex cung
+    `#0866ff`/`#7c3aed`/`#059669` → `--color-bg-brand`/`--color-accent-500`/`--color-bg-success-solid`,
+    track `#e4e6eb` (màu control của Facebook, không thuộc hệ màu nào của app) →
+    `--color-border-default`. Ring nhỏ lại 48px để phần cố định còn 82px.
+  - Sắc thái cảnh báo chuyển từ viền màu + class palette thô (`border-red-200 bg-red-50/50
+    text-amber-700 border-purple-200 bg-sky-50/50` …) sang **nền tint + màu chữ** của IAS
+    (`--color-bg-error`/`--color-bg-warning`/`--color-accent-100`/`--color-primary-50`) — IAS chỉ
+    có một màu viền card duy nhất.
+  - Nợ kỹ thuật giảm: chữ dưới sàn 12px **215 → 201** (`dashboard-new` 38 → 24) · hex
+    **331 → 322** (`dashboard-new` 46 → 37) · class palette thô **591 → 567**. Baseline trong
+    `ias-typography.test.ts` + `design-debt.test.ts` đã hạ theo — chính hai test đó fail để
+    nhắc hạ, đúng cơ chế "baseline chỉ được co lại".
+  - `tsc --noEmit` sạch · `npm test` 271/271 pass.
+
+- **Chuẩn hoá toàn bộ giao diện theo IAS Design System — Nhịp A: dựng bộ design system (Task 1-9)**.
+  Mục tiêu: sửa tràn chữ / tràn viền / màu không nhất quán, KHÔNG đổi function hay non-function.
+  Chuẩn mới: `docs/design/IAS-DESIGN-ADOPTION.md` (nguồn tham chiếu thiết kế duy nhất từ nay).
+  - **Cửa gate font**: `scripts/check-font-vietnamese.mjs` + `src/lib/design-system/font-cmap.ts`
+    (parser cmap WOFF2/sfnt tự viết, không thêm dependency). Kiểm chứng "Averta Std CY" — CY là
+    biến thể **Cyrillic**, nếu thiếu khối U+1EA0–U+1EF9 thì browser fallback theo TỪNG GLYPH và
+    chữ có dấu lệch ngay trong cùng một từ. Kết quả: **ĐỦ 100%** (134/134 codepoint × 3 weight).
+    `scripts/build-brand-font.py` subset Latin+Vietnamese → `src/app/fonts/averta-std-cy-{400,600,700}.woff2`,
+    ~30KB/weight (từ ~131KB mỗi file .otf). **Bộ font không có weight 500** → type scale 500 render bằng 400.
+  - **Tầng token 3 tầng** (`src/app/ias-tokens.css` mới): raw scale IAS + 36 semantic alias →
+    compat layer `:root[data-brand="ias"]` trong `globals.css` → `@theme` → class có sẵn trong JSX.
+    Nhờ vậy 22 route đổi màu **không sửa một dòng JSX nào**. Chữa xung đột nặng nhất: `--accent`
+    từ `#1c6e2e` (xanh lá rừng, brand wise) / `#0284c7` (legacy) về `#141ED2`, khớp với hex
+    `#0866ff`/`#1463f7` mà dashboard đang vẽ ring.
+  - **Brand mới `ias` làm mặc định** (`src/lib/theme-brand.ts`, `AppearancePanel.tsx`). Giữ
+    nguyên cả 3 brand `wise`/`legacy`/`pink` để không lấy đi lựa chọn nào. Sidebar sang navy
+    `#0D0D2B` — token navy scope trong `.sidebar-surface`, kèm rule reset cho popover UserMenu
+    (nó `position:absolute` BÊN TRONG sidebar, khác `NavigationGroupMenu` đã portal ra body).
+  - **Sửa lỗi font toàn app** (`src/app/layout.tsx:43`): bỏ `font-sans` khỏi `<body>`. Class đó
+    (0-1-0) đè `body { font-family }` (0-0-1) nên app **render bằng Segoe UI**, không phải Inter
+    đã preload — metric chữ Việt rộng hơn làm mọi con số px cứng (`w-9`, `min-w-[1160px]`,
+    `grid-cols-[0.62fr…]`) lệch, một tác nhân hệ thống của lỗi tràn chữ. Cùng lỗi này làm
+    `[data-brand="legacy"] body` và `[data-brand="pink"] body` chưa từng có hiệu lực.
+  - **Type scale + sàn 12px**: 10 utility class `.ias-*`. Overline 10px bị loại (IAS không phát
+    hành class cho nó). Thêm contract chống tràn: `.ias-td-truncate`, `.ias-clamp-2`,
+    `.ias-shrinkable`, `.ias-tile-grid`, `.ias-filter-control`, `.ias-tooltip-bubble`.
+  - **Primitive**: `.ias-btn` (5 variant × 3 size), `.ias-card`, `.ias-status` (6 trạng thái
+    dot+pill), `.ias-tag`, `.ias-table` (header sentence case, lưới td 0.5px, `.ias-sticky-col`
+    cho cột định danh, `.ias-total-row`). Mỗi rule mang CẢ selector mới và
+    `[data-brand="ias"] .ui-*`, nên `ui/Button.tsx`/`Card.tsx`/`Badge.tsx`/`Table.tsx` đổi diện
+    mạo mà **giữ nguyên API props**. `Badge.tsx` thêm prop `dot`/`shape` (mặc định tắt).
+  - **Tooltip cho ô bị cắt** (`src/components/ui/TruncationTooltip.tsx`, mount 1 lần trong
+    AppShell): `position:fixed` + `getBoundingClientRect()` thay cho attribute `title`, vì
+    `overflow-x:auto` của vùng cuộn bảng làm `overflow-y` thành auto và clip bubble absolute.
+    Khôi phục dữ liệu đang bị mất ở các ô `truncate` không có `title`.
+  - **Dọn CSS leak chéo route** (`src/app/ttm-shared.css` mới): hai dashboard thôi
+    `import '@/app/epic-alerts-15/epic-alerts-15.css'` (global CSS của route khác, kéo theo
+    `:root{--ttm-*}` và `.has-filter{…!important}` ra toàn document, giá trị cuối phụ thuộc thứ
+    tự nạp chunk). Remap `--ttm-*` sang semantic alias IAS, đặt ở `:root[data-brand="ias"]`
+    (0-2-0) để thắng `:root` của 3 file route bất kể thứ tự nạp. Bỏ `!important` trong nhóm
+    `.has-filter` của cả 3 file. **Phát hiện thêm**: `--ttm-font` khoá cứng `"Segoe UI"` +
+    `.ttm-app{font-family}` khiến 5 màn hình nặng nhất chưa bao giờ dùng font brand. Clamp bề
+    rộng `.ttm-select`/`.ttm-field` giờ là MẶC ĐỊNH (trước chỉ có trong biến thể
+    `.ttm-toolbar-row` mà 2 dashboard không dùng) → sửa tràn hàng filter.
+  - **Lint chống tái phát** (`src/lib/design-system/__tests__/`, 7 file test, +118 test):
+    baseline đo được hex 331 · rgb 8 · class palette thô 591 · chữ dưới sàn 12px 215 ·
+    `<Button>` không ghi variant 83/131. Baseline **chỉ được co lại**. Cộng lint: không
+    `font-sans`, không import CSS chéo route, `.ias-td-truncate` phải có `max-width`, bubble
+    phải `position:fixed`. Công cụ đo: `scripts/audit-design-debt.mjs`,
+    `scripts/audit-token-contrast.mjs`, `npm run ds:check-font`.
+  - **Kết quả contrast WCAG AA**: brand `ias` sạch nhất (1 cặp dưới AA) so với wise 4 / legacy 5
+    / pink 4. Ghi nhận 2 khiếm khuyết của chính palette IAS: `--color-text-success` `#00966D`
+    chỉ 3.76:1 (đã chữa bằng `--color-success-300` `#0B7659`, token có sẵn trong IAS), và
+    `--color-text-secondary` `#6E7191` trên nền trang đạt 4.38:1 (thiếu 2.7%, chưa sửa).
+  - **Tài liệu**: `design-system-spec.md` đánh dấu HẾT HIỆU LỰC (nó ghi 11.5px vs 14px thật,
+    `#0866ff` vs xanh lá, Geist vs Inter, và trộn 3 visual language). `DESIGN.md` đánh dấu
+    SUPERSEDED, giữ làm tài liệu brand `wise`. Xoá `tailgrids.config.json` (metadata vô dụng,
+    TailGrids không có trong `package.json`).
+  - **Chưa làm — Nhịp B (Task 10-13)**: dọn hex/class palette thô trong JSX và sửa các chỗ tràn
+    còn lại theo từng màn hình (dashboard-new + ttm-dashboard-2 → epic-alerts-15 + epic-in-po +
+    reports → admin/* → màn phụ + legacy). Các màn này **đã nhận** toàn bộ thay đổi của Nhịp A
+    qua tầng token. Phân đợt chi tiết ở cuối `docs/design/IAS-DESIGN-ADOPTION.md`.
+  - `npm test` 271/271 pass · `next build` thành công cả 22 route.
+
+- **Mockup Quản lý dự án: bỏ luồng phê duyệt + sửa icon vỡ + làm lại bảng danh mục** (`projects/business/mockup/`):
+  - **Bỏ hết phần phê duyệt** theo yêu cầu "nội dung chỉ dừng ở bước khai báo": xoá màn `04-project-approval.html`,
+    bỏ nav "Phê duyệt dự án" (`pms-shell.js`), bỏ mục RowMenu "Gửi duyệt" (màn 02 + `pms-detail.js`), bỏ nút
+    "Trình phê duyệt" ở màn chỉnh sửa, wizard màn 03 kết thúc ở bước "Xác nhận & lưu" (lưu thẳng vào danh mục).
+    Trạng thái dự án còn 4 giá trị `Mới khai báo → Đang triển khai → Tạm dừng → Hoàn thành` (`mock-data.js`:
+    `STATUSES`/`STATUS_TONE`, `portfolio().pending` → `declared`, `approveProject()` → `setProjectStatus()`;
+    dự án DLH/ESIGN đổi sang "Mới khai báo"). Giữ nguyên các hạng mục checklist nghiệp vụ có chữ "phê duyệt"
+    (CK01 chủ trương, CK09 ARB, CK21 go-live) vì đó là giao phẩm được theo dõi, không phải bước duyệt của tool.
+    Màn 05–11 đánh số lại thành 04–10; `docs/architecture/PMS-HLAD.md` không bị ảnh hưởng (chỗ nhắc "phê duyệt"
+    trong HLAD là duyệt tài liệu/hạ tầng, không phải vòng đời dự án).
+  - **Nguyên nhân mockup trông vỡ**: `pms-tokens.css` nạp Material Symbols Outlined qua `@import` Google Fonts.
+    Máy không có internet → font không về → trình duyệt in nguyên tên ligature ("search", "tune",
+    "keyboard_double_arrow_right"…) thành chữ đè lên bảng. Đã bỏ toàn bộ `@import` CDN và thay bằng
+    `assets/pms-icons.js`: 74 icon Phosphor dạng inline SVG, sinh bởi `scripts/gen-mockup-icons.mjs` đọc path thật
+    từ `@phosphor-icons/react` trong `node_modules` (đúng chuẩn icon ở `AGENTS.md`, hết xung đột ghi nhận trước đó).
+    Markup không đổi (`<span class="msym">ten_icon</span>`), kích thước vẫn theo `font-size`; renderer dùng
+    MutationObserver nên bắt cả nội dung render bằng JS và trường hợp đổi icon bằng `textContent`.
+    `.msym` khi chưa vẽ có `font-size:0` để không bao giờ lọt tên icon ra UI. Mockup giờ chạy offline hoàn toàn.
+  - **Bảng danh mục dự án (màn 02) làm lại cho đúng tính chất quản lý danh mục**: 12 cột (`min-width:1480px`,
+    phải cuộn ngang mới thấy cột Trạng thái) gộp còn 8 cột xếp tầng (`min-width:1240px`); thêm dải phân loại
+    danh mục `.pf-strip` (Toàn danh mục · Mới khai báo · Đang triển khai · Lệch tiến độ · Rủi ro cao · Hoàn thành)
+    vừa là cơ cấu danh mục vừa là bộ lọc 1 nhấp; bảng đổi từ kẻ lưới 4 phía sang kẻ ngang + header sticky +
+    header kiểu Overline (`pms-ias.css`); thêm pill lệch tiến độ `.delta` và `.risk-count`.
+  - **Verify**: `node scripts/check-mockup.mjs` (mới) — parse 8 file JS, kiểm tra mọi link màn hình tồn tại,
+    mọi tên icon có trong bảng, không còn dấu vết luồng duyệt trong code: 0 vấn đề. Thêm smoke test tạm chạy
+    `pms-icons.js` trên DOM giả: 6/6 icon ra `<svg>`, icon thiếu mapping ra ô trống, vẽ lại đúng khi đổi
+    `textContent` (file tạm đã xoá). Không chạm `src/`, không đổi schema → không chạy `db:migrate:*`.
+
+- **Mockup HTML module Quản lý dự án (`projects/business/mockup/`) — 11 màn hình, dựng theo skill `ias-design`**:
+  - **Mục đích**: chốt luồng nghiệp vụ và layout 6 cấu phần (thông tin chung · checklist · tiến độ/Gantt · phạm vi · rủi ro ·
+    chất lượng & hiệu quả) trước khi viết route Next.js và trước khi thiết kế chi tiết schema `project.*`. Prototype HTML/CSS/JS
+    thuần, không chạm `src/`, không đổi schema → không chạy `db:migrate:*`.
+  - **Làm lại nền tảng theo MB Internal Design System** (`E:\workspace\ias-design`) sau khi đọc `SKILL.md` + `references/`:
+    bản dựng đầu tiên theo ảnh `projects/business/Phê duyệt dự án.png` đã bị thay thế. Thay đổi lớn: primary `#1F5FBF` → `#141ED2`,
+    nền trang `#F4F6FA`, sidebar trắng 240px → `AppSidebar` navy `#0D0D2B` (mini 64px / hover 248px), **bỏ top bar**
+    (`AppHeader` bị DS loại trừ mặc định), font Be Vietnam Pro → **Averta Std CY self-hosted** (8 weight copy vào
+    `assets/fonts/`, `@font-face` + `--font-family-body` khai báo tại chỗ theo quy định portability của SKILL.md),
+    icon **Phosphor → Material Symbols Outlined** (xung đột với `AGENTS.md` § Icons — xem ghi chú dưới).
+  - **Template bắt buộc đã áp**: `IasLayout` (shell 11 màn) · `DanhSachChuongTrinh` (màn 02: `ListPanel` +
+    `ToolbarSimple ⇄ FilterCard` + `Table` + `pagination-bar` đủ 4 phần kể cả `pg-jump`) · `XemChiTiet` (màn 04, 05–10) ·
+    `ChinhSua` (màn 11, lưới nhập 4 cột) · `Modal` (mọi hộp thoại, overlay phủ toàn màn, footer canh giữa) · `Steps` (wizard màn 03).
+    Nút "Từ chối" đỏ / "Duyệt" xanh lá trong ảnh gốc được map về `outline`/`primary` theo closed set 6 variant của `Button`.
+  - **File**: `assets/pms-tokens.css` (port color/spacing/typography token) · `pms-ias.css` (component layer) · `pms-shell.js`
+    (AppSidebar + PageHeader) · `pms-detail.js` (khung 6 màn chi tiết) · `pms-ui.js` (Modal/Notification/Tooltip/RowMenu/Drawer/
+    Select panel) · `pms-util.js` · `mock-data.js` (10 dự án, checklist mẫu 26 hạng mục, 6 cấu phần đầy đủ cho PMP/EKYC/CBU) ·
+    `gantt.js` + `heatmap.js` (bespoke, chỉ dùng semantic alias token vì DS không có component tương đương).
+  - **Verify**: smoke test bằng jsdom (cài ở thư mục tạm ngoài repo, đã xoá sau khi chạy) nạp cả 11 trang + chạy script thật,
+    kiểm tra shell, render và các thao tác (lọc, phân trang, Drawer, RowMenu, validate wizard 5 bước, tick checklist, zoom/thu-mở
+    Gantt, thêm CR → scope creep tính lại, chấm điểm P×I → ô heatmap): **214 pass / 0 fail**, không có lỗi runtime.
+  - **Cần chủ sở hữu quyết định**: (1) xung đột chuẩn icon giữa `AGENTS.md` (Phosphor cho toàn app) và `ias-design`
+    (Material Symbols) — mockup hiện theo `ias-design`; (2) thang nhiệt 4 bậc của ma trận rủi ro phải vay
+    `--color-warning-400` cho bậc "Cao" vì bộ Semantic Alias chỉ có 3 nền trạng thái đặc — chưa tự thêm token mới;
+    (3) màn dashboard (01) không áp `DanhSachChuongTrinh` vì hai bảng ở đó là bảng nhỏ nhúng trong card, không phải
+    nội dung chính dạng danh sách.
+
 ## 2026-10-09
 
 - **PMS Project Core — 5 migration expand-only + DB local trên Docker (CHƯA áp dụng lên Supabase)**:

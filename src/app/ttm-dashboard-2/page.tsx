@@ -39,7 +39,10 @@ import {
 } from '@/lib/ttm-funnel-summary';
 import type { TtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
-import '@/app/epic-alerts-15/epic-alerts-15.css';
+// Trước đây đây là `import '@/app/epic-alerts-15/epic-alerts-15.css'` — nạp global CSS
+// CỦA MỘT ROUTE KHÁC, kéo theo `:root { --ttm-* }` và `.has-filter { … !important }`
+// của route đó ra toàn document. Giờ chỉ nạp đúng lớp control dùng chung.
+import '@/app/ttm-shared.css';
 
 interface ManagedUserItem {
   domainIds: number[];
@@ -336,7 +339,7 @@ export default function TtmDashboard2Page() {
   if (error) {
     return (
       <div className="p-6 max-w-[1700px] mx-auto">
-        <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-sm">
+        <div className="p-4 bg-status-danger-soft border border-status-danger rounded-xl text-status-danger text-sm">
           {error}
         </div>
       </div>
@@ -383,14 +386,14 @@ export default function TtmDashboard2Page() {
     L01: {
       heading: `L01 — ${name('L01')}`,
       count: l1,
-      countColor: 'text-[#00b4d8]',
-      tone: { box: 'bg-sky-50 border-sky-200', strong: 'text-sky-950', soft: 'text-sky-800' },
+      countColor: 'text-[var(--color-info-500)]',
+      tone: { box: 'bg-fb-blue-soft border-fb-blue', strong: 'text-fb-blue', soft: 'text-fb-blue' },
       summaryLabel: `${name('L01')}:`,
       ratioLine: outOfScopeCount > 0 ? `Không tính: ${fmt(outOfScopeCount)} Epic ngoài "Phạm vi dữ liệu cho TTM"` : undefined,
       rule: 'Toàn bộ Epic (kể cả Epic đã Cancelled) nằm trong “Phạm vi dữ liệu cho TTM” (Cấu hình cảnh báo), thuộc phạm vi quyền của tài khoản — hoặc của user đang được xem dưới quyền — và các bộ lọc Domain, Dự án, PM/SM, Đơn vị yêu cầu đang chọn.',
       formula: <>L01 = Tổng số Epic trong phạm vi dữ liệu để tính toán<br />= <b>{fmt(l1)} Epic</b></>,
       drill: { alert: 'IN_SCOPE_CNTT', count: l1, label: `Xem ${fmt(l1)} Epic trên Quản trị Epic`, status: funnel.allStatuses, title: `Danh sách Epic - L01 (${name('L01')})` },
-      buttonClass: 'bg-[#1463f7] hover:bg-blue-700',
+      buttonClass: 'bg-[var(--color-text-brand)] hover:bg-fb-blue',
       extra: (
         <div className="grid grid-cols-2 gap-2.5 text-xs">
           {[
@@ -399,9 +402,9 @@ export default function TtmDashboard2Page() {
             ['Số lượng PM/SM:', `${layer1ScopeStats.pms} Người`],
             ['Đơn vị yêu cầu:', `${layer1ScopeStats.requestingUnits} Đơn vị`],
           ].map(([label, value]) => (
-            <div key={label} className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-              <span className="text-slate-500 text-[11px]">{label}</span>
-              <div className="font-bold text-slate-900 font-mono mt-0.5 text-sm">{value}</div>
+            <div key={label} className="p-3 bg-fb-surface-muted border border-fb-border rounded-lg">
+              <span className="text-fb-text-placeholder text-[11px]">{label}</span>
+              <div className="font-bold text-fb-text-primary font-mono mt-0.5 text-sm">{value}</div>
             </div>
           ))}
         </div>
@@ -410,8 +413,8 @@ export default function TtmDashboard2Page() {
     L02: {
       heading: `L02 — ${name('L02')}`,
       count: l2,
-      countColor: 'text-[#ff4d4f]',
-      tone: { box: 'bg-rose-50 border-rose-200', strong: 'text-rose-950', soft: 'text-rose-800' },
+      countColor: 'text-[var(--color-bg-error-solid)]',
+      tone: { box: 'bg-status-danger-soft border-status-danger', strong: 'text-status-danger', soft: 'text-status-danger' },
       summaryLabel: `${name('L02')}:`,
       ratioLine: `Đã loại trừ: ${fmt(l1 - l2)} Epic · Tỷ lệ giữ lại: ${pct(l2, l1)}`,
       rule: (
@@ -429,13 +432,13 @@ export default function TtmDashboard2Page() {
         { alert: 'TTM_BLACK_LISTED', count: blackListedCount, label: `Xem ${fmt(blackListedCount)} Epic ngoại lệ — Black listed`, title: 'Danh sách Epic ngoại lệ — TTM Black listed (bị loại ở L02)' },
         { alert: 'TTM_PROJECT_NON_TTM', count: nonTtmProjectCount, label: `Xem ${fmt(nonTtmProjectCount)} Epic ngoại lệ — dự án Time to Market = N`, title: 'Danh sách Epic ngoại lệ — dự án Time to Market = N (bị loại ở L02)' },
       ],
-      buttonClass: 'bg-rose-600 hover:bg-rose-700',
+      buttonClass: 'bg-status-danger hover:bg-status-danger',
     },
     L03: {
       heading: `L03 — ${name('L03')}`,
       count: l3,
-      countColor: 'text-[#0284c7]',
-      tone: { box: 'bg-indigo-50 border-indigo-200', strong: 'text-indigo-950', soft: 'text-indigo-800' },
+      countColor: 'text-[var(--color-text-brand)]',
+      tone: { box: 'bg-fb-blue-soft border-fb-blue', strong: 'text-fb-blue', soft: 'text-fb-blue' },
       summaryLabel: `${name('L03')}:`,
       ratioLine: `Sai lệch dữ liệu: ${fmt(anomalyCount)} Epic · Tỷ lệ đạt chuẩn: ${pct(l3, l2)}`,
       rule: 'Loại các Epic bị đánh dấu Sai lệch dữ liệu (ví dụ thiếu/ngược mốc ngày, trạng thái không khớp mốc ngày). Hệ thống không chấm Đạt/Fail cho các Epic này.',
@@ -446,103 +449,103 @@ export default function TtmDashboard2Page() {
         </>
       ),
       drill: { alert: 'DATA_ANOMALY_IN_SCOPE', count: anomalyCount, label: `Xem ${fmt(anomalyCount)} Epic Sai lệch dữ liệu`, title: 'Danh sách Epic Sai lệch dữ liệu (bị loại ở L03)' },
-      buttonClass: 'bg-[#0284c7] hover:bg-sky-700',
+      buttonClass: 'bg-[var(--color-text-brand)] hover:bg-fb-blue',
     },
     L04a: {
       heading: `L04a — ${name('L04a')} (có R4G Date)`,
       count: l4a,
-      countColor: 'text-teal-700',
-      tone: { box: 'bg-teal-50 border-teal-200', strong: 'text-teal-950', soft: 'text-teal-800' },
+      countColor: 'text-status-success',
+      tone: { box: 'bg-status-success-soft border-status-success', strong: 'text-status-success', soft: 'text-status-success' },
       summaryLabel: `${name('L04a')} (có R4G Date):`,
       ratioLine: `Tỷ lệ trong L03: ${pct(l4a, l3)}`,
       rule: 'Các Epic thuộc L03 đã có R4G Date.',
       formula: <>L04a = L05aa ({fmt(passCount)}) + L05ab ({fmt(lateCount)}) + L05ac ({fmt(notScoredCount)})<br />= <b>{fmt(l4a)} Epic</b></>,
       drill: { alert: 'TTM_ELIGIBLE_IN_SCOPE', count: l4a, label: `Xem ${fmt(l4a)} Epic hoàn thành`, title: `Danh sách Epic - L04a (${name('L04a')})` },
-      buttonClass: 'bg-teal-600 hover:bg-teal-700',
+      buttonClass: 'bg-status-success hover:bg-status-success',
     },
     L05aa: {
       heading: `L05aa — ${name('L05aa')}`,
       count: passCount,
-      countColor: 'text-emerald-600',
-      tone: { box: 'bg-emerald-50 border-emerald-200', strong: 'text-emerald-950', soft: 'text-emerald-800' },
+      countColor: 'text-status-success',
+      tone: { box: 'bg-status-success-soft border-status-success', strong: 'text-status-success', soft: 'text-status-success' },
       summaryLabel: `${name('L05aa')}:`,
       ratioLine: `Tỷ lệ % Pass TTM-CNTT: ${passRate} (${fmt(passCount)}/${fmt(judgedCount)})`,
       rule: 'Các Epic thuộc L04a được chấm Đạt TTM-CNTT: R4G Date đã tới và không muộn hơn Target R4G.',
       formula: rateFormula,
       drill: { alert: 'TTM_PASS_IN_SCOPE', count: passCount, label: `Xem ${fmt(passCount)} Epic đạt TTM-CNTT`, title: `Danh sách Epic - L05aa (${name('L05aa')})` },
-      buttonClass: 'bg-emerald-600 hover:bg-emerald-700',
+      buttonClass: 'bg-status-success hover:bg-status-success',
     },
     L05ab: {
       heading: `L05ab — ${name('L05ab')}`,
       count: lateCount,
-      countColor: 'text-rose-600',
-      tone: { box: 'bg-rose-50 border-rose-200', strong: 'text-rose-950', soft: 'text-rose-800' },
+      countColor: 'text-status-danger',
+      tone: { box: 'bg-status-danger-soft border-status-danger', strong: 'text-status-danger', soft: 'text-status-danger' },
       summaryLabel: `${name('L05ab')}:`,
       ratioLine: `Tỷ lệ % Fail TTM-CNTT: ${failRate} (${fmt(failCount)}/${fmt(judgedCount)}) · trong L04a: ${pct(lateCount, l4a)}`,
       rule: 'Các Epic thuộc L04a không Đạt TTM-CNTT: R4G Date muộn hơn Target R4G → Fail TTM-CNTT (QLDA). Cùng con số với “Trễ R4G” ở TTM Dashboard.',
       formula: rateFormula,
       drill: { alert: 'TTM_LATE_IN_SCOPE', count: lateCount, label: `Xem ${fmt(lateCount)} Epic không đạt (nhóm 1)`, title: `Danh sách Epic - L05ab (${name('L05ab')})` },
-      buttonClass: 'bg-rose-600 hover:bg-rose-700',
+      buttonClass: 'bg-status-danger hover:bg-status-danger',
     },
     L05ac: {
       heading: `L05ac — ${name('L05ac')}`,
       count: notScoredCount,
-      countColor: 'text-slate-600',
-      tone: { box: 'bg-slate-50 border-slate-200', strong: 'text-slate-900', soft: 'text-slate-700' },
+      countColor: 'text-fb-text-secondary',
+      tone: { box: 'bg-fb-surface-muted border-fb-border', strong: 'text-fb-text-primary', soft: 'text-fb-text-secondary' },
       summaryLabel: `${name('L05ac')}:`,
       ratioLine: `Tỷ lệ trong L04a: ${pct(notScoredCount, l4a)}`,
       rule: 'Các Epic thuộc L04a chưa thể kết luận Đạt hay Fail vì không tính được Target R4G TTM-CNTT. Các Epic này không nằm trong Tỷ lệ % Pass / Fail TTM-CNTT. Từ 09/10/2026, Epic có R4G Date còn ở tương lai không còn thuộc nhóm này: R4G Date không được khai báo trước nên đó là Sai lệch dữ liệu (R8 / R10).',
       formula: <>L05ac = L04a ({fmt(l4a)}) − L05aa ({fmt(passCount)}) − L05ab ({fmt(lateCount)})<br />= <b>{fmt(notScoredCount)} Epic</b></>,
       drill: { alert: 'TTM_NOT_SCORED_IN_SCOPE', count: notScoredCount, label: `Xem ${fmt(notScoredCount)} Epic chưa kết luận`, title: `Danh sách Epic - L05ac (${name('L05ac')})` },
-      buttonClass: 'bg-slate-600 hover:bg-slate-700',
+      buttonClass: 'bg-fb-text-secondary hover:bg-fb-text-secondary',
     },
     L04b: {
       heading: `L04b — ${name('L04b')} (chưa có R4G Date)`,
       count: l4b,
-      countColor: 'text-amber-600',
-      tone: { box: 'bg-amber-50 border-amber-200', strong: 'text-amber-950', soft: 'text-amber-800' },
+      countColor: 'text-status-warning',
+      tone: { box: 'bg-status-warning-soft border-status-warning', strong: 'text-status-warning', soft: 'text-status-warning' },
       summaryLabel: `${name('L04b')} (chưa có R4G Date):`,
       ratioLine: `Tỷ lệ trong L03: ${pct(l4b, l3)}`,
       rule: 'Các Epic thuộc L03 chưa có R4G Date.',
       formula: <>L04b = L05ba ({fmt(overdueCount)}) + L05bb ({fmt(withinCount)})<br />= <b>{fmt(l4b)} Epic</b></>,
       drill: { alert: 'MISSING_R4G_IN_SCOPE', count: l4b, label: `Xem ${fmt(l4b)} Epic chưa hoàn thành`, title: `Danh sách Epic - L04b (${name('L04b')})` },
-      buttonClass: 'bg-amber-600 hover:bg-amber-700',
+      buttonClass: 'bg-status-warning hover:bg-status-warning',
     },
     L05ba: {
       heading: `L05ba — ${name('L05ba')}`,
       count: overdueCount,
-      countColor: 'text-rose-600',
-      tone: { box: 'bg-rose-50 border-rose-200', strong: 'text-rose-950', soft: 'text-rose-800' },
+      countColor: 'text-status-danger',
+      tone: { box: 'bg-status-danger-soft border-status-danger', strong: 'text-status-danger', soft: 'text-status-danger' },
       summaryLabel: `${name('L05ba')}:`,
       ratioLine: `Tỷ lệ % Fail TTM-CNTT: ${failRate} (${fmt(failCount)}/${fmt(judgedCount)}) · trong L04b: ${pct(overdueCount, l4b)}`,
       rule: 'Các Epic thuộc L04b chưa có R4G Date và đã quá Target R4G → Fail TTM-CNTT (QLDA). Cùng con số với “Thiếu R4G” ở TTM Dashboard.',
       formula: rateFormula,
       drill: { alert: 'OVERDUE_MISSING_R4G_IN_SCOPE', count: overdueCount, label: `Xem ${fmt(overdueCount)} Epic không đạt (nhóm 2)`, title: `Danh sách Epic - L05ba (${name('L05ba')})` },
-      buttonClass: 'bg-rose-600 hover:bg-rose-700',
+      buttonClass: 'bg-status-danger hover:bg-status-danger',
     },
     L05bb: {
       heading: `L05bb — ${name('L05bb')}`,
       count: withinCount,
-      countColor: 'text-[#0284c7]',
-      tone: { box: 'bg-sky-50 border-sky-200', strong: 'text-sky-950', soft: 'text-sky-800' },
+      countColor: 'text-[var(--color-text-brand)]',
+      tone: { box: 'bg-fb-blue-soft border-fb-blue', strong: 'text-fb-blue', soft: 'text-fb-blue' },
       summaryLabel: `${name('L05bb')}:`,
       ratioLine: `Tỷ lệ trong L04b: ${pct(withinCount, l4b)}`,
       rule: 'Các Epic thuộc L04b chưa có R4G Date và chưa quá Target R4G — vẫn còn cơ hội Đạt TTM-CNTT. Các Epic này chưa nằm trong Tỷ lệ % Pass / Fail TTM-CNTT.',
       formula: <>L05bb = L04b ({fmt(l4b)}) − L05ba ({fmt(overdueCount)})<br />= <b>{fmt(withinCount)} Epic</b></>,
       drill: { alert: 'WITHIN_TARGET_MISSING_R4G', count: withinCount, label: `Xem ${fmt(withinCount)} Epic trong hạn`, title: `Danh sách Epic - L05bb (${name('L05bb')})` },
-      buttonClass: 'bg-[#0284c7] hover:bg-sky-700',
+      buttonClass: 'bg-[var(--color-text-brand)] hover:bg-fb-blue',
     },
     OUT_OF_SCOPE: {
       heading: 'Epic ngoài “Phạm vi dữ liệu cho TTM”',
       count: outOfScopeCount,
-      countColor: 'text-slate-600',
-      tone: { box: 'bg-slate-50 border-slate-200', strong: 'text-slate-900', soft: 'text-slate-700' },
+      countColor: 'text-fb-text-secondary',
+      tone: { box: 'bg-fb-surface-muted border-fb-border', strong: 'text-fb-text-primary', soft: 'text-fb-text-secondary' },
       summaryLabel: 'Epic ngoài phạm vi dữ liệu để tính toán:',
       ratioLine: 'Không tính vào L01 và mọi tiêu chí bên dưới',
       rule: 'Epic nằm ngoài “Phạm vi dữ liệu cho TTM” (khoảng ngày “R4G for TTM (CNTT)” ở Cấu hình cảnh báo): R4G Date — hoặc Target R4G khi chưa có R4G Date — không thuộc khoảng đã cấu hình. Các Epic này không được chấm TTM-CNTT và không tham gia phễu.',
       formula: <>Ngoài phạm vi = <b>{fmt(outOfScopeCount)} Epic</b> (mọi status)<br />L01 = Epic trong phạm vi quyền + bộ lọc − Ngoài phạm vi</>,
       drill: { alert: 'OUT_OF_SCOPE_CNTT', count: outOfScopeCount, label: `Xem ${fmt(outOfScopeCount)} Epic ngoài phạm vi`, status: funnel.outOfScopeStatuses, title: 'Danh sách Epic ngoài “Phạm vi dữ liệu cho TTM”' },
-      buttonClass: 'bg-slate-600 hover:bg-slate-700',
+      buttonClass: 'bg-fb-text-secondary hover:bg-fb-text-secondary',
     },
   };
 
@@ -562,27 +565,27 @@ export default function TtmDashboard2Page() {
     : ['epicType'];
 
   const panelHeader = (panel: RightPanel) => (
-    <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-100 mb-2 gap-2">
+    <div className="flex flex-wrap items-center justify-between pb-3 border-b border-fb-border mb-2 gap-2">
       <div className="flex items-center gap-2 min-w-0">
-        <span className={`size-2.5 shrink-0 rounded-full ${panel === 'COMPLETED' ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
-        <h3 className="text-xs md:text-sm font-bold uppercase tracking-wide text-slate-900 truncate">
+        <span className={`size-2.5 shrink-0 rounded-full ${panel === 'COMPLETED' ? 'bg-status-success' : 'bg-status-warning'}`}></span>
+        <h3 className="text-xs md:text-sm font-bold uppercase tracking-wide text-fb-text-primary truncate">
           {panel === 'COMPLETED' ? 'Panel 2: Epic hoàn thành (có R4G Date)' : 'Panel 3: Epic chưa hoàn thành (chưa có R4G Date)'}
         </h3>
       </div>
 
       <div className="flex items-center gap-2">
-        <div className="flex items-center rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-xs font-bold">
+        <div className="flex items-center rounded-lg border border-fb-border bg-fb-surface-muted p-0.5 text-xs font-bold">
           <button
             type="button"
             onClick={() => { setShownRightPanel('COMPLETED'); setActiveRightPanel('COMPLETED'); }}
-            className={`px-3 py-1 rounded-md transition-all cursor-pointer ${panel === 'COMPLETED' ? 'bg-white text-emerald-700 shadow-2xs font-extrabold' : 'text-slate-500 hover:text-slate-800'}`}
+            className={`px-3 py-1 rounded-md transition-all cursor-pointer ${panel === 'COMPLETED' ? 'bg-white text-status-success shadow-2xs font-extrabold' : 'text-fb-text-placeholder hover:text-fb-text-primary'}`}
           >
             Hoàn thành ({fmt(l4a)})
           </button>
           <button
             type="button"
             onClick={() => { setShownRightPanel('IN_PROGRESS'); setActiveRightPanel('IN_PROGRESS'); }}
-            className={`px-3 py-1 rounded-md transition-all cursor-pointer ${panel === 'IN_PROGRESS' ? 'bg-white text-amber-700 shadow-2xs font-extrabold' : 'text-slate-500 hover:text-slate-800'}`}
+            className={`px-3 py-1 rounded-md transition-all cursor-pointer ${panel === 'IN_PROGRESS' ? 'bg-white text-status-warning shadow-2xs font-extrabold' : 'text-fb-text-placeholder hover:text-fb-text-primary'}`}
           >
             Chưa hoàn thành ({fmt(l4b)})
           </button>
@@ -591,7 +594,7 @@ export default function TtmDashboard2Page() {
         <button
           type="button"
           onClick={() => setActiveRightPanel(null)}
-          className="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer"
+          className="grid size-8 place-items-center rounded-lg border border-fb-border text-fb-text-placeholder hover:bg-fb-surface-muted hover:text-fb-text-secondary transition-colors cursor-pointer"
           title="Đóng phễu chi tiết"
           aria-label="Đóng phễu chi tiết"
         >
@@ -606,7 +609,10 @@ export default function TtmDashboard2Page() {
   const detailBottom: Ellipse = { cx: 175, cy: 225, rx: 60, ry: 9 };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans antialiased p-4 md:p-6 space-y-4">
+    // `font-sans` đã bỏ (2026-10-10): utility đó trỏ về ui-sans-serif/system-ui nên sẽ
+    // đè font brand trên toàn nhánh này. Body đã là sans nên nó vốn dư thừa.
+    // Phần `bg-[var(--color-bg-page)] text-fb-text-primary` khoá cứng theme sáng sẽ được xử lý ở Task 10.
+    <div className="min-h-screen bg-[var(--color-bg-page)] text-fb-text-primary antialiased p-4 md:p-6 space-y-4">
       <InfoBannerDisplay pathname="/ttm-dashboard-2" />
 
       {/* PAGE HEADER BANNER (same style as TTM Dashboard) */}
@@ -629,21 +635,21 @@ export default function TtmDashboard2Page() {
           {/* Global TTM Indicators */}
           <div className="hidden sm:flex items-center gap-2">
             {([
-              ['TTM-CNTT (QLDA)', 'Chỉ số TTM-CNTT (QLDA) toàn công ty = L05aa / (L05aa + L05ab + L05ba)', data?.ttmIndexGlobal?.ttm, 'text-[#15803d]'],
-              ['TTM-CNTT (QA)', 'Chỉ số TTM-CNTT (QA) toàn công ty — cùng công thức, chỉ lấy Epic MVP Done / Released', data?.ttmIndexGlobal?.qa, 'text-purple-700'],
-              ['TTM-E2E', 'Chỉ số Hoàn thành TTM-E2E tính trên toàn bộ Epic', data?.ttmIndexGlobal?.e2e, 'text-teal-700'],
+              ['TTM-CNTT (QLDA)', 'Chỉ số TTM-CNTT (QLDA) toàn công ty = L05aa / (L05aa + L05ab + L05ba)', data?.ttmIndexGlobal?.ttm, 'text-[var(--color-success-300)]'],
+              ['TTM-CNTT (QA)', 'Chỉ số TTM-CNTT (QA) toàn công ty — cùng công thức, chỉ lấy Epic MVP Done / Released', data?.ttmIndexGlobal?.qa, 'text-fb-accent'],
+              ['TTM-E2E', 'Chỉ số Hoàn thành TTM-E2E tính trên toàn bộ Epic', data?.ttmIndexGlobal?.e2e, 'text-status-success'],
             ] as const).map(([label, tooltip, summary, color]) => (
               <div
                 key={label}
-                className="flex h-9 items-center gap-2 rounded-full border border-slate-300 bg-[#f0f3f1] px-3.5 shrink-0 text-left shadow-2xs"
+                className="flex h-9 items-center gap-2 rounded-full border border-fb-border bg-[var(--color-bg-page)] px-3.5 shrink-0 text-left shadow-2xs"
                 title={formatTtmIndexTooltip(tooltip, summary)}
               >
                 <div className="flex flex-col justify-center leading-none">
-                  <span className="text-[8.5px] font-bold uppercase tracking-wider text-slate-600">{label}</span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-fb-text-secondary">{label}</span>
                   <div className="flex items-baseline gap-1 mt-0.5">
                     <span className={`text-xs font-black ${color}`}>{formatTtmIndexValue(summary)}</span>
                     {summary && hasTtmVerdict(summary) && (
-                      <span className="text-[10px] font-medium text-slate-500">({summary.pass}/{summary.denominator})</span>
+                      <span className="text-[11px] font-medium text-fb-text-placeholder">({summary.pass}/{summary.denominator})</span>
                     )}
                   </div>
                 </div>
@@ -653,8 +659,8 @@ export default function TtmDashboard2Page() {
 
           {/* User Preview Active Banner */}
           {data?.isUserPreview && (
-            <div className="flex h-9 items-center gap-2 rounded-lg bg-amber-50 px-3 border border-amber-300 text-amber-900 text-xs shrink-0">
-              <Eye className="size-4 shrink-0 text-amber-600" weight="bold" />
+            <div className="flex h-9 items-center gap-2 rounded-lg bg-status-warning-soft px-3 border border-status-warning text-status-warning text-xs shrink-0">
+              <Eye className="size-4 shrink-0 text-status-warning" weight="bold" />
               <span className="truncate">
                 Đang xem góc nhìn của: <strong>{data.viewAsUser?.fullName}</strong> ({data.viewAsUser?.email})
               </span>
@@ -664,7 +670,7 @@ export default function TtmDashboard2Page() {
                   setPreviewUserId(null);
                   setViewMode('EXECUTIVE');
                 }}
-                className="h-7 shrink-0 rounded-md bg-white border border-amber-300 px-2.5 text-xs font-bold text-amber-900 hover:bg-amber-100 transition-colors shadow-xs"
+                className="h-7 shrink-0 rounded-md bg-white border border-status-warning px-2.5 text-xs font-bold text-status-warning hover:bg-status-warning-soft transition-colors shadow-xs"
               >
                 Trở về Lead
               </button>
@@ -687,8 +693,8 @@ export default function TtmDashboard2Page() {
                 }
               }}
               options={[
-                { value: 'EXECUTIVE', label: 'Lead', activeColor: 'bg-[#1b6b3e]' },
-                { value: 'OPERATIONAL', label: 'PM/SM', activeColor: 'bg-[#1b6b3e]' },
+                { value: 'EXECUTIVE', label: 'Lead', activeColor: 'bg-[var(--color-success-300)]' },
+                { value: 'OPERATIONAL', label: 'PM/SM', activeColor: 'bg-[var(--color-success-300)]' },
               ]}
             />
           )}
@@ -698,7 +704,7 @@ export default function TtmDashboard2Page() {
       {/* TOP SINGLE-ROW TOOLBAR FILTERS */}
       <section className="ttm-toolbar" aria-label="Bộ lọc TTM Dashboard 2">
         <div className="flex items-center gap-1.5 text-xs font-bold text-black shrink-0 mr-1 select-none">
-          <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
+          <CaretRight className="size-4 text-[var(--color-text-brand)]" weight="bold" />
           <span>Filters:</span>
         </div>
 
@@ -752,7 +758,7 @@ export default function TtmDashboard2Page() {
           <button
             type="button"
             onClick={resetAllFilters}
-            className="text-xs text-slate-500 hover:text-rose-600 flex items-center gap-1 px-2 py-1 rounded hover:bg-rose-50 transition-colors"
+            className="text-xs text-fb-text-placeholder hover:text-status-danger flex items-center gap-1 px-2 py-1 rounded hover:bg-status-danger-soft transition-colors"
             title="Xóa tất cả bộ lọc"
           >
             <ClockCounterClockwise className="size-3.5" />
@@ -798,38 +804,38 @@ export default function TtmDashboard2Page() {
         {/* ============================================================= */}
         {/* PANEL 1: PHỄU LỌC DỮ LIỆU TỔNG QUAN & PHÂN NHÁNH TIẾN ĐỘ       */}
         {/* ============================================================= */}
-        <div className="min-w-0 bg-white border border-slate-200 rounded-2xl p-5 md:p-6 shadow-sm flex flex-col justify-between relative" aria-busy={isRecomputing}>
+        <div className="min-w-0 bg-white border border-fb-border rounded-2xl p-5 md:p-6 shadow-sm flex flex-col justify-between relative" aria-busy={isRecomputing}>
           {(isRecomputing || rowsError) && (
             <div className="absolute inset-0 z-10 grid place-items-center rounded-2xl bg-white/70 backdrop-blur-[1px]">
               {rowsError ? (
-                <div className="flex flex-col items-center gap-2 text-xs text-rose-700">
+                <div className="flex flex-col items-center gap-2 text-xs text-status-danger">
                   <span>{rowsError}</span>
                   <button
                     type="button"
                     onClick={() => { setRowsError(null); setRowsRetry((count) => count + 1); }}
-                    className="rounded-md border border-rose-300 bg-white px-2.5 py-1 font-semibold hover:bg-rose-50"
+                    className="rounded-md border border-status-danger bg-white px-2.5 py-1 font-semibold hover:bg-status-danger-soft"
                   >
                     Thử lại
                   </button>
                 </div>
               ) : (
-                <span className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                  <CircleNotch className="size-4 animate-spin text-[#1463f7]" weight="bold" />
+                <span className="flex items-center gap-2 text-xs font-semibold text-fb-text-secondary">
+                  <CircleNotch className="size-4 animate-spin text-[var(--color-text-brand)]" weight="bold" />
                   Đang tính lại theo bộ lọc…
                 </span>
               )}
             </div>
           )}
 
-          <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-100 mb-2 gap-2">
+          <div className="flex flex-wrap items-center justify-between pb-3 border-b border-fb-border mb-2 gap-2">
             <div className="flex items-center gap-2">
-              <span className="size-2.5 rounded-full bg-teal-500"></span>
-              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+              <span className="size-2.5 rounded-full bg-status-success"></span>
+              <h2 className="text-sm font-bold text-fb-text-primary uppercase tracking-wide">
                 Panel 1: Phễu Lọc Dữ Liệu Tổng Quan
               </h2>
             </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
-              <Info className="size-3.5 text-sky-600 shrink-0" weight="bold" />
+            <div className="flex items-center gap-1.5 text-[11px] text-fb-text-placeholder bg-fb-surface-muted px-2.5 py-1 rounded-lg border border-fb-border">
+              <Info className="size-3.5 text-fb-blue shrink-0" weight="bold" />
               <span>Bấm <strong>chuột phải</strong> vào tiêu chí để xem công thức • Bấm <strong>chuột trái vào Hoàn thành / Chưa hoàn thành</strong> để mở phễu chi tiết</span>
             </div>
           </div>
@@ -898,42 +904,42 @@ export default function TtmDashboard2Page() {
           </div>
 
           {/* Footer Summary Strip */}
-          <div className="mt-2 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-2">
+          <div className="mt-2 pt-3 border-t border-fb-border flex flex-wrap items-center justify-between text-xs text-fb-text-placeholder gap-2">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="size-2 rounded-full bg-emerald-600"></span>
+              <span className="size-2 rounded-full bg-status-success"></span>
               <span>
                 Epic chuẩn hoá dữ liệu:{' '}
-                <strong className="text-slate-800 font-bold font-mono">
+                <strong className="text-fb-text-primary font-bold font-mono">
                   {fmt(l3)} Epic ({pct(l3, l1)})
                 </strong>
               </span>
-              <span className="text-slate-300">|</span>
+              <span className="text-fb-text-placeholder">|</span>
               <span title="Tỷ lệ % Pass TTM-CNTT = L05aa / (L05aa + L05ab + L05ba); Tỷ lệ % Fail TTM-CNTT = (L05ab + L05ba) / (L05aa + L05ab + L05ba)">
-                TTM-CNTT (QLDA): <strong className="font-mono font-bold text-emerald-700">Pass {passRate}</strong>
+                TTM-CNTT (QLDA): <strong className="font-mono font-bold text-status-success">Pass {passRate}</strong>
                 {' · '}
-                <strong className="font-mono font-bold text-rose-700">Fail {failRate}</strong>
+                <strong className="font-mono font-bold text-status-danger">Fail {failRate}</strong>
               </span>
               {outOfScopeCount > 0 && (
                 <button
                   type="button"
                   onClick={() => setDetailModalId('OUT_OF_SCOPE')}
-                  className="text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline cursor-pointer"
+                  className="text-fb-text-placeholder underline-offset-2 hover:text-fb-text-primary hover:underline cursor-pointer"
                   title="Epic nằm ngoài “Phạm vi dữ liệu cho TTM” — không tính vào L01"
                 >
                   Ngoài phạm vi dữ liệu cho TTM: <strong className="font-mono">{fmt(outOfScopeCount)}</strong>
                 </button>
               )}
             </div>
-            <div className="flex items-center gap-2 text-[11px] font-medium text-slate-600">
+            <div className="flex items-center gap-2 text-[11px] font-medium text-fb-text-secondary">
               {isRightOpen ? (
                 <>
                   <span>Đang mở phễu chi tiết:</span>
-                  <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${activeRightPanel === 'COMPLETED' ? 'bg-cyan-100 text-cyan-800' : 'bg-amber-100 text-amber-800'}`}>
+                  <span className={`px-2 py-0.5 rounded-full font-bold text-[11px] ${activeRightPanel === 'COMPLETED' ? 'bg-fb-blue-soft text-fb-blue' : 'bg-status-warning-soft text-status-warning'}`}>
                     {activeRightPanel === 'COMPLETED' ? 'Epic hoàn thành (Panel 2)' : 'Epic chưa hoàn thành (Panel 3)'}
                   </span>
                 </>
               ) : (
-                <span className="text-sky-700 italic">
+                <span className="text-fb-blue italic">
                   Bấm vào Hoàn thành / Chưa hoàn thành để mở phễu chi tiết
                 </span>
               )}
@@ -956,7 +962,7 @@ export default function TtmDashboard2Page() {
             <div
               className={`transition-[opacity,transform] ${ACCORDION_TIMING} ${isRightOpen ? 'opacity-100 translate-x-0 delay-[175ms]!' : 'opacity-0 translate-x-8 delay-0!'}`}
             >
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 md:p-6 shadow-sm flex flex-col justify-between relative">
+              <div className="bg-white border border-fb-border rounded-2xl p-5 md:p-6 shadow-sm flex flex-col justify-between relative">
                 {panelHeader(shownRightPanel)}
 
                 {shownRightPanel === 'COMPLETED' ? (
@@ -1002,9 +1008,9 @@ export default function TtmDashboard2Page() {
                       </svg>
                     </div>
 
-                    <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                    <div className="pt-2 border-t border-fb-border flex flex-wrap items-center justify-between gap-2 text-xs text-fb-text-placeholder">
                       <span title="L05aa / (L05aa + L05ab + L05ba)">Tỷ lệ % Pass TTM-CNTT (QLDA):</span>
-                      <span className="font-mono font-bold text-emerald-700">
+                      <span className="font-mono font-bold text-status-success">
                         {passRate} ({fmt(passCount)}/{fmt(judgedCount)})
                       </span>
                     </div>
@@ -1047,9 +1053,9 @@ export default function TtmDashboard2Page() {
                       </svg>
                     </div>
 
-                    <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                    <div className="pt-2 border-t border-fb-border flex flex-wrap items-center justify-between gap-2 text-xs text-fb-text-placeholder">
                       <span title="(L05ab + L05ba) / (L05aa + L05ab + L05ba)">Tỷ lệ % Fail TTM-CNTT (QLDA):</span>
-                      <span className="font-mono font-bold text-rose-700">
+                      <span className="font-mono font-bold text-status-danger">
                         {failRate} ({fmt(failCount)}/{fmt(judgedCount)})
                       </span>
                     </div>
@@ -1083,7 +1089,7 @@ export default function TtmDashboard2Page() {
           maxWidth="2xl"
           title={
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded font-mono font-bold text-xs bg-slate-100 text-slate-700 border border-slate-300">
+              <span className="px-2 py-0.5 rounded font-mono font-bold text-xs bg-fb-surface-muted text-fb-text-secondary border border-fb-border">
                 [{detailModalId === 'OUT_OF_SCOPE' ? 'Ngoài phạm vi' : detailModalId}]
               </span>
               <span>{detail.heading}</span>
@@ -1102,16 +1108,16 @@ export default function TtmDashboard2Page() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <span className="font-semibold text-slate-800 text-xs">Quy tắc áp dụng:</span>
-                  <p className="text-xs text-slate-600 leading-relaxed">{detail.rule}</p>
+                  <span className="font-semibold text-fb-text-primary text-xs">Quy tắc áp dụng:</span>
+                  <p className="text-xs text-fb-text-secondary leading-relaxed">{detail.rule}</p>
                 </div>
               </div>
 
               <div className="space-y-4">
                 {detail.extra}
                 <div className="space-y-1.5">
-                  <span className="font-semibold text-slate-800 text-xs">Công thức tính toán:</span>
-                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs text-slate-800 leading-relaxed">
+                  <span className="font-semibold text-fb-text-primary text-xs">Công thức tính toán:</span>
+                  <div className="p-3.5 bg-fb-surface-muted border border-fb-border rounded-lg font-mono text-xs text-fb-text-primary leading-relaxed">
                     {detail.formula}
                   </div>
                 </div>
@@ -1155,13 +1161,13 @@ export default function TtmDashboard2Page() {
         >
           <div className="p-4 space-y-4">
             <div className="relative">
-              <MagnifyingGlass className="absolute left-3 top-2.5 size-4 text-slate-400" />
+              <MagnifyingGlass className="absolute left-3 top-2.5 size-4 text-fb-text-placeholder" />
               <input
                 type="text"
                 placeholder="Tìm theo tên, email, role…"
                 value={userSearchText}
                 onChange={(e) => setUserSearchText(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-xs outline-none focus:border-[#1463f7]"
+                className="w-full pl-9 pr-4 py-2 border border-fb-border rounded-lg text-xs outline-none focus:border-[var(--color-text-brand)]"
               />
             </div>
 
@@ -1174,13 +1180,13 @@ export default function TtmDashboard2Page() {
                     setPreviewUserId(u.id);
                     setShowUserModal(false);
                   }}
-                  className="w-full text-left p-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer flex items-center justify-between text-xs transition-colors"
+                  className="w-full text-left p-2.5 border border-fb-border rounded-lg hover:bg-fb-surface-muted cursor-pointer flex items-center justify-between text-xs transition-colors"
                 >
                   <div>
-                    <div className="font-bold text-slate-900">{u.fullName}</div>
-                    <div className="text-[11px] text-slate-500">{u.email}</div>
+                    <div className="font-bold text-fb-text-primary">{u.fullName}</div>
+                    <div className="text-[11px] text-fb-text-placeholder">{u.email}</div>
                   </div>
-                  <Badge variant="neutral" className="text-[10px] font-mono">
+                  <Badge variant="neutral" className="text-[11px] font-mono">
                     {u.role}
                   </Badge>
                 </button>

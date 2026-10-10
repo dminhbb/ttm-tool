@@ -218,7 +218,7 @@ export function UserMenu({ expanded, hiddenFeatureKeys }: UserMenuProps) {
         {expanded && (
           <span className="min-w-0">
             <span className="block truncate text-xs font-bold text-fb-text-primary">{user?.fullName || 'Đang tải...'}</span>
-            <span className="mt-0.5 block truncate text-[9px] font-medium text-sidebar-muted">{user?.email || ''}</span>
+            <span className="mt-0.5 block truncate text-[11px] font-medium text-sidebar-muted">{user?.email || ''}</span>
           </span>
         )}
       </button>

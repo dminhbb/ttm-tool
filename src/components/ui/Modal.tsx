@@ -13,7 +13,7 @@ import type { Icon } from '@phosphor-icons/react';
  * card) builds on the same pieces instead — MODAL_BACKDROP_CLASS, MODAL_FRAME_CLASS, ModalHeader and
  * useModalBehavior — so it can't drift from the shared look.
  */
-export const MODAL_BACKDROP_CLASS = 'absolute inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-200';
+export const MODAL_BACKDROP_CLASS = 'absolute inset-0 bg-fb-text-primary/60 backdrop-blur-xs transition-opacity duration-200';
 export const MODAL_FRAME_CLASS = 'relative z-10 flex flex-col rounded-2xl border border-fb-border bg-fb-surface text-fb-text-primary shadow-2xl';
 
 /** Open popups, bottom → top. Only the top one answers Escape, and the page scrolls again only once

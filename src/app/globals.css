@@ -1,4 +1,9 @@
 @import "tailwindcss";
+/* Tầng 1+2 của kiến trúc token: raw scale + 36 semantic alias của IAS Design System.
+   Tầng 3 (compat layer, nơi --accent và các --surface-/--text- trỏ về alias) nằm ở
+   khối :root[data-brand="ias"] bên dưới.
+   Xem đầu file ias-tokens.css để biết toàn bộ quy tắc. */
+@import "./ias-tokens.css";
 @plugin '@tailwindcss/forms';
 
 @theme {
@@ -7,7 +12,14 @@
      to Tailwind's static @theme resolution, which silently drops any --font-* declaration built
      from a var() it can't resolve at build time. body{} below sets the real font-family directly
      instead; these two only exist so the `font-sans`/`font-mono` utility classes still resolve to
-     *something* sane if used in isolation elsewhere. */
+     *something* sane if used in isolation elsewhere.
+
+     CẢNH BÁO (2026-10-10): KHÔNG dùng class `font-sans` ở bất cứ đâu. Vì --font-sans không
+     thể trỏ về font brand (lý do ở trên), `font-sans` sẽ ĐÈ font brand bằng font hệ thống
+     trên đúng nhánh DOM đó. Trước đây nó nằm trên <body> và khiến TOÀN BỘ app render bằng
+     Segoe UI thay vì font đã preload. Ba chỗ dùng còn lại đã được bỏ; test
+     src/lib/design-system/__tests__/ias-typography.test.ts canh để không ai thêm lại.
+     `font-mono` thì vẫn dùng bình thường — mã Epic/ngày tháng cần chữ đều ô. */
   --font-sans: ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, monospace;
 
@@ -32,6 +44,14 @@
   --color-fb-primary: var(--color-primary);
   --color-fb-on-primary: var(--color-on-primary);
   --color-fb-primary-hover: var(--color-primary-hover);
+
+  /* Accent violet. Cần một utility riêng vì app dùng tím cho một vai trò THỨ TƯ bên
+     cạnh success/warning/danger: chỉ số QA, "Sai lệch dữ liệu", nhãn phân loại. Trước
+     đây vai trò đó đi bằng `text-purple-700`/`bg-purple-50`/`bg-purple-600` — tức bảng
+     màu thô, không theo brand. `--info` ở brand `ias` đã trỏ về --color-text-accent
+     (#7B61FF), xem ghi chú trong khối :root[data-brand="ias"]. */
+  --color-fb-accent: var(--info);
+  --color-fb-accent-soft: var(--info-soft);
 
   --color-status-success: var(--success);
   --color-status-success-soft: var(--success-soft);
@@ -222,6 +242,647 @@
 :root[data-brand="pink"] .ui-page-title { font-size: 24px; font-weight: 700; }
 :root[data-brand="pink"] .ui-card-title { font-weight: 700; }
 :root[data-brand="pink"] body { font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; }
+
+/* ============================================================================
+   "IAS theme" — brand mặc định, chuẩn hoá theo e:\workspace\ias-design
+   ============================================================================
+
+   TẦNG 3 của kiến trúc token: mọi tên biến CŨ của app (--accent, --surface-*,
+   --text-*, --border-*, --radius-*) ở đây chỉ còn là ALIAS trỏ về semantic alias
+   của IAS trong ias-tokens.css. Nhờ vậy toàn bộ `@theme` (--color-fb-*,
+   --color-status-*, --color-sidebar-*) và mọi class đã có trong JSX
+   (`text-fb-blue`, `bg-fb-surface`, `border-fb-border`, …) tự đổi sang màu IAS
+   mà KHÔNG phải sửa một dòng JSX nào.
+
+   Đây cũng là dòng chữa lỗi màu nặng nhất của app: trước đây --accent là
+   #1c6e2e (xanh lá rừng) ở brand `wise` và #0284c7 (xanh thép) ở brand `legacy`,
+   trong khi dashboard lại vẽ ring bằng hex #0866ff / #1463f7 — xanh dương. Hai hệ
+   màu cãi nhau trong cùng một widget. Giờ cả hai phía cùng về #141ED2.
+
+   Đặt SAU khối `legacy`/`pink` vì cả ba cùng specificity (0-2-0) — thắng nhau
+   bằng thứ tự khai báo.
+   ========================================================================= */
+:root[data-brand="ias"] {
+  /* Nút/CTA đổ đặc. IAS chỉ có MỘT primary; không có biến thể lime/on-primary
+     riêng như brand `wise`, nên cả hai trỏ về cùng brand blue. */
+  --color-primary: var(--color-bg-brand);
+  --color-primary-hover: var(--color-primary-700);
+  --color-on-primary: var(--color-text-inverse);
+
+  /* ── Mặt phẳng ──────────────────────────────────────────────────────
+     surface-elevated = bg-page để đúng nền header bảng của IAS (#F4F6FA).
+     Input/search/select vì thế được trả về trắng bằng rule riêng bên dưới —
+     IAS cho control nền trắng nhưng header bảng nền xám nhạt, mà app lại
+     dùng CHUNG một token cho cả hai. */
+  --surface-app: var(--color-bg-page);
+  --surface-sidebar: var(--ias-sidebar-bg);
+  --surface-panel: var(--color-bg-surface);
+  --surface-elevated: var(--color-bg-page);
+  --surface-hover: var(--color-bg-hover);
+  --surface-active: var(--color-primary-100);
+
+  /* ── Viền ───────────────────────────────────────────────────────────
+     border-subtle giữ ở neutral-200 (#EDF2F7) cho đường chia trong Field/card,
+     còn viền NGOÀI của card phải là border-default (#D9DBE9) — xem rule
+     `.ui-card` bên dưới. */
+  --border-subtle: var(--color-neutral-200);
+  --border-default: var(--color-border-default);
+  --border-strong: var(--color-border-strong);
+
+  /* ── Chữ ────────────────────────────────────────────────────────────
+     4 bậc của app khớp 1:1 với 4 bậc của IAS:
+     primary → body → secondary → muted. */
+  --text-primary: var(--color-text-primary);
+  --text-secondary: var(--color-text-body);
+  --text-muted: var(--color-text-secondary);
+  --text-disabled: var(--color-text-muted);
+  --text-on-accent: var(--color-text-inverse);
+
+  /* ── Nhấn ───────────────────────────────────────────────────────────
+     accent-soft = rgba(20,30,210,.08), đúng tint "đang chọn" chuẩn của IAS
+     (.psel-opt.selected trong template), dùng cho cả ::selection. */
+  --accent: var(--color-text-brand);
+  --accent-hover: var(--color-primary-700);
+  --accent-soft: rgba(20, 30, 210, 0.08);
+
+  /* ── Trạng thái ─────────────────────────────────────────────────────
+     Dùng bậc -700 (text) chứ không phải -500 (solid): các token này chạy cả
+     cho MÀU CHỮ (`text-status-danger` ở nút Đăng xuất) lẫn nền/dot, và chỉ bậc
+     -700 đạt WCAG AA trên nền trắng (#C30052 ≈ 6.4:1, còn #EB2D4B chỉ ≈ 4.0:1).
+     Bậc -500 vẫn dùng được qua --color-bg-*-solid cho dot và segment chart. */
+  /* Ngoại lệ có chủ đích: KHÔNG dùng --color-text-success (#00966D) ở đây.
+     Đo được 3.76:1 trên nền trắng và 3.48:1 trên nền trang — trượt WCAG AA cho chữ
+     thường (cần 4.5:1). Đây là khiếm khuyết của chính palette IAS, không phải của
+     bước port. --color-success-300 (#0B7659) là token ĐÃ KHAI BÁO trong
+     ias-design/tokens/colors.css, đậm hơn và đạt AA; color-rules.md cho phép rơi về
+     raw scale khi không alias nào đủ gần. Thang success của IAS đánh số không đều —
+     -300 đậm hơn -700 — nên đây không phải lỗi đọc sai bậc.
+     --color-text-success vẫn giữ nguyên trong ias-tokens.css (trung thành với nguồn)
+     và vẫn là màu chữ của pill `.ias-status.st-success` theo đúng spec IAS. */
+  --success: var(--color-success-300);
+  --success-soft: var(--color-bg-success);
+  --warning: var(--color-text-warning);
+  --warning-soft: var(--color-bg-warning);
+  --danger: var(--color-text-error);
+  --danger-soft: var(--color-bg-error);
+  /* IAS không khai báo alias "info" cho màu chữ. Ánh xạ sang accent violet —
+     alias đã có sẵn (--color-text-accent), không phải token tự nghĩ ra.
+     --color-info-500 (#66CAFF) quá nhạt để làm màu chữ. */
+  --info: var(--color-text-accent);
+  --info-soft: var(--color-accent-100);
+
+  --focus-ring: var(--ias-focus-glow);
+
+  /* ── Hình khối ──────────────────────────────────────────────────────
+     Đè thang radius 24px của brand `wise`. IAS: card 12 · input/button/nav 8
+     · menu item 6 · badge 4. Các utility `rounded-*` đã dùng khắp app vì thế
+     tự nhận giá trị mới mà không phải sửa call site. */
+  --radius-xs: var(--ias-radius-badge);
+  --radius-sm: var(--ias-radius-control-sm);
+  --radius-md: var(--ias-radius-control);
+  --radius-lg: var(--ias-radius-card);
+  --radius-xl: var(--ias-radius-card);
+  --radius-2xl: var(--ias-radius-card);
+  --radius-pill: var(--ias-radius-pill);
+
+  /* IAS chỉ dùng shadow cho popover/dropdown/drawer/modal — card thì KHÔNG. */
+  --shadow-soft: var(--ias-shadow-popover);
+
+  /* Tên biến font đúng theo quy ước IAS. Các component của ias-design đọc
+     `var(--font-family-body, "Plus Jakarta Sans", sans-serif)`, nên nếu biến này
+     không được khai báo thì chúng sẽ âm thầm render bằng fallback dù chẳng có gì
+     "lỗi" — SKILL.md cảnh báo đúng tình huống đó.
+     --font-averta do next/font/local sinh ra trong src/app/layout.tsx. */
+  --font-family-body: var(--font-averta), 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-family-brand: var(--font-family-body);
+  --font-family-display: var(--font-family-body);
+}
+
+/* Font brand của IAS. Rule này chỉ có hiệu lực được sau khi `font-sans` bị bỏ khỏi
+   <body> trong layout.tsx — trước đó class utility (0-1-0) luôn thắng `body` (0-0-1).
+   Cùng lý do, `[data-brand="legacy"] body` và `[data-brand="pink"] body` ở trên giờ
+   mới thực sự hoạt động. */
+:root[data-brand="ias"] body {
+  font-family: var(--font-family-body);
+}
+
+/* ============================================================================
+   Card IAS — `.ias-card`
+   Nguồn: references/components/display/card.md + dcard.md
+          + templates/.../DanhSachChuongTrinh.dc.html (.list-panel, .filter-card)
+   ============================================================================
+   Mặt card: trắng, viền 1px --color-border-default, radius 12, KHÔNG shadow
+   (shadow bị bỏ từ 2026-07-31, thay bằng viền — không phải xếp lớp cả hai).
+   Scope theo brand nên `legacy`/`pink`/`wise` giữ nguyên diện mạo cũ. */
+.ias-card,
+:root[data-brand="ias"] .ui-card,
+:root[data-brand="ias"] .ui-alert {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--ias-radius-card);
+  box-shadow: none;
+}
+
+/* Header: padding 16px 20px, title 14px/600 (dcard.md). */
+:root[data-brand="ias"] .ui-card-header {
+  padding: 16px 20px;
+}
+:root[data-brand="ias"] .ui-card-title {
+  font-size: var(--type-subtitle2-size);
+  font-weight: var(--type-subtitle2-weight);
+  color: var(--color-text-primary);
+}
+
+/* Body: dcard.md quy định `0 20px 20px` — không padding trên, vì padding dưới của
+   header đã tạo khoảng cách. Nhưng rất nhiều card trong app dùng `.ui-card-body`
+   MỘT MÌNH (không có header), và lúc đó padding-top: 0 sẽ làm nội dung dán sát viền.
+   Nên: mặc định có padding trên, và chỉ bỏ khi thực sự đứng sau một header. */
+:root[data-brand="ias"] .ui-card-body {
+  padding: 16px 20px 20px;
+}
+:root[data-brand="ias"] .ui-card-header + .ui-card-body {
+  padding-top: 0;
+}
+
+/* Footer: hàng nút căn phải (card.md), padding khớp header. */
+:root[data-brand="ias"] .ui-card-footer {
+  padding: 16px 20px;
+}
+
+/* LỆCH CÓ CHỦ ĐÍCH: card.md/dcard.md của IAS KHÔNG có đường chia header/body —
+   chỉ dùng khoảng trắng. App này giữ đường chia nhưng hạ xuống tông nhạt nhất của
+   IAS (--color-neutral-200 #EDF2F7, cùng giá trị Field dùng cho gạch chân giá trị),
+   vì card ở đây chứa nội dung dày hơn ví dụ của IAS và bỏ hẳn đường chia làm mất
+   cấu trúc đọc. Đây là thay đổi về độ đậm, không phải thêm thành phần mới. */
+:root[data-brand="ias"] .ui-card-header {
+  border-bottom: 1px solid var(--color-neutral-200);
+}
+:root[data-brand="ias"] .ui-card-footer {
+  border-top: 1px solid var(--color-neutral-200);
+}
+
+/* ============================================================================
+   Trạng thái IAS — `.ias-status` (dot + pill + nhãn)
+   Nguồn: templates/.../DanhSachChuongTrinh.dc.html (.status.st-*)
+          + references/components/display/badge-tag.md
+   ============================================================================
+   Rule cross-cutting của IAS: "Status is always dot + badge-shape + label, never
+   color-only text." Một chữ đổi màu KHÔNG phải cách hợp lệ để thể hiện trạng thái
+   ở bất cứ đâu trong DS — vừa là yêu cầu nhận diện, vừa là yêu cầu tiếp cận
+   (không truyền đạt thông tin chỉ bằng màu).
+
+   Cỡ ở đây là `medium` của IAS (padding 3px 10px, chữ 11px, dot 6px) — đúng cỡ cho
+   ô trong bảng và danh sách dày, là nơi phần lớn trạng thái của app xuất hiện.
+   badge-tag.md: dùng `large` khi badge đứng cạnh tiêu đề trang/card. */
+.ias-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--ias-radius-badge);
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ias-status::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: currentColor;
+}
+.ias-status-lg {
+  padding: 4px 12px;
+  font-size: var(--type-caption-size);
+}
+.ias-status-lg::before {
+  width: 7px;
+  height: 7px;
+}
+
+.ias-status-blue {
+  background: var(--color-primary-50);
+  color: var(--color-text-brand);
+}
+.ias-status-success {
+  background: var(--color-bg-success);
+  color: var(--color-text-success);
+}
+.ias-status-success::before {
+  background: var(--color-bg-success-solid);
+}
+.ias-status-warning {
+  background: var(--color-bg-warning);
+  color: var(--color-text-warning);
+}
+.ias-status-warning::before {
+  background: var(--color-bg-warning-solid);
+}
+.ias-status-error {
+  background: var(--color-bg-error);
+  color: var(--color-text-error);
+}
+.ias-status-error::before {
+  background: var(--color-bg-error-solid);
+}
+.ias-status-neutral {
+  background: var(--color-bg-page);
+  color: var(--color-text-secondary);
+}
+.ias-status-neutral::before {
+  background: var(--color-text-muted);
+}
+.ias-status-purple {
+  background: var(--color-accent-100);
+  color: var(--color-accent-700);
+}
+.ias-status-purple::before {
+  background: var(--color-accent-500);
+}
+
+/* ============================================================================
+   Tag IAS — `.ias-tag` (chip phân loại / bộ lọc)
+   Nguồn: references/components/display/badge-tag.md
+   ============================================================================
+   Badge và Tag KHÔNG thay thế nhau được, phân biệt theo Ý ĐỊNH chứ không theo hình:
+     - Badge = trạng thái của bản ghi ("Đạt", "Fail TTM", "Chờ golive", "Trễ R4G")
+       → chữ nhật 4px, CÓ dot.
+     - Tag   = phân loại/bộ lọc (tên Domain, loại Epic, tên PM-SM)
+       → viên thuốc, CÓ viền cùng hệ màu, KHÔNG dot.
+   Đặt `shape="pill"` cho một Badge vẫn không biến nó thành Tag, và ngược lại. */
+.ias-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--ias-radius-pill);
+  background: var(--color-bg-surface);
+  color: var(--color-text-body);
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ias-tag-brand {
+  border-color: var(--color-primary-200);
+  background: var(--color-primary-50);
+  color: var(--color-text-brand);
+}
+.ias-tag-accent {
+  border-color: var(--color-accent-200);
+  background: var(--color-accent-100);
+  color: var(--color-accent-700);
+}
+
+/* `.ui-badge` của app lấy hình khối Badge của IAS: chữ nhật 4px, 11px/600,
+   padding 3px 10px. Giữ nguyên để mọi `<Badge>` đang dùng tự đổi theo.
+   Dot là OPT-IN qua prop `dot` của Badge.tsx — bật dot cho toàn bộ badge sẽ sai ở
+   các chỗ Badge đang được dùng làm chip đếm/mã (ví dụ `<Badge variant="neutral">`
+   hiển thị số lượng), vốn thuộc về Tag. Việc gán Badge/Tag theo ý định là phần
+   làm theo từng màn hình ở Nhịp B. */
+:root[data-brand="ias"] .ui-badge {
+  min-height: 0;
+  padding: 3px 10px;
+  border-radius: var(--ias-radius-badge);
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+}
+:root[data-brand="ias"] .ui-badge-pill {
+  border-radius: var(--ias-radius-pill);
+}
+/* Dot của Badge: cùng cấu trúc `::before` như `.ias-status`. */
+:root[data-brand="ias"] .ui-badge-dot::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: currentColor;
+}
+:root[data-brand="ias"] .ui-table-wrap,
+:root[data-brand="ias"] .right-panel-surface,
+:root[data-brand="ias"] .glass-surface {
+  box-shadow: none;
+}
+
+/* ============================================================================
+   Table IAS — `.ias-table`
+   Nguồn: references/components/data/table.md
+          + templates/.../DanhSachChuongTrinh.dc.html (table/th/td/.status)
+   ============================================================================ */
+
+/* Wrap: KHÔNG radius, KHÔNG viền riêng (table.md, 2026-08-18) — mép bảng được
+   định nghĩa bằng chính lưới viền của `td`, không phải một khung bao ngoài.
+   Giữ nguyên `overflow-x: auto` vì đó là vùng cuộn ngang mà TableContainer
+   (và cơ chế auto-scroll khi hover sát mép của nó) đang dựa vào. */
+:root[data-brand="ias"] .ui-table-wrap {
+  border: none;
+  border-radius: 0;
+  background: var(--color-bg-surface);
+}
+
+/* Header: nền bg-page, 11px/700, màu text-secondary, SENTENCE CASE.
+   table.md 2026-08-21 đã BỎ ngoại lệ uppercase+letter-spacing của Table —
+   nhãn cột render đúng như được viết ("Tổng số Epic", không phải "TỔNG SỐ EPIC").
+   `th` KHÔNG có viền; đường chia header/body đến từ viền trên của hàng body đầu tiên. */
+.ias-table thead th,
+:root[data-brand="ias"] .ui-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 12px 16px;
+  border: none;
+  background: var(--color-bg-page);
+  color: var(--color-text-secondary);
+  text-align: left;
+  font-size: var(--ias-type-table-header-size);
+  font-weight: var(--ias-type-table-header-weight);
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: nowrap;
+}
+
+/* Body cell: lưới viền đủ 4 cạnh, 0.5px (table.md 2026-08-18) — không phải chỉ
+   gạch dưới từng hàng. `border-collapse: collapse` gộp mép chung thành một nét. */
+.ias-table tbody td,
+:root[data-brand="ias"] .ui-table tbody td {
+  padding: 13px 16px;
+  border: 0.5px solid var(--color-border-default);
+  color: var(--color-text-body);
+  font-size: 13px;
+  vertical-align: middle;
+}
+/* Hàng cuối GIỮ viền dưới để lưới hoàn chỉnh — bỏ ngoại lệ
+   `tbody tr:last-child td { border-bottom: 0 }` của base. */
+:root[data-brand="ias"] .ui-table tbody tr:last-child td {
+  border-bottom: 0.5px solid var(--color-border-default);
+}
+.ias-table tbody tr:hover,
+:root[data-brand="ias"] .ui-table tbody tr:hover {
+  background: var(--color-bg-hover);
+}
+
+/* Cột số: căn phải + chữ số đều ô, để các hàng thẳng cột. */
+.ias-td-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cột định danh dính trái khi cuộn ngang.
+   Vì sao cần: `thead th` chỉ sticky theo trục DỌC, nên với bảng 13 cột của
+   /epic-alerts-15 thì cuộn ngang là mất luôn cột Epic — người dùng không còn biết
+   mình đang đọc dòng nào. Đây là lỗi dùng được/không dùng được, không phải thẩm mỹ.
+   z-index: ô body 2 (trên viền), ô header 3 (trên cả header sticky). */
+.ias-table .ias-sticky-col,
+:root[data-brand="ias"] .ui-table .ias-sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--color-bg-surface);
+}
+.ias-table thead .ias-sticky-col,
+:root[data-brand="ias"] .ui-table thead .ias-sticky-col {
+  z-index: 3;
+  background: var(--color-bg-page);
+}
+/* Ô dính phải đổi nền theo hover của hàng, nếu không nó sẽ nổi lên như một ô lạ. */
+.ias-table tbody tr:hover .ias-sticky-col,
+:root[data-brand="ias"] .ui-table tbody tr:hover .ias-sticky-col {
+  background: var(--color-bg-hover);
+}
+
+/* Hàng tổng (table.md 2026-09-15): phải có ĐỦ BA dấu hiệu, không chỉ in đậm —
+   chữ đậm + nền tint brand nhạt + viền trên tint brand. Chỉ in đậm thì hàng tổng
+   đọc như một hàng dữ liệu bình thường mà tình cờ được bôi đậm. */
+.ias-table tbody tr.ias-total-row td,
+:root[data-brand="ias"] .ui-table tbody tr.ias-total-row td {
+  background: var(--color-primary-50);
+  border-top: 1px solid var(--color-primary-200);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-bold);
+}
+
+/* Control nền trắng — xem ghi chú --surface-elevated ở trên. */
+:root[data-brand="ias"] .ui-input,
+:root[data-brand="ias"] .ui-textarea,
+:root[data-brand="ias"] .ui-select,
+:root[data-brand="ias"] .ui-search,
+:root[data-brand="ias"] .ui-richtext,
+:root[data-brand="ias"] .ui-multi-select__trigger {
+  background: var(--color-bg-surface);
+  border-radius: var(--ias-radius-control);
+}
+
+/* ============================================================================
+   Button IAS — `.ias-btn`
+   Nguồn: templates/ias-danh-sach-chuong-trinh/DanhSachChuongTrinh.dc.html (.btn)
+          + references/components/forms/button.md
+   ============================================================================
+
+   Mỗi rule mang HAI selector: `.ias-btn*` (primitive dùng cho markup mới) và
+   `[data-brand="ias"] .ui-button*` (để mọi call site `<Button>` đang có — và cả
+   markup dùng trực tiếp class `.ui-button` — nhận diện mạo mới mà KHÔNG phải sửa
+   JSX). Dùng chung một khối khai báo thay vì copy hai lần, để hai bên không lệch nhau.
+
+   Thứ tự nút trong một hàng: secondary bên trái → primary bên phải.
+   Một primary duy nhất mỗi toolbar/footer.
+   Label dùng sentence case, KHÔNG uppercase (xem ghi chú ở ias-tokens.css).
+
+   `min-height` thay vì `height` cố định 40px như template IAS: một nút đang có
+   trong app có thể chứa icon + nhãn dài xuống hai dòng, và `height` cố định sẽ CẮT
+   mất nhãn đó — mất thông tin là lỗi chức năng, không phải lỗi thẩm mỹ. Với nhãn
+   một dòng (gần như toàn bộ) hai cách render giống hệt nhau. */
+.ias-btn,
+:root[data-brand="ias"] .ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: none;
+  border-radius: var(--ias-radius-control);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: var(--type-subtitle2-size);
+  font-weight: var(--type-subtitle2-weight);
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+/* Base `.ui-button` có `:active { transform: translateY(1px) }` — IAS không dùng
+   hiệu ứng nhấn lún, trạng thái nhấn thể hiện bằng màu. */
+:root[data-brand="ias"] .ui-button:active {
+  transform: none;
+}
+
+.ias-btn-primary,
+:root[data-brand="ias"] .ui-button-primary {
+  background: var(--color-bg-brand);
+  border: none;
+  color: var(--color-text-inverse);
+}
+.ias-btn-primary:hover,
+:root[data-brand="ias"] .ui-button-primary:hover {
+  background: var(--color-primary-700);
+}
+
+/* Secondary của IAS là `outline`, KHÔNG phải nút tô nền nhạt: trong suốt + viền
+   --color-primary-200, hover thì viền đậm lên thành --color-border-focus.
+   Ba variant `secondary`/`outline`/`glass` của app cùng map về đây vì Button.tsx
+   vốn đã gom cả ba vào một class `.ui-button-secondary`. */
+.ias-btn-outline,
+:root[data-brand="ias"] .ui-button-secondary {
+  background: transparent;
+  border: 1px solid var(--color-primary-200);
+  color: var(--color-text-primary);
+}
+.ias-btn-outline:hover,
+:root[data-brand="ias"] .ui-button-secondary:hover {
+  background: transparent;
+  border-color: var(--color-border-focus);
+}
+
+.ias-btn-ghost,
+:root[data-brand="ias"] .ui-button-ghost {
+  background: transparent;
+  border: none;
+  color: var(--color-text-primary);
+}
+.ias-btn-ghost:hover,
+:root[data-brand="ias"] .ui-button-ghost:hover {
+  background: var(--color-bg-hover);
+}
+
+/* LỆCH CÓ CHỦ ĐÍCH: references/components/forms/button.md nói rõ "Button has no
+   separate danger variant". Nhưng app ĐANG dùng `variant="danger"` cho các hành động
+   phá huỷ (xoá lớp dữ liệu, xoá user), và bỏ nó đi là lấy mất một tín hiệu cảnh báo
+   — tức đổi affordance, phạm ràng buộc R2. Vì vậy giữ variant này, tô bằng
+   --color-text-error (#C30052, đạt 6.1:1 với chữ trắng) chứ không phải
+   --color-bg-error-solid (#EB2D4B, chỉ 4.0:1). */
+.ias-btn-danger,
+:root[data-brand="ias"] .ui-button-danger {
+  background: var(--color-text-error);
+  border: none;
+  color: var(--color-text-inverse);
+}
+.ias-btn-danger:hover,
+:root[data-brand="ias"] .ui-button-danger:hover {
+  background: var(--color-error-500);
+}
+
+/* Nút icon-only: ô 40×40, viền như outline. Template IAS dùng `.btn-icon`. */
+.ias-btn-icon,
+:root[data-brand="ias"] .ui-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--color-primary-200);
+  border-radius: var(--ias-radius-control);
+  background: transparent;
+  color: var(--color-text-primary);
+  flex-shrink: 0;
+}
+.ias-btn-icon:hover,
+:root[data-brand="ias"] .ui-icon-button:hover {
+  background: transparent;
+  border-color: var(--color-border-focus);
+  color: var(--color-text-primary);
+}
+
+/* Cỡ nhỏ 32px — dùng cho toolbar NẰM TRONG card/modal, để khớp mật độ của card thay
+   vì mật độ 40px của trang (references/components/display/dcard.md). */
+.ias-btn-sm,
+:root[data-brand="ias"] .ui-button-sm {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: var(--type-caption-size);
+  font-weight: var(--type-subtitle2-weight);
+}
+.ias-btn-icon-sm {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+/* IAS không khai báo cỡ lớn. Giữ `size="lg"` của app (đang được dùng) và nâng theo
+   đúng bước 8px của thang: 32 → 40 → 48. */
+.ias-btn-lg,
+:root[data-brand="ias"] .ui-button-lg {
+  min-height: 48px;
+  padding: 0 20px;
+}
+
+.ias-btn:focus-visible,
+.ias-btn-icon:focus-visible,
+:root[data-brand="ias"] .ui-button:focus-visible,
+:root[data-brand="ias"] .ui-icon-button:focus-visible {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: var(--ias-focus-glow);
+}
+
+.ias-btn:disabled,
+.ias-btn-icon:disabled,
+:root[data-brand="ias"] .ui-button:disabled,
+:root[data-brand="ias"] .ui-icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* ── Sidebar trên mặt navy ────────────────────────────────────────────
+   `.sidebar-surface` lấy nền từ --surface-sidebar (giờ là #0D0D2B), nên mọi
+   token mặt-sáng dùng BÊN TRONG sidebar phải được đổi tại đây, nếu không sẽ ra
+   chữ đậm trên nền tối.
+
+   Vì sao phải đè chính các biến `--color-*` của @theme chứ không phải --text-*:
+   Tailwind sinh ra `--color-fb-text-primary: var(--text-primary)` tại :root, và
+   theo spec CSS Variables, phép thay thế var() được tính NGAY TẠI element khai
+   báo. Nên đổi --text-primary ở đây không ảnh hưởng gì — con cháu đã thừa kế
+   giá trị đã tính xong từ :root. Phải đè trực tiếp --color-fb-*.
+
+   Giá trị lấy từ templates/ias-layout + ias-danh-sach-chuong-trinh:
+   .nav-item #CBD0E8 · :hover rgba(255,255,255,.07) + #fff · .active #fff trên
+   #141ED2 · .sb-brand .sub #8B8FBD · viền rgba(255,255,255,.08). */
+:root[data-brand="ias"] .sidebar-surface {
+  --color-fb-border: var(--ias-sidebar-border);
+  --color-fb-control: var(--ias-sidebar-hover-bg);
+  --color-fb-control-hover: var(--ias-sidebar-hover-bg);
+  --color-fb-text-primary: var(--color-text-inverse);
+  --color-fb-text-secondary: var(--ias-sidebar-item-text);
+  --color-fb-blue: var(--color-text-inverse);
+  --color-fb-blue-soft: var(--color-bg-brand);
+  --color-fb-surface: var(--ias-sidebar-bg);
+  --color-fb-primary: var(--color-bg-brand);
+  --color-fb-on-primary: var(--color-text-inverse);
+  --color-sidebar-text: var(--ias-sidebar-item-text);
+  --color-sidebar-muted: var(--ias-sidebar-leaf-text);
+  --color-sidebar-disabled: var(--ias-sidebar-disabled-text);
+}
+
+/* UserMenu mở popover BÊN TRONG sidebar (position:absolute, không portal như
+   NavigationGroupMenu), nên nó thừa kế bộ token navy ở trên và sẽ thành nền tối
+   chữ trắng. Trả popover về hệ màu mặt sáng.
+   Lưu ý: var(--text-primary) ở đây resolve bằng giá trị thừa kế TẠI element này —
+   mà sidebar không đổi --text-primary — nên vẫn ra đúng màu của trang. */
+:root[data-brand="ias"] .sidebar-surface [role="menu"] {
+  --color-fb-border: var(--border-default);
+  --color-fb-control: var(--surface-hover);
+  --color-fb-control-hover: var(--surface-hover);
+  --color-fb-text-primary: var(--text-primary);
+  --color-fb-text-secondary: var(--text-secondary);
+  --color-fb-blue: var(--accent);
+  --color-fb-blue-soft: var(--accent-soft);
+  --color-fb-surface: var(--surface-panel);
+}
 
 :root[data-theme="light"] .ui-card,
 :root[data-theme="light"] .ui-table-wrap,

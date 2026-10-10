@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chi tiết dự án · Thông tin chung — PMS Platform</title>
+<link rel="stylesheet" href="assets/pms-tokens.css">
+<link rel="stylesheet" href="assets/pms-ias.css">
+<script src="assets/pms-icons.js"></script>
+</head>
+<body>
+<div id="pms-page"></div>
+
+<script src="assets/pms-util.js"></script>
+<script src="assets/pms-ui.js"></script>
+<script src="assets/mock-data.js"></script>
+<script src="assets/pms-detail.js"></script>
+<script src="assets/pms-shell.js"></script>
+<script>
+const E = MBUtil.esc;
+const D = PMSDetail;
+const P = PRJ;
+
+function subTable(cols, rows, minW) {
+  return '<div class="table-wrap"><div class="table-inner"><table'
+    + (minW ? ' style="min-width:' + minW + '"' : '') + '>'
+    + '<thead><tr>' + cols.map(c => '<th' + (c.w ? ' style="width:' + c.w + '"' : '') + '>'
+      + E(c.label) + '</th>').join('') + '</tr></thead><tbody>'
+    + (rows.length ? rows.join('')
+      : '<tr><td colspan="' + cols.length + '"><span class="t-muted">Chưa có dữ liệu</span></td></tr>')
+    + '</tbody></table></div></div>';
+}
+
+/* ───────────────────── OKR: target vs actual (Progress) ────────────────── */
+const okrRows = P.okr.map(o => '<tr>'
+  + '<td class="td-truncate">' + E(o.obj) + '</td>'
+  + '<td class="td-truncate">' + E(o.kr) + '</td>'
+  + '<td class="td-truncate">' + (o.result ? E(o.result) : '<span class="t-muted">Chưa đo</span>') + '</td>'
+  + '<td style="min-width:170px">' + MBUtil.progress(o.pct, o.pct >= 80 ? 'ok' : (o.pct >= 50 ? 'warn' : 'bad')) + '</td>'
+  + '</tr>');
+
+const memberRows = P.members.map(m => '<tr>'
+  + '<td>' + MBUtil.tag(m.role) + '</td>'
+  + '<td>' + E(m.dept) + '</td>'
+  + '<td class="td-num">' + m.fte + '</td></tr>');
+const totalFte = MBUtil.sum(P.members, m => m.fte);
+memberRows.push('<tr class="total-row"><td>Tổng</td><td></td><td class="td-num">' + totalFte + '</td></tr>');
+
+/* ──────────────────────────────── render trang ─────────────────────────── */
+document.getElementById('pms-page').innerHTML =
+  D.switcher('overview')
+  + D.summaryCard()
+
+  + D.card('Thông tin chung',
+    '<div class="field-grid">'
+    + D.field('Loại dự án', P.type)
+    + D.field('Hình thức', P.form)
+    + D.field('Mức độ ưu tiên', P.priority)
+    + D.field('Mã dự án', P.code)
+    + D.field('Tên dự án', P.name)
+    + D.field('Lãnh đạo phụ trách dự án', P.leader)
+    + D.field('Domain', P.domain)
+    + D.field('Ngày bắt đầu', MBUtil.fmtDate(P.startDate))
+    + D.field('Ngày kết thúc', MBUtil.fmtDate(P.endDate))
+    + D.field('Bối cảnh / Hiện trạng', P.context, 'full')
+    + D.field('Mục tiêu triển khai', P.objective, 'full')
+    + D.field('Phạm vi triển khai', P.scopeText, 'full')
+    + '</div>',
+    '<label class="toggle"><input type="checkbox" id="share-off"' + (P.shareDisabled ? ' checked' : '') + '>'
+    + '<span class="toggle-track"></span>'
+    + '<span class="toggle-label">Không chia sẻ thông tin dự án</span></label>')
+
+  + D.card('Đăng ký OKR và kết quả thực tế',
+    subTable([
+      { label: 'Mục tiêu (Object)' },
+      { label: 'Kết quả dự kiến (Key Result)' },
+      { label: 'Kết quả thực tế (Result)' },
+      { label: 'Mức đạt', w: '190px' }
+    ], okrRows, '900px'))
+
+  + D.card('Nhân sự phụ trách dự án',
+    '<div class="field-grid">'
+    + D.field('Giám đốc dự án (Project Director)', P.people.pd)
+    + D.field('Giám đốc kỹ thuật (Technical Director)', P.people.td)
+    + D.field('Quản lý dự án (Project Manager)', P.people.pm)
+    + '</div>')
+
+  + D.card('Thành viên dự án',
+    subTable([
+      { label: 'Vai trò (Role)', w: '180px' },
+      { label: 'Phòng ban (Department)' },
+      { label: 'Số lượng nhân sự (FTE)', w: '200px' }
+    ], memberRows, '700px'),
+    '<span class="tag">' + totalFte + ' FTE</span>')
+
+  + D.card('Liên kết hệ thống ngoài',
+    '<div class="field-grid">'
+    + D.field('Jira Project Key', P.external.jiraKey || '— chưa ánh xạ')
+    + D.field('OPMS Demand', P.external.opmsDemand || '— chưa ánh xạ')
+    + D.field('Theo dõi TTM', P.external.ttmEnabled ? 'Đã bật' : 'Chưa bật')
+    + '</div>'
+    + '<div class="alert alert-info mt-16"><span class="msym">link</span>'
+    + '<div>Theo mô hình định danh trong PMS-HLAD, <b>ProjectId</b> của PMS là UUID bất biến; '
+    + 'Jira key và OPMS demand chỉ là <i>external binding</i> có hiệu lực theo thời gian, '
+    + 'không dùng làm khóa chính.</div></div>',
+    '', true)
+
+  + D.footer();
+
+D.wire();
+D.headerActions();
+
+document.getElementById('share-off').addEventListener('change', (e) => {
+  PMSNotify.info(e.target.checked ? 'Đã tắt chia sẻ thông tin dự án' : 'Đã bật chia sẻ thông tin dự án',
+    e.target.checked ? 'Chỉ tổ dự án và lãnh đạo phụ trách xem được chi tiết.'
+                     : 'Các đơn vị liên quan xem được thông tin chung.');
+});
+document.querySelectorAll('.table-inner').forEach(t => PMSTip.bindTruncated(t));
+</script>
+
+<!--
+## 📊 Component Coverage Report — Chi tiết dự án · Thông tin chung
+
+| # | Element | DS Component used | Status |
+|---|---------|------------------|--------|
+| 1 | Left sidebar | AppSidebar | ✅ DS |
+| 2 | Breadcrumb + back + title + badge + actions | PageHeader (onBack + badge size="large") | ✅ DS |
+| 3 | Bộ chuyển 6 cấu phần | section-switcher (bespoke của XemChiTiet, tokens only) | ⚠️ Bespoke (DS không có component radio+underline) |
+| 4 | Dải chỉ số tóm tắt dự án | Card + Progress | ✅ DS |
+| 5 | 5 khối nội dung thu gọn được | Card / DCard (collapse) | ✅ DS |
+| 6 | Field chỉ xem, lưới 3 cột | Field | ✅ DS |
+| 7 | Bảng OKR, bảng thành viên (có dòng Tổng) | Table (+ tr.total-row) | ✅ DS |
+| 8 | Vai trò / tổng FTE | Tag | ✅ DS |
+| 9 | Mức đạt OKR | Progress | ✅ DS |
+| 10 | Công tắc chia sẻ thông tin | Toggle | ✅ DS |
+| 11 | Chọn dự án đang xem | Select | ✅ DS |
+| 12 | Ghi chú về external binding | Alert | ✅ DS |
+| 13 | Menu thao tác khác trên header | Dropdown (RowMenu shell) | ✅ DS |
+| 14 | Hộp thoại xác nhận xóa | Modal | ✅ DS |
+| 15 | Thông báo | Notification | ✅ DS |
+| 16 | Hàng đóng màn | DetailFooter align="center" | ✅ DS |
+
+**DS component coverage: 15 / 16 = 94%**
+Shell zones: ✅ AppSidebar · ✅ PageHeader · ❌ AppHeader (loại trừ theo mặc định của ias-design)
+
+⚠️ Gap handling đã áp dụng: "Chỉnh sửa" KHÔNG nằm trong action set khai báo của PageHeader
+(Tạo mới / Lịch sử / Ý kiến) nên được đưa vào `more_vert` overflow thay vì thêm một header action mới.
+
+## 🎨 Color Token Coverage — Chi tiết dự án · Thông tin chung
+
+| # | Element (property) | Location | Original hex | Category | Matched Semantic Alias | Match |
+|---|---|---|---|---|---|---|
+| 1 | Nền trang | `html,body` | `#F4F6FA` | background | `--color-bg-page` | ✅ Exact |
+| 2 | Nền card | `.d-card` | `#FFFFFF` | background | `--color-bg-surface` | ✅ Exact |
+| 3 | Viền card | `.d-card` | `#D9DBE9` | border | `--color-border-default` | ✅ Exact |
+| 4 | Nhãn field / nhãn chỉ số | `.field label`, `.hcm-caption.t-secondary` | `#6E7191` | text | `--color-text-secondary` | ✅ Exact |
+| 5 | Giá trị field / chỉ số | `.field .val`, `.metric-value` | `#14142A` | text | `--color-text-primary` | ✅ Exact |
+| 6 | Chú thích chỉ số | `.hcm-caption.t-muted` | `#A0A3BD` | text | `--color-text-muted` | ✅ Exact |
+| 7 | Radio của section-switcher (active) | `.sw-item.active .sw-radio::after` | `#141ED2` | background | `--color-bg-brand` | ✅ Exact |
+| 8 | Gạch chân section active | `.sw-item.active::after` | `#141ED2` | background | `--color-bg-brand` | ✅ Exact |
+| 9 | Viền radio chưa chọn | `.sw-radio` | `#C4C4D4` | border | `--color-border-strong` | ✅ Exact |
+| 10 | Chỉ số tiến độ đạt / lệch | `.t-success` / `.t-error` | `#00966D` / `#C30052` | text | `--color-text-success` / `--color-text-error` | ✅ Exact |
+| 11 | Nền dòng Tổng của bảng | `tr.total-row td` | `#F4F5FF` | background | `--color-primary-50` | ✅ Exact |
+| 12 | Gạch chân giá trị field | `.field .val` border-bottom | `#EDF2F7` | border | `--color-neutral-200` | ⚠️ Nearest (≈96%) — giữ nguyên spec Field |
+
+**Color token coverage: 11 / 12 exact, 1 ⚠️ nearest = 100% được map vào token khai báo · 0 severe gap**
+
+## 🔤 Typography Scale Coverage — Chi tiết dự án · Thông tin chung
+
+| # | Text element | Rendered size / weight | Matched scale | Match | Class used? |
+|---|---|---|---|---|---|
+| 1 | Detail title | 20px / 700 | H4 (22px/500) | ⚠️ Nearest — spec riêng của PageHeader | ❌ `.detail-title` |
+| 2 | Nhãn section-switcher | 14px / 600 | Subtitle 2 (14px/600) | ✅ Exact | ✅ `class="hcm-subtitle2"` |
+| 3 | Tiêu đề card | 16px / 700 | Subtitle 1 (16px/600) | ⚠️ Nearest | ✅ `.d-card-title` dùng `--type-subtitle1-size` |
+| 4 | Nhãn chỉ số tóm tắt | 12px / 500 | Caption (12px/500) | ✅ Exact | ✅ `class="hcm-caption"` |
+| 5 | Giá trị chỉ số tóm tắt | 18px / 700 | H5 (18px/500) | ⚠️ Nearest | ✅ `.metric-value` dùng `--type-h5-size` |
+| 6 | Nhãn field | 12px / 500 | Caption (12px/500) | ✅ Exact | ❌ `.field label` theo đúng spec Field |
+| 7 | Giá trị field | 14px / 400 | Body 2 (14px/400) | ✅ Exact | ❌ `.field .val` theo đúng spec Field |
+| 8 | Header / ô bảng | 11px/700 · 13px/400 | Overline · Body 2 | ⚠️ Nearest — spec riêng của Table | ❌ `.table-inner th/td` |
+
+**Typography scale coverage: 8 / 8 = 100% · Utility-class adoption: 4 / 8 = 50%**
+-->
+</body>
+</html>

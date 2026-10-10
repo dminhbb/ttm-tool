@@ -1167,7 +1167,7 @@ function EpicAlerts15Screen() {
       )}
 
       {data && !isEmbedded && !domainPending && (
-        <div className="border-b border-slate-300 pb-3 mb-3">
+        <div className="border-b border-fb-border pb-3 mb-3">
           <EpicStatWidgets
             gateMessage={statWidgetsGateMessage}
             items={[
@@ -1220,7 +1220,7 @@ function EpicAlerts15Screen() {
           wrapping — see epic-alerts-15.css. Empty-state labels are the short filter names. */}
       <section className="ttm-toolbar ttm-toolbar-row" aria-label="Bộ lọc Epic">
         <div className="ttm-toolbar-title flex items-center gap-1.5 text-xs font-bold text-black shrink-0 select-none">
-          <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
+          <CaretRight className="size-4 text-[var(--color-text-brand)]" weight="bold" />
           <span>Filters:</span>
         </div>
         {isAdminTierAccess && (
@@ -1308,10 +1308,10 @@ function EpicAlerts15Screen() {
         </button>
       </section>
 
-      <div className="border-t border-slate-300 pt-3 mb-3 flex items-center justify-between gap-3 overflow-x-auto">
+      <div className="border-t border-fb-border pt-3 mb-3 flex items-center justify-between gap-3 overflow-x-auto">
         <div className="flex items-center gap-2 shrink-0 flex-nowrap">
           <div className="flex items-center gap-1.5 text-xs font-bold text-black shrink-0 mr-1 select-none">
-            <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
+            <CaretRight className="size-4 text-[var(--color-text-brand)]" weight="bold" />
             <span>Quick filters:</span>
           </div>
           <Tooltip content="Lọc các Epic có status là Pending" side="top" className="inline-flex w-auto shrink-0">
@@ -1320,8 +1320,8 @@ function EpicAlerts15Screen() {
               onClick={handlePendingQuickFilter}
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                 activeQuickFilter === 'PENDING'
-                  ? 'bg-amber-500 border-amber-600 text-white shadow-sm'
-                  : 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100 hover:border-amber-400'
+                  ? 'bg-status-warning border-status-warning text-white shadow-sm'
+                  : 'bg-status-warning-soft border-status-warning text-status-warning hover:bg-status-warning-soft hover:border-status-warning'
               }`}
             >
               <HourglassMedium className="size-3.5" weight={activeQuickFilter === 'PENDING' ? 'bold' : 'regular'} />
@@ -1334,8 +1334,8 @@ function EpicAlerts15Screen() {
               onClick={handleInPoQuickFilter}
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                 activeQuickFilter === 'IN_PO'
-                  ? 'bg-[#1463f7] border-blue-700 text-white shadow-sm'
-                  : 'bg-blue-50 border-blue-200 text-blue-900 hover:bg-blue-100 hover:border-blue-300'
+                  ? 'bg-[var(--color-text-brand)] border-fb-blue text-white shadow-sm'
+                  : 'bg-fb-blue-soft border-fb-blue text-fb-blue hover:bg-fb-blue-soft hover:border-fb-blue'
               }`}
             >
               <FolderSimple className="size-3.5" weight={activeQuickFilter === 'IN_PO' ? 'bold' : 'regular'} />
@@ -1348,8 +1348,8 @@ function EpicAlerts15Screen() {
               onClick={handleNotInPoQuickFilter}
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                 activeQuickFilter === 'NOT_IN_PO'
-                  ? 'bg-purple-600 border-purple-700 text-white shadow-sm'
-                  : 'bg-purple-50 border-purple-200 text-purple-900 hover:bg-purple-100 hover:border-purple-300'
+                  ? 'bg-fb-accent border-fb-accent text-white shadow-sm'
+                  : 'bg-fb-accent-soft border-fb-accent text-fb-accent hover:bg-fb-accent-soft hover:border-fb-accent'
               }`}
             >
               <Sparkle className="size-3.5" weight={activeQuickFilter === 'NOT_IN_PO' ? 'bold' : 'regular'} />
@@ -1364,9 +1364,9 @@ function EpicAlerts15Screen() {
               type="button"
               onClick={handleSaveFilters}
               aria-label="Lưu trạng thái filter"
-              className="flex items-center justify-center p-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 hover:border-slate-400 text-slate-700 shadow-sm transition-colors cursor-pointer shrink-0"
+              className="flex items-center justify-center p-1.5 rounded border border-fb-border bg-white hover:bg-fb-surface-muted hover:border-fb-border text-fb-text-secondary shadow-sm transition-colors cursor-pointer shrink-0"
             >
-              <FloppyDisk className="size-4 text-slate-600" weight="bold" />
+              <FloppyDisk className="size-4 text-fb-text-secondary" weight="bold" />
             </button>
           </Tooltip>
           <Tooltip content="Đặt lại bộ lọc mặc định" side="top" className="inline-flex w-auto shrink-0">
@@ -1374,32 +1374,32 @@ function EpicAlerts15Screen() {
               type="button"
               onClick={handleResetFilters}
               aria-label="Đặt lại bộ lọc mặc định"
-              className="flex items-center justify-center p-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 hover:border-slate-400 text-slate-700 shadow-sm transition-colors cursor-pointer shrink-0"
+              className="flex items-center justify-center p-1.5 rounded border border-fb-border bg-white hover:bg-fb-surface-muted hover:border-fb-border text-fb-text-secondary shadow-sm transition-colors cursor-pointer shrink-0"
             >
-              <ArrowCounterClockwise className="size-4 text-slate-600" weight="bold" />
+              <ArrowCounterClockwise className="size-4 text-fb-text-secondary" weight="bold" />
             </button>
           </Tooltip>
         </div>
       </div>
 
-      <div className="border-t border-slate-300 pt-3 mb-4">
+      <div className="border-t border-fb-border pt-3 mb-4">
         <button
           type="button"
           onClick={() => setAdvancedFiltersOpen((prev) => !prev)}
-          className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[#1463f7] transition-colors"
+          className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[var(--color-text-brand)] transition-colors"
         >
-          {advancedFiltersOpen ? <CaretDown className="size-4 text-[#1463f7]" weight="bold" /> : <CaretRight className="size-4 text-[#1463f7]" weight="bold" />}
+          {advancedFiltersOpen ? <CaretDown className="size-4 text-[var(--color-text-brand)]" weight="bold" /> : <CaretRight className="size-4 text-[var(--color-text-brand)]" weight="bold" />}
           <span>Advanced Filters</span>
         </button>
         {advancedFiltersOpen && (
-          <div className="mt-3 space-y-3 pl-2 border-l-2 border-[#1463f7] pt-1">
+          <div className="mt-3 space-y-3 pl-2 border-l-2 border-[var(--color-text-brand)] pt-1">
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-[11px] font-bold text-black">Chọn lớp dữ liệu</label>
-                <span className="text-[10px] text-gray-700 font-medium">Chọn 1 lớp dữ liệu, dữ liệu sẽ tự động drill xuống các lớp cũ hơn nếu thiếu.</span>
+                <span className="text-[11px] text-fb-text-secondary font-medium">Chọn 1 lớp dữ liệu, dữ liệu sẽ tự động drill xuống các lớp cũ hơn nếu thiếu.</span>
               </div>
               {availableLayerDates.length === 0 ? (
-                <p className="text-[11px] text-gray-600">Chưa có lớp dữ liệu nào trong hệ thống.</p>
+                <p className="text-[11px] text-fb-text-secondary">Chưa có lớp dữ liệu nào trong hệ thống.</p>
               ) : (
                 <div className="flex flex-wrap items-center gap-2">
                   {recentLayerDates.map((layer, idx) => {
@@ -1410,17 +1410,17 @@ function EpicAlerts15Screen() {
                         type="button"
                         onClick={() => { setSelectedLayerAnchor(layer); setPage(1); }}
                         title={`Chọn lớp dữ liệu ${layer} (drill xuống các lớp cũ hơn)`}
-                        className={`flex items-center gap-1.5 rounded-none border px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${isSelected ? 'border-[#1463f7] bg-[#1463f7] text-white' : 'border-slate-400 bg-white text-gray-800 hover:border-black'}`}
+                        className={`flex items-center gap-1.5 rounded-none border px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${isSelected ? 'border-[var(--color-text-brand)] bg-[var(--color-text-brand)] text-white' : 'border-fb-border bg-white text-fb-text-primary hover:border-black'}`}
                       >
                         {isSelected && <Check className="size-3.5" weight="bold" />}
                         <span>{layer}</span>
-                        {idx === 0 && <span className="bg-black text-white px-1 text-[9px] uppercase">Mới nhất</span>}
+                        {idx === 0 && <span className="bg-black text-white px-1 text-[11px] uppercase">Mới nhất</span>}
                       </button>
                     );
                   })}
                   {olderLayerDates.length > 0 && (
                     <select
-                      className={`rounded-none border px-2 py-1.5 text-xs font-bold font-mono cursor-pointer ${olderLayerDates.includes(effectiveLayerAnchor) ? 'border-[#1463f7] text-[#1463f7]' : 'border-slate-400 text-gray-800'}`}
+                      className={`rounded-none border px-2 py-1.5 text-xs font-bold font-mono cursor-pointer ${olderLayerDates.includes(effectiveLayerAnchor) ? 'border-[var(--color-text-brand)] text-[var(--color-text-brand)]' : 'border-fb-border text-fb-text-primary'}`}
                       value={olderLayerDates.includes(effectiveLayerAnchor) ? effectiveLayerAnchor : ''}
                       onChange={(event) => { if (event.target.value) { setSelectedLayerAnchor(event.target.value); setPage(1); } }}
                       title="Chọn 1 lớp dữ liệu cũ hơn (ngoài 5 lớp gần nhất) — drill xuống các lớp cũ hơn nữa"
@@ -1432,14 +1432,14 @@ function EpicAlerts15Screen() {
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-slate-300 pt-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-fb-border pt-3">
               <div>
                 <label className="mb-1 block text-[11px] font-bold text-black">Epic tạo mới từ (Created Date ≥)</label>
                 <input
                   type="date"
                   value={createdDateFrom}
                   onChange={(event) => { setCreatedDateFrom(event.target.value); setPage(1); }}
-                  className={`w-full rounded-none border ${createdDateFrom ? 'border-red-600 has-filter' : 'border-slate-400'} bg-white px-3 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono`}
+                  className={`w-full rounded-none border ${createdDateFrom ? 'border-status-danger has-filter' : 'border-fb-border'} bg-white px-3 py-1.5 text-xs outline-none focus:border-[var(--color-text-brand)] font-mono`}
                 />
               </div>
               <div>
@@ -1448,7 +1448,7 @@ function EpicAlerts15Screen() {
                   type="date"
                   value={startDateFromFilter}
                   onChange={(event) => { setStartDateFromFilter(event.target.value); setPage(1); }}
-                  className={`w-full rounded-none border ${startDateFromFilter ? 'border-red-600 has-filter' : 'border-slate-400'} bg-white px-3 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono`}
+                  className={`w-full rounded-none border ${startDateFromFilter ? 'border-status-danger has-filter' : 'border-fb-border'} bg-white px-3 py-1.5 text-xs outline-none focus:border-[var(--color-text-brand)] font-mono`}
                 />
               </div>
               <div>
@@ -1457,7 +1457,7 @@ function EpicAlerts15Screen() {
                   type="date"
                   value={dueDateFromFilter}
                   onChange={(event) => { setDueDateFromFilter(event.target.value); setPage(1); }}
-                  className={`w-full rounded-none border ${dueDateFromFilter ? 'border-red-600 has-filter' : 'border-slate-400'} bg-white px-3 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono`}
+                  className={`w-full rounded-none border ${dueDateFromFilter ? 'border-status-danger has-filter' : 'border-fb-border'} bg-white px-3 py-1.5 text-xs outline-none focus:border-[var(--color-text-brand)] font-mono`}
                 />
               </div>
             </div>
@@ -1613,8 +1613,8 @@ function EpicAlerts15Screen() {
                     <TD className={allColumnsCollapsed ? 'ttm-col-compact-status' : 'ttm-col-roomy'}><StatusBadge status={row.currentStatus} /></TD>
                     <TD className="ttm-phase-cell pass">
                       {row.stages.release.baselineSourceDate ? (
-                        <span className="inline-flex items-center gap-0.5 text-slate-500 font-medium text-[11px]">
-                          <CaretRight className="size-3 shrink-0 text-slate-500" weight="bold" />
+                        <span className="inline-flex items-center gap-0.5 text-fb-text-placeholder font-medium text-[11px]">
+                          <CaretRight className="size-3 shrink-0 text-fb-text-placeholder" weight="bold" />
                           <span>{formatDate(row.stages.release.baselineSourceDate)}</span>
                         </span>
                       ) : (
@@ -1625,8 +1625,8 @@ function EpicAlerts15Screen() {
                       <TD><span className="ttm-metric na">Không có</span></TD>
                     ) : (
                       <TD className="ttm-phase-cell pass">
-                        <span className="inline-flex items-center gap-0.5 text-slate-500 font-medium text-[11px]">
-                          <CaretLineRight className="size-3 shrink-0 text-slate-500" weight="bold" />
+                        <span className="inline-flex items-center gap-0.5 text-fb-text-placeholder font-medium text-[11px]">
+                          <CaretLineRight className="size-3 shrink-0 text-fb-text-placeholder" weight="bold" />
                           <span>{formatDate(row.t1StartDate)}</span>
                         </span>
                       </TD>

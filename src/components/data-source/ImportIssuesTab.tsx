@@ -436,7 +436,8 @@ export function ImportIssuesTab() {
                                 </Badge>
                               </TD>
                               <TD>
-                                <ul className="m-0 flex list-none flex-row flex-nowrap gap-4 p-0 font-sans">
+                                {/* `font-sans` đã bỏ (2026-10-10) — xem ghi chú ở globals.css. */}
+                                <ul className="m-0 flex list-none flex-row flex-nowrap gap-4 p-0">
                                   {row.errors.map((err, eIdx) => (
                                     <li key={eIdx} className={`whitespace-nowrap ${err.type === 'ERROR' ? 'text-status-danger' : 'text-status-warning'}`}>
                                       <strong>{err.field}:</strong> {err.message}
@@ -648,21 +649,21 @@ export function ImportIssuesTab() {
               <p className="pt-1 font-bold text-fb-text-primary">
                 Quy tắc đặt tên file để tự động nhận dạng ngày giờ:
               </p>
-              <code className="block break-all rounded-xl border border-fb-border bg-fb-surface-muted px-3 py-2.5 font-mono text-[10px] text-fb-text-primary select-all">
+              <code className="block break-all rounded-xl border border-fb-border bg-fb-surface-muted px-3 py-2.5 font-mono text-[11px] text-fb-text-primary select-all">
                 Jira 2026-08-07T15_18_36+0700.csv
               </code>
-              <p className="text-[10px] leading-4 text-fb-text-secondary">
+              <p className="text-[11px] leading-4 text-fb-text-secondary">
                 Hệ thống nhận diện và thiết lập thời gian tổng hợp là 07/08/2026 15:18.
               </p>
 
               <p className="pt-2 font-bold text-fb-text-primary">
                 Cấu trúc file CSV — Adapter &quot;Py Jira API&quot; (mặc định):
               </p>
-              <p className="text-[10px] leading-4 text-fb-text-secondary">
+              <p className="text-[11px] leading-4 text-fb-text-secondary">
                 Mỗi dòng ứng với 1 issue (Epic/Story/Subtask), phân biệt qua cột <code>hierarchy_level</code>.
                 Cột theo từng cấp (chỉ điền ở dòng tương ứng cấp đó, các dòng khác để trống):
               </p>
-              <ul className="list-disc pl-4 text-[10px] leading-5 text-fb-text-secondary">
+              <ul className="list-disc pl-4 text-[11px] leading-5 text-fb-text-secondary">
                 <li><strong className="text-fb-text-primary">Epic</strong>: epic_key, epic_name, epic_status, epic_request_type, epic_request_level, epic_assignee, epic_requesting_unit (Đơn vị yêu cầu), epic_idea_approval_date, epic_start_date, epic_due_date, epic_r4g_date, epic_created, epic_updated, epic_Components, epic_stories</li>
                 <li><strong className="text-fb-text-primary">Story</strong>: story_key, story_issue_type, story_summary, story_status, story_assignee, story_Components, story_subtasks (+ epic_key của dòng)</li>
                 <li><strong className="text-fb-text-primary">Subtask</strong>: subtask_key, subtask_issue_type, subtask_summary, subtask_status, subtask_assignee, subtask_start_date, subtask_due_date (+ story_key, epic_key của dòng)</li>
@@ -671,7 +672,7 @@ export function ImportIssuesTab() {
               <div className="mt-2 border-t border-fb-border pt-3.5">
                 <a
                   href="/brd/Jira 2026-08-07T15_18_36+0700.csv"
-                  className="inline-flex items-center gap-2 text-[10.5px] font-bold text-fb-blue transition-colors hover:text-fb-blue-hover focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-fb-blue/20"
+                  className="inline-flex items-center gap-2 text-[11px] font-bold text-fb-blue transition-colors hover:text-fb-blue-hover focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-fb-blue/20"
                 >
                   <DownloadSimple className="w-4 h-4" weight="bold" />
                   Tải file mẫu CSV (Pure Jira Export)
@@ -680,7 +681,7 @@ export function ImportIssuesTab() {
               <div>
                 <a
                   href="/brd/py_jira_api_sample.csv"
-                  className="inline-flex items-center gap-2 text-[10.5px] font-bold text-fb-blue transition-colors hover:text-fb-blue-hover focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-fb-blue/20"
+                  className="inline-flex items-center gap-2 text-[11px] font-bold text-fb-blue transition-colors hover:text-fb-blue-hover focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-fb-blue/20"
                 >
                   <DownloadSimple className="w-4 h-4" weight="bold" />
                   Tải file mẫu CSV (Py Jira API)
@@ -705,7 +706,8 @@ export function ImportIssuesTab() {
         }
       >
         {selectedBatch && (
-          <div className="flex flex-col gap-4 font-sans">
+          // `font-sans` đã bỏ (2026-10-10) — utility đó đè font brand bằng font hệ thống.
+          <div className="flex flex-col gap-4">
             <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-xl border border-fb-border bg-fb-surface-muted p-3 text-[11.5px]">
               <div><strong>File:</strong> {selectedBatch.fileName}</div>
               <div><strong>Lớp dữ liệu:</strong> {formatDate(selectedBatch.aggregatedAt)}</div>

@@ -14,7 +14,7 @@ interface HelpPanelProps {
 const GROUP_TONE: Record<FindingGroup, string> = {
   FAIL: 'bg-status-danger-soft text-status-danger border-status-danger/30',
   ALERT: 'bg-status-warning-soft text-status-warning border-status-warning/30',
-  RECOMMENDATION: 'bg-[rgb(124_58_237/0.12)] text-[#7c3aed] border-[#7c3aed]/30',
+  RECOMMENDATION: 'bg-[rgb(124_58_237/0.12)] text-[var(--color-accent-500)] border-[var(--color-accent-500)]/30',
   PASS: 'bg-status-success-soft text-status-success border-status-success/30',
   NOTE: 'bg-fb-surface-muted text-fb-text-secondary border-fb-border',
 };
@@ -33,7 +33,7 @@ function BadgeChip({ badge }: { badge: BadgeDefinition }) {
 
 function GroupChip({ group }: { group: FindingGroup }) {
   const label = FINDING_GROUPS.find((item) => item.id === group)?.label ?? group;
-  return <span className={`inline-flex whitespace-nowrap rounded border px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wide ${GROUP_TONE[group]}`}>{label}</span>;
+  return <span className={`inline-flex whitespace-nowrap rounded border px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide ${GROUP_TONE[group]}`}>{label}</span>;
 }
 
 const badgeLabel = (id: string) => BADGE_LIST.find((badge) => badge.id === id)?.label ?? id;

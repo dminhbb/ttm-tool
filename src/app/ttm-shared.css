@@ -1,0 +1,255 @@
+/* ============================================================================
+   Lớp control dùng chung của các màn hình TTM — `.ttm-*`
+   ============================================================================
+
+   Vì sao file này tồn tại:
+
+   Ba file CSS theo route (`epic-alerts.css` 728 dòng, `epic-alerts-15.css` 971,
+   `epic-in-po.css` 891) định nghĩa GẦN NHƯ TRÙNG KHỚP cùng một bộ `.ttm-toolbar`
+   / `.ttm-select` / `.ttm-field` / `.has-filter` — thậm chí ở cùng số dòng. Tệ hơn,
+   cả hai dashboard từng `import '@/app/epic-alerts-15/epic-alerts-15.css'`, tức nạp
+   global CSS CỦA MỘT ROUTE KHÁC. Hậu quả:
+     - `:root { --ttm-* }` của route đó leak ra toàn document.
+     - `.has-filter { border-color: #dc2626 !important }` áp lên mọi trang.
+     - Năm route cùng nạp ba bản copy gần giống nhau, nên giá trị cuối cùng phụ
+       thuộc THỨ TỰ chunk CSS — không xác định. Đó chính là kiểu "màu lúc đúng lúc
+       sai" rất khó tái hiện.
+
+   File này chứa đúng phần mà HAI DASHBOARD thực sự dùng (`.ttm-app`, `.ttm-toolbar`,
+   `.ttm-select`, `.ttm-field`, `.ttm-button`, `.has-filter`, `.ttm-report-date`), để
+   chúng không phải import CSS của route khác nữa.
+
+   Phần dedup trọn vẹn ba file route còn lại thuộc Task 11 — đúng lúc ba màn hình đó
+   được làm tới, thay vì sửa mù bây giờ.
+   ========================================================================= */
+
+/* ── Remap họ token `--ttm-*` về semantic alias của IAS ───────────────────────
+   Đặt ở `:root[data-brand="ias"]` (specificity 0-2-0) nên nó THẮNG khối
+   `:root { --ttm-* }` (0-1-0) trong ba file route BẤT KỂ thứ tự nạp chunk —
+   đây là điểm quan trọng: dựa vào thứ tự nạp là cách lỗi cũ phát sinh.
+
+   Giữ nguyên toàn bộ TÊN biến để ba file route (và mọi chỗ dùng `var(--ttm-*)`)
+   vẫn chạy mà không phải sửa gì. */
+:root[data-brand="ias"] {
+  /* Brand — hệ cũ là xanh thép #2f5bd6/#3d6df2, nay về brand blue của IAS. */
+  --ttm-brand-900: var(--color-primary-900);
+  --ttm-brand-800: var(--color-primary-900);
+  --ttm-brand-700: var(--color-primary-700);
+  --ttm-brand-600: var(--color-primary-500);
+  --ttm-brand-500: var(--color-primary-400);
+  --ttm-brand-100: var(--color-primary-100);
+  --ttm-brand-050: var(--color-primary-50);
+
+  /* Trạng thái: bậc -700 là màu chữ, -100/-050 là nền tint. */
+  --ttm-success-700: var(--color-success-300);
+  --ttm-success-100: var(--color-bg-success);
+  --ttm-success-050: var(--color-bg-success);
+  --ttm-warning-700: var(--color-text-warning);
+  --ttm-warning-500: var(--color-warning-400);
+  --ttm-warning-100: var(--color-bg-warning);
+  --ttm-warning-050: var(--color-bg-warning);
+  --ttm-danger-800: var(--color-error-700);
+  --ttm-danger-700: var(--color-text-error);
+  --ttm-danger-600: var(--color-error-500);
+  --ttm-danger-100: var(--color-bg-error);
+  --ttm-danger-050: var(--color-bg-error);
+  /* IAS không có alias "info" cho màu chữ — dùng accent violet, giống cách
+     globals.css đã map `--info`. */
+  --ttm-info-700: var(--color-accent-700);
+  --ttm-info-100: var(--color-accent-100);
+
+  /* Neutral: khớp 1:1 sang thang neutral của IAS. */
+  --ttm-neutral-900: var(--color-neutral-900);
+  --ttm-neutral-700: var(--color-neutral-700);
+  --ttm-neutral-600: var(--color-neutral-600);
+  --ttm-neutral-500: var(--color-neutral-500);
+  --ttm-neutral-300: var(--color-neutral-300);
+  --ttm-neutral-200: var(--color-neutral-400);
+  --ttm-neutral-100: var(--color-neutral-100);
+  --ttm-neutral-050: var(--color-neutral-100);
+  --ttm-white: var(--color-neutral-0);
+
+  /* Mặt phẳng. Lưu ý --ttm-border trước đây là #94a3b8 — đậm hơn hẳn
+     --color-border-default (#D9DBE9) của IAS, nên bảng và control cũ trông
+     "nặng viền" hơn phần còn lại của app. */
+  --ttm-bg: var(--color-bg-page);
+  --ttm-card: var(--color-bg-surface);
+  --ttm-border: var(--color-border-default);
+  --ttm-text: var(--color-text-primary);
+  --ttm-muted: var(--color-text-secondary);
+
+  /* Hình khối theo thang IAS: control 8 · menu 6 · card 12. */
+  --ttm-radius-sm: var(--ias-radius-control-sm);
+  --ttm-radius-md: var(--ias-radius-control);
+  --ttm-radius-lg: var(--ias-radius-card);
+  /* Card IAS không có shadow. Popover thì có. */
+  --ttm-shadow-card: none;
+  --ttm-shadow-popover: var(--ias-shadow-popover);
+
+  /* QUAN TRỌNG: --ttm-font trước đây là `"Segoe UI", Arial, system-ui, …` và
+     `.ttm-app { font-family: var(--ttm-font) }` áp nó lên toàn bộ nội dung của
+     /epic-alerts, /epic-alerts-15, /epic-in-po — cộng cả hai dashboard qua import
+     CSS chéo route. Nghĩa là năm màn hình nặng nhất của app CHƯA BAO GIỜ dùng font
+     brand, kể cả sau khi lỗi specificity `font-sans` ở <body> được sửa. */
+  --ttm-font: var(--font-family-body);
+
+  /* Cỡ chữ: --ttm-font-size-xs là 10.5px, dưới sàn 12px của IAS. Nâng lên Caption.
+     Các bậc còn lại giữ nguyên vì đã nằm trên sàn. */
+  --ttm-font-size-xs: var(--type-caption-size);
+  --ttm-font-size-sm: var(--type-caption-size);
+  --ttm-font-size-md: 13px;
+  --ttm-font-size-base: var(--type-body2-size);
+  --ttm-font-size-lg: var(--type-h5-size);
+}
+
+/* ── Vỏ trang ───────────────────────────────────────────────────────────── */
+.ttm-app,
+.ttm-app * {
+  box-sizing: border-box;
+}
+.ttm-app {
+  font-family: var(--ttm-font);
+  color: var(--ttm-text);
+  /* Kéo hàng banner lên sát header — <main> dùng chung của AppShell có padding
+     trên riêng (p-4/p-6/p-8) mà trang này không bỏ được nếu không ảnh hưởng mọi
+     màn khác, nên đây là phần bù ở mức trang. */
+  margin-top: -8px;
+}
+
+/* ── Toolbar / filter bar ───────────────────────────────────────────────────
+   Khoảng cách với hàng banner (InfoBannerDisplay) ngay phía trên được giữ cố định
+   dù banner có hiện hay không, để vị trí toolbar không nhảy. */
+.ttm-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 16px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.ttm-toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ttm-field,
+.ttm-select,
+.ttm-button {
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--ttm-border);
+  border-radius: var(--ttm-radius-sm);
+  background: var(--ttm-card);
+  color: var(--ttm-text);
+  font-size: var(--ttm-font-size-md);
+  font-family: inherit;
+}
+
+/* CHỐNG TRÀN — phần quan trọng nhất của file này.
+   Trước đây toàn bộ clamp bề rộng chỉ tồn tại trong biến thể `.ttm-toolbar-row`
+   (epic-alerts-15.css:672-696), mà HAI DASHBOARD lại không dùng class đó. Kết quả:
+   `<select>` lấy bề rộng intrinsic theo `<option>` dài nhất (tên PM/SM, tên dự án
+   tiếng Việt, "Tất cả Domain…"), nên hàng filter hoặc đẩy ngang vượt container,
+   hoặc wrap thành nhiều hàng cao lộn xộn.
+   Giờ clamp là MẶC ĐỊNH, không phải tuỳ chọn. */
+.ttm-field,
+.ttm-select {
+  flex: 1 1 140px;
+  min-width: 0;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Nút không co lại và không bị cắt chữ — chúng là phần "cố định" của hàng, để
+   phần co giãn dồn vào các field. */
+.ttm-button {
+  flex-shrink: 0;
+  white-space: nowrap;
+  cursor: pointer;
+  font-weight: var(--font-weight-semibold);
+}
+.ttm-select {
+  cursor: pointer;
+}
+/* `input[type=date]` có bề rộng intrinsic tối thiểu do UA quy định (~110-130px) và
+   sẽ vượt khỏi ô grid nếu không được phép co. */
+.ttm-field[type='date'] {
+  min-width: 0;
+  width: 100%;
+}
+
+.ttm-field:focus,
+.ttm-select:focus,
+.ttm-button:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: var(--ias-focus-glow);
+}
+
+/* ── Dấu hiệu "bộ lọc đang được áp dụng" ────────────────────────────────────
+   Bỏ `!important` (bản cũ có ở cả 4 khai báo). Nó chỉ cần cho selector `.has-filter`
+   đứng một mình (0-1-0, ngang bằng `.ttm-select`); còn `.ttm-select.has-filter` là
+   0-2-0, vốn đã thắng — nên chỉ cần tách danh sách selector ra là xong.
+   `!important` trong một file global từng được import chéo route là thứ ép màu viền
+   đỏ lên những trang chẳng liên quan. */
+.ttm-select.has-filter,
+.ttm-field.has-filter,
+.ttm-multiselect-trigger.has-filter {
+  border-color: var(--color-border-error);
+}
+.ttm-select.has-filter:focus,
+.ttm-field.has-filter:focus,
+.ttm-multiselect-trigger.has-filter.is-open,
+.ttm-multiselect-trigger.has-filter:focus {
+  border-color: var(--color-border-error);
+  box-shadow: 0 0 0 3px rgba(235, 45, 75, 0.12);
+}
+
+/* Ô tìm kiếm theo từ khoá — nền trong suốt để hoà vào nền trang, giữ viền. */
+.ttm-search-field,
+.ttm-field[type='search'] {
+  background-color: transparent;
+  border: 1px solid var(--ttm-border);
+}
+.ttm-search-field.has-filter,
+.ttm-field[type='search'].has-filter {
+  border-color: var(--color-border-error);
+}
+
+/* ── Dòng "số liệu tính đến ngày …" ở đầu bảng ──────────────────────────── */
+.ttm-report-date {
+  color: var(--ttm-muted);
+  font-size: var(--ttm-font-size-sm);
+}
+.ttm-report-date b {
+  color: var(--ttm-text);
+}
+
+/* ── Đè các rule mà ba file route vẫn khai báo lại ────────────────────────────
+   `@import` đặt file này LÊN TRƯỚC nội dung của file route, nên với cùng
+   specificity thì rule của route thắng. Phần lớn điều đó không sao — các rule đó
+   giờ đọc `var(--ttm-*)` đã được remap về IAS ở trên, nên tự ra đúng màu.
+
+   Riêng hai thứ cần thắng tường minh, nên nâng specificity bằng
+   `:root[data-brand="ias"]` (0-3-0 so với 0-2-0 của route):
+     1. focus: route dùng `outline: 2px solid var(--ttm-brand-100)`, còn IAS dùng
+        viền brand + glow 3px.
+     2. clamp bề rộng: route khai báo lại `.ttm-field, .ttm-select, .ttm-button`
+        nhưng KHÔNG khai báo max-width/flex, nên clamp ở trên vẫn sống. Khẳng định
+        lại ở đây để nếu sau này ai thêm width vào file route thì vẫn không tràn. */
+:root[data-brand="ias"] .ttm-field:focus,
+:root[data-brand="ias"] .ttm-select:focus,
+:root[data-brand="ias"] .ttm-button:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: var(--ias-focus-glow);
+}
+
+:root[data-brand="ias"] .ttm-field,
+:root[data-brand="ias"] .ttm-select {
+  min-width: 0;
+  max-width: 220px;
+}

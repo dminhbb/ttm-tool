@@ -16,6 +16,7 @@ import {
   WarningCircle,
 } from '@phosphor-icons/react';
 
+import { cn } from '@/lib/utils';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -42,7 +43,29 @@ import type { TtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { DonutChartCard, type DonutDataItem } from '@/components/dashboard-new/DonutChartCard';
 import { EpicAlertsIframeModal } from '@/components/dashboard-new/EpicAlertsIframeModal';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
-import '@/app/epic-alerts-15/epic-alerts-15.css';
+// Trước đây đây là `import '@/app/epic-alerts-15/epic-alerts-15.css'` — xem ghi chú
+// cùng nội dung ở src/app/ttm-dashboard-2/page.tsx.
+import '@/app/ttm-shared.css';
+
+/**
+ * Nền `conic-gradient` cho ring chỉ số của KPI strip.
+ *
+ * Gom lại một chỗ vì ba ring trước đây mỗi cái lặp lại cùng một biểu thức với một
+ * hex khác nhau (`#0866ff` / `#7c3aed` / `#059669`) và cùng một track `#e4e6eb` —
+ * ba trong năm bộ palette song song của app. Giờ màu cung truyền vào dưới dạng
+ * token IAS, còn track dùng `--color-border-default`.
+ *
+ * `#e4e6eb` cũ là màu control của Facebook, không thuộc hệ màu nào của app.
+ *
+ * @param hasVerdict Chưa có kết luận thì vẽ vòng tròn xám trơn, KHÔNG vẽ 0% hay 100%.
+ * @param percent    Phần trăm đã đạt, 0-100.
+ * @param arcColor   Màu cung — truyền `var(--color-*)`, không truyền hex.
+ */
+function ringGradient(hasVerdict: boolean, percent: number, arcColor: string): string {
+  const track = 'var(--color-border-default)';
+  if (!hasVerdict) return track;
+  return `conic-gradient(${arcColor} 0% ${percent}%, ${track} ${percent}% 100%)`;
+}
 
 function computeDimensionDonuts(
   rows: DashboardEpicRow[],
@@ -704,11 +727,45 @@ export default function DashboardNewPage() {
     return map;
   }, [pipelinePhases]);
 
+  /* ── KPI strip — lớp trình bày dùng chung ───────────────────────────────────
+   * Chuẩn hoá theo IAS (docs/design/IAS-DESIGN-ADOPTION.md):
+   *
+   * - Mỗi tile là một `.ias-card` (viền 1px --color-border-default, radius 12,
+   *   KHÔNG shadow). Sắc thái cảnh báo thể hiện bằng NỀN TINT + MÀU CHỮ, không
+   *   bằng viền màu — IAS chỉ có một màu viền card duy nhất.
+   * - Nhãn lên 12px Caption (sàn chữ của IAS) và BỎ `uppercase`: tiếng Việt không
+   *   dùng letter-casing để nhấn, và ở 10px uppercase thì "FAIL TTM-CNTT (QLDA)"
+   *   wrap 2-3 dòng rồi kéo cao cả hàng 9 tile.
+   * - MỌI dòng chữ đều mang `.ias-truncate` → cắt bằng "…" và hover ra bubble đầy
+   *   đủ (TruncationTooltip mount sẵn trong AppShell). Trước đây `min-w-0` chỉ cho
+   *   ô text CO LẠI mà không cắt gì, nên chữ vẽ tràn qua viền card — rõ nhất ở
+   *   token không có khoảng trắng như "Done/Released".
+   * - Dòng phụ chứa 2-3 link bỏ `flex flex-wrap` (mỗi link một dòng → tile cao
+   *   5-6 dòng) để về MỘT dòng nowrap; mọi link vẫn bấm được như cũ.
+   */
+  const KPI_TILE = 'ias-card min-w-0 p-3';
+  /** 12px/700, một dòng, cắt bằng ellipsis. */
+  const KPI_LABEL = 'ias-caption ias-truncate font-bold';
+  /** Con số chính. Giữ 20px thay vì 24px của anatomy DataCard: strip có 9 tile ở
+   *  bề rộng tối thiểu 190px, 24px làm chật bố cục 3 dòng. */
+  const KPI_VALUE = 'mt-1 text-xl font-extrabold tabular-nums ias-truncate';
+  /** Dòng phụ: 12px, một dòng nowrap, hover ra đầy đủ. */
+  const KPI_SUB = 'ias-caption ias-truncate font-medium';
+  const KPI_SUB_LINK = 'underline-offset-2 hover:underline cursor-pointer font-bold';
+  /** Ring 48px (từ 56px) — xem ghi chú ở tile TTM-CNTT (QLDA) bên dưới. */
+  const KPI_RING = 'relative flex size-12 shrink-0 items-center justify-center rounded-full';
+  const KPI_RING_INNER =
+    'flex size-9 items-center justify-center rounded-full bg-fb-surface text-[11px] font-extrabold tabular-nums';
+
   const renderKpiStrip = () => (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
-    <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
-      <div className="rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs">
-        <p className="text-[10px] font-bold uppercase text-fb-text-secondary">
+    {/* `.ias-tile-grid` = repeat(auto-fit, minmax(190px, 1fr)) — tile XUỐNG DÒNG thay
+        vì bị nén. Trước đây `lg:grid-cols-5` ép 5 tile vào (viewport − sidebar)/5 ≈
+        115px, trong khi riêng ring + gap + padding đã chiếm 92px cố định. 190px là
+        bề rộng tối thiểu để một nhãn KPI tiếng Việt đọc được ở 12px. */}
+    <div className="ias-tile-grid flex-1 min-w-0">
+      <div className={KPI_TILE}>
+        <p className={cn(KPI_LABEL, 'text-fb-text-secondary')}>
           <button
             type="button"
             onClick={() => openEpicModal(toEpicAlertsLink(), 'Danh sách Epic - Tổng số Epic')}
@@ -718,21 +775,21 @@ export default function DashboardNewPage() {
             Tổng số Epic
           </button>
         </p>
-        <p className="mt-1 text-xl font-extrabold text-fb-text-primary">{executiveMetrics.total}</p>
-        <p className="text-[10px] text-fb-text-secondary flex flex-wrap gap-x-1.5">
+        <p className={cn(KPI_VALUE, 'text-fb-text-primary')}>{executiveMetrics.total}</p>
+        <p className={cn(KPI_SUB, 'text-fb-text-secondary')}>
           <button
             type="button"
             onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'DATA_ANOMALY_IN_SCOPE' }), 'Danh sách Epic - Sai lệch dữ liệu (trong phạm vi TTM-CNTT)')}
-            className="underline-offset-2 hover:underline cursor-pointer font-bold"
+            className={KPI_SUB_LINK}
             title="Xem danh sách Epic Sai lệch dữ liệu (trong phạm vi TTM-CNTT) ở Quản trị Epic"
           >
             {executiveMetrics.anomalyInScopeCount} sai lệch dữ liệu
           </button>
-          ·
+          {' · '}
           <button
             type="button"
             onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'MISSING_R4G_IN_SCOPE' }), 'Danh sách Epic - Chưa có R4G Date (trong phạm vi TTM-CNTT)')}
-            className="underline-offset-2 hover:underline cursor-pointer font-bold"
+            className={KPI_SUB_LINK}
             title="Xem danh sách Epic chưa có R4G Date (trong phạm vi TTM-CNTT) ở Quản trị Epic — Tổng số Epic trừ Sai lệch dữ liệu trừ Chưa có R4G Date = Epic hoàn thành (L04a)"
           >
             {executiveMetrics.missingR4gInScopeCount} chưa có R4G Date
@@ -742,32 +799,32 @@ export default function DashboardNewPage() {
 
       {/* Fail = Trễ R4G (L05ab) + Thiếu R4G (L05ba) — same split as the matrix's "Fail TTM" column; both
           are in the TTM-CNTT (QLDA) ring's denominator (Đạt + Fail) next to it. */}
-      <div className="rounded-xl border border-red-200 bg-red-50/50 p-3 shadow-xs">
-        <p className="text-[10px] font-bold uppercase text-status-danger">
+      <div className={cn(KPI_TILE, 'bg-[var(--color-bg-error)]')}>
+        <p className={cn(KPI_LABEL, 'text-[var(--color-text-error)]')}>
           <button
             type="button"
             onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'FAIL' }), 'Danh sách Epic - Fail TTM-CNTT (QLDA)')}
-            className="hover:underline cursor-pointer uppercase"
+            className="hover:underline cursor-pointer"
             title="Xem danh sách Epic Fail TTM-CNTT (QLDA) ở Quản trị Epic"
           >
             Fail TTM-CNTT (QLDA)
           </button>
         </p>
-        <p className="mt-1 text-xl font-extrabold text-status-danger">{executiveMetrics.failCntt}</p>
-        <p className="text-[10px] text-red-600 font-medium flex flex-wrap gap-x-1.5">
+        <p className={cn(KPI_VALUE, 'text-[var(--color-text-error)]')}>{executiveMetrics.failCntt}</p>
+        <p className={cn(KPI_SUB, 'text-[var(--color-text-error)]')}>
           <button
             type="button"
             onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'FAIL_LATE_R4G' }), 'Danh sách Epic - Fail TTM-CNTT (QLDA): Trễ R4G')}
-            className="underline-offset-2 hover:underline cursor-pointer font-bold"
+            className={KPI_SUB_LINK}
             title="L05ab — Có R4G Date nhưng muộn hơn Target"
           >
             {executiveMetrics.failCnttLateR4g} Trễ R4G
           </button>
-          ·
+          {' · '}
           <button
             type="button"
             onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'FAIL_MISSING_R4G' }), 'Danh sách Epic - Fail TTM-CNTT (QLDA): Thiếu R4G')}
-            className="underline-offset-2 hover:underline cursor-pointer font-bold"
+            className={KPI_SUB_LINK}
             title="L05ba — Chưa có R4G Date và đã quá Target"
           >
             {executiveMetrics.failCnttMissingR4g} Thiếu R4G
@@ -775,43 +832,34 @@ export default function DashboardNewPage() {
         </p>
       </div>
 
-      {/* Health Index Ring — TTM-CNTT (QLDA), scoped to this dashboard's filters (filteredRows) */}
-      <div className="col-span-2 sm:col-span-2 lg:col-span-1 rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs flex items-center justify-start gap-3">
-        <div
-          className="relative flex size-14 shrink-0 items-center justify-center rounded-full"
-          style={{
-            background: executiveMetrics.ttmHasVerdict
-              ? `conic-gradient(#0866ff 0% ${executiveMetrics.ttmHealthPctPrecise}%, #e4e6eb ${executiveMetrics.ttmHealthPctPrecise}% 100%)`
-              : '#e4e6eb',
-          }}
-        >
-          <div className="flex size-10 items-center justify-center rounded-full bg-fb-surface font-extrabold text-xs text-fb-blue">
+      {/* Health Index Ring — TTM-CNTT (QLDA), scoped to this dashboard's filters (filteredRows).
+          Ring nhỏ lại 48px (từ 56px): cùng với gap 10px và padding 24px thì phần cố
+          định còn 82px trong tile tối thiểu 190px, để lại ~108px cho chữ. */}
+      <div className={cn(KPI_TILE, 'flex items-center gap-2.5')}>
+        <div className={KPI_RING} style={{ background: ringGradient(executiveMetrics.ttmHasVerdict, executiveMetrics.ttmHealthPctPrecise, 'var(--color-bg-brand)') }}>
+          <div className={cn(KPI_RING_INNER, 'text-fb-blue')}>
             {executiveMetrics.ttmHealthLabel}
           </div>
         </div>
-        <div className="min-w-0" title="Tỷ lệ % Pass TTM-CNTT = Đạt / (Đạt + Fail) = L05aa / (L05aa + L05ab + L05ba)">
-          <p className="text-xs font-bold text-fb-text-primary">TTM-CNTT (QLDA)</p>
-          <p className="text-[10px] text-fb-text-secondary">{executiveMetrics.passTtm}/{executiveMetrics.judgedTtm}</p>
+        <div className="min-w-0 flex-1" title="Tỷ lệ % Pass TTM-CNTT = Đạt / (Đạt + Fail) = L05aa / (L05aa + L05ab + L05ba)">
+          <p className={cn(KPI_LABEL, 'text-fb-text-primary')}>TTM-CNTT (QLDA)</p>
+          <p className={cn(KPI_SUB, 'text-fb-text-secondary')}>{executiveMetrics.passTtm}/{executiveMetrics.judgedTtm}</p>
         </div>
       </div>
 
       {/* Health Index Ring — TTM-CNTT (QA), scoped to this dashboard's filters (filteredRows) */}
-      <div className="col-span-2 sm:col-span-2 lg:col-span-1 rounded-xl border border-fb-border bg-fb-surface p-3 shadow-xs flex items-center justify-start gap-3">
-        <div
-          className="relative flex size-14 shrink-0 items-center justify-center rounded-full"
-          style={{
-            background: hasTtmVerdict(qaMetrics)
-              ? `conic-gradient(#7c3aed 0% ${qaMetrics.pctPrecise}%, #e4e6eb ${qaMetrics.pctPrecise}% 100%)`
-              : '#e4e6eb',
-          }}
-        >
-          <div className="flex size-10 items-center justify-center rounded-full bg-fb-surface font-extrabold text-xs text-purple-700">
+      <div className={cn(KPI_TILE, 'flex items-center gap-2.5')}>
+        <div className={KPI_RING} style={{ background: ringGradient(hasTtmVerdict(qaMetrics), qaMetrics.pctPrecise, 'var(--color-accent-500)') }}>
+          <div className={cn(KPI_RING_INNER, 'text-[var(--color-accent-700)]')}>
             {formatTtmPassPct(qaMetrics)}
           </div>
         </div>
-        <div className="min-w-0" title="Cùng công thức TTM-CNTT (QLDA): Đạt / (Đạt + Fail), chỉ lấy Epic MVP Done / Released">
-          <p className="text-xs font-bold text-fb-text-primary">TTM-CNTT (QA)</p>
-          <p className="text-[10px] text-fb-text-secondary">
+        <div className="min-w-0 flex-1" title="Cùng công thức TTM-CNTT (QLDA): Đạt / (Đạt + Fail), chỉ lấy Epic MVP Done / Released">
+          <p className={cn(KPI_LABEL, 'text-fb-text-primary')}>TTM-CNTT (QA)</p>
+          {/* Đây chính là dòng từng tràn qua viền card: "Chưa có Epic MVP Done/Released"
+              dài 30 ký tự, và token "Done/Released" không có khoảng trắng để ngắt.
+              `.ias-truncate` cắt thành "Chưa có Epic MVP…" và hover ra đầy đủ. */}
+          <p className={cn(KPI_SUB, 'text-fb-text-secondary')}>
             {qaMetrics.total > 0 ? `${qaMetrics.pass}/${qaMetrics.denominator}` : 'Chưa có Epic MVP Done/Released'}
           </p>
         </div>
@@ -822,24 +870,17 @@ export default function DashboardNewPage() {
       <button
         type="button"
         onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'FAIL_E2E' }), 'Danh sách Epic - Fail TTM-E2E')}
-        className="col-span-2 sm:col-span-2 lg:col-span-1 flex items-center justify-start gap-3 rounded-xl border border-fb-border bg-fb-surface p-3 text-left shadow-xs transition-all hover:border-emerald-400 hover:shadow-sm cursor-pointer w-full"
+        className={cn(KPI_TILE, 'flex w-full items-center gap-2.5 text-left transition-colors hover:border-[var(--color-border-focus)] cursor-pointer')}
         title="Xem danh sách Epic Fail TTM-E2E ở Quản trị Epic"
       >
-        <div
-          className="relative flex size-14 shrink-0 items-center justify-center rounded-full"
-          style={{
-            background: hasTtmVerdict(e2eMetrics)
-              ? `conic-gradient(#059669 0% ${e2eMetrics.pctPrecise}%, #e4e6eb ${e2eMetrics.pctPrecise}% 100%)`
-              : '#e4e6eb',
-          }}
-        >
-          <div className="flex size-10 items-center justify-center rounded-full bg-fb-surface font-extrabold text-xs text-emerald-700">
+        <div className={KPI_RING} style={{ background: ringGradient(hasTtmVerdict(e2eMetrics), e2eMetrics.pctPrecise, 'var(--color-bg-success-solid)') }}>
+          <div className={cn(KPI_RING_INNER, 'text-[var(--color-text-success)]')}>
             {formatTtmPassPct(e2eMetrics)}
           </div>
         </div>
-        <div className="min-w-0">
-          <p className="text-xs font-bold text-fb-text-primary">Hoàn thành TTM-E2E</p>
-          <p className="text-[10px] text-fb-text-secondary">
+        <div className="min-w-0 flex-1">
+          <p className={cn(KPI_LABEL, 'text-fb-text-primary')}>Hoàn thành TTM-E2E</p>
+          <p className={cn(KPI_SUB, 'text-fb-text-secondary')}>
             {e2eMetrics.total > 0 ? `${e2eMetrics.pass}/${e2eMetrics.denominator}` : 'Chưa có Epic'}
           </p>
         </div>
@@ -852,15 +893,15 @@ export default function DashboardNewPage() {
         stack full-width, where a vertical line would have nothing to separate side-by-side. */}
     <div className="hidden w-px shrink-0 bg-fb-border lg:block" aria-hidden="true" />
 
-    <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-4">
-      <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 shadow-xs">
-        <p className="text-[10px] font-bold uppercase text-status-warning">{isScoringEngine ? 'Chậm tiến độ' : 'Cảnh báo (Sớm/Muộn)'}</p>
-        <p className="mt-1 text-xl font-extrabold text-status-warning">{executiveMetrics.lateWarning + executiveMetrics.earlyWarning}</p>
-        <p className="text-[10px] text-amber-700 font-medium">
+    <div className="ias-tile-grid flex-1 min-w-0">
+      <div className={cn(KPI_TILE, 'bg-[var(--color-bg-warning)]')}>
+        <p className={cn(KPI_LABEL, 'text-[var(--color-text-warning)]')}>{isScoringEngine ? 'Chậm tiến độ' : 'Cảnh báo (Sớm/Muộn)'}</p>
+        <p className={cn(KPI_VALUE, 'text-[var(--color-text-warning)]')}>{executiveMetrics.lateWarning + executiveMetrics.earlyWarning}</p>
+        <p className={cn(KPI_SUB, 'text-[var(--color-text-warning)]')}>
           <button
             type="button"
             onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'LATE' }), 'Danh sách Epic - Chậm tiến độ')}
-            className="underline-offset-2 hover:underline cursor-pointer font-bold"
+            className={KPI_SUB_LINK}
             title="Xem danh sách Epic Chậm tiến độ ở Quản trị Epic"
           >
             {executiveMetrics.lateWarning} muộn
@@ -869,7 +910,7 @@ export default function DashboardNewPage() {
           {!isScoringEngine && <button
             type="button"
             onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'EARLY' }), 'Danh sách Epic - Cảnh báo sớm')}
-            className="underline-offset-2 hover:underline cursor-pointer font-bold"
+            className={KPI_SUB_LINK}
             title="Xem danh sách Epic Cảnh báo sớm ở Quản trị Epic"
           >
             {executiveMetrics.earlyWarning} sớm
@@ -880,16 +921,16 @@ export default function DashboardNewPage() {
       <button
         type="button"
         onClick={() => openEpicModal(toEpicAlertsLink({ dataIssue: true }), 'Danh sách Epic - Sai lệch Dữ liệu')}
-        className="block text-left rounded-xl border border-purple-200 bg-purple-50/50 p-3 shadow-xs transition-all hover:border-purple-400 hover:shadow-sm cursor-pointer w-full"
+        className={cn(KPI_TILE, 'block w-full text-left bg-[var(--color-accent-100)] transition-colors hover:border-[var(--color-border-focus)] cursor-pointer')}
         title="Xem danh sách Epic sai lệch dữ liệu ở Quản trị Epic"
       >
-        <p className="text-[10px] font-bold uppercase text-purple-700">Sai lệch Dữ liệu</p>
-        <p className="mt-1 text-xl font-extrabold text-purple-700">{executiveMetrics.anomalyCount}</p>
-        <p className="text-[10px] text-purple-600 font-medium">Vi phạm rule R1-R7</p>
+        <p className={cn(KPI_LABEL, 'text-[var(--color-accent-700)]')}>Sai lệch dữ liệu</p>
+        <p className={cn(KPI_VALUE, 'text-[var(--color-accent-700)]')}>{executiveMetrics.anomalyCount}</p>
+        <p className={cn(KPI_SUB, 'text-[var(--color-accent-700)]')}>Vi phạm rule R1-R7</p>
       </button>
 
-      <div className="rounded-xl border border-sky-200 bg-sky-50/50 p-3 shadow-xs">
-        <p className="text-[10px] font-bold uppercase text-sky-700">
+      <div className={cn(KPI_TILE, 'bg-[var(--color-primary-50)]')}>
+        <p className={cn(KPI_LABEL, 'text-fb-blue')}>
           <button
             type="button"
             onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'WAITING_GOLIVE' }), 'Danh sách Epic - Chờ golive')}
@@ -899,30 +940,33 @@ export default function DashboardNewPage() {
             Chờ golive
           </button>
         </p>
-        <p className="mt-1 text-xl font-extrabold text-sky-700">{executiveMetrics.waitingGolive}</p>
-        <p className="text-[10px] text-sky-700 font-medium flex flex-wrap gap-x-1.5">
+        <p className={cn(KPI_VALUE, 'text-fb-blue')}>{executiveMetrics.waitingGolive}</p>
+        {/* Tile này trước đây nặng nhất: 3 link trong `flex flex-wrap` → mỗi link một
+            dòng, tile cao 5-6 dòng, và vì `lg:items-stretch` nên kéo cao CẢ HÀNG 9 tile.
+            Giờ một dòng nowrap + hover ra đầy đủ. */}
+        <p className={cn(KPI_SUB, 'text-fb-blue')}>
           <button
             type="button"
             onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'WAITING_GOLIVE_MISSING_R4G' }), 'Danh sách Epic - Chờ golive: Thiếu R4G Date')}
-            className="underline-offset-2 hover:underline cursor-pointer font-bold"
+            className={KPI_SUB_LINK}
             title="Xem danh sách Epic Chờ golive nhưng thiếu R4G Date ở Quản trị Epic"
           >
             {executiveMetrics.waitingGoliveMissingR4g} thiếu R4G
           </button>
-          ·
+          {' · '}
           <button
             type="button"
             onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'WAITING_GOLIVE_WITHIN_GRACE' }), 'Danh sách Epic - Chờ golive: Trong hạn')}
-            className="underline-offset-2 hover:underline cursor-pointer font-bold"
+            className={KPI_SUB_LINK}
             title="Xem danh sách Epic Chờ golive còn trong hạn R4G Date + 5 ngày làm việc ở Quản trị Epic"
           >
             {executiveMetrics.waitingGoliveWithinGrace} trong hạn
           </button>
-          ·
+          {' · '}
           <button
             type="button"
             onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'WAITING_GOLIVE_OVERDUE' }), 'Danh sách Epic - Chờ golive: Quá hạn')}
-            className="underline-offset-2 hover:underline cursor-pointer font-bold"
+            className={KPI_SUB_LINK}
             title="Xem danh sách Epic Chờ golive đã quá hạn R4G Date + 5 ngày làm việc ở Quản trị Epic"
           >
             {executiveMetrics.waitingGoliveOverdue} quá hạn
@@ -933,12 +977,12 @@ export default function DashboardNewPage() {
       <button
         type="button"
         onClick={() => openEpicModal(toEpicAlertsLink({ alert: 'JUSTIFY_GOLIVE' }), 'Danh sách Epic - Cần Giải trình Golive')}
-        className="block text-left rounded-xl border border-red-200 bg-red-50/50 p-3 shadow-xs transition-all hover:border-red-400 hover:shadow-sm cursor-pointer w-full"
+        className={cn(KPI_TILE, 'block w-full text-left bg-[var(--color-bg-error)] transition-colors hover:border-[var(--color-border-focus)] cursor-pointer')}
         title="Xem danh sách Epic cần Giải trình Golive ở Quản trị Epic"
       >
-        <p className="text-[10px] font-bold uppercase text-status-danger">Giải trình Golive</p>
-        <p className="mt-1 text-xl font-extrabold text-status-danger">{executiveMetrics.justifyGolive}</p>
-        <p className="text-[10px] text-red-600 font-medium">Quá hạn R4G Date + 5 ngày</p>
+        <p className={cn(KPI_LABEL, 'text-[var(--color-text-error)]')}>Giải trình golive</p>
+        <p className={cn(KPI_VALUE, 'text-[var(--color-text-error)]')}>{executiveMetrics.justifyGolive}</p>
+        <p className={cn(KPI_SUB, 'text-[var(--color-text-error)]')}>Quá hạn R4G Date + 5 ngày</p>
       </button>
     </div>
     </div>
@@ -1012,7 +1056,7 @@ export default function DashboardNewPage() {
                         toEpicAlertsLinkForMatrixItem(item, 'total'),
                         `Danh sách Epic - ${item.name} (Tổng số Epic)`
                       )}
-                      className="text-fb-blue hover:underline cursor-pointer font-bold inline-block px-1.5 py-0.5 rounded-sm hover:bg-blue-50 transition-colors"
+                      className="text-fb-blue hover:underline cursor-pointer font-bold inline-block px-1.5 py-0.5 rounded-sm hover:bg-fb-blue-soft transition-colors"
                       title={`Xem tất cả Epic của ${item.name}`}
                     >
                       {item.total}
@@ -1025,7 +1069,7 @@ export default function DashboardNewPage() {
                         toEpicAlertsLinkForMatrixItem(item, 'ttmEligible'),
                         `Danh sách Epic - ${item.name} (Epic hoàn thành)`
                       )}
-                      className="text-fb-blue hover:underline cursor-pointer font-bold inline-block px-1.5 py-0.5 rounded-sm hover:bg-blue-50 transition-colors"
+                      className="text-fb-blue hover:underline cursor-pointer font-bold inline-block px-1.5 py-0.5 rounded-sm hover:bg-fb-blue-soft transition-colors"
                       title={`Xem danh sách Epic hoàn thành (L04a — có R4G Date) của ${item.name}`}
                     >
                       {item.qlda.eligible}
@@ -1059,7 +1103,7 @@ export default function DashboardNewPage() {
                         toEpicAlertsLinkForMatrixItem(item, 'pass'),
                         `Danh sách Epic Pass TTM - ${item.name}`
                       )}
-                      className="text-status-success hover:underline cursor-pointer font-bold inline-block px-1.5 py-0.5 rounded-sm hover:bg-emerald-50 transition-colors"
+                      className="text-status-success hover:underline cursor-pointer font-bold inline-block px-1.5 py-0.5 rounded-sm hover:bg-status-success-soft transition-colors"
                       title={`Xem các Epic Pass TTM của ${item.name}`}
                     >
                       {item.qlda.pass}
@@ -1072,14 +1116,14 @@ export default function DashboardNewPage() {
                         toEpicAlertsLinkForMatrixItem(item, 'fail'),
                         `Danh sách Epic Fail TTM - ${item.name}`
                       )}
-                      className="text-status-danger hover:underline cursor-pointer font-bold inline-block px-1.5 py-0.5 rounded-sm hover:bg-red-50 transition-colors"
+                      className="text-status-danger hover:underline cursor-pointer font-bold inline-block px-1.5 py-0.5 rounded-sm hover:bg-status-danger-soft transition-colors"
                       title={`Xem các Epic Fail TTM của ${item.name}`}
                     >
                       {item.qlda.fail}
                     </button>
                     {/* Fail = Trễ R4G (L05ab) + Thiếu R4G (L05ba); TTM-CNTT (QLDA) = Pass / (Pass + Fail). */}
                     {item.qlda.fail > 0 && (
-                      <p className="text-[10px] font-medium text-fb-text-secondary whitespace-nowrap">
+                      <p className="text-[11px] font-medium text-fb-text-secondary whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => openEpicModal(toEpicAlertsLinkForMatrixItem(item, 'failLateR4g'), `Danh sách Epic Fail TTM: Trễ R4G - ${item.name}`)}
@@ -1115,14 +1159,14 @@ export default function DashboardNewPage() {
                           <div className="h-2 flex-1 rounded-full bg-fb-control overflow-hidden flex">
                             {hasTtmVerdict(item.qa) && (
                               <>
-                                <div style={{ width: `${item.qa.pct}%` }} className="bg-purple-600 h-full" title={`Pass QA: ${item.qa.pct}%`} />
+                                <div style={{ width: `${item.qa.pct}%` }} className="bg-fb-accent h-full" title={`Pass QA: ${item.qa.pct}%`} />
                                 <div style={{ width: `${100 - item.qa.pct}%` }} className="bg-status-danger h-full" title={`Rủi ro QA: ${100 - item.qa.pct}%`} />
                               </>
                             )}
                           </div>
-                          <span className="w-9 text-right text-xs font-bold text-purple-700 group-hover:underline">{hasTtmVerdict(item.qa) ? `${item.qa.pct}%` : '—'}</span>
+                          <span className="w-9 text-right text-xs font-bold text-fb-accent group-hover:underline">{hasTtmVerdict(item.qa) ? `${item.qa.pct}%` : '—'}</span>
                         </div>
-                        <p className="text-[10px] text-fb-text-secondary group-hover:underline">{item.qa.pass}/{item.qa.denominator} Epic MVP Done/Released</p>
+                        <p className="text-[11px] text-fb-text-secondary group-hover:underline">{item.qa.pass}/{item.qa.denominator} Epic MVP Done/Released</p>
                       </button>
                     ) : (
                       <span className="text-xs text-fb-text-placeholder">— Chưa có Epic MVP Done/Released</span>
@@ -1135,7 +1179,7 @@ export default function DashboardNewPage() {
                         toEpicAlertsLinkForMatrixItem(item, 'ok'),
                         `Danh sách Epic đúng tiến độ - ${item.name}`
                       )}
-                      className="text-fb-text-primary hover:underline cursor-pointer font-semibold inline-block px-1.5 py-0.5 rounded-sm hover:bg-slate-100 transition-colors"
+                      className="text-fb-text-primary hover:underline cursor-pointer font-semibold inline-block px-1.5 py-0.5 rounded-sm hover:bg-fb-surface-muted transition-colors"
                       title={`Xem các Epic đúng tiến độ của ${item.name}`}
                     >
                       {item.ok}
@@ -1148,7 +1192,7 @@ export default function DashboardNewPage() {
                         toEpicAlertsLinkForMatrixItem(item, 'late'),
                         `Danh sách Epic chậm tiến độ - ${item.name}`
                       )}
-                      className="text-status-warning hover:underline cursor-pointer font-bold inline-block px-1.5 py-0.5 rounded-sm hover:bg-amber-50 transition-colors"
+                      className="text-status-warning hover:underline cursor-pointer font-bold inline-block px-1.5 py-0.5 rounded-sm hover:bg-status-warning-soft transition-colors"
                       title={`Xem các Epic chậm tiến độ của ${item.name}`}
                     >
                       {item.late}
@@ -1184,14 +1228,14 @@ export default function DashboardNewPage() {
                 )}
                 className={`block text-left rounded-xl border p-3 shadow-xs transition-all hover:shadow-sm cursor-pointer w-full ${
                   phase.alertCount > 0
-                    ? 'border-red-200 bg-red-50/30 hover:border-red-400'
+                    ? 'border-status-danger bg-status-danger-soft/30 hover:border-status-danger'
                     : 'border-fb-border bg-fb-surface hover:border-fb-blue'
                 }`}
                 title={`Xem danh sách Epic giai đoạn ${phase.label}`}
               >
-                <p className="text-[10px] font-bold uppercase text-fb-text-secondary truncate">{phase.label}</p>
+                <p className="text-[11px] font-bold uppercase text-fb-text-secondary truncate">{phase.label}</p>
                 <p className="mt-1 text-xl font-extrabold text-fb-text-primary">{phase.count}</p>
-                <p className="text-[10px] font-medium mt-0.5">
+                <p className="text-[11px] font-medium mt-0.5">
                   {phase.alertCount > 0 ? (
                     <span className="text-status-danger flex items-center gap-1 font-semibold">
                       <WarningCircle className="size-3" weight="bold" /> {phase.alertCount} cảnh báo rủi ro
@@ -1209,21 +1253,21 @@ export default function DashboardNewPage() {
   );
 
   const renderEpicTypeSection = () => (
-    <div className="border-t border-slate-300 pt-3 mb-4">
+    <div className="border-t border-fb-border pt-3 mb-4">
       <button
         type="button"
         onClick={() => toggleSection('epicType')}
-        className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[#1463f7] transition-colors cursor-pointer select-none"
+        className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[var(--color-text-brand)] transition-colors cursor-pointer select-none"
       >
         {openSections.epicType ? (
-          <CaretDown className="size-4 text-[#1463f7]" weight="bold" />
+          <CaretDown className="size-4 text-[var(--color-text-brand)]" weight="bold" />
         ) : (
-          <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
+          <CaretRight className="size-4 text-[var(--color-text-brand)]" weight="bold" />
         )}
         <span>Theo Phân loại Epic</span>
       </button>
       {openSections.epicType && epicTypeDonuts && (
-        <div className="mt-3 pl-3 border-l-2 border-[#1463f7] pt-1">
+        <div className="mt-3 pl-3 border-l-2 border-[var(--color-text-brand)] pt-1">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <DonutChartCard
               title="% Tổng số Epic"
@@ -1288,7 +1332,7 @@ export default function DashboardNewPage() {
               title={formatTtmIndexTooltip('Chỉ số TTM-CNTT (QLDA) tính trên toàn bộ Epic trong ứng dụng (giống nhau với mọi người dùng)', data?.ttmIndexGlobal?.ttm)}
             >
               <div className="flex flex-col justify-center leading-none">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-fb-text-secondary group-hover:text-fb-blue transition-colors">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-fb-text-secondary group-hover:text-fb-blue transition-colors">
                   TTM-CNTT (QLDA)
                 </span>
                 <div className="flex items-baseline gap-1 mt-0.5">
@@ -1296,7 +1340,7 @@ export default function DashboardNewPage() {
                     {formatTtmIndexValue(data?.ttmIndexGlobal?.ttm)}
                   </span>
                   {data?.ttmIndexGlobal?.ttm && data.ttmIndexGlobal.ttm.total > 0 && (
-                    <span className="text-[10px] font-medium text-fb-text-secondary">
+                    <span className="text-[11px] font-medium text-fb-text-secondary">
                       ({data.ttmIndexGlobal.ttm.pass}/{data.ttmIndexGlobal.ttm.denominator})
                     </span>
                   )}
@@ -1307,19 +1351,19 @@ export default function DashboardNewPage() {
             <button
               type="button"
               onClick={() => openEpicModal(buildEpicAlertsDeepLink({ status: ['MVP Done', 'Released'] }), 'Quản trị Epic - TTM-CNTT (QA)')}
-              className="flex h-9 items-center gap-2 rounded-lg border border-fb-border bg-fb-surface-muted px-3 shrink-0 text-left transition-all hover:border-purple-400 hover:bg-fb-surface shadow-2xs cursor-pointer group"
+              className="flex h-9 items-center gap-2 rounded-lg border border-fb-border bg-fb-surface-muted px-3 shrink-0 text-left transition-all hover:border-fb-accent hover:bg-fb-surface shadow-2xs cursor-pointer group"
               title={formatTtmIndexTooltip('Chỉ số TTM-CNTT (QA) tính trên toàn bộ Epic trong ứng dụng, theo cách tính của QA (giống nhau với mọi người dùng)', data?.ttmIndexGlobal?.qa)}
             >
               <div className="flex flex-col justify-center leading-none">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-fb-text-secondary group-hover:text-purple-700 transition-colors">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-fb-text-secondary group-hover:text-fb-accent transition-colors">
                   TTM-CNTT (QA)
                 </span>
                 <div className="flex items-baseline gap-1 mt-0.5">
-                  <span className="text-xs font-black text-purple-700">
+                  <span className="text-xs font-black text-fb-accent">
                     {formatTtmIndexValue(data?.ttmIndexGlobal?.qa)}
                   </span>
                   {data?.ttmIndexGlobal?.qa && data.ttmIndexGlobal.qa.total > 0 && (
-                    <span className="text-[10px] font-medium text-fb-text-secondary">
+                    <span className="text-[11px] font-medium text-fb-text-secondary">
                       ({data.ttmIndexGlobal.qa.pass}/{data.ttmIndexGlobal.qa.denominator})
                     </span>
                   )}
@@ -1330,19 +1374,19 @@ export default function DashboardNewPage() {
             <button
               type="button"
               onClick={() => openEpicModal(buildEpicAlertsDeepLink({ alert: 'FAIL_E2E' }), 'Quản trị Epic - Fail TTM-E2E')}
-              className="flex h-9 items-center gap-2 rounded-lg border border-fb-border bg-fb-surface-muted px-3 shrink-0 text-left transition-all hover:border-emerald-400 hover:bg-fb-surface shadow-2xs cursor-pointer group"
+              className="flex h-9 items-center gap-2 rounded-lg border border-fb-border bg-fb-surface-muted px-3 shrink-0 text-left transition-all hover:border-status-success hover:bg-fb-surface shadow-2xs cursor-pointer group"
               title={formatTtmIndexTooltip('Chỉ số Hoàn thành TTM-E2E tính trên toàn bộ Epic trong ứng dụng (giống nhau với mọi người dùng)', data?.ttmIndexGlobal?.e2e)}
             >
               <div className="flex flex-col justify-center leading-none">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-fb-text-secondary group-hover:text-emerald-700 transition-colors">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-fb-text-secondary group-hover:text-status-success transition-colors">
                   TTM-E2E
                 </span>
                 <div className="flex items-baseline gap-1 mt-0.5">
-                  <span className="text-xs font-black text-emerald-700">
+                  <span className="text-xs font-black text-status-success">
                     {formatTtmIndexValue(data?.ttmIndexGlobal?.e2e)}
                   </span>
                   {data?.ttmIndexGlobal?.e2e && data.ttmIndexGlobal.e2e.total > 0 && (
-                    <span className="text-[10px] font-medium text-fb-text-secondary">
+                    <span className="text-[11px] font-medium text-fb-text-secondary">
                       ({data.ttmIndexGlobal.e2e.pass}/{data.ttmIndexGlobal.e2e.denominator})
                     </span>
                   )}
@@ -1352,8 +1396,8 @@ export default function DashboardNewPage() {
           </div>
 
           {data?.isUserPreview && (
-            <div className="flex h-9 items-center gap-2 rounded-lg bg-amber-50 px-3 border border-amber-300 text-amber-900 text-xs shrink-0">
-              <Eye className="size-4 shrink-0 text-amber-600" weight="bold" />
+            <div className="flex h-9 items-center gap-2 rounded-lg bg-status-warning-soft px-3 border border-status-warning text-status-warning text-xs shrink-0">
+              <Eye className="size-4 shrink-0 text-status-warning" weight="bold" />
               <span className="truncate">
                 Đang xem góc nhìn của User: <strong>{data.viewAsUser?.fullName}</strong> ({data.viewAsUser?.email})
               </span>
@@ -1363,7 +1407,7 @@ export default function DashboardNewPage() {
                   setPreviewUserId(null);
                   setViewMode('EXECUTIVE');
                 }}
-                className="h-7 shrink-0 rounded-md bg-white border border-amber-300 px-2.5 text-xs font-bold text-amber-900 hover:bg-amber-100 transition-colors shadow-xs"
+                className="h-7 shrink-0 rounded-md bg-white border border-status-warning px-2.5 text-xs font-bold text-status-warning hover:bg-status-warning-soft transition-colors shadow-xs"
               >
                 Trở về Lead View
               </button>
@@ -1410,7 +1454,7 @@ export default function DashboardNewPage() {
       {/* Common Filter Toolbar matching Quản trị Epic */}
       <section className="ttm-toolbar" aria-label="Bộ lọc Dashboard">
         <div className="flex items-center gap-1.5 text-xs font-bold text-black shrink-0 mr-1 select-none">
-          <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
+          <CaretRight className="size-4 text-[var(--color-text-brand)]" weight="bold" />
           <span>Filters:</span>
         </div>
         {isAdminOrSupervisor && (
@@ -1461,20 +1505,20 @@ export default function DashboardNewPage() {
       {/* Advanced Filters — "Phạm vi dữ liệu cho TTM" override, live/uncached (2026-09-28). Collapsed
           by default: only the icon + title show until expanded, same pattern as Quản trị Epic's own
           "Bộ lọc nâng cao". */}
-      <div className="border-t border-slate-300 pt-3 mb-4" aria-label="Advanced Filters">
+      <div className="border-t border-fb-border pt-3 mb-4" aria-label="Advanced Filters">
         <button
           type="button"
           onClick={() => setAdvancedFiltersOpen((prev) => !prev)}
-          className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[#1463f7] transition-colors"
+          className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[var(--color-text-brand)] transition-colors"
         >
-          {advancedFiltersOpen ? <CaretDown className="size-4 text-[#1463f7]" weight="bold" /> : <CaretRight className="size-4 text-[#1463f7]" weight="bold" />}
+          {advancedFiltersOpen ? <CaretDown className="size-4 text-[var(--color-text-brand)]" weight="bold" /> : <CaretRight className="size-4 text-[var(--color-text-brand)]" weight="bold" />}
           <span>Advanced Filters</span>
         </button>
         {advancedFiltersOpen && (
-          <div className="mt-3 grid grid-cols-1 gap-4 border-l-2 border-[#1463f7] pl-3 pt-1 md:grid-cols-2">
+          <div className="mt-3 grid grid-cols-1 gap-4 border-l-2 border-[var(--color-text-brand)] pl-3 pt-1 md:grid-cols-2">
             <div>
               <label className="mb-1 block text-[11px] font-bold text-black">Filter R4G for TTM (CNTT)</label>
-              <p className="mb-1.5 text-[10px] text-gray-600">
+              <p className="mb-1.5 text-[11px] text-fb-text-secondary">
                 Epic có R4G Date: lọc A ≤ R4G Date ≤ B. Chưa có R4G Date: lọc theo TTM-CNTT (QLDA)
                 baseline. Để trống A/B = không giới hạn phía đó. Áp dụng cho TTM-CNTT (QLDA) và mọi
                 tính toán Pass/Fail liên quan tới TTM-CNTT (QLDA) trên trang này.
@@ -1484,22 +1528,22 @@ export default function DashboardNewPage() {
                   type="date"
                   value={filterCnttFrom}
                   onChange={(event) => setFilterCnttFrom(event.target.value)}
-                  className={`rounded-none border ${filterCnttFrom ? 'border-red-600 has-filter' : 'border-slate-400'} bg-white px-2 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono`}
+                  className={`rounded-none border ${filterCnttFrom ? 'border-status-danger has-filter' : 'border-fb-border'} bg-white px-2 py-1.5 text-xs outline-none focus:border-[var(--color-text-brand)] font-mono`}
                 />
-                <button type="button" disabled={!filterCnttFrom} onClick={() => setFilterCnttFrom('')} className="rounded-none border border-slate-400 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-600 hover:border-[#1463f7] hover:text-[#1463f7] disabled:cursor-not-allowed disabled:opacity-40">Để trống</button>
-                <span className="text-[11px] text-gray-500">đến</span>
+                <button type="button" disabled={!filterCnttFrom} onClick={() => setFilterCnttFrom('')} className="rounded-none border border-fb-border bg-white px-2 py-1.5 text-[11px] font-bold text-fb-text-secondary hover:border-[var(--color-text-brand)] hover:text-[var(--color-text-brand)] disabled:cursor-not-allowed disabled:opacity-40">Để trống</button>
+                <span className="text-[11px] text-fb-text-placeholder">đến</span>
                 <input
                   type="date"
                   value={filterCnttTo}
                   onChange={(event) => setFilterCnttTo(event.target.value)}
-                  className={`rounded-none border ${filterCnttTo ? 'border-red-600 has-filter' : 'border-slate-400'} bg-white px-2 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono`}
+                  className={`rounded-none border ${filterCnttTo ? 'border-status-danger has-filter' : 'border-fb-border'} bg-white px-2 py-1.5 text-xs outline-none focus:border-[var(--color-text-brand)] font-mono`}
                 />
-                <button type="button" disabled={!filterCnttTo} onClick={() => setFilterCnttTo('')} className="rounded-none border border-slate-400 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-600 hover:border-[#1463f7] hover:text-[#1463f7] disabled:cursor-not-allowed disabled:opacity-40">Để trống</button>
+                <button type="button" disabled={!filterCnttTo} onClick={() => setFilterCnttTo('')} className="rounded-none border border-fb-border bg-white px-2 py-1.5 text-[11px] font-bold text-fb-text-secondary hover:border-[var(--color-text-brand)] hover:text-[var(--color-text-brand)] disabled:cursor-not-allowed disabled:opacity-40">Để trống</button>
               </div>
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-bold text-black">Filter R4G for TTM (QA)</label>
-              <p className="mb-1.5 text-[10px] text-gray-600">
+              <p className="mb-1.5 text-[11px] text-fb-text-secondary">
                 Lọc theo C ≤ R4G Date ≤ D — Epic chưa có R4G Date bị loại khỏi phạm vi QA khi
                 có thiết lập. Để trống C/D = không giới hạn phía đó. Áp dụng cho TTM-CNTT (QA).
               </p>
@@ -1508,17 +1552,17 @@ export default function DashboardNewPage() {
                   type="date"
                   value={filterQaFrom}
                   onChange={(event) => setFilterQaFrom(event.target.value)}
-                  className={`rounded-none border ${filterQaFrom ? 'border-red-600 has-filter' : 'border-slate-400'} bg-white px-2 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono`}
+                  className={`rounded-none border ${filterQaFrom ? 'border-status-danger has-filter' : 'border-fb-border'} bg-white px-2 py-1.5 text-xs outline-none focus:border-[var(--color-text-brand)] font-mono`}
                 />
-                <button type="button" disabled={!filterQaFrom} onClick={() => setFilterQaFrom('')} className="rounded-none border border-slate-400 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-600 hover:border-[#1463f7] hover:text-[#1463f7] disabled:cursor-not-allowed disabled:opacity-40">Để trống</button>
-                <span className="text-[11px] text-gray-500">đến</span>
+                <button type="button" disabled={!filterQaFrom} onClick={() => setFilterQaFrom('')} className="rounded-none border border-fb-border bg-white px-2 py-1.5 text-[11px] font-bold text-fb-text-secondary hover:border-[var(--color-text-brand)] hover:text-[var(--color-text-brand)] disabled:cursor-not-allowed disabled:opacity-40">Để trống</button>
+                <span className="text-[11px] text-fb-text-placeholder">đến</span>
                 <input
                   type="date"
                   value={filterQaTo}
                   onChange={(event) => setFilterQaTo(event.target.value)}
-                  className={`rounded-none border ${filterQaTo ? 'border-red-600 has-filter' : 'border-slate-400'} bg-white px-2 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono`}
+                  className={`rounded-none border ${filterQaTo ? 'border-status-danger has-filter' : 'border-fb-border'} bg-white px-2 py-1.5 text-xs outline-none focus:border-[var(--color-text-brand)] font-mono`}
                 />
-                <button type="button" disabled={!filterQaTo} onClick={() => setFilterQaTo('')} className="rounded-none border border-slate-400 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-600 hover:border-[#1463f7] hover:text-[#1463f7] disabled:cursor-not-allowed disabled:opacity-40">Để trống</button>
+                <button type="button" disabled={!filterQaTo} onClick={() => setFilterQaTo('')} className="rounded-none border border-fb-border bg-white px-2 py-1.5 text-[11px] font-bold text-fb-text-secondary hover:border-[var(--color-text-brand)] hover:text-[var(--color-text-brand)] disabled:cursor-not-allowed disabled:opacity-40">Để trống</button>
               </div>
             </div>
           </div>
@@ -1541,21 +1585,21 @@ export default function DashboardNewPage() {
               {renderMatrixCard(['domain', 'epicType', 'pmsm', 'project'])}
 
               {/* Section 1: Theo Đơn vị yêu cầu */}
-              <div className="border-t border-slate-300 pt-3 mb-4">
+              <div className="border-t border-fb-border pt-3 mb-4">
                 <button
                   type="button"
                   onClick={() => toggleSection('requestingUnit')}
-                  className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[#1463f7] transition-colors cursor-pointer select-none"
+                  className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[var(--color-text-brand)] transition-colors cursor-pointer select-none"
                 >
                   {openSections.requestingUnit ? (
-                    <CaretDown className="size-4 text-[#1463f7]" weight="bold" />
+                    <CaretDown className="size-4 text-[var(--color-text-brand)]" weight="bold" />
                   ) : (
-                    <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
+                    <CaretRight className="size-4 text-[var(--color-text-brand)]" weight="bold" />
                   )}
                   <span>Theo Đơn vị yêu cầu</span>
                 </button>
                 {openSections.requestingUnit && requestingUnitDonuts && (
-                  <div className="mt-3 pl-3 border-l-2 border-[#1463f7] pt-1">
+                  <div className="mt-3 pl-3 border-l-2 border-[var(--color-text-brand)] pt-1">
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                       <DonutChartCard
                         title="% Tổng số Epic"
@@ -1590,21 +1634,21 @@ export default function DashboardNewPage() {
 
               {/* Section 2: Theo Domain nghiệp vụ (chỉ hiển thị nếu > 1 domain) */}
               {showDomainSection && (
-                <div className="border-t border-slate-300 pt-3 mb-4">
+                <div className="border-t border-fb-border pt-3 mb-4">
                   <button
                     type="button"
                     onClick={() => toggleSection('domain')}
-                    className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[#1463f7] transition-colors cursor-pointer select-none"
+                    className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[var(--color-text-brand)] transition-colors cursor-pointer select-none"
                   >
                     {openSections.domain ? (
-                      <CaretDown className="size-4 text-[#1463f7]" weight="bold" />
+                      <CaretDown className="size-4 text-[var(--color-text-brand)]" weight="bold" />
                     ) : (
-                      <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
+                      <CaretRight className="size-4 text-[var(--color-text-brand)]" weight="bold" />
                     )}
                     <span>Theo Domain nghiệp vụ</span>
                   </button>
                   {openSections.domain && domainDonuts && (
-                    <div className="mt-3 pl-3 border-l-2 border-[#1463f7] pt-1">
+                    <div className="mt-3 pl-3 border-l-2 border-[var(--color-text-brand)] pt-1">
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                         <DonutChartCard
                           title="% Tổng số Epic"
@@ -1643,21 +1687,21 @@ export default function DashboardNewPage() {
 
               {/* Section 4: Theo PM/SM (chỉ hiển thị nếu role !== USER) */}
               {showPmsmSection && (
-                <div className="border-t border-slate-300 pt-3 mb-4">
+                <div className="border-t border-fb-border pt-3 mb-4">
                   <button
                     type="button"
                     onClick={() => toggleSection('pmsm')}
-                    className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[#1463f7] transition-colors cursor-pointer select-none"
+                    className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[var(--color-text-brand)] transition-colors cursor-pointer select-none"
                   >
                     {openSections.pmsm ? (
-                      <CaretDown className="size-4 text-[#1463f7]" weight="bold" />
+                      <CaretDown className="size-4 text-[var(--color-text-brand)]" weight="bold" />
                     ) : (
-                      <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
+                      <CaretRight className="size-4 text-[var(--color-text-brand)]" weight="bold" />
                     )}
                     <span>Theo PM/SM</span>
                   </button>
                   {openSections.pmsm && pmsmDonuts && (
-                    <div className="mt-3 pl-3 border-l-2 border-[#1463f7] pt-1">
+                    <div className="mt-3 pl-3 border-l-2 border-[var(--color-text-brand)] pt-1">
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                         <DonutChartCard
                           title="% Tổng số Epic"
@@ -1707,21 +1751,21 @@ export default function DashboardNewPage() {
 
               {/* Section 5: Theo Dự án (chỉ hiển thị nếu không phải USER có 1 dự án) */}
               {showProjectSection && (
-                <div className="border-t border-slate-300 pt-3 mb-4">
+                <div className="border-t border-fb-border pt-3 mb-4">
                   <button
                     type="button"
                     onClick={() => toggleSection('project')}
-                    className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[#1463f7] transition-colors cursor-pointer select-none"
+                    className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[var(--color-text-brand)] transition-colors cursor-pointer select-none"
                   >
                     {openSections.project ? (
-                      <CaretDown className="size-4 text-[#1463f7]" weight="bold" />
+                      <CaretDown className="size-4 text-[var(--color-text-brand)]" weight="bold" />
                     ) : (
-                      <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
+                      <CaretRight className="size-4 text-[var(--color-text-brand)]" weight="bold" />
                     )}
                     <span>Theo Dự án</span>
                   </button>
                   {openSections.project && projectDonuts && (
-                    <div className="mt-3 pl-3 border-l-2 border-[#1463f7] pt-1">
+                    <div className="mt-3 pl-3 border-l-2 border-[var(--color-text-brand)] pt-1">
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                         <DonutChartCard
                           title="% Tổng số Epic"
@@ -1926,7 +1970,7 @@ export default function DashboardNewPage() {
                                 <TD className="max-w-xs truncate font-medium">{row.epicName}</TD>
                                 <TD>{row.ownerName || '—'}</TD>
                                 <TD>{row.projectKey}</TD>
-                                <TD className="text-center font-bold text-amber-700">{row.currentStatus}</TD>
+                                <TD className="text-center font-bold text-status-warning">{row.currentStatus}</TD>
                                 <TD className="text-center">
                                   {row.ttmCnttInScope ? (
                                     <Badge variant={ALERT_BADGE_VARIANT[row.alertLevel]}>{ALERT_BADGE_LABEL[row.alertLevel]}</Badge>
@@ -1977,7 +2021,7 @@ export default function DashboardNewPage() {
                                 <TD>
                                   <Badge variant="danger">Sai lệch dữ liệu</Badge>
                                 </TD>
-                                <TD className="text-xs text-purple-700 font-medium">
+                                <TD className="text-xs text-fb-accent font-medium">
                                   <DataAnomalyList violations={row.dataAnomalyViolations} />
                                 </TD>
                               </TR>

@@ -96,7 +96,7 @@ export function SystemStatusFooter() {
   return (
     <footer className="w-full shrink-0 px-3 py-2 flex flex-col items-center justify-center gap-0.5 text-center leading-tight">
       {/* Line 1: General Stats, optional screen visits, and 5 recent login users */}
-      <div className="flex flex-wrap items-center justify-center gap-y-0.5 text-center text-[11px] text-slate-500">
+      <div className="flex flex-wrap items-center justify-center gap-y-0.5 text-center text-[11px] text-fb-text-placeholder">
         <span>TTM Tool | Version {status.version} |</span>{' '}
         <span>Total visit: {totalVisitsText}.</span>{' '}
         <span>Weekly: {weeklyVisitsText}.</span>{' '}
@@ -125,7 +125,7 @@ export function SystemStatusFooter() {
                     </div>
                   }
                 >
-                  <span className="cursor-pointer font-medium text-slate-600 underline decoration-dotted decoration-slate-400 underline-offset-2 hover:text-slate-900 transition-colors">
+                  <span className="cursor-pointer font-medium text-fb-text-secondary underline decoration-dotted decoration-fb-border underline-offset-2 hover:text-fb-text-primary transition-colors">
                     {user.username}
                   </span>
                 </Tooltip>
@@ -137,7 +137,7 @@ export function SystemStatusFooter() {
       </div>
 
       {/* Line 2: Copyright & DB Target/Status */}
-      <p className="text-[10px] text-gray-400 opacity-80 text-center">
+      <p className="text-[11px] text-fb-text-placeholder opacity-80 text-center">
         (C) minhnd7. db: {status.dbTarget} - {status.dbStatus}
       </p>
     </footer>

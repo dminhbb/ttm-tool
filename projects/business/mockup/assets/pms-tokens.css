@@ -1,0 +1,241 @@
+/* ============================================================================
+   PMS Platform — Module Quản lý dự án · TOKEN LAYER
+   Port nguyên văn từ skill ias-design (MB Bank Internal Design System):
+     ias-design/tokens/colors.css · spacing.css · typography.css
+   Đây là artifact standalone (nằm ngoài skill folder) nên @font-face được khai
+   báo tại chỗ và --font-family-body định nghĩa trên :root.
+   ========================================================================== */
+
+/* ── Averta Std CY — dùng chung bộ WOFF2 đã subset của app ─────────────────
+   TRƯỚC: 8 file .otf gốc (~1MB) copy vào assets/fonts/, khai báo weight 100→900.
+   Đã bỏ vì .otf là file font desktop nguyên bản, cài được, mà repo từng ở trạng
+   thái public — phân phối lại file font thương mại là thứ EULA của foundry
+   thường cấm, kể cả khi công ty có licence dùng trong sản phẩm.
+
+   GIỜ: trỏ sang đúng 3 file WOFF2 đã subset Latin+Vietnamese mà app thật đang
+   nạp (src/app/fonts/, sinh bởi scripts/build-brand-font.py). Mockup vì thế
+   render giống production thay vì giống bộ font đầy đủ — chính xác hơn về mặt
+   đối chiếu thiết kế.
+
+   Hệ quả về weight, theo thuật toán khớp font của CSS:
+     300 (--font-weight-light)     → render bằng 400
+     500 (--font-weight-medium)    → render bằng 400 (bộ Averta không có 500)
+     800 (--font-weight-extrabold) → render bằng 700
+   Không phải faux-bold do browser tổng hợp, chỉ là chọn weight gần nhất. */
+@font-face {
+  font-family: "Averta Std CY";
+  src: url("../../../../src/app/fonts/averta-std-cy-400.woff2") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Averta Std CY";
+  src: url("../../../../src/app/fonts/averta-std-cy-600.woff2") format("woff2");
+  font-weight: 600; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Averta Std CY";
+  src: url("../../../../src/app/fonts/averta-std-cy-700.woff2") format("woff2");
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+
+/* ── Icon · KHÔNG dùng webfont ────────────────────────────────────────────────
+   Trước đây file này @import Material Symbols Outlined từ Google Fonts. Mở
+   mockup ở máy không có internet thì font không về, ligature bị in ra thành
+   chữ ("search", "tune", "keyboard_double_arrow_right"…) đè lên giao diện.
+   Icon giờ là inline SVG Phosphor, nằm sẵn trong assets/pms-icons.js.
+   Mọi @import từ CDN đã bỏ để mockup chạy hoàn toàn offline, hiển thị giống
+   nhau trên mọi máy — Averta Std CY self-host trong repo ở src/app/fonts/,
+   khai báo @font-face phía trên. */
+
+:root {
+  /* ══════════════════════════ COLORS (tokens/colors.css) ═════════════════ */
+  --color-primary-900: #00009A;
+  --color-primary-700: #0E15A8;
+  --color-primary-500: #141ED2;
+  --color-primary-400: #4B63E2;
+  --color-primary-300: #7F85F5;
+  --color-primary-200: #C4C6F7;
+  --color-primary-100: #E8EAF6;
+  --color-primary-50:  #F4F5FF;
+
+  --color-accent-700: #5500CC;
+  --color-accent-500: #7B61FF;
+  --color-accent-300: #9B40FF;
+  --color-accent-200: #BC80FF;
+  --color-accent-100: #EEDFFF;
+
+  --color-success-700: #00966D;
+  --color-success-500: #00BA88;
+  --color-success-300: #0B7659;
+  --color-success-100: #F2FFFB;
+
+  --color-error-700: #C30052;
+  --color-error-500: #EB2D4B;
+  --color-error-400: #ED2E7E;
+  --color-error-300: #FF84B7;
+  --color-error-100: #FFF3F8;
+
+  --color-warning-700: #946200;
+  --color-warning-500: #F4B740;
+  --color-warning-400: #E39114;
+  --color-warning-300: #FFD789;
+  --color-warning-100: #FFF9EF;
+
+  --color-alert-500: #FA0B0B;
+  --color-alert-400: #FA4949;
+  --color-alert-300: #FF8787;
+  --color-alert-100: #FFC9C9;
+
+  --color-info-500: #66CAFF;
+  --color-info-400: #76CCE7;
+  --color-info-300: #99DCFF;
+  --color-info-100: #D6F1FF;
+
+  --color-neutral-900: #14142A;
+  --color-neutral-800: #262626;
+  --color-neutral-700: #4E4B66;
+  --color-neutral-600: #6E7191;
+  --color-neutral-500: #A0A3BD;
+  --color-neutral-400: #C4C4D4;
+  --color-neutral-300: #D9DBE9;
+  --color-neutral-200: #EDF2F7;
+  --color-neutral-100: #F4F6FA;
+  --color-neutral-50:  #FAFAFA;
+  --color-neutral-0:   #FFFFFF;
+
+  /* ── Semantic Aliases — lớp DUY NHẤT được dùng khi set màu (color-rules.md) */
+  --color-bg-page:          var(--color-neutral-100);
+  --color-bg-surface:       var(--color-neutral-0);
+  --color-bg-overlay:       rgba(20, 20, 42, 0.5);
+  --color-bg-hover:         var(--color-primary-50);
+  --color-bg-error:         var(--color-error-100);
+  --color-bg-success:       var(--color-success-100);
+  --color-bg-warning:       var(--color-warning-100);
+  --color-bg-brand:         var(--color-primary-500);
+  --color-bg-success-solid: var(--color-success-500);
+  --color-bg-warning-solid: var(--color-warning-500);
+  --color-bg-error-solid:   var(--color-error-500);
+
+  --color-text-primary:   var(--color-neutral-900);
+  --color-text-body:      var(--color-neutral-700);
+  --color-text-secondary: var(--color-neutral-600);
+  --color-text-muted:     var(--color-neutral-500);
+  --color-text-inverse:   var(--color-neutral-0);
+  --color-text-brand:     var(--color-primary-500);
+  --color-text-link:      var(--color-primary-500);
+  --color-text-accent:    var(--color-accent-500);
+  --color-text-error:     var(--color-error-700);
+  --color-text-success:   var(--color-success-700);
+  --color-text-warning:   var(--color-warning-700);
+
+  --color-border-default: var(--color-neutral-300);
+  --color-border-strong:  var(--color-neutral-400);
+  --color-border-focus:   var(--color-primary-500);
+  --color-border-error:   var(--color-error-500);
+  --color-border-success: var(--color-success-500);
+  --color-border-warning: var(--color-warning-500);
+
+  --color-icon-default: var(--color-neutral-600);
+  --color-icon-brand:   var(--color-primary-500);
+  --color-icon-accent:  var(--color-accent-500);
+  --color-icon-muted:   var(--color-neutral-500);
+  --color-icon-error:   var(--color-error-500);
+  --color-icon-success: var(--color-success-500);
+  --color-icon-warning: var(--color-warning-500);
+  --color-icon-inverse: var(--color-neutral-0);
+
+  /* ════════════════════════ SPACING (tokens/spacing.css) ════════════════ */
+  --space-0: 0px;   --space-1: 4px;   --space-2: 8px;   --space-3: 12px;
+  --space-4: 16px;  --space-5: 20px;  --space-6: 24px;  --space-7: 28px;
+  --space-8: 32px;  --space-10: 40px; --space-12: 48px; --space-16: 64px;
+
+  --space-input-px: 8px;
+  --space-input-py: 4px;
+  --space-input-gap: 8px;
+  --space-button-px: 16px;
+  --space-button-py: 10px;
+  --space-card-padding: 24px;
+
+  --radius-sm: 4px;  --radius-md: 8px;  --radius-lg: 12px;
+  --radius-xl: 16px; --radius-2xl: 20px; --radius-full: 9999px;
+
+  --height-input: 40px;
+  --height-button: 40px;
+  --height-header: 64px;
+
+  --width-sidebar-max: 248px;
+  --width-sidebar-mini: 64px;
+
+  --shadow-xs: 0px 1px 2px 0px rgba(75,99,226,0.05);
+  --shadow-sm: 0px 2px 4px 0px rgba(75,99,226,0.08);
+  --shadow-md: 0px 4px 12px 0px rgba(75,99,226,0.12);
+  --shadow-lg: 0px 8px 24px 0px rgba(75,99,226,0.15);
+  --shadow-xl: 0px 16px 40px 0px rgba(20,20,42,0.18);
+
+  --z-dropdown: 100; --z-sticky: 200; --z-overlay: 300;
+  --z-modal: 400;    --z-toast: 500;  --z-tooltip: 600;
+
+  /* ═════════════════════ TYPOGRAPHY (tokens/typography.css) ════════════ */
+  --font-family-brand:   "Averta Std CY", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-family-body:    "Averta Std CY", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-family-display: "Averta Std CY", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-family-code:    "JetBrains Mono", "Fira Code", "Courier New", monospace;
+
+  --font-weight-light: 300;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  --type-h1-size: 88px; --type-h1-weight: var(--font-weight-light);
+  --type-h1-line-height: 100px; --type-h1-letter-spacing: -1.25px;
+
+  --type-h2-size: 44px; --type-h2-weight: var(--font-weight-medium);
+  --type-h2-line-height: 52px; --type-h2-letter-spacing: 0.25px;
+
+  --type-h3-size: 32px; --type-h3-weight: var(--font-weight-medium);
+  --type-h3-line-height: 36px; --type-h3-letter-spacing: 0.25px;
+
+  --type-h4-size: 22px; --type-h4-weight: var(--font-weight-medium);
+  --type-h4-line-height: 24px; --type-h4-letter-spacing: 0.25px;
+
+  --type-h5-size: 18px; --type-h5-weight: var(--font-weight-medium);
+  --type-h5-line-height: 20px; --type-h5-letter-spacing: 0.15px;
+
+  --type-subtitle1-size: 16px; --type-subtitle1-weight: var(--font-weight-semibold);
+  --type-subtitle1-line-height: 20px; --type-subtitle1-letter-spacing: 0.15px;
+
+  --type-subtitle2-size: 14px; --type-subtitle2-weight: var(--font-weight-semibold);
+  --type-subtitle2-line-height: 20px; --type-subtitle2-letter-spacing: 0.15px;
+
+  --type-body1-size: 16px; --type-body1-weight: var(--font-weight-medium);
+  --type-body1-line-height: 20px; --type-body1-letter-spacing: 0.5px;
+
+  --type-body2-size: 14px; --type-body2-weight: var(--font-weight-regular);
+  --type-body2-line-height: 20px; --type-body2-letter-spacing: 0.25px;
+
+  --type-button-size: 14px; --type-button-weight: var(--font-weight-semibold);
+  --type-button-line-height: 20px; --type-button-letter-spacing: 1.25px;
+  --type-button-transform: uppercase;
+
+  --type-caption-size: 12px; --type-caption-weight: var(--font-weight-medium);
+  --type-caption-line-height: 16px; --type-caption-letter-spacing: 0.4px;
+
+  --type-overline-size: 10px; --type-overline-weight: var(--font-weight-semibold);
+  --type-overline-line-height: 16px; --type-overline-letter-spacing: 1.5px;
+}
+
+/* ── Utility classes của type scale (typography-rules.md: text phải dùng class) */
+.hcm-h1 { font-family: var(--font-family-display); font-size: var(--type-h1-size); font-weight: var(--type-h1-weight); line-height: var(--type-h1-line-height); letter-spacing: var(--type-h1-letter-spacing); }
+.hcm-h2 { font-family: var(--font-family-display); font-size: var(--type-h2-size); font-weight: var(--type-h2-weight); line-height: var(--type-h2-line-height); letter-spacing: var(--type-h2-letter-spacing); }
+.hcm-h3 { font-family: var(--font-family-display); font-size: var(--type-h3-size); font-weight: var(--type-h3-weight); line-height: var(--type-h3-line-height); letter-spacing: var(--type-h3-letter-spacing); }
+.hcm-h4 { font-family: var(--font-family-display); font-size: var(--type-h4-size); font-weight: var(--type-h4-weight); line-height: var(--type-h4-line-height); letter-spacing: var(--type-h4-letter-spacing); }
+.hcm-h5 { font-family: var(--font-family-display); font-size: var(--type-h5-size); font-weight: var(--type-h5-weight); line-height: var(--type-h5-line-height); letter-spacing: var(--type-h5-letter-spacing); }
+.hcm-subtitle1 { font-family: var(--font-family-body); font-size: var(--type-subtitle1-size); font-weight: var(--type-subtitle1-weight); line-height: var(--type-subtitle1-line-height); letter-spacing: var(--type-subtitle1-letter-spacing); }
+.hcm-subtitle2 { font-family: var(--font-family-body); font-size: var(--type-subtitle2-size); font-weight: var(--type-subtitle2-weight); line-height: var(--type-subtitle2-line-height); letter-spacing: var(--type-subtitle2-letter-spacing); }
+.hcm-body1 { font-family: var(--font-family-body); font-size: var(--type-body1-size); font-weight: var(--type-body1-weight); line-height: var(--type-body1-line-height); letter-spacing: var(--type-body1-letter-spacing); }
+.hcm-body2 { font-family: var(--font-family-body); font-size: var(--type-body2-size); font-weight: var(--type-body2-weight); line-height: var(--type-body2-line-height); letter-spacing: var(--type-body2-letter-spacing); }
+.hcm-button { font-family: var(--font-family-body); font-size: var(--type-button-size); font-weight: var(--type-button-weight); line-height: var(--type-button-line-height); letter-spacing: var(--type-button-letter-spacing); text-transform: var(--type-button-transform); }
+.hcm-caption { font-family: var(--font-family-body); font-size: var(--type-caption-size); font-weight: var(--type-caption-weight); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.hcm-overline { font-family: var(--font-family-body); font-size: var(--type-overline-size); font-weight: var(--type-overline-weight); line-height: var(--type-overline-line-height); letter-spacing: var(--type-overline-letter-spacing); }
