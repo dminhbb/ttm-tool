@@ -15,7 +15,6 @@ import {
   CaretDoubleRight,
   CaretRight,
   ChartLineUp,
-  ChartPie,
   ClockCounterClockwise,
   Database,
   Faders,
@@ -120,8 +119,6 @@ const navigation: NavigationSection[] = [
       { href: '/reports', featureKey: 'epic_reports', icon: Bandaids, label: 'Báo cáo Epic (beta 2)' },
       // Landing page after sign-in, open to every role (permission matrix feature 'ttm_dashboard_2').
       { href: '/ttm-dashboard-2', featureKey: 'ttm_dashboard_2', icon: Funnel, label: 'TTM dashboard 2' },
-      // SUPERADMIN only since 2026-10-05 (permission matrix feature 'dashboard_new').
-      { href: '/dashboard-new', featureKey: 'dashboard_new', icon: ChartPie, label: 'TTM dashboard', roles: SUPERADMIN_ONLY },
       { href: '/epic-alerts-15', featureKey: 'epic_alerts_15', icon: Browsers, label: 'Quản trị Epic' },
       // Open to every role (permission matrix feature 'visit_counter' is View for all roles).
       { href: '/visit-stats', featureKey: 'visit_counter', icon: ChartLineUp, label: 'Thống kê truy cập' },
@@ -504,7 +501,6 @@ const PAGE_ROLES: Record<string, UserRole[]> = {
   '/admin/projects': ADMIN_VIEW_ROLES,
   '/admin/status-alert-rules': SUPERADMIN_OR_SUPERVISOR,
   '/admin/users': ADMIN_VIEW_ROLES,
-  '/dashboard-new': SUPERADMIN_ONLY,
   // /data-review/[batchId] drills into "Nguồn dữ liệu" — same SUPERADMIN-only gate as its API.
   '/data-review': SUPERADMIN_ONLY,
 };

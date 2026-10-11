@@ -406,8 +406,8 @@ Xem/Thêm/Sửa/Xóa cho từng cặp (tính năng, role). `category='ADMIN'` ch
 `category='VIEW_ONLY'` chỉ có ý nghĩa với `can_view` (dùng cho các màn hình theo dõi Epic, popup
 help, tài liệu sản phẩm). SUPERADMIN luôn được seed đủ 4 quyền TRUE trên mọi feature và API từ chối
 sửa dòng SUPERADMIN. Lưu ý: feature key `epic_alerts_15` vẫn giữ tên gọi cũ "Quản lý Epic 15" dù UI
-đã đổi nhãn thành "Quản trị Epic" — đây chỉ là key nội bộ. Các key `dashboard`, `epic_alerts_30` và
-`epic_in_po` của 3 màn hình đã gỡ bị xoá bởi migration `20261011_remove_legacy_screen_permissions.sql`. Migration
+đã đổi nhãn thành "Quản trị Epic" — đây chỉ là key nội bộ. Các key `dashboard`, `epic_alerts_30`,
+`epic_in_po` và `dashboard_new` của 4 màn hình đã gỡ bị xoá bởi migration `20261011_remove_legacy_screen_permissions.sql`. Migration
 `20260909_add_epic_reports_permission.sql` bổ sung thêm feature key `epic_reports` (category
 `VIEW_ONLY`) cho màn hình Báo cáo Epic (`/reports` — xem `15-mcp-sso-and-reports.md`).
 
@@ -587,7 +587,7 @@ tiết nghiệp vụ đầy đủ: `15-mcp-sso-and-reports.md`.
 ```text
 id            -- BIGSERIAL PRIMARY KEY
 event_type    -- VARCHAR(20) NOT NULL ('APP_LOGIN' | 'SCREEN_VIEW')
-screen_key    -- VARCHAR(50) ('dashboard' | 'ttm_dashboard_2' | 'epic_alerts' | 'epic_reports' | 'epic_in_po' (đã gỡ, chỉ còn lịch sử) | NULL)
+screen_key    -- VARCHAR(50) ('ttm_dashboard_2' | 'epic_alerts' | 'epic_reports' | 'dashboard' / 'epic_in_po' (đã gỡ, chỉ còn lịch sử) | NULL)
 user_id       -- INT REFERENCES users(id) ON DELETE SET NULL
 created_at    -- TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 ```
@@ -605,12 +605,11 @@ CREATE INDEX IF NOT EXISTS idx_visit_logs_user_created ON visit_logs (user_id, c
 ### Quy tắc nghiệp vụ & Luồng ghi nhận
 
 - **`APP_LOGIN`**: Ghi nhận một bản ghi mỗi khi người dùng đăng nhập thành công vào hệ thống (ghi nhận tại `src/lib/auth-service.ts` trong hàm `createSession`). Cột `screen_key` mang giá trị `NULL`.
-- **`SCREEN_VIEW`**: Ghi nhận khi người dùng truy cập một trong 4 màn hình trọng điểm:
-  1. `dashboard`: Màn hình TTM Dashboard (`/dashboard-new`).
-  2. `ttm_dashboard_2`: Màn hình TTM Dashboard 2 (`/ttm-dashboard-2`).
-  3. `epic_alerts`: Màn hình Quản trị Epic (`/epic-alerts-15`).
-  4. `epic_reports`: Màn hình Báo cáo Epic (`/reports`).
-  (`epic_in_po` — Epic in PO — đã gỡ 11/10/2026; các dòng cũ giữ nguyên làm lịch sử, không ghi mới.)
+- **`SCREEN_VIEW`**: Ghi nhận khi người dùng truy cập một trong 3 màn hình trọng điểm:
+  1. `ttm_dashboard_2`: Màn hình TTM Dashboard 2 (`/ttm-dashboard-2`).
+  2. `epic_alerts`: Màn hình Quản trị Epic (`/epic-alerts-15`).
+  3. `epic_reports`: Màn hình Báo cáo Epic (`/reports`).
+  (`dashboard` — TTM Dashboard `/dashboard-new` — và `epic_in_po` — Epic in PO — đã gỡ 11/10/2026; các dòng cũ giữ nguyên làm lịch sử, không ghi mới.)
   Phía client (`src/lib/visit-counter-client.ts`) áp dụng cơ chế **debounce 30 giây** trong `sessionStorage` cho từng `screen_key` nhằm tránh ghi nhận trùng lặp khi người dùng chuyển tab nhanh hoặc re-render component.
 - **Quan hệ**: `users ||--o{ visit_logs : "1-n (user_id)"`. Khi xóa user, `user_id` trong `visit_logs` được set `NULL` (`ON DELETE SET NULL`), bảo toàn số liệu thống kê tổng mà không làm sai lệch lịch sử truy cập.
 - **Phân tích đa chiều**: Service `src/lib/visit-counter-service.ts` tổng hợp số liệu trực tiếp từ `visit_logs`:

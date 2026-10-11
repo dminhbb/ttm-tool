@@ -18,11 +18,6 @@
 
 - `/epic-alerts-15`: **Quản trị Epic**, theo các pha Design, Dev, Test, Pentest, R4Golive, Release.
   Mở cho **mọi role đã đăng nhập** kể cả `USER` (theo phạm vi dự án/Domain/Component được phân quyền).
-- `/dashboard-new`: **TTM Dashboard** — màn hình trung tâm điều hành và theo dõi chính, là màn hình mặc
-  định sau khi đăng nhập cho toàn bộ user. Tích hợp 2 chỉ số toàn phòng TTM-Index (QLDA) / QA-Index (QLDA),
-  chế độ Lead view (9 KPI cards, Phễu 5 giai đoạn, Ma trận Đa chiều 4 tab, 5 Section Donut Charts) và PM/SM
-  view (thừa hưởng KPI và Phễu, Ma trận 2 tab, Section Donut phân loại Epic, Bảng danh sách Epic 3 tab: Chờ
-  golive, Pending, Anomaly). Toàn bộ widget và biểu đồ loại bỏ các Epic Cancelled ở cả tử số lẫn mẫu số.
 - `/ttm-dashboard-2`: **TTM Dashboard 2** — màn hình mặc định sau đăng nhập (xem
   `docs/ttm-dashboard-2-spec.md`).
 

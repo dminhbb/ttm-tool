@@ -13,7 +13,6 @@ export interface AppScreenInfo {
 
 export const PAGE_HEADERS: Record<string, AppScreenInfo> = {
   '/': { subtitle: 'Kiểm tra và quản lý các lớp dữ liệu Jira nhập vào TTM Monitor', title: 'Quản trị nguồn dữ liệu' },
-  '/dashboard-new': { subtitle: 'Dashboard quản lý cho CBQL/Lead', title: 'TTM dashboard' },
   '/ttm-dashboard-2': { subtitle: 'Biểu đồ phễu luồng dữ liệu và quy tắc lọc Epic', title: 'TTM dashboard 2' },
   '/epic-alerts-15': { subtitle: 'Cảnh báo TTM-CNTT (QLDA) theo giai đoạn DESIGN/DEV/TEST/PENTEST/R4GOLIVE', title: 'Quản trị Epic' },
   '/admin/domains': { subtitle: 'Quản lý danh mục Domain nghiệp vụ', title: 'Quản lý Domain' },

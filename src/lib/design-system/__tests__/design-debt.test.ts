@@ -107,7 +107,7 @@ const BASELINE: Record<MeasureName, { total: number; perFile: Record<string, num
       'app/ttm-dashboard-2/page.tsx': 36,
       'components/ttm-dashboard-2/FunnelLayers.tsx': 5,
       'components/ttm-dashboard-2/DashboardInsights.tsx': 3,
-      'components/dashboard-new/DonutChartCard.tsx': 5,
+      'components/ttm-dashboard-2/DonutChartCard.tsx': 5,
       // Bảng tra màu trạng thái dưới dạng object JS.
       'app/epic-alerts-15/page.tsx': 8,
       'app/reports/page.tsx': 8,
@@ -248,9 +248,9 @@ describe('lint: không import CSS chéo route', () => {
     );
   });
 
-  it('hai dashboard dùng ttm-shared.css, không dùng epic-alerts-15.css', () => {
-    for (const route of ['dashboard-new', 'ttm-dashboard-2']) {
-      // Bỏ comment: ghi chú ở hai file này có nhắc lại đúng câu import cũ để giải
+  it('TTM Dashboard 2 dùng ttm-shared.css, không dùng epic-alerts-15.css', () => {
+    for (const route of ['ttm-dashboard-2']) {
+      // Bỏ comment: ghi chú ở file này có nhắc lại đúng câu import cũ để giải
       // thích vì sao nó bị thay.
       const content = stripComments(readFileSync(path.join(APP_DIR, route, 'page.tsx'), 'utf8'));
       assert.match(content, /@\/app\/ttm-shared\.css/, `${route} chưa nạp ttm-shared.css`);

@@ -17,7 +17,7 @@ import { Modal } from '@/components/ui/Modal';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { PillToggle } from '@/components/ui/PillToggle';
 import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
-import { EpicAlertsIframeModal } from '@/components/dashboard-new/EpicAlertsIframeModal';
+import { EpicAlertsIframeModal } from '@/components/ttm-dashboard-2/EpicAlertsIframeModal';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import { BreakdownDonutSections, BreakdownMatrixCard, KpiStrip, type InsightListParams } from '@/components/ttm-dashboard-2/DashboardInsights';
 import { SolidLayer, SplitLayer, type Ellipse } from '@/components/ttm-dashboard-2/FunnelLayers';
@@ -699,7 +699,7 @@ export default function TtmDashboard2Page() {
       </div>
 
       {/* TOP SINGLE-ROW TOOLBAR FILTERS */}
-      <section className="ttm-toolbar" aria-label="Bộ lọc TTM Dashboard 2">
+      <section className="ttm-toolbar ttm-toolbar-row" aria-label="Bộ lọc TTM Dashboard 2">
         <div className="flex items-center gap-1.5 text-xs font-bold text-fb-text-primary shrink-0 mr-1 select-none">
           <CaretRight className="size-4 text-[var(--color-text-brand)]" weight="bold" />
           <span>Filters:</span>
@@ -755,7 +755,7 @@ export default function TtmDashboard2Page() {
           <button
             type="button"
             onClick={resetAllFilters}
-            className="text-xs text-fb-text-placeholder hover:text-status-danger flex items-center gap-1 px-2 py-1 rounded hover:bg-status-danger-soft transition-colors"
+            className="text-xs text-fb-text-placeholder hover:text-status-danger flex items-center gap-1 px-2 py-1 rounded hover:bg-status-danger-soft transition-colors shrink-0"
             title="Xóa tất cả bộ lọc"
           >
             <ClockCounterClockwise className="size-3.5" />
@@ -764,7 +764,7 @@ export default function TtmDashboard2Page() {
         )}
 
         {data.lastAggregatedAt && (
-          <div className="ttm-report-date ml-auto text-xs text-fb-text-secondary hidden sm:block">
+          <div className="ttm-report-date ml-auto text-xs text-fb-text-secondary hidden sm:block shrink-0 whitespace-nowrap">
             Dữ liệu cập nhật: <b>{formatDateTime(data.lastAggregatedAt)}</b>
             <span
               className="ml-1.5"

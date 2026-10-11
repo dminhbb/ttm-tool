@@ -105,6 +105,9 @@ export interface ModalProps {
   layer?: 'default' | 'top';
 }
 
+/** useSyncExternalStore subscription for a value that never changes after hydration. */
+const subscribeNever = () => () => undefined;
+
 export const Modal = ({
   isOpen,
   onClose,
@@ -115,14 +118,12 @@ export const Modal = ({
   icon,
   layer = 'default',
 }: ModalProps) => {
-  const [mounted, setMounted] = React.useState(false);
+  // false during SSR and the hydration pass, true afterwards — the portal is only created on the
+  // client, without a setState-in-effect.
+  const mounted = React.useSyncExternalStore(subscribeNever, () => true, () => false);
   const titleId = React.useId();
   const closeButtonRef = React.useRef<HTMLButtonElement>(null);
   useModalBehavior(isOpen, onClose, closeButtonRef);
-
-  React.useEffect(() => {
-    setMounted(true);
-  }, []);
 
   if (!isOpen) return null;
 

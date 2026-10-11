@@ -13,7 +13,6 @@ const PAGE_FEATURES: readonly { featureKey: string; path: string; prefix?: boole
   { path: '/', featureKey: 'data_source' },
   { path: '/data-review', featureKey: 'data_source', prefix: true },
   { path: '/ttm-dashboard-2', featureKey: 'ttm_dashboard_2' },
-  { path: '/dashboard-new', featureKey: 'dashboard_new' },
   { path: '/epic-alerts-15', featureKey: 'epic_alerts_15' },
   { path: '/reports', featureKey: 'epic_reports' },
   { path: '/visit-stats', featureKey: 'visit_counter' },
@@ -35,7 +34,6 @@ const PAGE_FEATURES: readonly { featureKey: string; path: string; prefix?: boole
  */
 const API_FEATURES: readonly { featureKey: string; prefix: string }[] = [
   { prefix: '/api/ttm-dashboard-2', featureKey: 'ttm_dashboard_2' },
-  { prefix: '/api/dashboard-new', featureKey: 'dashboard_new' },
   { prefix: '/api/reports', featureKey: 'epic_reports' },
 ];
 
@@ -49,10 +47,10 @@ const API_FEATURES: readonly { featureKey: string; prefix: string }[] = [
 export const MCP_TOOL_FEATURES = {
   // Deprecated alias of get_ttm_dashboard (the old Dashboard screen was removed) — same data, same gate.
   get_dashboard_summary: { featureKeys: ['ttm_dashboard_2'], screen: 'TTM Dashboard 2' },
-  // Duyệt Epic (EpicBrowserModal) is opened from all three of these screens.
+  // Duyệt Epic (EpicBrowserModal) is opened from both of these screens.
   get_epic_detail: {
-    featureKeys: ['epic_alerts_15', 'epic_reports', 'dashboard_new'],
-    screen: 'Quản trị Epic / Báo cáo Epic / TTM Dashboard',
+    featureKeys: ['epic_alerts_15', 'epic_reports'],
+    screen: 'Quản trị Epic / Báo cáo Epic',
   },
   get_product_doc_section: { featureKeys: ['product_docs'], screen: 'Tài liệu sản phẩm' },
   get_ttm_dashboard: { featureKeys: ['ttm_dashboard_2'], screen: 'TTM Dashboard 2' },
@@ -74,7 +72,7 @@ export function mcpToolViewDenied(tool: McpToolName, deniedFeatureKeys: Readonly
 }
 
 /** Where a denied page sends the user — the first of these the role may still view. */
-const LANDING_PATHS: readonly string[] = ['/ttm-dashboard-2', '/epic-alerts-15', '/reports', '/visit-stats', '/dashboard-new'];
+const LANDING_PATHS: readonly string[] = ['/ttm-dashboard-2', '/epic-alerts-15', '/reports', '/visit-stats'];
 
 /** Shown when the role may view none of LANDING_PATHS. Never feature-gated itself. */
 export const NO_ACCESS_PATH = '/no-access';

@@ -8,6 +8,33 @@
 
 ## 2026-10-11
 
+- **Gỡ `/dashboard-new` (TTM Dashboard bản đầu) + sửa lỗi lint `Modal.tsx`** (tiếp B1, branch `chore/remove-legacy-screens`):
+  - **Xoá**: `src/app/dashboard-new` (2090 dòng), `/api/dashboard-new`, `src/components/dashboard-new/`; `DonutChartCard` và `EpicAlertsIframeModal`
+    (TTM Dashboard 2 vẫn dùng) chuyển sang `src/components/ttm-dashboard-2/`. Giữ `ttm-dashboard-summary-service.ts`, `view-as-user-service.ts`,
+    `ttm-index-global-cache-service.ts` (Dashboard 2 / Quản trị Epic vẫn dùng). Xoá thêm file không ai import: `GeneralSettingsModal.tsx`, `utils/cn.ts`.
+  - **Redirect** `/dashboard-new` → `/ttm-dashboard-2` (`next.config.ts`); bỏ khỏi `PAGE_FEATURES`, `API_FEATURES`, `LANDING_PATHS`, `PAGE_ROLES`, sidebar,
+    `PAGE_HEADERS`, `MCP_TOOL_FEATURES.get_epic_detail`. Migration `20261011_remove_legacy_screen_permissions` mở rộng xoá cả feature `dashboard_new`
+    (vẫn chưa áp dụng lên DB nào). Visit Counter: `/dashboard-new` không còn map vào khoá `dashboard` (giữ khoá làm lịch sử, nhãn "đã gỡ").
+  - **Lint**: `ui/Modal.tsx` — `mounted` dùng `useSyncExternalStore` (false khi SSR/hydrate, true sau đó) thay cho `setState` trong effect → `eslint src` sạch.
+  - **Test/tài liệu**: `feature-access.test.ts`, `design-debt.test.ts` (đường dẫn `DonutChartCard`, chỉ còn 1 route dùng `ttm-shared.css`); README, `product-guide.html`
+    (§2, 11.5, 16, 18), `brd/04, 05, 08, 13, 15`.
+
+- **Cân đối kích thước widget & cập nhật title/subtitle cho TTM Dashboard 2 (`/ttm-dashboard-2`)**:
+  - `src/components/ttm-dashboard-2/DashboardInsights.tsx`:
+    - Khắc phục triệt để hiện tượng tràn/cắt title chính (`FAIL TTM-CNTT`, `THIẾU LÝ DO`): bỏ `text-ellipsis` trên title của `KpiCard` và áp dụng `whitespace-nowrap`, tinh chỉnh typography `tracking-tight` và icon fluid clamp.
+    - Tái phân bổ tỉ lệ chiều rộng giữa 2 nhóm: nhóm trái nâng lên `flex-[63]` với phân bổ cột `grid-cols-[0.62fr_1.18fr_1.08fr_1.06fr_1.06fr_1.0fr]`, giúp 2 card `FAIL TTM-CNTT` và `THIẾU LÝ DO` tăng thêm hơn 30% độ rộng; nhóm phải giảm về `flex-[37]` với phân bổ cột `grid-cols-[0.8fr_0.8fr_1.1fr_0.9fr]`, thu hẹp phần thừa không cần thiết của widget `SAI LỆCH` và `CHỜ GOLIVE`.
+    - Tại widget 'FAIL TTM-CNTT': bổ sung subtitle `"Phạm vi của QLDA"`.
+    - Tại widget 'THIẾU LÝ DO FAIL': đổi title ngắn gọn thành `"THIẾU LÝ DO"` và subtitle thành `"Fail TTM-CNTT"`.
+
+- **Hoàn thiện UI thanh lọc và bổ sung widget KPI cho TTM Dashboard 2 (`/ttm-dashboard-2`)**:
+  - `src/app/ttm-shared.css`: Bổ sung CSS class `.ttm-toolbar.ttm-toolbar-row` (khoá không wrap trên desktop, phân bổ tỉ lệ co giãn `flex: 1 1 0` cho các ô lọc) và đồng bộ trọn vẹn bộ class cho `.ttm-multiselect` (`position: relative`, trigger, popover cố định theo nút bấm, các option dạng flex hàng dọc với checkbox và nhãn, hỗ trợ dark mode).
+  - `src/app/ttm-dashboard-2/page.tsx`: Cập nhật toolbar sang `className="ttm-toolbar ttm-toolbar-row"`, chống xuống dòng trên desktop; cố định `shrink-0` cho nhãn dữ liệu cập nhật và nút Đặt lại; sửa triệt để lỗi menu dropdown multiselect bị vỡ và rớt xuống dưới phễu.
+  - `src/components/ttm-dashboard-2/DashboardInsights.tsx`:
+    - Thêm mới widget **'THIẾU LÝ DO FAIL'** bên phải widget 'FAIL TTM-CNTT' hiển thị số lượng Epic fail TTM-CNTT chưa log khâu nguyên nhân (`insights.missingFailReason`), liên kết trực tiếp tới danh sách thiếu lý do fail.
+    - Bỏ subtitle trong widget 'FAIL TTM-CNTT' (hỗ trợ subtitle tùy chọn với non-breaking space fallback giữ nguyên alignment).
+    - Cập nhật subtitle widget 'TTM-CNTT' (QLDA) thành "Phạm vi của QLDA", và widget 'SAI LỆCH' thành "Sai lệch dữ liệu".
+    - Giảm tỉ lệ chiều rộng widget 'CẢNH BÁO' (từ 1.1fr xuống 0.8fr) và cân đối lại toàn bộ 10 widget trên 1 dòng duy nhất mà không bị tràn hay xuống dòng.
+
 - **B1 — gỡ 3 màn hình cũ (branch `chore/remove-legacy-screens`)**: `/dashboard` (Dashboard cũ), `/epic-alerts` (Quản trị Epic rút gọn / Epic 30)
   và `/epic-in-po` (Epic in PO, đã có quick filter "Epics in PO" ở Quản trị Epic). Căn cứ: `visit_logs` cho thấy Dashboard cũ và Epic in PO không còn
   lượt xem nào từ 04/10 (TTM Dashboard 2 thành mặc định 05/10); `/api/epic-alerts` không đi qua Scoring Service nên số liệu có thể lệch màn chính.

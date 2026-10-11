@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: '/dashboard', destination: '/ttm-dashboard-2', permanent: false },
+      { source: '/dashboard-new', destination: '/ttm-dashboard-2', permanent: false },
       { source: '/epic-alerts', destination: '/epic-alerts-15', permanent: false },
       // Quick filter "Epics in PO" của Quản trị Epic = đúng 3 status này (raw currentStatus).
       { source: '/epic-in-po', destination: '/epic-alerts-15?status=To%20Do,IN%20PO,Released', permanent: false },
