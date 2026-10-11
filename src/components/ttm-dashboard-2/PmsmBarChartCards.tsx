@@ -69,7 +69,7 @@ function SingleBarChartColumn({
         </span>
 
         {/* Thanh Bar ngang */}
-        <div className="relative h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-fb-border/40">
+        <div className="relative h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-fb-surface-muted dark:bg-fb-border/40">
           <div
             className={cn('h-full rounded-full transition-all duration-300', barColorClass)}
             style={{ width: `${entry.value > 0 ? pctOfMax : 0}%` }}
@@ -81,7 +81,7 @@ function SingleBarChartColumn({
           <span className="text-xs font-bold tabular-nums text-fb-text-primary">
             {entry.value}
           </span>
-          <span className="text-[10px] tabular-nums text-fb-text-secondary">
+          <span className="text-[11px] tabular-nums text-fb-text-secondary">
             ({sharePct}%)
           </span>
         </div>
@@ -212,7 +212,7 @@ export function PmsmBarChartCards({ items, onOpenEpicList }: PmsmBarChartCardsPr
     <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
       <SingleBarChartColumn
         title="% Tổng số Epic"
-        barColorClass="bg-blue-600 dark:bg-blue-500"
+        barColorClass="bg-[var(--color-bg-brand)]"
         items={totalSortedItems}
         isExpanded={isExpanded}
         onToggleExpand={setIsExpanded}
@@ -220,7 +220,7 @@ export function PmsmBarChartCards({ items, onOpenEpicList }: PmsmBarChartCardsPr
       />
       <SingleBarChartColumn
         title="% Pass TTM"
-        barColorClass="bg-emerald-600 dark:bg-emerald-500"
+        barColorClass="bg-[var(--color-bg-success-solid)]"
         items={passSortedItems}
         isExpanded={isExpanded}
         onToggleExpand={setIsExpanded}
@@ -229,7 +229,7 @@ export function PmsmBarChartCards({ items, onOpenEpicList }: PmsmBarChartCardsPr
       />
       <SingleBarChartColumn
         title="% Fail TTM"
-        barColorClass="bg-rose-600 dark:bg-rose-500"
+        barColorClass="bg-[var(--color-bg-error-solid)]"
         items={failSortedItems}
         isExpanded={isExpanded}
         onToggleExpand={setIsExpanded}
