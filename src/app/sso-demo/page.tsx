@@ -2,13 +2,12 @@
 
 import * as React from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ArrowsClockwise, CheckCircle, Key, LockKey, Pulse, ShieldCheck, SignOut, UserCheck, Warning } from '@phosphor-icons/react';
+import { CheckCircle, Key, LockKey, ShieldCheck, SignOut, Warning } from '@phosphor-icons/react';
 import { alertDialog } from '@/components/ui/dialogs';
 
 function SsoDemoContent() {
   const searchParams = useSearchParams();
   const code = searchParams.get('code') || '';
-  const errorParam = searchParams.get('error') || '';
 
   const [apiKey, setApiKey] = React.useState('');
   const [availableKeys, setAvailableKeys] = React.useState<Array<{ apiKey: string; appName: string; keyName: string }>>([]);
@@ -37,7 +36,7 @@ function SsoDemoContent() {
             }
           }
         }
-      } catch (err) {
+      } catch {
         // Fallback
       } finally {
         setLoadingKeys(false);
@@ -81,6 +80,9 @@ function SsoDemoContent() {
     }
 
     void processCode();
+    // `apiKey` is only a fallback read once when the redirect code arrives; re-running the
+    // one-shot code exchange whenever the user edits the key field would be wrong.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
   const handleStartSso = () => {
@@ -94,6 +96,8 @@ function SsoDemoContent() {
     const redirectUri = `${window.location.origin}/sso-demo`;
     const ssoAuthorizeUrl = `/sso/authorize?client_id=${encodeURIComponent(apiKey.trim())}&redirect_uri=${encodeURIComponent(redirectUri)}&state=demo_test_${Date.now()}`;
 
+    // Full-page navigation on purpose: this demo simulates an external app leaving for the SSO provider.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = ssoAuthorizeUrl;
   };
 
@@ -132,12 +136,12 @@ function SsoDemoContent() {
           </div>
         ) : ssoResult ? (
           /* SUCCESS STATE */
-          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-6 shadow-md space-y-6">
+          <div className="rounded-2xl border border-emerald-500/30 bg-status-success/5 p-6 shadow-md space-y-6">
             <div className="flex items-center justify-between border-b border-emerald-500/20 pb-4">
               <div className="flex items-center gap-3">
-                <CheckCircle className="size-8 text-emerald-500" weight="fill" />
+                <CheckCircle className="size-8 text-status-success" weight="fill" />
                 <div>
-                  <h2 className="text-lg font-bold text-emerald-600 dark:text-emerald-400">Xác thực SSO thành công 100%!</h2>
+                  <h2 className="text-lg font-bold text-status-success dark:text-status-success">Xác thực SSO thành công 100%!</h2>
                   <p className="text-xs text-fb-text-secondary">Ứng dụng B đã nhận thông tin User an toàn từ ttm-tool.</p>
                 </div>
               </div>
@@ -182,7 +186,7 @@ function SsoDemoContent() {
             </h2>
 
             {exchangeError && (
-              <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-xs font-semibold text-red-500 flex items-center gap-2">
+              <div className="rounded-xl border border-status-danger/20 bg-status-danger/10 p-4 text-xs font-semibold text-status-danger flex items-center gap-2">
                 <Warning className="size-5 shrink-0" weight="bold" />
                 <span>{exchangeError}</span>
               </div>

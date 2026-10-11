@@ -258,7 +258,7 @@ export function EpicAlertTimeline({ epicKey }: { epicKey: string }) {
       setRangeStart(initialRangeStart);
       setHasMoreOlder(true);
       try {
-        const res = await fetch(`/api/epic-alerts/${encodeURIComponent(epicKey)}/alert-timeline`);
+        const res = await fetch(`/api/epic-alerts-15/${encodeURIComponent(epicKey)}/alert-timeline`);
         const body = await res.json();
         if (cancelled) return;
         if (!res.ok) { setError(body.error || 'Không thể tải dòng thời gian cảnh báo.'); return; }
@@ -276,7 +276,7 @@ export function EpicAlertTimeline({ epicKey }: { epicKey: string }) {
   const handleLoadOlder = async () => {
     setLoadingOlder(true);
     try {
-      const res = await fetch(`/api/epic-alerts/${encodeURIComponent(epicKey)}/alert-timeline?before=${encodeURIComponent(rangeStart)}`);
+      const res = await fetch(`/api/epic-alerts-15/${encodeURIComponent(epicKey)}/alert-timeline?before=${encodeURIComponent(rangeStart)}`);
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'Không thể tải dữ liệu cũ hơn.');
       const older: EpicAlertTimelineEntry[] = body.entries ?? [];

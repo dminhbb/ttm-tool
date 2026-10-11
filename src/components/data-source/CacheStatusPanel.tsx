@@ -105,7 +105,7 @@ export function CacheStatusPanel() {
   // data directly in the DB, a restore, or a failed automatic rebuild. Formerly its own right-panel box.
   const [isRebuilding, setIsRebuilding] = useState(false);
   const rebuild = async () => {
-    if (!(await confirmDialog({ title: 'Tạo lại cache', description: 'Tạo lại toàn bộ cache ngay bây giờ (bảng dữ liệu Quản trị Epic/Epic in PO, chỉ số TTM-CNTT (QLDA)/(QA)/TTM-E2E toàn ứng dụng, cache TTM Dashboard 2), không cần đợi đợt import mới?', confirmLabel: 'Tạo lại cache', tone: 'primary' }))) return;
+    if (!(await confirmDialog({ title: 'Tạo lại cache', description: 'Tạo lại toàn bộ cache ngay bây giờ (bảng dữ liệu Quản trị Epic, chỉ số TTM-CNTT (QLDA)/(QA)/TTM-E2E toàn ứng dụng, cache TTM Dashboard 2), không cần đợi đợt import mới?', confirmLabel: 'Tạo lại cache', tone: 'primary' }))) return;
     setIsRebuilding(true);
     setError(null);
     try {

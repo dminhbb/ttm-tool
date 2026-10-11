@@ -14,7 +14,7 @@ interface HelpPanelProps {
 const GROUP_TONE: Record<FindingGroup, string> = {
   FAIL: 'bg-status-danger-soft text-status-danger border-status-danger/30',
   ALERT: 'bg-status-warning-soft text-status-warning border-status-warning/30',
-  RECOMMENDATION: 'bg-[rgb(124_58_237/0.12)] text-[#7c3aed] border-[#7c3aed]/30',
+  RECOMMENDATION: 'bg-[rgb(124_58_237/0.12)] text-[var(--color-accent-500)] border-[var(--color-accent-500)]/30',
   PASS: 'bg-status-success-soft text-status-success border-status-success/30',
   NOTE: 'bg-fb-surface-muted text-fb-text-secondary border-fb-border',
 };
@@ -33,7 +33,7 @@ function BadgeChip({ badge }: { badge: BadgeDefinition }) {
 
 function GroupChip({ group }: { group: FindingGroup }) {
   const label = FINDING_GROUPS.find((item) => item.id === group)?.label ?? group;
-  return <span className={`inline-flex whitespace-nowrap rounded border px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wide ${GROUP_TONE[group]}`}>{label}</span>;
+  return <span className={`inline-flex whitespace-nowrap rounded border px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide ${GROUP_TONE[group]}`}>{label}</span>;
 }
 
 const badgeLabel = (id: string) => BADGE_LIST.find((badge) => badge.id === id)?.label ?? id;
@@ -53,7 +53,7 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
       <div className="flex flex-col gap-6 text-sm text-fb-text-secondary">
         <section className="rounded-md border border-status-warning/30 bg-status-warning-soft px-3 py-2 text-xs text-fb-text-primary">
           <strong>Scoring Service.</strong> Mọi Epic được chấm điểm lại mỗi lần tạo cache và được đối chiếu với logic cũ (Quản trị nguồn dữ liệu →
-          Đối chiếu Scoring Service). SUPERADMIN chọn các màn hình hiển thị theo Scoring Service hay logic cũ tại đó; màn &quot;Quản trị Epic (rút gọn)&quot; luôn dùng logic cũ.
+          Đối chiếu Scoring Service). SUPERADMIN chọn các màn hình hiển thị theo Scoring Service hay logic cũ tại đó.
           Ở chế độ Scoring Service, cột Nhận xét hiện thêm &quot;Sai Status (Release)&quot;, &quot;Pending lâu&quot; và &quot;Khuyến nghị (n)&quot;.
         </section>
 
@@ -302,7 +302,7 @@ export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
 
         <section>
           <h3 className="ui-card-title mb-1">6. Các màn hình Epic Alerts lấy dữ liệu từ đâu?</h3>
-          <p>Cả 4 màn hình (rút gọn/đầy đủ/Epic in PO/Dashboard) đều <strong>KHÔNG đọc dữ liệu đã tổng hợp sẵn</strong>. Mỗi lần load, hệ thống lấy dòng <code>issues</code> mới nhất của từng Epic (theo <code>aggregated_at</code> lớn nhất, không giới hạn theo 1 batch cụ thể) rồi tính lại toàn bộ cảnh báo — kể cả Fail TTM-E2E và cờ dữ liệu bất thường — tại thời điểm request bằng rule đang active. <code>epic_alert_history</code> chỉ dùng để: (a) hiện icon/lịch sử cảnh báo tổng thể, (b) quyết định Epic status = Released có còn hiển thị trên màn &quot;rút gọn&quot; hay không.</p>
+          <p>Các màn hình Quản trị Epic và Dashboard đều <strong>KHÔNG đọc trực tiếp các bảng lịch sử đã tổng hợp</strong>. Mỗi lần load, hệ thống lấy dòng <code>issues</code> mới nhất của từng Epic (theo <code>aggregated_at</code> lớn nhất, không giới hạn theo 1 batch cụ thể) rồi tính lại toàn bộ cảnh báo — kể cả Fail TTM-E2E và cờ dữ liệu bất thường — tại thời điểm request bằng rule đang active. <code>epic_alert_history</code> chỉ dùng để hiện icon/lịch sử cảnh báo tổng thể (Epic History).</p>
         </section>
 
         <section>

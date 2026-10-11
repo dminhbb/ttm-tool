@@ -1,4 +1,12 @@
 -- Database schema for TTM Monitor
+--
+-- BASELINE ONLY: this file bootstraps the 14 original tables (import → issues, master data, local
+-- auth) for a brand-new database via `node scripts/migrate-db.js --target=<local|supabase> --init`.
+-- Every other table (cache, Scoring Service, visit counter, SSO/MCP, black list, …) is created by
+-- db/migrations/*.sql, which --init applies right after this file. Columns/constraints that a later
+-- migration added to one of these 14 tables are mirrored here (as of 2026-10-11) so the baseline
+-- matches the live schema; those migrations all use IF NOT EXISTS, so applying them on top is a no-op.
+-- When you add a column to one of these 14 tables via a migration, mirror it here too.
 
 -- Drop tables if exist
 DROP TABLE IF EXISTS issues CASCADE;
@@ -77,7 +85,14 @@ CREATE TABLE issues (
     jira_updated_at TIMESTAMP WITH TIME ZONE, -- epic_updated in Py Jira API format
     
     -- KPI / Alert rules
-    epic_complexity_type VARCHAR(50), -- SIMPLE, COMPLEX
+    epic_complexity_type VARCHAR(50), -- CT-Lv12, CT-Lv34, SP-Lv12, SP-Lv34 (legacy: SIMPLE, COMPLEX)
+    requirement_level VARCHAR(100), -- "Mức yêu cầu" from Jira (1-4) — 20260814_add_requirement_level.sql
+    requesting_unit VARCHAR(255),   -- "Đơn vị yêu cầu" — 20260923_add_epic_requesting_unit.sql
+
+    -- Jira Component/s and Epic → Story → Subtask key lists (20260821 / 20260823 migrations)
+    components TEXT[],
+    epic_stories TEXT[],
+    story_subtasks TEXT[],
     
     -- Status & TTM Fail cause fields (from CSV import / Py Jira API)
     previous_status VARCHAR(50),
@@ -213,6 +228,8 @@ CREATE TABLE users (
     role VARCHAR(20) NOT NULL CHECK (role IN ('SUPERADMIN', 'ADMIN', 'SUPERVISOR', 'USER')),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     last_login_at TIMESTAMP WITH TIME ZONE,
+    must_change_password BOOLEAN NOT NULL DEFAULT TRUE, -- 20260905c_add_must_change_password_to_users.sql
+    failed_login_attempts INT NOT NULL DEFAULT 0,       -- 20260919_add_failed_login_lockout.sql
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AuthError, requireUser } from '@/lib/auth-service';
-import { processImport } from '@/lib/import-service';
-import { DEFAULT_ADAPTER, type AdapterType } from '@/lib/adapters/index';
+import { AuthError, requireUser } from '@/modules/iam/public';
+import { executeImport, DEFAULT_ADAPTER, type AdapterType } from '@/modules/integration/public';
 
 function authError(error: unknown): NextResponse | null {
   if (error instanceof AuthError) {
@@ -35,7 +34,7 @@ export async function POST(request: NextRequest) {
     const csvText = await file.text();
     const fileName = file.name;
 
-    const result = await processImport(fileName, csvText, aggregatedAt, validateOnly, adapterType);
+    const result = await executeImport(fileName, csvText, aggregatedAt, validateOnly, adapterType);
     return NextResponse.json(result);
   } catch (error: unknown) {
     console.error('API Error in import route:', error);

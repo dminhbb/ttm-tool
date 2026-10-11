@@ -131,7 +131,7 @@ gian cảnh báo).** Epic ở trạng thái Cancelled/To Do/In PO/Backlog đư�
 |---|---|---|
 | R1 | `MISSING_START_DATE` | Thiếu T1 — trạng thái ≥ In Progress/DEV nhưng chưa có Start Date. |
 | R2 | `PENDING_TOO_LONG` | Pending lâu — đang Pending, số ngày làm việc từ **Start Date (T1)** tới ngày đánh giá ≥ 20% chu trình TTM-CNTT (dùng ngân sách CT-Lv12 nếu không xác định được loại Epic). Nếu Epic Pending mà chưa có T1, mốc tính fallback sang **ngày tạo Epic trên Jira** (`jira_created_at`). Không còn điều kiện "vẫn thiếu T0 hoặc T1" như rule cũ. |
-| R3 | `DATE_OUT_OF_SEQUENCE` | Sai thứ tự — không thoả T0 ≤ T1 < R4G Date ≤ Due Date (chỉ xét mốc đã có giá trị; R4G Date = Due Date vẫn coi là hợp lệ). Mỗi cặp sai sinh 1 lỗi riêng. |
+| R3 | `DATE_OUT_OF_SEQUENCE` | Sai thứ tự — không thoả T0 ≤ T1 < R4G Date ≤ Due Date (chỉ xét mốc đã có giá trị; R4G Date = Due Date vẫn coi là hợp lệ). Mọi cặp sai trong cùng 1 Epic được **gộp thành 1 vi phạm** (vì bảng `epic_data_anomaly_violations` chỉ lưu tối đa 1 dòng/Epic/rule_code). |
 | R4 | `MISSING_REQUEST_TYPE` | Thiếu Phân loại yêu cầu (`epic_request_type`). |
 | R5 | `MISSING_REQUIREMENT_LEVEL` | Thiếu Requirement Level (`epic_request_level`). |
 | R6 | `SP_LEVEL_MISMATCH` | Epic được `computeEpicComplexity` đánh giá độ phức tạp **SP** (SP-Lv12/SP-Lv34) nhưng Requirement Level = 1 hoặc 2 — mâu thuẫn nghiệp vụ (SP luôn phải là mức cao), báo hiệu Phân loại yêu cầu hoặc Requirement Level nhập sai. |
@@ -255,6 +255,10 @@ Then cột Cảnh báo hiển thị "Fail TTM-CNTT"
 
 ## 8. API đánh giá cảnh báo và tuân thủ
 
+> **Đã gỡ 11/10/2026:** `POST /api/epic-compliance` (và `epic-compliance-service.ts`) không còn tồn
+> tại — không UI, MCP tool hay hệ thống ngoài nào gọi tới. Lõi `evaluateIssueCompliance`
+> (`epic-compliance-engine.ts`) vẫn còn vì engine legacy dùng nội bộ. Mô tả dưới đây giữ làm lịch sử.
+
 `POST /api/epic-compliance` là contract nghiệp vụ tập trung cho Epic, Story và Subtask. API yêu cầu người dùng đã đăng nhập, nhận `items` (tối đa 500) cùng `evaluatedAt` tùy chọn theo định dạng `YYYY-MM-DD`.
 
 - Epic nhận `startDate`, `ideaApprovedDate`, `r4gDate`, `dueDate`, `status` và `epicComplexityType`; API trả baseline Design, In Progress, R4G, Released; `alertLevel`; trạng thái tuân thủ và các finding chất lượng dữ liệu.
@@ -263,6 +267,10 @@ Then cột Cảnh báo hiển thị "Fail TTM-CNTT"
 - Status không có rule active không phát sinh cảnh báo status, nhưng baseline R4G vẫn được đánh giá; API trả finding thông tin để quản trị viên biết cần cấu hình rule.
 
 ## 9. Logic hiển thị từng ô cột Status trên bảng Epic (`GET /api/epic-alerts`)
+
+> **Đã gỡ 11/10/2026:** màn "Quản trị Epic (rút gọn)" (`/epic-alerts`), `GET /api/epic-alerts` và
+> `getEpicAlertRows` không còn tồn tại; 3 cột Design/In Progress/Ready4Golive nay chỉ còn là lịch sử.
+> Màn hình hiện hành là Quản trị Epic với 5 cột pha (`/epic-alerts-15`).
 
 Mục này chỉ áp dụng cho các cột **Design**, **In Progress**, **Ready4Golive** trên danh sách Epic (`GET /api/epic-alerts`, implementation tại `getEpicAlertRows` trong `src/lib/epic-alert-service.ts`). Đây là logic hiển thị theo từng ô, tách biệt với cột **Nhận xét** (mục 2–4 ở trên, dựa trên `POST /api/epic-compliance`).
 

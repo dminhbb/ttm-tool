@@ -10,20 +10,15 @@ import { PERMISSION_MATRIX_CHANGED_EVENT } from '@/lib/permission-matrix-types';
 import { EpicHeaderWidgetsProvider, useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
 import {
   Bandaids,
-  BriefcaseMetal,
-  Browser,
   Browsers,
   CaretDoubleLeft,
   CaretDoubleRight,
   CaretRight,
   ChartLineUp,
-  ChartPie,
   ClockCounterClockwise,
   Database,
   Faders,
-  FileText,
   Funnel,
-  Gauge,
   GearSix,
   Globe,
   List,
@@ -31,7 +26,6 @@ import {
   Prohibit,
   Pulse,
   ShareNetwork,
-  SlidersHorizontal,
   Users,
   Warning,
   X,
@@ -50,6 +44,7 @@ import { DailyCacheWarmer } from '@/components/layout/DailyCacheWarmer';
 import { SystemStatusFooter } from '@/components/layout/SystemStatusFooter';
 import { DialogHost } from '@/components/ui/dialogs';
 import { showToast, ToastProvider } from '@/components/ui/Toast';
+import { TruncationTooltip } from '@/components/ui/TruncationTooltip';
 import { fallbackPathFor, pageFeatureKey } from '@/lib/feature-access';
 import { resolveScreenKeyFromPathname, trackScreenVisit } from '@/lib/visit-counter-client';
 
@@ -124,12 +119,7 @@ const navigation: NavigationSection[] = [
       { href: '/reports', featureKey: 'epic_reports', icon: Bandaids, label: 'Báo cáo Epic (beta 2)' },
       // Landing page after sign-in, open to every role (permission matrix feature 'ttm_dashboard_2').
       { href: '/ttm-dashboard-2', featureKey: 'ttm_dashboard_2', icon: Funnel, label: 'TTM dashboard 2' },
-      // SUPERADMIN only since 2026-10-05 (permission matrix feature 'dashboard_new').
-      { href: '/dashboard-new', featureKey: 'dashboard_new', icon: ChartPie, label: 'TTM dashboard', roles: SUPERADMIN_ONLY },
-      // { href: '/dashboard', icon: Gauge, label: 'Dashboard' },
-      // { href: '/epic-alerts', icon: Browser, label: 'Quản trị Epic (rút gọn)', roles: ADMIN_VIEW_ROLES },
       { href: '/epic-alerts-15', featureKey: 'epic_alerts_15', icon: Browsers, label: 'Quản trị Epic' },
-      { href: '/epic-in-po', featureKey: 'epic_in_po', icon: BriefcaseMetal, label: 'Epic in PO' },
       // Open to every role (permission matrix feature 'visit_counter' is View for all roles).
       { href: '/visit-stats', featureKey: 'visit_counter', icon: ChartLineUp, label: 'Thống kê truy cập' },
     ],
@@ -366,7 +356,7 @@ function SidebarContent({ expanded, hiddenFeatureKeys, onNavigate, onOpenModal, 
         {expanded && (
           <div className="min-w-0">
             <p className="truncate text-sm font-extrabold tracking-[-0.02em] text-fb-text-primary">TTM Monitor</p>
-            <p className="text-[9px] font-medium text-sidebar-muted">Theo dõi Time to Market</p>
+            <p className="text-[11px] font-medium text-sidebar-muted">Theo dõi Time to Market</p>
           </div>
         )}
       </div>
@@ -375,7 +365,7 @@ function SidebarContent({ expanded, hiddenFeatureKeys, onNavigate, onOpenModal, 
         {sections.map((section) => (
           <div key={section.label} className="mb-5 last:mb-0">
             {expanded ? (
-              <p className="mb-1.5 px-3 text-[9px] font-bold tracking-wide text-sidebar-muted">{section.label}</p>
+              <p className="mb-1.5 px-3 text-[11px] font-bold tracking-wide text-sidebar-muted">{section.label}</p>
             ) : (
               <div className="mx-2 mb-2 h-px bg-fb-border" aria-hidden="true" />
             )}
@@ -419,7 +409,7 @@ function SidebarContent({ expanded, hiddenFeatureKeys, onNavigate, onOpenModal, 
                     {expanded && hasPendingTickets && (
                       <span className="ml-auto size-2 shrink-0 rounded-full bg-status-danger" aria-hidden="true" />
                     )}
-                    {expanded && item.disabled && <span className="ml-auto text-[8px] font-medium">Sắp có</span>}
+                    {expanded && item.disabled && <span className="ml-auto text-[11px] font-medium">Sắp có</span>}
                     {hasPendingTickets && <span className="sr-only"> (có ticket đang chờ xử lý)</span>}
                   </>
                 );
@@ -511,8 +501,6 @@ const PAGE_ROLES: Record<string, UserRole[]> = {
   '/admin/projects': ADMIN_VIEW_ROLES,
   '/admin/status-alert-rules': SUPERADMIN_OR_SUPERVISOR,
   '/admin/users': ADMIN_VIEW_ROLES,
-  '/dashboard-new': SUPERADMIN_ONLY,
-  '/epic-alerts': ADMIN_VIEW_ROLES,
   // /data-review/[batchId] drills into "Nguồn dữ liệu" — same SUPERADMIN-only gate as its API.
   '/data-review': SUPERADMIN_ONLY,
 };
@@ -776,8 +764,8 @@ function AppShellInner({ children }: AppShellProps) {
               {epicHeaderWidgetItems.map((item) => (
                 <Tooltip key={item.key} multiline side="bottom" align="end" content={item.tooltip} className="inline-flex w-auto">
                   <div className="flex flex-col items-end gap-0 rounded-md border border-fb-border bg-fb-surface-muted px-2 py-1 leading-none cursor-help hover:bg-fb-control transition-colors">
-                    <span className="text-[9px] font-bold uppercase tracking-wide text-fb-text-secondary">{item.label}</span>
-                    <span className={cn('text-sm font-extrabold', item.tone === 'qa' ? 'text-purple-700' : item.tone === 'e2e' ? 'text-emerald-700' : 'text-fb-blue')}>{item.value}</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wide text-fb-text-secondary">{item.label}</span>
+                    <span className={cn('text-sm font-extrabold', item.tone === 'qa' ? 'text-fb-accent' : item.tone === 'e2e' ? 'text-status-success' : 'text-fb-blue')}>{item.value}</span>
                   </div>
                 </Tooltip>
               ))}
@@ -815,6 +803,11 @@ export function AppShell({ children }: AppShellProps) {
           <AppShellInner>{children}</AppShellInner>
         </React.Suspense>
         <DialogHost />
+        {/* Mount một lần cho toàn app: mọi ô mang class `.ias-td-truncate` sẽ hiện
+            đầy đủ nội dung khi hover, qua một delegated listener trên document.
+            Thay cho attribute `title` (hộp tooltip của OS, không phải bubble của DS)
+            và khôi phục phần chữ bị cắt mà hiện không có cách nào đọc được. */}
+        <TruncationTooltip />
       </ToastProvider>
     </EpicHeaderWidgetsProvider>
   );

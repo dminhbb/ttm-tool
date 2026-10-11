@@ -1,30 +1,25 @@
-# 13 — Quản trị Epic (rút gọn/đầy đủ), Epic in PO và Dashboard
+# 13 — Quản trị Epic và các màn hình Dashboard
 
-> **Cập nhật tên màn hình:** "Quản lý Epic 30"/"Quản lý Epic 15" đã đổi tên trên UI (nhãn menu trái
-> và tiêu đề trang, `src/components/layout/AppShell.tsx`) thành **"Quản trị Epic (rút gọn)"**
-> (`/epic-alerts`) và **"Quản trị Epic (đầy đủ)"** (`/epic-alerts-15`). Route không đổi. Tên cũ
-> "Epic 30"/"Epic 15" chỉ còn sống sót ở `feature_key` nội bộ (`epic_alerts_30`/`epic_alerts_15`)
-> trong bảng `permission_features` của Ma trận phân quyền — không đổi lại DB key để tránh phá seed
-> data, nhưng đừng dùng tên cũ khi nói với người dùng hoặc viết UI mới.
+> **Cập nhật 11/10/2026 — gỡ 3 màn hình cũ:** `/epic-alerts` ("Quản trị Epic (rút gọn)" / Epic 30),
+> `/epic-in-po` ("Epic in PO") và `/dashboard` ("Dashboard cũ") không còn tồn tại. `next.config.ts`
+> chuyển hướng (307): `/epic-alerts` → `/epic-alerts-15`; `/epic-in-po` →
+> `/epic-alerts-15?status=To Do,IN PO,Released` (tương đương quick filter "Epics in PO");
+> `/dashboard` → `/ttm-dashboard-2`. Các feature `dashboard`, `epic_alerts_30`, `epic_in_po` đã bị
+> xoá khỏi Ma trận phân quyền (migration `20261011_remove_legacy_screen_permissions.sql`). Các route
+> lịch sử cảnh báo của một Epic (Epic History) chuyển từ `/api/epic-alerts/[epicKey]/…` sang
+> `/api/epic-alerts-15/[epicKey]/alert-history` và `…/alert-timeline`. MCP `get_dashboard_summary` giữ
+> lại như tên cũ của `get_ttm_dashboard`; `/api/epic-compliance` (không có client nào gọi) đã bị gỡ.
+> Các đoạn bên dưới nhắc tới "rút gọn"/"Epic in PO"/"Dashboard cũ" là lịch sử, không còn áp dụng.
+>
+> **Tên cũ:** "Quản lý Epic 15" đã đổi tên trên UI thành **"Quản trị Epic"** (`/epic-alerts-15`);
+> `feature_key` nội bộ vẫn là `epic_alerts_15`.
 
 ## Phân tách màn hình
 
-- `/epic-alerts`: **Quản trị Epic (rút gọn)**, theo các cột Design, In Progress, Ready4Golive,
-  Release. Cần role `ADMIN`/`SUPERADMIN`/`SUPERVISOR` (không mở cho `USER`).
-- `/epic-alerts-15`: **Quản trị Epic (đầy đủ)**, theo các pha Design, Dev, Test, Pentest, R4Golive,
-  Release. Mở cho **mọi role đã đăng nhập** kể cả `USER` (không giới hạn role).
-- `/epic-in-po`: **Epic in PO** — cùng dữ liệu/logic với "đầy đủ" (dùng chung
-  `getEpicAlertRowsPhased`/API `/api/epic-alerts-15`), lọc client-side chỉ còn Epic ở trạng thái
-  `TO DO`/`IN PO`/`RELEASED`. Mở cho mọi role như "đầy đủ".
-- `/dashboard-new`: **TTM Dashboard** — màn hình trung tâm điều hành và theo dõi chính, là màn hình mặc
-  định sau khi đăng nhập cho toàn bộ user. Tích hợp 2 chỉ số toàn phòng TTM-Index (QLDA) / QA-Index (QLDA),
-  chế độ Lead view (9 KPI cards, Phễu 5 giai đoạn, Ma trận Đa chiều 4 tab, 5 Section Donut Charts) và PM/SM
-  view (thừa hưởng KPI và Phễu, Ma trận 2 tab, Section Donut phân loại Epic, Bảng danh sách Epic 3 tab: Chờ
-  golive, Pending, Anomaly). Toàn bộ widget và biểu đồ loại bỏ các Epic Cancelled ở cả tử số lẫn mẫu số.
-- `/dashboard`: **Dashboard cũ** — thống kê tổng hợp theo dự án (đã ẩn khỏi thanh điều hướng sidebar).
-
-**Không còn "dùng chung quyền truy cập"** như nội dung cũ — "rút gọn" hạn chế role, còn "đầy đủ"/
-"Epic in PO"/Dashboard mở cho mọi role.
+- `/epic-alerts-15`: **Quản trị Epic**, theo các pha Design, Dev, Test, Pentest, R4Golive, Release.
+  Mở cho **mọi role đã đăng nhập** kể cả `USER` (theo phạm vi dự án/Domain/Component được phân quyền).
+- `/ttm-dashboard-2`: **TTM Dashboard 2** — màn hình mặc định sau đăng nhập (xem
+  `docs/ttm-dashboard-2-spec.md`).
 
 ## Thứ tự trạng thái Epic
 

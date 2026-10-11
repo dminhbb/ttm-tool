@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chỉnh sửa dự án — PMS Platform</title>
+<link rel="stylesheet" href="assets/pms-tokens.css">
+<link rel="stylesheet" href="assets/pms-ias.css">
+<script src="assets/pms-icons.js"></script>
+</head>
+<body>
+<div id="pms-page"></div>
+
+<script src="assets/pms-util.js"></script>
+<script src="assets/pms-ui.js"></script>
+<script src="assets/mock-data.js"></script>
+<script src="assets/pms-detail.js"></script>
+<script src="assets/pms-shell.js"></script>
+<script>
+const E = MBUtil.esc;
+const D = PMSDetail;
+const P = PRJ;
+
+document.body.dataset.extraCrumb = P.name + ' / Chỉnh sửa';
+
+/* state session */
+let OKR = P.okr.map(o => Object.assign({}, o));
+let MEMBERS = P.members.map(m => Object.assign({}, m));
+
+function sel(id, label, options, value, cls, req) {
+  return '<div class="ef' + (cls ? ' ' + cls : '') + '"><label for="' + id + '">' + E(label)
+    + (req ? ' <span class="req">*</span>' : '') + '</label>'
+    + '<select id="' + id + '">'
+    + options.map(o => '<option' + (o === value ? ' selected' : '') + '>' + E(o) + '</option>').join('')
+    + '</select>' + (req ? '<span class="ef-err">Trường này là bắt buộc.</span>' : '') + '</div>';
+}
+function inp(id, label, value, cls, req, type, readonly) {
+  return '<div class="ef' + (cls ? ' ' + cls : '') + '"><label for="' + id + '">' + E(label)
+    + (req ? ' <span class="req">*</span>' : '') + '</label>'
+    + '<input id="' + id + '" type="' + (type || 'text') + '" value="' + E(value || '') + '"'
+    + (readonly ? ' readonly' : '') + ' />'
+    + (req ? '<span class="ef-err">Trường này là bắt buộc.</span>' : '') + '</div>';
+}
+function txt(id, label, value, req) {
+  return '<div class="ef full"><label for="' + id + '">' + E(label)
+    + (req ? ' <span class="req">*</span>' : '') + '</label>'
+    + '<textarea id="' + id + '">' + E(value || '') + '</textarea>'
+    + (req ? '<span class="ef-err">Trường này là bắt buộc.</span>' : '') + '</div>';
+}
+
+/* ───────────────── card: thông tin chung (lưới 4 cột cố định) ──────────── */
+function infoCard() {
+  return D.card('Thông tin chung',
+    '<div class="erow">'
+    + sel('e-type', 'Loại dự án', MBData.PROJECT_TYPES, P.type, '', true)
+    + sel('e-form', 'Hình thức', MBData.FORMS, P.form, '', true)
+    + sel('e-priority', 'Mức độ ưu tiên', MBData.PRIORITIES, P.priority, '', true)
+    + inp('e-code', 'Mã dự án', P.code, '', true, 'text', true)
+    + '</div><div class="erow">'
+    + inp('e-name', 'Tên dự án', P.name, 'half', true)
+    + sel('e-domain', 'Domain', MBData.DOMAINS, P.domain, '', true)
+    + inp('e-leader', 'Lãnh đạo phụ trách dự án', P.leader, '', true)
+    + '</div><div class="erow">'
+    + inp('e-start', 'Ngày bắt đầu', P.startDate, '', true, 'date')
+    + inp('e-end', 'Ngày kết thúc', P.endDate, '', true, 'date')
+    + sel('e-phase', 'Giai đoạn hiện tại', ['Khởi tạo', 'Phân tích', 'Phát triển', 'Kiểm thử', 'Go-live', 'Hậu go-live'], P.currentPhase)
+    + sel('e-status', 'Trạng thái', MBData.STATUSES, P.status)
+    + '</div><div class="erow">'
+    + txt('e-context', 'Bối cảnh / Hiện trạng', P.context, true)
+    + '</div><div class="erow">'
+    + txt('e-objective', 'Mục tiêu triển khai', P.objective, true)
+    + '</div><div class="erow">'
+    + txt('e-scope', 'Phạm vi triển khai', P.scopeText)
+    + '</div>');
+}
+
+/* ───────────────────── card: OKR (bảng có thêm/xoá dòng) ───────────────── */
+function okrCard() {
+  const rows = OKR.map((o, i) => '<tr>'
+    + '<td><input class="ef-inline" data-okr="' + i + '" data-k="obj" value="' + E(o.obj)
+    + '" style="min-width:220px;max-width:360px;height:40px;width:100%;border:1px solid var(--color-border-default);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--color-text-body)" /></td>'
+    + '<td><input data-okr="' + i + '" data-k="kr" value="' + E(o.kr)
+    + '" style="min-width:220px;max-width:360px;height:40px;width:100%;border:1px solid var(--color-border-default);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--color-text-body)" /></td>'
+    + '<td><input data-okr="' + i + '" data-k="result" value="' + E(o.result)
+    + '" style="min-width:200px;max-width:320px;height:40px;width:100%;border:1px solid var(--color-border-default);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--color-text-body)" /></td>'
+    + '<td><input data-okr="' + i + '" data-k="pct" type="number" min="0" max="100" value="' + o.pct
+    + '" style="min-width:90px;height:40px;width:100%;border:1px solid var(--color-border-default);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--color-text-body)" /></td>'
+    + '<td class="td-ctr"><button class="row-del" data-del-okr="' + i + '" aria-label="Xóa dòng">'
+    + '<span class="msym" style="font-size:18px">delete</span></button></td></tr>');
+  return D.card('Đăng ký OKR',
+    '<div class="table-wrap"><div class="table-inner"><table style="min-width:1080px">'
+    + '<thead><tr><th style="min-width:260px">Mục tiêu (Object)</th>'
+    + '<th style="min-width:260px">Kết quả dự kiến (Key Result)</th>'
+    + '<th style="min-width:240px">Kết quả thực tế (Result)</th>'
+    + '<th style="width:140px">Mức đạt (%)</th>'
+    + '<th style="width:72px"><span class="sr-only">Xóa</span></th></tr></thead>'
+    + '<tbody>' + rows.join('') + '</tbody></table></div></div>'
+    + '<button class="add-row-link" id="add-okr"><span class="msym" style="font-size:18px">add</span>Thêm mục tiêu</button>');
+}
+
+/* ─────────────────── card: nhân sự + thành viên dự án ──────────────────── */
+function peopleCard() {
+  const rows = MEMBERS.map((m, i) => '<tr>'
+    + '<td><select data-mem="' + i + '" data-k="role"'
+    + ' style="min-width:160px;height:40px;width:100%;border:1px solid var(--color-border-default);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--color-text-body)">'
+    + MBData.ROLES.map(r => '<option' + (r === m.role ? ' selected' : '') + '>' + E(r) + '</option>').join('')
+    + '</select></td>'
+    + '<td><select data-mem="' + i + '" data-k="dept"'
+    + ' style="min-width:260px;height:40px;width:100%;border:1px solid var(--color-border-default);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--color-text-body)">'
+    + MBData.DEPARTMENTS.map(d => '<option' + (d === m.dept ? ' selected' : '') + '>' + E(d) + '</option>').join('')
+    + '</select></td>'
+    + '<td><input data-mem="' + i + '" data-k="fte" type="number" min="0" value="' + m.fte
+    + '" style="min-width:100px;height:40px;width:100%;border:1px solid var(--color-border-default);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--color-text-body)" /></td>'
+    + '<td class="td-ctr"><button class="row-del" data-del-mem="' + i + '" aria-label="Xóa dòng">'
+    + '<span class="msym" style="font-size:18px">delete</span></button></td></tr>');
+  rows.push('<tr class="total-row"><td>Tổng</td><td></td>'
+    + '<td class="td-num">' + MBUtil.sum(MEMBERS, m => m.fte) + '</td><td></td></tr>');
+
+  return D.card('Nhân sự phụ trách và thành viên dự án',
+    '<div class="erow">'
+    + inp('e-pd', 'Giám đốc dự án (Project Director)', P.people.pd, '', true)
+    + inp('e-td', 'Giám đốc kỹ thuật (Technical Director)', P.people.td, '', true)
+    + inp('e-pm', 'Quản lý dự án (Project Manager)', P.people.pm, '', true)
+    + '<div class="ef"></div>'
+    + '</div>'
+    + '<div class="table-wrap mt-16"><div class="table-inner"><table style="min-width:800px">'
+    + '<thead><tr><th style="min-width:180px">Vai trò (Role)</th>'
+    + '<th style="min-width:280px">Phòng ban (Department)</th>'
+    + '<th style="width:160px">Số lượng (FTE)</th>'
+    + '<th style="width:72px"><span class="sr-only">Xóa</span></th></tr></thead>'
+    + '<tbody>' + rows.join('') + '</tbody></table></div></div>'
+    + '<button class="add-row-link" id="add-mem"><span class="msym" style="font-size:18px">add</span>Thêm thành viên</button>');
+}
+
+/* ─────────────────── card: liên kết hệ thống ngoài ─────────────────────── */
+function bindingCard() {
+  return D.card('Liên kết hệ thống ngoài',
+    '<div class="erow">'
+    + inp('e-jira', 'Jira Project Key', P.external.jiraKey)
+    + inp('e-opms', 'OPMS Demand', P.external.opmsDemand)
+    + '<div class="ef"><label>Theo dõi TTM</label>'
+    + '<div style="height:40px;display:flex;align-items:center">'
+    + '<label class="toggle"><input type="checkbox" id="e-ttm"' + (P.external.ttmEnabled ? ' checked' : '') + '>'
+    + '<span class="toggle-track"></span><span class="toggle-label">Bật tính TTM cho dự án</span></label>'
+    + '</div></div>'
+    + '<div class="ef"></div>'
+    + '</div>'
+    + '<div class="alert alert-warning mt-16"><span class="msym">warning</span>'
+    + '<div>Đổi <b>Jira Project Key</b> sẽ phát sinh event <code>ProjectExternalBindingChanged</code>; '
+    + 'module TTM phải rebuild projection và cache. Dữ liệu TTM lịch sử vẫn giữ '
+    + '<code>project_key_at_import</code> để truy vết.</div></div>');
+}
+
+/* ────────────────────────────────── render ─────────────────────────────── */
+function render() {
+  document.getElementById('pms-page').innerHTML =
+    infoCard() + okrCard() + peopleCard() + bindingCard()
+    /* DetailFooter cho màn chỉnh sửa: Đóng → Lưu (primary cuối).
+       Không có "Trình phê duyệt" — module dừng ở mức khai báo, bản ghi được
+       lưu trực tiếp, trạng thái do PM tự đổi ở field "Trạng thái" phía trên. */
+    + '<div class="detail-footer">'
+    + '<a class="btn btn-outline" href="04-detail-overview.html?p=' + P.id + '">Đóng</a>'
+    + '<button class="btn btn-primary" id="btn-save"><span class="msym" style="font-size:16px">save</span>Lưu thay đổi</button>'
+    + '</div>';
+  D.headerActions();
+  wire();
+}
+
+function wire() {
+  document.querySelectorAll('[data-okr]').forEach(el => el.addEventListener('input', () => {
+    const i = +el.dataset.okr, k = el.dataset.k;
+    OKR[i][k] = k === 'pct' ? (+el.value || 0) : el.value;
+  }));
+  document.querySelectorAll('[data-mem]').forEach(el => el.addEventListener('input', () => {
+    const i = +el.dataset.mem, k = el.dataset.k;
+    MEMBERS[i][k] = k === 'fte' ? (+el.value || 0) : el.value;
+    if (k === 'fte') render();
+  }));
+  document.querySelectorAll('[data-mem][data-k="role"], [data-mem][data-k="dept"]')
+    .forEach(el => el.addEventListener('change', () => {
+      MEMBERS[+el.dataset.mem][el.dataset.k] = el.value;
+    }));
+
+  document.getElementById('add-okr').addEventListener('click', () => {
+    OKR.push({ obj: '', kr: '', result: '', pct: 0 }); render();
+  });
+  document.getElementById('add-mem').addEventListener('click', () => {
+    MEMBERS.push({ role: 'Dev', dept: MBData.DEPARTMENTS[0], fte: 1 }); render();
+  });
+  document.querySelectorAll('[data-del-okr]').forEach(b => b.addEventListener('click', () => {
+    OKR.splice(+b.dataset.delOkr, 1); render();
+  }));
+  document.querySelectorAll('[data-del-mem]').forEach(b => b.addEventListener('click', () => {
+    MEMBERS.splice(+b.dataset.delMem, 1); render();
+  }));
+
+  document.getElementById('btn-save').addEventListener('click', () => {
+    if (!validate()) return;
+    const next = document.getElementById('e-status').value;
+    if (next !== P.status) {
+      PMSModal.confirm({
+        title: 'Đổi trạng thái dự án',
+        body: 'Dự án <b>' + E(P.code) + '</b> sẽ chuyển từ <b>' + E(P.status) + '</b> sang <b>'
+          + E(next) + '</b>. Lưu thay đổi?',
+        okLabel: 'Lưu thay đổi', okIcon: 'save',
+        onOk: () => { MBData.setProjectStatus(P.id, next); save('Lưu thay đổi'); }
+      });
+      return;
+    }
+    save('Lưu thay đổi');
+  });
+}
+
+function validate() {
+  const required = ['e-name', 'e-leader', 'e-start', 'e-end', 'e-context', 'e-objective', 'e-pd', 'e-td', 'e-pm'];
+  let bad = 0, first = null;
+  required.forEach(id => {
+    const el = document.getElementById(id);
+    const f = el.closest('.ef');
+    if (!el.value.trim()) { f.classList.add('is-invalid'); bad++; if (!first) first = el; }
+    else f.classList.remove('is-invalid');
+  });
+  const s = document.getElementById('e-start').value, e = document.getElementById('e-end').value;
+  if (s && e && s >= e) {
+    document.getElementById('e-end').closest('.ef').classList.add('is-invalid');
+    PMSNotify.error('Ngày kết thúc không hợp lệ', 'Ngày kết thúc phải sau ngày bắt đầu.');
+    return false;
+  }
+  if (bad) {
+    PMSNotify.error('Còn ' + bad + ' trường bắt buộc chưa điền', 'Các trường được tô đỏ bên dưới.');
+    if (first) first.focus();
+    return false;
+  }
+  return true;
+}
+
+function save(kind) {
+  /* mockup: chỉ cập nhật đối tượng trong session, không ghi DB */
+  P.name = document.getElementById('e-name').value.trim();
+  P.leader = document.getElementById('e-leader').value.trim();
+  P.startDate = document.getElementById('e-start').value;
+  P.endDate = document.getElementById('e-end').value;
+  P.context = document.getElementById('e-context').value.trim();
+  P.objective = document.getElementById('e-objective').value.trim();
+  P.scopeText = document.getElementById('e-scope').value.trim();
+  P.type = document.getElementById('e-type').value;
+  P.form = document.getElementById('e-form').value;
+  P.priority = document.getElementById('e-priority').value;
+  P.domain = document.getElementById('e-domain').value;
+  P.currentPhase = document.getElementById('e-phase').value;
+  P.status = document.getElementById('e-status').value;
+  P.people = {
+    pd: document.getElementById('e-pd').value.trim(),
+    td: document.getElementById('e-td').value.trim(),
+    pm: document.getElementById('e-pm').value.trim()
+  };
+  P.okr = OKR;
+  P.members = MEMBERS;
+  P.external.jiraKey = document.getElementById('e-jira').value.trim();
+  P.external.opmsDemand = document.getElementById('e-opms').value.trim();
+  P.external.ttmEnabled = document.getElementById('e-ttm').checked;
+  PMSNotify.success(kind + ' thành công', 'Thay đổi chỉ sống trong phiên làm việc của mockup.');
+}
+
+render();
+D.wire();
+</script>
+
+<!--
+## 📊 Component Coverage Report — Chỉnh sửa dự án
+
+| # | Element | DS Component used | Status |
+|---|---------|------------------|--------|
+| 1 | Left sidebar | AppSidebar | ✅ DS |
+| 2 | Breadcrumb + back + title + badge + actions | PageHeader (onBack + badge) | ✅ DS |
+| 3 | 4 card nội dung thu gọn được | Card / DCard (collapse) | ✅ DS |
+| 4 | Lưới field nhập liệu 4 cột cố định (.erow/.ef, .half cho trường văn bản dài) | Input · Select · Textarea | ✅ DS |
+| 5 | Ô nhập ngày | Input type=date | ✅ DS |
+| 6 | Ô nhập số (FTE, mức đạt OKR) | InputNumber | ✅ DS |
+| 7 | Bảng OKR / thành viên có nhập liệu trong ô | Table (+ min-width bắt buộc cho field trong ô) | ✅ DS |
+| 8 | Dòng Tổng FTE | Table (tr.total-row) | ✅ DS |
+| 9 | Nút xoá dòng | Button (icon-only ghost) | ✅ DS |
+| 10 | Link "+ Thêm mục tiêu / thành viên" | add-row link (pattern của ChinhSua) | ✅ DS |
+| 11 | Công tắc bật theo dõi TTM | Toggle | ✅ DS |
+| 12 | Cảnh báo đổi Jira key | Alert | ✅ DS |
+| 13 | Hộp thoại xác nhận đổi trạng thái | Modal | ✅ DS |
+| 14 | Thông báo lưu / lỗi validate | Notification | ✅ DS |
+| 15 | Hàng thao tác đóng màn (Đóng · Lưu thay đổi) | DetailFooter align="center" | ✅ DS |
+
+**DS component coverage: 15 / 15 = 100%**
+Shell zones: ✅ AppSidebar · ✅ PageHeader · ❌ AppHeader (loại trừ theo mặc định của ias-design)
+
+Ghi chú phạm vi: không có "Trình phê duyệt". Bản ghi được lưu trực tiếp; vòng đời dự án
+đổi bằng chính field **Trạng thái** trong card Thông tin chung
+(`Mới khai báo → Đang triển khai → Tạm dừng → Hoàn thành`), có Modal xác nhận khi đổi.
+
+Ghi chú: màn này tách riêng khỏi `04-detail-overview.html` theo SKILL.md Step 3c — màn sửa dữ liệu
+phải dựng trên `ChinhSua.dc.html` (field-grid có control thật), không được tái dùng pattern `.val`
+chỉ-đọc của `XemChiTiet`. Theo `table.md`, mọi `Input`/`Select` nằm trong ô bảng đều được đặt
+`min-width` (và `max-width` khi cần) cùng `height` cố định 40px để dòng không giãn.
+
+## 🎨 Color Token Coverage — Chỉnh sửa dự án
+
+| # | Element (property) | Location | Original hex | Category | Matched Semantic Alias | Match |
+|---|---|---|---|---|---|---|
+| 1 | Nền card / ô nhập | `.d-card`, `.ef input` | `#FFFFFF` | background | `--color-bg-surface` | ✅ Exact |
+| 2 | Viền ô nhập | `.ef input/select/textarea` | `#D9DBE9` | border | `--color-border-default` | ✅ Exact |
+| 3 | Viền ô nhập khi focus | `.ef input:focus` | `#141ED2` | border | `--color-border-focus` | ✅ Exact |
+| 4 | Viền ô nhập khi lỗi | `.ef.is-invalid input` | `#EB2D4B` | border | `--color-border-error` | ✅ Exact |
+| 5 | Nền ô nhập khi lỗi | `.ef.is-invalid input` | `#FFF3F8` | background | `--color-bg-error` | ✅ Exact |
+| 6 | Chữ báo lỗi | `.ef-err` | `#C30052` | text | `--color-text-error` | ✅ Exact |
+| 7 | Nhãn field | `.ef label` | `#4E4B66` | text | `--color-text-body` | ✅ Exact |
+| 8 | Dấu * bắt buộc | `.ef label .req` | `#C30052` | text | `--color-text-error` | ✅ Exact |
+| 9 | Nền ô readonly (mã dự án) | `.ef input[readonly]` | `#F4F6FA` | background | `--color-bg-page` | ✅ Exact |
+| 10 | Chữ ô readonly | `.ef input[readonly]` | `#A0A3BD` | text | `--color-text-muted` | ✅ Exact |
+| 11 | Nút xoá dòng khi hover | `.row-del:hover` | `#FFF3F8` / `#EB2D4B` | background/icon | `--color-bg-error` / `--color-icon-error` | ✅ Exact |
+| 12 | Link "+ Thêm dòng" | `.add-row-link` | `#141ED2` | text | `--color-text-link` | ✅ Exact |
+
+**Color token coverage: 12 / 12 = 100% Exact · 0 severe gap**
+
+## 🔤 Typography Scale Coverage — Chỉnh sửa dự án
+
+| # | Text element | Rendered size / weight | Matched scale | Match | Class used? |
+|---|---|---|---|---|---|
+| 1 | Detail title | 20px / 700 | H4 (22px/500) | ⚠️ Nearest — spec riêng của PageHeader | ❌ `.detail-title` |
+| 2 | Tiêu đề card | 16px / 700 | Subtitle 1 (16px/600) | ⚠️ Nearest | ✅ `.d-card-title` dùng token subtitle1 |
+| 3 | Nhãn field nhập liệu | 12px / 600 | Caption (12px/500) | ⚠️ Nearest | ❌ `.ef label` theo đúng spec ChinhSua |
+| 4 | Nội dung ô nhập | 13px / 400 | Body 2 (14px/400) | ⚠️ Nearest | ❌ `.ef input` theo đúng spec ChinhSua |
+| 5 | Chữ báo lỗi | 12px / 400 | Caption (12px/500) | ⚠️ Nearest | ❌ `.ef-err` |
+| 6 | Link thêm dòng | 13px / 600 | Subtitle 2 (14px/600) | ⚠️ Nearest | ❌ `.add-row-link` |
+| 7 | Nội dung Alert | 13px / 400 | Body 2 (14px/400) | ⚠️ Nearest | ❌ `.alert` |
+| 8 | Header bảng | 11px / 700 | Overline (10px/600) | ⚠️ Nearest — spec riêng của Table | ❌ `th` |
+
+**Typography scale coverage: 8 / 8 = 100% · Utility-class adoption: 1 / 8 = 13%**
+Ghi chú: lớp form của màn này cố ý giữ nguyên spec typography của `ChinhSua.dc.html`/`FilterCard`
+(12px/600 label, 13px/400 control) để không lệch khỏi component gốc.
+-->
+</body>
+</html>

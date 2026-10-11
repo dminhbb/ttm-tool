@@ -9,7 +9,7 @@ import { isCancelledStatus } from '@/lib/issue-status-rules';
 import { getScoringEngineMode, getStoredScoringEngineMode } from '@/lib/scoring-mode-service';
 import type { UserRole } from '@/lib/auth-types';
 
-/** Epic rows of the TTM dashboards (GET /api/dashboard-new, TTM Dashboard 2's row loader):
+/** Epic rows of TTM Dashboard 2 (its row loader; the older /api/dashboard-new was removed 2026-10-11):
  * epic_alert_row_cache scoped to this viewer when the cache exists, otherwise the live computation.
  * Cancelled Epics are left out unless `includeCancelled` (TTM Dashboard 2's funnel shows them as its own layer). */
 export async function loadDashboardEpicRows(userId: number, role: UserRole, options: { includeCancelled?: boolean } = {}): Promise<{ lastAggregatedAt: string | null; rows: DashboardEpicRow[] }> {

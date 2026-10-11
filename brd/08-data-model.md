@@ -2,8 +2,8 @@
 
 > Nguồn sự thật là `db/schema.sql` (bootstrap cho DB mới) + toàn bộ file trong `db/migrations/*.sql`
 > (không tính `.down.sql`). File này diễn giải lại đúng theo hai nguồn đó; khi có khác biệt, luôn ưu
-> tiên đọc trực tiếp `db/schema.sql`/`db/migrations`. Ứng dụng chạy song song 3 profile DB (local,
-> Aiven, Supabase — xem `AGENTS.md`), migration phải áp dụng cho cả 3 khi thay đổi schema.
+> tiên đọc trực tiếp `db/schema.sql`/`db/migrations`. Ứng dụng chạy song song 2 profile DB (local,
+> Supabase — xem `AGENTS.md`; Aiven đã ngừng sử dụng từ 26/09/2026), migration phải áp dụng cho cả 2 khi thay đổi schema.
 
 ## 1. Nguyên tắc mô hình dữ liệu
 
@@ -405,9 +405,9 @@ Màn hình `/admin/permissions` ("Ma trận phân quyền", SUPERADMIN-only) c�
 Xem/Thêm/Sửa/Xóa cho từng cặp (tính năng, role). `category='ADMIN'` cho phép bật/tắt cả 4 quyền;
 `category='VIEW_ONLY'` chỉ có ý nghĩa với `can_view` (dùng cho các màn hình theo dõi Epic, popup
 help, tài liệu sản phẩm). SUPERADMIN luôn được seed đủ 4 quyền TRUE trên mọi feature và API từ chối
-sửa dòng SUPERADMIN. Lưu ý: seed feature key `epic_alerts_30`/`epic_alerts_15` vẫn giữ tên gọi cũ
-"Quản lý Epic 30"/"Quản lý Epic 15" dù UI đã đổi nhãn thành "Quản trị Epic (rút gọn)"/"(đầy đủ)" —
-đây chỉ là key nội bộ, không đổi tên field để tránh phá dữ liệu đã seed. Migration
+sửa dòng SUPERADMIN. Lưu ý: feature key `epic_alerts_15` vẫn giữ tên gọi cũ "Quản lý Epic 15" dù UI
+đã đổi nhãn thành "Quản trị Epic" — đây chỉ là key nội bộ. Các key `dashboard`, `epic_alerts_30`,
+`epic_in_po` và `dashboard_new` của 4 màn hình đã gỡ bị xoá bởi migration `20261011_remove_legacy_screen_permissions.sql`. Migration
 `20260909_add_epic_reports_permission.sql` bổ sung thêm feature key `epic_reports` (category
 `VIEW_ONLY`) cho màn hình Báo cáo Epic (`/reports` — xem `15-mcp-sso-and-reports.md`).
 
@@ -507,8 +507,11 @@ bật**, không bị flag tắt như `epic_alert_history`/`epic_milestone_histor
 id
 epic_key
 rule_code                -- CHECK IN ('MISSING_START_DATE','PENDING_TOO_LONG','DATE_OUT_OF_SEQUENCE',
-                          --           'MISSING_REQUEST_TYPE','MISSING_REQUIREMENT_LEVEL','SP_LEVEL_MISMATCH')
-rule_index                -- R1-R6, xem EPIC_ANOMALY_RULE_INDEX (src/lib/epic-data-anomaly.ts)
+                          --           'MISSING_REQUEST_TYPE','MISSING_REQUIREMENT_LEVEL','SP_LEVEL_MISMATCH',
+                          --           'RELEASE_STATUS_MISMATCH')  -- thêm bởi 20260924
+rule_index                -- R1-R7, xem EPIC_ANOMALY_RULE_INDEX (src/lib/epic-data-anomaly.ts, engine legacy).
+                          -- R8-R10 chỉ tồn tại trong Scoring Service (src/lib/scoring/rules/data-quality.ts),
+                          -- không ghi vào bảng này.
 message
 detected_at
 source_import_batch_id    -- FK import_batches(id) ON DELETE SET NULL
@@ -584,7 +587,7 @@ tiết nghiệp vụ đầy đủ: `15-mcp-sso-and-reports.md`.
 ```text
 id            -- BIGSERIAL PRIMARY KEY
 event_type    -- VARCHAR(20) NOT NULL ('APP_LOGIN' | 'SCREEN_VIEW')
-screen_key    -- VARCHAR(50) ('dashboard' | 'epic_alerts' | 'epic_reports' | 'epic_in_po' | NULL)
+screen_key    -- VARCHAR(50) ('ttm_dashboard_2' | 'epic_alerts' | 'epic_reports' | 'dashboard' / 'epic_in_po' (đã gỡ, chỉ còn lịch sử) | NULL)
 user_id       -- INT REFERENCES users(id) ON DELETE SET NULL
 created_at    -- TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 ```
@@ -602,11 +605,11 @@ CREATE INDEX IF NOT EXISTS idx_visit_logs_user_created ON visit_logs (user_id, c
 ### Quy tắc nghiệp vụ & Luồng ghi nhận
 
 - **`APP_LOGIN`**: Ghi nhận một bản ghi mỗi khi người dùng đăng nhập thành công vào hệ thống (ghi nhận tại `src/lib/auth-service.ts` trong hàm `createSession`). Cột `screen_key` mang giá trị `NULL`.
-- **`SCREEN_VIEW`**: Ghi nhận khi người dùng truy cập một trong 4 màn hình trọng điểm:
-  1. `dashboard`: Màn hình TTM Dashboard (`/dashboard-new`, alias `/dashboard`).
-  2. `epic_alerts`: Màn hình Quản trị Epic (`/epic-alerts-15`, alias `/epic-alerts`).
+- **`SCREEN_VIEW`**: Ghi nhận khi người dùng truy cập một trong 3 màn hình trọng điểm:
+  1. `ttm_dashboard_2`: Màn hình TTM Dashboard 2 (`/ttm-dashboard-2`).
+  2. `epic_alerts`: Màn hình Quản trị Epic (`/epic-alerts-15`).
   3. `epic_reports`: Màn hình Báo cáo Epic (`/reports`).
-  4. `epic_in_po`: Màn hình Epic in PO (`/epic-in-po`).
+  (`dashboard` — TTM Dashboard `/dashboard-new` — và `epic_in_po` — Epic in PO — đã gỡ 11/10/2026; các dòng cũ giữ nguyên làm lịch sử, không ghi mới.)
   Phía client (`src/lib/visit-counter-client.ts`) áp dụng cơ chế **debounce 30 giây** trong `sessionStorage` cho từng `screen_key` nhằm tránh ghi nhận trùng lặp khi người dùng chuyển tab nhanh hoặc re-render component.
 - **Quan hệ**: `users ||--o{ visit_logs : "1-n (user_id)"`. Khi xóa user, `user_id` trong `visit_logs` được set `NULL` (`ON DELETE SET NULL`), bảo toàn số liệu thống kê tổng mà không làm sai lệch lịch sử truy cập.
 - **Phân tích đa chiều**: Service `src/lib/visit-counter-service.ts` tổng hợp số liệu trực tiếp từ `visit_logs`:
@@ -639,7 +642,7 @@ Các bảng dưới đây được thêm bằng migration sau khi tài liệu n�
 | `daily_cache_runs` | `20260926_create_daily_cache_runs.sql` | `run_date` | Lượt tạo lại cache đầu ngày (RUNNING / SUCCESS / FAILED, `duration_ms`, `epic_row_count`, `attempt_count`). |
 | `derived_cache_refresh_lock` | `20261005b_create_derived_cache_refresh_lock.sql` | `id = 1` (CHECK) | Lease điều phối `refreshDerivedCaches` giữa các instance: `request_seq` (mỗi yêu cầu +1), `lease_owner`, `lease_until` (6 phút), `last_source`. Lease còn chủ nhưng đã hết hạn = lượt rebuild bị gián đoạn → `DailyCacheStatus.rebuildInterrupted`. |
 | `black_listed_epics` | `20261005_create_black_listed_epics.sql` | `epic_key` | "Epic ngoại lệ": `project_key`, `ttm_black_listed` (mặc định TRUE), `updated_by_user_id` → `users(id)` ON DELETE SET NULL, `created_at`, `updated_at`; index theo `project_key`. Không còn là ngoại lệ = XOÁ dòng. |
-| `ttm_scope_config`, `scoring_engine_settings`, `scoring_parameters`, `scoring_rule_settings`, `scoring_parity_runs` | `20260927b_create_ttm_scope_config.sql`, `20260929_create_scoring_service.sql`, `20260930_create_scoring_engine_settings.sql` | — | Cấu hình "Phạm vi dữ liệu cho TTM" và Scoring Service (engine hiển thị, tham số, bật/tắt badge, kết quả đối chiếu). |
+| `ttm_scope_config`, `scoring_engine_settings`, `scoring_parameters`, `scoring_rule_settings`, `scoring_parity_runs` | `20260927b_create_ttm_scope_config.sql`, `20260929_create_scoring_service.sql`, `20260930_create_scoring_engine_settings.sql` | — | Cấu hình "Phạm vi dữ liệu cho TTM" và Scoring Service (engine hiển thị, tham số, bật/tắt badge, kết quả đối chiếu). `scoring_parameters` còn lưu "Phạm vi rule Sai lệch dữ liệu" ở `param_key = 'anomaly.scopeConfig'` (JSONB, xem `16-ttm-indexes.md` §8.1). |
 
 Quy tắc dùng chung:
 
