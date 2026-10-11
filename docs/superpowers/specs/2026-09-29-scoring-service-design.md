@@ -317,7 +317,7 @@ bật/tắt được. Status Cancelled / To Do / In PO / Backlog được miễn
 | `ANOMALY_R2_PENDING_TOO_LONG` (**Pending lâu**) | **RECOMMENDATION** | Pending ≥ `pendingStaleRatio` × ngân sách TTM-CNTT (tính tới asOf) |
 | `ANOMALY_R3_DATE_OUT_OF_SEQUENCE` (Sai thứ tự ngày) | ALERT | Vi phạm T0 ≤ T1 < R4G ≤ Due (gộp 1 finding) |
 | `ANOMALY_R4_MISSING_REQUEST_TYPE` (Thiếu Phân loại yêu cầu) | ALERT | Thiếu Phân loại yêu cầu |
-| `ANOMALY_R5_MISSING_REQUIREMENT_LEVEL` (Thiếu Requirement Level) | ALERT | Thiếu Requirement Level VÀ ((status > DESIGN và ≠ Pending) HOẶC (Pending và previous_status ∈ {To Do, In PO})) (từ 2026-10-11, §25) |
+| `ANOMALY_R5_MISSING_REQUIREMENT_LEVEL` (Thiếu Requirement Level) | ALERT | Thiếu Requirement Level VÀ ((status > DESIGN và ≠ Pending) HOẶC (Pending và (previous_status rỗng HOẶC ∉ {To Do, In PO}))) (từ 2026-10-11, §25) |
 | `ANOMALY_R6_SP_LEVEL_MISMATCH` (SP nhưng Level thấp) | ALERT | Độ phức tạp SP nhưng Requirement Level 1–2 |
 | `ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE` (Có R4G Date nhưng chưa R4GOLIVE) | ALERT | Có R4G Date VÀ status < R4GOLIVE (mới 2026-10-04, §16) |
 | `ANOMALY_R9_MISSING_R4G_DATE` (Thiếu R4G Date) | ALERT | status ≥ R4GOLIVE, không Pending, thiếu R4G Date (mới 2026-10-04, §16) |
@@ -895,26 +895,26 @@ Quyết định của chủ sở hữu (`SCORING_CODE_VERSION` → `scoring-13`;
   TTM-Index) mang nhãn `D12_TTM_EXCLUSION`; hai check "Phạm vi" giữ nhãn riêng vì vẫn được tính.
 - Test: `black-listed-epics.test.ts` (3 test Scoring + 1 test widget), `parity.test.ts` — "D12 (2026-10-09)".
 
-## 25. R5 "Thiếu Requirement Level" — tách điều kiện Pending theo status trước đó (2026-10-11)
+## 25. R5 "Thiếu Requirement Level" — điều kiện Pending theo status trước đó (2026-10-11)
 
-Quy định chủ sở hữu, `SCORING_CODE_VERSION` `scoring-15` → `scoring-16`:
+Quy định chủ sở hữu (đã chỉnh lại trong ngày), `SCORING_CODE_VERSION` `scoring-15` → `scoring-16`:
 
 ```text
 R5 vi phạm  ⇔  Requirement Level trống hoặc "none"
                VÀ (  (status > DESIGN  VÀ  status ≠ Pending)
-                  HOẶC (status = Pending  VÀ  previous_status ∈ {To Do, In PO}) )
+                  HOẶC (status = Pending  VÀ  (previous_status rỗng  HOẶC  previous_status ∉ {To Do, In PO})) )
 ```
 
 - **Trước:** `status > DESIGN`, trong đó Pending/Reopened xếp ngang DEV (In Progress) nên mọi Epic Pending thiếu
   Requirement Level đều bị R5.
-- **Nay:** Epic Pending **chỉ** bị R5 khi `previous_status` (trường CSV `epic_previous_status` → `issues.previous_status`, so
-  sánh không phân biệt hoa/thường, đã trim, chuẩn hoá workflow) là To Do hoặc In PO. Pending không có / khác previous_status
-  → không bị R5. Reopened vẫn tính như status > DESIGN (không phải Pending).
+- **Nay:** Epic Pending **chỉ được miễn** R5 khi `previous_status` (CSV `epic_previous_status` → `issues.previous_status`,
+  so sánh không phân biệt hoa/thường, đã trim, chuẩn hoá workflow) là To Do hoặc In PO — tức Epic còn đang ở giai đoạn lập kế
+  hoạch khi bị Pending. Pending có previous_status rỗng hoặc khác (Design, In Progress…) vẫn bị R5. Reopened tính như
+  status > DESIGN (không phải Pending).
 - **Dữ liệu:** `EpicFacts.previousStatus` (mới, `scoring/types.ts`), nạp ở `scoring-facts-service.ts`; logic ở
-  `requirementLevelRequired()` (`scoring/rules/data-quality.ts`). `previous_status` chủ yếu rỗng nên phần lớn Epic Pending
-  không còn bị R5.
-- **Đối chiếu:** `parity.ts` — R5 không được service gắn trong khi engine legacy gắn, với status DESIGN hoặc Pending →
-  `D10_DATA_QUALITY_RULES` (engine legacy không đổi).
-- **Hiệu lực:** sau lần tạo lại cache kế tiếp (đổi `SCORING_CODE_VERSION` làm cache cũ lỗi thời). Epic Pending nào thoát R5 sẽ
-  không còn "Sai lệch dữ liệu" vì R5, nên được chấm TTM bình thường nếu không vi phạm rule khác.
+  `requirementLevelRequired()` (`scoring/rules/data-quality.ts`). `previous_status` chủ yếu rỗng nên gần như mọi Epic
+  Pending vẫn bị R5; chỉ các Epic Pending có previous_status = To Do / In PO được miễn.
+- **Đối chiếu:** `parity.ts` — R5 không được service gắn trong khi engine legacy gắn (status DESIGN, hoặc Pending có
+  previous_status To Do / In PO) → `D10_DATA_QUALITY_RULES` (engine legacy không đổi).
+- **Hiệu lực:** sau lần tạo lại cache kế tiếp (đổi `SCORING_CODE_VERSION` làm cache cũ lỗi thời).
 - Test: `scoring.test.ts` "R5 (2026-10-11)", `parity.test.ts` "D10 (2026-10-11)", `projection.test.ts`.

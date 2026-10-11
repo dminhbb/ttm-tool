@@ -18,17 +18,20 @@ function isBlank(value: string | null): boolean {
   return normalized === '' || normalized === 'none';
 }
 
-/** Previous statuses (compared workflow-normalized, case-insensitive) that make a Pending Epic need a
- * Requirement Level under R5. */
-const R5_PENDING_PREVIOUS_STATUSES = new Set(['TO DO', 'IN PO']);
+/** Previous statuses (compared workflow-normalized, case-insensitive) of a Pending Epic that never got
+ * past planning: the Requirement Level isn't expected yet, so R5 leaves it alone. */
+const R5_PENDING_EXEMPT_PREVIOUS_STATUSES = new Set(['TO DO', 'IN PO']);
 
 /**
- * When R5 expects the Requirement Level to be filled in (owner rule 2026-10-11):
- * (status past DESIGN and not Pending) OR (Pending and previous status ∈ {To Do, In PO}).
+ * When R5 expects the Requirement Level to be filled in (owner rule 2026-10-11, corrected the same day):
+ *   (status past DESIGN and not Pending)
+ *   OR (Pending and (previous status empty OR previous status ∉ {To Do, In PO})).
+ * A Pending Epic is therefore only exempt when it was To Do / In PO before going Pending.
  */
 export function requirementLevelRequired(status: string, previousStatus: string | null | undefined, statusIndex: number): boolean {
   if (isPendingStatus(status)) {
-    return Boolean(previousStatus) && R5_PENDING_PREVIOUS_STATUSES.has(normalizeWorkflowStatus(previousStatus as string));
+    const previous = (previousStatus ?? '').trim();
+    return previous === '' || !R5_PENDING_EXEMPT_PREVIOUS_STATUSES.has(normalizeWorkflowStatus(previous));
   }
   return statusIndex > STATUS_INDEX.DESIGN;
 }
@@ -178,10 +181,10 @@ export const dataQualityRule: PrimaryRule = ({ facts, derived, ctx }) => {
   if (isBlank(facts.requestType)) findings.push(finding('ANOMALY_R4_MISSING_REQUEST_TYPE', 'Thiếu Phân loại yêu cầu'));
   // R5 (owner rule 2026-10-11) — Requirement Level blank or "none" AND EITHER the status is past
   // DESIGN and not Pending (the level is still being settled during Design; Pending is judged by the
-  // second branch), OR the status is Pending and its previous status is To Do / In PO. A Pending
-  // Epic with any other (or no) previous status is therefore not flagged by R5.
+  // second branch), OR the status is Pending and its previous status is empty or anything other than
+  // To Do / In PO. A Pending Epic that was To Do / In PO before is therefore not flagged by R5.
   if (isBlank(facts.requirementLevel) && requirementLevelRequired(facts.status, facts.previousStatus, derived.statusIndex)) {
-    findings.push(finding('ANOMALY_R5_MISSING_REQUIREMENT_LEVEL', pending ? `Thiếu Requirement Level — Epic đang Pending (status trước đó: ${facts.previousStatus})` : 'Thiếu Requirement Level', pending ? { previousStatus: facts.previousStatus ?? null } : undefined));
+    findings.push(finding('ANOMALY_R5_MISSING_REQUIREMENT_LEVEL', pending ? `Thiếu Requirement Level — Epic đang Pending (status trước đó: ${(facts.previousStatus ?? '').trim() || 'không có'})` : 'Thiếu Requirement Level', pending ? { previousStatus: facts.previousStatus ?? null } : undefined));
   }
 
   const level = (facts.requirementLevel ?? '').trim();

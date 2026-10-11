@@ -188,8 +188,8 @@ export const BADGES = [
   },
   {
     id: 'ANOMALY_R5_MISSING_REQUIREMENT_LEVEL', axis: 'DATA_QUALITY', group: 'ALERT', label: 'Thiếu Requirement Level', precedence: 50, defaultEnabled: true,
-    meaning: 'R5 — Epic chưa có Requirement Level khi đã tới lúc cần: status đã qua DESIGN (không xét DESIGN), hoặc Epic đang Pending mà status trước đó là To Do / In PO. Từ 11/10/2026 Epic Pending chỉ bị xét theo status trước đó.',
-    formula: 'Requirement Level trống hoặc "none"  VÀ  ( (status > DESIGN và status khác Pending)  HOẶC  (status = Pending và previous_status ∈ {To Do, In PO}) )',
+    meaning: 'R5 — Epic chưa có Requirement Level khi đã tới lúc cần: status đã qua DESIGN (không xét DESIGN) và không phải Pending, hoặc Epic đang Pending mà status trước đó rỗng / không phải To Do, In PO. Epic Pending trước đó là To Do / In PO được miễn (từ 11/10/2026).',
+    formula: 'Requirement Level trống hoặc "none"  VÀ  ( (status > DESIGN và status khác Pending)  HOẶC  (status = Pending và (previous_status rỗng HOẶC previous_status ∉ {To Do, In PO})) )',
     legacySource: 'evaluateEpicDataAnomaly R5',
   },
   {

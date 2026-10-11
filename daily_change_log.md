@@ -9,12 +9,13 @@
 ## 2026-10-11
 
 - **Scoring Service: sửa rule R5 "Thiếu Requirement Level" (`scoring-15` → `scoring-16`, branch `feature/r5-requirement-level`)** — theo quy định chủ sở hữu:
-  Requirement Level trống/"none" VÀ ( (status > DESIGN và khác Pending) HOẶC (status = Pending và `previous_status` ∈ {To Do, In PO}) ).
+  Requirement Level trống/"none" VÀ ( (status > DESIGN và khác Pending) HOẶC (status = Pending và (`previous_status` rỗng HOẶC ∉ {To Do, In PO})) ).
+  (Bản đầu trong ngày đặt ngược nhánh Pending — đã sửa: Epic Pending trước đó là To Do / In PO được **miễn** R5.)
   - `scoring/rules/data-quality.ts`: hàm mới `requirementLevelRequired()`; so sánh `previous_status` không phân biệt hoa/thường, đã trim, chuẩn hoá workflow.
   - Dữ liệu: `EpicFacts.previousStatus` (`scoring/types.ts`), nạp `issues.previous_status` ở `scoring-facts-service.ts`.
   - `catalog.ts` (meaning/formula), `registry.ts` (version), `parity.ts` (R5 không gắn ở DESIGN hoặc Pending → `D10_DATA_QUALITY_RULES`; engine legacy không đổi).
   - Test: `scoring.test.ts` "R5 (2026-10-11)", `parity.test.ts`, `projection.test.ts`. Tài liệu: spec §25, `brd/03`, `brd/16`, product-guide §9.1, HelpPanels.
-  - Tác động dự kiến (Supabase 11/10): 27 Epic Pending thiếu Requirement Level — 23 (previous trống) + 1 (In Progress) không còn bị R5, 3 (To Do) vẫn bị. Cần "Tạo lại cache" để có hiệu lực.
+  - Tác động dự kiến (Supabase 11/10): 27 Epic Pending thiếu Requirement Level — 3 Epic có previous = To Do được miễn R5; 24 Epic còn lại (23 previous trống + 1 In Progress) vẫn bị R5. Cần "Tạo lại cache" để có hiệu lực.
 
 - **Dọn lint + footer màn hình login + cập nhật tài liệu/schema**:
   - **Lint** (`eslint src` từ 4 lỗi + 29 cảnh báo → sạch): sửa 4 lỗi `react-hooks/set-state-in-effect` —

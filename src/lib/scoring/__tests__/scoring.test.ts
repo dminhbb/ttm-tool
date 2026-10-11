@@ -279,23 +279,25 @@ describe('Data quality', () => {
     assert.ok(active(makeFacts({ status: 'In Progress', requirementLevel: 'none' }), makeContext()).has('ANOMALY_R5_MISSING_REQUIREMENT_LEVEL'));
   });
 
-  it('R5 (2026-10-11): (status > DESIGN and not Pending) OR (Pending and previous status ∈ To Do / In PO)', () => {
+  it('R5 (2026-10-11): (status > DESIGN and not Pending) OR (Pending and previous status empty / not To Do, In PO)', () => {
     const r5 = (overrides: Parameters<typeof makeFacts>[0]) => active(makeFacts({ requirementLevel: '', ...overrides }), makeContext()).has('ANOMALY_R5_MISSING_REQUIREMENT_LEVEL');
     // Past DESIGN and not Pending → flagged whatever the previous status says.
     for (const status of ['Design', 'In Progress', 'TEST', 'Reopened']) {
       assert.equal(r5({ status, previousStatus: 'To Do' }), status !== 'Design', status);
     }
     assert.equal(r5({ status: 'TEST', previousStatus: null }), true);
-    // Pending → only when the previous status was To Do / In PO (trimmed, any case).
-    assert.equal(r5({ status: 'Pending', previousStatus: 'To Do' }), true);
-    assert.equal(r5({ status: 'Pending', previousStatus: ' in po ' }), true);
-    assert.equal(r5({ status: 'Pending', previousStatus: 'IN PO' }), true);
-    assert.equal(r5({ status: 'Pending', previousStatus: 'In Progress' }), false);
-    assert.equal(r5({ status: 'Pending', previousStatus: 'Design' }), false);
-    assert.equal(r5({ status: 'Pending', previousStatus: null }), false);
-    assert.equal(r5({ status: 'Pending' }), false);
+    // Pending → exempt ONLY when the previous status was To Do / In PO (trimmed, any case)...
+    assert.equal(r5({ status: 'Pending', previousStatus: 'To Do' }), false);
+    assert.equal(r5({ status: 'Pending', previousStatus: ' in po ' }), false);
+    assert.equal(r5({ status: 'Pending', previousStatus: 'IN PO' }), false);
+    // ...flagged when it is empty or any other status.
+    assert.equal(r5({ status: 'Pending', previousStatus: 'In Progress' }), true);
+    assert.equal(r5({ status: 'Pending', previousStatus: 'Design' }), true);
+    assert.equal(r5({ status: 'Pending', previousStatus: null }), true);
+    assert.equal(r5({ status: 'Pending', previousStatus: '   ' }), true);
+    assert.equal(r5({ status: 'Pending' }), true);
     // A filled-in level is never flagged.
-    assert.equal(active(makeFacts({ status: 'Pending', previousStatus: 'To Do', requirementLevel: '3' }), makeContext()).has('ANOMALY_R5_MISSING_REQUIREMENT_LEVEL'), false);
+    assert.equal(active(makeFacts({ status: 'Pending', previousStatus: 'In Progress', requirementLevel: '3' }), makeContext()).has('ANOMALY_R5_MISSING_REQUIREMENT_LEVEL'), false);
   });
 
   it('R8 (2026-10-04): R4G Date recorded but status < R4GOLIVE', () => {

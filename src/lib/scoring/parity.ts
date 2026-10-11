@@ -166,8 +166,8 @@ export function compareWithLegacy(card: EpicScorecard, legacy: LegacyRowSnapshot
   for (const badge of Object.values(ANOMALY_CODE_TO_BADGE)) {
     if (legacyRuleBadges.has(badge) === active.has(badge)) continue;
     const explained = (badge === 'ANOMALY_R1_MISSING_START_DATE' && active.has(badge) && (d.statusIndex === STATUS_INDEX.DESIGN || /pending/i.test(legacy.currentStatus)))
-      // R5: not flagged by the service while at DESIGN (2026-10-04), nor while Pending unless the
-      // previous status was To Do / In PO (2026-10-11) — the legacy rule flags both.
+      // R5: not flagged by the service while at DESIGN (2026-10-04), nor while Pending with a previous
+      // status of To Do / In PO (2026-10-11) — the legacy rule flags both.
       || (badge === 'ANOMALY_R5_MISSING_REQUIREMENT_LEVEL' && !active.has(badge) && (d.statusIndex <= STATUS_INDEX.DESIGN || /pending/i.test(legacy.currentStatus)));
     d10 ||= explained;
     push(`Rule ${badge}`, legacyRuleBadges.has(badge), active.has(badge), explained ? 'D10_DATA_QUALITY_RULES' : 'UNEXPLAINED');

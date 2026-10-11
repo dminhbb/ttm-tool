@@ -50,7 +50,7 @@ describe('projection onto legacy rows (display engine "scoring")', () => {
   });
 
   it('keeps data-quality ALERT badges as legacy violations (R1/R3–R6 only)', () => {
-    const card = scoreEpic(makeFacts({ requirementLevel: '', status: 'Pending', previousStatus: 'To Do' }), makeContext({ asOf: '2026-08-31' }));
+    const card = scoreEpic(makeFacts({ requirementLevel: '', status: 'Pending' }), makeContext({ asOf: '2026-08-31' }));
     const row = projectScorecardOntoRow(legacyRow(), card);
     assert.deepEqual(row.dataAnomalyViolations.map((item) => item.code), ['MISSING_REQUIREMENT_LEVEL']);
     assert.ok(row.scoringBadges?.includes('ANOMALY_R2_PENDING_TOO_LONG'));
