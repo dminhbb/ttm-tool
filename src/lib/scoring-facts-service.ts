@@ -19,6 +19,7 @@ interface EpicFactRow {
   dueDate: string | null;
   requestType: string;
   requirementLevel: string | null;
+  previousStatus: string | null;
   projectKey: string;
   khauBa: string | null;
   khauCo: string | null;
@@ -57,6 +58,7 @@ export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]
         issues.due_date::text AS "dueDate",
         COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'epicType', ''), '') AS "requestType",
         issues.requirement_level AS "requirementLevel",
+        issues.previous_status AS "previousStatus",
         COALESCE(
           NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
           NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),
@@ -98,6 +100,7 @@ export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]
       dueDate: toIsoDate(row.dueDate),
       requestType: row.requestType,
       requirementLevel: row.requirementLevel,
+      previousStatus: row.previousStatus,
       phaseCompletion: completion
         ? { designDone: completion.designDone, devDone: completion.devDone, testDone: completion.testDone, r4goliveDone: completion.r4goliveDone }
         : null,

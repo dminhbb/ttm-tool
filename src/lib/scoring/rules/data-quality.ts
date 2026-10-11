@@ -18,6 +18,21 @@ function isBlank(value: string | null): boolean {
   return normalized === '' || normalized === 'none';
 }
 
+/** Previous statuses (compared workflow-normalized, case-insensitive) that make a Pending Epic need a
+ * Requirement Level under R5. */
+const R5_PENDING_PREVIOUS_STATUSES = new Set(['TO DO', 'IN PO']);
+
+/**
+ * When R5 expects the Requirement Level to be filled in (owner rule 2026-10-11):
+ * (status past DESIGN and not Pending) OR (Pending and previous status ∈ {To Do, In PO}).
+ */
+export function requirementLevelRequired(status: string, previousStatus: string | null | undefined, statusIndex: number): boolean {
+  if (isPendingStatus(status)) {
+    return Boolean(previousStatus) && R5_PENDING_PREVIOUS_STATUSES.has(normalizeWorkflowStatus(previousStatus as string));
+  }
+  return statusIndex > STATUS_INDEX.DESIGN;
+}
+
 /**
  * Checks whether an Epic satisfies the date scope conditions for a given Data Anomaly rule.
  * If master toggle is disabled or the rule's toggle is disabled, returns true (applies normally).
@@ -161,8 +176,13 @@ export const dataQualityRule: PrimaryRule = ({ facts, derived, ctx }) => {
   if (breaks.length) findings.push(finding('ANOMALY_R3_DATE_OUT_OF_SEQUENCE', `Sai thứ tự ngày: ${breaks.join('; ')}`, { ideaApprovedDate: t0, startDate: t1, r4gDate: r4g, dueDate: due }));
 
   if (isBlank(facts.requestType)) findings.push(finding('ANOMALY_R4_MISSING_REQUEST_TYPE', 'Thiếu Phân loại yêu cầu'));
-  // R5 — only once the Epic is past DESIGN (the level is still being settled during Design).
-  if (isBlank(facts.requirementLevel) && derived.statusIndex > STATUS_INDEX.DESIGN) findings.push(finding('ANOMALY_R5_MISSING_REQUIREMENT_LEVEL', 'Thiếu Requirement Level'));
+  // R5 (owner rule 2026-10-11) — Requirement Level blank or "none" AND EITHER the status is past
+  // DESIGN and not Pending (the level is still being settled during Design; Pending is judged by the
+  // second branch), OR the status is Pending and its previous status is To Do / In PO. A Pending
+  // Epic with any other (or no) previous status is therefore not flagged by R5.
+  if (isBlank(facts.requirementLevel) && requirementLevelRequired(facts.status, facts.previousStatus, derived.statusIndex)) {
+    findings.push(finding('ANOMALY_R5_MISSING_REQUIREMENT_LEVEL', pending ? `Thiếu Requirement Level — Epic đang Pending (status trước đó: ${facts.previousStatus})` : 'Thiếu Requirement Level', pending ? { previousStatus: facts.previousStatus ?? null } : undefined));
+  }
 
   const level = (facts.requirementLevel ?? '').trim();
   if ((facts.complexity ?? '').startsWith('SP-') && ctx.parameters['anomaly.spMismatchLevels'].includes(level)) {

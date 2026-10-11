@@ -30,6 +30,19 @@ function legacyRow(overrides: Partial<LegacyRowSnapshot> = {}): LegacyRowSnapsho
 const OPTIONS = { legacyLiveClock: false, today: '2026-09-01' };
 
 describe('parity with the legacy engine', () => {
+  it('D10 (2026-10-11): a Pending Epic without a To Do / In PO previous status is no longer R5 — an approved difference', () => {
+    const ctx = makeContext({ asOf: '2026-09-01' });
+    const legacy = legacyRow({
+      currentStatus: 'Pending', alertLevel: 'NONE', hasDataAnomaly: true,
+      dataAnomalyViolations: [{ code: 'MISSING_REQUIREMENT_LEVEL' }],
+      r4gDate: null, ttmActualToDate: null, ttmE2eActualToDate: null,
+    });
+    const diffs = compareWithLegacy(scoreEpic(makeFacts({ status: 'Pending', requirementLevel: '', previousStatus: 'In Progress', r4gDate: null, dueDate: null }), ctx), legacy, ctx, OPTIONS);
+    const r5 = diffs.filter((diff) => diff.check === 'Rule ANOMALY_R5_MISSING_REQUIREMENT_LEVEL');
+    assert.equal(r5.length, 1);
+    assert.equal(r5[0].tag, 'D10_DATA_QUALITY_RULES');
+  });
+
   it('D12: "Epic ngoại lệ" / project Time to Market = N — not counted by the service, an approved difference', () => {
     const ctx = makeContext({ asOf: '2026-09-01' });
     // Đạt in the legacy engine, outside L02 in the service.

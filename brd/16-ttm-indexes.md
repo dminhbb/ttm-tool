@@ -175,7 +175,7 @@ nếu total = 0:  pct = 100
   "Sai Status". Epic có Sai lệch dữ liệu (R1, R3–R6, R8, R9) không được chấm Đạt/Fail/Cảnh báo muộn/Sai Status trên
   TTM-CNTT (QLDA/QA) và TTM-E2E. Chi tiết: spec `docs/superpowers/specs/2026-09-29-scoring-service-design.md` §15.
   **Từ 2026-10-04 (spec §16):** thêm R8 (có R4G Date nhưng status < R4GOLIVE) và R9 (status ≥ R4GOLIVE nhưng thiếu
-  R4G Date) là Sai lệch dữ liệu; R1 tính từ DESIGN; R5 chỉ tính khi status > DESIGN. Vì R8, trường hợp
+  R4G Date) là Sai lệch dữ liệu; R1 tính từ DESIGN; R5 chỉ tính khi status > DESIGN (từ 2026-10-11, spec §25: Pending chỉ bị R5 khi previous_status ∈ {To Do, In PO}). Vì R8, trường hợp
   "status < R4GOLIVE vẫn Đạt kèm Sai Status" chỉ còn xảy ra khi rule R8 bị tắt.
   **Từ 2026-10-09 (spec §22–§23):** R4G Date không được khai báo trước — mọi Epic có R4G Date ở tương lai là Sai lệch
   dữ liệu (R8 khi status < R4GOLIVE, R10 mới khi status ≥ R4GOLIVE hoặc Reopened), nên không còn Epic "R4G tương lai"
