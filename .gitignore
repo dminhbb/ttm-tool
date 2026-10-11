@@ -74,3 +74,22 @@ public/docs/product-guide.zip
 # ad-hoc pre-change file copies (foo.ts.bak, foo.ts.bak2, ...) — git history is the backup
 *.bak
 *.bak[0-9]*
+
+# Báo cáo đo đạc của các script design-system (audit-design-debt, audit-token-contrast,
+# check-font-vietnamese). Sinh lại được bất cứ lúc nào, không phải artifact cần commit.
+/.design-audit
+
+# Font gốc dạng desktop (.otf/.ttf) — KHÔNG commit. Averta Std CY là font thương mại
+# (bản licence của Intelligent Design); đưa file nguyên bản lên git là phân phối lại,
+# và repo này từng ở trạng thái public. Bản gốc sống ngoài repo tại ../ias-design/fonts,
+# `python scripts/build-brand-font.py` sinh ra bộ WOFF2 đã subset.
+# NGOẠI LỆ CÓ CHỦ ĐÍCH: src/app/fonts/*.woff2 vẫn được commit vì src/app/layout.tsx nạp
+# trực tiếp qua next/font/local — build trên Vercel không có ../ias-design để sinh lại.
+*.otf
+*.ttf
+
+# File nén đính kèm (mockup.rar…) — trùng nội dung với thư mục nguồn ngay cạnh,
+# chỉ làm phình history. Cần gửi ai thì nén lại từ source.
+# (Không chặn *.zip: brd/showcase/showcase.zip và public/docs/product-guide.zip
+#  đã được track từ trước, chặn thêm chỉ gây nhầm lẫn.)
+*.rar

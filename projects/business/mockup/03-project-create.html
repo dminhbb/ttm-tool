@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Khai báo dự án — PMS Platform</title>
+<link rel="stylesheet" href="assets/pms-tokens.css">
+<link rel="stylesheet" href="assets/pms-ias.css">
+<script src="assets/pms-icons.js"></script>
+</head>
+<body data-active-nav="tao-du-an" data-title="Khai báo dự án" data-back="02-project-list.html"
+      data-subtitle="Đưa một dự án mới vào danh mục — 5 bước khai báo, lưu là xong">
+<div id="pms-page">
+  <div class="d-card">
+    <div class="d-card-body" style="padding:20px 24px">
+      <div class="steps" id="steps"></div>
+    </div>
+  </div>
+  <div id="step-body"></div>
+  <div class="detail-footer" id="wizard-footer"></div>
+</div>
+
+<script src="assets/pms-util.js"></script>
+<script src="assets/pms-ui.js"></script>
+<script src="assets/mock-data.js"></script>
+<script src="assets/pms-shell.js"></script>
+<script>
+const E = MBUtil.esc;
+
+const STEPS = [
+  'Thông tin chung',
+  'OKR & nhân sự',
+  'Phạm vi triển khai',
+  'Áp checklist mẫu',
+  'Xác nhận & lưu'
+];
+
+let step = 0;
+const F = {
+  type: 'Dự án', form: 'Yêu cầu phát triển', priority: 'Khối',
+  code: '', name: '', leader: '', domain: MBData.DOMAINS[0],
+  startDate: '', endDate: '', context: '', objective: '', scopeText: '',
+  pd: '', td: '', pm: '',
+  okr: [{ obj: '', kr: '' }],
+  members: [{ role: 'Dev', dept: MBData.DEPARTMENTS[0], fte: 1 }],
+  scopeIn: [''], scopeOut: [''],
+  phases: MBData.PHASES.map(p => p.key),
+  shareDisabled: false
+};
+
+PMSShell.setHeaderActions(
+  '<a class="btn btn-outline" href="02-project-list.html">'
+  + '<span class="msym" style="font-size:16px">list</span>Danh mục dự án</a>');
+
+/* ──────────────────────────────── Steps ────────────────────────────────── */
+function renderSteps() {
+  document.getElementById('steps').innerHTML = STEPS.map((s, i) => {
+    const cls = i < step ? 'done' : i === step ? 'current' : '';
+    return '<div class="step ' + cls + '">'
+      + '<div class="step-num">' + (i < step ? '<span class="msym" style="font-size:15px">check</span>' : (i + 1)) + '</div>'
+      + '<div class="step-label">' + E(s) + '</div></div>';
+  }).join('');
+}
+
+/* ──────────────────────────── helper form field ────────────────────────── */
+function inp(key, label, opts) {
+  const o = opts || {};
+  return '<div class="ef' + (o.cls ? ' ' + o.cls : '') + '">'
+    + '<label for="f-' + key + '">' + E(label) + (o.req ? ' <span class="req">*</span>' : '') + '</label>'
+    + '<input id="f-' + key + '" data-f="' + key + '" type="' + (o.type || 'text') + '"'
+    + ' value="' + E(F[key] || '') + '"' + (o.ph ? ' placeholder="' + E(o.ph) + '"' : '') + ' />'
+    + (o.req ? '<span class="ef-err">Trường này là bắt buộc.</span>' : '')
+    + (o.hint ? '<span class="metric-note">' + E(o.hint) + '</span>' : '')
+    + '</div>';
+}
+function sel(key, label, options, opts) {
+  const o = opts || {};
+  return '<div class="ef' + (o.cls ? ' ' + o.cls : '') + '">'
+    + '<label for="f-' + key + '">' + E(label) + (o.req ? ' <span class="req">*</span>' : '') + '</label>'
+    + '<select id="f-' + key + '" data-f="' + key + '">'
+    + options.map(v => '<option' + (v === F[key] ? ' selected' : '') + '>' + E(v) + '</option>').join('')
+    + '</select></div>';
+}
+function txt(key, label, opts) {
+  const o = opts || {};
+  return '<div class="ef full"><label for="f-' + key + '">' + E(label)
+    + (o.req ? ' <span class="req">*</span>' : '') + '</label>'
+    + '<textarea id="f-' + key + '" data-f="' + key + '"'
+    + (o.ph ? ' placeholder="' + E(o.ph) + '"' : '') + '>' + E(F[key] || '') + '</textarea>'
+    + (o.req ? '<span class="ef-err">Trường này là bắt buộc.</span>' : '') + '</div>';
+}
+function card(title, body, tools) {
+  return '<div class="d-card"><div class="d-card-header"><div class="d-card-title">' + E(title) + '</div>'
+    + '<div class="d-card-tools">' + (tools || '') + '</div></div>'
+    + '<div class="d-card-body">' + body + '</div></div>';
+}
+const inlineInput = 'height:40px;width:100%;border:1px solid var(--color-border-default);border-radius:8px;'
+  + 'padding:0 10px;font-family:inherit;font-size:13px;color:var(--color-text-body)';
+
+/* ───────────────────────────── Bước 1 ─────────────────────────────────── */
+function step1() {
+  return card('Thông tin chung',
+    '<div class="erow">'
+    + sel('type', 'Loại dự án', MBData.PROJECT_TYPES, { req: true })
+    + sel('form', 'Hình thức', MBData.FORMS, { req: true })
+    + sel('priority', 'Mức độ ưu tiên', MBData.PRIORITIES, { req: true })
+    + inp('code', 'Mã dự án', { req: true, ph: 'VD: DLH', hint: 'Mã nghiệp vụ do PMS quản lý, không phải Jira key' })
+    + '</div><div class="erow">'
+    + inp('name', 'Tên dự án', { req: true, cls: 'half', ph: 'VD: Data Lakehouse nền tảng phân tích' })
+    + sel('domain', 'Domain', MBData.DOMAINS, { req: true })
+    + inp('leader', 'Lãnh đạo phụ trách dự án', { req: true, ph: 'VD: Nguyễn Minh Châu' })
+    + '</div><div class="erow">'
+    + inp('startDate', 'Ngày bắt đầu', { req: true, type: 'date' })
+    + inp('endDate', 'Ngày kết thúc', { req: true, type: 'date' })
+    + '<div class="ef half"><label>Chia sẻ thông tin</label>'
+    + '<div style="height:40px;display:flex;align-items:center">'
+    + '<label class="toggle"><input type="checkbox" id="f-shareDisabled"'
+    + (F.shareDisabled ? ' checked' : '') + '><span class="toggle-track"></span>'
+    + '<span class="toggle-label">Không chia sẻ thông tin dự án</span></label></div></div>'
+    + '</div><div class="erow">'
+    + txt('context', 'Bối cảnh / Hiện trạng', { req: true, ph: 'Vấn đề hiện tại dẫn tới đề xuất dự án...' })
+    + '</div><div class="erow">'
+    + txt('objective', 'Mục tiêu triển khai', { req: true, ph: 'Dự án sẽ đạt được điều gì...' })
+    + '</div>');
+}
+
+/* ───────────────────────────── Bước 2 ─────────────────────────────────── */
+function step2() {
+  const okrRows = F.okr.map((o, i) => '<tr>'
+    + '<td><input data-okr="' + i + '" data-k="obj" value="' + E(o.obj)
+    + '" placeholder="VD: Rút ngắn thời gian ra báo cáo" style="' + inlineInput + ';min-width:240px;max-width:380px" /></td>'
+    + '<td><input data-okr="' + i + '" data-k="kr" value="' + E(o.kr)
+    + '" placeholder="VD: Dưới 4 giờ thay vì 3-5 ngày" style="' + inlineInput + ';min-width:240px;max-width:380px" /></td>'
+    + '<td class="td-ctr"><button class="row-del" data-del-okr="' + i + '" aria-label="Xóa dòng">'
+    + '<span class="msym" style="font-size:18px">delete</span></button></td></tr>');
+
+  const memRows = F.members.map((m, i) => '<tr>'
+    + '<td><select data-mem="' + i + '" data-k="role" style="' + inlineInput + ';min-width:160px">'
+    + MBData.ROLES.map(r => '<option' + (r === m.role ? ' selected' : '') + '>' + E(r) + '</option>').join('')
+    + '</select></td>'
+    + '<td><select data-mem="' + i + '" data-k="dept" style="' + inlineInput + ';min-width:260px">'
+    + MBData.DEPARTMENTS.map(d => '<option' + (d === m.dept ? ' selected' : '') + '>' + E(d) + '</option>').join('')
+    + '</select></td>'
+    + '<td><input data-mem="' + i + '" data-k="fte" type="number" min="0" value="' + m.fte
+    + '" style="' + inlineInput + ';min-width:100px" /></td>'
+    + '<td class="td-ctr"><button class="row-del" data-del-mem="' + i + '" aria-label="Xóa dòng">'
+    + '<span class="msym" style="font-size:18px">delete</span></button></td></tr>');
+  memRows.push('<tr class="total-row"><td>Tổng</td><td></td><td class="td-num">'
+    + MBUtil.sum(F.members, m => m.fte) + '</td><td></td></tr>');
+
+  return card('Đăng ký OKR',
+    '<div class="table-wrap"><div class="table-inner"><table style="min-width:900px"><thead><tr>'
+    + '<th style="min-width:280px">Mục tiêu (Object) <span class="req t-error">*</span></th>'
+    + '<th style="min-width:280px">Kết quả dự kiến (Key Result) <span class="req t-error">*</span></th>'
+    + '<th style="width:72px"><span class="sr-only">Xóa</span></th>'
+    + '</tr></thead><tbody>' + okrRows.join('') + '</tbody></table></div></div>'
+    + '<button class="add-row-link" id="add-okr"><span class="msym" style="font-size:18px">add</span>Thêm mục tiêu</button>')
+
+  + card('Nhân sự phụ trách và thành viên dự án',
+    '<div class="erow">'
+    + inp('pd', 'Giám đốc dự án (Project Director)', { req: true })
+    + inp('td', 'Giám đốc kỹ thuật (Technical Director)', { req: true })
+    + inp('pm', 'Quản lý dự án (Project Manager)', { req: true })
+    + '<div class="ef"></div></div>'
+    + '<div class="table-wrap mt-16"><div class="table-inner"><table style="min-width:800px"><thead><tr>'
+    + '<th style="min-width:180px">Vai trò (Role)</th>'
+    + '<th style="min-width:280px">Phòng ban (Department)</th>'
+    + '<th style="width:160px">Số lượng (FTE)</th>'
+    + '<th style="width:72px"><span class="sr-only">Xóa</span></th>'
+    + '</tr></thead><tbody>' + memRows.join('') + '</tbody></table></div></div>'
+    + '<button class="add-row-link" id="add-mem"><span class="msym" style="font-size:18px">add</span>Thêm thành viên</button>');
+}
+
+/* ───────────────────────────── Bước 3 ─────────────────────────────────── */
+function step3() {
+  const list = (arr, key, ph) => arr.map((v, i) => '<tr>'
+    + '<td><input data-' + key + '="' + i + '" value="' + E(v) + '" placeholder="' + E(ph)
+    + '" style="' + inlineInput + ';min-width:320px" /></td>'
+    + '<td class="td-ctr"><button class="row-del" data-del-' + key + '="' + i + '" aria-label="Xóa dòng">'
+    + '<span class="msym" style="font-size:18px">delete</span></button></td></tr>').join('');
+
+  return card('Phạm vi triển khai',
+    '<div class="erow">' + txt('scopeText', 'Mô tả phạm vi tổng thể',
+      { req: true, ph: 'VD: Nạp dữ liệu từ core, thẻ, CRM và kênh số; cung cấp 25 báo cáo quản trị chuẩn' }) + '</div>'
+    + '<div class="grid-2 mt-16">'
+    + '<div><div class="hcm-subtitle2 mb-8">Hạng mục trong phạm vi (In scope)</div>'
+    + '<div class="table-wrap"><div class="table-inner"><table><thead><tr>'
+    + '<th>Nội dung hạng mục</th><th style="width:72px"><span class="sr-only">Xóa</span></th>'
+    + '</tr></thead><tbody>' + list(F.scopeIn, 'in', 'VD: Nạp dữ liệu từ core banking') + '</tbody></table></div></div>'
+    + '<button class="add-row-link" id="add-in"><span class="msym" style="font-size:18px">add</span>Thêm hạng mục trong phạm vi</button></div>'
+    + '<div><div class="hcm-subtitle2 mb-8">Hạng mục loại trừ (Out of scope)</div>'
+    + '<div class="table-wrap"><div class="table-inner"><table><thead><tr>'
+    + '<th>Nội dung loại trừ</th><th style="width:72px"><span class="sr-only">Xóa</span></th>'
+    + '</tr></thead><tbody>' + list(F.scopeOut, 'out', 'VD: Báo cáo cho công ty con') + '</tbody></table></div></div>'
+    + '<button class="add-row-link" id="add-out"><span class="msym" style="font-size:18px">add</span>Thêm hạng mục loại trừ</button></div>'
+    + '</div>'
+    + '<div class="alert alert-info mt-16"><span class="msym">info</span>'
+    + '<div>Danh mục loại trừ được chốt ngay từ đầu để mọi phát sinh sau này phải đi qua '
+    + '<b>yêu cầu thay đổi phạm vi (CR)</b> và được đo vào chỉ số scope creep.</div></div>');
+}
+
+/* ───────────────────────────── Bước 4 ─────────────────────────────────── */
+function step4() {
+  const rows = MBData.PHASES.map(ph => {
+    const items = MBData.CHECKLIST_TEMPLATE.filter(t => t.phase === ph.key);
+    const on = F.phases.indexOf(ph.key) >= 0;
+    return '<tr>'
+      + '<td><label class="cbx"><input type="checkbox" data-phase="' + ph.key + '"' + (on ? ' checked' : '') + '>'
+      + E(ph.name) + '</label></td>'
+      + '<td class="td-num">' + items.length + '</td>'
+      + '<td class="td-truncate">' + E(items.map(t => t.name).join(' · ')) + '</td></tr>';
+  });
+  const total = MBData.CHECKLIST_TEMPLATE.filter(t => F.phases.indexOf(t.phase) >= 0).length;
+  return card('Áp checklist mẫu của MB',
+    '<div class="alert alert-info mb-16"><span class="msym">fact_check</span>'
+    + '<div>Checklist mẫu gồm <b>' + MBData.CHECKLIST_TEMPLATE.length + ' hạng mục</b> trải 6 giai đoạn, '
+    + 'mỗi hạng mục gắn một giao phẩm bắt buộc. Bỏ chọn giai đoạn không áp dụng cho dự án này; '
+    + 'sau khi tạo, tổ dự án vẫn thêm/sửa được từng hạng mục.</div></div>'
+    + '<div class="table-wrap"><div class="table-inner" id="ck-wrap"><table style="min-width:900px"><thead><tr>'
+    + '<th style="min-width:240px">Giai đoạn áp dụng</th>'
+    + '<th style="width:130px">Số hạng mục</th>'
+    + '<th style="min-width:420px">Các hạng mục trong giai đoạn</th>'
+    + '</tr></thead><tbody>' + rows.join('')
+    + '<tr class="total-row"><td>Tổng hạng mục sẽ áp</td><td class="td-num">' + total + '</td><td></td></tr>'
+    + '</tbody></table></div></div>');
+}
+
+/* ───────────────────────────── Bước 5 ─────────────────────────────────── */
+function step5() {
+  const f = (l, v, span) => '<div class="field' + (span ? ' ' + span : '') + '">'
+    + '<label>' + E(l) + '</label><div class="val">' + (v ? E(v) : '—') + '</div></div>';
+  const total = MBData.CHECKLIST_TEMPLATE.filter(t => F.phases.indexOf(t.phase) >= 0).length;
+
+  return card('Xác nhận thông tin khai báo',
+    '<div class="field-grid">'
+    + f('Loại dự án', F.type) + f('Hình thức', F.form) + f('Mức độ ưu tiên', F.priority)
+    + f('Mã dự án', F.code) + f('Tên dự án', F.name) + f('Lãnh đạo phụ trách', F.leader)
+    + f('Domain', F.domain)
+    + f('Ngày bắt đầu', F.startDate ? MBUtil.fmtDate(F.startDate) : '')
+    + f('Ngày kết thúc', F.endDate ? MBUtil.fmtDate(F.endDate) : '')
+    + f('Bối cảnh / Hiện trạng', F.context, 'full')
+    + f('Mục tiêu triển khai', F.objective, 'full')
+    + f('Phạm vi triển khai', F.scopeText, 'full')
+    + f('Nhân sự phụ trách', F.pd + ' (PD) · ' + F.td + ' (TD) · ' + F.pm + ' (PM)', 'full')
+    + f('OKR đã đăng ký', F.okr.filter(o => o.obj).map(o => o.obj + ' → ' + o.kr).join(' | '), 'full')
+    + f('Thành viên dự án', F.members.map(m => m.role + '/' + m.dept + ': ' + m.fte + ' FTE').join(' · ')
+      + ' (tổng ' + MBUtil.sum(F.members, m => m.fte) + ' FTE)', 'full')
+    + f('Hạng mục trong phạm vi', F.scopeIn.filter(Boolean).join(' · '), 'full')
+    + f('Hạng mục loại trừ', F.scopeOut.filter(Boolean).join(' · '), 'full')
+    + f('Checklist sẽ áp', total + ' hạng mục trên ' + F.phases.length + ' giai đoạn', 'full')
+    + f('Chia sẻ thông tin', F.shareDisabled ? 'Không chia sẻ' : 'Chia sẻ với đơn vị liên quan')
+    + '</div>'
+    + '<div class="alert alert-info mt-16"><span class="msym">info</span>'
+    + '<div>Lưu là dự án vào danh mục ngay với trạng thái <b>Mới khai báo</b>. '
+    + 'Không có bước phê duyệt — module này chỉ quản lý việc khai báo và theo dõi. '
+    + 'Khi tổ dự án bắt đầu chạy, PM đổi trạng thái sang <b>Đang triển khai</b> ở màn chỉnh sửa.</div></div>');
+}
+
+/* ──────────────────────────────── validate ─────────────────────────────── */
+const REQUIRED = {
+  0: ['code', 'name', 'leader', 'startDate', 'endDate', 'context', 'objective'],
+  1: ['pd', 'td', 'pm'],
+  2: ['scopeText'],
+  3: [],
+  4: []
+};
+
+function validateStep() {
+  let bad = 0, first = null;
+  (REQUIRED[step] || []).forEach(k => {
+    const el = document.getElementById('f-' + k);
+    if (!el) return;
+    const f = el.closest('.ef');
+    if (!el.value.trim()) { f.classList.add('is-invalid'); bad++; if (!first) first = el; }
+    else f.classList.remove('is-invalid');
+  });
+
+  if (step === 0) {
+    const s = document.getElementById('f-startDate').value;
+    const e = document.getElementById('f-endDate').value;
+    if (s && e && s >= e) {
+      document.getElementById('f-endDate').closest('.ef').classList.add('is-invalid');
+      PMSNotify.error('Ngày kết thúc không hợp lệ', 'Ngày kết thúc phải sau ngày bắt đầu.');
+      return false;
+    }
+    if (F.code && MBData.project(F.code.toUpperCase())) {
+      document.getElementById('f-code').closest('.ef').classList.add('is-invalid');
+      PMSNotify.error('Mã dự án đã tồn tại', 'Mã ' + F.code.toUpperCase() + ' đang được dùng trong danh mục.');
+      return false;
+    }
+  }
+  if (step === 1 && !F.okr.some(o => o.obj.trim() && o.kr.trim())) {
+    PMSNotify.error('Chưa đăng ký OKR', 'Cần ít nhất một cặp Mục tiêu – Kết quả dự kiến.');
+    return false;
+  }
+  if (step === 2 && !F.scopeIn.some(v => v.trim())) {
+    PMSNotify.error('Chưa khai hạng mục trong phạm vi', 'Cần ít nhất một hạng mục In scope.');
+    return false;
+  }
+  if (step === 3 && !F.phases.length) {
+    PMSNotify.error('Chưa chọn giai đoạn checklist', 'Cần áp ít nhất một giai đoạn.');
+    return false;
+  }
+  if (bad) {
+    PMSNotify.error('Còn ' + bad + ' trường bắt buộc chưa điền', 'Các trường được tô đỏ bên dưới.');
+    if (first) first.focus();
+    return false;
+  }
+  return true;
+}
+
+/* ──────────────────────────────── render ──────────────────────────────── */
+function render() {
+  renderSteps();
+  document.getElementById('step-body').innerHTML =
+    [step1, step2, step3, step4, step5][step]();
+
+  const back = step === 0
+    ? '<a class="btn btn-outline" href="02-project-list.html">Hủy</a>'
+    : '<button class="btn btn-outline" id="w-back"><span class="msym" style="font-size:16px">arrow_back</span>Quay lại</button>';
+  const next = step < STEPS.length - 1
+    ? '<button class="btn btn-primary" id="w-next">Tiếp tục<span class="msym" style="font-size:16px">arrow_forward</span></button>'
+    : '<button class="btn btn-primary" id="w-submit"><span class="msym" style="font-size:16px">save</span>Lưu khai báo</button>';
+  document.getElementById('wizard-footer').innerHTML = back + next;
+
+  wire();
+}
+
+function wire() {
+  /* field đơn */
+  document.querySelectorAll('[data-f]').forEach(el => {
+    el.addEventListener('input', () => {
+      F[el.dataset.f] = el.value;
+      if (el.value.trim()) el.closest('.ef').classList.remove('is-invalid');
+    });
+    el.addEventListener('change', () => { F[el.dataset.f] = el.value; });
+  });
+  const share = document.getElementById('f-shareDisabled');
+  if (share) share.addEventListener('change', (e) => { F.shareDisabled = e.target.checked; });
+
+  /* OKR */
+  document.querySelectorAll('[data-okr]').forEach(el => el.addEventListener('input', () => {
+    F.okr[+el.dataset.okr][el.dataset.k] = el.value;
+  }));
+  const ao = document.getElementById('add-okr');
+  if (ao) ao.addEventListener('click', () => { F.okr.push({ obj: '', kr: '' }); render(); });
+  document.querySelectorAll('[data-del-okr]').forEach(b => b.addEventListener('click', () => {
+    F.okr.splice(+b.dataset.delOkr, 1);
+    if (!F.okr.length) F.okr.push({ obj: '', kr: '' });
+    render();
+  }));
+
+  /* thành viên */
+  document.querySelectorAll('[data-mem]').forEach(el => {
+    const h = () => {
+      const k = el.dataset.k;
+      F.members[+el.dataset.mem][k] = k === 'fte' ? (+el.value || 0) : el.value;
+      if (k === 'fte') render();
+    };
+    el.addEventListener('input', h);
+    el.addEventListener('change', h);
+  });
+  const am = document.getElementById('add-mem');
+  if (am) am.addEventListener('click', () => {
+    F.members.push({ role: 'Dev', dept: MBData.DEPARTMENTS[0], fte: 1 }); render();
+  });
+  document.querySelectorAll('[data-del-mem]').forEach(b => b.addEventListener('click', () => {
+    F.members.splice(+b.dataset.delMem, 1);
+    if (!F.members.length) F.members.push({ role: 'Dev', dept: MBData.DEPARTMENTS[0], fte: 1 });
+    render();
+  }));
+
+  /* phạm vi */
+  document.querySelectorAll('[data-in]').forEach(el => el.addEventListener('input', () => {
+    F.scopeIn[+el.dataset.in] = el.value;
+  }));
+  document.querySelectorAll('[data-out]').forEach(el => el.addEventListener('input', () => {
+    F.scopeOut[+el.dataset.out] = el.value;
+  }));
+  const ai = document.getElementById('add-in');
+  if (ai) ai.addEventListener('click', () => { F.scopeIn.push(''); render(); });
+  const au = document.getElementById('add-out');
+  if (au) au.addEventListener('click', () => { F.scopeOut.push(''); render(); });
+  document.querySelectorAll('[data-del-in]').forEach(b => b.addEventListener('click', () => {
+    F.scopeIn.splice(+b.dataset.delIn, 1);
+    if (!F.scopeIn.length) F.scopeIn.push('');
+    render();
+  }));
+  document.querySelectorAll('[data-del-out]').forEach(b => b.addEventListener('click', () => {
+    F.scopeOut.splice(+b.dataset.delOut, 1);
+    if (!F.scopeOut.length) F.scopeOut.push('');
+    render();
+  }));
+
+  /* checklist mẫu */
+  document.querySelectorAll('[data-phase]').forEach(c => c.addEventListener('change', () => {
+    const k = c.dataset.phase;
+    if (c.checked) { if (F.phases.indexOf(k) < 0) F.phases.push(k); }
+    else F.phases = F.phases.filter(x => x !== k);
+    render();
+  }));
+  const ckw = document.getElementById('ck-wrap');
+  if (ckw) PMSTip.bindTruncated(ckw);
+
+  /* điều hướng */
+  const b = document.getElementById('w-back');
+  if (b) b.addEventListener('click', () => { step--; render(); window.scrollTo(0, 0); });
+  const n = document.getElementById('w-next');
+  if (n) n.addEventListener('click', () => {
+    if (!validateStep()) return;
+    step++; render();
+    document.querySelector('.content').scrollTop = 0;
+  });
+  const s = document.getElementById('w-submit');
+  if (s) s.addEventListener('click', submit);
+}
+
+/* ─────────────────────────── lưu bản khai báo ──────────────────────────── */
+function submit() {
+  PMSModal.confirm({
+    title: 'Lưu khai báo dự án',
+    body: 'Đưa dự án <b>' + E(F.code.toUpperCase()) + ' — ' + E(F.name) + '</b> '
+      + 'vào danh mục với trạng thái <b>Mới khai báo</b>?',
+    okLabel: 'Lưu khai báo', okIcon: 'save',
+    onOk: () => {
+      const id = F.code.toUpperCase();
+      MBData.addProject({
+        id: id, code: id, name: F.name, status: 'Mới khai báo', health: 'Chưa đánh giá',
+        type: F.type, form: F.form, priority: F.priority, domain: F.domain, leader: F.leader,
+        startDate: F.startDate, endDate: F.endDate, currentPhase: 'Khởi tạo',
+        progressActual: 0, progressExpected: 0, shareDisabled: F.shareDisabled,
+        context: F.context, objective: F.objective, scopeText: F.scopeText,
+        people: { pd: F.pd, td: F.td, pm: F.pm },
+        members: F.members,
+        okr: F.okr.filter(o => o.obj).map(o => ({ obj: o.obj, kr: o.kr, result: '', pct: 0 }))
+      });
+      PMSNotify.success('Đã khai báo dự án ' + id,
+        'Dự án đã vào danh mục với trạng thái Mới khai báo.');
+      setTimeout(() => { location.href = '02-project-list.html'; }, 700);
+    }
+  });
+}
+
+render();
+</script>
+
+<!--
+## 📊 Component Coverage Report — Khai báo dự án (wizard 5 bước)
+
+| # | Element | DS Component used | Status |
+|---|---------|------------------|--------|
+| 1 | Left sidebar | AppSidebar | ✅ DS |
+| 2 | Breadcrumb + back + title + subtitle + actions | PageHeader (onBack) | ✅ DS |
+| 3 | Thanh 5 bước (done = xanh + dấu check, current = brand + số, upcoming = xám) | Steps | ✅ DS |
+| 4 | Card từng bước | Card | ✅ DS |
+| 5 | Lưới field 4 cột cố định, `.half` cho trường văn bản dài | Input · Select · Textarea | ✅ DS |
+| 6 | Ô nhập ngày | Input type=date | ✅ DS |
+| 7 | Ô nhập số FTE | InputNumber | ✅ DS |
+| 8 | Bảng OKR / thành viên / phạm vi có nhập liệu trong ô | Table (field trong ô có min-width + height cố định) | ✅ DS |
+| 9 | Dòng Tổng FTE / tổng hạng mục checklist | Table (tr.total-row) | ✅ DS |
+| 10 | Chọn giai đoạn áp checklist | Checkbox | ✅ DS |
+| 11 | Công tắc không chia sẻ thông tin | Toggle | ✅ DS |
+| 12 | Nút xoá dòng | Button (icon-only ghost) | ✅ DS |
+| 13 | Link "+ Thêm dòng" | add-row link (pattern của ChinhSua) | ✅ DS |
+| 14 | Giải thích phạm vi loại trừ / checklist mẫu / trạng thái sau khi lưu | Alert | ✅ DS |
+| 15 | Bản xem trước ở bước cuối | Field (chỉ xem, lưới 3 cột) | ✅ DS |
+| 16 | Hộp thoại xác nhận lưu khai báo | Modal | ✅ DS |
+| 17 | Thông báo lỗi validate / lưu thành công | Notification | ✅ DS |
+| 18 | Hàng điều hướng bước (Hủy/Quay lại · Tiếp tục/Lưu khai báo) | DetailFooter align="center" | ✅ DS |
+
+**DS component coverage: 18 / 18 = 100%**
+Shell zones: ✅ AppSidebar · ✅ PageHeader · ❌ AppHeader (loại trừ theo mặc định của ias-design)
+
+Ghi chú phạm vi: wizard kết thúc ở bước **Xác nhận & lưu**. Không có bước gửi duyệt,
+không định tuyến tới lãnh đạo, không trạng thái chờ — module dừng ở mức khai báo.
+
+## 🎨 Color Token Coverage — Tạo dự án
+
+| # | Element (property) | Location | Original hex | Category | Matched Semantic Alias | Match |
+|---|---|---|---|---|---|---|
+| 1 | Vòng bước hiện tại | `.step.current .step-num` | `#141ED2` | background | `--color-bg-brand` | ✅ Exact |
+| 2 | Vòng bước đã xong | `.step.done .step-num` | `#00BA88` | background | `--color-bg-success-solid` | ✅ Exact |
+| 3 | Vòng bước chưa tới | `.step-num` | `#EDF2F7` / `#A0A3BD` | background/text | `--color-neutral-200` / `--color-text-muted` | ⚠️ Nearest (nền) — không có alias nền "neutral fill nhạt" |
+| 4 | Đường nối sau bước đã xong | `.step.done::after` | `#00BA88` | background | `--color-bg-success-solid` | ✅ Exact |
+| 5 | Đường nối chưa đạt | `.step::before/::after` | `#D9DBE9` | background | `--color-border-default` | ✅ Exact |
+| 6 | Nhãn bước hiện tại | `.step.current .step-label` | `#141ED2` | text | `--color-text-brand` | ✅ Exact |
+| 7 | Nhãn bước chưa tới | `.step-label` | `#6E7191` | text | `--color-text-secondary` | ✅ Exact |
+| 8 | Viền / nền / lỗi của ô nhập | `.ef input` các trạng thái | `#D9DBE9` · `#141ED2` · `#EB2D4B` · `#FFF3F8` | border/background | `--color-border-default` · `-focus` · `-error` · `--color-bg-error` | ✅ Exact |
+| 9 | Nền Alert thông tin / cảnh báo | `.alert-info`, `.alert-warning` | `#F4F5FF` / `#FFF9EF` | background | `--color-bg-hover` / `--color-bg-warning` | ✅ Exact |
+| 10 | Nền dòng Tổng | `tr.total-row td` | `#F4F5FF` | background | `--color-primary-50` | ✅ Exact |
+
+**Color token coverage: 9 / 10 exact, 1 ⚠️ nearest = 100% được map vào token khai báo · 0 severe gap**
+
+## 🔤 Typography Scale Coverage — Tạo dự án
+
+| # | Text element | Rendered size / weight | Matched scale | Match | Class used? |
+|---|---|---|---|---|---|
+| 1 | Page title | 20px / 700 | H4 (22px/500) | ⚠️ Nearest — spec riêng của PageHeader | ❌ `.page-title` |
+| 2 | Page subtitle | 13px / 400 | Body 2 (14px/400) | ⚠️ Nearest — spec riêng của PageHeader | ❌ `.page-subtitle` |
+| 3 | Số trong vòng bước | 12px / 700 | Caption (12px/500) | ⚠️ Nearest | ✅ `.step-num` dùng token caption size |
+| 4 | Nhãn bước | 12px / 500 | Caption (12px/500) | ✅ Exact | ✅ `.step-label` dùng token caption |
+| 5 | Tiêu đề card | 16px / 700 | Subtitle 1 (16px/600) | ⚠️ Nearest | ✅ `.d-card-title` dùng token subtitle1 |
+| 6 | Tiêu đề nhóm In/Out scope | 14px / 600 | Subtitle 2 (14px/600) | ✅ Exact | ✅ `class="hcm-subtitle2"` |
+| 7 | Nhãn / nội dung ô nhập | 12px/600 · 13px/400 | Caption · Body 2 | ⚠️ Nearest | ❌ `.ef label` / `.ef input` theo spec ChinhSua |
+| 8 | Nhãn / giá trị field xem trước | 12px/500 · 14px/400 | Caption · Body 2 | ✅ Exact | ❌ theo spec Field |
+| 9 | Header / ô bảng | 11px/700 · 13px/400 | Overline · Body 2 | ⚠️ Nearest — spec riêng của Table | ❌ `th` / `td` |
+
+**Typography scale coverage: 9 / 9 = 100% · Utility-class adoption: 4 / 9 = 44%**
+-->
+</body>
+</html>

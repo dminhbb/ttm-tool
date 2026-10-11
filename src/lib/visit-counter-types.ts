@@ -1,11 +1,13 @@
 export type ScreenKey = 'dashboard' | 'ttm_dashboard_2' | 'epic_alerts' | 'epic_reports' | 'epic_in_po';
 
 export const SCREEN_NAMES: Record<ScreenKey, string> = {
-  dashboard: 'TTM Dashboard',
+  // 'dashboard' và 'epic_in_po' là màn hình đã gỡ (2026-10-11) — giữ khoá để lịch sử lượt xem cũ vẫn
+  // hiện trong Thống kê truy cập; không còn đường dẫn nào ghi nhận lượt mới (xem resolveScreenKeyFromPath).
+  dashboard: 'TTM Dashboard (đã gỡ)',
   ttm_dashboard_2: 'TTM Dashboard 2',
   epic_alerts: 'Quản trị Epic',
   epic_reports: 'Báo cáo Epic',
-  epic_in_po: 'Epic in PO',
+  epic_in_po: 'Epic in PO (đã gỡ)',
 };
 
 export const TRACKED_SCREEN_KEYS: ScreenKey[] = ['dashboard', 'ttm_dashboard_2', 'epic_alerts', 'epic_reports', 'epic_in_po'];
@@ -84,10 +86,8 @@ export function resolveScreenKeyFromPath(rawPath?: string | null): ScreenKey | n
   const cleanPath = pathWithoutQuery.replace(/\/+$/, '');
   const normalized = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
 
-  if (normalized === '/dashboard-new' || normalized === '/dashboard') return 'dashboard';
   if (normalized === '/ttm-dashboard-2') return 'ttm_dashboard_2';
-  if (normalized === '/epic-alerts-15' || normalized === '/epic-alerts') return 'epic_alerts';
+  if (normalized === '/epic-alerts-15') return 'epic_alerts';
   if (normalized === '/reports') return 'epic_reports';
-  if (normalized === '/epic-in-po') return 'epic_in_po';
   return null;
 }

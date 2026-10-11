@@ -1,31 +1,17 @@
 import { createHash, timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { processImport } from '@/lib/import-service';
-import { ADAPTER_TYPES } from '@/lib/adapters/index';
+import { ADAPTER_TYPES, executeImport } from '@/modules/integration/public';
 
 /**
- * Machine-to-machine counterpart of the "Quản trị nguồn dữ liệu" upload form, for the Python
- * export script to call directly after it finishes writing a CSV — same import pipeline
- * (processImport), same CSV format/adapter, just a different door in:
- * - Auth is a static bearer token (IMPORT_API_TOKEN env var), not a user session — this endpoint
- *   is intentionally separate from POST /api/data-source/import (which stays session+SUPERADMIN-
- *   gated for the UI) so the token can be rotated/revoked without touching interactive admin
- *   access, and so auto-imports are distinguishable in the import history (see processImport's
- *   importType/importedBy params).
- * - aggregatedAt is always "now" (server clock at call time) — the script doesn't pass one; this
- *   matches "the export just finished, import it as of right now."
- * - adapterType is fixed to PY_JIRA_API — this route only ever receives the script's own format.
+ * Machine-to-machine counterpart of the UI upload. The public Integration facade deliberately
+ * preserves the same synchronous legacy pipeline in this architecture wave.
  */
-
-const MAX_UPLOAD_BYTES = 2 * 1024 * 1024; // 2MB — comfortably above the script's <500KB exports.
+const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 
 function hashOf(value: string): Buffer {
   return createHash('sha256').update(value).digest();
 }
 
-/** Constant-time comparison via fixed-length SHA-256 digests, so unequal-length input (e.g. an
- * empty or wildly wrong header) can't throw the length-mismatch error timingSafeEqual raises on
- * differently-sized buffers, and comparison time doesn't leak how many leading bytes matched. */
 function isValidToken(provided: string, expected: string): boolean {
   return timingSafeEqual(hashOf(provided), hashOf(expected));
 }
@@ -54,7 +40,7 @@ export async function POST(request: NextRequest) {
     }
 
     const csvText = await file.text();
-    const result = await processImport(file.name, csvText, new Date(), false, ADAPTER_TYPES.PY_JIRA_API, 'AUTO', 'Python Script (Auto Import)');
+    const result = await executeImport(file.name, csvText, new Date(), false, ADAPTER_TYPES.PY_JIRA_API, 'AUTO', 'Python Script (Auto Import)');
     return NextResponse.json(result);
   } catch (error: unknown) {
     console.error('API Error in auto-import route:', error);

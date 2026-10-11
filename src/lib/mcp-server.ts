@@ -4,7 +4,6 @@ import type { ToolCallback } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { AnySchema, ZodRawShapeCompat } from '@modelcontextprotocol/sdk/server/zod-compat.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { getDashboardData } from '@/lib/dashboard-service';
 import { getEpicBrowserRoot } from '@/lib/epic-browser-service';
 import { ALERT_FILTER_VALUES, matchesAlertFilter, type AlertFilterValue } from '@/lib/epic-row-verdicts';
 import { getEpicAlertRowsForDisplay } from '@/lib/epic-scoring-display-service';
@@ -210,19 +209,18 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
   registerTool(
     'get_dashboard_summary',
     {
-      title: 'Tổng quan Dashboard TTM',
+      title: 'Tổng quan Dashboard TTM (tên cũ của get_ttm_dashboard)',
       description:
-        'Trả về số liệu tổng hợp (số epic đạt/trễ TTM, phân bố trạng thái, top epic rủi ro cao...) — tương đương màn hình Dashboard CŨ (/dashboard). '
-        + 'Với câu hỏi về chỉ số TTM hiện hành (TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E, Chờ golive, Giải trình Golive...), dùng get_ttm_dashboard (màn TTM Dashboard 2). '
-        + 'Có thể chọn 1-3 dự án cụ thể; nếu bỏ trống, trả về theo phạm vi mặc định của người dùng.',
+        'TÊN CŨ, giữ lại để chatbot đang dùng không bị lỗi: màn hình Dashboard cũ đã được gỡ nên tool này trả về đúng số liệu của get_ttm_dashboard (màn TTM Dashboard 2). '
+        + 'Hãy dùng get_ttm_dashboard cho câu hỏi mới. Có thể chọn các dự án cụ thể; nếu bỏ trống, trả về theo phạm vi mặc định của người dùng.',
       inputSchema: {
-        projectKeys: z.array(z.string().trim().max(50)).min(1).max(3).optional().describe('Danh sách 1-3 mã dự án muốn xem (project key).'),
+        projectKeys: z.array(z.string().trim().min(1).max(50)).max(50).optional().describe('Danh sách mã dự án muốn xem (project key).'),
       },
     },
     async ({ projectKeys }) => {
-      const data = await getDashboardData(user.id, user.role, projectKeys ?? null);
+      const summary = await getTtmDashboard2Summary(user.id, user.role, { projectKeys });
       await touch();
-      return json(data);
+      return json(summary);
     },
   );
 

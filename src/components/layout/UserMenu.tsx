@@ -91,8 +91,20 @@ export function UserMenu({ expanded, hiddenFeatureKeys }: UserMenuProps) {
     void loadUser();
   }, []);
 
+  const handleThemeChange = (nextTheme: AppearanceTheme) => {
+    setTheme(nextTheme);
+    document.documentElement.dataset.theme = nextTheme;
+    document.documentElement.classList.toggle('dark', nextTheme === 'dark');
+    try {
+      window.localStorage.setItem(APPEARANCE_STORAGE_KEY, nextTheme);
+    } catch (error) {
+      console.warn('Unable to save the appearance preference.', error);
+    }
+  };
+
   React.useEffect(() => {
     document.documentElement.dataset.theme = theme;
+    document.documentElement.classList.toggle('dark', theme === 'dark');
     if (!hasLoadedPreference) return;
     try {
       window.localStorage.setItem(APPEARANCE_STORAGE_KEY, theme);
@@ -218,7 +230,7 @@ export function UserMenu({ expanded, hiddenFeatureKeys }: UserMenuProps) {
         {expanded && (
           <span className="min-w-0">
             <span className="block truncate text-xs font-bold text-fb-text-primary">{user?.fullName || 'Đang tải...'}</span>
-            <span className="mt-0.5 block truncate text-[9px] font-medium text-sidebar-muted">{user?.email || ''}</span>
+            <span className="mt-0.5 block truncate text-[11px] font-medium text-sidebar-muted">{user?.email || ''}</span>
           </span>
         )}
       </button>
@@ -234,7 +246,7 @@ export function UserMenu({ expanded, hiddenFeatureKeys }: UserMenuProps) {
             <Select
               label="Sáng / Tối"
               value={theme}
-              onChange={(event) => setTheme(event.target.value as AppearanceTheme)}
+              onChange={(event) => handleThemeChange(event.target.value as AppearanceTheme)}
               options={THEME_OPTIONS}
             />
           </section>

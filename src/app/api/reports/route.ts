@@ -1,23 +1,31 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { AuthError, requireUser } from '@/lib/auth-service';
-import { listDomains, listProjectComponents, listProjects } from '@/lib/master-data-service';
-import { generateEpicReport, getReportLayerDates } from '@/lib/reports-service';
-import { getReportAccessScope, reportAllowedComponents, reportScopeAllowsProject, scopeReportFilterOptions } from '@/lib/report-access-scope';
+import { AuthError, requireUser } from '@/modules/iam/public';
+import {
+  generateEpicReport,
+  getReportAccessScope,
+  getReportLayerDates,
+  listLegacyReportFilterReferences,
+  reportAllowedComponents,
+  reportScopeAllowsProject,
+  scopeReportFilterOptions,
+} from '@/modules/ttm/public';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const user = await requireUser(request);
 
-    const [scope, allDomains, allProjects, allComponents, layerDates] = await Promise.all([
+    const [scope, references, layerDates] = await Promise.all([
       getReportAccessScope(user),
-      listDomains(),
-      listProjects(),
-      listProjectComponents(),
+      listLegacyReportFilterReferences(),
       getReportLayerDates(),
     ]);
-    // Only what this viewer may report on (same data scope as Quản trị Epic / the dashboards).
-    const { components, domains, projects } = scopeReportFilterOptions(scope, allDomains, allProjects, allComponents);
+    const { components, domains, projects } = scopeReportFilterOptions(
+      scope,
+      references.domains,
+      references.projects,
+      references.components,
+    );
 
     return NextResponse.json({
       components,

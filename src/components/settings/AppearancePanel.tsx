@@ -17,6 +17,8 @@ function readAppliedBrand(): ThemeBrand {
 }
 
 const OPTIONS: { id: ThemeBrand; label: string; swatch: string[] }[] = [
+  // Swatch = [nền trang, màu nhấn, màu chữ chính] của chính brand đó.
+  { id: 'ias', label: 'IAS theme', swatch: ['#f4f6fa', '#141ed2', '#14142a'] },
   { id: 'wise', label: 'Lime theme', swatch: ['#e8ebe6', '#9fe870', '#0e0f0c'] },
   { id: 'legacy', label: 'Navy theme', swatch: ['#e9ecef', '#0284c7', '#0f172a'] },
   { id: 'pink', label: 'Pink theme', swatch: ['#dedcdd', '#80526c', '#5c2545'] },
@@ -41,9 +43,9 @@ export function AppearancePanel() {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-fb-text-secondary">
-        Chọn giao diện hiển thị cho ứng dụng. Lựa chọn được lưu trên trình duyệt này.
+        Mặc định là <strong>IAS theme</strong>. Nếu bạn chọn giao diện khác, thiết lập sẽ được lưu trên trình duyệt và tự động chuyển về IAS theme mặc định sau 7 ngày.
       </p>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {OPTIONS.map((option) => {
           const active = brand === option.id;
           return (

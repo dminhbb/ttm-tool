@@ -7,9 +7,11 @@ describe('feature-access — Ma trận phân quyền blocks the page (2026-10-05
   it('maps every gated page, exact or by prefix, and never confuses look-alike paths', () => {
     assert.equal(pageFeatureKey('/ttm-dashboard-2'), 'ttm_dashboard_2');
     assert.equal(pageFeatureKey('/epic-alerts-15'), 'epic_alerts_15');
-    assert.equal(pageFeatureKey('/epic-alerts'), 'epic_alerts_30');
-    assert.equal(pageFeatureKey('/dashboard'), 'dashboard');
-    assert.equal(pageFeatureKey('/dashboard-new'), 'dashboard_new');
+    // Màn hình đã gỡ (2026-10-11): chỉ còn redirect ở next.config.ts, không còn gắn feature.
+    assert.equal(pageFeatureKey('/dashboard-new'), null);
+    assert.equal(pageFeatureKey('/epic-alerts'), null);
+    assert.equal(pageFeatureKey('/dashboard'), null);
+    assert.equal(pageFeatureKey('/epic-in-po'), null);
     assert.equal(pageFeatureKey('/data-review/42'), 'data_source');
     assert.equal(pageFeatureKey('/admin/users'), 'users');
     assert.equal(pageFeatureKey('/'), 'data_source');
@@ -27,10 +29,10 @@ describe('feature-access — Ma trận phân quyền blocks the page (2026-10-05
   });
 
   it('falls back to the first landing page still allowed, never the denied page itself, else /no-access', () => {
-    assert.equal(fallbackPathFor(new Set(), '/epic-in-po'), '/ttm-dashboard-2');
+    assert.equal(fallbackPathFor(new Set(), '/reports'), '/ttm-dashboard-2');
     assert.equal(fallbackPathFor(new Set(), '/ttm-dashboard-2'), '/epic-alerts-15');
-    assert.equal(fallbackPathFor(new Set(['ttm_dashboard_2']), '/epic-in-po'), '/epic-alerts-15');
-    const everything = new Set(['ttm_dashboard_2', 'epic_alerts_15', 'epic_reports', 'epic_in_po', 'visit_counter', 'dashboard_new']);
+    assert.equal(fallbackPathFor(new Set(['ttm_dashboard_2']), '/reports'), '/epic-alerts-15');
+    const everything = new Set(['ttm_dashboard_2', 'epic_alerts_15', 'epic_reports', 'visit_counter']);
     assert.equal(fallbackPathFor(everything, '/reports'), NO_ACCESS_PATH);
   });
 });
@@ -38,12 +40,14 @@ describe('feature-access — Ma trận phân quyền blocks the page (2026-10-05
 describe('feature-access — Ma trận phân quyền also gates the MCP tools (2026-10-08)', () => {
   it('a tool is refused only when "Xem" is unticked on every screen showing its data', () => {
     assert.equal(mcpToolViewDenied('get_ttm_dashboard', new Set(['ttm_dashboard_2'])), true);
-    assert.equal(mcpToolViewDenied('get_ttm_dashboard', new Set(['dashboard_new', 'dashboard'])), false);
-    // Quản trị Epic and Epic in PO read the same rows (/api/epic-alerts-15) — either one keeps the tool.
-    assert.equal(mcpToolViewDenied('list_epic_alerts', new Set(['epic_alerts_15'])), false);
-    assert.equal(mcpToolViewDenied('list_epic_alerts', new Set(['epic_alerts_15', 'epic_in_po'])), true);
-    // Duyệt Epic opens from five screens — any of them still viewable keeps the tool.
-    const epicDetailScreens = ['epic_alerts_15', 'epic_in_po', 'epic_reports', 'dashboard_new', 'dashboard'];
+    assert.equal(mcpToolViewDenied('get_ttm_dashboard', new Set(['epic_alerts_15'])), false);
+    // get_dashboard_summary is the deprecated alias of get_ttm_dashboard — same gate.
+    assert.equal(mcpToolViewDenied('get_dashboard_summary', new Set(['ttm_dashboard_2'])), true);
+    assert.equal(mcpToolViewDenied('get_dashboard_summary', new Set(['epic_alerts_15'])), false);
+    assert.equal(mcpToolViewDenied('list_epic_alerts', new Set(['epic_alerts_15'])), true);
+    assert.equal(mcpToolViewDenied('list_epic_alerts', new Set(['ttm_dashboard_2'])), false);
+    // Duyệt Epic opens from two screens — either one still viewable keeps the tool.
+    const epicDetailScreens = ['epic_alerts_15', 'epic_reports'];
     for (const stillViewable of epicDetailScreens) {
       assert.equal(mcpToolViewDenied('get_epic_detail', new Set(epicDetailScreens.filter((key) => key !== stillViewable))), false, stillViewable);
     }
