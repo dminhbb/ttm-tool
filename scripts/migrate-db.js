@@ -102,6 +102,15 @@ const ALREADY_EXISTS_CODES = new Set([
   '42P16', // invalid_table_definition (e.g. duplicate primary key on CREATE TABLE)
 ]);
 
+// The mirror image of the above, and ONLY accepted right after --init: schema.sql is the already-
+// up-to-date baseline, so an old migration that DROPs / reads a column which schema.sql no longer
+// has (projects.project_key, projects.lead_name — 20260811 / 20260812 / 20260827) hits "undefined
+// column" on a fresh DB. Nothing is lost (the column is gone in the baseline already, and there's no
+// data to fix up on an empty DB). Never tolerated on a normal run — there it would mask a typo.
+const INIT_ONLY_TOLERATED_CODES = new Set([
+  '42703', // undefined_column
+]);
+
 async function ensureTrackingTable(pool) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -155,8 +164,9 @@ async function main() {
         await pool.query(fs.readFileSync(file, 'utf8'));
         console.log('OK');
       } catch (error) {
-        if (!ALREADY_EXISTS_CODES.has(error.code)) throw error;
-        console.log(`bỏ qua (đã tồn tại sẵn trong schema.sql — ${error.message})`);
+        const isToleratedOnInit = runInit && INIT_ONLY_TOLERATED_CODES.has(error.code);
+        if (!ALREADY_EXISTS_CODES.has(error.code) && !isToleratedOnInit) throw error;
+        console.log(`bỏ qua (schema.sql đã ở trạng thái mới hơn migration này — ${error.message})`);
       }
       await pool.query('INSERT INTO schema_migrations (filename) VALUES ($1);', [filename]);
     }

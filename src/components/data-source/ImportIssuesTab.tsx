@@ -7,7 +7,6 @@ import { ADAPTER_TYPES, DEFAULT_ADAPTER, ADAPTER_LABELS, type AdapterType } from
 import { AggregatedDataLayersPanel } from '@/components/data-source/AggregatedDataLayersPanel';
 import { CacheStatusPanel } from '@/components/data-source/CacheStatusPanel';
 import { ScoringParityPanel } from '@/components/data-source/ScoringParityPanel';
-import { CompleteDataPanel } from '@/components/data-source/CompleteDataPanel';
 import { FileDropzone } from '@/components/data-source/FileDropzone';
 import { PurgeRecentLayersPanel } from '@/components/data-source/PurgeRecentLayersPanel';
 import { RawImportRetentionSettings } from '@/components/data-source/RawImportRetentionSettings';
@@ -33,7 +32,6 @@ import {
   Info,
   SlidersHorizontal,
   Database,
-  Wrench,
   Eraser,
 } from '@phosphor-icons/react';
 
@@ -574,7 +572,7 @@ export function ImportIssuesTab() {
           items={[
             { icon: SlidersHorizontal, label: 'Cấu hình đợt import' },
             { icon: Database, label: 'Lưu trữ dữ liệu import' },
-            // Tạm ẩn cùng CompleteDataPanel — bỏ comment khi bật lại.
+            // Tạm ẩn cùng CompleteDataPanel — bỏ comment và import lại `Wrench` (phosphor) khi bật lại.
             // { icon: Wrench, label: 'Hoàn thiện dữ liệu' },
             { icon: Eraser, label: 'Xóa N lớp dữ liệu gần nhất' },
             { icon: Info, label: 'Thông tin chung và hướng dẫn' },
@@ -628,7 +626,8 @@ export function ImportIssuesTab() {
 
           <RawImportRetentionSettings />
 
-          {/* Tạm ẩn theo yêu cầu — bật lại bằng cách bỏ comment dòng dưới. Giữ nguyên code/logic. */}
+          {/* Tạm ẩn theo yêu cầu — bật lại bằng cách bỏ comment dòng dưới và import lại CompleteDataPanel
+              từ '@/components/data-source/CompleteDataPanel'. Giữ nguyên code/logic. */}
           {/* <CompleteDataPanel /> */}
 
           <PurgeRecentLayersPanel />

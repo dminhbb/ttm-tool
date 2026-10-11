@@ -19,7 +19,6 @@ import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import type { EpicAlertAccessRole, EpicAlertPhasedResponse, EpicAlertRowPhased, PhaseCell } from '@/lib/epic-alert-types';
 import type { EpicMilestoneHistoryEntry } from '@/lib/epic-milestone-history-service';
 import type { ProjectComponent } from '@/lib/master-data-types';
-import type { AlertLevel } from '@/lib/ttm-rules';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { compareWorkflowStatus } from '@/lib/scoring/derive';
@@ -575,6 +574,9 @@ export default function EpicInPoPage() {
     // re-runs whenever any toolbar filter, effectiveStatuses (recomputed once filterOptions loads —
     // see inPoRawStatuses above), or the page changes.
     void Promise.resolve().then(fetchData);
+    // fetchData is intentionally not a dependency: it's re-created on every render and reads the
+    // same filter state listed below, so the listed values are the real triggers of a refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     layerWindowKey, createdDateFrom, startDateFromFilter, dueDateFromFilter,
     projectFilters, pmSmFilters, componentFilters, alertFilter, typeFilter, effectiveStatusesKey,

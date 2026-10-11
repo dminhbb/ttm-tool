@@ -6,6 +6,24 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-10-11
+
+- **Dọn lint + footer màn hình login + cập nhật tài liệu/schema**:
+  - **Lint** (`eslint src` từ 4 lỗi + 29 cảnh báo → sạch): sửa 4 lỗi `react-hooks/set-state-in-effect` —
+    `dashboard-new/page.tsx` (chỉnh `dimensionKey` ngay lúc render), `EpicAlertsIframeModal.tsx` (spinner suy ra từ `loadedUrl`),
+    `EpicBrowserModal.tsx` (`TtmBlackListTopToggle` đồng bộ prop lúc render), `EpicIssuesTree.tsx` (loading của Epic gốc suy ra từ `autoLoadedRootId`).
+    Gỡ import/biến không dùng (`AppShell`, `ImportIssuesTab`, `epic-alerts-15`, `epic-in-po`, `sso-demo`, `sso/authorize`, `topRiskProjects`...);
+    thêm `eslint-disable` có lý do cho các effect cố ý không đưa `fetchData`/`apiKey` vào deps.
+  - **`SystemStatusFooter.tsx`**: ở `/login` không gọi `/api/visit-counter/footer` (cần session) — chỉ hiện `TTM Tool | Version x` và `(C) minhnd7. db: <target> - <status>`.
+  - **`db/schema.sql`**: đồng bộ baseline 14 bảng với schema thật (thêm `issues.requirement_level/requesting_unit/components/epic_stories/story_subtasks`,
+    `users.must_change_password/failed_login_attempts`) + header giải thích mô hình baseline + migrations.
+  - **`scripts/migrate-db.js`**: khi `--init`, chấp nhận thêm lỗi `42703` (undefined_column) — 3 migration cũ (20260811, 20260812, 20260827) tham chiếu
+    cột `projects.lead_name`/`project_key` đã không còn trong baseline nên trước đây làm `--init` DB mới dừng giữa chừng. Đã replay thử trong schema tạm + ROLLBACK:
+    51 bảng/cột khớp DB thật.
+  - **Tài liệu**: `README.md` (landing mặc định `/ttm-dashboard-2`, 5 màn hình Visit Counter, Aiven đã ngừng, Scoring Service), `brd/16-ttm-indexes.md` §8.1 mới
+    (Phạm vi rule Sai lệch dữ liệu), `brd/08-data-model.md`, `brd/03-mvp1-working-days-alert-rules.md` (R3 gộp 1 vi phạm), `public/docs/product-guide.html`
+    (§9.2 mới, số bảng 51, R1–R10, Aiven, footer login).
+
 ## 2026-10-10
 
 - **Cấu hình cảnh báo: Bổ sung panel 'Phạm vi rule Sai lệch dữ liệu', cập nhật Scoring Service và thu gọn các panel (`/admin/status-alert-rules`)**:

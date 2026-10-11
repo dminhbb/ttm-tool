@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { BookmarkSimple, CaretDown, CaretRight, CheckSquare, Lightning } from '@phosphor-icons/react';
+import { BookmarkSimple, CaretDown, CheckSquare, Lightning } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { isLevel1IssueType, isLevel2IssueType } from '@/lib/issue-hierarchy';
 import type { DataReviewChildrenResponse, DataReviewIssue } from '@/lib/data-review-types';
@@ -9,8 +9,6 @@ import type { DataReviewChildrenResponse, DataReviewIssue } from '@/lib/data-rev
 export interface EpicIssuesTreeProps {
   root: DataReviewIssue;
 }
-
-type TreeLevel = 1 | 2 | 3;
 
 const KIND_ICON = {
   epic: { className: 'text-violet-600 dark:text-violet-400', icon: Lightning },
@@ -74,15 +72,19 @@ export function EpicIssuesTree({ root }: EpicIssuesTreeProps) {
   const [stories, setStories] = React.useState<DataReviewIssue[]>([]);
   const [subtasksMap, setSubtasksMap] = React.useState<Record<number, DataReviewIssue[]>>({});
 
+  // Loading for the root's first Story fetch is derived ("this root's stories haven't arrived
+  // yet") instead of being set synchronously inside the effect below.
+  const [autoLoadedRootId, setAutoLoadedRootId] = React.useState<number | null>(null);
+  const isRootLoading = Boolean(loadingMap[root.id]) || (root.hasChildren && autoLoadedRootId !== root.id);
+
   // Auto-expand root epic on mount
   React.useEffect(() => {
     let active = true;
     if (root.hasChildren) {
-      setLoadingMap((prev) => ({ ...prev, [root.id]: true }));
       fetchChildren(root.id, 'stories').then((items) => {
         if (!active) return;
         setStories(items);
-        setLoadingMap((prev) => ({ ...prev, [root.id]: false }));
+        setAutoLoadedRootId(root.id);
       });
     }
     return () => {
@@ -144,7 +146,7 @@ export function EpicIssuesTree({ root }: EpicIssuesTreeProps) {
                     className="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
                     title={expandedEpic ? 'Thu gọn' : 'Mở rộng'}
                   >
-                    {loadingMap[root.id] ? (
+                    {isRootLoading ? (
                       <span className="block size-3 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
                     ) : (
                       <CaretDown className={cn('size-3.5 transition-transform', !expandedEpic && '-rotate-90')} weight="bold" />
@@ -167,7 +169,7 @@ export function EpicIssuesTree({ root }: EpicIssuesTreeProps) {
           {/* Expanded Stories / Direct Children */}
           {expandedEpic && (
             <>
-              {loadingMap[root.id] && stories.length === 0 && (
+              {isRootLoading && stories.length === 0 && (
                 <tr>
                   <td colSpan={4} className="px-3 py-3 text-center text-slate-500">
                     Đang tải danh sách Stories…
@@ -175,7 +177,7 @@ export function EpicIssuesTree({ root }: EpicIssuesTreeProps) {
                 </tr>
               )}
 
-              {!loadingMap[root.id] && stories.length === 0 && (
+              {!isRootLoading && stories.length === 0 && (
                 <tr>
                   <td colSpan={4} className="px-3 py-3 text-center text-slate-400 italic">
                     Epic này chưa có Story nào.

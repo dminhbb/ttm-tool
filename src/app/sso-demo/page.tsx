@@ -2,13 +2,12 @@
 
 import * as React from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ArrowsClockwise, CheckCircle, Key, LockKey, Pulse, ShieldCheck, SignOut, UserCheck, Warning } from '@phosphor-icons/react';
+import { CheckCircle, Key, LockKey, ShieldCheck, SignOut, Warning } from '@phosphor-icons/react';
 import { alertDialog } from '@/components/ui/dialogs';
 
 function SsoDemoContent() {
   const searchParams = useSearchParams();
   const code = searchParams.get('code') || '';
-  const errorParam = searchParams.get('error') || '';
 
   const [apiKey, setApiKey] = React.useState('');
   const [availableKeys, setAvailableKeys] = React.useState<Array<{ apiKey: string; appName: string; keyName: string }>>([]);
@@ -37,7 +36,7 @@ function SsoDemoContent() {
             }
           }
         }
-      } catch (err) {
+      } catch {
         // Fallback
       } finally {
         setLoadingKeys(false);
@@ -81,6 +80,9 @@ function SsoDemoContent() {
     }
 
     void processCode();
+    // `apiKey` is only a fallback read once when the redirect code arrives; re-running the
+    // one-shot code exchange whenever the user edits the key field would be wrong.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
   const handleStartSso = () => {
@@ -94,6 +96,8 @@ function SsoDemoContent() {
     const redirectUri = `${window.location.origin}/sso-demo`;
     const ssoAuthorizeUrl = `/sso/authorize?client_id=${encodeURIComponent(apiKey.trim())}&redirect_uri=${encodeURIComponent(redirectUri)}&state=demo_test_${Date.now()}`;
 
+    // Full-page navigation on purpose: this demo simulates an external app leaving for the SSO provider.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = ssoAuthorizeUrl;
   };
 

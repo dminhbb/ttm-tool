@@ -21,13 +21,12 @@ import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import type { EpicAlertAccessRole, EpicAlertPhasedResponse, EpicAlertRowPhased, PhaseCell } from '@/lib/epic-alert-types';
 import type { EpicMilestoneHistoryEntry } from '@/lib/epic-milestone-history-service';
 import type { ProjectComponent } from '@/lib/master-data-types';
-import type { AlertLevel } from '@/lib/ttm-rules';
 import { formatTtmPassPct, summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import type { TtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
-import { ArrowBendUpRight, ArrowCounterClockwise, ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, FloppyDisk, FolderSimple, HourglassMedium, Lightning, ListChecks, Prohibit, Sparkle, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
+import { ArrowBendUpRight, ArrowCounterClockwise, ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, FloppyDisk, FolderSimple, HourglassMedium, ListChecks, Prohibit, Sparkle, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { listGroupRankOf } from '@/lib/epic-alert-sort-rules';
 import { compareWorkflowStatus } from '@/lib/scoring/derive';
@@ -82,13 +81,6 @@ const EMPTY_LAYER_DATES: string[] = [];
 // dropdown right after them, so any recorded layer stays reachable without the button row growing
 // unbounded (availableLayerDates now returns up to 365 dates, not just 7).
 const RECENT_LAYER_CHIP_COUNT = 5;
-
-/** Cancelled Epics are noise on this screen by default, so Quản trị Epic defaults its Status
- * filter to everything else — applied once, the first time real status options load (see the
- * statusOptions effect below), and never reapplied after that so it doesn't fight a user's own
- * filter choice. TO DO/IN PO/RELEASED stay in the default filter (also shown on the dedicated
- * "Epic in PO" screen) but are sorted to the bottom of the list — see BOTTOM_STATUS_RANK below. */
-const DEFAULT_EXCLUDED_STATUSES = new Set(['CANCELLED']);
 
 function formatDate(value: string | null): string {
   if (!value) return '-';
@@ -882,7 +874,6 @@ function EpicAlerts15Screen() {
       if (saved.statusFilters && saved.statusFilters.length > 0) {
         // Pre-empts the default-status-filter effect below (same ref) so a saved selection is
         // never immediately clobbered by the default exclusion set once statusOptions loads.
-        // eslint-disable-next-line react-hooks/immutability -- deliberate cross-effect coordination, see comment above.
         hasAppliedDefaultStatusFilter.current = true;
         setStatusFilters(saved.statusFilters);
       }
@@ -950,6 +941,9 @@ function EpicAlerts15Screen() {
     // re-runs whenever any toolbar filter or the page changes — every filter setter already resets
     // page to 1 in the same event, so a filter change and its page reset land in one fetch.
     void Promise.resolve().then(fetchData);
+    // fetchData is intentionally not a dependency: it's re-created on every render and reads the
+    // same filter state listed below, so the listed values are the real triggers of a refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     savedFiltersReady, serverQueryKey, layerWindowKey, createdDateFrom, startDateFromFilter, dueDateFromFilter,
     projectFilters, pmSmFilters, componentFilters, alertFilters, typeFilters, statusQuery,

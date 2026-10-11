@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ArrowRight, Key, Lock, Pulse, ShieldCheck, User, Warning } from '@phosphor-icons/react';
+import { ArrowRight, Lock, Pulse, ShieldCheck, User, Warning } from '@phosphor-icons/react';
 
 function SsoAuthorizeContent() {
   const searchParams = useSearchParams();

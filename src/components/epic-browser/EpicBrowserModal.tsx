@@ -65,9 +65,13 @@ function TtmBlackListTopToggle({
   const [saving, setSaving] = React.useState(false);
   const [confirmOpen, setConfirmOpen] = React.useState(false);
 
-  React.useEffect(() => {
+  // Re-sync the local value when the parent's value changes (adjusting state during render instead
+  // of in an effect, so there's no extra cascading render).
+  const [syncedInitialValue, setSyncedInitialValue] = React.useState(initialValue);
+  if (syncedInitialValue !== initialValue) {
+    setSyncedInitialValue(initialValue);
     setValue(initialValue);
-  }, [initialValue]);
+  }
 
   const handleConfirmedToggle = async () => {
     if (!canEdit || saving) return;

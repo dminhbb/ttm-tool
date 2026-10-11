@@ -267,7 +267,7 @@
       <div class="kicker">Khối dữ liệu</div>
       <h2>5. Mô hình &amp; Sơ đồ cơ sở dữ liệu (Data Model &amp; ERD)</h2>
       <p>
-        Cơ sở dữ liệu của TTM Monitor sử dụng <strong>PostgreSQL</strong>, bao gồm <strong>38 bảng/thực thể</strong> được thiết kế theo nguyên tắc tối giản, phân quyền trực tiếp và tính toán cảnh báo real-time. Nguồn sự thật (Source of Truth) của cấu trúc CSDL được quản lý tập trung tại <code>db/schema.sql</code> và chuỗi migration <code>db/migrations/*.sql</code>.
+        Cơ sở dữ liệu của TTM Monitor sử dụng <strong>PostgreSQL</strong>, bao gồm <strong>51 bảng/thực thể</strong> được thiết kế theo nguyên tắc tối giản, phân quyền trực tiếp và tính toán cảnh báo real-time. Nguồn sự thật (Source of Truth) của cấu trúc CSDL được quản lý tập trung tại <code>db/schema.sql</code> và chuỗi migration <code>db/migrations/*.sql</code>.
       </p>
 
       <h3>5.1. Sơ đồ thực thể CSDL (ERD Overview)</h3>
@@ -328,10 +328,10 @@
         </g>
       </svg>
       <div class="callout">
-        Sơ đồ trên minh hoạ <strong>7 nhóm nghiệp vụ cốt lõi (28 bảng)</strong> đã có từ MVP1 — bao gồm <code>epic_data_anomaly_violations</code> (nhóm 6, bổ sung
-        22/09/2026 cùng rule "Sai lệch dữ liệu" R1-R6, mục 9). Ứng dụng còn <strong>2 nhóm hạ tầng tích hợp</strong> mới hơn (10 bảng)
+        Sơ đồ trên minh hoạ <strong>7 nhóm nghiệp vụ cốt lõi (29 bảng)</strong> đã có từ MVP1 — bao gồm <code>epic_data_anomaly_violations</code> (nhóm 6, bổ sung
+        22/09/2026 cùng bộ rule "Sai lệch dữ liệu", mục 9). Ứng dụng còn <strong>2 nhóm hạ tầng tích hợp</strong> mới hơn (10 bảng)
         phục vụ Popup quảng cáo/Banner thông báo (mục 14-15) và SSO/API Key/MCP Server (mục 16-17), cùng bảng nhật ký <code>visit_logs</code> (nhóm 6, phục vụ Visit Counter — mục 18) — chi tiết trong phần &quot;Bấm để xem chi tiết&quot; ngay dưới đây
-        và bảng danh mục đầy đủ 50 bảng ở mục 5.2.
+        và bảng danh mục đầy đủ 51 bảng ở mục 5.2 (cùng 11 bảng cache/Scoring Service/cấu hình, STT 40–50).
       </div>
 
       <!-- Nút xem chi tiết section ẩn -->
@@ -341,7 +341,7 @@
         </summary>
         <div style="margin-top: 16px;">
           <p style="font-size: 12.5px; color: var(--muted); margin-bottom: 16px;">
-            Dưới đây là chi tiết kỹ thuật của toàn bộ 39 bảng PostgreSQL trong CSDL TTM Monitor (tương thích với <code>db/schema.sql</code> và chuỗi migration):
+            Dưới đây là chi tiết kỹ thuật của 40 bảng nghiệp vụ (STT 1–39 ở mục 5.2) trong CSDL TTM Monitor (tương thích với <code>db/schema.sql</code> và chuỗi migration):
           </p>
 
           <!-- 1. Auth & RBAC -->
@@ -586,7 +586,7 @@
               <tr><td><code>epic_milestone_history</code></td><td><code>epic_key VARCHAR(50)</code>, <code>milestone VARCHAR(50)</code>, <code>milestone_date DATE</code>, <code>source_import_batch_id INT</code></td><td>UNIQUE <code>(epic_key, milestone)</code>, FK <code>import_batches(id) ON DELETE SET NULL</code></td></tr>
               <tr><td><code>epic_ttm_snapshots</code></td><td><code>epic_key VARCHAR(50)</code>, <code>aggregated_at TIMESTAMPTZ</code>, <code>snapshot_data_json TEXT</code></td><td>UNIQUE <code>(epic_key, aggregated_at)</code>, FK <code>import_batches(id) ON DELETE SET NULL</code></td></tr>
               <tr><td><code>issue_daily_snapshots</code></td><td><code>issue_key VARCHAR(50)</code>, <code>aggregated_at TIMESTAMPTZ</code>, <code>snapshot_data_json TEXT</code></td><td>UNIQUE <code>(issue_key, aggregated_at)</code>, FK <code>import_batches(id) ON DELETE SET NULL</code></td></tr>
-              <tr><td><code>epic_data_anomaly_violations</code></td><td><code>epic_key VARCHAR(50)</code>, <code>rule_code VARCHAR(40)</code> (6 giá trị R1-R6), <code>rule_index SMALLINT</code>, <code>message TEXT</code>, <code>detected_at DATE</code>, <code>source_import_batch_id INT</code></td><td>UNIQUE <code>(epic_key, rule_code)</code>, FK <code>import_batches(id) ON DELETE SET NULL</code> — trạng thái hiện tại (không phải lịch sử "đợt" như 2 bảng trên), 1 dòng/Epic/rule đang vi phạm, ghi đè hoặc xoá ở mỗi lần <code>aggregateBatchData()</code> chạy</td></tr>
+              <tr><td><code>epic_data_anomaly_violations</code></td><td><code>epic_key VARCHAR(50)</code>, <code>rule_code VARCHAR(40)</code> (7 giá trị R1-R7), <code>rule_index SMALLINT</code>, <code>message TEXT</code>, <code>detected_at DATE</code>, <code>source_import_batch_id INT</code></td><td>UNIQUE <code>(epic_key, rule_code)</code>, FK <code>import_batches(id) ON DELETE SET NULL</code> — trạng thái hiện tại (không phải lịch sử "đợt" như 2 bảng trên), 1 dòng/Epic/rule đang vi phạm, ghi đè hoặc xoá ở mỗi lần <code>aggregateBatchData()</code> chạy</td></tr>
               <tr><td><code>audit_logs</code> / <code>user_usage_daily_stats</code></td><td><code>audit_logs</code>: user_id FK, action, entity_type, entity_id.<br /><code>user_usage_daily_stats</code>: user_id FK, stat_date DATE, login_count, feature_count, data_count.</td><td>PK kết hợp <code>user_usage_daily_stats(user_id, stat_date)</code>, FK <code>users(id)</code></td></tr>
               <tr><td><code>visit_logs</code></td><td><code>id BIGSERIAL PK</code>, <code>event_type VARCHAR(20)</code> ('APP_LOGIN' | 'SCREEN_VIEW'), <code>screen_key VARCHAR(50)</code>, <code>user_id INT</code>, <code>created_at TIMESTAMPTZ</code></td><td>FK <code>users(id) ON DELETE SET NULL</code>. Index: <code>idx_visit_logs_type_created (event_type, created_at)</code>, <code>idx_visit_logs_screen_created (screen_key, created_at)</code>, <code>idx_visit_logs_user_created (user_id, created_at)</code>. Ghi nhận nhật ký lượt đăng nhập ứng dụng và lượt xem 4 màn hình trọng điểm phục vụ Visit Counter (mục 18).</td></tr>
             </tbody>
@@ -630,7 +630,8 @@
         </div>
       </details>
 
-      <h3>5.2. Bảng danh mục 50 bảng CSDL trong hệ thống</h3>
+      <h3>5.2. Bảng danh mục 51 bảng CSDL trong hệ thống</h3>
+      <p style="font-size:12px; color:var(--muted);">Danh mục gồm 50 dòng STT; dòng 27 gộp 2 bảng singleton (<code>jira_settings</code> &amp; <code>data_retention_configs</code>) nên tổng là 51 bảng. Bảng theo dõi migration <code>schema_migrations</code> do script <code>scripts/migrate-db.js</code> tự tạo, không tính vào danh mục.</p>
       <table>
         <thead><tr><th>STT</th><th>Bảng CSDL</th><th>Khóa chính / Khóa ngoại</th><th>Vai trò nghiệp vụ &amp; Ghi chú</th></tr></thead>
         <tbody>
@@ -671,12 +672,12 @@
           <tr><td>35</td><td><code>mcp_access_daily_stats</code></td><td><code>(user_id, stat_date)</code> (PK, FK)</td><td>Thống kê số lượt gọi MCP theo ngày/user, tự dọn sau 90 ngày (mục 16).</td></tr>
           <tr><td>36</td><td><code>mcp_oauth_clients</code></td><td><code>client_id</code> (PK)</td><td>Đăng ký client OAuth động (RFC 7591) cho AI chatbot dùng luồng OAuth kết nối MCP (mục 16).</td></tr>
           <tr><td>37</td><td><code>mcp_oauth_authorization_codes</code></td><td><code>code</code> (PK), <code>user_id</code> (FK)</td><td>Mã ủy quyền ngắn hạn cho luồng MCP OAuth 2.0 + PKCE (mục 16).</td></tr>
-          <tr><td>38</td><td><code>epic_data_anomaly_violations</code></td><td><code>id</code> (PK), <code>(epic_key, rule_code)</code> (UNIQUE), <code>source_import_batch_id</code> (FK)</td><td>Trạng thái hiện tại (không phải lịch sử "đợt") của từng rule R1-R6 "Sai lệch dữ liệu" (mục 9) đang vi phạm trên mỗi Epic — 1 dòng/Epic/rule, ghi đè hoặc xoá ở mỗi lần <code>aggregateBatchData()</code> chạy. Phục vụ thống kê theo nhóm rule; badge trên UI vẫn tính live, không đọc bảng này.</td></tr>
+          <tr><td>38</td><td><code>epic_data_anomaly_violations</code></td><td><code>id</code> (PK), <code>(epic_key, rule_code)</code> (UNIQUE), <code>source_import_batch_id</code> (FK)</td><td>Trạng thái hiện tại (không phải lịch sử "đợt") của từng rule R1-R7 "Sai lệch dữ liệu" của engine legacy (mục 9) đang vi phạm trên mỗi Epic — 1 dòng/Epic/rule, ghi đè hoặc xoá ở mỗi lần <code>aggregateBatchData()</code> chạy. Phục vụ thống kê theo nhóm rule; badge trên UI vẫn tính live, không đọc bảng này.</td></tr>
           <tr><td>39</td><td><code>visit_logs</code></td><td><code>id</code> (PK), <code>user_id</code> (FK)</td><td>Ghi nhận nhật ký lượt đăng nhập ứng dụng (APP_LOGIN) và lượt xem 4 màn hình trọng điểm (SCREEN_VIEW cho Dashboard, Quản trị Epic, Báo cáo Epic, Epic in PO) phục vụ tính năng Visit Counter (mục 18).</td></tr>
         </tbody>
       </table>
 
-      <p><strong>Các bảng bổ sung (cache, Scoring Service, cấu hình) — STT 40–50.</strong> Sơ đồ ERD ở mục 5.1 chỉ vẽ 39 bảng nghiệp vụ ở trên; 11 bảng dưới đây không có khoá ngoại tới bảng nghiệp vụ (trừ <code>updated_by_user_id</code> / <code>triggered_by_user_id</code> → <code>users</code>).</p>
+      <p><strong>Các bảng bổ sung (cache, Scoring Service, cấu hình) — STT 40–50.</strong> Sơ đồ ERD ở mục 5.1 chỉ vẽ 40 bảng nghiệp vụ ở trên (STT 1–39); 11 bảng dưới đây không có khoá ngoại tới bảng nghiệp vụ (trừ <code>updated_by_user_id</code> / <code>triggered_by_user_id</code> → <code>users</code>).</p>
       <table>
         <thead><tr><th>STT</th><th>Bảng CSDL</th><th>Khóa chính</th><th>Vai trò nghiệp vụ &amp; Ghi chú</th></tr></thead>
         <tbody>
@@ -972,13 +973,34 @@
       <ul>
         <li>Bị đẩy xuống <strong>cuối bảng</strong> và tô nền highlight trên cả 3 màn hình giám sát.</li>
         <li>Cột Nhận xét hiện badge <strong>“Sai lệch dữ liệu (x)”</strong> (x = số vết sai lệch, màu nâu nhạt) <strong>cùng lúc</strong> với badge Cảnh báo/Fail/Đạt TTM bình thường (không thay thế nhau) — di chuột lên badge để xem chi tiết từng rule vi phạm trong tooltip; danh sách đầy đủ cũng nằm trong 1 mục riêng "Sai lệch dữ liệu" của popup Epic History.</li>
-        <li><code>alertLevel</code>/<code>ttmE2eAlertLevel</code> chỉ bị ép về <code>NONE</code> khi bản thân phép tính TTM-CNTT/TTM-E2E không đáng tin (thiếu Start Date, hoặc R4G/Due Date phi logic — <code>breaksTtmCnttCalculation</code>/<code>breaksTtmE2eCalculation</code>), <strong>không</strong> phải mọi vết sai lệch trong 6 rule ở mục 9 — một Epic chỉ thiếu Requirement Level (rule f) vẫn hiện đúng Cảnh báo sớm/muộn/Fail bình thường.</li>
+        <li><code>alertLevel</code>/<code>ttmE2eAlertLevel</code> chỉ bị ép về <code>NONE</code> khi bản thân phép tính TTM-CNTT/TTM-E2E không đáng tin (thiếu Start Date, hoặc R4G/Due Date phi logic — <code>breaksTtmCnttCalculation</code>/<code>breaksTtmE2eCalculation</code>), <strong>không</strong> phải mọi vết sai lệch trong các rule R1–R10 ở mục 9 — một Epic chỉ thiếu Requirement Level (R5) vẫn hiện đúng Cảnh báo sớm/muộn/Fail bình thường.</li>
         <li>Riêng khi Start Date vẫn có (chỉ R4G/Due Date phi logic): dải TTM-CNTT vẫn vẽ bình thường — baseline theo Start Date, thực tế = Start Date → hôm nay (bỏ qua ngày phi logic thay vì vẽ ngược).</li>
       </ul>
       <div class="callout">
         Lý do thiết kế: để user chủ động nhận biết và làm sạch dữ liệu nguồn trên Jira, thay vì Epic bị âm thầm loại khỏi hệ thống mà không ai biết.
         Lúc import, rule sai thứ tự ngày còn phát sinh <span class="badge warning">WARNING</span> (không chặn) trong nhật ký kiểm tra file.
       </div>
+
+      <h3>9.2. Phạm vi áp dụng rule Sai lệch dữ liệu (từ 10/10/2026)</h3>
+      <p>
+        Mặc định mọi rule R1–R10 áp dụng cho <strong>toàn bộ</strong> Epic. Để tránh việc dữ liệu lịch sử (Epic tạo/khởi động từ lâu, không còn sửa được) bị đánh dấu sai lệch hàng loạt,
+        SUPERADMIN có thể giới hạn <strong>từng rule chỉ đánh giá các Epic "đủ mới"</strong> tại panel <strong>"Phạm vi rule Sai lệch dữ liệu"</strong> trong màn hình
+        <strong>Cấu hình cảnh báo</strong> (<code>/admin/status-alert-rules</code>; các panel của màn hình này mặc định thu gọn, bấm tiêu đề để mở). Chỉ SUPERADMIN được lưu; các role khác chỉ xem.
+      </p>
+      <table>
+        <thead><tr><th>Thành phần</th><th>Ý nghĩa</th></tr></thead>
+        <tbody>
+          <tr><td>Master toggle (Enabled / Disabled)</td><td>Bật/tắt toàn bộ cấu hình phạm vi. <strong>Disabled</strong> = mọi rule áp dụng cho mọi Epic như trước, bỏ qua các ô bên dưới.</td></tr>
+          <tr><td>Ma trận 8 rule</td><td>R1, R3, R4, R5, R6, R8, R9, R10 (theo chiều dọc) × 4 điều kiện ngày: <strong>Ngày tạo Epic &gt;</strong>, <strong>Ngày Start Date &gt;</strong>, <strong>Ngày R4G Date &gt;</strong>, <strong>Ngày Due Date &gt;</strong>. Mỗi ô là 1 date input kèm nút reset để xoá rỗng.</td></tr>
+          <tr><td>Rule toggle (cuối mỗi hàng)</td><td>Bật/tắt việc áp dụng phạm vi cho riêng rule đó. <strong>Disabled</strong> = rule này áp dụng cho mọi Epic.</td></tr>
+        </tbody>
+      </table>
+      <ul>
+        <li><strong>Cách đánh giá:</strong> khi Master = Enabled và Rule toggle = Enabled, rule chỉ xét Epic thoả <strong>đồng thời</strong> mọi điều kiện đã cấu hình: ngày tạo Jira &gt; mốc <em>Ngày tạo</em>, Start Date &gt; mốc <em>Start</em>, R4G Date &gt; mốc <em>R4G</em>, Due Date &gt; mốc <em>Due</em> (so sánh nghiêm ngặt "lớn hơn"). Ô để trống hoặc <code>none</code> thì bỏ qua điều kiện đó.</li>
+        <li>Epic <strong>không thoả</strong> phạm vi (kể cả Epic chưa có ngày tương ứng với một điều kiện đang cấu hình) thì <strong>không bị coi là vi phạm</strong> rule đó — nghĩa là không có badge "Sai lệch dữ liệu" từ rule ấy.</li>
+        <li><strong>Ảnh hưởng tới số liệu:</strong> Epic không còn bị gán Sai lệch dữ liệu trong phạm vi này được giữ lại ở lớp L03 của phễu TTM Dashboard 2 (<code>L03 = L02 − Sai lệch dữ liệu</code>, mục 21) và quay lại mẫu số/tử số các chỉ số TTM (mục 8.7).</li>
+        <li><strong>Lưu trữ & tính lại:</strong> cấu hình lưu ở <code>scoring_parameters</code> (<code>param_key = 'anomaly.scopeConfig'</code>, qua <code>GET/PUT /api/anomaly-scope-config</code>); mỗi lần lưu hệ thống tự tạo lại cache dẫn xuất (mục 6.4) để các màn hình cập nhật ngay.</li>
+      </ul>
     </section>
 
     <section id="alert-history">
@@ -1436,7 +1458,7 @@
           <ul style="margin-top: 4px;">
             <li><code>{A}</code>: Tổng số lượt truy cập toàn ứng dụng (lũy kế).</li>
             <li><code>{B}</code>: Lượt truy cập ứng dụng trong tuần này ($T-7 \to T$).</li>
-            <li><code>{C}</code>: Lượt truy cập màn hình hiện tại — <em>chỉ hiển thị nếu người dùng đang đứng tại 1 trong 4 màn hình trọng điểm</em> (Dashboard, Quản trị Epic, Báo cáo Epic, Epic in PO), tự động ẩn trên các màn hình khác (như trang Admin, Tài liệu, Demo...).</li>
+            <li><code>{C}</code>: Lượt truy cập màn hình hiện tại — <em>chỉ hiển thị nếu người dùng đang đứng tại 1 trong 5 màn hình trọng điểm</em> (TTM Dashboard, TTM Dashboard 2, Quản trị Epic, Báo cáo Epic, Epic in PO), tự động ẩn trên các màn hình khác (như trang Admin, Tài liệu, Demo...).</li>
             <li><code>{D}</code>: Danh sách 5 user đăng nhập gần nhất (dạng username gạch chân ngắt quãng). Khi rê chuột (hover) vào từng username, hiển thị Tooltip nổi chứa <strong>Họ và tên đầy đủ</strong> cùng <strong>thời điểm đăng nhập chính xác</strong> (<code>DD/MM/YYYY HH:mm:ss</code>).</li>
           </ul>
         </li>
@@ -1445,7 +1467,11 @@
           <br />
           <code>(C) minhnd7. db: {dbTarget} - {dbStatus}</code>
           <br />
-          Hiển thị bản quyền tác giả cùng thông tin profile kết nối CSDL hiện tại (<code>local</code>, <code>supabase</code> hoặc <code>aiven</code>) và trạng thái kết nối (<code>pass</code> / <code>fail</code>).
+          Hiển thị bản quyền tác giả cùng thông tin profile kết nối CSDL hiện tại (<code>local</code> hoặc <code>supabase</code>) và trạng thái kết nối (<code>pass</code> / <code>fail</code>).
+        </li>
+        <li>
+          <strong>Màn hình đăng nhập:</strong> chưa có session nên API thống kê không gọi được — footer chỉ hiển thị
+          <code>TTM Tool | Version {version}</code> ở dòng 1 và <code>(C) minhnd7. db: {dbTarget} - {dbStatus}</code> ở dòng 2, không có số liệu truy cập và danh sách user đăng nhập.
         </li>
       </ul>
     </section>
@@ -1471,7 +1497,7 @@
         </div>
         <div class="card-mini">
           <h4>Cơ sở dữ liệu</h4>
-          <p><strong>PostgreSQL</strong>, chạy song song tối đa 3 profile kết nối (local / Aiven / Supabase, mục 5) chọn qua biến môi trường <code>DB_CONNECTION</code>. Schema quản lý bằng migration có đánh version trong <code>db/migrations</code>, áp dụng thủ công cho từng profile qua script <code>scripts/migrate-db.js</code> — không tự động chạy migration khi deploy.</p>
+          <p><strong>PostgreSQL</strong>, chạy song song 2 profile kết nối (local / Supabase — Aiven đã ngừng sử dụng từ 26/09/2026) chọn qua biến môi trường <code>DB_CONNECTION</code>. Schema quản lý bằng migration có đánh version trong <code>db/migrations</code>, áp dụng thủ công cho từng profile qua script <code>scripts/migrate-db.js</code> — không tự động chạy migration khi deploy.</p>
         </div>
       </div>
       <h3>19.1. Import/ETL — lớp công nghệ</h3>
@@ -1488,7 +1514,7 @@
         <tbody>
           <tr><td>Ngôn ngữ</td><td>TypeScript toàn bộ (frontend lẫn backend), kiểm tra kiểu qua <code>tsc --noEmit</code>, lint qua ESLint</td></tr>
           <tr><td>Dev server</td><td>Next.js dev mode dùng <strong>Turbopack</strong></td></tr>
-          <tr><td>Kết nối CSDL</td><td>Connection pool <code>pg.Pool</code>, giới hạn <code>max</code> thấp trên 2 profile hosted (Aiven/Supabase) do free-tier giới hạn số kết nối đồng thời</td></tr>
+          <tr><td>Kết nối CSDL</td><td>Connection pool <code>pg.Pool</code>, giới hạn <code>max</code> thấp trên profile hosted (Supabase, nên dùng Transaction pooler cổng 6543) do free-tier giới hạn số kết nối đồng thời</td></tr>
           <tr><td>Icon/UI</td><td><code>@phosphor-icons/react</code>; component UI dùng chung tự xây trong <code>src/components/ui</code> (không dùng thư viện component đầy đủ như MUI/Ant)</td></tr>
           <tr><td>Sao lưu/phục hồi</td><td>Chức năng riêng ở màn hình Quản trị (SUPERADMIN) — xuất/nhập dump CSDL, không dựa vào cơ chế backup tự động của nhà cung cấp hosting</td></tr>
           <tr><td>MCP Server</td><td><code>@modelcontextprotocol/sdk</code> (chuẩn MCP chính thức) + <code>zod</code> để khai báo schema tham số từng tool — xem mục 16</td></tr>
@@ -1509,7 +1535,7 @@
           <tr><td>Lớp dữ liệu (data layer)</td><td>Tập dữ liệu của một lần import, gắn với một mốc <code>aggregated_at</code></td></tr>
           <tr><td>TTM-CNTT</td><td>Time to Market — Công nghệ thông tin (T1 → R4G). Có 3 mức cảnh báo: Cảnh báo sớm/muộn/Fail</td></tr>
           <tr><td>TTM-E2E</td><td>Time to Market — End to End (T0 → Release/Due Date). Chỉ có Fail/NONE, không có mức sớm/muộn</td></tr>
-          <tr><td>Epic sai lệch dữ liệu</td><td>Epic vi phạm ≥ 1 trong 6 rule R1-R6 (mục 9): thiếu T1 theo trạng thái, Pending quá lâu, ngày sai thứ tự, thiếu Phân loại yêu cầu, thiếu Requirement Level, hoặc Epic SP nhưng Requirement Level thấp (1-2). Không bị chặn import; bị nhóm cuối bảng, highlight, cột Nhận xét hiện badge "Sai lệch dữ liệu" + danh sách rule vi phạm. Đánh giá bằng một hàm dùng chung cho mọi màn hình, lưu trạng thái hiện tại vào <code>epic_data_anomaly_violations</code> (mục 5.2).</td></tr>
+          <tr><td>Epic sai lệch dữ liệu</td><td>Epic vi phạm ≥ 1 rule "Sai lệch dữ liệu" (R1, R3–R6, R8–R10 — mục 9.1): thiếu Start Date, ngày sai thứ tự, thiếu Phân loại yêu cầu / Requirement Level, Epic SP nhưng Level thấp (1-2), có/thiếu/khai trước R4G Date so với status. Phạm vi áp dụng từng rule có thể giới hạn theo mốc ngày (mục 9.2). Không bị chặn import; bị nhóm cuối bảng, highlight, cột Nhận xét hiện badge "Sai lệch dữ liệu" + danh sách rule vi phạm. Đánh giá bằng một hàm dùng chung cho mọi màn hình, lưu trạng thái hiện tại vào <code>epic_data_anomaly_violations</code> (mục 5.2).</td></tr>
           <tr><td>L01 … L05bb</td><td>Mã các tiêu chí tính toán của phễu TTM Dashboard 2 (Tổng epic → Epic trong phạm vi tính TTM → Epic chuẩn hoá dữ liệu → Epic hoàn thành / chưa hoàn thành → 5 nhóm kết quả). Tỷ lệ % Pass TTM-CNTT = L05aa / (L05aa + L05ab + L05ba) (mục 21.2, 21.3, 8.7)</td></tr>
           <tr><td>SUPERVISOR</td><td>Role thứ 4, cùng phạm vi xem toàn hệ thống như SUPERADMIN nhưng chỉ đọc, không có quyền tạo/sửa/xóa</td></tr>
           <tr><td>4 Epic Type (CT-Lv12 / CT-Lv34 / SP-Lv12 / SP-Lv34)</td><td>Phân loại tự động theo <code>Loại yêu cầu</code> + <code>Mức yêu cầu</code> của Epic (mục 5.2), quyết định TTM-CNTT 15, 25 hoặc 30 ngày làm việc</td></tr>
