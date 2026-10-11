@@ -17,7 +17,12 @@ import { cn } from '@/lib/utils';
 
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
+<<<<<<< HEAD
+import { DonutChartCard } from '@/components/dashboard-new/DonutChartCard';
+import { PmsmBarChartCards } from '@/components/ttm-dashboard-2/PmsmBarChartCards';
+=======
 import { DonutChartCard } from '@/components/ttm-dashboard-2/DonutChartCard';
+>>>>>>> 2f6323c62b9440e4d8690eed7d6e57f1631f04b0
 import type { EpicAlertsDeepLinkAlert } from '@/lib/epic-alerts-deep-link';
 import { vnTodayIso } from '@/lib/epic-row-verdicts';
 import { formatTtmPct1, hasTtmVerdict, type TtmCnttSummary } from '@/lib/ttm-cntt-qa';
@@ -626,25 +631,32 @@ export function BreakdownDonutSections({ dimensions, funnel, onOpen }: { dimensi
             {isOpen && (
               <div className="mt-3 border-l-2 border-[var(--color-text-brand)] pl-3 pt-1">
                 {dimension === 'pmsm' && <p className="mb-2 text-[11px] italic text-fb-text-secondary">{PMSM_SHARED_NOTE}</p>}
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <DonutChartCard
-                    title="% Tổng số Epic"
-                    data={items.map((item) => ({ name: item.name, value: item.total }))}
-                    onItemClick={(item) => open(item.name, 'TTM_COUNTED_IN_SCOPE', 'Danh sách Epic')}
+                {dimension === 'pmsm' ? (
+                  <PmsmBarChartCards
+                    items={items}
+                    onOpenEpicList={(name, alert, label) => open(name, alert as InsightListParams['alert'], label)}
                   />
-                  <DonutChartCard
-                    title="% Pass TTM"
-                    data={items.map((item) => ({ name: item.name, value: item.pass }))}
-                    emptyMessage="Không có Epic đạt TTM"
-                    onItemClick={(item) => open(item.name, 'TTM_PASS_IN_SCOPE', 'Danh sách Epic Pass TTM')}
-                  />
-                  <DonutChartCard
-                    title="% Fail TTM"
-                    data={items.map((item) => ({ name: item.name, value: item.fail }))}
-                    emptyMessage="Không có Epic Fail TTM"
-                    onItemClick={(item) => open(item.name, FAIL_ALERTS, 'Danh sách Epic Fail TTM')}
-                  />
-                </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <DonutChartCard
+                      title="% Tổng số Epic"
+                      data={items.map((item) => ({ name: item.name, value: item.total }))}
+                      onItemClick={(item) => open(item.name, 'TTM_COUNTED_IN_SCOPE', 'Danh sách Epic')}
+                    />
+                    <DonutChartCard
+                      title="% Pass TTM"
+                      data={items.map((item) => ({ name: item.name, value: item.pass }))}
+                      emptyMessage="Không có Epic đạt TTM"
+                      onItemClick={(item) => open(item.name, 'TTM_PASS_IN_SCOPE', 'Danh sách Epic Pass TTM')}
+                    />
+                    <DonutChartCard
+                      title="% Fail TTM"
+                      data={items.map((item) => ({ name: item.name, value: item.fail }))}
+                      emptyMessage="Không có Epic Fail TTM"
+                      onItemClick={(item) => open(item.name, FAIL_ALERTS, 'Danh sách Epic Fail TTM')}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
