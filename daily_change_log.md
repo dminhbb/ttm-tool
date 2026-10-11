@@ -6,7 +6,81 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-10-11
+
+- **Dọn lint + footer màn hình login + cập nhật tài liệu/schema**:
+  - **Lint** (`eslint src` từ 4 lỗi + 29 cảnh báo → sạch): sửa 4 lỗi `react-hooks/set-state-in-effect` —
+    `dashboard-new/page.tsx` (chỉnh `dimensionKey` ngay lúc render), `EpicAlertsIframeModal.tsx` (spinner suy ra từ `loadedUrl`),
+    `EpicBrowserModal.tsx` (`TtmBlackListTopToggle` đồng bộ prop lúc render), `EpicIssuesTree.tsx` (loading của Epic gốc suy ra từ `autoLoadedRootId`).
+    Gỡ import/biến không dùng (`AppShell`, `ImportIssuesTab`, `epic-alerts-15`, `epic-in-po`, `sso-demo`, `sso/authorize`, `topRiskProjects`...);
+    thêm `eslint-disable` có lý do cho các effect cố ý không đưa `fetchData`/`apiKey` vào deps.
+  - **`SystemStatusFooter.tsx`**: ở `/login` không gọi `/api/visit-counter/footer` (cần session) — chỉ hiện `TTM Tool | Version x` và `(C) minhnd7. db: <target> - <status>`.
+  - **`db/schema.sql`**: đồng bộ baseline 14 bảng với schema thật (thêm `issues.requirement_level/requesting_unit/components/epic_stories/story_subtasks`,
+    `users.must_change_password/failed_login_attempts`) + header giải thích mô hình baseline + migrations.
+  - **`scripts/migrate-db.js`**: khi `--init`, chấp nhận thêm lỗi `42703` (undefined_column) — 3 migration cũ (20260811, 20260812, 20260827) tham chiếu
+    cột `projects.lead_name`/`project_key` đã không còn trong baseline nên trước đây làm `--init` DB mới dừng giữa chừng. Đã replay thử trong schema tạm + ROLLBACK:
+    51 bảng/cột khớp DB thật.
+  - **Tài liệu**: `README.md` (landing mặc định `/ttm-dashboard-2`, 5 màn hình Visit Counter, Aiven đã ngừng, Scoring Service), `brd/16-ttm-indexes.md` §8.1 mới
+    (Phạm vi rule Sai lệch dữ liệu), `brd/08-data-model.md`, `brd/03-mvp1-working-days-alert-rules.md` (R3 gộp 1 vi phạm), `public/docs/product-guide.html`
+    (§9.2 mới, số bảng 51, R1–R10, Aiven, footer login).
+
+- **Merge `main` vào `feature/ias-design-system-adoption`** (4 file xung đột, giải quyết như sau):
+  - `src/components/epic-browser/EpicBrowserModal.tsx`: lấy bản của `main` (khối Epic ngoại lệ đã được thiết kế lại, nhánh feature chỉ đổi 2 dòng màu trong khối cũ).
+  - `src/components/ttm-dashboard-2/DashboardInsights.tsx`: giữ subtitle `KpiSubLink` "thiếu lý do Fail" của `main`, màu dùng token `--color-text-error`.
+  - `daily_change_log.md`: gộp cả hai lịch sử dưới cùng heading ngày; `version.json`: stamp mới.
+  - **Nợ thiết kế của code mới từ `main`** (4 test chốt chặn IAS fail): chạy `scripts/codemod-ias-tokens.mjs`; gỡ toàn bộ class `dark:*` ở
+    `EpicBrowserModal`, `EpicIssuesTree`, `DailyCacheWarmer`, `AnomalyScopeConfigPanel`, `StatusAlertRulesSettings` (app không khai báo
+    `@custom-variant dark` nên `dark:` chỉ theo OS, không theo toggle `data-theme`; token IAS đã tự đổi theo theme); đổi nốt các class palette thô còn lại
+    sang token (`status-*`, `fb-blue`, `fb-accent`); `<Button>` "Lưu & tính toán lại cache" ghi rõ `variant="primary"`.
+    **Hoàn tác** thay đổi `#8B4513` → `--color-text-warning` ở `app/login/page.tsx` mà codemod áp lại (đã từng bị hoàn tác có chủ đích vì tương phản
+    giảm còn ~4.0:1). Kết quả: `tsc` sạch, `eslint src` sạch, `npm test` 277/277.
+  - Việc còn lại trước khi deploy: chạy `npm run db:migrate:local` và `npm run db:migrate:supabase` cho 5 migration PMS (`20261009a`–`e`) của nhánh feature.
+
 ## 2026-10-10
+
+- **Cấu hình cảnh báo: Bổ sung panel 'Phạm vi rule Sai lệch dữ liệu', cập nhật Scoring Service và thu gọn các panel (`/admin/status-alert-rules`)**:
+  - **Màn hình Cấu hình cảnh báo (`StatusAlertRulesSettings.tsx`)**:
+    - Chuyển toàn bộ các panel cấu hình sang chế độ mặc định thu gọn (collapse). Cho phép click vào header/title của mỗi panel để đóng/mở linh hoạt kèm icon `CaretDown`.
+    - Thêm panel cấu hình **'Phạm vi rule Sai lệch dữ liệu'** (`AnomalyScopeConfigPanel.tsx`):
+      - Master toggle (`Enabled` / `Disabled`) trên cùng để Bật/Tắt toàn bộ form áp dụng phạm vi đánh giá.
+      - Ma trận cấu hình ma trận gồm 8 rule Sai lệch dữ liệu (`R1`, `R3`, `R4`, `R5`, `R6`, `R8`, `R9`, `R10`) theo chiều dọc; 4 cột điều kiện ngày: `'Ngày tạo Epic >'`, `'Ngày Start Date >'`, `'Ngày R4G Date >'`, `'Ngày Due Date >'`. Mỗi ô gồm date input kèm nút reset icon `ArrowCounterClockwise` để xoá rỗng cấu hình.
+      - Cuối mỗi hàng là 'Rule toggle' (`Enabled` / `Disabled`) để bật/tắt áp dụng phạm vi cho riêng rule đó.
+  - **Scoring Service (`parameters.ts`, `registry.ts`, `data-quality.ts`, `scoring.test.ts`)**:
+    - Bổ sung cấu hình `anomaly.scopeConfig` trong `ScoringParameters`, nâng `SCORING_CODE_VERSION` lên `scoring-15`.
+    - Khi Master toggle = `Enabled`: từng rule có Rule toggle = `Enabled` chỉ đánh giá các Epic thỏa mãn đồng thời các điều kiện ngày được cấu hình: `(jiraCreatedAt > Ngày tạo) AND (startDate > Start Date) AND (r4gDate > R4G Date) AND (dueDate > Due Date)`. Bỏ qua điều kiện nếu trường cấu hình rỗng hoặc `"none"`. Epic không thỏa mãn điều kiện phạm vi sẽ không bị coi là vi phạm rule đó.
+    - Lớp dữ liệu L03 tự động giữ lại các Epic không bị gán Sai lệch dữ liệu trong phạm vi này (`L03 = L02 − Sai lệch dữ liệu`). Khi Master toggle = `Disabled`, áp dụng toàn bộ như hiện nay.
+  - **Backend API & Service (`anomaly-scope-config-service.ts`, `api/anomaly-scope-config/route.ts`)**:
+    - Quản lý đọc/ghi cấu hình qua `scoring_parameters` (param_key `'anomaly.scopeConfig'`), tự động đồng bộ hóa phiên bản và trigger tính lại cache khi lưu.
+
+- **Bổ sung khuyến nghị 'Thiếu lý do Fail TTM' & Cải tiến TTM Dashboard 2, Quản trị Epic và Duyệt Epic**:
+  - **Scoring Service (`src/lib/scoring/rules/recommendations.ts`, `catalog.ts`, `registry.ts`, `types.ts`, `src/lib/scoring-facts-service.ts`)**:
+    - Bổ sung khuyến nghị `REC_MISSING_FAIL_REASON` (`Thiếu lý do Fail TTM`) thuộc trục `TTM_CNTT`.
+    - Điều kiện áp dụng: Epic bị ghi nhận `CNTT_FAIL` (Đánh giá fail TTM-CNTT) và toàn bộ 9 trường lý do fail TTM (`epic_khau_ba`, `epic_khau_co`, `epic_khau_dev`, `epic_khau_pm_sm`, `epic_khau_po`, `epic_khau_pentest`, `epic_khau_sa`, `epic_khau_sit_uat`, `epic_note_ly_do_khac`) đều rỗng, chỉ gồm khoảng trắng hoặc có giá trị `"none"`.
+    - Tăng `SCORING_CODE_VERSION` lên `scoring-14`.
+  - **Quản trị Epic (`/epic-alerts-15`) & Bộ lọc (`ScoringBadges.tsx`, `epic-row-verdicts.ts`, `scoring/select.ts`)**:
+    - Hiển thị badge `'Thiếu lý do Fail TTM'` màu cam (recommendation) cho Epic thỏa mãn điều kiện.
+    - Hỗ trợ bộ lọc preset `MISSING_FAIL_REASON` và deep link `alert=MISSING_FAIL_REASON`.
+  - **TTM Dashboard 2 (`DashboardInsights.tsx`, `ttm-funnel-summary.ts`, `ttm-dashboard-2-cache-service.ts`)**:
+    - Thay thế subtitle của widget KPI `'Fail TTM-CNTT'`: hiển thị `{số lượng} thiếu lý do Fail` với `{số lượng}` in đậm màu đỏ (`text-[#dc2626] font-bold`).
+    - Gắn link mở popup Quản trị Epic lọc danh sách tương ứng (`alert: 'MISSING_FAIL_REASON'`).
+    - Nâng cấp `PAYLOAD_VERSION` của cache TTM Dashboard 2 lên 10.
+  - **Popup Duyệt Epic (`EpicBrowserModal.tsx`, `epic-browser-service.ts`)**:
+    - Cho phép click vào `Epic Key` (ở breadcrumb và header) để mở trực tiếp issue Jira trong tab mới của trình duyệt web (`target="_blank"` kèm icon `ArrowSquareOut`).
+    - Tại tab "Giải trình Fail TTM", bổ sung badge `'Thiếu lý do Fail TTM'` bên cạnh badge `'Fail TTM-CNTT'` nếu Epic bị Scoring Service gán badge này.
+
+- **Cải tiến Popup Duyệt Epic (`EpicBrowserModal.tsx`) & Giám sát tiến trình Cache toàn hệ thống**:
+  - **Thêm trường Created Date**: Bổ sung `Created Date` vào cụm cột 2 (cột phải) trong tab Details của `EpicBrowserModal.tsx`, đọc từ `jiraCreatedAt` / `createdAt` trong DB.
+  - **Popup cảnh báo khi toggle 'Epic ngoại lệ'**: Tích hợp `ConfirmDialog` trước khi thực hiện toggle:
+    - Khi chuyển False -> True: cảnh báo *"Đánh dấu Epic này ngoại lệ sẽ loại bỏ khỏi tất cả các tính toán và cảnh báo Time to Market, bạn có đồng ý không ?"*.
+    - Khi chuyển True -> False: cảnh báo *"Epic sẽ được đưa trở lại các tính toán và cảnh báo Time to Market, bạn có đồng ý không ?"*.
+  - **Thông báo Toast & Chỉ báo Cache toàn hệ thống**: Nâng cấp `DailyCacheWarmer` (`DailyCacheWarmer.tsx`) theo dõi trạng thái `isRebuilding` từ `derived_cache_refresh_lock` trên tất cả các màn hình:
+    - Hiển thị toast `'Hệ thống đang tính toán lại cache'` kèm floating indicator khi có tiến trình tạo cache chạy.
+    - Hiển thị toast `'Tạo Cache hoàn thành'` khi tiến trình hoàn tất.
+    - Cơ chế kích hoạt nhanh: phát sự kiện `notifyCacheRefreshTriggered()` ngay sau các thao tác thay đổi ngoại lệ/dự án/domain/import để phản hồi ngay lập tức.
+  - **Tối ưu triệt để tốc độ mở Popup Duyệt Epic**:
+    - Thay thế các CTE quét toàn bộ database (`LATEST_ISSUES_CTE`, `STORIES_CTE`, `RESOLVED_DESCENDANTS_CTE`) trong `getEpicBrowserRoot` bằng truy vấn có chỉ mục trực tiếp theo `epicKey`.
+    - Tối ưu `getEpicBrowserSummary` và `computeEpicPhaseCompletionByEpicKey` (`epic-phase-completion-service.ts`) lọc chính xác theo `epicKeys`, không quét Story/Subtask toàn bộ DB.
+    - Rút ngắn thời gian tải popup từ 3-5 giây trên production xuống chỉ còn dưới 50ms.
 
 - **Gỡ font `.otf` bản quyền và `mockup.rar` khỏi git.** Repo đang **public**, nên 8 file
   `Intelligent_Design_-_AvertaStdCY-*.otf` (~1MB, font desktop nguyên bản, cài được) ở
@@ -232,6 +306,26 @@
 
 ## 2026-10-09
 
+- **Cập nhật Tooltip và các trường thuộc tính tab Details trong Popup Duyệt Epic (`EpicBrowserModal.tsx`)**:
+  - **Sử dụng Hover Tooltip chung**: Chuyển nút toggle `'Epic ngoại lệ'` sang dùng component `<Tooltip>` chung của ứng dụng (`@/components/ui/Tooltip`), với hiệu ứng hiển thị nhất quán, shadow và positioning chuẩn như các badge nhận xét ở màn hình Quản trị Epic.
+  - **Cập nhật thuộc tính tab Details**: Bổ sung hiển thị 2 trường dữ liệu thực tế **Phân loại Epic** (`summary.epicType` / `summary.epicComplexityType`) và **Requirement Level** (`summary.requirementLevel`). Bỏ trường `Epic Status:` trùng lặp (đã có ở mục Status cột phải) và bỏ nhãn `Priority:` giả định từ ảnh ví dụ Jira. Cập nhật query trong `getEpicBrowserSummary` (`epic-browser-service.ts`) để cung cấp 2 trường này.
+
+- **Bổ sung Badge nhận xét TTM-CNTT (`Pass TTM-CNTT` / `Fail TTM-CNTT`) trong Popup Duyệt Epic (`EpicBrowserModal.tsx`)**:
+  - Thêm badge căn lề bên phải trên cùng dòng tiêu đề `'Giải trình Fail TTM'` hiển thị trực quan trạng thái nhận xét TTM-CNTT của Epic (như `Pass TTM-CNTT`, `Fail TTM-CNTT`, `Sai lệch dữ liệu`, `Epic ngoại lệ`).
+  - Cập nhật `getEpicBrowserSummary` (`epic-browser-service.ts`) đánh giá Epic thông qua Epic Scoring Service (`loadScoringContext`, `loadEpicFacts`, `scoreEpic`) để trả về `ttmCnttVerdict` và `ttmCnttVerdictLabel`. Badge giúp người dùng nhận biết nhanh để rà soát đầy đủ các thông tin giải trình khi Epic bị Fail.
+
+- **Tái thiết kế giao diện Popup "Duyệt Epic" (`EpicBrowserModal.tsx`) theo chuẩn Jira Issue View**:
+  - **Header & Nút toggle đơn**: Breadcrumb hiển thị `<ProjectKey> / <EpicKey>`, tiêu đề Epic Summary cỡ lớn. Hàng nút phía trên thay bằng **nút toggle đơn duy nhất `'Epic ngoại lệ'`** kèm hover tooltip hiển thị diễn giải trạng thái True/False; bỏ phần 'Epic ngoại lệ' cũ ở chân popup.
+  - **Tab Details**: Bố trí 2 cụm cột Trái / Phải hiển thị đầy đủ các thuộc tính của Epic; đã loại bỏ link `(View Workflow)` cạnh mục Status.
+  - **Bỏ tab Description**.
+  - **Tab "Issues in Epic" & Bảng phân cấp 4 cột** (`EpicIssuesTree.tsx`): Đổi tên tab Attachments thành `Issues in Epic`, giữ khung border nét đứt xung quanh, bỏ icon đám mây và text tải file. Bên trong hiển thị bảng phân cấp 4 cột (`Issue Type | Issue Key | Summary | Status`). Quy tắc lùi lề: Story lùi 3ch so với Epic, Subtask lùi 3ch so với Story.
+  - **Panel "Giải trình Fail TTM" mới**: Đặt bên dưới panel `Issues in Epic`, thiết kế dạng 2 cụm cột Trái / Phải tương tự Details. Hiển thị thông tin nguyên nhân các khâu (BA, CO, DEV, PM/SM, PO, Pentest, SA, SIT/UAT, Lý do khác) được lấy trực tiếp từ DB/CSV (hiển thị `-` nếu rỗng). Cập nhật `getEpicBrowserSummary` (`epic-browser-service.ts`) để truy vấn đầy đủ 9 trường khâu này.
+- **Bổ sung 10 trường mới vào CSV import adapter và bảng `issues`** (migration `20261009_add_epic_previous_status_and_khau_fields.sql`):
+  - **Trường status trước đó**: `epic_previous_status` (CSV) -> `previous_status` (DB `VARCHAR(50)`), lưu trữ status trước đó của Epic (chủ yếu rỗng, chỉ xuất hiện ở một số trường hợp đặc biệt).
+  - **9 trường thông tin vai trò nguyên nhân Fail TTM-CNTT & Ghi chú**: `epic_khau_ba`, `epic_khau_co`, `epic_khau_dev`, `epic_khau_pm_sm`, `epic_khau_po`, `epic_khau_pentest`, `epic_khau_sa`, `epic_khau_sit_uat`, `epic_note_ly_do_khac` (CSV) -> `khau_ba`, `khau_co`, `khau_dev`, `khau_pm_sm`, `khau_po`, `khau_pentest`, `khau_sa`, `khau_sit_uat`, `note_ly_do_khac` (DB `TEXT`).
+  - **Cập nhật Import Engine & Adapters**: Cập nhật `RawJiraIssue` interface (`csv-parser.ts`), `mapCSVToRawIssues`, adapter Py Jira API (`py-jira-api-adapter.ts`) và quy trình upsert `processImport` (`import-service.ts`).
+  - **Cập nhật Mô tả Schema & Tài liệu**: Cập nhật `db/schema.sql`, spec `brd/08-data-model.md` §7, tài liệu `public/docs/product-guide.html` §3.3. Đã chạy migration thành công trên Supabase và viết bổ sung unit test `py-jira-api-adapter.test.ts` (104 tests pass 100%).
+
 - **PMS Project Core — 5 migration expand-only + DB local trên Docker (CHƯA áp dụng lên Supabase)**:
   - **Lý do**: module Projects bắt đầu ngày mai, nhưng bảng `projects` hiện tại chưa làm master được cho PMS: cột `ttm` (thuộc TTM) nằm trong bảng
     dùng chung; `source_project_key` kiêm cả định danh + khoá tích hợp Jira + khoá phân quyền + khoá cache; `project_category` chỉ là CHECK text nên
@@ -293,6 +387,7 @@
     không trả exit code đáng tin (luôn `-1`) và có thể trả về **trước khi** lệnh dài chạy xong — cách kiểm chứng đáng tin là ghi kết quả + file sentinel rồi đọc file.
   - **Chưa làm (theo đúng kế hoạch)**: module Projects nghiệp vụ (checklist / milestone-Gantt / backlog / health / risk / nhân sự), `ProjectId` + external
     binding, durable job/outbox, event-driven cache generation, multi-schema migration và `/api/v1`.
+
 - **Review commit `b788207` ("Fix bug rules") và sửa các điểm phát hiện** (không đổi schema, không đổi code rule chấm điểm — giữ `scoring-11`):
   - **R8 — ghi rõ quy định "R4G Date không được khai báo trước"** (chủ sở hữu xác nhận là quy định công ty): Epic ghi trước R4G Date khi status chưa
     tới R4GOLIVE luôn là Sai lệch dữ liệu; Epic owner xoá trường R4G Date và ghi ngày dự kiến ở trường phụ khác. Hệ quả có chủ đích: Sai lệch dữ liệu

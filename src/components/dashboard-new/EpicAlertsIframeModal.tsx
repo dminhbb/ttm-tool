@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { ArrowSquareOut, Browsers, CircleNotch, X } from '@phosphor-icons/react';
 import { MODAL_BACKDROP_CLASS, useModalBehavior } from '@/components/ui/Modal';
 
@@ -17,22 +17,19 @@ export function EpicAlertsIframeModal({
   title,
   url,
 }: EpicAlertsIframeModalProps) {
-  const [isLoading, setIsLoading] = useState(true);
-
   // Escape key handler & scroll lock — shared with every other popup (ui/Modal.tsx).
   useModalBehavior(isOpen && Boolean(url), onClose);
 
-  // Reset loading whenever URL changes
-  useEffect(() => {
-    if (isOpen && url) {
-      setIsLoading(true);
-    }
-  }, [isOpen, url]);
-
-  if (!isOpen || !url) return null;
-
   // Add embedded=true query parameter to URL for iframe
-  const embeddedUrl = url.includes('?') ? `${url}&embedded=true` : `${url}?embedded=true`;
+  const embeddedUrl = isOpen && url ? (url.includes('?') ? `${url}&embedded=true` : `${url}?embedded=true`) : null;
+
+  // The spinner shows until the iframe for the CURRENT url has fired onLoad. Forgetting the loaded
+  // url while closed means reopening (even the same url) shows the spinner again.
+  const [loadedUrl, setLoadedUrl] = useState<string | null>(null);
+  if (embeddedUrl === null && loadedUrl !== null) setLoadedUrl(null);
+  const isLoading = embeddedUrl !== null && loadedUrl !== embeddedUrl;
+
+  if (!isOpen || !url || embeddedUrl === null) return null;
 
   return (
     <div
@@ -98,7 +95,7 @@ export function EpicAlertsIframeModal({
           <iframe
             src={embeddedUrl}
             title={title}
-            onLoad={() => setIsLoading(false)}
+            onLoad={() => setLoadedUrl(embeddedUrl)}
             className="size-full border-0"
           />
         </div>

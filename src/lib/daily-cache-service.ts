@@ -43,6 +43,8 @@ export interface DailyCacheRun {
 
 export interface DailyCacheStatus {
   cacheComputedAt: string | null;
+  /** True when either today's daily run or an asynchronous derived cache rebuild lease is active. */
+  isRebuilding: boolean;
   /** A cache rebuild died mid-run and left requests uncovered (see isRebuildLeaseOrphaned) — the
    * next page load re-runs today's rebuild even if today already has a SUCCESS. */
   rebuildInterrupted: boolean;
@@ -57,8 +59,19 @@ const RUN_COLUMNS_SQL = `
   r.attempt_count AS "attemptCount", r.error_message AS "errorMessage", u.full_name AS "triggeredByName"
 `;
 
+export async function isDerivedCacheRebuilding(): Promise<boolean> {
+  try {
+    const result = await pool.query<{ running: boolean }>(
+      'SELECT (lease_owner IS NOT NULL AND lease_until >= CURRENT_TIMESTAMP) AS running FROM derived_cache_refresh_lock WHERE id = 1;',
+    );
+    return result.rows[0]?.running === true;
+  } catch {
+    return false;
+  }
+}
+
 export async function getDailyCacheStatus(): Promise<DailyCacheStatus> {
-  const [result, rebuildInterrupted] = await Promise.all([pool.query<{
+  const [result, rebuildInterrupted, isRebuildingLock] = await Promise.all([pool.query<{
     cacheComputedAt: string | null; cacheFreshToday: boolean; failedRetryReady: boolean | null;
     runningStale: boolean | null; today: string;
   } & Partial<DailyCacheRun>>(`
@@ -73,18 +86,19 @@ export async function getDailyCacheStatus(): Promise<DailyCacheStatus> {
     FROM cache
     LEFT JOIN daily_cache_runs r ON r.run_date = ${VN_TODAY_SQL}
     LEFT JOIN users u ON u.id = r.triggered_by_user_id;
-  `), isRebuildLeaseOrphaned()]);
+  `), isRebuildLeaseOrphaned(), isDerivedCacheRebuilding()]);
   const row = result.rows[0];
   const todayRun = row.runDate ? toRun(row) : null;
+  const isRebuilding = (todayRun?.status === 'RUNNING' && !row.runningStale) || isRebuildingLock;
 
   // An interrupted rebuild makes even a cache computed today untrustworthy (it may predate an import
   // or a black-list save that was told "covered"), so it counts as STALE until a rebuild completes.
   let state: DailyCacheState = 'STALE';
-  if (todayRun?.status === 'RUNNING' && !row.runningStale) state = 'RUNNING';
+  if (isRebuilding) state = 'RUNNING';
   else if (row.cacheFreshToday && !rebuildInterrupted) state = 'FRESH';
   else if (todayRun?.status === 'FAILED' && !row.failedRetryReady) state = 'FAILED';
 
-  return { cacheComputedAt: row.cacheComputedAt, rebuildInterrupted, state, today: row.today, todayRun };
+  return { cacheComputedAt: row.cacheComputedAt, isRebuilding, rebuildInterrupted, state, today: row.today, todayRun };
 }
 
 /** Atomically claims today's run for this user — true only for the single caller that gets it.

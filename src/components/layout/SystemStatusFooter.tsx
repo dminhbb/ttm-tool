@@ -49,6 +49,9 @@ function formatLoginDateTime(isoString: string): string {
  */
 export function SystemStatusFooter() {
   const pathname = usePathname();
+  // The login screen has no session, so the visit-counter API would answer 401 there: skip the
+  // visit statistics and show only the version + copyright / DB status lines.
+  const isLoginScreen = pathname === '/login';
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [visitSummary, setVisitSummary] = useState<FooterVisitSummary | null>(null);
 
@@ -68,6 +71,7 @@ export function SystemStatusFooter() {
 
   // Fetch visit counter summary whenever pathname changes
   useEffect(() => {
+    if (isLoginScreen) return;
     let cancelled = false;
     const pathParam = encodeURIComponent(pathname || '');
     fetch(`/api/visit-counter/footer?path=${pathParam}`, { cache: 'no-store' })
@@ -83,7 +87,7 @@ export function SystemStatusFooter() {
     return () => {
       cancelled = true;
     };
-  }, [pathname]);
+  }, [pathname, isLoginScreen]);
 
   if (!status) return null;
 
@@ -92,6 +96,17 @@ export function SystemStatusFooter() {
   const hasScreenVisits = Boolean(visitSummary && visitSummary.screenVisits !== null);
   const screenVisitsText = hasScreenVisits ? visitSummary!.screenVisits!.toLocaleString('vi-VN') : null;
   const recentUsers = visitSummary ? visitSummary.lastLoginUsers : null;
+
+  if (isLoginScreen) {
+    return (
+      <footer className="w-full shrink-0 px-3 py-2 flex flex-col items-center justify-center gap-0.5 text-center leading-tight">
+        <p className="text-[11px] text-fb-text-placeholder">TTM Tool | Version {status.version}</p>
+        <p className="text-[11px] text-fb-text-placeholder opacity-80 text-center">
+          (C) minhnd7. db: {status.dbTarget} - {status.dbStatus}
+        </p>
+      </footer>
+    );
+  }
 
   return (
     <footer className="w-full shrink-0 px-3 py-2 flex flex-col items-center justify-center gap-0.5 text-center leading-tight">

@@ -1,8 +1,9 @@
+import { BADGE_BY_ID } from '../catalog';
 import { diffWorkingDays, toIsoDate } from '../dates';
 import { isCancelledStatus, isPendingStatus, isReopenedStatus, normalizeWorkflowStatus, STATUS_INDEX } from '../derive';
 import { finding } from './rule-types';
 import type { PrimaryRule } from './rule-types';
-import type { Finding, ScoringContext } from '../types';
+import type { EpicFacts, Finding, ScoringContext } from '../types';
 
 /** Cancelled + the configurable list (default To Do / In PO / Backlog) skip the data-quality rules —
  * except R8 / R10, which only Cancelled skips (see dataQualityRule). */
@@ -15,6 +16,60 @@ export function isExemptFromDataQuality(status: string, ctx: ScoringContext): bo
 function isBlank(value: string | null): boolean {
   const normalized = (value ?? '').trim().toLocaleLowerCase('en-US');
   return normalized === '' || normalized === 'none';
+}
+
+/**
+ * Checks whether an Epic satisfies the date scope conditions for a given Data Anomaly rule.
+ * If master toggle is disabled or the rule's toggle is disabled, returns true (applies normally).
+ * If rule toggle is enabled, returns true only when:
+ * (epic created date > createdAfter) AND (startDate > startAfter) AND (r4gDate > r4gAfter) AND (dueDate > dueAfter).
+ * Any empty or "none" field is skipped / ignored.
+ */
+export function isEpicInAnomalyScope(badge: string, facts: EpicFacts, ctx: ScoringContext): boolean {
+  const scopeConfig = ctx.parameters['anomaly.scopeConfig'];
+  if (!scopeConfig || !scopeConfig.enabled) {
+    return true;
+  }
+  const ruleScope = scopeConfig.rules?.[badge];
+  if (!ruleScope || !ruleScope.enabled) {
+    return true;
+  }
+
+  const isNoneOrEmpty = (d: string | null | undefined): boolean => {
+    if (!d) return true;
+    const t = d.trim().toLowerCase();
+    return t === '' || t === 'none';
+  };
+
+  if (!isNoneOrEmpty(ruleScope.createdAfter)) {
+    const epicCreated = toIsoDate(facts.jiraCreatedAt);
+    if (!epicCreated || !(epicCreated > ruleScope.createdAfter!.trim())) {
+      return false;
+    }
+  }
+
+  if (!isNoneOrEmpty(ruleScope.startAfter)) {
+    const epicStart = facts.startDate ? toIsoDate(facts.startDate) : null;
+    if (!epicStart || !(epicStart > ruleScope.startAfter!.trim())) {
+      return false;
+    }
+  }
+
+  if (!isNoneOrEmpty(ruleScope.r4gAfter)) {
+    const epicR4g = facts.r4gDate ? toIsoDate(facts.r4gDate) : null;
+    if (!epicR4g || !(epicR4g > ruleScope.r4gAfter!.trim())) {
+      return false;
+    }
+  }
+
+  if (!isNoneOrEmpty(ruleScope.dueAfter)) {
+    const epicDue = facts.dueDate ? toIsoDate(facts.dueDate) : null;
+    if (!epicDue || !(epicDue > ruleScope.dueAfter!.trim())) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 /**
@@ -33,6 +88,14 @@ function isBlank(value: string | null): boolean {
  */
 export const dataQualityRule: PrimaryRule = ({ facts, derived, ctx }) => {
   const findings: Finding[] = [];
+  const filterByScope = (list: Finding[]) =>
+    list.filter((item) => {
+      const def = BADGE_BY_ID.get(item.badge);
+      if (def?.axis === 'DATA_QUALITY' && def.group === 'ALERT') {
+        return isEpicInAnomalyScope(item.badge, facts, ctx);
+      }
+      return true;
+    });
   const r4g = facts.r4gDate;
   // R8 — a recorded R4G Date means status ≥ R4GOLIVE. It applies to the exempt statuses too (To Do /
   // In PO / Backlog — owner rule 2026-10-05), only not to Cancelled: every Epic with an R4G Date while
@@ -65,7 +128,7 @@ export const dataQualityRule: PrimaryRule = ({ facts, derived, ctx }) => {
   if (r4g && r4g > ctx.asOf && !statusBehindR4g && !isCancelledStatus(facts.status)) {
     findings.push(finding('ANOMALY_R10_R4G_DATE_IN_FUTURE', `R4G Date (${r4g}) còn ở tương lai — R4G Date là ngày thực tế đạt R4GOLIVE, không được khai báo trước (status Epic: ${facts.status})`, { r4gDate: r4g, status: facts.status }));
   }
-  if (exempt) return findings;
+  if (exempt) return filterByScope(findings);
   const { holidays } = ctx;
   const t0 = facts.ideaApprovedDate;
   const t1 = facts.startDate;
@@ -111,5 +174,5 @@ export const dataQualityRule: PrimaryRule = ({ facts, derived, ctx }) => {
   if (!r4g && derived.statusIndex >= STATUS_INDEX.R4GOLIVE && derived.statusIndex <= STATUS_INDEX.RELEASED) {
     findings.push(finding('ANOMALY_R9_MISSING_R4G_DATE', `Status Epic (${facts.status}) đã từ R4GOLIVE trở lên nhưng chưa có R4G Date`, { status: facts.status }));
   }
-  return findings;
+  return filterByScope(findings);
 };

@@ -227,13 +227,36 @@ hôm nay = mọi Epic trong hệ thống (hoặc trong quyền hạn của user)
    không tính cả tử số lẫn mẫu số).
 2. (Chỉ với QA-Index) Epic **không** ở trạng thái MVP Done/Released.
 
+## 8.1. "Phạm vi rule Sai lệch dữ liệu" — giới hạn rule theo mốc ngày (từ 2026-10-10)
+
+Khác với mục 7 (gate cho **chỉ số** TTM-CNTT/QA), đây là cấu hình giới hạn **bản thân các rule Sai lệch
+dữ liệu** chỉ đánh giá những Epic "đủ mới" — để Epic lịch sử không bị đánh dấu sai lệch hàng loạt.
+
+- **Nơi cấu hình:** panel "Phạm vi rule Sai lệch dữ liệu" trong `/admin/status-alert-rules`
+  (`AnomalyScopeConfigPanel.tsx`); chỉ SUPERADMIN lưu được (`PUT /api/anomaly-scope-config`), các role
+  khác chỉ đọc (`GET`).
+- **Lưu trữ:** `scoring_parameters` với `param_key = 'anomaly.scopeConfig'` (JSONB
+  `{ enabled, rules: { [badge]: { enabled, createdAfter, startAfter, r4gAfter, dueAfter } } }`),
+  mặc định `enabled = false` (`DEFAULT_ANOMALY_SCOPE_CONFIG`, `src/lib/scoring/parameters.ts`). Mỗi lần
+  lưu gọi `scheduleDerivedCacheRefresh('anomaly-scope-config')`.
+- **Rule hỗ trợ:** R1, R3, R4, R5, R6, R8, R9, R10 (R2 và R7 không phải Sai lệch dữ liệu nên không có).
+- **Ngữ nghĩa** (`isEpicInAnomalyScope`, `src/lib/scoring/rules/data-quality.ts`): khi Master = Enabled
+  và Rule toggle của rule = Enabled, rule chỉ xét Epic thoả **đồng thời** mọi điều kiện đã điền:
+  `jiraCreatedAt > createdAfter` AND `startDate > startAfter` AND `r4gDate > r4gAfter` AND
+  `dueDate > dueAfter` (so sánh `>` nghiêm ngặt trên ngày ISO). Ô rỗng hoặc `"none"` bị bỏ qua; Epic
+  thiếu ngày tương ứng với một điều kiện đang điền coi như **ngoài phạm vi** (không vi phạm rule đó).
+  Master = Disabled hoặc Rule toggle = Disabled → rule áp dụng cho mọi Epic như trước.
+- **Hệ quả:** Epic ngoài phạm vi của mọi rule vi phạm không còn là Sai lệch dữ liệu → được giữ lại ở
+  lớp L03 của phễu (`L03 = L02 − Sai lệch dữ liệu`) và vào mẫu số/tử số các chỉ số như Epic bình thường.
+  Thay đổi cấu hình tăng `SCORING_CODE_VERSION` (hiện `scoring-15`) để cache cũ bị coi là lỗi thời.
+
 ## 9. Các trường hợp bị loại khỏi phạm vi tính toán — tóm tắt
 
 | Trường hợp | Bị loại khỏi | Vẫn hiển thị trong bảng danh sách? |
 |---|---|---|
 | `currentStatus` = Cancelled | Mọi tính toán TTM-Index/QA-Index (tử/mẫu/tổng) | Có (nếu filter Status cho phép) |
 | Không ở MVP Done/Released | Riêng QA-Index (vẫn tính TTM-Index bình thường) | Có |
-| `hasDataAnomaly = true` (vi phạm 1 trong 7 rule R1-R7) | Mẫu số `eligible` (không được coi là "đã Pass/Fail chính thức") — **`fail` vẫn tính bình thường** nếu `alertLevel = FAIL` | Có, kèm badge "Sai lệch dữ liệu" |
+| `hasDataAnomaly = true` (vi phạm 1 rule Sai lệch dữ liệu: R1, R3–R6, R8–R10 của Scoring Service; engine legacy: R1–R7 — có thể bị giới hạn phạm vi, mục 8.1) | Mẫu số `eligible` (không được coi là "đã Pass/Fail chính thức") — **`fail` vẫn tính bình thường** nếu `alertLevel = FAIL` | Có, kèm badge "Sai lệch dữ liệu" |
 | Thiếu Start Date, hoặc R4G Date < Start Date | `alertLevel` bị ép `NONE` (không thể tính TTM-CNTT) | Có, cột TTM-CNTT hiện "Không tính được" |
 | `!ttmCnttInScope` (ngoài "Phạm vi dữ liệu cho TTM") | Mọi tính toán TTM-Index/TTM-CNTT (tử/mẫu/tổng) | Có, badge "Ngoài phạm vi TTM-CNTT" |
 | `!qaInScope` (ngoài phạm vi QA) | Mọi tính toán QA-Index (tử/mẫu/tổng) — không ảnh hưởng TTM-Index | Có |

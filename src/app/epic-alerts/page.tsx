@@ -425,6 +425,9 @@ export default function EpicAlertsPage() {
     // re-runs whenever an advanced filter changes — those are applied server-side (see
     // EpicAlertFilters), unlike every other toolbar filter which stays client-side on `rows`.
     void Promise.resolve().then(fetchData);
+    // fetchData is intentionally not a dependency: it's re-created on every render and reads the
+    // same filter state listed below, so the listed values are the real triggers of a refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layerWindowKey, createdDateFrom, startDateFromFilter, dueDateFromFilter]);
 
   useEffect(() => {

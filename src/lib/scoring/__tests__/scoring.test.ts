@@ -4,8 +4,8 @@ import { BADGES, BADGE_BY_ID, BADGE_LIST, FINDING_GROUPS, SCORING_AXES, SUPPRESS
 import type { BadgeId } from '../catalog';
 import { addWorkingDays, diffWorkingDays, toIsoDate } from '../dates';
 import { compareWorkflowStatus, deriveMetrics, STATUS_INDEX, workflowStatusIndex } from '../derive';
-import { resolveScoringParameters } from '../parameters';
-import { scoreEpic } from '../score-epic';
+import { DEFAULT_SCORING_PARAMETERS, resolveScoringParameters } from '../parameters';
+import { hasDataAnomalyBadge, scoreEpic } from '../score-epic';
 import { activeFindings, badgeCodesOf, hasBadge, indexFlagsOf, primaryFinding } from '../select';
 import type { EpicFacts, ScoringContext } from '../types';
 import { makeContext, makeFacts } from './fixtures';
@@ -82,6 +82,27 @@ describe('TTM-CNTT', () => {
     const facts = makeFacts({ r4gDate: '2026-08-21', status: 'R4GOLIVE' });
     assert.ok(active(facts, ctx).has('CNTT_PASS'));
     assert.ok(active({ ...facts, r4gDate: '2026-08-24' }, ctx).has('CNTT_FAIL'));
+  });
+
+  it('Thiếu lý do Fail TTM: emitted when CNTT_FAIL and all reason fields are empty/none; cleared once any is filled', () => {
+    const failFacts = makeFacts({ r4gDate: '2026-08-24', status: 'R4GOLIVE' });
+    const badgesMissing = active(failFacts, ctx);
+    assert.ok(badgesMissing.has('CNTT_FAIL'));
+    assert.ok(badgesMissing.has('REC_MISSING_FAIL_REASON'));
+
+    // String "none" (case-insensitive) or whitespace is still considered empty
+    const noneFacts = makeFacts({ r4gDate: '2026-08-24', status: 'R4GOLIVE', khauDev: 'None', khauBa: '   ' });
+    assert.ok(active(noneFacts, ctx).has('REC_MISSING_FAIL_REASON'));
+
+    // If any reason field is filled, badge is NOT emitted
+    const filledFacts = makeFacts({ r4gDate: '2026-08-24', status: 'R4GOLIVE', khauDev: 'Chậm dev backend' });
+    const badgesFilled = active(filledFacts, ctx);
+    assert.ok(badgesFilled.has('CNTT_FAIL'));
+    assert.ok(!badgesFilled.has('REC_MISSING_FAIL_REASON'));
+
+    // Passing Epic does not get the recommendation even if fields are empty
+    const passFacts = makeFacts({ r4gDate: '2026-08-21', status: 'R4GOLIVE' });
+    assert.ok(!active(passFacts, ctx).has('REC_MISSING_FAIL_REASON'));
   });
 
   it('Sai Status (2026-10-01): with R8 switched off, R4G reached on time but status < R4GOLIVE → still Đạt, plus the Sai Status recommendation', () => {
@@ -403,6 +424,88 @@ describe('Data quality', () => {
   it('exempt statuses skip every data-quality rule but R8', () => {
     const codes = active(makeFacts({ status: 'In PO', requirementLevel: '', startDate: null }), makeContext());
     assert.ok(![...codes].some((badge) => badge.startsWith('ANOMALY_')));
+  });
+
+  it('Phạm vi rule Sai lệch dữ liệu: when master toggle is enabled, rules with rule toggle evaluate only in-scope Epics', () => {
+    // 1. Master toggle = Disabled -> Scope is ignored, R1 flags as usual
+    const disabledScope = {
+      enabled: false,
+      rules: {
+        ANOMALY_R1_MISSING_START_DATE: { enabled: true, createdAfter: '2026-08-01', startAfter: null, r4gAfter: null, dueAfter: null },
+      },
+    };
+    const oldCreatedEpic = makeFacts({ jiraCreatedAt: '2026-07-20', status: 'In Progress', startDate: null });
+    assert.ok(active(oldCreatedEpic, makeContext({ parameters: { ...DEFAULT_SCORING_PARAMETERS, 'anomaly.scopeConfig': disabledScope } })).has('ANOMALY_R1_MISSING_START_DATE'));
+
+    // 2. Master toggle = Enabled, Rule toggle = Disabled -> That rule applies normally
+    const ruleDisabledScope = {
+      enabled: true,
+      rules: {
+        ANOMALY_R1_MISSING_START_DATE: { enabled: false, createdAfter: '2026-08-01', startAfter: null, r4gAfter: null, dueAfter: null },
+      },
+    };
+    assert.ok(active(oldCreatedEpic, makeContext({ parameters: { ...DEFAULT_SCORING_PARAMETERS, 'anomaly.scopeConfig': ruleDisabledScope } })).has('ANOMALY_R1_MISSING_START_DATE'));
+
+    // 3. Master toggle = Enabled, Rule toggle = Enabled:
+    const activeScope = {
+      enabled: true,
+      rules: {
+        ANOMALY_R1_MISSING_START_DATE: { enabled: true, createdAfter: '2026-08-01', startAfter: null, r4gAfter: null, dueAfter: null },
+      },
+    };
+    const ctxScoped = makeContext({ parameters: { ...DEFAULT_SCORING_PARAMETERS, 'anomaly.scopeConfig': activeScope } });
+
+    // Epic created before 2026-08-01 -> out of scope -> NOT flagged for R1, not data anomaly!
+    const outOfScopeCard = scoreEpic(oldCreatedEpic, ctxScoped);
+    assert.ok(!hasBadge(outOfScopeCard, 'ANOMALY_R1_MISSING_START_DATE'));
+    const outActive = new Set(outOfScopeCard.findings.filter((f) => !f.suppressedBy).map((f) => f.badge));
+    assert.equal(hasDataAnomalyBadge(outActive), false);
+
+    // Epic created after 2026-08-01 -> in scope -> flagged for R1!
+    const inScopeEpic = makeFacts({ jiraCreatedAt: '2026-08-05', status: 'In Progress', startDate: null });
+    const inScopeCard = scoreEpic(inScopeEpic, ctxScoped);
+    assert.ok(hasBadge(inScopeCard, 'ANOMALY_R1_MISSING_START_DATE'));
+    const inActive = new Set(inScopeCard.findings.filter((f) => !f.suppressedBy).map((f) => f.badge));
+    assert.equal(hasDataAnomalyBadge(inActive), true);
+
+    // 4. Multiple conditions combined with AND (e.g. R8 with createdAfter and r4gAfter)
+    const multiScope = {
+      enabled: true,
+      rules: {
+        ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE: {
+          enabled: true,
+          createdAfter: '2026-07-01',
+          startAfter: null,
+          r4gAfter: '2026-08-15',
+          dueAfter: null,
+        },
+      },
+    };
+    const ctxMulti = makeContext({ parameters: { ...DEFAULT_SCORING_PARAMETERS, 'anomaly.scopeConfig': multiScope } });
+
+    // Epic with r4gDate: 2026-08-20 (> 2026-08-15) and jiraCreatedAt: 2026-07-20 (> 2026-07-01) -> both satisfied -> flagged R8
+    const r8Match = makeFacts({ jiraCreatedAt: '2026-07-20', status: 'DEV', r4gDate: '2026-08-20' });
+    assert.ok(active(r8Match, ctxMulti).has('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'));
+
+    // Epic with r4gDate: 2026-08-10 (<= 2026-08-15) -> r4gAfter not satisfied -> out of scope -> NOT flagged R8!
+    const r8Mismatch = makeFacts({ jiraCreatedAt: '2026-07-20', status: 'DEV', r4gDate: '2026-08-10' });
+    assert.ok(!active(r8Mismatch, ctxMulti).has('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'));
+
+    // 5. Empty or "none" strings are ignored
+    const noneScope = {
+      enabled: true,
+      rules: {
+        ANOMALY_R1_MISSING_START_DATE: {
+          enabled: true,
+          createdAfter: 'none',
+          startAfter: '   ',
+          r4gAfter: null,
+          dueAfter: '',
+        },
+      },
+    };
+    const ctxNone = makeContext({ parameters: { ...DEFAULT_SCORING_PARAMETERS, 'anomaly.scopeConfig': noneScope } });
+    assert.ok(active(oldCreatedEpic, ctxNone).has('ANOMALY_R1_MISSING_START_DATE'));
   });
 });
 

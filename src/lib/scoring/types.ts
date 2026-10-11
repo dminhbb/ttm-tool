@@ -35,6 +35,16 @@ export interface EpicFacts {
   phaseCompletion: EpicPhaseCompletionFacts | null;
   /** Set when the Epic is taken out of the TTM calculation (see TtmExclusion); absent/null = counted. */
   ttmExclusion?: TtmExclusion | null;
+  /** 9 fields representing cause/reasons of Fail TTM (issues table) */
+  khauBa?: string | null;
+  khauCo?: string | null;
+  khauDev?: string | null;
+  khauPmSm?: string | null;
+  khauPo?: string | null;
+  khauPentest?: string | null;
+  khauSa?: string | null;
+  khauSitUat?: string | null;
+  noteLyDoKhac?: string | null;
 }
 
 /**

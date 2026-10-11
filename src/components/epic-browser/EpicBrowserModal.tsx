@@ -1,15 +1,18 @@
 'use client';
 
 import * as React from 'react';
-import { TreeStructure } from '@phosphor-icons/react';
+import { ArrowSquareOut, CaretDown, CheckCircle, Lightning, TreeStructure, Warning, WarningCircle } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { Alert } from '@/components/ui/Alert';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { MODAL_BACKDROP_CLASS, MODAL_FRAME_CLASS, ModalHeader, useModalBehavior } from '@/components/ui/Modal';
-import { BooleanPillToggle } from '@/components/ui/PillToggle';
 import { showToast } from '@/components/ui/Toast';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { TableSkeleton } from '@/components/ui/Skeleton';
-import { EpicBrowser } from '@/components/epic-browser/EpicBrowser';
 import { TtmBlackListDot } from '@/components/ui/TtmBlackListDot';
+import { EpicIssuesTree } from '@/components/epic-browser/EpicIssuesTree';
+import { notifyCacheRefreshTriggered } from '@/components/layout/DailyCacheWarmer';
+import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import type { DataReviewIssue } from '@/lib/data-review-types';
 import type { EpicBrowserSummary } from '@/lib/epic-browser-service';
 
@@ -43,107 +46,137 @@ function formatDataLayer(value: string | null): string {
   return new Intl.DateTimeFormat('vi-VN').format(date);
 }
 
-/** Same info fields as the left column of the "Epic History" popup (Quản trị Epic / Epic in PO) —
- * shown below the Jira issue tree so a Duyệt Epic viewer sees this context without opening a
- * separate popup. */
-function EpicSummaryPanel({ summary }: { summary: EpicBrowserSummary }) {
-  const fields: { label: string; value: string }[] = [
-    { label: 'Summary', value: summary.epicName || '-' },
-    { label: 'Tên dự án', value: summary.projectName || '-' },
-    { label: 'Ngày duyệt ý tưởng (T0)', value: formatDate(summary.ideaApprovedDate) },
-    { label: 'Start Date (T1)', value: formatDate(summary.startDate) },
-    { label: 'Status', value: summary.status || '-' },
-    { label: 'PM/SM', value: summary.ownerName || '-' },
-    { label: 'Domain (của PM/SM)', value: summary.domainName || '-' },
-    { label: 'Đơn vị yêu cầu', value: summary.requestingUnit || '-' },
-    { label: 'Lớp dữ liệu đang sử dụng', value: formatDataLayer(summary.dataLayerDate) },
-  ];
-  return (
-    <div className="mt-5 border-t border-fb-border pt-4">
-      <h3 className="mb-3 text-xs font-extrabold uppercase tracking-wide text-fb-text-secondary">Thông tin Epic</h3>
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
-        {fields.map((field) => (
-          <div key={field.label}>
-            <dt className="text-[11px] font-semibold uppercase tracking-wide text-fb-text-secondary">{field.label}</dt>
-            <dd className="mt-0.5 text-[12.5px] font-semibold text-fb-text-primary">{field.value}</dd>
-          </div>
-        ))}
-      </dl>
-    </div>
-  );
-}
-
 /**
- * "TTM Black listed" of one Epic — shown for every Epic (false while it has no row in "Black listed
- * epics"). Toggling to true/false automatically saves to API and alerts via toast without confirmation popup.
- * Roles without edit rights see the current value, disabled.
+ * Nút toggle cho "Epic ngoại lệ" ở hàng trên cùng bên dưới tiêu đề Epic.
+ * Hiển thị hover tooltip diễn giải ý nghĩa theo trạng thái True / False.
  */
-function TtmBlackListForm({ canEdit, epicKey, initialValue }: { canEdit: boolean; epicKey: string; initialValue: boolean }) {
+function TtmBlackListTopToggle({
+  canEdit,
+  epicKey,
+  initialValue,
+  onValueChange,
+}: {
+  canEdit: boolean;
+  epicKey: string;
+  initialValue: boolean;
+  onValueChange?: (nextValue: boolean) => void;
+}) {
   const [value, setValue] = React.useState(initialValue);
   const [saving, setSaving] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
 
-  const handleToggle = async (nextValue: boolean) => {
-    if (!canEdit || saving || nextValue === value) return;
+  // Re-sync the local value when the parent's value changes (adjusting state during render instead
+  // of in an effect, so there's no extra cascading render).
+  const [syncedInitialValue, setSyncedInitialValue] = React.useState(initialValue);
+  if (syncedInitialValue !== initialValue) {
+    setSyncedInitialValue(initialValue);
+    setValue(initialValue);
+  }
+
+  const handleConfirmedToggle = async () => {
+    if (!canEdit || saving) return;
+    const nextValue = !value;
     const prevValue = value;
     setValue(nextValue);
     setSaving(true);
-    setError(null);
     try {
       const response = await fetch('/api/black-listed-epics', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ blackListed: nextValue, epicKey }),
       });
-      const data = await response.json() as ApiErrorResponse;
+      const data = (await response.json()) as ApiErrorResponse;
       if (!response.ok) throw new Error(data.error ?? 'Không thể lưu TTM Black listed.');
 
       if (nextValue) {
-        showToast(`Cảnh báo: Epic ${epicKey} đã được chuyển sang Epic ngoại lệ (TTM Black listed = true) — bị loại khỏi phạm vi tính toán Time to Market!`, 7000);
+        showToast(
+          `Cảnh báo: Epic ${epicKey} đã được chuyển sang Epic ngoại lệ (TTM Black listed = true) — bị loại khỏi phạm vi tính toán Time to Market!`,
+          7000
+        );
       } else {
-        showToast(`Đã bỏ ngoại lệ cho Epic ${epicKey} (TTM Black listed = false). Epic được đưa trở lại tính toán Time to Market.`, 7000);
+        showToast(
+          `Đã bỏ ngoại lệ cho Epic ${epicKey} (TTM Black listed = false). Epic được đưa trở lại tính toán Time to Market.`,
+          7000
+        );
       }
+      notifyCacheRefreshTriggered();
+      onValueChange?.(nextValue);
     } catch (requestError: unknown) {
       setValue(prevValue);
-      setError(requestError instanceof Error ? requestError.message : 'Không thể kết nối API.');
+      showToast(
+        requestError instanceof Error ? requestError.message : 'Không thể kết nối API.',
+        5000
+      );
     } finally {
       setSaving(false);
     }
   };
 
+  const tooltipText = value
+    ? 'Epic này đang là Epic ngoại lệ — không nằm trong phạm vi tính toán Time to Market.'
+    : 'Epic này đang được tính Time to Market như bình thường.';
+
+  const confirmDescription = value
+    ? 'Epic sẽ được đưa trở lại các tính toán và cảnh báo Time to Market, bạn có đồng ý không ?'
+    : 'Đánh dấu Epic này ngoại lệ sẽ loại bỏ khỏi tất cả các tính toán và cảnh báo Time to Market, bạn có đồng ý không ?';
+
+  const confirmTitle = value ? 'Xác nhận đưa Epic trở lại TTM' : 'Xác nhận chuyển sang Epic ngoại lệ';
+
   return (
-    <div className="mt-5 border-t border-fb-border pt-4">
-      <h3 className="mb-3 text-xs font-extrabold uppercase tracking-wide text-fb-text-secondary">Epic ngoại lệ</h3>
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-fb-text-secondary">TTM Black listed:</span>
-          <BooleanPillToggle
-            value={value}
-            onChange={handleToggle}
-            disabled={!canEdit || saving}
-            trueLabel="True"
-            falseLabel="False"
-            trueColor="bg-[var(--color-success-300)]"
-            falseColor="bg-fb-text-secondary"
-          />
-        </div>
-        <p className="min-w-0 flex-1 basis-64 text-xs text-fb-text-secondary">
-          {value
-            ? 'Epic này đang là Epic ngoại lệ — không nằm trong phạm vi tính toán Time to Market.'
-            : 'Epic này đang được tính Time to Market như bình thường.'}
-          {!canEdit && ' Bạn chỉ có quyền xem thông tin này.'}
-        </p>
-      </div>
-      {error && <Alert className="mt-3" title="Chưa lưu" variant="error">{error}</Alert>}
-    </div>
+    <>
+      <Tooltip content={tooltipText} side="bottom" className="inline-flex w-auto">
+        <button
+          type="button"
+          onClick={() => {
+            if (!canEdit || saving) return;
+            setConfirmOpen(true);
+          }}
+          disabled={!canEdit || saving}
+          className={cn(
+            'inline-flex items-center gap-2 rounded border px-3 py-1.5 text-xs font-semibold transition-all shadow-xs cursor-pointer',
+            value
+              ? 'bg-status-danger-soft text-status-danger border-status-danger hover:brightness-95'
+              : 'bg-fb-surface-muted text-fb-text-secondary border-fb-border hover:bg-fb-control-hover',
+            (!canEdit || saving) && 'opacity-60 cursor-not-allowed'
+          )}
+        >
+          <TtmBlackListDot />
+          <span>Epic ngoại lệ</span>
+          <span
+            className={cn(
+              'ml-1 rounded px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wider',
+              value ? 'bg-status-danger text-white' : 'bg-fb-control-hover text-fb-text-secondary'
+            )}
+          >
+            {value ? 'True' : 'False'}
+          </span>
+        </button>
+      </Tooltip>
+
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => {
+          setConfirmOpen(false);
+          void handleConfirmedToggle();
+        }}
+        title={confirmTitle}
+        description={confirmDescription}
+        confirmLabel="Đồng ý"
+        cancelLabel="Hủy"
+      />
+    </>
   );
 }
 
 /**
- * Large (80% viewport height, 95% viewport width — wide enough for the tree's Issue Type column
- * on top of its other columns) popup wrapping the shared EpicBrowser tree — used to drill into
- * one Epic's Story/Subtask hierarchy from a context that only knows the Epic Key (e.g. clicking
- * an Epic Key on "Quản trị Epic"), without navigating away to the batch-scoped review screen.
+ * Large popup "Duyệt Epic" thiết kế theo chuẩn giao diện Jira:
+ * - Breadcrumb: ProjectKey / EpicKey
+ * - Title: Summary của Epic
+ * - Nút duy nhất ở hàng trên: Toggle 'Epic ngoại lệ' kèm hover tooltip
+ * - Panel Details: Bố trí 2 cột (Trái/Phải)
+ * - Panel "Issues in Epic": Khung border nét đứt, chứa bảng phân cấp 4 cột (Issue Type | Issue Key | Summary | Status)
+ * - Panel "Giải trình Fail TTM": Thiết kế giống Details, 2 cột hiển thị các nguyên nhân khâu BA, CO, DEV, PM/SM, PO, Pentest, SA, SIT/UAT, Lý do khác.
  */
 export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
   const [root, setRoot] = React.useState<DataReviewIssue | null>(null);
@@ -151,6 +184,14 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
   const [canEditBlackList, setCanEditBlackList] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  const [detailsOpen, setDetailsOpen] = React.useState(true);
+  const [issuesOpen, setIssuesOpen] = React.useState(true);
+  const [failExplainOpen, setFailExplainOpen] = React.useState(true);
+
+  const viewIssueBaseUrl = useJiraViewIssueUrl();
+  const jiraUrl = viewIssueBaseUrl && epicKey ? `${viewIssueBaseUrl}${epicKey}` : null;
+
   const closeButtonRef = React.useRef<HTMLButtonElement>(null);
   const titleId = React.useId();
 
@@ -169,7 +210,7 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
       setIsLoading(true);
       try {
         const response = await fetch(`/api/epic-browser?epicKey=${encodeURIComponent(epicKey)}`, { signal: controller.signal });
-        const data = await response.json() as EpicBrowserApiResponse & ApiErrorResponse;
+        const data = (await response.json()) as EpicBrowserApiResponse & ApiErrorResponse;
         if (!response.ok) throw new Error(data.error ?? 'Không thể tải dữ liệu Epic.');
         setRoot(data.root);
         setSummary(data.summary);
@@ -190,12 +231,16 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
 
   if (!isOpen) return null;
 
+  const projectKey = summary?.projectKey || (epicKey.includes('-') ? epicKey.split('-')[0] : 'PROJECT');
+  const epicSummaryText = summary?.epicName || root?.summary || epicKey;
+  const currentStatusText = summary?.status || root?.status || 'IN PROGRESS';
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="presentation">
       <div className={MODAL_BACKDROP_CLASS} onClick={onClose} aria-hidden="true" />
 
       <div
-        className={cn(MODAL_FRAME_CLASS, 'h-[80vh] w-[95vw] overflow-hidden')}
+        className={cn(MODAL_FRAME_CLASS, 'h-[88vh] w-[95vw] max-w-6xl overflow-hidden flex flex-col')}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -204,18 +249,342 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
           closeButtonRef={closeButtonRef}
           icon={TreeStructure}
           onClose={onClose}
-          title={<span className="flex items-center gap-2">Duyệt Epic — {epicKey}{summary?.ttmBlackListed && <TtmBlackListDot />}</span>}
+          title={
+            <span className="flex items-center gap-2">
+              Duyệt Epic —{' '}
+              {jiraUrl ? (
+                <a
+                  href={jiraUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:underline text-fb-blue inline-flex items-center gap-1"
+                  title="Mở Epic trên Jira (tab mới)"
+                >
+                  {epicKey}
+                  <ArrowSquareOut size={16} weight="bold" />
+                </a>
+              ) : (
+                epicKey
+              )}
+              {summary?.ttmBlackListed && <TtmBlackListDot />}
+            </span>
+          }
           titleId={titleId}
         />
 
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {error && <Alert variant="error" title="Không thể tải dữ liệu">{error}</Alert>}
           {!error && isLoading && <TableSkeleton rows={8} />}
+
           {!error && !isLoading && root && (
             <>
-              <EpicBrowser key={epicKey} epics={[root]} />
-              {summary && <EpicSummaryPanel summary={summary} />}
-              {summary && <TtmBlackListForm key={`black-list-${epicKey}`} canEdit={canEditBlackList} epicKey={summary.epicKey} initialValue={summary.ttmBlackListed} />}
+              {/* Header section theo Jira */}
+              <div className="space-y-3 pb-4 border-b border-fb-border">
+                {/* Breadcrumb line */}
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-fb-text-placeholder">
+                  <Lightning className="size-4 text-fb-accent shrink-0" weight="fill" />
+                  <span className="hover:underline cursor-pointer">{projectKey}</span>
+                  <span>/</span>
+                  {jiraUrl ? (
+                    <a
+                      href={jiraUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-fb-blue font-bold hover:underline cursor-pointer inline-flex items-center gap-1"
+                      title="Mở Epic trên Jira (tab mới)"
+                    >
+                      {epicKey}
+                      <ArrowSquareOut size={13} weight="bold" />
+                    </a>
+                  ) : (
+                    <span className="text-fb-blue font-bold hover:underline cursor-pointer">{epicKey}</span>
+                  )}
+                  {summary?.ttmBlackListed && <TtmBlackListDot />}
+                </div>
+
+                {/* Epic Summary Title */}
+                <h2 className="text-2xl font-bold tracking-tight text-fb-text-primary">
+                  {epicSummaryText}
+                </h2>
+
+                {/* Nút duy nhất ở hàng trên: Toggle 'Epic ngoại lệ' */}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {summary && (
+                    <TtmBlackListTopToggle
+                      canEdit={canEditBlackList}
+                      epicKey={summary.epicKey}
+                      initialValue={summary.ttmBlackListed}
+                      onValueChange={(nextVal) => {
+                        setSummary((prev) => (prev ? { ...prev, ttmBlackListed: nextVal } : prev));
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Tab Details Section (2 cụm cột Trái / Phải) */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setDetailsOpen(!detailsOpen)}
+                  className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-fb-text-secondary hover:text-fb-blue transition-colors cursor-pointer"
+                >
+                  <CaretDown className={cn('size-3.5 transition-transform', !detailsOpen && '-rotate-90')} weight="bold" />
+                  <span>Details</span>
+                </button>
+
+                {detailsOpen && (
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-3 text-xs bg-fb-surface-muted/50 p-4 rounded-lg border border-fb-border/80">
+                    {/* Cụm Cột Trái */}
+                    <div className="space-y-2.5">
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Type:</span>
+                        <span className="inline-flex items-center gap-1.5 font-medium text-fb-text-primary">
+                          <Lightning className="size-4 text-fb-accent" weight="fill" />
+                          Epic
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Phân loại Epic:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {summary?.epicType || summary?.epicComplexityType || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Requirement Level:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {summary?.requirementLevel ? (summary.requirementLevel.startsWith('Mức') ? summary.requirementLevel : `Mức ${summary.requirementLevel}`) : '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Tên dự án:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {summary?.projectName || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">PM / SM:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {summary?.ownerName || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Domain:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {summary?.domainName || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Đơn vị yêu cầu:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {summary?.requestingUnit || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Epic Name:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {summary?.epicName || '-'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Cụm Cột Phải */}
+                    <div className="space-y-2.5">
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Status:</span>
+                        <span className="rounded bg-fb-blue px-2 py-0.5 text-[11px] font-bold text-white uppercase tracking-wider">
+                          {currentStatusText}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Created Date:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {formatDate(summary?.createdDate ?? null)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Start Date (T1):</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {formatDate(summary?.startDate ?? null)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">R4G Date:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {formatDate(summary?.r4gDate ?? null)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Due Date:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {formatDate(summary?.dueDate ?? null)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Ngày duyệt YT (T0):</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {formatDate(summary?.ideaApprovedDate ?? null)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Lớp dữ liệu:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {formatDataLayer(summary?.dataLayerDate ?? null)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Tab "Issues in Epic" Section (Khung nét đứt, bảng phân cấp 4 cột) */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setIssuesOpen(!issuesOpen)}
+                  className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-fb-text-secondary hover:text-fb-blue transition-colors cursor-pointer"
+                >
+                  <CaretDown className={cn('size-3.5 transition-transform', !issuesOpen && '-rotate-90')} weight="bold" />
+                  <span>Issues in Epic</span>
+                </button>
+
+                {issuesOpen && (
+                  <div className="mt-3 rounded-lg border border-dashed border-fb-border p-3 bg-fb-surface-muted/50">
+                    <EpicIssuesTree root={root} />
+                  </div>
+                )}
+              </div>
+
+              {/* Panel "Giải trình Fail TTM" (2 cụm cột Trái / Phải) */}
+              <div>
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setFailExplainOpen(!failExplainOpen)}
+                    className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-fb-text-secondary hover:text-fb-blue transition-colors cursor-pointer"
+                  >
+                    <CaretDown className={cn('size-3.5 transition-transform', !failExplainOpen && '-rotate-90')} weight="bold" />
+                    <span>Giải trình Fail TTM</span>
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    {summary?.ttmCnttVerdictLabel && (
+                      <span
+                        className={cn(
+                          'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-xs',
+                          summary.ttmCnttVerdict === 'PASS' && 'bg-status-success-soft text-status-success border-status-success',
+                          summary.ttmCnttVerdict === 'FAIL' && 'bg-status-danger-soft text-status-danger border-status-danger',
+                          summary.ttmCnttVerdict === 'DATA_ANOMALY' && 'bg-status-warning-soft text-status-warning border-status-warning',
+                          summary.ttmCnttVerdict === 'EXCLUDED' && 'bg-fb-accent-soft text-fb-accent border-fb-accent',
+                          (summary.ttmCnttVerdict === 'PENDING' || summary.ttmCnttVerdict === 'N_A' || !summary.ttmCnttVerdict) &&
+                            'bg-fb-surface-muted text-fb-text-secondary border-fb-border'
+                        )}
+                      >
+                        {summary.ttmCnttVerdict === 'PASS' && <CheckCircle className="size-3.5 text-status-success" weight="bold" />}
+                        {summary.ttmCnttVerdict === 'FAIL' && <WarningCircle className="size-3.5 text-status-danger" weight="bold" />}
+                        {summary.ttmCnttVerdict === 'DATA_ANOMALY' && <Warning className="size-3.5 text-status-warning" weight="bold" />}
+                        <span>{summary.ttmCnttVerdictLabel}</span>
+                      </span>
+                    )}
+
+                    {summary?.hasMissingFailReason && (
+                      <span
+                        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-xs bg-status-danger-soft text-status-danger border-status-danger"
+                        title="Epic bị Scoring Service đánh giá Fail TTM-CNTT nhưng chưa có lý do/giải trình tại các khâu"
+                      >
+                        <Warning className="size-3.5 text-status-danger" weight="bold" />
+                        <span>Thiếu lý do Fail TTM</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {failExplainOpen && (
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-3 text-xs bg-fb-surface-muted/50 p-4 rounded-lg border border-fb-border/80">
+                    {/* Cụm Cột Trái */}
+                    <div className="space-y-2.5">
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Khâu BA:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {summary?.khauBa || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Khâu CO:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {summary?.khauCo || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Khâu DEV:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {summary?.khauDev || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Khâu PM/SM:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {summary?.khauPmSm || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Khâu PO:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {summary?.khauPo || '-'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Cụm Cột Phải */}
+                    <div className="space-y-2.5">
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Khâu Pentest:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {summary?.khauPentest || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Khâu SA:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {summary?.khauSa || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Khâu SIT/UAT:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {summary?.khauSitUat || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Lý do khác:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {summary?.noteLyDoKhac || '-'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>

@@ -131,7 +131,7 @@ gian cảnh báo).** Epic ở trạng thái Cancelled/To Do/In PO/Backlog đư�
 |---|---|---|
 | R1 | `MISSING_START_DATE` | Thiếu T1 — trạng thái ≥ In Progress/DEV nhưng chưa có Start Date. |
 | R2 | `PENDING_TOO_LONG` | Pending lâu — đang Pending, số ngày làm việc từ **Start Date (T1)** tới ngày đánh giá ≥ 20% chu trình TTM-CNTT (dùng ngân sách CT-Lv12 nếu không xác định được loại Epic). Nếu Epic Pending mà chưa có T1, mốc tính fallback sang **ngày tạo Epic trên Jira** (`jira_created_at`). Không còn điều kiện "vẫn thiếu T0 hoặc T1" như rule cũ. |
-| R3 | `DATE_OUT_OF_SEQUENCE` | Sai thứ tự — không thoả T0 ≤ T1 < R4G Date ≤ Due Date (chỉ xét mốc đã có giá trị; R4G Date = Due Date vẫn coi là hợp lệ). Mỗi cặp sai sinh 1 lỗi riêng. |
+| R3 | `DATE_OUT_OF_SEQUENCE` | Sai thứ tự — không thoả T0 ≤ T1 < R4G Date ≤ Due Date (chỉ xét mốc đã có giá trị; R4G Date = Due Date vẫn coi là hợp lệ). Mọi cặp sai trong cùng 1 Epic được **gộp thành 1 vi phạm** (vì bảng `epic_data_anomaly_violations` chỉ lưu tối đa 1 dòng/Epic/rule_code). |
 | R4 | `MISSING_REQUEST_TYPE` | Thiếu Phân loại yêu cầu (`epic_request_type`). |
 | R5 | `MISSING_REQUIREMENT_LEVEL` | Thiếu Requirement Level (`epic_request_level`). |
 | R6 | `SP_LEVEL_MISMATCH` | Epic được `computeEpicComplexity` đánh giá độ phức tạp **SP** (SP-Lv12/SP-Lv34) nhưng Requirement Level = 1 hoặc 2 — mâu thuẫn nghiệp vụ (SP luôn phải là mức cao), báo hiệu Phân loại yêu cầu hoặc Requirement Level nhập sai. |

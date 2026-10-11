@@ -70,13 +70,24 @@ function deriveCompletion(row: EpicPhaseSignalsRow): EpicPhaseCompletion {
  * `asOf` ("YYYY-MM-DD", optional): evaluate with every issue's state as known on that date instead
  * of the newest one (Scoring Service, decision D3) — omitted = unchanged legacy behavior.
  */
-export async function computeEpicPhaseCompletionByEpicKey(asOf?: string): Promise<Map<string, EpicPhaseCompletion>> {
+export async function computeEpicPhaseCompletionByEpicKey(asOf?: string, epicKeys?: string[]): Promise<Map<string, EpicPhaseCompletion>> {
+  const params: unknown[] = [];
+  let asOfParam = '';
+  let epicKeysParam = '$1';
+  if (asOf) {
+    params.push(asOf);
+    asOfParam = '$1';
+    epicKeysParam = '$2';
+  }
+  params.push(epicKeys && epicKeys.length > 0 ? epicKeys : null);
+
   const result = await pool.query<EpicPhaseSignalsRow>(`
-    WITH ${asOf ? latestIssuesAsOfCte('$1') : LATEST_ISSUES_CTE},
+    WITH ${asOf ? latestIssuesAsOfCte(asOfParam) : LATEST_ISSUES_CTE},
     epics AS (
       SELECT issue_key, current_status, r4g_date::text AS r4g_date, due_date::text AS due_date, epic_stories
       FROM latest_issues
       WHERE UPPER(issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
+        AND (${epicKeysParam}::text[] IS NULL OR issue_key = ANY(${epicKeysParam}::text[]))
     ),
     stories_explicit AS (
       SELECT e.issue_key AS epic_key, li.issue_key AS story_key, li.current_status AS status, li.story_subtasks
@@ -149,7 +160,7 @@ export async function computeEpicPhaseCompletionByEpicKey(asOf?: string): Promis
     FROM epics e
     LEFT JOIN ba_agg ba ON ba.epic_key = e.issue_key
     LEFT JOIN stories_agg sa ON sa.epic_key = e.issue_key;
-  `, asOf ? [asOf] : []);
+  `, params);
 
   const map = new Map<string, EpicPhaseCompletion>();
   for (const row of result.rows) map.set(row.epicKey, deriveCompletion(row));

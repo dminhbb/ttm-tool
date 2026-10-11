@@ -2,8 +2,8 @@
 
 > Nguồn sự thật là `db/schema.sql` (bootstrap cho DB mới) + toàn bộ file trong `db/migrations/*.sql`
 > (không tính `.down.sql`). File này diễn giải lại đúng theo hai nguồn đó; khi có khác biệt, luôn ưu
-> tiên đọc trực tiếp `db/schema.sql`/`db/migrations`. Ứng dụng chạy song song 3 profile DB (local,
-> Aiven, Supabase — xem `AGENTS.md`), migration phải áp dụng cho cả 3 khi thay đổi schema.
+> tiên đọc trực tiếp `db/schema.sql`/`db/migrations`. Ứng dụng chạy song song 2 profile DB (local,
+> Supabase — xem `AGENTS.md`; Aiven đã ngừng sử dụng từ 26/09/2026), migration phải áp dụng cho cả 2 khi thay đổi schema.
 
 ## 1. Nguyên tắc mô hình dữ liệu
 
@@ -208,6 +208,16 @@ requirement_level
 components                 -- TEXT[], Epic/Story's Jira Component/s — dùng cho lọc theo Component
 epic_stories                -- TEXT[], danh sách Story key con trực tiếp của Epic (Py Jira API adapter)
 story_subtasks              -- TEXT[], danh sách Subtask key con trực tiếp của Story (Py Jira API adapter)
+previous_status            -- VARCHAR(50), ghi nhận status trước của status hiện tại (Py Jira API: epic_previous_status)
+khau_ba                    -- TEXT, vai trò khâu BA gây ra vấn đề Fail TTM-CNTT (epic_khau_ba)
+khau_co                    -- TEXT, vai trò khâu CO (epic_khau_co)
+khau_dev                   -- TEXT, vai trò khâu DEV (epic_khau_dev)
+khau_pm_sm                 -- TEXT, vai trò khâu PM/SM (epic_khau_pm_sm)
+khau_po                    -- TEXT, vai trò khâu PO (epic_khau_po)
+khau_pentest               -- TEXT, vai trò khâu Pentest (epic_khau_pentest)
+khau_sa                    -- TEXT, vai trò khâu SA (epic_khau_sa)
+khau_sit_uat               -- TEXT, vai trò khâu SIT/UAT (epic_khau_sit_uat)
+note_ly_do_khac            -- TEXT, ghi chú lý do khác gây ra vấn đề Fail TTM-CNTT (epic_note_ly_do_khac)
 source_import_batch_id     -- FK import_batches(id) ON DELETE CASCADE
 aggregated_at               -- lớp dữ liệu (thời điểm chốt dữ liệu)
 created_at
@@ -497,8 +507,11 @@ bật**, không bị flag tắt như `epic_alert_history`/`epic_milestone_histor
 id
 epic_key
 rule_code                -- CHECK IN ('MISSING_START_DATE','PENDING_TOO_LONG','DATE_OUT_OF_SEQUENCE',
-                          --           'MISSING_REQUEST_TYPE','MISSING_REQUIREMENT_LEVEL','SP_LEVEL_MISMATCH')
-rule_index                -- R1-R6, xem EPIC_ANOMALY_RULE_INDEX (src/lib/epic-data-anomaly.ts)
+                          --           'MISSING_REQUEST_TYPE','MISSING_REQUIREMENT_LEVEL','SP_LEVEL_MISMATCH',
+                          --           'RELEASE_STATUS_MISMATCH')  -- thêm bởi 20260924
+rule_index                -- R1-R7, xem EPIC_ANOMALY_RULE_INDEX (src/lib/epic-data-anomaly.ts, engine legacy).
+                          -- R8-R10 chỉ tồn tại trong Scoring Service (src/lib/scoring/rules/data-quality.ts),
+                          -- không ghi vào bảng này.
 message
 detected_at
 source_import_batch_id    -- FK import_batches(id) ON DELETE SET NULL
@@ -629,7 +642,7 @@ Các bảng dưới đây được thêm bằng migration sau khi tài liệu n�
 | `daily_cache_runs` | `20260926_create_daily_cache_runs.sql` | `run_date` | Lượt tạo lại cache đầu ngày (RUNNING / SUCCESS / FAILED, `duration_ms`, `epic_row_count`, `attempt_count`). |
 | `derived_cache_refresh_lock` | `20261005b_create_derived_cache_refresh_lock.sql` | `id = 1` (CHECK) | Lease điều phối `refreshDerivedCaches` giữa các instance: `request_seq` (mỗi yêu cầu +1), `lease_owner`, `lease_until` (6 phút), `last_source`. Lease còn chủ nhưng đã hết hạn = lượt rebuild bị gián đoạn → `DailyCacheStatus.rebuildInterrupted`. |
 | `black_listed_epics` | `20261005_create_black_listed_epics.sql` | `epic_key` | "Epic ngoại lệ": `project_key`, `ttm_black_listed` (mặc định TRUE), `updated_by_user_id` → `users(id)` ON DELETE SET NULL, `created_at`, `updated_at`; index theo `project_key`. Không còn là ngoại lệ = XOÁ dòng. |
-| `ttm_scope_config`, `scoring_engine_settings`, `scoring_parameters`, `scoring_rule_settings`, `scoring_parity_runs` | `20260927b_create_ttm_scope_config.sql`, `20260929_create_scoring_service.sql`, `20260930_create_scoring_engine_settings.sql` | — | Cấu hình "Phạm vi dữ liệu cho TTM" và Scoring Service (engine hiển thị, tham số, bật/tắt badge, kết quả đối chiếu). |
+| `ttm_scope_config`, `scoring_engine_settings`, `scoring_parameters`, `scoring_rule_settings`, `scoring_parity_runs` | `20260927b_create_ttm_scope_config.sql`, `20260929_create_scoring_service.sql`, `20260930_create_scoring_engine_settings.sql` | — | Cấu hình "Phạm vi dữ liệu cho TTM" và Scoring Service (engine hiển thị, tham số, bật/tắt badge, kết quả đối chiếu). `scoring_parameters` còn lưu "Phạm vi rule Sai lệch dữ liệu" ở `param_key = 'anomaly.scopeConfig'` (JSONB, xem `16-ttm-indexes.md` §8.1). |
 
 Quy tắc dùng chung:
 

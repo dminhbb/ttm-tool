@@ -27,6 +27,17 @@ export interface RawJiraIssue {
   // Py Jira API adapter only — verbatim key lists from the source row, not derived.
   epicStories?: string[]; // epic_stories, on epic rows: this epic's story keys
   storySubtasks?: string[]; // story_subtasks, on story rows: this story's subtask keys
+  // Status & TTM Fail cause fields (Py Jira API adapter & CSV import)
+  previousStatus?: string; // epic_previous_status
+  khauBa?: string;         // epic_khau_ba
+  khauCo?: string;         // epic_khau_co
+  khauDev?: string;        // epic_khau_dev
+  khauPmSm?: string;       // epic_khau_pm_sm
+  khauPo?: string;         // epic_khau_po
+  khauPentest?: string;    // epic_khau_pentest
+  khauSa?: string;         // epic_khau_sa
+  khauSitUat?: string;     // epic_khau_sit_uat
+  noteLyDoKhac?: string;   // epic_note_ly_do_khac
 }
 
 export function parseCSV(csvText: string): string[][] {
@@ -123,6 +134,16 @@ export function mapCSVToRawIssues(rows: string[][]): { issues: RawJiraIssue[]; h
   const idxR4gDate = getIndex(['Custom field (R4G Date)', 'R4G Date']);
   const idxIdeaApprovedDate = getIndex(['Custom field (Ngày duyệt ý tưởng)', 'Ngày duyệt ý tưởng', 'Idea Approved Date']);
   const idxRequestingUnit = getIndex(['Custom field (Đơn vị yêu cầu)', 'Đơn vị yêu cầu']);
+  const idxPreviousStatus = getIndex(['epic_previous_status', 'Previous Status']);
+  const idxKhauBa = getIndex(['epic_khau_ba', 'Khâu BA']);
+  const idxKhauCo = getIndex(['epic_khau_co', 'Khâu CO']);
+  const idxKhauDev = getIndex(['epic_khau_dev', 'Khâu DEV']);
+  const idxKhauPmSm = getIndex(['epic_khau_pm_sm', 'Khâu PM/SM', 'Khâu PM SM']);
+  const idxKhauPo = getIndex(['epic_khau_po', 'Khâu PO']);
+  const idxKhauPentest = getIndex(['epic_khau_pentest', 'Khâu Pentest']);
+  const idxKhauSa = getIndex(['epic_khau_sa', 'Khâu SA']);
+  const idxKhauSitUat = getIndex(['epic_khau_sit_uat', 'Khâu SIT/UAT', 'Khâu SIT UAT']);
+  const idxNoteLyDoKhac = getIndex(['epic_note_ly_do_khac', 'Note lý do khác']);
   
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r];
@@ -156,6 +177,16 @@ export function mapCSVToRawIssues(rows: string[][]): { issues: RawJiraIssue[]; h
       rowNumber: r + 1, // 1-indexed row number in the CSV file
       jiraCreatedAt: '',
       jiraUpdatedAt: '',
+      previousStatus: getValue(idxPreviousStatus) || undefined,
+      khauBa: getValue(idxKhauBa) || undefined,
+      khauCo: getValue(idxKhauCo) || undefined,
+      khauDev: getValue(idxKhauDev) || undefined,
+      khauPmSm: getValue(idxKhauPmSm) || undefined,
+      khauPo: getValue(idxKhauPo) || undefined,
+      khauPentest: getValue(idxKhauPentest) || undefined,
+      khauSa: getValue(idxKhauSa) || undefined,
+      khauSitUat: getValue(idxKhauSitUat) || undefined,
+      noteLyDoKhac: getValue(idxNoteLyDoKhac) || undefined,
     });
   }
   

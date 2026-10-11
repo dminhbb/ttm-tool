@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import {
   CaretDown,
   CaretRight,
@@ -9,10 +8,8 @@ import {
   ChartPie,
   Checks,
   Eye,
-  Funnel,
   MagnifyingGlass,
   SlidersHorizontal,
-  Warning,
   WarningCircle,
 } from '@phosphor-icons/react';
 
@@ -25,7 +22,6 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
-import { TableAction } from '@/components/ui/TableAction';
 import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
 import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import { DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
@@ -224,11 +220,10 @@ export default function DashboardNewPage() {
   const [selectedEpicKey, setSelectedEpicKey] = useState<string | null>(null);
 
   // When in PM/SM view (OPERATIONAL), only epicType and project dimensions are available
-  useEffect(() => {
-    if (viewMode === 'OPERATIONAL' && dimensionKey !== 'epicType' && dimensionKey !== 'project') {
-      setDimensionKey('epicType');
-    }
-  }, [viewMode, dimensionKey]);
+  // (Adjusted during render rather than in an effect, so the stale dimension never paints.)
+  if (viewMode === 'OPERATIONAL' && dimensionKey !== 'epicType' && dimensionKey !== 'project') {
+    setDimensionKey('epicType');
+  }
 
   // Accordion state for LEAD view sections (lazy loading)
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -570,20 +565,6 @@ export default function DashboardNewPage() {
     });
     return items.sort((a, b) => compareValues(matrixSortValue(a, matrixSortKey), matrixSortValue(b, matrixSortKey), matrixSortDirection));
   }, [filteredRows, dimensionKey, matrixSortKey, matrixSortDirection]);
-
-  // Top Risk Projects
-  const topRiskProjects = useMemo(() => {
-    const map = new Map<string, { fail: number; name: string; total: number }>();
-    for (const row of filteredRows) {
-      const pKey = row.projectKey || 'Chưa gán';
-      const pName = row.projectName || pKey;
-      const curr = map.get(pKey) ?? { fail: 0, name: pName, total: 0 };
-      curr.total += 1;
-      if ((row.ttmCnttInScope && row.alertLevel === 'FAIL') || row.ttmE2eAlertLevel === 'FAIL') curr.fail += 1;
-      map.set(pKey, curr);
-    }
-    return [...map.values()].sort((a, b) => b.fail - a.fail).slice(0, 5);
-  }, [filteredRows]);
 
   // Phase Pipeline (Kanban Phases for Version 2). Classified off the same signals the rest of the
   // page already trusts (row.stages' isDone/isCurrentStage, plus exact status equality for the

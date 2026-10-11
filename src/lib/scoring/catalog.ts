@@ -78,6 +78,11 @@ export const BADGES = [
     legacySource: 'computeTtmAlert → FAIL',
   },
   {
+    id: 'REC_MISSING_FAIL_REASON', axis: 'TTM_CNTT', group: 'RECOMMENDATION', label: 'Thiếu lý do Fail TTM', precedence: 35, defaultEnabled: true,
+    meaning: 'Epic bị đánh giá Fail TTM-CNTT (QLDA) nhưng chưa ghi nhận lý do tại bất kỳ khâu nào (khâu BA, CO, DEV, PM/SM, PO, Pentest, SA, SIT/UAT, Lý do khác).',
+    formula: 'Có "Fail TTM-CNTT (QLDA)"  VÀ  tất cả các trường lý do (khau_ba, khau_co, khau_dev, khau_pm_sm, khau_po, khau_pentest, khau_sa, khau_sit_uat, note_ly_do_khac) đều rỗng hoặc "none"',
+  },
+  {
     id: 'CNTT_LATE', axis: 'TTM_CNTT', group: 'ALERT', label: 'Cảnh báo muộn', precedence: 40, defaultEnabled: true,
     meaning: 'Chưa có R4G Date, đã qua mốc cảnh báo muộn của status hiện tại, chưa quá Target.',
     formula: 'Không Sai lệch dữ liệu  VÀ  R4G trống  VÀ  T1 +wd Offset_muộn(loại Epic, status) ≤ asOf ≤ Target_CNTT',
@@ -325,9 +330,9 @@ export const BADGE_BY_ID: ReadonlyMap<BadgeId, BadgeDefinition> = new Map(BADGES
 
 /** Resolver: while `when` is active, each badge in `suppress` is still returned but marked suppressed. */
 export const SUPPRESSIONS: readonly { when: BadgeId; suppress: readonly BadgeId[] }[] = [
-  { when: 'CNTT_NOT_APPLICABLE', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH'] },
-  { when: 'CNTT_CALC_BROKEN', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH'] },
-  { when: 'SCOPE_CNTT_OUT', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH', 'RELEASE_WAITING_GOLIVE'] },
+  { when: 'CNTT_NOT_APPLICABLE', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH', 'REC_MISSING_FAIL_REASON'] },
+  { when: 'CNTT_CALC_BROKEN', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH', 'REC_MISSING_FAIL_REASON'] },
+  { when: 'SCOPE_CNTT_OUT', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH', 'RELEASE_WAITING_GOLIVE', 'REC_MISSING_FAIL_REASON'] },
   { when: 'E2E_CALC_BROKEN', suppress: ['E2E_FAIL', 'E2E_PASS', 'E2E_STATUS_MISMATCH'] },
 ];
 

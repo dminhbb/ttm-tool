@@ -3,9 +3,27 @@ import { finding } from './rule-types';
 import type { DerivedRule } from './rule-types';
 import type { Finding } from '../types';
 
+function hasNoFailReason(facts: { khauBa?: string | null; khauCo?: string | null; khauDev?: string | null; khauPmSm?: string | null; khauPo?: string | null; khauPentest?: string | null; khauSa?: string | null; khauSitUat?: string | null; noteLyDoKhac?: string | null }): boolean {
+  const fields = [
+    facts.khauBa,
+    facts.khauCo,
+    facts.khauDev,
+    facts.khauPmSm,
+    facts.khauPo,
+    facts.khauPentest,
+    facts.khauSa,
+    facts.khauSitUat,
+    facts.noteLyDoKhac,
+  ];
+  return fields.every((val) => !val || val.trim() === '' || val.trim().toLowerCase() === 'none');
+}
+
 /** Recommendations derived from the resolved (active) primary findings. */
 export const recommendationsRule: DerivedRule = ({ facts, derived }, active, findings) => {
   const out: Finding[] = [];
+  if (active.has('CNTT_FAIL') && hasNoFailReason(facts)) {
+    out.push(finding('REC_MISSING_FAIL_REASON', 'Bổ sung lý do Fail TTM trên Jira.', {}, { relatedTo: ['CNTT_FAIL'] }));
+  }
   const brokenForMissingT1 = active.has('CNTT_CALC_BROKEN') && !facts.startDate && !derived.isCancelled && derived.statusIndex >= STATUS_INDEX.DESIGN && derived.statusIndex <= STATUS_INDEX.RELEASED;
   if (active.has('ANOMALY_R1_MISSING_START_DATE') || brokenForMissingT1) {
     out.push(finding('REC_FILL_START_DATE', 'Bổ sung Start Date (T1) trên Jira.', {}, { relatedTo: active.has('ANOMALY_R1_MISSING_START_DATE') ? ['ANOMALY_R1_MISSING_START_DATE'] : ['CNTT_CALC_BROKEN'] }));

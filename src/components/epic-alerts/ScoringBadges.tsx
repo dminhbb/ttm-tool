@@ -16,6 +16,7 @@ export function ScoringExtraBadges({ row }: { row: EpicAlertRowPhased }) {
   // with the date already reached) — shown only when that badge isn't already in the cell.
   const e2eMismatch = row.ttmCnttInScope && row.ttmCnttStatusMismatch ? null : findingOf(row, 'E2E_STATUS_MISMATCH');
   const pending = findingOf(row, 'ANOMALY_R2_PENDING_TOO_LONG');
+  const missingFailReason = findingOf(row, 'REC_MISSING_FAIL_REASON');
   const recommendations = extraRecommendations(row);
   return (
     <>
@@ -34,6 +35,11 @@ export function ScoringExtraBadges({ row }: { row: EpicAlertRowPhased }) {
           <span className="ttm-badge recommendation">Pending lâu</span>
         </Tooltip>
       )}
+      {missingFailReason && (
+        <Tooltip content={missingFailReason.message} className="inline-flex w-auto">
+          <span className="ttm-badge recommendation">Thiếu lý do Fail TTM</span>
+        </Tooltip>
+      )}
       {recommendations.length > 0 && (
         <Tooltip multiline className="inline-flex w-auto" content={recommendations.map((item) => `• ${item.message}`).join('\n')}>
           <span className="ttm-badge recommendation">Khuyến nghị ({recommendations.length})</span>
@@ -45,5 +51,5 @@ export function ScoringExtraBadges({ row }: { row: EpicAlertRowPhased }) {
 
 /** True when ScoringExtraBadges renders at least one badge (for the cell's empty "—" marker). */
 export function hasScoringExtraBadges(row: EpicAlertRowPhased): boolean {
-  return Boolean(row.scoringBadges) && (hasReleaseStatusMismatch(row) || Boolean(findingOf(row, 'E2E_STATUS_MISMATCH')) || Boolean(findingOf(row, 'ANOMALY_R2_PENDING_TOO_LONG')) || extraRecommendations(row).length > 0);
+  return Boolean(row.scoringBadges) && (hasReleaseStatusMismatch(row) || Boolean(findingOf(row, 'E2E_STATUS_MISMATCH')) || Boolean(findingOf(row, 'ANOMALY_R2_PENDING_TOO_LONG')) || Boolean(findingOf(row, 'REC_MISSING_FAIL_REASON')) || extraRecommendations(row).length > 0);
 }

@@ -496,6 +496,7 @@ export async function processImport(
         'idea_approved_date', 'start_date', 'r4g_date', 'due_date',
         'epic_complexity_type', 'requirement_level', 'requesting_unit', 'source_import_batch_id', 'aggregated_at',
         'jira_created_at', 'jira_updated_at', 'epic_stories', 'story_subtasks', 'components',
+        'previous_status', 'khau_ba', 'khau_co', 'khau_dev', 'khau_pm_sm', 'khau_po', 'khau_pentest', 'khau_sa', 'khau_sit_uat', 'note_ly_do_khac',
       ];
       const insertIssueUpdateClause = `
         ON CONFLICT (issue_key, source_import_batch_id) DO UPDATE SET
@@ -518,6 +519,16 @@ export async function processImport(
           epic_stories = EXCLUDED.epic_stories,
           story_subtasks = EXCLUDED.story_subtasks,
           components = EXCLUDED.components,
+          previous_status = EXCLUDED.previous_status,
+          khau_ba = EXCLUDED.khau_ba,
+          khau_co = EXCLUDED.khau_co,
+          khau_dev = EXCLUDED.khau_dev,
+          khau_pm_sm = EXCLUDED.khau_pm_sm,
+          khau_po = EXCLUDED.khau_po,
+          khau_pentest = EXCLUDED.khau_pentest,
+          khau_sa = EXCLUDED.khau_sa,
+          khau_sit_uat = EXCLUDED.khau_sit_uat,
+          note_ly_do_khac = EXCLUDED.note_ly_do_khac,
           updated_at = NOW();
       `;
 
@@ -556,6 +567,16 @@ export async function processImport(
           issue.epicStories?.length ? issue.epicStories : null,
           issue.storySubtasks?.length ? issue.storySubtasks : null,
           components.length ? components : null,
+          issue.previousStatus || null,
+          issue.khauBa || null,
+          issue.khauCo || null,
+          issue.khauDev || null,
+          issue.khauPmSm || null,
+          issue.khauPo || null,
+          issue.khauPentest || null,
+          issue.khauSa || null,
+          issue.khauSitUat || null,
+          issue.noteLyDoKhac || null,
         ];
       });
 
