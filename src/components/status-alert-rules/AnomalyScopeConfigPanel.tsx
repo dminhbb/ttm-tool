@@ -125,7 +125,7 @@ export function AnomalyScopeConfigPanel({ isOpen, onToggle }: AnomalyScopeConfig
   return (
     <Card>
       <CardHeader
-        className="cursor-pointer select-none hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+        className="cursor-pointer select-none hover:bg-fb-surface-muted transition-colors"
         onClick={onToggle}
       >
         <div className="flex items-center gap-2.5">
@@ -134,7 +134,7 @@ export function AnomalyScopeConfigPanel({ isOpen, onToggle }: AnomalyScopeConfig
             <div className="flex items-center gap-2">
               <CardTitle>Phạm vi rule Sai lệch dữ liệu</CardTitle>
               {config.enabled && (
-                <Badge variant="success" className="text-[10px] font-semibold">
+                <Badge variant="success" className="text-[11px] font-semibold">
                   Master: Enabled
                 </Badge>
               )}
@@ -174,7 +174,7 @@ export function AnomalyScopeConfigPanel({ isOpen, onToggle }: AnomalyScopeConfig
                     onClick={() => setConfig((prev) => ({ ...prev, enabled: true }))}
                     className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
                       config.enabled
-                        ? 'bg-emerald-600 text-white shadow-sm'
+                        ? 'bg-status-success text-white shadow-sm'
                         : 'text-fb-text-secondary hover:text-fb-text-primary'
                     }`}
                   >
@@ -185,7 +185,7 @@ export function AnomalyScopeConfigPanel({ isOpen, onToggle }: AnomalyScopeConfig
                     onClick={() => setConfig((prev) => ({ ...prev, enabled: false }))}
                     className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
                       !config.enabled
-                        ? 'bg-slate-600 text-white shadow-sm'
+                        ? 'bg-fb-text-secondary text-white shadow-sm'
                         : 'text-fb-text-secondary hover:text-fb-text-primary'
                     }`}
                   >
@@ -233,7 +233,7 @@ export function AnomalyScopeConfigPanel({ isOpen, onToggle }: AnomalyScopeConfig
                           <TD className="py-3 px-3 align-middle">
                             <div className="flex flex-col">
                               <div className="flex items-center gap-1.5">
-                                <Badge variant="neutral" className="text-[10px] font-mono px-1.5 py-0.5">
+                                <Badge variant="neutral" className="text-[11px] font-mono px-1.5 py-0.5">
                                   {rule.code}
                                 </Badge>
                                 <span className="text-xs font-semibold text-fb-text-primary">
@@ -261,14 +261,14 @@ export function AnomalyScopeConfigPanel({ isOpen, onToggle }: AnomalyScopeConfig
                                 <div className="flex items-center gap-1.5">
                                   <input
                                     type="date"
-                                    className="h-8 px-2 text-xs rounded border border-fb-border bg-fb-surface text-fb-text-primary focus:outline-none focus:ring-1 focus:ring-emerald-500 w-[125px] disabled:opacity-50"
+                                    className="h-8 px-2 text-xs rounded border border-fb-border bg-fb-surface text-fb-text-primary focus:outline-none focus:ring-1 focus:ring-status-success w-[125px] disabled:opacity-50"
                                     value={val}
                                     disabled={!config.enabled}
                                     onChange={(e) => updateRuleField(rule.id, key, e.target.value)}
                                   />
                                   <button
                                     type="button"
-                                    className="p-1.5 text-fb-text-secondary hover:text-fb-text-primary rounded border border-fb-border hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                                    className="p-1.5 text-fb-text-secondary hover:text-fb-text-primary rounded border border-fb-border hover:bg-fb-surface-muted disabled:opacity-30 disabled:pointer-events-none transition-colors"
                                     title="Xóa thông tin cấu hình"
                                     disabled={!config.enabled || !val}
                                     onClick={() => updateRuleField(rule.id, key, '')}
@@ -289,7 +289,7 @@ export function AnomalyScopeConfigPanel({ isOpen, onToggle }: AnomalyScopeConfig
                                 onClick={() => updateRuleEnabled(rule.id, true)}
                                 className={`px-2 py-1 text-[11px] font-semibold rounded transition-colors ${
                                   rConfig.enabled
-                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    ? 'bg-status-success text-white shadow-sm'
                                     : 'text-fb-text-secondary hover:text-fb-text-primary disabled:opacity-40'
                                 }`}
                               >
@@ -301,7 +301,7 @@ export function AnomalyScopeConfigPanel({ isOpen, onToggle }: AnomalyScopeConfig
                                 onClick={() => updateRuleEnabled(rule.id, false)}
                                 className={`px-2 py-1 text-[11px] font-semibold rounded transition-colors ${
                                   !rConfig.enabled
-                                    ? 'bg-slate-600 text-white shadow-sm'
+                                    ? 'bg-fb-text-secondary text-white shadow-sm'
                                     : 'text-fb-text-secondary hover:text-fb-text-primary disabled:opacity-40'
                                 }`}
                               >
@@ -320,7 +320,7 @@ export function AnomalyScopeConfigPanel({ isOpen, onToggle }: AnomalyScopeConfig
                 <p className="text-xs text-fb-text-secondary">
                   Cập nhật lần cuối: {meta.updatedAt ? `${new Date(meta.updatedAt).toLocaleString('vi-VN')}${meta.updatedByName ? ` bởi ${meta.updatedByName}` : ''}` : 'Chưa có thông tin'}.
                 </p>
-                <Button isLoading={saving} onClick={save}>Lưu &amp; tính toán lại cache</Button>
+                <Button variant="primary" isLoading={saving} onClick={save}>Lưu &amp; tính toán lại cache</Button>
               </div>
             </>
           )}

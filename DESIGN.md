@@ -1,3 +1,25 @@
+<!--
+  ╔══════════════════════════════════════════════════════════════════════════╗
+  ║  SUPERSEDED (2026-10-10)                                                 ║
+  ╚══════════════════════════════════════════════════════════════════════════╝
+
+  Tài liệu này KHÔNG còn là chuẩn thiết kế của ứng dụng.
+  Nguồn tham chiếu duy nhất hiện nay: docs/design/IAS-DESIGN-ADOPTION.md
+
+  Nó mô tả hệ "Wise-inspired" (lime #9FE870) mà globals.css từng implement, và
+  vẫn là tài liệu CÓ HIỆU LỰC cho brand `wise` — một trong bốn lựa chọn trong
+  "Cấu hình ứng dụng → Giao diện". Brand mặc định đã chuyển sang `ias`
+  (IAS Design System của MB Bank: primary #141ED2, nền #F4F6FA, sidebar navy
+  #0D0D2B, font Averta Std CY).
+
+  Khi sửa UI: theo IAS-DESIGN-ADOPTION.md. Chỉ đọc file này khi đang làm việc
+  riêng với brand `wise`.
+
+  Ghi chú đã kiểm chứng lại từ file này: nhận định "lime #9FE870 fail contrast
+  khi dùng làm màu chữ" là ĐÚNG — đo được 1.71:1 trên nền trắng
+  (xem scripts/audit-token-contrast.mjs).
+-->
+
 ---
 version: alpha
 name: Wise-design-analysis

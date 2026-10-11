@@ -130,10 +130,10 @@ export function DailyCacheWarmer({ enabled }: { enabled: boolean }) {
   return (
     <>
       {isRebuilding && (
-        <div className="fixed top-3 right-5 z-[9999] pointer-events-none flex items-center gap-2 rounded-full border border-blue-300 bg-blue-50/95 px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-lg backdrop-blur-xs transition-all dark:border-blue-700 dark:bg-blue-950/95 dark:text-blue-200">
+        <div className="fixed top-3 right-5 z-[9999] pointer-events-none flex items-center gap-2 rounded-full border border-fb-blue bg-fb-blue-soft/95 px-3 py-1.5 text-xs font-semibold text-fb-blue shadow-lg backdrop-blur-xs transition-all">
           <span className="relative flex size-2 shrink-0">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
-            <span className="relative inline-flex size-2 rounded-full bg-blue-600 dark:bg-blue-400" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-fb-blue opacity-75" />
+            <span className="relative inline-flex size-2 rounded-full bg-fb-blue" />
           </span>
           <span>Hệ thống đang tính toán lại cache...</span>
         </div>

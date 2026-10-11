@@ -22,16 +22,16 @@ function getStatusTextColorClass(status: string): string {
   const upper = (status || '').toUpperCase();
 
   if (norm === 'PENDING' || norm === 'TO DO' || upper.includes('PENDING') || upper.includes('TO DO')) {
-    return 'text-[#8B4513] font-bold'; // Brown
+    return 'text-[var(--color-text-warning)] font-bold'; // Brown
   }
   if (norm === 'RELEASED' || upper.includes('RELEASED')) {
-    return 'text-[#2E7D32] font-bold'; // Green
+    return 'text-[var(--color-success-300)] font-bold'; // Green
   }
   if (norm === 'R4GOLIVE' || upper.includes('R4G')) {
-    return 'text-[#689F38] font-bold'; // Lime
+    return 'text-[var(--color-success-300)] font-bold'; // Lime
   }
   if (norm === 'IN_PROGRESS' || upper.includes('IN PROGRESS') || upper.includes('PROGRESS')) {
-    return 'text-[#0D47A1] font-bold'; // Blue navy
+    return 'text-[var(--color-primary-700)] font-bold'; // Blue navy
   }
   return 'text-black font-bold';
 }
@@ -239,8 +239,8 @@ export default function ReportsPage() {
     return (
       <div className="flex min-h-[60vh] items-center justify-center p-6">
         <div className="flex flex-col items-center gap-3">
-          <div className="size-8 animate-spin rounded-full border-4 border-[#1463f7] border-t-transparent" />
-          <p className="text-xs font-medium text-gray-600">Đang tải cấu hình bộ lọc Báo cáo...</p>
+          <div className="size-8 animate-spin rounded-full border-4 border-[var(--color-text-brand)] border-t-transparent" />
+          <p className="text-xs font-medium text-fb-text-secondary">Đang tải cấu hình bộ lọc Báo cáo...</p>
         </div>
       </div>
     );
@@ -249,10 +249,10 @@ export default function ReportsPage() {
   if (metaError) {
     return (
       <div className="p-6">
-        <div className="rounded-none border border-black bg-gray-100 p-6 text-center text-black max-w-md mx-auto">
+        <div className="rounded-none border border-black bg-fb-surface-muted p-6 text-center text-black max-w-md mx-auto">
           <Warning className="size-6 mx-auto mb-2 text-black" weight="bold" />
           <h2 className="text-base font-bold">Truy cập bị từ chối</h2>
-          <p className="text-xs mt-1 text-gray-700">{metaError}</p>
+          <p className="text-xs mt-1 text-fb-text-secondary">{metaError}</p>
         </div>
       </div>
     );
@@ -285,18 +285,18 @@ export default function ReportsPage() {
       `}</style>
 
       {/* FILTER PANEL - Darker Background to distinguish from White Report below */}
-      <div className="no-print rounded-none border-2 border-slate-400 bg-slate-200 p-5 space-y-4 shadow-sm text-black">
-        <div className="flex items-center justify-between border-b border-slate-300 pb-3">
+      <div className="no-print rounded-none border-2 border-fb-border bg-fb-control-hover p-5 space-y-4 shadow-sm text-black">
+        <div className="flex items-center justify-between border-b border-fb-border pb-3">
           <div className="flex items-center gap-2">
-            <div className="grid size-8 place-items-center bg-[#1463f7] text-white rounded-none">
+            <div className="grid size-8 place-items-center bg-[var(--color-text-brand)] text-white rounded-none">
               <Bandaids className="size-4" weight="bold" />
             </div>
             <div>
               <h1 className="text-base font-bold text-black">Báo cáo Epic (beta 2)</h1>
-              <p className="text-[11px] text-gray-700 font-medium">Lựa chọn lớp dữ liệu và các điều kiện lọc</p>
+              <p className="text-[11px] text-fb-text-secondary font-medium">Lựa chọn lớp dữ liệu và các điều kiện lọc</p>
             </div>
           </div>
-          <span className="bg-black text-white px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+          <span className="bg-black text-white px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide">
             TTM Monitor
           </span>
         </div>
@@ -308,7 +308,7 @@ export default function ReportsPage() {
             <select
               value={selectedDomainId}
               onChange={(e) => setSelectedDomainId(e.target.value)}
-              className="w-full rounded-none border border-slate-400 bg-white px-3 py-2 text-xs outline-none focus:border-[#1463f7] font-medium"
+              className="w-full rounded-none border border-fb-border bg-white px-3 py-2 text-xs outline-none focus:border-[var(--color-text-brand)] font-medium"
             >
               <option value="ALL">-- Tất cả Domain --</option>
               {domains.map((d) => (
@@ -321,12 +321,12 @@ export default function ReportsPage() {
 
           <div>
             <label className="mb-1 block text-[11px] font-bold text-black">
-              2. Dự án (Project Key) <span className="text-[#1463f7]">*</span>
+              2. Dự án (Project Key) <span className="text-[var(--color-text-brand)]">*</span>
             </label>
             <select
               value={effectiveProjectKey}
               onChange={(e) => setSelectedProjectKey(e.target.value)}
-              className="w-full rounded-none border border-slate-400 bg-white px-3 py-2 text-xs outline-none focus:border-[#1463f7] font-medium"
+              className="w-full rounded-none border border-fb-border bg-white px-3 py-2 text-xs outline-none focus:border-[var(--color-text-brand)] font-medium"
               required
             >
               {filteredProjects.length === 0 ? (
@@ -346,7 +346,7 @@ export default function ReportsPage() {
             <select
               value={selectedComponent}
               onChange={(e) => setSelectedComponent(e.target.value)}
-              className="w-full rounded-none border border-slate-400 bg-white px-3 py-2 text-xs outline-none focus:border-[#1463f7] font-medium"
+              className="w-full rounded-none border border-fb-border bg-white px-3 py-2 text-xs outline-none focus:border-[var(--color-text-brand)] font-medium"
               disabled={!effectiveProjectKey}
             >
               <option value="ALL">-- Tất cả Component --</option>
@@ -360,7 +360,7 @@ export default function ReportsPage() {
         </div>
 
         {/* Row 2 Filters: 3 Date Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-slate-300 pt-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-fb-border pt-3">
           <div>
             <label className="mb-1 block text-[11px] font-bold text-black">
               4. Epic tạo mới từ (Created Date &ge;)
@@ -369,7 +369,7 @@ export default function ReportsPage() {
               type="date"
               value={createdDateFrom}
               onChange={(e) => setCreatedDateFrom(e.target.value)}
-              className="w-full rounded-none border border-slate-400 bg-white px-3 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono"
+              className="w-full rounded-none border border-fb-border bg-white px-3 py-1.5 text-xs outline-none focus:border-[var(--color-text-brand)] font-mono"
             />
           </div>
 
@@ -381,7 +381,7 @@ export default function ReportsPage() {
               type="date"
               value={startDateFrom}
               onChange={(e) => setStartDateFrom(e.target.value)}
-              className="w-full rounded-none border border-slate-400 bg-white px-3 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono"
+              className="w-full rounded-none border border-fb-border bg-white px-3 py-1.5 text-xs outline-none focus:border-[var(--color-text-brand)] font-mono"
             />
           </div>
 
@@ -393,39 +393,39 @@ export default function ReportsPage() {
               type="date"
               value={releasedDateFrom}
               onChange={(e) => setReleasedDateFrom(e.target.value)}
-              className="w-full rounded-none border border-slate-400 bg-white px-3 py-1.5 text-xs outline-none focus:border-[#1463f7] font-mono"
+              className="w-full rounded-none border border-fb-border bg-white px-3 py-1.5 text-xs outline-none focus:border-[var(--color-text-brand)] font-mono"
             />
           </div>
         </div>
 
         {/* Advanced Config Section Toggle */}
-        <div className="border-t border-slate-300 pt-3">
+        <div className="border-t border-fb-border pt-3">
           <button
             type="button"
             onClick={() => setAdvancedConfigOpen(!advancedConfigOpen)}
-            className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[#1463f7] transition-colors"
+            className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[var(--color-text-brand)] transition-colors"
           >
             {advancedConfigOpen ? (
-              <CaretDown className="size-4 text-[#1463f7]" weight="bold" />
+              <CaretDown className="size-4 text-[var(--color-text-brand)]" weight="bold" />
             ) : (
-              <CaretRight className="size-4 text-[#1463f7]" weight="bold" />
+              <CaretRight className="size-4 text-[var(--color-text-brand)]" weight="bold" />
             )}
             <span>Cấu hình nâng cao...</span>
           </button>
 
           {advancedConfigOpen && (
-            <div className="mt-3 space-y-3 pl-2 border-l-2 border-[#1463f7] pt-1">
+            <div className="mt-3 space-y-3 pl-2 border-l-2 border-[var(--color-text-brand)] pt-1">
               {/* Item 7. Lịch sử báo cáo */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-[11px] font-bold text-black">
-                    7. Lịch sử báo cáo (Lớp dữ liệu) <span className="text-[#1463f7]">*</span>
+                    7. Lịch sử báo cáo (Lớp dữ liệu) <span className="text-[var(--color-text-brand)]">*</span>
                   </label>
-                  <span className="text-[10px] text-gray-700 font-medium">Chọn 1 lớp dữ liệu, dữ liệu sẽ tự động drill xuống các lớp cũ hơn nếu thiếu.</span>
+                  <span className="text-[11px] text-fb-text-secondary font-medium">Chọn 1 lớp dữ liệu, dữ liệu sẽ tự động drill xuống các lớp cũ hơn nếu thiếu.</span>
                 </div>
 
                 {layerDates.length === 0 ? (
-                  <p className="text-[11px] text-gray-600">Chưa có lớp dữ liệu nào trong hệ thống.</p>
+                  <p className="text-[11px] text-fb-text-secondary">Chưa có lớp dữ liệu nào trong hệ thống.</p>
                 ) : (
                   <div className="flex flex-wrap items-center gap-2">
                     {recentLayerDates.map((layer, idx) => {
@@ -439,20 +439,20 @@ export default function ReportsPage() {
                           title={`Chọn lớp dữ liệu ${layer} (drill xuống các lớp cũ hơn)`}
                           className={`flex items-center gap-1.5 rounded-none border px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
                             isSelected
-                              ? 'border-[#1463f7] bg-[#1463f7] text-white'
-                              : 'border-slate-400 bg-white text-gray-800 hover:border-black'
+                              ? 'border-[var(--color-text-brand)] bg-[var(--color-text-brand)] text-white'
+                              : 'border-fb-border bg-white text-fb-text-primary hover:border-black'
                           }`}
                         >
                           {isSelected && <Check className="size-3.5" weight="bold" />}
                           <span>{layer}</span>
-                          {idx === 0 && <span className="bg-black text-white px-1 text-[9px] uppercase">Mới nhất</span>}
+                          {idx === 0 && <span className="bg-black text-white px-1 text-[11px] uppercase">Mới nhất</span>}
                         </button>
                       );
                     })}
                     {olderLayerDates.length > 0 && (
                       <select
                         className={`rounded-none border px-2 py-1.5 text-xs font-bold font-mono cursor-pointer ${
-                          olderLayerDates.includes(selectedLayerAnchor) ? 'border-[#1463f7] text-[#1463f7]' : 'border-slate-400 text-gray-800'
+                          olderLayerDates.includes(selectedLayerAnchor) ? 'border-[var(--color-text-brand)] text-[var(--color-text-brand)]' : 'border-fb-border text-fb-text-primary'
                         }`}
                         value={olderLayerDates.includes(selectedLayerAnchor) ? selectedLayerAnchor : ''}
                         onChange={(event) => { if (event.target.value) setSelectedLayerAnchor(event.target.value); }}
@@ -467,12 +467,12 @@ export default function ReportsPage() {
               </div>
 
               {/* Item 8. So sánh với Lớp dữ liệu */}
-              <div className="pt-2 border-t border-slate-300">
+              <div className="pt-2 border-t border-fb-border">
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-[11px] font-bold text-black">
                     8. So sánh với Lớp dữ liệu
                   </label>
-                  <span className="text-[10px] text-gray-700 font-medium">Mặc định không so sánh. Chọn 1 lớp dữ liệu để so sánh chi tiết.</span>
+                  <span className="text-[11px] text-fb-text-secondary font-medium">Mặc định không so sánh. Chọn 1 lớp dữ liệu để so sánh chi tiết.</span>
                 </div>
 
                 <div className="space-y-2">
@@ -483,8 +483,8 @@ export default function ReportsPage() {
                       title="Mặc định: Không so sánh dữ liệu với lớp khác"
                       className={`flex items-center gap-1.5 rounded-none border px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
                         !compareLayerAnchor
-                          ? 'border-[#1463f7] bg-[#1463f7] text-white'
-                          : 'border-slate-400 bg-white text-gray-800 hover:border-black'
+                          ? 'border-[var(--color-text-brand)] bg-[var(--color-text-brand)] text-white'
+                          : 'border-fb-border bg-white text-fb-text-primary hover:border-black'
                       }`}
                     >
                       {!compareLayerAnchor && <Check className="size-3.5" weight="bold" />}
@@ -504,20 +504,20 @@ export default function ReportsPage() {
                           title={`So sánh với lớp dữ liệu ${layer}`}
                           className={`flex items-center gap-1.5 rounded-none border px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
                             isSelected
-                              ? 'border-[#1463f7] bg-[#1463f7] text-white'
-                              : 'border-slate-400 bg-white text-gray-800 hover:border-black'
+                              ? 'border-[var(--color-text-brand)] bg-[var(--color-text-brand)] text-white'
+                              : 'border-fb-border bg-white text-fb-text-primary hover:border-black'
                           }`}
                         >
                           {isSelected && <Check className="size-3.5" weight="bold" />}
                           <span>{layer}</span>
-                          {idx === 0 && <span className="bg-black text-white px-1 text-[9px] uppercase">Mới nhất</span>}
+                          {idx === 0 && <span className="bg-black text-white px-1 text-[11px] uppercase">Mới nhất</span>}
                         </button>
                       );
                     })}
                     {olderLayerDates.length > 0 && (
                       <select
                         className={`rounded-none border px-2 py-1.5 text-xs font-bold font-mono cursor-pointer ${
-                          olderLayerDates.includes(compareLayerAnchor) ? 'border-[#1463f7] text-[#1463f7]' : 'border-slate-400 text-gray-800'
+                          olderLayerDates.includes(compareLayerAnchor) ? 'border-[var(--color-text-brand)] text-[var(--color-text-brand)]' : 'border-fb-border text-fb-text-primary'
                         }`}
                         value={olderLayerDates.includes(compareLayerAnchor) ? compareLayerAnchor : ''}
                         onChange={(event) => { if (event.target.value) setCompareLayerAnchor(event.target.value); }}
@@ -535,20 +535,20 @@ export default function ReportsPage() {
         </div>
 
         {/* Generate Report & Reset Submit Buttons */}
-        <div className="flex items-center justify-between border-t border-slate-300 pt-3">
-          <p className="text-[11px] text-gray-800 font-medium">
-            Đã chọn dự án: <strong className="text-black">{effectiveProjectKey || 'Chưa chọn'}</strong> | Lớp chính (Mục 7): <strong className="text-[#1463f7]">{selectedLayerAnchor || 'Chưa chọn'}</strong>
+        <div className="flex items-center justify-between border-t border-fb-border pt-3">
+          <p className="text-[11px] text-fb-text-primary font-medium">
+            Đã chọn dự án: <strong className="text-black">{effectiveProjectKey || 'Chưa chọn'}</strong> | Lớp chính (Mục 7): <strong className="text-[var(--color-text-brand)]">{selectedLayerAnchor || 'Chưa chọn'}</strong>
             {compareLayerAnchor ? (
-              <> | So sánh với (Mục 8): <strong className="text-slate-800">{compareLayerAnchor}</strong></>
+              <> | So sánh với (Mục 8): <strong className="text-fb-text-primary">{compareLayerAnchor}</strong></>
             ) : (
-              <> | <span className="text-gray-600 font-semibold">Không so sánh</span></>
+              <> | <span className="text-fb-text-secondary font-semibold">Không so sánh</span></>
             )}
           </p>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleResetFilter}
-              className="flex items-center gap-1.5 rounded-none border border-slate-400 bg-white px-4 py-2.5 text-xs font-bold text-black transition-all hover:bg-slate-300 hover:border-black"
+              className="flex items-center gap-1.5 rounded-none border border-fb-border bg-white px-4 py-2.5 text-xs font-bold text-black transition-all hover:bg-fb-control-hover hover:border-black"
             >
               <ArrowsClockwise className="size-4" weight="bold" />
               <span>Đặt lại</span>
@@ -557,7 +557,7 @@ export default function ReportsPage() {
               type="button"
               onClick={handleGenerateReport}
               disabled={generating || !effectiveProjectKey || selectedLayers.length === 0}
-              className="flex items-center gap-2 rounded-none bg-[#1463f7] px-6 py-2.5 text-xs font-bold text-white shadow-none transition-all hover:bg-black disabled:opacity-50"
+              className="flex items-center gap-2 rounded-none bg-[var(--color-text-brand)] px-6 py-2.5 text-xs font-bold text-white shadow-none transition-all hover:bg-black disabled:opacity-50"
             >
               <FileText className="size-4" weight="bold" />
               <span>{generating ? 'Đang tổng hợp dữ liệu...' : 'Tạo báo cáo'}</span>
@@ -567,8 +567,8 @@ export default function ReportsPage() {
       </div>
 
       {reportError && (
-        <div className="no-print rounded-none border border-black bg-gray-100 p-3 text-xs font-semibold text-black flex items-center gap-2">
-          <Warning className="size-4 shrink-0 text-[#1463f7]" weight="bold" />
+        <div className="no-print rounded-none border border-black bg-fb-surface-muted p-3 text-xs font-semibold text-black flex items-center gap-2">
+          <Warning className="size-4 shrink-0 text-[var(--color-text-brand)]" weight="bold" />
           <span>{reportError}</span>
         </div>
       )}
@@ -577,15 +577,15 @@ export default function ReportsPage() {
       {report && (
         <div className="print-container space-y-5 rounded-none border-2 border-black bg-white p-6 text-black shadow-lg">
           {/* Actions Bar (Print / PDF) */}
-          <div className="no-print flex items-center justify-between border-b border-gray-300 pb-3">
+          <div className="no-print flex items-center justify-between border-b border-fb-border pb-3">
             <div className="flex items-center gap-2 text-xs font-bold text-black">
-              <CheckCircle className="size-4 text-[#1463f7]" weight="fill" />
+              <CheckCircle className="size-4 text-[var(--color-text-brand)]" weight="fill" />
               <span>Báo cáo đã tổng hợp xong (Bấm mã Epic để Duyệt Epic hoặc xem Jira)</span>
             </div>
             <button
               type="button"
               onClick={() => window.print()}
-              className="flex items-center gap-2 rounded-none bg-[#1463f7] px-4 py-1.5 text-xs font-bold text-white transition-all hover:bg-black"
+              className="flex items-center gap-2 rounded-none bg-[var(--color-text-brand)] px-4 py-1.5 text-xs font-bold text-white transition-all hover:bg-black"
             >
               <Printer className="size-4" weight="bold" />
               <span>In / Xuất PDF Báo Cáo</span>
@@ -595,13 +595,13 @@ export default function ReportsPage() {
           {/* REPORT HEADER */}
           <div className="border-b-2 border-black pb-4 text-center space-y-1.5">
             <div className="flex items-center justify-center gap-2">
-              <div className="grid size-8 place-items-center bg-[#1463f7] text-white rounded-none">
+              <div className="grid size-8 place-items-center bg-[var(--color-text-brand)] text-white rounded-none">
                 <Pulse className="size-5" weight="bold" />
               </div>
               <span className="text-base font-extrabold tracking-tight text-black">TTM MONITOR SYSTEM</span>
             </div>
             <h1 className="text-xl font-extrabold tracking-tight text-black uppercase">BÁO CÁO EPIC DỰ ÁN</h1>
-            <p className="text-[10px] text-gray-500">Thời gian trích xuất hệ thống: {new Date(report.evaluatedAt).toLocaleString('vi-VN')}</p>
+            <p className="text-[11px] text-fb-text-placeholder">Thời gian trích xuất hệ thống: {new Date(report.evaluatedAt).toLocaleString('vi-VN')}</p>
           </div>
 
           {report.asOfDate && (
@@ -617,27 +617,27 @@ export default function ReportsPage() {
 
           {/* 2-COLUMN METADATA BLOCK */}
           <div className="rounded-none border border-black overflow-hidden">
-            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-300">
+            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-fb-border">
               {/* Column 1 */}
-              <div className="divide-y divide-gray-300">
+              <div className="divide-y divide-fb-border">
                 <div className="flex">
-                  <div className="w-2/5 bg-gray-100 text-black px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-gray-300">
+                  <div className="w-2/5 bg-fb-surface-muted text-black px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-fb-border">
                     THỜI GIAN THỐNG KÊ
                   </div>
                   <div className="w-3/5 bg-white px-3 py-2 text-[11px] font-bold text-black flex flex-col justify-center">
                     <div>
-                      <span className="text-[#1463f7]">Lớp chính (Mục 7):</span> Từ {report.minLayerDate} đến {report.maxLayerDate} ({report.layerDates.length} lớp)
+                      <span className="text-[var(--color-text-brand)]">Lớp chính (Mục 7):</span> Từ {report.minLayerDate} đến {report.maxLayerDate} ({report.layerDates.length} lớp)
                     </div>
                     {compareReport && (
-                      <div className="mt-1 pt-1 border-t border-gray-200">
-                        <span className="text-slate-800">Lớp so sánh (Mục 8):</span> Từ {compareReport.minLayerDate} đến {compareReport.maxLayerDate} ({compareReport.layerDates.length} lớp)
+                      <div className="mt-1 pt-1 border-t border-fb-border">
+                        <span className="text-fb-text-primary">Lớp so sánh (Mục 8):</span> Từ {compareReport.minLayerDate} đến {compareReport.maxLayerDate} ({compareReport.layerDates.length} lớp)
                       </div>
                     )}
                   </div>
                 </div>
 
                 <div className="flex">
-                  <div className="w-2/5 bg-gray-100 text-black px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-gray-300">
+                  <div className="w-2/5 bg-fb-surface-muted text-black px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-fb-border">
                     DOMAIN NGHIỆP VỤ
                   </div>
                   <div className="w-3/5 bg-white px-3 py-2 text-[11px] font-bold text-black flex items-center">
@@ -646,19 +646,19 @@ export default function ReportsPage() {
                 </div>
 
                 <div className="flex">
-                  <div className="w-2/5 bg-gray-100 text-black px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-gray-300">
+                  <div className="w-2/5 bg-fb-surface-muted text-black px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-fb-border">
                     DỰ ÁN (PROJECT)
                   </div>
-                  <div className="w-3/5 bg-white px-3 py-2 text-[11px] font-bold text-[#1463f7] flex items-center">
+                  <div className="w-3/5 bg-white px-3 py-2 text-[11px] font-bold text-[var(--color-text-brand)] flex items-center">
                     [{report.projectKey}] {report.projectName}
                   </div>
                 </div>
               </div>
 
               {/* Column 2 */}
-              <div className="divide-y divide-gray-300">
+              <div className="divide-y divide-fb-border">
                 <div className="flex">
-                  <div className="w-2/5 bg-gray-100 text-black px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-gray-300">
+                  <div className="w-2/5 bg-fb-surface-muted text-black px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-fb-border">
                     COMPONENT
                   </div>
                   <div className="w-3/5 bg-white px-3 py-2 text-[11px] font-bold text-black flex items-center">
@@ -667,7 +667,7 @@ export default function ReportsPage() {
                 </div>
 
                 <div className="flex">
-                  <div className="w-2/5 bg-gray-100 text-black px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-gray-300">
+                  <div className="w-2/5 bg-fb-surface-muted text-black px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-fb-border">
                     PM / SM ĐẠI DIỆN
                   </div>
                   <div className="w-3/5 bg-white px-3 py-2 text-[11px] font-bold text-black flex items-center">
@@ -676,7 +676,7 @@ export default function ReportsPage() {
                 </div>
 
                 <div className="flex">
-                  <div className="w-2/5 bg-gray-100 text-black px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-gray-300">
+                  <div className="w-2/5 bg-fb-surface-muted text-black px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-fb-border">
                     NGÀY LẬP BÁO CÁO
                   </div>
                   <div className="w-3/5 bg-white px-3 py-2 text-[11px] font-bold text-black flex items-center">
@@ -690,87 +690,87 @@ export default function ReportsPage() {
           {/* SUMMARY KPI CARDS BLOCK (6 Cards Grid) */}
           <div className="space-y-1">
             <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
-              <div className="rounded-none border border-gray-300 bg-gray-50 p-2 text-center">
-                <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">TỔNG RELEASED</p>
+              <div className="rounded-none border border-fb-border bg-fb-surface-muted p-2 text-center">
+                <p className="text-[11px] font-bold text-fb-text-secondary uppercase tracking-wide">TỔNG RELEASED</p>
                 {compareReport ? (
                   <div className="flex items-center justify-center gap-1.5 mt-0.5">
-                    <span className="text-base font-extrabold text-[#1463f7]" title={`Lớp chính: ${report.totalReleasedCount}`}>{report.totalReleasedCount}</span>
-                    <span className="text-gray-400 font-bold">/</span>
-                    <span className="text-base font-extrabold text-slate-800" title={`Lớp so sánh: ${compareReport.totalReleasedCount}`}>{compareReport.totalReleasedCount}</span>
+                    <span className="text-base font-extrabold text-[var(--color-text-brand)]" title={`Lớp chính: ${report.totalReleasedCount}`}>{report.totalReleasedCount}</span>
+                    <span className="text-fb-text-placeholder font-bold">/</span>
+                    <span className="text-base font-extrabold text-fb-text-primary" title={`Lớp so sánh: ${compareReport.totalReleasedCount}`}>{compareReport.totalReleasedCount}</span>
                   </div>
                 ) : (
                   <p className="text-lg font-extrabold text-black mt-0.5">{report.totalReleasedCount}</p>
                 )}
               </div>
 
-              <div className="rounded-none border border-gray-300 bg-gray-50 p-2 text-center">
-                <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">ĐẠT TTM</p>
+              <div className="rounded-none border border-fb-border bg-fb-surface-muted p-2 text-center">
+                <p className="text-[11px] font-bold text-fb-text-secondary uppercase tracking-wide">ĐẠT TTM</p>
                 {compareReport ? (
                   <div className="flex items-center justify-center gap-1.5 mt-0.5">
-                    <span className="text-base font-extrabold text-[#1463f7]" title={`Lớp chính: ${report.totalPassedCount}`}>{report.totalPassedCount}</span>
-                    <span className="text-gray-400 font-bold">/</span>
-                    <span className="text-base font-extrabold text-slate-800" title={`Lớp so sánh: ${compareReport.totalPassedCount}`}>{compareReport.totalPassedCount}</span>
+                    <span className="text-base font-extrabold text-[var(--color-text-brand)]" title={`Lớp chính: ${report.totalPassedCount}`}>{report.totalPassedCount}</span>
+                    <span className="text-fb-text-placeholder font-bold">/</span>
+                    <span className="text-base font-extrabold text-fb-text-primary" title={`Lớp so sánh: ${compareReport.totalPassedCount}`}>{compareReport.totalPassedCount}</span>
                   </div>
                 ) : (
-                  <p className="text-lg font-extrabold text-[#1463f7] mt-0.5">{report.totalPassedCount}</p>
+                  <p className="text-lg font-extrabold text-[var(--color-text-brand)] mt-0.5">{report.totalPassedCount}</p>
                 )}
               </div>
 
-              <div className="rounded-none border border-gray-300 bg-gray-50 p-2 text-center">
-                <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">FAIL TTM</p>
+              <div className="rounded-none border border-fb-border bg-fb-surface-muted p-2 text-center">
+                <p className="text-[11px] font-bold text-fb-text-secondary uppercase tracking-wide">FAIL TTM</p>
                 {compareReport ? (
                   <div className="flex items-center justify-center gap-1.5 mt-0.5">
-                    <span className="text-base font-extrabold text-[#1463f7]" title={`Lớp chính: ${report.totalFailedCount}`}>{report.totalFailedCount}</span>
-                    <span className="text-gray-400 font-bold">/</span>
-                    <span className="text-base font-extrabold text-slate-800" title={`Lớp so sánh: ${compareReport.totalFailedCount}`}>{compareReport.totalFailedCount}</span>
+                    <span className="text-base font-extrabold text-[var(--color-text-brand)]" title={`Lớp chính: ${report.totalFailedCount}`}>{report.totalFailedCount}</span>
+                    <span className="text-fb-text-placeholder font-bold">/</span>
+                    <span className="text-base font-extrabold text-fb-text-primary" title={`Lớp so sánh: ${compareReport.totalFailedCount}`}>{compareReport.totalFailedCount}</span>
                   </div>
                 ) : (
                   <p className="text-lg font-extrabold text-black mt-0.5">{report.totalFailedCount}</p>
                 )}
               </div>
 
-              <div className="rounded-none border border-gray-300 bg-gray-50 p-2 text-center">
-                <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">EPIC IN PO</p>
+              <div className="rounded-none border border-fb-border bg-fb-surface-muted p-2 text-center">
+                <p className="text-[11px] font-bold text-fb-text-secondary uppercase tracking-wide">EPIC IN PO</p>
                 {compareReport ? (
                   <div className="flex items-center justify-center gap-1.5 mt-0.5">
-                    <span className="text-base font-extrabold text-[#1463f7]" title={`Lớp chính: ${report.totalInPoCount}`}>{report.totalInPoCount}</span>
-                    <span className="text-gray-400 font-bold">/</span>
-                    <span className="text-base font-extrabold text-slate-800" title={`Lớp so sánh: ${compareReport.totalInPoCount}`}>{compareReport.totalInPoCount}</span>
+                    <span className="text-base font-extrabold text-[var(--color-text-brand)]" title={`Lớp chính: ${report.totalInPoCount}`}>{report.totalInPoCount}</span>
+                    <span className="text-fb-text-placeholder font-bold">/</span>
+                    <span className="text-base font-extrabold text-fb-text-primary" title={`Lớp so sánh: ${compareReport.totalInPoCount}`}>{compareReport.totalInPoCount}</span>
                   </div>
                 ) : (
-                  <p className="text-lg font-extrabold text-[#1463f7] mt-0.5">{report.totalInPoCount}</p>
+                  <p className="text-lg font-extrabold text-[var(--color-text-brand)] mt-0.5">{report.totalInPoCount}</p>
                 )}
               </div>
 
-              <div className="rounded-none border border-gray-300 bg-gray-50 p-2 text-center">
-                <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">EPIC PENDING</p>
+              <div className="rounded-none border border-fb-border bg-fb-surface-muted p-2 text-center">
+                <p className="text-[11px] font-bold text-fb-text-secondary uppercase tracking-wide">EPIC PENDING</p>
                 {compareReport ? (
                   <div className="flex items-center justify-center gap-1.5 mt-0.5">
-                    <span className="text-base font-extrabold text-[#1463f7]" title={`Lớp chính: ${report.totalPendingCount || 0}`}>{report.totalPendingCount || 0}</span>
-                    <span className="text-gray-400 font-bold">/</span>
-                    <span className="text-base font-extrabold text-slate-800" title={`Lớp so sánh: ${compareReport.totalPendingCount || 0}`}>{compareReport.totalPendingCount || 0}</span>
+                    <span className="text-base font-extrabold text-[var(--color-text-brand)]" title={`Lớp chính: ${report.totalPendingCount || 0}`}>{report.totalPendingCount || 0}</span>
+                    <span className="text-fb-text-placeholder font-bold">/</span>
+                    <span className="text-base font-extrabold text-fb-text-primary" title={`Lớp so sánh: ${compareReport.totalPendingCount || 0}`}>{compareReport.totalPendingCount || 0}</span>
                   </div>
                 ) : (
-                  <p className="text-lg font-extrabold text-[#8B4513] mt-0.5">{report.totalPendingCount || 0}</p>
+                  <p className="text-lg font-extrabold text-[var(--color-text-warning)] mt-0.5">{report.totalPendingCount || 0}</p>
                 )}
               </div>
 
-              <div className="rounded-none border border-gray-300 bg-gray-50 p-2 text-center">
-                <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">SAI LỆCH DỮ LIỆU</p>
+              <div className="rounded-none border border-fb-border bg-fb-surface-muted p-2 text-center">
+                <p className="text-[11px] font-bold text-fb-text-secondary uppercase tracking-wide">SAI LỆCH DỮ LIỆU</p>
                 {compareReport ? (
                   <div className="flex items-center justify-center gap-1.5 mt-0.5">
-                    <span className="text-base font-extrabold text-[#1463f7]" title={`Lớp chính: ${report.totalAnomalyCount}`}>{report.totalAnomalyCount}</span>
-                    <span className="text-gray-400 font-bold">/</span>
-                    <span className="text-base font-extrabold text-slate-800" title={`Lớp so sánh: ${compareReport.totalAnomalyCount}`}>{compareReport.totalAnomalyCount}</span>
+                    <span className="text-base font-extrabold text-[var(--color-text-brand)]" title={`Lớp chính: ${report.totalAnomalyCount}`}>{report.totalAnomalyCount}</span>
+                    <span className="text-fb-text-placeholder font-bold">/</span>
+                    <span className="text-base font-extrabold text-fb-text-primary" title={`Lớp so sánh: ${compareReport.totalAnomalyCount}`}>{compareReport.totalAnomalyCount}</span>
                   </div>
                 ) : (
-                  <p className="text-lg font-extrabold text-gray-700 mt-0.5">{report.totalAnomalyCount}</p>
+                  <p className="text-lg font-extrabold text-fb-text-secondary mt-0.5">{report.totalAnomalyCount}</p>
                 )}
               </div>
             </div>
             {compareReport && (
-              <p className="text-[10px] text-gray-500 text-right italic">
-                * Định dạng số liệu: <span className="text-[#1463f7] font-bold">Lớp chính (Mục 7)</span> / <span className="text-slate-800 font-bold">Lớp so sánh (Mục 8)</span>
+              <p className="text-[11px] text-fb-text-placeholder text-right italic">
+                * Định dạng số liệu: <span className="text-[var(--color-text-brand)] font-bold">Lớp chính (Mục 7)</span> / <span className="text-fb-text-primary font-bold">Lớp so sánh (Mục 8)</span>
               </p>
             )}
           </div>
@@ -791,7 +791,7 @@ export default function ReportsPage() {
               <td className="px-2.5 py-1.5 text-[11px]">
                 <div className="font-mono">{item.releasedDate || '-'}</div>
                 {item.actualTtmDays !== null && (
-                  <div className="text-[11px] font-bold text-[#1463f7]">{item.actualTtmDays} ngày làm việc</div>
+                  <div className="text-[11px] font-bold text-[var(--color-text-brand)]">{item.actualTtmDays} ngày làm việc</div>
                 )}
               </td>
             )}
@@ -810,7 +810,7 @@ export default function ReportsPage() {
             compareLayerLabel={compareReport?.maxLayerDate}
             customHeader="Loại đạt"
             renderCustomCell={(item) => (
-              <td className="px-2.5 py-1.5 text-[11px] font-bold text-[#1463f7]">
+              <td className="px-2.5 py-1.5 text-[11px] font-bold text-[var(--color-text-brand)]">
                 <span>{item.passType || 'Đạt TTM'}</span>
               </td>
             )}
@@ -868,7 +868,7 @@ export default function ReportsPage() {
             compareLayerLabel={compareReport?.maxLayerDate}
             customHeader="Chi tiết dữ liệu sai lệch"
             renderCustomCell={(item) => (
-              <td className="px-2.5 py-1.5 text-[11px] font-medium text-gray-700">
+              <td className="px-2.5 py-1.5 text-[11px] font-medium text-fb-text-secondary">
                 <ul className="list-disc pl-3 space-y-0.5">
                   {item.anomalyDetails.map((det, idx) => (
                     <li key={idx}>{det}</li>
@@ -891,7 +891,7 @@ export default function ReportsPage() {
             compareLayerLabel={compareReport?.maxLayerDate}
             customHeader="Phân loại Trạng thái"
             renderCustomCell={(item) => (
-              <td className="px-2.5 py-1.5 text-[11px] font-bold text-[#8B4513]">
+              <td className="px-2.5 py-1.5 text-[11px] font-bold text-[var(--color-text-warning)]">
                 <span>{item.status}</span>
               </td>
             )}
@@ -959,7 +959,7 @@ function ReportSectionBlockSquare({
       {/* Header Bar - Light Background, Clickable to Toggle Collapsed State */}
       <div
         onClick={() => setCollapsed(!collapsed)}
-        className="bg-slate-200 text-black px-3 py-2 font-bold text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-1 cursor-pointer select-none border-b border-slate-300 hover:bg-slate-300 transition-colors"
+        className="bg-fb-control-hover text-black px-3 py-2 font-bold text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-1 cursor-pointer select-none border-b border-fb-border hover:bg-fb-control-hover transition-colors"
       >
         <div className="flex items-center gap-2">
           {collapsed ? <CaretRight className="size-4 text-black shrink-0" weight="bold" /> : <CaretDown className="size-4 text-black shrink-0" weight="bold" />}
@@ -968,15 +968,15 @@ function ReportSectionBlockSquare({
         <div className="flex items-center gap-2">
           {isComparing ? (
             <div className="flex items-center gap-1.5">
-              <span className="bg-[#1463f7] text-white px-2 py-0.5 text-[10px] font-extrabold uppercase">
+              <span className="bg-[var(--color-text-brand)] text-white px-2 py-0.5 text-[11px] font-extrabold uppercase">
                 Lớp chính: {totalCount}
               </span>
-              <span className="bg-slate-800 text-white px-2 py-0.5 text-[10px] font-extrabold uppercase">
+              <span className="bg-fb-text-primary text-white px-2 py-0.5 text-[11px] font-extrabold uppercase">
                 Lớp so sánh: {compareTotalCount ?? 0}
               </span>
             </div>
           ) : (
-            <span className="bg-[#1463f7] text-white px-2 py-0.5 text-[10px] font-extrabold uppercase">
+            <span className="bg-[var(--color-text-brand)] text-white px-2 py-0.5 text-[11px] font-extrabold uppercase">
               Tổng số: {totalCount} Epic
             </span>
           )}
@@ -990,12 +990,12 @@ function ReportSectionBlockSquare({
           <div className="grid grid-cols-1 xl:grid-cols-2 divide-y xl:divide-y-0 xl:divide-x divide-black bg-white">
             {/* Left Pane: Layer chosen in Item 7 */}
             <div className="min-w-0">
-              <div className="bg-blue-100 border-b border-gray-300 px-3 py-1.5 flex items-center justify-between text-[11px] font-bold text-[#1463f7]">
+              <div className="bg-fb-blue-soft border-b border-fb-border px-3 py-1.5 flex items-center justify-between text-[11px] font-bold text-[var(--color-text-brand)]">
                 <div className="flex items-center gap-1.5">
-                  <span className="inline-block size-2.5 bg-[#1463f7]" />
+                  <span className="inline-block size-2.5 bg-[var(--color-text-brand)]" />
                   <span>BÊN TRÁI: LỚP CHÍNH ({primaryLayerLabel || 'Mục 7'})</span>
                 </div>
-                <span className="bg-[#1463f7] text-white px-1.5 py-0.5 text-[10px] font-extrabold">
+                <span className="bg-[var(--color-text-brand)] text-white px-1.5 py-0.5 text-[11px] font-extrabold">
                   {totalCount} Epic
                 </span>
               </div>
@@ -1011,12 +1011,12 @@ function ReportSectionBlockSquare({
 
             {/* Right Pane: Layer chosen in Item 8 */}
             <div className="min-w-0">
-              <div className="bg-slate-200 border-b border-gray-300 px-3 py-1.5 flex items-center justify-between text-[11px] font-bold text-slate-800">
+              <div className="bg-fb-control-hover border-b border-fb-border px-3 py-1.5 flex items-center justify-between text-[11px] font-bold text-fb-text-primary">
                 <div className="flex items-center gap-1.5">
-                  <span className="inline-block size-2.5 bg-slate-700" />
+                  <span className="inline-block size-2.5 bg-fb-text-secondary" />
                   <span>BÊN PHẢI: LỚP SO SÁNH ({compareLayerLabel || 'Mục 8'})</span>
                 </div>
-                <span className="bg-slate-800 text-white px-1.5 py-0.5 text-[10px] font-extrabold">
+                <span className="bg-fb-text-primary text-white px-1.5 py-0.5 text-[11px] font-extrabold">
                   {compareTotalCount ?? 0} Epic
                 </span>
               </div>
@@ -1065,7 +1065,7 @@ function SingleReportTable({
 }: SingleReportTableProps) {
   if (items.length === 0) {
     return (
-      <div className="p-3 text-center text-[11px] text-gray-500 bg-gray-50">
+      <div className="p-3 text-center text-[11px] text-fb-text-placeholder bg-fb-surface-muted">
         Không có Epic nào trong danh sách này.
       </div>
     );
@@ -1075,36 +1075,36 @@ function SingleReportTable({
     <div className="overflow-x-auto">
       <table className="w-full text-left text-[11px] border-collapse min-w-[620px]">
         <thead>
-          <tr className="border-b border-gray-300 bg-gray-100 text-black font-bold select-none">
-            <th className="px-2 py-1.5 w-7 text-center border-r border-gray-300">STT</th>
-            <th className="px-2 py-1.5 w-14 border-r border-gray-300">Project</th>
-            <th className="px-2 py-1.5 max-w-[220px] border-r border-gray-300">Epic Key / Summary</th>
-            <th className="px-2 py-1.5 w-20 border-r border-gray-300">Status</th>
-            <th className="px-2 py-1.5 min-w-[86px] whitespace-nowrap border-r border-gray-300">Start E2E</th>
-            <th className="px-2 py-1.5 min-w-[86px] whitespace-nowrap border-r border-gray-300">Start CNTT</th>
-            <th className="px-2 py-1.5 min-w-[86px] whitespace-nowrap border-r border-gray-300">R4G Date</th>
-            <th className="px-2 py-1.5 min-w-[86px] whitespace-nowrap border-r border-gray-300">Released Date</th>
+          <tr className="border-b border-fb-border bg-fb-surface-muted text-black font-bold select-none">
+            <th className="px-2 py-1.5 w-7 text-center border-r border-fb-border">STT</th>
+            <th className="px-2 py-1.5 w-14 border-r border-fb-border">Project</th>
+            <th className="px-2 py-1.5 max-w-[220px] border-r border-fb-border">Epic Key / Summary</th>
+            <th className="px-2 py-1.5 w-20 border-r border-fb-border">Status</th>
+            <th className="px-2 py-1.5 min-w-[86px] whitespace-nowrap border-r border-fb-border">Start E2E</th>
+            <th className="px-2 py-1.5 min-w-[86px] whitespace-nowrap border-r border-fb-border">Start CNTT</th>
+            <th className="px-2 py-1.5 min-w-[86px] whitespace-nowrap border-r border-fb-border">R4G Date</th>
+            <th className="px-2 py-1.5 min-w-[86px] whitespace-nowrap border-r border-fb-border">Released Date</th>
             <th className="px-2 py-1.5">{customHeader}</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-200">
+        <tbody className="divide-y divide-fb-border">
           {items.map((item, idx) => {
             const jiraHref = jiraViewIssueBaseUrl
               ? `${jiraViewIssueBaseUrl}${encodeURIComponent(item.epicKey)}`
               : null;
 
             return (
-              <tr key={item.epicKey} className="hover:bg-gray-50">
-                <td className="px-2 py-1.5 text-center font-mono text-gray-500 border-r border-gray-200">{idx + 1}</td>
-                <td className="px-2 py-1.5 font-mono font-bold text-black border-r border-gray-200">{item.projectKey}</td>
+              <tr key={item.epicKey} className="hover:bg-fb-surface-muted">
+                <td className="px-2 py-1.5 text-center font-mono text-fb-text-placeholder border-r border-fb-border">{idx + 1}</td>
+                <td className="px-2 py-1.5 font-mono font-bold text-black border-r border-fb-border">{item.projectKey}</td>
 
                 {/* COMBINED EPIC KEY WITH CLICK TO OPEN DUYỆT EPIC POPUP (LINE 1) & SUMMARY (LINE 2) */}
-                <td className="px-2 py-1.5 border-r border-gray-200">
+                <td className="px-2 py-1.5 border-r border-fb-border">
                   <div className="flex items-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => onOpenEpicBrowser(item.epicKey)}
-                      className="font-mono font-bold text-[#1463f7] hover:underline text-[11px] text-left"
+                      className="font-mono font-bold text-[var(--color-text-brand)] hover:underline text-[11px] text-left"
                       title={`Duyệt Epic — ${item.epicKey}`}
                     >
                       {item.epicKey}
@@ -1115,66 +1115,66 @@ function SingleReportTable({
                         href={jiraHref}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-gray-500 hover:text-[#1463f7]"
+                        className="text-fb-text-placeholder hover:text-[var(--color-text-brand)]"
                         title="Mở Epic trên Jira (cửa sổ mới)"
                       >
                         <ArrowSquareOut className="size-3 shrink-0" weight="bold" />
                       </a>
                     )}
                   </div>
-                  <div className="text-[11px] text-gray-600 truncate max-w-[220px]" title={item.summary}>
+                  <div className="text-[11px] text-fb-text-secondary truncate max-w-[220px]" title={item.summary}>
                     {item.summary}
                   </div>
                 </td>
 
                 {/* STATUS COLUMN WITH SPECIFIC TEXT COLOR RULES */}
-                <td className={`px-2 py-1.5 font-bold border-r border-gray-200 ${getStatusTextColorClass(item.status)}`}>
+                <td className={`px-2 py-1.5 font-bold border-r border-fb-border ${getStatusTextColorClass(item.status)}`}>
                   {item.status}
                 </td>
 
                 {/* Start E2E with CaretRight icon per standard */}
-                <td className="px-2 py-1.5 font-mono whitespace-nowrap border-r border-gray-200">
+                <td className="px-2 py-1.5 font-mono whitespace-nowrap border-r border-fb-border">
                   {item.ideaApprovedDate ? (
                     <span className="inline-flex items-center gap-1">
-                      <CaretRight className="size-3 text-[#64748b] shrink-0" weight="bold" />
+                      <CaretRight className="size-3 text-[var(--color-text-secondary)] shrink-0" weight="bold" />
                       <span>{item.ideaApprovedDate}</span>
                     </span>
                   ) : '-'}
                 </td>
 
                 {/* Start CNTT with CaretLineRight icon per standard */}
-                <td className="px-2 py-1.5 font-mono whitespace-nowrap border-r border-gray-200">
+                <td className="px-2 py-1.5 font-mono whitespace-nowrap border-r border-fb-border">
                   {item.startDate ? (
                     <span className="inline-flex items-center gap-1">
-                      <CaretLineRight className="size-3 text-[#64748b] shrink-0" weight="bold" />
+                      <CaretLineRight className="size-3 text-[var(--color-text-secondary)] shrink-0" weight="bold" />
                       <span>{item.startDate}</span>
                     </span>
                   ) : '-'}
                 </td>
 
                 {/* R4G Date with Checks icon per standard */}
-                <td className="px-2 py-1.5 font-mono whitespace-nowrap border-r border-gray-200">
+                <td className="px-2 py-1.5 font-mono whitespace-nowrap border-r border-fb-border">
                   {item.r4gDate ? (
                     <span className="inline-flex items-center gap-1">
                       <Checks className="size-3 text-[#000000] shrink-0" weight="bold" />
                       <span>{item.r4gDate}</span>
                     </span>
                   ) : isFailTable ? (
-                    <span className="text-red-700 font-semibold text-[11px]">Thiếu thông tin</span>
+                    <span className="text-status-danger font-semibold text-[11px]">Thiếu thông tin</span>
                   ) : (
                     '-'
                   )}
                 </td>
 
                 {/* Released Date with Checks icon per standard */}
-                <td className="px-2 py-1.5 font-mono whitespace-nowrap border-r border-gray-200">
+                <td className="px-2 py-1.5 font-mono whitespace-nowrap border-r border-fb-border">
                   {item.releasedDate ? (
                     <span className="inline-flex items-center gap-1">
                       <Checks className="size-3 text-[#000000] shrink-0" weight="bold" />
                       <span>{item.releasedDate}</span>
                     </span>
                   ) : isFailTable ? (
-                    <span className="text-red-700 font-semibold text-[11px]">Thiếu thông tin</span>
+                    <span className="text-status-danger font-semibold text-[11px]">Thiếu thông tin</span>
                   ) : (
                     '-'
                   )}
@@ -1211,51 +1211,51 @@ function ComparisonChartCard({
   const diff = primaryCount - compareCount;
 
   return (
-    <div className="rounded-none border border-black bg-gray-50 p-2.5 flex flex-col justify-between">
+    <div className="rounded-none border border-black bg-fb-surface-muted p-2.5 flex flex-col justify-between">
       {/* Title */}
-      <div className="border-b border-gray-300 pb-1.5 text-center">
+      <div className="border-b border-fb-border pb-1.5 text-center">
         <h3 className="text-[11px] font-bold text-black uppercase tracking-tight truncate" title={title}>
           {title}
         </h3>
-        <div className="mt-0.5 flex items-center justify-center gap-1 text-[10px] font-semibold">
-          <span className="text-gray-500">Chênh lệch:</span>
+        <div className="mt-0.5 flex items-center justify-center gap-1 text-[11px] font-semibold">
+          <span className="text-fb-text-placeholder">Chênh lệch:</span>
           {diff > 0 ? (
-            <span className="text-blue-700 font-bold">+{diff}</span>
+            <span className="text-fb-blue font-bold">+{diff}</span>
           ) : diff < 0 ? (
-            <span className="text-red-600 font-bold">{diff}</span>
+            <span className="text-status-danger font-bold">{diff}</span>
           ) : (
-            <span className="text-gray-700 font-bold">0</span>
+            <span className="text-fb-text-secondary font-bold">0</span>
           )}
         </div>
       </div>
 
       {/* Column Chart Area */}
-      <div className="h-28 flex items-end justify-center gap-4 px-2 pt-2 pb-1 border-b border-gray-200">
+      <div className="h-28 flex items-end justify-center gap-4 px-2 pt-2 pb-1 border-b border-fb-border">
         {/* Primary Bar (Mục 7) */}
         <div className="flex flex-col items-center justify-end h-full w-1/2 max-w-[44px]">
-          <span className="text-[11px] font-extrabold text-[#1463f7] mb-0.5">{primaryCount}</span>
+          <span className="text-[11px] font-extrabold text-[var(--color-text-brand)] mb-0.5">{primaryCount}</span>
           <div
-            className="w-full bg-[#1463f7] border border-blue-800 transition-all duration-300"
+            className="w-full bg-[var(--color-text-brand)] border border-fb-blue transition-all duration-300"
             style={{ height: `${Math.max(primaryCount > 0 ? 6 : 2, h1Percent * 0.78)}%` }}
           />
         </div>
 
         {/* Compare Bar (Mục 8) */}
         <div className="flex flex-col items-center justify-end h-full w-1/2 max-w-[44px]">
-          <span className="text-[11px] font-extrabold text-slate-800 mb-0.5">{compareCount}</span>
+          <span className="text-[11px] font-extrabold text-fb-text-primary mb-0.5">{compareCount}</span>
           <div
-            className="w-full bg-slate-700 border border-slate-900 transition-all duration-300"
+            className="w-full bg-fb-text-secondary border border-fb-border-strong transition-all duration-300"
             style={{ height: `${Math.max(compareCount > 0 ? 6 : 2, h2Percent * 0.78)}%` }}
           />
         </div>
       </div>
 
       {/* X-Axis Labels */}
-      <div className="flex items-center justify-between pt-1 text-[10px] font-bold">
-        <span className="text-[#1463f7] truncate text-center w-1/2" title={`Lớp chính: ${primaryLabel}`}>
+      <div className="flex items-center justify-between pt-1 text-[11px] font-bold">
+        <span className="text-[var(--color-text-brand)] truncate text-center w-1/2" title={`Lớp chính: ${primaryLabel}`}>
           {primaryLabel.length > 5 ? primaryLabel.slice(5) : primaryLabel}
         </span>
-        <span className="text-slate-700 truncate text-center w-1/2" title={`Lớp so sánh: ${compareLabel}`}>
+        <span className="text-fb-text-secondary truncate text-center w-1/2" title={`Lớp so sánh: ${compareLabel}`}>
           {compareLabel.length > 5 ? compareLabel.slice(5) : compareLabel}
         </span>
       </div>
@@ -1276,24 +1276,24 @@ function ReportComparisonChartsRow({
   return (
     <div className="rounded-none border border-black p-3 bg-white space-y-3 print:break-inside-avoid">
       {/* Header & Legend */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-300 pb-2 gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-fb-border pb-2 gap-2">
         <div className="flex items-center gap-2">
-          <ChartBar className="size-4 text-[#1463f7]" weight="bold" />
+          <ChartBar className="size-4 text-[var(--color-text-brand)]" weight="bold" />
           <span className="text-xs font-extrabold uppercase text-black">
             BIỂU ĐỒ CỘT SO SÁNH TỔNG SỐ EPIC (MỤC 2, 3, 4, 5)
           </span>
         </div>
         <div className="flex items-center gap-4 text-[11px] font-semibold">
           <div className="flex items-center gap-1.5">
-            <span className="inline-block size-3 bg-[#1463f7] border border-blue-800" />
-            <span className="text-gray-700">
-              Lớp chính (Mục 7): <strong className="text-[#1463f7]">{primaryLabel}</strong>
+            <span className="inline-block size-3 bg-[var(--color-text-brand)] border border-fb-blue" />
+            <span className="text-fb-text-secondary">
+              Lớp chính (Mục 7): <strong className="text-[var(--color-text-brand)]">{primaryLabel}</strong>
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="inline-block size-3 bg-slate-700 border border-slate-900" />
-            <span className="text-gray-700">
-              Lớp so sánh (Mục 8): <strong className="text-slate-800">{compareLabel}</strong>
+            <span className="inline-block size-3 bg-fb-text-secondary border border-fb-border-strong" />
+            <span className="text-fb-text-secondary">
+              Lớp so sánh (Mục 8): <strong className="text-fb-text-primary">{compareLabel}</strong>
             </span>
           </div>
         </div>

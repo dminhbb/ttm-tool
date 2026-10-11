@@ -212,7 +212,7 @@ export function ScoringParityPanel() {
                 {engine.updatedAt && <span className="text-[12px] font-normal text-fb-text-secondary">đổi lúc {formatDateTime(engine.updatedAt)}{engine.updatedByName ? ` bởi ${engine.updatedByName}` : ''}</span>}
               </p>
               <p className="mt-1 text-[12px] text-fb-text-secondary">
-                Áp dụng cho Quản trị Epic, Epic in PO, TTM Dashboard, Dashboard, Báo cáo Epic và MCP. Màn &quot;Quản trị Epic (rút gọn)&quot; luôn dùng logic cũ.
+                Áp dụng cho Quản trị Epic, TTM Dashboard, TTM Dashboard 2, Báo cáo Epic và MCP.
               </p>
             </div>
             <Button size="sm" variant={engine.mode === 'scoring' ? 'outline' : 'primary'} isLoading={isSwitching} onClick={() => void switchEngine(engine.mode === 'scoring' ? 'legacy' : 'scoring')}>

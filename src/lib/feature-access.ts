@@ -13,11 +13,7 @@ const PAGE_FEATURES: readonly { featureKey: string; path: string; prefix?: boole
   { path: '/', featureKey: 'data_source' },
   { path: '/data-review', featureKey: 'data_source', prefix: true },
   { path: '/ttm-dashboard-2', featureKey: 'ttm_dashboard_2' },
-  { path: '/dashboard-new', featureKey: 'dashboard_new' },
-  { path: '/dashboard', featureKey: 'dashboard' },
   { path: '/epic-alerts-15', featureKey: 'epic_alerts_15' },
-  { path: '/epic-alerts', featureKey: 'epic_alerts_30' },
-  { path: '/epic-in-po', featureKey: 'epic_in_po' },
   { path: '/reports', featureKey: 'epic_reports' },
   { path: '/visit-stats', featureKey: 'visit_counter' },
   { path: '/docs/product', featureKey: 'product_docs' },
@@ -32,13 +28,12 @@ const PAGE_FEATURES: readonly { featureKey: string; path: string; prefix?: boole
 
 /**
  * Data APIs that serve exactly one page, so denying the page's "Xem" also denies its data. Shared
- * APIs (e.g. /api/epic-alerts-15, used by Quản trị Epic, Epic in PO and the dashboards' drill-down
+ * APIs (e.g. /api/epic-alerts-15, used by Quản trị Epic and the dashboards' drill-down
  * popups; /api/projects, /api/users…) are left to their own role checks — blocking them for one
  * screen would break the others.
  */
 const API_FEATURES: readonly { featureKey: string; prefix: string }[] = [
   { prefix: '/api/ttm-dashboard-2', featureKey: 'ttm_dashboard_2' },
-  { prefix: '/api/dashboard-new', featureKey: 'dashboard_new' },
   { prefix: '/api/reports', featureKey: 'epic_reports' },
 ];
 
@@ -50,18 +45,18 @@ const API_FEATURES: readonly { featureKey: string; prefix: string }[] = [
  * listed here (its `registerTool` takes a McpToolName).
  */
 export const MCP_TOOL_FEATURES = {
-  get_dashboard_summary: { featureKeys: ['dashboard'], screen: 'Dashboard (cũ)' },
-  // Duyệt Epic (EpicBrowserModal) is opened from all five of these screens.
+  // Deprecated alias of get_ttm_dashboard (the old Dashboard screen was removed) — same data, same gate.
+  get_dashboard_summary: { featureKeys: ['ttm_dashboard_2'], screen: 'TTM Dashboard 2' },
+  // Duyệt Epic (EpicBrowserModal) is opened from both of these screens.
   get_epic_detail: {
-    featureKeys: ['epic_alerts_15', 'epic_in_po', 'epic_reports', 'dashboard_new', 'dashboard'],
-    screen: 'Quản trị Epic / Epic in PO / Báo cáo Epic / TTM Dashboard / Dashboard (cũ)',
+    featureKeys: ['epic_alerts_15', 'epic_reports'],
+    screen: 'Quản trị Epic / Báo cáo Epic',
   },
   get_product_doc_section: { featureKeys: ['product_docs'], screen: 'Tài liệu sản phẩm' },
   get_ttm_dashboard: { featureKeys: ['ttm_dashboard_2'], screen: 'TTM Dashboard 2' },
   get_ttm_policies: { featureKeys: ['status_alert_rules'], screen: 'Cấu hình cảnh báo' },
   list_domains: { featureKeys: ['domains'], screen: 'Quản lý Domain' },
-  // Both screens read the same rows from /api/epic-alerts-15 (a shared API — see API_FEATURES).
-  list_epic_alerts: { featureKeys: ['epic_alerts_15', 'epic_in_po'], screen: 'Quản trị Epic / Epic in PO' },
+  list_epic_alerts: { featureKeys: ['epic_alerts_15'], screen: 'Quản trị Epic' },
   // Ngày nghỉ / ngày làm bù live in the "Cấu hình ứng dụng" modal (feature general_settings).
   list_holidays: { featureKeys: ['general_settings'], screen: 'Cấu hình ứng dụng (Quản lý ngày nghỉ)' },
   list_projects: { featureKeys: ['projects'], screen: 'Quản lý Dự án' },
@@ -77,7 +72,7 @@ export function mcpToolViewDenied(tool: McpToolName, deniedFeatureKeys: Readonly
 }
 
 /** Where a denied page sends the user — the first of these the role may still view. */
-const LANDING_PATHS: readonly string[] = ['/ttm-dashboard-2', '/epic-alerts-15', '/reports', '/epic-in-po', '/visit-stats', '/dashboard-new'];
+const LANDING_PATHS: readonly string[] = ['/ttm-dashboard-2', '/epic-alerts-15', '/reports', '/visit-stats'];
 
 /** Shown when the role may view none of LANDING_PATHS. Never feature-gated itself. */
 export const NO_ACCESS_PATH = '/no-access';

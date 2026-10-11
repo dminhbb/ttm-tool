@@ -1,5 +1,26 @@
 # TTM Monitor Design System Specification
 
+> # ⛔ TÀI LIỆU NÀY ĐÃ HẾT HIỆU LỰC — ĐỪNG DÙNG (2026-10-10)
+>
+> **Nguồn tham chiếu thiết kế duy nhất hiện nay: [`docs/design/IAS-DESIGN-ADOPTION.md`](docs/design/IAS-DESIGN-ADOPTION.md).**
+>
+> File này vừa **lạc hậu** vừa **tự mâu thuẫn**, nên sửa UI theo nó chỉ tạo thêm lệch.
+> Cụ thể, đối chiếu với `src/app/globals.css` tại thời điểm thay thế:
+>
+> | Tài liệu này ghi | Thực tế trong code |
+> |---|---|
+> | mọi role chữ đều `11.5px`, "source of truth duy nhất" | `--text-app` là `0.875rem` = **14px** |
+> | `fb-blue: #0866ff` (xanh dương) | `--color-fb-blue` → `var(--accent)`, từng là **`#1c6e2e` xanh lá rừng** |
+> | `fb-bg: #e6ebf1` | `--surface-app` là `#e8ebe6` (xám-oliu) |
+> | font Geist qua `next/font` | thực tế là Inter — và vì lỗi specificity `font-sans` trên `<body>`, app render bằng **Segoe UI** |
+> | radius card `8px` | `--radius-xl`/`--radius-2xl` bị đè thành **24px** |
+>
+> Nó còn xếp **ba** visual language lên nhau trong cùng một file: "Gecko-inspired
+> foundation", "phong cách Facebook + frosted glass", và một bảng token thứ ba —
+> không phần nào trong đó là thứ `globals.css` đang implement.
+>
+> Giữ lại chỉ để tra lịch sử. **Mọi quy tắc bên dưới đã bị thay thế.**
+
 > Cập nhật 2026-08-09 — `gecko-inspired-ui-skill` thay thế visual language Facebook/frosted-glass trước đây. Khi có mâu thuẫn, quy tắc dưới đây và token Gecko-inspired được ưu tiên.
 
 ## Gecko-inspired foundation

@@ -85,5 +85,3 @@ export function AppConfigModal({ isOpen, onClose }: AppConfigModalProps) {
     </div>
   );
 }
-
-export { AppConfigModal as GeneralSettingsModal };

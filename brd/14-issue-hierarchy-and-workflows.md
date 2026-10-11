@@ -38,5 +38,5 @@ To Do → In Progress → Done
 
 - Import chỉ cảnh báo khi status không thuộc workflow của cấp tương ứng; không loại bỏ row chỉ vì cảnh báo này.
 - Story thiếu Epic Link được cảnh báo. Subtask thiếu thông tin cha/Epic được cảnh báo để phục vụ rà soát dữ liệu.
-- API `POST /api/epic-compliance` nhận literal Issue Type Jira thay vì chỉ ba nhãn cố định và trả về `hierarchyLevel` cùng metadata `workflow`.
+- (Đã gỡ 11/10/2026) API `POST /api/epic-compliance` nhận literal Issue Type Jira thay vì chỉ ba nhãn cố định và trả về `hierarchyLevel` cùng metadata `workflow`.
 - Trang Duyệt dữ liệu hiển thị Epic/CTNB ở tầng gốc, Story/Task/Enabler Story là tầng hai, và toàn bộ loại còn lại ở tầng Subtask.

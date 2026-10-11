@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard danh mục dự án — PMS Platform</title>
+<link rel="stylesheet" href="assets/pms-tokens.css">
+<link rel="stylesheet" href="assets/pms-ias.css">
+<script src="assets/pms-icons.js"></script>
+</head>
+<body data-active-nav="dashboard" data-title="Dashboard danh mục dự án"
+      data-subtitle="Bức tranh toàn bộ danh mục dự án CNTT — cập nhật đến 10/10/2026">
+<div id="pms-page">
+
+  <div class="dc-grid" id="kpi"></div>
+
+  <div class="grid-2">
+    <div class="d-card">
+      <div class="d-card-header">
+        <div class="d-card-title">Phân bổ theo domain</div>
+        <div class="d-card-tools"><span class="hcm-caption t-muted">màu thể hiện sức khoẻ dự án</span></div>
+      </div>
+      <div class="d-card-body">
+        <div class="barlist" id="by-domain"></div>
+        <div class="legend mt-16" id="legend"></div>
+      </div>
+    </div>
+
+    <div class="d-card">
+      <div class="d-card-header">
+        <div class="d-card-title">Phân bổ theo giai đoạn</div>
+      </div>
+      <div class="d-card-body">
+        <div class="barlist" id="by-phase"></div>
+        <div class="divider"></div>
+        <div class="metric-grid" id="cost-block"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-card">
+    <div class="d-card-header">
+      <div class="d-card-title">Dự án cần chú ý <span class="status st-error status-sm" id="attn-count"></span></div>
+      <div class="d-card-tools">
+        <a class="btn btn-outline btn-sm" href="02-project-list.html">
+          <span class="msym" style="font-size:16px">list</span>Xem toàn bộ danh mục
+        </a>
+      </div>
+    </div>
+    <div class="d-card-body">
+      <div class="table-wrap"><div class="table-inner" id="attn-wrap">
+        <table style="min-width:1080px">
+          <thead><tr>
+            <th style="width:96px">Mã dự án</th>
+            <th style="min-width:230px">Tên dự án</th>
+            <th style="min-width:170px">Tiến độ / lệch</th>
+            <th style="min-width:320px">Vấn đề nổi bật</th>
+            <th style="min-width:150px">Project Manager</th>
+            <th style="min-width:130px">Sức khoẻ</th>
+          </tr></thead>
+          <tbody id="attn-body"></tbody>
+        </table>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="d-card">
+    <div class="d-card-header">
+      <div class="d-card-title">Top rủi ro toàn danh mục</div>
+      <div class="d-card-tools"><span class="hcm-caption t-muted">5 rủi ro điểm cao nhất đang mở</span></div>
+    </div>
+    <div class="d-card-body">
+      <div class="table-wrap"><div class="table-inner" id="risk-wrap">
+        <table style="min-width:1180px">
+          <thead><tr>
+            <th style="width:96px">Dự án</th>
+            <th style="width:82px">Mã rủi ro</th>
+            <th style="min-width:340px">Nội dung rủi ro</th>
+            <th style="min-width:170px">Phân loại</th>
+            <th style="width:120px">P × I</th>
+            <th style="min-width:130px">Mức rủi ro</th>
+            <th style="min-width:160px">Người phụ trách</th>
+          </tr></thead>
+          <tbody id="risk-body"></tbody>
+        </table>
+      </div></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="assets/pms-util.js"></script>
+<script src="assets/pms-ui.js"></script>
+<script src="assets/mock-data.js"></script>
+<script src="assets/pms-shell.js"></script>
+<script>
+const E = MBUtil.esc;
+const K = MBData.portfolio();
+
+PMSShell.setHeaderActions(
+  '<button class="btn btn-outline" id="hdr-history"><span class="msym" style="font-size:16px">history</span>Lịch sử</button>'
+  + '<a class="btn btn-primary" href="03-project-create.html"><span class="msym" style="font-size:16px">add</span>Khai báo dự án</a>'
+);
+document.getElementById('hdr-history').addEventListener('click', () =>
+  PMSNotify.info('Lịch sử danh mục', 'Minh hoạ trong mockup.'));
+
+/* ───────────────────────────── DataCard (KPI tiles) ────────────────────── */
+const KPIS = [
+  { label: 'Tổng dự án trong danh mục', icon: 'folder_copy', value: K.total, foot: K.active + ' đang triển khai · ' + K.declared + ' mới khai báo', accent: 'brand' },
+  { label: 'Đúng tiến độ', icon: 'check_circle', value: K.onTrack, foot: 'lệch không quá 3% so với kỳ vọng', accent: 'success' },
+  { label: 'Chậm tiến độ', icon: 'schedule', value: K.late, foot: 'cần phương án khắc phục', accent: 'warning' },
+  { label: 'Rủi ro cao', icon: 'local_fire_department', value: K.highRisk, foot: 'cần báo cáo cấp Khối', accent: 'error' },
+  { label: 'Mới khai báo', icon: 'note-pencil', value: K.declared, foot: 'đã vào danh mục, chưa bắt đầu triển khai', accent: '' },
+  { label: 'Nhân sự huy động', icon: 'groups', value: K.totalFte, foot: 'FTE trên toàn danh mục', accent: 'brand' }
+];
+document.getElementById('kpi').innerHTML = KPIS.map(k =>
+  '<div class="data-card' + (k.accent ? ' dc-accent-' + k.accent : '') + '">'
+  + '<div class="dc-head"><span class="msym">' + k.icon + '</span>' + E(k.label) + '</div>'
+  + '<div class="dc-value">' + k.value + '</div>'
+  + '<div class="dc-foot">' + E(k.foot) + '</div></div>').join('');
+
+/* ──────────────── Phân bổ danh mục (bespoke, chỉ dùng token) ───────────── */
+const HEALTH_COLOR = {
+  'Tốt': 'var(--color-bg-success-solid)',
+  'Cần chú ý': 'var(--color-bg-warning-solid)',
+  'Rủi ro cao': 'var(--color-bg-error-solid)',
+  'Chưa đánh giá': 'var(--color-text-muted)'
+};
+document.getElementById('legend').innerHTML = Object.keys(HEALTH_COLOR).map(h =>
+  '<span class="legend-item"><span class="legend-sw" style="background:' + HEALTH_COLOR[h] + '"></span>'
+  + E(h) + '</span>').join('');
+
+function barlist(targetId, keyFn) {
+  const groups = {};
+  MBData.projects.forEach(p => { const k = keyFn(p); (groups[k] = groups[k] || []).push(p); });
+  const max = Math.max.apply(null, Object.keys(groups).map(k => groups[k].length));
+  document.getElementById(targetId).innerHTML = Object.keys(groups)
+    .sort((a, b) => groups[b].length - groups[a].length).map(k => {
+      const list = groups[k];
+      const segs = Object.keys(HEALTH_COLOR).map(h => {
+        const n = list.filter(p => p.health === h).length;
+        return n ? '<span class="stackbar-seg" style="flex:' + n + ';background:' + HEALTH_COLOR[h] + '"></span>' : '';
+      }).join('');
+      return '<div class="barlist-row">'
+        + '<div class="barlist-label">' + E(k) + '</div>'
+        + '<div><div class="stackbar" style="width:' + Math.round(list.length / max * 100) + '%">' + segs + '</div></div>'
+        + '<div class="barlist-val">' + list.length + ' dự án</div></div>';
+    }).join('');
+}
+barlist('by-domain', p => p.domain);
+barlist('by-phase', p => p.currentPhase);
+
+/* ───────────────────────────────── chi phí ─────────────────────────────── */
+const over = K.totalCommittedCost - K.totalPlannedCost;
+document.getElementById('cost-block').innerHTML =
+  '<div class="metric"><div class="metric-label"><span class="msym" style="font-size:16px">account_balance_wallet</span>Dự toán được duyệt</div>'
+  + '<div class="metric-value">' + MBUtil.money(K.totalPlannedCost) + '</div>'
+  + '<div class="metric-note">tổng của 3 dự án đã có dữ liệu chi phí</div></div>'
+  + '<div class="metric"><div class="metric-label"><span class="msym" style="font-size:16px">trending_up</span>Cam kết hiện tại</div>'
+  + '<div class="metric-value ' + (over > 0 ? 't-error' : 't-success') + '">' + MBUtil.money(K.totalCommittedCost) + '</div>'
+  + '<div class="metric-note">vượt ' + MBUtil.money(over) + ' ('
+  + MBUtil.num((K.totalCommittedCost / K.totalPlannedCost - 1) * 100, 1) + '%) do các yêu cầu thay đổi đã duyệt</div></div>';
+
+/* ─────────────────────────────── dự án cần chú ý ───────────────────────── */
+const attn = MBData.projects
+  .filter(p => (p.status === 'Đang triển khai' && (MBData.progress(p).delta < -3 || p.health === 'Rủi ro cao')) || p.status === 'Tạm dừng')
+  .sort((a, b) => MBData.progress(a).delta - MBData.progress(b).delta);
+document.getElementById('attn-count').textContent = attn.length + ' dự án';
+document.getElementById('attn-body').innerHTML = attn.map(p => {
+  const pr = MBData.progress(p);
+  const topRisk = MBData.openRisks(p).sort((a, b) => MBData.riskScore(b) - MBData.riskScore(a))[0];
+  const issue = (p.issues || []).filter(i => i.severity === 'Cao')[0];
+  const problem = issue ? issue.title : (topRisk ? topRisk.title : 'Chưa ghi nhận vấn đề cụ thể');
+  const href = p.hasDetail ? '04-detail-overview.html?p=' + p.id : '#';
+  return '<tr>'
+    + '<td><a class="td-link" href="' + href + '">' + E(p.code) + '</a></td>'
+    + '<td class="td-truncate">' + E(p.name) + '<div class="td-sub">' + E(p.domain) + ' · ' + E(p.currentPhase) + '</div></td>'
+    + '<td>' + MBUtil.progress(pr.actual, MBData.progressTone(pr.delta))
+    + '<div class="td-sub">kỳ vọng ' + pr.expected + '% · lệch ' + MBUtil.signed(pr.delta, '%') + '</div></td>'
+    + '<td class="td-truncate">' + E(problem) + '</td>'
+    + '<td>' + MBUtil.chip(p.people.pm) + '</td>'
+    + '<td>' + MBUtil.status(p.health, MBData.healthTone(p.health)) + '</td></tr>';
+}).join('');
+
+/* ───────────────────────────────── top rủi ro ──────────────────────────── */
+document.getElementById('risk-body').innerHTML = MBData.topRisks(5).map(r => {
+  const sc = MBData.riskScore(r);
+  const lv = MBData.riskLevel(sc);
+  return '<tr>'
+    + '<td><a class="td-link" href="' + (r.project.hasDetail ? '08-detail-risk.html?p=' + r.project.id : '#') + '">'
+    + E(r.project.code) + '</a></td>'
+    + '<td class="t-muted">' + E(r.id) + '</td>'
+    + '<td class="td-truncate">' + E(r.title) + '<div class="td-sub">Ứng phó: ' + E(r.response) + '</div></td>'
+    + '<td>' + MBUtil.tag(r.category, 'neutral') + '</td>'
+    + '<td class="td-ctr t-mono">' + r.p + ' × ' + r.i + ' = <b>' + sc + '</b></td>'
+    + '<td>' + MBUtil.status(lv.label, lv.tone) + '</td>'
+    + '<td>' + MBUtil.chip(r.owner) + '</td></tr>';
+}).join('');
+
+PMSTip.bindTruncated(document.getElementById('attn-wrap'));
+PMSTip.bindTruncated(document.getElementById('risk-wrap'));
+</script>
+
+<!--
+## 📊 Component Coverage Report — Dashboard danh mục dự án
+
+| # | Element | DS Component used | Status |
+|---|---------|------------------|--------|
+| 1 | Left sidebar | AppSidebar | ✅ DS |
+| 2 | Page title + breadcrumb + subtitle + actions | PageHeader | ✅ DS |
+| 3 | 6 ô chỉ số tổng quan | DataCard | ✅ DS |
+| 4 | Khối nội dung có tiêu đề | Card (DCard shell) | ✅ DS |
+| 5 | Bảng "Dự án cần chú ý" / "Top rủi ro" | Table | ✅ DS |
+| 6 | Sức khoẻ, mức rủi ro trong ô bảng | Badge size="medium" | ✅ DS |
+| 7 | Domain / phân loại rủi ro | Tag | ✅ DS |
+| 8 | PM, người phụ trách trong ô bảng | Chips size="small" | ✅ DS |
+| 9 | Thanh tiến độ | Progress | ✅ DS |
+| 10 | Đường phân cách trong card | Divider | ✅ DS |
+| 11 | Thông báo | Notification | ✅ DS |
+| 12 | Tooltip ô bị cắt | Tooltip | ✅ DS |
+| 13 | Nút thao tác | Button (primary/outline) | ✅ DS |
+| 14 | Biểu đồ phân bổ xếp tầng theo domain/giai đoạn | — | ⚠️ Bespoke (DS không có component chart) |
+| 15 | Ô chỉ số chi phí dự toán vs cam kết | — | ⚠️ Bespoke metric tile dựng bằng token |
+
+**DS component coverage: 13 / 15 = 87%**
+Shell zones: ✅ AppSidebar · ✅ PageHeader · ❌ AppHeader (loại trừ theo mặc định của ias-design)
+
+⚠️ Quyết định cần xác nhận: màn này KHÔNG áp `DanhSachChuongTrinh` (Step 3a) vì hai bảng ở đây là
+bảng nhỏ nhúng trong card giữa nhiều card không liên quan, không phải nội dung chính dạng danh sách —
+đúng trường hợp "dashboard with one small embedded table" mà Step 3a nói là nên hỏi lại.
+
+## 🎨 Color Token Coverage — Dashboard danh mục dự án
+
+| # | Element (property) | Location | Original hex | Category | Matched Semantic Alias | Match |
+|---|---|---|---|---|---|---|
+| 1 | Nền trang | `html,body` | `#F4F6FA` | background | `--color-bg-page` | ✅ Exact |
+| 2 | Nền card / DataCard | `.d-card`, `.data-card` | `#FFFFFF` | background | `--color-bg-surface` | ✅ Exact |
+| 3 | Viền card, viền metric | `.d-card`, `.metric` | `#D9DBE9` | border | `--color-border-default` | ✅ Exact |
+| 4 | Nhãn chỉ số | `.dc-head`, `.metric-label` | `#6E7191` | text | `--color-text-secondary` | ✅ Exact |
+| 5 | Giá trị chỉ số | `.dc-value`, `.metric-value` | `#14142A` | text | `--color-text-primary` | ✅ Exact |
+| 6 | Chú thích chỉ số | `.dc-foot`, `.metric-note` | `#A0A3BD` | text | `--color-text-muted` | ✅ Exact |
+| 7 | Icon chỉ số (brand) | `.dc-accent-brand .msym` | `#141ED2` | icon | `--color-icon-brand` | ✅ Exact |
+| 8 | Icon chỉ số (success/warning/error) | `.dc-accent-*` | `#00BA88` / `#F4B740` / `#EB2D4B` | icon | `--color-icon-success` / `-warning` / `-error` | ✅ Exact |
+| 9 | Segment "Tốt" trên stackbar | `.stackbar-seg` | `#00BA88` | background | `--color-bg-success-solid` | ✅ Exact |
+| 10 | Segment "Cần chú ý" | `.stackbar-seg` | `#F4B740` | background | `--color-bg-warning-solid` | ✅ Exact |
+| 11 | Segment "Rủi ro cao" | `.stackbar-seg` | `#EB2D4B` | background | `--color-bg-error-solid` | ✅ Exact |
+| 12 | Segment "Chưa đánh giá" | `.stackbar-seg` | `#A0A3BD` | background | `--color-text-muted` dùng làm nền trung tính | ⚠️ Nearest — không có alias `--color-bg-*` cho xám trung tính đặc |
+| 13 | Nền track stackbar | `.stackbar` | `#EDF2F7` | background | `--color-neutral-200` | ⚠️ Nearest (≈95% so với `--color-bg-page`) — giữ neutral-200 như DS Progress |
+
+**Color token coverage: 11 / 13 exact, 2 ⚠️ nearest = 100% được map vào token khai báo · 0 severe gap**
+
+## 🔤 Typography Scale Coverage — Dashboard danh mục dự án
+
+| # | Text element | Rendered size / weight | Matched scale | Match | Class used? |
+|---|---|---|---|---|---|
+| 1 | Page title | 20px / 700 | H4 (22px/500) | ⚠️ Nearest — spec riêng của PageHeader | ❌ `.page-title` |
+| 2 | Page subtitle | 13px / 400 | Body 2 (14px/400) | ⚠️ Nearest — spec riêng của PageHeader | ❌ `.page-subtitle` |
+| 3 | Tiêu đề card | 16px / 700 | Subtitle 1 (16px/600) | ⚠️ Nearest | ✅ `.d-card-title` dùng `--type-subtitle1-size` |
+| 4 | Nhãn chỉ số | 12px / 600 | Caption (12px/500) | ⚠️ Nearest | ✅ `.dc-head` dùng token caption size |
+| 5 | Giá trị chỉ số lớn | 22px / 700 | H4 (22px/500) | ⚠️ Nearest (khớp size, lệch weight) | ✅ `.dc-value` dùng `--type-h4-size` |
+| 6 | Giá trị metric | 18px / 700 | H5 (18px/500) | ⚠️ Nearest | ✅ `.metric-value` dùng `--type-h5-size` |
+| 7 | Chú thích card / legend | 12px / 500 | Caption (12px/500) | ✅ Exact | ✅ `class="hcm-caption"` |
+| 8 | Header / ô bảng | 11px/700 · 13px/400 | Overline · Body 2 | ⚠️ Nearest — spec riêng của Table | ❌ `.table-inner th/td` |
+
+**Typography scale coverage: 8 / 8 = 100% · Utility-class adoption: 5 / 8 = 63%**
+-->
+</body>
+</html>

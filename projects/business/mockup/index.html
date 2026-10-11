@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup module Quản lý dự án — PMS Platform</title>
+<link rel="stylesheet" href="assets/pms-tokens.css">
+<link rel="stylesheet" href="assets/pms-ias.css">
+<script src="assets/pms-icons.js"></script>
+</head>
+<body data-active-nav="" data-title="Mockup module Quản lý dự án"
+      data-subtitle="Prototype HTML tĩnh dựng theo MB Internal Design System (skill ias-design)">
+<div id="pms-page">
+
+  <div class="alert alert-info">
+    <span class="msym">info</span>
+    <div><b>Prototype HTML tĩnh, không phải sản phẩm đã triển khai.</b><br>
+      Mục đích: chốt luồng nghiệp vụ và layout 6 cấu phần của module Quản lý dự án trước khi viết code
+      Next.js và trước khi thiết kế schema <code>project.*</code>. Dữ liệu mẫu nằm trong
+      <code>assets/mock-data.js</code>; mọi thay đổi chỉ sống trong phiên làm việc của tab đang mở.
+      Toàn bộ font và icon đều self-host (<code>src/app/fonts/</code>, <code>assets/pms-icons.js</code>) —
+      mở file bằng trình duyệt là chạy, <b>không cần internet</b>.</div>
+  </div>
+
+  <div class="d-card">
+    <div class="d-card-header"><div class="d-card-title">Phạm vi: dừng ở bước khai báo</div></div>
+    <div class="d-card-body">
+      <p style="margin:0 0 12px;font-size:13px;line-height:1.7;color:var(--color-text-body)">
+        Module <b>không có bước phê duyệt</b>. Nội dung dừng ở mức khai báo và theo dõi: đưa dự án vào
+        danh mục, sửa khai báo, theo dõi 6 cấu phần, đổi trạng thái khi vòng đời dự án thay đổi.
+        Vì vậy bản này đã bỏ màn "Phê duyệt dự án", bỏ nút Gửi duyệt / Trình phê duyệt và bỏ trạng thái
+        "Chờ phê duyệt" / "Từ chối".
+      </p>
+      <div class="row row-wrap" style="gap:8px">
+        <span class="status st-purple">Mới khai báo</span>
+        <span class="msym" style="font-size:16px;color:var(--color-icon-muted)">arrow_forward</span>
+        <span class="status st-blue">Đang triển khai</span>
+        <span class="msym" style="font-size:16px;color:var(--color-icon-muted)">arrow_forward</span>
+        <span class="status st-neutral">Tạm dừng</span>
+        <span class="msym" style="font-size:16px;color:var(--color-icon-muted)">arrow_forward</span>
+        <span class="status st-success">Hoàn thành</span>
+      </div>
+      <div class="metric-note mt-12">4 trạng thái này là toàn bộ vòng đời được mô phỏng
+        (<code>MBData.STATUSES</code>). Trạng thái do PM đổi trực tiếp ở màn Chỉnh sửa.</div>
+    </div>
+  </div>
+
+  <div class="d-card">
+    <div class="d-card-header"><div class="d-card-title">Luồng demo end-to-end</div></div>
+    <div class="d-card-body">
+      <ol style="margin:0;padding-left:22px;line-height:2.1;font-size:13px;color:var(--color-text-body)">
+        <li><b>Dashboard danh mục</b> → nhìn toàn bộ danh mục, phát hiện dự án lệch tiến độ và rủi ro cao.</li>
+        <li><b>Danh mục dự án</b> → dải phân loại danh mục, tìm kiếm nâng cao, xem nhanh bằng Drawer, mở chi tiết.</li>
+        <li><b>Khai báo dự án</b> (5 bước) → điền thông tin, đăng ký OKR, chốt phạm vi, áp checklist mẫu,
+          lưu là dự án vào danh mục.</li>
+        <li><b>Chi tiết dự án</b> → đi qua 6 cấu phần: thông tin chung → checklist → tiến độ → phạm vi →
+          rủi ro → chất lượng &amp; hiệu quả.</li>
+        <li><b>Chỉnh sửa dự án</b> → sửa khai báo và đổi trạng thái vòng đời.</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="d-card">
+    <div class="d-card-header">
+      <div class="d-card-title">10 màn hình</div>
+      <div class="d-card-tools"><span class="hcm-caption t-muted">mỗi thẻ kèm ghi chú cần review</span></div>
+    </div>
+    <div class="d-card-body"><div class="hub-grid" id="hub"></div></div>
+  </div>
+
+  <div class="d-card">
+    <div class="d-card-header"><div class="d-card-title">Tuân thủ MB Internal Design System</div></div>
+    <div class="d-card-body">
+      <div class="grid-2">
+        <div>
+          <div class="hcm-subtitle2 mb-8">Nền tảng lấy từ skill <code>ias-design</code></div>
+          <ul style="margin:0;padding-left:20px;line-height:2;font-size:13px;color:var(--color-text-body)">
+            <li>Primary <code>#141ED2</code>, nền trang <code>#F4F6FA</code>, sidebar <code>#0D0D2B</code>.</li>
+            <li>Font brand <b>Averta Std CY</b> — dùng chung 3 weight WOFF2 đã subset của app
+              (<code>src/app/fonts/</code>, weight 400/600/700), khai báo <code>--font-family-body</code>
+              trên <code>:root</code>. Weight 300/500 render bằng 400, 800 render bằng 700.</li>
+            <li>Icon <b>Phosphor Icons</b> inline SVG, self-host — đúng chuẩn icon của dự án
+              (<code>AGENTS.md</code>) và không gọi CDN.</li>
+            <li>Toàn bộ màu đi qua <b>Semantic Alias token</b>, không hard-code hex ngoài token.</li>
+            <li>Card: trắng, viền 1px, radius 12px, không shadow.</li>
+            <li><code>AppHeader</code> (top bar) <b>bị loại trừ</b> trên mọi màn hình theo quyết định
+              thiết kế thường trực của DS.</li>
+          </ul>
+        </div>
+        <div>
+          <div class="hcm-subtitle2 mb-8">Template bắt buộc đã áp</div>
+          <ul style="margin:0;padding-left:20px;line-height:2;font-size:13px;color:var(--color-text-body)">
+            <li><code>IasLayout</code> → AppSidebar + PageHeader cho cả 10 màn.</li>
+            <li><code>DanhSachChuongTrinh</code> → màn 02 (ListPanel + ToolbarSimple ⇄ FilterCard +
+              Table + Pagination đủ 4 phần).</li>
+            <li><code>XemChiTiet</code> → màn 04–09 (field-grid chỉ xem + DetailFooter).</li>
+            <li><code>ChinhSua</code> → màn 10 (lưới nhập liệu 4 cột, footer Đóng · Lưu).</li>
+            <li><code>Modal</code> → mọi hộp thoại (overlay phủ toàn màn, footer canh giữa).</li>
+            <li><code>Steps</code> → wizard màn 03.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="hcm-subtitle2 mb-8">Phần bespoke (DS không có component tương đương)</div>
+      <div class="row row-wrap" style="gap:8px">
+        <span class="tag tag-neutral">Dải phân loại danh mục</span>
+        <span class="tag tag-neutral">Gantt baseline vs thực tế</span>
+        <span class="tag tag-neutral">Ma trận rủi ro 5×5</span>
+        <span class="tag tag-neutral">Dòng checklist 4 trạng thái</span>
+        <span class="tag tag-neutral">Biểu đồ phân bổ xếp tầng</span>
+        <span class="tag tag-neutral">Sparkline xu hướng chất lượng</span>
+        <span class="tag tag-neutral">section-switcher (từ XemChiTiet)</span>
+      </div>
+      <div class="metric-note mt-8">Tất cả đều chỉ dùng semantic alias token, theo SKILL.md Step 2
+        "no equivalent → build with DS tokens only". Mỗi file HTML có 3 coverage report ở cuối
+        (component · color token · typography scale).</div>
+    </div>
+  </div>
+
+  <div class="d-card">
+    <div class="d-card-header"><div class="d-card-title">Cấu trúc file</div></div>
+    <div class="d-card-body">
+      <pre class="metric-note" style="margin:0;line-height:1.9;font-family:var(--font-family-code)">assets/pms-tokens.css     token color · spacing · typography + @font-face Averta
+assets/pms-ias.css        component layer lấy từ template ias-design
+assets/pms-icons.js       icon Phosphor dạng inline SVG (sinh bởi scripts/gen-mockup-icons.mjs)
+assets/pms-shell.js       AppSidebar + PageHeader (IasLayout)
+assets/pms-detail.js      khung chung 6 màn chi tiết (XemChiTiet)
+assets/pms-ui.js          Modal · Notification · Tooltip · RowMenu · Drawer · Select panel
+assets/pms-util.js        format ngày/số, helper Badge · Tag · Chips · Progress
+assets/mock-data.js       10 dự án, 6 cấu phần, checklist mẫu 26 hạng mục
+assets/gantt.js           Gantt engine (bespoke, tokens only)
+assets/heatmap.js         ma trận rủi ro 5×5 (bespoke, tokens only)
+../../../src/app/fonts/   Averta Std CY — 3 weight WOFF2 subset, dùng chung với app</pre>
+    </div>
+  </div>
+
+</div>
+
+<script src="assets/pms-util.js"></script>
+<script src="assets/pms-ui.js"></script>
+<script src="assets/mock-data.js"></script>
+<script src="assets/pms-shell.js"></script>
+<script>
+const SCREENS = [
+  { no: '01', file: '01-portfolio-dashboard.html', title: 'Dashboard danh mục',
+    tpl: 'IasLayout', desc: 'KPI toàn danh mục, phân bổ theo domain và giai đoạn, dự án cần chú ý, top rủi ro.',
+    note: 'Lãnh đạo cần thấy chỉ số nào ngay màn đầu?' },
+  { no: '02', file: '02-project-list.html', title: 'Danh mục dự án',
+    tpl: 'DanhSachChuongTrinh', desc: 'Dải phân loại danh mục, ToolbarSimple ⇄ FilterCard, bảng 8 cột, Drawer xem nhanh, RowMenu, phân trang đủ 4 phần.',
+    note: 'Bảng đã đủ thông tin để triage danh mục chưa?' },
+  { no: '03', file: '03-project-create.html', title: 'Khai báo dự án (5 bước)',
+    tpl: 'Steps + ChinhSua', desc: 'Thông tin chung → OKR &amp; nhân sự → Phạm vi → Áp checklist mẫu → Xác nhận &amp; lưu.',
+    note: 'Field nào bắt buộc ở bước nào?' },
+  { no: '04', file: '04-detail-overview.html?p=PMP', title: 'Chi tiết · Thông tin chung',
+    tpl: 'XemChiTiet', desc: 'Field khai báo, OKR kèm mức đạt, nhân sự, thành viên, liên kết Jira/OPMS.',
+    note: 'Thiếu thông tin nào mà PM cần xem thường xuyên?' },
+  { no: '05', file: '05-detail-checklist.html?p=PMP', title: 'Chi tiết · Checklist',
+    tpl: 'XemChiTiet', desc: '26 hạng mục theo 6 giai đoạn, 4 trạng thái, giao phẩm, hạn và cảnh báo quá hạn.',
+    note: 'Bộ checklist mẫu đã đủ cho dự án MB chưa?' },
+  { no: '06', file: '06-detail-schedule.html?p=CBU', title: 'Chi tiết · Tiến độ (Gantt)',
+    tpl: 'XemChiTiet', desc: 'Gantt baseline vs thực tế, milestone, mũi tên phụ thuộc, đường hôm nay, zoom tuần/tháng/quý.',
+    note: 'Mở sẵn CBU để thấy chuỗi trễ đẩy go-live.' },
+  { no: '07', file: '07-detail-scope.html?p=PMP', title: 'Chi tiết · Quản lý phạm vi',
+    tpl: 'XemChiTiet', desc: 'Scope baseline in/out, log CR kèm tác động ngày / chi phí / FTE, chỉ số scope creep.',
+    note: 'Tác động CR cần theo dõi những chiều nào?' },
+  { no: '08', file: '08-detail-risk.html?p=CBU', title: 'Chi tiết · Quản lý rủi ro',
+    tpl: 'XemChiTiet', desc: 'Ma trận 5×5 bấm để lọc, risk register tự chấm P×I, bảng vấn đề/điểm nghẽn.',
+    note: 'Thang điểm và ngưỡng mức rủi ro đã đúng chuẩn MB?' },
+  { no: '09', file: '09-detail-quality.html?p=PMP', title: 'Chi tiết · Chất lượng &amp; hiệu quả',
+    tpl: 'XemChiTiet', desc: 'Chỉ số chất lượng so ngưỡng, review giai đoạn, OKR, TTM index, chi phí, hiệu quả sau go-live.',
+    note: 'Chỉ số nào MB thực sự đo được hôm nay?' },
+  { no: '10', file: '10-detail-edit.html?p=PMP', title: 'Chỉnh sửa dự án',
+    tpl: 'ChinhSua', desc: 'Lưới nhập liệu 4 cột, bảng OKR/thành viên sửa trực tiếp, đổi trạng thái vòng đời, footer Đóng · Lưu thay đổi.',
+    note: 'Ai được sửa field nào? (phân quyền chưa mô phỏng)' }
+];
+
+document.getElementById('hub').innerHTML = SCREENS.map(s =>
+  '<a class="hub-card" href="' + s.file + '">'
+  + '<div class="row" style="gap:8px"><span class="hub-no">' + s.no + '</span>'
+  + '<span class="tag tag-neutral">' + s.tpl + '</span></div>'
+  + '<div class="hcm-subtitle1 t-primary">' + s.title + '</div>'
+  + '<div class="metric-note" style="flex:1">' + s.desc + '</div>'
+  + '<div class="hcm-caption t-secondary"><span class="msym" style="font-size:14px;vertical-align:-2px">'
+  + 'chat_bubble</span> ' + s.note + '</div>'
+  + '<div class="hcm-caption t-brand" style="font-weight:600">Mở màn hình '
+  + '<span class="msym" style="font-size:14px;vertical-align:-3px">arrow_forward</span></div></a>'
+).join('');
+</script>
+</body>
+</html>

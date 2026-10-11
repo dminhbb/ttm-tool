@@ -237,7 +237,7 @@ export function ApiKeysPanel() {
                               className="text-fb-text-secondary hover:text-fb-text-primary p-1 rounded hover:bg-fb-control"
                               title="Sao chép API Key"
                             >
-                              {isCopied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                              {isCopied ? <Check className="w-4 h-4 text-status-success" /> : <Copy className="w-4 h-4" />}
                             </button>
                           </div>
                         </TD>
@@ -311,7 +311,7 @@ export function ApiKeysPanel() {
           {/* API Key Password input with Eye icon toggle */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-fb-text-secondary">
-              Mã API Key <span className="text-red-500">*</span>
+              Mã API Key <span className="text-status-danger">*</span>
             </label>
             <div className="relative flex items-center">
               <input

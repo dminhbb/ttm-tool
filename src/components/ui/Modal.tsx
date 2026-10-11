@@ -1,4 +1,7 @@
+'use client';
+
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { X } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
@@ -13,7 +16,7 @@ import type { Icon } from '@phosphor-icons/react';
  * card) builds on the same pieces instead — MODAL_BACKDROP_CLASS, MODAL_FRAME_CLASS, ModalHeader and
  * useModalBehavior — so it can't drift from the shared look.
  */
-export const MODAL_BACKDROP_CLASS = 'absolute inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-200';
+export const MODAL_BACKDROP_CLASS = 'absolute inset-0 bg-fb-text-primary/60 backdrop-blur-xs transition-opacity duration-200';
 export const MODAL_FRAME_CLASS = 'relative z-10 flex flex-col rounded-2xl border border-fb-border bg-fb-surface text-fb-text-primary shadow-2xl';
 
 /** Open popups, bottom → top. Only the top one answers Escape, and the page scrolls again only once
@@ -102,6 +105,9 @@ export interface ModalProps {
   layer?: 'default' | 'top';
 }
 
+/** useSyncExternalStore subscription for a value that never changes after hydration. */
+const subscribeNever = () => () => undefined;
+
 export const Modal = ({
   isOpen,
   onClose,
@@ -112,13 +118,16 @@ export const Modal = ({
   icon,
   layer = 'default',
 }: ModalProps) => {
+  // false during SSR and the hydration pass, true afterwards — the portal is only created on the
+  // client, without a setState-in-effect.
+  const mounted = React.useSyncExternalStore(subscribeNever, () => true, () => false);
   const titleId = React.useId();
   const closeButtonRef = React.useRef<HTMLButtonElement>(null);
   useModalBehavior(isOpen, onClose, closeButtonRef);
 
   if (!isOpen) return null;
 
-  return (
+  const modalContent = (
     <div className={cn('fixed inset-0 flex items-center justify-center p-4', layer === 'top' ? 'z-[120]' : 'z-[60]')} role="presentation">
       <div className={MODAL_BACKDROP_CLASS} onClick={onClose} aria-hidden="true" />
 
@@ -154,6 +163,12 @@ export const Modal = ({
       </div>
     </div>
   );
+
+  if (mounted && typeof document !== 'undefined') {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 };
 
 Modal.displayName = 'Modal';

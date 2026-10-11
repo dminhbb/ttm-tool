@@ -17,8 +17,12 @@ import { cn } from '@/lib/utils';
 
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
+<<<<<<< HEAD
 import { DonutChartCard } from '@/components/dashboard-new/DonutChartCard';
 import { PmsmBarChartCards } from '@/components/ttm-dashboard-2/PmsmBarChartCards';
+=======
+import { DonutChartCard } from '@/components/ttm-dashboard-2/DonutChartCard';
+>>>>>>> 2f6323c62b9440e4d8690eed7d6e57f1631f04b0
 import type { EpicAlertsDeepLinkAlert } from '@/lib/epic-alerts-deep-link';
 import { vnTodayIso } from '@/lib/epic-row-verdicts';
 import { formatTtmPct1, hasTtmVerdict, type TtmCnttSummary } from '@/lib/ttm-cntt-qa';
@@ -112,21 +116,21 @@ function dimensionScope(dimension: TtmBreakdownDimension, item: TtmBreakdownItem
  * is the "%" inside a larger ring (KPI_RING_CLASS), so the "351 / 409" beside it is set smaller
  * (KPI_FRACTION_CLASS) as supporting detail.
  */
-const KPI_TITLE_CLASS = 'text-[length:clamp(7px,0.66cqw,9.5px)] font-bold uppercase tracking-wide leading-[1.35]';
-const KPI_VALUE_CLASS = 'text-[length:clamp(12px,1.18cqw,17px)] font-extrabold leading-tight tabular-nums text-[#0f172a]';
-const KPI_FRACTION_CLASS = 'text-[length:clamp(9.5px,0.9cqw,13px)] font-bold leading-tight tabular-nums text-[#0f172a]';
-const KPI_SUBTITLE_CLASS = 'text-[length:clamp(6.5px,0.625cqw,9px)] font-medium leading-[1.35] text-[#475569]';
+const KPI_TITLE_CLASS = 'text-[length:clamp(7px,0.58cqw,9px)] font-bold uppercase tracking-tight leading-[1.3]';
+const KPI_VALUE_CLASS = 'text-[length:clamp(11.5px,1.05cqw,16px)] font-extrabold leading-tight tabular-nums text-[var(--color-text-primary)]';
+const KPI_FRACTION_CLASS = 'text-[length:clamp(9px,0.82cqw,12.5px)] font-bold leading-tight tabular-nums text-[var(--color-text-primary)]';
+const KPI_SUBTITLE_CLASS = 'text-[length:clamp(6.5px,0.56cqw,8.5px)] font-medium leading-[1.35] text-fb-text-secondary';
 const KPI_TRUNCATE_CLASS = 'overflow-hidden text-ellipsis whitespace-nowrap';
-const KPI_ICON_CLASS = 'size-[clamp(26px,2.36cqw,34px)]';
+const KPI_ICON_CLASS = 'size-[clamp(22px,1.9cqw,30px)]';
 /** The progress ring fills the card's content height; its "%" is the index widgets' headline figure. */
-const KPI_RING_CLASS = 'size-[clamp(34px,3.2cqw,46px)]';
-const KPI_RING_TEXT_CLASS = 'text-[length:clamp(7.5px,0.72cqw,10.5px)] font-extrabold tracking-tighter';
+const KPI_RING_CLASS = 'size-[clamp(30px,2.6cqw,40px)]';
+const KPI_RING_TEXT_CLASS = 'text-[length:clamp(6.8px,0.62cqw,9.5px)] font-extrabold tracking-tighter';
 /** viewBox units of the ring — it is drawn at 46 and scaled to KPI_RING_CLASS. */
 const KPI_RING_BOX = 46;
 
 const KPI_TONES = {
-  navy: { card: 'border-[#b3cbf1] bg-[#d6e4fa]', hover: 'hover:border-[#7aa5ea]', title: 'text-[#1e3a8a]' },
-  slate: { card: 'border-[#d5d9df] bg-[#eef0f2]', hover: 'hover:border-[#94a3b8]', title: 'text-[#334155]' },
+  navy: { card: 'border-[var(--color-primary-200)] bg-[var(--color-primary-100)] dark:border-fb-border dark:bg-fb-surface-muted', hover: 'hover:border-[var(--color-primary-300)] dark:hover:border-fb-border-strong', title: 'text-[var(--color-primary-700)] dark:text-fb-blue' },
+  slate: { card: 'border-fb-border bg-fb-surface-muted', hover: 'hover:border-[var(--color-text-muted)] dark:hover:border-fb-border-strong', title: 'text-fb-text-secondary' },
 } as const;
 
 type KpiTone = keyof typeof KPI_TONES;
@@ -134,7 +138,7 @@ type KpiTone = keyof typeof KPI_TONES;
 interface KpiCardProps {
   icon?: React.ReactNode;
   onClick?: () => void;
-  subtitle: React.ReactNode;
+  subtitle?: React.ReactNode;
   title: string;
   tone: KpiTone;
   tooltip?: string;
@@ -154,7 +158,7 @@ function KpiCard({ icon, onClick, subtitle, title, tone, tooltip, value, valueAs
     <div
       title={tooltip}
       className={cn(
-        'relative flex h-full min-w-0 select-none items-center gap-1.5 rounded-[14px] border px-2.5 py-2 text-left shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-all duration-150 xl:rounded-[16px]',
+        'relative flex h-full min-w-0 select-none items-center gap-1.5 rounded-[14px] border px-2 py-1.5 text-left shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-all duration-150 xl:rounded-[16px] xl:px-2 xl:py-2',
         palette.card,
         onClick && `hover:shadow-xs ${palette.hover}`,
       )}
@@ -164,14 +168,14 @@ function KpiCard({ icon, onClick, subtitle, title, tone, tooltip, value, valueAs
           type="button"
           onClick={onClick}
           aria-label={`${title}: ${value}`}
-          className="absolute inset-0 cursor-pointer rounded-[inherit] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#1463f7]"
+          className="absolute inset-0 cursor-pointer rounded-[inherit] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-text-brand)]"
         />
       )}
       {icon && <div className="pointer-events-none relative shrink-0">{icon}</div>}
-      <div className="pointer-events-none relative flex min-w-0 flex-1 flex-col justify-center">
-        <span className={cn(KPI_TITLE_CLASS, KPI_TRUNCATE_CLASS, palette.title)}>{title}</span>
+      <div className="pointer-events-none relative flex min-w-0 flex-1 flex-col justify-center overflow-hidden">
+        <span className={cn(KPI_TITLE_CLASS, 'whitespace-nowrap', palette.title)} title={title}>{title}</span>
         <span className={cn(valueAsDetail ? KPI_FRACTION_CLASS : KPI_VALUE_CLASS, KPI_TRUNCATE_CLASS)}>{value}</span>
-        <span className={cn(KPI_SUBTITLE_CLASS, KPI_TRUNCATE_CLASS)}>{subtitle}</span>
+        <span className={cn(KPI_SUBTITLE_CLASS, KPI_TRUNCATE_CLASS)}>{subtitle || '\u00A0'}</span>
       </div>
     </div>
   );
@@ -184,7 +188,7 @@ function KpiSubLink({ children, emphasized = false, onClick, title }: { children
       type="button"
       onClick={onClick}
       title={title}
-      className={cn('pointer-events-auto cursor-pointer underline-offset-2 hover:underline focus-visible:underline', emphasized && 'text-[#b91c1c] underline')}
+      className={cn('pointer-events-auto cursor-pointer underline-offset-2 hover:underline focus-visible:underline', emphasized && 'text-[var(--color-text-error)] underline')}
     >
       {children}
     </button>
@@ -193,7 +197,7 @@ function KpiSubLink({ children, emphasized = false, onClick, title }: { children
 
 function KpiIconBadge({ icon: IconComponent, iconColor }: { icon: Icon; iconColor: string }) {
   return (
-    <div className={cn('flex items-center justify-center rounded-full bg-white shadow-2xs', KPI_ICON_CLASS)}>
+    <div className={cn('flex items-center justify-center rounded-full bg-fb-surface border border-fb-border/40 shadow-2xs', KPI_ICON_CLASS)}>
       <IconComponent className={cn('size-[47%]', iconColor)} weight="fill" />
     </div>
   );
@@ -209,9 +213,9 @@ function KpiProgressRing({ color, pct, text }: { color: string; pct: number | nu
   const offset = circumference - (clampedPct / 100) * circumference;
 
   return (
-    <div className={cn('relative flex items-center justify-center rounded-full bg-white shadow-2xs', KPI_RING_CLASS)}>
+    <div className={cn('relative flex items-center justify-center rounded-full bg-fb-surface border border-fb-border/40 shadow-2xs', KPI_RING_CLASS)}>
       <svg viewBox={`0 0 ${size} ${size}`} className="size-full -rotate-90" aria-hidden="true">
-        <circle cx={size / 2} cy={size / 2} r={radius} stroke="#e2e8f0" strokeWidth={strokeWidth} fill="none" />
+        <circle cx={size / 2} cy={size / 2} r={radius} stroke="currentColor" className="text-fb-border" strokeWidth={strokeWidth} fill="none" />
         {clampedPct > 0 && (
           <circle
             cx={size / 2}
@@ -294,11 +298,11 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
   );
 
   return (
-    <div className="rounded-2xl border border-[#d9e3ef] bg-white/95 p-2 shadow-[0_2px_12px_rgba(0,0,0,0.03)] sm:p-2.5">
+    <div className="rounded-2xl border border-fb-border bg-fb-surface p-2 shadow-[0_2px_12px_rgba(0,0,0,0.03)] sm:p-2.5">
       <div className="overflow-x-auto pb-1 xl:overflow-x-visible xl:pb-0">
-        <div className="@container flex min-w-[1160px] flex-row items-stretch gap-2 xl:min-w-0">
+        <div className="@container flex min-w-[1160px] flex-row items-stretch gap-1.5 xl:min-w-0">
           {/* Left group — overview & indexes (navy pastel). Column widths follow each card's content. */}
-          <div className="grid min-w-0 flex-[52] grid-cols-[0.62fr_1.15fr_1.14fr_1.14fr_1.1fr] items-stretch gap-2">
+          <div className="grid min-w-0 flex-[63] grid-cols-[0.62fr_1.18fr_1.08fr_1.06fr_1.06fr_1.0fr] items-stretch gap-1.5">
             <KpiCard
               tone="navy"
               title="TỔNG EPIC"
@@ -311,24 +315,26 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
               tone="navy"
               title="FAIL TTM-CNTT"
               value={fmt(qlda.fail)}
-              subtitle={
-                <KpiSubLink
-                  onClick={() => onOpen({ alert: 'MISSING_FAIL_REASON', title: 'Danh sách Epic - Thiếu lý do Fail TTM' })}
-                  title="Xem danh sách Epic thiếu lý do Fail TTM"
-                >
-                  <strong className="font-bold text-[#dc2626]">{fmt(insights.missingFailReason ?? 0)}</strong> thiếu lý do Fail
-                </KpiSubLink>
-              }
-              icon={<KpiIconBadge icon={WarningCircle} iconColor="text-[#dc2626]" />}
+              subtitle="Phạm vi của QLDA"
+              icon={<KpiIconBadge icon={WarningCircle} iconColor="text-[var(--color-text-error)]" />}
               onClick={() => onOpen({ alert: FAIL_ALERTS, title: 'Danh sách Epic - Fail TTM-CNTT' })}
-              tooltip="Epic không đạt TTM-CNTT: nhóm 1 (R4G Date muộn hơn Target) + nhóm 2 (chưa có R4G Date, đã quá Target)"
+              tooltip="Epic không đạt TTM-CNTT (Phạm vi của QLDA): nhóm 1 (R4G Date muộn hơn Target) + nhóm 2 (chưa có R4G Date, đã quá Target)"
+            />
+            <KpiCard
+              tone="navy"
+              title="THIẾU LÝ DO"
+              value={fmt(insights.missingFailReason ?? 0)}
+              subtitle="Fail TTM-CNTT"
+              icon={<KpiIconBadge icon={WarningCircle} iconColor="text-[var(--color-warning-400)]" />}
+              onClick={() => onOpen({ alert: 'MISSING_FAIL_REASON', title: 'Danh sách Epic - Thiếu lý do Fail TTM' })}
+              tooltip="Epic Fail TTM-CNTT nhưng chưa log thông tin Khâu gây ra việc fail (BA, DEV, QA, PM/SM, ...)"
             />
             <KpiCard
               tone="navy"
               title="TTM-CNTT"
               value={qldaIndex.fraction}
               valueAsDetail
-              subtitle="Toàn phòng QLDA"
+              subtitle="Phạm vi của QLDA"
               icon={<KpiProgressRing pct={qldaIndex.pct} color="#059669" text={qldaIndex.pctText} />}
               tooltip={`TTM-CNTT (QLDA) — Tỷ lệ % Pass: ${qldaIndex.pctText} (${fmt(qlda.pass)}/${fmt(qlda.denominator)} Epic đạt)`}
             />
@@ -353,16 +359,16 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
             />
           </div>
 
-          <div className="my-1 w-px shrink-0 self-stretch bg-slate-300" aria-hidden="true" />
+          <div className="my-1 w-px shrink-0 self-stretch bg-fb-control-hover" aria-hidden="true" />
 
           {/* Right group — follow-up work & anomalies (neutral grey). */}
-          <div className="grid min-w-0 flex-[44] grid-cols-[1.1fr_0.95fr_1.3fr_1.05fr] items-stretch gap-2">
+          <div className="grid min-w-0 flex-[37] grid-cols-[0.8fr_0.8fr_1.1fr_0.9fr] items-stretch gap-1.5">
             <KpiCard
               tone="slate"
               title="CẢNH BÁO"
               value={fmt(insights.lateWarning + insights.earlyWarning)}
               subtitle={warningSubtitle}
-              icon={<KpiIconBadge icon={Bell} iconColor="text-[#d97706]" />}
+              icon={<KpiIconBadge icon={Bell} iconColor="text-[var(--color-warning-400)]" />}
               onClick={openWarnings}
               tooltip={`Cảnh báo tiến độ: ${fmt(insights.lateWarning)} muộn · ${fmt(insights.earlyWarning)} sớm (không tính Epic ngoại lệ) — xem ở Quản trị Epic`}
             />
@@ -370,8 +376,8 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
               tone="slate"
               title="SAI LỆCH"
               value={fmt(insights.anomalyCount)}
-              subtitle="Cần điều chỉnh"
-              icon={<KpiIconBadge icon={Warning} iconColor="text-[#dc2626]" />}
+              subtitle="Sai lệch dữ liệu"
+              icon={<KpiIconBadge icon={Warning} iconColor="text-[var(--color-text-error)]" />}
               onClick={() => onOpen({ dataIssue: true, title: 'Danh sách Epic - Sai lệch Dữ liệu' })}
               tooltip="Epic sai lệch dữ liệu (không tính Epic Cancelled và Epic ngoại lệ) — xem danh sách ở Quản trị Epic"
             />
@@ -380,7 +386,7 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
               title="CHỜ GOLIVE"
               value={fmt(insights.waitingGolive.total)}
               subtitle={waitingSubtitle}
-              icon={<KpiIconBadge icon={CheckCircle} iconColor="text-[#059669]" />}
+              icon={<KpiIconBadge icon={CheckCircle} iconColor="text-[var(--color-success-300)]" />}
               onClick={() => onOpen({ alert: 'WAITING_GOLIVE', title: 'Danh sách Epic - Chờ golive' })}
               tooltip={`Epic Chờ golive (không tính Epic ngoại lệ): ${fmt(waiting.missingR4g)} thiếu R4G · ${fmt(waiting.withinGrace)} trong hạn · ${fmt(waiting.overdue)} quá hạn`}
             />
@@ -389,7 +395,7 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
               title="GIẢI TRÌNH"
               value={fmt(insights.justifyGolive)}
               subtitle="Quá hạn R4G +5d"
-              icon={<KpiIconBadge icon={Clock} iconColor="text-[#2563eb]" />}
+              icon={<KpiIconBadge icon={Clock} iconColor="text-[var(--color-text-brand)]" />}
               onClick={() => onOpen({ alert: 'JUSTIFY_GOLIVE', title: 'Danh sách Epic - Cần Giải trình Golive' })}
               tooltip="Epic cần Giải trình Golive (quá hạn R4G Date + 5 ngày làm việc; không tính Epic ngoại lệ) — xem danh sách ở Quản trị Epic"
             />
@@ -493,12 +499,12 @@ export function BreakdownMatrixCard({ dimensions, funnel, onOpen }: { dimensions
                       </button>
                     </TD>
                     <TD className="text-center font-semibold">
-                      <button type="button" onClick={() => open(item, { alert: 'TTM_COUNTED_IN_SCOPE' }, 'Danh sách Epic (Tổng số Epic)')} className={`${numberButton} text-fb-blue hover:bg-blue-50`} title={`Xem tất cả Epic của ${item.name}`}>
+                      <button type="button" onClick={() => open(item, { alert: 'TTM_COUNTED_IN_SCOPE' }, 'Danh sách Epic (Tổng số Epic)')} className={`${numberButton} text-fb-blue hover:bg-fb-blue-soft`} title={`Xem tất cả Epic của ${item.name}`}>
                         {fmt(item.total)}
                       </button>
                     </TD>
                     <TD className="text-center font-semibold text-status-success">
-                      <button type="button" onClick={() => open(item, { alert: 'TTM_PASS_IN_SCOPE' }, 'Danh sách Epic Pass TTM')} className={`${numberButton} text-status-success hover:bg-emerald-50`} title={`Xem các Epic đạt TTM-CNTT của ${item.name}`}>
+                      <button type="button" onClick={() => open(item, { alert: 'TTM_PASS_IN_SCOPE' }, 'Danh sách Epic Pass TTM')} className={`${numberButton} text-status-success hover:bg-status-success-soft`} title={`Xem các Epic đạt TTM-CNTT của ${item.name}`}>
                         {fmt(item.pass)}
                       </button>
                     </TD>
@@ -516,16 +522,16 @@ export function BreakdownMatrixCard({ dimensions, funnel, onOpen }: { dimensions
                       )}
                     </TD>
                     <TD className="text-center font-semibold">
-                      <button type="button" onClick={() => open(item, { alert: JUDGED_ALERTS }, 'Danh sách Epic đánh giá')} className={`${numberButton} text-fb-blue hover:bg-blue-50`} title={`Xem các Epic đã có kết luận (Pass + Fail) của ${item.name}`}>
+                      <button type="button" onClick={() => open(item, { alert: JUDGED_ALERTS }, 'Danh sách Epic đánh giá')} className={`${numberButton} text-fb-blue hover:bg-fb-blue-soft`} title={`Xem các Epic đã có kết luận (Pass + Fail) của ${item.name}`}>
                         {fmt(qlda.denominator)}
                       </button>
                     </TD>
                     <TD className="text-center font-semibold text-status-danger">
-                      <button type="button" onClick={() => open(item, { alert: FAIL_ALERTS }, 'Danh sách Epic Fail TTM')} className={`${numberButton} text-status-danger hover:bg-red-50`} title={`Xem các Epic không đạt TTM-CNTT của ${item.name}`}>
+                      <button type="button" onClick={() => open(item, { alert: FAIL_ALERTS }, 'Danh sách Epic Fail TTM')} className={`${numberButton} text-status-danger hover:bg-status-danger-soft`} title={`Xem các Epic không đạt TTM-CNTT của ${item.name}`}>
                         {fmt(item.fail)}
                       </button>
                       {item.fail > 0 && (
-                        <p className="whitespace-nowrap text-[10px] font-medium text-fb-text-secondary">
+                        <p className="whitespace-nowrap text-[11px] font-medium text-fb-text-secondary">
                           <button type="button" onClick={() => open(item, { alert: 'TTM_LATE_IN_SCOPE' }, 'Danh sách Epic Fail TTM: Trễ R4G')} className="cursor-pointer underline-offset-2 hover:underline" title="Nhóm 1 — có R4G Date nhưng muộn hơn Target">
                             {fmt(item.failLateR4g)} Trễ R4G
                           </button>
@@ -544,21 +550,21 @@ export function BreakdownMatrixCard({ dimensions, funnel, onOpen }: { dimensions
                             <div className="flex h-2 flex-1 overflow-hidden rounded-full bg-fb-control">
                               {hasTtmVerdict(qa) && (
                                 <>
-                                  <div style={{ width: `${qa.pct}%` }} className="h-full bg-purple-600" />
+                                  <div style={{ width: `${qa.pct}%` }} className="h-full bg-fb-accent" />
                                   <div style={{ width: `${100 - qa.pct}%` }} className="h-full bg-status-danger" />
                                 </>
                               )}
                             </div>
-                            <span className="w-9 text-right text-xs font-bold text-purple-700 group-hover:underline">{hasTtmVerdict(qa) ? `${qa.pct}%` : '—'}</span>
+                            <span className="w-9 text-right text-xs font-bold text-fb-accent group-hover:underline">{hasTtmVerdict(qa) ? `${qa.pct}%` : '—'}</span>
                           </div>
-                          <p className="text-[10px] text-fb-text-secondary group-hover:underline">{fmt(item.qaPass)}/{fmt(qa.denominator)} Epic MVP Done/Released</p>
+                          <p className="text-[11px] text-fb-text-secondary group-hover:underline">{fmt(item.qaPass)}/{fmt(qa.denominator)} Epic MVP Done/Released</p>
                         </button>
                       ) : (
                         <span className="text-xs text-fb-text-placeholder">— Chưa có Epic MVP Done/Released</span>
                       )}
                     </TD>
-                    <TD className="text-center font-semibold text-purple-700">
-                      <button type="button" onClick={() => open(item, { alert: 'DATA_ANOMALY_IN_SCOPE' }, 'Danh sách Epic Sai lệch dữ liệu')} className={`${numberButton} text-purple-700 hover:bg-purple-50`} title={`Xem các Epic Sai lệch dữ liệu của ${item.name}`}>
+                    <TD className="text-center font-semibold text-fb-accent">
+                      <button type="button" onClick={() => open(item, { alert: 'DATA_ANOMALY_IN_SCOPE' }, 'Danh sách Epic Sai lệch dữ liệu')} className={`${numberButton} text-fb-accent hover:bg-fb-accent-soft`} title={`Xem các Epic Sai lệch dữ liệu của ${item.name}`}>
                         {fmt(item.anomaly)}
                       </button>
                     </TD>
@@ -567,7 +573,7 @@ export function BreakdownMatrixCard({ dimensions, funnel, onOpen }: { dimensions
                       {fmt(item.ok)}
                     </TD>
                     <TD className="text-center font-semibold text-status-warning">
-                      <button type="button" onClick={() => open(item, { alert: LATE_ALERTS }, 'Danh sách Epic chậm tiến độ')} className={`${numberButton} text-status-warning hover:bg-amber-50`} title={`Epic chưa có R4G Date của ${item.name} đang Cảnh báo muộn hoặc đã quá Target`}>
+                      <button type="button" onClick={() => open(item, { alert: LATE_ALERTS }, 'Danh sách Epic chậm tiến độ')} className={`${numberButton} text-status-warning hover:bg-status-warning-soft`} title={`Epic chưa có R4G Date của ${item.name} đang Cảnh báo muộn hoặc đã quá Target`}>
                         {fmt(item.late)}
                       </button>
                     </TD>
@@ -612,18 +618,18 @@ export function BreakdownDonutSections({ dimensions, funnel, onOpen }: { dimensi
         const scopeOf = (name: string) => dimensionScope(dimension, items.find((item) => item.name === name));
         const open = (name: string, alert: InsightListParams['alert'], label: string) => onOpen({ ...scopeOf(name), alert, title: `${label} - ${DIMENSION_NOUN[dimension]}: ${name}` });
         return (
-          <div key={dimension} className="mb-4 border-t border-slate-300 pt-3">
+          <div key={dimension} className="mb-4 border-t border-fb-border pt-3">
             <button
               type="button"
               onClick={() => setOpenSections((prev) => ({ ...prev, [dimension]: !prev[dimension] }))}
               aria-expanded={isOpen}
-              className="flex cursor-pointer select-none items-center gap-1.5 text-xs font-bold text-black transition-colors hover:text-[#1463f7]"
+              className="flex cursor-pointer select-none items-center gap-1.5 text-xs font-bold text-fb-text-primary transition-colors hover:text-[var(--color-text-brand)]"
             >
-              {isOpen ? <CaretDown className="size-4 text-[#1463f7]" weight="bold" /> : <CaretRight className="size-4 text-[#1463f7]" weight="bold" />}
+              {isOpen ? <CaretDown className="size-4 text-[var(--color-text-brand)]" weight="bold" /> : <CaretRight className="size-4 text-[var(--color-text-brand)]" weight="bold" />}
               <span>{SECTION_TITLES[dimension]}</span>
             </button>
             {isOpen && (
-              <div className="mt-3 border-l-2 border-[#1463f7] pl-3 pt-1">
+              <div className="mt-3 border-l-2 border-[var(--color-text-brand)] pl-3 pt-1">
                 {dimension === 'pmsm' && <p className="mb-2 text-[11px] italic text-fb-text-secondary">{PMSM_SHARED_NOTE}</p>}
                 {dimension === 'pmsm' ? (
                   <PmsmBarChartCards

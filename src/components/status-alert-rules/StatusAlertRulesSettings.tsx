@@ -67,7 +67,7 @@ export function StatusAlertRulesSettings() {
     {notice && notice.type === 'error' && <Alert title="Lỗi" variant="error">{notice.text}</Alert>}
     <Card>
       <CardHeader
-        className="cursor-pointer select-none hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+        className="cursor-pointer select-none hover:bg-fb-surface-muted transition-colors"
         onClick={() => togglePanel('alertRules')}
       >
         <div className="flex items-center gap-2.5">
@@ -104,7 +104,7 @@ export function StatusAlertRulesSettings() {
     </Card>
     <Card>
       <CardHeader
-        className="cursor-pointer select-none hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+        className="cursor-pointer select-none hover:bg-fb-surface-muted transition-colors"
         onClick={() => togglePanel('ttmPolicies')}
       >
         <div className="flex items-center gap-2.5">
@@ -217,7 +217,7 @@ function TtmScopeConfigPanel({ isOpen, onToggle }: { isOpen: boolean; onToggle: 
   return (
     <Card>
       <CardHeader
-        className="cursor-pointer select-none hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+        className="cursor-pointer select-none hover:bg-fb-surface-muted transition-colors"
         onClick={onToggle}
       >
         <div className="flex items-center gap-2.5">
@@ -256,7 +256,7 @@ function TtmScopeConfigPanel({ isOpen, onToggle }: { isOpen: boolean; onToggle: 
                           Lọc theo A ≤ R4G Date ≤ B; Epic chưa có R4G Date dùng TTM-CNTT (QLDA) baseline (Start
                           Date + số ngày làm việc theo policy) thay thế. Áp dụng cho chỉ số TTM-CNTT (QLDA)
                           và TTM-CNTT (QLDA) nói chung (badge Nhận xét, Fail TTM-CNTT (QLDA),
-                          Cảnh báo muộn/sớm... ở Quản trị Epic, Epic in PO, Báo cáo).
+                          Cảnh báo muộn/sớm... ở Quản trị Epic, Báo cáo).
                         </p>
                         <div className="flex flex-wrap items-end gap-3 pt-1">
                           <div className="flex items-end gap-2">
