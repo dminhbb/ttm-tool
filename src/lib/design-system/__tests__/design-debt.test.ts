@@ -101,7 +101,7 @@ const BASELINE: Record<MeasureName, { total: number; perFile: Record<string, num
    * nên để làm theo từng màn hình.
    */
   hexLiteral: {
-    total: 130,
+    total: 117,
     perFile: {
       // Màu truyền vào SVG phễu/donut dưới dạng prop (fill / lidFill / labelColor).
       'app/ttm-dashboard-2/page.tsx': 36,
@@ -109,9 +109,7 @@ const BASELINE: Record<MeasureName, { total: number; perFile: Record<string, num
       'components/ttm-dashboard-2/DashboardInsights.tsx': 3,
       'components/dashboard-new/DonutChartCard.tsx': 5,
       // Bảng tra màu trạng thái dưới dạng object JS.
-      'app/epic-alerts/page.tsx': 8,
       'app/epic-alerts-15/page.tsx': 8,
-      'app/epic-in-po/page.tsx': 5,
       'app/reports/page.tsx': 8,
       'components/layout/HelpPanels.tsx': 8,
       /* Alert của trang login dùng tổ hợp hồng `#FFB6C1`/`#FFC0CB`/`#8B4513`.
@@ -273,9 +271,7 @@ describe('lint: !important trong CSS theo route', () => {
    * chỉ cần cho selector `.has-filter` ĐỨNG MỘT MÌNH, và tách selector là đủ.
    */
   const IMPORTANT_BUDGET: Record<string, number> = {
-    'epic-alerts/epic-alerts.css': 0,
     'epic-alerts-15/epic-alerts-15.css': 2,
-    'epic-in-po/epic-in-po.css': 2,
   };
 
   for (const [file, budget] of Object.entries(IMPORTANT_BUDGET)) {
@@ -350,8 +346,8 @@ describe('ttm-shared.css — remap token và clamp bề rộng', () => {
     assert.match(SHARED_CSS, /\.ttm-field\[type='date'\]/);
   });
 
-  it('ba file route cùng nạp ttm-shared.css', () => {
-    for (const route of ['epic-alerts', 'epic-alerts-15', 'epic-in-po']) {
+  it('file CSS của route Quản trị Epic nạp ttm-shared.css', () => {
+    for (const route of ['epic-alerts-15']) {
       const css = readFileSync(path.join(APP_DIR, route, `${route}.css`), 'utf8');
       assert.match(css, /@import\s+'\.\.\/ttm-shared\.css'/, `${route}.css chưa nạp`);
     }

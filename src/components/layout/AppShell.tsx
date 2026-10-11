@@ -10,7 +10,6 @@ import { PERMISSION_MATRIX_CHANGED_EVENT } from '@/lib/permission-matrix-types';
 import { EpicHeaderWidgetsProvider, useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
 import {
   Bandaids,
-  BriefcaseMetal,
   Browsers,
   CaretDoubleLeft,
   CaretDoubleRight,
@@ -123,10 +122,7 @@ const navigation: NavigationSection[] = [
       { href: '/ttm-dashboard-2', featureKey: 'ttm_dashboard_2', icon: Funnel, label: 'TTM dashboard 2' },
       // SUPERADMIN only since 2026-10-05 (permission matrix feature 'dashboard_new').
       { href: '/dashboard-new', featureKey: 'dashboard_new', icon: ChartPie, label: 'TTM dashboard', roles: SUPERADMIN_ONLY },
-      // { href: '/dashboard', icon: Gauge, label: 'Dashboard' },
-      // { href: '/epic-alerts', icon: Browser, label: 'Quản trị Epic (rút gọn)', roles: ADMIN_VIEW_ROLES },
       { href: '/epic-alerts-15', featureKey: 'epic_alerts_15', icon: Browsers, label: 'Quản trị Epic' },
-      { href: '/epic-in-po', featureKey: 'epic_in_po', icon: BriefcaseMetal, label: 'Epic in PO' },
       // Open to every role (permission matrix feature 'visit_counter' is View for all roles).
       { href: '/visit-stats', featureKey: 'visit_counter', icon: ChartLineUp, label: 'Thống kê truy cập' },
     ],
@@ -509,7 +505,6 @@ const PAGE_ROLES: Record<string, UserRole[]> = {
   '/admin/status-alert-rules': SUPERADMIN_OR_SUPERVISOR,
   '/admin/users': ADMIN_VIEW_ROLES,
   '/dashboard-new': SUPERADMIN_ONLY,
-  '/epic-alerts': ADMIN_VIEW_ROLES,
   // /data-review/[batchId] drills into "Nguồn dữ liệu" — same SUPERADMIN-only gate as its API.
   '/data-review': SUPERADMIN_ONLY,
 };

@@ -7,7 +7,7 @@
 > chi tiết ở `13-epic-15-and-epic-30-management.md`:
 > - `/dashboard-new` — **TTM Dashboard** (màn hình chính mặc định sau khi đăng nhập cho toàn bộ user, kết hợp Lead view và PM/SM view).
 > - `/epic-alerts-15` — Quản trị Epic (theo dõi chi tiết 5 pha).
-> - `/epic-in-po` — Epic in PO (lọc To Do/In PO/Released).
+> - ~~`/epic-in-po` — Epic in PO~~ (đã gỡ 11/10/2026; dùng quick filter "Epics in PO" của Quản trị Epic — lọc To Do/IN PO/Released).
 > - `/reports` — Báo cáo Epic đa lớp dữ liệu.
 >
 > Không có màn hình nào dùng đúng cấu trúc "3 panel theo Start Date" mô tả bên dưới; nội dung dưới

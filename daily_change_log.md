@@ -8,6 +8,24 @@
 
 ## 2026-10-11
 
+- **B1 — gỡ 3 màn hình cũ (branch `chore/remove-legacy-screens`)**: `/dashboard` (Dashboard cũ), `/epic-alerts` (Quản trị Epic rút gọn / Epic 30)
+  và `/epic-in-po` (Epic in PO, đã có quick filter "Epics in PO" ở Quản trị Epic). Căn cứ: `visit_logs` cho thấy Dashboard cũ và Epic in PO không còn
+  lượt xem nào từ 04/10 (TTM Dashboard 2 thành mặc định 05/10); `/api/epic-alerts` không đi qua Scoring Service nên số liệu có thể lệch màn chính.
+  - **Xoá**: `src/app/{dashboard,epic-alerts,epic-in-po}` (page + CSS), `/api/dashboard`, `/api/epic-alerts` (route list), `/api/epic-compliance` +
+    `epic-compliance-service.ts` (không client nào gọi), `dashboard-service.ts`, `dashboard-types.ts`, `getEpicAlertRows` + 3 helper ô stage + type
+    `EpicAlertRow/EpicAlertResponse/StageCell` (`epic-alert-service.ts`, `epic-alert-types.ts`).
+  - **Giữ nhưng đổi chỗ**: route lịch sử cảnh báo Epic History `/api/epic-alerts/[epicKey]/{alert-history,alert-timeline}` →
+    `/api/epic-alerts-15/[epicKey]/…` (đang được Quản trị Epic, Duyệt Epic và EpicAlertTimeline gọi); cập nhật 4 chỗ `fetch`.
+  - **Redirect** (`next.config.ts`, 307, query chuyển tiếp): `/dashboard` → `/ttm-dashboard-2`, `/epic-alerts` → `/epic-alerts-15`,
+    `/epic-in-po` → `/epic-alerts-15?status=To Do,IN PO,Released`.
+  - **MCP**: `get_dashboard_summary` giữ làm tên cũ của `get_ttm_dashboard` (trả `getTtmDashboard2Summary`, cổng `ttm_dashboard_2`); bỏ `dashboard` /
+    `epic_in_po` khỏi `MCP_TOOL_FEATURES` (`get_epic_detail`, `list_epic_alerts`). MCP không dùng `/api/epic-compliance`.
+  - **Phân quyền / theo dõi**: bỏ 3 màn khỏi `PAGE_FEATURES`, `LANDING_PATHS`, `PAGE_ROLES`, `PAGE_HEADERS`, sidebar; migration
+    `20261011_remove_legacy_screen_permissions` (+ `.down`) xoá feature `dashboard`/`epic_alerts_30`/`epic_in_po` khỏi Ma trận phân quyền — **CHƯA áp dụng**
+    lên Supabase/local (đã chạy thử trong transaction + ROLLBACK). Visit Counter giữ khoá `epic_in_po` (nhãn "đã gỡ") để lịch sử không mất.
+  - **Test/tài liệu**: cập nhật `feature-access.test.ts`, `design-debt.test.ts` (bỏ ngân sách của file đã xoá); README, `product-guide.html` (§2, 8, 10, 11, 16, 18),
+    `brd/00, 03, 04, 08, 13, 14, 15`, HelpPanels. Còn lại có chủ đích: `/dashboard-new` (SUPERADMIN-only) chưa gỡ, chờ xác nhận.
+
 - **Khắc phục triệt để chế độ Dark Mode tại màn hình 'TTM Dashboard 2' (`/ttm-dashboard-2`)**:
   - `src/app/ttm-dashboard-2/page.tsx`: Gỡ bỏ container bao ngoài thừa mang class `bg-[var(--color-bg-page)]` (nguyên nhân gây ra khung viền trắng lớn bao trọn toàn bộ banner, toolbar, KPI strip và Panel 1); chuyển các indicator pill sang `bg-fb-surface-muted`, nút "Trở về Lead" sang `bg-fb-surface`, label "Filters:" sang `text-fb-text-primary`; chuyển toàn bộ nền Panel 1, Panel 2/3 và loading overlay sang `bg-fb-surface` / `bg-fb-surface/80`.
   - `src/components/ttm-dashboard-2/DashboardInsights.tsx`: Chuẩn hoá KPI strip và các pill KPI sang `dark:bg-fb-surface-muted`, `dark:border-fb-border`, `dark:text-fb-blue`; cập nhật icon badge và progress ring sang `bg-fb-surface` với track ring dùng `currentColor` + `text-fb-border` (loại bỏ mã màu cứng `#e2e8f0`); tiêu đề nhóm accordion đổi sang `text-fb-text-primary`.

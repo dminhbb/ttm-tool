@@ -219,7 +219,7 @@ function EpicHistoryStrip({ epicKey }: { epicKey: string }) {
       setData(null);
       setError(null);
       try {
-        const result = await fetch(`/api/epic-alerts/${encodeURIComponent(epicKey)}/alert-history`, { signal: controller.signal });
+        const result = await fetch(`/api/epic-alerts-15/${encodeURIComponent(epicKey)}/alert-history`, { signal: controller.signal });
         const body = await result.json() as EpicHistoryResponse & ApiErrorResponse;
         if (!result.ok) throw new Error(body.error ?? 'Không thể tải lịch sử cảnh báo.');
         setData(body);

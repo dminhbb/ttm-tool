@@ -256,7 +256,7 @@ function TtmScopeConfigPanel({ isOpen, onToggle }: { isOpen: boolean; onToggle: 
                           Lọc theo A ≤ R4G Date ≤ B; Epic chưa có R4G Date dùng TTM-CNTT (QLDA) baseline (Start
                           Date + số ngày làm việc theo policy) thay thế. Áp dụng cho chỉ số TTM-CNTT (QLDA)
                           và TTM-CNTT (QLDA) nói chung (badge Nhận xét, Fail TTM-CNTT (QLDA),
-                          Cảnh báo muộn/sớm... ở Quản trị Epic, Epic in PO, Báo cáo).
+                          Cảnh báo muộn/sớm... ở Quản trị Epic, Báo cáo).
                         </p>
                         <div className="flex flex-wrap items-end gap-3 pt-1">
                           <div className="flex items-end gap-2">

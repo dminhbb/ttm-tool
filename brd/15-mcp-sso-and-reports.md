@@ -79,7 +79,7 @@ không hợp lệ/đã thu hồi/user đã inactive đều trả `401` kèm head
 |---|---|---|
 | `list_epic_alerts` | Danh sách Epic (dữ liệu màn Quản trị Epic) + mức cảnh báo (NONE/EARLY/LATE/FAIL), lọc theo dự án/mức cảnh báo/từ khoá và `nhanXet` (bộ lọc "Nhận xét" — gồm các tiêu chí phễu L01…L05bb của TTM Dashboard 2; `includeCancelled`), tối đa 200 dòng | Theo RBAC dự án của user gọi |
 | `get_epic_detail` | Chi tiết 1 Epic theo `epicKey` | Theo RBAC dự án của user gọi |
-| `get_dashboard_summary` | Số liệu tổng hợp tương đương Dashboard, chọn được 1-3 `projectKeys` | Theo RBAC dự án của user gọi |
+| `get_dashboard_summary` | **Tên cũ** của `get_ttm_dashboard` (màn Dashboard cũ đã gỡ 11/10/2026) — trả đúng số liệu TTM Dashboard 2, nhận `projectKeys` | Theo RBAC dự án của user gọi |
 | `list_projects` | Danh mục dự án | Chỉ `ADMIN`/`SUPERVISOR`/`SUPERADMIN` |
 | `list_domains` | Danh mục domain | Chỉ `ADMIN`/`SUPERVISOR`/`SUPERADMIN` |
 | `list_holidays` | Danh mục ngày nghỉ, lọc theo năm | Chỉ `ADMIN`/`SUPERVISOR`/`SUPERADMIN` |
@@ -102,9 +102,9 @@ hướng dẫn đi xin quyền Xem. `registerTool` chỉ nhận tên thuộc `Mc
 | Tool | Feature key cần còn quyền Xem |
 |---|---|
 | `get_ttm_dashboard` | `ttm_dashboard_2` |
-| `list_epic_alerts` | `epic_alerts_15` hoặc `epic_in_po` (cùng đọc `/api/epic-alerts-15`) |
-| `get_epic_detail` | một trong các màn mở được Duyệt Epic: `epic_alerts_15`, `epic_in_po`, `epic_reports`, `dashboard_new`, `dashboard` |
-| `get_dashboard_summary` | `dashboard` |
+| `list_epic_alerts` | `epic_alerts_15` |
+| `get_epic_detail` | một trong các màn mở được Duyệt Epic: `epic_alerts_15`, `epic_reports`, `dashboard_new` |
+| `get_dashboard_summary` | `ttm_dashboard_2` (cùng cổng với `get_ttm_dashboard`) |
 | `search_product_docs`, `get_product_doc_section` | `product_docs` |
 | `list_report_filters` | `epic_reports` |
 | `list_projects` / `list_domains` / `list_holidays` / `get_ttm_policies` | `projects` / `domains` / `general_settings` / `status_alert_rules` |

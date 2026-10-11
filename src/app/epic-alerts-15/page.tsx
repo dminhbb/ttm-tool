@@ -462,7 +462,7 @@ function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRowPhased; onClose:
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/epic-alerts/${encodeURIComponent(row.epicKey)}/alert-history`)
+    fetch(`/api/epic-alerts-15/${encodeURIComponent(row.epicKey)}/alert-history`)
       .then(async (res) => ({ ok: res.ok, body: await res.json() }))
       .then(({ ok, body }) => {
         if (cancelled) return;

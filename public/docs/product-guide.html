@@ -138,8 +138,9 @@
         </tbody>
       </table>
       <div class="callout warn">
-        Màn hình <strong>Quản trị Epic (rút gọn) (<code>/epic-alerts</code>)</strong> chỉ dành cho <strong>ADMIN/SUPERADMIN/SUPERVISOR</strong> — role USER không truy cập được, kể cả với Epic thuộc dự án mình phụ trách.
-        Các màn hình <strong>Quản trị Epic (đầy đủ) (<code>/epic-alerts-15</code>)</strong>, <strong>Epic in PO (<code>/epic-in-po</code>)</strong> và <strong>Dashboard (<code>/dashboard</code>)</strong> mở cho mọi role đã đăng nhập, theo phạm vi dự án/Domain/Component được phân quyền.
+        Các màn hình <strong>Quản trị Epic rút gọn (<code>/epic-alerts</code>)</strong>, <strong>Epic in PO (<code>/epic-in-po</code>)</strong> và <strong>Dashboard cũ (<code>/dashboard</code>)</strong> đã được <strong>gỡ ngày 11/10/2026</strong>:
+        các URL này tự chuyển hướng sang Quản trị Epic (kèm bộ lọc Status To Do / IN PO / Released cho <code>/epic-in-po</code>) hoặc TTM Dashboard 2.
+        Màn hình <strong>Quản trị Epic (<code>/epic-alerts-15</code>)</strong> và <strong>TTM Dashboard 2 (<code>/ttm-dashboard-2</code>)</strong> mở cho mọi role đã đăng nhập, theo phạm vi dự án/Domain/Component được phân quyền.
       </div>
       <div class="callout">
         Menu avatar người dùng (góc dưới sidebar) gồm: <strong>Thông tin cá nhân</strong> (đổi thông tin, quản lý Personal Access Token cho MCP — mục 16), <strong>Đổi mật khẩu</strong>,
@@ -155,7 +156,7 @@
       <div class="callout warn">
         <strong>Ma trận phân quyền đã có hiệu lực với quyền "Xem" (từ 05/10/2026):</strong> bỏ tick <em>Xem</em> của một role trên một chức năng thì
         (1) mục menu tương ứng ở left panel ẩn với role đó, (2) gõ thẳng URL của trang sẽ bị chuyển về màn hình đầu tiên role còn quyền xem
-        (TTM Dashboard 2 → Quản trị Epic → Báo cáo Epic → Epic in PO → Thống kê truy cập → TTM Dashboard), hoặc trang <code>/no-access</code> nếu không còn màn hình nào,
+        (TTM Dashboard 2 → Quản trị Epic → Báo cáo Epic → Thống kê truy cập → TTM Dashboard), hoặc trang <code>/no-access</code> nếu không còn màn hình nào,
         (3) API dữ liệu riêng của trang trả 403 (<code>/api/ttm-dashboard-2</code>, <code>/api/dashboard-new</code>, <code>/api/reports</code>).
         Ma trận <strong>chỉ thu hẹp, không mở thêm</strong>: role cố định trong code (bảng ở mục 2) và phạm vi Domain/Dự án/Component vẫn áp dụng trước —
         ví dụ tick <em>Xem</em> "Nguồn dữ liệu" cho ADMIN không làm màn hình đó mở ra. Các quyền <em>Thêm / Sửa / Xóa</em> trong ma trận vẫn mang tính khai báo,
@@ -792,7 +793,7 @@
       <p>Trường <code>R4G Date</code> trên Epic tương ứng với ngày hoàn thành trạng thái <strong>R4GOLIVE</strong>. Trạng thái không khớp danh sách này (kể cả Cancelled) được xếp sau cùng. Jira status legacy <code>In Progress</code>/<code>In Dev</code> chuẩn hóa thành <code>DEV</code>; <code>Pen Test</code> thành <code>PENTEST</code>; <code>Ready For Golive</code> thành <code>R4GOLIVE</code>.</p>
 
       <h3>8.2. Cột trạng thái/pha trên bảng Epic Alerts</h3>
-      <p>Màn hình rút gọn có 3 cột (Design, In Progress, Ready4Golive); màn hình đầy đủ/Epic in PO có 5 cột pha (DESIGN/DEV/TEST/PENTEST/R4GOLIVE). Mỗi cột so sánh vị trí trạng thái hiện tại của Epic với vị trí trạng thái của cột đó:</p>
+      <p>Màn hình Quản trị Epic có 5 cột pha (DESIGN/DEV/TEST/PENTEST/R4GOLIVE). Mỗi cột so sánh vị trí trạng thái hiện tại của Epic với vị trí trạng thái của cột đó:</p>
       <table>
         <thead><tr><th>Rule</th><th>Điều kiện</th><th>Hiển thị</th></tr></thead>
         <tbody>
@@ -825,7 +826,7 @@
         trong ngày, cảnh báo vẫn có thể tự chuyển trạng thái theo ngày thực tế.
       </p>
 
-      <h3>8.5. Cách tính ngày baseline từng pha (màn hình đầy đủ/Epic in PO)</h3>
+      <h3>8.5. Cách tính ngày baseline từng pha (màn hình Quản trị Epic)</h3>
       <p>
         5 ngày baseline pha (DESIGN/DEV/TEST/PENTEST/R4GOLIVE) được suy ra tuần tự từ Start Date (T1), cộng dồn số ngày làm việc theo tỷ trọng
         <strong> 20% / 30% / 30% / 10% / 10%</strong> trên tổng số ngày làm việc TTM-CNTT của Epic (15, 25 hoặc 30 ngày tuỳ Loại Epic, mục 5.2/7.1). Vì tỷ trọng từng pha
@@ -1011,10 +1012,9 @@
         mỗi khi Epic được tính là <strong>Cảnh báo muộn</strong> hoặc <strong>Fail TTM</strong> ở một lần import, hệ thống ghi 1 dòng gồm loại cảnh báo, trạng thái Epic
         lúc đó và ngày cảnh báo — không ghi đè, tích luỹ theo thời gian để tra cứu sau này.
       </p>
-      <p>Dữ liệu này phục vụ 2 việc trên màn hình rút gọn/đầy đủ:</p>
+      <p>Dữ liệu này phục vụ trên màn hình Quản trị Epic:</p>
       <ul>
         <li>Icon tam giác vàng cạnh Epic Key mở panel liệt kê toàn bộ lịch sử cảnh báo, sắp xếp theo ngày.</li>
-        <li>Quyết định Epic đã <strong>Released</strong> có tiếp tục hiển thị trên màn <strong>rút gọn</strong> hay không (màn đầy đủ/Epic in PO/Dashboard không áp dụng rule ẩn này).</li>
       </ul>
       <div class="callout warn">
         Cảnh báo <strong>theo từng pha</strong> (DEV/TEST/PENTEST của màn đầy đủ, cũng ghi vào bảng này) hiện <strong>tạm tắt ghi nhận</strong> do giới hạn kết nối của hạ tầng
@@ -1048,9 +1048,16 @@
     <section id="screen-epic-alerts">
       <div class="kicker">Khối màn hình</div>
       <h2>11. Các màn hình giám sát Epic</h2>
-      <h3>11.1. Quản trị Epic (rút gọn) (<code>/epic-alerts</code>) — ADMIN/SUPERADMIN/SUPERVISOR</h3>
-      <p>Theo dõi tổng quan các Epic theo mốc chuẩn 30 ngày (Epic phức tạp) hoặc 15 ngày (Epic đơn giản) qua 3 cột chính: <strong>Design</strong>, <strong>In Progress</strong>, <strong>Ready4Golive</strong>, cộng cột <strong>Release</strong>. Có đủ 2 cột dải TTM-CNTT và TTM-E2E.</p>
-      <div class="callout warn">Màn hình này <strong>đã bị gỡ khỏi sidebar điều hướng chính</strong> (route vẫn hoạt động nếu gõ thẳng URL, đúng theo phân quyền ADMIN/SUPERADMIN/SUPERVISOR) — sidebar hiện chỉ còn dẫn tới <strong>Quản trị Epic</strong> (<code>/epic-alerts-15</code>, mục 11.2) làm màn hình theo dõi chính.</div>
+      <h3>11.1. Các màn hình đã gỡ (11/10/2026)</h3>
+      <div class="callout warn">
+        Ba màn hình sau không còn tồn tại; URL cũ được chuyển hướng (HTTP 307) và quyền xem do màn hình đích kiểm tra:
+        <ul style="margin:6px 0 0 18px;">
+          <li><strong>Quản trị Epic (rút gọn)</strong> — <code>/epic-alerts</code> → <code>/epic-alerts-15</code>. Trước đây hiện trên danh sách bản ngắn (3 cột Design / In Progress / Ready4Golive) và dùng logic cũ, không qua Scoring Service.</li>
+          <li><strong>Epic in PO</strong> — <code>/epic-in-po</code> → <code>/epic-alerts-15?status=To Do,IN PO,Released</code>. Dùng quick filter <strong>"Epics in PO"</strong> trên thanh công cụ Quản trị Epic để có đúng tập Epic đó.</li>
+          <li><strong>Dashboard cũ</strong> — <code>/dashboard</code> → <code>/ttm-dashboard-2</code>. Số liệu hiện hành xem ở TTM Dashboard 2 (mục 21); MCP tool <code>get_dashboard_summary</code> nay trả đúng số liệu của <code>get_ttm_dashboard</code>.</li>
+        </ul>
+        Chức năng tương ứng (<code>dashboard</code>, <code>epic_alerts_30</code>, <code>epic_in_po</code>) cũng đã được gỡ khỏi Ma trận phân quyền.
+      </div>
       <h3>11.2. Quản trị Epic (đầy đủ) (<code>/epic-alerts-15</code>) — mọi role đã đăng nhập</h3>
       <p>Theo dõi chuyên sâu theo 5 pha mốc thời gian: <strong>Design (20%)</strong>, <strong>Dev (50%)</strong>, <strong>Test (80%)</strong>, <strong>Pentest (90%)</strong>, <strong>R4Golive (100%)</strong>. Ngày baseline mỗi pha được tính tự động dựa trên số ngày làm việc tích lũy từ Start Date (T1); cột Release lấy baseline từ T0 + tiêu chí TTM-E2E, độc lập với Start Date. Trên sidebar, mục này chỉ hiển thị nhãn ngắn <strong>&quot;Quản trị Epic&quot;</strong> (không còn hậu tố &quot;(đầy đủ)&quot;).</p>
       <p><strong>Quy tắc lọc trạng thái mặc định:</strong> Bộ lọc Status trên thanh công cụ luôn mặc định tích chọn (checked) tất cả các trạng thái ngoại trừ <code>Cancelled</code>, đảm bảo các Epic đã bị huỷ mặc định không xuất hiện khi truy cập màn hình này hay ở tất cả các danh sách route liên kết từ màn hình khác (người dùng vẫn có thể tích chọn Cancelled thủ công nếu có nhu cầu tra cứu).</p>
@@ -1061,11 +1068,8 @@
       <p><strong>Điều chỉnh 05/10/2026:</strong> R8 áp dụng cả với status được miễn các rule khác (To Do / In PO / Backlog), chỉ trừ Cancelled; R9 chỉ xét status R4GOLIVE / MVP Done / Pilot / Done / Released (status lạ, Pending, Reopened không bị bắt).</p>
       <p><strong>Quy tắc chấm điểm (Scoring Service, từ 01/10/2026):</strong> Sai lệch dữ liệu được xét trước — Epic có Sai lệch dữ liệu (R1, R3–R6; từ 04/10/2026 thêm R8 "có R4G Date nhưng status &lt; R4GOLIVE" và R9 "status ≥ R4GOLIVE nhưng thiếu R4G Date", R1 tính từ status DESIGN, R5 chỉ tính khi status đã qua DESIGN) không được chấm Đạt / Fail / Cảnh báo muộn / Sai Status trên TTM-CNTT (QLDA), TTM-CNTT (QA) và TTM-E2E cho tới khi dữ liệu được sửa. Epic có ngày ghi nhận đúng hạn nhưng status chưa lên R4GOLIVE vẫn được tính <strong>Đạt</strong> và hiện kèm badge <strong>“Sai Status”</strong>. TTM-E2E: hạn = T0 + (N − 1) ngày làm việc, Đạt không còn yêu cầu status Released. Xem popup “Logic cảnh báo” để biết công thức từng badge.</p>
       <p><strong>Bộ lọc Nhận xét:</strong> ngoài các giá trị Đạt/Fail/Cảnh báo/Sai Status/Sai lệch dữ liệu/trục Release, có thêm lựa chọn <strong>“Ngoài phạm vi TTM-CNTT”</strong> để lọc riêng các Epic nằm ngoài khoảng ngày “R4G for TTM (CNTT)” đang cấu hình (mục 8.7).</p>
-      <h3>11.3. Epic in PO (<code>/epic-in-po</code>) — mọi role đã đăng nhập</h3>
-      <p>Cùng dữ liệu/logic với màn (đầy đủ), chỉ lọc còn Epic đang ở trạng thái <strong>To Do</strong>, <strong>In PO</strong> hoặc <strong>Released</strong> — dùng để theo dõi Epic chưa/vừa qua giai đoạn lập kế hoạch.</p>
-      <h3>11.4. Dashboard cũ (<code>/dashboard</code>) — mọi role đã đăng nhập</h3>
-      <p>Thống kê tổng hợp theo dự án: số Epic, phân bố trạng thái, số lượng Fail TTM-CNTT/Fail TTM-E2E/Cảnh báo sớm/muộn, tỷ lệ Đạt TTM, Epic sắp đến hạn, top Epic cần chú ý. Không có bảng tổng hợp riêng — tính live từ cùng dữ liệu 3 màn hình trên. Role SUPERVISOR/SUPERADMIN/ADMIN, hoặc USER có từ 4 dự án có dữ liệu Epic trở lên, phải chọn 1–3 dự án trước khi xem số liệu.</p>
-      <div class="callout warn">Màn hình Dashboard cũ này <strong>đã được ẩn khỏi menu điều hướng bên trái (sidebar)</strong> để tập trung luồng trải nghiệm vào màn hình <strong>TTM Dashboard</strong> (mục 11.5).</div>
+      <h3>11.3. Quick filter "Epics in PO" của Quản trị Epic</h3>
+      <p>Nút <strong>"Epics in PO"</strong> trên thanh công cụ chọn nhanh các Epic ở trạng thái <strong>To Do</strong>, <strong>IN PO</strong> hoặc <strong>Released</strong> (thay cho màn hình Epic in PO riêng đã gỡ); bấm lần nữa để trả bộ lọc Status về mặc định (mọi status trừ Cancelled).</p>
       <h3>11.5. TTM Dashboard (<code>/dashboard-new</code>) — chỉ SUPERADMIN (từ 05/10/2026)</h3>
       <p><strong>Từ 05/10/2026:</strong> màn hình mặc định sau khi đăng nhập của mọi role là <strong>TTM Dashboard 2</strong> (mục 21). TTM Dashboard chỉ còn SUPERADMIN truy cập được (menu, URL trực tiếp và API đều chặn các role khác; URL cũ tự chuyển về TTM Dashboard 2).</p>
       <p>
@@ -1096,12 +1100,11 @@
         <li>Epic <strong>Pending</strong>.</li>
       </ol>
       <p>Mỗi dòng Epic có thể bấm mã để mở popup Duyệt Epic hoặc mở thẳng Jira ở tab mới. Đây cũng là báo cáo duy nhất được expose sẵn cho AI chatbot qua MCP Server (tool <code>list_report_filters</code>, mục 16).</p>
-      <h3>11.7. Quy tắc hiển thị &amp; Lịch sử Cảnh báo (rút gọn/đầy đủ)</h3>
+      <h3>11.7. Quy tắc hiển thị &amp; Lịch sử Cảnh báo (Quản trị Epic)</h3>
       <ul>
-        <li>Epic ở trạng thái <strong>khác Released</strong>: luôn hiển thị.</li>
-        <li>Màn <strong>rút gọn</strong>: Epic ở trạng thái <strong>= Released</strong> chỉ hiển thị nếu từng có lịch sử Cảnh báo muộn/Fail TTM; nếu chưa từng bị cảnh báo, Epic sẽ biến mất khỏi danh sách sau khi Released. Màn <strong>đầy đủ/Epic in PO/Dashboard không áp dụng</strong> rule ẩn này — luôn hiện mọi Epic trong phạm vi được phân quyền.</li>
+        <li>Quản trị Epic luôn hiện mọi Epic trong phạm vi được phân quyền (kể cả Released chưa từng có cảnh báo — quy tắc ẩn Released của màn rút gọn cũ không còn).</li>
         <li>Icon tam giác vàng ở cột Epic mở ra popup <strong class="text-fb-text-primary">Epic History</strong> để tra cứu tích lũy cảnh báo Fail TTM-CNTT qua các đợt import.</li>
-        <li>Epic có <strong>dữ liệu bất thường</strong> (mục 9) luôn bị đẩy xuống cuối bảng và tô nền highlight trên cả 3 màn hình giám sát Epic.</li>
+        <li>Epic có <strong>dữ liệu bất thường</strong> (mục 9) luôn bị đẩy xuống cuối bảng và tô nền highlight.</li>
       </ul>
     </section>
 
@@ -1190,7 +1193,7 @@
       <ul>
         <li><strong>Popup "Epic ngoại lệ"</strong> (menu Admin: Cấu hình ứng dụng; ADMIN / SUPERADMIN sửa, SUPERVISOR chỉ xem): một ô văn bản, mỗi dòng một dự án theo dạng <code>KEY:EPIC-1,EPIC-2</code>. Nút "Kiểm tra thông tin" báo lỗi theo dòng và vị trí ký tự (bấm vào lỗi để bôi đen đúng chỗ); "Lưu thông tin" chỉ lưu khi định dạng hợp lệ và thay thế toàn bộ danh sách — Epic không còn trong danh sách sẽ hết là ngoại lệ.</li>
         <li><strong>Duyệt Epic</strong> (popup chi tiết Epic): công tắc "TTM Black listed" True / False, lưu ngay khi gạt và báo tác động; chỉ ADMIN / SUPERADMIN gạt được.</li>
-        <li><strong>Nhận biết trên danh sách:</strong> ở Quản trị Epic và Epic in PO, mã Epic ngoại lệ và Epic của dự án Time to Market = N hiện trong ngoặc đơn, chữ thường không đậm — <code>(EPIC-KEY)</code>; Báo cáo Epic và Duyệt Epic hiện chấm đen cạnh mã Epic.</li>
+        <li><strong>Nhận biết trên danh sách:</strong> ở Quản trị Epic, mã Epic ngoại lệ và Epic của dự án Time to Market = N hiện trong ngoặc đơn, chữ thường không đậm — <code>(EPIC-KEY)</code>; Báo cáo Epic và Duyệt Epic hiện chấm đen cạnh mã Epic.</li>
         <li><strong>Bộ lọc "Nhận xét"</strong> ở Quản trị Epic: "Epic ngoại lệ — TTM Black listed" (<code>TTM_BLACK_LISTED</code>), "Epic ngoại lệ — dự án Time to Market = N" (<code>TTM_PROJECT_NON_TTM</code>), "L02 — Epic trong phạm vi tính TTM" (<code>TTM_COUNTED_IN_SCOPE</code>).</li>
         <li>Lưu danh sách, gạt công tắc, hoặc đổi Time to Market của dự án sẽ tự tạo lại cache (mục 6.4); số liệu đổi sau lượt đó. Dữ liệu lưu ở bảng <code>black_listed_epics</code> (mục 5.2).</li>
       </ul>
@@ -1280,7 +1283,7 @@
       <h3>15.3. Vị trí hiển thị &amp; kiểu dáng</h3>
       <p>
         Mỗi màn hình tự mount <code>InfoBannerDisplay</code> vào đúng vị trí layout của mình (không có 1 vị trí chung toàn cục trong AppShell). Trên các màn hình giám sát
-        Epic (Quản trị Epic đầy đủ/rút gọn, Epic in PO), banner mặc định và banner riêng được đặt <strong>ngay trên bảng danh sách Epic</strong> (mặc định trước, riêng
+        Epic (Quản trị Epic), banner mặc định và banner riêng được đặt <strong>ngay trên bảng danh sách Epic</strong> (mặc định trước, riêng
         màn hình sau) — dòng trạng thái dữ liệu (thời điểm lớp dữ liệu mới nhất) đặt <strong>dưới</strong> bảng, thay vì xen giữa banner như thiết kế cũ. Mọi màn hình
         đều có 1 khoảng cách dòng giữa vùng bộ lọc/toolbar và banner gần nhất.
       </p>
@@ -1320,7 +1323,7 @@
         <tbody>
           <tr><td><code>list_epic_alerts</code></td><td>Danh sách Epic (dữ liệu màn Quản trị Epic) + mức cảnh báo, lọc theo dự án/mức cảnh báo/từ khoá và <code>nhanXet</code> — bộ lọc “Nhận xét”, gồm cả các tiêu chí phễu L01…L05bb của TTM Dashboard 2 (vd. <code>TTM_PASS_IN_SCOPE</code> = L05aa); mặc định loại Epic Cancelled khi dùng <code>nhanXet</code></td><td>Theo RBAC dự án của user gọi</td></tr>
           <tr><td><code>get_epic_detail</code></td><td>Chi tiết 1 Epic theo mã</td><td>Theo RBAC dự án của user gọi</td></tr>
-          <tr><td><code>get_dashboard_summary</code></td><td>Số liệu tổng hợp tương đương màn Dashboard cũ (mục 11.4), chọn được 1-3 dự án</td><td>Theo RBAC dự án của user gọi</td></tr>
+          <tr><td><code>get_dashboard_summary</code></td><td>Tên cũ giữ lại để chatbot đang dùng không lỗi — trả đúng số liệu của <code>get_ttm_dashboard</code> (màn Dashboard cũ đã gỡ, mục 11.1); nên dùng <code>get_ttm_dashboard</code></td><td>Theo RBAC dự án của user gọi</td></tr>
           <tr><td><code>list_projects</code> / <code>list_domains</code> / <code>list_holidays</code></td><td>Danh mục dự án / domain / ngày nghỉ</td><td>Chỉ ADMIN/SUPERVISOR/SUPERADMIN</td></tr>
           <tr><td><code>get_ttm_policies</code></td><td>Toàn bộ tiêu chí Time to Market đang active</td><td>Chỉ SUPERVISOR/SUPERADMIN</td></tr>
           <tr><td><code>get_ttm_dashboard</code></td><td>Số liệu màn <strong>TTM Dashboard 2</strong> (mục 21) — từ 05/10/2026 thay cho TTM Dashboard (mục 11.5, không còn dùng cho MCP): phễu L01…L05bb, chỉ số TTM-CNTT (QLDA)/TTM-CNTT (QA)/TTM-E2E của tập đang xem và toàn công ty, widget Fail TTM-CNTT / Chậm tiến độ / Sai lệch dữ liệu / Chờ golive / Giải trình Golive, bảng phân tích theo dự án/domain/PM-SM/phân loại Epic/đơn vị yêu cầu; lọc được theo dự án, domain, PM/SM, đơn vị yêu cầu. Chỉ trả số tổng hợp — danh sách Epic lấy bằng <code>list_epic_alerts</code></td><td>Theo RBAC dự án của user gọi</td></tr>
@@ -1334,9 +1337,9 @@
         <thead><tr><th>Tool</th><th>Chức năng trong Ma trận phân quyền (cần còn quyền Xem)</th></tr></thead>
         <tbody>
           <tr><td><code>get_ttm_dashboard</code></td><td>TTM Dashboard 2 (<code>ttm_dashboard_2</code>)</td></tr>
-          <tr><td><code>list_epic_alerts</code></td><td>Quản trị Epic (<code>epic_alerts_15</code>) <em>hoặc</em> Epic in PO (<code>epic_in_po</code>) — hai màn dùng chung dữ liệu, còn một trong hai là được</td></tr>
-          <tr><td><code>get_epic_detail</code></td><td>Một trong các màn mở được Duyệt Epic: Quản trị Epic (<code>epic_alerts_15</code>), Epic in PO (<code>epic_in_po</code>), Báo cáo Epic (<code>epic_reports</code>), TTM dashboard (<code>dashboard_new</code>), Dashboard cũ (<code>dashboard</code>) — còn một màn là được</td></tr>
-          <tr><td><code>get_dashboard_summary</code></td><td>Dashboard cũ (<code>dashboard</code>)</td></tr>
+          <tr><td><code>list_epic_alerts</code></td><td>Quản trị Epic (<code>epic_alerts_15</code>)</td></tr>
+          <tr><td><code>get_epic_detail</code></td><td>Một trong các màn mở được Duyệt Epic: Quản trị Epic (<code>epic_alerts_15</code>), Báo cáo Epic (<code>epic_reports</code>), TTM dashboard (<code>dashboard_new</code>) — còn một màn là được</td></tr>
+          <tr><td><code>get_dashboard_summary</code></td><td>TTM Dashboard 2 (<code>ttm_dashboard_2</code>) — cùng cổng với <code>get_ttm_dashboard</code></td></tr>
           <tr><td><code>search_product_docs</code>, <code>get_product_doc_section</code></td><td>Tài liệu sản phẩm (<code>product_docs</code>)</td></tr>
           <tr><td><code>list_report_filters</code></td><td>Báo cáo Epic (<code>epic_reports</code>)</td></tr>
           <tr><td><code>list_projects</code></td><td>Quản lý Dự án (<code>projects</code>)</td></tr>
@@ -1395,10 +1398,10 @@
         <li>
           <strong>Lượt truy cập màn hình trọng điểm (<code>event_type = 'SCREEN_VIEW'</code>)</strong>: Hệ thống chủ động đo lường lưu lượng trên <strong>4 màn hình nghiệp vụ trọng tâm</strong>:
           <ol style="margin-top: 6px;">
-            <li><strong>Dashboard (<code>/dashboard-new</code> hoặc alias <code>/dashboard</code>)</strong> — <code>screen_key = 'dashboard'</code>: Trung tâm chỉ huy vận hành và giám sát chỉ số TTM toàn diện.</li>
-            <li><strong>Quản trị Epic (<code>/epic-alerts-15</code> hoặc alias <code>/epic-alerts</code>)</strong> — <code>screen_key = 'epic_alerts'</code>: Màn hình theo dõi tiến độ chi tiết 5 pha của các Epic.</li>
+            <li><strong>TTM Dashboard (<code>/dashboard-new</code>)</strong> — <code>screen_key = 'dashboard'</code>: Trung tâm chỉ huy vận hành và giám sát chỉ số TTM toàn diện.</li>
+            <li><strong>Quản trị Epic (<code>/epic-alerts-15</code>)</strong> — <code>screen_key = 'epic_alerts'</code>: Màn hình theo dõi tiến độ chi tiết 5 pha của các Epic.</li>
             <li><strong>Báo cáo Epic (<code>/reports</code>)</strong> — <code>screen_key = 'epic_reports'</code>: Màn hình trích xuất báo cáo chuyên sâu theo từng dự án và lớp dữ liệu.</li>
-            <li><strong>Epic in PO (<code>/epic-in-po</code>)</strong> — <code>screen_key = 'epic_in_po'</code>: Màn hình theo dõi các Epic giai đoạn lập kế hoạch (To Do, In PO, Released).</li>
+            <li><strong>Epic in PO</strong> (đã gỡ 11/10/2026) — <code>screen_key = 'epic_in_po'</code>: chỉ còn lịch sử lượt xem cũ, không còn ghi nhận mới.</li>
           </ol>
         </li>
       </ul>
@@ -1458,7 +1461,7 @@
           <ul style="margin-top: 4px;">
             <li><code>{A}</code>: Tổng số lượt truy cập toàn ứng dụng (lũy kế).</li>
             <li><code>{B}</code>: Lượt truy cập ứng dụng trong tuần này ($T-7 \to T$).</li>
-            <li><code>{C}</code>: Lượt truy cập màn hình hiện tại — <em>chỉ hiển thị nếu người dùng đang đứng tại 1 trong 5 màn hình trọng điểm</em> (TTM Dashboard, TTM Dashboard 2, Quản trị Epic, Báo cáo Epic, Epic in PO), tự động ẩn trên các màn hình khác (như trang Admin, Tài liệu, Demo...).</li>
+            <li><code>{C}</code>: Lượt truy cập màn hình hiện tại — <em>chỉ hiển thị nếu người dùng đang đứng tại 1 trong 4 màn hình trọng điểm</em> (TTM Dashboard, TTM Dashboard 2, Quản trị Epic, Báo cáo Epic), tự động ẩn trên các màn hình khác (như trang Admin, Tài liệu, Demo...).</li>
             <li><code>{D}</code>: Danh sách 5 user đăng nhập gần nhất (dạng username gạch chân ngắt quãng). Khi rê chuột (hover) vào từng username, hiển thị Tooltip nổi chứa <strong>Họ và tên đầy đủ</strong> cùng <strong>thời điểm đăng nhập chính xác</strong> (<code>DD/MM/YYYY HH:mm:ss</code>).</li>
           </ul>
         </li>

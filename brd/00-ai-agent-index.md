@@ -43,7 +43,7 @@ Nếu các tài liệu cũ còn nhắc tới ngày lịch, logic cũ hoặc tr�
 | `10-security-and-non-functional.md` | Bảo mật, hiệu năng, logging, coding constraints | Khi code nền tảng và review an toàn |
 | `11-mvp-roadmap.md` | Thứ tự MVP và phạm vi từng giai đoạn | Khi lập kế hoạch triển khai |
 | `12-ttm-policy-and-epic-alert-ui.md` | Tiêu chí TTM Policy & giao diện Cảnh báo Epic | Khi code quy tắc TTM & UI cảnh báo |
-| `13-epic-15-and-epic-30-management.md` | Quản lý Epic 30 và Quản lý Epic 15 (5 pha milestone) | Khi code màn hình Epic 30 / Epic 15 |
+| `13-epic-15-and-epic-30-management.md` | Quản trị Epic (5 pha) và các màn hình Dashboard; Epic 30 / Epic in PO / Dashboard cũ đã gỡ 11/10/2026 | Khi code màn hình Quản trị Epic / Dashboard |
 | `14-issue-hierarchy-and-workflows.md` | Cấu trúc phân cấp Issue Jira & quy trình workflow | Khi xử lý dữ liệu issue & cây quan hệ |
 | `15-mcp-sso-and-reports.md` | Báo cáo Epic (`/reports`), MCP Server (AI chatbot), SSO/API Key (SSO Provider) | Khi code màn Báo cáo, tích hợp MCP hoặc SSO |
 | `16-ttm-indexes.md` | Rule tính toán chi tiết TTM-Index/QA-Index (QLDA/PM), TTM-CNTT, TTM-E2E — tử số/mẫu số, phạm vi dữ liệu, "Phạm vi dữ liệu cho TTM", các trường hợp bị loại khỏi tính toán | Khi cần biết chính xác một chỉ số TTM/QA được tính ra sao, hoặc sửa logic liên quan |
