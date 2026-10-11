@@ -17,12 +17,8 @@ import { cn } from '@/lib/utils';
 
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
-<<<<<<< HEAD
-import { DonutChartCard } from '@/components/dashboard-new/DonutChartCard';
-import { PmsmBarChartCards } from '@/components/ttm-dashboard-2/PmsmBarChartCards';
-=======
 import { DonutChartCard } from '@/components/ttm-dashboard-2/DonutChartCard';
->>>>>>> 2f6323c62b9440e4d8690eed7d6e57f1631f04b0
+import { PmsmBarChartCards } from '@/components/ttm-dashboard-2/PmsmBarChartCards';
 import type { EpicAlertsDeepLinkAlert } from '@/lib/epic-alerts-deep-link';
 import { vnTodayIso } from '@/lib/epic-row-verdicts';
 import { formatTtmPct1, hasTtmVerdict, type TtmCnttSummary } from '@/lib/ttm-cntt-qa';
