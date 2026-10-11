@@ -30,6 +30,24 @@ function legacyRow(overrides: Partial<LegacyRowSnapshot> = {}): LegacyRowSnapsho
 const OPTIONS = { legacyLiveClock: false, today: '2026-09-01' };
 
 describe('parity with the legacy engine', () => {
+  it('D10 (2026-10-11): a Pending Epic whose previous status was To Do / In PO is no longer R5 — an approved difference', () => {
+    const ctx = makeContext({ asOf: '2026-09-01' });
+    const legacy = legacyRow({
+      currentStatus: 'Pending', alertLevel: 'NONE', hasDataAnomaly: true,
+      dataAnomalyViolations: [{ code: 'MISSING_REQUIREMENT_LEVEL' }],
+      r4gDate: null, ttmActualToDate: null, ttmE2eActualToDate: null,
+    });
+    const r5Diffs = (previousStatus: string | null) => compareWithLegacy(
+      scoreEpic(makeFacts({ status: 'Pending', requirementLevel: '', previousStatus, r4gDate: null, dueDate: null }), ctx), legacy, ctx, OPTIONS,
+    ).filter((diff) => diff.check === 'Rule ANOMALY_R5_MISSING_REQUIREMENT_LEVEL');
+    const exempt = r5Diffs('To Do');
+    assert.equal(exempt.length, 1);
+    assert.equal(exempt[0].tag, 'D10_DATA_QUALITY_RULES');
+    // Empty or another previous status: the service flags R5 exactly like the legacy engine — no difference.
+    assert.equal(r5Diffs(null).length, 0);
+    assert.equal(r5Diffs('In Progress').length, 0);
+  });
+
   it('D12: "Epic ngoại lệ" / project Time to Market = N — not counted by the service, an approved difference', () => {
     const ctx = makeContext({ asOf: '2026-09-01' });
     // Đạt in the legacy engine, outside L02 in the service.

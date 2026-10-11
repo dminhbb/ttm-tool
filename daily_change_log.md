@@ -8,73 +8,14 @@
 
 ## 2026-10-11
 
-- **Gỡ `/dashboard-new` (TTM Dashboard bản đầu) + sửa lỗi lint `Modal.tsx`** (tiếp B1, branch `chore/remove-legacy-screens`):
-  - **Xoá**: `src/app/dashboard-new` (2090 dòng), `/api/dashboard-new`, `src/components/dashboard-new/`; `DonutChartCard` và `EpicAlertsIframeModal`
-    (TTM Dashboard 2 vẫn dùng) chuyển sang `src/components/ttm-dashboard-2/`. Giữ `ttm-dashboard-summary-service.ts`, `view-as-user-service.ts`,
-    `ttm-index-global-cache-service.ts` (Dashboard 2 / Quản trị Epic vẫn dùng). Xoá thêm file không ai import: `GeneralSettingsModal.tsx`, `utils/cn.ts`.
-  - **Redirect** `/dashboard-new` → `/ttm-dashboard-2` (`next.config.ts`); bỏ khỏi `PAGE_FEATURES`, `API_FEATURES`, `LANDING_PATHS`, `PAGE_ROLES`, sidebar,
-    `PAGE_HEADERS`, `MCP_TOOL_FEATURES.get_epic_detail`. Migration `20261011_remove_legacy_screen_permissions` mở rộng xoá cả feature `dashboard_new`
-    (vẫn chưa áp dụng lên DB nào). Visit Counter: `/dashboard-new` không còn map vào khoá `dashboard` (giữ khoá làm lịch sử, nhãn "đã gỡ").
-  - **Lint**: `ui/Modal.tsx` — `mounted` dùng `useSyncExternalStore` (false khi SSR/hydrate, true sau đó) thay cho `setState` trong effect → `eslint src` sạch.
-  - **Test/tài liệu**: `feature-access.test.ts`, `design-debt.test.ts` (đường dẫn `DonutChartCard`, chỉ còn 1 route dùng `ttm-shared.css`); README, `product-guide.html`
-    (§2, 11.5, 16, 18), `brd/04, 05, 08, 13, 15`.
-
-- **Cân đối kích thước widget & cập nhật title/subtitle cho TTM Dashboard 2 (`/ttm-dashboard-2`)**:
-  - `src/components/ttm-dashboard-2/DashboardInsights.tsx`:
-    - Khắc phục triệt để hiện tượng tràn/cắt title chính (`FAIL TTM-CNTT`, `THIẾU LÝ DO`): bỏ `text-ellipsis` trên title của `KpiCard` và áp dụng `whitespace-nowrap`, tinh chỉnh typography `tracking-tight` và icon fluid clamp.
-    - Tái phân bổ tỉ lệ chiều rộng giữa 2 nhóm: nhóm trái nâng lên `flex-[63]` với phân bổ cột `grid-cols-[0.62fr_1.18fr_1.08fr_1.06fr_1.06fr_1.0fr]`, giúp 2 card `FAIL TTM-CNTT` và `THIẾU LÝ DO` tăng thêm hơn 30% độ rộng; nhóm phải giảm về `flex-[37]` với phân bổ cột `grid-cols-[0.8fr_0.8fr_1.1fr_0.9fr]`, thu hẹp phần thừa không cần thiết của widget `SAI LỆCH` và `CHỜ GOLIVE`.
-    - Tại widget 'FAIL TTM-CNTT': bổ sung subtitle `"Phạm vi của QLDA"`.
-    - Tại widget 'THIẾU LÝ DO FAIL': đổi title ngắn gọn thành `"THIẾU LÝ DO"` và subtitle thành `"Fail TTM-CNTT"`.
-
-- **Hoàn thiện UI thanh lọc và bổ sung widget KPI cho TTM Dashboard 2 (`/ttm-dashboard-2`)**:
-  - `src/app/ttm-shared.css`: Bổ sung CSS class `.ttm-toolbar.ttm-toolbar-row` (khoá không wrap trên desktop, phân bổ tỉ lệ co giãn `flex: 1 1 0` cho các ô lọc) và đồng bộ trọn vẹn bộ class cho `.ttm-multiselect` (`position: relative`, trigger, popover cố định theo nút bấm, các option dạng flex hàng dọc với checkbox và nhãn, hỗ trợ dark mode).
-  - `src/app/ttm-dashboard-2/page.tsx`: Cập nhật toolbar sang `className="ttm-toolbar ttm-toolbar-row"`, chống xuống dòng trên desktop; cố định `shrink-0` cho nhãn dữ liệu cập nhật và nút Đặt lại; sửa triệt để lỗi menu dropdown multiselect bị vỡ và rớt xuống dưới phễu.
-  - `src/components/ttm-dashboard-2/DashboardInsights.tsx`:
-    - Thêm mới widget **'THIẾU LÝ DO FAIL'** bên phải widget 'FAIL TTM-CNTT' hiển thị số lượng Epic fail TTM-CNTT chưa log khâu nguyên nhân (`insights.missingFailReason`), liên kết trực tiếp tới danh sách thiếu lý do fail.
-    - Bỏ subtitle trong widget 'FAIL TTM-CNTT' (hỗ trợ subtitle tùy chọn với non-breaking space fallback giữ nguyên alignment).
-    - Cập nhật subtitle widget 'TTM-CNTT' (QLDA) thành "Phạm vi của QLDA", và widget 'SAI LỆCH' thành "Sai lệch dữ liệu".
-    - Giảm tỉ lệ chiều rộng widget 'CẢNH BÁO' (từ 1.1fr xuống 0.8fr) và cân đối lại toàn bộ 10 widget trên 1 dòng duy nhất mà không bị tràn hay xuống dòng.
-
-- **B1 — gỡ 3 màn hình cũ (branch `chore/remove-legacy-screens`)**: `/dashboard` (Dashboard cũ), `/epic-alerts` (Quản trị Epic rút gọn / Epic 30)
-  và `/epic-in-po` (Epic in PO, đã có quick filter "Epics in PO" ở Quản trị Epic). Căn cứ: `visit_logs` cho thấy Dashboard cũ và Epic in PO không còn
-  lượt xem nào từ 04/10 (TTM Dashboard 2 thành mặc định 05/10); `/api/epic-alerts` không đi qua Scoring Service nên số liệu có thể lệch màn chính.
-  - **Xoá**: `src/app/{dashboard,epic-alerts,epic-in-po}` (page + CSS), `/api/dashboard`, `/api/epic-alerts` (route list), `/api/epic-compliance` +
-    `epic-compliance-service.ts` (không client nào gọi), `dashboard-service.ts`, `dashboard-types.ts`, `getEpicAlertRows` + 3 helper ô stage + type
-    `EpicAlertRow/EpicAlertResponse/StageCell` (`epic-alert-service.ts`, `epic-alert-types.ts`).
-  - **Giữ nhưng đổi chỗ**: route lịch sử cảnh báo Epic History `/api/epic-alerts/[epicKey]/{alert-history,alert-timeline}` →
-    `/api/epic-alerts-15/[epicKey]/…` (đang được Quản trị Epic, Duyệt Epic và EpicAlertTimeline gọi); cập nhật 4 chỗ `fetch`.
-  - **Redirect** (`next.config.ts`, 307, query chuyển tiếp): `/dashboard` → `/ttm-dashboard-2`, `/epic-alerts` → `/epic-alerts-15`,
-    `/epic-in-po` → `/epic-alerts-15?status=To Do,IN PO,Released`.
-  - **MCP**: `get_dashboard_summary` giữ làm tên cũ của `get_ttm_dashboard` (trả `getTtmDashboard2Summary`, cổng `ttm_dashboard_2`); bỏ `dashboard` /
-    `epic_in_po` khỏi `MCP_TOOL_FEATURES` (`get_epic_detail`, `list_epic_alerts`). MCP không dùng `/api/epic-compliance`.
-  - **Phân quyền / theo dõi**: bỏ 3 màn khỏi `PAGE_FEATURES`, `LANDING_PATHS`, `PAGE_ROLES`, `PAGE_HEADERS`, sidebar; migration
-    `20261011_remove_legacy_screen_permissions` (+ `.down`) xoá feature `dashboard`/`epic_alerts_30`/`epic_in_po` khỏi Ma trận phân quyền — **CHƯA áp dụng**
-    lên Supabase/local (đã chạy thử trong transaction + ROLLBACK). Visit Counter giữ khoá `epic_in_po` (nhãn "đã gỡ") để lịch sử không mất.
-  - **Test/tài liệu**: cập nhật `feature-access.test.ts`, `design-debt.test.ts` (bỏ ngân sách của file đã xoá); README, `product-guide.html` (§2, 8, 10, 11, 16, 18),
-    `brd/00, 03, 04, 08, 13, 14, 15`, HelpPanels. Còn lại có chủ đích: `/dashboard-new` (SUPERADMIN-only) chưa gỡ, chờ xác nhận.
-
-- **Khắc phục triệt để chế độ Dark Mode tại màn hình 'TTM Dashboard 2' (`/ttm-dashboard-2`)**:
-  - `src/app/ttm-dashboard-2/page.tsx`: Gỡ bỏ container bao ngoài thừa mang class `bg-[var(--color-bg-page)]` (nguyên nhân gây ra khung viền trắng lớn bao trọn toàn bộ banner, toolbar, KPI strip và Panel 1); chuyển các indicator pill sang `bg-fb-surface-muted`, nút "Trở về Lead" sang `bg-fb-surface`, label "Filters:" sang `text-fb-text-primary`; chuyển toàn bộ nền Panel 1, Panel 2/3 và loading overlay sang `bg-fb-surface` / `bg-fb-surface/80`.
-  - `src/components/ttm-dashboard-2/DashboardInsights.tsx`: Chuẩn hoá KPI strip và các pill KPI sang `dark:bg-fb-surface-muted`, `dark:border-fb-border`, `dark:text-fb-blue`; cập nhật icon badge và progress ring sang `bg-fb-surface` với track ring dùng `currentColor` + `text-fb-border` (loại bỏ mã màu cứng `#e2e8f0`); tiêu đề nhóm accordion đổi sang `text-fb-text-primary`.
-  - `src/components/dashboard-new/DonutChartCard.tsx`: Chuyển card nền donut từ `bg-[var(--color-bg-page)]` sang `bg-fb-surface`; đổi track donut SVG từ `#e2e8f0` sang `text-fb-border`; chuyển nhãn số đếm trung tâm donut từ `#0f172a` sang `text-fb-text-primary`.
-  - `src/lib/design-system/__tests__/design-debt.test.ts`: Tự động co hạn mức nợ thiết kế `hexLiteral` (giảm 3 vị trí do dọn các mã màu cứng trong `DashboardInsights.tsx` và `DonutChartCard.tsx`) tuân thủ cơ chế ratcheting linter.
-
-- **Khắc phục lỗi giao diện IAS Theme, chuẩn hoá Dark Mode toàn diện và cơ chế Theme mặc định 7 ngày**:
-  - **Sửa lỗi popup chức năng từ avatar bị nền đen ở Light Mode** (`Modal.tsx`, `globals.css`):
-    - Đưa `Modal` ra ngoài cây DOM của `.sidebar-surface` qua `createPortal` mount vào `document.body`, đồng thời thêm CSS reset token cho dialog mở từ sidebar. Loại bỏ triệt để hiện tượng modal bị thừa kế background tối navy (`#0D0D2B`) và chữ trắng của sidebar.
-  - **Tăng độ tương phản cho Light Mode (đặc biệt IAS Theme)** (`globals.css`):
-    - Nâng độ đậm của header bảng (`#eaedf6`, chữ `#14142a`, viền dưới `2px solid #cbd0e2`), phân biệt rõ rệt với dòng dữ liệu; lưới ô `td` có viền sắc nét (`#d4d8e8`).
-    - Các input, select, search, trigger multi-select có nền `#f8fafc`, viền `#cbd0e2`, chữ `#14142a`, focus đổi viền xanh brand `#141ed2` và nền `#ffffff`.
-    - Nút secondary/outline có nền trắng `#ffffff`, viền `#b8bdd6`, chữ đậm nét. Các tab inactive có nền `#edf0f8` viền `#c8cde0`.
-  - **Chuẩn hoá chế độ Tối (Dark Mode) trên tất cả màn hình, panel và popup** (`globals.css`, `ttm-shared.css`, `UserMenu.tsx`):
-    - Khai báo token Dark Mode riêng cho cả 4 brand (`ias`, `wise`, `legacy`, `pink`) dưới selector `:root[data-brand][data-theme="dark"]` để brand selector không đè mất cấu hình tối.
-    - Thêm biến thể `@custom-variant dark` trong Tailwind CSS v4, đồng bộ thuộc tính `data-theme="dark"` và class `dark` trên `<html>` ngay tức thì.
-    - Chuẩn hoá toàn bộ `.ui-card`, `.ias-card`, `.ui-table`, `.ui-input`, `.ui-search`, `.ui-button-secondary`, modal dialog, sticky column và các khối legacy `bg-white`/`text-black`/`border-black` hiển thị chuẩn giao diện tối.
-    - Bổ sung remap token Dark Mode cho hệ `--ttm-*` trong `ttm-shared.css`.
-  - **Thiết lập theme mặc định IAS và cơ chế tự hoàn tác sau 7 ngày** (`theme-brand.ts`, `AppearancePanel.tsx`):
-    - Theme mặc định hệ thống là `IAS theme`.
-    - Khi người dùng chủ động chọn theme khác (`wise`, `legacy`, `pink`), hệ thống lưu lựa chọn kèm timestamp `ttm-theme-brand-timestamp`. Sau 7 ngày, hệ thống sẽ tự động hoàn tác về IAS theme mặc định (áp dụng cả trong blocking `<script>` ở `<head>` trước first paint và runtime client).
-
+- **Scoring Service: sửa rule R5 "Thiếu Requirement Level" (`scoring-15` → `scoring-16`, branch `feature/r5-requirement-level`)** — theo quy định chủ sở hữu:
+  Requirement Level trống/"none" VÀ ( (status > DESIGN và khác Pending) HOẶC (status = Pending và (`previous_status` rỗng HOẶC ∉ {To Do, In PO})) ).
+  (Bản đầu trong ngày đặt ngược nhánh Pending — đã sửa: Epic Pending trước đó là To Do / In PO được **miễn** R5.)
+  - `scoring/rules/data-quality.ts`: hàm mới `requirementLevelRequired()`; so sánh `previous_status` không phân biệt hoa/thường, đã trim, chuẩn hoá workflow.
+  - Dữ liệu: `EpicFacts.previousStatus` (`scoring/types.ts`), nạp `issues.previous_status` ở `scoring-facts-service.ts`.
+  - `catalog.ts` (meaning/formula), `registry.ts` (version), `parity.ts` (R5 không gắn ở DESIGN hoặc Pending → `D10_DATA_QUALITY_RULES`; engine legacy không đổi).
+  - Test: `scoring.test.ts` "R5 (2026-10-11)", `parity.test.ts`, `projection.test.ts`. Tài liệu: spec §25, `brd/03`, `brd/16`, product-guide §9.1, HelpPanels.
+  - Tác động dự kiến (Supabase 11/10): 27 Epic Pending thiếu Requirement Level — 3 Epic có previous = To Do được miễn R5; 24 Epic còn lại (23 previous trống + 1 In Progress) vẫn bị R5. Cần "Tạo lại cache" để có hiệu lực.
 
 - **Dọn lint + footer màn hình login + cập nhật tài liệu/schema**:
   - **Lint** (`eslint src` từ 4 lỗi + 29 cảnh báo → sạch): sửa 4 lỗi `react-hooks/set-state-in-effect` —

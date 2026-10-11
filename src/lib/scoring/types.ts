@@ -31,6 +31,9 @@ export interface EpicFacts {
   /** "Phân loại yêu cầu" */
   requestType: string | null;
   requirementLevel: string | null;
+  /** issues.previous_status — the status the Epic had before its current one (mostly empty; only
+   * filled for some transitions, e.g. a Pending Epic). Used by R5. */
+  previousStatus?: string | null;
   /** Story/subtask-derived phase completion AT asOf; null = no data for that date. */
   phaseCompletion: EpicPhaseCompletionFacts | null;
   /** Set when the Epic is taken out of the TTM calculation (see TtmExclusion); absent/null = counted. */
