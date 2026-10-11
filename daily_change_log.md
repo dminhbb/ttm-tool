@@ -8,6 +8,12 @@
 
 ## 2026-10-11
 
+- **Chuyển đổi biểu đồ section 'Theo PM/SM' từ Donut sang Horizontal Bar Chart (`/ttm-dashboard-2`)**:
+  - `src/components/ttm-dashboard-2/PmsmBarChartCards.tsx`: Tạo mới component biểu đồ thanh ngang gồm 3 nhóm song song (`% Tổng số Epic`, `% Pass TTM`, `% Fail TTM`), sắp xếp từ cao xuống thấp theo giá trị số lượng Epic (Phương án A).
+  - Tối ưu cho danh sách lên tới 40+ PM/SM: Mặc định áp dụng lazy rendering chỉ hiển thị **Top 7 cao nhất** và **Top 7 thấp nhất** (giữ chiều cao thẻ gọn gàng), ở giữa là dải phân cách kèm nút `[ ··· +{N-14} PM/SM ▼ ]`.
+  - Đồng bộ hoá trải nghiệm: Thao tác bấm nút mở rộng/thu gọn ở bất kỳ nhóm nào trong 3 nhóm đều kích hoạt bung toàn bộ (kèm thanh cuộn nội bộ `max-h-[460px]`) đồng thời cho cả 3 nhóm.
+  - `src/components/ttm-dashboard-2/DashboardInsights.tsx`: Tích hợp `PmsmBarChartCards` thay thế cho `DonutChartCard` riêng tại section `dimension === 'pmsm'`; các section khác giữ nguyên.
+
 - **Scoring Service: sửa rule R5 "Thiếu Requirement Level" (`scoring-15` → `scoring-16`, branch `feature/r5-requirement-level`)** — theo quy định chủ sở hữu:
   Requirement Level trống/"none" VÀ ( (status > DESIGN và khác Pending) HOẶC (status = Pending và (`previous_status` rỗng HOẶC ∉ {To Do, In PO})) ).
   (Bản đầu trong ngày đặt ngược nhánh Pending — đã sửa: Epic Pending trước đó là To Do / In PO được **miễn** R5.)
