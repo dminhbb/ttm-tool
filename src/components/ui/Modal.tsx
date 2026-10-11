@@ -1,4 +1,7 @@
+'use client';
+
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { X } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
@@ -112,13 +115,18 @@ export const Modal = ({
   icon,
   layer = 'default',
 }: ModalProps) => {
+  const [mounted, setMounted] = React.useState(false);
   const titleId = React.useId();
   const closeButtonRef = React.useRef<HTMLButtonElement>(null);
   useModalBehavior(isOpen, onClose, closeButtonRef);
 
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   if (!isOpen) return null;
 
-  return (
+  const modalContent = (
     <div className={cn('fixed inset-0 flex items-center justify-center p-4', layer === 'top' ? 'z-[120]' : 'z-[60]')} role="presentation">
       <div className={MODAL_BACKDROP_CLASS} onClick={onClose} aria-hidden="true" />
 
@@ -154,6 +162,12 @@ export const Modal = ({
       </div>
     </div>
   );
+
+  if (mounted && typeof document !== 'undefined') {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 };
 
 Modal.displayName = 'Modal';

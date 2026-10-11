@@ -5,6 +5,7 @@
    Xem đầu file ias-tokens.css để biết toàn bộ quy tắc. */
 @import "./ias-tokens.css";
 @plugin '@tailwindcss/forms';
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
 @theme {
   /* NOTE: these two intentionally do NOT reference var(--font-inter)/var(--font-geist-mono).
@@ -364,6 +365,127 @@
    mới thực sự hoạt động. */
 :root[data-brand="ias"] body {
   font-family: var(--font-family-body);
+}
+
+/* ============================================================================
+   Chế độ Tối (Dark mode) — chuẩn hoá cho mọi theme
+   ============================================================================ */
+
+:root[data-brand="ias"][data-theme="dark"] {
+  color-scheme: dark;
+  --color-primary: #3b54e6;
+  --color-primary-hover: #4b63e2;
+  --color-on-primary: #ffffff;
+
+  --surface-app: #0b0d1b;
+  --surface-sidebar: #080a16;
+  --surface-panel: #121528;
+  --surface-elevated: #181c35;
+  --surface-hover: #1f2444;
+  --surface-active: #262c52;
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-default: rgba(255, 255, 255, 0.16);
+  --border-strong: rgba(255, 255, 255, 0.28);
+
+  --text-primary: #f4f6fa;
+  --text-secondary: #c5c8de;
+  --text-muted: #8b8fbd;
+  --text-disabled: #55587a;
+  --text-on-accent: #ffffff;
+
+  --accent: #4b63e2;
+  --accent-hover: #7f85f5;
+  --accent-soft: rgba(75, 99, 226, 0.18);
+  --success: #00ba88;
+  --success-soft: rgba(0, 186, 136, 0.18);
+  --warning: #f4b740;
+  --warning-soft: rgba(244, 183, 64, 0.18);
+  --danger: #eb2d4b;
+  --danger-soft: rgba(235, 45, 75, 0.18);
+  --info: #7b61ff;
+  --info-soft: rgba(123, 97, 255, 0.18);
+  --focus-ring: 0 0 0 3px rgba(75, 99, 226, 0.4);
+
+  --color-bg-page: #0b0d1b;
+  --color-bg-surface: #121528;
+  --color-bg-hover: #1f2444;
+  --color-text-primary: #f4f6fa;
+  --color-text-body: #c5c8de;
+  --color-text-secondary: #8b8fbd;
+  --color-text-muted: #6e7191;
+  --color-border-default: rgba(255, 255, 255, 0.16);
+  --color-border-strong: rgba(255, 255, 255, 0.28);
+  --color-table-header: #181c35;
+}
+
+:root[data-brand="wise"][data-theme="dark"] {
+  color-scheme: dark;
+  --surface-app: #101208;
+  --surface-sidebar: #15170e;
+  --surface-panel: #191c12;
+  --surface-elevated: #212518;
+  --surface-hover: #282d1d;
+  --surface-active: #303622;
+  --border-subtle: rgb(255 255 255 / 0.07);
+  --border-default: rgb(255 255 255 / 0.15);
+  --border-strong: rgb(255 255 255 / 0.28);
+  --text-primary: #f3f5ec;
+  --text-secondary: #c7cdba;
+  --text-muted: #8c9280;
+  --text-disabled: #5c6252;
+  --accent: #9fe870;
+  --accent-hover: #cdffad;
+  --accent-soft: rgb(159 232 112 / 0.16);
+  --color-primary: #9fe870;
+  --color-primary-hover: #cdffad;
+  --color-on-primary: #0e0f0c;
+}
+
+:root[data-brand="legacy"][data-theme="dark"] {
+  color-scheme: dark;
+  --surface-app: #0b1120;
+  --surface-sidebar: #070d18;
+  --surface-panel: #111a2e;
+  --surface-elevated: #1e293b;
+  --surface-hover: #28354d;
+  --surface-active: #334155;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-default: rgba(255, 255, 255, 0.16);
+  --border-strong: rgba(255, 255, 255, 0.3);
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-disabled: #64748b;
+  --accent: #38bdf8;
+  --accent-hover: #7dd3fc;
+  --accent-soft: rgba(56, 189, 248, 0.15);
+  --color-primary: #0284c7;
+  --color-primary-hover: #0369a1;
+  --color-on-primary: #ffffff;
+}
+
+:root[data-brand="pink"][data-theme="dark"] {
+  color-scheme: dark;
+  --surface-app: #140c12;
+  --surface-sidebar: #0e080d;
+  --surface-panel: #1e121c;
+  --surface-elevated: #2a1a27;
+  --surface-hover: #382335;
+  --surface-active: #472c43;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-default: rgba(255, 255, 255, 0.16);
+  --border-strong: rgba(255, 255, 255, 0.3);
+  --text-primary: #fdf2f8;
+  --text-secondary: #f472b6;
+  --text-muted: #9d7b90;
+  --text-disabled: #6e5565;
+  --accent: #f472b6;
+  --accent-hover: #fbcfe8;
+  --accent-soft: rgba(244, 114, 182, 0.15);
+  --color-primary: #db2777;
+  --color-primary-hover: #be185d;
+  --color-on-primary: #ffffff;
 }
 
 /* ============================================================================
@@ -884,36 +1006,230 @@
   --color-fb-surface: var(--surface-panel);
 }
 
-:root[data-theme="light"] .ui-card,
-:root[data-theme="light"] .ui-table-wrap,
-:root[data-theme="light"] .right-panel-surface {
-  border-color: var(--border-default);
-  box-shadow: 0 2px 6px rgb(14 15 12 / 0.06);
+/* Trả mọi popup/dialog/modal mở từ sidebar về hệ màu chuẩn của trang, tránh bị thừa kế token tối của sidebar */
+.sidebar-surface [role="dialog"],
+.sidebar-surface .ui-modal,
+.sidebar-surface [role="dialog"] * {
+  --color-fb-border: var(--border-default);
+  --color-fb-control: var(--surface-hover);
+  --color-fb-control-hover: var(--surface-hover);
+  --color-fb-text-primary: var(--text-primary);
+  --color-fb-text-secondary: var(--text-secondary);
+  --color-fb-blue: var(--accent);
+  --color-fb-blue-soft: var(--accent-soft);
+  --color-fb-surface: var(--surface-panel);
+  --color-fb-surface-muted: var(--surface-elevated);
 }
 
-:root[data-theme="light"] .ui-table thead th {
-  background: var(--surface-hover);
-  color: var(--text-primary);
-  font-weight: 800;
-  border-bottom: 2px solid var(--border-default);
-}
-
-:root[data-theme="light"] .ui-button-secondary {
-  background: var(--surface-panel);
-  border-color: var(--border-default);
-  color: var(--text-primary);
-}
-:root[data-theme="light"] .ui-button-secondary:hover {
-  background: var(--surface-hover);
-  border-color: var(--border-strong);
-}
-
+/* ============================================================================
+   Tăng độ tương phản cho Light Mode (đặc biệt IAS Theme)
+   ============================================================================ */
 :root[data-theme="light"] .ui-input,
 :root[data-theme="light"] .ui-select,
 :root[data-theme="light"] .ui-textarea,
-:root[data-theme="light"] .ui-search {
-  background: var(--surface-panel);
-  border-color: var(--border-default);
+:root[data-theme="light"] .ui-search,
+:root[data-theme="light"] .ui-multi-select__trigger {
+  background: #f8fafc;
+  border-color: #cbd0e2;
+  color: #14142a;
+}
+:root[data-theme="light"] .ui-input:focus,
+:root[data-theme="light"] .ui-select:focus,
+:root[data-theme="light"] .ui-textarea:focus,
+:root[data-theme="light"] .ui-search:focus-within,
+:root[data-theme="light"] .ui-multi-select__trigger:focus-visible {
+  background: #ffffff;
+  border-color: var(--color-primary-500, #141ed2);
+}
+
+:root[data-theme="light"] .ui-button-secondary,
+:root[data-theme="light"] .ias-btn-outline {
+  background: #ffffff;
+  border: 1px solid #b8bdd6;
+  color: #14142a;
+  font-weight: 600;
+}
+:root[data-theme="light"] .ui-button-secondary:hover,
+:root[data-theme="light"] .ias-btn-outline:hover {
+  background: #edf0fa;
+  border-color: var(--accent, #141ed2);
+}
+
+:root[data-theme="light"] .ui-table thead th,
+:root[data-theme="light"] .ias-table thead th {
+  background: #eaedf6 !important;
+  color: #14142a !important;
+  font-weight: 700;
+  border-bottom: 2px solid #cbd0e2 !important;
+}
+
+:root[data-theme="light"] .ui-table tbody td,
+:root[data-theme="light"] .ias-table tbody td {
+  border-color: #d4d8e8;
+}
+
+:root[data-theme="light"] .ui-tabs button:not(.ui-button-primary) {
+  background: #edf0f8;
+  border: 1px solid #c8cde0;
+  color: #2d314e;
+}
+
+/* ============================================================================
+   Chuẩn hoá Chế độ Tối (Dark mode) cho toàn bộ màn hình, panel, popup và controls
+   ============================================================================ */
+:root[data-theme="dark"] html,
+:root[data-theme="dark"] body,
+:root[data-theme="dark"] .app-type-unified {
+  background-color: var(--surface-app) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme="dark"] .ui-card,
+:root[data-theme="dark"] .ias-card,
+:root[data-theme="dark"] .ui-alert,
+:root[data-theme="dark"] .right-panel-surface,
+:root[data-theme="dark"] .ui-table-wrap {
+  background-color: var(--surface-panel) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-primary) !important;
+  box-shadow: none !important;
+}
+
+:root[data-theme="dark"] .ui-card-header {
+  border-bottom-color: var(--border-subtle) !important;
+}
+:root[data-theme="dark"] .ui-card-footer {
+  border-top-color: var(--border-subtle) !important;
+}
+
+:root[data-theme="dark"] .ui-table thead th,
+:root[data-theme="dark"] .ias-table thead th {
+  background-color: var(--surface-elevated) !important;
+  color: var(--text-secondary) !important;
+  border-bottom-color: var(--border-default) !important;
+}
+
+:root[data-theme="dark"] .ui-table tbody td,
+:root[data-theme="dark"] .ias-table tbody td {
+  border-color: var(--border-subtle) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme="dark"] .ui-table tbody tr:hover,
+:root[data-theme="dark"] .ias-table tbody tr:hover {
+  background-color: var(--surface-hover) !important;
+}
+
+:root[data-theme="dark"] .ias-table .ias-sticky-col,
+:root[data-theme="dark"] .ui-table .ias-sticky-col {
+  background-color: var(--surface-panel) !important;
+}
+:root[data-theme="dark"] .ias-table thead .ias-sticky-col,
+:root[data-theme="dark"] .ui-table thead .ias-sticky-col {
+  background-color: var(--surface-elevated) !important;
+}
+:root[data-theme="dark"] .ias-table tbody tr:hover .ias-sticky-col,
+:root[data-theme="dark"] .ui-table tbody tr:hover .ias-sticky-col {
+  background-color: var(--surface-hover) !important;
+}
+
+:root[data-theme="dark"] .ui-input,
+:root[data-theme="dark"] .ui-select,
+:root[data-theme="dark"] .ui-textarea,
+:root[data-theme="dark"] .ui-search,
+:root[data-theme="dark"] .ui-multi-select__trigger {
+  background-color: var(--surface-elevated) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme="dark"] .ui-search input {
+  color: var(--text-primary) !important;
+}
+:root[data-theme="dark"] .ui-search input::placeholder {
+  color: var(--text-muted) !important;
+}
+
+:root[data-theme="dark"] .ui-button-secondary,
+:root[data-theme="dark"] .ias-btn-outline {
+  background-color: var(--surface-elevated) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-primary) !important;
+}
+:root[data-theme="dark"] .ui-button-secondary:hover,
+:root[data-theme="dark"] .ias-btn-outline:hover {
+  background-color: var(--surface-hover) !important;
+  border-color: var(--border-strong) !important;
+}
+
+:root[data-theme="dark"] .ui-multi-select__popover,
+:root[data-theme="dark"] [role="menu"] {
+  background-color: var(--surface-panel) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme="dark"] .ui-multi-select__heading {
+  border-bottom-color: var(--border-subtle) !important;
+  color: var(--text-muted) !important;
+}
+
+:root[data-theme="dark"] .ui-multi-select__search {
+  background-color: var(--surface-elevated) !important;
+  border-color: var(--border-default) !important;
+}
+
+:root[data-theme="dark"] .ui-multi-select__option:hover,
+:root[data-theme="dark"] .ui-multi-select__option.is-selected {
+  background-color: var(--surface-hover) !important;
+}
+
+:root[data-theme="dark"] [role="dialog"],
+:root[data-theme="dark"] .ui-modal {
+  background-color: var(--surface-panel) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme="dark"] div.bg-white,
+:root[data-theme="dark"] section.bg-white,
+:root[data-theme="dark"] main.bg-white,
+:root[data-theme="dark"] input.bg-white,
+:root[data-theme="dark"] select.bg-white,
+:root[data-theme="dark"] button.bg-white,
+:root[data-theme="dark"] table.bg-white,
+:root[data-theme="dark"] td.bg-white,
+:root[data-theme="dark"] th.bg-white,
+:root[data-theme="dark"] [class*="bg-white/"]:not([role="switch"] *):not(span.size-6) {
+  background-color: var(--surface-panel) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme="dark"] .text-black {
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme="dark"] .border-black {
+  border-color: var(--border-default) !important;
+}
+
+:root[data-theme="dark"] .divide-black > * {
+  border-color: var(--border-subtle) !important;
+}
+
+:root[data-theme="dark"] [class*="bg-[var(--color-bg-page)]"],
+:root[data-theme="dark"] [class*="bg-[var(--color-primary-100)]"] {
+  background-color: var(--surface-panel) !important;
+}
+
+:root[data-theme="dark"] {
+  --color-bg-page: var(--surface-app);
+  --color-bg-surface: var(--surface-panel);
+  --color-neutral-700: var(--text-secondary);
+  --color-neutral-900: var(--text-primary);
+  --color-primary-100: var(--surface-elevated);
+  --color-primary-200: var(--border-default);
+  --color-primary-700: var(--accent);
 }
 
 * { box-sizing: border-box; }

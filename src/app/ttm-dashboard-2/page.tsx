@@ -609,10 +609,7 @@ export default function TtmDashboard2Page() {
   const detailBottom: Ellipse = { cx: 175, cy: 225, rx: 60, ry: 9 };
 
   return (
-    // `font-sans` đã bỏ (2026-10-10): utility đó trỏ về ui-sans-serif/system-ui nên sẽ
-    // đè font brand trên toàn nhánh này. Body đã là sans nên nó vốn dư thừa.
-    // Phần `bg-[var(--color-bg-page)] text-fb-text-primary` khoá cứng theme sáng sẽ được xử lý ở Task 10.
-    <div className="min-h-screen bg-[var(--color-bg-page)] text-fb-text-primary antialiased p-4 md:p-6 space-y-4">
+    <div className="space-y-4 text-fb-text-primary">
       <InfoBannerDisplay pathname="/ttm-dashboard-2" />
 
       {/* PAGE HEADER BANNER (same style as TTM Dashboard) */}
@@ -641,7 +638,7 @@ export default function TtmDashboard2Page() {
             ] as const).map(([label, tooltip, summary, color]) => (
               <div
                 key={label}
-                className="flex h-9 items-center gap-2 rounded-full border border-fb-border bg-[var(--color-bg-page)] px-3.5 shrink-0 text-left shadow-2xs"
+                className="flex h-9 items-center gap-2 rounded-full border border-fb-border bg-fb-surface-muted px-3.5 shrink-0 text-left shadow-2xs"
                 title={formatTtmIndexTooltip(tooltip, summary)}
               >
                 <div className="flex flex-col justify-center leading-none">
@@ -670,7 +667,7 @@ export default function TtmDashboard2Page() {
                   setPreviewUserId(null);
                   setViewMode('EXECUTIVE');
                 }}
-                className="h-7 shrink-0 rounded-md bg-white border border-status-warning px-2.5 text-xs font-bold text-status-warning hover:bg-status-warning-soft transition-colors shadow-xs"
+                className="h-7 shrink-0 rounded-md bg-fb-surface border border-status-warning px-2.5 text-xs font-bold text-status-warning hover:bg-status-warning-soft transition-colors shadow-xs"
               >
                 Trở về Lead
               </button>
@@ -703,7 +700,7 @@ export default function TtmDashboard2Page() {
 
       {/* TOP SINGLE-ROW TOOLBAR FILTERS */}
       <section className="ttm-toolbar" aria-label="Bộ lọc TTM Dashboard 2">
-        <div className="flex items-center gap-1.5 text-xs font-bold text-black shrink-0 mr-1 select-none">
+        <div className="flex items-center gap-1.5 text-xs font-bold text-fb-text-primary shrink-0 mr-1 select-none">
           <CaretRight className="size-4 text-[var(--color-text-brand)]" weight="bold" />
           <span>Filters:</span>
         </div>
@@ -804,16 +801,16 @@ export default function TtmDashboard2Page() {
         {/* ============================================================= */}
         {/* PANEL 1: PHỄU LỌC DỮ LIỆU TỔNG QUAN & PHÂN NHÁNH TIẾN ĐỘ       */}
         {/* ============================================================= */}
-        <div className="min-w-0 bg-white border border-fb-border rounded-2xl p-5 md:p-6 shadow-sm flex flex-col justify-between relative" aria-busy={isRecomputing}>
+        <div className="min-w-0 bg-fb-surface border border-fb-border rounded-2xl p-5 md:p-6 shadow-sm flex flex-col justify-between relative" aria-busy={isRecomputing}>
           {(isRecomputing || rowsError) && (
-            <div className="absolute inset-0 z-10 grid place-items-center rounded-2xl bg-white/70 backdrop-blur-[1px]">
+            <div className="absolute inset-0 z-10 grid place-items-center rounded-2xl bg-fb-surface/80 backdrop-blur-[1px]">
               {rowsError ? (
                 <div className="flex flex-col items-center gap-2 text-xs text-status-danger">
                   <span>{rowsError}</span>
                   <button
                     type="button"
                     onClick={() => { setRowsError(null); setRowsRetry((count) => count + 1); }}
-                    className="rounded-md border border-status-danger bg-white px-2.5 py-1 font-semibold hover:bg-status-danger-soft"
+                    className="rounded-md border border-status-danger bg-fb-surface px-2.5 py-1 font-semibold hover:bg-status-danger-soft"
                   >
                     Thử lại
                   </button>
@@ -962,7 +959,7 @@ export default function TtmDashboard2Page() {
             <div
               className={`transition-[opacity,transform] ${ACCORDION_TIMING} ${isRightOpen ? 'opacity-100 translate-x-0 delay-[175ms]!' : 'opacity-0 translate-x-8 delay-0!'}`}
             >
-              <div className="bg-white border border-fb-border rounded-2xl p-5 md:p-6 shadow-sm flex flex-col justify-between relative">
+              <div className="bg-fb-surface border border-fb-border rounded-2xl p-5 md:p-6 shadow-sm flex flex-col justify-between relative">
                 {panelHeader(shownRightPanel)}
 
                 {shownRightPanel === 'COMPLETED' ? (

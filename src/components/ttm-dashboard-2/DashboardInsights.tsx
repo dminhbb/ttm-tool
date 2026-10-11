@@ -114,7 +114,7 @@ function dimensionScope(dimension: TtmBreakdownDimension, item: TtmBreakdownItem
 const KPI_TITLE_CLASS = 'text-[length:clamp(7px,0.66cqw,9.5px)] font-bold uppercase tracking-wide leading-[1.35]';
 const KPI_VALUE_CLASS = 'text-[length:clamp(12px,1.18cqw,17px)] font-extrabold leading-tight tabular-nums text-[var(--color-text-primary)]';
 const KPI_FRACTION_CLASS = 'text-[length:clamp(9.5px,0.9cqw,13px)] font-bold leading-tight tabular-nums text-[var(--color-text-primary)]';
-const KPI_SUBTITLE_CLASS = 'text-[length:clamp(6.5px,0.625cqw,9px)] font-medium leading-[1.35] text-[var(--color-neutral-700)]';
+const KPI_SUBTITLE_CLASS = 'text-[length:clamp(6.5px,0.625cqw,9px)] font-medium leading-[1.35] text-fb-text-secondary';
 const KPI_TRUNCATE_CLASS = 'overflow-hidden text-ellipsis whitespace-nowrap';
 const KPI_ICON_CLASS = 'size-[clamp(26px,2.36cqw,34px)]';
 /** The progress ring fills the card's content height; its "%" is the index widgets' headline figure. */
@@ -124,8 +124,8 @@ const KPI_RING_TEXT_CLASS = 'text-[length:clamp(7.5px,0.72cqw,10.5px)] font-extr
 const KPI_RING_BOX = 46;
 
 const KPI_TONES = {
-  navy: { card: 'border-[var(--color-primary-200)] bg-[var(--color-primary-100)]', hover: 'hover:border-[var(--color-primary-300)]', title: 'text-[var(--color-primary-700)]' },
-  slate: { card: 'border-[var(--color-border-default)] bg-[var(--color-bg-page)]', hover: 'hover:border-[var(--color-text-muted)]', title: 'text-[var(--color-neutral-700)]' },
+  navy: { card: 'border-[var(--color-primary-200)] bg-[var(--color-primary-100)] dark:border-fb-border dark:bg-fb-surface-muted', hover: 'hover:border-[var(--color-primary-300)] dark:hover:border-fb-border-strong', title: 'text-[var(--color-primary-700)] dark:text-fb-blue' },
+  slate: { card: 'border-fb-border bg-fb-surface-muted', hover: 'hover:border-[var(--color-text-muted)] dark:hover:border-fb-border-strong', title: 'text-fb-text-secondary' },
 } as const;
 
 type KpiTone = keyof typeof KPI_TONES;
@@ -192,7 +192,7 @@ function KpiSubLink({ children, emphasized = false, onClick, title }: { children
 
 function KpiIconBadge({ icon: IconComponent, iconColor }: { icon: Icon; iconColor: string }) {
   return (
-    <div className={cn('flex items-center justify-center rounded-full bg-white shadow-2xs', KPI_ICON_CLASS)}>
+    <div className={cn('flex items-center justify-center rounded-full bg-fb-surface border border-fb-border/40 shadow-2xs', KPI_ICON_CLASS)}>
       <IconComponent className={cn('size-[47%]', iconColor)} weight="fill" />
     </div>
   );
@@ -208,9 +208,9 @@ function KpiProgressRing({ color, pct, text }: { color: string; pct: number | nu
   const offset = circumference - (clampedPct / 100) * circumference;
 
   return (
-    <div className={cn('relative flex items-center justify-center rounded-full bg-white shadow-2xs', KPI_RING_CLASS)}>
+    <div className={cn('relative flex items-center justify-center rounded-full bg-fb-surface border border-fb-border/40 shadow-2xs', KPI_RING_CLASS)}>
       <svg viewBox={`0 0 ${size} ${size}`} className="size-full -rotate-90" aria-hidden="true">
-        <circle cx={size / 2} cy={size / 2} r={radius} stroke="#e2e8f0" strokeWidth={strokeWidth} fill="none" />
+        <circle cx={size / 2} cy={size / 2} r={radius} stroke="currentColor" className="text-fb-border" strokeWidth={strokeWidth} fill="none" />
         {clampedPct > 0 && (
           <circle
             cx={size / 2}
@@ -293,7 +293,7 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
   );
 
   return (
-    <div className="rounded-2xl border border-[var(--color-border-default)] bg-white/95 p-2 shadow-[0_2px_12px_rgba(0,0,0,0.03)] sm:p-2.5">
+    <div className="rounded-2xl border border-fb-border bg-fb-surface p-2 shadow-[0_2px_12px_rgba(0,0,0,0.03)] sm:p-2.5">
       <div className="overflow-x-auto pb-1 xl:overflow-x-visible xl:pb-0">
         <div className="@container flex min-w-[1160px] flex-row items-stretch gap-2 xl:min-w-0">
           {/* Left group — overview & indexes (navy pastel). Column widths follow each card's content. */}
@@ -616,7 +616,7 @@ export function BreakdownDonutSections({ dimensions, funnel, onOpen }: { dimensi
               type="button"
               onClick={() => setOpenSections((prev) => ({ ...prev, [dimension]: !prev[dimension] }))}
               aria-expanded={isOpen}
-              className="flex cursor-pointer select-none items-center gap-1.5 text-xs font-bold text-black transition-colors hover:text-[var(--color-text-brand)]"
+              className="flex cursor-pointer select-none items-center gap-1.5 text-xs font-bold text-fb-text-primary transition-colors hover:text-[var(--color-text-brand)]"
             >
               {isOpen ? <CaretDown className="size-4 text-[var(--color-text-brand)]" weight="bold" /> : <CaretRight className="size-4 text-[var(--color-text-brand)]" weight="bold" />}
               <span>{SECTION_TITLES[dimension]}</span>

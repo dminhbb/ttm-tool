@@ -8,6 +8,29 @@
 
 ## 2026-10-11
 
+- **Khắc phục triệt để chế độ Dark Mode tại màn hình 'TTM Dashboard 2' (`/ttm-dashboard-2`)**:
+  - `src/app/ttm-dashboard-2/page.tsx`: Gỡ bỏ container bao ngoài thừa mang class `bg-[var(--color-bg-page)]` (nguyên nhân gây ra khung viền trắng lớn bao trọn toàn bộ banner, toolbar, KPI strip và Panel 1); chuyển các indicator pill sang `bg-fb-surface-muted`, nút "Trở về Lead" sang `bg-fb-surface`, label "Filters:" sang `text-fb-text-primary`; chuyển toàn bộ nền Panel 1, Panel 2/3 và loading overlay sang `bg-fb-surface` / `bg-fb-surface/80`.
+  - `src/components/ttm-dashboard-2/DashboardInsights.tsx`: Chuẩn hoá KPI strip và các pill KPI sang `dark:bg-fb-surface-muted`, `dark:border-fb-border`, `dark:text-fb-blue`; cập nhật icon badge và progress ring sang `bg-fb-surface` với track ring dùng `currentColor` + `text-fb-border` (loại bỏ mã màu cứng `#e2e8f0`); tiêu đề nhóm accordion đổi sang `text-fb-text-primary`.
+  - `src/components/dashboard-new/DonutChartCard.tsx`: Chuyển card nền donut từ `bg-[var(--color-bg-page)]` sang `bg-fb-surface`; đổi track donut SVG từ `#e2e8f0` sang `text-fb-border`; chuyển nhãn số đếm trung tâm donut từ `#0f172a` sang `text-fb-text-primary`.
+  - `src/lib/design-system/__tests__/design-debt.test.ts`: Tự động co hạn mức nợ thiết kế `hexLiteral` (giảm 3 vị trí do dọn các mã màu cứng trong `DashboardInsights.tsx` và `DonutChartCard.tsx`) tuân thủ cơ chế ratcheting linter.
+
+- **Khắc phục lỗi giao diện IAS Theme, chuẩn hoá Dark Mode toàn diện và cơ chế Theme mặc định 7 ngày**:
+  - **Sửa lỗi popup chức năng từ avatar bị nền đen ở Light Mode** (`Modal.tsx`, `globals.css`):
+    - Đưa `Modal` ra ngoài cây DOM của `.sidebar-surface` qua `createPortal` mount vào `document.body`, đồng thời thêm CSS reset token cho dialog mở từ sidebar. Loại bỏ triệt để hiện tượng modal bị thừa kế background tối navy (`#0D0D2B`) và chữ trắng của sidebar.
+  - **Tăng độ tương phản cho Light Mode (đặc biệt IAS Theme)** (`globals.css`):
+    - Nâng độ đậm của header bảng (`#eaedf6`, chữ `#14142a`, viền dưới `2px solid #cbd0e2`), phân biệt rõ rệt với dòng dữ liệu; lưới ô `td` có viền sắc nét (`#d4d8e8`).
+    - Các input, select, search, trigger multi-select có nền `#f8fafc`, viền `#cbd0e2`, chữ `#14142a`, focus đổi viền xanh brand `#141ed2` và nền `#ffffff`.
+    - Nút secondary/outline có nền trắng `#ffffff`, viền `#b8bdd6`, chữ đậm nét. Các tab inactive có nền `#edf0f8` viền `#c8cde0`.
+  - **Chuẩn hoá chế độ Tối (Dark Mode) trên tất cả màn hình, panel và popup** (`globals.css`, `ttm-shared.css`, `UserMenu.tsx`):
+    - Khai báo token Dark Mode riêng cho cả 4 brand (`ias`, `wise`, `legacy`, `pink`) dưới selector `:root[data-brand][data-theme="dark"]` để brand selector không đè mất cấu hình tối.
+    - Thêm biến thể `@custom-variant dark` trong Tailwind CSS v4, đồng bộ thuộc tính `data-theme="dark"` và class `dark` trên `<html>` ngay tức thì.
+    - Chuẩn hoá toàn bộ `.ui-card`, `.ias-card`, `.ui-table`, `.ui-input`, `.ui-search`, `.ui-button-secondary`, modal dialog, sticky column và các khối legacy `bg-white`/`text-black`/`border-black` hiển thị chuẩn giao diện tối.
+    - Bổ sung remap token Dark Mode cho hệ `--ttm-*` trong `ttm-shared.css`.
+  - **Thiết lập theme mặc định IAS và cơ chế tự hoàn tác sau 7 ngày** (`theme-brand.ts`, `AppearancePanel.tsx`):
+    - Theme mặc định hệ thống là `IAS theme`.
+    - Khi người dùng chủ động chọn theme khác (`wise`, `legacy`, `pink`), hệ thống lưu lựa chọn kèm timestamp `ttm-theme-brand-timestamp`. Sau 7 ngày, hệ thống sẽ tự động hoàn tác về IAS theme mặc định (áp dụng cả trong blocking `<script>` ở `<head>` trước first paint và runtime client).
+
+
 - **Dọn lint + footer màn hình login + cập nhật tài liệu/schema**:
   - **Lint** (`eslint src` từ 4 lỗi + 29 cảnh báo → sạch): sửa 4 lỗi `react-hooks/set-state-in-effect` —
     `dashboard-new/page.tsx` (chỉnh `dimensionKey` ngay lúc render), `EpicAlertsIframeModal.tsx` (spinner suy ra từ `loadedUrl`),

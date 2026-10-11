@@ -119,7 +119,7 @@ export function DonutChartCard({
   };
 
   return (
-    <div className="relative flex flex-col rounded-2xl border border-fb-border/90 bg-[var(--color-bg-page)] p-5 shadow-xs transition-shadow hover:shadow-sm">
+    <div className="relative flex flex-col rounded-2xl border border-fb-border/90 bg-fb-surface p-5 shadow-xs transition-shadow hover:shadow-sm">
       {/* Title with fixed height */}
       <h3 className="flex h-5 items-center justify-center text-center text-sm font-bold text-fb-text-primary line-clamp-1">
         {title}
@@ -161,7 +161,8 @@ export function DonutChartCard({
               cy="70"
               r={radius}
               fill="transparent"
-              stroke="#e2e8f0"
+              stroke="currentColor"
+              className="text-fb-border"
               strokeWidth={strokeWidth}
             />
           ) : (
@@ -209,8 +210,8 @@ export function DonutChartCard({
         {/* Center Text - constant size & position to eliminate layout shift */}
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center px-4 select-none">
           <span
-            className="text-2xl font-black leading-none tabular-nums"
-            style={{ color: activeItem ? activeItem.color : '#0f172a' }}
+            className="text-2xl font-black leading-none tabular-nums text-fb-text-primary"
+            style={{ color: activeItem ? activeItem.color : undefined }}
           >
             {activeItem ? `${activeItem.pct}%` : total}
           </span>

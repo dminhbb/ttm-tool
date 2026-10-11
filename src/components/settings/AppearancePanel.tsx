@@ -43,7 +43,7 @@ export function AppearancePanel() {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-fb-text-secondary">
-        Chọn giao diện hiển thị cho ứng dụng. Lựa chọn được lưu trên trình duyệt này.
+        Mặc định là <strong>IAS theme</strong>. Nếu bạn chọn giao diện khác, thiết lập sẽ được lưu trên trình duyệt và tự động chuyển về IAS theme mặc định sau 7 ngày.
       </p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {OPTIONS.map((option) => {

@@ -91,8 +91,20 @@ export function UserMenu({ expanded, hiddenFeatureKeys }: UserMenuProps) {
     void loadUser();
   }, []);
 
+  const handleThemeChange = (nextTheme: AppearanceTheme) => {
+    setTheme(nextTheme);
+    document.documentElement.dataset.theme = nextTheme;
+    document.documentElement.classList.toggle('dark', nextTheme === 'dark');
+    try {
+      window.localStorage.setItem(APPEARANCE_STORAGE_KEY, nextTheme);
+    } catch (error) {
+      console.warn('Unable to save the appearance preference.', error);
+    }
+  };
+
   React.useEffect(() => {
     document.documentElement.dataset.theme = theme;
+    document.documentElement.classList.toggle('dark', theme === 'dark');
     if (!hasLoadedPreference) return;
     try {
       window.localStorage.setItem(APPEARANCE_STORAGE_KEY, theme);
@@ -234,7 +246,7 @@ export function UserMenu({ expanded, hiddenFeatureKeys }: UserMenuProps) {
             <Select
               label="Sáng / Tối"
               value={theme}
-              onChange={(event) => setTheme(event.target.value as AppearanceTheme)}
+              onChange={(event) => handleThemeChange(event.target.value as AppearanceTheme)}
               options={THEME_OPTIONS}
             />
           </section>

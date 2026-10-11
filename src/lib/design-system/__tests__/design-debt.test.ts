@@ -101,13 +101,13 @@ const BASELINE: Record<MeasureName, { total: number; perFile: Record<string, num
    * nên để làm theo từng màn hình.
    */
   hexLiteral: {
-    total: 133,
+    total: 130,
     perFile: {
       // Màu truyền vào SVG phễu/donut dưới dạng prop (fill / lidFill / labelColor).
       'app/ttm-dashboard-2/page.tsx': 36,
       'components/ttm-dashboard-2/FunnelLayers.tsx': 5,
-      'components/ttm-dashboard-2/DashboardInsights.tsx': 4,
-      'components/dashboard-new/DonutChartCard.tsx': 7,
+      'components/ttm-dashboard-2/DashboardInsights.tsx': 3,
+      'components/dashboard-new/DonutChartCard.tsx': 5,
       // Bảng tra màu trạng thái dưới dạng object JS.
       'app/epic-alerts/page.tsx': 8,
       'app/epic-alerts-15/page.tsx': 8,

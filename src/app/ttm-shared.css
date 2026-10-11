@@ -253,3 +253,62 @@
   min-width: 0;
   max-width: 220px;
 }
+
+/* ── Chế độ Tối cho họ control `--ttm-*` ─────────────────────────────────── */
+:root[data-theme="dark"] {
+  --ttm-neutral-900: #f4f6fa;
+  --ttm-neutral-700: #c5c8de;
+  --ttm-neutral-600: #8b8fbd;
+  --ttm-neutral-500: #6e7191;
+  --ttm-neutral-300: rgba(255, 255, 255, 0.16);
+  --ttm-neutral-200: rgba(255, 255, 255, 0.12);
+  --ttm-neutral-100: rgba(255, 255, 255, 0.08);
+  --ttm-neutral-050: rgba(255, 255, 255, 0.04);
+  --ttm-white: var(--surface-panel);
+
+  --ttm-bg: var(--surface-app);
+  --ttm-card: var(--surface-panel);
+  --ttm-border: var(--border-default);
+  --ttm-text: var(--text-primary);
+  --ttm-muted: var(--text-secondary);
+}
+
+:root[data-theme="dark"] .ttm-app {
+  background-color: var(--surface-app);
+  color: var(--text-primary);
+}
+
+:root[data-theme="dark"] .ttm-table-wrap,
+:root[data-theme="dark"] .ttm-panel {
+  background-color: var(--surface-panel);
+  border-color: var(--border-default);
+}
+
+.ttm-multiselect-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 50;
+  margin-top: 4px;
+  min-width: 220px;
+  max-width: 320px;
+  background: var(--ttm-card);
+  border: 1px solid var(--ttm-border);
+  border-radius: var(--ttm-radius-sm);
+  box-shadow: var(--ttm-shadow-popover);
+  overflow: hidden;
+}
+
+:root[data-theme="dark"] .ttm-multiselect-popover {
+  background-color: var(--surface-panel);
+  border-color: var(--border-default);
+  color: var(--text-primary);
+}
+
+:root[data-theme="dark"] .ttm-multiselect-popover input {
+  background-color: var(--surface-elevated);
+  border-color: var(--border-default);
+  color: var(--text-primary);
+}
+
+
