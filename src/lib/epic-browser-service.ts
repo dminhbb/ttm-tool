@@ -8,9 +8,8 @@ import {
 } from '@/lib/issue-resolution-sql';
 import type { DataReviewChildrenResponse, DataReviewIssue } from '@/lib/data-review-types';
 import { isEpicBlackListed } from '@/lib/black-listed-epic-service';
-import { loadScoringContext, vnToday } from '@/lib/scoring-context-service';
-import { loadEpicFacts } from '@/lib/scoring-facts-service';
-import { hasDataAnomalyBadge, scoreEpic } from '@/lib/scoring/score-epic';
+import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
+import { matchesAlertFilter } from '@/lib/epic-row-verdicts';
 
 /**
  * Canonical row shape + mapper for every Epic Browser query (this file, and data-review-service.ts
@@ -276,9 +275,32 @@ interface EpicBrowserSummaryRow {
   status: string;
 }
 
+/**
+ * The TTM-CNTT verdict shown in the "Duyệt Epic" popup, read off the Epic's displayed row — the one
+ * "Quản trị Epic" lists, already carrying the verdicts of whichever display engine is switched on —
+ * and judged through the same "Nhận xét" filters, so the popup can't disagree with the list.
+ */
+function ttmCnttVerdictOf(row: EpicAlertRowPhased | null, ttmBlackListed: boolean): Pick<EpicBrowserSummary, 'hasMissingFailReason' | 'ttmCnttVerdict' | 'ttmCnttVerdictLabel'> {
+  if (!row) {
+    // No displayed row (cache not built yet, or the Epic isn't in the latest data layer): no verdict to show.
+    return ttmBlackListed
+      ? { hasMissingFailReason: false, ttmCnttVerdict: 'EXCLUDED', ttmCnttVerdictLabel: 'Epic ngoại lệ' }
+      : { hasMissingFailReason: false, ttmCnttVerdict: 'N_A', ttmCnttVerdictLabel: 'Chưa kết luận' };
+  }
+  const hasMissingFailReason = matchesAlertFilter(row, 'MISSING_FAIL_REASON');
+  if (matchesAlertFilter(row, 'ACHIEVED_CNTT')) return { hasMissingFailReason, ttmCnttVerdict: 'PASS', ttmCnttVerdictLabel: 'Pass TTM-CNTT' };
+  if (matchesAlertFilter(row, 'FAIL')) return { hasMissingFailReason, ttmCnttVerdict: 'FAIL', ttmCnttVerdictLabel: 'Fail TTM-CNTT' };
+  if (row.hasDataAnomaly) return { hasMissingFailReason, ttmCnttVerdict: 'DATA_ANOMALY', ttmCnttVerdictLabel: 'Sai lệch dữ liệu' };
+  if (row.ttmExclusion) return { hasMissingFailReason, ttmCnttVerdict: 'EXCLUDED', ttmCnttVerdictLabel: 'Epic ngoại lệ' };
+  if (!row.ttmCnttInScope) return { hasMissingFailReason, ttmCnttVerdict: 'N_A', ttmCnttVerdictLabel: 'Ngoài phạm vi TTM-CNTT' };
+  if (row.scoringFindings?.some((item) => item.badge === 'CNTT_NOT_APPLICABLE' || item.badge === 'CNTT_CALC_BROKEN')) {
+    return { hasMissingFailReason, ttmCnttVerdict: 'N_A', ttmCnttVerdictLabel: 'Chưa kết luận' };
+  }
+  return { hasMissingFailReason, ttmCnttVerdict: 'PENDING', ttmCnttVerdictLabel: 'Đang thực hiện' };
+}
+
 export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowserSummary | null> {
-  const asOf = vnToday();
-  const [result, projectMetaResult, ttmBlackListed, ctx, facts] = await Promise.all([
+  const [result, projectMetaResult, ttmBlackListed, displayedRow] = await Promise.all([
     pool.query<EpicBrowserSummaryRow>(`
       SELECT
         issues.issue_key AS "epicKey", issues.issue_name AS "epicName", issues.current_status AS status,
@@ -334,41 +356,15 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
     `, [epicKey]),
     // A database the black list migration hasn't reached yet still browses Epics — just as "false".
     isEpicBlackListed(epicKey).catch(() => false),
-    loadScoringContext(asOf).catch(() => null),
-    loadEpicFacts(asOf, { epicKeys: [epicKey] }).catch(() => []),
+    pool.query<{ rowData: EpicAlertRowPhased }>('SELECT row_data AS "rowData" FROM epic_alert_row_cache WHERE epic_key = $1 LIMIT 1;', [epicKey])
+      .then((cached) => cached.rows[0]?.rowData ?? null)
+      .catch(() => null),
   ]);
 
   const row = result.rows[0];
   if (!row) return null;
 
-  let ttmCnttVerdict: EpicBrowserSummary['ttmCnttVerdict'] = 'PENDING';
-  let ttmCnttVerdictLabel = 'Đang thực hiện';
-  let hasMissingFailReason = false;
-
-  if (facts.length > 0 && ctx) {
-    const card = scoreEpic(facts[0], ctx);
-    const activeBadges = new Set(card.findings.filter((f) => !f.suppressedBy).map((f) => f.badge));
-    hasMissingFailReason = activeBadges.has('REC_MISSING_FAIL_REASON');
-    if (activeBadges.has('CNTT_PASS')) {
-      ttmCnttVerdict = 'PASS';
-      ttmCnttVerdictLabel = 'Pass TTM-CNTT';
-    } else if (activeBadges.has('CNTT_FAIL')) {
-      ttmCnttVerdict = 'FAIL';
-      ttmCnttVerdictLabel = 'Fail TTM-CNTT';
-    } else if (hasDataAnomalyBadge(activeBadges)) {
-      ttmCnttVerdict = 'DATA_ANOMALY';
-      ttmCnttVerdictLabel = 'Sai lệch dữ liệu';
-    } else if (facts[0].ttmExclusion) {
-      ttmCnttVerdict = 'EXCLUDED';
-      ttmCnttVerdictLabel = 'Epic ngoại lệ';
-    } else if (card.findings.some((f) => f.badge === 'CNTT_NOT_APPLICABLE' || f.badge === 'CNTT_CALC_BROKEN')) {
-      ttmCnttVerdict = 'N_A';
-      ttmCnttVerdictLabel = 'Chưa kết luận';
-    }
-  } else if (ttmBlackListed) {
-    ttmCnttVerdict = 'EXCLUDED';
-    ttmCnttVerdictLabel = 'Epic ngoại lệ';
-  }
+  const { hasMissingFailReason, ttmCnttVerdict, ttmCnttVerdictLabel } = ttmCnttVerdictOf(displayedRow, ttmBlackListed);
 
   const projectMeta = projectMetaResult.rows[0];
   return {

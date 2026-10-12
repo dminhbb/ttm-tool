@@ -527,6 +527,21 @@ describe('Data quality', () => {
     };
     const ctxNone = makeContext({ parameters: { ...DEFAULT_SCORING_PARAMETERS, 'anomaly.scopeConfig': noneScope } });
     assert.ok(active(oldCreatedEpic, ctxNone).has('ANOMALY_R1_MISSING_START_DATE'));
+
+    // 6. A bound on a date the Epic doesn't have is skipped — it must not switch off the rule that
+    // flags the missing date (R1 under a Start Date bound, R9 under an R4G Date bound).
+    const missingDateScope = {
+      enabled: true,
+      rules: {
+        ANOMALY_R1_MISSING_START_DATE: { enabled: true, createdAfter: null, startAfter: '2026-01-01', r4gAfter: null, dueAfter: null },
+        ANOMALY_R9_MISSING_R4G_DATE: { enabled: true, createdAfter: '2026-08-01', startAfter: null, r4gAfter: '2026-01-01', dueAfter: null },
+      },
+    };
+    const ctxMissing = makeContext({ parameters: { ...DEFAULT_SCORING_PARAMETERS, 'anomaly.scopeConfig': missingDateScope } });
+    assert.ok(active(makeFacts({ status: 'In Progress', startDate: null }), ctxMissing).has('ANOMALY_R1_MISSING_START_DATE'));
+    assert.ok(active(makeFacts({ jiraCreatedAt: '2026-08-05', status: 'R4GOLIVE', r4gDate: null }), ctxMissing).has('ANOMALY_R9_MISSING_R4G_DATE'));
+    // The bounds the Epic does have a date for still apply.
+    assert.ok(!active(makeFacts({ jiraCreatedAt: '2026-07-20', status: 'R4GOLIVE', r4gDate: null }), ctxMissing).has('ANOMALY_R9_MISSING_R4G_DATE'));
   });
 });
 

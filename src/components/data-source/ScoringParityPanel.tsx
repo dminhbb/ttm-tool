@@ -54,6 +54,7 @@ const TAG_LABEL: Record<string, string> = {
   D10_DATA_QUALITY_RULES: 'D10 — Sai lệch dữ liệu: thêm R8/R9/R10, R1 từ DESIGN + Pending, R5 sau DESIGN',
   D11_WORKFLOW_STATUSES: 'D11 — Workflow: Pending / Reopened ngang hàng In Progress',
   D12_TTM_EXCLUSION: 'D12 — Epic ngoại lệ (Black listed / dự án Time to Market = N): Scoring Service không xét, không tính TTM',
+  D13_ANOMALY_SCOPE: 'D13 — Phạm vi rule Sai lệch dữ liệu: Epic ngoài phạm vi ngày không bị xét rule đó',
   UNEXPLAINED: 'Chưa giải thích được',
 };
 

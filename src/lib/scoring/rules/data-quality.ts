@@ -23,16 +23,14 @@ function isBlank(value: string | null): boolean {
 const R5_PENDING_EXEMPT_PREVIOUS_STATUSES = new Set(['TO DO', 'IN PO']);
 
 /**
- * When R5 expects the Requirement Level to be filled in (owner rule 2026-10-11, corrected the same day):
- *   (status past DESIGN and not Pending)
- *   OR (Pending and (previous status empty OR previous status ∉ {To Do, In PO})).
- * A Pending Epic is therefore only exempt when it was To Do / In PO before going Pending.
+ * When R5 expects the Requirement Level to be filled in (owner rule 2026-10-11, restated 2026-10-12):
+ *   (status not Pending and status > DESIGN)
+ *   OR (status = Pending and previous status ∉ {To Do, In PO}).
+ * A Pending Epic is therefore only exempt when it was To Do / In PO before going Pending — an empty
+ * previous status is not in that set, so it is not exempt either.
  */
 export function requirementLevelRequired(status: string, previousStatus: string | null | undefined, statusIndex: number): boolean {
-  if (isPendingStatus(status)) {
-    const previous = (previousStatus ?? '').trim();
-    return previous === '' || !R5_PENDING_EXEMPT_PREVIOUS_STATUSES.has(normalizeWorkflowStatus(previous));
-  }
+  if (isPendingStatus(status)) return !R5_PENDING_EXEMPT_PREVIOUS_STATUSES.has(normalizeWorkflowStatus(previousStatus ?? ''));
   return statusIndex > STATUS_INDEX.DESIGN;
 }
 
@@ -41,7 +39,10 @@ export function requirementLevelRequired(status: string, previousStatus: string 
  * If master toggle is disabled or the rule's toggle is disabled, returns true (applies normally).
  * If rule toggle is enabled, returns true only when:
  * (epic created date > createdAfter) AND (startDate > startAfter) AND (r4gDate > r4gAfter) AND (dueDate > dueAfter).
- * Any empty or "none" field is skipped / ignored.
+ * A bound left empty / "none" is skipped — and so is a bound whose date the Epic doesn't have: a date
+ * that isn't there can't be compared, and counting it as "out of scope" would switch off exactly the
+ * rules that exist to catch it (R1 "Thiếu Start Date" under a Start Date bound, R9 "Thiếu R4G Date"
+ * under an R4G Date bound) and let every Epic missing that date slip past the other rules too.
  */
 export function isEpicInAnomalyScope(badge: string, facts: EpicFacts, ctx: ScoringContext): boolean {
   const scopeConfig = ctx.parameters['anomaly.scopeConfig'];
@@ -58,36 +59,17 @@ export function isEpicInAnomalyScope(badge: string, facts: EpicFacts, ctx: Scori
     const t = d.trim().toLowerCase();
     return t === '' || t === 'none';
   };
-
-  if (!isNoneOrEmpty(ruleScope.createdAfter)) {
-    const epicCreated = toIsoDate(facts.jiraCreatedAt);
-    if (!epicCreated || !(epicCreated > ruleScope.createdAfter!.trim())) {
-      return false;
-    }
-  }
-
-  if (!isNoneOrEmpty(ruleScope.startAfter)) {
-    const epicStart = facts.startDate ? toIsoDate(facts.startDate) : null;
-    if (!epicStart || !(epicStart > ruleScope.startAfter!.trim())) {
-      return false;
-    }
-  }
-
-  if (!isNoneOrEmpty(ruleScope.r4gAfter)) {
-    const epicR4g = facts.r4gDate ? toIsoDate(facts.r4gDate) : null;
-    if (!epicR4g || !(epicR4g > ruleScope.r4gAfter!.trim())) {
-      return false;
-    }
-  }
-
-  if (!isNoneOrEmpty(ruleScope.dueAfter)) {
-    const epicDue = facts.dueDate ? toIsoDate(facts.dueDate) : null;
-    if (!epicDue || !(epicDue > ruleScope.dueAfter!.trim())) {
-      return false;
-    }
-  }
-
-  return true;
+  const bounds: [bound: string | null | undefined, epicDate: string | null][] = [
+    [ruleScope.createdAfter, facts.jiraCreatedAt],
+    [ruleScope.startAfter, facts.startDate],
+    [ruleScope.r4gAfter, facts.r4gDate],
+    [ruleScope.dueAfter, facts.dueDate],
+  ];
+  return bounds.every(([bound, epicDate]) => {
+    if (isNoneOrEmpty(bound)) return true;
+    const date = epicDate ? toIsoDate(epicDate) : null;
+    return !date || date > bound!.trim();
+  });
 }
 
 /**
@@ -179,10 +161,10 @@ export const dataQualityRule: PrimaryRule = ({ facts, derived, ctx }) => {
   if (breaks.length) findings.push(finding('ANOMALY_R3_DATE_OUT_OF_SEQUENCE', `Sai thứ tự ngày: ${breaks.join('; ')}`, { ideaApprovedDate: t0, startDate: t1, r4gDate: r4g, dueDate: due }));
 
   if (isBlank(facts.requestType)) findings.push(finding('ANOMALY_R4_MISSING_REQUEST_TYPE', 'Thiếu Phân loại yêu cầu'));
-  // R5 (owner rule 2026-10-11) — Requirement Level blank or "none" AND EITHER the status is past
-  // DESIGN and not Pending (the level is still being settled during Design; Pending is judged by the
-  // second branch), OR the status is Pending and its previous status is empty or anything other than
-  // To Do / In PO. A Pending Epic that was To Do / In PO before is therefore not flagged by R5.
+  // R5 (owner rule 2026-10-11) — Requirement Level blank or "none" AND EITHER the status is not
+  // Pending and past DESIGN (the level is still being settled during Design; Pending is judged by the
+  // second branch), OR the status is Pending and its previous status is not To Do / In PO (an empty
+  // one included). A Pending Epic that was To Do / In PO before is therefore not flagged by R5.
   if (isBlank(facts.requirementLevel) && requirementLevelRequired(facts.status, facts.previousStatus, derived.statusIndex)) {
     findings.push(finding('ANOMALY_R5_MISSING_REQUIREMENT_LEVEL', pending ? `Thiếu Requirement Level — Epic đang Pending (status trước đó: ${(facts.previousStatus ?? '').trim() || 'không có'})` : 'Thiếu Requirement Level', pending ? { previousStatus: facts.previousStatus ?? null } : undefined));
   }

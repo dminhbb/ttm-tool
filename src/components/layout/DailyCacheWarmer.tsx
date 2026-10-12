@@ -23,7 +23,9 @@ interface DailyCacheApiResponse {
 }
 
 const FRESH_FOR_DAY_KEY = 'ttm-daily-cache-fresh-for';
-const IDLE_POLL_INTERVAL_MS = 15000;
+/** While no rebuild is known to be running: a slow heartbeat, only in a visible tab — each check costs
+ * a session lookup plus three queries on a connection pool that is capped low (see db.ts). */
+const IDLE_POLL_INTERVAL_MS = 60000;
 const ACTIVE_POLL_INTERVAL_MS = 2500;
 
 function vietnamToday(): string {
@@ -42,6 +44,8 @@ function writeFreshDay(day: string) {
  * Kicks off "Caching dữ liệu trong ngày" on the first signed-in page load of the day,
  * and monitors ongoing cache rebuild processes globally across all screens.
  * Displays 'Hệ thống đang tính toán lại cache' and 'Tạo Cache hoàn thành' toasts with a progress indicator.
+ * When the rebuild this tab followed from that first load ends well, it offers a reload so the current
+ * screen re-reads the fresh cache.
  */
 export function DailyCacheWarmer({ enabled }: { enabled: boolean }) {
   const [askReload, setAskReload] = useState(false);
@@ -52,40 +56,50 @@ export function DailyCacheWarmer({ enabled }: { enabled: boolean }) {
     if (!enabled) return undefined;
     let cancelled = false;
     let timer: number | undefined;
+    // Bumped by every check, so a slower earlier one can't schedule a second polling chain.
+    let latestCheck = 0;
+    // True while the rebuild in progress is the day's first one, seen starting from this tab.
+    let followingDailyRun = false;
+
+    const markRebuilding = () => {
+      if (isRebuildingRef.current) return;
+      isRebuildingRef.current = true;
+      setIsRebuilding(true);
+      showToast('Hệ thống đang tính toán lại cache', 5000);
+    };
 
     const checkCacheStatus = async () => {
+      const check = ++latestCheck;
+      if (timer !== undefined) window.clearTimeout(timer);
+      timer = undefined;
       try {
         const res = await fetch('/api/system/daily-cache', { cache: 'no-store' });
-        if (!res.ok || cancelled) return;
-        const body = (await res.json()) as DailyCacheApiResponse;
-        if (cancelled) return;
-
-        const currentlyRebuilding = Boolean(body.isRebuilding || body.state === 'RUNNING');
-        const wasRebuilding = isRebuildingRef.current;
-
-        if (currentlyRebuilding && !wasRebuilding) {
-          isRebuildingRef.current = true;
-          setIsRebuilding(true);
-          showToast('Hệ thống đang tính toán lại cache', 5000);
-        } else if (!currentlyRebuilding && wasRebuilding) {
-          isRebuildingRef.current = false;
-          setIsRebuilding(false);
-          showToast('Tạo Cache hoàn thành', 5000);
-          if (body.state === 'FRESH' && body.today) {
-            writeFreshDay(body.today);
+        // A failed check (e.g. the pool is busy mid-rebuild) keeps what is known and tries again.
+        const body = res.ok ? ((await res.json()) as DailyCacheApiResponse) : null;
+        if (cancelled || check !== latestCheck) return;
+        if (body) {
+          const currentlyRebuilding = Boolean(body.isRebuilding || body.state === 'RUNNING');
+          if (currentlyRebuilding) {
+            markRebuilding();
+          } else if (isRebuildingRef.current) {
+            isRebuildingRef.current = false;
+            setIsRebuilding(false);
+            if (body.state === 'FAILED') {
+              showToast('Tạo Cache không thành công — số liệu đang hiển thị có thể chưa được cập nhật', 8000);
+            } else {
+              showToast('Tạo Cache hoàn thành', 5000);
+              if (body.state === 'FRESH' && body.today) writeFreshDay(body.today);
+              if (followingDailyRun) setAskReload(true);
+            }
+            followingDailyRun = false;
           }
         }
-
-        if (currentlyRebuilding) {
-          timer = window.setTimeout(checkCacheStatus, ACTIVE_POLL_INTERVAL_MS);
-        } else {
-          timer = window.setTimeout(checkCacheStatus, IDLE_POLL_INTERVAL_MS);
-        }
       } catch {
-        if (!cancelled) {
-          timer = window.setTimeout(checkCacheStatus, isRebuildingRef.current ? ACTIVE_POLL_INTERVAL_MS : IDLE_POLL_INTERVAL_MS);
-        }
+        if (cancelled || check !== latestCheck) return;
       }
+      if (isRebuildingRef.current) timer = window.setTimeout(checkCacheStatus, ACTIVE_POLL_INTERVAL_MS);
+      else if (!document.hidden) timer = window.setTimeout(checkCacheStatus, IDLE_POLL_INTERVAL_MS);
+      // Hidden and idle: nothing is scheduled — onVisibilityChange checks again when the tab is back.
     };
 
     // First load of the day check
@@ -99,9 +113,8 @@ export function DailyCacheWarmer({ enabled }: { enabled: boolean }) {
           if (cancelled) return;
           if (body.state === 'FRESH') writeFreshDay(body.today ?? today);
           else if (body.isRebuilding || body.state === 'RUNNING') {
-            isRebuildingRef.current = true;
-            setIsRebuilding(true);
-            showToast('Hệ thống đang tính toán lại cache', 5000);
+            followingDailyRun = true;
+            markRebuilding();
           }
         } catch {
           // ignore
@@ -113,17 +126,19 @@ export function DailyCacheWarmer({ enabled }: { enabled: boolean }) {
       void checkCacheStatus();
     }
 
-    const onTriggered = () => {
-      if (timer !== undefined) window.clearTimeout(timer);
-      void checkCacheStatus();
+    const onTriggered = () => { void checkCacheStatus(); };
+    const onVisibilityChange = () => {
+      if (!document.hidden) void checkCacheStatus();
     };
 
     window.addEventListener(CACHE_REFRESH_TRIGGERED_EVENT, onTriggered);
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
       cancelled = true;
       if (timer !== undefined) window.clearTimeout(timer);
       window.removeEventListener(CACHE_REFRESH_TRIGGERED_EVENT, onTriggered);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [enabled]);
 

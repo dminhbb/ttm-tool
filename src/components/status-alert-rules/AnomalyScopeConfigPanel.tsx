@@ -10,6 +10,7 @@ import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { showToast } from '@/components/ui/Toast';
 import type { AnomalyRuleScope, AnomalyScopeConfig } from '@/lib/scoring/parameters';
+import { badgesOf } from '@/lib/scoring/catalog';
 import { DEFAULT_ANOMALY_SCOPE_CONFIG } from '@/lib/scoring/parameters';
 
 interface Notice {
@@ -17,21 +18,15 @@ interface Notice {
   type: 'error' | 'success';
 }
 
-export const ANOMALY_RULES: Array<{
-  id: string;
-  code: string;
-  label: string;
-  meaning: string;
-}> = [
-  { id: 'ANOMALY_R1_MISSING_START_DATE', code: 'R1', label: 'Thiếu Start Date', meaning: 'Epic đã từ Design trở đi nhưng chưa có Start Date (T1)' },
-  { id: 'ANOMALY_R3_DATE_OUT_OF_SEQUENCE', code: 'R3', label: 'Sai thứ tự ngày', meaning: 'Các mốc ngày không theo đúng thứ tự (T0 ≤ T1 < R4G ≤ Due)' },
-  { id: 'ANOMALY_R4_MISSING_REQUEST_TYPE', code: 'R4', label: 'Thiếu Phân loại yêu cầu', meaning: 'Chưa có Phân loại yêu cầu (trống hoặc none)' },
-  { id: 'ANOMALY_R5_MISSING_REQUIREMENT_LEVEL', code: 'R5', label: 'Thiếu Requirement Level', meaning: 'Epic đã qua Design nhưng chưa có Requirement Level' },
-  { id: 'ANOMALY_R6_SP_LEVEL_MISMATCH', code: 'R6', label: 'SP nhưng Level thấp', meaning: 'Loại Epic SP (Sản phẩm) nhưng Requirement Level 1–2' },
-  { id: 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE', code: 'R8', label: 'Có R4G Date nhưng chưa R4GOLIVE', meaning: 'Đã ghi R4G Date nhưng status chưa lên R4GOLIVE (kể cả ngày tương lai)' },
-  { id: 'ANOMALY_R9_MISSING_R4G_DATE', code: 'R9', label: 'Thiếu R4G Date', meaning: 'Status đã từ R4GOLIVE trở lên nhưng chưa có R4G Date' },
-  { id: 'ANOMALY_R10_R4G_DATE_IN_FUTURE', code: 'R10', label: 'R4G Date ở tương lai', meaning: 'Status từ R4GOLIVE trở lên (hoặc Reopened) nhưng R4G Date còn ở tương lai' },
-];
+/** The rules a scope can be set for: every "Sai lệch dữ liệu" (ALERT) badge of the data-quality axis,
+ * read from the scoring catalog — the same set dataQualityRule (scoring/rules/data-quality.ts) filters
+ * by scope, so a rule added or reworded there shows up here unchanged. */
+const ANOMALY_RULES = badgesOf('DATA_QUALITY', 'ALERT').map((badge) => ({
+  id: badge.id,
+  code: /^ANOMALY_(R\d+)_/.exec(badge.id)?.[1] ?? badge.id,
+  label: badge.label,
+  meaning: badge.formula,
+}));
 
 const readError = (value: unknown, fallback: string) =>
   typeof value === 'object' && value !== null && 'error' in value && typeof (value as { error: unknown }).error === 'string'
@@ -164,7 +159,7 @@ export function AnomalyScopeConfigPanel({ isOpen, onToggle }: AnomalyScopeConfig
                   </div>
                   <p className="text-xs text-fb-text-secondary mt-1">
                     {config.enabled
-                      ? 'Đang bật: Các rule có Rule toggle = Enabled sẽ chỉ đánh giá trên các Epic thoả mãn điều kiện ngày được cấu hình.'
+                      ? 'Đang bật: Các rule có Rule toggle = Enabled sẽ chỉ đánh giá trên các Epic thoả mãn điều kiện ngày được cấu hình. Epic chưa có ngày tương ứng thì bỏ qua điều kiện của ngày đó (vẫn được xét rule).'
                       : 'Đang tắt: Toàn bộ các rule Sai lệch dữ liệu áp dụng trên toàn bộ các Epic theo lớp dữ liệu L03 như hiện nay.'}
                   </p>
                 </div>

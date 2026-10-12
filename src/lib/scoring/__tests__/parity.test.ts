@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import { compareWithLegacy } from '../parity';
 import type { LegacyRowSnapshot } from '../parity';
 import { scoreEpic } from '../score-epic';
+import { DEFAULT_SCORING_PARAMETERS } from '../parameters';
 import { makeContext, makeFacts } from './fixtures';
 
 const cell = { alertLevel: 'NONE' as const, isCurrentStage: false, isDone: false };
@@ -86,5 +87,24 @@ describe('parity with the legacy engine', () => {
     const facts = makeFacts({ status: 'Released', r4gDate: '2026-08-20', dueDate: '2026-08-21' });
     const diffs = compareWithLegacy(scoreEpic(facts, ctx), legacyRow(), ctx, OPTIONS).filter((diff) => diff.check.startsWith('TTM-Index'));
     assert.deepEqual(diffs, []);
+  });
+
+  it('D13: an Epic left out by "Phạm vi rule Sai lệch dữ liệu" is an approved difference, not an unexplained one', () => {
+    const scope = (enabled: boolean) => ({
+      ...DEFAULT_SCORING_PARAMETERS,
+      'anomaly.scopeConfig': { enabled, rules: { ANOMALY_R4_MISSING_REQUEST_TYPE: { enabled: true, createdAfter: '2026-08-01', startAfter: null, r4gAfter: null, dueAfter: null } } },
+    });
+    const legacy = legacyRow({
+      currentStatus: 'In Progress', hasDataAnomaly: true, dataAnomalyViolations: [{ code: 'MISSING_REQUEST_TYPE' }],
+      r4gDate: null, ttmActualToDate: null, ttmE2eActualToDate: null,
+    });
+    const facts = makeFacts({ status: 'In Progress', requestType: '', jiraCreatedAt: '2026-07-01', r4gDate: null, dueDate: null });
+    const anomalyDiffs = (enabled: boolean) => {
+      const ctx = makeContext({ asOf: '2026-09-01', parameters: scope(enabled) });
+      return compareWithLegacy(scoreEpic(facts, ctx), legacy, ctx, OPTIONS).filter((diff) => diff.check === 'Rule ANOMALY_R4_MISSING_REQUEST_TYPE' || diff.check === 'Sai lệch dữ liệu');
+    };
+    assert.deepEqual(anomalyDiffs(true).map((diff) => diff.tag), ['D13_ANOMALY_SCOPE', 'D13_ANOMALY_SCOPE']);
+    // Scope switched off: the service flags R4 like the legacy engine — nothing to explain.
+    assert.deepEqual(anomalyDiffs(false), []);
   });
 });

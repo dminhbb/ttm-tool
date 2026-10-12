@@ -47,6 +47,7 @@ export type ParityTag =
   | 'D10_DATA_QUALITY_RULES'
   | 'D11_WORKFLOW_STATUSES'
   | 'D12_TTM_EXCLUSION'
+  | 'D13_ANOMALY_SCOPE'
   | 'R2_R7_NOT_ANOMALY'
   | 'LEGACY_TIME_OF_DAY'
   | 'CANCELLED_NOT_APPLICABLE'
@@ -162,7 +163,14 @@ export function compareWithLegacy(card: EpicScorecard, legacy: LegacyRowSnapshot
   // DEV) and covers Pending (2026-10-05), R5 no longer applies while the Epic is still at DESIGN, and
   // R8/R9 (R4G Date vs status) and R10 (future R4G Date, 2026-10-09) are new.
   const legacyRuleBadges = new Set(legacy.dataAnomalyViolations.map((item) => ANOMALY_CODE_TO_BADGE[item.code]).filter(Boolean));
+  // D13 (2026-10-10): "Phạm vi rule Sai lệch dữ liệu" (anomaly.scopeConfig) only exists in the service
+  // — a rule whose scope is switched on leaves out the Epics outside its date bounds, which the legacy
+  // engine still flags. The scorecard doesn't carry the Epic's dates, so this goes by the rule's scope
+  // being on: an in-scope Epic runs through the very same rule and can't differ this way.
+  const scopeConfig = ctx.parameters['anomaly.scopeConfig'];
+  const scopedOut = (badge: BadgeId) => scopeConfig.enabled && scopeConfig.rules?.[badge]?.enabled === true && legacyRuleBadges.has(badge) && !active.has(badge);
   let d10 = false;
+  let d13 = false;
   for (const badge of Object.values(ANOMALY_CODE_TO_BADGE)) {
     if (legacyRuleBadges.has(badge) === active.has(badge)) continue;
     const explained = (badge === 'ANOMALY_R1_MISSING_START_DATE' && active.has(badge) && (d.statusIndex === STATUS_INDEX.DESIGN || /pending/i.test(legacy.currentStatus)))
@@ -170,7 +178,9 @@ export function compareWithLegacy(card: EpicScorecard, legacy: LegacyRowSnapshot
       // status of To Do / In PO (2026-10-11) — the legacy rule flags both.
       || (badge === 'ANOMALY_R5_MISSING_REQUIREMENT_LEVEL' && !active.has(badge) && (d.statusIndex <= STATUS_INDEX.DESIGN || /pending/i.test(legacy.currentStatus)));
     d10 ||= explained;
-    push(`Rule ${badge}`, legacyRuleBadges.has(badge), active.has(badge), explained ? 'D10_DATA_QUALITY_RULES' : 'UNEXPLAINED');
+    const scoped = !explained && scopedOut(badge);
+    d13 ||= scoped;
+    push(`Rule ${badge}`, legacyRuleBadges.has(badge), active.has(badge), explained ? 'D10_DATA_QUALITY_RULES' : scoped ? 'D13_ANOMALY_SCOPE' : 'UNEXPLAINED');
   }
   for (const badge of SCORING_ONLY_ANOMALY_BADGES) {
     if (!active.has(badge)) continue;
@@ -180,7 +190,7 @@ export function compareWithLegacy(card: EpicScorecard, legacy: LegacyRowSnapshot
   const scoringAnomaly = hasDataAnomalyBadge(active);
   if (legacy.hasDataAnomaly !== scoringAnomaly) {
     const onlyR2R7 = legacy.hasDataAnomaly && !scoringAnomaly && [...legacyRuleBadges].every((badge) => badge === 'ANOMALY_R2_PENDING_TOO_LONG' || badge === 'RELEASE_STATUS_MISMATCH');
-    push('Sai lệch dữ liệu', legacy.hasDataAnomaly, scoringAnomaly, onlyR2R7 ? 'R2_R7_NOT_ANOMALY' : d10 ? 'D10_DATA_QUALITY_RULES' : 'UNEXPLAINED');
+    push('Sai lệch dữ liệu', legacy.hasDataAnomaly, scoringAnomaly, onlyR2R7 ? 'R2_R7_NOT_ANOMALY' : d10 ? 'D10_DATA_QUALITY_RULES' : d13 ? 'D13_ANOMALY_SCOPE' : 'UNEXPLAINED');
   }
 
   // ---- Scope ----

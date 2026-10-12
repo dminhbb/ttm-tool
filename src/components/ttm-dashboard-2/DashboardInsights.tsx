@@ -611,6 +611,8 @@ export function BreakdownDonutSections({ dimensions, funnel, onOpen }: { dimensi
         const items = funnel.insights.breakdowns[dimension];
         const isOpen = Boolean(openSections[dimension]);
         // A slice is named after its item; "Khác.." (the merged tail) carries no dimension filter.
+        // "Theo Domain nghiệp vụ" lists every Domain in all three charts instead of merging that tail.
+        const showAllItems = dimension === 'domain';
         const scopeOf = (name: string) => dimensionScope(dimension, items.find((item) => item.name === name));
         const open = (name: string, alert: InsightListParams['alert'], label: string) => onOpen({ ...scopeOf(name), alert, title: `${label} - ${DIMENSION_NOUN[dimension]}: ${name}` });
         return (
@@ -636,17 +638,20 @@ export function BreakdownDonutSections({ dimensions, funnel, onOpen }: { dimensi
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <DonutChartCard
                       title="% Tổng số Epic"
+                      showAllItems={showAllItems}
                       data={items.map((item) => ({ name: item.name, value: item.total }))}
                       onItemClick={(item) => open(item.name, 'TTM_COUNTED_IN_SCOPE', 'Danh sách Epic')}
                     />
                     <DonutChartCard
                       title="% Pass TTM"
+                      showAllItems={showAllItems}
                       data={items.map((item) => ({ name: item.name, value: item.pass }))}
                       emptyMessage="Không có Epic đạt TTM"
                       onItemClick={(item) => open(item.name, 'TTM_PASS_IN_SCOPE', 'Danh sách Epic Pass TTM')}
                     />
                     <DonutChartCard
                       title="% Fail TTM"
+                      showAllItems={showAllItems}
                       data={items.map((item) => ({ name: item.name, value: item.fail }))}
                       emptyMessage="Không có Epic Fail TTM"
                       onItemClick={(item) => open(item.name, FAIL_ALERTS, 'Danh sách Epic Fail TTM')}

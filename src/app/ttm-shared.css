@@ -23,6 +23,40 @@
    được làm tới, thay vì sửa mù bây giờ.
    ========================================================================= */
 
+/* ── Giá trị nền của họ token `--ttm-*` cho các brand KHÁC IAS ───────────────
+   Khối remap bên dưới chỉ áp cho `data-brand="ias"`. Với các brand còn lại, file
+   này từng trông cậy vào khối `:root { --ttm-* }` của `epic-alerts-15.css` — thứ
+   mà TTM Dashboard 2 không còn nạp (và không được nạp, xem ghi chú đầu file). Hệ
+   quả: ở theme sáng của Wise / Legacy / Pink, mọi `var(--ttm-*)` trên dashboard
+   đều KHÔNG có giá trị — `background: var(--ttm-card)` của popover bộ lọc thành
+   trong suốt, viền và bo góc biến mất.
+
+   Dùng `:where(:root)` (specificity 0-0-0) để khối này luôn THUA cả `:root` của
+   file route lẫn khối IAS / chế độ Tối, bất kể thứ tự nạp chunk: nó chỉ lấp chỗ
+   trống, không đổi giá trị ở nơi đã có khai báo. Giá trị lấy từ biến theme của
+   globals.css nên tự theo brand đang chọn. Chỉ khai báo các token mà file này
+   và ToolbarMultiSelect thực sự đọc. */
+:where(:root) {
+  --ttm-brand-600: var(--accent);
+  --ttm-brand-100: var(--accent-soft);
+  --ttm-brand-050: var(--accent-soft);
+  --ttm-white: var(--surface-panel);
+  --ttm-bg: var(--surface-app);
+  --ttm-card: var(--surface-panel);
+  --ttm-border: var(--border-default);
+  --ttm-text: var(--text-primary);
+  --ttm-muted: var(--text-secondary);
+  --ttm-radius-sm: 6px;
+  --ttm-radius-md: 8px;
+  --ttm-radius-lg: 12px;
+  --ttm-font: inherit;
+  --ttm-font-size-xs: 12px;
+  --ttm-font-size-sm: 12px;
+  --ttm-font-size-md: 13px;
+  --ttm-font-size-base: 14px;
+  --ttm-font-size-lg: 18px;
+}
+
 /* ── Remap họ token `--ttm-*` về semantic alias của IAS ───────────────────────
    Đặt ở `:root[data-brand="ias"]` (specificity 0-2-0) nên nó THẮNG khối
    `:root { --ttm-* }` (0-1-0) trong ba file route BẤT KỂ thứ tự nạp chunk —

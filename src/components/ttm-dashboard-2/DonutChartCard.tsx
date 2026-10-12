@@ -11,6 +11,10 @@ export interface DonutChartCardProps {
   data: DonutDataItem[];
   emptyMessage?: string;
   onItemClick?: (item: DonutDataItem) => void;
+  /** List every item of `data` — no "Khác.." slice for the tail, and items at 0 stay in the legend.
+   * A name is colored by its position in `data`, so it keeps its color across sibling charts that are
+   * given the same list. */
+  showAllItems?: boolean;
   title: string;
   unitLabel?: string;
 }
@@ -23,10 +27,26 @@ const PALETTE = [
   '#94a3b8', // Slate / Gray for 'Khác..'
 ];
 
+/** Colors for `showAllItems`: the four above, then IAS primitive tokens (defined on :root for every
+ * theme) — enough distinct hues for a full category list; the slate comes last. */
+const FULL_PALETTE = [
+  ...PALETTE.slice(0, 4),
+  'var(--color-success-500)',
+  'var(--color-error-400)',
+  'var(--color-warning-700)',
+  'var(--color-info-500)',
+  'var(--color-alert-400)',
+  'var(--color-success-300)',
+  'var(--color-primary-300)',
+  'var(--color-accent-700)',
+  PALETTE[4],
+];
+
 export function DonutChartCard({
   data,
   emptyMessage = 'Không có dữ liệu',
   onItemClick,
+  showAllItems = false,
   title,
   unitLabel = 'Epic',
 }: DonutChartCardProps) {
@@ -46,7 +66,15 @@ export function DonutChartCard({
 
     let processed: Array<{ color: string; name: string; pct: number; value: number }> = [];
 
-    if (sorted.length <= 5) {
+    if (showAllItems) {
+      processed = data
+        .map((item, idx) => ({
+          ...item,
+          color: FULL_PALETTE[idx % FULL_PALETTE.length],
+          pct: Math.round((item.value / sum) * 100),
+        }))
+        .sort((a, b) => b.value - a.value);
+    } else if (sorted.length <= 5) {
       processed = sorted.map((item, idx) => ({
         ...item,
         color: PALETTE[idx % PALETTE.length],
@@ -72,7 +100,7 @@ export function DonutChartCard({
     }
 
     return { displayItems: processed, total: sum };
-  }, [data]);
+  }, [data, showAllItems]);
 
   // SVG Donut calculation
   const radius = 55;
@@ -183,7 +211,6 @@ export function DonutChartCard({
                     cy="70"
                     r={radius}
                     fill="transparent"
-                    stroke={seg.color}
                     strokeWidth={isHovered ? strokeWidth + 3 : strokeWidth}
                     strokeDasharray={seg.strokeDasharray}
                     strokeDashoffset={seg.strokeDashoffset}
@@ -191,6 +218,8 @@ export function DonutChartCard({
                     style={{
                       // KHÔNG làm mờ các section khác - giữ nguyên 100% độ rõ
                       opacity: 1,
+                      // In `style`, not the `stroke` attribute: a token color (var(--…)) only resolves in CSS.
+                      stroke: seg.color,
                     }}
                     onMouseEnter={() => setHoveredIndex(seg.index)}
                     onMouseMove={(e) => handleMouseMove(e, seg.index)}

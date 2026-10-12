@@ -918,3 +918,17 @@ R5 vi phạm  ⇔  Requirement Level trống hoặc "none"
   previous_status To Do / In PO) → `D10_DATA_QUALITY_RULES` (engine legacy không đổi).
 - **Hiệu lực:** sau lần tạo lại cache kế tiếp (đổi `SCORING_CODE_VERSION` làm cache cũ lỗi thời).
 - Test: `scoring.test.ts` "R5 (2026-10-11)", `parity.test.ts` "D10 (2026-10-11)", `projection.test.ts`.
+
+## 26. Phạm vi rule Sai lệch dữ liệu — Epic thiếu ngày, nhãn đối chiếu D13; R5 ghi lại công thức (2026-10-12)
+
+`SCORING_CODE_VERSION` `scoring-16` → `scoring-17`.
+
+- **Phạm vi theo mốc ngày (`isEpicInAnomalyScope`):** một điều kiện ngày chỉ được so khi Epic CÓ ngày đó. Epic chưa có
+  ngày tương ứng thì bỏ qua điều kiện ấy (vẫn trong phạm vi). Trước đây ngày trống bị coi là "ngoài phạm vi", nên đặt
+  "Start Date >" cho R1 hay "R4G Date >" cho R9 làm chính rule thiếu ngày đó không bao giờ bắn.
+- **Đối chiếu:** nhãn `D13_ANOMALY_SCOPE` — rule đang bật phạm vi, engine legacy gắn còn service không gắn. Scorecard
+  không mang ngày của Epic nên nhãn dựa vào việc rule đang bật phạm vi.
+- **R5:** phát biểu lại, logic không đổi so với mục 25 —
+  `Requirement Level trống hoặc "none"  VÀ  ( (status ≠ Pending VÀ status > DESIGN)  HOẶC  (status = Pending VÀ previous_status ∉ {To Do, In PO}) )`;
+  previous_status rỗng là ∉ nên vẫn bị R5.
+- Test: `scoring.test.ts` "Phạm vi rule Sai lệch dữ liệu" (mục 6), `parity.test.ts` "D13".
