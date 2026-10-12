@@ -17,6 +17,7 @@ import { DataAnomalyBadge, DataAnomalyList } from '@/components/epic-alerts/Data
 import { hasScoringExtraBadges, ScoringExtraBadges } from '@/components/epic-alerts/ScoringBadges';
 import { ALERT_FILTER_VALUES, alertFilterOptionsFor, findingOf, isWaitingGolive, isTtmCnttAchieved, isTtmE2eAchieved, matchesAlertFilter } from '@/lib/epic-row-verdicts';
 import type { AlertFilterValue } from '@/lib/epic-row-verdicts';
+import { matchesPmSmFilter, splitOwnerNames, UNASSIGNED_PM_SM } from '@/lib/epic-pm-sm-assignment';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import type { EpicAlertAccessRole, EpicAlertPhasedResponse, EpicAlertRowPhased, PhaseCell } from '@/lib/epic-alert-types';
 import type { EpicMilestoneHistoryEntry } from '@/lib/epic-milestone-history-service';
@@ -110,6 +111,7 @@ function formatDateTime(value: string | null): string {
  */
 interface EpicAlertsDeepLinkFilters {
   alerts: AlertFilterValue[];
+  components: string[];
   dataIssue: boolean;
   domain: string;
   hasAny: boolean;
@@ -132,6 +134,8 @@ function parseDeepLinkFilters(searchParams: URLSearchParams): EpicAlertsDeepLink
   const splitList = (key: string) => (searchParams.get(key) ?? '').split(',').map((value) => value.trim()).filter(Boolean);
   const alerts = splitList('alert').filter((value): value is Exclude<AlertFilterValue, ''> => ALERT_FILTER_VALUES.has(value as AlertFilterValue) && value !== '');
   const projects = splitList('projects');
+  // Only meaningful with projects: the Components filter lists the selected projects' components.
+  const components = projects.length > 0 ? splitList('components') : [];
   const status = splitList('status');
   const types = splitList('type').filter((value) => (EPIC_COMPLEXITY_TYPES as readonly string[]).includes(value));
   const pmSm = splitList('pmSm');
@@ -142,6 +146,7 @@ function parseDeepLinkFilters(searchParams: URLSearchParams): EpicAlertsDeepLink
   const dateOrNull = (key: string) => (searchParams.has(key) ? (searchParams.get(key) || null) : undefined);
   return {
     alerts,
+    components,
     dataIssue,
     domain,
     hasAny: Boolean(
@@ -624,7 +629,7 @@ function EpicAlerts15Screen() {
   const [projectFilters, setProjectFilters] = useState<string[]>(deepLinkFilters.projects);
   const [domainFilter, setDomainFilter] = useState(deepLinkFilters.domain);
   const [pmSmFilters, setPmSmFilters] = useState<string[]>(deepLinkFilters.pmSm);
-  const [componentFilters, setComponentFilters] = useState<string[]>([]);
+  const [componentFilters, setComponentFilters] = useState<string[]>(deepLinkFilters.components);
   const [projectComponents, setProjectComponents] = useState<ProjectComponent[]>([]);
   const [alertFilters, setAlertFilters] = useState<AlertFilterValue[]>(deepLinkFilters.alerts);
   const [typeFilters, setTypeFilters] = useState<string[]>(deepLinkFilters.types);
@@ -788,11 +793,16 @@ function EpicAlerts15Screen() {
   );
   // PM/SM options: ownerName is comma-joined when a project has several PM/SM users (see
   // getProjectMetaByProjectKeyMap) — split back out so each individual person is its own option,
-  // and selecting one shows every Epic whose project lists them (single-choice, next to "Dự án").
+  // and selecting one shows every Epic that person is responsible for. Since 2026-10-12 ownerName only
+  // names the PM/SMs of the Epic's components (epic-pm-sm-assignment.ts); UNASSIGNED_PM_SM lists the
+  // Epics left with nobody.
   const pmSmOptions = useMemo(
     () => (data?.mode === 'paged' && data.filterOptions
       ? data.filterOptions.pmSmNames
-      : [...new Set(rows.flatMap((row) => row.ownerName.split(',').map((name) => name.trim()).filter(Boolean)))].sort((a, b) => a.localeCompare(b, 'vi'))),
+      : [
+          ...[...new Set(rows.flatMap((row) => splitOwnerNames(row.ownerName)))].sort((a, b) => a.localeCompare(b, 'vi')),
+          ...(rows.some((row) => splitOwnerNames(row.ownerName).length === 0) ? [UNASSIGNED_PM_SM] : []),
+        ]),
     [data, rows],
   );
   const statusOptions = useMemo(
@@ -1054,7 +1064,7 @@ function EpicAlerts15Screen() {
     return rows.filter((row) => {
       const normalizedSearch = search.trim().toLocaleLowerCase('vi-VN');
       return (projectFilters.length === 0 || projectFilters.includes(row.projectKey))
-        && (pmSmFilters.length === 0 || row.ownerName.split(',').map((name) => name.trim()).some((name) => pmSmFilters.includes(name)))
+        && matchesPmSmFilter(row.ownerName, pmSmFilters)
         && (componentFilters.length === 0 || row.components.some((component) => componentFilters.includes(component)))
         && (alertFilters.length === 0 || alertFilters.some((alertFilter) => matchesAlertFilter(row, alertFilter)))
         && (typeFilters.length === 0 || (row.epicType !== null && typeFilters.includes(row.epicType)))

@@ -3,6 +3,8 @@ import { applyTtmExclusions, loadTtmExclusionSources } from '@/lib/black-listed-
 import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
 import type { EpicAlertFilters } from '@/lib/epic-alert-service';
 import type { EpicAlertPhasedResponse } from '@/lib/epic-alert-types';
+import { applyPmSmAssignments } from '@/lib/epic-pm-sm-assignment';
+import { loadPmSmNarrowings } from '@/lib/epic-pm-sm-assignment-service';
 import type { UserRole } from '@/lib/auth-types';
 import { loadScoringContext, vnToday } from '@/lib/scoring-context-service';
 import { loadEpicFacts } from '@/lib/scoring-facts-service';
@@ -31,10 +33,12 @@ function scopeOverrideOf(filters: EpicAlertFilters): Partial<ScoringScopeConfig>
  * getEpicAlertRowsPhased directly from any screen/API.
  */
 export async function getEpicAlertRowsForDisplay(userId: number, role: UserRole, filters: EpicAlertFilters = {}): Promise<EpicAlertPhasedResponse> {
-  const [computed, mode, exclusionSources] = await Promise.all([getEpicAlertRowsPhased(userId, role, filters), getScoringEngineMode(), loadTtmExclusionSources()]);
+  const [computed, mode, exclusionSources, pmSmNarrowings] = await Promise.all([getEpicAlertRowsPhased(userId, role, filters), getScoringEngineMode(), loadTtmExclusionSources(), loadPmSmNarrowings()]);
   // "Epic ngoại lệ" / project Time to Market = N — stamped on for both engines (the legacy row
   // builders don't know about them), so every screen can show the black dot and skip the Epic in TTM.
-  const legacy = { ...computed, rows: applyTtmExclusions(computed.rows, exclusionSources) };
+  // PM/SM names are narrowed to the ones responsible for each Epic's components the same way
+  // (applyPmSmAssignments) — the legacy builders name every PM/SM of the project.
+  const legacy = { ...computed, rows: applyPmSmAssignments(applyTtmExclusions(computed.rows, exclusionSources), pmSmNarrowings) };
   if (mode !== 'scoring' || !legacy.rows.length) return { ...legacy, engineMode: mode };
 
   const asOf = toIsoDate(filters.asOfDate) ?? vnToday();

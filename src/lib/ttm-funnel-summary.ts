@@ -1,4 +1,5 @@
 import type { DashboardEpicRow } from '@/lib/epic-alert-types';
+import { matchesPmSmFilter, splitOwnerNames } from '@/lib/epic-pm-sm-assignment';
 import { isJustifyGolive, isWaitingGolive, ttmFunnelBucket, type TtmFunnelBucket } from '@/lib/epic-row-verdicts';
 import { isOutsideTtmCalculation, summarizeE2e, summarizeQaIndex, summarizeTtmCnttFromCounts, type TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 
@@ -11,7 +12,7 @@ import { isOutsideTtmCalculation, summarizeE2e, summarizeQaIndex, summarizeTtmCn
 /** The only Epic fields the funnel, the widget row, the breakdown matrix, the pie charts, their
  * filters and option lists read. */
 export const TTM_FUNNEL_ROW_KEYS = [
-  'alertLevel', 'currentStatus', 'domainName', 'epicType', 'hasDataAnomaly', 'ownerName', 'projectKey', 'projectName',
+  'alertLevel', 'components', 'currentStatus', 'domainName', 'epicType', 'hasDataAnomaly', 'ownerName', 'projectKey', 'projectName',
   'qaInScope', 'r4gDate', 'releaseAxisState', 'releaseGraceDeadline', 'requestingUnit', 'scoringBadges',
   'scoringIndexFlags', 'ttmCnttInScope', 'ttmE2eAlertLevel', 'ttmExclusion',
 ] as const satisfies readonly (keyof DashboardEpicRow)[];
@@ -29,16 +30,23 @@ export type TtmBreakdownDimension = 'requestingUnit' | 'domain' | 'epicType' | '
 export const TTM_BREAKDOWN_DIMENSIONS: readonly TtmBreakdownDimension[] = ['requestingUnit', 'domain', 'epicType', 'pmsm', 'project'];
 
 /** One value of a dimension (one matrix row / one pie slice). Counts follow the funnel criteria of
- * the Epics that carry that value. */
+ * the Epics that carry that value.
+ *
+ * In the PM/SM dimension the counts are SHARES, not whole Epics (owner rule 2026-10-12): an Epic that
+ * n PM/SMs are responsible for adds 1/n to each of them, so the rows add up to the Epic total instead
+ * of counting a shared Epic once per person. They are shown rounded to a whole Epic
+ * (formatEpicCount); the ratios are computed on the unrounded shares. */
 export interface TtmBreakdownItem {
   /** Display name (project: its name; otherwise the value itself or its "chưa gán" placeholder). */
   name: string;
   /** Value to filter Quản trị Epic by (project: its key); null for a placeholder ("Chưa gán…"). */
   linkValue: string | null;
-  /** Only on the "Chưa gán Domain" / "Chưa gán PM/SM" placeholders: the project keys of their Epics.
-   * Quản trị Epic has no "no Domain" / "no PM/SM" filter, but both are a property of the project
-   * (Quản lý Dự án / Quản lý User), so listing exactly these projects IS the placeholder's Epics.
-   * Without it the drill-down opened unfiltered and listed every Domain's Epics (2026-10-09). */
+  /** Only on the "Chưa gán Domain" placeholder: the project keys of its Epics. Quản trị Epic has no
+   * "no Domain" filter, but a Domain is a property of the project (Quản lý Dự án), so listing exactly
+   * these projects IS the placeholder's Epics. Without it the drill-down opened unfiltered and listed
+   * every Domain's Epics (2026-10-09). "Chưa gán PM/SM" no longer uses it (2026-10-12): being left
+   * without a PM/SM is now a property of the Epic (its components), so its drill-down filters PM/SM
+   * by UNASSIGNED_PM_SM instead. */
   linkProjects?: string[];
   /** L02 — Epic trong phạm vi tính TTM (L01 − Cancelled − Epic ngoại lệ − dự án Time to Market = N). */
   total: number;
@@ -123,11 +131,16 @@ export interface TtmDashboard2FilterOptions {
   domainProjectKeys: Record<string, string[]>;
   domains: string[];
   pmSms: string[];
+  /** Component names carried by the Epics of each project — the "Component" filter lists the ones of
+   * the projects currently selected. A viewer narrowed to components only gets those. */
+  projectComponents: Record<string, string[]>;
   projects: string[];
   requestingUnits: string[];
 }
 
 export interface TtmDashboard2Filters {
+  /** Component names; an Epic matches when it carries at least one of them. */
+  components: string[];
   domain: string;
   pmSms: string[];
   projects: string[];
@@ -135,7 +148,20 @@ export interface TtmDashboard2Filters {
 }
 
 export function hasActiveTtmDashboard2Filter(filters: TtmDashboard2Filters): boolean {
-  return Boolean(filters.domain || filters.projects.length || filters.pmSms.length || filters.requestingUnits.length);
+  return Boolean(filters.domain || filters.projects.length || filters.components.length || filters.pmSms.length || filters.requestingUnits.length);
+}
+
+/** A PM/SM share shown as whole Epics: 17,6 → 18. The epsilon keeps sums of thirds / sixths that are
+ * mathematically x,5 from landing a hair under it. */
+export function roundEpicCount(value: number): number {
+  return Math.round(value + 1e-9);
+}
+
+/** Display form of a count that may be a PM/SM share: whole numbers as before; a share that rounds
+ * to 0 is shown as "<1" so the row doesn't read as "no Epic". */
+export function formatEpicCount(value: number): string {
+  const rounded = roundEpicCount(value);
+  return rounded === 0 && value > 1e-9 ? '<1' : rounded.toLocaleString('vi-VN');
 }
 
 export const EMPTY_TTM_FUNNEL_BUCKETS: Readonly<Record<TtmFunnelBucket, number>> = {
@@ -152,15 +178,16 @@ export const EMPTY_TTM_FUNNEL_BUCKETS: Readonly<Record<TtmFunnelBucket, number>>
 };
 
 function ownerNames(row: Pick<TtmFunnelRow, 'ownerName'>): string[] {
-  // Deduplicated: "An, An" must not count the Epic twice under An in the PM/SM breakdown.
-  return [...new Set((row.ownerName || '').split(',').map((name) => name.trim()).filter(Boolean))];
+  return splitOwnerNames(row.ownerName);
 }
 
 export function filterTtmDashboard2Rows<T extends TtmFunnelRow>(rows: readonly T[], filters: TtmDashboard2Filters): T[] {
   return rows.filter((row) => {
     if (filters.projects.length > 0 && !filters.projects.includes(row.projectKey)) return false;
     if (filters.domain && row.domainName !== filters.domain) return false;
-    if (filters.pmSms.length > 0 && !ownerNames(row).some((name) => filters.pmSms.includes(name))) return false;
+    // `?? []`: rows served by code older than the Component filter carry no components.
+    if (filters.components.length > 0 && !(row.components ?? []).some((component) => filters.components.includes(component))) return false;
+    if (!matchesPmSmFilter(row.ownerName, filters.pmSms)) return false;
     if (filters.requestingUnits.length > 0 && (!row.requestingUnit || !filters.requestingUnits.includes(row.requestingUnit))) return false;
     return true;
   });
@@ -169,11 +196,12 @@ export function filterTtmDashboard2Rows<T extends TtmFunnelRow>(rows: readonly T
 type BreakdownKey = { key: string; linkValue: string | null; name: string };
 
 /** The group(s) a row belongs to per dimension. Every dimension gives exactly one group, except
- * PM/SM: an Epic with several PM/SMs ("A, B") is counted once under EACH of them (2026-10-05) —
- * grouping by the raw "A, B" string split one PM's numbers over several rows, and its drill-down
- * (owner_names && [A, B]) listed every Epic of A or B, so the list never matched the number. With one
- * name per row the list (owner_names && [A]) is exactly the row's Epics. The PM/SM rows can therefore
- * add up to more than the funnel total. */
+ * PM/SM: an Epic with several PM/SMs ("A, B") belongs to EACH of them (2026-10-05) — grouping by the
+ * raw "A, B" string split one PM's numbers over several rows. Since 2026-10-12 the Epic is SHARED
+ * between them (1/n each, see TtmBreakdownItem) instead of counted once per person, so the PM/SM rows
+ * add up to the funnel total; a row's drill-down (owner_names && [A]) still lists every Epic A has a
+ * share of, so it can hold more Epics than the row's rounded number. `ownerName` already names only
+ * the PM/SMs responsible for the Epic's components (epic-pm-sm-assignment.ts). */
 const BREAKDOWN_KEYS: Record<TtmBreakdownDimension, (row: TtmFunnelRow) => BreakdownKey[]> = {
   requestingUnit: (row) => [row.requestingUnit ? { key: row.requestingUnit, linkValue: row.requestingUnit, name: row.requestingUnit } : { key: '', linkValue: null, name: 'Chưa xác định' }],
   domain: (row) => [row.domainName ? { key: row.domainName, linkValue: row.domainName, name: row.domainName } : { key: '', linkValue: null, name: 'Chưa gán Domain' }],
@@ -218,34 +246,38 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
 
   const breakdowns = {} as Record<TtmBreakdownDimension, TtmBreakdownItem[]>;
   for (const dimension of TTM_BREAKDOWN_DIMENSIONS) {
-    const groups = new Map<string, { item: TtmBreakdownItem; rows: TtmFunnelRow[] }>();
+    const groups = new Map<string, { item: TtmBreakdownItem; rows: TtmFunnelRow[]; shares: number[] }>();
     for (const row of active) {
       const bucket = bucketOf.get(row);
-      for (const { key, linkValue, name } of BREAKDOWN_KEYS[dimension](row)) {
+      const keys = BREAKDOWN_KEYS[dimension](row);
+      // 1 everywhere but PM/SM, where an Epic of n PM/SMs is shared 1/n each (see TtmBreakdownItem).
+      const share = 1 / keys.length;
+      for (const { key, linkValue, name } of keys) {
         let group = groups.get(key);
         if (!group) {
-          group = { item: { anomaly: 0, fail: 0, failLateR4g: 0, late: 0, linkValue, name, ok: 0, pass: 0, qaFail: 0, qaPass: 0, qaTotal: 0, total: 0 }, rows: [] };
+          group = { item: { anomaly: 0, fail: 0, failLateR4g: 0, late: 0, linkValue, name, ok: 0, pass: 0, qaFail: 0, qaPass: 0, qaTotal: 0, total: 0 }, rows: [], shares: [] };
           groups.set(key, group);
         }
         group.rows.push(row);
+        group.shares.push(share);
         // Not part of L02: outside "Phạm vi dữ liệu cho TTM" ("Epic ngoại lệ" never get here — see `active`).
         if (bucket === 'OUT_OF_SCOPE') continue;
-        group.item.total += 1;
-        if (bucket === 'R4G_PASS') group.item.pass += 1;
-        else if (bucket === 'R4G_LATE' || bucket === 'NO_R4G_OVERDUE') group.item.fail += 1;
-        if (bucket === 'R4G_LATE') group.item.failLateR4g += 1;
-        if (bucket === 'DATA_ANOMALY') group.item.anomaly += 1;
+        group.item.total += share;
+        if (bucket === 'R4G_PASS') group.item.pass += share;
+        else if (bucket === 'R4G_LATE' || bucket === 'NO_R4G_OVERDUE') group.item.fail += share;
+        if (bucket === 'R4G_LATE') group.item.failLateR4g += share;
+        if (bucket === 'DATA_ANOMALY') group.item.anomaly += share;
         // "Đúng / Chậm tiến độ": Epics still on their way to R4G (no R4G Date yet, no Sai lệch dữ liệu).
         if (bucket === 'NO_R4G_OVERDUE' || bucket === 'NO_R4G_WITHIN_TARGET') {
-          if (row.alertLevel === 'FAIL' || row.alertLevel === 'LATE') group.item.late += 1;
-          else group.item.ok += 1;
+          if (row.alertLevel === 'FAIL' || row.alertLevel === 'LATE') group.item.late += share;
+          else group.item.ok += share;
         }
       }
     }
     breakdowns[dimension] = [...groups.values()]
-      .map(({ item, rows: groupRows }) => {
-        const qa = summarizeQaIndex(groupRows);
-        const unassignedByProject = item.linkValue === null && (dimension === 'domain' || dimension === 'pmsm');
+      .map(({ item, rows: groupRows, shares }) => {
+        const qa = dimension === 'pmsm' ? summarizeSharedQaIndex(groupRows, shares) : summarizeQaIndex(groupRows);
+        const unassignedByProject = item.linkValue === null && dimension === 'domain';
         return {
           ...item, qaFail: qa.fail, qaPass: qa.pass, qaTotal: qa.total,
           ...(unassignedByProject ? { linkProjects: [...new Set(groupRows.map((row) => row.projectKey).filter(Boolean))].sort() } : {}),
@@ -267,6 +299,18 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
     scoringEngine: rows.some((row) => Boolean(row.scoringBadges)),
     waitingGolive,
   };
+}
+
+/** TTM-CNTT (QA) counts of a PM/SM's Epics, each weighted by that PM/SM's share of the Epic. */
+function summarizeSharedQaIndex(rows: readonly TtmFunnelRow[], shares: readonly number[]): Pick<TtmCnttSummary, 'fail' | 'pass' | 'total'> {
+  const sum = { fail: 0, pass: 0, total: 0 };
+  rows.forEach((row, index) => {
+    const qa = summarizeQaIndex([row]);
+    sum.fail += qa.fail * shares[index];
+    sum.pass += qa.pass * shares[index];
+    sum.total += qa.total * shares[index];
+  });
+  return sum;
 }
 
 export function summarizeTtmFunnel(rows: readonly TtmFunnelRow[]): TtmFunnelSummary {
@@ -308,17 +352,29 @@ export function summarizeTtmFunnel(rows: readonly TtmFunnelRow[]): TtmFunnelSumm
   };
 }
 
-export function buildTtmDashboard2FilterOptions(rows: readonly TtmFunnelRow[]): TtmDashboard2FilterOptions {
+/**
+ * `grantedComponents` — the viewer's own component narrowing per project (AccessScope.projectComponents;
+ * omit for an unrestricted viewer): a narrowed project only offers the components the viewer was
+ * granted, not the other components its multi-component Epics happen to carry as well.
+ */
+export function buildTtmDashboard2FilterOptions(rows: readonly TtmFunnelRow[], grantedComponents?: ReadonlyMap<string, readonly string[]>): TtmDashboard2FilterOptions {
   const domainProjects = new Map<string, Set<string>>();
+  const projectComponents = new Map<string, Set<string>>();
   for (const row of rows) {
-    if (!row.domainName || !row.projectKey) continue;
-    domainProjects.set(row.domainName, (domainProjects.get(row.domainName) ?? new Set<string>()).add(row.projectKey));
+    if (!row.projectKey) continue;
+    if (row.domainName) domainProjects.set(row.domainName, (domainProjects.get(row.domainName) ?? new Set<string>()).add(row.projectKey));
+    const granted = grantedComponents?.get(row.projectKey);
+    for (const component of row.components ?? []) {
+      if (!component || (granted && granted.length > 0 && !granted.includes(component))) continue;
+      projectComponents.set(row.projectKey, (projectComponents.get(row.projectKey) ?? new Set<string>()).add(component));
+    }
   }
   const byVi = (a: string, b: string) => a.localeCompare(b, 'vi');
   return {
     domainProjectKeys: Object.fromEntries([...domainProjects].map(([domain, keys]) => [domain, [...keys].sort()])),
     domains: [...domainProjects.keys()].sort(),
     pmSms: [...new Set(rows.flatMap(ownerNames))].sort(byVi),
+    projectComponents: Object.fromEntries([...projectComponents].map(([projectKey, components]) => [projectKey, [...components].sort(byVi)])),
     projects: [...new Set(rows.map((row) => row.projectKey).filter(Boolean))].sort(),
     requestingUnits: [...new Set(rows.map((row) => row.requestingUnit).filter((unit): unit is string => Boolean(unit)))].sort(byVi),
   };

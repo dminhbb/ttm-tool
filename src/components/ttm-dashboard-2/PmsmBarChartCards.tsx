@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { CaretDown, CaretUp } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
-import type { TtmBreakdownItem } from '@/lib/ttm-funnel-summary';
+import { formatEpicCount, type TtmBreakdownItem } from '@/lib/ttm-funnel-summary';
 
 interface PmsmBarItemData {
   name: string;
@@ -53,7 +53,7 @@ function SingleBarChartColumn({
         type="button"
         onClick={() => onItemClick(entry.item)}
         className="group flex w-full cursor-pointer select-none items-center gap-2 rounded-lg px-2 py-1 text-left transition-colors hover:bg-fb-surface-muted"
-        title={`${entry.name}: ${entry.value} ${unitLabel} (${sharePct}%) - Bấm để xem danh sách Epic`}
+        title={`${entry.name}: ${formatEpicCount(entry.value)} ${unitLabel} (${sharePct}%) - Bấm để xem danh sách Epic`}
       >
         {/* Thứ hạng */}
         <span className="w-5 shrink-0 text-right font-mono text-[11px] font-bold text-fb-text-placeholder group-hover:text-fb-text-secondary">
@@ -78,8 +78,9 @@ function SingleBarChartColumn({
 
         {/* Giá trị và % */}
         <div className="flex shrink-0 items-baseline gap-1 font-mono text-right">
+          {/* A PM/SM's number is a share of Epics (TtmBreakdownItem) — shown rounded to a whole Epic. */}
           <span className="text-xs font-bold tabular-nums text-fb-text-primary">
-            {entry.value}
+            {formatEpicCount(entry.value)}
           </span>
           <span className="text-[11px] tabular-nums text-fb-text-secondary">
             ({sharePct}%)

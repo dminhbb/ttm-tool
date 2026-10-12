@@ -66,7 +66,7 @@ describe('"Epic ngoại lệ" text format', () => {
 
 describe('L02 leaves out "Epic ngoại lệ" and non-TTM-project Epics (owner rule 2026-10-05)', () => {
   const funnelRow = (patch: Partial<TtmFunnelRow>): TtmFunnelRow => ({
-    alertLevel: 'NONE', currentStatus: 'In Progress', domainName: 'D1', epicType: 'CT-Lv12', hasDataAnomaly: false, ownerName: 'An',
+    alertLevel: 'NONE', components: [], currentStatus: 'In Progress', domainName: 'D1', epicType: 'CT-Lv12', hasDataAnomaly: false, ownerName: 'An',
     projectKey: 'P1', projectName: 'Dự án 1', qaInScope: true, r4gDate: null, releaseAxisState: 'NONE', releaseGraceDeadline: null,
     requestingUnit: 'Khối A', scoringBadges: undefined, scoringIndexFlags: undefined, ttmCnttInScope: true, ttmE2eAlertLevel: 'NONE',
     ttmExclusion: null, ...patch,

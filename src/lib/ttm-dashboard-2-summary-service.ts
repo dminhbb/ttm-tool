@@ -8,6 +8,7 @@ import {
   breakdownIndexes,
   filterTtmDashboard2Rows,
   hasActiveTtmDashboard2Filter,
+  roundEpicCount,
   splitWaitingGolive,
   summarizeTtmFunnel,
   TTM_FUNNEL_CRITERIA,
@@ -62,6 +63,7 @@ export async function getTtmDashboard2Summary(userId: number, role: UserRole, in
 
   const options = snapshot.filterOptions;
   const filters: TtmDashboard2Filters = {
+    components: [],
     domain: resolveValues(input.domain ? [input.domain] : [], options.domains)[0] ?? '',
     pmSms: resolveValues(input.pmSms, options.pmSms),
     projects: resolveValues(input.projectKeys, options.projects),
@@ -108,21 +110,23 @@ export async function getTtmDashboard2Summary(userId: number, role: UserRole, in
       choGolive: { total: insights.waitingGolive.total, thieuR4gDate: waiting.missingR4g, trongHan: waiting.withinGrace, quaHan: waiting.overdue },
       giaiTrinhGolive: insights.justifyGolive,
     },
+    // Counts go out as the screen shows them: whole Epics. Only the PM/SM dimension holds shares (an
+    // Epic of n PM/SMs is 1/n for each — see TtmBreakdownItem); the percentages use the unrounded shares.
     breakdown: insights.breakdowns[dimension].map((item) => {
       const { qa, qlda } = breakdownIndexes(item);
       return {
         name: item.name,
-        tongSoEpic: item.total,
-        passTtm: item.pass,
-        failTtm: item.fail,
-        failTreR4g: item.failLateR4g,
-        failThieuR4g: item.fail - item.failLateR4g,
-        epicDanhGia: qlda.denominator,
+        tongSoEpic: roundEpicCount(item.total),
+        passTtm: roundEpicCount(item.pass),
+        failTtm: roundEpicCount(item.fail),
+        failTreR4g: roundEpicCount(item.failLateR4g),
+        failThieuR4g: roundEpicCount(item.fail - item.failLateR4g),
+        epicDanhGia: roundEpicCount(qlda.denominator),
         ttmCnttQldaPct: qlda.denominator > 0 ? Math.round(qlda.pctPrecise * 10) / 10 : null,
-        ttmCnttQa: item.qaTotal > 0 ? { pass: item.qaPass, fail: item.qaFail, pct: qa.denominator > 0 ? Math.round(qa.pctPrecise * 10) / 10 : null } : null,
-        saiLechDuLieu: item.anomaly,
-        dungTienDo: item.ok,
-        chamTienDo: item.late,
+        ttmCnttQa: item.qaTotal > 0 ? { pass: roundEpicCount(item.qaPass), fail: roundEpicCount(item.qaFail), pct: qa.denominator > 0 ? Math.round(qa.pctPrecise * 10) / 10 : null } : null,
+        saiLechDuLieu: roundEpicCount(item.anomaly),
+        dungTienDo: roundEpicCount(item.ok),
+        chamTienDo: roundEpicCount(item.late),
       };
     }),
     ttmIndexGlobal: ttmIndexGlobal

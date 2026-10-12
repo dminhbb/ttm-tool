@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { after } from 'next/server';
 import pool from '@/lib/db';
 import { applyTtmExclusions, loadTtmExclusionSources } from '@/lib/black-listed-epic-service';
+import { applyPmSmAssignments } from '@/lib/epic-pm-sm-assignment';
+import { loadPmSmNarrowings } from '@/lib/epic-pm-sm-assignment-service';
 import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
 import { refreshEpicAlertRowCache } from '@/lib/epic-alert-row-cache-service';
 import { refreshTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
@@ -130,11 +132,14 @@ export async function claimDailyCacheRun(userId: number, recoverInterruptedRebui
  * expensive part), instead of each refresher recomputing it on its own. Returns the Epic count.
  * Only ever called through refreshDerivedCaches (the rebuild lease), never twice at the same time. */
 async function rebuildDerivedCaches(batchId: number | null): Promise<number> {
-  const [computed, exclusionSources] = await Promise.all([getEpicAlertRowsPhased(0, 'SUPERVISOR', {}), loadTtmExclusionSources()]);
+  const [computed, exclusionSources, pmSmNarrowings] = await Promise.all([getEpicAlertRowsPhased(0, 'SUPERVISOR', {}), loadTtmExclusionSources(), loadPmSmNarrowings()]);
   // "Epic ngoại lệ" / project Time to Market = N: every cached row carries ttmBlackListed +
   // ttmExclusion, so the caches (Quản trị Epic, TTM-Index, TTM Dashboard 2) all leave the Epic out of
   // the TTM calculation from L02 on. Saving the black list or a project's flag re-runs this.
-  const rows = applyTtmExclusions(computed.rows, exclusionSources);
+  // PM/SM by component (2026-10-12): every cached row names only the PM/SMs responsible for the Epic's
+  // components (owner_names follows), so the PM/SM column, filter and breakdowns of every cache reader
+  // agree. Saving a user's projects / components re-runs this.
+  const rows = applyPmSmAssignments(applyTtmExclusions(computed.rows, exclusionSources), pmSmNarrowings);
   // Epic Scoring Service in shadow mode: stored next to the legacy row + compared against it
   // (scoring_parity_runs). Returns null on failure — the legacy cache is still rebuilt.
   const scorecards = await runShadowScoring(rows);

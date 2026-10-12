@@ -3,6 +3,7 @@ import type { AccessScope } from '@/lib/epic-alert-service';
 import { DASHBOARD_EPIC_ROW_KEYS } from '@/lib/epic-alert-types';
 import { LIST_GROUP_RANK_SQL } from '@/lib/epic-alert-sort-rules';
 import type { DashboardEpicRow, EpicAlertRowPhased } from '@/lib/epic-alert-types';
+import { UNASSIGNED_PM_SM } from '@/lib/epic-pm-sm-assignment';
 import { summarizeTtmCnttFromCounts } from '@/lib/ttm-cntt-qa';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import { compareWorkflowStatus } from '@/lib/scoring/derive';
@@ -97,7 +98,10 @@ function buildFilterClause(scope: AccessScope, filters: EpicAlertRowCacheFilters
   }
   if (filters.pmSm && filters.pmSm.length > 0) {
     params.push(filters.pmSm);
-    clauses.push(`owner_names && $${params.length}::text[]`);
+    // UNASSIGNED_PM_SM in the selection also lists the Epics no PM/SM is responsible for.
+    clauses.push(filters.pmSm.includes(UNASSIGNED_PM_SM)
+      ? `(owner_names && $${params.length}::text[] OR cardinality(owner_names) = 0)`
+      : `owner_names && $${params.length}::text[]`);
   }
   if (filters.components && filters.components.length > 0) {
     params.push(filters.components);
@@ -360,6 +364,7 @@ export async function queryEpicAlertFilterOptions(scope: AccessScope): Promise<E
   );
   const projectKeys = new Set<string>();
   const pmSmNames = new Set<string>();
+  let hasUnassignedEpic = false;
   const statuses = new Set<string>();
   const requestingUnits = new Set<string>();
   const domainProjectKeys: Record<string, Set<string>> = {};
@@ -368,13 +373,15 @@ export async function queryEpicAlertFilterOptions(scope: AccessScope): Promise<E
     if (row.status) statuses.add(row.status);
     if (row.requestingUnit) requestingUnits.add(row.requestingUnit);
     for (const name of row.ownerNames ?? []) pmSmNames.add(name);
+    if ((row.ownerNames ?? []).length === 0) hasUnassignedEpic = true;
     if (row.domainName && row.projectKey) {
       (domainProjectKeys[row.domainName] ??= new Set()).add(row.projectKey);
     }
   }
   return {
     domainProjectKeys: Object.fromEntries(Object.entries(domainProjectKeys).map(([domain, keys]) => [domain, [...keys].sort()])),
-    pmSmNames: [...pmSmNames].sort((a, b) => a.localeCompare(b, 'vi')),
+    // Last in the list, and only when some Epic in scope has no PM/SM at all.
+    pmSmNames: [...[...pmSmNames].sort((a, b) => a.localeCompare(b, 'vi')), ...(hasUnassignedEpic ? [UNASSIGNED_PM_SM] : [])],
     projectKeys: [...projectKeys].sort(),
     requestingUnits: [...requestingUnits].sort((a, b) => a.localeCompare(b, 'vi')),
     statuses: [...statuses].sort(compareWorkflowStatus),

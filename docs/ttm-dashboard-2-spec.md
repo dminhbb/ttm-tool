@@ -158,3 +158,35 @@ Lead view: Theo Đơn vị yêu cầu, Theo Domain nghiệp vụ (khi có > 1 do
 | % Fail TTM | L05ab + L05ba |
 
 (Ở TTM Dashboard, "% Epic Fail TTM (pm)" còn cộng cả Epic Fail TTM-E2E; ở đây chỉ gồm Fail TTM-CNTT.)
+
+## 8. Bộ Lọc Component & PM/SM Theo Component (2026-10-12)
+
+### 8.1. Bộ lọc Component
+
+- Multi-select "Component" đặt sau "Dự án"; danh sách = component của các dự án đang chọn (lấy từ component mà Epic của dự án đang mang). Chưa chọn dự án thì khoá. Đổi dự án sẽ bỏ các component không còn thuộc dự án nào đang chọn.
+- Epic khớp khi mang ít nhất một component đã chọn; Epic không có component không bao giờ khớp.
+- Phễu, widget, ma trận, biểu đồ đều tính trên phạm vi quyền + bộ lọc (kể cả component). Không có chiều "Component": số liệu vẫn báo cáo theo dự án.
+- Người xem là PM/SM bị giới hạn component chỉ thấy các component được gán trong danh sách.
+- Danh sách Epic mở ra (Quản trị Epic) nhận thêm tham số `components`.
+
+### 8.2. PM/SM của một Epic
+
+| Phân quyền của PM/SM trên dự án | Epic thuộc về PM/SM đó khi |
+|---|---|
+| Không gán component (toàn dự án) | Mọi Epic của dự án |
+| Gán một hay nhiều component | Epic mang ít nhất một component được gán |
+
+Epic không thuộc về ai → "Chưa gán PM/SM". Giới hạn component chỉ áp dụng cho vai trò USER (giống quyền xem). Quy tắc này dùng chung cho mọi màn hình (cột và bộ lọc PM/SM ở Quản trị Epic, popup Duyệt Epic, dashboard).
+
+### 8.3. Số liệu chiều PM/SM (ma trận + section "Theo PM/SM")
+
+Epic có n PM/SM được chia đều: mỗi người 1/n. Ví dụ dự án API có `nguyenha` (toàn dự án) và `dophuclamn` (component API-Line-1):
+
+| Epic | nguyenha | dophuclamn |
+|---|---|---|
+| X — không có component | 1 | 0 |
+| Y — component API-Line-1 | 0,5 | 0,5 |
+
+- Tổng các dòng PM/SM = Tổng số Epic (L02); Pass / Fail / Sai lệch / Đúng–Chậm tiến độ / TTM-CNTT (QA) chia theo cùng tỷ lệ.
+- Hiển thị làm tròn tới 1 Epic (17,6 → 18; phần dưới 0,5 hiện "<1"); tỷ lệ % tính trên số chưa làm tròn.
+- Bấm vào một dòng mở mọi Epic người đó có phần, nên danh sách có thể nhiều hơn con số của dòng.

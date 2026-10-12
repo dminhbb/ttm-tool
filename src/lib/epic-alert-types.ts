@@ -130,7 +130,7 @@ export interface EpicAlertRowPhased {
  * full row (stages' baselines, strips, timelines… are ~90% of each row's JSON and unused there).
  * Keep DASHBOARD_EPIC_ROW_KEYS in sync: the cache-backed read builds the same shape in SQL from it. */
 export const DASHBOARD_EPIC_ROW_KEYS = [
-  'alertLevel', 'currentStatus', 'dataAnomalyViolations', 'domainName', 'dueDate', 'epicKey', 'epicName',
+  'alertLevel', 'components', 'currentStatus', 'dataAnomalyViolations', 'domainName', 'dueDate', 'epicKey', 'epicName',
   'epicType', 'hasDataAnomaly', 'ownerName', 'projectKey', 'projectName', 'qaInScope', 'r4gDate',
   'releaseAxisState', 'releaseGraceDeadline', 'requestingUnit', 'scoringBadges', 'scoringIndexFlags',
   'targetR4gDate', 'ttmBlackListed', 'ttmCnttInScope', 'ttmE2eAlertLevel', 'ttmExclusion',

@@ -20,10 +20,12 @@ import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui
 import { DonutChartCard } from '@/components/ttm-dashboard-2/DonutChartCard';
 import { PmsmBarChartCards } from '@/components/ttm-dashboard-2/PmsmBarChartCards';
 import type { EpicAlertsDeepLinkAlert } from '@/lib/epic-alerts-deep-link';
+import { UNASSIGNED_PM_SM } from '@/lib/epic-pm-sm-assignment';
 import { vnTodayIso } from '@/lib/epic-row-verdicts';
 import { formatTtmPct1, hasTtmVerdict, type TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import {
   breakdownIndexes,
+  formatEpicCount,
   splitWaitingGolive,
   ttmFunnelCnttIndex,
   ttmFunnelLayers,
@@ -77,15 +79,16 @@ const DIMENSION_NOUN: Record<TtmBreakdownDimension, string> = {
   requestingUnit: 'Đơn vị',
 };
 
-function fmt(value: number): string {
-  return value.toLocaleString('vi-VN');
-}
+/** Whole numbers as they are; a PM/SM share (see TtmBreakdownItem) rounded to a whole Epic. */
+const fmt = formatEpicCount;
 
 /** Quản trị Epic filter for one value of a dimension. A "chưa gán" placeholder has no value of its
- * own: "Chưa gán Domain" / "Chưa gán PM/SM" filter by the projects they hold (linkProjects); the
- * others ("Chưa xác định" đơn vị yêu cầu, the merged "Khác.." slice) carry no dimension filter. */
+ * own: "Chưa gán PM/SM" filters PM/SM by UNASSIGNED_PM_SM (the Epics no PM/SM is responsible for),
+ * "Chưa gán Domain" by the projects it holds (linkProjects); the others ("Chưa xác định" đơn vị yêu
+ * cầu, the merged "Khác.." slice) carry no dimension filter. */
 function dimensionScope(dimension: TtmBreakdownDimension, item: TtmBreakdownItem | undefined): Partial<InsightListParams> {
   const linkValue = item?.linkValue;
+  if (!linkValue && item && dimension === 'pmsm') return { pmSm: [UNASSIGNED_PM_SM] };
   if (!linkValue) return item?.linkProjects && item.linkProjects.length > 0 ? { projects: item.linkProjects } : {};
   switch (dimension) {
     case 'domain': return { domain: linkValue };
@@ -426,7 +429,7 @@ function matrixSortValue(item: TtmBreakdownItem, key: MatrixSortKey): number | s
   }
 }
 
-const PMSM_SHARED_NOTE = 'Epic có nhiều PM/SM được tính cho từng PM/SM — tổng các dòng có thể lớn hơn Tổng số Epic.';
+const PMSM_SHARED_NOTE = 'Epic tính cho PM/SM theo dự án và component được gán; Epic có nhiều PM/SM được chia đều cho từng người (số hiển thị làm tròn tới 1 Epic) — danh sách mở ra từ một dòng gồm mọi Epic người đó có phần, nên có thể nhiều hơn con số của dòng.';
 
 export function BreakdownMatrixCard({ dimensions, funnel, onOpen }: { dimensions: readonly MatrixDimension[]; funnel: TtmFunnelSummary; onOpen: OpenList }) {
   const [selected, setSelected] = useState<MatrixDimension>(dimensions[0]);

@@ -135,7 +135,7 @@ interface NodeDetail {
   extra?: React.ReactNode;
 }
 
-const EMPTY_FILTER_OPTIONS: TtmDashboard2FilterOptions = { domainProjectKeys: {}, domains: [], pmSms: [], projects: [], requestingUnits: [] };
+const EMPTY_FILTER_OPTIONS: TtmDashboard2FilterOptions = { domainProjectKeys: {}, domains: [], pmSms: [], projectComponents: {}, projects: [], requestingUnits: [] };
 
 export default function TtmDashboard2Page() {
   const [loading, setLoading] = useState(true);
@@ -164,6 +164,7 @@ export default function TtmDashboard2Page() {
   // Filters — Arranged in a single top row matching TTM Dashboard
   const [filterDomain, setFilterDomain] = useState<string>('');
   const [filterProjects, setFilterProjects] = useState<string[]>([]);
+  const [filterComponents, setFilterComponents] = useState<string[]>([]);
   const [filterPmSms, setFilterPmSms] = useState<string[]>([]);
   const [filterRequestingUnits, setFilterRequestingUnits] = useState<string[]>([]);
 
@@ -225,22 +226,35 @@ export default function TtmDashboard2Page() {
   const projectOptions = filterOptions.projects;
   const pmSmOptions = filterOptions.pmSms;
   const requestingUnitOptions = filterOptions.requestingUnits;
+  // "Component" depends on "Dự án" (same rule as Quản trị Epic): it lists the components of the
+  // selected projects and stays disabled until one is picked.
+  const componentsOfProjects = (projectKeys: readonly string[]) =>
+    [...new Set(projectKeys.flatMap((key) => filterOptions.projectComponents?.[key] ?? []))].sort((a, b) => a.localeCompare(b, 'vi'));
+  const componentOptions = componentsOfProjects(filterProjects);
+
+  /** Changing the projects drops the selected components that none of them has. */
+  const applyProjectFilter = (projectKeys: string[]) => {
+    setFilterProjects(projectKeys);
+    const available = componentsOfProjects(projectKeys);
+    setFilterComponents((current) => current.filter((component) => available.includes(component)));
+  };
 
   const handleDomainFilterChange = (domain: string) => {
     setFilterDomain(domain);
-    setFilterProjects(domain ? [...(filterOptions.domainProjectKeys[domain] ?? [])] : []);
+    applyProjectFilter(domain ? [...(filterOptions.domainProjectKeys[domain] ?? [])] : []);
   };
 
   const resetAllFilters = () => {
     setFilterDomain('');
     setFilterProjects([]);
+    setFilterComponents([]);
     setFilterPmSms([]);
     setFilterRequestingUnits([]);
   };
 
   const filters = useMemo<TtmDashboard2Filters>(
-    () => ({ domain: filterDomain, pmSms: filterPmSms, projects: filterProjects, requestingUnits: filterRequestingUnits }),
-    [filterDomain, filterPmSms, filterProjects, filterRequestingUnits],
+    () => ({ components: filterComponents, domain: filterDomain, pmSms: filterPmSms, projects: filterProjects, requestingUnits: filterRequestingUnits }),
+    [filterComponents, filterDomain, filterPmSms, filterProjects, filterRequestingUnits],
   );
   const isFiltered = hasActiveTtmDashboard2Filter(filters);
 
@@ -293,6 +307,9 @@ export default function TtmDashboard2Page() {
       : null;
     const url = buildEpicAlertsDeepLink({
       alert: params.alert,
+      // Quản trị Epic only applies "Components" together with "Dự án" — always the case here, since a
+      // component can only be picked once a project is.
+      components: filterComponents.length > 0 ? filterComponents : undefined,
       dataIssue: params.dataIssue,
       domain: domainProjects ? undefined : params.domain ?? (filterProjects.length > 0 ? undefined : filterDomain || undefined),
       pmSm: params.pmSm ?? (filterPmSms.length > 0 ? filterPmSms : undefined),
@@ -729,8 +746,19 @@ export default function TtmDashboard2Page() {
           value={filterProjects}
           onChange={(values) => {
             setFilterDomain('');
-            setFilterProjects(values);
+            applyProjectFilter(values);
           }}
+        />
+
+        <ToolbarMultiSelect
+          ariaLabel="Component"
+          searchable
+          allLabel="Tất cả component"
+          title={filterProjects.length === 0 ? 'Chọn dự án trước' : undefined}
+          disabled={filterProjects.length === 0}
+          options={componentOptions}
+          value={filterComponents}
+          onChange={setFilterComponents}
         />
 
         <ToolbarMultiSelect
@@ -751,7 +779,7 @@ export default function TtmDashboard2Page() {
           onChange={setFilterRequestingUnits}
         />
 
-        {(filterDomain || filterProjects.length > 0 || filterPmSms.length > 0 || filterRequestingUnits.length > 0) && (
+        {(filterDomain || filterProjects.length > 0 || filterComponents.length > 0 || filterPmSms.length > 0 || filterRequestingUnits.length > 0) && (
           <button
             type="button"
             onClick={resetAllFilters}

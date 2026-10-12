@@ -59,8 +59,10 @@ interface CachedPayload {
  * 7 = PM/SM breakdown: one row per PM/SM name (an Epic with several PM/SMs counts under each);
  * 8 = "Chưa gán Domain" / "Chưa gán PM/SM" rows carry their project keys (TtmBreakdownItem.linkProjects);
  * 9 = the operational widgets (Cảnh báo, Sai lệch, Chờ / Giải trình golive) leave out "Epic ngoại lệ" too;
- * 10 = widget Fail TTM-CNTT shows subtitle with missingFailReason count & link. */
-const PAYLOAD_VERSION = 10;
+ * 10 = widget Fail TTM-CNTT shows subtitle with missingFailReason count & link;
+ * 11 = PM/SM breakdown counts SHARES (an Epic of n PM/SMs adds 1/n to each) + filterOptions.projectComponents
+ *      for the Component filter. */
+const PAYLOAD_VERSION = 11;
 
 const ALL_SCOPE: AccessScope = { accessRole: 'CBQL_PHONG', projectComponents: new Map(), sourceProjectKeys: null };
 
@@ -77,8 +79,8 @@ function scopeFingerprint(scope: AccessScope): string {
   return createHash('sha256').update(canonical).digest('hex').slice(0, 40);
 }
 
-function buildPayload(rows: readonly TtmFunnelRow[]): CachedPayload {
-  return { filterOptions: buildTtmDashboard2FilterOptions(rows), summary: summarizeTtmFunnel(rows), version: PAYLOAD_VERSION };
+function buildPayload(rows: readonly TtmFunnelRow[], scope: AccessScope): CachedPayload {
+  return { filterOptions: buildTtmDashboard2FilterOptions(rows, scope.projectComponents), summary: summarizeTtmFunnel(rows), version: PAYLOAD_VERSION };
 }
 
 const UPSERT_SQL = `
@@ -102,8 +104,8 @@ export async function getTtmDashboard2Snapshot(userId: number, role: UserRole): 
   // A per-machine SCORING_ENGINE_MODE override (or no row cache yet) is served live, never cached —
   // same rule as every other reader of the shared caches.
   if (!cacheMeta.hasCache || engineMode !== storedMode) {
-    const payload = buildPayload(await loadTtmDashboard2Rows(userId, role));
-    return { ...payload, cache: { computedAt: null, scopeKey, status: 'LIVE' } };
+    const [liveRows, liveScope] = await Promise.all([loadTtmDashboard2Rows(userId, role), resolveAccessScope(userId, role)]);
+    return { ...buildPayload(liveRows, liveScope), cache: { computedAt: null, scopeKey, status: 'LIVE' } };
   }
 
   const scope = scopeKey === 'ALL' ? ALL_SCOPE : await resolveAccessScope(userId, role);
@@ -124,7 +126,7 @@ export async function getTtmDashboard2Snapshot(userId: number, role: UserRole): 
   }
 
   const rows = (await queryDashboardEpicRows(scope, { includeCancelled: true })).map(toTtmFunnelRow);
-  const payload = buildPayload(rows);
+  const payload = buildPayload(rows, scope);
   const stored = await pool.query<{ computedAt: string }>(
     `${UPSERT_SQL} RETURNING computed_at::text AS "computedAt"`,
     [scopeKey, fingerprint, cacheMeta.computedAt, storedMode, JSON.stringify(payload)],
@@ -165,7 +167,7 @@ export async function refreshTtmDashboard2Caches(): Promise<number> {
     await client.query('DELETE FROM ttm_dashboard_2_cache');
     for (const { scope, scopeKey } of targets) {
       const rows = rowResult.rows.filter((item) => rowInAccessScope(scope, item.projectKey, item.components)).map((item) => item.row);
-      await client.query(UPSERT_SQL, [scopeKey, scopeFingerprint(scope), cacheMeta.computedAt, storedMode, JSON.stringify(buildPayload(rows))]);
+      await client.query(UPSERT_SQL, [scopeKey, scopeFingerprint(scope), cacheMeta.computedAt, storedMode, JSON.stringify(buildPayload(rows, scope))]);
     }
     await client.query('COMMIT');
   } catch (error: unknown) {

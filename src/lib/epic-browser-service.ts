@@ -389,7 +389,9 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
     khauSa: row.khauSa,
     khauSitUat: row.khauSitUat,
     noteLyDoKhac: row.noteLyDoKhac,
-    ownerName: projectMeta?.leadName ?? '',
+    // The PM/SMs responsible for this Epic's components (epic-pm-sm-assignment.ts) — the displayed row
+    // already carries them; without one, every PM/SM of the project as before.
+    ownerName: displayedRow ? displayedRow.ownerName : projectMeta?.leadName ?? '',
     projectKey: row.project ?? '',
     projectName: projectMeta?.projectName ?? '',
     requestingUnit: row.requestingUnit,

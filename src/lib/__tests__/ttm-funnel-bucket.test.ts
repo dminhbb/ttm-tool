@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { matchesAlertFilter, TTM_FUNNEL_BUCKET_BY_FILTER, ttmFunnelBucket } from '../epic-row-verdicts';
 import type { TtmFunnelFilterValue } from '../epic-row-verdicts';
 import { summarizeE2e, summarizeQaIndex, summarizeTtmCntt, summarizeTtmCnttFromCounts } from '../ttm-cntt-qa';
-import { breakdownIndexes, buildTtmDashboard2FilterOptions, filterTtmDashboard2Rows, hasActiveTtmDashboard2Filter, splitWaitingGolive, summarizeTtmFunnel, TTM_BREAKDOWN_DIMENSIONS, TTM_FUNNEL_CRITERIA, ttmFunnelCnttIndex, ttmFunnelLayers } from '../ttm-funnel-summary';
+import { breakdownIndexes, buildTtmDashboard2FilterOptions, filterTtmDashboard2Rows, formatEpicCount, hasActiveTtmDashboard2Filter, roundEpicCount, splitWaitingGolive, summarizeTtmFunnel, TTM_BREAKDOWN_DIMENSIONS, TTM_FUNNEL_CRITERIA, ttmFunnelCnttIndex, ttmFunnelLayers } from '../ttm-funnel-summary';
 import { buildEpicAlertsDeepLink } from '../epic-alerts-deep-link';
 import type { TtmFunnelRow } from '../ttm-funnel-summary';
 
@@ -63,7 +63,7 @@ describe('ttmFunnelBucket (TTM Dashboard 2 funnel)', () => {
 
 describe('TTM Dashboard 2 summary (cache ↔ filtered recompute share these)', () => {
   const funnelRow = (patch: Partial<TtmFunnelRow>): TtmFunnelRow => ({
-    alertLevel: 'NONE', currentStatus: 'In Progress', domainName: 'D1', epicType: 'CT-Lv12', hasDataAnomaly: false, ownerName: 'An, Bình',
+    alertLevel: 'NONE', components: [], currentStatus: 'In Progress', domainName: 'D1', epicType: 'CT-Lv12', hasDataAnomaly: false, ownerName: 'An, Bình',
     projectKey: 'P1', projectName: 'Dự án 1', qaInScope: true, r4gDate: null, releaseAxisState: 'NONE', releaseGraceDeadline: null,
     requestingUnit: 'Khối A', scoringBadges: undefined, scoringIndexFlags: undefined, ttmCnttInScope: true, ttmE2eAlertLevel: 'NONE', ...patch,
   });
@@ -153,31 +153,42 @@ describe('TTM Dashboard 2 summary (cache ↔ filtered recompute share these)', (
 
     it('every breakdown adds up to the funnel: Σ total = L02, Σ pass = L05aa, Σ fail = L05ab + L05ba', () => {
       assert.deepEqual([l2, l5aa, l5ab, l5ba, summary.buckets.CANCELLED], [7, 2, 1, 1, 1]);
-      // PM/SM is the exception: an Epic with several PM/SMs counts under each (see the next test).
-      for (const dimension of TTM_BREAKDOWN_DIMENSIONS.filter((key) => key !== 'pmsm')) {
+      // PM/SM included since 2026-10-12: an Epic of several PM/SMs is shared between them (see the next
+      // test), so its rows add up too — as sums of shares, hence the tolerance.
+      for (const dimension of TTM_BREAKDOWN_DIMENSIONS) {
         const items = summary.insights.breakdowns[dimension];
         const sum = (pick: (item: (typeof items)[number]) => number) => items.reduce((total, item) => total + pick(item), 0);
-        assert.equal(sum((item) => item.total), l2, `${dimension} total`);
-        assert.equal(sum((item) => item.pass), l5aa, `${dimension} pass`);
-        assert.equal(sum((item) => item.fail), l5ab + l5ba, `${dimension} fail`);
-        assert.equal(sum((item) => item.failLateR4g), l5ab, `${dimension} fail nhóm 1`);
+        const same = (actual: number, expected: number, label: string) => assert.ok(Math.abs(actual - expected) < 1e-9, `${dimension} ${label}: ${actual} ≠ ${expected}`);
+        same(sum((item) => item.total), l2, 'total');
+        same(sum((item) => item.pass), l5aa, 'pass');
+        same(sum((item) => item.fail), l5ab + l5ba, 'fail');
+        same(sum((item) => item.failLateR4g), l5ab, 'fail nhóm 1');
       }
     });
 
-    it('PM/SM (2026-10-05): one row per name — an Epic of "An, Bình" counts under An AND under Bình, never as "An, Bình"', () => {
+    it('PM/SM: one row per name — an Epic of "An, Bình" is shared, half under An and half under Bình (2026-10-12), never as "An, Bình"', () => {
       const rows = summary.insights.breakdowns.pmsm;
       assert.deepEqual(rows.map((item) => [item.name, item.linkValue, item.total, item.pass, item.fail]), [
-        ['An', 'An', 5, 2, 0],
-        ['Bình', 'Bình', 5, 2, 0],
+        ['An', 'An', 2.5, 1, 0],
+        ['Bình', 'Bình', 2.5, 1, 0],
         ['Chi', 'Chi', 2, 0, 2],
         ['Dũng', 'Dũng', 0, 0, 0], // outside "Phạm vi dữ liệu cho TTM", kept for its TTM-CNTT (QA) column
       ]);
       assert.ok(!rows.some((item) => item.name.includes(',')));
+      // TTM-CNTT (QA) is shared the same way: the one Released Epic of "An, Bình" is half each; Dũng's own is whole.
+      assert.deepEqual(rows.map((item) => item.qaTotal), [0.5, 0.5, 0, 1]);
     });
 
-    it('PM/SM: a name repeated in one Epic ("An, An, Bình") counts that Epic once under An', () => {
+    it('PM/SM: a name repeated in one Epic ("An, An, Bình") is one person — half the Epic, not two thirds', () => {
       const rows = summarizeTtmFunnel([funnelRow({ ownerName: 'An, An , Bình' })]).insights.breakdowns.pmsm;
-      assert.deepEqual(rows.map((item) => [item.name, item.total]), [['An', 1], ['Bình', 1]]);
+      assert.deepEqual(rows.map((item) => [item.name, item.total]), [['An', 0.5], ['Bình', 0.5]]);
+    });
+
+    it('PM/SM shares are shown rounded to a whole Epic: 17,6 → 18; a share under half an Epic reads "<1", not "0"', () => {
+      assert.deepEqual([17.6, 17.4, 2.5, 3, 0].map(roundEpicCount), [18, 17, 3, 3, 0]);
+      // Thirds that add up to x,5 mathematically must not land a hair under it.
+      assert.equal(roundEpicCount(1 / 3 + 1 / 3 + 1 / 3 + 1 / 2 + 1), 3);
+      assert.deepEqual([17.6, 1234, 0.4, 0].map(formatEpicCount), ['18', (1234).toLocaleString('vi-VN'), '<1', '0']);
     });
 
     it('a matrix row: Tổng số Epic = L02, Pass TTM = L05aa, Epic đánh giá = L05aa + L05ab + L05ba, Fail TTM = L05ab + L05ba', () => {
@@ -194,7 +205,7 @@ describe('TTM Dashboard 2 summary (cache ↔ filtered recompute share these)', (
       assert.deepEqual(summary.insights.breakdowns.epicType.map((item) => [item.name, item.total]), [['CT-Lv12', 6], ['SP-Lv34', 1]]);
     });
 
-    it('"Chưa gán Domain" / "Chưa gán PM/SM" (2026-10-09): the placeholder carries its projects, so its drill-down lists only its own Epics', () => {
+    it('"Chưa gán Domain" carries its projects for the drill-down; "Chưa gán PM/SM" is per Epic and filters by UNASSIGNED_PM_SM instead (2026-10-12)', () => {
       // DT: a Jira project never declared in Quản lý Dự án — no Domain, no PM/SM. P7: declared, PM/SM set, no Domain.
       const withUnassigned = summarizeTtmFunnel([
         ...sample,
@@ -205,7 +216,7 @@ describe('TTM Dashboard 2 summary (cache ↔ filtered recompute share these)', (
       const noDomain = withUnassigned.domain.find((item) => item.name === 'Chưa gán Domain')!;
       assert.deepEqual([noDomain.linkValue, noDomain.total, noDomain.linkProjects], [null, 3, ['DT', 'P7']]);
       const noPmSm = withUnassigned.pmsm.find((item) => item.name === 'Chưa gán PM/SM')!;
-      assert.deepEqual([noPmSm.linkValue, noPmSm.total, noPmSm.linkProjects], [null, 2, ['DT']]);
+      assert.deepEqual([noPmSm.linkValue, noPmSm.total, noPmSm.linkProjects], [null, 2, undefined]);
       // Real values filter by themselves; "Chưa xác định" đơn vị yêu cầu is per Epic, not per project.
       assert.equal(withUnassigned.domain.find((item) => item.name === 'D2')?.linkProjects, undefined);
       assert.equal(withUnassigned.requestingUnit.find((item) => item.name === 'Chưa xác định')?.linkProjects, undefined);
@@ -264,8 +275,9 @@ describe('TTM Dashboard 2 summary (cache ↔ filtered recompute share these)', (
   });
 
   it('filters match TTM Dashboard 2 toolbar semantics (PM/SM is any of a comma-joined owner list)', () => {
-    const none = { domain: '', pmSms: [], projects: [], requestingUnits: [] };
+    const none = { components: [], domain: '', pmSms: [], projects: [], requestingUnits: [] };
     assert.equal(hasActiveTtmDashboard2Filter(none), false);
+    assert.equal(hasActiveTtmDashboard2Filter({ ...none, components: ['Line 1'] }), true);
     assert.equal(filterTtmDashboard2Rows(rows, { ...none, pmSms: ['Bình'] }).length, 4);
     assert.equal(filterTtmDashboard2Rows(rows, { ...none, domain: 'D2' }).length, 2);
     assert.equal(filterTtmDashboard2Rows(rows, { ...none, requestingUnits: ['Khối B, C'] }).length, 1);
@@ -277,6 +289,44 @@ describe('TTM Dashboard 2 summary (cache ↔ filtered recompute share these)', (
     assert.deepEqual(options.domainProjectKeys, { D1: ['P1'], D2: ['P2'] });
     assert.deepEqual(options.pmSms, ['An', 'Bình', 'Chi']);
     assert.deepEqual(options.requestingUnits, ['Khối A', 'Khối B, C']);
+    assert.deepEqual(options.projectComponents, {});
+  });
+
+  describe('Component filter (2026-10-12) — depends on the selected projects, counts stay per project', () => {
+    const componentRows = [
+      funnelRow({ projectKey: 'API', components: ['API-Line-1'] }),
+      funnelRow({ projectKey: 'API', components: ['API-Line-1', 'API-Line-2'], r4gDate: '2026-09-01' }),
+      funnelRow({ projectKey: 'API', components: ['API-Line-3'] }),
+      funnelRow({ projectKey: 'API', components: [] }),
+      funnelRow({ projectKey: 'WM', components: ['Core'] }),
+    ];
+    const none = { components: [], domain: '', pmSms: [], projects: [], requestingUnits: [] };
+
+    it('an Epic matches when it carries one of the selected components; one without a component never does', () => {
+      assert.equal(filterTtmDashboard2Rows(componentRows, { ...none, projects: ['API'], components: ['API-Line-1'] }).length, 2);
+      assert.equal(filterTtmDashboard2Rows(componentRows, { ...none, projects: ['API'], components: ['API-Line-2', 'API-Line-3'] }).length, 2);
+      assert.equal(filterTtmDashboard2Rows(componentRows, { ...none, projects: ['API'] }).length, 4);
+      // Rows cached before the filter existed have no `components` — they just never match one.
+      const legacyRow = { ...funnelRow({ projectKey: 'API' }), components: undefined } as unknown as TtmFunnelRow;
+      assert.equal(filterTtmDashboard2Rows([legacyRow], { ...none, components: ['API-Line-1'] }).length, 0);
+    });
+
+    it('the numbers of the filtered set are still reported under the project — no component level', () => {
+      const summary = summarizeTtmFunnel(filterTtmDashboard2Rows(componentRows, { ...none, projects: ['API'], components: ['API-Line-1'] }));
+      assert.deepEqual(summary.insights.breakdowns.project.map((item) => [item.linkValue, item.total, item.pass]), [['API', 2, 1]]);
+    });
+
+    it('options list each project\'s components; a viewer narrowed to components only gets those', () => {
+      assert.deepEqual(buildTtmDashboard2FilterOptions(componentRows).projectComponents, { API: ['API-Line-1', 'API-Line-2', 'API-Line-3'], WM: ['Core'] });
+      // PM/SM of API narrowed to API-Line-1: the multi-component Epic must not reveal API-Line-2.
+      const narrowed = buildTtmDashboard2FilterOptions(componentRows.slice(0, 2), new Map([['API', ['API-Line-1']]]));
+      assert.deepEqual(narrowed.projectComponents, { API: ['API-Line-1'] });
+    });
+
+    it('the drill-down into Quản trị Epic keeps the component filter', () => {
+      const url = buildEpicAlertsDeepLink({ components: ['API-Line-1', 'API-Line-2'], projects: ['API'] });
+      assert.equal(new URL(url, 'http://x').searchParams.get('components'), 'API-Line-1,API-Line-2');
+    });
   });
 });
 

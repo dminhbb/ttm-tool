@@ -20,6 +20,8 @@ export interface EpicAlertsDeepLinkParams {
    * is itself given, which always wins. */
   domain?: string;
   dataIssue?: boolean;
+  /** Jira Component/s names — pre-selects the "Components" multi-select (which needs `projects`). */
+  components?: string[];
   pmSm?: string | string[];
   /** Jira Project Keys — pre-selects the "Dự án" multi-select. */
   projects?: string[];
@@ -52,6 +54,7 @@ export function buildEpicAlertsDeepLink(params: EpicAlertsDeepLinkParams = {}): 
   const alerts = Array.isArray(params.alert) ? params.alert : params.alert ? [params.alert] : [];
   if (alerts.length > 0) query.set('alert', alerts.join(','));
   if (params.projects && params.projects.length > 0) query.set('projects', params.projects.join(','));
+  if (params.components && params.components.length > 0) query.set('components', params.components.join(','));
   if (params.status && params.status.length > 0) query.set('status', params.status.join(','));
   if (params.type) query.set('type', params.type);
   if (params.pmSm) {
