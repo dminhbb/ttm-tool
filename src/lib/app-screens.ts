@@ -15,6 +15,7 @@ export const PAGE_HEADERS: Record<string, AppScreenInfo> = {
   '/': { subtitle: 'Kiểm tra và quản lý các lớp dữ liệu Jira nhập vào TTM Monitor', title: 'Quản trị nguồn dữ liệu' },
   '/ttm-dashboard-2': { subtitle: 'Biểu đồ phễu luồng dữ liệu và quy tắc lọc Epic', title: 'TTM dashboard 2' },
   '/epic-alerts-15': { subtitle: 'Cảnh báo TTM-CNTT (QLDA) theo giai đoạn DESIGN/DEV/TEST/PENTEST/R4GOLIVE', title: 'Quản trị Epic' },
+  '/data-normalization': { subtitle: 'Danh sách Epic cần chuẩn hoá dữ liệu theo từng rule Sai lệch dữ liệu', title: 'Chuẩn hoá dữ liệu' },
   '/admin/domains': { subtitle: 'Quản lý danh mục Domain nghiệp vụ', title: 'Quản lý Domain' },
   '/admin/projects': { subtitle: 'Quản lý danh mục Dự án và mapping với Domain', title: 'Quản lý Dự án' },
   '/admin/holidays': { subtitle: 'Cấu hình ngày nghỉ dùng để tính ngày làm việc', title: 'Cấu hình ngày nghỉ' },

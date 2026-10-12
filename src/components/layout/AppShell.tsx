@@ -10,6 +10,7 @@ import { PERMISSION_MATRIX_CHANGED_EVENT } from '@/lib/permission-matrix-types';
 import { EpicHeaderWidgetsProvider, useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
 import {
   Bandaids,
+  Broom,
   Browsers,
   CaretDoubleLeft,
   CaretDoubleRight,
@@ -120,6 +121,8 @@ const navigation: NavigationSection[] = [
       // Landing page after sign-in, open to every role (permission matrix feature 'ttm_dashboard_2').
       { href: '/ttm-dashboard-2', featureKey: 'ttm_dashboard_2', icon: Funnel, label: 'TTM dashboard 2' },
       { href: '/epic-alerts-15', featureKey: 'epic_alerts_15', icon: Browsers, label: 'Quản trị Epic' },
+      // Epics to fix, per "Sai lệch dữ liệu" rule (permission matrix feature 'data_normalization').
+      { href: '/data-normalization', featureKey: 'data_normalization', icon: Broom, label: 'Chuẩn hoá dữ liệu' },
       // Open to every role (permission matrix feature 'visit_counter' is View for all roles).
       { href: '/visit-stats', featureKey: 'visit_counter', icon: ChartLineUp, label: 'Thống kê truy cập' },
     ],

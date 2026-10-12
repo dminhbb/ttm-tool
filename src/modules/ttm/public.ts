@@ -3,6 +3,7 @@ import 'server-only';
 import { listDomains, listProjectComponents, listProjects } from '@/lib/master-data-service';
 
 /** Public TTM boundary used by HTTP/BFF adapters during the strangler migration. */
+export { getDataNormalization } from '@/modules/ttm/application/get-data-normalization';
 export { getTtmDashboard2, getTtmDashboard2Rows } from '@/modules/ttm/application/get-ttm-dashboard-2';
 export {
   getReportAccessScope,

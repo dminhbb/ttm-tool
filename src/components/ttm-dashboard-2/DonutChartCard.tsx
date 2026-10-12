@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import { formatEpicCount } from '@/lib/ttm-funnel-summary';
 
 export interface DonutDataItem {
   name: string;
@@ -54,7 +55,7 @@ export function DonutChartCard({
   const [tooltipState, setTooltipState] = useState<{ visible: boolean; x: number; y: number } | null>(null);
 
   const { displayItems, total } = useMemo(() => {
-    const validItems = data.filter((d) => d.value > 0);
+    const validItems = data.filter((d) => d.value > 1e-9);
     const sum = validItems.reduce((acc, curr) => acc + curr.value, 0);
 
     if (sum === 0) {
@@ -169,7 +170,7 @@ export function DonutChartCard({
               <span className="truncate max-w-[150px]">{activeItem.name}</span>
             </div>
             <div className="mt-0.5 text-[11px] text-fb-text-placeholder">
-              {activeItem.value} {unitLabel} &bull; <strong className="text-status-warning font-bold text-xs">{activeItem.pct}%</strong>
+              {formatEpicCount(activeItem.value)} {unitLabel} &bull; <strong className="text-status-warning font-bold text-xs">{activeItem.pct}%</strong>
             </div>
             {onItemClick && (
               <div className="mt-1 border-t border-fb-border-strong/80 pt-1 text-[11px] text-fb-blue">
@@ -302,7 +303,7 @@ export function DonutChartCard({
                       isHovered ? 'font-bold text-fb-blue' : 'font-semibold text-fb-text-primary'
                     }`}
                   >
-                    {item.value}
+                    {formatEpicCount(item.value)}
                   </span>
                   <span
                     className={`w-10 text-right text-xs tabular-nums ${

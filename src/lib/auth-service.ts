@@ -273,19 +273,27 @@ async function replacePermissions(client: PoolClient, userId: number, input: Use
  * What the derived caches hold about these users as PM/SM, as one comparable string — '' when none
  * of them is PM/SM of an active project. Every cached Epic row carries its project's PM/SM names
  * (getProjectMetaByProjectKeyMap in master-data-service.ts: full names of the user_projects users of
- * an active project), so a user save needs a cache rebuild exactly when this differs before and after.
+ * an active project, narrowed by the user's component grants), so a user save needs a cache rebuild
+ * exactly when this differs before and after.
  */
 export async function getPmSmCacheFootprint(userIds: number[]): Promise<string> {
-  const result = await pool.query<{ fullName: string; id: number; projectIds: number[] }>(`
-    SELECT u.id, u.full_name AS "fullName", array_agg(up.project_id ORDER BY up.project_id) AS "projectIds"
+  // Role and component narrowing are part of the footprint: since 2026-10-12 each cached Epic row names
+  // only the PM/SMs responsible for its components (epic-pm-sm-assignment-service.ts), and narrowing
+  // only applies to role USER.
+  const result = await pool.query<{ components: string[]; fullName: string; id: number; projectIds: number[]; role: string }>(`
+    SELECT u.id, u.full_name AS "fullName", u.role,
+      array_agg(DISTINCT up.project_id) AS "projectIds",
+      COALESCE(array_agg(DISTINCT upc.project_id::text || ':' || upc.component_name)
+        FILTER (WHERE upc.component_name IS NOT NULL), ARRAY[]::text[]) AS "components"
     FROM users u
     JOIN user_projects up ON up.user_id = u.id
     JOIN projects p ON p.id = up.project_id AND p.is_active
+    LEFT JOIN user_project_components upc ON upc.user_id = up.user_id AND upc.project_id = up.project_id
     WHERE u.id = ANY($1::int[])
-    GROUP BY u.id, u.full_name
+    GROUP BY u.id, u.full_name, u.role
     ORDER BY u.id;
   `, [userIds]);
-  return result.rows.length === 0 ? '' : JSON.stringify(result.rows.map((row) => [row.id, row.fullName, row.projectIds]));
+  return result.rows.length === 0 ? '' : JSON.stringify(result.rows.map((row) => [row.id, row.fullName, row.role, row.projectIds, [...row.components].sort()]));
 }
 
 export async function createManagedUser(input: UserInput): Promise<ManagedUser> {
