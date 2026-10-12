@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cẩm nang & Tài liệu Kiến trúc — Jira Crawl Tool (v14)</title>
+  <style>
+    :root {
+      --primary: #1e3a8a;
+      --primary-light: #3b82f6;
+      --primary-dark: #0f172a;
+      --secondary: #0d9488;
+      --secondary-light: #14b8a6;
+      --accent: #f59e0b;
+      --danger: #ef4444;
+      --success: #10b981;
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-subtle: #f1f5f9;
+      --border: #e2e8f0;
+      --border-strong: #cbd5e1;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --text-light: #94a3b8;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font);
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 15px;
+    }
+
+    /* Layout */
+    .app-container {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar Navigation */
+    .sidebar {
+      width: 290px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .sidebar-header {
+      padding-bottom: 20px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .brand-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-badge {
+      background: #dbeafe;
+      color: var(--primary);
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-weight: 600;
+    }
+    .brand-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    .nav-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .nav-item a {
+      display: block;
+      padding: 8px 12px;
+      color: var(--text-muted);
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 13.5px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+    }
+    .nav-item a:hover {
+      color: var(--primary);
+      background: var(--surface-subtle);
+    }
+    .nav-item.active a {
+      color: var(--primary);
+      background: #eff6ff;
+      font-weight: 600;
+    }
+    .nav-chapter-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-light);
+      margin: 16px 12px 6px;
+      font-weight: 700;
+    }
+
+    /* Main Content */
+    .main-content {
+      flex: 1;
+      padding: 40px 60px 80px;
+      max-width: 1100px;
+    }
+
+    /* Hero Banner */
+    .hero {
+      background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
+      color: white;
+      padding: 36px 40px;
+      border-radius: 16px;
+      margin-bottom: 40px;
+      box-shadow: var(--shadow-md);
+      position: relative;
+      overflow: hidden;
+    }
+    .hero h1 {
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 12px;
+      letter-spacing: -0.02em;
+    }
+    .hero p {
+      font-size: 15px;
+      color: #cbd5e1;
+      max-width: 750px;
+      line-height: 1.6;
+    }
+    .hero-meta {
+      display: flex;
+      gap: 16px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .meta-tag {
+      background: rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(4px);
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    /* Typography & Sections */
+    h2 {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--primary-dark);
+      margin: 48px 0 20px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h3 {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--primary);
+      margin: 28px 0 14px;
+    }
+    h4 {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      margin: 20px 0 8px;
+    }
+    p { margin-bottom: 14px; }
+    ul, ol {
+      margin-bottom: 16px;
+      padding-left: 24px;
+    }
+    li { margin-bottom: 6px; }
+
+    /* Cards & Containers */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow-sm);
+    }
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--primary-dark);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    /* Badges & Callouts */
+    .badge {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 600;
+    }
+    .badge-primary { background: #dbeafe; color: #1e40af; }
+    .badge-success { background: #d1fae5; color: #065f46; }
+    .badge-warning { background: #fef3c7; color: #92400e; }
+    .badge-danger { background: #fee2e2; color: #991b1b; }
+    .badge-neutral { background: #f1f5f9; color: #475569; }
+
+    .callout {
+      padding: 16px 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      border-left: 4px solid;
+      background: var(--surface);
+      font-size: 14px;
+    }
+    .callout-info { border-left-color: var(--primary-light); background: #f0f7ff; }
+    .callout-warning { border-left-color: var(--accent); background: #fffbeb; }
+    .callout-success { border-left-color: var(--success); background: #f0fdf4; }
+    .callout-danger { border-left-color: var(--danger); background: #fef2f2; }
+    .callout-title {
+      font-weight: 700;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Code Blocks & Tables */
+    pre {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 18px 20px;
+      border-radius: 10px;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.55;
+      margin-bottom: 18px;
+      box-shadow: var(--shadow-sm);
+    }
+    code {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      background: #e2e8f0;
+      color: #0f172a;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    pre code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 24px;
+      background: var(--surface);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+    }
+    th, td {
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 13.5px;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      background: var(--surface-subtle);
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-size: 11.5px;
+      letter-spacing: 0.04em;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fafc; }
+
+    /* Interactive Search Box */
+    .search-box {
+      margin-bottom: 16px;
+      position: relative;
+    }
+    .search-input {
+      width: 100%;
+      padding: 10px 16px 10px 38px;
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      transition: all 0.2s;
+    }
+    .search-input:focus {
+      border-color: var(--primary-light);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+    .search-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-light);
+      font-size: 14px;
+    }
+
+    /* Flow Diagrams */
+    .flow-diagram {
+      background: #0f172a;
+      color: #38bdf8;
+      padding: 20px;
+      border-radius: 10px;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      line-height: 1.45;
+      overflow-x: auto;
+      margin-bottom: 20px;
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 60px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    @media (max-width: 860px) {
+      .app-container { flex-direction: column; }
+      .sidebar { width: 100%; height: auto; position: static; }
+      .main-content { padding: 24px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-container">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="brand-title">
+        <span>Jira Crawl Tool</span>
+        <span class="brand-badge">v14</span>
+      </div>
+      <div class="brand-sub">Hệ thống trích xuất dữ liệu TTM Monitor</div>
+    </div>
+    <ul class="nav-list">
+      <li class="nav-chapter-title">MỤC LỤC TÀI LIỆU</li>
+      <li class="nav-item active"><a href="#tong-quan">1. Tổng quan & Kiến trúc</a></li>
+      <li class="nav-item"><a href="#tinh-nang">2. Tính năng & Cơ chế lõi</a></li>
+      <li class="nav-item"><a href="#cau-hinh">3. Hướng dẫn Cấu hình</a></li>
+      <li class="nav-item"><a href="#kich-ban">3.3. Các kịch bản mẫu</a></li>
+      <li class="nav-item"><a href="#v14-update">4. Bản cập nhật v14 (RCA)</a></li>
+      <li class="nav-item"><a href="#van-hanh">5. Vận hành & Xử lý lỗi</a></li>
+    </ul>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    
+    <!-- Hero Banner -->
+    <header class="hero">
+      <h1>JIRA TTM Crawl Tool — Phiên bản v14</h1>
+      <p>
+        Công cụ chuyên biệt trích xuất dữ liệu phân cấp 3 tầng <strong>Epic → Story → Subtask</strong> từ hệ thống 
+        Jira Data Center 8.2 (MBBank), tối ưu hóa tải ngặt nghèo (Rate Limit ~5 req/phút), chuẩn hóa Flat CSV và tự động 
+        nạp dữ liệu trực tiếp vào hệ thống giám sát thời gian ra mắt thị trường (TTM Monitor / ttm-tool).
+      </p>
+      <div class="hero-meta">
+        <div class="meta-tag"><span>Phiên bản:</span> <strong>v14 (RCA Update)</strong></div>
+        <div class="meta-tag"><span>Hệ điều hành:</span> <strong>Windows 10/11 / Server</strong></div>
+        <div class="meta-tag"><span>Môi trường:</span> <strong>Python 3.9+</strong></div>
+        <div class="meta-tag"><span>Đích nạp:</span> <strong>ttm-tool Ingestion API</strong></div>
+      </div>
+    </header>
+
+    <!-- CHƯƠNG 1 -->
+    <section id="tong-quan">
+      <h2>1. Tổng quan & Kiến trúc Hệ thống</h2>
+      <p>
+        Trong quy trình vận hành và đo lường chỉ số <strong>Time-to-Market (TTM-CNTT & TTM-E2E)</strong> tại Ngân hàng, 
+        dữ liệu nguồn phân tán tại Jira Data Center với số lượng Issue rất lớn. Tuy nhiên, Jira Data Center áp dụng chính sách 
+        giới hạn tần suất gọi API (Rate Limit) rất ngặt (~5 request/phút/user). <strong>Jira Crawl Tool</strong> đóng vai trò 
+        là bộ tiền xử lý (Ingestion ETL Engine) thực thi độc lập tại máy trạm lập lịch, đảm nhiệm thu thập, gom cụm, lọc rác và đẩy dữ liệu sạch về <strong>ttm-tool</strong>.
+      </p>
+
+      <div class="flow-diagram">
++--------------------------------------------------------------------------------------------------+
+|                                     JIRA DATA CENTER 8.2                                         |
+|  - Rate Limit: Limit=30, FillRate=5, Interval=60 (~1 req / 12s)                                  |
+|  - Endpoint: POST /rest/api/2/search & GET /rest/api/2/field                                     |
++------------------------------------------------┬-------------------------------------------------+
+                                                 | (Gom lô JQL: "Epic Link" in, parent in)
+                                                 v
++--------------------------------------------------------------------------------------------------+
+|                                   JIRA CRAWL TOOL (Python Engine)                                |
+|  - JiraClient: Điều tốc Token Bucket (tránh 429) & Tự động dò Field Metadata                     |
+|  - RunControl: Lắng nghe phím Windows (P: Tạm dừng, S: Chạy tiếp, P x 2: Lưu phiên gzip)        |
+|  - Logic gom cụm: Cắt tỉa Epic đã đóng, lọc Subtask Done qua Cache, gom lô parent               |
+|  - Build Flat CSV: Một dòng một issue, lặp thông tin cha, mặt nạ bảo mật (***)                   |
++------------------------------------------------┬-------------------------------------------------+
+                                                 | HTTP POST (Multipart/Form-Data, Bearer Auth)
+                                                 v
++--------------------------------------------------------------------------------------------------+
+|                                            TTM-TOOL                                              |
+|  - API Route: POST /api/data-source/import/auto (Xác thực IMPORT_API_TOKEN)                      |
+|  - Adapter: parsePyJiraApi() -> chuẩn hóa RawJiraIssue -> Database Ingestion                     |
+|  - Scoring Engine: Chấm điểm vi phạm TTM-CNTT, TTM-E2E, phân rã Phase Alert                      |
++--------------------------------------------------------------------------------------------------+
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">
+            <span>Cấu trúc Phân cấp (Hierarchy)</span>
+            <span class="badge badge-primary">3 Tầng</span>
+          </div>
+          <ul>
+            <li><strong>Level 1 (Epic):</strong> Nguồn chính của sáng kiến TTM. Chứa các mốc ngày (Start, R4G, Due Date, Phê duyệt ý tưởng, Phân loại yêu cầu, Đơn vị yêu cầu, Đánh giá nguyên nhân RCA).</li>
+            <li><strong>Level 2 (Story):</strong> Các yêu cầu chức năng bên dưới Epic, liên kết thông qua trường <code>Epic Link</code>.</li>
+            <li><strong>Level 3 (Subtask):</strong> Các công việc kỹ thuật chi tiết. Hỗ trợ 2 kiểu quan hệ: Subtask trực thuộc Story (<code>parent = Story</code>) và Subtask trực thuộc thẳng Epic (<code>parent = Epic</code>).</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span>Cơ chế xuất dữ liệu CSV</span>
+            <span class="badge badge-success">Flat Format</span>
+          </div>
+          <ul>
+            <li><strong>Nguyên tắc One-row-per-issue:</strong> Mỗi dòng trong file CSV đại diện cho một issue thực tế (cột <code>hierarchy_level</code> = <code>EPIC</code> | <code>STORY</code> | <code>SUBTASK</code>).</li>
+            <li><strong>Kế thừa thông tin cha:</strong> Dòng Story và Subtask tự động sao chép lại <code>epic_key</code>, <code>epic_name</code> để đảm bảo mỗi dòng dữ liệu đều độc lập và tự trọn vẹn.</li>
+            <li><strong>Bảo mật Summary:</strong> Cơ chế <code>epic_summary_marking</code> tự động mã hóa giữa tên issue bằng chuỗi <code>***</code>, giữ lại phần đầu và đuôi để kiểm tra tính duy nhất.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- CHƯƠNG 2 -->
+    <section id="tinh-nang">
+      <h2>2. Các Tính năng Cốt lõi & Cơ chế Chịu lỗi</h2>
+      
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-title">
+            <span>Điều tốc Token Bucket</span>
+            <span class="badge badge-primary">v13.4</span>
+          </div>
+          <p style="font-size: 13.5px; color: var(--text-muted);">
+            Tự động giải mã các header <code>X-RateLimit-*</code> từ Jira. Duy trì một "thùng token" trên máy khách, tự giãn thời gian giữa các request để không bao giờ bị kích hoạt lỗi 429 Too Many Requests.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span>Tạm dừng & Tiếp tục</span>
+            <span class="badge badge-primary">v13.5</span>
+          </div>
+          <p style="font-size: 13.5px; color: var(--text-muted);">
+            Bấm <strong>P</strong> để tạm dừng an toàn sau request hiện tại; bấm <strong>S</strong> để chạy tiếp. Bấm <strong>P lần 2</strong> hoặc <code>Ctrl+C</code>: lưu trạng thái vào <code>output/_resume/session.json.gz</code> để tắt máy và chạy tiếp hôm sau.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span>Cache Subtask Done</span>
+            <span class="badge badge-success">v11</span>
+          </div>
+          <p style="font-size: 13.5px; color: var(--text-muted);">
+            Ghi nhận các Subtask đã xong vào <code>group_*_subtask_status.json</code>. Các lần crawl sau tự động gắn thêm JQL <code>AND key not in (...)</code> để không tải lại các task cũ.
+          </p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>Chịu lỗi mạng, Proxy 503 & Tự động Đẩy bù (Re-push Queue)</span>
+          <span class="badge badge-warning">v13.3</span>
+        </div>
+        <p>
+          Trong môi trường mạng nội bộ doanh nghiệp qua Corporate Proxy, lỗi <code>ProxyError: 503 Service Unavailable</code> tại bước tạo đường hầm kết nối thường xuyên xảy ra. Công cụ được trang bị cơ chế tự phục hồi:
+        </p>
+        <ul>
+          <li><strong>Retry với Linear Backoff:</strong> Tự động thử lại khi gặp lỗi kết nối với thời gian chờ tăng tuyến tính (5s, 10s, 15s...).</li>
+          <li><strong>Hàng đợi đẩy bù (<code>output/pending_import.json</code>):</strong> Nếu hết số lần retry mà API vẫn không nhận, file CSV sinh ra và cache Subtask tương ứng được lưu vào hàng đợi. Ở lần chạy kế tiếp, tool sẽ <em>tự động đẩy bù các file nợ</em> trước khi bắt đầu crawl dữ liệu mới.</li>
+          <li><strong>Lệnh đẩy thủ công:</strong> Có thể gọi lệnh <code>run_ttm_crawl.bat --repush</code> để đẩy lại toàn bộ các file CSV còn tồn đọng mà không cần query lại Jira.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- CHƯƠNG 3: HƯỚNG DẪN CẤU HÌNH -->
+    <section id="cau-hinh">
+      <h2>3. Hướng dẫn Cấu hình Công cụ (Configuration Guide)</h2>
+      <p>
+        Hệ thống phân tách toàn bộ thông số thành <strong>2 tập tin cấu hình JSON</strong> riêng biệt: 
+        <code>jira_ttm_runtime_config.json</code> (dành cho người vận hành) và <code>jira_ttm_fields_config.json</code> (cấu hình kỹ thuật của hệ thống).
+      </p>
+
+      <div class="callout callout-info">
+        <div class="callout-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          Nguyên tắc phân tách cấu hình
+        </div>
+        Người vận hành chỉ cần chỉnh sửa file <code>jira_ttm_runtime_config.json</code> một lần khi thiết lập môi trường cá nhân hoặc khi cần thay đổi danh sách Project Key/Nhóm dự án. File <code>jira_ttm_fields_config.json</code> chỉ chỉnh sửa khi có thay đổi về quy tắc nghiệp vụ, mapping cột hoặc bổ sung trường mới.
+      </div>
+
+      <!-- 3.1 RUNTIME CONFIG -->
+      <h3>3.1. Cấu hình Vận hành: <code>jira_ttm_runtime_config.json</code></h3>
+      <p>Tập tin này kiểm soát tài khoản, token kết nối, danh sách nhóm dự án và các hạn mức dữ liệu.</p>
+
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" class="search-input" id="runtimeSearch" placeholder="Lọc tham số cấu hình runtime (vd: token, group, limits)..." onkeyup="filterTable('runtimeTable', this.value)">
+      </div>
+
+      <table id="runtimeTable">
+        <thead>
+          <tr>
+            <th style="width: 28%;">Khóa cấu hình (JSON Key)</th>
+            <th style="width: 14%;">Kiểu dữ liệu</th>
+            <th style="width: 18%;">Giá trị mẫu / Mặc định</th>
+            <th>Mục đích & Hướng dẫn thiết lập</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>jira.base_url</code></td>
+            <td><span class="badge badge-neutral">string</span></td>
+            <td><code>"https://jira.mbbank.com.vn"</code></td>
+            <td>Địa chỉ gốc máy chủ Jira Data Center của ngân hàng.</td>
+          </tr>
+          <tr>
+            <td><code>jira.api_token</code></td>
+            <td><span class="badge badge-neutral">string</span></td>
+            <td><code>"YOUR_TOKEN_HERE"</code></td>
+            <td>Personal Access Token (PAT) Jira cá nhân có quyền đọc các project.</td>
+          </tr>
+          <tr>
+            <td><code>import_api.enabled</code></td>
+            <td><span class="badge badge-neutral">boolean</span></td>
+            <td><code>true</code></td>
+            <td>Bật/tắt tính năng tự động gọi HTTP POST đẩy CSV về server ttm-tool.</td>
+          </tr>
+          <tr>
+            <td><code>import_api.host</code></td>
+            <td><span class="badge badge-neutral">string</span></td>
+            <td><code>"ttm-tool.vercel.app"</code></td>
+            <td>Domain hoặc IP của server ttm-tool (không kèm <code>https://</code>).</td>
+          </tr>
+          <tr>
+            <td><code>import_api.token</code></td>
+            <td><span class="badge badge-neutral">string</span></td>
+            <td><code>"SECRET_IMPORT_TOKEN"</code></td>
+            <td>Mã xác thực bí mật trùng với <code>IMPORT_API_TOKEN</code> trong <code>.env.local</code> của ttm-tool.</td>
+          </tr>
+          <tr>
+            <td><code>import_api.on_failure</code></td>
+            <td><span class="badge badge-neutral">string</span></td>
+            <td><code>"stop"</code> | <code>"continue"</code></td>
+            <td>Hành động khi import thất bại: <code>"stop"</code> (dừng ngay job) hoặc <code>"continue"</code> (lưu hàng đợi đẩy bù và làm tiếp nhóm sau).</td>
+          </tr>
+          <tr>
+            <td><code>POST_file_API</code></td>
+            <td><span class="badge badge-neutral">string</span></td>
+            <td><code>"on"</code> | <code>"off"</code></td>
+            <td>Công tắc nhanh bật/tắt đẩy API cho toàn bộ các nhóm trong lần chạy này.</td>
+          </tr>
+          <tr>
+            <td><code>CREATE_file_relationship</code></td>
+            <td><span class="badge badge-neutral">string</span></td>
+            <td><code>"off"</code> | <code>"on"</code></td>
+            <td>Có xuất thêm file Excel kiểm tra quan hệ con mồ côi (<code>ttm_jira_relationship.xlsx</code>) hay không. Mặc định <code>"off"</code> để tăng tốc độ.</td>
+          </tr>
+          <tr>
+            <td><code>interactive_group_selection.enabled</code></td>
+            <td><span class="badge badge-neutral">string</span></td>
+            <td><code>"on"</code> | <code>"off"</code></td>
+            <td><code>"on"</code>: hiển thị menu tương tác chọn nhóm lúc khởi động; <code>"off"</code>: bỏ qua menu, tự động chạy ngầm theo cờ <code>enabled</code> của từng group.</td>
+          </tr>
+          <tr>
+            <td><code>interactive_group_selection.timeout_seconds</code></td>
+            <td><span class="badge badge-neutral">number</span></td>
+            <td><code>30</code></td>
+            <td>Thời gian chờ người dùng thao tác menu. Nếu không bấm phím nào sẽ tự động chạy theo cấu hình.</td>
+          </tr>
+          <tr>
+            <td><code>epic_scope.epic_created_after</code></td>
+            <td><span class="badge badge-neutral">string</span></td>
+            <td><code>"2026-01-31"</code></td>
+            <td>Ngày chặn dưới: chỉ lấy các Epic được tạo trên Jira từ ngày này trở đi.</td>
+          </tr>
+          <tr>
+            <td><code>epic_scope.project_groups</code></td>
+            <td><span class="badge badge-neutral">array[object]</span></td>
+            <td>Danh sách nhóm</td>
+            <td>Mỗi nhóm gồm: <code>group_name</code>, mảng <code>project_keys</code>, <code>max_total_issues</code> (subtask trần của nhóm), <code>max_total_issues_project</code> (subtask trần của 1 project), và cờ <code>enabled</code> ("on"/"off").</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- 3.2 FIELDS CONFIG -->
+      <h3>3.2. Cấu hình Kỹ thuật: <code>jira_ttm_fields_config.json</code></h3>
+      <p>Tập tin này định nghĩa các quy chuẩn JQL, bộ quy tắc lọc trạng thái, ánh xạ cột và gom lô API.</p>
+
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" class="search-input" id="fieldsSearch" placeholder="Lọc tham số cấu hình kỹ thuật (vd: batch, status, role)..." onkeyup="filterTable('fieldsTable', this.value)">
+      </div>
+
+      <table id="fieldsTable">
+        <thead>
+          <tr>
+            <th style="width: 28%;">Khóa cấu hình (JSON Key)</th>
+            <th style="width: 14%;">Kiểu dữ liệu</th>
+            <th style="width: 18%;">Giá trị mẫu / Mặc định</th>
+            <th>Mục đích & Hướng dẫn thiết lập</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>jira.rate_limit.proactive_throttle</code></td>
+            <td><span class="badge badge-neutral">boolean</span></td>
+            <td><code>true</code></td>
+            <td>Bật cơ chế Token Bucket điều tốc chủ động học từ header phản hồi của Jira DC 8.2.</td>
+          </tr>
+          <tr>
+            <td><code>crawl_batching.epic_batch_size</code></td>
+            <td><span class="badge badge-neutral">number</span></td>
+            <td><code>50</code></td>
+            <td>Số lượng Epic được gom vào 1 câu JQL truy vấn Story (<code>"Epic Link" in (...)</code>).</td>
+          </tr>
+          <tr>
+            <td><code>crawl_batching.parent_batch_size</code></td>
+            <td><span class="badge badge-neutral">number</span></td>
+            <td><code>100</code></td>
+            <td>Số lượng Parent (Story + Epic) được gom vào 1 câu JQL truy vấn Subtask (<code>parent in (...)</code>).</td>
+          </tr>
+          <tr>
+            <td><code>epic_scope.closed_statuses</code></td>
+            <td><span class="badge badge-neutral">array[string]</span></td>
+            <td><code>["Released", "MVP Done"]</code></td>
+            <td>Danh sách trạng thái đóng của Epic chịu kiểm soát theo Rolling Window.</td>
+          </tr>
+          <tr>
+            <td><code>epic_scope.status_changed_after_window</code></td>
+            <td><span class="badge badge-neutral">string</span></td>
+            <td><code>"2026-06-30"</code> hoặc <code>"-8w"</code></td>
+            <td>Chỉ tải lại các Epic đã đóng nếu ngày chuyển trạng thái đóng sau mốc này (tránh crawl lại các Epic quá cũ).</td>
+          </tr>
+          <tr>
+            <td><code>epic_scope.skip_children_if_status</code></td>
+            <td><span class="badge badge-neutral">array[string]</span></td>
+            <td><code>["Released", "Cancelled", "Pilot", "MVP Done"]</code></td>
+            <td>Các Epic ở trạng thái này vẫn được cập nhật thuộc tính vào CSV, nhưng <strong>ngắt toàn bộ việc query Story và Subtask con</strong> để tiết kiệm request.</td>
+          </tr>
+          <tr>
+            <td><code>issue_levels.level_3_subtask.allowed_issue_types</code></td>
+            <td><span class="badge badge-neutral">array[string]</span></td>
+            <td><code>["BA", "Elicitate"]</code></td>
+            <td>Bộ lọc loại Subtask được phép tải. Các loại khác (DEV, TEST...) bị bỏ qua ở tầng crawl.</td>
+          </tr>
+          <tr>
+            <td><code>subtask_cache.enabled</code></td>
+            <td><span class="badge badge-neutral">string</span></td>
+            <td><code>"on"</code> | <code>"off"</code></td>
+            <td>Bật/tắt việc lưu vết và loại trừ các Subtask đã đạt trạng thái <code>Done</code>.</td>
+          </tr>
+          <tr>
+            <td><code>output.epic_field_columns</code></td>
+            <td><span class="badge badge-neutral">object</span></td>
+            <td>Key-Value mapping</td>
+            <td>Ánh xạ tên cột CSV sang tên hiển thị trường trên Jira (hỗ trợ tự động phân giải custom field ID).</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- 3.3 CÁC KỊCH BẢN THỰC TẾ -->
+      <h3 id="kich-ban">3.3. Các Kịch bản Vận hành & Cấu hình Thực tế</h3>
+
+      <div class="card">
+        <div class="card-title">
+          <span>Kịch bản 1: Bổ sung Dự án mới vào Nhóm có sẵn</span>
+          <span class="badge badge-primary">Thường dùng</span>
+        </div>
+        <p>Mở file <code>jira_ttm_runtime_config.json</code>, tìm đến nhóm cần thêm (vd: <code>NhomA</code>) trong mục <code>epic_scope.project_groups</code> và bổ sung Project Key vào mảng <code>project_keys</code>:</p>
+        <pre><code>{
+  "group_name": "NhomA",
+  "project_keys": [
+    "WM", "HCM", "BPMCN", "SSM1", "CNSPDT", "SMEDS", "ON", "MO", "SBU",
+    "NEWPROJ"  // &lt;-- Thêm Project Key mới tại đây
+  ],
+  "max_total_issues": 8000,
+  "max_total_issues_project": 700,
+  "enabled": "on"
+}</code></pre>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>Kịch bản 2: Cấu hình chạy tự động định kỳ (Task Scheduler / Unattended)</span>
+          <span class="badge badge-success">Tự động hóa</span>
+        </div>
+        <p>Để công cụ chạy ngầm không dừng chờ người bấm phím xác nhận trên màn hình CMD:</p>
+        <ol>
+          <li>Trong <code>jira_ttm_runtime_config.json</code>, đặt <code>"interactive_group_selection": { "enabled": "off" }</code>.</li>
+          <li>Đảm bảo các group cần chạy có <code>"enabled": "on"</code>, các group tạm ngưng đặt <code>"enabled": "off"</code>.</li>
+          <li>Đảm bảo <code>"on_failure": "continue"</code> trong mục <code>import_api</code> để nếu 1 group lỗi thì các group khác vẫn được crawl tiếp tục.</li>
+          <li>Thiết lập Windows Task Scheduler gọi file <code>run_ttm_crawl.bat</code> với quyền thực thi phù hợp.</li>
+        </ol>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>Kịch bản 3: Chỉ Crawl xuất file CSV nội bộ, KHÔNG đẩy lên Server TTM</span>
+          <span class="badge badge-warning">Kiểm thử</span>
+        </div>
+        <p>Trong <code>jira_ttm_runtime_config.json</code>, sửa công tắc sau:</p>
+        <pre><code>"POST_file_API": "off"</code></pre>
+        <p style="font-size: 13.5px; color: var(--text-muted);">
+          File CSV vẫn được tạo đầy đủ trong thư mục <code>output/Du_an_*.csv</code> với nội dung chuẩn hóa, nhưng hoàn toàn không gửi request HTTP nào tới server ttm-tool.
+        </p>
+      </div>
+    </section>
+
+    <!-- CHƯƠNG 4: BẢN CẬP NHẬT V14 -->
+    <section id="v14-update">
+      <h2>4. Chi tiết Bản cập nhật v14 — Bổ sung các trường RCA & Previous Status</h2>
+      <p>
+        Bản nâng cấp <strong>v14</strong> bổ sung trường <code>Previous Status</code> cùng 9 trường dữ liệu phân tích nguyên nhân gốc rễ (Root Cause Analysis - RCA) 
+        dành riêng cho cấp độ Epic, phục vụ đánh giá khâu gây chậm tiến độ hoặc fail cam kết TTM.
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 5%;">STT</th>
+            <th style="width: 25%;">Tên trường trên Jira (Logical Field)</th>
+            <th style="width: 25%;">Tên cột xuất ra CSV (CSV Column)</th>
+            <th style="width: 15%;">Kiểu dữ liệu</th>
+            <th>Diễn giải & Quy chuẩn mapping</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>0</strong></td>
+            <td><code>Previous Status</code></td>
+            <td><code>epic_previous_status</code></td>
+            <td><span class="badge badge-primary">Status String</span></td>
+            <td>Trạng thái trước đó của Epic (phục vụ theo dõi luồng chuyển trạng thái, rework, rollback).</td>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td><code>Khâu BA</code></td>
+            <td><code>epic_khau_ba</code></td>
+            <td><span class="badge badge-neutral">Select Option</span></td>
+            <td>Ghi nhận lý do chậm/fail thuộc khâu Phân tích nghiệp vụ (BA).</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td><code>Khâu CO</code></td>
+            <td><code>epic_khau_co</code></td>
+            <td><span class="badge badge-neutral">Select Option</span></td>
+            <td>Ghi nhận lý do chậm/fail thuộc khâu Vận hành thay đổi / Change Coordinator.</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td><code>Khâu Dev</code></td>
+            <td><code>epic_khau_dev</code></td>
+            <td><span class="badge badge-neutral">Select Option</span></td>
+            <td>Ghi nhận lý do chậm/fail thuộc khâu Phát triển phần mềm (Lập trình, review).</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td><code>Khâu PM/SM</code></td>
+            <td><code>epic_khau_pm_sm</code></td>
+            <td><span class="badge badge-neutral">Select Option</span></td>
+            <td>Ghi nhận lý do chậm/fail thuộc khâu Quản trị dự án / Scrum Master.</td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td><code>Khâu PO</code></td>
+            <td><code>epic_khau_po</code></td>
+            <td><span class="badge badge-neutral">Select Option</span></td>
+            <td>Ghi nhận lý do chậm/fail từ phía Product Owner (chốt yêu cầu, tài liệu).</td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td><code>Khâu Pentest</code></td>
+            <td><code>epic_khau_pentest</code></td>
+            <td><span class="badge badge-neutral">Select Option</span></td>
+            <td>Ghi nhận lý do chậm/fail do đánh giá bảo mật / an toàn thông tin kéo dài.</td>
+          </tr>
+          <tr>
+            <td>7</td>
+            <td><code>Khâu SA</code></td>
+            <td><code>epic_khau_sa</code></td>
+            <td><span class="badge badge-neutral">Select Option</span></td>
+            <td>Ghi nhận lý do chậm/fail thuộc khâu Kiến trúc giải pháp (System Architecture).</td>
+          </tr>
+          <tr>
+            <td>8</td>
+            <td><code>Khâu SIT/UAT</code></td>
+            <td><code>epic_khau_sit_uat</code></td>
+            <td><span class="badge badge-neutral">Select Option</span></td>
+            <td>Ghi nhận lý do chậm/fail thuộc khâu Kiểm thử tích hợp hệ thống hoặc nghiệm thu.</td>
+          </tr>
+          <tr>
+            <td>9</td>
+            <td><code>Khi chọn lý do khác, note rõ chi tiết thông tin lý do tại đây</code></td>
+            <td><code>epic_note_ly_do_khac</code></td>
+            <td><span class="badge badge-neutral">Textarea</span></td>
+            <td>Văn bản giải trình chi tiết tự do. Hỗ trợ đầy đủ văn bản nhiều dòng (multi-line text) có xuống dòng.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="card">
+        <div class="card-title">
+          <span>Cải tiến đặc biệt trong Logic phân giải trường v14</span>
+          <span class="badge badge-primary">Fuzzy Aliases</span>
+        </div>
+        <ul>
+          <li><strong>Xử lý sai lệch chính tả tự động:</strong> Do trên hệ thống Jira của MBBank trường số 9 có thể được đặt tên là <em>"Khi chọn lí do khác..."</em> (chữ "lí" ngắn) hoặc <em>"Khi chọn lý do khác..."</em> (chữ "lý" dài), hàm <code>resolve_configured_fields()</code> trong <code>jira_ttm_export.py</code> đã được tích hợp từ điển biệt danh (aliases) đa chiều, tự động nhận diện đúng custom field ID bất kể chính tả của instance.</li>
+          <li><strong>Bao đóng an toàn nội dung nhiều dòng (RFC 4180):</strong> Khi xuất ra CSV, các nội dung có dấu xuống dòng <code>\n</code> trong trường lý do chi tiết được bọc chuẩn xác trong cặp ngoặc kép <code>"..."</code>, đảm bảo khi bộ phân giải <code>csv-parser.ts</code> của <code>ttm-tool</code> đọc vào sẽ không bị nhảy dòng sai lệch.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- CHƯƠNG 5: VẬN HÀNH & XỬ LÝ LỖI -->
+    <section id="van-hanh">
+      <h2>5. Cẩm nang Vận hành, Phím tắt & Xử lý Sự cố</h2>
+
+      <div class="card">
+        <div class="card-title">
+          <span>Bảng điều khiển Phím tắt trực tiếp trên Windows CMD</span>
+          <span class="badge badge-success">Tương tác thời gian thực</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 20%;">Phím bấm</th>
+              <th style="width: 35%;">Hành động của Tool</th>
+              <th>Thời điểm áp dụng & Ghi chú</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><kbd style="background:#1e293b; color:#38bdf8; padding:3px 8px; border-radius:4px; font-weight:700;">P</kbd></td>
+              <td><strong>Tạm dừng an toàn (Pause)</strong></td>
+              <td>Bấm khi tool đang chạy. Tool sẽ hoàn thành nốt HTTP request hiện tại rồi đứng chờ, không gửi thêm request nào lên Jira.</td>
+            </tr>
+            <tr>
+              <td><kbd style="background:#1e293b; color:#4ade80; padding:3px 8px; border-radius:4px; font-weight:700;">S</kbd></td>
+              <td><strong>Tiếp tục chạy (Continue)</strong></td>
+              <td>Bấm khi tool đang ở trạng thái Tạm dừng để tiếp tục crawl bình thường.</td>
+            </tr>
+            <tr>
+              <td><kbd style="background:#1e293b; color:#f87171; padding:3px 8px; border-radius:4px; font-weight:700;">P</kbd> (lần 2)</td>
+              <td><strong>Lưu tiến trình & Thoát an toàn</strong></td>
+              <td>Bấm khi đang tạm dừng: Lưu toàn bộ trạng thái vào <code>output/_resume/session.json.gz</code> rồi đóng cửa sổ CMD. Lần sau mở lại có thể chạy tiếp.</td>
+            </tr>
+            <tr>
+              <td><kbd style="background:#1e293b; color:#f87171; padding:3px 8px; border-radius:4px; font-weight:700;">Ctrl + C</kbd></td>
+              <td><strong>Ngắt khẩn cấp & Tự động lưu</strong></td>
+              <td>Tool tự bắt tín hiệu ngắt, thực hiện lưu savepoint lô hiện tại vào file session trước khi thoát.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>Xử lý Sự cố Thường gặp (Troubleshooting)</span>
+          <span class="badge badge-danger">Cần biết</span>
+        </div>
+        <ul>
+          <li><strong>Lỗi: "Mot cua so TTM Crawl khac dang chay (xem file output/_resume/run.lock)":</strong><br>
+            <em>Nguyên nhân:</em> Có một cửa sổ crawl khác đang chạy song song, hoặc lần chạy trước bị crash bất thường khiến file khóa chưa kịp xóa.<br>
+            <em>Khắc phục:</em> Kiểm tra xem có cửa sổ CMD nào đang chạy không. Nếu không còn, xóa file <code>output/_resume/run.lock</code> rồi khởi động lại.
+          </li>
+          <li style="margin-top: 10px;"><strong>Lỗi: "ProxyError: Tunnel connection failed: 503 Service Unavailable":</strong><br>
+            <em>Nguyên nhân:</em> Proxy mạng của ngân hàng chập chờn khi mở kết nối ra ngoài.<br>
+            <em>Khắc phục:</em> Tool đã tự động retry tối đa số lần cấu hình. Nếu vẫn lỗi, tool sẽ tự động ghi CSV vào hàng đợi đẩy bù. Bạn có thể đợi mạng ổn định rồi chạy:
+            <pre><code>run_ttm_crawl.bat --repush</code></pre>
+          </li>
+          <li style="margin-top: 10px;"><strong>Thông báo: "Saved session found. Y = continue, N = discard, C = close":</strong><br>
+            <em>Khắc phục:</em> Nhấn <strong>Y</strong> để tiếp tục nốt phần dở của lần chạy trước (tiết kiệm tối đa thời gian query lại); nhấn <strong>N</strong> nếu bạn muốn bỏ phiên dở và crawl mới hoàn toàn từ đầu.
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+      <div>&copy; 2026 TTM Tool Project — Tài liệu kỹ thuật Jira Crawl Tool v14.</div>
+      <div>Tác giả: <strong>@minhnd7</strong></div>
+    </footer>
+
+  </main>
+</div>
+
+<script>
+  function filterTable(tableId, query) {
+    const table = document.getElementById(tableId);
+    const trs = table.getElementsByTagName('tr');
+    const filter = query.toLowerCase().trim();
+
+    for (let i = 1; i < trs.length; i++) {
+      const tdText = trs[i].textContent.toLowerCase();
+      if (tdText.indexOf(filter) > -1) {
+        trs[i].style.display = '';
+      } else {
+        trs[i].style.display = 'none';
+      }
+    }
+  }
+</script>
+
+</body>
+</html>

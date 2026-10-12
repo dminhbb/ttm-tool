@@ -6,6 +6,13 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-10-12
+
+- **Import CSV ở "Quản trị nguồn dữ liệu" không còn báo lỗi chung chung "Có lỗi xảy ra khi gọi API import."** (`src/components/data-source/ImportIssuesTab.tsx`):
+  - File được đọc vào bộ nhớ trước khi upload. Trình duyệt huỷ hẳn request (không có phản hồi HTTP) khi file đã chọn bị sửa/lưu lại/đang mở bởi Excel — giờ báo đúng nguyên nhân và yêu cầu chọn lại file; khi đọc được thì việc upload không còn phụ thuộc file trên đĩa.
+  - Phản hồi không phải JSON (giới hạn dung lượng/thời gian của hosting, gateway chặn…) được báo kèm mã HTTP và nội dung tóm tắt thay vì vỡ ở `res.json()`; lỗi mất kết nối báo riêng. Với "Import & Lưu dữ liệu", lịch sử import được tải lại để thấy ngay đợt import có được lưu hay không.
+  - Đã kiểm tra phía server với file CSV crawl v14 (có `epic_khau_*`): parse/validate và toàn bộ chuỗi ghi DB trên Supabase chạy hết không lỗi (chạy thử có rollback, không lưu gì) — không sửa gì ở API/import-service.
+
 ## 2026-10-11
 
 - **Chuyển đổi biểu đồ section 'Theo PM/SM' từ Donut sang Horizontal Bar Chart (`/ttm-dashboard-2`)**:

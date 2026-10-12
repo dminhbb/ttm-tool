@@ -81,6 +81,19 @@ interface PreviewResult {
 
 const HISTORY_PAGE_SIZE = 5;
 
+/** Explains an import response that isn't the route's own JSON — i.e. one produced in front of it. */
+function describeNonJsonImportResponse(res: Response, rawBody: string, validateOnly: boolean): string {
+  const checkHistory = validateOnly ? '' : ' Xem "Lịch sử import" trước khi import lại, vì dữ liệu có thể đã được lưu.';
+  if (res.status === 413) {
+    return 'File vượt quá dung lượng tối đa mà máy chủ cho phép upload (HTTP 413). Hãy tách file theo nhóm dự án rồi import từng phần.';
+  }
+  if (res.status === 408 || res.status === 504) {
+    return `Máy chủ xử lý quá thời gian cho phép (HTTP ${res.status}).${checkHistory}`;
+  }
+  const snippet = rawBody.replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+  return `Máy chủ trả về phản hồi không hợp lệ (HTTP ${res.status})${snippet ? `: ${snippet}` : ''}.${checkHistory}`;
+}
+
 export function ImportIssuesTab() {
   const router = useRouter();
   const [sourceType, setSourceType] = useState('CSV');
@@ -201,8 +214,26 @@ export function ImportIssuesTab() {
       setPreviewResult(null);
     }
 
+    // Read the file into memory before uploading. The browser streams a picked File straight from
+    // disk, and aborts the request outright (fetch rejects — no HTTP response at all) when that file
+    // was re-saved, moved or locked after it was chosen: a CSV edited/still open in Excel, or one the
+    // crawler rewrote. Reading it here turns that into a message naming the real cause, and the
+    // upload itself then no longer depends on the file on disk.
+    let fileContent: Blob;
+    try {
+      fileContent = new Blob([await file.arrayBuffer()], { type: file.type || 'text/csv' });
+    } catch (error) {
+      console.error('Import file read error:', error);
+      setImportMessage({
+        type: 'error',
+        text: `Không đọc được file "${file.name}": file đã bị sửa, di chuyển hoặc đang được mở bởi ứng dụng khác (ví dụ Excel) sau khi chọn. Hãy đóng ứng dụng đó, chọn lại file rồi thử lại.`,
+      });
+      setIsImporting(false);
+      return;
+    }
+
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', fileContent, file.name);
     formData.append('aggregatedAt', aggregatedDate.toISOString());
     formData.append('validateOnly', validateOnly ? 'true' : 'false');
     formData.append('adapterType', adapterType);
@@ -213,7 +244,19 @@ export function ImportIssuesTab() {
         body: formData,
       });
 
-      const result = await res.json();
+      // The route always answers JSON; anything else comes from in front of it (hosting size/time
+      // limits, a gateway or network filter) — say which, instead of failing on res.json() and
+      // hiding it.
+      const rawBody = await res.text();
+      let result;
+      try {
+        result = JSON.parse(rawBody);
+      } catch {
+        console.error('Import API returned a non-JSON response:', res.status, rawBody.slice(0, 2000));
+        setImportMessage({ type: 'error', text: describeNonJsonImportResponse(res, rawBody, validateOnly) });
+        if (!validateOnly) fetchHistory();
+        return;
+      }
 
       if (!res.ok) {
         setImportMessage({ type: 'error', text: result.error || 'Lỗi hệ thống khi xử lý dữ liệu.' });
@@ -261,8 +304,14 @@ export function ImportIssuesTab() {
         }
       }
     } catch (error) {
+      // fetch itself rejected: the request never got an HTTP response (connection dropped or blocked).
       console.error('Import error:', error);
-      setImportMessage({ type: 'error', text: 'Có lỗi xảy ra khi gọi API import.' });
+      const detail = error instanceof Error && error.message ? ` (${error.message})` : '';
+      setImportMessage({
+        type: 'error',
+        text: `Không gửi được yêu cầu import tới máy chủ${detail}: kết nối bị ngắt hoặc bị chặn trước khi có phản hồi. Kiểm tra mạng/VPN rồi thử lại${validateOnly ? '' : '; xem "Lịch sử import" trước khi import lại để tránh tạo trùng lớp dữ liệu'}.`,
+      });
+      if (!validateOnly) fetchHistory();
     } finally {
       setIsImporting(false);
     }
