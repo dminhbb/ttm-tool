@@ -89,6 +89,21 @@ describe('parity with the legacy engine', () => {
     assert.deepEqual(diffs, []);
   });
 
+  it('D10 (2026-10-12): a Pending Epic whose previous status was To Do / In PO is no longer R1 — an approved difference whichever way the legacy engine judged it', () => {
+    const ctx = makeContext({ asOf: '2026-09-01' });
+    const facts = makeFacts({ status: 'Pending', previousStatus: 'In PO', startDate: null, r4gDate: null, dueDate: null });
+    const r1Diffs = (legacyFlagsR1: boolean) => compareWithLegacy(
+      scoreEpic(facts, ctx),
+      legacyRow({
+        currentStatus: 'Pending', hasDataAnomaly: legacyFlagsR1, dataAnomalyViolations: legacyFlagsR1 ? [{ code: 'MISSING_START_DATE' }] : [],
+        r4gDate: null, ttmActualToDate: null, ttmE2eActualToDate: null,
+      }),
+      ctx, OPTIONS,
+    ).filter((diff) => diff.check === 'Rule ANOMALY_R1_MISSING_START_DATE' || diff.check === 'Sai lệch dữ liệu');
+    assert.deepEqual(r1Diffs(true).map((diff) => diff.tag), ['D10_DATA_QUALITY_RULES', 'D10_DATA_QUALITY_RULES']);
+    assert.deepEqual(r1Diffs(false), []);
+  });
+
   it('D13: an Epic left out by "Phạm vi rule Sai lệch dữ liệu" is an approved difference, not an unexplained one', () => {
     const scope = (enabled: boolean) => ({
       ...DEFAULT_SCORING_PARAMETERS,

@@ -932,3 +932,23 @@ R5 vi phạm  ⇔  Requirement Level trống hoặc "none"
   `Requirement Level trống hoặc "none"  VÀ  ( (status ≠ Pending VÀ status > DESIGN)  HOẶC  (status = Pending VÀ previous_status ∉ {To Do, In PO}) )`;
   previous_status rỗng là ∉ nên vẫn bị R5.
 - Test: `scoring.test.ts` "Phạm vi rule Sai lệch dữ liệu" (mục 6), `parity.test.ts` "D13".
+
+## 27. R1 "Thiếu Start Date" — điều kiện Pending theo status trước đó (2026-10-12)
+
+Quy định chủ sở hữu, `SCORING_CODE_VERSION` `scoring-17` → `scoring-18`:
+
+```text
+R1 vi phạm  ⇔  T1 (Start Date) trống hoặc "none"
+               VÀ (  (status ≠ Pending  VÀ  status ≥ DESIGN)
+                  HOẶC (status = Pending  VÀ  previous_status ∉ {To Do, In PO}) )
+```
+
+- **Trước:** mọi Epic Pending thiếu Start Date đều bị R1 (từ 05/10/2026, vì Pending xếp ngang In Progress).
+- **Nay:** Epic Pending trước đó là To Do / In PO được miễn — Epic chưa từng bắt đầu nên thiếu Start Date không phải lỗi dữ
+  liệu. Cùng tập status miễn với R5 (mục 25, 26); previous_status rỗng là ∉ nên vẫn bị R1. Reopened không phải Pending.
+- **Hệ quả đã được chấp nhận:** Epic được miễn không còn là "Sai lệch dữ liệu" nên được xét trên các trục TTM — TTM-CNTT
+  "không tính được" (`CNTT_CALC_BROKEN`, không có Target: nằm ở L05bb, không bao giờ Fail khi Start Date còn trống), TTM-E2E
+  chấm bình thường (dữ liệu 12/10: 16 Epic được miễn, 15 thành Fail TTM-E2E). Khuyến nghị "Bổ sung Start Date" vẫn hiện.
+- **Đối chiếu:** `parity.ts` — R1 không được service gắn khi Epic đang Pending → `D10_DATA_QUALITY_RULES` (engine legacy không đổi).
+- Logic: `startDateRequired()` (`scoring/rules/data-quality.ts`). Test: `scoring.test.ts` "R1 (2026-10-12)", `parity.test.ts`
+  "D10 (2026-10-12)".

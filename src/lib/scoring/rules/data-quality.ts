@@ -19,8 +19,26 @@ function isBlank(value: string | null): boolean {
 }
 
 /** Previous statuses (compared workflow-normalized, case-insensitive) of a Pending Epic that never got
- * past planning: the Requirement Level isn't expected yet, so R5 leaves it alone. */
-const R5_PENDING_EXEMPT_PREVIOUS_STATUSES = new Set(['TO DO', 'IN PO']);
+ * past planning: neither the Start Date (R1) nor the Requirement Level (R5) is expected yet. */
+const PENDING_EXEMPT_PREVIOUS_STATUSES = new Set(['TO DO', 'IN PO']);
+
+/** A Pending Epic that was put on hold straight from planning (To Do / In PO). An empty previous
+ * status is not in that set, so such an Epic is not exempt. */
+function isPendingFromPlanning(status: string, previousStatus: string | null | undefined): boolean {
+  return isPendingStatus(status) && PENDING_EXEMPT_PREVIOUS_STATUSES.has(normalizeWorkflowStatus(previousStatus ?? ''));
+}
+
+/**
+ * When R1 expects the Start Date (T1) to be filled in (owner rule 2026-10-12):
+ *   (status not Pending and status ≥ DESIGN)
+ *   OR (status = Pending and previous status ∉ {To Do, In PO}).
+ * Until then every Pending Epic was included (2026-10-05); one that went Pending from To Do / In PO
+ * never started, so a missing Start Date there is not a data error.
+ */
+export function startDateRequired(status: string, previousStatus: string | null | undefined, statusIndex: number): boolean {
+  if (isPendingStatus(status)) return !isPendingFromPlanning(status, previousStatus);
+  return statusIndex >= STATUS_INDEX.DESIGN;
+}
 
 /**
  * When R5 expects the Requirement Level to be filled in (owner rule 2026-10-11, restated 2026-10-12):
@@ -30,7 +48,7 @@ const R5_PENDING_EXEMPT_PREVIOUS_STATUSES = new Set(['TO DO', 'IN PO']);
  * previous status is not in that set, so it is not exempt either.
  */
 export function requirementLevelRequired(status: string, previousStatus: string | null | undefined, statusIndex: number): boolean {
-  if (isPendingStatus(status)) return !R5_PENDING_EXEMPT_PREVIOUS_STATUSES.has(normalizeWorkflowStatus(previousStatus ?? ''));
+  if (isPendingStatus(status)) return !isPendingFromPlanning(status, previousStatus);
   return statusIndex > STATUS_INDEX.DESIGN;
 }
 
@@ -147,11 +165,13 @@ export const dataQualityRule: PrimaryRule = ({ facts, derived, ctx }) => {
       }
     }
   }
-  // R1 — every status from Design on must have a Start Date. Pending / Reopened rank level with In
-  // Progress, so they are included (Pending since 2026-10-05: without it a Pending Epic with no Start
-  // Date had no Target and could never be judged on TTM-CNTT).
-  if (derived.statusIndex >= STATUS_INDEX.DESIGN && !t1) {
-    findings.push(finding('ANOMALY_R1_MISSING_START_DATE', 'Thiếu Start Date (T1) — Epic đã từ giai đoạn Design trở đi.'));
+  // R1 (owner rule 2026-10-12) — Start Date blank AND EITHER the status is not Pending and from Design
+  // on (Reopened ranks level with In Progress, so it is included), OR the status is Pending and its
+  // previous status is not To Do / In PO (an empty one included). A Pending Epic that was To Do / In PO
+  // before never started, so it is not flagged — it then has no Target either: TTM-CNTT reports "không
+  // tính được" (CNTT_CALC_BROKEN) and, the data-quality gate being open, TTM-E2E is judged as usual.
+  if (!t1 && startDateRequired(facts.status, facts.previousStatus, derived.statusIndex)) {
+    findings.push(finding('ANOMALY_R1_MISSING_START_DATE', pending ? `Thiếu Start Date (T1) — Epic đang Pending (status trước đó: ${(facts.previousStatus ?? '').trim() || 'không có'})` : 'Thiếu Start Date (T1) — Epic đã từ giai đoạn Design trở đi.', pending ? { previousStatus: facts.previousStatus ?? null } : undefined));
   }
 
   const breaks: string[] = [];

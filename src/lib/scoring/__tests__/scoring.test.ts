@@ -272,6 +272,34 @@ describe('Data quality', () => {
     }
   });
 
+  it('R1 (2026-10-12): (status ≥ DESIGN and not Pending) OR (Pending and previous status not To Do / In PO)', () => {
+    const r1 = (overrides: Parameters<typeof makeFacts>[0]) => active(makeFacts({ startDate: null, ...overrides }), makeContext()).has('ANOMALY_R1_MISSING_START_DATE');
+    // Not Pending: the previous status plays no part — from DESIGN on, as before.
+    for (const status of ['Design', 'In Progress', 'TEST', 'R4GOLIVE', 'Released', 'Reopened']) {
+      assert.equal(r1({ status, previousStatus: 'To Do' }), true, status);
+    }
+    // Pending straight from planning (To Do / In PO, compared trimmed and case-insensitively): exempt.
+    assert.equal(r1({ status: 'Pending', previousStatus: 'To Do' }), false);
+    assert.equal(r1({ status: 'Pending', previousStatus: ' in po ' }), false);
+    assert.equal(r1({ status: 'Pending', previousStatus: 'IN PO' }), false);
+    // Pending from anywhere else, or with no previous status recorded: still R1.
+    assert.equal(r1({ status: 'Pending', previousStatus: 'In Progress' }), true);
+    assert.equal(r1({ status: 'Pending', previousStatus: 'Design' }), true);
+    assert.equal(r1({ status: 'Pending', previousStatus: null }), true);
+    assert.equal(r1({ status: 'Pending', previousStatus: '   ' }), true);
+    // A Start Date makes the rule moot either way.
+    assert.equal(active(makeFacts({ status: 'Pending', previousStatus: 'In Progress' }), makeContext()).has('ANOMALY_R1_MISSING_START_DATE'), false);
+
+    // The exempt Epic is no longer "Sai lệch dữ liệu": without a Start Date there is no Target, so
+    // TTM-CNTT can't be computed — never a Fail — and the Epic stays out of the Index denominator.
+    // Filling in the Start Date is still recommended, now off "không tính được" instead of R1.
+    const exempt = scoreEpic(makeFacts({ status: 'Pending', previousStatus: 'To Do', startDate: null, r4gDate: null, dueDate: null }), makeContext());
+    const badges = new Set(exempt.findings.filter((item) => !item.suppressedBy).map((item) => item.badge));
+    assert.equal(hasDataAnomalyBadge(badges), false);
+    assert.ok(badges.has('CNTT_CALC_BROKEN') && !badges.has('CNTT_FAIL') && badges.has('REC_FILL_START_DATE'));
+    assert.deepEqual([exempt.indexMembership.ttm.counted, exempt.indexMembership.ttm.eligible, exempt.indexMembership.ttm.fail], [true, false, false]);
+  });
+
   it('R5 (2026-10-04): missing Requirement Level only counts past DESIGN', () => {
     const atDesign = scoreEpic(makeFacts({ status: 'Design', requirementLevel: '' }), makeContext({ asOf: '2026-12-01' }));
     assert.ok(!hasBadge(atDesign, 'ANOMALY_R5_MISSING_REQUIREMENT_LEVEL') && !hasBadge(atDesign, 'REC_FILL_REQUIREMENT_LEVEL'));

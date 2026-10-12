@@ -170,8 +170,8 @@ export const BADGES = [
   // ---------- DATA_QUALITY ----------
   {
     id: 'ANOMALY_R1_MISSING_START_DATE', axis: 'DATA_QUALITY', group: 'ALERT', label: 'Thiếu Start Date', precedence: 10, defaultEnabled: true,
-    meaning: 'R1 — Epic đã từ DESIGN trở đi (Design / In Progress / Test / Pentest / R4GOLIVE / MVP Done / Pilot / Done / Released, và Pending / Reopened — ngang hàng In Progress) nhưng chưa có Start Date. Từ 04/10/2026 tính cả status DESIGN (trước đây từ DEV); từ 05/10/2026 tính cả Pending.',
-    formula: 'status ≥ DESIGN (kể cả Pending / Reopened)  VÀ  T1 trống',
+    meaning: 'R1 — Epic chưa có Start Date khi đã tới lúc cần: status khác Pending và đã từ DESIGN trở đi (Design / In Progress / Test / Pentest / R4GOLIVE / MVP Done / Pilot / Done / Released, và Reopened — ngang hàng In Progress), hoặc Epic đang Pending mà status trước đó (previous_status) không thuộc {To Do, In PO} — previous_status rỗng cũng là không thuộc. Từ 04/10/2026 tính cả status DESIGN (trước đây từ DEV); từ 05/10/2026 tính cả Pending; từ 12/10/2026 Epic Pending trước đó là To Do / In PO được miễn.',
+    formula: 'T1 trống hoặc "none"  VÀ  ( (status khác Pending và status ≥ DESIGN)  HOẶC  (status = Pending và previous_status ∉ {To Do, In PO}) )',
     legacySource: 'evaluateEpicDataAnomaly R1',
   },
   {
