@@ -1,31 +1,75 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { apiFeatureKey, pageFeatureKey } from '../feature-access';
-import { brokenRuleIndexes, compareEpicKeys, NORMALIZATION_PAGE_SIZE, NORMALIZATION_RULES, paginate, parseNormalizationPages } from '../data-normalization';
+import {
+  compareEpicKeys,
+  describeNormalizationPanel,
+  FAIL_REASON_PANEL_CODE,
+  NORMALIZATION_BADGE_CODES,
+  NORMALIZATION_PAGE_SIZE,
+  NORMALIZATION_PANELS,
+  normalizationPanelsOf,
+  paginate,
+  parseNormalizationPages,
+  parseNormalizationPanelCodes,
+} from '../data-normalization';
+
+const violation = (code: string, ruleIndex: number, message = code) => ({ code, message, ruleIndex }) as Parameters<typeof normalizationPanelsOf>[0]['dataAnomalyViolations'][number];
+const panelsOf = (row: Partial<Parameters<typeof normalizationPanelsOf>[0]>) =>
+  Object.fromEntries(normalizationPanelsOf({ dataAnomalyViolations: [], scoringBadges: undefined, ttmCnttInScope: true, ...row }));
 
 describe('"Chuẩn hoá dữ liệu" panels', () => {
-  it('one panel per Sai lệch dữ liệu rule, in R-number order, each with its guide', () => {
-    assert.deepEqual(NORMALIZATION_RULES.map((rule) => rule.code), ['R1', 'R3', 'R4', 'R5', 'R6', 'R8', 'R9', 'R10']);
-    assert.equal(NORMALIZATION_RULES[0].label, 'Thiếu Start Date');
-    for (const rule of NORMALIZATION_RULES) {
-      assert.ok(rule.meaning.length > 0 && rule.guide.length > 0, `${rule.code} lacks meaning/guide`);
+  it('"Thiếu lý do Fail TTM" comes first, then the rules in R-number order — R7 included, R2 not (2026-10-13)', () => {
+    assert.deepEqual(NORMALIZATION_PANELS.map((panel) => panel.code), [FAIL_REASON_PANEL_CODE, 'R1', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R10']);
+    assert.deepEqual(NORMALIZATION_PANELS.slice(0, 2).map((panel) => [panel.tag, panel.label]), [['Fail TTM', 'Thiếu lý do Fail TTM'], ['R1', 'Thiếu Start Date']]);
+    assert.equal(NORMALIZATION_PANELS.find((panel) => panel.code === 'R7')?.label, 'Sai Status (Release)');
+    for (const panel of NORMALIZATION_PANELS) {
+      assert.ok(panel.meaning.length > 0 && panel.guide.length > 0 && panel.defaultMessage.length > 0, `${panel.code} lacks meaning/guide/message`);
     }
+    assert.ok(!NORMALIZATION_PANELS.some((panel) => panel.index === 2));
   });
 
-  it('R8–R10 exist only in the Scoring Service', () => {
-    assert.deepEqual(NORMALIZATION_RULES.filter((rule) => !rule.inLegacyEngine).map((rule) => rule.code), ['R8', 'R9', 'R10']);
+  it('"Thiếu lý do Fail TTM" and R8–R10 exist only in the Scoring Service', () => {
+    assert.deepEqual(NORMALIZATION_PANELS.filter((panel) => !panel.inLegacyEngine).map((panel) => panel.code), [FAIL_REASON_PANEL_CODE, 'R8', 'R9', 'R10']);
   });
 
-  it('an Epic breaking several rules lands in each of their panels', () => {
-    const indexes = brokenRuleIndexes([{ code: 'MISSING_START_DATE' }, { code: 'MISSING_REQUEST_TYPE' }, { code: 'MISSING_START_DATE' }]);
-    assert.deepEqual([...indexes].sort((a, b) => a - b), [1, 4]);
-    assert.equal(brokenRuleIndexes([]).size, 0);
-    assert.equal(brokenRuleIndexes(null).size, 0);
+  it('an Epic breaking several rules lands in each of their panels, with that rule\'s messages only', () => {
+    assert.deepEqual(panelsOf({
+      dataAnomalyViolations: [violation('MISSING_START_DATE', 1, 'thiếu T1'), violation('MISSING_REQUEST_TYPE', 4, 'thiếu loại'), violation('DATE_OUT_OF_SEQUENCE', 3, 'a'), violation('DATE_OUT_OF_SEQUENCE', 3, 'b')],
+    }), { R1: ['thiếu T1'], R3: ['a', 'b'], R4: ['thiếu loại'] });
+    assert.deepEqual(panelsOf({}), {});
   });
 
-  it('R2 / R7 are not Sai lệch dữ liệu panels', () => {
-    const codes = NORMALIZATION_RULES.map((rule) => rule.index);
-    assert.ok(!codes.includes(2) && !codes.includes(7));
+  it('R2 has no panel: an Epic whose only violation is "Pending lâu" needs no normalizing; R7 has one', () => {
+    // Legacy engine rows carry R2 / R7 as violations.
+    assert.deepEqual(panelsOf({ dataAnomalyViolations: [violation('PENDING_TOO_LONG', 2)] }), {});
+    assert.deepEqual(panelsOf({ dataAnomalyViolations: [violation('PENDING_TOO_LONG', 2), violation('RELEASE_STATUS_MISMATCH', 7, 'chưa Released')] }), { R7: ['chưa Released'] });
+  });
+
+  it('scoring rows: R7 and "Thiếu lý do Fail TTM" are read off the badges (they are not violations there)', () => {
+    const r7 = panelsOf({ scoringBadges: ['RELEASE_STATUS_MISMATCH'] });
+    assert.deepEqual(Object.keys(r7), ['R7']);
+    assert.equal(r7.R7.length, 1);
+    assert.deepEqual(Object.keys(panelsOf({ scoringBadges: ['CNTT_FAIL', 'REC_MISSING_FAIL_REASON'] })), [FAIL_REASON_PANEL_CODE]);
+    // Outside "Phạm vi dữ liệu cho TTM" the dashboard doesn't count the missing reason — neither does this screen.
+    assert.deepEqual(panelsOf({ scoringBadges: ['REC_MISSING_FAIL_REASON'], ttmCnttInScope: false }), {});
+    // A legacy row (no badges) is never in the "Thiếu lý do Fail TTM" panel.
+    assert.deepEqual(panelsOf({ scoringBadges: undefined }), {});
+    // The SQL pre-filter keeps exactly the badges read here.
+    assert.deepEqual([...NORMALIZATION_BADGE_CODES].sort(), ['REC_MISSING_FAIL_REASON', 'RELEASE_STATUS_MISMATCH']);
+  });
+
+  it('the rule text follows the engine the Epics were judged by: legacy R1 / R5 / R7 differ from the catalog', () => {
+    const panel = (code: string) => NORMALIZATION_PANELS.find((item) => item.code === code)!;
+    for (const code of ['R1', 'R5', 'R7']) {
+      const scoring = describeNormalizationPanel(panel(code), 'scoring');
+      const legacy = describeNormalizationPanel(panel(code), 'legacy');
+      assert.deepEqual(scoring, { formula: panel(code).formula, meaning: panel(code).meaning }, code);
+      assert.notEqual(legacy.formula, scoring.formula, code);
+      assert.match(legacy.meaning, /engine legacy/, code);
+    }
+    // Rules the two engines check the same way keep the catalog text.
+    assert.deepEqual(describeNormalizationPanel(panel('R4'), 'legacy'), describeNormalizationPanel(panel('R4'), 'scoring'));
   });
 });
 
@@ -42,8 +86,13 @@ describe('"Chuẩn hoá dữ liệu" paging', () => {
   });
 
   it('parses the pages parameter and drops junk', () => {
-    assert.deepEqual(parseNormalizationPages('R1:2, R5:3,X:1,R3:0,R4:abc,R6'), { R1: 2, R5: 3 });
+    assert.deepEqual(parseNormalizationPages('R1:2, R5:3,X:1,R3:0,R4:abc,R6,R2:4,FAIL_REASON:2'), { FAIL_REASON: 2, R1: 2, R5: 3 });
     assert.deepEqual(parseNormalizationPages(null), {});
+  });
+
+  it('parses the open panels parameter: known panel codes only, each once', () => {
+    assert.deepEqual(parseNormalizationPanelCodes('R1, FAIL_REASON,R1,R2,nope'), ['R1', 'FAIL_REASON']);
+    assert.deepEqual(parseNormalizationPanelCodes(null), []);
   });
 
   it('Epic keys sort numerically within a project', () => {

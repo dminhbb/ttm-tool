@@ -20,7 +20,8 @@ import '@/app/ttm-shared.css';
 interface DataNormalizationResponse {
   actor: { fullName: string; role: string };
   engineMode: 'legacy' | 'scoring';
-  filterOptions: TtmDashboard2FilterOptions;
+  /** Only sent when asked for (`options=1`, the first load). */
+  filterOptions: TtmDashboard2FilterOptions | null;
   lastAggregatedAt: string | null;
   panels: NormalizationPanel[];
   totalEpics: number;
@@ -50,7 +51,7 @@ function formatDateTime(value: string | null): string {
   return `${day}/${month}/${date.getFullYear()} ${hour}:${minute}`;
 }
 
-/** "R1:2,R5:3" — only the panels that are not on their first page. */
+/** "R1:2,R5:3" — only the panels that are not on their first page (panel codes hold no comma). */
 function pagesParam(pages: Record<string, number>): string {
   return Object.entries(pages).filter(([, page]) => page > 1).map(([code, page]) => `${code}:${page}`).join(',');
 }
@@ -128,6 +129,8 @@ function RulePanel({ engineMode, isOpen, onBrowse, onPageChange, onToggle, panel
   viewIssueBaseUrl: string;
 }) {
   const unavailable = !panel.inLegacyEngine && engineMode === 'legacy';
+  // Opened before its Epics arrived: rows are only sent for the panels the page asked for.
+  const awaitingRows = !panel.rowsLoaded && panel.totalCount > 0;
   const bodyId = `rule-body-${panel.code}`;
   const Chevron = isOpen ? CaretDown : CaretRight;
   return (
@@ -141,8 +144,8 @@ function RulePanel({ engineMode, isOpen, onBrowse, onPageChange, onToggle, panel
           type="button"
         >
           <Chevron aria-hidden="true" className="size-4 shrink-0 text-fb-text-secondary" weight="bold" />
-          <Badge variant="neutral">{panel.code}</Badge>
-          <h2 className="text-sm font-extrabold text-fb-text-primary" id={`rule-${panel.code}`}>{panel.label}</h2>
+          <Badge variant="neutral">{panel.tag}</Badge>
+          <h2 className="text-sm font-normal text-fb-text-primary" id={`rule-${panel.code}`}>{panel.label}</h2>
           <Badge variant={panel.totalCount > 0 ? 'warning' : 'success'}>{panel.totalCount} Epic</Badge>
         </button>
         {isOpen && (
@@ -160,7 +163,9 @@ function RulePanel({ engineMode, isOpen, onBrowse, onPageChange, onToggle, panel
 
       {isOpen && (
         <div id={bodyId}>
-          {panel.rows.length === 0 ? (
+          {awaitingRows ? (
+            <div className="p-4"><TableSkeleton rows={3} /></div>
+          ) : panel.rows.length === 0 ? (
             <EmptyState
               className="m-4"
               title={unavailable ? 'Rule chỉ có ở Scoring Service' : 'Không có Epic cần chuẩn hoá'}
@@ -223,15 +228,24 @@ export default function DataNormalizationPage() {
   const [filterPmSms, setFilterPmSms] = useState<string[]>([]);
   const [filterRequestingUnits, setFilterRequestingUnits] = useState<string[]>([]);
   const [pages, setPages] = useState<Record<string, number>>({});
-  // Every panel starts collapsed: eight rules of up to 25 Epics each make a very long page.
+  // Every panel starts collapsed: ten panels of up to 25 Epics each make a very long page.
   const [openPanels, setOpenPanels] = useState<ReadonlySet<string>>(new Set());
-  const togglePanel = (code: string) => setOpenPanels((current) => {
-    const next = new Set(current);
-    if (!next.delete(code)) next.add(code);
-    return next;
-  });
+  // The panels whose Epic rows the API is asked for: every panel opened so far. It only grows, so
+  // collapsing a panel doesn't refetch and reopening it shows its rows at once.
+  const [requestedPanels, setRequestedPanels] = useState<readonly string[]>([]);
+  const togglePanel = (code: string) => {
+    setOpenPanels((current) => {
+      const next = new Set(current);
+      if (!next.delete(code)) next.add(code);
+      return next;
+    });
+    setRequestedPanels((current) => (current.includes(code) ? current : [...current, code].sort()));
+  };
 
-  const filterOptions = data?.filterOptions ?? EMPTY_FILTER_OPTIONS;
+  // The toolbar options cover the viewer's whole scope and don't depend on the filters: sent with the
+  // first response only, kept here for the rest of the visit.
+  const [filterOptions, setFilterOptions] = useState<TtmDashboard2FilterOptions>(EMPTY_FILTER_OPTIONS);
+  const hasFilterOptionsRef = useRef(false);
   const isAdminOrSupervisor = data ? ['SUPERADMIN', 'ADMIN', 'SUPERVISOR'].includes(data.actor.role) : false;
 
   // "Component" depends on "Dự án" (same rule as TTM Dashboard 2 / Quản trị Epic).
@@ -254,14 +268,16 @@ export default function DataNormalizationPage() {
   const query = useMemo(() => {
     const params = new URLSearchParams();
     if (filterDomain) params.set('domain', filterDomain);
-    if (filterProjects.length) params.set('projects', filterProjects.join(','));
-    if (filterComponents.length) params.set('components', filterComponents.join(','));
-    if (filterPmSms.length) params.set('pmSms', filterPmSms.join(','));
-    if (filterRequestingUnits.length) params.set('requestingUnits', filterRequestingUnits.join(','));
+    // One value per repeated key — a "Đơn vị yêu cầu" or component name may contain a comma.
+    for (const key of filterProjects) params.append('projects', key);
+    for (const component of filterComponents) params.append('components', component);
+    for (const name of filterPmSms) params.append('pmSms', name);
+    for (const unit of filterRequestingUnits) params.append('requestingUnits', unit);
+    if (requestedPanels.length) params.set('open', requestedPanels.join(','));
     const pageText = pagesParam(pages);
     if (pageText) params.set('pages', pageText);
     return params.toString();
-  }, [filterComponents, filterDomain, filterPmSms, filterProjects, filterRequestingUnits, pages]);
+  }, [filterComponents, filterDomain, filterPmSms, filterProjects, filterRequestingUnits, pages, requestedPanels]);
 
   const requestIdRef = useRef(0);
   useEffect(() => {
@@ -270,13 +286,19 @@ export default function DataNormalizationPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/data-normalization${query ? `?${query}` : ''}`, { cache: 'no-store' });
+        const fullQuery = [query, hasFilterOptionsRef.current ? '' : 'options=1'].filter(Boolean).join('&');
+        const res = await fetch(`/api/data-normalization${fullQuery ? `?${fullQuery}` : ''}`, { cache: 'no-store' });
         const json: unknown = await res.json();
         if (requestIdRef.current !== requestId) return;
         if (!res.ok) {
           throw new Error(typeof json === 'object' && json !== null && 'error' in json && typeof json.error === 'string' ? json.error : 'Không thể tải dữ liệu.');
         }
-        setData(json as DataNormalizationResponse);
+        const payload = json as DataNormalizationResponse;
+        if (payload.filterOptions) {
+          hasFilterOptionsRef.current = true;
+          setFilterOptions(payload.filterOptions);
+        }
+        setData(payload);
       } catch (err) {
         if (requestIdRef.current !== requestId) return;
         setError(err instanceof Error ? err.message : 'Đã có lỗi xảy ra.');
@@ -297,7 +319,7 @@ export default function DataNormalizationPage() {
           </div>
           <div>
             <h1 className="text-sm font-extrabold uppercase tracking-tight text-fb-text-primary">Chuẩn hoá dữ liệu</h1>
-            <p className="text-[11px] text-fb-text-secondary">Epic cần chuẩn hoá theo từng rule Sai lệch dữ liệu • một Epic có thể nằm ở nhiều rule</p>
+            <p className="text-[11px] text-fb-text-secondary">Epic thiếu lý do Fail TTM và Epic cần chuẩn hoá theo từng rule Sai lệch dữ liệu • một Epic có thể nằm ở nhiều bảng</p>
           </div>
         </div>
         {data && (

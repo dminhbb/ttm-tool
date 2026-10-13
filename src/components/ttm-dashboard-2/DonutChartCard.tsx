@@ -243,7 +243,7 @@ export function DonutChartCard({
             className="text-2xl font-black leading-none tabular-nums text-fb-text-primary"
             style={{ color: activeItem ? activeItem.color : undefined }}
           >
-            {activeItem ? `${activeItem.pct}%` : total}
+            {activeItem ? `${activeItem.pct}%` : formatEpicCount(total)}
           </span>
           <span
             className="text-[11px] font-semibold text-fb-text-placeholder mt-1 truncate max-w-[100px] leading-tight"

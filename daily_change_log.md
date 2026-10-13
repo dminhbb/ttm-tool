@@ -6,6 +6,14 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-10-13
+
+- **Chuẩn hoá dữ liệu — thêm 2 bảng, đổi thứ tự** (`src/lib/data-normalization.ts`): bảng đầu tiên là "Thiếu lý do Fail TTM" (Epic Fail TTM-CNTT trong Phạm vi dữ liệu cho TTM chưa ghi lý do — đúng tập Epic của widget trên TTM Dashboard 2; chỉ có ở Scoring Service); thêm bảng R7 "Sai Status (Release)" giữa R6 và R8. R2 "Pending lâu" vẫn không có bảng, và Epic chỉ vi phạm R2 không còn bị đếm vào "Epic cần chuẩn hoá" khi bật engine legacy. Tiêu đề các bảng dùng chữ thường (không đậm).
+- **Chuẩn hoá dữ liệu — mô tả rule theo engine đang bật** (`describeNormalizationPanel`): khi engine hiển thị là legacy, R1 / R5 / R7 hiện đúng điều kiện mà engine legacy chấm (R1 từ In Progress và không xét Pending; R5 ở mọi status không được miễn; R7 là Sai lệch dữ liệu) thay vì lời mô tả của Scoring Service.
+- **Chuẩn hoá dữ liệu — nhẹ hơn mỗi request** (`data-normalization-service.ts`, `queryDashboardEpicRows`, `src/app/data-normalization/page.tsx`): chỉ đọc từ cache các Epic có thể nằm trong một bảng (`has_data_anomaly` hoặc mang badge Sai Status Release / Thiếu lý do — 167/1.331 Epic ngày 13/10) thay vì toàn bộ phạm vi; dòng Epic và ngày Jira chỉ trả cho các bảng đang mở (`open=`), bảng đóng chỉ có số đếm; danh sách bộ lọc chỉ gửi ở lần tải đầu (`options=1`); khi không có cache, bộ lọc dựng từ chính các dòng vừa tải nên không còn tính toàn bộ Epic hai lần.
+- **Chuẩn hoá dữ liệu — bộ lọc danh sách gửi dạng tham số lặp** (`src/app/api/data-normalization/route.ts`): `projects` / `components` / `pmSms` / `requestingUnits` mỗi giá trị một tham số thay vì nối dấu phẩy, nên tên đơn vị yêu cầu hay component có dấu phẩy không còn bị tách.
+- **Donut TTM Dashboard 2** (`DonutChartCard.tsx`): số tổng ở tâm cũng làm tròn bằng `formatEpicCount` (trước chỉ chú giải và tooltip).
+
 ## 2026-10-12
 
 - **Chuẩn hoá dữ liệu — chỉnh giao diện** (`src/app/data-normalization/page.tsx`): panel mỗi rule có thể đóng/mở bằng cách bấm tiêu đề, mặc định đóng, tiêu đề luôn hiện số Epic lỗi; cụm điều hướng trang không còn xuống dòng (select `.ttm-select` bị `flex: 1 1 140px` làm phình, nay đặt bề rộng cố định); bảng: cột Epic chỉ còn icon + key, Summary tách thành cột riêng, bỏ loại Epic và PM/SM, hàng thấp hơn (`!py-1`).

@@ -4,6 +4,7 @@ import { DASHBOARD_EPIC_ROW_KEYS } from '@/lib/epic-alert-types';
 import { LIST_GROUP_RANK_SQL } from '@/lib/epic-alert-sort-rules';
 import type { DashboardEpicRow, EpicAlertRowPhased } from '@/lib/epic-alert-types';
 import { UNASSIGNED_PM_SM } from '@/lib/epic-pm-sm-assignment';
+import { NORMALIZATION_BADGE_CODES } from '@/lib/data-normalization';
 import { summarizeTtmCnttFromCounts } from '@/lib/ttm-cntt-qa';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import { compareWorkflowStatus } from '@/lib/scoring/derive';
@@ -391,9 +392,18 @@ export async function queryEpicAlertFilterOptions(scope: AccessScope): Promise<E
 /** TTM Dashboard's full row set — every non-cancelled Epic in the viewer's access scope (the
  * dashboard drops Cancelled everywhere, and filters/aggregates the rest client-side), already
  * slimmed to DashboardEpicRow in SQL so the unused bulk of row_data never leaves the database. */
-export async function queryDashboardEpicRows(scope: AccessScope, options: { includeCancelled?: boolean } = {}): Promise<DashboardEpicRow[]> {
+export async function queryDashboardEpicRows(scope: AccessScope, options: { includeCancelled?: boolean; needsNormalizationOnly?: boolean } = {}): Promise<DashboardEpicRow[]> {
   const params: unknown[] = [];
   const accessClause = buildAccessScopeClause(scope, params);
+  // "Chuẩn hoá dữ liệu": only the Epics that can be in one of its panels — a "Sai lệch dữ liệu" Epic
+  // (has_data_anomaly, either display engine) or one carrying a badge the screen lists without it being
+  // a violation. A superset on purpose (badge_codes also holds the shadow scorecard under the legacy
+  // engine): the screen decides panel membership itself, this only keeps the other Epics in the database.
+  let normalizationClause = '';
+  if (options.needsNormalizationOnly) {
+    params.push([...NORMALIZATION_BADGE_CODES]);
+    normalizationClause = ` AND (has_data_anomaly OR badge_codes && $${params.length}::text[])`;
+  }
   const fieldsSql = DASHBOARD_EPIC_ROW_KEYS.map((key) => `'${key}', row_data->'${key}'`).join(', ');
   const result = await pool.query<{ row: DashboardEpicRow }>(
     `
@@ -406,7 +416,7 @@ export async function queryDashboardEpicRows(scope: AccessScope, options: { incl
       )
     ) AS row
     FROM epic_alert_row_cache
-    WHERE ${accessClause}${options.includeCancelled ? '' : " AND current_status !~* 'cancel'"}
+    WHERE ${accessClause}${options.includeCancelled ? '' : " AND current_status !~* 'cancel'"}${normalizationClause}
     ORDER BY ${ORDER_BY};
     `,
     params,
