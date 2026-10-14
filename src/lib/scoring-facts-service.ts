@@ -30,6 +30,7 @@ interface EpicFactRow {
   khauSa: string | null;
   khauSitUat: string | null;
   noteLyDoKhac: string | null;
+  mainFailDept: string | null;
 }
 
 /**
@@ -72,7 +73,8 @@ export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]
         issues.khau_pentest AS "khauPentest",
         issues.khau_sa AS "khauSa",
         issues.khau_sit_uat AS "khauSitUat",
-        issues.note_ly_do_khac AS "noteLyDoKhac"
+        issues.note_ly_do_khac AS "noteLyDoKhac",
+        issues.main_fail_dept AS "mainFailDept"
       FROM issues
       LEFT JOIN import_rows
         ON import_rows.import_batch_id = issues.source_import_batch_id
@@ -114,6 +116,7 @@ export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]
       khauSa: row.khauSa,
       khauSitUat: row.khauSitUat,
       noteLyDoKhac: row.noteLyDoKhac,
+      responsibleDepartment: row.mainFailDept,
     };
   });
 }

@@ -40,3 +40,18 @@ describe('PyJiraApiAdapter — new CSV fields (previous_status & khau_* causes)'
     assert.equal(epic.noteLyDoKhac, undefined);
   });
 });
+
+describe('PyJiraApiAdapter — main_fail_dept ("Phòng chịu trách nhiệm chính", 2026-10-14)', () => {
+  const header = 'hierarchy_level,project_key,epic_key,epic_name,epic_status,epic_r4g_date,main_fail_dept';
+
+  it('reads main_fail_dept on an epic row (column without the epic_ prefix)', () => {
+    const epic = parsePyJiraApi(`${header}\nepic,WM,WM-1,Epic A,Released,2026-08-24,Phòng PTUD`).issues[0];
+    assert.equal(epic.mainFailDept, 'Phòng PTUD');
+  });
+
+  it('keeps "None" as sent (the rule treats it as empty) and leaves a blank cell undefined', () => {
+    const [withNone, blank] = parsePyJiraApi(`${header}\nepic,WM,WM-2,Epic B,Released,2026-08-24,None\nepic,WM,WM-3,Epic C,Released,2026-08-24,`).issues;
+    assert.equal(withNone.mainFailDept, 'None');
+    assert.equal(blank.mainFailDept, undefined);
+  });
+});

@@ -84,8 +84,8 @@ export const BADGES = [
   },
   {
     id: 'REC_MISSING_RESPONSIBLE_DEPARTMENT', axis: 'TTM_CNTT', group: 'RECOMMENDATION', label: 'Thiếu phòng chịu TN chính', precedence: 36, defaultEnabled: true,
-    meaning: 'Fail TTM chưa có phòng chịu trách nhiệm chính: Epic bị đánh giá Fail TTM-CNTT (QLDA) với R4G Date muộn hơn Target nhưng trường "Phòng chịu trách nhiệm chính" còn trống. Mới từ 14/10/2026 — trường này chưa có trong dữ liệu import, nên tới khi được bổ sung mọi Epic thoả điều kiện Fail đều bị cảnh báo.',
-    formula: 'Có "Fail TTM-CNTT (QLDA)"  VÀ  có R4G Date và R4G Date > Target_CNTT  VÀ  "Phòng chịu trách nhiệm chính" trống hoặc "none"',
+    meaning: 'Fail TTM chưa có phòng chịu trách nhiệm chính: Epic bị đánh giá Fail TTM-CNTT (QLDA) với R4G Date muộn hơn Target nhưng trường "Phòng chịu trách nhiệm chính" (main_fail_dept, import từ 14/10/2026) còn trống hoặc là "None" — Jira trả "None" khi trường chưa được nhập.',
+    formula: 'Có "Fail TTM-CNTT (QLDA)"  VÀ  có R4G Date và R4G Date > Target_CNTT  VÀ  main_fail_dept trống hoặc "None" (không phân biệt hoa thường)',
   },
   {
     id: 'CNTT_LATE', axis: 'TTM_CNTT', group: 'ALERT', label: 'Cảnh báo muộn', precedence: 40, defaultEnabled: true,

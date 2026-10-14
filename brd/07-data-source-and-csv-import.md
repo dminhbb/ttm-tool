@@ -48,6 +48,11 @@ JiraDbQueryDataSourceAdapter
 > `JiraDbQueryDataSourceAdapter` (gọi sống tới Jira, không qua file trung gian) vẫn là roadmap tương
 > lai, chưa triển khai.
 
+Cột `main_fail_dept` ở dòng Epic (bổ sung 2026-10-14, không có tiền tố `epic_`; adapter Pure Jira Export nhận
+`main_fail_dept` / `epic_main_fail_dept` / "Phòng chịu trách nhiệm chính") — "Phòng chịu trách nhiệm chính" của Epic
+Fail TTM → `issues.main_fail_dept`. Hiển thị ở Duyệt Epic → Giải trình Fail TTM; Scoring Service cảnh báo
+`REC_MISSING_RESPONSIBLE_DEPARTMENT` khi Epic Fail có R4G Date muộn hơn Target mà trường này trống hoặc "None".
+
 Adapter Py Jira API nhận thêm 2 cột **tùy chọn** ở dòng Epic (bổ sung 2026-10-14), chỉ dùng cho rule
 Từ chối import (§2.2) — file không có 2 cột này vẫn import bình thường:
 

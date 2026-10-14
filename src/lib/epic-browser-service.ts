@@ -231,6 +231,7 @@ export interface EpicBrowserSummary {
   khauSa: string | null;
   khauSitUat: string | null;
   noteLyDoKhac: string | null;
+  mainFailDept: string | null;
   /** PM/SM of the Epic's project — comma-joined when there are several, derived live from
    * user_projects (getProjectMetaByProjectKeyMap), not the Jira assignee. */
   ownerName: string;
@@ -245,6 +246,8 @@ export interface EpicBrowserSummary {
   ttmCnttVerdict?: 'PASS' | 'FAIL' | 'DATA_ANOMALY' | 'EXCLUDED' | 'PENDING' | 'N_A';
   ttmCnttVerdictLabel?: string;
   hasMissingFailReason?: boolean;
+  /** Fail TTM-CNTT with a late R4G Date but no "Phòng chịu trách nhiệm chính" (REC_MISSING_RESPONSIBLE_DEPARTMENT). */
+  hasMissingResponsibleDepartment?: boolean;
 }
 
 interface EpicBrowserSummaryRow {
@@ -269,6 +272,7 @@ interface EpicBrowserSummaryRow {
   khauSa: string | null;
   khauSitUat: string | null;
   noteLyDoKhac: string | null;
+  mainFailDept: string | null;
   project: string | null;
   requestingUnit: string | null;
   startDate: string | null;
@@ -280,24 +284,25 @@ interface EpicBrowserSummaryRow {
  * "Quản trị Epic" lists, already carrying the verdicts of whichever display engine is switched on —
  * and judged through the same "Nhận xét" filters, so the popup can't disagree with the list.
  */
-function ttmCnttVerdictOf(row: EpicAlertRowPhased | null, ttmBlackListed: boolean): Pick<EpicBrowserSummary, 'hasMissingFailReason' | 'ttmCnttVerdict' | 'ttmCnttVerdictLabel'> {
+function ttmCnttVerdictOf(row: EpicAlertRowPhased | null, ttmBlackListed: boolean): Pick<EpicBrowserSummary, 'hasMissingFailReason' | 'hasMissingResponsibleDepartment' | 'ttmCnttVerdict' | 'ttmCnttVerdictLabel'> {
   if (!row) {
     // No displayed row (cache not built yet, or the Epic isn't in the latest data layer): no verdict to show.
     return ttmBlackListed
-      ? { hasMissingFailReason: false, ttmCnttVerdict: 'EXCLUDED', ttmCnttVerdictLabel: 'Epic ngoại lệ' }
-      : { hasMissingFailReason: false, ttmCnttVerdict: 'N_A', ttmCnttVerdictLabel: 'Chưa kết luận' };
+      ? { hasMissingFailReason: false, hasMissingResponsibleDepartment: false, ttmCnttVerdict: 'EXCLUDED', ttmCnttVerdictLabel: 'Epic ngoại lệ' }
+      : { hasMissingFailReason: false, hasMissingResponsibleDepartment: false, ttmCnttVerdict: 'N_A', ttmCnttVerdictLabel: 'Chưa kết luận' };
   }
   // Only the "khâu fail" half of "Thiếu lý do": the popup shows it next to the stage fields it is about.
   const hasMissingFailReason = matchesAlertFilter(row, 'MISSING_FAIL_STAGE');
-  if (matchesAlertFilter(row, 'ACHIEVED_CNTT')) return { hasMissingFailReason, ttmCnttVerdict: 'PASS', ttmCnttVerdictLabel: 'Pass TTM-CNTT' };
-  if (matchesAlertFilter(row, 'FAIL')) return { hasMissingFailReason, ttmCnttVerdict: 'FAIL', ttmCnttVerdictLabel: 'Fail TTM-CNTT' };
-  if (row.hasDataAnomaly) return { hasMissingFailReason, ttmCnttVerdict: 'DATA_ANOMALY', ttmCnttVerdictLabel: 'Sai lệch dữ liệu' };
-  if (row.ttmExclusion) return { hasMissingFailReason, ttmCnttVerdict: 'EXCLUDED', ttmCnttVerdictLabel: 'Epic ngoại lệ' };
-  if (!row.ttmCnttInScope) return { hasMissingFailReason, ttmCnttVerdict: 'N_A', ttmCnttVerdictLabel: 'Ngoài phạm vi TTM-CNTT' };
+  const hasMissingResponsibleDepartment = matchesAlertFilter(row, 'MISSING_RESPONSIBLE_DEPARTMENT');
+  if (matchesAlertFilter(row, 'ACHIEVED_CNTT')) return { hasMissingFailReason, hasMissingResponsibleDepartment, ttmCnttVerdict: 'PASS', ttmCnttVerdictLabel: 'Pass TTM-CNTT' };
+  if (matchesAlertFilter(row, 'FAIL')) return { hasMissingFailReason, hasMissingResponsibleDepartment, ttmCnttVerdict: 'FAIL', ttmCnttVerdictLabel: 'Fail TTM-CNTT' };
+  if (row.hasDataAnomaly) return { hasMissingFailReason, hasMissingResponsibleDepartment, ttmCnttVerdict: 'DATA_ANOMALY', ttmCnttVerdictLabel: 'Sai lệch dữ liệu' };
+  if (row.ttmExclusion) return { hasMissingFailReason, hasMissingResponsibleDepartment, ttmCnttVerdict: 'EXCLUDED', ttmCnttVerdictLabel: 'Epic ngoại lệ' };
+  if (!row.ttmCnttInScope) return { hasMissingFailReason, hasMissingResponsibleDepartment, ttmCnttVerdict: 'N_A', ttmCnttVerdictLabel: 'Ngoài phạm vi TTM-CNTT' };
   if (row.scoringFindings?.some((item) => item.badge === 'CNTT_NOT_APPLICABLE' || item.badge === 'CNTT_CALC_BROKEN')) {
-    return { hasMissingFailReason, ttmCnttVerdict: 'N_A', ttmCnttVerdictLabel: 'Chưa kết luận' };
+    return { hasMissingFailReason, hasMissingResponsibleDepartment, ttmCnttVerdict: 'N_A', ttmCnttVerdictLabel: 'Chưa kết luận' };
   }
-  return { hasMissingFailReason, ttmCnttVerdict: 'PENDING', ttmCnttVerdictLabel: 'Đang thực hiện' };
+  return { hasMissingFailReason, hasMissingResponsibleDepartment, ttmCnttVerdict: 'PENDING', ttmCnttVerdictLabel: 'Đang thực hiện' };
 }
 
 export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowserSummary | null> {
@@ -325,6 +330,7 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
         issues.khau_sa AS "khauSa",
         issues.khau_sit_uat AS "khauSitUat",
         issues.note_ly_do_khac AS "noteLyDoKhac",
+        issues.main_fail_dept AS "mainFailDept",
         issues.requesting_unit AS "requestingUnit", issues.aggregated_at::text AS "aggregatedAt",
         COALESCE(
           NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
@@ -390,6 +396,7 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
     khauSa: row.khauSa,
     khauSitUat: row.khauSitUat,
     noteLyDoKhac: row.noteLyDoKhac,
+    mainFailDept: row.mainFailDept,
     // The PM/SMs responsible for this Epic's components (epic-pm-sm-assignment.ts) — the displayed row
     // already carries them; without one, every PM/SM of the project as before.
     ownerName: displayedRow ? displayedRow.ownerName : projectMeta?.leadName ?? '',

@@ -44,6 +44,7 @@ export interface RawJiraIssue {
   khauSa?: string;         // epic_khau_sa
   khauSitUat?: string;     // epic_khau_sit_uat
   noteLyDoKhac?: string;   // epic_note_ly_do_khac
+  mainFailDept?: string;   // main_fail_dept — "Phòng chịu trách nhiệm chính" (2026-10-14)
 }
 
 export function parseCSV(csvText: string): string[][] {
@@ -150,6 +151,7 @@ export function mapCSVToRawIssues(rows: string[][]): { issues: RawJiraIssue[]; h
   const idxKhauSa = getIndex(['epic_khau_sa', 'Khâu SA']);
   const idxKhauSitUat = getIndex(['epic_khau_sit_uat', 'Khâu SIT/UAT', 'Khâu SIT UAT']);
   const idxNoteLyDoKhac = getIndex(['epic_note_ly_do_khac', 'Note lý do khác']);
+  const idxMainFailDept = getIndex(['main_fail_dept', 'epic_main_fail_dept', 'Phòng chịu trách nhiệm chính']);
   
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r];
@@ -193,6 +195,7 @@ export function mapCSVToRawIssues(rows: string[][]): { issues: RawJiraIssue[]; h
       khauSa: getValue(idxKhauSa) || undefined,
       khauSitUat: getValue(idxKhauSitUat) || undefined,
       noteLyDoKhac: getValue(idxNoteLyDoKhac) || undefined,
+      mainFailDept: getValue(idxMainFailDept) || undefined,
     });
   }
   

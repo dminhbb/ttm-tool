@@ -117,6 +117,9 @@ describe('TTM-CNTT', () => {
     const withDepartment = active(makeFacts({ r4gDate: '2026-08-24', status: 'R4GOLIVE', responsibleDepartment: 'Phòng PTUD' }), ctx);
     assert.ok(withDepartment.has('REC_MISSING_FAIL_REASON') && !withDepartment.has('REC_MISSING_RESPONSIBLE_DEPARTMENT'));
     assert.ok(active(makeFacts({ r4gDate: '2026-08-24', status: 'R4GOLIVE', responsibleDepartment: ' none ' }), ctx).has('REC_MISSING_RESPONSIBLE_DEPARTMENT'));
+    // main_fail_dept = "None" (what Jira sends for an empty field) means missing too.
+    assert.ok(active(makeFacts({ r4gDate: '2026-08-24', status: 'R4GOLIVE', responsibleDepartment: 'None' }), ctx).has('REC_MISSING_RESPONSIBLE_DEPARTMENT'));
+    assert.ok(active(makeFacts({ r4gDate: '2026-08-24', status: 'R4GOLIVE', responsibleDepartment: 'NONE' }), ctx).has('REC_MISSING_RESPONSIBLE_DEPARTMENT'));
     const withStage = active(makeFacts({ r4gDate: '2026-08-24', status: 'R4GOLIVE', khauDev: 'Chậm dev' }), ctx);
     assert.ok(!withStage.has('REC_MISSING_FAIL_REASON') && withStage.has('REC_MISSING_RESPONSIBLE_DEPARTMENT'));
     // A passing Epic gets neither.

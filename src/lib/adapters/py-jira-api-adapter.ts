@@ -20,6 +20,7 @@
  *             source of truth for the epic/story link, which is still epic_key on story rows),
  *           epic_request_level (maps to issues.requirement_level — older files may still name
  *             this column epic_requirement_level, accepted as a fallback for backward compat),
+ *           main_fail_dept ("Phòng chịu trách nhiệm chính" of a Fail TTM — no epic_ prefix),
  *           optional epic_issue_type / epic_status_changed_at (read only by the "Từ chối import"
  *             rules — see import-admission-rules.ts)
  *
@@ -114,6 +115,8 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
     epic_khau_sa: idx('epic_khau_sa'),
     epic_khau_sit_uat: idx('epic_khau_sit_uat'),
     epic_note_ly_do_khac: idx('epic_note_ly_do_khac'),
+    // "Phòng chịu trách nhiệm chính" (2026-10-14) — the crawl names it main_fail_dept, without the epic_ prefix.
+    main_fail_dept: idx('main_fail_dept') >= 0 ? idx('main_fail_dept') : idx('epic_main_fail_dept'),
     // Optional, read only by the "Từ chối import" rules (import-admission-rules.ts): Jira's own
     // level-1 issue type and the date the Epic moved to its current status.
     epic_issue_type: idx('epic_issue_type'),
@@ -200,6 +203,7 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
         khauSa: get(COL.epic_khau_sa) || undefined,
         khauSitUat: get(COL.epic_khau_sit_uat) || undefined,
         noteLyDoKhac: get(COL.epic_note_ly_do_khac) || undefined,
+        mainFailDept: get(COL.main_fail_dept) || undefined,
         sourceIssueType: get(COL.epic_issue_type) || undefined,
         statusChangedAt: get(COL.epic_status_changed_at) || undefined,
       };

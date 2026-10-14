@@ -538,7 +538,7 @@ export async function processImport(
         'idea_approved_date', 'start_date', 'r4g_date', 'due_date',
         'epic_complexity_type', 'requirement_level', 'requesting_unit', 'source_import_batch_id', 'aggregated_at',
         'jira_created_at', 'jira_updated_at', 'epic_stories', 'story_subtasks', 'components',
-        'previous_status', 'khau_ba', 'khau_co', 'khau_dev', 'khau_pm_sm', 'khau_po', 'khau_pentest', 'khau_sa', 'khau_sit_uat', 'note_ly_do_khac',
+        'previous_status', 'khau_ba', 'khau_co', 'khau_dev', 'khau_pm_sm', 'khau_po', 'khau_pentest', 'khau_sa', 'khau_sit_uat', 'note_ly_do_khac', 'main_fail_dept',
       ];
       const insertIssueUpdateClause = `
         ON CONFLICT (issue_key, source_import_batch_id) DO UPDATE SET
@@ -571,6 +571,7 @@ export async function processImport(
           khau_sa = EXCLUDED.khau_sa,
           khau_sit_uat = EXCLUDED.khau_sit_uat,
           note_ly_do_khac = EXCLUDED.note_ly_do_khac,
+          main_fail_dept = EXCLUDED.main_fail_dept,
           updated_at = NOW();
       `;
 
@@ -619,6 +620,7 @@ export async function processImport(
           issue.khauSa || null,
           issue.khauSitUat || null,
           issue.noteLyDoKhac || null,
+          issue.mainFailDept || null,
         ];
       });
 

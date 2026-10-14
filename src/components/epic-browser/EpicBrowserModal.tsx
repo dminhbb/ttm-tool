@@ -176,7 +176,7 @@ function TtmBlackListTopToggle({
  * - Nút duy nhất ở hàng trên: Toggle 'Epic ngoại lệ' kèm hover tooltip
  * - Panel Details: Bố trí 2 cột (Trái/Phải)
  * - Panel "Issues in Epic": Khung border nét đứt, chứa bảng phân cấp 4 cột (Issue Type | Issue Key | Summary | Status)
- * - Panel "Giải trình Fail TTM": Thiết kế giống Details, 2 cột hiển thị các nguyên nhân khâu BA, CO, DEV, PM/SM, PO, Pentest, SA, SIT/UAT, Lý do khác.
+ * - Panel "Giải trình Fail TTM": Thiết kế giống Details, 2 cột hiển thị các nguyên nhân khâu BA, CO, DEV, PM/SM, PO, Pentest, SA, SIT/UAT, Lý do khác và Phòng chịu TN chính (main_fail_dept).
  */
 export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
   const [root, setRoot] = React.useState<DataReviewIssue | null>(null);
@@ -509,6 +509,16 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
                         <span>Thiếu lý do Fail TTM</span>
                       </span>
                     )}
+
+                    {summary?.hasMissingResponsibleDepartment && (
+                      <span
+                        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-xs bg-status-danger-soft text-status-danger border-status-danger"
+                        title="Epic Fail TTM-CNTT (R4G Date muộn hơn Target) nhưng chưa có Phòng chịu trách nhiệm chính"
+                      >
+                        <Warning className="size-3.5 text-status-danger" weight="bold" />
+                        <span>Thiếu phòng chịu TN chính</span>
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -579,6 +589,14 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
                         <span className="w-36 font-semibold text-fb-text-placeholder">Lý do khác:</span>
                         <span className="font-medium text-fb-text-primary">
                           {summary?.noteLyDoKhac || '-'}
+                        </span>
+                      </div>
+
+                      {/* main_fail_dept (2026-10-14) — Jira sends "None" for an empty value. */}
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Phòng chịu TN chính:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {summary?.mainFailDept && summary.mainFailDept.trim().toLowerCase() !== 'none' ? summary.mainFailDept : '-'}
                         </span>
                       </div>
                     </div>
