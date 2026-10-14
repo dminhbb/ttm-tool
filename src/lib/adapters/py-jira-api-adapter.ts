@@ -19,7 +19,9 @@
  *           epic_stories (comma/semicolon-separated story keys, stored verbatim — not the
  *             source of truth for the epic/story link, which is still epic_key on story rows),
  *           epic_request_level (maps to issues.requirement_level — older files may still name
- *             this column epic_requirement_level, accepted as a fallback for backward compat)
+ *             this column epic_requirement_level, accepted as a fallback for backward compat),
+ *           optional epic_issue_type / epic_status_changed_at (read only by the "Từ chối import"
+ *             rules — see import-admission-rules.ts)
  *
  * Story  : story_key, story_issue_type, story_summary, story_status, story_assignee,
  *           story_components, story_subtasks (comma/semicolon-separated subtask keys, stored
@@ -112,6 +114,10 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
     epic_khau_sa: idx('epic_khau_sa'),
     epic_khau_sit_uat: idx('epic_khau_sit_uat'),
     epic_note_ly_do_khac: idx('epic_note_ly_do_khac'),
+    // Optional, read only by the "Từ chối import" rules (import-admission-rules.ts): Jira's own
+    // level-1 issue type and the date the Epic moved to its current status.
+    epic_issue_type: idx('epic_issue_type'),
+    epic_status_changed_at: idx('epic_status_changed_at'),
     // epic_request_level is the current column name; epic_requirement_level is kept as a fallback
     // for files exported before the rename, so older files keep importing this field correctly.
     epic_requirement_level: idx('epic_request_level') >= 0 ? idx('epic_request_level') : idx('epic_requirement_level'),
@@ -194,6 +200,8 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
         khauSa: get(COL.epic_khau_sa) || undefined,
         khauSitUat: get(COL.epic_khau_sit_uat) || undefined,
         noteLyDoKhac: get(COL.epic_note_ly_do_khac) || undefined,
+        sourceIssueType: get(COL.epic_issue_type) || undefined,
+        statusChangedAt: get(COL.epic_status_changed_at) || undefined,
       };
     } else if (level === 'story') {
       const key = get(COL.story_key);

@@ -21,6 +21,9 @@ import { ADAPTER_TYPES, DEFAULT_ADAPTER, type AdapterType } from './adapters/ind
 import { parsePyJiraApi } from './adapters/py-jira-api-adapter';
 import { parsePureJiraExport } from './adapters/pure-jira-export-adapter';
 import { refreshDerivedCaches } from './daily-cache-service';
+import { getImportAdmissionSettings, loadImportAdmissionList, loadLastUnreleasedSeen, recordDeniedEpicsOfImport } from './denied-import-service';
+import { describeViolations, normalizeEpicKey, planImportAdmission, vietnamIsoDate } from './import-admission-rules';
+import { isLevel1IssueType } from './issue-hierarchy';
 
 // See the write-loop this guards, near the bottom of aggregateBatchData.
 const MILESTONE_RECORDING_ENABLED = false;
@@ -310,6 +313,8 @@ export interface ImportBatch {
    * failed validation are skipped individually (see `validIssues` in processImport), every other
    * row in the batch is still ingested and aggregated normally. */
   status: 'SUCCESS' | 'FAILED' | 'COMPLETED_WITH_WARNINGS';
+  /** Rows dropped by "Từ chối import" (from metadata_json; 0 for batches imported before it). */
+  deniedRows: number;
 }
 
 export interface BatchValidationDetail {
@@ -329,6 +334,21 @@ export interface ImportResult {
   errorRows: number;
   status: 'SUCCESS' | 'FAILED' | 'COMPLETED_WITH_WARNINGS';
   validationReport: RowValidationResult[];
+  /** Rows dropped by "Từ chối import" — not counted in totalRows. */
+  deniedRows: number;
+  deniedEpics: ImportDeniedEpic[];
+}
+
+export interface ImportDeniedEpic {
+  epicKey: string;
+  /** LIST: listed in Từ chối import; RULE: denied now by an automatic rule (and listed as AUTO_RULE). */
+  origin: 'LIST' | 'RULE';
+  reason: string;
+}
+
+/** Calendar day (Vietnam) of a raw date of the import file, for the "Từ chối import" rules. */
+function admissionIsoDate(raw: string): string | null {
+  return vietnamIsoDate(parseJiraDate(raw));
 }
 
 /** importType/importedBy just label the import_batches row for the history screen — default
@@ -345,16 +365,32 @@ export async function processImport(
   importedBy: string = 'System',
 ): Promise<ImportResult> {
   // 1. Parse CSV — dispatch to the correct adapter
-  let rawIssues;
+  let parsedIssues;
   if (adapterType === ADAPTER_TYPES.PY_JIRA_API) {
-    ({ issues: rawIssues } = parsePyJiraApi(csvText));
+    ({ issues: parsedIssues } = parsePyJiraApi(csvText));
   } else {
     // PURE_JIRA_EXPORT (original / legacy path)
     const parsedRows = parseCSV(csvText);
-    ({ issues: rawIssues } = mapCSVToRawIssues(parsedRows));
+    ({ issues: parsedIssues } = mapCSVToRawIssues(parsedRows));
     // parsePureJiraExport is a thin wrapper — call it for symmetry in future
     void parsePureJiraExport; // explicit reference so tree-shaking keeps the module
   }
+
+  // 1b. "Từ chối import" — drop every row of a denied Epic (listed in denied_import_epics, or breaking
+  // an automatic rule) before anything is validated or stored: the rest of the pipeline never sees
+  // them, not even import_rows. See import-admission-rules.ts.
+  const [admissionList, admissionSettings, lastUnreleasedSeen] = await Promise.all([
+    loadImportAdmissionList(),
+    getImportAdmissionSettings(),
+    loadLastUnreleasedSeen(pool, parsedIssues.filter((issue) => isLevel1IssueType(issue.issueType)).map((issue) => normalizeEpicKey(issue.issueKey))),
+  ]);
+  const admission = planImportAdmission(parsedIssues, admissionList, admissionSettings, admissionIsoDate, lastUnreleasedSeen);
+  const rawIssues = admission.admitted;
+  const deniedEpics = admission.deniedEpics.map((epic) => ({
+    epicKey: epic.epicKey,
+    origin: epic.origin,
+    reason: epic.origin === 'RULE' ? describeViolations(epic.violations) : 'Có trong danh sách Từ chối import',
+  }));
   const totalRows = rawIssues.length;
 
   // 2. Validate issues
@@ -389,7 +425,9 @@ export async function processImport(
       warningRows,
       errorRows,
       status: batchStatus,
-      validationReport
+      validationReport,
+      deniedRows: admission.deniedRowCount,
+      deniedEpics,
     };
   }
 
@@ -418,11 +456,15 @@ export async function processImport(
       warningRows,
       errorRows,
       batchStatus,
-      JSON.stringify({ validateOnly, adapterType })
+      JSON.stringify({ validateOnly, adapterType, deniedRows: admission.deniedRowCount, deniedEpics })
     ];
 
     const batchRes = await client.query(insertBatchQuery, batchValues);
     const batchId = batchRes.rows[0].id;
+
+    // List the Epics an automatic rule just denied and remove what the database already held of every
+    // Epic denied in this file (no-op when none was) — before this batch's own rows go in.
+    await recordDeniedEpicsOfImport(client, admission.deniedEpics, admissionIsoDate);
 
     // 4. Ingest Raw Import Rows into import_rows
     // (normalized_data_json is the single copy kept — it used to be duplicated verbatim
@@ -701,7 +743,9 @@ export async function processImport(
       warningRows,
       errorRows,
       status: batchStatus,
-      validationReport
+      validationReport,
+      deniedRows: admission.deniedRowCount,
+      deniedEpics,
     };
   } catch (error) {
     await client.query('ROLLBACK');
@@ -734,11 +778,21 @@ export async function getImportHistory(): Promise<ImportBatch[]> {
            imported_by as "importedBy", imported_at as "importedAt", 
            aggregated_at as "aggregatedAt", total_rows as "totalRows", 
            success_rows as "successRows", warning_rows as "warningRows", 
-           error_rows as "errorRows", status
+           error_rows as "errorRows", status, metadata_json as "metadataJson"
     FROM import_batches
     ORDER BY imported_at DESC;
   `);
-  return res.rows;
+  return res.rows.map(({ metadataJson, ...batch }) => ({ ...batch, deniedRows: deniedRowsOf(metadataJson) }));
+}
+
+function deniedRowsOf(metadataJson: string | null): number {
+  if (!metadataJson) return 0;
+  try {
+    const value = (JSON.parse(metadataJson) as { deniedRows?: unknown }).deniedRows;
+    return typeof value === 'number' ? value : 0;
+  } catch {
+    return 0;
+  }
 }
 
 export async function getBatchValidationDetail(batchId: number): Promise<BatchValidationDetail[]> {

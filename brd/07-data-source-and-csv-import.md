@@ -48,6 +48,62 @@ JiraDbQueryDataSourceAdapter
 > `JiraDbQueryDataSourceAdapter` (gọi sống tới Jira, không qua file trung gian) vẫn là roadmap tương
 > lai, chưa triển khai.
 
+Adapter Py Jira API nhận thêm 2 cột **tùy chọn** ở dòng Epic (bổ sung 2026-10-14), chỉ dùng cho rule
+Từ chối import (§2.2) — file không có 2 cột này vẫn import bình thường:
+
+- `epic_issue_type` — issue type gốc trên Jira của issue cấp 1 (`Epic`, `CTNB`, `YCPT`…). Dòng vẫn được
+  coi là Epic về phân cấp (`issueType = 'Epic'`); giá trị gốc nằm ở `sourceIssueType`.
+- `epic_status_changed_at` — ngày Epic chuyển sang status hiện tại (lấy từ changelog Jira).
+
+## 2.2. Từ chối import — phạm vi dữ liệu nguồn (2026-10-14)
+
+Crawl tool chưa lọc được ngay từ nguồn, nên import adapter tự giữ phạm vi dữ liệu:
+`created >= 31/01/2026`, Epic Released / MVP Done chỉ khi chuyển sang status đó **sau 30/06/2026**, và
+issue cấp 1 chỉ nhận issue type **Epic**. Bước này chạy trong `processImport` ngay sau khi parse CSV,
+trước validate — dòng bị từ chối không đi vào bất kỳ bảng nào (kể cả `import_rows`); số dòng/Epic bị
+từ chối ghi ở `import_batches.metadata_json` (`deniedRows`, `deniedEpics`) và cột "Từ chối" của Nhật ký
+lịch sử import. Áp dụng cho cả form thủ công lẫn `POST /api/data-source/import/auto`.
+
+| Trường hợp | Xử lý |
+|---|---|
+| Epic có trong `denied_import_epics` (`allow_import = FALSE`) | Luôn từ chối, kèm mọi Story của Epic và mọi Subtask (gắn thẳng vào Epic hoặc thuộc Story của nó). |
+| Epic có trong danh sách với `allow_import = TRUE` ("Cho phép import") | Import bình thường, **miễn trừ** rule tự động. |
+| Epic chưa có trong danh sách, vi phạm rule tự động | Từ chối, tự thêm vào danh sách (`source = 'AUTO_RULE'`, kèm lý do) và chạy Epic deletion cho dữ liệu cũ (nếu có) — cùng transaction với import. |
+
+Rule tự động (`src/lib/import-admission-rules.ts`, thuần, có unit test). Ngày A/B lưu ở
+`import_admission_settings`, chỉnh ở tab "Từ chối import" (nhãn "Ngày Created >=" = A, "Ngày Due Date >=" = B); để trống = tắt rule:
+
+- **Loại issue** — issue cấp 1 có issue type khác Epic (`epic_issue_type` với Py Jira API; cột Issue Type với Pure Jira Export).
+- **A** — `created < A` (mặc định 2026-01-31), theo ngày Việt Nam.
+- **B** — status Released / MVP Done **và** ngày chuyển status `< B` (mặc định 2026-07-01). Ngày chuyển
+  status = `epic_status_changed_at` nếu có; chưa có thì dùng Due Date, Due trống thì dùng R4G Date.
+  **Ngoại lệ:** Epic mà CSDL đã ghi nhận ở status khác Released / MVP Done vào/sau ngày B (`issues` hoặc
+  `issue_daily_snapshots`) chắc chắn chuyển sang Released sau B → không bị rule B từ chối (ví dụ DL-65580:
+  due 25/06 nhưng Released 10/09).
+
+Rule đặt ngoài Scoring Service (`src/lib/scoring/`) có chủ đích (quyết định owner 2026-10-14): đây là
+cổng chặn dữ liệu đầu vào, không phải badge/verdict hiển thị trên màn hình.
+
+**Epic deletion** (`src/lib/epic-deletion-service.ts`) — xóa vĩnh viễn các Epic:
+
+- Phạm vi issue: Epic + Story có `epic_key` = Epic + Subtask có `epic_key` = Epic + Subtask có
+  `parent_key` = key hoặc jira_id của các Story đó, xác định theo **trạng thái mới nhất** của từng issue
+  (gộp `issues` và `issue_daily_snapshots`); issue đã chuyển sang Epic khác được giữ nguyên.
+- Xóa ở: `import_rows`, `issues` (mọi batch), `issue_daily_snapshots`, `epic_ttm_snapshots`,
+  `epic_alert_history`, `epic_alert_timeline`, `epic_milestone_history`, `epic_data_anomaly_violations`,
+  `epic_alert_row_cache`, `black_listed_epics`; ghi `audit_logs` (`EPIC_DELETION`) cho từng Epic.
+- **Không chạy lại cache** — `ttm_index_global_cache` / `ttm_dashboard_2_cache` vẫn tính Epic đã xóa cho
+  tới khi admin chạy lại cache thủ công (UI hiện toast nhắc).
+- API (SUPERADMIN): `GET /api/data-source/epic-deletion?keys=` (xem trước), `POST /api/data-source/epic-deletion`.
+
+Tab "Từ chối import" (Quản trị nguồn dữ liệu, tab thứ 3 cạnh "Quản lý Component", SUPERADMIN) — API dưới `/api/data-source/denied-import`:
+`GET` (danh sách + A/B), `POST` (thêm + xóa dữ liệu, sau popup xem trước), `PATCH` (sửa "Cho phép import";
+tắt = từ chối lại + xóa dữ liệu), `DELETE` (xóa / xóa theo lô khỏi danh sách), `PUT /settings` (A/B),
+`GET|POST /scan` (Quét lại CSDL theo rule), `POST /purge` (Xóa dữ liệu còn tồn tại).
+
+Bỏ Epic khỏi danh sách không làm dữ liệu quay lại: import hằng ngày chỉ chứa issue được cập nhật trong
+ngày. Epic còn vi phạm rule A/B sẽ bị từ chối lại ở lần import sau — muốn giữ, bật "Cho phép import".
+
 ## 2.1. Duyệt dữ liệu của một lớp import
 
 Từ mỗi record trong nhật ký import, action `Duyệt dữ liệu` mở `/data-review/[batchId]` và chỉ đọc dữ liệu thuộc batch đó.

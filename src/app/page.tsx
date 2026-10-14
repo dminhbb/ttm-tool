@@ -4,9 +4,10 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { ImportIssuesTab } from '@/components/data-source/ImportIssuesTab';
 import { ComponentManagementTab } from '@/components/data-source/ComponentManagementTab';
+import { DeniedImportTab } from '@/components/data-source/DeniedImportTab';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 
-type Tab = 'issues' | 'components';
+type Tab = 'issues' | 'components' | 'denied';
 
 export default function DataSourcePage() {
   const [tab, setTab] = useState<Tab>('issues');
@@ -17,10 +18,12 @@ export default function DataSourcePage() {
       <nav className="ui-tabs" aria-label="Quản trị nguồn dữ liệu">
         <Button onClick={() => setTab('issues')} variant={tab === 'issues' ? 'primary' : 'outline'}>Import Issues</Button>
         <Button onClick={() => setTab('components')} variant={tab === 'components' ? 'primary' : 'outline'}>Quản lý Component</Button>
+        <Button onClick={() => setTab('denied')} variant={tab === 'denied' ? 'primary' : 'outline'}>Từ chối import</Button>
       </nav>
 
       {tab === 'issues' && <ImportIssuesTab />}
       {tab === 'components' && <ComponentManagementTab />}
+      {tab === 'denied' && <DeniedImportTab />}
     </>
   );
 }

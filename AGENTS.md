@@ -99,6 +99,10 @@ are declared once in `src/lib/scoring/catalog.ts`; the "Logic cảnh báo" popup
   `ttm-rules.ts`…) stays as the 'legacy' mode and must stay untouched until the owner approves removing it;
   `refreshDerivedCaches` always scores in shadow and records a comparison in `scoring_parity_runs`. A new
   difference that isn't an approved decision shows up there as "Chưa giải thích được".
+- Exception (owner decision 2026-10-14): the "Từ chối import" rules that keep Epics out of the database
+  (data scope: created date A, Released before date B, level-1 issue type Epic only) live in
+  `src/lib/import-admission-rules.ts`, NOT in `src/lib/scoring/` — they gate what the import adapter lets
+  in, they are not a verdict shown on a screen (no badge, no parity run). Don't move them into scoring.
 
 # Icons standard — phosphoricons.com
 

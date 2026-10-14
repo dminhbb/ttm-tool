@@ -47,6 +47,8 @@ interface ImportBatch {
   warningRows: number;
   errorRows: number;
   status: 'SUCCESS' | 'FAILED' | 'COMPLETED_WITH_WARNINGS';
+  /** Rows dropped by "Từ chối import" (not in totalRows). */
+  deniedRows: number;
 }
 
 interface ValidationError {
@@ -80,6 +82,18 @@ interface PreviewResult {
 }
 
 const HISTORY_PAGE_SIZE = 5;
+
+/** " Từ chối import: …" tail of an import message — '' when the file had no denied Epic. */
+function describeDeniedRows(result: { deniedEpics?: { epicKey: string; origin: 'LIST' | 'RULE' }[]; deniedRows?: number }, saved: boolean): string {
+  const epics = result.deniedEpics ?? [];
+  if (!result.deniedRows || epics.length === 0) return '';
+  const keys = epics.slice(0, 10).map((epic) => epic.epicKey).join(', ') + (epics.length > 10 ? `… (+${epics.length - 10})` : '');
+  const byRule = epics.filter((epic) => epic.origin === 'RULE').length;
+  const ruleNote = byRule === 0 ? '' : saved
+    ? ` ${byRule} Epic vi phạm rule A/B đã được tự thêm vào danh sách Từ chối import — hãy chạy lại cache.`
+    : ` ${byRule} Epic vi phạm rule A/B sẽ được tự thêm vào danh sách khi import thật.`;
+  return ` Từ chối import: ${result.deniedRows} dòng của ${epics.length} Epic (${keys}).${ruleNote}`;
+}
 
 /** Explains an import response that isn't the route's own JSON — i.e. one produced in front of it. */
 function describeNonJsonImportResponse(res: Response, rawBody: string, validateOnly: boolean): string {
@@ -261,22 +275,23 @@ export function ImportIssuesTab() {
       if (!res.ok) {
         setImportMessage({ type: 'error', text: result.error || 'Lỗi hệ thống khi xử lý dữ liệu.' });
       } else {
+        const deniedNote = describeDeniedRows(result, !validateOnly);
         if (validateOnly) {
           setPreviewResult(result);
           if (result.errorRows > 0) {
             setImportMessage({
               type: 'error',
-              text: `Kiểm tra hoàn thành. Có lỗi dữ liệu nghiêm trọng! Tổng: ${result.totalRows} dòng. Lỗi: ${result.errorRows} dòng, Cảnh báo: ${result.warningRows} dòng. (Dữ liệu chưa được lưu).`
+              text: `Kiểm tra hoàn thành. Có lỗi dữ liệu nghiêm trọng! Tổng: ${result.totalRows} dòng. Lỗi: ${result.errorRows} dòng, Cảnh báo: ${result.warningRows} dòng. (Dữ liệu chưa được lưu).${deniedNote}`
             });
           } else if (result.warningRows > 0) {
             setImportMessage({
               type: 'warning',
-              text: `Kiểm tra hoàn thành. Không có lỗi nghiêm trọng, phát hiện ${result.warningRows} cảnh báo. (Dữ liệu chưa được lưu).`
+              text: `Kiểm tra hoàn thành. Không có lỗi nghiêm trọng, phát hiện ${result.warningRows} cảnh báo. (Dữ liệu chưa được lưu).${deniedNote}`
             });
           } else {
             setImportMessage({
               type: 'success',
-              text: `Kiểm tra hoàn thành. Tất cả ${result.totalRows} dòng đều hợp lệ! (Dữ liệu chưa được lưu).`
+              text: `Kiểm tra hoàn thành. Tất cả ${result.totalRows} dòng đều hợp lệ! (Dữ liệu chưa được lưu).${deniedNote}`
             });
           }
         } else {
@@ -284,19 +299,19 @@ export function ImportIssuesTab() {
           if (result.status === 'FAILED') {
             setImportMessage({
               type: 'error',
-              text: `Import hoàn tất với lỗi! File chứa ${result.errorRows} dòng lỗi dữ liệu nghiêm trọng — các dòng này đã bị bỏ qua. ${result.successRows + result.warningRows}/${result.totalRows} dòng hợp lệ khác vẫn được lưu vào lớp dữ liệu ngày ${formatDate(result.aggregatedAt)}. Vui lòng kiểm tra lịch sử để xem chi tiết lỗi và điều chỉnh dữ liệu nguồn.`
+              text: `Import hoàn tất với lỗi! File chứa ${result.errorRows} dòng lỗi dữ liệu nghiêm trọng — các dòng này đã bị bỏ qua. ${result.successRows + result.warningRows}/${result.totalRows} dòng hợp lệ khác vẫn được lưu vào lớp dữ liệu ngày ${formatDate(result.aggregatedAt)}. Vui lòng kiểm tra lịch sử để xem chi tiết lỗi và điều chỉnh dữ liệu nguồn.${deniedNote}`
             });
             clearFileSelection();
           } else if (result.status === 'COMPLETED_WITH_WARNINGS') {
             setImportMessage({
               type: 'warning',
-              text: `Import thành công với ${result.warningRows} cảnh báo! Tổng cộng ${result.successRows}/${result.totalRows} dòng đã được đưa vào hệ thống.`
+              text: `Import thành công với ${result.warningRows} cảnh báo! Tổng cộng ${result.successRows}/${result.totalRows} dòng đã được đưa vào hệ thống.${deniedNote}`
             });
             clearFileSelection();
           } else {
             setImportMessage({
               type: 'success',
-              text: `Import thành công tốt đẹp! Đã lưu trữ ${result.successRows} issues vào lớp dữ liệu ngày ${formatDate(result.aggregatedAt)}.`
+              text: `Import thành công tốt đẹp! Đã lưu trữ ${result.successRows} issues vào lớp dữ liệu ngày ${formatDate(result.aggregatedAt)}.${deniedNote}`
             });
             clearFileSelection();
           }
@@ -518,7 +533,7 @@ export function ImportIssuesTab() {
                 />
               ) : (
                 <TableContainer>
-                  <Table className="min-w-[1320px]">
+                  <Table className="min-w-[1410px]">
                     <THead>
                       <TR>
                         <TH className="w-[84px]">Mã đợt</TH>
@@ -529,6 +544,7 @@ export function ImportIssuesTab() {
                         <TH className="w-[80px]">Hợp lệ</TH>
                         <TH className="w-[90px]">Cảnh báo</TH>
                         <TH className="w-[70px]">Lỗi</TH>
+                        <TH className="w-[90px]" title="Dòng bị loại bởi Từ chối import (không tính vào Tổng dòng)">Từ chối</TH>
                         <TH className="w-[130px]">Trạng thái</TH>
                         <TH className="w-[310px]">Hành động</TH>
                       </TR>
@@ -553,6 +569,9 @@ export function ImportIssuesTab() {
                           </TD>
                           <TD className={`text-center font-bold ${batch.errorRows > 0 ? 'text-status-danger' : 'text-fb-text-secondary'}`}>
                             {batch.errorRows}
+                          </TD>
+                          <TD className={`text-center font-bold ${batch.deniedRows > 0 ? 'text-status-warning' : 'text-fb-text-secondary'}`}>
+                            {batch.deniedRows}
                           </TD>
                           <TD>
                             <Badge variant={
@@ -712,7 +731,7 @@ export function ImportIssuesTab() {
                 Cột theo từng cấp (chỉ điền ở dòng tương ứng cấp đó, các dòng khác để trống):
               </p>
               <ul className="list-disc pl-4 text-[11px] leading-5 text-fb-text-secondary">
-                <li><strong className="text-fb-text-primary">Epic</strong>: epic_key, epic_name, epic_status, epic_request_type, epic_request_level, epic_assignee, epic_requesting_unit (Đơn vị yêu cầu), epic_idea_approval_date, epic_start_date, epic_due_date, epic_r4g_date, epic_created, epic_updated, epic_Components, epic_stories</li>
+                <li><strong className="text-fb-text-primary">Epic</strong>: epic_key, epic_name, epic_status, epic_request_type, epic_request_level, epic_assignee, epic_requesting_unit (Đơn vị yêu cầu), epic_idea_approval_date, epic_start_date, epic_due_date, epic_r4g_date, epic_created, epic_updated, epic_Components, epic_stories, epic_issue_type và epic_status_changed_at (tùy chọn — dùng cho rule Từ chối import)</li>
                 <li><strong className="text-fb-text-primary">Story</strong>: story_key, story_issue_type, story_summary, story_status, story_assignee, story_Components, story_subtasks (+ epic_key của dòng)</li>
                 <li><strong className="text-fb-text-primary">Subtask</strong>: subtask_key, subtask_issue_type, subtask_summary, subtask_status, subtask_assignee, subtask_start_date, subtask_due_date (+ story_key, epic_key của dòng)</li>
               </ul>

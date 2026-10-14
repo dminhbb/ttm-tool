@@ -24,6 +24,12 @@ export interface RawJiraIssue {
   // Source system timestamps — populated by adapters that provide creation/update info
   jiraCreatedAt?: string; // epic_created in Py Jira API format
   jiraUpdatedAt?: string; // epic_updated in Py Jira API format
+  // Py Jira API adapter only, epic rows, optional columns read by the "Từ chối import" rules
+  // (import-admission-rules.ts): Jira's own level-1 issue type (epic_issue_type — the row's
+  // issueType stays 'Epic' so the hierarchy keeps it level 1) and the date the Epic moved to its
+  // current status (epic_status_changed_at).
+  sourceIssueType?: string;
+  statusChangedAt?: string;
   // Py Jira API adapter only — verbatim key lists from the source row, not derived.
   epicStories?: string[]; // epic_stories, on epic rows: this epic's story keys
   storySubtasks?: string[]; // story_subtasks, on story rows: this story's subtask keys
