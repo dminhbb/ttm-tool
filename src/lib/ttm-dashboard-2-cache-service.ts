@@ -61,8 +61,9 @@ interface CachedPayload {
  * 9 = the operational widgets (Cảnh báo, Sai lệch, Chờ / Giải trình golive) leave out "Epic ngoại lệ" too;
  * 10 = widget Fail TTM-CNTT shows subtitle with missingFailReason count & link;
  * 11 = PM/SM breakdown counts SHARES (an Epic of n PM/SMs adds 1/n to each) + filterOptions.projectComponents
- *      for the Component filter. */
-const PAYLOAD_VERSION = 11;
+ *      for the Component filter;
+ * 12 = widget "Thiếu lý do" = Khâu fail + Chịu TN chính (insights.missingResponsibleDepartment). */
+const PAYLOAD_VERSION = 12;
 
 const ALL_SCOPE: AccessScope = { accessRole: 'CBQL_PHONG', projectComponents: new Map(), sourceProjectKeys: null };
 

@@ -177,7 +177,7 @@ export function compareWithLegacy(card: EpicScorecard, legacy: LegacyRowSnapshot
       // R1: not flagged by the service while Pending with a previous status of To Do / In PO (2026-10-12).
       || (badge === 'ANOMALY_R1_MISSING_START_DATE' && !active.has(badge) && /pending/i.test(legacy.currentStatus))
       // R5: not flagged by the service while at DESIGN (2026-10-04), nor while Pending with a previous
-      // status of To Do / In PO (2026-10-11) — the legacy rule flags both.
+      // status of To Do / In PO (2026-10-11) or Design (2026-10-14) — the legacy rule flags both.
       || (badge === 'ANOMALY_R5_MISSING_REQUIREMENT_LEVEL' && !active.has(badge) && (d.statusIndex <= STATUS_INDEX.DESIGN || /pending/i.test(legacy.currentStatus)));
     d10 ||= explained;
     const scoped = !explained && scopedOut(badge);

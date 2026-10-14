@@ -6,20 +6,49 @@ import {
   type AuthUser,
 } from '@/modules/iam/public';
 import { getLatestImportAggregatedAt } from '@/modules/integration/public';
+import { getDashboardViewSettings } from '@/lib/dashboard-view-settings-service';
 import {
   getTtmDashboard2Snapshot,
   loadTtmDashboard2Rows,
+  ttmDashboard2ScopeKey,
 } from '@/lib/ttm-dashboard-2-cache-service';
 import { getTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
+import type { UserRole } from '@/lib/auth-types';
 
 /**
  * Application use case behind the existing Dashboard 2 BFF. It preserves the response shape while
  * moving IAM/Integration/TTM orchestration and the import-batch read out of the Route Handler.
  */
-export async function getTtmDashboard2(actor: AuthUser, rawViewAsUserId: string | null) {
-  const target = await resolveDashboardTarget(actor, rawViewAsUserId);
+
+/** Which data scope the dashboard numbers come from — `view` query parameter of the BFF. */
+export type TtmDashboard2RequestedView = 'lead' | 'own' | null;
+
+export interface TtmDashboard2LeadView {
+  /** "Dashboard Lead view cho tất cả user" is ON and the viewer's own scope is narrower than the company. */
+  available: boolean;
+  /** The numbers are the whole company's (Lead view) rather than the viewer's own scope. */
+  active: boolean;
+}
+
+/**
+ * The scope the numbers are read for. With "Dashboard Lead view cho tất cả user" ON, an ADMIN / USER
+ * (not previewing someone) gets the company-wide Lead numbers by default — read as a SUPERVISOR, i.e.
+ * the shared 'ALL' cache entry — unless they ask for their own view. Only aggregated numbers widen:
+ * the Quản trị Epic popups behind them are served by Quản trị Epic under the viewer's own session and
+ * scope, so they still list only the Epics the viewer may see.
+ */
+async function resolveDataScope(actor: AuthUser, rawViewAsUserId: string | null, requestedView: TtmDashboard2RequestedView) {
+  const [target, settings] = await Promise.all([resolveDashboardTarget(actor, rawViewAsUserId), getDashboardViewSettings()]);
+  const available = settings.leadViewForAllUsers && !target.viewAsUser && ttmDashboard2ScopeKey(actor.id, actor.role) !== 'ALL';
+  const active = available && requestedView !== 'own';
+  const scope: { role: UserRole; userId: number } = active ? { role: 'SUPERVISOR', userId: actor.id } : { role: target.role, userId: target.userId };
+  return { leadView: { active, available } satisfies TtmDashboard2LeadView, scope, target };
+}
+
+export async function getTtmDashboard2(actor: AuthUser, rawViewAsUserId: string | null, requestedView: TtmDashboard2RequestedView = null) {
+  const { leadView, scope, target } = await resolveDataScope(actor, rawViewAsUserId, requestedView);
   const [snapshot, lastAggregatedAt, ttmIndexGlobal, managedUsers] = await Promise.all([
-    getTtmDashboard2Snapshot(target.userId, target.role),
+    getTtmDashboard2Snapshot(scope.userId, scope.role),
     getLatestImportAggregatedAt(),
     getTtmIndexGlobalCache().catch((error: unknown) => {
       console.error('Failed to get TTM Index Global Cache:', error);
@@ -34,6 +63,7 @@ export async function getTtmDashboard2(actor: AuthUser, rawViewAsUserId: string 
     cache: snapshot.cache,
     filterOptions: snapshot.filterOptions,
     lastAggregatedAt,
+    leadView,
     managedUsers,
     summary: snapshot.summary,
     ttmIndexGlobal,
@@ -41,7 +71,13 @@ export async function getTtmDashboard2(actor: AuthUser, rawViewAsUserId: string 
   };
 }
 
-export async function getTtmDashboard2Rows(actor: AuthUser, rawViewAsUserId: string | null) {
-  const target = await resolveDashboardTarget(actor, rawViewAsUserId);
-  return { rows: await loadTtmDashboard2Rows(target.userId, target.role) };
+export async function getTtmDashboard2Rows(actor: AuthUser, rawViewAsUserId: string | null, requestedView: TtmDashboard2RequestedView = null) {
+  const { scope } = await resolveDataScope(actor, rawViewAsUserId, requestedView);
+  // These rows carry no Epic key / name — only the fields the funnel is counted on — so the Lead view
+  // widens the numbers a filter recomputes, not what the viewer learns about any single Epic.
+  return { rows: await loadTtmDashboard2Rows(scope.userId, scope.role) };
+}
+
+export function parseTtmDashboard2View(value: string | null): TtmDashboard2RequestedView {
+  return value === 'lead' || value === 'own' ? value : null;
 }

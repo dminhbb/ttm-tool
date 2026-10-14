@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/modules/iam/public';
-import { getTtmDashboard2Rows } from '@/modules/ttm/public';
+import { getTtmDashboard2Rows, parseTtmDashboard2View } from '@/modules/ttm/public';
 
 /**
  * The funnel fields of every Epic in the viewer's scope (or the previewed user's) — TTM Dashboard 2
@@ -10,7 +10,11 @@ import { getTtmDashboard2Rows } from '@/modules/ttm/public';
 export async function GET(request: NextRequest) {
   try {
     const actor = await requireUser(request);
-    const data = await getTtmDashboard2Rows(actor, request.nextUrl.searchParams.get('viewAsUserId'));
+    const data = await getTtmDashboard2Rows(
+      actor,
+      request.nextUrl.searchParams.get('viewAsUserId'),
+      parseTtmDashboard2View(request.nextUrl.searchParams.get('view')),
+    );
     return NextResponse.json(data);
   } catch (error) {
     if (error instanceof AuthError) {

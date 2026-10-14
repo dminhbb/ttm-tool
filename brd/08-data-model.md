@@ -646,6 +646,7 @@ Các bảng dưới đây được thêm bằng migration sau khi tài liệu n�
 
 | `denied_import_epics` | `20261014_create_denied_import_epics.sql` (seed 42 Epic: `20261014b_seed_denied_import_epics.sql`) | `epic_key` | "Từ chối import" (`07-data-source-and-csv-import.md` §2.2): `project_key`, thông tin chụp lúc thêm (`summary`, `status`, `requesting_unit`, `created_date`, `idea_approved_date`, `start_date`, `r4g_date`, `due_date`), `allow_import` (Cho phép import = miễn trừ rule), `source` (`MANUAL` / `AUTO_RULE` / `SEED`), `reason`, `added_by_user_id` → `users(id)` ON DELETE SET NULL, `last_deleted_at`, `last_deleted_issue_count`. |
 | `import_admission_settings` | `20261014_create_denied_import_epics.sql` | `id = 1` (CHECK) | Ngày A `created_before` (mặc định 2026-01-31) và ngày B `released_due_before` (mặc định 2026-07-01) của rule Từ chối import; NULL = tắt rule. |
+| `dashboard_view_settings` | `20261014c_create_dashboard_view_settings.sql` | `id = 1` (CHECK) | Công tắc "Dashboard Lead view cho tất cả user" (`lead_view_for_all_users`, mặc định TRUE), `updated_by_user_id`, `updated_at` — Quản trị hệ thống → Dashboard; đọc lỗi/thiếu bảng = coi như TẮT. |
 
 Quy tắc dùng chung:
 

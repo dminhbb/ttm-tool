@@ -16,6 +16,9 @@ export interface DonutChartCardProps {
    * A name is colored by its position in `data`, so it keeps its color across sibling charts that are
    * given the same list. */
   showAllItems?: boolean;
+  /** How many of the largest items get their own slice before the rest merge into "Khác.." (default 4;
+   * "Theo Đơn vị yêu cầu" / "Theo Dự án" use 10 — owner 2026-10-14). */
+  maxItems?: number;
   title: string;
   unitLabel?: string;
 }
@@ -48,6 +51,7 @@ export function DonutChartCard({
   emptyMessage = 'Không có dữ liệu',
   onItemClick,
   showAllItems = false,
+  maxItems = 4,
   title,
   unitLabel = 'Epic',
 }: DonutChartCardProps) {
@@ -75,20 +79,27 @@ export function DonutChartCard({
           pct: Math.round((item.value / sum) * 100),
         }))
         .sort((a, b) => b.value - a.value);
-    } else if (sorted.length <= 5) {
-      processed = sorted.map((item, idx) => ({
-        ...item,
-        color: PALETTE[idx % PALETTE.length],
-        pct: Math.round((item.value / sum) * 100),
-      }));
     } else {
-      const top4 = sorted.slice(0, 4);
-      const remaining = sorted.slice(4);
+      // Up to `maxItems` hues (the slate stays for "Khác.."): the short palette for the default 4,
+      // the long one when more items keep their own slice.
+      const hues = maxItems <= 4 ? PALETTE.slice(0, 4) : FULL_PALETTE.slice(0, -1);
+      const colorOf = (idx: number) => hues[idx % hues.length];
+      // A lone tail item is shown as itself rather than as a one-item "Khác..".
+      if (sorted.length <= maxItems + 1) {
+        processed = sorted.map((item, idx) => ({
+          ...item,
+          color: idx < maxItems ? colorOf(idx) : PALETTE[4],
+          pct: Math.round((item.value / sum) * 100),
+        }));
+        return { displayItems: processed, total: sum };
+      }
+      const top = sorted.slice(0, maxItems);
+      const remaining = sorted.slice(maxItems);
       const remainingSum = remaining.reduce((acc, curr) => acc + curr.value, 0);
 
-      processed = top4.map((item, idx) => ({
+      processed = top.map((item, idx) => ({
         ...item,
-        color: PALETTE[idx],
+        color: colorOf(idx),
         pct: Math.round((item.value / sum) * 100),
       }));
 
@@ -101,7 +112,7 @@ export function DonutChartCard({
     }
 
     return { displayItems: processed, total: sum };
-  }, [data, showAllItems]);
+  }, [data, maxItems, showAllItems]);
 
   // SVG Donut calculation
   const radius = 55;

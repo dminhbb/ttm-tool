@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/modules/iam/public';
-import { getTtmDashboard2 } from '@/modules/ttm/public';
+import { getTtmDashboard2, parseTtmDashboard2View } from '@/modules/ttm/public';
 
 function authError(error: unknown): NextResponse | null {
   if (error instanceof AuthError) {
@@ -15,7 +15,11 @@ function authError(error: unknown): NextResponse | null {
 export async function GET(request: NextRequest) {
   try {
     const actor = await requireUser(request);
-    const data = await getTtmDashboard2(actor, request.nextUrl.searchParams.get('viewAsUserId'));
+    const data = await getTtmDashboard2(
+      actor,
+      request.nextUrl.searchParams.get('viewAsUserId'),
+      parseTtmDashboard2View(request.nextUrl.searchParams.get('view')),
+    );
     return NextResponse.json(data);
   } catch (error) {
     console.error('TTM Dashboard 2 API error:', error);

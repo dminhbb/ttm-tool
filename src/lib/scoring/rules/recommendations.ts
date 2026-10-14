@@ -18,11 +18,23 @@ function hasNoFailReason(facts: { khauBa?: string | null; khauCo?: string | null
   return fields.every((val) => !val || val.trim() === '' || val.trim().toLowerCase() === 'none');
 }
 
+function isBlankText(value: string | null | undefined): boolean {
+  const normalized = (value ?? '').trim().toLowerCase();
+  return normalized === '' || normalized === 'none';
+}
+
 /** Recommendations derived from the resolved (active) primary findings. */
 export const recommendationsRule: DerivedRule = ({ facts, derived }, active, findings) => {
   const out: Finding[] = [];
-  if (active.has('CNTT_FAIL') && hasNoFailReason(facts)) {
-    out.push(finding('REC_MISSING_FAIL_REASON', 'Bổ sung lý do Fail TTM trên Jira.', {}, { relatedTo: ['CNTT_FAIL'] }));
+  // "Thiếu lý do" (owner rule 2026-10-14): only a Fail TTM-CNTT whose R4G Date is later than the
+  // Target — not one still missing its R4G Date — is asked for the failing stage and the department
+  // mainly responsible.
+  const failedWithLateR4g = active.has('CNTT_FAIL') && Boolean(facts.r4gDate && derived.cnttTargetDate && facts.r4gDate > derived.cnttTargetDate);
+  if (failedWithLateR4g && hasNoFailReason(facts)) {
+    out.push(finding('REC_MISSING_FAIL_REASON', 'Fail TTM chưa có thông tin khâu fail — bổ sung trên Jira.', { r4gDate: facts.r4gDate, targetDate: derived.cnttTargetDate }, { relatedTo: ['CNTT_FAIL'] }));
+  }
+  if (failedWithLateR4g && isBlankText(facts.responsibleDepartment)) {
+    out.push(finding('REC_MISSING_RESPONSIBLE_DEPARTMENT', 'Fail TTM chưa có phòng chịu trách nhiệm chính — bổ sung trên Jira.', { r4gDate: facts.r4gDate, targetDate: derived.cnttTargetDate }, { relatedTo: ['CNTT_FAIL'] }));
   }
   const brokenForMissingT1 = active.has('CNTT_CALC_BROKEN') && !facts.startDate && !derived.isCancelled && derived.statusIndex >= STATUS_INDEX.DESIGN && derived.statusIndex <= STATUS_INDEX.RELEASED;
   if (active.has('ANOMALY_R1_MISSING_START_DATE') || brokenForMissingT1) {

@@ -287,7 +287,8 @@ function ttmCnttVerdictOf(row: EpicAlertRowPhased | null, ttmBlackListed: boolea
       ? { hasMissingFailReason: false, ttmCnttVerdict: 'EXCLUDED', ttmCnttVerdictLabel: 'Epic ngoại lệ' }
       : { hasMissingFailReason: false, ttmCnttVerdict: 'N_A', ttmCnttVerdictLabel: 'Chưa kết luận' };
   }
-  const hasMissingFailReason = matchesAlertFilter(row, 'MISSING_FAIL_REASON');
+  // Only the "khâu fail" half of "Thiếu lý do": the popup shows it next to the stage fields it is about.
+  const hasMissingFailReason = matchesAlertFilter(row, 'MISSING_FAIL_STAGE');
   if (matchesAlertFilter(row, 'ACHIEVED_CNTT')) return { hasMissingFailReason, ttmCnttVerdict: 'PASS', ttmCnttVerdictLabel: 'Pass TTM-CNTT' };
   if (matchesAlertFilter(row, 'FAIL')) return { hasMissingFailReason, ttmCnttVerdict: 'FAIL', ttmCnttVerdictLabel: 'Fail TTM-CNTT' };
   if (row.hasDataAnomaly) return { hasMissingFailReason, ttmCnttVerdict: 'DATA_ANOMALY', ttmCnttVerdictLabel: 'Sai lệch dữ liệu' };

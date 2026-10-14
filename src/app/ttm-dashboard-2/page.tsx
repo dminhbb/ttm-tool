@@ -61,6 +61,9 @@ interface DashboardPayload {
   filterOptions: TtmDashboard2FilterOptions;
   isUserPreview: boolean;
   lastAggregatedAt: string | null;
+  /** "Dashboard Lead view cho tất cả user" (Quản trị hệ thống): `available` when it is ON and the
+   * viewer's own scope is narrower than the company; `active` when these numbers are the company's. */
+  leadView: { active: boolean; available: boolean };
   managedUsers: ManagedUserItem[];
   /** Unfiltered funnel numbers of this viewer's scope (from the cache). */
   summary: TtmFunnelSummary;
@@ -147,6 +150,8 @@ export default function TtmDashboard2Page() {
   const [showUserModal, setShowUserModal] = useState(false);
   const [userSearchText, setUserSearchText] = useState('');
   const [viewMode, setViewMode] = useState<'EXECUTIVE' | 'OPERATIONAL'>('EXECUTIVE');
+  // Lead view for every user: company-wide numbers by default, 'own' = the viewer's own scope.
+  const [scopeChoice, setScopeChoice] = useState<'lead' | 'own'>('lead');
 
   // Layer Detail Modal (opened via right-click on a layer/group)
   const [detailModalId, setDetailModalId] = useState<NodeId | null>(null);
@@ -170,12 +175,12 @@ export default function TtmDashboard2Page() {
 
   const requestIdRef = useRef(0);
 
-  const loadData = async (userId: number | null) => {
+  const loadData = async (userId: number | null, scope: 'lead' | 'own') => {
     const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
     try {
-      const url = userId ? `/api/ttm-dashboard-2?viewAsUserId=${userId}` : '/api/ttm-dashboard-2';
+      const url = userId ? `/api/ttm-dashboard-2?viewAsUserId=${userId}` : `/api/ttm-dashboard-2?view=${scope}`;
       const res = await fetch(url, { cache: 'no-store' });
       const json: unknown = await res.json();
       if (requestIdRef.current !== requestId) return;
@@ -190,7 +195,9 @@ export default function TtmDashboard2Page() {
       setData(payload);
 
       const isAdminOrSupervisor = ['SUPERADMIN', 'ADMIN', 'SUPERVISOR'].includes(payload.actor.role);
-      if (isAdminOrSupervisor && payload.isUserPreview) {
+      if (payload.leadView?.active) {
+        setViewMode('EXECUTIVE');
+      } else if (isAdminOrSupervisor && payload.isUserPreview) {
         setViewMode('OPERATIONAL');
       } else if (!isAdminOrSupervisor) {
         setViewMode('OPERATIONAL');
@@ -206,8 +213,8 @@ export default function TtmDashboard2Page() {
   };
 
   useEffect(() => {
-    void Promise.resolve().then(() => loadData(previewUserId));
-  }, [previewUserId]);
+    void Promise.resolve().then(() => loadData(previewUserId, scopeChoice));
+  }, [previewUserId, scopeChoice]);
 
   // Stacked layout (< lg): bring the panel that just opened into view.
   useEffect(() => {
@@ -219,6 +226,10 @@ export default function TtmDashboard2Page() {
   const isAdminOrSupervisor = useMemo(() => {
     return data ? ['SUPERADMIN', 'ADMIN', 'SUPERVISOR'].includes(data.actor.role) : false;
   }, [data]);
+  // Company-wide Lead numbers shown to a viewer whose own scope is narrower: the screen then looks
+  // exactly like a Lead's (Domain filter, every pie chart section).
+  const leadViewActive = Boolean(data?.leadView?.active);
+  const showsLeadLayout = isAdminOrSupervisor || leadViewActive;
 
   // Filter options come with the cached snapshot (the viewer's whole scope).
   const filterOptions = data?.filterOptions ?? EMPTY_FILTER_OPTIONS;
@@ -260,7 +271,7 @@ export default function TtmDashboard2Page() {
 
   // Epic rows are fetched only once a toolbar filter is applied (once per viewed scope); the
   // unfiltered numbers are the cached `data.summary`.
-  const rowsKey = String(data?.viewAsUser?.id ?? 'self');
+  const rowsKey = data?.viewAsUser ? String(data.viewAsUser.id) : leadViewActive ? 'lead' : 'self';
   const [rowsState, setRowsState] = useState<{ key: string; rows: TtmFunnelRow[] } | null>(null);
   const [rowsError, setRowsError] = useState<string | null>(null);
   const [rowsRetry, setRowsRetry] = useState(0);
@@ -270,7 +281,9 @@ export default function TtmDashboard2Page() {
   useEffect(() => {
     if (!data || !isFiltered || filterRows || rowsRequestRef.current === rowsKey) return;
     rowsRequestRef.current = rowsKey;
-    const url = data.viewAsUser ? `/api/ttm-dashboard-2/rows?viewAsUserId=${data.viewAsUser.id}` : '/api/ttm-dashboard-2/rows';
+    const url = data.viewAsUser
+      ? `/api/ttm-dashboard-2/rows?viewAsUserId=${data.viewAsUser.id}`
+      : `/api/ttm-dashboard-2/rows?view=${leadViewActive ? 'lead' : 'own'}`;
     void fetch(url, { cache: 'no-store' })
       .then(async (res) => {
         const json = (await res.json()) as { error?: string; rows?: TtmFunnelRow[] };
@@ -285,7 +298,7 @@ export default function TtmDashboard2Page() {
       .finally(() => {
         if (rowsRequestRef.current === rowsKey) rowsRequestRef.current = null;
       });
-  }, [data, isFiltered, filterRows, rowsKey, rowsRetry]);
+  }, [data, isFiltered, filterRows, rowsKey, rowsRetry, leadViewActive]);
 
   // Unfiltered → the cached snapshot. Filtered → recomputed from the rows with the very same
   // functions the cache was built with (ttm-funnel-summary.ts). While the rows are still loading,
@@ -570,7 +583,7 @@ export default function TtmDashboard2Page() {
 
   // Pie chart sections — same visibility rules as TTM Dashboard: the Lead view shows every dimension
   // that has something to compare, the PM/SM view only "Theo Phân loại Epic".
-  const effectiveRole = data.viewAsUser?.role || data.actor.role;
+  const effectiveRole = leadViewActive ? 'SUPERVISOR' : data.viewAsUser?.role || data.actor.role;
   const donutDimensions: TtmBreakdownDimension[] = viewMode === 'EXECUTIVE'
     ? [
         'requestingUnit',
@@ -691,8 +704,23 @@ export default function TtmDashboard2Page() {
             </div>
           )}
 
+          {/* Lead view for every user (Quản trị hệ thống → Dashboard): company numbers vs own scope */}
+          {data?.leadView?.available && (
+            <PillToggle
+              value={scopeChoice}
+              onChange={(val) => {
+                setScopeChoice(val === 'own' ? 'own' : 'lead');
+                resetAllFilters();
+              }}
+              options={[
+                { value: 'lead', label: 'Toàn công ty', activeColor: 'bg-[var(--color-success-300)]' },
+                { value: 'own', label: 'Của tôi', activeColor: 'bg-[var(--color-success-300)]' },
+              ]}
+            />
+          )}
+
           {/* View Toggle Pill (Lead vs PM/SM) */}
-          {isAdminOrSupervisor && (
+          {isAdminOrSupervisor && !leadViewActive && (
             <PillToggle
               value={viewMode}
               onChange={(val) => {
@@ -715,6 +743,16 @@ export default function TtmDashboard2Page() {
         </div>
       </div>
 
+      {leadViewActive && (
+        <div className="flex items-start gap-2 rounded-lg border border-fb-blue/40 bg-fb-blue-soft px-3 py-2 text-xs text-fb-text-primary">
+          <Info className="mt-0.5 size-4 shrink-0 text-fb-blue" weight="bold" />
+          <span>
+            Đang xem số liệu <strong>toàn công ty</strong> (Lead view). Khi bấm vào một con số, danh sách Epic chỉ gồm các Epic thuộc
+            quyền dữ liệu của bạn nên có thể ít hơn con số thống kê. Chọn <strong>Của tôi</strong> để xem số liệu theo phạm vi của bạn.
+          </span>
+        </div>
+      )}
+
       {/* TOP SINGLE-ROW TOOLBAR FILTERS */}
       <section className="ttm-toolbar ttm-toolbar-row" aria-label="Bộ lọc TTM Dashboard 2">
         <div className="flex items-center gap-1.5 text-xs font-bold text-fb-text-primary shrink-0 mr-1 select-none">
@@ -722,7 +760,7 @@ export default function TtmDashboard2Page() {
           <span>Filters:</span>
         </div>
 
-        {isAdminOrSupervisor && (
+        {showsLeadLayout && (
           <select
             className={`ttm-select${filterDomain ? ' has-filter' : ''}`}
             aria-label="Domain"

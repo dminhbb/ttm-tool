@@ -105,6 +105,24 @@ describe('TTM-CNTT', () => {
     assert.ok(!active(passFacts, ctx).has('REC_MISSING_FAIL_REASON'));
   });
 
+  it('Thiếu lý do (2026-10-14): only a Fail with an R4G Date later than the Target — khâu fail and phòng chịu TN chính', () => {
+    // Fail because the R4G Date is late → both warnings while every field is empty.
+    const lateR4g = active(makeFacts({ r4gDate: '2026-08-24', status: 'R4GOLIVE' }), ctx);
+    assert.ok(lateR4g.has('REC_MISSING_FAIL_REASON') && lateR4g.has('REC_MISSING_RESPONSIBLE_DEPARTMENT'));
+    // Fail because the R4G Date is still missing past the Target → neither.
+    const missingR4g = active(makeFacts(), makeContext({ asOf: '2026-08-22' }));
+    assert.ok(missingR4g.has('CNTT_FAIL'));
+    assert.ok(!missingR4g.has('REC_MISSING_FAIL_REASON') && !missingR4g.has('REC_MISSING_RESPONSIBLE_DEPARTMENT'));
+    // Each warning clears on its own field ("none" / blanks still count as empty).
+    const withDepartment = active(makeFacts({ r4gDate: '2026-08-24', status: 'R4GOLIVE', responsibleDepartment: 'Phòng PTUD' }), ctx);
+    assert.ok(withDepartment.has('REC_MISSING_FAIL_REASON') && !withDepartment.has('REC_MISSING_RESPONSIBLE_DEPARTMENT'));
+    assert.ok(active(makeFacts({ r4gDate: '2026-08-24', status: 'R4GOLIVE', responsibleDepartment: ' none ' }), ctx).has('REC_MISSING_RESPONSIBLE_DEPARTMENT'));
+    const withStage = active(makeFacts({ r4gDate: '2026-08-24', status: 'R4GOLIVE', khauDev: 'Chậm dev' }), ctx);
+    assert.ok(!withStage.has('REC_MISSING_FAIL_REASON') && withStage.has('REC_MISSING_RESPONSIBLE_DEPARTMENT'));
+    // A passing Epic gets neither.
+    assert.ok(!active(makeFacts({ r4gDate: '2026-08-21', status: 'R4GOLIVE' }), ctx).has('REC_MISSING_RESPONSIBLE_DEPARTMENT'));
+  });
+
   it('Sai Status (2026-10-01): with R8 switched off, R4G reached on time but status < R4GOLIVE → still Đạt, plus the Sai Status recommendation', () => {
     const r8Off = { ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE: false };
     const card = scoreEpic(makeFacts({ r4gDate: '2026-08-20', status: 'TEST' }), makeContext({ ruleEnabled: r8Off }));
@@ -307,20 +325,22 @@ describe('Data quality', () => {
     assert.ok(active(makeFacts({ status: 'In Progress', requirementLevel: 'none' }), makeContext()).has('ANOMALY_R5_MISSING_REQUIREMENT_LEVEL'));
   });
 
-  it('R5 (2026-10-11): (status > DESIGN and not Pending) OR (Pending and previous status empty / not To Do, In PO)', () => {
+  it('R5 (2026-10-11, Design exempt 2026-10-14): (status > DESIGN and not Pending) OR (Pending and previous status empty / not To Do, In PO, Design)', () => {
     const r5 = (overrides: Parameters<typeof makeFacts>[0]) => active(makeFacts({ requirementLevel: '', ...overrides }), makeContext()).has('ANOMALY_R5_MISSING_REQUIREMENT_LEVEL');
     // Past DESIGN and not Pending → flagged whatever the previous status says.
     for (const status of ['Design', 'In Progress', 'TEST', 'Reopened']) {
       assert.equal(r5({ status, previousStatus: 'To Do' }), status !== 'Design', status);
     }
     assert.equal(r5({ status: 'TEST', previousStatus: null }), true);
-    // Pending → exempt ONLY when the previous status was To Do / In PO (trimmed, any case)...
+    // Pending → exempt ONLY when the previous status was To Do / In PO / Design (trimmed, any case)...
     assert.equal(r5({ status: 'Pending', previousStatus: 'To Do' }), false);
     assert.equal(r5({ status: 'Pending', previousStatus: ' in po ' }), false);
     assert.equal(r5({ status: 'Pending', previousStatus: 'IN PO' }), false);
+    assert.equal(r5({ status: 'Pending', previousStatus: 'Design' }), false);
+    assert.equal(r5({ status: 'Pending', previousStatus: ' DESIGN ' }), false);
     // ...flagged when it is empty or any other status.
     assert.equal(r5({ status: 'Pending', previousStatus: 'In Progress' }), true);
-    assert.equal(r5({ status: 'Pending', previousStatus: 'Design' }), true);
+    assert.equal(r5({ status: 'Pending', previousStatus: 'TEST' }), true);
     assert.equal(r5({ status: 'Pending', previousStatus: null }), true);
     assert.equal(r5({ status: 'Pending', previousStatus: '   ' }), true);
     assert.equal(r5({ status: 'Pending' }), true);

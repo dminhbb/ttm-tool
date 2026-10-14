@@ -22,10 +22,14 @@ function isBlank(value: string | null): boolean {
  * past planning: neither the Start Date (R1) nor the Requirement Level (R5) is expected yet. */
 const PENDING_EXEMPT_PREVIOUS_STATUSES = new Set(['TO DO', 'IN PO']);
 
-/** A Pending Epic that was put on hold straight from planning (To Do / In PO). An empty previous
- * status is not in that set, so such an Epic is not exempt. */
-function isPendingFromPlanning(status: string, previousStatus: string | null | undefined): boolean {
-  return isPendingStatus(status) && PENDING_EXEMPT_PREVIOUS_STATUSES.has(normalizeWorkflowStatus(previousStatus ?? ''));
+/** R5 only (owner rule 2026-10-14): the Requirement Level is still being settled during Design, so a
+ * Pending Epic that was in Design before is exempt from R5 too — R1 keeps the To Do / In PO set. */
+const PENDING_EXEMPT_PREVIOUS_STATUSES_R5 = new Set([...PENDING_EXEMPT_PREVIOUS_STATUSES, 'DESIGN']);
+
+/** A Pending Epic that was put on hold straight from planning (To Do / In PO — plus Design for R5). An
+ * empty previous status is not in that set, so such an Epic is not exempt. */
+function isPendingFromPlanning(status: string, previousStatus: string | null | undefined, exempt: ReadonlySet<string> = PENDING_EXEMPT_PREVIOUS_STATUSES): boolean {
+  return isPendingStatus(status) && exempt.has(normalizeWorkflowStatus(previousStatus ?? ''));
 }
 
 /**
@@ -41,14 +45,15 @@ export function startDateRequired(status: string, previousStatus: string | null 
 }
 
 /**
- * When R5 expects the Requirement Level to be filled in (owner rule 2026-10-11, restated 2026-10-12):
+ * When R5 expects the Requirement Level to be filled in (owner rule 2026-10-11, restated 2026-10-12,
+ * Design added 2026-10-14):
  *   (status not Pending and status > DESIGN)
- *   OR (status = Pending and previous status ∉ {To Do, In PO}).
- * A Pending Epic is therefore only exempt when it was To Do / In PO before going Pending — an empty
- * previous status is not in that set, so it is not exempt either.
+ *   OR (status = Pending and previous status ∉ {To Do, In PO, Design}).
+ * A Pending Epic is therefore only exempt when it was To Do / In PO / Design before going Pending — an
+ * empty previous status is not in that set, so it is not exempt either.
  */
 export function requirementLevelRequired(status: string, previousStatus: string | null | undefined, statusIndex: number): boolean {
-  if (isPendingStatus(status)) return !isPendingFromPlanning(status, previousStatus);
+  if (isPendingStatus(status)) return !isPendingFromPlanning(status, previousStatus, PENDING_EXEMPT_PREVIOUS_STATUSES_R5);
   return statusIndex > STATUS_INDEX.DESIGN;
 }
 

@@ -77,8 +77,12 @@ export interface TtmDashboard2Insights {
   earlyWarning: number;
   justifyGolive: number;
   lateWarning: number;
-  /** Epics judged Fail TTM-CNTT that lack all failure reasons (REC_MISSING_FAIL_REASON). */
+  /** "Thiếu lý do" — Khâu fail: Fail TTM-CNTT with a late R4G Date lacking every failure reason
+   * (REC_MISSING_FAIL_REASON). */
   missingFailReason: number;
+  /** "Thiếu lý do" — Chịu TN chính: Fail TTM-CNTT with a late R4G Date lacking "Phòng chịu trách nhiệm
+   * chính" (REC_MISSING_RESPONSIBLE_DEPARTMENT, 2026-10-14). The widget shows the sum of the two. */
+  missingResponsibleDepartment: number;
   /** True when the rows were scored by the Epic Scoring Service (no "Cảnh báo sớm" then). */
   scoringEngine: boolean;
   /** "Chờ golive": Epics without an R4G Date, and the rest counted per releaseGraceDeadline ('' =
@@ -229,6 +233,7 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
   let justifyGolive = 0;
   let lateWarning = 0;
   let missingFailReason = 0;
+  let missingResponsibleDepartment = 0;
   for (const row of active) {
     if (row.ttmCnttInScope && row.alertLevel === 'LATE') lateWarning += 1;
     else if (row.ttmCnttInScope && row.alertLevel === 'EARLY') earlyWarning += 1;
@@ -241,6 +246,9 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
     }
     if (row.ttmCnttInScope && row.scoringBadges?.includes('REC_MISSING_FAIL_REASON')) {
       missingFailReason += 1;
+    }
+    if (row.ttmCnttInScope && row.scoringBadges?.includes('REC_MISSING_RESPONSIBLE_DEPARTMENT')) {
+      missingResponsibleDepartment += 1;
     }
   }
 
@@ -295,6 +303,7 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
     justifyGolive,
     lateWarning,
     missingFailReason,
+    missingResponsibleDepartment,
     qa: summarizeQaIndex(active),
     scoringEngine: rows.some((row) => Boolean(row.scoringBadges)),
     waitingGolive,

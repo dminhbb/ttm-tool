@@ -48,6 +48,9 @@ export interface EpicFacts {
   khauSa?: string | null;
   khauSitUat?: string | null;
   noteLyDoKhac?: string | null;
+  /** "Phòng chịu trách nhiệm chính" of a Fail TTM (REC_MISSING_RESPONSIBLE_DEPARTMENT, 2026-10-14).
+   * Not imported yet — the owner adds the field to the source later; until then it is always empty. */
+  responsibleDepartment?: string | null;
 }
 
 /**

@@ -280,6 +280,21 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
     </>
   );
 
+  // "Thiếu lý do" = sum of its two warnings (owner 2026-10-14) — each number opens its own list.
+  const missingStage = insights.missingFailReason ?? 0;
+  const missingDepartment = insights.missingResponsibleDepartment ?? 0;
+  const missingReasonSubtitle = (
+    <>
+      <KpiSubLink onClick={() => onOpen({ alert: 'MISSING_FAIL_STAGE', title: 'Danh sách Epic - Fail TTM chưa có thông tin khâu fail' })} title="Fail TTM chưa có thông tin khâu fail">
+        {fmt(missingStage)} Khâu fail
+      </KpiSubLink>
+      {' · '}
+      <KpiSubLink onClick={() => onOpen({ alert: 'MISSING_RESPONSIBLE_DEPARTMENT', title: 'Danh sách Epic - Fail TTM chưa có phòng chịu trách nhiệm chính' })} title="Fail TTM chưa có phòng chịu trách nhiệm chính">
+        {fmt(missingDepartment)} Chịu TN chính
+      </KpiSubLink>
+    </>
+  );
+
   const waitingSubtitle = (
     <>
       <KpiSubLink onClick={() => onOpen({ alert: 'WAITING_GOLIVE_MISSING_R4G', title: 'Danh sách Epic - Chờ golive: Thiếu R4G Date' })} title="Epic Chờ golive nhưng thiếu R4G Date">
@@ -322,11 +337,15 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
             <KpiCard
               tone="navy"
               title="THIẾU LÝ DO"
-              value={fmt(insights.missingFailReason ?? 0)}
-              subtitle="Fail TTM-CNTT"
+              value={fmt(missingStage + missingDepartment)}
+              subtitle={missingReasonSubtitle}
               icon={<KpiIconBadge icon={WarningCircle} iconColor="text-[var(--color-warning-400)]" />}
               onClick={() => onOpen({ alert: 'MISSING_FAIL_REASON', title: 'Danh sách Epic - Thiếu lý do Fail TTM' })}
-              tooltip="Epic Fail TTM-CNTT nhưng chưa log thông tin Khâu gây ra việc fail (BA, DEV, QA, PM/SM, ...)"
+              tooltip={[
+                'Tổng 2 cảnh báo trên Epic Fail TTM-CNTT có R4G Date muộn hơn Target (1 Epic có thể thiếu cả hai):',
+                '• Khâu fail: chưa log thông tin khâu gây ra việc fail (BA, DEV, QA, PM/SM, ...)',
+                '• Chịu TN chính: chưa có Phòng chịu trách nhiệm chính',
+              ].join('\n')}
             />
             <KpiCard
               tone="navy"
@@ -616,6 +635,8 @@ export function BreakdownDonutSections({ dimensions, funnel, onOpen }: { dimensi
         // A slice is named after its item; "Khác.." (the merged tail) carries no dimension filter.
         // "Theo Domain nghiệp vụ" lists every Domain in all three charts instead of merging that tail.
         const showAllItems = dimension === 'domain';
+        // "Theo Đơn vị yêu cầu" / "Theo Dự án" keep their 10 largest items before "Khác.." (owner 2026-10-14).
+        const maxItems = dimension === 'project' || dimension === 'requestingUnit' ? 10 : 4;
         const scopeOf = (name: string) => dimensionScope(dimension, items.find((item) => item.name === name));
         const open = (name: string, alert: InsightListParams['alert'], label: string) => onOpen({ ...scopeOf(name), alert, title: `${label} - ${DIMENSION_NOUN[dimension]}: ${name}` });
         return (
@@ -642,12 +663,14 @@ export function BreakdownDonutSections({ dimensions, funnel, onOpen }: { dimensi
                     <DonutChartCard
                       title="% Tổng số Epic"
                       showAllItems={showAllItems}
+                      maxItems={maxItems}
                       data={items.map((item) => ({ name: item.name, value: item.total }))}
                       onItemClick={(item) => open(item.name, 'TTM_COUNTED_IN_SCOPE', 'Danh sách Epic')}
                     />
                     <DonutChartCard
                       title="% Pass TTM"
                       showAllItems={showAllItems}
+                      maxItems={maxItems}
                       data={items.map((item) => ({ name: item.name, value: item.pass }))}
                       emptyMessage="Không có Epic đạt TTM"
                       onItemClick={(item) => open(item.name, 'TTM_PASS_IN_SCOPE', 'Danh sách Epic Pass TTM')}
@@ -655,6 +678,7 @@ export function BreakdownDonutSections({ dimensions, funnel, onOpen }: { dimensi
                     <DonutChartCard
                       title="% Fail TTM"
                       showAllItems={showAllItems}
+                      maxItems={maxItems}
                       data={items.map((item) => ({ name: item.name, value: item.fail }))}
                       emptyMessage="Không có Epic Fail TTM"
                       onItemClick={(item) => open(item.name, FAIL_ALERTS, 'Danh sách Epic Fail TTM')}

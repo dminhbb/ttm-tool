@@ -79,8 +79,13 @@ export const BADGES = [
   },
   {
     id: 'REC_MISSING_FAIL_REASON', axis: 'TTM_CNTT', group: 'RECOMMENDATION', label: 'Thiếu lý do Fail TTM', precedence: 35, defaultEnabled: true,
-    meaning: 'Epic bị đánh giá Fail TTM-CNTT (QLDA) nhưng chưa ghi nhận lý do tại bất kỳ khâu nào (khâu BA, CO, DEV, PM/SM, PO, Pentest, SA, SIT/UAT, Lý do khác).',
-    formula: 'Có "Fail TTM-CNTT (QLDA)"  VÀ  tất cả các trường lý do (khau_ba, khau_co, khau_dev, khau_pm_sm, khau_po, khau_pentest, khau_sa, khau_sit_uat, note_ly_do_khac) đều rỗng hoặc "none"',
+    meaning: 'Fail TTM chưa có thông tin khâu fail: Epic bị đánh giá Fail TTM-CNTT (QLDA) với R4G Date muộn hơn Target nhưng chưa ghi nhận lý do tại bất kỳ khâu nào (khâu BA, CO, DEV, PM/SM, PO, Pentest, SA, SIT/UAT, Lý do khác). Từ 14/10/2026 chỉ xét Epic đã có R4G Date — Epic Fail vì chưa có R4G Date mà đã quá Target không bị cảnh báo này.',
+    formula: 'Có "Fail TTM-CNTT (QLDA)"  VÀ  có R4G Date và R4G Date > Target_CNTT  VÀ  tất cả các trường lý do (khau_ba, khau_co, khau_dev, khau_pm_sm, khau_po, khau_pentest, khau_sa, khau_sit_uat, note_ly_do_khac) đều rỗng hoặc "none"',
+  },
+  {
+    id: 'REC_MISSING_RESPONSIBLE_DEPARTMENT', axis: 'TTM_CNTT', group: 'RECOMMENDATION', label: 'Thiếu phòng chịu TN chính', precedence: 36, defaultEnabled: true,
+    meaning: 'Fail TTM chưa có phòng chịu trách nhiệm chính: Epic bị đánh giá Fail TTM-CNTT (QLDA) với R4G Date muộn hơn Target nhưng trường "Phòng chịu trách nhiệm chính" còn trống. Mới từ 14/10/2026 — trường này chưa có trong dữ liệu import, nên tới khi được bổ sung mọi Epic thoả điều kiện Fail đều bị cảnh báo.',
+    formula: 'Có "Fail TTM-CNTT (QLDA)"  VÀ  có R4G Date và R4G Date > Target_CNTT  VÀ  "Phòng chịu trách nhiệm chính" trống hoặc "none"',
   },
   {
     id: 'CNTT_LATE', axis: 'TTM_CNTT', group: 'ALERT', label: 'Cảnh báo muộn', precedence: 40, defaultEnabled: true,
@@ -188,8 +193,8 @@ export const BADGES = [
   },
   {
     id: 'ANOMALY_R5_MISSING_REQUIREMENT_LEVEL', axis: 'DATA_QUALITY', group: 'ALERT', label: 'Thiếu Requirement Level', precedence: 50, defaultEnabled: true,
-    meaning: 'R5 — Epic chưa có Requirement Level khi đã tới lúc cần: status khác Pending và đã qua DESIGN (không xét DESIGN), hoặc Epic đang Pending mà status trước đó (previous_status) không thuộc {To Do, In PO} — previous_status rỗng cũng là không thuộc. Epic Pending trước đó là To Do / In PO được miễn (từ 11/10/2026).',
-    formula: 'Requirement Level trống hoặc "none"  VÀ  ( (status khác Pending và status > DESIGN)  HOẶC  (status = Pending và previous_status ∉ {To Do, In PO}) )',
+    meaning: 'R5 — Epic chưa có Requirement Level khi đã tới lúc cần: status khác Pending và đã qua DESIGN (không xét DESIGN), hoặc Epic đang Pending mà status trước đó (previous_status) không thuộc {To Do, In PO, Design} — previous_status rỗng cũng là không thuộc. Epic Pending trước đó là To Do / In PO được miễn (từ 11/10/2026), Design được miễn thêm từ 14/10/2026.',
+    formula: 'Requirement Level trống hoặc "none"  VÀ  ( (status khác Pending và status > DESIGN)  HOẶC  (status = Pending và previous_status ∉ {To Do, In PO, Design}) )',
     legacySource: 'evaluateEpicDataAnomaly R5',
   },
   {
@@ -330,9 +335,9 @@ export const BADGE_BY_ID: ReadonlyMap<BadgeId, BadgeDefinition> = new Map(BADGES
 
 /** Resolver: while `when` is active, each badge in `suppress` is still returned but marked suppressed. */
 export const SUPPRESSIONS: readonly { when: BadgeId; suppress: readonly BadgeId[] }[] = [
-  { when: 'CNTT_NOT_APPLICABLE', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH', 'REC_MISSING_FAIL_REASON'] },
-  { when: 'CNTT_CALC_BROKEN', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH', 'REC_MISSING_FAIL_REASON'] },
-  { when: 'SCOPE_CNTT_OUT', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH', 'RELEASE_WAITING_GOLIVE', 'REC_MISSING_FAIL_REASON'] },
+  { when: 'CNTT_NOT_APPLICABLE', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH', 'REC_MISSING_FAIL_REASON', 'REC_MISSING_RESPONSIBLE_DEPARTMENT'] },
+  { when: 'CNTT_CALC_BROKEN', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH', 'REC_MISSING_FAIL_REASON', 'REC_MISSING_RESPONSIBLE_DEPARTMENT'] },
+  { when: 'SCOPE_CNTT_OUT', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH', 'RELEASE_WAITING_GOLIVE', 'REC_MISSING_FAIL_REASON', 'REC_MISSING_RESPONSIBLE_DEPARTMENT'] },
   { when: 'E2E_CALC_BROKEN', suppress: ['E2E_FAIL', 'E2E_PASS', 'E2E_STATUS_MISMATCH'] },
 ];
 

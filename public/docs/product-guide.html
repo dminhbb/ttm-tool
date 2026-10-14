@@ -995,7 +995,7 @@
           <tr><td>R2</td><td>Pending lâu</td><td>Status Pending và số ngày làm việc từ T1 (hoặc ngày tạo Jira nếu thiếu T1) tới ngày tính ≥ 20% ngân sách TTM-CNTT của loại Epic.</td><td><strong>Không</strong> — chỉ là khuyến nghị (từ 29/09/2026)</td><td>Quyết định tiếp tục hay huỷ Epic</td></tr>
           <tr><td>R3</td><td>Sai thứ tự ngày</td><td>Không thoả <code>T0 ≤ T1 &lt; R4G Date ≤ Due Date</code> (chỉ xét mốc đã có giá trị); mọi cặp sai gộp thành 1 vi phạm.</td><td>Có</td><td>Rà soát lại các mốc ngày</td></tr>
           <tr><td>R4</td><td>Thiếu Phân loại yêu cầu</td><td>Phân loại yêu cầu trống hoặc "none".</td><td>Có</td><td>Bổ sung Phân loại yêu cầu</td></tr>
-          <tr><td>R5</td><td>Thiếu Requirement Level</td><td>Requirement Level trống hoặc "none" <strong>VÀ</strong> ( <strong>(status đã qua DESIGN và khác Pending)</strong> <strong>HOẶC</strong> <strong>(status = Pending và status trước đó (<code>previous_status</code>) rỗng hoặc khác To Do / In PO)</strong> ). Reopened tính như status đã qua DESIGN. <em>04/10/2026: không xét Epic đang ở DESIGN; 11/10/2026: Epic Pending trước đó là To Do / In PO được miễn.</em></td><td>Có</td><td>Bổ sung Requirement Level</td></tr>
+          <tr><td>R5</td><td>Thiếu Requirement Level</td><td>Requirement Level trống hoặc "none" <strong>VÀ</strong> ( <strong>(status đã qua DESIGN và khác Pending)</strong> <strong>HOẶC</strong> <strong>(status = Pending và status trước đó (<code>previous_status</code>) rỗng hoặc khác To Do / In PO / Design)</strong> ). Reopened tính như status đã qua DESIGN. <em>04/10/2026: không xét Epic đang ở DESIGN; 11/10/2026: Epic Pending trước đó là To Do / In PO được miễn; 14/10/2026: miễn thêm Epic Pending trước đó là Design.</em></td><td>Có</td><td>Bổ sung Requirement Level</td></tr>
           <tr><td>R6</td><td>SP nhưng Level thấp</td><td>Loại Epic SP-Lv12 / SP-Lv34 nhưng Requirement Level = 1 hoặc 2.</td><td>Có</td><td>Rà soát Phân loại yêu cầu / Requirement Level</td></tr>
           <tr><td>R7</td><td>Sai Status (trục Release)</td><td>Due Date trong hạn (≤ R4G Date + 5 ngày làm việc) nhưng status chưa Released.</td><td><strong>Không</strong> — chuyển sang trục Release (từ 29/09/2026)</td><td>Chuyển status sang Released</td></tr>
           <tr><td>R8</td><td>Có R4G Date nhưng chưa R4GOLIVE</td><td>Có R4G Date — <strong>dù đã tới hay còn ở tương lai</strong> — và status chưa tới R4GOLIVE (kể cả Pending). <strong>Áp dụng cả với To Do / In PO / Backlog</strong>; Cancelled và <strong>Reopened</strong> không xét (Epic đã golive rồi bị mở lại giữ R4G Date và kết quả TTM của mình, không gắn "Sai Status"). R4G Date là ngày Epic thực tế đạt R4GOLIVE nên không được nhập trước khi status tới đó; Epic đã ở R4GOLIVE trở lên (hoặc Reopened) mà R4G Date còn ở tương lai thì thuộc <strong>R10</strong>. <em>Mới 04/10/2026; điều chỉnh 05/10, 08/10 và 09/10/2026.</em></td><td>Có</td><td>Chuyển status sang R4GOLIVE hoặc kiểm tra lại R4G Date; R4G Date khai báo trước thì xoá và ghi ở trường thông tin khác</td></tr>
@@ -1211,7 +1211,7 @@
         </tbody>
       </table>
       <h3>13.3. Modal &quot;Quản trị hệ thống&quot; — chỉ SUPERADMIN</h3>
-      <p>Mở modal, không đổi URL. Gồm 5 tab, chi tiết ở các mục riêng:</p>
+      <p>Mở modal, không đổi URL. Gồm 6 tab, chi tiết ở các mục riêng:</p>
       <table>
         <thead><tr><th>Tab trong modal</th><th>Chi tiết tại mục</th></tr></thead>
         <tbody>
@@ -1220,6 +1220,7 @@
           <tr><td>Quản lý API key</td><td>Mục 17 (SSO)</td></tr>
           <tr><td>Cấu hình Jira</td><td>Địa chỉ Jira API và Jira View Issue (ghép với Epic Key để mở nhanh Epic trên Jira) — dữ liệu ở bảng singleton <code>jira_settings</code></td></tr>
           <tr><td>MCP Server</td><td>Mục 16</td></tr>
+          <tr><td>Dashboard</td><td>Công tắc "Dashboard Lead view cho tất cả user" — mục 21.9</td></tr>
         </tbody>
       </table>
       <h3>13.4. Epic ngoại lệ (Black listed + dự án Time to Market = N) — từ 05/10/2026, cập nhật 09/10/2026</h3>
@@ -1678,12 +1679,13 @@
       <p>Số liệu phễu, widget, ma trận và pie chart chưa lọc được lưu sẵn theo phạm vi quyền trong bảng <code>ttm_dashboard_2_cache</code> (một bộ chung cho SUPERADMIN + SUPERVISOR, một bộ cho từng ADMIN/USER) và tự dựng lại sau mỗi lần cache dữ liệu Epic được tạo lại, khi đổi engine hiển thị hoặc khi phân quyền user–domain–dự án thay đổi. Khi người dùng chọn bộ lọc, trang tải danh sách Epic của phạm vi một lần rồi tính lại bằng cùng hàm đã dùng để dựng cache.</p>
 
       <h3>21.6. Widget row (thiết kế lại 05–06/10/2026)</h3>
-      <p>Hàng 9 thẻ KPI, chia 2 nhóm màu: 5 thẻ bên trái (nền xanh navy nhạt) là số liệu TTM theo tiêu chí của phễu, 4 thẻ bên phải (nền xám) là số liệu vận hành. Mỗi thẻ có 3 tầng: tiêu đề → con số chính → dòng phụ. Bấm vào thẻ (hoặc link trong dòng phụ) để mở danh sách Epic tương ứng trên Quản trị Epic.</p>
+      <p>Hàng 10 thẻ KPI, chia 2 nhóm màu: 6 thẻ bên trái (nền xanh navy nhạt) là số liệu TTM theo tiêu chí của phễu, 4 thẻ bên phải (nền xám) là số liệu vận hành. Mỗi thẻ có 3 tầng: tiêu đề → con số chính → dòng phụ. Bấm vào thẻ (hoặc link trong dòng phụ) để mở danh sách Epic tương ứng trên Quản trị Epic.</p>
       <table>
         <thead><tr><th>Thẻ</th><th>Con số chính</th><th>Dòng phụ / ghi chú</th></tr></thead>
         <tbody>
           <tr><td>TỔNG EPIC</td><td><strong>L02</strong> — Epic trong phạm vi tính TTM</td><td>"Phạm vi tính". Số Epic bị loại (Cancelled, Epic ngoại lệ: Black listed + dự án Time to Market = N) xem ở popup diễn giải L02 của phễu.</td></tr>
           <tr><td>FAIL TTM-CNTT</td><td><strong>L05ab + L05ba</strong></td><td>"Cần xử lý" — bấm mở danh sách Epic Fail TTM-CNTT (nhóm 1 + nhóm 2).</td></tr>
+          <tr><td>THIẾU LÝ DO</td><td>Tổng 2 cảnh báo của Scoring Service trên Epic Fail TTM-CNTT <strong>có R4G Date muộn hơn Target</strong> (cập nhật 14/10/2026): <em>Khâu fail</em> (<code>REC_MISSING_FAIL_REASON</code> — chưa có thông tin khâu fail ở 9 trường lý do) + <em>Chịu TN chính</em> (<code>REC_MISSING_RESPONSIBLE_DEPARTMENT</code> — "Phòng chịu trách nhiệm chính" còn trống). Một Epic có thể thiếu cả hai nên được đếm 2 lần.</td><td>Dòng phụ "n Khâu fail · m Chịu TN chính", mỗi số mở danh sách riêng; bấm thẻ mở danh sách Epic thiếu ít nhất một trong hai. Epic Fail vì chưa có R4G Date (đã quá Target) không bị 2 cảnh báo này. Trường "Phòng chịu trách nhiệm chính" chưa có trong dữ liệu import, nên tới khi được bổ sung mọi Epic Fail trễ R4G đều thiếu "Chịu TN chính".</td></tr>
           <tr><td>TTM-CNTT — Toàn phòng QLDA</td><td>Vòng tròn hiện Tỷ lệ % Pass; bên cạnh là phân số <code>L05aa / (L05aa + L05ab + L05ba)</code></td><td>TTM-CNTT (QLDA) của tập Epic đang xem.</td></tr>
           <tr><td>TTM-CNTT — Phạm vi của QA</td><td>Vòng % + phân số Đạt / (Đạt + Fail)</td><td>Cùng công thức, chỉ lấy Epic MVP Done / Released (mục 8.7).</td></tr>
           <tr><td>TTM-E2E</td><td>Vòng % + phân số Đạt TTM-E2E / (Đạt + Fail TTM-E2E)</td><td>"Đạt / Đánh giá" — bấm mở danh sách Epic Fail TTM-E2E.</td></tr>
@@ -1712,7 +1714,7 @@
       </table>
 
       <h3>21.8. Các section Pie chart</h3>
-      <p>Lead view: Theo Đơn vị yêu cầu, Theo Domain nghiệp vụ (khi có hơn 1 domain), Theo Phân loại Epic (mở sẵn), Theo PM/SM, Theo Dự án. PM/SM view: chỉ Theo Phân loại Epic. Mỗi section gồm 3 biểu đồ; bấm vào một phần của biểu đồ để mở danh sách Epic.</p>
+      <p>Lead view: Theo Đơn vị yêu cầu, Theo Domain nghiệp vụ (khi có hơn 1 domain), Theo Phân loại Epic (mở sẵn), Theo PM/SM, Theo Dự án. PM/SM view: chỉ Theo Phân loại Epic. Mỗi section gồm 3 biểu đồ; bấm vào một phần của biểu đồ để mở danh sách Epic. Mỗi biểu đồ hiện riêng các giá trị lớn nhất, phần còn lại gộp vào mục <em>Khác..</em>: <strong>10 giá trị</strong> với Theo Đơn vị yêu cầu và Theo Dự án (từ 14/10/2026), 4 giá trị với các section khác; Theo Domain nghiệp vụ luôn hiện đủ mọi Domain.</p>
       <table>
         <thead><tr><th>Biểu đồ</th><th>Số liệu theo từng giá trị của chiều</th></tr></thead>
         <tbody>
@@ -1721,6 +1723,18 @@
           <tr><td>% Fail TTM</td><td>L05ab + L05ba (chỉ Fail TTM-CNTT; không cộng Fail TTM-E2E như biểu đồ "% Epic Fail TTM (pm)" của TTM Dashboard)</td></tr>
         </tbody>
       </table>
+      <h3>21.9. Lead view cho tất cả user (từ 14/10/2026)</h3>
+      <p>
+        Công tắc <strong>"Dashboard Lead view cho tất cả user"</strong> ở <em>Quản trị hệ thống → Dashboard</em> (SUPERADMIN, bảng singleton <code>dashboard_view_settings</code>, mặc định bật).
+        Khi bật, user có phạm vi dữ liệu hẹp hơn toàn công ty (Admin, PM/SM) mở TTM Dashboard 2 sẽ mặc định thấy <strong>màn hình của Lead với số liệu toàn công ty</strong>
+        (bộ lọc Domain, đủ các section pie chart), và chuyển được về số liệu theo phạm vi của mình bằng nút <em>Toàn công ty / Của tôi</em> trên đầu trang — ở chế độ <em>Của tôi</em>
+        mọi chức năng xem dashboard theo view của user giữ nguyên như trước (Admin vẫn có Lead / PM/SM và xem góc nhìn user khác).
+      </p>
+      <ul>
+        <li>Chỉ con số thống kê được mở rộng. Khi bấm vào số liệu để mở popup Quản trị Epic, danh sách vẫn theo đúng phân quyền dữ liệu của user, nên có thể ít hơn con số trên dashboard — màn hình hiện dòng ghi chú này khi đang ở Lead view.</li>
+        <li>Số liệu toàn công ty đọc từ cùng bộ cache <code>ALL</code> của SUPERADMIN/SUPERVISOR (mục 21.5). Khi lọc, dữ liệu tải về trình duyệt chỉ gồm các trường dùng để đếm (không có Epic key, tên Epic).</li>
+        <li>SUPERADMIN / SUPERVISOR vốn đã xem toàn công ty nên không thấy nút chuyển. Tắt công tắc: mọi user quay về chỉ xem số liệu theo phạm vi của mình.</li>
+      </ul>
     </section>
 
   </main>

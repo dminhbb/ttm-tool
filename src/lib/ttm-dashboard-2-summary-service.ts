@@ -109,6 +109,7 @@ export async function getTtmDashboard2Summary(userId: number, role: UserRole, in
       saiLechDuLieu: insights.anomalyCount,
       choGolive: { total: insights.waitingGolive.total, thieuR4gDate: waiting.missingR4g, trongHan: waiting.withinGrace, quaHan: waiting.overdue },
       giaiTrinhGolive: insights.justifyGolive,
+      thieuLyDo: { tong: insights.missingFailReason + (insights.missingResponsibleDepartment ?? 0), khauFail: insights.missingFailReason, chiuTnChinh: insights.missingResponsibleDepartment ?? 0 },
     },
     // Counts go out as the screen shows them: whole Epics. Only the PM/SM dimension holds shares (an
     // Epic of n PM/SMs is 1/n for each — see TtmBreakdownItem); the percentages use the unrounded shares.
@@ -136,7 +137,7 @@ export async function getTtmDashboard2Summary(userId: number, role: UserRole, in
     glossary: {
       funnel: 'Phễu chỉ tính Epic trong "Phạm vi dữ liệu cho TTM" và phạm vi quyền của người gọi. L02 = L01 − Cancelled − Epic ngoại lệ; "Epic ngoại lệ" gồm 2 loại: Epic trong danh sách Black listed (epicNgoaiLe) và Epic thuộc dự án có Time to Market = N (duAnKhongTinhTtm) — Scoring Service không xét các Epic này; L03 = L02 − Sai lệch dữ liệu = L04a + L04b; L04a = L05aa + L05ab + L05ac; L04b = L05ba + L05bb.',
       indexes: 'Cả 3 chỉ số: pct = Tỷ lệ % Pass = pass / denominator, denominator = pass + fail (chỉ Epic đã có kết luận; Cancelled, Epic ngoại lệ, Sai lệch dữ liệu, chưa kết luận không tính); pct = null khi chưa có Epic nào được kết luận. TTM-CNTT (QLDA): pass = L05aa, fail = L05ab + L05ba. TTM-CNTT (QA): cùng công thức, chỉ Epic MVP Done / Released trong "R4G for TTM (QA)". TTM-E2E: Đạt / (Đạt + Fail) TTM-E2E, không áp "Phạm vi dữ liệu cho TTM".',
-      widgets: 'tongSoEpic = L02; failTtmCntt = L05ab + L05ba; epicDanhGia = L05aa + L05ab + L05ba. chamTienDo, saiLechDuLieu, choGolive, giaiTrinhGolive đếm trên các Epic của tập đang xem, không tính Epic Cancelled và Epic ngoại lệ (từ 09/10/2026).',
+      widgets: 'tongSoEpic = L02; failTtmCntt = L05ab + L05ba; epicDanhGia = L05aa + L05ab + L05ba. thieuLyDo = khauFail + chiuTnChinh (Epic Fail TTM-CNTT có R4G Date muộn hơn Target nhưng chưa có thông tin khâu fail / chưa có phòng chịu trách nhiệm chính — 1 Epic có thể thiếu cả hai). chamTienDo, saiLechDuLieu, choGolive, giaiTrinhGolive đếm trên các Epic của tập đang xem, không tính Epic Cancelled và Epic ngoại lệ (từ 09/10/2026).',
       breakdown: 'Mỗi dòng dùng cùng tiêu chí với phễu. dungTienDo / chamTienDo chỉ đếm Epic chưa có R4G Date và không Sai lệch dữ liệu (chậm = đang Fail hoặc Cảnh báo muộn); Epic Sai lệch dữ liệu đếm riêng ở saiLechDuLieu.',
       ttmIndexGlobal: 'Chỉ số toàn công ty trên banner — tính trên toàn bộ Epic, không phụ thuộc quyền/bộ lọc.',
       danhSachEpic: 'Tool này chỉ trả số liệu tổng hợp. Danh sách Epic sau mỗi con số: dùng list_epic_alerts với tham số nhanXet (dữ liệu màn Quản trị Epic), ví dụ nhanXet = TTM_PASS_IN_SCOPE cho L05aa.',

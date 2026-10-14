@@ -1,13 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import { GearSix, Info, Key, LinkSimple, Megaphone, Plugs } from '@phosphor-icons/react';
+import { ChartPie, GearSix, Info, Key, LinkSimple, Megaphone, Plugs } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { MODAL_BACKDROP_CLASS, MODAL_FRAME_CLASS, ModalHeader, useModalBehavior } from '@/components/ui/Modal';
 import type { UserRole } from '@/lib/auth-types';
 import { AdPopupsPanel } from '@/components/settings/AdPopupsPanel';
 import { ApiKeysPanel } from '@/components/settings/ApiKeysPanel';
+import { DashboardViewPanel } from '@/components/settings/DashboardViewPanel';
 import { InfoBannersPanel } from '@/components/settings/InfoBannersPanel';
 import { JiraConfigPanel } from '@/components/settings/JiraConfigPanel';
 import { McpServerPanel } from '@/components/settings/McpServerPanel';
@@ -31,6 +32,7 @@ const SUPERADMIN_SECTIONS: SettingsSection[] = [
   { id: 'api-keys', icon: Key, label: 'Quản lý API key', panel: <ApiKeysPanel /> },
   { id: 'jira-config', icon: LinkSimple, label: 'Cấu hình Jira', panel: <JiraConfigPanel /> },
   { id: 'mcp-server', icon: Plugs, label: 'MCP Server', panel: <McpServerPanel /> },
+  { id: 'dashboard-view', icon: ChartPie, label: 'Dashboard', panel: <DashboardViewPanel /> },
 ];
 
 export function SystemAdminModal({ isOpen, onClose, role = null }: SystemAdminModalProps) {
