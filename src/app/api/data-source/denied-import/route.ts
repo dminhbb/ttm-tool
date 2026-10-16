@@ -49,9 +49,9 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    await requireUser(request, ['SUPERADMIN']);
+    const user = await requireUser(request, ['SUPERADMIN']);
     const body = await readJsonBody(request);
-    return NextResponse.json({ removed: await removeDeniedImportEpics(requireEpicKeys(body.epicKeys)) });
+    return NextResponse.json({ removed: await removeDeniedImportEpics(requireEpicKeys(body.epicKeys), user.id) });
   } catch (error: unknown) {
     return dataSourceErrorResponse(error, 'Lỗi hệ thống khi xóa Epic khỏi Từ chối import');
   }

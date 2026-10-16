@@ -64,7 +64,16 @@ interface ValidationDetail {
   validationErrors: ValidationError[];
 }
 
+/** An Epic the file would deny (and delete) — see describeDeniedRows. */
+interface DeniedEpicInFile {
+  epicKey: string;
+  origin: 'LIST' | 'RULE';
+  reason: string;
+}
+
 interface PreviewResult {
+  /** Epics "Từ chối import" would drop from this file (validate-only runs report them too). */
+  deniedEpics?: DeniedEpicInFile[];
   fileName: string;
   totalRows: number;
   successRows: number;
@@ -93,6 +102,20 @@ function describeDeniedRows(result: { deniedEpics?: { epicKey: string; origin: '
     ? ` ${byRule} Epic vi phạm rule A/B đã được tự thêm vào danh sách Từ chối import — hãy chạy lại cache.`
     : ` ${byRule} Epic vi phạm rule A/B sẽ được tự thêm vào danh sách khi import thật.`;
   return ` Từ chối import: ${result.deniedRows} dòng của ${epics.length} Epic (${keys}).${ruleNote}`;
+}
+
+/**
+ * Last look before a real import: the Epics an automatic rule (A/B) is about to deny are listed in
+ * Từ chối import and their data deleted from the database for good, so the admin confirms them first.
+ */
+async function confirmRuleDenials(epics: readonly DeniedEpicInFile[]): Promise<boolean> {
+  const shown = epics.slice(0, 15).map((epic) => `• ${epic.epicKey} — ${epic.reason}`).join('\n');
+  const more = epics.length > 15 ? `\n… và ${epics.length - 15} Epic khác` : '';
+  return confirmDialog({
+    title: `${epics.length} Epic sẽ bị Từ chối import và xóa dữ liệu`,
+    description: `File này có các Epic vi phạm rule tự động A/B. Import thật sẽ thêm chúng vào danh sách Từ chối import và XÓA toàn bộ dữ liệu của chúng khỏi hệ thống (không hoàn tác được).\n\n${shown}${more}`,
+    confirmLabel: 'Tiếp tục import',
+  });
 }
 
 /** Explains an import response that isn't the route's own JSON — i.e. one produced in front of it. */
@@ -251,6 +274,37 @@ export function ImportIssuesTab() {
     formData.append('aggregatedAt', aggregatedDate.toISOString());
     formData.append('validateOnly', validateOnly ? 'true' : 'false');
     formData.append('adapterType', adapterType);
+
+    // Real import only: make sure the admin has seen which Epics an automatic rule will delete. Reuses
+    // this file's own "Kiểm tra" result when there is one (previewResult is cleared whenever another
+    // file is picked), else asks the server for a validate-only run first.
+    if (!validateOnly) {
+      let deniedInFile: DeniedEpicInFile[] | undefined = previewResult?.deniedEpics;
+      if (!deniedInFile) {
+        try {
+          const preflight = new FormData();
+          preflight.append('file', fileContent, file.name);
+          preflight.append('aggregatedAt', aggregatedDate.toISOString());
+          preflight.append('validateOnly', 'true');
+          preflight.append('adapterType', adapterType);
+          const preflightRes = await fetch('/api/data-source/import', { method: 'POST', body: preflight });
+          const preflightBody = (await preflightRes.json()) as { deniedEpics?: DeniedEpicInFile[]; error?: string };
+          if (!preflightRes.ok) throw new Error(preflightBody.error || 'Không kiểm tra được file trước khi import.');
+          deniedInFile = preflightBody.deniedEpics ?? [];
+        } catch (error) {
+          console.error('Import pre-flight check failed:', error);
+          setImportMessage({ type: 'error', text: `Chưa import: không kiểm tra được các Epic bị Từ chối import trước khi lưu (${error instanceof Error ? error.message : 'lỗi không xác định'}). Hãy bấm "Kiểm tra" rồi thử lại.` });
+          setIsImporting(false);
+          return;
+        }
+      }
+      const byRule = deniedInFile.filter((epic) => epic.origin === 'RULE');
+      if (byRule.length > 0 && !(await confirmRuleDenials(byRule))) {
+        setImportMessage({ type: 'warning', text: `Đã hủy import: ${byRule.length} Epic vi phạm rule A/B sẽ bị xóa dữ liệu. Chưa có gì được lưu.` });
+        setIsImporting(false);
+        return;
+      }
+    }
 
     try {
       const res = await fetch('/api/data-source/import', {

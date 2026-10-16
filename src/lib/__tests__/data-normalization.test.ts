@@ -55,8 +55,15 @@ describe('"Chuẩn hoá dữ liệu" panels', () => {
     assert.deepEqual(panelsOf({ scoringBadges: ['REC_MISSING_FAIL_REASON'], ttmCnttInScope: false }), {});
     // A legacy row (no badges) is never in the "Thiếu lý do Fail TTM" panel.
     assert.deepEqual(panelsOf({ scoringBadges: undefined }), {});
+    // "Thiếu lý do" = Khâu fail + Chịu TN chính, as on the dashboard widget: either one puts the Epic
+    // in the panel, both give it two messages.
+    const dept = panelsOf({ scoringBadges: ['CNTT_FAIL', 'REC_MISSING_RESPONSIBLE_DEPARTMENT'] });
+    assert.deepEqual(Object.keys(dept), [FAIL_REASON_PANEL_CODE]);
+    assert.equal(dept[FAIL_REASON_PANEL_CODE].length, 1);
+    assert.equal(panelsOf({ scoringBadges: ['REC_MISSING_FAIL_REASON', 'REC_MISSING_RESPONSIBLE_DEPARTMENT'] })[FAIL_REASON_PANEL_CODE].length, 2);
+    assert.deepEqual(panelsOf({ scoringBadges: ['REC_MISSING_RESPONSIBLE_DEPARTMENT'], ttmCnttInScope: false }), {});
     // The SQL pre-filter keeps exactly the badges read here.
-    assert.deepEqual([...NORMALIZATION_BADGE_CODES].sort(), ['REC_MISSING_FAIL_REASON', 'RELEASE_STATUS_MISMATCH']);
+    assert.deepEqual([...NORMALIZATION_BADGE_CODES].sort(), ['REC_MISSING_FAIL_REASON', 'REC_MISSING_RESPONSIBLE_DEPARTMENT', 'RELEASE_STATUS_MISMATCH']);
   });
 
   it('the rule text follows the engine the Epics were judged by: legacy R1 / R5 / R7 differ from the catalog', () => {

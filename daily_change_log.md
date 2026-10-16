@@ -6,6 +6,45 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-10-16
+
+- **Quản trị Epic — cột "Nhận xét" rút gọn thành chip icon** (`src/components/epic-alerts/EpicCommentCell.tsx`, `src/lib/epic-comment-groups.ts`, thay `ScoringBadges.tsx` và `DataAnomalyBadge`):
+  - Giữ badge kết luận TTM-CNTT (Fail / Đạt / Ngoài phạm vi) rồi một hàng tối đa 4 chip icon Phosphor: Kết quả (Certificate), Sai lệch dữ liệu (TreeStructure), Cảnh báo (WarningDiamond), Xử lý (Cpu) — nhóm rỗng ẩn, icon tô màu mức nặng nhất trong nhóm (Kết quả chỉ có Đạt = xanh).
+  - Bấm chip mở danh sách ngay dưới hàng chip, không tự đóng khi rê chuột/bấm chỗ khác; mở chip khác của cùng Epic thì đóng chip cũ (hàng khác giữ nguyên); không nhớ trạng thái. Tên nhóm hiện bằng `Tooltip` của app; nội dung tooltip cũ của từng badge chuyển thành dòng chi tiết trong danh sách.
+  - Cột Nhận xét rộng tối thiểu 180px. Logic gom nhóm thuần, có test (`src/lib/__tests__/epic-comment-groups.test.ts`).
+  - Chip phẳng (không viền): icon 19px + số 14px; hover nền xám nhạt, đang mở nền bo 6px tô nhạt theo màu icon (`bg-*-soft`), vùng bấm cao tối thiểu 28px.
+  - Badge kết luận đổi sang nền xám nhạt (chữ vẫn theo màu badge); cột Nhận xét co theo nội dung (`w-[1%]`, tối thiểu 172px, bỏ padding `ttm-col-roomy`) để hết khoảng trắng bên phải.
+  - Badge kết luận: nền = màu nền ô trộn nhạt với màu của badge (đậm hơn nền phía dưới một chút), không viền, chữ trộn từ màu badge và màu chữ chính — tự theo sáng/tối (`.ttm-comment-badge`). Bảng Quản trị Epic căn các ô theo đỉnh (`.ttm-align-top`) để mở danh sách chip không làm các cột khác nhảy hàng chữ.
+- **Sửa theo review bộ code pull 16/10**:
+  - *Chuẩn hoá dữ liệu* (`src/lib/data-normalization.ts`): panel "Thiếu lý do Fail TTM" gồm cả Epic thiếu "Phòng chịu TN chính" (`REC_MISSING_RESPONSIBLE_DEPARTMENT`), khớp widget "THIẾU LÝ DO" của TTM Dashboard 2; bộ lọc SQL `NORMALIZATION_BADGE_CODES` thêm badge này.
+  - *Import* (`src/components/data-source/ImportIssuesTab.tsx`): trước khi "Import & Lưu" thật, nếu file có Epic vi phạm rule A/B thì hiện hộp xác nhận liệt kê Epic + lý do (dùng kết quả "Kiểm tra" của file, hoặc tự chạy kiểm tra trước); hủy thì không lưu gì.
+  - *Từ chối import* (`src/lib/denied-import-service.ts`): `removeDeniedImportEpics` ghi `audit_logs` (`DENIED_IMPORT_REMOVE`, mỗi Epic một dòng) cùng transaction.
+- **Quản trị Epic — bảng 1x4 cột Nhận xét và cột PASS độc lập** (`src/components/epic-alerts/EpicCommentCell.tsx`, `src/lib/epic-comment-groups.ts`, `src/app/epic-alerts-15/page.tsx`, `src/app/epic-alerts-15/epic-alerts-15.css`):
+  - Thay thế chip icon và gỡ badge kết luận TTM-CNTT khỏi cột Nhận xét; bố trí dải bảng 1x4 liền mạch (border=0) gồm 4 ô màu pastel tương ứng 4 nhóm theo ngữ nghĩa: Xử lý (`#dae8fc`, xanh dương), Kết quả (`#d5e8d4`, xanh lá), Cảnh báo (`#e1d5e7`, tím), Sai lệch dữ liệu (`#fbeaea`, hồng nhạt).
+  - Mỗi ô hiển thị số lượng mục tương ứng (nếu 0 mục hiển thị ký tự `-` và không click được). Hover vào ô vẫn hiển thị Tooltip tên nhóm + số lượng.
+  - Bấm vào ô có giá trị mở bung panel nội dung chi tiết ngay bên dưới bảng 1x4, panel mang cùng màu nền với ô được bấm. Bấm lại chính ô đó để đóng (toggle), bấm ô khác để chuyển nhóm.
+  - Bổ sung cột **PASS** bên phải cột Nhận xét (trước cột TTM-CNTT): chỉ dùng icon không dùng text — icon `CheckCircle` xanh lá nếu pass TTM-CNTT, icon `XCircle` màu nâu (`#8B4513`, class `ttm-icon-fail-brown`) nếu fail TTM-CNTT, bỏ trống ô nếu chưa có kết luận đánh giá (đang triển khai / ngoài phạm vi / chưa tính được).
+- **Cập nhật hiển thị cột Nhận xét & PASS** (`src/components/epic-alerts/EpicCommentCell.tsx`, `src/app/epic-alerts-15/epic-alerts-15.css`, `src/app/epic-alerts-15/page.tsx`):
+  - Text trong panel chi tiết của cột Nhận xét: bổ sung `box-sizing: border-box`, `white-space: normal`, `break-words` trên ô TD và panel để tự động xuống dòng, không bị tràn ra ngoài phạm vi cột / sang cột PASS kế bên.
+  - Icon Fail TTM-CNTT ở cột PASS: chuyển sang màu cam (`#f97316`, dark mode `#fb923c`, class `ttm-icon-fail-orange`).
+- **Tối ưu giảm khoảng trắng thừa và chuẩn hóa tiêu đề bảng Quản trị Epic** (`src/app/epic-alerts-15/page.tsx`, `src/app/epic-alerts-15/epic-alerts-15.css`, `src/components/epic-alerts/EpicCommentCell.tsx`):
+  - Đổi tên cột: `Release` thành `'DUE DATE'`, `START-CNTT` thành `'START-DATE'`.
+  - Đồng bộ font style tiêu đề cột thành chữ hoa: `Epic` → `EPIC`, `Nhận xét` → `NHẬN XÉT`, `Status` → `STATUS`.
+  - Giảm khoảng trắng thừa ở các cột: gỡ bỏ `min-w-[1694px]` trên Table để bảng co giãn linh hoạt vừa khít chiều rộng màn hình, không bị ép thanh trượt ngang khi xem trên laptop/desktop tiêu chuẩn; đặt `w-[1%]` cho các cột số liệu, ngày tháng, trạng thái, nhận xét, pass và dồn độ rộng co giãn còn lại cho cột `EPIC` (chứa tên/tóm tắt Epic cần hiển thị dài); tinh gọn độ rộng dải tiến độ TTM (`BASE_WIDTH = 36px`, `MAX_ACTUAL_WIDTH = 72px`), căn giữa ô và giảm padding `ttm-col-roomy` từ 24px xuống 8px; thu gọn dải nút 1x4 nhận xét xuống 136px–152px.
+- **Căn lề trái và phía trên cho cột TTM-CNTT (QLDA) & TTM-E2E** (`src/app/epic-alerts-15/page.tsx`, `src/app/epic-alerts-15/epic-alerts-15.css`):
+  - Chuyển căn lề tiêu đề TH và ô TD sang bên trái (`text-left`) và phía trên (`align-top`, `vertical-align: top`).
+  - Đổi `.ttm-strip-wrap` sang `align-items: flex-start; text-align: left;` để 2 dải stripe (baseline và actual) luôn căn đều sát mép trái, ngày bắt đầu của cả 2 dải (`27/03/2026`) thẳng hàng hoàn toàn theo chiều dọc không còn bị lệch nhau khi vạch tiến độ có độ dài khác nhau; cố định độ rộng ngày bắt đầu `min-width: 52px` với `tabular-nums` để điểm bắt đầu vẽ track khớp pixel.
+- **Cập nhật cột Nhận xét (màu sắc, thứ tự, hover/click) và sửa lỗi phân trang** (`src/components/epic-alerts/EpicCommentCell.tsx`, `src/lib/epic-comment-groups.ts`, `src/lib/__tests__/epic-comment-groups.test.ts`, `src/app/epic-alerts-15/page.tsx`, `src/app/epic-alerts-15/epic-alerts-15.css`):
+  - Đổi thứ tự ô Kết quả lên vị trí đầu tiên trong dải 1x4 (`GROUP_ORDER`: Kết quả → Xử lý → Cảnh báo → Sai lệch dữ liệu).
+  - Ô Kết quả: nếu có kết quả fail (Fail TTM-CNTT hoặc Fail TTM-E2E) thì ô chuyển sang nền màu orange (`#f97316`) và chữ trắng (`#ffffff`), panel chi tiết mang nền cam nhạt tương ứng (`#ffedd5`, chữ đậm `#7c2d12`); nếu không fail thì giữ màu xanh lá pastel chuẩn.
+  - Ô Sai lệch dữ liệu: nếu có giá trị (count > 0) thì ô chuyển sang nền màu orange (`#f97316`) và chữ trắng (`#ffffff`), panel chi tiết mang nền cam nhạt tương ứng.
+  - Bổ sung chế độ hover: rê chuột qua ô có dữ liệu sẽ tự động mở xem nhanh panel chi tiết (hover vào panel để tiếp tục đọc không bị tắt, rời chuột tắt sau 200ms); bấm vào ô để ghim cố định panel (bấm lại để tắt); ô không có dữ liệu (-) hiển thị tooltip giải thích.
+  - Sửa lỗi lệch số trang ở thanh phân trang: gắn `whitespace-nowrap flex-nowrap` và dùng non-breaking space `/&nbsp;{totalPages}` để số trang không bao giờ bị ngắt dòng xuống dưới dấu gạch chéo `/`.
+- **Căn chỉnh bảng Quản trị Epic và tối ưu trải nghiệm hover popover Nhận xét** (`src/app/epic-alerts-15/page.tsx`, `src/app/epic-alerts-15/epic-alerts-15.css`, `src/components/epic-alerts/EpicCommentCell.tsx`):
+  - Căn lề tất cả các cột của bảng Quản trị Epic sang bên trái và phía trên (`text-left`, `align-top`, `vertical-align: top`), ngoại trừ duy nhất cột `PASS` được căn giữa và phía trên (`text-center`, `align-top`, `justify-center`). Cập nhật cả các ô giai đoạn (DESIGN, DEV, TEST, PENTEST, R4GOLIVE, DUE DATE, START-E2E, START-DATE, `.ttm-phase-cell`, `.ttm-phase-baseline`, `.ttm-phase-actual`).
+  - Điều chỉnh chế độ hover cột Nhận xét: khi di chuột vào ô có dữ liệu thì mở bung panel thông tin chi tiết; khi di chuột ra khỏi ô thì popover **không bị mất đi** để user có thể thoải mái đọc thông tin. User có thể đóng popover bằng nút `×` ở tiêu đề panel, bấm vào ô để toggle đóng, hoặc di chuột/bấm sang ô có dữ liệu khác để chuyển nhóm.
+
+
 ## 2026-10-14
 
 - **Từ chối import — bảng mới** (`db/migrations/20261014_create_denied_import_epics.sql`, `20261014b_seed_denied_import_epics.sql`): `denied_import_epics` (Epic không được import + thông tin cơ bản chụp lúc thêm, cờ "Cho phép import", nguồn MANUAL / AUTO_RULE / SEED) và `import_admission_settings` (ngày A = 31/01/2026, B = 01/07/2026). Seed 42 Epic ngoài phạm vi dữ liệu nguồn (Released/MVP Done trước 01/07, owner đã kiểm tra trên Jira). **Đã chạy trên Supabase; CHƯA chạy trên local** (máy này không có Postgres) — trên máy có DB local: `npm run db:migrate:local` rồi vào Quản trị nguồn dữ liệu → Từ chối import → "Xóa dữ liệu còn tồn tại".

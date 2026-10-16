@@ -256,9 +256,22 @@ export async function setDeniedImportAllowance(epicKeys: readonly string[], allo
 }
 
 /** Takes Epics off the list ("Xóa" / "Xóa theo lô") — no data comes back by itself. */
-export async function removeDeniedImportEpics(epicKeys: readonly string[]): Promise<number> {
-  const result = await pool.query('DELETE FROM denied_import_epics WHERE epic_key = ANY($1::text[]);', [[...epicKeys]]);
-  return result.rowCount ?? 0;
+export async function removeDeniedImportEpics(epicKeys: readonly string[], userId: number): Promise<number> {
+  // One audit line per Epic actually taken off the list, in the same transaction as the delete.
+  return inTransaction(async (client) => {
+    const removed = await client.query<{ epicKey: string }>(
+      'DELETE FROM denied_import_epics WHERE epic_key = ANY($1::text[]) RETURNING epic_key AS "epicKey";',
+      [[...epicKeys]],
+    );
+    if (removed.rows.length > 0) {
+      await client.query(
+        `INSERT INTO audit_logs (user_id, action, entity_type, entity_id)
+         SELECT $1::int, 'DENIED_IMPORT_REMOVE', 'EPIC', key FROM unnest($2::text[]) AS key;`,
+        [userId, removed.rows.map((row) => row.epicKey)],
+      );
+    }
+    return removed.rows.length;
+  });
 }
 
 /** Deletes whatever the database still holds of denied Epics (e.g. the SEED list on a fresh database). */

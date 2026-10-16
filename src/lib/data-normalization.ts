@@ -31,6 +31,8 @@ const GUIDE_BADGE_OF_RULE: Partial<Record<number, BadgeId>> = {
 };
 
 const FAIL_REASON_BADGE = 'REC_MISSING_FAIL_REASON' satisfies BadgeId;
+/** The second half of "Thiếu lý do" on TTM Dashboard 2 (widget = Khâu fail + Chịu TN chính). */
+const RESPONSIBLE_DEPARTMENT_BADGE = 'REC_MISSING_RESPONSIBLE_DEPARTMENT' satisfies BadgeId;
 const RELEASE_MISMATCH_BADGE = 'RELEASE_STATUS_MISMATCH' satisfies BadgeId;
 
 /** Key of the "Thiếu lý do Fail TTM" panel in the API (page map, open panels). */
@@ -82,6 +84,7 @@ function ruleNumberOf(badgeId: string): number {
 }
 
 const failReasonBadge = BADGE_BY_ID.get(FAIL_REASON_BADGE)!;
+const responsibleDepartmentBadge = BADGE_BY_ID.get(RESPONSIBLE_DEPARTMENT_BADGE)!;
 const releaseMismatchBadge = BADGE_BY_ID.get(RELEASE_MISMATCH_BADGE)!;
 
 const DATA_QUALITY_PANELS: NormalizationPanelDefinition[] = badgesOf('DATA_QUALITY', 'ALERT')
@@ -119,12 +122,12 @@ const RELEASE_MISMATCH_PANEL: NormalizationPanelDefinition = {
 const FAIL_REASON_PANEL: NormalizationPanelDefinition = {
   code: FAIL_REASON_PANEL_CODE,
   defaultMessage: failReasonBadge.meaning,
-  formula: failReasonBadge.formula,
-  guide: 'Ghi nhận lý do Fail TTM trên Jira ở ít nhất một khâu (BA, CO, DEV, PM/SM, PO, Pentest, SA, SIT/UAT) hoặc trường "Lý do khác".',
+  formula: `${failReasonBadge.formula}  —  hoặc  —  ${responsibleDepartmentBadge.formula}`,
+  guide: 'Ghi nhận lý do Fail TTM trên Jira ở ít nhất một khâu (BA, CO, DEV, PM/SM, PO, Pentest, SA, SIT/UAT) hoặc trường "Lý do khác", và điền "Phòng chịu trách nhiệm chính" (main_fail_dept).',
   inLegacyEngine: false,
   index: 0,
   label: failReasonBadge.label,
-  meaning: failReasonBadge.meaning,
+  meaning: `${failReasonBadge.meaning} ${responsibleDepartmentBadge.meaning}`,
   tag: 'Fail TTM',
 };
 
@@ -163,13 +166,15 @@ export function normalizationPanelsOf(row: NormalizationSourceRow): Map<string, 
   if (row.scoringBadges?.includes(RELEASE_MISMATCH_BADGE) && !panels.has(RELEASE_MISMATCH_PANEL.code)) {
     add(RELEASE_MISMATCH_PANEL.code, RELEASE_MISMATCH_PANEL.defaultMessage);
   }
+  // Both halves of "Thiếu lý do" (as the dashboard widget counts them), inside "Phạm vi dữ liệu cho TTM".
   if (row.ttmCnttInScope && row.scoringBadges?.includes(FAIL_REASON_BADGE)) add(FAIL_REASON_PANEL.code, FAIL_REASON_PANEL.defaultMessage);
+  if (row.ttmCnttInScope && row.scoringBadges?.includes(RESPONSIBLE_DEPARTMENT_BADGE)) add(FAIL_REASON_PANEL.code, responsibleDepartmentBadge.meaning);
   return panels;
 }
 
 /** Badge codes that put a scoring row in a panel without being a violation — for the SQL pre-filter
  * of epic_alert_row_cache.badge_codes (see queryDashboardEpicRows). */
-export const NORMALIZATION_BADGE_CODES: readonly string[] = [RELEASE_MISMATCH_BADGE, FAIL_REASON_BADGE];
+export const NORMALIZATION_BADGE_CODES: readonly string[] = [RELEASE_MISMATCH_BADGE, FAIL_REASON_BADGE, RESPONSIBLE_DEPARTMENT_BADGE];
 
 const PANEL_CODES: ReadonlySet<string> = new Set(NORMALIZATION_PANELS.map((panel) => panel.code));
 

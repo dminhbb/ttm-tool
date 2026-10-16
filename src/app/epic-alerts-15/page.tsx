@@ -13,9 +13,9 @@ import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
 import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import { EpicAlertTimeline } from '@/components/epic-alerts/EpicAlertTimeline';
 import { EpicStatWidgets } from '@/components/epic-alerts/EpicStatWidgets';
-import { DataAnomalyBadge, DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
-import { hasScoringExtraBadges, ScoringExtraBadges } from '@/components/epic-alerts/ScoringBadges';
-import { ALERT_FILTER_VALUES, alertFilterOptionsFor, findingOf, isWaitingGolive, isTtmCnttAchieved, isTtmE2eAchieved, matchesAlertFilter } from '@/lib/epic-row-verdicts';
+import { DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
+import { EpicCommentCell, TtmCnttPassCell } from '@/components/epic-alerts/EpicCommentCell';
+import { ALERT_FILTER_VALUES, alertFilterOptionsFor, matchesAlertFilter } from '@/lib/epic-row-verdicts';
 import type { AlertFilterValue } from '@/lib/epic-row-verdicts';
 import { matchesPmSmFilter, splitOwnerNames, UNASSIGNED_PM_SM } from '@/lib/epic-pm-sm-assignment';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
@@ -196,7 +196,7 @@ function PhaseStageCell({ actualDateText, cell }: { actualDateText?: string | nu
     ? `Tính từ ${cell.baselineSourceLabel}: ${formatDate(cell.baselineSourceDate)}`
     : 'Baseline chuẩn theo rule phân chia giai đoạn (tính từ Start Date)';
   return (
-    <TD className={`ttm-phase-cell${colorClass ? ` ${colorClass}` : ''}`}>
+    <TD className={`w-[1%] ttm-phase-cell whitespace-nowrap text-left align-top px-1.5${colorClass ? ` ${colorClass}` : ''}`}>
       {cell.isCurrentStage && <span className="ttm-phase-current-dot" title="Giai đoạn hiện tại của Epic" aria-hidden="true" />}
       <span className="ttm-phase-baseline" title={baselineTitle}>
         <ArrowBendUpRight className="size-3 shrink-0" weight="bold" />
@@ -243,7 +243,7 @@ function CollapsiblePhaseHeader({ isCollapsed, onToggle, phase }: { isCollapsed:
     );
   }
   return (
-    <TH className="min-w-[110px]" title={meta.title}>
+    <TH className="w-[1%] min-w-[76px] text-left align-top" title={meta.title}>
       <button type="button" className="ttm-col-header-toggle" onClick={() => onToggle(phase)} aria-label={`Ẩn cột ${phase}`}>{phase}</button>
     </TH>
   );
@@ -347,16 +347,16 @@ function TtmMetricStrips({
   const elapsedDays = elapsed ?? 0;
   // Compact mode (all four collapsible phase columns collapsed) shrinks these tracks so the whole
   // table fits the viewport with no horizontal scroll — see the toolbar's collapse-all toggle.
-  const BASE_WIDTH = compact ? 30 : 70;
+  const BASE_WIDTH = compact ? 22 : 36;
   // Hard cap in px (not just a ratio multiplier) so an Epic with an unusually long actual
   // duration can never stretch the strip wide enough to break the table's layout.
-  const MAX_ACTUAL_WIDTH = compact ? 56 : 140;
+  const MAX_ACTUAL_WIDTH = compact ? 42 : 72;
   const actualWidth = Math.min(Math.max(6, ratio * BASE_WIDTH), MAX_ACTUAL_WIDTH);
   const mismatchNote = ' — * đã đạt tiến độ theo ngày ghi nhận nhưng status Epic chưa chuyển đúng quy định';
 
   return (
-    <TD className={`ttm-metric${compact ? ' ttm-metric-compact' : ''}${className ? ` ${className}` : ''}`}>
-      <div className="ttm-strip-wrap" title={`${elapsedDays}/${target} ngày làm việc${statusMismatch ? mismatchNote : ''}`}>
+    <TD className={`w-[1%] ttm-metric align-top text-left${compact ? ' ttm-metric-compact' : ''}${className ? ` ${className}` : ''} px-1.5`}>
+      <div className="ttm-strip-wrap items-start text-left" title={`${elapsedDays}/${target} ngày làm việc${statusMismatch ? mismatchNote : ''}`}>
         <div className="ttm-strip-row">
           <span className="ttm-strip-date">{formatDate(baselineFromDate)}</span>
           <span className="ttm-strip-track" style={{ width: `${BASE_WIDTH}px` }} />
@@ -1475,25 +1475,25 @@ function EpicAlerts15Screen() {
         <EmptyState title="Không có Epic phù hợp" description="Thử thay đổi bộ lọc." />
       ) : (
         <TableContainer>
-          {/* 1694px = 1540 + 10% (2026-10-06). The extra goes to Epic (the only column whose content
-              wraps, so it absorbs table width), Nhận xét / Status (ttm-col-roomy) and the two TTM
-              strips (longer tracks, see MetricStrip) — the date / phase columns keep their width. */}
-          <Table className={allColumnsCollapsed ? 'ttm-table-compact' : 'min-w-[1694px]'}>
+          {/* Fluid responsive layout: Epic column absorbs flexible remaining width,
+              while metric, date and status columns are snug and centered with min-widths. */}
+          <Table className={`ttm-align-top w-full ${allColumnsCollapsed ? 'ttm-table-compact' : 'min-w-[1200px]'}`}>
             <THead>
               <TR>
-                <TH className={`ttm-epic-col-sticky ttm-col-border-right ${allColumnsCollapsed ? 'min-w-[150px]' : 'min-w-[230px]'}`} title="issues.issue_key / issues.issue_name">Epic</TH>
-                <TH className={allColumnsCollapsed ? 'min-w-[90px]' : 'ttm-col-roomy min-w-[144px]'} title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">Nhận xét</TH>
-                <TH title="Baseline (dòng trên) = Start Date + TTM-CNTT (QLDA); Thực tế (dòng dưới) = Start Date → R4G Date (hoặc hôm nay nếu chưa có)">TTM-CNTT (QLDA)</TH>
-                <TH className="ttm-col-border-right" title="Baseline (dòng trên) = T0 + TTM-E2E; Thực tế (dòng dưới) = T0 → Due Date (hoặc hôm nay nếu chưa có). T0 = Idea Approved Date, hoặc Start Date, hoặc ngày tạo Jira">TTM-E2E</TH>
-                <TH className={allColumnsCollapsed ? 'ttm-col-compact-status' : 'ttm-col-roomy'} title="issues.current_status">Status</TH>
-                <TH className={allColumnsCollapsed ? 'min-w-[92px]' : 'min-w-[100px]'} title="T0 = Idea Approved Date, hoặc ngày tạo Jira nếu không có — điểm bắt đầu chu kỳ TTM-E2E">START-E2E</TH>
-                <TH title="issues.start_date">START-CNTT</TH>
+                <TH className={`ttm-epic-col-sticky ttm-col-border-right text-left align-top ${allColumnsCollapsed ? 'min-w-[160px]' : 'min-w-[200px]'}`} title="issues.issue_key / issues.issue_name">EPIC</TH>
+                <TH className="w-[1%] min-w-[140px] text-left align-top" title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">NHẬN XÉT</TH>
+                <TH className="w-[1%] min-w-[42px] text-center align-top ttm-col-pass" title="Đánh giá kết quả TTM-CNTT (QLDA): Đạt (xanh) / Fail (orange)">PASS</TH>
+                <TH className="w-[1%] min-w-[132px] text-left align-top" title="Baseline (dòng trên) = Start Date + TTM-CNTT (QLDA); Thực tế (dòng dưới) = Start Date → R4G Date (hoặc hôm nay nếu chưa có)">TTM-CNTT (QLDA)</TH>
+                <TH className="w-[1%] ttm-col-border-right min-w-[132px] text-left align-top" title="Baseline (dòng trên) = T0 + TTM-E2E; Thực tế (dòng dưới) = T0 → Due Date (hoặc hôm nay nếu chưa có). T0 = Idea Approved Date, hoặc Start Date, hoặc ngày tạo Jira">TTM-E2E</TH>
+                <TH className="w-[1%] min-w-[72px] text-left align-top" title="issues.current_status">STATUS</TH>
+                <TH className="w-[1%] min-w-[74px] text-left align-top" title="T0 = Idea Approved Date, hoặc ngày tạo Jira nếu không có — điểm bắt đầu chu kỳ TTM-E2E">START-E2E</TH>
+                <TH className="w-[1%] min-w-[74px] text-left align-top" title="issues.start_date">START-DATE</TH>
                 <CollapsiblePhaseHeader phase="DESIGN" isCollapsed={collapsedColumns.has('DESIGN')} onToggle={toggleColumn} />
                 <CollapsiblePhaseHeader phase="DEV" isCollapsed={collapsedColumns.has('DEV')} onToggle={toggleColumn} />
                 <CollapsiblePhaseHeader phase="TEST" isCollapsed={collapsedColumns.has('TEST')} onToggle={toggleColumn} />
                 <CollapsiblePhaseHeader phase="PENTEST" isCollapsed={collapsedColumns.has('PENTEST')} onToggle={toggleColumn} />
-                <TH className={allColumnsCollapsed ? 'min-w-[92px]' : 'min-w-[110px]'} title="Baseline = Start Date + 100% TTM-CNTT (QLDA); dòng dưới = issues.r4g_date">R4GOLIVE</TH>
-                <TH className={allColumnsCollapsed ? 'min-w-[98px]' : 'min-w-[118px]'} title="Baseline = Ngày duyệt ý tưởng (hoặc Ngày epic created nếu không có) + 20 ngày làm việc, không tính holiday. Dòng dưới = issues.due_date">Release</TH>
+                <TH className="w-[1%] min-w-[78px] text-left align-top" title="Baseline = Start Date + 100% TTM-CNTT (QLDA); dòng dưới = issues.r4g_date">R4GOLIVE</TH>
+                <TH className="w-[1%] min-w-[78px] text-left align-top" title="Baseline = Ngày duyệt ý tưởng (hoặc Ngày epic created nếu không có) + 20 ngày làm việc, không tính holiday. Dòng dưới = issues.due_date">DUE DATE</TH>
               </TR>
             </THead>
             <TBody>
@@ -1502,7 +1502,7 @@ function EpicAlerts15Screen() {
                 const isTtmExcluded = Boolean(row.ttmBlackListed || row.ttmExclusion);
                 return (
                   <TR key={row.epicKey} className={row.hasDataAnomaly ? 'missing-row' : undefined}>
-                    <TD className="ttm-epic-col-sticky ttm-col-border-right">
+                    <TD className="ttm-epic-col-sticky ttm-col-border-right text-left align-top">
                       <AlertHistoryButton row={row} onOpen={setAlertHistoryRow} />
                       <JiraLinkButton epicKey={row.epicKey} viewIssueBaseUrl={viewIssueBaseUrl} />
                       <button
@@ -1529,84 +1529,14 @@ function EpicAlerts15Screen() {
                         </span>
                       )}
                     </TD>
-                    <TD className={allColumnsCollapsed ? undefined : 'ttm-col-roomy'}>
-                      {(() => {
-                        // "Sai Status" (see resolveTtmCnttStatusMismatch in epic-alert-service.ts) always
-                        // takes priority over Đạt/Fail TTM-CNTT — the recorded date is on schedule, but
-                        // the workflow status hasn't caught up, so neither badge would be honest here.
-                        // "Đạt TTM-CNTT" requires the recorded date to have actually already passed —
-                        // ttmActualToDate only equals r4gDate once it's chronological AND <= today (see
-                        // resolveTtmActualRange); a future-dated R4G Date (still "in progress") must not
-                        // be praised as achieved just because it exists.
-                        const ttmCnttAchieved = isTtmCnttAchieved(row);
-                        // "Đạt TTM-E2E" (2026-09-24 rule): status Released AND T0→R4G Date on schedule —
-                        // see resolveTtmE2eRelease's doc comment for why status alone isn't derived there.
-                        const ttmE2eAchieved = isTtmE2eAchieved(row);
-                        // "Phạm vi dữ liệu cho TTM" (Cấu hình cảnh báo, 2026-09-27) — !ttmCnttInScope
-                        // always wins over every other TTM-CNTT badge below (Sai Status/Fail/Late/
-                        // Early/Đạt): the underlying alertLevel is still computed as usual, it's just
-                        // not honest to show it for an Epic outside the admin-configured R4G window.
-                        const hasCnttBadge = !row.ttmCnttInScope || row.ttmCnttStatusMismatch || row.alertLevel !== 'NONE' || ttmCnttAchieved;
-                        const hasE2eBadge = row.ttmE2eAlertLevel === 'FAIL' || ttmE2eAchieved;
-                        const hasReleaseBadge = row.releaseAxisState !== 'NONE' || isWaitingGolive(row);
-                        const hasAnyBadge = hasCnttBadge || hasE2eBadge || hasReleaseBadge || row.hasDataAnomaly || hasScoringExtraBadges(row);
-
-                        return (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
-                            {!row.ttmCnttInScope ? (
-                              <Tooltip content="Epic nằm ngoài phạm vi dữ liệu TTM-CNTT (QLDA) đang cấu hình (R4G Date/baseline nằm ngoài khoảng ngày thiết lập tại 'Cấu hình cảnh báo')." className="inline-flex w-auto">
-                                <span className="ttm-badge out-of-scope">Ngoài phạm vi TTM-CNTT (QLDA)</span>
-                              </Tooltip>
-                            ) : row.ttmCnttStatusMismatch ? (
-                              <Tooltip content="R4G Date đã ghi nhận và đúng hạn theo TTM-CNTT (QLDA), nhưng status Epic chưa chuyển sang R4GOLIVE — vui lòng cập nhật status đúng quy định." className="inline-flex w-auto">
-                                <span className="ttm-badge status-mismatch">Sai Status</span>
-                              </Tooltip>
-                            ) : row.alertLevel === 'FAIL' ? (
-                              <span className="ttm-badge fail-cntt">Fail TTM-CNTT (QLDA)</span>
-                            ) : row.alertLevel === 'LATE' ? (
-                              <span className="ttm-badge late-warning">Cảnh báo muộn</span>
-                            ) : row.alertLevel === 'EARLY' ? (
-                              <span className="ttm-badge early-warning">Cảnh báo sớm</span>
-                            ) : ttmCnttAchieved ? (
-                              <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-CNTT (QLDA) đúng hạn theo rule">Đạt TTM-CNTT (QLDA)</span>
-                            ) : null}
-                            {/* Scoring Service (2026-10-01): "Sai Status" no longer takes the pass away — both show. */}
-                            {row.ttmCnttInScope && row.ttmCnttStatusMismatch && ttmCnttAchieved && (
-                              <span className="ttm-badge-achieved" title="R4G Date đúng hạn — vẫn tính Đạt; cần cập nhật status Epic sang R4GOLIVE">Đạt TTM-CNTT (QLDA)</span>
-                            )}
-
-                            {row.ttmE2eAlertLevel === 'FAIL' ? (
-                              <span className="ttm-badge fail-e2e">Fail TTM-E2E</span>
-                            ) : ttmE2eAchieved ? (
-                              <span className="ttm-badge-achieved" title="Epic hoàn thành TTM-E2E đúng hạn theo rule (T0 → R4G Date) và đã Released">Đạt TTM-e2e</span>
-                            ) : null}
-
-                            {isWaitingGolive(row) && (
-                              <Tooltip content={findingOf(row, 'RELEASE_WAITING_GOLIVE')?.message ?? `Epic đã có R4G Date, còn trong hạn ${formatDate(row.releaseGraceDeadline)} (R4G Date + 5 ngày làm việc) và chưa có Due Date.`} className="inline-flex w-auto">
-                                <span className="ttm-badge waiting-golive">Chờ golive</span>
-                              </Tooltip>
-                            )}
-                            {row.releaseAxisState === 'EARLY_WARNING' ? (
-                              <Tooltip content={`Đã qua R4GOLIVE, còn trong hạn ${formatDate(row.releaseGraceDeadline)} để có Due Date hợp lệ và chuyển status Released.`} className="inline-flex w-auto">
-                                <span className="ttm-badge early-warning">Cảnh báo sớm</span>
-                              </Tooltip>
-                            ) : row.releaseAxisState === 'JUSTIFY_GOLIVE' ? (
-                              <Tooltip content={`Đã quá hạn ${formatDate(row.releaseGraceDeadline)} (R4G Date + 5 ngày làm việc) mà Epic chưa Released đúng hạn hoặc Due Date vượt hạn — cần giải trình.`} className="inline-flex w-auto">
-                                <span className="ttm-badge justify-golive">Giải trình Golive</span>
-                              </Tooltip>
-                            ) : null}
-
-                            {!hasAnyBadge && <span className="ttm-empty-warning">—</span>}
-
-                            <ScoringExtraBadges row={row} />
-
-                            {row.hasDataAnomaly && <DataAnomalyBadge violations={row.dataAnomalyViolations} />}
-                          </div>
-                        );
-                      })()}
+                    <TD className="w-[1%] whitespace-normal px-2 text-left align-top">
+                      <EpicCommentCell row={row} />
+                    </TD>
+                    <TD className="w-[1%] text-center align-top whitespace-nowrap px-1 ttm-col-pass">
+                      <TtmCnttPassCell row={row} />
                     </TD>
                     {isMissingCore ? (
-                      <TD className="ttm-metric na">Không tính được</TD>
+                      <TD className="w-[1%] ttm-metric na text-left align-top px-1.5">Không tính được</TD>
                     ) : (
                       <TtmCnttStrips compact={allColumnsCollapsed} row={row} />
                     )}
@@ -1614,10 +1544,10 @@ function EpicAlerts15Screen() {
                         of Start Date, so this renders the same whether or not the Epic is missing
                         Start Date (see resolveTtmE2eRelease in epic-alert-service.ts). */}
                     <TtmE2eStrips compact={allColumnsCollapsed} row={row} />
-                    <TD className={allColumnsCollapsed ? 'ttm-col-compact-status' : 'ttm-col-roomy'}><StatusBadge status={row.currentStatus} /></TD>
-                    <TD className="ttm-phase-cell pass">
+                    <TD className="w-[1%] text-left align-top whitespace-nowrap px-1.5"><StatusBadge status={row.currentStatus} /></TD>
+                    <TD className="w-[1%] ttm-phase-cell pass whitespace-nowrap text-left align-top px-1.5">
                       {row.stages.release.baselineSourceDate ? (
-                        <span className="inline-flex items-center gap-0.5 text-fb-text-placeholder font-medium text-[11px]">
+                        <span className="inline-flex items-center justify-start gap-0.5 text-fb-text-placeholder font-medium text-[11px]">
                           <CaretRight className="size-3 shrink-0 text-fb-text-placeholder" weight="bold" />
                           <span>{formatDate(row.stages.release.baselineSourceDate)}</span>
                         </span>
@@ -1626,17 +1556,17 @@ function EpicAlerts15Screen() {
                       )}
                     </TD>
                     {isMissingCore ? (
-                      <TD><span className="ttm-metric na">Không có</span></TD>
+                      <TD className="w-[1%] text-left align-top px-1.5"><span className="ttm-metric na">Không có</span></TD>
                     ) : (
-                      <TD className="ttm-phase-cell pass">
-                        <span className="inline-flex items-center gap-0.5 text-fb-text-placeholder font-medium text-[11px]">
+                      <TD className="w-[1%] ttm-phase-cell pass whitespace-nowrap text-left align-top px-1.5">
+                        <span className="inline-flex items-center justify-start gap-0.5 text-fb-text-placeholder font-medium text-[11px]">
                           <CaretLineRight className="size-3 shrink-0 text-fb-text-placeholder" weight="bold" />
                           <span>{formatDate(row.t1StartDate)}</span>
                         </span>
                       </TD>
                     )}
                     {isMissingCore ? (
-                      <TD colSpan={5} className="ttm-metric na">Chưa thể tính lịch TTM-CNTT (QLDA) do thiếu dữ liệu bắt buộc.</TD>
+                      <TD colSpan={5} className="ttm-metric na text-left align-top">Chưa thể tính lịch TTM-CNTT (QLDA) do thiếu dữ liệu bắt buộc.</TD>
                     ) : (
                       <>
                         <CollapsiblePhaseCell cell={row.stages.design} isCollapsed={collapsedColumns.has('DESIGN')} />
@@ -1659,15 +1589,15 @@ function EpicAlerts15Screen() {
       <div className="ttm-pagination-row">
         <div className="ttm-report-date">Dữ liệu cập nhật lần cuối: <b>{data ? formatDateTime(data.lastAggregatedAt) : '—'}</b></div>
         {filteredRows.length > 0 && (
-          <nav className="ttm-pagination" aria-label="Điều hướng phân trang">
+          <nav className="ttm-pagination flex-nowrap whitespace-nowrap" aria-label="Điều hướng phân trang">
             <button type="button" className="ttm-button" disabled={currentPage <= 1} onClick={() => { trackDataUsage(); setPage((current) => Math.max(1, current - 1)); }}>‹ Trước</button>
-            <span className="ttm-pagination-label">Trang</span>
+            <span className="ttm-pagination-label whitespace-nowrap">Trang</span>
             <select className="ttm-select" aria-label="Chọn trang" value={currentPage} onChange={(event) => { trackDataUsage(); setPage(Number(event.target.value)); }}>
               {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
                 <option key={pageNumber} value={pageNumber}>{pageNumber}</option>
               ))}
             </select>
-            <span className="ttm-pagination-label">/ {totalPages}</span>
+            <span className="ttm-pagination-label whitespace-nowrap select-none">/&nbsp;{totalPages}</span>
             <button type="button" className="ttm-button" disabled={currentPage >= totalPages} onClick={() => { trackDataUsage(); setPage((current) => Math.min(totalPages, current + 1)); }}>Sau ›</button>
           </nav>
         )}

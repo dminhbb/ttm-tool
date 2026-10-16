@@ -270,7 +270,9 @@
    column only grows through its padding (12px → 24px each side). Selectors mirror globals.css's
    .ui-table thead th / tbody td so this wins on specificity. */
 .ui-table thead th.ttm-col-roomy,
-.ui-table tbody td.ttm-col-roomy { padding-left: 24px; padding-right: 24px; }
+.ui-table tbody td.ttm-col-roomy { padding-left: 8px; padding-right: 8px; }
+.ttm-app .ui-table thead th { padding: 8px 6px; font-size: 10.5px; white-space: nowrap; }
+.ttm-app .ui-table tbody td { padding: 6px 6px; }
 .ttm-col-compact-status { max-width: 92px; }
 .ttm-col-compact-status .ttm-status-badge { max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ttm-metric-compact .ttm-strip-date { font-size: 10px; }
@@ -563,11 +565,28 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
   gap: 8px;
   margin-top: 14px;
 }
-.ttm-pagination-label { font-size: var(--ttm-font-size-sm); color: var(--ttm-muted); }
-.ttm-pagination .ttm-select { min-height: 30px; padding: 4px 8px; }
+.ttm-pagination-label {
+  font-size: var(--ttm-font-size-sm);
+  color: var(--ttm-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+}
+.ttm-pagination .ttm-button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.ttm-pagination .ttm-select {
+  min-height: 30px;
+  padding: 4px 8px;
+  flex-shrink: 0;
+}
 .ttm-pagination-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; margin-top: 14px; }
 .ttm-pagination-row .ttm-pagination { grid-column: 2; margin-top: 0; }
 .ttm-status-legend { grid-column: 3; justify-self: end; display: flex; align-items: center; gap: 14px; font-size: var(--ttm-font-size-sm); color: var(--ttm-muted); }
@@ -576,7 +595,15 @@
 .ttm-status-swatch.done { background: var(--ttm-success-100); border: 1px solid var(--ttm-success-700); }
 .ttm-status-swatch.warning { background: var(--ttm-warning-100); border: 1px solid var(--ttm-warning-700); }
 .ttm-status-swatch.failed { background: var(--ttm-danger-100); border: 1px solid var(--ttm-danger-700); }
-.ttm-metric { font-weight: 700; }
+.ttm-metric {
+  font-weight: 700;
+  text-align: left;
+  vertical-align: top;
+}
+.ttm-app .ui-table tbody td.ttm-metric {
+  text-align: left;
+  vertical-align: top;
+}
 .ttm-badge-achieved {
   display: inline-flex;
   align-items: center;
@@ -590,9 +617,31 @@
   color: #16234a;
   border: 1px solid #c1cae6;
 }
-.ttm-strip-wrap { display: flex; flex-direction: column; gap: 3px; }
-.ttm-strip-row { display: flex; align-items: center; gap: 4px; font-size: 9.5px; font-weight: 400; color: var(--ttm-muted); line-height: 1; }
-.ttm-strip-date { white-space: nowrap; }
+.ttm-strip-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+  text-align: left;
+}
+.ttm-strip-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9.5px;
+  font-weight: 400;
+  color: var(--ttm-muted);
+  line-height: 1;
+}
+.ttm-strip-date {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ttm-strip-row span.ttm-strip-date:first-child {
+  min-width: 52px;
+  display: inline-block;
+  text-align: left;
+}
 .ttm-strip-track { display: inline-block; height: 7px; border-radius: 3px; background: #a9a9a9; flex: none; }
 .ttm-strip-track.actual.under { background: #7fc794; }
 .ttm-strip-track.actual.over { background: #ec8f8f; }
@@ -609,7 +658,7 @@
 .ttm-app tr.missing-row td { background: var(--ttm-danger-100); }
 .ttm-app tr.disabled-row td { color: var(--ttm-muted); background: #fbfcfe; }
 .ttm-empty-warning { color: var(--ttm-muted); font-size: 11px; }
-.ttm-phase-cell { position: relative; text-align: center; }
+.ttm-phase-cell { position: relative; text-align: left; vertical-align: top; }
 .ttm-phase-cell.pass { background: var(--ttm-success-100); }
 .ttm-phase-cell.warning { background: var(--ttm-warning-100); }
 .ttm-phase-cell.fail { background: var(--ttm-danger-100); }
@@ -628,7 +677,8 @@
 .ttm-phase-baseline {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  text-align: left;
   gap: 3px;
   color: #64748b;
   font-weight: 500;
@@ -643,7 +693,8 @@
 .ttm-phase-actual {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  text-align: left;
   gap: 3px;
   color: #000000;
   font-weight: 700;
@@ -983,3 +1034,133 @@
   border-color: rgba(255, 255, 255, 0.12);
 }
 
+
+/* "Nhận xét" cell (EpicCommentCell) — 1x4 table strip and expanded panel (2026-10-16):
+   4 seamless cells: Xử lý (#dae8fc), Kết quả (#d5e8d4), Cảnh báo (#e1d5e7), Sai lệch dữ liệu (#fbeaea).
+   Border = 0. When an active cell is clicked, the panel underneath uses the exact same background color. */
+.ttm-comment-strip {
+  display: flex;
+  width: 100%;
+  min-width: 136px;
+  max-width: 152px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.ttm-comment-cell-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
+  border: 0;
+  outline: none;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  transition: filter 0.15s ease;
+  user-select: none;
+}
+
+.ttm-comment-cell-btn:hover {
+  filter: brightness(0.93);
+}
+
+.ttm-comment-cell-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+  border: 0;
+  cursor: default;
+  padding: 0;
+  margin: 0;
+  user-select: none;
+}
+
+/* 4 pastel colors matching the user mockup */
+.ttm-comment-cell-action { background-color: #dae8fc; color: #0f172a; }
+.ttm-comment-cell-result { background-color: #d5e8d4; color: #0f172a; }
+.ttm-comment-cell-warning { background-color: #e1d5e7; color: #0f172a; }
+.ttm-comment-cell-anomaly { background-color: #fbeaea; color: #0f172a; }
+
+.ttm-comment-cell-empty.ttm-comment-cell-action { color: #64748b; }
+.ttm-comment-cell-empty.ttm-comment-cell-result { color: #64748b; }
+.ttm-comment-cell-empty.ttm-comment-cell-warning { color: #64748b; }
+.ttm-comment-cell-empty.ttm-comment-cell-anomaly { color: #64748b; }
+
+/* Expanded panel below 1x4 strip */
+.ttm-comment-expanded-panel {
+  width: 100%;
+  box-sizing: border-box;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  padding: 8px 10px;
+  border-radius: 4px;
+  margin-top: 2px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+.ttm-comment-expanded-panel.ttm-comment-cell-action { background-color: #dae8fc; color: #0f172a; }
+.ttm-comment-expanded-panel.ttm-comment-cell-result { background-color: #d5e8d4; color: #0f172a; }
+.ttm-comment-expanded-panel.ttm-comment-cell-warning { background-color: #e1d5e7; color: #0f172a; }
+.ttm-comment-expanded-panel.ttm-comment-cell-anomaly { background-color: #fbeaea; color: #0f172a; }
+
+/* Orange cell for Fail results or Anomaly counts > 0 (owner 2026-10-16) */
+.ttm-comment-cell-orange {
+  background-color: #f97316;
+  color: #ffffff;
+}
+.ttm-comment-cell-orange:hover {
+  background-color: #ea580c;
+  color: #ffffff;
+}
+.ttm-comment-expanded-panel.ttm-comment-cell-orange {
+  background-color: #ffedd5;
+  color: #7c2d12;
+  border: 1px solid #fdba74;
+}
+
+/* Dark mode theme overrides */
+:root[data-theme="dark"] .ttm-comment-cell-action { background-color: #1e3a5f; color: #bfdbfe; }
+:root[data-theme="dark"] .ttm-comment-cell-result { background-color: #1c3e2e; color: #bbf7d0; }
+:root[data-theme="dark"] .ttm-comment-cell-warning { background-color: #3b2650; color: #e9d5ff; }
+:root[data-theme="dark"] .ttm-comment-cell-anomaly { background-color: #4c2427; color: #fecdd3; }
+:root[data-theme="dark"] .ttm-comment-cell-orange { background-color: #f97316; color: #ffffff; }
+:root[data-theme="dark"] .ttm-comment-cell-orange:hover { background-color: #ea580c; color: #ffffff; }
+:root[data-theme="dark"] .ttm-comment-cell-empty { color: #94a3b8; }
+:root[data-theme="dark"] .ttm-comment-expanded-panel.ttm-comment-cell-action { background-color: #1e3a5f; color: #f1f5f9; }
+:root[data-theme="dark"] .ttm-comment-expanded-panel.ttm-comment-cell-result { background-color: #1c3e2e; color: #f1f5f9; }
+:root[data-theme="dark"] .ttm-comment-expanded-panel.ttm-comment-cell-warning { background-color: #3b2650; color: #f1f5f9; }
+:root[data-theme="dark"] .ttm-comment-expanded-panel.ttm-comment-cell-anomaly { background-color: #4c2427; color: #f1f5f9; }
+:root[data-theme="dark"] .ttm-comment-expanded-panel.ttm-comment-cell-orange { background-color: #431407; color: #ffedd5; border: 1px solid #ea580c; }
+
+/* Orange icon for TTM-CNTT FAIL in PASS column */
+.ttm-icon-fail-orange { color: #f97316; }
+:root[data-theme="dark"] .ttm-icon-fail-orange { color: #fb923c; }
+
+/* Rows of Quản trị Epic keep every cell on the top line: opening a chip list in the Nhận xét cell makes
+   the row taller, and middle-aligned neighbours would jump down with it. `:root:root` outranks the
+   brand-scoped `.ui-table tbody td { vertical-align: middle }` rules of globals.css whatever the load order. */
+:root:root .ui-table.ttm-align-top thead th,
+:root:root .ui-table.ttm-align-top tbody td {
+  vertical-align: top;
+}
+:root:root .ui-table.ttm-align-top thead th.ttm-col-pass,
+:root:root .ui-table.ttm-align-top tbody td.ttm-col-pass {
+  text-align: center;
+  vertical-align: top;
+}
+:root:root .ui-table.ttm-align-top thead th.ttm-col-pass > span {
+  justify-content: center;
+  width: 100%;
+}
