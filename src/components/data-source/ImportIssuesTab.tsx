@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { confirmDialog } from '@/components/ui/dialogs';
+import { MAX_EPIC_DELETIONS_PER_IMPORT } from '@/lib/import-admission-rules';
 import { ADAPTER_TYPES, DEFAULT_ADAPTER, ADAPTER_LABELS, type AdapterType } from '@/lib/adapters/index';
 import { AggregatedDataLayersPanel } from '@/components/data-source/AggregatedDataLayersPanel';
 import { CacheStatusPanel } from '@/components/data-source/CacheStatusPanel';
@@ -92,16 +93,33 @@ interface PreviewResult {
 
 const HISTORY_PAGE_SIZE = 5;
 
+interface DeniedDataOutcome {
+  deletedEpicKeys: string[];
+  keptDataEpicKeys: string[];
+  keptReason: 'AUTO_IMPORT' | 'TOO_MANY' | null;
+  maxDeletions: number;
+}
+
 /** " Từ chối import: …" tail of an import message — '' when the file had no denied Epic. */
-function describeDeniedRows(result: { deniedEpics?: { epicKey: string; origin: 'LIST' | 'RULE' }[]; deniedRows?: number }, saved: boolean): string {
+function describeDeniedRows(
+  result: { deniedDataOutcome?: DeniedDataOutcome | null; deniedEpics?: { epicKey: string; origin: 'LIST' | 'RULE' }[]; deniedRows?: number; provenExemptEpicKeys?: string[] },
+  saved: boolean,
+): string {
   const epics = result.deniedEpics ?? [];
-  if (!result.deniedRows || epics.length === 0) return '';
+  const exempt = result.provenExemptEpicKeys ?? [];
+  const exemptNote = exempt.length === 0 ? '' : saved
+    ? ` ${exempt.length} Epic được miễn rule B nhờ lịch sử trong CSDL đã được ghi "Cho phép import" (Miễn rule B).`
+    : ` ${exempt.length} Epic được miễn rule B nhờ lịch sử trong CSDL.`;
+  if (!result.deniedRows || epics.length === 0) return exemptNote;
   const keys = epics.slice(0, 10).map((epic) => epic.epicKey).join(', ') + (epics.length > 10 ? `… (+${epics.length - 10})` : '');
   const byRule = epics.filter((epic) => epic.origin === 'RULE').length;
   const ruleNote = byRule === 0 ? '' : saved
     ? ` ${byRule} Epic vi phạm rule A/B đã được tự thêm vào danh sách Từ chối import — hãy chạy lại cache.`
     : ` ${byRule} Epic vi phạm rule A/B sẽ được tự thêm vào danh sách khi import thật.`;
-  return ` Từ chối import: ${result.deniedRows} dòng của ${epics.length} Epic (${keys}).${ruleNote}`;
+  const outcome = result.deniedDataOutcome;
+  const keptNote = !saved || !outcome || outcome.keptDataEpicKeys.length === 0 ? ''
+    : ` Dữ liệu cũ của ${outcome.keptDataEpicKeys.length} Epic CHƯA bị xoá (quá ${outcome.maxDeletions} Epic trong một lần import) — kiểm tra rồi dùng "Xóa dữ liệu còn tồn tại" ở tab Từ chối import.`;
+  return ` Từ chối import: ${result.deniedRows} dòng của ${epics.length} Epic (${keys}).${ruleNote}${keptNote}${exemptNote}`;
 }
 
 /**
@@ -113,7 +131,7 @@ async function confirmRuleDenials(epics: readonly DeniedEpicInFile[]): Promise<b
   const more = epics.length > 15 ? `\n… và ${epics.length - 15} Epic khác` : '';
   return confirmDialog({
     title: `${epics.length} Epic sẽ bị Từ chối import và xóa dữ liệu`,
-    description: `File này có các Epic vi phạm rule tự động A/B. Import thật sẽ thêm chúng vào danh sách Từ chối import và XÓA toàn bộ dữ liệu của chúng khỏi hệ thống (không hoàn tác được).\n\n${shown}${more}`,
+    description: `File này có các Epic vi phạm rule tự động A/B. Import thật sẽ thêm chúng vào danh sách Từ chối import và XÓA toàn bộ dữ liệu của chúng khỏi hệ thống (không hoàn tác được). Nếu quá ${MAX_EPIC_DELETIONS_PER_IMPORT} Epic còn dữ liệu, hệ thống chỉ từ chối và GIỮ dữ liệu để bạn kiểm tra, xoá sau bằng "Xóa dữ liệu còn tồn tại".\n\n${shown}${more}`,
     confirmLabel: 'Tiếp tục import',
   });
 }

@@ -63,17 +63,19 @@ export async function PATCH(request: NextRequest) {
     const client = await getClient();
     try {
       await client.query('BEGIN');
-      const leadInputs = Array.from(new Set(projects.map((project) => project.leadName).filter(Boolean)));
-      const users = await client.query<{ email: string; fullName: string; id: number }>('SELECT id, email, full_name AS "fullName" FROM users WHERE is_active = TRUE AND (full_name = ANY($1::text[]) OR email = ANY($1::text[]))', [leadInputs]);
-      const nameByInput = new Map<string, string>(); for (const user of users.rows) { nameByInput.set(user.fullName, user.fullName); nameByInput.set(user.email, user.fullName); }
-      const userIdByFullName = new Map(users.rows.map((user) => [user.fullName, user.id]));
-      unresolvedLeadCount = projects.filter((project) => project.leadName && !nameByInput.has(project.leadName)).length;
+      const leadUsernames = Array.from(new Set(projects.map((project) => project.leadName.trim().toLowerCase().split('@')[0]).filter(Boolean)));
+      const users = await client.query<{ id: number; username: string }>("SELECT id, SPLIT_PART(LOWER(email), '@', 1) AS username FROM users WHERE is_active = TRUE AND SPLIT_PART(LOWER(email), '@', 1) = ANY($1::text[])", [leadUsernames]);
+      const userIdByUsername = new Map(users.rows.map((user) => [user.username, user.id]));
+      unresolvedLeadCount = projects.filter((project) => {
+        const uname = project.leadName.trim().toLowerCase().split('@')[0];
+        return Boolean(uname && !userIdByUsername.has(uname));
+      }).length;
       const existing = await client.query<{ sourceProjectKey: string }>('SELECT source_project_key AS "sourceProjectKey" FROM projects WHERE source_project_key = ANY($1::text[])', [keys]);
       if (existing.rowCount) { await client.query('ROLLBACK'); return NextResponse.json({ error: `Key đã tồn tại: ${existing.rows.map((project) => project.sourceProjectKey).join(', ')}.` }, { status: 409 }); }
       for (const project of projects) {
-        const leadName = nameByInput.get(project.leadName) ?? null;
+        const uname = project.leadName.trim().toLowerCase().split('@')[0];
         const createdProject = await client.query<{ id: number }>('INSERT INTO projects (project_name, domain_id, source_project_key, source_type, project_category, ttm, is_active) VALUES ($1, NULL, $2, $3, $4, $5, TRUE) RETURNING id', [project.projectName, project.sourceProjectKey, 'JIRA', project.projectCategory, project.ttm]);
-        const userId = leadName ? userIdByFullName.get(leadName) : undefined;
+        const userId = uname ? userIdByUsername.get(uname) : undefined;
         if (userId) await client.query('INSERT INTO user_projects (user_id, project_id) VALUES ($1, $2)', [userId, createdProject.rows[0].id]);
       }
       await client.query('COMMIT');

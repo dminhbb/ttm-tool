@@ -61,6 +61,22 @@ describe('"Từ chối import" — automatic rules', () => {
     assert.deepEqual(plan.deniedEpics, []);
   });
 
+  it('B: an Epic let in only by the history is reported for "Cho phép import" (AUTO_EXEMPT) so the proof can age out (2026-10-19)', () => {
+    const rows = [
+      row({ dueDate: '2026-06-25', issueKey: 'DL-65580', status: 'Released' }),
+      row({ dueDate: '2026-08-01', issueKey: 'DL-2', status: 'Released' }), // after B — no exemption needed
+      row({ dueDate: '2026-06-25', issueKey: 'DL-3', jiraCreatedAt: '2026-01-02', status: 'Released' }), // denied by A anyway
+    ];
+    const proof = new Map([['DL-65580', '2026-09-09'], ['DL-3', '2026-09-09']]);
+    const plan = planImportAdmission(rows, new Map(), SETTINGS, isoDate, proof);
+    assert.deepEqual(plan.provenExemptEpics.map((epic) => epic.epicKey), ['DL-65580']);
+    assert.match(plan.provenExemptEpics[0].reason, /Miễn rule B.*09\/09\/2026/);
+    assert.deepEqual(plan.deniedEpics.map((epic) => epic.epicKey), ['DL-3']);
+    // Once listed with "Cho phép import" it is neither denied nor reported again — the proof is no longer needed.
+    const listed = planImportAdmission(rows.slice(0, 1), new Map([['DL-65580', { allowImport: true }]]), SETTINGS, isoDate, new Map());
+    assert.deepEqual([listed.deniedEpics, listed.provenExemptEpics], [[], []]);
+  });
+
   it('a null A/B turns its rule off', () => {
     assert.deepEqual(codes({ createdDate: '2025-01-01', dueDate: '2026-01-01', status: 'Released' }, { createdBefore: null, releasedDueBefore: null }), []);
   });

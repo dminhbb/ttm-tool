@@ -6,6 +6,64 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-10-19
+
+- **Chuẩn hoá định danh user theo `username` duy nhất toàn cục, dọn counter màn hình đã gỡ & bổ sung "Export dữ liệu thông minh" (Surface Data Layer)**:
+  - *Username duy nhất & thao tác theo `username`* (`src/lib/auth-service.ts`, `src/app/api/users/route.ts`, `src/app/api/users/approve/route.ts`, `src/app/api/auth/register/route.ts`, `src/app/api/password-reset-requests/route.ts`, `src/app/admin/users/page.tsx`, migration `20261019d_add_users_unique_username_index.sql` đã chạy **local + Supabase**):
+    ràng buộc unique index `SPLIT_PART(LOWER(email), '@', 1)` trên bảng `users` cho cả user active và chờ duyệt; thay `DuplicateFullNameError` bằng `DuplicateUsernameError` (HTTP `409`) khi tạo mới, cập nhật, tự đăng ký, tạo hàng loạt và duyệt kích hoạt; bổ sung cột `Username` ở màn hình Quản lý user và hỗ trợ xoá / duyệt / kiểm tra footprint cache PM/SM theo `username`.
+  - *PM/SM & thống kê dùng `username` thay cho `full_name`* (`src/lib/master-data-service.ts`, `src/lib/epic-pm-sm-assignment-service.ts`, `src/lib/epic-browser-service.ts`, `src/lib/reports-service.ts`, `src/app/api/projects/route.ts`, `src/lib/mcp-service.ts`, `src/components/settings/McpServerPanel.tsx`, `src/lib/visit-counter-service.ts`):
+    toàn bộ join PM/SM (`PROJECT_LEAD_NAME_JOIN`, `loadPmSmNarrowings`, import CSV dự án) và thống kê truy cập / MCP top users lấy theo `SPLIT_PART(LOWER(u.email), '@', 1)`.
+  - *Thống kê truy cập (`visit-counter`)* (`src/lib/visit-counter-types.ts`, `src/lib/visit-counter-service.ts`):
+    gỡ bỏ 2 counter của màn hình đã gỡ (`dashboard` — TTM Dashboard cũ, `epic_in_po` — Epic in PO), chỉ giữ 3 màn hình đang hoạt động (`ttm_dashboard_2`, `epic_alerts`, `epic_reports`).
+  - *Sao lưu / Phục hồi dữ liệu theo 4 tab & Export dữ liệu thông minh* (`src/app/admin/database/page.tsx`, `src/lib/db-backup-service.ts`, `src/app/api/admin/db-backup/export-smart/route.ts`, `src/app/api/admin/db-backup/import/route.ts`):
+    tổ chức màn hình `/admin/database` thành 4 tab (*Export dữ liệu thông minh*, *Export theo lớp dữ liệu*, *Dump dữ liệu*, *Import & Dọn dữ liệu*); chức năng `Smart export` lấy lớp dữ liệu bề mặt (Surface Data Layer) từ ngày mốc được chọn trở xuống (`aggregated_at::date <= layerDate`) cho toàn bộ Epic, Story của Epic và Subtask của Story/Epic cùng `import_rows` tương ứng; khi import file Smart Export sẽ tự tạo một `import_batches` mới lấy thời điểm thực hiện import (`NOW()`) làm timestamp lớp dữ liệu, liên kết lại `parent_id`/`epic_id`, tổng hợp snapshot và tự động chạy `scheduleDerivedCacheRefresh('sql-import')`.
+
+- **Sửa các rủi ro từ review 19/10** (3 migration mới, đã chạy **local + Supabase**; local cũng đã chạy 12 migration còn thiếu):
+  - *Từ chối import không còn tự xoá hàng loạt* (`src/lib/denied-import-service.ts` `recordDeniedEpicsOfImport`, `import-service.ts`):
+    import qua API tự động (`importType = 'AUTO'`) không bao giờ xoá dữ liệu cũ của Epic bị từ chối; upload thủ công chỉ xoá khi
+    ≤ `MAX_EPIC_DELETIONS_PER_IMPORT` = 25 Epic còn dữ liệu (`import-admission-rules.ts`). Còn lại giữ dữ liệu cho "Xóa dữ liệu còn
+    tồn tại"; kết quả ở `metadata_json.deniedDataOutcome` và thông báo sau import (`ImportIssuesTab.tsx`). API `PUT
+    /api/data-source/denied-import/settings` từ chối ngày A/B sau hôm nay.
+  - *Lưu bằng chứng miễn rule B*: Epic chỉ được nhận nhờ lịch sử trong CSDL được tự ghi "Cho phép import" nguồn `AUTO_EXEMPT`
+    ("Miễn rule B") ngay lần import đầu (`releasedBeforeExemption`, `planImportAdmission.provenExemptEpics`,
+    `recordProvenExemptions`; migration `20261019_add_auto_exempt_denied_import_source.sql`).
+  - *Sao lưu / Phục hồi thêm 16 bảng cấu hình* (Epic ngoại lệ, Từ chối import + A/B, Scoring, Phạm vi dữ liệu cho TTM, Ma trận phân
+    quyền, Tiêu chí TTM, ngày làm bù, phân quyền component…); bảng chưa có trên CSDL thì ẩn khỏi danh sách (`db-backup-service.ts`).
+  - *PMS đồng bộ bằng trigger* (`20261019b_sync_pms_project_tables.sql`): `project_type_id` ← `project_category`,
+    `ttm_project_configs` ← `projects.ttm`, `project_external_bindings` ← `source_project_key` (giữ lịch sử key), `project_members`
+    PM_SM ← `user_projects` (xoá-rồi-thêm-lại cùng ngày mở lại dòng cũ); backfill lại phần đã lệch. Đã thử từng trường hợp trên local.
+  - *Xoá Epic nhanh hơn* (`epic-deletion-service.ts` `resolveEpicDeletionScope` + index `20261019c_…`): chỉ đọc issue từng trỏ tới
+    Epic/Story; đối chiếu với truy vấn cũ trên local: 385 Epic, 1.874 dòng giống hệt.
+  - *Lead view không gửi dòng Epic toàn công ty xuống trình duyệt*: lọc ở Lead view gọi `GET /api/ttm-dashboard-2/summary` (tính ở
+    server bằng cùng hàm), `/rows?view=lead` trả 400 (`modules/ttm/application/get-ttm-dashboard-2.ts`, `ttm-dashboard-2/page.tsx`).
+  - *PM/SM*: so khớp tên và component không phân biệt hoa thường / khoảng trắng (`assignmentKey`, `epic-pm-sm-assignment.ts`); tạo /
+    cập nhật user active trùng họ tên với user active khác bị từ chối 409 (`DuplicateFullNameError`, `auth-service.ts`, `api/users`).
+  - Tài liệu: `brd/05`, `brd/07` §2.2, `brd/08` §23–24, `docs/ttm-dashboard-2-spec.md` §8.3a, product-guide 3.4 / 5.2 / 13.1 / 21.9,
+    popup "Logic xử lý dữ liệu". Test mới cho miễn rule B, so khớp PM/SM (`npm test` 328/328).
+  - **Việc còn lại trên local**: 31/42 Epic của danh sách nạp sẵn còn dữ liệu — vào Từ chối import → "Xóa dữ liệu còn tồn tại", rồi "Tạo lại cache".
+
+- **Review bộ code pull 19/10 (35 commit `e3f38c3..4d94eff`) — cập nhật tài liệu** (không đổi schema, không đổi rule chấm điểm):
+  - *Schema*: `db/schema.sql` thêm `issues.main_fail_dept` vào baseline + ghi rõ các khác biệt có chủ đích so với CSDL thật
+    (`raw_data_json`/`fail_offset_days` bị migration sau xoá, `projects.project_code/project_type_id` do 20261009b thêm vì FK
+    tới `project_types`). `brd/08-data-model.md`: `users.failed_login_attempts`, `projects.project_code/project_type_id`,
+    `issues.main_fail_dept`, sửa đoạn cũ "không có cache, tính live mỗi request", quy tắc Từ chối import / Epic deletion và
+    phạm vi Sao lưu (không gồm bảng §23), mục mới **§24 PMS Project Core** (5 bảng, cảnh báo backfill một lần không đồng bộ).
+    Đối chiếu với Supabase: 59 bảng.
+  - *Markdown*: `AGENTS.md` (danh sách màn hình Epic bỏ `/epic-in-po`, `/epic-alerts`), `brd/13` (cột NHẬN XÉT 1x4 + PASS,
+    màn hình Chuẩn hoá dữ liệu), `brd/16` (§9 Epic Sai lệch dữ liệu/Epic ngoại lệ theo Scoring, §11 "Thiếu lý do Fail TTM"),
+    `brd/00`, `docs/ttm-dashboard-2-spec.md` (thẻ THIẾU LÝ DO, PM/SM chia 1/n, pie 10 item / Domain đủ / PM/SM bar chart),
+    spec Scoring §28 (khuyến nghị thiếu lý do / phòng chịu TN chính, R5 miễn Pending từ Design).
+  - *Tài liệu sản phẩm* (`public/docs/product-guide.html`): viết lại 8.3 (NHẬN XÉT 1x4 + PASS) và 8.4 (cache thay cho
+    "tính real-time"), mục mới 11.4 Chuẩn hoá dữ liệu, 5.2 thành 59 bảng (thêm `dashboard_view_settings` + 5 bảng PMS), sửa
+    dòng R1 ở 9.1 (miễn Pending từ To Do / In PO, 12/10).
+  - *Popup*: "Logic cảnh báo" — phần giới thiệu (cột NHẬN XÉT 4 ô, PASS), mục 7 gồm TTM-E2E + "—" khi mẫu số 0, mục 8 thêm
+    Phạm vi rule Sai lệch dữ liệu, Thiếu lý do / phòng chịu TN chính, Reopened, R5 Design. "Logic xử lý dữ liệu" viết lại:
+    luồng có Từ chối import + `refreshDerivedCaches`/Scoring/cache, bảng dữ liệu, sai lệch dữ liệu theo Scoring, phạm vi Sao
+    lưu đúng thực tế, mục mới Từ chối import & Xoá Epic; sơ đồ SVG dùng token IAS (theo sáng/tối) — hạ baseline hex
+    `design-debt.test.ts` 117 → 109 (`HelpPanels.tsx` 8 → 0) (`src/components/layout/HelpPanels.tsx`).
+  - *Sửa nhỏ*: mục "Đạt TTM-E2E" ở cột NHẬN XÉT dùng message của Scoring Service (bỏ "và đã Released" sai với rule từ 01/10)
+    (`src/lib/epic-comment-groups.ts`).
+
 ## 2026-10-16
 
 - **Quản trị Epic — cột "Nhận xét" rút gọn thành chip icon** (`src/components/epic-alerts/EpicCommentCell.tsx`, `src/lib/epic-comment-groups.ts`, thay `ScoringBadges.tsx` và `DataAnomalyBadge`):

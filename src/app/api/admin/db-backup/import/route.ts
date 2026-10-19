@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
+import { scheduleDerivedCacheRefresh } from '@/lib/daily-cache-service';
 import { importSqlFile, previewImportFile } from '@/lib/db-backup-service';
+
+export const maxDuration = 300;
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 
@@ -44,6 +47,9 @@ export async function POST(request: NextRequest) {
     const selectedTables = tablesParam === null ? null : new Set(tablesParam.split(',').map((name) => name.trim()).filter(Boolean));
 
     const result = await importSqlFile(sqlText, selectedTables);
+    if (result.ok) {
+      scheduleDerivedCacheRefresh('sql-import');
+    }
     return NextResponse.json(result, { status: result.ok ? 200 : 400 });
   } catch (error: unknown) {
     console.error('API Error in db-backup/import route:', error);

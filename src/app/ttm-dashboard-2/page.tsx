@@ -279,7 +279,8 @@ export default function TtmDashboard2Page() {
   const filterRows = rowsState?.key === rowsKey ? rowsState.rows : null;
 
   useEffect(() => {
-    if (!data || !isFiltered || filterRows || rowsRequestRef.current === rowsKey) return;
+    // Lead view: no rows are sent (company-wide Epic rows stay on the server) — see leadSummary below.
+    if (!data || !isFiltered || leadViewActive || filterRows || rowsRequestRef.current === rowsKey) return;
     rowsRequestRef.current = rowsKey;
     const url = data.viewAsUser
       ? `/api/ttm-dashboard-2/rows?viewAsUserId=${data.viewAsUser.id}`
@@ -300,14 +301,40 @@ export default function TtmDashboard2Page() {
       });
   }, [data, isFiltered, filterRows, rowsKey, rowsRetry, leadViewActive]);
 
+  // Lead view + filter (2026-10-19): summarized server-side (/api/ttm-dashboard-2/summary) with the
+  // same functions, one request per filter combination; a stale response is dropped by its key.
+  const leadSummaryKey = leadViewActive && isFiltered ? JSON.stringify(filters) : null;
+  const [leadSummaryState, setLeadSummaryState] = useState<{ key: string; summary: TtmFunnelSummary } | null>(null);
+  useEffect(() => {
+    if (!leadSummaryKey) return undefined;
+    const controller = new AbortController();
+    const params = new URLSearchParams({ view: 'lead' });
+    if (filters.domain) params.set('domain', filters.domain);
+    for (const [name, list] of [['projects', filters.projects], ['components', filters.components], ['pmSms', filters.pmSms], ['requestingUnits', filters.requestingUnits]] as const) {
+      for (const value of list) params.append(name, value);
+    }
+    void fetch(`/api/ttm-dashboard-2/summary?${params.toString()}`, { cache: 'no-store', signal: controller.signal })
+      .then(async (res) => {
+        const json = (await res.json()) as { error?: string; summary?: TtmFunnelSummary };
+        if (!res.ok || !json.summary) throw new Error(json.error || 'Không thể tính số liệu theo bộ lọc.');
+        setLeadSummaryState({ key: leadSummaryKey, summary: json.summary });
+        setRowsError(null);
+      })
+      .catch((err: unknown) => {
+        if (!controller.signal.aborted) setRowsError(err instanceof Error ? err.message : 'Không thể tính số liệu theo bộ lọc.');
+      });
+    return () => controller.abort();
+  }, [leadSummaryKey, filters, rowsRetry]);
+
   // Unfiltered → the cached snapshot. Filtered → recomputed from the rows with the very same
-  // functions the cache was built with (ttm-funnel-summary.ts). While the rows are still loading,
-  // the last numbers stay on screen behind a "đang tính lại" overlay.
-  const filteredSummary = useMemo(
-    () => (isFiltered && filterRows ? summarizeTtmFunnel(filterTtmDashboard2Rows(filterRows, filters)) : null),
-    [isFiltered, filterRows, filters],
+  // functions the cache was built with (ttm-funnel-summary.ts), or the server's summary in the Lead
+  // view. While loading, the last numbers stay on screen behind a "đang tính lại" overlay.
+  const rowsSummary = useMemo(
+    () => (isFiltered && !leadViewActive && filterRows ? summarizeTtmFunnel(filterTtmDashboard2Rows(filterRows, filters)) : null),
+    [isFiltered, leadViewActive, filterRows, filters],
   );
-  const isRecomputing = isFiltered && !filterRows;
+  const filteredSummary = leadSummaryKey ? (leadSummaryState?.key === leadSummaryKey ? leadSummaryState.summary : null) : rowsSummary;
+  const isRecomputing = isFiltered && !filteredSummary;
 
   /** Quản trị Epic list behind a funnel number: viewer scope (or the previewed user's), this
    * screen's toolbar filters, and the node's own condition. */

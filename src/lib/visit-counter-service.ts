@@ -71,7 +71,7 @@ export async function getRecentLoginUsers(limit: number = 5): Promise<RecentLogi
 
   return result.rows.map((row) => ({
     userId: row.userId,
-    username: (row.email ?? '').split('@')[0],
+    username: (row.email ?? '').split('@')[0].toLowerCase(),
     fullName: row.fullName ?? '',
     email: row.email ?? '',
     lastLoginAt: row.lastLoginAt instanceof Date ? row.lastLoginAt.toISOString() : String(row.lastLoginAt ?? ''),
@@ -241,14 +241,14 @@ export async function getDetailedVisitStats(): Promise<DetailedVisitStats> {
       FROM user_visits uv
       JOIN users u ON u.id = uv.user_id
       LEFT JOIN user_domains ud ON ud.user_id = u.id
-      ORDER BY uv.total_visits DESC, uv.weekly_visits DESC, u.full_name ASC;
+      ORDER BY uv.total_visits DESC, uv.weekly_visits DESC, SPLIT_PART(LOWER(u.email), '@', 1) ASC;
     `),
 
     // 5. Recent logins
     getRecentLoginUsers(10),
   ]);
 
-  // Aggregate screenStats for all 4 screens
+  // Aggregate screenStats for all 3 screens
   const screenStats: ScreenVisitStat[] = TRACKED_SCREEN_KEYS.map((key) => {
     const match = screenRes.rows.find((r) => r.screenKey === key);
     return {
@@ -278,7 +278,7 @@ export async function getDetailedVisitStats(): Promise<DetailedVisitStats> {
   let unassignedDomain: DomainVisitStat | null = null;
 
   for (const row of userDomainStatsRes.rows) {
-    const username = (row.email ?? '').split('@')[0];
+    const username = (row.email ?? '').split('@')[0].toLowerCase();
     const userStat: DomainUserStat = {
       userId: row.userId,
       username,
@@ -321,7 +321,7 @@ export async function getDetailedVisitStats(): Promise<DetailedVisitStats> {
 
   // Sort users in each domain
   for (const d of domainStats) {
-    d.users.sort((a, b) => b.totalVisits - a.totalVisits || b.weeklyVisits - a.weeklyVisits || a.fullName.localeCompare(b.fullName));
+    d.users.sort((a, b) => b.totalVisits - a.totalVisits || b.weeklyVisits - a.weeklyVisits || a.username.localeCompare(b.username));
   }
 
   const appVisits = appVisitsRes.rows[0] ?? { total: 0, weekly: 0, today: 0 };

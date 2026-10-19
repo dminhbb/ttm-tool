@@ -27,10 +27,11 @@ import type { Domain, Project, ProjectComponent } from '@/lib/master-data-types'
 
 type Tab = 'users' | 'reset' | 'registrations';
 type EditUserTab = 'info' | 'permission' | 'password';
-type UserSortKey = 'email' | 'fullName' | 'domain' | 'projects' | 'role' | 'status';
+type UserSortKey = 'username' | 'email' | 'fullName' | 'domain' | 'projects' | 'role' | 'status';
 type Ticket = { createdAt: string; email: string; id: number; userId: number | null };
-type BulkDelete = { ids: number[]; type: 'registrations' | 'tickets' };
+type BulkDelete = { ids: number[]; type: 'registrations' | 'tickets'; usernames?: string[] };
 
+const getUsername = (email: string) => email.trim().toLowerCase().split('@')[0];
 const emptyUser = (): UserInput => ({ domainIds: [], email: '', fullName: '', isActive: true, password: '', projectComponents: {}, projectIds: [], role: 'USER' });
 const randomPassword = () => generateCompliantPassword();
 const PAGE_SIZE = 20;
@@ -88,21 +89,22 @@ export default function UsersPage() {
   const domainName = (user: ManagedUser) => user.domainIds.map((domainId) => domains.find((domain) => domain.id === domainId)?.domainName).filter((name): name is string => Boolean(name)).join(', ') || '-';
   const projectKeys = (user: ManagedUser) => user.projectIds.map((projectId) => projects.find((project) => project.id === projectId)?.sourceProjectKey).filter((key): key is string => Boolean(key)).join(', ') || '-';
   const toggle = (id: number, checked: boolean, selected: number[], setSelected: (ids: number[]) => void) => setSelected(checked ? [...selected, id] : selected.filter((value) => value !== id));
-  const { sortKey: userSortKey, toggleSort: toggleUserSort, directionFor: userSortDirection } = useSortableList<UserSortKey>('email');
+  const { sortKey: userSortKey, toggleSort: toggleUserSort, directionFor: userSortDirection } = useSortableList<UserSortKey>('username');
   const userSortValue = (user: ManagedUser, key: UserSortKey): string => {
+    if (key === 'username') return getUsername(user.email);
     if (key === 'domain') return domainName(user);
     if (key === 'projects') return projectKeys(user);
     if (key === 'status') return user.isActive ? 'active' : 'inactive';
     return user[key];
   };
   const visibleUsers = users
-    .filter((user) => fuzzyIncludes(searchTerm, [user.email, user.fullName, domainName(user), projectKeys(user), user.role, user.isActive ? 'active' : 'inactive']))
+    .filter((user) => fuzzyIncludes(searchTerm, [getUsername(user.email), user.email, user.fullName, domainName(user), projectKeys(user), user.role, user.isActive ? 'active' : 'inactive']))
     .sort((a, b) => compareValues(userSortValue(a, userSortKey), userSortValue(b, userSortKey), userSortDirection(userSortKey) ?? 'asc'));
   const totalUserPages = Math.max(1, Math.ceil(visibleUsers.length / PAGE_SIZE));
   const currentUserPage = Math.min(page, totalUserPages);
   const pageUsers = visibleUsers.slice((currentUserPage - 1) * PAGE_SIZE, currentUserPage * PAGE_SIZE);
-  const visibleTickets = tickets.filter((ticket) => fuzzyIncludes(searchTerm, [ticket.email, ticket.createdAt]));
-  const visibleInactiveUsers = inactiveUsers.filter((user) => fuzzyIncludes(searchTerm, [user.email, user.fullName, domainName(user)]));
+  const visibleTickets = tickets.filter((ticket) => fuzzyIncludes(searchTerm, [getUsername(ticket.email), ticket.email, ticket.createdAt]));
+  const visibleInactiveUsers = inactiveUsers.filter((user) => fuzzyIncludes(searchTerm, [getUsername(user.email), user.email, user.fullName, domainName(user)]));
 
   const closeEdit = () => { setEditing(null); setEditTab('info'); setEditNewPassword(''); setEditConfirmPassword(''); setShowEditNewPassword(false); setShowEditConfirmPassword(false); };
 
@@ -153,7 +155,7 @@ export default function UsersPage() {
 
   const remove = async () => {
     if (!deleting) return;
-    const response = await fetch(`/api/users?id=${deleting.id}`, { method: 'DELETE' });
+    const response = await fetch(`/api/users?id=${deleting.id}&username=${encodeURIComponent(getUsername(deleting.email))}`, { method: 'DELETE' });
     const result = await response.json();
     if (response.ok) { setDeleting(null); setEditing(null); showToast('Đã xóa user.', 5000); setMessage(null); void load(); }
     else setMessage({ text: result.error || 'Không thể xóa user.', type: 'error' });
@@ -171,7 +173,8 @@ export default function UsersPage() {
 
   const approve = async (ids: number[], domainId?: number) => {
     try {
-      const response = await fetch('/api/users/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids, ...(domainId ? { domainId } : {}) }) });
+      const usernames = users.filter((u) => ids.includes(u.id)).map((u) => getUsername(u.email));
+      const response = await fetch('/api/users/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids, usernames, ...(domainId ? { domainId } : {}) }) });
       const result = await response.json();
       if (response.ok) { setApprovalUserIds([]); setApprovalDomainId(''); setSelectedRegistrationIds([]); showToast(`Đã duyệt ${result.approved} đăng ký mới${result.domainAssigned ? ` và gán Domain cho ${result.domainAssigned} user` : ''}.`, 5000); setMessage(null); void load(); }
       else setMessage({ text: result.error || 'Không thể duyệt đăng ký.', type: 'error' });
@@ -188,7 +191,7 @@ export default function UsersPage() {
     if (!bulkDelete) return;
     const response = bulkDelete.type === 'tickets'
       ? await fetch('/api/password-reset-requests', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: bulkDelete.ids }) })
-      : await fetch('/api/users', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: bulkDelete.ids }) });
+      : await fetch('/api/users', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: bulkDelete.ids, usernames: bulkDelete.usernames }) });
     const result = await response.json();
     if (response.ok) { const count = typeof result.deleted === 'number' ? result.deleted : bulkDelete.ids.length; showToast(`Đã xóa ${count} yêu cầu.`, 5000); setMessage(null); if (bulkDelete.type === 'tickets') setSelectedTicketIds([]); else setSelectedRegistrationIds([]); setBulkDelete(null); void load(); }
     else setMessage({ text: result.error || 'Không thể xóa các mục đã chọn.', type: 'error' });
@@ -201,11 +204,12 @@ export default function UsersPage() {
     <Card><CardHeader><CardTitle>{tab === 'users' ? 'Quản lý user' : tab === 'reset' ? 'Yêu cầu cấp lại mật khẩu' : 'Duyệt đăng ký mới'}</CardTitle>
       {tab === 'users' && <div className="flex gap-2"><Button size="sm" onClick={() => { setBulkUsernames(''); setCreatingBulk(true); }} variant="outline">Thêm nhiều user</Button><Button size="sm" icon={<Plus className="size-4" weight="bold" />} onClick={() => { setCreateForm(emptyUser()); setCreating(true); }}>Thêm user</Button></div>}
       {tab === 'reset' && selectedTicketIds.length > 0 && <div className="ui-button-group flex gap-2"><Button onClick={() => setBulkDelete({ ids: selectedTicketIds, type: 'tickets' })} size="sm" variant="danger">Xóa ({selectedTicketIds.length})</Button><Button onClick={() => { const selected = tickets.filter((ticket) => selectedTicketIds.includes(ticket.id) && ticket.userId !== null); setResetTickets(selected); setPassword(randomPassword()); }} size="sm">Cấp lại mật khẩu ({selectedTicketIds.length})</Button></div>}
-      {tab === 'registrations' && selectedRegistrationIds.length > 0 && <div className="ui-button-group flex gap-2"><Button onClick={() => setBulkDelete({ ids: selectedRegistrationIds, type: 'registrations' })} size="sm" variant="danger">Xóa ({selectedRegistrationIds.length})</Button><Button onClick={() => requestApproval(inactiveUsers.filter((user) => selectedRegistrationIds.includes(user.id)))} size="sm">Duyệt đăng ký ({selectedRegistrationIds.length})</Button></div>}
+      {tab === 'registrations' && selectedRegistrationIds.length > 0 && <div className="ui-button-group flex gap-2"><Button onClick={() => setBulkDelete({ ids: selectedRegistrationIds, type: 'registrations', usernames: inactiveUsers.filter((u) => selectedRegistrationIds.includes(u.id)).map((u) => getUsername(u.email)) })} size="sm" variant="danger">Xóa ({selectedRegistrationIds.length})</Button><Button onClick={() => requestApproval(inactiveUsers.filter((user) => selectedRegistrationIds.includes(user.id)))} size="sm">Duyệt đăng ký ({selectedRegistrationIds.length})</Button></div>}
     </CardHeader><CardBody>
-      <DataTableToolbar onReset={() => { setSearchTerm(''); setPage(1); }} onSearchChange={(value) => { setSearchTerm(value); setPage(1); }} placeholder={tab === 'users' ? 'Tìm email, họ tên, Domain, Dự án hoặc role' : tab === 'reset' ? 'Tìm email hoặc thời gian gửi' : 'Tìm email, họ tên hoặc Domain'} searchValue={searchTerm} />
+      <DataTableToolbar onReset={() => { setSearchTerm(''); setPage(1); }} onSearchChange={(value) => { setSearchTerm(value); setPage(1); }} placeholder={tab === 'users' ? 'Tìm username, email, họ tên, Domain, Dự án hoặc role' : tab === 'reset' ? 'Tìm username, email hoặc thời gian gửi' : 'Tìm username, email, họ tên hoặc Domain'} searchValue={searchTerm} />
       {tab === 'users' && (visibleUsers.length ? <><TableContainer><Table><THead><TR>
         <TH>STT</TH>
+        <TH sortDirection={userSortDirection('username')} onClick={() => toggleUserSort('username')}>Username</TH>
         <TH sortDirection={userSortDirection('email')} onClick={() => toggleUserSort('email')}>Email</TH>
         <TH sortDirection={userSortDirection('fullName')} onClick={() => toggleUserSort('fullName')}>Họ tên</TH>
         <TH sortDirection={userSortDirection('domain')} onClick={() => toggleUserSort('domain')}>Domain</TH>
@@ -216,9 +220,9 @@ export default function UsersPage() {
         <TH className="text-center" title="Số lượt bấm menu chức năng ở left panel và menu avatar (cộng dồn theo ngày)">Chức năng</TH>
         <TH className="text-center" title="Số lượt xem lịch sử cảnh báo Epic, duyệt Epic và chuyển trang trên màn hình quản lý Epic (cộng dồn theo ngày)">Dữ liệu</TH>
         <TH>Hành động</TH>
-      </TR></THead><TBody>{pageUsers.map((user, index) => <TR key={user.id}><TD>{(currentUserPage - 1) * PAGE_SIZE + index + 1}</TD><TD>{user.email}</TD><TD>{user.fullName}</TD><TD>{domainName(user)}</TD><TD>{projectKeys(user)}</TD><TD><Badge variant="info">{user.role}</Badge></TD><TD><Badge variant={user.isActive ? 'success' : 'neutral'}>{user.isActive ? 'Active' : 'Inactive'}</Badge></TD><TD className="text-center">{user.usageStats.loginCount}</TD><TD className="text-center">{user.usageStats.featureCount}</TD><TD className="text-center">{user.usageStats.dataCount}</TD><TD><TableAction onClick={() => { setEditing({ ...user }); setEditTab('info'); setEditNewPassword(''); setEditConfirmPassword(''); setShowEditNewPassword(false); setShowEditConfirmPassword(false); }} variant="info">Chỉnh sửa</TableAction></TD></TR>)}</TBody></Table></TableContainer><Pagination currentPage={currentUserPage} onPageChange={setPage} pageSize={PAGE_SIZE} totalItems={visibleUsers.length} itemLabel="user" /></> : <p className="text-fb-text-secondary">Không tìm thấy user phù hợp.</p>)}
-      {tab === 'reset' && (tickets.length ? (visibleTickets.length ? <TableContainer><Table><THead><TR><TH className="text-center"><input aria-label="Chọn tất cả yêu cầu cấp lại mật khẩu" checked={visibleTickets.length > 0 && visibleTickets.every((ticket) => selectedTicketIds.includes(ticket.id))} onChange={(event) => setSelectedTicketIds(event.target.checked ? [...new Set([...selectedTicketIds, ...visibleTickets.map((ticket) => ticket.id)])] : selectedTicketIds.filter((id) => !visibleTickets.some((ticket) => ticket.id === id)))} type="checkbox" /></TH><TH>Email</TH><TH>Thời gian gửi</TH><TH>Hành động</TH></TR></THead><TBody>{visibleTickets.map((ticket) => <TR key={ticket.id}><TD className="text-center"><input aria-label={`Chọn yêu cầu của ${ticket.email}`} checked={selectedTicketIds.includes(ticket.id)} onChange={(event) => toggle(ticket.id, event.target.checked, selectedTicketIds, setSelectedTicketIds)} type="checkbox" /></TD><TD>{ticket.email}</TD><TD>{ticket.createdAt}</TD><TD>{ticket.userId ? <TableAction onClick={() => { setResetTickets([ticket]); setPassword(randomPassword()); }} variant="warning">Cấp lại</TableAction> : 'Không tìm thấy user'}</TD></TR>)}</TBody></Table></TableContainer> : <p className="text-fb-text-secondary">Không tìm thấy ticket phù hợp.</p>) : <p className="text-fb-text-secondary">Không có ticket đang chờ.</p>)}
-      {tab === 'registrations' && (visibleInactiveUsers.length ? <TableContainer><Table><THead><TR><TH className="text-center"><input aria-label="Chọn tất cả đăng ký mới" checked={visibleInactiveUsers.length > 0 && visibleInactiveUsers.every((user) => selectedRegistrationIds.includes(user.id))} onChange={(event) => setSelectedRegistrationIds(event.target.checked ? [...new Set([...selectedRegistrationIds, ...visibleInactiveUsers.map((user) => user.id)])] : selectedRegistrationIds.filter((id) => !visibleInactiveUsers.some((user) => user.id === id)))} type="checkbox" /></TH><TH>Email</TH><TH>Họ tên</TH><TH>Domain</TH><TH>Hành động</TH></TR></THead><TBody>{visibleInactiveUsers.map((user) => <TR key={user.id}><TD className="text-center"><input aria-label={`Chọn đăng ký của ${user.email}`} checked={selectedRegistrationIds.includes(user.id)} onChange={(event) => toggle(user.id, event.target.checked, selectedRegistrationIds, setSelectedRegistrationIds)} type="checkbox" /></TD><TD>{user.email}</TD><TD>{user.fullName}</TD><TD>{domainName(user)}</TD><TD><TableAction onClick={() => requestApproval([user])} variant="info">Duyệt</TableAction></TD></TR>)}</TBody></Table></TableContainer> : <p className="text-fb-text-secondary">Không tìm thấy đăng ký phù hợp.</p>)}
+      </TR></THead><TBody>{pageUsers.map((user, index) => <TR key={user.id}><TD>{(currentUserPage - 1) * PAGE_SIZE + index + 1}</TD><TD className="font-semibold text-fb-text-primary">{getUsername(user.email)}</TD><TD>{user.email}</TD><TD>{user.fullName}</TD><TD>{domainName(user)}</TD><TD>{projectKeys(user)}</TD><TD><Badge variant="info">{user.role}</Badge></TD><TD><Badge variant={user.isActive ? 'success' : 'neutral'}>{user.isActive ? 'Active' : 'Inactive'}</Badge></TD><TD className="text-center">{user.usageStats.loginCount}</TD><TD className="text-center">{user.usageStats.featureCount}</TD><TD className="text-center">{user.usageStats.dataCount}</TD><TD><TableAction onClick={() => { setEditing({ ...user }); setEditTab('info'); setEditNewPassword(''); setEditConfirmPassword(''); setShowEditNewPassword(false); setShowEditConfirmPassword(false); }} variant="info">Chỉnh sửa</TableAction></TD></TR>)}</TBody></Table></TableContainer><Pagination currentPage={currentUserPage} onPageChange={setPage} pageSize={PAGE_SIZE} totalItems={visibleUsers.length} itemLabel="user" /></> : <p className="text-fb-text-secondary">Không tìm thấy user phù hợp.</p>)}
+      {tab === 'reset' && (tickets.length ? (visibleTickets.length ? <TableContainer><Table><THead><TR><TH className="text-center"><input aria-label="Chọn tất cả yêu cầu cấp lại mật khẩu" checked={visibleTickets.length > 0 && visibleTickets.every((ticket) => selectedTicketIds.includes(ticket.id))} onChange={(event) => setSelectedTicketIds(event.target.checked ? [...new Set([...selectedTicketIds, ...visibleTickets.map((ticket) => ticket.id)])] : selectedTicketIds.filter((id) => !visibleTickets.some((ticket) => ticket.id === id)))} type="checkbox" /></TH><TH>Username</TH><TH>Email</TH><TH>Thời gian gửi</TH><TH>Hành động</TH></TR></THead><TBody>{visibleTickets.map((ticket) => <TR key={ticket.id}><TD className="text-center"><input aria-label={`Chọn yêu cầu của ${getUsername(ticket.email)}`} checked={selectedTicketIds.includes(ticket.id)} onChange={(event) => toggle(ticket.id, event.target.checked, selectedTicketIds, setSelectedTicketIds)} type="checkbox" /></TD><TD className="font-semibold text-fb-text-primary">{getUsername(ticket.email)}</TD><TD>{ticket.email}</TD><TD>{ticket.createdAt}</TD><TD>{ticket.userId ? <TableAction onClick={() => { setResetTickets([ticket]); setPassword(randomPassword()); }} variant="warning">Cấp lại</TableAction> : 'Không tìm thấy user'}</TD></TR>)}</TBody></Table></TableContainer> : <p className="text-fb-text-secondary">Không tìm thấy ticket phù hợp.</p>) : <p className="text-fb-text-secondary">Không có ticket đang chờ.</p>)}
+      {tab === 'registrations' && (visibleInactiveUsers.length ? <TableContainer><Table><THead><TR><TH className="text-center"><input aria-label="Chọn tất cả đăng ký mới" checked={visibleInactiveUsers.length > 0 && visibleInactiveUsers.every((user) => selectedRegistrationIds.includes(user.id))} onChange={(event) => setSelectedRegistrationIds(event.target.checked ? [...new Set([...selectedRegistrationIds, ...visibleInactiveUsers.map((user) => user.id)])] : selectedRegistrationIds.filter((id) => !visibleInactiveUsers.some((user) => user.id === id)))} type="checkbox" /></TH><TH>Username</TH><TH>Email</TH><TH>Họ tên</TH><TH>Domain</TH><TH>Hành động</TH></TR></THead><TBody>{visibleInactiveUsers.map((user) => <TR key={user.id}><TD className="text-center"><input aria-label={`Chọn đăng ký của ${getUsername(user.email)}`} checked={selectedRegistrationIds.includes(user.id)} onChange={(event) => toggle(user.id, event.target.checked, selectedRegistrationIds, setSelectedRegistrationIds)} type="checkbox" /></TD><TD className="font-semibold text-fb-text-primary">{getUsername(user.email)}</TD><TD>{user.email}</TD><TD>{user.fullName}</TD><TD>{domainName(user)}</TD><TD><TableAction onClick={() => requestApproval([user])} variant="info">Duyệt</TableAction></TD></TR>)}</TBody></Table></TableContainer> : <p className="text-fb-text-secondary">Không tìm thấy đăng ký phù hợp.</p>)}
     </CardBody></Card>
     <Modal isOpen={creating} onClose={() => setCreating(false)} maxWidth="xl" title="Thêm user mới" footer={<><Button onClick={() => setCreating(false)} variant="outline">Hủy</Button><Button onClick={create}>Lưu</Button></>}><UserForm allProjects={projects} allProjectComponents={projectComponents} currentUserRole={currentUserRole} domains={domainMultiOptions} onChange={setCreateForm} projects={projectMultiOptions} user={createForm} withPassword /></Modal>
     <Modal isOpen={creatingBulk} onClose={() => setCreatingBulk(false)} title="Thêm nhiều user" footer={<><Button onClick={() => setCreatingBulk(false)} variant="outline">Hủy</Button><Button isLoading={isBulkSaving} onClick={createBulkUsers}>Thêm user</Button></>}><div className="ui-form flex flex-col gap-4"><FormField id="bulk-usernames" label="Danh sách username" helperText="Nhập username, ngăn cách bằng dấu phẩy; không cần @mbbank.com.vn."><textarea className="ui-textarea form-control-compact" onChange={(event) => setBulkUsernames(event.target.value)} placeholder="minhnd7, ngothanhha, congha" value={bulkUsernames} /></FormField><p className="text-fb-text-secondary">User mới có Họ tên là username, email dạng username@mbbank.com.vn, role USER, inactive, chưa gán Domain và mật khẩu mặc định theo cấu hình yêu cầu.</p></div></Modal>
@@ -260,7 +264,7 @@ export default function UsersPage() {
       </section>}
     </div>}</Modal>
     <Modal isOpen={resetTickets.length > 0} onClose={() => setResetTickets([])} title="Cấp lại mật khẩu" footer={<><Button onClick={() => { setBulkDelete({ ids: resetTickets.map((ticket) => ticket.id), type: 'tickets' }); setResetTickets([]); }} variant="danger">Xóa yêu cầu</Button><Button onClick={() => setPassword(randomPassword())} variant="outline">Tạo ngẫu nhiên</Button><Button onClick={reset}>Lưu</Button></>}><div className="flex flex-col gap-4"><p className="text-fb-text-secondary">Mật khẩu mới sẽ áp dụng cho {resetTickets.length} user đã chọn.</p><p className="text-xs font-medium text-fb-blue">Quy tắc mật khẩu: {PASSWORD_REQUIREMENTS_GUIDE}</p><Input label="Mật khẩu mới" onChange={(event) => setPassword(event.target.value)} value={password} /></div></Modal>
-    <ConfirmDialog confirmLabel="Xóa user" description={`Bạn có chắc muốn xóa user ${deleting?.email ?? ''}?`} isOpen={deleting !== null} onClose={() => setDeleting(null)} onConfirm={remove} steps={1} title="Xóa user" />
+    <ConfirmDialog confirmLabel="Xóa user" description={`Bạn có chắc muốn xóa user ${deleting ? getUsername(deleting.email) : ''}?`} isOpen={deleting !== null} onClose={() => setDeleting(null)} onConfirm={remove} steps={1} title="Xóa user" />
     <ConfirmDialog confirmLabel="Xóa" description={`Bạn có chắc muốn xóa ${bulkDelete?.ids.length ?? 0} ${bulkDelete?.type === 'tickets' ? 'yêu cầu cấp lại mật khẩu' : 'yêu cầu đăng ký mới'} đã chọn?`} isOpen={bulkDelete !== null} onClose={() => setBulkDelete(null)} onConfirm={deleteSelected} steps={1} title="Xóa các mục đã chọn" />
   </div>;
 }
@@ -268,7 +272,7 @@ export default function UsersPage() {
 /** Identity fields — used both flat (Create popup) and inside the "Thông tin user" tab (Edit popup). */
 function UserIdentityFields({ domains, onChange, user, withPassword = false }: { domains: { value: string; label: string }[]; onChange: (user: UserInput) => void; user: UserInput; withPassword?: boolean }) {
   return <>
-    <Input label="Email" onChange={(event) => onChange({ ...user, email: event.target.value })} required type="email" value={user.email} />
+    <Input helperText="Nhập username (tự động gắn @mbbank.com.vn) hoặc email đầy đủ; username phải là duy nhất." label="Username / Email" onChange={(event) => onChange({ ...user, email: event.target.value })} required type="text" value={user.email} />
     <Input label="Họ tên" onChange={(event) => onChange({ ...user, fullName: event.target.value })} required value={user.fullName} />
     {withPassword && <Input label="Mật khẩu" minLength={8} onChange={(event) => onChange({ ...user, password: event.target.value })} required type="password" value={user.password ?? ''} />}
     <MultiSelect helperText={user.isActive ? 'User active phải có ít nhất một Domain.' : 'User inactive có thể chưa được gán Domain.'} label="Domain" onChange={(domainIds) => onChange({ ...user, domainIds: domainIds.map(Number) })} options={domains} placeholder="Chọn Domain" required={user.isActive} value={user.domainIds.map(String)} />

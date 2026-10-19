@@ -1,16 +1,12 @@
-export type ScreenKey = 'dashboard' | 'ttm_dashboard_2' | 'epic_alerts' | 'epic_reports' | 'epic_in_po';
+export type ScreenKey = 'ttm_dashboard_2' | 'epic_alerts' | 'epic_reports';
 
 export const SCREEN_NAMES: Record<ScreenKey, string> = {
-  // 'dashboard' và 'epic_in_po' là màn hình đã gỡ (2026-10-11) — giữ khoá để lịch sử lượt xem cũ vẫn
-  // hiện trong Thống kê truy cập; không còn đường dẫn nào ghi nhận lượt mới (xem resolveScreenKeyFromPath).
-  dashboard: 'TTM Dashboard (đã gỡ)',
   ttm_dashboard_2: 'TTM Dashboard 2',
   epic_alerts: 'Quản trị Epic',
   epic_reports: 'Báo cáo Epic',
-  epic_in_po: 'Epic in PO (đã gỡ)',
 };
 
-export const TRACKED_SCREEN_KEYS: ScreenKey[] = ['dashboard', 'ttm_dashboard_2', 'epic_alerts', 'epic_reports', 'epic_in_po'];
+export const TRACKED_SCREEN_KEYS: ScreenKey[] = ['ttm_dashboard_2', 'epic_alerts', 'epic_reports'];
 
 export interface RecentLoginUser {
   userId: number;

@@ -73,10 +73,13 @@ lịch sử import. Áp dụng cho cả form thủ công lẫn `POST /api/data-s
 |---|---|
 | Epic có trong `denied_import_epics` (`allow_import = FALSE`) | Luôn từ chối, kèm mọi Story của Epic và mọi Subtask (gắn thẳng vào Epic hoặc thuộc Story của nó). |
 | Epic có trong danh sách với `allow_import = TRUE` ("Cho phép import") | Import bình thường, **miễn trừ** rule tự động. |
-| Epic chưa có trong danh sách, vi phạm rule tự động | Từ chối, tự thêm vào danh sách (`source = 'AUTO_RULE'`, kèm lý do) và chạy Epic deletion cho dữ liệu cũ (nếu có) — cùng transaction với import. |
+| Epic chưa có trong danh sách, vi phạm rule tự động | Từ chối, tự thêm vào danh sách (`source = 'AUTO_RULE'`, kèm lý do). Dữ liệu cũ (nếu có) bị xoá bằng Epic deletion cùng transaction **chỉ khi** là upload thủ công (đã qua hộp xác nhận) và không quá `MAX_EPIC_DELETIONS_PER_IMPORT` = 25 Epic còn dữ liệu; import tự động (`importType = 'AUTO'`) hoặc quá 25 Epic thì **giữ dữ liệu** để SUPERADMIN kiểm tra rồi dùng "Xóa dữ liệu còn tồn tại" (từ 2026-10-19). Kết quả ghi ở `metadata_json.deniedDataOutcome`. |
+| Epic chưa có trong danh sách, chỉ được nhận nhờ ngoại lệ của rule B | Import bình thường và **tự thêm vào danh sách** với `allow_import = TRUE`, `source = 'AUTO_EXEMPT'`, lý do ghi ngày làm bằng chứng — để vẫn được miễn khi bằng chứng (`issues` theo thời hạn lưu trữ, snapshot khi "Xóa lớp dữ liệu") đã bị xoá (từ 2026-10-19). Không ghi đè Epic đã có trong danh sách. |
 
 Rule tự động (`src/lib/import-admission-rules.ts`, thuần, có unit test). Ngày A/B lưu ở
-`import_admission_settings`, chỉnh ở tab "Từ chối import" (nhãn "Ngày Created >=" = A, "Ngày Due Date >=" = B); để trống = tắt rule:
+`import_admission_settings`, chỉnh ở tab "Từ chối import" (nhãn "Ngày Created >=" = A, "Ngày Due Date >=" = B); để trống = tắt rule.
+Ngày A/B **không được sau hôm nay** (API `PUT /settings` trả 400 — từ 2026-10-19), vì ngày ở tương lai sẽ
+từ chối cả các Epic đang trong phạm vi:
 
 - **Loại issue** — issue cấp 1 có issue type khác Epic (`epic_issue_type` với Py Jira API; cột Issue Type với Pure Jira Export).
 - **A** — `created < A` (mặc định 2026-01-31), theo ngày Việt Nam.
@@ -93,7 +96,9 @@ cổng chặn dữ liệu đầu vào, không phải badge/verdict hiển thị 
 
 - Phạm vi issue: Epic + Story có `epic_key` = Epic + Subtask có `epic_key` = Epic + Subtask có
   `parent_key` = key hoặc jira_id của các Story đó, xác định theo **trạng thái mới nhất** của từng issue
-  (gộp `issues` và `issue_daily_snapshots`); issue đã chuyển sang Epic khác được giữ nguyên.
+  (gộp `issues` và `issue_daily_snapshots`); issue đã chuyển sang Epic khác được giữ nguyên. Từ 2026-10-19
+  truy vấn chỉ đọc các issue từng trỏ tới Epic / Story đó (index `20261019c_add_epic_deletion_scope_indexes.sql`)
+  thay vì tính trạng thái mới nhất của mọi issue — kết quả giữ nguyên (đã đối chiếu 385 Epic trên DB local).
 - Xóa ở: `import_rows`, `issues` (mọi batch), `issue_daily_snapshots`, `epic_ttm_snapshots`,
   `epic_alert_history`, `epic_alert_timeline`, `epic_milestone_history`, `epic_data_anomaly_violations`,
   `epic_alert_row_cache`, `black_listed_epics`; ghi `audit_logs` (`EPIC_DELETION`) cho từng Epic.

@@ -194,6 +194,13 @@ Yêu cầu:
 
 ## 11. User Management CRUD
 
+**Họ tên không trùng giữa user đang hoạt động (từ 2026-10-19):** Epic nhận diện PM/SM theo họ tên
+(`ownerName`), nên tạo / cập nhật một user **active** trùng họ tên (không phân biệt hoa thường và khoảng
+trắng) với user active khác bị từ chối (409, `DuplicateFullNameError` trong `auth-service.ts`) — thêm
+thông tin phân biệt (ví dụ đơn vị) vào họ tên. User inactive (kể cả tự đăng ký chờ duyệt) không bị kiểm tra
+cho tới khi được kích hoạt. So khớp PM/SM ↔ component được gán cũng không phân biệt hoa thường / khoảng
+trắng (`assignmentKey`, `epic-pm-sm-assignment.ts`).
+
 Màn hình User Management hỗ trợ:
 
 - Tạo user.

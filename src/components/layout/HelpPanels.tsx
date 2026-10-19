@@ -54,7 +54,10 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
         <section className="rounded-md border border-status-warning/30 bg-status-warning-soft px-3 py-2 text-xs text-fb-text-primary">
           <strong>Scoring Service.</strong> Mọi Epic được chấm điểm lại mỗi lần tạo cache và được đối chiếu với logic cũ (Quản trị nguồn dữ liệu →
           Đối chiếu Scoring Service). SUPERADMIN chọn các màn hình hiển thị theo Scoring Service hay logic cũ tại đó.
-          Ở chế độ Scoring Service, cột Nhận xét hiện thêm &quot;Sai Status (Release)&quot;, &quot;Pending lâu&quot; và &quot;Khuyến nghị (n)&quot;.
+          Rule mới chỉ có hiệu lực sau lần tạo lại cache kế tiếp. Trên Quản trị Epic, cột NHẬN XÉT gom kết luận vào 4 ô:
+          <strong> Kết quả</strong> (Đạt / Fail TTM-CNTT (QLDA) và TTM-E2E), <strong>Xử lý</strong> (Thiếu lý do Fail TTM, Thiếu phòng chịu TN chính và các khuyến nghị khác),
+          <strong>Cảnh báo</strong> (Cảnh báo muộn, Sai Status, Chờ golive, Giải trình Golive, Pending lâu), <strong>Sai lệch dữ liệu</strong> (mỗi rule vi phạm một mục);
+          cột PASS chỉ hiện Đạt / Fail TTM-CNTT (QLDA).
         </section>
 
         <section>
@@ -165,8 +168,8 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">7. Chỉ số TTM-CNTT (QLDA) / TTM-CNTT (QA)</h3>
-          <p className="text-xs">Chỉ số chỉ đếm các cờ dưới đây (không phải badge), nên &quot;Đạt&quot; của chỉ số luôn trùng với badge &quot;Đạt TTM-CNTT (QLDA)&quot;. Nếu không nói rõ khác, chỉ số tính trên đúng các Epic đang hiển thị trong bảng của màn hình (theo bộ lọc); riêng 2 widget cố định trên banner TTM dashboard tính trên toàn bộ Epic trong ứng dụng.</p>
+          <h3 className="ui-card-title mb-1">7. Chỉ số TTM-CNTT (QLDA) / TTM-CNTT (QA) / TTM-E2E</h3>
+          <p className="text-xs">Chỉ số chỉ đếm các cờ dưới đây (không phải badge), nên &quot;Đạt&quot; của chỉ số luôn trùng với badge &quot;Đạt TTM-CNTT (QLDA)&quot;. Nếu không nói rõ khác, chỉ số tính trên đúng các Epic đang xem (theo phạm vi quyền và bộ lọc của màn hình); riêng 3 widget cố định trên banner (TTM Dashboard 2, Quản trị Epic) tính trên toàn bộ Epic trong ứng dụng. Chưa có Epic nào được kết luận (mẫu số = 0) thì hiện &quot;—&quot;.</p>
           <table className="ui-table mt-1 w-full text-xs">
             <thead><tr><th className="text-left">Chỉ số</th><th className="text-left">Cờ</th><th className="text-left">Điều kiện</th></tr></thead>
             <tbody>
@@ -179,13 +182,16 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">8. Thay đổi so với logic hiện tại (đã chốt 29/09/2026)</h3>
+          <h3 className="ui-card-title mb-1">8. Thay đổi so với logic cũ (chốt từ 29/09/2026, cập nhật 19/10/2026)</h3>
           <ul className="ml-5 list-disc space-y-1 text-xs">
+            <li><strong className="text-fb-text-primary">Phạm vi rule Sai lệch dữ liệu</strong> (10/10/2026, Cấu hình cảnh báo): SUPERADMIN có thể giới hạn từng rule R1, R3–R6, R8–R10 theo mốc ngày (Ngày tạo Epic &gt;, Start Date &gt;, R4G Date &gt;, Due Date &gt;). Epic ngoài phạm vi của một rule không bị rule đó gắn Sai lệch dữ liệu; Epic chưa có ngày tương ứng thì bỏ qua điều kiện ngày đó (12/10/2026).</li>
+            <li><strong className="text-fb-text-primary">&quot;Thiếu lý do Fail TTM&quot; và &quot;Thiếu phòng chịu TN chính&quot;</strong> (10/10 và 14/10/2026, nhóm Khuyến nghị): chỉ xét Epic Fail TTM-CNTT có R4G Date muộn hơn Target — thiếu cả 9 trường khâu fail / thiếu trường &quot;Phòng chịu trách nhiệm chính&quot;. Không đổi kết luận Đạt / Fail; gom thành widget THIẾU LÝ DO trên TTM Dashboard 2 và panel đầu tiên của màn hình Chuẩn hoá dữ liệu.</li>
+            <li><strong className="text-fb-text-primary">Reopened</strong> (05/10/2026): Epic đã golive rồi bị mở lại không bị R8 với R4G Date đã tới (giữ kết luận TTM, không gắn &quot;Sai Status&quot;); R4G Date ở tương lai thì vẫn là R10.</li>
             <li><strong className="text-fb-text-primary">Bỏ &quot;Cảnh báo sớm&quot;</strong> ở cả TTM-CNTT (QLDA), trục Release và cột pha. Offset &quot;sớm&quot; trong Cấu hình cảnh báo không còn được dùng. Trường hợp trục Release trước đây hiện &quot;Cảnh báo sớm&quot; (status đã qua R4GOLIVE, chưa có Due Date, còn trong hạn) nay không hiện badge nào cho tới khi quá hạn thành &quot;Giải trình Golive&quot;.</li>
             <li><strong className="text-fb-text-primary">Sai lệch dữ liệu được xét trước</strong> (01/10/2026): Epic có Sai lệch dữ liệu (R1, R3–R6, R8, R9, R10) không được chấm Đạt / Fail / Cảnh báo muộn / Sai Status trên TTM-CNTT (QLDA), TTM-CNTT (QA) và TTM-E2E — chỉ hiện Sai lệch dữ liệu cho tới khi dữ liệu được sửa.</li>
             <li><strong className="text-fb-text-primary">&quot;Sai Status&quot;</strong> (TTM-CNTT (QLDA) và TTM-E2E, nhóm Khuyến nghị): ngày ghi nhận đúng hạn và đã tới nhưng status chưa lên R4GOLIVE — Epic <strong>vẫn được tính Đạt</strong>, badge &quot;Sai Status&quot; hiện kèm. Ngày R4G ở tương lai không được tính Đạt (từ 09/10/2026 là Sai lệch dữ liệu). Từ 04/10/2026, Epic có R4G Date mà status chưa lên R4GOLIVE là Sai lệch dữ liệu (R8) nên trường hợp này chỉ còn xảy ra khi rule R8 bị tắt.</li>
             <li><strong className="text-fb-text-primary">Công thức TTM-CNTT (QLDA) / (QA)</strong> (04/10/2026): Tỷ lệ % Pass = L05aa / (L05aa + L05ab + L05ba) — Epic Đạt trên tổng Epic đã có kết luận (Đạt, Fail có R4G Date muộn hơn Target, Fail chưa có R4G Date đã quá Target). Trước đây mẫu số là mọi Epic có R4G Date (gồm cả R4G tương lai) và không tính Epic Fail chưa có R4G Date. TTM-CNTT (QA) dùng cùng công thức, chỉ lấy Epic MVP Done / Released. Tên các tiêu chí L01…L05bb xem ở TTM Dashboard 2.</li>
-            <li><strong className="text-fb-text-primary">Chất lượng dữ liệu</strong> (04/10/2026): thêm <strong>R8</strong> (có R4G Date nhưng status &lt; R4GOLIVE) và <strong>R9</strong> (status ≥ R4GOLIVE nhưng chưa có R4G Date); <strong>R1</strong> &quot;Thiếu Start Date&quot; tính từ status DESIGN (trước đây từ DEV); <strong>R5</strong> &quot;Thiếu Requirement Level&quot; chỉ tính khi status đã qua DESIGN; từ 11/10/2026 Epic <strong>Pending</strong> được miễn R5 khi status trước đó (<code>previous_status</code>) là To Do hoặc In PO; từ 12/10/2026 các Epic Pending đó cũng được miễn <strong>R1</strong>.</li>
+            <li><strong className="text-fb-text-primary">Chất lượng dữ liệu</strong> (04/10/2026): thêm <strong>R8</strong> (có R4G Date nhưng status &lt; R4GOLIVE) và <strong>R9</strong> (status ≥ R4GOLIVE nhưng chưa có R4G Date); <strong>R1</strong> &quot;Thiếu Start Date&quot; tính từ status DESIGN (trước đây từ DEV); <strong>R5</strong> &quot;Thiếu Requirement Level&quot; chỉ tính khi status đã qua DESIGN; từ 11/10/2026 Epic <strong>Pending</strong> được miễn R5 khi status trước đó (<code>previous_status</code>) là To Do hoặc In PO, từ 14/10/2026 cả khi là Design; từ 12/10/2026 Epic Pending trước đó là To Do / In PO cũng được miễn <strong>R1</strong> (R1 không miễn Design).</li>
             <li><strong className="text-fb-text-primary">Epic ngoại lệ không được xét</strong> (09/10/2026): &quot;Epic ngoại lệ&quot; là tên gọi chung của Epic trong danh sách Black listed và Epic thuộc dự án có Time to Market = N. Scoring Service không chạy rule nào cho các Epic này — không có Sai lệch dữ liệu, Đạt / Fail, Cảnh báo, Chờ / Giải trình golive, trễ pha hay khuyến nghị — chỉ ghi nhận badge &quot;Epic ngoại lệ (Black listed)&quot; hoặc &quot;Epic ngoại lệ (dự án TTM = N)&quot; ở axis Phạm vi (kèm &quot;Ngoài phạm vi&quot; nếu có). Chúng không tính vào chỉ số nào và không tính vào bất kỳ widget nào của TTM Dashboard 2.</li>
             <li><strong className="text-fb-text-primary">R4G Date không được khai báo trước</strong> (09/10/2026, quy định của công ty): mọi Epic có R4G Date còn ở tương lai là Sai lệch dữ liệu, chỉ trừ Cancelled — status chưa tới R4GOLIVE là <strong>R8</strong> (từ 08/10/2026), status từ R4GOLIVE trở lên hoặc Reopened là <strong>R10</strong> &quot;R4G Date ở tương lai&quot; (mới). Epic owner xoá giá trị khỏi trường R4G Date và ghi ngày dự kiến ở một trường thông tin phụ khác. Các Epic này không được chấm Đạt / Fail và nằm ngoài mẫu số; nhóm &quot;chưa kết luận&quot; (L05ac) chỉ còn Epic không tính được Target.</li>
             <li><strong className="text-fb-text-primary">TTM-E2E</strong> (01/10/2026): <code>Target_E2E = T0 +wd (N_E2E − 1)</code>; Đạt không còn yêu cầu status Released; Fail khi ngày kết thúc &gt; Target, hoặc chưa có ngày kết thúc mà đã quá Target.</li>
@@ -200,45 +206,63 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
   );
 }
 
-/** Box-and-arrow diagram of the end-to-end data pipeline: import → canonical issues → aggregated layers → live screen compute. */
+/**
+ * Box-and-arrow diagram of the end-to-end data pipeline (2026-10-19): import → "Từ chối import" →
+ * canonical issues + history layers → refreshDerivedCaches (Scoring Service) → derived caches → screens.
+ * Colors are IAS tokens passed through `style` (SVG presentation attributes don't resolve `var()`),
+ * so the diagram follows the light/dark theme.
+ */
+type PipelineTone = 'brand' | 'gate' | 'neutral' | 'result';
+
+const PIPELINE_TONE: Record<PipelineTone, { fill: string; stroke: string }> = {
+  brand: { fill: 'var(--color-primary-50)', stroke: 'var(--color-primary-200)' },
+  gate: { fill: 'var(--color-bg-warning)', stroke: 'var(--color-border-warning)' },
+  neutral: { fill: 'var(--color-bg-surface)', stroke: 'var(--color-border-default)' },
+  result: { fill: 'var(--color-bg-success)', stroke: 'var(--color-border-success)' },
+};
+
 function DataPipelineDiagram() {
-  const box = (x: number, y: number, w: number, h: number, label: string, sub?: string, fill = '#eaf0ff', stroke = '#c3cce3') => (
+  const box = (x: number, y: number, w: number, h: number, label: string, sub: string, tone: PipelineTone = 'brand') => (
     <g>
-      <rect x={x} y={y} width={w} height={h} rx={8} fill={fill} stroke={stroke} />
-      <text x={x + w / 2} y={y + (sub ? h / 2 - 4 : h / 2 + 4)} fontSize="11.5" fontWeight="700" textAnchor="middle" fill="#1f2430">{label}</text>
-      {sub && <text x={x + w / 2} y={y + h / 2 + 12} fontSize="9.5" textAnchor="middle" fill="#6b7280">{sub}</text>}
+      <rect x={x} y={y} width={w} height={h} rx={8} style={{ fill: PIPELINE_TONE[tone].fill, stroke: PIPELINE_TONE[tone].stroke }} />
+      <text x={x + w / 2} y={y + h / 2 - 4} fontSize="11.5" fontWeight="700" textAnchor="middle" style={{ fill: 'var(--color-text-primary)' }}>{label}</text>
+      <text x={x + w / 2} y={y + h / 2 + 12} fontSize="9.5" textAnchor="middle" style={{ fill: 'var(--color-text-secondary)' }}>{sub}</text>
     </g>
   );
   const arrow = (x1: number, y1: number, x2: number, y2: number) => (
-    <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#8a93a6" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
+    <line x1={x1} y1={y1} x2={x2} y2={y2} strokeWidth="1.5" markerEnd="url(#pipeline-arrowhead)" style={{ stroke: 'var(--color-border-strong)' }} />
   );
   return (
-    <svg viewBox="0 0 900 260" role="img" aria-label="Sơ đồ luồng xử lý dữ liệu Epic" className="w-full">
+    <svg viewBox="0 0 920 300" role="img" aria-label="Sơ đồ luồng xử lý dữ liệu Epic" className="w-full">
       <defs>
-        <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-          <path d="M0,0 L6,3 L0,6 Z" fill="#8a93a6" />
+        <marker id="pipeline-arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 Z" style={{ fill: 'var(--color-border-strong)' }} />
         </marker>
       </defs>
 
-      {box(20, 20, 140, 50, 'File CSV (Jira)', 'Chỉ issue update trong ngày')}
-      {arrow(160, 45, 190, 45)}
-      {box(190, 20, 140, 50, 'import_rows', 'Raw, kèm validation')}
-      {arrow(330, 45, 360, 45)}
-      {box(360, 20, 140, 50, 'issues', 'Canonical, upsert theo batch')}
+      {box(10, 20, 150, 52, 'CSV / API tự động', 'Issue cập nhật trong ngày', 'neutral')}
+      {arrow(160, 46, 185, 46)}
+      {box(185, 20, 165, 52, 'Từ chối import', 'Danh sách · rule A, B, Epic', 'gate')}
+      {arrow(350, 46, 375, 46)}
+      {box(375, 20, 150, 52, 'import_rows · issues', '1 lớp dữ liệu / lần import')}
+      {arrow(450, 72, 450, 100)}
+      {box(375, 100, 150, 52, 'aggregateBatchData()', 'Snapshot, timeline, vi phạm')}
+      {arrow(375, 126, 330, 126)}
+      {box(170, 100, 160, 52, 'issue_daily_snapshots', 'epic_ttm_snapshots · timeline', 'neutral')}
 
-      {arrow(430, 70, 430, 110)}
-      {box(360, 110, 140, 50, 'aggregateBatchData()', 'Chạy khi import, "Chạy lại" & "Hoàn thiện dữ liệu"')}
+      {arrow(525, 46, 575, 46)}
+      {box(575, 20, 175, 52, 'refreshDerivedCaches()', 'Có khoá — 1 lượt mỗi lúc')}
+      {arrow(662, 72, 662, 100)}
+      {box(575, 100, 175, 52, 'Scoring Service', 'Epic ngoại lệ · PM/SM · rule')}
+      {arrow(662, 152, 662, 180)}
+      {box(560, 180, 205, 52, 'Cache dẫn xuất', 'epic_alert_row_cache · ttm_*_cache', 'neutral')}
+      {arrow(662, 232, 662, 248)}
+      {box(520, 248, 285, 44, 'Màn hình & MCP', 'Đọc cache — không tính lại mỗi lần tải', 'result')}
 
-      {arrow(360, 135, 190, 135)}
-      {box(20, 110, 140, 50, 'epic_ttm_snapshots', 'Lịch sử Epic gọn')}
-      {arrow(500, 135, 530, 135)}
-      {box(530, 110, 170, 50, 'issue_daily_snapshots', 'Lịch sử mọi cấp')}
-      {arrow(430, 160, 430, 190)}
-      {box(360, 190, 140, 50, 'epic_alert_history', 'Chỉ lưu khi LATE/FAIL')}
-
-      {box(700, 90, 180, 90, 'Màn hình Epic Alerts', 'Đọc issues mới nhất mỗi Epic\n+ tính lại cảnh báo real-time', '#e6f4ea', '#cfe8d6')}
-      {arrow(500, 45, 700, 100)}
-      {arrow(500, 215, 700, 150)}
+      {box(780, 20, 130, 52, 'Kích hoạt', 'Import · đầu ngày', 'neutral')}
+      {arrow(780, 46, 750, 46)}
+      {box(780, 100, 130, 52, 'Kích hoạt', 'Đổi cấu hình · nút', 'neutral')}
+      {arrow(780, 120, 750, 60)}
     </svg>
   );
 }
@@ -249,79 +273,86 @@ export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
       <div className="flex flex-col gap-5 text-fb-text-secondary">
         <section>
           <h3 className="ui-card-title mb-1">1. Mô hình import theo lớp dữ liệu hàng ngày</h3>
-          <p>Mỗi lần import là 1 lớp dữ liệu (data layer), gắn với <code>aggregated_at</code>. File CSV chỉ chứa các issue có trường <em>updated</em> trong đúng ngày import — không phải full snapshot toàn bộ dữ liệu.</p>
+          <p>Mỗi lần import (upload trên màn hình Nguồn dữ liệu hoặc API tự động) là 1 lớp dữ liệu (data layer), gắn với <code>aggregated_at</code>. File chỉ chứa các issue có trường <em>updated</em> trong ngày — không phải full snapshot. &quot;Trạng thái mới nhất&quot; của một issue là bản ghi có <code>aggregated_at</code> lớn nhất trong toàn bộ lịch sử.</p>
         </section>
 
         <section>
           <h3 className="ui-card-title mb-2">2. Luồng xử lý end-to-end</h3>
           <DataPipelineDiagram />
+          <ol className="ml-5 mt-2 list-decimal space-y-1 text-xs">
+            <li><strong className="text-fb-text-primary">Đọc &amp; kiểm tra</strong> file theo adapter (CSV Jira / Py Jira API). Ngày sai thứ tự chỉ là cảnh báo (mục 4), không chặn dòng.</li>
+            <li><strong className="text-fb-text-primary">Từ chối import</strong> (mục 7): bỏ mọi dòng của Epic bị từ chối (cùng Story/Subtask của nó) trước khi ghi gì vào CSDL.</li>
+            <li><strong className="text-fb-text-primary">Ghi</strong> <code>import_rows</code> + <code>issues</code> của lớp mới, rồi <code>aggregateBatchData()</code> ghi các bảng lịch sử (snapshot, dòng thời gian cảnh báo, vi phạm sai lệch dữ liệu).</li>
+            <li><strong className="text-fb-text-primary">Tạo lại cache</strong> (<code>refreshDerivedCaches</code>): dựng dòng Epic của lớp mới nhất, đóng dấu Epic ngoại lệ và PM/SM theo component được gán, cho Scoring Service chấm mọi Epic (luôn chấm song song và đối chiếu với logic cũ), rồi ghi 3 cache. Mỗi lúc chỉ một lượt chạy; yêu cầu đến giữa chừng được gộp và lượt đang chạy chạy thêm một lần.</li>
+            <li><strong className="text-fb-text-primary">Màn hình</strong> (Quản trị Epic, Chuẩn hoá dữ liệu, TTM Dashboard 2, Báo cáo Epic) và MCP đọc cache theo phạm vi quyền của người xem.</li>
+          </ol>
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">3. Các bảng dữ liệu trong CSDL</h3>
+          <h3 className="ui-card-title mb-1">3. Các bảng dữ liệu chính trong CSDL</h3>
           <table className="ui-table w-full text-xs">
-            <thead><tr><th className="text-left">Bảng</th><th className="text-left">Vai trò</th><th className="text-left">Khi raw batch bị xóa</th></tr></thead>
+            <thead><tr><th className="text-left">Bảng</th><th className="text-left">Vai trò</th><th className="text-left">Khi raw batch hết hạn lưu trữ</th></tr></thead>
             <tbody>
-              <tr><td>import_batches / import_rows</td><td>Dữ liệu raw của từng đợt import CSV</td><td>Bị xóa (đây chính là dữ liệu raw)</td></tr>
-              <tr><td>issues</td><td>Dữ liệu Epic/Story/Subtask canonical, 1 dòng/issue/batch</td><td>Cascade xóa theo batch</td></tr>
-              <tr><td>epic_ttm_snapshots</td><td>Lịch sử gọn theo Epic, phục vụ tra cứu dài hạn</td><td><strong className="text-fb-text-primary">Giữ lại</strong> (source_import_batch_id → NULL)</td></tr>
-              <tr><td>issue_daily_snapshots</td><td>Lịch sử gọn theo ngày cho mọi cấp (Epic/Story/Subtask)</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
-              <tr><td>epic_alert_history</td><td>Tích lũy các lần Epic bị Cảnh báo muộn/Fail TTM-CNTT (QLDA) tổng thể (ghi tại thời điểm import), kèm ngày và status lúc đó. Cảnh báo <strong>theo từng pha</strong> (DEV/TEST/PENTEST của Epic 15) cũng ghi vào bảng này nhưng <strong className="text-fb-text-primary">đang tạm tắt</strong> (xem mục 5).</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
-              <tr><td>epic_alert_timeline</td><td>Theo dõi 5 loại cảnh báo (Fail TTM-CNTT (QLDA), Cảnh báo muộn TTM-CNTT (QLDA), Fail TTM-E2E, Thiếu Start Date, Sai lệch dữ liệu) dưới dạng các &quot;đợt&quot; có ngày bắt đầu/kết thúc liên tục — phục vụ mục &quot;Dòng thời gian cảnh báo&quot; trong popup Epic History. Luôn ghi ở mỗi lần <code>aggregateBatchData()</code> chạy (không tạm tắt như 2 dòng dưới).</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
-              <tr><td>epic_data_anomaly_violations</td><td>Trạng thái hiện tại (không phải lịch sử &quot;đợt&quot;) của từng rule R1-R6 &quot;Sai lệch dữ liệu&quot; đang vi phạm trên mỗi Epic — 1 dòng/Epic/rule, ghi đè hoặc xoá ở mỗi lần <code>aggregateBatchData()</code> chạy. Phục vụ thống kê số Epic vi phạm theo từng nhóm rule; badge trên UI vẫn tính live, không đọc bảng này.</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
-              <tr><td>epic_milestone_history</td><td>Lịch sử mốc DESIGN_DONE/DEV_DONE/TEST_DONE — bảng vẫn tồn tại nhưng việc ghi mới <strong className="text-fb-text-primary">đang tạm tắt</strong>; trạng thái hoàn thành từng pha của Epic 15 hiện tính <strong>live</strong> từ status Story/Subtask hiện tại (xem mục 5), không đọc bảng này.</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
+              <tr><td>import_batches / import_rows</td><td>Dữ liệu raw của từng đợt import</td><td>Bị xóa (đây chính là dữ liệu raw)</td></tr>
+              <tr><td>issues</td><td>Dữ liệu Epic/Story/Subtask canonical, 1 dòng/issue/batch (gồm cả các trường lý do Fail TTM <code>khau_*</code>, <code>main_fail_dept</code>, <code>previous_status</code>)</td><td>Cascade xóa theo batch</td></tr>
+              <tr><td>epic_ttm_snapshots / issue_daily_snapshots</td><td>Lịch sử gọn theo Epic / theo ngày cho mọi cấp — dùng để xem lớp dữ liệu cũ, và làm bằng chứng cho rule B của Từ chối import</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
+              <tr><td>epic_alert_timeline</td><td>Các &quot;đợt&quot; cảnh báo liên tục (Fail TTM-CNTT, Cảnh báo muộn, Fail TTM-E2E, Thiếu Start Date, Sai lệch dữ liệu) cho popup Epic History — ghi ở mỗi lần <code>aggregateBatchData()</code></td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
+              <tr><td>epic_alert_history / epic_milestone_history</td><td>Lịch sử Cảnh báo muộn/Fail và mốc hoàn thành pha — bảng còn nhưng việc ghi mới <strong className="text-fb-text-primary">đang tạm tắt</strong></td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
+              <tr><td>epic_data_anomaly_violations</td><td>Vi phạm sai lệch dữ liệu hiện tại theo logic cũ (1 dòng/Epic/rule), phục vụ thống kê — màn hình không đọc bảng này</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
+              <tr><td>epic_alert_row_cache · ttm_index_global_cache · ttm_dashboard_2_cache</td><td>Cache dẫn xuất: dòng Epic đã chấm (badge, cờ chỉ số), chỉ số toàn công ty, số liệu TTM Dashboard 2 theo phạm vi quyền</td><td>Dựng lại ở lần tạo lại cache kế tiếp</td></tr>
+              <tr><td>black_listed_epics · denied_import_epics</td><td>Epic ngoại lệ (không tính TTM, Scoring Service không xét) · danh sách Từ chối import (không được vào CSDL)</td><td>Không liên quan</td></tr>
             </tbody>
           </table>
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">4. Validate khi import — dữ liệu bất thường không còn bị chặn</h3>
+          <h3 className="ui-card-title mb-1">4. Sai lệch dữ liệu — không chặn import</h3>
           <p>
-            Rule ngày sai thứ tự (ví dụ R4G Date sớm hơn Start Date, Due Date sớm hơn T0) <strong className="text-fb-text-primary">trước kia chặn import</strong>
-            (dòng bị loại hoàn toàn khỏi <code>issues</code>), nay chỉ còn ở mức <strong className="text-fb-text-primary">cảnh báo (WARNING)</strong> ngay lúc import
-            và <strong>vẫn được ghi vào <code>issues</code></strong> — để user chủ động nhận biết và làm sạch dữ liệu trên Jira thay vì Epic bị âm thầm biến mất khỏi hệ thống.
+            Rule ngày sai thứ tự (ví dụ R4G Date sớm hơn Start Date) chỉ là <strong className="text-fb-text-primary">cảnh báo (WARNING)</strong> lúc import; dòng
+            <strong> vẫn được ghi vào <code>issues</code></strong> để user chủ động làm sạch dữ liệu trên Jira thay vì Epic biến mất khỏi hệ thống.
           </p>
           <p>
-            Ở tầng đọc (mỗi lần tải màn hình), hàm dùng chung <code>evaluateEpicDataAnomaly()</code> đánh giá lại đầy đủ <strong>7 rule (R1-R7)</strong> — không chỉ riêng
-            ngày sai thứ tự, mà cả thiếu T1 theo trạng thái, Pending quá lâu, thiếu Phân loại yêu cầu/Requirement Level, SP nhưng mức thấp, Due Date đúng hạn nhưng status chưa Released (chi tiết ở popup &quot;Logic cảnh báo
-            Epic&quot;) — để gắn badge <strong className="text-fb-text-primary">&quot;Sai lệch dữ liệu&quot;</strong>, nhóm cuối bảng và highlight trên mọi
-            màn hình Epic Alerts/Báo cáo/Dashboard. Mỗi vi phạm còn được ghi vào bảng <code>epic_data_anomaly_violations</code> (xem mục 3) để thống kê riêng theo
-            từng nhóm rule. Màn hình Nguồn dữ liệu vẫn chỉ hiện đúng badge &quot;Cảnh báo&quot; (không còn &quot;Lỗi&quot;) kèm message chi
-            tiết cho các dòng ngày sai thứ tự lúc import.
+            Khi tạo cache, <strong className="text-fb-text-primary">Scoring Service</strong> đánh giá &quot;Sai lệch dữ liệu&quot; theo các rule <strong>R1, R3–R6, R8–R10</strong>
+            (R2 &quot;Pending lâu&quot; và R7 &quot;Sai Status (Release)&quot; là khuyến nghị, không tính là sai lệch). Epic sai lệch dữ liệu không được chấm Đạt / Fail và nằm ngoài
+            mẫu số các chỉ số; danh sách cần sửa xem ở màn hình <strong className="text-fb-text-primary">Chuẩn hoá dữ liệu</strong>. SUPERADMIN có thể giới hạn từng rule theo
+            mốc ngày (Cấu hình cảnh báo → &quot;Phạm vi rule Sai lệch dữ liệu&quot;). Bảng rule đầy đủ: popup &quot;Logic cảnh báo&quot; và Tài liệu sản phẩm mục 9.1.
+            Khi SUPERADMIN chọn hiển thị theo logic cũ, các màn hình dùng bộ rule R1–R7 của logic cũ.
           </p>
         </section>
 
         <section>
           <h3 className="ui-card-title mb-1">5. Quản lý lớp dữ liệu tổng hợp &amp; Sao lưu/Phục hồi</h3>
           <ul className="ml-5 list-disc space-y-1">
-            <li><strong className="text-fb-text-primary">Nhật ký lớp dữ liệu tổng hợp (Epic)</strong> (trang Nguồn dữ liệu, chỉ <strong className="text-fb-text-primary">SUPERADMIN</strong>): có thể <strong className="text-fb-text-primary">Xóa</strong> (chỉ xóa 4 bảng tổng hợp/hậu-tổng hợp ở trên, bảo toàn raw) hoặc <strong className="text-fb-text-primary">Chạy lại</strong> (tính lại từ <code>issues</code> hiện có mà không cần re-import CSV).</li>
-            <li><strong className="text-fb-text-primary">Xóa N lớp dữ liệu gần nhất</strong> (cùng trang, chỉ <strong className="text-fb-text-primary">SUPERADMIN</strong>): thao tác mạnh hơn — xóa <em>cả raw lẫn tổng hợp</em> của N ngày import gần nhất (tính theo union ngày của mọi bảng liên quan), dùng khi cần loại bỏ hẳn một đợt dữ liệu lỗi thay vì chỉ tính lại.</li>
-            <li><strong className="text-fb-text-primary">Sao lưu / Phục hồi dữ liệu (/admin/database)</strong>: Export/Import dạng file SQL dump cho một danh sách bảng cố định (master data, user, dự án, ngày nghỉ, rule cảnh báo, <code>import_batches</code>/<code>import_rows</code>, <code>issues</code>, <code>epic_ttm_snapshots</code>, audit log). <strong className="text-fb-text-primary">Chưa bao gồm</strong> <code>issue_daily_snapshots</code>, <code>epic_alert_history</code>, <code>epic_milestone_history</code> — 3 bảng này hiện không nằm trong phạm vi sao lưu/phục hồi.</li>
+            <li><strong className="text-fb-text-primary">Nhật ký lớp dữ liệu tổng hợp (Epic)</strong> (trang Nguồn dữ liệu, chỉ <strong className="text-fb-text-primary">SUPERADMIN</strong>): <strong className="text-fb-text-primary">Xóa</strong> (chỉ các bảng tổng hợp/lịch sử, bảo toàn raw) hoặc <strong className="text-fb-text-primary">Chạy lại</strong> (tính lại từ <code>issues</code> hiện có mà không cần import lại).</li>
+            <li><strong className="text-fb-text-primary">Xóa N lớp dữ liệu gần nhất</strong>: xóa <em>cả raw lẫn tổng hợp</em> của N ngày import gần nhất — dùng khi cần loại bỏ hẳn một đợt dữ liệu lỗi.</li>
+            <li><strong className="text-fb-text-primary">Sao lưu / Phục hồi dữ liệu (/admin/database)</strong>: file SQL cho user, domain, dự án, phân quyền dự án/domain, component, ngày nghỉ, rule cảnh báo, <code>import_batches</code>/<code>import_rows</code>, <code>issues</code>, 2 bảng snapshot, lịch sử cảnh báo, dòng thời gian cảnh báo, mốc hoàn thành, audit log. Từ 19/10/2026 gồm cả cấu hình: Epic ngoại lệ, danh sách Từ chối import và ngày A/B, cấu hình Scoring Service / &quot;Phạm vi dữ liệu cho TTM&quot;, Ma trận phân quyền, Tiêu chí TTM, ngày làm bù. <strong className="text-fb-text-primary">Không gồm</strong> các bảng cache (dựng lại được bằng &quot;Tạo lại cache&quot;).</li>
           </ul>
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">6. Các màn hình Epic Alerts lấy dữ liệu từ đâu?</h3>
-          <p>Các màn hình Quản trị Epic và Dashboard đều <strong>KHÔNG đọc trực tiếp các bảng lịch sử đã tổng hợp</strong>. Mỗi lần load, hệ thống lấy dòng <code>issues</code> mới nhất của từng Epic (theo <code>aggregated_at</code> lớn nhất, không giới hạn theo 1 batch cụ thể) rồi tính lại toàn bộ cảnh báo — kể cả Fail TTM-E2E và cờ dữ liệu bất thường — tại thời điểm request bằng rule đang active. <code>epic_alert_history</code> chỉ dùng để hiện icon/lịch sử cảnh báo tổng thể (Epic History).</p>
+          <h3 className="ui-card-title mb-1">6. Các màn hình lấy dữ liệu từ đâu?</h3>
+          <p>Quản trị Epic, Chuẩn hoá dữ liệu, TTM Dashboard 2 và MCP <strong>đọc cache dẫn xuất</strong>, không tính lại cảnh báo ở mỗi lần tải trang. Vì vậy kết luận của Epic chỉ đổi sau lần tạo lại cache kế tiếp — sau import, lượt đầu ngày (để cảnh báo theo ngày hiện tại tự cập nhật dù không import), khi lưu cấu hình phạm vi / Epic ngoại lệ / dự án / domain / PM-SM, hoặc khi SUPERADMIN bấm &quot;Tạo lại cache&quot;. Mọi màn hình hiện chỉ báo khi đang có lượt tạo lại cache. Khi chưa có cache (CSDL mới), màn hình tạm tính trực tiếp.</p>
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">7. API import dữ liệu tự động (cho script Python)</h3>
-          <p>Ngoài form upload trên màn hình Nguồn dữ liệu (xác thực bằng session, chỉ <strong className="text-fb-text-primary">SUPERADMIN</strong>), hệ thống có thêm 1 endpoint riêng để script export Jira của bạn tự động gọi ngay sau khi xuất xong file — dùng chung pipeline <code>processImport()</code>, cùng định dạng CSV/adapter <code>PY_JIRA_API</code>, không đổi gì ở logic parse/validate so với import thủ công.</p>
+          <h3 className="ui-card-title mb-1">7. Từ chối import &amp; Xóa Epic (từ 14/10/2026, chỉ SUPERADMIN)</h3>
           <ul className="ml-5 list-disc space-y-1">
-            <li><strong className="text-fb-text-primary">Endpoint riêng</strong>: <code>POST /api/data-source/import/auto</code> — tách hoàn toàn khỏi route UI (<code>/api/data-source/import</code> vẫn giữ nguyên session + SUPERADMIN).</li>
-            <li><strong className="text-fb-text-primary">Xác thực bằng token</strong>: gửi header <code>Authorization: Bearer &lt;token&gt;</code>, so khớp với biến môi trường <code>IMPORT_API_TOKEN</code> bằng SHA-256 hash + so sánh constant-time (tránh timing attack). Bạn tự tạo token và khai báo — hệ thống không tự sinh giá trị thật, chỉ có chỗ khai báo mẫu trong <code>.env.example</code>.</li>
-            <li><strong className="text-fb-text-primary">aggregatedAt</strong>: luôn lấy <code>new Date()</code> tại đúng thời điểm API được gọi — script không cần truyền, hệ thống cũng không đoán từ tên file.</li>
-            <li><strong className="text-fb-text-primary">Response</strong>: dùng nguyên contract JSON hiện có của <code>processImport()</code> (<code>successRows</code>/<code>warningRows</code>/<code>errorRows</code>) để script log/cảnh báo khi import có lỗi.</li>
-            <li><strong className="text-fb-text-primary">Giới hạn file</strong>: chặn ở 2MB (413 nếu vượt) — chỉ là lớp phòng thủ, dư dả so với các file export thực tế (thường dưới 500KB).</li>
-            <li><strong className="text-fb-text-primary">Phân biệt trong nhật ký import</strong>: các đợt import qua API này được gắn <code>importType = &quot;AUTO&quot;</code>, <code>importedBy = &quot;Python Script (Auto Import)&quot;</code> (khác với <code>&quot;MANUAL&quot;</code>/<code>&quot;System&quot;</code> của upload thủ công) để dễ tra soát &quot;Nhật ký lịch sử import&quot;.</li>
+            <li><strong className="text-fb-text-primary">Epic bị từ chối</strong> khi: có trong danh sách Từ chối import (và không bật &quot;Cho phép import&quot;), <em>hoặc</em> vi phạm rule tự động — issue type cấp 1 khác Epic; Created trước ngày <strong>A</strong>; Released / MVP Done trước ngày <strong>B</strong> (tạm dùng Due Date, trống thì R4G Date; không áp dụng khi CSDL từng ghi nhận Epic ở status khác Released vào/sau ngày B).</li>
+            <li>Mọi dòng của Epic bị từ chối (kể cả Story/Subtask) bị bỏ khỏi file. Epic bị rule bắt <strong className="text-fb-text-primary">tự được thêm vào danh sách</strong> (nguồn AUTO_RULE). Dữ liệu cũ của nó chỉ bị xóa vĩnh viễn khi là <strong className="text-fb-text-primary">upload thủ công</strong> (có hộp xác nhận liệt kê Epic) và không quá <strong>25 Epic</strong> còn dữ liệu; <strong className="text-fb-text-primary">import qua API tự động không bao giờ xoá</strong> — dữ liệu được giữ để SUPERADMIN kiểm tra và xoá bằng &quot;Xóa dữ liệu còn tồn tại&quot;.</li>
+            <li>Epic chỉ được nhận nhờ ngoại lệ của rule B được <strong className="text-fb-text-primary">tự ghi &quot;Cho phép import&quot;</strong> (nguồn &quot;Miễn rule B&quot;) ngay lần đầu, để không bị rule B bắt khi lịch sử làm bằng chứng đã bị xoá. Ngày A/B không được đặt sau ngày hôm nay.</li>
+            <li><strong className="text-fb-text-primary">Xóa Epic</strong> (tab Từ chối import): xóa Epic + Story + Subtask có trạng thái mới nhất thuộc Epic đó ở mọi lớp dữ liệu và mọi bảng theo Epic (lịch sử, dòng thời gian, vi phạm, cache dòng Epic, Epic ngoại lệ); mỗi Epic một dòng audit log. <strong className="text-fb-text-primary">Không tự tạo lại cache</strong> — chạy &quot;Tạo lại cache&quot; sau khi xóa.</li>
           </ul>
-          <p className="mt-2"><strong className="text-fb-text-primary">Các bước cần làm để dùng được:</strong></p>
-          <ol className="ml-5 list-decimal space-y-1">
-            <li>Tạo token (ví dụ <code>openssl rand -hex 32</code>), thêm vào <code>.env.local</code>: <code>IMPORT_API_TOKEN=&lt;giá trị&gt;</code> — và biến môi trường tương ứng trên Vercel (production) nếu muốn script gọi cả vào production.</li>
-            <li>Restart server (<code>npm run dev</code>/deploy lại) — biến môi trường mới chỉ được đọc lúc server khởi động.</li>
-            <li>Script Python gọi: <code>POST http://&lt;host&gt;/api/data-source/import/auto</code>, header <code>Authorization: Bearer &lt;token&gt;</code>, body <code>multipart/form-data</code> với field <code>file</code> = file CSV export.</li>
-          </ol>
+        </section>
+
+        <section>
+          <h3 className="ui-card-title mb-1">8. API import dữ liệu tự động (cho script Python)</h3>
+          <p>Ngoài form upload trên màn hình Nguồn dữ liệu (xác thực bằng session, chỉ <strong className="text-fb-text-primary">SUPERADMIN</strong>), script export Jira có thể gọi endpoint riêng — dùng chung pipeline <code>processImport()</code> (gồm cả Từ chối import ở mục 7), cùng định dạng CSV/adapter <code>PY_JIRA_API</code>.</p>
+          <ul className="ml-5 list-disc space-y-1">
+            <li><strong className="text-fb-text-primary">Endpoint</strong>: <code>POST /api/data-source/import/auto</code>, body <code>multipart/form-data</code> với field <code>file</code>.</li>
+            <li><strong className="text-fb-text-primary">Xác thực</strong>: header <code>Authorization: Bearer &lt;token&gt;</code>, so khớp biến môi trường <code>IMPORT_API_TOKEN</code> bằng SHA-256 + so sánh constant-time. Tạo token (ví dụ <code>openssl rand -hex 32</code>), khai báo trong <code>.env.local</code> và trên Vercel, rồi khởi động lại server.</li>
+            <li><strong className="text-fb-text-primary">aggregatedAt</strong> luôn là thời điểm gọi API. Response giữ contract của <code>processImport()</code> (<code>successRows</code>/<code>warningRows</code>/<code>errorRows</code>, số dòng bị từ chối).</li>
+            <li><strong className="text-fb-text-primary">Giới hạn file</strong> 2MB (413 nếu vượt). Nhật ký import ghi <code>importType = &quot;AUTO&quot;</code>, <code>importedBy = &quot;Python Script (Auto Import)&quot;</code>.</li>
+          </ul>
         </section>
       </div>
     </Modal>

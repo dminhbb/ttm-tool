@@ -15,7 +15,10 @@ import { getIssueHierarchyLevel } from '@/lib/issue-hierarchy';
  *                         does, the Due Date stands in for it, and the R4G Date when Due is empty.
  *                         Never applied to an Epic the database saw in another status on/after B:
  *                         that proves it got to Released after B (e.g. DL-65580, due 25/06 but
- *                         Released 10/09 — found while scanning, 2026-10-14).
+ *                         Released 10/09 — found while scanning, 2026-10-14). Since 2026-10-19 the
+ *                         import records such an Epic once as "Cho phép import" (source AUTO_EXEMPT,
+ *                         planImportAdmission → provenExemptEpics), because the proof itself ages out
+ *                         with the RAW retention / "Xóa lớp dữ liệu".
  *
  * A denied Epic takes every row of its branch with it (its Stories and their Subtasks).
  *
@@ -80,6 +83,20 @@ export function vietnamIsoDate(value: Date | null): string | null {
   return VIETNAM_DAY.format(value);
 }
 
+/** The date rule B compares against B, when the Epic is Released / MVP Done and that date is before B
+ * — whatever the proof says (see releasedBeforeExemption). */
+function releasedBeforeDate(facts: AdmissionEpicFacts, settings: ImportAdmissionSettings): { date: string; field: string } | null {
+  if (!settings.releasedDueBefore || !isReleasedStatus(facts.status)) return null;
+  const [field, date] = facts.statusChangedDate
+    ? ['Ngày chuyển status', facts.statusChangedDate]
+    : facts.dueDate ? ['Due Date', facts.dueDate] : ['R4G Date', facts.r4gDate];
+  return date && date < settings.releasedDueBefore ? { date, field } : null;
+}
+
+function provenReleasedAfterB(facts: AdmissionEpicFacts, settings: ImportAdmissionSettings): boolean {
+  return Boolean(settings.releasedDueBefore && facts.lastUnreleasedSeenDate && facts.lastUnreleasedSeenDate >= settings.releasedDueBefore);
+}
+
 export function evaluateImportAdmission(facts: AdmissionEpicFacts, settings: ImportAdmissionSettings): AdmissionViolation[] {
   const violations: AdmissionViolation[] = [];
   if (normalizeLabel(facts.issueType) !== 'EPIC') {
@@ -88,16 +105,22 @@ export function evaluateImportAdmission(facts: AdmissionEpicFacts, settings: Imp
   if (settings.createdBefore && facts.createdDate && facts.createdDate < settings.createdBefore) {
     violations.push({ code: 'CREATED_BEFORE', message: `Created ${formatViDate(facts.createdDate)} trước ${formatViDate(settings.createdBefore)} (A)` });
   }
-  const provenReleasedAfterB = Boolean(settings.releasedDueBefore && facts.lastUnreleasedSeenDate && facts.lastUnreleasedSeenDate >= settings.releasedDueBefore);
-  if (settings.releasedDueBefore && isReleasedStatus(facts.status) && !provenReleasedAfterB) {
-    const [field, date] = facts.statusChangedDate
-      ? ['Ngày chuyển status', facts.statusChangedDate]
-      : facts.dueDate ? ['Due Date', facts.dueDate] : ['R4G Date', facts.r4gDate];
-    if (date && date < settings.releasedDueBefore) {
-      violations.push({ code: 'RELEASED_BEFORE', message: `${facts.status} — ${field} ${formatViDate(date)} trước ${formatViDate(settings.releasedDueBefore)} (B)` });
-    }
+  const releasedBefore = releasedBeforeDate(facts, settings);
+  if (releasedBefore && !provenReleasedAfterB(facts, settings)) {
+    violations.push({ code: 'RELEASED_BEFORE', message: `${facts.status} — ${releasedBefore.field} ${formatViDate(releasedBefore.date)} trước ${formatViDate(settings.releasedDueBefore!)} (B)` });
   }
   return violations;
+}
+
+/**
+ * Rule B would deny the Epic but the database proves it got to Released on/after B — the message to
+ * record with the Epic as "Cho phép import" (source AUTO_EXEMPT), or null when the proof isn't what
+ * lets it in. Only the proof matters here: an Epic that breaks another rule is denied anyway.
+ */
+export function releasedBeforeExemption(facts: AdmissionEpicFacts, settings: ImportAdmissionSettings): string | null {
+  const releasedBefore = releasedBeforeDate(facts, settings);
+  if (!releasedBefore || !provenReleasedAfterB(facts, settings)) return null;
+  return `Miễn rule B: ${releasedBefore.field} ${formatViDate(releasedBefore.date)} trước ${formatViDate(settings.releasedDueBefore!)} nhưng CSDL ghi nhận Epic ở status khác Released/MVP Done ngày ${formatViDate(facts.lastUnreleasedSeenDate!)} (≥ B)`;
 }
 
 /** One line per violation, as stored in denied_import_epics.reason. */
@@ -118,13 +141,32 @@ export interface DeniedEpicInFile {
   violations: AdmissionViolation[];
 }
 
+export interface ProvenExemptEpic {
+  epicKey: string;
+  /** The message stored as the list entry's reason (releasedBeforeExemption). */
+  reason: string;
+  row: RawJiraIssue;
+}
+
 export interface ImportAdmissionPlan {
   /** Rows let through, in file order. */
   admitted: RawJiraIssue[];
   /** Epics whose rows were dropped, in file order. */
   deniedEpics: DeniedEpicInFile[];
   deniedRowCount: number;
+  /** Admitted only thanks to the rule B proof and not listed yet — the import lists them as
+   * "Cho phép import" (AUTO_EXEMPT) so they stay exempt once the proof is gone. */
+  provenExemptEpics: ProvenExemptEpic[];
 }
+
+/**
+ * Most Epics whose existing data one import may delete by itself (2026-10-19). Above it the import
+ * still denies the rows and lists the Epics, but keeps their data for SUPERADMIN to review and purge
+ * ("Xóa dữ liệu còn tồn tại"): a mistyped date A/B must never wipe a large part of the history in
+ * one go. The 14/10 clean-up removed 42 Epics at once, so a routine import stays far below this.
+ * The token-authenticated auto import never deletes (denied-import-service.ts).
+ */
+export const MAX_EPIC_DELETIONS_PER_IMPORT = 25;
 
 export function normalizeEpicKey(key: string): string {
   return key.trim().toLocaleUpperCase('en-US');
@@ -172,6 +214,7 @@ export function planImportAdmission(
     if (!entry.allowImport) denied.set(key, { epicKey: key, origin: 'LIST', row: null, violations: [] });
   }
 
+  const provenExemptEpics: ProvenExemptEpic[] = [];
   for (const row of rows) {
     if (getIssueHierarchyLevel(row.issueType) !== 1) continue;
     const key = normalizeEpicKey(row.issueKey);
@@ -180,9 +223,15 @@ export function planImportAdmission(
       listed.row = row;
       continue;
     }
-    if (list.get(key)?.allowImport) continue;
-    const violations = evaluateImportAdmission(admissionFactsOfRow(row, toIsoDate, lastUnreleasedSeen.get(key) ?? null), settings);
-    if (violations.length > 0) denied.set(key, { epicKey: key, origin: 'RULE', row, violations });
+    if (list.has(key)) continue; // listed with "Cho phép import" — exempt from the rules
+    const facts = admissionFactsOfRow(row, toIsoDate, lastUnreleasedSeen.get(key) ?? null);
+    const violations = evaluateImportAdmission(facts, settings);
+    if (violations.length > 0) {
+      denied.set(key, { epicKey: key, origin: 'RULE', row, violations });
+      continue;
+    }
+    const exemption = releasedBeforeExemption(facts, settings);
+    if (exemption && !provenExemptEpics.some((epic) => epic.epicKey === key)) provenExemptEpics.push({ epicKey: key, reason: exemption, row });
   }
 
   // Stories of a denied Epic, by key and by numeric Jira id, for the Subtasks that only point at them.
@@ -218,5 +267,6 @@ export function planImportAdmission(
     admitted,
     deniedEpics: [...denied.values()].filter((epic) => epic.row !== null || seenDenied.has(epic.epicKey)),
     deniedRowCount,
+    provenExemptEpics,
   };
 }

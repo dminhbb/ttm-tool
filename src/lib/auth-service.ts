@@ -31,9 +31,13 @@ function mapAuthUser(row: AuthUser & { mustChangePassword?: boolean }): AuthUser
   return { email: row.email, fullName: row.fullName, id: row.id, role: row.role, mustChangePassword: Boolean(row.mustChangePassword) };
 }
 
+export function extractUsername(value: string): string {
+  return value.trim().toLowerCase().split('@')[0];
+}
+
 export function normalizeUsername(value: string): string {
-  const normalized = value.trim().toLowerCase();
-  return normalized.includes('@') ? normalized : `${normalized}@mbbank.com.vn`;
+  const username = extractUsername(value);
+  return username ? `${username}@mbbank.com.vn` : '';
 }
 
 export type AuthResult =
@@ -68,19 +72,22 @@ async function recordFailedLogin(userId: number, email: string): Promise<number>
         UPDATE users SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1
       )
       INSERT INTO password_reset_requests (email)
-      SELECT $2::varchar WHERE NOT EXISTS (SELECT 1 FROM password_reset_requests WHERE email = $2 AND status = 'PENDING');
-    `, [userId, email]);
+      SELECT $2::varchar WHERE NOT EXISTS (
+        SELECT 1 FROM password_reset_requests
+        WHERE SPLIT_PART(LOWER(email), '@', 1) = SPLIT_PART(LOWER($2), '@', 1) AND status = 'PENDING'
+      );
+    `, [userId, normalizeUsername(email)]);
   }
   return failedLoginAttempts;
 }
 
 export async function authenticateLocal(username: string, password: string, captchaId?: string, captcha?: string): Promise<AuthResult> {
-  const email = normalizeUsername(username);
+  const normalizedUsername = extractUsername(username);
   const result = await pool.query<AuthUser & { isActive: boolean; mustChangePassword: boolean; passwordHash: string; failedLoginAttempts: number }>(`
     SELECT id, email, full_name AS "fullName", role, is_active AS "isActive", password_hash AS "passwordHash", must_change_password AS "mustChangePassword", failed_login_attempts AS "failedLoginAttempts"
     FROM users
-    WHERE email = $1;
-  `, [email]);
+    WHERE SPLIT_PART(LOWER(email), '@', 1) = $1;
+  `, [normalizedUsername]);
   const user = result.rows[0];
   if (!user) return { error: 'INVALID_CREDENTIALS', requiresCaptcha: false, showWarning: false };
   if (!user.isActive) return { error: 'INACTIVE' };
@@ -241,7 +248,7 @@ export async function listManagedUsers(): Promise<ManagedUser[]> {
       GROUP BY user_id
     ) upc_agg ON upc_agg.user_id = u.id
     GROUP BY u.id, us.login_count, us.feature_count, us.data_count, upc_agg.project_components
-    ORDER BY u.email ASC;
+    ORDER BY SPLIT_PART(LOWER(u.email), '@', 1) ASC;
   `, [USAGE_STATS_RETENTION_DAYS - 1]);
   return result.rows;
 }
@@ -253,7 +260,7 @@ export async function listManagedUsers(): Promise<ManagedUser[]> {
  * names for a project's PM/SM list are derived live via a user_projects join (master-data-service.ts).
  */
 async function replacePermissions(client: PoolClient, userId: number, input: UserInput): Promise<void> {
-  const user = await client.query<{ fullName: string }>('SELECT full_name AS "fullName" FROM users WHERE id = $1 FOR UPDATE', [userId]);
+  const user = await client.query<{ id: number }>('SELECT id FROM users WHERE id = $1 FOR UPDATE', [userId]);
   if (user.rowCount !== 1) throw new Error('USER_NOT_FOUND');
   await client.query('DELETE FROM user_domains WHERE user_id = $1;', [userId]);
   // ON DELETE CASCADE on user_project_components (FK to user_projects) clears its rows too.
@@ -271,8 +278,8 @@ async function replacePermissions(client: PoolClient, userId: number, input: Use
 
 /**
  * What the derived caches hold about these users as PM/SM, as one comparable string — '' when none
- * of them is PM/SM of an active project. Every cached Epic row carries its project's PM/SM names
- * (getProjectMetaByProjectKeyMap in master-data-service.ts: full names of the user_projects users of
+ * of them is PM/SM of an active project. Every cached Epic row carries its project's PM/SM usernames
+ * (getProjectMetaByProjectKeyMap in master-data-service.ts: usernames of the user_projects users of
  * an active project, narrowed by the user's component grants), so a user save needs a cache rebuild
  * exactly when this differs before and after.
  */
@@ -280,8 +287,8 @@ export async function getPmSmCacheFootprint(userIds: number[]): Promise<string> 
   // Role and component narrowing are part of the footprint: since 2026-10-12 each cached Epic row names
   // only the PM/SMs responsible for its components (epic-pm-sm-assignment-service.ts), and narrowing
   // only applies to role USER.
-  const result = await pool.query<{ components: string[]; fullName: string; id: number; projectIds: number[]; role: string }>(`
-    SELECT u.id, u.full_name AS "fullName", u.role,
+  const result = await pool.query<{ components: string[]; id: number; projectIds: number[]; role: string; username: string }>(`
+    SELECT u.id, SPLIT_PART(LOWER(u.email), '@', 1) AS username, u.role,
       array_agg(DISTINCT up.project_id) AS "projectIds",
       COALESCE(array_agg(DISTINCT upc.project_id::text || ':' || upc.component_name)
         FILTER (WHERE upc.component_name IS NOT NULL), ARRAY[]::text[]) AS "components"
@@ -290,23 +297,47 @@ export async function getPmSmCacheFootprint(userIds: number[]): Promise<string> 
     JOIN projects p ON p.id = up.project_id AND p.is_active
     LEFT JOIN user_project_components upc ON upc.user_id = up.user_id AND upc.project_id = up.project_id
     WHERE u.id = ANY($1::int[])
-    GROUP BY u.id, u.full_name, u.role
+    GROUP BY u.id, SPLIT_PART(LOWER(u.email), '@', 1), u.role
     ORDER BY u.id;
   `, [userIds]);
-  return result.rows.length === 0 ? '' : JSON.stringify(result.rows.map((row) => [row.id, row.fullName, row.role, row.projectIds, [...row.components].sort()]));
+  return result.rows.length === 0 ? '' : JSON.stringify(result.rows.map((row) => [row.id, row.username, row.role, row.projectIds, [...row.components].sort()]));
+}
+
+/**
+ * Every user's username (local part before `@mbbank.com.vn`, lowercase) must be globally unique
+ * across all user records (active or inactive) — create, edit, registration, bulk creation, and
+ * approval all enforce this invariant alongside the database unique index.
+ */
+export class DuplicateUsernameError extends Error {
+  constructor(public readonly username: string) {
+    super(`Username "${username}" đã tồn tại trong hệ thống.`);
+  }
+}
+
+async function assertUniqueUsername(client: PoolClient, emailOrUsername: string, excludeUserId: number | null): Promise<void> {
+  const username = extractUsername(emailOrUsername);
+  const duplicate = await client.query<{ username: string }>(`
+    SELECT SPLIT_PART(LOWER(email), '@', 1) AS username FROM users
+    WHERE ($2::int IS NULL OR id <> $2)
+      AND SPLIT_PART(LOWER(email), '@', 1) = $1
+    LIMIT 1;
+  `, [username, excludeUserId]);
+  if (duplicate.rows[0]) throw new DuplicateUsernameError(duplicate.rows[0].username);
 }
 
 export async function createManagedUser(input: UserInput): Promise<ManagedUser> {
+  const email = normalizeUsername(input.email);
   const passwordHash = await bcrypt.hash(input.password!, PASSWORD_HASH_ROUNDS);
   const client = await getClient();
   let userId = 0;
   try {
     await client.query('BEGIN');
+    await assertUniqueUsername(client, email, null);
     const result = await client.query<{ id: number }>(`
       INSERT INTO users (email, full_name, password_hash, role, is_active, must_change_password)
       VALUES ($1, $2, $3, $4, $5, TRUE)
       RETURNING id;
-    `, [input.email, input.fullName, passwordHash, input.role, input.isActive]);
+    `, [email, input.fullName, passwordHash, input.role, input.isActive]);
     userId = result.rows[0].id;
     await replacePermissions(client, userId, input);
     await client.query('COMMIT');
@@ -325,14 +356,26 @@ export async function getUserRolesByIds(ids: number[]): Promise<Map<number, User
   return new Map(result.rows.map((row) => [row.id, row.role]));
 }
 
+export async function getUserIdsByUsernames(usernames: string[]): Promise<number[]> {
+  const normalized = [...new Set(usernames.map(extractUsername).filter(Boolean))];
+  if (normalized.length === 0) return [];
+  const result = await pool.query<{ id: number }>(
+    "SELECT id FROM users WHERE SPLIT_PART(LOWER(email), '@', 1) = ANY($1::text[]);",
+    [normalized],
+  );
+  return result.rows.map((row) => row.id);
+}
+
 export async function updateManagedUser(id: number, input: UserInput): Promise<ManagedUser | null> {
+  const email = normalizeUsername(input.email);
   const client = await getClient();
   try {
     await client.query('BEGIN');
+    await assertUniqueUsername(client, email, id);
     const result = await client.query<{ id: number }>(`
       UPDATE users SET email = $2, full_name = $3, role = $4, is_active = $5, updated_at = CURRENT_TIMESTAMP
       WHERE id = $1 RETURNING id;
-    `, [id, input.email, input.fullName, input.role, input.isActive]);
+    `, [id, email, input.fullName, input.role, input.isActive]);
     if (!result.rows[0]) { await client.query('ROLLBACK'); return null; }
     await replacePermissions(client, id, input);
     await client.query('COMMIT');
@@ -363,19 +406,25 @@ export async function deleteInactiveManagedUsers(ids: number[]): Promise<number>
 }
 
 export async function createInactiveUsersFromUsernames(usernames: string[]): Promise<{ created: string[]; skipped: string[] }> {
-  const emails = usernames.map((username) => `${username}@mbbank.com.vn`);
-  const hashes = await Promise.all(usernames.map(() => bcrypt.hash(BULK_USER_DEFAULT_PASSWORD, PASSWORD_HASH_ROUNDS)));
+  const normalizedUsernames = [...new Set(usernames.map(extractUsername).filter(Boolean))];
+  const emails = normalizedUsernames.map(normalizeUsername);
+  const hashes = await Promise.all(normalizedUsernames.map(() => bcrypt.hash(BULK_USER_DEFAULT_PASSWORD, PASSWORD_HASH_ROUNDS)));
   const client = await getClient();
   try {
     await client.query('BEGIN');
-    const existing = await client.query<{ email: string }>('SELECT email FROM users WHERE email = ANY($1::text[])', [emails]);
-    const existingEmails = new Set(existing.rows.map((row) => row.email));
+    const existing = await client.query<{ username: string }>(
+      "SELECT SPLIT_PART(LOWER(email), '@', 1) AS username FROM users WHERE SPLIT_PART(LOWER(email), '@', 1) = ANY($1::text[])",
+      [normalizedUsernames],
+    );
+    const existingUsernames = new Set(existing.rows.map((row) => row.username));
     const created: string[] = [];
     const skipped: string[] = [];
-    for (let index = 0; index < usernames.length; index += 1) {
-      if (existingEmails.has(emails[index])) { skipped.push(usernames[index]); continue; }
-      await client.query('INSERT INTO users (email, full_name, password_hash, role, is_active) VALUES ($1, $2, $3, $4, FALSE)', [emails[index], usernames[index], hashes[index], 'USER']);
-      created.push(usernames[index]);
+    for (let index = 0; index < normalizedUsernames.length; index += 1) {
+      const uname = normalizedUsernames[index];
+      if (existingUsernames.has(uname)) { skipped.push(uname); continue; }
+      await client.query('INSERT INTO users (email, full_name, password_hash, role, is_active) VALUES ($1, $2, $3, $4, FALSE)', [emails[index], uname, hashes[index], 'USER']);
+      existingUsernames.add(uname);
+      created.push(uname);
     }
     await client.query('COMMIT');
     return { created, skipped };
@@ -390,8 +439,15 @@ export async function approveInactiveUsers(ids: number[], domainId?: number): Pr
   let stage: ApprovalError['stage'] = 'ASSIGN_DOMAIN';
   try {
     await client.query('BEGIN');
-    const users = await client.query<{ id: number }>('SELECT id FROM users WHERE id = ANY($1::int[]) AND is_active = FALSE FOR UPDATE', [ids]);
+    const users = await client.query<{ email: string; id: number }>('SELECT id, email FROM users WHERE id = ANY($1::int[]) AND is_active = FALSE FOR UPDATE', [ids]);
     if (users.rowCount !== ids.length) throw new Error('INVALID_USERS');
+    const seenUsernames = new Set<string>();
+    for (const user of users.rows) {
+      const username = extractUsername(user.email);
+      if (seenUsernames.has(username)) throw new DuplicateUsernameError(username);
+      seenUsernames.add(username);
+      await assertUniqueUsername(client, username, user.id);
+    }
     const missingDomains = await client.query<{ id: number }>('SELECT u.id FROM users u WHERE u.id = ANY($1::int[]) AND NOT EXISTS (SELECT 1 FROM user_domains ud WHERE ud.user_id = u.id)', [ids]);
     const missingDomainIds = missingDomains.rows.map((user) => user.id);
     if (missingDomainIds.length > 0) {
@@ -401,12 +457,12 @@ export async function approveInactiveUsers(ids: number[], domainId?: number): Pr
       await client.query('INSERT INTO user_domains (user_id, domain_id) SELECT selected.id, $2 FROM unnest($1::int[]) AS selected(id) ON CONFLICT DO NOTHING', [missingDomainIds, domainId]);
     }
     stage = 'COMPLETE';
-    await client.query('UPDATE users SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = ANY($1::int[]) AND is_active = FALSE', [ids]);
+    await client.query('UPDATE users SET email = LOWER(BTRIM(email)), is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = ANY($1::int[]) AND is_active = FALSE', [ids]);
     await client.query('COMMIT');
     return { approved: users.rows.length, domainAssigned: missingDomainIds.length };
   } catch (error: unknown) {
     await client.query('ROLLBACK');
-    const isKnownBusinessError = error instanceof Error && ['DOMAIN_REQUIRED', 'INVALID_DOMAIN', 'INVALID_USERS'].includes(error.message);
+    const isKnownBusinessError = error instanceof DuplicateUsernameError || (error instanceof Error && ['DOMAIN_REQUIRED', 'INVALID_DOMAIN', 'INVALID_USERS'].includes(error.message));
     const isDatabaseConflict = typeof error === 'object' && error !== null && 'code' in error && error.code === '23505';
     if (isKnownBusinessError || isDatabaseConflict || error instanceof ApprovalError) throw error;
     const databaseCode = typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string' ? error.code : 'UNKNOWN';

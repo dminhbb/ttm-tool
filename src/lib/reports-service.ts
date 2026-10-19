@@ -136,7 +136,7 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
     FROM projects p
     LEFT JOIN domains d ON d.id = p.domain_id
     LEFT JOIN (
-      SELECT up.project_id, STRING_AGG(u.full_name, ', ' ORDER BY u.full_name) AS lead_name
+      SELECT up.project_id, STRING_AGG(SPLIT_PART(LOWER(u.email), '@', 1), ', ' ORDER BY SPLIT_PART(LOWER(u.email), '@', 1)) AS lead_name
       FROM user_projects up
       JOIN users u ON u.id = up.user_id
       GROUP BY up.project_id
@@ -157,7 +157,7 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
   let pmSmNames = projMeta.leadName || 'Chưa gán PM/SM';
   if (component && component !== 'ALL') {
     const compLeadResult = await pool.query<{ leadName: string }>(`
-      SELECT STRING_AGG(u.full_name, ', ' ORDER BY u.full_name) AS "leadName"
+      SELECT STRING_AGG(SPLIT_PART(LOWER(u.email), '@', 1), ', ' ORDER BY SPLIT_PART(LOWER(u.email), '@', 1)) AS "leadName"
       FROM user_project_components upc
       JOIN projects p ON p.id = upc.project_id
       JOIN users u ON u.id = upc.user_id

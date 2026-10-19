@@ -353,7 +353,7 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
       FROM projects p
       LEFT JOIN domains d ON d.id = p.domain_id AND d.is_active
       LEFT JOIN (
-        SELECT up.project_id, STRING_AGG(u.full_name, ', ' ORDER BY u.full_name) AS lead_name
+        SELECT up.project_id, STRING_AGG(SPLIT_PART(LOWER(u.email), '@', 1), ', ' ORDER BY SPLIT_PART(LOWER(u.email), '@', 1)) AS lead_name
         FROM user_projects up
         JOIN users u ON u.id = up.user_id
         GROUP BY up.project_id

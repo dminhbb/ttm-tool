@@ -256,7 +256,8 @@ dữ liệu** chỉ đánh giá những Epic "đủ mới" — để Epic lịch
 |---|---|---|
 | `currentStatus` = Cancelled | Mọi tính toán TTM-Index/QA-Index (tử/mẫu/tổng) | Có (nếu filter Status cho phép) |
 | Không ở MVP Done/Released | Riêng QA-Index (vẫn tính TTM-Index bình thường) | Có |
-| `hasDataAnomaly = true` (vi phạm 1 rule Sai lệch dữ liệu: R1, R3–R6, R8–R10 của Scoring Service; engine legacy: R1–R7 — có thể bị giới hạn phạm vi, mục 8.1) | Mẫu số `eligible` (không được coi là "đã Pass/Fail chính thức") — **`fail` vẫn tính bình thường** nếu `alertLevel = FAIL` | Có, kèm badge "Sai lệch dữ liệu" |
+| `hasDataAnomaly = true` (vi phạm 1 rule Sai lệch dữ liệu: R1, R3–R6, R8–R10 của Scoring Service; engine legacy: R1–R7 — có thể bị giới hạn phạm vi, mục 8.1) | Cả tử số lẫn mẫu số: Scoring Service không chấm Đạt / Fail cho Epic Sai lệch dữ liệu (từ 01/10/2026), nên Epic nằm ở L03 của phễu, ngoài Pass và Fail. (Engine legacy: `fail` vẫn tính nếu `alertLevel = FAIL`.) | Có, kèm Sai lệch dữ liệu |
+| Epic ngoại lệ (`black_listed_epics`, hoặc dự án `ttm = 'N'`) | Mọi chỉ số và mọi widget TTM Dashboard 2 — Scoring Service không chạy rule nào cho Epic này (từ 09/10/2026) | Có, chỉ kèm note "Epic ngoại lệ" |
 | Thiếu Start Date, hoặc R4G Date < Start Date | `alertLevel` bị ép `NONE` (không thể tính TTM-CNTT) | Có, cột TTM-CNTT hiện "Không tính được" |
 | `!ttmCnttInScope` (ngoài "Phạm vi dữ liệu cho TTM") | Mọi tính toán TTM-Index/TTM-CNTT (tử/mẫu/tổng) | Có, badge "Ngoài phạm vi TTM-CNTT" |
 | `!qaInScope` (ngoài phạm vi QA) | Mọi tính toán QA-Index (tử/mẫu/tổng) — không ảnh hưởng TTM-Index | Có |
@@ -267,5 +268,24 @@ dữ liệu** chỉ đánh giá những Epic "đủ mới" — để Epic lịch
   và ghi cache 2 chỉ số (QLDA): `ttm_index_global_cache` — xem `src/lib/daily-cache-service.ts`
   (`refreshDerivedCaches`). Các chỉ số (PM) không cache, luôn tính trực tiếp theo dữ liệu mới nhất.
 - Ngoài ra, `epic_alert_row_cache` (cache toàn bộ dòng Epic đã tính sẵn `alertLevel`/
-  `ttmCnttInScope`/`qaInScope`/...) cũng được tính lại cùng lúc, phục vụ Quản trị Epic/Epic in PO/
-  Dashboard đọc nhanh thay vì tính lại mỗi lần xem trang.
+  `ttmCnttInScope`/`qaInScope`/badge Scoring...) và `ttm_dashboard_2_cache` (số liệu TTM Dashboard 2 theo
+  phạm vi quyền) cũng được tính lại cùng lúc, phục vụ Quản trị Epic, Chuẩn hoá dữ liệu, TTM Dashboard 2
+  đọc nhanh thay vì tính lại mỗi lần xem trang. Rule mới (tăng `SCORING_CODE_VERSION`) chỉ có hiệu lực
+  sau lần tạo lại cache kế tiếp.
+
+## 11. Khuyến nghị "Thiếu lý do Fail TTM" (widget THIẾU LÝ DO)
+
+Hai badge nhóm Khuyến nghị trên trục TTM-CNTT (QLDA) (`scoring/rules/recommendations.ts`), cùng điều
+kiện nền: **Epic đang Fail TTM-CNTT (QLDA) và R4G Date muộn hơn Target_CNTT** (Fail vì chưa có R4G Date
+mà đã quá Target thì KHÔNG bị hỏi lý do — từ 14/10/2026).
+
+| Badge | Thêm điều kiện | Từ |
+|---|---|---|
+| `REC_MISSING_FAIL_REASON` "Thiếu lý do Fail TTM" (khâu fail) | Cả 9 trường `khau_ba`, `khau_co`, `khau_dev`, `khau_pm_sm`, `khau_po`, `khau_pentest`, `khau_sa`, `khau_sit_uat`, `note_ly_do_khac` đều trống / chỉ khoảng trắng / "none" | 10/10/2026 (scoring-14), thu hẹp 14/10 (scoring-19) |
+| `REC_MISSING_RESPONSIBLE_DEPARTMENT` "Thiếu phòng chịu TN chính" | `main_fail_dept` trống hoặc "None" (không phân biệt hoa thường) | 14/10/2026 (scoring-19/20) |
+
+- Widget **THIẾU LÝ DO** của TTM Dashboard 2 = Epic có ít nhất một trong hai badge (bộ lọc
+  `MISSING_FAIL_REASON`); dòng phụ tách 2 số bấm được (`MISSING_FAIL_STAGE`,
+  `MISSING_RESPONSIBLE_DEPARTMENT`). Màn hình Chuẩn hoá dữ liệu có panel cùng tập Epic.
+- Là khuyến nghị nên không đổi kết luận Đạt / Fail và không ảnh hưởng chỉ số nào. Chỉ có ở engine Scoring.
+- Popup Duyệt Epic → tab "Giải trình Fail TTM" hiện các trường lý do, dòng "Phòng chịu TN chính" và badge tương ứng.

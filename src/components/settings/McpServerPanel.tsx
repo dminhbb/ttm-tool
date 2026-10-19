@@ -167,8 +167,8 @@ export function McpServerPanel() {
                           <TR key={item.userId}>
                             <TD className="font-semibold">{index + 1}</TD>
                             <TD>
-                              <p className="font-medium text-fb-text-primary">{item.fullName}</p>
-                              <p className="text-xs text-fb-text-secondary">{item.email}</p>
+                              <p className="font-medium text-fb-text-primary">{item.email.split('@')[0].toLowerCase()}</p>
+                              <p className="text-xs text-fb-text-secondary">{item.fullName} ({item.email})</p>
                             </TD>
                             <TD className="text-center font-semibold text-fb-blue">{item.accessCount}</TD>
                           </TR>

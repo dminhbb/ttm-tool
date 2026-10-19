@@ -15,6 +15,8 @@ export async function GET(request: NextRequest) {
       request.nextUrl.searchParams.get('viewAsUserId'),
       parseTtmDashboard2View(request.nextUrl.searchParams.get('view')),
     );
+    // Lead view: the company-wide rows stay on the server — the page asks ./summary per filter.
+    if (!data) return NextResponse.json({ error: 'Lead view không trả danh sách dòng Epic — dùng /api/ttm-dashboard-2/summary.' }, { status: 400 });
     return NextResponse.json(data);
   } catch (error) {
     if (error instanceof AuthError) {

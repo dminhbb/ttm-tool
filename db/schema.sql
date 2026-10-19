@@ -4,9 +4,19 @@
 -- auth) for a brand-new database via `node scripts/migrate-db.js --target=<local|supabase> --init`.
 -- Every other table (cache, Scoring Service, visit counter, SSO/MCP, black list, …) is created by
 -- db/migrations/*.sql, which --init applies right after this file. Columns/constraints that a later
--- migration added to one of these 14 tables are mirrored here (as of 2026-10-11) so the baseline
+-- migration added to one of these 14 tables are mirrored here (as of 2026-10-19) so the baseline
 -- matches the live schema; those migrations all use IF NOT EXISTS, so applying them on top is a no-op.
 -- When you add a column to one of these 14 tables via a migration, mirror it here too.
+--
+-- Known, intentional differences from the live schema (checked against Supabase 2026-10-19):
+--   - import_rows.raw_data_json and epic_status_alert_rules.fail_offset_days are still created here
+--     (the seed rows / CHECK below need fail_offset_days) and dropped right after by
+--     20260814_drop_import_rows_raw_data_json.sql / 20260816_separate_ttm_policy_from_alert_offsets.sql.
+--   - projects.project_code / projects.project_type_id (PMS Project Core) are NOT mirrored: project_type_id
+--     references project_types, which only 20261009a creates — 20261009b adds both columns (+ the trigger
+--     filling project_code) on a fresh database too.
+-- Every table outside these 14 is documented in brd/08-data-model.md (§23 cache/scoring/black list/
+-- Từ chối import, §24 PMS Project Core).
 
 -- Drop tables if exist
 DROP TABLE IF EXISTS issues CASCADE;
@@ -105,6 +115,7 @@ CREATE TABLE issues (
     khau_sa TEXT,
     khau_sit_uat TEXT,
     note_ly_do_khac TEXT,
+    main_fail_dept TEXT,            -- "Phòng chịu trách nhiệm chính" of a Fail TTM — 20261014d_add_main_fail_dept_to_issues.sql
     
     -- Metadata
     source_import_batch_id INT REFERENCES import_batches(id) ON DELETE CASCADE,
@@ -149,6 +160,7 @@ CREATE TABLE projects (
     ttm CHAR(1) NOT NULL DEFAULT 'N' CHECK (ttm IN ('Y', 'N')),
     -- PM/SM assignment lives in user_projects (many-to-many — a project can have several PM/SM
     -- users); no lead_name column here, see 20260908_drop_projects_lead_name.sql.
+    -- project_code / project_type_id are added by 20261009b (see the header — FK to project_types).
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -233,6 +245,7 @@ CREATE TABLE users (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_unique_username ON users (SPLIT_PART(LOWER(email), '@', 1));
 CREATE TABLE user_domains (user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, domain_id INT NOT NULL REFERENCES domains(id) ON DELETE CASCADE, PRIMARY KEY (user_id, domain_id));
 CREATE TABLE user_projects (user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, project_id INT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, PRIMARY KEY (user_id, project_id));
 CREATE TABLE auth_sessions (token_hash CHAR(64) PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires_at TIMESTAMP WITH TIME ZONE NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);

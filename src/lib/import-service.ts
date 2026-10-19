@@ -21,7 +21,7 @@ import { ADAPTER_TYPES, DEFAULT_ADAPTER, type AdapterType } from './adapters/ind
 import { parsePyJiraApi } from './adapters/py-jira-api-adapter';
 import { parsePureJiraExport } from './adapters/pure-jira-export-adapter';
 import { refreshDerivedCaches } from './daily-cache-service';
-import { getImportAdmissionSettings, loadImportAdmissionList, loadLastUnreleasedSeen, recordDeniedEpicsOfImport } from './denied-import-service';
+import { getImportAdmissionSettings, loadImportAdmissionList, loadLastUnreleasedSeen, MAX_EPIC_DELETIONS_PER_IMPORT, recordDeniedEpicsOfImport, recordProvenExemptions, type DeniedImportDeletionOutcome } from './denied-import-service';
 import { describeViolations, normalizeEpicKey, planImportAdmission, vietnamIsoDate } from './import-admission-rules';
 import { isLevel1IssueType } from './issue-hierarchy';
 
@@ -337,6 +337,10 @@ export interface ImportResult {
   /** Rows dropped by "Từ chối import" — not counted in totalRows. */
   deniedRows: number;
   deniedEpics: ImportDeniedEpic[];
+  /** What happened to the data the database already held of the denied Epics (null for validateOnly). */
+  deniedDataOutcome: (DeniedImportDeletionOutcome & { maxDeletions: number }) | null;
+  /** Epics admitted thanks to the rule B proof and newly listed as "Cho phép import" (AUTO_EXEMPT). */
+  provenExemptEpicKeys: string[];
 }
 
 export interface ImportDeniedEpic {
@@ -428,6 +432,8 @@ export async function processImport(
       validationReport,
       deniedRows: admission.deniedRowCount,
       deniedEpics,
+      deniedDataOutcome: null,
+      provenExemptEpicKeys: admission.provenExemptEpics.map((epic) => epic.epicKey),
     };
   }
 
@@ -463,8 +469,18 @@ export async function processImport(
     const batchId = batchRes.rows[0].id;
 
     // List the Epics an automatic rule just denied and remove what the database already held of every
-    // Epic denied in this file (no-op when none was) — before this batch's own rows go in.
-    await recordDeniedEpicsOfImport(client, admission.deniedEpics, admissionIsoDate);
+    // Epic denied in this file (no-op when none was) — before this batch's own rows go in. Only an
+    // upload someone confirmed on screen may delete, and at most MAX_EPIC_DELETIONS_PER_IMPORT Epics;
+    // otherwise the data stays for "Xóa dữ liệu còn tồn tại" (2026-10-19).
+    const deniedDataOutcome = await recordDeniedEpicsOfImport(client, admission.deniedEpics, admissionIsoDate, importType !== 'AUTO');
+    // Keep the rule B proof: Epics admitted only because the database saw them unreleased on/after B.
+    const provenExemptEpicKeys = await recordProvenExemptions(client, admission.provenExemptEpics, admissionIsoDate);
+    if (deniedDataOutcome.keptDataEpicKeys.length > 0 || provenExemptEpicKeys.length > 0) {
+      await client.query('UPDATE import_batches SET metadata_json = $2 WHERE id = $1;', [
+        batchId,
+        JSON.stringify({ validateOnly, adapterType, deniedRows: admission.deniedRowCount, deniedEpics, deniedDataOutcome, provenExemptEpicKeys }),
+      ]);
+    }
 
     // 4. Ingest Raw Import Rows into import_rows
     // (normalized_data_json is the single copy kept — it used to be duplicated verbatim
@@ -748,6 +764,8 @@ export async function processImport(
       validationReport,
       deniedRows: admission.deniedRowCount,
       deniedEpics,
+      deniedDataOutcome: { ...deniedDataOutcome, maxDeletions: MAX_EPIC_DELETIONS_PER_IMPORT },
+      provenExemptEpicKeys,
     };
   } catch (error) {
     await client.query('ROLLBACK');

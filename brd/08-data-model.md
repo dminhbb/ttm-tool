@@ -84,6 +84,8 @@ role                  -- CHECK IN ('SUPERADMIN','ADMIN','SUPERVISOR','USER') —
 is_active
 must_change_password -- BOOLEAN NOT NULL DEFAULT TRUE (thêm bởi 20260905c) — bắt đổi mật khẩu ở lần
                       -- đăng nhập kế tiếp; chỉ seed FALSE cho minhnd7@mbbank.com.vn
+failed_login_attempts -- INT NOT NULL DEFAULT 0 (20260919_add_failed_login_lockout.sql) — đếm lần đăng nhập
+                      -- sai liên tiếp; tới ngưỡng thì khoá tài khoản và tạo ticket mở khoá cho Admin
 last_login_at
 created_at
 updated_at
@@ -97,7 +99,7 @@ Không tồn tại bảng `roles`/`user_roles` — role là một cột CHECK tr
 |---|---|---|---|
 | SUPERADMIN | CBQL Phòng | Toàn hệ thống | Toàn quyền |
 | SUPERVISOR | (không có tên nghiệp vụ riêng) | Toàn hệ thống, **read-only** | Xem như SUPERADMIN nhưng không có quyền tạo/sửa/xóa ở bất kỳ màn hình quản trị nào, không truy cập các thao tác xử lý dữ liệu (import/backup/purge). Thêm bởi `20260824_add_supervisor_role.sql`. |
-| ADMIN | Lead | Theo Domain được gán (`user_domains`) **và** các Dự án mà chính Admin làm PM/SM (`user_projects`, cả dự án — không thu hẹp theo Component) | Áp dụng cho mọi màn hình dữ liệu Epic (TTM Dashboard, TTM Dashboard 2, Quản trị Epic, Epic in PO, Báo cáo Epic, MCP) qua `resolveAccessScope` (`epic-alert-service.ts`), từ 2026-10-04. |
+| ADMIN | Lead | Theo Domain được gán (`user_domains`) **và** các Dự án mà chính Admin làm PM/SM (`user_projects`, cả dự án — không thu hẹp theo Component) | Áp dụng cho mọi màn hình dữ liệu Epic (TTM Dashboard 2, Quản trị Epic, Chuẩn hoá dữ liệu, Báo cáo Epic, MCP) qua `resolveAccessScope` (`epic-alert-service.ts`), từ 2026-10-04. TTM Dashboard, Epic in PO và Quản trị Epic rút gọn đã gỡ ngày 2026-10-11. Riêng TTM Dashboard 2 có "Lead view cho tất cả user" (§23 `dashboard_view_settings`): số liệu tổng hợp toàn công ty, danh sách Epic mở ra vẫn theo phạm vi của user. |
 | USER | PM-SM | Theo Dự án được gán (`user_projects`, có thể bị thu hẹp theo Component — xem `user_project_components`) | |
 
 Seed mặc định (`db/schema.sql`): `minhnd7@mbbank.com.vn` (SUPERADMIN), `ngothanhha@mbbank.com.vn`
@@ -146,11 +148,17 @@ source_project_key    -- UNIQUE, NOT NULL — Jira Project Key, DÙNG DUY NHẤT
                        -- (cột project_key cũ đã bị DROP — xem 20260827_drop_project_key_use_source_key.sql)
 source_type           -- mặc định 'JIRA'
 project_category      -- CHECK IN ('Dự án','Team Agile','Team Triển khai'), nullable
-ttm                    -- CHAR(1) CHECK IN ('Y','N'), mặc định 'N'
+ttm                    -- CHAR(1) CHECK IN ('Y','N'), mặc định 'N' — 'N' = "Epic ngoại lệ" (PROJECT_NON_TTM, §23)
 is_active
 created_at
 updated_at
+project_code          -- VARCHAR(50), PMS Project Core (20261009b): mã nghiệp vụ, backfill = source_project_key;
+                       -- trigger projects_fill_project_code điền khi INSERT không truyền (code TTM chưa biết cột này)
+project_type_id       -- FK project_types(id) ON DELETE SET NULL (20261009b), backfill từ project_category
 ```
+
+`project_code` / `project_type_id` thuộc module PMS (expand-only, xem §24) — **chưa có code nào đọc**;
+TTM vẫn dùng `source_project_key` và `project_category`.
 
 Không còn khái niệm "Mã hiển thị" tách biệt Source Project Key — `source_project_key` vừa là khóa
 join với `issues`/`project_components` vừa là mã hiển thị duy nhất trên UI. Cột `lead_name` (PM/SM
@@ -218,6 +226,8 @@ khau_pentest               -- TEXT, vai trò khâu Pentest (epic_khau_pentest)
 khau_sa                    -- TEXT, vai trò khâu SA (epic_khau_sa)
 khau_sit_uat               -- TEXT, vai trò khâu SIT/UAT (epic_khau_sit_uat)
 note_ly_do_khac            -- TEXT, ghi chú lý do khác gây ra vấn đề Fail TTM-CNTT (epic_note_ly_do_khac)
+main_fail_dept             -- TEXT, "Phòng chịu trách nhiệm chính" của Fail TTM (CSV main_fail_dept,
+                            -- 20261014d_add_main_fail_dept_to_issues.sql); trống hoặc "None" = thiếu
 source_import_batch_id     -- FK import_batches(id) ON DELETE CASCADE
 aggregated_at               -- lớp dữ liệu (thời điểm chốt dữ liệu)
 created_at
@@ -228,12 +238,15 @@ Không có `project_id`/`domain_id` FK trực tiếp trên `issues` — Project 
 `issue_key` prefix hoặc `import_rows.normalized_data_json->>'projectKey'` (xem
 `epic-alert-service.ts`). Không có `owner_user_id`.
 
-**Không tồn tại các cột KPI/cảnh báo đã lưu sẵn** (`ttm_cntt_result`, `ttm_cntt_risk_level`,
-`ttm_cntt_alert_level`, `current_alert_text`, `missing_standard_info_json`, `pending_count`,
-`total_pending_working_days`, `ttm_cntt_target_working_days`, `ttm_e2e_target_working_days`) —
-toàn bộ được tính **live** mỗi request trong `epic-alert-service.ts`/`epic-alert-phase-service.ts`/
-`epic-compliance-engine.ts`, không cache trong DB. `epic_ttm_snapshots`/`issue_daily_snapshots` (mục
-12) chỉ ghi, hiện KHÔNG có màn hình sống nào đọc lại từ đó.
+**Không có cột KPI/cảnh báo nào trên `issues`** (`ttm_cntt_result`, `ttm_cntt_alert_level`,
+`current_alert_text`… không tồn tại). Kết luận của từng Epic do Scoring Service (`src/lib/scoring/`)
+tính và được **lưu ở bảng cache dẫn xuất** `epic_alert_row_cache` (§23) mỗi lần `refreshDerivedCaches`
+chạy (sau import, lượt đầu ngày, khi đổi cấu hình/Epic ngoại lệ/dự án/domain/PM-SM, nút "Tạo lại
+cache"); các màn hình đọc cache này chứ không tính lại mỗi request. `issues` chỉ chứa dữ liệu Jira.
+Các trường lý do Fail (`khau_*`, `note_ly_do_khac`, `main_fail_dept`) được Scoring Service đọc cho
+2 khuyến nghị "Thiếu lý do Fail TTM" / "Thiếu phòng chịu TN chính" (`16-ttm-indexes.md`).
+`issue_daily_snapshots` còn được Từ chối import đọc (bằng chứng Epic từng ở status khác Released sau
+ngày B — `07-data-source-and-csv-import.md` §2.2) và Epic deletion quét để xác định phạm vi xoá.
 
 Khóa duy nhất: `(issue_key, source_import_batch_id)` — cho phép cùng 1 issue xuất hiện ở nhiều batch
 (lớp dữ liệu) khác nhau; "trạng thái mới nhất" của 1 issue luôn là bản ghi có `aggregated_at` lớn
@@ -644,12 +657,58 @@ Các bảng dưới đây được thêm bằng migration sau khi tài liệu n�
 | `black_listed_epics` | `20261005_create_black_listed_epics.sql` | `epic_key` | "Epic ngoại lệ": `project_key`, `ttm_black_listed` (mặc định TRUE), `updated_by_user_id` → `users(id)` ON DELETE SET NULL, `created_at`, `updated_at`; index theo `project_key`. Không còn là ngoại lệ = XOÁ dòng. |
 | `ttm_scope_config`, `scoring_engine_settings`, `scoring_parameters`, `scoring_rule_settings`, `scoring_parity_runs` | `20260927b_create_ttm_scope_config.sql`, `20260929_create_scoring_service.sql`, `20260930_create_scoring_engine_settings.sql` | — | Cấu hình "Phạm vi dữ liệu cho TTM" và Scoring Service (engine hiển thị, tham số, bật/tắt badge, kết quả đối chiếu). `scoring_parameters` còn lưu "Phạm vi rule Sai lệch dữ liệu" ở `param_key = 'anomaly.scopeConfig'` (JSONB, xem `16-ttm-indexes.md` §8.1). |
 
-| `denied_import_epics` | `20261014_create_denied_import_epics.sql` (seed 42 Epic: `20261014b_seed_denied_import_epics.sql`) | `epic_key` | "Từ chối import" (`07-data-source-and-csv-import.md` §2.2): `project_key`, thông tin chụp lúc thêm (`summary`, `status`, `requesting_unit`, `created_date`, `idea_approved_date`, `start_date`, `r4g_date`, `due_date`), `allow_import` (Cho phép import = miễn trừ rule), `source` (`MANUAL` / `AUTO_RULE` / `SEED`), `reason`, `added_by_user_id` → `users(id)` ON DELETE SET NULL, `last_deleted_at`, `last_deleted_issue_count`. |
+| `denied_import_epics` | `20261014_create_denied_import_epics.sql` (seed 42 Epic: `20261014b_seed_denied_import_epics.sql`) | `epic_key` | "Từ chối import" (`07-data-source-and-csv-import.md` §2.2): `project_key`, thông tin chụp lúc thêm (`summary`, `status`, `requesting_unit`, `created_date`, `idea_approved_date`, `start_date`, `r4g_date`, `due_date`), `allow_import` (Cho phép import = miễn trừ rule), `source` (`MANUAL` / `AUTO_RULE` / `SEED` / `AUTO_EXEMPT` — Epic được miễn rule B nhờ bằng chứng trong CSDL, `20261019_add_auto_exempt_denied_import_source.sql`), `reason`, `added_by_user_id` → `users(id)` ON DELETE SET NULL, `last_deleted_at`, `last_deleted_issue_count`. |
 | `import_admission_settings` | `20261014_create_denied_import_epics.sql` | `id = 1` (CHECK) | Ngày A `created_before` (mặc định 2026-01-31) và ngày B `released_due_before` (mặc định 2026-07-01) của rule Từ chối import; NULL = tắt rule. |
 | `dashboard_view_settings` | `20261014c_create_dashboard_view_settings.sql` | `id = 1` (CHECK) | Công tắc "Dashboard Lead view cho tất cả user" (`lead_view_for_all_users`, mặc định TRUE), `updated_by_user_id`, `updated_at` — Quản trị hệ thống → Dashboard; đọc lỗi/thiếu bảng = coi như TẮT. |
+
+Cột chi tiết của các bảng cache/Scoring ở trên (ví dụ `epic_alert_row_cache.owner_names`,
+`alert_rank`, `ttm_cntt_in_scope`, `scoring_ruleset_version`; `ttm_index_global_cache.ttm_pass/qa_pass/e2e_pass…`;
+`scoring_parity_runs.unexplained_epics`…) xem trực tiếp trong file migration tương ứng — bảng ở đây chỉ
+mô tả vai trò.
 
 Quy tắc dùng chung:
 
 - **Loại trừ khỏi TTM** (`TtmExclusion`): `BLACK_LISTED` (có dòng trong `black_listed_epics`) thắng `PROJECT_NON_TTM` (`projects.ttm = 'N'`). Áp dụng cho L02 của phễu TTM Dashboard 2, TTM-CNTT (QLDA/QA), TTM-E2E; `loadTtmExclusionSources` fail-open (không loại trừ gì) nếu bảng chưa tồn tại.
 - **Tạo lại cache**: chỉ qua `refreshDerivedCaches` (import, daily, lưu phạm vi/domain/black list/dự án/PM-SM của dự án — các route gọi `scheduleDerivedCacheRefresh` trong `daily-cache-service.ts`, nút "Tạo lại cache"). Một DB chưa có `derived_cache_refresh_lock` vẫn rebuild được nhưng không có điều phối.
 - Cả 2 migration `20261005*` phải được áp dụng trên **cả local và Supabase** (xem `AGENTS.md` § Multi-database).
+- **Từ chối import / Epic deletion**: xoá vĩnh viễn mọi dòng của Epic (và Story/Subtask có trạng thái mới
+  nhất thuộc Epic đó) ở `import_rows`, `issues`, `issue_daily_snapshots`, `epic_ttm_snapshots`,
+  `epic_alert_history`, `epic_alert_timeline`, `epic_milestone_history`, `epic_data_anomaly_violations`,
+  `epic_alert_row_cache`, `black_listed_epics`; mỗi Epic một dòng `audit_logs` (`EPIC_DELETION`,
+  `DENIED_IMPORT_REMOVE`). Không tự tạo lại cache.
+- **Sao lưu / Phục hồi** (`EXPORTABLE_TABLES`, `db-backup-service.ts`) gồm master data, user + phân quyền
+  (cả `user_project_components`), ngày nghỉ / ngày làm bù, rule cảnh báo, Tiêu chí TTM, ánh xạ issue type,
+  import, `issues`, các bảng snapshot/lịch sử, `audit_logs` và — từ 2026-10-19 — cấu hình: `ttm_scope_config`,
+  `scoring_engine_settings` / `scoring_parameters` / `scoring_rule_settings`, `black_listed_epics`,
+  `denied_import_epics`, `import_admission_settings`, `dashboard_view_settings`, Ma trận phân quyền,
+  `jira_settings`, `data_retention_configs`. **Không gồm** các bảng cache (dựng lại bằng "Tạo lại cache") và
+  các bảng §24. Phục hồi chạy với `DISABLE TRIGGER ALL` nên trigger đồng bộ §24 không chạy trong lúc phục hồi.
+
+## 24. PMS Project Core — module Quản lý dự án (expand-only, bổ sung 2026-10-09)
+
+Nền móng dữ liệu cho module Quản lý dự án (PMS) — kiến trúc ở `docs/architecture/PMS-HLAD.md`. Cả 5
+migration `20261009a`–`e` là **expand-only**: không đổi cột/hành vi nào TTM đang dùng, và **hiện chưa
+có code nào đọc các bảng này** (`src/modules/` mới có `iam`, `integration`, `ttm`). Đã áp dụng trên
+Supabase (2026-10-11).
+
+| Bảng | Migration | Khoá chính | Vai trò / backfill |
+|---|---|---|---|
+| `project_types` | `20261009a_create_project_types.sql` | `id` (`type_code` UNIQUE) | Loại dự án: `DELIVERY_PROJECT` (Dự án), `AGILE_TEAM` (Team Agile), `DEPLOYMENT_TEAM` (Team Triển khai); `legacy_category` (UNIQUE khi khác NULL) map với `projects.project_category`; `sort_order`, `is_active`. |
+| `project_type_capabilities` | `20261009a_create_project_types.sql` | `(project_type_id, capability_code)` | Năng lực bật theo loại dự án: `CHECKLIST`, `MILESTONE`, `GANTT`, `IMPLEMENTATION_PLAN`, `PLANNING_PERIOD`, `BACKLOG`, `CAPACITY` (bộ của Team Triển khai là mặc định tạm, chờ chủ sở hữu xác nhận). |
+| `projects.project_code`, `projects.project_type_id` | `20261009b_add_project_code_and_type.sql` | — | Xem §5. |
+| `project_external_bindings` | `20261009c_create_project_external_bindings.sql` | `id` | Liên kết dự án ↔ hệ thống ngoài (`system_code` mặc định `JIRA`, `external_project_key`, `external_project_id`, `is_primary`, `valid_from`/`valid_to`, `last_synced_at`). Mỗi dự án tối đa 1 binding chính đang hoạt động / hệ thống; một key ngoài chỉ thuộc 1 dự án đang hoạt động. Backfill 1 binding JIRA = `source_project_key`. |
+| `ttm_project_configs` | `20261009d_create_ttm_project_configs.sql` | `project_id` | Cấu hình TTM theo dự án: `is_enabled` (backfill = `projects.ttm = 'Y'`), `ttm_cntt_enabled`, `ttm_e2e_enabled`, `note`. |
+| `project_members` | `20261009e_create_project_members.sql` | `id` | Thành viên dự án: `user_id`, `role_in_project` (backfill `PM_SM` từ `user_projects`), `allocation_percent` (0–100), `joined_at`/`left_at`, `is_active`; UNIQUE (dự án, user, vai trò) khi đang hoạt động. |
+
+**Đồng bộ (từ 2026-10-19, `20261019b_sync_pms_project_tables.sql`):** nguồn sự thật vẫn là `projects` +
+`user_projects` (TTM chỉ ghi 2 bảng này); trigger giữ các bảng PMS khớp theo:
+
+| Thay đổi phía TTM | Trigger | Bảng PMS |
+|---|---|---|
+| Tạo dự án / đổi `project_category` | `trg_projects_sync_project_type` (BEFORE) | `projects.project_type_id` theo `project_types.legacy_category` |
+| Tạo dự án / đổi `ttm` | `trg_projects_sync_pms_tables` | `ttm_project_configs.is_enabled = (ttm = 'Y')` (tạo dòng nếu chưa có) |
+| Tạo dự án / đổi `source_project_key` | `trg_projects_sync_pms_tables` | `project_external_bindings`: đóng binding JIRA cũ (`is_active = FALSE`, `valid_to` = hôm nay), mở binding chính mới (`valid_from` = hôm nay) |
+| Thêm / xoá `user_projects` | `trg_user_projects_sync_project_members` | `project_members` vai trò `PM_SM`: thêm / đóng (`is_active = FALSE`, `left_at` = hôm nay). Xoá rồi thêm lại trong cùng ngày (cách `replacePermissions` lưu user) mở lại đúng dòng cũ, không sinh dòng mới. |
+
+Migration chạy lại backfill một lần cho phần đã lệch từ 2026-10-09 (khối cuối file, idempotent — có thể
+chạy lại sau khi phục hồi dữ liệu). Vai trò khác `PM_SM` trong `project_members` không bị trigger động tới.

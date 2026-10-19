@@ -36,7 +36,18 @@ function formatLayerDate(value: string): string {
   return year && month && day ? `${day}/${month}/${year}` : value;
 }
 
+type BackupTab = 'smart' | 'layer' | 'dump' | 'restore_cleanup';
+
+function todayIsoDate(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function DatabaseBackupPage() {
+  const [activeTab, setActiveTab] = useState<BackupTab>('smart');
   const [tables, setTables] = useState<BackupTableInfo[]>([]);
   const [isLoadingTables, setIsLoadingTables] = useState(true);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -47,6 +58,8 @@ export default function DatabaseBackupPage() {
   const [isExporting, setIsExporting] = useState(false);
 
   const [layerDates, setLayerDates] = useState<string[]>([]);
+  const [smartLayerDate, setSmartLayerDate] = useState(todayIsoDate);
+  const [isSmartExporting, setIsSmartExporting] = useState(false);
   const [startLayerDate, setStartLayerDate] = useState('');
   const [endLayerDate, setEndLayerDate] = useState('');
   const [includeRawData, setIncludeRawData] = useState(true);
@@ -80,6 +93,7 @@ export default function DatabaseBackupPage() {
       // Default to the most recent single layer — the common case is "export today's data",
       // not the full history; the user widens the range explicitly when they need more.
       if (result.dates.length > 0) {
+        setSmartLayerDate(result.dates[0]);
         setStartLayerDate(result.dates[0]);
         setEndLayerDate(result.dates[0]);
       }
@@ -107,6 +121,41 @@ export default function DatabaseBackupPage() {
       else next.delete(tableName);
       return next;
     });
+  };
+
+  const handleSmartExport = async () => {
+    if (!smartLayerDate) return;
+    setIsSmartExporting(true);
+    setMessage(null);
+    try {
+      const res = await fetch('/api/admin/db-backup/export-smart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ layerDate: smartLayerDate }),
+      });
+      if (!res.ok) {
+        const result = await res.json();
+        setMessage({ text: result.error || 'Smart export thất bại.', type: 'error' });
+        return;
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition') ?? '';
+      const fileNameMatch = disposition.match(/filename="(.+)"/);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileNameMatch ? fileNameMatch[1] : `ttm-monitor-smart-export-${smartLayerDate}.sql`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      showToast(`Đã tạo file Smart Export lớp bề mặt tính đến ${formatLayerDate(smartLayerDate)} thành công.`, 5000);
+      setMessage(null);
+    } catch {
+      setMessage({ text: 'Không thể kết nối API Smart Export.', type: 'error' });
+    } finally {
+      setIsSmartExporting(false);
+    }
   };
 
   const handleExport = async () => {
@@ -238,7 +287,7 @@ export default function DatabaseBackupPage() {
       const result: ImportResult = await res.json();
       setImportResult(result);
       if (result.ok) {
-        showToast('Import hoàn tất.', 5000);
+        showToast('Import hoàn tất. Hệ thống đang cập nhật lại cache.', 5000);
         setMessage(null);
         setImportFile(null);
         setImportPreview(null);
@@ -246,6 +295,7 @@ export default function DatabaseBackupPage() {
         setImportPreviewedFileKey(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
         void fetchTables();
+        void fetchLayerDates();
       } else {
         setMessage({ text: 'Import thất bại, toàn bộ thay đổi đã được rollback.', type: 'error' });
       }
@@ -302,6 +352,7 @@ export default function DatabaseBackupPage() {
       setMessage(null);
       setCleanupPreview(null);
       void fetchTables();
+      void fetchLayerDates();
     } catch {
       setMessage({ text: 'Không thể kết nối API dọn dữ liệu.', type: 'error' });
     } finally {
@@ -312,6 +363,21 @@ export default function DatabaseBackupPage() {
   return (
     <div className="flex flex-col gap-6">
       <InfoBannerDisplay pathname="/admin/database" />
+      <nav className="ui-tabs" aria-label="Sao lưu và phục hồi dữ liệu">
+        <Button onClick={() => setActiveTab('smart')} variant={activeTab === 'smart' ? 'primary' : 'outline'}>
+          Export dữ liệu thông minh
+        </Button>
+        <Button onClick={() => setActiveTab('layer')} variant={activeTab === 'layer' ? 'primary' : 'outline'}>
+          Export theo lớp dữ liệu
+        </Button>
+        <Button onClick={() => setActiveTab('dump')} variant={activeTab === 'dump' ? 'primary' : 'outline'}>
+          Dump dữ liệu
+        </Button>
+        <Button onClick={() => setActiveTab('restore_cleanup')} variant={activeTab === 'restore_cleanup' ? 'primary' : 'outline'}>
+          Import &amp; Dọn dữ liệu
+        </Button>
+      </nav>
+
       {message && (
         <Alert variant="error" title="Lỗi">
           {message.text}
@@ -323,220 +389,288 @@ export default function DatabaseBackupPage() {
         Import là thao tác ghi vào cơ sở dữ liệu thật — hãy export một bản sao lưu trước khi import nếu không chắc chắn.
       </Alert>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Export dữ liệu ra file SQL</CardTitle>
-          <Button variant="outline" icon={<CloudArrowDown className="size-4" weight="bold" />} onClick={openExportModal} size="sm">
-            Export nâng cao (chọn bảng thủ công)
-          </Button>
-        </CardHeader>
-        <CardBody className="gap-4">
-          <div className="flex flex-col gap-3 rounded-xl border border-fb-border bg-fb-surface-muted p-4">
-            <p className="font-bold text-fb-text-primary">Export theo lớp dữ liệu</p>
+      {activeTab === 'smart' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Export dữ liệu thông minh (Surface Data Layer)</CardTitle>
+          </CardHeader>
+          <CardBody className="gap-4">
             <p className="text-fb-text-secondary">
-              Chọn một khoảng lớp dữ liệu liên tiếp (theo ngày <code>aggregated_at</code>) — export luôn bao gồm dữ liệu tổng hợp
-              (<code>epic_ttm_snapshots</code>, <code>issue_daily_snapshots</code>), dữ liệu cảnh báo (<code>epic_alert_history</code>) và
-              dữ liệu lịch sử Epic (<code>epic_alert_timeline</code>, <code>epic_milestone_history</code>) trong khoảng đã chọn; bật
-              &quot;Export Raw Data&quot; để gộp thêm dữ liệu gốc (<code>issues</code>, <code>import_rows</code>, <code>import_batches</code>).
+              Tổng hợp <strong>lớp dữ liệu bề mặt (Surface Data Layer)</strong> tính từ ngày mốc được chọn trở xuống (<code>aggregated_at::date &lt;= ngày chọn</code>) theo đúng 3 cấp:
             </p>
-            <div className="flex flex-wrap items-end gap-3">
-              <Select
-                label="Start Data Layer"
-                options={[...layerDates].sort().map((date) => ({ value: date, label: formatLayerDate(date) }))}
-                value={startLayerDate}
-                onChange={(event) => setStartLayerDate(event.target.value)}
-                disabled={layerDates.length === 0}
-                className="min-w-[160px]"
+            <ul className="list-disc space-y-1 pl-5 text-fb-text-secondary">
+              <li>
+                <strong>Epic</strong>: lên danh sách toàn bộ Epic trong phạm vi từ ngày đã chọn trở về trước và chỉ lấy <strong>bản ghi mới nhất</strong> của từng Epic.
+              </li>
+              <li>
+                <strong>Story của Epic</strong>: lấy toàn bộ Story thuộc các Epic trên theo đúng logic lớp dữ liệu bề mặt (chỉ lấy bản ghi mới nhất tính đến ngày đã chọn).
+              </li>
+              <li>
+                <strong>Subtask của Story / Epic</strong>: lấy toàn bộ Subtask thuộc các Story/Epic trên theo đúng logic lớp dữ liệu bề mặt (chỉ lấy bản ghi mới nhất tính đến ngày đã chọn).
+              </li>
+              <li>
+                Khi import lại file SQL này ở tab <strong>Import &amp; Dọn dữ liệu</strong>, hệ thống tự động tạo một lớp dữ liệu hợp nhất lấy <strong>ngày và giờ hiện tại lúc thực hiện import</strong> làm timestamp, đồng thời tự động tính toán lại toàn bộ cache và cảnh báo.
+              </li>
+            </ul>
+
+            <div className="flex flex-wrap items-end gap-3 rounded-xl border border-fb-border bg-fb-surface-muted p-4">
+              <Input
+                type="date"
+                label="Chọn ngày mốc lớp dữ liệu"
+                value={smartLayerDate}
+                onChange={(event) => setSmartLayerDate(event.target.value)}
+                className="min-w-[180px]"
               />
-              <Select
-                label="End Data Layer"
-                options={[...layerDates].sort().map((date) => ({ value: date, label: formatLayerDate(date) }))}
-                value={endLayerDate}
-                onChange={(event) => setEndLayerDate(event.target.value)}
-                disabled={layerDates.length === 0}
-                className="min-w-[160px]"
-              />
-              <label className="flex items-center gap-2 pb-2 font-semibold">
-                <input type="checkbox" checked={includeRawData} onChange={(event) => setIncludeRawData(event.target.checked)} />
-                Export Raw Data
-              </label>
               <Button
+                variant="primary"
                 icon={<CloudArrowDown className="size-4" weight="bold" />}
-                onClick={handleLayerRangeExport}
-                isLoading={isExportingLayerRange}
-                disabled={!startLayerDate || !endLayerDate || startLayerDate > endLayerDate}
+                onClick={handleSmartExport}
+                isLoading={isSmartExporting}
+                disabled={!smartLayerDate}
               >
-                Export
+                Smart export
               </Button>
             </div>
-            {layerDates.length === 0 && <p className="text-fb-text-secondary">Chưa có lớp dữ liệu nào để export.</p>}
-          </div>
+            {layerDates.length > 0 && (
+              <p className="text-fb-text-secondary">
+                Lớp dữ liệu mới nhất hiện có trên hệ thống: <strong className="text-fb-text-primary">{formatLayerDate(layerDates[0])}</strong>
+                {layerDates.length > 1 ? ` (tổng cộng ${formatNumber(layerDates.length)} ngày có lớp dữ liệu, cũ nhất ${formatLayerDate(layerDates[layerDates.length - 1])})` : ''}.
+              </p>
+            )}
+          </CardBody>
+        </Card>
+      )}
 
-          {isLoadingTables ? <TableSkeleton rows={4} /> : (
-            <TableContainer>
-              <Table>
-                <THead>
-                  <TR>
-                    <TH>Bảng</TH>
-                    <TH>Tên bảng (DB)</TH>
-                    <TH className="text-center">Số dòng</TH>
-                  </TR>
-                </THead>
-                <TBody>
-                  {tables.map((table) => (
-                    <TR key={table.tableName}>
-                      <TD className="font-medium">{table.label}</TD>
-                      <TD className="font-mono text-fb-text-secondary">{table.tableName}</TD>
-                      <TD className="text-center font-bold">{formatNumber(table.approxRowCount)}</TD>
-                    </TR>
-                  ))}
-                </TBody>
-              </Table>
-            </TableContainer>
-          )}
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Import dữ liệu từ file SQL</CardTitle>
-        </CardHeader>
-        <CardBody className="gap-4">
-          <p className="text-fb-text-secondary">
-            Chỉ chấp nhận file <code>.sql</code> được tạo bởi chính chức năng Export ở trên. Dòng dữ liệu trùng khóa chính (đã tồn tại trong DB) sẽ được <strong>cập nhật (ghi đè)</strong> bằng dữ liệu trong file — không còn bị bỏ qua. (File export từ phiên bản cũ hơn, chưa có ghi đè, vẫn được chấp nhận và giữ hành vi bỏ qua như trước.)
-          </p>
-          <input ref={fileInputRef} type="file" accept=".sql,application/sql,text/plain" onChange={onFileChange} className="text-fb-text-primary" />
-
-          {importPreview && isPreviewCurrent && (
+      {activeTab === 'layer' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Export theo lớp dữ liệu</CardTitle>
+          </CardHeader>
+          <CardBody className="gap-4">
             <div className="flex flex-col gap-3 rounded-xl border border-fb-border bg-fb-surface-muted p-4">
-              <div className="flex items-center justify-between">
-                <p className="font-bold text-fb-text-primary">Xem trước nội dung file — chọn bảng sẽ import dữ liệu:</p>
-                <label className="flex items-center gap-2 text-sm font-semibold">
-                  <input
-                    type="checkbox"
-                    checked={importSelectedTables.size === importPreview.tableCounts.length && importPreview.tableCounts.length > 0}
-                    onChange={(event) => setImportSelectedTables(event.target.checked ? new Set(importPreview.tableCounts.map((item) => item.tableName)) : new Set())}
-                  />
-                  Chọn tất cả
+              <p className="text-fb-text-secondary">
+                Chọn một khoảng lớp dữ liệu liên tiếp (theo ngày <code>aggregated_at</code>) — export luôn bao gồm dữ liệu tổng hợp
+                (<code>epic_ttm_snapshots</code>, <code>issue_daily_snapshots</code>), dữ liệu cảnh báo (<code>epic_alert_history</code>) và
+                dữ liệu lịch sử Epic (<code>epic_alert_timeline</code>, <code>epic_milestone_history</code>) trong khoảng đã chọn; bật
+                &quot;Export Raw Data&quot; để gộp thêm dữ liệu gốc (<code>issues</code>, <code>import_rows</code>, <code>import_batches</code>).
+              </p>
+              <div className="flex flex-wrap items-end gap-3">
+                <Select
+                  label="Start Data Layer"
+                  options={[...layerDates].sort().map((date) => ({ value: date, label: formatLayerDate(date) }))}
+                  value={startLayerDate}
+                  onChange={(event) => setStartLayerDate(event.target.value)}
+                  disabled={layerDates.length === 0}
+                  className="min-w-[160px]"
+                />
+                <Select
+                  label="End Data Layer"
+                  options={[...layerDates].sort().map((date) => ({ value: date, label: formatLayerDate(date) }))}
+                  value={endLayerDate}
+                  onChange={(event) => setEndLayerDate(event.target.value)}
+                  disabled={layerDates.length === 0}
+                  className="min-w-[160px]"
+                />
+                <label className="flex items-center gap-2 pb-2 font-semibold">
+                  <input type="checkbox" checked={includeRawData} onChange={(event) => setIncludeRawData(event.target.checked)} />
+                  Export Raw Data
                 </label>
+                <Button
+                  variant="primary"
+                  icon={<CloudArrowDown className="size-4" weight="bold" />}
+                  onClick={handleLayerRangeExport}
+                  isLoading={isExportingLayerRange}
+                  disabled={!startLayerDate || !endLayerDate || startLayerDate > endLayerDate}
+                >
+                  Export
+                </Button>
               </div>
-              {importPreview.createsSchemaFor.length > 0 && (
-                <p className="text-fb-text-secondary">
-                  File có kèm cấu trúc bảng (CREATE TABLE IF NOT EXISTS) cho: {importPreview.createsSchemaFor.join(', ')}. Luôn được tạo bất kể có chọn import dữ liệu bảng đó hay không — an toàn với DB đã có bảng (sẽ được bỏ qua).
-                </p>
-              )}
-              <ul className="flex flex-col gap-1">
-                {importPreview.tableCounts.map((item) => (
-                  <li key={item.tableName}>
-                    <label className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 hover:bg-fb-surface">
-                      <span className="flex items-center gap-2 font-mono text-fb-text-secondary">
-                        <input
-                          type="checkbox"
-                          checked={importSelectedTables.has(item.tableName)}
-                          onChange={(event) => toggleImportTable(item.tableName, event.target.checked)}
-                        />
-                        {item.tableName}
-                      </span>
-                      <Badge variant={importSelectedTables.has(item.tableName) ? 'info' : 'neutral'}>{formatNumber(item.insertCount)} dòng</Badge>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-              {importSelectedTables.size === 0 && (
-                <p className="text-status-warning">Chưa chọn bảng nào — import sẽ không ghi dữ liệu của bất kỳ bảng nào (chỉ tạo cấu trúc bảng nếu file có kèm).</p>
-              )}
+              {layerDates.length === 0 && <p className="text-fb-text-secondary">Chưa có lớp dữ liệu nào để export.</p>}
             </div>
-          )}
+          </CardBody>
+        </Card>
+      )}
 
-          {importResult && (
-            <div className="flex flex-col gap-2 rounded-xl border border-fb-border bg-fb-surface-muted p-4">
-              <p className="font-bold text-fb-text-primary">Kết quả import:</p>
-              {importResult.tables.map((table) => (
-                <div key={table.tableName} className="flex items-center justify-between text-fb-text-secondary">
-                  <span className="font-mono">{table.tableName}</span>
-                  {table.error ? (
-                    <span className="flex items-center gap-1 text-status-danger"><Warning className="size-4" weight="bold" />{table.error}</span>
-                  ) : (
-                    <span>
-                      <Badge variant="success">{formatNumber(table.inserted)} thêm mới</Badge>{' '}
-                      <Badge variant="info">{formatNumber(table.updated)} cập nhật (ghi đè)</Badge>{' '}
-                      <Badge variant="neutral">{formatNumber(table.skippedDuplicates)} bỏ qua (trùng)</Badge>
-                    </span>
+      {activeTab === 'dump' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Export dữ liệu ra file SQL</CardTitle>
+            <Button variant="outline" icon={<CloudArrowDown className="size-4" weight="bold" />} onClick={openExportModal} size="sm">
+              Export nâng cao (chọn bảng thủ công)
+            </Button>
+          </CardHeader>
+          <CardBody className="gap-4">
+            {isLoadingTables ? <TableSkeleton rows={4} /> : (
+              <TableContainer>
+                <Table>
+                  <THead>
+                    <TR>
+                      <TH>Bảng</TH>
+                      <TH>Tên bảng (DB)</TH>
+                      <TH className="text-center">Số dòng</TH>
+                    </TR>
+                  </THead>
+                  <TBody>
+                    {tables.map((table) => (
+                      <TR key={table.tableName}>
+                        <TD className="font-medium">{table.label}</TD>
+                        <TD className="font-mono text-fb-text-secondary">{table.tableName}</TD>
+                        <TD className="text-center font-bold">{formatNumber(table.approxRowCount)}</TD>
+                      </TR>
+                    ))}
+                  </TBody>
+                </Table>
+              </TableContainer>
+            )}
+          </CardBody>
+        </Card>
+      )}
+
+      {activeTab === 'restore_cleanup' && (
+        <div className="flex flex-col gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Import dữ liệu từ file SQL</CardTitle>
+            </CardHeader>
+            <CardBody className="gap-4">
+              <p className="text-fb-text-secondary">
+                Chỉ chấp nhận file <code>.sql</code> được tạo bởi chính chức năng Export ở trên. Dòng dữ liệu trùng khóa chính (đã tồn tại trong DB) sẽ được <strong>cập nhật (ghi đè)</strong> bằng dữ liệu trong file — không còn bị bỏ qua. Đối với file được tạo từ <strong>Export dữ liệu thông minh</strong>, hệ thống sẽ tự động tạo một lớp dữ liệu bề mặt mới với timestamp là thời điểm thực hiện import và tính toán lại toàn bộ cache.
+              </p>
+              <input ref={fileInputRef} type="file" accept=".sql,application/sql,text/plain" onChange={onFileChange} className="text-fb-text-primary" />
+
+              {importPreview && isPreviewCurrent && (
+                <div className="flex flex-col gap-3 rounded-xl border border-fb-border bg-fb-surface-muted p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-fb-text-primary">Xem trước nội dung file — chọn bảng sẽ import dữ liệu:</p>
+                    <label className="flex items-center gap-2 text-sm font-semibold">
+                      <input
+                        type="checkbox"
+                        checked={importSelectedTables.size === importPreview.tableCounts.length && importPreview.tableCounts.length > 0}
+                        onChange={(event) => setImportSelectedTables(event.target.checked ? new Set(importPreview.tableCounts.map((item) => item.tableName)) : new Set())}
+                      />
+                      Chọn tất cả
+                    </label>
+                  </div>
+                  {importPreview.createsSchemaFor.length > 0 && (
+                    <p className="text-fb-text-secondary">
+                      File có kèm cấu trúc bảng (CREATE TABLE IF NOT EXISTS) cho: {importPreview.createsSchemaFor.join(', ')}. Luôn được tạo bất kể có chọn import dữ liệu bảng đó hay không — an toàn với DB đã có bảng (sẽ được bỏ qua).
+                    </p>
+                  )}
+                  <ul className="flex flex-col gap-1">
+                    {importPreview.tableCounts.map((item) => (
+                      <li key={item.tableName}>
+                        <label className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 hover:bg-fb-surface">
+                          <span className="flex items-center gap-2 font-mono text-fb-text-secondary">
+                            <input
+                              type="checkbox"
+                              checked={importSelectedTables.has(item.tableName)}
+                              onChange={(event) => toggleImportTable(item.tableName, event.target.checked)}
+                            />
+                            {item.tableName}
+                          </span>
+                          <Badge variant={importSelectedTables.has(item.tableName) ? 'info' : 'neutral'}>{formatNumber(item.insertCount)} dòng</Badge>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                  {importSelectedTables.size === 0 && (
+                    <p className="text-status-warning">Chưa chọn bảng nào — import sẽ không ghi dữ liệu của bất kỳ bảng nào (chỉ tạo cấu trúc bảng nếu file có kèm).</p>
                   )}
                 </div>
-              ))}
-            </div>
-          )}
-        </CardBody>
-        <CardFooter>
-          <Button variant="outline" disabled={!importFile || isPreviewing} isLoading={isPreviewing} onClick={handlePreview}>
-            Xem trước
-          </Button>
-          <Button
-            icon={<CloudArrowUp className="size-4" weight="bold" />}
-            disabled={!isPreviewCurrent || isImporting}
-            isLoading={isImporting}
-            onClick={handleImport}
-          >
-            Xác nhận import
-          </Button>
-        </CardFooter>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Dọn dữ liệu import cũ</CardTitle>
-        </CardHeader>
-        <CardBody className="gap-4">
-          <p className="text-fb-text-secondary">
-            Xóa các đợt import cũ hơn số ngày chọn bên dưới (kéo theo <code>issues</code> và <code>import_rows</code> của đợt đó, do quan hệ cascade).
-            Đợt import <strong>mới nhất luôn được giữ lại</strong> dù có cũ hơn ngưỡng, để dữ liệu hiện tại không bao giờ bị ảnh hưởng.
-            Lịch sử tóm tắt của Epic (<code>epic_ttm_snapshots</code>) <strong>không bị xóa</strong>.
-          </p>
-          <div className="flex items-end gap-3">
-            <Input
-              type="number"
-              label="Giữ lại (ngày)"
-              min={7}
-              max={3650}
-              value={retentionDays}
-              onChange={(event) => { setRetentionDays(Number(event.target.value)); setCleanupPreview(null); }}
-              className="max-w-[140px]"
-            />
-            <Button variant="outline" isLoading={isPreviewingCleanup} onClick={handleCleanupPreview}>Xem trước</Button>
-          </div>
-
-          {cleanupPreview && (
-            <div className="flex flex-col gap-2 rounded-xl border border-fb-border bg-fb-surface-muted p-4">
-              <p className="text-fb-text-secondary">
-                Sẽ xóa <strong className="text-fb-text-primary">{formatNumber(cleanupPreview.batchCount)}</strong> đợt import
-                (ước tính <strong className="text-fb-text-primary">{formatNumber(cleanupPreview.issueCount)}</strong> dòng issues,{' '}
-                <strong className="text-fb-text-primary">{formatNumber(cleanupPreview.importRowCount)}</strong> dòng import_rows)
-                cũ hơn {formatDateTime(cleanupPreview.cutoffDate)}.
-              </p>
-              {cleanupPreview.latestBatchProtected && (
-                <p className="text-fb-text-secondary">
-                  Đợt gần nhất được giữ lại: <strong className="text-fb-text-primary">{cleanupPreview.latestBatchProtected.fileName}</strong>{' '}
-                  ({formatDateTime(cleanupPreview.latestBatchProtected.aggregatedAt)})
-                </p>
               )}
-            </div>
-          )}
-        </CardBody>
-        {cleanupPreview && (
-          <CardFooter>
-            <Button
-              variant="danger"
-              icon={<Trash className="size-4" weight="bold" />}
-              disabled={cleanupPreview.batchCount === 0 || isCleaning}
-              isLoading={isCleaning}
-              onClick={handleCleanupExecute}
-            >
-              Xóa {formatNumber(cleanupPreview.batchCount)} đợt import cũ
-            </Button>
-          </CardFooter>
-        )}
-      </Card>
+
+              {importResult && (
+                <div className="flex flex-col gap-2 rounded-xl border border-fb-border bg-fb-surface-muted p-4">
+                  <p className="font-bold text-fb-text-primary">Kết quả import:</p>
+                  {importResult.tables.map((table) => (
+                    <div key={table.tableName} className="flex items-center justify-between text-fb-text-secondary">
+                      <span className="font-mono">{table.tableName}</span>
+                      {table.error ? (
+                        <span className="flex items-center gap-1 text-status-danger"><Warning className="size-4" weight="bold" />{table.error}</span>
+                      ) : (
+                        <span>
+                          <Badge variant="success">{formatNumber(table.inserted)} thêm mới</Badge>{' '}
+                          <Badge variant="info">{formatNumber(table.updated)} cập nhật (ghi đè)</Badge>{' '}
+                          <Badge variant="neutral">{formatNumber(table.skippedDuplicates)} bỏ qua (trùng)</Badge>
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardBody>
+            <CardFooter>
+              <Button variant="outline" disabled={!importFile || isPreviewing} isLoading={isPreviewing} onClick={handlePreview}>
+                Xem trước
+              </Button>
+              <Button
+                variant="primary"
+                icon={<CloudArrowUp className="size-4" weight="bold" />}
+                disabled={!isPreviewCurrent || isImporting}
+                isLoading={isImporting}
+                onClick={handleImport}
+              >
+                Xác nhận import
+              </Button>
+            </CardFooter>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Dọn dữ liệu import cũ</CardTitle>
+            </CardHeader>
+            <CardBody className="gap-4">
+              <p className="text-fb-text-secondary">
+                Xóa các đợt import cũ hơn số ngày chọn bên dưới (kéo theo <code>issues</code> và <code>import_rows</code> của đợt đó, do quan hệ cascade).
+                Đợt import <strong>mới nhất luôn được giữ lại</strong> dù có cũ hơn ngưỡng, để dữ liệu hiện tại không bao giờ bị ảnh hưởng.
+                Lịch sử tóm tắt của Epic (<code>epic_ttm_snapshots</code>) <strong>không bị xóa</strong>.
+              </p>
+              <div className="flex items-end gap-3">
+                <Input
+                  type="number"
+                  label="Giữ lại (ngày)"
+                  min={7}
+                  max={3650}
+                  value={retentionDays}
+                  onChange={(event) => { setRetentionDays(Number(event.target.value)); setCleanupPreview(null); }}
+                  className="max-w-[140px]"
+                />
+                <Button variant="outline" isLoading={isPreviewingCleanup} onClick={handleCleanupPreview}>Xem trước</Button>
+              </div>
+
+              {cleanupPreview && (
+                <div className="flex flex-col gap-2 rounded-xl border border-fb-border bg-fb-surface-muted p-4">
+                  <p className="text-fb-text-secondary">
+                    Sẽ xóa <strong className="text-fb-text-primary">{formatNumber(cleanupPreview.batchCount)}</strong> đợt import
+                    (ước tính <strong className="text-fb-text-primary">{formatNumber(cleanupPreview.issueCount)}</strong> dòng issues,{' '}
+                    <strong className="text-fb-text-primary">{formatNumber(cleanupPreview.importRowCount)}</strong> dòng import_rows)
+                    cũ hơn {formatDateTime(cleanupPreview.cutoffDate)}.
+                  </p>
+                  {cleanupPreview.latestBatchProtected && (
+                    <p className="text-fb-text-secondary">
+                      Đợt gần nhất được giữ lại: <strong className="text-fb-text-primary">{cleanupPreview.latestBatchProtected.fileName}</strong>{' '}
+                      ({formatDateTime(cleanupPreview.latestBatchProtected.aggregatedAt)})
+                    </p>
+                  )}
+                </div>
+              )}
+            </CardBody>
+            {cleanupPreview && (
+              <CardFooter>
+                <Button
+                  variant="danger"
+                  icon={<Trash className="size-4" weight="bold" />}
+                  disabled={cleanupPreview.batchCount === 0 || isCleaning}
+                  isLoading={isCleaning}
+                  onClick={handleCleanupExecute}
+                >
+                  Xóa {formatNumber(cleanupPreview.batchCount)} đợt import cũ
+                </Button>
+              </CardFooter>
+            )}
+          </Card>
+        </div>
+      )}
 
       <Modal
         isOpen={showExportModal}
@@ -546,7 +680,7 @@ export default function DatabaseBackupPage() {
         footer={
           <>
             <Button variant="outline" onClick={() => setShowExportModal(false)}>Hủy</Button>
-            <Button onClick={handleExport} isLoading={isExporting} disabled={selectedTables.size === 0}>
+            <Button variant="primary" onClick={handleExport} isLoading={isExporting} disabled={selectedTables.size === 0}>
               Export {selectedTables.size} bảng
             </Button>
           </>

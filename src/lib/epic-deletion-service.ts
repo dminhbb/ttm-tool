@@ -94,36 +94,62 @@ const TABLE_TARGETS: readonly TableTarget[] = [
 /**
  * The issue keys an Epic deletion removes, from the newest state of every issue across the RAW and
  * the snapshot layers (RAW batches are purged after the retention period, snapshots are not).
+ *
+ * Only the issues that ever pointed at the Epics are looked at (2026-10-19): rows whose issue_key or
+ * epic_key is one of them, then rows whose parent_key is one of their Stories — each candidate's newest
+ * state is then read over ALL its rows, so the result is exactly what computing the newest state of
+ * every issue gave, without doing that over the whole of issues / issue_daily_snapshots inside the
+ * import transaction (indexes: 20261019c_add_epic_deletion_scope_indexes.sql).
  */
 export async function resolveEpicDeletionScope(db: Queryable, epicKeys: readonly string[]): Promise<EpicDeletionScopeItem[]> {
   if (epicKeys.length === 0) return [];
   const result = await db.query<EpicDeletionScopeItem>(`
-    WITH all_rows AS (
-      SELECT issue_key, issue_type, epic_key, parent_key, jira_id, aggregated_at FROM issues
-      UNION ALL
-      SELECT issue_key, issue_type, epic_key, parent_key, jira_id, aggregated_at FROM issue_daily_snapshots
+    WITH direct_keys AS (
+      SELECT issue_key FROM issues WHERE issue_key = ANY($1::text[]) OR epic_key = ANY($1::text[])
+      UNION
+      SELECT issue_key FROM issue_daily_snapshots WHERE issue_key = ANY($1::text[]) OR epic_key = ANY($1::text[])
     ),
-    latest AS (
-      SELECT DISTINCT ON (issue_key) issue_key, issue_type, epic_key, parent_key, jira_id
-      FROM all_rows
+    direct_latest AS (
+      SELECT DISTINCT ON (issue_key) issue_key, issue_type, epic_key, jira_id
+      FROM (
+        SELECT issue_key, issue_type, epic_key, jira_id, aggregated_at FROM issues WHERE issue_key IN (SELECT issue_key FROM direct_keys)
+        UNION ALL
+        SELECT issue_key, issue_type, epic_key, jira_id, aggregated_at FROM issue_daily_snapshots WHERE issue_key IN (SELECT issue_key FROM direct_keys)
+      ) candidate_rows
       ORDER BY issue_key, aggregated_at DESC
     ),
     stories AS (
-      SELECT issue_key, jira_id, epic_key FROM latest
+      SELECT issue_key, jira_id, epic_key FROM direct_latest
       WHERE epic_key = ANY($1::text[]) AND NOT (issue_key = ANY($1::text[]))
         AND UPPER(issue_type) IN (${STORY_ISSUE_TYPES_SQL})
     ),
-    scope AS (
-      SELECT issue_key, issue_type, issue_key AS epic_key FROM latest WHERE issue_key = ANY($1::text[])
+    story_parent_refs AS (
+      SELECT issue_key AS ref, epic_key FROM stories
       UNION
-      SELECT issue_key, issue_type, epic_key FROM latest
+      SELECT jira_id::text AS ref, epic_key FROM stories WHERE jira_id IS NOT NULL AND jira_id <> 0
+    ),
+    child_keys AS (
+      SELECT issue_key FROM issues WHERE parent_key IN (SELECT ref FROM story_parent_refs)
+      UNION
+      SELECT issue_key FROM issue_daily_snapshots WHERE parent_key IN (SELECT ref FROM story_parent_refs)
+    ),
+    child_latest AS (
+      SELECT DISTINCT ON (issue_key) issue_key, issue_type, parent_key
+      FROM (
+        SELECT issue_key, issue_type, parent_key, aggregated_at FROM issues WHERE issue_key IN (SELECT issue_key FROM child_keys)
+        UNION ALL
+        SELECT issue_key, issue_type, parent_key, aggregated_at FROM issue_daily_snapshots WHERE issue_key IN (SELECT issue_key FROM child_keys)
+      ) candidate_rows
+      ORDER BY issue_key, aggregated_at DESC
+    ),
+    scope AS (
+      SELECT issue_key, issue_type, issue_key AS epic_key FROM direct_latest WHERE issue_key = ANY($1::text[])
+      UNION
+      SELECT issue_key, issue_type, epic_key FROM direct_latest
       WHERE epic_key = ANY($1::text[]) AND NOT (issue_key = ANY($1::text[]))
       UNION
-      SELECT child.issue_key, child.issue_type, story.epic_key FROM latest child
-      JOIN stories story ON child.parent_key = story.issue_key
-      UNION
-      SELECT child.issue_key, child.issue_type, story.epic_key FROM latest child
-      JOIN stories story ON story.jira_id IS NOT NULL AND story.jira_id <> 0 AND child.parent_key = story.jira_id::text
+      SELECT child.issue_key, child.issue_type, ref.epic_key FROM child_latest child
+      JOIN story_parent_refs ref ON child.parent_key = ref.ref
     )
     SELECT DISTINCT ON (issue_key) issue_key AS "issueKey", issue_type AS "issueType", epic_key AS "epicKey"
     FROM scope

@@ -13,6 +13,7 @@ import {
   ttmDashboard2ScopeKey,
 } from '@/lib/ttm-dashboard-2-cache-service';
 import { getTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
+import { filterTtmDashboard2Rows, summarizeTtmFunnel, type TtmDashboard2Filters, type TtmFunnelSummary } from '@/lib/ttm-funnel-summary';
 import type { UserRole } from '@/lib/auth-types';
 
 /**
@@ -71,11 +72,29 @@ export async function getTtmDashboard2(actor: AuthUser, rawViewAsUserId: string 
   };
 }
 
+/**
+ * The funnel rows of the viewer's own scope (or the previewed user's), for the browser to recompute a
+ * filter on. Null in the Lead view (2026-10-19): the company-wide rows — one per Epic, with project,
+ * PM/SM and verdict — never leave the server; a filter there is summarized by
+ * getTtmDashboard2FilteredSummary instead, so the viewer only ever receives aggregated numbers.
+ */
 export async function getTtmDashboard2Rows(actor: AuthUser, rawViewAsUserId: string | null, requestedView: TtmDashboard2RequestedView = null) {
-  const { scope } = await resolveDataScope(actor, rawViewAsUserId, requestedView);
-  // These rows carry no Epic key / name — only the fields the funnel is counted on — so the Lead view
-  // widens the numbers a filter recomputes, not what the viewer learns about any single Epic.
+  const { leadView, scope } = await resolveDataScope(actor, rawViewAsUserId, requestedView);
+  if (leadView.active) return null;
   return { rows: await loadTtmDashboard2Rows(scope.userId, scope.role) };
+}
+
+/** A toolbar filter applied to the Lead view, summarized server-side with the very functions the page
+ * (and the cache) use — same numbers as recomputing in the browser, without sending the rows. */
+export async function getTtmDashboard2FilteredSummary(
+  actor: AuthUser,
+  rawViewAsUserId: string | null,
+  requestedView: TtmDashboard2RequestedView,
+  filters: TtmDashboard2Filters,
+): Promise<{ summary: TtmFunnelSummary }> {
+  const { scope } = await resolveDataScope(actor, rawViewAsUserId, requestedView);
+  const rows = await loadTtmDashboard2Rows(scope.userId, scope.role);
+  return { summary: summarizeTtmFunnel(filterTtmDashboard2Rows(rows, filters)) };
 }
 
 export function parseTtmDashboard2View(value: string | null): TtmDashboard2RequestedView {

@@ -9,7 +9,11 @@ import {
   type AdmissionViolation,
   type DeniedEpicInFile,
   type ImportAdmissionSettings,
+  MAX_EPIC_DELETIONS_PER_IMPORT,
+  type ProvenExemptEpic,
 } from '@/lib/import-admission-rules';
+
+export { MAX_EPIC_DELETIONS_PER_IMPORT };
 import { getIssueHierarchyLevel } from '@/lib/issue-hierarchy';
 import { EPIC_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 
@@ -22,7 +26,7 @@ import { EPIC_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 
 type Queryable = Pick<PoolClient, 'query'>;
 
-export type DeniedImportSource = 'AUTO_RULE' | 'MANUAL' | 'SEED';
+export type DeniedImportSource = 'AUTO_EXEMPT' | 'AUTO_RULE' | 'MANUAL' | 'SEED';
 
 export interface DeniedImportEpic {
   addedBy: string | null;
@@ -336,13 +340,30 @@ export async function denyScanCandidates(epicKeys: readonly string[], userId: nu
   });
 }
 
+export interface DeniedImportDeletionOutcome {
+  /** Denied Epics whose data this import deleted. */
+  deletedEpicKeys: string[];
+  /** Denied Epics that still have data in the database — left for "Xóa dữ liệu còn tồn tại". */
+  keptDataEpicKeys: string[];
+  /** Why their data was kept (null when nothing was kept). */
+  keptReason: 'AUTO_IMPORT' | 'TOO_MANY' | null;
+}
+
 /**
  * Import side, inside the import transaction: lists the Epics an automatic rule denied (source
- * AUTO_RULE, described from their row of the file) and deletes what the database already holds of
- * every Epic denied in this file.
+ * AUTO_RULE, described from their row of the file) and — when `allowDeletion` and at most
+ * MAX_EPIC_DELETIONS_PER_IMPORT of them still have data — deletes what the database already holds
+ * of every Epic denied in this file. The token-authenticated auto import never deletes (nobody
+ * reviewed the list): its denied Epics keep their data until SUPERADMIN purges them.
  */
-export async function recordDeniedEpicsOfImport(client: PoolClient, deniedEpics: readonly DeniedEpicInFile[], toIsoDate: (raw: string) => string | null): Promise<void> {
-  if (deniedEpics.length === 0) return;
+export async function recordDeniedEpicsOfImport(
+  client: PoolClient,
+  deniedEpics: readonly DeniedEpicInFile[],
+  toIsoDate: (raw: string) => string | null,
+  allowDeletion: boolean,
+): Promise<DeniedImportDeletionOutcome> {
+  const outcome: DeniedImportDeletionOutcome = { deletedEpicKeys: [], keptDataEpicKeys: [], keptReason: null };
+  if (deniedEpics.length === 0) return outcome;
   const ruleRows = new Map<string, DeniedRowInput>();
   for (const epic of deniedEpics) {
     if (epic.origin !== 'RULE' || !epic.row) continue;
@@ -365,15 +386,53 @@ export async function recordDeniedEpicsOfImport(client: PoolClient, deniedEpics:
   }
   await upsertDeniedRows(client, ruleRows, 'AUTO_RULE', null);
 
-  // A listed Epic was deleted when it was listed: only run the deletion again when the database still
-  // holds something of it, so a routine import adds no audit line / deletion stamp for nothing.
-  const listedKeys = deniedEpics.filter((epic) => epic.origin === 'LIST').map((epic) => epic.epicKey);
-  const listedWithData = listedKeys.length === 0 ? [] : (await client.query<{ epicKey: string }>(`
+  // Only Epics the database still holds something of need a deletion — a listed Epic was deleted when
+  // it was listed, so a routine import adds no audit line / deletion stamp for nothing.
+  const withData = (await client.query<{ epicKey: string }>(`
     SELECT key AS "epicKey" FROM unnest($1::text[]) AS key
     WHERE EXISTS (SELECT 1 FROM issues WHERE issue_key = key OR epic_key = key)
        OR EXISTS (SELECT 1 FROM issue_daily_snapshots WHERE issue_key = key OR epic_key = key)
        OR EXISTS (SELECT 1 FROM epic_ttm_snapshots WHERE epic_key = key);
-  `, [listedKeys])).rows.map((row) => row.epicKey);
-  const toDelete = [...ruleRows.keys(), ...listedWithData];
-  if (toDelete.length > 0) await deleteEpicData(client, toDelete, null);
+  `, [deniedEpics.map((epic) => epic.epicKey)])).rows.map((row) => row.epicKey);
+  if (withData.length === 0) return outcome;
+  if (!allowDeletion || withData.length > MAX_EPIC_DELETIONS_PER_IMPORT) {
+    return { deletedEpicKeys: [], keptDataEpicKeys: withData, keptReason: allowDeletion ? 'TOO_MANY' : 'AUTO_IMPORT' };
+  }
+  await deleteEpicData(client, withData, null);
+  return { deletedEpicKeys: withData, keptDataEpicKeys: [], keptReason: null };
+}
+
+/**
+ * Import side: lists the Epics admitted only thanks to the rule B proof (planImportAdmission →
+ * provenExemptEpics) as "Cho phép import" with source AUTO_EXEMPT, so they stay exempt once that
+ * proof is purged with the RAW retention / "Xóa lớp dữ liệu". Never touches an Epic already listed —
+ * an admin's own decision on it wins.
+ */
+export async function recordProvenExemptions(client: PoolClient, exempts: readonly ProvenExemptEpic[], toIsoDate: (raw: string) => string | null): Promise<string[]> {
+  if (exempts.length === 0) return [];
+  const facts = exempts.map((epic) => ({ epic, facts: admissionFactsOfRow(epic.row, toIsoDate) }));
+  const inserted = await client.query<{ epicKey: string }>(`
+    INSERT INTO denied_import_epics (
+      epic_key, project_key, summary, status, requesting_unit, created_date, idea_approved_date,
+      start_date, r4g_date, due_date, allow_import, source, reason
+    )
+    SELECT key, SPLIT_PART(key, '-', 1), summary, status, unit, created::date, idea::date, start::date,
+      r4g::date, due::date, TRUE, 'AUTO_EXEMPT', reason
+    FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::text[], $9::text[], $10::text[])
+      AS input(key, summary, status, unit, created, idea, start, r4g, due, reason)
+    ON CONFLICT (epic_key) DO NOTHING
+    RETURNING epic_key AS "epicKey";
+  `, [
+    facts.map(({ epic }) => epic.epicKey),
+    facts.map(({ epic }) => epic.row.summary || null),
+    facts.map(({ epic }) => epic.row.status || null),
+    facts.map(({ epic }) => epic.row.requestingUnit || null),
+    facts.map(({ facts: f }) => f.createdDate),
+    facts.map(({ epic }) => toIsoDate(epic.row.ideaApprovedDate)),
+    facts.map(({ epic }) => toIsoDate(epic.row.startDate)),
+    facts.map(({ facts: f }) => f.r4gDate),
+    facts.map(({ facts: f }) => f.dueDate),
+    facts.map(({ epic }) => epic.reason),
+  ]);
+  return inserted.rows.map((row) => row.epicKey);
 }

@@ -101,7 +101,7 @@ const BASELINE: Record<MeasureName, { total: number; perFile: Record<string, num
    * nên để làm theo từng màn hình.
    */
   hexLiteral: {
-    total: 117,
+    total: 109,
     perFile: {
       // Màu truyền vào SVG phễu/donut dưới dạng prop (fill / lidFill / labelColor).
       'app/ttm-dashboard-2/page.tsx': 36,
@@ -111,7 +111,6 @@ const BASELINE: Record<MeasureName, { total: number; perFile: Record<string, num
       // Bảng tra màu trạng thái dưới dạng object JS.
       'app/epic-alerts-15/page.tsx': 8,
       'app/reports/page.tsx': 8,
-      'components/layout/HelpPanels.tsx': 8,
       /* Alert của trang login dùng tổ hợp hồng `#FFB6C1`/`#FFC0CB`/`#8B4513`.
          Codemod ban đầu đổi riêng màu chữ sang `--color-text-warning` (#946200) và
          việc đó ĐÃ ĐƯỢC HOÀN TÁC: #946200 trên nền #FFC0CB chỉ đạt ~4.0:1, còn

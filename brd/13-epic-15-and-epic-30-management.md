@@ -20,6 +20,51 @@
   Mở cho **mọi role đã đăng nhập** kể cả `USER` (theo phạm vi dự án/Domain/Component được phân quyền).
 - `/ttm-dashboard-2`: **TTM Dashboard 2** — màn hình mặc định sau đăng nhập (xem
   `docs/ttm-dashboard-2-spec.md`).
+- `/data-normalization`: **Chuẩn hoá dữ liệu** (từ 12/10/2026, menu "Giám sát" ngay dưới Quản trị Epic,
+  feature `data_normalization`) — xem mục "Màn hình Chuẩn hoá dữ liệu" bên dưới.
+
+## Cột NHẬN XÉT và cột PASS của Quản trị Epic (từ 16/10/2026)
+
+Thay cho danh sách badge cũ (`ScoringBadges.tsx`, `DataAnomalyBadge`). Logic gom nhóm thuần ở
+`src/lib/epic-comment-groups.ts` (`summarizeEpicComments`, có test), hiển thị ở
+`src/components/epic-alerts/EpicCommentCell.tsx`; dùng chung quy tắc kết luận với bộ lọc "Nhận xét"
+(`src/lib/epic-row-verdicts.ts`) nên ô và bộ lọc luôn khớp nhau.
+
+- **NHẬN XÉT** là một dải 1x4 ô, thứ tự cố định `Kết quả → Xử lý → Cảnh báo → Sai lệch dữ liệu`. Mỗi ô
+  hiện số mục của nhóm (0 mục = "-", không bấm được):
+
+  | Ô | Gồm | Màu |
+  |---|---|---|
+  | Kết quả | Fail / Đạt TTM-CNTT (QLDA), Fail / Đạt TTM-E2E | Xanh lá; **cam, chữ trắng** khi có Fail |
+  | Xử lý | Thiếu lý do Fail TTM, Thiếu phòng chịu TN chính và các khuyến nghị khác | Xanh dương |
+  | Cảnh báo | Cảnh báo muộn (/sớm ở engine legacy), Sai Status, Chờ golive, Giải trình Golive, Pending lâu | Tím |
+  | Sai lệch dữ liệu | Mỗi rule đang vi phạm một mục ("R1 — Thiếu Start Date"…) | Hồng nhạt; **cam, chữ trắng** khi có |
+
+  Rê chuột vào ô có dữ liệu mở panel chi tiết ngay dưới dải (cùng màu ô); panel không tự đóng khi rời
+  chuột — đóng bằng nút ×, bấm lại ô, hoặc chuyển sang ô khác. Nội dung từng mục là message của finding.
+- **PASS** (bên phải NHẬN XÉT, trước TTM-CNTT): chỉ icon — `CheckCircle` xanh khi Đạt TTM-CNTT (QLDA),
+  `XCircle` cam khi Fail TTM-CNTT (QLDA); để trống khi chưa có kết luận (đang triển khai, ngoài phạm vi,
+  không tính được, Sai lệch dữ liệu).
+- Tiêu đề cột viết hoa (`EPIC`, `NHẬN XÉT`, `STATUS`); `Release` đổi thành `DUE DATE`, `START-CNTT` thành
+  `START-DATE`. Mọi ô căn trái và căn trên (trừ PASS căn giữa), bảng co theo bề rộng màn hình.
+
+## Màn hình Chuẩn hoá dữ liệu (`/data-normalization`, từ 12/10/2026)
+
+Danh sách Epic cần sửa dữ liệu trên Jira, mỗi rule một panel (mặc định đóng, tiêu đề luôn hiện số Epic):
+
+1. **Thiếu lý do Fail TTM** — Epic Fail TTM-CNTT có R4G Date muộn hơn Target nhưng chưa ghi khâu fail
+   (`REC_MISSING_FAIL_REASON`) hoặc chưa có phòng chịu TN chính (`REC_MISSING_RESPONSIBLE_DEPARTMENT`) —
+   đúng tập Epic của widget THIẾU LÝ DO trên TTM Dashboard 2; chỉ có ở engine Scoring.
+2. **R1, R3–R6, R7 (Sai Status Release), R8–R10** — theo thứ tự R, tên/giải thích lấy từ
+   `scoring/catalog.ts`, phụ đề "Cách chuẩn hoá" lấy từ badge Khuyến nghị tương ứng. R8–R10 chỉ có ở engine
+   Scoring; ở engine legacy R1/R5/R7 hiện đúng điều kiện legacy (`describeNormalizationPanel`). R2 "Pending
+   lâu" không có panel.
+
+Một Epic có thể nằm ở nhiều panel. Dữ liệu theo phạm vi của user và cùng bộ lọc với TTM Dashboard 2
+(Domain, Dự án, Component, PM/SM, Đơn vị yêu cầu); Epic Cancelled và Epic ngoại lệ bị loại. Bảng 25
+Epic/trang; chỉ panel đang mở mới tải dòng Epic (`open=`), danh sách bộ lọc chỉ gửi ở lần đầu
+(`options=1`). Code: `src/lib/data-normalization.ts` (thuần), `data-normalization-service.ts`,
+`/api/data-normalization`, `src/modules/ttm/application/get-data-normalization.ts`.
 
 ## Thứ tự trạng thái Epic
 
@@ -74,5 +119,5 @@ mặc định, dưới thanh filter chính) cung cấp thêm (`src/lib/epic-aler
 - **Epic golive sau (Due Date ≥)** — lọc theo `dueDateFrom`.
 
 Mỗi ô filter đang có giá trị được viền đỏ (`has-filter`) để người dùng nhận ra ngay đang lọc thu hẹp
-dữ liệu, kể cả khi đã thu gọn khối "Bộ lọc nâng cao...". `/api/epic-alerts-15` và `/api/epic-alerts`
-dùng chung `parseEpicAlertFiltersFromSearchParams` để đọc 4 tham số trên.
+dữ liệu, kể cả khi đã thu gọn khối "Bộ lọc nâng cao...". `/api/epic-alerts-15` đọc 4 tham số trên
+bằng `parseEpicAlertFiltersFromSearchParams` (`/api/epic-alerts` đã gỡ cùng màn hình rút gọn, 11/10/2026).

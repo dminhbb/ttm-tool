@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AuthError, getUserRolesByIds, requireUser, resetUserPassword } from '@/lib/auth-service';
+import { AuthError, extractUsername, getUserRolesByIds, normalizeUsername, requireUser, resetUserPassword } from '@/lib/auth-service';
 import { canManageUserWithRole } from '@/lib/auth-types';
 import { verifyCaptcha } from '@/lib/captcha-service';
 import { validatePassword } from '@/lib/password-rules';
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   try {
     await requireUser(request, ['ADMIN', 'SUPERADMIN', 'SUPERVISOR']);
     const { default: pool } = await import('@/lib/db');
-    const result = await pool.query('SELECT pr.id, pr.email, pr.created_at AS "createdAt", u.id AS "userId" FROM password_reset_requests pr LEFT JOIN users u ON u.email = pr.email WHERE pr.status = \'PENDING\' ORDER BY pr.created_at DESC');
+    const result = await pool.query("SELECT pr.id, pr.email, pr.created_at AS \"createdAt\", u.id AS \"userId\" FROM password_reset_requests pr LEFT JOIN users u ON SPLIT_PART(LOWER(u.email), '@', 1) = SPLIT_PART(LOWER(pr.email), '@', 1) WHERE pr.status = 'PENDING' ORDER BY pr.created_at DESC");
     return NextResponse.json(result.rows);
   } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể tải ticket.' }, { status: 500 }); }
 }
@@ -22,11 +22,12 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body: unknown = await request.json();
-    if (!isRecord(body) || typeof body.email !== 'string' || typeof body.captcha !== 'string' || typeof body.captchaId !== 'string' || !verifyCaptcha(body.captchaId, body.captcha)) return NextResponse.json({ error: 'Email hoặc CAPTCHA không hợp lệ.' }, { status: 400 });
+    if (!isRecord(body) || typeof body.email !== 'string' || typeof body.captcha !== 'string' || typeof body.captchaId !== 'string' || !verifyCaptcha(body.captchaId, body.captcha)) return NextResponse.json({ error: 'Username/Email hoặc CAPTCHA không hợp lệ.' }, { status: 400 });
     const { default: pool } = await import('@/lib/db');
-    const email = body.email.trim().toLowerCase();
-    const user = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
-    if (user.rowCount !== 1) return NextResponse.json({ error: 'Email chưa tồn tại trong hệ thống.' }, { status: 404 });
+    const username = extractUsername(body.email);
+    const email = normalizeUsername(body.email);
+    const user = await pool.query("SELECT id FROM users WHERE SPLIT_PART(LOWER(email), '@', 1) = $1", [username]);
+    if (user.rowCount !== 1) return NextResponse.json({ error: 'Username chưa tồn tại trong hệ thống.' }, { status: 404 });
     await pool.query('INSERT INTO password_reset_requests (email) VALUES ($1)', [email]);
     return NextResponse.json({ success: true }, { status: 201 });
   } catch { return NextResponse.json({ error: 'Không thể tạo ticket.' }, { status: 500 }); }
@@ -40,7 +41,7 @@ export async function PATCH(request: NextRequest) {
     const targets: ResetTarget[] = Array.isArray(body.tickets) ? body.tickets.filter(isResetTarget) : isResetTarget(body) ? [{ id: body.id, userId: body.userId }] : [];
     if (targets.length === 0 || targets.length > 100 || targets.length !== new Set(targets.map((target) => target.id)).size) return NextResponse.json({ error: 'Danh sách yêu cầu cấp lại mật khẩu không hợp lệ.' }, { status: 400 });
     const { default: pool } = await import('@/lib/db');
-    const pending = await pool.query<{ id: number; userId: number | null }>('SELECT pr.id, u.id AS "userId" FROM password_reset_requests pr LEFT JOIN users u ON u.email = pr.email WHERE pr.status = \'PENDING\' AND pr.id = ANY($1::int[])', [targets.map((target) => target.id)]);
+    const pending = await pool.query<{ id: number; userId: number | null }>("SELECT pr.id, u.id AS \"userId\" FROM password_reset_requests pr LEFT JOIN users u ON SPLIT_PART(LOWER(u.email), '@', 1) = SPLIT_PART(LOWER(pr.email), '@', 1) WHERE pr.status = 'PENDING' AND pr.id = ANY($1::int[])", [targets.map((target) => target.id)]);
     if (pending.rowCount !== targets.length || pending.rows.some((row) => row.userId === null || row.userId !== targets.find((target) => target.id === row.id)?.userId)) return NextResponse.json({ error: 'Có yêu cầu không còn hợp lệ hoặc không khớp user.' }, { status: 409 });
     // Anyone can file a reset ticket for any email (public POST above) — so approving one must obey
     // the same role hierarchy as /api/users, or an ADMIN could take over a SUPERADMIN account.

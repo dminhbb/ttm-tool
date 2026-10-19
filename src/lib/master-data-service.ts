@@ -114,12 +114,12 @@ export async function deleteDomain(id: number): Promise<boolean> {
 
 // ---------- Projects ----------
 
-/** Joined onto `projects` to derive its PM/SM display name(s) live from user_projects + users — a
- * project can have zero, one, or many PM/SM users; this aggregates every assigned user's full name
+/** Joined onto `projects` to derive its PM/SM username(s) live from user_projects + users — a
+ * project can have zero, one, or many PM/SM users; this aggregates every assigned user's username
  * into one comma-joined string ('' when none) so callers keep treating "leadName" as a single field. */
 const PROJECT_LEAD_NAME_JOIN = `
   LEFT JOIN (
-    SELECT up.project_id, STRING_AGG(u.full_name, ', ' ORDER BY u.full_name) AS lead_name
+    SELECT up.project_id, STRING_AGG(SPLIT_PART(LOWER(u.email), '@', 1), ', ' ORDER BY SPLIT_PART(LOWER(u.email), '@', 1)) AS lead_name
     FROM user_projects up
     JOIN users u ON u.id = up.user_id
     GROUP BY up.project_id

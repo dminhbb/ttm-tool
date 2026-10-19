@@ -38,7 +38,7 @@ interface DeniedImportEpic {
   r4gDate: string | null;
   reason: string | null;
   requestingUnit: string | null;
-  source: 'AUTO_RULE' | 'MANUAL' | 'SEED';
+  source: 'AUTO_EXEMPT' | 'AUTO_RULE' | 'MANUAL' | 'SEED';
   startDate: string | null;
   status: string | null;
   summary: string | null;
@@ -72,6 +72,8 @@ interface ScanCandidate {
 const PAGE_SIZE = 25;
 
 const SOURCE_LABEL: Record<DeniedImportEpic['source'], string> = {
+  // Admitted thanks to the rule B proof and kept as "Cho phép import" so the proof can age out (2026-10-19).
+  AUTO_EXEMPT: 'Miễn rule B',
   AUTO_RULE: 'Rule tự động',
   MANUAL: 'Thủ công',
   SEED: 'Rà soát 14/10',

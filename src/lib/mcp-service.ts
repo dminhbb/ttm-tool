@@ -116,7 +116,7 @@ export async function getMcpUsageSummary(): Promise<McpUsageSummary> {
       JOIN users u ON u.id = s.user_id
       WHERE s.stat_date >= CURRENT_DATE - $1::int
       GROUP BY u.id, u.full_name, u.email
-      ORDER BY "accessCount" DESC
+      ORDER BY "accessCount" DESC, SPLIT_PART(LOWER(u.email), '@', 1) ASC
       LIMIT 5;
     `, [ACCESS_STATS_RETENTION_DAYS - 1]),
   ]);

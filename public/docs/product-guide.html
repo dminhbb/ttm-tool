@@ -225,7 +225,8 @@
         <tbody>
           <tr><td>Epic có trong danh sách <strong>Từ chối import</strong> (bảng <code>denied_import_epics</code>)</td><td>Luôn bị từ chối, cùng toàn bộ Story của nó và Subtask (gắn thẳng vào Epic hoặc thuộc Story của nó).</td></tr>
           <tr><td>Epic trong danh sách nhưng bật <strong>“Cho phép import”</strong></td><td>Được import và <strong>miễn trừ</strong> khỏi rule tự động bên dưới.</td></tr>
-          <tr><td>Epic chưa có trong danh sách, vi phạm rule tự động</td><td>Bị từ chối, <strong>tự thêm vào danh sách</strong> (nguồn “Rule tự động”, kèm lý do) và dữ liệu cũ của Epic trong CSDL (nếu có) bị xóa bằng Epic deletion.</td></tr>
+          <tr><td>Epic chưa có trong danh sách, vi phạm rule tự động</td><td>Bị từ chối, <strong>tự thêm vào danh sách</strong> (nguồn “Rule tự động”, kèm lý do). Dữ liệu cũ của Epic trong CSDL (nếu có) chỉ bị xóa bằng Epic deletion khi là <strong>upload thủ công</strong> (đã xác nhận trên màn hình) và <strong>không quá 25 Epic</strong> còn dữ liệu. <strong>Import qua API tự động không bao giờ xoá</strong>; trường hợp đó hoặc quá 25 Epic thì dữ liệu được giữ lại — kiểm tra rồi dùng “Xóa dữ liệu còn tồn tại” ở tab Từ chối import (từ 19/10/2026).</td></tr>
+          <tr><td>Epic chỉ được nhận nhờ ngoại lệ của rule B</td><td>Import bình thường và <strong>tự thêm vào danh sách với “Cho phép import” bật</strong> (nguồn “Miễn rule B”, lý do ghi ngày làm bằng chứng) — để vẫn được miễn khi lịch sử làm bằng chứng đã hết hạn lưu trữ hoặc bị “Xóa lớp dữ liệu” (từ 19/10/2026).</td></tr>
         </tbody>
       </table>
       <p>Các rule tự động (ngày A, B chỉnh tại tab Từ chối import — mục 12.3; để trống = tắt rule):</p>
@@ -236,7 +237,7 @@
           <tr><td>A — Created</td><td><code>created &lt; A</code> (mặc định A = 31/01/2026)</td><td>Theo ngày giờ Việt Nam.</td></tr>
           <tr><td>B — Released sớm</td><td>Status Released / MVP Done <strong>và</strong> ngày chuyển status <code>&lt; B</code> (mặc định B = 01/07/2026, tức chuyển status trước hoặc trong ngày 30/06)</td><td>
             Khi file có cột <code>epic_status_changed_at</code> thì dùng ngày đó; chưa có thì dùng <strong>Due Date</strong>, Due trống thì dùng <strong>R4G Date</strong>.
-            <strong>Ngoại lệ:</strong> Epic mà CSDL đã từng ghi nhận ở status khác Released / MVP Done vào/sau ngày B (lớp RAW hoặc snapshot) chắc chắn chuyển sang Released sau B — không bị rule này từ chối dù Due Date sớm.
+            <strong>Ngoại lệ:</strong> Epic mà CSDL đã từng ghi nhận ở status khác Released / MVP Done vào/sau ngày B (lớp RAW hoặc snapshot) chắc chắn chuyển sang Released sau B — không bị rule này từ chối dù Due Date sớm, và được ghi “Cho phép import” ngay lần đầu (xem bảng trên). Ngày A/B không được đặt sau ngày hôm nay.
           </td></tr>
         </tbody>
       </table>
@@ -669,8 +670,8 @@
         </div>
       </details>
 
-      <h3>5.2. Bảng danh mục 51 bảng CSDL trong hệ thống</h3>
-      <p style="font-size:12px; color:var(--muted);">Danh mục gồm 50 dòng STT; dòng 27 gộp 2 bảng singleton (<code>jira_settings</code> &amp; <code>data_retention_configs</code>) nên tổng là 51 bảng. Bảng theo dõi migration <code>schema_migrations</code> do script <code>scripts/migrate-db.js</code> tự tạo, không tính vào danh mục.</p>
+      <h3>5.2. Bảng danh mục 59 bảng CSDL trong hệ thống (đối chiếu CSDL Supabase 19/10/2026)</h3>
+      <p style="font-size:12px; color:var(--muted);">Danh mục gồm 58 dòng STT; dòng 27 gộp 2 bảng singleton (<code>jira_settings</code> &amp; <code>data_retention_configs</code>) nên tổng là 59 bảng. Dòng 54–58 là nền móng module Quản lý dự án (PMS, expand-only — chưa có màn hình nào đọc, chi tiết <code>brd/08-data-model.md</code> §24). Bảng theo dõi migration <code>schema_migrations</code> do script <code>scripts/migrate-db.js</code> tự tạo, không tính vào danh mục.</p>
       <table>
         <thead><tr><th>STT</th><th>Bảng CSDL</th><th>Khóa chính / Khóa ngoại</th><th>Vai trò nghiệp vụ &amp; Ghi chú</th></tr></thead>
         <tbody>
@@ -733,6 +734,12 @@
           <tr><td>50</td><td><code>scoring_parity_runs</code></td><td><code>id</code></td><td>Kết quả mỗi lần đối chiếu Scoring Service với engine cũ (số Epic khớp / lệch có chủ đích / chưa giải thích được, chi tiết JSON).</td></tr>
           <tr><td>51</td><td><code>denied_import_epics</code></td><td><code>epic_key</code></td><td><strong>Mới 14/10/2026.</strong> "Từ chối import": Epic không được đưa vào CSDL. Lưu thông tin cơ bản chụp lúc thêm (summary, status, đơn vị yêu cầu, created, ngày duyệt ý tưởng, start, R4G, due), <code>allow_import</code> ("Cho phép import" — miễn trừ rule tự động), <code>source</code> (<code>MANUAL</code> / <code>AUTO_RULE</code> / <code>SEED</code>), lý do, lần xóa dữ liệu gần nhất — mục 3.4.</td></tr>
           <tr><td>52</td><td><code>import_admission_settings</code></td><td><code>id</code> (= 1)</td><td><strong>Mới 14/10/2026.</strong> Ngày A (<code>created_before</code>) và ngày B (<code>released_due_before</code>) của rule tự động Từ chối import; để trống = tắt rule — mục 3.4.</td></tr>
+          <tr><td>53</td><td><code>dashboard_view_settings</code></td><td><code>id</code> (= 1)</td><td><strong>Mới 14/10/2026.</strong> Công tắc "Dashboard Lead view cho tất cả user" (<code>lead_view_for_all_users</code>, mặc định bật) — Quản trị hệ thống → Dashboard, mục 21.9.</td></tr>
+          <tr><td>54</td><td><code>project_types</code></td><td><code>id</code> (<code>type_code</code> UNIQUE)</td><td><strong>PMS, 09/10/2026.</strong> Loại dự án: Dự án / Team Agile / Team Triển khai (<code>legacy_category</code> map với <code>projects.project_category</code>). <code>projects</code> có thêm <code>project_code</code> (mã nghiệp vụ, mặc định = Jira key) và <code>project_type_id</code>.</td></tr>
+          <tr><td>55</td><td><code>project_type_capabilities</code></td><td><code>(project_type_id, capability_code)</code></td><td><strong>PMS.</strong> Năng lực theo loại dự án (Checklist, Milestone, Gantt, Kế hoạch triển khai, Kỳ kế hoạch, Backlog, Capacity).</td></tr>
+          <tr><td>56</td><td><code>project_external_bindings</code></td><td><code>id</code>, FK <code>projects(id)</code></td><td><strong>PMS.</strong> Liên kết dự án ↔ hệ thống ngoài (mặc định Jira key), có hiệu lực theo khoảng ngày; đổi Jira key của dự án sẽ đóng binding cũ và mở binding mới (trigger, từ 19/10/2026).</td></tr>
+          <tr><td>57</td><td><code>ttm_project_configs</code></td><td><code>project_id</code> (PK, FK)</td><td><strong>PMS.</strong> Bật/tắt TTM theo dự án — trigger giữ khớp với <code>projects.ttm</code> (từ 19/10/2026); TTM hiện vẫn đọc <code>projects.ttm</code>.</td></tr>
+          <tr><td>58</td><td><code>project_members</code></td><td><code>id</code>, FK <code>projects(id)</code>, <code>users(id)</code></td><td><strong>PMS.</strong> Thành viên dự án và vai trò — vai trò PM_SM được trigger giữ khớp với <code>user_projects</code> (từ 19/10/2026); phân quyền hiện vẫn đọc <code>user_projects</code>.</td></tr>
         </tbody>
       </table>
 
@@ -849,22 +856,34 @@
         nhưng chưa tới mốc muộn → vẫn coi là hoàn thành (Pass), vì trạng thái đã đi qua thì luôn là “đã xong”. Cuối mỗi bảng có chú giải màu nền Done (xanh)/Warning (vàng)/Failed (đỏ) dùng chung cho các ô này.
       </div>
 
-      <h3>8.3. Cột "Nhận xét" — 2 badge cảnh báo tổng thể độc lập</h3>
-      <p>
-        <strong>Fail TTM-CNTT</strong>: so sánh R4G Date (hoặc ngày hiện tại nếu chưa có) với Target tổng theo tiêu chí TTM-CNTT (mục 7.1). Badge <strong>“Đạt TTM”</strong> xuất hiện khi Epic đã có R4G Date và không bị cảnh báo.
-      </p>
-      <p>
-        <strong>Fail TTM-E2E</strong> (badge riêng, độc lập hoàn toàn với Fail TTM-CNTT): chỉ có FAIL/NONE, không có mức Cảnh báo sớm/muộn. Tính từ T0 (Idea Approved Date,
-        tự fallback sang ngày tạo Epic trên Jira nếu thiếu) tới Due Date (hoặc hôm nay nếu chưa có), so với tiêu chí TTM-E2E. Vì T0 luôn tính được, cột stripe TTM-E2E và badge
-        này hiển thị đầy đủ ở cả 3 màn hình giám sát kể cả khi Epic thiếu Start Date.
-      </p>
+      <h3>8.3. Cột "NHẬN XÉT" và cột "PASS" (Quản trị Epic — cập nhật 16/10/2026)</h3>
+      <p>Cột <strong>NHẬN XÉT</strong> là một dải <strong>1x4 ô</strong>, thứ tự cố định <strong>Kết quả → Xử lý → Cảnh báo → Sai lệch dữ liệu</strong>. Mỗi ô hiện số mục của nhóm; nhóm không có mục nào hiện "-" và không bấm được.</p>
+      <table>
+        <thead><tr><th>Ô</th><th>Gồm các kết luận</th><th>Màu</th></tr></thead>
+        <tbody>
+          <tr><td>Kết quả</td><td>Fail / Đạt TTM-CNTT (QLDA), Fail / Đạt TTM-E2E (hai trục độc lập)</td><td>Xanh lá; <strong>nền cam, chữ trắng</strong> khi có Fail</td></tr>
+          <tr><td>Xử lý</td><td>Thiếu lý do Fail TTM, Thiếu phòng chịu TN chính và các khuyến nghị khác (bổ sung Start Date, sửa thứ tự ngày…)</td><td>Xanh dương</td></tr>
+          <tr><td>Cảnh báo</td><td>Cảnh báo muộn (engine legacy: cả Cảnh báo sớm), Sai Status, Chờ golive, Giải trình Golive, Pending lâu</td><td>Tím</td></tr>
+          <tr><td>Sai lệch dữ liệu</td><td>Mỗi rule đang vi phạm một mục, ví dụ "R1 — Thiếu Start Date" (bảng rule ở mục 9.1)</td><td>Hồng nhạt; <strong>nền cam, chữ trắng</strong> khi có vi phạm</td></tr>
+        </tbody>
+      </table>
+      <ul>
+        <li>Rê chuột vào ô có dữ liệu để mở panel chi tiết ngay dưới dải (cùng màu ô). Panel không tự đóng khi rời chuột — đóng bằng nút ×, bấm lại chính ô đó, hoặc rê/bấm sang ô khác để chuyển nhóm.</li>
+        <li>Cột <strong>PASS</strong> (bên phải NHẬN XÉT, trước TTM-CNTT) chỉ có icon: ✔ xanh khi <strong>Đạt TTM-CNTT (QLDA)</strong>, ✖ cam khi <strong>Fail TTM-CNTT (QLDA)</strong>; để trống khi chưa có kết luận (đang triển khai, ngoài phạm vi, không tính được, Sai lệch dữ liệu).</li>
+        <li>Ô NHẬN XÉT và bộ lọc "Nhận xét" dùng chung một quy tắc kết luận (<code>epic-row-verdicts.ts</code>), nên lọc theo một giá trị luôn ra đúng các Epic có mục đó trong ô.</li>
+        <li>Tiêu đề cột viết hoa (EPIC, NHẬN XÉT, STATUS); cột Release đổi tên <strong>DUE DATE</strong>, START-CNTT đổi tên <strong>START-DATE</strong>.</li>
+      </ul>
+      <p><strong>TTM-CNTT (QLDA)</strong>: so R4G Date (hoặc hôm nay nếu chưa có) với Target_CNTT = T1 + (N − 1) ngày làm việc. <strong>TTM-E2E</strong> (trục riêng, chỉ Đạt / Fail): từ T0 (Idea Approved Date, thiếu thì lấy ngày tạo Epic trên Jira) tới ngày kết thúc (R4G Date, hoặc Due Date nếu Tiêu chí TTM cấu hình vậy), so với Target_E2E = T0 + (N − 1) ngày làm việc; Đạt không yêu cầu status Released. Công thức đầy đủ từng badge xem popup "Logic cảnh báo".</p>
 
-      <h3>8.4. Nguyên tắc tính real-time</h3>
-      <p>
-        Không màn hình Epic Alerts nào đọc dữ liệu đã tổng hợp sẵn. Mỗi lần tải trang, hệ thống lấy dòng <code>issues</code> mới nhất
-        của từng Epic (không giới hạn theo 1 batch cụ thể) và tính lại toàn bộ cảnh báo — cả TTM-CNTT lẫn TTM-E2E — tại đúng thời điểm request, theo rule đang active. Vì vậy nếu không import gì
-        trong ngày, cảnh báo vẫn có thể tự chuyển trạng thái theo ngày thực tế.
-      </p>
+      <h3>8.4. Kết luận được tính sẵn và lưu cache (thay cho "tính real-time")</h3>
+      <p>Các màn hình <strong>không tính lại cảnh báo ở mỗi lần tải trang</strong> nữa. Scoring Service chấm mọi Epic một lần rồi lưu vào cache dẫn xuất (<code>epic_alert_row_cache</code>, <code>ttm_index_global_cache</code>, <code>ttm_dashboard_2_cache</code>) — Quản trị Epic, Chuẩn hoá dữ liệu, TTM Dashboard 2, Báo cáo Epic và MCP đọc từ đó (mục 6.4). Cache được tạo lại:</p>
+      <ul>
+        <li>sau mỗi lần import (thủ công hoặc API tự động);</li>
+        <li>một lần đầu mỗi ngày (lượt đầu ngày do lần tải trang đầu tiên kích hoạt) — để Cảnh báo muộn, Fail theo ngày hiện tại tự cập nhật dù không import;</li>
+        <li>khi lưu "Phạm vi dữ liệu cho TTM", "Phạm vi rule Sai lệch dữ liệu", Epic ngoại lệ, cờ Time to Market / Domain / PM-SM của dự án, hoặc đổi engine hiển thị;</li>
+        <li>khi SUPERADMIN bấm "Tạo lại cache" (Quản trị nguồn dữ liệu → Theo dõi cache dữ liệu).</li>
+      </ul>
+      <p>Mỗi lần chỉ một lượt tạo lại chạy (khoá <code>derived_cache_refresh_lock</code>); yêu cầu đến trong lúc đang chạy được gộp, lượt đang chạy sẽ chạy thêm một lần với dữ liệu mới nhất. Mọi màn hình hiện chỉ báo "Hệ thống đang tính toán lại cache" khi có lượt đang chạy. <strong>Rule mới chỉ có hiệu lực sau lần tạo lại cache kế tiếp.</strong> Xoá Epic (Từ chối import / Epic deletion) không tự tạo lại cache.</p>
 
       <h3>8.5. Cách tính ngày baseline từng pha (màn hình Quản trị Epic)</h3>
       <p>
@@ -991,7 +1010,7 @@
       <table>
         <thead><tr><th>Rule</th><th>Badge</th><th>Điều kiện vi phạm</th><th>Là "Sai lệch dữ liệu"?</th><th>Khuyến nghị kèm theo</th></tr></thead>
         <tbody>
-          <tr><td>R1</td><td>Thiếu Start Date</td><td>Status từ <strong>DESIGN</strong> trở đi — kể cả <strong>Pending / Reopened</strong> (ngang hàng In Progress) — và Start Date (T1) trống. <em>04/10/2026: tính từ DESIGN (trước đây từ DEV); 05/10/2026: tính cả Pending.</em></td><td>Có</td><td>Bổ sung Start Date</td></tr>
+          <tr><td>R1</td><td>Thiếu Start Date</td><td>Start Date (T1) trống <strong>VÀ</strong> ( <strong>(status khác Pending và từ DESIGN trở đi</strong> — kể cả Reopened, ngang hàng In Progress<strong>)</strong> <strong>HOẶC</strong> <strong>(status = Pending và status trước đó (<code>previous_status</code>) rỗng hoặc khác To Do / In PO)</strong> ). <em>04/10/2026: tính từ DESIGN (trước đây từ DEV); 05/10/2026: tính cả Pending; 12/10/2026: Epic Pending trước đó là To Do / In PO được miễn (Epic chưa từng bắt đầu) — TTM-CNTT của Epic đó là "không tính được", TTM-E2E vẫn chấm.</em></td><td>Có</td><td>Bổ sung Start Date</td></tr>
           <tr><td>R2</td><td>Pending lâu</td><td>Status Pending và số ngày làm việc từ T1 (hoặc ngày tạo Jira nếu thiếu T1) tới ngày tính ≥ 20% ngân sách TTM-CNTT của loại Epic.</td><td><strong>Không</strong> — chỉ là khuyến nghị (từ 29/09/2026)</td><td>Quyết định tiếp tục hay huỷ Epic</td></tr>
           <tr><td>R3</td><td>Sai thứ tự ngày</td><td>Không thoả <code>T0 ≤ T1 &lt; R4G Date ≤ Due Date</code> (chỉ xét mốc đã có giá trị); mọi cặp sai gộp thành 1 vi phạm.</td><td>Có</td><td>Rà soát lại các mốc ngày</td></tr>
           <tr><td>R4</td><td>Thiếu Phân loại yêu cầu</td><td>Phân loại yêu cầu trống hoặc "none".</td><td>Có</td><td>Bổ sung Phân loại yêu cầu</td></tr>
@@ -1110,6 +1129,14 @@
       <p><strong>Bộ lọc Nhận xét:</strong> ngoài các giá trị Đạt/Fail/Cảnh báo/Sai Status/Sai lệch dữ liệu/trục Release, có thêm lựa chọn <strong>“Ngoài phạm vi TTM-CNTT”</strong> để lọc riêng các Epic nằm ngoài khoảng ngày “R4G for TTM (CNTT)” đang cấu hình (mục 8.7).</p>
       <h3>11.3. Quick filter "Epics in PO" của Quản trị Epic</h3>
       <p>Nút <strong>"Epics in PO"</strong> trên thanh công cụ chọn nhanh các Epic ở trạng thái <strong>To Do</strong>, <strong>IN PO</strong> hoặc <strong>Released</strong> (thay cho màn hình Epic in PO riêng đã gỡ); bấm lần nữa để trả bộ lọc Status về mặc định (mọi status trừ Cancelled).</p>
+      <h3>11.4. Chuẩn hoá dữ liệu (<code>/data-normalization</code>) — từ 12/10/2026</h3>
+      <p>Menu "Giám sát", ngay dưới Quản trị Epic (chức năng <code>data_normalization</code> trong Ma trận phân quyền). Liệt kê các Epic cần sửa dữ liệu trên Jira, <strong>mỗi rule một panel</strong> (mặc định đóng, bấm tiêu đề để mở; tiêu đề luôn hiện số Epic):</p>
+      <ol>
+        <li><strong>Thiếu lý do Fail TTM</strong> — Epic Fail TTM-CNTT có R4G Date muộn hơn Target mà chưa ghi khâu fail hoặc chưa có phòng chịu trách nhiệm chính; đúng tập Epic của widget THIẾU LÝ DO trên TTM Dashboard 2 (chỉ có ở engine Scoring Service).</li>
+        <li><strong>R1, R3–R6, R7 "Sai Status (Release)", R8–R10</strong> — theo thứ tự R. Phụ đề là giải thích rule và "Cách chuẩn hoá" (lấy từ khuyến nghị tương ứng của Scoring Service). R8–R10 chỉ có khi engine hiển thị là Scoring Service; ở engine cũ R1/R5/R7 hiện đúng điều kiện của engine cũ. R2 "Pending lâu" không có panel.</li>
+      </ol>
+      <p>Một Epic có thể nằm ở nhiều panel. Dữ liệu theo phạm vi quyền của người xem và cùng bộ lọc với TTM Dashboard 2 (Domain, Dự án, Component, PM/SM, Đơn vị yêu cầu); Epic Cancelled và Epic ngoại lệ không xuất hiện. Bảng Epic: key + Summary, Created date, Ngày duyệt ý tưởng, Start date, R4G date, Due date, Status; 25 Epic/trang.</p>
+
       <h3>11.5. TTM Dashboard (<code>/dashboard-new</code>) — đã gỡ (11/10/2026)</h3>
       <div class="callout warn">Màn hình TTM Dashboard bản đầu (SUPERADMIN-only từ 05/10/2026) đã được thay hoàn toàn bằng <strong>TTM Dashboard 2</strong> (mục 21). URL <code>/dashboard-new</code> chuyển hướng sang <code>/ttm-dashboard-2</code>; chức năng <code>dashboard_new</code> đã được gỡ khỏi Ma trận phân quyền.</div>
       <h3>11.6. Báo cáo Epic (<code>/reports</code>) — mọi role đã đăng nhập</h3>
@@ -1195,9 +1222,9 @@
             Chỉ SUPERADMIN — 2 chế độ export, cùng ghi ra 1 định dạng file SQL dump và dùng chung luồng Import:
             <ul style="margin:6px 0 6px 18px; font-size:12.5px;">
               <li><strong>Export theo lớp dữ liệu</strong> (mặc định, đơn giản) — chọn 1 khoảng "Start/End Data Layer" (<code>aggregated_at</code>) liên tiếp; luôn gồm dữ liệu tổng hợp/cảnh báo/lịch sử Epic (<code>epic_ttm_snapshots</code>, <code>issue_daily_snapshots</code>, <code>epic_alert_history</code>, <code>epic_alert_timeline</code>, <code>epic_milestone_history</code>) trong khoảng đã chọn, tuỳ chọn bật thêm "Export Raw Data" để gộp <code>issues</code>/<code>import_rows</code>/<code>import_batches</code> cùng khoảng.</li>
-              <li><strong>Export nâng cao (chọn bảng thủ công)</strong> — export toàn bộ dữ liệu (không lọc theo ngày) cho 1 danh sách 17 bảng cố định (user, Domain, Dự án, phân quyền Domain/Dự án, Component, ngày nghỉ, rule cảnh báo, <code>import_batches</code>/<code>import_rows</code>/<code>issues</code>, <code>epic_ttm_snapshots</code>, <code>issue_daily_snapshots</code>, <code>epic_alert_history</code>, <code>epic_alert_timeline</code>, <code>epic_milestone_history</code>, audit log).</li>
+              <li><strong>Export nâng cao (chọn bảng thủ công)</strong> — export toàn bộ dữ liệu (không lọc theo ngày) cho 1 danh sách danh sách bảng cố định (user, Domain, Dự án, phân quyền Domain/Dự án/Component, Component, ngày nghỉ, ngày làm bù, rule cảnh báo, Tiêu chí TTM, ánh xạ issue type, <code>import_batches</code>/<code>import_rows</code>/<code>issues</code>, <code>epic_ttm_snapshots</code>, <code>issue_daily_snapshots</code>, <code>epic_alert_history</code>, <code>epic_alert_timeline</code>, <code>epic_milestone_history</code>, audit log — và từ 19/10/2026 các bảng cấu hình: Phạm vi dữ liệu cho TTM, cấu hình Scoring Service, Epic ngoại lệ, danh sách Từ chối import + ngày A/B, Lead view, Ma trận phân quyền, Cấu hình Jira, thời hạn lưu raw). Bảng nào CSDL chưa có (chưa migrate) thì không hiện trong danh sách.</li>
             </ul>
-            Import dùng <strong>upsert theo khóa chính</strong> — dòng dữ liệu trùng khóa chính đã tồn tại sẽ được <strong>ghi đè</strong> bằng dữ liệu trong file, không còn bị bỏ qua (file export từ bản cũ hơn vẫn tương thích, giữ hành vi bỏ qua). Cả 2 chế độ đều <strong>chưa</strong> bao phủ <code>epic_data_anomaly_violations</code> (tính lại được từ <code>issues</code> nên không cần backup riêng), Ma trận phân quyền (<code>permission_features</code>/<code>role_feature_permissions</code>), Popup/Banner, SSO/API Key/MCP và các bảng cấu hình singleton.
+            Import dùng <strong>upsert theo khóa chính</strong> — dòng dữ liệu trùng khóa chính đã tồn tại sẽ được <strong>ghi đè</strong> bằng dữ liệu trong file, không còn bị bỏ qua (file export từ bản cũ hơn vẫn tương thích, giữ hành vi bỏ qua). Cả 2 chế độ đều <strong>chưa</strong> bao phủ <code>epic_data_anomaly_violations</code> (tính lại được từ <code>issues</code> nên không cần backup riêng), các bảng cache (dựng lại bằng “Tạo lại cache”), Popup/Banner, SSO/API Key/MCP và các bảng module Quản lý dự án (PMS).
           </td></tr>
         </tbody>
       </table>
@@ -1733,7 +1760,7 @@
       </p>
       <ul>
         <li>Chỉ con số thống kê được mở rộng. Khi bấm vào số liệu để mở popup Quản trị Epic, danh sách vẫn theo đúng phân quyền dữ liệu của user, nên có thể ít hơn con số trên dashboard — màn hình hiện dòng ghi chú này khi đang ở Lead view.</li>
-        <li>Số liệu toàn công ty đọc từ cùng bộ cache <code>ALL</code> của SUPERADMIN/SUPERVISOR (mục 21.5). Khi lọc, dữ liệu tải về trình duyệt chỉ gồm các trường dùng để đếm (không có Epic key, tên Epic).</li>
+        <li>Số liệu toàn công ty đọc từ cùng bộ cache <code>ALL</code> của SUPERADMIN/SUPERVISOR (mục 21.5). Khi lọc ở Lead view, số liệu được tính <strong>ở máy chủ</strong> — trình duyệt chỉ nhận con số tổng hợp, không nhận dòng Epic nào của toàn công ty (từ 19/10/2026).</li>
         <li>SUPERADMIN / SUPERVISOR vốn đã xem toàn công ty nên không thấy nút chuyển. Tắt công tắc: mọi user quay về chỉ xem số liệu theo phạm vi của mình.</li>
       </ul>
     </section>

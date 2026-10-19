@@ -107,7 +107,7 @@ are declared once in `src/lib/scoring/catalog.ts`; the "Logic cảnh báo" popup
 # Icons standard — phosphoricons.com
 
 All UI icons across the application must be imported exclusively from Phosphor Icons (`@phosphor-icons/react` from `phosphoricons.com`).
-When designing or updating Epic list screens (`/epic-alerts-15`, `/epic-in-po`, `/epic-alerts`, `/reports`):
+When designing or updating Epic list screens (`/epic-alerts-15`, `/data-normalization`, `/reports` — `/epic-in-po` and `/epic-alerts` were removed 2026-10-11 and now only redirect, see `next.config.ts`):
 - In the Epic column, use `Warning` icon for alert triggers and `ArrowSquareOut` icon for opening Jira in a new tab.
 - Prepend `CaretRight` icon before date text in the START-E2E column/cell, styled with muted font-size (11px) and lighter color (`#64748b`).
 - Prepend `CaretLineRight` icon before date text in the START-CNTT column/cell, styled with muted font-size (11px) and lighter color (`#64748b`).

@@ -22,6 +22,26 @@ export const NO_PM_SM_NARROWINGS: PmSmNarrowings = new Map();
  * the Epics no PM/SM is responsible for. Never a real name. */
 export const UNASSIGNED_PM_SM = '(Chưa gán PM/SM)';
 
+/**
+ * How a PM/SM name and a component are compared (2026-10-19): Unicode-NFC, trimmed, single spaces,
+ * case-insensitive. Names come from users.full_name and components from Jira on one side and from
+ * what an admin typed in user_project_components on the other — "API-Line-1" vs "api-line-1 " must
+ * not take an Epic away from its PM/SM.
+ */
+export function assignmentKey(value: string): string {
+  return value.normalize('NFC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi');
+}
+
+function grantOf(narrowedInProject: ReadonlyMap<string, readonly string[]>, name: string): readonly string[] | undefined {
+  const exact = narrowedInProject.get(name);
+  if (exact) return exact;
+  const key = assignmentKey(name);
+  for (const [grantName, components] of narrowedInProject) {
+    if (assignmentKey(grantName) === key) return components;
+  }
+  return undefined;
+}
+
 export function splitOwnerNames(ownerName: string | null | undefined): string[] {
   // Deduplicated: "An, An" must not count the Epic twice under An.
   return [...new Set((ownerName || '').split(',').map((name) => name.trim()).filter(Boolean))];
@@ -45,9 +65,10 @@ export function assignedPmSmNames(
   const names = splitOwnerNames(ownerName);
   const narrowedInProject = projectKey ? narrowings.get(projectKey) : undefined;
   if (!narrowedInProject) return names;
+  const epicComponents = new Set((components ?? []).map(assignmentKey));
   return names.filter((name) => {
-    const granted = narrowedInProject.get(name);
-    return !granted || (components ?? []).some((component) => granted.includes(component));
+    const granted = grantOf(narrowedInProject, name);
+    return !granted || granted.some((component) => epicComponents.has(assignmentKey(component)));
   });
 }
 

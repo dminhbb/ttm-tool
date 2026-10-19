@@ -125,7 +125,8 @@ export function summarizeEpicComments(row: EpicAlertRowPhased): EpicCommentSumma
   if (row.ttmE2eAlertLevel === 'FAIL') {
     add('RESULT', { key: 'E2E_FAIL', label: 'Fail TTM-E2E', message: 'Đã vượt ngân sách TTM-E2E.', tone: 'danger' });
   } else if (isTtmE2eAchieved(row)) {
-    add('RESULT', { key: 'E2E_PASS', label: 'Đạt TTM-E2E', message: 'Epic hoàn thành TTM-E2E đúng hạn theo rule (T0 → R4G Date) và đã Released.', tone: 'success' });
+    // Scoring Service: its own finding (no Released requirement since 2026-10-01); the legacy engine still requires Released.
+    add('RESULT', { key: 'E2E_PASS', label: 'Đạt TTM-E2E', message: findingOf(row, 'E2E_PASS')?.message ?? 'Epic hoàn thành TTM-E2E đúng hạn theo rule (T0 → R4G Date) và đã Released.', tone: 'success' });
   }
 
   // ---- Release axis

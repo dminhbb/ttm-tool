@@ -19,6 +19,12 @@ describe('PM/SM by component (owner rule 2026-10-12)', () => {
     assert.deepEqual(assignedPmSmNames(legacyOwners, 'API', ['API-Line-2'], narrowings), ['nguyenha']);
   });
 
+  it('names and components match whatever their case / spacing (2026-10-19)', () => {
+    const typed: PmSmNarrowings = new Map([['API', new Map([['DoPhucLamN ', [' api-line-1']]])]]);
+    assert.deepEqual(assignedPmSmNames(legacyOwners, 'API', ['API-Line-1'], typed), ['dophuclamn', 'nguyenha']);
+    assert.deepEqual(assignedPmSmNames(legacyOwners, 'API', ['API-Line-2'], typed), ['nguyenha']);
+  });
+
   it('a project nobody is narrowed in keeps every PM/SM; when everybody is narrowed an Epic can be left with no one', () => {
     assert.deepEqual(assignedPmSmNames('An, Bình', 'WM', [], narrowings), ['An', 'Bình']);
     const allNarrowed: PmSmNarrowings = new Map([['API', new Map([['dophuclamn', ['API-Line-1']], ['nguyenha', ['API-Line-2', 'API-Line-3']]])]]);

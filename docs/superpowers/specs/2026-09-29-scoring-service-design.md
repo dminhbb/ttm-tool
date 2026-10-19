@@ -952,3 +952,30 @@ R1 vi phạm  ⇔  T1 (Start Date) trống hoặc "none"
 - **Đối chiếu:** `parity.ts` — R1 không được service gắn khi Epic đang Pending → `D10_DATA_QUALITY_RULES` (engine legacy không đổi).
 - Logic: `startDateRequired()` (`scoring/rules/data-quality.ts`). Test: `scoring.test.ts` "R1 (2026-10-12)", `parity.test.ts`
   "D10 (2026-10-12)".
+
+## 28. Khuyến nghị "Thiếu lý do Fail TTM" / "Thiếu phòng chịu TN chính" và R5 miễn Pending từ Design (2026-10-10 → 10-14)
+
+Ghi lại các thay đổi `scoring-14` → `scoring-20` chưa có mục riêng (bổ sung tài liệu 19/10/2026):
+
+- **`REC_MISSING_FAIL_REASON`** "Thiếu lý do Fail TTM" (trục TTM_CNTT, nhóm RECOMMENDATION, `scoring-14`, 10/10/2026):
+  Epic có `CNTT_FAIL` (active) và cả 9 trường lý do (`khau_ba`, `khau_co`, `khau_dev`, `khau_pm_sm`, `khau_po`,
+  `khau_pentest`, `khau_sa`, `khau_sit_uat`, `note_ly_do_khac` — fact `khau*` / `noteLyDoKhac`) đều trống, chỉ khoảng trắng
+  hoặc "none". Từ 14/10/2026 (`scoring-19`) chỉ còn xét **Fail có R4G Date muộn hơn Target** — Fail vì chưa có R4G Date
+  mà đã quá Target không bị hỏi lý do.
+- **`REC_MISSING_RESPONSIBLE_DEPARTMENT`** "Thiếu phòng chịu TN chính" (`scoring-19`, đọc dữ liệu thật từ `scoring-20`,
+  14/10/2026): cùng điều kiện nền + fact `responsibleDepartment` (`issues.main_fail_dept`, CSV `main_fail_dept`) trống
+  hoặc "None" (không phân biệt hoa thường).
+- Bộ lọc: `MISSING_FAIL_REASON` = một trong hai badge (widget THIẾU LÝ DO của TTM Dashboard 2), `MISSING_FAIL_STAGE`,
+  `MISSING_RESPONSIBLE_DEPARTMENT` (`scoring/select.ts`). Là khuyến nghị: không đổi Đạt/Fail, không vào chỉ số, không có
+  nhãn đối chiếu (engine legacy không có).
+- **R5 — Pending từ Design cũng được miễn** (`scoring-19`, 14/10/2026): tập previous_status được miễn của R5 thành
+  {To Do, In PO, Design} (`PENDING_EXEMPT_PREVIOUS_STATUSES_R5`), vì Requirement Level còn đang chốt trong Design. R1 giữ
+  {To Do, In PO} (mục 27). Công thức R5 hiện hành:
+
+```text
+R5 vi phạm  ⇔  Requirement Level trống hoặc "none"
+               VÀ (  (status ≠ Pending  VÀ  status > DESIGN)
+                  HOẶC (status = Pending  VÀ  previous_status ∉ {To Do, In PO, Design}) )
+```
+
+- Logic: `recommendations.ts`, `requirementLevelRequired()` (`data-quality.ts`). Test: `scoring.test.ts`.

@@ -112,12 +112,13 @@ Ba khối này lấy từ TTM Dashboard và tính lại theo tiêu chí của ph
 
 ### 7.1. Widget row (thiết kế lại 2026-10-05 → 10-06)
 
-Hàng 9 thẻ KPI, 2 nhóm màu: 5 thẻ trái (nền navy nhạt) là số liệu TTM theo tiêu chí phễu, 4 thẻ phải (nền xám) là số liệu vận hành. Mỗi thẻ 3 tầng: tiêu đề → con số chính → dòng phụ; cỡ chữ dùng chung (`KPI_TITLE_CLASS`, `KPI_VALUE_CLASS`, `KPI_SUBTITLE_CLASS`) và co theo bề rộng hàng (`cqw`).
+Hàng 10 thẻ KPI, 2 nhóm màu: 6 thẻ trái (nền navy nhạt) là số liệu TTM theo tiêu chí phễu, 4 thẻ phải (nền xám) là số liệu vận hành. Mỗi thẻ 3 tầng: tiêu đề → con số chính → dòng phụ; cỡ chữ dùng chung (`KPI_TITLE_CLASS`, `KPI_VALUE_CLASS`, `KPI_SUBTITLE_CLASS`) và co theo bề rộng hàng (`cqw`).
 
 | Thẻ | Con số chính | Dòng phụ / hành vi |
 |---|---|---|
 | TỔNG EPIC | **L02** | "Phạm vi tính"; bấm mở `TTM_COUNTED_IN_SCOPE`. Số bị loại (Cancelled / Epic ngoại lệ / dự án TTM = N) xem ở popup L02 của phễu |
-| FAIL TTM-CNTT | **L05ab + L05ba** | "Cần xử lý"; bấm mở `TTM_LATE_IN_SCOPE` + `OVERDUE_MISSING_R4G_IN_SCOPE` |
+| FAIL TTM-CNTT | **L05ab + L05ba** | "Phạm vi của QLDA"; bấm mở `TTM_LATE_IN_SCOPE` + `OVERDUE_MISSING_R4G_IN_SCOPE` |
+| THIẾU LÝ DO (từ 2026-10-10, tách 2 số 2026-10-14) | Epic Fail TTM-CNTT có R4G Date muộn hơn Target mà thiếu khâu fail **hoặc** thiếu phòng chịu TN chính | Dòng phụ "n khâu fail · m chịu TN chính" (`MISSING_FAIL_STAGE` / `MISSING_RESPONSIBLE_DEPARTMENT`); bấm mở `MISSING_FAIL_REASON` — xem `brd/16-ttm-indexes.md` §11 |
 | TTM-CNTT — "Toàn phòng QLDA" | Vòng % Pass + phân số L05aa / (L05aa + L05ab + L05ba) | TTM-CNTT (QLDA) của tập Epic đang xem |
 | TTM-CNTT — "Phạm vi của QA" | Vòng % + phân số Đạt / (Đạt + Fail) | Chỉ Epic MVP Done / Released trong "R4G for TTM (QA)" |
 | TTM-E2E | Vòng % + phân số Đạt TTM-E2E / (Đạt + Fail TTM-E2E) | "Đạt / Đánh giá"; bấm mở `FAIL_E2E`; không áp "Phạm vi dữ liệu cho TTM" |
@@ -145,11 +146,14 @@ Lead view: 4 tab (Domain, Phân loại Epic, PM/SM, Dự án); PM/SM view: 2 tab
 | Sai lệch dữ liệu | L02 − L03 của dòng — Epic Sai lệch dữ liệu, chưa được chấm TTM-CNTT. Từ 2026-10-05 đếm riêng (`TtmBreakdownItem.anomaly`), không còn nằm trong "Đúng tiến độ" |
 | Đúng tiến độ / Chậm tiến độ | Epic chưa có R4G Date và không Sai lệch dữ liệu (L04b): Chậm = đang Fail hoặc Cảnh báo muộn, còn lại là Đúng |
 
-Tổng theo cột của một chiều luôn bằng tiêu chí tương ứng của phễu (Σ Tổng số Epic = L02, Σ Pass TTM = L05aa, Σ Fail TTM = L05ab + L05ba) — **trừ chiều PM/SM**: từ 2026-10-05 mỗi PM/SM là một dòng và Epic có nhiều PM/SM ("A, B") được tính cho từng người (`BREAKDOWN_KEYS`), nên tổng các dòng có thể lớn hơn L02; đổi lại danh sách mở ra từ mỗi dòng (`owner_names && [A]`) khớp đúng con số. Tên trùng trong một Epic ("An, An") chỉ đếm một lần. Ô tỷ lệ hiện "—" khi dòng chưa có Epic nào được đánh giá.
+Tổng theo cột của một chiều luôn bằng tiêu chí tương ứng của phễu (Σ Tổng số Epic = L02, Σ Pass TTM = L05aa, Σ Fail TTM = L05ab + L05ba) — kể cả chiều PM/SM từ 2026-10-12: mỗi PM/SM một dòng, Epic có n PM/SM tính 1/n cho mỗi người (mục 8.3; bản 2026-10-05 tính 1 cho từng người nên tổng có thể lớn hơn L02). Tên trùng trong một Epic ("An, An") chỉ đếm một lần. Ô tỷ lệ hiện "—" khi dòng chưa có Epic nào được đánh giá.
 
 ### 7.3. Section Pie chart
 
 Lead view: Theo Đơn vị yêu cầu, Theo Domain nghiệp vụ (khi có > 1 domain), Theo Phân loại Epic (mở sẵn), Theo PM/SM, Theo Dự án; PM/SM view: chỉ Theo Phân loại Epic. Mỗi section có 3 biểu đồ:
+
+- Số giá trị hiện riêng (phần còn lại gộp "Khác.."): **10** ở Theo Đơn vị yêu cầu và Theo Dự án (từ 2026-10-14), **mọi Domain** ở Theo Domain nghiệp vụ (không gộp, Domain có giá trị 0 vẫn có trong chú giải, mỗi Domain giữ một màu ở cả 3 biểu đồ — 2026-10-12), **4** ở các section khác.
+- **Theo PM/SM** dùng biểu đồ thanh ngang thay cho donut (`PmsmBarChartCards.tsx`, 2026-10-11): sắp xếp giảm dần, mặc định hiện Top 7 cao nhất + Top 7 thấp nhất, nút "··· +N PM/SM" bung cả 3 biểu đồ cùng lúc (cuộn trong khung 460px). Số liệu theo quy tắc chia 1/n ở mục 8.3, hiển thị bằng `formatEpicCount` (dưới 0,5 hiện "<1").
 
 | Biểu đồ | Số liệu theo từng giá trị của chiều |
 |---|---|
@@ -177,6 +181,14 @@ Lead view: Theo Đơn vị yêu cầu, Theo Domain nghiệp vụ (khi có > 1 do
 | Gán một hay nhiều component | Epic mang ít nhất một component được gán |
 
 Epic không thuộc về ai → "Chưa gán PM/SM". Giới hạn component chỉ áp dụng cho vai trò USER (giống quyền xem). Quy tắc này dùng chung cho mọi màn hình (cột và bộ lọc PM/SM ở Quản trị Epic, popup Duyệt Epic, dashboard).
+
+### 8.3a. Lead view — lọc được tính ở server (2026-10-19)
+
+Ở Lead view (số liệu toàn công ty cho Admin / PM-SM), dòng Epic toàn công ty **không gửi xuống trình duyệt**:
+`GET /api/ttm-dashboard-2/rows?view=lead` trả 400, trang gọi `GET /api/ttm-dashboard-2/summary?view=lead&domain=…&projects=…&components=…&pmSms=…&requestingUnits=…`
+(tham số danh sách lặp lại) cho mỗi tổ hợp bộ lọc; server dựng phễu bằng đúng `filterTtmDashboard2Rows` +
+`summarizeTtmFunnel` nên số liệu không đổi. Ở view "Của tôi" và khi xem dưới quyền, trang vẫn tải dòng Epic
+trong phạm vi của người xem và tính lại trên trình duyệt như trước.
 
 ### 8.3. Số liệu chiều PM/SM (ma trận + section "Theo PM/SM")
 
