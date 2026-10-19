@@ -471,13 +471,36 @@ export async function exportSmartSurfaceToSql(options: SmartSurfaceExportOptions
   `, [issueIds]);
   const importRowIds = importRowsResult.rows.map((row) => row.id);
 
+  const SMART_CONFIG_TABLES = [
+    'domains',
+    'projects',
+    'project_components',
+    'users',
+    'user_domains',
+    'user_projects',
+    'user_project_components',
+    'holidays',
+    'makeup_workdays',
+    'epic_status_alert_rules',
+    'ttm_policy_configs',
+    'issue_type_role_mapping',
+    'ttm_scope_config',
+    'scoring_engine_settings',
+    'scoring_parameters',
+    'scoring_rule_settings',
+    'black_listed_epics',
+    'denied_import_epics',
+    'import_admission_settings',
+    'dashboard_view_settings',
+  ];
+
   const generatedAt = new Date().toISOString();
   const lines: string[] = [
     EXPORT_SIGNATURE,
     SMART_SURFACE_EXPORT_HEADER,
     `-- Generated at: ${generatedAt}`,
     `-- Surface layer as of date: ${layerDate}`,
-    '-- Tables: import_batches, import_rows, issues',
+    `-- Tables: import_batches, import_rows, issues, ${SMART_CONFIG_TABLES.join(', ')}`,
     `-- Includes schema: ${includeSchema ? 'yes (CREATE TABLE IF NOT EXISTS, columns + primary key only)' : 'no (data only)'}`,
     '-- Import behavior: creates a consolidated surface data layer stamped with the import execution timestamp (NOW()).',
     '',
@@ -529,6 +552,11 @@ export async function exportSmartSurfaceToSql(options: SmartSurfaceExportOptions
 
   // 3. Export surface issues (Epics + Stories + Subtasks)
   lines.push(...await exportOneTableToSql('issues', includeSchema, 'id = ANY($1::int[])', [issueIds]));
+
+  // 4. Export TTM scoring, calendar, scope & exclusion config tables so TTM calculations match across environments
+  for (const configTable of SMART_CONFIG_TABLES) {
+    lines.push(...await exportOneTableToSql(configTable, includeSchema));
+  }
 
   return lines.join('\n');
 }
@@ -678,7 +706,7 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
   const SMART_LAYER_TABLES = new Set(['import_batches', 'import_rows', 'issues']);
   const hasSmartLayerTablesSelected = isSmartSurfaceExport && insertTables.some((tableName) => SMART_LAYER_TABLES.has(tableName));
   const tablesToDisableTriggers = hasSmartLayerTablesSelected
-    ? [...new Set([...insertTables, 'import_batches', 'import_rows', 'issues'])]
+    ? [...new Set([...insertTables, 'import_batches', 'import_rows', 'issues', 'epic_ttm_snapshots', 'issue_daily_snapshots'])]
     : insertTables;
 
   const client = await getClient();
@@ -776,6 +804,32 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
             const tuples = chunk.map((item) => `(${item.valuesTuple})`).join(', ');
             await client.query(`INSERT INTO tmp_smart_issues (${columns}) VALUES ${tuples};`);
           }
+
+          // Clean up any existing issues (and their snapshots) on the target DB whose issue_key is no longer
+          // present in the imported surface layer, as well as any issues with aggregated_at newer than importNow,
+          // so DISTINCT ON (issue_key) ORDER BY aggregated_at DESC reflects the imported surface layer 100%.
+          await client.query(`
+            DELETE FROM "epic_ttm_snapshots" AS ets
+            WHERE NOT EXISTS (
+              SELECT 1 FROM tmp_smart_issues AS s WHERE s.issue_key = ets.epic_key
+            )
+            OR ets.aggregated_at > $1::timestamptz;
+          `, [importNow]);
+          await client.query(`
+            DELETE FROM "issue_daily_snapshots" AS ids
+            WHERE NOT EXISTS (
+              SELECT 1 FROM tmp_smart_issues AS s WHERE s.issue_key = ids.issue_key
+            )
+            OR ids.aggregated_at > $1::timestamptz;
+          `, [importNow]);
+          await client.query(`
+            DELETE FROM "issues" AS i
+            WHERE NOT EXISTS (
+              SELECT 1 FROM tmp_smart_issues AS s WHERE s.issue_key = i.issue_key
+            )
+            OR i.aggregated_at > $1::timestamptz;
+          `, [importNow]);
+
           const targetColsSql = nonIdCols.map(quoteIdent).join(', ');
           const selectColsSql = nonIdCols.map((col) => {
             if (col === 'source_import_batch_id') return '$1::int AS "source_import_batch_id"';
@@ -852,26 +906,125 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
       }
     }
 
+    const HISTORICAL_LAYER_TABLES = new Set([
+      'import_batches',
+      'import_rows',
+      'issues',
+      'epic_ttm_snapshots',
+      'issue_daily_snapshots',
+      'epic_alert_history',
+      'epic_alert_timeline',
+      'epic_milestone_history',
+      'audit_logs',
+    ]);
+
+    const SECONDARY_UNIQUE_CONFLICT_PREDICATES: Record<string, string[]> = {
+      domains: ['t.domain_code = incoming.domain_code'],
+      epic_alert_history: [
+        't.epic_key = incoming.epic_key AND t.alert_date = incoming.alert_date AND t.alert_type = incoming.alert_type AND t.phase = incoming.phase',
+      ],
+      epic_alert_timeline: [
+        't.end_date IS NULL AND incoming.end_date IS NULL AND t.epic_key = incoming.epic_key AND t.alert_type = incoming.alert_type',
+      ],
+      epic_milestone_history: ['t.epic_key = incoming.epic_key AND t.milestone = incoming.milestone'],
+      epic_status_alert_rules: [
+        't.epic_complexity_type = incoming.epic_complexity_type AND t.epic_status = incoming.epic_status',
+      ],
+      epic_ttm_snapshots: ['t.epic_key = incoming.epic_key AND t.aggregated_at = incoming.aggregated_at'],
+      issue_daily_snapshots: ['t.issue_key = incoming.issue_key AND t.aggregated_at = incoming.aggregated_at'],
+      issue_type_role_mapping: ['t.issue_type = incoming.issue_type'],
+      issues: [
+        't.issue_key = incoming.issue_key AND t.source_import_batch_id = incoming.source_import_batch_id',
+      ],
+      makeup_workdays: ['t.work_date = incoming.work_date'],
+      project_components: [
+        't.project_key = incoming.project_key AND t.component_name = incoming.component_name',
+      ],
+      projects: [
+        't.source_project_key = incoming.source_project_key',
+        't.project_code = incoming.project_code',
+      ],
+      ttm_policy_configs: [
+        't.ttm_type = incoming.ttm_type AND t.epic_complexity_type = incoming.epic_complexity_type',
+      ],
+      users: [
+        'LOWER(t.email) = LOWER(incoming.email)',
+        "SPLIT_PART(LOWER(t.email), '@', 1) = SPLIT_PART(LOWER(incoming.email), '@', 1)",
+      ],
+    };
+
     for (const tableName of insertTables) {
       if (hasSmartLayerTablesSelected && SMART_LAYER_TABLES.has(tableName)) continue;
       const insertsForTable = parsed.statements.filter((statement) => statement.type === 'INSERT' && statement.tableName === tableName);
-      if (insertsForTable.length === 0) continue;
+      const isFullSyncTable = !HISTORICAL_LAYER_TABLES.has(tableName);
+      if (insertsForTable.length === 0) {
+        if (isFullSyncTable) {
+          await client.query(`DELETE FROM ${quoteIdent(tableName)};`);
+        }
+        continue;
+      }
       const tableResult = resultByTable.get(tableName)!;
       const columns = insertsForTable[0].columns!;
       const conflictClause = insertsForTable[0].conflictClause!;
+      const secondaryPredicates = SECONDARY_UNIQUE_CONFLICT_PREDICATES[tableName];
+      const pkColumns = await getPrimaryKeyColumns(tableName);
+
+      if (isFullSyncTable || (secondaryPredicates && secondaryPredicates.length > 0)) {
+        await client.query(`CREATE TEMP TABLE tmp_import_stage (LIKE ${quoteIdent(tableName)}) ON COMMIT DROP;`);
+        for (let chunkStart = 0; chunkStart < insertsForTable.length; chunkStart += INSERT_BATCH_CHUNK_SIZE) {
+          const chunk = insertsForTable.slice(chunkStart, chunkStart + INSERT_BATCH_CHUNK_SIZE);
+          const tuples = chunk.map((item) => `(${item.valuesTuple})`).join(', ');
+          await client.query(`INSERT INTO tmp_import_stage (${columns}) VALUES ${tuples};`);
+        }
+        if (pkColumns.length > 0) {
+          const pkSelfMatchSql = pkColumns.map((col) => `t.${quoteIdent(col)} = incoming.${quoteIdent(col)}`).join(' AND ');
+          await client.query(`
+            DELETE FROM tmp_import_stage AS t
+            USING tmp_import_stage AS incoming
+            WHERE t.ctid < incoming.ctid
+              AND (${pkSelfMatchSql});
+          `);
+          if (isFullSyncTable) {
+            const pkTargetMatchSql = pkColumns.map((col) => `s.${quoteIdent(col)} = t.${quoteIdent(col)}`).join(' AND ');
+            await client.query(`
+              DELETE FROM ${quoteIdent(tableName)} AS t
+              WHERE NOT EXISTS (
+                SELECT 1 FROM tmp_import_stage AS s
+                WHERE ${pkTargetMatchSql}
+              );
+            `);
+          }
+        }
+        if (secondaryPredicates && secondaryPredicates.length > 0) {
+          for (const predicate of secondaryPredicates) {
+            await client.query(`
+              DELETE FROM tmp_import_stage AS t
+              USING tmp_import_stage AS incoming
+              WHERE t.ctid < incoming.ctid
+                AND (${predicate});
+            `);
+            await client.query(`
+              DELETE FROM ${quoteIdent(tableName)} AS t
+              USING tmp_import_stage AS incoming
+              WHERE t.id <> incoming.id
+                AND (${predicate});
+            `);
+          }
+        }
+        const result = await client.query<{ isNewRow: boolean }>(
+          `INSERT INTO ${quoteIdent(tableName)} (${columns}) SELECT ${columns} FROM tmp_import_stage ${conflictClause} RETURNING (xmax = 0) AS "isNewRow";`,
+        );
+        const insertedCount = result.rows.filter((row) => row.isNewRow).length;
+        tableResult.inserted += insertedCount;
+        tableResult.updated += result.rows.length - insertedCount;
+        tableResult.skippedDuplicates += insertsForTable.length - result.rows.length;
+        await client.query('DROP TABLE tmp_import_stage;');
+        continue;
+      }
+
       for (let chunkStart = 0; chunkStart < insertsForTable.length; chunkStart += INSERT_BATCH_CHUNK_SIZE) {
         const chunk = insertsForTable.slice(chunkStart, chunkStart + INSERT_BATCH_CHUNK_SIZE);
         const tuples = chunk.map((item) => `(${item.valuesTuple})`).join(', ');
-        if (tableName === 'epic_alert_timeline') {
-          await client.query(`
-            DELETE FROM epic_alert_timeline AS t
-            USING (VALUES ${tuples}) AS incoming(${columns})
-            WHERE t.end_date IS NULL
-              AND incoming.end_date IS NULL
-              AND t.epic_key = incoming.epic_key
-              AND t.alert_type = incoming.alert_type;
-          `);
-        }
         const result = await client.query<{ isNewRow: boolean }>(
           `INSERT INTO ${quoteIdent(tableName)} (${columns}) VALUES ${tuples} ${conflictClause} RETURNING (xmax = 0) AS "isNewRow";`,
         );
