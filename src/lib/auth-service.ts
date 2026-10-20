@@ -10,6 +10,7 @@ import { SESSION_COOKIE_NAME } from '@/lib/auth-constants';
 import { verifyCaptcha } from '@/lib/captcha-service';
 import { validatePassword } from '@/lib/password-rules';
 import { getUsageStatsTotals, recordUsageEvent, USAGE_STATS_RETENTION_DAYS } from '@/lib/usage-stats-service';
+import { extractUsername, normalizeUsername } from '@/lib/username';
 import { recordAppLogin } from '@/lib/visit-counter-service';
 
 export { SESSION_COOKIE_NAME } from '@/lib/auth-constants';
@@ -31,14 +32,7 @@ function mapAuthUser(row: AuthUser & { mustChangePassword?: boolean }): AuthUser
   return { email: row.email, fullName: row.fullName, id: row.id, role: row.role, mustChangePassword: Boolean(row.mustChangePassword) };
 }
 
-export function extractUsername(value: string): string {
-  return value.trim().toLowerCase().split('@')[0];
-}
-
-export function normalizeUsername(value: string): string {
-  const username = extractUsername(value);
-  return username ? `${username}@mbbank.com.vn` : '';
-}
+export { extractUsername, normalizeUsername } from '@/lib/username';
 
 export type AuthResult =
   | { user: AuthUser }
@@ -305,8 +299,10 @@ export async function getPmSmCacheFootprint(userIds: number[]): Promise<string> 
 
 /**
  * Every user's username (local part before `@mbbank.com.vn`, lowercase) must be globally unique
- * across all user records (active or inactive) — create, edit, registration, bulk creation, and
- * approval all enforce this invariant alongside the database unique index.
+ * across all user records (active or inactive). The database enforces it — unique index
+ * idx_users_unique_username (migration 20261019d) — and the writes below turn its violation into this
+ * error, so the user sees which username is taken. No separate SELECT check: it would only repeat
+ * the index, and could still race with a concurrent insert.
  */
 export class DuplicateUsernameError extends Error {
   constructor(public readonly username: string) {
@@ -314,15 +310,14 @@ export class DuplicateUsernameError extends Error {
   }
 }
 
-async function assertUniqueUsername(client: PoolClient, emailOrUsername: string, excludeUserId: number | null): Promise<void> {
-  const username = extractUsername(emailOrUsername);
-  const duplicate = await client.query<{ username: string }>(`
-    SELECT SPLIT_PART(LOWER(email), '@', 1) AS username FROM users
-    WHERE ($2::int IS NULL OR id <> $2)
-      AND SPLIT_PART(LOWER(email), '@', 1) = $1
-    LIMIT 1;
-  `, [username, excludeUserId]);
-  if (duplicate.rows[0]) throw new DuplicateUsernameError(duplicate.rows[0].username);
+/** The DuplicateUsernameError behind a violation of idx_users_unique_username, or null for any other
+ * error. The username comes from the violation's detail ("Key (…)=(abc) already exists."), falling
+ * back to `fallbackUsername` when Postgres doesn't report it. */
+function duplicateUsernameErrorOf(error: unknown, fallbackUsername = ''): DuplicateUsernameError | null {
+  if (typeof error !== 'object' || error === null || !('code' in error) || error.code !== '23505') return null;
+  if (!('constraint' in error) || error.constraint !== 'idx_users_unique_username') return null;
+  const detail = 'detail' in error && typeof error.detail === 'string' ? error.detail : '';
+  return new DuplicateUsernameError(/=\((.+)\) already exists/.exec(detail)?.[1] ?? fallbackUsername);
 }
 
 export async function createManagedUser(input: UserInput): Promise<ManagedUser> {
@@ -332,7 +327,6 @@ export async function createManagedUser(input: UserInput): Promise<ManagedUser> 
   let userId = 0;
   try {
     await client.query('BEGIN');
-    await assertUniqueUsername(client, email, null);
     const result = await client.query<{ id: number }>(`
       INSERT INTO users (email, full_name, password_hash, role, is_active, must_change_password)
       VALUES ($1, $2, $3, $4, $5, TRUE)
@@ -343,7 +337,7 @@ export async function createManagedUser(input: UserInput): Promise<ManagedUser> 
     await client.query('COMMIT');
   } catch (error: unknown) {
     await client.query('ROLLBACK');
-    throw error;
+    throw duplicateUsernameErrorOf(error, extractUsername(email)) ?? error;
   } finally { client.release(); }
   return (await listManagedUsers()).find((user) => user.id === userId)!;
 }
@@ -371,7 +365,6 @@ export async function updateManagedUser(id: number, input: UserInput): Promise<M
   const client = await getClient();
   try {
     await client.query('BEGIN');
-    await assertUniqueUsername(client, email, id);
     const result = await client.query<{ id: number }>(`
       UPDATE users SET email = $2, full_name = $3, role = $4, is_active = $5, updated_at = CURRENT_TIMESTAMP
       WHERE id = $1 RETURNING id;
@@ -381,7 +374,7 @@ export async function updateManagedUser(id: number, input: UserInput): Promise<M
     await client.query('COMMIT');
   } catch (error: unknown) {
     await client.query('ROLLBACK');
-    throw error;
+    throw duplicateUsernameErrorOf(error, extractUsername(email)) ?? error;
   } finally { client.release(); }
   return (await listManagedUsers()).find((user) => user.id === id) ?? null;
 }
@@ -441,13 +434,8 @@ export async function approveInactiveUsers(ids: number[], domainId?: number): Pr
     await client.query('BEGIN');
     const users = await client.query<{ email: string; id: number }>('SELECT id, email FROM users WHERE id = ANY($1::int[]) AND is_active = FALSE FOR UPDATE', [ids]);
     if (users.rowCount !== ids.length) throw new Error('INVALID_USERS');
-    const seenUsernames = new Set<string>();
-    for (const user of users.rows) {
-      const username = extractUsername(user.email);
-      if (seenUsernames.has(username)) throw new DuplicateUsernameError(username);
-      seenUsernames.add(username);
-      await assertUniqueUsername(client, username, user.id);
-    }
+    // Usernames need no check here: these users are already in the table, so idx_users_unique_username
+    // has kept them unique; the email clean-up below is the only write that could collide (mapped in catch).
     const missingDomains = await client.query<{ id: number }>('SELECT u.id FROM users u WHERE u.id = ANY($1::int[]) AND NOT EXISTS (SELECT 1 FROM user_domains ud WHERE ud.user_id = u.id)', [ids]);
     const missingDomainIds = missingDomains.rows.map((user) => user.id);
     if (missingDomainIds.length > 0) {
@@ -462,6 +450,8 @@ export async function approveInactiveUsers(ids: number[], domainId?: number): Pr
     return { approved: users.rows.length, domainAssigned: missingDomainIds.length };
   } catch (error: unknown) {
     await client.query('ROLLBACK');
+    const duplicate = duplicateUsernameErrorOf(error);
+    if (duplicate) throw duplicate;
     const isKnownBusinessError = error instanceof DuplicateUsernameError || (error instanceof Error && ['DOMAIN_REQUIRED', 'INVALID_DOMAIN', 'INVALID_USERS'].includes(error.message));
     const isDatabaseConflict = typeof error === 'object' && error !== null && 'code' in error && error.code === '23505';
     if (isKnownBusinessError || isDatabaseConflict || error instanceof ApprovalError) throw error;

@@ -93,3 +93,6 @@ public/docs/product-guide.zip
 # (Không chặn *.zip: brd/showcase/showcase.zip và public/docs/product-guide.zip
 #  đã được track từ trước, chặn thêm chỉ gây nhầm lẫn.)
 *.rar
+
+# Gói .zip + manifest do tools/packaging/package.ps1 tạo — sinh lại được, không commit, không tự đóng gói chính nó.
+/release-packages/

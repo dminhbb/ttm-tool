@@ -10,6 +10,7 @@ import type {
   TrendLinePoint,
 } from '@/lib/visit-counter-types';
 import { SCREEN_NAMES, TRACKED_SCREEN_KEYS } from '@/lib/visit-counter-types';
+import { extractUsername } from '@/lib/username';
 
 /**
  * Records an application login event for a user.
@@ -71,7 +72,7 @@ export async function getRecentLoginUsers(limit: number = 5): Promise<RecentLogi
 
   return result.rows.map((row) => ({
     userId: row.userId,
-    username: (row.email ?? '').split('@')[0].toLowerCase(),
+    username: extractUsername(row.email ?? ''),
     fullName: row.fullName ?? '',
     email: row.email ?? '',
     lastLoginAt: row.lastLoginAt instanceof Date ? row.lastLoginAt.toISOString() : String(row.lastLoginAt ?? ''),
@@ -278,7 +279,7 @@ export async function getDetailedVisitStats(): Promise<DetailedVisitStats> {
   let unassignedDomain: DomainVisitStat | null = null;
 
   for (const row of userDomainStatsRes.rows) {
-    const username = (row.email ?? '').split('@')[0].toLowerCase();
+    const username = extractUsername(row.email ?? '');
     const userStat: DomainUserStat = {
       userId: row.userId,
       username,

@@ -6,6 +6,41 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-10-20
+
+- **Chuẩn bị triển khai môi trường mới (Node.js host + PostgreSQL nội bộ)** (không đổi schema):
+  - `scripts/db-schema-export.js` (`npm run db:export-schema`): đọc catalog của một DB đã chạy đủ migration và sinh
+    `db/install/ttm-monitor-schema.sql` (60 bảng, index, khoá ngoại, 4 hàm + 4 trigger; không dữ liệu, chỉ ghi sẵn 90 migration vào
+    `schema_migrations`), `docs/database-erd.md` (ERD Mermaid theo 12 nhóm + từ điển dữ liệu + 49 khoá ngoại) và chương 5 Tài liệu sản phẩm
+    (giữa marker `BEGIN/END GENERATED: db-schema`). Nhóm/mô tả bảng viết tay ở `scripts/db-schema-catalog.json` (lấy từ nội dung chương 5 cũ).
+    Đã kiểm chứng file SQL trên PostgreSQL 18 nhúng (PGlite): chạy sạch, đọc ngược catalog trùng khớp Supabase, trigger hoạt động.
+  - `db/install/README.md`: tạo DB, tạo SUPERADMIN đầu tiên, chuyển cấu hình/dữ liệu bằng Smart Export/Dump, cấu hình `.env.local`, migration về sau.
+  - Tài liệu sản phẩm: mục mới **1.1 Kiến trúc ứng dụng tổng thể** (sơ đồ, các lớp, so sánh Vercel+Supabase với Node host + PostgreSQL nội bộ —
+    lưu ý `next build` cần Internet vì font `next/font/google`), chương 5 sinh lại theo CSDL 20/10, 19.2 thêm dòng triển khai / tạo CSDL / đóng gói.
+    BRD 08 trỏ tới nguồn mới; AGENTS.md nhắc chạy lại `db:export-schema` sau mỗi thay đổi schema.
+  - **Đóng gói mã nguồn** `tools/packaging/` (`package.cmd` + `package.ps1` + README): Option 1 toàn bộ, Option 2 chỉ file mới/thay đổi so với lần
+    trước (manifest SHA-256 lưu ở `release-packages/manifests/` và trong zip `_package/manifest.json`, kèm `DELETED_FILES.txt`); danh sách file theo
+    `git ls-files` + `.gitignore`. `/release-packages/` thêm vào `.gitignore`.
+
+- **Sửa theo review commit `8872a39` / `3ee0116`** (mục 2–4 của review — import SQL đồng bộ toàn phần — là chủ ý để đồng bộ môi trường, giữ nguyên):
+  - **"Miễn rule B" chỉ miễn rule B** (`import-admission-rules.ts`, `denied-import-service.ts`): dòng `AUTO_EXEMPT` trước đây bỏ qua mọi rule tự động; nay
+    rule A và rule loại issue vẫn xét (`AdmissionListEntry.exemptFrom`). Bị rule khác từ chối thì dòng chuyển sang `AUTO_RULE`; admin bật lại một dòng
+    AUTO_EXEMPT đã tắt → `MANUAL` (miễn mọi rule). Có test.
+  - **Import CSV dự án nhận lại PM-SM theo họ tên** (`src/app/api/projects/route.ts`): khớp username/email trước, rồi họ tên khi đúng một user active mang
+    tên đó (so sánh NFC, không phân biệt hoa thường); trùng tên → không gán, đếm vào `unresolvedLeadCount`.
+  - **Project Key không sửa được** (owner 2026-10-20): ô Project Key khoá trong form sửa (`admin/projects/page.tsx`), `PUT /api/projects` từ chối đổi key
+    — dự án Jira đổi key tạo thành dự án mới.
+  - **Migration `20261020_sync_project_type_on_category_cleared`**: xoá Loại hình dự án thì `project_type_id` (lấy từ loại hình đó) về NULL + backfill.
+    Đã áp dụng **Supabase**; **local chưa** (không kết nối được Postgres local trên máy này) — cần `npm run db:migrate:local`.
+  - **Lead view TTM Dashboard 2**: server giữ các dòng toàn công ty trong bộ nhớ theo `computed_at` của `epic_alert_row_cache`
+    (`loadCompanyTtmDashboard2Rows`, `ttm-dashboard-2-cache-service.ts`) thay vì đọc lại toàn bộ mỗi lần đổi bộ lọc; trình duyệt chờ 300 ms sau lần
+    bấm chip cuối mới gọi `/api/ttm-dashboard-2/summary`.
+  - **Smart Export** (`db-backup-service.ts`): bảng cấu hình chưa có trên DB nguồn được bỏ qua và ghi tên ở header thay vì làm hỏng cả file; đọc các bảng
+    đồng thời (tối đa 3); route `export-smart` có `maxDuration = 300`.
+  - **Gom logic username**: `src/lib/username.ts` (`extractUsername`, `normalizeUsername`) dùng chung cho API, service và màn hình (users page,
+    McpServerPanel, visit-counter). Bỏ `assertUniqueUsername` và vòng kiểm tra khi duyệt — unique index `idx_users_unique_username` tự chặn, lỗi 23505
+    được đổi thành `DuplicateUsernameError` (`auth-service.ts`).
+
 ## 2026-10-19
 
 - **Đồng bộ tuyệt đối số liệu Funnel Chart, `TTM-CNTT (QLDA)`, `TTM-CNTT (QA)` và `TTM-E2E` giữa Production và Localhost khi thực hiện Smart Export / Import SQL** (`src/lib/db-backup-service.ts` `exportSmartSurfaceToSql`, `importSqlFile`):

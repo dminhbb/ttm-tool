@@ -25,6 +25,11 @@ NOT run `npm run db:migrate:aiven` / `db:init:aiven`, don't treat a missing Aive
 schema drift, and don't point `DB_CONNECTION` at `aiven`. The `aiven` profile code in `db.ts` and
 the npm scripts are left in place only so nothing breaks — they are not part of the workflow.
 
+After a schema change, also regenerate the install script and the schema docs from a database that has
+every migration: `npm run db:export-schema -- --target=supabase` (`scripts/db-schema-export.js`) rewrites
+`db/install/ttm-monitor-schema.sql` (empty-database DDL used to set up a new environment), `docs/database-erd.md`
+and chapter 5 of the product guide; group/describe a new table in `scripts/db-schema-catalog.json`.
+
 Never leave one database ahead of the other on schema. Application code (`src/lib/db.ts`) always
 targets whichever profile `DB_CONNECTION` in `.env.local` selects (`local` / `supabase`; production
 on Vercel uses `supabase`), so a schema drift between the two silently breaks whichever one isn't

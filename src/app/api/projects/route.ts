@@ -6,6 +6,7 @@ import pool, { getClient } from '@/lib/db';
 import { createProject, deleteProject, listProjects, updateProject } from '@/lib/master-data-service';
 import { PROJECT_CATEGORIES } from '@/lib/master-data-types';
 import type { ProjectCategory, ProjectInput, TtmOption } from '@/lib/master-data-types';
+import { extractUsername } from '@/lib/username';
 
 // A project's "Time to Market" flag decides whether its Epics count from L02 of the TTM Dashboard 2
 // funnel on (N = left out, see TtmExclusion in scoring/types.ts), so a change to it rebuilds the
@@ -25,6 +26,35 @@ function cacheFootprint(project: CachedProjectFields | null): string {
   return JSON.stringify([project.sourceProjectKey.trim(), project.ttm, ...(project.isActive ? [project.projectName.trim(), project.domainId] : [])]);
 }
 
+// A project's Jira key never changes (owner rule 2026-10-20): a Jira project that changes its key is
+// created here as a NEW project, so the edit form locks the field and the API refuses the change.
+const KEY_CHANGE_ERROR = 'Không thể đổi Project Key (Jira) của dự án đã tạo. Dự án Jira đổi key cần được tạo thành dự án mới.';
+
+/** Same comparison for a typed full name as for the stored one: NFC, trimmed, single spaces, lower case. */
+function normalizeFullName(value: string): string {
+  return value.normalize('NFC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN');
+}
+
+/**
+ * The CSV's PM-SM cell → an active user: by username or email first (the local part of the email —
+ * see username.ts), else by full name when exactly ONE active user has it (2026-10-20 — the bulk
+ * import accepted full names before 2026-10-19, and files written that way must keep working).
+ * Ambiguous or unknown → null (counted in unresolvedLeadCount; the project is created without PM/SM).
+ */
+function buildLeadResolver(users: readonly { fullName: string; id: number; username: string }[]): (cell: string) => number | null {
+  const byUsername = new Map(users.map((user) => [user.username, user.id]));
+  const byFullName = new Map<string, number[]>();
+  for (const user of users) {
+    const key = normalizeFullName(user.fullName);
+    if (key) byFullName.set(key, [...(byFullName.get(key) ?? []), user.id]);
+  }
+  return (cell) => {
+    if (!cell.trim()) return null;
+    const byName = byFullName.get(normalizeFullName(cell)) ?? [];
+    return byUsername.get(extractUsername(cell)) ?? (byName.length === 1 ? byName[0] : null);
+  };
+}
+
 const MAX_CSV_BYTES = 1024 * 1024;
 const MAX_IMPORT_ROWS = 500;
 type CsvProject = { leadName: string; projectCategory: ProjectCategory | null; projectName: string; sourceProjectKey: string; ttm: TtmOption };
@@ -37,7 +67,7 @@ function validateProjectInput(input: ProjectInput): string | null { if (!input.p
 
 export async function GET(request: NextRequest) { try { await requireUser(request, ['ADMIN', 'SUPERADMIN', 'SUPERVISOR']); return NextResponse.json(await listProjects()); } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể tải danh sách dự án.' }, { status: 500 }); } }
 export async function POST(request: NextRequest) { try { await requireUser(request, ['ADMIN', 'SUPERADMIN']); const input: unknown = await request.json(); if (!isProjectInput(input)) return NextResponse.json({ error: 'Dữ liệu dự án không hợp lệ.' }, { status: 400 }); const error = validateProjectInput(input); if (error) return NextResponse.json({ error }, { status: 400 }); const created = await createProject({ ...input, projectName: input.projectName.trim(), sourceProjectKey: input.sourceProjectKey.trim() }); if (cacheFootprint(input)) scheduleDerivedCacheRefresh('projects'); return NextResponse.json(created, { status: 201 }); } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể tạo dự án.' }, { status: 500 }); } }
-export async function PUT(request: NextRequest) { try { await requireUser(request, ['ADMIN', 'SUPERADMIN']); const input: unknown = await request.json(); if (!isProjectInput(input) || !('id' in input) || !Number.isInteger(input.id) || (input.id as number) <= 0) return NextResponse.json({ error: 'Dữ liệu dự án không hợp lệ.' }, { status: 400 }); const project = input as ProjectInput & { id: number }; const error = validateProjectInput(project); if (error) return NextResponse.json({ error }, { status: 400 }); const previous = await storedProject(project.id); const updated = await updateProject(project.id, { ...project, projectName: project.projectName.trim(), sourceProjectKey: project.sourceProjectKey.trim() }); if (previous && cacheFootprint(previous) !== cacheFootprint(project)) scheduleDerivedCacheRefresh('projects'); return NextResponse.json(updated); } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể cập nhật dự án.' }, { status: 500 }); } }
+export async function PUT(request: NextRequest) { try { await requireUser(request, ['ADMIN', 'SUPERADMIN']); const input: unknown = await request.json(); if (!isProjectInput(input) || !('id' in input) || !Number.isInteger(input.id) || (input.id as number) <= 0) return NextResponse.json({ error: 'Dữ liệu dự án không hợp lệ.' }, { status: 400 }); const project = input as ProjectInput & { id: number }; const error = validateProjectInput(project); if (error) return NextResponse.json({ error }, { status: 400 }); const previous = await storedProject(project.id); if (previous && previous.sourceProjectKey.trim() !== project.sourceProjectKey.trim()) return NextResponse.json({ error: KEY_CHANGE_ERROR }, { status: 400 }); const updated = await updateProject(project.id, { ...project, projectName: project.projectName.trim(), sourceProjectKey: project.sourceProjectKey.trim() }); if (previous && cacheFootprint(previous) !== cacheFootprint(project)) scheduleDerivedCacheRefresh('projects'); return NextResponse.json(updated); } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể cập nhật dự án.' }, { status: 500 }); } }
 export async function DELETE(request: NextRequest) { try { await requireUser(request, ['ADMIN', 'SUPERADMIN']); const id = Number(new URL(request.url).searchParams.get('id')); if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: 'Project ID không hợp lệ.' }, { status: 400 }); const previous = await storedProject(id); await deleteProject(id); if (cacheFootprint(previous)) scheduleDerivedCacheRefresh('projects'); return NextResponse.json({ success: true }); } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Không thể xóa dự án.' }, { status: 500 }); } }
 
 export async function PATCH(request: NextRequest) {
@@ -63,19 +93,16 @@ export async function PATCH(request: NextRequest) {
     const client = await getClient();
     try {
       await client.query('BEGIN');
-      const leadUsernames = Array.from(new Set(projects.map((project) => project.leadName.trim().toLowerCase().split('@')[0]).filter(Boolean)));
-      const users = await client.query<{ id: number; username: string }>("SELECT id, SPLIT_PART(LOWER(email), '@', 1) AS username FROM users WHERE is_active = TRUE AND SPLIT_PART(LOWER(email), '@', 1) = ANY($1::text[])", [leadUsernames]);
-      const userIdByUsername = new Map(users.rows.map((user) => [user.username, user.id]));
-      unresolvedLeadCount = projects.filter((project) => {
-        const uname = project.leadName.trim().toLowerCase().split('@')[0];
-        return Boolean(uname && !userIdByUsername.has(uname));
-      }).length;
+      // Every active user: the full-name match is done here, not in SQL, so Vietnamese case folding is
+      // the same as normalizeFullName's (a few hundred rows at most).
+      const users = await client.query<{ fullName: string; id: number; username: string }>(`SELECT id, SPLIT_PART(LOWER(email), '@', 1) AS username, full_name AS "fullName" FROM users WHERE is_active = TRUE`);
+      const resolveLead = buildLeadResolver(users.rows);
+      unresolvedLeadCount = projects.filter((project) => project.leadName.trim() && resolveLead(project.leadName) === null).length;
       const existing = await client.query<{ sourceProjectKey: string }>('SELECT source_project_key AS "sourceProjectKey" FROM projects WHERE source_project_key = ANY($1::text[])', [keys]);
       if (existing.rowCount) { await client.query('ROLLBACK'); return NextResponse.json({ error: `Key đã tồn tại: ${existing.rows.map((project) => project.sourceProjectKey).join(', ')}.` }, { status: 409 }); }
       for (const project of projects) {
-        const uname = project.leadName.trim().toLowerCase().split('@')[0];
         const createdProject = await client.query<{ id: number }>('INSERT INTO projects (project_name, domain_id, source_project_key, source_type, project_category, ttm, is_active) VALUES ($1, NULL, $2, $3, $4, $5, TRUE) RETURNING id', [project.projectName, project.sourceProjectKey, 'JIRA', project.projectCategory, project.ttm]);
-        const userId = uname ? userIdByUsername.get(uname) : undefined;
+        const userId = resolveLead(project.leadName);
         if (userId) await client.query('INSERT INTO user_projects (user_id, project_id) VALUES ($1, $2)', [userId, createdProject.rows[0].id]);
       }
       await client.query('COMMIT');

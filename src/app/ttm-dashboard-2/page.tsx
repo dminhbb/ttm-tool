@@ -79,6 +79,8 @@ type RightPanel = 'COMPLETED' | 'IN_PROGRESS';
 /** Accordion (Panel 1 ↔ Panel 2/3) duration — keep in sync with the `duration-[700ms]!` classes
  * below (Tailwind needs them as literal class names). */
 const ACCORDION_MS = 700;
+/** Lead view: wait this long after the last filter change before asking the server for its summary. */
+const LEAD_SUMMARY_DEBOUNCE_MS = 300;
 /** The accordion's transition classes are `!important` on purpose: globals.css forces every
  * transition to 0.01ms under prefers-reduced-motion (e.g. Windows "Animation effects" off), which
  * made Panel 2/3 just pop in/out. This one is a short, user-triggered slide, so it always runs. */
@@ -302,7 +304,9 @@ export default function TtmDashboard2Page() {
   }, [data, isFiltered, filterRows, rowsKey, rowsRetry, leadViewActive]);
 
   // Lead view + filter (2026-10-19): summarized server-side (/api/ttm-dashboard-2/summary) with the
-  // same functions, one request per filter combination; a stale response is dropped by its key.
+  // same functions, one request per filter combination; a stale response is dropped by its key. The
+  // request waits LEAD_SUMMARY_DEBOUNCE_MS after the last chip click (2026-10-20), so clicking through
+  // several chips asks the server once, for the combination the viewer stopped at.
   const leadSummaryKey = leadViewActive && isFiltered ? JSON.stringify(filters) : null;
   const [leadSummaryState, setLeadSummaryState] = useState<{ key: string; summary: TtmFunnelSummary } | null>(null);
   useEffect(() => {
@@ -313,7 +317,7 @@ export default function TtmDashboard2Page() {
     for (const [name, list] of [['projects', filters.projects], ['components', filters.components], ['pmSms', filters.pmSms], ['requestingUnits', filters.requestingUnits]] as const) {
       for (const value of list) params.append(name, value);
     }
-    void fetch(`/api/ttm-dashboard-2/summary?${params.toString()}`, { cache: 'no-store', signal: controller.signal })
+    const timer = window.setTimeout(() => void fetch(`/api/ttm-dashboard-2/summary?${params.toString()}`, { cache: 'no-store', signal: controller.signal })
       .then(async (res) => {
         const json = (await res.json()) as { error?: string; summary?: TtmFunnelSummary };
         if (!res.ok || !json.summary) throw new Error(json.error || 'Không thể tính số liệu theo bộ lọc.');
@@ -322,8 +326,11 @@ export default function TtmDashboard2Page() {
       })
       .catch((err: unknown) => {
         if (!controller.signal.aborted) setRowsError(err instanceof Error ? err.message : 'Không thể tính số liệu theo bộ lọc.');
-      });
-    return () => controller.abort();
+      }), LEAD_SUMMARY_DEBOUNCE_MS);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
   }, [leadSummaryKey, filters, rowsRetry]);
 
   // Unfiltered → the cached snapshot. Filtered → recomputed from the rows with the very same

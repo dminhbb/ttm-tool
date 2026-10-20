@@ -14,6 +14,7 @@
     "db:init:aiven": "node scripts/migrate-db.js --target=aiven --init",
     "db:migrate:supabase": "node scripts/migrate-db.js --target=supabase",
     "db:init:supabase": "node scripts/migrate-db.js --target=supabase --init",
+    "db:export-schema": "node scripts/db-schema-export.js",
     "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {

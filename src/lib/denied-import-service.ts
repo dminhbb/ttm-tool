@@ -115,10 +115,11 @@ export async function loadLastUnreleasedSeen(db: Queryable, epicKeys: readonly s
 
 /** Listed Epic key → its "Cho phép import" flag, for the import adapter. */
 export async function loadImportAdmissionList(db: Queryable = pool): Promise<Map<string, AdmissionListEntry>> {
-  const result = await db.query<{ allowImport: boolean; epicKey: string }>(
-    'SELECT epic_key AS "epicKey", allow_import AS "allowImport" FROM denied_import_epics;',
+  const result = await db.query<{ allowImport: boolean; epicKey: string; source: DeniedImportSource }>(
+    'SELECT epic_key AS "epicKey", allow_import AS "allowImport", source FROM denied_import_epics;',
   );
-  return new Map(result.rows.map((row) => [row.epicKey, { allowImport: row.allowImport }]));
+  // The import's own AUTO_EXEMPT entry only stands in for the rule B proof (import-admission-rules.ts).
+  return new Map(result.rows.map((row) => [row.epicKey, { allowImport: row.allowImport, exemptFrom: row.source === 'AUTO_EXEMPT' ? 'RELEASED_BEFORE' : 'ALL' }]));
 }
 
 export async function listDeniedImportEpics(): Promise<DeniedImportEpic[]> {
@@ -180,7 +181,8 @@ async function upsertDeniedRows(db: Queryable, rows: ReadonlyMap<string, DeniedR
   const entries = [...rows.entries()];
   const column = (name: keyof Omit<EpicInfo, 'issueType'>) => entries.map(([, row]) => row.info?.[name] ?? null);
   // Re-denying an Epic already listed only switches it back to "denied" and refreshes what is known
-  // of it; its source and the time it was first listed stay.
+  // of it; its source and the time it was first listed stay — except an AUTO_EXEMPT entry ("Miễn rule
+  // B"), which now names the source that denies it: the exemption no longer describes it.
   await db.query(`
     INSERT INTO denied_import_epics (
       epic_key, project_key, summary, status, requesting_unit, created_date, idea_approved_date,
@@ -192,6 +194,7 @@ async function upsertDeniedRows(db: Queryable, rows: ReadonlyMap<string, DeniedR
       AS input(key, summary, status, unit, created, idea, start, r4g, due, reason)
     ON CONFLICT (epic_key) DO UPDATE SET
       allow_import = FALSE,
+      source = CASE WHEN denied_import_epics.source = 'AUTO_EXEMPT' THEN EXCLUDED.source ELSE denied_import_epics.source END,
       summary = COALESCE(EXCLUDED.summary, denied_import_epics.summary),
       status = COALESCE(EXCLUDED.status, denied_import_epics.status),
       requesting_unit = COALESCE(EXCLUDED.requesting_unit, denied_import_epics.requesting_unit),
@@ -251,7 +254,12 @@ export async function addDeniedImportEpics(epicKeys: readonly string[], reason: 
 export async function setDeniedImportAllowance(epicKeys: readonly string[], allowImport: boolean, userId: number): Promise<EpicDeletionResult | null> {
   return inTransaction(async (client) => {
     const updated = await client.query(
-      'UPDATE denied_import_epics SET allow_import = $2, updated_at = NOW() WHERE epic_key = ANY($1::text[]);',
+      // Re-allowing an AUTO_EXEMPT entry an admin had switched off is now the admin's own decision —
+      // a full "Cho phép import" (MANUAL), not just the rule B waiver.
+      `UPDATE denied_import_epics SET allow_import = $2,
+         source = CASE WHEN $2 AND NOT allow_import AND source = 'AUTO_EXEMPT' THEN 'MANUAL' ELSE source END,
+         updated_at = NOW()
+       WHERE epic_key = ANY($1::text[]);`,
       [[...epicKeys], allowImport],
     );
     if ((updated.rowCount ?? 0) === 0) throw new DeniedImportError('Không tìm thấy Epic nào trong danh sách Từ chối import.');

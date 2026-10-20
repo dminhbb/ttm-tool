@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { cn } from '@/lib/utils';
 import type { McpSettings, McpUsageSummary } from '@/lib/mcp-types';
+import { extractUsername } from '@/lib/username';
 
 type SummaryResponse = { settings: McpSettings; usage: McpUsageSummary };
 
@@ -167,7 +168,7 @@ export function McpServerPanel() {
                           <TR key={item.userId}>
                             <TD className="font-semibold">{index + 1}</TD>
                             <TD>
-                              <p className="font-medium text-fb-text-primary">{item.email.split('@')[0].toLowerCase()}</p>
+                              <p className="font-medium text-fb-text-primary">{extractUsername(item.email)}</p>
                               <p className="text-xs text-fb-text-secondary">{item.fullName} ({item.email})</p>
                             </TD>
                             <TD className="text-center font-semibold text-fb-blue">{item.accessCount}</TD>

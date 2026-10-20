@@ -98,6 +98,33 @@ export async function loadTtmDashboard2Rows(userId: number, role: UserRole): Pro
   return rows.map(toTtmFunnelRow);
 }
 
+/**
+ * The company-wide funnel rows (scope 'ALL') for the Lead view's per-filter summaries (2026-10-20).
+ * Every chip a lead clicks asks the server for one filtered summary; re-reading and re-projecting the
+ * whole company's Epic rows for each of them was the cost. The rows only change when
+ * epic_alert_row_cache is rebuilt, so one copy per instance is kept, keyed by that cache's
+ * computed_at + the stored engine mode, and read straight from the cache table the same way
+ * refreshTtmDashboard2Caches builds the unfiltered 'ALL' entry — a filtered number and the unfiltered
+ * snapshot always come off the same rows. Concurrent requests share one read. With no row cache, or a
+ * per-machine SCORING_ENGINE_MODE override, it falls back to the live read (never kept).
+ */
+let companyRowsMemo: { key: string; rows: Promise<TtmFunnelRow[]> } | null = null;
+
+export async function loadCompanyTtmDashboard2Rows(userId: number): Promise<TtmFunnelRow[]> {
+  const [engineMode, storedMode, cacheMeta] = await Promise.all([getScoringEngineMode(), getStoredScoringEngineMode(), getEpicAlertRowCacheMeta()]);
+  if (!cacheMeta.hasCache || engineMode !== storedMode) return loadTtmDashboard2Rows(userId, 'SUPERVISOR');
+  const key = `${cacheMeta.computedAt}|${storedMode}`;
+  if (companyRowsMemo?.key !== key) {
+    const fieldsSql = TTM_FUNNEL_ROW_KEYS.map((field) => `'${field}', row_data->'${field}'`).join(', ');
+    const rows = pool.query<{ row: TtmFunnelRow }>(`SELECT jsonb_build_object(${fieldsSql}) AS row FROM epic_alert_row_cache`)
+      .then((result) => result.rows.map((item) => item.row));
+    companyRowsMemo = { key, rows };
+    // A failed read must not stay cached: the next request tries again.
+    rows.catch(() => { if (companyRowsMemo?.rows === rows) companyRowsMemo = null; });
+  }
+  return companyRowsMemo.rows;
+}
+
 export async function getTtmDashboard2Snapshot(userId: number, role: UserRole): Promise<TtmDashboard2Snapshot> {
   const scopeKey = ttmDashboard2ScopeKey(userId, role);
   const [engineMode, storedMode, cacheMeta] = await Promise.all([getScoringEngineMode(), getStoredScoringEngineMode(), getEpicAlertRowCacheMeta()]);

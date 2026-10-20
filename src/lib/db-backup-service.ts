@@ -368,6 +368,24 @@ export interface SmartSurfaceExportOptions {
  * aggregate snapshots — so both a fresh copy host and the source host receive a clean, self-contained
  * surface data layer at the exact moment of import.
  */
+/** Table reads a Smart export runs at once — the hosted pool holds 3 connections (db.ts). */
+const SMART_EXPORT_CONCURRENCY = 3;
+
+/** `work` over every item, at most `limit` at a time; results in input order. */
+async function mapWithConcurrency<T, R>(items: readonly T[], limit: number, work: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await work(items[index]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 export async function exportSmartSurfaceToSql(options: SmartSurfaceExportOptions): Promise<string> {
   const { layerDate, includeSchema = false } = options;
   if (!ISO_DATE_PATTERN.test(layerDate)) {
@@ -494,13 +512,23 @@ export async function exportSmartSurfaceToSql(options: SmartSurfaceExportOptions
     'dashboard_view_settings',
   ];
 
+  // A config table this database doesn't have yet (migration not run here) is skipped and named in the
+  // header — like listBackupTables — instead of failing the whole export (2026-10-20).
+  const presentConfigTables = new Set((await pool.query<{ tableName: string }>(
+    'SELECT name AS "tableName" FROM unnest($1::text[]) AS name WHERE to_regclass(quote_ident(name)) IS NOT NULL;',
+    [SMART_CONFIG_TABLES],
+  )).rows.map((row) => row.tableName));
+  const exportedConfigTables = SMART_CONFIG_TABLES.filter((table) => presentConfigTables.has(table));
+  const missingConfigTables = SMART_CONFIG_TABLES.filter((table) => !presentConfigTables.has(table));
+
   const generatedAt = new Date().toISOString();
   const lines: string[] = [
     EXPORT_SIGNATURE,
     SMART_SURFACE_EXPORT_HEADER,
     `-- Generated at: ${generatedAt}`,
     `-- Surface layer as of date: ${layerDate}`,
-    `-- Tables: import_batches, import_rows, issues, ${SMART_CONFIG_TABLES.join(', ')}`,
+    `-- Tables: import_batches, import_rows, issues, ${exportedConfigTables.join(', ')}`,
+    ...(missingConfigTables.length > 0 ? [`-- Skipped (table not on the source database): ${missingConfigTables.join(', ')}`] : []),
     `-- Includes schema: ${includeSchema ? 'yes (CREATE TABLE IF NOT EXISTS, columns + primary key only)' : 'no (data only)'}`,
     '-- Import behavior: creates a consolidated surface data layer stamped with the import execution timestamp (NOW()).',
     '',
@@ -541,22 +569,20 @@ export async function exportSmartSurfaceToSql(options: SmartSurfaceExportOptions
   lines.push(`INSERT INTO "import_batches" (${batchQuotedColumns}) VALUES (${batchValues.join(', ')}) ${batchConflictClause};`);
   lines.push('');
 
-  // 2. Export corresponding import_rows
-  if (importRowIds.length > 0) {
-    lines.push(...await exportOneTableToSql('import_rows', includeSchema, 'id = ANY($1::int[])', [importRowIds]));
-  } else if (includeSchema) {
-    lines.push('-- Table: import_rows');
-    lines.push(await buildCreateTableStatement('import_rows'));
-    lines.push('');
-  }
-
-  // 3. Export surface issues (Epics + Stories + Subtasks)
-  lines.push(...await exportOneTableToSql('issues', includeSchema, 'id = ANY($1::int[])', [issueIds]));
-
-  // 4. Export TTM scoring, calendar, scope & exclusion config tables so TTM calculations match across environments
-  for (const configTable of SMART_CONFIG_TABLES) {
-    lines.push(...await exportOneTableToSql(configTable, includeSchema));
-  }
+  // 2–4. import_rows, the surface issues (Epics + Stories + Subtasks) and the TTM scoring, calendar,
+  // scope & exclusion config tables (so TTM calculations match across environments). Independent
+  // reads, so they run concurrently (2026-10-20) — at most SMART_EXPORT_CONCURRENCY at a time, since
+  // the hosted pool is small (db.ts); the file keeps this order whatever finishes first.
+  const importRowLines = async (): Promise<string[]> => {
+    if (importRowIds.length > 0) return exportOneTableToSql('import_rows', includeSchema, 'id = ANY($1::int[])', [importRowIds]);
+    return includeSchema ? ['-- Table: import_rows', await buildCreateTableStatement('import_rows'), ''] : [];
+  };
+  const sections = await mapWithConcurrency<() => Promise<string[]>, string[]>([
+    importRowLines,
+    () => exportOneTableToSql('issues', includeSchema, 'id = ANY($1::int[])', [issueIds]),
+    ...exportedConfigTables.map((configTable) => () => exportOneTableToSql(configTable, includeSchema)),
+  ], SMART_EXPORT_CONCURRENCY, (task) => task());
+  for (const section of sections) lines.push(...section);
 
   return lines.join('\n');
 }

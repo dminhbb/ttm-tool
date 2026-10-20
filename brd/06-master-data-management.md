@@ -64,7 +64,8 @@ Màn hình Dự án cho phép CRUD dự án và mapping dự án với domain ng
 
 Thông tin chính (đã cập nhật, thay cho danh sách cũ bên dưới):
 
-- Project Key (Jira) — `source_project_key`, duy nhất.
+- Project Key (Jira) — `source_project_key`, duy nhất. **Không sửa được sau khi tạo** (2026-10-20): form sửa khoá ô này và `PUT /api/projects` từ chối đổi key; dự án Jira đổi key được tạo thành dự án mới.
+- Import CSV: cột PM-SM nhận username, email, hoặc họ tên của user đang active (họ tên chỉ khớp khi đúng một user mang tên đó); không khớp → dự án tạo không có PM/SM, đếm vào `unresolvedLeadCount`.
 - Tên dự án.
 - Domain nghiệp vụ.
 - Loại hình dự án (Dự án / Team Agile / Team Triển khai).

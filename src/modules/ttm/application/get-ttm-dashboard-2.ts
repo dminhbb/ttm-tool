@@ -9,6 +9,7 @@ import { getLatestImportAggregatedAt } from '@/modules/integration/public';
 import { getDashboardViewSettings } from '@/lib/dashboard-view-settings-service';
 import {
   getTtmDashboard2Snapshot,
+  loadCompanyTtmDashboard2Rows,
   loadTtmDashboard2Rows,
   ttmDashboard2ScopeKey,
 } from '@/lib/ttm-dashboard-2-cache-service';
@@ -93,7 +94,11 @@ export async function getTtmDashboard2FilteredSummary(
   filters: TtmDashboard2Filters,
 ): Promise<{ summary: TtmFunnelSummary }> {
   const { scope } = await resolveDataScope(actor, rawViewAsUserId, requestedView);
-  const rows = await loadTtmDashboard2Rows(scope.userId, scope.role);
+  // Company-wide (the Lead view, or a viewer whose own scope is the company): the rows kept per
+  // instance until the Epic row cache is rebuilt — not one full re-read per filter click.
+  const rows = ttmDashboard2ScopeKey(scope.userId, scope.role) === 'ALL'
+    ? await loadCompanyTtmDashboard2Rows(scope.userId)
+    : await loadTtmDashboard2Rows(scope.userId, scope.role);
   return { summary: summarizeTtmFunnel(filterTtmDashboard2Rows(rows, filters)) };
 }
 

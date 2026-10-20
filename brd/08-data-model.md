@@ -1,5 +1,7 @@
 # 08 — Data Model
 
+> **Nguồn cấu trúc hiện hành (2026-10-20):** ERD + từ điển dữ liệu sinh tự động từ CSDL ở `docs/database-erd.md`; DDL tạo CSDL mới (không dữ liệu) ở `db/install/ttm-monitor-schema.sql` (hướng dẫn `db/install/README.md`); cả hai cùng chương 5 Tài liệu sản phẩm do `npm run db:export-schema` sinh. Các mục dưới đây là lịch sử thiết kế từng phần.
+
 > Nguồn sự thật là `db/schema.sql` (bootstrap cho DB mới) + toàn bộ file trong `db/migrations/*.sql`
 > (không tính `.down.sql`). File này diễn giải lại đúng theo hai nguồn đó; khi có khác biệt, luôn ưu
 > tiên đọc trực tiếp `db/schema.sql`/`db/migrations`. Ứng dụng chạy song song 2 profile DB (local,

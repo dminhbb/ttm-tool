@@ -77,6 +77,19 @@ describe('"Từ chối import" — automatic rules', () => {
     assert.deepEqual([listed.deniedEpics, listed.provenExemptEpics], [[], []]);
   });
 
+  it('B: an AUTO_EXEMPT entry waives rule B only — A and the issue type still apply (2026-10-20)', () => {
+    const autoExempt = new Map<string, AdmissionListEntry>([['DL-65580', { allowImport: true, exemptFrom: 'RELEASED_BEFORE' }]]);
+    const epic = row({ dueDate: '2026-06-25', issueKey: 'DL-65580', status: 'Released' });
+    // No proof left in the database: rule B alone is waived, so the Epic is still let in.
+    assert.deepEqual(planImportAdmission([epic], autoExempt, SETTINGS, isoDate).deniedEpics, []);
+    // A moved past its Created date: denied by A like any other Epic.
+    const laterA = planImportAdmission([epic], autoExempt, { ...SETTINGS, createdBefore: '2026-04-01' }, isoDate);
+    assert.deepEqual(laterA.deniedEpics.map((denied) => [denied.epicKey, denied.violations.map((violation) => violation.code)]), [['DL-65580', ['CREATED_BEFORE']]]);
+    // An admin's own "Cho phép import" still exempts it from every rule.
+    const manual = new Map<string, AdmissionListEntry>([['DL-65580', { allowImport: true, exemptFrom: 'ALL' }]]);
+    assert.deepEqual(planImportAdmission([epic], manual, { ...SETTINGS, createdBefore: '2026-04-01' }, isoDate).deniedEpics, []);
+  });
+
   it('a null A/B turns its rule off', () => {
     assert.deepEqual(codes({ createdDate: '2025-01-01', dueDate: '2026-01-01', status: 'Released' }, { createdBefore: null, releasedDueBefore: null }), []);
   });

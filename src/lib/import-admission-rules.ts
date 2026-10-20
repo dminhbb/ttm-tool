@@ -6,7 +6,9 @@ import { getIssueHierarchyLevel } from '@/lib/issue-hierarchy';
  * The Jira crawl cannot yet filter at the source, so the data scope is enforced here:
  *
  *   - an Epic listed in denied_import_epics (allow_import = FALSE) is always denied;
- *   - an Epic listed with allow_import = TRUE ("Cho phép import") is exempt from the rules below;
+ *   - an Epic listed with allow_import = TRUE ("Cho phép import") is exempt from the rules below —
+ *     every rule when an admin allowed it, only RELEASED_BEFORE when the import listed it itself
+ *     (source AUTO_EXEMPT, see below; 2026-10-20);
  *   - any other Epic is denied when it breaks one of the automatic rules:
  *       NOT_EPIC_TYPE   — level-1 issue type other than Epic (CTNB, YCPT…);
  *       CREATED_BEFORE  — created before A;
@@ -18,7 +20,9 @@ import { getIssueHierarchyLevel } from '@/lib/issue-hierarchy';
  *                         Released 10/09 — found while scanning, 2026-10-14). Since 2026-10-19 the
  *                         import records such an Epic once as "Cho phép import" (source AUTO_EXEMPT,
  *                         planImportAdmission → provenExemptEpics), because the proof itself ages out
- *                         with the RAW retention / "Xóa lớp dữ liệu".
+ *                         with the RAW retention / "Xóa lớp dữ liệu". That entry exempts it from rule B
+ *                         only: A and the issue type are still checked at every import, so moving A
+ *                         later still denies it like any other Epic.
  *
  * A denied Epic takes every row of its branch with it (its Stories and their Subtasks).
  *
@@ -130,6 +134,10 @@ export function describeViolations(violations: readonly AdmissionViolation[]): s
 
 export interface AdmissionListEntry {
   allowImport: boolean;
+  /** Rules a "Cho phép import" entry exempts the Epic from: 'ALL' when an admin allowed it (MANUAL,
+   * SEED, an allowed AUTO_RULE); 'RELEASED_BEFORE' for the import's own AUTO_EXEMPT entry, which only
+   * stands in for the rule B proof. Omitted = 'ALL'. */
+  exemptFrom?: 'ALL' | 'RELEASED_BEFORE';
 }
 
 export interface DeniedEpicInFile {
@@ -223,14 +231,16 @@ export function planImportAdmission(
       listed.row = row;
       continue;
     }
-    if (list.has(key)) continue; // listed with "Cho phép import" — exempt from the rules
+    const allowance = list.get(key);
+    if (allowance && allowance.exemptFrom !== 'RELEASED_BEFORE') continue; // "Cho phép import" by an admin — exempt from every rule
     const facts = admissionFactsOfRow(row, toIsoDate, lastUnreleasedSeen.get(key) ?? null);
-    const violations = evaluateImportAdmission(facts, settings);
+    // An AUTO_EXEMPT entry only waives rule B; the other rules still apply to it.
+    const violations = evaluateImportAdmission(facts, settings).filter((violation) => !allowance || violation.code !== 'RELEASED_BEFORE');
     if (violations.length > 0) {
       denied.set(key, { epicKey: key, origin: 'RULE', row, violations });
       continue;
     }
-    const exemption = releasedBeforeExemption(facts, settings);
+    const exemption = allowance ? null : releasedBeforeExemption(facts, settings);
     if (exemption && !provenExemptEpics.some((epic) => epic.epicKey === key)) provenExemptEpics.push({ epicKey: key, reason: exemption, row });
   }
 

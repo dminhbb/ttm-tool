@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
 import { exportSmartSurfaceToSql } from '@/lib/db-backup-service';
 
+// Reads every surface issue plus ~20 config tables of a large database — same budget as ./import.
+export const maxDuration = 300;
+
 function authError(error: unknown): NextResponse | null {
   if (error instanceof AuthError) {
     return NextResponse.json(
