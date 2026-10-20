@@ -4,7 +4,9 @@
  *
  *   db/install/ttm-monitor-schema.sql  — DDL tạo toàn bộ bảng / khoá / index / hàm / trigger trên một DB
  *                                        PostgreSQL MỚI, KHÔNG có dữ liệu nghiệp vụ (chỉ ghi sẵn danh sách
- *                                        migration đã áp dụng vào schema_migrations).
+ *                                        migration đã áp dụng vào schema_migrations), kèm phần 7 TUỲ CHỌN: dữ
+ *                                        liệu khởi tạo của các bảng cấu hình + 1 SUPERADMIN ban đầu (catalog →
+ *                                        `seed`), bật/tắt bằng công tắc ttm_install.seed_data ở đầu file.
  *   docs/database-erd.md               — ERD (Mermaid) theo nhóm nghiệp vụ + từ điển dữ liệu từng bảng.
  *   public/docs/product-guide.html     — thay phần giữa 2 marker <!-- BEGIN GENERATED: db-schema --> …
  *                                        <!-- END GENERATED: db-schema --> của chương 5 (Tài liệu sản phẩm).
@@ -17,6 +19,7 @@
  *   node scripts/db-schema-export.js --target=supabase   # hoặc --target=local
  *   node scripts/db-schema-export.js --sql-only          # chỉ ghi file SQL
  *   node scripts/db-schema-export.js --docs-only         # chỉ ghi ERD + Tài liệu sản phẩm
+ *   node scripts/db-schema-export.js --no-seed           # file SQL không kèm phần 7 (dữ liệu khởi tạo)
  *
  * Chỉ ĐỌC CSDL (SELECT trên catalog). Hàm introspect() nhận một hàm `query` bất kỳ, nên cũng chạy được
  * trên một DB nhúng (vd. PGlite) để kiểm tra file SQL vừa sinh.
@@ -112,6 +115,39 @@ async function introspect(query) {
   return { functions, migrations, sequences, tables: [...byOid.values()], version, views };
 }
 
+/**
+ * Rows of the configuration tables listed in db-schema-catalog.json → `seed`, as SQL tuples whose every
+ * value is a typed literal ('…'::type), built by Postgres itself (quote_nullable) so any type round-trips.
+ * Foreign keys to `users` become NULL (the new database has none of those users); `resetColumns` replace
+ * runtime state (e.g. the cache-rebuild lease) with a clean start value.
+ */
+async function loadSeedData(query, schema, seedConfig) {
+  const byName = new Map(schema.tables.map((table) => [table.name, table]));
+  const result = [];
+  for (const name of seedConfig.tables) {
+    const table = byName.get(name);
+    if (!table) continue;
+    const userFkColumns = new Set(table.constraints.filter((item) => item.type === 'f' && item.refTable === 'users').flatMap((item) => item.columns));
+    const resets = (seedConfig.resetColumns ?? {})[name] ?? {};
+    const columns = table.columns.filter((column) => column.generated !== 's');
+    const expressions = columns.map((column) => {
+      const cast = `::${column.type}`;
+      if (Object.prototype.hasOwnProperty.call(resets, column.name)) {
+        const value = resets[column.name];
+        return sqlString(value === null ? `NULL${cast}` : `${sqlString(value)}${cast}`);
+      }
+      if (userFkColumns.has(column.name)) return sqlString(`NULL${cast}`);
+      return `quote_nullable(${quoteIdent(column.name)}::text) || ${sqlString(cast)}`;
+    });
+    const pk = table.constraints.find((item) => item.type === 'p');
+    const order = pk ? pk.columns.map(quoteIdent).join(', ') : '1';
+    const rows = await query(`SELECT '(' || concat_ws(', ', ${expressions.join(', ')}) || ')' AS tuple FROM ${quoteIdent(name)} ORDER BY ${order}`);
+    const serial = columns.find((column) => column.ownedSequence && (column.default || '').startsWith('nextval('));
+    result.push({ columns: columns.map((column) => column.name), name, serialColumn: serial?.name ?? null, tuples: rows.map((row) => row.tuple) });
+  }
+  return result;
+}
+
 /** int2[] comes back as a JS array from pg, as "{1,2}" text from some drivers. */
 function toArray(value) {
   if (Array.isArray(value)) return value.map(Number);
@@ -147,7 +183,7 @@ function quoteIdent(name) {
 
 const RESERVED = new Set(['user', 'order', 'group', 'table', 'column', 'default', 'check', 'primary', 'references', 'select', 'where', 'from', 'to', 'limit', 'offset', 'end', 'desc', 'asc', 'all', 'analyse', 'analyze', 'and', 'any', 'array', 'as', 'both', 'case', 'cast', 'collate', 'constraint', 'create', 'current_date', 'current_role', 'current_time', 'current_timestamp', 'current_user', 'deferrable', 'distinct', 'do', 'else', 'except', 'false', 'fetch', 'for', 'foreign', 'grant', 'having', 'in', 'initially', 'intersect', 'into', 'lateral', 'leading', 'localtime', 'localtimestamp', 'not', 'null', 'on', 'only', 'or', 'placing', 'returning', 'session_user', 'some', 'symmetric', 'then', 'trailing', 'true', 'union', 'unique', 'using', 'variadic', 'when', 'window', 'with']);
 
-function buildSql(schema, source) {
+function buildSql(schema, source, seed = null) {
   const lines = [];
   const add = (...items) => lines.push(...items);
   add(
@@ -165,13 +201,27 @@ function buildSql(schema, source) {
     '--',
     '-- Cuối file ghi sẵn tên các migration đã gộp vào cấu trúc này vào bảng schema_migrations — đó là sổ',
     '-- theo dõi, không phải dữ liệu nghiệp vụ: nhờ vậy `node scripts/migrate-db.js --target=local` trên DB mới',
-    '-- chỉ chạy những migration phát sinh SAU thời điểm sinh file. Dữ liệu danh mục / tài khoản đầu tiên:',
-    '-- xem db/install/README.md.',
+    '-- chỉ chạy những migration phát sinh SAU thời điểm sinh file.',
+    '--',
+    ...(seed ? [
+      '-- Phần 7 (cuối file) là DỮ LIỆU KHỞI TẠO TUỲ CHỌN: cấu hình hiện hành của ' + seed.tables.length + ' bảng cấu hình (ma trận phân quyền,',
+      '-- tiêu chí TTM, rule cảnh báo, lịch nghỉ, cấu hình Scoring…) + 1 tài khoản SUPERADMIN ban đầu, để ứng dụng chạy được',
+      '-- ngay sau khi tạo DB. Bật / tắt bằng CÔNG TẮC ngay bên dưới. Chi tiết: db/install/README.md.',
+    ] : ['-- Dữ liệu danh mục / tài khoản đầu tiên: xem db/install/README.md.']),
     '-- =============================================================================================',
     '',
     'BEGIN;',
     '',
   );
+  if (seed) {
+    add(
+      '-- >>> CÔNG TẮC DỮ LIỆU KHỞI TẠO (phần 7) <<<',
+      "--     'on'  = tạo cấu trúc VÀ nạp dữ liệu cấu hình ban đầu + tài khoản SUPERADMIN ban đầu (mặc định)",
+      "--     'off' = chỉ tạo cấu trúc (bảng trống) — vd. khi sẽ phục hồi dữ liệu từ môi trường khác ngay sau đó",
+      "SELECT set_config('ttm_install.seed_data', 'on', false);",
+      '',
+    );
+  }
 
   if (schema.sequences.length) {
     add('-- Sequence độc lập (không thuộc cột SERIAL nào)');
@@ -227,6 +277,43 @@ function buildSql(schema, source) {
       '',
     );
   }
+  if (seed) {
+    const on = "current_setting('ttm_install.seed_data', true) = 'on'";
+    add(
+      '-- ---------------------------------------------------------------------------------------------',
+      `-- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)`,
+      `--    Cấu hình hiện hành của CSDL ${source} lúc sinh file; khoá ngoại tới users để NULL. Không gồm dữ liệu`,
+      '--    nghiệp vụ (domain, dự án, user, Epic, danh sách Black listed / Từ chối import, banner, API key).',
+      '-- ---------------------------------------------------------------------------------------------',
+      '',
+    );
+    for (const table of seed.tables) {
+      if (table.tuples.length === 0) { add(`-- ${table.name}: không có dòng nào trên CSDL nguồn.`); continue; }
+      const columnList = table.columns.map(quoteIdent).join(', ');
+      add(
+        `-- ${table.name} (${table.tuples.length} dòng)`,
+        `INSERT INTO ${quoteIdent(table.name)} (${columnList})`,
+        `SELECT * FROM (VALUES`,
+        table.tuples.map((tuple) => `    ${tuple}`).join(',\n'),
+        `) AS seed (${columnList})`,
+        `WHERE ${on};`,
+      );
+      if (table.serialColumn) add(`SELECT setval(pg_get_serial_sequence('${table.name}', '${table.serialColumn}'), MAX(${quoteIdent(table.serialColumn)})) FROM ${quoteIdent(table.name)} HAVING MAX(${quoteIdent(table.serialColumn)}) IS NOT NULL;`);
+      add('');
+    }
+    const admin = seed.adminAccount;
+    if (admin) {
+      add(
+        '-- Tài khoản SUPERADMIN ban đầu — username đăng nhập: ' + admin.email.split('@')[0] + ' ; mật khẩu ban đầu ghi ở db/install/README.md.',
+        '-- Bắt buộc đổi mật khẩu ở lần đăng nhập đầu (must_change_password = TRUE). Đổi mật khẩu ban đầu: thay mã băm bcrypt dưới đây.',
+        'INSERT INTO users (email, full_name, password_hash, role, is_active, must_change_password)',
+        `SELECT ${sqlString(admin.email)}, ${sqlString(admin.fullName)}, ${sqlString(admin.passwordHash)}, ${sqlString(admin.role)}, TRUE, TRUE`,
+        `WHERE ${on};`,
+        '',
+      );
+    }
+  }
+
   add('COMMIT;', '');
   return lines.join('\n');
 }
@@ -554,9 +641,13 @@ async function main() {
   const target = (targetArg ? targetArg.split('=')[1] : process.env.DB_CONNECTION || 'local').trim().toLowerCase();
   if (target !== 'local' && target !== 'supabase') throw new Error('--target phải là local hoặc supabase.');
   const pool = new Pool(poolConfig(target));
+  const seedConfig = JSON.parse(fs.readFileSync(CATALOG, 'utf8')).seed;
   let schema;
+  let seed = null;
   try {
-    schema = await introspect(async (sql) => (await pool.query(sql)).rows);
+    const query = async (sql) => (await pool.query(sql)).rows;
+    schema = await introspect(query);
+    if (seedConfig && !args.includes('--no-seed')) seed = { adminAccount: seedConfig.adminAccount, tables: await loadSeedData(query, schema, seedConfig) };
   } finally {
     await pool.end();
   }
@@ -565,8 +656,8 @@ async function main() {
   const docsOnly = args.includes('--docs-only');
   if (!docsOnly) {
     fs.mkdirSync(path.dirname(SQL_OUT), { recursive: true });
-    fs.writeFileSync(SQL_OUT, buildSql(schema, source));
-    console.log(`Đã ghi ${path.relative(ROOT, SQL_OUT)} (${schema.tables.length} bảng, ${schema.migrations.length} migration).`);
+    fs.writeFileSync(SQL_OUT, buildSql(schema, source, seed));
+    console.log(`Đã ghi ${path.relative(ROOT, SQL_OUT)} (${schema.tables.length} bảng, ${schema.migrations.length} migration${seed ? `, dữ liệu khởi tạo ${seed.tables.reduce((n, t) => n + t.tuples.length, 0)} dòng / ${seed.tables.length} bảng + 1 SUPERADMIN` : ''}).`);
   }
   if (!sqlOnly) {
     const catalog = loadCatalog(schema);
@@ -586,4 +677,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { buildSql, introspect };
+module.exports = { buildSql, introspect, loadSeedData };

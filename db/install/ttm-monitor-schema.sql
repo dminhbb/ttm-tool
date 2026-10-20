@@ -1,6 +1,6 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-20T01:59:31.216Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-20T02:18:54.462Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
 -- Gồm: 60 bảng, 65 index phụ, 4 hàm, 4 trigger.
@@ -12,11 +12,19 @@
 --
 -- Cuối file ghi sẵn tên các migration đã gộp vào cấu trúc này vào bảng schema_migrations — đó là sổ
 -- theo dõi, không phải dữ liệu nghiệp vụ: nhờ vậy `node scripts/migrate-db.js --target=local` trên DB mới
--- chỉ chạy những migration phát sinh SAU thời điểm sinh file. Dữ liệu danh mục / tài khoản đầu tiên:
--- xem db/install/README.md.
+-- chỉ chạy những migration phát sinh SAU thời điểm sinh file.
+--
+-- Phần 7 (cuối file) là DỮ LIỆU KHỞI TẠO TUỲ CHỌN: cấu hình hiện hành của 19 bảng cấu hình (ma trận phân quyền,
+-- tiêu chí TTM, rule cảnh báo, lịch nghỉ, cấu hình Scoring…) + 1 tài khoản SUPERADMIN ban đầu, để ứng dụng chạy được
+-- ngay sau khi tạo DB. Bật / tắt bằng CÔNG TẮC ngay bên dưới. Chi tiết: db/install/README.md.
 -- =============================================================================================
 
 BEGIN;
+
+-- >>> CÔNG TẮC DỮ LIỆU KHỞI TẠO (phần 7) <<<
+--     'on'  = tạo cấu trúc VÀ nạp dữ liệu cấu hình ban đầu + tài khoản SUPERADMIN ban đầu (mặc định)
+--     'off' = chỉ tạo cấu trúc (bảng trống) — vd. khi sẽ phục hồi dữ liệu từ môi trường khác ngay sau đó
+SELECT set_config('ttm_install.seed_data', 'on', false);
 
 -- ---------------------------------------------------------------------------------------------
 -- 1. Bảng (cột, khoá chính, UNIQUE, CHECK)
@@ -1160,5 +1168,258 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261019c_add_epic_deletion_scope_indexes.sql'),
     ('20261019d_add_users_unique_username_index.sql'),
     ('20261020_sync_project_type_on_category_cleared.sql');
+
+-- ---------------------------------------------------------------------------------------------
+-- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
+--    Cấu hình hiện hành của CSDL Supabase lúc sinh file; khoá ngoại tới users để NULL. Không gồm dữ liệu
+--    nghiệp vụ (domain, dự án, user, Epic, danh sách Black listed / Từ chối import, banner, API key).
+-- ---------------------------------------------------------------------------------------------
+
+-- permission_features (16 dòng)
+INSERT INTO permission_features (feature_key, feature_name, category, display_order)
+SELECT * FROM (VALUES
+    ('data_normalization'::character varying(60), 'Chuẩn hoá dữ liệu'::character varying(150), 'VIEW_ONLY'::character varying(10), '101'::integer),
+    ('data_source'::character varying(60), 'Nguồn dữ liệu'::character varying(150), 'ADMIN'::character varying(10), '20'::integer),
+    ('database_backup'::character varying(60), 'Sao lưu / Phục hồi dữ liệu'::character varying(150), 'ADMIN'::character varying(10), '70'::integer),
+    ('domains'::character varying(60), 'Quản lý Domain'::character varying(150), 'ADMIN'::character varying(10), '40'::integer),
+    ('epic_alerts_15'::character varying(60), 'Quản lý Epic 15'::character varying(150), 'VIEW_ONLY'::character varying(10), '100'::integer),
+    ('epic_reports'::character varying(60), 'Báo cáo Epic'::character varying(150), 'VIEW_ONLY'::character varying(10), '85'::integer),
+    ('general_settings'::character varying(60), 'Quản lý chung'::character varying(150), 'ADMIN'::character varying(10), '80'::integer),
+    ('help_alert_logic'::character varying(60), 'Popup Logic cảnh báo Epic'::character varying(150), 'VIEW_ONLY'::character varying(10), '110'::integer),
+    ('help_data_logic'::character varying(60), 'Popup Logic xử lý dữ liệu'::character varying(150), 'VIEW_ONLY'::character varying(10), '120'::integer),
+    ('permission_matrix'::character varying(60), 'Ma trận phân quyền'::character varying(150), 'ADMIN'::character varying(10), '10'::integer),
+    ('product_docs'::character varying(60), 'Tài liệu sản phẩm'::character varying(150), 'VIEW_ONLY'::character varying(10), '130'::integer),
+    ('projects'::character varying(60), 'Quản lý Dự án'::character varying(150), 'ADMIN'::character varying(10), '50'::integer),
+    ('status_alert_rules'::character varying(60), 'Cấu hình cảnh báo'::character varying(150), 'ADMIN'::character varying(10), '60'::integer),
+    ('ttm_dashboard_2'::character varying(60), 'TTM Dashboard 2'::character varying(150), 'VIEW_ONLY'::character varying(10), '83'::integer),
+    ('users'::character varying(60), 'Quản lý User'::character varying(150), 'ADMIN'::character varying(10), '30'::integer),
+    ('visit_counter'::character varying(60), 'Thống kê truy cập'::character varying(150), 'VIEW_ONLY'::character varying(10), '107'::integer)
+) AS seed (feature_key, feature_name, category, display_order)
+WHERE current_setting('ttm_install.seed_data', true) = 'on';
+
+-- role_feature_permissions (64 dòng)
+INSERT INTO role_feature_permissions (feature_key, role, can_view, can_add, can_edit, can_delete)
+SELECT * FROM (VALUES
+    ('data_normalization'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('data_normalization'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('data_normalization'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('data_normalization'::character varying(60), 'USER'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('data_source'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('data_source'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'true'::boolean, 'true'::boolean),
+    ('data_source'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('data_source'::character varying(60), 'USER'::character varying(20), 'false'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('database_backup'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('database_backup'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'true'::boolean, 'true'::boolean),
+    ('database_backup'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('database_backup'::character varying(60), 'USER'::character varying(20), 'false'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('domains'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'false'::boolean, 'false'::boolean),
+    ('domains'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'true'::boolean, 'true'::boolean),
+    ('domains'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('domains'::character varying(60), 'USER'::character varying(20), 'false'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('epic_alerts_15'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('epic_alerts_15'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('epic_alerts_15'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('epic_alerts_15'::character varying(60), 'USER'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('epic_reports'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('epic_reports'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('epic_reports'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('epic_reports'::character varying(60), 'USER'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('general_settings'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'true'::boolean, 'false'::boolean),
+    ('general_settings'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'true'::boolean, 'true'::boolean),
+    ('general_settings'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('general_settings'::character varying(60), 'USER'::character varying(20), 'false'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('help_alert_logic'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('help_alert_logic'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('help_alert_logic'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('help_alert_logic'::character varying(60), 'USER'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('help_data_logic'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('help_data_logic'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('help_data_logic'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('help_data_logic'::character varying(60), 'USER'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('permission_matrix'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('permission_matrix'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'true'::boolean, 'true'::boolean),
+    ('permission_matrix'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('permission_matrix'::character varying(60), 'USER'::character varying(20), 'false'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('product_docs'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('product_docs'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('product_docs'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('product_docs'::character varying(60), 'USER'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('projects'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'true'::boolean, 'true'::boolean),
+    ('projects'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'true'::boolean, 'true'::boolean),
+    ('projects'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('projects'::character varying(60), 'USER'::character varying(20), 'false'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('status_alert_rules'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('status_alert_rules'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'true'::boolean, 'true'::boolean),
+    ('status_alert_rules'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('status_alert_rules'::character varying(60), 'USER'::character varying(20), 'false'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('ttm_dashboard_2'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('ttm_dashboard_2'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('ttm_dashboard_2'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('ttm_dashboard_2'::character varying(60), 'USER'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('users'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'false'::boolean, 'false'::boolean),
+    ('users'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'true'::boolean, 'true'::boolean),
+    ('users'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('users'::character varying(60), 'USER'::character varying(20), 'false'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('visit_counter'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('visit_counter'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('visit_counter'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('visit_counter'::character varying(60), 'USER'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean)
+) AS seed (feature_key, role, can_view, can_add, can_edit, can_delete)
+WHERE current_setting('ttm_install.seed_data', true) = 'on';
+
+-- ttm_policy_configs (8 dòng)
+INSERT INTO ttm_policy_configs (id, ttm_type, epic_complexity_type, from_ttm_field, to_ttm_field, working_days, is_active, created_at, updated_at)
+SELECT * FROM (VALUES
+    ('5'::integer, 'TTM_CNTT'::character varying(20), 'CT-Lv12'::character varying(20), 'START_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '15'::integer, 'true'::boolean, '2026-09-08 08:00:05.602233+00'::timestamp with time zone, '2026-09-08 08:00:05.602233+00'::timestamp with time zone),
+    ('6'::integer, 'TTM_CNTT'::character varying(20), 'CT-Lv34'::character varying(20), 'START_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '25'::integer, 'true'::boolean, '2026-09-08 08:00:18.291246+00'::timestamp with time zone, '2026-09-08 08:00:18.291246+00'::timestamp with time zone),
+    ('7'::integer, 'TTM_CNTT'::character varying(20), 'SP-Lv12'::character varying(20), 'START_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '30'::integer, 'true'::boolean, '2026-09-08 08:00:28.008926+00'::timestamp with time zone, '2026-09-08 10:16:29.314162+00'::timestamp with time zone),
+    ('8'::integer, 'TTM_CNTT'::character varying(20), 'SP-Lv34'::character varying(20), 'START_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '30'::integer, 'true'::boolean, '2026-09-08 08:00:40.788707+00'::timestamp with time zone, '2026-09-08 08:00:40.788707+00'::timestamp with time zone),
+    ('9'::integer, 'TTM_E2E'::character varying(20), 'CT-Lv12'::character varying(20), 'IDEA_APPROVED_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '20'::integer, 'true'::boolean, '2026-09-08 08:01:33.599333+00'::timestamp with time zone, '2026-09-26 03:28:49.788743+00'::timestamp with time zone),
+    ('10'::integer, 'TTM_E2E'::character varying(20), 'CT-Lv34'::character varying(20), 'IDEA_APPROVED_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '30'::integer, 'true'::boolean, '2026-09-08 08:01:54.000509+00'::timestamp with time zone, '2026-09-26 03:28:49.788743+00'::timestamp with time zone),
+    ('12'::integer, 'TTM_E2E'::character varying(20), 'SP-Lv12'::character varying(20), 'IDEA_APPROVED_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '50'::integer, 'true'::boolean, '2026-09-08 08:02:18.126798+00'::timestamp with time zone, '2026-09-26 03:28:49.788743+00'::timestamp with time zone),
+    ('13'::integer, 'TTM_E2E'::character varying(20), 'SP-Lv34'::character varying(20), 'IDEA_APPROVED_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '50'::integer, 'true'::boolean, '2026-09-08 08:02:30.998561+00'::timestamp with time zone, '2026-09-26 03:28:49.788743+00'::timestamp with time zone)
+) AS seed (id, ttm_type, epic_complexity_type, from_ttm_field, to_ttm_field, working_days, is_active, created_at, updated_at)
+WHERE current_setting('ttm_install.seed_data', true) = 'on';
+SELECT setval(pg_get_serial_sequence('ttm_policy_configs', 'id'), MAX(id)) FROM ttm_policy_configs HAVING MAX(id) IS NOT NULL;
+
+-- epic_status_alert_rules (8 dòng)
+INSERT INTO epic_status_alert_rules (id, epic_complexity_type, epic_status, early_alert_offset_days, late_alert_offset_days, is_active, created_at, updated_at)
+SELECT * FROM (VALUES
+    ('9'::integer, 'CT-Lv12'::character varying(20), 'Design'::character varying(50), '1'::integer, '3'::integer, 'true'::boolean, '2026-09-08 11:51:17.421277+00'::timestamp with time zone, '2026-09-10 10:26:25.834365+00'::timestamp with time zone),
+    ('10'::integer, 'CT-Lv12'::character varying(20), 'In Progress'::character varying(50), '13'::integer, '15'::integer, 'true'::boolean, '2026-09-08 11:51:42.985843+00'::timestamp with time zone, '2026-09-10 10:27:20.337713+00'::timestamp with time zone),
+    ('11'::integer, 'CT-Lv34'::character varying(20), 'Design'::character varying(50), '3'::integer, '5'::integer, 'true'::boolean, '2026-09-08 11:52:51.614629+00'::timestamp with time zone, '2026-09-10 10:26:38.309094+00'::timestamp with time zone),
+    ('12'::integer, 'CT-Lv34'::character varying(20), 'In Progress'::character varying(50), '23'::integer, '25'::integer, 'true'::boolean, '2026-09-08 11:53:30.405654+00'::timestamp with time zone, '2026-09-10 10:27:35.850703+00'::timestamp with time zone),
+    ('13'::integer, 'SP-Lv12'::character varying(20), 'Design'::character varying(50), '5'::integer, '7'::integer, 'true'::boolean, '2026-09-08 11:53:55.040439+00'::timestamp with time zone, '2026-09-10 10:26:52.813701+00'::timestamp with time zone),
+    ('14'::integer, 'SP-Lv12'::character varying(20), 'In Progress'::character varying(50), '28'::integer, '30'::integer, 'true'::boolean, '2026-09-08 11:54:17.943469+00'::timestamp with time zone, '2026-09-10 10:28:14.626144+00'::timestamp with time zone),
+    ('15'::integer, 'SP-Lv34'::character varying(20), 'Design'::character varying(50), '5'::integer, '7'::integer, 'true'::boolean, '2026-09-08 11:54:34.248874+00'::timestamp with time zone, '2026-09-10 10:26:58.390135+00'::timestamp with time zone),
+    ('17'::integer, 'SP-Lv34'::character varying(20), 'In Progress'::character varying(50), '28'::integer, '30'::integer, 'true'::boolean, '2026-09-08 11:54:49.922323+00'::timestamp with time zone, '2026-09-10 10:28:41.539527+00'::timestamp with time zone)
+) AS seed (id, epic_complexity_type, epic_status, early_alert_offset_days, late_alert_offset_days, is_active, created_at, updated_at)
+WHERE current_setting('ttm_install.seed_data', true) = 'on';
+SELECT setval(pg_get_serial_sequence('epic_status_alert_rules', 'id'), MAX(id)) FROM epic_status_alert_rules HAVING MAX(id) IS NOT NULL;
+
+-- issue_type_role_mapping (8 dòng)
+INSERT INTO issue_type_role_mapping (id, issue_type, team_role, created_at, updated_at)
+SELECT * FROM (VALUES
+    ('1'::integer, 'BA'::character varying(100), 'BA'::character varying(10), '2026-08-15 09:27:24.266523+00'::timestamp with time zone, '2026-08-15 09:27:24.266523+00'::timestamp with time zone),
+    ('2'::integer, 'DEV'::character varying(100), 'DEV'::character varying(10), '2026-08-15 09:27:24.266523+00'::timestamp with time zone, '2026-08-15 09:27:24.266523+00'::timestamp with time zone),
+    ('3'::integer, 'Design'::character varying(100), 'TEST'::character varying(10), '2026-08-15 09:27:24.266523+00'::timestamp with time zone, '2026-08-20 02:38:19.689208+00'::timestamp with time zone),
+    ('4'::integer, 'Review TKCT'::character varying(100), 'DEV'::character varying(10), '2026-08-15 09:27:24.266523+00'::timestamp with time zone, '2026-08-15 09:27:24.266523+00'::timestamp with time zone),
+    ('5'::integer, 'Sub test execution'::character varying(100), 'TEST'::character varying(10), '2026-08-15 09:27:24.266523+00'::timestamp with time zone, '2026-08-15 09:27:24.266523+00'::timestamp with time zone),
+    ('6'::integer, 'UAT'::character varying(100), 'TEST'::character varying(10), '2026-08-15 09:27:24.266523+00'::timestamp with time zone, '2026-08-15 09:27:24.266523+00'::timestamp with time zone),
+    ('7'::integer, 'KSTĐ'::character varying(100), 'TEST'::character varying(10), '2026-08-15 09:27:24.266523+00'::timestamp with time zone, '2026-08-15 09:27:24.266523+00'::timestamp with time zone),
+    ('8'::integer, 'Elicitate'::character varying(100), 'BA'::character varying(10), '2026-08-20 02:38:04.021615+00'::timestamp with time zone, '2026-08-20 02:38:04.021615+00'::timestamp with time zone)
+) AS seed (id, issue_type, team_role, created_at, updated_at)
+WHERE current_setting('ttm_install.seed_data', true) = 'on';
+SELECT setval(pg_get_serial_sequence('issue_type_role_mapping', 'id'), MAX(id)) FROM issue_type_role_mapping HAVING MAX(id) IS NOT NULL;
+
+-- ttm_scope_config (1 dòng)
+INSERT INTO ttm_scope_config (id, cntt_from, cntt_to, qa_from, qa_to, updated_at, updated_by_user_id)
+SELECT * FROM (VALUES
+    ('1'::smallint, NULL::date, NULL::date, NULL::date, NULL::date, '2026-10-01 10:57:20.94944+00'::timestamp with time zone, NULL::integer)
+) AS seed (id, cntt_from, cntt_to, qa_from, qa_to, updated_at, updated_by_user_id)
+WHERE current_setting('ttm_install.seed_data', true) = 'on';
+
+-- holidays (5 dòng)
+INSERT INTO holidays (id, name, holiday_type, is_multi_day, start_date, end_date, description, is_active, created_at, updated_at)
+SELECT * FROM (VALUES
+    ('2'::integer, 'Nghỉ Lễ Quốc Khánh 2/9'::character varying(255), 'PUBLIC'::character varying(50), 'true'::boolean, '2026-08-29'::date, '2026-09-02'::date, NULL::text, 'true'::boolean, '2026-08-09 13:34:20.456802+00'::timestamp with time zone, '2026-09-09 16:10:44.604186+00'::timestamp with time zone),
+    ('3'::integer, 'Nghỉ Lễ 2/9'::character varying(255), 'PUBLIC'::character varying(50), 'true'::boolean, '2027-08-29'::date, '2027-09-02'::date, NULL::text, 'true'::boolean, '2026-09-04 15:39:43.864452+00'::timestamp with time zone, '2026-09-04 15:39:43.864452+00'::timestamp with time zone),
+    ('4'::integer, 'Ngày Văn hóa Việt Nam'::character varying(255), 'PUBLIC'::character varying(50), 'true'::boolean, '2026-11-23'::date, '2026-11-24'::date, 'Làm bù vào 28/11/2026'::text, 'true'::boolean, '2026-09-09 16:10:29.782736+00'::timestamp with time zone, '2026-09-09 16:10:29.782736+00'::timestamp with time zone),
+    ('5'::integer, 'Nghỉ Tết Dương lịch'::character varying(255), 'OTHER'::character varying(50), 'false'::boolean, '2027-01-01'::date, '2027-01-01'::date, NULL::text, 'true'::boolean, '2026-09-09 16:12:39.762681+00'::timestamp with time zone, '2026-09-09 16:12:39.762681+00'::timestamp with time zone),
+    ('6'::integer, 'Nghỉ Lễ 30/4-1/5'::character varying(255), 'PUBLIC'::character varying(50), 'true'::boolean, '2027-04-30'::date, '2027-05-03'::date, NULL::text, 'true'::boolean, '2026-09-09 16:13:37.680664+00'::timestamp with time zone, '2026-09-09 16:13:37.680664+00'::timestamp with time zone)
+) AS seed (id, name, holiday_type, is_multi_day, start_date, end_date, description, is_active, created_at, updated_at)
+WHERE current_setting('ttm_install.seed_data', true) = 'on';
+SELECT setval(pg_get_serial_sequence('holidays', 'id'), MAX(id)) FROM holidays HAVING MAX(id) IS NOT NULL;
+
+-- makeup_workdays (2 dòng)
+INSERT INTO makeup_workdays (id, work_date, description, is_active, created_at, updated_at)
+SELECT * FROM (VALUES
+    ('1'::integer, '2026-08-22'::date, 'Làm bù nghỉ Lễ Quốc Khánh'::text, 'true'::boolean, '2026-09-04 08:55:38.989401+00'::timestamp with time zone, '2026-09-09 16:10:59.702748+00'::timestamp with time zone),
+    ('2'::integer, '2027-08-22'::date, NULL::text, 'true'::boolean, '2026-09-04 15:39:44.777032+00'::timestamp with time zone, '2026-09-04 15:39:44.777032+00'::timestamp with time zone)
+) AS seed (id, work_date, description, is_active, created_at, updated_at)
+WHERE current_setting('ttm_install.seed_data', true) = 'on';
+SELECT setval(pg_get_serial_sequence('makeup_workdays', 'id'), MAX(id)) FROM makeup_workdays HAVING MAX(id) IS NOT NULL;
+
+-- scoring_engine_settings (1 dòng)
+INSERT INTO scoring_engine_settings (id, mode, updated_at, updated_by_user_id)
+SELECT * FROM (VALUES
+    ('1'::smallint, 'scoring'::text, '2026-09-30 01:14:13.383525+00'::timestamp with time zone, NULL::integer)
+) AS seed (id, mode, updated_at, updated_by_user_id)
+WHERE current_setting('ttm_install.seed_data', true) = 'on';
+
+-- scoring_parameters: không có dòng nào trên CSDL nguồn.
+-- scoring_rule_settings: không có dòng nào trên CSDL nguồn.
+-- project_types (3 dòng)
+INSERT INTO project_types (id, type_code, type_name, legacy_category, description, sort_order, is_active, created_at, updated_at)
+SELECT * FROM (VALUES
+    ('1'::integer, 'DELIVERY_PROJECT'::character varying(50), 'Dự án'::character varying(100), 'Dự án'::character varying(30), 'Dự án triển khai: mốc kế hoạch theo năm, checklist triển khai và kế hoạch thực thi chi tiết.'::text, '1'::integer, 'true'::boolean, '2026-10-11 13:48:24.87349+00'::timestamp with time zone, '2026-10-11 13:48:24.87349+00'::timestamp with time zone),
+    ('2'::integer, 'AGILE_TEAM'::character varying(50), 'Team Agile'::character varying(100), 'Team Agile'::character varying(30), 'Team Agile: lập kế hoạch theo quý/tháng và kiểm soát backlog đầu vào.'::text, '2'::integer, 'true'::boolean, '2026-10-11 13:48:24.87349+00'::timestamp with time zone, '2026-10-11 13:48:24.87349+00'::timestamp with time zone),
+    ('3'::integer, 'DEPLOYMENT_TEAM'::character varying(50), 'Team Triển khai'::character varying(100), 'Team Triển khai'::character varying(30), 'Team triển khai. Bộ năng lực dưới đây là mặc định tạm thời, CẦN chủ sở hữu nghiệp vụ xác nhận.'::text, '3'::integer, 'true'::boolean, '2026-10-11 13:48:24.87349+00'::timestamp with time zone, '2026-10-11 13:48:24.87349+00'::timestamp with time zone)
+) AS seed (id, type_code, type_name, legacy_category, description, sort_order, is_active, created_at, updated_at)
+WHERE current_setting('ttm_install.seed_data', true) = 'on';
+SELECT setval(pg_get_serial_sequence('project_types', 'id'), MAX(id)) FROM project_types HAVING MAX(id) IS NOT NULL;
+
+-- project_type_capabilities (9 dòng)
+INSERT INTO project_type_capabilities (project_type_id, capability_code, created_at)
+SELECT * FROM (VALUES
+    ('1'::integer, 'CHECKLIST'::character varying(50), '2026-10-11 13:48:24.87349+00'::timestamp with time zone),
+    ('1'::integer, 'GANTT'::character varying(50), '2026-10-11 13:48:24.87349+00'::timestamp with time zone),
+    ('1'::integer, 'IMPLEMENTATION_PLAN'::character varying(50), '2026-10-11 13:48:24.87349+00'::timestamp with time zone),
+    ('1'::integer, 'MILESTONE'::character varying(50), '2026-10-11 13:48:24.87349+00'::timestamp with time zone),
+    ('2'::integer, 'BACKLOG'::character varying(50), '2026-10-11 13:48:24.87349+00'::timestamp with time zone),
+    ('2'::integer, 'CAPACITY'::character varying(50), '2026-10-11 13:48:24.87349+00'::timestamp with time zone),
+    ('2'::integer, 'PLANNING_PERIOD'::character varying(50), '2026-10-11 13:48:24.87349+00'::timestamp with time zone),
+    ('3'::integer, 'CHECKLIST'::character varying(50), '2026-10-11 13:48:24.87349+00'::timestamp with time zone),
+    ('3'::integer, 'MILESTONE'::character varying(50), '2026-10-11 13:48:24.87349+00'::timestamp with time zone)
+) AS seed (project_type_id, capability_code, created_at)
+WHERE current_setting('ttm_install.seed_data', true) = 'on';
+
+-- jira_settings (1 dòng)
+INSERT INTO jira_settings (id, api_base_url, view_issue_base_url, updated_at)
+SELECT * FROM (VALUES
+    ('1'::smallint, 'https://jira.mbbank.com.vn/rest/api/2'::character varying(500), 'https://jira.mbbank.com.vn/browse/'::character varying(500), '2026-08-19 07:33:59.095955+00'::timestamp with time zone)
+) AS seed (id, api_base_url, view_issue_base_url, updated_at)
+WHERE current_setting('ttm_install.seed_data', true) = 'on';
+
+-- data_retention_configs (1 dòng)
+INSERT INTO data_retention_configs (id, raw_import_retention_days, updated_at)
+SELECT * FROM (VALUES
+    ('1'::smallint, '200'::integer, '2026-09-26 07:33:15.97024+00'::timestamp with time zone)
+) AS seed (id, raw_import_retention_days, updated_at)
+WHERE current_setting('ttm_install.seed_data', true) = 'on';
+
+-- mcp_settings (1 dòng)
+INSERT INTO mcp_settings (id, is_enabled, updated_at, updated_by)
+SELECT * FROM (VALUES
+    ('1'::smallint, 'true'::boolean, '2026-10-05 07:49:08.950632+00'::timestamp with time zone, NULL::integer)
+) AS seed (id, is_enabled, updated_at, updated_by)
+WHERE current_setting('ttm_install.seed_data', true) = 'on';
+
+-- dashboard_view_settings (1 dòng)
+INSERT INTO dashboard_view_settings (id, lead_view_for_all_users, updated_by_user_id, updated_at)
+SELECT * FROM (VALUES
+    ('1'::smallint, 'true'::boolean, NULL::integer, '2026-10-14 08:09:37.192363+00'::timestamp with time zone)
+) AS seed (id, lead_view_for_all_users, updated_by_user_id, updated_at)
+WHERE current_setting('ttm_install.seed_data', true) = 'on';
+
+-- import_admission_settings (1 dòng)
+INSERT INTO import_admission_settings (id, created_before, released_due_before, updated_by_user_id, updated_at)
+SELECT * FROM (VALUES
+    ('1'::smallint, '2026-02-01'::date, '2026-07-01'::date, NULL::integer, '2026-10-14 16:58:03.212007+00'::timestamp with time zone)
+) AS seed (id, created_before, released_due_before, updated_by_user_id, updated_at)
+WHERE current_setting('ttm_install.seed_data', true) = 'on';
+
+-- derived_cache_refresh_lock (1 dòng)
+INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at)
+SELECT * FROM (VALUES
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-10-19 17:03:58.203368+00'::timestamp with time zone)
+) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at)
+WHERE current_setting('ttm_install.seed_data', true) = 'on';
+
+-- Tài khoản SUPERADMIN ban đầu — username đăng nhập: admin ; mật khẩu ban đầu ghi ở db/install/README.md.
+-- Bắt buộc đổi mật khẩu ở lần đăng nhập đầu (must_change_password = TRUE). Đổi mật khẩu ban đầu: thay mã băm bcrypt dưới đây.
+INSERT INTO users (email, full_name, password_hash, role, is_active, must_change_password)
+SELECT 'admin@mbbank.com.vn', 'Quản trị hệ thống', '$2b$12$JsTMJWq5FrYs7uJ1yu7Vhux5tSWfNDVJUjbNf.Uz6UTRiqJfIkO3.', 'SUPERADMIN', TRUE, TRUE
+WHERE current_setting('ttm_install.seed_data', true) = 'on';
 
 COMMIT;

@@ -74,8 +74,9 @@ describe('font brand ship trong repo', () => {
   it('không ship weight lạ ngoài danh sách app nạp', () => {
     // Bắt trường hợp copy thêm file vào mà quên khai báo @font-face — font tải về
     // nhưng không bao giờ dùng, hoặc ngược lại khai báo thừa dẫn tới 404.
+    // Thư mục còn chứa font UI (Inter / Geist — describe bên dưới), nên chỉ xét file Averta.
     const shipped = readdirSync(FONT_DIR)
-      .filter((f) => f.endsWith('.woff2'))
+      .filter((f) => f.startsWith('averta-std-cy-') && f.endsWith('.woff2'))
       .sort();
     const expected = EXPECTED_WEIGHTS.map((w) => `averta-std-cy-${w}.woff2`).sort();
     assert.deepEqual(shipped, expected);
@@ -138,4 +139,34 @@ describe('font brand ship trong repo', () => {
       );
     }
   });
+});
+
+/**
+ * Font UI self-hosted (2026-10-20) — Inter / Geist / Geist Mono, trước đây nạp qua next/font/google nên
+ * `next build` cần Internet. Bản variable (một file cho mọi weight) trong src/app/fonts, sinh bởi
+ * scripts/build-ui-fonts.py; layout.tsx nạp đúng 3 file này.
+ */
+const UI_FONT_FILES = ['geist-mono-variable.woff2', 'geist-variable.woff2', 'inter-variable.woff2'] as const;
+
+describe('font UI self-hosted (Inter, Geist, Geist Mono)', () => {
+  it('đủ 3 file và không có file font lạ nào khác ngoài Averta', () => {
+    const shipped = readdirSync(FONT_DIR).filter((f) => f.endsWith('.woff2') && !f.startsWith('averta-std-cy-')).sort();
+    assert.deepEqual(shipped, [...UI_FONT_FILES], 'Chạy lại: python scripts/build-ui-fonts.py <thư mục gói npm geist + inter-ui>');
+  });
+
+  it('layout.tsx không còn nạp font từ Google (build trên mạng nội bộ không có Internet)', () => {
+    const layout = readFileSync(path.resolve(FONT_DIR, '..', 'layout.tsx'), 'utf8');
+    assert.ok(!/from\s+['"]next\/font\/google['"]/.test(layout), 'src/app/layout.tsx lại import next/font/google — build sẽ cần Internet');
+    for (const file of UI_FONT_FILES) assert.ok(layout.includes(`./fonts/${file}`), `layout.tsx không nạp ./fonts/${file}`);
+  });
+
+  for (const file of UI_FONT_FILES) {
+    it(`${file} phủ 100% ký tự tiếng Việt và giữ ký tự giao diện`, () => {
+      const { codepoints } = readFontCharset(readFileSync(path.join(FONT_DIR, file)));
+      const coverage = checkVietnameseCoverage(codepoints);
+      assert.deepEqual(coverage.missing.map(formatCodepoint), [], `${file} thiếu glyph tiếng Việt`);
+      const essentials = [0x0041, 0x007a, 0x0030, 0x0039, 0x0025, 0x2013, 0x2014, 0x2026, 0x2022, 0x00d7, 0x2192];
+      assert.deepEqual(essentials.filter((cp) => !codepoints.has(cp)).map(formatCodepoint), [], `${file} bị subset mất ký tự giao diện`);
+    });
+  }
 });

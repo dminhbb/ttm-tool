@@ -8,6 +8,20 @@
 
 ## 2026-10-20
 
+- **Build không cần Internet + dữ liệu khởi tạo cho DB mới** (không đổi schema):
+  - **Font self-hosted**: Inter, Geist, Geist Mono chuyển từ `next/font/google` sang `next/font/local` (`src/app/layout.tsx`) — file variable
+    `.woff2` trong `src/app/fonts/` (Inter subset Latin + tiếng Việt + ký hiệu UI, 171 KB; Geist/Geist Mono nguyên bản ~70 KB), kèm giấy phép
+    SIL OFL. Sinh bởi `scripts/build-ui-fonts.py` từ gói npm `inter-ui@4.1.1` / `geist@1.8.1`; `ds:check-font` xác nhận phủ 100% tiếng Việt.
+    `next build` chạy thành công, bundle không còn URL Google Fonts. Test `font-vietnamese.test.ts`: test Averta chỉ xét file Averta; thêm test 3 font UI
+    (đủ file, phủ tiếng Việt, `layout.tsx` không import `next/font/google`).
+  - **`db/install/ttm-monitor-schema.sql` có phần 7 tuỳ chọn — dữ liệu khởi tạo**: cấu hình hiện hành của 19 bảng (ma trận phân quyền, tiêu chí
+    TTM, rule cảnh báo, issue type, phạm vi TTM, ngày nghỉ / làm bù, cấu hình Scoring, loại dự án PMS, các bảng cấu hình 1 dòng) — 131 dòng — cộng
+    tài khoản SUPERADMIN ban đầu `admin` / `Ttm@Admin2026` (bắt buộc đổi mật khẩu). Bật/tắt bằng công tắc
+    `SELECT set_config('ttm_install.seed_data', 'on'|'off', false)` ở đầu file (chạy được trên psql / pgAdmin / DBeaver). Khoá ngoại tới `users`
+    để NULL, khoá tạo lại cache reset. Danh sách bảng + tài khoản ở `scripts/db-schema-catalog.json` → `seed`; `--no-seed` để sinh file không kèm.
+    Kiểm chứng trên PGlite: `'on'` nạp đủ 131 dòng + admin (mật khẩu khớp, sequence chạy tiếp đúng), `'off'` để trống; cấu trúc vẫn trùng khớp
+    Supabase. Cập nhật `db/install/README.md`, Tài liệu sản phẩm mục 1.1 và 19.2.
+
 - **Chuẩn bị triển khai môi trường mới (Node.js host + PostgreSQL nội bộ)** (không đổi schema):
   - `scripts/db-schema-export.js` (`npm run db:export-schema`): đọc catalog của một DB đã chạy đủ migration và sinh
     `db/install/ttm-monitor-schema.sql` (60 bảng, index, khoá ngoại, 4 hàm + 4 trigger; không dữ liệu, chỉ ghi sẵn 90 migration vào

@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono, Inter } from 'next/font/google';
 import localFont from 'next/font/local';
 import './globals.css';
 import { AppShell } from '@/components/layout/AppShell';
@@ -39,22 +38,33 @@ const averta = localFont({
 // Wise Sans is proprietary; Inter at weight 900 is the brief's own recommended substitute for
 // the brand's heavy display voice, and doubles as the body/UI face (DESIGN.md Typography note).
 // Giữ lại cho brand `wise` — brand `ias` dùng Averta ở trên.
-const inter = Inter({
-  subsets: ['latin', 'vietnamese'],
+//
+// Self-hosted (2026-10-20), như Averta: trước đây Inter / Geist / Geist Mono nạp qua `next/font/google`,
+// nên `next build` phải tải font từ Google — hỏng trên môi trường nội bộ không có Internet. Các file
+// .woff2 trong ./fonts là bản variable (một file cho mọi độ đậm 100–900) phủ đủ tiếng Việt, sinh bởi
+// `python scripts/build-ui-fonts.py` từ gói npm chính thức (Inter: inter-ui; Geist: geist — giấy phép
+// SIL OFL 1.1, bản giấy phép nằm cạnh file font).
+const inter = localFont({
+  src: './fonts/inter-variable.woff2',
   variable: '--font-inter',
-  weight: ['400', '500', '600', '700', '800', '900'],
+  weight: '100 900',
+  display: 'swap',
 });
 
 // Kept loaded (not just its CSS values) so "Giao diện cũ" in AppearancePanel can restore the
 // original typeface, not just the original colors/radius.
-const geistSans = Geist({
-  subsets: ['latin', 'vietnamese'],
+const geistSans = localFont({
+  src: './fonts/geist-variable.woff2',
   variable: '--font-geist-sans',
+  weight: '100 900',
+  display: 'swap',
 });
 
-const geistMono = Geist_Mono({
-  subsets: ['latin', 'vietnamese'],
+const geistMono = localFont({
+  src: './fonts/geist-mono-variable.woff2',
   variable: '--font-geist-mono',
+  weight: '100 900',
+  display: 'swap',
 });
 
 export const metadata: Metadata = {

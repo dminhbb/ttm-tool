@@ -455,5 +455,44 @@
       "description": "Ghi nhận nhật ký lượt đăng nhập ứng dụng (APP_LOGIN) và lượt xem 3 màn hình trọng điểm (SCREEN_VIEW cho TTM Dashboard 2, Quản trị Epic, Báo cáo Epic) phục vụ tính năng Visit Counter (mục 18).",
       "columns": {}
     }
+  },
+  "seed": {
+    "_readme": "Dữ liệu khởi tạo ghi vào phần 7 của db/install/ttm-monitor-schema.sql (bật/tắt bằng công tắc ttm_install.seed_data ở đầu file). Lấy nguyên dữ liệu hiện hành của các bảng cấu hình dưới đây trên CSDL nguồn, theo đúng thứ tự (bảng cha trước). Cột khoá ngoại trỏ tới users được để NULL vì DB mới chưa có user đó; resetColumns ghi đè giá trị (trạng thái chạy, không phải cấu hình). Không gồm dữ liệu nghiệp vụ: domain, dự án, user, Epic, danh sách Black listed / Từ chối import, banner, API key.",
+    "tables": [
+      "permission_features",
+      "role_feature_permissions",
+      "ttm_policy_configs",
+      "epic_status_alert_rules",
+      "issue_type_role_mapping",
+      "ttm_scope_config",
+      "holidays",
+      "makeup_workdays",
+      "scoring_engine_settings",
+      "scoring_parameters",
+      "scoring_rule_settings",
+      "project_types",
+      "project_type_capabilities",
+      "jira_settings",
+      "data_retention_configs",
+      "mcp_settings",
+      "dashboard_view_settings",
+      "import_admission_settings",
+      "derived_cache_refresh_lock"
+    ],
+    "resetColumns": {
+      "derived_cache_refresh_lock": {
+        "request_seq": "0",
+        "lease_owner": null,
+        "lease_until": null,
+        "last_source": null
+      }
+    },
+    "adminAccount": {
+      "_readme": "Tài khoản SUPERADMIN ban đầu để đăng nhập lần đầu (bắt buộc đổi mật khẩu). Mật khẩu ban đầu ghi ở db/install/README.md; đổi mã băm: node -e \"require('bcryptjs').hash('<mật khẩu>', 12).then(console.log)\".",
+      "email": "admin@mbbank.com.vn",
+      "fullName": "Quản trị hệ thống",
+      "role": "SUPERADMIN",
+      "passwordHash": "$2b$12$JsTMJWq5FrYs7uJ1yu7Vhux5tSWfNDVJUjbNf.Uz6UTRiqJfIkO3."
+    }
   }
 }
