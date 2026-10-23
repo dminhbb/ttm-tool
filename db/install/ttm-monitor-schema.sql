@@ -1,9 +1,9 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-20T02:18:54.462Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-23T16:01:51.833Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
--- Gồm: 60 bảng, 65 index phụ, 4 hàm, 4 trigger.
+-- Gồm: 58 bảng, 59 index phụ, 4 hàm, 4 trigger.
 -- Yêu cầu: PostgreSQL 14 trở lên, một database RỖNG (không dùng cho DB đã có bảng — sẽ báo lỗi và không
 -- tạo gì vì cả file chạy trong một transaction). Không cần extension nào.
 --
@@ -287,29 +287,6 @@ CREATE TABLE epic_status_alert_rules (
     CONSTRAINT epic_status_alert_rules_late_alert_offset_days_check CHECK ((late_alert_offset_days >= 0))
 );
 
-CREATE TABLE epic_ttm_snapshots (
-    id SERIAL,
-    epic_key character varying(50) NOT NULL,
-    epic_name text,
-    project_key character varying(50),
-    domain_id integer,
-    assignee_name character varying(100),
-    current_status character varying(50),
-    epic_complexity_type character varying(20),
-    idea_approved_date date,
-    start_date date,
-    r4g_date date,
-    due_date date,
-    target_r4g_date date,
-    source_import_batch_id integer,
-    aggregated_at timestamp with time zone NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    requirement_level character varying(100),
-    requesting_unit character varying(255),
-    CONSTRAINT epic_ttm_snapshots_pkey PRIMARY KEY (id),
-    CONSTRAINT epic_ttm_snapshots_epic_key_aggregated_at_key UNIQUE (epic_key, aggregated_at)
-);
-
 CREATE TABLE holidays (
     id SERIAL,
     name character varying(255) NOT NULL,
@@ -379,31 +356,6 @@ CREATE TABLE info_banners (
     CONSTRAINT info_banners_pkey PRIMARY KEY (id),
     CONSTRAINT chk_info_banners_date_range CHECK (((end_date IS NULL) OR (end_date >= start_date))),
     CONSTRAINT info_banners_banner_type_check CHECK (((banner_type)::text = ANY ((ARRAY['DEFAULT'::character varying, 'PER_SCREEN'::character varying])::text[])))
-);
-
-CREATE TABLE issue_daily_snapshots (
-    id SERIAL,
-    issue_key character varying(100) NOT NULL,
-    issue_type character varying(50) NOT NULL,
-    issue_name text,
-    jira_id bigint,
-    project_key character varying(100),
-    epic_key character varying(100),
-    parent_key character varying(100),
-    assignee_name character varying(255),
-    current_status character varying(100),
-    epic_complexity_type character varying(20),
-    requirement_level character varying(100),
-    idea_approved_date date,
-    start_date date,
-    r4g_date date,
-    due_date date,
-    target_r4g_date date,
-    source_import_batch_id integer,
-    aggregated_at timestamp with time zone NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT issue_daily_snapshots_pkey PRIMARY KEY (id),
-    CONSTRAINT issue_daily_snapshots_issue_key_aggregated_at_key UNIQUE (issue_key, aggregated_at)
 );
 
 CREATE TABLE issue_type_role_mapping (
@@ -867,14 +819,8 @@ CREATE INDEX idx_epic_data_anomaly_violations_epic_key ON epic_data_anomaly_viol
 CREATE INDEX idx_epic_data_anomaly_violations_rule_code ON epic_data_anomaly_violations USING btree (rule_code);
 CREATE INDEX idx_epic_milestone_history_epic_key ON epic_milestone_history USING btree (epic_key);
 CREATE INDEX idx_epic_status_alert_rules_active ON epic_status_alert_rules USING btree (is_active) WHERE is_active;
-CREATE INDEX idx_epic_ttm_snapshots_aggregated_at ON epic_ttm_snapshots USING btree (aggregated_at);
-CREATE INDEX idx_epic_ttm_snapshots_epic_key ON epic_ttm_snapshots USING btree (epic_key);
 CREATE INDEX idx_holidays_range ON holidays USING btree (start_date, end_date) WHERE is_active;
 CREATE UNIQUE INDEX uq_info_banners_single_default ON info_banners USING btree (banner_type) WHERE ((banner_type)::text = 'DEFAULT'::text);
-CREATE INDEX idx_issue_daily_snapshots_aggregated_at ON issue_daily_snapshots USING btree (aggregated_at DESC);
-CREATE INDEX idx_issue_daily_snapshots_epic_key_aggregated_at ON issue_daily_snapshots USING btree (epic_key, aggregated_at DESC) WHERE (epic_key IS NOT NULL);
-CREATE INDEX idx_issue_daily_snapshots_parent_key ON issue_daily_snapshots USING btree (parent_key) WHERE (parent_key IS NOT NULL);
-CREATE INDEX idx_issue_daily_snapshots_type_aggregated_at ON issue_daily_snapshots USING btree (issue_type, aggregated_at DESC);
 CREATE INDEX idx_issue_type_role_mapping_role ON issue_type_role_mapping USING btree (team_role);
 CREATE INDEX idx_issues_aggregated_at ON issues USING btree (aggregated_at);
 CREATE INDEX idx_issues_batch_id ON issues USING btree (source_import_batch_id);
@@ -929,11 +875,8 @@ ALTER TABLE epic_alert_history ADD CONSTRAINT epic_alert_history_source_import_b
 ALTER TABLE epic_alert_timeline ADD CONSTRAINT epic_alert_timeline_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
 ALTER TABLE epic_data_anomaly_violations ADD CONSTRAINT epic_data_anomaly_violations_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
 ALTER TABLE epic_milestone_history ADD CONSTRAINT epic_milestone_history_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
-ALTER TABLE epic_ttm_snapshots ADD CONSTRAINT epic_ttm_snapshots_domain_id_fkey FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE SET NULL;
-ALTER TABLE epic_ttm_snapshots ADD CONSTRAINT epic_ttm_snapshots_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
 ALTER TABLE import_admission_settings ADD CONSTRAINT import_admission_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE import_rows ADD CONSTRAINT import_rows_import_batch_id_fkey FOREIGN KEY (import_batch_id) REFERENCES import_batches(id) ON DELETE CASCADE;
-ALTER TABLE issue_daily_snapshots ADD CONSTRAINT issue_daily_snapshots_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
 ALTER TABLE issues ADD CONSTRAINT issues_epic_id_fkey FOREIGN KEY (epic_id) REFERENCES issues(id) ON DELETE SET NULL;
 ALTER TABLE issues ADD CONSTRAINT issues_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES issues(id) ON DELETE SET NULL;
 ALTER TABLE issues ADD CONSTRAINT issues_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE CASCADE;
@@ -1075,7 +1018,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 90 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 91 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1167,7 +1110,8 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261019b_sync_pms_project_tables.sql'),
     ('20261019c_add_epic_deletion_scope_indexes.sql'),
     ('20261019d_add_users_unique_username_index.sql'),
-    ('20261020_sync_project_type_on_category_cleared.sql');
+    ('20261020_sync_project_type_on_category_cleared.sql'),
+    ('20261023_drop_issue_snapshot_tables.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1235,7 +1179,7 @@ SELECT * FROM (VALUES
     ('help_data_logic'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('help_data_logic'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('help_data_logic'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
-    ('help_data_logic'::character varying(60), 'USER'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('help_data_logic'::character varying(60), 'USER'::character varying(20), 'false'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('permission_matrix'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('permission_matrix'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'true'::boolean, 'true'::boolean),
     ('permission_matrix'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
@@ -1243,7 +1187,7 @@ SELECT * FROM (VALUES
     ('product_docs'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('product_docs'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('product_docs'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
-    ('product_docs'::character varying(60), 'USER'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('product_docs'::character varying(60), 'USER'::character varying(20), 'false'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('projects'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'true'::boolean, 'true'::boolean),
     ('projects'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'true'::boolean, 'true'::boolean),
     ('projects'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
@@ -1412,7 +1356,7 @@ WHERE current_setting('ttm_install.seed_data', true) = 'on';
 -- derived_cache_refresh_lock (1 dòng)
 INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at)
 SELECT * FROM (VALUES
-    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-10-19 17:03:58.203368+00'::timestamp with time zone)
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-10-23 15:58:55.147936+00'::timestamp with time zone)
 ) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 

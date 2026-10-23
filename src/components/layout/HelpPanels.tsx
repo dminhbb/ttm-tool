@@ -320,11 +320,10 @@ export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
         </section>
 
         <section>
-          <h3 className="ui-card-title mb-1">5. Quản lý lớp dữ liệu tổng hợp &amp; Sao lưu/Phục hồi</h3>
+          <h3 className="ui-card-title mb-1">5. Quản lý lớp dữ liệu &amp; Sao lưu/Phục hồi</h3>
           <ul className="ml-5 list-disc space-y-1">
-            <li><strong className="text-fb-text-primary">Nhật ký lớp dữ liệu tổng hợp (Epic)</strong> (trang Nguồn dữ liệu, chỉ <strong className="text-fb-text-primary">SUPERADMIN</strong>): <strong className="text-fb-text-primary">Xóa</strong> (chỉ các bảng tổng hợp/lịch sử, bảo toàn raw) hoặc <strong className="text-fb-text-primary">Chạy lại</strong> (tính lại từ <code>issues</code> hiện có mà không cần import lại).</li>
-            <li><strong className="text-fb-text-primary">Xóa N lớp dữ liệu gần nhất</strong>: xóa <em>cả raw lẫn tổng hợp</em> của N ngày import gần nhất — dùng khi cần loại bỏ hẳn một đợt dữ liệu lỗi.</li>
-            <li><strong className="text-fb-text-primary">Sao lưu / Phục hồi dữ liệu (/admin/database)</strong>: file SQL cho user, domain, dự án, phân quyền dự án/domain, component, ngày nghỉ, rule cảnh báo, <code>import_batches</code>/<code>import_rows</code>, <code>issues</code>, 2 bảng snapshot, lịch sử cảnh báo, dòng thời gian cảnh báo, mốc hoàn thành, audit log. Từ 19/10/2026 gồm cả cấu hình: Epic ngoại lệ, danh sách Từ chối import và ngày A/B, cấu hình Scoring Service / &quot;Phạm vi dữ liệu cho TTM&quot;, Ma trận phân quyền, Tiêu chí TTM, ngày làm bù. <strong className="text-fb-text-primary">Không gồm</strong> các bảng cache (dựng lại được bằng &quot;Tạo lại cache&quot;).</li>
+            <li><strong className="text-fb-text-primary">Xóa N lớp dữ liệu gần nhất</strong>: xóa <em>cả raw lẫn lịch sử cảnh báo</em> của N ngày import gần nhất — dùng khi cần loại bỏ hẳn một đợt dữ liệu lỗi.</li>
+            <li><strong className="text-fb-text-primary">Sao lưu / Phục hồi dữ liệu (/admin/database)</strong>: file SQL cho user, domain, dự án, phân quyền dự án/domain, component, ngày nghỉ, rule cảnh báo, <code>import_batches</code>/<code>import_rows</code>, <code>issues</code>, lịch sử cảnh báo, dòng thời gian cảnh báo, mốc hoàn thành, audit log. Từ 19/10/2026 gồm cả cấu hình: Epic ngoại lệ, danh sách Từ chối import và ngày A/B, cấu hình Scoring Service / &quot;Phạm vi dữ liệu cho TTM&quot;, Ma trận phân quyền, Tiêu chí TTM, ngày làm bù. <strong className="text-fb-text-primary">Không gồm</strong> các bảng cache (dựng lại được bằng &quot;Tạo lại cache&quot;).</li>
           </ul>
         </section>
 

@@ -1,10 +1,10 @@
 # TTM Monitor — ERD & từ điển dữ liệu
 
-> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-10-20.
+> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-10-23.
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
-**60 bảng** trong schema `public`, **49 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
+**58 bảng** trong schema `public`, **46 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
 
 ## Mục lục
 
@@ -14,7 +14,7 @@
 4. [Import & Issue](#4-import-issue) — 5 bảng
 5. [Cấu hình TTM, lịch & phạm vi](#5-cấu-hình-ttm-lịch-phạm-vi) — 7 bảng
 6. [Epic Scoring Service](#6-epic-scoring-service) — 4 bảng
-7. [Lịch sử & snapshot](#7-lịch-sử-snapshot) — 6 bảng
+7. [Lịch sử & snapshot](#7-lịch-sử-snapshot) — 4 bảng
 8. [Cache dữ liệu dẫn xuất](#8-cache-dữ-liệu-dẫn-xuất) — 5 bảng
 9. [Cấu hình hệ thống](#9-cấu-hình-hệ-thống) — 4 bảng
 10. [Popup & Banner thông báo](#10-popup-banner-thông-báo) — 3 bảng
@@ -1037,48 +1037,6 @@ Kết quả mỗi lần đối chiếu Scoring Service với engine cũ (số Ep
 
 ```mermaid
 erDiagram
-    epic_ttm_snapshots {
-        int id PK
-        varchar epic_key
-        text epic_name
-        varchar project_key
-        int domain_id FK
-        varchar assignee_name
-        varchar current_status
-        varchar epic_complexity_type
-        date idea_approved_date
-        date start_date
-        date r4g_date
-        date due_date
-        date target_r4g_date
-        int source_import_batch_id FK
-        timestamptz aggregated_at
-        timestamptz created_at
-        varchar requirement_level
-        varchar requesting_unit
-    }
-    issue_daily_snapshots {
-        int id PK
-        varchar issue_key
-        varchar issue_type
-        text issue_name
-        bigint jira_id
-        varchar project_key
-        varchar epic_key
-        varchar parent_key
-        varchar assignee_name
-        varchar current_status
-        varchar epic_complexity_type
-        varchar requirement_level
-        date idea_approved_date
-        date start_date
-        date r4g_date
-        date due_date
-        date target_r4g_date
-        int source_import_batch_id FK
-        timestamptz aggregated_at
-        timestamptz created_at
-    }
     epic_alert_history {
         int id PK
         varchar epic_key
@@ -1120,84 +1078,16 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
     }
-    domains {
-        int id PK
-    }
     import_batches {
         int id PK
     }
-    domains |o--o{ epic_ttm_snapshots : "domain_id"
-    import_batches |o--o{ epic_ttm_snapshots : "source_import_batch_id"
-    import_batches |o--o{ issue_daily_snapshots : "source_import_batch_id"
     import_batches |o--o{ epic_alert_history : "source_import_batch_id"
     import_batches |o--o{ epic_alert_timeline : "source_import_batch_id"
     import_batches |o--o{ epic_milestone_history : "source_import_batch_id"
     import_batches |o--o{ epic_data_anomaly_violations : "source_import_batch_id"
 ```
 
-Bảng tham chiếu ngoài nhóm (chỉ vẽ khoá chính): `domains`, `import_batches`.
-
-### `epic_ttm_snapshots`
-
-Snapshot lịch sử rút gọn của Epic theo từng mốc `aggregated_at` (không bị xóa khi raw batch bị dọn).
-
-| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
-|---|---|---|---|---|---|
-| `id` | int (tự tăng) | không |  | PK |  |
-| `epic_key` | varchar(50) | không |  |  |  |
-| `epic_name` | text | có |  |  |  |
-| `project_key` | varchar(50) | có |  |  |  |
-| `domain_id` | int | có |  | FK → domains(id) |  |
-| `assignee_name` | varchar(100) | có |  |  |  |
-| `current_status` | varchar(50) | có |  |  |  |
-| `epic_complexity_type` | varchar(20) | có |  |  |  |
-| `idea_approved_date` | date | có |  |  |  |
-| `start_date` | date | có |  |  |  |
-| `r4g_date` | date | có |  |  |  |
-| `due_date` | date | có |  |  |  |
-| `target_r4g_date` | date | có |  |  |  |
-| `source_import_batch_id` | int | có |  | FK → import_batches(id) |  |
-| `aggregated_at` | timestamptz | không |  |  |  |
-| `created_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
-| `requirement_level` | varchar(100) | có |  |  |  |
-| `requesting_unit` | varchar(255) | có |  |  |  |
-
-- UNIQUE (epic_key, aggregated_at)
-- index `idx_epic_ttm_snapshots_aggregated_at`: btree (aggregated_at)
-- index `idx_epic_ttm_snapshots_epic_key`: btree (epic_key)
-
-### `issue_daily_snapshots`
-
-Snapshot lịch sử đầy đủ của mọi cấp issue (Epic/Story/Subtask) theo mốc `aggregated_at`.
-
-| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
-|---|---|---|---|---|---|
-| `id` | int (tự tăng) | không |  | PK |  |
-| `issue_key` | varchar(100) | không |  |  |  |
-| `issue_type` | varchar(50) | không |  |  |  |
-| `issue_name` | text | có |  |  |  |
-| `jira_id` | bigint | có |  |  |  |
-| `project_key` | varchar(100) | có |  |  |  |
-| `epic_key` | varchar(100) | có |  |  |  |
-| `parent_key` | varchar(100) | có |  |  |  |
-| `assignee_name` | varchar(255) | có |  |  |  |
-| `current_status` | varchar(100) | có |  |  |  |
-| `epic_complexity_type` | varchar(20) | có |  |  |  |
-| `requirement_level` | varchar(100) | có |  |  |  |
-| `idea_approved_date` | date | có |  |  |  |
-| `start_date` | date | có |  |  |  |
-| `r4g_date` | date | có |  |  |  |
-| `due_date` | date | có |  |  |  |
-| `target_r4g_date` | date | có |  |  |  |
-| `source_import_batch_id` | int | có |  | FK → import_batches(id) |  |
-| `aggregated_at` | timestamptz | không |  |  |  |
-| `created_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
-
-- UNIQUE (issue_key, aggregated_at)
-- index `idx_issue_daily_snapshots_aggregated_at`: btree (aggregated_at DESC)
-- index `idx_issue_daily_snapshots_epic_key_aggregated_at`: btree (epic_key, aggregated_at DESC) WHERE (epic_key IS NOT NULL)
-- index `idx_issue_daily_snapshots_parent_key`: btree (parent_key) WHERE (parent_key IS NOT NULL)
-- index `idx_issue_daily_snapshots_type_aggregated_at`: btree (issue_type, aggregated_at DESC)
+Bảng tham chiếu ngoài nhóm (chỉ vẽ khoá chính): `import_batches`.
 
 ### `epic_alert_history`
 
@@ -1963,11 +1853,8 @@ Ghi nhận nhật ký lượt đăng nhập ứng dụng (APP_LOGIN) và lượt
 | `epic_alert_timeline` | source_import_batch_id | `import_batches`(id) | SET NULL |
 | `epic_data_anomaly_violations` | source_import_batch_id | `import_batches`(id) | SET NULL |
 | `epic_milestone_history` | source_import_batch_id | `import_batches`(id) | SET NULL |
-| `epic_ttm_snapshots` | domain_id | `domains`(id) | SET NULL |
-| `epic_ttm_snapshots` | source_import_batch_id | `import_batches`(id) | SET NULL |
 | `import_admission_settings` | updated_by_user_id | `users`(id) | SET NULL |
 | `import_rows` | import_batch_id | `import_batches`(id) | CASCADE |
-| `issue_daily_snapshots` | source_import_batch_id | `import_batches`(id) | SET NULL |
 | `issues` | epic_id | `issues`(id) | SET NULL |
 | `issues` | parent_id | `issues`(id) | SET NULL |
 | `issues` | source_import_batch_id | `import_batches`(id) | CASCADE |

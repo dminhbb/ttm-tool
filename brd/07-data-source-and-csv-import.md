@@ -85,8 +85,7 @@ từ chối cả các Epic đang trong phạm vi:
 - **A** — `created < A` (mặc định 2026-01-31), theo ngày Việt Nam.
 - **B** — status Released / MVP Done **và** ngày chuyển status `< B` (mặc định 2026-07-01). Ngày chuyển
   status = `epic_status_changed_at` nếu có; chưa có thì dùng Due Date, Due trống thì dùng R4G Date.
-  **Ngoại lệ:** Epic mà CSDL đã ghi nhận ở status khác Released / MVP Done vào/sau ngày B (`issues` hoặc
-  `issue_daily_snapshots`) chắc chắn chuyển sang Released sau B → không bị rule B từ chối (ví dụ DL-65580:
+  **Ngoại lệ:** Epic mà CSDL đã ghi nhận ở status khác Released / MVP Done vào/sau ngày B (`issues`) chắc chắn chuyển sang Released sau B → không bị rule B từ chối (ví dụ DL-65580:
   due 25/06 nhưng Released 10/09).
 
 Rule đặt ngoài Scoring Service (`src/lib/scoring/`) có chủ đích (quyết định owner 2026-10-14): đây là
@@ -96,10 +95,10 @@ cổng chặn dữ liệu đầu vào, không phải badge/verdict hiển thị 
 
 - Phạm vi issue: Epic + Story có `epic_key` = Epic + Subtask có `epic_key` = Epic + Subtask có
   `parent_key` = key hoặc jira_id của các Story đó, xác định theo **trạng thái mới nhất** của từng issue
-  (gộp `issues` và `issue_daily_snapshots`); issue đã chuyển sang Epic khác được giữ nguyên. Từ 2026-10-19
+  (từ `issues`); issue đã chuyển sang Epic khác được giữ nguyên. Từ 2026-10-19
   truy vấn chỉ đọc các issue từng trỏ tới Epic / Story đó (index `20261019c_add_epic_deletion_scope_indexes.sql`)
   thay vì tính trạng thái mới nhất của mọi issue — kết quả giữ nguyên (đã đối chiếu 385 Epic trên DB local).
-- Xóa ở: `import_rows`, `issues` (mọi batch), `issue_daily_snapshots`, `epic_ttm_snapshots`,
+- Xóa ở: `import_rows`, `issues` (mọi batch),
   `epic_alert_history`, `epic_alert_timeline`, `epic_milestone_history`, `epic_data_anomaly_violations`,
   `epic_alert_row_cache`, `black_listed_epics`; ghi `audit_logs` (`EPIC_DELETION`) cho từng Epic.
 - **Không chạy lại cache** — `ttm_index_global_cache` / `ttm_dashboard_2_cache` vẫn tính Epic đã xóa cho
@@ -167,7 +166,7 @@ CSV file
 → Staging
 → Mapping & Link Resolution (Phân giải parent_id, epic_id)
 → Canonical Unified Issues Table (Bảng issues gộp duy nhất)
-→ Daily Issue Snapshot (Epic/Story/Subtask, lưu vĩnh viễn)
+→ Lịch sử cảnh báo / timeline / vi phạm sai lệch (aggregateBatchData)
 → Risk calculation
 ```
 
@@ -175,8 +174,7 @@ Không ghi trực tiếp từ CSV vào bảng nghiệp vụ chính nếu chưa v
 
 ## 5.1. Lưu trữ dài hạn và dọn raw data
 
-- Mỗi import thành công tạo snapshot trong `issue_daily_snapshots` cho Epic, Story và Subtask, theo `aggregated_at`; snapshot chứa các trường định danh, phân cấp, project, trạng thái, owner và các mốc ngày quan trọng. Song song còn có `epic_ttm_snapshots` — bản compact chỉ gồm Epic, cùng cơ chế `aggregated_at`.
-- Snapshot là dữ liệu lịch sử vĩnh viễn, không bị xóa khi raw import bị dọn. FK tới batch dùng `ON DELETE SET NULL`. **Lưu ý:** hiện KHÔNG có màn hình sống nào (Quản trị Epic, Dashboard) đọc lại từ 2 bảng snapshot này — mọi tính toán vẫn chạy live trên `issues`; 2 bảng chỉ ghi, chờ dùng cho một lớp tổng hợp/tra cứu lịch sử trong tương lai.
+- Từ 2026-10-23 hai bảng snapshot `issue_daily_snapshots` / `epic_ttm_snapshots` đã được **gỡ** (chúng chỉ là bản sao từng dòng của `issues`, không màn hình nào đọc). Lịch sử Issue (lớp dữ liệu cũ, bằng chứng rule B, phạm vi Epic deletion) chỉ còn trong `issues` và mất theo retention RAW. Lịch sử cảnh báo (`epic_alert_history`, `epic_alert_timeline`) vẫn sống sau khi raw bị dọn (FK `ON DELETE SET NULL`).
 - Raw data là `import_batches`, `import_rows` và `issues` của batch. Giá trị mặc định giữ raw là 30 ngày; SUPERADMIN có thể đặt từ 7 đến 3650 ngày tại Quản trị nguồn dữ liệu.
 - Sau mỗi import được lưu, hệ thống dọn raw batch quá hạn trong cùng transaction; luôn giữ batch đang import và lớp `aggregated_at` mới nhất để trang Cảnh báo Epic không mất dữ liệu hiện hành.
 

@@ -64,7 +64,7 @@ function computeEpicComplexity(requestType: string, requirementLevel: string): E
 }
 
 /**
- * Derives every "lớp dữ liệu tổng hợp" (aggregated data layer) for one import batch from the
+ * Derives the alert/anomaly layers for one import batch from the
  * canonical `issues` rows already stored for it: epic_alert_history (Cảnh báo muộn/Fail TTM as of
  * that batch's aggregatedAtDate), the alert timeline and the data-anomaly violations. Every write is
  * idempotent (ON CONFLICT upsert / unique constraint), so this is safe to call again for a batch

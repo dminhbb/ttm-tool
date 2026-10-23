@@ -87,8 +87,6 @@
       "fill": "#eaf0ff",
       "ink": "#25406f",
       "tables": [
-        "epic_ttm_snapshots",
-        "issue_daily_snapshots",
         "epic_alert_history",
         "epic_alert_timeline",
         "epic_milestone_history",
@@ -341,14 +339,6 @@
     },
     "scoring_parity_runs": {
       "description": "Kết quả mỗi lần đối chiếu Scoring Service với engine cũ (số Epic khớp / lệch có chủ đích / chưa giải thích được, chi tiết JSON).",
-      "columns": {}
-    },
-    "epic_ttm_snapshots": {
-      "description": "Snapshot lịch sử rút gọn của Epic theo từng mốc <code>aggregated_at</code> (không bị xóa khi raw batch bị dọn).",
-      "columns": {}
-    },
-    "issue_daily_snapshots": {
-      "description": "Snapshot lịch sử đầy đủ của mọi cấp issue (Epic/Story/Subtask) theo mốc `aggregated_at`.",
       "columns": {}
     },
     "epic_alert_history": {

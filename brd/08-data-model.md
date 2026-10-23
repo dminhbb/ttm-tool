@@ -23,7 +23,7 @@ Dữ liệu chia thành các nhóm:
   `issue_type_role_mapping`).
 - Lịch làm việc (`holidays`, `makeup_workdays`).
 - Lịch sử/audit & tương tác (`epic_alert_history`, `epic_alert_timeline`, `epic_milestone_history`,
-  `epic_ttm_snapshots`, `issue_daily_snapshots`, `audit_logs`, `user_usage_daily_stats`, `visit_logs`).
+  `audit_logs`, `user_usage_daily_stats`, `visit_logs`).
 - Cấu hình chung (`jira_settings`, `data_retention_configs`).
 - Thông báo trong ứng dụng (`ad_popups`, `ad_popup_impressions`, `info_banners`) — mục 20.
 - SSO/API Key & MCP Server (`api_keys`, `sso_auth_codes`, `mcp_settings`, `mcp_access_tokens`,
@@ -66,9 +66,7 @@ erDiagram
     issues }o--|| epic_status_alert_rules : "so khớp epic_complexity_type & current_status"
     issues }o--|| issue_type_role_mapping : "so khớp issue_type"
 
-    %% History, Snapshots & Audit Module
-    import_batches ||--o{ epic_ttm_snapshots : "1-n (source_import_batch_id)"
-    import_batches ||--o{ issue_daily_snapshots : "1-n (source_import_batch_id)"
+    %% History & Audit Module
     import_batches ||--o{ epic_alert_history : "1-n (source_import_batch_id)"
     import_batches ||--o{ epic_alert_timeline : "1-n (last_seen_batch_id)"
     import_batches ||--o{ epic_milestone_history : "1-n (source_import_batch_id)"
@@ -247,8 +245,9 @@ chạy (sau import, lượt đầu ngày, khi đổi cấu hình/Epic ngoại l�
 cache"); các màn hình đọc cache này chứ không tính lại mỗi request. `issues` chỉ chứa dữ liệu Jira.
 Các trường lý do Fail (`khau_*`, `note_ly_do_khac`, `main_fail_dept`) được Scoring Service đọc cho
 2 khuyến nghị "Thiếu lý do Fail TTM" / "Thiếu phòng chịu TN chính" (`16-ttm-indexes.md`).
-`issue_daily_snapshots` còn được Từ chối import đọc (bằng chứng Epic từng ở status khác Released sau
-ngày B — `07-data-source-and-csv-import.md` §2.2) và Epic deletion quét để xác định phạm vi xoá.
+`issues` còn là nguồn bằng chứng của Từ chối import (Epic từng ở status khác Released sau ngày B —
+`07-data-source-and-csv-import.md` §2.2) và của Epic deletion khi xác định phạm vi xoá. Từ 2026-10-23
+lịch sử Issue chỉ còn trong `issues` (hai bảng snapshot đã gỡ).
 
 Khóa duy nhất: `(issue_key, source_import_batch_id)` — cho phép cùng 1 issue xuất hiện ở nhiều batch
 (lớp dữ liệu) khác nhau; "trạng thái mới nhất" của 1 issue luôn là bản ghi có `aggregated_at` lớn
@@ -386,13 +385,12 @@ Unique `(epic_key, milestone)` — ghi một lần duy nhất, không ghi đè k
 ngày phát hiện đầu tiên). Khác `epic_alert_history` (chỉ ghi cảnh báo LATE/FAIL) — bảng này ghi các
 mốc hoàn thành nội bộ dùng để xác định pha hiện tại của Epic 15.
 
-### epic_ttm_snapshots / issue_daily_snapshots
+### epic_ttm_snapshots / issue_daily_snapshots (đã gỡ 2026-10-23)
 
-Hai bảng tổng hợp compact/đầy đủ, ghi 1 lần mỗi `aggregated_at` để giữ lịch sử dài hạn sau khi raw
-batch bị dọn (`source_import_batch_id` được set `NULL` khi đó, snapshot vẫn còn). **Hiện KHÔNG có
-màn hình sống nào đọc lại từ 2 bảng này** — mọi màn hình Epic Alerts/Dashboard đều tính live từ
-`issues`. Cột giống `issues` (rút gọn), unique `(issue_key, aggregated_at)` /
-`(epic_key, aggregated_at)`.
+Hai bảng này từng ghi 1 lần mỗi `aggregated_at` như bản sao rút gọn của `issues`, nhưng không màn hình
+nào đọc chúng. Migration `20261023_drop_issue_snapshot_tables.sql` đã `DROP` cả hai; mọi chỗ từng đọc
+(Từ chối import, Epic deletion, quản trị lớp dữ liệu, sao lưu) nay đọc `issues`. File dump tạo trước
+ngày này không còn import được.
 
 ## 13. issue_type_role_mapping
 
@@ -490,8 +488,8 @@ updated_at
 
 Chỉ SUPERADMIN được cập nhật. Sau mỗi import lưu chính thức, hệ thống tự dọn raw batch quá hạn
 (`import_batches`/`import_rows`/`issues`), luôn giữ batch vừa import và lớp dữ liệu mới nhất;
-`epic_ttm_snapshots`/`issue_daily_snapshots` không bị dọn theo — đó là lý do 2 bảng snapshot tồn
-tại.
+`epic_alert_history`/`epic_alert_timeline` không bị dọn theo (FK `ON DELETE SET NULL`); lịch sử Issue
+thì mất cùng batch.
 
 ## 20. epic_alert_timeline / ad_popups / ad_popup_impressions / info_banners
 
@@ -674,13 +672,13 @@ Quy tắc dùng chung:
 - **Tạo lại cache**: chỉ qua `refreshDerivedCaches` (import, daily, lưu phạm vi/domain/black list/dự án/PM-SM của dự án — các route gọi `scheduleDerivedCacheRefresh` trong `daily-cache-service.ts`, nút "Tạo lại cache"). Một DB chưa có `derived_cache_refresh_lock` vẫn rebuild được nhưng không có điều phối.
 - Cả 2 migration `20261005*` phải được áp dụng trên **cả local và Supabase** (xem `AGENTS.md` § Multi-database).
 - **Từ chối import / Epic deletion**: xoá vĩnh viễn mọi dòng của Epic (và Story/Subtask có trạng thái mới
-  nhất thuộc Epic đó) ở `import_rows`, `issues`, `issue_daily_snapshots`, `epic_ttm_snapshots`,
+  nhất thuộc Epic đó) ở `import_rows`, `issues`,
   `epic_alert_history`, `epic_alert_timeline`, `epic_milestone_history`, `epic_data_anomaly_violations`,
   `epic_alert_row_cache`, `black_listed_epics`; mỗi Epic một dòng `audit_logs` (`EPIC_DELETION`,
   `DENIED_IMPORT_REMOVE`). Không tự tạo lại cache.
 - **Sao lưu / Phục hồi** (`EXPORTABLE_TABLES`, `db-backup-service.ts`) gồm master data, user + phân quyền
   (cả `user_project_components`), ngày nghỉ / ngày làm bù, rule cảnh báo, Tiêu chí TTM, ánh xạ issue type,
-  import, `issues`, các bảng snapshot/lịch sử, `audit_logs` và — từ 2026-10-19 — cấu hình: `ttm_scope_config`,
+  import, `issues`, các bảng lịch sử cảnh báo, `audit_logs` và — từ 2026-10-19 — cấu hình: `ttm_scope_config`,
   `scoring_engine_settings` / `scoring_parameters` / `scoring_rule_settings`, `black_listed_epics`,
   `denied_import_epics`, `import_admission_settings`, `dashboard_view_settings`, Ma trận phân quyền,
   `jira_settings`, `data_retention_configs`. **Không gồm** các bảng cache (dựng lại bằng "Tạo lại cache") và

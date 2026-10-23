@@ -348,7 +348,7 @@ Lý do:
 
 - Dữ liệu nguồn được thu thập tích lũy hằng ngày.
 - Người dùng cần xem tình hình theo khoảng ngày.
-- Dashboard và panel cần hỗ trợ đối chiếu dữ liệu theo batch import hoặc snapshot date.
+- Dashboard và panel cần hỗ trợ đối chiếu dữ liệu theo batch import hoặc ngày lớp dữ liệu (`aggregated_at`).
 
 ---
 
@@ -611,7 +611,7 @@ MVP1 cho phép:
 - Import file CSV.
 - Validate dữ liệu: Hỗ trợ chế độ "Validate only" chỉ trả về danh sách lỗi và cảnh báo xem trước (preview) trên UI, hoàn toàn không ghi nhận bất kỳ dữ liệu nào vào CSDL.
 - Lớp dữ liệu (Data Layering): Dữ liệu tích lũy theo từng lớp. Thêm trường `aggregated_at` (thời gian tổng hợp, lấy tự động từ tên file dạng `Jira YYYY-MM-DDTHH_mm_ss+zzzz.csv` hoặc điều chỉnh thủ công) để phân biệt các lớp dữ liệu của Epic. Khóa duy nhất trong bảng issues là `(issue_key, source_import_batch_id)`.
-- Bảng tổng hợp dài hạn `issue_daily_snapshots` lưu vĩnh viễn các trường nghiệp vụ quan trọng của toàn bộ Epic, Story và Subtask cho từng `aggregated_at`. Khi raw batch bị dọn, `source_import_batch_id` trong snapshot được đặt `NULL`, nhưng snapshot vẫn còn để tra cứu lịch sử cảnh báo.
+- Từ 2026-10-23 các bảng snapshot `issue_daily_snapshots` / `epic_ttm_snapshots` đã được gỡ (chỉ là bản sao của `issues`). Lịch sử Issue chỉ còn trong `issues` theo retention RAW; lịch sử cảnh báo (`epic_alert_history`, `epic_alert_timeline`) vẫn giữ sau khi raw bị dọn.
 - Raw data gồm `import_batches`, `import_rows` và `issues` theo batch. Mặc định giữ 30 ngày; SUPERADMIN cấu hình 7–3650 ngày tại Quản trị nguồn dữ liệu. Sau mỗi import được lưu hệ thống tự dọn raw batch quá hạn, luôn bảo vệ batch vừa import và lớp dữ liệu mới nhất.
 - Rule cảnh báo "Thiếu Epic Link": Chỉ áp dụng cho issue type là `STORY`, không áp dụng cho các loại issue khác.
 - Lưu batch import khi thực hiện lưu chính thức.
