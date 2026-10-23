@@ -76,6 +76,10 @@ async function recordFailedLogin(userId: number, email: string): Promise<number>
 }
 
 export async function authenticateLocal(username: string, password: string, captchaId?: string, captcha?: string): Promise<AuthResult> {
+  // A username, or an @mbbank.com.vn email: an address of any other domain is not an account here, even
+  // when its local part happens to match one.
+  const typed = username.trim().toLowerCase();
+  if (typed.includes('@') && !typed.endsWith('@mbbank.com.vn')) return { error: 'INVALID_CREDENTIALS', requiresCaptcha: false, showWarning: false };
   const normalizedUsername = extractUsername(username);
   const result = await pool.query<AuthUser & { isActive: boolean; mustChangePassword: boolean; passwordHash: string; failedLoginAttempts: number }>(`
     SELECT id, email, full_name AS "fullName", role, is_active AS "isActive", password_hash AS "passwordHash", must_change_password AS "mustChangePassword", failed_login_attempts AS "failedLoginAttempts"

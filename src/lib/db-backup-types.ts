@@ -10,6 +10,9 @@ export interface ExportRequest {
 }
 
 export interface ImportTableResult {
+  /** Rows the import removed from this table: the ones the file does not carry (full-sync tables), the
+   * ones colliding with the file's on a unique key, and the surface-layer clean-up of a Smart import. */
+  deleted: number;
   error: string | null;
   inserted: number;
   /** Rows whose primary key matched an existing row — overwritten with the file's data

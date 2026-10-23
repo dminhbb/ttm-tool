@@ -27,8 +27,9 @@ export async function POST(request: NextRequest) {
     const username = extractUsername(body.email);
     const email = normalizeUsername(body.email);
     const user = await pool.query("SELECT id FROM users WHERE SPLIT_PART(LOWER(email), '@', 1) = $1", [username]);
-    if (user.rowCount !== 1) return NextResponse.json({ error: 'Username chưa tồn tại trong hệ thống.' }, { status: 404 });
-    await pool.query('INSERT INTO password_reset_requests (email) VALUES ($1)', [email]);
+    // Same answer whether or not the username exists: this endpoint is public, and a distinct "không tồn tại"
+    // reply would let anyone probe which usernames have an account. Only a real account gets a ticket.
+    if (user.rowCount === 1) await pool.query('INSERT INTO password_reset_requests (email) VALUES ($1)', [email]);
     return NextResponse.json({ success: true }, { status: 201 });
   } catch { return NextResponse.json({ error: 'Không thể tạo ticket.' }, { status: 500 }); }
 }

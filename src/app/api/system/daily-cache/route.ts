@@ -34,7 +34,8 @@ export async function POST(request: NextRequest) {
     if (status.state !== 'STALE') return NextResponse.json({ ...status, started: false });
 
     // rebuildInterrupted: a rebuild died mid-run after today's run already succeeded — run it again.
-    const runDate = await claimDailyCacheRun(user.id, status.rebuildInterrupted);
+    // cacheCodeOutdated: the cache predates this code version (e.g. PM/SM names became usernames) — same re-run.
+    const runDate = await claimDailyCacheRun(user.id, status.rebuildInterrupted || status.cacheCodeOutdated);
     if (!runDate) return NextResponse.json({ ...(await getDailyCacheStatus()), started: false });
 
     after(() => runDailyCacheRefresh(runDate));

@@ -283,6 +283,23 @@ export default function DatabaseBackupPage() {
     setMessage(null);
     try {
       const tablesParam = encodeURIComponent([...importSelectedTables].join(','));
+      // Import thử trước: toàn bộ thay đổi được rollback, chỉ để biết import SẼ XÓA bao nhiêu dòng ở mỗi bảng.
+      const simulation: ImportResult = await (await fetch(`/api/admin/db-backup/import?tables=${tablesParam}&simulate=1`, { method: 'POST', body: importFile })).json();
+      if (!simulation.ok) {
+        setImportResult(simulation);
+        setMessage({ text: 'Import thử không thành công — chưa có gì bị thay đổi.', type: 'error' });
+        return;
+      }
+      const deletions = simulation.tables.filter((table) => table.deleted > 0);
+      if (deletions.length > 0) {
+        const lines = deletions.map((table) => `• ${table.tableName}: ${formatNumber(table.deleted)} dòng`).join('\n');
+        const confirmed = await confirmDialog({
+          title: 'Import sẽ xóa dữ liệu trong CSDL',
+          description: `Các dòng sau có trong CSDL nhưng không có trong file (hoặc trùng khóa với dòng của file) và sẽ bị xóa — không hoàn tác được:\n\n${lines}\n\nTài khoản của bạn được giữ nguyên.`,
+          confirmLabel: 'Vẫn import',
+        });
+        if (!confirmed) return;
+      }
       const res = await fetch(`/api/admin/db-backup/import?tables=${tablesParam}`, { method: 'POST', body: importFile });
       const result: ImportResult = await res.json();
       setImportResult(result);
@@ -534,7 +551,7 @@ export default function DatabaseBackupPage() {
             </CardHeader>
             <CardBody className="gap-4">
               <p className="text-fb-text-secondary">
-                Chỉ chấp nhận file <code>.sql</code> được tạo bởi chính chức năng Export ở trên. Dòng dữ liệu trùng khóa chính (đã tồn tại trong DB) sẽ được <strong>cập nhật (ghi đè)</strong> bằng dữ liệu trong file — không còn bị bỏ qua. Đối với file được tạo từ <strong>Export dữ liệu thông minh</strong>, hệ thống sẽ tự động tạo một lớp dữ liệu bề mặt mới với timestamp là thời điểm thực hiện import và tính toán lại toàn bộ cache.
+                Chỉ chấp nhận file <code>.sql</code> được tạo bởi chính chức năng Export ở trên. Dòng dữ liệu trùng khóa chính (đã tồn tại trong DB) sẽ được <strong>cập nhật (ghi đè)</strong> bằng dữ liệu trong file — không còn bị bỏ qua. Với các bảng danh mục / cấu hình (users, dự án, phân quyền, cài đặt…), dòng có trong CSDL nhưng <strong>không có trong file sẽ bị xóa</strong> (đồng bộ theo file); tài khoản của chính bạn không bao giờ bị xóa. Hệ thống import thử trước và hỏi xác nhận kèm số dòng sẽ xóa. Đối với file được tạo từ <strong>Export dữ liệu thông minh</strong>, hệ thống sẽ tự động tạo một lớp dữ liệu bề mặt mới với timestamp là thời điểm thực hiện import, <strong>xóa các issue và snapshot không thuộc lớp bề mặt trong file</strong>, rồi tính toán lại toàn bộ cache.
               </p>
               <input ref={fileInputRef} type="file" accept=".sql,application/sql,text/plain" onChange={onFileChange} className="text-fb-text-primary" />
 
@@ -592,6 +609,7 @@ export default function DatabaseBackupPage() {
                           <Badge variant="success">{formatNumber(table.inserted)} thêm mới</Badge>{' '}
                           <Badge variant="info">{formatNumber(table.updated)} cập nhật (ghi đè)</Badge>{' '}
                           <Badge variant="neutral">{formatNumber(table.skippedDuplicates)} bỏ qua (trùng)</Badge>
+                          {table.deleted > 0 && <>{' '}<Badge variant="danger">{formatNumber(table.deleted)} đã xóa</Badge></>}
                         </span>
                       )}
                     </div>

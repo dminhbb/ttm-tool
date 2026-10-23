@@ -6,6 +6,13 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-10-23
+
+- **Sửa theo review bộ code pull 23/10**:
+  - *SQL import an toàn hơn* (`src/lib/db-backup-service.ts`, `api/admin/db-backup/import`, `admin/database/page.tsx`): import thử trước (`?simulate=1`, chạy hết rồi ROLLBACK) báo số dòng SẼ XÓA theo từng bảng (đồng bộ theo file, trùng khóa, dọn issue/snapshot của Smart import) và hỏi xác nhận trước khi import thật; tài khoản SUPERADMIN đang import không bao giờ bị xóa; dọn dòng mồ côi `user_domains` / `user_projects` / `user_project_components` sau khi xóa user; kết quả import hiện thêm số dòng đã xóa; sửa mô tả trên màn hình.
+  - *Cache cũ sau khi PM/SM chuyển sang username* (`src/lib/daily-cache-service.ts`, `api/system/daily-cache`): cache dòng Epic được coi là STALE khi do phiên bản code CŨ HƠN dựng (`scoring_ruleset_version` < `SCORING_CODE_VERSION`) → lần mở trang kế tiếp tự rebuild; một chiều nên bản triển khai cũ dùng chung CSDL không gây rebuild lặp. `SCORING_CODE_VERSION` `scoring-20` → `scoring-21`.
+  - *Điểm nhỏ*: hộp xác nhận import ghi đúng giới hạn 25 Epic/lần (`ImportIssuesTab.tsx`); "Quên mật khẩu" trả cùng một phản hồi dù username có tồn tại hay không, chỉ tạo ticket khi có tài khoản (`api/password-reset-requests`); đăng nhập bằng email chỉ nhận đuôi @mbbank.com.vn (`authenticateLocal`).
+
 ## 2026-10-20
 
 - **Build không cần Internet + dữ liệu khởi tạo cho DB mới** (không đổi schema):

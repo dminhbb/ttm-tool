@@ -11,6 +11,7 @@ import { getTtmDashboard2CacheOverview, refreshTtmDashboard2Caches } from '@/lib
 import { runShadowScoring } from '@/lib/scoring-run-service';
 import { getStoredScoringEngineMode } from '@/lib/scoring-mode-service';
 import { projectRows } from '@/lib/scoring/projection';
+import { SCORING_CODE_VERSION } from '@/lib/scoring/registry';
 
 /**
  * "Caching dữ liệu trong ngày": epic_alert_row_cache / ttm_index_global_cache are normally rebuilt
@@ -44,6 +45,11 @@ export interface DailyCacheRun {
 }
 
 export interface DailyCacheStatus {
+  /** The row cache was built by an OLDER code version than this one (scoring_ruleset_version of its
+   * scorecards, see SCORING_CODE_VERSION) — what it holds (e.g. PM/SM names) may not match what this
+   * code reads, so it counts as STALE and the next page load rebuilds it, even if today already has a
+   * SUCCESS. One-way on purpose: an older deployment sharing the database never triggers a rebuild. */
+  cacheCodeOutdated: boolean;
   cacheComputedAt: string | null;
   /** True when either today's daily run or an asynchronous derived cache rebuild lease is active. */
   isRebuilding: boolean;
@@ -61,6 +67,29 @@ const RUN_COLUMNS_SQL = `
   r.attempt_count AS "attemptCount", r.error_message AS "errorMessage", u.full_name AS "triggeredByName"
 `;
 
+/** Number of a 'scoring-NN' code version, or null when it doesn't read like one. */
+function codeVersionNumber(version: string): number | null {
+  const match = /(\d+)(?::|$)/.exec(version);
+  return match ? Number(match[1]) : null;
+}
+
+export async function isRowCacheCodeOutdated(): Promise<boolean> {
+  const current = codeVersionNumber(SCORING_CODE_VERSION);
+  if (current === null) return false;
+  try {
+    const result = await pool.query<{ outdated: boolean }>(`
+      SELECT EXISTS (
+        SELECT 1 FROM epic_alert_row_cache
+        WHERE scoring_ruleset_version ~ '^scoring-[0-9]+'
+          AND substring(scoring_ruleset_version FROM '^scoring-([0-9]+)')::int < $1
+      ) AS outdated;
+    `, [current]);
+    return result.rows[0]?.outdated === true;
+  } catch {
+    return false;
+  }
+}
+
 export async function isDerivedCacheRebuilding(): Promise<boolean> {
   try {
     const result = await pool.query<{ running: boolean }>(
@@ -73,7 +102,7 @@ export async function isDerivedCacheRebuilding(): Promise<boolean> {
 }
 
 export async function getDailyCacheStatus(): Promise<DailyCacheStatus> {
-  const [result, rebuildInterrupted, isRebuildingLock] = await Promise.all([pool.query<{
+  const [result, rebuildInterrupted, isRebuildingLock, cacheCodeOutdated] = await Promise.all([pool.query<{
     cacheComputedAt: string | null; cacheFreshToday: boolean; failedRetryReady: boolean | null;
     runningStale: boolean | null; today: string;
   } & Partial<DailyCacheRun>>(`
@@ -88,7 +117,7 @@ export async function getDailyCacheStatus(): Promise<DailyCacheStatus> {
     FROM cache
     LEFT JOIN daily_cache_runs r ON r.run_date = ${VN_TODAY_SQL}
     LEFT JOIN users u ON u.id = r.triggered_by_user_id;
-  `), isRebuildLeaseOrphaned(), isDerivedCacheRebuilding()]);
+  `), isRebuildLeaseOrphaned(), isDerivedCacheRebuilding(), isRowCacheCodeOutdated()]);
   const row = result.rows[0];
   const todayRun = row.runDate ? toRun(row) : null;
   const isRebuilding = (todayRun?.status === 'RUNNING' && !row.runningStale) || isRebuildingLock;
@@ -97,10 +126,10 @@ export async function getDailyCacheStatus(): Promise<DailyCacheStatus> {
   // or a black-list save that was told "covered"), so it counts as STALE until a rebuild completes.
   let state: DailyCacheState = 'STALE';
   if (isRebuilding) state = 'RUNNING';
-  else if (row.cacheFreshToday && !rebuildInterrupted) state = 'FRESH';
+  else if (row.cacheFreshToday && !rebuildInterrupted && !cacheCodeOutdated) state = 'FRESH';
   else if (todayRun?.status === 'FAILED' && !row.failedRetryReady) state = 'FAILED';
 
-  return { cacheComputedAt: row.cacheComputedAt, isRebuilding, rebuildInterrupted, state, today: row.today, todayRun };
+  return { cacheCodeOutdated, cacheComputedAt: row.cacheComputedAt, isRebuilding, rebuildInterrupted, state, today: row.today, todayRun };
 }
 
 /** Atomically claims today's run for this user — true only for the single caller that gets it.

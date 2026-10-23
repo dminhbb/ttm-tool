@@ -16,7 +16,7 @@ function authError(error: unknown): NextResponse | null {
 
 export async function POST(request: NextRequest) {
   try {
-    await requireUser(request, ['SUPERADMIN']);
+    const actor = await requireUser(request, ['SUPERADMIN']);
     // Read the file as the raw request body (client sends it directly, not multipart/form-data —
     // see admin/database/page.tsx) rather than through request.formData(). Node's built-in
     // multipart parser (undici) throws "Failed to parse body as FormData" on real SQL exports
@@ -46,7 +46,13 @@ export async function POST(request: NextRequest) {
     const tablesParam = url.searchParams.get('tables');
     const selectedTables = tablesParam === null ? null : new Set(tablesParam.split(',').map((name) => name.trim()).filter(Boolean));
 
-    const result = await importSqlFile(sqlText, selectedTables);
+    // ?simulate=1 — runs the whole import and rolls it back: per-table inserted / updated / DELETED rows,
+    // so the screen can ask before an import that removes data (mirror of the file, Smart clean-up).
+    if (url.searchParams.get('simulate') === '1') {
+      return NextResponse.json(await importSqlFile(sqlText, selectedTables, { actorUserId: actor.id, dryRun: true }));
+    }
+
+    const result = await importSqlFile(sqlText, selectedTables, { actorUserId: actor.id });
     if (result.ok) {
       scheduleDerivedCacheRefresh('sql-import');
     }

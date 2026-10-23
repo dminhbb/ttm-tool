@@ -131,7 +131,7 @@ async function confirmRuleDenials(epics: readonly DeniedEpicInFile[]): Promise<b
   const more = epics.length > 15 ? `\n… và ${epics.length - 15} Epic khác` : '';
   return confirmDialog({
     title: `${epics.length} Epic sẽ bị Từ chối import và xóa dữ liệu`,
-    description: `File này có các Epic vi phạm rule tự động A/B. Import thật sẽ thêm chúng vào danh sách Từ chối import và XÓA toàn bộ dữ liệu của chúng khỏi hệ thống (không hoàn tác được). Nếu quá ${MAX_EPIC_DELETIONS_PER_IMPORT} Epic còn dữ liệu, hệ thống chỉ từ chối và GIỮ dữ liệu để bạn kiểm tra, xoá sau bằng "Xóa dữ liệu còn tồn tại".\n\n${shown}${more}`,
+    description: `File này có các Epic vi phạm rule tự động A/B. Import thật sẽ thêm chúng vào danh sách Từ chối import và bỏ các dòng của chúng khỏi file. Dữ liệu cũ của chúng trong hệ thống bị XÓA không hoàn tác được, nhưng tối đa ${MAX_EPIC_DELETIONS_PER_IMPORT} Epic mỗi lần import — phần vượt giữ lại để bạn kiểm tra rồi xóa bằng "Xóa dữ liệu còn tồn tại".\n\n${shown}${more}`,
     confirmLabel: 'Tiếp tục import',
   });
 }

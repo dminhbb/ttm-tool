@@ -719,15 +719,33 @@ export function previewImportFile(sqlText: string): { error: string } | { previe
  * this parameter existed — callers other than the admin UI (if any future ones use this function
  * directly) keep working with no changes.
  */
-export async function importSqlFile(sqlText: string, selectedTables?: Set<string> | null): Promise<ImportResult> {
+export interface ImportSqlOptions {
+  /** The signed-in SUPERADMIN: their own users row is never deleted by the import (mirror or collision). */
+  actorUserId?: number;
+  /** Run everything, report what would change (inserted / updated / deleted per table), then ROLLBACK. */
+  dryRun?: boolean;
+}
+
+export async function importSqlFile(sqlText: string, selectedTables?: Set<string> | null, options: ImportSqlOptions = {}): Promise<ImportResult> {
   const parsed = parseImportFile(sqlText);
-  if ('error' in parsed) return { ok: false, tables: [{ error: parsed.error, inserted: 0, skippedDuplicates: 0, tableName: '(file)', updated: 0 }] };
+  if ('error' in parsed) return { ok: false, tables: [{ deleted: 0, error: parsed.error, inserted: 0, skippedDuplicates: 0, tableName: '(file)', updated: 0 }] };
 
   const isSmartSurfaceExport = sqlText.slice(0, 1000).includes(SMART_SURFACE_EXPORT_HEADER);
   const allTouchedTables = [...new Set(parsed.statements.map((item) => item.tableName))];
   const insertTables = selectedTables ? allTouchedTables.filter((tableName) => selectedTables.has(tableName)) : allTouchedTables;
   const resultByTable = new Map<string, ImportTableResult>();
-  for (const tableName of insertTables) resultByTable.set(tableName, { error: null, inserted: 0, skippedDuplicates: 0, tableName, updated: 0 });
+  for (const tableName of insertTables) resultByTable.set(tableName, { deleted: 0, error: null, inserted: 0, skippedDuplicates: 0, tableName, updated: 0 });
+  // Rows an import deletes are counted per table (a clean-up may touch a table the file doesn't name).
+  const countDeleted = (tableName: string, rows: number | null | undefined) => {
+    if (!rows) return;
+    const entry = resultByTable.get(tableName) ?? { deleted: 0, error: null, inserted: 0, skippedDuplicates: 0, tableName, updated: 0 };
+    entry.deleted += rows;
+    resultByTable.set(tableName, entry);
+  };
+  // The admin running the import must not delete their own account (a file from another environment
+  // names the same username under another id) — appended to every DELETE that can reach `users`.
+  const actorId = Number.isInteger(options.actorUserId) ? options.actorUserId! : null;
+  const keepActor = (tableName: string, alias: string) => (tableName === 'users' && actorId !== null ? ` AND ${alias}.id <> ${actorId}` : '');
 
   const SMART_LAYER_TABLES = new Set(['import_batches', 'import_rows', 'issues']);
   const hasSmartLayerTablesSelected = isSmartSurfaceExport && insertTables.some((tableName) => SMART_LAYER_TABLES.has(tableName));
@@ -834,27 +852,30 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
           // Clean up any existing issues (and their snapshots) on the target DB whose issue_key is no longer
           // present in the imported surface layer, as well as any issues with aggregated_at newer than importNow,
           // so DISTINCT ON (issue_key) ORDER BY aggregated_at DESC reflects the imported surface layer 100%.
-          await client.query(`
+          const deletedTtmSnapshots = await client.query(`
             DELETE FROM "epic_ttm_snapshots" AS ets
             WHERE NOT EXISTS (
               SELECT 1 FROM tmp_smart_issues AS s WHERE s.issue_key = ets.epic_key
             )
             OR ets.aggregated_at > $1::timestamptz;
           `, [importNow]);
-          await client.query(`
+          countDeleted('epic_ttm_snapshots', deletedTtmSnapshots.rowCount);
+          const deletedDailySnapshots = await client.query(`
             DELETE FROM "issue_daily_snapshots" AS ids
             WHERE NOT EXISTS (
               SELECT 1 FROM tmp_smart_issues AS s WHERE s.issue_key = ids.issue_key
             )
             OR ids.aggregated_at > $1::timestamptz;
           `, [importNow]);
-          await client.query(`
+          countDeleted('issue_daily_snapshots', deletedDailySnapshots.rowCount);
+          const deletedIssues = await client.query(`
             DELETE FROM "issues" AS i
             WHERE NOT EXISTS (
               SELECT 1 FROM tmp_smart_issues AS s WHERE s.issue_key = i.issue_key
             )
             OR i.aggregated_at > $1::timestamptz;
           `, [importNow]);
+          countDeleted('issues', deletedIssues.rowCount);
 
           const targetColsSql = nonIdCols.map(quoteIdent).join(', ');
           const selectColsSql = nonIdCols.map((col) => {
@@ -985,7 +1006,8 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
       const isFullSyncTable = !HISTORICAL_LAYER_TABLES.has(tableName);
       if (insertsForTable.length === 0) {
         if (isFullSyncTable) {
-          await client.query(`DELETE FROM ${quoteIdent(tableName)};`);
+          const wiped = await client.query(`DELETE FROM ${quoteIdent(tableName)} AS t WHERE TRUE${keepActor(tableName, 't')};`);
+          countDeleted(tableName, wiped.rowCount);
         }
         continue;
       }
@@ -1012,13 +1034,14 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
           `);
           if (isFullSyncTable) {
             const pkTargetMatchSql = pkColumns.map((col) => `s.${quoteIdent(col)} = t.${quoteIdent(col)}`).join(' AND ');
-            await client.query(`
+            const mirrored = await client.query(`
               DELETE FROM ${quoteIdent(tableName)} AS t
               WHERE NOT EXISTS (
                 SELECT 1 FROM tmp_import_stage AS s
                 WHERE ${pkTargetMatchSql}
-              );
+              )${keepActor(tableName, 't')};
             `);
+            countDeleted(tableName, mirrored.rowCount);
           }
         }
         if (secondaryPredicates && secondaryPredicates.length > 0) {
@@ -1029,12 +1052,13 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
               WHERE t.ctid < incoming.ctid
                 AND (${predicate});
             `);
-            await client.query(`
+            const collided = await client.query(`
               DELETE FROM ${quoteIdent(tableName)} AS t
               USING tmp_import_stage AS incoming
               WHERE t.id <> incoming.id
-                AND (${predicate});
+                AND (${predicate})${keepActor(tableName, 't')};
             `);
+            countDeleted(tableName, collided.rowCount);
           }
         }
         const result = await client.query<{ isNewRow: boolean }>(
@@ -1079,16 +1103,25 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
       }
     }
 
-    if (smartImportBatchId !== null && insertTables.includes('issues')) {
+    // Triggers were off while users were deleted, so no ON DELETE CASCADE ran: sweep the rows that still
+    // point at a user the import removed.
+    if (insertTables.includes('users')) {
+      for (const child of ['user_project_components', 'user_projects', 'user_domains']) {
+        const orphans = await client.query(`DELETE FROM ${quoteIdent(child)} WHERE user_id NOT IN (SELECT id FROM users);`);
+        countDeleted(child, orphans.rowCount);
+      }
+    }
+
+    if (smartImportBatchId !== null && insertTables.includes('issues') && !options.dryRun) {
       await aggregateBatchData(client, smartImportBatchId, new Date(importNow));
     }
 
-    await client.query('COMMIT');
+    await client.query(options.dryRun ? 'ROLLBACK' : 'COMMIT');
     return { ok: true, tables: [...resultByTable.values()] };
   } catch (error: unknown) {
     await client.query('ROLLBACK');
     const message = error instanceof Error ? error.message : 'Lỗi không xác định khi import.';
-    return { ok: false, tables: [{ error: message, inserted: 0, skippedDuplicates: 0, tableName: '(transaction rolled back)', updated: 0 }] };
+    return { ok: false, tables: [{ deleted: 0, error: message, inserted: 0, skippedDuplicates: 0, tableName: '(transaction rolled back)', updated: 0 }] };
   } finally {
     client.release();
   }
