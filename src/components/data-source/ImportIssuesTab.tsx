@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { confirmDialog } from '@/components/ui/dialogs';
 import { MAX_EPIC_DELETIONS_PER_IMPORT } from '@/lib/import-admission-rules';
 import { ADAPTER_TYPES, DEFAULT_ADAPTER, ADAPTER_LABELS, type AdapterType } from '@/lib/adapters/index';
-import { AggregatedDataLayersPanel } from '@/components/data-source/AggregatedDataLayersPanel';
 import { CacheStatusPanel } from '@/components/data-source/CacheStatusPanel';
 import { ScoringParityPanel } from '@/components/data-source/ScoringParityPanel';
 import { FileDropzone } from '@/components/data-source/FileDropzone';
@@ -700,8 +699,6 @@ export function ImportIssuesTab() {
               </CardFooter>
             )}
           </Card>
-
-          <AggregatedDataLayersPanel />
 
           <CacheStatusPanel />
 

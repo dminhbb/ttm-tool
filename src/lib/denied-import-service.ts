@@ -35,7 +35,7 @@ export interface DeniedImportEpic {
   createdDate: string | null;
   dueDate: string | null;
   epicKey: string;
-  /** The database still holds some data of this Epic (issues / snapshots). */
+  /** The database still holds some data of this Epic (RAW issues). */
   hasData: boolean;
   ideaApprovedDate: string | null;
   lastDeletedAt: string | null;
@@ -94,20 +94,18 @@ export async function saveImportAdmissionSettings(settings: ImportAdmissionSetti
 }
 
 /**
- * Epic key → last day (Vietnam) the database saw it in a status other than Released / MVP Done, in
- * the RAW or the snapshot layers — the proof RELEASED_BEFORE needs that an Epic got to Released
- * after B (import-admission-rules.ts). 'N/A' (status not exported) proves nothing.
+ * Epic key → last day (Vietnam) the database saw it in a status other than Released / MVP Done in
+ * the RAW `issues` rows — the proof RELEASED_BEFORE needs that an Epic got to Released after B
+ * (import-admission-rules.ts). 'N/A' (status not exported) proves nothing. Once the proof ages out
+ * with the RAW retention, the import has already recorded it as AUTO_EXEMPT (recordProvenExemptions).
  */
 export async function loadLastUnreleasedSeen(db: Queryable, epicKeys: readonly string[]): Promise<Map<string, string>> {
   if (epicKeys.length === 0) return new Map();
   const result = await db.query<{ epicKey: string; lastDate: string }>(`
     SELECT issue_key AS "epicKey", MAX((aggregated_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date)::text AS "lastDate"
-    FROM (
-      SELECT issue_key, current_status, aggregated_at FROM issues WHERE issue_key = ANY($1::text[])
-      UNION ALL
-      SELECT issue_key, current_status, aggregated_at FROM issue_daily_snapshots WHERE issue_key = ANY($1::text[])
-    ) history
-    WHERE UPPER(TRIM(current_status)) NOT IN ('RELEASED', 'MVP DONE', 'MVPDONE', 'N/A', '')
+    FROM issues
+    WHERE issue_key = ANY($1::text[])
+      AND UPPER(TRIM(current_status)) NOT IN ('RELEASED', 'MVP DONE', 'MVPDONE', 'N/A', '')
     GROUP BY issue_key;
   `, [[...epicKeys]]);
   return new Map(result.rows.map((row) => [row.epicKey, row.lastDate]));
@@ -132,11 +130,7 @@ export async function listDeniedImportEpics(): Promise<DeniedImportEpic[]> {
       denied.allow_import AS "allowImport", denied.source, denied.reason,
       users.full_name AS "addedBy", denied.created_at AS "createdAt",
       denied.last_deleted_at AS "lastDeletedAt", denied.last_deleted_issue_count AS "lastDeletedIssueCount",
-      (
-        EXISTS (SELECT 1 FROM issues WHERE issues.issue_key = denied.epic_key)
-        OR EXISTS (SELECT 1 FROM issue_daily_snapshots snap WHERE snap.issue_key = denied.epic_key)
-        OR EXISTS (SELECT 1 FROM epic_ttm_snapshots ttm WHERE ttm.epic_key = denied.epic_key)
-      ) AS "hasData"
+      EXISTS (SELECT 1 FROM issues WHERE issues.issue_key = denied.epic_key) AS "hasData"
     FROM denied_import_epics denied
     LEFT JOIN users ON users.id = denied.added_by_user_id
     ORDER BY denied.created_at DESC, denied.epic_key;
@@ -144,29 +138,19 @@ export async function listDeniedImportEpics(): Promise<DeniedImportEpic[]> {
   return result.rows;
 }
 
-/** Newest known state of each Epic — RAW issues first, else the Epic TTM Snapshot (no created date there). */
+/**
+ * Newest known state of each Epic from the RAW issues. An Epic the RAW no longer holds has no info
+ * here — upsertDeniedRows then keeps whatever its denied_import_epics row already describes.
+ */
 async function loadEpicInfo(db: Queryable, epicKeys: readonly string[]): Promise<Map<string, EpicInfo>> {
   const result = await db.query<EpicInfo>(`
-    WITH from_issues AS (
-      SELECT DISTINCT ON (issue_key)
-        issue_key AS "epicKey", issue_type AS "issueType", issue_name AS summary, current_status AS status,
-        requesting_unit AS "requestingUnit", (jira_created_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date::text AS "createdDate",
-        idea_approved_date::text AS "ideaApprovedDate", start_date::text AS "startDate",
-        r4g_date::text AS "r4gDate", due_date::text AS "dueDate"
-      FROM issues WHERE issue_key = ANY($1::text[])
-      ORDER BY issue_key, aggregated_at DESC
-    ),
-    from_snapshots AS (
-      SELECT DISTINCT ON (epic_key)
-        epic_key AS "epicKey", 'EPIC'::text AS "issueType", epic_name AS summary, current_status AS status,
-        requesting_unit AS "requestingUnit", NULL::text AS "createdDate",
-        idea_approved_date::text AS "ideaApprovedDate", start_date::text AS "startDate",
-        r4g_date::text AS "r4gDate", due_date::text AS "dueDate"
-      FROM epic_ttm_snapshots
-      WHERE epic_key = ANY($1::text[]) AND epic_key NOT IN (SELECT "epicKey" FROM from_issues)
-      ORDER BY epic_key, aggregated_at DESC
-    )
-    SELECT * FROM from_issues UNION ALL SELECT * FROM from_snapshots;
+    SELECT DISTINCT ON (issue_key)
+      issue_key AS "epicKey", issue_type AS "issueType", issue_name AS summary, current_status AS status,
+      requesting_unit AS "requestingUnit", (jira_created_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date::text AS "createdDate",
+      idea_approved_date::text AS "ideaApprovedDate", start_date::text AS "startDate",
+      r4g_date::text AS "r4gDate", due_date::text AS "dueDate"
+    FROM issues WHERE issue_key = ANY($1::text[])
+    ORDER BY issue_key, aggregated_at DESC;
   `, [[...epicKeys]]);
   return new Map(result.rows.map((row) => [row.epicKey, row]));
 }
@@ -398,9 +382,7 @@ export async function recordDeniedEpicsOfImport(
   // it was listed, so a routine import adds no audit line / deletion stamp for nothing.
   const withData = (await client.query<{ epicKey: string }>(`
     SELECT key AS "epicKey" FROM unnest($1::text[]) AS key
-    WHERE EXISTS (SELECT 1 FROM issues WHERE issue_key = key OR epic_key = key)
-       OR EXISTS (SELECT 1 FROM issue_daily_snapshots WHERE issue_key = key OR epic_key = key)
-       OR EXISTS (SELECT 1 FROM epic_ttm_snapshots WHERE epic_key = key);
+    WHERE EXISTS (SELECT 1 FROM issues WHERE issue_key = key OR epic_key = key);
   `, [deniedEpics.map((epic) => epic.epicKey)])).rows.map((row) => row.epicKey);
   if (withData.length === 0) return outcome;
   if (!allowDeletion || withData.length > MAX_EPIC_DELETIONS_PER_IMPORT) {

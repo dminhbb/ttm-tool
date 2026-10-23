@@ -246,9 +246,9 @@ function DataPipelineDiagram() {
       {arrow(350, 46, 375, 46)}
       {box(375, 20, 150, 52, 'import_rows · issues', '1 lớp dữ liệu / lần import')}
       {arrow(450, 72, 450, 100)}
-      {box(375, 100, 150, 52, 'aggregateBatchData()', 'Snapshot, timeline, vi phạm')}
+      {box(375, 100, 150, 52, 'aggregateBatchData()', 'Cảnh báo, timeline, vi phạm')}
       {arrow(375, 126, 330, 126)}
-      {box(170, 100, 160, 52, 'issue_daily_snapshots', 'epic_ttm_snapshots · timeline', 'neutral')}
+      {box(170, 100, 160, 52, 'epic_alert_history', 'epic_alert_timeline', 'neutral')}
 
       {arrow(525, 46, 575, 46)}
       {box(575, 20, 175, 52, 'refreshDerivedCaches()', 'Có khoá — 1 lượt mỗi lúc')}
@@ -294,8 +294,7 @@ export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
             <thead><tr><th className="text-left">Bảng</th><th className="text-left">Vai trò</th><th className="text-left">Khi raw batch hết hạn lưu trữ</th></tr></thead>
             <tbody>
               <tr><td>import_batches / import_rows</td><td>Dữ liệu raw của từng đợt import</td><td>Bị xóa (đây chính là dữ liệu raw)</td></tr>
-              <tr><td>issues</td><td>Dữ liệu Epic/Story/Subtask canonical, 1 dòng/issue/batch (gồm cả các trường lý do Fail TTM <code>khau_*</code>, <code>main_fail_dept</code>, <code>previous_status</code>)</td><td>Cascade xóa theo batch</td></tr>
-              <tr><td>epic_ttm_snapshots / issue_daily_snapshots</td><td>Lịch sử gọn theo Epic / theo ngày cho mọi cấp — dùng để xem lớp dữ liệu cũ, và làm bằng chứng cho rule B của Từ chối import</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
+              <tr><td>issues</td><td>Dữ liệu Epic/Story/Subtask canonical, 1 dòng/issue/batch (gồm cả các trường lý do Fail TTM <code>khau_*</code>, <code>main_fail_dept</code>, <code>previous_status</code>)</td><td>Cascade xóa theo batch — lịch sử Issue (lớp dữ liệu cũ, bằng chứng rule B) chỉ còn trong bảng này theo thời hạn lưu</td></tr>
               <tr><td>epic_alert_timeline</td><td>Các &quot;đợt&quot; cảnh báo liên tục (Fail TTM-CNTT, Cảnh báo muộn, Fail TTM-E2E, Thiếu Start Date, Sai lệch dữ liệu) cho popup Epic History — ghi ở mỗi lần <code>aggregateBatchData()</code></td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
               <tr><td>epic_alert_history / epic_milestone_history</td><td>Lịch sử Cảnh báo muộn/Fail và mốc hoàn thành pha — bảng còn nhưng việc ghi mới <strong className="text-fb-text-primary">đang tạm tắt</strong></td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
               <tr><td>epic_data_anomaly_violations</td><td>Vi phạm sai lệch dữ liệu hiện tại theo logic cũ (1 dòng/Epic/rule), phục vụ thống kê — màn hình không đọc bảng này</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>

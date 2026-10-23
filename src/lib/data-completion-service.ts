@@ -147,7 +147,7 @@ export interface CompleteDataResult {
  * (Summary = Story Key, epic_key = the Epic it resolves to per listOrphanStoryCandidates) for each
  * given Story key — restoring full Epic → Story → Subtask referential integrity so every Epic
  * Browser screen can display the complete hierarchy. Both are recorded under one manual import
- * batch, then the normal aggregation pipeline (epic_ttm_snapshots, milestone history, …) re-runs
+ * batch, then the normal aggregation pipeline (alert history, timeline, milestone history, …) re-runs
  * so every screen picks the new data up immediately, exactly as a real CSV import would.
  */
 export async function completeMissingData(

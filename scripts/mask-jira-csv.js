@@ -13,7 +13,7 @@
  * app treats issue_key as an issue's permanent identity across daily imports (see
  * issue-resolution-sql.ts's LATEST_ISSUES_CTE), so a masked key that changed from one day's import
  * to the next would look like a brand-new issue and silently break every accumulated history table
- * (epic_ttm_snapshots, issue_daily_snapshots, epic_alert_history) for it.
+ * (issues, epic_alert_history, epic_alert_timeline) for it.
  *
  * Masking is a pure function of the original key (sha256-derived), so it's stable even on a
  * completely fresh run with no state file. The state file (--state, default

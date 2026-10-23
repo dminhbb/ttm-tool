@@ -5,7 +5,7 @@ import { STORY_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 /**
  * Epic deletion (owner 2026-10-14) — removes every trace of some Epics from the database: the Epic,
  * its Stories, the Subtasks hanging off the Epic directly and the Subtasks of those Stories, in every
- * data layer (RAW import_rows/issues of every batch, issue_daily_snapshots, epic_ttm_snapshots) and in
+ * data layer (RAW import_rows/issues of every batch) and in
  * the per-Epic history/summary tables (alert history & timeline, milestones, data-anomaly violations,
  * the "Quản trị Epic" row cache, Epic ngoại lệ).
  *
@@ -81,8 +81,6 @@ const TABLE_TARGETS: readonly TableTarget[] = [
     }),
   },
   { label: 'Issues (RAW, mọi lớp)', table: 'issues', where: byIssueKey },
-  { label: 'Issue Daily Snapshot', table: 'issue_daily_snapshots', where: byIssueKey },
-  { label: 'Epic TTM Snapshot', table: 'epic_ttm_snapshots', where: byEpicKey },
   { label: 'Lịch sử cảnh báo Epic', table: 'epic_alert_history', where: byEpicKey },
   { label: 'Dòng thời gian cảnh báo Epic', table: 'epic_alert_timeline', where: byEpicKey },
   { label: 'Mốc hoàn thành Epic', table: 'epic_milestone_history', where: byEpicKey },
@@ -92,13 +90,13 @@ const TABLE_TARGETS: readonly TableTarget[] = [
 ];
 
 /**
- * The issue keys an Epic deletion removes, from the newest state of every issue across the RAW and
- * the snapshot layers (RAW batches are purged after the retention period, snapshots are not).
+ * The issue keys an Epic deletion removes, from the newest state of every issue in the RAW `issues`
+ * rows (RAW batches are purged after the retention period).
  *
  * Only the issues that ever pointed at the Epics are looked at (2026-10-19): rows whose issue_key or
  * epic_key is one of them, then rows whose parent_key is one of their Stories — each candidate's newest
  * state is then read over ALL its rows, so the result is exactly what computing the newest state of
- * every issue gave, without doing that over the whole of issues / issue_daily_snapshots inside the
+ * every issue gave, without doing that over the whole of issues inside the
  * import transaction (indexes: 20261019c_add_epic_deletion_scope_indexes.sql).
  */
 export async function resolveEpicDeletionScope(db: Queryable, epicKeys: readonly string[]): Promise<EpicDeletionScopeItem[]> {
@@ -106,16 +104,11 @@ export async function resolveEpicDeletionScope(db: Queryable, epicKeys: readonly
   const result = await db.query<EpicDeletionScopeItem>(`
     WITH direct_keys AS (
       SELECT issue_key FROM issues WHERE issue_key = ANY($1::text[]) OR epic_key = ANY($1::text[])
-      UNION
-      SELECT issue_key FROM issue_daily_snapshots WHERE issue_key = ANY($1::text[]) OR epic_key = ANY($1::text[])
     ),
     direct_latest AS (
       SELECT DISTINCT ON (issue_key) issue_key, issue_type, epic_key, jira_id
-      FROM (
-        SELECT issue_key, issue_type, epic_key, jira_id, aggregated_at FROM issues WHERE issue_key IN (SELECT issue_key FROM direct_keys)
-        UNION ALL
-        SELECT issue_key, issue_type, epic_key, jira_id, aggregated_at FROM issue_daily_snapshots WHERE issue_key IN (SELECT issue_key FROM direct_keys)
-      ) candidate_rows
+      FROM issues
+      WHERE issue_key IN (SELECT issue_key FROM direct_keys)
       ORDER BY issue_key, aggregated_at DESC
     ),
     stories AS (
@@ -130,16 +123,11 @@ export async function resolveEpicDeletionScope(db: Queryable, epicKeys: readonly
     ),
     child_keys AS (
       SELECT issue_key FROM issues WHERE parent_key IN (SELECT ref FROM story_parent_refs)
-      UNION
-      SELECT issue_key FROM issue_daily_snapshots WHERE parent_key IN (SELECT ref FROM story_parent_refs)
     ),
     child_latest AS (
       SELECT DISTINCT ON (issue_key) issue_key, issue_type, parent_key
-      FROM (
-        SELECT issue_key, issue_type, parent_key, aggregated_at FROM issues WHERE issue_key IN (SELECT issue_key FROM child_keys)
-        UNION ALL
-        SELECT issue_key, issue_type, parent_key, aggregated_at FROM issue_daily_snapshots WHERE issue_key IN (SELECT issue_key FROM child_keys)
-      ) candidate_rows
+      FROM issues
+      WHERE issue_key IN (SELECT issue_key FROM child_keys)
       ORDER BY issue_key, aggregated_at DESC
     ),
     scope AS (

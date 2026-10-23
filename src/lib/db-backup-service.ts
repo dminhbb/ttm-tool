@@ -42,8 +42,6 @@ export const EXPORTABLE_TABLES: { label: string; tableName: string }[] = [
   { label: 'Đợt import dữ liệu', tableName: 'import_batches' },
   { label: 'Dòng dữ liệu import (raw)', tableName: 'import_rows' },
   { label: 'Issues (Epic/Story/Subtask)', tableName: 'issues' },
-  { label: 'Epic TTM Snapshot (dữ liệu tổng hợp)', tableName: 'epic_ttm_snapshots' },
-  { label: 'Issue Daily Snapshot (dữ liệu tổng hợp)', tableName: 'issue_daily_snapshots' },
   { label: 'Lịch sử cảnh báo Epic (dữ liệu cảnh báo)', tableName: 'epic_alert_history' },
   { label: 'Dòng thời gian cảnh báo Epic (lịch sử Epic)', tableName: 'epic_alert_timeline' },
   { label: 'Mốc hoàn thành Epic (lịch sử Epic)', tableName: 'epic_milestone_history' },
@@ -273,7 +271,7 @@ export async function exportTablesToSql(tableNames: string[], includeSchema: boo
   return lines.join('\n');
 }
 
-export type DataLayerExportCategory = 'raw' | 'aggregated' | 'alert' | 'epicHistory';
+export type DataLayerExportCategory = 'raw' | 'alert' | 'epicHistory';
 
 interface DataLayerTableConfig {
   category: DataLayerExportCategory;
@@ -287,15 +285,12 @@ interface DataLayerTableConfig {
   whereClause: string;
 }
 
-// dữ liệu gốc (raw, toggle-gated) / dữ liệu tổng hợp (aggregated) / dữ liệu cảnh báo (alert) /
-// dữ liệu lịch sử Epic (epicHistory) — always exported together for the chosen data-layer range,
+// dữ liệu gốc (raw, toggle-gated) / dữ liệu cảnh báo (alert) / dữ liệu lịch sử Epic (epicHistory) — always exported together for the chosen data-layer range,
 // per exportDataLayerRangeToSql's single "Start/End Data Layer" selection.
 const DATA_LAYER_TABLES: DataLayerTableConfig[] = [
   { category: 'raw', tableName: 'import_batches', whereClause: 'aggregated_at::date BETWEEN $1 AND $2' },
   { category: 'raw', tableName: 'import_rows', whereClause: 'import_batch_id IN (SELECT id FROM import_batches WHERE aggregated_at::date BETWEEN $1 AND $2)' },
   { category: 'raw', tableName: 'issues', whereClause: 'aggregated_at::date BETWEEN $1 AND $2' },
-  { category: 'aggregated', tableName: 'epic_ttm_snapshots', whereClause: 'aggregated_at::date BETWEEN $1 AND $2' },
-  { category: 'aggregated', tableName: 'issue_daily_snapshots', whereClause: 'aggregated_at::date BETWEEN $1 AND $2' },
   { category: 'alert', tableName: 'epic_alert_history', whereClause: 'alert_date BETWEEN $1 AND $2' },
   { category: 'epicHistory', tableName: 'epic_alert_timeline', whereClause: 'start_date <= $2 AND (end_date IS NULL OR end_date >= $1)' },
   { category: 'epicHistory', tableName: 'epic_milestone_history', whereClause: 'milestone_date BETWEEN $1 AND $2' },
@@ -311,7 +306,7 @@ export interface DataLayerExportOptions {
 }
 
 /**
- * Export "dữ liệu tổng hợp" + "dữ liệu cảnh báo" + "dữ liệu lịch sử Epic" (always) plus "dữ liệu
+ * Export "dữ liệu cảnh báo" + "dữ liệu lịch sử Epic" (always) plus "dữ liệu
  * gốc" (only when includeRawData) for one contiguous data-layer date range — the "Start/End Data
  * Layer" + "Export Raw Data" flow on the admin backup screen. Reuses exportOneTableToSql, so the
  * resulting file has the exact same EXPORT_SIGNATURE/statement shape as a whole-table export and
@@ -365,7 +360,7 @@ export interface SmartSurfaceExportOptions {
  * When re-imported via `importSqlFile`, `SMART_SURFACE_EXPORT_HEADER` tells the importer to create
  * a brand-new `import_batches` layer stamped with the current import timestamp (`NOW()`), attach all
  * surface `import_rows` and `issues` to that new batch at `NOW()`, link `parent_id`/`epic_id`, and
- * aggregate snapshots — so both a fresh copy host and the source host receive a clean, self-contained
+ * re-derive the alert layers — so both a fresh copy host and the source host receive a clean, self-contained
  * surface data layer at the exact moment of import.
  */
 /** Table reads a Smart export runs at once — the hosted pool holds 3 connections (db.ts). */
@@ -750,7 +745,7 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
   const SMART_LAYER_TABLES = new Set(['import_batches', 'import_rows', 'issues']);
   const hasSmartLayerTablesSelected = isSmartSurfaceExport && insertTables.some((tableName) => SMART_LAYER_TABLES.has(tableName));
   const tablesToDisableTriggers = hasSmartLayerTablesSelected
-    ? [...new Set([...insertTables, 'import_batches', 'import_rows', 'issues', 'epic_ttm_snapshots', 'issue_daily_snapshots'])]
+    ? [...new Set([...insertTables, 'import_batches', 'import_rows', 'issues'])]
     : insertTables;
 
   const client = await getClient();
@@ -849,25 +844,9 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
             await client.query(`INSERT INTO tmp_smart_issues (${columns}) VALUES ${tuples};`);
           }
 
-          // Clean up any existing issues (and their snapshots) on the target DB whose issue_key is no longer
+          // Clean up any existing issues on the target DB whose issue_key is no longer
           // present in the imported surface layer, as well as any issues with aggregated_at newer than importNow,
           // so DISTINCT ON (issue_key) ORDER BY aggregated_at DESC reflects the imported surface layer 100%.
-          const deletedTtmSnapshots = await client.query(`
-            DELETE FROM "epic_ttm_snapshots" AS ets
-            WHERE NOT EXISTS (
-              SELECT 1 FROM tmp_smart_issues AS s WHERE s.issue_key = ets.epic_key
-            )
-            OR ets.aggregated_at > $1::timestamptz;
-          `, [importNow]);
-          countDeleted('epic_ttm_snapshots', deletedTtmSnapshots.rowCount);
-          const deletedDailySnapshots = await client.query(`
-            DELETE FROM "issue_daily_snapshots" AS ids
-            WHERE NOT EXISTS (
-              SELECT 1 FROM tmp_smart_issues AS s WHERE s.issue_key = ids.issue_key
-            )
-            OR ids.aggregated_at > $1::timestamptz;
-          `, [importNow]);
-          countDeleted('issue_daily_snapshots', deletedDailySnapshots.rowCount);
           const deletedIssues = await client.query(`
             DELETE FROM "issues" AS i
             WHERE NOT EXISTS (
@@ -957,8 +936,6 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
       'import_batches',
       'import_rows',
       'issues',
-      'epic_ttm_snapshots',
-      'issue_daily_snapshots',
       'epic_alert_history',
       'epic_alert_timeline',
       'epic_milestone_history',
@@ -977,8 +954,6 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
       epic_status_alert_rules: [
         't.epic_complexity_type = incoming.epic_complexity_type AND t.epic_status = incoming.epic_status',
       ],
-      epic_ttm_snapshots: ['t.epic_key = incoming.epic_key AND t.aggregated_at = incoming.aggregated_at'],
-      issue_daily_snapshots: ['t.issue_key = incoming.issue_key AND t.aggregated_at = incoming.aggregated_at'],
       issue_type_role_mapping: ['t.issue_type = incoming.issue_type'],
       issues: [
         't.issue_key = incoming.issue_key AND t.source_import_batch_id = incoming.source_import_batch_id',

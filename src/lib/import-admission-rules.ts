@@ -56,8 +56,8 @@ export interface AdmissionEpicFacts {
   /** Date the Epic moved to its current status, when the source exports it. */
   statusChangedDate: string | null;
   /**
-   * Last day the database saw the Epic in a status other than Released / MVP Done (RAW or snapshot
-   * layers). On/after B it proves the Epic got to Released after B, whatever its Due Date says.
+   * Last day the database saw the Epic in a status other than Released / MVP Done (RAW issues).
+   * On/after B it proves the Epic got to Released after B, whatever its Due Date says.
    */
   lastUnreleasedSeenDate?: string | null;
 }
