@@ -105,7 +105,6 @@ export async function getTtmDashboard2Summary(userId: number, role: UserRole, in
       failTtmCntt: layers.l5ab + layers.l5ba,
       epicDanhGia: layers.l5aa + layers.l5ab + layers.l5ba,
       chamTienDo: insights.lateWarning,
-      ...(insights.scoringEngine ? {} : { canhBaoSom: insights.earlyWarning }),
       saiLechDuLieu: insights.anomalyCount,
       choGolive: { total: insights.waitingGolive.total, thieuR4gDate: waiting.missingR4g, trongHan: waiting.withinGrace, quaHan: waiting.overdue },
       giaiTrinhGolive: insights.justifyGolive,

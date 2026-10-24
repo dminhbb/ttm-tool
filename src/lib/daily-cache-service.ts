@@ -1,16 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { after } from 'next/server';
 import pool from '@/lib/db';
-import { applyTtmExclusions, loadTtmExclusionSources } from '@/lib/black-listed-epic-service';
-import { applyPmSmAssignments } from '@/lib/epic-pm-sm-assignment';
-import { loadPmSmNarrowings } from '@/lib/epic-pm-sm-assignment-service';
-import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
+import { getEpicAlertRowsWithScorecards } from '@/lib/epic-alert-rows-service';
 import { refreshEpicAlertRowCache } from '@/lib/epic-alert-row-cache-service';
 import { refreshTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { getTtmDashboard2CacheOverview, refreshTtmDashboard2Caches } from '@/lib/ttm-dashboard-2-cache-service';
-import { runShadowScoring } from '@/lib/scoring-run-service';
-import { getStoredScoringEngineMode } from '@/lib/scoring-mode-service';
-import { projectRows } from '@/lib/scoring/projection';
 import { runDailyHousekeeping } from '@/lib/housekeeping-service';
 import { SCORING_CODE_VERSION } from '@/lib/scoring/registry';
 
@@ -162,23 +156,15 @@ export async function claimDailyCacheRun(userId: number, recoverInterruptedRebui
  * expensive part), instead of each refresher recomputing it on its own. Returns the Epic count.
  * Only ever called through refreshDerivedCaches (the rebuild lease), never twice at the same time. */
 async function rebuildDerivedCaches(batchId: number | null): Promise<number> {
-  const [computed, exclusionSources, pmSmNarrowings] = await Promise.all([getEpicAlertRowsPhased(0, 'SUPERVISOR', {}), loadTtmExclusionSources(), loadPmSmNarrowings()]);
-  // "Epic ngoại lệ" / project Time to Market = N: every cached row carries ttmBlackListed +
-  // ttmExclusion, so the caches (Quản trị Epic, TTM-Index, TTM Dashboard 2) all leave the Epic out of
-  // the TTM calculation from L02 on. Saving the black list or a project's flag re-runs this.
-  // PM/SM by component (2026-10-12): every cached row names only the PM/SMs responsible for the Epic's
-  // components (owner_names follows), so the PM/SM column, filter and breakdowns of every cache reader
-  // agree. Saving a user's projects / components re-runs this.
-  const rows = applyPmSmAssignments(applyTtmExclusions(computed.rows, exclusionSources), pmSmNarrowings);
-  // Epic Scoring Service in shadow mode: stored next to the legacy row + compared against it
-  // (scoring_parity_runs). Returns null on failure — the legacy cache is still rebuilt.
-  const scorecards = await runShadowScoring(rows);
-  // Display engine 'scoring' (M4): the caches store the rows with the Scoring Service's verdicts
-  // projected on — every cache reader (Quản trị Epic, TTM-Index, Dashboard) then shows them. If
-  // shadow scoring failed, fall back to the legacy rows rather than leaving the caches stale.
-  const displayRows = scorecards && (await getStoredScoringEngineMode()) === 'scoring' ? projectRows(rows, scorecards) : rows;
-  await refreshTtmIndexGlobalCache(batchId, displayRows);
-  await refreshEpicAlertRowCache(batchId, displayRows, scorecards);
+  // Every row carries the Epic Scoring Service's verdicts, ttmBlackListed + ttmExclusion ("Epic ngoại lệ" /
+  // project Time to Market = N: the caches — Quản trị Epic, TTM-Index, TTM Dashboard 2 — leave the Epic out
+  // of the TTM calculation from L02 on; saving the black list or a project's flag re-runs this) and the
+  // PM/SMs responsible for its components only (owner_names follows), so the PM/SM column, filter and
+  // breakdowns of every cache reader agree. Saving a user's projects / components re-runs this.
+  const { response, scorecards } = await getEpicAlertRowsWithScorecards(0, 'SUPERVISOR', {});
+  const rows = response.rows;
+  await refreshTtmIndexGlobalCache(batchId, rows);
+  await refreshEpicAlertRowCache(batchId, rows, scorecards);
   // TTM Dashboard 2's per-scope funnel cache is derived from the row cache just written. A failure
   // here must not fail the whole refresh — the screen rebuilds a missing/stale entry on demand.
   await refreshTtmDashboard2Caches().catch((error: unknown) => console.error('TTM Dashboard 2 cache refresh failed:', error));

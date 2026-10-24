@@ -28,7 +28,6 @@ export const EXPORTABLE_TABLES: { label: string; tableName: string }[] = [
   // the Scoring Service / data-scope settings or the permission matrix. Caches are still left out —
   // "Tạo lại cache" rebuilds them from the tables above.
   { label: 'Phạm vi dữ liệu cho TTM', tableName: 'ttm_scope_config' },
-  { label: 'Scoring Service — engine hiển thị', tableName: 'scoring_engine_settings' },
   { label: 'Scoring Service — tham số (gồm Phạm vi rule Sai lệch dữ liệu)', tableName: 'scoring_parameters' },
   { label: 'Scoring Service — bật/tắt rule', tableName: 'scoring_rule_settings' },
   { label: 'Epic ngoại lệ (Black listed)', tableName: 'black_listed_epics' },
@@ -40,7 +39,6 @@ export const EXPORTABLE_TABLES: { label: string; tableName: string }[] = [
   { label: 'Cấu hình Jira', tableName: 'jira_settings' },
   { label: 'Thời hạn lưu dữ liệu raw', tableName: 'data_retention_configs' },
   { label: 'Đợt import dữ liệu', tableName: 'import_batches' },
-  { label: 'Lỗi/cảnh báo validate của đợt import (raw)', tableName: 'import_row_issues' },
   { label: 'Issues (Epic/Story/Subtask)', tableName: 'issues' },
   { label: 'Dòng thời gian cảnh báo Epic (lịch sử Epic)', tableName: 'epic_alert_timeline' },
   { label: 'Audit log', tableName: 'audit_logs' },
@@ -287,7 +285,6 @@ interface DataLayerTableConfig {
 // per exportDataLayerRangeToSql's single "Start/End Data Layer" selection.
 const DATA_LAYER_TABLES: DataLayerTableConfig[] = [
   { category: 'raw', tableName: 'import_batches', whereClause: 'aggregated_at::date BETWEEN $1 AND $2' },
-  { category: 'raw', tableName: 'import_row_issues', whereClause: 'import_batch_id IN (SELECT id FROM import_batches WHERE aggregated_at::date BETWEEN $1 AND $2)' },
   { category: 'raw', tableName: 'issues', whereClause: 'aggregated_at::date BETWEEN $1 AND $2' },
   { category: 'epicHistory', tableName: 'epic_alert_timeline', whereClause: 'start_date <= $2 AND (end_date IS NULL OR end_date >= $1)' },
 ];
@@ -483,7 +480,6 @@ export async function exportSmartSurfaceToSql(options: SmartSurfaceExportOptions
     'ttm_policy_configs',
     'issue_type_role_mapping',
     'ttm_scope_config',
-    'scoring_engine_settings',
     'scoring_parameters',
     'scoring_rule_settings',
     'black_listed_epics',
@@ -886,7 +882,6 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
 
     const HISTORICAL_LAYER_TABLES = new Set([
       'import_batches',
-      'import_row_issues',
       'issues',
       'epic_alert_timeline',
       'audit_logs',
@@ -900,7 +895,6 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
       epic_status_alert_rules: [
         't.epic_complexity_type = incoming.epic_complexity_type AND t.epic_status = incoming.epic_status',
       ],
-      import_row_issues: ['t.import_batch_id = incoming.import_batch_id AND t.row_number = incoming.row_number'],
       issue_type_role_mapping: ['t.issue_type = incoming.issue_type'],
       issues: [
         't.issue_key = incoming.issue_key AND t.source_import_batch_id = incoming.source_import_batch_id',

@@ -82,16 +82,10 @@ describe('projection onto legacy rows (display engine "scoring")', () => {
     assert.ok(matchesAlertFilter(row, 'STATUS_MISMATCH'));
     assert.ok(matchesAlertFilter(row, 'ACHIEVED_CNTT'));
     assert.ok(row.ttmCnttStatusMismatch && isTtmCnttAchieved(row));
-    assert.ok(!matchesAlertFilter(row, 'EARLY'));
+    
     assert.equal(isTtmIndexPass(row), true);
     const summary = summarizeTtmCntt([row]);
     assert.deepEqual([summary.eligible, summary.pass], [1, 1]);
-  });
-
-  it('legacy rows (no scoring fields) keep the legacy formulas', () => {
-    const row = legacyRow({ alertLevel: 'NONE', r4gDate: '2026-08-20', ttmActualToDate: '2026-08-20', hasDataAnomaly: false, ttmCnttStatusMismatch: true });
-    assert.ok(matchesAlertFilter(row, 'STATUS_MISMATCH'));
-    assert.equal(isTtmIndexPass(row), true); // legacy D1 behavior, unchanged in legacy mode
   });
 });
 

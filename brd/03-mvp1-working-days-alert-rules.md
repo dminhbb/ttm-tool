@@ -112,7 +112,7 @@ Target R4G Date lấy từ `ttm_policy_configs` (TTM_CNTT), không còn từ c�
 Có **2 hàm khác nhau** trong `src/lib/epic-data-anomaly.ts`, phục vụ 2 mục đích khác nhau — tài liệu
 cũ từng gộp chung thành "hasDataAnomaly" là không chính xác:
 
-**a) `evaluateEpicDataAnomaly()` — badge "Sai lệch dữ liệu", 7 rule đánh index R1-R7, dùng cho MỌI
+**a) Badge "Sai lệch dữ liệu" (nay do Scoring Service chấm — `src/lib/scoring/rules/data-quality.ts`; hàm `evaluateEpicDataAnomaly()` cũ trong `epic-data-anomaly.ts` đã gỡ 24/10/2026, file chỉ còn mã + số thứ tự rule), 7 rule đánh index R1-R7, dùng cho MỌI
 màn hình giám sát Epic (Quản trị Epic rút gọn/đầy đủ, Epic in PO, Báo cáo Epic, Dashboard, Dòng thời
 gian cảnh báo).** Epic ở trạng thái Cancelled/To Do/In PO/Backlog được miễn toàn bộ 7 rule dưới đây.
 
@@ -258,7 +258,7 @@ Then cột Cảnh báo hiển thị "Fail TTM-CNTT"
 
 > **Đã gỡ 11/10/2026:** `POST /api/epic-compliance` (và `epic-compliance-service.ts`) không còn tồn
 > tại — không UI, MCP tool hay hệ thống ngoài nào gọi tới. Lõi `evaluateIssueCompliance`
-> (`epic-compliance-engine.ts`) vẫn còn vì engine legacy dùng nội bộ. Mô tả dưới đây giữ làm lịch sử.
+> (`epic-compliance-engine.ts`) cũng đã gỡ 24/10/2026 cùng engine legacy. Mô tả dưới đây giữ làm lịch sử.
 
 `POST /api/epic-compliance` là contract nghiệp vụ tập trung cho Epic, Story và Subtask. API yêu cầu người dùng đã đăng nhập, nhận `items` (tối đa 500) cùng `evaluatedAt` tùy chọn theo định dạng `YYYY-MM-DD`.
 

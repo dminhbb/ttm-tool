@@ -270,9 +270,8 @@
       <h3>3.2. Các bước xử lý khi import (không ở chế độ "chỉ kiểm tra lỗi")</h3>
       <ol>
         <li>Parse CSV, chuẩn hoá thành các issue thô.</li>
-        <li><strong>Từ chối import</strong> (mục 3.4): loại toàn bộ dòng của Epic bị từ chối (Epic, Story, Subtask của nó) — các dòng này không đi tiếp vào bất kỳ bước nào bên dưới, kể cả <code>import_row_issues</code>.</li>
+        <li><strong>Từ chối import</strong> (mục 3.4): loại toàn bộ dòng của Epic bị từ chối (Epic, Story, Subtask của nó) — các dòng này không đi tiếp vào bất kỳ bước nào bên dưới, kể cả bước ghi <code>issues</code>.</li>
         <li>Validate từng dòng: <span class="badge success">VALID</span> / <span class="badge warning">WARNING</span> / <span class="badge danger">INVALID</span>. Nếu có dòng INVALID, cả batch coi là <strong>FAILED</strong> và không ghi vào bảng canonical.</li>
-        <li>Ghi lỗi/cảnh báo validate của các dòng không sạch vào <code>import_row_issues</code> (dòng hợp lệ chỉ cần dòng <code>issues</code> ở bước sau).</li>
         <li>Ghi/UPSERT vào bảng canonical <code>issues</code> (1 dòng / issue / batch).</li>
         <li>Liên kết quan hệ Subtask → Story → Epic trong phạm vi batch.</li>
         <li>Chạy <code>aggregateBatchData()</code>: tính lại 4 lớp dữ liệu tổng hợp/hậu-tổng hợp (mục 4).</li>
@@ -292,7 +291,7 @@
           <tr><td>Xác thực</td><td>Header <code>Authorization: Bearer &lt;token&gt;</code> — token tĩnh cấu hình qua biến môi trường <code>IMPORT_API_TOKEN</code> trên server (không phải session người dùng), so khớp bằng thuật toán constant-time. Sai/thiếu token → <code>401</code>; server chưa cấu hình token → <code>503</code>.</td></tr>
           <tr><td>Payload</td><td><code>multipart/form-data</code> với field <code>file</code> — cùng định dạng CSV (adapter <strong>Py Jira API</strong> cố định, không truyền được adapter khác), giới hạn <strong>2MB</strong> (thoải mái hơn nhiều so với &lt;500KB script thường xuất ra).</td></tr>
           <tr><td>Thời điểm tổng hợp</td><td><code>aggregatedAt</code> luôn = thời điểm server nhận request (không nhận tham số từ script) — đúng ngữ nghĩa "vừa export xong, import ngay bây giờ".</td></tr>
-          <tr><td>Pipeline xử lý</td><td>Gọi lại đúng <code>processImport()</code> dùng chung với form thủ công — cùng bước validate → <code>import_row_issues</code> → <code>issues</code> → <code>aggregateBatchData()</code> → dọn dữ liệu quá hạn (mục 3.2). Không có chế độ "chỉ kiểm tra lỗi" ở API này.</td></tr>
+          <tr><td>Pipeline xử lý</td><td>Gọi lại đúng <code>processImport()</code> dùng chung với form thủ công — cùng bước validate → <code>issues</code> → <code>aggregateBatchData()</code> → dọn dữ liệu quá hạn (mục 3.2). Không có chế độ "chỉ kiểm tra lỗi" ở API này.</td></tr>
           <tr><td>Truy vết</td><td>Batch tạo ra được đánh dấu nguồn <code>AUTO</code>, người thực hiện hiển thị "Python Script (Auto Import)" trong Nhật ký lịch sử import — phân biệt rõ với batch import thủ công qua UI.</td></tr>
           <tr><td>Phản hồi</td><td>Trả về cùng cấu trúc JSON kết quả import (<code>status</code>, <code>totalRows</code>/<code>successRows</code>/<code>warningRows</code>/<code>errorRows</code>, …) như API import qua UI — script có thể tự xác định thành công/thất bại theo <code>status</code>/mã HTTP mà không cần đăng nhập giao diện.</td></tr>
         </tbody>
@@ -331,7 +330,7 @@
       <p><strong>Epic deletion</strong> — xóa vĩnh viễn một Epic khỏi CSDL:</p>
       <ul>
         <li>Phạm vi: Epic, các Story, các Subtask gắn thẳng vào Epic và Subtask của các Story đó — xác định theo <strong>trạng thái mới nhất</strong> của từng issue (issue đã chuyển sang Epic khác trên Jira được giữ nguyên).</li>
-        <li>Xóa ở mọi lớp dữ liệu: <code>import_row_issues</code>, <code>issues</code> (mọi batch), và các bảng theo Epic: <code>epic_alert_timeline</code>, <code>epic_alert_row_cache</code>, <code>black_listed_epics</code>. Mỗi Epic xóa ghi 1 dòng <code>audit_logs</code> (<code>EPIC_DELETION</code>).</li>
+        <li>Xóa ở mọi lớp dữ liệu: <code>issues</code> (mọi batch), và các bảng theo Epic: <code>epic_alert_timeline</code>, <code>epic_alert_row_cache</code>, <code>black_listed_epics</code>. Mỗi Epic xóa ghi 1 dòng <code>audit_logs</code> (<code>EPIC_DELETION</code>).</li>
         <li><strong>Không tự chạy lại cache.</strong> Các cache tổng hợp toàn công ty (TTM-Index, TTM Dashboard 2) vẫn tính Epic đã xóa cho tới khi admin chạy lại cache thủ công — sau mỗi lần xóa, màn hình hiện toast nhắc việc này.</li>
         <li>API (SUPERADMIN): <code>GET /api/data-source/epic-deletion?keys=…</code> (xem trước danh sách issue key và số dòng mỗi bảng), <code>POST /api/data-source/epic-deletion</code> <code>{ epicKeys }</code> (xóa).</li>
       </ul>
@@ -351,7 +350,7 @@
         <g font-size="11.5" font-weight="700" fill="#1f2430">
           <rect x="20" y="20" width="150" height="50" rx="8" fill="#eaf0ff" stroke="#c3cce3" /><text x="95" y="41" text-anchor="middle">File CSV (Jira)</text><text x="95" y="57" font-size="9.5" font-weight="400" fill="#6b7280" text-anchor="middle">Chỉ issue update trong ngày</text>
           <line x1="170" y1="45" x2="200" y2="45" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow1)" />
-          <rect x="200" y="20" width="150" height="50" rx="8" fill="#eaf0ff" stroke="#c3cce3" /><text x="275" y="41" text-anchor="middle">import_row_issues</text><text x="275" y="57" font-size="9.5" font-weight="400" fill="#6b7280" text-anchor="middle">Lỗi/cảnh báo validate</text>
+          <rect x="200" y="20" width="150" height="50" rx="8" fill="#eaf0ff" stroke="#c3cce3" /><text x="275" y="41" text-anchor="middle">Validate dòng</text><text x="275" y="57" font-size="9.5" font-weight="400" fill="#6b7280" text-anchor="middle">Từ chối import, bỏ dòng lỗi</text>
           <line x1="350" y1="45" x2="380" y2="45" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow1)" />
           <rect x="380" y="20" width="150" height="50" rx="8" fill="#eaf0ff" stroke="#c3cce3" /><text x="455" y="41" text-anchor="middle">issues</text><text x="455" y="57" font-size="9.5" font-weight="400" fill="#6b7280" text-anchor="middle">Canonical, upsert theo batch</text>
 
@@ -370,7 +369,7 @@
       <table>
         <thead><tr><th>Bảng</th><th>Vai trò</th><th>Khi raw batch bị xoá</th></tr></thead>
         <tbody>
-          <tr><td><code>import_batches</code>, <code>import_row_issues</code></td><td>Metadata từng đợt import và lỗi/cảnh báo validate của các dòng không sạch (bảng <code>import_rows</code> đã gỡ 24/10/2026)</td><td>Chính là dữ liệu bị xoá</td></tr>
+          <tr><td><code>import_batches</code></td><td>Metadata từng đợt import: số dòng thành công / cảnh báo / lỗi (các bảng <code>import_rows</code> và <code>import_row_issues</code> đã gỡ 24/10/2026)</td><td>Chính là dữ liệu bị xoá</td></tr>
           <tr><td><code>issues</code></td><td>Dữ liệu canonical Epic/Story/Subtask, 1 dòng/issue/batch, có quan hệ cha–con và Epic Link</td><td>Cascade xoá theo batch — lịch sử Issue chỉ còn trong bảng này theo thời hạn lưu (2 bảng snapshot đã gỡ 23/10/2026)</td></tr>
           <tr><td><code>epic_alert_timeline</code></td><td>Các "đợt" cảnh báo liên tục (Fail TTM-CNTT, Cảnh báo muộn, Fail TTM-E2E, Thiếu Start Date, Sai lệch dữ liệu) — gồm ngày bắt đầu/kết thúc và status Epic lúc đó</td><td>Giữ lại</td></tr>
         </tbody>
@@ -1461,7 +1460,7 @@
       <h3>6.1. Lưu trữ dữ liệu import (raw)</h3>
       <p>
         Cấu hình tại panel <strong>“Lưu trữ dữ liệu import”</strong> (right panel màn hình Nguồn dữ liệu, SUPERADMIN): số ngày giữ dữ liệu raw
-        (<code>import_batches</code>/<code>import_row_issues</code>/<code>issues</code>), mặc định 30 ngày, tối thiểu 7. Sau mỗi lần import thành công, hệ thống tự dọn
+        (<code>import_batches</code>/<code>issues</code>), mặc định 30 ngày, tối thiểu 7. Sau mỗi lần import thành công và mỗi ngày trong job dọn dẹp, hệ thống tự dọn
         các batch cũ hơn ngưỡng — batch mới nhất luôn được bảo vệ để tránh mất nguồn cảnh báo hiện hành.
       </p>
       <h3>6.2. Lịch sử Issue chỉ còn trong <code>issues</code></h3>
@@ -1567,7 +1566,7 @@
       <ul>
         <li>sau mỗi lần import (thủ công hoặc API tự động);</li>
         <li>một lần đầu mỗi ngày (lượt đầu ngày do lần tải trang đầu tiên kích hoạt) — để Cảnh báo muộn, Fail theo ngày hiện tại tự cập nhật dù không import;</li>
-        <li>khi lưu "Phạm vi dữ liệu cho TTM", "Phạm vi rule Sai lệch dữ liệu", Epic ngoại lệ, cờ Time to Market / Domain / PM-SM của dự án, hoặc đổi engine hiển thị;</li>
+        <li>khi lưu "Phạm vi dữ liệu cho TTM", "Phạm vi rule Sai lệch dữ liệu", Epic ngoại lệ, cờ Time to Market / Domain / PM-SM của dự án;</li>
         <li>khi SUPERADMIN bấm "Tạo lại cache" (Quản trị nguồn dữ liệu → Theo dõi cache dữ liệu).</li>
       </ul>
       <p>Mỗi lần chỉ một lượt tạo lại chạy (khoá <code>derived_cache_refresh_lock</code>); yêu cầu đến trong lúc đang chạy được gộp, lượt đang chạy sẽ chạy thêm một lần với dữ liệu mới nhất. Mọi màn hình hiện chỉ báo "Hệ thống đang tính toán lại cache" khi có lượt đang chạy. <strong>Rule mới chỉ có hiệu lực sau lần tạo lại cache kế tiếp.</strong> Xoá Epic (Từ chối import / Epic deletion) không tự tạo lại cache.</p>
@@ -1672,8 +1671,8 @@
       <div class="kicker">Khối cảnh báo</div>
       <h2>9. Epic sai lệch dữ liệu (không còn bị chặn import)</h2>
       <p>
-        Toàn bộ ứng dụng (3 màn hình giám sát Epic, Báo cáo, Dashboard, dòng thời gian cảnh báo) dùng <strong>chung một hàm</strong>
-        <code>evaluateEpicDataAnomaly()</code> để đánh giá — nên cờ "sai lệch" và danh sách lý do không bao giờ lệch nhau giữa các màn hình.
+        Toàn bộ ứng dụng (3 màn hình giám sát Epic, Báo cáo, Dashboard, dòng thời gian cảnh báo) dùng <strong>chung một engine</strong> —
+        Epic Scoring Service (<code>src/lib/scoring</code>) — để đánh giá — nên cờ "sai lệch" và danh sách lý do không bao giờ lệch nhau giữa các màn hình.
         Một Epic có thể vi phạm nhiều rule cùng lúc; ứng dụng liệt kê <strong>đầy đủ từng rule bị vi phạm</strong> ở cột Nhận xét để người phụ trách biết chính xác cần bổ sung gì.
         Epic sai lệch <strong>không bao giờ bị loại khỏi hệ thống</strong> — vẫn được đưa vào đầy đủ, chỉ bị đánh dấu để hoàn thiện.
       </p>
@@ -1784,7 +1783,7 @@
       </ul>
       <p>
         Mỗi lần <code>aggregateBatchData()</code> chạy (import thủ công, import tự động qua API, hoặc "Chạy lại" lớp dữ liệu), hệ thống tính lại cả 5 trạng thái này cho
-        từng Epic bằng <strong>đúng những hàm dùng chung</strong> mà các màn hình giám sát dùng để hiển thị hôm nay (<code>hasDataAnomaly</code>, <code>resolveTtmE2eRelease</code>,
+        từng Epic bằng <strong>đúng những hàm dùng chung</strong> mà các màn hình giám sát dùng để hiển thị hôm nay (kết quả của Epic Scoring Service: <code>hasDataAnomaly</code>, Fail TTM-E2E,
         …) — nên lịch sử ghi lại không bao giờ "lệch pha" so với những gì màn hình đang hiển thị. So sánh với các "đợt" đang mở trong DB: đợt đang mở và vẫn còn đúng → nối dài
         thêm; đợt đang mở nhưng hết đúng → đóng lại (gán <code>end_date</code>); trạng thái mới xuất hiện → mở đợt mới. Toàn bộ thao tác ghi trong 1 lần import được gộp
         thành tối đa 3 câu lệnh SQL theo lô, không ghi từng Epic một. Dữ liệu này phục vụ mục "Dòng thời gian cảnh báo" trong popup <strong>Epic History</strong> ở màn hình
@@ -1831,8 +1830,7 @@
       <p>
         Màn hình báo cáo theo <strong>từng dự án</strong> (không gộp nhiều dự án như Dashboard) — đây là mục đầu tiên trong nhóm &quot;Giám sát&quot; trên sidebar. Người dùng
         chọn 1 Dự án, tùy chọn lọc thêm Domain/Component/khoảng ngày, và chọn 1 hoặc nhiều trong <strong>tối đa 7 lớp dữ liệu (<code>aggregated_at</code>) gần nhất</strong>
-        để &quot;drill&quot; xuống dữ liệu của các ngày import cũ hơn. Dùng lại đúng engine tính cảnh báo/tuân thủ/sai lệch dữ liệu (<code>evaluateIssueCompliance</code>,
-        <code>evaluateEpicDataAnomaly</code>, <code>resolveTtmE2eRelease</code>) với 3 màn hình giám sát Epic ở trên — không tính lại bằng công thức riêng.
+        để &quot;drill&quot; xuống dữ liệu của các ngày import cũ hơn. Dùng lại đúng engine tính cảnh báo/tuân thủ/sai lệch dữ liệu (Epic Scoring Service, <code>scoreEpic</code>) với 3 màn hình giám sát Epic ở trên — không tính lại bằng công thức riêng.
       </p>
       <p>Kết quả gộp Epic của dự án vào 6 danh sách:</p>
       <ol>

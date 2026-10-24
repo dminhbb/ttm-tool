@@ -1,10 +1,11 @@
 import type { AlertLevel, EpicComplexity } from '@/lib/ttm-rules';
 import type { EpicAnomalyViolation } from '@/lib/epic-data-anomaly';
-import type { ReleaseAxisState } from '@/lib/epic-alert-service';
 import type { Finding, TtmExclusion } from '@/lib/scoring/types';
 
 export type { EpicAnomalyViolation } from '@/lib/epic-data-anomaly';
-export type { ReleaseAxisState } from '@/lib/epic-alert-service';
+
+/** "Trục Release" state kept on the row for the readers that still show one value; the badges (scoringBadges) carry the full picture. */
+export type ReleaseAxisState = 'NONE' | 'WAITING_GOLIVE' | 'EARLY_WARNING' | 'JUSTIFY_GOLIVE';
 
 export type EpicAlertAccessRole = 'CBQL_PHONG' | 'LEAD' | 'PM_SM';
 
@@ -39,8 +40,8 @@ export interface EpicAlertRowPhased {
   epicName: string;
   epicType: EpicComplexity | null;
   hasAlertHistory: boolean;
-  /** True when this Epic breaks any "sai lệch dữ liệu" rule — see evaluateEpicDataAnomaly in
-   * epic-data-anomaly.ts. alertLevel and ttmE2eAlertLevel are forced to 'NONE' whenever this is
+  /** True when this Epic breaks any "sai lệch dữ liệu" rule — see the ANOMALY_R* badges of the
+   * Epic Scoring Service (scoring/rules/data-quality.ts). alertLevel and ttmE2eAlertLevel are forced to 'NONE' whenever this is
    * true; the frontend shows "Không tính được", groups these rows at the bottom (highlighted) and
    * lists dataAnomalyViolations so the user knows exactly what to complete. */
   hasDataAnomaly: boolean;
@@ -54,8 +55,8 @@ export interface EpicAlertRowPhased {
   /** Human-readable project name (projects.project_name), distinct from projectKey. */
   projectName: string;
   r4gDate: string | null;
-  /** "Trục Release" (Chờ golive/Cảnh báo sớm/Giải trình Golive) — see resolveReleaseAxis in
-   * epic-alert-service.ts. 'NONE' when nothing to say on this axis (either genuinely clean, or the
+  /** "Trục Release" (Chờ golive/Cảnh báo sớm/Giải trình Golive) — see the RELEASE_* badges of the
+   * Epic Scoring Service (scoring/rules/release.ts). 'NONE' when nothing to say on this axis (either genuinely clean, or the
    * RELEASE_STATUS_MISMATCH anomaly rule owns the badge instead — see epic-data-anomaly.ts). */
   releaseAxisState: ReleaseAxisState;
   /** R4G Date + RELEASE_DUE_GRACE_WORKING_DAYS working days — null until R4G Date is recorded. */
@@ -164,8 +165,6 @@ export interface EpicAlertPhasedResponse {
   availableLayerDates: string[];
   /** Echoes EpicAlertFilters.asOfDate — see EpicAlertResponse.asOfDate. */
   asOfDate: string | null;
-  /** Which evaluation engine produced `rows` — see scoring-mode-service.ts. */
-  engineMode?: 'legacy' | 'scoring';
   lastAggregatedAt: string | null;
   rows: EpicAlertRowPhased[];
   viewerName: string;

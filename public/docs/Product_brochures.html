@@ -1435,13 +1435,12 @@
           </ul>
         </div>
 
-        <h2 class="subsection-title" id="ch4-6-projection-switch">4.6. Đèn chuyển Engine & Lớp Projection (M4)</h2>
+        <h2 class="subsection-title" id="ch4-6-projection-switch">4.6. Lớp Projection (Scoring Service là engine duy nhất)</h2>
         <p>
-          SUPERADMIN có quyền chuyển đổi chế độ engine qua bảng <code>scoring_engine_settings</code> trong menu <em>"Đối chiếu Scoring Service"</em>:
+          Từ 24/10/2026 engine cũ đã gỡ: không còn công tắc chuyển engine (bảng <code>scoring_engine_settings</code>) và không còn bước đối chiếu (bảng <code>scoring_parity_runs</code>). Lớp <code>scoring/projection.ts</code> vẫn giữ để các màn hình đọc cùng một dạng dòng:
         </p>
         <ul>
-          <li>Mode <code>legacy</code>: Giao diện hiển thị theo engine tính toán cũ.</li>
-          <li>Mode <code>scoring</code>: Lớp <code>scoring/projection.ts</code> chiếu trực tiếp kết quả Scorecard mới đè lên các trường dữ liệu của <code>EpicAlertRowPhased</code>.</li>
+          <li>Lớp <code>scoring/projection.ts</code> chiếu trực tiếp kết quả Scorecard đè lên các trường kết luận của <code>EpicAlertRowPhased</code> (tên, ngày, dải thời gian do <code>epic-alert-rows-service.ts</code> dựng).</li>
         </ul>
 
         <h2 class="subsection-title" id="ch4-7-so-do-scoring">4.7. Sơ đồ Luồng Đánh giá Scoring Engine</h2>

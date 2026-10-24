@@ -74,7 +74,6 @@ export interface TtmBreakdownItem {
 export interface TtmDashboard2Insights {
   /** "Sai lệch dữ liệu" among non-Cancelled Epics (same count as TTM Dashboard's tile). */
   anomalyCount: number;
-  earlyWarning: number;
   justifyGolive: number;
   lateWarning: number;
   /** "Thiếu lý do" — Khâu fail: Fail TTM-CNTT with a late R4G Date lacking every failure reason
@@ -83,8 +82,6 @@ export interface TtmDashboard2Insights {
   /** "Thiếu lý do" — Chịu TN chính: Fail TTM-CNTT with a late R4G Date lacking "Phòng chịu trách nhiệm
    * chính" (REC_MISSING_RESPONSIBLE_DEPARTMENT, 2026-10-14). The widget shows the sum of the two. */
   missingResponsibleDepartment: number;
-  /** True when the rows were scored by the Epic Scoring Service (no "Cảnh báo sớm" then). */
-  scoringEngine: boolean;
   /** "Chờ golive": Epics without an R4G Date, and the rest counted per releaseGraceDeadline ('' =
    * none) so "Trong hạn / Quá hạn" can be split against today's date at view time. */
   waitingGolive: { byGraceDeadline: Record<string, number>; missingR4g: number; total: number };
@@ -229,14 +226,12 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
   const active = rows.filter((row) => !isOutsideTtmCalculation(row));
   const waitingGolive: TtmDashboard2Insights['waitingGolive'] = { byGraceDeadline: {}, missingR4g: 0, total: 0 };
   let anomalyCount = 0;
-  let earlyWarning = 0;
   let justifyGolive = 0;
   let lateWarning = 0;
   let missingFailReason = 0;
   let missingResponsibleDepartment = 0;
   for (const row of active) {
     if (row.ttmCnttInScope && row.alertLevel === 'LATE') lateWarning += 1;
-    else if (row.ttmCnttInScope && row.alertLevel === 'EARLY') earlyWarning += 1;
     if (row.hasDataAnomaly) anomalyCount += 1;
     if (isJustifyGolive(row)) justifyGolive += 1;
     if (isWaitingGolive(row)) {
@@ -299,13 +294,11 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
     anomalyCount,
     breakdowns,
     e2e: summarizeE2e(active),
-    earlyWarning,
     justifyGolive,
     lateWarning,
     missingFailReason,
     missingResponsibleDepartment,
     qa: summarizeQaIndex(active),
-    scoringEngine: rows.some((row) => Boolean(row.scoringBadges)),
     waitingGolive,
   };
 }

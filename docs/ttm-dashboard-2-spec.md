@@ -104,7 +104,7 @@ Vì phễu và danh sách dùng cùng một định nghĩa (`ttmFunnelBucket` �
 
 - Bảng `ttm_dashboard_2_cache` lưu số liệu phễu **chưa lọc** + danh sách lựa chọn bộ lọc theo phạm vi dữ liệu: `ALL` (dùng chung SUPERADMIN + SUPERVISOR), `ADMIN:<id>` (dự án thuộc domain được gán + dự án Admin làm PM/SM), `USER:<id>` (dự án User làm PM/SM, có thu hẹp Component). Phạm vi luôn lấy từ `resolveAccessScope`, giống Quản trị Epic.
 - Mở màn hình: API `/api/ttm-dashboard-2` chỉ đọc 1 dòng cache. Khi người dùng chọn bất kỳ bộ lọc nào, trang tải dữ liệu Epic của phạm vi một lần (`/api/ttm-dashboard-2/rows`) rồi tính lại bằng cùng hàm `summarizeTtmFunnel` (`src/lib/ttm-funnel-summary.ts`) đã dùng để dựng cache.
-- Một dòng cache chỉ được dùng khi khớp: thời điểm dựng `epic_alert_row_cache`, engine hiển thị, dấu vân tay phạm vi (đổi phân quyền user/domain/dự án ⇒ dựng lại) và **phiên bản payload** (`PAYLOAD_VERSION` trong `ttm-dashboard-2-cache-service.ts`; 2 = phễu chỉ tính trong "Phạm vi dữ liệu cho TTM", 3 = thêm `insights` cho widget row / ma trận / pie chart). Thiếu/cũ thì tính ngay và lưu lại. `refreshDerivedCaches` làm ấm lại toàn bộ sau mỗi lần dựng cache dữ liệu.
+- Một dòng cache chỉ được dùng khi khớp: thời điểm dựng `epic_alert_row_cache`, dấu vân tay phạm vi (đổi phân quyền user/domain/dự án ⇒ dựng lại) và **phiên bản payload** (`PAYLOAD_VERSION` trong `ttm-dashboard-2-cache-service.ts`; 2 = phễu chỉ tính trong "Phạm vi dữ liệu cho TTM", 3 = thêm `insights` cho widget row / ma trận / pie chart). Thiếu/cũ thì tính ngay và lưu lại. `refreshDerivedCaches` làm ấm lại toàn bộ sau mỗi lần dựng cache dữ liệu.
 
 ## 7. Widget Row, Ma Trận & Pie Chart (2026-10-04)
 

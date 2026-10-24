@@ -70,7 +70,7 @@ export function findActivePolicy(policies: readonly ScoringTtmPolicy[], ttmType:
   return policies.find((policy) => policy.isActive && policy.ttmType === ttmType && policy.epicComplexityType === complexity) ?? null;
 }
 
-/** Policy "From/To TTM Field" → the Epic's date (same aliases as epic-compliance-engine.ts). */
+/** Policy "From/To TTM Field" → the Epic's date (the aliases of the retired compliance engine). */
 function fieldDate(facts: EpicFacts, field: string): IsoDate | null {
   const normalized = field.trim().toLocaleUpperCase('en-US').replace(/[ _-]+/g, '');
   if (normalized === 'IDEAAPPROVEDDATE' || normalized === 'IDEAAPPROVED') return facts.ideaApprovedDate;
@@ -95,7 +95,7 @@ export function resolveLateOffset(ctx: ScoringContext, complexity: EpicComplexit
 }
 
 /**
- * Phase baselines — same walk as computeTtmPhaseBaselines (ttm-phase-rules.ts): Start Date is day 1,
+ * Phase baselines — the walk of the retired computeTtmPhaseBaselines: Start Date is day 1,
  * DESIGN rounds its share UP, DEV/TEST/PENTEST/R4GOLIVE round DOWN, each phase walks forward from
  * the previous phase's date, and R4GOLIVE is pinned to Start + (N − 1) = Target_CNTT.
  */

@@ -10,7 +10,7 @@ Hệ thống theo dõi hai tiêu chí:
 | TTM-E2E | Toàn bộ hành trình từ duyệt ý tưởng tới Released | Chưa phải trọng tâm MVP1 (nhưng đã có cảnh báo Fail riêng, xem cập nhật bên dưới) |
 
 > **Cập nhật:** TTM-E2E hiện có cảnh báo **Fail TTM-E2E** độc lập với Fail TTM-CNTT, không chỉ là
-> con số tham chiếu như dự kiến ban đầu — xem `resolveTtmE2eRelease` (`src/lib/epic-alert-service.ts`)
+> con số tham chiếu như dự kiến ban đầu — xem rule `E2E_FAIL` của Scoring Service (`src/lib/scoring/rules/ttm-e2e.ts`)
 > và mục 5 bên dưới. T0 (Idea Approved Date) nếu thiếu sẽ tự fallback sang ngày tạo Epic trên Jira
 > (`jira_created_at`, luôn có), nên baseline TTM-E2E luôn tính được kể cả khi Epic thiếu Start Date.
 
@@ -132,8 +132,8 @@ Trong MVP1, TTM-E2E có thể được lưu và hiển thị tham khảo nhưng 
 > sub-link tách theo thời gian: "Thiếu R4G Date", "Trong hạn" (hôm nay ≤ R4G Date + 5 ngày làm việc),
 > "Quá hạn" (còn lại) — xem `docs/superpowers/specs/2026-09-29-scoring-service-design.md` §6.3 và
 > `src/lib/scoring/rules/release.ts`. Nội dung §6.1 bên dưới ("Chờ golive"/"Cảnh báo sớm" theo R4G
-> Date + 5 ngày) mô tả đúng **logic cũ (legacy)** — vẫn còn hiệu lực khi `scoring_engine_settings.mode
-> = 'legacy'`, không bị thay đổi bởi cập nhật này.
+> Date + 5 ngày) mô tả **logic cũ (legacy)** — engine cũ đã gỡ 24/10/2026, Scoring Service là logic duy nhất; giữ
+> lại làm lịch sử.
 
 Sau khi TTM-E2E không còn dùng Due Date, kỷ luật ghi nhận Due Date được tách thành "trục Release"
 riêng, độc lập với TTM-E2E, với 3 badge mới hiển thị trên cột **Nhận xét** (song song với các badge

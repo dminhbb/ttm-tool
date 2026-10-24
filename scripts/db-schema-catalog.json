@@ -48,7 +48,6 @@
       "ink": "#8a5a00",
       "tables": [
         "import_batches",
-        "import_row_issues",
         "issues",
         "denied_import_epics",
         "import_admission_settings"
@@ -75,10 +74,8 @@
       "fill": "#e6f4ea",
       "ink": "#2e7d32",
       "tables": [
-        "scoring_engine_settings",
         "scoring_parameters",
-        "scoring_rule_settings",
-        "scoring_parity_runs"
+        "scoring_rule_settings"
       ]
     },
     {
@@ -256,10 +253,6 @@
         "import_type": "<code>TIMESTAMP WITH TIME ZONE NOT NULL</code></td><td>Mốc thời gian lớp dữ liệu snapshot tổng hợp"
       }
     },
-    "import_row_issues": {
-      "description": "Kết quả validate của các dòng KHÔNG sạch (WARNING / INVALID) của mỗi đợt import, để màn \"Nguồn dữ liệu\" hiển thị chi tiết lỗi/cảnh báo. Dòng VALID không có bản ghi (dữ liệu của nó là dòng <code>issues</code>); dòng INVALID không vào <code>issues</code> nên đây là nơi duy nhất giữ key/summary/lỗi của chúng. Thay cho bảng <code>import_rows</code> (bản sao JSON mọi dòng) đã gỡ 2026-10-24.",
-      "columns": {}
-    },
     "issues": {
       "description": "Bảng canonical lưu trữ toàn bộ issue mọi cấp (Epic/Story/Subtask). Ghi nhận các mốc T0 (idea_approved_date), T1 (start_date), R4G (r4g_date), Due (due_date) và 4 Epic Type. Self-FK <code>parent_id</code> &amp; <code>epic_id</code>.",
       "columns": {
@@ -319,20 +312,12 @@
       "description": "<strong>Mới 05/10/2026.</strong> \"Epic ngoại lệ\": mỗi dòng là 1 Epic bị loại khỏi mọi phép tính Time to Market (<code>project_key</code>, <code>ttm_black_listed</code>, người cập nhật). Bỏ ngoại lệ = xoá dòng — mục 13.4.",
       "columns": {}
     },
-    "scoring_engine_settings": {
-      "description": "Engine hiển thị đang dùng: <code>legacy</code> hoặc <code>scoring</code>.",
-      "columns": {}
-    },
     "scoring_parameters": {
       "description": "Tham số rule do admin ghi đè (grace Release, tỉ lệ Pending lâu, status được miễn…); mặc định nằm trong code.",
       "columns": {}
     },
     "scoring_rule_settings": {
       "description": "Bật/tắt từng badge (rule) của Scoring Service; không có dòng = theo mặc định của danh mục badge.",
-      "columns": {}
-    },
-    "scoring_parity_runs": {
-      "description": "Kết quả mỗi lần đối chiếu Scoring Service với engine cũ (số Epic khớp / lệch có chủ đích / chưa giải thích được, chi tiết JSON).",
       "columns": {}
     },
     "epic_alert_timeline": {
@@ -443,7 +428,6 @@
       "ttm_scope_config",
       "holidays",
       "makeup_workdays",
-      "scoring_engine_settings",
       "scoring_parameters",
       "scoring_rule_settings",
       "project_types",

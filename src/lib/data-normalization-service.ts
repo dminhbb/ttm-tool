@@ -3,7 +3,6 @@ import pool from '@/lib/db';
 import type { UserRole } from '@/lib/auth-types';
 import {
   compareEpicKeys,
-  describeNormalizationPanel,
   NORMALIZATION_PAGE_SIZE,
   NORMALIZATION_PANELS,
   normalizationPanelsOf,
@@ -13,7 +12,6 @@ import {
 } from '@/lib/data-normalization';
 import { resolveAccessScope } from '@/lib/epic-alert-service';
 import type { DashboardEpicRow } from '@/lib/epic-alert-types';
-import type { ScoringEngineMode } from '@/lib/scoring-mode-service';
 import { isOutsideTtmCalculation } from '@/lib/ttm-cntt-qa';
 import { getTtmDashboard2Snapshot } from '@/lib/ttm-dashboard-2-cache-service';
 import { loadDashboardEpicRows } from '@/lib/ttm-dashboard-summary-service';
@@ -42,7 +40,6 @@ export interface DataNormalizationInput {
 }
 
 export interface DataNormalizationPayload {
-  engineMode: ScoringEngineMode;
   /** null unless `includeFilterOptions` was asked. */
   filterOptions: TtmDashboard2FilterOptions | null;
   lastAggregatedAt: string | null;
@@ -127,9 +124,9 @@ export async function getDataNormalization(userId: number, role: UserRole, input
     return {
       code: panel.code,
       guide: panel.guide,
-      inLegacyEngine: panel.inLegacyEngine,
       label: panel.label,
-      ...describeNormalizationPanel(panel, loaded.engineMode),
+      formula: panel.formula,
+      meaning: panel.meaning,
       page: page.page,
       pageSize: NORMALIZATION_PAGE_SIZE,
       rows: !rowsLoaded ? [] : page.rows.map(({ messages, row }): NormalizationEpicRow => {
@@ -154,7 +151,6 @@ export async function getDataNormalization(userId: number, role: UserRole, input
   });
 
   return {
-    engineMode: loaded.engineMode,
     filterOptions,
     lastAggregatedAt: loaded.lastAggregatedAt,
     panels,

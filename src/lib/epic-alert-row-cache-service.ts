@@ -1,5 +1,5 @@
 import { getClient } from '@/lib/db';
-import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
+import { getEpicAlertRowsForDisplay } from '@/lib/epic-alert-rows-service';
 import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
 import { ALERT_RANK, bottomStatusRankOf } from '@/lib/epic-alert-sort-rules';
 import { badgeCodesOf, indexFlagsOf } from '@/lib/scoring/select';
@@ -13,7 +13,7 @@ import type { EpicScorecard } from '@/lib/scoring/types';
  * `issues`, so this is where that (expensive, once-per-import) computation happens; epic-alert-
  * row-cache-query-service.ts then serves paginated/filtered reads straight off this table instead
  * of recomputing per page view. Only ever holds the newest layer — "layer cũ hơn" drill-down on
- * Quản trị Epic keeps using the existing live computation path (getEpicAlertRowsPhased directly).
+ * Quản trị Epic keeps using the live computation path (getEpicAlertRowsForDisplay).
  *
  * Throws on failure (after rolling back) — callers decide: the import catches and only logs, since a
  * stale/missing cache is far less harmful than failing the import itself.
@@ -25,10 +25,10 @@ const INSERT_COLUMN_COUNT = 24;
 
 /** `precomputedRows` — same as refreshTtmIndexGlobalCache's: lets refreshDerivedCaches
  * (daily-cache-service.ts) compute the unscoped row set once for both caches. `scorecards` — the
- * Scoring Service's shadow result (see scoring-run-service.ts), stored in the badge_codes/
- * index_flags/findings columns next to the legacy row; an Epic without one keeps the column defaults. */
+ * Scoring Service's result for those rows, stored in the badge_codes/
+ * index_flags/findings columns next to the row; an Epic without one keeps the column defaults. */
 export async function refreshEpicAlertRowCache(batchId: number | null, precomputedRows?: EpicAlertRowPhased[], scorecards?: ReadonlyMap<string, EpicScorecard> | null): Promise<void> {
-  const rows = precomputedRows ?? (await getEpicAlertRowsPhased(0, 'SUPERVISOR', {})).rows;
+  const rows = precomputedRows ?? (await getEpicAlertRowsForDisplay(0, 'SUPERVISOR', {})).rows;
   // Last row per epic_key wins — same outcome the previous row-by-row ON CONFLICT upsert gave,
   // but a single multi-row INSERT can't touch the same key twice, so dedupe up front.
   const uniqueRows = [...new Map(rows.map((row) => [row.epicKey, row])).values()];

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
-import { getEpicAlertRowsForDisplay } from '@/lib/epic-scoring-display-service';
-import { getScoringEngineMode, getStoredScoringEngineMode } from '@/lib/scoring-mode-service';
+import { getEpicAlertRowsForDisplay } from '@/lib/epic-alert-rows-service';
 import { parseEpicAlertFiltersFromSearchParams } from '@/lib/epic-alert-filter-params';
 import { getTtmScopeConfig } from '@/lib/ttm-scope-config-service';
 import { resolveViewAsTarget } from '@/lib/view-as-user-service';
@@ -71,14 +70,11 @@ export async function GET(request: NextRequest) {
       || filters.ttmScopeCnttFrom !== undefined || filters.ttmScopeCnttTo !== undefined
       || filters.ttmScopeQaFrom !== undefined || filters.ttmScopeQaTo !== undefined,
     );
-    // The cache holds rows built with the STORED engine; a per-machine SCORING_ENGINE_MODE override
-    // that differs from it can only be served by the live path.
-    const [engineMode, cacheEngineMode] = await Promise.all([getScoringEngineMode(), getStoredScoringEngineMode()]);
-    const cacheMeta = usesAdvancedFilter || engineMode !== cacheEngineMode ? null : await getEpicAlertRowCacheMeta();
+    const cacheMeta = usesAdvancedFilter ? null : await getEpicAlertRowCacheMeta();
 
     if (cacheMeta?.hasCache) {
       const header = await fetchEpicAlertHeaderContext(userId, role);
-      const cacheFilters = { ...parseCacheFilters(searchParams), engineMode };
+      const cacheFilters = parseCacheFilters(searchParams);
       const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
       const pageSize = Math.min(200, Math.max(1, Number(searchParams.get('pageSize') ?? '20') || 20));
 
@@ -91,7 +87,6 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({
         mode: 'paged',
-        engineMode,
         accessRole: header.accessRole,
         asOfDate: null,
         availableLayerDates: header.availableLayerDates,

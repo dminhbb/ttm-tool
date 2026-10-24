@@ -105,8 +105,8 @@ describe('L02 leaves out "Epic ngoại lệ" and non-TTM-project Epics (owner ru
     const flagged: Partial<TtmFunnelRow>[] = [
       { alertLevel: 'LATE' },
       { hasDataAnomaly: true },
-      { releaseAxisState: 'WAITING_GOLIVE', r4gDate: '2026-09-01', releaseGraceDeadline: '2026-09-08' },
-      { releaseAxisState: 'JUSTIFY_GOLIVE', r4gDate: '2026-08-01' },
+      { scoringBadges: ['RELEASE_WAITING_GOLIVE'], r4gDate: '2026-09-01', releaseGraceDeadline: '2026-09-08' },
+      { scoringBadges: ['RELEASE_JUSTIFY_GOLIVE'], r4gDate: '2026-08-01' },
     ];
     const counted = flagged.map((patch) => funnelRow(patch));
     const exceptions = flagged.map((patch, index) => funnelRow({ ...patch, ttmExclusion: index % 2 === 0 ? 'BLACK_LISTED' : 'PROJECT_NON_TTM' }));

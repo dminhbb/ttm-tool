@@ -3,7 +3,6 @@ import { describe, it } from 'node:test';
 import { apiFeatureKey, pageFeatureKey } from '../feature-access';
 import {
   compareEpicKeys,
-  describeNormalizationPanel,
   FAIL_REASON_PANEL_CODE,
   NORMALIZATION_BADGE_CODES,
   NORMALIZATION_PAGE_SIZE,
@@ -29,10 +28,6 @@ describe('"Chuẩn hoá dữ liệu" panels', () => {
     assert.ok(!NORMALIZATION_PANELS.some((panel) => panel.index === 2));
   });
 
-  it('"Thiếu lý do Fail TTM" and R8–R10 exist only in the Scoring Service', () => {
-    assert.deepEqual(NORMALIZATION_PANELS.filter((panel) => !panel.inLegacyEngine).map((panel) => panel.code), [FAIL_REASON_PANEL_CODE, 'R8', 'R9', 'R10']);
-  });
-
   it('an Epic breaking several rules lands in each of their panels, with that rule\'s messages only', () => {
     assert.deepEqual(panelsOf({
       dataAnomalyViolations: [violation('MISSING_START_DATE', 1, 'thiếu T1'), violation('MISSING_REQUEST_TYPE', 4, 'thiếu loại'), violation('DATE_OUT_OF_SEQUENCE', 3, 'a'), violation('DATE_OUT_OF_SEQUENCE', 3, 'b')],
@@ -41,19 +36,19 @@ describe('"Chuẩn hoá dữ liệu" panels', () => {
   });
 
   it('R2 has no panel: an Epic whose only violation is "Pending lâu" needs no normalizing; R7 has one', () => {
-    // Legacy engine rows carry R2 / R7 as violations.
+    // A row may carry R2 / R7 as violations.
     assert.deepEqual(panelsOf({ dataAnomalyViolations: [violation('PENDING_TOO_LONG', 2)] }), {});
     assert.deepEqual(panelsOf({ dataAnomalyViolations: [violation('PENDING_TOO_LONG', 2), violation('RELEASE_STATUS_MISMATCH', 7, 'chưa Released')] }), { R7: ['chưa Released'] });
   });
 
-  it('scoring rows: R7 and "Thiếu lý do Fail TTM" are read off the badges (they are not violations there)', () => {
+  it('R7 and "Thiếu lý do Fail TTM" are read off the badges (they are not violations)', () => {
     const r7 = panelsOf({ scoringBadges: ['RELEASE_STATUS_MISMATCH'] });
     assert.deepEqual(Object.keys(r7), ['R7']);
     assert.equal(r7.R7.length, 1);
     assert.deepEqual(Object.keys(panelsOf({ scoringBadges: ['CNTT_FAIL', 'REC_MISSING_FAIL_REASON'] })), [FAIL_REASON_PANEL_CODE]);
     // Outside "Phạm vi dữ liệu cho TTM" the dashboard doesn't count the missing reason — neither does this screen.
     assert.deepEqual(panelsOf({ scoringBadges: ['REC_MISSING_FAIL_REASON'], ttmCnttInScope: false }), {});
-    // A legacy row (no badges) is never in the "Thiếu lý do Fail TTM" panel.
+    // A row without badges is never in the "Thiếu lý do Fail TTM" panel.
     assert.deepEqual(panelsOf({ scoringBadges: undefined }), {});
     // "Thiếu lý do" = Khâu fail + Chịu TN chính, as on the dashboard widget: either one puts the Epic
     // in the panel, both give it two messages.
@@ -66,18 +61,6 @@ describe('"Chuẩn hoá dữ liệu" panels', () => {
     assert.deepEqual([...NORMALIZATION_BADGE_CODES].sort(), ['REC_MISSING_FAIL_REASON', 'REC_MISSING_RESPONSIBLE_DEPARTMENT', 'RELEASE_STATUS_MISMATCH']);
   });
 
-  it('the rule text follows the engine the Epics were judged by: legacy R1 / R5 / R7 differ from the catalog', () => {
-    const panel = (code: string) => NORMALIZATION_PANELS.find((item) => item.code === code)!;
-    for (const code of ['R1', 'R5', 'R7']) {
-      const scoring = describeNormalizationPanel(panel(code), 'scoring');
-      const legacy = describeNormalizationPanel(panel(code), 'legacy');
-      assert.deepEqual(scoring, { formula: panel(code).formula, meaning: panel(code).meaning }, code);
-      assert.notEqual(legacy.formula, scoring.formula, code);
-      assert.match(legacy.meaning, /engine legacy/, code);
-    }
-    // Rules the two engines check the same way keep the catalog text.
-    assert.deepEqual(describeNormalizationPanel(panel('R4'), 'legacy'), describeNormalizationPanel(panel('R4'), 'scoring'));
-  });
 });
 
 describe('"Chuẩn hoá dữ liệu" paging', () => {

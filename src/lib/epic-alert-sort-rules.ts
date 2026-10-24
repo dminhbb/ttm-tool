@@ -1,7 +1,7 @@
 import type { AlertLevel } from '@/lib/ttm-rules';
 import { normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 
-/** FAIL sorts first, NONE last — shared by the live sort (epic-alert-phase-service.ts) and the
+/** FAIL sorts first, NONE last — shared by the live sort (epic-alert-rows-service.ts) and the
  * epic_alert_row_cache write path (epic-alert-row-cache-service.ts). */
 export const ALERT_RANK: Record<AlertLevel, number> = { FAIL: 0, LATE: 1, EARLY: 2, NONE: 3 };
 

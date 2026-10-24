@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/Input';
 
 interface PurgePreview {
   batchCount: number;
-  importRowIssueCount: number;
   issueCount: number;
   layerCount: number;
   targetDates: string[];
@@ -57,10 +56,9 @@ export function PurgeRecentLayersPanel() {
 
   const handlePurge = async () => {
     if (!preview || preview.targetDates.length === 0) return;
-    const description = `Xóa VĨNH VIỄN toàn bộ dữ liệu RAW (đợt import, issues, lỗi/cảnh báo import) của ${preview.targetDates.length} lớp dữ liệu gần nhất `
+    const description = `Xóa VĨNH VIỄN toàn bộ dữ liệu RAW (đợt import, issues) của ${preview.targetDates.length} lớp dữ liệu gần nhất `
       + `(${formatDate(preview.targetDates[preview.targetDates.length - 1])} → ${formatDate(preview.targetDates[0])})?\n\n`
-      + `Bao gồm: ${formatNumber(preview.batchCount)} đợt import, ${formatNumber(preview.issueCount)} issues, `
-      + `${formatNumber(preview.importRowIssueCount)} lỗi/cảnh báo import. Không thể hoàn tác.`;
+      + `Bao gồm: ${formatNumber(preview.batchCount)} đợt import, ${formatNumber(preview.issueCount)} issues. Không thể hoàn tác.`;
     if (!(await confirmDialog({ title: 'Xóa lớp dữ liệu gần nhất', description, confirmLabel: 'Xóa vĩnh viễn' }))) return;
 
     setIsPurging(true);
@@ -92,7 +90,7 @@ export function PurgeRecentLayersPanel() {
       </CardHeader>
       <CardBody className="gap-4">
         <Alert variant="warning" title="Thao tác không thể hoàn tác">
-          Xóa toàn bộ dữ liệu RAW (đợt import, issues, lỗi/cảnh báo import) của các lớp dữ liệu gần nhất. Dòng thời gian cảnh báo được giữ nguyên.
+          Xóa toàn bộ dữ liệu RAW (đợt import, issues) của các lớp dữ liệu gần nhất. Dòng thời gian cảnh báo được giữ nguyên.
         </Alert>
 
         <Input
@@ -121,7 +119,6 @@ export function PurgeRecentLayersPanel() {
               <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11.5px] text-fb-text-secondary">
                 <li>Đợt import (RAW): <strong>{formatNumber(preview.batchCount)}</strong></li>
                 <li>Issues (RAW): <strong>{formatNumber(preview.issueCount)}</strong></li>
-                <li>Lỗi/cảnh báo import (RAW): <strong>{formatNumber(preview.importRowIssueCount)}</strong></li>
               </ul>
             </div>
           )

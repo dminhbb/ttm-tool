@@ -231,15 +231,15 @@ describe('TTM Dashboard 2 summary (cache ↔ filtered recompute share these)', (
 
     it('widget row: operational tiles count like TTM Dashboard; Chờ golive is split against today', () => {
       const rows = [
-        funnelRow({ releaseAxisState: 'WAITING_GOLIVE' }),
-        funnelRow({ releaseAxisState: 'WAITING_GOLIVE', r4gDate: '2026-09-01', releaseGraceDeadline: '2026-09-08' }),
-        funnelRow({ releaseAxisState: 'WAITING_GOLIVE', r4gDate: '2026-09-20', releaseGraceDeadline: '2026-09-27' }),
-        funnelRow({ releaseAxisState: 'JUSTIFY_GOLIVE', r4gDate: '2026-08-01', alertLevel: 'LATE' }),
+        funnelRow({ scoringBadges: ['RELEASE_WAITING_GOLIVE'] }),
+        funnelRow({ scoringBadges: ['RELEASE_WAITING_GOLIVE'], r4gDate: '2026-09-01', releaseGraceDeadline: '2026-09-08' }),
+        funnelRow({ scoringBadges: ['RELEASE_WAITING_GOLIVE'], r4gDate: '2026-09-20', releaseGraceDeadline: '2026-09-27' }),
+        funnelRow({ scoringBadges: ['RELEASE_JUSTIFY_GOLIVE'], r4gDate: '2026-08-01', alertLevel: 'LATE' }),
         funnelRow({ hasDataAnomaly: true, ttmCnttInScope: false }),
-        funnelRow({ currentStatus: 'Cancelled', hasDataAnomaly: true, releaseAxisState: 'WAITING_GOLIVE' }),
+        funnelRow({ currentStatus: 'Cancelled', hasDataAnomaly: true, scoringBadges: ['RELEASE_WAITING_GOLIVE'] }),
       ];
       const { insights } = summarizeTtmFunnel(rows);
-      assert.deepEqual([insights.anomalyCount, insights.justifyGolive, insights.lateWarning, insights.waitingGolive.total, insights.scoringEngine], [1, 1, 1, 3, false]);
+      assert.deepEqual([insights.anomalyCount, insights.justifyGolive, insights.lateWarning, insights.waitingGolive.total], [1, 1, 1, 3]);
       assert.deepEqual(splitWaitingGolive(insights.waitingGolive, '2026-09-10'), { missingR4g: 1, overdue: 1, withinGrace: 1 });
       assert.deepEqual(splitWaitingGolive(insights.waitingGolive, '2026-09-30'), { missingR4g: 1, overdue: 2, withinGrace: 0 });
     });

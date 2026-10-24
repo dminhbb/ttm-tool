@@ -8,8 +8,8 @@
 > Nguồn code tương ứng (không lặp lại chi tiết implementation, chỉ trỏ tới):
 > `src/lib/ttm-cntt-qa.ts` (summarizeTtmCntt/summarizeQaIndex), `src/lib/ttm-scope-rules.ts`
 > (computeTtmCnttInScope/computeQaInScope), `src/lib/ttm-scope-config-service.ts` (cấu hình mặc
-> định), `src/lib/epic-alert-service.ts`/`epic-alert-phase-service.ts` (nguồn tính alertLevel/
-> ttmE2eAlertLevel per Epic), `src/lib/ttm-rules.ts` (computeTtmAlert — công thức TTM-CNTT gốc).
+> định), `src/lib/epic-alert-rows-service.ts` (ghép dòng Epic từ scorecard của Scoring Service — nguồn alertLevel/
+> ttmE2eAlertLevel per Epic); `computeTtmAlert` (`ttm-rules.ts`) đã gỡ 24/10/2026.
 
 ## 0. Cập nhật 2026-09-30 — cơ cấu lại đúng 3 chỉ số (ưu tiên hơn các mục bên dưới)
 
@@ -182,7 +182,7 @@ nếu total = 0:  pct = 100
   trong nhóm chưa kết luận.
 - Đổi rule 2026-09-24: trước đó "thực tế" là Due Date, nay là R4G Date. Kỷ luật Due Date so với R4G
   Date (trong hạn 5 ngày làm việc hay không) tách thành khái niệm riêng **"Trục Release"** (badge
-  Chờ golive/Cảnh báo sớm/Giải trình Golive, xem `resolveReleaseAxis`) + rule sai lệch dữ liệu R7
+  Chờ golive/Cảnh báo sớm/Giải trình Golive, xem các badge `RELEASE_*` trong `scoring/rules/release.ts`) + rule sai lệch dữ liệu R7
   (`RELEASE_STATUS_MISMATCH`), không còn nằm trong TTM-E2E.
 - **Quan trọng**: TTM-E2E **không** bị ảnh hưởng bởi "Phạm vi dữ liệu cho TTM" (mục 7) — filter đó
   chỉ tác động tới trục TTM-CNTT/QA-Index. KPI "Fail TTM-E2E" và badge "Fail TTM-e2e"/"Đạt TTM-e2e"
@@ -216,7 +216,7 @@ mục 8), có thể override tạm thời (không lưu) qua Advanced Filters ở
   > việc đổi rule sang điều kiện theo status, xem
   > `docs/superpowers/specs/2026-09-29-scoring-service-design.md` §14. "Giải trình Golive" và mọi
   > badge khác của trục Release, cùng toàn bộ TTM-E2E, vẫn không bị ảnh hưởng — kể cả ở chế độ
-  > `scoring`. Logic legacy (`resolveReleaseAxis`) không đổi.
+  > `scoring`. (Logic legacy `resolveReleaseAxis` đã gỡ 24/10/2026.)
 
 ## 8. Phạm vi mặc định "Tổng số Epic" (khi chưa cấu hình gì ở mục 7)
 

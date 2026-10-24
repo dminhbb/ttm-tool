@@ -18,7 +18,7 @@ Dữ liệu chia thành các nhóm:
 - Auth và RBAC (`users`, `user_domains`, `user_projects`, `user_project_components`,
   `auth_sessions`, `password_reset_requests`, `permission_features`, `role_feature_permissions`).
 - Domain và Project (`domains`, `projects`, `project_components`).
-- Jira/CSV canonical issue data (`issues`, `import_batches`, `import_row_issues`).
+- Jira/CSV canonical issue data (`issues`, `import_batches`).
 - Cấu hình TTM và cảnh báo (`ttm_policy_configs`, `epic_status_alert_rules`,
   `issue_type_role_mapping`).
 - Lịch làm việc (`holidays`, `makeup_workdays`).
@@ -57,7 +57,6 @@ erDiagram
     projects ||--o{ project_components : "1-n (source_project_key = project_key)"
 
     %% Jira Data & Import Engine Module
-    import_batches ||--o{ import_row_issues : "1-n (import_batch_id)"
     import_batches ||--o{ issues : "1-n (source_import_batch_id)"
     issues ||--o{ issues : "self-FK (parent_id / epic_id)"
 
@@ -340,7 +339,7 @@ mới (do CBQL Phòng tự cấu hình, có thể thay đổi bất kỳ lúc n�
 TTM_E2E.
 
 **Fail TTM-E2E là cảnh báo độc lập với Fail TTM-CNTT** (không phải chỉ tham chiếu như tài liệu cũ mô
-tả) — tính bởi `resolveTtmE2eRelease` (`epic-alert-service.ts`): T0 = Idea Approved Date, nếu thiếu
+tả) — tính bởi rule `E2E_FAIL` của Scoring Service (`scoring/rules/ttm-e2e.ts`; đường kẻ của dải: `epic-row-geometry.ts`): T0 = Idea Approved Date, nếu thiếu
 thì fallback `jira_created_at` (luôn có), nên baseline TTM-E2E luôn tính được bất kể Start Date có
 hay không; chỉ có FAIL/NONE, không có mức Cảnh báo sớm/muộn riêng cho TTM-E2E.
 
@@ -445,23 +444,22 @@ rồi xóa, và xóa `user_usage_daily_stats` ngoài cửa sổ 90 ngày. Mỗi 
 `note` như tài liệu cũ mô tả — CAPTCHA được xác thực ở tầng API trước khi tạo request, không lưu cờ
 riêng trong bảng.
 
-## 18. import_batches / import_row_issues
+## 18. import_batches
 
 ```text
 import_batches: id, source_type, file_name, import_type (MANUAL/AUTO), imported_by, imported_at,
                 aggregated_at, total_rows, success_rows, warning_rows, error_rows,
                 status (SUCCESS/FAILED/COMPLETED_WITH_WARNINGS), metadata_json, created_at, updated_at
-import_row_issues: id, import_batch_id (FK CASCADE), row_number, issue_key, summary,
-             validation_status (WARNING/INVALID), validation_errors (JSONB), created_at
-             -- UNIQUE (import_batch_id, row_number); chỉ lưu dòng KHÔNG sạch, dòng VALID không có bản ghi
 ```
 
 **`import_rows` đã gỡ 2026-10-24** (migration `20261025b_drop_import_rows.sql`): bảng này giữ một bản JSON
 của MỌI dòng nhập, trùng ~97% với `issues`. Phần duy nhất `issues` còn thiếu đã được thêm thành cột:
 `issues.project_key` (= Project key của file, else tiền tố `issue_key`) và `issues.request_type`
 ("Loại yêu cầu" gốc, trước đây `epicType`; `epic_complexity_type` chỉ là phân loại CT/SP suy ra từ nó).
-`import_row_issues` chỉ giữ kết quả validate của dòng WARNING/INVALID để màn "Nguồn dữ liệu" hiển thị
-chi tiết lỗi/cảnh báo; dòng INVALID không vào `issues` nên đây là nơi duy nhất còn giữ key/summary/lỗi của chúng.
+**`import_row_issues` đã gỡ 2026-10-24** (migration `20261026_drop_import_row_issues.sql`): bảng chỉ phục vụ cửa sổ
+"Chi tiết lỗi/cảnh báo" của một đợt import (không ai dùng) nên cửa sổ, thống kê cảnh báo của nó và bước tính/lưu chi
+tiết từng dòng khi import đã bỏ. Kết quả validate vẫn trả về ngay trong phản hồi upload (danh sách dòng lỗi/cảnh báo),
+còn `import_batches` giữ số dòng thành công / cảnh báo / lỗi của mỗi đợt; dòng INVALID không vào `issues`.
 Bộ lọc "Epic tạo mới từ" của Báo cáo Epic dùng `issues.jira_created_at` như Quản trị Epic (trước đó đọc một
 khóa JSON không tồn tại nên luôn rơi về ngày duyệt ý tưởng). Từ bản downgrade validate (xem `07-data-source-and-csv-
 import.md`), 2 rule "R4G Date trước Start Date"/"Due Date trước T0" chỉ còn ở mức `WARNING`, không
@@ -477,7 +475,8 @@ updated_at
 ```
 
 Chỉ SUPERADMIN được cập nhật. Sau mỗi import lưu chính thức, hệ thống tự dọn raw batch quá hạn
-(`import_batches`/`import_row_issues`/`issues`), luôn giữ batch vừa import và lớp dữ liệu mới nhất;
+(`import_batches`/`issues`), luôn giữ batch vừa import và lớp dữ liệu mới nhất — cũng chạy mỗi ngày trong job dọn dẹp
+(`housekeeping-service.ts`, bước `import_batches`);
 `epic_alert_timeline` không bị dọn theo (FK `ON DELETE SET NULL`); lịch sử Issue
 thì mất cùng batch.
 
@@ -508,7 +507,7 @@ bật**, không bị flag tắt. Với `FAIL_TTM_CNTT` / `LATE_TTM_CNTT`, `detai
 
 Bảng lưu trạng thái vi phạm "Sai lệch dữ liệu" theo từng rule (R1–R7 của engine legacy), ghi mỗi lần
 `aggregateBatchData()` chạy. Không có chỗ nào đọc nó (hai hàm đọc không có caller) và nó đã lệch với
-màn hình — badge "Sai lệch dữ liệu" luôn tính **live** (`evaluateEpicDataAnomaly()` / Scoring Service,
+màn hình — badge "Sai lệch dữ liệu" luôn tính **live** (Scoring Service,
 bộ rule R1–R10), nên migration `20261025c_drop_anomaly_violations_and_milestone_history.sql` đã `DROP` bảng.
 Nếu cần thống kê theo từng nhóm rule: đếm `unnest(epic_alert_row_cache.badge_codes)` với mã
 `ANOMALY_R*` — luôn khớp màn hình và đã có index. Dòng thời gian `DATA_ANOMALY` / `MISSING_START_DATE`
@@ -626,7 +625,7 @@ Các bảng dưới đây được thêm bằng migration sau khi tài liệu n�
 | `daily_cache_runs` | `20260926_create_daily_cache_runs.sql` | `run_date` | Lượt tạo lại cache đầu ngày (RUNNING / SUCCESS / FAILED, `duration_ms`, `epic_row_count`, `attempt_count`). |
 | `derived_cache_refresh_lock` | `20261005b_create_derived_cache_refresh_lock.sql` | `id = 1` (CHECK) | Lease điều phối `refreshDerivedCaches` giữa các instance: `request_seq` (mỗi yêu cầu +1), `lease_owner`, `lease_until` (6 phút), `last_source`. Lease còn chủ nhưng đã hết hạn = lượt rebuild bị gián đoạn → `DailyCacheStatus.rebuildInterrupted`. |
 | `black_listed_epics` | `20261005_create_black_listed_epics.sql` | `epic_key` | "Epic ngoại lệ": `project_key`, `ttm_black_listed` (mặc định TRUE), `updated_by_user_id` → `users(id)` ON DELETE SET NULL, `created_at`, `updated_at`; index theo `project_key`. Không còn là ngoại lệ = XOÁ dòng. |
-| `ttm_scope_config`, `scoring_engine_settings`, `scoring_parameters`, `scoring_rule_settings`, `scoring_parity_runs` | `20260927b_create_ttm_scope_config.sql`, `20260929_create_scoring_service.sql`, `20260930_create_scoring_engine_settings.sql` | — | Cấu hình "Phạm vi dữ liệu cho TTM" và Scoring Service (engine hiển thị, tham số, bật/tắt badge, kết quả đối chiếu). `scoring_parameters` còn lưu "Phạm vi rule Sai lệch dữ liệu" ở `param_key = 'anomaly.scopeConfig'` (JSONB, xem `16-ttm-indexes.md` §8.1). |
+| `ttm_scope_config`, `scoring_parameters`, `scoring_rule_settings` | `20260927b_create_ttm_scope_config.sql`, `20260929_create_scoring_service.sql` | — | Cấu hình "Phạm vi dữ liệu cho TTM" và Scoring Service (tham số, bật/tắt badge). `scoring_engine_settings` (engine hiển thị) và `scoring_parity_runs` (đối chiếu với engine cũ) đã `DROP` ở `20261026b_drop_scoring_parity_and_engine_settings.sql`. `scoring_parameters` còn lưu "Phạm vi rule Sai lệch dữ liệu" ở `param_key = 'anomaly.scopeConfig'` (JSONB, xem `16-ttm-indexes.md` §8.1). |
 
 | `denied_import_epics` | `20261014_create_denied_import_epics.sql` (seed 42 Epic: `20261014b_seed_denied_import_epics.sql`) | `epic_key` | "Từ chối import" (`07-data-source-and-csv-import.md` §2.2): `project_key`, thông tin chụp lúc thêm (`summary`, `status`, `requesting_unit`, `created_date`, `idea_approved_date`, `start_date`, `r4g_date`, `due_date`), `allow_import` (Cho phép import = miễn trừ rule), `source` (`MANUAL` / `AUTO_RULE` / `SEED` / `AUTO_EXEMPT` — Epic được miễn rule B nhờ bằng chứng trong CSDL, `20261019_add_auto_exempt_denied_import_source.sql`), `reason`, `added_by_user_id` → `users(id)` ON DELETE SET NULL, `last_deleted_at`, `last_deleted_issue_count`. |
 | `import_admission_settings` | `20261014_create_denied_import_epics.sql` | `id = 1` (CHECK) | Ngày A `created_before` (mặc định 2026-01-31) và ngày B `released_due_before` (mặc định 2026-07-01) của rule Từ chối import; NULL = tắt rule. |
@@ -634,7 +633,7 @@ Các bảng dưới đây được thêm bằng migration sau khi tài liệu n�
 
 Cột chi tiết của các bảng cache/Scoring ở trên (ví dụ `epic_alert_row_cache.owner_names`,
 `alert_rank`, `ttm_cntt_in_scope`, `scoring_ruleset_version`; `ttm_index_global_cache.ttm_pass/qa_pass/e2e_pass…`;
-`scoring_parity_runs.unexplained_epics`…) xem trực tiếp trong file migration tương ứng — bảng ở đây chỉ
+…) xem trực tiếp trong file migration tương ứng — bảng ở đây chỉ
 mô tả vai trò.
 
 Quy tắc dùng chung:
@@ -643,14 +642,14 @@ Quy tắc dùng chung:
 - **Tạo lại cache**: chỉ qua `refreshDerivedCaches` (import, daily, lưu phạm vi/domain/black list/dự án/PM-SM của dự án — các route gọi `scheduleDerivedCacheRefresh` trong `daily-cache-service.ts`, nút "Tạo lại cache"). Một DB chưa có `derived_cache_refresh_lock` vẫn rebuild được nhưng không có điều phối.
 - Cả 2 migration `20261005*` phải được áp dụng trên **cả local và Supabase** (xem `AGENTS.md` § Multi-database).
 - **Từ chối import / Epic deletion**: xoá vĩnh viễn mọi dòng của Epic (và Story/Subtask có trạng thái mới
-  nhất thuộc Epic đó) ở `import_row_issues`, `issues`,
+  nhất thuộc Epic đó) ở `issues`,
   `epic_alert_timeline`,
   `epic_alert_row_cache`, `black_listed_epics`; mỗi Epic một dòng `audit_logs` (`EPIC_DELETION`,
   `DENIED_IMPORT_REMOVE`). Không tự tạo lại cache.
 - **Sao lưu / Phục hồi** (`EXPORTABLE_TABLES`, `db-backup-service.ts`) gồm master data, user + phân quyền
   (cả `user_project_components`), ngày nghỉ / ngày làm bù, rule cảnh báo, Tiêu chí TTM, ánh xạ issue type,
   import, `issues`, các bảng lịch sử cảnh báo, `audit_logs` và — từ 2026-10-19 — cấu hình: `ttm_scope_config`,
-  `scoring_engine_settings` / `scoring_parameters` / `scoring_rule_settings`, `black_listed_epics`,
+  `scoring_parameters` / `scoring_rule_settings`, `black_listed_epics`,
   `denied_import_epics`, `import_admission_settings`, `dashboard_view_settings`, Ma trận phân quyền,
   `jira_settings`, `data_retention_configs`. **Không gồm** các bảng cache (dựng lại bằng "Tạo lại cache") và
   các bảng §24. Phục hồi chạy với `DISABLE TRIGGER ALL` nên trigger đồng bộ §24 không chạy trong lúc phục hồi.

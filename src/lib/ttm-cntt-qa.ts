@@ -4,8 +4,8 @@ import { isCancelledStatus } from '@/lib/issue-status-rules';
 /**
  * TTM-CNTT-QA is TTM-CNTT itself, narrowed to Epics whose current status is 'MVP Done' or
  * 'Released' — it never recomputes alertLevel/r4gDate/hasDataAnomaly on its own. Whatever rule
- * change lands in the core TTM-CNTT calculation (epic-alert-phase-service.ts /
- * epic-alert-service.ts) flows into every reader of this scope automatically, because this file
+ * change lands in the core TTM-CNTT calculation (the Epic Scoring Service, src/lib/scoring, laid out
+ * into rows by epic-alert-rows-service.ts) flows into every reader of this scope automatically, because this file
  * only filters rows the core calculation already produced; it never re-derives the alert itself.
  * Only the status allowlist below is this metric's own concern.
  */

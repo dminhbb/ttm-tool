@@ -6,7 +6,7 @@ import 'server-only';
  * replace this implementation in the approved Integration increment.
  */
 export { processImport as executeImport } from '@/lib/import-service';
-export type { BatchValidationDetail, ImportBatch, ImportResult } from '@/lib/import-service';
+export type { ImportBatch, ImportResult } from '@/lib/import-service';
 export { ADAPTER_TYPES, DEFAULT_ADAPTER } from '@/lib/adapters/index';
 export type { AdapterType } from '@/lib/adapters/index';
 export { getLatestImportAggregatedAt } from '@/modules/integration/infrastructure/legacy-import-batch-repository';

@@ -33,8 +33,8 @@ and chapter 5 of the product guide; group/describe a new table in `scripts/db-sc
 Never leave one database ahead of the other on schema. Application code (`src/lib/db.ts`) always
 targets whichever profile `DB_CONNECTION` in `.env.local` selects (`local` / `supabase`; production
 on Vercel uses `supabase`), so a schema drift between the two silently breaks whichever one isn't
-currently selected. Hosted connection caps are low (see the `ALERT_HISTORY_RECORDING_ENABLED` flag
-in `src/lib/epic-alert-phase-service.ts`, originally added for Aiven's free tier) — prefer
+currently selected. Hosted connection caps are low (the free tiers of Aiven and Supabase allow only a
+handful of connections) — prefer
 Supabase's "Transaction pooler" connection string (port 6543, see `.env.example`) over the direct
 connection, for the same reason `db.ts` caps `max` low on the hosted profile.
 
@@ -94,20 +94,18 @@ are declared once in `src/lib/scoring/catalog.ts`; the "Logic cảnh báo" popup
 - Add/change/remove a rule in `src/lib/scoring/rules/*` + `catalog.ts` (+ `registry.ts`), bump
   `SCORING_CODE_VERSION`, and run `npm test`.
 - The core is pure: no `@/lib/db`, no system clock — "now" is always `ScoringContext.asOf` (lint-enforced).
-- Display engine switch (M4): `scoring_engine_settings.mode` ('legacy' | 'scoring', SUPERADMIN toggles it
-  in Quản trị nguồn dữ liệu → "Đối chiếu Scoring Service"). In 'scoring', `scoring/projection.ts` overwrites
-  the verdict fields of each legacy row, so screens keep reading `EpicAlertRowPhased`. Screens/APIs must get
-  Epic rows via `getEpicAlertRowsForDisplay` (not `getEpicAlertRowsPhased`) and judge "Đạt"/filters via
-  `src/lib/epic-row-verdicts.ts`. Anything written to shared caches follows `getStoredScoringEngineMode()`;
-  `SCORING_ENGINE_MODE` in `.env.local` only overrides what one machine displays.
-- The legacy engine (`epic-alert-service.ts`, `epic-alert-phase-service.ts`, `epic-data-anomaly.ts`,
-  `ttm-rules.ts`…) stays as the 'legacy' mode and must stay untouched until the owner approves removing it;
-  `refreshDerivedCaches` always scores in shadow and records a comparison in `scoring_parity_runs`. A new
-  difference that isn't an approved decision shows up there as "Chưa giải thích được".
+- The Scoring Service is the ONLY engine (the legacy alert engine, the 'legacy'/'scoring' display switch, the
+  parity comparison and `scoring_parity_runs` / `scoring_engine_settings` were removed 2026-10-24).
+  `src/lib/epic-alert-rows-service.ts` lays out each Epic's row (names, dates, stripes — `epic-row-geometry.ts`)
+  and `scoring/projection.ts` writes the scorecard's verdicts onto it, so screens keep reading
+  `EpicAlertRowPhased`. Screens/APIs must get Epic rows via `getEpicAlertRowsForDisplay` and judge
+  "Đạt"/filters via `src/lib/epic-row-verdicts.ts`. `epic-alert-service.ts` only resolves access scope and
+  each Epic's non-verdict facts. `refreshDerivedCaches` rebuilds `epic_alert_row_cache` and the other derived
+  caches from those rows.
 - Exception (owner decision 2026-10-14): the "Từ chối import" rules that keep Epics out of the database
   (data scope: created date A, Released before date B, level-1 issue type Epic only) live in
   `src/lib/import-admission-rules.ts`, NOT in `src/lib/scoring/` — they gate what the import adapter lets
-  in, they are not a verdict shown on a screen (no badge, no parity run). Don't move them into scoring.
+  in, they are not a verdict shown on a screen (no badge). Don't move them into scoring.
 
 # Icons standard — phosphoricons.com
 

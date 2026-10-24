@@ -1,5 +1,5 @@
 import pool from '@/lib/db';
-import { getEpicAlertRowsPhased } from '@/lib/epic-alert-phase-service';
+import { getEpicAlertRowsForDisplay } from '@/lib/epic-alert-rows-service';
 import { summarizeE2e, summarizeQaIndex, summarizeTtmCntt, summarizeTtmCnttFromCounts } from '@/lib/ttm-cntt-qa';
 import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
@@ -65,8 +65,7 @@ export async function getTtmIndexGlobalCache(): Promise<TtmIndexGlobalCache | nu
  * unscoped Epic query on every view: that query (every Epic in the system, ignoring the viewer's
  * own project/domain access) is the heaviest query pattern in this app, and this screen is opened
  * many times a day by everyone — see AGENTS.md's Multi-database section on Aiven's low connection
- * cap, and ALERT_HISTORY_RECORDING_ENABLED (epic-alert-phase-service.ts) for a previous instance of
- * the exact same "load added per page view" problem.
+ * cap: the same "load added per page view" problem has bitten this app before.
  *
  * role: 'SUPERVISOR' resolves to an unrestricted access scope (sourceProjectKeys: null) without a
  * real user id — see resolveAccessScope in epic-alert-service.ts — so the placeholder userId (0)
@@ -78,7 +77,7 @@ export async function getTtmIndexGlobalCache(): Promise<TtmIndexGlobalCache | nu
 /** `precomputedRows` — the unscoped newest-layer row set, when the caller already has it (see
  * refreshDerivedCaches in daily-cache-service.ts) — skips recomputing it here. */
 export async function refreshTtmIndexGlobalCache(batchId: number | null, precomputedRows?: EpicAlertRowPhased[]): Promise<void> {
-  const rows = precomputedRows ?? (await getEpicAlertRowsPhased(0, 'SUPERVISOR', {})).rows;
+  const rows = precomputedRows ?? (await getEpicAlertRowsForDisplay(0, 'SUPERVISOR', {})).rows;
   const ttm = summarizeTtmCntt(rows);
   const qa = summarizeQaIndex(rows);
   const e2e = summarizeE2e(rows);

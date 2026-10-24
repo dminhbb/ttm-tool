@@ -11,6 +11,8 @@ export interface EpicPhaseCompletionFacts {
   designDone: boolean;
   devDone: boolean;
   r4goliveDone: boolean;
+  /** Not used by any rule — only the Release cell of the row draws it ("đã Released"). */
+  releasedDone?: boolean;
   testDone: boolean;
 }
 

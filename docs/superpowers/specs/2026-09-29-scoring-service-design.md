@@ -1,5 +1,12 @@
 # Design Specification: Epic Scoring Service
 
+> **Cập nhật 24/10/2026 — M7 đã thực hiện (chủ sở hữu duyệt):** engine legacy (`epic-alert-phase-service.ts`, `epic-compliance-engine.ts`,
+> `epic-scoring-display-service.ts`, phần đánh giá trong `epic-alert-service.ts` / `epic-data-anomaly.ts` / `ttm-rules.ts` / `ttm-phase-rules.ts`),
+> công tắc `legacy`/`scoring` (`scoring_engine_settings`, `scoring-mode-service.ts`, biến `SCORING_ENGINE_MODE`) và phần đối chiếu
+> (`scoring_parity_runs`, `scoring/parity.ts`, panel "Đối chiếu Scoring Service") đã gỡ. Scoring Service là logic duy nhất; dòng Epic của mọi màn hình
+> do `epic-alert-rows-service.ts` dựng từ scorecard (`epic-row-geometry.ts` cho các con số dải/đường kẻ). `epic_alert_row_cache` giữ nguyên.
+> Các mục bên dưới nói về engine legacy, shadow, đối chiếu và công tắc chế độ là **lịch sử thiết kế**.
+
 - **Date:** 2026-09-29
 - **Status:** v4 — mọi quyết định đã chốt (2026-09-29). **M1–M4 đã triển khai** (2026-09-30): thư viện + test, migration, shadow + đối chiếu, và công tắc chế độ hiển thị `legacy`/`scoring` cho mọi màn hình (mặc định `legacy` cho tới khi SUPERADMIN bật). **01/10/2026**: đổi rule "Chờ golive" sau go-live, xem §14.
 - **Danh mục badge (nguồn duy nhất):** `src/lib/scoring/catalog.ts` — popup "Logic cảnh báo" (`HelpPanels.tsx`) render trực tiếp từ file này

@@ -21,11 +21,9 @@ Khác với Dashboard (gộp nhiều dự án theo tỷ lệ %), đây là báo 
   Epic golive sau), và chọn 1 hoặc nhiều trong **tối đa 7 lớp dữ liệu (`aggregated_at`) gần nhất**
   (`getReportLayerDates()`, `src/lib/reports-service.ts`) để "drill" xuống dữ liệu của các ngày
   import cũ hơn thay vì chỉ xem lớp mới nhất.
-- Engine tính toán dùng lại nguyên vẹn — **không** viết công thức riêng:
-  `evaluateIssueCompliance` (`epic-compliance-engine.ts`), `evaluateEpicDataAnomaly`/
-  `breaksTtmCnttCalculation`/`breaksTtmE2eCalculation` (`epic-data-anomaly.ts`),
-  `resolveTtmE2eRelease` (`epic-alert-service.ts`), `listActiveStatusAlertRules`
-  (`status-alert-rule-service.ts`), `resolveTtmCnttWorkingDays` (`ttm-policy-service.ts`).
+- Engine tính toán dùng lại nguyên vẹn — **không** viết công thức riêng: mỗi Epic của báo cáo được chấm
+  bằng `scoreEpic` của Epic Scoring Service (`src/lib/scoring`, ngữ cảnh từ `loadScoringContext`) — cùng
+  verdict với mọi màn hình Epic (engine legacy `evaluateIssueCompliance`/`evaluateEpicDataAnomaly` đã gỡ 24/10/2026).
 - Kết quả gộp Epic của dự án vào **6 danh sách**: (1) Released trong giai đoạn lựa chọn, (2) Đạt
   TTM-CNTT và TTM-E2E, (3) Fail TTM-CNTT và TTM-E2E, (4) In PO (To Do, In PO), (5) Sai lệch dữ liệu
   (xem `03-mvp1-working-days-alert-rules.md` §4.5), (6) Pending.
@@ -38,7 +36,7 @@ API: `GET`/`POST /api/reports` (`requireUser`, không giới hạn role thêm).
 Cho phép AI chatbot bên ngoài (Claude, ChatGPT, Gemini, Copilot...) kết nối tới TTM Monitor qua
 **MCP (Model Context Protocol)**, tra cứu dữ liệu bằng hội thoại thay vì vào giao diện. Nguyên tắc
 thiết kế quan trọng nhất: **mọi tool MCP gọi lại đúng service layer đang phục vụ UI**
-(`getEpicAlertRowsPhased`, `getDashboardData`, `getEpicBrowserRoot`, `listProjects`, `listDomains`,
+(`getEpicAlertRowsForDisplay`, `getDashboardData`, `getEpicBrowserRoot`, `listProjects`, `listDomains`,
 `listHolidays`, `listTtmPolicies`, `getReportLayerDates`) — không truy vấn DB riêng — nên kết quả
 trả cho AI chatbot luôn tôn trọng đúng RBAC của người dùng đang kết nối, không phải một lớp quyền
 song song có thể lệch pha với UI.

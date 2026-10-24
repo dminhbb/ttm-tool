@@ -6,7 +6,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { getEpicBrowserRoot } from '@/lib/epic-browser-service';
 import { ALERT_FILTER_VALUES, matchesAlertFilter, type AlertFilterValue } from '@/lib/epic-row-verdicts';
-import { getEpicAlertRowsForDisplay } from '@/lib/epic-scoring-display-service';
+import { getEpicAlertRowsForDisplay } from '@/lib/epic-alert-rows-service';
 import { MCP_TOOL_FEATURES, mcpToolViewDenied, type McpToolName } from '@/lib/feature-access';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
 import { scoreEpicByKey } from '@/lib/scoring-run-service';

@@ -6,7 +6,6 @@ import { confirmDialog } from '@/components/ui/dialogs';
 import { MAX_EPIC_DELETIONS_PER_IMPORT } from '@/lib/import-admission-rules';
 import { ADAPTER_TYPES, DEFAULT_ADAPTER, ADAPTER_LABELS, type AdapterType } from '@/lib/adapters/index';
 import { CacheStatusPanel } from '@/components/data-source/CacheStatusPanel';
-import { ScoringParityPanel } from '@/components/data-source/ScoringParityPanel';
 import { FileDropzone } from '@/components/data-source/FileDropzone';
 import { PurgeRecentLayersPanel } from '@/components/data-source/PurgeRecentLayersPanel';
 import { RawImportRetentionSettings } from '@/components/data-source/RawImportRetentionSettings';
@@ -20,12 +19,10 @@ import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import { TableContainer, Table, THead, TBody, TR, TH, TD } from '@/components/ui/Table';
 import { TableAction } from '@/components/ui/TableAction';
-import { Modal } from '@/components/ui/Modal';
 import { RightPanel } from '@/components/layout/RightPanel';
 import { Pagination } from '@/components/ui/Pagination';
 import {
   Trash,
-  Eye,
   ListMagnifyingGlass,
   CheckCircle,
   DownloadSimple,
@@ -55,13 +52,6 @@ interface ValidationError {
   type: 'ERROR' | 'WARNING';
   field: string;
   message: string;
-}
-
-interface ValidationDetail {
-  rowNumber: number;
-  rawData: Record<string, string>;
-  validationStatus: string;
-  validationErrors: ValidationError[];
 }
 
 /** An Epic the file would deny (and delete) — see describeDeniedRows. */
@@ -164,11 +154,6 @@ export function ImportIssuesTab() {
   const [importMessage, setImportMessage] = useState<{ type: 'success' | 'error' | 'warning', text: string } | null>(null);
   const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
 
-  // Validation details modal
-  const [showModal, setShowModal] = useState(false);
-  const [selectedBatch, setSelectedBatch] = useState<ImportBatch | null>(null);
-  const [validationDetails, setValidationDetails] = useState<ValidationDetail[]>([]);
-  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -425,25 +410,6 @@ export function ImportIssuesTab() {
     }
   };
 
-  const handleViewErrors = async (batch: ImportBatch) => {
-    setSelectedBatch(batch);
-    setShowModal(true);
-    setIsLoadingDetails(true);
-    setValidationDetails([]);
-
-    try {
-      const res = await fetch(`/api/data-source/history?batchId=${batch.id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setValidationDetails(data);
-      }
-    } catch (error) {
-      console.error('Error fetching batch validation details:', error);
-    } finally {
-      setIsLoadingDetails(false);
-    }
-  };
-
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '-';
     const d = new Date(dateStr);
@@ -662,15 +628,6 @@ export function ImportIssuesTab() {
                               >
                                 Duyệt dữ liệu
                               </TableAction>
-                              {(batch.errorRows > 0 || batch.warningRows > 0) && (
-                                <TableAction
-                                  variant="neutral"
-                                  icon={<Eye className="w-4 h-4" />}
-                                  onClick={() => handleViewErrors(batch)}
-                                >
-                                  Chi tiết
-                                </TableAction>
-                              )}
                               <TableAction
                                 variant="danger"
                                 icon={<Trash className="w-4 h-4" />}
@@ -702,7 +659,6 @@ export function ImportIssuesTab() {
 
           <CacheStatusPanel />
 
-          <ScoringParityPanel />
         </div>
 
         <RightPanel
@@ -829,82 +785,6 @@ export function ImportIssuesTab() {
         </RightPanel>
       </div>
 
-      {/* Validation details Modal (frosted glass) */}
-      <Modal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        title={`Chi tiết đợt import #${selectedBatch?.id}`}
-        maxWidth="xl"
-        footer={
-          <Button variant="outline" onClick={() => setShowModal(false)}>
-            Đóng
-          </Button>
-        }
-      >
-        {selectedBatch && (
-          // `font-sans` đã bỏ (2026-10-10) — utility đó đè font brand bằng font hệ thống.
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-xl border border-fb-border bg-fb-surface-muted p-3 text-[11.5px]">
-              <div><strong>File:</strong> {selectedBatch.fileName}</div>
-              <div><strong>Lớp dữ liệu:</strong> {formatDate(selectedBatch.aggregatedAt)}</div>
-              <div>
-                <span className="text-status-danger"><strong>Lỗi:</strong> {selectedBatch.errorRows}</span>
-                {', '}
-                <span className="text-status-warning"><strong>Cảnh báo:</strong> {selectedBatch.warningRows}</span>
-              </div>
-            </div>
-
-            {isLoadingDetails ? (
-              <TableSkeleton rows={4} />
-            ) : validationDetails.length === 0 ? (
-              <EmptyState
-                title="Không có lỗi hoặc cảnh báo"
-                description="Đợt import này đã vượt qua toàn bộ bước kiểm tra dữ liệu."
-                icon={<CheckCircle className="size-5" weight="fill" aria-hidden="true" />}
-              />
-            ) : (
-              <TableContainer className="max-h-[400px] overflow-y-auto">
-                <Table>
-                  <THead>
-                    <TR>
-                      <TH className="w-[60px] text-center">Dòng</TH>
-                      <TH className="w-[120px]">Issue Key</TH>
-                      <TH>Summary / Tên Issue</TH>
-                      <TH className="w-[100px]">Mức độ</TH>
-                      <TH>Chi tiết kiểm tra</TH>
-                    </TR>
-                  </THead>
-                  <TBody>
-                    {validationDetails.map((row, idx) => (
-                      <TR key={idx}>
-                        <TD className="text-center font-bold text-fb-text-secondary">{row.rowNumber}</TD>
-                        <TD className="font-bold text-fb-blue">{row.rawData.issueKey || '-'}</TD>
-                        <TD className="max-w-[240px] truncate font-medium" title={row.rawData.summary}>
-                          {row.rawData.summary}
-                        </TD>
-                        <TD>
-                          <Badge variant={row.validationStatus === 'INVALID' ? 'danger' : 'warning'}>
-                            {row.validationStatus === 'INVALID' ? 'Lỗi' : 'Cảnh báo'}
-                          </Badge>
-                        </TD>
-                        <TD>
-                          <ul className="m-0 flex list-none flex-row flex-nowrap gap-4 p-0">
-                            {row.validationErrors.map((err, eIdx) => (
-                              <li key={eIdx} className={`whitespace-nowrap ${err.type === 'ERROR' ? 'text-status-danger' : 'text-status-warning'}`}>
-                                <strong>{err.field}:</strong> {err.message}
-                              </li>
-                            ))}
-                          </ul>
-                        </TD>
-                      </TR>
-                    ))}
-                  </TBody>
-                </Table>
-              </TableContainer>
-            )}
-          </div>
-        )}
-      </Modal>
     </>
   );
 }

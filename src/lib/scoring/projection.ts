@@ -29,7 +29,7 @@ const LEGACY_PHASE_KEY: Record<TtmPhaseKey, 'design' | 'dev' | 'test' | 'pentest
 
 /** Legacy verdict fields ignore the "Phạm vi" gate — the screens show "Ngoài phạm vi TTM-CNTT"
  * from ttmCnttInScope instead — so read findings active or hidden only by SCOPE_CNTT_OUT. */
-function verdictBadges(findings: readonly Finding[]): Set<BadgeId> {
+export function verdictBadges(findings: readonly Finding[]): Set<BadgeId> {
   return new Set(findings.filter((item) => !item.suppressedBy || item.suppressedBy.every((by) => by === 'SCOPE_CNTT_OUT')).map((item) => item.badge));
 }
 

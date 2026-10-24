@@ -19,7 +19,6 @@ import '@/app/ttm-shared.css';
 
 interface DataNormalizationResponse {
   actor: { fullName: string; role: string };
-  engineMode: 'legacy' | 'scoring';
   /** Only sent when asked for (`options=1`, the first load). */
   filterOptions: TtmDashboard2FilterOptions | null;
   lastAggregatedAt: string | null;
@@ -119,8 +118,7 @@ function PanelPagination({ onPageChange, panel }: { onPageChange: (page: number)
   );
 }
 
-function RulePanel({ engineMode, isOpen, onBrowse, onPageChange, onToggle, panel, viewIssueBaseUrl }: {
-  engineMode: 'legacy' | 'scoring';
+function RulePanel({ isOpen, onBrowse, onPageChange, onToggle, panel, viewIssueBaseUrl }: {
   isOpen: boolean;
   onBrowse: (epicKey: string) => void;
   onPageChange: (code: string, page: number) => void;
@@ -128,7 +126,6 @@ function RulePanel({ engineMode, isOpen, onBrowse, onPageChange, onToggle, panel
   panel: NormalizationPanel;
   viewIssueBaseUrl: string;
 }) {
-  const unavailable = !panel.inLegacyEngine && engineMode === 'legacy';
   // Opened before its Epics arrived: rows are only sent for the panels the page asked for.
   const awaitingRows = !panel.rowsLoaded && panel.totalCount > 0;
   const bodyId = `rule-body-${panel.code}`;
@@ -168,8 +165,8 @@ function RulePanel({ engineMode, isOpen, onBrowse, onPageChange, onToggle, panel
           ) : panel.rows.length === 0 ? (
             <EmptyState
               className="m-4"
-              title={unavailable ? 'Rule chỉ có ở Scoring Service' : 'Không có Epic cần chuẩn hoá'}
-              description={unavailable ? 'Màn hình đang hiển thị theo engine cũ (legacy), engine này không đánh giá rule này.' : 'Không có Epic nào trong phạm vi và bộ lọc hiện tại vi phạm rule này.'}
+              title="Không có Epic cần chuẩn hoá"
+              description="Không có Epic nào trong phạm vi và bộ lọc hiện tại vi phạm rule này."
             />
           ) : (
             <TableContainer>
@@ -419,7 +416,6 @@ export default function DataNormalizationPage() {
         <div aria-busy={loading} className={`space-y-4 transition-opacity ${loading ? 'opacity-60' : ''}`}>
           {data.panels.map((panel) => (
             <RulePanel
-              engineMode={data.engineMode}
               isOpen={openPanels.has(panel.code)}
               key={panel.code}
               onBrowse={setBrowsingEpicKey}

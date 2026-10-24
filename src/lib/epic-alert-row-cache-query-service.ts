@@ -9,13 +9,12 @@ import { summarizeTtmCnttFromCounts } from '@/lib/ttm-cntt-qa';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import { compareWorkflowStatus } from '@/lib/scoring/derive';
 import { FILTER_PRESETS } from '@/lib/scoring/select';
-import type { ScoringEngineMode } from '@/lib/scoring-mode-service';
 
 /**
  * Server-side filter/sort/pagination reads for "Quản trị Epic" (đầy đủ), backed by
  * epic_alert_row_cache (see epic-alert-row-cache-service.ts) instead of recomputing every Epic's
  * alertLevel/stages/etc. on every page view. Only serves the default (newest layer, no advanced
- * date filter) view — the API route falls back to the live getEpicAlertRowsPhased path whenever a
+ * date filter) view — the API route falls back to the live getEpicAlertRowsForDisplay path whenever a
  * layer window or an advanced date filter (createdDateFrom/startDateFrom/dueDateFrom) is active,
  * since those change which Epics are even in scope (a SQL WHERE on `issues`, upstream of this
  * cache) rather than just how the same Epic set is filtered/sorted/paginated.
@@ -31,9 +30,6 @@ export interface EpicAlertRowCacheFilters {
   dataIssueOnly?: boolean;
   requestingUnits?: string[];
   search?: string;
-  /** 'scoring' → the "Nhận xét" filter matches badge_codes (Epic Scoring Service) instead of
-   * re-deriving each verdict from the legacy columns. */
-  engineMode?: ScoringEngineMode;
 }
 
 export interface EpicAlertRowCachePage {
@@ -130,8 +126,7 @@ function buildFilterClause(scope: AccessScope, filters: EpicAlertRowCacheFilters
     clauses.push(`(epic_key ILIKE $${params.length} OR epic_name ILIKE $${params.length})`);
   }
   const alertClauses = (filters.alertFilters ?? [])
-    .map((alertFilter) => buildFieldFilterClause(alertFilter, filters.engineMode)
-      ?? (filters.engineMode === 'scoring' ? buildBadgeFilterClause(alertFilter, params) : buildAlertFilterClause(alertFilter, params)))
+    .map((alertFilter) => buildFieldFilterClause(alertFilter) ?? buildBadgeFilterClause(alertFilter, params))
     .filter((clause): clause is string => Boolean(clause));
   if (alertClauses.length > 0) clauses.push(`(${alertClauses.map((clause) => `(${clause})`).join(' OR ')})`);
 
@@ -142,17 +137,16 @@ function buildFilterClause(scope: AccessScope, filters: EpicAlertRowCacheFilters
 const VN_TODAY_TEXT_SQL = "to_char((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date, 'YYYY-MM-DD')";
 
 /**
- * TTM Dashboard sub-link filters (2026-10-01) — plain field checks, same for both engines except
- * where "Chờ golive" is read (badge in scoring, releaseAxisState in legacy). Mirrors the first
- * switch in matchesAlertFilter / waitingGoliveBucket (epic-row-verdicts.ts) exactly; returns null
- * for every other filter value so the engine-specific builders handle those.
+ * TTM Dashboard sub-link filters (2026-10-01) — plain field checks. Mirrors the first switch in
+ * matchesAlertFilter / waitingGoliveBucket (epic-row-verdicts.ts) exactly; returns null for every
+ * other filter value so buildBadgeFilterClause handles those.
  */
-function buildFieldFilterClause(alertFilter: string | undefined, engineMode: ScoringEngineMode | undefined): string | null {
+function buildFieldFilterClause(alertFilter: string | undefined): string | null {
   const hasR4g = "(row_data->>'r4gDate') IS NOT NULL";
   // "Epic ngoại lệ" / project Time to Market = N (row_data.ttmExclusion, see applyTtmExclusions) —
   // outside L02, so none of the funnel layers below it may list them.
   const counted = "(row_data->>'ttmExclusion') IS NULL";
-  const waiting = engineMode === 'scoring' ? "badge_codes @> ARRAY['RELEASE_WAITING_GOLIVE']" : "row_data->>'releaseAxisState' = 'WAITING_GOLIVE'";
+  const waiting = "badge_codes @> ARRAY['RELEASE_WAITING_GOLIVE']";
   const withinGrace = `(row_data->>'releaseGraceDeadline') IS NOT NULL AND ${VN_TODAY_TEXT_SQL} <= (row_data->>'releaseGraceDeadline')`;
   switch (alertFilter) {
     case 'FAIL_LATE_R4G': return `ttm_cntt_in_scope AND alert_level = 'FAIL' AND ${hasR4g}`;
@@ -174,8 +168,8 @@ function buildFieldFilterClause(alertFilter: string | undefined, engineMode: Sco
   const clean = "current_status !~* 'cancel' AND NOT has_data_anomaly";
   const inScopeR4g = `${clean} AND ${counted} AND ttm_cntt_in_scope AND ${hasR4g}`;
   const inScopeNoR4g = `${clean} AND ${counted} AND ttm_cntt_in_scope AND NOT ${hasR4g}`;
-  // isTtmIndexPass: the TTM_PASS index flag in scoring, alertLevel NONE in legacy.
-  const pass = engineMode === 'scoring' ? "index_flags @> ARRAY['TTM_PASS']" : "alert_level = 'NONE'";
+  // isTtmIndexPass: the TTM_PASS index flag.
+  const pass = "index_flags @> ARRAY['TTM_PASS']";
   switch (alertFilter) {
     case 'TTM_PASS_IN_SCOPE': return `${inScopeR4g} AND ${pass}`;
     case 'TTM_LATE_IN_SCOPE': return `${inScopeR4g} AND NOT (${pass}) AND alert_level = 'FAIL'`;
@@ -187,7 +181,7 @@ function buildFieldFilterClause(alertFilter: string | undefined, engineMode: Sco
   }
 }
 
-/** Scoring engine: a "Nhận xét" filter value is a set of badge codes (FILTER_PRESETS); a value with
+/** A "Nhận xét" filter value is a set of badge codes (FILTER_PRESETS); a value with
  * no preset (e.g. the removed "Cảnh báo sớm") matches nothing. */
 function buildBadgeFilterClause(alertFilter: string | undefined, params: unknown[]): string | null {
   if (!alertFilter) return null;
@@ -195,41 +189,6 @@ function buildBadgeFilterClause(alertFilter: string | undefined, params: unknown
   if (!badges?.length) return 'FALSE';
   params.push([...badges]);
   return `badge_codes && $${params.length}::text[]`;
-}
-
-/** Mirrors matchesAlertFilter in epic-alerts-15/page.tsx exactly — see that function's doc comment
- * for what each sentinel means. bottom_status_rank = 3 is exactly normalizeEpicWorkflowStatus ===
- * 'RELEASED' (see epic-alert-sort-rules.ts), reused here instead of a second status check. */
-function buildAlertFilterClause(alertFilter: string | undefined, params: unknown[]): string | null {
-  switch (alertFilter) {
-    case undefined:
-    case '':
-      return null;
-    case 'FAIL_E2E':
-      return "ttm_e2e_alert_level = 'FAIL'";
-    case 'ACHIEVED_CNTT':
-      return "ttm_cntt_in_scope AND alert_level = 'NONE' AND (row_data->>'r4gDate') IS NOT NULL AND (row_data->>'ttmCnttStatusMismatch')::boolean = FALSE AND row_data->>'ttmActualToDate' = row_data->>'r4gDate'";
-    case 'ACHIEVED_E2E':
-      return "ttm_e2e_alert_level = 'NONE' AND bottom_status_rank = 3 AND (row_data->>'r4gDate') IS NOT NULL AND row_data->>'ttmE2eActualToDate' = row_data->>'r4gDate'";
-    case 'STATUS_MISMATCH':
-      return "ttm_cntt_in_scope AND (row_data->>'ttmCnttStatusMismatch')::boolean = TRUE";
-    case 'DATA_ANOMALY':
-      return 'has_data_anomaly = TRUE';
-    case 'OUT_OF_SCOPE_CNTT':
-      return 'NOT ttm_cntt_in_scope';
-    case 'WAITING_GOLIVE':
-      return "row_data->>'releaseAxisState' = 'WAITING_GOLIVE'";
-    case 'RELEASE_EARLY':
-      return "row_data->>'releaseAxisState' = 'EARLY_WARNING'";
-    case 'JUSTIFY_GOLIVE':
-      return "row_data->>'releaseAxisState' = 'JUSTIFY_GOLIVE'";
-    default:
-      // FAIL/LATE/EARLY/NONE — every one of them is a TTM-CNTT-axis label, so an out-of-scope row
-      // (whose Nhận xét cell shows "Ngoài phạm vi TTM-CNTT" instead, see ttm-scope-rules.ts) must
-      // never match any of them here either.
-      params.push(alertFilter);
-      return `ttm_cntt_in_scope AND alert_level = $${params.length}`;
-  }
 }
 
 const ORDER_BY = `${LIST_GROUP_RANK_SQL} ASC, has_data_anomaly ASC, alert_rank ASC, remaining_working_days_rank ASC, epic_key ASC`;
@@ -302,33 +261,10 @@ export async function queryEpicAlertStatCounts(scope: AccessScope, filters: Epic
  * neither do "Epic ngoại lệ" / non-TTM-project Epics (scoring: their index_flags are already empty). */
 export async function queryTtmCnttIndexes(scope: AccessScope, filters: EpicAlertRowCacheFilters): Promise<{ ttm: TtmCnttSummary; qa: TtmCnttSummary }> {
   const { sql: accessClause, params } = buildFilterClause(scope, filters);
-  if (filters.engineMode === 'scoring') return queryScoringIndexPm(accessClause, params);
-  const result = await pool.query<{
-    ttmFail: string; ttmEligible: string; ttmPass: string; ttmTotal: string;
-    qaFail: string; qaEligible: string; qaPass: string; qaTotal: string;
-  }>(
-    `
-    SELECT
-      count(*) FILTER (WHERE ttm_cntt_in_scope AND alert_level = 'FAIL' AND NOT has_data_anomaly)::text AS "ttmFail",
-      count(*) FILTER (WHERE ttm_cntt_in_scope AND (row_data->>'r4gDate') IS NOT NULL AND NOT has_data_anomaly)::text AS "ttmEligible",
-      count(*) FILTER (WHERE ttm_cntt_in_scope AND (row_data->>'r4gDate') IS NOT NULL AND NOT has_data_anomaly AND alert_level = 'NONE')::text AS "ttmPass",
-      count(*) FILTER (WHERE ttm_cntt_in_scope)::text AS "ttmTotal",
-      count(*) FILTER (WHERE qa_in_scope AND UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED') AND alert_level = 'FAIL' AND NOT has_data_anomaly)::text AS "qaFail",
-      count(*) FILTER (WHERE qa_in_scope AND UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED') AND (row_data->>'r4gDate') IS NOT NULL AND NOT has_data_anomaly)::text AS "qaEligible",
-      count(*) FILTER (WHERE qa_in_scope AND UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED') AND (row_data->>'r4gDate') IS NOT NULL AND NOT has_data_anomaly AND alert_level = 'NONE')::text AS "qaPass",
-      count(*) FILTER (WHERE qa_in_scope AND UPPER(TRIM(current_status)) IN ('MVP DONE', 'RELEASED'))::text AS "qaTotal"
-    FROM epic_alert_row_cache WHERE ${accessClause} AND current_status !~* 'cancel' AND (row_data->>'ttmExclusion') IS NULL;
-    `,
-    params,
-  );
-  const row = result.rows[0];
-  return {
-    ttm: summarizeTtmCnttFromCounts(Number(row?.ttmEligible ?? 0), Number(row?.ttmPass ?? 0), Number(row?.ttmFail ?? 0), Number(row?.ttmTotal ?? 0)),
-    qa: summarizeTtmCnttFromCounts(Number(row?.qaEligible ?? 0), Number(row?.qaPass ?? 0), Number(row?.qaFail ?? 0), Number(row?.qaTotal ?? 0)),
-  };
+  return queryScoringIndexPm(accessClause, params);
 }
 
-/** Scoring engine: TTM-/QA-Index counts straight from each Epic's index_flags (scoring/select.ts
+/** TTM-/QA-Index counts straight from each Epic's index_flags (scoring/select.ts
  * indexFlagsOf) — "Đạt" is exactly the "Đạt TTM-CNTT" badge (decision D1). */
 async function queryScoringIndexPm(accessClause: string, params: unknown[]): Promise<{ ttm: TtmCnttSummary; qa: TtmCnttSummary }> {
   const count = (flag: string) => `count(*) FILTER (WHERE index_flags @> ARRAY['${flag}'])::text AS "${flag}"`;

@@ -15,7 +15,7 @@ import { EpicAlertTimeline } from '@/components/epic-alerts/EpicAlertTimeline';
 import { EpicStatWidgets } from '@/components/epic-alerts/EpicStatWidgets';
 import { DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
 import { EpicCommentCell, TtmCnttPassCell } from '@/components/epic-alerts/EpicCommentCell';
-import { ALERT_FILTER_VALUES, alertFilterOptionsFor, matchesAlertFilter } from '@/lib/epic-row-verdicts';
+import { ALERT_FILTER_SELECT_OPTIONS, ALERT_FILTER_VALUES, matchesAlertFilter } from '@/lib/epic-row-verdicts';
 import type { AlertFilterValue } from '@/lib/epic-row-verdicts';
 import { matchesPmSmFilter, splitOwnerNames, UNASSIGNED_PM_SM } from '@/lib/epic-pm-sm-assignment';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
@@ -338,7 +338,7 @@ function TtmMetricStrips({
    * on schedule, but the caller still forces `isOver` true since the workflow status hasn't
    * actually caught up — this renders a "*" marker beside the actual end date so the red color
    * doesn't read as a plain, unexplained lateness. Only ever passed for the TTM-CNTT strip now —
-   * TTM-E2E's own "status not caught up" case moved to the Release axis (resolveReleaseAxis) and
+   * TTM-E2E's own "status not caught up" case moved to the Release axis (RELEASE_* badges) and
    * the RELEASE_STATUS_MISMATCH anomaly rule, 2026-09-24. */
   statusMismatch?: boolean;
   target: number;
@@ -1228,7 +1228,7 @@ function EpicAlerts15Screen() {
         <ToolbarMultiSelect
           ariaLabel="Lọc Nhận xét"
           allLabel="Nhận xét"
-          options={alertFilterOptionsFor(data?.engineMode).filter((option) => option.value !== '')}
+          options={ALERT_FILTER_SELECT_OPTIONS.filter((option) => option.value !== '')}
           value={alertFilters}
           onChange={(values) => { setAlertFilters(values as AlertFilterValue[]); setPage(1); }}
         />
@@ -1503,7 +1503,7 @@ function EpicAlerts15Screen() {
                     )}
                     {/* TTM-E2E: T0 (Idea Approved → Jira creation date) always resolves — independent
                         of Start Date, so this renders the same whether or not the Epic is missing
-                        Start Date (see resolveTtmE2eRelease in epic-alert-service.ts). */}
+                        Start Date (see e2eGeometry in epic-row-geometry.ts). */}
                     <TtmE2eStrips compact={allColumnsCollapsed} row={row} />
                     <TD className="w-[1%] text-left align-top whitespace-nowrap px-1.5"><StatusBadge status={row.currentStatus} /></TD>
                     <TD className="w-[1%] ttm-phase-cell pass whitespace-nowrap text-left align-top px-1.5">

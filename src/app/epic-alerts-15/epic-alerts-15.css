@@ -422,7 +422,7 @@
 .ttm-badge.recommendation { background: rgb(124 58 237 / 0.12); color: #6d28d9; border: 1px solid rgb(124 58 237 / 0.35); cursor: help; }
 :root[data-theme="dark"] .ttm-badge.recommendation { background: rgb(167 139 250 / 0.16); color: #c4b5fd; border-color: rgb(167 139 250 / 0.4); }
 .ttm-badge.out-of-scope { background: var(--ttm-neutral-100); color: var(--ttm-neutral-600); border: 1px solid var(--ttm-neutral-300); cursor: help; }
-/* "Trục Release" badges (resolveReleaseAxis, epic-alert-service.ts) — waiting-golive is neutral
+/* "Trục Release" badges (RELEASE_* badges of the Scoring Service) — waiting-golive is neutral
    (nothing wrong yet), justify-golive is a stronger escalation tone than fail-cntt/fail-e2e since
    it signals a management explanation is owed, not just a missed internal target. */
 .ttm-badge.waiting-golive { background: var(--ttm-info-100); color: var(--ttm-info-700); }

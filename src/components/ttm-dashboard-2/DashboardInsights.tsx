@@ -260,25 +260,9 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
   const qaIndex = index(qa);
   const e2eIndex = index(e2e);
 
-  // The Scoring Service has no "Cảnh báo sớm": the number is the late ones only. On the legacy engine
-  // the number is late + early, so the card opens both — the list always matches the number.
-  const openWarnings = insights.scoringEngine
-    ? () => onOpen({ alert: 'LATE', title: 'Danh sách Epic - Chậm tiến độ' })
-    : () => onOpen({ alert: ['LATE', 'EARLY'], title: 'Danh sách Epic - Cảnh báo (Muộn + Sớm)' });
-
-  const warningSubtitle = insights.scoringEngine ? (
-    `${fmt(insights.lateWarning)} muộn`
-  ) : (
-    <>
-      <KpiSubLink onClick={() => onOpen({ alert: 'LATE', title: 'Danh sách Epic - Chậm tiến độ' })} title="Xem danh sách Epic Chậm tiến độ">
-        {fmt(insights.lateWarning)} muộn
-      </KpiSubLink>
-      {' · '}
-      <KpiSubLink onClick={() => onOpen({ alert: 'EARLY', title: 'Danh sách Epic - Cảnh báo sớm' })} title="Xem danh sách Epic Cảnh báo sớm">
-        {fmt(insights.earlyWarning)} sớm
-      </KpiSubLink>
-    </>
-  );
+  // The Scoring Service has no "Cảnh báo sớm": the number is the late ones only.
+  const openWarnings = () => onOpen({ alert: 'LATE', title: 'Danh sách Epic - Chậm tiến độ' });
+  const warningSubtitle = `${fmt(insights.lateWarning)} muộn`;
 
   // "Thiếu lý do" = sum of its two warnings (owner 2026-10-14) — each number opens its own list.
   const missingStage = insights.missingFailReason ?? 0;
@@ -384,11 +368,11 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
             <KpiCard
               tone="slate"
               title="CẢNH BÁO"
-              value={fmt(insights.lateWarning + insights.earlyWarning)}
+              value={fmt(insights.lateWarning)}
               subtitle={warningSubtitle}
               icon={<KpiIconBadge icon={Bell} iconColor="text-[var(--color-warning-400)]" />}
               onClick={openWarnings}
-              tooltip={`Cảnh báo tiến độ: ${fmt(insights.lateWarning)} muộn · ${fmt(insights.earlyWarning)} sớm (không tính Epic ngoại lệ) — xem ở Quản trị Epic`}
+              tooltip={`Cảnh báo tiến độ: ${fmt(insights.lateWarning)} muộn (không tính Epic ngoại lệ) — xem ở Quản trị Epic`}
             />
             <KpiCard
               tone="slate"

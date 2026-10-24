@@ -101,7 +101,7 @@ export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]
       requirementLevel: row.requirementLevel,
       previousStatus: row.previousStatus,
       phaseCompletion: completion
-        ? { designDone: completion.designDone, devDone: completion.devDone, testDone: completion.testDone, r4goliveDone: completion.r4goliveDone }
+        ? { designDone: completion.designDone, devDone: completion.devDone, testDone: completion.testDone, r4goliveDone: completion.r4goliveDone, releasedDone: completion.releasedDone }
         : null,
       ttmExclusion: resolveTtmExclusion(exclusionSources, row.epicKey, row.projectKey),
       khauBa: row.khauBa,

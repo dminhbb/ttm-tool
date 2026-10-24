@@ -38,26 +38,6 @@ const RELEASE_MISMATCH_BADGE = 'RELEASE_STATUS_MISMATCH' satisfies BadgeId;
 /** Key of the "Thiếu lý do Fail TTM" panel in the API (page map, open panels). */
 export const FAIL_REASON_PANEL_CODE = 'FAIL_REASON';
 
-/**
- * What the legacy engine (epic-data-anomaly.ts) actually checks where it differs from the Scoring
- * Service's catalog text — shown instead of it while the display engine is 'legacy', so a panel never
- * describes a rule other than the one its Epics were judged by. R3, R4 and R6 read the same in both.
- */
-const LEGACY_RULE_TEXT: Partial<Record<number, { formula: string; meaning: string }>> = {
-  1: {
-    formula: 'status ≥ In Progress (DEV), status khác Pending  VÀ  T1 trống',
-    meaning: 'R1 (engine legacy) — Epic đã từ In Progress trở đi nhưng chưa có Start Date. Epic đang Design hoặc Pending không bị xét.',
-  },
-  5: {
-    formula: 'Requirement Level trống hoặc "none"  (mọi status, trừ Cancelled / To Do / In PO / Backlog)',
-    meaning: 'R5 (engine legacy) — Epic chưa có Requirement Level, ở bất kỳ status nào ngoài các status được miễn (Cancelled, To Do, In PO, Backlog) — kể cả Design và Pending.',
-  },
-  7: {
-    formula: 'Có R4G Date và Due Date  VÀ  Due ≤ R4G +wd G  VÀ  status ≠ RELEASED',
-    meaning: 'R7 (engine legacy) — Due Date đã ghi nhận đúng hạn so với R4G Date nhưng status Epic chưa chuyển sang Released. Ở engine này R7 là một rule "Sai lệch dữ liệu".',
-  },
-};
-
 export interface NormalizationPanelDefinition {
   /** Key of the panel in the API (page map, open panels): 'R1', 'R3'… or FAIL_REASON_PANEL_CODE. */
   code: string;
@@ -73,8 +53,6 @@ export interface NormalizationPanelDefinition {
   guide: string;
   /** Rule number (1, 3, 4…) of a "Sai lệch dữ liệu" / R7 panel; 0 for "Thiếu lý do Fail TTM". */
   index: number;
-  /** false for rules only the Scoring Service has (Thiếu lý do Fail TTM, R8–R10): the legacy engine never emits them. */
-  inLegacyEngine: boolean;
   /** Message of an Epic in this panel when its row carries none for the rule (a badge, not a violation). */
   defaultMessage: string;
 }
@@ -96,7 +74,6 @@ const DATA_QUALITY_PANELS: NormalizationPanelDefinition[] = badgesOf('DATA_QUALI
       defaultMessage: badge.label,
       formula: badge.formula,
       guide: guideBadge ? BADGE_BY_ID.get(guideBadge)?.meaning ?? '' : '',
-      inLegacyEngine: Boolean(badge.legacySource),
       index,
       label: badge.label,
       meaning: badge.meaning,
@@ -105,14 +82,13 @@ const DATA_QUALITY_PANELS: NormalizationPanelDefinition[] = badgesOf('DATA_QUALI
   })
   .filter((rule) => rule.index > 0);
 
-/** R7 — "Sai Status" of the Release axis: a recommendation in the Scoring Service, a "Sai lệch dữ
- * liệu" rule in the legacy engine; either way the fix is on Jira (owner 2026-10-13). */
+/** R7 — "Sai Status" of the Release axis: a recommendation in the Scoring Service; the fix is on Jira
+ * (owner 2026-10-13). */
 const RELEASE_MISMATCH_PANEL: NormalizationPanelDefinition = {
   code: 'R7',
   defaultMessage: 'Due Date đúng hạn nhưng status Epic chưa chuyển sang Released',
   formula: releaseMismatchBadge.formula,
   guide: 'Chuyển status Epic sang Released trên Jira, hoặc kiểm tra lại Due Date / R4G Date.',
-  inLegacyEngine: true,
   index: 7,
   label: `${releaseMismatchBadge.label} (Release)`,
   meaning: releaseMismatchBadge.meaning,
@@ -124,7 +100,6 @@ const FAIL_REASON_PANEL: NormalizationPanelDefinition = {
   defaultMessage: failReasonBadge.meaning,
   formula: `${failReasonBadge.formula}  —  hoặc  —  ${responsibleDepartmentBadge.formula}`,
   guide: 'Ghi nhận lý do Fail TTM trên Jira ở ít nhất một khâu (BA, CO, DEV, PM/SM, PO, Pentest, SA, SIT/UAT) hoặc trường "Lý do khác", và điền "Phòng chịu trách nhiệm chính" (main_fail_dept).',
-  inLegacyEngine: false,
   index: 0,
   label: failReasonBadge.label,
   meaning: `${failReasonBadge.meaning} ${responsibleDepartmentBadge.meaning}`,
@@ -139,20 +114,13 @@ export const NORMALIZATION_PANELS: readonly NormalizationPanelDefinition[] = [
 
 const PANEL_CODE_BY_RULE_INDEX: ReadonlyMap<number, string> = new Map(NORMALIZATION_PANELS.filter((panel) => panel.index > 0).map((panel) => [panel.index, panel.code]));
 
-/** A panel's rule text for the engine the Epics were judged by (see LEGACY_RULE_TEXT). */
-export function describeNormalizationPanel(panel: NormalizationPanelDefinition, engineMode: 'legacy' | 'scoring'): Pick<NormalizationPanelDefinition, 'formula' | 'meaning'> {
-  const legacy = engineMode === 'legacy' ? LEGACY_RULE_TEXT[panel.index] : undefined;
-  return legacy ?? { formula: panel.formula, meaning: panel.meaning };
-}
-
 type NormalizationSourceRow = Pick<DashboardEpicRow, 'dataAnomalyViolations' | 'scoringBadges' | 'ttmCnttInScope'>;
 
 /**
  * The panels an Epic row belongs to, each with the messages to show for it (panel code → messages).
- * Works for both display engines:
- *   - a violation the row carries (legacy: R1–R7; scoring: the "Sai lệch dữ liệu" ALERT rules) goes to
- *     its rule's panel — R2 has none, so an Epic whose only violation is R2 is in no panel;
- *   - a scoring row is also read by its badges for what the Scoring Service doesn't report as a
+ *   - a violation the row carries (the "Sai lệch dữ liệu" ALERT rules) goes to its rule's panel —
+ *     R2 has none, so an Epic whose only violation is R2 is in no panel;
+ *   - a row is also read by its badges for what the Scoring Service doesn't report as a
  *     violation: "Sai Status" of the Release axis (R7) and "Thiếu lý do Fail TTM" — the latter inside
  *     "Phạm vi dữ liệu cho TTM" only, the same Epics TTM Dashboard 2 counts.
  */
@@ -218,7 +186,6 @@ export interface NormalizationPanel {
   code: string;
   formula: string;
   guide: string;
-  inLegacyEngine: boolean;
   label: string;
   meaning: string;
   /** 1-based, clamped to the last page. */

@@ -4,7 +4,6 @@ import pool from '@/lib/db';
 import type { UserRole } from '@/lib/auth-types';
 import { resolveAccessScope, type AccessScope } from '@/lib/epic-alert-service';
 import { getEpicAlertRowCacheMeta, queryDashboardEpicRows, rowInAccessScope } from '@/lib/epic-alert-row-cache-query-service';
-import { getScoringEngineMode, getStoredScoringEngineMode } from '@/lib/scoring-mode-service';
 import { loadDashboardEpicRows } from '@/lib/ttm-dashboard-summary-service';
 import {
   buildTtmDashboard2FilterOptions,
@@ -84,6 +83,9 @@ function buildPayload(rows: readonly TtmFunnelRow[], scope: AccessScope): Cached
   return { filterOptions: buildTtmDashboard2FilterOptions(rows, scope.projectComponents), summary: summarizeTtmFunnel(rows), version: PAYLOAD_VERSION };
 }
 
+/** Value of the (legacy) engine_mode column — the Scoring Service is the only engine now. */
+const CACHE_ENGINE_MODE = 'scoring';
+
 const UPSERT_SQL = `
   INSERT INTO ttm_dashboard_2_cache (scope_key, scope_fingerprint, source_computed_at, engine_mode, summary, computed_at)
   VALUES ($1, $2, $3, $4, $5::jsonb, CURRENT_TIMESTAMP)
@@ -103,17 +105,17 @@ export async function loadTtmDashboard2Rows(userId: number, role: UserRole): Pro
  * Every chip a lead clicks asks the server for one filtered summary; re-reading and re-projecting the
  * whole company's Epic rows for each of them was the cost. The rows only change when
  * epic_alert_row_cache is rebuilt, so one copy per instance is kept, keyed by that cache's
- * computed_at + the stored engine mode, and read straight from the cache table the same way
+ * computed_at, and read straight from the cache table the same way
  * refreshTtmDashboard2Caches builds the unfiltered 'ALL' entry — a filtered number and the unfiltered
- * snapshot always come off the same rows. Concurrent requests share one read. With no row cache, or a
- * per-machine SCORING_ENGINE_MODE override, it falls back to the live read (never kept).
+ * snapshot always come off the same rows. Concurrent requests share one read. With no row cache it falls
+ * back to the live read (never kept).
  */
 let companyRowsMemo: { key: string; rows: Promise<TtmFunnelRow[]> } | null = null;
 
 export async function loadCompanyTtmDashboard2Rows(userId: number): Promise<TtmFunnelRow[]> {
-  const [engineMode, storedMode, cacheMeta] = await Promise.all([getScoringEngineMode(), getStoredScoringEngineMode(), getEpicAlertRowCacheMeta()]);
-  if (!cacheMeta.hasCache || engineMode !== storedMode) return loadTtmDashboard2Rows(userId, 'SUPERVISOR');
-  const key = `${cacheMeta.computedAt}|${storedMode}`;
+  const cacheMeta = await getEpicAlertRowCacheMeta();
+  if (!cacheMeta.hasCache) return loadTtmDashboard2Rows(userId, 'SUPERVISOR');
+  const key = `${cacheMeta.computedAt}`;
   if (companyRowsMemo?.key !== key) {
     const fieldsSql = TTM_FUNNEL_ROW_KEYS.map((field) => `'${field}', row_data->'${field}'`).join(', ');
     const rows = pool.query<{ row: TtmFunnelRow }>(`SELECT jsonb_build_object(${fieldsSql}) AS row FROM epic_alert_row_cache`)
@@ -127,11 +129,10 @@ export async function loadCompanyTtmDashboard2Rows(userId: number): Promise<TtmF
 
 export async function getTtmDashboard2Snapshot(userId: number, role: UserRole): Promise<TtmDashboard2Snapshot> {
   const scopeKey = ttmDashboard2ScopeKey(userId, role);
-  const [engineMode, storedMode, cacheMeta] = await Promise.all([getScoringEngineMode(), getStoredScoringEngineMode(), getEpicAlertRowCacheMeta()]);
+  const cacheMeta = await getEpicAlertRowCacheMeta();
 
-  // A per-machine SCORING_ENGINE_MODE override (or no row cache yet) is served live, never cached —
-  // same rule as every other reader of the shared caches.
-  if (!cacheMeta.hasCache || engineMode !== storedMode) {
+  // No row cache yet: served live, never cached — same rule as every other reader of the shared caches.
+  if (!cacheMeta.hasCache) {
     const [liveRows, liveScope] = await Promise.all([loadTtmDashboard2Rows(userId, role), resolveAccessScope(userId, role)]);
     return { ...buildPayload(liveRows, liveScope), cache: { computedAt: null, scopeKey, status: 'LIVE' } };
   }
@@ -142,7 +143,7 @@ export async function getTtmDashboard2Snapshot(userId: number, role: UserRole): 
     const cached = await pool.query<{ computedAt: string; summary: CachedPayload }>(
       `SELECT summary, computed_at::text AS "computedAt" FROM ttm_dashboard_2_cache
        WHERE scope_key = $1 AND scope_fingerprint = $2 AND source_computed_at = $3 AND engine_mode = $4`,
-      [scopeKey, fingerprint, cacheMeta.computedAt, storedMode],
+      [scopeKey, fingerprint, cacheMeta.computedAt, CACHE_ENGINE_MODE],
     );
     const hit = cached.rows[0];
     if (hit && hit.summary.version === PAYLOAD_VERSION) {
@@ -157,7 +158,7 @@ export async function getTtmDashboard2Snapshot(userId: number, role: UserRole): 
   const payload = buildPayload(rows, scope);
   const stored = await pool.query<{ computedAt: string }>(
     `${UPSERT_SQL} RETURNING computed_at::text AS "computedAt"`,
-    [scopeKey, fingerprint, cacheMeta.computedAt, storedMode, JSON.stringify(payload)],
+    [scopeKey, fingerprint, cacheMeta.computedAt, CACHE_ENGINE_MODE, JSON.stringify(payload)],
   ).catch((error: unknown) => {
     console.error('TTM Dashboard 2 cache write failed:', error);
     return null;
@@ -172,7 +173,7 @@ export async function getTtmDashboard2Snapshot(userId: number, role: UserRole): 
  * of entries written.
  */
 export async function refreshTtmDashboard2Caches(): Promise<number> {
-  const [cacheMeta, storedMode] = await Promise.all([getEpicAlertRowCacheMeta(), getStoredScoringEngineMode()]);
+  const cacheMeta = await getEpicAlertRowCacheMeta();
   if (!cacheMeta.hasCache) return 0;
 
   const fieldsSql = TTM_FUNNEL_ROW_KEYS.map((key) => `'${key}', row_data->'${key}'`).join(', ');
@@ -195,7 +196,7 @@ export async function refreshTtmDashboard2Caches(): Promise<number> {
     await client.query('DELETE FROM ttm_dashboard_2_cache');
     for (const { scope, scopeKey } of targets) {
       const rows = rowResult.rows.filter((item) => rowInAccessScope(scope, item.projectKey, item.components)).map((item) => item.row);
-      await client.query(UPSERT_SQL, [scopeKey, scopeFingerprint(scope), cacheMeta.computedAt, storedMode, JSON.stringify(buildPayload(rows, scope))]);
+      await client.query(UPSERT_SQL, [scopeKey, scopeFingerprint(scope), cacheMeta.computedAt, CACHE_ENGINE_MODE, JSON.stringify(buildPayload(rows, scope))]);
     }
     await client.query('COMMIT');
   } catch (error: unknown) {

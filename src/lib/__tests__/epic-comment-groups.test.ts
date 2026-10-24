@@ -42,7 +42,7 @@ describe('"Nhận xét" 1x4 table groups (Quản trị Epic, 2026-10-16)', () =>
   });
 
   it('only passes → "Kết quả" stays green', () => {
-    const row = rowOf({ alertLevel: 'NONE', r4gDate: '2026-08-01', ttmActualToDate: '2026-08-01', ttmE2eAlertLevel: 'FAIL' });
+    const row = rowOf({ r4gDate: '2026-08-01', scoringBadges: ['CNTT_PASS'] });
     assert.equal(summarizeEpicComments(row).headline?.kind, 'ACHIEVED');
     const passOnly = rowOf({ scoringBadges: ['CNTT_PASS', 'E2E_PASS'] });
     const summary = summarizeEpicComments(passOnly);

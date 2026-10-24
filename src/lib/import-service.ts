@@ -1,18 +1,19 @@
 import type { PoolClient } from 'pg';
 import pool, { getClient } from './db';
 import { parseCSV, mapCSVToRawIssues } from './csv-parser';
-import { validateAllJiraIssues, parseJiraDate, RowValidationResult, ValidationError } from './validator';
+import { validateAllJiraIssues, parseJiraDate, RowValidationResult } from './validator';
 import { accumulateProjectComponents, splitComponents } from './project-component-service';
-import { DEFAULT_RAW_IMPORT_RETENTION_DAYS } from './data-retention-service';
-import { evaluateIssueCompliance } from './epic-compliance-engine';
-import { resolveTtmE2eRelease } from './epic-alert-service';
-import { breaksTtmCnttCalculation, breaksTtmE2eCalculation, evaluateEpicDataAnomaly } from './epic-data-anomaly';
-import type { EpicComplexity } from './ttm-rules';
+import { deleteExpiredImportBatches } from './data-retention-service';
+import { e2eGeometry } from './epic-row-geometry';
+import { loadScoringContext } from './scoring-context-service';
+import { BADGE_BY_ID } from './scoring/catalog';
+import { toIsoDate } from './scoring/dates';
+import { verdictBadges } from './scoring/projection';
+import { scoreEpic } from './scoring/score-epic';
+import type { EpicComplexity } from './scoring/types';
 import { recordEpicAlertTimelineTransitions, type EpicAlertTimelineDetail, type EpicAlertTimelineStates } from './epic-alert-timeline-service';
 import { EPIC_ISSUE_TYPES_SQL } from './issue-resolution-sql';
-import { getActiveHolidaySet } from './master-data-service';
-import { listActiveStatusAlertRules } from './status-alert-rule-service';
-import { findActiveTtmPolicy, listTtmPolicies } from './ttm-policy-service';
+import { toDateKey } from './working-days';
 import { ADAPTER_TYPES, DEFAULT_ADAPTER, type AdapterType } from './adapters/index';
 import { parsePyJiraApi } from './adapters/py-jira-api-adapter';
 import { parsePureJiraExport } from './adapters/pure-jira-export-adapter';
@@ -56,20 +57,18 @@ function computeEpicComplexity(requestType: string, requirementLevel: string): E
   return 'CT-Lv12';
 }
 
+const VALID_COMPLEXITY = new Set<string>(['CT-Lv12', 'CT-Lv34', 'SP-Lv12', 'SP-Lv34']);
+
 /**
  * Derives the alert timeline for one import batch from the canonical `issues` rows already stored
  * for it (Cảnh báo muộn/Fail TTM-CNTT/E2E, thiếu Start Date, dữ liệu bất thường, as of that batch's
- * aggregatedAtDate). Every write is idempotent (ON CONFLICT upsert / unique constraint), so this is safe to call again for a batch
+ * aggregatedAtDate). Every Epic is judged by the Epic Scoring Service — the same verdicts every screen
+ * shows — so the timeline can never disagree with what a screen shows for the same Epic. Every write is
+ * idempotent (ON CONFLICT upsert / unique constraint), so this is safe to call again for a batch
  * whose raw `issues` rows are still present — it never re-reads or re-validates the original CSV.
  */
 export async function aggregateBatchData(client: PoolClient, batchId: number, aggregatedAtDate: Date): Promise<void> {
-  // Evaluate every Epic in this batch as of aggregatedAtDate against the configured 'Quy tắc cảnh báo
-  // Epic' rules and record the resulting alert runs (Cảnh báo muộn / Fail TTM, …) in epic_alert_timeline.
-  const [holidays, statusAlertRules, ttmPolicies] = await Promise.all([
-    getActiveHolidaySet(),
-    listActiveStatusAlertRules(),
-    listTtmPolicies(true),
-  ]);
+  const ctx = await loadScoringContext(toDateKey(aggregatedAtDate));
   const epicRows = await client.query<{
     complexity: string | null; dueDate: string | null; epicKey: string; ideaApprovedDate: string | null;
     jiraCreatedAt: string | null; r4gDate: string | null; requestType: string | null;
@@ -89,64 +88,44 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
   // reasoning as everything else recorded during import.
   const timelineStatesByEpic = new Map<string, EpicAlertTimelineStates>();
   for (const epic of epicRows.rows) {
-    const evaluation = evaluateIssueCompliance({
-      dueDate: epic.dueDate,
-      epicComplexityType: epic.complexity as EpicComplexity | null,
-      ideaApprovedDate: epic.ideaApprovedDate,
-      issueKey: epic.epicKey,
-      issueType: 'EPIC',
-      r4gDate: epic.r4gDate,
-      startDate: epic.startDate,
+    const card = scoreEpic({
+      epicKey: epic.epicKey,
       status: epic.status,
-    }, aggregatedAtDate, holidays, statusAlertRules, ttmPolicies);
-
-    // Same "sai lệch dữ liệu" engine the live screens / Báo cáo / Dashboard use (evaluateEpicDataAnomaly)
-    // so the timeline can never disagree with what a screen shows today for the same Epic. The
-    // MISSING_START_DATE run tracks rule c specifically; DATA_ANOMALY covers every other violation.
-    const anomalyViolations = evaluateEpicDataAnomaly({
-      dueDate: epic.dueDate,
-      epicComplexityType: epic.complexity as EpicComplexity | null,
-      ideaApprovedDate: epic.ideaApprovedDate,
-      jiraCreatedAt: epic.jiraCreatedAt,
-      r4gDate: epic.r4gDate,
+      complexity: epic.complexity && VALID_COMPLEXITY.has(epic.complexity) ? (epic.complexity as EpicComplexity) : null,
+      ideaApprovedDate: toIsoDate(epic.ideaApprovedDate),
+      jiraCreatedAt: toIsoDate(epic.jiraCreatedAt),
+      startDate: toIsoDate(epic.startDate),
+      r4gDate: toIsoDate(epic.r4gDate),
+      dueDate: toIsoDate(epic.dueDate),
       requestType: epic.requestType,
       requirementLevel: epic.requirementLevel,
-      startDate: epic.startDate,
-      status: epic.status,
-      ttmCnttWorkingDays: evaluation.ttm.cntt.workingDays,
-    }, aggregatedAtDate, holidays);
-    const missingStartDateViolation = anomalyViolations.find((v) => v.code === 'MISSING_START_DATE') ?? null;
-    const otherAnomalyViolations = anomalyViolations.filter((v) => v.code !== 'MISSING_START_DATE');
-    const ttmE2eToField = findActiveTtmPolicy(ttmPolicies, 'TTM_E2E', (epic.complexity as EpicComplexity | null) ?? 'CT-Lv12')?.toTtmField ?? 'R4G_DATE';
-    const ttmE2eRelease = resolveTtmE2eRelease(epic, evaluation.ttm.e2e.workingDays ?? 0, ttmE2eToField, aggregatedAtDate, holidays);
+      phaseCompletion: null,
+    }, ctx);
+    // The TTM verdicts ignore the "Phạm vi" gate (a run is recorded even for an Epic the screens show as
+    // "Ngoài phạm vi"), data-quality findings are the ones still active.
+    const verdicts = verdictBadges(card.findings);
+    const anomalies = card.findings.filter((item) => !item.suppressedBy && BADGE_BY_ID.get(item.badge)?.axis === 'DATA_QUALITY' && BADGE_BY_ID.get(item.badge)?.group === 'ALERT');
+    const missingStartDate = anomalies.some((item) => item.badge === 'ANOMALY_R1_MISSING_START_DATE');
+    const otherAnomalies = anomalies.filter((item) => item.badge !== 'ANOMALY_R1_MISSING_START_DATE');
 
-    // Same narrow gate as the live screens (epic-alert-service.ts / epic-alert-phase-service.ts):
-    // only a genuinely broken TTM-CNTT/E2E calculation suppresses these — NOT the full 6-rule
-    // anomaly flag, or an Epic merely missing Requirement Level would never get its Fail/Cảnh báo
-    // muộn run recorded here even while the live screen correctly shows it today.
-    const cnttBroken = breaksTtmCnttCalculation(epic);
-    const e2eBroken = breaksTtmE2eCalculation(epic);
     // Key order matters: the diff in recordEpicAlertTimelineTransitions compares JSON.stringify of the
     // stored jsonb (keys come back shortest-first), so keep 'status' (the Epic's Jira status, shown in
     // "Epic History") ahead of fromDate/targetDate or every open run would be rewritten on every import.
-    const failCnttDetail: EpicAlertTimelineDetail | null = !cnttBroken && evaluation.alertLevel === 'FAIL'
-      ? { status: epic.status, fromDate: evaluation.ttm.cntt.fromDate, targetDate: evaluation.ttm.cntt.targetDate }
-      : null;
-    const lateCnttDetail: EpicAlertTimelineDetail | null = !cnttBroken && evaluation.alertLevel === 'LATE'
-      ? { status: epic.status, fromDate: evaluation.ttm.cntt.fromDate, targetDate: evaluation.ttm.cntt.targetDate }
-      : null;
-    const failE2eDetail: EpicAlertTimelineDetail | null = !e2eBroken && ttmE2eRelease.alertLevel === 'FAIL'
-      ? { baselineDate: ttmE2eRelease.baselineDate, actualToDate: ttmE2eRelease.actualToDate }
+    const cnttDetail: EpicAlertTimelineDetail = { status: epic.status, fromDate: card.derived.cnttFromDate, targetDate: card.derived.cnttTargetDate };
+    const failCnttDetail: EpicAlertTimelineDetail | null = verdicts.has('CNTT_FAIL') ? cnttDetail : null;
+    const lateCnttDetail: EpicAlertTimelineDetail | null = verdicts.has('CNTT_LATE') ? cnttDetail : null;
+    const failE2eDetail: EpicAlertTimelineDetail | null = card.findings.some((item) => !item.suppressedBy && item.badge === 'E2E_FAIL')
+      ? (() => { const e2e = e2eGeometry(card.derived, ctx); return { baselineDate: e2e.baselineDate, actualToDate: e2e.actualToDate }; })()
       : null;
 
     timelineStatesByEpic.set(epic.epicKey, {
       FAIL_TTM_CNTT: { active: failCnttDetail !== null, detail: failCnttDetail },
       LATE_TTM_CNTT: { active: lateCnttDetail !== null, detail: lateCnttDetail },
       FAIL_TTM_E2E: { active: failE2eDetail !== null, detail: failE2eDetail },
-      MISSING_START_DATE: { active: missingStartDateViolation !== null, detail: null },
+      MISSING_START_DATE: { active: missingStartDate, detail: null },
       DATA_ANOMALY: {
-        active: otherAnomalyViolations.length > 0,
-        detail: otherAnomalyViolations.length > 0 ? { rules: otherAnomalyViolations.map((v) => v.message).join('; ') } : null,
+        active: otherAnomalies.length > 0,
+        detail: otherAnomalies.length > 0 ? { rules: otherAnomalies.map((item) => item.message).join('; ') } : null,
       },
     });
   }
@@ -172,13 +151,6 @@ export interface ImportBatch {
   status: 'SUCCESS' | 'FAILED' | 'COMPLETED_WITH_WARNINGS';
   /** Rows dropped by "Từ chối import" (from metadata_json; 0 for batches imported before it). */
   deniedRows: number;
-}
-
-export interface BatchValidationDetail {
-  rowNumber: number;
-  rawData: Record<string, string>;
-  validationStatus: string;
-  validationErrors: ValidationError[];
 }
 
 export interface ImportResult {
@@ -239,7 +211,7 @@ export async function processImport(
 
   // 1b. "Từ chối import" — drop every row of a denied Epic (listed in denied_import_epics, or breaking
   // an automatic rule) before anything is validated or stored: the rest of the pipeline never sees
-  // them, not even import_row_issues. See import-admission-rules.ts.
+  // them. See import-admission-rules.ts.
   const [admissionList, admissionSettings, lastUnreleasedSeen] = await Promise.all([
     loadImportAdmissionList(),
     getImportAdmissionSettings(),
@@ -339,36 +311,9 @@ export async function processImport(
       ]);
     }
 
-    // 4. Record the rows that did not validate cleanly (WARNING / INVALID) in import_row_issues, for the
-    // "Chi tiết lỗi/cảnh báo" of this import. A clean row needs no record: its data is the `issues` row
-    // written in step 5 (there used to be an import_rows JSON copy of EVERY row next to it, ~97% identical
-    // to `issues`, which is gone — see 20261025b_drop_import_rows.sql). INVALID rows never reach `issues`,
-    // so this table is the only place their key / summary / errors are kept. One unnest() bulk insert,
-    // a single round trip however many rows the file has.
-    const rowsWithIssues = rawIssues
-      .map((issue, index) => ({ issue, validation: validationReport[index] }))
-      .filter(({ validation }) => validation.status !== 'VALID');
-    if (rowsWithIssues.length > 0) {
-      await client.query(
-        `INSERT INTO import_row_issues (import_batch_id, row_number, issue_key, summary, validation_status, validation_errors)
-         SELECT $1, t.row_number, t.issue_key, t.summary, t.validation_status, t.validation_errors::jsonb
-         FROM unnest($2::int[], $3::text[], $4::text[], $5::text[], $6::text[]) AS t(row_number, issue_key, summary, validation_status, validation_errors)
-         ON CONFLICT (import_batch_id, row_number) DO NOTHING;`,
-        [
-          batchId,
-          rowsWithIssues.map(({ issue }) => issue.rowNumber),
-          rowsWithIssues.map(({ issue }) => issue.issueKey || null),
-          rowsWithIssues.map(({ issue }) => issue.summary || null),
-          rowsWithIssues.map(({ validation }) => validation.status),
-          rowsWithIssues.map(({ validation }) => JSON.stringify(validation.errors)),
-        ],
-      );
-    }
-
-    // 5. Ingest into canonical issues table if NOT validateOnly. Rows that failed validation
-    // (status INVALID) are excluded from this insert loop — every WARNING / INVALID row was already
-    // recorded in import_row_issues above (with its validation errors) so the source
-    // data can be corrected — but only issues that passed validation are safe to write into the
+    // 4. Ingest into canonical issues table if NOT validateOnly. Rows that failed validation
+    // (status INVALID) are excluded from this insert loop (the upload response lists them, nothing is
+    // stored for them) — only issues that passed validation are safe to write into the
     // canonical table and downstream aggregation (epic_alert_timeline).
     // This means one bad row no longer takes the whole batch down with it:
     // every other issue (including other Epics untouched by any error) still gets ingested and
@@ -520,7 +465,7 @@ export async function processImport(
         );
       }
 
-      // 6. Link relationships within the batch.
+      // 5. Link relationships within the batch.
       //
       // Every one of these is a self-join of `issues` filtered to just this batch — but within
       // this same transaction that filter's true selectivity (tens of thousands of rows for a
@@ -582,25 +527,14 @@ export async function processImport(
           AND parent.epic_id IS NOT NULL;
       `, [batchId]);
 
-      // 7. Derive the alert timeline (epic_alert_timeline) for this batch.
+      // 6. Derive the alert timeline (epic_alert_timeline) for this batch.
       await aggregateBatchData(client, batchId, aggregatedAtDate);
     }
 
     // Raw data is cleaned after every stored import, including a failed batch. Protect
     // both this batch and the newest data layer so an out-of-order historical import
     // can never remove the currently used alert source.
-    const retentionResult = await client.query<{ rawImportRetentionDays: number }>(
-      'SELECT raw_import_retention_days AS "rawImportRetentionDays" FROM data_retention_configs WHERE id = 1;',
-    );
-    const retentionDays = retentionResult.rows[0]?.rawImportRetentionDays ?? DEFAULT_RAW_IMPORT_RETENTION_DAYS;
-    const latestBatch = await client.query<{ id: number }>(
-      'SELECT id FROM import_batches ORDER BY aggregated_at DESC, id DESC LIMIT 1;',
-    );
-    const protectedBatchIds = [...new Set([batchId, latestBatch.rows[0]?.id].filter((id): id is number => typeof id === 'number'))];
-    await client.query(
-      'DELETE FROM import_batches WHERE aggregated_at < CURRENT_TIMESTAMP - ($1::int * INTERVAL \'1 day\') AND NOT (id = ANY($2::int[]));',
-      [retentionDays, protectedBatchIds],
-    );
+    await deleteExpiredImportBatches(client, [batchId]);
 
     await client.query('COMMIT');
 
@@ -678,19 +612,3 @@ function deniedRowsOf(metadataJson: string | null): number {
   }
 }
 
-export async function getBatchValidationDetail(batchId: number): Promise<BatchValidationDetail[]> {
-  const res = await pool.query<{ issueKey: string | null; rowNumber: number; summary: string | null; validationErrors: ValidationError[]; validationStatus: string }>(`
-    SELECT row_number AS "rowNumber", issue_key AS "issueKey", summary,
-           validation_status AS "validationStatus",
-           validation_errors AS "validationErrors"
-    FROM import_row_issues
-    WHERE import_batch_id = $1
-    ORDER BY row_number ASC;
-  `, [batchId]);
-  return res.rows.map(row => ({
-    rowNumber: row.rowNumber,
-    rawData: { issueKey: row.issueKey ?? '', summary: row.summary ?? '' },
-    validationStatus: row.validationStatus,
-    validationErrors: row.validationErrors,
-  }));
-}

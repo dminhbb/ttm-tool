@@ -11,7 +11,6 @@ export async function listLayerDatesDescending(): Promise<string[]> {
 
 export interface PurgeRecentLayersPreview {
   batchCount: number;
-  importRowIssueCount: number;
   issueCount: number;
   layerCount: number;
   targetDates: string[];
@@ -27,33 +26,31 @@ async function resolveTargetDates(layerCount: number): Promise<{ availableDates:
 }
 
 /**
- * Previews the deletion (import_batches with their issues and import_row_issues) of the N most
+ * Previews the deletion (import_batches with their issues) of the N most
  * recent data layers, so the caller can confirm counts before calling purgeRecentLayers with the same layerCount.
  */
 export async function previewPurgeRecentLayers(layerCount: number): Promise<PurgeRecentLayersPreview> {
   const { availableDates, targetDates } = await resolveTargetDates(layerCount);
   if (targetDates.length === 0) {
     return {
-      batchCount: 0, importRowIssueCount: 0, issueCount: 0, layerCount,
+      batchCount: 0, issueCount: 0, layerCount,
       targetDates: [], totalLayersAvailable: availableDates.length,
     };
   }
 
   const result = await pool.query<{
-    batchCount: string; importRowIssueCount: string; issueCount: string;
+    batchCount: string; issueCount: string;
   }>(`
     WITH target AS (SELECT unnest($1::date[]) AS d),
     target_batches AS (SELECT id FROM import_batches WHERE aggregated_at::date IN (SELECT d FROM target))
     SELECT
       (SELECT COUNT(*) FROM target_batches)::text AS "batchCount",
-      (SELECT COUNT(*) FROM issues WHERE source_import_batch_id IN (SELECT id FROM target_batches))::text AS "issueCount",
-      (SELECT COUNT(*) FROM import_row_issues WHERE import_batch_id IN (SELECT id FROM target_batches))::text AS "importRowIssueCount";
+      (SELECT COUNT(*) FROM issues WHERE source_import_batch_id IN (SELECT id FROM target_batches))::text AS "issueCount";
   `, [targetDates]);
 
   const row = result.rows[0];
   return {
     batchCount: Number(row.batchCount),
-    importRowIssueCount: Number(row.importRowIssueCount),
     issueCount: Number(row.issueCount),
     layerCount,
     targetDates,
@@ -67,7 +64,7 @@ export interface PurgeRecentLayersResult {
 }
 
 /**
- * Deletes the import batches of the N most recent data layers; issues / import_row_issues cascade
+ * Deletes the import batches of the N most recent data layers; issues cascade
  * automatically (ON DELETE CASCADE). epic_alert_timeline runs are not date-bound layers and are left alone.
  */
 export async function purgeRecentLayers(layerCount: number): Promise<PurgeRecentLayersResult> {

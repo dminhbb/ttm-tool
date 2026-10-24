@@ -103,7 +103,7 @@ DESIGN/DEV/TEST/PENTEST/R4GOLIVE) mới hiện "Không tính được" khi đó 
 
 Mỗi Epic còn có cảnh báo **Fail TTM-E2E** độc lập với Fail TTM-CNTT — badge riêng ở cột Nhận xét
 (chỉ FAIL/NONE, không có mức Cảnh báo sớm/muộn), filter "Cảnh báo" trên cả 3 màn hình đều có option
-riêng "Fail TTM-E2E". Xem `resolveTtmE2eRelease` (`src/lib/epic-alert-service.ts`).
+riêng "Fail TTM-E2E". Xem rule `E2E_FAIL` (`src/lib/scoring/rules/ttm-e2e.ts`).
 
 ## Bộ lọc nâng cao (cả 3 màn hình giám sát)
 
