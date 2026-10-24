@@ -71,7 +71,7 @@ export async function runDailyHousekeeping(): Promise<HousekeepingResult> {
     ['auth_sessions', async () => { result.expiredSessionsDeleted = await purgeExpiredSessions(); }],
     ['visit_logs', async () => { result.visitLogsRolledUp = await rollUpOldVisitLogs(); }],
     ['audit_logs', async () => { result.auditLogsDeleted = await purgeOldAuditLogs(); }],
-    // History of `issues`: weekly snapshot dates, thinning beyond the 15 newest import days, empty expired batches
+    // History of `issues`: weekly snapshot dates, thinning beyond the 30 newest import days, empty expired batches
     // (data-layer-retention.ts). Heavy once (the first cleanup), a few hundred rows a day afterwards.
     ['issues_history', async () => {
       const retention = await runDataLayerRetention(pool);

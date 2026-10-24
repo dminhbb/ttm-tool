@@ -1,5 +1,5 @@
 -- Fixed weekly "snapshot dates" of the issues history (owner decision 2026-10-24): RAW issue versions are kept
--- in full for the 15 newest import days ("dense zone") and, beyond them, only as the version in force at one
+-- in full for the 30 newest import days ("dense zone") and, beyond them, only as the version in force at one
 -- fixed date per week — the last working day of that week ("sparse zone") — up to the RAW retention
 -- (data_retention_configs.raw_import_retention_days). Every screen that looks at a past day reads "the state at
 -- date X" (newest row of each issue with aggregated_at::date <= X), and X can only be a dense-zone import day

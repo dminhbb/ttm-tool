@@ -1377,7 +1377,7 @@ function EpicAlerts15Screen() {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-[11px] font-bold text-black">Chọn lớp dữ liệu</label>
-                <span className="text-[11px] text-fb-text-secondary font-medium">Chọn 1 ngày: hiển thị trạng thái của mọi Epic tại ngày đó (15 ngày import gần nhất và cuối mỗi tuần).</span>
+                <span className="text-[11px] text-fb-text-secondary font-medium">Chọn 1 ngày: hiển thị trạng thái của mọi Epic tại ngày đó (30 ngày import gần nhất và cuối mỗi tuần).</span>
               </div>
               {availableLayerDates.length === 0 ? (
                 <p className="text-[11px] text-fb-text-secondary">Chưa có lớp dữ liệu nào trong hệ thống.</p>

@@ -17,7 +17,7 @@
  * implements exactly versionsToDelete; a test pins the two together.
  */
 
-export const DENSE_IMPORT_DAYS = 15;
+export const DENSE_IMPORT_DAYS = 30;
 
 export interface RetentionHolidays {
   /** Non-working dates (public holidays). */

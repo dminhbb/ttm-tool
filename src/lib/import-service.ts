@@ -151,7 +151,7 @@ export interface ImportBatch {
   status: 'SUCCESS' | 'FAILED' | 'COMPLETED_WITH_WARNINGS';
   /** Rows dropped by "Từ chối import" (from metadata_json; 0 for batches imported before it). */
   deniedRows: number;
-  /** The batch's issue rows are all still stored — it is one of the 15 newest import days (data-layer-retention.ts). Older batches keep only the versions in force at the weekly snapshot dates. */
+  /** The batch's issue rows are all still stored — it is one of the 30 newest import days (data-layer-retention.ts). Older batches keep only the versions in force at the weekly snapshot dates. */
   hasFullData: boolean;
 }
 

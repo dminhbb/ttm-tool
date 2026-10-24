@@ -1424,7 +1424,7 @@
       <p>
         Từ 23/10/2026 hai bảng snapshot (<code>epic_ttm_snapshots</code>, <code>issue_daily_snapshots</code>) và panel “Nhật ký lớp dữ liệu tổng hợp (Epic)” (Xoá / Chạy lại) đã được gỡ:
         các bảng này chỉ là bản sao của <code>issues</code> và không màn hình nào đọc chúng. Lịch sử Issue (lớp dữ liệu cũ, bằng chứng rule B của Từ chối import) vì vậy chỉ tồn tại
-        trong <code>issues</code> theo thời hạn lưu ở mục 6.1 (từ 24/10/2026 được làm thưa mỗi ngày: đầy đủ 15 ngày import gần nhất, xa hơn chỉ phiên bản có hiệu lực vào ngày làm việc cuối mỗi tuần và phiên bản mới nhất của mỗi issue; màn chọn ngày đọc &quot;trạng thái tại ngày X&quot;); dòng thời gian cảnh báo (<code>epic_alert_timeline</code>) vẫn được giữ sau khi raw bị dọn.
+        trong <code>issues</code> theo thời hạn lưu ở mục 6.1 (từ 24/10/2026 được làm thưa mỗi ngày: đầy đủ 30 ngày import gần nhất, xa hơn chỉ phiên bản có hiệu lực vào ngày làm việc cuối mỗi tuần và phiên bản mới nhất của mỗi issue; màn chọn ngày đọc &quot;trạng thái tại ngày X&quot;); dòng thời gian cảnh báo (<code>epic_alert_timeline</code>) vẫn được giữ sau khi raw bị dọn.
       </p>
       <h3>6.3. Xoá N lớp dữ liệu gần nhất</h3>
       <p>
@@ -1786,7 +1786,7 @@
       <h3>11.6. Báo cáo Epic (<code>/reports</code>) — mọi role đã đăng nhập</h3>
       <p>
         Màn hình báo cáo theo <strong>từng dự án</strong> (không gộp nhiều dự án như Dashboard) — đây là mục đầu tiên trong nhóm &quot;Giám sát&quot; trên sidebar. Người dùng
-        chọn 1 Dự án, tùy chọn lọc thêm Domain/Component/khoảng ngày, và chọn <strong>1 ngày</strong> trong các ngày được giữ chi tiết (15 ngày import gần nhất và ngày làm việc cuối mỗi tuần)
+        chọn 1 Dự án, tùy chọn lọc thêm Domain/Component/khoảng ngày, và chọn <strong>1 ngày</strong> trong các ngày được giữ chi tiết (30 ngày import gần nhất và ngày làm việc cuối mỗi tuần)
         để xem <strong>trạng thái của mọi Epic tại ngày đó</strong>. Dùng lại đúng engine tính cảnh báo/tuân thủ/sai lệch dữ liệu (Epic Scoring Service, <code>scoreEpic</code>) với 3 màn hình giám sát Epic ở trên — không tính lại bằng công thức riêng.
       </p>
       <p>Kết quả gộp Epic của dự án vào 6 danh sách:</p>

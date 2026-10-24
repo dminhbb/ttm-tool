@@ -6,7 +6,7 @@ const MAX_RETENTION_DAYS = 3650;
 
 export interface CleanupPreview {
   cutoffDate: string;
-  /** First day of the dense zone (the 15 newest import days) — every version from it on is kept. */
+  /** First day of the dense zone (the 30 newest import days) — every version from it on is kept. */
   denseStart: string | null;
   /** Import batches past the retention that would be left without any issue row, and removed. */
   emptyBatchCount: number;
@@ -36,7 +36,7 @@ function assertValidRetentionDays(retentionDays: number): void {
 
 /**
  * Manual run of the same history retention the daily job applies (data-layer-retention.ts), with its own
- * number of days. Beyond the 15 newest import days only the version in force at each weekly snapshot date is
+ * number of days. Beyond the 30 newest import days only the version in force at each weekly snapshot date is
  * kept, plus the newest version of every issue — so an Epic nobody touched for months never disappears.
  * epic_alert_timeline is untouched (its FK to import_batches is ON DELETE SET NULL).
  */

@@ -65,7 +65,7 @@ export interface PurgeRecentLayersResult {
 
 /**
  * Deletes the import batches of the N most recent data layers; issues cascade
- * automatically (ON DELETE CASCADE). epic_alert_timeline runs are not date-bound layers and are left alone. Only the 15 newest import days are guaranteed to hold their rows in full (data-layer-retention.ts).
+ * automatically (ON DELETE CASCADE). epic_alert_timeline runs are not date-bound layers and are left alone. Only the 30 newest import days are guaranteed to hold their rows in full (data-layer-retention.ts).
  */
 export async function purgeRecentLayers(layerCount: number): Promise<PurgeRecentLayersResult> {
   const { targetDates } = await resolveTargetDates(layerCount);

@@ -147,7 +147,7 @@ export interface EpicAlertEntry {
 export interface EpicAlertContext {
   accessRole: EpicAlertAccessRole;
   /** The dates the "Chọn lớp dữ liệu" filter offers, newest first: the import days of the dense zone
-   * (15 newest) and the weekly snapshot dates (data-layer-retention.ts). The newest 5 are quick-pick chips,
+   * (30 newest) and the weekly snapshot dates (data-layer-retention.ts). The newest 5 are quick-pick chips,
    * every older one sits in a dropdown beside them. */
   availableLayerDates: string[];
   /** Selectable date without an import that day → the import day its state comes from. */

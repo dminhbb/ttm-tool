@@ -6,7 +6,7 @@ import { daysBefore, DENSE_IMPORT_DAYS, layerDateSources, retentionAnchors, week
 
 /**
  * Daily retention of the `issues` history — the rules are explained in data-layer-retention.ts:
- * every version of the 15 newest import days, then only the version in force at each weekly snapshot date
+ * every version of the 30 newest import days, then only the version in force at each weekly snapshot date
  * (last working day of the week) up to the RAW retention, plus the newest version of every issue.
  * A selectable "layer" on any screen is therefore an import day of the dense zone or a snapshot date, and the
  * screens read "the state at that date".
@@ -34,7 +34,7 @@ async function recentImportDates(db: Db, limit: number): Promise<string[]> {
   return result.rows.map((row) => row.d);
 }
 
-/** First day of the dense zone — the oldest of the 15 newest import days — or null before the first import. */
+/** First day of the dense zone — the oldest of the 30 newest import days — or null before the first import. */
 export async function getDenseZoneStart(db: Db = pool): Promise<string | null> {
   const dates = await recentImportDates(db, DENSE_IMPORT_DAYS);
   return dates.length === 0 ? null : dates[dates.length - 1];

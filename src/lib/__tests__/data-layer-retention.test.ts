@@ -40,8 +40,8 @@ describe('layerDateSources ("lấy từ lần import ngày X")', () => {
 });
 
 describe('dense zone', () => {
-  it('starts at the oldest of the 15 newest import days; with fewer imports than that it starts at the first', () => {
-    const dates = Array.from({ length: 20 }, (_, index) => daysBefore('2026-10-23', index));
+  it('starts at the oldest of the 30 newest import days; with fewer imports than that it starts at the first', () => {
+    const dates = Array.from({ length: DENSE_IMPORT_DAYS + 5 }, (_, index) => daysBefore('2026-10-23', index));
     assert.equal(denseZoneStart(dates), daysBefore('2026-10-23', DENSE_IMPORT_DAYS - 1));
     assert.equal(denseZoneStart(['2026-10-01', '2026-10-02']), '2026-10-01');
     assert.equal(denseZoneStart([]), null);

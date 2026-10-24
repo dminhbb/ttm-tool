@@ -81,7 +81,7 @@ export interface ReportResult {
 }
 
 /**
- * The dates a report can be run for, newest first: the 15 newest import days and the weekly snapshot dates
+ * The dates a report can be run for, newest first: the 30 newest import days and the weekly snapshot dates
  * (data-layer-retention.ts). The "Chọn lớp dữ liệu" filter shows the newest 5 as quick-pick chips and every
  * older one in a dropdown beside them.
  */

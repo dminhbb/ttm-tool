@@ -112,7 +112,7 @@ mặc định, dưới thanh filter chính) cung cấp thêm (`src/lib/epic-aler
 `EpicAlertFilters`):
 
 - **Chọn lớp dữ liệu** — chip chọn 1 trong 5 ngày gần nhất, cộng dropdown cho các ngày cũ hơn
-  (`availableLayerDates` = 15 ngày import gần nhất + các ngày làm việc cuối tuần đã lưu, xem `brd/08-data-model.md` §19).
+  (`availableLayerDates` = 30 ngày import gần nhất + các ngày làm việc cuối tuần đã lưu, xem `brd/08-data-model.md` §19).
   Chọn ngày X hiển thị **trạng thái của mọi Epic tại ngày X** (phiên bản mới nhất có `aggregated_at::date <= X`) và đánh giá
   cảnh báo tại ngày X. Mặc định là hôm nay. Chọn ngày cũ có thêm ô **"Chỉ Epic đã thay đổi từ ngày X đến hôm nay"**
   (`changedSinceOnly`): giữ các Epic có dữ liệu (status, ngày, tên, component…) hoặc kết luận (Fail/Muộn, Fail TTM-E2E, Sai lệch dữ liệu) khác hôm nay;

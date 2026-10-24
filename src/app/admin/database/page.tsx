@@ -343,7 +343,7 @@ export default function DatabaseBackupPage() {
 
   const handleCleanupExecute = async () => {
     if (!cleanupPreview) return;
-    if (!(await confirmDialog({ title: 'Dọn lịch sử issues', description: `Xóa vĩnh viễn ${formatNumber(cleanupPreview.issueVersionCount)} phiên bản issues cũ? Phiên bản mới nhất của mỗi issue và dữ liệu 15 ngày import gần nhất được giữ nguyên, dòng thời gian cảnh báo cũng vậy.`, confirmLabel: 'Xóa vĩnh viễn' }))) return;
+    if (!(await confirmDialog({ title: 'Dọn lịch sử issues', description: `Xóa vĩnh viễn ${formatNumber(cleanupPreview.issueVersionCount)} phiên bản issues cũ? Phiên bản mới nhất của mỗi issue và dữ liệu 30 ngày import gần nhất được giữ nguyên, dòng thời gian cảnh báo cũng vậy.`, confirmLabel: 'Xóa vĩnh viễn' }))) return;
     setIsCleaning(true);
     setMessage(null);
     try {
@@ -629,7 +629,7 @@ export default function DatabaseBackupPage() {
             </CardHeader>
             <CardBody className="gap-4">
               <p className="text-fb-text-secondary">
-                Cùng việc làm thưa lịch sử <code>issues</code> mà hệ thống tự chạy mỗi ngày: giữ nguyên mọi phiên bản của <strong>15 ngày import gần nhất</strong>;
+                Cùng việc làm thưa lịch sử <code>issues</code> mà hệ thống tự chạy mỗi ngày: giữ nguyên mọi phiên bản của <strong>30 ngày import gần nhất</strong>;
                 xa hơn chỉ giữ phiên bản đang có hiệu lực vào <strong>ngày làm việc cuối mỗi tuần</strong> (trong số ngày chọn bên dưới) và <strong>phiên bản mới nhất của mỗi issue</strong>,
                 nên Epic lâu không cập nhật vẫn hiển thị. Dòng thời gian cảnh báo (<code>epic_alert_timeline</code>) <strong>không bị xóa</strong>.
               </p>

@@ -109,7 +109,7 @@ are declared once in `src/lib/scoring/catalog.ts`; the "Logic cảnh báo" popup
 
 # History of `issues` — dense zone + weekly snapshot dates
 
-`issues` keeps every version (row) of the 15 newest import days and, beyond them, only the version in force on
+`issues` keeps every version (row) of the 30 newest import days and, beyond them, only the version in force on
 each weekly snapshot date (last working day of the week, table `data_snapshot_dates`) up to
 `data_retention_configs.raw_import_retention_days`, plus the newest version of every issue
 (`src/lib/data-layer-retention.ts`, `data-layer-retention-service.ts`; the daily job `runDailyHousekeeping`).

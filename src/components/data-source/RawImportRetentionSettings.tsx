@@ -87,7 +87,7 @@ export function RawImportRetentionSettings() {
       </CardHeader>
       <CardBody className="gap-4">
         <p className="text-fb-text-secondary">
-          Dữ liệu raw gồm batch import và các phiên bản issues. Mỗi ngày hệ thống giữ đầy đủ 15 ngày import gần nhất; xa hơn chỉ giữ phiên bản đang có hiệu lực vào ngày làm việc cuối mỗi tuần, trong số ngày cấu hình bên dưới, và luôn giữ phiên bản mới nhất của mỗi issue (Epic lâu không cập nhật vẫn hiển thị).
+          Dữ liệu raw gồm batch import và các phiên bản issues. Mỗi ngày hệ thống giữ đầy đủ 30 ngày import gần nhất; xa hơn chỉ giữ phiên bản đang có hiệu lực vào ngày làm việc cuối mỗi tuần, trong số ngày cấu hình bên dưới, và luôn giữ phiên bản mới nhất của mỗi issue (Epic lâu không cập nhật vẫn hiển thị).
         </p>
         <Input
           className="max-w-[180px]"

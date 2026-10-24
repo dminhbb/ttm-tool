@@ -477,7 +477,7 @@ updated_at
 Chỉ SUPERADMIN được cập nhật. `raw_import_retention_days` là tầm xem lùi xa nhất của lịch sử `issues` (mặc định cài đặt 200 ngày).
 
 **Lịch sử `issues` được làm thưa mỗi ngày (24/10/2026, `data-layer-retention.ts` / `data-layer-retention-service.ts`, chạy trong job dọn dẹp đầu ngày):**
-(1) giữ đầy đủ mọi phiên bản của **15 ngày import gần nhất** ("vùng dày"); (2) xa hơn chỉ giữ, cho mỗi issue, **phiên bản đang có hiệu lực** vào **ngày làm việc cuối mỗi tuần**
+(1) giữ đầy đủ mọi phiên bản của **30 ngày import gần nhất** ("vùng dày"); (2) xa hơn chỉ giữ, cho mỗi issue, **phiên bản đang có hiệu lực** vào **ngày làm việc cuối mỗi tuần**
 (bảng `data_snapshot_dates`, ghi một lần khi tuần đã qua và không đổi nữa dù sửa lịch nghỉ) trong số ngày `raw_import_retention_days`, cộng phiên bản đầu vùng dày làm "neo";
 (3) **phiên bản mới nhất của mỗi issue luôn được giữ**, kể cả khi cũ hơn thời hạn — Epic lâu không cập nhật vẫn hiển thị. Mọi màn hình chọn ngày chỉ đọc
 **"trạng thái tại ngày X"** (phiên bản mới nhất có `aggregated_at::date <= X`) và chỉ cho chọn các ngày của vùng dày và các ngày mốc tuần

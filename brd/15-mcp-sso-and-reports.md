@@ -18,7 +18,7 @@ Khác với Dashboard (gộp nhiều dự án theo tỷ lệ %), đây là báo 
 điểm, dùng để tra cứu/in ấn/đối chiếu theo lớp dữ liệu:
 
 - Bộ lọc: Dự án (bắt buộc, chọn 1), Domain, Component, khoảng ngày (Epic tạo mới từ/Epic start từ/
-  Epic golive sau), và chọn **1 ngày** trong các ngày được giữ chi tiết (15 ngày import gần nhất + ngày làm việc cuối mỗi tuần;
+  Epic golive sau), và chọn **1 ngày** trong các ngày được giữ chi tiết (30 ngày import gần nhất + ngày làm việc cuối mỗi tuần;
   `getReportLayerDates()`, `src/lib/reports-service.ts`): báo cáo hiển thị **trạng thái của mọi Epic của dự án tại ngày đó**
   (tham số `stateDate`; báo cáo so sánh dùng `compareStateDate`).
 - Engine tính toán dùng lại nguyên vẹn — **không** viết công thức riêng: mỗi Epic của báo cáo được chấm
