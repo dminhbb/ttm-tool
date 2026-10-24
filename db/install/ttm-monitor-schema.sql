@@ -1,9 +1,9 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-23T16:01:51.833Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-24T06:11:51.272Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
--- Gồm: 58 bảng, 59 index phụ, 4 hàm, 4 trigger.
+-- Gồm: 58 bảng, 57 index phụ, 4 hàm, 4 trigger.
 -- Yêu cầu: PostgreSQL 14 trở lên, một database RỖNG (không dùng cho DB đã có bảng — sẽ báo lỗi và không
 -- tạo gì vì cả file chạy trong một transaction). Không cần extension nào.
 --
@@ -184,21 +184,6 @@ CREATE TABLE domains (
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT domains_pkey PRIMARY KEY (id),
     CONSTRAINT domains_domain_code_key UNIQUE (domain_code)
-);
-
-CREATE TABLE epic_alert_history (
-    id SERIAL,
-    epic_key character varying(50) NOT NULL,
-    alert_type character varying(10) NOT NULL,
-    alert_status character varying(50) NOT NULL,
-    alert_date date NOT NULL,
-    source_import_batch_id integer,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    phase character varying(20) DEFAULT 'OVERALL'::character varying NOT NULL,
-    CONSTRAINT epic_alert_history_pkey PRIMARY KEY (id),
-    CONSTRAINT epic_alert_history_epic_key_alert_date_alert_type_phase_key UNIQUE (epic_key, alert_date, alert_type, phase),
-    CONSTRAINT epic_alert_history_alert_type_check CHECK (((alert_type)::text = ANY ((ARRAY['LATE'::character varying, 'FAIL'::character varying])::text[]))),
-    CONSTRAINT epic_alert_history_phase_check CHECK (((phase)::text = ANY ((ARRAY['OVERALL'::character varying, 'DESIGN'::character varying, 'DEV'::character varying, 'TEST'::character varying, 'PENTEST'::character varying, 'R4GOLIVE'::character varying])::text[])))
 );
 
 CREATE TABLE epic_alert_row_cache (
@@ -787,6 +772,15 @@ CREATE TABLE users (
     CONSTRAINT users_role_check CHECK (((role)::text = ANY ((ARRAY['SUPERADMIN'::character varying, 'ADMIN'::character varying, 'SUPERVISOR'::character varying, 'USER'::character varying])::text[])))
 );
 
+CREATE TABLE visit_log_rollups (
+    event_type character varying(20) NOT NULL,
+    screen_key character varying(50) DEFAULT ''::character varying NOT NULL,
+    user_id integer DEFAULT 0 NOT NULL,
+    visit_count bigint DEFAULT 0 NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT visit_log_rollups_pkey PRIMARY KEY (event_type, screen_key, user_id)
+);
+
 CREATE TABLE visit_logs (
     id BIGSERIAL,
     event_type character varying(20) NOT NULL,
@@ -803,8 +797,6 @@ CREATE INDEX idx_api_keys_active ON api_keys USING btree (is_active);
 CREATE INDEX idx_auth_sessions_user_expiry ON auth_sessions USING btree (user_id, expires_at);
 CREATE INDEX idx_black_listed_epics_project_key ON black_listed_epics USING btree (project_key);
 CREATE INDEX idx_denied_import_epics_project_key ON denied_import_epics USING btree (project_key);
-CREATE INDEX idx_epic_alert_history_alert_date ON epic_alert_history USING btree (alert_date);
-CREATE INDEX idx_epic_alert_history_epic_key ON epic_alert_history USING btree (epic_key);
 CREATE INDEX idx_epic_alert_row_cache_alert_level ON epic_alert_row_cache USING btree (alert_level);
 CREATE INDEX idx_epic_alert_row_cache_badge_codes ON epic_alert_row_cache USING gin (badge_codes);
 CREATE INDEX idx_epic_alert_row_cache_current_status ON epic_alert_row_cache USING btree (current_status);
@@ -871,7 +863,6 @@ ALTER TABLE daily_cache_runs ADD CONSTRAINT daily_cache_runs_source_import_batch
 ALTER TABLE daily_cache_runs ADD CONSTRAINT daily_cache_runs_triggered_by_user_id_fkey FOREIGN KEY (triggered_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE dashboard_view_settings ADD CONSTRAINT dashboard_view_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE denied_import_epics ADD CONSTRAINT denied_import_epics_added_by_user_id_fkey FOREIGN KEY (added_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE epic_alert_history ADD CONSTRAINT epic_alert_history_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
 ALTER TABLE epic_alert_timeline ADD CONSTRAINT epic_alert_timeline_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
 ALTER TABLE epic_data_anomaly_violations ADD CONSTRAINT epic_data_anomaly_violations_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
 ALTER TABLE epic_milestone_history ADD CONSTRAINT epic_milestone_history_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
@@ -1018,7 +1009,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 91 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 93 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1111,7 +1102,9 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261019c_add_epic_deletion_scope_indexes.sql'),
     ('20261019d_add_users_unique_username_index.sql'),
     ('20261020_sync_project_type_on_category_cleared.sql'),
-    ('20261023_drop_issue_snapshot_tables.sql');
+    ('20261023_drop_issue_snapshot_tables.sql'),
+    ('20261024_create_visit_log_rollups.sql'),
+    ('20261024b_drop_epic_alert_history.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1356,7 +1349,7 @@ WHERE current_setting('ttm_install.seed_data', true) = 'on';
 -- derived_cache_refresh_lock (1 dòng)
 INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at)
 SELECT * FROM (VALUES
-    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-10-23 15:58:55.147936+00'::timestamp with time zone)
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-10-24 03:04:09.827502+00'::timestamp with time zone)
 ) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 

@@ -1,10 +1,10 @@
 # TTM Monitor — ERD & từ điển dữ liệu
 
-> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-10-23.
+> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-10-24.
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
-**58 bảng** trong schema `public`, **46 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
+**58 bảng** trong schema `public`, **45 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
 
 ## Mục lục
 
@@ -14,12 +14,12 @@
 4. [Import & Issue](#4-import-issue) — 5 bảng
 5. [Cấu hình TTM, lịch & phạm vi](#5-cấu-hình-ttm-lịch-phạm-vi) — 7 bảng
 6. [Epic Scoring Service](#6-epic-scoring-service) — 4 bảng
-7. [Lịch sử & snapshot](#7-lịch-sử-snapshot) — 4 bảng
+7. [Lịch sử & snapshot](#7-lịch-sử-snapshot) — 3 bảng
 8. [Cache dữ liệu dẫn xuất](#8-cache-dữ-liệu-dẫn-xuất) — 5 bảng
 9. [Cấu hình hệ thống](#9-cấu-hình-hệ-thống) — 4 bảng
 10. [Popup & Banner thông báo](#10-popup-banner-thông-báo) — 3 bảng
 11. [SSO, API Key & MCP Server](#11-sso-api-key-mcp-server) — 7 bảng
-12. [Nhật ký & thống kê sử dụng](#12-nhật-ký-thống-kê-sử-dụng) — 3 bảng
+12. [Nhật ký & thống kê sử dụng](#12-nhật-ký-thống-kê-sử-dụng) — 4 bảng
 13. [Danh sách khoá ngoại](#13-danh-sách-khoá-ngoại)
 
 ## 1. Xác thực & phân quyền
@@ -1037,16 +1037,6 @@ Kết quả mỗi lần đối chiếu Scoring Service với engine cũ (số Ep
 
 ```mermaid
 erDiagram
-    epic_alert_history {
-        int id PK
-        varchar epic_key
-        varchar alert_type
-        varchar alert_status
-        date alert_date
-        int source_import_batch_id FK
-        timestamptz created_at
-        varchar phase
-    }
     epic_alert_timeline {
         int id PK
         varchar epic_key
@@ -1081,34 +1071,12 @@ erDiagram
     import_batches {
         int id PK
     }
-    import_batches |o--o{ epic_alert_history : "source_import_batch_id"
     import_batches |o--o{ epic_alert_timeline : "source_import_batch_id"
     import_batches |o--o{ epic_milestone_history : "source_import_batch_id"
     import_batches |o--o{ epic_data_anomaly_violations : "source_import_batch_id"
 ```
 
 Bảng tham chiếu ngoài nhóm (chỉ vẽ khoá chính): `import_batches`.
-
-### `epic_alert_history`
-
-Tích lũy lịch sử các lần Epic bị Cảnh báo muộn hoặc Fail TTM-CNTT qua các đợt import.
-
-| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
-|---|---|---|---|---|---|
-| `id` | int (tự tăng) | không |  | PK |  |
-| `epic_key` | varchar(50) | không |  |  |  |
-| `alert_type` | varchar(10) | không |  |  |  |
-| `alert_status` | varchar(50) | không |  |  |  |
-| `alert_date` | date | không |  |  |  |
-| `source_import_batch_id` | int | có |  | FK → import_batches(id) |  |
-| `created_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
-| `phase` | varchar(20) | không | 'OVERALL'::character varying |  |  |
-
-- UNIQUE (epic_key, alert_date, alert_type, phase)
-- `epic_alert_history_alert_type_check`: CHECK (((alert_type)::text = ANY ((ARRAY['LATE'::character varying, 'FAIL'::character varying])::text[])))
-- `epic_alert_history_phase_check`: CHECK (((phase)::text = ANY ((ARRAY['OVERALL'::character varying, 'DESIGN'::character varying, 'DEV'::character varying, 'TEST'::character varying, 'PENTEST'::character varying, 'R4GOLIVE'::character varying])::text[])))
-- index `idx_epic_alert_history_alert_date`: btree (alert_date)
-- index `idx_epic_alert_history_epic_key`: btree (epic_key)
 
 ### `epic_alert_timeline`
 
@@ -1782,6 +1750,13 @@ erDiagram
         int user_id FK
         timestamptz created_at
     }
+    visit_log_rollups {
+        varchar event_type PK
+        varchar screen_key PK
+        int user_id PK
+        bigint visit_count
+        timestamptz updated_at
+    }
     users {
         int id PK
     }
@@ -1836,6 +1811,18 @@ Ghi nhận nhật ký lượt đăng nhập ứng dụng (APP_LOGIN) và lượt
 - index `idx_visit_logs_type_created`: btree (event_type, created_at)
 - index `idx_visit_logs_user_created`: btree (user_id, created_at)
 
+### `visit_log_rollups`
+
+Số lượt truy cập LŨY KẾ của các dòng `visit_logs` cũ hơn ngày T-15 (đã bị cuốn vào đây rồi xóa; theo `event_type`, `screen_key`, `user_id`) để các số "Tổng (lũy kế)" của Visit Counter không tụt khi job dọn dẹp xóa dòng cũ. `screen_key=''`: không có màn hình; `user_id=0`: user đã bị xóa.
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `event_type` | varchar(20) | không |  | PK |  |
+| `screen_key` | varchar(50) | không | ''::character varying | PK |  |
+| `user_id` | int | không | 0 | PK |  |
+| `visit_count` | bigint | không | 0 |  |  |
+| `updated_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
+
 ## 13. Danh sách khoá ngoại
 
 | Bảng con | Cột | Tham chiếu | ON DELETE |
@@ -1849,7 +1836,6 @@ Ghi nhận nhật ký lượt đăng nhập ứng dụng (APP_LOGIN) và lượt
 | `daily_cache_runs` | triggered_by_user_id | `users`(id) | SET NULL |
 | `dashboard_view_settings` | updated_by_user_id | `users`(id) | SET NULL |
 | `denied_import_epics` | added_by_user_id | `users`(id) | SET NULL |
-| `epic_alert_history` | source_import_batch_id | `import_batches`(id) | SET NULL |
 | `epic_alert_timeline` | source_import_batch_id | `import_batches`(id) | SET NULL |
 | `epic_data_anomaly_violations` | source_import_batch_id | `import_batches`(id) | SET NULL |
 | `epic_milestone_history` | source_import_batch_id | `import_batches`(id) | SET NULL |
