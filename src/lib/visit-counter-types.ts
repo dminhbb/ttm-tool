@@ -8,6 +8,14 @@ export const SCREEN_NAMES: Record<ScreenKey, string> = {
 
 export const TRACKED_SCREEN_KEYS: ScreenKey[] = ['ttm_dashboard_2', 'epic_alerts', 'epic_reports'];
 
+/**
+ * How far back (Vietnam calendar days before today, T) the Visit Counter needs per-event detail: the
+ * "tuần trước" comparison is T-15 → T-8 against "tuần này" T-7 → T. visit_logs keeps exactly this window;
+ * the housekeeping job folds every older row into visit_log_rollups (the cumulative totals) and deletes
+ * it. getDetailedVisitStats builds its longest lookback from this constant, so the two cannot drift.
+ */
+export const VISIT_DETAIL_WINDOW_DAYS = 15;
+
 export interface RecentLoginUser {
   userId: number;
   username: string;

@@ -6,6 +6,15 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-10-24
+
+- **Visit Counter: chi tiết chỉ giữ T-15 → T, cũ hơn cuốn vào lũy kế** (thay cho mốc 90 ngày của bullet "Job dọn dẹp" bên dưới, vẫn còn 90 ngày cho `audit_logs`/`user_usage_daily_stats`): `housekeeping-service.ts` cuốn mọi `visit_logs` trước 00:00 (giờ VN) ngày T-15 vào `visit_log_rollups` (lũy kế toàn ứng dụng / từng màn hình / từng user) rồi xóa; `VISIT_DETAIL_WINDOW_DAYS = 15` (`visit-counter-types.ts`) vừa là mốc xóa vừa sinh ra khoảng "tuần trước" T-15→T-8 trong `getDetailedVisitStats` nên hai bên không lệch. Đã kiểm chứng trên dữ liệu thật (ROLLBACK): cuốn 1.388 dòng cũ nhưng tổng app/màn hình/user, tuần này, tuần trước, hôm nay, trend 8 ngày đều giống hệt trước khi cuốn.
+- **Gộp `epic_alert_history` vào `epic_alert_timeline` (chờ DROP)**: bảng ngày-theo-ngày này trùng chức năng với các đợt timeline (cùng 232 Epic; chỉ lệch 2 dòng cũ ngày 07/09):
+  - Rule "Epic Released chỉ hiện nếu từng có cảnh báo" nay dùng `getEpicKeysWithCnttAlertRuns()` (`epic-alert-timeline-service.ts`); API `GET /api/epic-alerts-15/[epicKey]/alert-history` trả `alerts` (các đợt Fail/Cảnh báo muộn TTM-CNTT + status) thay cho `history`; `EpicBrowser.tsx` vẽ mỗi đợt một cột "từ → đến/nay".
+  - `import-service.ts` ngừng ghi `epic_alert_history`; `detail` của đợt `FAIL_TTM_CNTT`/`LATE_TTM_CNTT` có thêm `status` (đặt TRƯỚC fromDate/targetDate để so sánh JSON không ghi lại mọi đợt mỗi lần import). Gỡ `epic-alert-history-service.ts` và đường ghi cảnh báo theo pha Epic 15 (đã tắt từ trước, `ALERT_HISTORY_RECORDING_ENABLED`). Bỏ bảng khỏi Epic deletion, xóa N lớp, sao lưu (nhóm `alert`), `lastBatchId` thừa trong `EpicAlertContext`.
+  - Migration `20261024b_drop_epic_alert_history.sql` (+down): backfill `detail.status` cho 316 đợt từ lịch sử rồi `DROP TABLE`. **Chỉ chạy SAU khi code mới đã deploy** (đã dry-run trong transaction rồi ROLLBACK). Sau đó chạy `npm run db:export-schema -- --target=supabase` và áp dụng cả `db:migrate:local`.
+- **Job dọn dẹp hằng ngày + retention 90 ngày** (`src/lib/housekeeping-service.ts`, gọi cuối `runDailyCacheRefresh` nên chạy 1 lần/ngày VN, từng bước độc lập): xóa `auth_sessions` hết hạn; xóa `audit_logs` > 90 ngày; cuốn `visit_logs` > 90 ngày vào bảng mới `visit_log_rollups` (migration `20261024_create_visit_log_rollups.sql`, ĐÃ áp dụng Supabase) rồi xóa — `visit-counter-service.ts` cộng rollup vào mọi số "Tổng (lũy kế)" (footer, Visit Counter, theo màn hình, theo user) nên không tụt; `USAGE_STATS_RETENTION_DAYS` 30 → 90 và `purgeExpiredUsageStats` export để job gọi. Đã kiểm chứng tổng không đổi sau cuốn (transaction ROLLBACK).
+
 ## 2026-10-23
 
 - **Gỡ bảng `issue_daily_snapshots` + `epic_ttm_snapshots` (giảm ~33 MB, chờ DROP)**: hai bảng này là bản sao từng dòng của `issues` và không màn hình nào hiển thị dữ liệu của chúng; lịch sử Issue từ nay chỉ còn trong `issues` theo retention RAW (hiện 200 ngày):

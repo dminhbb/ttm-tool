@@ -87,7 +87,6 @@
       "fill": "#eaf0ff",
       "ink": "#25406f",
       "tables": [
-        "epic_alert_history",
         "epic_alert_timeline",
         "epic_milestone_history",
         "epic_data_anomaly_violations"
@@ -152,7 +151,8 @@
       "tables": [
         "audit_logs",
         "user_usage_daily_stats",
-        "visit_logs"
+        "visit_logs",
+        "visit_log_rollups"
       ]
     }
   ],
@@ -341,10 +341,6 @@
       "description": "Kết quả mỗi lần đối chiếu Scoring Service với engine cũ (số Epic khớp / lệch có chủ đích / chưa giải thích được, chi tiết JSON).",
       "columns": {}
     },
-    "epic_alert_history": {
-      "description": "Tích lũy lịch sử các lần Epic bị Cảnh báo muộn hoặc Fail TTM-CNTT qua các đợt import.",
-      "columns": {}
-    },
     "epic_alert_timeline": {
       "description": "Theo dõi 5 loại cảnh báo dưới dạng các đợt (run) có khoảng ngày bắt đầu/kết thúc liên tục.",
       "columns": {}
@@ -443,6 +439,10 @@
     },
     "visit_logs": {
       "description": "Ghi nhận nhật ký lượt đăng nhập ứng dụng (APP_LOGIN) và lượt xem 3 màn hình trọng điểm (SCREEN_VIEW cho TTM Dashboard 2, Quản trị Epic, Báo cáo Epic) phục vụ tính năng Visit Counter (mục 18).",
+      "columns": {}
+    },
+    "visit_log_rollups": {
+      "description": "Số lượt truy cập LŨY KẾ của các dòng <code>visit_logs</code> cũ hơn ngày T-15 (đã bị cuốn vào đây rồi xóa; theo <code>event_type</code>, <code>screen_key</code>, <code>user_id</code>) để các số \"Tổng (lũy kế)\" của Visit Counter không tụt khi job dọn dẹp xóa dòng cũ. <code>screen_key=''</code>: không có màn hình; <code>user_id=0</code>: user đã bị xóa.",
       "columns": {}
     }
   },

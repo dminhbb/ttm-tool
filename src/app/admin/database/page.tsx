@@ -466,9 +466,7 @@ export default function DatabaseBackupPage() {
           <CardBody className="gap-4">
             <div className="flex flex-col gap-3 rounded-xl border border-fb-border bg-fb-surface-muted p-4">
               <p className="text-fb-text-secondary">
-                Chọn một khoảng lớp dữ liệu liên tiếp (theo ngày <code>aggregated_at</code>) — export luôn bao gồm dữ liệu cảnh báo
-                (<code>epic_alert_history</code>) và
-                dữ liệu lịch sử Epic (<code>epic_alert_timeline</code>, <code>epic_milestone_history</code>) trong khoảng đã chọn; bật
+                Chọn một khoảng lớp dữ liệu liên tiếp (theo ngày <code>aggregated_at</code>) — export luôn bao gồm dữ liệu lịch sử Epic (<code>epic_alert_timeline</code>, <code>epic_milestone_history</code>) trong khoảng đã chọn; bật
                 &quot;Export Raw Data&quot; để gộp thêm dữ liệu gốc (<code>issues</code>, <code>import_rows</code>, <code>import_batches</code>).
               </p>
               <div className="flex flex-wrap items-end gap-3">
@@ -641,7 +639,7 @@ export default function DatabaseBackupPage() {
               <p className="text-fb-text-secondary">
                 Xóa các đợt import cũ hơn số ngày chọn bên dưới (kéo theo <code>issues</code> và <code>import_rows</code> của đợt đó, do quan hệ cascade).
                 Đợt import <strong>mới nhất luôn được giữ lại</strong> dù có cũ hơn ngưỡng, để dữ liệu hiện tại không bao giờ bị ảnh hưởng.
-                Lịch sử cảnh báo (<code>epic_alert_history</code>, <code>epic_alert_timeline</code>) <strong>không bị xóa</strong>; lịch sử Issue chỉ còn trong <code>issues</code> theo thời hạn lưu.
+                Dòng thời gian cảnh báo (<code>epic_alert_timeline</code>) <strong>không bị xóa</strong>; lịch sử Issue chỉ còn trong <code>issues</code> theo thời hạn lưu.
               </p>
               <div className="flex items-end gap-3">
                 <Input

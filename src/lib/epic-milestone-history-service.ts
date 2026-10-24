@@ -11,8 +11,8 @@ export interface EpicMilestoneHistoryEntry {
 }
 
 /**
- * Appends the date an Epic first reached an internal milestone. Unlike epic_alert_history (which
- * accumulates a new row every time it re-triggers), a milestone is a one-time fact — ON CONFLICT
+ * Appends the date an Epic first reached an internal milestone. Unlike an epic_alert_timeline run
+ * (which is extended while the alert stays active), a milestone is a one-time fact — ON CONFLICT
  * DO NOTHING keeps the originally detected date instead of drifting forward on later re-runs.
  */
 export async function recordEpicMilestone(

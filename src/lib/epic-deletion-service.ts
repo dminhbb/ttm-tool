@@ -81,7 +81,6 @@ const TABLE_TARGETS: readonly TableTarget[] = [
     }),
   },
   { label: 'Issues (RAW, mọi lớp)', table: 'issues', where: byIssueKey },
-  { label: 'Lịch sử cảnh báo Epic', table: 'epic_alert_history', where: byEpicKey },
   { label: 'Dòng thời gian cảnh báo Epic', table: 'epic_alert_timeline', where: byEpicKey },
   { label: 'Mốc hoàn thành Epic', table: 'epic_milestone_history', where: byEpicKey },
   { label: 'Vi phạm sai lệch dữ liệu', table: 'epic_data_anomaly_violations', where: byEpicKey },

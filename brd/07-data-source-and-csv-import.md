@@ -99,7 +99,7 @@ cổng chặn dữ liệu đầu vào, không phải badge/verdict hiển thị 
   truy vấn chỉ đọc các issue từng trỏ tới Epic / Story đó (index `20261019c_add_epic_deletion_scope_indexes.sql`)
   thay vì tính trạng thái mới nhất của mọi issue — kết quả giữ nguyên (đã đối chiếu 385 Epic trên DB local).
 - Xóa ở: `import_rows`, `issues` (mọi batch),
-  `epic_alert_history`, `epic_alert_timeline`, `epic_milestone_history`, `epic_data_anomaly_violations`,
+  `epic_alert_timeline`, `epic_milestone_history`, `epic_data_anomaly_violations`,
   `epic_alert_row_cache`, `black_listed_epics`; ghi `audit_logs` (`EPIC_DELETION`) cho từng Epic.
 - **Không chạy lại cache** — `ttm_index_global_cache` / `ttm_dashboard_2_cache` vẫn tính Epic đã xóa cho
   tới khi admin chạy lại cache thủ công (UI hiện toast nhắc).
@@ -174,7 +174,7 @@ Không ghi trực tiếp từ CSV vào bảng nghiệp vụ chính nếu chưa v
 
 ## 5.1. Lưu trữ dài hạn và dọn raw data
 
-- Từ 2026-10-23 hai bảng snapshot `issue_daily_snapshots` / `epic_ttm_snapshots` đã được **gỡ** (chúng chỉ là bản sao từng dòng của `issues`, không màn hình nào đọc). Lịch sử Issue (lớp dữ liệu cũ, bằng chứng rule B, phạm vi Epic deletion) chỉ còn trong `issues` và mất theo retention RAW. Lịch sử cảnh báo (`epic_alert_history`, `epic_alert_timeline`) vẫn sống sau khi raw bị dọn (FK `ON DELETE SET NULL`).
+- Từ 2026-10-23 hai bảng snapshot `issue_daily_snapshots` / `epic_ttm_snapshots` đã được **gỡ** (chúng chỉ là bản sao từng dòng của `issues`, không màn hình nào đọc). Lịch sử Issue (lớp dữ liệu cũ, bằng chứng rule B, phạm vi Epic deletion) chỉ còn trong `issues` và mất theo retention RAW. Dòng thời gian cảnh báo (`epic_alert_timeline`; `epic_alert_history` đã gộp vào đây 2026-10-24) vẫn sống sau khi raw bị dọn (FK `ON DELETE SET NULL`).
 - Raw data là `import_batches`, `import_rows` và `issues` của batch. Giá trị mặc định giữ raw là 30 ngày; SUPERADMIN có thể đặt từ 7 đến 3650 ngày tại Quản trị nguồn dữ liệu.
 - Sau mỗi import được lưu, hệ thống dọn raw batch quá hạn trong cùng transaction; luôn giữ batch đang import và lớp `aggregated_at` mới nhất để trang Cảnh báo Epic không mất dữ liệu hiện hành.
 

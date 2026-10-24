@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/Input';
 
 interface PurgePreview {
   batchCount: number;
-  epicAlertHistoryCount: number;
   epicMilestoneHistoryCount: number;
   importRowCount: number;
   issueCount: number;
@@ -59,10 +58,10 @@ export function PurgeRecentLayersPanel() {
 
   const handlePurge = async () => {
     if (!preview || preview.targetDates.length === 0) return;
-    const description = `Xóa VĨNH VIỄN toàn bộ dữ liệu RAW, lịch sử cảnh báo và dữ liệu sau tổng hợp (milestone) của ${preview.targetDates.length} lớp dữ liệu gần nhất `
+    const description = `Xóa VĨNH VIỄN toàn bộ dữ liệu RAW và dữ liệu sau tổng hợp (milestone) của ${preview.targetDates.length} lớp dữ liệu gần nhất `
       + `(${formatDate(preview.targetDates[preview.targetDates.length - 1])} → ${formatDate(preview.targetDates[0])})?\n\n`
       + `Bao gồm: ${formatNumber(preview.batchCount)} đợt import, ${formatNumber(preview.issueCount)} issues, `
-      + `${formatNumber(preview.epicAlertHistoryCount)} lịch sử cảnh báo, ${formatNumber(preview.epicMilestoneHistoryCount)} milestone. Không thể hoàn tác.`;
+      + `${formatNumber(preview.epicMilestoneHistoryCount)} milestone. Không thể hoàn tác.`;
     if (!(await confirmDialog({ title: 'Xóa lớp dữ liệu gần nhất', description, confirmLabel: 'Xóa vĩnh viễn' }))) return;
 
     setIsPurging(true);
@@ -94,7 +93,7 @@ export function PurgeRecentLayersPanel() {
       </CardHeader>
       <CardBody className="gap-4">
         <Alert variant="warning" title="Thao tác không thể hoàn tác">
-          Xóa toàn bộ dữ liệu RAW (đợt import, issues), lịch sử cảnh báo (Alert History) và dữ liệu sau tổng hợp (Milestone) của các lớp dữ liệu gần nhất — kể cả khi dữ liệu import gốc đã bị dọn trước đó.
+          Xóa toàn bộ dữ liệu RAW (đợt import, issues), dữ liệu sau tổng hợp (Milestone) của các lớp dữ liệu gần nhất — kể cả khi dữ liệu import gốc đã bị dọn trước đó.
         </Alert>
 
         <Input
@@ -124,7 +123,6 @@ export function PurgeRecentLayersPanel() {
                 <li>Đợt import (RAW): <strong>{formatNumber(preview.batchCount)}</strong></li>
                 <li>Issues (RAW): <strong>{formatNumber(preview.issueCount)}</strong></li>
                 <li>Import rows (RAW): <strong>{formatNumber(preview.importRowCount)}</strong></li>
-                <li>Alert History: <strong>{formatNumber(preview.epicAlertHistoryCount)}</strong></li>
                 <li>Milestone History: <strong>{formatNumber(preview.epicMilestoneHistoryCount)}</strong></li>
               </ul>
             </div>

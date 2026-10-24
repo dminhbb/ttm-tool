@@ -522,7 +522,7 @@ CREATE INDEX IF NOT EXISTS idx_epic_alert_row_cache_badge_codes ON epic_alert_ro
 
 - Rule cần **dữ liệu mới** (field Jira mới) vẫn phải sửa import + schema `issues` — service gom phần
   "phán quyết", không gom phần thu thập dữ liệu.
-- `epic_alert_history` (lịch sử cảnh báo, hiện đang tắt ghi) không được tính lại khi đổi rule.
+- `epic_alert_timeline` (các đợt cảnh báo đã ghi) không được tính lại khi đổi rule.
 - D3: `asOf` cũ hơn thời hạn lưu trữ dữ liệu story thì không tính được hoàn thành pha → badge NOTE `PHASE_COMPLETION_UNAVAILABLE`.
 
 ---

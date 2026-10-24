@@ -9,7 +9,7 @@ import type {
   ScreenVisitStat,
   TrendLinePoint,
 } from '@/lib/visit-counter-types';
-import { SCREEN_NAMES, TRACKED_SCREEN_KEYS } from '@/lib/visit-counter-types';
+import { SCREEN_NAMES, TRACKED_SCREEN_KEYS, VISIT_DETAIL_WINDOW_DAYS } from '@/lib/visit-counter-types';
 import { extractUsername } from '@/lib/username';
 
 /**
@@ -93,7 +93,7 @@ export async function getFooterVisitSummary(screenKey?: ScreenKey | null): Promi
   const [appTotalsRes, screenVisitsRes, lastLoginUsers] = await Promise.all([
     pool.query<{ totalVisits: number; weeklyVisits: number }>(`
       SELECT
-        COUNT(*)::int AS "totalVisits",
+        (COUNT(*) + COALESCE((SELECT SUM(visit_count) FROM visit_log_rollups WHERE event_type = 'APP_LOGIN'), 0))::int AS "totalVisits",
         COUNT(*) FILTER (
           WHERE created_at >= (((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date - INTERVAL '7 days')::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')
         )::int AS "weeklyVisits"
@@ -102,7 +102,7 @@ export async function getFooterVisitSummary(screenKey?: ScreenKey | null): Promi
     `),
     resolvedScreenKey
       ? pool.query<{ count: number }>(`
-          SELECT COUNT(*)::int AS count
+          SELECT (COUNT(*) + COALESCE((SELECT SUM(visit_count) FROM visit_log_rollups WHERE event_type = 'SCREEN_VIEW' AND screen_key = $1), 0))::int AS count
           FROM visit_logs
           WHERE event_type = 'SCREEN_VIEW' AND screen_key = $1;
         `, [resolvedScreenKey])
@@ -131,11 +131,11 @@ export async function getFooterVisitSummary(screenKey?: ScreenKey | null): Promi
  * - recentLogins: 10 most recent login users
  */
 export async function getDetailedVisitStats(): Promise<DetailedVisitStats> {
-  const [appVisitsRes, trendRes, screenRes, domainsRes, userDomainStatsRes, recentLogins] = await Promise.all([
+  const [appVisitsRes, trendRes, screenRes, domainsRes, userDomainStatsRes, recentLogins, screenRollupRes] = await Promise.all([
     // 1. App visits summary
     pool.query<{ total: number; weekly: number; today: number }>(`
       SELECT
-        COUNT(*)::int AS total,
+        (COUNT(*) + COALESCE((SELECT SUM(visit_count) FROM visit_log_rollups WHERE event_type = 'APP_LOGIN'), 0))::int AS total,
         COUNT(*) FILTER (
           WHERE created_at >= (((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date - INTERVAL '7 days')::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')
         )::int AS weekly,
@@ -188,7 +188,7 @@ export async function getDetailedVisitStats(): Promise<DetailedVisitStats> {
           WHERE created_at >= (((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date - INTERVAL '7 days')::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')
         )::int AS "weeklyVisits",
         COUNT(*) FILTER (
-          WHERE created_at >= (((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date - INTERVAL '15 days')::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')
+          WHERE created_at >= (((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date - INTERVAL '${VISIT_DETAIL_WINDOW_DAYS} days')::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')
             AND created_at < (((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date - INTERVAL '7 days')::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')
         )::int AS "prevWeeklyVisits",
         COUNT(*) FILTER (
@@ -217,18 +217,25 @@ export async function getDetailedVisitStats(): Promise<DetailedVisitStats> {
       todayVisits: number;
       domainId: number | null;
     }>(`
-      WITH user_visits AS (
+      WITH login_events AS (
+        SELECT user_id, 1 AS n, created_at FROM visit_logs
+        WHERE event_type = 'APP_LOGIN' AND user_id IS NOT NULL
+        UNION ALL
+        -- logins already rolled up by the retention job: counted in the all-time total only (no created_at)
+        SELECT user_id, visit_count::int, NULL::timestamptz FROM visit_log_rollups
+        WHERE event_type = 'APP_LOGIN' AND user_id <> 0
+      ),
+      user_visits AS (
         SELECT 
           vl.user_id,
-          COUNT(*)::int AS total_visits,
-          COUNT(*) FILTER (
+          SUM(vl.n)::int AS total_visits,
+          COALESCE(SUM(vl.n) FILTER (
             WHERE vl.created_at >= (((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date - INTERVAL '7 days')::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')
-          )::int AS weekly_visits,
-          COUNT(*) FILTER (
+          ), 0)::int AS weekly_visits,
+          COALESCE(SUM(vl.n) FILTER (
             WHERE vl.created_at >= (((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')
-          )::int AS today_visits
-        FROM visit_logs vl
-        WHERE vl.event_type = 'APP_LOGIN' AND vl.user_id IS NOT NULL
+          ), 0)::int AS today_visits
+        FROM login_events vl
         GROUP BY vl.user_id
       )
       SELECT 
@@ -247,6 +254,14 @@ export async function getDetailedVisitStats(): Promise<DetailedVisitStats> {
 
     // 5. Recent logins
     getRecentLoginUsers(10),
+
+    // 6. All-time screen totals of visit_logs rows already rolled up by the housekeeping retention
+    pool.query<{ screenKey: ScreenKey; visits: number }>(`
+      SELECT screen_key AS "screenKey", SUM(visit_count)::int AS visits
+      FROM visit_log_rollups
+      WHERE event_type = 'SCREEN_VIEW' AND screen_key = ANY($1)
+      GROUP BY screen_key;
+    `, [TRACKED_SCREEN_KEYS]),
   ]);
 
   // Aggregate screenStats for all 3 screens
@@ -255,7 +270,7 @@ export async function getDetailedVisitStats(): Promise<DetailedVisitStats> {
     return {
       screenKey: key,
       screenName: SCREEN_NAMES[key],
-      totalVisits: match?.totalVisits ?? 0,
+      totalVisits: (match?.totalVisits ?? 0) + (screenRollupRes.rows.find((r) => r.screenKey === key)?.visits ?? 0),
       weeklyVisits: match?.weeklyVisits ?? 0,
       prevWeeklyVisits: match?.prevWeeklyVisits ?? 0,
       todayVisits: match?.todayVisits ?? 0,

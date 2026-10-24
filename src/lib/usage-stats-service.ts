@@ -7,12 +7,12 @@ const COLUMN_BY_KIND: Record<UsageStatKind, string> = { login: 'login_count', fe
  * this many days old. Shared by the write-side purge below and every totals query (auth-service.ts's
  * listManagedUsers included), so "totals" always means "totals within the retained window", never
  * true all-time. */
-export const USAGE_STATS_RETENTION_DAYS = 30;
+export const USAGE_STATS_RETENTION_DAYS = 90;
 
 /** Deletes stat_date rows older than the retention window. Cheap indexed range delete — run
- * opportunistically on every write instead of a separate scheduled job, since this app has no
- * background job runner. */
-async function purgeExpiredUsageStats(): Promise<void> {
+ * opportunistically on every write and again by the daily housekeeping job (housekeeping-service.ts),
+ * since this app has no background job runner. */
+export async function purgeExpiredUsageStats(): Promise<void> {
   await pool.query('DELETE FROM user_usage_daily_stats WHERE stat_date < CURRENT_DATE - $1::int;', [USAGE_STATS_RETENTION_DAYS - 1]);
 }
 

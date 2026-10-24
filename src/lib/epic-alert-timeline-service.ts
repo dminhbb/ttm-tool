@@ -145,3 +145,32 @@ export async function listEpicAlertTimelineOlder(epicKey: string, before: string
   const entries = result.rows.slice(0, limit).sort((a, b) => a.startDate.localeCompare(b.startDate));
   return { entries, hasMore };
 }
+
+export interface EpicCnttAlertRun {
+  /** 'FAIL' = Fail TTM-CNTT (QLDA), 'LATE' = Cảnh báo muộn. */
+  alertType: 'FAIL' | 'LATE';
+  endDate: string | null;
+  startDate: string;
+  /** The Epic's Jira status as of the run's latest import (detail.status), when recorded. */
+  status: string | null;
+}
+
+/** Every Fail TTM-CNTT / Cảnh báo muộn run of one Epic, oldest first — the "Epic History" strip. */
+export async function listEpicCnttAlertRuns(epicKey: string): Promise<EpicCnttAlertRun[]> {
+  const result = await pool.query<EpicCnttAlertRun>(`
+    SELECT CASE alert_type WHEN 'FAIL_TTM_CNTT' THEN 'FAIL' ELSE 'LATE' END AS "alertType",
+      start_date::text AS "startDate", end_date::text AS "endDate", detail ->> 'status' AS status
+    FROM epic_alert_timeline
+    WHERE epic_key = $1 AND alert_type IN ('FAIL_TTM_CNTT', 'LATE_TTM_CNTT')
+    ORDER BY start_date ASC, id ASC;
+  `, [epicKey]);
+  return result.rows;
+}
+
+/** Every epic_key that has ever had a Fail TTM-CNTT / Cảnh báo muộn run — the "Released ẩn trừ khi từng có cảnh báo" rule. */
+export async function getEpicKeysWithCnttAlertRuns(): Promise<Set<string>> {
+  const result = await pool.query<{ epicKey: string }>(
+    `SELECT DISTINCT epic_key AS "epicKey" FROM epic_alert_timeline WHERE alert_type IN ('FAIL_TTM_CNTT', 'LATE_TTM_CNTT');`,
+  );
+  return new Set(result.rows.map((row) => row.epicKey));
+}

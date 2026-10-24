@@ -56,6 +56,7 @@ function addDays(fromKey: string, days: number): string {
 }
 
 const DETAIL_FIELD_LABEL: Record<string, string> = {
+  status: 'Status',
   fromDate: 'Từ ngày',
   targetDate: 'Mục tiêu',
   baselineDate: 'Baseline TTM-E2E',
@@ -214,7 +215,7 @@ function TimelineRun({ dayWidth, entry, rangeStart, todayKey, onShowTooltip, onH
 /**
  * Transition-based Epic alert timeline (Fail/Cảnh báo muộn TTM-CNTT, Fail TTM-E2E, thiếu Start
  * Date, dữ liệu bất thường) — one row per alert type, drawn from epic_alert_timeline "runs" (see
- * epic-alert-timeline-service.ts) instead of the day-by-day epic_alert_history table. A run longer
+ * epic-alert-timeline-service.ts) instead of a day-by-day table. A run longer
  * than 3 days draws as a single line with a badge at each end; a short run draws one badge per day.
  * The header shows a date marker (plus a faint vertical gridline) at every start/end boundary
  * actually drawn below, so a run's edges can be read off precisely. Shows the last 3 weeks by

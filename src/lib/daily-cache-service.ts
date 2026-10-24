@@ -11,6 +11,7 @@ import { getTtmDashboard2CacheOverview, refreshTtmDashboard2Caches } from '@/lib
 import { runShadowScoring } from '@/lib/scoring-run-service';
 import { getStoredScoringEngineMode } from '@/lib/scoring-mode-service';
 import { projectRows } from '@/lib/scoring/projection';
+import { runDailyHousekeeping } from '@/lib/housekeeping-service';
 import { SCORING_CODE_VERSION } from '@/lib/scoring/registry';
 
 /**
@@ -350,6 +351,10 @@ export async function runDailyCacheRefresh(runDate: string): Promise<void> {
       [runDate, Date.now() - startedAt, message.slice(0, 2000)],
     ).catch((updateError: unknown) => console.error('Failed to record daily cache failure:', updateError));
   }
+  // Once-a-day log/session cleanup rides on the same claim (there is no scheduler). Awaited so the
+  // after() task keeps the function alive for it; it never throws and runs after the cache outcome
+  // is already recorded, so it can neither fail nor delay it.
+  await runDailyHousekeeping();
 }
 
 export interface CacheOverview {

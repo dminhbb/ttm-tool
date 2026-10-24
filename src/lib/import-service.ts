@@ -5,7 +5,6 @@ import { validateAllJiraIssues, parseJiraDate, RowValidationResult, ValidationEr
 import { accumulateProjectComponents, splitComponents } from './project-component-service';
 import { DEFAULT_RAW_IMPORT_RETENTION_DAYS } from './data-retention-service';
 import { evaluateIssueCompliance } from './epic-compliance-engine';
-import { recordEpicAlertHistory } from './epic-alert-history-service';
 import { resolveTtmE2eRelease } from './epic-alert-service';
 import { breaksTtmCnttCalculation, breaksTtmE2eCalculation, evaluateEpicDataAnomaly } from './epic-data-anomaly';
 import type { EpicAnomalyViolation } from './epic-data-anomaly';
@@ -65,15 +64,14 @@ function computeEpicComplexity(requestType: string, requirementLevel: string): E
 
 /**
  * Derives the alert/anomaly layers for one import batch from the
- * canonical `issues` rows already stored for it: epic_alert_history (Cảnh báo muộn/Fail TTM as of
- * that batch's aggregatedAtDate), the alert timeline and the data-anomaly violations. Every write is
+ * canonical `issues` rows already stored for it: the alert timeline (Cảnh báo muộn/Fail TTM-CNTT/E2E,
+ * thiếu Start Date, dữ liệu bất thường, as of that batch's aggregatedAtDate) and the data-anomaly violations. Every write is
  * idempotent (ON CONFLICT upsert / unique constraint), so this is safe to call again for a batch
  * whose raw `issues` rows are still present — it never re-reads or re-validates the original CSV.
  */
 export async function aggregateBatchData(client: PoolClient, batchId: number, aggregatedAtDate: Date): Promise<void> {
-  // Accumulate a permanent alert-history record for every Epic in this batch whose status,
-  // evaluated as of aggregatedAtDate against the configured 'Quy tắc cảnh báo Epic' rules, is
-  // already Cảnh báo muộn (LATE) or Fail TTM (FAIL) — never overwritten, only refreshed per-day.
+  // Evaluate every Epic in this batch as of aggregatedAtDate against the configured 'Quy tắc cảnh báo
+  // Epic' rules and record the resulting alert runs (Cảnh báo muộn / Fail TTM, …) in epic_alert_timeline.
   const [holidays, statusAlertRules, ttmPolicies] = await Promise.all([
     getActiveHolidaySet(),
     listActiveStatusAlertRules(),
@@ -116,10 +114,6 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
       status: epic.status,
     }, aggregatedAtDate, holidays, statusAlertRules, ttmPolicies);
 
-    if (evaluation.alertLevel === 'LATE' || evaluation.alertLevel === 'FAIL') {
-      await recordEpicAlertHistory(client, epic.epicKey, evaluation.alertLevel, epic.status, aggregatedAtDate, batchId);
-    }
-
     // Same "sai lệch dữ liệu" engine the live screens / Báo cáo / Dashboard use (evaluateEpicDataAnomaly)
     // so the timeline can never disagree with what a screen shows today for the same Epic. The
     // MISSING_START_DATE run tracks rule c specifically; DATA_ANOMALY covers every other violation.
@@ -147,11 +141,14 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
     // muộn run recorded here even while the live screen correctly shows it today.
     const cnttBroken = breaksTtmCnttCalculation(epic);
     const e2eBroken = breaksTtmE2eCalculation(epic);
+    // Key order matters: the diff in recordEpicAlertTimelineTransitions compares JSON.stringify of the
+    // stored jsonb (keys come back shortest-first), so keep 'status' (the Epic's Jira status, shown in
+    // "Epic History") ahead of fromDate/targetDate or every open run would be rewritten on every import.
     const failCnttDetail: EpicAlertTimelineDetail | null = !cnttBroken && evaluation.alertLevel === 'FAIL'
-      ? { fromDate: evaluation.ttm.cntt.fromDate, targetDate: evaluation.ttm.cntt.targetDate }
+      ? { status: epic.status, fromDate: evaluation.ttm.cntt.fromDate, targetDate: evaluation.ttm.cntt.targetDate }
       : null;
     const lateCnttDetail: EpicAlertTimelineDetail | null = !cnttBroken && evaluation.alertLevel === 'LATE'
-      ? { fromDate: evaluation.ttm.cntt.fromDate, targetDate: evaluation.ttm.cntt.targetDate }
+      ? { status: epic.status, fromDate: evaluation.ttm.cntt.fromDate, targetDate: evaluation.ttm.cntt.targetDate }
       : null;
     const failE2eDetail: EpicAlertTimelineDetail | null = !e2eBroken && ttmE2eRelease.alertLevel === 'FAIL'
       ? { baselineDate: ttmE2eRelease.baselineDate, actualToDate: ttmE2eRelease.actualToDate }
@@ -402,7 +399,7 @@ export async function processImport(
     // (status INVALID) are excluded from this insert loop — every row, valid or not, was already
     // recorded verbatim in import_rows above (with its validation_status/errors) so the source
     // data can be corrected — but only issues that passed validation are safe to write into the
-    // canonical table and downstream aggregation (epic_alert_history, epic_alert_timeline,
+    // canonical table and downstream aggregation (epic_alert_timeline,
     // epic_data_anomaly_violations). This means one bad row no longer takes the whole batch down with it:
     // every other issue (including other Epics untouched by any error) still gets ingested and
     // aggregated normally. batchStatus stays 'FAILED' whenever errorRows > 0 purely as a reporting
@@ -609,8 +606,8 @@ export async function processImport(
           AND parent.epic_id IS NOT NULL;
       `, [batchId]);
 
-      // 7. Derive the alert history / timeline / anomaly layers (epic_alert_history,
-      // epic_alert_timeline, epic_data_anomaly_violations) for this batch.
+      // 7. Derive the alert timeline / anomaly layers (epic_alert_timeline,
+      // epic_data_anomaly_violations) for this batch.
       await aggregateBatchData(client, batchId, aggregatedAtDate);
     }
 

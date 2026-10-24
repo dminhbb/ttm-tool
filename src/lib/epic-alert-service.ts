@@ -8,7 +8,7 @@ import type { HolidaySet } from '@/lib/working-days';
 import { getActiveHolidaySet, getDomainByProjectKeyMap, getProjectMetaByProjectKeyMap } from '@/lib/master-data-service';
 import { listActiveStatusAlertRules } from '@/lib/status-alert-rule-service';
 import { findActiveTtmPolicy, listTtmPolicies } from '@/lib/ttm-policy-service';
-import { getEpicKeysWithAlertHistory } from '@/lib/epic-alert-history-service';
+import { getEpicKeysWithCnttAlertRuns } from '@/lib/epic-alert-timeline-service';
 import { EPIC_WORKFLOW_STATUS_ORDER, epicWorkflowStatusIndex } from '@/lib/ttm-phase-rules';
 import { isCancelledStatus, isPendingStatus } from '@/lib/issue-status-rules';
 import { breaksTtmCnttCalculation } from '@/lib/epic-data-anomaly';
@@ -354,8 +354,6 @@ export interface EpicAlertContext {
   entries: EvaluatedEpicEntry[];
   holidays: HolidaySet;
   lastAggregatedAt: string | null;
-  /** import_batches.id of the latest batch — attached to any alert history row recorded off this context. */
-  lastBatchId: number | null;
   now: Date;
   statusAlertRules: Awaited<ReturnType<typeof listActiveStatusAlertRules>>;
   viewerName: string;
@@ -439,7 +437,7 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole, filt
     getProjectMetaByProjectKeyMap(),
     listActiveStatusAlertRules(),
     listTtmPolicies(true),
-    getEpicKeysWithAlertHistory(),
+    getEpicKeysWithCnttAlertRuns(),
     pool.query<{ fullName: string }>('SELECT full_name AS "fullName" FROM users WHERE id = $1', [userId]),
     pool.query<{ aggregatedAt: string; id: number }>('SELECT id, aggregated_at::text AS "aggregatedAt" FROM import_batches ORDER BY aggregated_at DESC LIMIT 1;'),
     pool.query<{ layerDate: string }>('SELECT DISTINCT aggregated_at::date::text AS "layerDate" FROM issues ORDER BY "layerDate" DESC LIMIT 365;'),
@@ -448,7 +446,6 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole, filt
 
   const viewerName = viewer.rows[0]?.fullName ?? '';
   const latestAggregatedAt = latestBatch.rows[0]?.aggregatedAt ?? null;
-  const lastBatchId = latestBatch.rows[0]?.id ?? null;
   const availableLayerDates = layerDatesResult.rows.map((row) => row.layerDate);
   // "Phạm vi dữ liệu cho TTM" — a deep-link override (see EpicAlertFilters) replaces the persisted
   // admin default per-axis; `undefined` means "not overridden, use the admin default" while
@@ -466,7 +463,7 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole, filt
   const now = asOfDate ? (parseDate(asOfDate) ?? new Date()) : new Date();
   const todayIso = toIsoDate(now) ?? '';
   if (!latestAggregatedAt) {
-    return { accessRole: scope.accessRole, asOfDate, availableLayerDates, entries: [], holidays, lastAggregatedAt: null, lastBatchId: null, now, statusAlertRules, viewerName };
+    return { accessRole: scope.accessRole, asOfDate, availableLayerDates, entries: [], holidays, lastAggregatedAt: null, now, statusAlertRules, viewerName };
   }
 
   const result = await pool.query<EpicRow>(`
@@ -561,6 +558,6 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole, filt
     entries.push({ complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, projectName, qaInScope, releaseAxis, row, startDate, ttmCnttInScope, ttmCnttStatusMismatch, ttmE2eRelease, ttmE2eTarget });
   }
 
-  return { accessRole: scope.accessRole, asOfDate, availableLayerDates, entries, holidays, lastAggregatedAt: latestAggregatedAt, lastBatchId, now, statusAlertRules, viewerName };
+  return { accessRole: scope.accessRole, asOfDate, availableLayerDates, entries, holidays, lastAggregatedAt: latestAggregatedAt, now, statusAlertRules, viewerName };
 }
 

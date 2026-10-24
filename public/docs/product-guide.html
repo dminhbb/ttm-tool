@@ -331,7 +331,7 @@
       <p><strong>Epic deletion</strong> — xóa vĩnh viễn một Epic khỏi CSDL:</p>
       <ul>
         <li>Phạm vi: Epic, các Story, các Subtask gắn thẳng vào Epic và Subtask của các Story đó — xác định theo <strong>trạng thái mới nhất</strong> của từng issue (issue đã chuyển sang Epic khác trên Jira được giữ nguyên).</li>
-        <li>Xóa ở mọi lớp dữ liệu: <code>import_rows</code>, <code>issues</code> (mọi batch), và các bảng theo Epic: <code>epic_alert_history</code>, <code>epic_alert_timeline</code>, <code>epic_milestone_history</code>, <code>epic_data_anomaly_violations</code>, <code>epic_alert_row_cache</code>, <code>black_listed_epics</code>. Mỗi Epic xóa ghi 1 dòng <code>audit_logs</code> (<code>EPIC_DELETION</code>).</li>
+        <li>Xóa ở mọi lớp dữ liệu: <code>import_rows</code>, <code>issues</code> (mọi batch), và các bảng theo Epic: <code>epic_alert_timeline</code>, <code>epic_milestone_history</code>, <code>epic_data_anomaly_violations</code>, <code>epic_alert_row_cache</code>, <code>black_listed_epics</code>. Mỗi Epic xóa ghi 1 dòng <code>audit_logs</code> (<code>EPIC_DELETION</code>).</li>
         <li><strong>Không tự chạy lại cache.</strong> Các cache tổng hợp toàn công ty (TTM-Index, TTM Dashboard 2) vẫn tính Epic đã xóa cho tới khi admin chạy lại cache thủ công — sau mỗi lần xóa, màn hình hiện toast nhắc việc này.</li>
         <li>API (SUPERADMIN): <code>GET /api/data-source/epic-deletion?keys=…</code> (xem trước danh sách issue key và số dòng mỗi bảng), <code>POST /api/data-source/epic-deletion</code> <code>{ epicKeys }</code> (xóa).</li>
       </ul>
@@ -359,7 +359,7 @@
           <rect x="380" y="110" width="150" height="50" rx="8" fill="#fff4cf" stroke="#f0d98a" /><text x="455" y="131" text-anchor="middle">aggregateBatchData()</text><text x="455" y="147" font-size="9.5" font-weight="400" fill="#6b7280" text-anchor="middle">Khi import &amp; "Hoàn thiện dữ liệu"</text>
 
           <line x1="455" y1="160" x2="455" y2="190" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow1)" />
-          <rect x="380" y="190" width="150" height="50" rx="8" fill="#eaf0ff" stroke="#c3cce3" /><text x="455" y="211" text-anchor="middle">epic_alert_history</text><text x="455" y="227" font-size="9.5" font-weight="400" fill="#6b7280" text-anchor="middle">Chỉ lưu khi LATE/FAIL</text>
+          <rect x="380" y="190" width="150" height="50" rx="8" fill="#eaf0ff" stroke="#c3cce3" /><text x="455" y="211" text-anchor="middle">epic_alert_timeline</text><text x="455" y="227" font-size="9.5" font-weight="400" fill="#6b7280" text-anchor="middle">Đợt cảnh báo liên tục</text>
 
           <rect x="730" y="90" width="150" height="90" rx="8" fill="#e6f4ea" stroke="#cfe8d6" /><text x="805" y="121" text-anchor="middle">Màn hình</text><text x="805" y="136" text-anchor="middle">Cảnh báo Epic</text><text x="805" y="155" font-size="9" font-weight="400" fill="#6b7280" text-anchor="middle">Đọc issues mới nhất</text><text x="805" y="167" font-size="9" font-weight="400" fill="#6b7280" text-anchor="middle">+ tính cảnh báo real-time</text>
           <line x1="530" y1="45" x2="730" y2="110" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow1)" />
@@ -372,13 +372,13 @@
         <tbody>
           <tr><td><code>import_batches</code>, <code>import_rows</code></td><td>Dữ liệu raw của từng đợt import (metadata batch + toàn bộ dòng CSV thô)</td><td>Chính là dữ liệu bị xoá</td></tr>
           <tr><td><code>issues</code></td><td>Dữ liệu canonical Epic/Story/Subtask, 1 dòng/issue/batch, có quan hệ cha–con và Epic Link</td><td>Cascade xoá theo batch — lịch sử Issue chỉ còn trong bảng này theo thời hạn lưu (2 bảng snapshot đã gỡ 23/10/2026)</td></tr>
-          <tr><td><code>epic_alert_history</code></td><td>Tích luỹ mỗi lần Epic bị "Cảnh báo muộn"/"Fail TTM" — gồm loại cảnh báo, ngày, status lúc đó</td><td>Giữ lại</td></tr>
+          <tr><td><code>epic_alert_timeline</code></td><td>Các "đợt" cảnh báo liên tục (Fail TTM-CNTT, Cảnh báo muộn, Fail TTM-E2E, Thiếu Start Date, Sai lệch dữ liệu) — gồm ngày bắt đầu/kết thúc và status Epic lúc đó</td><td>Giữ lại</td></tr>
           <tr><td><code>epic_milestone_history</code></td><td>Lịch sử mốc DESIGN_DONE/DEV_DONE/TEST_DONE, phục vụ tính pha cho màn hình Quản lý Epic 15</td><td>Giữ lại</td></tr>
         </tbody>
       </table>
       <div class="callout">
-        4 bảng tổng hợp/hậu-tổng hợp (<code>epic_ttm_snapshots</code>, <code>issue_daily_snapshots</code>, <code>epic_alert_history</code>, <code>epic_milestone_history</code>) không cascade xoá theo raw batch —
-        đây là thiết kế có chủ đích để lịch sử Epic sống lâu hơn raw data, phục vụ tra cứu sau khi raw đã bị dọn theo retention. (Sơ đồ trên chỉ minh hoạ 3 bảng chính cho gọn — <code>epic_milestone_history</code> vận hành tương tự <code>epic_alert_history</code>, ghi ra từ cùng bước <code>aggregateBatchData()</code>.)
+        2 bảng hậu-tổng hợp (<code>epic_alert_timeline</code>, <code>epic_milestone_history</code>) không cascade xoá theo raw batch —
+        đây là thiết kế có chủ đích để lịch sử cảnh báo của Epic sống lâu hơn raw data, phục vụ tra cứu sau khi raw đã bị dọn theo retention. (Từ 23–24/10/2026 các bảng <code>epic_ttm_snapshots</code>, <code>issue_daily_snapshots</code> và <code>epic_alert_history</code> đã được gỡ.)
       </div>
     </section>
 
@@ -1504,7 +1504,7 @@
       <p>
         Từ 23/10/2026 hai bảng snapshot (<code>epic_ttm_snapshots</code>, <code>issue_daily_snapshots</code>) và panel “Nhật ký lớp dữ liệu tổng hợp (Epic)” (Xoá / Chạy lại) đã được gỡ:
         các bảng này chỉ là bản sao của <code>issues</code> và không màn hình nào đọc chúng. Lịch sử Issue (lớp dữ liệu cũ, bằng chứng rule B của Từ chối import) vì vậy chỉ tồn tại
-        trong <code>issues</code> theo thời hạn lưu ở mục 6.1; lịch sử cảnh báo (<code>epic_alert_history</code>, <code>epic_alert_timeline</code>) vẫn được giữ sau khi raw bị dọn.
+        trong <code>issues</code> theo thời hạn lưu ở mục 6.1; dòng thời gian cảnh báo (<code>epic_alert_timeline</code>) vẫn được giữ sau khi raw bị dọn.
       </p>
       <h3>6.3. Xoá N lớp dữ liệu gần nhất</h3>
       <p>
@@ -1790,23 +1790,24 @@
       <div class="kicker">Khối cảnh báo</div>
       <h2>10. Lịch sử cảnh báo tích luỹ</h2>
       <p>
-        Khác với cảnh báo hiển thị trên bảng (tính real-time), bảng <code>epic_alert_history</code> "đóng băng" đúng trạng thái cảnh báo Fail TTM-CNTT tổng thể tại ngày import:
-        mỗi khi Epic được tính là <strong>Cảnh báo muộn</strong> hoặc <strong>Fail TTM</strong> ở một lần import, hệ thống ghi 1 dòng gồm loại cảnh báo, trạng thái Epic
-        lúc đó và ngày cảnh báo — không ghi đè, tích luỹ theo thời gian để tra cứu sau này.
+        Khác với cảnh báo hiển thị trên bảng (tính real-time), lịch sử cảnh báo "đóng băng" đúng trạng thái cảnh báo tại ngày import: mỗi khi Epic được tính là
+        <strong>Cảnh báo muộn</strong> hoặc <strong>Fail TTM</strong> ở một lần import, hệ thống mở (hoặc kéo dài) một "đợt" cảnh báo trong <code>epic_alert_timeline</code>
+        gồm loại cảnh báo, ngày bắt đầu/kết thúc và trạng thái Epic lúc đó — tích luỹ theo thời gian để tra cứu sau này.
       </p>
       <p>Dữ liệu này phục vụ trên màn hình Quản trị Epic:</p>
       <ul>
-        <li>Icon tam giác vàng cạnh Epic Key mở panel liệt kê toàn bộ lịch sử cảnh báo, sắp xếp theo ngày.</li>
+        <li>Quy tắc hiển thị Epic <strong>Released</strong> trên "Quản trị Epic (rút gọn)": chỉ hiện nếu Epic từng có ít nhất một đợt Cảnh báo muộn / Fail TTM-CNTT.</li>
+        <li>Panel "Epic History" liệt kê các đợt cảnh báo (từ ngày – đến ngày/nay, status) cùng các mốc hoàn thành, sắp xếp theo thời gian.</li>
       </ul>
+      <p>Bảng <code>epic_alert_history</code> (mỗi lần cảnh báo một dòng theo ngày, kể cả cảnh báo theo từng pha đã tắt từ trước) đã được gộp vào timeline và gỡ ngày 24/10/2026.</p>
       <div class="callout warn">
-        Cảnh báo <strong>theo từng pha</strong> (DEV/TEST/PENTEST của màn đầy đủ, cũng ghi vào bảng này) hiện <strong>tạm tắt ghi nhận</strong> do giới hạn kết nối của hạ tầng
-        DB miễn phí (code vẫn còn nguyên, chỉ chưa gọi). Tương tự, <code>epic_milestone_history</code> (mốc DESIGN_DONE/DEV_DONE/TEST_DONE) cũng tạm tắt ghi — trạng thái
+        <code>epic_milestone_history</code> (mốc DESIGN_DONE/DEV_DONE/TEST_DONE) tạm tắt ghi — trạng thái
         hoàn thành từng pha của Epic đầy đủ hiện tính <strong>live</strong> từ status Story/Subtask hiện tại mỗi lần tải trang, không phụ thuộc lịch sử này.
       </div>
 
       <h3>10.2. Dòng thời gian cảnh báo theo đợt (epic_alert_timeline)</h3>
       <p>
-        Song song với <code>epic_alert_history</code> (chỉ ghi 1 dòng rời rạc mỗi lần rơi vào Cảnh báo muộn/Fail), bảng <code>epic_alert_timeline</code> theo dõi
+        Bảng <code>epic_alert_timeline</code> theo dõi
         <strong>5 loại cảnh báo</strong> của mỗi Epic dưới dạng các <strong>"đợt" (run) có khoảng ngày bắt đầu/kết thúc</strong>, cho phép biết chính xác Epic đã ở trạng
         thái cảnh báo đó <em>liên tục từ ngày nào đến ngày nào</em>, không chỉ ngày phát hiện:
       </p>
@@ -1944,8 +1945,8 @@
           <tr><td>Sao lưu / Phục hồi dữ liệu</td><td><code>/admin/database</code></td><td>
             Chỉ SUPERADMIN — 2 chế độ export, cùng ghi ra 1 định dạng file SQL dump và dùng chung luồng Import:
             <ul style="margin:6px 0 6px 18px; font-size:12.5px;">
-              <li><strong>Export theo lớp dữ liệu</strong> (mặc định, đơn giản) — chọn 1 khoảng "Start/End Data Layer" (<code>aggregated_at</code>) liên tiếp; luôn gồm dữ liệu cảnh báo/lịch sử Epic (<code>epic_alert_history</code>, <code>epic_alert_timeline</code>, <code>epic_milestone_history</code>) trong khoảng đã chọn, tuỳ chọn bật thêm "Export Raw Data" để gộp <code>issues</code>/<code>import_rows</code>/<code>import_batches</code> cùng khoảng.</li>
-              <li><strong>Export nâng cao (chọn bảng thủ công)</strong> — export toàn bộ dữ liệu (không lọc theo ngày) cho 1 danh sách danh sách bảng cố định (user, Domain, Dự án, phân quyền Domain/Dự án/Component, Component, ngày nghỉ, ngày làm bù, rule cảnh báo, Tiêu chí TTM, ánh xạ issue type, <code>import_batches</code>/<code>import_rows</code>/<code>issues</code>, <code>epic_alert_history</code>, <code>epic_alert_timeline</code>, <code>epic_milestone_history</code>, audit log — và từ 19/10/2026 các bảng cấu hình: Phạm vi dữ liệu cho TTM, cấu hình Scoring Service, Epic ngoại lệ, danh sách Từ chối import + ngày A/B, Lead view, Ma trận phân quyền, Cấu hình Jira, thời hạn lưu raw). Bảng nào CSDL chưa có (chưa migrate) thì không hiện trong danh sách.</li>
+              <li><strong>Export theo lớp dữ liệu</strong> (mặc định, đơn giản) — chọn 1 khoảng "Start/End Data Layer" (<code>aggregated_at</code>) liên tiếp; luôn gồm dữ liệu lịch sử Epic (<code>epic_alert_timeline</code>, <code>epic_milestone_history</code>) trong khoảng đã chọn, tuỳ chọn bật thêm "Export Raw Data" để gộp <code>issues</code>/<code>import_rows</code>/<code>import_batches</code> cùng khoảng.</li>
+              <li><strong>Export nâng cao (chọn bảng thủ công)</strong> — export toàn bộ dữ liệu (không lọc theo ngày) cho 1 danh sách danh sách bảng cố định (user, Domain, Dự án, phân quyền Domain/Dự án/Component, Component, ngày nghỉ, ngày làm bù, rule cảnh báo, Tiêu chí TTM, ánh xạ issue type, <code>import_batches</code>/<code>import_rows</code>/<code>issues</code>, <code>epic_alert_timeline</code>, <code>epic_milestone_history</code>, audit log — và từ 19/10/2026 các bảng cấu hình: Phạm vi dữ liệu cho TTM, cấu hình Scoring Service, Epic ngoại lệ, danh sách Từ chối import + ngày A/B, Lead view, Ma trận phân quyền, Cấu hình Jira, thời hạn lưu raw). Bảng nào CSDL chưa có (chưa migrate) thì không hiện trong danh sách.</li>
             </ul>
             Import dùng <strong>upsert theo khóa chính</strong> — dòng dữ liệu trùng khóa chính đã tồn tại sẽ được <strong>ghi đè</strong> bằng dữ liệu trong file, không còn bị bỏ qua (file export từ bản cũ hơn vẫn tương thích, giữ hành vi bỏ qua). Cả 2 chế độ đều <strong>chưa</strong> bao phủ <code>epic_data_anomaly_violations</code> (tính lại được từ <code>issues</code> nên không cần backup riêng), các bảng cache (dựng lại bằng “Tạo lại cache”), Popup/Banner, SSO/API Key/MCP và các bảng module Quản lý dự án (PMS).
           </td></tr>

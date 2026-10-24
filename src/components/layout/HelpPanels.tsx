@@ -248,7 +248,7 @@ function DataPipelineDiagram() {
       {arrow(450, 72, 450, 100)}
       {box(375, 100, 150, 52, 'aggregateBatchData()', 'Cảnh báo, timeline, vi phạm')}
       {arrow(375, 126, 330, 126)}
-      {box(170, 100, 160, 52, 'epic_alert_history', 'epic_alert_timeline', 'neutral')}
+      {box(170, 100, 160, 52, 'epic_alert_timeline', 'epic_data_anomaly_violations', 'neutral')}
 
       {arrow(525, 46, 575, 46)}
       {box(575, 20, 175, 52, 'refreshDerivedCaches()', 'Có khoá — 1 lượt mỗi lúc')}
@@ -296,7 +296,7 @@ export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
               <tr><td>import_batches / import_rows</td><td>Dữ liệu raw của từng đợt import</td><td>Bị xóa (đây chính là dữ liệu raw)</td></tr>
               <tr><td>issues</td><td>Dữ liệu Epic/Story/Subtask canonical, 1 dòng/issue/batch (gồm cả các trường lý do Fail TTM <code>khau_*</code>, <code>main_fail_dept</code>, <code>previous_status</code>)</td><td>Cascade xóa theo batch — lịch sử Issue (lớp dữ liệu cũ, bằng chứng rule B) chỉ còn trong bảng này theo thời hạn lưu</td></tr>
               <tr><td>epic_alert_timeline</td><td>Các &quot;đợt&quot; cảnh báo liên tục (Fail TTM-CNTT, Cảnh báo muộn, Fail TTM-E2E, Thiếu Start Date, Sai lệch dữ liệu) cho popup Epic History — ghi ở mỗi lần <code>aggregateBatchData()</code></td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
-              <tr><td>epic_alert_history / epic_milestone_history</td><td>Lịch sử Cảnh báo muộn/Fail và mốc hoàn thành pha — bảng còn nhưng việc ghi mới <strong className="text-fb-text-primary">đang tạm tắt</strong></td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
+              <tr><td>epic_milestone_history</td><td>Mốc hoàn thành pha — bảng còn nhưng việc ghi mới <strong className="text-fb-text-primary">đang tạm tắt</strong></td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
               <tr><td>epic_data_anomaly_violations</td><td>Vi phạm sai lệch dữ liệu hiện tại theo logic cũ (1 dòng/Epic/rule), phục vụ thống kê — màn hình không đọc bảng này</td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
               <tr><td>epic_alert_row_cache · ttm_index_global_cache · ttm_dashboard_2_cache</td><td>Cache dẫn xuất: dòng Epic đã chấm (badge, cờ chỉ số), chỉ số toàn công ty, số liệu TTM Dashboard 2 theo phạm vi quyền</td><td>Dựng lại ở lần tạo lại cache kế tiếp</td></tr>
               <tr><td>black_listed_epics · denied_import_epics</td><td>Epic ngoại lệ (không tính TTM, Scoring Service không xét) · danh sách Từ chối import (không được vào CSDL)</td><td>Không liên quan</td></tr>
@@ -322,8 +322,8 @@ export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
         <section>
           <h3 className="ui-card-title mb-1">5. Quản lý lớp dữ liệu &amp; Sao lưu/Phục hồi</h3>
           <ul className="ml-5 list-disc space-y-1">
-            <li><strong className="text-fb-text-primary">Xóa N lớp dữ liệu gần nhất</strong>: xóa <em>cả raw lẫn lịch sử cảnh báo</em> của N ngày import gần nhất — dùng khi cần loại bỏ hẳn một đợt dữ liệu lỗi.</li>
-            <li><strong className="text-fb-text-primary">Sao lưu / Phục hồi dữ liệu (/admin/database)</strong>: file SQL cho user, domain, dự án, phân quyền dự án/domain, component, ngày nghỉ, rule cảnh báo, <code>import_batches</code>/<code>import_rows</code>, <code>issues</code>, lịch sử cảnh báo, dòng thời gian cảnh báo, mốc hoàn thành, audit log. Từ 19/10/2026 gồm cả cấu hình: Epic ngoại lệ, danh sách Từ chối import và ngày A/B, cấu hình Scoring Service / &quot;Phạm vi dữ liệu cho TTM&quot;, Ma trận phân quyền, Tiêu chí TTM, ngày làm bù. <strong className="text-fb-text-primary">Không gồm</strong> các bảng cache (dựng lại được bằng &quot;Tạo lại cache&quot;).</li>
+            <li><strong className="text-fb-text-primary">Xóa N lớp dữ liệu gần nhất</strong>: xóa <em>cả raw lẫn mốc hoàn thành</em> của N ngày import gần nhất — dùng khi cần loại bỏ hẳn một đợt dữ liệu lỗi.</li>
+            <li><strong className="text-fb-text-primary">Sao lưu / Phục hồi dữ liệu (/admin/database)</strong>: file SQL cho user, domain, dự án, phân quyền dự án/domain, component, ngày nghỉ, rule cảnh báo, <code>import_batches</code>/<code>import_rows</code>, <code>issues</code>, dòng thời gian cảnh báo, mốc hoàn thành, audit log. Từ 19/10/2026 gồm cả cấu hình: Epic ngoại lệ, danh sách Từ chối import và ngày A/B, cấu hình Scoring Service / &quot;Phạm vi dữ liệu cho TTM&quot;, Ma trận phân quyền, Tiêu chí TTM, ngày làm bù. <strong className="text-fb-text-primary">Không gồm</strong> các bảng cache (dựng lại được bằng &quot;Tạo lại cache&quot;).</li>
           </ul>
         </section>
 

@@ -22,7 +22,7 @@ Dữ liệu chia thành các nhóm:
 - Cấu hình TTM và cảnh báo (`ttm_policy_configs`, `epic_status_alert_rules`,
   `issue_type_role_mapping`).
 - Lịch làm việc (`holidays`, `makeup_workdays`).
-- Lịch sử/audit & tương tác (`epic_alert_history`, `epic_alert_timeline`, `epic_milestone_history`,
+- Lịch sử/audit & tương tác (`epic_alert_timeline`, `epic_milestone_history`,
   `audit_logs`, `user_usage_daily_stats`, `visit_logs`).
 - Cấu hình chung (`jira_settings`, `data_retention_configs`).
 - Thông báo trong ứng dụng (`ad_popups`, `ad_popup_impressions`, `info_banners`) — mục 20.
@@ -67,7 +67,6 @@ erDiagram
     issues }o--|| issue_type_role_mapping : "so khớp issue_type"
 
     %% History & Audit Module
-    import_batches ||--o{ epic_alert_history : "1-n (source_import_batch_id)"
     import_batches ||--o{ epic_alert_timeline : "1-n (last_seen_batch_id)"
     import_batches ||--o{ epic_milestone_history : "1-n (source_import_batch_id)"
 ```
@@ -349,26 +348,15 @@ hay không; chỉ có FAIL/NONE, không có mức Cảnh báo sớm/muộn riên
 
 ## 12. Lịch sử/audit (append-only, không phải bảng nghiệp vụ sống)
 
-### epic_alert_history
+### epic_alert_history (đã gỡ 2026-10-24)
 
-```text
-id
-epic_key
-alert_type              -- CHECK IN ('LATE','FAIL')
-alert_status
-alert_date
-phase                    -- CHECK IN ('OVERALL','DESIGN','DEV','TEST','PENTEST','R4GOLIVE'), mặc định 'OVERALL'
-source_import_batch_id  -- ON DELETE SET NULL
-created_at
-```
-
-Unique `(epic_key, alert_date, alert_type, phase)`. Ghi 1 lần/ngày mỗi Epic khi phát hiện Cảnh báo
-muộn/Fail TTM-CNTT (`phase='OVERALL'`) hoặc khi 1 pha Epic 15 (DEV/TEST/PENTEST) đang Cảnh báo muộn
-(`phase=<tên pha>`). Dùng để: (a) quyết định Epic Released có tiếp tục hiển thị trên "Quản trị Epic
-(rút gọn)" hay không (chỉ hiện nếu từng có lịch sử cảnh báo), (b) hiển thị popup lịch sử cảnh báo.
-Việc ghi hiện đang **tắt tạm thời** (`ALERT_HISTORY_RECORDING_ENABLED = false` trong
-`epic-alert-phase-service.ts`, do giới hạn connection của Aiven free tier) — code path vẫn còn
-nguyên, chỉ không gọi.
+Bảng lịch sử cảnh báo từng ngày (LATE/FAIL, `phase`) đã được gộp vào `epic_alert_timeline`: migration
+`20261024b_drop_epic_alert_history.sql` copy Status của Epic vào `detail.status` của từng đợt
+`FAIL_TTM_CNTT` / `LATE_TTM_CNTT` rồi `DROP` bảng. Hai chức năng từng dùng bảng này nay đọc timeline:
+(a) rule "Epic Released chỉ còn hiển thị trên Quản trị Epic nếu từng có cảnh báo" =
+`getEpicKeysWithCnttAlertRuns()` (có ít nhất 1 đợt Fail/Cảnh báo muộn TTM-CNTT); (b) API
+`GET /api/epic-alerts-15/[epicKey]/alert-history` trả `alerts` (các đợt, mỗi đợt có ngày bắt đầu/kết
+thúc/status) thay cho `history` từng ngày. Việc ghi cảnh báo theo pha Epic 15 (đã tắt từ trước) bị gỡ cùng bảng.
 
 ### epic_milestone_history
 
@@ -382,7 +370,7 @@ created_at
 ```
 
 Unique `(epic_key, milestone)` — ghi một lần duy nhất, không ghi đè khi mốc đã tồn tại (giữ đúng
-ngày phát hiện đầu tiên). Khác `epic_alert_history` (chỉ ghi cảnh báo LATE/FAIL) — bảng này ghi các
+ngày phát hiện đầu tiên). Khác `epic_alert_timeline` (đợt cảnh báo liên tục) — bảng này ghi các
 mốc hoàn thành nội bộ dùng để xác định pha hiện tại của Epic 15.
 
 ### epic_ttm_snapshots / issue_daily_snapshots (đã gỡ 2026-10-23)
@@ -447,8 +435,8 @@ data_count     -- số lần thao tác trên các màn Epic Alerts (lịch sử 
 PRIMARY KEY (user_id, stat_date)
 ```
 
-Hiển thị dạng tổng all-time (SUM theo `stat_date`) tại popup "Thông tin cá nhân" và bảng Quản lý
-User; lưu theo ngày để dành sẵn cho báo cáo theo ngày sau này.
+Hiển thị dạng tổng trong cửa sổ lưu trữ (SUM theo `stat_date`, **90 ngày** từ 2026-10-24 — trước đó 30)
+tại popup "Thông tin cá nhân" và bảng Quản lý User; dòng cũ hơn cửa sổ bị xóa (`USAGE_STATS_RETENTION_DAYS`).
 
 ## 17. auth_sessions / password_reset_requests / audit_logs
 
@@ -457,6 +445,11 @@ auth_sessions: token_hash (PK, SHA-256 của cookie token), user_id, expires_at,
 password_reset_requests: id, email, status CHECK IN ('PENDING','RESOLVED'), created_at, resolved_at, resolved_by
 audit_logs: id, user_id, action, entity_type, entity_id, created_at
 ```
+
+**Dọn dẹp định kỳ** (`src/lib/housekeeping-service.ts`, từ 2026-10-24): job chạy mỗi ngày Việt Nam một lần
+ngay sau lượt tạo cache trong ngày (`runDailyCacheRefresh`) — xóa `auth_sessions` đã hết hạn
+(`expires_at < now`), xóa `audit_logs` quá 90 ngày, cuốn `visit_logs` cũ hơn ngày T-15 (giờ VN) vào `visit_log_rollups`
+rồi xóa, và xóa `user_usage_daily_stats` ngoài cửa sổ 90 ngày. Mỗi bước độc lập, lỗi một bước không chặn bước khác.
 
 `password_reset_requests` khóa theo **email**, không có `username`/`captcha_verified`/`handled_by`/
 `note` như tài liệu cũ mô tả — CAPTCHA được xác thực ở tầng API trước khi tạo request, không lưu cờ
@@ -488,7 +481,7 @@ updated_at
 
 Chỉ SUPERADMIN được cập nhật. Sau mỗi import lưu chính thức, hệ thống tự dọn raw batch quá hạn
 (`import_batches`/`import_rows`/`issues`), luôn giữ batch vừa import và lớp dữ liệu mới nhất;
-`epic_alert_history`/`epic_alert_timeline` không bị dọn theo (FK `ON DELETE SET NULL`); lịch sử Issue
+`epic_alert_timeline` không bị dọn theo (FK `ON DELETE SET NULL`); lịch sử Issue
 thì mất cùng batch.
 
 ## 20. epic_alert_timeline / ad_popups / ad_popup_impressions / info_banners
@@ -507,12 +500,12 @@ updated_at
 ```
 
 Thêm bởi `20260905_create_epic_alert_timeline.sql`, mở rộng bởi `20260905b` (thêm `LATE_TTM_CNTT`).
-Unique `(epic_key, alert_type, start_date)`. Khác `epic_alert_history` (chỉ ghi 1 dòng rời rạc/ngày,
-riêng cho LATE/FAIL TTM-CNTT tổng thể): bảng này theo dõi **5 loại cảnh báo** dưới dạng các "đợt"
+Unique `(epic_key, alert_type, start_date)`. Bảng này theo dõi **5 loại cảnh báo** dưới dạng các "đợt"
 (run) liên tục có ngày bắt đầu/kết thúc, cho cả `epic-alerts` UI mục "Dòng thời gian cảnh báo". Ghi
 bởi `recordEpicAlertTimelineTransitions` (gọi từ `import-service.ts`), chạy mỗi khi
 `aggregateBatchData()` chạy (import thủ công, import tự động, hoặc "Chạy lại" lớp dữ liệu) — **luôn
-bật**, không bị flag tắt như `epic_alert_history`/`epic_milestone_history`.
+bật**, không bị flag tắt như `epic_milestone_history`. Với `FAIL_TTM_CNTT` / `LATE_TTM_CNTT`, `detail` còn có
+`status` (Status Jira của Epic ở lần import gần nhất của đợt) — hiển thị ở "Epic History".
 
 ### epic_data_anomaly_violations
 
@@ -625,7 +618,7 @@ CREATE INDEX IF NOT EXISTS idx_visit_logs_user_created ON visit_logs (user_id, c
   (`dashboard` — TTM Dashboard `/dashboard-new` — và `epic_in_po` — Epic in PO — đã gỡ 11/10/2026; các dòng cũ giữ nguyên làm lịch sử, không ghi mới.)
   Phía client (`src/lib/visit-counter-client.ts`) áp dụng cơ chế **debounce 30 giây** trong `sessionStorage` cho từng `screen_key` nhằm tránh ghi nhận trùng lặp khi người dùng chuyển tab nhanh hoặc re-render component.
 - **Quan hệ**: `users ||--o{ visit_logs : "1-n (user_id)"`. Khi xóa user, `user_id` trong `visit_logs` được set `NULL` (`ON DELETE SET NULL`), bảo toàn số liệu thống kê tổng mà không làm sai lệch lịch sử truy cập.
-- **Phân tích đa chiều**: Service `src/lib/visit-counter-service.ts` tổng hợp số liệu trực tiếp từ `visit_logs`:
+- **Phân tích đa chiều**: Service `src/lib/visit-counter-service.ts` tổng hợp số liệu từ `visit_logs` (chỉ giữ chi tiết từ ngày T-15 đến T, `VISIT_DETAIL_WINDOW_DAYS = 15` — đúng phạm vi so sánh "Tuần này T-7→T" với "Tuần trước T-15→T-8") cộng với `visit_log_rollups` (số lũy kế của mọi dòng cũ hơn T-15 đã được cuốn vào rồi xóa khỏi `visit_logs`, bảng `20261024_create_visit_log_rollups.sql`, khóa `(event_type, screen_key, user_id)`, `screen_key=''` = không có màn hình, `user_id=0` = user đã bị xóa) — nên số "Tổng (Lũy kế)" không tụt khi `visit_logs` bị dọn; số Tuần này / Hôm nay chỉ cần `visit_logs`:
   - **Khái niệm thời gian trượt**: "Hôm nay" ($T$), "Tuần này" ($T-7 \to T$), "Tuần trước" ($T-15 \to T-8$), và "Tổng số (Lũy kế)".
   - **3 thẻ KPI**: Tổng số lượt truy cập (lũy kế), Tuần này, Hôm nay.
   - **Biểu đồ trend line 7 ngày qua**: Xu hướng đăng nhập ứng dụng hàng ngày.
@@ -673,7 +666,7 @@ Quy tắc dùng chung:
 - Cả 2 migration `20261005*` phải được áp dụng trên **cả local và Supabase** (xem `AGENTS.md` § Multi-database).
 - **Từ chối import / Epic deletion**: xoá vĩnh viễn mọi dòng của Epic (và Story/Subtask có trạng thái mới
   nhất thuộc Epic đó) ở `import_rows`, `issues`,
-  `epic_alert_history`, `epic_alert_timeline`, `epic_milestone_history`, `epic_data_anomaly_violations`,
+  `epic_alert_timeline`, `epic_milestone_history`, `epic_data_anomaly_violations`,
   `epic_alert_row_cache`, `black_listed_epics`; mỗi Epic một dòng `audit_logs` (`EPIC_DELETION`,
   `DENIED_IMPORT_REMOVE`). Không tự tạo lại cache.
 - **Sao lưu / Phục hồi** (`EXPORTABLE_TABLES`, `db-backup-service.ts`) gồm master data, user + phân quyền

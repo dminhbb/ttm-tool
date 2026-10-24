@@ -17,20 +17,10 @@ import {
 import type { EpicAlertFilters } from '@/lib/epic-alert-service';
 import { computeEpicPhaseCompletionByEpicKey } from '@/lib/epic-phase-completion-service';
 import type { EpicPhaseCompletion } from '@/lib/epic-phase-completion-service';
-import { recordEpicAlertHistory } from '@/lib/epic-alert-history-service';
-import type { EpicAlertHistoryPhase } from '@/lib/epic-alert-history-service';
-import pool from '@/lib/db';
 import type { EpicAlertPhasedResponse, EpicAlertRowPhased, PhaseCell } from '@/lib/epic-alert-types';
 
 const DESIGN_STATUS_INDEX = epicWorkflowStatusIndex('DESIGN');
 const R4GOLIVE_STATUS_INDEX = epicWorkflowStatusIndex('R4GOLIVE');
-
-// Temporarily off: recording a LATE phase into epic_alert_history writes on every screen view (up
-// to one row per Epic per phase currently LATE), which exhausted Aiven's free-tier connection cap
-// even after capping the pool and making the writes sequential (see db.ts / the write-loop below).
-// Flip back to true once the target DB's connection budget can absorb it. The write path itself is
-// left fully intact — this only skips calling it.
-const ALERT_HISTORY_RECORDING_ENABLED = false;
 
 function naPhaseCell(): PhaseCell {
   return { alertLevel: 'NONE', baselineDate: null, baselineSourceDate: null, baselineSourceLabel: null, isCurrentStage: false, isDone: false };
@@ -100,10 +90,6 @@ function resolvePhaseCells(
  * story/subtask statuses every request (see epic-phase-completion-service.ts) — completion dates
  * are no longer recorded. PENTEST still has no completion rule, per its own comment below. How
  * baseline/isDone actually render is the frontend's concern (epic-alerts-15/page.tsx).
- *
- * As a side effect of being viewed, any Epic whose phase (DESIGN/DEV/TEST/PENTEST/R4GOLIVE) is
- * currently Cảnh báo muộn gets that recorded into epic_alert_history (once per Epic/phase/day —
- * see recordEpicAlertHistory's ON CONFLICT).
  */
 export async function getEpicAlertRowsPhased(userId: number, role: UserRole, filters: EpicAlertFilters = {}): Promise<EpicAlertPhasedResponse> {
   const [context, phaseCompletionByEpicKey] = await Promise.all([
@@ -113,9 +99,8 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole, fil
   if (!context.lastAggregatedAt) {
     return { accessRole: context.accessRole, asOfDate: context.asOfDate, availableLayerDates: context.availableLayerDates, lastAggregatedAt: null, rows: [], viewerName: context.viewerName };
   }
-  const { entries, holidays, lastBatchId, now } = context;
+  const { entries, holidays, now } = context;
   const rows: EpicAlertRowPhased[] = [];
-  const lateAlertsToRecord: { epicKey: string; phase: EpicAlertHistoryPhase; status: string }[] = [];
 
   for (const { complexity, domain, epicStatusIndex, evaluation, hasAlertHistory, pmSmName, projectName, qaInScope, releaseAxis, row, startDate, ttmCnttInScope, ttmCnttStatusMismatch, ttmE2eRelease, ttmE2eTarget } of entries) {
     const ttmCnttStartDate = parseDate(evaluation.ttm.cntt.fromDate);
@@ -164,12 +149,6 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole, fil
       isCurrentStage: false,
       isDone: completion.releasedDone,
     };
-
-    (['design', 'dev', 'test', 'pentest', 'r4golive'] as const).forEach((key) => {
-      if (stages[key].alertLevel === 'LATE') {
-        lateAlertsToRecord.push({ epicKey: row.epicKey, phase: key.toUpperCase() as EpicAlertHistoryPhase, status: row.status });
-      }
-    });
 
     // TTM-CNTT stripe "thực tế" (bottom) — resolveTtmActualRange is shared with "Quản trị Epic
     // (rút gọn)" and Epic in PO so this stripe's end date/color can never disagree between screens.
@@ -226,15 +205,6 @@ export async function getEpicAlertRowsPhased(userId: number, role: UserRole, fil
       ttmE2eTargetWorkingDays: ttmE2eTarget,
       ttmCnttStatusMismatch,
     });
-  }
-
-  // Sequential, not Promise.all: this can be dozens of INSERTs per page view (one per Epic/phase
-  // currently LATE) — firing them all at once can exhaust a connection-constrained target (e.g.
-  // Aiven's free tier) well before the read queries above even get a chance to release theirs.
-  if (ALERT_HISTORY_RECORDING_ENABLED) {
-    for (const { epicKey, phase, status } of lateAlertsToRecord) {
-      await recordEpicAlertHistory(pool, epicKey, 'LATE', `${status} - ${phase}`, now, lastBatchId, phase);
-    }
   }
 
   const alertRank: Record<AlertLevel, number> = { FAIL: 0, LATE: 1, EARLY: 2, NONE: 3 };

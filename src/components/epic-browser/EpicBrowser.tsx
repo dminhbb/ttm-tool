@@ -179,21 +179,22 @@ function TreeTableRow({ isDimmed, isExpanded, isLastChild, isLoading, issue, lev
   );
 }
 
-interface EpicAlertHistoryEntry {
-  alertDate: string;
-  alertStatus: string;
+interface EpicAlertRunEntry {
   alertType: 'FAIL' | 'LATE';
+  endDate: string | null;
+  startDate: string;
+  status: string | null;
 }
 interface EpicMilestoneHistoryEntry {
   milestone: string;
   milestoneDate: string;
 }
 interface EpicHistoryResponse {
-  history: EpicAlertHistoryEntry[];
+  alerts: EpicAlertRunEntry[];
   milestones: EpicMilestoneHistoryEntry[];
 }
 
-const ALERT_TYPE_LABEL: Record<EpicAlertHistoryEntry['alertType'], string> = {
+const ALERT_TYPE_LABEL: Record<EpicAlertRunEntry['alertType'], string> = {
   FAIL: 'Fail TTM-CNTT (QLDA)',
   LATE: 'Cảnh báo muộn',
 };
@@ -203,7 +204,7 @@ const MILESTONE_LABEL: Record<string, string> = {
   TEST_DONE: 'Test Done',
 };
 
-type HistoryColumn = { date: string; label: string; status: string };
+type HistoryColumn = { date: string; label: string; sortDate: string; status: string };
 
 /** Epic alert/milestone history laid out horizontally (one column per event, oldest → newest) so
  * it reads as a timeline strip under the Epic's row, instead of a long vertical list. */
@@ -236,9 +237,15 @@ function EpicHistoryStrip({ epicKey }: { epicKey: string }) {
   if (!data) return <p className="px-1 py-2 text-fb-text-secondary">Đang tải lịch sử cảnh báo…</p>;
 
   const columns: HistoryColumn[] = [
-    ...data.milestones.map((m) => ({ date: m.milestoneDate, label: MILESTONE_LABEL[m.milestone] ?? m.milestone, status: 'Hoàn thành' })),
-    ...data.history.map((h) => ({ date: h.alertDate, label: ALERT_TYPE_LABEL[h.alertType], status: h.alertStatus })),
-  ].sort((a, b) => a.date.localeCompare(b.date));
+    ...data.milestones.map((m) => ({ date: formatDate(m.milestoneDate), label: MILESTONE_LABEL[m.milestone] ?? m.milestone, sortDate: m.milestoneDate, status: 'Hoàn thành' })),
+    // One column per alert run: "start → end" (or "start → nay" while the run is still open).
+    ...data.alerts.map((run) => ({
+      date: run.endDate && run.endDate !== run.startDate ? `${formatDate(run.startDate)} → ${formatDate(run.endDate)}` : run.endDate ? formatDate(run.startDate) : `${formatDate(run.startDate)} → nay`,
+      label: ALERT_TYPE_LABEL[run.alertType],
+      sortDate: run.startDate,
+      status: run.status ?? '-',
+    })),
+  ].sort((a, b) => a.sortDate.localeCompare(b.sortDate));
 
   if (columns.length === 0) {
     return <p className="px-1 py-2 text-fb-text-secondary">Epic này chưa có lịch sử cảnh báo hoặc mốc hoàn thành nào.</p>;
@@ -257,7 +264,7 @@ function EpicHistoryStrip({ epicKey }: { epicKey: string }) {
           <tr>
             <th className="whitespace-nowrap border-b border-r border-fb-border bg-fb-surface-muted px-3 py-2 text-left font-bold text-fb-text-secondary">Ngày</th>
             {columns.map((column, index) => (
-              <td key={index} className="whitespace-nowrap border-b border-r border-fb-border px-3 py-2 last:border-r-0">{formatDate(column.date)}</td>
+              <td key={index} className="whitespace-nowrap border-b border-r border-fb-border px-3 py-2 last:border-r-0">{column.date}</td>
             ))}
           </tr>
           <tr>

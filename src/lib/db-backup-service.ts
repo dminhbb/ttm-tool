@@ -42,7 +42,6 @@ export const EXPORTABLE_TABLES: { label: string; tableName: string }[] = [
   { label: 'Đợt import dữ liệu', tableName: 'import_batches' },
   { label: 'Dòng dữ liệu import (raw)', tableName: 'import_rows' },
   { label: 'Issues (Epic/Story/Subtask)', tableName: 'issues' },
-  { label: 'Lịch sử cảnh báo Epic (dữ liệu cảnh báo)', tableName: 'epic_alert_history' },
   { label: 'Dòng thời gian cảnh báo Epic (lịch sử Epic)', tableName: 'epic_alert_timeline' },
   { label: 'Mốc hoàn thành Epic (lịch sử Epic)', tableName: 'epic_milestone_history' },
   { label: 'Audit log', tableName: 'audit_logs' },
@@ -271,7 +270,7 @@ export async function exportTablesToSql(tableNames: string[], includeSchema: boo
   return lines.join('\n');
 }
 
-export type DataLayerExportCategory = 'raw' | 'alert' | 'epicHistory';
+export type DataLayerExportCategory = 'raw' | 'epicHistory';
 
 interface DataLayerTableConfig {
   category: DataLayerExportCategory;
@@ -285,13 +284,12 @@ interface DataLayerTableConfig {
   whereClause: string;
 }
 
-// dữ liệu gốc (raw, toggle-gated) / dữ liệu cảnh báo (alert) / dữ liệu lịch sử Epic (epicHistory) — always exported together for the chosen data-layer range,
+// dữ liệu gốc (raw, toggle-gated) / dữ liệu lịch sử Epic (epicHistory) — always exported together for the chosen data-layer range,
 // per exportDataLayerRangeToSql's single "Start/End Data Layer" selection.
 const DATA_LAYER_TABLES: DataLayerTableConfig[] = [
   { category: 'raw', tableName: 'import_batches', whereClause: 'aggregated_at::date BETWEEN $1 AND $2' },
   { category: 'raw', tableName: 'import_rows', whereClause: 'import_batch_id IN (SELECT id FROM import_batches WHERE aggregated_at::date BETWEEN $1 AND $2)' },
   { category: 'raw', tableName: 'issues', whereClause: 'aggregated_at::date BETWEEN $1 AND $2' },
-  { category: 'alert', tableName: 'epic_alert_history', whereClause: 'alert_date BETWEEN $1 AND $2' },
   { category: 'epicHistory', tableName: 'epic_alert_timeline', whereClause: 'start_date <= $2 AND (end_date IS NULL OR end_date >= $1)' },
   { category: 'epicHistory', tableName: 'epic_milestone_history', whereClause: 'milestone_date BETWEEN $1 AND $2' },
 ];
@@ -306,7 +304,7 @@ export interface DataLayerExportOptions {
 }
 
 /**
- * Export "dữ liệu cảnh báo" + "dữ liệu lịch sử Epic" (always) plus "dữ liệu
+ * Export "dữ liệu lịch sử Epic" (always) plus "dữ liệu
  * gốc" (only when includeRawData) for one contiguous data-layer date range — the "Start/End Data
  * Layer" + "Export Raw Data" flow on the admin backup screen. Reuses exportOneTableToSql, so the
  * resulting file has the exact same EXPORT_SIGNATURE/statement shape as a whole-table export and
@@ -936,7 +934,6 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
       'import_batches',
       'import_rows',
       'issues',
-      'epic_alert_history',
       'epic_alert_timeline',
       'epic_milestone_history',
       'audit_logs',
@@ -944,9 +941,6 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
 
     const SECONDARY_UNIQUE_CONFLICT_PREDICATES: Record<string, string[]> = {
       domains: ['t.domain_code = incoming.domain_code'],
-      epic_alert_history: [
-        't.epic_key = incoming.epic_key AND t.alert_date = incoming.alert_date AND t.alert_type = incoming.alert_type AND t.phase = incoming.phase',
-      ],
       epic_alert_timeline: [
         't.end_date IS NULL AND incoming.end_date IS NULL AND t.epic_key = incoming.epic_key AND t.alert_type = incoming.alert_type',
       ],
