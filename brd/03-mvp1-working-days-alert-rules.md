@@ -119,8 +119,9 @@ gian cảnh báo).** Epic ở trạng thái Cancelled/To Do/In PO/Backlog đư�
 > **Cập nhật (22/09/2026):** bỏ rule "thiếu T0" cũ, đổi mốc tính của rule "Pending lâu" sang Start
 > Date, và bổ sung rule R6 (SP nhưng Requirement Level thấp). Mỗi rule nay có `ruleIndex` cố định
 > (`EPIC_ANOMALY_RULE_INDEX`, `src/lib/epic-data-anomaly.ts`) — không bao giờ đánh số lại, rule mới
-> luôn thêm vào cuối — và được lưu kèm mỗi vi phạm trong bảng `epic_data_anomaly_violations` (xem
-> `08-data-model.md` §20) để thống kê theo từng nhóm rule bằng `GROUP BY rule_code`.
+> luôn thêm vào cuối — và đi kèm mỗi vi phạm (`ruleIndex`). Không còn bảng lưu vi phạm: bảng
+> `epic_data_anomaly_violations` đã gỡ 2026-10-24; thống kê theo từng nhóm rule lấy từ
+> `epic_alert_row_cache.badge_codes` (xem `08-data-model.md`).
 >
 > **Cập nhật (24/09/2026):** bổ sung rule R7, phát sinh từ việc tách "trục Release" ra khỏi phép
 > tính TTM-E2E (xem `02-ttm-concepts-and-rules.md` mục 6.1) — thay thế khái niệm "Sai Status TTM-E2E"

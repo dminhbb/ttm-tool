@@ -147,7 +147,7 @@ export interface ComponentPhaseAlerts {
  * behind an earlier, not-yet-done phase still goes LATE once its own baseline passes, since DEV's
  * baseline always falls before TEST's, which always falls before PENTEST's), plus which of the
  * three is Epic 15's "giai đoạn hiện tại" (current phase) — the first not yet satisfying its
- * completion rule (DEV_DONE / TEST_DONE — see epic-milestone-history-service.ts; PENTEST has no
+ * completion rule (DEV_DONE / TEST_DONE — see epic-phase-completion-service.ts; PENTEST has no
  * completion rule yet, so it's the fallback once TEST is done).
  */
 export function computeComponentPhaseAlerts(

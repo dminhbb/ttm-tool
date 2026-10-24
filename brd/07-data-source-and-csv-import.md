@@ -65,7 +65,7 @@ Từ chối import (§2.2) — file không có 2 cột này vẫn import bình t
 Crawl tool chưa lọc được ngay từ nguồn, nên import adapter tự giữ phạm vi dữ liệu:
 `created >= 31/01/2026`, Epic Released / MVP Done chỉ khi chuyển sang status đó **sau 30/06/2026**, và
 issue cấp 1 chỉ nhận issue type **Epic**. Bước này chạy trong `processImport` ngay sau khi parse CSV,
-trước validate — dòng bị từ chối không đi vào bất kỳ bảng nào (kể cả `import_rows`); số dòng/Epic bị
+trước validate — dòng bị từ chối không đi vào bất kỳ bảng nào (kể cả `import_row_issues`); số dòng/Epic bị
 từ chối ghi ở `import_batches.metadata_json` (`deniedRows`, `deniedEpics`) và cột "Từ chối" của Nhật ký
 lịch sử import. Áp dụng cho cả form thủ công lẫn `POST /api/data-source/import/auto`.
 
@@ -98,8 +98,8 @@ cổng chặn dữ liệu đầu vào, không phải badge/verdict hiển thị 
   (từ `issues`); issue đã chuyển sang Epic khác được giữ nguyên. Từ 2026-10-19
   truy vấn chỉ đọc các issue từng trỏ tới Epic / Story đó (index `20261019c_add_epic_deletion_scope_indexes.sql`)
   thay vì tính trạng thái mới nhất của mọi issue — kết quả giữ nguyên (đã đối chiếu 385 Epic trên DB local).
-- Xóa ở: `import_rows`, `issues` (mọi batch),
-  `epic_alert_timeline`, `epic_milestone_history`, `epic_data_anomaly_violations`,
+- Xóa ở: `import_row_issues`, `issues` (mọi batch),
+  `epic_alert_timeline`,
   `epic_alert_row_cache`, `black_listed_epics`; ghi `audit_logs` (`EPIC_DELETION`) cho từng Epic.
 - **Không chạy lại cache** — `ttm_index_global_cache` / `ttm_dashboard_2_cache` vẫn tính Epic đã xóa cho
   tới khi admin chạy lại cache thủ công (UI hiện toast nhắc).
@@ -175,7 +175,7 @@ Không ghi trực tiếp từ CSV vào bảng nghiệp vụ chính nếu chưa v
 ## 5.1. Lưu trữ dài hạn và dọn raw data
 
 - Từ 2026-10-23 hai bảng snapshot `issue_daily_snapshots` / `epic_ttm_snapshots` đã được **gỡ** (chúng chỉ là bản sao từng dòng của `issues`, không màn hình nào đọc). Lịch sử Issue (lớp dữ liệu cũ, bằng chứng rule B, phạm vi Epic deletion) chỉ còn trong `issues` và mất theo retention RAW. Dòng thời gian cảnh báo (`epic_alert_timeline`; `epic_alert_history` đã gộp vào đây 2026-10-24) vẫn sống sau khi raw bị dọn (FK `ON DELETE SET NULL`).
-- Raw data là `import_batches`, `import_rows` và `issues` của batch. Giá trị mặc định giữ raw là 30 ngày; SUPERADMIN có thể đặt từ 7 đến 3650 ngày tại Quản trị nguồn dữ liệu.
+- Raw data là `import_batches`, `import_row_issues` và `issues` của batch (bảng `import_rows` đã gỡ 2026-10-24). Giá trị mặc định giữ raw là 30 ngày; SUPERADMIN có thể đặt từ 7 đến 3650 ngày tại Quản trị nguồn dữ liệu.
 - Sau mỗi import được lưu, hệ thống dọn raw batch quá hạn trong cùng transaction; luôn giữ batch đang import và lớp `aggregated_at` mới nhất để trang Cảnh báo Epic không mất dữ liệu hiện hành.
 
 
@@ -216,8 +216,8 @@ Các lỗi validate cần phát hiện (`src/lib/validator.ts`):
 >
 > Lý do: các Epic có dữ liệu ngày phi logic này vẫn cần xuất hiện trên các màn hình Quản trị Epic để
 > user chủ động nhận biết và làm sạch dữ liệu nguồn trên Jira, thay vì bị âm thầm loại bỏ khỏi hệ
-> thống. Dòng vẫn được ghi vào `import_rows` với `validation_status='WARNING'` và
-> `validation_errors_json` giữ nguyên message lỗi (màn "Nguồn dữ liệu" hiển thị badge "Cảnh báo" thay
+> thống. Dòng vẫn được ghi vào `import_row_issues` với `validation_status='WARNING'` và
+> `validation_errors` giữ nguyên message lỗi (màn "Nguồn dữ liệu" hiển thị badge "Cảnh báo" thay
 > vì "Lỗi"), và **vẫn được insert vào `issues`** (`import-service.ts`'s `validIssues` chỉ loại
 > `INVALID`, không loại `WARNING`).
 >

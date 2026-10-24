@@ -484,18 +484,15 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole, filt
       issues.aggregated_at::text AS "aggregatedAt",
       COALESCE(issues.components, '{}') AS components,
       COALESCE(
-        NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+        NULLIF(issues.project_key, ''),
         NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),
         ''
       ) AS project,
-      COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'epicType', ''), '') AS "epicType"
+      COALESCE(NULLIF(issues.request_type, ''), '') AS "epicType"
     FROM issues
-    LEFT JOIN import_rows
-      ON import_rows.import_batch_id = issues.source_import_batch_id
-      AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = issues.issue_key
     WHERE UPPER(issues.issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
       AND ($1::text[] IS NULL OR COALESCE(
-        NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+        NULLIF(issues.project_key, ''),
         NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),
         ''
       ) = ANY($1::text[]))

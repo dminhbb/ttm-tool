@@ -5,7 +5,7 @@ import { STORY_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 /**
  * Epic deletion (owner 2026-10-14) — removes every trace of some Epics from the database: the Epic,
  * its Stories, the Subtasks hanging off the Epic directly and the Subtasks of those Stories, in every
- * data layer (RAW import_rows/issues of every batch) and in
+ * data layer (RAW issues of every batch, and the import warnings/errors of their rows) and in
  * the per-Epic history/summary tables (alert history & timeline, milestones, data-anomaly violations,
  * the "Quản trị Epic" row cache, Epic ngoại lệ).
  *
@@ -52,7 +52,7 @@ export interface EpicDeletionResult {
 interface TableTarget {
   label: string;
   table: string;
-  /** WHERE clause and its parameters, from the issue keys / Epic keys / import_rows LIKE patterns. */
+  /** WHERE clause and its parameters, from the issue keys / Epic keys. */
   where: (keys: ScopeKeys) => { params: unknown[]; sql: string };
 }
 
@@ -61,29 +61,15 @@ interface ScopeKeys {
   issueKeys: string[];
 }
 
-function escapeLike(value: string): string {
-  return value.replace(/[\\%_]/g, (char) => `\\${char}`);
-}
-
 const byIssueKey = (keys: ScopeKeys) => ({ params: [keys.issueKeys], sql: 'issue_key = ANY($1::text[])' });
 const byEpicKey = (keys: ScopeKeys) => ({ params: [keys.epicKeys], sql: 'epic_key = ANY($1::text[])' });
 
 /** Deletion order matters only for readability — no FK ties these tables to each other. */
 const TABLE_TARGETS: readonly TableTarget[] = [
-  {
-    label: 'Import rows (RAW)',
-    table: 'import_rows',
-    // normalized_data_json is TEXT holding JSON.stringify(issue): the LIKE pre-filter keeps the jsonb
-    // parse to the few candidate rows instead of the whole table.
-    where: (keys) => ({
-      params: [keys.issueKeys, keys.issueKeys.map((key) => `%"issueKey":"${escapeLike(key)}"%`)],
-      sql: `normalized_data_json LIKE ANY($2::text[]) AND (normalized_data_json::jsonb ->> 'issueKey') = ANY($1::text[])`,
-    }),
-  },
+  // Carries the issue's key and summary, so it has to go with the Epic like every other trace.
+  { label: 'Cảnh báo/lỗi validate khi import', table: 'import_row_issues', where: byIssueKey },
   { label: 'Issues (RAW, mọi lớp)', table: 'issues', where: byIssueKey },
   { label: 'Dòng thời gian cảnh báo Epic', table: 'epic_alert_timeline', where: byEpicKey },
-  { label: 'Mốc hoàn thành Epic', table: 'epic_milestone_history', where: byEpicKey },
-  { label: 'Vi phạm sai lệch dữ liệu', table: 'epic_data_anomaly_violations', where: byEpicKey },
   { label: 'Cache dòng Quản trị Epic', table: 'epic_alert_row_cache', where: byEpicKey },
   { label: 'Epic ngoại lệ', table: 'black_listed_epics', where: byEpicKey },
 ];

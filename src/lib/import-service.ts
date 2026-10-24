@@ -7,11 +7,8 @@ import { DEFAULT_RAW_IMPORT_RETENTION_DAYS } from './data-retention-service';
 import { evaluateIssueCompliance } from './epic-compliance-engine';
 import { resolveTtmE2eRelease } from './epic-alert-service';
 import { breaksTtmCnttCalculation, breaksTtmE2eCalculation, evaluateEpicDataAnomaly } from './epic-data-anomaly';
-import type { EpicAnomalyViolation } from './epic-data-anomaly';
 import type { EpicComplexity } from './ttm-rules';
 import { recordEpicAlertTimelineTransitions, type EpicAlertTimelineDetail, type EpicAlertTimelineStates } from './epic-alert-timeline-service';
-import { recordEpicDataAnomalyViolations } from './epic-data-anomaly-storage-service';
-import { computeMilestoneCandidates, recordEpicMilestone } from './epic-milestone-history-service';
 import { EPIC_ISSUE_TYPES_SQL } from './issue-resolution-sql';
 import { getActiveHolidaySet } from './master-data-service';
 import { listActiveStatusAlertRules } from './status-alert-rule-service';
@@ -23,9 +20,6 @@ import { refreshDerivedCaches } from './daily-cache-service';
 import { getImportAdmissionSettings, loadImportAdmissionList, loadLastUnreleasedSeen, MAX_EPIC_DELETIONS_PER_IMPORT, recordDeniedEpicsOfImport, recordProvenExemptions, type DeniedImportDeletionOutcome } from './denied-import-service';
 import { describeViolations, normalizeEpicKey, planImportAdmission, vietnamIsoDate } from './import-admission-rules';
 import { isLevel1IssueType } from './issue-hierarchy';
-
-// See the write-loop this guards, near the bottom of aggregateBatchData.
-const MILESTONE_RECORDING_ENABLED = false;
 
 // Epic complexity rule (company rule change, 2026-09) — 4-way classification from epic_request_type
 // + epic_request_level:
@@ -63,10 +57,9 @@ function computeEpicComplexity(requestType: string, requirementLevel: string): E
 }
 
 /**
- * Derives the alert/anomaly layers for one import batch from the
- * canonical `issues` rows already stored for it: the alert timeline (Cảnh báo muộn/Fail TTM-CNTT/E2E,
- * thiếu Start Date, dữ liệu bất thường, as of that batch's aggregatedAtDate) and the data-anomaly violations. Every write is
- * idempotent (ON CONFLICT upsert / unique constraint), so this is safe to call again for a batch
+ * Derives the alert timeline for one import batch from the canonical `issues` rows already stored
+ * for it (Cảnh báo muộn/Fail TTM-CNTT/E2E, thiếu Start Date, dữ liệu bất thường, as of that batch's
+ * aggregatedAtDate). Every write is idempotent (ON CONFLICT upsert / unique constraint), so this is safe to call again for a batch
  * whose raw `issues` rows are still present — it never re-reads or re-validates the original CSV.
  */
 export async function aggregateBatchData(client: PoolClient, batchId: number, aggregatedAtDate: Date): Promise<void> {
@@ -86,11 +79,8 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
       i.idea_approved_date::text AS "ideaApprovedDate", i.start_date::text AS "startDate",
       i.r4g_date::text AS "r4gDate", i.due_date::text AS "dueDate", i.jira_created_at::text AS "jiraCreatedAt",
       i.requirement_level AS "requirementLevel",
-      NULLIF(ir.normalized_data_json::jsonb ->> 'epicType', '') AS "requestType"
+      NULLIF(i.request_type, '') AS "requestType"
     FROM issues i
-    LEFT JOIN import_rows ir
-      ON ir.import_batch_id = i.source_import_batch_id
-      AND ir.normalized_data_json::jsonb ->> 'issueKey' = i.issue_key
     WHERE i.source_import_batch_id = $1 AND UPPER(i.issue_type) IN (${EPIC_ISSUE_TYPES_SQL});
   `, [batchId]);
   // epic_alert_timeline transitions (Fail TTM-CNTT/E2E, thiếu Start Date, dữ liệu bất thường) are
@@ -98,10 +88,6 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
   // recordEpicAlertTimelineTransitions) instead of one write per epic — same connection-cap
   // reasoning as everything else recorded during import.
   const timelineStatesByEpic = new Map<string, EpicAlertTimelineStates>();
-  // Per-rule anomaly violations, keyed by epic — recorded into epic_data_anomaly_violations (one
-  // current-state row per epic/rule) below so anomalies can be counted/queried per rule group,
-  // separately from the single combined DATA_ANOMALY timeline run above.
-  const anomalyViolationsByEpic = new Map<string, EpicAnomalyViolation[]>();
   for (const epic of epicRows.rows) {
     const evaluation = evaluateIssueCompliance({
       dueDate: epic.dueDate,
@@ -131,7 +117,6 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
     }, aggregatedAtDate, holidays);
     const missingStartDateViolation = anomalyViolations.find((v) => v.code === 'MISSING_START_DATE') ?? null;
     const otherAnomalyViolations = anomalyViolations.filter((v) => v.code !== 'MISSING_START_DATE');
-    anomalyViolationsByEpic.set(epic.epicKey, anomalyViolations);
     const ttmE2eToField = findActiveTtmPolicy(ttmPolicies, 'TTM_E2E', (epic.complexity as EpicComplexity | null) ?? 'CT-Lv12')?.toTtmField ?? 'R4G_DATE';
     const ttmE2eRelease = resolveTtmE2eRelease(epic, evaluation.ttm.e2e.workingDays ?? 0, ttmE2eToField, aggregatedAtDate, holidays);
 
@@ -166,24 +151,8 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
     });
   }
   await recordEpicAlertTimelineTransitions(client, aggregatedAtDate, timelineStatesByEpic, batchId);
-  await recordEpicDataAnomalyViolations(client, aggregatedAtDate, anomalyViolationsByEpic, batchId);
-
-  // DESIGN_DONE / DEV_DONE / TEST_DONE milestone recording is temporarily off — phase completion
-  // is now evaluated live from current statuses on every request instead (see
-  // epic-phase-completion-service.ts). The write path is left fully intact, same convention as
-  // ALERT_HISTORY_RECORDING_ENABLED in epic-alert-phase-service.ts.
-  if (MILESTONE_RECORDING_ENABLED) {
-    const { designDoneCandidates, devDoneCandidates, testDoneCandidates } = await computeMilestoneCandidates(client);
-    for (const candidate of designDoneCandidates) {
-      await recordEpicMilestone(client, candidate.epicKey, 'DESIGN_DONE', candidate.designDoneDate, batchId);
-    }
-    for (const candidate of devDoneCandidates) {
-      await recordEpicMilestone(client, candidate.epicKey, 'DEV_DONE', candidate.devDoneDate, batchId);
-    }
-    for (const candidate of testDoneCandidates) {
-      await recordEpicMilestone(client, candidate.epicKey, 'TEST_DONE', candidate.testDoneDate, batchId);
-    }
-  }
+  // Phase completion (design / dev / test / R4GOLIVE done) is not recorded: it is evaluated live from the
+  // current Story/Subtask statuses on every request (epic-phase-completion-service.ts).
 }
 
 export interface ImportBatch {
@@ -270,7 +239,7 @@ export async function processImport(
 
   // 1b. "Từ chối import" — drop every row of a denied Epic (listed in denied_import_epics, or breaking
   // an automatic rule) before anything is validated or stored: the rest of the pipeline never sees
-  // them, not even import_rows. See import-admission-rules.ts.
+  // them, not even import_row_issues. See import-admission-rules.ts.
   const [admissionList, admissionSettings, lastUnreleasedSeen] = await Promise.all([
     loadImportAdmissionList(),
     getImportAdmissionSettings(),
@@ -370,37 +339,38 @@ export async function processImport(
       ]);
     }
 
-    // 4. Ingest Raw Import Rows into import_rows
-    // (normalized_data_json is the single copy kept — it used to be duplicated verbatim
-    // into a separate raw_data_json column, doubling storage for no benefit.)
-    //
-    // One INSERT per row here used to mean one DB round trip per row — fine for a small file, but
-    // a real production export (tens of thousands of rows) turned this into a 10+ minute request
-    // that timed out (confirmed by reproducing it directly: ~31,500 rows took over 10 minutes and
-    // the connection was eventually dropped). All columns here are scalar, so a single
-    // unnest()-based bulk insert replaces the whole loop with one round trip regardless of row
-    // count — Postgres has no limit on array-parameter length, only on the number of distinct
-    // placeholders ($1..$5 here), so this scales to any file size in one query.
-    if (rawIssues.length > 0) {
+    // 4. Record the rows that did not validate cleanly (WARNING / INVALID) in import_row_issues, for the
+    // "Chi tiết lỗi/cảnh báo" of this import. A clean row needs no record: its data is the `issues` row
+    // written in step 5 (there used to be an import_rows JSON copy of EVERY row next to it, ~97% identical
+    // to `issues`, which is gone — see 20261025b_drop_import_rows.sql). INVALID rows never reach `issues`,
+    // so this table is the only place their key / summary / errors are kept. One unnest() bulk insert,
+    // a single round trip however many rows the file has.
+    const rowsWithIssues = rawIssues
+      .map((issue, index) => ({ issue, validation: validationReport[index] }))
+      .filter(({ validation }) => validation.status !== 'VALID');
+    if (rowsWithIssues.length > 0) {
       await client.query(
-        `INSERT INTO import_rows (import_batch_id, row_number, normalized_data_json, validation_status, validation_errors_json)
-         SELECT $1, * FROM unnest($2::int[], $3::text[], $4::text[], $5::text[]);`,
+        `INSERT INTO import_row_issues (import_batch_id, row_number, issue_key, summary, validation_status, validation_errors)
+         SELECT $1, t.row_number, t.issue_key, t.summary, t.validation_status, t.validation_errors::jsonb
+         FROM unnest($2::int[], $3::text[], $4::text[], $5::text[], $6::text[]) AS t(row_number, issue_key, summary, validation_status, validation_errors)
+         ON CONFLICT (import_batch_id, row_number) DO NOTHING;`,
         [
           batchId,
-          rawIssues.map((issue) => issue.rowNumber),
-          rawIssues.map((issue) => JSON.stringify(issue)),
-          validationReport.map((validation) => validation.status),
-          validationReport.map((validation) => JSON.stringify(validation.errors)),
+          rowsWithIssues.map(({ issue }) => issue.rowNumber),
+          rowsWithIssues.map(({ issue }) => issue.issueKey || null),
+          rowsWithIssues.map(({ issue }) => issue.summary || null),
+          rowsWithIssues.map(({ validation }) => validation.status),
+          rowsWithIssues.map(({ validation }) => JSON.stringify(validation.errors)),
         ],
       );
     }
 
     // 5. Ingest into canonical issues table if NOT validateOnly. Rows that failed validation
-    // (status INVALID) are excluded from this insert loop — every row, valid or not, was already
-    // recorded verbatim in import_rows above (with its validation_status/errors) so the source
+    // (status INVALID) are excluded from this insert loop — every WARNING / INVALID row was already
+    // recorded in import_row_issues above (with its validation errors) so the source
     // data can be corrected — but only issues that passed validation are safe to write into the
-    // canonical table and downstream aggregation (epic_alert_timeline,
-    // epic_data_anomaly_violations). This means one bad row no longer takes the whole batch down with it:
+    // canonical table and downstream aggregation (epic_alert_timeline).
+    // This means one bad row no longer takes the whole batch down with it:
     // every other issue (including other Epics untouched by any error) still gets ingested and
     // aggregated normally. batchStatus stays 'FAILED' whenever errorRows > 0 purely as a reporting
     // label on the batch history screen — it no longer implies "nothing was saved".
@@ -429,7 +399,8 @@ export async function processImport(
     if (!validateOnly && validIssues.length > 0) {
       await accumulateProjectComponents(client, validIssues);
 
-      // Same round-trip-per-row problem as the import_rows loop above, but issues has 3 array
+      // One INSERT per row would be one DB round trip per row (a real export is tens of thousands of
+      // rows), but issues has 3 array
       // columns (epic_stories/story_subtasks/components) — unnest() can't cleanly expand "one
       // array value per row" alongside scalar columns (it flattens every level together), so this
       // stays a multi-row VALUES (...), (...), ... insert instead, chunked to stay well under
@@ -443,6 +414,7 @@ export async function processImport(
         'epic_complexity_type', 'requirement_level', 'requesting_unit', 'source_import_batch_id', 'aggregated_at',
         'jira_created_at', 'jira_updated_at', 'epic_stories', 'story_subtasks', 'components',
         'previous_status', 'khau_ba', 'khau_co', 'khau_dev', 'khau_pm_sm', 'khau_po', 'khau_pentest', 'khau_sa', 'khau_sit_uat', 'note_ly_do_khac', 'main_fail_dept',
+        'project_key', 'request_type',
       ];
       const insertIssueUpdateClause = `
         ON CONFLICT (issue_key, source_import_batch_id) DO UPDATE SET
@@ -476,6 +448,8 @@ export async function processImport(
           khau_sit_uat = EXCLUDED.khau_sit_uat,
           note_ly_do_khac = EXCLUDED.note_ly_do_khac,
           main_fail_dept = EXCLUDED.main_fail_dept,
+          project_key = EXCLUDED.project_key,
+          request_type = EXCLUDED.request_type,
           updated_at = NOW();
       `;
 
@@ -525,6 +499,10 @@ export async function processImport(
           issue.khauSitUat || null,
           issue.noteLyDoKhac || null,
           issue.mainFailDept || null,
+          // The file's own project key, else the issue-key prefix — what every reader used to derive from import_rows.
+          issue.projectKey?.trim() || issue.issueKey.split('-')[0] || null,
+          // The original "Loại yêu cầu" text (issue.epicType); complexity above is only its CT/SP classification.
+          issue.epicType?.trim() || null,
         ];
       });
 
@@ -554,10 +532,8 @@ export async function processImport(
       // real import scale (~40,500 rows): 291s and 850 MILLION row comparisons on the worst of
       // these four queries with a misestimate, vs 1.6s with an accurate one. A plain ANALYZE right
       // after the bulk insert above is enough to fix every one of them — it's the actual cause
-      // (bad stats), not a per-query workaround, and it costs under a second here. import_rows
-      // gets the same treatment since aggregateBatchData (step 7, right after this) joins it
-      // against `issues` on this same freshly-inserted batch and hit the identical bad-plan issue.
-      await client.query('ANALYZE issues, import_rows;');
+      // (bad stats), not a per-query workaround, and it costs under a second here.
+      await client.query('ANALYZE issues;');
 
       // Link parents (Subtasks -> Stories). Split into two single-equality UPDATEs instead of one
       // `child.parent_key = CAST(parent.jira_id AS VARCHAR) OR child.parent_key = parent.issue_key`
@@ -606,8 +582,7 @@ export async function processImport(
           AND parent.epic_id IS NOT NULL;
       `, [batchId]);
 
-      // 7. Derive the alert timeline / anomaly layers (epic_alert_timeline,
-      // epic_data_anomaly_violations) for this batch.
+      // 7. Derive the alert timeline (epic_alert_timeline) for this batch.
       await aggregateBatchData(client, batchId, aggregatedAtDate);
     }
 
@@ -704,19 +679,18 @@ function deniedRowsOf(metadataJson: string | null): number {
 }
 
 export async function getBatchValidationDetail(batchId: number): Promise<BatchValidationDetail[]> {
-  const res = await pool.query(`
-    SELECT row_number as "rowNumber", normalized_data_json as "rawData",
-           validation_status as "validationStatus",
-           validation_errors_json as "validationErrors"
-    FROM import_rows
+  const res = await pool.query<{ issueKey: string | null; rowNumber: number; summary: string | null; validationErrors: ValidationError[]; validationStatus: string }>(`
+    SELECT row_number AS "rowNumber", issue_key AS "issueKey", summary,
+           validation_status AS "validationStatus",
+           validation_errors AS "validationErrors"
+    FROM import_row_issues
     WHERE import_batch_id = $1
-      AND (validation_status = 'INVALID' OR validation_status = 'WARNING')
     ORDER BY row_number ASC;
   `, [batchId]);
   return res.rows.map(row => ({
     rowNumber: row.rowNumber,
-    rawData: JSON.parse(row.rawData),
+    rawData: { issueKey: row.issueKey ?? '', summary: row.summary ?? '' },
     validationStatus: row.validationStatus,
-    validationErrors: JSON.parse(row.validationErrors)
+    validationErrors: row.validationErrors,
   }));
 }

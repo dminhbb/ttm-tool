@@ -185,28 +185,18 @@ interface EpicAlertRunEntry {
   startDate: string;
   status: string | null;
 }
-interface EpicMilestoneHistoryEntry {
-  milestone: string;
-  milestoneDate: string;
-}
 interface EpicHistoryResponse {
   alerts: EpicAlertRunEntry[];
-  milestones: EpicMilestoneHistoryEntry[];
 }
 
 const ALERT_TYPE_LABEL: Record<EpicAlertRunEntry['alertType'], string> = {
   FAIL: 'Fail TTM-CNTT (QLDA)',
   LATE: 'Cảnh báo muộn',
 };
-const MILESTONE_LABEL: Record<string, string> = {
-  DESIGN_DONE: 'Design Done',
-  DEV_DONE: 'Dev Done',
-  TEST_DONE: 'Test Done',
-};
 
 type HistoryColumn = { date: string; label: string; sortDate: string; status: string };
 
-/** Epic alert/milestone history laid out horizontally (one column per event, oldest → newest) so
+/** Epic alert history laid out horizontally (one column per event, oldest → newest) so
  * it reads as a timeline strip under the Epic's row, instead of a long vertical list. */
 function EpicHistoryStrip({ epicKey }: { epicKey: string }) {
   const [data, setData] = React.useState<EpicHistoryResponse | null>(null);
@@ -237,7 +227,6 @@ function EpicHistoryStrip({ epicKey }: { epicKey: string }) {
   if (!data) return <p className="px-1 py-2 text-fb-text-secondary">Đang tải lịch sử cảnh báo…</p>;
 
   const columns: HistoryColumn[] = [
-    ...data.milestones.map((m) => ({ date: formatDate(m.milestoneDate), label: MILESTONE_LABEL[m.milestone] ?? m.milestone, sortDate: m.milestoneDate, status: 'Hoàn thành' })),
     // One column per alert run: "start → end" (or "start → nay" while the run is still open).
     ...data.alerts.map((run) => ({
       date: run.endDate && run.endDate !== run.startDate ? `${formatDate(run.startDate)} → ${formatDate(run.endDate)}` : run.endDate ? formatDate(run.startDate) : `${formatDate(run.startDate)} → nay`,
@@ -248,7 +237,7 @@ function EpicHistoryStrip({ epicKey }: { epicKey: string }) {
   ].sort((a, b) => a.sortDate.localeCompare(b.sortDate));
 
   if (columns.length === 0) {
-    return <p className="px-1 py-2 text-fb-text-secondary">Epic này chưa có lịch sử cảnh báo hoặc mốc hoàn thành nào.</p>;
+    return <p className="px-1 py-2 text-fb-text-secondary">Epic này chưa có lịch sử cảnh báo nào.</p>;
   }
 
   return (

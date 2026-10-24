@@ -22,7 +22,7 @@ export interface OrphanEpicCandidate {
  * accumulated `issues` history. This happens when the Jira export's Epic-level scope (e.g. JQL
  * excluding Done/Closed Epics) differs from its Story/Subtask-level scope, leaving children
  * pointing at an Epic the system never actually received — breaking the milestone/phase
- * computations that resolve "belongs to Epic" the same way (see epic-milestone-history-service.ts).
+ * computations that resolve "belongs to Epic" the same way (see epic-phase-completion-service.ts).
  */
 export async function listOrphanEpicCandidates(): Promise<OrphanEpicCandidate[]> {
   const result = await pool.query<OrphanEpicCandidate>(`
@@ -147,7 +147,7 @@ export interface CompleteDataResult {
  * (Summary = Story Key, epic_key = the Epic it resolves to per listOrphanStoryCandidates) for each
  * given Story key — restoring full Epic → Story → Subtask referential integrity so every Epic
  * Browser screen can display the complete hierarchy. Both are recorded under one manual import
- * batch, then the normal aggregation pipeline (alert history, timeline, milestone history, …) re-runs
+ * batch, then the normal aggregation pipeline (alert timeline, …) re-runs
  * so every screen picks the new data up immediately, exactly as a real CSV import would.
  */
 export async function completeMissingData(

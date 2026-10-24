@@ -245,7 +245,7 @@ Bước 2 đã dùng đúng `now` (hôm nay, hoặc ngày của lớp dữ liệ
 - Hàm đọc story/subtask qua `LATEST_ISSUES_CTE`, tức luôn lấy **dòng mới nhất** của mỗi story, và
   **không** nhận bộ lọc lớp dữ liệu (`layerDates`) như phần đọc Epic.
 - Cờ "đã xong" chỉ là đúng/sai, **không có ngày hoàn thành** (bảng `epic_milestone_history` từng ghi
-  ngày hoàn thành nhưng đã tắt), nên không thể hỏi "tại ngày X pha đã xong chưa".
+  ngày hoàn thành, đã gỡ 2026-10-24), nên không thể hỏi "tại ngày X pha đã xong chưa".
 
 Ví dụ: xem lớp dữ liệu ngày 01/09, DEV baseline 25/08. Ngày 01/09 các story còn In Progress, nhưng tới
 hôm nay (29/09) story đã lên `READY FOR TEST`. Hàm đọc status hôm nay → `devDone = true` → cột DEV lớp
@@ -744,7 +744,7 @@ Mỗi rule mới có khuyến nghị riêng (`REC_FIX_R4G_STATUS`, `REC_FILL_R4G
 
 **Chiếu sang dòng legacy** (`projection.ts`): R8/R9 thành `dataAnomalyViolations` với mã `R4G_DATE_BEFORE_R4GOLIVE` (8) và
 `MISSING_R4G_DATE` (9) — hai mã này chỉ bổ sung vào kiểu `EpicAnomalyCode`; `evaluateEpicDataAnomaly` không sinh ra, nên
-bảng `epic_data_anomaly_violations` (chỉ ghi kết quả logic cũ) không đổi, không cần migration.
+không cần migration (bảng `epic_data_anomaly_violations` từng ghi kết quả logic cũ, đã gỡ 2026-10-24).
 
 **Đối chiếu:** nhãn mới `D10_DATA_QUALITY_RULES` cho các lệch có chủ đích ở trên (rule R1 tại DESIGN, R5 tại DESIGN, R8, R9
 và cờ "Sai lệch dữ liệu" kéo theo); các lệch Đạt/Fail kéo theo vẫn mang nhãn `D8_ANOMALY_CHECKED_FIRST`.
@@ -855,8 +855,8 @@ Quyết định của chủ sở hữu (`SCORING_CODE_VERSION` → `scoring-12`;
 - **Hệ quả:** Epic R10 không được chấm Đạt / Fail trên TTM-CNTT (QLDA/QA) và TTM-E2E, bị loại tại L03 của phễu (không còn ở L04a /
   L05ac) và rời mẫu số — kể cả Epic có R4G Date tương lai **muộn hơn Target** (trước là Fail L05ab). Nhóm "chưa kết luận" (L05ac)
   chỉ còn Epic không tính được Target. Tới ngày `asOf = R4G Date` thì hết R10 và Epic được chấm bình thường.
-- **Không đổi schema:** R10 chỉ có ở Scoring Service; bảng `epic_data_anomaly_violations` (CHECK `rule_code`) chỉ nhận vi phạm
-  của engine cũ (`import-service.ts`) nên không cần migration. `EpicAnomalyCode` thêm `R4G_DATE_IN_FUTURE` (index 10) chỉ để dòng
+- **Không đổi schema:** R10 chỉ có ở Scoring Service; không có bảng nào lưu vi phạm (`epic_data_anomaly_violations` đã gỡ 2026-10-24)
+  nên không cần migration. `EpicAnomalyCode` thêm `R4G_DATE_IN_FUTURE` (index 10) chỉ để dòng
   chiếu từ scorecard mang được vi phạm này (`projection.ts`).
 - **Đối chiếu:** R10 thuộc `SCORING_ONLY_ANOMALY_BADGES` → nhãn `D10_DATA_QUALITY_RULES`; các lệch kéo theo (Đạt / Fail / mẫu số)
   được giải thích qua cờ Sai lệch dữ liệu như R8.

@@ -49,15 +49,12 @@ const batchIssuesCte = `
       issues.issue_name AS summary,
       issues.assignee_name AS assignee,
       COALESCE(
-        NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+        NULLIF(issues.project_key, ''),
         NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),
         ''
       ) AS project,
-      COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'components', ''), '') AS components
+      COALESCE(ARRAY_TO_STRING(issues.components, ', '), '') AS components
     FROM issues
-    LEFT JOIN import_rows
-      ON import_rows.import_batch_id = issues.source_import_batch_id
-      AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = issues.issue_key
     WHERE issues.source_import_batch_id = $1
   )
 `;
@@ -67,17 +64,14 @@ export async function getDataReviewFilterOptions(batchId: number): Promise<DataR
     pool.query<DataReviewMetadataRow>(`
     SELECT DISTINCT
       COALESCE(
-        NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+        NULLIF(issues.project_key, ''),
         NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),
         ''
       ) AS project,
       issues.current_status AS status,
       issues.issue_type AS "issueType",
-      COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'components', ''), '') AS components
+      COALESCE(ARRAY_TO_STRING(issues.components, ', '), '') AS components
     FROM issues
-    LEFT JOIN import_rows
-      ON import_rows.import_batch_id = issues.source_import_batch_id
-      AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = issues.issue_key
     WHERE issues.source_import_batch_id = $1
     ORDER BY project, status, "issueType";
   `, [batchId]),

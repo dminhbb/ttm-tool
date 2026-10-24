@@ -175,6 +175,8 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
     aggregatedAt: string;
     complexity: string | null;
     components: string[] | null;
+    /** issues.jira_created_at — used ONLY by the "Epic tạo mới từ" filter below (see jiraCreatedAt). */
+    createdFilterDate: string | null;
     dueDate: string | null;
     epicKey: string;
     epicType: string | null;
@@ -204,22 +206,21 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
           NULLIF(SPLIT_PART(issue_key, '-', 1), ''),
           ''
         ) AS "projectKey",
-        source_import_batch_id
+        COALESCE(idea_approved_date::text, '') AS "ideaApprovedDate",
+        COALESCE(request_type, '') AS "epicType",
+        -- The real Jira creation date feeds the "Epic tạo mới từ" filter only (createdFilterDate).
+        -- jiraCreatedAt, which the TTM-E2E evaluation below takes as a baseline fallback, stays NULL
+        -- exactly as before (it used to read a JSON key that never existed): feeding it the real date
+        -- would also change which Epics Pass/Fail TTM-E2E in the Report, a separate decision.
+        jira_created_at::text AS "createdFilterDate",
+        NULL::text AS "jiraCreatedAt"
       FROM issues
       WHERE aggregated_at::date = ANY($1::date[])
         AND UPPER(issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
         AND LOWER(SPLIT_PART(issue_key, '-', 1)) = LOWER($2)
       ORDER BY issue_key, aggregated_at DESC
     )
-    SELECT
-      i.*,
-      ir.normalized_data_json::jsonb ->> 'ideaApprovedDate' AS "ideaApprovedDate",
-      ir.normalized_data_json::jsonb ->> 'epicType' AS "epicType",
-      ir.normalized_data_json::jsonb ->> 'created' AS "jiraCreatedAt"
-    FROM layer_issues i
-    LEFT JOIN import_rows ir
-      ON ir.import_batch_id = i.source_import_batch_id
-      AND ir.normalized_data_json::jsonb ->> 'issueKey' = i."epicKey";
+    SELECT * FROM layer_issues;
   `, [sortedLayers, projectKey]);
 
   let rows = epicsResult.rows;
@@ -424,8 +425,8 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
 
     // Date Range Filters:
     // 1. Epic tạo mới từ (createdDateFrom): Created Date (Jira Created Date || Start E2E) >= createdDateFrom
-    // Applies to ALL TABLES (1, 2, 3, 4, 5, 6)
-    const createdDate = row.jiraCreatedAt || row.ideaApprovedDate || null;
+    // Applies to ALL TABLES (1, 2, 3, 4, 5, 6) — same rule as Quản trị Epic (epic-alert-service.ts)
+    const createdDate = row.createdFilterDate || row.ideaApprovedDate || null;
     if (createdDateFrom && (!createdDate || createdDate.slice(0, 10) < createdDateFrom)) {
       continue;
     }

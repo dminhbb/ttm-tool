@@ -443,11 +443,11 @@ export async function listProjectComponents(): Promise<ProjectComponent[]> {
  * issue's `components` array in its latest known state (LATEST_ISSUES_CTE — accumulation never
  * deletes catalog rows, so a component that no longer shows up on any current issue, e.g. renamed
  * in Jira or belonging to since-cleaned-up data, just lingers here forever otherwise). Project key
- * per issue is derived the same COALESCE(import_rows JSON, issue key prefix) pattern every other
- * query in this app uses (see epic-alert-service.ts) — NOT the issue key prefix alone, since the
- * prefix is only ever a fallback and isn't guaranteed to equal the real project key (e.g. an
- * anonymised/masked import where issue keys are rewritten but the CSV's own Project key column
- * is preserved).
+ * per issue is issues.project_key (the file's own Project key, else the issue key prefix — the same
+ * pattern every other query in this app uses, see epic-alert-service.ts) — NOT the issue key prefix
+ * alone, since the prefix is only ever a fallback and isn't guaranteed to equal the real project key
+ * (e.g. an anonymised/masked import where issue keys are rewritten but the CSV's own Project key
+ * column is preserved).
  */
 export async function listOrphanProjectComponents(): Promise<ProjectComponent[]> {
   const result = await pool.query<ProjectComponent>(`
@@ -455,14 +455,12 @@ export async function listOrphanProjectComponents(): Promise<ProjectComponent[]>
     used_components AS (
       SELECT DISTINCT
         COALESCE(
-          NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+          NULLIF(full_issue.project_key, ''),
           NULLIF(SPLIT_PART(latest_issues.issue_key, '-', 1), '')
         ) AS project_key,
         unnest(latest_issues.components) AS component_name
       FROM latest_issues
-      LEFT JOIN import_rows
-        ON import_rows.import_batch_id = latest_issues.source_import_batch_id
-        AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = latest_issues.issue_key
+      JOIN issues full_issue ON full_issue.id = latest_issues.id
       WHERE latest_issues.components IS NOT NULL
     )
     SELECT pc.id, pc.project_key AS "projectKey", pc.component_name AS "componentName",

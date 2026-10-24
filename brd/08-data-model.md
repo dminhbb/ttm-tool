@@ -18,11 +18,11 @@ Dữ liệu chia thành các nhóm:
 - Auth và RBAC (`users`, `user_domains`, `user_projects`, `user_project_components`,
   `auth_sessions`, `password_reset_requests`, `permission_features`, `role_feature_permissions`).
 - Domain và Project (`domains`, `projects`, `project_components`).
-- Jira/CSV canonical issue data (`issues`, `import_batches`, `import_rows`).
+- Jira/CSV canonical issue data (`issues`, `import_batches`, `import_row_issues`).
 - Cấu hình TTM và cảnh báo (`ttm_policy_configs`, `epic_status_alert_rules`,
   `issue_type_role_mapping`).
 - Lịch làm việc (`holidays`, `makeup_workdays`).
-- Lịch sử/audit & tương tác (`epic_alert_timeline`, `epic_milestone_history`,
+- Lịch sử/audit & tương tác (`epic_alert_timeline`,
   `audit_logs`, `user_usage_daily_stats`, `visit_logs`).
 - Cấu hình chung (`jira_settings`, `data_retention_configs`).
 - Thông báo trong ứng dụng (`ad_popups`, `ad_popup_impressions`, `info_banners`) — mục 20.
@@ -57,7 +57,7 @@ erDiagram
     projects ||--o{ project_components : "1-n (source_project_key = project_key)"
 
     %% Jira Data & Import Engine Module
-    import_batches ||--o{ import_rows : "1-n (import_batch_id)"
+    import_batches ||--o{ import_row_issues : "1-n (import_batch_id)"
     import_batches ||--o{ issues : "1-n (source_import_batch_id)"
     issues ||--o{ issues : "self-FK (parent_id / epic_id)"
 
@@ -68,7 +68,6 @@ erDiagram
 
     %% History & Audit Module
     import_batches ||--o{ epic_alert_timeline : "1-n (last_seen_batch_id)"
-    import_batches ||--o{ epic_milestone_history : "1-n (source_import_batch_id)"
 ```
 
 
@@ -233,9 +232,8 @@ created_at
 updated_at
 ```
 
-Không có `project_id`/`domain_id` FK trực tiếp trên `issues` — Project được suy ra live từ
-`issue_key` prefix hoặc `import_rows.normalized_data_json->>'projectKey'` (xem
-`epic-alert-service.ts`). Không có `owner_user_id`.
+Không có `project_id`/`domain_id` FK trực tiếp trên `issues` — Project nằm ở cột `issues.project_key`
+(Project key của file, không có thì lấy tiền tố `issue_key`; xem `epic-alert-service.ts`). Không có `owner_user_id`.
 
 **Không có cột KPI/cảnh báo nào trên `issues`** (`ttm_cntt_result`, `ttm_cntt_alert_level`,
 `current_alert_text`… không tồn tại). Kết luận của từng Epic do Scoring Service (`src/lib/scoring/`)
@@ -358,20 +356,12 @@ Bảng lịch sử cảnh báo từng ngày (LATE/FAIL, `phase`) đã được g
 `GET /api/epic-alerts-15/[epicKey]/alert-history` trả `alerts` (các đợt, mỗi đợt có ngày bắt đầu/kết
 thúc/status) thay cho `history` từng ngày. Việc ghi cảnh báo theo pha Epic 15 (đã tắt từ trước) bị gỡ cùng bảng.
 
-### epic_milestone_history
+### epic_milestone_history (đã gỡ 2026-10-24)
 
-```text
-id
-epic_key
-milestone           -- ví dụ DESIGN_DONE
-milestone_date
-source_import_batch_id  -- ON DELETE SET NULL
-created_at
-```
-
-Unique `(epic_key, milestone)` — ghi một lần duy nhất, không ghi đè khi mốc đã tồn tại (giữ đúng
-ngày phát hiện đầu tiên). Khác `epic_alert_timeline` (đợt cảnh báo liên tục) — bảng này ghi các
-mốc hoàn thành nội bộ dùng để xác định pha hiện tại của Epic 15.
+Bảng ghi ngày Epic đạt mốc DESIGN_DONE / DEV_DONE / TEST_DONE. Đường ghi đã tắt từ lâu (0 dòng) vì
+hoàn thành pha được tính **live** từ status Story/Subtask hiện tại mỗi lần tải trang
+(`epic-phase-completion-service.ts`), nên migration `20261025c_drop_anomaly_violations_and_milestone_history.sql`
+đã `DROP` bảng. Popup "Epic History" vẫn hiện mốc R4GOLIVE / Released tính từ `isDone` của từng pha.
 
 ### epic_ttm_snapshots / issue_daily_snapshots (đã gỡ 2026-10-23)
 
@@ -391,7 +381,7 @@ updated_at
 ```
 
 Map một Issue Type Jira cụ thể (thường là loại Subtask) sang team-role BA/DEV/TEST/PM, dùng để xác
-định Epic 15 đã hoàn thành pha DESIGN/DEV/TEST hay chưa (`epic-milestone-history-service.ts`), thay
+định Epic 15 đã hoàn thành pha DESIGN/DEV/TEST hay chưa (`epic-phase-completion-service.ts`), thay
 vì hard-code tên issue type trong service code.
 
 ## 14. permission_features / role_feature_permissions (Ma trận phân quyền)
@@ -455,18 +445,25 @@ rồi xóa, và xóa `user_usage_daily_stats` ngoài cửa sổ 90 ngày. Mỗi 
 `note` như tài liệu cũ mô tả — CAPTCHA được xác thực ở tầng API trước khi tạo request, không lưu cờ
 riêng trong bảng.
 
-## 18. import_batches / import_rows
+## 18. import_batches / import_row_issues
 
 ```text
 import_batches: id, source_type, file_name, import_type (MANUAL/AUTO), imported_by, imported_at,
                 aggregated_at, total_rows, success_rows, warning_rows, error_rows,
                 status (SUCCESS/FAILED/COMPLETED_WITH_WARNINGS), metadata_json, created_at, updated_at
-import_rows: id, import_batch_id, row_number, raw_data_json, normalized_data_json,
-             validation_status (VALID/INVALID/WARNING), validation_errors_json, created_at
+import_row_issues: id, import_batch_id (FK CASCADE), row_number, issue_key, summary,
+             validation_status (WARNING/INVALID), validation_errors (JSONB), created_at
+             -- UNIQUE (import_batch_id, row_number); chỉ lưu dòng KHÔNG sạch, dòng VALID không có bản ghi
 ```
 
-`normalized_data_json` lưu thêm `projectKey`/`components` để Duyệt dữ liệu tạo option Project/
-Component mà không sửa canonical schema. Từ bản downgrade validate (xem `07-data-source-and-csv-
+**`import_rows` đã gỡ 2026-10-24** (migration `20261025b_drop_import_rows.sql`): bảng này giữ một bản JSON
+của MỌI dòng nhập, trùng ~97% với `issues`. Phần duy nhất `issues` còn thiếu đã được thêm thành cột:
+`issues.project_key` (= Project key của file, else tiền tố `issue_key`) và `issues.request_type`
+("Loại yêu cầu" gốc, trước đây `epicType`; `epic_complexity_type` chỉ là phân loại CT/SP suy ra từ nó).
+`import_row_issues` chỉ giữ kết quả validate của dòng WARNING/INVALID để màn "Nguồn dữ liệu" hiển thị
+chi tiết lỗi/cảnh báo; dòng INVALID không vào `issues` nên đây là nơi duy nhất còn giữ key/summary/lỗi của chúng.
+Bộ lọc "Epic tạo mới từ" của Báo cáo Epic dùng `issues.jira_created_at` như Quản trị Epic (trước đó đọc một
+khóa JSON không tồn tại nên luôn rơi về ngày duyệt ý tưởng). Từ bản downgrade validate (xem `07-data-source-and-csv-
 import.md`), 2 rule "R4G Date trước Start Date"/"Due Date trước T0" chỉ còn ở mức `WARNING`, không
 còn `INVALID` — dòng vẫn được ghi vào `issues` (`validIssues` chỉ loại `INVALID`), chỉ bị đánh dấu
 là dữ liệu bất thường ở tầng đọc (`hasDataAnomaly`, xem `03-mvp1-working-days-alert-rules.md`).
@@ -480,7 +477,7 @@ updated_at
 ```
 
 Chỉ SUPERADMIN được cập nhật. Sau mỗi import lưu chính thức, hệ thống tự dọn raw batch quá hạn
-(`import_batches`/`import_rows`/`issues`), luôn giữ batch vừa import và lớp dữ liệu mới nhất;
+(`import_batches`/`import_row_issues`/`issues`), luôn giữ batch vừa import và lớp dữ liệu mới nhất;
 `epic_alert_timeline` không bị dọn theo (FK `ON DELETE SET NULL`); lịch sử Issue
 thì mất cùng batch.
 
@@ -504,37 +501,18 @@ Unique `(epic_key, alert_type, start_date)`. Bảng này theo dõi **5 loại c�
 (run) liên tục có ngày bắt đầu/kết thúc, cho cả `epic-alerts` UI mục "Dòng thời gian cảnh báo". Ghi
 bởi `recordEpicAlertTimelineTransitions` (gọi từ `import-service.ts`), chạy mỗi khi
 `aggregateBatchData()` chạy (import thủ công, import tự động, hoặc "Chạy lại" lớp dữ liệu) — **luôn
-bật**, không bị flag tắt như `epic_milestone_history`. Với `FAIL_TTM_CNTT` / `LATE_TTM_CNTT`, `detail` còn có
+bật**, không bị flag tắt. Với `FAIL_TTM_CNTT` / `LATE_TTM_CNTT`, `detail` còn có
 `status` (Status Jira của Epic ở lần import gần nhất của đợt) — hiển thị ở "Epic History".
 
-### epic_data_anomaly_violations
+### epic_data_anomaly_violations (đã gỡ 2026-10-24)
 
-```text
-id
-epic_key
-rule_code                -- CHECK IN ('MISSING_START_DATE','PENDING_TOO_LONG','DATE_OUT_OF_SEQUENCE',
-                          --           'MISSING_REQUEST_TYPE','MISSING_REQUIREMENT_LEVEL','SP_LEVEL_MISMATCH',
-                          --           'RELEASE_STATUS_MISMATCH')  -- thêm bởi 20260924
-rule_index                -- R1-R7, xem EPIC_ANOMALY_RULE_INDEX (src/lib/epic-data-anomaly.ts, engine legacy).
-                          -- R8-R10 chỉ tồn tại trong Scoring Service (src/lib/scoring/rules/data-quality.ts),
-                          -- không ghi vào bảng này.
-message
-detected_at
-source_import_batch_id    -- FK import_batches(id) ON DELETE SET NULL
-created_at
-updated_at
-```
-
-Thêm bởi `20260922_create_epic_data_anomaly_violations.sql`. Unique `(epic_key, rule_code)` — lưu
-**trạng thái hiện tại**, KHÔNG phải lịch sử "đợt" như `epic_alert_timeline`: mỗi lần
-`aggregateBatchData()` chạy, hàng nào vẫn còn vi phạm thì upsert, hàng nào hết vi phạm thì bị xoá
-hẳn (không đóng bằng `end_date`). Ghi bởi `recordEpicDataAnomalyViolations`
-(`src/lib/epic-data-anomaly-storage-service.ts`), gọi ngay sau
-`recordEpicAlertTimelineTransitions` trong `aggregateBatchData()`. Mục đích duy nhất của bảng này là
-cho phép thống kê "Sai lệch dữ liệu" theo từng nhóm rule bằng một câu `GROUP BY rule_code` đơn giản
-(`getEpicDataAnomalyRuleStats` trong cùng file) — badge "Sai lệch dữ liệu (x)" trên UI vẫn luôn tính
-**trực tiếp/live** qua `evaluateEpicDataAnomaly()` (xem `03-mvp1-working-days-alert-rules.md` §4.5),
-không đọc từ bảng này, nên hai nguồn không bao giờ lệch nhau về mặt hiển thị.
+Bảng lưu trạng thái vi phạm "Sai lệch dữ liệu" theo từng rule (R1–R7 của engine legacy), ghi mỗi lần
+`aggregateBatchData()` chạy. Không có chỗ nào đọc nó (hai hàm đọc không có caller) và nó đã lệch với
+màn hình — badge "Sai lệch dữ liệu" luôn tính **live** (`evaluateEpicDataAnomaly()` / Scoring Service,
+bộ rule R1–R10), nên migration `20261025c_drop_anomaly_violations_and_milestone_history.sql` đã `DROP` bảng.
+Nếu cần thống kê theo từng nhóm rule: đếm `unnest(epic_alert_row_cache.badge_codes)` với mã
+`ANOMALY_R*` — luôn khớp màn hình và đã có index. Dòng thời gian `DATA_ANOMALY` / `MISSING_START_DATE`
+của `epic_alert_timeline` vẫn được ghi từ cùng engine.
 
 ### ad_popups / ad_popup_impressions
 
@@ -665,8 +643,8 @@ Quy tắc dùng chung:
 - **Tạo lại cache**: chỉ qua `refreshDerivedCaches` (import, daily, lưu phạm vi/domain/black list/dự án/PM-SM của dự án — các route gọi `scheduleDerivedCacheRefresh` trong `daily-cache-service.ts`, nút "Tạo lại cache"). Một DB chưa có `derived_cache_refresh_lock` vẫn rebuild được nhưng không có điều phối.
 - Cả 2 migration `20261005*` phải được áp dụng trên **cả local và Supabase** (xem `AGENTS.md` § Multi-database).
 - **Từ chối import / Epic deletion**: xoá vĩnh viễn mọi dòng của Epic (và Story/Subtask có trạng thái mới
-  nhất thuộc Epic đó) ở `import_rows`, `issues`,
-  `epic_alert_timeline`, `epic_milestone_history`, `epic_data_anomaly_violations`,
+  nhất thuộc Epic đó) ở `import_row_issues`, `issues`,
+  `epic_alert_timeline`,
   `epic_alert_row_cache`, `black_listed_epics`; mỗi Epic một dòng `audit_logs` (`EPIC_DELETION`,
   `DENIED_IMPORT_REMOVE`). Không tự tạo lại cache.
 - **Sao lưu / Phục hồi** (`EXPORTABLE_TABLES`, `db-backup-service.ts`) gồm master data, user + phân quyền

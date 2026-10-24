@@ -57,11 +57,11 @@ export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]
         issues.start_date::text AS "startDate",
         issues.r4g_date::text AS "r4gDate",
         issues.due_date::text AS "dueDate",
-        COALESCE(NULLIF(import_rows.normalized_data_json::jsonb ->> 'epicType', ''), '') AS "requestType",
+        COALESCE(NULLIF(issues.request_type, ''), '') AS "requestType",
         issues.requirement_level AS "requirementLevel",
         issues.previous_status AS "previousStatus",
         COALESCE(
-          NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+          NULLIF(issues.project_key, ''),
           NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),
           ''
         ) AS "projectKey",
@@ -76,9 +76,6 @@ export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]
         issues.note_ly_do_khac AS "noteLyDoKhac",
         issues.main_fail_dept AS "mainFailDept"
       FROM issues
-      LEFT JOIN import_rows
-        ON import_rows.import_batch_id = issues.source_import_batch_id
-        AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = issues.issue_key
       WHERE UPPER(issues.issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
         AND issues.aggregated_at::date <= $1::date
         AND ($2::date[] IS NULL OR issues.aggregated_at::date = ANY($2::date[]))

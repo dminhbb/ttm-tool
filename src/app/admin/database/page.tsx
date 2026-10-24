@@ -351,7 +351,7 @@ export default function DatabaseBackupPage() {
 
   const handleCleanupExecute = async () => {
     if (!cleanupPreview) return;
-    if (!(await confirmDialog({ title: 'Xóa đợt import cũ', description: `Xóa vĩnh viễn ${formatNumber(cleanupPreview.batchCount)} đợt import cũ (và toàn bộ issues/import_rows liên quan)? Epic TTM Snapshot sẽ được giữ nguyên.`, confirmLabel: 'Xóa vĩnh viễn' }))) return;
+    if (!(await confirmDialog({ title: 'Xóa đợt import cũ', description: `Xóa vĩnh viễn ${formatNumber(cleanupPreview.batchCount)} đợt import cũ (và toàn bộ issues liên quan)? Dòng thời gian cảnh báo sẽ được giữ nguyên.`, confirmLabel: 'Xóa vĩnh viễn' }))) return;
     setIsCleaning(true);
     setMessage(null);
     try {
@@ -466,8 +466,8 @@ export default function DatabaseBackupPage() {
           <CardBody className="gap-4">
             <div className="flex flex-col gap-3 rounded-xl border border-fb-border bg-fb-surface-muted p-4">
               <p className="text-fb-text-secondary">
-                Chọn một khoảng lớp dữ liệu liên tiếp (theo ngày <code>aggregated_at</code>) — export luôn bao gồm dữ liệu lịch sử Epic (<code>epic_alert_timeline</code>, <code>epic_milestone_history</code>) trong khoảng đã chọn; bật
-                &quot;Export Raw Data&quot; để gộp thêm dữ liệu gốc (<code>issues</code>, <code>import_rows</code>, <code>import_batches</code>).
+                Chọn một khoảng lớp dữ liệu liên tiếp (theo ngày <code>aggregated_at</code>) — export luôn bao gồm dữ liệu lịch sử Epic (<code>epic_alert_timeline</code>) trong khoảng đã chọn; bật
+                &quot;Export Raw Data&quot; để gộp thêm dữ liệu gốc (<code>issues</code>, <code>import_row_issues</code>, <code>import_batches</code>).
               </p>
               <div className="flex flex-wrap items-end gap-3">
                 <Select
@@ -637,7 +637,7 @@ export default function DatabaseBackupPage() {
             </CardHeader>
             <CardBody className="gap-4">
               <p className="text-fb-text-secondary">
-                Xóa các đợt import cũ hơn số ngày chọn bên dưới (kéo theo <code>issues</code> và <code>import_rows</code> của đợt đó, do quan hệ cascade).
+                Xóa các đợt import cũ hơn số ngày chọn bên dưới (kéo theo <code>issues</code> và <code>import_row_issues</code> của đợt đó, do quan hệ cascade).
                 Đợt import <strong>mới nhất luôn được giữ lại</strong> dù có cũ hơn ngưỡng, để dữ liệu hiện tại không bao giờ bị ảnh hưởng.
                 Dòng thời gian cảnh báo (<code>epic_alert_timeline</code>) <strong>không bị xóa</strong>; lịch sử Issue chỉ còn trong <code>issues</code> theo thời hạn lưu.
               </p>
@@ -659,7 +659,7 @@ export default function DatabaseBackupPage() {
                   <p className="text-fb-text-secondary">
                     Sẽ xóa <strong className="text-fb-text-primary">{formatNumber(cleanupPreview.batchCount)}</strong> đợt import
                     (ước tính <strong className="text-fb-text-primary">{formatNumber(cleanupPreview.issueCount)}</strong> dòng issues,{' '}
-                    <strong className="text-fb-text-primary">{formatNumber(cleanupPreview.importRowCount)}</strong> dòng import_rows)
+                    <strong className="text-fb-text-primary">{formatNumber(cleanupPreview.importRowCount)}</strong> dòng đã import)
                     cũ hơn {formatDateTime(cleanupPreview.cutoffDate)}.
                   </p>
                   {cleanupPreview.latestBatchProtected && (

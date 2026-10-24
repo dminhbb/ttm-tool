@@ -20,7 +20,6 @@ import type { AlertFilterValue } from '@/lib/epic-row-verdicts';
 import { matchesPmSmFilter, splitOwnerNames, UNASSIGNED_PM_SM } from '@/lib/epic-pm-sm-assignment';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import type { EpicAlertAccessRole, EpicAlertPhasedResponse, EpicAlertRowPhased, PhaseCell } from '@/lib/epic-alert-types';
-import type { EpicMilestoneHistoryEntry } from '@/lib/epic-milestone-history-service';
 import type { ProjectComponent } from '@/lib/master-data-types';
 import { formatTtmPassPct, summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
@@ -417,12 +416,6 @@ function TtmE2eStrips({ compact, row }: { compact: boolean; row: EpicAlertRowPha
   );
 }
 
-const MILESTONE_LABEL: Record<string, string> = {
-  DESIGN_DONE: 'Design Done',
-  DEV_DONE: 'Dev Done',
-  TEST_DONE: 'Test Done',
-};
-
 function AlertHistoryButton({ row, onOpen }: { row: EpicAlertRowPhased; onOpen: (row: EpicAlertRowPhased) => void }) {
   return (
     <button
@@ -462,28 +455,9 @@ function AlertPopupField({ label, value }: { label: string; value: string }) {
 }
 
 function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRowPhased; onClose: () => void }) {
-  const [milestones, setMilestones] = useState<EpicMilestoneHistoryEntry[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/epic-alerts-15/${encodeURIComponent(row.epicKey)}/alert-history`)
-      .then(async (res) => ({ ok: res.ok, body: await res.json() }))
-      .then(({ ok, body }) => {
-        if (cancelled) return;
-        if (!ok) { setError(body.error || 'Lỗi hệ thống khi tải lịch sử Epic.'); return; }
-        setMilestones(body.milestones ?? []);
-      })
-      .catch(() => { if (!cancelled) setError('Không thể kết nối API.'); });
-    return () => { cancelled = true; };
-  }, [row.epicKey]);
-
-  const isLoading = milestones === null;
-
   // R4GOLIVE/Released "hoàn thành" — tính trực tiếp từ chính PhaseCell.isDone đã hiển thị ở cột
-  // R4GOLIVE/RELEASE của dòng này (evaluated live, epic-phase-completion-service.ts), KHÔNG phải từ
-  // epic_milestone_history (chỉ có DESIGN/DEV/TEST_DONE, và việc ghi log đang tạm tắt — xem
-  // MILESTONE_RECORDING_ENABLED) — nên 2 mốc này luôn "có" ngay khi Epic đã qua giai đoạn tương ứng.
+  // R4GOLIVE/RELEASE của dòng này (evaluated live, epic-phase-completion-service.ts); không có bảng
+  // lưu mốc hoàn thành — nên 2 mốc này luôn "có" ngay khi Epic đã qua giai đoạn tương ứng.
   const computedMilestones: { date: string; label: string }[] = [];
   if (row.stages.r4golive.isDone && row.r4gDate) computedMilestones.push({ label: 'R4GOLIVE', date: row.r4gDate });
   if (row.stages.release.isDone && row.dueDate) computedMilestones.push({ label: 'Released', date: row.dueDate });
@@ -512,32 +486,19 @@ function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRowPhased; onClose:
           <h4 className={`ttm-alert-popup-section-title${row.dataAnomalyViolations.length > 0 ? ' ttm-alert-popup-section-title-spaced' : ''}`}>Dòng thời gian cảnh báo</h4>
           <EpicAlertTimeline epicKey={row.epicKey} />
 
-          {error && <div className="ttm-note" style={{ background: 'var(--ttm-danger-050)', borderColor: '#f3b3b3', color: 'var(--ttm-danger-700)', marginTop: 16 }}>{error}</div>}
-          {!error && isLoading && <p className="ttm-alert-popup-right-empty">Đang tải…</p>}
-          {!error && !isLoading && (
-            <>
-              <h4 className="ttm-alert-popup-section-title ttm-alert-popup-section-title-spaced">Mốc hoàn thành</h4>
-              {milestones.length === 0 && computedMilestones.length === 0 ? (
-                <p className="ttm-alert-popup-right-empty">Chưa có mốc hoàn thành nào được ghi nhận.</p>
-              ) : (
-                <ul className="ttm-alert-history-list">
-                  {milestones.map((milestone) => (
-                    <li key={milestone.milestone} className="ttm-alert-history-item">
-                      <span className="ttm-badge-achieved">{MILESTONE_LABEL[milestone.milestone] ?? milestone.milestone}</span>
-                      <span className="ttm-alert-history-status">Hoàn thành</span>
-                      <span className="ttm-alert-history-date">{formatDate(milestone.milestoneDate)}</span>
-                    </li>
-                  ))}
-                  {computedMilestones.map((milestone) => (
-                    <li key={milestone.label} className="ttm-alert-history-item">
-                      <span className="ttm-badge-achieved">{milestone.label}</span>
-                      <span className="ttm-alert-history-status">Hoàn thành</span>
-                      <span className="ttm-alert-history-date">{formatDate(milestone.date)}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
+          <h4 className="ttm-alert-popup-section-title ttm-alert-popup-section-title-spaced">Mốc hoàn thành</h4>
+          {computedMilestones.length === 0 ? (
+            <p className="ttm-alert-popup-right-empty">Chưa có mốc hoàn thành nào được ghi nhận.</p>
+          ) : (
+            <ul className="ttm-alert-history-list">
+              {computedMilestones.map((milestone) => (
+                <li key={milestone.label} className="ttm-alert-history-item">
+                  <span className="ttm-badge-achieved">{milestone.label}</span>
+                  <span className="ttm-alert-history-status">Hoàn thành</span>
+                  <span className="ttm-alert-history-date">{formatDate(milestone.date)}</span>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </div>

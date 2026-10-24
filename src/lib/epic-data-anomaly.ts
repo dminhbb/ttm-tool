@@ -13,8 +13,8 @@ import { RELEASE_DUE_GRACE_WORKING_DAYS } from '@/lib/ttm-rules';
  * complete the missing information (see aggregateBatchData / getEpicAlertRows*).
  *
  * Rules (company spec, 2026-09, revised 2026-09-22 — see EPIC_ANOMALY_RULE_INDEX for the stable
- * numeric index of each rule, persisted alongside every violation in
- * epic_data_anomaly_violations so violations can be counted/queried per rule):
+ * numeric index of each rule — it is also how the legacy → Scoring Service projection maps a violation
+ * to its badge, see scoring/projection.ts):
  *  - a. status ∈ {Cancelled, To Do, In PO, Backlog}: EXEMPT from every rule below (a fresh/parked
  *       Epic legitimately has incomplete data — Backlog matches validator.ts's own exemption).
  *  - R1 MISSING_START_DATE — status ≥ In Progress (DEV) and no Start Date (T1) → anomaly.
@@ -60,10 +60,9 @@ export type EpicAnomalyCode =
   | 'MISSING_R4G_DATE'
   | 'R4G_DATE_IN_FUTURE';
 
-/** Stable numeric index (R1-R7) for each rule — persisted with every violation
- * (epic_data_anomaly_violations.rule_index) so stats can be grouped by rule without depending on
- * the rule's text code or message wording. Never renumber an existing code; add new rules at the
- * end. */
+/** Stable numeric index (R1-R7) for each rule, carried on every violation so consumers can group by rule
+ * without depending on the rule's text code or message wording. Never renumber an existing code; add
+ * new rules at the end. */
 export const EPIC_ANOMALY_RULE_INDEX: Record<EpicAnomalyCode, number> = {
   MISSING_START_DATE: 1,
   PENDING_TOO_LONG: 2,
@@ -172,10 +171,7 @@ export function evaluateEpicDataAnomaly(input: EpicAnomalyInput, now: Date, holi
   // (a later Idea Approved Date than the Jira creation date is normal); R4G == Due is allowed.
   // An Epic can break more than one of these pairs at once (e.g. T0 > T1 AND R4G > Due) — all
   // such breaks are collected into ONE combined DATE_OUT_OF_SEQUENCE violation rather than one
-  // violation per pair, because epic_data_anomaly_violations stores at most one row per
-  // (epic_key, rule_code) (see recordEpicDataAnomalyViolations): pushing more than one violation
-  // with this same code for the same epic would upsert two rows onto that same conflict target
-  // within a single statement, which Postgres rejects outright.
+  // violation per pair (one violation per rule code per Epic is what every consumer expects).
   const dateOrderBreaks: string[] = [];
   if (t0 && t1 && t0 > t1) dateOrderBreaks.push('Ngày duyệt ý tưởng (T0) muộn hơn Start Date (T1)');
   if (t1 && r4g && t1 >= r4g) dateOrderBreaks.push('Start Date (T1) không sớm hơn R4G Date');

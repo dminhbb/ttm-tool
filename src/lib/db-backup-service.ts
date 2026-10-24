@@ -40,10 +40,9 @@ export const EXPORTABLE_TABLES: { label: string; tableName: string }[] = [
   { label: 'Cấu hình Jira', tableName: 'jira_settings' },
   { label: 'Thời hạn lưu dữ liệu raw', tableName: 'data_retention_configs' },
   { label: 'Đợt import dữ liệu', tableName: 'import_batches' },
-  { label: 'Dòng dữ liệu import (raw)', tableName: 'import_rows' },
+  { label: 'Lỗi/cảnh báo validate của đợt import (raw)', tableName: 'import_row_issues' },
   { label: 'Issues (Epic/Story/Subtask)', tableName: 'issues' },
   { label: 'Dòng thời gian cảnh báo Epic (lịch sử Epic)', tableName: 'epic_alert_timeline' },
-  { label: 'Mốc hoàn thành Epic (lịch sử Epic)', tableName: 'epic_milestone_history' },
   { label: 'Audit log', tableName: 'audit_logs' },
 ];
 
@@ -288,10 +287,9 @@ interface DataLayerTableConfig {
 // per exportDataLayerRangeToSql's single "Start/End Data Layer" selection.
 const DATA_LAYER_TABLES: DataLayerTableConfig[] = [
   { category: 'raw', tableName: 'import_batches', whereClause: 'aggregated_at::date BETWEEN $1 AND $2' },
-  { category: 'raw', tableName: 'import_rows', whereClause: 'import_batch_id IN (SELECT id FROM import_batches WHERE aggregated_at::date BETWEEN $1 AND $2)' },
+  { category: 'raw', tableName: 'import_row_issues', whereClause: 'import_batch_id IN (SELECT id FROM import_batches WHERE aggregated_at::date BETWEEN $1 AND $2)' },
   { category: 'raw', tableName: 'issues', whereClause: 'aggregated_at::date BETWEEN $1 AND $2' },
   { category: 'epicHistory', tableName: 'epic_alert_timeline', whereClause: 'start_date <= $2 AND (end_date IS NULL OR end_date >= $1)' },
-  { category: 'epicHistory', tableName: 'epic_milestone_history', whereClause: 'milestone_date BETWEEN $1 AND $2' },
 ];
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -353,11 +351,11 @@ export interface SmartSurfaceExportOptions {
  *   3. Subtasks of those Stories/Epics: for each Subtask belonging to the surface Stories or Epics
  *      (via `story_subtasks`, `parent_key`, or `epic_key`), picks only its single latest row on or
  *      before `layerDate`.
- *   4. Corresponding `import_rows` rows and 1 consolidated `import_batches` header row.
+ *   4. 1 consolidated `import_batches` header row.
  *
  * When re-imported via `importSqlFile`, `SMART_SURFACE_EXPORT_HEADER` tells the importer to create
  * a brand-new `import_batches` layer stamped with the current import timestamp (`NOW()`), attach all
- * surface `import_rows` and `issues` to that new batch at `NOW()`, link `parent_id`/`epic_id`, and
+ * surface `issues` to that new batch at `NOW()`, link `parent_id`/`epic_id`, and
  * re-derive the alert layers — so both a fresh copy host and the source host receive a clean, self-contained
  * surface data layer at the exact moment of import.
  */
@@ -471,17 +469,6 @@ export async function exportSmartSurfaceToSql(options: SmartSurfaceExportOptions
     throw new Error(`Không có dữ liệu Epic/Story/Subtask nào tại hoặc trước ngày ${layerDate}.`);
   }
 
-  const importRowsResult = await pool.query<{ id: number }>(`
-    SELECT DISTINCT ON (i.id) ir.id
-    FROM issues i
-    JOIN import_rows ir
-      ON ir.import_batch_id = i.source_import_batch_id
-      AND ir.normalized_data_json::jsonb ->> 'issueKey' = i.issue_key
-    WHERE i.id = ANY($1::int[])
-    ORDER BY i.id ASC, ir.row_number DESC, ir.id DESC;
-  `, [issueIds]);
-  const importRowIds = importRowsResult.rows.map((row) => row.id);
-
   const SMART_CONFIG_TABLES = [
     'domains',
     'projects',
@@ -520,7 +507,7 @@ export async function exportSmartSurfaceToSql(options: SmartSurfaceExportOptions
     SMART_SURFACE_EXPORT_HEADER,
     `-- Generated at: ${generatedAt}`,
     `-- Surface layer as of date: ${layerDate}`,
-    `-- Tables: import_batches, import_rows, issues, ${exportedConfigTables.join(', ')}`,
+    `-- Tables: import_batches, issues, ${exportedConfigTables.join(', ')}`,
     ...(missingConfigTables.length > 0 ? [`-- Skipped (table not on the source database): ${missingConfigTables.join(', ')}`] : []),
     `-- Includes schema: ${includeSchema ? 'yes (CREATE TABLE IF NOT EXISTS, columns + primary key only)' : 'no (data only)'}`,
     '-- Import behavior: creates a consolidated surface data layer stamped with the import execution timestamp (NOW()).',
@@ -562,16 +549,11 @@ export async function exportSmartSurfaceToSql(options: SmartSurfaceExportOptions
   lines.push(`INSERT INTO "import_batches" (${batchQuotedColumns}) VALUES (${batchValues.join(', ')}) ${batchConflictClause};`);
   lines.push('');
 
-  // 2–4. import_rows, the surface issues (Epics + Stories + Subtasks) and the TTM scoring, calendar,
+  // 2–4. The surface issues (Epics + Stories + Subtasks) and the TTM scoring, calendar,
   // scope & exclusion config tables (so TTM calculations match across environments). Independent
   // reads, so they run concurrently (2026-10-20) — at most SMART_EXPORT_CONCURRENCY at a time, since
   // the hosted pool is small (db.ts); the file keeps this order whatever finishes first.
-  const importRowLines = async (): Promise<string[]> => {
-    if (importRowIds.length > 0) return exportOneTableToSql('import_rows', includeSchema, 'id = ANY($1::int[])', [importRowIds]);
-    return includeSchema ? ['-- Table: import_rows', await buildCreateTableStatement('import_rows'), ''] : [];
-  };
   const sections = await mapWithConcurrency<() => Promise<string[]>, string[]>([
-    importRowLines,
     () => exportOneTableToSql('issues', includeSchema, 'id = ANY($1::int[])', [issueIds]),
     ...exportedConfigTables.map((configTable) => () => exportOneTableToSql(configTable, includeSchema)),
   ], SMART_EXPORT_CONCURRENCY, (task) => task());
@@ -740,10 +722,10 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
   const actorId = Number.isInteger(options.actorUserId) ? options.actorUserId! : null;
   const keepActor = (tableName: string, alias: string) => (tableName === 'users' && actorId !== null ? ` AND ${alias}.id <> ${actorId}` : '');
 
-  const SMART_LAYER_TABLES = new Set(['import_batches', 'import_rows', 'issues']);
+  const SMART_LAYER_TABLES = new Set(['import_batches', 'issues']);
   const hasSmartLayerTablesSelected = isSmartSurfaceExport && insertTables.some((tableName) => SMART_LAYER_TABLES.has(tableName));
   const tablesToDisableTriggers = hasSmartLayerTablesSelected
-    ? [...new Set([...insertTables, 'import_batches', 'import_rows', 'issues'])]
+    ? [...new Set([...insertTables, 'import_batches', 'issues'])]
     : insertTables;
 
   const client = await getClient();
@@ -800,35 +782,7 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
         resultByTable.get('import_batches')!.inserted = 1;
       }
 
-      // 2. Insert import_rows into the newly created import_batch with fresh sequence IDs and row_number 1..N.
-      if (insertTables.includes('import_rows')) {
-        const importRowStatements = parsed.statements.filter((statement) => statement.type === 'INSERT' && statement.tableName === 'import_rows');
-        if (importRowStatements.length > 0) {
-          const columns = importRowStatements[0].columns!;
-          const parsedCols = columns.split(',').map((col) => col.trim().replace(/^"|"$/g, ''));
-          const nonIdCols = parsedCols.filter((col) => col !== 'id');
-          await client.query('CREATE TEMP TABLE tmp_smart_import_rows (LIKE "import_rows") ON COMMIT DROP;');
-          for (let chunkStart = 0; chunkStart < importRowStatements.length; chunkStart += INSERT_BATCH_CHUNK_SIZE) {
-            const chunk = importRowStatements.slice(chunkStart, chunkStart + INSERT_BATCH_CHUNK_SIZE);
-            const tuples = chunk.map((item) => `(${item.valuesTuple})`).join(', ');
-            await client.query(`INSERT INTO tmp_smart_import_rows (${columns}) VALUES ${tuples};`);
-          }
-          const targetColsSql = nonIdCols.map(quoteIdent).join(', ');
-          const selectColsSql = nonIdCols.map((col) => {
-            if (col === 'import_batch_id') return '$1::int AS "import_batch_id"';
-            if (col === 'row_number') return 'ROW_NUMBER() OVER (ORDER BY id)::int AS "row_number"';
-            if (col === 'created_at') return '$2::timestamptz AS "created_at"';
-            return quoteIdent(col);
-          }).join(', ');
-          const importRowsRes = await client.query(
-            `INSERT INTO "import_rows" (${targetColsSql}) SELECT ${selectColsSql} FROM tmp_smart_import_rows ORDER BY id;`,
-            [smartImportBatchId, importNow],
-          );
-          resultByTable.get('import_rows')!.inserted = importRowsRes.rowCount ?? 0;
-        }
-      }
-
-      // 3. Insert surface issues into the newly created import_batch with aggregated_at = importNow.
+      // 2. Insert surface issues into the newly created import_batch with aggregated_at = importNow.
       if (insertTables.includes('issues')) {
         const issueStatements = parsed.statements.filter((statement) => statement.type === 'INSERT' && statement.tableName === 'issues');
         if (issueStatements.length > 0) {
@@ -932,10 +886,9 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
 
     const HISTORICAL_LAYER_TABLES = new Set([
       'import_batches',
-      'import_rows',
+      'import_row_issues',
       'issues',
       'epic_alert_timeline',
-      'epic_milestone_history',
       'audit_logs',
     ]);
 
@@ -944,10 +897,10 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
       epic_alert_timeline: [
         't.end_date IS NULL AND incoming.end_date IS NULL AND t.epic_key = incoming.epic_key AND t.alert_type = incoming.alert_type',
       ],
-      epic_milestone_history: ['t.epic_key = incoming.epic_key AND t.milestone = incoming.milestone'],
       epic_status_alert_rules: [
         't.epic_complexity_type = incoming.epic_complexity_type AND t.epic_status = incoming.epic_status',
       ],
+      import_row_issues: ['t.import_batch_id = incoming.import_batch_id AND t.row_number = incoming.row_number'],
       issue_type_role_mapping: ['t.issue_type = incoming.issue_type'],
       issues: [
         't.issue_key = incoming.issue_key AND t.source_import_batch_id = incoming.source_import_batch_id',

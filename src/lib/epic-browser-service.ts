@@ -74,7 +74,7 @@ export async function getEpicBrowserRoot(epicKey: string): Promise<DataReviewIss
       li.aggregated_at::text AS "aggregatedAt",
       COALESCE(itrm_li.team_role, '-') AS role,
       COALESCE(
-        NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+        NULLIF(li.project_key, ''),
         NULLIF(SPLIT_PART(li.issue_key, '-', 1), ''),
         ''
       ) AS project,
@@ -87,9 +87,6 @@ export async function getEpicBrowserRoot(epicKey: string): Promise<DataReviewIss
         )
       ) AS "hasChildren"
     FROM issues li
-    LEFT JOIN import_rows
-      ON import_rows.import_batch_id = li.source_import_batch_id
-      AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = li.issue_key
     ${roleJoin('li')}
     WHERE li.issue_key = $1 AND UPPER(li.issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
     ORDER BY li.aggregated_at DESC
@@ -185,15 +182,13 @@ export async function getEpicBrowserChildren(
       c.aggregated_at::text AS "aggregatedAt",
       COALESCE(itrm_c.team_role, '-') AS role,
       COALESCE(
-        NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+        NULLIF(ci.project_key, ''),
         NULLIF(SPLIT_PART(c.issue_key, '-', 1), ''),
         ''
       ) AS project,
       ${hasChildrenExpr} AS "hasChildren"
     FROM children c
-    LEFT JOIN import_rows
-      ON import_rows.import_batch_id = c.source_import_batch_id
-      AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = c.issue_key
+    LEFT JOIN issues ci ON ci.id = c.id
     ${roleJoin('c')}
     ORDER BY c.issue_key ASC;
   `, queryParams);
@@ -315,11 +310,7 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
         issues.jira_created_at::text AS "jiraCreatedAt", issues.created_at::text AS "createdAt",
         issues.requirement_level AS "requirementLevel",
         issues.epic_complexity_type AS "epicComplexityType",
-        COALESCE(
-          NULLIF(import_rows.normalized_data_json::jsonb ->> 'epicType', ''),
-          NULLIF(import_rows.normalized_data_json::jsonb ->> 'requestType', ''),
-          ''
-        ) AS "epicType",
+        COALESCE(NULLIF(issues.request_type, ''), '') AS "epicType",
         issues.previous_status AS "previousStatus",
         issues.khau_ba AS "khauBa",
         issues.khau_co AS "khauCo",
@@ -333,14 +324,11 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
         issues.main_fail_dept AS "mainFailDept",
         issues.requesting_unit AS "requestingUnit", issues.aggregated_at::text AS "aggregatedAt",
         COALESCE(
-          NULLIF(import_rows.normalized_data_json::jsonb ->> 'projectKey', ''),
+          NULLIF(issues.project_key, ''),
           NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),
           ''
         ) AS project
       FROM issues
-      LEFT JOIN import_rows
-        ON import_rows.import_batch_id = issues.source_import_batch_id
-        AND import_rows.normalized_data_json::jsonb ->> 'issueKey' = issues.issue_key
       WHERE issues.issue_key = $1 AND UPPER(issues.issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
       ORDER BY issues.aggregated_at DESC
       LIMIT 1;

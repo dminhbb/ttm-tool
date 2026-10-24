@@ -48,7 +48,7 @@
       "ink": "#8a5a00",
       "tables": [
         "import_batches",
-        "import_rows",
+        "import_row_issues",
         "issues",
         "denied_import_epics",
         "import_admission_settings"
@@ -87,9 +87,7 @@
       "fill": "#eaf0ff",
       "ink": "#25406f",
       "tables": [
-        "epic_alert_timeline",
-        "epic_milestone_history",
-        "epic_data_anomaly_violations"
+        "epic_alert_timeline"
       ]
     },
     {
@@ -258,13 +256,9 @@
         "import_type": "<code>TIMESTAMP WITH TIME ZONE NOT NULL</code></td><td>Mốc thời gian lớp dữ liệu snapshot tổng hợp"
       }
     },
-    "import_rows": {
-      "description": "Lưu trữ toàn bộ dòng CSV thô (raw_data_json) và dữ liệu chuẩn hóa (normalized_data_json) kèm log validate.",
-      "columns": {
-        "id": "<code>INT</code></td><td>FK <code>import_batches(id) ON DELETE CASCADE</code>",
-        "row_number": "<code>TEXT NOT NULL</code></td><td>Nội dung JSON dữ liệu dòng thô",
-        "normalized_data_json": "<code>VARCHAR(50) NOT NULL</code></td><td>VALID / INVALID / WARNING"
-      }
+    "import_row_issues": {
+      "description": "Kết quả validate của các dòng KHÔNG sạch (WARNING / INVALID) của mỗi đợt import, để màn \"Nguồn dữ liệu\" hiển thị chi tiết lỗi/cảnh báo. Dòng VALID không có bản ghi (dữ liệu của nó là dòng <code>issues</code>); dòng INVALID không vào <code>issues</code> nên đây là nơi duy nhất giữ key/summary/lỗi của chúng. Thay cho bảng <code>import_rows</code> (bản sao JSON mọi dòng) đã gỡ 2026-10-24.",
+      "columns": {}
     },
     "issues": {
       "description": "Bảng canonical lưu trữ toàn bộ issue mọi cấp (Epic/Story/Subtask). Ghi nhận các mốc T0 (idea_approved_date), T1 (start_date), R4G (r4g_date), Due (due_date) và 4 Epic Type. Self-FK <code>parent_id</code> &amp; <code>epic_id</code>.",
@@ -343,14 +337,6 @@
     },
     "epic_alert_timeline": {
       "description": "Theo dõi 5 loại cảnh báo dưới dạng các đợt (run) có khoảng ngày bắt đầu/kết thúc liên tục.",
-      "columns": {}
-    },
-    "epic_milestone_history": {
-      "description": "Ghi nhận lịch sử mốc hoàn thành nội bộ (DESIGN_DONE, DEV_DONE, TEST_DONE...).",
-      "columns": {}
-    },
-    "epic_data_anomaly_violations": {
-      "description": "Trạng thái hiện tại (không phải lịch sử \"đợt\") của từng rule R1-R7 \"Sai lệch dữ liệu\" của engine legacy (mục 9) đang vi phạm trên mỗi Epic — 1 dòng/Epic/rule, ghi đè hoặc xoá ở mỗi lần <code>aggregateBatchData()</code> chạy. Phục vụ thống kê theo nhóm rule; badge trên UI vẫn tính live, không đọc bảng này.",
       "columns": {}
     },
     "epic_alert_row_cache": {

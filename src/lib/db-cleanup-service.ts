@@ -30,7 +30,7 @@ async function getLatestBatchId(): Promise<number | null> {
 }
 
 /**
- * Old import_batches rows older than the cutoff get deleted; issues/import_rows cascade
+ * Old import_batches rows older than the cutoff get deleted; issues/import_row_issues cascade
  * automatically via their FK (ON DELETE CASCADE). epic_alert_timeline is
  * untouched (its FK to import_batches is ON DELETE SET NULL), so the alert history survives; the
  * Issue history itself lives only in `issues` and goes with the batch.

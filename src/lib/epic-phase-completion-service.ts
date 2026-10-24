@@ -51,8 +51,7 @@ function deriveCompletion(row: EpicPhaseSignalsRow): EpicPhaseCompletion {
 
 /**
  * Core logic: per-Epic phase completion, evaluated live from current story/subtask statuses on
- * every call (no longer recorded/frozen — see epic_milestone_history, whose write path is now
- * disabled). Hierarchy resolution rule (per Epic, per Story):
+ * every call (never recorded/frozen: there is no milestone history table). Hierarchy resolution rule (per Epic, per Story):
  *
  * - An Epic's Stories come from its own `epic_stories` key list (set by the Py Jira API adapter),
  *   each resolved to that Story's own latest known row — which may come from an OLDER import layer
