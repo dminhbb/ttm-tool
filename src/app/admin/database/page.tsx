@@ -22,14 +22,6 @@ function formatNumber(value: number): string {
   return new Intl.NumberFormat('vi-VN').format(value);
 }
 
-function formatDateTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  return `${day}/${month}/${date.getFullYear()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-}
-
 /** "YYYY-MM-DD" (a data-layer date, always this exact shape from the API) → "dd/mm/yyyy". */
 function formatLayerDate(value: string): string {
   const [year, month, day] = value.split('-');
@@ -351,7 +343,7 @@ export default function DatabaseBackupPage() {
 
   const handleCleanupExecute = async () => {
     if (!cleanupPreview) return;
-    if (!(await confirmDialog({ title: 'Xóa đợt import cũ', description: `Xóa vĩnh viễn ${formatNumber(cleanupPreview.batchCount)} đợt import cũ (và toàn bộ issues liên quan)? Dòng thời gian cảnh báo sẽ được giữ nguyên.`, confirmLabel: 'Xóa vĩnh viễn' }))) return;
+    if (!(await confirmDialog({ title: 'Dọn lịch sử issues', description: `Xóa vĩnh viễn ${formatNumber(cleanupPreview.issueVersionCount)} phiên bản issues cũ? Phiên bản mới nhất của mỗi issue và dữ liệu 15 ngày import gần nhất được giữ nguyên, dòng thời gian cảnh báo cũng vậy.`, confirmLabel: 'Xóa vĩnh viễn' }))) return;
     setIsCleaning(true);
     setMessage(null);
     try {
@@ -365,7 +357,7 @@ export default function DatabaseBackupPage() {
         setMessage({ text: result.error || 'Dọn dữ liệu thất bại.', type: 'error' });
         return;
       }
-      showToast(`Đã xóa ${formatNumber(result.batchesDeleted)} đợt import cũ hơn ${retentionDays} ngày.`, 5000);
+      showToast(`Đã xóa ${formatNumber(result.issueVersionsDeleted)} phiên bản issues và ${formatNumber(result.batchesDeleted)} đợt import rỗng (giữ ${retentionDays} ngày).`, 5000);
       setMessage(null);
       setCleanupPreview(null);
       void fetchTables();
@@ -466,7 +458,7 @@ export default function DatabaseBackupPage() {
           <CardBody className="gap-4">
             <div className="flex flex-col gap-3 rounded-xl border border-fb-border bg-fb-surface-muted p-4">
               <p className="text-fb-text-secondary">
-                Chọn một khoảng lớp dữ liệu liên tiếp (theo ngày <code>aggregated_at</code>) — export luôn bao gồm dữ liệu lịch sử Epic (<code>epic_alert_timeline</code>) trong khoảng đã chọn; bật
+                Chọn một khoảng lớp dữ liệu liên tiếp (theo ngày <code>aggregated_at</code>; chỉ còn các ngày được giữ chi tiết) — export luôn bao gồm dữ liệu lịch sử Epic (<code>epic_alert_timeline</code>) trong khoảng đã chọn; bật
                 &quot;Export Raw Data&quot; để gộp thêm dữ liệu gốc (<code>issues</code>, <code>import_batches</code>).
               </p>
               <div className="flex flex-wrap items-end gap-3">
@@ -633,13 +625,13 @@ export default function DatabaseBackupPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Dọn dữ liệu import cũ</CardTitle>
+              <CardTitle>Dọn lịch sử issues</CardTitle>
             </CardHeader>
             <CardBody className="gap-4">
               <p className="text-fb-text-secondary">
-                Xóa các đợt import cũ hơn số ngày chọn bên dưới (kéo theo <code>issues</code> của đợt đó, do quan hệ cascade).
-                Đợt import <strong>mới nhất luôn được giữ lại</strong> dù có cũ hơn ngưỡng, để dữ liệu hiện tại không bao giờ bị ảnh hưởng.
-                Dòng thời gian cảnh báo (<code>epic_alert_timeline</code>) <strong>không bị xóa</strong>; lịch sử Issue chỉ còn trong <code>issues</code> theo thời hạn lưu.
+                Cùng việc làm thưa lịch sử <code>issues</code> mà hệ thống tự chạy mỗi ngày: giữ nguyên mọi phiên bản của <strong>15 ngày import gần nhất</strong>;
+                xa hơn chỉ giữ phiên bản đang có hiệu lực vào <strong>ngày làm việc cuối mỗi tuần</strong> (trong số ngày chọn bên dưới) và <strong>phiên bản mới nhất của mỗi issue</strong>,
+                nên Epic lâu không cập nhật vẫn hiển thị. Dòng thời gian cảnh báo (<code>epic_alert_timeline</code>) <strong>không bị xóa</strong>.
               </p>
               <div className="flex items-end gap-3">
                 <Input
@@ -657,17 +649,14 @@ export default function DatabaseBackupPage() {
               {cleanupPreview && (
                 <div className="flex flex-col gap-2 rounded-xl border border-fb-border bg-fb-surface-muted p-4">
                   <p className="text-fb-text-secondary">
-                    Sẽ xóa <strong className="text-fb-text-primary">{formatNumber(cleanupPreview.batchCount)}</strong> đợt import
-                    (ước tính <strong className="text-fb-text-primary">{formatNumber(cleanupPreview.issueCount)}</strong> dòng issues,{' '}
-                    <strong className="text-fb-text-primary">{formatNumber(cleanupPreview.importRowCount)}</strong> dòng đã import)
-                    cũ hơn {formatDateTime(cleanupPreview.cutoffDate)}.
+                    Sẽ xóa <strong className="text-fb-text-primary">{formatNumber(cleanupPreview.issueVersionCount)}</strong> / {formatNumber(cleanupPreview.totalRows)} dòng issues
+                    ({formatNumber(cleanupPreview.issueVersionsBeyondRetention)} cũ hơn {cleanupPreview.cutoffDate}, {formatNumber(cleanupPreview.issueVersionsInSparseZone)} nằm giữa các mốc tuần)
+                    và <strong className="text-fb-text-primary">{formatNumber(cleanupPreview.emptyBatchCount)}</strong> đợt import không còn dòng nào.
                   </p>
-                  {cleanupPreview.latestBatchProtected && (
-                    <p className="text-fb-text-secondary">
-                      Đợt gần nhất được giữ lại: <strong className="text-fb-text-primary">{cleanupPreview.latestBatchProtected.fileName}</strong>{' '}
-                      ({formatDateTime(cleanupPreview.latestBatchProtected.aggregatedAt)})
-                    </p>
-                  )}
+                  <p className="text-fb-text-secondary">
+                    Giữ lại: {formatNumber(cleanupPreview.keptDense)} dòng của các ngày từ {cleanupPreview.denseStart ?? '—'} trở đi,
+                    {' '}{formatNumber(cleanupPreview.keptBridging)} dòng đang có hiệu lực tại các mốc tuần và {formatNumber(cleanupPreview.keptNewestOld)} phiên bản mới nhất của issue lâu không đổi.
+                  </p>
                 </div>
               )}
             </CardBody>
@@ -676,11 +665,11 @@ export default function DatabaseBackupPage() {
                 <Button
                   variant="danger"
                   icon={<Trash className="size-4" weight="bold" />}
-                  disabled={cleanupPreview.batchCount === 0 || isCleaning}
+                  disabled={cleanupPreview.issueVersionCount === 0 && cleanupPreview.emptyBatchCount === 0 || isCleaning}
                   isLoading={isCleaning}
                   onClick={handleCleanupExecute}
                 >
-                  Xóa {formatNumber(cleanupPreview.batchCount)} đợt import cũ
+                  Xóa {formatNumber(cleanupPreview.issueVersionCount)} phiên bản issues cũ
                 </Button>
               </CardFooter>
             )}

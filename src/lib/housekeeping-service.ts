@@ -1,5 +1,5 @@
 import pool, { getClient } from '@/lib/db';
-import { deleteExpiredImportBatches } from '@/lib/data-retention-service';
+import { runDataLayerRetention } from '@/lib/data-layer-retention-service';
 import { purgeExpiredUsageStats } from '@/lib/usage-stats-service';
 import { VISIT_DETAIL_WINDOW_DAYS } from '@/lib/visit-counter-types';
 
@@ -9,6 +9,7 @@ export const AUDIT_LOG_RETENTION_DAYS = 90;
 export interface HousekeepingResult {
   auditLogsDeleted: number;
   importBatchesDeleted: number;
+  issueVersionsDeleted: number;
   expiredSessionsDeleted: number;
   visitLogsRolledUp: number;
 }
@@ -65,13 +66,18 @@ async function purgeOldAuditLogs(): Promise<number> {
  * failing never blocks the others, and the next day simply retries. Never throws.
  */
 export async function runDailyHousekeeping(): Promise<HousekeepingResult> {
-  const result: HousekeepingResult = { auditLogsDeleted: 0, expiredSessionsDeleted: 0, importBatchesDeleted: 0, visitLogsRolledUp: 0 };
+  const result: HousekeepingResult = { auditLogsDeleted: 0, expiredSessionsDeleted: 0, importBatchesDeleted: 0, issueVersionsDeleted: 0, visitLogsRolledUp: 0 };
   const steps: [string, () => Promise<void>][] = [
     ['auth_sessions', async () => { result.expiredSessionsDeleted = await purgeExpiredSessions(); }],
     ['visit_logs', async () => { result.visitLogsRolledUp = await rollUpOldVisitLogs(); }],
     ['audit_logs', async () => { result.auditLogsDeleted = await purgeOldAuditLogs(); }],
-    // Same RAW retention cleanup an import runs, so batches also expire on days without an import.
-    ['import_batches', async () => { result.importBatchesDeleted = await deleteExpiredImportBatches(pool); }],
+    // History of `issues`: weekly snapshot dates, thinning beyond the 15 newest import days, empty expired batches
+    // (data-layer-retention.ts). Heavy once (the first cleanup), a few hundred rows a day afterwards.
+    ['issues_history', async () => {
+      const retention = await runDataLayerRetention(pool);
+      result.issueVersionsDeleted = retention.issueVersionsDeleted;
+      result.importBatchesDeleted = retention.batchesDeleted;
+    }],
     ['user_usage_daily_stats', async () => { await purgeExpiredUsageStats(); }],
   ];
   for (const [name, run] of steps) {

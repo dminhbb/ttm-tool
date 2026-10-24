@@ -111,9 +111,12 @@ Ngoài filter "Cảnh báo"/Dự án/Domain/Component ở trên cùng, khối **
 mặc định, dưới thanh filter chính) cung cấp thêm (`src/lib/epic-alert-filter-params.ts`,
 `EpicAlertFilters`):
 
-- **Chọn lớp dữ liệu** — chip chọn 1 trong 5 lớp dữ liệu (`aggregated_at`) gần nhất, cộng dropdown
-  cho các lớp cũ hơn (tối đa 365 lớp gần nhất, `availableLayerDates`). Dữ liệu tự "drill" xuống lớp
-  cũ hơn kế tiếp nếu lớp đã chọn thiếu dữ liệu cho một Epic. Mặc định luôn dùng lớp mới nhất.
+- **Chọn lớp dữ liệu** — chip chọn 1 trong 5 ngày gần nhất, cộng dropdown cho các ngày cũ hơn
+  (`availableLayerDates` = 15 ngày import gần nhất + các ngày làm việc cuối tuần đã lưu, xem `brd/08-data-model.md` §19).
+  Chọn ngày X hiển thị **trạng thái của mọi Epic tại ngày X** (phiên bản mới nhất có `aggregated_at::date <= X`) và đánh giá
+  cảnh báo tại ngày X. Mặc định là hôm nay. Chọn ngày cũ có thêm ô **"Chỉ Epic đã thay đổi từ ngày X đến hôm nay"**
+  (`changedSinceOnly`): giữ các Epic có dữ liệu (status, ngày, tên, component…) hoặc kết luận (Fail/Muộn, Fail TTM-E2E, Sai lệch dữ liệu) khác hôm nay;
+  cột Status ghi thêm trạng thái hiện tại ("Nay: …") và banner nêu số Epic mới xuất hiện sau ngày X.
 - **Epic tạo mới từ (Created Date ≥)** — lọc theo `createdDateFrom`.
 - **Epic start date từ (Start CNTT / T1 ≥)** — lọc theo `startDateFrom`.
 - **Epic golive sau (Due Date ≥)** — lọc theo `dueDateFrom`.

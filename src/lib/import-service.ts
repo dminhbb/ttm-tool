@@ -3,7 +3,6 @@ import pool, { getClient } from './db';
 import { parseCSV, mapCSVToRawIssues } from './csv-parser';
 import { validateAllJiraIssues, parseJiraDate, RowValidationResult } from './validator';
 import { accumulateProjectComponents, splitComponents } from './project-component-service';
-import { deleteExpiredImportBatches } from './data-retention-service';
 import { e2eGeometry } from './epic-row-geometry';
 import { loadScoringContext } from './scoring-context-service';
 import { BADGE_BY_ID } from './scoring/catalog';
@@ -14,6 +13,7 @@ import type { EpicComplexity } from './scoring/types';
 import { recordEpicAlertTimelineTransitions, type EpicAlertTimelineDetail, type EpicAlertTimelineStates } from './epic-alert-timeline-service';
 import { EPIC_ISSUE_TYPES_SQL } from './issue-resolution-sql';
 import { toDateKey } from './working-days';
+import { getDenseZoneStart } from './data-layer-retention-service';
 import { ADAPTER_TYPES, DEFAULT_ADAPTER, type AdapterType } from './adapters/index';
 import { parsePyJiraApi } from './adapters/py-jira-api-adapter';
 import { parsePureJiraExport } from './adapters/pure-jira-export-adapter';
@@ -151,6 +151,8 @@ export interface ImportBatch {
   status: 'SUCCESS' | 'FAILED' | 'COMPLETED_WITH_WARNINGS';
   /** Rows dropped by "Từ chối import" (from metadata_json; 0 for batches imported before it). */
   deniedRows: number;
+  /** The batch's issue rows are all still stored — it is one of the 15 newest import days (data-layer-retention.ts). Older batches keep only the versions in force at the weekly snapshot dates. */
+  hasFullData: boolean;
 }
 
 export interface ImportResult {
@@ -531,11 +533,6 @@ export async function processImport(
       await aggregateBatchData(client, batchId, aggregatedAtDate);
     }
 
-    // Raw data is cleaned after every stored import, including a failed batch. Protect
-    // both this batch and the newest data layer so an out-of-order historical import
-    // can never remove the currently used alert source.
-    await deleteExpiredImportBatches(client, [batchId]);
-
     await client.query('COMMIT');
 
     // Refresh the derived caches (company-wide TTM-Index/QA-Index + "Quản trị Epic" rows + the
@@ -590,15 +587,17 @@ export async function deleteImportBatch(batchId: number): Promise<void> {
 }
 
 export async function getImportHistory(): Promise<ImportBatch[]> {
+  const denseStart = await getDenseZoneStart(pool);
   const res = await pool.query(`
     SELECT id, file_name as "fileName", import_type as "importType", 
            imported_by as "importedBy", imported_at as "importedAt", 
            aggregated_at as "aggregatedAt", total_rows as "totalRows", 
            success_rows as "successRows", warning_rows as "warningRows", 
-           error_rows as "errorRows", status, metadata_json as "metadataJson"
+           error_rows as "errorRows", status, metadata_json as "metadataJson",
+           ($1::date IS NULL OR aggregated_at::date >= $1::date) AS "hasFullData"
     FROM import_batches
     ORDER BY imported_at DESC;
-  `);
+  `, [denseStart]);
   return res.rows.map(({ metadataJson, ...batch }) => ({ ...batch, deniedRows: deniedRowsOf(metadataJson) }));
 }
 

@@ -46,6 +46,8 @@ interface ImportBatch {
   status: 'SUCCESS' | 'FAILED' | 'COMPLETED_WITH_WARNINGS';
   /** Rows dropped by "Từ chối import" (not in totalRows). */
   deniedRows: number;
+  /** false once the batch left the 15 newest import days: only the versions in force at the weekly snapshot dates remain. */
+  hasFullData: boolean;
 }
 
 interface ValidationError {
@@ -625,6 +627,8 @@ export function ImportIssuesTab() {
                                 variant="info"
                                 icon={<ListMagnifyingGlass className="w-4 h-4" />}
                                 onClick={() => router.push(`/data-review/${batch.id}`)}
+                                disabled={!batch.hasFullData}
+                                title={batch.hasFullData ? undefined : 'Đợt này đã ra khỏi 15 ngày import gần nhất nên dữ liệu chi tiết đã được làm thưa — xem trạng thái tại ngày đó ở Quản trị Epic → Chọn lớp dữ liệu.'}
                               >
                                 Duyệt dữ liệu
                               </TableAction>

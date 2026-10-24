@@ -265,6 +265,18 @@ function truncateSummary(value: string, maxLength = 50): string {
   return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
 }
 
+/** "Chỉ Epic thay đổi từ ngày X": what the Epic is today, under the status it had on that date. */
+function ChangeSinceNote({ row }: { row: EpicAlertRowPhased }) {
+  const now = row.changeSince;
+  if (!now) return null;
+  const changed = now.currentStatus !== row.currentStatus;
+  return (
+    <div className="mt-0.5 text-[11px] font-normal text-fb-text-secondary" title={`Hiện tại: ${now.currentStatus}${now.currentBadges.length ? ' — ' + now.currentBadges.join(', ') : ''}`}>
+      Nay: <strong className={changed ? 'text-[var(--color-text-brand)]' : undefined}>{now.currentStatus || '-'}</strong>
+    </div>
+  );
+}
+
 function StatusBadge({ status }: { status: string }) {
   if (!status) return <span className="ttm-empty-warning">—</span>;
   return <span className="ttm-status-badge">{status}</span>;
@@ -602,10 +614,12 @@ function EpicAlerts15Screen() {
   const [page, setPage] = useState(1);
   // "Bộ lọc nâng cao" — collapsed by default (see reports/page.tsx's "Cấu hình nâng cao..." for
   // the shared UI/logic pattern this mirrors). selectedLayerAnchor === availableLayerDates[0] (or
-  // unset) means "no restriction" — equivalent to the default always-latest-per-Epic behavior, so
-  // that case sends no layerDates param at all rather than the full list.
+  // unset) means "today" — the default newest-row-per-Epic view, so that case sends no asOfDate at all.
+  // Any older date shows every Epic as it stood on that date ("trạng thái tại ngày X").
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   const [selectedLayerAnchor, setSelectedLayerAnchor] = useState('');
+  // With an older date selected: list only the Epics that changed since then ("có gì thay đổi so với hôm nay").
+  const [changedSinceOnly, setChangedSinceOnly] = useState(false);
   const [createdDateFrom, setCreatedDateFrom] = useState('');
   const [startDateFromFilter, setStartDateFromFilter] = useState('');
   const [dueDateFromFilter, setDueDateFromFilter] = useState('');
@@ -628,20 +642,20 @@ function EpicAlerts15Screen() {
   const viewIssueBaseUrl = useJiraViewIssueUrl();
 
   const availableLayerDates = data?.availableLayerDates ?? EMPTY_LAYER_DATES;
+  // A selectable date with no import of its own (a weekly snapshot date) shows the state of the import it comes from.
+  const layerSourceNote = (layer: string): string => {
+    const source = data?.layerDateSources?.[layer];
+    return source ? ` (lấy từ lần import ${source.slice(8, 10)}/${source.slice(5, 7)})` : '';
+  };
   const recentLayerDates = useMemo(() => availableLayerDates.slice(0, RECENT_LAYER_CHIP_COUNT), [availableLayerDates]);
   const olderLayerDates = useMemo(() => availableLayerDates.slice(RECENT_LAYER_CHIP_COUNT), [availableLayerDates]);
   // Default selection = newest layer, without a setState-in-effect: selectedLayerAnchor starts
   // unset, and this just falls back to the newest available layer until the user clicks a chip.
   const effectiveLayerAnchor = selectedLayerAnchor || availableLayerDates[0] || '';
-  // Selecting the newest layer (or none yet) needs no restriction at all — the same query this
-  // screen has always run. Only an OLDER anchor narrows the window (see EpicAlertFilters.layerDates
-  // — "drill xuống các lớp cũ hơn" picks each Epic's latest row within that window).
-  const layerWindow = useMemo(() => {
-    if (!effectiveLayerAnchor) return null;
-    const anchorIndex = availableLayerDates.indexOf(effectiveLayerAnchor);
-    return anchorIndex > 0 ? availableLayerDates.slice(anchorIndex) : null;
-  }, [availableLayerDates, effectiveLayerAnchor]);
-  const layerWindowKey = layerWindow ? layerWindow.join(',') : '';
+  // Selecting the newest date (or none yet) is today's view. Only an OLDER date changes the query
+  // (EpicAlertFilters.asOfDate: each Epic as it was on that date, judged as of that date).
+  const pastAsOfDate = effectiveLayerAnchor && availableLayerDates.indexOf(effectiveLayerAnchor) > 0 ? effectiveLayerAnchor : '';
+  const changedSinceActive = Boolean(pastAsOfDate) && changedSinceOnly;
 
   // Debounced so typing in "Tìm kiếm" doesn't fire a network request per keystroke — every other
   // toolbar filter is a discrete click/select, so those go straight into the fetch effect below.
@@ -658,7 +672,7 @@ function EpicAlerts15Screen() {
   // (the client filters/sorts/paginates it itself), so only these params change what it returns —
   // re-fetching the (slow, live-computed) full set for a toolbar/page change would just reload the
   // identical data behind a skeleton. See the fetch effect's skip check below.
-  const serverQueryKey = [layerWindowKey, createdDateFrom, startDateFromFilter, dueDateFromFilter].join('|');
+  const serverQueryKey = [pastAsOfDate, changedSinceActive, createdDateFrom, startDateFromFilter, dueDateFromFilter].join('|');
   const lastFetchRef = useRef<{ mode: 'paged' | 'full'; serverQueryKey: string } | null>(null);
   const fetchData = async () => {
     const requestServerQueryKey = serverQueryKey;
@@ -670,9 +684,9 @@ function EpicAlerts15Screen() {
     setError(null);
     try {
       const query = new URLSearchParams();
-      if (layerWindow) {
-        query.set('layerDates', layerWindow.join(','));
-        query.set('asOfDate', effectiveLayerAnchor);
+      if (pastAsOfDate) {
+        query.set('asOfDate', pastAsOfDate);
+        if (changedSinceActive) query.set('changedSinceOnly', '1');
       }
       if (createdDateFrom) query.set('createdDateFrom', createdDateFrom);
       if (startDateFromFilter) query.set('startDateFrom', startDateFromFilter);
@@ -916,7 +930,7 @@ function EpicAlerts15Screen() {
     // same filter state listed below, so the listed values are the real triggers of a refetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    savedFiltersReady, serverQueryKey, layerWindowKey, createdDateFrom, startDateFromFilter, dueDateFromFilter,
+    savedFiltersReady, serverQueryKey, pastAsOfDate, changedSinceActive, createdDateFrom, startDateFromFilter, dueDateFromFilter,
     projectFilters, pmSmFilters, componentFilters, alertFilters, typeFilters, statusQuery,
     dataIssueFilter, requestingUnitFilters, debouncedSearch, page,
   ]);
@@ -1127,7 +1141,9 @@ function EpicAlerts15Screen() {
       )}
       {data?.asOfDate && (
         <div className="ttm-note" style={{ background: '#fff7e6', borderColor: '#f0c36d', color: '#7a5200', fontWeight: 700 }}>
-          Đang xem dữ liệu &amp; đánh giá cảnh báo tại thời điểm {data.asOfDate.split('-').reverse().join('/')} (không phải hôm nay thực tế).
+          Đang xem trạng thái các Epic &amp; đánh giá cảnh báo tại ngày {data.asOfDate.split('-').reverse().join('/')} (không phải hôm nay thực tế).
+          {changedSinceActive && ' Chỉ hiển thị Epic có dữ liệu hoặc kết luận khác so với hôm nay; cột Status ghi thêm trạng thái hiện tại.'}
+          {changedSinceActive && (data.newSinceCount ?? 0) > 0 && ` Ngoài ra có ${data.newSinceCount} Epic mới xuất hiện sau ngày đó (xem ở dữ liệu mới nhất).`}
         </div>
       )}
 
@@ -1361,7 +1377,7 @@ function EpicAlerts15Screen() {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-[11px] font-bold text-black">Chọn lớp dữ liệu</label>
-                <span className="text-[11px] text-fb-text-secondary font-medium">Chọn 1 lớp dữ liệu, dữ liệu sẽ tự động drill xuống các lớp cũ hơn nếu thiếu.</span>
+                <span className="text-[11px] text-fb-text-secondary font-medium">Chọn 1 ngày: hiển thị trạng thái của mọi Epic tại ngày đó (15 ngày import gần nhất và cuối mỗi tuần).</span>
               </div>
               {availableLayerDates.length === 0 ? (
                 <p className="text-[11px] text-fb-text-secondary">Chưa có lớp dữ liệu nào trong hệ thống.</p>
@@ -1374,11 +1390,12 @@ function EpicAlerts15Screen() {
                         key={layer}
                         type="button"
                         onClick={() => { setSelectedLayerAnchor(layer); setPage(1); }}
-                        title={`Chọn lớp dữ liệu ${layer} (drill xuống các lớp cũ hơn)`}
+                        title={`Xem trạng thái các Epic tại ngày ${layer}${layerSourceNote(layer)}`}
                         className={`flex items-center gap-1.5 rounded-none border px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${isSelected ? 'border-[var(--color-text-brand)] bg-[var(--color-text-brand)] text-white' : 'border-fb-border bg-white text-fb-text-primary hover:border-black'}`}
                       >
                         {isSelected && <Check className="size-3.5" weight="bold" />}
                         <span>{layer}</span>
+                        {data?.layerDateSources?.[layer] && <span className={`text-[11px] font-normal ${isSelected ? 'text-white' : 'text-fb-text-secondary'}`}>{layerSourceNote(layer).trim()}</span>}
                         {idx === 0 && <span className="bg-black text-white px-1 text-[11px] uppercase">Mới nhất</span>}
                       </button>
                     );
@@ -1388,13 +1405,19 @@ function EpicAlerts15Screen() {
                       className={`rounded-none border px-2 py-1.5 text-xs font-bold font-mono cursor-pointer ${olderLayerDates.includes(effectiveLayerAnchor) ? 'border-[var(--color-text-brand)] text-[var(--color-text-brand)]' : 'border-fb-border text-fb-text-primary'}`}
                       value={olderLayerDates.includes(effectiveLayerAnchor) ? effectiveLayerAnchor : ''}
                       onChange={(event) => { if (event.target.value) { setSelectedLayerAnchor(event.target.value); setPage(1); } }}
-                      title="Chọn 1 lớp dữ liệu cũ hơn (ngoài 5 lớp gần nhất) — drill xuống các lớp cũ hơn nữa"
+                      title="Chọn 1 ngày cũ hơn (ngoài 5 ngày gần nhất)"
                     >
                       <option value="">Lớp dữ liệu cũ hơn…</option>
-                      {olderLayerDates.map((layer) => <option key={layer} value={layer}>{layer}</option>)}
+                      {olderLayerDates.map((layer) => <option key={layer} value={layer}>{layer}{layerSourceNote(layer)}</option>)}
                     </select>
                   )}
                 </div>
+              )}
+              {pastAsOfDate && (
+                <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs font-bold text-black">
+                  <input type="checkbox" checked={changedSinceOnly} onChange={(event) => { setChangedSinceOnly(event.target.checked); setPage(1); }} />
+                  Chỉ Epic đã thay đổi từ ngày {pastAsOfDate.split('-').reverse().join('/')} đến hôm nay
+                </label>
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-fb-border pt-3">
@@ -1505,7 +1528,7 @@ function EpicAlerts15Screen() {
                         of Start Date, so this renders the same whether or not the Epic is missing
                         Start Date (see e2eGeometry in epic-row-geometry.ts). */}
                     <TtmE2eStrips compact={allColumnsCollapsed} row={row} />
-                    <TD className="w-[1%] text-left align-top whitespace-nowrap px-1.5"><StatusBadge status={row.currentStatus} /></TD>
+                    <TD className="w-[1%] text-left align-top whitespace-nowrap px-1.5"><StatusBadge status={row.currentStatus} />{row.changeSince && <ChangeSinceNote row={row} />}</TD>
                     <TD className="w-[1%] ttm-phase-cell pass whitespace-nowrap text-left align-top px-1.5">
                       {row.stages.release.baselineSourceDate ? (
                         <span className="inline-flex items-center justify-start gap-0.5 text-fb-text-placeholder font-medium text-[11px]">

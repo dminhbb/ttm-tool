@@ -48,6 +48,7 @@
       "ink": "#8a5a00",
       "tables": [
         "import_batches",
+        "data_snapshot_dates",
         "issues",
         "denied_import_epics",
         "import_admission_settings"
@@ -414,6 +415,10 @@
     },
     "visit_log_rollups": {
       "description": "Số lượt truy cập LŨY KẾ của các dòng <code>visit_logs</code> cũ hơn ngày T-15 (đã bị cuốn vào đây rồi xóa; theo <code>event_type</code>, <code>screen_key</code>, <code>user_id</code>) để các số \"Tổng (lũy kế)\" của Visit Counter không tụt khi job dọn dẹp xóa dòng cũ. <code>screen_key=''</code>: không có màn hình; <code>user_id=0</code>: user đã bị xóa.",
+      "columns": {}
+    },
+    "data_snapshot_dates": {
+      "description": "<strong>Mới 27/10/2026.</strong> Các ngày mốc cố định của lịch sử <code>issues</code>: ngày làm việc cuối mỗi tuần, ghi một lần khi tuần đã qua. Vùng thưa của <code>issues</code> chỉ giữ phiên bản đang có hiệu lực vào các ngày này (xem mục 6.1).",
       "columns": {}
     }
   },

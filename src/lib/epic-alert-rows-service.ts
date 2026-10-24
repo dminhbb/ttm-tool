@@ -3,6 +3,7 @@ import { applyTtmExclusions, loadTtmExclusionSources } from '@/lib/black-listed-
 import { fetchEpicAlertContext, missingStandardInfo } from '@/lib/epic-alert-service';
 import type { EpicAlertEntry, EpicAlertFilters } from '@/lib/epic-alert-service';
 import type { EpicAlertPhasedResponse, EpicAlertRowPhased, PhaseCell } from '@/lib/epic-alert-types';
+import pool from '@/lib/db';
 import { applyPmSmAssignments } from '@/lib/epic-pm-sm-assignment';
 import { loadPmSmNarrowings } from '@/lib/epic-pm-sm-assignment-service';
 import { cnttGeometry, e2eGeometry, elapsedWorkingDays, resolveTtmActualRange } from '@/lib/epic-row-geometry';
@@ -111,6 +112,31 @@ function compareRows(a: EpicAlertRowPhased, b: EpicAlertRowPhased): number {
   return (a.remainingWorkingDays ?? Infinity) - (b.remainingWorkingDays ?? Infinity);
 }
 
+/**
+ * "Chỉ Epic thay đổi từ ngày X": keeps the Epics that differ from today either in their own data
+ * (`dataChangedKeys`, decided in fetchEpicAlertContext) or in their verdicts (Fail/Muộn, Fail TTM-E2E, Sai lệch
+ * dữ liệu — read from epic_alert_row_cache, rebuilt every day, so no second scoring pass), and notes next to
+ * each what it is today.
+ */
+async function keepChangedSince(rows: EpicAlertRowPhased[], dataChangedKeys: ReadonlySet<string>): Promise<EpicAlertRowPhased[]> {
+  if (rows.length === 0) return rows;
+  const current = await pool.query<{ epicKey: string; status: string; alertLevel: EpicAlertRowPhased['alertLevel']; e2eAlertLevel: EpicAlertRowPhased['alertLevel']; anomaly: boolean; badges: string[] }>(`
+    SELECT epic_key AS "epicKey", current_status AS status, alert_level AS "alertLevel", ttm_e2e_alert_level AS "e2eAlertLevel",
+           has_data_anomaly AS anomaly, COALESCE(badge_codes, '{}') AS badges
+    FROM epic_alert_row_cache WHERE epic_key = ANY($1::text[]);
+  `, [rows.map((row) => row.epicKey)]);
+  const byKey = new Map(current.rows.map((item) => [item.epicKey, item]));
+  const kept: EpicAlertRowPhased[] = [];
+  for (const row of rows) {
+    const now = byKey.get(row.epicKey);
+    const verdictChanged = Boolean(now) && (now!.alertLevel !== row.alertLevel || now!.e2eAlertLevel !== row.ttmE2eAlertLevel || now!.anomaly !== row.hasDataAnomaly);
+    if (!dataChangedKeys.has(row.epicKey) && !verdictChanged) continue;
+    if (now) row.changeSince = { currentAlertLevel: now.alertLevel, currentBadges: now.badges, currentStatus: now.status };
+    kept.push(row);
+  }
+  return kept;
+}
+
 export interface EpicAlertRowsWithScorecards {
   response: EpicAlertPhasedResponse;
   /** The scorecard behind each returned row, keyed by Epic key. */
@@ -129,7 +155,7 @@ export async function getEpicAlertRowsWithScorecards(userId: number, role: UserR
   // Viewing a past "Chọn lớp dữ liệu" layer judges everything as of THAT layer's date, not today.
   const asOfDate = toIsoDate(filters.asOfDate);
   const empty = (): EpicAlertRowsWithScorecards => ({
-    response: { accessRole: context.accessRole, asOfDate, availableLayerDates: context.availableLayerDates, lastAggregatedAt: context.lastAggregatedAt, rows: [], viewerName: context.viewerName },
+    response: { accessRole: context.accessRole, asOfDate, availableLayerDates: context.availableLayerDates, lastAggregatedAt: context.lastAggregatedAt, layerDateSources: context.layerDateSources, newSinceCount: context.newSinceCount, rows: [], viewerName: context.viewerName },
     scorecards: new Map(),
   });
   if (!context.lastAggregatedAt || !context.entries.length) return empty();
@@ -137,7 +163,7 @@ export async function getEpicAlertRowsWithScorecards(userId: number, role: UserR
   const asOf = asOfDate ?? vnToday();
   const [ctx, facts, exclusionSources, pmSmNarrowings] = await Promise.all([
     loadScoringContext(asOf, scopeOverrideOf(filters)),
-    loadEpicFacts(asOf, { layerDates: filters.layerDates }),
+    loadEpicFacts(asOf),
     loadTtmExclusionSources(),
     loadPmSmNarrowings(),
   ]);
@@ -156,10 +182,11 @@ export async function getEpicAlertRowsWithScorecards(userId: number, role: UserR
   // "Epic ngoại lệ" / project Time to Market = N are stamped on so every screen can show the black dot
   // and skip the Epic in TTM; PM/SM names are narrowed to the ones responsible for each Epic's components.
   const stamped = applyPmSmAssignments(applyTtmExclusions(baseRows, exclusionSources), pmSmNarrowings);
-  const rows = projectRows(stamped, scorecards).sort(compareRows);
+  const projected = projectRows(stamped, scorecards).sort(compareRows);
+  const rows = filters.changedSinceOnly && asOfDate ? await keepChangedSince(projected, context.dataChangedKeys) : projected;
 
   return {
-    response: { accessRole: context.accessRole, asOfDate, availableLayerDates: context.availableLayerDates, lastAggregatedAt: context.lastAggregatedAt, rows, viewerName: context.viewerName },
+    response: { accessRole: context.accessRole, asOfDate, availableLayerDates: context.availableLayerDates, lastAggregatedAt: context.lastAggregatedAt, layerDateSources: context.layerDateSources, newSinceCount: context.newSinceCount, rows, viewerName: context.viewerName },
     scorecards,
   };
 }

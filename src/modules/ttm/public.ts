@@ -12,7 +12,7 @@ export {
   reportScopeAllowsProject,
   scopeReportFilterOptions,
 } from '@/lib/report-access-scope';
-export { generateEpicReport, getReportLayerDates } from '@/lib/reports-service';
+export { generateEpicReport, getReportLayerDates, getReportLayers } from '@/lib/reports-service';
 export type { ReportEpicItem, ReportFilterOptions, ReportResult } from '@/lib/reports-service';
 
 /**

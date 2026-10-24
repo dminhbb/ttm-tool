@@ -46,6 +46,8 @@ export default function ReportsPage() {
   const [projects, setProjects] = React.useState<Array<{ domainId: number | null; id: number; projectName: string; sourceProjectKey: string }>>([]);
   const [components, setComponents] = React.useState<Array<{ componentName: string; id: number; projectKey: string }>>([]);
   const [layerDates, setLayerDates] = React.useState<string[]>([]);
+  // Selectable date without an import that day → the import its state comes from.
+  const [layerDateSources, setLayerDateSources] = React.useState<Record<string, string>>({});
 
   // Filter States
   const [selectedDomainId, setSelectedDomainId] = React.useState<string>('ALL');
@@ -88,6 +90,7 @@ export default function ReportsPage() {
         setComponents(data.components || []);
         const layers = data.layerDates || [];
         setLayerDates(layers);
+        setLayerDateSources(data.layerDateSources || {});
 
         // Default select latest layer (index 0)
         if (layers.length > 0) {
@@ -131,11 +134,10 @@ export default function ReportsPage() {
   }, [components, effectiveProjectKey]);
 
   /**
-   * Single layer selection rule:
-   * 1. Default selects newest layer (index 0).
-   * 2. User can pick exactly 1 layer (older or the newest) — clicking a layer replaces the previous pick.
-   * 3. Report data always drills down from the selected layer through all older layers
-   *    (layerDates is sorted newest-first, so this is layerDates.slice(selectedIndex)).
+   * Single date selection rule:
+   * 1. Default selects the newest date (index 0).
+   * 2. User picks exactly 1 date (older or the newest) — clicking a date replaces the previous pick.
+   * 3. The report shows every Epic as it stood on that date (its newest row dated on/before it).
    */
   const handleSelectLayer = (index: number) => {
     setSelectedLayerAnchor(layerDates[index]);
@@ -146,25 +148,17 @@ export default function ReportsPage() {
   // stays reachable without the button row growing unbounded (getReportLayerDates now returns up
   // to 365 dates, not just 7).
   const RECENT_LAYER_CHIP_COUNT = 5;
+  // A selectable date with no import of its own (a weekly snapshot date) shows the state of the import it comes from.
+  const layerSourceNote = (layer: string): string => {
+    const source = layerDateSources[layer];
+    return source ? ` (lấy từ lần import ${source.slice(8, 10)}/${source.slice(5, 7)})` : '';
+  };
   const recentLayerDates = React.useMemo(() => layerDates.slice(0, RECENT_LAYER_CHIP_COUNT), [layerDates]);
   const olderLayerDates = React.useMemo(() => layerDates.slice(RECENT_LAYER_CHIP_COUNT), [layerDates]);
 
-  // Full set of layer dates actually sent to the report query: the selected layer plus every older layer,
-  // so the backend's fallback logic can drill down for epics missing from the selected snapshot.
-  const selectedLayers = React.useMemo(() => {
-    if (!selectedLayerAnchor) return [];
-    const anchorIdx = layerDates.indexOf(selectedLayerAnchor);
-    if (anchorIdx === -1) return [];
-    return layerDates.slice(anchorIdx);
-  }, [layerDates, selectedLayerAnchor]);
-
-  // Full set of compare layer dates sent to the report query if comparison is active.
-  const compareLayers = React.useMemo(() => {
-    if (!compareLayerAnchor) return [];
-    const anchorIdx = layerDates.indexOf(compareLayerAnchor);
-    if (anchorIdx === -1) return [];
-    return layerDates.slice(anchorIdx);
-  }, [layerDates, compareLayerAnchor]);
+  // The dates sent to the report query (the main one, and the compare one when comparison is active).
+  const stateDate = layerDates.includes(selectedLayerAnchor) ? selectedLayerAnchor : '';
+  const compareStateDate = layerDates.includes(compareLayerAnchor) ? compareLayerAnchor : '';
 
   // "As of" date pinning every FAIL/EARLY/LATE/anomaly calculation to the selected layer instead of
   // the real wall-clock date — only needed when the anchor is an OLDER layer than the newest
@@ -195,7 +189,7 @@ export default function ReportsPage() {
       void alertDialog({ title: 'Thiếu thông tin', description: 'Vui lòng chọn Dự án!' });
       return;
     }
-    if (!selectedLayerAnchor || selectedLayers.length === 0) {
+    if (!stateDate) {
       void alertDialog({ title: 'Thiếu thông tin', description: 'Vui lòng chọn 1 Lớp dữ liệu!' });
       return;
     }
@@ -210,14 +204,14 @@ export default function ReportsPage() {
         body: JSON.stringify({
           asOfDate,
           compareAsOfDate,
-          compareLayerDates: compareLayers.length > 0 ? compareLayers : undefined,
+          compareStateDate: compareStateDate || undefined,
           component: selectedComponent,
           createdDateFrom: createdDateFrom || undefined,
           domainId: selectedDomainId !== 'ALL' ? Number(selectedDomainId) : undefined,
           projectKey: effectiveProjectKey,
           releasedDateFrom: releasedDateFrom || undefined,
-          selectedLayerDates: selectedLayers,
           startDateFrom: startDateFrom || undefined,
+          stateDate,
         }),
       });
 
@@ -445,6 +439,7 @@ export default function ReportsPage() {
                         >
                           {isSelected && <Check className="size-3.5" weight="bold" />}
                           <span>{layer}</span>
+                          {layerDateSources[layer] && <span className={`text-[11px] font-normal ${isSelected ? 'text-white' : 'text-fb-text-secondary'}`}>{layerSourceNote(layer).trim()}</span>}
                           {idx === 0 && <span className="bg-black text-white px-1 text-[11px] uppercase">Mới nhất</span>}
                         </button>
                       );
@@ -459,7 +454,7 @@ export default function ReportsPage() {
                         title="Chọn 1 lớp dữ liệu cũ hơn (ngoài 5 lớp gần nhất) — drill xuống các lớp cũ hơn nữa"
                       >
                         <option value="">Lớp dữ liệu cũ hơn…</option>
-                        {olderLayerDates.map((layer) => <option key={layer} value={layer}>{layer}</option>)}
+                        {olderLayerDates.map((layer) => <option key={layer} value={layer}>{layer}{layerSourceNote(layer)}</option>)}
                       </select>
                     )}
                   </div>
@@ -510,6 +505,7 @@ export default function ReportsPage() {
                         >
                           {isSelected && <Check className="size-3.5" weight="bold" />}
                           <span>{layer}</span>
+                          {layerDateSources[layer] && <span className={`text-[11px] font-normal ${isSelected ? 'text-white' : 'text-fb-text-secondary'}`}>{layerSourceNote(layer).trim()}</span>}
                           {idx === 0 && <span className="bg-black text-white px-1 text-[11px] uppercase">Mới nhất</span>}
                         </button>
                       );
@@ -524,7 +520,7 @@ export default function ReportsPage() {
                         title="So sánh với 1 lớp dữ liệu cũ hơn (ngoài 5 lớp gần nhất)"
                       >
                         <option value="">Lớp dữ liệu cũ hơn…</option>
-                        {olderLayerDates.map((layer) => <option key={layer} value={layer}>{layer}</option>)}
+                        {olderLayerDates.map((layer) => <option key={layer} value={layer}>{layer}{layerSourceNote(layer)}</option>)}
                       </select>
                     )}
                   </div>
@@ -556,7 +552,7 @@ export default function ReportsPage() {
             <button
               type="button"
               onClick={handleGenerateReport}
-              disabled={generating || !effectiveProjectKey || selectedLayers.length === 0}
+              disabled={generating || !effectiveProjectKey || !stateDate}
               className="flex items-center gap-2 rounded-none bg-[var(--color-text-brand)] px-6 py-2.5 text-xs font-bold text-white shadow-none transition-all hover:bg-black disabled:opacity-50"
             >
               <FileText className="size-4" weight="bold" />
@@ -626,11 +622,11 @@ export default function ReportsPage() {
                   </div>
                   <div className="w-3/5 bg-white px-3 py-2 text-[11px] font-bold text-black flex flex-col justify-center">
                     <div>
-                      <span className="text-[var(--color-text-brand)]">Lớp chính (Mục 7):</span> Từ {report.minLayerDate} đến {report.maxLayerDate} ({report.layerDates.length} lớp)
+                      <span className="text-[var(--color-text-brand)]">Lớp chính (Mục 7):</span> Trạng thái các Epic tại ngày {report.maxLayerDate}
                     </div>
                     {compareReport && (
                       <div className="mt-1 pt-1 border-t border-fb-border">
-                        <span className="text-fb-text-primary">Lớp so sánh (Mục 8):</span> Từ {compareReport.minLayerDate} đến {compareReport.maxLayerDate} ({compareReport.layerDates.length} lớp)
+                        <span className="text-fb-text-primary">Lớp so sánh (Mục 8):</span> Trạng thái các Epic tại ngày {compareReport.maxLayerDate}
                       </div>
                     )}
                   </div>

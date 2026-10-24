@@ -39,12 +39,8 @@ interface EpicFactRow {
  * story/subtask-derived phase completion read at that same date (decision D3). Permission-unscoped —
  * callers filter by access scope when reading. `ttmExclusion` (Epic ngoại lệ / project Time to
  * Market = N) is today's configuration, not a per-layer fact.
- *
- * `layerDates` — the "Chọn lớp dữ liệu" window: when given, only those exact data layers are read
- * (same predicate as fetchEpicAlertContext) instead of every layer up to asOf.
  */
-export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]; layerDates?: string[] | null } = {}): Promise<EpicFacts[]> {
-  const layerDates = options.layerDates?.length ? options.layerDates : null;
+export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[] } = {}): Promise<EpicFacts[]> {
   const epicKeys = options.epicKeys?.length ? options.epicKeys : null;
   const [rows, completionByEpicKey, exclusionSources] = await Promise.all([
     pool.query<EpicFactRow>(`
@@ -78,10 +74,9 @@ export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]
       FROM issues
       WHERE UPPER(issues.issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
         AND issues.aggregated_at::date <= $1::date
-        AND ($2::date[] IS NULL OR issues.aggregated_at::date = ANY($2::date[]))
-        AND ($3::text[] IS NULL OR issues.issue_key = ANY($3::text[]))
+        AND ($2::text[] IS NULL OR issues.issue_key = ANY($2::text[]))
       ORDER BY issues.issue_key ASC, issues.aggregated_at DESC
-    `, [asOf, layerDates, epicKeys]),
+    `, [asOf, epicKeys]),
     computeEpicPhaseCompletionByEpicKey(asOf, epicKeys ?? undefined),
     loadTtmExclusionSources(),
   ]);

@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
     // the overwhelming majority of traffic (every plain page load / toolbar-filter change), and is
     // the one true server-side paginated + filtered read — see epic-alert-row-cache-query-service.ts.
     const usesAdvancedFilter = Boolean(
-      filters.layerDates || filters.createdDateFrom || filters.startDateFrom || filters.dueDateFrom
+      filters.asOfDate || filters.createdDateFrom || filters.startDateFrom || filters.dueDateFrom
       || filters.ttmScopeCnttFrom !== undefined || filters.ttmScopeCnttTo !== undefined
       || filters.ttmScopeQaFrom !== undefined || filters.ttmScopeQaTo !== undefined,
     );
@@ -90,6 +90,7 @@ export async function GET(request: NextRequest) {
         accessRole: header.accessRole,
         asOfDate: null,
         availableLayerDates: header.availableLayerDates,
+        layerDateSources: header.layerDateSources,
         lastAggregatedAt: header.lastAggregatedAt,
         viewerName: header.viewerName,
         viewAsUser,

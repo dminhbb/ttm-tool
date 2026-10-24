@@ -4,6 +4,7 @@ import type { EpicComplexity } from '@/lib/ttm-rules';
 import { getDomainByProjectKeyMap, getProjectMetaByProjectKeyMap } from '@/lib/master-data-service';
 import { getEpicKeysWithCnttAlertRuns } from '@/lib/epic-alert-timeline-service';
 import { EPIC_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
+import { listSelectableLayers } from '@/lib/data-layer-retention-service';
 import type { EpicAlertAccessRole } from '@/lib/epic-alert-types';
 
 /**
@@ -34,6 +35,38 @@ export interface EpicRow {
   startDate: string | null;
   status: string;
   targetR4gDate: string | null;
+}
+
+/** The issues columns an EpicRow is read from — one SQL fragment for every query that builds rows. */
+const EPIC_ROW_COLUMNS = `
+      issues.issue_key AS "epicKey",
+      issues.issue_name AS "epicName",
+      issues.current_status AS status,
+      issues.epic_complexity_type AS complexity,
+      issues.assignee_name AS assignee,
+      issues.start_date::text AS "startDate",
+      issues.idea_approved_date::text AS "ideaApprovedDate",
+      issues.jira_created_at::text AS "jiraCreatedAt",
+      issues.r4g_date::text AS "r4gDate",
+      issues.target_r4g_date::text AS "targetR4gDate",
+      issues.due_date::text AS "dueDate",
+      issues.requirement_level AS "requirementLevel",
+      issues.requesting_unit AS "requestingUnit",
+      issues.aggregated_at::text AS "aggregatedAt",
+      COALESCE(issues.components, '{}') AS components,
+      COALESCE(
+        NULLIF(issues.project_key, ''),
+        NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),
+        ''
+      ) AS project,
+      COALESCE(NULLIF(issues.request_type, ''), '') AS "epicType"
+`;
+
+/** What counts as "the Epic's data changed" between two dates: everything shown or judged, except the layer it comes from. */
+const CHANGE_COMPARED_FIELDS = ['assignee', 'complexity', 'components', 'dueDate', 'epicName', 'epicType', 'ideaApprovedDate', 'jiraCreatedAt', 'project', 'r4gDate', 'requestingUnit', 'requirementLevel', 'startDate', 'status', 'targetR4gDate'] as const satisfies readonly (keyof EpicRow)[];
+
+function sameEpicData(a: EpicRow, b: EpicRow): boolean {
+  return CHANGE_COMPARED_FIELDS.every((field) => JSON.stringify(a[field]) === JSON.stringify(b[field]));
 }
 
 export function parseDate(value: string | null): Date | null {
@@ -113,12 +146,18 @@ export interface EpicAlertEntry {
 
 export interface EpicAlertContext {
   accessRole: EpicAlertAccessRole;
-  /** Distinct `issues.aggregated_at` dates in the system, newest first, capped at 365 — the "Chọn
-   * lớp dữ liệu" filter shows the newest 5 as quick-pick chips and every older one in a dropdown
-   * beside them, so any recorded layer stays reachable. */
+  /** The dates the "Chọn lớp dữ liệu" filter offers, newest first: the import days of the dense zone
+   * (15 newest) and the weekly snapshot dates (data-layer-retention.ts). The newest 5 are quick-pick chips,
+   * every older one sits in a dropdown beside them. */
   availableLayerDates: string[];
+  /** Selectable date without an import that day → the import day its state comes from. */
+  layerDateSources: Record<string, string>;
   entries: EpicAlertEntry[];
   lastAggregatedAt: string | null;
+  /** With `changedSinceOnly`: the Epics whose own data (status, dates, name, components…) differs from the viewed date. */
+  dataChangedKeys: ReadonlySet<string>;
+  /** With `changedSinceOnly`: Epics that exist today but did not yet exist on the viewed date. */
+  newSinceCount: number;
   viewerName: string;
 }
 
@@ -128,19 +167,16 @@ export interface EpicAlertContext {
  * a single flat Epic list instead of the Report's multi-table split.
  */
 export interface EpicAlertFilters {
-  /** Pins every FAIL/EARLY/LATE, "stripe thực tế" and remaining/elapsed-working-days calculation to
-   * this date instead of the real wall-clock date — set together with an OLDER `layerDates` window
-   * ("Chọn lớp dữ liệu" drill-down) so viewing a past data layer also evaluates it as of that layer's
-   * own date, not today. Omit/null for the default: evaluate as of the real current date. */
+  /** "Chọn lớp dữ liệu": show the state of every Epic AT this date (its newest row dated on/before it) and
+   * judge FAIL/LATE, "stripe thực tế" and remaining/elapsed working days as of it too. Omit/null for the
+   * default: the newest row of every Epic, judged as of the real current date. */
   asOfDate?: string | null;
+  /** With `asOfDate`: keep only the Epics whose data or verdicts differ from today's. */
+  changedSinceOnly?: boolean;
   /** Epic tạo mới từ (Created Date ≥) — compared against jiraCreatedAt, falling back to ideaApprovedDate. */
   createdDateFrom?: string | null;
   /** Epic golive sau (Due Date ≥) — compared against issues.due_date; Epics without one are excluded once set. */
   dueDateFrom?: string | null;
-  /** "Chọn lớp dữ liệu" drill-down window: when set, only issues rows whose aggregated_at::date is in
-   * this list are considered (newest-per-epic within that window) — omit/null for the default,
-   * unrestricted "always latest known row" behavior. */
-  layerDates?: string[] | null;
   /** Epic start date từ (Start CNTT / T1 ≥) — compared against issues.start_date; Epics without one are excluded once set. */
   startDateFrom?: string | null;
   /** "Phạm vi dữ liệu cho TTM" override (Dashboard 2's Advanced Filters deep-link) — undefined uses
@@ -156,6 +192,7 @@ export interface EpicAlertFilters {
 export interface EpicAlertHeaderContext {
   accessRole: EpicAlertAccessRole;
   availableLayerDates: string[];
+  layerDateSources: Record<string, string>;
   lastAggregatedAt: string | null;
   scope: AccessScope;
   viewerName: string;
@@ -166,15 +203,16 @@ export interface EpicAlertHeaderContext {
  * fast path (epic-alert-row-cache-query-service.ts) can populate the screen header without paying
  * for the full per-Epic Epic query + JS computation fetchEpicAlertContext otherwise runs. */
 export async function fetchEpicAlertHeaderContext(userId: number, role: UserRole): Promise<EpicAlertHeaderContext> {
-  const [scope, viewer, latestBatch, layerDatesResult] = await Promise.all([
+  const [scope, viewer, latestBatch, layers] = await Promise.all([
     resolveAccessScope(userId, role),
     pool.query<{ fullName: string }>('SELECT full_name AS "fullName" FROM users WHERE id = $1', [userId]),
     pool.query<{ aggregatedAt: string; id: number }>('SELECT id, aggregated_at::text AS "aggregatedAt" FROM import_batches ORDER BY aggregated_at DESC LIMIT 1;'),
-    pool.query<{ layerDate: string }>('SELECT DISTINCT aggregated_at::date::text AS "layerDate" FROM issues ORDER BY "layerDate" DESC LIMIT 365;'),
+    listSelectableLayers(pool),
   ]);
   return {
     accessRole: scope.accessRole,
-    availableLayerDates: layerDatesResult.rows.map((row) => row.layerDate),
+    availableLayerDates: layers.dates,
+    layerDateSources: layers.sources,
     lastAggregatedAt: latestBatch.rows[0]?.aggregatedAt ?? null,
     scope,
     viewerName: viewer.rows[0]?.fullName ?? '',
@@ -188,46 +226,27 @@ export async function fetchEpicAlertHeaderContext(userId: number, role: UserRole
  * with the project / domain / PM-SM metadata. No status-based visibility rule is applied here.
  */
 export async function fetchEpicAlertContext(userId: number, role: UserRole, filters: EpicAlertFilters = {}): Promise<EpicAlertContext> {
-  const [scope, domainByProjectKey, projectMetaByProjectKey, epicKeysWithAlertHistory, viewer, latestBatch, layerDatesResult] = await Promise.all([
+  const [scope, domainByProjectKey, projectMetaByProjectKey, epicKeysWithAlertHistory, viewer, latestBatch, layers] = await Promise.all([
     resolveAccessScope(userId, role),
     getDomainByProjectKeyMap(),
     getProjectMetaByProjectKeyMap(),
     getEpicKeysWithCnttAlertRuns(),
     pool.query<{ fullName: string }>('SELECT full_name AS "fullName" FROM users WHERE id = $1', [userId]),
     pool.query<{ aggregatedAt: string; id: number }>('SELECT id, aggregated_at::text AS "aggregatedAt" FROM import_batches ORDER BY aggregated_at DESC LIMIT 1;'),
-    pool.query<{ layerDate: string }>('SELECT DISTINCT aggregated_at::date::text AS "layerDate" FROM issues ORDER BY "layerDate" DESC LIMIT 365;'),
+    listSelectableLayers(pool),
   ]);
 
+  const { dates: availableLayerDates, sources: layerDateSources } = layers;
   const viewerName = viewer.rows[0]?.fullName ?? '';
   const latestAggregatedAt = latestBatch.rows[0]?.aggregatedAt ?? null;
-  const availableLayerDates = layerDatesResult.rows.map((row) => row.layerDate);
+  const asOfDate = filters.asOfDate ? filters.asOfDate.slice(0, 10) : null;
   if (!latestAggregatedAt) {
-    return { accessRole: scope.accessRole, availableLayerDates, entries: [], lastAggregatedAt: null, viewerName };
+    return { accessRole: scope.accessRole, availableLayerDates, dataChangedKeys: new Set(), entries: [], layerDateSources, lastAggregatedAt: null, newSinceCount: 0, viewerName };
   }
 
   const result = await pool.query<EpicRow>(`
     SELECT DISTINCT ON (issues.issue_key)
-      issues.issue_key AS "epicKey",
-      issues.issue_name AS "epicName",
-      issues.current_status AS status,
-      issues.epic_complexity_type AS complexity,
-      issues.assignee_name AS assignee,
-      issues.start_date::text AS "startDate",
-      issues.idea_approved_date::text AS "ideaApprovedDate",
-      issues.jira_created_at::text AS "jiraCreatedAt",
-      issues.r4g_date::text AS "r4gDate",
-      issues.target_r4g_date::text AS "targetR4gDate",
-      issues.due_date::text AS "dueDate",
-      issues.requirement_level AS "requirementLevel",
-      issues.requesting_unit AS "requestingUnit",
-      issues.aggregated_at::text AS "aggregatedAt",
-      COALESCE(issues.components, '{}') AS components,
-      COALESCE(
-        NULLIF(issues.project_key, ''),
-        NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),
-        ''
-      ) AS project,
-      COALESCE(NULLIF(issues.request_type, ''), '') AS "epicType"
+      ${EPIC_ROW_COLUMNS}
     FROM issues
     WHERE UPPER(issues.issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
       AND ($1::text[] IS NULL OR COALESCE(
@@ -235,9 +254,29 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole, filt
         NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),
         ''
       ) = ANY($1::text[]))
-      AND ($2::date[] IS NULL OR issues.aggregated_at::date = ANY($2::date[]))
+      AND ($2::date IS NULL OR issues.aggregated_at::date <= $2::date)
     ORDER BY issues.issue_key ASC, issues.aggregated_at DESC
-  `, [scope.sourceProjectKeys, filters.layerDates ?? null]);
+  `, [scope.sourceProjectKeys, asOfDate]);
+
+  // "Chỉ Epic thay đổi từ ngày X": the newest row each Epic has today, to compare with the one at X.
+  // Epics whose own data differs from what they had then (the verdict side is compared once rows are scored).
+  const dataChangedKeys = new Set<string>();
+  let newSinceCount = 0;
+  if (filters.changedSinceOnly && asOfDate) {
+    const latest = await pool.query<EpicRow>(`
+      SELECT DISTINCT ON (issues.issue_key) ${EPIC_ROW_COLUMNS}
+      FROM issues
+      WHERE UPPER(issues.issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
+        AND ($1::text[] IS NULL OR COALESCE(NULLIF(issues.project_key, ''), NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''), '') = ANY($1::text[]))
+      ORDER BY issues.issue_key ASC, issues.aggregated_at DESC
+    `, [scope.sourceProjectKeys]);
+    const atDate = new Map(result.rows.map((row) => [row.epicKey, row]));
+    for (const row of latest.rows) {
+      const before = atDate.get(row.epicKey);
+      if (!before) newSinceCount += 1;
+      else if (!sameEpicData(before, row)) dataChangedKeys.add(row.epicKey);
+    }
+  }
 
   const entries: EpicAlertEntry[] = [];
 
@@ -266,5 +305,5 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole, filt
     entries.push({ complexity, domain, hasAlertHistory, pmSmName: projectMeta?.leadName ?? '', projectName: projectMeta?.projectName ?? '', row });
   }
 
-  return { accessRole: scope.accessRole, availableLayerDates, entries, lastAggregatedAt: latestAggregatedAt, viewerName };
+  return { accessRole: scope.accessRole, availableLayerDates, dataChangedKeys, entries, lastAggregatedAt: latestAggregatedAt, layerDateSources, newSinceCount, viewerName };
 }

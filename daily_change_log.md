@@ -8,6 +8,13 @@
 
 ## 2026-10-24
 
+- **Làm thưa lịch sử `issues` (vùng dày 15 ngày import + ngày mốc cuối tuần) — code + migration, CHƯA dọn dữ liệu**:
+  - Quy tắc (`data-layer-retention.ts`, thuần + test): giữ mọi phiên bản của 15 ngày import gần nhất; xa hơn chỉ giữ phiên bản có hiệu lực vào ngày làm việc cuối mỗi tuần (bảng mới `data_snapshot_dates`, migration `20261027`, đã chạy trên Supabase; ghi 8 mốc) trong thời hạn `raw_import_retention_days`, cộng phiên bản mới nhất của mỗi issue. `data-layer-retention-service.ts`: ghi mốc, lập kế hoạch/xóa theo lô, xóa batch rỗng quá hạn, `listSelectableLayerDates`.
+  - Job: bước `issues_history` trong `runDailyHousekeeping` (cùng lượt cache đầu ngày) thay bước `import_batches`; bỏ xóa batch kiểu cascade ở cuối `processImport`. Thẻ "Dọn dữ liệu import cũ" (Admin → Database) nay chạy cùng quy tắc.
+  - Mọi màn chọn ngày đọc "trạng thái tại ngày X" (`aggregated_at::date <= X`, `asOfDate`): bỏ `layerDates` (Quản trị Epic, facts, Reports → `stateDate`/`compareStateDate`); danh sách ngày = 15 ngày import + ngày mốc. Thêm ô "Chỉ Epic đã thay đổi từ ngày X" (`changedSinceOnly`, so dữ liệu + kết luận với hôm nay, ghi chú "Nay: …"). Nút "Duyệt dữ liệu" chỉ mở với 15 ngày import gần nhất (`ImportBatch.hasFullData`).
+  - Thống kê dry-run trên Supabase: sẽ xóa 25.121 / 72.862 dòng (≈20 MB), 0 lệch trạng thái tại 20 ngày chọn được và trạng thái hiện tại; quy tắc SQL khớp hàm thuần. Docs: AGENTS.md, BRD 07/08/13/15, BRD_INDEX, product guide, catalog + export-schema (54 bảng).
+  - Nhãn "(lấy từ lần import dd/mm)" cho ngày mốc tuần không có import (Quản trị Epic + Báo cáo): `layerDateSources` (`listSelectableLayers`). Chủ sở hữu duyệt thống kê dọn (25.121 dòng) — dọn chạy ở lượt cache đầu ngày sau deploy.
+
 - **Đã DROP trên Supabase**: `import_row_issues`, `scoring_parity_runs`, `scoring_engine_settings` (migration `20261026` + `20261026b`; 98 migration, 53 bảng public). Đã chạy `db:export-schema` (`db/install/ttm-monitor-schema.sql`, `docs/database-erd.md`, chương 5 product guide) và cập nhật brd/07, brd/08, BRD_INDEX_FOR_AI_AGENT.md, db/install/README.md. Còn lại: chạy `db:migrate:local`.
 - **Gỡ `import_row_issues`, `scoring_parity_runs`, `scoring_engine_settings` + engine cảnh báo cũ (đã DROP trên Supabase, xem bullet bên trên)**; `epic_alert_row_cache` và các cache khác giữ nguyên:
   - **Chi tiết lỗi/cảnh báo của đợt import**: bỏ cửa sổ + thống kê cảnh báo trong `ImportIssuesTab.tsx`, bỏ `getBatchValidationDetail` và việc ghi `import_row_issues` ở `processImport` (nhanh hơn, nhẹ DB); phản hồi upload vẫn liệt kê dòng lỗi, `import_batches` giữ số dòng thành công/cảnh báo/lỗi. Gỡ khỏi purge lớp dữ liệu, sao lưu, xoá Epic, dọn DB, Help.

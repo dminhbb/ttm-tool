@@ -1,20 +1,30 @@
-import pool, { getClient } from '@/lib/db';
+import pool from '@/lib/db';
+import { countEmptyExpiredBatchesAfter, planIssueThinning, runDataLayerRetention } from '@/lib/data-layer-retention-service';
 
 const MIN_RETENTION_DAYS = 7;
 const MAX_RETENTION_DAYS = 3650;
 
 export interface CleanupPreview {
-  batchCount: number;
   cutoffDate: string;
-  importRowCount: number;
-  issueCount: number;
-  latestBatchProtected: { aggregatedAt: string; fileName: string; id: number } | null;
+  /** First day of the dense zone (the 15 newest import days) — every version from it on is kept. */
+  denseStart: string | null;
+  /** Import batches past the retention that would be left without any issue row, and removed. */
+  emptyBatchCount: number;
+  /** Versions (issues rows) that would be deleted, and how many of them are older than the retention vs. between the weekly snapshot dates. */
+  issueVersionCount: number;
+  issueVersionsBeyondRetention: number;
+  issueVersionsInSparseZone: number;
+  keptBridging: number;
+  keptDense: number;
+  keptNewestOld: number;
   retentionDays: number;
+  totalRows: number;
 }
 
 export interface CleanupResult {
   batchesDeleted: number;
   cutoffDate: string;
+  issueVersionsDeleted: number;
   retentionDays: number;
 }
 
@@ -24,67 +34,32 @@ function assertValidRetentionDays(retentionDays: number): void {
   }
 }
 
-async function getLatestBatchId(): Promise<number | null> {
-  const result = await pool.query<{ id: number }>('SELECT id FROM import_batches ORDER BY aggregated_at DESC LIMIT 1;');
-  return result.rows[0]?.id ?? null;
-}
-
 /**
- * Old import_batches rows older than the cutoff get deleted; issues cascade
- * automatically via their FK (ON DELETE CASCADE). epic_alert_timeline is
- * untouched (its FK to import_batches is ON DELETE SET NULL), so the alert history survives; the
- * Issue history itself lives only in `issues` and goes with the batch.
- * The most recent batch is always protected regardless of age, so "current state" never breaks.
+ * Manual run of the same history retention the daily job applies (data-layer-retention.ts), with its own
+ * number of days. Beyond the 15 newest import days only the version in force at each weekly snapshot date is
+ * kept, plus the newest version of every issue — so an Epic nobody touched for months never disappears.
+ * epic_alert_timeline is untouched (its FK to import_batches is ON DELETE SET NULL).
  */
 export async function previewCleanup(retentionDays: number): Promise<CleanupPreview> {
   assertValidRetentionDays(retentionDays);
-  const cutoffDate = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-  const latestBatchId = await getLatestBatchId();
-
-  const [batchResult, latestBatchResult] = await Promise.all([
-    pool.query<{ batchCount: string; importRowCount: string; issueCount: string }>(`
-      WITH old_batches AS (
-        SELECT id, total_rows FROM import_batches WHERE aggregated_at < $1 AND id IS DISTINCT FROM $2
-      )
-      SELECT
-        (SELECT COUNT(*) FROM old_batches)::text AS "batchCount",
-        COALESCE((SELECT SUM(total_rows) FROM old_batches), 0)::text AS "importRowCount",
-        (SELECT COUNT(*) FROM issues WHERE source_import_batch_id IN (SELECT id FROM old_batches))::text AS "issueCount";
-    `, [cutoffDate, latestBatchId]),
-    latestBatchId
-      ? pool.query<{ aggregatedAt: string; fileName: string; id: number }>('SELECT id, file_name AS "fileName", aggregated_at::text AS "aggregatedAt" FROM import_batches WHERE id = $1;', [latestBatchId])
-      : Promise.resolve({ rows: [] }),
-  ]);
-
-  const row = batchResult.rows[0];
+  const plan = await planIssueThinning(undefined, retentionDays);
   return {
-    batchCount: Number(row?.batchCount ?? 0),
-    cutoffDate: cutoffDate.toISOString(),
-    importRowCount: Number(row?.importRowCount ?? 0),
-    issueCount: Number(row?.issueCount ?? 0),
-    latestBatchProtected: latestBatchResult.rows[0] ?? null,
+    cutoffDate: plan.cutoff,
+    denseStart: plan.denseStart,
+    emptyBatchCount: await countEmptyExpiredBatchesAfter(pool, plan.cutoff, plan.deleteIds),
+    issueVersionCount: plan.deleteIds.length,
+    issueVersionsBeyondRetention: plan.deleteBeyondRetention,
+    issueVersionsInSparseZone: plan.deleteInSparseZone,
+    keptBridging: plan.keptBridging,
+    keptDense: plan.keptDense,
+    keptNewestOld: plan.keptNewestOld,
     retentionDays,
+    totalRows: plan.totalRows,
   };
 }
 
 export async function runCleanup(retentionDays: number): Promise<CleanupResult> {
   assertValidRetentionDays(retentionDays);
-  const cutoffDate = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-  const latestBatchId = await getLatestBatchId();
-
-  const client = await getClient();
-  try {
-    await client.query('BEGIN');
-    const result = await client.query(
-      'DELETE FROM import_batches WHERE aggregated_at < $1 AND id IS DISTINCT FROM $2;',
-      [cutoffDate, latestBatchId],
-    );
-    await client.query('COMMIT');
-    return { batchesDeleted: result.rowCount ?? 0, cutoffDate: cutoffDate.toISOString(), retentionDays };
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+  const result = await runDataLayerRetention(undefined, retentionDays);
+  return { batchesDeleted: result.batchesDeleted, cutoffDate: result.cutoff, issueVersionsDeleted: result.issueVersionsDeleted, retentionDays };
 }

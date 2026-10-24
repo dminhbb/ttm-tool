@@ -69,7 +69,7 @@ export function RawImportRetentionSettings() {
         return;
       }
       setRetentionDays(result.rawImportRetentionDays);
-      showToast('Đã lưu cấu hình. Hệ thống tự dọn raw import sau mỗi lần import được lưu.', 5000);
+      showToast('Đã lưu cấu hình. Hệ thống tự dọn lịch sử issues mỗi ngày (cùng lượt tạo cache đầu ngày).', 5000);
       setMessage(null);
     } catch {
       setMessage({ text: 'Không thể kết nối dịch vụ cấu hình lưu trữ.', type: 'error' });
@@ -87,7 +87,7 @@ export function RawImportRetentionSettings() {
       </CardHeader>
       <CardBody className="gap-4">
         <p className="text-fb-text-secondary">
-          Dữ liệu raw gồm batch import, dòng import và issues của batch. Sau thời hạn cấu hình, raw data được tự dọn khi import thành công; bảng tổng hợp Epic, Story và Subtask được giữ vĩnh viễn để phục vụ tra cứu lịch sử.
+          Dữ liệu raw gồm batch import và các phiên bản issues. Mỗi ngày hệ thống giữ đầy đủ 15 ngày import gần nhất; xa hơn chỉ giữ phiên bản đang có hiệu lực vào ngày làm việc cuối mỗi tuần, trong số ngày cấu hình bên dưới, và luôn giữ phiên bản mới nhất của mỗi issue (Epic lâu không cập nhật vẫn hiển thị).
         </p>
         <Input
           className="max-w-[180px]"

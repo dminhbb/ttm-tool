@@ -176,7 +176,7 @@ Không ghi trực tiếp từ CSV vào bảng nghiệp vụ chính nếu chưa v
 
 - Từ 2026-10-23 hai bảng snapshot `issue_daily_snapshots` / `epic_ttm_snapshots` đã được **gỡ** (chúng chỉ là bản sao từng dòng của `issues`, không màn hình nào đọc). Lịch sử Issue (lớp dữ liệu cũ, bằng chứng rule B, phạm vi Epic deletion) chỉ còn trong `issues` và mất theo retention RAW. Dòng thời gian cảnh báo (`epic_alert_timeline`; `epic_alert_history` đã gộp vào đây 2026-10-24) vẫn sống sau khi raw bị dọn (FK `ON DELETE SET NULL`).
 - Raw data là `import_batches` và `issues` của batch (các bảng `import_rows` và `import_row_issues` đã gỡ 2026-10-24; chi tiết lỗi/cảnh báo từng dòng chỉ còn trong phản hồi upload). Giá trị mặc định giữ raw là 30 ngày; SUPERADMIN có thể đặt từ 7 đến 3650 ngày tại Quản trị nguồn dữ liệu.
-- Sau mỗi import được lưu, hệ thống dọn raw batch quá hạn trong cùng transaction; luôn giữ batch đang import và lớp `aggregated_at` mới nhất để trang Cảnh báo Epic không mất dữ liệu hiện hành.
+- Retention của `issues` do job dọn dẹp hằng ngày thực hiện (không còn xóa trong transaction import): xem `brd/08-data-model.md` §19 — giữ mọi phiên bản của 15 ngày import gần nhất, xa hơn chỉ giữ phiên bản có hiệu lực vào ngày làm việc cuối mỗi tuần và phiên bản mới nhất của mỗi issue, nên trang Cảnh báo Epic không bao giờ mất Epic hiện hành. Nút "Duyệt dữ liệu" của một đợt import chỉ mở được với 15 ngày import gần nhất.
 
 
 ## 6. Import log

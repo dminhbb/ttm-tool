@@ -107,6 +107,16 @@ are declared once in `src/lib/scoring/catalog.ts`; the "Logic cảnh báo" popup
   `src/lib/import-admission-rules.ts`, NOT in `src/lib/scoring/` — they gate what the import adapter lets
   in, they are not a verdict shown on a screen (no badge). Don't move them into scoring.
 
+# History of `issues` — dense zone + weekly snapshot dates
+
+`issues` keeps every version (row) of the 15 newest import days and, beyond them, only the version in force on
+each weekly snapshot date (last working day of the week, table `data_snapshot_dates`) up to
+`data_retention_configs.raw_import_retention_days`, plus the newest version of every issue
+(`src/lib/data-layer-retention.ts`, `data-layer-retention-service.ts`; the daily job `runDailyHousekeeping`).
+Screens never read "layers": they read the state AT a date (`aggregated_at::date <= X`, `asOfDate`) and offer only
+`listSelectableLayerDates()`. Do not delete `issues` rows (or `import_batches`, which cascade) any other way — a
+row may be the only version in force on a snapshot date.
+
 # Icons standard — phosphoricons.com
 
 All UI icons across the application must be imported exclusively from Phosphor Icons (`@phosphor-icons/react` from `phosphoricons.com`).

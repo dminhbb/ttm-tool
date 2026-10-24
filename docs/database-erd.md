@@ -4,14 +4,14 @@
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
-**53 bảng** trong schema `public`, **40 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
+**54 bảng** trong schema `public`, **40 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
 
 ## Mục lục
 
 1. [Xác thực & phân quyền](#1-xác-thực-phân-quyền) — 8 bảng
 2. [Domain & Dự án](#2-domain-dự-án) — 3 bảng
 3. [Quản lý dự án (PMS — expand-only)](#3-quản-lý-dự-án-pms-expand-only) — 5 bảng
-4. [Import & Issue](#4-import-issue) — 4 bảng
+4. [Import & Issue](#4-import-issue) — 5 bảng
 5. [Cấu hình TTM, lịch & phạm vi](#5-cấu-hình-ttm-lịch-phạm-vi) — 7 bảng
 6. [Epic Scoring Service](#6-epic-scoring-service) — 2 bảng
 7. [Lịch sử & snapshot](#7-lịch-sử-snapshot) — 1 bảng
@@ -496,6 +496,10 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
     }
+    data_snapshot_dates {
+        date snapshot_date PK
+        timestamptz created_at
+    }
     issues {
         int id PK
         varchar source_system
@@ -603,6 +607,15 @@ Quản lý từng đợt import CSV (metadata đợt import, mốc `aggregated_a
 | `metadata_json` | text | có |  |  |  |
 | `created_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
 | `updated_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
+
+### `data_snapshot_dates`
+
+**Mới 27/10/2026.** Các ngày mốc cố định của lịch sử `issues`: ngày làm việc cuối mỗi tuần, ghi một lần khi tuần đã qua. Vùng thưa của `issues` chỉ giữ phiên bản đang có hiệu lực vào các ngày này (xem mục 6.1).
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `snapshot_date` | date | không |  | PK |  |
+| `created_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 
 ### `issues`
 

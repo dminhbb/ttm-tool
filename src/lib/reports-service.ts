@@ -5,6 +5,8 @@ import { normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { EPIC_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 import { diffWorkingDays } from '@/lib/working-days';
 import { loadScoringContext, vnToday } from '@/lib/scoring-context-service';
+import { listSelectableLayerDates, listSelectableLayers } from '@/lib/data-layer-retention-service';
+import type { SelectableLayers } from '@/lib/data-layer-retention-service';
 import { BADGE_BY_ID } from '@/lib/scoring/catalog';
 import type { BadgeId } from '@/lib/scoring/catalog';
 import { toIsoDate } from '@/lib/scoring/dates';
@@ -15,9 +17,9 @@ const VALID_COMPLEXITY = new Set(['CT-Lv12', 'CT-Lv34', 'SP-Lv12', 'SP-Lv34']);
 
 export interface ReportFilterOptions {
   /** Pins every FAIL/EARLY/LATE and "sai lệch dữ liệu" calculation to this date instead of the real
-   * wall-clock date — set together with an OLDER `selectedLayerDates` window ("Chọn lớp dữ liệu"
-   * drill-down) so viewing a past data layer also evaluates it as of that layer's own date, not
-   * today. Omit/null for the default: evaluate as of the real current date. */
+   * wall-clock date — set together with an OLDER `stateDate` ("Chọn lớp dữ liệu") so viewing a past
+   * date also evaluates it as of that date, not today. Omit/null for the default: evaluate as of the real
+   * current date. */
   asOfDate?: string | null;
   /** Viewer's component narrowing for this project (PM/SM grant, see resolveAccessScope) — only
    * Epics in one of these components are reported. Omit/empty = the whole project. */
@@ -27,7 +29,8 @@ export interface ReportFilterOptions {
   domainId?: number;
   projectKey: string;
   releasedDateFrom?: string; // YYYY-MM-DD (Epic golive sau >=)
-  selectedLayerDates: string[];
+  /** The date whose state the report shows: every Epic as its newest row dated on/before it. */
+  stateDate: string;
   startDateFrom?: string; // YYYY-MM-DD (Epic start date từ >=)
 }
 
@@ -61,9 +64,8 @@ export interface ReportResult {
   evaluatedAt: string;
   failedEpics: ReportEpicItem[];
   inPoEpics: ReportEpicItem[];
-  layerDates: string[];
+  /** The date whose state the report shows ("Chọn lớp dữ liệu"). */
   maxLayerDate: string;
-  minLayerDate: string;
   passedEpics: ReportEpicItem[];
   pendingEpics: ReportEpicItem[];
   pmSmNames: string;
@@ -79,38 +81,32 @@ export interface ReportResult {
 }
 
 /**
- * List the data layer dates available in the system, newest first — capped at 365 (about a year of
- * daily snapshots) purely to bound the query/response size, not to hide older layers: the "Chọn lớp
- * dữ liệu" filter shows the newest 5 as quick-pick chips and every older one in a dropdown beside
- * them, so any recorded layer stays reachable.
+ * The dates a report can be run for, newest first: the 15 newest import days and the weekly snapshot dates
+ * (data-layer-retention.ts). The "Chọn lớp dữ liệu" filter shows the newest 5 as quick-pick chips and every
+ * older one in a dropdown beside them.
  */
 export async function getReportLayerDates(): Promise<string[]> {
-  const result = await pool.query<{ layerDate: string }>(`
-    SELECT DISTINCT aggregated_at::date::text AS "layerDate"
-    FROM issues
-    ORDER BY "layerDate" DESC
-    LIMIT 365;
-  `);
-  return result.rows.map((row) => row.layerDate);
+  return listSelectableLayerDates(pool);
+}
+
+/** The same dates plus, for the ones without an import that day, the import their state comes from. */
+export async function getReportLayers(): Promise<SelectableLayers> {
+  return listSelectableLayers(pool);
 }
 
 /**
  * Generate full Epic Report payload based on project, component, selected layer dates, and date range filters.
  */
 export async function generateEpicReport(options: ReportFilterOptions): Promise<ReportResult> {
-  const { projectKey, component, selectedLayerDates, createdDateFrom, startDateFrom, releasedDateFrom, asOfDate: asOfDateOption, allowedComponents } = options;
+  const { projectKey, component, stateDate, createdDateFrom, startDateFrom, releasedDateFrom, asOfDate: asOfDateOption, allowedComponents } = options;
 
   if (!projectKey) {
     throw new Error('Dự án (projectKey) là thông tin bắt buộc.');
   }
 
-  if (!selectedLayerDates || selectedLayerDates.length === 0) {
-    throw new Error('Bạn phải chọn ít nhất 1 Lớp dữ liệu.');
+  if (!stateDate) {
+    throw new Error('Bạn phải chọn 1 Lớp dữ liệu.');
   }
-
-  const sortedLayers = [...selectedLayerDates].sort().reverse(); // newest first
-  const minLayerDate = sortedLayers[sortedLayers.length - 1];
-  const maxLayerDate = sortedLayers[0];
 
   // 1. Fetch Project & Domain Metadata + PM/SM names
   const projectMetaResult = await pool.query<{
@@ -162,8 +158,8 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
     }
   }
 
-  // 2. Fetch Epics using layer fallback logic:
-  // DISTINCT ON (issue_key) filtering aggregated_at::date IN (selectedLayerDates) ORDER BY issue_key, aggregated_at DESC
+  // 2. Fetch each Epic's state at `stateDate`: DISTINCT ON (issue_key) over the rows dated on/before it,
+  // newest first.
   const epicsResult = await pool.query<{
     aggregatedAt: string;
     complexity: string | null;
@@ -208,13 +204,13 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
         jira_created_at::text AS "createdFilterDate",
         NULL::text AS "jiraCreatedAt"
       FROM issues
-      WHERE aggregated_at::date = ANY($1::date[])
+      WHERE aggregated_at::date <= $1::date
         AND UPPER(issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
         AND LOWER(SPLIT_PART(issue_key, '-', 1)) = LOWER($2)
       ORDER BY issue_key, aggregated_at DESC
     )
     SELECT * FROM layer_issues;
-  `, [sortedLayers, projectKey]);
+  `, [stateDate, projectKey]);
 
   let rows = epicsResult.rows;
 
@@ -431,9 +427,7 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
     evaluatedAt: new Date().toISOString(),
     failedEpics,
     inPoEpics,
-    layerDates: sortedLayers,
-    maxLayerDate,
-    minLayerDate,
+    maxLayerDate: stateDate,
     passedEpics,
     pendingEpics,
     pmSmNames,

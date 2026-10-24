@@ -289,10 +289,10 @@ export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
         <section>
           <h3 className="ui-card-title mb-1">3. Các bảng dữ liệu chính trong CSDL</h3>
           <table className="ui-table w-full text-xs">
-            <thead><tr><th className="text-left">Bảng</th><th className="text-left">Vai trò</th><th className="text-left">Khi raw batch hết hạn lưu trữ</th></tr></thead>
+            <thead><tr><th className="text-left">Bảng</th><th className="text-left">Vai trò</th><th className="text-left">Khi dữ liệu hết hạn lưu trữ</th></tr></thead>
             <tbody>
-              <tr><td>import_batches</td><td>Metadata từng đợt import (số dòng thành công / cảnh báo / lỗi)</td><td>Bị xóa (đây chính là dữ liệu raw)</td></tr>
-              <tr><td>issues</td><td>Dữ liệu Epic/Story/Subtask canonical, 1 dòng/issue/batch (gồm cả các trường lý do Fail TTM <code>khau_*</code>, <code>main_fail_dept</code>, <code>previous_status</code>)</td><td>Cascade xóa theo batch — lịch sử Issue (lớp dữ liệu cũ, bằng chứng rule B) chỉ còn trong bảng này theo thời hạn lưu</td></tr>
+              <tr><td>import_batches</td><td>Metadata từng đợt import (số dòng thành công / cảnh báo / lỗi)</td><td>Giữ mỗi ngày một dòng; chỉ xóa khi quá hạn lưu trữ và không còn dòng issues nào thuộc đợt đó</td></tr>
+              <tr><td>issues</td><td>Dữ liệu Epic/Story/Subtask canonical, 1 dòng/issue/batch (gồm cả các trường lý do Fail TTM <code>khau_*</code>, <code>main_fail_dept</code>, <code>previous_status</code>)</td><td>Làm thưa mỗi ngày: giữ mọi phiên bản của 15 ngày import gần nhất; xa hơn chỉ giữ phiên bản đang có hiệu lực vào ngày làm việc cuối mỗi tuần (bảng <code>data_snapshot_dates</code>) trong thời hạn lưu, và luôn giữ phiên bản mới nhất của mỗi issue. Màn hình chọn ngày chỉ đọc &quot;trạng thái tại ngày X&quot; với các ngày này</td></tr>
               <tr><td>epic_alert_timeline</td><td>Các &quot;đợt&quot; cảnh báo liên tục (Fail TTM-CNTT, Cảnh báo muộn, Fail TTM-E2E, Thiếu Start Date, Sai lệch dữ liệu) cho popup Epic History — ghi ở mỗi lần <code>aggregateBatchData()</code></td><td><strong className="text-fb-text-primary">Giữ lại</strong></td></tr>
               <tr><td>epic_alert_row_cache · ttm_index_global_cache · ttm_dashboard_2_cache</td><td>Cache dẫn xuất: dòng Epic đã chấm (badge, cờ chỉ số), chỉ số toàn công ty, số liệu TTM Dashboard 2 theo phạm vi quyền</td><td>Dựng lại ở lần tạo lại cache kế tiếp</td></tr>
               <tr><td>black_listed_epics · denied_import_epics</td><td>Epic ngoại lệ (không tính TTM, Scoring Service không xét) · danh sách Từ chối import (không được vào CSDL)</td><td>Không liên quan</td></tr>

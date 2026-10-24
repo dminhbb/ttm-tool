@@ -4,7 +4,7 @@ import { AuthError, requireUser } from '@/modules/iam/public';
 import {
   generateEpicReport,
   getReportAccessScope,
-  getReportLayerDates,
+  getReportLayers,
   listLegacyReportFilterReferences,
   reportAllowedComponents,
   reportScopeAllowsProject,
@@ -15,10 +15,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const user = await requireUser(request);
 
-    const [scope, references, layerDates] = await Promise.all([
+    const [scope, references, layers] = await Promise.all([
       getReportAccessScope(user),
       listLegacyReportFilterReferences(),
-      getReportLayerDates(),
+      getReportLayers(),
     ]);
     const { components, domains, projects } = scopeReportFilterOptions(
       scope,
@@ -30,7 +30,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({
       components,
       domains,
-      layerDates,
+      layerDateSources: layers.sources,
+      layerDates: layers.dates,
       projects,
       success: true,
     });
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const user = await requireUser(request);
 
     const body = await request.json().catch(() => ({}));
-    const { domainId, projectKey, component, selectedLayerDates, compareLayerDates, createdDateFrom, startDateFrom, releasedDateFrom, releasedDateTo, asOfDate, compareAsOfDate } = body;
+    const { domainId, projectKey, component, stateDate, compareStateDate, createdDateFrom, startDateFrom, releasedDateFrom, releasedDateTo, asOfDate, compareAsOfDate } = body;
 
     if (!projectKey) {
       return NextResponse.json({ error: 'Thông tin Dự án (projectKey) là bắt buộc.' }, { status: 400 });
@@ -67,8 +68,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Bạn không có quyền xem báo cáo của component này.' }, { status: 403 });
     }
 
-    if (!selectedLayerDates || !Array.isArray(selectedLayerDates) || selectedLayerDates.length === 0) {
-      return NextResponse.json({ error: 'Bạn phải chọn ít nhất 1 Lớp dữ liệu.' }, { status: 400 });
+    if (typeof stateDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(stateDate)) {
+      return NextResponse.json({ error: 'Bạn phải chọn 1 Lớp dữ liệu.' }, { status: 400 });
     }
 
     const reportPromise = generateEpicReport({
@@ -79,12 +80,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       domainId: domainId ? Number(domainId) : undefined,
       projectKey,
       releasedDateFrom: releasedDateFrom || releasedDateTo,
-      selectedLayerDates,
       startDateFrom,
+      stateDate,
     });
 
     let compareReportPromise = Promise.resolve<Awaited<ReturnType<typeof generateEpicReport>> | null>(null);
-    if (compareLayerDates && Array.isArray(compareLayerDates) && compareLayerDates.length > 0) {
+    if (typeof compareStateDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(compareStateDate)) {
       compareReportPromise = generateEpicReport({
         allowedComponents,
         asOfDate: compareAsOfDate,
@@ -93,8 +94,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         domainId: domainId ? Number(domainId) : undefined,
         projectKey,
         releasedDateFrom: releasedDateFrom || releasedDateTo,
-        selectedLayerDates: compareLayerDates,
         startDateFrom,
+        stateDate: compareStateDate,
       });
     }
 

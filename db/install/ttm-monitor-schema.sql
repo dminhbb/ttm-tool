@@ -1,9 +1,9 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-24T10:47:37.759Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-24T14:14:40.998Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
--- Gồm: 53 bảng, 53 index phụ, 4 hàm, 4 trigger.
+-- Gồm: 54 bảng, 53 index phụ, 4 hàm, 4 trigger.
 -- Yêu cầu: PostgreSQL 14 trở lên, một database RỖNG (không dùng cho DB đã có bảng — sẽ báo lỗi và không
 -- tạo gì vì cả file chạy trong một transaction). Không cần extension nào.
 --
@@ -137,6 +137,12 @@ CREATE TABLE data_retention_configs (
     CONSTRAINT data_retention_configs_pkey PRIMARY KEY (id),
     CONSTRAINT data_retention_configs_id_check CHECK ((id = 1)),
     CONSTRAINT data_retention_configs_raw_import_retention_days_check CHECK (((raw_import_retention_days >= 7) AND (raw_import_retention_days <= 3650)))
+);
+
+CREATE TABLE data_snapshot_dates (
+    snapshot_date date NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT data_snapshot_dates_pkey PRIMARY KEY (snapshot_date)
 );
 
 CREATE TABLE denied_import_epics (
@@ -939,7 +945,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 98 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 99 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1039,7 +1045,8 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261025b_drop_import_rows.sql'),
     ('20261025c_drop_anomaly_violations_and_milestone_history.sql'),
     ('20261026_drop_import_row_issues.sql'),
-    ('20261026b_drop_scoring_parity_and_engine_settings.sql');
+    ('20261026b_drop_scoring_parity_and_engine_settings.sql'),
+    ('20261027_create_data_snapshot_dates.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)

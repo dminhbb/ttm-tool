@@ -105,6 +105,8 @@ export interface EpicAlertRowPhased {
    * `scoringBadges`: active badge codes (subject-qualified ones twice, e.g. "PHASE_LATE:DEV");
    * `scoringIndexFlags`: TTM-/QA-Index membership (e.g. "TTM_ELIGIBLE"); `scoringFindings`: every
    * finding with its message, for tooltips/detail. */
+  /** Only with "Chỉ Epic thay đổi từ ngày X": the Epic's state TODAY, next to the state on the viewed date the row shows. */
+  changeSince?: { currentAlertLevel: AlertLevel; currentBadges: string[]; currentStatus: string };
   scoringAsOf?: string;
   scoringBadges?: string[];
   scoringIndexFlags?: string[];
@@ -163,6 +165,10 @@ export interface EpicAlertPhasedResponse {
    * quick-pick chips in the "Chọn lớp dữ liệu" advanced filter, every older one in a dropdown
    * beside them. */
   availableLayerDates: string[];
+  /** Selectable date without an import that day (a weekly snapshot date) → the import day its state comes from ("lấy từ lần import ngày X"). */
+  layerDateSources?: Record<string, string>;
+  /** With "Chỉ Epic thay đổi từ ngày X": how many Epics exist today that did not yet exist on that date. */
+  newSinceCount?: number;
   /** Echoes EpicAlertFilters.asOfDate — see EpicAlertResponse.asOfDate. */
   asOfDate: string | null;
   lastAggregatedAt: string | null;

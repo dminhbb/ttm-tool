@@ -474,11 +474,22 @@ raw_import_retention_days   -- mặc định 30, 7–3650
 updated_at
 ```
 
-Chỉ SUPERADMIN được cập nhật. Sau mỗi import lưu chính thức, hệ thống tự dọn raw batch quá hạn
-(`import_batches`/`issues`), luôn giữ batch vừa import và lớp dữ liệu mới nhất — cũng chạy mỗi ngày trong job dọn dẹp
-(`housekeeping-service.ts`, bước `import_batches`);
-`epic_alert_timeline` không bị dọn theo (FK `ON DELETE SET NULL`); lịch sử Issue
-thì mất cùng batch.
+Chỉ SUPERADMIN được cập nhật. `raw_import_retention_days` là tầm xem lùi xa nhất của lịch sử `issues` (mặc định cài đặt 200 ngày).
+
+**Lịch sử `issues` được làm thưa mỗi ngày (24/10/2026, `data-layer-retention.ts` / `data-layer-retention-service.ts`, chạy trong job dọn dẹp đầu ngày):**
+(1) giữ đầy đủ mọi phiên bản của **15 ngày import gần nhất** ("vùng dày"); (2) xa hơn chỉ giữ, cho mỗi issue, **phiên bản đang có hiệu lực** vào **ngày làm việc cuối mỗi tuần**
+(bảng `data_snapshot_dates`, ghi một lần khi tuần đã qua và không đổi nữa dù sửa lịch nghỉ) trong số ngày `raw_import_retention_days`, cộng phiên bản đầu vùng dày làm "neo";
+(3) **phiên bản mới nhất của mỗi issue luôn được giữ**, kể cả khi cũ hơn thời hạn — Epic lâu không cập nhật vẫn hiển thị. Mọi màn hình chọn ngày chỉ đọc
+**"trạng thái tại ngày X"** (phiên bản mới nhất có `aggregated_at::date <= X`) và chỉ cho chọn các ngày của vùng dày và các ngày mốc tuần
+(`listSelectableLayerDates`), nên Epic nào cũng có dữ liệu ở mọi ngày chọn được. `import_batches` giữ mỗi ngày một dòng và chỉ bị xóa khi quá hạn và không còn dòng `issues` nào.
+
+```text
+data_snapshot_dates: snapshot_date (PK, DATE), created_at   -- ~1 dòng/tuần, xóa khi quá retention
+```
+
+Job chạy trong `runDailyHousekeeping` (bước `issues_history`): ghi các ngày mốc đã đến hạn, xóa các phiên bản không còn cần, rồi xóa `import_batches`
+quá hạn không còn dòng nào. `epic_alert_timeline` không bị dọn theo (FK `ON DELETE SET NULL`). Ngoài ra không có đường nào khác được xóa `issues`/`import_batches`
+(trừ "Xóa đợt" thủ công, "Xóa N lớp gần nhất", xóa Epic và Từ chối import — các thao tác quản trị tường minh).
 
 ## 20. epic_alert_timeline / ad_popups / ad_popup_impressions / info_banners
 
