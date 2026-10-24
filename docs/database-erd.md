@@ -4,16 +4,16 @@
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
-**56 bảng** trong schema `public`, **43 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
+**53 bảng** trong schema `public`, **40 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
 
 ## Mục lục
 
 1. [Xác thực & phân quyền](#1-xác-thực-phân-quyền) — 8 bảng
 2. [Domain & Dự án](#2-domain-dự-án) — 3 bảng
 3. [Quản lý dự án (PMS — expand-only)](#3-quản-lý-dự-án-pms-expand-only) — 5 bảng
-4. [Import & Issue](#4-import-issue) — 5 bảng
+4. [Import & Issue](#4-import-issue) — 4 bảng
 5. [Cấu hình TTM, lịch & phạm vi](#5-cấu-hình-ttm-lịch-phạm-vi) — 7 bảng
-6. [Epic Scoring Service](#6-epic-scoring-service) — 4 bảng
+6. [Epic Scoring Service](#6-epic-scoring-service) — 2 bảng
 7. [Lịch sử & snapshot](#7-lịch-sử-snapshot) — 1 bảng
 8. [Cache dữ liệu dẫn xuất](#8-cache-dữ-liệu-dẫn-xuất) — 5 bảng
 9. [Cấu hình hệ thống](#9-cấu-hình-hệ-thống) — 4 bảng
@@ -496,16 +496,6 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
     }
-    import_row_issues {
-        int id PK
-        int import_batch_id FK
-        int row_number
-        varchar issue_key
-        text summary
-        varchar validation_status
-        jsonb validation_errors
-        timestamptz created_at
-    }
     issues {
         int id PK
         varchar source_system
@@ -583,7 +573,6 @@ erDiagram
     users {
         int id PK
     }
-    import_batches ||--o{ import_row_issues : "import_batch_id"
     issues |o--o{ issues : "epic_id"
     issues |o--o{ issues : "parent_id"
     import_batches |o--o{ issues : "source_import_batch_id"
@@ -614,25 +603,6 @@ Quản lý từng đợt import CSV (metadata đợt import, mốc `aggregated_a
 | `metadata_json` | text | có |  |  |  |
 | `created_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
 | `updated_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
-
-### `import_row_issues`
-
-Kết quả validate của các dòng KHÔNG sạch (WARNING / INVALID) của mỗi đợt import, để màn "Nguồn dữ liệu" hiển thị chi tiết lỗi/cảnh báo. Dòng VALID không có bản ghi (dữ liệu của nó là dòng `issues`); dòng INVALID không vào `issues` nên đây là nơi duy nhất giữ key/summary/lỗi của chúng. Thay cho bảng `import_rows` (bản sao JSON mọi dòng) đã gỡ 2026-10-24.
-
-| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
-|---|---|---|---|---|---|
-| `id` | int (tự tăng) | không |  | PK |  |
-| `import_batch_id` | int | không |  | FK → import_batches(id) |  |
-| `row_number` | int | không |  |  |  |
-| `issue_key` | varchar(100) | có |  |  |  |
-| `summary` | text | có |  |  |  |
-| `validation_status` | varchar(20) | không |  |  |  |
-| `validation_errors` | jsonb | không | '[]'::jsonb |  |  |
-| `created_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
-
-- UNIQUE (import_batch_id, row_number)
-- `import_row_issues_validation_status_check`: CHECK (((validation_status)::text = ANY ((ARRAY['WARNING'::character varying, 'INVALID'::character varying])::text[])))
-- index `idx_import_row_issues_issue_key`: btree (issue_key)
 
 ### `issues`
 
@@ -943,12 +913,6 @@ Danh mục "Ngày làm bù": khai báo một ngày T7/CN cụ thể là ngày l�
 
 ```mermaid
 erDiagram
-    scoring_engine_settings {
-        smallint id PK
-        text mode
-        timestamptz updated_at
-        int updated_by_user_id FK
-    }
     scoring_parameters {
         text param_key PK
         jsonb value
@@ -961,44 +925,14 @@ erDiagram
         timestamptz updated_at
         int updated_by_user_id FK
     }
-    scoring_parity_runs {
-        int id PK
-        date as_of
-        text source
-        text ruleset_version
-        int epic_count
-        int identical_epics
-        int intentional_only_epics
-        int unexplained_epics
-        jsonb summary
-        int duration_ms
-        timestamptz computed_at
-        int triggered_by_user_id FK
-    }
     users {
         int id PK
     }
-    users |o--o{ scoring_engine_settings : "updated_by_user_id"
     users |o--o{ scoring_parameters : "updated_by_user_id"
     users |o--o{ scoring_rule_settings : "updated_by_user_id"
-    users |o--o{ scoring_parity_runs : "triggered_by_user_id"
 ```
 
 Bảng tham chiếu ngoài nhóm (chỉ vẽ khoá chính): `users`.
-
-### `scoring_engine_settings`
-
-Engine hiển thị đang dùng: `legacy` hoặc `scoring`.
-
-| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
-|---|---|---|---|---|---|
-| `id` | smallint | không | 1 | PK |  |
-| `mode` | text | không | 'legacy'::text |  |  |
-| `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
-| `updated_by_user_id` | int | có |  | FK → users(id) |  |
-
-- `scoring_engine_settings_id_check`: CHECK ((id = 1))
-- `scoring_engine_settings_mode_check`: CHECK ((mode = ANY (ARRAY['legacy'::text, 'scoring'::text])))
 
 ### `scoring_parameters`
 
@@ -1021,27 +955,6 @@ Bật/tắt từng badge (rule) của Scoring Service; không có dòng = theo m
 | `enabled` | boolean | không |  |  |  |
 | `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 | `updated_by_user_id` | int | có |  | FK → users(id) |  |
-
-### `scoring_parity_runs`
-
-Kết quả mỗi lần đối chiếu Scoring Service với engine cũ (số Epic khớp / lệch có chủ đích / chưa giải thích được, chi tiết JSON).
-
-| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
-|---|---|---|---|---|---|
-| `id` | int (tự tăng) | không |  | PK |  |
-| `as_of` | date | không |  |  |  |
-| `source` | text | không |  |  |  |
-| `ruleset_version` | text | không |  |  |  |
-| `epic_count` | int | không |  |  |  |
-| `identical_epics` | int | không |  |  |  |
-| `intentional_only_epics` | int | không |  |  |  |
-| `unexplained_epics` | int | không |  |  |  |
-| `summary` | jsonb | không |  |  |  |
-| `duration_ms` | int | có |  |  |  |
-| `computed_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
-| `triggered_by_user_id` | int | có |  | FK → users(id) |  |
-
-- index `idx_scoring_parity_runs_computed_at`: btree (computed_at DESC)
 
 ## 7. Lịch sử & snapshot
 
@@ -1790,7 +1703,6 @@ Số lượt truy cập LŨY KẾ của các dòng `visit_logs` cũ hơn ngày T
 | `denied_import_epics` | added_by_user_id | `users`(id) | SET NULL |
 | `epic_alert_timeline` | source_import_batch_id | `import_batches`(id) | SET NULL |
 | `import_admission_settings` | updated_by_user_id | `users`(id) | SET NULL |
-| `import_row_issues` | import_batch_id | `import_batches`(id) | CASCADE |
 | `issues` | epic_id | `issues`(id) | SET NULL |
 | `issues` | parent_id | `issues`(id) | SET NULL |
 | `issues` | source_import_batch_id | `import_batches`(id) | CASCADE |
@@ -1806,9 +1718,7 @@ Số lượt truy cập LŨY KẾ của các dòng `visit_logs` cũ hơn ngày T
 | `projects` | domain_id | `domains`(id) | SET NULL |
 | `projects` | project_type_id | `project_types`(id) | SET NULL |
 | `role_feature_permissions` | feature_key | `permission_features`(feature_key) | CASCADE |
-| `scoring_engine_settings` | updated_by_user_id | `users`(id) | SET NULL |
 | `scoring_parameters` | updated_by_user_id | `users`(id) | SET NULL |
-| `scoring_parity_runs` | triggered_by_user_id | `users`(id) | SET NULL |
 | `scoring_rule_settings` | updated_by_user_id | `users`(id) | SET NULL |
 | `sso_auth_codes` | api_key_id | `api_keys`(id) | CASCADE |
 | `sso_auth_codes` | user_id | `users`(id) | CASCADE |

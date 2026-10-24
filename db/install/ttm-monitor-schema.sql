@@ -1,9 +1,9 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-24T07:59:45.885Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-24T10:47:37.759Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
--- Gồm: 56 bảng, 55 index phụ, 4 hàm, 4 trigger.
+-- Gồm: 53 bảng, 53 index phụ, 4 hàm, 4 trigger.
 -- Yêu cầu: PostgreSQL 14 trở lên, một database RỖNG (không dùng cho DB đã có bảng — sẽ báo lỗi và không
 -- tạo gì vì cả file chạy trong một transaction). Không cần extension nào.
 --
@@ -14,7 +14,7 @@
 -- theo dõi, không phải dữ liệu nghiệp vụ: nhờ vậy `node scripts/migrate-db.js --target=local` trên DB mới
 -- chỉ chạy những migration phát sinh SAU thời điểm sinh file.
 --
--- Phần 7 (cuối file) là DỮ LIỆU KHỞI TẠO TUỲ CHỌN: cấu hình hiện hành của 19 bảng cấu hình (ma trận phân quyền,
+-- Phần 7 (cuối file) là DỮ LIỆU KHỞI TẠO TUỲ CHỌN: cấu hình hiện hành của 18 bảng cấu hình (ma trận phân quyền,
 -- tiêu chí TTM, rule cảnh báo, lịch nghỉ, cấu hình Scoring…) + 1 tài khoản SUPERADMIN ban đầu, để ứng dụng chạy được
 -- ngay sau khi tạo DB. Bật / tắt bằng CÔNG TẮC ngay bên dưới. Chi tiết: db/install/README.md.
 -- =============================================================================================
@@ -290,20 +290,6 @@ CREATE TABLE import_batches (
     CONSTRAINT import_batches_pkey PRIMARY KEY (id)
 );
 
-CREATE TABLE import_row_issues (
-    id SERIAL,
-    import_batch_id integer NOT NULL,
-    row_number integer NOT NULL,
-    issue_key character varying(100),
-    summary text,
-    validation_status character varying(20) NOT NULL,
-    validation_errors jsonb DEFAULT '[]'::jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT import_row_issues_pkey PRIMARY KEY (id),
-    CONSTRAINT import_row_issues_import_batch_id_row_number_key UNIQUE (import_batch_id, row_number),
-    CONSTRAINT import_row_issues_validation_status_check CHECK (((validation_status)::text = ANY ((ARRAY['WARNING'::character varying, 'INVALID'::character varying])::text[])))
-);
-
 CREATE TABLE info_banners (
     id SERIAL,
     name character varying(200) NOT NULL,
@@ -577,38 +563,12 @@ CREATE TABLE schema_migrations (
     CONSTRAINT schema_migrations_pkey PRIMARY KEY (filename)
 );
 
-CREATE TABLE scoring_engine_settings (
-    id smallint DEFAULT 1 NOT NULL,
-    mode text DEFAULT 'legacy'::text NOT NULL,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_by_user_id integer,
-    CONSTRAINT scoring_engine_settings_pkey PRIMARY KEY (id),
-    CONSTRAINT scoring_engine_settings_id_check CHECK ((id = 1)),
-    CONSTRAINT scoring_engine_settings_mode_check CHECK ((mode = ANY (ARRAY['legacy'::text, 'scoring'::text])))
-);
-
 CREATE TABLE scoring_parameters (
     param_key text NOT NULL,
     value jsonb NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_by_user_id integer,
     CONSTRAINT scoring_parameters_pkey PRIMARY KEY (param_key)
-);
-
-CREATE TABLE scoring_parity_runs (
-    id SERIAL,
-    as_of date NOT NULL,
-    source text NOT NULL,
-    ruleset_version text NOT NULL,
-    epic_count integer NOT NULL,
-    identical_epics integer NOT NULL,
-    intentional_only_epics integer NOT NULL,
-    unexplained_epics integer NOT NULL,
-    summary jsonb NOT NULL,
-    duration_ms integer,
-    computed_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    triggered_by_user_id integer,
-    CONSTRAINT scoring_parity_runs_pkey PRIMARY KEY (id)
 );
 
 CREATE TABLE scoring_rule_settings (
@@ -788,7 +748,6 @@ CREATE INDEX idx_epic_alert_timeline_epic_key ON epic_alert_timeline USING btree
 CREATE UNIQUE INDEX idx_epic_alert_timeline_open_run ON epic_alert_timeline USING btree (epic_key, alert_type) WHERE (end_date IS NULL);
 CREATE INDEX idx_epic_status_alert_rules_active ON epic_status_alert_rules USING btree (is_active) WHERE is_active;
 CREATE INDEX idx_holidays_range ON holidays USING btree (start_date, end_date) WHERE is_active;
-CREATE INDEX idx_import_row_issues_issue_key ON import_row_issues USING btree (issue_key);
 CREATE UNIQUE INDEX uq_info_banners_single_default ON info_banners USING btree (banner_type) WHERE ((banner_type)::text = 'DEFAULT'::text);
 CREATE INDEX idx_issue_type_role_mapping_role ON issue_type_role_mapping USING btree (team_role);
 CREATE INDEX idx_issues_aggregated_at ON issues USING btree (aggregated_at);
@@ -816,7 +775,6 @@ CREATE UNIQUE INDEX uq_project_members_active_role ON project_members USING btre
 CREATE UNIQUE INDEX uq_project_types_legacy_category ON project_types USING btree (legacy_category) WHERE (legacy_category IS NOT NULL);
 CREATE INDEX idx_projects_project_type ON projects USING btree (project_type_id);
 CREATE INDEX idx_projects_source_key ON projects USING btree (source_project_key);
-CREATE INDEX idx_scoring_parity_runs_computed_at ON scoring_parity_runs USING btree (computed_at DESC);
 CREATE INDEX idx_sso_auth_codes_code ON sso_auth_codes USING btree (code);
 CREATE INDEX idx_sso_auth_codes_expires ON sso_auth_codes USING btree (expires_at);
 CREATE INDEX idx_ttm_project_configs_enabled ON ttm_project_configs USING btree (is_enabled) WHERE is_enabled;
@@ -842,7 +800,6 @@ ALTER TABLE dashboard_view_settings ADD CONSTRAINT dashboard_view_settings_updat
 ALTER TABLE denied_import_epics ADD CONSTRAINT denied_import_epics_added_by_user_id_fkey FOREIGN KEY (added_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE epic_alert_timeline ADD CONSTRAINT epic_alert_timeline_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
 ALTER TABLE import_admission_settings ADD CONSTRAINT import_admission_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE import_row_issues ADD CONSTRAINT import_row_issues_import_batch_id_fkey FOREIGN KEY (import_batch_id) REFERENCES import_batches(id) ON DELETE CASCADE;
 ALTER TABLE issues ADD CONSTRAINT issues_epic_id_fkey FOREIGN KEY (epic_id) REFERENCES issues(id) ON DELETE SET NULL;
 ALTER TABLE issues ADD CONSTRAINT issues_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES issues(id) ON DELETE SET NULL;
 ALTER TABLE issues ADD CONSTRAINT issues_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE CASCADE;
@@ -858,9 +815,7 @@ ALTER TABLE project_type_capabilities ADD CONSTRAINT project_type_capabilities_p
 ALTER TABLE projects ADD CONSTRAINT projects_domain_id_fkey FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE SET NULL;
 ALTER TABLE projects ADD CONSTRAINT projects_project_type_id_fkey FOREIGN KEY (project_type_id) REFERENCES project_types(id) ON DELETE SET NULL;
 ALTER TABLE role_feature_permissions ADD CONSTRAINT role_feature_permissions_feature_key_fkey FOREIGN KEY (feature_key) REFERENCES permission_features(feature_key) ON DELETE CASCADE;
-ALTER TABLE scoring_engine_settings ADD CONSTRAINT scoring_engine_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE scoring_parameters ADD CONSTRAINT scoring_parameters_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE scoring_parity_runs ADD CONSTRAINT scoring_parity_runs_triggered_by_user_id_fkey FOREIGN KEY (triggered_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE scoring_rule_settings ADD CONSTRAINT scoring_rule_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE sso_auth_codes ADD CONSTRAINT sso_auth_codes_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE CASCADE;
 ALTER TABLE sso_auth_codes ADD CONSTRAINT sso_auth_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
@@ -984,7 +939,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 96 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 98 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1082,7 +1037,9 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261024b_drop_epic_alert_history.sql'),
     ('20261025_add_issue_columns_and_import_row_issues.sql'),
     ('20261025b_drop_import_rows.sql'),
-    ('20261025c_drop_anomaly_violations_and_milestone_history.sql');
+    ('20261025c_drop_anomaly_violations_and_milestone_history.sql'),
+    ('20261026_drop_import_row_issues.sql'),
+    ('20261026b_drop_scoring_parity_and_engine_settings.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1239,7 +1196,7 @@ INSERT INTO holidays (id, name, holiday_type, is_multi_day, start_date, end_date
 SELECT * FROM (VALUES
     ('2'::integer, 'Nghỉ Lễ Quốc Khánh 2/9'::character varying(255), 'PUBLIC'::character varying(50), 'true'::boolean, '2026-08-29'::date, '2026-09-02'::date, NULL::text, 'true'::boolean, '2026-08-09 13:34:20.456802+00'::timestamp with time zone, '2026-09-09 16:10:44.604186+00'::timestamp with time zone),
     ('3'::integer, 'Nghỉ Lễ 2/9'::character varying(255), 'PUBLIC'::character varying(50), 'true'::boolean, '2027-08-29'::date, '2027-09-02'::date, NULL::text, 'true'::boolean, '2026-09-04 15:39:43.864452+00'::timestamp with time zone, '2026-09-04 15:39:43.864452+00'::timestamp with time zone),
-    ('4'::integer, 'Ngày Văn hóa Việt Nam'::character varying(255), 'PUBLIC'::character varying(50), 'true'::boolean, '2026-11-23'::date, '2026-11-24'::date, 'Làm bù vào 28/11/2026'::text, 'true'::boolean, '2026-09-09 16:10:29.782736+00'::timestamp with time zone, '2026-09-09 16:10:29.782736+00'::timestamp with time zone),
+    ('4'::integer, 'Ngày Văn hóa Việt Nam'::character varying(255), 'PUBLIC'::character varying(50), 'false'::boolean, '2026-11-24'::date, '2026-11-24'::date, 'Làm bù vào 28/11/2026'::text, 'true'::boolean, '2026-09-09 16:10:29.782736+00'::timestamp with time zone, '2026-10-24 10:44:27.037585+00'::timestamp with time zone),
     ('5'::integer, 'Nghỉ Tết Dương lịch'::character varying(255), 'OTHER'::character varying(50), 'false'::boolean, '2027-01-01'::date, '2027-01-01'::date, NULL::text, 'true'::boolean, '2026-09-09 16:12:39.762681+00'::timestamp with time zone, '2026-09-09 16:12:39.762681+00'::timestamp with time zone),
     ('6'::integer, 'Nghỉ Lễ 30/4-1/5'::character varying(255), 'PUBLIC'::character varying(50), 'true'::boolean, '2027-04-30'::date, '2027-05-03'::date, NULL::text, 'true'::boolean, '2026-09-09 16:13:37.680664+00'::timestamp with time zone, '2026-09-09 16:13:37.680664+00'::timestamp with time zone)
 ) AS seed (id, name, holiday_type, is_multi_day, start_date, end_date, description, is_active, created_at, updated_at)
@@ -1254,13 +1211,6 @@ SELECT * FROM (VALUES
 ) AS seed (id, work_date, description, is_active, created_at, updated_at)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 SELECT setval(pg_get_serial_sequence('makeup_workdays', 'id'), MAX(id)) FROM makeup_workdays HAVING MAX(id) IS NOT NULL;
-
--- scoring_engine_settings (1 dòng)
-INSERT INTO scoring_engine_settings (id, mode, updated_at, updated_by_user_id)
-SELECT * FROM (VALUES
-    ('1'::smallint, 'scoring'::text, '2026-09-30 01:14:13.383525+00'::timestamp with time zone, NULL::integer)
-) AS seed (id, mode, updated_at, updated_by_user_id)
-WHERE current_setting('ttm_install.seed_data', true) = 'on';
 
 -- scoring_parameters: không có dòng nào trên CSDL nguồn.
 -- scoring_rule_settings: không có dòng nào trên CSDL nguồn.

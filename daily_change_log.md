@@ -8,7 +8,8 @@
 
 ## 2026-10-24
 
-- **Gỡ `import_row_issues`, `scoring_parity_runs`, `scoring_engine_settings` + engine cảnh báo cũ (chờ DROP — migration `20261026` và `20261026b` đã viết, CHƯA chạy)**; `epic_alert_row_cache` và các cache khác giữ nguyên:
+- **Đã DROP trên Supabase**: `import_row_issues`, `scoring_parity_runs`, `scoring_engine_settings` (migration `20261026` + `20261026b`; 98 migration, 53 bảng public). Đã chạy `db:export-schema` (`db/install/ttm-monitor-schema.sql`, `docs/database-erd.md`, chương 5 product guide) và cập nhật brd/07, brd/08, BRD_INDEX_FOR_AI_AGENT.md, db/install/README.md. Còn lại: chạy `db:migrate:local`.
+- **Gỡ `import_row_issues`, `scoring_parity_runs`, `scoring_engine_settings` + engine cảnh báo cũ (đã DROP trên Supabase, xem bullet bên trên)**; `epic_alert_row_cache` và các cache khác giữ nguyên:
   - **Chi tiết lỗi/cảnh báo của đợt import**: bỏ cửa sổ + thống kê cảnh báo trong `ImportIssuesTab.tsx`, bỏ `getBatchValidationDetail` và việc ghi `import_row_issues` ở `processImport` (nhanh hơn, nhẹ DB); phản hồi upload vẫn liệt kê dòng lỗi, `import_batches` giữ số dòng thành công/cảnh báo/lỗi. Gỡ khỏi purge lớp dữ liệu, sao lưu, xoá Epic, dọn DB, Help.
   - **Dọn `import_batches` theo retention mỗi ngày**: `deleteExpiredImportBatches` (`data-retention-service.ts`) dùng chung cho cuối `processImport` và job `housekeeping-service.ts` (bước `import_batches`).
   - **Gỡ engine cảnh báo cũ**: xoá `epic-alert-phase-service.ts`, `epic-scoring-display-service.ts`, `scoring-mode-service.ts`, `epic-compliance-engine.ts`/`-types.ts`, `scoring/parity.ts` (+ test), panel `ScoringParityPanel` và API `/api/admin/scoring/{mode,parity}`; `epic-data-anomaly.ts` / `ttm-rules.ts` / `ttm-phase-rules.ts` chỉ còn kiểu + mã rule + hàm status. `epic-alert-service.ts` chỉ còn phạm vi truy cập + dữ kiện từng Epic.

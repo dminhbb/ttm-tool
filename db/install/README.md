@@ -5,7 +5,7 @@ Dùng khi đưa ứng dụng lên một môi trường mới (Node.js host + Pos
 
 | File | Nội dung |
 |---|---|
-| `ttm-monitor-schema.sql` | Toàn bộ cấu trúc hiện hành: 60 bảng, khoá chính / UNIQUE / CHECK, index, khoá ngoại, 4 hàm + 4 trigger, và tên các migration đã gộp (bảng `schema_migrations`). **Phần 7 tuỳ chọn:** dữ liệu khởi tạo của 19 bảng cấu hình + 1 tài khoản SUPERADMIN ban đầu, bật/tắt bằng một công tắc ở đầu file. Không có dữ liệu nghiệp vụ. |
+| `ttm-monitor-schema.sql` | Toàn bộ cấu trúc hiện hành: 53 bảng, khoá chính / UNIQUE / CHECK, index, khoá ngoại, 4 hàm + 4 trigger, và tên các migration đã gộp (bảng `schema_migrations`). **Phần 7 tuỳ chọn:** dữ liệu khởi tạo của 18 bảng cấu hình + 1 tài khoản SUPERADMIN ban đầu, bật/tắt bằng một công tắc ở đầu file. Không có dữ liệu nghiệp vụ. |
 
 File được **sinh tự động** bởi `npm run db:export-schema -- --target=supabase` (`scripts/db-schema-export.js`) từ một CSDL
 đã chạy đủ migration — không sửa tay. Mỗi khi thêm migration mới (hoặc muốn cập nhật dữ liệu khởi tạo theo cấu hình mới
@@ -44,7 +44,7 @@ Phần 7 lấy **nguyên cấu hình hiện hành** của CSDL nguồn lúc sinh
 | Ma trận phân quyền | `permission_features`, `role_feature_permissions` |
 | Tiêu chí TTM & rule cảnh báo | `ttm_policy_configs`, `epic_status_alert_rules`, `issue_type_role_mapping`, `ttm_scope_config` |
 | Lịch làm việc | `holidays`, `makeup_workdays` |
-| Scoring Service | `scoring_engine_settings`, `scoring_parameters`, `scoring_rule_settings` |
+| Scoring Service | `scoring_parameters`, `scoring_rule_settings` |
 | Loại dự án (PMS) | `project_types`, `project_type_capabilities` |
 | Cấu hình hệ thống (1 dòng) | `jira_settings`, `data_retention_configs`, `mcp_settings`, `dashboard_view_settings`, `import_admission_settings`, `derived_cache_refresh_lock` |
 
