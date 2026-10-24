@@ -4,7 +4,7 @@
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
-**58 bảng** trong schema `public`, **45 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
+**56 bảng** trong schema `public`, **43 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
 
 ## Mục lục
 
@@ -14,7 +14,7 @@
 4. [Import & Issue](#4-import-issue) — 5 bảng
 5. [Cấu hình TTM, lịch & phạm vi](#5-cấu-hình-ttm-lịch-phạm-vi) — 7 bảng
 6. [Epic Scoring Service](#6-epic-scoring-service) — 4 bảng
-7. [Lịch sử & snapshot](#7-lịch-sử-snapshot) — 3 bảng
+7. [Lịch sử & snapshot](#7-lịch-sử-snapshot) — 1 bảng
 8. [Cache dữ liệu dẫn xuất](#8-cache-dữ-liệu-dẫn-xuất) — 5 bảng
 9. [Cấu hình hệ thống](#9-cấu-hình-hệ-thống) — 4 bảng
 10. [Popup & Banner thông báo](#10-popup-banner-thông-báo) — 3 bảng
@@ -496,13 +496,14 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
     }
-    import_rows {
+    import_row_issues {
         int id PK
         int import_batch_id FK
         int row_number
-        text normalized_data_json
+        varchar issue_key
+        text summary
         varchar validation_status
-        text validation_errors_json
+        jsonb validation_errors
         timestamptz created_at
     }
     issues {
@@ -549,6 +550,8 @@ erDiagram
         text khau_sit_uat
         text note_ly_do_khac
         text main_fail_dept
+        varchar project_key
+        varchar request_type
     }
     denied_import_epics {
         varchar epic_key PK
@@ -580,7 +583,7 @@ erDiagram
     users {
         int id PK
     }
-    import_batches |o--o{ import_rows : "import_batch_id"
+    import_batches ||--o{ import_row_issues : "import_batch_id"
     issues |o--o{ issues : "epic_id"
     issues |o--o{ issues : "parent_id"
     import_batches |o--o{ issues : "source_import_batch_id"
@@ -612,19 +615,24 @@ Quản lý từng đợt import CSV (metadata đợt import, mốc `aggregated_a
 | `created_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
 | `updated_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
 
-### `import_rows`
+### `import_row_issues`
 
-Lưu trữ toàn bộ dòng CSV thô (raw_data_json) và dữ liệu chuẩn hóa (normalized_data_json) kèm log validate.
+Kết quả validate của các dòng KHÔNG sạch (WARNING / INVALID) của mỗi đợt import, để màn "Nguồn dữ liệu" hiển thị chi tiết lỗi/cảnh báo. Dòng VALID không có bản ghi (dữ liệu của nó là dòng `issues`); dòng INVALID không vào `issues` nên đây là nơi duy nhất giữ key/summary/lỗi của chúng. Thay cho bảng `import_rows` (bản sao JSON mọi dòng) đã gỡ 2026-10-24.
 
 | Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
 |---|---|---|---|---|---|
-| `id` | int (tự tăng) | không |  | PK | `INT`FK `import_batches(id) ON DELETE CASCADE` |
-| `import_batch_id` | int | có |  | FK → import_batches(id) |  |
-| `row_number` | int | không |  |  | `TEXT NOT NULL`Nội dung JSON dữ liệu dòng thô |
-| `normalized_data_json` | text | có |  |  | `VARCHAR(50) NOT NULL`VALID / INVALID / WARNING |
-| `validation_status` | varchar(50) | không |  |  |  |
-| `validation_errors_json` | text | có |  |  |  |
+| `id` | int (tự tăng) | không |  | PK |  |
+| `import_batch_id` | int | không |  | FK → import_batches(id) |  |
+| `row_number` | int | không |  |  |  |
+| `issue_key` | varchar(100) | có |  |  |  |
+| `summary` | text | có |  |  |  |
+| `validation_status` | varchar(20) | không |  |  |  |
+| `validation_errors` | jsonb | không | '[]'::jsonb |  |  |
 | `created_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
+
+- UNIQUE (import_batch_id, row_number)
+- `import_row_issues_validation_status_check`: CHECK (((validation_status)::text = ANY ((ARRAY['WARNING'::character varying, 'INVALID'::character varying])::text[])))
+- index `idx_import_row_issues_issue_key`: btree (issue_key)
 
 ### `issues`
 
@@ -675,6 +683,8 @@ Bảng canonical lưu trữ toàn bộ issue mọi cấp (Epic/Story/Subtask). G
 | `khau_sit_uat` | text | có |  |  |  |
 | `note_ly_do_khac` | text | có |  |  |  |
 | `main_fail_dept` | text | có |  |  |  |
+| `project_key` | varchar(100) | có |  |  |  |
+| `request_type` | varchar(255) | có |  |  |  |
 
 - index `idx_issues_aggregated_at`: btree (aggregated_at)
 - index `idx_issues_batch_id`: btree (source_import_batch_id)
@@ -1049,31 +1059,10 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
     }
-    epic_milestone_history {
-        int id PK
-        varchar epic_key
-        varchar milestone
-        date milestone_date
-        int source_import_batch_id FK
-        timestamptz created_at
-    }
-    epic_data_anomaly_violations {
-        int id PK
-        varchar epic_key
-        varchar rule_code
-        smallint rule_index
-        text message
-        date detected_at
-        int source_import_batch_id FK
-        timestamptz created_at
-        timestamptz updated_at
-    }
     import_batches {
         int id PK
     }
     import_batches |o--o{ epic_alert_timeline : "source_import_batch_id"
-    import_batches |o--o{ epic_milestone_history : "source_import_batch_id"
-    import_batches |o--o{ epic_data_anomaly_violations : "source_import_batch_id"
 ```
 
 Bảng tham chiếu ngoài nhóm (chỉ vẽ khoá chính): `import_batches`.
@@ -1099,43 +1088,6 @@ Theo dõi 5 loại cảnh báo dưới dạng các đợt (run) có khoảng ng�
 - index `idx_epic_alert_timeline_end_date`: btree (end_date)
 - index `idx_epic_alert_timeline_epic_key`: btree (epic_key)
 - index `idx_epic_alert_timeline_open_run`: UNIQUE btree (epic_key, alert_type) WHERE (end_date IS NULL)
-
-### `epic_milestone_history`
-
-Ghi nhận lịch sử mốc hoàn thành nội bộ (DESIGN_DONE, DEV_DONE, TEST_DONE...).
-
-| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
-|---|---|---|---|---|---|
-| `id` | int (tự tăng) | không |  | PK |  |
-| `epic_key` | varchar(50) | không |  |  |  |
-| `milestone` | varchar(30) | không |  |  |  |
-| `milestone_date` | date | không |  |  |  |
-| `source_import_batch_id` | int | có |  | FK → import_batches(id) |  |
-| `created_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
-
-- UNIQUE (epic_key, milestone)
-- index `idx_epic_milestone_history_epic_key`: btree (epic_key)
-
-### `epic_data_anomaly_violations`
-
-Trạng thái hiện tại (không phải lịch sử "đợt") của từng rule R1-R7 "Sai lệch dữ liệu" của engine legacy (mục 9) đang vi phạm trên mỗi Epic — 1 dòng/Epic/rule, ghi đè hoặc xoá ở mỗi lần `aggregateBatchData()` chạy. Phục vụ thống kê theo nhóm rule; badge trên UI vẫn tính live, không đọc bảng này.
-
-| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
-|---|---|---|---|---|---|
-| `id` | int (tự tăng) | không |  | PK |  |
-| `epic_key` | varchar(50) | không |  |  |  |
-| `rule_code` | varchar(40) | không |  |  |  |
-| `rule_index` | smallint | không |  |  |  |
-| `message` | text | không |  |  |  |
-| `detected_at` | date | không |  |  |  |
-| `source_import_batch_id` | int | có |  | FK → import_batches(id) |  |
-| `created_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
-| `updated_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
-
-- UNIQUE (epic_key, rule_code)
-- `epic_data_anomaly_violations_rule_code_check`: CHECK (((rule_code)::text = ANY ((ARRAY['MISSING_START_DATE'::character varying, 'PENDING_TOO_LONG'::character varying, 'DATE_OUT_OF_SEQUENCE'::character varying, 'MISSING_REQUEST_TYPE'::character varying, 'MISSING_REQUIREMENT_LEVEL'::character varying, 'SP_LEVEL_MISMATCH'::character varying, 'RELEASE_STATUS_MISMATCH'::character varying])::text[])))
-- index `idx_epic_data_anomaly_violations_epic_key`: btree (epic_key)
-- index `idx_epic_data_anomaly_violations_rule_code`: btree (rule_code)
 
 ## 8. Cache dữ liệu dẫn xuất
 
@@ -1837,10 +1789,8 @@ Số lượt truy cập LŨY KẾ của các dòng `visit_logs` cũ hơn ngày T
 | `dashboard_view_settings` | updated_by_user_id | `users`(id) | SET NULL |
 | `denied_import_epics` | added_by_user_id | `users`(id) | SET NULL |
 | `epic_alert_timeline` | source_import_batch_id | `import_batches`(id) | SET NULL |
-| `epic_data_anomaly_violations` | source_import_batch_id | `import_batches`(id) | SET NULL |
-| `epic_milestone_history` | source_import_batch_id | `import_batches`(id) | SET NULL |
 | `import_admission_settings` | updated_by_user_id | `users`(id) | SET NULL |
-| `import_rows` | import_batch_id | `import_batches`(id) | CASCADE |
+| `import_row_issues` | import_batch_id | `import_batches`(id) | CASCADE |
 | `issues` | epic_id | `issues`(id) | SET NULL |
 | `issues` | parent_id | `issues`(id) | SET NULL |
 | `issues` | source_import_batch_id | `import_batches`(id) | CASCADE |

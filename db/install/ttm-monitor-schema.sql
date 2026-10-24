@@ -1,9 +1,9 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-24T06:11:51.272Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-24T07:59:45.885Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
--- Gồm: 58 bảng, 57 index phụ, 4 hàm, 4 trigger.
+-- Gồm: 56 bảng, 55 index phụ, 4 hàm, 4 trigger.
 -- Yêu cầu: PostgreSQL 14 trở lên, một database RỖNG (không dùng cho DB đã có bảng — sẽ báo lỗi và không
 -- tạo gì vì cả file chạy trong một transaction). Không cần extension nào.
 --
@@ -230,32 +230,6 @@ CREATE TABLE epic_alert_timeline (
     CONSTRAINT epic_alert_timeline_alert_type_check CHECK (((alert_type)::text = ANY ((ARRAY['FAIL_TTM_CNTT'::character varying, 'LATE_TTM_CNTT'::character varying, 'FAIL_TTM_E2E'::character varying, 'MISSING_START_DATE'::character varying, 'DATA_ANOMALY'::character varying])::text[])))
 );
 
-CREATE TABLE epic_data_anomaly_violations (
-    id SERIAL,
-    epic_key character varying(50) NOT NULL,
-    rule_code character varying(40) NOT NULL,
-    rule_index smallint NOT NULL,
-    message text NOT NULL,
-    detected_at date NOT NULL,
-    source_import_batch_id integer,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT epic_data_anomaly_violations_pkey PRIMARY KEY (id),
-    CONSTRAINT epic_data_anomaly_violations_epic_key_rule_code_key UNIQUE (epic_key, rule_code),
-    CONSTRAINT epic_data_anomaly_violations_rule_code_check CHECK (((rule_code)::text = ANY ((ARRAY['MISSING_START_DATE'::character varying, 'PENDING_TOO_LONG'::character varying, 'DATE_OUT_OF_SEQUENCE'::character varying, 'MISSING_REQUEST_TYPE'::character varying, 'MISSING_REQUIREMENT_LEVEL'::character varying, 'SP_LEVEL_MISMATCH'::character varying, 'RELEASE_STATUS_MISMATCH'::character varying])::text[])))
-);
-
-CREATE TABLE epic_milestone_history (
-    id SERIAL,
-    epic_key character varying(50) NOT NULL,
-    milestone character varying(30) NOT NULL,
-    milestone_date date NOT NULL,
-    source_import_batch_id integer,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT epic_milestone_history_pkey PRIMARY KEY (id),
-    CONSTRAINT epic_milestone_history_epic_key_milestone_key UNIQUE (epic_key, milestone)
-);
-
 CREATE TABLE epic_status_alert_rules (
     id SERIAL,
     epic_complexity_type character varying(20) NOT NULL,
@@ -316,15 +290,18 @@ CREATE TABLE import_batches (
     CONSTRAINT import_batches_pkey PRIMARY KEY (id)
 );
 
-CREATE TABLE import_rows (
+CREATE TABLE import_row_issues (
     id SERIAL,
-    import_batch_id integer,
+    import_batch_id integer NOT NULL,
     row_number integer NOT NULL,
-    normalized_data_json text,
-    validation_status character varying(50) NOT NULL,
-    validation_errors_json text,
+    issue_key character varying(100),
+    summary text,
+    validation_status character varying(20) NOT NULL,
+    validation_errors jsonb DEFAULT '[]'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT import_rows_pkey PRIMARY KEY (id)
+    CONSTRAINT import_row_issues_pkey PRIMARY KEY (id),
+    CONSTRAINT import_row_issues_import_batch_id_row_number_key UNIQUE (import_batch_id, row_number),
+    CONSTRAINT import_row_issues_validation_status_check CHECK (((validation_status)::text = ANY ((ARRAY['WARNING'::character varying, 'INVALID'::character varying])::text[])))
 );
 
 CREATE TABLE info_banners (
@@ -398,6 +375,8 @@ CREATE TABLE issues (
     khau_sit_uat text,
     note_ly_do_khac text,
     main_fail_dept text,
+    project_key character varying(100),
+    request_type character varying(255),
     CONSTRAINT issues_pkey PRIMARY KEY (id)
 );
 
@@ -807,11 +786,9 @@ CREATE INDEX idx_epic_alert_row_cache_ttm_cntt_in_scope ON epic_alert_row_cache 
 CREATE INDEX idx_epic_alert_timeline_end_date ON epic_alert_timeline USING btree (end_date);
 CREATE INDEX idx_epic_alert_timeline_epic_key ON epic_alert_timeline USING btree (epic_key);
 CREATE UNIQUE INDEX idx_epic_alert_timeline_open_run ON epic_alert_timeline USING btree (epic_key, alert_type) WHERE (end_date IS NULL);
-CREATE INDEX idx_epic_data_anomaly_violations_epic_key ON epic_data_anomaly_violations USING btree (epic_key);
-CREATE INDEX idx_epic_data_anomaly_violations_rule_code ON epic_data_anomaly_violations USING btree (rule_code);
-CREATE INDEX idx_epic_milestone_history_epic_key ON epic_milestone_history USING btree (epic_key);
 CREATE INDEX idx_epic_status_alert_rules_active ON epic_status_alert_rules USING btree (is_active) WHERE is_active;
 CREATE INDEX idx_holidays_range ON holidays USING btree (start_date, end_date) WHERE is_active;
+CREATE INDEX idx_import_row_issues_issue_key ON import_row_issues USING btree (issue_key);
 CREATE UNIQUE INDEX uq_info_banners_single_default ON info_banners USING btree (banner_type) WHERE ((banner_type)::text = 'DEFAULT'::text);
 CREATE INDEX idx_issue_type_role_mapping_role ON issue_type_role_mapping USING btree (team_role);
 CREATE INDEX idx_issues_aggregated_at ON issues USING btree (aggregated_at);
@@ -864,10 +841,8 @@ ALTER TABLE daily_cache_runs ADD CONSTRAINT daily_cache_runs_triggered_by_user_i
 ALTER TABLE dashboard_view_settings ADD CONSTRAINT dashboard_view_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE denied_import_epics ADD CONSTRAINT denied_import_epics_added_by_user_id_fkey FOREIGN KEY (added_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE epic_alert_timeline ADD CONSTRAINT epic_alert_timeline_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
-ALTER TABLE epic_data_anomaly_violations ADD CONSTRAINT epic_data_anomaly_violations_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
-ALTER TABLE epic_milestone_history ADD CONSTRAINT epic_milestone_history_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
 ALTER TABLE import_admission_settings ADD CONSTRAINT import_admission_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE import_rows ADD CONSTRAINT import_rows_import_batch_id_fkey FOREIGN KEY (import_batch_id) REFERENCES import_batches(id) ON DELETE CASCADE;
+ALTER TABLE import_row_issues ADD CONSTRAINT import_row_issues_import_batch_id_fkey FOREIGN KEY (import_batch_id) REFERENCES import_batches(id) ON DELETE CASCADE;
 ALTER TABLE issues ADD CONSTRAINT issues_epic_id_fkey FOREIGN KEY (epic_id) REFERENCES issues(id) ON DELETE SET NULL;
 ALTER TABLE issues ADD CONSTRAINT issues_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES issues(id) ON DELETE SET NULL;
 ALTER TABLE issues ADD CONSTRAINT issues_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE CASCADE;
@@ -1009,7 +984,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 93 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 96 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1104,7 +1079,10 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261020_sync_project_type_on_category_cleared.sql'),
     ('20261023_drop_issue_snapshot_tables.sql'),
     ('20261024_create_visit_log_rollups.sql'),
-    ('20261024b_drop_epic_alert_history.sql');
+    ('20261024b_drop_epic_alert_history.sql'),
+    ('20261025_add_issue_columns_and_import_row_issues.sql'),
+    ('20261025b_drop_import_rows.sql'),
+    ('20261025c_drop_anomaly_violations_and_milestone_history.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)

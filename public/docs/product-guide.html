@@ -386,8 +386,8 @@
       <h2>5. Mô hình &amp; Sơ đồ cơ sở dữ liệu (Data Model &amp; ERD)</h2>
       <!-- BEGIN GENERATED: db-schema -->
       <p>
-        Cơ sở dữ liệu của TTM Monitor dùng <strong>PostgreSQL</strong> (đang chạy 17.6), gồm <strong>58 bảng</strong> trong schema <code>public</code>,
-        <strong>45 khoá ngoại</strong>, 4 hàm và 4 trigger; không dùng view, extension hay Row Level Security.
+        Cơ sở dữ liệu của TTM Monitor dùng <strong>PostgreSQL</strong> (đang chạy 17.6), gồm <strong>56 bảng</strong> trong schema <code>public</code>,
+        <strong>43 khoá ngoại</strong>, 4 hàm và 4 trigger; không dùng view, extension hay Row Level Security.
         Cấu trúc thay đổi duy nhất qua chuỗi migration <code>db/migrations/*.sql</code> (chạy bằng <code>scripts/migrate-db.js</code>, ghi vào <code>schema_migrations</code>).
         Toàn bộ chương này được sinh từ CSDL Supabase ngày 24/10/2026 bởi <code>scripts/db-schema-export.js</code> — cùng lần chạy sinh ra
         file tạo CSDL mới <code>db/install/ttm-monitor-schema.sql</code> (chỉ cấu trúc, không dữ liệu) và tài liệu ERD chi tiết <code>docs/database-erd.md</code> (sơ đồ Mermaid từng nhóm + từ điển dữ liệu).
@@ -416,7 +416,7 @@
           <text x="773" y="97" text-anchor="middle" font-size="9" font-style="italic" fill="#8a93a6">→ tham chiếu nhóm 1, 2</text>
           <rect x="16" y="138" width="290" height="93" rx="8" fill="#fff4cf" stroke="#c3cce3" />
           <text x="161" y="158" text-anchor="middle" font-weight="700" font-size="12" fill="#8a5a00">4. Import &amp; Issue (5)</text>
-          <text x="161" y="176" text-anchor="middle" font-size="9.5" fill="#5b6475">import_batches, import_rows, issues,</text>
+          <text x="161" y="176" text-anchor="middle" font-size="9.5" fill="#5b6475">import_batches, import_row_issues, issues,</text>
           <text x="161" y="189" text-anchor="middle" font-size="9.5" fill="#5b6475">denied_import_epics, import_admission_settings</text>
           <text x="161" y="206" text-anchor="middle" font-size="9" font-style="italic" fill="#8a93a6">→ tham chiếu nhóm 1</text>
           <rect x="322" y="138" width="290" height="93" rx="8" fill="#e6f4ea" stroke="#c3cce3" />
@@ -431,10 +431,9 @@
           <text x="773" y="189" text-anchor="middle" font-size="9.5" fill="#5b6475">scoring_rule_settings, scoring_parity_runs</text>
           <text x="773" y="206" text-anchor="middle" font-size="9" font-style="italic" fill="#8a93a6">→ tham chiếu nhóm 1</text>
           <rect x="16" y="247" width="290" height="93" rx="8" fill="#eaf0ff" stroke="#c3cce3" />
-          <text x="161" y="267" text-anchor="middle" font-weight="700" font-size="12" fill="#25406f">7. Lịch sử &amp; snapshot (3)</text>
-          <text x="161" y="285" text-anchor="middle" font-size="9.5" fill="#5b6475">epic_alert_timeline, epic_milestone_history,</text>
-          <text x="161" y="298" text-anchor="middle" font-size="9.5" fill="#5b6475">epic_data_anomaly_violations</text>
-          <text x="161" y="315" text-anchor="middle" font-size="9" font-style="italic" fill="#8a93a6">→ tham chiếu nhóm 4</text>
+          <text x="161" y="267" text-anchor="middle" font-weight="700" font-size="12" fill="#25406f">7. Lịch sử &amp; snapshot (1)</text>
+          <text x="161" y="285" text-anchor="middle" font-size="9.5" fill="#5b6475">epic_alert_timeline</text>
+          <text x="161" y="302" text-anchor="middle" font-size="9" font-style="italic" fill="#8a93a6">→ tham chiếu nhóm 4</text>
           <rect x="322" y="247" width="290" height="93" rx="8" fill="#fdeee8" stroke="#c3cce3" />
           <text x="467" y="267" text-anchor="middle" font-weight="700" font-size="12" fill="#a1401b">8. Cache dữ liệu dẫn xuất (5)</text>
           <text x="467" y="285" text-anchor="middle" font-size="9.5" fill="#5b6475">epic_alert_row_cache, ttm_index_global_cache,</text>
@@ -464,7 +463,7 @@
         </g>
       </svg>
 
-      <h3>5.2. Danh mục 58 bảng CSDL (đối chiếu CSDL Supabase 24/10/2026)</h3>
+      <h3>5.2. Danh mục 56 bảng CSDL (đối chiếu CSDL Supabase 24/10/2026)</h3>
       <table>
         <thead><tr><th>STT</th><th>Bảng CSDL</th><th>Nhóm</th><th>Khoá chính / Khoá ngoại</th><th>Vai trò nghiệp vụ &amp; Ghi chú</th></tr></thead>
         <tbody>
@@ -485,7 +484,7 @@
           <tr><td>15</td><td><code>ttm_project_configs</code></td><td>Quản lý dự án (PMS — expand-only)</td><td><code>project_id</code> (PK)<br><code>project_id</code> → <code>projects</code></td><td><strong>PMS.</strong> Bật/tắt TTM theo dự án — trigger giữ khớp với <code>projects.ttm</code> (từ 19/10/2026); TTM hiện vẫn đọc <code>projects.ttm</code>.</td></tr>
           <tr><td>16</td><td><code>project_members</code></td><td>Quản lý dự án (PMS — expand-only)</td><td><code>id</code> (PK)<br><code>project_id</code> → <code>projects</code><br><code>user_id</code> → <code>users</code></td><td><strong>PMS.</strong> Thành viên dự án và vai trò — vai trò PM_SM được trigger giữ khớp với <code>user_projects</code> (từ 19/10/2026); phân quyền hiện vẫn đọc <code>user_projects</code>.</td></tr>
           <tr><td>17</td><td><code>import_batches</code></td><td>Import &amp; Issue</td><td><code>id</code> (PK)</td><td>Quản lý từng đợt import CSV (metadata đợt import, mốc <code>aggregated_at</code>, số dòng thành công/lỗi).</td></tr>
-          <tr><td>18</td><td><code>import_rows</code></td><td>Import &amp; Issue</td><td><code>id</code> (PK)<br><code>import_batch_id</code> → <code>import_batches</code></td><td>Lưu trữ toàn bộ dòng CSV thô (raw_data_json) và dữ liệu chuẩn hóa (normalized_data_json) kèm log validate.</td></tr>
+          <tr><td>18</td><td><code>import_row_issues</code></td><td>Import &amp; Issue</td><td><code>id</code> (PK)<br><code>import_batch_id</code> → <code>import_batches</code></td><td>Kết quả validate của các dòng KHÔNG sạch (WARNING / INVALID) của mỗi đợt import, để màn "Nguồn dữ liệu" hiển thị chi tiết lỗi/cảnh báo. Dòng VALID không có bản ghi (dữ liệu của nó là dòng <code>issues</code>); dòng INVALID không vào <code>issues</code> nên đây là nơi duy nhất giữ key/summary/lỗi của chúng. Thay cho bảng <code>import_rows</code> (bản sao JSON mọi dòng) đã gỡ 2026-10-24.</td></tr>
           <tr><td>19</td><td><code>issues</code></td><td>Import &amp; Issue</td><td><code>id</code> (PK)<br><code>epic_id</code> → <code>issues</code><br><code>parent_id</code> → <code>issues</code><br><code>source_import_batch_id</code> → <code>import_batches</code></td><td>Bảng canonical lưu trữ toàn bộ issue mọi cấp (Epic/Story/Subtask). Ghi nhận các mốc T0 (idea_approved_date), T1 (start_date), R4G (r4g_date), Due (due_date) và 4 Epic Type. Self-FK <code>parent_id</code> &amp; <code>epic_id</code>.</td></tr>
           <tr><td>20</td><td><code>denied_import_epics</code></td><td>Import &amp; Issue</td><td><code>epic_key</code> (PK)<br><code>added_by_user_id</code> → <code>users</code></td><td><strong>Mới 14/10/2026.</strong> "Từ chối import": Epic không được đưa vào CSDL. Lưu thông tin cơ bản chụp lúc thêm (summary, status, đơn vị yêu cầu, created, ngày duyệt ý tưởng, start, R4G, due), <code>allow_import</code> ("Cho phép import" — miễn trừ rule tự động), <code>source</code> (<code>MANUAL</code> / <code>AUTO_RULE</code> / <code>SEED</code>), lý do, lần xóa dữ liệu gần nhất — mục 3.4.</td></tr>
           <tr><td>21</td><td><code>import_admission_settings</code></td><td>Import &amp; Issue</td><td><code>id</code> (PK)<br><code>updated_by_user_id</code> → <code>users</code></td><td><strong>Mới 14/10/2026.</strong> Ngày A (<code>created_before</code>) và ngày B (<code>released_due_before</code>) của rule tự động Từ chối import; để trống = tắt rule — mục 3.4.</td></tr>
@@ -501,37 +500,35 @@
           <tr><td>31</td><td><code>scoring_rule_settings</code></td><td>Epic Scoring Service</td><td><code>badge_id</code> (PK)<br><code>updated_by_user_id</code> → <code>users</code></td><td>Bật/tắt từng badge (rule) của Scoring Service; không có dòng = theo mặc định của danh mục badge.</td></tr>
           <tr><td>32</td><td><code>scoring_parity_runs</code></td><td>Epic Scoring Service</td><td><code>id</code> (PK)<br><code>triggered_by_user_id</code> → <code>users</code></td><td>Kết quả mỗi lần đối chiếu Scoring Service với engine cũ (số Epic khớp / lệch có chủ đích / chưa giải thích được, chi tiết JSON).</td></tr>
           <tr><td>33</td><td><code>epic_alert_timeline</code></td><td>Lịch sử &amp; snapshot</td><td><code>id</code> (PK)<br><code>source_import_batch_id</code> → <code>import_batches</code></td><td>Theo dõi 5 loại cảnh báo dưới dạng các đợt (run) có khoảng ngày bắt đầu/kết thúc liên tục.</td></tr>
-          <tr><td>34</td><td><code>epic_milestone_history</code></td><td>Lịch sử &amp; snapshot</td><td><code>id</code> (PK)<br><code>source_import_batch_id</code> → <code>import_batches</code></td><td>Ghi nhận lịch sử mốc hoàn thành nội bộ (DESIGN_DONE, DEV_DONE, TEST_DONE...).</td></tr>
-          <tr><td>35</td><td><code>epic_data_anomaly_violations</code></td><td>Lịch sử &amp; snapshot</td><td><code>id</code> (PK)<br><code>source_import_batch_id</code> → <code>import_batches</code></td><td>Trạng thái hiện tại (không phải lịch sử "đợt") của từng rule R1-R7 "Sai lệch dữ liệu" của engine legacy (mục 9) đang vi phạm trên mỗi Epic — 1 dòng/Epic/rule, ghi đè hoặc xoá ở mỗi lần <code>aggregateBatchData()</code> chạy. Phục vụ thống kê theo nhóm rule; badge trên UI vẫn tính live, không đọc bảng này.</td></tr>
-          <tr><td>36</td><td><code>epic_alert_row_cache</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>epic_key</code> (PK)</td><td>Cache dòng Epic của lớp dữ liệu mới nhất cho Quản trị Epic / các Dashboard: <code>row_data</code> (JSON) + các cột lọc/sắp xếp, <code>badge_codes</code>, <code>index_flags</code>, <code>findings</code> của Scoring Service. Dựng lại sau import, đầu ngày và khi cấu hình đổi (mục 6.4).</td></tr>
-          <tr><td>37</td><td><code>ttm_index_global_cache</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>id</code> (PK)<br><code>source_import_batch_id</code> → <code>import_batches</code></td><td>Chỉ số toàn công ty TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E (số đếm + %) hiển thị trên banner.</td></tr>
-          <tr><td>38</td><td><code>ttm_dashboard_2_cache</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>scope_key</code> (PK)</td><td>Số liệu phễu / widget / ma trận / pie chart chưa lọc của TTM Dashboard 2 theo phạm vi quyền (<code>ALL</code>, <code>ADMIN:&lt;id&gt;</code>, <code>USER:&lt;id&gt;</code>) — mục 21.5.</td></tr>
-          <tr><td>39</td><td><code>daily_cache_runs</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>run_date</code> (PK)<br><code>source_import_batch_id</code> → <code>import_batches</code><br><code>triggered_by_user_id</code> → <code>users</code></td><td>Mỗi ngày (giờ Việt Nam) 1 dòng: lượt tạo lại cache đầu ngày do lần tải trang đầu tiên kích hoạt (RUNNING / SUCCESS / FAILED, thời lượng, số Epic).</td></tr>
-          <tr><td>40</td><td><code>derived_cache_refresh_lock</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>id</code> (PK)</td><td><strong>Mới 05/10/2026.</strong> Khoá (lease) điều phối việc tạo lại cache giữa các instance: <code>request_seq</code>, <code>lease_owner</code>, <code>lease_until</code>, <code>last_source</code> — mục 6.4.</td></tr>
-          <tr><td>41</td><td><code>jira_settings</code></td><td>Cấu hình hệ thống</td><td><code>id</code> (PK)</td><td>Hai bảng cấu hình singleton lưu Cấu hình tích hợp Jira và số ngày lưu giữ dữ liệu raw import.</td></tr>
-          <tr><td>42</td><td><code>data_retention_configs</code></td><td>Cấu hình hệ thống</td><td><code>id</code> (PK)</td><td>Hai bảng cấu hình singleton lưu Cấu hình tích hợp Jira và số ngày lưu giữ dữ liệu raw import.</td></tr>
-          <tr><td>43</td><td><code>dashboard_view_settings</code></td><td>Cấu hình hệ thống</td><td><code>id</code> (PK)<br><code>updated_by_user_id</code> → <code>users</code></td><td><strong>Mới 14/10/2026.</strong> Công tắc "Dashboard Lead view cho tất cả user" (<code>lead_view_for_all_users</code>, mặc định bật) — Quản trị hệ thống → Dashboard, mục 21.9.</td></tr>
-          <tr><td>44</td><td><code>schema_migrations</code></td><td>Cấu hình hệ thống</td><td><code>filename</code> (PK)</td><td>Sổ theo dõi migration: mỗi file <code>db/migrations/*.sql</code> đã chạy là một dòng (<code>filename</code>, <code>applied_at</code>). Do <code>scripts/migrate-db.js</code> tự tạo và ghi; file cài đặt <code>db/install/ttm-monitor-schema.sql</code> ghi sẵn toàn bộ migration đã có để DB mới chỉ nhận migration phát sinh sau.</td></tr>
-          <tr><td>45</td><td><code>ad_popups</code></td><td>Popup &amp; Banner thông báo</td><td><code>id</code> (PK)</td><td>Cấu hình Popup quảng cáo toàn màn hình cho mọi user đã đăng nhập (mục 14).</td></tr>
-          <tr><td>46</td><td><code>ad_popup_impressions</code></td><td>Popup &amp; Banner thông báo</td><td><code>(popup_id, user_id)</code> (PK)<br><code>popup_id</code> → <code>ad_popups</code><br><code>user_id</code> → <code>users</code></td><td>Đếm số lần một popup đã hiện cho từng user, so với <code>max_impressions</code>.</td></tr>
-          <tr><td>47</td><td><code>info_banners</code></td><td>Popup &amp; Banner thông báo</td><td><code>id</code> (PK)</td><td>Cấu hình Banner thông báo (Mặc định toàn hệ thống hoặc theo từng màn hình, mục 15).</td></tr>
-          <tr><td>48</td><td><code>api_keys</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)</td><td>API key cấp cho ứng dụng ngoài dùng làm client_id trong luồng SSO (mục 17).</td></tr>
-          <tr><td>49</td><td><code>sso_auth_codes</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>api_key_id</code> → <code>api_keys</code><br><code>user_id</code> → <code>users</code></td><td>Mã ủy quyền SSO dùng 1 lần, hết hạn sau 5 phút (mục 17).</td></tr>
-          <tr><td>50</td><td><code>mcp_settings</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>updated_by</code> → <code>users</code></td><td>Công tắc singleton bật/tắt toàn bộ MCP Server (mục 16).</td></tr>
-          <tr><td>51</td><td><code>mcp_access_tokens</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Personal Access Token để AI chatbot kết nối MCP thay mặt một user cụ thể (mục 16).</td></tr>
-          <tr><td>52</td><td><code>mcp_access_daily_stats</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>(user_id, stat_date)</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Thống kê số lượt gọi MCP theo ngày/user, tự dọn sau 90 ngày (mục 16).</td></tr>
-          <tr><td>53</td><td><code>mcp_oauth_clients</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)</td><td>Đăng ký client OAuth động (RFC 7591) cho AI chatbot dùng luồng OAuth kết nối MCP (mục 16).</td></tr>
-          <tr><td>54</td><td><code>mcp_oauth_authorization_codes</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Mã ủy quyền ngắn hạn cho luồng MCP OAuth 2.0 + PKCE (mục 16).</td></tr>
-          <tr><td>55</td><td><code>audit_logs</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Nhật ký ghi nhận các thao tác quan trọng trên hệ thống.</td></tr>
-          <tr><td>56</td><td><code>user_usage_daily_stats</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>(user_id, stat_date)</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Thống kê tần suất tương tác và sử dụng tính năng theo ngày của từng user.</td></tr>
-          <tr><td>57</td><td><code>visit_logs</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Ghi nhận nhật ký lượt đăng nhập ứng dụng (APP_LOGIN) và lượt xem 3 màn hình trọng điểm (SCREEN_VIEW cho TTM Dashboard 2, Quản trị Epic, Báo cáo Epic) phục vụ tính năng Visit Counter (mục 18).</td></tr>
-          <tr><td>58</td><td><code>visit_log_rollups</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>(event_type, screen_key, user_id)</code> (PK)</td><td>Số lượt truy cập LŨY KẾ của các dòng <code>visit_logs</code> cũ hơn ngày T-15 (đã bị cuốn vào đây rồi xóa; theo <code>event_type</code>, <code>screen_key</code>, <code>user_id</code>) để các số "Tổng (lũy kế)" của Visit Counter không tụt khi job dọn dẹp xóa dòng cũ. <code>screen_key=''</code>: không có màn hình; <code>user_id=0</code>: user đã bị xóa.</td></tr>
+          <tr><td>34</td><td><code>epic_alert_row_cache</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>epic_key</code> (PK)</td><td>Cache dòng Epic của lớp dữ liệu mới nhất cho Quản trị Epic / các Dashboard: <code>row_data</code> (JSON) + các cột lọc/sắp xếp, <code>badge_codes</code>, <code>index_flags</code>, <code>findings</code> của Scoring Service. Dựng lại sau import, đầu ngày và khi cấu hình đổi (mục 6.4).</td></tr>
+          <tr><td>35</td><td><code>ttm_index_global_cache</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>id</code> (PK)<br><code>source_import_batch_id</code> → <code>import_batches</code></td><td>Chỉ số toàn công ty TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E (số đếm + %) hiển thị trên banner.</td></tr>
+          <tr><td>36</td><td><code>ttm_dashboard_2_cache</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>scope_key</code> (PK)</td><td>Số liệu phễu / widget / ma trận / pie chart chưa lọc của TTM Dashboard 2 theo phạm vi quyền (<code>ALL</code>, <code>ADMIN:&lt;id&gt;</code>, <code>USER:&lt;id&gt;</code>) — mục 21.5.</td></tr>
+          <tr><td>37</td><td><code>daily_cache_runs</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>run_date</code> (PK)<br><code>source_import_batch_id</code> → <code>import_batches</code><br><code>triggered_by_user_id</code> → <code>users</code></td><td>Mỗi ngày (giờ Việt Nam) 1 dòng: lượt tạo lại cache đầu ngày do lần tải trang đầu tiên kích hoạt (RUNNING / SUCCESS / FAILED, thời lượng, số Epic).</td></tr>
+          <tr><td>38</td><td><code>derived_cache_refresh_lock</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>id</code> (PK)</td><td><strong>Mới 05/10/2026.</strong> Khoá (lease) điều phối việc tạo lại cache giữa các instance: <code>request_seq</code>, <code>lease_owner</code>, <code>lease_until</code>, <code>last_source</code> — mục 6.4.</td></tr>
+          <tr><td>39</td><td><code>jira_settings</code></td><td>Cấu hình hệ thống</td><td><code>id</code> (PK)</td><td>Hai bảng cấu hình singleton lưu Cấu hình tích hợp Jira và số ngày lưu giữ dữ liệu raw import.</td></tr>
+          <tr><td>40</td><td><code>data_retention_configs</code></td><td>Cấu hình hệ thống</td><td><code>id</code> (PK)</td><td>Hai bảng cấu hình singleton lưu Cấu hình tích hợp Jira và số ngày lưu giữ dữ liệu raw import.</td></tr>
+          <tr><td>41</td><td><code>dashboard_view_settings</code></td><td>Cấu hình hệ thống</td><td><code>id</code> (PK)<br><code>updated_by_user_id</code> → <code>users</code></td><td><strong>Mới 14/10/2026.</strong> Công tắc "Dashboard Lead view cho tất cả user" (<code>lead_view_for_all_users</code>, mặc định bật) — Quản trị hệ thống → Dashboard, mục 21.9.</td></tr>
+          <tr><td>42</td><td><code>schema_migrations</code></td><td>Cấu hình hệ thống</td><td><code>filename</code> (PK)</td><td>Sổ theo dõi migration: mỗi file <code>db/migrations/*.sql</code> đã chạy là một dòng (<code>filename</code>, <code>applied_at</code>). Do <code>scripts/migrate-db.js</code> tự tạo và ghi; file cài đặt <code>db/install/ttm-monitor-schema.sql</code> ghi sẵn toàn bộ migration đã có để DB mới chỉ nhận migration phát sinh sau.</td></tr>
+          <tr><td>43</td><td><code>ad_popups</code></td><td>Popup &amp; Banner thông báo</td><td><code>id</code> (PK)</td><td>Cấu hình Popup quảng cáo toàn màn hình cho mọi user đã đăng nhập (mục 14).</td></tr>
+          <tr><td>44</td><td><code>ad_popup_impressions</code></td><td>Popup &amp; Banner thông báo</td><td><code>(popup_id, user_id)</code> (PK)<br><code>popup_id</code> → <code>ad_popups</code><br><code>user_id</code> → <code>users</code></td><td>Đếm số lần một popup đã hiện cho từng user, so với <code>max_impressions</code>.</td></tr>
+          <tr><td>45</td><td><code>info_banners</code></td><td>Popup &amp; Banner thông báo</td><td><code>id</code> (PK)</td><td>Cấu hình Banner thông báo (Mặc định toàn hệ thống hoặc theo từng màn hình, mục 15).</td></tr>
+          <tr><td>46</td><td><code>api_keys</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)</td><td>API key cấp cho ứng dụng ngoài dùng làm client_id trong luồng SSO (mục 17).</td></tr>
+          <tr><td>47</td><td><code>sso_auth_codes</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>api_key_id</code> → <code>api_keys</code><br><code>user_id</code> → <code>users</code></td><td>Mã ủy quyền SSO dùng 1 lần, hết hạn sau 5 phút (mục 17).</td></tr>
+          <tr><td>48</td><td><code>mcp_settings</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>updated_by</code> → <code>users</code></td><td>Công tắc singleton bật/tắt toàn bộ MCP Server (mục 16).</td></tr>
+          <tr><td>49</td><td><code>mcp_access_tokens</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Personal Access Token để AI chatbot kết nối MCP thay mặt một user cụ thể (mục 16).</td></tr>
+          <tr><td>50</td><td><code>mcp_access_daily_stats</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>(user_id, stat_date)</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Thống kê số lượt gọi MCP theo ngày/user, tự dọn sau 90 ngày (mục 16).</td></tr>
+          <tr><td>51</td><td><code>mcp_oauth_clients</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)</td><td>Đăng ký client OAuth động (RFC 7591) cho AI chatbot dùng luồng OAuth kết nối MCP (mục 16).</td></tr>
+          <tr><td>52</td><td><code>mcp_oauth_authorization_codes</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Mã ủy quyền ngắn hạn cho luồng MCP OAuth 2.0 + PKCE (mục 16).</td></tr>
+          <tr><td>53</td><td><code>audit_logs</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Nhật ký ghi nhận các thao tác quan trọng trên hệ thống.</td></tr>
+          <tr><td>54</td><td><code>user_usage_daily_stats</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>(user_id, stat_date)</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Thống kê tần suất tương tác và sử dụng tính năng theo ngày của từng user.</td></tr>
+          <tr><td>55</td><td><code>visit_logs</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Ghi nhận nhật ký lượt đăng nhập ứng dụng (APP_LOGIN) và lượt xem 3 màn hình trọng điểm (SCREEN_VIEW cho TTM Dashboard 2, Quản trị Epic, Báo cáo Epic) phục vụ tính năng Visit Counter (mục 18).</td></tr>
+          <tr><td>56</td><td><code>visit_log_rollups</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>(event_type, screen_key, user_id)</code> (PK)</td><td>Số lượt truy cập LŨY KẾ của các dòng <code>visit_logs</code> cũ hơn ngày T-15 (đã bị cuốn vào đây rồi xóa; theo <code>event_type</code>, <code>screen_key</code>, <code>user_id</code>) để các số "Tổng (lũy kế)" của Visit Counter không tụt khi job dọn dẹp xóa dòng cũ. <code>screen_key=''</code>: không có màn hình; <code>user_id=0</code>: user đã bị xóa.</td></tr>
         </tbody>
       </table>
 
       <details style="margin: 16px 0; border: 1px solid #cdd9f7; border-radius: 10px; background: #f8faff; padding: 12px 16px;">
         <summary style="cursor: pointer; font-weight: 700; font-size: 13.5px; color: var(--brand-600); outline: none; user-select: none;">
-          🔍 Bấm vào đây để xem chi tiết cột, kiểu dữ liệu, khoá PK/FK, ràng buộc &amp; index của 58 bảng
+          🔍 Bấm vào đây để xem chi tiết cột, kiểu dữ liệu, khoá PK/FK, ràng buộc &amp; index của 56 bảng
         </summary>
         <div style="margin-top: 16px;">
           <h4 style="color:var(--brand-700); margin:16px 0 6px; font-size:14px;">1. Xác thực &amp; phân quyền (8 bảng)</h4>
@@ -775,19 +772,21 @@
               <tr><td><code>updated_at</code></td><td><code>TIMESTAMPTZ</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
             </tbody>
           </table>
-          <p><strong>4.2. <code>import_rows</code></strong></p>
+          <p><strong>4.2. <code>import_row_issues</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
-              <tr><td><code>id</code></td><td><code>SERIAL</code></td><td>PRIMARY KEY</td><td><code>INT</code></td><td>FK <code>import_batches(id) ON DELETE CASCADE</code></td></tr>
-              <tr><td><code>import_batch_id</code></td><td><code>INT</code></td><td>FK → import_batches(id)</td><td></td></tr>
-              <tr><td><code>row_number</code></td><td><code>INT NOT NULL</code></td><td>—</td><td><code>TEXT NOT NULL</code></td><td>Nội dung JSON dữ liệu dòng thô</td></tr>
-              <tr><td><code>normalized_data_json</code></td><td><code>TEXT</code></td><td>—</td><td><code>VARCHAR(50) NOT NULL</code></td><td>VALID / INVALID / WARNING</td></tr>
-              <tr><td><code>validation_status</code></td><td><code>VARCHAR(50) NOT NULL</code></td><td>—</td><td></td></tr>
-              <tr><td><code>validation_errors_json</code></td><td><code>TEXT</code></td><td>—</td><td></td></tr>
+              <tr><td><code>id</code></td><td><code>SERIAL</code></td><td>PRIMARY KEY</td><td></td></tr>
+              <tr><td><code>import_batch_id</code></td><td><code>INT NOT NULL</code></td><td>FK → import_batches(id)</td><td></td></tr>
+              <tr><td><code>row_number</code></td><td><code>INT NOT NULL</code></td><td>—</td><td></td></tr>
+              <tr><td><code>issue_key</code></td><td><code>VARCHAR(100)</code></td><td>—</td><td></td></tr>
+              <tr><td><code>summary</code></td><td><code>TEXT</code></td><td>—</td><td></td></tr>
+              <tr><td><code>validation_status</code></td><td><code>VARCHAR(20) NOT NULL</code></td><td>—</td><td></td></tr>
+              <tr><td><code>validation_errors</code></td><td><code>JSONB NOT NULL</code></td><td>DEFAULT '[]'::jsonb</td><td></td></tr>
               <tr><td><code>created_at</code></td><td><code>TIMESTAMPTZ</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
             </tbody>
           </table>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li>UNIQUE <code>(import_batch_id, row_number)</code></li><li><code>CHECK (((validation_status)::text = ANY ((ARRAY['WARNING'::character varying, 'INVALID'::character varying])::text[])))</code></li><li>Index <code>idx_import_row_issues_issue_key</code>: <code>btree (issue_key)</code></li></ul>
           <p><strong>4.3. <code>issues</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
@@ -835,6 +834,8 @@
               <tr><td><code>khau_sit_uat</code></td><td><code>TEXT</code></td><td>—</td><td></td></tr>
               <tr><td><code>note_ly_do_khac</code></td><td><code>TEXT</code></td><td>—</td><td></td></tr>
               <tr><td><code>main_fail_dept</code></td><td><code>TEXT</code></td><td>—</td><td></td></tr>
+              <tr><td><code>project_key</code></td><td><code>VARCHAR(100)</code></td><td>—</td><td></td></tr>
+              <tr><td><code>request_type</code></td><td><code>VARCHAR(255)</code></td><td>—</td><td></td></tr>
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li>Index <code>idx_issues_aggregated_at</code>: <code>btree (aggregated_at)</code></li><li>Index <code>idx_issues_batch_id</code>: <code>btree (source_import_batch_id)</code></li><li>Index <code>idx_issues_epic_id</code>: <code>btree (epic_id) WHERE (epic_id IS NOT NULL)</code></li><li>Index <code>idx_issues_epic_key_aggregated_at</code>: <code>btree (epic_key, aggregated_at DESC) WHERE (epic_key IS NOT NULL)</code></li><li>Index <code>idx_issues_key_aggregated_at</code>: <code>btree (issue_key, aggregated_at DESC)</code></li><li>Index <code>idx_issues_key_batch</code>: <code>UNIQUE btree (issue_key, source_import_batch_id)</code></li><li>Index <code>idx_issues_parent_id</code>: <code>btree (parent_id) WHERE (parent_id IS NOT NULL)</code></li><li>Index <code>idx_issues_parent_key</code>: <code>btree (parent_key) WHERE (parent_key IS NOT NULL)</code></li><li>Index <code>idx_issues_type_status</code>: <code>btree (issue_type, current_status)</code></li></ul>
@@ -1027,7 +1028,7 @@
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li>Index <code>idx_scoring_parity_runs_computed_at</code>: <code>btree (computed_at DESC)</code></li></ul>
-          <h4 style="color:var(--brand-700); margin:16px 0 6px; font-size:14px;">7. Lịch sử &amp; snapshot (3 bảng)</h4>
+          <h4 style="color:var(--brand-700); margin:16px 0 6px; font-size:14px;">7. Lịch sử &amp; snapshot (1 bảng)</h4>
           <p><strong>7.1. <code>epic_alert_timeline</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
@@ -1045,35 +1046,6 @@
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((alert_type)::text = ANY ((ARRAY['FAIL_TTM_CNTT'::character varying, 'LATE_TTM_CNTT'::character varying, 'FAIL_TTM_E2E'::character varying, 'MISSING_START_DATE'::character varying, 'DATA_ANOMALY'::character varying])::text[])))</code></li><li>Index <code>idx_epic_alert_timeline_end_date</code>: <code>btree (end_date)</code></li><li>Index <code>idx_epic_alert_timeline_epic_key</code>: <code>btree (epic_key)</code></li><li>Index <code>idx_epic_alert_timeline_open_run</code>: <code>UNIQUE btree (epic_key, alert_type) WHERE (end_date IS NULL)</code></li></ul>
-          <p><strong>7.2. <code>epic_milestone_history</code></strong></p>
-          <table>
-            <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
-            <tbody>
-              <tr><td><code>id</code></td><td><code>SERIAL</code></td><td>PRIMARY KEY</td><td></td></tr>
-              <tr><td><code>epic_key</code></td><td><code>VARCHAR(50) NOT NULL</code></td><td>—</td><td></td></tr>
-              <tr><td><code>milestone</code></td><td><code>VARCHAR(30) NOT NULL</code></td><td>—</td><td></td></tr>
-              <tr><td><code>milestone_date</code></td><td><code>DATE NOT NULL</code></td><td>—</td><td></td></tr>
-              <tr><td><code>source_import_batch_id</code></td><td><code>INT</code></td><td>FK → import_batches(id)</td><td></td></tr>
-              <tr><td><code>created_at</code></td><td><code>TIMESTAMPTZ</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
-            </tbody>
-          </table>
-          <ul style="font-size:12px; margin:4px 0 12px;"><li>UNIQUE <code>(epic_key, milestone)</code></li><li>Index <code>idx_epic_milestone_history_epic_key</code>: <code>btree (epic_key)</code></li></ul>
-          <p><strong>7.3. <code>epic_data_anomaly_violations</code></strong></p>
-          <table>
-            <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
-            <tbody>
-              <tr><td><code>id</code></td><td><code>SERIAL</code></td><td>PRIMARY KEY</td><td></td></tr>
-              <tr><td><code>epic_key</code></td><td><code>VARCHAR(50) NOT NULL</code></td><td>—</td><td></td></tr>
-              <tr><td><code>rule_code</code></td><td><code>VARCHAR(40) NOT NULL</code></td><td>—</td><td></td></tr>
-              <tr><td><code>rule_index</code></td><td><code>SMALLINT NOT NULL</code></td><td>—</td><td></td></tr>
-              <tr><td><code>message</code></td><td><code>TEXT NOT NULL</code></td><td>—</td><td></td></tr>
-              <tr><td><code>detected_at</code></td><td><code>DATE NOT NULL</code></td><td>—</td><td></td></tr>
-              <tr><td><code>source_import_batch_id</code></td><td><code>INT</code></td><td>FK → import_batches(id)</td><td></td></tr>
-              <tr><td><code>created_at</code></td><td><code>TIMESTAMPTZ</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
-              <tr><td><code>updated_at</code></td><td><code>TIMESTAMPTZ</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
-            </tbody>
-          </table>
-          <ul style="font-size:12px; margin:4px 0 12px;"><li>UNIQUE <code>(epic_key, rule_code)</code></li><li><code>CHECK (((rule_code)::text = ANY ((ARRAY['MISSING_START_DATE'::character varying, 'PENDING_TOO_LONG'::character varying, 'DATE_OUT_OF_SEQUENCE'::character varying, 'MISSING_REQUEST_TYPE'::character varying, 'MISSING_REQUIREMENT_LEVEL'::character varying, 'SP_LEVEL_MISMATCH'::character varying, 'RELEASE_STATUS_MISMATCH'::character varying])::text[])))</code></li><li>Index <code>idx_epic_data_anomaly_violations_epic_key</code>: <code>btree (epic_key)</code></li><li>Index <code>idx_epic_data_anomaly_violations_rule_code</code>: <code>btree (rule_code)</code></li></ul>
           <h4 style="color:var(--brand-700); margin:16px 0 6px; font-size:14px;">8. Cache dữ liệu dẫn xuất (5 bảng)</h4>
           <p><strong>8.1. <code>epic_alert_row_cache</code></strong></p>
           <table>
@@ -1413,7 +1385,7 @@
         </div>
       </details>
 
-      <p><strong>Danh sách 45 khoá ngoại</strong> (bảng con → bảng cha):</p>
+      <p><strong>Danh sách 43 khoá ngoại</strong> (bảng con → bảng cha):</p>
       <table>
         <thead><tr><th>Bảng con</th><th>Cột</th><th>Tham chiếu</th><th>ON DELETE</th></tr></thead>
         <tbody>
@@ -1427,10 +1399,8 @@
           <tr><td><code>dashboard_view_settings</code></td><td><code>updated_by_user_id</code></td><td><code>users(id)</code></td><td>SET NULL</td></tr>
           <tr><td><code>denied_import_epics</code></td><td><code>added_by_user_id</code></td><td><code>users(id)</code></td><td>SET NULL</td></tr>
           <tr><td><code>epic_alert_timeline</code></td><td><code>source_import_batch_id</code></td><td><code>import_batches(id)</code></td><td>SET NULL</td></tr>
-          <tr><td><code>epic_data_anomaly_violations</code></td><td><code>source_import_batch_id</code></td><td><code>import_batches(id)</code></td><td>SET NULL</td></tr>
-          <tr><td><code>epic_milestone_history</code></td><td><code>source_import_batch_id</code></td><td><code>import_batches(id)</code></td><td>SET NULL</td></tr>
           <tr><td><code>import_admission_settings</code></td><td><code>updated_by_user_id</code></td><td><code>users(id)</code></td><td>SET NULL</td></tr>
-          <tr><td><code>import_rows</code></td><td><code>import_batch_id</code></td><td><code>import_batches(id)</code></td><td>CASCADE</td></tr>
+          <tr><td><code>import_row_issues</code></td><td><code>import_batch_id</code></td><td><code>import_batches(id)</code></td><td>CASCADE</td></tr>
           <tr><td><code>issues</code></td><td><code>epic_id</code></td><td><code>issues(id)</code></td><td>SET NULL</td></tr>
           <tr><td><code>issues</code></td><td><code>parent_id</code></td><td><code>issues(id)</code></td><td>SET NULL</td></tr>
           <tr><td><code>issues</code></td><td><code>source_import_batch_id</code></td><td><code>import_batches(id)</code></td><td>CASCADE</td></tr>
