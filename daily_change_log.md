@@ -6,6 +6,19 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-10-25
+
+- **Tìm kiếm nội dung trong popup "Logic cảnh báo" và "Logic xử lý dữ liệu"** (`src/components/ui/Modal.tsx`, `src/components/ui/ModalContentSearch.tsx`, `src/lib/modal-content-search.ts`, `src/components/layout/HelpPanels.tsx`, `src/app/globals.css`, `src/lib/__tests__/modal-content-search.test.ts`):
+  - Bổ sung thanh công cụ tìm kiếm trong header của popup 'Logic cảnh báo Epic — Scoring Service' và 'Logic xử lý dữ liệu (Admin)', nằm ngay sát bên trái nút đóng popup [X] gồm 1 ô textbox nhập từ khóa và 3 nút biểu tượng: Kết quả trước (`CaretUp`), Kết quả tiếp theo (`CaretDown`), Đặt lại tìm kiếm (`ArrowCounterClockwise`).
+  - Giao diện 3 nút icon chuẩn kích thước 32x32px, bo góc, hiệu ứng hover và focus ring đồng bộ 100% với nút close popup [X]. Hiển thị số lượng kết quả dạng `X/Y` (hoặc `0/0` khi không tìm thấy) bên trong textbox.
+  - Phân tích keyword theo đúng logic yêu cầu:
+    - Nếu keyword nằm trong ngoặc đơn `'...'`, ngoặc kép `"..."`, `(...)` hoặc có dấu `+` nối giữa các từ (ví dụ `'abc xyz'`, `"abc xyz"`, `abc+xyz`): tìm kiếm chính xác cụm ký tự `abc xyz`.
+    - Nếu keyword gồm nhiều từ không nằm trong ngoặc hoặc dấu `+`: highlight toàn bộ nội dung trùng khớp với từng từ đơn lẻ.
+  - Thực thi tìm kiếm khi bấm Enter (hoặc click nút Next/Prev), dùng DOM TreeWalker quét và bọc thẻ `<mark>` đánh dấu highlight toàn bộ các đoạn văn bản khớp trong popup.
+  - Nút Prev / Next (hoặc phím Enter / Shift+Enter) nhảy tới vị trí kết quả tương ứng, tự động cuộn mượt (`scrollIntoView`) đưa nội dung ra giữa màn hình và đánh dấu nổi bật kết quả đang chọn bằng màu cam đậm (`.ttm-modal-search-active`).
+  - Nút Reset (hoặc phím Escape khi đang tìm kiếm) xóa từ khóa, gỡ toàn bộ thẻ highlight và khôi phục text nodes ban đầu. Tự động dọn sạch highlight khi đóng popup.
+- **Spec thiết kế Rule object & Rule Group cho Scoring Service** (`docs/superpowers/specs/2026-10-25-rule-groups-design.md`) — chỉ tài liệu, chưa code: tách Rule object (cách chấm, có biến thể như `ttm-cntt-sep-2026`, `ttm-e2e-july-2026`) khỏi Badge; Rule Group theo mốc ngày Epic, ưu tiên cao nhất nhận Epic, Default bắt buộc; màn hình `/admin/rule-management` (SUPERADMIN); Epic không có rule TTM-CNTT bị loại ở L02; chiều "Nhóm rule" trên TTM Dashboard 2; thay `scoring_rule_settings` và "Phạm vi rule Sai lệch dữ liệu". Lộ trình GĐ1 (tái cấu trúc, đối chiếu 0 khác biệt) → GĐ2 (DB + màn hình) → GĐ3 (Dashboard, màn Epic, tài liệu, MCP).
+
 ## 2026-10-24
 
 - **Làm thưa lịch sử `issues` (vùng dày 15 ngày import + ngày mốc cuối tuần) — code + migration, CHƯA dọn dữ liệu**:

@@ -1,8 +1,10 @@
 'use client';
 
+import { useRef } from 'react';
 import { Warning } from '@phosphor-icons/react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
+import { ModalContentSearch } from '@/components/ui/ModalContentSearch';
 import { BADGE_LIST, FINDING_GROUPS, INDEX_MEMBERSHIP_RULES, INDEX_PERCENT_FORMULA, SCORING_AXES, SUPPRESSIONS, badgesOf } from '@/lib/scoring/catalog';
 import type { BadgeDefinition, FindingGroup } from '@/lib/scoring/catalog';
 
@@ -48,8 +50,18 @@ const badgeAxisLabel = (id: string) => {
  * so this help text can never drift from the catalog the service itself uses.
  */
 export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
+  const bodyRef = useRef<HTMLDivElement>(null);
   return (
-    <Modal icon={Warning} isOpen={isOpen} onClose={onClose} title="Logic cảnh báo Epic — Scoring Service" maxWidth="3xl" footer={<Button variant="outline" onClick={onClose}>Đóng</Button>}>
+    <Modal
+      actions={<ModalContentSearch containerRef={bodyRef} isOpen={isOpen} />}
+      bodyRef={bodyRef}
+      icon={Warning}
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Logic cảnh báo Epic — Scoring Service"
+      maxWidth="3xl"
+      footer={<Button variant="outline" onClick={onClose}>Đóng</Button>}
+    >
       <div className="flex flex-col gap-6 text-sm text-fb-text-secondary">
         <section className="rounded-md border border-status-warning/30 bg-status-warning-soft px-3 py-2 text-xs text-fb-text-primary">
           <strong>Scoring Service.</strong> Mọi Epic được chấm điểm lại mỗi lần tạo cache; Scoring Service là logic duy nhất của mọi màn hình (logic cảnh báo cũ đã gỡ).
@@ -266,8 +278,17 @@ function DataPipelineDiagram() {
 }
 
 export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
+  const bodyRef = useRef<HTMLDivElement>(null);
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Logic xử lý dữ liệu (Admin)" maxWidth="xl" footer={<Button variant="outline" onClick={onClose}>Đóng</Button>}>
+    <Modal
+      actions={<ModalContentSearch containerRef={bodyRef} isOpen={isOpen} />}
+      bodyRef={bodyRef}
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Logic xử lý dữ liệu (Admin)"
+      maxWidth="xl"
+      footer={<Button variant="outline" onClick={onClose}>Đóng</Button>}
+    >
       <div className="flex flex-col gap-5 text-fb-text-secondary">
         <section>
           <h3 className="ui-card-title mb-1">1. Mô hình import theo lớp dữ liệu hàng ngày</h3>

@@ -103,6 +103,10 @@ export interface ModalProps {
   icon?: Icon;
   /** 'top' lifts the popup above every other one — for confirmations asked from inside a popup. */
   layer?: 'default' | 'top';
+  /** Extra controls shown left of the close button (e.g. search bar, "Mở tab mới"). */
+  actions?: React.ReactNode;
+  /** Ref attached to the scrollable modal body container, useful for in-modal search. */
+  bodyRef?: React.Ref<HTMLDivElement>;
 }
 
 /** useSyncExternalStore subscription for a value that never changes after hydration. */
@@ -117,6 +121,8 @@ export const Modal = ({
   maxWidth = 'md',
   icon,
   layer = 'default',
+  actions,
+  bodyRef,
 }: ModalProps) => {
   // false during SSR and the hydration pass, true afterwards — the portal is only created on the
   // client, without a setState-in-effect.
@@ -149,9 +155,9 @@ export const Modal = ({
         aria-modal="true"
         aria-labelledby={titleId}
       >
-        <ModalHeader closeButtonRef={closeButtonRef} icon={icon} onClose={onClose} title={title} titleId={titleId} />
+        <ModalHeader actions={actions} closeButtonRef={closeButtonRef} icon={icon} onClose={onClose} title={title} titleId={titleId} />
 
-        <div className="flex-1 overflow-y-auto px-5 py-4 text-sm leading-relaxed">
+        <div ref={bodyRef} className="flex-1 overflow-y-auto px-5 py-4 text-sm leading-relaxed">
           {children}
         </div>
 
