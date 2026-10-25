@@ -33,7 +33,7 @@ export interface BadgeDefinition {
   readonly meaning: string;
   readonly formula: string;
   /** Legacy function/field producing the equivalent result today (parity check), if any. */
-  /** false = the rule ships disabled until enabled in scoring_rule_settings. */
+  /** false = the badge is not in use yet: never shown, whatever rule emits it (e.g. "Release đúng hạn", owner decision 2026-10-25). */
   readonly defaultEnabled: boolean;
   /** Core gates can't be disabled — turning them off would let an unreliable verdict through. */
   readonly core?: boolean;
@@ -94,6 +94,11 @@ export const BADGES = [
     formula: 'Không Sai lệch dữ liệu  VÀ  R4G ≤ asOf  VÀ  R4G ≤ Target_CNTT',
   },
   {
+    id: 'CNTT_NO_RULE', axis: 'TTM_CNTT', group: 'NOTE', label: 'Không áp dụng rule TTM-CNTT', precedence: 85, defaultEnabled: true, core: true,
+    meaning: 'Nhóm rule (Rule Group) của Epic không chọn rule đánh giá TTM-CNTT (QLDA) nào — Epic không được chấm Đạt / Fail / Cảnh báo muộn TTM-CNTT, bị loại ở L02 và không tính vào TTM-CNTT (QLDA) lẫn (QA).',
+    formula: 'Nhóm rule của Epic không có rule slot TTM-CNTT  VÀ  không Cancelled',
+  },
+  {
     id: 'CNTT_NOT_APPLICABLE', axis: 'TTM_CNTT', group: 'NOTE', label: 'Không áp dụng', precedence: 90, defaultEnabled: true, core: true,
     meaning: 'Epic đã Cancelled — không đánh giá TTM-CNTT (QLDA).',
     formula: 'status = Cancelled',
@@ -124,6 +129,11 @@ export const BADGES = [
     id: 'REC_FILL_IDEA_APPROVED_DATE', axis: 'TTM_E2E', group: 'RECOMMENDATION', label: 'Bổ sung T0', precedence: 80, defaultEnabled: true,
     meaning: 'Bổ sung Idea Approved Date để TTM-E2E tính đúng mốc gốc.',
     formula: 'Có badge "Baseline từ ngày tạo Jira"  VÀ  không Cancelled',
+  },
+  {
+    id: 'E2E_NO_RULE', axis: 'TTM_E2E', group: 'NOTE', label: 'Không áp dụng rule TTM-E2E', precedence: 90, defaultEnabled: true, core: true,
+    meaning: 'Nhóm rule (Rule Group) của Epic không chọn rule đánh giá TTM-E2E nào — Epic không được chấm Đạt / Fail TTM-E2E và không tính vào chỉ số TTM-E2E.',
+    formula: 'Nhóm rule của Epic không có rule slot TTM-E2E  VÀ  không Cancelled',
   },
   {
     id: 'E2E_BASELINE_FROM_JIRA_CREATED', axis: 'TTM_E2E', group: 'NOTE', label: 'Baseline từ ngày tạo Jira', precedence: 95, defaultEnabled: true,
@@ -313,11 +323,13 @@ export const SUPPRESSIONS: readonly { when: BadgeId; suppress: readonly BadgeId[
   { when: 'CNTT_CALC_BROKEN', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH', 'REC_MISSING_FAIL_REASON', 'REC_MISSING_RESPONSIBLE_DEPARTMENT'] },
   { when: 'SCOPE_CNTT_OUT', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH', 'RELEASE_WAITING_GOLIVE', 'REC_MISSING_FAIL_REASON', 'REC_MISSING_RESPONSIBLE_DEPARTMENT'] },
   { when: 'E2E_CALC_BROKEN', suppress: ['E2E_FAIL', 'E2E_PASS', 'E2E_STATUS_MISMATCH'] },
+  // Rule Group without a TTM-CNTT verdict rule: "Cảnh báo muộn" (a rule that always runs) has no verdict to warn about.
+  { when: 'CNTT_NO_RULE', suppress: ['CNTT_LATE', 'REC_MISSING_FAIL_REASON', 'REC_MISSING_RESPONSIBLE_DEPARTMENT'] },
 ];
 
 /** TTM-CNTT (QLDA) / TTM-CNTT (QA) membership — not badges; aggregates only count these flags. */
 export const INDEX_MEMBERSHIP_RULES: { index: 'TTM-CNTT (QLDA)' | 'TTM-CNTT (QA)' | 'TTM-E2E'; flag: string; formula: string }[] = [
-  { index: 'TTM-CNTT (QLDA)', flag: 'Tính (counted) — L02', formula: 'không Cancelled  VÀ  không Epic ngoại lệ (Black listed / dự án Time to Market = N)  VÀ  không "Ngoài phạm vi TTM-CNTT (QLDA)"' },
+  { index: 'TTM-CNTT (QLDA)', flag: 'Tính (counted) — L02', formula: 'không Cancelled  VÀ  không Epic ngoại lệ (Black listed / dự án Time to Market = N)  VÀ  không "Ngoài phạm vi TTM-CNTT (QLDA)"  VÀ  nhóm rule của Epic có rule TTM-CNTT (không có "Không áp dụng rule TTM-CNTT")' },
   { index: 'TTM-CNTT (QLDA)', flag: 'Epic hoàn thành — L04a (eligible)', formula: 'counted  VÀ  có R4G  VÀ  không Sai lệch dữ liệu (R4G ở tương lai là Sai lệch dữ liệu R8 / R10 từ 09/10/2026, nên không còn thuộc L04a)' },
   { index: 'TTM-CNTT (QLDA)', flag: 'Đạt — L05aa (pass)', formula: 'eligible  VÀ  có badge "Đạt TTM-CNTT (QLDA)" (không tính được Target: chưa kết luận — L05ac, không vào mẫu số)' },
   { index: 'TTM-CNTT (QLDA)', flag: 'Fail — L05ab + L05ba', formula: 'counted  VÀ  có "Fail TTM-CNTT (QLDA)": có R4G muộn hơn Target (L05ab) hoặc chưa có R4G mà đã quá Target (L05ba). Epic Sai lệch dữ liệu không được chấm Fail' },

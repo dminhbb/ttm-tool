@@ -25,6 +25,7 @@ const PAGE_FEATURES: readonly { featureKey: string; path: string; prefix?: boole
   { path: '/admin/status-alert-rules', featureKey: 'status_alert_rules', prefix: true },
   { path: '/admin/database', featureKey: 'database_backup', prefix: true },
   { path: '/admin/permissions', featureKey: 'permission_matrix', prefix: true },
+  { path: '/admin/rule-management', featureKey: 'rule_management', prefix: true },
 ];
 
 /**
@@ -37,6 +38,7 @@ const API_FEATURES: readonly { featureKey: string; prefix: string }[] = [
   { prefix: '/api/ttm-dashboard-2', featureKey: 'ttm_dashboard_2' },
   { prefix: '/api/data-normalization', featureKey: 'data_normalization' },
   { prefix: '/api/reports', featureKey: 'epic_reports' },
+  { prefix: '/api/rule-groups', featureKey: 'rule_management' },
 ];
 
 /**

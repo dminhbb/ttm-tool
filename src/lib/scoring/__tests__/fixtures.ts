@@ -1,4 +1,5 @@
 import { DEFAULT_SCORING_PARAMETERS } from '../parameters';
+import { DEFAULT_RULE_GROUP } from '../registry';
 import type { EpicFacts, ScoringContext, ScoringTtmPolicy } from '../types';
 
 export const POLICIES: ScoringTtmPolicy[] = [
@@ -18,7 +19,6 @@ export function makeContext(overrides: Partial<ScoringContext> = {}): ScoringCon
     ],
     scope: { cnttFrom: null, cnttTo: null, qaFrom: null, qaTo: null },
     parameters: DEFAULT_SCORING_PARAMETERS,
-    ruleEnabled: {},
     rulesetVersion: 'test',
     ...overrides,
   };
@@ -40,4 +40,10 @@ export function makeFacts(overrides: Partial<EpicFacts> = {}): EpicFacts {
     phaseCompletion: { designDone: true, devDone: false, testDone: false, r4goliveDone: false },
     ...overrides,
   };
+}
+
+/** Context override: the default group without the given Rule objects (what switching a rule off means since
+ * Rule Groups — spec 2026-10-25). */
+export function withoutRules(...ruleIds: string[]): Pick<ScoringContext, 'ruleGroups'> {
+  return { ruleGroups: [{ ...DEFAULT_RULE_GROUP, id: 1, ruleIds: DEFAULT_RULE_GROUP.ruleIds.filter((id) => !ruleIds.includes(id)) }] };
 }

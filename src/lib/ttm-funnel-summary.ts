@@ -13,7 +13,7 @@ import { isOutsideTtmCalculation, summarizeE2e, summarizeQaIndex, summarizeTtmCn
  * filters and option lists read. */
 export const TTM_FUNNEL_ROW_KEYS = [
   'alertLevel', 'components', 'currentStatus', 'domainName', 'epicType', 'hasDataAnomaly', 'ownerName', 'projectKey', 'projectName',
-  'qaInScope', 'r4gDate', 'releaseAxisState', 'releaseGraceDeadline', 'requestingUnit', 'scoringBadges',
+  'qaInScope', 'r4gDate', 'releaseAxisState', 'releaseGraceDeadline', 'requestingUnit', 'ruleGroupName', 'scoringBadges',
   'scoringIndexFlags', 'ttmCnttInScope', 'ttmE2eAlertLevel', 'ttmExclusion',
 ] as const satisfies readonly (keyof DashboardEpicRow)[];
 
@@ -25,9 +25,10 @@ export function toTtmFunnelRow(row: TtmFunnelRow): TtmFunnelRow {
 
 /** Dimensions the Epics are broken down by — the matrix uses domain/epicType/pmsm/project, the pie
  * chart sections all five. */
-export type TtmBreakdownDimension = 'requestingUnit' | 'domain' | 'epicType' | 'pmsm' | 'project';
+/** `ruleGroup` = the Rule Group that judged the Epic (Rule Management, spec 2026-10-25 D12). */
+export type TtmBreakdownDimension = 'requestingUnit' | 'domain' | 'epicType' | 'pmsm' | 'project' | 'ruleGroup';
 
-export const TTM_BREAKDOWN_DIMENSIONS: readonly TtmBreakdownDimension[] = ['requestingUnit', 'domain', 'epicType', 'pmsm', 'project'];
+export const TTM_BREAKDOWN_DIMENSIONS: readonly TtmBreakdownDimension[] = ['requestingUnit', 'domain', 'epicType', 'pmsm', 'project', 'ruleGroup'];
 
 /** One value of a dimension (one matrix row / one pie slice). Counts follow the funnel criteria of
  * the Epics that carry that value.
@@ -97,7 +98,7 @@ export interface TtmDashboard2Insights {
  */
 export const TTM_FUNNEL_CRITERIA = {
   L01: { name: 'Tổng epic', definition: 'Mọi Epic trong phạm vi dữ liệu để tính toán (kể cả Cancelled)' },
-  L02: { name: 'Epic trong phạm vi tính TTM', definition: 'L01 − các Epic có status Cancelled − các Epic ngoại lệ (Epic trong danh sách Black listed + Epic thuộc dự án có Time to Market = N)' },
+  L02: { name: 'Epic trong phạm vi tính TTM', definition: 'L01 − các Epic có status Cancelled − các Epic ngoại lệ (Epic trong danh sách Black listed + Epic thuộc dự án có Time to Market = N) − các Epic thuộc nhóm rule không có rule TTM-CNTT (Rule Management)' },
   L03: { name: 'Epic chuẩn hoá dữ liệu', definition: 'L02 − các Epic bị đánh dấu "Sai lệch dữ liệu"' },
   L04a: { name: 'Epic hoàn thành', definition: 'Các Epic có R4G Date trong L03' },
   L04b: { name: 'Epic chưa hoàn thành', definition: 'Các Epic không có R4G Date trong L03' },
@@ -137,6 +138,8 @@ export interface TtmDashboard2FilterOptions {
   projectComponents: Record<string, string[]>;
   projects: string[];
   requestingUnits: string[];
+  /** Rule Groups that judged at least one Epic of the viewer's scope. */
+  ruleGroups: string[];
 }
 
 export interface TtmDashboard2Filters {
@@ -146,10 +149,12 @@ export interface TtmDashboard2Filters {
   pmSms: string[];
   projects: string[];
   requestingUnits: string[];
+  /** Rule Group names (Rule Management); empty = every group. */
+  ruleGroups: string[];
 }
 
 export function hasActiveTtmDashboard2Filter(filters: TtmDashboard2Filters): boolean {
-  return Boolean(filters.domain || filters.projects.length || filters.components.length || filters.pmSms.length || filters.requestingUnits.length);
+  return Boolean(filters.domain || filters.projects.length || filters.components.length || filters.pmSms.length || filters.requestingUnits.length || filters.ruleGroups?.length);
 }
 
 /** A PM/SM share shown as whole Epics: 17,6 → 18. The epsilon keeps sums of thirds / sixths that are
@@ -170,6 +175,7 @@ export const EMPTY_TTM_FUNNEL_BUCKETS: Readonly<Record<TtmFunnelBucket, number>>
   CANCELLED: 0,
   DATA_ANOMALY: 0,
   NO_R4G_OVERDUE: 0,
+  NO_CNTT_RULE: 0,
   NO_R4G_WITHIN_TARGET: 0,
   OUT_OF_SCOPE: 0,
   PROJECT_NON_TTM: 0,
@@ -190,6 +196,8 @@ export function filterTtmDashboard2Rows<T extends TtmFunnelRow>(rows: readonly T
     if (filters.components.length > 0 && !(row.components ?? []).some((component) => filters.components.includes(component))) return false;
     if (!matchesPmSmFilter(row.ownerName, filters.pmSms)) return false;
     if (filters.requestingUnits.length > 0 && (!row.requestingUnit || !filters.requestingUnits.includes(row.requestingUnit))) return false;
+    // `?.`: filters saved before the Rule Group filter existed have no `ruleGroups`.
+    if (filters.ruleGroups?.length && (!row.ruleGroupName || !filters.ruleGroups.includes(row.ruleGroupName))) return false;
     return true;
   });
 }
@@ -213,6 +221,8 @@ const BREAKDOWN_KEYS: Record<TtmBreakdownDimension, (row: TtmFunnelRow) => Break
     return names.length > 0 ? names.map((name) => ({ key: name, linkValue: name, name })) : [{ key: '', linkValue: null, name: 'Chưa gán PM/SM' }];
   },
   project: (row) => [row.projectKey ? { key: row.projectKey, linkValue: row.projectKey, name: row.projectName || row.projectKey } : { key: '', linkValue: null, name: 'Chưa gán' }],
+  // A row cached before Rule Groups existed has no group yet (the next cache rebuild stamps it).
+  ruleGroup: (row) => [row.ruleGroupName ? { key: row.ruleGroupName, linkValue: row.ruleGroupName, name: row.ruleGroupName } : { key: '', linkValue: null, name: 'Chưa xác định' }],
 };
 
 /** Widget row / matrix / pie chart numbers. `bucketOf` = each row's funnel leaf (already computed by
@@ -264,7 +274,8 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
         group.rows.push(row);
         group.shares.push(share);
         // Not part of L02: outside "Phạm vi dữ liệu cho TTM" ("Epic ngoại lệ" never get here — see `active`).
-        if (bucket === 'OUT_OF_SCOPE') continue;
+        // Nor an Epic whose Rule Group has no TTM-CNTT rule — it still counts in TTM-E2E and the operational widgets.
+        if (bucket === 'OUT_OF_SCOPE' || bucket === 'NO_CNTT_RULE') continue;
         group.item.total += share;
         if (bucket === 'R4G_PASS') group.item.pass += share;
         else if (bucket === 'R4G_LATE' || bucket === 'NO_R4G_OVERDUE') group.item.fail += share;
@@ -286,7 +297,8 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
           ...(unassignedByProject ? { linkProjects: [...new Set(groupRows.map((row) => row.projectKey).filter(Boolean))].sort() } : {}),
         };
       })
-      .filter((item) => item.total > 0 || item.qaTotal > 0)
+      // A Rule Group without a TTM-CNTT rule has L02 = 0 but is still worth a row (its Epics are judged otherwise).
+      .filter((item) => item.total > 0 || item.qaTotal > 0 || dimension === 'ruleGroup')
       .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'vi'));
   }
 
@@ -379,16 +391,17 @@ export function buildTtmDashboard2FilterOptions(rows: readonly TtmFunnelRow[], g
     projectComponents: Object.fromEntries([...projectComponents].map(([projectKey, components]) => [projectKey, [...components].sort(byVi)])),
     projects: [...new Set(rows.map((row) => row.projectKey).filter(Boolean))].sort(),
     requestingUnits: [...new Set(rows.map((row) => row.requestingUnit).filter((unit): unit is string => Boolean(unit)))].sort(byVi),
+    ruleGroups: [...new Set(rows.map((row) => row.ruleGroupName).filter((name): name is string => Boolean(name)))].sort(byVi),
   };
 }
 
 /** Every criterion L01…L05bb derived from the leaves (L02 = L01 − Cancelled − Epic ngoại lệ −
- * dự án Time to Market = N; L03 = L04a + L04b). */
+ * dự án Time to Market = N − nhóm rule không có rule TTM-CNTT; L03 = L04a + L04b). */
 export function ttmFunnelLayers(summary: TtmFunnelSummary) {
   const { buckets } = summary;
   const l1 = summary.total;
   // `?? 0`: a summary cached before these two buckets existed has no such keys.
-  const l2 = l1 - buckets.CANCELLED - (buckets.BLACK_LISTED ?? 0) - (buckets.PROJECT_NON_TTM ?? 0);
+  const l2 = l1 - buckets.CANCELLED - (buckets.BLACK_LISTED ?? 0) - (buckets.PROJECT_NON_TTM ?? 0) - (buckets.NO_CNTT_RULE ?? 0);
   const l3 = l2 - buckets.DATA_ANOMALY;
   const l4a = buckets.R4G_PASS + buckets.R4G_LATE + buckets.R4G_NOT_SCORED;
   const l4b = buckets.NO_R4G_OVERDUE + buckets.NO_R4G_WITHIN_TARGET;

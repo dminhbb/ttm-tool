@@ -275,7 +275,7 @@ describe('TTM Dashboard 2 summary (cache ↔ filtered recompute share these)', (
   });
 
   it('filters match TTM Dashboard 2 toolbar semantics (PM/SM is any of a comma-joined owner list)', () => {
-    const none = { components: [], domain: '', pmSms: [], projects: [], requestingUnits: [] };
+    const none = { components: [], domain: '', pmSms: [], projects: [], requestingUnits: [], ruleGroups: [] };
     assert.equal(hasActiveTtmDashboard2Filter(none), false);
     assert.equal(hasActiveTtmDashboard2Filter({ ...none, components: ['Line 1'] }), true);
     assert.equal(filterTtmDashboard2Rows(rows, { ...none, pmSms: ['Bình'] }).length, 4);
@@ -300,7 +300,7 @@ describe('TTM Dashboard 2 summary (cache ↔ filtered recompute share these)', (
       funnelRow({ projectKey: 'API', components: [] }),
       funnelRow({ projectKey: 'WM', components: ['Core'] }),
     ];
-    const none = { components: [], domain: '', pmSms: [], projects: [], requestingUnits: [] };
+    const none = { components: [], domain: '', pmSms: [], projects: [], requestingUnits: [], ruleGroups: [] };
 
     it('an Epic matches when it carries one of the selected components; one without a component never does', () => {
       assert.equal(filterTtmDashboard2Rows(componentRows, { ...none, projects: ['API'], components: ['API-Line-1'] }).length, 2);
@@ -351,5 +351,56 @@ describe('TTM-E2E ratio (2026-10-05): Đạt / (Đạt + Fail), same formula as 
     const summary = summarizeE2e([legacy({}), legacy({ ttmE2eAlertLevel: 'FAIL', r4gDate: null }), legacy({ ttmE2eAlertLevel: 'FAIL', hasDataAnomaly: true })]);
     assert.deepEqual([summary.pass, summary.fail, summary.denominator], [1, 1, 2]);
     assert.deepEqual([summarizeE2e([]).pctPrecise, summarizeE2e([legacy({ currentStatus: 'In Progress', r4gDate: null })]).pctPrecise], [100, 100]);
+  });
+});
+
+describe('Rule Groups on TTM Dashboard 2 (spec 2026-10-25 §8)', () => {
+  const funnelRow = (patch: Partial<TtmFunnelRow>): TtmFunnelRow => ({
+    alertLevel: 'NONE', components: [], currentStatus: 'In Progress', domainName: 'D1', epicType: 'CT-Lv12', hasDataAnomaly: false, ownerName: 'An',
+    projectKey: 'P1', projectName: 'Dự án 1', qaInScope: true, r4gDate: null, releaseAxisState: 'NONE', releaseGraceDeadline: null,
+    requestingUnit: 'Khối A', ruleGroupName: 'Default', scoringBadges: undefined, scoringIndexFlags: undefined, ttmCnttInScope: true, ttmE2eAlertLevel: 'NONE', ...patch,
+  });
+  const noRule = { ruleGroupName: 'Sep-2026', scoringBadges: ['CNTT_NO_RULE', 'E2E_FAIL'] };
+  const rows = [
+    funnelRow({ r4gDate: '2026-09-01', scoringIndexFlags: ['TTM_COUNTED', 'TTM_ELIGIBLE', 'TTM_PASS'] }),
+    funnelRow({ alertLevel: 'FAIL', scoringIndexFlags: ['TTM_COUNTED', 'TTM_FAIL'] }),
+    funnelRow(noRule),
+    funnelRow({ ...noRule, hasDataAnomaly: true }),
+    funnelRow({ ...noRule, currentStatus: 'Cancelled' }),
+  ];
+
+  it('an Epic whose group has no TTM-CNTT rule is peeled off at L02 (after Cancelled), before Sai lệch dữ liệu', () => {
+    assert.equal(ttmFunnelBucket(rows[2]), 'NO_CNTT_RULE');
+    assert.equal(ttmFunnelBucket(rows[3]), 'NO_CNTT_RULE');
+    assert.equal(ttmFunnelBucket(rows[4]), 'CANCELLED');
+    const summary = summarizeTtmFunnel(rows);
+    const layers = ttmFunnelLayers(summary);
+    assert.equal(summary.buckets.NO_CNTT_RULE, 2);
+    assert.deepEqual([layers.l1, layers.l2, layers.l3], [5, 2, 2]);
+  });
+
+  it('the TTM_NO_CNTT_RULE / L02-L04 filters agree with the buckets', () => {
+    const asVerdictRow = (sample: TtmFunnelRow) => ({ ...sample, ttmCnttStatusMismatch: false, scoringFindings: undefined }) as unknown as Parameters<typeof matchesAlertFilter>[0];
+    assert.deepEqual(rows.map((sample) => matchesAlertFilter(asVerdictRow(sample), 'TTM_NO_CNTT_RULE')), [false, false, true, true, false]);
+    assert.deepEqual(rows.map((sample) => matchesAlertFilter(asVerdictRow(sample), 'TTM_COUNTED_IN_SCOPE')), [true, true, false, false, false]);
+    assert.equal(matchesAlertFilter(asVerdictRow(rows[3]), 'DATA_ANOMALY_IN_SCOPE'), false);
+  });
+
+  it('breakdown "Theo Nhóm rule": L02 per group; the no-rule group still counts in TTM-E2E', () => {
+    assert.ok(TTM_BREAKDOWN_DIMENSIONS.includes('ruleGroup'));
+    const summary = summarizeTtmFunnel(rows);
+    const byName = Object.fromEntries(summary.insights.breakdowns.ruleGroup.map((item) => [item.name, item]));
+    assert.equal(byName.Default.total, 2);
+    assert.equal(byName.Default.pass, 1);
+    assert.equal(byName['Sep-2026'].total, 0);
+    assert.equal(summary.insights.e2e.fail, 1, 'Sep-2026 Epic without data anomaly is still in TTM-E2E');
+  });
+
+  it('toolbar filter + options + deep link', () => {
+    const none = { components: [], domain: '', pmSms: [], projects: [], requestingUnits: [], ruleGroups: [] };
+    assert.equal(hasActiveTtmDashboard2Filter({ ...none, ruleGroups: ['Sep-2026'] }), true);
+    assert.equal(filterTtmDashboard2Rows(rows, { ...none, ruleGroups: ['Sep-2026'] }).length, 3);
+    assert.deepEqual(buildTtmDashboard2FilterOptions(rows).ruleGroups, ['Default', 'Sep-2026']);
+    assert.equal(buildEpicAlertsDeepLink({ ruleGroup: ['Sep-2026', 'Default'] }), '/epic-alerts-15?ruleGroup=Sep-2026&ruleGroup=Default');
   });
 });

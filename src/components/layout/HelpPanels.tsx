@@ -1,12 +1,15 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Warning } from '@phosphor-icons/react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { ModalContentSearch } from '@/components/ui/ModalContentSearch';
 import { BADGE_LIST, FINDING_GROUPS, INDEX_MEMBERSHIP_RULES, INDEX_PERCENT_FORMULA, SCORING_AXES, SUPPRESSIONS, badgesOf } from '@/lib/scoring/catalog';
 import type { BadgeDefinition, FindingGroup } from '@/lib/scoring/catalog';
+import type { RuleGroupSummaryItem } from '@/lib/rule-group-config';
+import { buildRuleCatalog } from '@/lib/scoring/rule-catalog';
+import { RULE_CATEGORY_LABELS, RULE_CATEGORY_ORDER, RULE_SLOT_LABELS } from '@/lib/scoring/rule-labels';
 
 interface HelpPanelProps {
   isOpen: boolean;
@@ -36,6 +39,54 @@ function BadgeChip({ badge }: { badge: BadgeDefinition }) {
 function GroupChip({ group }: { group: FindingGroup }) {
   const label = FINDING_GROUPS.find((item) => item.id === group)?.label ?? group;
   return <span className={`inline-flex whitespace-nowrap rounded border px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide ${GROUP_TONE[group]}`}>{label}</span>;
+}
+
+/** Rule objects (src/lib/scoring/registry.ts) — selectable ones first, then those that always run. */
+const RULE_CATALOG = buildRuleCatalog();
+
+/** "Logic cảnh báo" §10 — the Rule Groups in force, read when the popup opens (every signed-in user). */
+function RuleGroupsInForce({ isOpen }: { isOpen: boolean }) {
+  const [groups, setGroups] = useState<RuleGroupSummaryItem[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    let cancelled = false;
+    void fetch('/api/rule-group-summary', { cache: 'no-store' })
+      .then(async (response) => {
+        const payload = (await response.json()) as { groups?: RuleGroupSummaryItem[]; error?: string };
+        if (!response.ok || !payload.groups) throw new Error(payload.error || 'Không thể tải danh sách nhóm rule.');
+        if (!cancelled) setGroups(payload.groups);
+      })
+      .catch((err: unknown) => { if (!cancelled) setError(err instanceof Error ? err.message : 'Không thể tải danh sách nhóm rule.'); });
+    return () => { cancelled = true; };
+  }, [isOpen]);
+  if (error) return <p className="text-xs text-status-danger">{error}</p>;
+  if (!groups) return <p className="text-xs">Đang tải…</p>;
+  const selectable = RULE_CATALOG.filter((rule) => !rule.core);
+  return (
+    <div className="overflow-x-auto">
+      <table className="ui-table w-full text-xs">
+        <thead><tr><th className="text-left">Ưu tiên</th><th className="text-left">Nhóm rule</th><th className="text-left">Điều kiện ngày Epic</th><th className="text-left">Rule áp dụng</th></tr></thead>
+        <tbody>
+          {groups.map((group) => {
+            const missing = selectable.filter((rule) => !group.ruleIds.includes(rule.id));
+            return (
+              <tr key={group.name}>
+                <td className="align-top">{group.isDefault ? 'Cuối' : group.priority ?? 'Tắt'}</td>
+                <td className="align-top font-semibold text-fb-text-primary">{group.name}{!group.enabled && <span className="font-normal"> (tắt)</span>}</td>
+                <td className="align-top">{group.conditions}</td>
+                <td className="align-top">
+                  {missing.length === 0
+                    ? `Tất cả ${selectable.length} rule chọn được`
+                    : <>{group.ruleIds.length}/{selectable.length} rule — <strong className="text-fb-text-primary">không áp dụng</strong>: {missing.map((rule) => rule.name).join(', ')}</>}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 const badgeLabel = (id: string) => BADGE_LIST.find((badge) => badge.id === id)?.label ?? id;
@@ -77,7 +128,7 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
             <li>Mọi rule nằm trong <strong className="text-fb-text-primary">1 Scoring Service duy nhất</strong>. Đầu vào là dữ liệu 1 Epic và mốc <code>asOf</code>; đầu ra là <strong className="text-fb-text-primary">danh sách finding</strong>, mỗi finding gắn đúng 1 badge.</li>
             <li>Mỗi badge thuộc <strong className="text-fb-text-primary">đúng 1 Axis</strong> và <strong className="text-fb-text-primary">đúng 1 Finding Group</strong>. Một Epic có thể có nhiều badge cùng lúc trên nhiều axis; màn hình tự chọn badge cần hiển thị.</li>
             <li><code>asOf</code> là mốc &quot;hôm nay&quot; tương đối theo giờ Việt Nam: bằng hôm nay khi xem hiện tại, bằng ngày của lớp dữ liệu khi xem quá khứ. Dữ liệu Epic và story/subtask đều lấy tại <code>asOf</code>.</li>
-            <li>Tham số (offset, thời hạn grace, khoảng ngày, tỉ lệ…) và việc bật/tắt từng rule lấy từ cấu hình trong DB; logic nằm trong code.</li>
+            <li>Tham số (offset, thời hạn grace, khoảng ngày, tỉ lệ…) lấy từ cấu hình trong DB; logic nằm trong code dưới dạng các <strong className="text-fb-text-primary">Rule object</strong> (mục 9). Rule nào chấm Epic nào do <strong className="text-fb-text-primary">nhóm rule</strong> quyết định (mục 10, SUPERADMIN cấu hình ở Rule Management).</li>
           </ul>
         </section>
 
@@ -194,7 +245,7 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
         <section>
           <h3 className="ui-card-title mb-1">8. Thay đổi so với logic cũ (chốt từ 29/09/2026, cập nhật 19/10/2026)</h3>
           <ul className="ml-5 list-disc space-y-1 text-xs">
-            <li><strong className="text-fb-text-primary">Phạm vi rule Sai lệch dữ liệu</strong> (10/10/2026, Cấu hình cảnh báo): SUPERADMIN có thể giới hạn từng rule R1, R3–R6, R8–R10 theo mốc ngày (Ngày tạo Epic &gt;, Start Date &gt;, R4G Date &gt;, Due Date &gt;). Epic ngoài phạm vi của một rule không bị rule đó gắn Sai lệch dữ liệu; Epic chưa có ngày tương ứng thì bỏ qua điều kiện ngày đó (12/10/2026).</li>
+            <li><strong className="text-fb-text-primary">Nhóm rule — Rule Management</strong> (25/10/2026): thay cho &quot;Phạm vi rule Sai lệch dữ liệu&quot; (10/10/2026) và công tắc bật/tắt từng badge. Mỗi Epic thuộc đúng 1 nhóm rule theo mốc ngày của nó và chỉ được chấm bằng các rule nhóm đó chọn (mục 9, 10). Nhóm không có rule TTM-CNTT: Epic bị loại ở L02 (không tính TTM-CNTT (QLDA) / (QA)); không có rule TTM-E2E: không tính TTM-E2E.</li>
             <li><strong className="text-fb-text-primary">&quot;Thiếu lý do Fail TTM&quot; và &quot;Thiếu phòng chịu TN chính&quot;</strong> (10/10 và 14/10/2026, nhóm Khuyến nghị): chỉ xét Epic Fail TTM-CNTT có R4G Date muộn hơn Target — thiếu cả 9 trường khâu fail / thiếu trường &quot;Phòng chịu trách nhiệm chính&quot;. Không đổi kết luận Đạt / Fail; gom thành widget THIẾU LÝ DO trên TTM Dashboard 2 và panel đầu tiên của màn hình Chuẩn hoá dữ liệu.</li>
             <li><strong className="text-fb-text-primary">Reopened</strong> (05/10/2026): Epic đã golive rồi bị mở lại không bị R8 với R4G Date đã tới (giữ kết luận TTM, không gắn &quot;Sai Status&quot;); R4G Date ở tương lai thì vẫn là R10.</li>
             <li><strong className="text-fb-text-primary">Bỏ &quot;Cảnh báo sớm&quot;</strong> ở cả TTM-CNTT (QLDA), trục Release và cột pha. Offset &quot;sớm&quot; trong Cấu hình cảnh báo không còn được dùng. Trường hợp trục Release trước đây hiện &quot;Cảnh báo sớm&quot; (status đã qua R4GOLIVE, chưa có Due Date, còn trong hạn) nay không hiện badge nào cho tới khi quá hạn thành &quot;Giải trình Golive&quot;.</li>
@@ -210,6 +261,39 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
             <li><strong className="text-fb-text-primary">Hoàn thành pha theo asOf</strong>: khi xem lớp dữ liệu cũ, trạng thái story/subtask được lấy tại ngày đó thay vì hôm nay.</li>
             <li><strong className="text-fb-text-primary">Mốc Target_CNTT thống nhất</strong> = <code>T1 +wd (N_CNTT − 1)</code> cho mọi badge (Fail, Cảnh báo muộn, Sai Status, Đạt, Phạm vi) — logic cũ dùng <code>T1 +wd N_CNTT</code> cho badge nên Fail sớm hơn tối đa 1 ngày làm việc.</li>
           </ul>
+        </section>
+
+        <section>
+          <h3 className="ui-card-title mb-1">9. Rule object</h3>
+          <p className="text-xs">Mỗi Rule object là một đơn vị logic phát ra một nhóm badge. <strong className="text-fb-text-primary">Rule chọn được</strong> chỉ chạy cho Epic thuộc nhóm rule đã chọn nó; <strong className="text-fb-text-primary">rule luôn chạy</strong> áp dụng cho mọi Epic. Rule đánh giá TTM-CNTT (QLDA) / TTM-E2E: mỗi nhóm chọn tối đa 1, các biến thể phát cùng badge Đạt / Fail nên chỉ số và phễu không đổi cách đếm.</p>
+          <div className="mt-1 overflow-x-auto">
+            <table className="ui-table w-full text-xs">
+              <thead><tr><th className="text-left">Rule</th><th className="text-left">Loại</th><th className="text-left">Tóm tắt</th><th className="text-left">Badge</th></tr></thead>
+              <tbody>
+                {RULE_CATEGORY_ORDER.flatMap((category) => {
+                  const rules = RULE_CATALOG.filter((rule) => rule.category === category);
+                  if (!rules.length) return [];
+                  return [
+                    <tr key={category}><td colSpan={4} className="bg-fb-surface-muted font-semibold text-fb-text-primary">{RULE_CATEGORY_LABELS[category]}</td></tr>,
+                    ...rules.map((rule) => (
+                      <tr key={rule.id}>
+                        <td className="align-top"><div className="font-semibold text-fb-text-primary">{rule.name}</div><code className="text-xs">{rule.id}</code></td>
+                        <td className="align-top whitespace-nowrap">{rule.core ? 'Luôn chạy' : rule.slot ? `Đánh giá ${RULE_SLOT_LABELS[rule.slot]}` : 'Chọn theo nhóm'}</td>
+                        <td className="align-top">{rule.summary}{rule.requires.length > 0 && <> Cần rule đánh giá {rule.requires.map((slot) => RULE_SLOT_LABELS[slot]).join(', ')} trong cùng nhóm.</>}</td>
+                        <td className="align-top">{rule.emits.map((badge) => badge.label).join(', ')}</td>
+                      </tr>
+                    )),
+                  ];
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section>
+          <h3 className="ui-card-title mb-1">10. Nhóm rule đang áp dụng</h3>
+          <p className="mb-1 text-xs">Mỗi Epic thuộc nhóm <strong className="text-fb-text-primary">bật</strong> có ưu tiên cao nhất mà nó khớp mọi điều kiện ngày (AND, tính cả hai đầu; Epic thiếu ngày đó thì không khớp); không khớp nhóm nào thì thuộc nhóm Default. Chỉ số toàn công ty là tổng hợp kết quả của các nhóm — xem chiều &quot;Theo Nhóm rule&quot; trên TTM Dashboard 2.</p>
+          <RuleGroupsInForce isOpen={isOpen} />
         </section>
       </div>
     </Modal>
@@ -330,9 +414,8 @@ export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
           <p>
             Khi tạo cache, <strong className="text-fb-text-primary">Scoring Service</strong> đánh giá &quot;Sai lệch dữ liệu&quot; theo các rule <strong>R1, R3–R6, R8–R10</strong>
             (R2 &quot;Pending lâu&quot; và R7 &quot;Sai Status (Release)&quot; là khuyến nghị, không tính là sai lệch). Epic sai lệch dữ liệu không được chấm Đạt / Fail và nằm ngoài
-            mẫu số các chỉ số; danh sách cần sửa xem ở màn hình <strong className="text-fb-text-primary">Chuẩn hoá dữ liệu</strong>. SUPERADMIN có thể giới hạn từng rule theo
-            mốc ngày (Cấu hình cảnh báo → &quot;Phạm vi rule Sai lệch dữ liệu&quot;). Bảng rule đầy đủ: popup &quot;Logic cảnh báo&quot; và Tài liệu sản phẩm mục 9.1.
-            Khi SUPERADMIN chọn hiển thị theo logic cũ, các màn hình dùng bộ rule R1–R7 của logic cũ.
+            mẫu số các chỉ số; danh sách cần sửa xem ở màn hình <strong className="text-fb-text-primary">Chuẩn hoá dữ liệu</strong>. SUPERADMIN chọn rule nào áp dụng cho từng nhóm Epic theo
+            mốc ngày (Quản trị hệ thống → &quot;Rule Management&quot;). Bảng rule đầy đủ: popup &quot;Logic cảnh báo&quot; và Tài liệu sản phẩm mục 9.1.
           </p>
         </section>
 

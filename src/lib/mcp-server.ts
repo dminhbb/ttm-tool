@@ -63,6 +63,8 @@ function summarizeAlertRow(row: Awaited<ReturnType<typeof getEpicAlertRowsForDis
     r4gDate: row.r4gDate,
     remainingWorkingDays: row.remainingWorkingDays,
     ttmE2eAlertLevel: row.ttmE2eAlertLevel,
+    // Rule Group (Rule Management) that judged the Epic; absent for an "Epic ngoại lệ".
+    ...(row.ruleGroupName ? { ruleGroup: row.ruleGroupName } : {}),
     // Present when the display engine is the Epic Scoring Service: active badge codes (see
     // get_epic_detail's `danhGia` for labels/messages).
     ...(row.scoringBadges ? { badges: row.scoringBadges } : {}),
@@ -75,6 +77,8 @@ async function describeScorecard(epicKey: string) {
   if (!card) return null;
   return {
     asOf: card.asOf,
+    // Rule Group (Rule Management) whose rules judged the Epic; null = "Epic ngoại lệ" (not judged).
+    nhomRule: card.ruleGroup ? { ten: card.ruleGroup.name, macDinh: card.ruleGroup.isDefault } : null,
     findings: card.findings.filter((item) => !item.suppressedBy).map((item) => {
       const badge = BADGE_BY_ID.get(item.badge);
       return {
@@ -157,24 +161,26 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
         projectKey: z.string().trim().max(50).optional().describe('Lọc theo mã dự án Jira (project key), ví dụ "TTM".'),
         alertLevel: z.enum(['NONE', 'EARLY', 'LATE', 'FAIL']).optional().describe('Lọc theo mức cảnh báo.'),
         nhanXet: z.enum(NHAN_XET_VALUES).optional().describe(
-          'Bộ lọc "Nhận xét" của màn Quản trị Epic. Tiêu chí phễu TTM Dashboard 2: IN_SCOPE_CNTT = L01 (cần includeCancelled = true để tính cả Epic Cancelled), TTM_COUNTED_IN_SCOPE = L02 (L01 − Cancelled − Epic ngoại lệ), TTM_BLACK_LISTED = Epic ngoại lệ loại Black listed, TTM_PROJECT_NON_TTM = Epic ngoại lệ loại dự án Time to Market = N (Epic ngoại lệ không được Scoring Service xét nên không khớp bộ lọc đánh giá nào khác), DATA_ANOMALY_IN_SCOPE = Sai lệch dữ liệu (L02 − L03), '
+          'Bộ lọc "Nhận xét" của màn Quản trị Epic. Tiêu chí phễu TTM Dashboard 2: IN_SCOPE_CNTT = L01 (cần includeCancelled = true để tính cả Epic Cancelled), TTM_COUNTED_IN_SCOPE = L02 (L01 − Cancelled − Epic ngoại lệ), TTM_BLACK_LISTED = Epic ngoại lệ loại Black listed, TTM_PROJECT_NON_TTM = Epic ngoại lệ loại dự án Time to Market = N (Epic ngoại lệ không được Scoring Service xét nên không khớp bộ lọc đánh giá nào khác), TTM_NO_CNTT_RULE = Epic thuộc nhóm rule không có rule TTM-CNTT (cũng bị loại ở L02; vẫn được xét TTM-E2E, Sai lệch dữ liệu…), DATA_ANOMALY_IN_SCOPE = Sai lệch dữ liệu (L02 − L03), '
           + 'TTM_ELIGIBLE_IN_SCOPE = L04a, MISSING_R4G_IN_SCOPE = L04b, TTM_PASS_IN_SCOPE = L05aa, TTM_LATE_IN_SCOPE = L05ab, TTM_NOT_SCORED_IN_SCOPE = L05ac, '
           + 'OVERDUE_MISSING_R4G_IN_SCOPE = L05ba, WITHIN_TARGET_MISSING_R4G = L05bb, OUT_OF_SCOPE_CNTT = ngoài "Phạm vi dữ liệu cho TTM". '
           + 'Khác: ACHIEVED_E2E / FAIL_E2E, LATE (Chậm tiến độ), DATA_ANOMALY, PENDING_TOO_LONG, WAITING_GOLIVE (+ _MISSING_R4G / _WITHIN_GRACE / _OVERDUE), JUSTIFY_GOLIVE, STATUS_MISMATCH.',
         ),
         includeCancelled: z.boolean().optional().describe('Chỉ có tác dụng khi dùng nhanXet: true = tính cả Epic Cancelled (mặc định loại, giống màn Quản trị Epic).'),
         search: z.string().trim().max(100).optional().describe('Tìm theo mã hoặc tên Epic (không phân biệt hoa/thường).'),
+        ruleGroup: z.string().trim().max(100).optional().describe('Lọc theo tên nhóm rule (Rule Management) đã chấm Epic, không phân biệt hoa/thường, ví dụ "Default".'),
         limit: z.number().int().min(1).max(MAX_ALERT_ROWS).optional().describe(`Số dòng tối đa trả về (mặc định ${DEFAULT_ALERT_ROWS}, tối đa ${MAX_ALERT_ROWS}).`),
       },
     },
-    async ({ projectKey, alertLevel, nhanXet, includeCancelled, search, limit }) => {
+    async ({ projectKey, alertLevel, nhanXet, includeCancelled, search, ruleGroup, limit }) => {
       const { rows, lastAggregatedAt, viewerName } = await getEpicAlertRowsForDisplay(user.id, user.role);
       const searchLower = search?.toLowerCase();
       const filtered = rows.filter((row) =>
         (!projectKey || row.projectKey.toLowerCase() === projectKey.toLowerCase())
         && (!alertLevel || row.alertLevel === alertLevel)
         && (!nhanXet || (matchesAlertFilter(row, nhanXet) && (includeCancelled || !isCancelledStatus(row.currentStatus || ''))))
-        && (!searchLower || row.epicKey.toLowerCase().includes(searchLower) || row.epicName.toLowerCase().includes(searchLower)),
+        && (!searchLower || row.epicKey.toLowerCase().includes(searchLower) || row.epicName.toLowerCase().includes(searchLower))
+        && (!ruleGroup || (row.ruleGroupName ?? '').toLowerCase() === ruleGroup.toLowerCase()),
       );
       await touch();
       return json({
@@ -192,7 +198,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
     {
       title: 'Chi tiết một Epic',
       description: 'Tra cứu chi tiết một Epic theo mã (epicKey) — trạng thái Jira, người phụ trách, ngày due/start/R4G, dự án, và `danhGia`: '
-        + 'danh sách đánh giá của Scoring Service (badge, nhóm Cảnh báo/Đạt/Fail/Khuyến nghị/Ghi nhận, trục, nội dung).',
+        + 'danh sách đánh giá của Scoring Service (badge, nhóm Cảnh báo/Đạt/Fail/Khuyến nghị/Ghi nhận, trục, nội dung) và `nhomRule`: nhóm rule (Rule Management) đã chấm Epic.',
       inputSchema: {
         epicKey: z.string().trim().min(1).max(50).describe('Mã Epic trên Jira, ví dụ "TTM-1234".'),
       },
@@ -233,7 +239,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
         + 'phễu Epic theo tiêu chí L01…L05bb (Tổng epic, loại Cancelled, loại Sai lệch dữ liệu, Epic hoàn thành / chưa hoàn thành, Đạt / Không đạt / Chưa kết luận / Trong hạn), '
         + 'chỉ số TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E (Tỷ lệ % Pass = Đạt / (Đạt + Fail)) của tập đang xem và của toàn công ty, '
         + 'các widget Fail TTM-CNTT, Chậm tiến độ, Sai lệch dữ liệu, Chờ golive (thiếu R4G / trong hạn / quá hạn), Giải trình Golive, '
-        + 'và bảng phân tích theo chiều (dự án / domain / PM-SM / phân loại Epic / đơn vị yêu cầu). '
+        + 'và bảng phân tích theo chiều (dự án / domain / PM-SM / phân loại Epic / đơn vị yêu cầu / nhóm rule). Khi có nhiều nhóm rule (Rule Management), chỉ số là tổng hợp kết quả của các nhóm — dùng dimension ruleGroup để xem từng nhóm. '
         + 'Dùng cho câu hỏi kiểu "TTM-CNTT (QLDA) domain X bao nhiêu", "có bao nhiêu epic fail TTM", "dự án nào nhiều Epic sai lệch dữ liệu nhất". '
         + 'Tool chỉ trả số tổng hợp — danh sách Epic sau mỗi con số lấy bằng list_epic_alerts (tham số nhanXet); rule/cách tính: search_product_docs.',
       inputSchema: {
@@ -241,7 +247,8 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
         domain: z.string().trim().max(200).optional().describe('Lọc theo tên domain (không phân biệt hoa/thường).'),
         pmSms: z.array(z.string().trim().min(1).max(200)).max(20).optional().describe('Lọc theo tên PM/SM phụ trách (Epic của bất kỳ người nào trong danh sách).'),
         requestingUnits: z.array(z.string().trim().min(1).max(200)).max(20).optional().describe('Lọc theo Đơn vị yêu cầu.'),
-        dimension: z.enum(['project', 'domain', 'pmsm', 'epicType', 'requestingUnit']).optional().describe('Chiều phân tích cho bảng breakdown (mặc định project).'),
+        ruleGroups: z.array(z.string().trim().min(1).max(100)).max(20).optional().describe('Lọc theo tên nhóm rule (Rule Management) đã chấm Epic.'),
+        dimension: z.enum(['project', 'domain', 'pmsm', 'epicType', 'requestingUnit', 'ruleGroup']).optional().describe('Chiều phân tích cho bảng breakdown (mặc định project). ruleGroup = theo nhóm rule.'),
       },
     },
     async (filters) => {

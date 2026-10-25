@@ -111,6 +111,10 @@ export interface EpicAlertRowPhased {
   scoringBadges?: string[];
   scoringIndexFlags?: string[];
   scoringFindings?: Finding[];
+  /** The Rule Group that judged the Epic (Rule Management, spec 2026-10-25); absent for an "Epic ngoại lệ"
+   * (not judged) and on rows cached before Rule Groups existed. */
+  ruleGroupId?: number;
+  ruleGroupName?: string;
   /** "Epic ngoại lệ" — the Epic has a row in black_listed_epics (shown as a black dot next to its
    * key). Stamped on by applyTtmExclusions (black-listed-epic-service.ts) for both display engines;
    * absent on rows no reader has stamped yet (treated as false). */
@@ -135,7 +139,7 @@ export interface EpicAlertRowPhased {
 export const DASHBOARD_EPIC_ROW_KEYS = [
   'alertLevel', 'components', 'currentStatus', 'dataAnomalyViolations', 'domainName', 'dueDate', 'epicKey', 'epicName',
   'epicType', 'hasDataAnomaly', 'ownerName', 'projectKey', 'projectName', 'qaInScope', 'r4gDate',
-  'releaseAxisState', 'releaseGraceDeadline', 'requestingUnit', 'scoringBadges', 'scoringIndexFlags',
+  'releaseAxisState', 'releaseGraceDeadline', 'requestingUnit', 'ruleGroupName', 'scoringBadges', 'scoringIndexFlags',
   'targetR4gDate', 'ttmBlackListed', 'ttmCnttInScope', 'ttmE2eAlertLevel', 'ttmExclusion',
 ] as const satisfies readonly (keyof EpicAlertRowPhased)[];
 

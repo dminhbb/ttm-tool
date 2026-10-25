@@ -21,7 +21,7 @@ import type { EpicScorecard } from '@/lib/scoring/types';
 const INSERT_CHUNK_SIZE = 200;
 /** Arbitrary constant key for pg_advisory_xact_lock — unique to this cache's rebuild. */
 const EPIC_ALERT_ROW_CACHE_LOCK_KEY = 7_260_925;
-const INSERT_COLUMN_COUNT = 24;
+const INSERT_COLUMN_COUNT = 26;
 
 /** `precomputedRows` — same as refreshTtmIndexGlobalCache's: lets refreshDerivedCaches
  * (daily-cache-service.ts) compute the unscoped row set once for both caches. `scorecards` — the
@@ -73,7 +73,7 @@ export async function refreshEpicAlertRowCache(batchId: number | null, precomput
         );
         const base = params.length - INSERT_COLUMN_COUNT;
         const p = (index: number) => `$${base + index}`;
-        return `(${p(1)}, ${p(2)}, ${p(3)}, ${p(4)}, ${p(5)}, ${p(6)}, ${p(7)}, ${p(8)}, ${p(9)}, ${p(10)}, ${p(11)}, ${p(12)}, ${p(13)}, ${p(14)}, NOW(), ${p(15)}, ${p(16)}, ${p(17)}, ${p(18)}, ${p(19)}, ${p(20)}, ${p(21)}, ${p(22)}, ${p(23)}, ${p(24)})`;
+        return `(${p(1)}, ${p(2)}, ${p(3)}, ${p(4)}, ${p(5)}, ${p(6)}, ${p(7)}, ${p(8)}, ${p(9)}, ${p(10)}, ${p(11)}, ${p(12)}, ${p(13)}, ${p(14)}, NOW(), ${p(15)}, ${p(16)}, ${p(17)}, ${p(18)}, ${p(19)}, ${p(20)}, ${p(21)}, ${p(22)}, ${p(23)}, ${p(24)}, ${p(25)}, ${p(26)})`;
       });
       await client.query(
         `
@@ -83,7 +83,8 @@ export async function refreshEpicAlertRowCache(batchId: number | null, precomput
           epic_name, row_data, source_import_batch_id, computed_at,
           alert_rank, bottom_status_rank, remaining_working_days_rank,
           ttm_cntt_in_scope, qa_in_scope,
-          badge_codes, index_flags, findings, scoring_ruleset_version, scored_as_of
+          badge_codes, index_flags, findings, scoring_ruleset_version, scored_as_of,
+          rule_group_id, rule_group_name
         ) VALUES ${valuesSql.join(', ')};
         `,
         params,
@@ -99,8 +100,8 @@ export async function refreshEpicAlertRowCache(batchId: number | null, precomput
 }
 
 function scorecardColumns(card: EpicScorecard | undefined): unknown[] {
-  if (!card) return [[], [], '[]', null, null];
-  return [badgeCodesOf(card), indexFlagsOf(card), JSON.stringify(card.findings), card.rulesetVersion, card.asOf];
+  if (!card) return [[], [], '[]', null, null, null, null];
+  return [badgeCodesOf(card), indexFlagsOf(card), JSON.stringify(card.findings), card.rulesetVersion, card.asOf, card.ruleGroup?.id ?? null, card.ruleGroup?.name ?? null];
 }
 
 function ownerNamesOf(row: EpicAlertRowPhased): string[] {

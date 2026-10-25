@@ -29,6 +29,8 @@ export interface EpicAlertRowCacheFilters {
   statuses?: string[];
   dataIssueOnly?: boolean;
   requestingUnits?: string[];
+  /** "Nhóm rule" (Rule Management) names — rule_group_name of the cache row. */
+  ruleGroups?: string[];
   search?: string;
 }
 
@@ -121,6 +123,10 @@ function buildFilterClause(scope: AccessScope, filters: EpicAlertRowCacheFilters
     params.push(filters.requestingUnits);
     clauses.push(`requesting_unit = ANY($${params.length}::text[])`);
   }
+  if (filters.ruleGroups && filters.ruleGroups.length > 0) {
+    params.push(filters.ruleGroups);
+    clauses.push(`rule_group_name = ANY($${params.length}::text[])`);
+  }
   if (filters.search) {
     params.push(`%${filters.search}%`);
     clauses.push(`(epic_key ILIKE $${params.length} OR epic_name ILIKE $${params.length})`);
@@ -143,9 +149,10 @@ const VN_TODAY_TEXT_SQL = "to_char((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_
  */
 function buildFieldFilterClause(alertFilter: string | undefined): string | null {
   const hasR4g = "(row_data->>'r4gDate') IS NOT NULL";
-  // "Epic ngoại lệ" / project Time to Market = N (row_data.ttmExclusion, see applyTtmExclusions) —
-  // outside L02, so none of the funnel layers below it may list them.
-  const counted = "(row_data->>'ttmExclusion') IS NULL";
+  // "Epic ngoại lệ" / project Time to Market = N (row_data.ttmExclusion, see applyTtmExclusions) and Epics whose
+  // Rule Group has no TTM-CNTT rule (badge CNTT_NO_RULE) — outside L02, so none of the funnel layers below it may
+  // list them.
+  const counted = "(row_data->>'ttmExclusion') IS NULL AND NOT (badge_codes @> ARRAY['CNTT_NO_RULE'])";
   const waiting = "badge_codes @> ARRAY['RELEASE_WAITING_GOLIVE']";
   const withinGrace = `(row_data->>'releaseGraceDeadline') IS NOT NULL AND ${VN_TODAY_TEXT_SQL} <= (row_data->>'releaseGraceDeadline')`;
   switch (alertFilter) {
@@ -158,6 +165,7 @@ function buildFieldFilterClause(alertFilter: string | undefined): string | null 
     case 'TTM_COUNTED_IN_SCOPE': return `ttm_cntt_in_scope AND current_status !~* 'cancel' AND ${counted}`;
     case 'TTM_BLACK_LISTED': return "ttm_cntt_in_scope AND current_status !~* 'cancel' AND row_data->>'ttmExclusion' = 'BLACK_LISTED'";
     case 'TTM_PROJECT_NON_TTM': return "ttm_cntt_in_scope AND current_status !~* 'cancel' AND row_data->>'ttmExclusion' = 'PROJECT_NON_TTM'";
+    case 'TTM_NO_CNTT_RULE': return "ttm_cntt_in_scope AND current_status !~* 'cancel' AND (row_data->>'ttmExclusion') IS NULL AND badge_codes @> ARRAY['CNTT_NO_RULE']";
     case 'WAITING_GOLIVE_MISSING_R4G': return `${waiting} AND NOT ${hasR4g}`;
     case 'WAITING_GOLIVE_WITHIN_GRACE': return `${waiting} AND ${hasR4g} AND (${withinGrace})`;
     case 'WAITING_GOLIVE_OVERDUE': return `${waiting} AND ${hasR4g} AND NOT (${withinGrace})`;
@@ -283,6 +291,7 @@ export interface EpicAlertFilterOptions {
   pmSmNames: string[];
   projectKeys: string[];
   requestingUnits: string[];
+  ruleGroups: string[];
   statuses: string[];
 }
 
@@ -294,9 +303,9 @@ export async function queryEpicAlertFilterOptions(scope: AccessScope): Promise<E
   const params: unknown[] = [];
   const accessClause = buildAccessScopeClause(scope, params);
   const result = await pool.query<{
-    projectKey: string; status: string; requestingUnit: string | null; domainName: string | null; ownerNames: string[];
+    projectKey: string; status: string; requestingUnit: string | null; domainName: string | null; ownerNames: string[]; ruleGroupName: string | null;
   }>(
-    `SELECT project_key AS "projectKey", current_status AS status, requesting_unit AS "requestingUnit", row_data->>'domainName' AS "domainName", owner_names AS "ownerNames" FROM epic_alert_row_cache WHERE ${accessClause};`,
+    `SELECT project_key AS "projectKey", current_status AS status, requesting_unit AS "requestingUnit", row_data->>'domainName' AS "domainName", owner_names AS "ownerNames", rule_group_name AS "ruleGroupName" FROM epic_alert_row_cache WHERE ${accessClause};`,
     params,
   );
   const projectKeys = new Set<string>();
@@ -304,11 +313,13 @@ export async function queryEpicAlertFilterOptions(scope: AccessScope): Promise<E
   let hasUnassignedEpic = false;
   const statuses = new Set<string>();
   const requestingUnits = new Set<string>();
+  const ruleGroups = new Set<string>();
   const domainProjectKeys: Record<string, Set<string>> = {};
   for (const row of result.rows) {
     if (row.projectKey) projectKeys.add(row.projectKey);
     if (row.status) statuses.add(row.status);
     if (row.requestingUnit) requestingUnits.add(row.requestingUnit);
+    if (row.ruleGroupName) ruleGroups.add(row.ruleGroupName);
     for (const name of row.ownerNames ?? []) pmSmNames.add(name);
     if ((row.ownerNames ?? []).length === 0) hasUnassignedEpic = true;
     if (row.domainName && row.projectKey) {
@@ -321,6 +332,7 @@ export async function queryEpicAlertFilterOptions(scope: AccessScope): Promise<E
     pmSmNames: [...[...pmSmNames].sort((a, b) => a.localeCompare(b, 'vi')), ...(hasUnassignedEpic ? [UNASSIGNED_PM_SM] : [])],
     projectKeys: [...projectKeys].sort(),
     requestingUnits: [...requestingUnits].sort((a, b) => a.localeCompare(b, 'vi')),
+    ruleGroups: [...ruleGroups].sort((a, b) => a.localeCompare(b, 'vi')),
     statuses: [...statuses].sort(compareWorkflowStatus),
   };
 }

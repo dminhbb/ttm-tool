@@ -26,7 +26,7 @@ interface DataNormalizationResponse {
   totalEpics: number;
 }
 
-const EMPTY_FILTER_OPTIONS: TtmDashboard2FilterOptions = { domainProjectKeys: {}, domains: [], pmSms: [], projectComponents: {}, projects: [], requestingUnits: [] };
+const EMPTY_FILTER_OPTIONS: TtmDashboard2FilterOptions = { domainProjectKeys: {}, domains: [], pmSms: [], projectComponents: {}, projects: [], requestingUnits: [], ruleGroups: [] };
 /** Compact controls of the paging cluster: `.ttm-select` is `flex: 1 1 140px`, which made the select
  * huge and wrapped "/ N" onto a second line. Inline style because it must beat that class. */
 const PAGER_BUTTON_STYLE = { minHeight: 30, padding: '4px 12px' } as const;
@@ -224,6 +224,7 @@ export default function DataNormalizationPage() {
   const [filterComponents, setFilterComponents] = useState<string[]>([]);
   const [filterPmSms, setFilterPmSms] = useState<string[]>([]);
   const [filterRequestingUnits, setFilterRequestingUnits] = useState<string[]>([]);
+  const [filterRuleGroups, setFilterRuleGroups] = useState<string[]>([]);
   const [pages, setPages] = useState<Record<string, number>>({});
   // Every panel starts collapsed: ten panels of up to 25 Epics each make a very long page.
   const [openPanels, setOpenPanels] = useState<ReadonlySet<string>>(new Set());
@@ -260,7 +261,7 @@ export default function DataNormalizationPage() {
     const available = componentsOfProjects(projectKeys);
     setFilterComponents((current) => current.filter((component) => available.includes(component)));
   };
-  const hasFilter = Boolean(filterDomain || filterProjects.length || filterComponents.length || filterPmSms.length || filterRequestingUnits.length);
+  const hasFilter = Boolean(filterDomain || filterProjects.length || filterComponents.length || filterPmSms.length || filterRequestingUnits.length || filterRuleGroups.length);
 
   const query = useMemo(() => {
     const params = new URLSearchParams();
@@ -270,11 +271,12 @@ export default function DataNormalizationPage() {
     for (const component of filterComponents) params.append('components', component);
     for (const name of filterPmSms) params.append('pmSms', name);
     for (const unit of filterRequestingUnits) params.append('requestingUnits', unit);
+    for (const group of filterRuleGroups) params.append('ruleGroups', group);
     if (requestedPanels.length) params.set('open', requestedPanels.join(','));
     const pageText = pagesParam(pages);
     if (pageText) params.set('pages', pageText);
     return params.toString();
-  }, [filterComponents, filterDomain, filterPmSms, filterProjects, filterRequestingUnits, pages, requestedPanels]);
+  }, [filterComponents, filterDomain, filterPmSms, filterProjects, filterRequestingUnits, filterRuleGroups, pages, requestedPanels]);
 
   const requestIdRef = useRef(0);
   useEffect(() => {
@@ -387,6 +389,16 @@ export default function DataNormalizationPage() {
           value={filterRequestingUnits}
         />
 
+        {((filterOptions.ruleGroups ?? []).length > 1 || filterRuleGroups.length > 0) && (
+          <ToolbarMultiSelect
+            allLabel="Tất cả nhóm rule"
+            ariaLabel="Nhóm rule"
+            onChange={(values) => changeFilters(() => setFilterRuleGroups(values))}
+            options={filterOptions.ruleGroups ?? []}
+            value={filterRuleGroups}
+          />
+        )}
+
         {hasFilter && (
           <button
             className="flex shrink-0 items-center gap-1 rounded px-2 py-1 text-xs text-fb-text-placeholder transition-colors hover:bg-status-danger-soft hover:text-status-danger"
@@ -396,6 +408,7 @@ export default function DataNormalizationPage() {
               setFilterComponents([]);
               setFilterPmSms([]);
               setFilterRequestingUnits([]);
+              setFilterRuleGroups([]);
             })}
             title="Xóa tất cả bộ lọc"
             type="button"

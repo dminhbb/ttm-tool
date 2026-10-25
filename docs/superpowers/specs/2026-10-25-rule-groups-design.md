@@ -1,7 +1,7 @@
 # Design Specification: Rule object & Rule Group trong Epic Scoring Service
 
 - **Date:** 2026-10-25
-- **Status:** v1 — các quyết định ở §2 đã chốt với chủ sở hữu (2026-10-25). **Chưa triển khai.**
+- **Status:** v1 — các quyết định ở §2 đã chốt với chủ sở hữu (2026-10-25). **GĐ1, GĐ2, GĐ3 đã triển khai (2026-10-25)** — xem §18, §19, §20. GĐ2b (DROP bảng cũ) chờ deploy; GĐ4 làm khi cần.
 - **Nền tảng:** `docs/superpowers/specs/2026-09-29-scoring-service-design.md` (Scoring Service, mô hình Axis → Finding Group → Badge)
 - **Liên quan:** `docs/ttm-dashboard-2-spec.md` (phễu L01…L05), `src/lib/scoring/*`, `src/lib/epic-row-verdicts.ts`, `src/lib/ttm-funnel-summary.ts`, `src/lib/ttm-cntt-qa.ts`
 
@@ -41,7 +41,9 @@ Mục tiêu:
 | D8 | Cấu hình áp dụng cho **mọi ngày dữ liệu**, kể cả lớp dữ liệu quá khứ (như mọi cấu hình hiện nay). Mỗi lần lưu được **ghi lịch sử** (ai, khi nào, cấu hình trước/sau). |
 | D9 | Màn hình là **trang riêng** `/admin/rule-management` trong nhóm menu "SuperAdmin: Quản trị hệ thống", có **mục riêng trong Ma trận phân quyền**. Mỗi group hiện **số Epic đang khớp**. |
 | D10 | Màn hình Epic hiện **"Nhóm rule"** của từng Epic (tooltip + bộ lọc). Popup "Logic cảnh báo" hiển thị theo Rule / Rule Group. |
-| D11 | Id rule theo quy ước `<nhóm>-<tên>-<tháng-năm hiệu lực>` (ví dụ `ttm-cntt-sep-2026`). Id không bao giờ đổi; tên hiển thị sửa được trong code. |
+| D11 | Mỗi rule có **tên hiển thị** (sửa được) và **mã (id)** lưu trong DB (không bao giờ đổi). Mã chỉ mang đuôi tháng-năm khi rule **thực sự có biến thể** (`ttm-cntt-sep-2026`, `ttm-e2e-july-2026`); rule chưa có biến thể dùng mã ngắn (`dq-r1`, `release-justify-golive`…). Biến thể ra đời sau mang đuôi của nó (ví dụ `dq-r1-jan-2027`). (Chốt 2026-10-25.) |
+| D17 | **Sửa rule = sửa tại chỗ theo mã**: chủ sở hữu nói rõ sửa mã nào; mọi Rule Group đang chọn mã đó tự động dùng logic mới (ghi vào `detail.history`). Khi logic mới chỉ được áp cho một giai đoạn Epic thì tạo **biến thể mới** (mã mới) thay vì sửa tại chỗ. (Chốt 2026-10-25.) |
+| D18 | v1: mọi Rule Group **dùng chung các tham số cấu hình** (grace Release, ngưỡng Pending lâu, % pha, mốc cảnh báo muộn, …). Không có ghi đè tham số theo nhóm. (Chốt 2026-10-25.) Ngoại lệ đang thảo luận: ngân sách TTM theo giai đoạn — §17. |
 | D12 | TTM Dashboard 2: thêm chiều **"Nhóm rule"** (ma trận phân bổ + biểu đồ tròn) và bộ lọc "Nhóm rule". |
 | D13 | **TTM-CNTT (QA) đi theo rule TTM-CNTT** của group (không có slot QA riêng). |
 | D14 | Group **Default**: bắt buộc tồn tại, không xoá, không đổi tên, không tắt, không có điều kiện ngày, luôn ưu tiên thấp nhất; SUPERADMIN sửa được danh sách rule. |
@@ -55,9 +57,9 @@ Mục tiêu:
 | Khái niệm | Định nghĩa | Nơi khai báo |
 |---|---|---|
 | **Badge** | Một kết luận cụ thể (Đạt TTM-CNTT, Thiếu Start Date…), thuộc 1 Axis và 1 Finding Group (ALERT / PASS / FAIL / RECOMMENDATION / NOTE). Là "từ vựng" mà màn hình, SQL, chỉ số, MCP đọc. | `scoring/catalog.ts` (giữ nguyên vai trò) |
-| **Rule object** | Một đơn vị logic chọn được, phát ra một tập badge. Có id, tên, tóm tắt, mô tả chi tiết, slot (nếu là rule kết luận), phụ thuộc. | `scoring/rules/*` + `scoring/rule-registry.ts` (mới) |
+| **Rule object** | Một đơn vị logic chọn được, phát ra một tập badge. Có id, tên, tóm tắt, mô tả chi tiết, slot (nếu là rule kết luận), phụ thuộc. | `scoring/rules/*` + `scoring/registry.ts` |
 | **Slot** | Vị trí kết luận chỉ được có 1 rule trong mỗi group: `TTM_CNTT_VERDICT`, `TTM_E2E_VERDICT`. | `scoring/rule-types.ts` |
-| **Rule lõi** | Logic luôn chạy, không chọn được (tắt đi sẽ để lọt kết luận không đáng tin, hoặc là dữ kiện chứ không phải đánh giá). | `scoring/rule-registry.ts` (`CORE_RULES`) |
+| **Rule lõi** | Logic luôn chạy, không chọn được (tắt đi sẽ để lọt kết luận không đáng tin, hoặc là dữ kiện chứ không phải đánh giá). | `scoring/registry.ts` (`CORE_RULES`) |
 | **Rule Group** | Phạm vi Epic theo mốc ngày + danh sách rule id được chọn + thứ tự ưu tiên + công tắc bật/tắt. | DB (`scoring_rule_groups`, §9) |
 | **Default** | Group bắt buộc, ưu tiên thấp nhất, không điều kiện ngày, nhận mọi Epic không khớp group nào. | DB, cờ `is_default` |
 
@@ -108,7 +110,7 @@ Hàm `recommendationsRule` hiện tại được chia nhỏ vào từng Rule obj
 ### 4.2. Registry
 
 ```ts
-// src/lib/scoring/rule-registry.ts
+// src/lib/scoring/registry.ts
 export const CORE_RULES: readonly CoreRule[];         // luôn chạy (§5.2)
 export const SCORING_RULES: readonly ScoringRule[];   // chọn được (§5.1)
 export const RULE_BY_ID: ReadonlyMap<string, ScoringRule>;
@@ -144,37 +146,33 @@ Các rule slot vẫn nhận `hasDataAnomaly` trong `RuleInput` nhưng không ph�
 
 ## 5. Danh mục Rule object ban đầu
 
-Id dưới đây là đề xuất theo D11; tháng-năm = lần cuối logic của rule đổi (theo `catalog.ts`). Mọi rule `defaultSelected = true` trừ
-`release-on-time-sep-2026` (badge hôm nay mặc định tắt). Khi seed Default bằng các rule `defaultSelected`, kết quả chấm **trùng khớp hoàn toàn** hôm nay.
+Mã theo D11: chỉ hai rule có biến thể (TTM-CNTT, TTM-E2E) mang đuôi tháng-năm. Mọi rule `defaultSelected = true`.
+Khi seed Default bằng các rule `defaultSelected`, kết quả chấm **trùng khớp hoàn toàn** hôm nay. Năm logic Cảnh báo muộn, Bổ sung T0,
+Sai Status (Release), Release đúng hạn, Trễ pha là **rule luôn chạy** (§5.2, chốt 2026-10-25).
 
 ### 5.1. Rule chọn được
 
 | Id | Tên hiển thị | Category / slot | Badge phát ra | Phụ thuộc |
 |---|---|---|---|---|
 | `ttm-cntt-sep-2026` | TTM-CNTT (QLDA) — chuẩn 09/2026 | TTM_CNTT / `TTM_CNTT_VERDICT` | `CNTT_PASS`, `CNTT_FAIL`, `CNTT_STATUS_MISMATCH` | — |
-| `ttm-cntt-late-sep-2026` | Cảnh báo muộn TTM-CNTT | TTM_CNTT | `CNTT_LATE` | `TTM_CNTT_VERDICT` |
 | `ttm-e2e-july-2026` | TTM-E2E — chuẩn 07/2026 | TTM_E2E / `TTM_E2E_VERDICT` | `E2E_PASS`, `E2E_FAIL`, `E2E_STATUS_MISMATCH` | — |
-| `e2e-fill-t0-sep-2026` | Bổ sung T0 (Idea Approved Date) | TTM_E2E | `REC_FILL_IDEA_APPROVED_DATE` | — |
-| `dq-r1-oct-2026` | R1 — Thiếu Start Date | DATA_QUALITY | `ANOMALY_R1_MISSING_START_DATE`, `REC_FILL_START_DATE` | — |
-| `dq-r2-sep-2026` | R2 — Pending lâu | DATA_QUALITY | `ANOMALY_R2_PENDING_TOO_LONG` | — |
-| `dq-r3-sep-2026` | R3 — Sai thứ tự ngày | DATA_QUALITY | `ANOMALY_R3_DATE_OUT_OF_SEQUENCE`, `REC_FIX_DATE_ORDER` | — |
-| `dq-r4-sep-2026` | R4 — Thiếu Phân loại yêu cầu | DATA_QUALITY | `ANOMALY_R4_MISSING_REQUEST_TYPE`, `REC_FILL_REQUEST_TYPE` | — |
-| `dq-r5-oct-2026` | R5 — Thiếu Requirement Level | DATA_QUALITY | `ANOMALY_R5_MISSING_REQUIREMENT_LEVEL`, `REC_FILL_REQUIREMENT_LEVEL` | — |
-| `dq-r6-sep-2026` | R6 — SP nhưng Level thấp | DATA_QUALITY | `ANOMALY_R6_SP_LEVEL_MISMATCH`, `REC_REVIEW_SP_LEVEL` | — |
-| `dq-r8-oct-2026` | R8 — Có R4G Date nhưng chưa R4GOLIVE | DATA_QUALITY | `ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE`, `REC_FIX_R4G_STATUS` | — |
-| `dq-r9-oct-2026` | R9 — Thiếu R4G Date | DATA_QUALITY | `ANOMALY_R9_MISSING_R4G_DATE`, `REC_FILL_R4G_DATE` | — |
-| `dq-r10-oct-2026` | R10 — R4G Date ở tương lai | DATA_QUALITY | `ANOMALY_R10_R4G_DATE_IN_FUTURE`, `REC_CLEAR_FUTURE_R4G_DATE` | — |
-| `fail-reason-stage-oct-2026` | Thiếu lý do Fail TTM (khâu fail) | FAIL_REASON | `REC_MISSING_FAIL_REASON` | `TTM_CNTT_VERDICT` |
-| `fail-reason-dept-oct-2026` | Thiếu phòng chịu TN chính | FAIL_REASON | `REC_MISSING_RESPONSIBLE_DEPARTMENT` | `TTM_CNTT_VERDICT` |
-| `release-justify-golive-sep-2026` | Giải trình Golive | RELEASE | `RELEASE_JUSTIFY_GOLIVE`, `REC_PREPARE_GOLIVE_JUSTIFICATION` | — |
-| `release-waiting-golive-oct-2026` | Chờ golive | RELEASE | `RELEASE_WAITING_GOLIVE` | — |
-| `release-status-mismatch-sep-2026` | Sai Status (Release) | RELEASE | `RELEASE_STATUS_MISMATCH` | — |
-| `release-on-time-sep-2026` | Release đúng hạn | RELEASE | `RELEASE_ON_TIME` | — |
-| `phase-late-sep-2026` | Trễ pha | PHASE | `PHASE_LATE`, `REC_ACCELERATE_PHASE` | — |
+| `dq-r1` | R1 — Thiếu Start Date | DATA_QUALITY | `ANOMALY_R1_MISSING_START_DATE`, `REC_FILL_START_DATE` | — |
+| `dq-r2` | R2 — Pending lâu | DATA_QUALITY | `ANOMALY_R2_PENDING_TOO_LONG` | — |
+| `dq-r3` | R3 — Sai thứ tự ngày | DATA_QUALITY | `ANOMALY_R3_DATE_OUT_OF_SEQUENCE`, `REC_FIX_DATE_ORDER` | — |
+| `dq-r4` | R4 — Thiếu Phân loại yêu cầu | DATA_QUALITY | `ANOMALY_R4_MISSING_REQUEST_TYPE`, `REC_FILL_REQUEST_TYPE` | — |
+| `dq-r5` | R5 — Thiếu Requirement Level | DATA_QUALITY | `ANOMALY_R5_MISSING_REQUIREMENT_LEVEL`, `REC_FILL_REQUIREMENT_LEVEL` | — |
+| `dq-r6` | R6 — SP nhưng Level thấp | DATA_QUALITY | `ANOMALY_R6_SP_LEVEL_MISMATCH`, `REC_REVIEW_SP_LEVEL` | — |
+| `dq-r8` | R8 — Có R4G Date nhưng chưa R4GOLIVE | DATA_QUALITY | `ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE`, `REC_FIX_R4G_STATUS` | — |
+| `dq-r9` | R9 — Thiếu R4G Date | DATA_QUALITY | `ANOMALY_R9_MISSING_R4G_DATE`, `REC_FILL_R4G_DATE` | — |
+| `dq-r10` | R10 — R4G Date ở tương lai | DATA_QUALITY | `ANOMALY_R10_R4G_DATE_IN_FUTURE`, `REC_CLEAR_FUTURE_R4G_DATE` | — |
+| `fail-reason-stage` | Thiếu lý do Fail TTM (khâu fail) | FAIL_REASON | `REC_MISSING_FAIL_REASON` | `TTM_CNTT_VERDICT` |
+| `fail-reason-dept` | Thiếu phòng chịu TN chính | FAIL_REASON | `REC_MISSING_RESPONSIBLE_DEPARTMENT` | `TTM_CNTT_VERDICT` |
+| `release-justify-golive` | Giải trình Golive | RELEASE | `RELEASE_JUSTIFY_GOLIVE`, `REC_PREPARE_GOLIVE_JUSTIFICATION` | — |
+| `release-waiting-golive` | Chờ golive | RELEASE | `RELEASE_WAITING_GOLIVE` | — |
 
 Ghi chú:
-- `REC_FILL_START_DATE` hôm nay cũng phát khi TTM-CNTT "Không tính được" vì thiếu T1; nhánh đó thuộc `dq-r1-oct-2026`. Tương tự,
-  `REC_FIX_DATE_ORDER` khi "Không tính được" vì R4G phi logic thuộc `dq-r3-sep-2026`. Group không chọn R1 / R3 thì không có các khuyến nghị này.
+- `REC_FILL_START_DATE` hôm nay cũng phát khi TTM-CNTT "Không tính được" vì thiếu T1; nhánh đó thuộc `dq-r1`. Tương tự,
+  `REC_FIX_DATE_ORDER` khi "Không tính được" vì R4G phi logic thuộc `dq-r3`. Group không chọn R1 / R3 thì không có các khuyến nghị này.
 - "Pending lâu" (R2) là khuyến nghị, không phải Sai lệch dữ liệu (giữ như hôm nay), nhưng vẫn xếp ở category DATA_QUALITY như trên popup.
 - Rule thuộc "Nhóm Chất lượng dữ liệu" vẫn được miễn theo status như hôm nay (`anomaly.exemptStatuses`, Cancelled) — miễn trừ là một phần logic của rule.
 
@@ -188,6 +186,11 @@ Ghi chú:
 | Pha: không tính được, thiếu dữ liệu, pha hiện tại, hoàn thành pha | `PHASE_NOT_COMPUTABLE`, `PHASE_COMPLETION_UNAVAILABLE`, `PHASE_CURRENT`, `PHASE_DONE` | Dữ kiện, không phải đánh giá |
 | **Mới:** Không áp dụng rule TTM-CNTT | `CNTT_NO_RULE` (axis TTM_CNTT, NOTE, core) | Group không chọn rule `TTM_CNTT_VERDICT` (D6) |
 | **Mới:** Không áp dụng rule TTM-E2E | `E2E_NO_RULE` (axis TTM_E2E, NOTE, core) | Group không chọn rule `TTM_E2E_VERDICT` (D6) |
+| Cảnh báo muộn TTM-CNTT | `CNTT_LATE` | Chốt 2026-10-25. Tính theo ngân sách của rule TTM-CNTT trong group (§17.6); cùng cổng Sai lệch dữ liệu như rule slot (§4.3); bị `CNTT_NO_RULE` che |
+| Bổ sung T0 | `REC_FILL_IDEA_APPROVED_DATE` | Chốt 2026-10-25 |
+| Sai Status (Release) | `RELEASE_STATUS_MISMATCH` | Chốt 2026-10-25 |
+| Release đúng hạn | `RELEASE_ON_TIME` | Chốt 2026-10-25. **Hôm nay badge mặc định TẮT** (0 Epic mang badge) — luôn chạy nghĩa là bắt đầu hiện; xem §16 |
+| Trễ pha | `PHASE_LATE`, `REC_ACCELERATE_PHASE` | Chốt 2026-10-25. Baseline pha = % × ngân sách của bộ ngân sách mà group dùng (§17.3) |
 
 `CNTT_NO_RULE` / `E2E_NO_RULE` không phát cho Cancelled (đã có "Không áp dụng") và Epic ngoại lệ (không được xét).
 Thêm vào `SUPPRESSIONS`: `CNTT_NO_RULE` che `CNTT_LATE`, `REC_MISSING_FAIL_REASON`, `REC_MISSING_RESPONSIBLE_DEPARTMENT` (phòng hờ — các rule
@@ -195,7 +198,9 @@ này vốn không tự phát khi không có verdict).
 
 ### 5.3. Vòng đời rule
 
-- **Thêm rule mới** (ví dụ `ttm-cntt-jan-2027`): viết Rule object + test, đăng ký vào registry, tăng `SCORING_CODE_VERSION`. Rule mới **không**
+- **Sửa rule (D17):** yêu cầu nêu rõ mã rule cần sửa; sửa logic tại chỗ, thêm 1 dòng vào `detail.history`, tăng `SCORING_CODE_VERSION`.
+  Mọi group đang chọn mã đó dùng logic mới ngay sau khi deploy (cache tự dựng lại vì `rulesetVersion` đổi).
+- **Thêm rule / biến thể mới** (ví dụ `ttm-cntt-2027`): viết Rule object + test, đăng ký vào registry, tăng `SCORING_CODE_VERSION`. Rule mới **không**
   tự vào group nào; SUPERADMIN chọn trên màn hình.
 - **Ngừng dùng:** đặt `lifecycle: 'deprecated'` — vẫn chạy ở group đã chọn, không chọn mới được, màn hình gắn nhãn "Ngừng dùng".
 - **Gỡ hẳn:** chỉ khi không group nào còn chọn (kiểm tra trên cả local và Supabase). Rule id trong DB mà code không còn → bị bỏ qua khi chấm,
@@ -493,10 +498,11 @@ Mỗi giai đoạn là một (hoặc vài) commit riêng, app luôn chạy đư�
 
 | GĐ | Nội dung | Xong khi |
 |---|---|---|
-| **GĐ1 — Tái cấu trúc bên trong** (không đổi kết quả) | `ScoringRule` + `rule-registry.ts`; tách các rule hiện có thành Rule object (§5.1) và rule lõi (§5.2); chia `recommendationsRule` vào từng rule; engine theo §7 với Default dựng trong code; cổng Sai lệch dữ liệu do engine áp dụng; badge `CNTT_NO_RULE` / `E2E_NO_RULE` (chưa bao giờ phát vì Default đủ slot); tăng `SCORING_CODE_VERSION`. | Test §13 xanh; đối chiếu 0 khác biệt trên local và Supabase. |
+| **GĐ1 — Tái cấu trúc bên trong** (không đổi kết quả) | `ScoringRule` + `registry.ts`; tách các rule hiện có thành Rule object (§5.1) và rule lõi (§5.2); chia `recommendationsRule` vào từng rule; engine theo §7 với Default dựng trong code; cổng Sai lệch dữ liệu do engine áp dụng; `deriveMetrics` chạy sau khi xác định group, rule kết luận khai báo `policySet` (chỉ có `DEFAULT` — §17.3); badge `CNTT_NO_RULE` / `E2E_NO_RULE` (chưa bao giờ phát vì Default đủ slot); tăng `SCORING_CODE_VERSION`. | Test §13 xanh; đối chiếu 0 khác biệt trên local và Supabase. |
 | **GĐ2 — Rule Group & màn hình** | Migration §9.1 (+ seed Default) áp cho **local và Supabase**; `loadScoringContext` nạp group + vân tay; cột cache §9.2; API + màn hình §10 + featureKey + lịch sử + xem trước; `db:export-schema -- --target=supabase`; gỡ **code** của `scoring_rule_settings` / `anomaly.scopeConfig` (§9.3) — **dừng trước DROP**. | SUPERADMIN tạo được group, Epic chuyển đúng nhóm, cache dựng lại sau khi lưu. |
 | **GĐ2b — DROP** (sau khi chủ sở hữu deploy) | Migration DROP `scoring_rule_settings` + xoá khóa `anomaly.scopeConfig`, cả hai DB; export schema; cập nhật tài liệu. | Không còn tham chiếu trong code và schema. |
 | **GĐ3 — Hiển thị & chỉ số** | Phễu `NO_CNTT_RULE` (JS + SQL) + popup L02; chiều và bộ lọc "Nhóm rule" trên TTM Dashboard 2; tooltip vòng %; bộ lọc/tooltip trên màn Epic và Báo cáo; popup "Logic cảnh báo"; Tài liệu sản phẩm; `docs/ttm-dashboard-2-spec.md`; MCP. | Con số phễu và danh sách mở ra khớp nhau theo từng nhóm rule. |
+| **GĐ4 — Bộ ngân sách theo giai đoạn** (khi cần, trước khi áp dụng 2027) | Bảng `ttm_policy_sets` + cột `policy_set` (§17.4), áp cho local và Supabase; ô chọn bộ trên Cấu hình cảnh báo; biến thể `ttm-cntt-2027` (và E2E nếu cần) dùng `makeTtmCnttRule`; export schema. | Nhóm 2027 chấm bằng ngân sách 12 ngày, nhóm khác giữ nguyên (xem trước tác động trước khi lưu). |
 
 ---
 
@@ -515,9 +521,200 @@ Mỗi giai đoạn là một (hoặc vài) commit riêng, app luôn chạy đư�
 
 ## 16. Câu hỏi còn mở (nhỏ, không chặn GĐ1)
 
-1. Các Rule object **ngoài danh sách anh nêu** (`ttm-cntt-late-sep-2026`, `e2e-fill-t0-sep-2026`, `release-status-mismatch-sep-2026`,
-   `release-on-time-sep-2026`, `phase-late-sep-2026`) đã được đưa vào để mọi badge không lõi đều có chủ. Nếu anh muốn một số trong đó là lõi
-   (luôn chạy), chỉ cần chuyển sang §5.2.
-2. Danh sách id ở §5.1 (đặc biệt phần tháng-năm) — anh xác nhận hoặc đổi trước GĐ1, vì sau khi seed vào DB id không đổi được.
-3. Tham số riêng theo rule (ví dụ grace 5 hay 3 ngày cho từng biến thể) — **chưa làm** trong v1; tham số vẫn toàn cục (`scoring_parameters`,
-   Tiêu chí Time to Market). Khi cần, một biến thể mới đọc tham số riêng của nó.
+1. ~~5 rule ngoài danh sách~~ — đã chốt: chuyển thành rule luôn chạy (§5.2).
+   "Release đúng hạn": chốt 2026-10-25 — rule luôn chạy nhưng badge **vẫn tắt** (chưa đưa vào sử dụng). Khi gỡ `scoring_rule_settings` ở GĐ2
+   phải giữ badge này tắt bằng cờ trong code (không còn công tắc trong DB).
+4. ~~Cảnh báo muộn theo % ngân sách~~ — đã chốt (§17.6), làm cùng GĐ4.
+2. ~~Danh sách id~~ — đã chốt (D11).
+3. ~~Tham số riêng theo nhóm~~ — đã chốt: v1 dùng chung (D18). Ngân sách TTM theo giai đoạn: §17.
+
+---
+
+## 17. Bộ ngân sách TTM theo giai đoạn — đã chốt 2026-10-25 (GĐ4)
+
+Nhu cầu (chủ sở hữu, 2026-10-25): ví dụ từ 2027 ngân sách TTM-CNTT của CT-Lv12 = 12 ngày (hôm nay 15). Sẽ có rule `ttm-cntt-2027` dùng ngân sách
+mới và một Rule Group cho các Epic thuộc giai đoạn 2027 chọn rule đó.
+
+### 17.1. "Bộ ngân sách" thay vì loại Epic mới
+
+Không tạo loại Epic giả "CT-Lv12-2027": loại Epic (`epic_complexity_type`) đến từ Jira và là chiều lọc / phân bổ trên Dashboard; tách thành
+loại mới sẽ chia đôi thống kê CT-Lv12. Thay vào đó thêm khái niệm **Bộ ngân sách** (policy set):
+
+| Bộ | CNTT CT-Lv12 | CNTT CT-Lv34 | … | Mốc cảnh báo muộn CT-Lv12 In Progress |
+|---|---|---|---|---|
+| `DEFAULT` (Mặc định — số liệu hiện nay) | 15 | 25 | … | 15 |
+| `2027` | **12** | *(kế thừa 25)* | … | **12** |
+
+- (Nếu §17.6 được chốt, mốc cảnh báo muộn chuyển sang % và không còn nằm trong bộ.) Bộ ngân sách gồm cả **Tiêu chí Time to Market** (`ttm_policy_configs`: số ngày, mốc From/To) **và mốc cảnh báo muộn theo status**
+  (`epic_status_alert_rules`) — vì mốc "In Progress" hôm nay bằng đúng ngân sách; giữ 15 khi ngân sách còn 12 thì Cảnh báo muộn rơi sau Target.
+- Bộ mới chỉ cần nhập **các dòng khác Mặc định**; dòng bỏ trống **kế thừa** bộ Mặc định (màn hình hiện giá trị kế thừa màu nhạt).
+
+### 17.2. Rule gắn với bộ ngân sách (trong code)
+
+```ts
+export const ttmCnttSep2026 = makeTtmCnttRule({ id: 'ttm-cntt-sep-2026', name: 'TTM-CNTT (QLDA) — chuẩn 09/2026', policySet: 'DEFAULT' });
+export const ttmCntt2027    = makeTtmCnttRule({ id: 'ttm-cntt-2027',     name: 'TTM-CNTT (QLDA) — chuẩn 2027',    policySet: '2027' });
+```
+
+- Rule kết luận (slot TTM-CNTT / TTM-E2E) khai báo `policySet`. Biến thể chỉ khác ngân sách = vài dòng code + test; **con số** vẫn sửa trên màn hình.
+- Popup (?) của rule hiện bảng ngân sách thực tế nó dùng (sau khi kế thừa).
+- Rule tham chiếu một bộ chưa tồn tại trong DB → không chọn được trên Rule Management (cảnh báo "Chưa có bộ ngân sách 2027").
+- (Phương án khác đã cân nhắc: Rule Group tự chọn bộ ngân sách, không cần code mỗi lần đổi ngân sách. Không chọn vì D18 và vì rule nên là định nghĩa đầy đủ của cách chấm.)
+
+### 17.3. Thay đổi trong engine
+
+Ngân sách quyết định Target, mốc cảnh báo muộn, baseline pha, ngưỡng Pending lâu, Phạm vi TTM-CNTT (khi chưa có R4G dùng Target), dải trên màn hình,
+báo cáo, timeline import — tất cả đọc từ `derived`. Vì vậy `deriveMetrics` chạy **sau** khi xác định group:
+
+```
+group    = resolveRuleGroup(facts, ctx)                 // chỉ đọc ngày của Epic → không vòng lặp
+cnttSet  = group.cnttRule?.policySet ?? 'DEFAULT'       // group không có rule TTM-CNTT: dùng Mặc định cho dải / pha (chỉ để hiển thị)
+e2eSet   = group.e2eRule?.policySet  ?? 'DEFAULT'
+derived  = deriveMetrics(facts, ctx, { cnttSet, e2eSet })
+```
+
+Thứ tự này làm ngay ở **GĐ1** (khi đó chỉ có bộ `DEFAULT`, kết quả không đổi), để sau này thêm bộ mới không phải tái cấu trúc.
+Chỗ duy nhất ngoài scoring đọc thẳng chính sách: `epic-row-geometry.ts` (`findActivePolicy` lấy From field) → chuyển sang đọc từ `derived`.
+MCP `get_ttm_policies` trả theo từng bộ.
+
+### 17.4. Dữ liệu & màn hình (GĐ4 — làm khi cần, trước khi áp dụng 2027)
+
+- Bảng `ttm_policy_sets (key TEXT PK, name TEXT, note TEXT)` + seed `DEFAULT`.
+- `ttm_policy_configs`, `epic_status_alert_rules` thêm cột `policy_set TEXT NOT NULL DEFAULT 'DEFAULT' REFERENCES ttm_policy_sets(key)`;
+  ràng buộc unique thêm `policy_set`.
+- Cấu hình cảnh báo → Tiêu chí Time to Market và Mốc cảnh báo: thêm ô chọn "Bộ ngân sách" + "Thêm bộ"; bộ khác Mặc định hiện giá trị kế thừa.
+- `ScoringTtmPolicy` / `ScoringStatusAlertRule` thêm `policySet`; vân tay `rulesetVersion` gồm cả bộ.
+
+### 17.5. Lưu ý khi chọn điều kiện ngày cho nhóm 2027
+
+| Điều kiện nhóm | Hệ quả |
+|---|---|
+| **R4G Date ≥ 01/01/2027** | Epic chưa có R4G Date không khớp (D4) → được theo dõi bằng ngân sách cũ (Cảnh báo muộn, Trễ pha, Fail "quá Target chưa có R4G") **cho tới khi ghi R4G Date**, lúc đó mới chuyển sang ngân sách 12 ngày → có thể đổi từ "trong hạn" sang Fail ngay khi ghi R4G. |
+| **Start Date ≥ 01/01/2027** (TTM-CNTT) / **Ngày phê duyệt ý tưởng ≥ …** (TTM-E2E) | Epic biết ngân sách của mình **từ đầu**; cảnh báo trong lúc thực hiện và kết luận cuối dùng cùng một ngân sách. |
+
+Đề xuất: đổi ngân sách theo giai đoạn thì lọc nhóm theo **Start Date**. Lưu ý một nhóm có một bộ điều kiện cho cả TTM-CNTT và TTM-E2E; nếu hai
+ngân sách đổi theo hai mốc khác nhau (Start Date vs Ngày phê duyệt ý tưởng) thì cần tách thành nhiều nhóm.
+
+### 17.6. Cảnh báo muộn theo % ngân sách — đã chốt 2026-10-25 (GĐ4)
+
+**Hiện trạng** (Supabase, 25/10/2026): mốc cảnh báo muộn là **số ngày cố định** theo (loại Epic, status) trong `epic_status_alert_rules`:
+mốc = From +wd offset; Cảnh báo muộn khi mốc ≤ asOf ≤ Target (Target = From +wd (N − 1)).
+
+| Loại | N (CNTT) | Design | In Progress (DEV/TEST/PENTEST kế thừa) |
+|---|---|---|---|
+| CT-Lv12 | 15 | 3 (20%) | 15 (100%) |
+| CT-Lv34 | 25 | 5 (20%) | 25 (100%) |
+| SP-Lv12 | 30 | 7 (23,3%) | 30 (100%) |
+| SP-Lv34 | 30 | 7 (23,3%) | 30 (100%) |
+
+Phát hiện: offset In Progress = N nên mốc rơi **sau Target 1 ngày làm việc** → Cảnh báo muộn **không bao giờ** xuất hiện ở In Progress / DEV / TEST /
+PENTEST (133 Epic In Progress: 0 cảnh báo; chỉ 16 Epic Design có). Đây là cấu hình hiện hành, sửa được ngay trên Cấu hình cảnh báo, độc lập với spec này.
+
+**Vấn đề với ngân sách theo giai đoạn:** bộ 2027 (N = 12) mà kế thừa offset cố định 3 / 15 thì Design còn đúng tỉ lệ gần 25%, nhưng In Progress
+càng vô nghĩa. "Trễ pha" không gặp vấn đề này vì baseline pha đã là % × N (`phase.percentages`).
+
+**Đề xuất:** lưu mốc cảnh báo muộn dưới dạng **% ngân sách** thay vì số ngày:
+
+```
+mốc cảnh báo muộn = From +wd ceil(p × N)        p = % theo (loại Epic, status), N = ngân sách của bộ mà group dùng
+```
+
+- Chuyển đổi dữ liệu: p = offset / N của từng dòng hiện tại (20%, 23,33%, 100%…) → ngày mốc của bộ Mặc định **không đổi** (đối chiếu 0 khác biệt). Phép làm tròn phải chống sai số dấu phẩy động (ví dụ `ceil(p × N − 1e-9)`; 7/30 × 30 không được thành 8).
+- Bộ 2027 không cần nhập lại mốc: CT-Lv12 Design = ceil(20% × 12) = 3 ngày; tự co giãn theo N.
+- % là tham số dùng chung cho mọi nhóm (D18); chỉ N thay đổi theo bộ ngân sách. Khi đó §17.1 bỏ "mốc cảnh báo muộn" khỏi bộ ngân sách —
+  bộ chỉ còn Tiêu chí Time to Market.
+- Màn hình Cấu hình cảnh báo nhập % (kèm cột "≈ số ngày" theo N của bộ Mặc định để dễ đọc).
+- Làm cùng GĐ4 (khi có bộ ngân sách thứ hai); trước đó giữ số ngày như hiện nay.
+
+
+---
+
+## 18. Kết quả GĐ1 (2026-10-25)
+
+Tái cấu trúc bên trong, **kết quả chấm không đổi**:
+
+- `scoring/rules/rule-types.ts`: `ScoringRule`, `RuleSlot`, `SLOT_BADGES` (hợp đồng slot), `RuleStage`, `RuleDetail`.
+- Rule object: `rules/data-quality.ts` (`dq-r1` … `dq-r10`, mỗi rule kèm khuyến nghị của nó), `rules/ttm-cntt.ts` (`ttm-cntt-gates` lõi,
+  `makeTtmCnttRule` → `ttm-cntt-sep-2026`, `ttm-cntt-late` lõi), `rules/ttm-e2e.ts` (`ttm-e2e-gates` lõi gồm "Bổ sung T0", `makeTtmE2eRule` →
+  `ttm-e2e-july-2026`), `rules/fail-reason.ts` (`fail-reason-stage`, `fail-reason-dept`), `rules/release.ts` (`release-waiting-golive`,
+  `release-justify-golive`; lõi `release-status-mismatch`, `release-on-time` — badge vẫn tắt), `rules/scope-phase.ts` (lõi `scope`, `phase`).
+  `rules/recommendations.ts` đã gỡ — khuyến nghị nằm trong rule sở hữu nó.
+- `registry.ts`: `RULES` (thứ tự chạy), `CORE_RULES`, `SELECTABLE_RULES`, `RULE_BY_ID`, `DEFAULT_RULE_GROUP` (group Default dựng trong code,
+  id 0), `SCORING_CODE_VERSION = 'scoring-22'`.
+- `rule-groups.ts`: `resolveRuleGroup` (§6.2), `matchesDateRange`, `orderRuleGroups`, `selectedRulesOf`, `policySetsOf`.
+- `score-epic.ts`: luồng §7 — group → rule chạy → `deriveMetrics` theo bộ ngân sách → chất lượng dữ liệu → cổng Sai lệch dữ liệu (`gatedByDataAnomaly`)
+  → `CNTT_NO_RULE` / `E2E_NO_RULE` → suppressions → khuyến nghị. `EpicScorecard.ruleGroup`; `indexMembership` loại Epic không có rule TTM-CNTT.
+- `derive.ts`: `findActivePolicy(…, policySet)` kế thừa bộ `DEFAULT`; `DerivedMetrics.cnttPolicySet / e2ePolicySet`. `epic-row-geometry.ts` đọc
+  chính sách theo bộ của Epic.
+- `types.ts`: `ScoringRuleGroup`, `ScoringContext.ruleGroups?` (chưa nạp từ DB — GĐ2), `ScoringTtmPolicy.policySet?`, `DEFAULT_POLICY_SET`.
+- `catalog.ts`: badge `CNTT_NO_RULE`, `E2E_NO_RULE` (NOTE, lõi); suppression `CNTT_NO_RULE` → `CNTT_LATE`, Thiếu lý do.
+- `scoring_rule_settings` (bật/tắt badge) và `anomaly.scopeConfig` vẫn còn hiệu lực trong GĐ1; gỡ ở GĐ2.
+
+Kiểm chứng:
+- `npm test`: 370/370 (350 test cũ không sửa + 20 test mới `__tests__/rule-groups.test.ts`: registry, slot contract, resolver, engine, bộ ngân sách).
+- Đối chiếu: chụp facts + context + scorecard của **Supabase** ở 3 mốc (25/10, 01/10, 15/09/2026 — 1.450 / 1.146 / 874 Epic) bằng code cũ, chấm lại
+  bằng code mới: **3.470 lượt chấm, 0 khác biệt** (findings đúng cả thứ tự, indexMembership, derived). Kiểm tra ngược: bỏ `ttm-cntt-sep-2026`
+  khỏi group → 6.986 khác biệt như dự kiến. **Local DB không chạy trên máy thực hiện** nên chưa đối chiếu trên local (logic thuần, không phụ thuộc DB).
+
+---
+
+## 19. Kết quả GĐ2 (2026-10-25)
+
+**DB** (đã áp lên **Supabase**; local chưa áp vì Postgres local không chạy trên máy thực hiện — chạy `npm run db:migrate:local` khi bật):
+- `20261028_create_scoring_rule_groups.sql`: `scoring_rule_groups`, `scoring_rule_group_rules`, `scoring_rule_group_history` + seed nhóm
+  `Default` với 15 rule chọn được (= `DEFAULT_RULE_GROUP`).
+- `20261028b_add_rule_group_to_epic_alert_row_cache.sql`: cột `rule_group_id`, `rule_group_name` (+ index).
+- `20261028c_add_rule_management_permission.sql`: chức năng `rule_management` trong Ma trận phân quyền (chỉ SUPERADMIN).
+- `db:export-schema --target=supabase` đã chạy (install script, ERD, chương 5 Tài liệu sản phẩm); `db-schema-catalog.json` mô tả 3 bảng.
+
+**Code:**
+- `rule-group-config.ts` (dùng chung client/server): `RuleGroupDraft`, `validateRuleGroups` (§6.3), `draftsToScoringRuleGroups`,
+  `describeConditions`. `scoring/rule-catalog.ts` (dữ liệu rule gửi lên màn hình), `scoring/rule-labels.ts` (nhãn — client-safe).
+- `rule-group-service.ts`: `loadRuleGroups` (bảng chưa có → `[]` = Default trong code), `getRuleGroupConfig`, `saveRuleGroupConfig`
+  (1 giao dịch, khóa advisory, kiểm tra phiên bản = id lịch sử mới nhất → 409, Default giữ dòng, nhóm bỏ đi bị xoá, ưu tiên = thứ tự,
+  ghi lịch sử trước/sau; tuỳ chọn `dryRun` chạy đủ câu lệnh rồi ROLLBACK), `listRuleGroupHistory`.
+- `rule-group-preview-service.ts` — "Xem trước tác động": chấm toàn bộ Epic hôm nay với cấu hình đã lưu và bản nháp; **không nạp hoàn thành
+  pha** (`loadEpicFacts(…, { withPhaseCompletion: false })` — phần chậm nhất, ~17 giây từ máy dev; pha chỉ sinh badge Pha, giống nhau ở
+  hai cấu hình) → ~1,3 giây cho 1.450 Epic. Tự chạy khi mở màn hình và khi bấm nút.
+- API (`/api/rule-groups` GET/PUT, `/history` GET, `/preview` POST — SUPERADMIN, featureKey `rule_management`). Lưu xong gọi
+  `scheduleDerivedCacheRefresh('rule-groups')`.
+- `scoring-context-service.ts` nạp `ruleGroups` và đưa vào vân tay `rulesetVersion`. Cache dòng Epic ghi `rule_group_id/name`;
+  `EpicAlertRowPhased.ruleGroupId/ruleGroupName` (projection).
+- Màn hình `/admin/rule-management` (`components/rule-management/RuleManagementSettings.tsx`), menu "SuperAdmin: Quản trị hệ thống" →
+  "Rule Management". Bản nháp cả cấu hình; thanh công cụ Thêm nhóm / Xem trước tác động / Lịch sử thay đổi / Hoàn tác / Lưu; mỗi nhóm:
+  tên, master toggle, 5 cặp ngày, rule theo category (rule slot dạng chọn một + "Không áp dụng", rule khác dạng checkbox), (?) mở popup chi
+  tiết rule; cảnh báo/lỗi theo §6.3; số Epic khớp từ lần xem trước; khối "Rule luôn chạy"; cảnh báo khi rời trang chưa lưu.
+- **Gỡ (code)**: công tắc từng badge (`ScoringContext.ruleEnabled`, đọc `scoring_rule_settings`) và "Phạm vi rule Sai lệch dữ liệu"
+  (`anomaly.scopeConfig`, `isEpicInAnomalyScope`, `AnomalyScopeConfigPanel`, `/api/anomaly-scope-config`, `anomaly-scope-config-service.ts`).
+  Badge chưa dùng (`defaultEnabled: false` — "Release đúng hạn") vẫn tắt bằng catalog. Bảng `scoring_rule_settings` **còn trong DB** —
+  DROP ở GĐ2b sau khi chủ sở hữu deploy code này.
+
+**Kiểm chứng:** `npm test` 370/370; tsc, eslint sạch. Trên Supabase (chỉ đọc): cấu hình đã lưu → xem trước 0 Epic đổi kết quả; nháp
+"Start Date ≥ 01/09/2026, không rule TTM-CNTT" → 255 Epic vào nhóm, 248 Epic đổi kết quả, TTM-CNTT (QLDA) Đạt 459 → 325. Lưu thử
+(`dryRun`) 2 nhóm mới + đổi rule Default: đúng thứ tự, rule lạ bị gỡ, DB không đổi; phiên bản cũ → 409.
+
+---
+
+## 20. Kết quả GĐ3 (2026-10-25)
+
+- **Phễu L02**: bucket `NO_CNTT_RULE` (`epic-row-verdicts.ts` — `hasNoCnttRule`, sau Epic ngoại lệ, trước Sai lệch dữ liệu); bộ lọc "Nhận xét"
+  `TTM_NO_CNTT_RULE` (JS + SQL twin trong `epic-alert-row-cache-query-service.ts`; điều kiện `counted` của L03…L05 loại thêm badge `CNTT_NO_RULE`);
+  `TTM_COUNTED_IN_SCOPE`, `DATA_ANOMALY_IN_SCOPE`, `MISSING_R4G_IN_SCOPE`, `TTM_ELIGIBLE_IN_SCOPE` cũng loại các Epic này. `ttmFunnelLayers` trừ bucket mới ở L02;
+  `TTM_FUNNEL_CRITERIA.L02`; popup L02 (quy tắc 4, công thức, nút danh sách chỉ hiện khi > 0). `isOutsideTtmCalculation` giữ nguyên — Epic
+  không có rule TTM-CNTT vẫn tính TTM-E2E và các widget vận hành; ma trận / biểu đồ bỏ chúng khỏi "Tổng số Epic".
+- **TTM Dashboard 2**: chiều `ruleGroup` (ma trận "Theo Nhóm rule", section biểu đồ tròn) và bộ lọc thanh công cụ "Nhóm rule" — chỉ hiện khi có
+  hơn 1 nhóm rule (hoặc đang chọn); nhóm không có rule TTM-CNTT vẫn có dòng (L02 = 0). Tooltip 3 vòng chỉ số "Tính theo n nhóm rule: …".
+  `DASHBOARD_EPIC_ROW_KEYS` / `TTM_FUNNEL_ROW_KEYS` thêm `ruleGroupName`; `TtmDashboard2Filters.ruleGroups`, `filterOptions.ruleGroups`;
+  `PAYLOAD_VERSION = 13`. Deep link sang Quản trị Epic: tham số lặp `ruleGroup`.
+- **Màn Epic**: Quản trị Epic — bộ lọc "Nhóm rule" (cache SQL `rule_group_name = ANY`, đường tính trực tiếp lọc client, lưu trong "Lưu filter",
+  nhận deep link), trường "Nhóm rule (Rule Management)" trong popup chi tiết Epic; Chuẩn hoá dữ liệu — bộ lọc "Nhóm rule"; Báo cáo — dòng
+  "Nhóm rule: …" dưới Summary khi nhóm không phải Default (+ tooltip).
+- **Popup "Logic cảnh báo"**: mục 9 "Rule object" (từ registry) và mục 10 "Nhóm rule đang áp dụng" (API chỉ đọc `GET /api/rule-group-summary`,
+  mọi người dùng đã đăng nhập); mục 1 và mục 8 cập nhật.
+- **MCP**: `get_epic_detail` trả `danhGia.nhomRule`; `list_epic_alerts` có `ruleGroup` (lọc) và trả `ruleGroup` mỗi dòng, `nhanXet` có
+  `TTM_NO_CNTT_RULE`; `get_ttm_dashboard` có `ruleGroups` (lọc) và `dimension: 'ruleGroup'`, phễu có `khongApDungRuleTtmCntt`.
+- **Tài liệu**: Tài liệu sản phẩm mục 7.4 (mới), 9.2 (thay), 13.1, 16.3, 21.2, 21.7, 21.8; `docs/ttm-dashboard-2-spec.md`.
+- **Kiểm chứng**: `npm test` 374/374 (thêm 4 test phễu / chiều / bộ lọc nhóm rule); tsc, eslint sạch. Trình duyệt (SUPERADMIN, Supabase,
+  chỉ một nhóm Default): popup L02 có quy tắc 4, L02 = 855 không đổi; popup Logic cảnh báo mục 9–10; API Quản trị Epic trả `ruleGroupName`, lọc
+  `ruleGroup=Default` = 855, `TTM_NO_CNTT_RULE` = 0; popup Epic có "Nhóm rule: Default"; Dashboard 2, Quản trị Epic, Chuẩn hoá dữ liệu, Báo cáo
+  không lỗi console. Chiều / bộ lọc "Nhóm rule" khi có ≥ 2 nhóm chỉ kiểm bằng test (không lưu nhóm thử lên DB thật).

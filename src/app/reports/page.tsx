@@ -1118,9 +1118,13 @@ function SingleReportTable({
                       </a>
                     )}
                   </div>
-                  <div className="text-[11px] text-fb-text-secondary truncate max-w-[220px]" title={item.summary}>
+                  <div className="text-[11px] text-fb-text-secondary truncate max-w-[220px]" title={item.ruleGroupName ? `${item.summary}\nNhóm rule: ${item.ruleGroupName}` : item.summary}>
                     {item.summary}
                   </div>
+                  {/* Rule Group (Rule Management) — named only when it isn't Default, to keep the list quiet. */}
+                  {item.ruleGroupName && !item.ruleGroupIsDefault && (
+                    <div className="text-xs text-fb-text-secondary">Nhóm rule: {item.ruleGroupName}</div>
+                  )}
                 </td>
 
                 {/* STATUS COLUMN WITH SPECIFIC TEXT COLOR RULES */}

@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
         pmSms: listParam(params, 'pmSms'),
         projects: listParam(params, 'projects'),
         requestingUnits: listParam(params, 'requestingUnits'),
+        ruleGroups: listParam(params, 'ruleGroups'),
       },
       includeFilterOptions: params.get('options') === '1',
       openPanels: parseNormalizationPanelCodes(params.get('open')),

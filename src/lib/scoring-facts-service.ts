@@ -40,7 +40,7 @@ interface EpicFactRow {
  * callers filter by access scope when reading. `ttmExclusion` (Epic ngoại lệ / project Time to
  * Market = N) is today's configuration, not a per-layer fact.
  */
-export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[] } = {}): Promise<EpicFacts[]> {
+export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]; withPhaseCompletion?: boolean } = {}): Promise<EpicFacts[]> {
   const epicKeys = options.epicKeys?.length ? options.epicKeys : null;
   const [rows, completionByEpicKey, exclusionSources] = await Promise.all([
     pool.query<EpicFactRow>(`
@@ -77,7 +77,8 @@ export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]
         AND ($2::text[] IS NULL OR issues.issue_key = ANY($2::text[]))
       ORDER BY issues.issue_key ASC, issues.aggregated_at DESC
     `, [asOf, epicKeys]),
-    computeEpicPhaseCompletionByEpicKey(asOf, epicKeys ?? undefined),
+    // The story/subtask walk is the slow part; callers that don't look at phases (Rule Management preview) skip it.
+    options.withPhaseCompletion === false ? new Map<string, never>() : computeEpicPhaseCompletionByEpicKey(asOf, epicKeys ?? undefined),
     loadTtmExclusionSources(),
   ]);
 

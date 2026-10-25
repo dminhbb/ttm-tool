@@ -1,17 +1,19 @@
 import { BADGE_BY_ID, SUPPRESSIONS } from './catalog';
 import type { BadgeId } from './catalog';
 import { deriveMetrics, isCancelledStatus } from './derive';
-import { DERIVED_RULES, PRIMARY_RULES } from './registry';
-import { dataQualityRule } from './rules/data-quality';
+import { RULES } from './registry';
+import { policySetsOf, resolveRuleGroup, selectedRulesOf, slotRuleOf } from './rule-groups';
 import { scopeRule } from './rules/scope-phase';
-import type { RuleInput } from './rules/rule-types';
+import { finding } from './rules/rule-types';
+import type { RuleInput, ScoringRule } from './rules/rule-types';
 import type { EpicFacts, EpicScorecard, Finding, IndexMembership, ScoringContext } from './types';
 
-function isEnabled(badge: BadgeId, ctx: ScoringContext): boolean {
+/** A badge not in use yet (`defaultEnabled: false` in catalog.ts) is never emitted. Which rules run is the Rule
+ * Group's business (rule-groups.ts) — there is no per-badge switch any more (removed 2026-10-25, spec §9.3). */
+function isEnabled(badge: BadgeId): boolean {
   const definition = BADGE_BY_ID.get(badge);
   if (!definition) return false;
-  if ('core' in definition && definition.core) return true;
-  return ctx.ruleEnabled[badge] ?? definition.defaultEnabled;
+  return ('core' in definition && definition.core) || definition.defaultEnabled;
 }
 
 /** Marks (never removes) findings hidden by an active gate — see SUPPRESSIONS in catalog.ts. */
@@ -41,9 +43,11 @@ export function hasDataAnomalyBadge(active: ReadonlySet<BadgeId>): boolean {
   return false;
 }
 
-function indexMembership(facts: EpicFacts, active: ReadonlySet<BadgeId>, ctx: ScoringContext): IndexMembership {
+/** `hasCnttRule`: the Epic's Rule Group has a TTM-CNTT verdict rule — without one the Epic is outside L02 and out of
+ * TTM-CNTT (QLDA) and (QA) (spec 2026-10-25 D6, D13). */
+function indexMembership(facts: EpicFacts, active: ReadonlySet<BadgeId>, ctx: ScoringContext, hasCnttRule: boolean): IndexMembership {
   // Cancelled Epics and "Epic ngoại lệ" (black listed / project Time to Market = N) are outside L02 — never counted.
-  const outsideL02 = isCancelledStatus(facts.status) || Boolean(facts.ttmExclusion);
+  const outsideL02 = isCancelledStatus(facts.status) || Boolean(facts.ttmExclusion) || !hasCnttRule;
   const anomaly = hasDataAnomalyBadge(active);
   const flags = (counted: boolean) => {
     const eligible = counted && Boolean(facts.r4gDate) && !anomaly;
@@ -56,14 +60,23 @@ function indexMembership(facts: EpicFacts, active: ReadonlySet<BadgeId>, ctx: Sc
   };
 }
 
+function evaluateRule(rule: ScoringRule, input: RuleInput): Finding[] {
+  return (rule.evaluate?.(input) ?? []).filter((item) => isEnabled(item.badge));
+}
+
 /**
- * The Epic Scoring Service's single entry point: one Epic's facts + a context (asOf, config) → every
+ * The Epic Scoring Service's single entry point: one Epic's facts + a context (asOf, config, Rule Groups) → every
  * finding across every axis. Pure — no DB, no system clock.
+ *
+ * Steps (spec docs/superpowers/specs/2026-10-25-rule-groups-design.md §7):
+ *   1. "Epic ngoại lệ" → only the Scope rule, no Rule Group;
+ *   2. the Epic's Rule Group (rule-groups.ts) → the rules it runs = core rules + the group's selection, and the
+ *      "Bộ ngân sách" its verdict rules read (deriveMetrics);
+ *   3. data-quality rules → "Sai lệch dữ liệu", which drops every rule with `gatedByDataAnomaly` (the TTM verdicts);
+ *   4. the other rules, plus "Không áp dụng rule TTM-CNTT / TTM-E2E" when the group has no verdict rule for a slot;
+ *   5. suppressions, then the recommendation step of every rule that runs.
  */
 export function scoreEpic(facts: EpicFacts, ctx: ScoringContext): EpicScorecard {
-  const derived = deriveMetrics(facts, ctx);
-  const baseInput: RuleInput = { facts, derived, ctx, hasDataAnomaly: false };
-
   // "Epic ngoại lệ" (owner rule 2026-10-09) — a black listed Epic or an Epic of a project with Time to
   // Market = N (facts.ttmExclusion) — is not judged at all: no data-quality, TTM-CNTT, TTM-E2E, Release
   // or phase rule runs, so it carries no Sai lệch dữ liệu / Đạt / Fail / cảnh báo / khuyến nghị and is in
@@ -71,26 +84,44 @@ export function scoreEpic(facts: EpicFacts, ctx: ScoringContext): EpicScorecard 
   // against "Phạm vi dữ liệu cho TTM" (the funnel's L01 is read from that). `derived` (Target, baseline
   // dates) is still returned — those are dates, not verdicts.
   if (facts.ttmExclusion) {
-    const findings = sortFindings(scopeRule(baseInput).filter((item) => isEnabled(item.badge, ctx)));
-    return { epicKey: facts.epicKey, asOf: ctx.asOf, rulesetVersion: ctx.rulesetVersion, findings, indexMembership: indexMembership(facts, activeBadges(findings), ctx), derived };
+    const derived = deriveMetrics(facts, ctx);
+    const findings = sortFindings(evaluateRule(scopeRule, { facts, derived, ctx, hasDataAnomaly: false }));
+    return { epicKey: facts.epicKey, asOf: ctx.asOf, rulesetVersion: ctx.rulesetVersion, ruleGroup: null, findings, indexMembership: indexMembership(facts, activeBadges(findings), ctx, true), derived };
   }
 
-  // Data quality is evaluated first: its verdict gates every TTM rule (see RuleInput.hasDataAnomaly).
-  const dataQuality = dataQualityRule(baseInput).filter((item) => isEnabled(item.badge, ctx));
-  const input: RuleInput = { ...baseInput, hasDataAnomaly: hasDataAnomalyBadge(new Set(dataQuality.map((item) => item.badge))) };
+  const group = resolveRuleGroup(facts, ctx.ruleGroups);
+  const selected = selectedRulesOf(group);
+  const selectedIds = new Set(selected.map((rule) => rule.id));
+  const rules = RULES.filter((rule) => rule.core || selectedIds.has(rule.id));
+  const derived = deriveMetrics(facts, ctx, policySetsOf(selected));
+  const baseInput: RuleInput = { facts, derived, ctx, hasDataAnomaly: false };
 
-  const primary = [...dataQuality, ...PRIMARY_RULES.flatMap((rule) => rule(input)).filter((item) => isEnabled(item.badge, ctx))];
+  // Data quality is evaluated first: its verdict gates every TTM verdict (RuleInput.hasDataAnomaly).
+  const dataQuality = rules.filter((rule) => rule.stage === 'DATA_QUALITY').flatMap((rule) => evaluateRule(rule, baseInput));
+  const hasDataAnomaly = hasDataAnomalyBadge(new Set(dataQuality.map((item) => item.badge)));
+  const input: RuleInput = { ...baseInput, hasDataAnomaly };
+  const runs = (rule: ScoringRule) => !(hasDataAnomaly && rule.gatedByDataAnomaly);
+
+  // A group without a verdict rule for a slot: the Epic is not judged on that axis (D6). Cancelled has its own note.
+  const hasCnttRule = Boolean(slotRuleOf(selected, 'TTM_CNTT_VERDICT'));
+  const noRule: Finding[] = [];
+  if (!derived.isCancelled && !hasCnttRule) noRule.push(finding('CNTT_NO_RULE', `Nhóm rule "${group.name}" không có rule đánh giá TTM-CNTT (QLDA) — Epic không được chấm TTM-CNTT và không tính vào TTM-CNTT (QLDA) / (QA).`));
+  if (!derived.isCancelled && !slotRuleOf(selected, 'TTM_E2E_VERDICT')) noRule.push(finding('E2E_NO_RULE', `Nhóm rule "${group.name}" không có rule đánh giá TTM-E2E — Epic không được chấm TTM-E2E và không tính vào chỉ số TTM-E2E.`));
+
+  const primaryRules = rules.filter((rule) => rule.stage === 'PRIMARY' && runs(rule));
+  const primary = [...dataQuality, ...primaryRules.flatMap((rule) => evaluateRule(rule, input)), ...noRule.filter((item) => isEnabled(item.badge))];
   const resolved = resolveSuppressions(primary);
   const active = activeBadges(resolved);
-  const secondary = DERIVED_RULES.flatMap((rule) => rule(input, active, resolved)).filter((item) => isEnabled(item.badge, ctx));
+  const secondary = rules.filter(runs).flatMap((rule) => rule.recommend?.(input, active, resolved) ?? []).filter((item) => isEnabled(item.badge));
   const findings = sortFindings([...resolved, ...secondary]);
 
   return {
     epicKey: facts.epicKey,
     asOf: ctx.asOf,
     rulesetVersion: ctx.rulesetVersion,
+    ruleGroup: { id: group.id, name: group.name, isDefault: group.isDefault },
     findings,
-    indexMembership: indexMembership(facts, activeBadges(findings), ctx),
+    indexMembership: indexMembership(facts, activeBadges(findings), ctx, hasCnttRule),
     derived,
   };
 }

@@ -10,7 +10,7 @@ import type { TtmFunnelFilterValue } from '@/lib/epic-row-verdicts';
 export const EPIC_ALERTS_ROUTE = '/epic-alerts-15';
 
 /** Mirrors AlertFilterValue in epic-row-verdicts.ts, minus the '' (no filter) case. */
-export type EpicAlertsDeepLinkAlert = 'ACHIEVED_CNTT' | 'ACHIEVED_E2E' | 'DATA_ANOMALY' | 'DATA_ANOMALY_IN_SCOPE' | 'IN_SCOPE_CNTT' | 'TTM_COUNTED_IN_SCOPE' | 'TTM_BLACK_LISTED' | 'TTM_PROJECT_NON_TTM' | 'OUT_OF_SCOPE_NO_ANOMALY' | 'MISSING_R4G_IN_SCOPE' | 'TTM_ELIGIBLE_IN_SCOPE' | TtmFunnelFilterValue | 'EARLY' | 'FAIL' | 'FAIL_E2E' | 'FAIL_LATE_R4G' | 'FAIL_MISSING_R4G' | 'JUSTIFY_GOLIVE' | 'LATE' | 'OUT_OF_SCOPE_CNTT' | 'PENDING_TOO_LONG' | 'RELEASE_EARLY' | 'STATUS_MISMATCH' | 'WAITING_GOLIVE' | 'WAITING_GOLIVE_MISSING_R4G' | 'WAITING_GOLIVE_WITHIN_GRACE' | 'WAITING_GOLIVE_OVERDUE' | 'MISSING_FAIL_REASON' | 'MISSING_FAIL_STAGE' | 'MISSING_RESPONSIBLE_DEPARTMENT';
+export type EpicAlertsDeepLinkAlert = 'ACHIEVED_CNTT' | 'ACHIEVED_E2E' | 'DATA_ANOMALY' | 'DATA_ANOMALY_IN_SCOPE' | 'IN_SCOPE_CNTT' | 'TTM_COUNTED_IN_SCOPE' | 'TTM_BLACK_LISTED' | 'TTM_PROJECT_NON_TTM' | 'TTM_NO_CNTT_RULE' | 'OUT_OF_SCOPE_NO_ANOMALY' | 'MISSING_R4G_IN_SCOPE' | 'TTM_ELIGIBLE_IN_SCOPE' | TtmFunnelFilterValue | 'EARLY' | 'FAIL' | 'FAIL_E2E' | 'FAIL_LATE_R4G' | 'FAIL_MISSING_R4G' | 'JUSTIFY_GOLIVE' | 'LATE' | 'OUT_OF_SCOPE_CNTT' | 'PENDING_TOO_LONG' | 'RELEASE_EARLY' | 'STATUS_MISMATCH' | 'WAITING_GOLIVE' | 'WAITING_GOLIVE_MISSING_R4G' | 'WAITING_GOLIVE_WITHIN_GRACE' | 'WAITING_GOLIVE_OVERDUE' | 'MISSING_FAIL_REASON' | 'MISSING_FAIL_STAGE' | 'MISSING_RESPONSIBLE_DEPARTMENT';
 
 export interface EpicAlertsDeepLinkParams {
   /** "Lọc Nhận xét" — same values as the table's Nhận xét badges (FAIL = Fail TTM-CNTT, etc.).
@@ -28,6 +28,8 @@ export interface EpicAlertsDeepLinkParams {
   /** "Đơn vị yêu cầu" — one or several; sent as a repeated `requestingUnit` param (unit names may
    * contain commas, so no comma-joined list). */
   requestingUnit?: string | string[];
+  /** "Nhóm rule" (Rule Management) names — repeated `ruleGroup` param like requestingUnit. */
+  ruleGroup?: string | string[];
   search?: string;
   /** Raw currentStatus values — pre-selects the "Status" multi-select. When omitted, the target
    * screen shows every status (no implicit default exclusions) so counts match whatever the caller
@@ -63,6 +65,9 @@ export function buildEpicAlertsDeepLink(params: EpicAlertsDeepLinkParams = {}): 
   }
   for (const unit of Array.isArray(params.requestingUnit) ? params.requestingUnit : params.requestingUnit ? [params.requestingUnit] : []) {
     if (unit) query.append('requestingUnit', unit);
+  }
+  for (const group of Array.isArray(params.ruleGroup) ? params.ruleGroup : params.ruleGroup ? [params.ruleGroup] : []) {
+    if (group) query.append('ruleGroup', group);
   }
   if (params.dataIssue) query.set('dataIssue', '1');
   if (params.search) query.set('search', params.search);

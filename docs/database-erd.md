@@ -1,10 +1,10 @@
 # TTM Monitor — ERD & từ điển dữ liệu
 
-> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-10-24.
+> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-10-25.
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
-**54 bảng** trong schema `public`, **40 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
+**57 bảng** trong schema `public`, **43 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
 
 ## Mục lục
 
@@ -13,7 +13,7 @@
 3. [Quản lý dự án (PMS — expand-only)](#3-quản-lý-dự-án-pms-expand-only) — 5 bảng
 4. [Import & Issue](#4-import-issue) — 5 bảng
 5. [Cấu hình TTM, lịch & phạm vi](#5-cấu-hình-ttm-lịch-phạm-vi) — 7 bảng
-6. [Epic Scoring Service](#6-epic-scoring-service) — 2 bảng
+6. [Epic Scoring Service](#6-epic-scoring-service) — 5 bảng
 7. [Lịch sử & snapshot](#7-lịch-sử-snapshot) — 1 bảng
 8. [Cache dữ liệu dẫn xuất](#8-cache-dữ-liệu-dẫn-xuất) — 5 bảng
 9. [Cấu hình hệ thống](#9-cấu-hình-hệ-thống) — 4 bảng
@@ -938,11 +938,46 @@ erDiagram
         timestamptz updated_at
         int updated_by_user_id FK
     }
+    scoring_rule_groups {
+        int id PK
+        text name
+        int priority
+        boolean is_default
+        boolean enabled
+        date created_from
+        date created_to
+        date idea_approved_from
+        date idea_approved_to
+        date start_from
+        date start_to
+        date r4g_from
+        date r4g_to
+        date due_from
+        date due_to
+        timestamptz created_at
+        timestamptz updated_at
+        int updated_by_user_id FK
+    }
+    scoring_rule_group_rules {
+        int group_id PK, FK
+        text rule_id PK
+    }
+    scoring_rule_group_history {
+        int id PK
+        timestamptz saved_at
+        int saved_by_user_id FK
+        jsonb config_before
+        jsonb config_after
+        text rule_code_version
+    }
     users {
         int id PK
     }
     users |o--o{ scoring_parameters : "updated_by_user_id"
     users |o--o{ scoring_rule_settings : "updated_by_user_id"
+    users |o--o{ scoring_rule_groups : "updated_by_user_id"
+    scoring_rule_groups ||--o{ scoring_rule_group_rules : "group_id"
+    users |o--o{ scoring_rule_group_history : "saved_by_user_id"
 ```
 
 Bảng tham chiếu ngoài nhóm (chỉ vẽ khoá chính): `users`.
@@ -960,7 +995,7 @@ Tham số rule do admin ghi đè (grace Release, tỉ lệ Pending lâu, status 
 
 ### `scoring_rule_settings`
 
-Bật/tắt từng badge (rule) của Scoring Service; không có dòng = theo mặc định của danh mục badge.
+**Không còn dùng từ 25/10/2026** (thay bằng Rule Group — Rule Management); chờ gỡ bảng. Trước đây: bật/tắt từng badge của Scoring Service.
 
 | Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
 |---|---|---|---|---|---|
@@ -968,6 +1003,63 @@ Bật/tắt từng badge (rule) của Scoring Service; không có dòng = theo m
 | `enabled` | boolean | không |  |  |  |
 | `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 | `updated_by_user_id` | int | có |  | FK → users(id) |  |
+
+### `scoring_rule_groups`
+
+**Mới 25/10/2026.** Nhóm rule (Rule Group) của Scoring Service: khoảng ngày Epic (5 cặp Từ/Đến: ngày tạo, phê duyệt ý tưởng, Start Date, R4G Date, Due Date — AND, tính cả hai đầu), thứ tự ưu tiên, bật/tắt. Epic thuộc nhóm bật ưu tiên cao nhất mà nó khớp; không khớp nhóm nào thì thuộc nhóm `is_default` (luôn có đúng một, không điều kiện ngày, đứng cuối). Màn hình Rule Management.
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `id` | int (tự tăng) | không |  | PK |  |
+| `name` | text | không |  |  |  |
+| `priority` | int | không |  |  |  |
+| `is_default` | boolean | không | false |  |  |
+| `enabled` | boolean | không | true |  |  |
+| `created_from` | date | có |  |  |  |
+| `created_to` | date | có |  |  |  |
+| `idea_approved_from` | date | có |  |  |  |
+| `idea_approved_to` | date | có |  |  |  |
+| `start_from` | date | có |  |  |  |
+| `start_to` | date | có |  |  |  |
+| `r4g_from` | date | có |  |  |  |
+| `r4g_to` | date | có |  |  |  |
+| `due_from` | date | có |  |  |  |
+| `due_to` | date | có |  |  |  |
+| `created_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+| `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+| `updated_by_user_id` | int | có |  | FK → users(id) |  |
+
+- `scoring_rule_groups_created_range`: CHECK (((created_from IS NULL) OR (created_to IS NULL) OR (created_from <= created_to)))
+- `scoring_rule_groups_default_shape`: CHECK (((NOT is_default) OR (enabled AND (created_from IS NULL) AND (created_to IS NULL) AND (idea_approved_from IS NULL) AND (idea_approved_to IS NULL) AND (start_from IS NULL) AND (start_to IS NULL) AND (r4g_from IS NULL) AND (r4g_to IS NULL) AND (due_from IS NULL) AND (due_to IS NULL))))
+- `scoring_rule_groups_due_range`: CHECK (((due_from IS NULL) OR (due_to IS NULL) OR (due_from <= due_to)))
+- `scoring_rule_groups_idea_range`: CHECK (((idea_approved_from IS NULL) OR (idea_approved_to IS NULL) OR (idea_approved_from <= idea_approved_to)))
+- `scoring_rule_groups_name_not_blank`: CHECK ((btrim(name) <> ''::text))
+- `scoring_rule_groups_r4g_range`: CHECK (((r4g_from IS NULL) OR (r4g_to IS NULL) OR (r4g_from <= r4g_to)))
+- `scoring_rule_groups_start_range`: CHECK (((start_from IS NULL) OR (start_to IS NULL) OR (start_from <= start_to)))
+- index `scoring_rule_groups_name_uq`: UNIQUE btree (lower(btrim(name)))
+- index `scoring_rule_groups_single_default`: UNIQUE btree (is_default) WHERE is_default
+
+### `scoring_rule_group_rules`
+
+**Mới 25/10/2026.** Rule object (id trong `src/lib/scoring/registry.ts`) mà mỗi nhóm rule chọn chạy; rule luôn chạy không có ở đây. Id không còn trong code thì bị bỏ qua.
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `group_id` | int | không |  | PK, FK → scoring_rule_groups(id) |  |
+| `rule_id` | text | không |  | PK |  |
+
+### `scoring_rule_group_history`
+
+**Mới 25/10/2026.** Mỗi lần lưu cấu hình nhóm rule: người lưu, thời điểm, toàn bộ cấu hình trước / sau (JSON). Id mới nhất là phiên bản cấu hình — lần lưu sau phải xuất phát từ phiên bản đó.
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `id` | int (tự tăng) | không |  | PK |  |
+| `saved_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+| `saved_by_user_id` | int | có |  | FK → users(id) |  |
+| `config_before` | jsonb | không |  |  |  |
+| `config_after` | jsonb | không |  |  |  |
+| `rule_code_version` | text | không |  |  |  |
 
 ## 7. Lịch sử & snapshot
 
@@ -1045,6 +1137,8 @@ erDiagram
         jsonb findings
         text scoring_ruleset_version
         date scored_as_of
+        int rule_group_id
+        text rule_group_name
     }
     ttm_index_global_cache {
         smallint id PK
@@ -1138,12 +1232,15 @@ Cache dòng Epic của lớp dữ liệu mới nhất cho Quản trị Epic / c�
 | `findings` | jsonb | không | '[]'::jsonb |  |  |
 | `scoring_ruleset_version` | text | có |  |  |  |
 | `scored_as_of` | date | có |  |  |  |
+| `rule_group_id` | int | có |  |  |  |
+| `rule_group_name` | text | có |  |  |  |
 
 - index `idx_epic_alert_row_cache_alert_level`: btree (alert_level)
 - index `idx_epic_alert_row_cache_badge_codes`: gin (badge_codes)
 - index `idx_epic_alert_row_cache_current_status`: btree (current_status)
 - index `idx_epic_alert_row_cache_index_flags`: gin (index_flags)
 - index `idx_epic_alert_row_cache_project_key`: btree (project_key)
+- index `idx_epic_alert_row_cache_rule_group`: btree (rule_group_id)
 - index `idx_epic_alert_row_cache_sort`: btree (bottom_status_rank, has_data_anomaly, alert_rank, remaining_working_days_rank)
 - index `idx_epic_alert_row_cache_ttm_cntt_in_scope`: btree (ttm_cntt_in_scope)
 
@@ -1732,6 +1829,9 @@ Số lượt truy cập LŨY KẾ của các dòng `visit_logs` cũ hơn ngày T
 | `projects` | project_type_id | `project_types`(id) | SET NULL |
 | `role_feature_permissions` | feature_key | `permission_features`(feature_key) | CASCADE |
 | `scoring_parameters` | updated_by_user_id | `users`(id) | SET NULL |
+| `scoring_rule_group_history` | saved_by_user_id | `users`(id) | SET NULL |
+| `scoring_rule_group_rules` | group_id | `scoring_rule_groups`(id) | CASCADE |
+| `scoring_rule_groups` | updated_by_user_id | `users`(id) | SET NULL |
 | `scoring_rule_settings` | updated_by_user_id | `users`(id) | SET NULL |
 | `sso_auth_codes` | api_key_id | `api_keys`(id) | CASCADE |
 | `sso_auth_codes` | user_id | `users`(id) | CASCADE |

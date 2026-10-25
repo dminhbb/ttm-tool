@@ -4,11 +4,12 @@ import { BADGES, BADGE_BY_ID, BADGE_LIST, FINDING_GROUPS, SCORING_AXES, SUPPRESS
 import type { BadgeId } from '../catalog';
 import { addWorkingDays, diffWorkingDays, toIsoDate } from '../dates';
 import { compareWorkflowStatus, deriveMetrics, STATUS_INDEX, workflowStatusIndex } from '../derive';
-import { DEFAULT_SCORING_PARAMETERS, resolveScoringParameters } from '../parameters';
+import { resolveScoringParameters } from '../parameters';
 import { hasDataAnomalyBadge, scoreEpic } from '../score-epic';
 import { activeFindings, badgeCodesOf, hasBadge, indexFlagsOf, primaryFinding } from '../select';
-import type { EpicFacts, ScoringContext } from '../types';
-import { makeContext, makeFacts } from './fixtures';
+import { DEFAULT_RULE_GROUP } from '../registry';
+import type { EpicFacts, ScoringContext, ScoringRuleGroup } from '../types';
+import { makeContext, makeFacts, withoutRules } from './fixtures';
 
 const NO_HOLIDAYS = { holidays: new Set<string>(), workdays: new Set<string>() };
 
@@ -127,13 +128,13 @@ describe('TTM-CNTT', () => {
   });
 
   it('Sai Status (2026-10-01): with R8 switched off, R4G reached on time but status < R4GOLIVE → still Đạt, plus the Sai Status recommendation', () => {
-    const r8Off = { ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE: false };
-    const card = scoreEpic(makeFacts({ r4gDate: '2026-08-20', status: 'TEST' }), makeContext({ ruleEnabled: r8Off }));
+    const r8Off = withoutRules('dq-r8');
+    const card = scoreEpic(makeFacts({ r4gDate: '2026-08-20', status: 'TEST' }), makeContext({ ...r8Off }));
     assert.ok(hasBadge(card, 'CNTT_STATUS_MISMATCH'));
     assert.ok(hasBadge(card, 'CNTT_PASS'));
     assert.deepEqual(card.indexMembership.ttm, { counted: true, eligible: true, pass: true, fail: false });
     // A future-dated R4G Date gets neither badge until asOf reaches it.
-    const future = active(makeFacts({ r4gDate: '2026-08-20', status: 'TEST' }), makeContext({ asOf: '2026-08-10', ruleEnabled: r8Off }));
+    const future = active(makeFacts({ r4gDate: '2026-08-20', status: 'TEST' }), makeContext({ asOf: '2026-08-10', ...r8Off }));
     assert.ok(!future.has('CNTT_PASS') && !future.has('CNTT_STATUS_MISMATCH'));
   });
 
@@ -155,7 +156,7 @@ describe('TTM-CNTT', () => {
     // "Pending lâu" (R2) and Release "Sai Status" (R7) are recommendations — they don't gate.
     assert.ok(active(makeFacts({ status: 'Pending' }), late).has('CNTT_FAIL'));
     // A disabled anomaly rule doesn't gate either.
-    assert.ok(active(makeFacts({ requirementLevel: '' }), makeContext({ asOf: '2026-12-01', ruleEnabled: { ANOMALY_R5_MISSING_REQUIREMENT_LEVEL: false } })).has('CNTT_FAIL'));
+    assert.ok(active(makeFacts({ requirementLevel: '' }), makeContext({ asOf: '2026-12-01', ...withoutRules('dq-r5') })).has('CNTT_FAIL'));
   });
 
   it('future R4G Date at R4GOLIVE: "Sai lệch dữ liệu" (R10, 2026-10-09) — with R10 off it is "chưa kết luận" as before (Q3)', () => {
@@ -163,7 +164,7 @@ describe('TTM-CNTT', () => {
     const card = scoreEpic(facts, makeContext({ asOf: '2026-08-10' }));
     assert.ok(hasBadge(card, 'ANOMALY_R10_R4G_DATE_IN_FUTURE') && !hasBadge(card, 'CNTT_PASS'));
     assert.deepEqual(card.indexMembership.ttm, { counted: true, eligible: false, pass: false, fail: false });
-    const r10Off = scoreEpic(facts, makeContext({ asOf: '2026-08-10', ruleEnabled: { ANOMALY_R10_R4G_DATE_IN_FUTURE: false } }));
+    const r10Off = scoreEpic(facts, makeContext({ asOf: '2026-08-10', ...withoutRules('dq-r10') }));
     assert.ok(!hasBadge(r10Off, 'CNTT_PASS'));
     assert.deepEqual(r10Off.indexMembership.ttm, { counted: true, eligible: true, pass: false, fail: false });
   });
@@ -206,7 +207,7 @@ describe('TTM-E2E', () => {
     const atR4g = active(makeFacts({ r4gDate: target, status: 'R4GOLIVE' }), late);
     assert.ok(atR4g.has('E2E_PASS') && !atR4g.has('E2E_STATUS_MISMATCH'));
     // Status < R4GOLIVE with an R4G Date is a data anomaly (R8) since 2026-10-04 — "Sai Status" only shows with R8 off.
-    const lowStatus = active(makeFacts({ r4gDate: target, status: 'TEST' }), makeContext({ asOf: '2026-12-01', ruleEnabled: { ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE: false } }));
+    const lowStatus = active(makeFacts({ r4gDate: target, status: 'TEST' }), makeContext({ asOf: '2026-12-01', ...withoutRules('dq-r8') }));
     assert.ok(lowStatus.has('E2E_PASS') && lowStatus.has('E2E_STATUS_MISMATCH'));
     assert.ok(active(makeFacts({ r4gDate: addWorkingDays(target, 1, NO_HOLIDAYS), status: 'Released' }), late).has('E2E_FAIL'));
     // Future-dated end is "Sai lệch dữ liệu" (R10) since 2026-10-09 — no TTM-E2E verdict either way.
@@ -216,7 +217,7 @@ describe('TTM-E2E', () => {
       assert.ok(badges.has('ANOMALY_R10_R4G_DATE_IN_FUTURE') && !badges.has('E2E_PASS') && !badges.has('E2E_FAIL'));
     }
     // With R10 off: not judged yet when on time, already Fail when past Target.
-    const before = makeContext({ asOf: '2026-08-03', ruleEnabled: { ANOMALY_R10_R4G_DATE_IN_FUTURE: false } });
+    const before = makeContext({ asOf: '2026-08-03', ...withoutRules('dq-r10') });
     const onTimeFuture = active(makeFacts({ r4gDate: target, status: 'R4GOLIVE' }), before);
     assert.ok(!onTimeFuture.has('E2E_PASS') && !onTimeFuture.has('E2E_FAIL'));
     assert.ok(active(lateFuture, before).has('E2E_FAIL'));
@@ -244,10 +245,9 @@ describe('Release', () => {
     assert.equal(card.indexMembership.ttm.eligible, true);
   });
 
-  it('Release đúng hạn ships disabled and can be enabled per rule', () => {
+  it('Release đúng hạn: the rule always runs but its badge is not in use yet (owner decision 2026-10-25)', () => {
     const released = { ...base, status: 'Released', dueDate: '2026-08-25' };
     assert.ok(!active(released, makeContext({ asOf: '2026-09-01' })).has('RELEASE_ON_TIME'));
-    assert.ok(active(released, makeContext({ asOf: '2026-09-01', ruleEnabled: { RELEASE_ON_TIME: true } })).has('RELEASE_ON_TIME'));
   });
 
   describe('Chờ golive (rule đổi 2026-10-01: status-based, không phụ thuộc R4G Date/grace)', () => {
@@ -422,7 +422,7 @@ describe('Data quality', () => {
     // A future date later than Target would be Fail (L05ab) on its own — R10 outranks it, like R8.
     const lateFuture = makeFacts({ status: 'R4GOLIVE', r4gDate: future });
     assert.ok(!active(lateFuture, ctx).has('CNTT_FAIL'));
-    assert.ok(active(lateFuture, makeContext({ ruleEnabled: { ANOMALY_R10_R4G_DATE_IN_FUTURE: false } })).has('CNTT_FAIL'));
+    assert.ok(active(lateFuture, makeContext({ ...withoutRules('dq-r10') })).has('CNTT_FAIL'));
   });
 
   it('R8 (2026-10-09): "Sai lệch dữ liệu" outranks Fail — an R4G Date declared ahead takes the Epic out of the denominator', () => {
@@ -441,7 +441,7 @@ describe('Data quality', () => {
     assert.ok(!hasBadge(card, 'CNTT_FAIL') && !hasBadge(card, 'CNTT_PASS'));
     assert.deepEqual(card.indexMembership.ttm, { counted: true, eligible: false, pass: false, fail: false });
     // R8 switched off shows the verdict it is covering.
-    const r8Off = scoreEpic(declaredAhead, makeContext({ ruleEnabled: { ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE: false } }));
+    const r8Off = scoreEpic(declaredAhead, makeContext({ ...withoutRules('dq-r8') }));
     assert.ok(hasBadge(r8Off, 'CNTT_FAIL'));
     assert.equal(r8Off.indexMembership.ttm.fail, true);
   });
@@ -488,7 +488,7 @@ describe('Data quality', () => {
     // R2 itself still leaves the Epic in the denominator.
     const withR4g = { ...facts, r4gDate: '2026-08-20' };
     assert.ok(hasBadge(scoreEpic(withR4g, makeContext({ asOf: '2026-08-06' })), 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'));
-    const r8Off = scoreEpic(withR4g, makeContext({ asOf: '2026-08-06', ruleEnabled: { ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE: false } }));
+    const r8Off = scoreEpic(withR4g, makeContext({ asOf: '2026-08-06', ...withoutRules('dq-r8') }));
     assert.ok(hasBadge(r8Off, 'ANOMALY_R2_PENDING_TOO_LONG'));
     assert.equal(r8Off.indexMembership.ttm.eligible, true);
   });
@@ -498,101 +498,21 @@ describe('Data quality', () => {
     assert.ok(![...codes].some((badge) => badge.startsWith('ANOMALY_')));
   });
 
-  it('Phạm vi rule Sai lệch dữ liệu: when master toggle is enabled, rules with rule toggle evaluate only in-scope Epics', () => {
-    // 1. Master toggle = Disabled -> Scope is ignored, R1 flags as usual
-    const disabledScope = {
-      enabled: false,
-      rules: {
-        ANOMALY_R1_MISSING_START_DATE: { enabled: true, createdAfter: '2026-08-01', startAfter: null, r4gAfter: null, dueAfter: null },
-      },
-    };
-    const oldCreatedEpic = makeFacts({ jiraCreatedAt: '2026-07-20', status: 'In Progress', startDate: null });
-    assert.ok(active(oldCreatedEpic, makeContext({ parameters: { ...DEFAULT_SCORING_PARAMETERS, 'anomaly.scopeConfig': disabledScope } })).has('ANOMALY_R1_MISSING_START_DATE'));
+  it('Rule Groups replace "Phạm vi rule Sai lệch dữ liệu": R1 only for Epics created from 01/08/2026 (spec 2026-10-25)', () => {
+    const recent: ScoringRuleGroup = { ...DEFAULT_RULE_GROUP, id: 1, name: 'Từ 08/2026', isDefault: false, priority: 1, conditions: { jiraCreatedAt: { from: '2026-08-01', to: null } } };
+    const fallback: ScoringRuleGroup = { ...DEFAULT_RULE_GROUP, id: 2, ruleIds: DEFAULT_RULE_GROUP.ruleIds.filter((id) => id !== 'dq-r1') };
+    const ctx = makeContext({ ruleGroups: [recent, fallback] });
 
-    // 2. Master toggle = Enabled, Rule toggle = Disabled -> That rule applies normally
-    const ruleDisabledScope = {
-      enabled: true,
-      rules: {
-        ANOMALY_R1_MISSING_START_DATE: { enabled: false, createdAfter: '2026-08-01', startAfter: null, r4gAfter: null, dueAfter: null },
-      },
-    };
-    assert.ok(active(oldCreatedEpic, makeContext({ parameters: { ...DEFAULT_SCORING_PARAMETERS, 'anomaly.scopeConfig': ruleDisabledScope } })).has('ANOMALY_R1_MISSING_START_DATE'));
+    // Created before 01/08/2026 → Default (no R1) → not flagged, not "Sai lệch dữ liệu".
+    const oldCard = scoreEpic(makeFacts({ jiraCreatedAt: '2026-07-20', status: 'In Progress', startDate: null }), ctx);
+    assert.ok(!hasBadge(oldCard, 'ANOMALY_R1_MISSING_START_DATE'));
+    assert.equal(hasDataAnomalyBadge(new Set(activeFindings(oldCard).map((f) => f.badge))), false);
+    assert.equal(oldCard.ruleGroup?.id, 2);
 
-    // 3. Master toggle = Enabled, Rule toggle = Enabled:
-    const activeScope = {
-      enabled: true,
-      rules: {
-        ANOMALY_R1_MISSING_START_DATE: { enabled: true, createdAfter: '2026-08-01', startAfter: null, r4gAfter: null, dueAfter: null },
-      },
-    };
-    const ctxScoped = makeContext({ parameters: { ...DEFAULT_SCORING_PARAMETERS, 'anomaly.scopeConfig': activeScope } });
-
-    // Epic created before 2026-08-01 -> out of scope -> NOT flagged for R1, not data anomaly!
-    const outOfScopeCard = scoreEpic(oldCreatedEpic, ctxScoped);
-    assert.ok(!hasBadge(outOfScopeCard, 'ANOMALY_R1_MISSING_START_DATE'));
-    const outActive = new Set(outOfScopeCard.findings.filter((f) => !f.suppressedBy).map((f) => f.badge));
-    assert.equal(hasDataAnomalyBadge(outActive), false);
-
-    // Epic created after 2026-08-01 -> in scope -> flagged for R1!
-    const inScopeEpic = makeFacts({ jiraCreatedAt: '2026-08-05', status: 'In Progress', startDate: null });
-    const inScopeCard = scoreEpic(inScopeEpic, ctxScoped);
-    assert.ok(hasBadge(inScopeCard, 'ANOMALY_R1_MISSING_START_DATE'));
-    const inActive = new Set(inScopeCard.findings.filter((f) => !f.suppressedBy).map((f) => f.badge));
-    assert.equal(hasDataAnomalyBadge(inActive), true);
-
-    // 4. Multiple conditions combined with AND (e.g. R8 with createdAfter and r4gAfter)
-    const multiScope = {
-      enabled: true,
-      rules: {
-        ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE: {
-          enabled: true,
-          createdAfter: '2026-07-01',
-          startAfter: null,
-          r4gAfter: '2026-08-15',
-          dueAfter: null,
-        },
-      },
-    };
-    const ctxMulti = makeContext({ parameters: { ...DEFAULT_SCORING_PARAMETERS, 'anomaly.scopeConfig': multiScope } });
-
-    // Epic with r4gDate: 2026-08-20 (> 2026-08-15) and jiraCreatedAt: 2026-07-20 (> 2026-07-01) -> both satisfied -> flagged R8
-    const r8Match = makeFacts({ jiraCreatedAt: '2026-07-20', status: 'DEV', r4gDate: '2026-08-20' });
-    assert.ok(active(r8Match, ctxMulti).has('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'));
-
-    // Epic with r4gDate: 2026-08-10 (<= 2026-08-15) -> r4gAfter not satisfied -> out of scope -> NOT flagged R8!
-    const r8Mismatch = makeFacts({ jiraCreatedAt: '2026-07-20', status: 'DEV', r4gDate: '2026-08-10' });
-    assert.ok(!active(r8Mismatch, ctxMulti).has('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'));
-
-    // 5. Empty or "none" strings are ignored
-    const noneScope = {
-      enabled: true,
-      rules: {
-        ANOMALY_R1_MISSING_START_DATE: {
-          enabled: true,
-          createdAfter: 'none',
-          startAfter: '   ',
-          r4gAfter: null,
-          dueAfter: '',
-        },
-      },
-    };
-    const ctxNone = makeContext({ parameters: { ...DEFAULT_SCORING_PARAMETERS, 'anomaly.scopeConfig': noneScope } });
-    assert.ok(active(oldCreatedEpic, ctxNone).has('ANOMALY_R1_MISSING_START_DATE'));
-
-    // 6. A bound on a date the Epic doesn't have is skipped — it must not switch off the rule that
-    // flags the missing date (R1 under a Start Date bound, R9 under an R4G Date bound).
-    const missingDateScope = {
-      enabled: true,
-      rules: {
-        ANOMALY_R1_MISSING_START_DATE: { enabled: true, createdAfter: null, startAfter: '2026-01-01', r4gAfter: null, dueAfter: null },
-        ANOMALY_R9_MISSING_R4G_DATE: { enabled: true, createdAfter: '2026-08-01', startAfter: null, r4gAfter: '2026-01-01', dueAfter: null },
-      },
-    };
-    const ctxMissing = makeContext({ parameters: { ...DEFAULT_SCORING_PARAMETERS, 'anomaly.scopeConfig': missingDateScope } });
-    assert.ok(active(makeFacts({ status: 'In Progress', startDate: null }), ctxMissing).has('ANOMALY_R1_MISSING_START_DATE'));
-    assert.ok(active(makeFacts({ jiraCreatedAt: '2026-08-05', status: 'R4GOLIVE', r4gDate: null }), ctxMissing).has('ANOMALY_R9_MISSING_R4G_DATE'));
-    // The bounds the Epic does have a date for still apply.
-    assert.ok(!active(makeFacts({ jiraCreatedAt: '2026-07-20', status: 'R4GOLIVE', r4gDate: null }), ctxMissing).has('ANOMALY_R9_MISSING_R4G_DATE'));
+    // Created on/after 01/08/2026 → the group with R1 → flagged.
+    const newCard = scoreEpic(makeFacts({ jiraCreatedAt: '2026-08-05T10:00:00+07:00', status: 'In Progress', startDate: null }), ctx);
+    assert.ok(hasBadge(newCard, 'ANOMALY_R1_MISSING_START_DATE'));
+    assert.equal(newCard.ruleGroup?.id, 1);
   });
 });
 

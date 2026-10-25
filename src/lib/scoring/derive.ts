@@ -1,5 +1,6 @@
 import { addWorkingDays, diffWorkingDays, toIsoDate } from './dates';
-import type { DerivedMetrics, EpicComplexity, EpicFacts, IsoDate, PhaseDerived, ScoringContext, ScoringTtmPolicy, TtmPhaseKey } from './types';
+import { DEFAULT_POLICY_SET } from './types';
+import type { DerivedMetrics, EpicComplexity, EpicFacts, IsoDate, PhaseDerived, PolicySetSelection, ScoringContext, ScoringTtmPolicy, TtmPhaseKey } from './types';
 
 /**
  * Canonical Epic workflow. Jira's legacy "In Progress" is DEV. Owner rule 2026-10-05: 'MVP DONE'
@@ -66,8 +67,11 @@ export function isPendingStatus(status: string): boolean {
 
 export const PHASE_KEYS: readonly TtmPhaseKey[] = ['DESIGN', 'DEV', 'TEST', 'PENTEST', 'R4GOLIVE'];
 
-export function findActivePolicy(policies: readonly ScoringTtmPolicy[], ttmType: ScoringTtmPolicy['ttmType'], complexity: EpicComplexity): ScoringTtmPolicy | null {
-  return policies.find((policy) => policy.isActive && policy.ttmType === ttmType && policy.epicComplexityType === complexity) ?? null;
+/** Active "Tiêu chí Time to Market" row for (type, complexity) in a "Bộ ngân sách" (spec 2026-10-25 §17): a set only
+ * holds the rows that differ, so a row it lacks is inherited from DEFAULT_POLICY_SET. */
+export function findActivePolicy(policies: readonly ScoringTtmPolicy[], ttmType: ScoringTtmPolicy['ttmType'], complexity: EpicComplexity, policySet: string = DEFAULT_POLICY_SET): ScoringTtmPolicy | null {
+  const inSet = (set: string) => policies.find((policy) => policy.isActive && policy.ttmType === ttmType && policy.epicComplexityType === complexity && (policy.policySet ?? DEFAULT_POLICY_SET) === set);
+  return inSet(policySet) ?? (policySet === DEFAULT_POLICY_SET ? null : inSet(DEFAULT_POLICY_SET)) ?? null;
 }
 
 /** Policy "From/To TTM Field" → the Epic's date (the aliases of the retired compliance engine). */
@@ -121,14 +125,16 @@ function resolveCurrentPhase(statusIndex: number, devDone: boolean, testDone: bo
   return 'PENTEST';
 }
 
-export function deriveMetrics(facts: EpicFacts, ctx: ScoringContext): DerivedMetrics {
+/** `policySets`: the "Bộ ngân sách" of the Epic's Rule Group verdict rules (rule-groups.ts policySetsOf) — the budgets,
+ * Targets, late-alert dates and phase baselines below all come from it. */
+export function deriveMetrics(facts: EpicFacts, ctx: ScoringContext, policySets: PolicySetSelection = { cntt: DEFAULT_POLICY_SET, e2e: DEFAULT_POLICY_SET }): DerivedMetrics {
   const complexity: EpicComplexity = facts.complexity ?? 'CT-Lv12';
   const statusIndex = workflowStatusIndex(facts.status);
   const isCancelled = isCancelledStatus(facts.status);
   const { holidays } = ctx;
 
   // ---- TTM-CNTT ----
-  const cnttPolicy = findActivePolicy(ctx.ttmPolicies, 'TTM_CNTT', complexity);
+  const cnttPolicy = findActivePolicy(ctx.ttmPolicies, 'TTM_CNTT', complexity, policySets.cntt);
   const cnttBudget = cnttPolicy?.workingDays ?? null;
   const cnttFromDate = cnttPolicy ? fieldDate(facts, cnttPolicy.fromTtmField) : null;
   const cnttTargetDate = cnttFromDate && cnttBudget ? addWorkingDays(cnttFromDate, Math.max(0, cnttBudget - 1), holidays) : null;
@@ -137,7 +143,7 @@ export function deriveMetrics(facts: EpicFacts, ctx: ScoringContext): DerivedMet
   const cnttCalcBroken = !facts.startDate || Boolean(facts.r4gDate && facts.r4gDate < facts.startDate);
 
   // ---- TTM-E2E ----
-  const e2ePolicy = findActivePolicy(ctx.ttmPolicies, 'TTM_E2E', complexity);
+  const e2ePolicy = findActivePolicy(ctx.ttmPolicies, 'TTM_E2E', complexity, policySets.e2e);
   const e2eBudget = e2ePolicy?.workingDays ?? null;
   const e2eBaselineSourceDate = facts.ideaApprovedDate ?? toIsoDate(facts.jiraCreatedAt);
   // Target_E2E = T0 +wd (N − 1) — T0 is day 1, same convention as Target_CNTT (decision 2026-10-01).
@@ -173,6 +179,8 @@ export function deriveMetrics(facts: EpicFacts, ctx: ScoringContext): DerivedMet
 
   return {
     complexity,
+    cnttPolicySet: policySets.cntt,
+    e2ePolicySet: policySets.e2e,
     statusIndex,
     isCancelled,
     cnttFromDate,

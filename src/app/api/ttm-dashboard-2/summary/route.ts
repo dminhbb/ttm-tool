@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
       pmSms: values('pmSms'),
       projects: values('projects'),
       requestingUnits: values('requestingUnits'),
+      ruleGroups: values('ruleGroups'),
     };
     return NextResponse.json(await getTtmDashboard2FilteredSummary(actor, params.get('viewAsUserId'), parseTtmDashboard2View(params.get('view')), filters));
   } catch (error) {

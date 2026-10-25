@@ -35,6 +35,8 @@ export interface TtmDashboard2SummaryFilters {
   pmSms?: string[];
   projectKeys?: string[];
   requestingUnits?: string[];
+  /** Rule Group names (Rule Management). */
+  ruleGroups?: string[];
 }
 
 function describeIndex(summary: TtmCnttSummary) {
@@ -68,6 +70,7 @@ export async function getTtmDashboard2Summary(userId: number, role: UserRole, in
     pmSms: resolveValues(input.pmSms, options.pmSms),
     projects: resolveValues(input.projectKeys, options.projects),
     requestingUnits: resolveValues(input.requestingUnits, options.requestingUnits),
+    ruleGroups: resolveValues(input.ruleGroups, options.ruleGroups ?? []),
   };
   const funnel = hasActiveTtmDashboard2Filter(filters)
     ? summarizeTtmFunnel(filterTtmDashboard2Rows(await loadTtmDashboard2Rows(userId, role), filters))
@@ -85,12 +88,13 @@ export async function getTtmDashboard2Summary(userId: number, role: UserRole, in
   return {
     screen: 'TTM Dashboard 2 (/ttm-dashboard-2)',
     lastAggregatedAt: latestBatch.rows[0]?.aggregatedAt ?? null,
-    appliedFilters: { dimension, domain: filters.domain || null, pmSms: filters.pmSms, projectKeys: filters.projects, requestingUnits: filters.requestingUnits },
+    appliedFilters: { dimension, domain: filters.domain || null, pmSms: filters.pmSms, projectKeys: filters.projects, requestingUnits: filters.requestingUnits, ruleGroups: filters.ruleGroups },
     funnel: {
       criteria: (Object.keys(TTM_FUNNEL_CRITERIA) as TtmFunnelCriterionId[]).map((id) => ({ id, ...TTM_FUNNEL_CRITERIA[id], count: counts[id] })),
       cancelled: funnel.buckets.CANCELLED,
       epicNgoaiLe: funnel.buckets.BLACK_LISTED ?? 0,
       duAnKhongTinhTtm: funnel.buckets.PROJECT_NON_TTM ?? 0,
+      khongApDungRuleTtmCntt: funnel.buckets.NO_CNTT_RULE ?? 0,
       saiLechDuLieu: funnel.buckets.DATA_ANOMALY,
       ngoaiPhamViDuLieuChoTtm: funnel.buckets.OUT_OF_SCOPE,
       scopeStats: funnel.scopeStats,
@@ -132,7 +136,7 @@ export async function getTtmDashboard2Summary(userId: number, role: UserRole, in
     ttmIndexGlobal: ttmIndexGlobal
       ? { computedAt: ttmIndexGlobal.computedAt, ttmCnttQlda: describeIndex(ttmIndexGlobal.ttm), ttmCnttQa: describeIndex(ttmIndexGlobal.qa), ttmE2e: describeIndex(ttmIndexGlobal.e2e) }
       : null,
-    filterOptions: { domains: options.domains, pmSms: options.pmSms, projectKeys: options.projects, requestingUnits: options.requestingUnits },
+    filterOptions: { domains: options.domains, pmSms: options.pmSms, projectKeys: options.projects, requestingUnits: options.requestingUnits, ruleGroups: options.ruleGroups ?? [] },
     glossary: {
       funnel: 'Phễu chỉ tính Epic trong "Phạm vi dữ liệu cho TTM" và phạm vi quyền của người gọi. L02 = L01 − Cancelled − Epic ngoại lệ; "Epic ngoại lệ" gồm 2 loại: Epic trong danh sách Black listed (epicNgoaiLe) và Epic thuộc dự án có Time to Market = N (duAnKhongTinhTtm) — Scoring Service không xét các Epic này; L03 = L02 − Sai lệch dữ liệu = L04a + L04b; L04a = L05aa + L05ab + L05ac; L04b = L05ba + L05bb.',
       indexes: 'Cả 3 chỉ số: pct = Tỷ lệ % Pass = pass / denominator, denominator = pass + fail (chỉ Epic đã có kết luận; Cancelled, Epic ngoại lệ, Sai lệch dữ liệu, chưa kết luận không tính); pct = null khi chưa có Epic nào được kết luận. TTM-CNTT (QLDA): pass = L05aa, fail = L05ab + L05ba. TTM-CNTT (QA): cùng công thức, chỉ Epic MVP Done / Released trong "R4G for TTM (QA)". TTM-E2E: Đạt / (Đạt + Fail) TTM-E2E, không áp "Phạm vi dữ liệu cho TTM".',

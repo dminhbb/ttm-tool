@@ -25,6 +25,12 @@ function hasBadge(row: VerdictRow, badge: string): boolean {
   return Boolean(row.scoringBadges?.includes(badge));
 }
 
+/** The Epic's Rule Group has no TTM-CNTT rule (badge CNTT_NO_RULE, spec 2026-10-25 D6): outside L02, like Cancelled
+ * and "Epic ngoại lệ" — but still judged on every other axis (TTM-E2E, Release, data quality…). */
+export function hasNoCnttRule(row: Pick<EpicAlertRowPhased, 'scoringBadges'>): boolean {
+  return Boolean(row.scoringBadges?.includes('CNTT_NO_RULE'));
+}
+
 /** "Đạt TTM-CNTT" — never for a "Sai Status" or Cancelled Epic. */
 export function isTtmCnttAchieved(row: VerdictRow): boolean {
   return hasBadge(row, 'CNTT_PASS');
@@ -89,7 +95,7 @@ export type AlertFilterValue =
   | 'FAIL_LATE_R4G' | 'FAIL_MISSING_R4G' | 'DATA_ANOMALY' | 'DATA_ANOMALY_IN_SCOPE' | 'IN_SCOPE_CNTT' | 'OUT_OF_SCOPE_NO_ANOMALY' | 'MISSING_R4G_IN_SCOPE' | 'TTM_ELIGIBLE_IN_SCOPE' | 'PENDING_TOO_LONG' | 'WAITING_GOLIVE' | 'WAITING_GOLIVE_MISSING_R4G'
   | TtmFunnelFilterValue
   | 'WAITING_GOLIVE_WITHIN_GRACE' | 'WAITING_GOLIVE_OVERDUE' | 'RELEASE_EARLY' | 'JUSTIFY_GOLIVE' | 'OUT_OF_SCOPE_CNTT'
-  | 'TTM_COUNTED_IN_SCOPE' | 'TTM_BLACK_LISTED' | 'TTM_PROJECT_NON_TTM' | 'MISSING_FAIL_REASON' | 'MISSING_FAIL_STAGE' | 'MISSING_RESPONSIBLE_DEPARTMENT';
+  | 'TTM_COUNTED_IN_SCOPE' | 'TTM_BLACK_LISTED' | 'TTM_PROJECT_NON_TTM' | 'TTM_NO_CNTT_RULE' | 'MISSING_FAIL_REASON' | 'MISSING_FAIL_STAGE' | 'MISSING_RESPONSIBLE_DEPARTMENT';
 
 const ALERT_FILTER_OPTIONS: { label: string; value: AlertFilterValue }[] = [
   { label: 'Tất cả nhận xét', value: '' },
@@ -106,6 +112,7 @@ const ALERT_FILTER_OPTIONS: { label: string; value: AlertFilterValue }[] = [
   { label: 'L02 — Epic trong phạm vi tính TTM', value: 'TTM_COUNTED_IN_SCOPE' },
   { label: 'Epic ngoại lệ — TTM Black listed (loại khỏi L02)', value: 'TTM_BLACK_LISTED' },
   { label: 'Epic ngoại lệ — dự án Time to Market = N (loại khỏi L02)', value: 'TTM_PROJECT_NON_TTM' },
+  { label: 'Không áp dụng rule TTM-CNTT — theo nhóm rule (loại khỏi L02)', value: 'TTM_NO_CNTT_RULE' },
   { label: 'Sai lệch dữ liệu (trong phạm vi TTM-CNTT)', value: 'DATA_ANOMALY_IN_SCOPE' },
   { label: 'Chưa có R4G Date (trong phạm vi TTM-CNTT)', value: 'MISSING_R4G_IN_SCOPE' },
   { label: 'L04a — Epic hoàn thành (có R4G Date)', value: 'TTM_ELIGIBLE_IN_SCOPE' },
@@ -150,16 +157,17 @@ export function matchesAlertFilter(row: VerdictRow, alertFilter: AlertFilterValu
     // L01 of the TTM Dashboard 2 funnel: every Epic inside "Phạm vi dữ liệu cho TTM".
     case 'IN_SCOPE_CNTT': return row.ttmCnttInScope;
     // L02: L01 without Cancelled, "Epic ngoại lệ" and non-TTM-project Epics.
-    case 'TTM_COUNTED_IN_SCOPE': return row.ttmCnttInScope && !isCancelledStatus(row.currentStatus || '') && !row.ttmExclusion;
+    case 'TTM_COUNTED_IN_SCOPE': return row.ttmCnttInScope && !isCancelledStatus(row.currentStatus || '') && !row.ttmExclusion && !hasNoCnttRule(row);
     // The two groups L02 drops besides Cancelled (inside "Phạm vi dữ liệu cho TTM", like the funnel).
     case 'TTM_BLACK_LISTED': return ttmFunnelBucket(row) === 'BLACK_LISTED';
     case 'TTM_PROJECT_NON_TTM': return ttmFunnelBucket(row) === 'PROJECT_NON_TTM';
+    case 'TTM_NO_CNTT_RULE': return ttmFunnelBucket(row) === 'NO_CNTT_RULE';
     case 'OUT_OF_SCOPE_NO_ANOMALY': return !row.ttmCnttInScope && !row.hasDataAnomaly && !isCancelledStatus(row.currentStatus || '');
-    case 'DATA_ANOMALY_IN_SCOPE': return row.ttmCnttInScope && row.hasDataAnomaly && !row.ttmExclusion;
+    case 'DATA_ANOMALY_IN_SCOPE': return row.ttmCnttInScope && row.hasDataAnomaly && !row.ttmExclusion && !hasNoCnttRule(row);
     // Mutually exclusive with DATA_ANOMALY_IN_SCOPE (excludes hasDataAnomaly rows) so the dashboard's
     // "Tổng số Epic" − "Sai lệch dữ liệu" − "Chưa có R4G Date" arithmetic always lands exactly on
     // the TTM-CNTT (QLDA) denominator (isTtmIndexEligible below) with no double-counted overlap.
-    case 'MISSING_R4G_IN_SCOPE': return row.ttmCnttInScope && !row.hasDataAnomaly && !row.r4gDate && !row.ttmExclusion;
+    case 'MISSING_R4G_IN_SCOPE': return row.ttmCnttInScope && !row.hasDataAnomaly && !row.r4gDate && !row.ttmExclusion && !hasNoCnttRule(row);
     // TTM Dashboard 2 funnel leaves — see ttmFunnelBucket.
     case 'TTM_PASS_IN_SCOPE':
     case 'TTM_LATE_IN_SCOPE':
@@ -169,7 +177,7 @@ export function matchesAlertFilter(row: VerdictRow, alertFilter: AlertFilterValu
       return ttmFunnelBucket(row) === TTM_FUNNEL_BUCKET_BY_FILTER[alertFilter];
     // L04a "Epic hoàn thành" / "EPIC TÍNH TTM" column (Ma trận Phân bổ) — exactly isTtmIndexEligible's
     // own gate, expressed field-based like the filters above.
-    case 'TTM_ELIGIBLE_IN_SCOPE': return row.ttmCnttInScope && Boolean(row.r4gDate) && !row.hasDataAnomaly && !row.ttmExclusion;
+    case 'TTM_ELIGIBLE_IN_SCOPE': return row.ttmCnttInScope && Boolean(row.r4gDate) && !row.hasDataAnomaly && !row.ttmExclusion && !hasNoCnttRule(row);
     case 'WAITING_GOLIVE_MISSING_R4G': return waitingGoliveBucket(row, vnTodayIso()) === 'MISSING_R4G';
     case 'WAITING_GOLIVE_WITHIN_GRACE': return waitingGoliveBucket(row, vnTodayIso()) === 'WITHIN_GRACE';
     case 'WAITING_GOLIVE_OVERDUE': return waitingGoliveBucket(row, vnTodayIso()) === 'OVERDUE';
@@ -201,7 +209,8 @@ export function isTtmIndexPass(row: IndexRow): boolean {
  * and is not part of L01:
  *
  *   OUT_OF_SCOPE (ngoài "Phạm vi dữ liệu cho TTM") — outside the funnel
- *   L01 Tổng epic ─┬─ CANCELLED | BLACK_LISTED | PROJECT_NON_TTM → L02 = L01 − the three (owner rule 2026-10-05:
+ *   L01 Tổng epic ─┬─ CANCELLED | BLACK_LISTED | PROJECT_NON_TTM | NO_CNTT_RULE → L02 = L01 − the four (NO_CNTT_RULE:
+ *                  │   Rule Group without a TTM-CNTT rule, 2026-10-25; the others: owner rule 2026-10-05:
  *                  │                                            Cancelled, "Epic ngoại lệ", project Time to Market = N)
  *                  ├─ DATA_ANOMALY                           → L03 = L02 − DATA_ANOMALY = L04a + L04b
  *                  ├─ L04a Epic hoàn thành (có R4G Date):       L05aa R4G_PASS | L05ab R4G_LATE | L05ac R4G_NOT_SCORED
@@ -214,17 +223,18 @@ export function isTtmIndexPass(row: IndexRow): boolean {
  * funnel number and the list it opens always agree.
  */
 export type TtmFunnelBucket =
-  | 'CANCELLED' | 'BLACK_LISTED' | 'PROJECT_NON_TTM' | 'DATA_ANOMALY' | 'OUT_OF_SCOPE'
+  | 'CANCELLED' | 'BLACK_LISTED' | 'PROJECT_NON_TTM' | 'NO_CNTT_RULE' | 'DATA_ANOMALY' | 'OUT_OF_SCOPE'
   | 'R4G_PASS' | 'R4G_LATE' | 'R4G_NOT_SCORED'
   | 'NO_R4G_OVERDUE' | 'NO_R4G_WITHIN_TARGET';
 
-type FunnelRow = Pick<EpicAlertRowPhased, 'alertLevel' | 'currentStatus' | 'hasDataAnomaly' | 'r4gDate' | 'scoringIndexFlags' | 'ttmCnttInScope' | 'ttmExclusion'>;
+type FunnelRow = Pick<EpicAlertRowPhased, 'alertLevel' | 'currentStatus' | 'hasDataAnomaly' | 'r4gDate' | 'scoringBadges' | 'scoringIndexFlags' | 'ttmCnttInScope' | 'ttmExclusion'>;
 
 export function ttmFunnelBucket(row: FunnelRow): TtmFunnelBucket {
   if (!row.ttmCnttInScope) return 'OUT_OF_SCOPE';
   if (isCancelledStatus(row.currentStatus || '')) return 'CANCELLED';
   if (row.ttmExclusion === 'BLACK_LISTED') return 'BLACK_LISTED';
   if (row.ttmExclusion === 'PROJECT_NON_TTM') return 'PROJECT_NON_TTM';
+  if (hasNoCnttRule(row)) return 'NO_CNTT_RULE';
   if (row.hasDataAnomaly) return 'DATA_ANOMALY';
   if (row.r4gDate) {
     if (isTtmIndexPass(row)) return 'R4G_PASS';

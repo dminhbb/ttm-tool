@@ -28,8 +28,11 @@ export const EXPORTABLE_TABLES: { label: string; tableName: string }[] = [
   // the Scoring Service / data-scope settings or the permission matrix. Caches are still left out —
   // "Tạo lại cache" rebuilds them from the tables above.
   { label: 'Phạm vi dữ liệu cho TTM', tableName: 'ttm_scope_config' },
-  { label: 'Scoring Service — tham số (gồm Phạm vi rule Sai lệch dữ liệu)', tableName: 'scoring_parameters' },
-  { label: 'Scoring Service — bật/tắt rule', tableName: 'scoring_rule_settings' },
+  { label: 'Scoring Service — tham số', tableName: 'scoring_parameters' },
+  { label: 'Scoring Service — bật/tắt rule (cũ, không còn dùng)', tableName: 'scoring_rule_settings' },
+  { label: 'Rule Management — nhóm rule', tableName: 'scoring_rule_groups' },
+  { label: 'Rule Management — rule của từng nhóm', tableName: 'scoring_rule_group_rules' },
+  { label: 'Rule Management — lịch sử thay đổi', tableName: 'scoring_rule_group_history' },
   { label: 'Epic ngoại lệ (Black listed)', tableName: 'black_listed_epics' },
   { label: 'Từ chối import — danh sách Epic', tableName: 'denied_import_epics' },
   { label: 'Từ chối import — ngày A/B', tableName: 'import_admission_settings' },
@@ -482,6 +485,9 @@ export async function exportSmartSurfaceToSql(options: SmartSurfaceExportOptions
     'ttm_scope_config',
     'scoring_parameters',
     'scoring_rule_settings',
+    'scoring_rule_groups',
+    'scoring_rule_group_rules',
+    'scoring_rule_group_history',
     'black_listed_epics',
     'denied_import_epics',
     'import_admission_settings',

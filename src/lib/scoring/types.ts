@@ -80,6 +80,50 @@ export interface ScoringTtmPolicy {
   toTtmField: string;
   ttmType: 'TTM_CNTT' | 'TTM_E2E';
   workingDays: number;
+  /** "Bộ ngân sách" this row belongs to (spec 2026-10-25 §17); absent = DEFAULT_POLICY_SET. A set only
+   * holds the rows that differ — a missing (type, complexity) row is inherited from DEFAULT_POLICY_SET. */
+  policySet?: string;
+}
+
+/** The budget set every Epic used before "Bộ ngân sách" existed (Tiêu chí Time to Market as configured today). */
+export const DEFAULT_POLICY_SET = 'DEFAULT';
+
+/** Which "Bộ ngân sách" the Epic's TTM-CNTT / TTM-E2E numbers come from — set by the verdict rules of its Rule Group. */
+export interface PolicySetSelection {
+  cntt: string;
+  e2e: string;
+}
+
+/** Epic dates a Rule Group can filter on (spec 2026-10-25 §6.1). */
+export type RuleGroupDateField = 'jiraCreatedAt' | 'ideaApprovedDate' | 'startDate' | 'r4gDate' | 'dueDate';
+
+/** One From/To bound of a Rule Group — both ends inclusive, null = open on that side. */
+export interface RuleGroupDateRange {
+  from: IsoDate | null;
+  to: IsoDate | null;
+}
+
+/**
+ * "Rule Group" (spec 2026-10-25): a range of Epics by their dates + the Rule objects that judge them. An Epic belongs
+ * to the highest-priority enabled group whose every condition it meets; otherwise to the default group.
+ */
+export interface ScoringRuleGroup {
+  id: number;
+  name: string;
+  /** 1 = highest. Ignored for the default group, which always comes last. */
+  priority: number;
+  isDefault: boolean;
+  enabled: boolean;
+  conditions: Partial<Record<RuleGroupDateField, RuleGroupDateRange>>;
+  /** Ids of the selectable Rule objects (registry.ts) this group runs; unknown ids are ignored. */
+  ruleIds: readonly string[];
+}
+
+/** The group an Epic was judged by, as stored on its scorecard. */
+export interface ScorecardRuleGroup {
+  id: number;
+  name: string;
+  isDefault: boolean;
 }
 
 export interface ScoringStatusAlertRule {
@@ -103,8 +147,9 @@ export interface ScoringContext {
   statusAlertRules: readonly ScoringStatusAlertRule[];
   scope: ScoringScopeConfig;
   parameters: ScoringParameters;
-  /** Per-badge on/off overrides (scoring_rule_settings); missing = the badge's defaultEnabled. */
-  ruleEnabled: Readonly<Partial<Record<BadgeId, boolean>>>;
+  /** Rule Groups (spec 2026-10-25). Absent or without a default group → the default group built in code
+   * (DEFAULT_RULE_GROUP in registry.ts: every Rule object with defaultSelected), i.e. today's behavior. */
+  ruleGroups?: readonly ScoringRuleGroup[];
   /** Identifies the rule code + configuration this scorecard was produced with. */
   rulesetVersion: string;
 }
@@ -130,6 +175,9 @@ export interface PhaseDerived {
 /** Numbers the screens draw (stripes, phase columns) — computed once here, never re-derived in UI. */
 export interface DerivedMetrics {
   complexity: EpicComplexity;
+  /** "Bộ ngân sách" the TTM-CNTT / TTM-E2E budgets below were read from. */
+  cnttPolicySet: string;
+  e2ePolicySet: string;
   statusIndex: number;
   isCancelled: boolean;
   cnttFromDate: IsoDate | null;
@@ -168,6 +216,8 @@ export interface EpicScorecard {
   epicKey: string;
   asOf: IsoDate;
   rulesetVersion: string;
+  /** The Rule Group that judged the Epic; null for an "Epic ngoại lệ" (not judged at all). */
+  ruleGroup: ScorecardRuleGroup | null;
   /** Every finding, suppressed ones included, sorted by badge precedence within axis. */
   findings: Finding[];
   indexMembership: IndexMembership;

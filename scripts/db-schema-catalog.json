@@ -76,7 +76,10 @@
       "ink": "#2e7d32",
       "tables": [
         "scoring_parameters",
-        "scoring_rule_settings"
+        "scoring_rule_settings",
+        "scoring_rule_groups",
+        "scoring_rule_group_rules",
+        "scoring_rule_group_history"
       ]
     },
     {
@@ -318,7 +321,19 @@
       "columns": {}
     },
     "scoring_rule_settings": {
-      "description": "Bật/tắt từng badge (rule) của Scoring Service; không có dòng = theo mặc định của danh mục badge.",
+      "description": "<strong>Không còn dùng từ 25/10/2026</strong> (thay bằng Rule Group — Rule Management); chờ gỡ bảng. Trước đây: bật/tắt từng badge của Scoring Service.",
+      "columns": {}
+    },
+    "scoring_rule_groups": {
+      "description": "<strong>Mới 25/10/2026.</strong> Nhóm rule (Rule Group) của Scoring Service: khoảng ngày Epic (5 cặp Từ/Đến: ngày tạo, phê duyệt ý tưởng, Start Date, R4G Date, Due Date — AND, tính cả hai đầu), thứ tự ưu tiên, bật/tắt. Epic thuộc nhóm bật ưu tiên cao nhất mà nó khớp; không khớp nhóm nào thì thuộc nhóm <code>is_default</code> (luôn có đúng một, không điều kiện ngày, đứng cuối). Màn hình Rule Management.",
+      "columns": {}
+    },
+    "scoring_rule_group_rules": {
+      "description": "<strong>Mới 25/10/2026.</strong> Rule object (id trong <code>src/lib/scoring/registry.ts</code>) mà mỗi nhóm rule chọn chạy; rule luôn chạy không có ở đây. Id không còn trong code thì bị bỏ qua.",
+      "columns": {}
+    },
+    "scoring_rule_group_history": {
+      "description": "<strong>Mới 25/10/2026.</strong> Mỗi lần lưu cấu hình nhóm rule: người lưu, thời điểm, toàn bộ cấu hình trước / sau (JSON). Id mới nhất là phiên bản cấu hình — lần lưu sau phải xuất phát từ phiên bản đó.",
       "columns": {}
     },
     "epic_alert_timeline": {
@@ -435,6 +450,8 @@
       "makeup_workdays",
       "scoring_parameters",
       "scoring_rule_settings",
+      "scoring_rule_groups",
+      "scoring_rule_group_rules",
       "project_types",
       "project_type_capabilities",
       "jira_settings",

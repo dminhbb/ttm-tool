@@ -21,7 +21,6 @@ import { TTM_TYPES } from '@/lib/ttm-policy-types';
 import type { TtmPolicy, TtmPolicyInput } from '@/lib/ttm-policy-types';
 import { compareValues, useSortableList } from '@/lib/use-sortable-list';
 import type { TtmScopeConfigWithMeta } from '@/lib/ttm-scope-config-service';
-import { AnomalyScopeConfigPanel } from './AnomalyScopeConfigPanel';
 
 type RuleSortKey = 'epicComplexityType' | 'epicStatus' | 'earlyAlertOffsetDays' | 'lateAlertOffsetDays' | 'status';
 type PolicySortKey = 'ttmType' | 'epicComplexityType' | 'fromTtmField' | 'toTtmField' | 'workingDays' | 'status';
@@ -42,7 +41,6 @@ export function StatusAlertRulesSettings() {
     alertRules: false,
     ttmPolicies: false,
     ttmScope: false,
-    anomalyScope: false,
   });
   const togglePanel = (key: string) => setOpenPanels((prev) => ({ ...prev, [key]: !prev[key] }));
 
@@ -146,10 +144,6 @@ export function StatusAlertRulesSettings() {
     <TtmScopeConfigPanel
       isOpen={openPanels.ttmScope}
       onToggle={() => togglePanel('ttmScope')}
-    />
-    <AnomalyScopeConfigPanel
-      isOpen={openPanels.anomalyScope}
-      onToggle={() => togglePanel('anomalyScope')}
     />
   </div>;
 }

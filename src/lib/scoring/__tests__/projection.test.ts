@@ -5,7 +5,7 @@ import { isTtmCnttAchieved, isTtmIndexPass, matchesAlertFilter } from '@/lib/epi
 import { summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
 import { projectScorecardOntoRow } from '../projection';
 import { scoreEpic } from '../score-epic';
-import { makeContext, makeFacts } from './fixtures';
+import { makeContext, makeFacts, withoutRules } from './fixtures';
 
 const cell: PhaseCell = { alertLevel: 'EARLY', baselineDate: null, baselineSourceDate: null, baselineSourceLabel: null, isCurrentStage: false, isDone: false };
 
@@ -77,7 +77,7 @@ describe('projection onto legacy rows (display engine "scoring")', () => {
   });
 
   it('Sai Status (R8 switched off): filters STATUS_MISMATCH and ACHIEVED_CNTT both match, Index counts it as passed', () => {
-    const card = scoreEpic(makeFacts({ r4gDate: '2026-08-20', status: 'TEST' }), makeContext({ ruleEnabled: { ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE: false } }));
+    const card = scoreEpic(makeFacts({ r4gDate: '2026-08-20', status: 'TEST' }), makeContext({ ...withoutRules('dq-r8') }));
     const row = projectScorecardOntoRow(legacyRow({ r4gDate: '2026-08-20' }), card);
     assert.ok(matchesAlertFilter(row, 'STATUS_MISMATCH'));
     assert.ok(matchesAlertFilter(row, 'ACHIEVED_CNTT'));

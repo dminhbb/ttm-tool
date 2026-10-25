@@ -140,7 +140,7 @@ interface NodeDetail {
   extra?: React.ReactNode;
 }
 
-const EMPTY_FILTER_OPTIONS: TtmDashboard2FilterOptions = { domainProjectKeys: {}, domains: [], pmSms: [], projectComponents: {}, projects: [], requestingUnits: [] };
+const EMPTY_FILTER_OPTIONS: TtmDashboard2FilterOptions = { domainProjectKeys: {}, domains: [], pmSms: [], projectComponents: {}, projects: [], requestingUnits: [], ruleGroups: [] };
 
 export default function TtmDashboard2Page() {
   const [loading, setLoading] = useState(true);
@@ -174,6 +174,7 @@ export default function TtmDashboard2Page() {
   const [filterComponents, setFilterComponents] = useState<string[]>([]);
   const [filterPmSms, setFilterPmSms] = useState<string[]>([]);
   const [filterRequestingUnits, setFilterRequestingUnits] = useState<string[]>([]);
+  const [filterRuleGroups, setFilterRuleGroups] = useState<string[]>([]);
 
   const requestIdRef = useRef(0);
 
@@ -239,6 +240,10 @@ export default function TtmDashboard2Page() {
   const projectOptions = filterOptions.projects;
   const pmSmOptions = filterOptions.pmSms;
   const requestingUnitOptions = filterOptions.requestingUnits;
+  // `?? []`: a snapshot cached before Rule Groups existed has no such list.
+  const ruleGroupOptions = filterOptions.ruleGroups ?? [];
+  // The "Nhóm rule" filter / chart only make sense once Epics are judged by more than one Rule Group.
+  const hasSeveralRuleGroups = ruleGroupOptions.length > 1;
   // "Component" depends on "Dự án" (same rule as Quản trị Epic): it lists the components of the
   // selected projects and stays disabled until one is picked.
   const componentsOfProjects = (projectKeys: readonly string[]) =>
@@ -263,11 +268,12 @@ export default function TtmDashboard2Page() {
     setFilterComponents([]);
     setFilterPmSms([]);
     setFilterRequestingUnits([]);
+    setFilterRuleGroups([]);
   };
 
   const filters = useMemo<TtmDashboard2Filters>(
-    () => ({ components: filterComponents, domain: filterDomain, pmSms: filterPmSms, projects: filterProjects, requestingUnits: filterRequestingUnits }),
-    [filterComponents, filterDomain, filterPmSms, filterProjects, filterRequestingUnits],
+    () => ({ components: filterComponents, domain: filterDomain, pmSms: filterPmSms, projects: filterProjects, requestingUnits: filterRequestingUnits, ruleGroups: filterRuleGroups }),
+    [filterComponents, filterDomain, filterPmSms, filterProjects, filterRequestingUnits, filterRuleGroups],
   );
   const isFiltered = hasActiveTtmDashboard2Filter(filters);
 
@@ -314,7 +320,7 @@ export default function TtmDashboard2Page() {
     const controller = new AbortController();
     const params = new URLSearchParams({ view: 'lead' });
     if (filters.domain) params.set('domain', filters.domain);
-    for (const [name, list] of [['projects', filters.projects], ['components', filters.components], ['pmSms', filters.pmSms], ['requestingUnits', filters.requestingUnits]] as const) {
+    for (const [name, list] of [['projects', filters.projects], ['components', filters.components], ['pmSms', filters.pmSms], ['requestingUnits', filters.requestingUnits], ['ruleGroups', filters.ruleGroups]] as const) {
       for (const value of list) params.append(name, value);
     }
     const timer = window.setTimeout(() => void fetch(`/api/ttm-dashboard-2/summary?${params.toString()}`, { cache: 'no-store', signal: controller.signal })
@@ -362,6 +368,7 @@ export default function TtmDashboard2Page() {
       pmSm: params.pmSm ?? (filterPmSms.length > 0 ? filterPmSms : undefined),
       projects: params.projects ?? domainProjects ?? (params.domain ? undefined : filterProjects.length > 0 ? filterProjects : undefined),
       requestingUnit: params.requestingUnit ?? (filterRequestingUnits.length > 0 ? filterRequestingUnits : undefined),
+      ruleGroup: params.ruleGroup ?? (filterRuleGroups.length > 0 ? filterRuleGroups : undefined),
       status: params.status,
       type: params.type,
       viewAsUserId: data?.viewAsUser?.id ?? null,
@@ -420,6 +427,8 @@ export default function TtmDashboard2Page() {
   // `?? 0`: a summary cached before L02 dropped these two groups has no such buckets.
   const blackListedCount = buckets.BLACK_LISTED ?? 0;
   const nonTtmProjectCount = buckets.PROJECT_NON_TTM ?? 0;
+  // Rule Group without a TTM-CNTT rule (Rule Management, 2026-10-25).
+  const noCnttRuleCount = buckets.NO_CNTT_RULE ?? 0;
   const anomalyCount = buckets.DATA_ANOMALY;
   const outOfScopeCount = buckets.OUT_OF_SCOPE;
   const passCount = buckets.R4G_PASS;
@@ -487,14 +496,17 @@ export default function TtmDashboard2Page() {
           <br />1. Epic có trạng thái chứa chữ <code>Cancel</code> (không phân biệt hoa/thường) — trạng thái gặp trong phạm vi hiện tại: {funnel.cancelledStatuses.length > 0 ? funnel.cancelledStatuses.map((status) => <code key={status} className="mr-1">{status}</code>) : <i>không có</i>}.
           <br />2. <b>Epic ngoại lệ — Black listed</b>: Epic có <code>TTM Black listed = true</code> (khai báo ở menu “Epic ngoại lệ” hoặc trong màn Duyệt Epic).
           <br />3. <b>Epic ngoại lệ — dự án Time to Market = N</b>: Epic thuộc dự án có trường <b>Time to Market = N</b> (Quản lý Dự án).
+          <br />4. <b>Không áp dụng rule TTM-CNTT</b>: Epic thuộc nhóm rule (Rule Management) không chọn rule đánh giá TTM-CNTT — Epic vẫn được xét Sai lệch dữ liệu, TTM-E2E, Release… nhưng không tính TTM-CNTT (QLDA) / (QA).
           <br />Mỗi Epic chỉ bị trừ 1 lần, theo đúng thứ tự trên. Epic ngoại lệ không được Scoring Service xét (không có Đạt / Fail / Cảnh báo / Sai lệch dữ liệu) và không tính vào bất kỳ widget, ma trận hay biểu đồ nào của màn hình này.
         </>
       ),
-      formula: <>L02 = L01 ({fmt(l1)}) − Cancelled ({fmt(cancelledCount)}) − Epic ngoại lệ ({fmt(blackListedCount + nonTtmProjectCount)} = {fmt(blackListedCount)} Black listed + {fmt(nonTtmProjectCount)} dự án Time to Market = N)<br />= <b>{fmt(l2)} Epic</b></>,
+      formula: <>L02 = L01 ({fmt(l1)}) − Cancelled ({fmt(cancelledCount)}) − Epic ngoại lệ ({fmt(blackListedCount + nonTtmProjectCount)} = {fmt(blackListedCount)} Black listed + {fmt(nonTtmProjectCount)} dự án Time to Market = N){noCnttRuleCount > 0 && <> − Không áp dụng rule TTM-CNTT ({fmt(noCnttRuleCount)})</>}<br />= <b>{fmt(l2)} Epic</b></>,
       drill: { alert: 'IN_SCOPE_CNTT', count: cancelledCount, label: `Xem ${fmt(cancelledCount)} Epic Cancelled bị loại`, status: funnel.cancelledStatuses, title: 'Danh sách Epic Cancelled (bị loại ở L02)' },
       extraDrills: [
         { alert: 'TTM_BLACK_LISTED', count: blackListedCount, label: `Xem ${fmt(blackListedCount)} Epic ngoại lệ — Black listed`, title: 'Danh sách Epic ngoại lệ — TTM Black listed (bị loại ở L02)' },
         { alert: 'TTM_PROJECT_NON_TTM', count: nonTtmProjectCount, label: `Xem ${fmt(nonTtmProjectCount)} Epic ngoại lệ — dự án Time to Market = N`, title: 'Danh sách Epic ngoại lệ — dự án Time to Market = N (bị loại ở L02)' },
+        // Only shown once some Rule Group leaves TTM-CNTT out.
+        ...(noCnttRuleCount > 0 ? [{ alert: 'TTM_NO_CNTT_RULE' as const, count: noCnttRuleCount, label: `Xem ${fmt(noCnttRuleCount)} Epic không áp dụng rule TTM-CNTT`, title: 'Danh sách Epic không áp dụng rule TTM-CNTT — theo nhóm rule (bị loại ở L02)' }] : []),
       ],
       buttonClass: 'bg-status-danger hover:bg-status-danger',
     },
@@ -625,6 +637,7 @@ export default function TtmDashboard2Page() {
         'epicType',
         ...(effectiveRole !== 'USER' ? ['pmsm' as const] : []),
         ...(effectiveRole === 'USER' && projectOptions.length <= 1 ? [] : ['project' as const]),
+        ...(hasSeveralRuleGroups ? ['ruleGroup' as const] : []),
       ]
     : ['epicType'];
 
@@ -851,7 +864,17 @@ export default function TtmDashboard2Page() {
           onChange={setFilterRequestingUnits}
         />
 
-        {(filterDomain || filterProjects.length > 0 || filterComponents.length > 0 || filterPmSms.length > 0 || filterRequestingUnits.length > 0) && (
+        {(hasSeveralRuleGroups || filterRuleGroups.length > 0) && (
+          <ToolbarMultiSelect
+            ariaLabel="Nhóm rule"
+            allLabel="Tất cả nhóm rule"
+            options={ruleGroupOptions}
+            value={filterRuleGroups}
+            onChange={setFilterRuleGroups}
+          />
+        )}
+
+        {(filterDomain || filterProjects.length > 0 || filterComponents.length > 0 || filterPmSms.length > 0 || filterRequestingUnits.length > 0 || filterRuleGroups.length > 0) && (
           <button
             type="button"
             onClick={resetAllFilters}
@@ -1167,7 +1190,7 @@ export default function TtmDashboard2Page() {
       {/* MA TRẬN PHÂN BỔ + PIE CHART — Lead view: every dimension; PM/SM view: Phân loại Epic & Dự án */}
       <div className={`flex flex-col gap-5 transition-opacity ${isRecomputing ? 'opacity-60' : ''}`} aria-busy={isRecomputing}>
         <BreakdownMatrixCard
-          dimensions={viewMode === 'EXECUTIVE' ? ['domain', 'epicType', 'pmsm', 'project'] : ['epicType', 'project']}
+          dimensions={viewMode === 'EXECUTIVE' ? ['domain', 'epicType', 'pmsm', 'project', ...(hasSeveralRuleGroups ? ['ruleGroup' as const] : [])] : ['epicType', 'project']}
           funnel={funnel}
           onOpen={openEpicListModal}
         />

@@ -51,6 +51,9 @@ export interface ReportEpicItem {
   summary: string;
   /** "Epic ngoại lệ" — the Epic has a row in black_listed_epics (black dot next to its key). */
   ttmBlackListed: boolean;
+  /** Rule Group that judged the Epic (Rule Management); null for an "Epic ngoại lệ". */
+  ruleGroupName: string | null;
+  ruleGroupIsDefault: boolean;
 }
 
 export interface ReportResult {
@@ -339,6 +342,8 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
       status: row.status,
       summary: row.summary,
       ttmBlackListed: blackListedEpicKeys.has(row.epicKey.toUpperCase()),
+      ruleGroupName: scorecard.ruleGroup?.name ?? null,
+      ruleGroupIsDefault: scorecard.ruleGroup?.isDefault ?? true,
     };
 
     // Date Range Filters:

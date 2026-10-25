@@ -54,6 +54,7 @@ interface SavedFilterConfig {
   /** Pre-2026-10 saved filters stored a single unit here. */
   requestingUnitFilter?: string;
   requestingUnitFilters?: string[];
+  ruleGroupFilters?: string[];
   search: string;
   selectedLayerAnchor?: string;
   startDateFromFilter?: string;
@@ -117,6 +118,8 @@ interface EpicAlertsDeepLinkFilters {
   pmSm: string[];
   projects: string[];
   requestingUnits: string[];
+  /** "Nhóm rule" (Rule Management) names. */
+  ruleGroups: string[];
   search: string;
   status: string[];
   /** "Phạm vi dữ liệu cho TTM" override (Dashboard 2's Advanced Filters) — undefined = key absent
@@ -139,6 +142,7 @@ function parseDeepLinkFilters(searchParams: URLSearchParams): EpicAlertsDeepLink
   const types = splitList('type').filter((value) => (EPIC_COMPLEXITY_TYPES as readonly string[]).includes(value));
   const pmSm = splitList('pmSm');
   const requestingUnits = searchParams.getAll('requestingUnit').map((value) => value.trim()).filter(Boolean);
+  const ruleGroups = searchParams.getAll('ruleGroup').map((value) => value.trim()).filter(Boolean);
   const dataIssue = searchParams.get('dataIssue') === '1';
   const search = searchParams.get('search') ?? '';
   const domain = searchParams.get('domain') ?? '';
@@ -149,13 +153,14 @@ function parseDeepLinkFilters(searchParams: URLSearchParams): EpicAlertsDeepLink
     dataIssue,
     domain,
     hasAny: Boolean(
-      alerts.length || projects.length || status.length || types.length || pmSm.length || requestingUnits.length || dataIssue || search || domain
+      alerts.length || projects.length || status.length || types.length || pmSm.length || requestingUnits.length || ruleGroups.length || dataIssue || search || domain
       || dateOrNull('cnttFrom') !== undefined || dateOrNull('cnttTo') !== undefined
       || dateOrNull('qaFrom') !== undefined || dateOrNull('qaTo') !== undefined,
     ),
     pmSm,
     projects,
     requestingUnits,
+    ruleGroups,
     search,
     status,
     ttmScopeCnttFrom: dateOrNull('cnttFrom'),
@@ -486,6 +491,7 @@ function AlertHistoryPanel({ row, onClose }: { row: EpicAlertRowPhased; onClose:
           <AlertPopupField label="PM/SM" value={row.ownerName || '-'} />
           <AlertPopupField label="Domain (của PM/SM)" value={row.domainName || '-'} />
           <AlertPopupField label="Đơn vị yêu cầu" value={row.requestingUnit || '-'} />
+          <AlertPopupField label="Nhóm rule (Rule Management)" value={row.ruleGroupName || (row.ttmExclusion ? 'Epic ngoại lệ — không xét' : '-')} />
           <AlertPopupField label="Lớp dữ liệu đang sử dụng" value={formatDate(row.dataLayerDate)} />
         </div>
         <div className="ttm-alert-popup-right">
@@ -524,6 +530,8 @@ interface EpicAlertFilterOptions {
   pmSmNames: string[];
   projectKeys: string[];
   requestingUnits: string[];
+  /** Absent from an API older than Rule Groups. */
+  ruleGroups?: string[];
   statuses: string[];
 }
 
@@ -608,6 +616,7 @@ function EpicAlerts15Screen() {
   const [typeFilters, setTypeFilters] = useState<string[]>(deepLinkFilters.types);
   const [statusFilters, setStatusFilters] = useState<string[]>(deepLinkFilters.status);
   const [requestingUnitFilters, setRequestingUnitFilters] = useState<string[]>(deepLinkFilters.requestingUnits);
+  const [ruleGroupFilters, setRuleGroupFilters] = useState<string[]>(deepLinkFilters.ruleGroups);
   const [dataIssueFilter, setDataIssueFilter] = useState(deepLinkFilters.dataIssue);
   const [search, setSearch] = useState(deepLinkFilters.search);
   const [activeQuickFilter, setActiveQuickFilter] = useState<'PENDING' | 'IN_PO' | 'NOT_IN_PO' | null>(null);
@@ -709,6 +718,7 @@ function EpicAlerts15Screen() {
       if (statusQuery) query.set('statuses', statusQuery);
       if (dataIssueFilter) query.set('dataIssueOnly', '1');
       for (const unit of requestingUnitFilters) query.append('requestingUnit', unit);
+      for (const group of ruleGroupFilters) query.append('ruleGroup', group);
       if (debouncedSearch) query.set('search', debouncedSearch);
       if (viewAsUserId) query.set('viewAsUserId', viewAsUserId);
       query.set('page', String(page));
@@ -790,6 +800,12 @@ function EpicAlerts15Screen() {
       : [...new Set(rows.map((row) => row.requestingUnit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, 'vi'))),
     [data, rows],
   );
+  const ruleGroupOptions = useMemo(
+    () => (data?.mode === 'paged' && data.filterOptions
+      ? data.filterOptions.ruleGroups ?? []
+      : [...new Set(rows.map((row) => row.ruleGroupName).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, 'vi'))),
+    [data, rows],
+  );
   // Options = the catalog's components for whichever projects are selected — disabled entirely
   // (no options, filter cleared) until at least one project is picked.
   const componentOptions = useMemo(
@@ -864,6 +880,7 @@ function EpicAlerts15Screen() {
       }
       if (saved.requestingUnitFilters && saved.requestingUnitFilters.length > 0) setRequestingUnitFilters(saved.requestingUnitFilters);
       else if (saved.requestingUnitFilter) setRequestingUnitFilters([saved.requestingUnitFilter]);
+      if (saved.ruleGroupFilters && saved.ruleGroupFilters.length > 0) setRuleGroupFilters(saved.ruleGroupFilters);
       if (saved.dataIssueFilter) setDataIssueFilter(saved.dataIssueFilter);
       if (saved.search) setSearch(saved.search);
       if (saved.activeQuickFilter) setActiveQuickFilter(saved.activeQuickFilter);
@@ -932,7 +949,7 @@ function EpicAlerts15Screen() {
   }, [
     savedFiltersReady, serverQueryKey, pastAsOfDate, changedSinceActive, createdDateFrom, startDateFromFilter, dueDateFromFilter,
     projectFilters, pmSmFilters, componentFilters, alertFilters, typeFilters, statusQuery,
-    dataIssueFilter, requestingUnitFilters, debouncedSearch, page,
+    dataIssueFilter, requestingUnitFilters, ruleGroupFilters, debouncedSearch, page,
   ]);
   useEffect(() => () => fetchAbortRef.current?.abort(), []);
 
@@ -986,6 +1003,7 @@ function EpicAlerts15Screen() {
       pmSmFilters,
       projectFilters,
       requestingUnitFilters,
+      ruleGroupFilters,
       search,
       selectedLayerAnchor,
       startDateFromFilter,
@@ -1012,6 +1030,7 @@ function EpicAlerts15Screen() {
     setTypeFilters([]);
     setStatusFilters(statusOptions.filter((status) => !isCancelledStatus(status)));
     setRequestingUnitFilters([]);
+    setRuleGroupFilters([]);
     setDataIssueFilter(false);
     setSearch('');
     setActiveQuickFilter(null);
@@ -1046,9 +1065,10 @@ function EpicAlerts15Screen() {
         && (statusFilters.length === 0 ? !isCancelledStatus(row.currentStatus) : statusFilters.includes(row.currentStatus))
         && (!dataIssueFilter || row.hasDataAnomaly)
         && (requestingUnitFilters.length === 0 || (row.requestingUnit !== null && requestingUnitFilters.includes(row.requestingUnit)))
+        && (ruleGroupFilters.length === 0 || (Boolean(row.ruleGroupName) && ruleGroupFilters.includes(row.ruleGroupName!)))
         && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch));
     }).sort((a, b) => listGroupRankOf(a.currentStatus, a.ttmCnttInScope) - listGroupRankOf(b.currentStatus, b.ttmCnttInScope));
-  }, [data?.mode, rows, projectFilters, pmSmFilters, componentFilters, alertFilters, typeFilters, statusFilters, dataIssueFilter, requestingUnitFilters, search]);
+  }, [data?.mode, rows, projectFilters, pmSmFilters, componentFilters, alertFilters, typeFilters, statusFilters, dataIssueFilter, requestingUnitFilters, ruleGroupFilters, search]);
 
   const clientTtmCnttQlda = useMemo(() => summarizeTtmCntt(filteredRows), [filteredRows]);
   const clientTtmCnttQa = useMemo(() => summarizeQaIndex(filteredRows), [filteredRows]);
@@ -1270,6 +1290,15 @@ function EpicAlerts15Screen() {
           value={requestingUnitFilters}
           onChange={(values) => { setRequestingUnitFilters(values); setPage(1); }}
         />
+        {(ruleGroupOptions.length > 1 || ruleGroupFilters.length > 0) && (
+          <ToolbarMultiSelect
+            ariaLabel="Nhóm rule"
+            allLabel="Nhóm rule"
+            options={ruleGroupOptions}
+            value={ruleGroupFilters}
+            onChange={(values) => { setRuleGroupFilters(values); setPage(1); }}
+          />
+        )}
         <input
           className={`ttm-field ttm-search-field${search.trim() ? ' has-filter' : ''}`}
           type="search"

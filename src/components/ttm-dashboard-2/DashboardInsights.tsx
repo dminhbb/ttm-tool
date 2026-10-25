@@ -50,6 +50,7 @@ export interface InsightListParams {
   pmSm?: string[];
   projects?: string[];
   requestingUnit?: string;
+  ruleGroup?: string;
   status?: string[];
   title: string;
   type?: string;
@@ -69,6 +70,7 @@ const DIMENSION_LABELS: Record<TtmBreakdownDimension, string> = {
   pmsm: 'Theo PM/SM',
   project: 'Theo Dự án',
   requestingUnit: 'Theo Đơn vị yêu cầu',
+  ruleGroup: 'Theo Nhóm rule',
 };
 
 const DIMENSION_NOUN: Record<TtmBreakdownDimension, string> = {
@@ -77,6 +79,7 @@ const DIMENSION_NOUN: Record<TtmBreakdownDimension, string> = {
   pmsm: 'PM/SM',
   project: 'Dự án',
   requestingUnit: 'Đơn vị',
+  ruleGroup: 'Nhóm rule',
 };
 
 /** Whole numbers as they are; a PM/SM share (see TtmBreakdownItem) rounded to a whole Epic. */
@@ -96,6 +99,7 @@ function dimensionScope(dimension: TtmBreakdownDimension, item: TtmBreakdownItem
     case 'pmsm': return { pmSm: [linkValue] };
     case 'project': return { projects: [linkValue] };
     case 'requestingUnit': return { requestingUnit: linkValue };
+    case 'ruleGroup': return { ruleGroup: linkValue };
     default: return {};
   }
 }
@@ -259,6 +263,12 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
   const qldaIndex = index(qlda);
   const qaIndex = index(qa);
   const e2eIndex = index(e2e);
+  // Several Rule Groups → each ratio blends their rules (spec 2026-10-25 §8.1); say which, with their L02 Epics.
+  // `?? []`: a summary cached before Rule Groups existed has no such breakdown.
+  const ruleGroups = insights.breakdowns.ruleGroup ?? [];
+  const ruleGroupNote = ruleGroups.length > 1
+    ? `\nTính theo ${ruleGroups.length} nhóm rule: ${ruleGroups.map((item) => `${item.name} (${fmt(item.total)} Epic)`).join(', ')}`
+    : '';
 
   // The Scoring Service has no "Cảnh báo sớm": the number is the late ones only.
   const openWarnings = () => onOpen({ alert: 'LATE', title: 'Danh sách Epic - Chậm tiến độ' });
@@ -307,7 +317,7 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
               value={fmt(l2)}
               subtitle="Phạm vi tính"
               onClick={() => onOpen({ alert: 'TTM_COUNTED_IN_SCOPE', title: 'Danh sách Epic - Tổng số Epic (trong phạm vi tính TTM)' })}
-              tooltip="Epic trong phạm vi tính TTM (L02): đã loại Cancelled và Epic ngoại lệ (Black listed + dự án Time to Market = N) — xem danh sách ở Quản trị Epic"
+              tooltip="Epic trong phạm vi tính TTM (L02): đã loại Cancelled, Epic ngoại lệ (Black listed + dự án Time to Market = N) và Epic thuộc nhóm rule không có rule TTM-CNTT — xem danh sách ở Quản trị Epic"
             />
             <KpiCard
               tone="navy"
@@ -338,7 +348,7 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
               valueAsDetail
               subtitle="Phạm vi của QLDA"
               icon={<KpiProgressRing pct={qldaIndex.pct} color="#059669" text={qldaIndex.pctText} />}
-              tooltip={`TTM-CNTT (QLDA) — Tỷ lệ % Pass: ${qldaIndex.pctText} (${fmt(qlda.pass)}/${fmt(qlda.denominator)} Epic đạt)`}
+              tooltip={`TTM-CNTT (QLDA) — Tỷ lệ % Pass: ${qldaIndex.pctText} (${fmt(qlda.pass)}/${fmt(qlda.denominator)} Epic đạt)${ruleGroupNote}`}
             />
             <KpiCard
               tone="navy"
@@ -347,7 +357,7 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
               valueAsDetail
               subtitle="Phạm vi của QA"
               icon={<KpiProgressRing pct={qaIndex.pct} color="#059669" text={qaIndex.pctText} />}
-              tooltip={`TTM-CNTT (QA) — Tỷ lệ % Pass: ${qaIndex.pctText} (${fmt(qa.pass)}/${fmt(qa.denominator)} Epic MVP Done / Released)`}
+              tooltip={`TTM-CNTT (QA) — Tỷ lệ % Pass: ${qaIndex.pctText} (${fmt(qa.pass)}/${fmt(qa.denominator)} Epic MVP Done / Released)${ruleGroupNote}`}
             />
             <KpiCard
               tone="navy"
@@ -357,7 +367,7 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
               subtitle="Đạt / Đánh giá"
               icon={<KpiProgressRing pct={e2eIndex.pct} color="#2563eb" text={e2eIndex.pctText} />}
               onClick={() => onOpen({ alert: 'FAIL_E2E', title: 'Danh sách Epic - Fail TTM-E2E' })}
-              tooltip={`TTM-E2E — Tỷ lệ % Pass: ${e2eIndex.pctText} (${fmt(e2e.pass)}/${fmt(e2e.denominator)} Epic đạt) — bấm để xem danh sách Fail`}
+              tooltip={`TTM-E2E — Tỷ lệ % Pass: ${e2eIndex.pctText} (${fmt(e2e.pass)}/${fmt(e2e.denominator)} Epic đạt) — bấm để xem danh sách Fail${ruleGroupNote}`}
             />
           </div>
 
@@ -478,7 +488,7 @@ export function BreakdownMatrixCard({ dimensions, funnel, onOpen }: { dimensions
             <THead>
               <TR>
                 <TH sortDirection={directionFor('name')} onClick={() => toggleSort('name')}>{DIMENSION_LABELS[dimension]}</TH>
-                <TH className="text-center" sortDirection={directionFor('total')} onClick={() => toggleSort('total')} title="Epic trong phạm vi tính TTM (L02): đã loại Cancelled và Epic ngoại lệ (Black listed + dự án Time to Market = N)">Tổng số Epic</TH>
+                <TH className="text-center" sortDirection={directionFor('total')} onClick={() => toggleSort('total')} title="Epic trong phạm vi tính TTM (L02): đã loại Cancelled, Epic ngoại lệ (Black listed + dự án Time to Market = N) và Epic thuộc nhóm rule không có rule TTM-CNTT">Tổng số Epic</TH>
                 <TH className="text-center" sortDirection={directionFor('pass')} onClick={() => toggleSort('pass')} title="Epic đạt TTM-CNTT (L05aa)">Pass TTM</TH>
                 <TH className="w-56" sortDirection={directionFor('qldaPct')} onClick={() => toggleSort('qldaPct')} title="Tỷ lệ % Pass TTM-CNTT = Pass TTM / Epic đánh giá">TTM-CNTT (QLDA)</TH>
                 <TH className="text-center" sortDirection={directionFor('judged')} onClick={() => toggleSort('judged')} title="Epic đã có kết luận = L05aa + L05ab + L05ba (Pass TTM + Fail TTM)">Epic đánh giá</TH>
@@ -605,6 +615,7 @@ const SECTION_TITLES: Record<TtmBreakdownDimension, string> = {
   pmsm: 'Theo PM/SM',
   project: 'Theo Dự án',
   requestingUnit: 'Theo Đơn vị yêu cầu',
+  ruleGroup: 'Theo Nhóm rule (Rule Management)',
 };
 
 export function BreakdownDonutSections({ dimensions, funnel, onOpen }: { dimensions: readonly TtmBreakdownDimension[]; funnel: TtmFunnelSummary; onOpen: OpenList }) {

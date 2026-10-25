@@ -30,6 +30,7 @@ function parseCacheFilters(searchParams: URLSearchParams): EpicAlertRowCacheFilt
     statuses: csv('statuses'),
     dataIssueOnly: searchParams.get('dataIssueOnly') === '1',
     requestingUnits: searchParams.getAll('requestingUnit').map((value) => value.trim()).filter(Boolean),
+    ruleGroups: searchParams.getAll('ruleGroup').map((value) => value.trim()).filter(Boolean),
     search: searchParams.get('search') || undefined,
   };
 }

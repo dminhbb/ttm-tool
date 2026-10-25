@@ -52,7 +52,8 @@ export interface TtmCnttGeometry {
 
 /** TTM-CNTT baseline numbers: the policy's From/To fields and budget, and how much of it has elapsed. */
 export function cnttGeometry(complexity: EpicComplexity, derived: DerivedMetrics, ctx: ScoringContext): TtmCnttGeometry {
-  const policy = findActivePolicy(ctx.ttmPolicies, 'TTM_CNTT', complexity);
+  // The Epic's own "Bộ ngân sách" (its Rule Group's TTM-CNTT rule), same row the scorecard's budget came from.
+  const policy = findActivePolicy(ctx.ttmPolicies, 'TTM_CNTT', complexity, derived.cnttPolicySet);
   return {
     elapsedWorkingDays: elapsedWorkingDays(derived.cnttFromDate, ctx.asOf, ctx),
     fromDate: derived.cnttFromDate,

@@ -1,9 +1,9 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-24T14:14:40.998Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-25T15:08:25.753Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
--- Gồm: 54 bảng, 53 index phụ, 4 hàm, 4 trigger.
+-- Gồm: 57 bảng, 56 index phụ, 4 hàm, 4 trigger.
 -- Yêu cầu: PostgreSQL 14 trở lên, một database RỖNG (không dùng cho DB đã có bảng — sẽ báo lỗi và không
 -- tạo gì vì cả file chạy trong một transaction). Không cần extension nào.
 --
@@ -14,7 +14,7 @@
 -- theo dõi, không phải dữ liệu nghiệp vụ: nhờ vậy `node scripts/migrate-db.js --target=local` trên DB mới
 -- chỉ chạy những migration phát sinh SAU thời điểm sinh file.
 --
--- Phần 7 (cuối file) là DỮ LIỆU KHỞI TẠO TUỲ CHỌN: cấu hình hiện hành của 18 bảng cấu hình (ma trận phân quyền,
+-- Phần 7 (cuối file) là DỮ LIỆU KHỞI TẠO TUỲ CHỌN: cấu hình hiện hành của 20 bảng cấu hình (ma trận phân quyền,
 -- tiêu chí TTM, rule cảnh báo, lịch nghỉ, cấu hình Scoring…) + 1 tài khoản SUPERADMIN ban đầu, để ứng dụng chạy được
 -- ngay sau khi tạo DB. Bật / tắt bằng CÔNG TẮC ngay bên dưới. Chi tiết: db/install/README.md.
 -- =============================================================================================
@@ -218,6 +218,8 @@ CREATE TABLE epic_alert_row_cache (
     findings jsonb DEFAULT '[]'::jsonb NOT NULL,
     scoring_ruleset_version text,
     scored_as_of date,
+    rule_group_id integer,
+    rule_group_name text,
     CONSTRAINT epic_alert_row_cache_pkey PRIMARY KEY (epic_key)
 );
 
@@ -577,6 +579,51 @@ CREATE TABLE scoring_parameters (
     CONSTRAINT scoring_parameters_pkey PRIMARY KEY (param_key)
 );
 
+CREATE TABLE scoring_rule_group_history (
+    id SERIAL,
+    saved_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    saved_by_user_id integer,
+    config_before jsonb NOT NULL,
+    config_after jsonb NOT NULL,
+    rule_code_version text NOT NULL,
+    CONSTRAINT scoring_rule_group_history_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE scoring_rule_group_rules (
+    group_id integer NOT NULL,
+    rule_id text NOT NULL,
+    CONSTRAINT scoring_rule_group_rules_pkey PRIMARY KEY (group_id, rule_id)
+);
+
+CREATE TABLE scoring_rule_groups (
+    id SERIAL,
+    name text NOT NULL,
+    priority integer NOT NULL,
+    is_default boolean DEFAULT false NOT NULL,
+    enabled boolean DEFAULT true NOT NULL,
+    created_from date,
+    created_to date,
+    idea_approved_from date,
+    idea_approved_to date,
+    start_from date,
+    start_to date,
+    r4g_from date,
+    r4g_to date,
+    due_from date,
+    due_to date,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by_user_id integer,
+    CONSTRAINT scoring_rule_groups_pkey PRIMARY KEY (id),
+    CONSTRAINT scoring_rule_groups_created_range CHECK (((created_from IS NULL) OR (created_to IS NULL) OR (created_from <= created_to))),
+    CONSTRAINT scoring_rule_groups_default_shape CHECK (((NOT is_default) OR (enabled AND (created_from IS NULL) AND (created_to IS NULL) AND (idea_approved_from IS NULL) AND (idea_approved_to IS NULL) AND (start_from IS NULL) AND (start_to IS NULL) AND (r4g_from IS NULL) AND (r4g_to IS NULL) AND (due_from IS NULL) AND (due_to IS NULL)))),
+    CONSTRAINT scoring_rule_groups_due_range CHECK (((due_from IS NULL) OR (due_to IS NULL) OR (due_from <= due_to))),
+    CONSTRAINT scoring_rule_groups_idea_range CHECK (((idea_approved_from IS NULL) OR (idea_approved_to IS NULL) OR (idea_approved_from <= idea_approved_to))),
+    CONSTRAINT scoring_rule_groups_name_not_blank CHECK ((btrim(name) <> ''::text)),
+    CONSTRAINT scoring_rule_groups_r4g_range CHECK (((r4g_from IS NULL) OR (r4g_to IS NULL) OR (r4g_from <= r4g_to))),
+    CONSTRAINT scoring_rule_groups_start_range CHECK (((start_from IS NULL) OR (start_to IS NULL) OR (start_from <= start_to)))
+);
+
 CREATE TABLE scoring_rule_settings (
     badge_id text NOT NULL,
     enabled boolean NOT NULL,
@@ -747,6 +794,7 @@ CREATE INDEX idx_epic_alert_row_cache_badge_codes ON epic_alert_row_cache USING 
 CREATE INDEX idx_epic_alert_row_cache_current_status ON epic_alert_row_cache USING btree (current_status);
 CREATE INDEX idx_epic_alert_row_cache_index_flags ON epic_alert_row_cache USING gin (index_flags);
 CREATE INDEX idx_epic_alert_row_cache_project_key ON epic_alert_row_cache USING btree (project_key);
+CREATE INDEX idx_epic_alert_row_cache_rule_group ON epic_alert_row_cache USING btree (rule_group_id);
 CREATE INDEX idx_epic_alert_row_cache_sort ON epic_alert_row_cache USING btree (bottom_status_rank, has_data_anomaly, alert_rank, remaining_working_days_rank);
 CREATE INDEX idx_epic_alert_row_cache_ttm_cntt_in_scope ON epic_alert_row_cache USING btree (ttm_cntt_in_scope);
 CREATE INDEX idx_epic_alert_timeline_end_date ON epic_alert_timeline USING btree (end_date);
@@ -781,6 +829,8 @@ CREATE UNIQUE INDEX uq_project_members_active_role ON project_members USING btre
 CREATE UNIQUE INDEX uq_project_types_legacy_category ON project_types USING btree (legacy_category) WHERE (legacy_category IS NOT NULL);
 CREATE INDEX idx_projects_project_type ON projects USING btree (project_type_id);
 CREATE INDEX idx_projects_source_key ON projects USING btree (source_project_key);
+CREATE UNIQUE INDEX scoring_rule_groups_name_uq ON scoring_rule_groups USING btree (lower(btrim(name)));
+CREATE UNIQUE INDEX scoring_rule_groups_single_default ON scoring_rule_groups USING btree (is_default) WHERE is_default;
 CREATE INDEX idx_sso_auth_codes_code ON sso_auth_codes USING btree (code);
 CREATE INDEX idx_sso_auth_codes_expires ON sso_auth_codes USING btree (expires_at);
 CREATE INDEX idx_ttm_project_configs_enabled ON ttm_project_configs USING btree (is_enabled) WHERE is_enabled;
@@ -822,6 +872,9 @@ ALTER TABLE projects ADD CONSTRAINT projects_domain_id_fkey FOREIGN KEY (domain_
 ALTER TABLE projects ADD CONSTRAINT projects_project_type_id_fkey FOREIGN KEY (project_type_id) REFERENCES project_types(id) ON DELETE SET NULL;
 ALTER TABLE role_feature_permissions ADD CONSTRAINT role_feature_permissions_feature_key_fkey FOREIGN KEY (feature_key) REFERENCES permission_features(feature_key) ON DELETE CASCADE;
 ALTER TABLE scoring_parameters ADD CONSTRAINT scoring_parameters_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE scoring_rule_group_history ADD CONSTRAINT scoring_rule_group_history_saved_by_user_id_fkey FOREIGN KEY (saved_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE scoring_rule_group_rules ADD CONSTRAINT scoring_rule_group_rules_group_id_fkey FOREIGN KEY (group_id) REFERENCES scoring_rule_groups(id) ON DELETE CASCADE;
+ALTER TABLE scoring_rule_groups ADD CONSTRAINT scoring_rule_groups_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE scoring_rule_settings ADD CONSTRAINT scoring_rule_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE sso_auth_codes ADD CONSTRAINT sso_auth_codes_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE CASCADE;
 ALTER TABLE sso_auth_codes ADD CONSTRAINT sso_auth_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
@@ -945,7 +998,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 99 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 102 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1046,7 +1099,10 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261025c_drop_anomaly_violations_and_milestone_history.sql'),
     ('20261026_drop_import_row_issues.sql'),
     ('20261026b_drop_scoring_parity_and_engine_settings.sql'),
-    ('20261027_create_data_snapshot_dates.sql');
+    ('20261027_create_data_snapshot_dates.sql'),
+    ('20261028_create_scoring_rule_groups.sql'),
+    ('20261028b_add_rule_group_to_epic_alert_row_cache.sql'),
+    ('20261028c_add_rule_management_permission.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1054,7 +1110,7 @@ INSERT INTO schema_migrations (filename) VALUES
 --    nghiệp vụ (domain, dự án, user, Epic, danh sách Black listed / Từ chối import, banner, API key).
 -- ---------------------------------------------------------------------------------------------
 
--- permission_features (16 dòng)
+-- permission_features (17 dòng)
 INSERT INTO permission_features (feature_key, feature_name, category, display_order)
 SELECT * FROM (VALUES
     ('data_normalization'::character varying(60), 'Chuẩn hoá dữ liệu'::character varying(150), 'VIEW_ONLY'::character varying(10), '101'::integer),
@@ -1069,6 +1125,7 @@ SELECT * FROM (VALUES
     ('permission_matrix'::character varying(60), 'Ma trận phân quyền'::character varying(150), 'ADMIN'::character varying(10), '10'::integer),
     ('product_docs'::character varying(60), 'Tài liệu sản phẩm'::character varying(150), 'VIEW_ONLY'::character varying(10), '130'::integer),
     ('projects'::character varying(60), 'Quản lý Dự án'::character varying(150), 'ADMIN'::character varying(10), '50'::integer),
+    ('rule_management'::character varying(60), 'Rule Management'::character varying(150), 'ADMIN'::character varying(10), '65'::integer),
     ('status_alert_rules'::character varying(60), 'Cấu hình cảnh báo'::character varying(150), 'ADMIN'::character varying(10), '60'::integer),
     ('ttm_dashboard_2'::character varying(60), 'TTM Dashboard 2'::character varying(150), 'VIEW_ONLY'::character varying(10), '83'::integer),
     ('users'::character varying(60), 'Quản lý User'::character varying(150), 'ADMIN'::character varying(10), '30'::integer),
@@ -1076,7 +1133,7 @@ SELECT * FROM (VALUES
 ) AS seed (feature_key, feature_name, category, display_order)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 
--- role_feature_permissions (64 dòng)
+-- role_feature_permissions (68 dòng)
 INSERT INTO role_feature_permissions (feature_key, role, can_view, can_add, can_edit, can_delete)
 SELECT * FROM (VALUES
     ('data_normalization'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
@@ -1127,6 +1184,10 @@ SELECT * FROM (VALUES
     ('projects'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'true'::boolean, 'true'::boolean),
     ('projects'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('projects'::character varying(60), 'USER'::character varying(20), 'false'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('rule_management'::character varying(60), 'ADMIN'::character varying(20), 'false'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('rule_management'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'true'::boolean, 'true'::boolean),
+    ('rule_management'::character varying(60), 'SUPERVISOR'::character varying(20), 'false'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('rule_management'::character varying(60), 'USER'::character varying(20), 'false'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('status_alert_rules'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('status_alert_rules'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'true'::boolean, 'true'::boolean),
     ('status_alert_rules'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
@@ -1221,6 +1282,35 @@ SELECT setval(pg_get_serial_sequence('makeup_workdays', 'id'), MAX(id)) FROM mak
 
 -- scoring_parameters: không có dòng nào trên CSDL nguồn.
 -- scoring_rule_settings: không có dòng nào trên CSDL nguồn.
+-- scoring_rule_groups (1 dòng)
+INSERT INTO scoring_rule_groups (id, name, priority, is_default, enabled, created_from, created_to, idea_approved_from, idea_approved_to, start_from, start_to, r4g_from, r4g_to, due_from, due_to, created_at, updated_at, updated_by_user_id)
+SELECT * FROM (VALUES
+    ('1'::integer, 'Default'::text, '0'::integer, 'true'::boolean, 'true'::boolean, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-10-25 14:54:57.868428+00'::timestamp with time zone, '2026-10-25 14:54:57.868428+00'::timestamp with time zone, NULL::integer)
+) AS seed (id, name, priority, is_default, enabled, created_from, created_to, idea_approved_from, idea_approved_to, start_from, start_to, r4g_from, r4g_to, due_from, due_to, created_at, updated_at, updated_by_user_id)
+WHERE current_setting('ttm_install.seed_data', true) = 'on';
+SELECT setval(pg_get_serial_sequence('scoring_rule_groups', 'id'), MAX(id)) FROM scoring_rule_groups HAVING MAX(id) IS NOT NULL;
+
+-- scoring_rule_group_rules (15 dòng)
+INSERT INTO scoring_rule_group_rules (group_id, rule_id)
+SELECT * FROM (VALUES
+    ('1'::integer, 'dq-r1'::text),
+    ('1'::integer, 'dq-r10'::text),
+    ('1'::integer, 'dq-r2'::text),
+    ('1'::integer, 'dq-r3'::text),
+    ('1'::integer, 'dq-r4'::text),
+    ('1'::integer, 'dq-r5'::text),
+    ('1'::integer, 'dq-r6'::text),
+    ('1'::integer, 'dq-r8'::text),
+    ('1'::integer, 'dq-r9'::text),
+    ('1'::integer, 'fail-reason-dept'::text),
+    ('1'::integer, 'fail-reason-stage'::text),
+    ('1'::integer, 'release-justify-golive'::text),
+    ('1'::integer, 'release-waiting-golive'::text),
+    ('1'::integer, 'ttm-cntt-sep-2026'::text),
+    ('1'::integer, 'ttm-e2e-july-2026'::text)
+) AS seed (group_id, rule_id)
+WHERE current_setting('ttm_install.seed_data', true) = 'on';
+
 -- project_types (3 dòng)
 INSERT INTO project_types (id, type_code, type_name, legacy_category, description, sort_order, is_active, created_at, updated_at)
 SELECT * FROM (VALUES
@@ -1284,7 +1374,7 @@ WHERE current_setting('ttm_install.seed_data', true) = 'on';
 -- derived_cache_refresh_lock (1 dòng)
 INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at)
 SELECT * FROM (VALUES
-    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-10-24 03:04:09.827502+00'::timestamp with time zone)
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-10-25 11:03:00.249651+00'::timestamp with time zone)
 ) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 

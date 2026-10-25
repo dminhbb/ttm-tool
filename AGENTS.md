@@ -93,6 +93,10 @@ are declared once in `src/lib/scoring/catalog.ts`; the "Logic cảnh báo" popup
 
 - Add/change/remove a rule in `src/lib/scoring/rules/*` + `catalog.ts` (+ `registry.ts`), bump
   `SCORING_CODE_VERSION`, and run `npm test`.
+- Rules are **Rule objects** (`ScoringRule`, `rules/rule-types.ts`) listed in `registry.ts`; a **Rule Group** (Epics by date range)
+  selects which non-core rules judge its Epics — see `docs/superpowers/specs/2026-10-25-rule-groups-design.md`. A rule `id` is stored
+  in the database and never changes; fix a rule in place by its id, or add a variant (new id, e.g. `ttm-cntt-2027`) when the new
+  logic applies to one period of Epics only. Verdict variants of a slot must emit the slot's badges with the same meaning (§4.3).
 - The core is pure: no `@/lib/db`, no system clock — "now" is always `ScoringContext.asOf` (lint-enforced).
 - The Scoring Service is the ONLY engine (the legacy alert engine, the 'legacy'/'scoring' display switch, the
   parity comparison and `scoring_parity_runs` / `scoring_engine_settings` were removed 2026-10-24).

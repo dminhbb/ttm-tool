@@ -1,12 +1,12 @@
-import { BADGE_BY_ID } from '../catalog';
 import { diffWorkingDays, toIsoDate } from '../dates';
 import { isCancelledStatus, isPendingStatus, isReopenedStatus, normalizeWorkflowStatus, STATUS_INDEX } from '../derive';
 import { finding } from './rule-types';
-import type { PrimaryRule } from './rule-types';
-import type { EpicFacts, Finding, ScoringContext } from '../types';
+import type { DerivedRule, PrimaryRule, RuleDetail, ScoringRule } from './rule-types';
+import type { BadgeId } from '../catalog';
+import type { EpicFacts, ScoringContext } from '../types';
 
 /** Cancelled + the configurable list (default To Do / In PO / Backlog) skip the data-quality rules —
- * except R8 / R10, which only Cancelled skips (see dataQualityRule). */
+ * except R8 / R10, which only Cancelled skips. */
 export function isExemptFromDataQuality(status: string, ctx: ScoringContext): boolean {
   if (isCancelledStatus(status)) return true;
   const normalized = normalizeWorkflowStatus(status);
@@ -58,151 +58,243 @@ export function requirementLevelRequired(status: string, previousStatus: string 
 }
 
 /**
- * Checks whether an Epic satisfies the date scope conditions for a given Data Anomaly rule.
- * If master toggle is disabled or the rule's toggle is disabled, returns true (applies normally).
- * If rule toggle is enabled, returns true only when:
- * (epic created date > createdAfter) AND (startDate > startAfter) AND (r4gDate > r4gAfter) AND (dueDate > dueAfter).
- * A bound left empty / "none" is skipped — and so is a bound whose date the Epic doesn't have: a date
- * that isn't there can't be compared, and counting it as "out of scope" would switch off exactly the
- * rules that exist to catch it (R1 "Thiếu Start Date" under a Start Date bound, R9 "Thiếu R4G Date"
- * under an R4G Date bound) and let every Epic missing that date slip past the other rules too.
+ * Axis DATA_QUALITY — former anomaly rules R1–R6 (same stable numbering; R7 moved to the RELEASE
+ * axis) plus R8/R9 (R4G Date vs status, added 2026-10-04) and R10 (2026-10-09). R1/R3–R6/R8/R9/R10 are ALERT
+ * ("Sai lệch dữ liệu"); R2 "Pending lâu" is a RECOMMENDATION since 2026-09-29 and no longer counts as a data
+ * anomaly. One Rule object per R-rule since 2026-10-25 (spec "Rule Group"), each with the recommendation that
+ * follows it; their logic changes are kept in each rule's `detail.history`.
  */
-export function isEpicInAnomalyScope(badge: string, facts: EpicFacts, ctx: ScoringContext): boolean {
-  const scopeConfig = ctx.parameters['anomaly.scopeConfig'];
-  if (!scopeConfig || !scopeConfig.enabled) {
-    return true;
-  }
-  const ruleScope = scopeConfig.rules?.[badge];
-  if (!ruleScope || !ruleScope.enabled) {
-    return true;
-  }
 
-  const isNoneOrEmpty = (d: string | null | undefined): boolean => {
-    if (!d) return true;
-    const t = d.trim().toLowerCase();
-    return t === '' || t === 'none';
-  };
-  const bounds: [bound: string | null | undefined, epicDate: string | null][] = [
-    [ruleScope.createdAfter, facts.jiraCreatedAt],
-    [ruleScope.startAfter, facts.startDate],
-    [ruleScope.r4gAfter, facts.r4gDate],
-    [ruleScope.dueAfter, facts.dueDate],
-  ];
-  return bounds.every(([bound, epicDate]) => {
-    if (isNoneOrEmpty(bound)) return true;
-    const date = epicDate ? toIsoDate(epicDate) : null;
-    return !date || date > bound!.trim();
-  });
+interface DataQualitySpec {
+  id: string;
+  name: string;
+  summary: string;
+  detail: RuleDetail;
+  emits: readonly BadgeId[];
+  /** false = R8 / R10: only Cancelled is exempt, not the configurable exempt statuses (To Do / In PO / Backlog). */
+  honorsExemptStatuses: boolean;
+  evaluate: PrimaryRule;
+  recommend?: DerivedRule;
 }
 
-/**
- * Axis DATA_QUALITY — former anomaly rules R1–R6 (same stable numbering; R7 moved to the RELEASE
- * axis) plus R8/R9 (R4G Date vs status, added 2026-10-04). R1/R3–R6/R8/R9 are ALERT ("Sai lệch dữ
- * liệu"); R2 "Pending lâu" is a RECOMMENDATION since 2026-09-29 and no longer counts as a data
- * anomaly. Rule change 2026-10-04: R1 starts at DESIGN (was DEV), R5 only applies past DESIGN.
- * Rule change 2026-10-05: the workflow knows Pilot / Done / Reopened (derive.ts), so R9 no longer
- * hits unrecognized statuses;
- * R8 also applies to the exempt statuses (To Do / In PO / Backlog); R1 also applies to Pending; R8
- * doesn't apply to Reopened (an Epic that went live, R4G Date recorded, then got reopened — its R4G
- * Date is real history, not a data error). Pending keeps R8.
- * Rule change 2026-10-08: R8 no longer waits for the R4G Date to be reached (the 2026-10-05 "a future
- * R4G Date is a plan" exception is withdrawn) — see the rule below.
- * Rule change 2026-10-09: R10 — a future R4G Date is "Sai lệch dữ liệu" at every status (ALERT, like R8/R9).
- */
-export const dataQualityRule: PrimaryRule = ({ facts, derived, ctx }) => {
-  const findings: Finding[] = [];
-  const filterByScope = (list: Finding[]) =>
-    list.filter((item) => {
-      const def = BADGE_BY_ID.get(item.badge);
-      if (def?.axis === 'DATA_QUALITY' && def.group === 'ALERT') {
-        return isEpicInAnomalyScope(item.badge, facts, ctx);
-      }
-      return true;
-    });
-  const r4g = facts.r4gDate;
-  // R8 — a recorded R4G Date means status ≥ R4GOLIVE. It applies to the exempt statuses too (To Do /
-  // In PO / Backlog — owner rule 2026-10-05), only not to Cancelled: every Epic with an R4G Date while
-  // its status is still behind is "Sai lệch dữ liệu". The date being in the future makes no difference
-  // (owner rule 2026-10-08): R4G Date is the date the Epic actually reached R4GOLIVE — the phase
-  // completion, the "Epic hoàn thành" layer of the funnel and the Release axis all read it that way —
-  // so it must not be entered before the status gets there. (An Epic already at R4GOLIVE or later with
-  // a future R4G Date is not R8 — that one is R10 below.)
-  // Company rule, confirmed 2026-10-09: an R4G Date declared ahead is always "Sai lệch dữ liệu" — the
-  // owner clears the field and keeps the planned date in another one. Like every data anomaly it
-  // outranks the TTM verdicts (ttm-cntt.ts / ttm-e2e.ts stop on hasDataAnomaly), so an Epic that would
-  // be Fail — R4G Date later than Target, or overdue before the date was typed in — shows as R8 and
-  // leaves the denominator until the field is cleared.
-  // (Backlog is exempt but not a workflow step — it counts as "chưa tới R4GOLIVE" like To Do / In PO.)
-  // Reopened is left out (owner rule 2026-10-05): it ranks level with In Progress, but an Epic gets
-  // reopened after it went live, so a reached R4G Date there is genuine, not "Sai lệch dữ liệu".
-  const exempt = isExemptFromDataQuality(facts.status, ctx);
-  const statusBehindR4g = (derived.statusIndex < STATUS_INDEX.R4GOLIVE || exempt) && !isReopenedStatus(facts.status);
-  if (r4g && statusBehindR4g && !isCancelledStatus(facts.status)) {
+/** Wraps an R-rule with the exemptions every data-quality rule shares. Which Epics an R-rule applies to by date is the
+ * Rule Group's business now (the former "Phạm vi rule Sai lệch dữ liệu" panel was removed 2026-10-25, spec §9.3). */
+function dataQualityRule(spec: DataQualitySpec): ScoringRule {
+  return {
+    id: spec.id,
+    name: spec.name,
+    summary: spec.summary,
+    detail: spec.detail,
+    category: 'DATA_QUALITY',
+    stage: 'DATA_QUALITY',
+    core: false,
+    emits: spec.emits,
+    defaultSelected: true,
+    lifecycle: 'active',
+    gatedByDataAnomaly: false,
+    evaluate: (input) => {
+      if (spec.honorsExemptStatuses && isExemptFromDataQuality(input.facts.status, input.ctx)) return [];
+      return spec.evaluate(input);
+    },
+    recommend: spec.recommend,
+  };
+}
+
+const EXEMPT_NOTE = 'Miễn trừ: Cancelled và các status được miễn (mặc định To Do / In PO / Backlog).';
+
+/** "Status chưa tới R4GOLIVE" for R8 / R10. Backlog is exempt but not a workflow step — it counts as behind like
+ * To Do / In PO. Reopened is left out (owner rule 2026-10-05): it ranks level with In Progress, but an Epic gets
+ * reopened after it went live, so a reached R4G Date there is genuine, not "Sai lệch dữ liệu". */
+function statusBehindR4g(facts: EpicFacts, statusIndex: number, ctx: ScoringContext): boolean {
+  return (statusIndex < STATUS_INDEX.R4GOLIVE || isExemptFromDataQuality(facts.status, ctx)) && !isReopenedStatus(facts.status);
+}
+
+export const dqR8Rule = dataQualityRule({
+  id: 'dq-r8',
+  name: 'R8 — Có R4G Date nhưng chưa R4GOLIVE',
+  summary: 'Epic đã ghi R4G Date (kể cả ngày tương lai) nhưng status chưa lên R4GOLIVE.',
+  detail: {
+    conditions: 'Áp dụng cả với To Do / In PO / Backlog; chỉ miễn Cancelled và Reopened.',
+    history: ['04/10/2026: rule mới.', '05/10/2026: áp dụng cả status được miễn; không áp dụng Reopened.', '08/10/2026: R4G Date ở tương lai cũng tính.'],
+  },
+  emits: ['ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE', 'REC_FIX_R4G_STATUS'],
+  honorsExemptStatuses: false,
+  // R4G Date is the date the Epic actually reached R4GOLIVE — the phase completion, the "Epic hoàn thành" layer of
+  // the funnel and the Release axis all read it that way — so it must not be entered before the status gets there,
+  // future or not (owner rule 2026-10-08). An Epic already at R4GOLIVE or later with a future R4G Date is R10.
+  // Company rule, confirmed 2026-10-09: an R4G Date declared ahead is always "Sai lệch dữ liệu"; like every data
+  // anomaly it outranks the TTM verdicts, so an Epic that would be Fail shows as R8 and leaves the denominator.
+  evaluate: ({ facts, derived, ctx }) => {
+    const r4g = facts.r4gDate;
+    if (!r4g || isCancelledStatus(facts.status) || !statusBehindR4g(facts, derived.statusIndex, ctx)) return [];
     const message = r4g > ctx.asOf
       ? `Đã ghi R4G Date (${r4g}, chưa tới ngày) nhưng status Epic (${facts.status}) chưa tới R4GOLIVE`
       : `Đã có R4G Date (${r4g}) nhưng status Epic (${facts.status}) chưa tới R4GOLIVE`;
-    findings.push(finding('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE', message, { r4gDate: r4g, status: facts.status }));
-  }
-  // R10 (owner rule 2026-10-09) — the rest of "R4G Date must not be declared ahead": a future R4G
-  // Date where R8 doesn't reach, i.e. the status is already at R4GOLIVE or later, or Reopened (its
-  // R8 exemption is for a REACHED date — real history; a future one is declared ahead like any
-  // other). So every Epic with a future R4G Date is "Sai lệch dữ liệu" (R8 or R10), only Cancelled
-  // is left out, and "chưa kết luận" (L05ac) no longer holds future-dated Epics.
-  if (r4g && r4g > ctx.asOf && !statusBehindR4g && !isCancelledStatus(facts.status)) {
-    findings.push(finding('ANOMALY_R10_R4G_DATE_IN_FUTURE', `R4G Date (${r4g}) còn ở tương lai — R4G Date là ngày thực tế đạt R4GOLIVE, không được khai báo trước (status Epic: ${facts.status})`, { r4gDate: r4g, status: facts.status }));
-  }
-  if (exempt) return filterByScope(findings);
-  const { holidays } = ctx;
-  const t0 = facts.ideaApprovedDate;
-  const t1 = facts.startDate;
-  const due = facts.dueDate;
-  const pending = isPendingStatus(facts.status);
+    return [finding('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE', message, { r4gDate: r4g, status: facts.status })];
+  },
+  recommend: (_input, active) => (active.has('ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE')
+    ? [finding('REC_FIX_R4G_STATUS', 'Chuyển status Epic sang R4GOLIVE, hoặc kiểm tra lại R4G Date trên Jira.', {}, { relatedTo: ['ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE'] })]
+    : []),
+});
 
-  if (pending) {
-    // R2 — anchored on T1, falling back to the Jira creation date when T1 is missing.
+export const dqR10Rule = dataQualityRule({
+  id: 'dq-r10',
+  name: 'R10 — R4G Date ở tương lai',
+  summary: 'R4G Date còn ở tương lai trong khi status đã từ R4GOLIVE trở lên (hoặc Reopened) — R4G Date không được khai báo trước.',
+  detail: { conditions: 'Chỉ miễn Cancelled. Cùng R8, mọi Epic có R4G Date ở tương lai đều là Sai lệch dữ liệu.', history: ['09/10/2026: rule mới.'] },
+  emits: ['ANOMALY_R10_R4G_DATE_IN_FUTURE', 'REC_CLEAR_FUTURE_R4G_DATE'],
+  honorsExemptStatuses: false,
+  // The rest of "R4G Date must not be declared ahead": a future R4G Date where R8 doesn't reach (status at R4GOLIVE
+  // or later, or Reopened — its R8 exemption is for a REACHED date).
+  evaluate: ({ facts, derived, ctx }) => {
+    const r4g = facts.r4gDate;
+    if (!r4g || r4g <= ctx.asOf || isCancelledStatus(facts.status) || statusBehindR4g(facts, derived.statusIndex, ctx)) return [];
+    return [finding('ANOMALY_R10_R4G_DATE_IN_FUTURE', `R4G Date (${r4g}) còn ở tương lai — R4G Date là ngày thực tế đạt R4GOLIVE, không được khai báo trước (status Epic: ${facts.status})`, { r4gDate: r4g, status: facts.status })];
+  },
+  recommend: (_input, active) => (active.has('ANOMALY_R10_R4G_DATE_IN_FUTURE')
+    ? [finding('REC_CLEAR_FUTURE_R4G_DATE', 'Xoá R4G Date khai báo trước trên Jira (ghi ngày dự kiến ở trường thông tin khác); chỉ ghi R4G Date khi Epic thực tế đạt R4GOLIVE.', {}, { relatedTo: ['ANOMALY_R10_R4G_DATE_IN_FUTURE'] })]
+    : []),
+});
+
+export const dqR2Rule = dataQualityRule({
+  id: 'dq-r2',
+  name: 'R2 — Pending lâu',
+  summary: 'Epic Pending quá tỉ lệ cho phép của chu trình TTM-CNTT (QLDA) — nên quyết định tiếp tục hay huỷ. Là khuyến nghị, không phải Sai lệch dữ liệu.',
+  detail: { conditions: `Mốc tính: Start Date, thiếu thì ngày tạo Jira. ${EXEMPT_NOTE}`, parameters: ['anomaly.pendingStaleRatio (mặc định 20% ngân sách TTM-CNTT)'] },
+  emits: ['ANOMALY_R2_PENDING_TOO_LONG'],
+  honorsExemptStatuses: true,
+  evaluate: ({ facts, derived, ctx }) => {
+    if (!isPendingStatus(facts.status)) return [];
+    // Anchored on T1, falling back to the Jira creation date when T1 is missing.
+    const t1 = facts.startDate;
     const anchor = t1 ?? toIsoDate(facts.jiraCreatedAt);
     const budget = derived.cnttBudgetWorkingDays;
-    if (anchor && budget) {
-      const elapsed = diffWorkingDays(anchor, ctx.asOf, holidays);
-      const threshold = ctx.parameters['anomaly.pendingStaleRatio'] * budget;
-      if (elapsed >= threshold) {
-        findings.push(finding('ANOMALY_R2_PENDING_TOO_LONG', `Epic Pending đã ${elapsed} ngày làm việc (ngưỡng ${Math.round(threshold)} ngày = ${Math.round(ctx.parameters['anomaly.pendingStaleRatio'] * 100)}% chu trình TTM-CNTT (QLDA)) kể từ ${t1 ? 'Start Date (T1)' : 'ngày tạo Jira'} — cân nhắc tiếp tục hoặc huỷ Epic.`, { anchorDate: anchor, elapsedWorkingDays: elapsed, thresholdWorkingDays: threshold }));
-      }
-    }
-  }
-  // R1 (owner rule 2026-10-12) — Start Date blank AND EITHER the status is not Pending and from Design
-  // on (Reopened ranks level with In Progress, so it is included), OR the status is Pending and its
-  // previous status is not To Do / In PO (an empty one included). A Pending Epic that was To Do / In PO
-  // before never started, so it is not flagged — it then has no Target either: TTM-CNTT reports "không
-  // tính được" (CNTT_CALC_BROKEN) and, the data-quality gate being open, TTM-E2E is judged as usual.
-  if (!t1 && startDateRequired(facts.status, facts.previousStatus, derived.statusIndex)) {
-    findings.push(finding('ANOMALY_R1_MISSING_START_DATE', pending ? `Thiếu Start Date (T1) — Epic đang Pending (status trước đó: ${(facts.previousStatus ?? '').trim() || 'không có'})` : 'Thiếu Start Date (T1) — Epic đã từ giai đoạn Design trở đi.', pending ? { previousStatus: facts.previousStatus ?? null } : undefined));
-  }
+    if (!anchor || !budget) return [];
+    const elapsed = diffWorkingDays(anchor, ctx.asOf, ctx.holidays);
+    const threshold = ctx.parameters['anomaly.pendingStaleRatio'] * budget;
+    if (elapsed < threshold) return [];
+    return [finding('ANOMALY_R2_PENDING_TOO_LONG', `Epic Pending đã ${elapsed} ngày làm việc (ngưỡng ${Math.round(threshold)} ngày = ${Math.round(ctx.parameters['anomaly.pendingStaleRatio'] * 100)}% chu trình TTM-CNTT (QLDA)) kể từ ${t1 ? 'Start Date (T1)' : 'ngày tạo Jira'} — cân nhắc tiếp tục hoặc huỷ Epic.`, { anchorDate: anchor, elapsedWorkingDays: elapsed, thresholdWorkingDays: threshold })];
+  },
+});
 
-  const breaks: string[] = [];
-  if (t0 && t1 && t0 > t1) breaks.push('Ngày duyệt ý tưởng (T0) muộn hơn Start Date (T1)');
-  if (t1 && r4g && t1 >= r4g) breaks.push('Start Date (T1) không sớm hơn R4G Date');
-  if (r4g && due && r4g > due) breaks.push('R4G Date muộn hơn Due Date');
-  if (breaks.length) findings.push(finding('ANOMALY_R3_DATE_OUT_OF_SEQUENCE', `Sai thứ tự ngày: ${breaks.join('; ')}`, { ideaApprovedDate: t0, startDate: t1, r4gDate: r4g, dueDate: due }));
+export const dqR1Rule = dataQualityRule({
+  id: 'dq-r1',
+  name: 'R1 — Thiếu Start Date',
+  summary: 'Epic chưa có Start Date khi đã tới lúc cần (từ Design trở đi, hoặc Pending không phải từ To Do / In PO).',
+  detail: {
+    conditions: `${EXEMPT_NOTE} Khuyến nghị "Bổ sung Start Date" phát cả khi TTM-CNTT "Không tính được" vì thiếu Start Date.`,
+    history: ['04/10/2026: tính từ Design (trước là DEV).', '05/10/2026: tính cả Pending.', '12/10/2026: Pending có status trước là To Do / In PO được miễn.'],
+  },
+  emits: ['ANOMALY_R1_MISSING_START_DATE', 'REC_FILL_START_DATE'],
+  honorsExemptStatuses: true,
+  // Owner rule 2026-10-12 — Start Date blank AND EITHER the status is not Pending and from Design on (Reopened ranks
+  // level with In Progress, so it is included), OR the status is Pending and its previous status is not To Do / In PO
+  // (an empty one included). A Pending Epic that was To Do / In PO before never started, so it is not flagged — it then
+  // has no Target either: TTM-CNTT reports "không tính được" and, the data-quality gate being open, TTM-E2E is judged.
+  evaluate: ({ facts, derived }) => {
+    if (facts.startDate || !startDateRequired(facts.status, facts.previousStatus, derived.statusIndex)) return [];
+    const pending = isPendingStatus(facts.status);
+    return [finding('ANOMALY_R1_MISSING_START_DATE', pending ? `Thiếu Start Date (T1) — Epic đang Pending (status trước đó: ${(facts.previousStatus ?? '').trim() || 'không có'})` : 'Thiếu Start Date (T1) — Epic đã từ giai đoạn Design trở đi.', pending ? { previousStatus: facts.previousStatus ?? null } : undefined)];
+  },
+  recommend: ({ facts, derived }, active) => {
+    const brokenForMissingT1 = active.has('CNTT_CALC_BROKEN') && !facts.startDate && !derived.isCancelled && derived.statusIndex >= STATUS_INDEX.DESIGN && derived.statusIndex <= STATUS_INDEX.RELEASED;
+    if (!active.has('ANOMALY_R1_MISSING_START_DATE') && !brokenForMissingT1) return [];
+    return [finding('REC_FILL_START_DATE', 'Bổ sung Start Date (T1) trên Jira.', {}, { relatedTo: active.has('ANOMALY_R1_MISSING_START_DATE') ? ['ANOMALY_R1_MISSING_START_DATE'] : ['CNTT_CALC_BROKEN'] })];
+  },
+});
 
-  if (isBlank(facts.requestType)) findings.push(finding('ANOMALY_R4_MISSING_REQUEST_TYPE', 'Thiếu Phân loại yêu cầu'));
-  // R5 (owner rule 2026-10-11) — Requirement Level blank or "none" AND EITHER the status is not
-  // Pending and past DESIGN (the level is still being settled during Design; Pending is judged by the
-  // second branch), OR the status is Pending and its previous status is not To Do / In PO (an empty
-  // one included). A Pending Epic that was To Do / In PO before is therefore not flagged by R5.
-  if (isBlank(facts.requirementLevel) && requirementLevelRequired(facts.status, facts.previousStatus, derived.statusIndex)) {
-    findings.push(finding('ANOMALY_R5_MISSING_REQUIREMENT_LEVEL', pending ? `Thiếu Requirement Level — Epic đang Pending (status trước đó: ${(facts.previousStatus ?? '').trim() || 'không có'})` : 'Thiếu Requirement Level', pending ? { previousStatus: facts.previousStatus ?? null } : undefined));
-  }
+export const dqR3Rule = dataQualityRule({
+  id: 'dq-r3',
+  name: 'R3 — Sai thứ tự ngày',
+  summary: 'Các mốc ngày không theo thứ tự T0 ≤ Start Date < R4G Date ≤ Due Date (chỉ xét mốc đã có giá trị).',
+  detail: { conditions: `${EXEMPT_NOTE} Khuyến nghị "Sửa thứ tự ngày" phát cả khi TTM-CNTT / TTM-E2E "Không tính được" vì R4G Date phi logic.` },
+  emits: ['ANOMALY_R3_DATE_OUT_OF_SEQUENCE', 'REC_FIX_DATE_ORDER'],
+  honorsExemptStatuses: true,
+  evaluate: ({ facts }) => {
+    const t0 = facts.ideaApprovedDate;
+    const t1 = facts.startDate;
+    const r4g = facts.r4gDate;
+    const due = facts.dueDate;
+    const breaks: string[] = [];
+    if (t0 && t1 && t0 > t1) breaks.push('Ngày duyệt ý tưởng (T0) muộn hơn Start Date (T1)');
+    if (t1 && r4g && t1 >= r4g) breaks.push('Start Date (T1) không sớm hơn R4G Date');
+    if (r4g && due && r4g > due) breaks.push('R4G Date muộn hơn Due Date');
+    return breaks.length ? [finding('ANOMALY_R3_DATE_OUT_OF_SEQUENCE', `Sai thứ tự ngày: ${breaks.join('; ')}`, { ideaApprovedDate: t0, startDate: t1, r4gDate: r4g, dueDate: due })] : [];
+  },
+  recommend: ({ facts }, active) => {
+    const brokenForOrder = (active.has('CNTT_CALC_BROKEN') && Boolean(facts.startDate)) || active.has('E2E_CALC_BROKEN');
+    return active.has('ANOMALY_R3_DATE_OUT_OF_SEQUENCE') || brokenForOrder
+      ? [finding('REC_FIX_DATE_ORDER', 'Kiểm tra lại thứ tự các mốc ngày (T0, Start Date, R4G Date, Due Date) trên Jira.', {}, { relatedTo: ['ANOMALY_R3_DATE_OUT_OF_SEQUENCE'] })]
+      : [];
+  },
+});
 
-  const level = (facts.requirementLevel ?? '').trim();
-  if ((facts.complexity ?? '').startsWith('SP-') && ctx.parameters['anomaly.spMismatchLevels'].includes(level)) {
-    findings.push(finding('ANOMALY_R6_SP_LEVEL_MISMATCH', `Epic được đánh giá độ phức tạp Sản phẩm (${facts.complexity}) nhưng Requirement Level = ${level} — không phù hợp với loại yêu cầu Sản phẩm`));
-  }
+export const dqR4Rule = dataQualityRule({
+  id: 'dq-r4',
+  name: 'R4 — Thiếu Phân loại yêu cầu',
+  summary: 'Epic chưa có Phân loại yêu cầu (trống hoặc "none").',
+  detail: { conditions: EXEMPT_NOTE },
+  emits: ['ANOMALY_R4_MISSING_REQUEST_TYPE', 'REC_FILL_REQUEST_TYPE'],
+  honorsExemptStatuses: true,
+  evaluate: ({ facts }) => (isBlank(facts.requestType) ? [finding('ANOMALY_R4_MISSING_REQUEST_TYPE', 'Thiếu Phân loại yêu cầu')] : []),
+  recommend: (_input, active) => (active.has('ANOMALY_R4_MISSING_REQUEST_TYPE')
+    ? [finding('REC_FILL_REQUEST_TYPE', 'Bổ sung Phân loại yêu cầu trên Jira.', {}, { relatedTo: ['ANOMALY_R4_MISSING_REQUEST_TYPE'] })]
+    : []),
+});
 
-  // R9 — the other direction of R8: a status at R4GOLIVE or later needs an R4G Date. Limited to the
-  // workflow's own statuses (R4GOLIVE … RELEASED), so an unrecognized status is never flagged.
-  if (!r4g && derived.statusIndex >= STATUS_INDEX.R4GOLIVE && derived.statusIndex <= STATUS_INDEX.RELEASED) {
-    findings.push(finding('ANOMALY_R9_MISSING_R4G_DATE', `Status Epic (${facts.status}) đã từ R4GOLIVE trở lên nhưng chưa có R4G Date`, { status: facts.status }));
-  }
-  return filterByScope(findings);
-};
+export const dqR5Rule = dataQualityRule({
+  id: 'dq-r5',
+  name: 'R5 — Thiếu Requirement Level',
+  summary: 'Epic chưa có Requirement Level khi đã qua Design (hoặc Pending không phải từ To Do / In PO / Design).',
+  detail: {
+    conditions: EXEMPT_NOTE,
+    history: ['04/10/2026: chỉ tính khi đã qua Design.', '11/10/2026: Pending có status trước là To Do / In PO được miễn.', '14/10/2026: miễn thêm Pending có status trước là Design.'],
+  },
+  emits: ['ANOMALY_R5_MISSING_REQUIREMENT_LEVEL', 'REC_FILL_REQUIREMENT_LEVEL'],
+  honorsExemptStatuses: true,
+  // Owner rule 2026-10-11 — Requirement Level blank or "none" AND EITHER the status is not Pending and past DESIGN
+  // (the level is still being settled during Design), OR the status is Pending and its previous status is not
+  // To Do / In PO / Design (an empty one included).
+  evaluate: ({ facts, derived }) => {
+    if (!isBlank(facts.requirementLevel) || !requirementLevelRequired(facts.status, facts.previousStatus, derived.statusIndex)) return [];
+    const pending = isPendingStatus(facts.status);
+    return [finding('ANOMALY_R5_MISSING_REQUIREMENT_LEVEL', pending ? `Thiếu Requirement Level — Epic đang Pending (status trước đó: ${(facts.previousStatus ?? '').trim() || 'không có'})` : 'Thiếu Requirement Level', pending ? { previousStatus: facts.previousStatus ?? null } : undefined)];
+  },
+  recommend: (_input, active) => (active.has('ANOMALY_R5_MISSING_REQUIREMENT_LEVEL')
+    ? [finding('REC_FILL_REQUIREMENT_LEVEL', 'Bổ sung Requirement Level trên Jira.', {}, { relatedTo: ['ANOMALY_R5_MISSING_REQUIREMENT_LEVEL'] })]
+    : []),
+});
+
+export const dqR6Rule = dataQualityRule({
+  id: 'dq-r6',
+  name: 'R6 — SP nhưng Level thấp',
+  summary: 'Loại Epic Sản phẩm (SP-Lv12 / SP-Lv34) nhưng Requirement Level thuộc danh sách mâu thuẫn (mặc định 1, 2).',
+  detail: { conditions: EXEMPT_NOTE, parameters: ['anomaly.spMismatchLevels'] },
+  emits: ['ANOMALY_R6_SP_LEVEL_MISMATCH', 'REC_REVIEW_SP_LEVEL'],
+  honorsExemptStatuses: true,
+  evaluate: ({ facts, ctx }) => {
+    const level = (facts.requirementLevel ?? '').trim();
+    if (!(facts.complexity ?? '').startsWith('SP-') || !ctx.parameters['anomaly.spMismatchLevels'].includes(level)) return [];
+    return [finding('ANOMALY_R6_SP_LEVEL_MISMATCH', `Epic được đánh giá độ phức tạp Sản phẩm (${facts.complexity}) nhưng Requirement Level = ${level} — không phù hợp với loại yêu cầu Sản phẩm`)];
+  },
+  recommend: (_input, active) => (active.has('ANOMALY_R6_SP_LEVEL_MISMATCH')
+    ? [finding('REC_REVIEW_SP_LEVEL', 'Rà soát lại Phân loại yêu cầu / Requirement Level.', {}, { relatedTo: ['ANOMALY_R6_SP_LEVEL_MISMATCH'] })]
+    : []),
+});
+
+export const dqR9Rule = dataQualityRule({
+  id: 'dq-r9',
+  name: 'R9 — Thiếu R4G Date',
+  summary: 'Status đã từ R4GOLIVE trở lên (R4GOLIVE / MVP Done / Pilot / Done / Released) nhưng chưa có R4G Date.',
+  detail: { conditions: `${EXEMPT_NOTE} Status ngoài workflow (kể cả Pending / Reopened) không xét.`, history: ['04/10/2026: rule mới.'] },
+  emits: ['ANOMALY_R9_MISSING_R4G_DATE', 'REC_FILL_R4G_DATE'],
+  honorsExemptStatuses: true,
+  // The other direction of R8, limited to the workflow's own statuses (R4GOLIVE … RELEASED), so an unrecognized
+  // status is never flagged.
+  evaluate: ({ facts, derived }) => (!facts.r4gDate && derived.statusIndex >= STATUS_INDEX.R4GOLIVE && derived.statusIndex <= STATUS_INDEX.RELEASED
+    ? [finding('ANOMALY_R9_MISSING_R4G_DATE', `Status Epic (${facts.status}) đã từ R4GOLIVE trở lên nhưng chưa có R4G Date`, { status: facts.status })]
+    : []),
+  recommend: (_input, active) => (active.has('ANOMALY_R9_MISSING_R4G_DATE')
+    ? [finding('REC_FILL_R4G_DATE', 'Bổ sung R4G Date trên Jira.', {}, { relatedTo: ['ANOMALY_R9_MISSING_R4G_DATE'] })]
+    : []),
+});

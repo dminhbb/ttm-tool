@@ -53,7 +53,7 @@ Epic ngoài "Phạm vi dữ liệu cho TTM" **không nằm trong L01** (trước
 | Mã | Tên tiêu chí | Cách tính | Nhóm lá (`ttmFunnelBucket`) | Bộ lọc khi mở danh sách |
 |---|---|---|---|---|
 | `L01` | Tổng epic | Mọi Epic trong phạm vi dữ liệu để tính toán (kể cả Cancelled) | mọi nhóm trừ `OUT_OF_SCOPE` | `alert=IN_SCOPE_CNTT` + `status` = mọi trạng thái đang có |
-| `L02` | Epic trong phạm vi tính TTM | L01 − Cancelled − Epic ngoại lệ (Epic Black listed + Epic thuộc dự án Time to Market = N) | − `CANCELLED` − `BLACK_LISTED` − `PROJECT_NON_TTM` | `alert=TTM_COUNTED_IN_SCOPE` (L02); nhóm bị loại: `IN_SCOPE_CNTT` + `status` Cancelled, `TTM_BLACK_LISTED`, `TTM_PROJECT_NON_TTM` |
+| `L02` | Epic trong phạm vi tính TTM | L01 − Cancelled − Epic ngoại lệ (Epic Black listed + Epic thuộc dự án Time to Market = N) − Epic thuộc nhóm rule không có rule TTM-CNTT (Rule Management, từ 2026-10-25) | − `CANCELLED` − `BLACK_LISTED` − `PROJECT_NON_TTM` − `NO_CNTT_RULE` | `alert=TTM_COUNTED_IN_SCOPE` (L02); nhóm bị loại: `IN_SCOPE_CNTT` + `status` Cancelled, `TTM_BLACK_LISTED`, `TTM_PROJECT_NON_TTM`, `TTM_NO_CNTT_RULE` (badge `CNTT_NO_RULE`) |
 | `L03` | Epic chuẩn hoá dữ liệu | L02 − các Epic bị đánh dấu "Sai lệch dữ liệu" | − `DATA_ANOMALY` | `alert=DATA_ANOMALY_IN_SCOPE` (danh sách Epic bị loại) |
 | `L04a` | Epic hoàn thành | Các Epic có R4G Date trong L03 | `R4G_PASS` + `R4G_LATE` + `R4G_NOT_SCORED` | `TTM_ELIGIBLE_IN_SCOPE` |
 | `L04b` | Epic chưa hoàn thành | Các Epic không có R4G Date trong L03 | `NO_R4G_OVERDUE` + `NO_R4G_WITHIN_TARGET` | `MISSING_R4G_IN_SCOPE` |
@@ -202,3 +202,14 @@ Epic có n PM/SM được chia đều: mỗi người 1/n. Ví dụ dự án API
 - Tổng các dòng PM/SM = Tổng số Epic (L02); Pass / Fail / Sai lệch / Đúng–Chậm tiến độ / TTM-CNTT (QA) chia theo cùng tỷ lệ.
 - Hiển thị làm tròn tới 1 Epic (17,6 → 18; phần dưới 0,5 hiện "<1"); tỷ lệ % tính trên số chưa làm tròn.
 - Bấm vào một dòng mở mọi Epic người đó có phần, nên danh sách có thể nhiều hơn con số của dòng.
+
+
+## Nhóm rule (Rule Management) — 2026-10-25
+
+Spec: `docs/superpowers/specs/2026-10-25-rule-groups-design.md` (§8).
+
+- Bucket mới `NO_CNTT_RULE` (sau `PROJECT_NON_TTM`, trước `DATA_ANOMALY`): Epic có badge `CNTT_NO_RULE` — nhóm rule của nó không chọn rule TTM-CNTT. Bị loại ở L02 và ở cột "Tổng số Epic" của ma trận / biểu đồ, nhưng vẫn nằm trong tập của các widget vận hành và TTM-E2E (không phải Epic ngoại lệ). SQL twin: `counted` trong `buildFieldFilterClause` loại thêm `badge_codes @> ARRAY['CNTT_NO_RULE']`; bộ lọc `TTM_NO_CNTT_RULE`.
+- Chiều breakdown `ruleGroup` ("Theo Nhóm rule", theo `ruleGroupName` của dòng Epic) — tab ma trận và section biểu đồ tròn chỉ hiện khi có hơn 1 nhóm rule trong tập đang xem; dòng cache trước khi có nhóm rule là "Chưa xác định".
+- Bộ lọc thanh công cụ `ruleGroups` (`TtmDashboard2Filters.ruleGroups`, `filterOptions.ruleGroups`), deep link sang Quản trị Epic bằng tham số lặp `ruleGroup`.
+- Tooltip 3 vòng chỉ số: "Tính theo n nhóm rule: A (x Epic), B (y Epic)" khi có hơn 1 nhóm (số Epic = L02 của nhóm).
+- `PAYLOAD_VERSION` của cache = 13.
