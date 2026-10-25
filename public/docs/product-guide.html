@@ -1554,11 +1554,12 @@
       <table>
         <thead><tr><th>Màn hình Rule Management (<code>/admin/rule-management</code>, chỉ SUPERADMIN)</th><th>Chức năng</th></tr></thead>
         <tbody>
+          <tr><td>Bố cục tab (từ 25/10/2026)</td><td><strong>Rule group manager</strong> (mặc định): panel "Nhóm rule (Rule Group)" — thanh công cụ và bảng tổng quan mọi nhóm theo thứ tự ưu tiên (bấm tên để mở tab của nhóm) — panel "Xem trước tác động" và form các nhóm <em>mới, chưa lưu</em>. Mỗi nhóm <strong>đã lưu</strong> có <strong>một tab riêng</strong> ("#1 Tên nhóm", "#2 …" theo thứ tự ưu tiên; nhóm tắt ghi "(tắt)", tab có biểu tượng khi nhóm có lỗi / cảnh báo). Tab cận cuối <strong>Default rules</strong>: nhóm Default. Tab cuối <strong>Always Rule</strong>: rule luôn chạy. Khi có thay đổi chưa lưu, các tab khác tab đầu hiện thêm "Hoàn tác · Lưu" cạnh dãy tab.</td></tr>
           <tr><td>Thanh công cụ</td><td>Thêm nhóm · Xem trước tác động · Lịch sử thay đổi · Hoàn tác · Lưu. Cả cấu hình được sửa như một bản nháp và lưu một lần; người khác vừa lưu thì bản nháp bị từ chối (tải lại trang).</td></tr>
           <tr><td>Thẻ nhóm</td><td>Tên, master toggle, nút tăng / giảm ưu tiên, xoá; 5 cặp ngày; rule theo loại (rule đánh giá chọn một, có lựa chọn "Không áp dụng"; rule khác chọn nhiều); nút <strong>(?)</strong> mở logic, điều kiện áp dụng, badge, tham số và lịch sử thay đổi của rule. Lỗi chặn lưu (trùng tên, 2 rule cùng loại đánh giá, Từ ngày &gt; Đến ngày…) và cảnh báo (không có rule TTM-CNTT / TTM-E2E, nhóm không có điều kiện ngày nhận mọi Epic…) hiện ngay trong thẻ.</td></tr>
           <tr><td>Xem trước tác động</td><td>Chấm thử mọi Epic tại hôm nay (lớp dữ liệu mới nhất) với cấu hình đã lưu và bản nháp: số Epic mỗi nhóm, Đạt / Fail và tỷ lệ % TTM-CNTT (QLDA), (QA), TTM-E2E, Sai lệch dữ liệu, số Epic đổi kết quả. Không ghi gì vào CSDL.</td></tr>
           <tr><td>Lịch sử thay đổi</td><td>Mỗi lần lưu: thời điểm, người lưu, các thay đổi (thêm / xoá / đổi tên / bật tắt nhóm, đổi điều kiện, thêm / bỏ rule, đổi ưu tiên).</td></tr>
-          <tr><td>Rule luôn chạy</td><td>Danh sách rule áp dụng cho mọi Epic, có nút (?) xem chi tiết.</td></tr>
+          <tr><td>Rule luôn chạy (tab Always Rule)</td><td>Danh sách rule áp dụng cho mọi Epic, có nút (?) xem chi tiết.</td></tr>
         </tbody>
       </table>
       <p>

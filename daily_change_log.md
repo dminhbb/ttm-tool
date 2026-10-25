@@ -36,6 +36,7 @@
   - Quản trị Epic: bộ lọc "Nhóm rule" + trường "Nhóm rule" trong popup Epic; Chuẩn hoá dữ liệu: bộ lọc "Nhóm rule"; Báo cáo: dòng "Nhóm rule" khi khác Default.
   - Popup "Logic cảnh báo": mục 9 Rule object, mục 10 Nhóm rule đang áp dụng (API chỉ đọc `/api/rule-group-summary`). MCP: `nhomRule`, lọc `ruleGroup(s)`, `dimension: ruleGroup`.
   - Tài liệu sản phẩm mục 7.4 (mới), 9.2, 13.1, 16.3, 21.x; `docs/ttm-dashboard-2-spec.md`. Test 374/374.
+- **Rule Management chia tab** (`components/rule-management/RuleManagementSettings.tsx`): tab mặc định "Rule group manager" (panel Nhóm rule + bảng tổng quan theo ưu tiên, Xem trước tác động, form nhóm mới chưa lưu); mỗi nhóm đã lưu một tab riêng theo thứ tự ưu tiên; tab "Default rules" (nhóm Default) và "Always Rule" (rule luôn chạy) ở cuối; thanh "Hoàn tác · Lưu" hiện trên các tab khác khi có thay đổi chưa lưu. Tài liệu sản phẩm 7.4, spec §20.1.
 
 ## 2026-10-24
 

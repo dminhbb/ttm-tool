@@ -718,3 +718,11 @@ Kiểm chứng:
   chỉ một nhóm Default): popup L02 có quy tắc 4, L02 = 855 không đổi; popup Logic cảnh báo mục 9–10; API Quản trị Epic trả `ruleGroupName`, lọc
   `ruleGroup=Default` = 855, `TTM_NO_CNTT_RULE` = 0; popup Epic có "Nhóm rule: Default"; Dashboard 2, Quản trị Epic, Chuẩn hoá dữ liệu, Báo cáo
   không lỗi console. Chiều / bộ lọc "Nhóm rule" khi có ≥ 2 nhóm chỉ kiểm bằng test (không lưu nhóm thử lên DB thật).
+
+### 20.1. Bố cục tab màn Rule Management (chủ sở hữu, 2026-10-25)
+
+Tab đầu (mặc định) **Rule group manager**: panel "Nhóm rule (Rule Group)" (thanh công cụ + bảng tổng quan các nhóm theo ưu tiên, bấm tên mở tab
+của nhóm), panel "Xem trước tác động" và form các nhóm mới chưa lưu. Mỗi nhóm đã lưu một tab riêng, xếp theo ưu tiên ("#n Tên"); đổi ưu tiên ngay
+trong tab đổi luôn thứ tự tab; xoá nhóm thì về tab đầu. Tab cận cuối **Default rules** (nhóm Default), tab cuối **Always Rule** (rule luôn chạy).
+Trên các tab khác tab đầu, khi có thay đổi chưa lưu hiện "Hoàn tác · Lưu" cạnh dãy tab (lưu cả cấu hình). Kiểm tra trên trình duyệt: lưu được giả
+lập bằng chặn PUT trong trình duyệt (không ghi DB) — 2 nhóm mới thành 2 tab #1/#2, đổi ưu tiên, xoá, cấu hình thật vẫn chỉ có Default.

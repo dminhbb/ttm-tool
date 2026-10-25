@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
   ArrowCounterClockwise,
   ArrowDown,
   ArrowUp,
-  CaretDown,
   ClockCounterClockwise,
   Eye,
   FloppyDisk,
@@ -54,6 +54,11 @@ import type { RuleGroupDateField } from '@/lib/scoring/types';
  */
 
 const SLOTS: readonly RuleSlot[] = ['TTM_CNTT_VERDICT', 'TTM_E2E_VERDICT'];
+/** Tabs (owner layout 2026-10-25): "Rule group manager" first, one tab per saved group (`group:<key>`) in priority
+ * order, then "Default rules" and "Always Rule". */
+const MANAGER_TAB = 'manager';
+const DEFAULT_TAB = 'default';
+const ALWAYS_TAB = 'always';
 const FINDING_GROUP_LABEL = Object.fromEntries(FINDING_GROUPS.map((group) => [group.id, group.label]));
 const DATE_INPUT_CLASS = 'h-8 w-[132px] rounded border border-fb-border bg-fb-surface px-2 text-xs text-fb-text-primary focus:outline-none focus:ring-1 focus:ring-status-success disabled:opacity-50';
 const ICON_BUTTON_CLASS = 'inline-flex size-8 items-center justify-center rounded-md border border-fb-border text-fb-text-secondary transition-colors hover:bg-fb-surface-muted hover:text-fb-text-primary disabled:pointer-events-none disabled:opacity-30';
@@ -121,7 +126,7 @@ export function RuleManagementSettings() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<string>(MANAGER_TAB);
   const [preview, setPreview] = useState<RuleGroupPreviewResponse | null>(null);
   const [previewedDrafts, setPreviewedDrafts] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState(false);
@@ -220,7 +225,8 @@ export function RuleManagementSettings() {
     while (existing.has(`nhóm mới ${index}`)) index += 1;
     const group: RuleGroupDraft = { key: newGroupKey(), id: null, name: `Nhóm mới ${index}`, isDefault: false, enabled: true, conditions: emptyConditions(), ruleIds: [...(defaultGroup?.ruleIds ?? [])] };
     setDrafts((prev) => [...prev.filter((item) => !item.isDefault), group, ...prev.filter((item) => item.isDefault)]);
-    setExpanded((prev) => new Set([...prev, group.key]));
+    // A new group is edited on the first tab until it is saved.
+    setActiveTab(MANAGER_TAB);
   };
 
   const removeGroup = async (group: RuleGroupDraft) => {
@@ -264,183 +270,276 @@ export function RuleManagementSettings() {
   const issuesOf = (key: string | null, list: RuleGroupIssue[]) => list.filter((issue) => issue.groupKey === key);
   const globalErrors = issuesOf(null, validation.errors);
   const nonDefaultCount = drafts.filter((group) => !group.isDefault).length;
+  const matchedOf = (key: string) => (preview && !previewStale ? preview.matchedByGroupKey[key] : undefined);
+  // Saved groups get a tab of their own, in priority order; a group added but not saved yet stays on the first tab.
+  const savedGroups = drafts.flatMap((group, index) => (!group.isDefault && group.id !== null ? [{ group, index }] : []));
+  const newGroups = drafts.flatMap((group, index) => (!group.isDefault && group.id === null ? [{ group, index }] : []));
+  const defaultEntry = drafts.flatMap((group, index) => (group.isDefault ? [{ group, index }] : []))[0];
+  const activeGroupKey = activeTab.startsWith('group:') ? activeTab.slice('group:'.length) : null;
+  const activeSaved = activeGroupKey ? savedGroups.find(({ group }) => group.key === activeGroupKey) : undefined;
+  // A group tab whose group was just deleted (or undone) falls back to the first tab.
+  const currentTab = activeGroupKey && !activeSaved ? MANAGER_TAB : activeTab;
+
+  const renderGroupCard = (group: RuleGroupDraft, index: number) => {
+    const errors = issuesOf(group.key, validation.errors);
+    const warnings = issuesOf(group.key, validation.warnings);
+    const matched = matchedOf(group.key);
+    return (
+      <Card key={group.key} className={group.enabled ? '' : 'opacity-80'}>
+        <CardHeader>
+          <div className="flex w-full flex-wrap items-center gap-2">
+            <Badge variant="neutral" className="font-mono text-xs">{group.isDefault ? 'Cuối' : `#${index + 1}`}</Badge>
+            <span className="min-w-0 truncate text-sm font-semibold text-fb-text-primary">{group.name || '(chưa đặt tên)'}</span>
+            {group.isDefault ? <Badge variant="info">Mặc định · luôn bật</Badge> : <Badge variant={group.enabled ? 'success' : 'neutral'}>{group.enabled ? 'Bật' : 'Tắt'}</Badge>}
+            {group.id === null && <Badge variant="warning">Chưa lưu</Badge>}
+            <span className="text-xs text-fb-text-secondary">{group.isDefault ? 'Epic không khớp nhóm nào ở trên' : describeConditions(group.conditions)}</span>
+            <span className="ml-auto flex items-center gap-2">
+              {matched !== undefined && <Badge variant="pending">{formatNumber(matched)} Epic</Badge>}
+              {errors.length > 0 && <span className="inline-flex items-center gap-1 text-xs font-semibold text-status-danger"><XCircle className="size-4" />{errors.length}</span>}
+              {warnings.length > 0 && <span className="inline-flex items-center gap-1 text-xs font-semibold text-status-warning"><Warning className="size-4" />{warnings.length}</span>}
+              <span className="text-xs text-fb-text-secondary">{group.ruleIds.filter((id) => ruleNames.has(id)).length}/{selectable.length} rule</span>
+              {!group.isDefault && (
+                <>
+                  <button aria-label="Tăng ưu tiên" className={ICON_BUTTON_CLASS} disabled={index === 0} onClick={() => move(index, -1)} title="Tăng ưu tiên" type="button"><ArrowUp className="size-4" /></button>
+                  <button aria-label="Giảm ưu tiên" className={ICON_BUTTON_CLASS} disabled={index >= nonDefaultCount - 1} onClick={() => move(index, 1)} title="Giảm ưu tiên" type="button"><ArrowDown className="size-4" /></button>
+                  <button aria-label="Xoá nhóm" className={`${ICON_BUTTON_CLASS} hover:text-status-danger`} onClick={() => void removeGroup(group)} title="Xoá nhóm" type="button"><Trash className="size-4" /></button>
+                </>
+              )}
+            </span>
+          </div>
+        </CardHeader>
+        <CardBody className="flex flex-col gap-5">
+          {(errors.length > 0 || warnings.length > 0) && (
+            <ul className="flex flex-col gap-1 text-xs">
+              {errors.map((issue) => <li key={issue.message} className="flex items-start gap-1.5 text-status-danger"><XCircle className="mt-0.5 size-3.5 shrink-0" />{issue.message}</li>)}
+              {warnings.map((issue) => <li key={issue.message} className="flex items-start gap-1.5 text-status-warning"><Warning className="mt-0.5 size-3.5 shrink-0" />{issue.message}</li>)}
+            </ul>
+          )}
+
+          {group.isDefault ? (
+            <p className="text-xs text-fb-text-secondary">
+              Nhóm Default nhận mọi Epic không khớp nhóm nào ở trên; không xoá, không đổi tên, không tắt và không có điều kiện ngày — chỉ chỉnh được danh sách rule.
+            </p>
+          ) : (
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="w-full max-w-sm">
+                <Input label="Tên nhóm" maxLength={100} value={group.name} onChange={(event) => updateGroup(group.key, (item) => ({ ...item, name: event.target.value }))} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-fb-text-secondary">Master toggle</span>
+                <BooleanPillToggle value={group.enabled} onChange={(value) => updateGroup(group.key, (item) => ({ ...item, enabled: value }))} trueLabel="Bật" falseLabel="Tắt" size="sm" />
+              </div>
+            </div>
+          )}
+
+          {!group.isDefault && (
+            <section>
+              <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-fb-text-secondary">Điều kiện ngày của Epic</h3>
+              <TableContainer className="overflow-x-auto">
+                <Table className="w-full min-w-[560px]">
+                  <THead><TR><TH className="px-3 py-2 text-xs">Ngày</TH><TH className="px-3 py-2 text-xs">Từ ngày (≥)</TH><TH className="px-3 py-2 text-xs">Đến ngày (≤)</TH><TH className="px-3 py-2 text-xs" /></TR></THead>
+                  <TBody>
+                    {RULE_GROUP_DATE_FIELD_ORDER.map((field) => {
+                      const range = group.conditions[field];
+                      return (
+                        <TR key={field}>
+                          <TD className="px-3 py-2 text-xs font-semibold text-fb-text-primary">{RULE_GROUP_DATE_FIELD_LABELS[field]}</TD>
+                          <TD className="px-3 py-2"><input aria-label={`${RULE_GROUP_DATE_FIELD_LABELS[field]} từ ngày`} className={DATE_INPUT_CLASS} onChange={(event) => setDate(group.key, field, 'from', event.target.value)} type="date" value={range.from ?? ''} /></TD>
+                          <TD className="px-3 py-2"><input aria-label={`${RULE_GROUP_DATE_FIELD_LABELS[field]} đến ngày`} className={DATE_INPUT_CLASS} onChange={(event) => setDate(group.key, field, 'to', event.target.value)} type="date" value={range.to ?? ''} /></TD>
+                          <TD className="px-3 py-2">
+                            <button aria-label="Xoá điều kiện" className={ICON_BUTTON_CLASS} disabled={!range.from && !range.to} onClick={() => { setDate(group.key, field, 'from', ''); setDate(group.key, field, 'to', ''); }} title="Xoá điều kiện" type="button"><ArrowCounterClockwise className="size-3.5" /></button>
+                          </TD>
+                        </TR>
+                      );
+                    })}
+                  </TBody>
+                </Table>
+              </TableContainer>
+            </section>
+          )}
+
+          <section className="flex flex-col gap-4">
+            <h3 className="text-xs font-bold uppercase tracking-wide text-fb-text-secondary">Rule áp dụng</h3>
+            {RULE_CATEGORY_ORDER.map((category) => {
+              const rules = selectable.filter((rule) => rule.category === category);
+              if (!rules.length) return null;
+              const slot = SLOTS.find((item) => rules.some((rule) => rule.slot === item));
+              const slotRules = rules.filter((rule) => rule.slot);
+              const otherRules = rules.filter((rule) => !rule.slot);
+              const selectedSlotRule = slotRules.find((rule) => group.ruleIds.includes(rule.id))?.id ?? null;
+              return (
+                <div key={category} className="rounded-lg border border-fb-border">
+                  <div className="flex items-center justify-between gap-2 border-b border-fb-border bg-fb-surface-muted px-3 py-2">
+                    <span className="text-xs font-bold text-fb-text-primary">{RULE_CATEGORY_LABELS[category]}</span>
+                    {otherRules.length > 1 && (
+                      <span className="flex gap-3 text-xs">
+                        <button className="font-semibold text-fb-text-secondary hover:text-fb-text-primary" onClick={() => otherRules.forEach((rule) => toggleRule(group.key, rule.id, true))} type="button">Chọn tất cả</button>
+                        <button className="font-semibold text-fb-text-secondary hover:text-fb-text-primary" onClick={() => otherRules.forEach((rule) => toggleRule(group.key, rule.id, false))} type="button">Bỏ chọn</button>
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-col divide-y divide-fb-border">
+                    {slot && (
+                      <>
+                        {slotRules.map((rule) => (
+                          <RuleOption key={rule.id} checked={selectedSlotRule === rule.id} name={`slot-${group.key}-${slot}`} onChange={() => setSlotRule(group.key, slot, rule.id)} onHelp={() => setDetailRule(rule)} rule={rule} type="radio" />
+                        ))}
+                        <label className="flex cursor-pointer items-start gap-3 px-3 py-2.5 hover:bg-fb-surface-muted">
+                          <input checked={selectedSlotRule === null} className="mt-0.5" name={`slot-${group.key}-${slot}`} onChange={() => setSlotRule(group.key, slot, null)} type="radio" />
+                          <span className="text-xs text-fb-text-secondary">Không áp dụng rule {RULE_SLOT_LABELS[slot]} cho nhóm này</span>
+                        </label>
+                      </>
+                    )}
+                    {otherRules.map((rule) => (
+                      <RuleOption key={rule.id} checked={group.ruleIds.includes(rule.id)} onChange={(on) => toggleRule(group.key, rule.id, on)} onHelp={() => setDetailRule(rule)} rule={rule} type="checkbox" />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </section>
+        </CardBody>
+      </Card>
+    );
+  };
+
+  /** Tab button: the active one is the row's single primary (IAS rule), the others outline. */
+  const tabButton = (id: string, label: ReactNode, title?: string) => (
+    <Button key={id} variant={currentTab === id ? 'primary' : 'outline'} size="sm" onClick={() => setActiveTab(id)} title={title} aria-pressed={currentTab === id}>
+      {label}
+    </Button>
+  );
+  const issueMarker = (key: string) => {
+    if (issuesOf(key, validation.errors).length) return <XCircle className="size-4 text-status-danger" aria-label="Có lỗi" />;
+    if (issuesOf(key, validation.warnings).length) return <Warning className="size-4 text-status-warning" aria-label="Có cảnh báo" />;
+    return null;
+  };
 
   return (
     <div className="flex flex-col gap-4">
-      <Card>
-        <CardHeader>
-          <div className="flex w-full flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <CardTitle>Nhóm rule (Rule Group)</CardTitle>
-              <p className="mt-1 max-w-3xl text-xs text-fb-text-secondary">
-                Mỗi Epic thuộc nhóm <strong>bật</strong> có ưu tiên cao nhất mà nó khớp mọi điều kiện ngày (AND, tính cả hai đầu; ô trống = không giới hạn;
-                Epic thiếu ngày đó thì không khớp). Epic không khớp nhóm nào thuộc nhóm <strong>Default</strong>. Lưu xong, toàn bộ Epic được chấm lại — kể cả các lớp dữ liệu quá khứ.
-              </p>
-              <p className="mt-1 text-xs text-fb-text-secondary">
-                {config.savedAt ? `Lưu lần cuối: ${formatDateTime(config.savedAt)}${config.savedByName ? ` bởi ${config.savedByName}` : ''}.` : 'Chưa có lần lưu nào (đang dùng nhóm Default khởi tạo).'}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" icon={<Plus className="size-4" />} onClick={addGroup} size="sm">Thêm nhóm</Button>
-              <Button variant="outline" icon={<Eye className="size-4" />} isLoading={previewing} onClick={() => void runPreview(drafts)} size="sm" disabled={validation.errors.length > 0}>Xem trước tác động</Button>
-              <Button variant="outline" icon={<ClockCounterClockwise className="size-4" />} onClick={() => void openHistory()} size="sm">Lịch sử thay đổi</Button>
-              <Button variant="outline" icon={<ArrowCounterClockwise className="size-4" />} onClick={() => { setDrafts(config.groups); setSaveError(null); }} size="sm" disabled={!dirty}>Hoàn tác</Button>
-              <Button variant="primary" icon={<FloppyDisk className="size-4" />} isLoading={saving} onClick={() => void save()} size="sm" disabled={!dirty || validation.errors.length > 0}>Lưu</Button>
-            </div>
-          </div>
-        </CardHeader>
-        {(saveError || globalErrors.length > 0 || dirty) && (
-          <CardBody className="flex flex-col gap-2">
-            {dirty && <p className="text-xs font-medium text-status-warning">Có thay đổi chưa lưu.</p>}
-            {saveError && <Alert title="Chưa lưu được" variant="error"><span className="whitespace-pre-line">{saveError}</span></Alert>}
-            {globalErrors.map((issue) => <Alert key={issue.message} title="Cấu hình chưa hợp lệ" variant="error">{issue.message}</Alert>)}
-          </CardBody>
+      <div className="flex flex-wrap items-center gap-2">
+        <nav className="ui-tabs flex flex-wrap gap-2" aria-label="Rule Management">
+          {tabButton(MANAGER_TAB, 'Rule group manager')}
+          {savedGroups.map(({ group, index }) => tabButton(
+            `group:${group.key}`,
+            <span className={`inline-flex items-center gap-1.5 ${group.enabled ? '' : 'opacity-70'}`}>#{index + 1} {group.name || '(chưa đặt tên)'}{!group.enabled && ' (tắt)'}{issueMarker(group.key)}</span>,
+            group.enabled ? `Ưu tiên ${index + 1}: ${describeConditions(group.conditions)}` : 'Nhóm đang tắt',
+          ))}
+          {defaultEntry && tabButton(DEFAULT_TAB, <span className="inline-flex items-center gap-1.5">Default rules{issueMarker(defaultEntry.group.key)}</span>)}
+          {tabButton(ALWAYS_TAB, 'Always Rule')}
+        </nav>
+        {/* Save from any tab: a group is edited on its own tab, so the action can't live on the first tab only. */}
+        {dirty && currentTab !== MANAGER_TAB && (
+          <span className="ml-auto flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-status-warning">Có thay đổi chưa lưu.</span>
+            <Button variant="outline" icon={<ArrowCounterClockwise className="size-4" />} onClick={() => { setDrafts(config.groups); setSaveError(null); }} size="sm">Hoàn tác</Button>
+            <Button variant="secondary" icon={<FloppyDisk className="size-4" />} isLoading={saving} onClick={() => void save()} size="sm" disabled={validation.errors.length > 0}>Lưu</Button>
+          </span>
         )}
-      </Card>
+      </div>
 
-      <PreviewCard error={previewError} preview={preview} previewing={previewing} stale={previewStale} />
+      {(saveError || globalErrors.length > 0) && (
+        <div className="flex flex-col gap-2">
+          {saveError && <Alert title="Chưa lưu được" variant="error"><span className="whitespace-pre-line">{saveError}</span></Alert>}
+          {globalErrors.map((issue) => <Alert key={issue.message} title="Cấu hình chưa hợp lệ" variant="error">{issue.message}</Alert>)}
+        </div>
+      )}
 
-      {drafts.map((group, index) => {
-        const errors = issuesOf(group.key, validation.errors);
-        const warnings = issuesOf(group.key, validation.warnings);
-        const open = expanded.has(group.key);
-        const matched = preview && !previewStale ? preview.matchedByGroupKey[group.key] : undefined;
-        return (
-          <Card key={group.key} className={group.enabled ? '' : 'opacity-80'}>
-            <CardHeader className="cursor-pointer select-none transition-colors hover:bg-fb-surface-muted" onClick={() => setExpanded((prev) => { const next = new Set(prev); if (next.has(group.key)) next.delete(group.key); else next.add(group.key); return next; })}>
-              <div className="flex w-full flex-wrap items-center gap-2">
-                <CaretDown className={`size-4 shrink-0 text-fb-text-secondary transition-transform duration-200 ${open ? '' : '-rotate-90'}`} />
-                <Badge variant="neutral" className="font-mono text-xs">{group.isDefault ? 'Cuối' : `#${index + 1}`}</Badge>
-                <span className="min-w-0 truncate text-sm font-semibold text-fb-text-primary">{group.name || '(chưa đặt tên)'}</span>
-                {group.isDefault ? <Badge variant="info">Mặc định · luôn bật</Badge> : <Badge variant={group.enabled ? 'success' : 'neutral'}>{group.enabled ? 'Bật' : 'Tắt'}</Badge>}
-                <span className="text-xs text-fb-text-secondary">{group.isDefault ? 'Epic không khớp nhóm nào ở trên' : describeConditions(group.conditions)}</span>
-                <span className="ml-auto flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
-                  {matched !== undefined && <Badge variant="pending">{formatNumber(matched)} Epic</Badge>}
-                  {errors.length > 0 && <span className="inline-flex items-center gap-1 text-xs font-semibold text-status-danger"><XCircle className="size-4" />{errors.length}</span>}
-                  {warnings.length > 0 && <span className="inline-flex items-center gap-1 text-xs font-semibold text-status-warning"><Warning className="size-4" />{warnings.length}</span>}
-                  <span className="text-xs text-fb-text-secondary">{group.ruleIds.filter((id) => ruleNames.has(id)).length}/{selectable.length} rule</span>
-                  {!group.isDefault && (
-                    <>
-                      <button aria-label="Tăng ưu tiên" className={ICON_BUTTON_CLASS} disabled={index === 0} onClick={() => move(index, -1)} title="Tăng ưu tiên" type="button"><ArrowUp className="size-4" /></button>
-                      <button aria-label="Giảm ưu tiên" className={ICON_BUTTON_CLASS} disabled={index >= nonDefaultCount - 1} onClick={() => move(index, 1)} title="Giảm ưu tiên" type="button"><ArrowDown className="size-4" /></button>
-                      <button aria-label="Xoá nhóm" className={`${ICON_BUTTON_CLASS} hover:text-status-danger`} onClick={() => void removeGroup(group)} title="Xoá nhóm" type="button"><Trash className="size-4" /></button>
-                    </>
-                  )}
-                </span>
+      {currentTab === MANAGER_TAB && (
+        <>
+          <Card>
+            <CardHeader>
+              <div className="flex w-full flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <CardTitle>Nhóm rule (Rule Group)</CardTitle>
+                  <p className="mt-1 max-w-3xl text-xs text-fb-text-secondary">
+                    Mỗi Epic thuộc nhóm <strong>bật</strong> có ưu tiên cao nhất mà nó khớp mọi điều kiện ngày (AND, tính cả hai đầu; ô trống = không giới hạn;
+                    Epic thiếu ngày đó thì không khớp). Epic không khớp nhóm nào thuộc nhóm <strong>Default</strong>. Lưu xong, toàn bộ Epic được chấm lại — kể cả các lớp dữ liệu quá khứ.
+                  </p>
+                  <p className="mt-1 text-xs text-fb-text-secondary">
+                    {config.savedAt ? `Lưu lần cuối: ${formatDateTime(config.savedAt)}${config.savedByName ? ` bởi ${config.savedByName}` : ''}.` : 'Chưa có lần lưu nào (đang dùng nhóm Default khởi tạo).'}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="outline" icon={<Plus className="size-4" />} onClick={addGroup} size="sm">Thêm nhóm</Button>
+                  <Button variant="outline" icon={<Eye className="size-4" />} isLoading={previewing} onClick={() => void runPreview(drafts)} size="sm" disabled={validation.errors.length > 0}>Xem trước tác động</Button>
+                  <Button variant="outline" icon={<ClockCounterClockwise className="size-4" />} onClick={() => void openHistory()} size="sm">Lịch sử thay đổi</Button>
+                  <Button variant="outline" icon={<ArrowCounterClockwise className="size-4" />} onClick={() => { setDrafts(config.groups); setSaveError(null); }} size="sm" disabled={!dirty}>Hoàn tác</Button>
+                  <Button variant="primary" icon={<FloppyDisk className="size-4" />} isLoading={saving} onClick={() => void save()} size="sm" disabled={!dirty || validation.errors.length > 0}>Lưu</Button>
+                </div>
               </div>
             </CardHeader>
-            {open && (
-              <CardBody className="flex flex-col gap-5">
-                {(errors.length > 0 || warnings.length > 0) && (
-                  <ul className="flex flex-col gap-1 text-xs">
-                    {errors.map((issue) => <li key={issue.message} className="flex items-start gap-1.5 text-status-danger"><XCircle className="mt-0.5 size-3.5 shrink-0" />{issue.message}</li>)}
-                    {warnings.map((issue) => <li key={issue.message} className="flex items-start gap-1.5 text-status-warning"><Warning className="mt-0.5 size-3.5 shrink-0" />{issue.message}</li>)}
-                  </ul>
-                )}
-
-                {!group.isDefault && (
-                  <div className="flex flex-wrap items-end gap-4">
-                    <div className="w-full max-w-sm">
-                      <Input label="Tên nhóm" maxLength={100} value={group.name} onChange={(event) => updateGroup(group.key, (item) => ({ ...item, name: event.target.value }))} />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <span className="text-xs font-medium text-fb-text-secondary">Master toggle</span>
-                      <BooleanPillToggle value={group.enabled} onChange={(value) => updateGroup(group.key, (item) => ({ ...item, enabled: value }))} trueLabel="Bật" falseLabel="Tắt" size="sm" />
-                    </div>
-                  </div>
-                )}
-
-                {!group.isDefault && (
-                  <section>
-                    <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-fb-text-secondary">Điều kiện ngày của Epic</h3>
-                    <TableContainer className="overflow-x-auto">
-                      <Table className="w-full min-w-[560px]">
-                        <THead><TR><TH className="px-3 py-2 text-xs">Ngày</TH><TH className="px-3 py-2 text-xs">Từ ngày (≥)</TH><TH className="px-3 py-2 text-xs">Đến ngày (≤)</TH><TH className="px-3 py-2 text-xs" /></TR></THead>
-                        <TBody>
-                          {RULE_GROUP_DATE_FIELD_ORDER.map((field) => {
-                            const range = group.conditions[field];
-                            return (
-                              <TR key={field}>
-                                <TD className="px-3 py-2 text-xs font-semibold text-fb-text-primary">{RULE_GROUP_DATE_FIELD_LABELS[field]}</TD>
-                                <TD className="px-3 py-2"><input aria-label={`${RULE_GROUP_DATE_FIELD_LABELS[field]} từ ngày`} className={DATE_INPUT_CLASS} onChange={(event) => setDate(group.key, field, 'from', event.target.value)} type="date" value={range.from ?? ''} /></TD>
-                                <TD className="px-3 py-2"><input aria-label={`${RULE_GROUP_DATE_FIELD_LABELS[field]} đến ngày`} className={DATE_INPUT_CLASS} onChange={(event) => setDate(group.key, field, 'to', event.target.value)} type="date" value={range.to ?? ''} /></TD>
-                                <TD className="px-3 py-2">
-                                  <button aria-label="Xoá điều kiện" className={ICON_BUTTON_CLASS} disabled={!range.from && !range.to} onClick={() => { setDate(group.key, field, 'from', ''); setDate(group.key, field, 'to', ''); }} title="Xoá điều kiện" type="button"><ArrowCounterClockwise className="size-3.5" /></button>
-                                </TD>
-                              </TR>
-                            );
-                          })}
-                        </TBody>
-                      </Table>
-                    </TableContainer>
-                  </section>
-                )}
-
-                <section className="flex flex-col gap-4">
-                  <h3 className="text-xs font-bold uppercase tracking-wide text-fb-text-secondary">Rule áp dụng</h3>
-                  {RULE_CATEGORY_ORDER.map((category) => {
-                    const rules = selectable.filter((rule) => rule.category === category);
-                    if (!rules.length) return null;
-                    const slot = SLOTS.find((item) => rules.some((rule) => rule.slot === item));
-                    const slotRules = rules.filter((rule) => rule.slot);
-                    const otherRules = rules.filter((rule) => !rule.slot);
-                    const selectedSlotRule = slotRules.find((rule) => group.ruleIds.includes(rule.id))?.id ?? null;
-                    return (
-                      <div key={category} className="rounded-lg border border-fb-border">
-                        <div className="flex items-center justify-between gap-2 border-b border-fb-border bg-fb-surface-muted px-3 py-2">
-                          <span className="text-xs font-bold text-fb-text-primary">{RULE_CATEGORY_LABELS[category]}</span>
-                          {otherRules.length > 1 && (
-                            <span className="flex gap-3 text-xs">
-                              <button className="font-semibold text-fb-text-secondary hover:text-fb-text-primary" onClick={() => otherRules.forEach((rule) => toggleRule(group.key, rule.id, true))} type="button">Chọn tất cả</button>
-                              <button className="font-semibold text-fb-text-secondary hover:text-fb-text-primary" onClick={() => otherRules.forEach((rule) => toggleRule(group.key, rule.id, false))} type="button">Bỏ chọn</button>
+            <CardBody className="flex flex-col gap-3">
+              {dirty && <p className="text-xs font-medium text-status-warning">Có thay đổi chưa lưu.</p>}
+              {/* Every group in priority order — a saved one opens its own tab. */}
+              <TableContainer className="overflow-x-auto">
+                <Table className="w-full">
+                  <THead><TR><TH className="px-3 py-2 text-xs">Ưu tiên</TH><TH className="px-3 py-2 text-xs">Nhóm rule</TH><TH className="px-3 py-2 text-xs">Điều kiện ngày Epic</TH><TH className="px-3 py-2 text-right text-xs">Epic khớp</TH><TH className="px-3 py-2 text-right text-xs">Rule</TH></TR></THead>
+                  <TBody>
+                    {drafts.map((group, index) => {
+                      const matched = matchedOf(group.key);
+                      const target = group.isDefault ? DEFAULT_TAB : group.id !== null ? `group:${group.key}` : null;
+                      return (
+                        <TR key={group.key}>
+                          <TD className="px-3 py-2 text-xs">{group.isDefault ? 'Cuối' : `#${index + 1}`}</TD>
+                          <TD className="px-3 py-2 text-xs">
+                            <span className="inline-flex flex-wrap items-center gap-1.5">
+                              {target
+                                ? <button className="font-semibold text-fb-blue hover:underline" onClick={() => setActiveTab(target)} type="button">{group.name || '(chưa đặt tên)'}</button>
+                                : <span className="font-semibold text-fb-text-primary">{group.name || '(chưa đặt tên)'}</span>}
+                              {group.id === null && <Badge variant="warning">Chưa lưu</Badge>}
+                              {!group.isDefault && !group.enabled && <Badge variant="neutral">Tắt</Badge>}
+                              {issueMarker(group.key)}
                             </span>
-                          )}
-                        </div>
-                        <div className="flex flex-col divide-y divide-fb-border">
-                          {slot && (
-                            <>
-                              {slotRules.map((rule) => (
-                                <RuleOption key={rule.id} checked={selectedSlotRule === rule.id} name={`slot-${group.key}-${slot}`} onChange={() => setSlotRule(group.key, slot, rule.id)} onHelp={() => setDetailRule(rule)} rule={rule} type="radio" />
-                              ))}
-                              <label className="flex cursor-pointer items-start gap-3 px-3 py-2.5 hover:bg-fb-surface-muted">
-                                <input checked={selectedSlotRule === null} className="mt-0.5" name={`slot-${group.key}-${slot}`} onChange={() => setSlotRule(group.key, slot, null)} type="radio" />
-                                <span className="text-xs text-fb-text-secondary">Không áp dụng rule {RULE_SLOT_LABELS[slot]} cho nhóm này</span>
-                              </label>
-                            </>
-                          )}
-                          {otherRules.map((rule) => (
-                            <RuleOption key={rule.id} checked={group.ruleIds.includes(rule.id)} onChange={(on) => toggleRule(group.key, rule.id, on)} onHelp={() => setDetailRule(rule)} rule={rule} type="checkbox" />
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </section>
-              </CardBody>
-            )}
+                          </TD>
+                          <TD className="px-3 py-2 text-xs text-fb-text-secondary">{group.isDefault ? 'Epic không khớp nhóm nào ở trên' : describeConditions(group.conditions)}</TD>
+                          <TD className="px-3 py-2 text-right text-xs tabular-nums">{matched !== undefined ? formatNumber(matched) : '—'}</TD>
+                          <TD className="px-3 py-2 text-right text-xs tabular-nums">{group.ruleIds.filter((id) => ruleNames.has(id)).length}/{selectable.length}</TD>
+                        </TR>
+                      );
+                    })}
+                  </TBody>
+                </Table>
+              </TableContainer>
+            </CardBody>
           </Card>
-        );
-      })}
 
-      <Card>
-        <CardHeader>
-          <div className="min-w-0 flex-1">
-            <CardTitle>Rule luôn chạy</CardTitle>
-            <p className="mt-1 text-xs text-fb-text-secondary">Áp dụng cho mọi Epic, không chọn trong nhóm (cổng tính toán, phạm vi, pha và các rule chủ sở hữu quyết định luôn chạy).</p>
-          </div>
-        </CardHeader>
-        <CardBody className="flex flex-col divide-y divide-fb-border p-0">
-          {coreRules.map((rule) => (
-            <div key={rule.id} className="flex items-start justify-between gap-3 px-4 py-2.5">
-              <div className="min-w-0">
-                <div className="text-xs font-semibold text-fb-text-primary">{rule.name}</div>
-                <div className="text-xs text-fb-text-secondary">{rule.summary}</div>
-              </div>
-              <button aria-label={`Chi tiết ${rule.name}`} className={ICON_BUTTON_CLASS} onClick={() => setDetailRule(rule)} title="Chi tiết rule" type="button"><Question className="size-4" /></button>
+          <PreviewCard error={previewError} preview={preview} previewing={previewing} stale={previewStale} />
+
+          {newGroups.length > 0 && (
+            <>
+              <p className="text-xs font-medium text-fb-text-secondary">Nhóm mới — sau khi lưu, mỗi nhóm có một tab riêng theo thứ tự ưu tiên.</p>
+              {newGroups.map(({ group, index }) => renderGroupCard(group, index))}
+            </>
+          )}
+        </>
+      )}
+
+      {activeSaved && currentTab !== MANAGER_TAB && renderGroupCard(activeSaved.group, activeSaved.index)}
+
+      {currentTab === DEFAULT_TAB && defaultEntry && renderGroupCard(defaultEntry.group, defaultEntry.index)}
+
+      {currentTab === ALWAYS_TAB && (
+        <Card>
+          <CardHeader>
+            <div className="min-w-0 flex-1">
+              <CardTitle>Rule luôn chạy</CardTitle>
+              <p className="mt-1 text-xs text-fb-text-secondary">Áp dụng cho mọi Epic, không chọn trong nhóm (cổng tính toán, phạm vi, pha và các rule chủ sở hữu quyết định luôn chạy).</p>
             </div>
-          ))}
-        </CardBody>
-      </Card>
+          </CardHeader>
+          <CardBody className="flex flex-col divide-y divide-fb-border p-0">
+            {coreRules.map((rule) => (
+              <div key={rule.id} className="flex items-start justify-between gap-3 px-4 py-2.5">
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-fb-text-primary">{rule.name}</div>
+                  <div className="text-xs text-fb-text-secondary">{rule.summary}</div>
+                </div>
+                <button aria-label={`Chi tiết ${rule.name}`} className={ICON_BUTTON_CLASS} onClick={() => setDetailRule(rule)} title="Chi tiết rule" type="button"><Question className="size-4" /></button>
+              </div>
+            ))}
+          </CardBody>
+        </Card>
+      )}
 
       <RuleDetailModal onClose={() => setDetailRule(null)} rule={detailRule} />
 
