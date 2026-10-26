@@ -11,6 +11,7 @@ import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
+import { notifyCacheRebuildStatusChanged } from '@/lib/cache-rebuild-status-client';
 
 type DailyCacheState = 'FAILED' | 'FRESH' | 'RUNNING' | 'STALE';
 
@@ -77,7 +78,8 @@ function formatNumber(value: number | null): string {
  * (epic_alert_row_cache, ttm_index_global_cache): when they were last built and from which import,
  * plus the once-a-day auto rebuild's status and recent history (see daily-cache-service.ts).
  */
-export function CacheStatusPanel() {
+/** `rebuildPending`: the configuration changed since the caches were built (tab "Theo dõi cache dữ liệu", 2026-10-26). */
+export function CacheStatusPanel({ rebuildPending = false }: { rebuildPending?: boolean }) {
   const [overview, setOverview] = useState<CacheOverview | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -118,6 +120,7 @@ export function CacheStatusPanel() {
       showToast(body.queued
         ? 'Đang có một lượt tạo lại cache khác chạy — lượt đó sẽ tự chạy thêm một lần với dữ liệu mới nhất. Tải lại sau ít phút để xem kết quả.'
         : `Đã tạo lại cache (mất ${formatNumber(body.durationMs)} ms — ${formatNumber(body.epicAlertRowCacheCount)} Epic).`, 6000);
+      notifyCacheRebuildStatusChanged();
       await load();
     } catch {
       setError('Không thể kết nối API.');
@@ -160,6 +163,12 @@ export function CacheStatusPanel() {
         </p>
 
         {error && <Alert variant="error" title="Lỗi">{error}</Alert>}
+        {rebuildPending && (
+          <Alert variant="warning" title="Cần tạo lại cache">
+            Cấu hình chấm điểm (Tiêu chí Time to Market, Bộ ngân sách, mốc Cảnh báo muộn, phạm vi, nhóm rule hoặc ngày nghỉ) đã thay đổi
+            sau lần tạo cache gần nhất, nên các màn hình vẫn hiện kết quả theo cấu hình cũ. Bấm &quot;Tạo lại cache&quot; khi đã chỉnh xong.
+          </Alert>
+        )}
 
         {isLoading && !overview ? (
           <TableSkeleton rows={3} />

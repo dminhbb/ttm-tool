@@ -10,6 +10,13 @@ import { AlertLogicModal, DataLogicModal } from '@/components/layout/HelpPanels'
 import { UserInfoModal } from '@/components/layout/UserInfoModal';
 import { ChangePasswordModal } from '@/components/layout/ChangePasswordModal';
 import { AppearancePanel } from '@/components/settings/AppearancePanel';
+import {
+  applyBadgeDesignStyle,
+  DEFAULT_BADGE_DESIGN_STYLE,
+  isBadgeDesignStyle,
+  readStoredBadgeDesignStyle,
+  type BadgeDesignStyle,
+} from '@/lib/badge-design';
 import { cn } from '@/lib/utils';
 import { trackFeatureUsage } from '@/lib/usage-tracking';
 import type { UserRole } from '@/lib/auth-types';
@@ -33,6 +40,7 @@ interface UserMenuProps {
 }
 
 interface CurrentUser {
+  badgeDesignStyle?: BadgeDesignStyle;
   email: string;
   fullName: string;
   mustChangePassword?: boolean;
@@ -59,6 +67,7 @@ export function UserMenu({ expanded, hiddenFeatureKeys }: UserMenuProps) {
   const [isDataLogicOpen, setIsDataLogicOpen] = React.useState(false);
   const [hasLoadedPreference, setHasLoadedPreference] = React.useState(false);
   const [theme, setTheme] = React.useState<AppearanceTheme>('light');
+  const [badgeDesign, setBadgeDesign] = React.useState<BadgeDesignStyle>(DEFAULT_BADGE_DESIGN_STYLE);
   const [user, setUser] = React.useState<CurrentUser | null>(null);
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPERADMIN' || user?.role === 'SUPERVISOR';
   const showAlertLogic = !hiddenFeatureKeys.has('help_alert_logic');
@@ -68,6 +77,9 @@ export function UserMenu({ expanded, hiddenFeatureKeys }: UserMenuProps) {
   React.useEffect(() => {
     void Promise.resolve().then(() => {
       setTheme(loadStoredTheme());
+      const storedBadgeDesign = readStoredBadgeDesignStyle();
+      setBadgeDesign(storedBadgeDesign);
+      applyBadgeDesignStyle(storedBadgeDesign);
       setHasLoadedPreference(true);
     });
   }, []);
@@ -79,7 +91,18 @@ export function UserMenu({ expanded, hiddenFeatureKeys }: UserMenuProps) {
         const payload: unknown = await response.json();
         if (response.ok && typeof payload === 'object' && payload !== null && 'user' in payload && typeof payload.user === 'object' && payload.user !== null && 'email' in payload.user && 'fullName' in payload.user && 'role' in payload.user && typeof payload.user.email === 'string' && typeof payload.user.fullName === 'string' && typeof payload.user.role === 'string') {
           const mustChangePassword = 'mustChangePassword' in payload.user && typeof payload.user.mustChangePassword === 'boolean' ? payload.user.mustChangePassword : false;
-          setUser({ email: payload.user.email, fullName: payload.user.fullName, role: payload.user.role as UserRole, mustChangePassword });
+          const serverBadgeDesign = 'badgeDesignStyle' in payload.user && isBadgeDesignStyle(payload.user.badgeDesignStyle)
+            ? payload.user.badgeDesignStyle
+            : readStoredBadgeDesignStyle(payload.user.email);
+          setUser({
+            badgeDesignStyle: serverBadgeDesign,
+            email: payload.user.email,
+            fullName: payload.user.fullName,
+            role: payload.user.role as UserRole,
+            mustChangePassword,
+          });
+          setBadgeDesign(serverBadgeDesign);
+          applyBadgeDesignStyle(serverBadgeDesign, payload.user.email);
           if (mustChangePassword) {
             setIsChangePasswordOpen(true);
           }
@@ -100,6 +123,19 @@ export function UserMenu({ expanded, hiddenFeatureKeys }: UserMenuProps) {
     } catch (error) {
       console.warn('Unable to save the appearance preference.', error);
     }
+  };
+
+  const handleBadgeDesignChange = (nextStyle: BadgeDesignStyle) => {
+    setBadgeDesign(nextStyle);
+    applyBadgeDesignStyle(nextStyle, user?.email);
+    setUser((current) => (current ? { ...current, badgeDesignStyle: nextStyle } : current));
+    void fetch('/api/auth/me', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ badgeDesignStyle: nextStyle }),
+    }).catch((error: unknown) => {
+      console.warn('Unable to persist badge design preference to server.', error);
+    });
   };
 
   React.useEffect(() => {
@@ -249,6 +285,45 @@ export function UserMenu({ expanded, hiddenFeatureKeys }: UserMenuProps) {
               onChange={(event) => handleThemeChange(event.target.value as AppearanceTheme)}
               options={THEME_OPTIONS}
             />
+          </section>
+
+          <section className="ui-form-section flex flex-col gap-3" aria-labelledby="badge-design-settings-title">
+            <div>
+              <h3 id="badge-design-settings-title" className="ui-card-title">Thiết kế Badge</h3>
+              <p className="mt-1 text-xs text-fb-text-secondary">
+                Chuyển đổi phong cách hiển thị tại cột Nhận xét trên màn hình Quản trị Epic.
+              </p>
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-fb-border bg-fb-surface-muted px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-fb-text-primary">
+                  {badgeDesign === 'list' ? 'Phong cách: Liệt kê' : 'Phong cách: Tối giản'}
+                </p>
+                <p className="text-xs text-fb-text-secondary">
+                  {badgeDesign === 'list'
+                    ? 'Đang dùng thiết kế Liệt kê — hiển thị trực tiếp các badge nhận xét của Epic.'
+                    : 'Đang dùng thiết kế Tối giản — gom nhận xét theo 4 ô nhóm (Kết quả, Xử lý, Cảnh báo, Sai lệch).'}
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={badgeDesign === 'minimal'}
+                aria-label="Thiết kế Badge"
+                onClick={() => handleBadgeDesignChange(badgeDesign === 'list' ? 'minimal' : 'list')}
+                className={cn(
+                  'relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full transition-colors outline-none',
+                  badgeDesign === 'minimal' ? 'bg-fb-blue' : 'bg-fb-border',
+                )}
+              >
+                <span
+                  className={cn(
+                    'inline-block size-5 transform rounded-full bg-white shadow transition-transform',
+                    badgeDesign === 'minimal' ? 'translate-x-6' : 'translate-x-1',
+                  )}
+                />
+              </button>
+            </div>
           </section>
 
           <section className="ui-form-section flex flex-col gap-3" aria-labelledby="brand-settings-title">

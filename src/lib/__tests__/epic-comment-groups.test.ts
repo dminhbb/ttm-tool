@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { EpicAlertRowPhased } from '../epic-alert-types';
-import { GROUP_ORDER, summarizeEpicComments } from '../epic-comment-groups';
+import { GROUP_ORDER, listEpicCommentBadges, packCommentBadges, summarizeEpicComments } from '../epic-comment-groups';
 
 const baseRow = {
   alertLevel: 'NONE', currentStatus: 'In Progress', dataAnomalyViolations: [], hasDataAnomaly: false, r4gDate: null,
@@ -91,5 +91,46 @@ describe('"Nhận xét" 1x4 table groups (Quản trị Epic, 2026-10-16)', () =>
     const actionGroup = summary.groups.find((g) => g.key === 'ACTION')!;
     assert.equal(actionGroup.items.length, 3);
     assert.equal(actionGroup.tone, 'action');
+  });
+
+  it('listEpicCommentBadges returns individual badges with group background colors and omits CNTT_FAIL/CNTT_PASS (already shown in PASS column)', () => {
+    const row = rowOf({
+      alertLevel: 'FAIL',
+      r4gDate: '2026-08-25',
+      ttmE2eAlertLevel: 'FAIL',
+      scoringBadges: ['REC_MISSING_FAIL_REASON', 'ANOMALY_R2_PENDING_TOO_LONG'],
+      scoringFindings: [finding('REC_MISSING_FAIL_REASON'), finding('ANOMALY_R2_PENDING_TOO_LONG')],
+      hasDataAnomaly: true,
+      dataAnomalyViolations: [{ code: 'MISSING_START_DATE', message: 'Thiếu Start Date (T1)', ruleIndex: 1 }],
+    });
+    const badges = listEpicCommentBadges(row);
+    const byKey = new Map(badges.map((b) => [b.key, b]));
+    assert.equal(byKey.has('CNTT_FAIL'), false);
+    assert.equal(byKey.get('E2E_FAIL')?.colorClass, 'ttm-comment-cell-orange');
+    assert.equal(byKey.get('REC_MISSING_FAIL_REASON')?.colorClass, 'ttm-comment-cell-action');
+    assert.equal(byKey.get('ANOMALY_R2_PENDING_TOO_LONG')?.colorClass, 'ttm-comment-cell-warning');
+    assert.equal(byKey.get('MISSING_START_DATE:Thiếu Start Date (T1)')?.colorClass, 'ttm-comment-cell-orange');
+
+    const passRow = rowOf({ r4gDate: '2026-08-01', scoringBadges: ['CNTT_PASS', 'E2E_PASS'] });
+    const passBadges = listEpicCommentBadges(passRow);
+    assert.deepEqual(passBadges.map((b) => b.key), ['E2E_PASS']);
+    assert.equal(passBadges[0].colorClass, 'ttm-comment-cell-result');
+  });
+
+  it('listEpicCommentBadges includes OUT_OF_SCOPE badge when ttmCnttInScope is false', () => {
+    const badges = listEpicCommentBadges(rowOf({ ttmCnttInScope: false }));
+    assert.equal(badges.length, 1);
+    assert.equal(badges[0].key, 'OUT_OF_SCOPE');
+    assert.equal(badges[0].colorClass, 'ttm-comment-badge-out-of-scope');
+  });
+
+  it('packCommentBadges pairs short badges onto earlier lines to minimize wrapping', () => {
+    const packed = packCommentBadges([
+      { key: 'S1', label: 'Đạt TTM-E2E', message: '', groupKey: 'RESULT', tone: 'success', colorClass: 'ttm-comment-cell-result' },
+      { key: 'L1', label: 'Thiếu phòng chịu TN chính', message: '', groupKey: 'ACTION', tone: 'action', colorClass: 'ttm-comment-cell-action' },
+      { key: 'S2', label: 'Sai Status', message: '', groupKey: 'WARNING', tone: 'warning', colorClass: 'ttm-comment-cell-warning' },
+    ], 34);
+    assert.deepEqual(packed.map((b) => b.key), ['S1', 'S2', 'L1']);
+  // end packCommentBadges test
   });
 });

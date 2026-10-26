@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth-service';
+import { getCurrentUser, updateUserBadgeDesignStyle } from '@/lib/auth-service';
+import { isBadgeDesignStyle } from '@/lib/badge-design';
 import { getViewDeniedFeatureKeys } from '@/lib/permission-matrix-service';
 
 export async function GET(request: NextRequest) {
@@ -17,5 +18,25 @@ export async function GET(request: NextRequest) {
   } catch (error: unknown) {
     console.error('Authentication profile lookup failed:', error);
     return NextResponse.json({ error: 'Không thể tải thông tin phiên đăng nhập.' }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const user = await getCurrentUser(request);
+    if (!user) return NextResponse.json({ error: 'Chưa đăng nhập.' }, { status: 401 });
+    const body: unknown = await request.json().catch(() => null);
+    const badgeDesignStyle =
+      typeof body === 'object' && body !== null && 'badgeDesignStyle' in body
+        ? (body as { badgeDesignStyle?: unknown }).badgeDesignStyle
+        : undefined;
+    if (!isBadgeDesignStyle(badgeDesignStyle)) {
+      return NextResponse.json({ error: 'Thiết kế Badge không hợp lệ.' }, { status: 400 });
+    }
+    await updateUserBadgeDesignStyle(user.id, badgeDesignStyle);
+    return NextResponse.json({ ok: true, badgeDesignStyle });
+  } catch (error: unknown) {
+    console.error('Badge design preference update failed:', error);
+    return NextResponse.json({ error: 'Không thể lưu tùy chọn Thiết kế Badge.' }, { status: 500 });
   }
 }

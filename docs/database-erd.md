@@ -38,6 +38,7 @@ erDiagram
         timestamptz updated_at
         boolean must_change_password
         int failed_login_attempts
+        varchar badge_design_style
     }
     user_domains {
         int user_id PK, FK
@@ -116,7 +117,9 @@ Quản lý tài khoản người dùng, băm mật khẩu bcrypt. Cột `role` n
 | `updated_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
 | `must_change_password` | boolean | không | true |  |  |
 | `failed_login_attempts` | int | không | 0 |  |  |
+| `badge_design_style` | varchar(20) | không | 'list'::character varying |  |  |
 
+- `users_badge_design_style_check`: CHECK (((badge_design_style)::text = ANY ((ARRAY['list'::character varying, 'minimal'::character varying])::text[])))
 - `users_role_check`: CHECK (((role)::text = ANY ((ARRAY['SUPERADMIN'::character varying, 'ADMIN'::character varying, 'SUPERVISOR'::character varying, 'USER'::character varying])::text[])))
 - index `idx_users_unique_username`: UNIQUE btree (split_part(lower((email)::text), '@'::text, 1))
 
@@ -1800,7 +1803,7 @@ Bảng tham chiếu ngoài nhóm (chỉ vẽ khoá chính): `users`.
 
 ### `audit_logs`
 
-Nhật ký ghi nhận các thao tác quan trọng trên hệ thống.
+Nhật ký ghi nhận các thao tác quan trọng trên hệ thống (kể cả xoá Epic vĩnh viễn); job dọn hằng ngày xoá dòng quá 180 ngày.
 
 | Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
 |---|---|---|---|---|---|

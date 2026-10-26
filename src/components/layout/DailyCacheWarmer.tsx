@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { showToast } from '@/components/ui/Toast';
+import { notifyCacheRebuildStatusChanged } from '@/lib/cache-rebuild-status-client';
 
 export const CACHE_REFRESH_TRIGGERED_EVENT = 'ttm-cache-refresh-triggered';
 
@@ -84,6 +85,8 @@ export function DailyCacheWarmer({ enabled }: { enabled: boolean }) {
           } else if (isRebuildingRef.current) {
             isRebuildingRef.current = false;
             setIsRebuilding(false);
+            // The unread "cần tạo lại cache" dots re-check now that a rebuild has ended (2026-10-26).
+            notifyCacheRebuildStatusChanged();
             if (body.state === 'FAILED') {
               showToast('Tạo Cache không thành công — số liệu đang hiển thị có thể chưa được cập nhật', 8000);
             } else {

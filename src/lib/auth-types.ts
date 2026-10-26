@@ -24,6 +24,7 @@ export function canManageUserWithRole(actorRole: UserRole, targetRole: UserRole)
 }
 
 export interface AuthUser {
+  badgeDesignStyle?: 'list' | 'minimal';
   email: string;
   fullName: string;
   id: number;

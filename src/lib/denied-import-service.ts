@@ -5,6 +5,8 @@ import {
   admissionFactsOfRow,
   describeViolations,
   evaluateImportAdmission,
+  isReleasedStatus,
+  releasedBeforeExemption,
   type AdmissionListEntry,
   type AdmissionViolation,
   type DeniedEpicInFile,
@@ -101,11 +103,25 @@ export async function saveImportAdmissionSettings(settings: ImportAdmissionSetti
  */
 export async function loadLastUnreleasedSeen(db: Queryable, epicKeys: readonly string[]): Promise<Map<string, string>> {
   if (epicKeys.length === 0) return new Map();
+  // A version is in force from its own day until the day before the next version of the issue (a daily file
+  // only carries the issues updated that day, so no version = no change), or until today for the newest one.
+  // Reading that whole span — not just the version's own date — keeps the proof when the history thinning
+  // (data-layer-retention.ts) drops the versions in between (2026-10-26).
   const result = await db.query<{ epicKey: string; lastDate: string }>(`
-    SELECT issue_key AS "epicKey", MAX((aggregated_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date)::text AS "lastDate"
-    FROM issues
-    WHERE issue_key = ANY($1::text[])
-      AND UPPER(TRIM(current_status)) NOT IN ('RELEASED', 'MVP DONE', 'MVPDONE', 'N/A', '')
+    WITH versions AS (
+      SELECT issue_key, current_status,
+        (aggregated_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date AS day,
+        LEAD((aggregated_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date) OVER (PARTITION BY issue_key ORDER BY aggregated_at, id) AS next_day
+      FROM issues
+      WHERE issue_key = ANY($1::text[])
+    )
+    SELECT issue_key AS "epicKey", MAX(CASE
+      WHEN next_day IS NULL THEN (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date
+      WHEN next_day > day THEN next_day - 1
+      ELSE day
+    END)::text AS "lastDate"
+    FROM versions
+    WHERE UPPER(TRIM(current_status)) NOT IN ('RELEASED', 'MVP DONE', 'MVPDONE', 'N/A', '')
     GROUP BY issue_key;
   `, [[...epicKeys]]);
   return new Map(result.rows.map((row) => [row.epicKey, row.lastDate]));
@@ -317,6 +333,59 @@ async function findScanCandidates(db: Queryable, onlyKeys: readonly string[] | n
       violations,
     }];
   });
+}
+
+/**
+ * Records every Epic of the database that only the history keeps out of rule B (newest state Released / MVP
+ * Done with its date before B, but the database knew it unreleased on/after B, and no other rule breaks) as
+ * "Cho phép import" with source AUTO_EXEMPT — the import already does this for the Epics of its file, but an
+ * Epic that no longer changes never comes back in a file, and its proof goes with the RAW retention / the history
+ * thinning. Runs in the daily housekeeping BEFORE the thinning (2026-10-26). Never touches a listed Epic.
+ */
+export async function recordHistoryProvenExemptions(db: Queryable = pool): Promise<string[]> {
+  const settings = await getImportAdmissionSettings(db);
+  if (!settings.releasedDueBefore) return [];
+  const result = await db.query<EpicInfo>(`
+    SELECT DISTINCT ON (issue_key)
+      issue_key AS "epicKey", issue_type AS "issueType", issue_name AS summary, current_status AS status,
+      requesting_unit AS "requestingUnit", (jira_created_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date::text AS "createdDate",
+      idea_approved_date::text AS "ideaApprovedDate", start_date::text AS "startDate",
+      r4g_date::text AS "r4gDate", due_date::text AS "dueDate"
+    FROM issues
+    WHERE UPPER(issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
+      AND issue_key NOT IN (SELECT epic_key FROM denied_import_epics)
+    ORDER BY issue_key, aggregated_at DESC;
+  `);
+  const released = result.rows.filter((info) => isReleasedStatus(info.status ?? ''));
+  const proof = await loadLastUnreleasedSeen(db, released.map((info) => info.epicKey));
+  const exempt = released.flatMap((info) => {
+    const facts = {
+      createdDate: info.createdDate, dueDate: info.dueDate, issueType: info.issueType ?? 'EPIC',
+      lastUnreleasedSeenDate: proof.get(info.epicKey) ?? null, r4gDate: info.r4gDate, status: info.status ?? '', statusChangedDate: null,
+    };
+    if (evaluateImportAdmission(facts, settings).length > 0) return [];
+    const reason = releasedBeforeExemption(facts, settings);
+    return reason ? [{ info, reason }] : [];
+  });
+  if (exempt.length === 0) return [];
+  const column = (pick: (info: EpicInfo) => string | null) => exempt.map(({ info }) => pick(info));
+  const inserted = await db.query<{ epicKey: string }>(`
+    INSERT INTO denied_import_epics (
+      epic_key, project_key, summary, status, requesting_unit, created_date, idea_approved_date,
+      start_date, r4g_date, due_date, allow_import, source, reason
+    )
+    SELECT key, SPLIT_PART(key, '-', 1), summary, status, unit, created::date, idea::date, start::date,
+      r4g::date, due::date, TRUE, 'AUTO_EXEMPT', reason
+    FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::text[], $9::text[], $10::text[])
+      AS input(key, summary, status, unit, created, idea, start, r4g, due, reason)
+    ON CONFLICT (epic_key) DO NOTHING
+    RETURNING epic_key AS "epicKey";
+  `, [
+    column((info) => info.epicKey), column((info) => info.summary), column((info) => info.status), column((info) => info.requestingUnit),
+    column((info) => info.createdDate), column((info) => info.ideaApprovedDate), column((info) => info.startDate),
+    column((info) => info.r4gDate), column((info) => info.dueDate), exempt.map(({ reason }) => reason),
+  ]);
+  return inserted.rows.map((row) => row.epicKey);
 }
 
 export async function scanImportAdmissionCandidates(): Promise<AdmissionScanCandidate[]> {

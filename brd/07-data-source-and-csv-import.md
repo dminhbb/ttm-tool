@@ -59,7 +59,7 @@ Hai cột `TTM-applied` và `except-TTM-plan` ở dòng Epic (bổ sung 2026-10-
 Scoring Service chưa đọc hai trường này.
 
 Từ 2026-10-26 hai trường này được dùng: `TTM-applied = Không áp dụng` → import đưa Epic vào `black_listed_epics`
-(`source = IMPORT`, bỏ qua nếu đã có; người dùng gỡ tay mà CSV còn "Không áp dụng" thì lần sau thêm lại; dòng IMPORT tự gỡ khi giá trị đổi);
+(`source = IMPORT`, bỏ qua nếu đã có; người dùng gỡ tay mà CSV còn "Không áp dụng" thì lần import kế tiếp **có chứa Epic đó** (tức Epic có thay đổi trên Jira) thêm lại; dòng IMPORT tự gỡ khi giá trị đổi);
 `TTM-applied = Ngoại lệ` + `except-TTM-plan` (dd-MM-yyyy) → rule `ttm-cntt-except-plan` (Target = ngày plan), thiếu / sai plan = Sai lệch R11.
 Trống / `None` / `Theo quy định` / giá trị lạ → rule chung.
 

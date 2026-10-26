@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { confirmDialog } from '@/components/ui/dialogs';
 import { MAX_EPIC_DELETIONS_PER_IMPORT } from '@/lib/import-admission-rules';
 import { ADAPTER_TYPES, DEFAULT_ADAPTER, ADAPTER_LABELS, type AdapterType } from '@/lib/adapters/index';
-import { CacheStatusPanel } from '@/components/data-source/CacheStatusPanel';
 import { FileDropzone } from '@/components/data-source/FileDropzone';
 import { PurgeRecentLayersPanel } from '@/components/data-source/PurgeRecentLayersPanel';
 import { RawImportRetentionSettings } from '@/components/data-source/RawImportRetentionSettings';
@@ -122,7 +121,7 @@ async function confirmRuleDenials(epics: readonly DeniedEpicInFile[]): Promise<b
   const more = epics.length > 15 ? `\n… và ${epics.length - 15} Epic khác` : '';
   return confirmDialog({
     title: `${epics.length} Epic sẽ bị Từ chối import và xóa dữ liệu`,
-    description: `File này có các Epic vi phạm rule tự động A/B. Import thật sẽ thêm chúng vào danh sách Từ chối import và bỏ các dòng của chúng khỏi file. Dữ liệu cũ của chúng trong hệ thống bị XÓA không hoàn tác được, nhưng tối đa ${MAX_EPIC_DELETIONS_PER_IMPORT} Epic mỗi lần import — phần vượt giữ lại để bạn kiểm tra rồi xóa bằng "Xóa dữ liệu còn tồn tại".\n\n${shown}${more}`,
+    description: `File này có các Epic vi phạm rule tự động A/B. Import thật sẽ thêm chúng vào danh sách Từ chối import và bỏ các dòng của chúng khỏi file. Dữ liệu cũ của chúng trong hệ thống bị XÓA không hoàn tác được — chỉ khi số Epic còn dữ liệu không quá ${MAX_EPIC_DELETIONS_PER_IMPORT}. Nếu nhiều hơn, KHÔNG Epic nào bị xóa: tất cả được giữ lại để bạn kiểm tra rồi xóa bằng "Xóa dữ liệu còn tồn tại".\n\n${shown}${more}`,
     confirmLabel: 'Tiếp tục import',
   });
 }
@@ -660,8 +659,6 @@ export function ImportIssuesTab() {
               </CardFooter>
             )}
           </Card>
-
-          <CacheStatusPanel />
 
         </div>
 

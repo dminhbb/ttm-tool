@@ -427,7 +427,7 @@
       "columns": {}
     },
     "audit_logs": {
-      "description": "Nhật ký ghi nhận các thao tác quan trọng trên hệ thống.",
+      "description": "Nhật ký ghi nhận các thao tác quan trọng trên hệ thống (kể cả xoá Epic vĩnh viễn); job dọn hằng ngày xoá dòng quá 180 ngày.",
       "columns": {}
     },
     "user_usage_daily_stats": {

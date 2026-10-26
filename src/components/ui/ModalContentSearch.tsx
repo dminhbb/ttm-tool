@@ -78,10 +78,11 @@ export function ModalContentSearch({
     matchesRef.current = [];
   }, [isOpen, containerRef]);
 
-  // Clean up on unmount
+  // Clean up on unmount — the content node is captured when the effect runs (it is committed by then), as the
+  // ref may already point elsewhere when the cleanup runs (react-hooks/exhaustive-deps).
   React.useEffect(() => {
+    const container = containerRef.current;
     return () => {
-      const container = containerRef.current;
       if (container) {
         clearModalHighlights(container);
       }

@@ -7,6 +7,7 @@ import { refreshTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service
 import { getTtmDashboard2CacheOverview, refreshTtmDashboard2Caches } from '@/lib/ttm-dashboard-2-cache-service';
 import { runDailyHousekeeping } from '@/lib/housekeeping-service';
 import { SCORING_CODE_VERSION } from '@/lib/scoring/registry';
+import { loadScoringContext, vnToday } from '@/lib/scoring-context-service';
 
 /**
  * "Caching dữ liệu trong ngày": epic_alert_row_cache / ttm_index_global_cache are normally rebuilt
@@ -83,6 +84,33 @@ export async function isRowCacheCodeOutdated(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+export interface CacheRebuildStatus {
+  /** The cache was built with another configuration than the current one — "Tạo lại cache" recommended. */
+  pending: boolean;
+  rebuilding: boolean;
+  cachedVersions: string[];
+  currentVersion: string;
+}
+
+/**
+ * Whether the derived caches still match the configuration (owner 2026-10-26). Saving Tiêu chí TTM, a "Bộ ngân
+ * sách" or the Cảnh báo muộn % deliberately does NOT rebuild the caches — the admin runs "Tạo lại cache" by hand
+ * once done editing. Nothing is stored for that: the row cache records the rulesetVersion it was scored with
+ * (code version + a fingerprint of every setting the Scoring Service reads, scoring-context-service.ts), so a
+ * different fingerprint now means the screens show verdicts of an older configuration. Drives the unread dot of
+ * the "Theo dõi cache dữ liệu" tab and of the "Nguồn dữ liệu" menu item. Not pending while a rebuild runs.
+ */
+export async function getCacheRebuildStatus(): Promise<CacheRebuildStatus> {
+  const [context, cached, rebuilding] = await Promise.all([
+    loadScoringContext(vnToday()),
+    pool.query<{ version: string }>('SELECT DISTINCT scoring_ruleset_version AS version FROM epic_alert_row_cache WHERE scoring_ruleset_version IS NOT NULL;'),
+    isDerivedCacheRebuilding(),
+  ]);
+  const cachedVersions = cached.rows.map((row) => row.version);
+  const pending = !rebuilding && cachedVersions.some((version) => version !== context.rulesetVersion);
+  return { cachedVersions, currentVersion: context.rulesetVersion, pending, rebuilding };
 }
 
 export async function isDerivedCacheRebuilding(): Promise<boolean> {

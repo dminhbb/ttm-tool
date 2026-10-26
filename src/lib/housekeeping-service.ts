@@ -1,12 +1,16 @@
 import pool, { getClient } from '@/lib/db';
 import { runScheduledDataLayerRetention } from '@/lib/data-layer-retention-service';
+import { recordHistoryProvenExemptions } from '@/lib/denied-import-service';
 import { purgeExpiredUsageStats } from '@/lib/usage-stats-service';
 import { VISIT_DETAIL_WINDOW_DAYS } from '@/lib/visit-counter-types';
 
-/** audit_logs rows older than this many days are deleted (owner decision 2026-10-24). */
-export const AUDIT_LOG_RETENTION_DAYS = 90;
+/** audit_logs rows older than this many days are deleted (owner decision 2026-10-24: 90; 2026-10-26: 180 — the
+ * trail of permanent deletions (EPIC_DELETION, DENIED_IMPORT_REMOVE…) must outlive a quarter). */
+export const AUDIT_LOG_RETENTION_DAYS = 180;
 
 export interface HousekeepingResult {
+  /** Epics newly listed as "Miễn rule B" (AUTO_EXEMPT) because only the history proved them — before the thinning. */
+  admissionExemptionsRecorded: number;
   auditLogsDeleted: number;
   importBatchesDeleted: number;
   issueVersionsDeleted: number;
@@ -66,11 +70,14 @@ async function purgeOldAuditLogs(): Promise<number> {
  * failing never blocks the others, and the next day simply retries. Never throws.
  */
 export async function runDailyHousekeeping(): Promise<HousekeepingResult> {
-  const result: HousekeepingResult = { auditLogsDeleted: 0, expiredSessionsDeleted: 0, importBatchesDeleted: 0, issueVersionsDeleted: 0, visitLogsRolledUp: 0 };
+  const result: HousekeepingResult = { admissionExemptionsRecorded: 0, auditLogsDeleted: 0, expiredSessionsDeleted: 0, importBatchesDeleted: 0, issueVersionsDeleted: 0, visitLogsRolledUp: 0 };
   const steps: [string, () => Promise<void>][] = [
     ['auth_sessions', async () => { result.expiredSessionsDeleted = await purgeExpiredSessions(); }],
     ['visit_logs', async () => { result.visitLogsRolledUp = await rollUpOldVisitLogs(); }],
     ['audit_logs', async () => { result.auditLogsDeleted = await purgeOldAuditLogs(); }],
+    // "Từ chối import": keep the rule B proof of the Epics only the history exempts — BEFORE the thinning below
+    // (and the RAW retention) can drop the versions that prove it (2026-10-26).
+    ['admission_exemptions', async () => { result.admissionExemptionsRecorded = (await recordHistoryProvenExemptions()).length; }],
     // History of `issues`: weekly snapshot dates always; thinning beyond the 30 newest import days and empty expired
     // batches (data-layer-retention.ts) only when a SUPERADMIN switched it on, and at most the daily limit per run —
     // the first cleanup is large and irreversible, so it is never automatic (migration 20261029).

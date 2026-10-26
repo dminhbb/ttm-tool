@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { SystemStatusFooter } from '@/components/layout/SystemStatusFooter';
+import { applyBadgeDesignStyle, isBadgeDesignStyle, readStoredBadgeDesignStyle } from '@/lib/badge-design';
 import { PASSWORD_REQUIREMENTS_GUIDE, validatePassword } from '@/lib/password-rules';
 
 type ModalMode = 'forgot' | 'register' | null;
@@ -92,7 +93,19 @@ function LoginForm() {
     event.preventDefault();
     const body = { username, password, remember, ...(loginRequiresCaptcha ? { captchaId: loginCaptchaId, captcha: loginCaptcha } : {}) };
     const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    if (response.ok) { router.replace(nextPath); router.refresh(); return; }
+    if (response.ok) {
+      const payload: unknown = await response.json().catch(() => null);
+      if (typeof payload === 'object' && payload !== null && 'user' in payload && typeof payload.user === 'object' && payload.user !== null) {
+        const userEmail = 'email' in payload.user && typeof payload.user.email === 'string' ? payload.user.email : null;
+        const style = 'badgeDesignStyle' in payload.user && isBadgeDesignStyle(payload.user.badgeDesignStyle)
+          ? payload.user.badgeDesignStyle
+          : readStoredBadgeDesignStyle(userEmail);
+        applyBadgeDesignStyle(style, userEmail);
+      }
+      router.replace(nextPath);
+      router.refresh();
+      return;
+    }
     const data: unknown = await response.json().catch(() => null);
     const errorText = typeof data === 'object' && data !== null && 'error' in data && typeof data.error === 'string' ? data.error : 'Sai username hoặc mật khẩu.';
     const warningText = typeof data === 'object' && data !== null && 'warning' in data && typeof data.warning === 'string' ? data.warning : '';

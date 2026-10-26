@@ -64,8 +64,15 @@ describe('conflicts between groups before a save (2026-10-26)', () => {
 
 describe('validation of layered groups', () => {
   it('a valid layered configuration has no errors', () => {
-    const { errors } = validateRuleGroups([draft('a', { name: 'A', offRuleIds: ['dq-r4'] }), defaultDraft], catalog);
+    const { errors } = validateRuleGroups([draft('a', { name: 'A', offRuleIds: ['dq-r4'], conditions: range('r4gDate', null, '2026-08-31') }), defaultDraft], catalog);
     assert.deepEqual(errors, []);
+  });
+
+  it('refuses a non-default group without any condition (2026-10-26) — a TTM-applied condition alone is enough', () => {
+    const none = validateRuleGroups([draft('a', { name: 'A', ruleIds: ['ttm-cntt-except-plan'] }), defaultDraft], catalog).errors;
+    assert.ok(none.some((issue) => issue.groupKey === 'a' && issue.message.includes('chưa có điều kiện nào')));
+    const exception = validateRuleGroups([draft('a', { name: 'A', ruleIds: ['ttm-cntt-except-plan'], ttmApplied: 'EXCEPTION' }), defaultDraft], catalog).errors;
+    assert.ok(!exception.some((issue) => issue.message.includes('chưa có điều kiện nào')));
   });
 
   it('refuses a rule both ON and OFF, an OFF list on Default, and a core rule turned OFF', () => {

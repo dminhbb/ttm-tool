@@ -1,6 +1,6 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-26T12:17:39.511Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-26T16:19:42.841Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
 -- Gồm: 58 bảng, 56 index phụ, 4 hàm, 4 trigger.
@@ -788,8 +788,10 @@ CREATE TABLE users (
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     must_change_password boolean DEFAULT true NOT NULL,
     failed_login_attempts integer DEFAULT 0 NOT NULL,
+    badge_design_style character varying(20) DEFAULT 'list'::character varying NOT NULL,
     CONSTRAINT users_pkey PRIMARY KEY (id),
     CONSTRAINT users_email_key UNIQUE (email),
+    CONSTRAINT users_badge_design_style_check CHECK (((badge_design_style)::text = ANY ((ARRAY['list'::character varying, 'minimal'::character varying])::text[]))),
     CONSTRAINT users_role_check CHECK (((role)::text = ANY ((ARRAY['SUPERADMIN'::character varying, 'ADMIN'::character varying, 'SUPERVISOR'::character varying, 'USER'::character varying])::text[])))
 );
 
@@ -1029,7 +1031,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 108 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 109 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1139,7 +1141,8 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261031_create_ttm_policy_sets.sql'),
     ('20261101_add_late_alert_percent.sql'),
     ('20261102_add_ttm_applied_to_issues.sql'),
-    ('20261103_add_ttm_applied_rules.sql');
+    ('20261103_add_ttm_applied_rules.sql'),
+    ('20261104_add_user_badge_design_style.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1320,18 +1323,19 @@ SELECT setval(pg_get_serial_sequence('makeup_workdays', 'id'), MAX(id)) FROM mak
 
 -- scoring_parameters: không có dòng nào trên CSDL nguồn.
 -- scoring_rule_settings: không có dòng nào trên CSDL nguồn.
--- scoring_rule_groups (4 dòng)
+-- scoring_rule_groups (5 dòng)
 INSERT INTO scoring_rule_groups (id, name, priority, is_default, enabled, created_from, created_to, idea_approved_from, idea_approved_to, start_from, start_to, r4g_from, r4g_to, due_from, due_to, created_at, updated_at, updated_by_user_id, ttm_applied)
 SELECT * FROM (VALUES
-    ('1'::integer, 'Default'::text, '0'::integer, 'true'::boolean, 'true'::boolean, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-10-25 14:54:57.868428+00'::timestamp with time zone, '2026-10-26 07:44:34.562832+00'::timestamp with time zone, NULL::integer, NULL::text),
-    ('5'::integer, 'Nhóm R4G ≤ 30/9/2026'::text, '3'::integer, 'false'::boolean, 'true'::boolean, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-09-30'::date, NULL::date, NULL::date, '2026-10-26 07:41:55.49337+00'::timestamp with time zone, '2026-10-26 07:44:34.562832+00'::timestamp with time zone, NULL::integer, NULL::text),
-    ('6'::integer, 'Nhóm Start ≤ 31/8/2026'::text, '2'::integer, 'false'::boolean, 'true'::boolean, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-08-31'::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-10-26 07:43:18.317549+00'::timestamp with time zone, '2026-10-26 07:44:34.562832+00'::timestamp with time zone, NULL::integer, NULL::text),
-    ('7'::integer, 'Nhóm QA-25 ngày'::text, '1'::integer, 'false'::boolean, 'true'::boolean, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-08-31'::date, '2026-10-01'::date, NULL::date, NULL::date, NULL::date, '2026-10-26 07:44:25.399961+00'::timestamp with time zone, '2026-10-26 07:44:34.562832+00'::timestamp with time zone, NULL::integer, NULL::text)
+    ('1'::integer, 'Default'::text, '0'::integer, 'true'::boolean, 'true'::boolean, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-10-25 14:54:57.868428+00'::timestamp with time zone, '2026-10-26 12:26:56.86824+00'::timestamp with time zone, NULL::integer, NULL::text),
+    ('5'::integer, 'Nhóm R4G ≤ 30/9/2026'::text, '4'::integer, 'false'::boolean, 'true'::boolean, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-09-30'::date, NULL::date, NULL::date, '2026-10-26 07:41:55.49337+00'::timestamp with time zone, '2026-10-26 12:26:56.86824+00'::timestamp with time zone, NULL::integer, NULL::text),
+    ('6'::integer, 'Nhóm Start ≤ 31/8/2026'::text, '3'::integer, 'false'::boolean, 'true'::boolean, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-08-31'::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-10-26 07:43:18.317549+00'::timestamp with time zone, '2026-10-26 12:26:56.86824+00'::timestamp with time zone, NULL::integer, NULL::text),
+    ('7'::integer, 'Nhóm QA-25 ngày'::text, '2'::integer, 'false'::boolean, 'true'::boolean, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-08-31'::date, '2026-10-01'::date, NULL::date, NULL::date, NULL::date, '2026-10-26 07:44:25.399961+00'::timestamp with time zone, '2026-10-26 12:26:56.86824+00'::timestamp with time zone, NULL::integer, NULL::text),
+    ('8'::integer, 'Nhóm Kế hoạch ngoại lệ TTM'::text, '1'::integer, 'false'::boolean, 'true'::boolean, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-10-26 12:26:56.86824+00'::timestamp with time zone, '2026-10-26 12:26:56.86824+00'::timestamp with time zone, NULL::integer, NULL::text)
 ) AS seed (id, name, priority, is_default, enabled, created_from, created_to, idea_approved_from, idea_approved_to, start_from, start_to, r4g_from, r4g_to, due_from, due_to, created_at, updated_at, updated_by_user_id, ttm_applied)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 SELECT setval(pg_get_serial_sequence('scoring_rule_groups', 'id'), MAX(id)) FROM scoring_rule_groups HAVING MAX(id) IS NOT NULL;
 
--- scoring_rule_group_rules (19 dòng)
+-- scoring_rule_group_rules (20 dòng)
 INSERT INTO scoring_rule_group_rules (group_id, rule_id, state)
 SELECT * FROM (VALUES
     ('1'::integer, 'dq-r1'::text, 'ON'::text),
@@ -1352,7 +1356,8 @@ SELECT * FROM (VALUES
     ('1'::integer, 'ttm-e2e-july-2026'::text, 'ON'::text),
     ('5'::integer, 'ttm-cntt-legacy-30d'::text, 'ON'::text),
     ('6'::integer, 'ttm-cntt-legacy-30d'::text, 'ON'::text),
-    ('7'::integer, 'ttm-cntt-sep-2026'::text, 'ON'::text)
+    ('7'::integer, 'ttm-cntt-sep-2026'::text, 'ON'::text),
+    ('8'::integer, 'ttm-cntt-except-plan'::text, 'ON'::text)
 ) AS seed (group_id, rule_id, state)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 
@@ -1419,7 +1424,7 @@ WHERE current_setting('ttm_install.seed_data', true) = 'on';
 -- derived_cache_refresh_lock (1 dòng)
 INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at)
 SELECT * FROM (VALUES
-    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-10-26 11:45:26.762384+00'::timestamp with time zone)
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-10-26 12:27:17.545875+00'::timestamp with time zone)
 ) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 

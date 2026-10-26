@@ -29,7 +29,7 @@ function tokenHash(value: string): string {
 }
 
 function mapAuthUser(row: AuthUser & { mustChangePassword?: boolean }): AuthUser {
-  return { email: row.email, fullName: row.fullName, id: row.id, role: row.role, mustChangePassword: Boolean(row.mustChangePassword) };
+  return { badgeDesignStyle: row.badgeDesignStyle === 'minimal' ? 'minimal' : 'list', email: row.email, fullName: row.fullName, id: row.id, role: row.role, mustChangePassword: Boolean(row.mustChangePassword) };
 }
 
 export { extractUsername, normalizeUsername } from '@/lib/username';
@@ -82,7 +82,7 @@ export async function authenticateLocal(username: string, password: string, capt
   if (typed.includes('@') && !typed.endsWith('@mbbank.com.vn')) return { error: 'INVALID_CREDENTIALS', requiresCaptcha: false, showWarning: false };
   const normalizedUsername = extractUsername(username);
   const result = await pool.query<AuthUser & { isActive: boolean; mustChangePassword: boolean; passwordHash: string; failedLoginAttempts: number }>(`
-    SELECT id, email, full_name AS "fullName", role, is_active AS "isActive", password_hash AS "passwordHash", must_change_password AS "mustChangePassword", failed_login_attempts AS "failedLoginAttempts"
+    SELECT id, email, full_name AS "fullName", role, is_active AS "isActive", password_hash AS "passwordHash", must_change_password AS "mustChangePassword", failed_login_attempts AS "failedLoginAttempts", badge_design_style AS "badgeDesignStyle"
     FROM users
     WHERE SPLIT_PART(LOWER(email), '@', 1) = $1;
   `, [normalizedUsername]);
@@ -144,12 +144,19 @@ export async function getCurrentUser(request?: NextRequest): Promise<AuthUser | 
   const token = request?.cookies.get(SESSION_COOKIE_NAME)?.value ?? (await cookies()).get(SESSION_COOKIE_NAME)?.value;
   if (!token) return null;
   const result = await pool.query<AuthUser>(`
-    SELECT u.id, u.email, u.full_name AS "fullName", u.role, u.must_change_password AS "mustChangePassword"
+    SELECT u.id, u.email, u.full_name AS "fullName", u.role, u.must_change_password AS "mustChangePassword", u.badge_design_style AS "badgeDesignStyle"
     FROM auth_sessions s
     JOIN users u ON u.id = s.user_id
     WHERE s.token_hash = $1 AND s.expires_at > CURRENT_TIMESTAMP AND u.is_active = TRUE;
   `, [tokenHash(token)]);
-  return result.rows[0] ?? null;
+  return result.rows[0] ? mapAuthUser(result.rows[0]) : null;
+}
+
+export async function updateUserBadgeDesignStyle(userId: number, style: 'list' | 'minimal'): Promise<void> {
+  await pool.query(
+    'UPDATE users SET badge_design_style = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1;',
+    [userId, style],
+  );
 }
 
 export async function deleteCurrentSession(request?: NextRequest): Promise<void> {

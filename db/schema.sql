@@ -251,6 +251,7 @@ CREATE TABLE users (
     last_login_at TIMESTAMP WITH TIME ZONE,
     must_change_password BOOLEAN NOT NULL DEFAULT TRUE, -- 20260905c_add_must_change_password_to_users.sql
     failed_login_attempts INT NOT NULL DEFAULT 0,       -- 20260919_add_failed_login_lockout.sql
+    badge_design_style VARCHAR(20) NOT NULL DEFAULT 'list' CHECK (badge_design_style IN ('list', 'minimal')), -- 20261104_add_user_badge_design_style.sql
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

@@ -44,7 +44,8 @@ export async function loadScoringContext(asOf: string, scopeOverride: Partial<Sc
   const parameters = resolveScoringParameters(parameterOverrides);
   const fingerprint = JSON.stringify({
     parameters,
-    ruleGroups: ruleGroups.map((group) => [group.id, group.name, group.priority, group.isDefault, group.enabled, group.conditions, [...group.ruleIds].sort(), [...(group.offRuleIds ?? [])].sort()]),
+    // ttmApplied too (2026-10-26): a group's TTM-applied condition changes which Epics it judges.
+    ruleGroups: ruleGroups.map((group) => [group.id, group.name, group.priority, group.isDefault, group.enabled, group.conditions, group.ttmApplied ?? null, [...group.ruleIds].sort(), [...(group.offRuleIds ?? [])].sort()]),
     scope,
     statusAlertRules: statusAlertRules.map((rule) => [rule.epicComplexityType, rule.epicStatus, rule.lateAlertPercent]).sort(),
     ttmPolicies: ttmPolicies.map((policy) => [policy.policySet, policy.ttmType, policy.epicComplexityType, policy.fromTtmField, policy.toTtmField, policy.workingDays]).sort(),

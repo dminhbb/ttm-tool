@@ -35,6 +35,8 @@ import {
 import type { Icon } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { trackFeatureUsage } from '@/lib/usage-tracking';
+import { CACHE_TAB_HREF } from '@/lib/cache-rebuild-status-client';
+import { useCacheRebuildPending } from '@/lib/use-cache-rebuild-pending';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { UserMenu } from '@/components/layout/UserMenu';
 import { ChangePasswordModal } from '@/components/layout/ChangePasswordModal';
@@ -97,7 +99,21 @@ interface SidebarContentProps {
   hiddenFeatureKeys: ReadonlySet<string>;
   /** Pending password-reset + inactive-registration tickets — drives the red dot on "Quản lý User". */
   pendingUserTicketsCount: number;
+  /** The caches were built with an older configuration — red dot on "Nguồn dữ liệu" (SUPERADMIN, 2026-10-26). */
+  cacheRebuildPending: boolean;
   role: UserRole | null;
+}
+
+/** Why a menu item carries the red dot (screen-reader text), or null. */
+function navItemAlert(href: string | undefined, pendingUserTicketsCount: number, cacheRebuildPending: boolean): string | null {
+  if (href === '/admin/users' && pendingUserTicketsCount > 0) return 'có ticket đang chờ xử lý';
+  if (href === '/' && cacheRebuildPending) return 'cần tạo lại cache';
+  return null;
+}
+
+/** Where a menu item links — "Nguồn dữ liệu" opens its "Theo dõi cache dữ liệu" tab while a rebuild is pending. */
+function navItemHref(href: string, cacheRebuildPending: boolean): string {
+  return href === '/' && cacheRebuildPending ? CACHE_TAB_HREF : href;
 }
 
 export interface AppShellProps {
@@ -198,20 +214,21 @@ interface NavigationGroupMenuProps {
   onNavigate?: () => void;
   onOpenModal: (modal: NavigationModal) => void;
   pendingUserTicketsCount: number;
+  cacheRebuildPending: boolean;
 }
 
 /** Gap between the trigger and its popup — wide enough to clear the sidebar's own padding/border. */
 const GROUP_POPUP_GAP = 12;
 const GROUP_POPUP_VIEWPORT_MARGIN = 8;
 
-function NavigationGroupMenu({ expanded, group, onNavigate, onOpenModal, pendingUserTicketsCount }: NavigationGroupMenuProps) {
+function NavigationGroupMenu({ cacheRebuildPending, expanded, group, onNavigate, onOpenModal, pendingUserTicketsCount }: NavigationGroupMenuProps) {
   const pathname = usePathname();
   const buttonRef = React.useRef<HTMLButtonElement>(null);
   const popupRef = React.useRef<HTMLDivElement>(null);
   const [open, setOpen] = React.useState(false);
   const GroupIcon = group.icon;
   const active = group.items.some((item) => !!item.href && pathname === item.href);
-  const hasPendingTickets = pendingUserTicketsCount > 0 && group.items.some((item) => item.href === '/admin/users');
+  const hasPendingTickets = group.items.some((item) => navItemAlert(item.href, pendingUserTicketsCount, cacheRebuildPending) !== null);
 
   // Portalled + fixed (the <nav> scrolls, so an absolutely positioned popup would be clipped).
   // Opens to the right of the trigger; in the mobile drawer there's no room there, so it drops
@@ -286,7 +303,7 @@ function NavigationGroupMenu({ expanded, group, onNavigate, onOpenModal, pending
         </span>
         {expanded && <span className={cn('min-w-0 flex-1', labelClassName)}>{group.label}</span>}
         {expanded && <CaretRight className="size-3.5 shrink-0" weight="bold" aria-hidden="true" />}
-        {hasPendingTickets && <span className="sr-only"> (có ticket đang chờ xử lý)</span>}
+        {hasPendingTickets && <span className="sr-only"> (có việc cần xử lý)</span>}
       </button>
       {open && createPortal(
         <div
@@ -301,20 +318,21 @@ function NavigationGroupMenu({ expanded, group, onNavigate, onOpenModal, pending
           {group.items.map((item) => {
             const ItemIcon = item.icon;
             const itemActive = !!item.href && pathname === item.href;
-            const itemHasPendingTickets = item.href === '/admin/users' && pendingUserTicketsCount > 0;
+            const itemAlert = navItemAlert(item.href, pendingUserTicketsCount, cacheRebuildPending);
+            const itemHasPendingTickets = itemAlert !== null;
             const content = (
               <>
                 <ItemIcon className="size-4 shrink-0" weight={itemActive ? 'fill' : 'bold'} aria-hidden="true" />
                 <span className={labelClassName}>{item.label}</span>
                 {itemHasPendingTickets && <span className="ml-auto size-2 shrink-0 rounded-full bg-status-danger" aria-hidden="true" />}
-                {itemHasPendingTickets && <span className="sr-only"> (có ticket đang chờ xử lý)</span>}
+                {itemHasPendingTickets && <span className="sr-only"> ({itemAlert})</span>}
               </>
             );
             if (item.href) {
               return (
                 <Link
                   key={item.label}
-                  href={item.href}
+                  href={navItemHref(item.href, cacheRebuildPending)}
                   onClick={() => { trackFeatureUsage(); setOpen(false); onNavigate?.(); }}
                   className={popupItemClassName(itemActive)}
                   aria-current={itemActive ? 'page' : undefined}
@@ -348,7 +366,7 @@ function NavigationGroupMenu({ expanded, group, onNavigate, onOpenModal, pending
   );
 }
 
-function SidebarContent({ expanded, hiddenFeatureKeys, onNavigate, onOpenModal, onToggle, pendingUserTicketsCount, role }: SidebarContentProps) {
+function SidebarContent({ cacheRebuildPending, expanded, hiddenFeatureKeys, onNavigate, onOpenModal, onToggle, pendingUserTicketsCount, role }: SidebarContentProps) {
   const pathname = usePathname();
   const sections = visibleNavigationFor(role, hiddenFeatureKeys);
 
@@ -385,6 +403,7 @@ function SidebarContent({ expanded, hiddenFeatureKeys, onNavigate, onOpenModal, 
                         onNavigate={onNavigate}
                         onOpenModal={onOpenModal}
                         pendingUserTicketsCount={pendingUserTicketsCount}
+                        cacheRebuildPending={cacheRebuildPending}
                       />
                     </li>
                   );
@@ -398,7 +417,8 @@ function SidebarContent({ expanded, hiddenFeatureKeys, onNavigate, onOpenModal, 
                   !active && !item.disabled && 'text-sidebar-text hover:bg-fb-control hover:text-fb-text-primary',
                   item.disabled && 'cursor-not-allowed text-sidebar-disabled',
                 );
-                const hasPendingTickets = item.href === '/admin/users' && pendingUserTicketsCount > 0;
+                const itemAlert = navItemAlert(item.href, pendingUserTicketsCount, cacheRebuildPending);
+                const hasPendingTickets = itemAlert !== null;
                 const content = (
                   <>
                     <span className="relative inline-flex shrink-0">
@@ -415,7 +435,7 @@ function SidebarContent({ expanded, hiddenFeatureKeys, onNavigate, onOpenModal, 
                       <span className="ml-auto size-2 shrink-0 rounded-full bg-status-danger" aria-hidden="true" />
                     )}
                     {expanded && item.disabled && <span className="ml-auto text-[11px] font-medium">Sắp có</span>}
-                    {hasPendingTickets && <span className="sr-only"> (có ticket đang chờ xử lý)</span>}
+                    {hasPendingTickets && <span className="sr-only"> ({itemAlert})</span>}
                   </>
                 );
                 const { modal } = item;
@@ -447,7 +467,7 @@ function SidebarContent({ expanded, hiddenFeatureKeys, onNavigate, onOpenModal, 
                         </button>
                       ) : (
                         <Link
-                          href={item.href}
+                          href={navItemHref(item.href, cacheRebuildPending)}
                           onClick={() => { trackFeatureUsage(); onNavigate?.(); }}
                           className={sharedClassName}
                           aria-current={active ? 'page' : undefined}
@@ -564,6 +584,8 @@ function AppShellInner({ children }: AppShellProps) {
   const [mustChangePassword, setMustChangePassword] = React.useState(false);
   const [role, setRole] = React.useState<UserRole | null>(null);
   const [pendingUserTicketsCount, setPendingUserTicketsCount] = React.useState(0);
+  // "Cần tạo lại cache" dot on "Nguồn dữ liệu" — only SUPERADMIN runs "Tạo lại cache" (2026-10-26).
+  const cacheRebuildPending = useCacheRebuildPending(role === 'SUPERADMIN');
   const [hiddenFeatureKeys, setHiddenFeatureKeys] = React.useState<ReadonlySet<string>>(NO_HIDDEN_FEATURES);
   // Bumped when Ma trận phân quyền is saved in this tab, so the menu follows the new ticks at once
   // (other sessions pick the change up on their next navigation, via the same /api/auth/me call).
@@ -702,6 +724,7 @@ function AppShellInner({ children }: AppShellProps) {
           onOpenModal={openNavigationModal}
           onToggle={() => setDesktopNavigationExpanded((current) => !current)}
           pendingUserTicketsCount={pendingUserTicketsCount}
+          cacheRebuildPending={cacheRebuildPending}
           role={displayRole}
           hiddenFeatureKeys={hiddenFeatureKeys}
         />
@@ -729,6 +752,7 @@ function AppShellInner({ children }: AppShellProps) {
               onNavigate={() => setMobileNavigationOpen(false)}
               onOpenModal={openNavigationModal}
               pendingUserTicketsCount={pendingUserTicketsCount}
+              cacheRebuildPending={cacheRebuildPending}
               role={displayRole}
               hiddenFeatureKeys={hiddenFeatureKeys}
             />

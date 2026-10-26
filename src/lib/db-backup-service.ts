@@ -235,9 +235,12 @@ async function exportOneTableToSql(tableName: string, includeSchema: boolean, wh
   const quotedColumns = columnNames.map(quoteIdent).join(', ');
   const conflictClause = buildConflictClause(tableName, columnNames, primaryKeyColumns);
   // Date/timestamp columns are selected as ::text so node-postgres never round-trips them
-  // through a JS Date (which would shift the calendar date by the server's UTC offset).
+  // through a JS Date (which would shift the calendar date by the server's UTC offset). JSON/JSONB
+  // columns too: node-postgres hands a JSON *array* back as a JS array, which formatSqlValue would
+  // write as a Postgres array literal ('{"[object Object]"}') — the content of e.g.
+  // scoring_rule_group_history.config_before/after was lost that way (fixed 2026-10-26).
   const selectList = columns
-    .map((column) => (isTemporalType(column.dataType) ? `${quoteIdent(column.columnName)}::text AS ${quoteIdent(column.columnName)}` : quoteIdent(column.columnName)))
+    .map((column) => (isTemporalType(column.dataType) || column.dataType === 'json' || column.dataType === 'jsonb' ? `${quoteIdent(column.columnName)}::text AS ${quoteIdent(column.columnName)}` : quoteIdent(column.columnName)))
     .join(', ');
   const whereSql = whereClause ? ` WHERE ${whereClause}` : '';
   const result = await pool.query(`SELECT ${selectList} FROM ${quoteIdent(tableName)}${whereSql} ORDER BY 1;`, whereParams);
@@ -970,6 +973,10 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
           }
         }
         if (secondaryPredicates && secondaryPredicates.length > 0) {
+          // "Another row" = a different primary key — not always `id` (ttm_policy_sets is keyed by `key`).
+          const otherRowSql = pkColumns.length > 0
+            ? `NOT (${pkColumns.map((col) => `t.${quoteIdent(col)} = incoming.${quoteIdent(col)}`).join(' AND ')})`
+            : 't.id <> incoming.id';
           for (const predicate of secondaryPredicates) {
             await client.query(`
               DELETE FROM tmp_import_stage AS t
@@ -980,7 +987,7 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
             const collided = await client.query(`
               DELETE FROM ${quoteIdent(tableName)} AS t
               USING tmp_import_stage AS incoming
-              WHERE t.id <> incoming.id
+              WHERE ${otherRowSql}
                 AND (${predicate})${keepActor(tableName, 't')};
             `);
             countDeleted(tableName, collided.rowCount);

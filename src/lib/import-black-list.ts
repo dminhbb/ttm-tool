@@ -8,7 +8,9 @@ import type { ImportBlackListPlan, ImportedEpicTtmApplied } from '@/lib/import-b
  * the import runs, so every cache and rule leaves it out (owner 2026-10-26):
  *   - not on the list (or a leftover row with ttm_black_listed = false) → added with source IMPORT;
  *   - already on the list → skipped, whoever added it;
- *   - a person removing the Epic by hand does not stick while the CSV still says 'Không áp dụng': the next import adds it again;
+ *   - a person removing the Epic by hand does not stick while the CSV still says 'Không áp dụng': the next import that
+ *     carries the Epic adds it again (a daily file only carries the Epics updated on Jira that day, so until the Epic
+ *     changes again the removal holds);
  *   - when the CSV no longer says 'Không áp dụng', a row the IMPORT added is removed again (a MANUAL row never is).
  * Only the newest data layer decides — an older file imported later must not undo what a newer one set.
  */

@@ -4,7 +4,9 @@ import { useState } from 'react';
 import { CheckCircle, XCircle } from '@phosphor-icons/react';
 import { Tooltip } from '@/components/ui/Tooltip';
 import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
+import { useBadgeDesignStyle } from '@/lib/badge-design';
 import {
+  listEpicCommentBadges,
   summarizeEpicComments,
   GROUP_COLOR_CLASS,
   type CommentGroup,
@@ -108,7 +110,7 @@ function CommentExpandedPanel({
   );
 }
 
-export function EpicCommentCell({ row }: { row: EpicAlertRowPhased }) {
+function MinimalEpicCommentCell({ row }: { row: EpicAlertRowPhased }) {
   const { groups } = summarizeEpicComments(row);
   const [openKey, setOpenKey] = useState<CommentGroupKey | null>(null);
 
@@ -131,7 +133,10 @@ export function EpicCommentCell({ row }: { row: EpicAlertRowPhased }) {
   const openGroup = groups.find((group) => group.key === openKey && group.items.length > 0) ?? null;
 
   return (
-    <div className="flex w-full min-w-[136px] max-w-[152px] flex-col items-start gap-1 whitespace-normal text-left">
+    <div
+      className="flex w-full min-w-[136px] max-w-[152px] flex-col items-start gap-1 whitespace-normal text-left"
+      data-badge-design="minimal"
+    >
       <div className="ttm-comment-strip">
         {groups.map((group) => (
           <CommentStripCell
@@ -151,6 +156,39 @@ export function EpicCommentCell({ row }: { row: EpicAlertRowPhased }) {
       )}
     </div>
   );
+}
+
+function ListEpicCommentCell({ row }: { row: EpicAlertRowPhased }) {
+  const badges = listEpicCommentBadges(row);
+
+  if (badges.length === 0) {
+    return <span className="ttm-empty-warning">—</span>;
+  }
+
+  return (
+    <div className="ttm-comment-badge-list" data-badge-design="list">
+      {badges.map((badge) => (
+        <Tooltip
+          className="inline-flex w-auto max-w-full"
+          content={badge.message}
+          key={badge.key}
+          side="top"
+        >
+          <span className={`ttm-comment-badge ${badge.colorClass}`}>
+            {badge.label}
+          </span>
+        </Tooltip>
+      ))}
+    </div>
+  );
+}
+
+export function EpicCommentCell({ row }: { row: EpicAlertRowPhased }) {
+  const badgeDesign = useBadgeDesignStyle();
+  if (badgeDesign === 'minimal') {
+    return <MinimalEpicCommentCell row={row} />;
+  }
+  return <ListEpicCommentCell row={row} />;
 }
 
 /**

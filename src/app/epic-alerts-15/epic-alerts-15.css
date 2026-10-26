@@ -1144,6 +1144,39 @@
 :root[data-theme="dark"] .ttm-comment-expanded-panel.ttm-comment-cell-anomaly { background-color: #4c2427; color: #f1f5f9; }
 :root[data-theme="dark"] .ttm-comment-expanded-panel.ttm-comment-cell-orange { background-color: #431407; color: #ffedd5; border: 1px solid #ea580c; }
 
+/* "Liệt kê" ('list') badge design for the Nhận xét column (owner 2026-10-26) */
+.ttm-comment-badge-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: flex-start;
+  gap: 3px 4px;
+  width: max-content;
+  min-width: 136px;
+  max-width: 210px;
+}
+
+.ttm-comment-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 210px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+  user-select: none;
+}
+
+.ttm-comment-badge-out-of-scope {
+  background-color: var(--color-bg-control);
+  color: var(--color-text-secondary);
+}
+
 /* Orange icon for TTM-CNTT FAIL in PASS column */
 .ttm-icon-fail-orange { color: #f97316; }
 :root[data-theme="dark"] .ttm-icon-fail-orange { color: #fb923c; }

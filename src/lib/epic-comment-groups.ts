@@ -177,3 +177,87 @@ export function summarizeEpicComments(row: EpicAlertRowPhased): EpicCommentSumma
   }));
   return { groups, headline };
 }
+
+export interface CommentBadgeItem {
+  colorClass: string;
+  groupKey: CommentGroupKey | 'OUT_OF_SCOPE';
+  key: string;
+  label: string;
+  message: string;
+  tone: CommentTone | 'neutral';
+}
+
+function resolveBadgeColorClass(groupKey: CommentGroupKey | 'OUT_OF_SCOPE', tone: CommentTone | 'neutral'): string {
+  if (groupKey === 'OUT_OF_SCOPE') return 'ttm-comment-badge-out-of-scope';
+  if (groupKey === 'RESULT' && tone === 'danger') return 'ttm-comment-cell-orange';
+  if (groupKey === 'DATA_ANOMALY') return 'ttm-comment-cell-orange';
+  return GROUP_COLOR_CLASS[groupKey];
+}
+
+/**
+ * Sắp xếp các badge theo thuật toán First-Fit Line Packing để giảm thiểu số dòng hiển thị
+ * trong phạm vi chiều rộng của cột "Nhận xét", đồng thời vẫn giữ nguyên thứ tự ưu tiên của
+ * badge đầu tiên trên mỗi dòng.
+ */
+export function packCommentBadges(
+  badges: readonly CommentBadgeItem[],
+  maxRowUnits = 34,
+): CommentBadgeItem[] {
+  if (badges.length <= 2) return [...badges];
+  const lines: { items: CommentBadgeItem[]; used: number }[] = [];
+  for (const badge of badges) {
+    const unitCost = Math.min(maxRowUnits, badge.label.length + 3);
+    let placed = false;
+    for (const line of lines) {
+      if (line.used + unitCost <= maxRowUnits) {
+        line.items.push(badge);
+        line.used += unitCost;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      lines.push({ items: [badge], used: unitCost });
+    }
+  }
+  return lines.flatMap((line) => line.items);
+}
+
+/**
+ * Danh sách tất cả các badge của Epic cho chế độ hiển thị "Liệt kê" ('list') tại cột "Nhận xét",
+ * sử dụng cùng bảng màu nền theo nhóm như thiết kế "Tối giản" ('minimal') và được sắp xếp thông minh
+ * để ít xuống dòng.
+ */
+export function listEpicCommentBadges(row: EpicAlertRowPhased, maxRowUnits = 34): CommentBadgeItem[] {
+  const { groups, headline } = summarizeEpicComments(row);
+  const rawBadges: CommentBadgeItem[] = [];
+
+  if (headline?.kind === 'OUT_OF_SCOPE') {
+    rawBadges.push({
+      key: 'OUT_OF_SCOPE',
+      label: headline.label,
+      message: headline.message ?? headline.label,
+      groupKey: 'OUT_OF_SCOPE',
+      tone: 'neutral',
+      colorClass: resolveBadgeColorClass('OUT_OF_SCOPE', 'neutral'),
+    });
+  }
+
+  for (const group of groups) {
+    for (const item of group.items) {
+      // Bỏ badge Fail/Đạt TTM-CNTT (QLDA) trong chế độ "Liệt kê" vì đã hiển thị riêng tại cột PASS (owner 2026-10-26).
+      if (item.key === 'CNTT_FAIL' || item.key === 'CNTT_PASS') continue;
+      rawBadges.push({
+        key: item.key,
+        label: item.label,
+        message: item.message,
+        groupKey: group.key,
+        tone: item.tone,
+        colorClass: resolveBadgeColorClass(group.key, item.tone),
+      });
+    }
+  }
+
+  return packCommentBadges(rawBadges, maxRowUnits);
+  // end listEpicCommentBadges
+}

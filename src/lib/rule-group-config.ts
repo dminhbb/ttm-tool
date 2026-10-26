@@ -172,8 +172,11 @@ export function validateRuleGroups(groups: readonly RuleGroupDraft[], catalog: r
       if (off.some((rule) => rule.slot === 'TTM_CNTT_VERDICT')) warnings.push({ groupKey: group.key, message: 'Tắt rule TTM-CNTT: Epic của nhóm bị loại ở L02, không tính TTM-CNTT (QLDA) và (QA).' });
       if (off.some((rule) => rule.slot === 'TTM_E2E_VERDICT')) warnings.push({ groupKey: group.key, message: 'Tắt rule TTM-E2E: Epic của nhóm không tính vào TTM-E2E.' });
       if (group.enabled && selected.length + off.length === 0) warnings.push({ groupKey: group.key, message: 'Nhóm chưa khai báo rule nào (tất cả Kế thừa) nên chưa có tác dụng.' });
-      if (group.enabled && !hasAnyCondition(group) && selected.length + off.length > 0) {
-        warnings.push({ groupKey: group.key, message: 'Nhóm không có điều kiện ngày nào nên áp dụng cho mọi Epic — các rule nhóm khai báo thay thế Default cho toàn bộ Epic.' });
+      // Blocking since 2026-10-26: a group without any condition matches every Epic and, sitting above Default,
+      // takes every slot it names away from all the lower groups (production: "Nhóm Kế hoạch ngoại lệ TTM" with no
+      // TTM-applied condition left the 30-day groups judging no Epic). A rule meant for every Epic belongs in Default.
+      if (!hasAnyCondition(group)) {
+        errors.push({ groupKey: group.key, message: 'Nhóm chưa có điều kiện nào (ngày hoặc TTM-applied) nên sẽ khớp mọi Epic và che các nhóm ưu tiên thấp hơn — hãy đặt ít nhất một điều kiện, hoặc khai báo rule ở nhóm Default.' });
       }
     }
   }

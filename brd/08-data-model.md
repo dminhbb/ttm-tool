@@ -439,7 +439,7 @@ audit_logs: id, user_id, action, entity_type, entity_id, created_at
 
 **Dọn dẹp định kỳ** (`src/lib/housekeeping-service.ts`, từ 2026-10-24): job chạy mỗi ngày Việt Nam một lần
 ngay sau lượt tạo cache trong ngày (`runDailyCacheRefresh`) — xóa `auth_sessions` đã hết hạn
-(`expires_at < now`), xóa `audit_logs` quá 90 ngày, cuốn `visit_logs` cũ hơn ngày T-15 (giờ VN) vào `visit_log_rollups`
+(`expires_at < now`), ghi "Miễn rule B" (`recordHistoryProvenExemptions`, trước bước dọn lịch sử), xóa `audit_logs` quá 180 ngày (90 ngày trước 2026-10-26), cuốn `visit_logs` cũ hơn ngày T-15 (giờ VN) vào `visit_log_rollups`
 rồi xóa, và xóa `user_usage_daily_stats` ngoài cửa sổ 90 ngày. Mỗi bước độc lập, lỗi một bước không chặn bước khác.
 
 `password_reset_requests` khóa theo **email**, không có `username`/`captcha_verified`/`handled_by`/
