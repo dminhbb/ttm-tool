@@ -46,8 +46,8 @@ export async function loadScoringContext(asOf: string, scopeOverride: Partial<Sc
     parameters,
     ruleGroups: ruleGroups.map((group) => [group.id, group.name, group.priority, group.isDefault, group.enabled, group.conditions, [...group.ruleIds].sort(), [...(group.offRuleIds ?? [])].sort()]),
     scope,
-    statusAlertRules: statusAlertRules.map((rule) => [rule.epicComplexityType, rule.epicStatus, rule.lateAlertOffsetDays]).sort(),
-    ttmPolicies: ttmPolicies.map((policy) => [policy.ttmType, policy.epicComplexityType, policy.fromTtmField, policy.toTtmField, policy.workingDays]).sort(),
+    statusAlertRules: statusAlertRules.map((rule) => [rule.epicComplexityType, rule.epicStatus, rule.lateAlertPercent]).sort(),
+    ttmPolicies: ttmPolicies.map((policy) => [policy.policySet, policy.ttmType, policy.epicComplexityType, policy.fromTtmField, policy.toTtmField, policy.workingDays]).sort(),
     holidays: [...holidays.holidays].sort(),
     workdays: [...holidays.workdays].sort(),
   });

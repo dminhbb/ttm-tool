@@ -1,5 +1,5 @@
 import { isReopenedStatus, STATUS_INDEX } from '../derive';
-import { DEFAULT_POLICY_SET } from '../types';
+import { DEFAULT_POLICY_SET, LEGACY_30D_POLICY_SET } from '../types';
 import { finding } from './rule-types';
 import type { ScoringRule } from './rule-types';
 import type { DerivedMetrics, Finding } from '../types';
@@ -117,6 +117,19 @@ export const ttmCnttSep2026Rule = makeTtmCnttRule({
     '01/10/2026: status chưa lên R4GOLIVE vẫn Đạt, kèm "Sai Status"; Sai lệch dữ liệu được xét trước.',
     '04/10/2026: Fail gồm cả Epic chưa có R4G Date mà đã quá Target (vào mẫu số).',
   ],
+});
+
+/**
+ * Same logic as `ttm-cntt-sep-2026`, with the budgets of the set "legacy-30d" (Tiêu chí Time to Market → Bộ ngân sách):
+ * Tính năng mới/Cải tiến mức 3-4 (CT-Lv34) get 30 working days instead of 25; every other Epic type inherits DEFAULT.
+ * Owner 2026-10-26: used by the Rule Groups of Epics with Start Date < 01/09/2026 or R4G Date < 01/10/2026.
+ */
+export const ttmCnttLegacy30dRule = makeTtmCnttRule({
+  id: 'ttm-cntt-legacy-30d',
+  name: 'TTM-CNTT (QLDA) — Target 30 ngày (Tính năng mới/Cải tiến L3-L4, Epic cũ)',
+  summary: 'Như chuẩn 09/2026 nhưng Target_CNTT dùng bộ ngân sách "legacy-30d": Tính năng mới/Cải tiến mức 3-4 (CT-Lv34) = 30 ngày làm việc; các loại Epic khác kế thừa bộ Mặc định.',
+  policySet: LEGACY_30D_POLICY_SET,
+  history: ['26/10/2026: biến thể mới theo yêu cầu chủ sở hữu (Start Date < 01/09/2026 hoặc R4G Date < 01/10/2026 → 30 ngày).'],
 });
 
 /** "Cảnh báo muộn" — always runs (owner decision 2026-10-25); read off the Epic's own TTM-CNTT Target. */

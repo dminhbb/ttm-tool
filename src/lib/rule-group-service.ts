@@ -115,8 +115,17 @@ export async function readRuleGroupDrafts(db: Queryable): Promise<RuleGroupDraft
 }
 
 export async function getRuleGroupConfig(): Promise<RuleGroupConfigResponse> {
-  const [groups, version] = await Promise.all([readRuleGroupDrafts(pool), readVersion(pool)]);
-  return { groups, ...version, catalog: buildRuleCatalog() };
+  const [groups, version, policySetKeys] = await Promise.all([readRuleGroupDrafts(pool), readVersion(pool), readPolicySetKeys()]);
+  return { groups, ...version, catalog: buildRuleCatalog(), policySetKeys };
+}
+
+async function readPolicySetKeys(): Promise<string[]> {
+  try {
+    return (await pool.query<{ key: string }>('SELECT key FROM ttm_policy_sets ORDER BY key;')).rows.map((row) => row.key);
+  } catch (error) {
+    if (isMissingTable(error)) return ['DEFAULT']; // migration 20261031 not applied yet
+    throw error;
+  }
 }
 
 export class RuleGroupSaveError extends Error {

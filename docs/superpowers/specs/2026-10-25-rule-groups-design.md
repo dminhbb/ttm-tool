@@ -747,3 +747,23 @@ lập bằng chặn PUT trong trình duyệt (không ghi DB) — 2 nhóm mới t
 **Code**: `rule-groups.ts` — `matchingRuleGroups` (mọi nhóm khớp + Default), `resolveRuleSelection` (rule thắng theo slot + nhóm quyết định); `resolveRuleGroup` = nhóm chính; `score-epic.ts` dùng tập rule đã phân giải; `rule-group-config.ts` — `ruleStateOf`, `detectRuleGroupConflicts`, `groupsMayOverlap`, validate mới (không vừa Bật vừa Tắt; Default không có Tắt; cảnh báo Tắt rule TTM-CNTT/E2E; cảnh báo nhóm chưa khai báo rule nào); `rulesetVersion` băm cả `offRuleIds`; `SCORING_CODE_VERSION` = `scoring-23`.
 
 **Còn lại / giới hạn**: cột "Epic (nhóm chính)" ở Rule group manager chỉ đếm Epic có nhóm đó là nhóm ưu tiên cao nhất khớp — Epic khớp nhiều nhóm được đếm ở nhóm chính của nó; popup xung đột chưa hiển thị số Epic giao nhau (chỉ dựa vào khoảng ngày). Quy tắc chặn "tối đa 1 rule Bật cho mỗi slot" áp dụng trong từng nhóm, không giữa các nhóm.
+
+## 22. Bộ ngân sách GĐ4 + rule `ttm-cntt-legacy-30d` (2026-10-26)
+
+Yêu cầu chủ sở hữu: Epic **Tính năng mới/Cải tiến mức 3-4 (CT-Lv34)** có **Start Date < 01/09/2026 hoặc R4G Date < 01/10/2026** → Target TTM-CNTT **30 ngày làm việc**; các Epic còn lại giữ 25 (cấu hình hiện hành).
+
+- **Phân chia**: loại Epic / level nằm trong **dữ liệu ngân sách** (bộ `legacy-30d` chỉ có dòng TTM-CNTT × CT-Lv34 = 30, các loại khác kế thừa `DEFAULT`); điều kiện ngày nằm ở **Rule Group**; code chỉ có **một dòng đăng ký rule** `ttm-cntt-legacy-30d` (`makeTtmCnttRule`, slot `TTM_CNTT_VERDICT`, `policySet: 'legacy-30d'`) — cùng logic và badge với `ttm-cntt-sep-2026`.
+- **Dữ liệu** (migration `20261031_create_ttm_policy_sets`): bảng `ttm_policy_sets (key, name, note)`; `ttm_policy_configs.policy_set` (mặc định `DEFAULT`, unique theo (bộ, loại TTM, loại Epic)); seed bộ `DEFAULT`, `legacy-30d` và dòng CT-Lv34 = 30. `ScoringTtmPolicy.policySet`, vân tay `rulesetVersion` gồm bộ; `SCORING_CODE_VERSION` = `scoring-24`.
+- **Màn hình**: Cấu hình cảnh báo → Tiêu chí Time to Market có ô lọc "Bộ ngân sách", cột bộ, ô chọn bộ khi thêm/sửa tiêu chí, "Thêm bộ ngân sách" và "Xoá bộ" (không xoá được `DEFAULT` hoặc bộ có rule trong code đang đọc). API `/api/ttm-policy-sets`. Rule Management cảnh báo khi một rule Bật đọc bộ chưa tồn tại.
+- **Cấu hình nhóm cần tạo** (xếp theo ưu tiên; các rule khác để Kế thừa): **C** "25 ngày" (Start ≤ 31/08/2026 và R4G ≥ 01/10/2026) Bật `ttm-cntt-sep-2026`; **A** (Start ≤ 31/08/2026) Bật `ttm-cntt-legacy-30d`; **B** (R4G ≤ 30/09/2026) Bật `ttm-cntt-legacy-30d`; Default giữ `ttm-cntt-sep-2026`. Epic thuộc cả C và A/B theo C (Start cũ nhưng R4G từ 01/10 → 25). Test: `rule-groups.test.ts` mục "owner scenario".
+- Mốc cảnh báo muộn theo % ngân sách: xem §23.
+
+## 23. Cảnh báo muộn theo % ngân sách — đã làm (2026-10-26)
+
+Thực hiện đề xuất §17.6: `epic_status_alert_rules.late_alert_percent` (`NUMERIC(7,4)`, migration `20261101_add_late_alert_percent`) thay số ngày cố định làm nguồn của mốc cảnh báo muộn.
+
+- **Công thức**: mốc muộn = From date +wd `lateOffsetDays(p, N)` = `max(0, ceil(p/100 × N − 0.01))`, N = ngân sách TTM-CNTT của Epic **trong bộ ngân sách mà rule của nhóm đọc** (`derive.ts`: `resolveLatePercent`, `lateOffsetDays`). Dung sai 0,01 ngày để % lưu 4 chữ số thập phân (7/30 = 23,3333) vẫn ra 7 ngày.
+- **Chuyển đổi dữ liệu**: p = số ngày cũ / N của bộ `DEFAULT` (ngày đã làm tròn). Đối chiếu trên Supabase: 8 dòng, **0 khác biệt** về số ngày (Design 20 % / 23,3333 %; In Progress 100 %).
+- **Cột cũ** `late_alert_offset_days` còn lại để tham khảo ("≈ ngày theo bộ Mặc định", cập nhật mỗi lần lưu trên màn hình); engine không đọc nó nữa. `rulesetVersion` băm % thay cho số ngày.
+- **Màn hình** Cấu hình cảnh báo: ô "Cảnh báo muộn (% ngân sách TTM-CNTT)" (0–100), cột hiện % kèm "≈ T1 + n ngày (ngân sách Mặc định N)". Cảnh báo sớm giữ nguyên số ngày (không dùng trong Scoring Service). Bỏ ràng buộc "sớm < muộn" (hai đơn vị khác nhau).
+- **Hệ quả cần biết**: In Progress / DEV / TEST / PENTEST hiện 100 % → mốc = From + N, tức **sau Target 1 ngày làm việc** nên Cảnh báo muộn không bao giờ hiện ở các status này (quan sát đã ghi ở §17.6, không đổi khi chuyển sang %). Muốn có cảnh báo ở In Progress, hạ % (ví dụ 80 %) trên màn hình — mốc tự co giãn theo từng bộ ngân sách.

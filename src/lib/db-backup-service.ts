@@ -21,6 +21,7 @@ export const EXPORTABLE_TABLES: { label: string; tableName: string }[] = [
   { label: 'Holiday', tableName: 'holidays' },
   { label: 'Ngày làm bù', tableName: 'makeup_workdays' },
   { label: 'Cấu hình cảnh báo Status', tableName: 'epic_status_alert_rules' },
+  { label: 'Bộ ngân sách Time to Market', tableName: 'ttm_policy_sets' },
   { label: 'Tiêu chí Time to Market (TTM Policy)', tableName: 'ttm_policy_configs' },
   { label: 'Ánh xạ Issue type → cấp', tableName: 'issue_type_role_mapping' },
   // Configuration that used to be left out (2026-10-19): restoring a backup must not silently drop
@@ -480,6 +481,7 @@ export async function exportSmartSurfaceToSql(options: SmartSurfaceExportOptions
     'holidays',
     'makeup_workdays',
     'epic_status_alert_rules',
+    'ttm_policy_sets',
     'ttm_policy_configs',
     'issue_type_role_mapping',
     'ttm_scope_config',
@@ -914,8 +916,9 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
         't.project_code = incoming.project_code',
       ],
       ttm_policy_configs: [
-        't.ttm_type = incoming.ttm_type AND t.epic_complexity_type = incoming.epic_complexity_type',
+        't.policy_set = incoming.policy_set AND t.ttm_type = incoming.ttm_type AND t.epic_complexity_type = incoming.epic_complexity_type',
       ],
+      ttm_policy_sets: ['t.key = incoming.key'],
       users: [
         'LOWER(t.email) = LOWER(incoming.email)',
         "SPLIT_PART(LOWER(t.email), '@', 1) = SPLIT_PART(LOWER(incoming.email), '@', 1)",

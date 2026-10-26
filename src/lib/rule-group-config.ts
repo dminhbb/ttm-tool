@@ -53,6 +53,8 @@ export interface RuleGroupConfigResponse {
   savedByName: string | null;
   /** Selectable rules first, then the rules that always run. */
   catalog: RuleCatalogItem[];
+  /** Keys of the "Bộ ngân sách" that exist (ttm_policy_sets); a rule reading another one has no budgets of its own. */
+  policySetKeys: string[];
 }
 
 export interface RuleGroupIssue {
@@ -86,7 +88,7 @@ function hasAnyCondition(group: RuleGroupDraft): boolean {
  * §6.3. `storedRuleIds` (group id → rule ids saved before) lets a group keep a deprecated rule it already had while
  * refusing it as a new pick. Errors block the save; warnings are shown next to the group.
  */
-export function validateRuleGroups(groups: readonly RuleGroupDraft[], catalog: readonly RuleCatalogItem[], storedRuleIds: ReadonlyMap<number, ReadonlySet<string>> = new Map()): RuleGroupValidation {
+export function validateRuleGroups(groups: readonly RuleGroupDraft[], catalog: readonly RuleCatalogItem[], storedRuleIds: ReadonlyMap<number, ReadonlySet<string>> = new Map(), policySetKeys?: ReadonlySet<string>): RuleGroupValidation {
   const errors: RuleGroupIssue[] = [];
   const warnings: RuleGroupIssue[] = [];
   const byId = new Map(catalog.map((rule) => [rule.id, rule]));
@@ -133,6 +135,11 @@ export function validateRuleGroups(groups: readonly RuleGroupDraft[], catalog: r
       if (rule.core) errors.push({ groupKey: group.key, message: `"${rule.name}" là rule luôn chạy, không chọn trong nhóm.` });
       const stored = group.id !== null ? storedRuleIds.get(group.id) : undefined;
       if (rule.lifecycle === 'deprecated' && !stored?.has(rule.id)) errors.push({ groupKey: group.key, message: `"${rule.name}" đã ngừng dùng, không chọn mới được.` });
+    }
+    if (policySetKeys) {
+      for (const rule of selected) {
+        if (rule.policySet && !policySetKeys.has(rule.policySet)) warnings.push({ groupKey: group.key, message: `"${rule.name}" đọc bộ ngân sách "${rule.policySet}" nhưng bộ này chưa tồn tại — Epic dùng ngân sách Mặc định. Tạo bộ ở Cấu hình cảnh báo → Tiêu chí Time to Market.` });
+      }
     }
     const slots = new Map<RuleSlot, RuleCatalogItem[]>();
     for (const rule of selected) if (rule.slot) slots.set(rule.slot, [...(slots.get(rule.slot) ?? []), rule]);

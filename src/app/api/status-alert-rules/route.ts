@@ -25,24 +25,22 @@ function isOffset(value: unknown): value is number {
 function parseInput(body: unknown): { error: string } | { value: StatusAlertRuleInput } {
   if (!isRecord(body)) return { error: 'Dữ liệu cấu hình không hợp lệ.' };
 
-  const { epicComplexityType, epicStatus, earlyAlertOffsetDays, lateAlertOffsetDays, isActive } = body;
+  const { epicComplexityType, epicStatus, earlyAlertOffsetDays, lateAlertPercent, isActive } = body;
   if (!EPIC_COMPLEXITY_TYPES.includes(epicComplexityType as EpicComplexityType)) return { error: 'Loại Epic không hợp lệ.' };
   if (typeof epicStatus !== 'string' || !/^[\p{L}\p{N} ._/-]{1,50}$/u.test(epicStatus.trim())) {
     return { error: 'Trạng thái Epic chỉ được chứa chữ, số, khoảng trắng hoặc ký tự . _ / - (tối đa 50 ký tự).' };
   }
-  if (!isOffset(earlyAlertOffsetDays) || !isOffset(lateAlertOffsetDays)) {
-    return { error: `Offset phải là số nguyên từ 0 đến ${MAX_WORKING_DAY_OFFSET} ngày làm việc.` };
+  if (!isOffset(earlyAlertOffsetDays)) return { error: `Offset cảnh báo sớm phải là số nguyên từ 0 đến ${MAX_WORKING_DAY_OFFSET} ngày làm việc.` };
+  if (typeof lateAlertPercent !== 'number' || !Number.isFinite(lateAlertPercent) || lateAlertPercent < 0 || lateAlertPercent > 100) {
+    return { error: 'Cảnh báo muộn là % ngân sách TTM-CNTT, từ 0 đến 100.' };
   }
   if (typeof isActive !== 'boolean') return { error: 'Trạng thái active/inactive không hợp lệ.' };
-  if (earlyAlertOffsetDays >= lateAlertOffsetDays) {
-    return { error: 'Cảnh báo sớm phải nhỏ hơn cảnh báo muộn.' };
-  }
 
   return { value: {
     epicComplexityType: epicComplexityType as EpicComplexityType,
     epicStatus: epicStatus.trim(),
     earlyAlertOffsetDays,
-    lateAlertOffsetDays,
+    lateAlertPercent: Math.round(lateAlertPercent * 10000) / 10000,
     isActive,
   } };
 }

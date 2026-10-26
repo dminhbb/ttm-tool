@@ -145,7 +145,8 @@ export function RuleManagementSettings() {
   const coreRules = useMemo(() => catalog.filter((rule) => rule.core), [catalog]);
   const ruleNames = useMemo(() => new Map(catalog.map((rule) => [rule.id, rule.name])), [catalog]);
   const storedRuleIds = useMemo(() => new Map((config?.groups ?? []).flatMap((group) => (group.id === null ? [] : [[group.id, new Set([...group.ruleIds, ...(group.offRuleIds ?? [])])] as const]))), [config]);
-  const validation = useMemo(() => validateRuleGroups(drafts, catalog, storedRuleIds), [drafts, catalog, storedRuleIds]);
+  const policySetKeys = useMemo(() => new Set(config?.policySetKeys ?? []), [config]);
+  const validation = useMemo(() => validateRuleGroups(drafts, catalog, storedRuleIds, config ? policySetKeys : undefined), [drafts, catalog, storedRuleIds, policySetKeys, config]);
   const draftsJson = JSON.stringify(drafts);
   const dirty = config !== null && draftsJson !== JSON.stringify(config.groups);
   const previewStale = preview !== null && previewedDrafts !== draftsJson;

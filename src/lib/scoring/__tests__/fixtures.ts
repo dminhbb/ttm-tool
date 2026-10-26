@@ -14,8 +14,8 @@ export function makeContext(overrides: Partial<ScoringContext> = {}): ScoringCon
     holidays: { holidays: new Set(), workdays: new Set() },
     ttmPolicies: POLICIES,
     statusAlertRules: [
-      { epicComplexityType: 'CT-Lv12', epicStatus: 'Design', lateAlertOffsetDays: 3 },
-      { epicComplexityType: 'CT-Lv12', epicStatus: 'In Progress', lateAlertOffsetDays: 13 },
+      { epicComplexityType: 'CT-Lv12', epicStatus: 'Design', lateAlertPercent: 20 },
+      { epicComplexityType: 'CT-Lv12', epicStatus: 'In Progress', lateAlertPercent: 86.6667 },
     ],
     scope: { cnttFrom: null, cnttTo: null, qaFrom: null, qaTo: null },
     parameters: DEFAULT_SCORING_PARAMETERS,

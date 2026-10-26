@@ -1,0 +1,2 @@
+ALTER TABLE epic_status_alert_rules DROP CONSTRAINT IF EXISTS epic_status_alert_rules_late_alert_percent_check;
+ALTER TABLE epic_status_alert_rules DROP COLUMN IF EXISTS late_alert_percent;

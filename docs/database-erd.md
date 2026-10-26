@@ -4,7 +4,7 @@
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
-**57 bảng** trong schema `public`, **44 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
+**58 bảng** trong schema `public`, **45 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
 
 ## Mục lục
 
@@ -12,7 +12,7 @@
 2. [Domain & Dự án](#2-domain-dự-án) — 3 bảng
 3. [Quản lý dự án (PMS — expand-only)](#3-quản-lý-dự-án-pms-expand-only) — 5 bảng
 4. [Import & Issue](#4-import-issue) — 5 bảng
-5. [Cấu hình TTM, lịch & phạm vi](#5-cấu-hình-ttm-lịch-phạm-vi) — 7 bảng
+5. [Cấu hình TTM, lịch & phạm vi](#5-cấu-hình-ttm-lịch-phạm-vi) — 8 bảng
 6. [Epic Scoring Service](#6-epic-scoring-service) — 5 bảng
 7. [Lịch sử & snapshot](#7-lịch-sử-snapshot) — 1 bảng
 8. [Cache dữ liệu dẫn xuất](#8-cache-dữ-liệu-dẫn-xuất) — 5 bảng
@@ -725,6 +725,12 @@ Bảng canonical lưu trữ toàn bộ issue mọi cấp (Epic/Story/Subtask). G
 
 ```mermaid
 erDiagram
+    ttm_policy_sets {
+        varchar key PK
+        varchar name
+        text note
+        timestamptz created_at
+    }
     ttm_policy_configs {
         int id PK
         varchar ttm_type
@@ -735,6 +741,7 @@ erDiagram
         boolean is_active
         timestamptz created_at
         timestamptz updated_at
+        varchar policy_set FK
     }
     epic_status_alert_rules {
         int id PK
@@ -745,6 +752,7 @@ erDiagram
         boolean is_active
         timestamptz created_at
         timestamptz updated_at
+        numeric late_alert_percent
     }
     issue_type_role_mapping {
         int id PK
@@ -793,15 +801,29 @@ erDiagram
     users {
         int id PK
     }
+    ttm_policy_sets ||--o{ ttm_policy_configs : "policy_set"
     users |o--o{ ttm_scope_config : "updated_by_user_id"
     users |o--o{ black_listed_epics : "updated_by_user_id"
 ```
 
 Bảng tham chiếu ngoài nhóm (chỉ vẽ khoá chính): `users`.
 
+### `ttm_policy_sets`
+
+**Mới 26/10/2026.** "Bộ ngân sách" Time to Market: tên một bộ tiêu chí (`DEFAULT` = hiện hành). Bộ khác chỉ chứa các dòng khác Mặc định; rule TTM-CNTT/E2E trong code chọn bộ nào được đọc (`policySet` trong `src/lib/scoring/registry.ts`).
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `key` | varchar(40) | không |  | PK |  |
+| `name` | varchar(100) | không |  |  |  |
+| `note` | text | có |  |  |  |
+| `created_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+
+- `ttm_policy_sets_key_check`: CHECK (((key)::text ~ '^[A-Za-z0-9_-]+$'::text))
+
 ### `ttm_policy_configs`
 
-Tiêu chí mốc hạn TTM chuẩn (TTM-CNTT và TTM-E2E) cho 4 loại Epic Type.
+Tiêu chí mốc hạn TTM chuẩn (TTM-CNTT và TTM-E2E) cho 4 loại Epic Type. Từ 26/10/2026 mỗi dòng thuộc một bộ ngân sách (`policy_set` → `ttm_policy_sets`); duy nhất theo (bộ, loại TTM, loại Epic).
 
 | Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
 |---|---|---|---|---|---|
@@ -814,15 +836,16 @@ Tiêu chí mốc hạn TTM chuẩn (TTM-CNTT và TTM-E2E) cho 4 loại Epic Type
 | `is_active` | boolean | không | true |  |  |
 | `created_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 | `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+| `policy_set` | varchar(40) | không | 'DEFAULT'::character varying | FK → ttm_policy_sets(key) |  |
 
-- UNIQUE (ttm_type, epic_complexity_type)
+- UNIQUE (policy_set, ttm_type, epic_complexity_type)
 - `ttm_policy_configs_epic_complexity_type_check`: CHECK (((epic_complexity_type)::text = ANY ((ARRAY['SIMPLE'::character varying, 'COMPLEX'::character varying, 'CT-Lv12'::character varying, 'CT-Lv34'::character varying, 'SP-Lv12'::character varying, 'SP-Lv34'::character varying])::text[])))
 - `ttm_policy_configs_ttm_type_check`: CHECK (((ttm_type)::text = ANY ((ARRAY['TTM_CNTT'::character varying, 'TTM_E2E'::character varying])::text[])))
 - `ttm_policy_configs_working_days_check`: CHECK (((working_days > 0) AND (working_days <= 3650)))
 
 ### `epic_status_alert_rules`
 
-Quy tắc mốc Cảnh báo sớm/muộn (số ngày làm việc từ T1) cho từng cặp (Loại Epic × Trạng thái).
+Quy tắc mốc Cảnh báo sớm (số ngày làm việc từ T1) và Cảnh báo muộn (% ngân sách TTM-CNTT từ 26/10/2026) cho từng cặp (Loại Epic × Trạng thái).
 
 | Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
 |---|---|---|---|---|---|
@@ -834,11 +857,13 @@ Quy tắc mốc Cảnh báo sớm/muộn (số ngày làm việc từ T1) cho t�
 | `is_active` | boolean | không | true |  |  |
 | `created_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
 | `updated_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
+| `late_alert_percent` | numeric(7,4) | không | 100 |  | `NUMERIC(7,4) NOT NULL DEFAULT 100`CHECK (0…1000) — **Mới 26/10/2026.** Mốc Cảnh báo muộn = % ngân sách TTM-CNTT của Epic (Start Date +wd ⌈% × N⌉); `late_alert_offset_days` chỉ còn là số ngày tương đương theo bộ Mặc định (tham khảo) |
 
 - UNIQUE (epic_complexity_type, epic_status)
 - `epic_status_alert_rules_early_alert_offset_days_check`: CHECK ((early_alert_offset_days >= 0))
 - `epic_status_alert_rules_epic_complexity_type_check`: CHECK (((epic_complexity_type)::text = ANY ((ARRAY['SIMPLE'::character varying, 'COMPLEX'::character varying, 'CT-Lv12'::character varying, 'CT-Lv34'::character varying, 'SP-Lv12'::character varying, 'SP-Lv34'::character varying])::text[])))
 - `epic_status_alert_rules_late_alert_offset_days_check`: CHECK ((late_alert_offset_days >= 0))
+- `epic_status_alert_rules_late_alert_percent_check`: CHECK (((late_alert_percent >= (0)::numeric) AND (late_alert_percent <= (1000)::numeric)))
 - index `idx_epic_status_alert_rules_active`: btree (is_active) WHERE is_active
 
 ### `issue_type_role_mapping`
@@ -1858,6 +1883,7 @@ Số lượt truy cập LŨY KẾ của các dòng `visit_logs` cũ hơn ngày T
 | `sso_auth_codes` | api_key_id | `api_keys`(id) | CASCADE |
 | `sso_auth_codes` | user_id | `users`(id) | CASCADE |
 | `ttm_index_global_cache` | source_import_batch_id | `import_batches`(id) | SET NULL |
+| `ttm_policy_configs` | policy_set | `ttm_policy_sets`(key) | NO ACTION |
 | `ttm_project_configs` | project_id | `projects`(id) | CASCADE |
 | `ttm_scope_config` | updated_by_user_id | `users`(id) | SET NULL |
 | `user_domains` | domain_id | `domains`(id) | CASCADE |

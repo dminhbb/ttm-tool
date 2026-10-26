@@ -2,7 +2,7 @@ import { dqR10Rule, dqR1Rule, dqR2Rule, dqR3Rule, dqR4Rule, dqR5Rule, dqR6Rule, 
 import { failReasonDeptRule, failReasonStageRule } from './rules/fail-reason';
 import { releaseJustifyGoliveRule, releaseOnTimeRule, releaseStatusMismatchRule, releaseWaitingGoliveRule } from './rules/release';
 import { phaseRule, scopeRule } from './rules/scope-phase';
-import { ttmCnttGatesRule, ttmCnttLateRule, ttmCnttSep2026Rule } from './rules/ttm-cntt';
+import { ttmCnttGatesRule, ttmCnttLateRule, ttmCnttLegacy30dRule, ttmCnttSep2026Rule } from './rules/ttm-cntt';
 import { ttmE2eGatesRule, ttmE2eJuly2026Rule } from './rules/ttm-e2e';
 import type { ScoringRule } from './rules/rule-types';
 import type { ScoringRuleGroup } from './types';
@@ -33,6 +33,7 @@ export const RULES: readonly ScoringRule[] = [
   // ---- TTM-CNTT ----
   ttmCnttGatesRule,
   ttmCnttSep2026Rule,
+  ttmCnttLegacy30dRule,
   ttmCnttLateRule,
   failReasonStageRule,
   failReasonDeptRule,
@@ -76,4 +77,4 @@ export const DEFAULT_RULE_GROUP: ScoringRuleGroup = {
 };
 
 /** Bump whenever rule code changes, so cached scorecards are recognized as outdated. */
-export const SCORING_CODE_VERSION = 'scoring-23';
+export const SCORING_CODE_VERSION = 'scoring-24';

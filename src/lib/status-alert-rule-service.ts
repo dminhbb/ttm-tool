@@ -1,4 +1,5 @@
 import pool from '@/lib/db';
+import { lateOffsetDays } from '@/lib/scoring/derive';
 import type { StatusAlertRule, StatusAlertRuleInput } from '@/lib/status-alert-rule-types';
 
 const RULE_COLUMNS = `
@@ -7,6 +8,7 @@ const RULE_COLUMNS = `
   epic_status AS "epicStatus",
   early_alert_offset_days AS "earlyAlertOffsetDays",
   late_alert_offset_days AS "lateAlertOffsetDays",
+  late_alert_percent::float8 AS "lateAlertPercent",
   is_active AS "isActive",
   created_at::text AS "createdAt",
   updated_at::text AS "updatedAt"
@@ -37,28 +39,42 @@ export async function listActiveStatusAlertRules(): Promise<StatusAlertRule[]> {
   return result.rows;
 }
 
+/** Working days the percent means at the DEFAULT TTM-CNTT budget of the Epic type (kept in late_alert_offset_days). */
+export async function approximateLateOffsetDays(complexity: string, percent: number): Promise<number> {
+  const result = await pool.query<{ workingDays: number }>(`
+    SELECT working_days AS "workingDays" FROM ttm_policy_configs
+    WHERE policy_set = 'DEFAULT' AND ttm_type = 'TTM_CNTT' AND is_active AND epic_complexity_type = $1;
+  `, [complexity]);
+  const budget = result.rows[0]?.workingDays;
+  return budget ? lateOffsetDays(percent, budget) : 0;
+}
+
 export async function createStatusAlertRule(input: StatusAlertRuleInput): Promise<StatusAlertRule> {
+  const lateDays = await approximateLateOffsetDays(input.epicComplexityType, input.lateAlertPercent);
   const result = await pool.query<StatusAlertRule>(`
     INSERT INTO epic_status_alert_rules (
       epic_complexity_type,
       epic_status,
       early_alert_offset_days,
       late_alert_offset_days,
+      late_alert_percent,
       is_active
     )
-    VALUES ($1, $2, $3, $4, $5)
+    VALUES ($1, $2, $3, $4, $5, $6)
     RETURNING ${RULE_COLUMNS};
   `, [
     input.epicComplexityType,
     input.epicStatus,
     input.earlyAlertOffsetDays,
-    input.lateAlertOffsetDays,
+    lateDays,
+    input.lateAlertPercent,
     input.isActive,
   ]);
   return result.rows[0];
 }
 
 export async function updateStatusAlertRule(id: number, input: StatusAlertRuleInput): Promise<StatusAlertRule | null> {
+  const lateDays = await approximateLateOffsetDays(input.epicComplexityType, input.lateAlertPercent);
   const result = await pool.query<StatusAlertRule>(`
     UPDATE epic_status_alert_rules
     SET
@@ -66,7 +82,8 @@ export async function updateStatusAlertRule(id: number, input: StatusAlertRuleIn
       epic_status = $3,
       early_alert_offset_days = $4,
       late_alert_offset_days = $5,
-      is_active = $6,
+      late_alert_percent = $6,
+      is_active = $7,
       updated_at = CURRENT_TIMESTAMP
     WHERE id = $1
     RETURNING ${RULE_COLUMNS};
@@ -75,7 +92,8 @@ export async function updateStatusAlertRule(id: number, input: StatusAlertRuleIn
     input.epicComplexityType,
     input.epicStatus,
     input.earlyAlertOffsetDays,
-    input.lateAlertOffsetDays,
+    lateDays,
+    input.lateAlertPercent,
     input.isActive,
   ]);
   return result.rows[0] ?? null;

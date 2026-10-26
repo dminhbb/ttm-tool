@@ -1,9 +1,9 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-26T05:47:42.171Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-26T07:16:22.791Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
--- Gồm: 57 bảng, 56 index phụ, 4 hàm, 4 trigger.
+-- Gồm: 58 bảng, 56 index phụ, 4 hàm, 4 trigger.
 -- Yêu cầu: PostgreSQL 14 trở lên, một database RỖNG (không dùng cho DB đã có bảng — sẽ báo lỗi và không
 -- tạo gì vì cả file chạy trong một transaction). Không cần extension nào.
 --
@@ -256,11 +256,13 @@ CREATE TABLE epic_status_alert_rules (
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    late_alert_percent numeric(7,4) DEFAULT 100 NOT NULL,
     CONSTRAINT epic_status_alert_rules_pkey PRIMARY KEY (id),
     CONSTRAINT uq_epic_status_alert_rules_complexity_status UNIQUE (epic_complexity_type, epic_status),
     CONSTRAINT epic_status_alert_rules_early_alert_offset_days_check CHECK ((early_alert_offset_days >= 0)),
     CONSTRAINT epic_status_alert_rules_epic_complexity_type_check CHECK (((epic_complexity_type)::text = ANY ((ARRAY['SIMPLE'::character varying, 'COMPLEX'::character varying, 'CT-Lv12'::character varying, 'CT-Lv34'::character varying, 'SP-Lv12'::character varying, 'SP-Lv34'::character varying])::text[]))),
-    CONSTRAINT epic_status_alert_rules_late_alert_offset_days_check CHECK ((late_alert_offset_days >= 0))
+    CONSTRAINT epic_status_alert_rules_late_alert_offset_days_check CHECK ((late_alert_offset_days >= 0)),
+    CONSTRAINT epic_status_alert_rules_late_alert_percent_check CHECK (((late_alert_percent >= (0)::numeric) AND (late_alert_percent <= (1000)::numeric)))
 );
 
 CREATE TABLE holidays (
@@ -699,11 +701,21 @@ CREATE TABLE ttm_policy_configs (
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    policy_set character varying(40) DEFAULT 'DEFAULT'::character varying NOT NULL,
     CONSTRAINT ttm_policy_configs_pkey PRIMARY KEY (id),
-    CONSTRAINT uq_ttm_policy_configs_type_complexity UNIQUE (ttm_type, epic_complexity_type),
+    CONSTRAINT uq_ttm_policy_configs_set_type_complexity UNIQUE (policy_set, ttm_type, epic_complexity_type),
     CONSTRAINT ttm_policy_configs_epic_complexity_type_check CHECK (((epic_complexity_type)::text = ANY ((ARRAY['SIMPLE'::character varying, 'COMPLEX'::character varying, 'CT-Lv12'::character varying, 'CT-Lv34'::character varying, 'SP-Lv12'::character varying, 'SP-Lv34'::character varying])::text[]))),
     CONSTRAINT ttm_policy_configs_ttm_type_check CHECK (((ttm_type)::text = ANY ((ARRAY['TTM_CNTT'::character varying, 'TTM_E2E'::character varying])::text[]))),
     CONSTRAINT ttm_policy_configs_working_days_check CHECK (((working_days > 0) AND (working_days <= 3650)))
+);
+
+CREATE TABLE ttm_policy_sets (
+    key character varying(40) NOT NULL,
+    name character varying(100) NOT NULL,
+    note text,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT ttm_policy_sets_pkey PRIMARY KEY (key),
+    CONSTRAINT ttm_policy_sets_key_check CHECK (((key)::text ~ '^[A-Za-z0-9_-]+$'::text))
 );
 
 CREATE TABLE ttm_project_configs (
@@ -891,6 +903,7 @@ ALTER TABLE scoring_rule_settings ADD CONSTRAINT scoring_rule_settings_updated_b
 ALTER TABLE sso_auth_codes ADD CONSTRAINT sso_auth_codes_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE CASCADE;
 ALTER TABLE sso_auth_codes ADD CONSTRAINT sso_auth_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 ALTER TABLE ttm_index_global_cache ADD CONSTRAINT ttm_index_global_cache_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
+ALTER TABLE ttm_policy_configs ADD CONSTRAINT ttm_policy_configs_policy_set_fkey FOREIGN KEY (policy_set) REFERENCES ttm_policy_sets(key);
 ALTER TABLE ttm_project_configs ADD CONSTRAINT ttm_project_configs_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
 ALTER TABLE ttm_scope_config ADD CONSTRAINT ttm_scope_config_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE user_domains ADD CONSTRAINT user_domains_domain_id_fkey FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE;
@@ -1010,7 +1023,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 104 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 106 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1116,7 +1129,9 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261028b_add_rule_group_to_epic_alert_row_cache.sql'),
     ('20261028c_add_rule_management_permission.sql'),
     ('20261029_add_history_thinning_settings.sql'),
-    ('20261030_add_rule_group_rule_state.sql');
+    ('20261030_add_rule_group_rule_state.sql'),
+    ('20261031_create_ttm_policy_sets.sql'),
+    ('20261101_add_late_alert_percent.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1221,33 +1236,34 @@ SELECT * FROM (VALUES
 ) AS seed (feature_key, role, can_view, can_add, can_edit, can_delete)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 
--- ttm_policy_configs (8 dòng)
-INSERT INTO ttm_policy_configs (id, ttm_type, epic_complexity_type, from_ttm_field, to_ttm_field, working_days, is_active, created_at, updated_at)
+-- ttm_policy_configs (9 dòng)
+INSERT INTO ttm_policy_configs (id, ttm_type, epic_complexity_type, from_ttm_field, to_ttm_field, working_days, is_active, created_at, updated_at, policy_set)
 SELECT * FROM (VALUES
-    ('5'::integer, 'TTM_CNTT'::character varying(20), 'CT-Lv12'::character varying(20), 'START_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '15'::integer, 'true'::boolean, '2026-09-08 08:00:05.602233+00'::timestamp with time zone, '2026-09-08 08:00:05.602233+00'::timestamp with time zone),
-    ('6'::integer, 'TTM_CNTT'::character varying(20), 'CT-Lv34'::character varying(20), 'START_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '25'::integer, 'true'::boolean, '2026-09-08 08:00:18.291246+00'::timestamp with time zone, '2026-09-08 08:00:18.291246+00'::timestamp with time zone),
-    ('7'::integer, 'TTM_CNTT'::character varying(20), 'SP-Lv12'::character varying(20), 'START_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '30'::integer, 'true'::boolean, '2026-09-08 08:00:28.008926+00'::timestamp with time zone, '2026-09-08 10:16:29.314162+00'::timestamp with time zone),
-    ('8'::integer, 'TTM_CNTT'::character varying(20), 'SP-Lv34'::character varying(20), 'START_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '30'::integer, 'true'::boolean, '2026-09-08 08:00:40.788707+00'::timestamp with time zone, '2026-09-08 08:00:40.788707+00'::timestamp with time zone),
-    ('9'::integer, 'TTM_E2E'::character varying(20), 'CT-Lv12'::character varying(20), 'IDEA_APPROVED_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '20'::integer, 'true'::boolean, '2026-09-08 08:01:33.599333+00'::timestamp with time zone, '2026-09-26 03:28:49.788743+00'::timestamp with time zone),
-    ('10'::integer, 'TTM_E2E'::character varying(20), 'CT-Lv34'::character varying(20), 'IDEA_APPROVED_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '30'::integer, 'true'::boolean, '2026-09-08 08:01:54.000509+00'::timestamp with time zone, '2026-09-26 03:28:49.788743+00'::timestamp with time zone),
-    ('12'::integer, 'TTM_E2E'::character varying(20), 'SP-Lv12'::character varying(20), 'IDEA_APPROVED_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '50'::integer, 'true'::boolean, '2026-09-08 08:02:18.126798+00'::timestamp with time zone, '2026-09-26 03:28:49.788743+00'::timestamp with time zone),
-    ('13'::integer, 'TTM_E2E'::character varying(20), 'SP-Lv34'::character varying(20), 'IDEA_APPROVED_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '50'::integer, 'true'::boolean, '2026-09-08 08:02:30.998561+00'::timestamp with time zone, '2026-09-26 03:28:49.788743+00'::timestamp with time zone)
-) AS seed (id, ttm_type, epic_complexity_type, from_ttm_field, to_ttm_field, working_days, is_active, created_at, updated_at)
+    ('5'::integer, 'TTM_CNTT'::character varying(20), 'CT-Lv12'::character varying(20), 'START_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '15'::integer, 'true'::boolean, '2026-09-08 08:00:05.602233+00'::timestamp with time zone, '2026-09-08 08:00:05.602233+00'::timestamp with time zone, 'DEFAULT'::character varying(40)),
+    ('6'::integer, 'TTM_CNTT'::character varying(20), 'CT-Lv34'::character varying(20), 'START_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '25'::integer, 'true'::boolean, '2026-09-08 08:00:18.291246+00'::timestamp with time zone, '2026-09-08 08:00:18.291246+00'::timestamp with time zone, 'DEFAULT'::character varying(40)),
+    ('7'::integer, 'TTM_CNTT'::character varying(20), 'SP-Lv12'::character varying(20), 'START_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '30'::integer, 'true'::boolean, '2026-09-08 08:00:28.008926+00'::timestamp with time zone, '2026-09-08 10:16:29.314162+00'::timestamp with time zone, 'DEFAULT'::character varying(40)),
+    ('8'::integer, 'TTM_CNTT'::character varying(20), 'SP-Lv34'::character varying(20), 'START_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '30'::integer, 'true'::boolean, '2026-09-08 08:00:40.788707+00'::timestamp with time zone, '2026-09-08 08:00:40.788707+00'::timestamp with time zone, 'DEFAULT'::character varying(40)),
+    ('9'::integer, 'TTM_E2E'::character varying(20), 'CT-Lv12'::character varying(20), 'IDEA_APPROVED_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '20'::integer, 'true'::boolean, '2026-09-08 08:01:33.599333+00'::timestamp with time zone, '2026-09-26 03:28:49.788743+00'::timestamp with time zone, 'DEFAULT'::character varying(40)),
+    ('10'::integer, 'TTM_E2E'::character varying(20), 'CT-Lv34'::character varying(20), 'IDEA_APPROVED_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '30'::integer, 'true'::boolean, '2026-09-08 08:01:54.000509+00'::timestamp with time zone, '2026-09-26 03:28:49.788743+00'::timestamp with time zone, 'DEFAULT'::character varying(40)),
+    ('12'::integer, 'TTM_E2E'::character varying(20), 'SP-Lv12'::character varying(20), 'IDEA_APPROVED_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '50'::integer, 'true'::boolean, '2026-09-08 08:02:18.126798+00'::timestamp with time zone, '2026-09-26 03:28:49.788743+00'::timestamp with time zone, 'DEFAULT'::character varying(40)),
+    ('13'::integer, 'TTM_E2E'::character varying(20), 'SP-Lv34'::character varying(20), 'IDEA_APPROVED_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '50'::integer, 'true'::boolean, '2026-09-08 08:02:30.998561+00'::timestamp with time zone, '2026-09-26 03:28:49.788743+00'::timestamp with time zone, 'DEFAULT'::character varying(40)),
+    ('14'::integer, 'TTM_CNTT'::character varying(20), 'CT-Lv34'::character varying(20), 'START_DATE'::character varying(100), 'R4G_DATE'::character varying(100), '30'::integer, 'true'::boolean, '2026-10-26 07:10:53.325116+00'::timestamp with time zone, '2026-10-26 07:10:53.325116+00'::timestamp with time zone, 'legacy-30d'::character varying(40))
+) AS seed (id, ttm_type, epic_complexity_type, from_ttm_field, to_ttm_field, working_days, is_active, created_at, updated_at, policy_set)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 SELECT setval(pg_get_serial_sequence('ttm_policy_configs', 'id'), MAX(id)) FROM ttm_policy_configs HAVING MAX(id) IS NOT NULL;
 
 -- epic_status_alert_rules (8 dòng)
-INSERT INTO epic_status_alert_rules (id, epic_complexity_type, epic_status, early_alert_offset_days, late_alert_offset_days, is_active, created_at, updated_at)
+INSERT INTO epic_status_alert_rules (id, epic_complexity_type, epic_status, early_alert_offset_days, late_alert_offset_days, is_active, created_at, updated_at, late_alert_percent)
 SELECT * FROM (VALUES
-    ('9'::integer, 'CT-Lv12'::character varying(20), 'Design'::character varying(50), '1'::integer, '3'::integer, 'true'::boolean, '2026-09-08 11:51:17.421277+00'::timestamp with time zone, '2026-09-10 10:26:25.834365+00'::timestamp with time zone),
-    ('10'::integer, 'CT-Lv12'::character varying(20), 'In Progress'::character varying(50), '13'::integer, '15'::integer, 'true'::boolean, '2026-09-08 11:51:42.985843+00'::timestamp with time zone, '2026-09-10 10:27:20.337713+00'::timestamp with time zone),
-    ('11'::integer, 'CT-Lv34'::character varying(20), 'Design'::character varying(50), '3'::integer, '5'::integer, 'true'::boolean, '2026-09-08 11:52:51.614629+00'::timestamp with time zone, '2026-09-10 10:26:38.309094+00'::timestamp with time zone),
-    ('12'::integer, 'CT-Lv34'::character varying(20), 'In Progress'::character varying(50), '23'::integer, '25'::integer, 'true'::boolean, '2026-09-08 11:53:30.405654+00'::timestamp with time zone, '2026-09-10 10:27:35.850703+00'::timestamp with time zone),
-    ('13'::integer, 'SP-Lv12'::character varying(20), 'Design'::character varying(50), '5'::integer, '7'::integer, 'true'::boolean, '2026-09-08 11:53:55.040439+00'::timestamp with time zone, '2026-09-10 10:26:52.813701+00'::timestamp with time zone),
-    ('14'::integer, 'SP-Lv12'::character varying(20), 'In Progress'::character varying(50), '28'::integer, '30'::integer, 'true'::boolean, '2026-09-08 11:54:17.943469+00'::timestamp with time zone, '2026-09-10 10:28:14.626144+00'::timestamp with time zone),
-    ('15'::integer, 'SP-Lv34'::character varying(20), 'Design'::character varying(50), '5'::integer, '7'::integer, 'true'::boolean, '2026-09-08 11:54:34.248874+00'::timestamp with time zone, '2026-09-10 10:26:58.390135+00'::timestamp with time zone),
-    ('17'::integer, 'SP-Lv34'::character varying(20), 'In Progress'::character varying(50), '28'::integer, '30'::integer, 'true'::boolean, '2026-09-08 11:54:49.922323+00'::timestamp with time zone, '2026-09-10 10:28:41.539527+00'::timestamp with time zone)
-) AS seed (id, epic_complexity_type, epic_status, early_alert_offset_days, late_alert_offset_days, is_active, created_at, updated_at)
+    ('9'::integer, 'CT-Lv12'::character varying(20), 'Design'::character varying(50), '1'::integer, '3'::integer, 'true'::boolean, '2026-09-08 11:51:17.421277+00'::timestamp with time zone, '2026-09-10 10:26:25.834365+00'::timestamp with time zone, '20.0000'::numeric(7,4)),
+    ('10'::integer, 'CT-Lv12'::character varying(20), 'In Progress'::character varying(50), '13'::integer, '15'::integer, 'true'::boolean, '2026-09-08 11:51:42.985843+00'::timestamp with time zone, '2026-09-10 10:27:20.337713+00'::timestamp with time zone, '100.0000'::numeric(7,4)),
+    ('11'::integer, 'CT-Lv34'::character varying(20), 'Design'::character varying(50), '3'::integer, '5'::integer, 'true'::boolean, '2026-09-08 11:52:51.614629+00'::timestamp with time zone, '2026-09-10 10:26:38.309094+00'::timestamp with time zone, '20.0000'::numeric(7,4)),
+    ('12'::integer, 'CT-Lv34'::character varying(20), 'In Progress'::character varying(50), '23'::integer, '25'::integer, 'true'::boolean, '2026-09-08 11:53:30.405654+00'::timestamp with time zone, '2026-09-10 10:27:35.850703+00'::timestamp with time zone, '100.0000'::numeric(7,4)),
+    ('13'::integer, 'SP-Lv12'::character varying(20), 'Design'::character varying(50), '5'::integer, '7'::integer, 'true'::boolean, '2026-09-08 11:53:55.040439+00'::timestamp with time zone, '2026-09-10 10:26:52.813701+00'::timestamp with time zone, '23.3333'::numeric(7,4)),
+    ('14'::integer, 'SP-Lv12'::character varying(20), 'In Progress'::character varying(50), '28'::integer, '30'::integer, 'true'::boolean, '2026-09-08 11:54:17.943469+00'::timestamp with time zone, '2026-09-10 10:28:14.626144+00'::timestamp with time zone, '100.0000'::numeric(7,4)),
+    ('15'::integer, 'SP-Lv34'::character varying(20), 'Design'::character varying(50), '5'::integer, '7'::integer, 'true'::boolean, '2026-09-08 11:54:34.248874+00'::timestamp with time zone, '2026-09-10 10:26:58.390135+00'::timestamp with time zone, '23.3333'::numeric(7,4)),
+    ('17'::integer, 'SP-Lv34'::character varying(20), 'In Progress'::character varying(50), '28'::integer, '30'::integer, 'true'::boolean, '2026-09-08 11:54:49.922323+00'::timestamp with time zone, '2026-09-10 10:28:41.539527+00'::timestamp with time zone, '100.0000'::numeric(7,4))
+) AS seed (id, epic_complexity_type, epic_status, early_alert_offset_days, late_alert_offset_days, is_active, created_at, updated_at, late_alert_percent)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 SELECT setval(pg_get_serial_sequence('epic_status_alert_rules', 'id'), MAX(id)) FROM epic_status_alert_rules HAVING MAX(id) IS NOT NULL;
 
@@ -1388,7 +1404,7 @@ WHERE current_setting('ttm_install.seed_data', true) = 'on';
 -- derived_cache_refresh_lock (1 dòng)
 INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at)
 SELECT * FROM (VALUES
-    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-10-26 01:27:49.601386+00'::timestamp with time zone)
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-10-26 05:56:55.201521+00'::timestamp with time zone)
 ) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 

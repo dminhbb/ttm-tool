@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
 import { createTtmPolicy, deleteTtmPolicy, listTtmPolicies, updateTtmPolicy } from '@/lib/ttm-policy-service';
-import { TTM_TYPES } from '@/lib/ttm-policy-types';
+import { DEFAULT_POLICY_SET_KEY, TTM_TYPES } from '@/lib/ttm-policy-types';
 import type { TtmPolicyInput, TtmType } from '@/lib/ttm-policy-types';
 import type { EpicComplexity } from '@/lib/ttm-rules';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
@@ -16,15 +16,23 @@ function authError(error: unknown): NextResponse | null {
   if (error instanceof AuthError) return NextResponse.json({ error: error.code === 'FORBIDDEN' ? 'Chỉ SUPERADMIN được quản lý tiêu chí Time to Market.' : 'Chưa đăng nhập.' }, { status: error.code === 'FORBIDDEN' ? 403 : 401 });
   return null;
 }
+function dbError(error: unknown): NextResponse | null {
+  const code = (error as { code?: string }).code;
+  if (code === '23505') return NextResponse.json({ error: 'Bộ ngân sách này đã có tiêu chí cho cùng Loại TTM và Loại Epic.' }, { status: 409 });
+  if (code === '23503') return NextResponse.json({ error: 'Bộ ngân sách không tồn tại.' }, { status: 400 });
+  return null;
+}
 function parseInput(value: unknown): TtmPolicyInput | null {
   if (!isRecord(value)) return null;
   const { ttmType, epicComplexityType, fromTtmField, toTtmField, workingDays, isActive } = value;
+  const policySet = value.policySet === undefined ? DEFAULT_POLICY_SET_KEY : value.policySet;
+  if (typeof policySet !== 'string' || !/^[A-Za-z0-9_-]{1,40}$/.test(policySet)) return null;
   if (!TTM_TYPES.includes(ttmType as TtmType) || !COMPLEXITIES.includes(epicComplexityType as EpicComplexity)
     || typeof fromTtmField !== 'string' || fromTtmField.trim().length === 0 || fromTtmField.trim().length > 100
     || typeof toTtmField !== 'string' || toTtmField.trim().length === 0 || toTtmField.trim().length > 100
     || typeof workingDays !== 'number' || !Number.isInteger(workingDays) || workingDays <= 0 || workingDays > MAX_WORKING_DAYS
     || typeof isActive !== 'boolean') return null;
-  return { ttmType: ttmType as TtmType, epicComplexityType: epicComplexityType as EpicComplexity, fromTtmField: fromTtmField.trim(), toTtmField: toTtmField.trim(), workingDays, isActive };
+  return { ttmType: ttmType as TtmType, epicComplexityType: epicComplexityType as EpicComplexity, fromTtmField: fromTtmField.trim(), toTtmField: toTtmField.trim(), workingDays, isActive, policySet };
 }
 
 export async function GET(request: NextRequest) {
@@ -36,14 +44,14 @@ export async function POST(request: NextRequest) {
     await requireUser(request, ['SUPERADMIN']); const input = parseInput(await request.json());
     if (!input) return NextResponse.json({ error: 'Tiêu chí Time to Market không hợp lệ.' }, { status: 400 });
     return NextResponse.json(await createTtmPolicy(input), { status: 201 });
-  } catch (error: unknown) { return authError(error) ?? NextResponse.json({ error: 'Không thể thêm tiêu chí Time to Market.' }, { status: 500 }); }
+  } catch (error: unknown) { return authError(error) ?? dbError(error) ?? NextResponse.json({ error: 'Không thể thêm tiêu chí Time to Market.' }, { status: 500 }); }
 }
 export async function PUT(request: NextRequest) {
   try {
     await requireUser(request, ['SUPERADMIN']); const body: unknown = await request.json(); const input = parseInput(body);
     if (!isRecord(body) || typeof body.id !== 'number' || !Number.isInteger(body.id) || body.id <= 0 || !input) return NextResponse.json({ error: 'Tiêu chí Time to Market không hợp lệ.' }, { status: 400 });
     const policy = await updateTtmPolicy(body.id, input); if (!policy) return NextResponse.json({ error: 'Không tìm thấy tiêu chí Time to Market.' }, { status: 404 }); return NextResponse.json(policy);
-  } catch (error: unknown) { return authError(error) ?? NextResponse.json({ error: 'Không thể sửa tiêu chí Time to Market.' }, { status: 500 }); }
+  } catch (error: unknown) { return authError(error) ?? dbError(error) ?? NextResponse.json({ error: 'Không thể sửa tiêu chí Time to Market.' }, { status: 500 }); }
 }
 export async function DELETE(request: NextRequest) {
   try {

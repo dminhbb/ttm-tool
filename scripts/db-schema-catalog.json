@@ -60,6 +60,7 @@
       "fill": "#e6f4ea",
       "ink": "#2e7d32",
       "tables": [
+        "ttm_policy_sets",
         "ttm_policy_configs",
         "epic_status_alert_rules",
         "issue_type_role_mapping",
@@ -280,18 +281,23 @@
       "description": "<strong>Mới 14/10/2026.</strong> Ngày A (<code>created_before</code>) và ngày B (<code>released_due_before</code>) của rule tự động Từ chối import; để trống = tắt rule — mục 3.4.",
       "columns": {}
     },
+    "ttm_policy_sets": {
+      "description": "<strong>Mới 26/10/2026.</strong> \"Bộ ngân sách\" Time to Market: tên một bộ tiêu chí (<code>DEFAULT</code> = hiện hành). Bộ khác chỉ chứa các dòng khác Mặc định; rule TTM-CNTT/E2E trong code chọn bộ nào được đọc (<code>policySet</code> trong <code>src/lib/scoring/registry.ts</code>).",
+      "columns": {}
+    },
     "ttm_policy_configs": {
-      "description": "Tiêu chí mốc hạn TTM chuẩn (TTM-CNTT và TTM-E2E) cho 4 loại Epic Type.",
+      "description": "Tiêu chí mốc hạn TTM chuẩn (TTM-CNTT và TTM-E2E) cho 4 loại Epic Type. Từ 26/10/2026 mỗi dòng thuộc một bộ ngân sách (<code>policy_set</code> → <code>ttm_policy_sets</code>); duy nhất theo (bộ, loại TTM, loại Epic).",
       "columns": {
         "ttm_type": "<code>VARCHAR(20) NOT NULL</code></td><td>CHECK ('SIMPLE', 'COMPLEX', 'CT-Lv12', 'CT-Lv34', 'SP-Lv12', 'SP-Lv34')",
         "from_ttm_field": "<code>VARCHAR(50) NOT NULL</code></td><td>CHECK ('R4G_DATE', 'DUE_DATE')"
       }
     },
     "epic_status_alert_rules": {
-      "description": "Quy tắc mốc Cảnh báo sớm/muộn (số ngày làm việc từ T1) cho từng cặp (Loại Epic × Trạng thái).",
+      "description": "Quy tắc mốc Cảnh báo sớm (số ngày làm việc từ T1) và Cảnh báo muộn (% ngân sách TTM-CNTT từ 26/10/2026) cho từng cặp (Loại Epic × Trạng thái).",
       "columns": {
         "epic_complexity_type": "<code>VARCHAR(50) NOT NULL</code></td><td>Trạng thái Epic (Design, In Progress, DEV, TEST...)",
-        "early_alert_offset_days": "<code>INT NOT NULL</code></td><td>CHECK (>= 0) — Mốc Cảnh báo muộn (ngày làm việc)"
+        "early_alert_offset_days": "<code>INT NOT NULL</code></td><td>CHECK (>= 0) — Mốc Cảnh báo muộn (ngày làm việc)",
+        "late_alert_percent": "<code>NUMERIC(7,4) NOT NULL DEFAULT 100</code></td><td>CHECK (0…1000) — <strong>Mới 26/10/2026.</strong> Mốc Cảnh báo muộn = % ngân sách TTM-CNTT của Epic (Start Date +wd ⌈% × N⌉); <code>late_alert_offset_days</code> chỉ còn là số ngày tương đương theo bộ Mặc định (tham khảo)"
       }
     },
     "issue_type_role_mapping": {

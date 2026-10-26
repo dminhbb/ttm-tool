@@ -23,7 +23,10 @@ export interface StatusAlertRule {
   epicStatus: string;
   id: number;
   isActive: boolean;
+  /** ≈ working days at the DEFAULT budget when last saved (informational). */
   lateAlertOffsetDays: number;
+  /** Late alert = % of the Epic's TTM-CNTT budget (spec §17.6). */
+  lateAlertPercent: number;
   updatedAt: string;
 }
 
@@ -32,5 +35,5 @@ export interface StatusAlertRuleInput {
   epicComplexityType: EpicComplexityType;
   epicStatus: string;
   isActive: boolean;
-  lateAlertOffsetDays: number;
+  lateAlertPercent: number;
 }

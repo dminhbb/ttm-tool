@@ -17,23 +17,26 @@ import { TableAction } from '@/components/ui/TableAction';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { EPIC_COMPLEXITY_LABELS, EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import type { EpicComplexityType, StatusAlertRule, StatusAlertRuleInput } from '@/lib/status-alert-rule-types';
-import { TTM_TYPES } from '@/lib/ttm-policy-types';
-import type { TtmPolicy, TtmPolicyInput } from '@/lib/ttm-policy-types';
+import { DEFAULT_POLICY_SET_KEY, TTM_TYPES } from '@/lib/ttm-policy-types';
+import type { TtmPolicy, TtmPolicyInput, TtmPolicySet } from '@/lib/ttm-policy-types';
+import { lateOffsetDays } from '@/lib/scoring/derive';
 import { compareValues, useSortableList } from '@/lib/use-sortable-list';
 import type { TtmScopeConfigWithMeta } from '@/lib/ttm-scope-config-service';
 
-type RuleSortKey = 'epicComplexityType' | 'epicStatus' | 'earlyAlertOffsetDays' | 'lateAlertOffsetDays' | 'status';
-type PolicySortKey = 'ttmType' | 'epicComplexityType' | 'fromTtmField' | 'toTtmField' | 'workingDays' | 'status';
+type RuleSortKey = 'epicComplexityType' | 'epicStatus' | 'earlyAlertOffsetDays' | 'lateAlertPercent' | 'status';
+type PolicySortKey = 'policySet' | 'ttmType' | 'epicComplexityType' | 'fromTtmField' | 'toTtmField' | 'workingDays' | 'status';
 
 interface Notice { text: string; type: 'error' | 'success'; }
-const EMPTY_RULE: StatusAlertRuleInput = { earlyAlertOffsetDays: 0, epicComplexityType: 'CT-Lv12', epicStatus: 'Design', isActive: true, lateAlertOffsetDays: 1 };
-const EMPTY_POLICY: TtmPolicyInput = { epicComplexityType: 'CT-Lv12', fromTtmField: 'START_DATE', isActive: true, toTtmField: 'R4G_DATE', ttmType: 'TTM_CNTT', workingDays: 15 };
+const EMPTY_RULE: StatusAlertRuleInput = { earlyAlertOffsetDays: 0, epicComplexityType: 'CT-Lv12', epicStatus: 'Design', isActive: true, lateAlertPercent: 20 };
+const EMPTY_POLICY: TtmPolicyInput = { epicComplexityType: 'CT-Lv12', fromTtmField: 'START_DATE', isActive: true, policySet: DEFAULT_POLICY_SET_KEY, toTtmField: 'R4G_DATE', ttmType: 'TTM_CNTT', workingDays: 15 };
+const EMPTY_POLICY_SET = { key: '', name: '', note: '' };
 // Legacy rows (epic_complexity_type = SIMPLE/COMPLEX) are kept in the DB rather than deleted — see
 // 20260908b_widen_epic_complexity_types.sql — so this still needs to render something for them
 // instead of a blank cell; they're inert (no Epic classifies as either anymore).
 const typeLabel = (value: EpicComplexityType | 'SIMPLE' | 'COMPLEX') =>
   EPIC_COMPLEXITY_LABELS[value as EpicComplexityType] ?? `${value} (cũ, không còn áp dụng)`;
 const offsetLabel = (value: number) => `T1 + ${value} ngày làm việc`;
+const percentLabel = (value: number) => `${value.toLocaleString('vi-VN', { maximumFractionDigits: 2 })}% ngân sách`;
 const readError = (value: unknown, fallback: string) => typeof value === 'object' && value !== null && 'error' in value && typeof value.error === 'string' ? value.error : fallback;
 
 export function StatusAlertRulesSettings() {
@@ -45,22 +48,29 @@ export function StatusAlertRulesSettings() {
   const togglePanel = (key: string) => setOpenPanels((prev) => ({ ...prev, [key]: !prev[key] }));
 
   const [rules, setRules] = useState<StatusAlertRule[]>([]); const [policies, setPolicies] = useState<TtmPolicy[]>([]);
+  const [policySets, setPolicySets] = useState<TtmPolicySet[]>([]); const [setFilter, setSetFilter] = useState<string>('ALL'); const [setModal, setSetModal] = useState(false); const [setForm, setSetForm] = useState(EMPTY_POLICY_SET);
   const [notice, setNotice] = useState<Notice | null>(null); const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false);
   const [ruleForm, setRuleForm] = useState<StatusAlertRuleInput>(EMPTY_RULE); const [editingRule, setEditingRule] = useState<number | null>(null); const [ruleModal, setRuleModal] = useState(false);
   const [policyForm, setPolicyForm] = useState<TtmPolicyInput>(EMPTY_POLICY); const [editingPolicy, setEditingPolicy] = useState<number | null>(null); const [policyModal, setPolicyModal] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: number; kind: 'policy' | 'rule'; label: string } | null>(null);
-  const load = async () => { setLoading(true); try { const [r, p] = await Promise.all([fetch('/api/status-alert-rules'), fetch('/api/ttm-policies')]); const [rv, pv]: unknown[] = await Promise.all([r.json(), p.json()]); if (!r.ok || !Array.isArray(rv)) throw new Error(readError(rv, 'Không thể tải rule cảnh báo.')); if (!p.ok || !Array.isArray(pv)) throw new Error(readError(pv, 'Không thể tải tiêu chí Time to Market.')); setRules(rv as StatusAlertRule[]); setPolicies(pv as TtmPolicy[]); } catch (error) { setNotice({ text: error instanceof Error ? error.message : 'Không thể tải cấu hình.', type: 'error' }); } finally { setLoading(false); } };
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; kind: 'policy' | 'rule'; label: string } | { key: string; kind: 'set'; label: string } | null>(null);
+  const load = async () => { setLoading(true); try { const [r, p, q] = await Promise.all([fetch('/api/status-alert-rules'), fetch('/api/ttm-policies'), fetch('/api/ttm-policy-sets')]); const [rv, pv, qv]: unknown[] = await Promise.all([r.json(), p.json(), q.json()]); if (!q.ok || !Array.isArray(qv)) throw new Error(readError(qv, 'Không thể tải bộ ngân sách.')); setPolicySets(qv as TtmPolicySet[]); if (!r.ok || !Array.isArray(rv)) throw new Error(readError(rv, 'Không thể tải rule cảnh báo.')); if (!p.ok || !Array.isArray(pv)) throw new Error(readError(pv, 'Không thể tải tiêu chí Time to Market.')); setRules(rv as StatusAlertRule[]); setPolicies(pv as TtmPolicy[]); } catch (error) { setNotice({ text: error instanceof Error ? error.message : 'Không thể tải cấu hình.', type: 'error' }); } finally { setLoading(false); } };
   useEffect(() => { void Promise.resolve().then(load); }, []);
   const saveRule = async () => { setSaving(true); try { const response = await fetch('/api/status-alert-rules', { method: editingRule === null ? 'POST' : 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editingRule === null ? ruleForm : { ...ruleForm, id: editingRule }) }); const payload: unknown = await response.json(); if (!response.ok) throw new Error(readError(payload, 'Không thể lưu rule cảnh báo.')); setRuleModal(false); showToast('Đã lưu rule cảnh báo.', 5000); setNotice(null); await load(); } catch (error) { setNotice({ text: error instanceof Error ? error.message : 'Không thể lưu rule cảnh báo.', type: 'error' }); } finally { setSaving(false); } };
   const savePolicy = async () => { setSaving(true); try { const response = await fetch('/api/ttm-policies', { method: editingPolicy === null ? 'POST' : 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editingPolicy === null ? policyForm : { ...policyForm, id: editingPolicy }) }); const payload: unknown = await response.json(); if (!response.ok) throw new Error(readError(payload, 'Không thể lưu tiêu chí Time to Market.')); setPolicyModal(false); showToast('Đã lưu tiêu chí Time to Market.', 5000); setNotice(null); await load(); } catch (error) { setNotice({ text: error instanceof Error ? error.message : 'Không thể lưu tiêu chí Time to Market.', type: 'error' }); } finally { setSaving(false); } };
-  const remove = async () => { if (!deleteTarget) return; setSaving(true); try { const endpoint = deleteTarget.kind === 'rule' ? `/api/status-alert-rules?id=${deleteTarget.id}` : `/api/ttm-policies?id=${deleteTarget.id}`; const response = await fetch(endpoint, { method: 'DELETE' }); const payload: unknown = await response.json(); if (!response.ok) throw new Error(readError(payload, 'Không thể xóa cấu hình.')); setDeleteTarget(null); setRuleModal(false); setPolicyModal(false); showToast('Đã xóa cấu hình.', 5000); setNotice(null); await load(); } catch (error) { setNotice({ text: error instanceof Error ? error.message : 'Không thể xóa cấu hình.', type: 'error' }); } finally { setSaving(false); } };
+  const saveSet = async () => { setSaving(true); try { const response = await fetch('/api/ttm-policy-sets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(setForm) }); const payload: unknown = await response.json(); if (!response.ok) throw new Error(readError(payload, 'Không thể thêm bộ ngân sách.')); setSetModal(false); setSetFilter(setForm.key.trim()); showToast('Đã thêm bộ ngân sách.', 5000); setNotice(null); await load(); } catch (error) { setNotice({ text: error instanceof Error ? error.message : 'Không thể thêm bộ ngân sách.', type: 'error' }); } finally { setSaving(false); } };
+  const remove = async () => { if (!deleteTarget) return; setSaving(true); try { const endpoint = deleteTarget.kind === 'rule' ? `/api/status-alert-rules?id=${deleteTarget.id}` : deleteTarget.kind === 'set' ? `/api/ttm-policy-sets?key=${encodeURIComponent(deleteTarget.key)}` : `/api/ttm-policies?id=${deleteTarget.id}`; const response = await fetch(endpoint, { method: 'DELETE' }); const payload: unknown = await response.json(); if (!response.ok) throw new Error(readError(payload, 'Không thể xóa cấu hình.')); if (deleteTarget.kind === 'set') setSetFilter('ALL'); setDeleteTarget(null); setRuleModal(false); setPolicyModal(false); showToast('Đã xóa cấu hình.', 5000); setNotice(null); await load(); } catch (error) { setNotice({ text: error instanceof Error ? error.message : 'Không thể xóa cấu hình.', type: 'error' }); } finally { setSaving(false); } };
   const ruleOptions = EPIC_COMPLEXITY_TYPES.map((value) => ({ value, label: typeLabel(value) }));
   const { sortKey: ruleSortKey, toggleSort: toggleRuleSort, directionFor: ruleSortDirection } = useSortableList<RuleSortKey>('epicComplexityType');
   const ruleSortValue = (rule: StatusAlertRule, key: RuleSortKey) => (key === 'status' ? (rule.isActive ? 'active' : 'inactive') : rule[key]);
   const sortedRules = [...rules].sort((a, b) => compareValues(ruleSortValue(a, ruleSortKey), ruleSortValue(b, ruleSortKey), ruleSortDirection(ruleSortKey) ?? 'asc'));
   const { sortKey: policySortKey, toggleSort: togglePolicySort, directionFor: policySortDirection } = useSortableList<PolicySortKey>('ttmType');
+  /** "≈ n ngày" at the DEFAULT set's TTM-CNTT budget of the Epic type, for readability. */
+  const approxDaysLabel = (complexity: EpicComplexityType, percent: number) => { const budget = policies.find((policy) => policy.isActive && policy.policySet === DEFAULT_POLICY_SET_KEY && policy.ttmType === 'TTM_CNTT' && policy.epicComplexityType === complexity)?.workingDays; return budget ? `≈ T1 + ${lateOffsetDays(percent, budget)} ngày (ngân sách Mặc định ${budget})` : ''; };
+  const policySetName = (key: string) => policySets.find((item) => item.key === key)?.name ?? key;
+  const visiblePolicies = setFilter === 'ALL' ? policies : policies.filter((policy) => policy.policySet === setFilter);
+  const selectedSet = policySets.find((item) => item.key === setFilter) ?? null;
   const policySortValue = (policy: TtmPolicy, key: PolicySortKey) => (key === 'status' ? (policy.isActive ? 'active' : 'inactive') : policy[key]);
-  const sortedPolicies = [...policies].sort((a, b) => compareValues(policySortValue(a, policySortKey), policySortValue(b, policySortKey), policySortDirection(policySortKey) ?? 'asc'));
+  const sortedPolicies = [...visiblePolicies].sort((a, b) => compareValues(policySortValue(a, policySortKey), policySortValue(b, policySortKey), policySortDirection(policySortKey) ?? 'asc'));
   return <div className="flex flex-col gap-6">
     {notice && notice.type === 'error' && <Alert title="Lỗi" variant="error">{notice.text}</Alert>}
     <Card>
@@ -94,10 +104,10 @@ export function StatusAlertRulesSettings() {
           <TH sortDirection={ruleSortDirection('epicComplexityType')} onClick={() => toggleRuleSort('epicComplexityType')}>Loại Epic</TH>
           <TH sortDirection={ruleSortDirection('epicStatus')} onClick={() => toggleRuleSort('epicStatus')}>Trạng thái Epic</TH>
           <TH sortDirection={ruleSortDirection('earlyAlertOffsetDays')} onClick={() => toggleRuleSort('earlyAlertOffsetDays')}>Cảnh báo sớm</TH>
-          <TH sortDirection={ruleSortDirection('lateAlertOffsetDays')} onClick={() => toggleRuleSort('lateAlertOffsetDays')}>Cảnh báo muộn</TH>
+          <TH sortDirection={ruleSortDirection('lateAlertPercent')} onClick={() => toggleRuleSort('lateAlertPercent')}>Cảnh báo muộn</TH>
           <TH className="text-center" sortDirection={ruleSortDirection('status')} onClick={() => toggleRuleSort('status')}>Trạng thái</TH>
           <TH className="text-center">Hành động</TH>
-        </TR></THead><TBody>{sortedRules.map((rule, index) => <TR key={rule.id}><TD>{index + 1}</TD><TD>{typeLabel(rule.epicComplexityType)}</TD><TD>{rule.epicStatus}</TD><TD>{offsetLabel(rule.earlyAlertOffsetDays)}</TD><TD>{offsetLabel(rule.lateAlertOffsetDays)}</TD><TD className="text-center"><Badge variant={rule.isActive ? 'success' : 'neutral'}>{rule.isActive ? 'Active' : 'Inactive'}</Badge></TD><TD><div className="flex justify-center"><TableAction icon={<PencilSimple className="size-4" />} onClick={() => { setEditingRule(rule.id); setRuleForm({ earlyAlertOffsetDays: rule.earlyAlertOffsetDays, epicComplexityType: rule.epicComplexityType, epicStatus: rule.epicStatus, isActive: rule.isActive, lateAlertOffsetDays: rule.lateAlertOffsetDays }); setRuleModal(true); }} variant="info">Chỉnh sửa</TableAction></div></TD></TR>)}</TBody></Table></TableContainer>}</CardBody>
+        </TR></THead><TBody>{sortedRules.map((rule, index) => <TR key={rule.id}><TD>{index + 1}</TD><TD>{typeLabel(rule.epicComplexityType)}</TD><TD>{rule.epicStatus}</TD><TD>{offsetLabel(rule.earlyAlertOffsetDays)}</TD><TD>{percentLabel(rule.lateAlertPercent)}<span className="block text-xs text-fb-text-secondary">{approxDaysLabel(rule.epicComplexityType, rule.lateAlertPercent)}</span></TD><TD className="text-center"><Badge variant={rule.isActive ? 'success' : 'neutral'}>{rule.isActive ? 'Active' : 'Inactive'}</Badge></TD><TD><div className="flex justify-center"><TableAction icon={<PencilSimple className="size-4" />} onClick={() => { setEditingRule(rule.id); setRuleForm({ earlyAlertOffsetDays: rule.earlyAlertOffsetDays, epicComplexityType: rule.epicComplexityType, epicStatus: rule.epicStatus, isActive: rule.isActive, lateAlertPercent: rule.lateAlertPercent }); setRuleModal(true); }} variant="info">Chỉnh sửa</TableAction></div></TD></TR>)}</TBody></Table></TableContainer>}</CardBody>
       )}
     </Card>
     <Card>
@@ -109,25 +119,51 @@ export function StatusAlertRulesSettings() {
           <CaretDown className={`size-4 text-fb-text-secondary transition-transform duration-200 ${openPanels.ttmPolicies ? '' : '-rotate-90'}`} />
           <div>
             <CardTitle>Tiêu chí Time to Market</CardTitle>
-            <p className="mt-1 text-fb-text-secondary text-xs">Deadline được tính bằng số ngày làm việc từ trường From đến trường To của từng loại Epic.</p>
+            <p className="mt-1 text-fb-text-secondary text-xs">Deadline được tính bằng số ngày làm việc từ trường From đến trường To của từng loại Epic. Bộ ngân sách khác Mặc định chỉ cần khai báo các dòng khác Mặc định (dòng còn thiếu kế thừa Mặc định); rule TTM-CNTT trong Rule Management chọn bộ nào được dùng cho Epic của nhóm rule.</p>
           </div>
         </div>
-        <Button
-          icon={<Plus className="size-4" weight="bold" />}
-          onClick={(e) => {
-            e.stopPropagation();
-            setEditingPolicy(null);
-            setPolicyForm(EMPTY_POLICY);
-            setPolicyModal(true);
-          }}
-          size="sm"
-        >
-          Thêm tiêu chí
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            icon={<Plus className="size-4" weight="bold" />}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSetForm(EMPTY_POLICY_SET);
+              setSetModal(true);
+            }}
+            size="sm"
+          >
+            Thêm bộ ngân sách
+          </Button>
+          <Button
+            icon={<Plus className="size-4" weight="bold" />}
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingPolicy(null);
+              setPolicyForm({ ...EMPTY_POLICY, policySet: setFilter === 'ALL' ? DEFAULT_POLICY_SET_KEY : setFilter });
+              setPolicyModal(true);
+            }}
+            size="sm"
+          >
+            Thêm tiêu chí
+          </Button>
+        </div>
       </CardHeader>
       {openPanels.ttmPolicies && (
-        <CardBody>{loading ? <TableSkeleton rows={4} /> : policies.length === 0 ? <EmptyState title="Chưa có tiêu chí Time to Market" /> : <TableContainer><Table className="min-w-[860px]"><THead><TR>
+        <CardBody>{!loading && policySets.length > 0 && (
+          <div className="mb-3 flex flex-wrap items-end gap-3">
+            <div className="w-full max-w-xs"><Select label="Bộ ngân sách" options={[{ value: 'ALL', label: 'Tất cả bộ' }, ...policySets.map((item) => ({ value: item.key, label: `${item.name} (${item.key})` }))]} value={setFilter} onChange={(e) => setSetFilter(e.target.value)} /></div>
+            {selectedSet && (
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-xs text-fb-text-secondary">
+                <span className="min-w-0">{selectedSet.note ?? 'Không có ghi chú.'}</span>
+                {selectedSet.usedByRules.length > 0 ? <Badge variant="info">Rule dùng bộ này: {selectedSet.usedByRules.join(', ')}</Badge> : <Badge variant="warning">Chưa có rule nào dùng bộ này</Badge>}
+                {selectedSet.key !== DEFAULT_POLICY_SET_KEY && selectedSet.usedByRules.length === 0 && <Button variant="danger" icon={<Trash className="size-4" />} onClick={() => setDeleteTarget({ key: selectedSet.key, kind: 'set', label: selectedSet.name })} size="sm">Xoá bộ</Button>}
+              </div>
+            )}
+          </div>
+        )}{loading ? <TableSkeleton rows={4} /> : visiblePolicies.length === 0 ? <EmptyState title="Chưa có tiêu chí Time to Market" /> : <TableContainer><Table className="min-w-[860px]"><THead><TR>
           <TH>STT</TH>
+          <TH sortDirection={policySortDirection('policySet')} onClick={() => togglePolicySort('policySet')}>Bộ ngân sách</TH>
           <TH sortDirection={policySortDirection('ttmType')} onClick={() => togglePolicySort('ttmType')}>Loại TTM</TH>
           <TH sortDirection={policySortDirection('epicComplexityType')} onClick={() => togglePolicySort('epicComplexityType')}>Loại Epic</TH>
           <TH sortDirection={policySortDirection('fromTtmField')} onClick={() => togglePolicySort('fromTtmField')}>From TTM Field</TH>
@@ -135,11 +171,12 @@ export function StatusAlertRulesSettings() {
           <TH sortDirection={policySortDirection('workingDays')} onClick={() => togglePolicySort('workingDays')}>Số ngày làm việc</TH>
           <TH className="text-center" sortDirection={policySortDirection('status')} onClick={() => togglePolicySort('status')}>Trạng thái</TH>
           <TH className="text-center">Hành động</TH>
-        </TR></THead><TBody>{sortedPolicies.map((policy, index) => <TR key={policy.id}><TD>{index + 1}</TD><TD>{policy.ttmType === 'TTM_CNTT' ? 'TTM-CNTT (QLDA)' : 'TTM-E2E'}</TD><TD>{typeLabel(policy.epicComplexityType)}</TD><TD>{policy.fromTtmField}</TD><TD>{policy.toTtmField}</TD><TD>{policy.workingDays}</TD><TD className="text-center"><Badge variant={policy.isActive ? 'success' : 'neutral'}>{policy.isActive ? 'Active' : 'Inactive'}</Badge></TD><TD><div className="flex justify-center"><TableAction icon={<PencilSimple className="size-4" />} onClick={() => { setEditingPolicy(policy.id); setPolicyForm({ epicComplexityType: policy.epicComplexityType, fromTtmField: policy.fromTtmField, isActive: policy.isActive, toTtmField: policy.toTtmField, ttmType: policy.ttmType, workingDays: policy.workingDays }); setPolicyModal(true); }} variant="info">Chỉnh sửa</TableAction></div></TD></TR>)}</TBody></Table></TableContainer>}</CardBody>
+        </TR></THead><TBody>{sortedPolicies.map((policy, index) => <TR key={policy.id}><TD>{index + 1}</TD><TD>{policy.policySet === DEFAULT_POLICY_SET_KEY ? 'Mặc định' : <Badge variant="info">{policySetName(policy.policySet)}</Badge>}</TD><TD>{policy.ttmType === 'TTM_CNTT' ? 'TTM-CNTT (QLDA)' : 'TTM-E2E'}</TD><TD>{typeLabel(policy.epicComplexityType)}</TD><TD>{policy.fromTtmField}</TD><TD>{policy.toTtmField}</TD><TD>{policy.workingDays}</TD><TD className="text-center"><Badge variant={policy.isActive ? 'success' : 'neutral'}>{policy.isActive ? 'Active' : 'Inactive'}</Badge></TD><TD><div className="flex justify-center"><TableAction icon={<PencilSimple className="size-4" />} onClick={() => { setEditingPolicy(policy.id); setPolicyForm({ epicComplexityType: policy.epicComplexityType, fromTtmField: policy.fromTtmField, isActive: policy.isActive, policySet: policy.policySet, toTtmField: policy.toTtmField, ttmType: policy.ttmType, workingDays: policy.workingDays }); setPolicyModal(true); }} variant="info">Chỉnh sửa</TableAction></div></TD></TR>)}</TBody></Table></TableContainer>}</CardBody>
       )}
     </Card>
-    <Modal isOpen={ruleModal} maxWidth="sm" onClose={() => setRuleModal(false)} title={editingRule === null ? 'Thêm rule cảnh báo' : 'Chỉnh sửa rule cảnh báo'} footer={<><Button onClick={() => setRuleModal(false)} variant="outline">Hủy</Button>{editingRule !== null && <Button icon={<Trash className="size-4" />} onClick={() => setDeleteTarget({ id: editingRule, kind: 'rule', label: ruleForm.epicStatus })} variant="danger">Xóa tiêu chí</Button>}<Button isLoading={saving} onClick={saveRule}>Lưu cấu hình</Button></>}><div className="flex flex-col gap-4">{editingRule === null ? <><Select label="Loại Epic" options={ruleOptions} value={ruleForm.epicComplexityType} onChange={(e) => setRuleForm((x) => ({ ...x, epicComplexityType: e.target.value as StatusAlertRuleInput['epicComplexityType'] }))} /><Input label="Trạng thái Epic" required maxLength={50} value={ruleForm.epicStatus} onChange={(e) => setRuleForm((x) => ({ ...x, epicStatus: e.target.value }))} /></> : <div className="rounded-md border border-fb-border bg-fb-surface-muted px-3 py-2">{typeLabel(ruleForm.epicComplexityType)} · {ruleForm.epicStatus}</div>}<Input label="Offset cảnh báo sớm" type="number" min={0} required value={ruleForm.earlyAlertOffsetDays} onChange={(e) => setRuleForm((x) => ({ ...x, earlyAlertOffsetDays: Number(e.target.value) || 0 }))} /><Input label="Offset cảnh báo muộn" type="number" min={0} required value={ruleForm.lateAlertOffsetDays} onChange={(e) => setRuleForm((x) => ({ ...x, lateAlertOffsetDays: Number(e.target.value) || 0 }))} /><label className="ui-check"><input type="checkbox" checked={ruleForm.isActive} onChange={(e) => setRuleForm((x) => ({ ...x, isActive: e.target.checked }))} />Rule đang hoạt động</label><p className="ui-helper">Cảnh báo sớm phải nhỏ hơn cảnh báo muộn.</p></div></Modal>
-    <Modal isOpen={policyModal} maxWidth="sm" onClose={() => setPolicyModal(false)} title={editingPolicy === null ? 'Thêm tiêu chí Time to Market' : 'Chỉnh sửa tiêu chí Time to Market'} footer={<><Button onClick={() => setPolicyModal(false)} variant="outline">Hủy</Button>{editingPolicy !== null && <Button icon={<Trash className="size-4" />} onClick={() => setDeleteTarget({ id: editingPolicy, kind: 'policy', label: policyForm.ttmType })} variant="danger">Xóa tiêu chí</Button>}<Button isLoading={saving} onClick={savePolicy}>Lưu cấu hình</Button></>}><div className="flex flex-col gap-4"><Select label="Loại TTM" options={TTM_TYPES.map((x) => ({ value: x, label: x === 'TTM_CNTT' ? 'TTM-CNTT (QLDA)' : 'TTM-E2E' }))} value={policyForm.ttmType} onChange={(e) => setPolicyForm((x) => ({ ...x, ttmType: e.target.value as TtmPolicyInput['ttmType'] }))} /><Select label="Loại Epic" options={ruleOptions} value={policyForm.epicComplexityType} onChange={(e) => setPolicyForm((x) => ({ ...x, epicComplexityType: e.target.value as TtmPolicyInput['epicComplexityType'] }))} /><Input label="From TTM Field" maxLength={100} required value={policyForm.fromTtmField} onChange={(e) => setPolicyForm((x) => ({ ...x, fromTtmField: e.target.value }))} /><Input label="To TTM Field" maxLength={100} required value={policyForm.toTtmField} onChange={(e) => setPolicyForm((x) => ({ ...x, toTtmField: e.target.value }))} /><Input label="Số ngày làm việc" type="number" min={1} required value={policyForm.workingDays} onChange={(e) => setPolicyForm((x) => ({ ...x, workingDays: Number(e.target.value) || 0 }))} /><label className="ui-check"><input type="checkbox" checked={policyForm.isActive} onChange={(e) => setPolicyForm((x) => ({ ...x, isActive: e.target.checked }))} />Tiêu chí đang hoạt động</label></div></Modal>
+    <Modal isOpen={ruleModal} maxWidth="sm" onClose={() => setRuleModal(false)} title={editingRule === null ? 'Thêm rule cảnh báo' : 'Chỉnh sửa rule cảnh báo'} footer={<><Button onClick={() => setRuleModal(false)} variant="outline">Hủy</Button>{editingRule !== null && <Button icon={<Trash className="size-4" />} onClick={() => setDeleteTarget({ id: editingRule, kind: 'rule', label: ruleForm.epicStatus })} variant="danger">Xóa tiêu chí</Button>}<Button isLoading={saving} onClick={saveRule}>Lưu cấu hình</Button></>}><div className="flex flex-col gap-4">{editingRule === null ? <><Select label="Loại Epic" options={ruleOptions} value={ruleForm.epicComplexityType} onChange={(e) => setRuleForm((x) => ({ ...x, epicComplexityType: e.target.value as StatusAlertRuleInput['epicComplexityType'] }))} /><Input label="Trạng thái Epic" required maxLength={50} value={ruleForm.epicStatus} onChange={(e) => setRuleForm((x) => ({ ...x, epicStatus: e.target.value }))} /></> : <div className="rounded-md border border-fb-border bg-fb-surface-muted px-3 py-2">{typeLabel(ruleForm.epicComplexityType)} · {ruleForm.epicStatus}</div>}<Input label="Offset cảnh báo sớm" type="number" min={0} required value={ruleForm.earlyAlertOffsetDays} onChange={(e) => setRuleForm((x) => ({ ...x, earlyAlertOffsetDays: Number(e.target.value) || 0 }))} /><Input label="Cảnh báo muộn (% ngân sách TTM-CNTT)" type="number" min={0} max={100} step="0.01" required value={ruleForm.lateAlertPercent} onChange={(e) => setRuleForm((x) => ({ ...x, lateAlertPercent: Number(e.target.value) || 0 }))} /><label className="ui-check"><input type="checkbox" checked={ruleForm.isActive} onChange={(e) => setRuleForm((x) => ({ ...x, isActive: e.target.checked }))} />Rule đang hoạt động</label><p className="ui-helper">Mốc cảnh báo muộn = Start Date + ⌈% × ngân sách N của Epic⌉ ngày làm việc; N lấy theo bộ ngân sách của rule TTM-CNTT (nên Epic có ngân sách 30 ngày tự có mốc muộn tương ứng). {approxDaysLabel(ruleForm.epicComplexityType, ruleForm.lateAlertPercent)}</p></div></Modal>
+    <Modal isOpen={setModal} maxWidth="sm" onClose={() => setSetModal(false)} title="Thêm bộ ngân sách" footer={<><Button variant="outline" onClick={() => setSetModal(false)}>Hủy</Button><Button isLoading={saving} onClick={saveSet} variant="secondary">Thêm bộ</Button></>}><div className="flex flex-col gap-4"><Input label="Mã bộ" maxLength={40} placeholder="vd: cntt-2027" required value={setForm.key} onChange={(e) => setSetForm((x) => ({ ...x, key: e.target.value }))} /><Input label="Tên bộ" maxLength={100} required value={setForm.name} onChange={(e) => setSetForm((x) => ({ ...x, name: e.target.value }))} /><Input label="Ghi chú" value={setForm.note} onChange={(e) => setSetForm((x) => ({ ...x, note: e.target.value }))} /><p className="text-xs text-fb-text-secondary">Bộ mới chưa có tiêu chí nào (kế thừa hoàn toàn Mặc định). Để dùng, cần một rule TTM-CNTT trong code đọc bộ này (src/lib/scoring/registry.ts), rồi bật rule đó cho nhóm rule ở Rule Management.</p></div></Modal>
+    <Modal isOpen={policyModal} maxWidth="sm" onClose={() => setPolicyModal(false)} title={editingPolicy === null ? 'Thêm tiêu chí Time to Market' : 'Chỉnh sửa tiêu chí Time to Market'} footer={<><Button onClick={() => setPolicyModal(false)} variant="outline">Hủy</Button>{editingPolicy !== null && <Button icon={<Trash className="size-4" />} onClick={() => setDeleteTarget({ id: editingPolicy, kind: 'policy', label: policyForm.ttmType })} variant="danger">Xóa tiêu chí</Button>}<Button isLoading={saving} onClick={savePolicy}>Lưu cấu hình</Button></>}><div className="flex flex-col gap-4"><Select label="Bộ ngân sách" options={policySets.map((item) => ({ value: item.key, label: `${item.name} (${item.key})` }))} value={policyForm.policySet} onChange={(e) => setPolicyForm((x) => ({ ...x, policySet: e.target.value }))} /><Select label="Loại TTM" options={TTM_TYPES.map((x) => ({ value: x, label: x === 'TTM_CNTT' ? 'TTM-CNTT (QLDA)' : 'TTM-E2E' }))} value={policyForm.ttmType} onChange={(e) => setPolicyForm((x) => ({ ...x, ttmType: e.target.value as TtmPolicyInput['ttmType'] }))} /><Select label="Loại Epic" options={ruleOptions} value={policyForm.epicComplexityType} onChange={(e) => setPolicyForm((x) => ({ ...x, epicComplexityType: e.target.value as TtmPolicyInput['epicComplexityType'] }))} /><Input label="From TTM Field" maxLength={100} required value={policyForm.fromTtmField} onChange={(e) => setPolicyForm((x) => ({ ...x, fromTtmField: e.target.value }))} /><Input label="To TTM Field" maxLength={100} required value={policyForm.toTtmField} onChange={(e) => setPolicyForm((x) => ({ ...x, toTtmField: e.target.value }))} /><Input label="Số ngày làm việc" type="number" min={1} required value={policyForm.workingDays} onChange={(e) => setPolicyForm((x) => ({ ...x, workingDays: Number(e.target.value) || 0 }))} /><label className="ui-check"><input type="checkbox" checked={policyForm.isActive} onChange={(e) => setPolicyForm((x) => ({ ...x, isActive: e.target.checked }))} />Tiêu chí đang hoạt động</label></div></Modal>
     <ConfirmDialog isOpen={deleteTarget !== null} onClose={() => setDeleteTarget(null)} onConfirm={() => void remove()} title="Xóa tiêu chí" description={`Bạn có chắc muốn xóa “${deleteTarget?.label ?? ''}”? Thao tác này xác nhận một bước.`} confirmLabel="Xóa" steps={1} />
     <TtmScopeConfigPanel
       isOpen={openPanels.ttmScope}

@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { BADGE_BY_ID, BADGES } from '../catalog';
 import type { BadgeId } from '../catalog';
 import { addWorkingDays } from '../dates';
-import { deriveMetrics, findActivePolicy } from '../derive';
+import { deriveMetrics, findActivePolicy, lateOffsetDays } from '../derive';
 import { CORE_RULES, DEFAULT_RULE_GROUP, RULE_BY_ID, RULES, SELECTABLE_RULES } from '../registry';
 import { matchesDateRange, orderRuleGroups, policySetsOf, resolveRuleGroup } from '../rule-groups';
 import { makeTtmCnttRule } from '../rules/ttm-cntt';
@@ -50,7 +50,12 @@ describe('rule registry (spec 2026-10-25 §4–5)', () => {
     for (const badge of BADGES) {
       const ruleOwners = owners.get(badge.id) ?? [];
       if (ENGINE_BADGES.includes(badge.id)) assert.equal(ruleOwners.length, 0, badge.id);
-      else assert.equal(ruleOwners.length, 1, `${badge.id}: ${ruleOwners.join(', ') || 'no owner'}`);
+      else {
+        assert.ok(ruleOwners.length >= 1, `${badge.id}: no owner`);
+        // Several owners are allowed only as variants of one slot (they emit the same badges, a group runs one of them).
+        const slots = new Set(ruleOwners.map((id) => RULE_BY_ID.get(id)!.slot ?? id));
+        assert.equal(slots.size, 1, `${badge.id}: ${ruleOwners.join(', ')}`);
+      }
     }
     for (const badge of owners.keys()) assert.ok(BADGE_BY_ID.has(badge), `unknown badge ${badge}`);
   });
@@ -87,14 +92,14 @@ describe('rule registry (spec 2026-10-25 §4–5)', () => {
 
   it('owner decisions of 2026-10-25: the 5 extra rules always run; the listed ones are selectable', () => {
     for (const id of ['ttm-cntt-late', 'ttm-e2e-gates', 'release-status-mismatch', 'release-on-time', 'phase']) assert.equal(RULE_BY_ID.get(id)?.core, true, id);
-    const selectable = ['ttm-cntt-sep-2026', 'ttm-e2e-july-2026', 'dq-r1', 'dq-r2', 'dq-r3', 'dq-r4', 'dq-r5', 'dq-r6', 'dq-r8', 'dq-r9', 'dq-r10',
+    const selectable = ['ttm-cntt-sep-2026', 'ttm-cntt-legacy-30d', 'ttm-e2e-july-2026', 'dq-r1', 'dq-r2', 'dq-r3', 'dq-r4', 'dq-r5', 'dq-r6', 'dq-r8', 'dq-r9', 'dq-r10',
       'fail-reason-stage', 'fail-reason-dept', 'release-justify-golive', 'release-waiting-golive'];
     assert.deepEqual(SELECTABLE_RULES.map((rule) => rule.id).sort(), [...selectable].sort());
     assert.ok(CORE_RULES.every((rule) => !rule.slot));
   });
 
-  it('the default group built in code selects every rule, one per slot', () => {
-    assert.deepEqual([...DEFAULT_RULE_GROUP.ruleIds].sort(), SELECTABLE_RULES.map((rule) => rule.id).sort());
+  it('the default group built in code selects every rule except the extra variants, one per slot', () => {
+    assert.deepEqual([...DEFAULT_RULE_GROUP.ruleIds].sort(), SELECTABLE_RULES.filter((rule) => rule.defaultSelected).map((rule) => rule.id).sort());
     for (const slot of new Set(SELECTABLE_RULES.map((rule) => rule.slot))) {
       assert.equal(SELECTABLE_RULES.filter((rule) => rule.slot === slot && DEFAULT_RULE_GROUP.ruleIds.includes(rule.id)).length, 1, String(slot));
     }
@@ -288,5 +293,82 @@ describe('layered Rule Groups (2026-10-26)', () => {
   it('Default never uses the OFF list; an unlisted Default rule simply does not apply', () => {
     const dbDefault = group({ id: 9, name: 'Default', isDefault: true, priority: 0, ruleIds: withoutRules('dq-r4') });
     assert.ok(!activeOf(facts, makeContext({ asOf, ruleGroups: [dbDefault] })).has(r4));
+  });
+});
+
+describe('owner scenario 2026-10-26: CT-Lv34 Target 30 days for Epics with Start < 01/09/2026 or R4G < 01/10/2026', () => {
+  const POLICIES_LEGACY: ScoringTtmPolicy[] = [
+    ...POLICIES,
+    { epicComplexityType: 'CT-Lv34', fromTtmField: 'START_DATE', isActive: true, toTtmField: 'R4G_DATE', ttmType: 'TTM_CNTT', workingDays: 25 },
+    { epicComplexityType: 'CT-Lv34', fromTtmField: 'START_DATE', isActive: true, toTtmField: 'R4G_DATE', ttmType: 'TTM_CNTT', workingDays: 30, policySet: 'legacy-30d' },
+  ];
+  const legacy = ['ttm-cntt-legacy-30d'];
+  const groups: ScoringRuleGroup[] = [
+    group({ id: 1, name: 'C — 25 ngày', priority: 1, ruleIds: ['ttm-cntt-sep-2026'], conditions: { startDate: { from: null, to: '2026-08-31' }, r4gDate: { from: '2026-10-01', to: null } } }),
+    group({ id: 2, name: 'A — Start cũ', priority: 2, ruleIds: legacy, conditions: { startDate: { from: null, to: '2026-08-31' } } }),
+    group({ id: 3, name: 'B — R4G cũ', priority: 3, ruleIds: legacy, conditions: { r4gDate: { from: null, to: '2026-09-30' } } }),
+  ];
+  const ctx = makeContext({ ttmPolicies: POLICIES_LEGACY, ruleGroups: groups });
+  const targetOf = (overrides: Partial<EpicFacts>) => {
+    const card = scoreEpic(makeFacts({ complexity: 'CT-Lv34', ...overrides }), ctx);
+    return { target: card.derived.cnttTargetDate, group: card.ruleGroup?.name };
+  };
+  const after = (start: string, workingDays: number) => addWorkingDays(start, workingDays - 1, NO_HOLIDAYS);
+
+  it('Start before 01/09 and R4G before 01/10 → 30 working days (group A)', () => {
+    assert.deepEqual(targetOf({ startDate: '2026-08-03', r4gDate: '2026-09-15' }), { target: after('2026-08-03', 30), group: 'A — Start cũ' });
+  });
+
+  it('Start before 01/09 but R4G on/after 01/10 → 25 (the 25-day group is ranked above)', () => {
+    assert.deepEqual(targetOf({ startDate: '2026-08-03', r4gDate: '2026-10-15' }), { target: after('2026-08-03', 25), group: 'C — 25 ngày' });
+  });
+
+  it('Start on/after 01/09 with R4G before 01/10 → 30 (group B)', () => {
+    assert.deepEqual(targetOf({ startDate: '2026-09-07', r4gDate: '2026-09-25' }), { target: after('2026-09-07', 30), group: 'B — R4G cũ' });
+  });
+
+  it('Start on/after 01/09 and no old R4G Date → Default, 25 working days', () => {
+    assert.deepEqual(targetOf({ startDate: '2026-09-07', r4gDate: null }), { target: after('2026-09-07', 25), group: 'Default' });
+    assert.deepEqual(targetOf({ startDate: '2026-09-07', r4gDate: '2026-11-01' }), { target: after('2026-09-07', 25), group: 'Default' });
+  });
+
+  it('only CT-Lv34 changes: other Epic types inherit the DEFAULT budgets of the set', () => {
+    const lv12 = scoreEpic(makeFacts({ complexity: 'CT-Lv12', startDate: '2026-08-03', r4gDate: '2026-09-15' }), ctx);
+    assert.equal(lv12.ruleGroup?.name, 'A — Start cũ');
+    assert.equal(lv12.derived.cnttTargetDate, after('2026-08-03', 15));
+    assert.equal(lv12.derived.cnttPolicySet, 'legacy-30d');
+  });
+});
+
+describe('Cảnh báo muộn theo % ngân sách (§17.6)', () => {
+  it('days = ceil(percent × budget), robust to the 4-decimal percent (7/30 → 7, 13/15 → 13, 2/3 of 15 → 10)', () => {
+    assert.equal(lateOffsetDays(20, 15), 3);
+    assert.equal(lateOffsetDays(100, 25), 25);
+    assert.equal(lateOffsetDays(23.3333, 30), 7);
+    assert.equal(lateOffsetDays(86.6667, 15), 13);
+    assert.equal(lateOffsetDays(66.6667, 15), 10);
+    assert.equal(lateOffsetDays(80, 12), 10);
+    assert.equal(lateOffsetDays(0, 25), 0);
+  });
+
+  it('the alert date follows the budget of the Epic: the same percent gives a later date with the 30-day set', () => {
+    const policies: ScoringTtmPolicy[] = [
+      ...POLICIES,
+      { epicComplexityType: 'CT-Lv34', fromTtmField: 'START_DATE', isActive: true, toTtmField: 'R4G_DATE', ttmType: 'TTM_CNTT', workingDays: 25 },
+      { epicComplexityType: 'CT-Lv34', fromTtmField: 'START_DATE', isActive: true, toTtmField: 'R4G_DATE', ttmType: 'TTM_CNTT', workingDays: 30, policySet: 'legacy-30d' },
+    ];
+    const base = makeContext({ ttmPolicies: policies, statusAlertRules: [{ epicComplexityType: 'CT-Lv34', epicStatus: 'In Progress', lateAlertPercent: 80 }] });
+    const facts = makeFacts({ complexity: 'CT-Lv34', status: 'In Progress', startDate: '2026-08-03' });
+    const standard = scoreEpic(facts, base).derived;
+    assert.equal(standard.cnttLateAlertDate, addWorkingDays('2026-08-03', 20, NO_HOLIDAYS));
+    const legacyGroup = group({ ruleIds: ['ttm-cntt-legacy-30d'] });
+    const legacy = scoreEpic(facts, { ...base, ruleGroups: [legacyGroup] }).derived;
+    assert.equal(legacy.cnttLateAlertDate, addWorkingDays('2026-08-03', 24, NO_HOLIDAYS));
+    assert.ok(legacy.cnttLateAlertDate! < legacy.cnttTargetDate!, 'the alert still comes before the Target');
+  });
+
+  it('DEV / TEST / PENTEST inherit the In Progress percent', () => {
+    const ctx = makeContext({ statusAlertRules: [{ epicComplexityType: 'CT-Lv12', epicStatus: 'In Progress', lateAlertPercent: 80 }] });
+    assert.equal(scoreEpic(makeFacts({ status: 'DEV' }), ctx).derived.cnttLateAlertDate, addWorkingDays('2026-08-03', 12, NO_HOLIDAYS));
   });
 });

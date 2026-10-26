@@ -84,16 +84,22 @@ function fieldDate(facts: EpicFacts, field: string): IsoDate | null {
   return null;
 }
 
-/** Late-alert offset for (complexity, status); DEV/TEST/PENTEST inherit "In Progress" when not
+/** Working days from the From date to the late-alert date: ceil(percent × budget). The 0.01 day tolerance absorbs the
+ * 4-decimal rounding of the stored percent (e.g. 7/30 → 23,3333 % must give 7 days, not 8). */
+export function lateOffsetDays(percent: number, budget: number): number {
+  return Math.max(0, Math.ceil((percent / 100) * budget - 0.01));
+}
+
+/** Late-alert percent of the budget for (complexity, status); DEV/TEST/PENTEST inherit "In Progress" when not
  * configured on their own — same lookup as resolveOffsetRule in ttm-rules.ts. */
-export function resolveLateOffset(ctx: ScoringContext, complexity: EpicComplexity, status: string): number | null {
+export function resolveLatePercent(ctx: ScoringContext, complexity: EpicComplexity, status: string): number | null {
   const normalized = status.trim().toLocaleUpperCase('en-US');
   const matches = (ruleStatus: string) => ruleStatus.trim().toLocaleUpperCase('en-US');
   const configured = ctx.statusAlertRules.find((rule) => rule.epicComplexityType === complexity && matches(rule.epicStatus) === normalized);
-  if (configured) return configured.lateAlertOffsetDays;
+  if (configured) return configured.lateAlertPercent;
   if (['DEV', 'TEST', 'PENTEST'].includes(normalized)) {
     const inherited = ctx.statusAlertRules.find((rule) => rule.epicComplexityType === complexity && matches(rule.epicStatus) === 'IN PROGRESS');
-    if (inherited) return inherited.lateAlertOffsetDays;
+    if (inherited) return inherited.lateAlertPercent;
   }
   return null;
 }
@@ -138,8 +144,8 @@ export function deriveMetrics(facts: EpicFacts, ctx: ScoringContext, policySets:
   const cnttBudget = cnttPolicy?.workingDays ?? null;
   const cnttFromDate = cnttPolicy ? fieldDate(facts, cnttPolicy.fromTtmField) : null;
   const cnttTargetDate = cnttFromDate && cnttBudget ? addWorkingDays(cnttFromDate, Math.max(0, cnttBudget - 1), holidays) : null;
-  const lateOffset = resolveLateOffset(ctx, complexity, facts.status);
-  const cnttLateAlertDate = cnttFromDate && lateOffset !== null ? addWorkingDays(cnttFromDate, lateOffset, holidays) : null;
+  const latePercent = resolveLatePercent(ctx, complexity, facts.status);
+  const cnttLateAlertDate = cnttFromDate && cnttBudget && latePercent !== null ? addWorkingDays(cnttFromDate, lateOffsetDays(latePercent, cnttBudget), holidays) : null;
   const cnttCalcBroken = !facts.startDate || Boolean(facts.r4gDate && facts.r4gDate < facts.startDate);
 
   // ---- TTM-E2E ----

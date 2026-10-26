@@ -88,6 +88,9 @@ export interface ScoringTtmPolicy {
 /** The budget set every Epic used before "Bộ ngân sách" existed (Tiêu chí Time to Market as configured today). */
 export const DEFAULT_POLICY_SET = 'DEFAULT';
 
+/** Bộ ngân sách of the rule `ttm-cntt-legacy-30d` (table ttm_policy_sets, migration 20261031). */
+export const LEGACY_30D_POLICY_SET = 'legacy-30d';
+
 /** Which "Bộ ngân sách" the Epic's TTM-CNTT / TTM-E2E numbers come from — set by the verdict rules of its Rule Group. */
 export interface PolicySetSelection {
   cntt: string;
@@ -132,7 +135,8 @@ export interface ScorecardRuleGroup {
 export interface ScoringStatusAlertRule {
   epicComplexityType: EpicComplexity;
   epicStatus: string;
-  lateAlertOffsetDays: number;
+  /** Late alert = From date +wd ceil(percent × TTM-CNTT budget N of the Epic's set) — spec 2026-10-25 §17.6. */
+  lateAlertPercent: number;
 }
 
 export interface ScoringScopeConfig {
