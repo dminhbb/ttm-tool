@@ -21,6 +21,8 @@ import { refreshDerivedCaches } from './daily-cache-service';
 import { getImportAdmissionSettings, loadImportAdmissionList, loadLastUnreleasedSeen, MAX_EPIC_DELETIONS_PER_IMPORT, recordDeniedEpicsOfImport, recordProvenExemptions, type DeniedImportDeletionOutcome } from './denied-import-service';
 import { describeViolations, normalizeEpicKey, planImportAdmission, vietnamIsoDate } from './import-admission-rules';
 import { isLevel1IssueType } from './issue-hierarchy';
+import { syncImportBlackList } from './import-black-list';
+import { normalizeTtmApplied, parseExceptPlanDate } from './scoring/ttm-applied';
 
 // Epic complexity rule (company rule change, 2026-09) — 4-way classification from epic_request_type
 // + epic_request_level:
@@ -73,12 +75,14 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
     complexity: string | null; dueDate: string | null; epicKey: string; ideaApprovedDate: string | null;
     jiraCreatedAt: string | null; r4gDate: string | null; requestType: string | null;
     requirementLevel: string | null; startDate: string | null; status: string;
+    ttmApplied: string | null; exceptTtmPlan: string | null;
   }>(`
     SELECT i.issue_key AS "epicKey", i.current_status AS status, i.epic_complexity_type AS complexity,
       i.idea_approved_date::text AS "ideaApprovedDate", i.start_date::text AS "startDate",
       i.r4g_date::text AS "r4gDate", i.due_date::text AS "dueDate", i.jira_created_at::text AS "jiraCreatedAt",
       i.requirement_level AS "requirementLevel",
-      NULLIF(i.request_type, '') AS "requestType"
+      NULLIF(i.request_type, '') AS "requestType",
+      i.ttm_applied AS "ttmApplied", i.except_ttm_plan AS "exceptTtmPlan"
     FROM issues i
     WHERE i.source_import_batch_id = $1 AND UPPER(i.issue_type) IN (${EPIC_ISSUE_TYPES_SQL});
   `, [batchId]);
@@ -100,6 +104,11 @@ export async function aggregateBatchData(client: PoolClient, batchId: number, ag
       requestType: epic.requestType,
       requirementLevel: epic.requirementLevel,
       phaseCompletion: null,
+      // TTM-applied (2026-10-26): 'Không áp dụng' Epics are black listed by this import, so the timeline leaves them out too.
+      ttmApplied: normalizeTtmApplied(epic.ttmApplied),
+      ttmExclusion: normalizeTtmApplied(epic.ttmApplied) === 'NOT_APPLICABLE' ? 'BLACK_LISTED' : null,
+      exceptPlanRaw: epic.exceptTtmPlan,
+      exceptPlanDate: parseExceptPlanDate(epic.exceptTtmPlan),
     }, ctx);
     // The TTM verdicts ignore the "Phạm vi" gate (a run is recorded even for an Epic the screens show as
     // "Ngoài phạm vi"), data-quality findings are the ones still active.
@@ -360,7 +369,7 @@ export async function processImport(
         'idea_approved_date', 'start_date', 'r4g_date', 'due_date',
         'epic_complexity_type', 'requirement_level', 'requesting_unit', 'source_import_batch_id', 'aggregated_at',
         'jira_created_at', 'jira_updated_at', 'epic_stories', 'story_subtasks', 'components',
-        'previous_status', 'khau_ba', 'khau_co', 'khau_dev', 'khau_pm_sm', 'khau_po', 'khau_pentest', 'khau_sa', 'khau_sit_uat', 'note_ly_do_khac', 'main_fail_dept',
+        'previous_status', 'khau_ba', 'khau_co', 'khau_dev', 'khau_pm_sm', 'khau_po', 'khau_pentest', 'khau_sa', 'khau_sit_uat', 'note_ly_do_khac', 'main_fail_dept', 'ttm_applied', 'except_ttm_plan',
         'project_key', 'request_type',
       ];
       const insertIssueUpdateClause = `
@@ -395,6 +404,8 @@ export async function processImport(
           khau_sit_uat = EXCLUDED.khau_sit_uat,
           note_ly_do_khac = EXCLUDED.note_ly_do_khac,
           main_fail_dept = EXCLUDED.main_fail_dept,
+          ttm_applied = EXCLUDED.ttm_applied,
+          except_ttm_plan = EXCLUDED.except_ttm_plan,
           project_key = EXCLUDED.project_key,
           request_type = EXCLUDED.request_type,
           updated_at = NOW();
@@ -446,6 +457,8 @@ export async function processImport(
           issue.khauSitUat || null,
           issue.noteLyDoKhac || null,
           issue.mainFailDept || null,
+          issue.ttmApplied || null,
+          issue.exceptTtmPlan || null,
           // The file's own project key, else the issue-key prefix — what every reader used to derive from import_rows.
           issue.projectKey?.trim() || issue.issueKey.split('-')[0] || null,
           // The original "Loại yêu cầu" text (issue.epicType); complexity above is only its CT/SP classification.
@@ -466,6 +479,16 @@ export async function processImport(
           values,
         );
       }
+
+      // 4b. "TTM-applied" = 'Không áp dụng' → black list (inside this transaction, so the caches refreshed after COMMIT see it).
+      await syncImportBlackList(
+        client,
+        validIssues
+          .filter((issue) => isLevel1IssueType(issue.issueType))
+          .map((issue) => ({ epicKey: issue.issueKey, projectKey: issue.projectKey?.trim() || issue.issueKey.split('-')[0] || '', ttmApplied: normalizeTtmApplied(issue.ttmApplied) })),
+        batchId,
+        aggregatedAtDate,
+      );
 
       // 5. Link relationships within the batch.
       //

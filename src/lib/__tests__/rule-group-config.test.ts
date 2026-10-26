@@ -8,7 +8,7 @@ import { buildRuleCatalog } from '../scoring/rule-catalog';
 const catalog = buildRuleCatalog();
 
 function draft(key: string, overrides: Partial<RuleGroupDraft> = {}): RuleGroupDraft {
-  return { key, id: null, name: key, isDefault: false, enabled: true, conditions: emptyConditions(), ruleIds: [], offRuleIds: [], ...overrides };
+  return { key, id: null, name: key, isDefault: false, enabled: true, conditions: emptyConditions(), ruleIds: [], offRuleIds: [], ttmApplied: null, ...overrides };
 }
 
 const defaultDraft = draft('default', { id: 1, name: 'Default', isDefault: true, ruleIds: [...DEFAULT_RULE_GROUP.ruleIds] });

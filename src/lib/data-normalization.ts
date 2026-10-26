@@ -28,6 +28,7 @@ const GUIDE_BADGE_OF_RULE: Partial<Record<number, BadgeId>> = {
   8: 'REC_FIX_R4G_STATUS',
   9: 'REC_FILL_R4G_DATE',
   10: 'REC_CLEAR_FUTURE_R4G_DATE',
+  11: 'REC_FIX_EXCEPT_PLAN',
 };
 
 const FAIL_REASON_BADGE = 'REC_MISSING_FAIL_REASON' satisfies BadgeId;

@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+import { Select } from '@/components/ui/Select';
 import { BooleanPillToggle, PillToggle } from '@/components/ui/PillToggle';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
@@ -33,6 +34,7 @@ import {
   ruleStateOf,
   RULE_GROUP_DATE_FIELD_LABELS,
   RULE_GROUP_DATE_FIELD_ORDER,
+  TTM_APPLIED_LABELS,
   validateRuleGroups,
 } from '@/lib/rule-group-config';
 import type {
@@ -103,12 +105,12 @@ function describeHistory(entry: RuleGroupHistoryEntry, ruleNames: ReadonlyMap<st
   for (const group of entry.after) {
     const old = beforeById.get(group.id);
     if (!old) {
-      lines.push(`Thêm nhóm "${group.name}" (${describeConditions(group.conditions)}).`);
+      lines.push(`Thêm nhóm "${group.name}" (${describeConditions(group.conditions, group.ttmApplied)}).`);
       continue;
     }
     if (old.name !== group.name) lines.push(`Đổi tên "${old.name}" → "${group.name}".`);
     if (old.enabled !== group.enabled) lines.push(`${group.enabled ? 'Bật' : 'Tắt'} nhóm "${group.name}".`);
-    if (describeConditions(old.conditions) !== describeConditions(group.conditions)) lines.push(`"${group.name}": điều kiện ${describeConditions(old.conditions)} → ${describeConditions(group.conditions)}.`);
+    if (describeConditions(old.conditions, old.ttmApplied) !== describeConditions(group.conditions, group.ttmApplied)) lines.push(`"${group.name}": điều kiện ${describeConditions(old.conditions, old.ttmApplied)} → ${describeConditions(group.conditions, group.ttmApplied)}.`);
     const stateOf = (item: RuleGroupDraft, id: string): RuleState => ruleStateOf({ ruleIds: item.ruleIds, offRuleIds: item.offRuleIds ?? [] }, id);
     const label: Record<RuleState, string> = { INHERIT: 'Kế thừa', ON: 'Bật', OFF: 'Tắt' };
     const touched = [...new Set([...old.ruleIds, ...(old.offRuleIds ?? []), ...group.ruleIds, ...(group.offRuleIds ?? [])])];
@@ -229,7 +231,7 @@ export function RuleManagementSettings() {
     const existing = new Set(drafts.map((group) => group.name.trim().toLocaleLowerCase('vi-VN')));
     let index = 1;
     while (existing.has(`nhóm mới ${index}`)) index += 1;
-    const group: RuleGroupDraft = { key: newGroupKey(), id: null, name: `Nhóm mới ${index}`, isDefault: false, enabled: true, conditions: emptyConditions(), ruleIds: [], offRuleIds: [] };
+    const group: RuleGroupDraft = { key: newGroupKey(), id: null, name: `Nhóm mới ${index}`, isDefault: false, enabled: true, conditions: emptyConditions(), ruleIds: [], offRuleIds: [], ttmApplied: null };
     setDrafts((prev) => [...prev.filter((item) => !item.isDefault), group, ...prev.filter((item) => item.isDefault)]);
     // A new group is edited on the first tab until it is saved.
     setActiveTab(MANAGER_TAB);
@@ -320,7 +322,7 @@ export function RuleManagementSettings() {
             <span className="min-w-0 truncate text-sm font-semibold text-fb-text-primary">{group.name || '(chưa đặt tên)'}</span>
             {group.isDefault ? <Badge variant="info">Mặc định · luôn bật</Badge> : <Badge variant={group.enabled ? 'success' : 'neutral'}>{group.enabled ? 'Bật' : 'Tắt'}</Badge>}
             {group.id === null && <Badge variant="warning">Chưa lưu</Badge>}
-            <span className="text-xs text-fb-text-secondary">{group.isDefault ? 'Lớp cuối — mọi Epic' : describeConditions(group.conditions)}</span>
+            <span className="text-xs text-fb-text-secondary">{group.isDefault ? 'Lớp cuối — mọi Epic' : describeConditions(group.conditions, group.ttmApplied)}</span>
             <span className="ml-auto flex items-center gap-2">
               {matched !== undefined && <Badge variant="pending">{formatNumber(matched)} Epic</Badge>}
               {errors.length > 0 && <span className="inline-flex items-center gap-1 text-xs font-semibold text-status-danger"><XCircle className="size-4" />{errors.length}</span>}
@@ -383,6 +385,15 @@ export function RuleManagementSettings() {
                   </TBody>
                 </Table>
               </TableContainer>
+              <div className="mt-3 w-full max-w-sm">
+                <Select
+                  label="Điều kiện TTM-applied"
+                  options={[{ value: '', label: 'Mọi giá trị' }, { value: 'EXCEPTION', label: TTM_APPLIED_LABELS.EXCEPTION }, { value: 'STANDARD', label: TTM_APPLIED_LABELS.STANDARD }]}
+                  value={group.ttmApplied ?? ''}
+                  onChange={(event) => updateGroup(group.key, (item) => ({ ...item, ttmApplied: event.target.value === 'EXCEPTION' || event.target.value === 'STANDARD' ? event.target.value : null }))}
+                />
+                <p className="mt-1 text-xs text-fb-text-secondary">Kết hợp AND với điều kiện ngày. &quot;Ngoại lệ&quot; = Epic có TTM-applied là &quot;Ngoại lệ&quot; (dùng với rule TTM-CNTT — Kế hoạch ngoại lệ TTM).</p>
+              </div>
             </section>
           )}
 
@@ -454,7 +465,7 @@ export function RuleManagementSettings() {
           {savedGroups.map(({ group, index }) => tabButton(
             `group:${group.key}`,
             <span className={`inline-flex items-center gap-1.5 ${group.enabled ? '' : 'opacity-70'}`}>#{index + 1} {group.name || '(chưa đặt tên)'}{!group.enabled && ' (tắt)'}{issueMarker(group.key)}</span>,
-            group.enabled ? `Ưu tiên ${index + 1}: ${describeConditions(group.conditions)}` : 'Nhóm đang tắt',
+            group.enabled ? `Ưu tiên ${index + 1}: ${describeConditions(group.conditions, group.ttmApplied)}` : 'Nhóm đang tắt',
           ))}
           {defaultEntry && tabButton(DEFAULT_TAB, <span className="inline-flex items-center gap-1.5">Default rules{issueMarker(defaultEntry.group.key)}</span>)}
           {tabButton(ALWAYS_TAB, 'Always Rule')}
@@ -524,7 +535,7 @@ export function RuleManagementSettings() {
                               {issueMarker(group.key)}
                             </span>
                           </TD>
-                          <TD className="px-3 py-2 text-xs text-fb-text-secondary">{group.isDefault ? 'Lớp cuối — mọi Epic' : describeConditions(group.conditions)}</TD>
+                          <TD className="px-3 py-2 text-xs text-fb-text-secondary">{group.isDefault ? 'Lớp cuối — mọi Epic' : describeConditions(group.conditions, group.ttmApplied)}</TD>
                           <TD className="px-3 py-2 text-right text-xs tabular-nums">{matched !== undefined ? formatNumber(matched) : '—'}</TD>
                           <TD className="px-3 py-2 text-right text-xs tabular-nums">{ruleCountText(group)}</TD>
                         </TR>

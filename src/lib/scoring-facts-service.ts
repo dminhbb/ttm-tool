@@ -4,6 +4,7 @@ import { loadTtmExclusionSources, resolveTtmExclusion } from '@/lib/black-listed
 import { computeEpicPhaseCompletionByEpicKey } from '@/lib/epic-phase-completion-service';
 import { EPIC_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 import { toIsoDate } from '@/lib/scoring/dates';
+import { normalizeTtmApplied, parseExceptPlanDate } from '@/lib/scoring/ttm-applied';
 import type { EpicComplexity, EpicFacts } from '@/lib/scoring/types';
 
 const VALID_COMPLEXITY = new Set(['CT-Lv12', 'CT-Lv34', 'SP-Lv12', 'SP-Lv34']);
@@ -31,6 +32,8 @@ interface EpicFactRow {
   khauSitUat: string | null;
   noteLyDoKhac: string | null;
   mainFailDept: string | null;
+  ttmApplied: string | null;
+  exceptTtmPlan: string | null;
 }
 
 /**
@@ -70,7 +73,9 @@ export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]
         issues.khau_sa AS "khauSa",
         issues.khau_sit_uat AS "khauSitUat",
         issues.note_ly_do_khac AS "noteLyDoKhac",
-        issues.main_fail_dept AS "mainFailDept"
+        issues.main_fail_dept AS "mainFailDept",
+        issues.ttm_applied AS "ttmApplied",
+        issues.except_ttm_plan AS "exceptTtmPlan"
       FROM issues
       WHERE UPPER(issues.issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
         AND issues.aggregated_at::date <= $1::date
@@ -110,6 +115,9 @@ export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]
       khauSitUat: row.khauSitUat,
       noteLyDoKhac: row.noteLyDoKhac,
       responsibleDepartment: row.mainFailDept,
+      ttmApplied: normalizeTtmApplied(row.ttmApplied),
+      exceptPlanRaw: row.exceptTtmPlan,
+      exceptPlanDate: parseExceptPlanDate(row.exceptTtmPlan),
     };
   });
 }

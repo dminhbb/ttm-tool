@@ -35,7 +35,16 @@ export interface RuleGroupDraft {
   ruleIds: string[];
   /** Rules this group turns OFF for its Epics, even if a lower group or Default turns them on. Empty for Default. */
   offRuleIds: string[];
+  /** Also filter on the Epic's "TTM-applied" (null = any). */
+  ttmApplied: TtmAppliedCondition;
 }
+
+export type TtmAppliedCondition = 'EXCEPTION' | 'STANDARD' | null;
+
+export const TTM_APPLIED_LABELS: Record<'EXCEPTION' | 'STANDARD', string> = {
+  EXCEPTION: 'Ngoại lệ',
+  STANDARD: 'Theo quy định (trống / None / giá trị khác)',
+};
 
 /** A rule's state in one group. */
 export type RuleState = 'INHERIT' | 'ON' | 'OFF';
@@ -81,7 +90,7 @@ export function emptyConditions(): Record<RuleGroupDateField, RuleGroupDateRange
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function hasAnyCondition(group: RuleGroupDraft): boolean {
-  return RULE_GROUP_DATE_FIELD_ORDER.some((field) => group.conditions[field]?.from || group.conditions[field]?.to);
+  return Boolean(group.ttmApplied) || RULE_GROUP_DATE_FIELD_ORDER.some((field) => group.conditions[field]?.from || group.conditions[field]?.to);
 }
 
 /**
@@ -109,6 +118,7 @@ export function validateRuleGroups(groups: readonly RuleGroupDraft[], catalog: r
     if (name.length > 100) errors.push({ groupKey: group.key, message: 'Tên nhóm tối đa 100 ký tự.' });
 
     if (group.isDefault) {
+      if (group.ttmApplied) errors.push({ groupKey: group.key, message: 'Nhóm Default không có điều kiện TTM-applied.' });
       if (!group.enabled) errors.push({ groupKey: group.key, message: 'Không được tắt nhóm Default.' });
       if (hasAnyCondition(group)) errors.push({ groupKey: group.key, message: 'Nhóm Default không có điều kiện ngày.' });
     }
@@ -186,7 +196,8 @@ function rangesIntersect(a: RuleGroupDateRange | undefined, b: RuleGroupDateRang
 }
 
 /** Some Epic could meet the date conditions of both groups (every date range intersects; an open end is unbounded). */
-export function groupsMayOverlap(a: Pick<RuleGroupDraft, 'conditions'>, b: Pick<RuleGroupDraft, 'conditions'>): boolean {
+export function groupsMayOverlap(a: Pick<RuleGroupDraft, 'conditions' | 'ttmApplied'>, b: Pick<RuleGroupDraft, 'conditions' | 'ttmApplied'>): boolean {
+  if (a.ttmApplied && b.ttmApplied && a.ttmApplied !== b.ttmApplied) return false;
   return RULE_GROUP_DATE_FIELD_ORDER.every((field) => rangesIntersect(a.conditions[field], b.conditions[field]));
 }
 
@@ -241,11 +252,12 @@ export function draftsToScoringRuleGroups(groups: readonly RuleGroupDraft[]): Sc
     })),
     ruleIds: [...group.ruleIds],
     offRuleIds: group.isDefault ? [] : [...(group.offRuleIds ?? [])],
+    ttmApplied: group.isDefault ? null : group.ttmApplied ?? null,
   }));
 }
 
 /** Short Vietnamese description of a group's date conditions, e.g. "Start Date ≥ 01/09/2026; R4G Date ≤ 31/12/2026". */
-export function describeConditions(conditions: Partial<Record<RuleGroupDateField, RuleGroupDateRange>>): string {
+export function describeConditions(conditions: Partial<Record<RuleGroupDateField, RuleGroupDateRange>>, ttmApplied?: TtmAppliedCondition): string {
   const format = (iso: string) => iso.split('-').reverse().join('/');
   const parts = RULE_GROUP_DATE_FIELD_ORDER.flatMap((field) => {
     const range = conditions[field];
@@ -254,6 +266,7 @@ export function describeConditions(conditions: Partial<Record<RuleGroupDateField
     if (range.from && range.to) return [`${format(range.from)} ≤ ${label} ≤ ${format(range.to)}`];
     return [range.from ? `${label} ≥ ${format(range.from)}` : `${label} ≤ ${format(range.to!)}`];
   });
+  if (ttmApplied) parts.push(`TTM-applied = ${ttmApplied === 'EXCEPTION' ? 'Ngoại lệ' : 'Theo quy định'}`);
   return parts.length ? parts.join('; ') : 'Không có điều kiện ngày';
 }
 

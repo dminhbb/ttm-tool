@@ -546,6 +546,8 @@ erDiagram
         text main_fail_dept
         varchar project_key
         varchar request_type
+        text ttm_applied
+        text except_ttm_plan
     }
     denied_import_epics {
         varchar epic_key PK
@@ -668,6 +670,8 @@ Bảng canonical lưu trữ toàn bộ issue mọi cấp (Epic/Story/Subtask). G
 | `main_fail_dept` | text | có |  |  |  |
 | `project_key` | varchar(100) | có |  |  |  |
 | `request_type` | varchar(255) | có |  |  |  |
+| `ttm_applied` | text | có |  |  |  |
+| `except_ttm_plan` | text | có |  |  |  |
 
 - index `idx_issues_aggregated_at`: btree (aggregated_at)
 - index `idx_issues_batch_id`: btree (source_import_batch_id)
@@ -797,6 +801,7 @@ erDiagram
         int updated_by_user_id FK
         timestamptz created_at
         timestamptz updated_at
+        text source
     }
     users {
         int id PK
@@ -944,7 +949,9 @@ Danh mục "Ngày làm bù": khai báo một ngày T7/CN cụ thể là ngày l�
 | `updated_by_user_id` | int | có |  | FK → users(id) |  |
 | `created_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 | `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+| `source` | text | không | 'MANUAL'::text |  | `TEXT NOT NULL DEFAULT 'MANUAL'`CHECK ('MANUAL', 'IMPORT') — **Mới 26/10/2026.** IMPORT = do import CSV tự thêm vì TTM-applied = 'Không áp dụng' (chỉ dòng IMPORT mới được import tự gỡ khi giá trị đổi); MANUAL = người dùng thêm |
 
+- `black_listed_epics_source_check`: CHECK ((source = ANY (ARRAY['MANUAL'::text, 'IMPORT'::text])))
 - index `idx_black_listed_epics_project_key`: btree (project_key)
 
 ## 6. Epic Scoring Service
@@ -982,6 +989,7 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
         int updated_by_user_id FK
+        text ttm_applied
     }
     scoring_rule_group_rules {
         int group_id PK, FK
@@ -1054,6 +1062,7 @@ Tham số rule do admin ghi đè (grace Release, tỉ lệ Pending lâu, status 
 | `created_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 | `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 | `updated_by_user_id` | int | có |  | FK → users(id) |  |
+| `ttm_applied` | text | có |  |  | `TEXT`CHECK ('EXCEPTION', 'STANDARD') hoặc NULL — **Mới 26/10/2026.** Điều kiện theo trường TTM-applied của Epic (Ngoại lệ / Theo quy định); NULL = mọi giá trị |
 
 - `scoring_rule_groups_created_range`: CHECK (((created_from IS NULL) OR (created_to IS NULL) OR (created_from <= created_to)))
 - `scoring_rule_groups_default_shape`: CHECK (((NOT is_default) OR (enabled AND (created_from IS NULL) AND (created_to IS NULL) AND (idea_approved_from IS NULL) AND (idea_approved_to IS NULL) AND (start_from IS NULL) AND (start_to IS NULL) AND (r4g_from IS NULL) AND (r4g_to IS NULL) AND (due_from IS NULL) AND (due_to IS NULL))))
@@ -1062,6 +1071,7 @@ Tham số rule do admin ghi đè (grace Release, tỉ lệ Pending lâu, status 
 - `scoring_rule_groups_name_not_blank`: CHECK ((btrim(name) <> ''::text))
 - `scoring_rule_groups_r4g_range`: CHECK (((r4g_from IS NULL) OR (r4g_to IS NULL) OR (r4g_from <= r4g_to)))
 - `scoring_rule_groups_start_range`: CHECK (((start_from IS NULL) OR (start_to IS NULL) OR (start_from <= start_to)))
+- `scoring_rule_groups_ttm_applied_check`: CHECK (((ttm_applied IS NULL) OR (ttm_applied = ANY (ARRAY['EXCEPTION'::text, 'STANDARD'::text]))))
 - index `scoring_rule_groups_name_uq`: UNIQUE btree (lower(btrim(name)))
 - index `scoring_rule_groups_single_default`: UNIQUE btree (is_default) WHERE is_default
 

@@ -25,6 +25,7 @@ export const RULE_SLOT_LABELS: Record<RuleSlot, string> = {
   DQ_R8: 'R8 — Có R4G Date nhưng chưa R4GOLIVE',
   DQ_R9: 'R9 — Thiếu R4G Date',
   DQ_R10: 'R10 — R4G Date ở tương lai',
+  DQ_R11: 'R11 — Kế hoạch ngoại lệ TTM thiếu / sai',
   FAIL_REASON_STAGE: 'Thiếu lý do Fail TTM (khâu fail)',
   FAIL_REASON_DEPT: 'Thiếu phòng chịu TN chính',
   RELEASE_WAITING_GOLIVE: 'Chờ golive',

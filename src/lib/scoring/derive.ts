@@ -1,6 +1,7 @@
 import { addWorkingDays, diffWorkingDays, toIsoDate } from './dates';
 import { DEFAULT_POLICY_SET } from './types';
 import type { DerivedMetrics, EpicComplexity, EpicFacts, IsoDate, PhaseDerived, PolicySetSelection, ScoringContext, ScoringTtmPolicy, TtmPhaseKey } from './types';
+import { exceptPlanProblem } from './ttm-applied';
 
 /**
  * Canonical Epic workflow. Jira's legacy "In Progress" is DEV. Owner rule 2026-10-05: 'MVP DONE'
@@ -141,9 +142,13 @@ export function deriveMetrics(facts: EpicFacts, ctx: ScoringContext, policySets:
 
   // ---- TTM-CNTT ----
   const cnttPolicy = findActivePolicy(ctx.ttmPolicies, 'TTM_CNTT', complexity, policySets.cntt);
-  const cnttBudget = cnttPolicy?.workingDays ?? null;
-  const cnttFromDate = cnttPolicy ? fieldDate(facts, cnttPolicy.fromTtmField) : null;
-  const cnttTargetDate = cnttFromDate && cnttBudget ? addWorkingDays(cnttFromDate, Math.max(0, cnttBudget - 1), holidays) : null;
+  // "Kế hoạch ngoại lệ TTM": the Epic's own date is the Target and N = the working days from Start Date to it (day 1 =
+  // Start Date, like the budget), so the late alert (% of N) and the phase baselines follow it. A plan that can't be
+  // used (blank, unreadable, before Start Date, absurdly far — rule R11 flags those) falls back to the budget.
+  const exceptPlan = policySets.cnttTarget === 'EXCEPT_PLAN' && !exceptPlanProblem(facts.exceptPlanRaw, facts.startDate) ? facts.exceptPlanDate ?? null : null;
+  const cnttBudget = exceptPlan && facts.startDate ? diffWorkingDays(facts.startDate, exceptPlan, holidays) + 1 : cnttPolicy?.workingDays ?? null;
+  const cnttFromDate = exceptPlan && facts.startDate ? facts.startDate : cnttPolicy ? fieldDate(facts, cnttPolicy.fromTtmField) : null;
+  const cnttTargetDate = exceptPlan ?? (cnttFromDate && cnttBudget ? addWorkingDays(cnttFromDate, Math.max(0, cnttBudget - 1), holidays) : null);
   const latePercent = resolveLatePercent(ctx, complexity, facts.status);
   const cnttLateAlertDate = cnttFromDate && cnttBudget && latePercent !== null ? addWorkingDays(cnttFromDate, lateOffsetDays(latePercent, cnttBudget), holidays) : null;
   const cnttCalcBroken = !facts.startDate || Boolean(facts.r4gDate && facts.r4gDate < facts.startDate);
@@ -192,6 +197,7 @@ export function deriveMetrics(facts: EpicFacts, ctx: ScoringContext, policySets:
     cnttFromDate,
     cnttBudgetWorkingDays: cnttBudget,
     cnttTargetDate,
+    cnttTargetSource: exceptPlan ? 'EXCEPT_PLAN' : 'BUDGET',
     cnttLateAlertDate,
     cnttRemainingWorkingDays: cnttTargetDate ? diffWorkingDays(ctx.asOf, cnttTargetDate, holidays) : null,
     cnttCalcBroken,

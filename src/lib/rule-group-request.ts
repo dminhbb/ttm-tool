@@ -24,7 +24,7 @@ export function parseRuleGroupDrafts(value: unknown): RuleGroupDraft[] | null {
       const read = (raw: unknown) => (typeof raw === 'string' && raw.trim() ? raw.trim() : null);
       conditions[field] = { from: read(range?.from), to: read(range?.to) };
     }
-    drafts.push({ key: record.key, id, name: record.name, isDefault: record.isDefault === true, enabled: record.enabled !== false, conditions, ruleIds: record.ruleIds as string[], offRuleIds: rawOff as string[] });
+    drafts.push({ key: record.key, id, name: record.name, isDefault: record.isDefault === true, enabled: record.enabled !== false, conditions, ruleIds: record.ruleIds as string[], offRuleIds: rawOff as string[], ttmApplied: record.ttmApplied === 'EXCEPTION' || record.ttmApplied === 'STANDARD' ? record.ttmApplied : null });
   }
   return drafts;
 }

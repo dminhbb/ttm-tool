@@ -123,6 +123,8 @@ CREATE TABLE issues (
     khau_sit_uat TEXT,
     note_ly_do_khac TEXT,
     main_fail_dept TEXT,            -- "Phòng chịu trách nhiệm chính" of a Fail TTM — 20261014d_add_main_fail_dept_to_issues.sql
+    ttm_applied TEXT,               -- CSV "TTM-applied" — 20261102_add_ttm_applied_to_issues.sql
+    except_ttm_plan TEXT,           -- CSV "except-TTM-plan" — 20261102_add_ttm_applied_to_issues.sql
     
     -- Metadata
     source_import_batch_id INT REFERENCES import_batches(id) ON DELETE CASCADE,

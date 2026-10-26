@@ -41,13 +41,14 @@ interface RuleGroupRow {
   enabled: boolean;
   ruleIds: string[];
   offRuleIds: string[];
+  ttmApplied: 'EXCEPTION' | 'STANDARD' | null;
   [column: string]: unknown;
 }
 
 type Queryable = Pick<PoolClient, 'query'>;
 
 const SELECT_GROUPS_SQL = `
-  SELECT g.id, g.name, g.priority, g.is_default AS "isDefault", g.enabled,
+  SELECT g.id, g.name, g.priority, g.is_default AS "isDefault", g.enabled, g.ttm_applied AS "ttmApplied",
          ${RULE_GROUP_DATE_FIELD_ORDER.map((field) => `g.${DATE_COLUMNS[field]}_from::text AS "${field}From", g.${DATE_COLUMNS[field]}_to::text AS "${field}To"`).join(', ')},
          COALESCE(array_agg(r.rule_id ORDER BY r.rule_id) FILTER (WHERE r.state = 'ON'), '{}') AS "ruleIds",
          COALESCE(array_agg(r.rule_id ORDER BY r.rule_id) FILTER (WHERE r.state = 'OFF'), '{}') AS "offRuleIds"
@@ -68,7 +69,7 @@ function rowToGroup(row: RuleGroupRow): ScoringRuleGroup {
     const to = (row[`${field}To`] as string | null) ?? null;
     if (from || to) conditions[field] = { from, to };
   }
-  return { id: row.id, name: row.name, priority: row.priority, isDefault: row.isDefault, enabled: row.isDefault || row.enabled, conditions, ruleIds: row.ruleIds, offRuleIds: row.isDefault ? [] : row.offRuleIds };
+  return { id: row.id, name: row.name, priority: row.priority, isDefault: row.isDefault, enabled: row.isDefault || row.enabled, conditions, ruleIds: row.ruleIds, offRuleIds: row.isDefault ? [] : row.offRuleIds, ttmApplied: row.isDefault ? null : row.ttmApplied };
 }
 
 async function queryGroups(db: Queryable): Promise<ScoringRuleGroup[]> {
@@ -96,7 +97,7 @@ function groupToDraft(group: ScoringRuleGroup): RuleGroupDraft {
     const range = group.conditions[field];
     if (range) conditions[field] = { from: range.from, to: range.to };
   }
-  return { key: String(group.id), id: group.id, name: group.name, isDefault: group.isDefault, enabled: group.enabled, conditions, ruleIds: [...group.ruleIds], offRuleIds: [...(group.offRuleIds ?? [])] };
+  return { key: String(group.id), id: group.id, name: group.name, isDefault: group.isDefault, enabled: group.enabled, conditions, ruleIds: [...group.ruleIds], offRuleIds: [...(group.offRuleIds ?? [])], ttmApplied: group.ttmApplied ?? null };
 }
 
 async function readVersion(db: Queryable): Promise<{ version: number; savedAt: string | null; savedByName: string | null }> {
@@ -146,6 +147,7 @@ export function cleanRuleGroupDrafts(groups: readonly RuleGroupDraft[]): RuleGro
     ...group,
     name: group.isDefault ? DEFAULT_RULE_GROUP_NAME : group.name.trim(),
     enabled: group.isDefault ? true : group.enabled,
+    ttmApplied: group.isDefault ? null : group.ttmApplied === 'EXCEPTION' || group.ttmApplied === 'STANDARD' ? group.ttmApplied : null,
     conditions: Object.fromEntries(RULE_GROUP_DATE_FIELD_ORDER.map((field) => {
       const range = group.conditions?.[field];
       return [field, { from: range?.from || null, to: range?.to || null }];
@@ -201,18 +203,18 @@ export async function saveRuleGroupConfig(input: readonly RuleGroupDraft[], base
         continue;
       }
       const dates = RULE_GROUP_DATE_FIELD_ORDER.flatMap((field) => [group.conditions[field].from, group.conditions[field].to]);
-      const values = [group.name, index + 1, group.enabled, ...dates, userId];
+      const values = [group.name, index + 1, group.enabled, ...dates, userId, group.ttmApplied ?? null];
       if (group.id !== null) {
         await client.query(
           `UPDATE scoring_rule_groups SET name = $1, priority = $2, enabled = $3, ${dateColumns.map((column, i) => `${column} = $${i + 4}::date`).join(', ')},
-             updated_at = NOW(), updated_by_user_id = $${dateColumns.length + 4} WHERE id = $${dateColumns.length + 5} AND NOT is_default;`,
+             updated_at = NOW(), updated_by_user_id = $${dateColumns.length + 4}, ttm_applied = $${dateColumns.length + 5} WHERE id = $${dateColumns.length + 6} AND NOT is_default;`,
           [...values, group.id],
         );
         finalIds.push(group.id);
       } else {
         const inserted = await client.query<{ id: number }>(
-          `INSERT INTO scoring_rule_groups (name, priority, enabled, ${dateColumns.join(', ')}, updated_by_user_id)
-           VALUES ($1, $2, $3, ${dateColumns.map((_, i) => `$${i + 4}::date`).join(', ')}, $${dateColumns.length + 4}) RETURNING id;`,
+          `INSERT INTO scoring_rule_groups (name, priority, enabled, ${dateColumns.join(', ')}, updated_by_user_id, ttm_applied)
+           VALUES ($1, $2, $3, ${dateColumns.map((_, i) => `$${i + 4}::date`).join(', ')}, $${dateColumns.length + 4}, $${dateColumns.length + 5}) RETURNING id;`,
           values,
         );
         finalIds.push(inserted.rows[0].id);

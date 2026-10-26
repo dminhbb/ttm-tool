@@ -53,7 +53,14 @@ export interface EpicFacts {
   /** "Phòng chịu trách nhiệm chính" of a Fail TTM — issues.main_fail_dept (CSV main_fail_dept, 2026-10-14).
    * Blank or "None" (what Jira sends for an empty field) = missing (REC_MISSING_RESPONSIBLE_DEPARTMENT). */
   responsibleDepartment?: string | null;
+  /** "TTM-applied" (CSV, 2026-10-26): EXCEPTION = 'Ngoại lệ', NOT_APPLICABLE = 'Không áp dụng', STANDARD = anything else. */
+  ttmApplied?: TtmAppliedKind;
+  /** "except-TTM-plan" as the crawl sent it (dd-MM-yyyy), and parsed; the plan is the Target of a 'Ngoại lệ' Epic. */
+  exceptPlanRaw?: string | null;
+  exceptPlanDate?: IsoDate | null;
 }
+
+export type TtmAppliedKind = 'EXCEPTION' | 'NOT_APPLICABLE' | 'STANDARD';
 
 /**
  * "Epic ngoại lệ" — why an Epic is outside every Time to Market calculation although it isn't
@@ -95,7 +102,11 @@ export const LEGACY_30D_POLICY_SET = 'legacy-30d';
 export interface PolicySetSelection {
   cntt: string;
   e2e: string;
+  /** Where Target_CNTT comes from: the budget (From +wd N−1, the default) or the Epic's "Kế hoạch ngoại lệ TTM". */
+  cnttTarget?: CnttTargetSource;
 }
+
+export type CnttTargetSource = 'BUDGET' | 'EXCEPT_PLAN';
 
 /** Epic dates a Rule Group can filter on (spec 2026-10-25 §6.1). */
 export type RuleGroupDateField = 'jiraCreatedAt' | 'ideaApprovedDate' | 'startDate' | 'r4gDate' | 'dueDate';
@@ -118,6 +129,8 @@ export interface ScoringRuleGroup {
   isDefault: boolean;
   enabled: boolean;
   conditions: Partial<Record<RuleGroupDateField, RuleGroupDateRange>>;
+  /** Also filter on the Epic's "TTM-applied": EXCEPTION = 'Ngoại lệ', STANDARD = blank / None / 'Theo quy định' / anything else. null/absent = any. */
+  ttmApplied?: 'EXCEPTION' | 'STANDARD' | null;
   /** Ids of the selectable Rule objects (registry.ts) this group turns ON; unknown ids are ignored. */
   ruleIds: readonly string[];
   /** Ids of the rules this group turns OFF for its Epics, even when a lower group (or Default) turns them on. A rule
@@ -189,8 +202,9 @@ export interface DerivedMetrics {
   isCancelled: boolean;
   cnttFromDate: IsoDate | null;
   cnttBudgetWorkingDays: number | null;
-  /** Target_CNTT = From +wd (N − 1). */
+  /** Target_CNTT = From +wd (N − 1), or the Epic's "Kế hoạch ngoại lệ TTM" date (cnttTargetSource). */
   cnttTargetDate: IsoDate | null;
+  cnttTargetSource: CnttTargetSource;
   cnttLateAlertDate: IsoDate | null;
   cnttRemainingWorkingDays: number | null;
   cnttCalcBroken: boolean;

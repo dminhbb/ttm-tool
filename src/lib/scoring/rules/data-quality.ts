@@ -4,6 +4,8 @@ import { finding } from './rule-types';
 import type { DerivedRule, PrimaryRule, RuleDetail, RuleSlot, ScoringRule } from './rule-types';
 import type { BadgeId } from '../catalog';
 import type { EpicFacts, ScoringContext } from '../types';
+import { exceptPlanProblem, MAX_EXCEPT_PLAN_SPAN_DAYS } from '../ttm-applied';
+import type { ExceptPlanProblem } from '../ttm-applied';
 
 /** Cancelled + the configurable list (default To Do / In PO / Backlog) skip the data-quality rules —
  * except R8 / R10, which only Cancelled skips. */
@@ -68,7 +70,7 @@ export function requirementLevelRequired(status: string, previousStatus: string 
 /** One slot per R-rule (a future variant of an R-rule shares its slot). */
 const DQ_SLOT_BY_RULE_ID: Record<string, RuleSlot> = {
   'dq-r1': 'DQ_R1', 'dq-r2': 'DQ_R2', 'dq-r3': 'DQ_R3', 'dq-r4': 'DQ_R4', 'dq-r5': 'DQ_R5',
-  'dq-r6': 'DQ_R6', 'dq-r8': 'DQ_R8', 'dq-r9': 'DQ_R9', 'dq-r10': 'DQ_R10',
+  'dq-r6': 'DQ_R6', 'dq-r8': 'DQ_R8', 'dq-r9': 'DQ_R9', 'dq-r10': 'DQ_R10', 'dq-r11': 'DQ_R11',
 };
 
 interface DataQualitySpec {
@@ -160,6 +162,31 @@ export const dqR10Rule = dataQualityRule({
   },
   recommend: (_input, active) => (active.has('ANOMALY_R10_R4G_DATE_IN_FUTURE')
     ? [finding('REC_CLEAR_FUTURE_R4G_DATE', 'Xoá R4G Date khai báo trước trên Jira (ghi ngày dự kiến ở trường thông tin khác); chỉ ghi R4G Date khi Epic thực tế đạt R4GOLIVE.', {}, { relatedTo: ['ANOMALY_R10_R4G_DATE_IN_FUTURE'] })]
+    : []),
+});
+
+const EXCEPT_PLAN_PROBLEM_TEXT: Record<ExceptPlanProblem, string> = {
+  MISSING: 'chưa có Ngày kế hoạch ngoại lệ (except-TTM-plan)',
+  UNREADABLE: 'Ngày kế hoạch ngoại lệ (except-TTM-plan) không đọc được thành ngày (định dạng dd-MM-yyyy)',
+  BEFORE_START: 'Ngày kế hoạch ngoại lệ (except-TTM-plan) trước Start Date',
+  TOO_FAR: `Ngày kế hoạch ngoại lệ (except-TTM-plan) cách Start Date hơn ${MAX_EXCEPT_PLAN_SPAN_DAYS} ngày`,
+};
+
+export const dqR11Rule = dataQualityRule({
+  id: 'dq-r11',
+  name: 'R11 — Kế hoạch ngoại lệ TTM thiếu / sai',
+  summary: 'Epic có TTM-applied = Ngoại lệ nhưng Ngày kế hoạch ngoại lệ (except-TTM-plan) trống, không đọc được thành ngày, trước Start Date hoặc quá xa Start Date.',
+  detail: { conditions: `Chỉ xét Epic có TTM-applied = "Ngoại lệ" (không phân biệt hoa thường / dấu). ${EXEMPT_NOTE}`, history: ['26/10/2026: rule mới (chủ sở hữu).'] },
+  emits: ['ANOMALY_R11_EXCEPT_PLAN_INVALID', 'REC_FIX_EXCEPT_PLAN'],
+  honorsExemptStatuses: true,
+  evaluate: ({ facts }) => {
+    if (facts.ttmApplied !== 'EXCEPTION') return [];
+    const problem = exceptPlanProblem(facts.exceptPlanRaw, facts.startDate);
+    if (!problem) return [];
+    return [finding('ANOMALY_R11_EXCEPT_PLAN_INVALID', `TTM-applied = Ngoại lệ nhưng ${EXCEPT_PLAN_PROBLEM_TEXT[problem]}`, { exceptPlan: facts.exceptPlanRaw ?? null, startDate: facts.startDate })];
+  },
+  recommend: (_input, active) => (active.has('ANOMALY_R11_EXCEPT_PLAN_INVALID')
+    ? [finding('REC_FIX_EXCEPT_PLAN', 'Điền Ngày kế hoạch ngoại lệ (except-TTM-plan, dd-MM-yyyy, từ Start Date trở đi) trên Jira, hoặc đổi TTM-applied.', {}, { relatedTo: ['ANOMALY_R11_EXCEPT_PLAN_INVALID'] })]
     : []),
 });
 

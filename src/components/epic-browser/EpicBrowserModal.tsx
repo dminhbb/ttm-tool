@@ -169,6 +169,12 @@ function TtmBlackListTopToggle({
   );
 }
 
+/** Crawl fields: Jira sends "None" for an empty value, shown as "-" like a blank. */
+function displayCrawlText(value: string | null | undefined): string {
+  const text = value?.trim() ?? '';
+  return text && text.toLowerCase() !== 'none' ? text : '-';
+}
+
 /**
  * Large popup "Duyệt Epic" thiết kế theo chuẩn giao diện Jira:
  * - Breadcrumb: ProjectKey / EpicKey
@@ -384,6 +390,20 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
                         <span className="w-36 font-semibold text-fb-text-placeholder">Đơn vị yêu cầu:</span>
                         <span className="font-medium text-fb-text-primary">
                           {summary?.requestingUnit || '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">TTM-applied:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {displayCrawlText(summary?.ttmApplied)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Except-TTM-plan:</span>
+                        <span className="font-medium text-fb-text-primary">
+                          {displayCrawlText(summary?.exceptTtmPlan)}
                         </span>
                       </div>
 

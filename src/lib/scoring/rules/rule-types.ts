@@ -33,7 +33,7 @@ export function finding(badge: BadgeId, message: string, evidence: Finding['evid
 export type RuleSlot =
   | 'TTM_CNTT_VERDICT'
   | 'TTM_E2E_VERDICT'
-  | 'DQ_R1' | 'DQ_R2' | 'DQ_R3' | 'DQ_R4' | 'DQ_R5' | 'DQ_R6' | 'DQ_R8' | 'DQ_R9' | 'DQ_R10'
+  | 'DQ_R1' | 'DQ_R2' | 'DQ_R3' | 'DQ_R4' | 'DQ_R5' | 'DQ_R6' | 'DQ_R8' | 'DQ_R9' | 'DQ_R10' | 'DQ_R11'
   | 'FAIL_REASON_STAGE'
   | 'FAIL_REASON_DEPT'
   | 'RELEASE_WAITING_GOLIVE'
@@ -93,6 +93,8 @@ export interface ScoringRule {
   readonly lifecycle: 'active' | 'deprecated';
   /** Verdict rules: the "Bộ ngân sách" (TTM budgets) the Epic's Target is computed from (spec §17). */
   readonly policySet?: string;
+  /** Verdict rules: 'EXCEPT_PLAN' = Target_CNTT is the Epic's "Kế hoạch ngoại lệ TTM" date instead of From +wd (N − 1). */
+  readonly targetSource?: 'EXCEPT_PLAN';
   /** The engine drops this rule's findings when the Epic has "Sai lệch dữ liệu" (spec §4.3). */
   readonly gatedByDataAnomaly: boolean;
   readonly evaluate?: PrimaryRule;

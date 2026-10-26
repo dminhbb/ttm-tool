@@ -55,3 +55,28 @@ describe('PyJiraApiAdapter — main_fail_dept ("Phòng chịu trách nhiệm ch�
     assert.equal(blank.mainFailDept, undefined);
   });
 });
+
+describe('PyJiraApiAdapter — TTM-applied / except-TTM-plan (2026-10-26)', () => {
+  it('reads the crawl headers as spelled, case-insensitive, on an epic row', () => {
+    const header = 'hierarchy_level,project_key,epic_key,epic_name,epic_status,TTM-applied,except-TTM-plan';
+    const epic = parsePyJiraApi(`${header}\nepic,WM,WM-1,Epic A,Released,Yes,Kế hoạch ngoại lệ Q4`).issues[0];
+    assert.equal(epic.ttmApplied, 'Yes');
+    assert.equal(epic.exceptTtmPlan, 'Kế hoạch ngoại lệ Q4');
+  });
+
+  it('accepts the snake_case and epic_-prefixed spellings; a blank cell is undefined', () => {
+    const header = 'hierarchy_level,project_key,epic_key,epic_name,epic_status,epic_ttm_applied,except_ttm_plan';
+    const [filled, blank] = parsePyJiraApi(`${header}\nepic,WM,WM-2,Epic B,Released,No,Plan B\nepic,WM,WM-3,Epic C,Released,,`).issues;
+    assert.equal(filled.ttmApplied, 'No');
+    assert.equal(filled.exceptTtmPlan, 'Plan B');
+    assert.equal(blank.ttmApplied, undefined);
+    assert.equal(blank.exceptTtmPlan, undefined);
+  });
+
+  it('a file without the columns still imports (both fields undefined)', () => {
+    const epic = parsePyJiraApi('hierarchy_level,project_key,epic_key,epic_name,epic_status\nepic,WM,WM-4,Epic D,Released').issues[0];
+    assert.equal(epic.ttmApplied, undefined);
+    assert.equal(epic.exceptTtmPlan, undefined);
+  });
+});
+

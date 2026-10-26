@@ -227,6 +227,8 @@ export interface EpicBrowserSummary {
   khauSitUat: string | null;
   noteLyDoKhac: string | null;
   mainFailDept: string | null;
+  ttmApplied: string | null;
+  exceptTtmPlan: string | null;
   /** PM/SM of the Epic's project — comma-joined when there are several, derived live from
    * user_projects (getProjectMetaByProjectKeyMap), not the Jira assignee. */
   ownerName: string;
@@ -268,6 +270,8 @@ interface EpicBrowserSummaryRow {
   khauSitUat: string | null;
   noteLyDoKhac: string | null;
   mainFailDept: string | null;
+  ttmApplied: string | null;
+  exceptTtmPlan: string | null;
   project: string | null;
   requestingUnit: string | null;
   startDate: string | null;
@@ -322,6 +326,8 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
         issues.khau_sit_uat AS "khauSitUat",
         issues.note_ly_do_khac AS "noteLyDoKhac",
         issues.main_fail_dept AS "mainFailDept",
+        issues.ttm_applied AS "ttmApplied",
+        issues.except_ttm_plan AS "exceptTtmPlan",
         issues.requesting_unit AS "requestingUnit", issues.aggregated_at::text AS "aggregatedAt",
         COALESCE(
           NULLIF(issues.project_key, ''),
@@ -385,6 +391,8 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
     khauSitUat: row.khauSitUat,
     noteLyDoKhac: row.noteLyDoKhac,
     mainFailDept: row.mainFailDept,
+    ttmApplied: row.ttmApplied,
+    exceptTtmPlan: row.exceptTtmPlan,
     // The PM/SMs responsible for this Epic's components (epic-pm-sm-assignment.ts) — the displayed row
     // already carries them; without one, every PM/SM of the project as before.
     ownerName: displayedRow ? displayedRow.ownerName : projectMeta?.leadName ?? '',

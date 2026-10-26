@@ -1,3 +1,4 @@
+import { normalizeTtmApplied, parseExceptPlanDate } from '@/lib/scoring/ttm-applied';
 import { loadTtmExclusionSources } from '@/lib/black-listed-epic-service';
 import pool from '@/lib/db';
 import { getActiveHolidaySet } from '@/lib/master-data-service';
@@ -180,6 +181,8 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
     startDate: string | null;
     status: string;
     summary: string;
+    ttmApplied: string | null;
+    exceptTtmPlan: string | null;
   }>(`
     WITH layer_issues AS (
       SELECT DISTINCT ON (issue_key)
@@ -205,7 +208,9 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
         -- exactly as before (it used to read a JSON key that never existed): feeding it the real date
         -- would also change which Epics Pass/Fail TTM-E2E in the Report, a separate decision.
         jira_created_at::text AS "createdFilterDate",
-        NULL::text AS "jiraCreatedAt"
+        NULL::text AS "jiraCreatedAt",
+        ttm_applied AS "ttmApplied",
+        except_ttm_plan AS "exceptTtmPlan"
       FROM issues
       WHERE aggregated_at::date <= $1::date
         AND UPPER(issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
@@ -276,6 +281,9 @@ export async function generateEpicReport(options: ReportFilterOptions): Promise<
       requestType: row.epicType,
       requirementLevel: row.requirementLevel,
       phaseCompletion: null,
+      ttmApplied: normalizeTtmApplied(row.ttmApplied),
+      exceptPlanRaw: row.exceptTtmPlan,
+      exceptPlanDate: parseExceptPlanDate(row.exceptTtmPlan),
     }, scoringCtx);
     // Reports ignore the "Phạm vi" gate (no out-of-scope table) — verdicts hidden only by it still count.
     const scoredVerdicts = new Set<BadgeId>(scorecard.findings.filter((item) => !item.suppressedBy || item.suppressedBy.every((by) => by === 'SCOPE_CNTT_OUT')).map((item) => item.badge));

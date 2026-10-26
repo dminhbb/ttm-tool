@@ -225,6 +225,8 @@ khau_sit_uat               -- TEXT, vai trò khâu SIT/UAT (epic_khau_sit_uat)
 note_ly_do_khac            -- TEXT, ghi chú lý do khác gây ra vấn đề Fail TTM-CNTT (epic_note_ly_do_khac)
 main_fail_dept             -- TEXT, "Phòng chịu trách nhiệm chính" của Fail TTM (CSV main_fail_dept,
                             -- 20261014d_add_main_fail_dept_to_issues.sql); trống hoặc "None" = thiếu
+ttm_applied                -- TEXT, CSV "TTM-applied" (20261102_add_ttm_applied_to_issues.sql)
+except_ttm_plan            -- TEXT, CSV "except-TTM-plan" (cùng migration)
 source_import_batch_id     -- FK import_batches(id) ON DELETE CASCADE
 aggregated_at               -- lớp dữ liệu (thời điểm chốt dữ liệu)
 created_at

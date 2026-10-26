@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       isDefault: group.isDefault,
       enabled: group.isDefault || group.enabled,
       priority: group.isDefault ? null : enabledOrder.indexOf(group) + 1 || null,
-      conditions: group.isDefault ? 'Epic không khớp nhóm nào ở trên' : describeConditions(group.conditions),
+      conditions: group.isDefault ? 'Epic không khớp nhóm nào ở trên' : describeConditions(group.conditions, group.ttmApplied),
       ruleIds: [...group.ruleIds].sort(),
       offRuleIds: [...(group.offRuleIds ?? [])].sort(),
     }));

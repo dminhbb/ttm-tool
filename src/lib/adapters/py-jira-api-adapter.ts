@@ -21,6 +21,8 @@
  *           epic_request_level (maps to issues.requirement_level — older files may still name
  *             this column epic_requirement_level, accepted as a fallback for backward compat),
  *           main_fail_dept ("Phòng chịu trách nhiệm chính" of a Fail TTM — no epic_ prefix),
+ *           TTM-applied and except-TTM-plan (2026-10-26, no epic_ prefix; ttm_applied / except_ttm_plan and
+ *             epic_-prefixed spellings accepted),
  *           optional epic_issue_type / epic_status_changed_at (read only by the "Từ chối import"
  *             rules — see import-admission-rules.ts)
  *
@@ -74,6 +76,15 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
   const idx = (name: string): number =>
     rawHeaders.findIndex((h) => h.toLowerCase() === name.toLowerCase());
 
+  // Helper: index of the first header present among several spellings of the same column
+  const firstIdx = (...names: string[]): number => {
+    for (const name of names) {
+      const found = idx(name);
+      if (found >= 0) return found;
+    }
+    return -1;
+  };
+
   // Helper: extract project key from issue key (e.g., "SMEDS-101" -> "SMEDS")
   const extractProjectKey = (primaryKey: string, fallbackKey?: string): string => {
     if (primaryKey && primaryKey.includes('-')) {
@@ -117,6 +128,9 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
     epic_note_ly_do_khac: idx('epic_note_ly_do_khac'),
     // "Phòng chịu trách nhiệm chính" (2026-10-14) — the crawl names it main_fail_dept, without the epic_ prefix.
     main_fail_dept: idx('main_fail_dept') >= 0 ? idx('main_fail_dept') : idx('epic_main_fail_dept'),
+    // "TTM-applied" / "except-TTM-plan" (2026-10-26) — the crawl's own header spelling first, then the snake_case ones.
+    ttm_applied: firstIdx('TTM-applied', 'ttm_applied', 'epic_ttm_applied'),
+    except_ttm_plan: firstIdx('except-TTM-plan', 'except_ttm_plan', 'epic_except_ttm_plan'),
     // Optional, read only by the "Từ chối import" rules (import-admission-rules.ts): Jira's own
     // level-1 issue type and the date the Epic moved to its current status.
     epic_issue_type: idx('epic_issue_type'),
@@ -204,6 +218,8 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
         khauSitUat: get(COL.epic_khau_sit_uat) || undefined,
         noteLyDoKhac: get(COL.epic_note_ly_do_khac) || undefined,
         mainFailDept: get(COL.main_fail_dept) || undefined,
+        ttmApplied: get(COL.ttm_applied) || undefined,
+        exceptTtmPlan: get(COL.except_ttm_plan) || undefined,
         sourceIssueType: get(COL.epic_issue_type) || undefined,
         statusChangedAt: get(COL.epic_status_changed_at) || undefined,
       };

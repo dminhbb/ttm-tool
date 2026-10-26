@@ -30,6 +30,7 @@ export function matchesDateRange(value: string | null | undefined, range: RuleGr
 
 /** Every date condition of the group holds for the Epic (AND). The default group has none, so it matches everything. */
 export function matchesRuleGroup(facts: EpicFacts, group: ScoringRuleGroup): boolean {
+  if (group.ttmApplied && group.ttmApplied !== (facts.ttmApplied === 'EXCEPTION' ? 'EXCEPTION' : 'STANDARD')) return false;
   return RULE_GROUP_DATE_FIELDS.every((field) => matchesDateRange(facts[field], group.conditions[field]));
 }
 
@@ -107,5 +108,6 @@ export function policySetsOf(rules: readonly ScoringRule[]): PolicySetSelection 
   return {
     cntt: slotRuleOf(rules, 'TTM_CNTT_VERDICT')?.policySet ?? DEFAULT_POLICY_SET,
     e2e: slotRuleOf(rules, 'TTM_E2E_VERDICT')?.policySet ?? DEFAULT_POLICY_SET,
+    cnttTarget: slotRuleOf(rules, 'TTM_CNTT_VERDICT')?.targetSource ?? 'BUDGET',
   };
 }

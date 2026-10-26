@@ -21,6 +21,7 @@ const ANOMALY_BADGE_TO_LEGACY: Partial<Record<BadgeId, { code: EpicAnomalyViolat
   ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE: { code: 'R4G_DATE_BEFORE_R4GOLIVE', ruleIndex: 8 },
   ANOMALY_R9_MISSING_R4G_DATE: { code: 'MISSING_R4G_DATE', ruleIndex: 9 },
   ANOMALY_R10_R4G_DATE_IN_FUTURE: { code: 'R4G_DATE_IN_FUTURE', ruleIndex: 10 },
+  ANOMALY_R11_EXCEPT_PLAN_INVALID: { code: 'EXCEPT_PLAN_INVALID', ruleIndex: 11 },
 };
 
 const LEGACY_PHASE_KEY: Record<TtmPhaseKey, 'design' | 'dev' | 'test' | 'pentest' | 'r4golive'> = {

@@ -210,9 +210,19 @@ export const BADGES = [
     formula: 'R4G Date > asOf  VÀ  (status ≥ R4GOLIVE  HOẶC  status = Reopened)  VÀ  status ≠ Cancelled',
   },
   {
+    id: 'ANOMALY_R11_EXCEPT_PLAN_INVALID', axis: 'DATA_QUALITY', group: 'ALERT', label: 'Kế hoạch ngoại lệ TTM thiếu / sai', precedence: 66, defaultEnabled: true,
+    meaning: 'R11 — Epic có TTM-applied = Ngoại lệ (Target TTM-CNTT lấy theo Ngày kế hoạch ngoại lệ) nhưng Ngày kế hoạch (except-TTM-plan) trống, không đọc được thành ngày, trước Start Date hoặc cách Start Date quá 1.100 ngày. Mới từ 26/10/2026: Epic bị Sai lệch dữ liệu nên không được chấm Đạt / Fail và nằm ngoài mẫu số cho tới khi bổ sung.',
+    formula: 'TTM-applied = Ngoại lệ  VÀ  (except-TTM-plan trống / không phải ngày / < Start Date / > Start Date + 1.100 ngày)  VÀ  status ∉ {Cancelled, To Do, In PO, Backlog}',
+  },
+  {
     id: 'ANOMALY_R2_PENDING_TOO_LONG', axis: 'DATA_QUALITY', group: 'RECOMMENDATION', label: 'Pending lâu', precedence: 65, defaultEnabled: true,
     meaning: 'R2 — Epic Pending quá tỉ lệ cho phép của chu trình TTM-CNTT (QLDA); nên quyết định tiếp tục hay huỷ. Không còn tính là "Sai lệch dữ liệu".',
     formula: 'status = Pending  VÀ  WD(T1, hoặc ngày tạo Jira nếu thiếu T1; asOf) ≥ 20% × N_CNTT',
+  },
+  {
+    id: 'REC_FIX_EXCEPT_PLAN', axis: 'DATA_QUALITY', group: 'RECOMMENDATION', label: 'Bổ sung Ngày kế hoạch ngoại lệ', precedence: 80, defaultEnabled: true,
+    meaning: 'Điền Ngày kế hoạch ngoại lệ (except-TTM-plan, dd-MM-yyyy, từ Start Date trở đi) trên Jira, hoặc đổi TTM-applied.',
+    formula: 'Có Sai lệch dữ liệu R11',
   },
   {
     id: 'REC_FILL_START_DATE', axis: 'DATA_QUALITY', group: 'RECOMMENDATION', label: 'Bổ sung Start Date', precedence: 70, defaultEnabled: true,

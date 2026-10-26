@@ -54,6 +54,10 @@ export interface TtmCnttVariant {
   summary: string;
   /** "Bộ ngân sách" whose TTM_CNTT budgets give this variant's Target (spec §17). */
   policySet: string;
+  /** 'EXCEPT_PLAN': Target_CNTT = the Epic's "Kế hoạch ngoại lệ TTM" (CSV except-TTM-plan) instead of the budget. */
+  targetSource?: 'EXCEPT_PLAN';
+  /** Part of the default group (default: the variants on the DEFAULT budget set). Extra variants are chosen by Rule Groups. */
+  defaultSelected?: boolean;
   history?: readonly string[];
 }
 
@@ -76,9 +80,10 @@ export function makeTtmCnttRule(variant: TtmCnttVariant): ScoringRule {
     core: false,
     slot: 'TTM_CNTT_VERDICT',
     emits: ['CNTT_FAIL', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH'],
-    defaultSelected: variant.policySet === DEFAULT_POLICY_SET,
+    defaultSelected: variant.defaultSelected ?? variant.policySet === DEFAULT_POLICY_SET,
     lifecycle: 'active',
     policySet: variant.policySet,
+    targetSource: variant.targetSource,
     gatedByDataAnomaly: true,
     evaluate: ({ facts, derived, ctx }) => {
       const target = derived.cnttTargetDate;
@@ -130,6 +135,21 @@ export const ttmCnttLegacy30dRule = makeTtmCnttRule({
   summary: 'Như chuẩn 09/2026 nhưng Target_CNTT dùng bộ ngân sách "legacy-30d": Tính năng mới/Cải tiến mức 3-4 (CT-Lv34) = 30 ngày làm việc; các loại Epic khác kế thừa bộ Mặc định.',
   policySet: LEGACY_30D_POLICY_SET,
   history: ['26/10/2026: biến thể mới theo yêu cầu chủ sở hữu (Start Date < 01/09/2026 hoặc R4G Date < 01/10/2026 → 30 ngày).'],
+});
+
+/**
+ * Same verdicts and badges as `ttm-cntt-sep-2026`, but Target_CNTT is the Epic's own "Kế hoạch ngoại lệ TTM" date (CSV
+ * except-TTM-plan) — for Epics whose "TTM-applied" is 'Ngoại lệ'. The Late alert (a % of the Epic's budget N) and the
+ * phase baselines follow that Target (derive.ts). A Rule Group with the condition TTM-applied = Ngoại lệ turns it ON.
+ */
+export const ttmCnttExceptPlanRule = makeTtmCnttRule({
+  id: 'ttm-cntt-except-plan',
+  name: 'TTM-CNTT (QLDA) — Kế hoạch ngoại lệ TTM',
+  summary: 'Như chuẩn 09/2026 nhưng Target_CNTT = ngày "Kế hoạch ngoại lệ TTM" (except-TTM-plan) của Epic có TTM-applied = Ngoại lệ; Cảnh báo muộn và baseline pha tính theo Target này.',
+  policySet: DEFAULT_POLICY_SET,
+  targetSource: 'EXCEPT_PLAN',
+  defaultSelected: false,
+  history: ['26/10/2026: rule mới (chủ sở hữu) — dùng với nhóm rule có điều kiện TTM-applied = Ngoại lệ.'],
 });
 
 /** "Cảnh báo muộn" — always runs (owner decision 2026-10-25); read off the Epic's own TTM-CNTT Target. */
