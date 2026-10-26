@@ -44,7 +44,7 @@ export async function loadScoringContext(asOf: string, scopeOverride: Partial<Sc
   const parameters = resolveScoringParameters(parameterOverrides);
   const fingerprint = JSON.stringify({
     parameters,
-    ruleGroups: ruleGroups.map((group) => [group.id, group.name, group.priority, group.isDefault, group.enabled, group.conditions, [...group.ruleIds].sort()]),
+    ruleGroups: ruleGroups.map((group) => [group.id, group.name, group.priority, group.isDefault, group.enabled, group.conditions, [...group.ruleIds].sort(), [...(group.offRuleIds ?? [])].sort()]),
     scope,
     statusAlertRules: statusAlertRules.map((rule) => [rule.epicComplexityType, rule.epicStatus, rule.lateAlertOffsetDays]).sort(),
     ttmPolicies: ttmPolicies.map((policy) => [policy.ttmType, policy.epicComplexityType, policy.fromTtmField, policy.toTtmField, policy.workingDays]).sort(),

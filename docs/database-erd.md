@@ -961,6 +961,7 @@ erDiagram
     scoring_rule_group_rules {
         int group_id PK, FK
         text rule_id PK
+        text state
     }
     scoring_rule_group_history {
         int id PK
@@ -1041,12 +1042,15 @@ Tham số rule do admin ghi đè (grace Release, tỉ lệ Pending lâu, status 
 
 ### `scoring_rule_group_rules`
 
-**Mới 25/10/2026.** Rule object (id trong `src/lib/scoring/registry.ts`) mà mỗi nhóm rule chọn chạy; rule luôn chạy không có ở đây. Id không còn trong code thì bị bỏ qua.
+**Mới 25/10/2026.** Rule object (id trong `src/lib/scoring/registry.ts`) mà mỗi nhóm rule khai báo; `state` = `ON` (Bật) hoặc `OFF` (Tắt, từ 26/10/2026) — rule nhóm không khai báo là Kế thừa từ nhóm ưu tiên thấp hơn. Rule luôn chạy không có ở đây. Id không còn trong code thì bị bỏ qua.
 
 | Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
 |---|---|---|---|---|---|
 | `group_id` | int | không |  | PK, FK → scoring_rule_groups(id) |  |
 | `rule_id` | text | không |  | PK |  |
+| `state` | text | không | 'ON'::text |  |  |
+
+- `scoring_rule_group_rules_state_check`: CHECK ((state = ANY (ARRAY['ON'::text, 'OFF'::text])))
 
 ### `scoring_rule_group_history`
 

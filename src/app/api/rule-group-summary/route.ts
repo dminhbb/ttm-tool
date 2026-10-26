@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
       priority: group.isDefault ? null : enabledOrder.indexOf(group) + 1 || null,
       conditions: group.isDefault ? 'Epic không khớp nhóm nào ở trên' : describeConditions(group.conditions),
       ruleIds: [...group.ruleIds].sort(),
+      offRuleIds: [...(group.offRuleIds ?? [])].sort(),
     }));
     return NextResponse.json({ groups: items });
   } catch (error: unknown) {

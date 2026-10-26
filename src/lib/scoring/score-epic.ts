@@ -2,7 +2,7 @@ import { BADGE_BY_ID, SUPPRESSIONS } from './catalog';
 import type { BadgeId } from './catalog';
 import { deriveMetrics, isCancelledStatus } from './derive';
 import { RULES } from './registry';
-import { policySetsOf, resolveRuleGroup, selectedRulesOf, slotRuleOf } from './rule-groups';
+import { matchingRuleGroups, policySetsOf, resolveRuleSelection, slotRuleOf } from './rule-groups';
 import { scopeRule } from './rules/scope-phase';
 import { finding } from './rules/rule-types';
 import type { RuleInput, ScoringRule } from './rules/rule-types';
@@ -70,10 +70,11 @@ function evaluateRule(rule: ScoringRule, input: RuleInput): Finding[] {
  *
  * Steps (spec docs/superpowers/specs/2026-10-25-rule-groups-design.md §7):
  *   1. "Epic ngoại lệ" → only the Scope rule, no Rule Group;
- *   2. the Epic's Rule Group (rule-groups.ts) → the rules it runs = core rules + the group's selection, and the
+ *   2. the Epic's matching Rule Groups (rule-groups.ts; layered, Default last) → the rules it runs = core rules + one
+ *      rule per slot the groups turn ON (the nearest group naming a slot decides it; OFF disables it), and the
  *      "Bộ ngân sách" its verdict rules read (deriveMetrics);
  *   3. data-quality rules → "Sai lệch dữ liệu", which drops every rule with `gatedByDataAnomaly` (the TTM verdicts);
- *   4. the other rules, plus "Không áp dụng rule TTM-CNTT / TTM-E2E" when the group has no verdict rule for a slot;
+ *   4. the other rules, plus "Không áp dụng rule TTM-CNTT / TTM-E2E" when no verdict rule applies for a slot;
  *   5. suppressions, then the recommendation step of every rule that runs.
  */
 export function scoreEpic(facts: EpicFacts, ctx: ScoringContext): EpicScorecard {
@@ -89,8 +90,9 @@ export function scoreEpic(facts: EpicFacts, ctx: ScoringContext): EpicScorecard 
     return { epicKey: facts.epicKey, asOf: ctx.asOf, rulesetVersion: ctx.rulesetVersion, ruleGroup: null, findings, indexMembership: indexMembership(facts, activeBadges(findings), ctx, true), derived };
   }
 
-  const group = resolveRuleGroup(facts, ctx.ruleGroups);
-  const selected = selectedRulesOf(group);
+  const matching = matchingRuleGroups(facts, ctx.ruleGroups);
+  const group = matching[0];
+  const { rules: selected, decidedBy } = resolveRuleSelection(matching);
   const selectedIds = new Set(selected.map((rule) => rule.id));
   const rules = RULES.filter((rule) => rule.core || selectedIds.has(rule.id));
   const derived = deriveMetrics(facts, ctx, policySetsOf(selected));
@@ -102,11 +104,16 @@ export function scoreEpic(facts: EpicFacts, ctx: ScoringContext): EpicScorecard 
   const input: RuleInput = { ...baseInput, hasDataAnomaly };
   const runs = (rule: ScoringRule) => !(hasDataAnomaly && rule.gatedByDataAnomaly);
 
-  // A group without a verdict rule for a slot: the Epic is not judged on that axis (D6). Cancelled has its own note.
+  // No verdict rule applies for a slot (turned OFF by a group, or none selected): the Epic is not judged on that axis
+  // (D6). Cancelled has its own note.
   const hasCnttRule = Boolean(slotRuleOf(selected, 'TTM_CNTT_VERDICT'));
+  const noRuleReason = (slot: 'TTM_CNTT_VERDICT' | 'TTM_E2E_VERDICT') => {
+    const decision = decidedBy.get(slot);
+    return decision ? `nhóm rule "${decision.group.name}" đã tắt rule này` : `nhóm rule "${group.name}" và các nhóm kế thừa không có rule này`;
+  };
   const noRule: Finding[] = [];
-  if (!derived.isCancelled && !hasCnttRule) noRule.push(finding('CNTT_NO_RULE', `Nhóm rule "${group.name}" không có rule đánh giá TTM-CNTT (QLDA) — Epic không được chấm TTM-CNTT và không tính vào TTM-CNTT (QLDA) / (QA).`));
-  if (!derived.isCancelled && !slotRuleOf(selected, 'TTM_E2E_VERDICT')) noRule.push(finding('E2E_NO_RULE', `Nhóm rule "${group.name}" không có rule đánh giá TTM-E2E — Epic không được chấm TTM-E2E và không tính vào chỉ số TTM-E2E.`));
+  if (!derived.isCancelled && !hasCnttRule) noRule.push(finding('CNTT_NO_RULE', `Không áp dụng rule đánh giá TTM-CNTT (QLDA) — ${noRuleReason('TTM_CNTT_VERDICT')}. Epic không được chấm TTM-CNTT và không tính vào TTM-CNTT (QLDA) / (QA).`));
+  if (!derived.isCancelled && !slotRuleOf(selected, 'TTM_E2E_VERDICT')) noRule.push(finding('E2E_NO_RULE', `Không áp dụng rule đánh giá TTM-E2E — ${noRuleReason('TTM_E2E_VERDICT')}. Epic không được chấm TTM-E2E và không tính vào chỉ số TTM-E2E.`));
 
   const primaryRules = rules.filter((rule) => rule.stage === 'PRIMARY' && runs(rule));
   const primary = [...dataQuality, ...primaryRules.flatMap((rule) => evaluateRule(rule, input)), ...noRule.filter((item) => isEnabled(item.badge))];

@@ -40,6 +40,7 @@ interface RuleGroupRow {
   isDefault: boolean;
   enabled: boolean;
   ruleIds: string[];
+  offRuleIds: string[];
   [column: string]: unknown;
 }
 
@@ -48,7 +49,8 @@ type Queryable = Pick<PoolClient, 'query'>;
 const SELECT_GROUPS_SQL = `
   SELECT g.id, g.name, g.priority, g.is_default AS "isDefault", g.enabled,
          ${RULE_GROUP_DATE_FIELD_ORDER.map((field) => `g.${DATE_COLUMNS[field]}_from::text AS "${field}From", g.${DATE_COLUMNS[field]}_to::text AS "${field}To"`).join(', ')},
-         COALESCE(array_agg(r.rule_id ORDER BY r.rule_id) FILTER (WHERE r.rule_id IS NOT NULL), '{}') AS "ruleIds"
+         COALESCE(array_agg(r.rule_id ORDER BY r.rule_id) FILTER (WHERE r.state = 'ON'), '{}') AS "ruleIds",
+         COALESCE(array_agg(r.rule_id ORDER BY r.rule_id) FILTER (WHERE r.state = 'OFF'), '{}') AS "offRuleIds"
   FROM scoring_rule_groups g
   LEFT JOIN scoring_rule_group_rules r ON r.group_id = g.id
   GROUP BY g.id
@@ -66,7 +68,7 @@ function rowToGroup(row: RuleGroupRow): ScoringRuleGroup {
     const to = (row[`${field}To`] as string | null) ?? null;
     if (from || to) conditions[field] = { from, to };
   }
-  return { id: row.id, name: row.name, priority: row.priority, isDefault: row.isDefault, enabled: row.isDefault || row.enabled, conditions, ruleIds: row.ruleIds };
+  return { id: row.id, name: row.name, priority: row.priority, isDefault: row.isDefault, enabled: row.isDefault || row.enabled, conditions, ruleIds: row.ruleIds, offRuleIds: row.isDefault ? [] : row.offRuleIds };
 }
 
 async function queryGroups(db: Queryable): Promise<ScoringRuleGroup[]> {
@@ -94,7 +96,7 @@ function groupToDraft(group: ScoringRuleGroup): RuleGroupDraft {
     const range = group.conditions[field];
     if (range) conditions[field] = { from: range.from, to: range.to };
   }
-  return { key: String(group.id), id: group.id, name: group.name, isDefault: group.isDefault, enabled: group.enabled, conditions, ruleIds: [...group.ruleIds] };
+  return { key: String(group.id), id: group.id, name: group.name, isDefault: group.isDefault, enabled: group.enabled, conditions, ruleIds: [...group.ruleIds], offRuleIds: [...(group.offRuleIds ?? [])] };
 }
 
 async function readVersion(db: Queryable): Promise<{ version: number; savedAt: string | null; savedByName: string | null }> {
@@ -140,11 +142,13 @@ export function cleanRuleGroupDrafts(groups: readonly RuleGroupDraft[]): RuleGro
       return [field, { from: range?.from || null, to: range?.to || null }];
     })) as RuleGroupDraft['conditions'],
     ruleIds: [...new Set(group.ruleIds.filter((id) => known.has(id)))].sort(),
+    // Default has no group below it to override: a rule it does not turn ON simply does not apply.
+    offRuleIds: group.isDefault ? [] : [...new Set(group.offRuleIds.filter((id) => known.has(id) && !group.ruleIds.includes(id)))].sort(),
   }));
 }
 
 export function assertValidRuleGroups(groups: readonly RuleGroupDraft[], stored: readonly RuleGroupDraft[]): void {
-  const storedRuleIds = new Map(stored.flatMap((group) => (group.id === null ? [] : [[group.id, new Set(group.ruleIds)] as const])));
+  const storedRuleIds = new Map(stored.flatMap((group) => (group.id === null ? [] : [[group.id, new Set([...group.ruleIds, ...(group.offRuleIds ?? [])])] as const])));
   const { errors } = validateRuleGroups(groups, buildRuleCatalog(), storedRuleIds);
   if (errors.length) throw new RuleGroupSaveError(400, 'Cấu hình nhóm rule chưa hợp lệ.', errors.map((issue) => issue.message));
 }
@@ -207,11 +211,14 @@ export async function saveRuleGroupConfig(input: readonly RuleGroupDraft[], base
     }
 
     await client.query('DELETE FROM scoring_rule_group_rules WHERE group_id = ANY($1::int[]);', [finalIds]);
-    const pairs = groups.flatMap((group, index) => group.ruleIds.map((ruleId) => [finalIds[index], ruleId] as const));
-    if (pairs.length) {
+    const rows = groups.flatMap((group, index) => [
+      ...group.ruleIds.map((ruleId) => [finalIds[index], ruleId, 'ON'] as const),
+      ...group.offRuleIds.map((ruleId) => [finalIds[index], ruleId, 'OFF'] as const),
+    ]);
+    if (rows.length) {
       await client.query(
-        'INSERT INTO scoring_rule_group_rules (group_id, rule_id) SELECT * FROM unnest($1::int[], $2::text[]);',
-        [pairs.map(([id]) => id), pairs.map(([, ruleId]) => ruleId)],
+        'INSERT INTO scoring_rule_group_rules (group_id, rule_id, state) SELECT * FROM unnest($1::int[], $2::text[], $3::text[]);',
+        [rows.map(([id]) => id), rows.map(([, ruleId]) => ruleId), rows.map(([, , state]) => state)],
       );
     }
 

@@ -1,6 +1,6 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-26T01:50:26.787Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-26T05:47:42.171Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
 -- Gồm: 57 bảng, 56 index phụ, 4 hàm, 4 trigger.
@@ -601,7 +601,9 @@ CREATE TABLE scoring_rule_group_history (
 CREATE TABLE scoring_rule_group_rules (
     group_id integer NOT NULL,
     rule_id text NOT NULL,
-    CONSTRAINT scoring_rule_group_rules_pkey PRIMARY KEY (group_id, rule_id)
+    state text DEFAULT 'ON'::text NOT NULL,
+    CONSTRAINT scoring_rule_group_rules_pkey PRIMARY KEY (group_id, rule_id),
+    CONSTRAINT scoring_rule_group_rules_state_check CHECK ((state = ANY (ARRAY['ON'::text, 'OFF'::text])))
 );
 
 CREATE TABLE scoring_rule_groups (
@@ -1008,7 +1010,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 103 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 104 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1113,7 +1115,8 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261028_create_scoring_rule_groups.sql'),
     ('20261028b_add_rule_group_to_epic_alert_row_cache.sql'),
     ('20261028c_add_rule_management_permission.sql'),
-    ('20261029_add_history_thinning_settings.sql');
+    ('20261029_add_history_thinning_settings.sql'),
+    ('20261030_add_rule_group_rule_state.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1302,24 +1305,24 @@ WHERE current_setting('ttm_install.seed_data', true) = 'on';
 SELECT setval(pg_get_serial_sequence('scoring_rule_groups', 'id'), MAX(id)) FROM scoring_rule_groups HAVING MAX(id) IS NOT NULL;
 
 -- scoring_rule_group_rules (15 dòng)
-INSERT INTO scoring_rule_group_rules (group_id, rule_id)
+INSERT INTO scoring_rule_group_rules (group_id, rule_id, state)
 SELECT * FROM (VALUES
-    ('1'::integer, 'dq-r1'::text),
-    ('1'::integer, 'dq-r10'::text),
-    ('1'::integer, 'dq-r2'::text),
-    ('1'::integer, 'dq-r3'::text),
-    ('1'::integer, 'dq-r4'::text),
-    ('1'::integer, 'dq-r5'::text),
-    ('1'::integer, 'dq-r6'::text),
-    ('1'::integer, 'dq-r8'::text),
-    ('1'::integer, 'dq-r9'::text),
-    ('1'::integer, 'fail-reason-dept'::text),
-    ('1'::integer, 'fail-reason-stage'::text),
-    ('1'::integer, 'release-justify-golive'::text),
-    ('1'::integer, 'release-waiting-golive'::text),
-    ('1'::integer, 'ttm-cntt-sep-2026'::text),
-    ('1'::integer, 'ttm-e2e-july-2026'::text)
-) AS seed (group_id, rule_id)
+    ('1'::integer, 'dq-r1'::text, 'ON'::text),
+    ('1'::integer, 'dq-r10'::text, 'ON'::text),
+    ('1'::integer, 'dq-r2'::text, 'ON'::text),
+    ('1'::integer, 'dq-r3'::text, 'ON'::text),
+    ('1'::integer, 'dq-r4'::text, 'ON'::text),
+    ('1'::integer, 'dq-r5'::text, 'ON'::text),
+    ('1'::integer, 'dq-r6'::text, 'ON'::text),
+    ('1'::integer, 'dq-r8'::text, 'ON'::text),
+    ('1'::integer, 'dq-r9'::text, 'ON'::text),
+    ('1'::integer, 'fail-reason-dept'::text, 'ON'::text),
+    ('1'::integer, 'fail-reason-stage'::text, 'ON'::text),
+    ('1'::integer, 'release-justify-golive'::text, 'ON'::text),
+    ('1'::integer, 'release-waiting-golive'::text, 'ON'::text),
+    ('1'::integer, 'ttm-cntt-sep-2026'::text, 'ON'::text),
+    ('1'::integer, 'ttm-e2e-july-2026'::text, 'ON'::text)
+) AS seed (group_id, rule_id, state)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 
 -- project_types (3 dòng)

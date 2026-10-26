@@ -8,7 +8,7 @@ import { CORE_RULES, DEFAULT_RULE_GROUP, RULE_BY_ID, RULES, SELECTABLE_RULES } f
 import { matchesDateRange, orderRuleGroups, policySetsOf, resolveRuleGroup } from '../rule-groups';
 import { makeTtmCnttRule } from '../rules/ttm-cntt';
 import { SLOT_BADGES } from '../rules/rule-types';
-import type { RuleSlot } from '../rules/rule-types';
+import type { VerdictSlot } from '../rules/rule-types';
 import { scoreEpic } from '../score-epic';
 import type { EpicFacts, ScoringContext, ScoringRuleGroup, ScoringTtmPolicy } from '../types';
 import { makeContext, makeFacts, POLICIES } from './fixtures';
@@ -21,6 +21,11 @@ function group(overrides: Partial<ScoringRuleGroup> = {}): ScoringRuleGroup {
 
 function withoutRules(...ids: string[]): string[] {
   return DEFAULT_RULE_GROUP.ruleIds.filter((id) => !ids.includes(id));
+}
+
+/** A non-default group that turns these rules OFF and says nothing else about the rest (the rest is inherited). */
+function off(...ids: string[]): Pick<ScoringRuleGroup, 'ruleIds' | 'offRuleIds'> {
+  return { ruleIds: [], offRuleIds: ids };
 }
 
 function activeOf(facts: EpicFacts, ctx: ScoringContext): Set<BadgeId> {
@@ -56,9 +61,24 @@ describe('rule registry (spec 2026-10-25 §4–5)', () => {
     }
   });
 
+  it('every selectable rule fills a slot, core rules fill none (2026-10-26)', () => {
+    for (const rule of SELECTABLE_RULES) assert.ok(rule.slot, `${rule.id} has no slot`);
+    for (const rule of CORE_RULES) assert.equal(rule.slot, undefined, rule.id);
+  });
+
+  it('rules sharing a slot are variants: they emit the same badges', () => {
+    const bySlot = new Map<string, string>();
+    for (const rule of SELECTABLE_RULES) {
+      const key = [...rule.emits].sort().join(',');
+      const seen = bySlot.get(rule.slot!);
+      if (seen !== undefined) assert.equal(seen, key, `${rule.id} differs from the other rules of ${rule.slot}`);
+      bySlot.set(rule.slot!, key);
+    }
+  });
+
   it('slot contract: every verdict rule emits exactly its slot badges, is selectable and gated by "Sai lệch dữ liệu"', () => {
-    for (const rule of RULES.filter((item) => item.slot)) {
-      assert.deepEqual([...rule.emits].sort(), [...SLOT_BADGES[rule.slot!]].sort(), rule.id);
+    for (const rule of RULES.filter((item) => item.slot && item.slot in SLOT_BADGES)) {
+      assert.deepEqual([...rule.emits].sort(), [...SLOT_BADGES[rule.slot as VerdictSlot]].sort(), rule.id);
       assert.equal(rule.core, false, rule.id);
       assert.equal(rule.gatedByDataAnomaly, true, rule.id);
       assert.ok(rule.policySet, rule.id);
@@ -75,8 +95,8 @@ describe('rule registry (spec 2026-10-25 §4–5)', () => {
 
   it('the default group built in code selects every rule, one per slot', () => {
     assert.deepEqual([...DEFAULT_RULE_GROUP.ruleIds].sort(), SELECTABLE_RULES.map((rule) => rule.id).sort());
-    for (const slot of Object.keys(SLOT_BADGES) as RuleSlot[]) {
-      assert.equal(SELECTABLE_RULES.filter((rule) => rule.slot === slot && DEFAULT_RULE_GROUP.ruleIds.includes(rule.id)).length, 1, slot);
+    for (const slot of new Set(SELECTABLE_RULES.map((rule) => rule.slot))) {
+      assert.equal(SELECTABLE_RULES.filter((rule) => rule.slot === slot && DEFAULT_RULE_GROUP.ruleIds.includes(rule.id)).length, 1, String(slot));
     }
   });
 });
@@ -131,18 +151,18 @@ describe('engine with Rule Groups (§7)', () => {
     assert.equal(scoreEpic(makeFacts({ ttmExclusion: 'BLACK_LISTED' }), makeContext({ ruleGroups: [g] })).ruleGroup, null);
   });
 
-  it('only the selected rules run (plus the core ones)', () => {
+  it('a rule the group turns OFF does not run, even though Default turns it on (plus the core ones)', () => {
     const facts = makeFacts({ requestType: '' });
     assert.ok(activeOf(facts, makeContext()).has('ANOMALY_R4_MISSING_REQUEST_TYPE'));
-    const active = activeOf(facts, makeContext({ ruleGroups: [group({ ruleIds: withoutRules('dq-r4') })] }));
+    const active = activeOf(facts, makeContext({ ruleGroups: [group({ ...off('dq-r4') })] }));
     assert.ok(!active.has('ANOMALY_R4_MISSING_REQUEST_TYPE'));
     assert.ok(!active.has('REC_FILL_REQUEST_TYPE'));
     assert.ok(active.has('CNTT_FAIL'), 'without the anomaly the Epic is judged again');
     assert.ok(active.has('PHASE_LATE') || active.has('PHASE_CURRENT'), 'core phase rule still runs');
   });
 
-  it('group without a TTM-CNTT rule: "Không áp dụng rule TTM-CNTT", no verdict, out of L02 (D6, D13)', () => {
-    const ctx = makeContext({ asOf, ruleGroups: [group({ ruleIds: withoutRules('ttm-cntt-sep-2026') })] });
+  it('group that turns the TTM-CNTT rule OFF: "Không áp dụng rule TTM-CNTT", no verdict, out of L02 (D6, D13)', () => {
+    const ctx = makeContext({ asOf, ruleGroups: [group({ ...off('ttm-cntt-sep-2026') })] });
     const card = scoreEpic(makeFacts({ status: 'MVP DONE', r4gDate: '2026-08-25' }), ctx);
     const active = new Set(card.findings.filter((item) => !item.suppressedBy).map((item) => item.badge));
     assert.ok(active.has('CNTT_NO_RULE'));
@@ -156,12 +176,12 @@ describe('engine with Rule Groups (§7)', () => {
   it('"Cảnh báo muộn" (always runs) is hidden when the group has no TTM-CNTT rule', () => {
     const lateDate = addWorkingDays('2026-08-03', 13, NO_HOLIDAYS);
     assert.ok(activeOf(makeFacts(), makeContext({ asOf: lateDate })).has('CNTT_LATE'));
-    const ctx = makeContext({ asOf: lateDate, ruleGroups: [group({ ruleIds: withoutRules('ttm-cntt-sep-2026') })] });
+    const ctx = makeContext({ asOf: lateDate, ruleGroups: [group({ ...off('ttm-cntt-sep-2026') })] });
     assert.ok(!activeOf(makeFacts(), ctx).has('CNTT_LATE'));
   });
 
-  it('group without a TTM-E2E rule: "Không áp dụng rule TTM-E2E", no E2E verdict; TTM-CNTT unaffected', () => {
-    const active = activeOf(makeFacts(), makeContext({ asOf, ruleGroups: [group({ ruleIds: withoutRules('ttm-e2e-july-2026') })] }));
+  it('group that turns the TTM-E2E rule OFF: "Không áp dụng rule TTM-E2E", no E2E verdict; TTM-CNTT unaffected', () => {
+    const active = activeOf(makeFacts(), makeContext({ asOf, ruleGroups: [group({ ...off('ttm-e2e-july-2026') })] }));
     assert.ok(active.has('E2E_NO_RULE'));
     assert.ok(!active.has('E2E_FAIL') && !active.has('E2E_PASS'));
     assert.ok(active.has('CNTT_FAIL'));
@@ -169,7 +189,7 @@ describe('engine with Rule Groups (§7)', () => {
   });
 
   it('a Cancelled Epic gets no "Không áp dụng rule" note (it already has "Không áp dụng")', () => {
-    const active = activeOf(makeFacts({ status: 'Cancelled' }), makeContext({ ruleGroups: [group({ ruleIds: [] })] }));
+    const active = activeOf(makeFacts({ status: 'Cancelled' }), makeContext({ ruleGroups: [group({ ...off(...DEFAULT_RULE_GROUP.ruleIds) })] }));
     assert.ok(!active.has('CNTT_NO_RULE') && !active.has('E2E_NO_RULE'));
   });
 
@@ -218,5 +238,55 @@ describe('"Bộ ngân sách" (§17)', () => {
     const onTime = makeFacts({ status: 'R4GOLIVE', r4gDate: '2026-08-14' });
     const reached = variant.evaluate!({ facts: onTime, derived: deriveMetrics(onTime, ctx, policySetsOf([variant])), ctx, hasDataAnomaly: false });
     assert.deepEqual(reached.map((item) => item.badge), ['CNTT_PASS']);
+  });
+});
+
+describe('layered Rule Groups (2026-10-26)', () => {
+  const asOf = '2026-09-01';
+  const facts = makeFacts({ requestType: '' }); // R4 anomaly while dq-r4 applies
+  const r4 = 'ANOMALY_R4_MISSING_REQUEST_TYPE' as const;
+  const sep = { startDate: { from: '2026-08-01', to: null } } as const;
+
+  it('a rule the group does not name is inherited from Default (Kế thừa)', () => {
+    const inheriting = group({ ruleIds: [], offRuleIds: [], conditions: sep });
+    assert.ok(activeOf(facts, makeContext({ asOf, ruleGroups: [inheriting] })).has(r4), 'dq-r4 comes from Default');
+    assert.deepEqual(scoreEpic(facts, makeContext({ asOf, ruleGroups: [inheriting] })).ruleGroup, { id: 1, name: 'G1', isDefault: false });
+  });
+
+  it('OFF wins over a lower group and Default that turn the rule ON; ON in a higher group beats a lower OFF', () => {
+    const lowerOff = group({ id: 2, name: 'lower', priority: 2, ...off('dq-r4') });
+    const higherOn = group({ id: 1, name: 'higher', priority: 1, ruleIds: ['dq-r4'], offRuleIds: [] });
+    assert.ok(!activeOf(facts, makeContext({ asOf, ruleGroups: [lowerOff] })).has(r4));
+    assert.ok(activeOf(facts, makeContext({ asOf, ruleGroups: [higherOn, lowerOff] })).has(r4), 'higher group turns it ON again');
+    const higherOff = group({ id: 1, name: 'higher', priority: 1, ...off('dq-r4') });
+    const lowerOn = group({ id: 2, name: 'lower', priority: 2, ruleIds: ['dq-r4'], offRuleIds: [] });
+    assert.ok(!activeOf(facts, makeContext({ asOf, ruleGroups: [higherOff, lowerOn] })).has(r4), 'the higher group decides');
+  });
+
+  it('a group the Epic does not match, or a disabled one, says nothing', () => {
+    const elsewhere = group({ ...off('dq-r4'), conditions: { startDate: { from: '2030-01-01', to: null } } });
+    assert.ok(activeOf(facts, makeContext({ asOf, ruleGroups: [elsewhere] })).has(r4));
+    assert.ok(activeOf(facts, makeContext({ asOf, ruleGroups: [group({ ...off('dq-r4'), enabled: false })] })).has(r4));
+  });
+
+  it('the two groups of the owner example: rule 1 for R4G < 1/9, rule 2 for Due > 1/10 — an Epic in both gets both', () => {
+    const early = group({ id: 1, name: 'early', priority: 1, ...off('dq-r1'), conditions: { r4gDate: { from: null, to: '2026-08-31' } } });
+    const late = group({ id: 2, name: 'late', priority: 2, ...off('dq-r4'), conditions: { dueDate: { from: '2026-10-02', to: null } } });
+    const both = makeFacts({ requestType: '', startDate: null, r4gDate: '2026-08-20', dueDate: '2026-10-15' });
+    const active = activeOf(both, makeContext({ asOf, ruleGroups: [early, late] }));
+    assert.ok(!active.has(r4), 'late group still applies although the Epic also sits in the earlier group');
+    assert.ok(!active.has('ANOMALY_R1_MISSING_START_DATE'), 'early group applies too');
+    assert.equal(scoreEpic(both, makeContext({ asOf, ruleGroups: [early, late] })).ruleGroup?.name, 'early', 'the scorecard names the highest-priority group');
+  });
+
+  it('CNTT_NO_RULE names the group that turned the verdict rule OFF', () => {
+    const card = scoreEpic(makeFacts(), makeContext({ asOf, ruleGroups: [group({ name: 'Tắt CNTT', ...off('ttm-cntt-sep-2026') })] }));
+    const note = card.findings.find((item) => item.badge === 'CNTT_NO_RULE');
+    assert.ok(note?.message.includes('Tắt CNTT'));
+  });
+
+  it('Default never uses the OFF list; an unlisted Default rule simply does not apply', () => {
+    const dbDefault = group({ id: 9, name: 'Default', isDefault: true, priority: 0, ruleIds: withoutRules('dq-r4') });
+    assert.ok(!activeOf(facts, makeContext({ asOf, ruleGroups: [dbDefault] })).has(r4));
   });
 });

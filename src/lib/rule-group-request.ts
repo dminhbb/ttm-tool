@@ -15,6 +15,8 @@ export function parseRuleGroupDrafts(value: unknown): RuleGroupDraft[] | null {
     if (id !== null && !Number.isInteger(id)) return null;
     if (typeof record.name !== 'string' || typeof record.key !== 'string') return null;
     if (!Array.isArray(record.ruleIds) || !record.ruleIds.every((ruleId) => typeof ruleId === 'string')) return null;
+    const rawOff = record.offRuleIds ?? [];
+    if (!Array.isArray(rawOff) || !rawOff.every((ruleId) => typeof ruleId === 'string')) return null;
     const conditions = emptyConditions();
     const rawConditions = (typeof record.conditions === 'object' && record.conditions !== null ? record.conditions : {}) as Record<string, unknown>;
     for (const field of RULE_GROUP_DATE_FIELD_ORDER) {
@@ -22,7 +24,7 @@ export function parseRuleGroupDrafts(value: unknown): RuleGroupDraft[] | null {
       const read = (raw: unknown) => (typeof raw === 'string' && raw.trim() ? raw.trim() : null);
       conditions[field] = { from: read(range?.from), to: read(range?.to) };
     }
-    drafts.push({ key: record.key, id, name: record.name, isDefault: record.isDefault === true, enabled: record.enabled !== false, conditions, ruleIds: record.ruleIds as string[] });
+    drafts.push({ key: record.key, id, name: record.name, isDefault: record.isDefault === true, enabled: record.enabled !== false, conditions, ruleIds: record.ruleIds as string[], offRuleIds: rawOff as string[] });
   }
   return drafts;
 }

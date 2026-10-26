@@ -1,7 +1,7 @@
 import { diffWorkingDays, toIsoDate } from '../dates';
 import { isCancelledStatus, isPendingStatus, isReopenedStatus, normalizeWorkflowStatus, STATUS_INDEX } from '../derive';
 import { finding } from './rule-types';
-import type { DerivedRule, PrimaryRule, RuleDetail, ScoringRule } from './rule-types';
+import type { DerivedRule, PrimaryRule, RuleDetail, RuleSlot, ScoringRule } from './rule-types';
 import type { BadgeId } from '../catalog';
 import type { EpicFacts, ScoringContext } from '../types';
 
@@ -65,6 +65,12 @@ export function requirementLevelRequired(status: string, previousStatus: string 
  * follows it; their logic changes are kept in each rule's `detail.history`.
  */
 
+/** One slot per R-rule (a future variant of an R-rule shares its slot). */
+const DQ_SLOT_BY_RULE_ID: Record<string, RuleSlot> = {
+  'dq-r1': 'DQ_R1', 'dq-r2': 'DQ_R2', 'dq-r3': 'DQ_R3', 'dq-r4': 'DQ_R4', 'dq-r5': 'DQ_R5',
+  'dq-r6': 'DQ_R6', 'dq-r8': 'DQ_R8', 'dq-r9': 'DQ_R9', 'dq-r10': 'DQ_R10',
+};
+
 interface DataQualitySpec {
   id: string;
   name: string;
@@ -88,6 +94,7 @@ function dataQualityRule(spec: DataQualitySpec): ScoringRule {
     category: 'DATA_QUALITY',
     stage: 'DATA_QUALITY',
     core: false,
+    slot: DQ_SLOT_BY_RULE_ID[spec.id],
     emits: spec.emits,
     defaultSelected: true,
     lifecycle: 'active',

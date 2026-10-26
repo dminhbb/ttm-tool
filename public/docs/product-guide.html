@@ -499,7 +499,7 @@
           <tr><td>29</td><td><code>scoring_parameters</code></td><td>Epic Scoring Service</td><td><code>param_key</code> (PK)<br><code>updated_by_user_id</code> → <code>users</code></td><td>Tham số rule do admin ghi đè (grace Release, tỉ lệ Pending lâu, status được miễn…); mặc định nằm trong code.</td></tr>
           <tr><td>30</td><td><code>scoring_rule_settings</code></td><td>Epic Scoring Service</td><td><code>badge_id</code> (PK)<br><code>updated_by_user_id</code> → <code>users</code></td><td><strong>Không còn dùng từ 25/10/2026</strong> (thay bằng Rule Group — Rule Management); chờ gỡ bảng. Trước đây: bật/tắt từng badge của Scoring Service.</td></tr>
           <tr><td>31</td><td><code>scoring_rule_groups</code></td><td>Epic Scoring Service</td><td><code>id</code> (PK)<br><code>updated_by_user_id</code> → <code>users</code></td><td><strong>Mới 25/10/2026.</strong> Nhóm rule (Rule Group) của Scoring Service: khoảng ngày Epic (5 cặp Từ/Đến: ngày tạo, phê duyệt ý tưởng, Start Date, R4G Date, Due Date — AND, tính cả hai đầu), thứ tự ưu tiên, bật/tắt. Epic thuộc nhóm bật ưu tiên cao nhất mà nó khớp; không khớp nhóm nào thì thuộc nhóm <code>is_default</code> (luôn có đúng một, không điều kiện ngày, đứng cuối). Màn hình Rule Management.</td></tr>
-          <tr><td>32</td><td><code>scoring_rule_group_rules</code></td><td>Epic Scoring Service</td><td><code>(group_id, rule_id)</code> (PK)<br><code>group_id</code> → <code>scoring_rule_groups</code></td><td><strong>Mới 25/10/2026.</strong> Rule object (id trong <code>src/lib/scoring/registry.ts</code>) mà mỗi nhóm rule chọn chạy; rule luôn chạy không có ở đây. Id không còn trong code thì bị bỏ qua.</td></tr>
+          <tr><td>32</td><td><code>scoring_rule_group_rules</code></td><td>Epic Scoring Service</td><td><code>(group_id, rule_id)</code> (PK)<br><code>group_id</code> → <code>scoring_rule_groups</code></td><td><strong>Mới 25/10/2026.</strong> Rule object (id trong <code>src/lib/scoring/registry.ts</code>) mà mỗi nhóm rule khai báo; <code>state</code> = <code>ON</code> (Bật) hoặc <code>OFF</code> (Tắt, từ 26/10/2026) — rule nhóm không khai báo là Kế thừa từ nhóm ưu tiên thấp hơn. Rule luôn chạy không có ở đây. Id không còn trong code thì bị bỏ qua.</td></tr>
           <tr><td>33</td><td><code>scoring_rule_group_history</code></td><td>Epic Scoring Service</td><td><code>id</code> (PK)<br><code>saved_by_user_id</code> → <code>users</code></td><td><strong>Mới 25/10/2026.</strong> Mỗi lần lưu cấu hình nhóm rule: người lưu, thời điểm, toàn bộ cấu hình trước / sau (JSON). Id mới nhất là phiên bản cấu hình — lần lưu sau phải xuất phát từ phiên bản đó.</td></tr>
           <tr><td>34</td><td><code>epic_alert_timeline</code></td><td>Lịch sử &amp; snapshot</td><td><code>id</code> (PK)<br><code>source_import_batch_id</code> → <code>import_batches</code></td><td>Theo dõi 5 loại cảnh báo dưới dạng các đợt (run) có khoảng ngày bắt đầu/kết thúc liên tục.</td></tr>
           <tr><td>35</td><td><code>epic_alert_row_cache</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>epic_key</code> (PK)</td><td>Cache dòng Epic của lớp dữ liệu mới nhất cho Quản trị Epic / các Dashboard: <code>row_data</code> (JSON) + các cột lọc/sắp xếp, <code>badge_codes</code>, <code>index_flags</code>, <code>findings</code> của Scoring Service. Dựng lại sau import, đầu ngày và khi cấu hình đổi (mục 6.4).</td></tr>
@@ -1024,8 +1024,10 @@
             <tbody>
               <tr><td><code>group_id</code></td><td><code>INT NOT NULL</code></td><td>PRIMARY KEY<br>FK → scoring_rule_groups(id)</td><td></td></tr>
               <tr><td><code>rule_id</code></td><td><code>TEXT NOT NULL</code></td><td>PRIMARY KEY</td><td></td></tr>
+              <tr><td><code>state</code></td><td><code>TEXT NOT NULL</code></td><td>DEFAULT 'ON'::text</td><td></td></tr>
             </tbody>
           </table>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK ((state = ANY (ARRAY['ON'::text, 'OFF'::text])))</code></li></ul>
           <p><strong>6.5. <code>scoring_rule_group_history</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
@@ -1554,7 +1556,7 @@
       <h3 id="rule-groups">7.4. Rule object &amp; Nhóm rule — màn hình Rule Management (từ 25/10/2026)</h3>
       <p>
         Rule đánh giá Epic thường chỉ có hiệu lực theo thời kỳ (ví dụ Epic bắt đầu từ 01/09/2026 dùng chuẩn TTM-CNTT khác Epic cũ). Từ 25/10/2026
-        Scoring Service tổ chức rule thành <strong>Rule object</strong> và chấm mỗi Epic bằng bộ rule của <strong>nhóm rule (Rule Group)</strong> mà Epic thuộc về.
+        Scoring Service tổ chức rule thành <strong>Rule object</strong> và chấm mỗi Epic theo các <strong>nhóm rule (Rule Group)</strong> mà Epic khớp (phân lớp, từ 26/10/2026).
         Thiết kế đầy đủ: <code>docs/superpowers/specs/2026-10-25-rule-groups-design.md</code>.
       </p>
       <ul>
@@ -1562,15 +1564,17 @@
           Sửa một rule = sửa tại chỗ theo mã, mọi nhóm đang chọn mã đó dùng logic mới; logic chỉ áp dụng cho một giai đoạn Epic thì tạo <em>biến thể</em> với mã mới (ví dụ <code>ttm-cntt-2027</code>).</li>
         <li><strong>Rule chọn được</strong> (theo nhóm): <code>ttm-cntt-sep-2026</code> (Đạt / Fail TTM-CNTT (QLDA) + Sai Status), <code>ttm-e2e-july-2026</code> (Đạt / Fail TTM-E2E + Sai Status),
           R1, R2, R3, R4, R5, R6, R8, R9, R10 (mỗi rule kèm khuyến nghị của nó), Thiếu lý do Fail TTM (khâu fail), Thiếu phòng chịu TN chính, Giải trình Golive, Chờ golive.
-          Rule đánh giá TTM-CNTT / TTM-E2E: mỗi nhóm chọn <strong>tối đa 1</strong>; các biến thể phát cùng badge Đạt / Fail nên phễu và chỉ số đếm như cũ.</li>
+          Mỗi rule chọn được nằm trong một <strong>slot</strong> (vị trí): rule TTM-CNTT (QLDA) và TTM-E2E, và từng rule còn lại đều có slot riêng. Mỗi nhóm bật <strong>tối đa 1 rule cho mỗi slot</strong>; các biến thể của một slot phát cùng badge nên phễu và chỉ số đếm như cũ.</li>
         <li><strong>Rule luôn chạy</strong> (mọi Epic): Không áp dụng / Không tính được TTM-CNTT và TTM-E2E, Baseline từ ngày tạo Jira + Bổ sung T0, Cảnh báo muộn, Sai Status (Release),
           Release đúng hạn (badge vẫn tắt), Phạm vi dữ liệu cho TTM / Epic ngoại lệ, Pha.</li>
         <li><strong>Nhóm rule</strong>: tên, thứ tự ưu tiên, master toggle bật/tắt, điều kiện ngày Epic (5 cặp Từ ngày / Đến ngày: Ngày tạo, Ngày phê duyệt ý tưởng, Start Date, R4G Date, Due Date —
-          kết hợp AND, tính cả hai đầu, ô trống = không giới hạn) và danh sách rule áp dụng. Mỗi Epic thuộc nhóm <strong>bật có ưu tiên cao nhất</strong> mà nó khớp mọi điều kiện;
-          Epic <strong>thiếu</strong> ngày mà nhóm có điều kiện thì không khớp nhóm đó. Epic không khớp nhóm nào thuộc nhóm <strong>Default</strong> — bắt buộc tồn tại, không xoá / đổi tên / tắt, không có điều kiện ngày,
-          luôn ưu tiên thấp nhất (chỉ sửa được danh sách rule). Epic ngoại lệ không thuộc nhóm nào (không được xét).</li>
-        <li><strong>Hệ quả lên chỉ số</strong>: nhóm không chọn rule TTM-CNTT → Epic mang ghi nhận "Không áp dụng rule TTM-CNTT", <strong>bị loại ở L02</strong> (mục 21.2), không tính TTM-CNTT (QLDA) / (QA);
-          không chọn rule TTM-E2E → không tính TTM-E2E. "Sai lệch dữ liệu" (L03) phụ thuộc rule Chất lượng dữ liệu mà nhóm chọn. Chỉ số toàn công ty là tổng hợp kết quả của các nhóm —
+          kết hợp AND, tính cả hai đầu, ô trống = không giới hạn) và trạng thái từng rule: <strong>Kế thừa / Bật / Tắt</strong>. Một Epic được chấm theo <strong>mọi nhóm bật mà nó khớp</strong> mọi điều kiện (Epic <strong>thiếu</strong> ngày mà nhóm có điều kiện thì không khớp nhóm đó),
+          xếp từ ưu tiên cao xuống thấp, <strong>Default luôn là lớp cuối</strong> — bắt buộc tồn tại, không xoá / đổi tên / tắt, không có điều kiện ngày (chỉ sửa được danh sách rule Bật / Tắt). Với mỗi rule (slot), <strong>nhóm gần nhất khai báo rule đó quyết định</strong>:
+          Bật = áp dụng cho Epic của nhóm; Tắt = không áp dụng, kể cả khi nhóm dưới hoặc Default bật; Kế thừa = theo nhóm dưới. Ví dụ: nhóm "R4G &lt; 01/09/2026" chỉ cấu hình rule 1 thì các rule khác của Epic đó tự rơi xuống nhóm gần nhất rồi Default.
+          Nhóm đầu tiên Epic khớp là <em>nhóm chính</em> (hiện ở cột Nhóm rule, chiều "Theo Nhóm rule"). Epic ngoại lệ không thuộc nhóm nào (không được xét).
+          Khi bấm Lưu, nếu hai nhóm có thể cùng khớp một Epic mà khai báo khác nhau cho cùng một rule/slot, màn hình hiện popup cảnh báo xung đột (Epic theo nhóm ưu tiên cao hơn) để xác nhận.</li>
+        <li><strong>Hệ quả lên chỉ số</strong>: không nhóm nào bật rule TTM-CNTT cho Epic (hoặc bị Tắt) → Epic mang ghi nhận "Không áp dụng rule TTM-CNTT", <strong>bị loại ở L02</strong> (mục 21.2), không tính TTM-CNTT (QLDA) / (QA);
+          tương tự với rule TTM-E2E → không tính TTM-E2E. "Sai lệch dữ liệu" (L03) phụ thuộc rule Chất lượng dữ liệu mà nhóm chọn. Chỉ số toàn công ty là tổng hợp kết quả của các nhóm —
           xem chiều "Theo Nhóm rule" ở TTM Dashboard 2 (mục 21.7–21.8). Cấu hình áp dụng cho mọi lớp dữ liệu, kể cả quá khứ.</li>
       </ul>
       <table>
@@ -1804,7 +1808,7 @@
       <h3>9.2. Phạm vi áp dụng rule Sai lệch dữ liệu — thay bằng Nhóm rule (từ 25/10/2026)</h3>
       <p>
         Panel "Phạm vi rule Sai lệch dữ liệu" (Cấu hình cảnh báo, 10/10–25/10/2026) đã được gỡ. Việc giới hạn một rule R1…R10 cho các Epic "đủ mới" nay làm bằng
-        <strong>nhóm rule</strong> (mục 7.4): tạo nhóm có điều kiện ngày (ví dụ Ngày tạo ≥ 01/08/2026) chọn rule đó, và bỏ rule đó khỏi nhóm Default.
+        <strong>nhóm rule</strong> (mục 7.4): tạo nhóm có điều kiện ngày (ví dụ Ngày tạo ≥ 01/08/2026) và đặt rule đó ở trạng thái Bật, đồng thời Tắt rule đó ở Default (hoặc ở nhóm khác chỉ áp dụng cho Epic cũ).
         Khác với panel cũ: điều kiện là "≥ / ≤" (tính cả ngày mốc) thay vì "&gt;", và Epic thiếu ngày mà nhóm có điều kiện thì <strong>không thuộc</strong> nhóm đó.
       </p>
     </section>

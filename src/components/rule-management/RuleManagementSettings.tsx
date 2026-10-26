@@ -21,19 +21,22 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
-import { BooleanPillToggle } from '@/components/ui/PillToggle';
+import { BooleanPillToggle, PillToggle } from '@/components/ui/PillToggle';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { showToast } from '@/components/ui/Toast';
 import { confirmDialog } from '@/components/ui/dialogs';
 import {
   describeConditions,
+  detectRuleGroupConflicts,
   emptyConditions,
+  ruleStateOf,
   RULE_GROUP_DATE_FIELD_LABELS,
   RULE_GROUP_DATE_FIELD_ORDER,
   validateRuleGroups,
 } from '@/lib/rule-group-config';
 import type {
+  RuleState,
   RuleGroupConfigResponse,
   RuleGroupDraft,
   RuleGroupHistoryEntry,
@@ -44,7 +47,6 @@ import type {
 import { FINDING_GROUPS } from '@/lib/scoring/catalog';
 import type { RuleCatalogItem } from '@/lib/scoring/rule-catalog';
 import { RULE_CATEGORY_LABELS, RULE_CATEGORY_ORDER, RULE_SLOT_LABELS } from '@/lib/scoring/rule-labels';
-import type { RuleSlot } from '@/lib/scoring/rules/rule-types';
 import type { RuleGroupDateField } from '@/lib/scoring/types';
 
 /**
@@ -53,7 +55,6 @@ import type { RuleGroupDateField } from '@/lib/scoring/types';
  * last. The whole configuration is edited as a draft and saved in one go.
  */
 
-const SLOTS: readonly RuleSlot[] = ['TTM_CNTT_VERDICT', 'TTM_E2E_VERDICT'];
 /** Tabs (owner layout 2026-10-25): "Rule group manager" first, one tab per saved group (`group:<key>`) in priority
  * order, then "Default rules" and "Always Rule". */
 const MANAGER_TAB = 'manager';
@@ -108,10 +109,14 @@ function describeHistory(entry: RuleGroupHistoryEntry, ruleNames: ReadonlyMap<st
     if (old.name !== group.name) lines.push(`Đổi tên "${old.name}" → "${group.name}".`);
     if (old.enabled !== group.enabled) lines.push(`${group.enabled ? 'Bật' : 'Tắt'} nhóm "${group.name}".`);
     if (describeConditions(old.conditions) !== describeConditions(group.conditions)) lines.push(`"${group.name}": điều kiện ${describeConditions(old.conditions)} → ${describeConditions(group.conditions)}.`);
-    const added = group.ruleIds.filter((id) => !old.ruleIds.includes(id));
-    const removed = old.ruleIds.filter((id) => !group.ruleIds.includes(id));
-    if (added.length) lines.push(`"${group.name}": thêm rule ${added.map(name).join(', ')}.`);
-    if (removed.length) lines.push(`"${group.name}": bỏ rule ${removed.map(name).join(', ')}.`);
+    const stateOf = (item: RuleGroupDraft, id: string): RuleState => ruleStateOf({ ruleIds: item.ruleIds, offRuleIds: item.offRuleIds ?? [] }, id);
+    const label: Record<RuleState, string> = { INHERIT: 'Kế thừa', ON: 'Bật', OFF: 'Tắt' };
+    const touched = [...new Set([...old.ruleIds, ...(old.offRuleIds ?? []), ...group.ruleIds, ...(group.offRuleIds ?? [])])];
+    for (const id of touched) {
+      const before = stateOf(old, id);
+      const after = stateOf(group, id);
+      if (before !== after) lines.push(`"${group.name}": rule ${name(id)} ${label[before]} → ${label[after]}.`);
+    }
   }
   for (const group of entry.before) if (!afterById.has(group.id)) lines.push(`Xoá nhóm "${group.name}".`);
   const order = (groups: RuleGroupDraft[]) => groups.map((group) => group.id).join(',');
@@ -139,7 +144,7 @@ export function RuleManagementSettings() {
   const selectable = useMemo(() => catalog.filter((rule) => !rule.core), [catalog]);
   const coreRules = useMemo(() => catalog.filter((rule) => rule.core), [catalog]);
   const ruleNames = useMemo(() => new Map(catalog.map((rule) => [rule.id, rule.name])), [catalog]);
-  const storedRuleIds = useMemo(() => new Map((config?.groups ?? []).flatMap((group) => (group.id === null ? [] : [[group.id, new Set(group.ruleIds)] as const]))), [config]);
+  const storedRuleIds = useMemo(() => new Map((config?.groups ?? []).flatMap((group) => (group.id === null ? [] : [[group.id, new Set([...group.ruleIds, ...(group.offRuleIds ?? [])])] as const]))), [config]);
   const validation = useMemo(() => validateRuleGroups(drafts, catalog, storedRuleIds), [drafts, catalog, storedRuleIds]);
   const draftsJson = JSON.stringify(drafts);
   const dirty = config !== null && draftsJson !== JSON.stringify(config.groups);
@@ -199,13 +204,14 @@ export function RuleManagementSettings() {
     updateGroup(key, (group) => ({ ...group, conditions: { ...group.conditions, [field]: { ...group.conditions[field], [end]: value || null } } }));
   };
 
-  const toggleRule = (key: string, ruleId: string, on: boolean) => {
-    updateGroup(key, (group) => ({ ...group, ruleIds: on ? [...new Set([...group.ruleIds, ruleId])].sort() : group.ruleIds.filter((id) => id !== ruleId) }));
-  };
-
-  const setSlotRule = (key: string, slot: RuleSlot, ruleId: string | null) => {
-    const slotIds = new Set(selectable.filter((rule) => rule.slot === slot).map((rule) => rule.id));
-    updateGroup(key, (group) => ({ ...group, ruleIds: [...group.ruleIds.filter((id) => !slotIds.has(id)), ...(ruleId ? [ruleId] : [])].sort() }));
+  /** Sets a rule's state in a group. A slot holds at most one rule per group, so its other variants go back to Kế thừa. */
+  const setRuleState = (key: string, rule: RuleCatalogItem, state: RuleState) => {
+    const mates = new Set(selectable.filter((item) => item.slot === rule.slot).map((item) => item.id));
+    updateGroup(key, (group) => ({
+      ...group,
+      ruleIds: [...group.ruleIds.filter((id) => !mates.has(id)), ...(state === 'ON' ? [rule.id] : [])].sort(),
+      offRuleIds: [...(group.offRuleIds ?? []).filter((id) => !mates.has(id)), ...(state === 'OFF' ? [rule.id] : [])].sort(),
+    }));
   };
 
   const move = (index: number, step: -1 | 1) => {
@@ -219,19 +225,33 @@ export function RuleManagementSettings() {
   };
 
   const addGroup = () => {
-    const defaultGroup = drafts.find((group) => group.isDefault);
     const existing = new Set(drafts.map((group) => group.name.trim().toLocaleLowerCase('vi-VN')));
     let index = 1;
     while (existing.has(`nhóm mới ${index}`)) index += 1;
-    const group: RuleGroupDraft = { key: newGroupKey(), id: null, name: `Nhóm mới ${index}`, isDefault: false, enabled: true, conditions: emptyConditions(), ruleIds: [...(defaultGroup?.ruleIds ?? [])] };
+    const group: RuleGroupDraft = { key: newGroupKey(), id: null, name: `Nhóm mới ${index}`, isDefault: false, enabled: true, conditions: emptyConditions(), ruleIds: [], offRuleIds: [] };
     setDrafts((prev) => [...prev.filter((item) => !item.isDefault), group, ...prev.filter((item) => item.isDefault)]);
     // A new group is edited on the first tab until it is saved.
     setActiveTab(MANAGER_TAB);
   };
 
   const removeGroup = async (group: RuleGroupDraft) => {
-    const ok = await confirmDialog({ title: 'Xoá nhóm rule', description: `Xoá nhóm "${group.name}"? Epic của nhóm sẽ chuyển sang nhóm khớp tiếp theo hoặc Default sau khi lưu.`, confirmLabel: 'Xoá' });
+    const ok = await confirmDialog({ title: 'Xoá nhóm rule', description: `Xoá nhóm "${group.name}"? Epic của nhóm sẽ theo các nhóm ưu tiên thấp hơn và Default sau khi lưu.`, confirmLabel: 'Xoá' });
     if (ok) setDrafts((prev) => prev.filter((item) => item.key !== group.key));
+  };
+
+  /** Save button: when two groups that can match the same Epic say different things for a slot, ask first. */
+  const requestSave = async () => {
+    const conflicts = detectRuleGroupConflicts(drafts, catalog);
+    if (conflicts.length) {
+      const ok = await confirmDialog({
+        title: 'Hai nhóm rule có thể xung đột',
+        description: `${conflicts.map((conflict) => `• ${conflict.message}`).join('\n\n')}\n\nVẫn lưu cấu hình này?`,
+        confirmLabel: 'Vẫn lưu',
+        tone: 'primary',
+      });
+      if (!ok) return;
+    }
+    await save();
   };
 
   const save = async () => {
@@ -280,6 +300,13 @@ export function RuleManagementSettings() {
   // A group tab whose group was just deleted (or undone) falls back to the first tab.
   const currentTab = activeGroupKey && !activeSaved ? MANAGER_TAB : activeTab;
 
+  const ruleCountText = (group: RuleGroupDraft) => {
+    const on = group.ruleIds.filter((id) => ruleNames.has(id)).length;
+    if (group.isDefault) return `${on}/${selectable.length} rule bật`;
+    const off = (group.offRuleIds ?? []).filter((id) => ruleNames.has(id)).length;
+    return `${on} bật · ${off} tắt · ${selectable.length - on - off} kế thừa`;
+  };
+
   const renderGroupCard = (group: RuleGroupDraft, index: number) => {
     const errors = issuesOf(group.key, validation.errors);
     const warnings = issuesOf(group.key, validation.warnings);
@@ -292,12 +319,12 @@ export function RuleManagementSettings() {
             <span className="min-w-0 truncate text-sm font-semibold text-fb-text-primary">{group.name || '(chưa đặt tên)'}</span>
             {group.isDefault ? <Badge variant="info">Mặc định · luôn bật</Badge> : <Badge variant={group.enabled ? 'success' : 'neutral'}>{group.enabled ? 'Bật' : 'Tắt'}</Badge>}
             {group.id === null && <Badge variant="warning">Chưa lưu</Badge>}
-            <span className="text-xs text-fb-text-secondary">{group.isDefault ? 'Epic không khớp nhóm nào ở trên' : describeConditions(group.conditions)}</span>
+            <span className="text-xs text-fb-text-secondary">{group.isDefault ? 'Lớp cuối — mọi Epic' : describeConditions(group.conditions)}</span>
             <span className="ml-auto flex items-center gap-2">
               {matched !== undefined && <Badge variant="pending">{formatNumber(matched)} Epic</Badge>}
               {errors.length > 0 && <span className="inline-flex items-center gap-1 text-xs font-semibold text-status-danger"><XCircle className="size-4" />{errors.length}</span>}
               {warnings.length > 0 && <span className="inline-flex items-center gap-1 text-xs font-semibold text-status-warning"><Warning className="size-4" />{warnings.length}</span>}
-              <span className="text-xs text-fb-text-secondary">{group.ruleIds.filter((id) => ruleNames.has(id)).length}/{selectable.length} rule</span>
+              <span className="text-xs text-fb-text-secondary">{ruleCountText(group)}</span>
               {!group.isDefault && (
                 <>
                   <button aria-label="Tăng ưu tiên" className={ICON_BUTTON_CLASS} disabled={index === 0} onClick={() => move(index, -1)} title="Tăng ưu tiên" type="button"><ArrowUp className="size-4" /></button>
@@ -318,7 +345,7 @@ export function RuleManagementSettings() {
 
           {group.isDefault ? (
             <p className="text-xs text-fb-text-secondary">
-              Nhóm Default nhận mọi Epic không khớp nhóm nào ở trên; không xoá, không đổi tên, không tắt và không có điều kiện ngày — chỉ chỉnh được danh sách rule.
+              Nhóm Default là lớp cuối cùng, áp dụng cho mọi Epic (các nhóm ở trên chỉ ghi đè rule của Default cho Epic của chúng); không xoá, không đổi tên, không tắt và không có điều kiện ngày — chỉ chỉnh được danh sách rule.
             </p>
           ) : (
             <div className="flex flex-wrap items-end gap-4">
@@ -359,39 +386,42 @@ export function RuleManagementSettings() {
           )}
 
           <section className="flex flex-col gap-4">
-            <h3 className="text-xs font-bold uppercase tracking-wide text-fb-text-secondary">Rule áp dụng</h3>
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wide text-fb-text-secondary">Rule của nhóm</h3>
+              <p className="mt-1 text-xs text-fb-text-secondary">
+                {group.isDefault
+                  ? 'Default là lớp cuối: rule Bật thì áp dụng cho mọi Epic chưa được nhóm ưu tiên cao hơn tắt hoặc đổi rule; rule Tắt thì không áp dụng.'
+                  : 'Kế thừa: theo nhóm ưu tiên thấp hơn rồi Default. Bật: áp dụng rule này cho Epic của nhóm. Tắt: không áp dụng cho Epic của nhóm, kể cả khi nhóm dưới hoặc Default bật.'}
+              </p>
+            </div>
             {RULE_CATEGORY_ORDER.map((category) => {
               const rules = selectable.filter((rule) => rule.category === category);
               if (!rules.length) return null;
-              const slot = SLOTS.find((item) => rules.some((rule) => rule.slot === item));
-              const slotRules = rules.filter((rule) => rule.slot);
-              const otherRules = rules.filter((rule) => !rule.slot);
-              const selectedSlotRule = slotRules.find((rule) => group.ruleIds.includes(rule.id))?.id ?? null;
+              // One representative per slot for the bulk buttons (a slot with variants takes at most one rule).
+              const perSlot = rules.filter((rule, i) => rules.findIndex((other) => other.slot === rule.slot) === i);
               return (
                 <div key={category} className="rounded-lg border border-fb-border">
                   <div className="flex items-center justify-between gap-2 border-b border-fb-border bg-fb-surface-muted px-3 py-2">
                     <span className="text-xs font-bold text-fb-text-primary">{RULE_CATEGORY_LABELS[category]}</span>
-                    {otherRules.length > 1 && (
+                    {perSlot.length > 1 && (
                       <span className="flex gap-3 text-xs">
-                        <button className="font-semibold text-fb-text-secondary hover:text-fb-text-primary" onClick={() => otherRules.forEach((rule) => toggleRule(group.key, rule.id, true))} type="button">Chọn tất cả</button>
-                        <button className="font-semibold text-fb-text-secondary hover:text-fb-text-primary" onClick={() => otherRules.forEach((rule) => toggleRule(group.key, rule.id, false))} type="button">Bỏ chọn</button>
+                        <button className="font-semibold text-fb-text-secondary hover:text-fb-text-primary" onClick={() => perSlot.forEach((rule) => setRuleState(group.key, rule, 'ON'))} type="button">Bật tất cả</button>
+                        <button className="font-semibold text-fb-text-secondary hover:text-fb-text-primary" onClick={() => perSlot.forEach((rule) => setRuleState(group.key, rule, group.isDefault ? 'INHERIT' : 'OFF'))} type="button">Tắt tất cả</button>
+                        {!group.isDefault && <button className="font-semibold text-fb-text-secondary hover:text-fb-text-primary" onClick={() => perSlot.forEach((rule) => setRuleState(group.key, rule, 'INHERIT'))} type="button">Kế thừa tất cả</button>}
                       </span>
                     )}
                   </div>
                   <div className="flex flex-col divide-y divide-fb-border">
-                    {slot && (
-                      <>
-                        {slotRules.map((rule) => (
-                          <RuleOption key={rule.id} checked={selectedSlotRule === rule.id} name={`slot-${group.key}-${slot}`} onChange={() => setSlotRule(group.key, slot, rule.id)} onHelp={() => setDetailRule(rule)} rule={rule} type="radio" />
-                        ))}
-                        <label className="flex cursor-pointer items-start gap-3 px-3 py-2.5 hover:bg-fb-surface-muted">
-                          <input checked={selectedSlotRule === null} className="mt-0.5" name={`slot-${group.key}-${slot}`} onChange={() => setSlotRule(group.key, slot, null)} type="radio" />
-                          <span className="text-xs text-fb-text-secondary">Không áp dụng rule {RULE_SLOT_LABELS[slot]} cho nhóm này</span>
-                        </label>
-                      </>
-                    )}
-                    {otherRules.map((rule) => (
-                      <RuleOption key={rule.id} checked={group.ruleIds.includes(rule.id)} onChange={(on) => toggleRule(group.key, rule.id, on)} onHelp={() => setDetailRule(rule)} rule={rule} type="checkbox" />
+                    {rules.map((rule) => (
+                      <RuleOption
+                        key={rule.id}
+                        allowInherit={!group.isDefault}
+                        onChange={(state) => setRuleState(group.key, rule, state)}
+                        onHelp={() => setDetailRule(rule)}
+                        rule={rule}
+                        shareSlot={rules.some((other) => other.id !== rule.id && other.slot === rule.slot)}
+                        state={ruleStateOf(group, rule.id)}
+                      />
                     ))}
                   </div>
                 </div>
@@ -433,7 +463,7 @@ export function RuleManagementSettings() {
           <span className="ml-auto flex flex-wrap items-center gap-2">
             <span className="text-xs font-medium text-status-warning">Có thay đổi chưa lưu.</span>
             <Button variant="outline" icon={<ArrowCounterClockwise className="size-4" />} onClick={() => { setDrafts(config.groups); setSaveError(null); }} size="sm">Hoàn tác</Button>
-            <Button variant="secondary" icon={<FloppyDisk className="size-4" />} isLoading={saving} onClick={() => void save()} size="sm" disabled={validation.errors.length > 0}>Lưu</Button>
+            <Button variant="secondary" icon={<FloppyDisk className="size-4" />} isLoading={saving} onClick={() => void requestSave()} size="sm" disabled={validation.errors.length > 0}>Lưu</Button>
           </span>
         )}
       </div>
@@ -453,8 +483,9 @@ export function RuleManagementSettings() {
                 <div className="min-w-0">
                   <CardTitle>Nhóm rule (Rule Group)</CardTitle>
                   <p className="mt-1 max-w-3xl text-xs text-fb-text-secondary">
-                    Mỗi Epic thuộc nhóm <strong>bật</strong> có ưu tiên cao nhất mà nó khớp mọi điều kiện ngày (AND, tính cả hai đầu; ô trống = không giới hạn;
-                    Epic thiếu ngày đó thì không khớp). Epic không khớp nhóm nào thuộc nhóm <strong>Default</strong>. Lưu xong, toàn bộ Epic được chấm lại — kể cả các lớp dữ liệu quá khứ.
+                    Một Epic được chấm theo <strong>mọi nhóm bật mà nó khớp</strong> (khớp mọi điều kiện ngày: AND, tính cả hai đầu; ô trống = không giới hạn;
+                    Epic thiếu ngày đó thì không khớp), xếp từ ưu tiên cao xuống thấp và cuối cùng là <strong>Default</strong>. Với mỗi rule, nhóm gần nhất khai báo rule đó quyết định
+                    (Bật / Tắt); rule nhóm không khai báo (Kế thừa) lấy theo nhóm dưới. Lưu xong, toàn bộ Epic được chấm lại — kể cả các lớp dữ liệu quá khứ.
                   </p>
                   <p className="mt-1 text-xs text-fb-text-secondary">
                     {config.savedAt ? `Lưu lần cuối: ${formatDateTime(config.savedAt)}${config.savedByName ? ` bởi ${config.savedByName}` : ''}.` : 'Chưa có lần lưu nào (đang dùng nhóm Default khởi tạo).'}
@@ -465,7 +496,7 @@ export function RuleManagementSettings() {
                   <Button variant="outline" icon={<Eye className="size-4" />} isLoading={previewing} onClick={() => void runPreview(drafts)} size="sm" disabled={validation.errors.length > 0}>Xem trước tác động</Button>
                   <Button variant="outline" icon={<ClockCounterClockwise className="size-4" />} onClick={() => void openHistory()} size="sm">Lịch sử thay đổi</Button>
                   <Button variant="outline" icon={<ArrowCounterClockwise className="size-4" />} onClick={() => { setDrafts(config.groups); setSaveError(null); }} size="sm" disabled={!dirty}>Hoàn tác</Button>
-                  <Button variant="primary" icon={<FloppyDisk className="size-4" />} isLoading={saving} onClick={() => void save()} size="sm" disabled={!dirty || validation.errors.length > 0}>Lưu</Button>
+                  <Button variant="primary" icon={<FloppyDisk className="size-4" />} isLoading={saving} onClick={() => void requestSave()} size="sm" disabled={!dirty || validation.errors.length > 0}>Lưu</Button>
                 </div>
               </div>
             </CardHeader>
@@ -474,7 +505,7 @@ export function RuleManagementSettings() {
               {/* Every group in priority order — a saved one opens its own tab. */}
               <TableContainer className="overflow-x-auto">
                 <Table className="w-full">
-                  <THead><TR><TH className="px-3 py-2 text-xs">Ưu tiên</TH><TH className="px-3 py-2 text-xs">Nhóm rule</TH><TH className="px-3 py-2 text-xs">Điều kiện ngày Epic</TH><TH className="px-3 py-2 text-right text-xs">Epic khớp</TH><TH className="px-3 py-2 text-right text-xs">Rule</TH></TR></THead>
+                  <THead><TR><TH className="px-3 py-2 text-xs">Ưu tiên</TH><TH className="px-3 py-2 text-xs">Nhóm rule</TH><TH className="px-3 py-2 text-xs">Điều kiện ngày Epic</TH><TH className="px-3 py-2 text-right text-xs" title="Epic mà nhóm này là nhóm ưu tiên cao nhất khớp">Epic (nhóm chính)</TH><TH className="px-3 py-2 text-right text-xs">Rule</TH></TR></THead>
                   <TBody>
                     {drafts.map((group, index) => {
                       const matched = matchedOf(group.key);
@@ -492,9 +523,9 @@ export function RuleManagementSettings() {
                               {issueMarker(group.key)}
                             </span>
                           </TD>
-                          <TD className="px-3 py-2 text-xs text-fb-text-secondary">{group.isDefault ? 'Epic không khớp nhóm nào ở trên' : describeConditions(group.conditions)}</TD>
+                          <TD className="px-3 py-2 text-xs text-fb-text-secondary">{group.isDefault ? 'Lớp cuối — mọi Epic' : describeConditions(group.conditions)}</TD>
                           <TD className="px-3 py-2 text-right text-xs tabular-nums">{matched !== undefined ? formatNumber(matched) : '—'}</TD>
-                          <TD className="px-3 py-2 text-right text-xs tabular-nums">{group.ruleIds.filter((id) => ruleNames.has(id)).length}/{selectable.length}</TD>
+                          <TD className="px-3 py-2 text-right text-xs tabular-nums">{ruleCountText(group)}</TD>
                         </TR>
                       );
                     })}
@@ -568,28 +599,37 @@ export function RuleManagementSettings() {
 }
 
 interface RuleOptionProps {
-  checked: boolean;
-  name?: string;
-  onChange: (checked: boolean) => void;
+  /** false for Default: nothing below it to inherit from, so a rule is simply Bật or Tắt. */
+  allowInherit: boolean;
+  onChange: (state: RuleState) => void;
   onHelp: () => void;
   rule: RuleCatalogItem;
-  type: 'checkbox' | 'radio';
+  /** Another rule of the catalog fills the same slot (a variant): at most one of them is Bật per group. */
+  shareSlot: boolean;
+  state: RuleState;
 }
 
-function RuleOption({ checked, name, onChange, onHelp, rule, type }: RuleOptionProps) {
+function RuleOption({ allowInherit, onChange, onHelp, rule, shareSlot, state }: RuleOptionProps) {
+  const options: { value: RuleState; label: string; activeColor: string }[] = [
+    ...(allowInherit ? [{ value: 'INHERIT' as const, label: 'Kế thừa', activeColor: 'bg-fb-text-secondary' }] : []),
+    { value: 'ON', label: 'Bật', activeColor: 'bg-[var(--color-success-300)]' },
+    // Default has no Kế thừa: its "not on" state is stored as no row, shown as Tắt.
+    { value: allowInherit ? 'OFF' : 'INHERIT', label: 'Tắt', activeColor: 'bg-status-danger' },
+  ];
+  const current: RuleState = !allowInherit && state === 'OFF' ? 'INHERIT' : state;
+  const locked = rule.lifecycle === 'deprecated' && state !== 'ON';
   return (
     <div className="flex items-start gap-3 px-3 py-2.5 hover:bg-fb-surface-muted">
-      <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-3">
-        <input checked={checked} className="mt-0.5" disabled={rule.lifecycle === 'deprecated' && !checked} name={name} onChange={(event) => onChange(event.target.checked)} type={type} />
-        <span className="min-w-0">
-          <span className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs font-semibold text-fb-text-primary">{rule.name}</span>
-            <span className="font-mono text-xs text-fb-text-secondary">{rule.id}</span>
-            {rule.lifecycle === 'deprecated' && <Badge variant="warning" className="text-xs">Ngừng dùng</Badge>}
-          </span>
-          <span className="block text-xs leading-snug text-fb-text-secondary">{rule.summary}</span>
+      <div className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-semibold text-fb-text-primary">{rule.name}</span>
+          <span className="font-mono text-xs text-fb-text-secondary">{rule.id}</span>
+          {rule.lifecycle === 'deprecated' && <Badge variant="warning" className="text-xs">Ngừng dùng</Badge>}
+          {shareSlot && <Badge variant="info" className="text-xs">Biến thể — mỗi nhóm bật tối đa 1</Badge>}
         </span>
-      </label>
+        <span className="block text-xs leading-snug text-fb-text-secondary">{rule.summary}</span>
+      </div>
+      <PillToggle<RuleState> disabled={locked} onChange={onChange} options={options} size="sm" value={current} />
       <button aria-label={`Chi tiết ${rule.name}`} className={ICON_BUTTON_CLASS} onClick={onHelp} title="Logic, điều kiện áp dụng của rule" type="button"><Question className="size-4" /></button>
     </div>
   );
@@ -603,15 +643,15 @@ function RuleDetailModal({ onClose, rule }: { onClose: () => void; rule: RuleCat
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <Badge variant="neutral" className="font-mono">{rule.id}</Badge>
             <Badge variant="info">{RULE_CATEGORY_LABELS[rule.category]}</Badge>
-            {rule.core ? <Badge variant="pending">Luôn chạy</Badge> : <Badge variant="success">Chọn theo nhóm</Badge>}
-            {rule.slot && <Badge variant="warning">Rule đánh giá {RULE_SLOT_LABELS[rule.slot]} — mỗi nhóm chọn tối đa 1</Badge>}
+            {rule.core ? <Badge variant="pending">Luôn chạy</Badge> : <Badge variant="success">Kế thừa / Bật / Tắt theo nhóm</Badge>}
+            {rule.slot && <Badge variant="warning">Slot: {RULE_SLOT_LABELS[rule.slot]} — mỗi nhóm bật tối đa 1 rule của slot</Badge>}
             {rule.policySet && <Badge variant="neutral">Bộ ngân sách: {rule.policySet}</Badge>}
           </div>
           <p className="text-fb-text-primary">{rule.summary}</p>
           <section>
             <h4 className="mb-1 text-xs font-bold uppercase tracking-wide text-fb-text-secondary">Điều kiện áp dụng</h4>
             <p className="text-fb-text-primary">{rule.conditions}</p>
-            {rule.requires.length > 0 && <p className="mt-1 text-xs text-status-warning">Cần có rule đánh giá {rule.requires.map((slot) => RULE_SLOT_LABELS[slot]).join(', ')} trong cùng nhóm.</p>}
+            {rule.requires.length > 0 && <p className="mt-1 text-xs text-status-warning">Cần có rule đánh giá {rule.requires.map((slot) => RULE_SLOT_LABELS[slot]).join(', ')} đang áp dụng cho Epic.</p>}
           </section>
           <section>
             <h4 className="mb-1 text-xs font-bold uppercase tracking-wide text-fb-text-secondary">Logic — badge rule phát ra</h4>

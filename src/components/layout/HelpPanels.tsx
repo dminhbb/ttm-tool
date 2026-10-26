@@ -69,16 +69,20 @@ function RuleGroupsInForce({ isOpen }: { isOpen: boolean }) {
         <thead><tr><th className="text-left">Ưu tiên</th><th className="text-left">Nhóm rule</th><th className="text-left">Điều kiện ngày Epic</th><th className="text-left">Rule áp dụng</th></tr></thead>
         <tbody>
           {groups.map((group) => {
-            const missing = selectable.filter((rule) => !group.ruleIds.includes(rule.id));
+            const off = selectable.filter((rule) => (group.offRuleIds ?? []).includes(rule.id));
+            const on = selectable.filter((rule) => group.ruleIds.includes(rule.id));
+            const inherited = selectable.length - on.length - off.length;
             return (
               <tr key={group.name}>
                 <td className="align-top">{group.isDefault ? 'Cuối' : group.priority ?? 'Tắt'}</td>
                 <td className="align-top font-semibold text-fb-text-primary">{group.name}{!group.enabled && <span className="font-normal"> (tắt)</span>}</td>
                 <td className="align-top">{group.conditions}</td>
                 <td className="align-top">
-                  {missing.length === 0
-                    ? `Tất cả ${selectable.length} rule chọn được`
-                    : <>{group.ruleIds.length}/{selectable.length} rule — <strong className="text-fb-text-primary">không áp dụng</strong>: {missing.map((rule) => rule.name).join(', ')}</>}
+                  {group.isDefault
+                    ? (inherited === 0 ? `Bật tất cả ${selectable.length} rule chọn được` : <>Bật {on.length}/{selectable.length} rule — <strong className="text-fb-text-primary">không áp dụng</strong>: {selectable.filter((rule) => !group.ruleIds.includes(rule.id)).map((rule) => rule.name).join(', ')}</>)
+                    : (on.length + off.length === 0
+                      ? 'Kế thừa toàn bộ (chưa ghi đè rule nào)'
+                      : <>Ghi đè {on.length + off.length} rule{on.length > 0 && <> — <strong className="text-fb-text-primary">bật</strong>: {on.map((rule) => rule.name).join(', ')}</>}{off.length > 0 && <> — <strong className="text-fb-text-primary">tắt</strong>: {off.map((rule) => rule.name).join(', ')}</>}; còn lại kế thừa</>)}
                 </td>
               </tr>
             );
@@ -245,7 +249,7 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
         <section>
           <h3 className="ui-card-title mb-1">8. Thay đổi so với logic cũ (chốt từ 29/09/2026, cập nhật 19/10/2026)</h3>
           <ul className="ml-5 list-disc space-y-1 text-xs">
-            <li><strong className="text-fb-text-primary">Nhóm rule — Rule Management</strong> (25/10/2026): thay cho &quot;Phạm vi rule Sai lệch dữ liệu&quot; (10/10/2026) và công tắc bật/tắt từng badge. Mỗi Epic thuộc đúng 1 nhóm rule theo mốc ngày của nó và chỉ được chấm bằng các rule nhóm đó chọn (mục 9, 10). Nhóm không có rule TTM-CNTT: Epic bị loại ở L02 (không tính TTM-CNTT (QLDA) / (QA)); không có rule TTM-E2E: không tính TTM-E2E.</li>
+            <li><strong className="text-fb-text-primary">Nhóm rule — Rule Management</strong> (25/10/2026): thay cho &quot;Phạm vi rule Sai lệch dữ liệu&quot; (10/10/2026) và công tắc bật/tắt từng badge. Mỗi Epic được chấm theo mọi nhóm rule mà mốc ngày của nó khớp (ưu tiên cao → thấp → Default); mỗi rule có trạng thái Kế thừa / Bật / Tắt trong từng nhóm, nhóm gần nhất khai báo rule quyết định (mục 9, 10). Rule TTM-CNTT bị Tắt (hoặc không nhóm nào bật): Epic bị loại ở L02 (không tính TTM-CNTT (QLDA) / (QA)); TTM-E2E tương tự: không tính TTM-E2E.</li>
             <li><strong className="text-fb-text-primary">&quot;Thiếu lý do Fail TTM&quot; và &quot;Thiếu phòng chịu TN chính&quot;</strong> (10/10 và 14/10/2026, nhóm Khuyến nghị): chỉ xét Epic Fail TTM-CNTT có R4G Date muộn hơn Target — thiếu cả 9 trường khâu fail / thiếu trường &quot;Phòng chịu trách nhiệm chính&quot;. Không đổi kết luận Đạt / Fail; gom thành widget THIẾU LÝ DO trên TTM Dashboard 2 và panel đầu tiên của màn hình Chuẩn hoá dữ liệu.</li>
             <li><strong className="text-fb-text-primary">Reopened</strong> (05/10/2026): Epic đã golive rồi bị mở lại không bị R8 với R4G Date đã tới (giữ kết luận TTM, không gắn &quot;Sai Status&quot;); R4G Date ở tương lai thì vẫn là R10.</li>
             <li><strong className="text-fb-text-primary">Bỏ &quot;Cảnh báo sớm&quot;</strong> ở cả TTM-CNTT (QLDA), trục Release và cột pha. Offset &quot;sớm&quot; trong Cấu hình cảnh báo không còn được dùng. Trường hợp trục Release trước đây hiện &quot;Cảnh báo sớm&quot; (status đã qua R4GOLIVE, chưa có Due Date, còn trong hạn) nay không hiện badge nào cho tới khi quá hạn thành &quot;Giải trình Golive&quot;.</li>
@@ -265,7 +269,7 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
 
         <section>
           <h3 className="ui-card-title mb-1">9. Rule object</h3>
-          <p className="text-xs">Mỗi Rule object là một đơn vị logic phát ra một nhóm badge. <strong className="text-fb-text-primary">Rule chọn được</strong> chỉ chạy cho Epic thuộc nhóm rule đã chọn nó; <strong className="text-fb-text-primary">rule luôn chạy</strong> áp dụng cho mọi Epic. Rule đánh giá TTM-CNTT (QLDA) / TTM-E2E: mỗi nhóm chọn tối đa 1, các biến thể phát cùng badge Đạt / Fail nên chỉ số và phễu không đổi cách đếm.</p>
+          <p className="text-xs">Mỗi Rule object là một đơn vị logic phát ra một nhóm badge. <strong className="text-fb-text-primary">Rule chọn được</strong> chỉ chạy cho Epic khi nhóm gần nhất khai báo nó ở trạng thái Bật; <strong className="text-fb-text-primary">rule luôn chạy</strong> áp dụng cho mọi Epic. Mỗi rule chọn được nằm trong một <em>slot</em> (vị trí): rule TTM-CNTT (QLDA) / TTM-E2E và từng rule chất lượng dữ liệu, lý do Fail, Release đều có slot riêng; mỗi nhóm bật tối đa 1 rule cho mỗi slot, các biến thể của một slot phát cùng badge nên chỉ số và phễu không đổi cách đếm.</p>
           <div className="mt-1 overflow-x-auto">
             <table className="ui-table w-full text-xs">
               <thead><tr><th className="text-left">Rule</th><th className="text-left">Loại</th><th className="text-left">Tóm tắt</th><th className="text-left">Badge</th></tr></thead>
@@ -279,7 +283,7 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
                       <tr key={rule.id}>
                         <td className="align-top"><div className="font-semibold text-fb-text-primary">{rule.name}</div><code className="text-xs">{rule.id}</code></td>
                         <td className="align-top whitespace-nowrap">{rule.core ? 'Luôn chạy' : rule.slot ? `Đánh giá ${RULE_SLOT_LABELS[rule.slot]}` : 'Chọn theo nhóm'}</td>
-                        <td className="align-top">{rule.summary}{rule.requires.length > 0 && <> Cần rule đánh giá {rule.requires.map((slot) => RULE_SLOT_LABELS[slot]).join(', ')} trong cùng nhóm.</>}</td>
+                        <td className="align-top">{rule.summary}{rule.requires.length > 0 && <> Cần rule đánh giá {rule.requires.map((slot) => RULE_SLOT_LABELS[slot]).join(', ')} đang áp dụng cho Epic.</>}</td>
                         <td className="align-top">{rule.emits.map((badge) => badge.label).join(', ')}</td>
                       </tr>
                     )),
@@ -292,7 +296,7 @@ export function AlertLogicModal({ isOpen, onClose }: HelpPanelProps) {
 
         <section>
           <h3 className="ui-card-title mb-1">10. Nhóm rule đang áp dụng</h3>
-          <p className="mb-1 text-xs">Mỗi Epic thuộc nhóm <strong className="text-fb-text-primary">bật</strong> có ưu tiên cao nhất mà nó khớp mọi điều kiện ngày (AND, tính cả hai đầu; Epic thiếu ngày đó thì không khớp); không khớp nhóm nào thì thuộc nhóm Default. Chỉ số toàn công ty là tổng hợp kết quả của các nhóm — xem chiều &quot;Theo Nhóm rule&quot; trên TTM Dashboard 2.</p>
+          <p className="mb-1 text-xs">Epic được chấm theo mọi nhóm <strong className="text-fb-text-primary">bật</strong> mà nó khớp mọi điều kiện ngày (AND, tính cả hai đầu; Epic thiếu ngày đó thì không khớp), từ ưu tiên cao xuống thấp, cuối cùng là Default; với mỗi rule, nhóm gần nhất khai báo rule đó (Bật / Tắt) quyết định, rule không khai báo là Kế thừa từ nhóm dưới. Chỉ số toàn công ty là tổng hợp kết quả của các nhóm — xem chiều &quot;Theo Nhóm rule&quot; trên TTM Dashboard 2.</p>
           <RuleGroupsInForce isOpen={isOpen} />
         </section>
       </div>

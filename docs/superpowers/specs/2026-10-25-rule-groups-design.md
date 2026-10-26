@@ -222,6 +222,8 @@ này vốn không tự phát khi không có verdict).
 
 ### 6.2. Quy tắc khớp
 
+> **Đã thay đổi 2026-10-26 — xem §21.** Một Epic được chấm theo MỌI nhóm nó khớp (phân lớp), không còn "đúng 1 nhóm". Đoạn dưới chỉ còn đúng cho việc xác định *nhóm chính* của Epic.
+
 ```
 groupOf(epic, asOf):
   for group in enabledGroups (không gồm Default) sorted by priority:
@@ -726,3 +728,22 @@ của nhóm), panel "Xem trước tác động" và form các nhóm mới chưa 
 trong tab đổi luôn thứ tự tab; xoá nhóm thì về tab đầu. Tab cận cuối **Default rules** (nhóm Default), tab cuối **Always Rule** (rule luôn chạy).
 Trên các tab khác tab đầu, khi có thay đổi chưa lưu hiện "Hoàn tác · Lưu" cạnh dãy tab (lưu cả cấu hình). Kiểm tra trên trình duyệt: lưu được giả
 lập bằng chặn PUT trong trình duyệt (không ghi DB) — 2 nhóm mới thành 2 tab #1/#2, đổi ưu tiên, xoá, cấu hình thật vẫn chỉ có Default.
+
+## 21. Nhóm rule phân lớp — Kế thừa / Bật / Tắt (chủ sở hữu, 2026-10-26)
+
+**Vấn đề của mô hình "mỗi Epic đúng 1 nhóm"**: muốn rule 1 chỉ cho Epic có R4G < 1/9 và rule 2 chỉ cho Epic có Due > 1/10 thì phải tạo 2 nhóm, nhưng Epic thỏa cả hai chỉ vào nhóm đầu nên rule 2 không bao giờ áp dụng; muốn phủ mọi tổ hợp phải tạo nhóm Venn.
+
+**Quyết định (chủ sở hữu)**:
+
+- **D21.1 — Một Epic được chấm theo mọi nhóm bật mà nó khớp**, xếp theo ưu tiên (1 là cao nhất), **Default luôn là lớp cuối** (luôn khớp). Nhóm khớp đầu tiên là *nhóm chính* (lưu ở `rule_group_id/name` của scorecard, cột, chiều "Theo Nhóm rule", bộ lọc — không đổi).
+- **D21.2 — Mỗi rule trong nhóm có 3 trạng thái**: **Kế thừa** (nhóm không nói gì, lấy theo nhóm dưới rồi Default), **Bật** (áp dụng cho Epic của nhóm), **Tắt** (KHÔNG áp dụng cho Epic của nhóm, kể cả khi nhóm dưới hoặc Default bật). Muốn không áp dụng rule trong một khoảng ngày: thêm rule vào nhóm có khoảng ngày đó và đặt Tắt. Default chỉ có Bật / Tắt (không có lớp dưới để kế thừa; "Tắt" của Default = rule không được bật).
+- **D21.3 — Slot cho mọi rule chọn được** (thống nhất cách hiểu): mỗi rule chọn được thuộc đúng 1 *slot* — hai slot kết luận (`TTM_CNTT_VERDICT`, `TTM_E2E_VERDICT`) và mỗi rule còn lại có slot riêng (`DQ_R1…DQ_R10`, `FAIL_REASON_STAGE`, `FAIL_REASON_DEPT`, `RELEASE_WAITING_GOLIVE`, `RELEASE_JUSTIFY_GOLIVE`). Biến thể của một rule dùng chung slot với nó và phát cùng badge. Mỗi nhóm bật **tối đa 1 rule cho mỗi slot** (§4.3 cho slot kết luận, mở rộng cho mọi slot); rule luôn chạy không có slot.
+- **D21.4 — Phân giải theo slot**: với mỗi slot, duyệt các nhóm Epic khớp từ ưu tiên cao xuống thấp; nhóm đầu tiên *nhắc đến* slot (có rule Bật hoặc Tắt rule của slot) quyết định: Bật → chạy rule đó; Tắt → slot không áp dụng. Không nhóm nào nhắc → không áp dụng (Default liệt kê các slot nó chạy). Slot kết luận không áp dụng → vẫn là `CNTT_NO_RULE` / `E2E_NO_RULE` (D6), nội dung nói rõ nhóm nào đã tắt.
+- **D21.5 — Hai nhóm cùng khớp một Epic và cùng nhắc một slot**: ưu tiên theo thứ tự nhóm là đủ; **trước khi lưu** màn hình kiểm tra các cặp nhóm bật (không tính Default) có thể cùng khớp một Epic (mọi khoảng ngày giao nhau) mà khai báo khác nhau cho cùng slot (rule Bật khác nhau, hoặc Bật so với Tắt) và hiện popup xác nhận liệt kê từng cặp; người dùng chọn "Vẫn lưu" hoặc quay lại sửa. Không chặn lưu.
+- **Epic ngoại lệ** vẫn không được xét; **Cancelled** vẫn được xác định nhóm như thường.
+
+**Dữ liệu**: `scoring_rule_group_rules.state` (`ON`/`OFF`, mặc định `ON`) — migration `20261030_add_rule_group_rule_state`. Để không đổi cách chấm của bất kỳ Epic nào, migration thêm hàng `OFF` cho mọi rule Default đang bật mà nhóm không-Default chưa chọn (trước đây "không chọn" = không chạy). Nhóm tạo mới bắt đầu với toàn bộ Kế thừa (chấm y hệt Default cho đến khi khai báo). Lịch sử cấu hình (`config_before/after`) lưu thêm `offRuleIds`; bản cũ không có trường này được hiểu là rỗng.
+
+**Code**: `rule-groups.ts` — `matchingRuleGroups` (mọi nhóm khớp + Default), `resolveRuleSelection` (rule thắng theo slot + nhóm quyết định); `resolveRuleGroup` = nhóm chính; `score-epic.ts` dùng tập rule đã phân giải; `rule-group-config.ts` — `ruleStateOf`, `detectRuleGroupConflicts`, `groupsMayOverlap`, validate mới (không vừa Bật vừa Tắt; Default không có Tắt; cảnh báo Tắt rule TTM-CNTT/E2E; cảnh báo nhóm chưa khai báo rule nào); `rulesetVersion` băm cả `offRuleIds`; `SCORING_CODE_VERSION` = `scoring-23`.
+
+**Còn lại / giới hạn**: cột "Epic (nhóm chính)" ở Rule group manager chỉ đếm Epic có nhóm đó là nhóm ưu tiên cao nhất khớp — Epic khớp nhiều nhóm được đếm ở nhóm chính của nó; popup xung đột chưa hiển thị số Epic giao nhau (chỉ dựa vào khoảng ngày). Quy tắc chặn "tối đa 1 rule Bật cho mỗi slot" áp dụng trong từng nhóm, không giữa các nhóm.

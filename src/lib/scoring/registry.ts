@@ -72,7 +72,8 @@ export const DEFAULT_RULE_GROUP: ScoringRuleGroup = {
   enabled: true,
   conditions: {},
   ruleIds: SELECTABLE_RULES.filter((rule) => rule.defaultSelected).map((rule) => rule.id),
+  offRuleIds: [],
 };
 
 /** Bump whenever rule code changes, so cached scorecards are recognized as outdated. */
-export const SCORING_CODE_VERSION = 'scoring-22';
+export const SCORING_CODE_VERSION = 'scoring-23';

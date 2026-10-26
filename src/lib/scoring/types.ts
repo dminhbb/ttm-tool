@@ -115,8 +115,11 @@ export interface ScoringRuleGroup {
   isDefault: boolean;
   enabled: boolean;
   conditions: Partial<Record<RuleGroupDateField, RuleGroupDateRange>>;
-  /** Ids of the selectable Rule objects (registry.ts) this group runs; unknown ids are ignored. */
+  /** Ids of the selectable Rule objects (registry.ts) this group turns ON; unknown ids are ignored. */
   ruleIds: readonly string[];
+  /** Ids of the rules this group turns OFF for its Epics, even when a lower group (or Default) turns them on. A rule
+   * (slot) neither list names is inherited from the next matching group (spec 2026-10-26). Default never has any. */
+  offRuleIds?: readonly string[];
 }
 
 /** The group an Epic was judged by, as stored on its scorecard. */

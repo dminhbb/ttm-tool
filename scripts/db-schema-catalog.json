@@ -329,7 +329,7 @@
       "columns": {}
     },
     "scoring_rule_group_rules": {
-      "description": "<strong>Mới 25/10/2026.</strong> Rule object (id trong <code>src/lib/scoring/registry.ts</code>) mà mỗi nhóm rule chọn chạy; rule luôn chạy không có ở đây. Id không còn trong code thì bị bỏ qua.",
+      "description": "<strong>Mới 25/10/2026.</strong> Rule object (id trong <code>src/lib/scoring/registry.ts</code>) mà mỗi nhóm rule khai báo; <code>state</code> = <code>ON</code> (Bật) hoặc <code>OFF</code> (Tắt, từ 26/10/2026) — rule nhóm không khai báo là Kế thừa từ nhóm ưu tiên thấp hơn. Rule luôn chạy không có ở đây. Id không còn trong code thì bị bỏ qua.",
       "columns": {}
     },
     "scoring_rule_group_history": {

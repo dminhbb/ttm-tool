@@ -23,14 +23,27 @@ export function finding(badge: BadgeId, message: string, evidence: Finding['evid
 }
 
 /**
- * A verdict position a Rule Group may fill with at most ONE rule (spec 2026-10-25 §4.3). Every rule of a slot emits
- * the same verdict badges with the same meaning, so the funnel, the indexes and the filters never need to know which
- * variant judged an Epic.
+ * A position a Rule Group fills with at most ONE rule (spec 2026-10-25 §4.3, extended 2026-10-26 to every selectable
+ * rule): the verdict slots (TTM-CNTT, TTM-E2E) and one slot per other rule (a data-quality R-rule, a fail-reason
+ * check, a release check…). A rule that has variants shares its slot with them; every rule of a slot emits the same
+ * badges with the same meaning, so the funnel, the indexes and the filters never need to know which variant judged an
+ * Epic. A group declares each slot ON (with a rule), OFF or leaves it to inherit from the next group
+ * (rule-groups.ts resolveRuleSelection).
  */
-export type RuleSlot = 'TTM_CNTT_VERDICT' | 'TTM_E2E_VERDICT';
+export type RuleSlot =
+  | 'TTM_CNTT_VERDICT'
+  | 'TTM_E2E_VERDICT'
+  | 'DQ_R1' | 'DQ_R2' | 'DQ_R3' | 'DQ_R4' | 'DQ_R5' | 'DQ_R6' | 'DQ_R8' | 'DQ_R9' | 'DQ_R10'
+  | 'FAIL_REASON_STAGE'
+  | 'FAIL_REASON_DEPT'
+  | 'RELEASE_WAITING_GOLIVE'
+  | 'RELEASE_JUSTIFY_GOLIVE';
 
-/** Verdict badges every rule of a slot must emit (and nothing else) — checked by the registry tests. */
-export const SLOT_BADGES: Record<RuleSlot, readonly BadgeId[]> = {
+/** The slots that hold a Đạt / Fail verdict. */
+export type VerdictSlot = 'TTM_CNTT_VERDICT' | 'TTM_E2E_VERDICT';
+
+/** Verdict badges every rule of a verdict slot must emit (and nothing else) — checked by the registry tests. */
+export const SLOT_BADGES: Record<VerdictSlot, readonly BadgeId[]> = {
   TTM_CNTT_VERDICT: ['CNTT_PASS', 'CNTT_FAIL', 'CNTT_STATUS_MISMATCH'],
   TTM_E2E_VERDICT: ['E2E_PASS', 'E2E_FAIL', 'E2E_STATUS_MISMATCH'],
 };
@@ -68,6 +81,7 @@ export interface ScoringRule {
   readonly stage: RuleStage;
   /** Always runs, whatever the Rule Group selected (spec §5.2); not offered on the Rule Management screen. */
   readonly core: boolean;
+  /** Every selectable (non-core) rule has one; a core rule has none. */
   readonly slot?: RuleSlot;
   /** Every badge the rule may emit (evaluate + recommend). */
   readonly emits: readonly BadgeId[];
