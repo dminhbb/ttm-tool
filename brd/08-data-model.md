@@ -664,8 +664,14 @@ Quy tắc dùng chung:
   import, `issues`, các bảng lịch sử cảnh báo, `audit_logs` và — từ 2026-10-19 — cấu hình: `ttm_scope_config`,
   `scoring_parameters` / `scoring_rule_settings`, `black_listed_epics`,
   `denied_import_epics`, `import_admission_settings`, `dashboard_view_settings`, Ma trận phân quyền,
-  `jira_settings`, `data_retention_configs`. **Không gồm** các bảng cache (dựng lại bằng "Tạo lại cache") và
-  các bảng §24. Phục hồi chạy với `DISABLE TRIGGER ALL` nên trigger đồng bộ §24 không chạy trong lúc phục hồi.
+  `jira_settings`, `data_retention_configs`, Rule Management (`scoring_rule_groups`, `scoring_rule_group_rules`,
+  `scoring_rule_group_history`), `ttm_policy_sets`. **Không gồm** các bảng cache (dựng lại bằng "Tạo lại cache"),
+  nhật ký truy cập (`visit_logs`, `visit_log_rollups`, `user_usage_daily_stats`) và các bảng §24. Phục hồi chạy với
+  `DISABLE TRIGGER ALL` nên trigger đồng bộ §24 không chạy trong lúc phục hồi. `import_batches`, `issues`,
+  `epic_alert_timeline`, `audit_logs` chỉ ghi thêm/cập nhật; các bảng còn lại đồng bộ y như file (dòng không có trong file bị xoá).
+  Sửa 2026-10-26: export ghi cột `json`/`jsonb` dạng văn bản (trước đó `scoring_rule_group_history` bị ghi thành
+  `[object Object]` và không phục hồi được); khi phục hồi, dòng trùng khoá phụ (unique khác khoá chính) được xác định
+  theo khoá chính thay vì cột `id` (bảng không có `id` như `ttm_policy_sets` trước đây báo lỗi). Giới hạn file 50 MB.
 
 ## 24. PMS Project Core — module Quản lý dự án (expand-only, bổ sung 2026-10-09)
 

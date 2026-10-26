@@ -49,6 +49,7 @@
   state khi prop đổi", effect chỉ còn dọn highlight DOM) — `eslint src` sạch lần đầu; (3) `db/schema.sql` ghi rõ các bảng đã gỡ và vì sao `import_rows` vẫn
   được tạo ở đây (migration 20261025/b đọc nó khi backfill — xoá khỏi baseline sẽ làm hỏng `--init`); đã kiểm chứng trên PostgreSQL nhúng: schema.sql + 102
   migration cho đúng schema của `db/install/ttm-monitor-schema.sql`.
+- Cập nhật tài liệu theo các thay đổi 26/10: popup "Logic cảnh báo" mục 8 (nhóm rule phải có điều kiện, tạo lại cache thủ công + chấm đỏ tab "Theo dõi cache dữ liệu") và "Logic xử lý dữ liệu" (bỏ "đối chiếu logic cũ"/"mốc hoàn thành", sao lưu: nhóm rule/Bộ ngân sách có trong file, nhật ký truy cập không có, bảng lịch sử chỉ ghi thêm; audit 180 ngày; bằng chứng rule B theo khoảng hiệu lực + bước "Miễn rule B" hằng ngày) — `HelpPanels.tsx`; spec Rule Group §6.3/§7.2/§15 + mục 25; BRD 07 (rule B), BRD 08 (sao lưu); Tài liệu sản phẩm 6.3, 6.4, 7.x, Sao lưu; chạy lại `db:export-schema --target=supabase` (seed nhóm #8 có TTM-applied = Ngoại lệ).
 
 ## 2026-10-25
 

@@ -251,7 +251,7 @@ condition(field, from, to):
 | Group không chọn rule `TTM_CNTT_VERDICT` | Cảnh báo: "Epic của nhóm sẽ bị loại ở L02, không tính TTM-CNTT (QLDA) và (QA)" |
 | Group không chọn rule `TTM_E2E_VERDICT` | Cảnh báo: "Epic của nhóm không tính vào TTM-E2E" |
 | Rule có `requires` chưa thỏa | Cảnh báo: "Rule X cần một rule TTM-CNTT trong cùng nhóm để có tác dụng" |
-| Group (không phải Default) không có điều kiện ngày nào | Cảnh báo: "Nhóm này nhận mọi Epic — các nhóm ưu tiên thấp hơn và Default sẽ không còn Epic nào" |
+| Group (không phải Default) không có điều kiện nào (ngày hoặc TTM-applied) | **Chặn lưu** (từ 2026-10-26; trước đó chỉ cảnh báo): "Nhóm chưa có điều kiện nào … sẽ khớp mọi Epic và che các nhóm ưu tiên thấp hơn — hãy đặt ít nhất một điều kiện, hoặc khai báo rule ở nhóm Default." |
 | Group đang bật nhưng hiện khớp 0 Epic | Thông tin (không chặn) |
 
 ---
@@ -295,7 +295,7 @@ rule TTM-E2E tự nằm ngoài mẫu số.
 
 ### 7.2. `rulesetVersion`
 
-Dấu vân tay trong `loadScoringContext` thêm cấu hình group (id, tên, ưu tiên, bật/tắt, điều kiện ngày, rule id đã sắp xếp). Mọi lần lưu
+Dấu vân tay trong `loadScoringContext` thêm cấu hình group (id, tên, ưu tiên, bật/tắt, điều kiện ngày, điều kiện TTM-applied — thêm 2026-10-26, rule id đã sắp xếp). Mọi lần lưu
 cấu hình đổi `rulesetVersion`, nên cache cũ được nhận ra là lỗi thời.
 
 ---
@@ -515,7 +515,7 @@ Mỗi giai đoạn là một (hoặc vài) commit riêng, app luôn chạy đư�
 | Chỉ số toàn công ty pha trộn nhiều chuẩn chấm, khó so sánh giữa các kỳ. | Chiều "Nhóm rule" + tooltip vòng % (§8.3); ghi rõ trong Tài liệu sản phẩm. |
 | Sửa cấu hình làm thay đổi cả số liệu quá khứ (D8). | Xem trước tác động trước khi lưu; lịch sử thay đổi để giải thích. |
 | Sửa ngày trên Jira chuyển Epic sang nhóm khác, số liệu "nhảy". | Tooltip "Chấm theo nhóm rule" trên từng Epic; bộ lọc "Nhóm rule". |
-| Một nhóm không có điều kiện ngày "nuốt" mọi Epic của các nhóm sau. | Cảnh báo §6.3 + số Epic khớp mỗi nhóm. |
+| Một nhóm không có điều kiện "nuốt" mọi Epic của các nhóm sau. | Chặn lưu §6.3 (từ 2026-10-26) + số Epic khớp mỗi nhóm. |
 | Biến thể mới vô tình đổi nghĩa Đạt / Fail. | Hợp đồng slot (§4.3) + bộ test hợp đồng chạy cho mọi biến thể. |
 | Rule bị gỡ khỏi code nhưng còn trong DB. | Bỏ qua khi chấm + cảnh báo trên màn hình (§5.3). |
 
@@ -776,6 +776,12 @@ Hai trường crawl `TTM-applied` và `except-TTM-plan` (migration `20261102`) �
 - **R11 `dq-r11`** (slot `DQ_R11`, badge ALERT `ANOMALY_R11_EXCEPT_PLAN_INVALID` + khuyến nghị `REC_FIX_EXCEPT_PLAN`, trong nhóm Default): Epic EXCEPTION mà plan trống / không đọc được / trước Start Date / cách Start Date > 1.100 ngày (chặn vòng lặp ngày làm việc) → Sai lệch dữ liệu. Miễn Cancelled và các status được miễn như mọi rule DQ khác.
 - **Rule `ttm-cntt-except-plan`** (slot `TTM_CNTT_VERDICT`, **không** nằm trong Default): cùng verdict / badge với `ttm-cntt-sep-2026`, nhưng `targetSource: 'EXCEPT_PLAN'` → `deriveMetrics` lấy **Target = ngày plan**, N = số ngày làm việc từ Start Date đến plan (Start Date là ngày 1), nên Cảnh báo muộn (% × N), baseline pha và dải hiển thị đều theo Target mới. Plan không dùng được → quay về ngân sách (R11 báo). Chỉ TTM-CNTT (QLDA), TTM-E2E không đổi. Chạy hiệu năng: không thêm truy vấn; chỉ một `diffWorkingDays` (≤ 1.100 ngày) cho mỗi Epic rule này chấm.
 - **Điều kiện nhóm TTM-applied** (`scoring_rule_groups.ttm_applied`: EXCEPTION / STANDARD / NULL): AND với các điều kiện ngày. Nhóm "Kế hoạch ngoại lệ TTM" (điều kiện TTM-applied = Ngoại lệ, Bật `ttm-cntt-except-plan`) phải đứng **trên** mọi nhóm khác khai báo rule TTM-CNTT: nhóm đầu tiên nhắc đến slot quyết định, nên một Epic chỉ có **một** verdict (không chấm Fail ở nhóm trên rồi Pass ở nhóm dưới).
-- **Black list khi import** (`import-black-list.ts`, trong transaction import, trước khi làm mới cache): TTM-applied = Không áp dụng → thêm vào `black_listed_epics` với `source = 'IMPORT'` nếu chưa có (đã có thì bỏ qua; người dùng gỡ tay mà CSV vẫn Không áp dụng thì lần import sau thêm lại). Giá trị đổi khỏi Không áp dụng → chỉ gỡ dòng `IMPORT` (dòng `MANUAL` giữ). Chỉ lớp dữ liệu mới nhất mới được thêm / gỡ.
+- **Black list khi import** (`import-black-list.ts`, trong transaction import, trước khi làm mới cache): TTM-applied = Không áp dụng → thêm vào `black_listed_epics` với `source = 'IMPORT'` nếu chưa có (đã có thì bỏ qua; người dùng gỡ tay mà CSV vẫn Không áp dụng thì lần import sau **có chứa Epic đó** — tức Epic có thay đổi trên Jira — thêm lại). Giá trị đổi khỏi Không áp dụng → chỉ gỡ dòng `IMPORT` (dòng `MANUAL` giữ). Chỉ lớp dữ liệu mới nhất mới được thêm / gỡ.
 - Tên hiển thị: "Kế hoạch ngoại lệ TTM" (tránh nhầm với "Epic ngoại lệ" = black list).
 
+## 25. Hậu kiểm 2026-10-26 — nhóm không điều kiện, tạo lại cache thủ công
+
+- **Sự cố production**: một nhóm ưu tiên 1 được lưu không có điều kiện nào nên khớp mọi Epic và che toàn bộ các nhóm bên dưới (41 Epic CT-Lv34 lẽ ra theo ngân sách 30 ngày bị chấm 25). Đã sửa cấu hình trên Supabase (đặt điều kiện TTM-applied = Ngoại lệ, phiên bản cấu hình 7 → 8) và local; cần bấm "Tạo lại cache".
+- **Chặn lưu** nhóm không phải Default mà không có điều kiện nào (§6.3, `validateRuleGroups` trong `rule-group-config.ts`).
+- **`rulesetVersion`** băm thêm `ttmApplied` của nhóm (`scoring-context-service.ts`) — trước đây đổi điều kiện TTM-applied không làm cache bị coi là lỗi thời.
+- **Tạo lại cache thủ công**: lưu Tiêu chí TTM / Bộ ngân sách / Cảnh báo muộn % vẫn không tự tạo lại cache (chủ ý của chủ sở hữu), nhưng toast nhắc bấm "Tạo lại cache". `getCacheRebuildStatus()` (`daily-cache-service.ts`, API `GET /api/admin/data-source/cache-rebuild-status`, SUPERADMIN) so `rulesetVersion` hiện tại với phiên bản đã ghi trong `epic_alert_row_cache`; khác nhau (và không đang chạy) → chấm đỏ ở tab "Theo dõi cache dữ liệu" (màn hình Nguồn dữ liệu, `/?tab=cache`) và menu "Nguồn dữ liệu" (`useCacheRebuildPending`, hỏi lại mỗi 60 giây khi trang đang hiện và ngay khi có sự kiện lưu cấu hình / tạo lại cache xong).

@@ -1,6 +1,6 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-26T16:19:42.841Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-26T16:41:58.483Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
 -- Gồm: 58 bảng, 56 index phụ, 4 hàm, 4 trigger.
@@ -1326,11 +1326,11 @@ SELECT setval(pg_get_serial_sequence('makeup_workdays', 'id'), MAX(id)) FROM mak
 -- scoring_rule_groups (5 dòng)
 INSERT INTO scoring_rule_groups (id, name, priority, is_default, enabled, created_from, created_to, idea_approved_from, idea_approved_to, start_from, start_to, r4g_from, r4g_to, due_from, due_to, created_at, updated_at, updated_by_user_id, ttm_applied)
 SELECT * FROM (VALUES
-    ('1'::integer, 'Default'::text, '0'::integer, 'true'::boolean, 'true'::boolean, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-10-25 14:54:57.868428+00'::timestamp with time zone, '2026-10-26 12:26:56.86824+00'::timestamp with time zone, NULL::integer, NULL::text),
-    ('5'::integer, 'Nhóm R4G ≤ 30/9/2026'::text, '4'::integer, 'false'::boolean, 'true'::boolean, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-09-30'::date, NULL::date, NULL::date, '2026-10-26 07:41:55.49337+00'::timestamp with time zone, '2026-10-26 12:26:56.86824+00'::timestamp with time zone, NULL::integer, NULL::text),
-    ('6'::integer, 'Nhóm Start ≤ 31/8/2026'::text, '3'::integer, 'false'::boolean, 'true'::boolean, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-08-31'::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-10-26 07:43:18.317549+00'::timestamp with time zone, '2026-10-26 12:26:56.86824+00'::timestamp with time zone, NULL::integer, NULL::text),
-    ('7'::integer, 'Nhóm QA-25 ngày'::text, '2'::integer, 'false'::boolean, 'true'::boolean, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-08-31'::date, '2026-10-01'::date, NULL::date, NULL::date, NULL::date, '2026-10-26 07:44:25.399961+00'::timestamp with time zone, '2026-10-26 12:26:56.86824+00'::timestamp with time zone, NULL::integer, NULL::text),
-    ('8'::integer, 'Nhóm Kế hoạch ngoại lệ TTM'::text, '1'::integer, 'false'::boolean, 'true'::boolean, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-10-26 12:26:56.86824+00'::timestamp with time zone, '2026-10-26 12:26:56.86824+00'::timestamp with time zone, NULL::integer, NULL::text)
+    ('1'::integer, 'Default'::text, '0'::integer, 'true'::boolean, 'true'::boolean, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-10-25 14:54:57.868428+00'::timestamp with time zone, '2026-10-26 16:34:10.314856+00'::timestamp with time zone, NULL::integer, NULL::text),
+    ('5'::integer, 'Nhóm R4G ≤ 30/9/2026'::text, '4'::integer, 'false'::boolean, 'true'::boolean, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-09-30'::date, NULL::date, NULL::date, '2026-10-26 07:41:55.49337+00'::timestamp with time zone, '2026-10-26 16:34:10.314856+00'::timestamp with time zone, NULL::integer, NULL::text),
+    ('6'::integer, 'Nhóm Start ≤ 31/8/2026'::text, '3'::integer, 'false'::boolean, 'true'::boolean, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-08-31'::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-10-26 07:43:18.317549+00'::timestamp with time zone, '2026-10-26 16:34:10.314856+00'::timestamp with time zone, NULL::integer, NULL::text),
+    ('7'::integer, 'Nhóm QA-25 ngày'::text, '2'::integer, 'false'::boolean, 'true'::boolean, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-08-31'::date, '2026-10-01'::date, NULL::date, NULL::date, NULL::date, '2026-10-26 07:44:25.399961+00'::timestamp with time zone, '2026-10-26 16:34:10.314856+00'::timestamp with time zone, NULL::integer, NULL::text),
+    ('8'::integer, 'Nhóm Kế hoạch ngoại lệ TTM'::text, '1'::integer, 'false'::boolean, 'true'::boolean, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, NULL::date, '2026-10-26 12:26:56.86824+00'::timestamp with time zone, '2026-10-26 16:34:10.314856+00'::timestamp with time zone, NULL::integer, 'EXCEPTION'::text)
 ) AS seed (id, name, priority, is_default, enabled, created_from, created_to, idea_approved_from, idea_approved_to, start_from, start_to, r4g_from, r4g_to, due_from, due_to, created_at, updated_at, updated_by_user_id, ttm_applied)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 SELECT setval(pg_get_serial_sequence('scoring_rule_groups', 'id'), MAX(id)) FROM scoring_rule_groups HAVING MAX(id) IS NOT NULL;
@@ -1424,7 +1424,7 @@ WHERE current_setting('ttm_install.seed_data', true) = 'on';
 -- derived_cache_refresh_lock (1 dòng)
 INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at)
 SELECT * FROM (VALUES
-    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-10-26 12:27:17.545875+00'::timestamp with time zone)
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-10-26 16:39:25.00674+00'::timestamp with time zone)
 ) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 

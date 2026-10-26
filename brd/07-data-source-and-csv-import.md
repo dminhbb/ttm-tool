@@ -96,7 +96,11 @@ từ chối cả các Epic đang trong phạm vi:
 - **B** — status Released / MVP Done **và** ngày chuyển status `< B` (mặc định 2026-07-01). Ngày chuyển
   status = `epic_status_changed_at` nếu có; chưa có thì dùng Due Date, Due trống thì dùng R4G Date.
   **Ngoại lệ:** Epic mà CSDL đã ghi nhận ở status khác Released / MVP Done vào/sau ngày B (`issues`) chắc chắn chuyển sang Released sau B → không bị rule B từ chối (ví dụ DL-65580:
-  due 25/06 nhưng Released 10/09).
+  due 25/06 nhưng Released 10/09). Từ 2026-10-26 bằng chứng tính theo **khoảng hiệu lực** của mỗi phiên bản
+  (từ ngày import tới ngày trước phiên bản kế tiếp, phiên bản mới nhất tới hôm nay — `loadLastUnreleasedSeen`, dùng `LEAD`), nên một
+  phiên bản chưa Released import trước B mà còn hiệu lực tới B cũng được tính. Job dọn dữ liệu hằng ngày ghi sẵn dòng `AUTO_EXEMPT`
+  cho mọi Epic đang có bằng chứng (`recordHistoryProvenExemptions`, bước `admission_exemptions`, chạy trước bước làm thưa lịch sử `issues`)
+  để bằng chứng không mất khi phiên bản cũ bị làm thưa.
 
 Rule đặt ngoài Scoring Service (`src/lib/scoring/`) có chủ đích (quyết định owner 2026-10-14): đây là
 cổng chặn dữ liệu đầu vào, không phải badge/verdict hiển thị trên màn hình.
