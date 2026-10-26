@@ -6,6 +6,22 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-10-26
+
+- **Tab "Dọn lịch sử" — công tắc an toàn cho việc xóa lịch sử `issues`** (migration `20261029_add_history_thinning_settings`, đã áp dụng Supabase; **local chưa**): dọn tự
+  động hằng ngày nay **mặc định TẮT** (`data_retention_configs.history_thinning_enabled`) — môi trường nào đã chạy bản trước sẽ ngừng xóa cho tới khi SUPERADMIN bật.
+  Khi bật mỗi lượt xóa tối đa `history_thinning_daily_limit` dòng (mặc định 50.000; `takeDeletionBatch` trong `data-layer-retention.ts`, id nhỏ nhất trước, phần còn lại
+  chờ lượt sau); khi tắt vẫn ghi mốc ngày hàng tuần. `runScheduledDataLayerRetention` (`data-layer-retention-service.ts`) thay cho gọi trực tiếp trong `housekeeping-service.ts`.
+  Tab mới `HistoryThinningTab.tsx` (Quản trị nguồn dữ liệu): bật/tắt (có hộp xác nhận nhắc sao lưu), giới hạn, lượt gần nhất, Xem trước, Dọn một lượt. API cấu hình mới
+  `/api/data-source/history-thinning` (GET/PATCH); xem trước / dọn tay tái dùng `/api/admin/db-cleanup` (thêm tham số `limit`). Seed cài đặt reset các cột này
+  (`db-schema-catalog.json`). Kiểm chứng trên PostgreSQL nhúng: tắt → 16.000 dòng nguyên vẹn; bật giới hạn 1.000 → mỗi lượt xóa đúng 1.000, còn lại 2.600 → 1.600.
+  Cập nhật Tài liệu sản phẩm mục 6.1 / 6.5 / 12, BRD 07, install script + ERD + chương 5. Test: `data-layer-retention.test.ts` (+4).
+- **Sửa theo review đợt Rule Group / tối ưu DB** (không đổi schema): (1) `src/app/api/rule-groups/route.ts` thêm `maxDuration = 300` — PUT lên lịch tạo lại cache
+  bằng `after()` như các route cấu hình khác; (2) `ModalContentSearch.tsx` bỏ `setState` trong effect (đặt lại state lúc đóng popup theo mẫu "điều chỉnh
+  state khi prop đổi", effect chỉ còn dọn highlight DOM) — `eslint src` sạch lần đầu; (3) `db/schema.sql` ghi rõ các bảng đã gỡ và vì sao `import_rows` vẫn
+  được tạo ở đây (migration 20261025/b đọc nó khi backfill — xoá khỏi baseline sẽ làm hỏng `--init`); đã kiểm chứng trên PostgreSQL nhúng: schema.sql + 102
+  migration cho đúng schema của `db/install/ttm-monitor-schema.sql`.
+
 ## 2026-10-25
 
 - **Tìm kiếm nội dung trong popup "Logic cảnh báo" và "Logic xử lý dữ liệu"** (`src/components/ui/Modal.tsx`, `src/components/ui/ModalContentSearch.tsx`, `src/lib/modal-content-search.ts`, `src/components/layout/HelpPanels.tsx`, `src/app/globals.css`, `src/lib/__tests__/modal-content-search.test.ts`):

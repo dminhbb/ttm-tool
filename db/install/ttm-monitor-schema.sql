@@ -1,6 +1,6 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-25T15:08:25.753Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-26T01:50:26.787Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
 -- Gồm: 57 bảng, 56 index phụ, 4 hàm, 4 trigger.
@@ -134,7 +134,16 @@ CREATE TABLE data_retention_configs (
     id smallint NOT NULL,
     raw_import_retention_days integer DEFAULT 30 NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    history_thinning_enabled boolean DEFAULT false NOT NULL,
+    history_thinning_daily_limit integer DEFAULT 50000 NOT NULL,
+    history_thinning_last_run_at timestamp with time zone,
+    history_thinning_last_run_source character varying(10),
+    history_thinning_last_deleted integer,
+    history_thinning_last_remaining integer,
+    history_thinning_updated_by_user_id integer,
     CONSTRAINT data_retention_configs_pkey PRIMARY KEY (id),
+    CONSTRAINT data_retention_configs_history_thinning_daily_limit_check CHECK (((history_thinning_daily_limit >= 1000) AND (history_thinning_daily_limit <= 1000000))),
+    CONSTRAINT data_retention_configs_history_thinning_last_run_source_check CHECK (((history_thinning_last_run_source IS NULL) OR ((history_thinning_last_run_source)::text = ANY ((ARRAY['DAILY'::character varying, 'MANUAL'::character varying])::text[])))),
     CONSTRAINT data_retention_configs_id_check CHECK ((id = 1)),
     CONSTRAINT data_retention_configs_raw_import_retention_days_check CHECK (((raw_import_retention_days >= 7) AND (raw_import_retention_days <= 3650)))
 );
@@ -853,6 +862,7 @@ ALTER TABLE black_listed_epics ADD CONSTRAINT black_listed_epics_updated_by_user
 ALTER TABLE daily_cache_runs ADD CONSTRAINT daily_cache_runs_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
 ALTER TABLE daily_cache_runs ADD CONSTRAINT daily_cache_runs_triggered_by_user_id_fkey FOREIGN KEY (triggered_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE dashboard_view_settings ADD CONSTRAINT dashboard_view_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE data_retention_configs ADD CONSTRAINT data_retention_configs_history_thinning_updated_by_user_id_fkey FOREIGN KEY (history_thinning_updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE denied_import_epics ADD CONSTRAINT denied_import_epics_added_by_user_id_fkey FOREIGN KEY (added_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE epic_alert_timeline ADD CONSTRAINT epic_alert_timeline_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
 ALTER TABLE import_admission_settings ADD CONSTRAINT import_admission_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
@@ -998,7 +1008,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 102 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 103 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1102,7 +1112,8 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261027_create_data_snapshot_dates.sql'),
     ('20261028_create_scoring_rule_groups.sql'),
     ('20261028b_add_rule_group_to_epic_alert_row_cache.sql'),
-    ('20261028c_add_rule_management_permission.sql');
+    ('20261028c_add_rule_management_permission.sql'),
+    ('20261029_add_history_thinning_settings.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1344,10 +1355,10 @@ SELECT * FROM (VALUES
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 
 -- data_retention_configs (1 dòng)
-INSERT INTO data_retention_configs (id, raw_import_retention_days, updated_at)
+INSERT INTO data_retention_configs (id, raw_import_retention_days, updated_at, history_thinning_enabled, history_thinning_daily_limit, history_thinning_last_run_at, history_thinning_last_run_source, history_thinning_last_deleted, history_thinning_last_remaining, history_thinning_updated_by_user_id)
 SELECT * FROM (VALUES
-    ('1'::smallint, '200'::integer, '2026-09-26 07:33:15.97024+00'::timestamp with time zone)
-) AS seed (id, raw_import_retention_days, updated_at)
+    ('1'::smallint, '200'::integer, '2026-09-26 07:33:15.97024+00'::timestamp with time zone, 'false'::boolean, '50000'::integer, NULL::timestamp with time zone, NULL::character varying(10), NULL::integer, NULL::integer, NULL::integer)
+) AS seed (id, raw_import_retention_days, updated_at, history_thinning_enabled, history_thinning_daily_limit, history_thinning_last_run_at, history_thinning_last_run_source, history_thinning_last_deleted, history_thinning_last_remaining, history_thinning_updated_by_user_id)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 
 -- mcp_settings (1 dòng)
@@ -1374,7 +1385,7 @@ WHERE current_setting('ttm_install.seed_data', true) = 'on';
 -- derived_cache_refresh_lock (1 dòng)
 INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at)
 SELECT * FROM (VALUES
-    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-10-25 11:03:00.249651+00'::timestamp with time zone)
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-10-26 01:27:49.601386+00'::timestamp with time zone)
 ) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 

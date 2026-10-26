@@ -1,4 +1,5 @@
 import pool from '@/lib/db';
+import { isValidThinningDailyLimit } from '@/lib/data-layer-retention';
 import { countEmptyExpiredBatchesAfter, planIssueThinning, runDataLayerRetention } from '@/lib/data-layer-retention-service';
 
 const MIN_RETENTION_DAYS = 7;
@@ -25,6 +26,8 @@ export interface CleanupResult {
   batchesDeleted: number;
   cutoffDate: string;
   issueVersionsDeleted: number;
+  /** Planned deletions left for a next run (only with a limit). */
+  issueVersionsRemaining: number;
   retentionDays: number;
 }
 
@@ -58,8 +61,10 @@ export async function previewCleanup(retentionDays: number): Promise<CleanupPrev
   };
 }
 
-export async function runCleanup(retentionDays: number): Promise<CleanupResult> {
+/** `limit` null = delete everything planned; a number = at most that many issue rows (tab "Dọn lịch sử" cleans in rounds). */
+export async function runCleanup(retentionDays: number, limit: number | null = null): Promise<CleanupResult> {
   assertValidRetentionDays(retentionDays);
-  const result = await runDataLayerRetention(undefined, retentionDays);
-  return { batchesDeleted: result.batchesDeleted, cutoffDate: result.cutoff, issueVersionsDeleted: result.issueVersionsDeleted, retentionDays };
+  if (limit !== null && !isValidThinningDailyLimit(limit)) throw new Error('Giới hạn số dòng không hợp lệ.');
+  const result = await runDataLayerRetention(undefined, retentionDays, { limit, source: 'MANUAL' });
+  return { batchesDeleted: result.batchesDeleted, cutoffDate: result.cutoff, issueVersionsDeleted: result.issueVersionsDeleted, issueVersionsRemaining: result.issueVersionsRemaining, retentionDays };
 }

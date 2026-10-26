@@ -1,5 +1,5 @@
 import pool, { getClient } from '@/lib/db';
-import { runDataLayerRetention } from '@/lib/data-layer-retention-service';
+import { runScheduledDataLayerRetention } from '@/lib/data-layer-retention-service';
 import { purgeExpiredUsageStats } from '@/lib/usage-stats-service';
 import { VISIT_DETAIL_WINDOW_DAYS } from '@/lib/visit-counter-types';
 
@@ -71,10 +71,12 @@ export async function runDailyHousekeeping(): Promise<HousekeepingResult> {
     ['auth_sessions', async () => { result.expiredSessionsDeleted = await purgeExpiredSessions(); }],
     ['visit_logs', async () => { result.visitLogsRolledUp = await rollUpOldVisitLogs(); }],
     ['audit_logs', async () => { result.auditLogsDeleted = await purgeOldAuditLogs(); }],
-    // History of `issues`: weekly snapshot dates, thinning beyond the 30 newest import days, empty expired batches
-    // (data-layer-retention.ts). Heavy once (the first cleanup), a few hundred rows a day afterwards.
+    // History of `issues`: weekly snapshot dates always; thinning beyond the 30 newest import days and empty expired
+    // batches (data-layer-retention.ts) only when a SUPERADMIN switched it on, and at most the daily limit per run —
+    // the first cleanup is large and irreversible, so it is never automatic (migration 20261029).
     ['issues_history', async () => {
-      const retention = await runDataLayerRetention(pool);
+      const retention = await runScheduledDataLayerRetention(pool);
+      if ('skipped' in retention) return; // thinning switched off (tab "Dọn lịch sử") — nothing deleted
       result.issueVersionsDeleted = retention.issueVersionsDeleted;
       result.importBatchesDeleted = retention.batchesDeleted;
     }],

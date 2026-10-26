@@ -1,0 +1,9 @@
+ALTER TABLE data_retention_configs DROP CONSTRAINT IF EXISTS data_retention_configs_history_thinning_last_run_source_check;
+ALTER TABLE data_retention_configs DROP CONSTRAINT IF EXISTS data_retention_configs_history_thinning_daily_limit_check;
+ALTER TABLE data_retention_configs DROP COLUMN IF EXISTS history_thinning_updated_by_user_id;
+ALTER TABLE data_retention_configs DROP COLUMN IF EXISTS history_thinning_last_remaining;
+ALTER TABLE data_retention_configs DROP COLUMN IF EXISTS history_thinning_last_deleted;
+ALTER TABLE data_retention_configs DROP COLUMN IF EXISTS history_thinning_last_run_source;
+ALTER TABLE data_retention_configs DROP COLUMN IF EXISTS history_thinning_last_run_at;
+ALTER TABLE data_retention_configs DROP COLUMN IF EXISTS history_thinning_daily_limit;
+ALTER TABLE data_retention_configs DROP COLUMN IF EXISTS history_thinning_enabled;

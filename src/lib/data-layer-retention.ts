@@ -139,3 +139,24 @@ export function versionsToDelete(versions: readonly IssueVersion[], denseStart: 
 export function retentionAnchors(snapshotDates: readonly string[], denseStart: string, cutoff: string): string[] {
   return [...new Set([...snapshotDates.filter((date) => date >= cutoff), denseStart])].sort();
 }
+
+/** Issue rows one run may delete — the safety limit of the daily job (tab "Dọn lịch sử", owner 2026-10-26). */
+export const DEFAULT_THINNING_DAILY_LIMIT = 50_000;
+export const MIN_THINNING_DAILY_LIMIT = 1_000;
+export const MAX_THINNING_DAILY_LIMIT = 1_000_000;
+
+export function isValidThinningDailyLimit(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= MIN_THINNING_DAILY_LIMIT && value <= MAX_THINNING_DAILY_LIMIT;
+}
+
+/**
+ * The part of the planned deletions one run may carry out: the `limit` lowest ids (oldest rows first, so every run
+ * is deterministic and the next one simply continues), and how many are left for later runs. `limit` null/undefined
+ * = no limit (the manual "dọn hết" run).
+ */
+export function takeDeletionBatch(ids: readonly number[], limit?: number | null): { batch: number[]; remaining: number } {
+  const sorted = [...ids].sort((a, b) => a - b);
+  if (limit === null || limit === undefined || limit >= sorted.length) return { batch: sorted, remaining: 0 };
+  const size = Math.max(0, Math.floor(limit));
+  return { batch: sorted.slice(0, size), remaining: sorted.length - size };
+}

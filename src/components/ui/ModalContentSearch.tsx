@@ -57,19 +57,25 @@ export function ModalContentSearch({
     inputRef.current?.focus();
   }, [containerRef]);
 
-  // When modal closes, clean up highlights and reset state
-  React.useEffect(() => {
+  // When the modal closes, reset the search state during render (React's "adjust state on a prop change" pattern —
+  // no effect, so no cascading render) and clean the DOM highlights in an effect (that part is not state).
+  const [wasOpen, setWasOpen] = React.useState(isOpen);
+  if (wasOpen !== isOpen) {
+    setWasOpen(isOpen);
     if (!isOpen) {
-      const container = containerRef.current;
-      if (container) {
-        clearModalHighlights(container);
-      }
-      matchesRef.current = [];
       setQuery('');
       setSearchedQuery('');
       setMatchCount(0);
       setCurrentIndex(-1);
     }
+  }
+  React.useEffect(() => {
+    if (isOpen) return;
+    const container = containerRef.current;
+    if (container) {
+      clearModalHighlights(container);
+    }
+    matchesRef.current = [];
   }, [isOpen, containerRef]);
 
   // Clean up on unmount

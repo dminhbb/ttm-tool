@@ -4,6 +4,10 @@ import { scheduleDerivedCacheRefresh } from '@/lib/daily-cache-service';
 import { parseRuleGroupDrafts, ruleGroupErrorResponse } from '@/lib/rule-group-request';
 import { getRuleGroupConfig, saveRuleGroupConfig } from '@/lib/rule-group-service';
 
+// The PUT rebuilds the row cache and everything derived from it in after() (scheduleDerivedCacheRefresh) — same
+// budget as the other config saves that do, e.g. api/projects, api/domains (it only matters on Vercel).
+export const maxDuration = 300;
+
 /** Rule Management (SUPERADMIN): GET the Rule Groups + rule catalog, PUT the whole configuration. */
 export async function GET(request: NextRequest) {
   try {

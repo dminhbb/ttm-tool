@@ -35,7 +35,10 @@ export async function POST(request: NextRequest) {
     const body: unknown = await request.json();
     const retentionDays = typeof body === 'object' && body !== null && 'retentionDays' in body ? Number((body as { retentionDays: unknown }).retentionDays) : NaN;
     if (!Number.isInteger(retentionDays)) return NextResponse.json({ error: 'Số ngày giữ lại không hợp lệ.' }, { status: 400 });
-    return NextResponse.json(await runCleanup(retentionDays));
+    const rawLimit = (body as { limit?: unknown }).limit;
+    // Optional: at most this many issue rows (the tab "Dọn lịch sử" cleans in rounds); omitted = everything planned.
+    const limit = rawLimit === undefined || rawLimit === null ? null : Number(rawLimit);
+    return NextResponse.json(await runCleanup(retentionDays, limit));
   } catch (error: unknown) {
     console.error('API Error in db-cleanup execute:', error);
     const authErr = authError(error);

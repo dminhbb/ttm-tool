@@ -1,10 +1,10 @@
 # TTM Monitor — ERD & từ điển dữ liệu
 
-> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-10-25.
+> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-10-26.
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
-**57 bảng** trong schema `public`, **43 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
+**57 bảng** trong schema `public`, **44 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
 
 ## Mục lục
 
@@ -1332,6 +1332,13 @@ erDiagram
         smallint id PK
         int raw_import_retention_days
         timestamptz updated_at
+        boolean history_thinning_enabled
+        int history_thinning_daily_limit
+        timestamptz history_thinning_last_run_at
+        varchar history_thinning_last_run_source
+        int history_thinning_last_deleted
+        int history_thinning_last_remaining
+        int history_thinning_updated_by_user_id FK
     }
     dashboard_view_settings {
         smallint id PK
@@ -1346,6 +1353,7 @@ erDiagram
     users {
         int id PK
     }
+    users |o--o{ data_retention_configs : "history_thinning_updated_by_user_id"
     users |o--o{ dashboard_view_settings : "updated_by_user_id"
 ```
 
@@ -1373,7 +1381,16 @@ Hai bảng cấu hình singleton lưu Cấu hình tích hợp Jira và số ngà
 | `id` | smallint | không |  | PK |  |
 | `raw_import_retention_days` | int | không | 30 |  |  |
 | `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+| `history_thinning_enabled` | boolean | không | false |  |  |
+| `history_thinning_daily_limit` | int | không | 50000 |  |  |
+| `history_thinning_last_run_at` | timestamptz | có |  |  |  |
+| `history_thinning_last_run_source` | varchar(10) | có |  |  |  |
+| `history_thinning_last_deleted` | int | có |  |  |  |
+| `history_thinning_last_remaining` | int | có |  |  |  |
+| `history_thinning_updated_by_user_id` | int | có |  | FK → users(id) |  |
 
+- `data_retention_configs_history_thinning_daily_limit_check`: CHECK (((history_thinning_daily_limit >= 1000) AND (history_thinning_daily_limit <= 1000000)))
+- `data_retention_configs_history_thinning_last_run_source_check`: CHECK (((history_thinning_last_run_source IS NULL) OR ((history_thinning_last_run_source)::text = ANY ((ARRAY['DAILY'::character varying, 'MANUAL'::character varying])::text[]))))
 - `data_retention_configs_id_check`: CHECK ((id = 1))
 - `data_retention_configs_raw_import_retention_days_check`: CHECK (((raw_import_retention_days >= 7) AND (raw_import_retention_days <= 3650)))
 
@@ -1810,6 +1827,7 @@ Số lượt truy cập LŨY KẾ của các dòng `visit_logs` cũ hơn ngày T
 | `daily_cache_runs` | source_import_batch_id | `import_batches`(id) | SET NULL |
 | `daily_cache_runs` | triggered_by_user_id | `users`(id) | SET NULL |
 | `dashboard_view_settings` | updated_by_user_id | `users`(id) | SET NULL |
+| `data_retention_configs` | history_thinning_updated_by_user_id | `users`(id) | SET NULL |
 | `denied_import_epics` | added_by_user_id | `users`(id) | SET NULL |
 | `epic_alert_timeline` | source_import_batch_id | `import_batches`(id) | SET NULL |
 | `import_admission_settings` | updated_by_user_id | `users`(id) | SET NULL |

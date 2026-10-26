@@ -467,6 +467,13 @@
         "lease_owner": null,
         "lease_until": null,
         "last_source": null
+      },
+      "data_retention_configs": {
+        "history_thinning_enabled": "false",
+        "history_thinning_last_run_at": null,
+        "history_thinning_last_run_source": null,
+        "history_thinning_last_deleted": null,
+        "history_thinning_last_remaining": null
       }
     },
     "adminAccount": {

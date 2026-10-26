@@ -387,9 +387,9 @@
       <!-- BEGIN GENERATED: db-schema -->
       <p>
         Cơ sở dữ liệu của TTM Monitor dùng <strong>PostgreSQL</strong> (đang chạy 17.6), gồm <strong>57 bảng</strong> trong schema <code>public</code>,
-        <strong>43 khoá ngoại</strong>, 4 hàm và 4 trigger; không dùng view, extension hay Row Level Security.
+        <strong>44 khoá ngoại</strong>, 4 hàm và 4 trigger; không dùng view, extension hay Row Level Security.
         Cấu trúc thay đổi duy nhất qua chuỗi migration <code>db/migrations/*.sql</code> (chạy bằng <code>scripts/migrate-db.js</code>, ghi vào <code>schema_migrations</code>).
-        Toàn bộ chương này được sinh từ CSDL Supabase ngày 25/10/2026 bởi <code>scripts/db-schema-export.js</code> — cùng lần chạy sinh ra
+        Toàn bộ chương này được sinh từ CSDL Supabase ngày 26/10/2026 bởi <code>scripts/db-schema-export.js</code> — cùng lần chạy sinh ra
         file tạo CSDL mới <code>db/install/ttm-monitor-schema.sql</code> (chỉ cấu trúc, không dữ liệu) và tài liệu ERD chi tiết <code>docs/database-erd.md</code> (sơ đồ Mermaid từng nhóm + từ điển dữ liệu).
       </p>
 
@@ -464,7 +464,7 @@
         </g>
       </svg>
 
-      <h3>5.2. Danh mục 57 bảng CSDL (đối chiếu CSDL Supabase 25/10/2026)</h3>
+      <h3>5.2. Danh mục 57 bảng CSDL (đối chiếu CSDL Supabase 26/10/2026)</h3>
       <table>
         <thead><tr><th>STT</th><th>Bảng CSDL</th><th>Nhóm</th><th>Khoá chính / Khoá ngoại</th><th>Vai trò nghiệp vụ &amp; Ghi chú</th></tr></thead>
         <tbody>
@@ -508,7 +508,7 @@
           <tr><td>38</td><td><code>daily_cache_runs</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>run_date</code> (PK)<br><code>source_import_batch_id</code> → <code>import_batches</code><br><code>triggered_by_user_id</code> → <code>users</code></td><td>Mỗi ngày (giờ Việt Nam) 1 dòng: lượt tạo lại cache đầu ngày do lần tải trang đầu tiên kích hoạt (RUNNING / SUCCESS / FAILED, thời lượng, số Epic).</td></tr>
           <tr><td>39</td><td><code>derived_cache_refresh_lock</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>id</code> (PK)</td><td><strong>Mới 05/10/2026.</strong> Khoá (lease) điều phối việc tạo lại cache giữa các instance: <code>request_seq</code>, <code>lease_owner</code>, <code>lease_until</code>, <code>last_source</code> — mục 6.4.</td></tr>
           <tr><td>40</td><td><code>jira_settings</code></td><td>Cấu hình hệ thống</td><td><code>id</code> (PK)</td><td>Hai bảng cấu hình singleton lưu Cấu hình tích hợp Jira và số ngày lưu giữ dữ liệu raw import.</td></tr>
-          <tr><td>41</td><td><code>data_retention_configs</code></td><td>Cấu hình hệ thống</td><td><code>id</code> (PK)</td><td>Hai bảng cấu hình singleton lưu Cấu hình tích hợp Jira và số ngày lưu giữ dữ liệu raw import.</td></tr>
+          <tr><td>41</td><td><code>data_retention_configs</code></td><td>Cấu hình hệ thống</td><td><code>id</code> (PK)<br><code>history_thinning_updated_by_user_id</code> → <code>users</code></td><td>Hai bảng cấu hình singleton lưu Cấu hình tích hợp Jira và số ngày lưu giữ dữ liệu raw import.</td></tr>
           <tr><td>42</td><td><code>dashboard_view_settings</code></td><td>Cấu hình hệ thống</td><td><code>id</code> (PK)<br><code>updated_by_user_id</code> → <code>users</code></td><td><strong>Mới 14/10/2026.</strong> Công tắc "Dashboard Lead view cho tất cả user" (<code>lead_view_for_all_users</code>, mặc định bật) — Quản trị hệ thống → Dashboard, mục 21.9.</td></tr>
           <tr><td>43</td><td><code>schema_migrations</code></td><td>Cấu hình hệ thống</td><td><code>filename</code> (PK)</td><td>Sổ theo dõi migration: mỗi file <code>db/migrations/*.sql</code> đã chạy là một dòng (<code>filename</code>, <code>applied_at</code>). Do <code>scripts/migrate-db.js</code> tự tạo và ghi; file cài đặt <code>db/install/ttm-monitor-schema.sql</code> ghi sẵn toàn bộ migration đã có để DB mới chỉ nhận migration phát sinh sau.</td></tr>
           <tr><td>44</td><td><code>ad_popups</code></td><td>Popup &amp; Banner thông báo</td><td><code>id</code> (PK)</td><td>Cấu hình Popup quảng cáo toàn màn hình cho mọi user đã đăng nhập (mục 14).</td></tr>
@@ -1177,9 +1177,16 @@
               <tr><td><code>id</code></td><td><code>SMALLINT NOT NULL</code></td><td>PRIMARY KEY</td><td></td></tr>
               <tr><td><code>raw_import_retention_days</code></td><td><code>INT NOT NULL</code></td><td>DEFAULT 30</td><td></td></tr>
               <tr><td><code>updated_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
+              <tr><td><code>history_thinning_enabled</code></td><td><code>BOOLEAN NOT NULL</code></td><td>DEFAULT false</td><td></td></tr>
+              <tr><td><code>history_thinning_daily_limit</code></td><td><code>INT NOT NULL</code></td><td>DEFAULT 50000</td><td></td></tr>
+              <tr><td><code>history_thinning_last_run_at</code></td><td><code>TIMESTAMPTZ</code></td><td>—</td><td></td></tr>
+              <tr><td><code>history_thinning_last_run_source</code></td><td><code>VARCHAR(10)</code></td><td>—</td><td></td></tr>
+              <tr><td><code>history_thinning_last_deleted</code></td><td><code>INT</code></td><td>—</td><td></td></tr>
+              <tr><td><code>history_thinning_last_remaining</code></td><td><code>INT</code></td><td>—</td><td></td></tr>
+              <tr><td><code>history_thinning_updated_by_user_id</code></td><td><code>INT</code></td><td>FK → users(id)</td><td></td></tr>
             </tbody>
           </table>
-          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK ((id = 1))</code></li><li><code>CHECK (((raw_import_retention_days &gt;= 7) AND (raw_import_retention_days &lt;= 3650)))</code></li></ul>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((history_thinning_daily_limit &gt;= 1000) AND (history_thinning_daily_limit &lt;= 1000000)))</code></li><li><code>CHECK (((history_thinning_last_run_source IS NULL) OR ((history_thinning_last_run_source)::text = ANY ((ARRAY['DAILY'::character varying, 'MANUAL'::character varying])::text[]))))</code></li><li><code>CHECK ((id = 1))</code></li><li><code>CHECK (((raw_import_retention_days &gt;= 7) AND (raw_import_retention_days &lt;= 3650)))</code></li></ul>
           <p><strong>9.3. <code>dashboard_view_settings</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
@@ -1397,7 +1404,7 @@
         </div>
       </details>
 
-      <p><strong>Danh sách 43 khoá ngoại</strong> (bảng con → bảng cha):</p>
+      <p><strong>Danh sách 44 khoá ngoại</strong> (bảng con → bảng cha):</p>
       <table>
         <thead><tr><th>Bảng con</th><th>Cột</th><th>Tham chiếu</th><th>ON DELETE</th></tr></thead>
         <tbody>
@@ -1409,6 +1416,7 @@
           <tr><td><code>daily_cache_runs</code></td><td><code>source_import_batch_id</code></td><td><code>import_batches(id)</code></td><td>SET NULL</td></tr>
           <tr><td><code>daily_cache_runs</code></td><td><code>triggered_by_user_id</code></td><td><code>users(id)</code></td><td>SET NULL</td></tr>
           <tr><td><code>dashboard_view_settings</code></td><td><code>updated_by_user_id</code></td><td><code>users(id)</code></td><td>SET NULL</td></tr>
+          <tr><td><code>data_retention_configs</code></td><td><code>history_thinning_updated_by_user_id</code></td><td><code>users(id)</code></td><td>SET NULL</td></tr>
           <tr><td><code>denied_import_epics</code></td><td><code>added_by_user_id</code></td><td><code>users(id)</code></td><td>SET NULL</td></tr>
           <tr><td><code>epic_alert_timeline</code></td><td><code>source_import_batch_id</code></td><td><code>import_batches(id)</code></td><td>SET NULL</td></tr>
           <tr><td><code>import_admission_settings</code></td><td><code>updated_by_user_id</code></td><td><code>users(id)</code></td><td>SET NULL</td></tr>
@@ -1473,8 +1481,8 @@
       <h3>6.1. Lưu trữ dữ liệu import (raw)</h3>
       <p>
         Cấu hình tại panel <strong>“Lưu trữ dữ liệu import”</strong> (right panel màn hình Nguồn dữ liệu, SUPERADMIN): số ngày giữ dữ liệu raw
-        (<code>import_batches</code>/<code>issues</code>), mặc định 30 ngày, tối thiểu 7. Sau mỗi lần import thành công và mỗi ngày trong job dọn dẹp, hệ thống tự dọn
-        các batch cũ hơn ngưỡng — batch mới nhất luôn được bảo vệ để tránh mất nguồn cảnh báo hiện hành.
+        (<code>import_batches</code>/<code>issues</code>), mặc định 30 ngày, tối thiểu 7. Việc dọn các batch / phiên bản issues cũ hơn ngưỡng chạy trong job dọn dẹp mỗi ngày nhưng
+        <strong>chỉ khi SUPERADMIN bật “Dọn tự động” ở tab “Dọn lịch sử” (từ 26/10/2026; mặc định TẮT)</strong> — xem mục 6.5. Batch mới nhất luôn được bảo vệ để tránh mất nguồn cảnh báo hiện hành.
       </p>
       <h3>6.2. Lịch sử Issue chỉ còn trong <code>issues</code></h3>
       <p>
@@ -1497,6 +1505,20 @@
         <li>Thay đổi rule của Scoring Service hoặc cấu hình loại trừ chỉ thể hiện trên số liệu <strong>sau lần tạo lại cache kế tiếp</strong>.</li>
         <li><strong>Domain của dự án là thông tin hiện hành, không lưu theo lịch sử:</strong> mỗi dòng Epic mang tên Domain <em>hiện tại</em> của dự án (dự án và Domain đều phải đang active). Dự án bị gỡ khỏi Domain (hoặc Domain bị tắt / xoá) thì sau lần tạo lại cache, Epic của dự án đó <strong>không còn tính vào</strong> thống kê của Domain cũ — bộ lọc Domain, dòng Domain trong Ma trận Phân bổ, pie chart "Theo Domain nghiệp vụ" — mà chuyển sang nhóm "Chưa gán Domain"; tổng toàn phòng không đổi. ADMIN của Domain cũ cũng không còn thấy các Epic đó (trừ khi là PM/SM của dự án). Xem lại lớp dữ liệu cũ vẫn dùng Domain hiện hành.</li>
       </ul>
+    
+      <h3>6.5. Tab “Dọn lịch sử” — công tắc an toàn khi xoá lịch sử issues (từ 26/10/2026)</h3>
+      <p>
+        Xoá bớt phiên bản issues cũ (mục 6.2) là thao tác <strong>không hoàn tác</strong>, và lần dọn đầu tiên trên một CSDL chưa từng dọn có thể xoá hàng loạt dòng. Vì vậy việc dọn tự động hằng ngày
+        <strong>mặc định TẮT</strong> và được điều khiển ở tab <strong>Dọn lịch sử</strong> của màn Quản trị nguồn dữ liệu (chỉ SUPERADMIN):
+      </p>
+      <ul>
+        <li><strong>Dọn tự động hằng ngày — Bật / Tắt.</strong> Khi tắt, job hằng ngày vẫn ghi các mốc ngày hàng tuần (dòng nhỏ) nhưng không xoá dòng nào. Bật sẽ có hộp xác nhận nhắc sao lưu và xem trước.</li>
+        <li><strong>Tối đa số dòng xoá mỗi lượt</strong> (1.000 – 1.000.000, mặc định 50.000): mỗi lượt chỉ xoá tối đa ngần ấy dòng (dòng cũ nhất trước); phần còn lại chờ lượt ngày hôm sau. Backlog lớn vì thế được dọn dần qua nhiều ngày, không dồn vào một câu lệnh dài.</li>
+        <li><strong>Lượt dọn gần nhất:</strong> thời điểm, nguồn (tự động / dọn tay), số dòng đã xoá và số dòng còn chờ.</li>
+        <li><strong>Xem trước:</strong> chỉ đếm — số dòng sẽ xoá (cũ hơn thời hạn / nằm giữa các mốc tuần), số đợt import trống, số dòng được giữ; kèm số lượt cần để dọn hết với giới hạn hiện tại.</li>
+        <li><strong>Dọn một lượt (dọn tay):</strong> sau khi xem trước, xoá một lượt tối đa bằng giới hạn trên, có hộp xác nhận; bấm lại cho tới khi hết. Muốn xoá hết trong một lần: nút “Xóa … phiên bản issues cũ” ở tab Import &amp; Dọn dữ liệu của màn Sao lưu / Phục hồi dữ liệu.</li>
+      </ul>
+      <p><strong>Quy trình khuyến nghị cho lần dọn đầu tiên:</strong> (1) sao lưu CSDL → (2) Xem trước, kiểm tra số dòng → (3) bật Dọn tự động, hoặc dọn tay từng lượt. Dữ liệu cấu hình nằm ở các cột <code>history_thinning_*</code> của bảng <code>data_retention_configs</code>.</p>
     </section>
 
     <section id="alert-policy">
@@ -1891,7 +1913,7 @@
     <section id="screen-data-source">
       <div class="kicker">Khối màn hình</div>
       <h2>12. Màn hình Nguồn dữ liệu (<code>/</code>)</h2>
-      <p>Có 3 tab, chuyển bằng thanh tab ở đầu trang: <strong>Import Issues</strong> (nội dung chính, SUPERADMIN), <strong>Quản lý Component</strong> (dọn dẹp danh mục Component, SUPERADMIN) và <strong>Từ chối import</strong> (danh sách Epic không được import, SUPERADMIN).</p>
+      <p>Có 4 tab, chuyển bằng thanh tab ở đầu trang: <strong>Import Issues</strong> (nội dung chính, SUPERADMIN), <strong>Quản lý Component</strong> (dọn dẹp danh mục Component, SUPERADMIN) <strong>Từ chối import</strong> (danh sách Epic không được import, SUPERADMIN) và <strong>Dọn lịch sử</strong> (công tắc, giới hạn và xem trước / dọn tay việc xoá lịch sử issues — mục 6.5, SUPERADMIN).</p>
       <h3>12.1. Tab Import Issues</h3>
       <ul>
         <li><strong>Thiết lập nguồn dữ liệu CSV</strong> — chọn file, kiểm tra lỗi hoặc import &amp; lưu.</li>

@@ -2,7 +2,7 @@ import type { Pool, PoolClient } from 'pg';
 import pool from '@/lib/db';
 import { getActiveHolidaySet } from '@/lib/master-data-service';
 import { DEFAULT_RAW_IMPORT_RETENTION_DAYS } from '@/lib/data-retention-service';
-import { daysBefore, DENSE_IMPORT_DAYS, layerDateSources, retentionAnchors, weeklySnapshotDates } from '@/lib/data-layer-retention';
+import { DEFAULT_THINNING_DAILY_LIMIT, daysBefore, DENSE_IMPORT_DAYS, isValidThinningDailyLimit, layerDateSources, retentionAnchors, takeDeletionBatch, weeklySnapshotDates } from '@/lib/data-layer-retention';
 
 /**
  * Daily retention of the `issues` history — the rules are explained in data-layer-retention.ts:
@@ -207,15 +207,100 @@ export async function deleteEmptyExpiredBatches(db: Db, cutoff: string): Promise
 export interface DataLayerRetentionResult {
   batchesDeleted: number;
   issueVersionsDeleted: number;
+  /** Planned deletions this run left for later runs (the run limit). */
+  issueVersionsRemaining: number;
   snapshotDatesAdded: number;
   snapshotDatesPruned: number;
 }
 
-/** The daily job (runDailyHousekeeping): record the weekly dates that came due, thin the history, drop the empty expired batches. */
-export async function runDataLayerRetention(db: Db = pool, retentionOverride?: number): Promise<DataLayerRetentionResult & { cutoff: string }> {
+export type ThinningRunSource = 'DAILY' | 'MANUAL';
+
+export interface HistoryThinningSettings {
+  /** OFF by default: the daily job records the weekly dates but deletes nothing (migration 20261029). */
+  enabled: boolean;
+  /** Issue rows one run may delete. */
+  dailyLimit: number;
+  lastDeleted: number | null;
+  lastRemaining: number | null;
+  lastRunAt: string | null;
+  lastRunSource: ThinningRunSource | null;
+  updatedByName: string | null;
+}
+
+const OFF_SETTINGS: HistoryThinningSettings = { dailyLimit: DEFAULT_THINNING_DAILY_LIMIT, enabled: false, lastDeleted: null, lastRemaining: null, lastRunAt: null, lastRunSource: null, updatedByName: null };
+
+/** Missing columns (the migration has not reached this database) read as "off" — never delete on a database that cannot say it is allowed. */
+export async function getHistoryThinningSettings(db: Db = pool): Promise<HistoryThinningSettings> {
+  try {
+    const result = await db.query<HistoryThinningSettings>(`
+      SELECT c.history_thinning_enabled AS enabled, c.history_thinning_daily_limit AS "dailyLimit",
+             c.history_thinning_last_deleted AS "lastDeleted", c.history_thinning_last_remaining AS "lastRemaining",
+             c.history_thinning_last_run_at::text AS "lastRunAt", c.history_thinning_last_run_source AS "lastRunSource",
+             u.full_name AS "updatedByName"
+      FROM data_retention_configs c LEFT JOIN users u ON u.id = c.history_thinning_updated_by_user_id
+      WHERE c.id = 1;
+    `);
+    return result.rows[0] ?? OFF_SETTINGS;
+  } catch (error: unknown) {
+    const code = (error as { code?: string }).code;
+    if (code === '42703' || code === '42P01') return OFF_SETTINGS;
+    throw error;
+  }
+}
+
+export async function saveHistoryThinningSettings(input: { dailyLimit?: number; enabled?: boolean }, userId: number, db: Db = pool): Promise<HistoryThinningSettings> {
+  if (input.dailyLimit !== undefined && !isValidThinningDailyLimit(input.dailyLimit)) throw new Error('INVALID_DAILY_LIMIT');
+  await db.query('INSERT INTO data_retention_configs (id) VALUES (1) ON CONFLICT (id) DO NOTHING;');
+  await db.query(`
+    UPDATE data_retention_configs SET
+      history_thinning_enabled = COALESCE($1::boolean, history_thinning_enabled),
+      history_thinning_daily_limit = COALESCE($2::int, history_thinning_daily_limit),
+      history_thinning_updated_by_user_id = $3,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = 1;
+  `, [input.enabled ?? null, input.dailyLimit ?? null, userId]);
+  return getHistoryThinningSettings(db);
+}
+
+async function recordThinningRun(db: Db, source: ThinningRunSource, deleted: number, remaining: number): Promise<void> {
+  try {
+    await db.query(`
+      UPDATE data_retention_configs SET history_thinning_last_run_at = CURRENT_TIMESTAMP, history_thinning_last_run_source = $1,
+        history_thinning_last_deleted = $2, history_thinning_last_remaining = $3
+      WHERE id = 1;
+    `, [source, deleted, remaining]);
+  } catch (error: unknown) {
+    console.error('Could not record the history thinning run:', error); // the run itself already happened
+  }
+}
+
+export interface RetentionRunOptions {
+  /** Most issue rows to delete in this run; null/undefined = no limit. */
+  limit?: number | null;
+  source?: ThinningRunSource;
+}
+
+/** One thinning run: record the weekly dates that came due, delete (up to `limit`) the planned versions, drop the empty expired batches. */
+export async function runDataLayerRetention(db: Db = pool, retentionOverride?: number, options: RetentionRunOptions = {}): Promise<DataLayerRetentionResult & { cutoff: string }> {
   const snapshots = await recordWeeklySnapshotDates(db, retentionOverride);
   const plan = await planIssueThinning(db, retentionOverride);
-  const issueVersionsDeleted = await deleteIssueVersions(db, plan.deleteIds);
+  const { batch, remaining } = takeDeletionBatch(plan.deleteIds, options.limit);
+  const issueVersionsDeleted = await deleteIssueVersions(db, batch);
   const batchesDeleted = await deleteEmptyExpiredBatches(db, plan.cutoff);
-  return { batchesDeleted, cutoff: plan.cutoff, issueVersionsDeleted, snapshotDatesAdded: snapshots.added, snapshotDatesPruned: snapshots.pruned };
+  await recordThinningRun(db, options.source ?? 'MANUAL', issueVersionsDeleted, remaining);
+  return { batchesDeleted, cutoff: plan.cutoff, issueVersionsDeleted, issueVersionsRemaining: remaining, snapshotDatesAdded: snapshots.added, snapshotDatesPruned: snapshots.pruned };
+}
+
+/**
+ * The daily job (runDailyHousekeeping). Always records the weekly snapshot dates (small rows only); it deletes issue
+ * history ONLY when a SUPERADMIN switched the thinning on, and then at most the configured daily limit (migration
+ * 20261029). While it is off the result is `{ skipped: true }`.
+ */
+export async function runScheduledDataLayerRetention(db: Db = pool): Promise<(DataLayerRetentionResult & { cutoff: string }) | { skipped: true; snapshotDatesAdded: number; snapshotDatesPruned: number }> {
+  const settings = await getHistoryThinningSettings(db);
+  if (!settings.enabled) {
+    const snapshots = await recordWeeklySnapshotDates(db);
+    return { skipped: true, snapshotDatesAdded: snapshots.added, snapshotDatesPruned: snapshots.pruned };
+  }
+  return runDataLayerRetention(db, undefined, { limit: settings.dailyLimit, source: 'DAILY' });
 }

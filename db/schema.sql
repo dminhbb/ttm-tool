@@ -15,6 +15,13 @@
 --   - projects.project_code / projects.project_type_id (PMS Project Core) are NOT mirrored: project_type_id
 --     references project_types, which only 20261009a creates — 20261009b adds both columns (+ the trigger
 --     filling project_code) on a fresh database too.
+-- Tables RETIRED since (2026-10-23…26): import_rows, and — created by migrations only — epic_ttm_snapshots,
+-- issue_daily_snapshots, epic_alert_history, epic_milestone_history, epic_data_anomaly_violations,
+-- import_row_issues, scoring_parity_runs, scoring_engine_settings. `import_rows` is STILL created here ON PURPOSE:
+-- 20261025 / 20261025b read it to backfill issues.project_key / request_type before 20261025b drops it, so
+-- removing it from this baseline would break `--init`. Verified 2026-10-26 on an embedded Postgres: this file +
+-- all migrations gives exactly the schema of db/install/ttm-monitor-schema.sql. For the CURRENT structure read
+-- db/install/ttm-monitor-schema.sql / docs/database-erd.md, not this file.
 -- Every table outside these 14 is documented in brd/08-data-model.md (§23 cache/scoring/black list/
 -- Từ chối import, §24 PMS Project Core).
 

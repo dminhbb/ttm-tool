@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/Button';
 import { ImportIssuesTab } from '@/components/data-source/ImportIssuesTab';
 import { ComponentManagementTab } from '@/components/data-source/ComponentManagementTab';
 import { DeniedImportTab } from '@/components/data-source/DeniedImportTab';
+import { HistoryThinningTab } from '@/components/data-source/HistoryThinningTab';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 
-type Tab = 'issues' | 'components' | 'denied';
+type Tab = 'issues' | 'components' | 'denied' | 'history';
 
 export default function DataSourcePage() {
   const [tab, setTab] = useState<Tab>('issues');
@@ -19,11 +20,13 @@ export default function DataSourcePage() {
         <Button onClick={() => setTab('issues')} variant={tab === 'issues' ? 'primary' : 'outline'}>Import Issues</Button>
         <Button onClick={() => setTab('components')} variant={tab === 'components' ? 'primary' : 'outline'}>Quản lý Component</Button>
         <Button onClick={() => setTab('denied')} variant={tab === 'denied' ? 'primary' : 'outline'}>Từ chối import</Button>
+        <Button onClick={() => setTab('history')} variant={tab === 'history' ? 'primary' : 'outline'}>Dọn lịch sử</Button>
       </nav>
 
       {tab === 'issues' && <ImportIssuesTab />}
       {tab === 'components' && <ComponentManagementTab />}
       {tab === 'denied' && <DeniedImportTab />}
+      {tab === 'history' && <HistoryThinningTab />}
     </>
   );
 }

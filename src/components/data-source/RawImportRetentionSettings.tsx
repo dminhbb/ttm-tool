@@ -69,7 +69,7 @@ export function RawImportRetentionSettings() {
         return;
       }
       setRetentionDays(result.rawImportRetentionDays);
-      showToast('Đã lưu cấu hình. Hệ thống tự dọn lịch sử issues mỗi ngày (cùng lượt tạo cache đầu ngày).', 5000);
+      showToast('Đã lưu cấu hình. Việc dọn lịch sử issues chỉ chạy khi được bật ở tab "Dọn lịch sử".', 5000);
       setMessage(null);
     } catch {
       setMessage({ text: 'Không thể kết nối dịch vụ cấu hình lưu trữ.', type: 'error' });

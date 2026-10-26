@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  daysBefore, denseZoneStart, DENSE_IMPORT_DAYS, lastWorkingDayOfWeek, layerDateSources, retentionAnchors, versionsToDelete, weekMonday, weeklySnapshotDates,
+  daysBefore, denseZoneStart, DENSE_IMPORT_DAYS, isValidThinningDailyLimit, lastWorkingDayOfWeek, layerDateSources, retentionAnchors, takeDeletionBatch, versionsToDelete, weekMonday, weeklySnapshotDates,
 } from '../data-layer-retention';
 import type { IssueVersion, RetentionHolidays } from '../data-layer-retention';
 
@@ -112,5 +112,32 @@ describe('versionsToDelete', () => {
     // Weekly anchors every Friday: 05-08 sees v2, 05-15 and later see v3 — v1 is never in force on an anchor.
     const doomed = versionsToDelete(versions, '2026-10-01', ['2026-05-08', '2026-05-15', '2026-05-22', '2026-10-01']);
     assert.deepEqual([...doomed], [1]);
+  });
+});
+
+describe('safety limit of one thinning run (2026-10-26)', () => {
+  it('takes the lowest ids first and reports what is left for the next run', () => {
+    assert.deepEqual(takeDeletionBatch([9, 3, 7, 1, 5], 2), { batch: [1, 3], remaining: 3 });
+    // The next run plans the rest again and takes its lowest ids — the backlog shrinks until nothing is left.
+    assert.deepEqual(takeDeletionBatch([5, 7, 9], 2), { batch: [5, 7], remaining: 1 });
+    assert.deepEqual(takeDeletionBatch([9], 2), { batch: [9], remaining: 0 });
+  });
+
+  it('no limit (or a limit above the plan) takes everything; a plan of nothing stays nothing', () => {
+    assert.deepEqual(takeDeletionBatch([3, 1, 2]), { batch: [1, 2, 3], remaining: 0 });
+    assert.deepEqual(takeDeletionBatch([3, 1, 2], null), { batch: [1, 2, 3], remaining: 0 });
+    assert.deepEqual(takeDeletionBatch([3, 1, 2], 3), { batch: [1, 2, 3], remaining: 0 });
+    assert.deepEqual(takeDeletionBatch([], 5), { batch: [], remaining: 0 });
+  });
+
+  it('does not mutate the plan it is given', () => {
+    const ids = [4, 2, 3];
+    takeDeletionBatch(ids, 1);
+    assert.deepEqual(ids, [4, 2, 3]);
+  });
+
+  it('the daily limit must be a whole number from 1.000 to 1.000.000', () => {
+    for (const ok of [1_000, 50_000, 1_000_000]) assert.ok(isValidThinningDailyLimit(ok), String(ok));
+    for (const bad of [999, 1_000_001, 0, -5, 1500.5, '50000', null, undefined, NaN]) assert.ok(!isValidThinningDailyLimit(bad), String(bad));
   });
 });
