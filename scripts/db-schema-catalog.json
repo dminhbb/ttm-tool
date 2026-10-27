@@ -367,7 +367,7 @@
       "columns": {}
     },
     "derived_cache_refresh_lock": {
-      "description": "<strong>Mới 05/10/2026.</strong> Khoá (lease) điều phối việc tạo lại cache giữa các instance: <code>request_seq</code>, <code>lease_owner</code>, <code>lease_until</code>, <code>last_source</code> — mục 6.4.",
+      "description": "<strong>Mới 05/10/2026.</strong> Khoá (lease) điều phối việc tạo lại cache giữa các instance: <code>request_seq</code>, <code>lease_owner</code>, <code>lease_until</code>, <code>last_source</code> — mục 6.4. <strong>Từ 27/10/2026</strong> thêm dấu “cache cũ”: <code>stale_since</code> (lần lưu đầu tiên chưa được tạo lại cache) và <code>stale_reasons</code> (nguồn: users, projects, domains…); xoá khi một lượt tạo lại bắt đầu sau dấu đó kết thúc.",
       "columns": {}
     },
     "jira_settings": {

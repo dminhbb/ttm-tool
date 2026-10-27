@@ -3,7 +3,7 @@ import { AuthError, requireUser } from '@/lib/auth-service';
 import type { UserRole } from '@/lib/auth-types';
 import { listBlackListedEpics, replaceBlackListedEpics, setEpicBlackListed } from '@/lib/black-listed-epic-service';
 import { formatBlackListText, parseBlackListText, projectKeyOfEpicKey } from '@/lib/black-listed-epics-format';
-import { scheduleDerivedCacheRefresh } from '@/lib/daily-cache-service';
+import { markCacheStale, withCacheStale } from '@/lib/daily-cache-service';
 
 // A changed black list rebuilds the derived caches in after() — past the response — since L02 of the
 // TTM Dashboard 2 funnel and every TTM ratio depend on it (same cost as a post-import refresh).
@@ -53,8 +53,7 @@ export async function PUT(request: NextRequest) {
 
     const { added, removed } = await replaceBlackListedEpics(entries, user.id);
     const changed = added.length + removed.length > 0;
-    if (changed) scheduleDerivedCacheRefresh('black-listed-epics');
-    return NextResponse.json({ ...(await snapshot(user.role)), added, refreshing: changed, removed });
+    return withCacheStale(NextResponse.json({ ...(await snapshot(user.role)), added, refreshing: false, removed }), changed ? await markCacheStale('black-listed-epics') : undefined);
   } catch (error: unknown) {
     console.error('API Error saving black listed epics:', error);
     return authError(error) ?? NextResponse.json({ error: 'Không thể lưu danh sách Epic ngoại lệ.' }, { status: 500 });
@@ -74,8 +73,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const changed = await setEpicBlackListed({ epicKey, projectKey }, input.blackListed, user.id);
-    if (changed) scheduleDerivedCacheRefresh('black-listed-epic');
-    return NextResponse.json({ blackListed: input.blackListed, epicKey, refreshing: changed });
+    return withCacheStale(NextResponse.json({ blackListed: input.blackListed, epicKey, refreshing: false }), changed ? await markCacheStale('black-listed-epic') : undefined);
   } catch (error: unknown) {
     console.error('API Error updating a black listed epic:', error);
     return authError(error) ?? NextResponse.json({ error: 'Không thể lưu TTM Black listed của Epic.' }, { status: 500 });

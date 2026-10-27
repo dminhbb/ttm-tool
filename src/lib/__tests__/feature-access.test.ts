@@ -60,7 +60,7 @@ describe('feature-access — Ma trận phân quyền also gates the MCP tools (2
     for (const [tool, entry] of Object.entries(MCP_TOOL_FEATURES)) {
       assert.ok(entry.featureKeys.length > 0 && entry.screen, tool);
     }
-    assert.equal(Object.keys(MCP_TOOL_FEATURES).length, 11);
+    assert.equal(Object.keys(MCP_TOOL_FEATURES).length, 12);
   });
 });
 

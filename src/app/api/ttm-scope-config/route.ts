@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
 import { getTtmScopeConfigWithMeta, saveTtmScopeConfig } from '@/lib/ttm-scope-config-service';
-import { scheduleDerivedCacheRefresh } from '@/lib/daily-cache-service';
+import { markCacheStale, withCacheStale } from '@/lib/daily-cache-service';
 
 // The cache rebuild runs in after() — past the response — since it re-derives every Epic's row from
 // scratch (same cost as a post-import refresh, see daily-cache-service.ts's own maxDuration).
@@ -56,12 +56,8 @@ export async function PUT(request: NextRequest) {
       user.id,
     );
 
-    // Recompute + cache immediately — same refreshDerivedCaches() a CSV import triggers (see
-    // daily-cache-service.ts) — so TTM-Index (QLDA)/QA-Index (QLDA) and every Epic's "Nhận xét" badge
-    // reflect the new scope right away instead of waiting for the next import/daily run.
-    scheduleDerivedCacheRefresh('ttm-scope-config');
-
-    return NextResponse.json({ ...(await getTtmScopeConfigWithMeta()), refreshing: true });
+    // Since 2026-10-27 the caches are rebuilt by hand ("Tạo lại cache") — the save only marks them stale.
+    return withCacheStale(NextResponse.json({ ...(await getTtmScopeConfigWithMeta()), refreshing: false }), await markCacheStale('ttm-scope-config'));
   } catch (error: unknown) {
     console.error('API Error in ttm-scope-config PUT:', error);
     return authError(error) ?? NextResponse.json({ error: 'Không thể lưu Phạm vi dữ liệu cho TTM.' }, { status: 500 });

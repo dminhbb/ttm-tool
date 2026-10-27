@@ -404,3 +404,32 @@ describe('Rule Groups on TTM Dashboard 2 (spec 2026-10-25 §8)', () => {
     assert.equal(buildEpicAlertsDeepLink({ ruleGroup: ['Sep-2026', 'Default'] }), '/epic-alerts-15?ruleGroup=Sep-2026&ruleGroup=Default');
   });
 });
+
+describe('widget "Thiếu lý do" split by breakdown row (2026-10-27)', () => {
+  const funnelRow = (patch: Partial<TtmFunnelRow>): TtmFunnelRow => ({
+    alertLevel: 'FAIL', components: [], currentStatus: 'Released', domainName: 'D1', epicType: 'CT-Lv12', hasDataAnomaly: false, ownerName: 'An, Bình',
+    projectKey: 'P1', projectName: 'Dự án 1', qaInScope: true, r4gDate: '2026-09-01', releaseAxisState: 'NONE', releaseGraceDeadline: null,
+    requestingUnit: 'Khối A', scoringBadges: undefined, scoringIndexFlags: ['TTM_COUNTED', 'TTM_FAIL'], ttmCnttInScope: true, ttmE2eAlertLevel: 'NONE', ...patch,
+  });
+  const rows = [
+    funnelRow({ scoringBadges: ['REC_MISSING_FAIL_REASON', 'REC_MISSING_RESPONSIBLE_DEPARTMENT'] }),
+    funnelRow({ scoringBadges: ['REC_MISSING_RESPONSIBLE_DEPARTMENT'] }),
+    funnelRow({ projectKey: 'P2', projectName: 'Dự án 2', scoringBadges: ['REC_MISSING_FAIL_REASON'] }),
+    funnelRow({ projectKey: 'P2', projectName: 'Dự án 2' }),
+  ];
+
+  it('each breakdown row adds up to the widget totals and keeps the two halves apart', () => {
+    const summary = summarizeTtmFunnel(rows);
+    assert.equal(summary.insights.missingFailReason, 2);
+    assert.equal(summary.insights.missingResponsibleDepartment, 2);
+    const byProject = new Map(summary.insights.breakdowns.project.map((item) => [item.name, item]));
+    assert.deepEqual([byProject.get('Dự án 1')?.missingStage, byProject.get('Dự án 1')?.missingDepartment], [1, 2]);
+    assert.deepEqual([byProject.get('Dự án 2')?.missingStage, byProject.get('Dự án 2')?.missingDepartment], [1, 0]);
+  });
+
+  it('a PM/SM shares the Epic: n PM/SMs add 1/n each', () => {
+    const summary = summarizeTtmFunnel([funnelRow({ scoringBadges: ['REC_MISSING_FAIL_REASON'] })]);
+    const shares = summary.insights.breakdowns.pmsm.map((item) => item.missingStage);
+    assert.deepEqual(shares, [0.5, 0.5]);
+  });
+});

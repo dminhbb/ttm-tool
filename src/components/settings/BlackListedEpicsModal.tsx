@@ -118,7 +118,7 @@ export function BlackListedEpicsModal({ isOpen, onClose }: BlackListedEpicsModal
       const removed = data.removed?.length ?? 0;
       showToast(
         added + removed > 0
-          ? `Đã lưu Epic ngoại lệ: thêm ${added}, bỏ ${removed} Epic. Số liệu TTM đang được tính lại, vui lòng tải lại màn hình sau ít phút.`
+          ? `Đã lưu Epic ngoại lệ: thêm ${added}, bỏ ${removed} Epic. Số liệu TTM chỉ đổi sau khi tạo lại cache.`
           : 'Đã lưu Epic ngoại lệ — danh sách không thay đổi.',
         7000,
       );

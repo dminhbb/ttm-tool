@@ -1,6 +1,6 @@
 # TTM Monitor — ERD & từ điển dữ liệu
 
-> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-10-26.
+> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-10-27.
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
@@ -1229,6 +1229,8 @@ erDiagram
         timestamptz lease_until
         varchar last_source
         timestamptz updated_at
+        timestamptz stale_since
+        text_array stale_reasons
     }
     import_batches {
         int id PK
@@ -1347,7 +1349,7 @@ Mỗi ngày (giờ Việt Nam) 1 dòng: lượt tạo lại cache đầu ngày d
 
 ### `derived_cache_refresh_lock`
 
-**Mới 05/10/2026.** Khoá (lease) điều phối việc tạo lại cache giữa các instance: `request_seq`, `lease_owner`, `lease_until`, `last_source` — mục 6.4.
+**Mới 05/10/2026.** Khoá (lease) điều phối việc tạo lại cache giữa các instance: `request_seq`, `lease_owner`, `lease_until`, `last_source` — mục 6.4. **Từ 27/10/2026** thêm dấu “cache cũ”: `stale_since` (lần lưu đầu tiên chưa được tạo lại cache) và `stale_reasons` (nguồn: users, projects, domains…); xoá khi một lượt tạo lại bắt đầu sau dấu đó kết thúc.
 
 | Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
 |---|---|---|---|---|---|
@@ -1357,6 +1359,8 @@ Mỗi ngày (giờ Việt Nam) 1 dòng: lượt tạo lại cache đầu ngày d
 | `lease_until` | timestamptz | có |  |  |  |
 | `last_source` | varchar(100) | có |  |  |  |
 | `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+| `stale_since` | timestamptz | có |  |  |  |
+| `stale_reasons` | text[] | không | '{}'::text[] |  |  |
 
 - `derived_cache_refresh_lock_id_check`: CHECK ((id = 1))
 

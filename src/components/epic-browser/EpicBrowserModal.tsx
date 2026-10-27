@@ -11,7 +11,6 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { TtmBlackListDot } from '@/components/ui/TtmBlackListDot';
 import { EpicIssuesTree } from '@/components/epic-browser/EpicIssuesTree';
-import { notifyCacheRefreshTriggered } from '@/components/layout/DailyCacheWarmer';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import type { DataReviewIssue } from '@/lib/data-review-types';
 import type { EpicBrowserSummary } from '@/lib/epic-browser-service';
@@ -99,7 +98,6 @@ function TtmBlackListTopToggle({
           7000
         );
       }
-      notifyCacheRefreshTriggered();
       onValueChange?.(nextValue);
     } catch (requestError: unknown) {
       setValue(prevValue);

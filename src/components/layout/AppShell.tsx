@@ -35,7 +35,7 @@ import {
 import type { Icon } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { trackFeatureUsage } from '@/lib/usage-tracking';
-import { CACHE_TAB_HREF } from '@/lib/cache-rebuild-status-client';
+import { CACHE_TAB_HREF, cacheStaleToastText, installCacheStaleWatcher } from '@/lib/cache-rebuild-status-client';
 import { useCacheRebuildPending } from '@/lib/use-cache-rebuild-pending';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { UserMenu } from '@/components/layout/UserMenu';
@@ -586,6 +586,8 @@ function AppShellInner({ children }: AppShellProps) {
   const [pendingUserTicketsCount, setPendingUserTicketsCount] = React.useState(0);
   // "Cần tạo lại cache" dot on "Nguồn dữ liệu" — only SUPERADMIN runs "Tạo lại cache" (2026-10-26).
   const cacheRebuildPending = useCacheRebuildPending(role === 'SUPERADMIN');
+  // A save that only marks the caches stale (users, projects, Domains, Epic ngoại lệ, scope, Rule Groups, restored backup) answers with a header — warn right away (2026-10-27).
+  React.useEffect(() => { installCacheStaleWatcher((source) => showToast(cacheStaleToastText(source), 10000)); }, []);
   const [hiddenFeatureKeys, setHiddenFeatureKeys] = React.useState<ReadonlySet<string>>(NO_HIDDEN_FEATURES);
   // Bumped when Ma trận phân quyền is saved in this tab, so the menu follows the new ticks at once
   // (other sessions pick the change up on their next navigation, via the same /api/auth/me call).

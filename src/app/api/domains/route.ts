@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
 import { createDomain, deleteDomain, listDomains, updateDomain } from '@/lib/master-data-service';
-import { scheduleDerivedCacheRefresh } from '@/lib/daily-cache-service';
+import { markCacheStale, withCacheStale } from '@/lib/daily-cache-service';
 import type { DomainInput, DomainSaveResult } from '@/lib/master-data-types';
 
 // Reassigning projects between Domains rebuilds the derived caches in after() (see respond below),
@@ -18,14 +18,13 @@ function validateProjectIds(value: unknown): string | null {
 
 /** epic_alert_row_cache stores each Epic's domainName (and "Quản trị Epic"'s Domain filter maps
  * domain → projects from it), so a changed project ↔ Domain assignment or a renamed Domain only
- * shows up there after a rebuild — kicked off in the background so saving stays instant. A new name
+ * shows up there after a rebuild — no longer rebuilt automatically (2026-10-27): the save marks the caches stale and the browser warns to run "Tạo lại cache". A new name
  * or active flag only reaches the caches through the Domain's active projects (getDomainByProjectKeyMap),
  * so a Domain without one needs no rebuild for those. */
-function respond(result: DomainSaveResult, status = 200): NextResponse {
+async function respond(result: DomainSaveResult, status = 200): Promise<NextResponse> {
   const namesEpics = result.domain.projects.some((project) => project.isActive);
   const cacheAffected = result.projectsChanged || (namesEpics && (result.nameChanged || result.activeChanged));
-  if (cacheAffected) scheduleDerivedCacheRefresh('domains');
-  return NextResponse.json({ ...result.domain, cacheRefreshing: cacheAffected }, { status });
+  return withCacheStale(NextResponse.json({ ...result.domain, cacheRefreshing: cacheAffected }, { status }), cacheAffected ? await markCacheStale('domains') : undefined);
 }
 
 function authError(error: unknown): NextResponse | null {
@@ -45,7 +44,7 @@ export async function POST(request: NextRequest) {
     if (!body.domainCode?.trim() || !body.domainName?.trim()) return NextResponse.json({ error: 'Domain Code và Tên Domain là bắt buộc.' }, { status: 400 });
     const projectIdsError = validateProjectIds(body.projectIds);
     if (projectIdsError) return NextResponse.json({ error: projectIdsError }, { status: 400 });
-    return respond(await createDomain(body), 201);
+    return await respond(await createDomain(body), 201);
   } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Lỗi hệ thống khi tạo Domain.' }, { status: 500 }); }
 }
 
@@ -56,7 +55,7 @@ export async function PUT(request: NextRequest) {
     if (!Number.isInteger(body.id) || body.id <= 0 || !body.domainCode?.trim() || !body.domainName?.trim()) return NextResponse.json({ error: 'Thiếu dữ liệu Domain bắt buộc.' }, { status: 400 });
     const projectIdsError = validateProjectIds(body.projectIds);
     if (projectIdsError) return NextResponse.json({ error: projectIdsError }, { status: 400 });
-    return respond(await updateDomain(body.id, body));
+    return await respond(await updateDomain(body.id, body));
   } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Lỗi hệ thống khi cập nhật Domain.' }, { status: 500 }); }
 }
 
@@ -68,7 +67,6 @@ export async function DELETE(request: NextRequest) {
     // The Domain's projects are left without one — when it was naming their Epics, the cached
     // domainName is now stale.
     const cacheAffected = await deleteDomain(id);
-    if (cacheAffected) scheduleDerivedCacheRefresh('domains');
-    return NextResponse.json({ success: true, cacheRefreshing: cacheAffected });
+    return withCacheStale(NextResponse.json({ success: true, cacheRefreshing: cacheAffected }), cacheAffected ? await markCacheStale('domains') : undefined);
   } catch (error) { return authError(error) ?? NextResponse.json({ error: 'Lỗi hệ thống khi xóa Domain.' }, { status: 500 }); }
 }

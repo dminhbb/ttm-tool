@@ -195,9 +195,9 @@ function resolveBadgeColorClass(groupKey: CommentGroupKey | 'OUT_OF_SCOPE', tone
 }
 
 /**
- * Sắp xếp các badge theo thuật toán First-Fit Line Packing để giảm thiểu số dòng hiển thị
- * trong phạm vi chiều rộng của cột "Nhận xét", đồng thời vẫn giữ nguyên thứ tự ưu tiên của
- * badge đầu tiên trên mỗi dòng.
+ * Ghép các badge vào dòng theo First-Fit để giảm số dòng trong chiều rộng cột "Nhận xét" mà KHÔNG đảo thứ tự ưu tiên
+ * giữa các nhóm (Kết quả → Xử lý → Cảnh báo → Sai lệch dữ liệu): một badge chỉ được xếp vào dòng không sớm hơn dòng
+ * đang chứa badge cuối cùng của nhóm đứng trước nó, nên chỉ các badge cùng nhóm mới có thể đổi chỗ cho nhau.
  */
 export function packCommentBadges(
   badges: readonly CommentBadgeItem[],
@@ -205,20 +205,32 @@ export function packCommentBadges(
 ): CommentBadgeItem[] {
   if (badges.length <= 2) return [...badges];
   const lines: { items: CommentBadgeItem[]; used: number }[] = [];
+  /** Highest line index holding a badge of a group that comes before the one being placed. */
+  let floorLine = 0;
+  /** Highest line index used so far by the group being placed. */
+  let groupLine = 0;
+  let currentGroup: CommentBadgeItem['groupKey'] | null = null;
   for (const badge of badges) {
+    if (badge.groupKey !== currentGroup) {
+      floorLine = Math.max(floorLine, groupLine);
+      groupLine = floorLine;
+      currentGroup = badge.groupKey;
+    }
     const unitCost = Math.min(maxRowUnits, badge.label.length + 3);
-    let placed = false;
-    for (const line of lines) {
-      if (line.used + unitCost <= maxRowUnits) {
-        line.items.push(badge);
-        line.used += unitCost;
-        placed = true;
+    let target = -1;
+    for (let index = floorLine; index < lines.length; index += 1) {
+      if (lines[index].used + unitCost <= maxRowUnits) {
+        target = index;
         break;
       }
     }
-    if (!placed) {
-      lines.push({ items: [badge], used: unitCost });
+    if (target === -1) {
+      lines.push({ items: [], used: 0 });
+      target = lines.length - 1;
     }
+    lines[target].items.push(badge);
+    lines[target].used += unitCost;
+    groupLine = Math.max(groupLine, target);
   }
   return lines.flatMap((line) => line.items);
 }
@@ -259,5 +271,4 @@ export function listEpicCommentBadges(row: EpicAlertRowPhased, maxRowUnits = 34)
   }
 
   return packCommentBadges(rawBadges, maxRowUnits);
-  // end listEpicCommentBadges
 }

@@ -191,9 +191,9 @@ const EMPTY_SCOPE_FORM: ScopeFormState = { cnttFrom: '', cnttTo: '', qaFrom: '',
 
 /**
  * "Phạm vi dữ liệu cho TTM" — admin default for the R4G-date-range gate every TTM-CNTT/QA-Index
- * calculation now respects (ttmCnttInScope/qaInScope — see ttm-scope-rules.ts). Saving triggers an
- * immediate cache rebuild server-side (see /api/ttm-scope-config's PUT), so this panel just shows a
- * "đang tính toán lại" toast rather than waiting on it — the rebuild runs past the response.
+ * calculation now respects (ttmCnttInScope/qaInScope — see ttm-scope-rules.ts). Since 2026-10-27 saving does
+ * NOT rebuild the caches: /api/ttm-scope-config's PUT marks them stale and the app shows the "cần tạo lại cache"
+ * warning (toast + unread dots).
  */
 function TtmScopeConfigPanel({ isOpen, onToggle }: { isOpen: boolean; onToggle: () => void }) {
   const [form, setForm] = useState<ScopeFormState>(EMPTY_SCOPE_FORM);
@@ -234,7 +234,7 @@ function TtmScopeConfigPanel({ isOpen, onToggle }: { isOpen: boolean; onToggle: 
       });
       const payload: unknown = await response.json();
       if (!response.ok) throw new Error(readError(payload, 'Không thể lưu Phạm vi dữ liệu cho TTM.'));
-      showToast('Đã lưu Phạm vi dữ liệu cho TTM — đang tính toán lại cache, có thể mất vài chục giây.', 6000);
+      showToast('Đã lưu Phạm vi dữ liệu cho TTM.', 4000);
       setNotice(null);
       await load();
     } catch (error) {
@@ -329,7 +329,7 @@ function TtmScopeConfigPanel({ isOpen, onToggle }: { isOpen: boolean; onToggle: 
               <p className="text-xs text-fb-text-secondary">
                 Cập nhật lần cuối: {meta.updatedAt ? `${new Date(meta.updatedAt).toLocaleString('vi-VN')}${meta.updatedByName ? ` bởi ${meta.updatedByName}` : ''}` : 'Chưa có thông tin'}.
               </p>
-              <Button isLoading={saving} onClick={save}>Lưu & tính toán lại cache</Button>
+              <Button isLoading={saving} onClick={save}>Lưu</Button>
             </div>
           </>
         )}

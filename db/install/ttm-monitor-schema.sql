@@ -1,6 +1,6 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-26T16:41:58.483Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-27T01:42:07.080Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
 -- Gồm: 58 bảng, 56 index phụ, 4 hàm, 4 trigger.
@@ -186,6 +186,8 @@ CREATE TABLE derived_cache_refresh_lock (
     lease_until timestamp with time zone,
     last_source character varying(100),
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    stale_since timestamp with time zone,
+    stale_reasons text[] DEFAULT '{}'::text[] NOT NULL,
     CONSTRAINT derived_cache_refresh_lock_pkey PRIMARY KEY (id),
     CONSTRAINT derived_cache_refresh_lock_id_check CHECK ((id = 1))
 );
@@ -1031,7 +1033,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 109 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 110 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1142,7 +1144,8 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261101_add_late_alert_percent.sql'),
     ('20261102_add_ttm_applied_to_issues.sql'),
     ('20261103_add_ttm_applied_rules.sql'),
-    ('20261104_add_user_badge_design_style.sql');
+    ('20261104_add_user_badge_design_style.sql'),
+    ('20261105_add_cache_stale_marker.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1422,10 +1425,10 @@ SELECT * FROM (VALUES
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 
 -- derived_cache_refresh_lock (1 dòng)
-INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at)
+INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 SELECT * FROM (VALUES
-    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-10-26 16:39:25.00674+00'::timestamp with time zone)
-) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at)
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-10-27 01:16:10.182495+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
+) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 
 -- Tài khoản SUPERADMIN ban đầu — username đăng nhập: admin ; mật khẩu ban đầu ghi ở db/install/README.md.

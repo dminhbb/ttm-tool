@@ -9,7 +9,7 @@ import { ComponentManagementTab } from '@/components/data-source/ComponentManage
 import { DeniedImportTab } from '@/components/data-source/DeniedImportTab';
 import { HistoryThinningTab } from '@/components/data-source/HistoryThinningTab';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
-import { useCacheRebuildPending } from '@/lib/use-cache-rebuild-pending';
+import { useCacheRebuildState } from '@/lib/use-cache-rebuild-pending';
 
 const TABS = ['issues', 'components', 'denied', 'history', 'cache'] as const;
 type Tab = (typeof TABS)[number];
@@ -37,7 +37,7 @@ function DataSourceScreen() {
     if (requestedTab) setTab(requestedTab);
   }
   // The page is SUPERADMIN-only (PAGE_ROLES '/'), so the rebuild status API is always allowed here.
-  const cacheRebuildPending = useCacheRebuildPending(true);
+  const { pending: cacheRebuildPending, staleReasons } = useCacheRebuildState(true);
 
   return (
     <>
@@ -64,7 +64,7 @@ function DataSourceScreen() {
       {tab === 'components' && <ComponentManagementTab />}
       {tab === 'denied' && <DeniedImportTab />}
       {tab === 'history' && <HistoryThinningTab />}
-      {tab === 'cache' && <CacheStatusPanel rebuildPending={cacheRebuildPending} />}
+      {tab === 'cache' && <CacheStatusPanel rebuildPending={cacheRebuildPending} staleReasons={staleReasons} />}
     </>
   );
 }

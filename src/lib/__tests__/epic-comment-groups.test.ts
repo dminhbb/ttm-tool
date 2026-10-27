@@ -124,13 +124,22 @@ describe('"Nhận xét" 1x4 table groups (Quản trị Epic, 2026-10-16)', () =>
     assert.equal(badges[0].colorClass, 'ttm-comment-badge-out-of-scope');
   });
 
-  it('packCommentBadges pairs short badges onto earlier lines to minimize wrapping', () => {
+  it('packCommentBadges never moves a badge ahead of an earlier group (priority order is kept)', () => {
     const packed = packCommentBadges([
       { key: 'S1', label: 'Đạt TTM-E2E', message: '', groupKey: 'RESULT', tone: 'success', colorClass: 'ttm-comment-cell-result' },
       { key: 'L1', label: 'Thiếu phòng chịu TN chính', message: '', groupKey: 'ACTION', tone: 'action', colorClass: 'ttm-comment-cell-action' },
       { key: 'S2', label: 'Sai Status', message: '', groupKey: 'WARNING', tone: 'warning', colorClass: 'ttm-comment-cell-warning' },
     ], 34);
-    assert.deepEqual(packed.map((b) => b.key), ['S1', 'S2', 'L1']);
-  // end packCommentBadges test
+    assert.deepEqual(packed.map((b) => b.key), ['S1', 'L1', 'S2']);
+  });
+
+  it('packCommentBadges only swaps badges of the SAME group to fill a line', () => {
+    const action = (key: string, label: string) => ({ key, label, message: '', groupKey: 'ACTION' as const, tone: 'action' as const, colorClass: 'ttm-comment-cell-action' });
+    const packed = packCommentBadges([
+      action('A-short', 'Bổ sung R4G'),
+      action('B-long', 'Thiếu phòng chịu trách nhiệm chính'),
+      action('C-short', 'Sửa ngày'),
+    ], 34);
+    assert.deepEqual(packed.map((b) => b.key), ['A-short', 'C-short', 'B-long']);
   });
 });

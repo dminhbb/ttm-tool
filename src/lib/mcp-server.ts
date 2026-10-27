@@ -18,6 +18,8 @@ import { getViewDeniedFeatureKeySet } from '@/lib/permission-matrix-service';
 import { getReportLayerDates } from '@/lib/reports-service';
 import { getProductDocSections, PRODUCT_DOC_URL_PATH, searchProductDocs } from '@/lib/product-doc-service';
 import { getTtmDashboard2Summary } from '@/lib/ttm-dashboard-2-summary-service';
+import { ALERT_LOGIC_SECTIONS, buildAlertLogicSummary } from '@/lib/alert-logic-summary';
+import { listRuleGroupSummary } from '@/lib/rule-group-summary';
 import { listTtmPolicies } from '@/lib/ttm-policy-service';
 import type { AuthUser, UserRole } from '@/lib/auth-types';
 
@@ -115,6 +117,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
         'ttm-tool (TTM Monitor) — công cụ cảnh báo rủi ro chậm Time to Market cho Epic Jira. '
         + 'Số liệu tổng hợp: get_ttm_dashboard (màn TTM Dashboard 2 — phễu L01…L05bb, chỉ số TTM-CNTT (QLDA)/(QA), TTM-E2E). '
         + 'Danh sách / chi tiết Epic (dữ liệu màn Quản trị Epic): list_epic_alerts (lọc theo nhanXet để lấy Epic sau mỗi con số), get_epic_detail. '
+        + 'Ý nghĩa / công thức từng badge, rule object, nhóm rule đang áp dụng (popup Logic cảnh báo): get_alert_logic. '
         + 'Rule, cách tính, ý nghĩa badge/cảnh báo, hướng dẫn dùng màn hình: search_product_docs rồi get_product_doc_section — '
         + 'trả lời dựa trên Tài liệu sản phẩm và nêu số mục tham chiếu, không tự suy đoán rule. '
         + 'Mỗi công cụ gắn với một màn hình của ứng dụng: nếu vai trò của người dùng bị bỏ quyền Xem màn hình đó trong Ma trận phân quyền, '
@@ -238,7 +241,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
         'Trả về số liệu của màn hình "TTM Dashboard 2" (/ttm-dashboard-2 — màn hình mặc định sau khi đăng nhập) theo đúng quyền dữ liệu (RBAC) của người dùng đang gọi: '
         + 'phễu Epic theo tiêu chí L01…L05bb (Tổng epic, loại Cancelled, loại Sai lệch dữ liệu, Epic hoàn thành / chưa hoàn thành, Đạt / Không đạt / Chưa kết luận / Trong hạn), '
         + 'chỉ số TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E (Tỷ lệ % Pass = Đạt / (Đạt + Fail)) của tập đang xem và của toàn công ty, '
-        + 'các widget Fail TTM-CNTT, Chậm tiến độ, Sai lệch dữ liệu, Chờ golive (thiếu R4G / trong hạn / quá hạn), Giải trình Golive, '
+        + 'các widget Fail TTM-CNTT, Thiếu lý do (tổng, Khâu fail, Chịu TN chính, tỷ lệ trên Epic Fail TTM-CNTT, kèm số theo từng dòng của bảng breakdown), Chậm tiến độ, Sai lệch dữ liệu, Chờ golive (thiếu R4G / trong hạn / quá hạn), Giải trình Golive, '
         + 'và bảng phân tích theo chiều (dự án / domain / PM-SM / phân loại Epic / đơn vị yêu cầu / nhóm rule). Khi có nhiều nhóm rule (Rule Management), chỉ số là tổng hợp kết quả của các nhóm — dùng dimension ruleGroup để xem từng nhóm. '
         + 'Dùng cho câu hỏi kiểu "TTM-CNTT (QLDA) domain X bao nhiêu", "có bao nhiêu epic fail TTM", "dự án nào nhiều Epic sai lệch dữ liệu nhất". '
         + 'Tool chỉ trả số tổng hợp — danh sách Epic sau mỗi con số lấy bằng list_epic_alerts (tham số nhanXet); rule/cách tính: search_product_docs.',
@@ -255,6 +258,30 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
       const summary = await getTtmDashboard2Summary(user.id, user.role, filters);
       await touch();
       return json(summary);
+    },
+  );
+
+  registerTool(
+    'get_alert_logic',
+    {
+      title: 'Logic cảnh báo Epic (popup Logic cảnh báo)',
+      description:
+        'Trả về nội dung popup "Logic cảnh báo Epic — Scoring Service" dưới dạng dữ liệu, đọc từ cùng catalog với Scoring Service: nguyên tắc, ký hiệu công thức (T0/T1/Target…), '
+        + 'Finding Group và Axis, từng badge (ý nghĩa + công thức + mặc định bật/tắt), thứ tự che badge, điều kiện các chỉ số TTM-CNTT (QLDA)/(QA)/TTM-E2E, '
+        + 'các Rule object (rule luôn chạy / chọn theo nhóm / slot / badge phát ra) và các nhóm rule đang áp dụng (điều kiện, rule Bật/Tắt). '
+        + 'Dùng cho câu hỏi kiểu "badge X nghĩa là gì, công thức nào", "rule R11 là gì", "nhóm rule nào đang bật rule 30 ngày". '
+        + 'Lịch sử thay đổi logic theo ngày không nằm trong tool này — dùng search_product_docs. Dùng sections / badgeIds để lấy phần cần thiết, tránh trả cả popup.',
+      inputSchema: {
+        sections: z.array(z.enum(ALERT_LOGIC_SECTIONS)).max(ALERT_LOGIC_SECTIONS.length).optional()
+          .describe('Phần cần lấy: nguyenTac, kyHieu, findingGroups (kèm axes), badges, suppressions, chiSo, ruleObjects, nhomRule. Bỏ trống = tất cả.'),
+        badgeIds: z.array(z.string().trim().min(1).max(80)).max(50).optional()
+          .describe('Chỉ trả các badge có id này (vd ANOMALY_R11_EXCEPT_PLAN_INVALID, CNTT_FAIL); bỏ trống = mọi badge. Chỉ áp dụng cho phần badges.'),
+      },
+    },
+    async ({ sections, badgeIds }) => {
+      const ruleGroups = !sections?.length || sections.includes('nhomRule') ? await listRuleGroupSummary() : [];
+      await touch();
+      return json(buildAlertLogicSummary({ badgeIds, ruleGroups, sections }));
     },
   );
 

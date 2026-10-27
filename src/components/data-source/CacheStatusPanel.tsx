@@ -11,7 +11,7 @@ import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
-import { notifyCacheRebuildStatusChanged } from '@/lib/cache-rebuild-status-client';
+import { describeStaleSources, notifyCacheRebuildStatusChanged } from '@/lib/cache-rebuild-status-client';
 
 type DailyCacheState = 'FAILED' | 'FRESH' | 'RUNNING' | 'STALE';
 
@@ -79,7 +79,7 @@ function formatNumber(value: number | null): string {
  * plus the once-a-day auto rebuild's status and recent history (see daily-cache-service.ts).
  */
 /** `rebuildPending`: the configuration changed since the caches were built (tab "Theo dõi cache dữ liệu", 2026-10-26). */
-export function CacheStatusPanel({ rebuildPending = false }: { rebuildPending?: boolean }) {
+export function CacheStatusPanel({ rebuildPending = false, staleReasons = [] }: { rebuildPending?: boolean; staleReasons?: readonly string[] }) {
   const [overview, setOverview] = useState<CacheOverview | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -165,8 +165,9 @@ export function CacheStatusPanel({ rebuildPending = false }: { rebuildPending?: 
         {error && <Alert variant="error" title="Lỗi">{error}</Alert>}
         {rebuildPending && (
           <Alert variant="warning" title="Cần tạo lại cache">
-            Cấu hình chấm điểm (Tiêu chí Time to Market, Bộ ngân sách, mốc Cảnh báo muộn, phạm vi, nhóm rule hoặc ngày nghỉ) đã thay đổi
-            sau lần tạo cache gần nhất, nên các màn hình vẫn hiện kết quả theo cấu hình cũ. Bấm &quot;Tạo lại cache&quot; khi đã chỉnh xong.
+            {staleReasons.length > 0 && <>Đã thay đổi: <strong>{describeStaleSources(staleReasons)}</strong>. </>}
+            Dữ liệu hoặc cấu hình chấm điểm (người dùng / PM-SM, dự án, Domain, Epic ngoại lệ, Tiêu chí Time to Market, Bộ ngân sách, mốc Cảnh báo muộn, phạm vi, nhóm rule, ngày nghỉ, dữ liệu khôi phục) đã thay đổi
+            sau lần tạo cache gần nhất, nên các màn hình vẫn hiện kết quả cũ. Cache chỉ tự tạo lại khi import file CSV (thủ công hoặc qua API) và lượt đầu tiên mỗi ngày — bấm &quot;Tạo lại cache&quot; khi đã chỉnh xong.
           </Alert>
         )}
 

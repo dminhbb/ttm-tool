@@ -164,7 +164,7 @@
           <text x="450" y="272" text-anchor="middle" font-size="9.5" fill="#5b6475">REST nội bộ + /api/mcp + /api/sso + import</text>
           <rect x="600" y="234" width="260" height="56" rx="6" fill="#ffffff" stroke="#c3cce3" />
           <text x="730" y="254" text-anchor="middle" font-weight="700">Việc chạy nền sau response</text>
-          <text x="730" y="272" text-anchor="middle" font-size="9.5" fill="#5b6475">after(): tạo lại cache sau khi lưu cấu hình</text>
+          <text x="730" y="272" text-anchor="middle" font-size="9.5" fill="#5b6475">after(): tạo lại cache sau import CSV (và lượt đầu ngày)</text>
           <rect x="40" y="300" width="400" height="48" rx="6" fill="#ffffff" stroke="#c3cce3" />
           <text x="240" y="320" text-anchor="middle" font-weight="700">Lớp nghiệp vụ: src/lib/*, src/modules/{iam, integration, ttm}</text>
           <text x="240" y="337" text-anchor="middle" font-size="9.5" fill="#5b6475">import adapter, phân quyền, cache, báo cáo, sao lưu/phục hồi</text>
@@ -194,7 +194,7 @@
           <tr><td>Nghiệp vụ</td><td><code>src/lib/*</code>; <code>src/modules/iam|integration|ttm</code> (use case mới, chỉ dùng qua <code>public.ts</code> — có test kiểm ranh giới module)</td><td>Import qua adapter (mục 3, 19.1), Từ chối import, phân quyền dữ liệu, sao lưu/phục hồi, MCP, SSO, Visit Counter.</td></tr>
           <tr><td>Chấm điểm Epic</td><td><code>src/lib/scoring/</code></td><td>Mọi rule đánh giá Epic, thuần (không DB, không đồng hồ hệ thống — "hôm nay" là <code>asOf</code>). Kết quả ghi vào cache; engine cũ giữ để đối chiếu (mục 8).</td></tr>
           <tr><td>Dữ liệu</td><td><code>src/lib/db.ts</code> → PostgreSQL</td><td>Một <code>pg.Pool</code> cho cả tiến trình; profile chọn bằng <code>DB_CONNECTION</code>. Cấu trúc CSDL: chương 5; file tạo CSDL mới <code>db/install/ttm-monitor-schema.sql</code>.</td></tr>
-          <tr><td>Việc nền</td><td><code>after()</code> của Next.js; <code>src/lib/daily-cache-service.ts</code></td><td>Không có cron: lưu cấu hình → tạo lại cache sau khi trả response; lượt tạo lại cache đầu ngày do lần tải trang đầu tiên trong ngày kích hoạt. Khoá <code>derived_cache_refresh_lock</code> bảo đảm chỉ một lượt chạy dù có nhiều instance (mục 6.4).</td></tr>
+          <tr><td>Việc nền</td><td><code>after()</code> của Next.js; <code>src/lib/daily-cache-service.ts</code></td><td>Không có cron: import CSV (thủ công hoặc qua API) → tạo lại cache; từ 27/10/2026 các lần lưu cấu hình / dữ liệu khác <strong>không</strong> tự tạo lại cache mà chỉ đánh dấu “cần tạo lại” (mục 6.4); lượt tạo lại cache đầu ngày do lần tải trang đầu tiên trong ngày kích hoạt. Khoá <code>derived_cache_refresh_lock</code> bảo đảm chỉ một lượt chạy dù có nhiều instance (mục 6.4).</td></tr>
         </tbody>
       </table>
       <h4>Hai mô hình triển khai</h4>
@@ -389,7 +389,7 @@
         Cơ sở dữ liệu của TTM Monitor dùng <strong>PostgreSQL</strong> (đang chạy 17.6), gồm <strong>58 bảng</strong> trong schema <code>public</code>,
         <strong>45 khoá ngoại</strong>, 4 hàm và 4 trigger; không dùng view, extension hay Row Level Security.
         Cấu trúc thay đổi duy nhất qua chuỗi migration <code>db/migrations/*.sql</code> (chạy bằng <code>scripts/migrate-db.js</code>, ghi vào <code>schema_migrations</code>).
-        Toàn bộ chương này được sinh từ CSDL Supabase ngày 26/10/2026 bởi <code>scripts/db-schema-export.js</code> — cùng lần chạy sinh ra
+        Toàn bộ chương này được sinh từ CSDL Supabase ngày 27/10/2026 bởi <code>scripts/db-schema-export.js</code> — cùng lần chạy sinh ra
         file tạo CSDL mới <code>db/install/ttm-monitor-schema.sql</code> (chỉ cấu trúc, không dữ liệu) và tài liệu ERD chi tiết <code>docs/database-erd.md</code> (sơ đồ Mermaid từng nhóm + từ điển dữ liệu).
       </p>
 
@@ -465,7 +465,7 @@
         </g>
       </svg>
 
-      <h3>5.2. Danh mục 58 bảng CSDL (đối chiếu CSDL Supabase 26/10/2026)</h3>
+      <h3>5.2. Danh mục 58 bảng CSDL (đối chiếu CSDL Supabase 27/10/2026)</h3>
       <table>
         <thead><tr><th>STT</th><th>Bảng CSDL</th><th>Nhóm</th><th>Khoá chính / Khoá ngoại</th><th>Vai trò nghiệp vụ &amp; Ghi chú</th></tr></thead>
         <tbody>
@@ -508,7 +508,7 @@
           <tr><td>37</td><td><code>ttm_index_global_cache</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>id</code> (PK)<br><code>source_import_batch_id</code> → <code>import_batches</code></td><td>Chỉ số toàn công ty TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E (số đếm + %) hiển thị trên banner.</td></tr>
           <tr><td>38</td><td><code>ttm_dashboard_2_cache</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>scope_key</code> (PK)</td><td>Số liệu phễu / widget / ma trận / pie chart chưa lọc của TTM Dashboard 2 theo phạm vi quyền (<code>ALL</code>, <code>ADMIN:&lt;id&gt;</code>, <code>USER:&lt;id&gt;</code>) — mục 21.5.</td></tr>
           <tr><td>39</td><td><code>daily_cache_runs</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>run_date</code> (PK)<br><code>source_import_batch_id</code> → <code>import_batches</code><br><code>triggered_by_user_id</code> → <code>users</code></td><td>Mỗi ngày (giờ Việt Nam) 1 dòng: lượt tạo lại cache đầu ngày do lần tải trang đầu tiên kích hoạt (RUNNING / SUCCESS / FAILED, thời lượng, số Epic).</td></tr>
-          <tr><td>40</td><td><code>derived_cache_refresh_lock</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>id</code> (PK)</td><td><strong>Mới 05/10/2026.</strong> Khoá (lease) điều phối việc tạo lại cache giữa các instance: <code>request_seq</code>, <code>lease_owner</code>, <code>lease_until</code>, <code>last_source</code> — mục 6.4.</td></tr>
+          <tr><td>40</td><td><code>derived_cache_refresh_lock</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>id</code> (PK)</td><td><strong>Mới 05/10/2026.</strong> Khoá (lease) điều phối việc tạo lại cache giữa các instance: <code>request_seq</code>, <code>lease_owner</code>, <code>lease_until</code>, <code>last_source</code> — mục 6.4. <strong>Từ 27/10/2026</strong> thêm dấu “cache cũ”: <code>stale_since</code> (lần lưu đầu tiên chưa được tạo lại cache) và <code>stale_reasons</code> (nguồn: users, projects, domains…); xoá khi một lượt tạo lại bắt đầu sau dấu đó kết thúc.</td></tr>
           <tr><td>41</td><td><code>jira_settings</code></td><td>Cấu hình hệ thống</td><td><code>id</code> (PK)</td><td>Hai bảng cấu hình singleton lưu Cấu hình tích hợp Jira và số ngày lưu giữ dữ liệu raw import.</td></tr>
           <tr><td>42</td><td><code>data_retention_configs</code></td><td>Cấu hình hệ thống</td><td><code>id</code> (PK)<br><code>history_thinning_updated_by_user_id</code> → <code>users</code></td><td>Hai bảng cấu hình singleton lưu Cấu hình tích hợp Jira và số ngày lưu giữ dữ liệu raw import.</td></tr>
           <tr><td>43</td><td><code>dashboard_view_settings</code></td><td>Cấu hình hệ thống</td><td><code>id</code> (PK)<br><code>updated_by_user_id</code> → <code>users</code></td><td><strong>Mới 14/10/2026.</strong> Công tắc "Dashboard Lead view cho tất cả user" (<code>lead_view_for_all_users</code>, mặc định bật) — Quản trị hệ thống → Dashboard, mục 21.9.</td></tr>
@@ -1177,6 +1177,8 @@
               <tr><td><code>lease_until</code></td><td><code>TIMESTAMPTZ</code></td><td>—</td><td></td></tr>
               <tr><td><code>last_source</code></td><td><code>VARCHAR(100)</code></td><td>—</td><td></td></tr>
               <tr><td><code>updated_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
+              <tr><td><code>stale_since</code></td><td><code>TIMESTAMPTZ</code></td><td>—</td><td></td></tr>
+              <tr><td><code>stale_reasons</code></td><td><code>TEXT[] NOT NULL</code></td><td>DEFAULT '{}'::text[]</td><td></td></tr>
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK ((id = 1))</code></li></ul>
@@ -1526,7 +1528,7 @@
         <li><strong>Chỉ một lượt chạy tại một thời điểm</strong> trên mọi instance, điều phối bằng bảng <code>derived_cache_refresh_lock</code>. Yêu cầu đến trong lúc đang chạy không chạy song song mà được "gộp": lượt đang chạy sẽ chạy lại thêm một lần với dữ liệu mới nhất trước khi nhả khoá, nên không yêu cầu nào bị mất. Nút "Tạo lại cache" báo rõ khi yêu cầu bị gộp.</li>
         <li><strong>Tự phục hồi:</strong> nếu lượt đang chạy bị chết giữa chừng (hết thời gian chạy của function), khoá hết hạn sau 6 phút; trạng thái này được coi là cache <em>cũ</em> và lần tải trang kế tiếp sẽ chạy lại, kể cả khi lượt trong ngày đã thành công.</li>
         <li>Thay đổi rule của Scoring Service hoặc cấu hình loại trừ chỉ thể hiện trên số liệu <strong>sau lần tạo lại cache kế tiếp</strong>.</li>
-        <li><strong>Cấu hình không tự tạo lại cache (có chủ đích, từ 26/10/2026):</strong> lưu Tiêu chí Time to Market, Bộ ngân sách hoặc mốc Cảnh báo muộn (%) ở Cấu hình cảnh báo chỉ hiện toast nhắc tạo lại cache — SUPERADMIN tự bấm "Tạo lại cache" khi chỉnh xong. Hệ thống tự nhận biết cache đang cũ so với cấu hình: mỗi lượt tạo cache ghi lại <em>phiên bản cấu hình</em> (mã rule + dấu vân tay của Tiêu chí TTM, bộ ngân sách, mốc cảnh báo, phạm vi, nhóm rule kể cả điều kiện TTM-applied, ngày nghỉ / làm bù); khi cấu hình hiện tại khác phiên bản đó, <strong>chấm đỏ</strong> hiện ở tab "Theo dõi cache dữ liệu" và ở mục "Nguồn dữ liệu" trên left panel (cả nhóm "SuperAdmin: Quản trị hệ thống"); bấm mục đó sẽ mở thẳng tab cache. Chấm đỏ tự tắt sau khi tạo lại cache.</li>
+        <li><strong>Chỉ import CSV và lượt đầu ngày tự tạo lại cache (có chủ đích, từ 27/10/2026):</strong> lưu người dùng / PM-SM, dự án, Domain, Epic ngoại lệ (kể cả công tắc ở Duyệt Epic), Phạm vi dữ liệu cho TTM, Rule Management, khôi phục file backup, và cả Tiêu chí Time to Market / Bộ ngân sách / mốc Cảnh báo muộn (%) <em>không</em> còn tự tạo lại cache. Mỗi lần lưu như vậy chỉ hiện <strong>toast cảnh báo</strong> “cần tạo lại cache” — SUPERADMIN tự bấm "Tạo lại cache" khi chỉnh xong. Với các thay đổi hệ thống không suy ra được từ cấu hình chấm điểm (người dùng, dự án, Domain, Epic ngoại lệ, phạm vi, nhóm rule, backup), lần lưu ghi một <em>dấu “cache cũ”</em> (cột <code>stale_since</code> / <code>stale_reasons</code> của <code>derived_cache_refresh_lock</code>); dấu xoá khi một lượt tạo lại bắt đầu sau lần lưu đó kết thúc. Hệ thống tự nhận biết cache đang cũ so với cấu hình: mỗi lượt tạo cache ghi lại <em>phiên bản cấu hình</em> (mã rule + dấu vân tay của Tiêu chí TTM, bộ ngân sách, mốc cảnh báo, phạm vi, nhóm rule kể cả điều kiện TTM-applied, ngày nghỉ / làm bù); khi cấu hình hiện tại khác phiên bản đó, <strong>chấm đỏ</strong> hiện ở tab "Theo dõi cache dữ liệu" và ở mục "Nguồn dữ liệu" trên left panel (cả nhóm "SuperAdmin: Quản trị hệ thống"); bấm mục đó sẽ mở thẳng tab cache. Chấm đỏ tự tắt sau khi tạo lại cache.</li>
         <li><strong>Domain của dự án là thông tin hiện hành, không lưu theo lịch sử:</strong> mỗi dòng Epic mang tên Domain <em>hiện tại</em> của dự án (dự án và Domain đều phải đang active). Dự án bị gỡ khỏi Domain (hoặc Domain bị tắt / xoá) thì sau lần tạo lại cache, Epic của dự án đó <strong>không còn tính vào</strong> thống kê của Domain cũ — bộ lọc Domain, dòng Domain trong Ma trận Phân bổ, pie chart "Theo Domain nghiệp vụ" — mà chuyển sang nhóm "Chưa gán Domain"; tổng toàn phòng không đổi. ADMIN của Domain cũ cũng không còn thấy các Epic đó (trừ khi là PM/SM của dự án). Xem lại lớp dữ liệu cũ vẫn dùng Domain hiện hành.</li>
       </ul>
     
@@ -1615,7 +1617,7 @@
         </tbody>
       </table>
       <p>
-        Lưu xong, ứng dụng tự tạo lại cache dẫn xuất (mục 6.4). Lưu trữ: bảng <code>scoring_rule_groups</code>, <code>scoring_rule_group_rules</code>, <code>scoring_rule_group_history</code>;
+        Lưu xong, ứng dụng chỉ đánh dấu cache cũ và nhắc tạo lại cache (mục 6.4) — SUPERADMIN bấm “Tạo lại cache” khi chỉnh xong. Lưu trữ: bảng <code>scoring_rule_groups</code>, <code>scoring_rule_group_rules</code>, <code>scoring_rule_group_history</code>;
         nhóm rule của từng Epic ghi ở cột <code>rule_group_id</code> / <code>rule_group_name</code> của <code>epic_alert_row_cache</code>.
         Nhóm rule đang áp dụng cũng xem được ở popup <strong>Logic cảnh báo</strong> (mục 9 và 10 của popup) và ở popup chi tiết Epic của Quản trị Epic (trường "Nhóm rule").
       </p>
@@ -1977,7 +1979,7 @@
       <h3>12.4. Tab Dọn lịch sử</h3>
       <p>Xem mục 6.5.</p>
       <h3>12.5. Tab Theo dõi cache dữ liệu (tách thành tab riêng từ 26/10/2026)</h3>
-      <p>Trạng thái các cache dẫn xuất, lượt tạo cache đầu ngày, lịch sử các lượt gần đây và nút <strong>Tạo lại cache</strong> (trước đây là panel nằm trong tab Import Issues). Khi cấu hình chấm điểm đã đổi mà chưa tạo lại cache, tiêu đề tab có chấm đỏ và panel hiện cảnh báo “Cần tạo lại cache” (mục 6.4). URL <code>/?tab=cache</code> mở thẳng tab này.</p>
+      <p>Trạng thái các cache dẫn xuất, lượt tạo cache đầu ngày, lịch sử các lượt gần đây và nút <strong>Tạo lại cache</strong> (trước đây là panel nằm trong tab Import Issues). Khi cấu hình hoặc dữ liệu chấm điểm đã đổi mà chưa tạo lại cache, tiêu đề tab có chấm đỏ (panel nêu rõ thay đổi nào: người dùng, dự án, Domain, Epic ngoại lệ, nhóm rule…) và panel hiện cảnh báo “Cần tạo lại cache” (mục 6.4). URL <code>/?tab=cache</code> mở thẳng tab này.</p>
     </section>
 
     <section id="screen-admin">
@@ -2044,7 +2046,7 @@
         <li><strong>Duyệt Epic</strong> (popup chi tiết Epic): công tắc "TTM Black listed" True / False, lưu ngay khi gạt và báo tác động; chỉ ADMIN / SUPERADMIN gạt được.</li>
         <li><strong>Nhận biết trên danh sách:</strong> ở Quản trị Epic, mã Epic ngoại lệ và Epic của dự án Time to Market = N hiện trong ngoặc đơn, chữ thường không đậm — <code>(EPIC-KEY)</code>; Báo cáo Epic và Duyệt Epic hiện chấm đen cạnh mã Epic.</li>
         <li><strong>Bộ lọc "Nhận xét"</strong> ở Quản trị Epic: "Epic ngoại lệ — TTM Black listed" (<code>TTM_BLACK_LISTED</code>), "Epic ngoại lệ — dự án Time to Market = N" (<code>TTM_PROJECT_NON_TTM</code>), "L02 — Epic trong phạm vi tính TTM" (<code>TTM_COUNTED_IN_SCOPE</code>).</li>
-        <li>Lưu danh sách, gạt công tắc, hoặc đổi Time to Market của dự án sẽ tự tạo lại cache (mục 6.4); số liệu đổi sau lượt đó. Dữ liệu lưu ở bảng <code>black_listed_epics</code> (mục 5.2).</li>
+        <li>Lưu danh sách, gạt công tắc, hoặc đổi Time to Market của dự án không còn tự tạo lại cache (từ 27/10/2026): hiện toast cảnh báo và chấm đỏ, số liệu đổi sau khi SUPERADMIN bấm “Tạo lại cache” (mục 6.4). Riêng Epic có TTM-applied = Không áp dụng được import CSV tự đưa vào danh sách trong cùng lượt import (và cache tạo lại sau import). Dữ liệu lưu ở bảng <code>black_listed_epics</code> (mục 5.2).</li>
       </ul>
     </section>
 
@@ -2179,6 +2181,7 @@
           <tr><td><code>search_product_docs</code></td><td>Tìm kiếm (không phân biệt dấu) trong chính Tài liệu sản phẩm này — dùng để hỏi đáp về chức năng, rule cảnh báo và cách tính toán của ứng dụng</td><td>Mọi role đã xác thực</td></tr>
           <tr><td><code>get_product_doc_section</code></td><td>Đọc đầy đủ một mục của Tài liệu sản phẩm theo số mục (vd. <code>8.3</code>); không truyền số mục để lấy mục lục</td><td>Mọi role đã xác thực</td></tr>
           <tr><td><code>list_report_filters</code></td><td>Danh mục domain/dự án/component/lớp dữ liệu — phục vụ tra cứu sâu kiểu Báo cáo Epic (mục 11.5)</td><td>Mọi role đã xác thực</td></tr>
+          <tr><td><code>get_alert_logic</code></td><td>Nội dung popup “Logic cảnh báo” dạng dữ liệu (từ 27/10/2026): nguyên tắc, ký hiệu, Finding Group / Axis, từng badge (ý nghĩa + công thức), thứ tự che badge, điều kiện chỉ số, Rule object, nhóm rule đang áp dụng; tham số <code>sections</code>, <code>badgeIds</code> để lấy phần cần thiết</td><td>Mọi role đã xác thực</td></tr>
         </tbody>
       </table>
       <p><strong>Ma trận phân quyền áp dụng cho MCP (từ 08/10/2026).</strong> Mỗi tool gắn với màn hình hiển thị cùng dữ liệu. Role bị bỏ quyền <em>Xem</em> màn hình đó trong Ma trận phân quyền (mục 2) thì tool trả về thông báo từ chối thay vì dữ liệu — cùng quy tắc với trang và API của màn hình, nên không thể lấy số liệu đi vòng qua chatbot. Ma trận chỉ thu hẹp: điều kiện role của từng tool ở bảng trên vẫn áp dụng trước. Thay đổi ma trận có hiệu lực với MCP trong khoảng 15 giây.</p>
@@ -2191,6 +2194,7 @@
           <tr><td><code>get_dashboard_summary</code></td><td>TTM Dashboard 2 (<code>ttm_dashboard_2</code>) — cùng cổng với <code>get_ttm_dashboard</code></td></tr>
           <tr><td><code>search_product_docs</code>, <code>get_product_doc_section</code></td><td>Tài liệu sản phẩm (<code>product_docs</code>)</td></tr>
           <tr><td><code>list_report_filters</code></td><td>Báo cáo Epic (<code>epic_reports</code>)</td></tr>
+          <tr><td><code>get_alert_logic</code></td><td>Logic cảnh báo (<code>help_alert_logic</code>)</td></tr>
           <tr><td><code>list_projects</code></td><td>Quản lý Dự án (<code>projects</code>)</td></tr>
           <tr><td><code>list_domains</code></td><td>Quản lý Domain (<code>domains</code>)</td></tr>
           <tr><td><code>list_holidays</code></td><td>Cấu hình ứng dụng / Quản lý chung (<code>general_settings</code>)</td></tr>

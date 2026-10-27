@@ -266,7 +266,7 @@ export function RuleManagementSettings() {
       const next = await readJson<RuleGroupConfigResponse>(response, 'Không thể lưu cấu hình nhóm rule.');
       applyConfig(next);
       setHistory(null);
-      showToast('Đã lưu cấu hình nhóm rule — đang tính toán lại cache, có thể mất vài chục giây.', 6000);
+      showToast('Đã lưu cấu hình nhóm rule.', 4000);
       void runPreview(next.groups);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'Không thể lưu cấu hình nhóm rule.');

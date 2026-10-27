@@ -62,8 +62,9 @@ interface CachedPayload {
  * 11 = PM/SM breakdown counts SHARES (an Epic of n PM/SMs adds 1/n to each) + filterOptions.projectComponents
  *      for the Component filter;
  * 12 = widget "Thiếu lý do" = Khâu fail + Chịu TN chính (insights.missingResponsibleDepartment);
- * 13 = Rule Groups: bucket NO_CNTT_RULE (L02), breakdown dimension `ruleGroup`, filterOptions.ruleGroups. */
-const PAYLOAD_VERSION = 13;
+ * 13 = Rule Groups: bucket NO_CNTT_RULE (L02), breakdown dimension `ruleGroup`, filterOptions.ruleGroups;
+ * 14 = breakdown rows carry the widget "Thiếu lý do" split (missingStage / missingDepartment) for get_ttm_dashboard. */
+const PAYLOAD_VERSION = 14;
 
 const ALL_SCOPE: AccessScope = { accessRole: 'CBQL_PHONG', projectComponents: new Map(), sourceProjectKeys: null };
 

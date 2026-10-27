@@ -59,7 +59,7 @@ export default function DomainsAdminPage() {
       const response = await fetch('/api/domains', { method: editingId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editingId ? { ...form, id: editingId } : form) });
       const result = await response.json();
       if (!response.ok) { setMessage({ text: result.error || 'Lỗi hệ thống.', type: 'error' }); return; }
-      showToast(`${editingId ? 'Đã cập nhật Domain.' : 'Đã tạo Domain mới.'}${result.cacheRefreshing ? ' Dữ liệu cảnh báo Epic đang được tính lại theo Domain mới (vài phút).' : ''}`, 5000); setMessage(null); setShowModal(false); void load();
+      showToast(`${editingId ? 'Đã cập nhật Domain.' : 'Đã tạo Domain mới.'}`, 5000); setMessage(null); setShowModal(false); void load();
     } catch { setMessage({ text: 'Không thể kết nối API.', type: 'error' }); } finally { setIsSaving(false); }
   };
 
@@ -67,7 +67,7 @@ export default function DomainsAdminPage() {
     if (!(await confirmDialog({ title: 'Xóa Domain', description: `Xóa Domain "${domain.domainName}"?`, confirmLabel: 'Xóa' }))) return;
     const response = await fetch(`/api/domains?id=${domain.id}`, { method: 'DELETE' });
     const result = await response.json();
-    if (response.ok) { showToast(`Đã xóa Domain.${result.cacheRefreshing ? ' Dữ liệu cảnh báo Epic đang được tính lại (vài phút).' : ''}`, 5000); setMessage(null); void load(); }
+    if (response.ok) { showToast(`Đã xóa Domain.`, 5000); setMessage(null); void load(); }
     else { setMessage({ text: result.error || 'Xóa thất bại.', type: 'error' }); }
   };
 

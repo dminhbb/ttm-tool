@@ -64,6 +64,9 @@ export interface TtmBreakdownItem {
   late: number;
   /** "Sai lệch dữ liệu" Epics of L02 (L02 − L03) — their own column, outside đúng / chậm tiến độ. */
   anomaly: number;
+  /** Widget "Thiếu lý do" by row (2026-10-27): Fail TTM-CNTT Epics lacking the failure stage / the responsible department — the same two counts as TtmDashboard2Insights, split by the dimension. */
+  missingStage: number;
+  missingDepartment: number;
   /** TTM-CNTT (QA) counts of the same Epics (MVP Done / Released, inside the QA scope). */
   qaPass: number;
   qaFail: number;
@@ -268,11 +271,13 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
       for (const { key, linkValue, name } of keys) {
         let group = groups.get(key);
         if (!group) {
-          group = { item: { anomaly: 0, fail: 0, failLateR4g: 0, late: 0, linkValue, name, ok: 0, pass: 0, qaFail: 0, qaPass: 0, qaTotal: 0, total: 0 }, rows: [], shares: [] };
+          group = { item: { anomaly: 0, fail: 0, failLateR4g: 0, late: 0, linkValue, missingDepartment: 0, missingStage: 0, name, ok: 0, pass: 0, qaFail: 0, qaPass: 0, qaTotal: 0, total: 0 }, rows: [], shares: [] };
           groups.set(key, group);
         }
         group.rows.push(row);
         group.shares.push(share);
+        if (row.ttmCnttInScope && row.scoringBadges?.includes('REC_MISSING_FAIL_REASON')) group.item.missingStage += share;
+        if (row.ttmCnttInScope && row.scoringBadges?.includes('REC_MISSING_RESPONSIBLE_DEPARTMENT')) group.item.missingDepartment += share;
         // Not part of L02: outside "Phạm vi dữ liệu cho TTM" ("Epic ngoại lệ" never get here — see `active`).
         // Nor an Epic whose Rule Group has no TTM-CNTT rule — it still counts in TTM-E2E and the operational widgets.
         if (bucket === 'OUT_OF_SCOPE' || bucket === 'NO_CNTT_RULE') continue;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
-import { scheduleDerivedCacheRefresh } from '@/lib/daily-cache-service';
+import { markCacheStale, withCacheStale } from '@/lib/daily-cache-service';
 import { importSqlFile, previewImportFile } from '@/lib/db-backup-service';
 
 export const maxDuration = 300;
@@ -53,10 +53,8 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await importSqlFile(sqlText, selectedTables, { actorUserId: actor.id });
-    if (result.ok) {
-      scheduleDerivedCacheRefresh('sql-import');
-    }
-    return NextResponse.json(result, { status: result.ok ? 200 : 400 });
+    // A restored backup replaces the data the caches were built from — marked stale, rebuilt by hand (2026-10-27).
+    return withCacheStale(NextResponse.json(result, { status: result.ok ? 200 : 400 }), result.ok ? await markCacheStale('sql-import') : undefined);
   } catch (error: unknown) {
     console.error('API Error in db-backup/import route:', error);
     return authError(error) ?? NextResponse.json({ error: 'Không thể import dữ liệu.' }, { status: 500 });

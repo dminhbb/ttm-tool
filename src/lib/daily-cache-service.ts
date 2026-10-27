@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { after } from 'next/server';
 import pool from '@/lib/db';
 import { getEpicAlertRowsWithScorecards } from '@/lib/epic-alert-rows-service';
 import { refreshEpicAlertRowCache } from '@/lib/epic-alert-row-cache-service';
@@ -7,6 +6,7 @@ import { refreshTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service
 import { getTtmDashboard2CacheOverview, refreshTtmDashboard2Caches } from '@/lib/ttm-dashboard-2-cache-service';
 import { runDailyHousekeeping } from '@/lib/housekeeping-service';
 import { SCORING_CODE_VERSION } from '@/lib/scoring/registry';
+import { CACHE_STALE_HEADER } from '@/lib/cache-rebuild-status-client';
 import { loadScoringContext, vnToday } from '@/lib/scoring-context-service';
 
 /**
@@ -87,11 +87,25 @@ export async function isRowCacheCodeOutdated(): Promise<boolean> {
 }
 
 export interface CacheRebuildStatus {
-  /** The cache was built with another configuration than the current one — "Tạo lại cache" recommended. */
+  /** The cache was built with another configuration than the current one, or a save marked it stale — "Tạo lại cache" recommended. */
   pending: boolean;
+  /** What marked the caches stale since the last rebuild (markCacheStale sources); empty when only the configuration differs. */
+  staleReasons: string[];
   rebuilding: boolean;
   cachedVersions: string[];
   currentVersion: string;
+}
+
+async function readStaleReasons(): Promise<string[]> {
+  try {
+    const result = await pool.query<{ reasons: string[] | null; stale: boolean }>(
+      'SELECT stale_reasons AS reasons, stale_since IS NOT NULL AS stale FROM derived_cache_refresh_lock WHERE id = 1;',
+    );
+    const row = result.rows[0];
+    return row?.stale ? (row.reasons?.length ? row.reasons : ['unknown']) : [];
+  } catch {
+    return []; // migration 20261105 not applied yet
+  }
 }
 
 /**
@@ -99,18 +113,19 @@ export interface CacheRebuildStatus {
  * sách" or the Cảnh báo muộn % deliberately does NOT rebuild the caches — the admin runs "Tạo lại cache" by hand
  * once done editing. Nothing is stored for that: the row cache records the rulesetVersion it was scored with
  * (code version + a fingerprint of every setting the Scoring Service reads, scoring-context-service.ts), so a
- * different fingerprint now means the screens show verdicts of an older configuration. Drives the unread dot of
+ * different fingerprint now means the screens show verdicts of an older configuration. Since 2026-10-27 also stale when a save marked it (markCacheStale: users, projects, Domains, Epic ngoại lệ, scope, Rule Groups, a restored backup). Drives the unread dot of
  * the "Theo dõi cache dữ liệu" tab and of the "Nguồn dữ liệu" menu item. Not pending while a rebuild runs.
  */
 export async function getCacheRebuildStatus(): Promise<CacheRebuildStatus> {
-  const [context, cached, rebuilding] = await Promise.all([
+  const [context, cached, rebuilding, staleReasons] = await Promise.all([
     loadScoringContext(vnToday()),
     pool.query<{ version: string }>('SELECT DISTINCT scoring_ruleset_version AS version FROM epic_alert_row_cache WHERE scoring_ruleset_version IS NOT NULL;'),
     isDerivedCacheRebuilding(),
+    readStaleReasons(),
   ]);
   const cachedVersions = cached.rows.map((row) => row.version);
-  const pending = !rebuilding && cachedVersions.some((version) => version !== context.rulesetVersion);
-  return { cachedVersions, currentVersion: context.rulesetVersion, pending, rebuilding };
+  const pending = !rebuilding && (staleReasons.length > 0 || cachedVersions.some((version) => version !== context.rulesetVersion));
+  return { cachedVersions, currentVersion: context.rulesetVersion, pending, rebuilding, staleReasons };
 }
 
 export async function isDerivedCacheRebuilding(): Promise<boolean> {
@@ -302,7 +317,9 @@ export async function refreshDerivedCaches(batchId: number | null, source = 'man
   let nextBatchId = batchId;
   try {
     for (let run = 1; ; run += 1) {
+      const startedAt = await databaseNow();
       const count = await rebuildDerivedCaches(nextBatchId);
+      await clearCacheStale(startedAt);
       const outcome = await releaseOrRenew(owner, seq);
       if (outcome.released || outcome.seq === null) return count;
       if (run >= MAX_REBUILDS_PER_LEASE) {
@@ -319,23 +336,50 @@ export async function refreshDerivedCaches(batchId: number | null, source = 'man
   }
 }
 
+async function databaseNow(): Promise<string | null> {
+  try {
+    return (await pool.query<{ now: string }>('SELECT clock_timestamp()::text AS now;')).rows[0]?.now ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** A rebuild that started at `startedAt` has read everything saved before it, so it settles every mark made up to then. */
+async function clearCacheStale(startedAt: string | null): Promise<void> {
+  if (!startedAt) return;
+  await pool.query(
+    `UPDATE derived_cache_refresh_lock SET stale_since = NULL, stale_reasons = '{}' WHERE id = 1 AND stale_since IS NOT NULL AND stale_since <= $1::timestamptz;`,
+    [startedAt],
+  ).catch((error: unknown) => console.error('Failed to clear the cache-stale marker (migration 20261105 not applied?):', error));
+}
+
 /**
- * For a save that changes what the derived caches hold (scope, Domain, project, PM/SM, black list,
- * display engine): rebuilds them on the latest import batch in after() — past the response, so the
- * save stays instant. The route needs `maxDuration = 300`, like a post-import refresh.
+ * For a save that changes what the derived caches hold but that the Scoring Service fingerprint cannot see (users /
+ * PM-SM, projects, Domains, Epic ngoại lệ, TTM scope, Rule Groups, a restored backup): since 2026-10-27 it does NOT
+ * rebuild them. It marks them stale — the unread dots and the warning toast tell a SUPERADMIN to run "Tạo lại cache"
+ * once done editing. Only a CSV import and the daily run rebuild on their own. Returns the response headers that make
+ * the browser show the toast (cache-rebuild-status-client.ts, `CACHE_STALE_HEADER`).
  *
- * Nothing is read before the response and nothing is thrown: the save it follows is already
- * committed, so a failure here must not turn its response into an error (refreshDerivedCaches
- * throws on failure, and a rejection inside after() would otherwise vanish with nothing logged).
+ * Never throws: the save it follows is already committed.
  */
-export function scheduleDerivedCacheRefresh(source: string): void {
-  after(async () => {
-    try {
-      await refreshDerivedCaches(await getLatestImportBatchId(), source);
-    } catch (error: unknown) {
-      console.error(`Background derived-cache refresh failed (${source}):`, error);
-    }
-  });
+/** Adds markCacheStale's headers to a response (no-op when nothing was marked). */
+export function withCacheStale<T extends Response>(response: T, headers?: Record<string, string>): T {
+  if (headers) for (const [name, value] of Object.entries(headers)) response.headers.set(name, value);
+  return response;
+}
+
+export async function markCacheStale(source: string): Promise<Record<string, string>> {
+  try {
+    await pool.query(`
+      UPDATE derived_cache_refresh_lock SET
+        stale_since = COALESCE(stale_since, clock_timestamp()),
+        stale_reasons = CASE WHEN $1 = ANY(stale_reasons) THEN stale_reasons ELSE array_append(stale_reasons, $1) END
+      WHERE id = 1;
+    `, [source.slice(0, 40)]);
+  } catch (error: unknown) {
+    console.error(`Failed to mark the caches stale (${source}) — migration 20261105 not applied?`, error);
+  }
+  return { [CACHE_STALE_HEADER]: source };
 }
 
 export async function getLatestImportBatchId(): Promise<number | null> {

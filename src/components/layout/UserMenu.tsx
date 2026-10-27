@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Baby, BookOpen, FlowArrow, GearSix, Key, SignOut, Warning } from '@phosphor-icons/react';
 import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
+import { showToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
 import { AlertLogicModal, DataLogicModal } from '@/components/layout/HelpPanels';
 import { UserInfoModal } from '@/components/layout/UserInfoModal';
@@ -129,12 +130,14 @@ export function UserMenu({ expanded, hiddenFeatureKeys }: UserMenuProps) {
     setBadgeDesign(nextStyle);
     applyBadgeDesignStyle(nextStyle, user?.email);
     setUser((current) => (current ? { ...current, badgeDesignStyle: nextStyle } : current));
+    const notSaved = () => showToast('Chưa lưu được Thiết kế Badge lên máy chủ — lựa chọn chỉ áp dụng trên trình duyệt này.', 6000);
     void fetch('/api/auth/me', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ badgeDesignStyle: nextStyle }),
-    }).catch((error: unknown) => {
+    }).then((response) => { if (!response.ok) notSaved(); }).catch((error: unknown) => {
       console.warn('Unable to persist badge design preference to server.', error);
+      notSaved();
     });
   };
 

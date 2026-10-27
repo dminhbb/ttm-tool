@@ -83,6 +83,7 @@ không hợp lệ/đã thu hồi/user đã inactive đều trả `401` kèm head
 | `list_holidays` | Danh mục ngày nghỉ, lọc theo năm | Chỉ `ADMIN`/`SUPERVISOR`/`SUPERADMIN` |
 | `get_ttm_policies` | Toàn bộ tiêu chí Time to Market đang active | Chỉ `SUPERVISOR`/`SUPERADMIN` |
 | `list_report_filters` | Danh mục domain/dự án/component/lớp dữ liệu — hỗ trợ hỏi sâu kiểu Báo cáo Epic | Mọi role đã xác thực |
+| `get_alert_logic` | Nội dung popup "Logic cảnh báo" dạng dữ liệu (badge + công thức, Rule object, nhóm rule đang áp dụng, chỉ số); `get_ttm_dashboard` từ 27/10/2026 trả thêm widget "Thiếu lý do" (khâu fail / chịu TN chính, tỷ lệ trên Epic Fail, số theo từng dòng breakdown) | Mọi role đã xác thực |
 | `get_ttm_dashboard` | Số liệu màn **TTM Dashboard 2** (`/ttm-dashboard-2`) từ 2026-10-05 (trước đó là TTM dashboard `/dashboard-new`, đã gỡ 11/10/2026): phễu L01…L05bb, chỉ số TTM-CNTT (QLDA)/(QA), TTM-E2E (tập đang xem + toàn công ty), widget Fail / Chậm tiến độ / Sai lệch dữ liệu / Chờ golive / Giải trình Golive, breakdown theo chiều; lọc theo dự án/domain/PM-SM/đơn vị yêu cầu. Dùng chung cache và hàm tính của màn hình (`src/lib/ttm-dashboard-2-summary-service.ts`). Danh sách Epic sau mỗi con số: `list_epic_alerts` + `nhanXet` | Theo RBAC dự án của user gọi |
 | `search_product_docs` | Tìm kiếm (không phân biệt dấu) trong Tài liệu sản phẩm (`public/docs/product-guide.html`, chia theo mục h2/h3) — hỏi đáp chức năng, rule cảnh báo & tính toán | Mọi role đã xác thực |
 | `get_product_doc_section` | Đọc đầy đủ 1 mục Tài liệu sản phẩm theo số mục; bỏ trống = mục lục | Mọi role đã xác thực |
@@ -105,6 +106,7 @@ hướng dẫn đi xin quyền Xem. `registerTool` chỉ nhận tên thuộc `Mc
 | `get_dashboard_summary` | `ttm_dashboard_2` (cùng cổng với `get_ttm_dashboard`) |
 | `search_product_docs`, `get_product_doc_section` | `product_docs` |
 | `list_report_filters` | `epic_reports` |
+| `get_alert_logic` | `help_alert_logic` |
 | `list_projects` / `list_domains` / `list_holidays` / `get_ttm_policies` | `projects` / `domains` / `general_settings` / `status_alert_rules` |
 
 Mỗi lần gọi tool thành công gọi `recordMcpAccessEvent(userId, tokenId)`: cộng dồn

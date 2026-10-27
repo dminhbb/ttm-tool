@@ -52,6 +52,8 @@ export const MCP_TOOL_FEATURES = {
   // Deprecated alias of get_ttm_dashboard (the old Dashboard screen was removed) — same data, same gate.
   get_dashboard_summary: { featureKeys: ['ttm_dashboard_2'], screen: 'TTM Dashboard 2' },
   // Duyệt Epic (EpicBrowserModal) is opened from both of these screens.
+  // The popup "Logic cảnh báo" (menu người dùng) — its matrix key is help_alert_logic.
+  get_alert_logic: { featureKeys: ['help_alert_logic'], screen: 'Logic cảnh báo' },
   get_epic_detail: {
     featureKeys: ['epic_alerts_15', 'epic_reports'],
     screen: 'Quản trị Epic / Báo cáo Epic',

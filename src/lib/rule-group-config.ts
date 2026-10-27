@@ -175,7 +175,8 @@ export function validateRuleGroups(groups: readonly RuleGroupDraft[], catalog: r
       // Blocking since 2026-10-26: a group without any condition matches every Epic and, sitting above Default,
       // takes every slot it names away from all the lower groups (production: "Nhóm Kế hoạch ngoại lệ TTM" with no
       // TTM-applied condition left the 30-day groups judging no Epic). A rule meant for every Epic belongs in Default.
-      if (!hasAnyCondition(group)) {
+      // A disabled group matches nothing, so a placeholder without conditions may be saved; turning it on is what is blocked.
+      if (group.enabled && !hasAnyCondition(group)) {
         errors.push({ groupKey: group.key, message: 'Nhóm chưa có điều kiện nào (ngày hoặc TTM-applied) nên sẽ khớp mọi Epic và che các nhóm ưu tiên thấp hơn — hãy đặt ít nhất một điều kiện, hoặc khai báo rule ở nhóm Default.' });
       }
     }

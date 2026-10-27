@@ -28,6 +28,20 @@ function tokenHash(value: string): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
+/**
+ * Runs a users query that also reads users.badge_design_style (`__BADGE_COLUMN__` marks where `column` goes). A database the
+ * migration 20261104 has not reached yet answers 42703 (undefined column): the query is repeated without it, so deploying
+ * the code before the migration can never lock everybody out (2026-10-27).
+ */
+async function queryWithBadgeColumn<T extends object>(sql: string, params: unknown[], column: string) {
+  try {
+    return await pool.query<T>(sql.replace('__BADGE_COLUMN__', column), params);
+  } catch (error: unknown) {
+    if ((error as { code?: string }).code !== '42703') throw error;
+    return pool.query<T>(sql.replace('__BADGE_COLUMN__', ''), params);
+  }
+}
+
 function mapAuthUser(row: AuthUser & { mustChangePassword?: boolean }): AuthUser {
   return { badgeDesignStyle: row.badgeDesignStyle === 'minimal' ? 'minimal' : 'list', email: row.email, fullName: row.fullName, id: row.id, role: row.role, mustChangePassword: Boolean(row.mustChangePassword) };
 }
@@ -81,11 +95,11 @@ export async function authenticateLocal(username: string, password: string, capt
   const typed = username.trim().toLowerCase();
   if (typed.includes('@') && !typed.endsWith('@mbbank.com.vn')) return { error: 'INVALID_CREDENTIALS', requiresCaptcha: false, showWarning: false };
   const normalizedUsername = extractUsername(username);
-  const result = await pool.query<AuthUser & { isActive: boolean; mustChangePassword: boolean; passwordHash: string; failedLoginAttempts: number }>(`
-    SELECT id, email, full_name AS "fullName", role, is_active AS "isActive", password_hash AS "passwordHash", must_change_password AS "mustChangePassword", failed_login_attempts AS "failedLoginAttempts", badge_design_style AS "badgeDesignStyle"
+  const result = await queryWithBadgeColumn<AuthUser & { isActive: boolean; mustChangePassword: boolean; passwordHash: string; failedLoginAttempts: number }>(`
+    SELECT id, email, full_name AS "fullName", role, is_active AS "isActive", password_hash AS "passwordHash", must_change_password AS "mustChangePassword", failed_login_attempts AS "failedLoginAttempts"__BADGE_COLUMN__
     FROM users
     WHERE SPLIT_PART(LOWER(email), '@', 1) = $1;
-  `, [normalizedUsername]);
+  `, [normalizedUsername], ', badge_design_style AS "badgeDesignStyle"');
   const user = result.rows[0];
   if (!user) return { error: 'INVALID_CREDENTIALS', requiresCaptcha: false, showWarning: false };
   if (!user.isActive) return { error: 'INACTIVE' };
@@ -143,20 +157,25 @@ export async function createSession(userId: number, remember: boolean): Promise<
 export async function getCurrentUser(request?: NextRequest): Promise<AuthUser | null> {
   const token = request?.cookies.get(SESSION_COOKIE_NAME)?.value ?? (await cookies()).get(SESSION_COOKIE_NAME)?.value;
   if (!token) return null;
-  const result = await pool.query<AuthUser>(`
-    SELECT u.id, u.email, u.full_name AS "fullName", u.role, u.must_change_password AS "mustChangePassword", u.badge_design_style AS "badgeDesignStyle"
+  const result = await queryWithBadgeColumn<AuthUser>(`
+    SELECT u.id, u.email, u.full_name AS "fullName", u.role, u.must_change_password AS "mustChangePassword"__BADGE_COLUMN__
     FROM auth_sessions s
     JOIN users u ON u.id = s.user_id
     WHERE s.token_hash = $1 AND s.expires_at > CURRENT_TIMESTAMP AND u.is_active = TRUE;
-  `, [tokenHash(token)]);
+  `, [tokenHash(token)], ', u.badge_design_style AS "badgeDesignStyle"');
   return result.rows[0] ? mapAuthUser(result.rows[0]) : null;
 }
 
 export async function updateUserBadgeDesignStyle(userId: number, style: 'list' | 'minimal'): Promise<void> {
-  await pool.query(
-    'UPDATE users SET badge_design_style = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1;',
-    [userId, style],
-  );
+  try {
+    await pool.query(
+      'UPDATE users SET badge_design_style = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1;',
+      [userId, style],
+    );
+  } catch (error: unknown) {
+    // Migration 20261104 not applied yet: the choice stays in this browser only (localStorage).
+    if ((error as { code?: string }).code !== '42703') throw error;
+  }
 }
 
 export async function deleteCurrentSession(request?: NextRequest): Promise<void> {
