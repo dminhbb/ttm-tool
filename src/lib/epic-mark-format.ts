@@ -4,8 +4,23 @@
  */
 
 export const EPIC_COMMENT_MAX_LENGTH = 256;
-export const EPIC_HIDE_COMMENT = 'Đã ẩn Epic';
-export const EPIC_UNHIDE_COMMENT = 'Đã bỏ ẩn Epic';
+
+/** "Giao việc" of an Epic (table epic_task_status): TODO by default, a PM/SM sets DONE when the work is finished. */
+export type EpicTaskStatus = 'TODO' | 'DONE';
+
+export function isEpicTaskStatus(value: unknown): value is EpicTaskStatus {
+  return value === 'TODO' || value === 'DONE';
+}
+
+/**
+ * Who may switch "Giao việc" (owner 2026-10-27): the Epic's PM/SMs — `viewerName` (username) among `ownerNames` —
+ * and ADMIN / SUPERADMIN. The caller has already checked that the Epic is in the user's data scope.
+ */
+export function canSetEpicTaskStatus(role: string, viewerName: string, ownerNames: readonly string[]): boolean {
+  if (role === 'ADMIN' || role === 'SUPERADMIN') return true;
+  const name = viewerName.trim().toLowerCase();
+  return name !== '' && ownerNames.some((owner) => owner.trim().toLowerCase() === name);
+}
 
 export interface EpicCommentEntry {
   content: string;
@@ -19,7 +34,10 @@ export interface EpicCommentEntry {
 /** What a list row carries about its Epic's mark (stamped after the row cache — never cached). */
 export interface EpicMarkSummary {
   commentCount: number;
+  /** The viewer hid this Epic (Hide is personal — epic_hidden_by_users). */
   isHidden: boolean;
+  /** "Giao việc" is Done (epic_task_status) — the list shows the flag in green. */
+  taskDone: boolean;
   /** The two newest comments, newest first. */
   latestComments: EpicCommentEntry[];
 }

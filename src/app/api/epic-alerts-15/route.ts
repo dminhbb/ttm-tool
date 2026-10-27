@@ -4,12 +4,11 @@ import { getEpicAlertRowsForDisplay } from '@/lib/epic-alert-rows-service';
 import { parseEpicAlertFiltersFromSearchParams } from '@/lib/epic-alert-filter-params';
 import { getTtmScopeConfig } from '@/lib/ttm-scope-config-service';
 import { resolveViewAsTarget } from '@/lib/view-as-user-service';
-import type { EpicAlertFilters } from '@/lib/epic-alert-service';
-import { fetchEpicAlertHeaderContext } from '@/lib/epic-alert-service';
+import type { AccessScope, EpicAlertFilters } from '@/lib/epic-alert-service';
+import { fetchEpicAlertHeaderContext, resolveAccessScope } from '@/lib/epic-alert-service';
 import type { EpicAlertRowCacheFilters } from '@/lib/epic-alert-row-cache-query-service';
 import { buildAccessScopeClause, getEpicAlertRowCacheMeta, queryEpicAlertFilterOptions, queryEpicAlertRowCachePage, queryEpicAlertStatCounts, queryTtmCnttIndexes } from '@/lib/epic-alert-row-cache-query-service';
-import { applyEpicMarks, listMarkedOwnerNames, loadEpicMarkSummaries } from '@/lib/epic-mark-service';
-import pool from '@/lib/db';
+import { applyEpicMarks, countAssignedTodoEpics, listMarkedOwnerNames, loadEpicMarkSummaries } from '@/lib/epic-mark-service';import pool from '@/lib/db';
 
 function authError(error: unknown): NextResponse | null {
   if (error instanceof AuthError) {
@@ -38,6 +37,13 @@ function parseCacheFilters(searchParams: URLSearchParams, viewerUserId: number):
     markedPmSm: csv('markedPmSm'),
     viewerUserId,
   };
+}
+
+/** Dot on "My assigned epics": the viewer's Epics (PM/SM, with a comment) whose "Giao việc" is still To do. It reads
+ * the row cache whatever the list mode — a notification, independent of the toolbar filters and the viewed date. */
+async function assignedTodoCount(scope: AccessScope, userId: number): Promise<number> {
+  const params: unknown[] = [];
+  return countAssignedTodoEpics(buildAccessScopeClause(scope, params), params, userId);
 }
 
 /** The viewer's name as it appears in an Epic's PM/SM list (e-mail local part) — for "My assigned epics". */
@@ -96,8 +102,11 @@ export async function GET(request: NextRequest) {
         queryTtmCnttIndexes(header.scope, cacheFilters),
         queryEpicAlertFilterOptions(header.scope),
       ]);
-      // Epic Mark: comments / hidden flag are read live and stamped on the page's rows (never cached).
-      const marks = await loadEpicMarkSummaries(pageResult.rows.map((row) => row.epicKey));
+      // Epic Mark: comments / the viewer's own Hide are read live and stamped on the page's rows (never cached).
+      const [marks, myAssignedTodoCount] = await Promise.all([
+        loadEpicMarkSummaries(pageResult.rows.map((row) => row.epicKey), userId),
+        assignedTodoCount(header.scope, userId),
+      ]);
       const markedOwnerNames = cacheFilters.markFilter === 'MARKED'
         ? await (async () => {
             const params: unknown[] = [];
@@ -116,6 +125,7 @@ export async function GET(request: NextRequest) {
         viewAsUser,
         rows: applyEpicMarks(pageResult.rows, marks),
         markedOwnerNames,
+        myAssignedTodoCount,
         totalCount: pageResult.totalCount,
         page,
         pageSize,
@@ -129,9 +139,14 @@ export async function GET(request: NextRequest) {
     // Fallback: advanced date filter active, or the cache hasn't been populated yet (e.g. no
     // import has completed since this table was introduced) — recompute live, same as before.
     const data = await getEpicAlertRowsForDisplay(userId, role, filters);
-    // Full mode: the client filters, so every row carries its mark and the viewer's own PM/SM name.
-    const [marks, viewerOwner] = await Promise.all([loadEpicMarkSummaries(null), viewerOwnerName(userId)]);
-    return NextResponse.json({ mode: 'full', ...data, rows: applyEpicMarks(data.rows, marks), viewerOwnerName: viewerOwner, viewAsUser });
+    // Full mode: the client filters, so every row carries its mark and the viewer's own PM/SM name. Only the Epics
+    // of this list (already within the viewer's data scope) are read — not the whole comment table.
+    const [marks, viewerOwner, myAssignedTodoCount] = await Promise.all([
+      loadEpicMarkSummaries(data.rows.map((row) => row.epicKey), userId),
+      viewerOwnerName(userId),
+      resolveAccessScope(userId, role).then((scope) => assignedTodoCount(scope, userId)),
+    ]);
+    return NextResponse.json({ mode: 'full', ...data, rows: applyEpicMarks(data.rows, marks), myAssignedTodoCount, viewerOwnerName: viewerOwner, viewAsUser });
   } catch (error: unknown) {
     console.error('API Error in epic-alerts-15 route:', error);
     const message = error instanceof Error ? error.message : 'Lỗi hệ thống khi tải dữ liệu Quản lý Epic 15';

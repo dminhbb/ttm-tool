@@ -6,8 +6,30 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-10-28
+
+- **Mark & Comment → "Review Notes"** (không đổi schema):
+  - Cột MARK của bảng Quản trị Epic đổi thành REVIEW. Popup đổi tên và tiêu đề thành "Review Notes" (`EpicMarkModal.tsx`, `EpicMarkCell.tsx`, API `/api/epic-marks/[epicKey]`).
+  - Popup rộng thêm 10% (922 → 1014px) và cao thêm 5%: thân popup cố định `min(565px, 65dvh)` nên chuyển tab không làm đổi kích thước; thẻ thông tin bên trái tự cuộn khi màn hình thấp.
+  - Khung chat có thêm tab "Scoring" cạnh tab "Comment". Tab này hiện bảng mọi badge đang bật của Scoring Service cho Epic (kể cả Đạt/Fail TTM-CNTT và TTM-E2E): cột trái là badge (màu theo nhóm Fail / Cảnh báo / Khuyến nghị / Đạt / Ghi nhận), cột phải là câu giải thích của rule cho Epic đó. Dữ liệu là scorecard trong `epic_alert_row_cache` (`findings` + `badge_codes`), giống bảng danh sách; bỏ qua finding bị che hoặc badge đang tắt. Ngày trong câu giải thích hiện dạng dd/MM/yyyy. Logic ở `src/lib/epic-scoring-notes.ts` (`scoringNotesOf`), có test.
+
 ## 2026-10-27
 
+- **Mark & Comment — chỉnh theo phản hồi**:
+  - Tooltip ⓘ của các toggle và tooltip ở cột MARK dùng chế độ `multiline` của `Tooltip` chung, nên chữ tự xuống dòng trong khung (trước đây tự bọc `max-w` nên chữ bị tràn).
+  - Popup rộng thêm 20% (768 → 922px, prop mới `maxWidthClassName` của `Modal.tsx`). Khung chat nền xám nhạt (`.ttm-chat-frame`), tin nhắn nền navy nhạt (`.ttm-chat-bubble`), cụm ô nhập + nút gửi đưa lên đầu khung chat.
+  - Toggle Giao việc bỏ chữ "Giao việc", thành "To do ◯ Done ⓘ": bên đang chọn in đậm navy, Done thì công tắc xanh lá. Bấm vào chữ To do / Done cũng đổi được.
+  - Bảng Quản trị Epic: Epic có comment và Giao việc = Done thì cờ màu xanh lá (`.ttm-mark-flag-done`); tooltip của cờ ghi thêm "Giao việc: To do/Done". `EpicMarkSummary.taskDone` được đọc trong `loadEpicMarkSummaries`.
+- **Mark & Comment — giao diện mới + "Giao việc"** (migration `20261108_create_epic_task_status`, đã áp dụng Supabase; **local chưa**: `npm run db:migrate:local`):
+  - Popup `EpicMarkModal.tsx` theo "Phương án 2". Header gồm Epic key/summary và 2 công tắc có icon giải thích: "Ẩn epic" và "Giao việc". Bên trái là thẻ thông tin chia nhóm "Thông tin chung" / "Thông tin dự án" (có icon, Trạng thái là Badge, Phân loại/Level là Tag, thêm dòng PM/SM). Bên phải là comment dạng khung chat (avatar chữ cái đầu, tên, giờ, bong bóng) với ô nhập và nút gửi ở dưới. Không có tab Giao việc, nút ⋮ hay đính kèm (chưa có chức năng).
+  - "Giao việc": bảng `epic_task_status` lưu một trạng thái TODO/DONE cho mỗi Epic (mặc định To do). Epic có comment được coi là đã giao cho PM/SM. Chỉ PM/SM của Epic (`owner_names`) và ADMIN/SUPERADMIN được đổi (`canSetEpicTaskStatus`, `epic-mark-format.ts`); khi "Xem dưới quyền" thì khoá. Comment mới không tự đưa về To do. API: PATCH `/api/epic-marks/[epicKey]` body `{ taskStatus }`.
+  - Nút quick filter "My assigned epics" có chấm nâu, chữ trắng, đếm số Epic của người xem (là PM/SM, có comment, Giao việc = To do) — `countAssignedTodoEpics`, field `myAssignedTodoCount` của `/api/epic-alerts-15`, CSS `.ttm-quick-filter-count`.
+- **Sửa sau review bản pull 27/10**:
+  - **Import file thiếu cột TTM-applied / except-TTM-plan không còn gỡ Epic khỏi black list**: chỉ file CÓ cột TTM-applied mới đồng bộ black list (`syncImportBlackList`). File không có cột (Jira UI export, file crawl cũ) giữ giá trị của phiên bản trước của issue (`carryForwardMissingTtmAppliedColumns`, `import-service.ts`) thay vì ghi NULL. Tên cột dùng chung ở `import-ttm-applied-columns.ts` (cả 2 adapter); test `import-ttm-applied-columns.test.ts`.
+  - **Ẩn Epic theo từng người** (migration `20261107_create_epic_hidden_by_users`, đã áp dụng Supabase; **local chưa** vì Postgres local không chạy trên máy này: `npm run db:migrate:local`). Hide chỉ ẩn Epic khỏi Quản trị Epic của người bấm; Unhide xoá dòng, Epic hiện lại bình thường. Không ghi comment hệ thống nữa. Khi "Xem dưới quyền": danh sách theo Epic người được xem đã ẩn, nút Hide/Unhide bị khoá. Epic đang ẩn trong `epic_marks` (1 Epic trên Supabase) đã chuyển sang bảng mới. Code không còn đọc `epic_marks`; **chưa xoá bảng**, sẽ DROP bằng migration sau khi deploy.
+  - **Chỉ số TTM-CNTT ở chế độ full (bộ lọc nâng cao) không còn đổi khi ẩn Epic**: tính trên `indexRows` (mọi bộ lọc trừ việc loại Epic đã ẩn), khớp chế độ phân trang (`ignoreHidden`) — `epic-alerts-15/page.tsx`.
+  - **Hiệu năng chế độ full**: `loadEpicMarkSummaries` chỉ đọc comment/ẩn của các Epic trong danh sách người xem, không đọc cả bảng.
+  - Lỗi typecheck do `.next/types` cũ: chạy `npx next typegen` (không đổi mã nguồn).
 - **Mark & Comment — bỏ nút Save, lọc an toàn**: nhập comment rồi Enter để lưu (bỏ qua Enter khi bộ gõ tiếng Việt đang soạn); `normalizeCommentText` (`epic-mark-format.ts`, dùng cả ở popup lẫn API) loại ký tự điều khiển/NUL, ký tự ẩn & bidi, `< > ``, vô hiệu hoá `javascript:`/`vbscript:`/`data:`/`file:`, bỏ `= + @` đầu câu (formula injection), chuẩn hoá NFC; SQL luôn tham số hoá. Quick filter đang tắt dùng nền xám đậm hơn nền trang (`.ttm-quick-filter-off`).
 - **Quản trị Epic — header bảng**: mọi tiêu đề cột (kể cả D, V, T, P) căn giữa ô và cùng font/size/màu (`epic-alerts-15.css`, khối `.ui-table.ttm-align-top thead th`).
 - **Popup Mark & Comment — sắp xếp lại**: toggle Hide/Unhide lên dòng Epic key/summary (căn phải); Assignee xuống dòng Comment (căn phải); panel thông tin Epic bỏ nền + viền; nhãn "Comment" thành "{username} comment:" (API `/api/epic-marks/[epicKey]` trả thêm `viewerName`).

@@ -1,9 +1,9 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-27T12:28:42.779Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-27T16:43:18.420Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
--- Gồm: 60 bảng, 58 index phụ, 4 hàm, 4 trigger.
+-- Gồm: 62 bảng, 58 index phụ, 4 hàm, 4 trigger.
 -- Yêu cầu: PostgreSQL 14 trở lên, một database RỖNG (không dùng cho DB đã có bảng — sẽ báo lỗi và không
 -- tạo gì vì cả file chạy trong một transaction). Không cần extension nào.
 --
@@ -262,6 +262,13 @@ CREATE TABLE epic_comments (
     CONSTRAINT epic_comments_pkey PRIMARY KEY (id)
 );
 
+CREATE TABLE epic_hidden_by_users (
+    user_id integer NOT NULL,
+    epic_key character varying(100) NOT NULL,
+    hidden_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT epic_hidden_by_users_pkey PRIMARY KEY (user_id, epic_key)
+);
+
 CREATE TABLE epic_marks (
     epic_key character varying(100) NOT NULL,
     is_hidden boolean DEFAULT false NOT NULL,
@@ -286,6 +293,15 @@ CREATE TABLE epic_status_alert_rules (
     CONSTRAINT epic_status_alert_rules_epic_complexity_type_check CHECK (((epic_complexity_type)::text = ANY ((ARRAY['SIMPLE'::character varying, 'COMPLEX'::character varying, 'CT-Lv12'::character varying, 'CT-Lv34'::character varying, 'SP-Lv12'::character varying, 'SP-Lv34'::character varying])::text[]))),
     CONSTRAINT epic_status_alert_rules_late_alert_offset_days_check CHECK ((late_alert_offset_days >= 0)),
     CONSTRAINT epic_status_alert_rules_late_alert_percent_check CHECK (((late_alert_percent >= (0)::numeric) AND (late_alert_percent <= (1000)::numeric)))
+);
+
+CREATE TABLE epic_task_status (
+    epic_key character varying(100) NOT NULL,
+    status character varying(10) DEFAULT 'TODO'::character varying NOT NULL,
+    updated_by_user_id integer,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT epic_task_status_pkey PRIMARY KEY (epic_key),
+    CONSTRAINT epic_task_status_status_check CHECK (((status)::text = ANY ((ARRAY['TODO'::character varying, 'DONE'::character varying])::text[])))
 );
 
 CREATE TABLE holidays (
@@ -910,6 +926,8 @@ ALTER TABLE dashboard_view_settings ADD CONSTRAINT dashboard_view_settings_updat
 ALTER TABLE data_retention_configs ADD CONSTRAINT data_retention_configs_history_thinning_updated_by_user_id_fkey FOREIGN KEY (history_thinning_updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE denied_import_epics ADD CONSTRAINT denied_import_epics_added_by_user_id_fkey FOREIGN KEY (added_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE epic_alert_timeline ADD CONSTRAINT epic_alert_timeline_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
+ALTER TABLE epic_hidden_by_users ADD CONSTRAINT epic_hidden_by_users_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE epic_task_status ADD CONSTRAINT epic_task_status_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE import_admission_settings ADD CONSTRAINT import_admission_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE issues ADD CONSTRAINT issues_epic_id_fkey FOREIGN KEY (epic_id) REFERENCES issues(id) ON DELETE SET NULL;
 ALTER TABLE issues ADD CONSTRAINT issues_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES issues(id) ON DELETE SET NULL;
@@ -1054,7 +1072,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 111 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 113 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1167,7 +1185,9 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261103_add_ttm_applied_rules.sql'),
     ('20261104_add_user_badge_design_style.sql'),
     ('20261105_add_cache_stale_marker.sql'),
-    ('20261106_add_epic_marks.sql');
+    ('20261106_add_epic_marks.sql'),
+    ('20261107_create_epic_hidden_by_users.sql'),
+    ('20261108_create_epic_task_status.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)

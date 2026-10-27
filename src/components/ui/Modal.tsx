@@ -99,6 +99,8 @@ export interface ModalProps {
   footer?: React.ReactNode;
   /** '3xl' is the extra-wide size for reference popups with wide tables ("Logic cảnh báo"). */
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
+  /** Exact max-width class (e.g. 'max-w-[922px]') for a popup sized between the presets; overrides `maxWidth`'s width. */
+  maxWidthClassName?: string;
   /** Icon chip shown before the title. */
   icon?: Icon;
   /** 'top' lifts the popup above every other one — for confirmations asked from inside a popup. */
@@ -119,6 +121,7 @@ export const Modal = ({
   children,
   footer,
   maxWidth = 'md',
+  maxWidthClassName,
   icon,
   layer = 'default',
   actions,
@@ -142,7 +145,7 @@ export const Modal = ({
           MODAL_FRAME_CLASS,
           'w-full',
           maxWidth === '3xl' ? 'max-h-[92dvh]' : 'max-h-[85dvh]',
-          {
+          maxWidthClassName ?? {
             'max-w-sm': maxWidth === 'sm',
             'max-w-md': maxWidth === 'md',
             'max-w-lg': maxWidth === 'lg',

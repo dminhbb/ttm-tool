@@ -437,15 +437,18 @@ function TtmE2eStrips({ compact, row }: { compact: boolean; row: EpicAlertRowPha
   );
 }
 
-/** Quick filter chip: light grey (dark grey in dark mode) while off, orange while on (owner 2026-10-27). */
-function QuickFilterButton({ active, icon: Icon, label, onClick, tooltip }: { active: boolean; icon: PhosphorIcon; label: string; onClick: () => void; tooltip: string }) {
+/** Quick filter chip: light grey (dark grey in dark mode) while off, orange while on (owner 2026-10-27). `count` > 0
+ * adds a brown dot with the number at the top-right corner (a "needs your attention" counter). */
+function QuickFilterButton({ active, count, countLabel, icon: Icon, label, onClick, tooltip }: { active: boolean; count?: number; countLabel?: string; icon: PhosphorIcon; label: string; onClick: () => void; tooltip: string }) {
+  const showCount = typeof count === 'number' && count > 0;
   return (
     <Tooltip content={tooltip} side="top" className="inline-flex w-auto shrink-0">
       <button
         type="button"
         aria-pressed={active}
+        aria-label={showCount ? `${label} — ${countLabel ?? count}` : undefined}
         onClick={onClick}
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+        className={`relative inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border transition-all cursor-pointer shrink-0 whitespace-nowrap ${
           active
             ? 'ttm-quick-filter-on shadow-sm'
             : 'ttm-quick-filter-off'
@@ -453,18 +456,20 @@ function QuickFilterButton({ active, icon: Icon, label, onClick, tooltip }: { ac
       >
         <Icon className="size-3.5" weight={active ? 'bold' : 'regular'} />
         <span>{label}</span>
+        {showCount && <span aria-hidden="true" className="ttm-quick-filter-count">{count > 99 ? '99+' : count}</span>}
       </button>
     </Tooltip>
   );
 }
 
-/** Full-mode twin of the Epic Mark SQL filters (buildFilterClause): without a Mark filter a hidden Epic is left out. */
-function matchesMarkFilter(row: EpicAlertRowPhased, markFilter: 'HIDDEN' | 'MARKED' | 'MINE' | null, markedPmSm: readonly string[], viewerOwnerName: string): boolean {
+/** Full-mode twin of the Epic Mark SQL filters (buildFilterClause): without a Mark filter an Epic the viewer hid is
+ * left out, unless `ignoreHidden` (the TTM index rows). `row.mark.isHidden` is the viewer's own Hide. */
+function matchesMarkFilter(row: EpicAlertRowPhased, markFilter: 'HIDDEN' | 'MARKED' | 'MINE' | null, markedPmSm: readonly string[], viewerOwnerName: string, ignoreHidden = false): boolean {
   const hasComment = (row.mark?.commentCount ?? 0) > 0;
   if (markFilter === 'HIDDEN') return Boolean(row.mark?.isHidden);
   if (markFilter === 'MARKED') return hasComment && (markedPmSm.length === 0 || splitOwnerNames(row.ownerName).some((name) => markedPmSm.includes(name)));
   if (markFilter === 'MINE') return hasComment && viewerOwnerName !== '' && splitOwnerNames(row.ownerName).includes(viewerOwnerName);
-  return !row.mark?.isHidden;
+  return ignoreHidden || !row.mark?.isHidden;
 }
 
 function AlertHistoryButton({ row, onOpen }: { row: EpicAlertRowPhased; onOpen: (row: EpicAlertRowPhased) => void }) {
@@ -576,6 +581,8 @@ interface EpicAlerts15Payload extends EpicAlertPhasedResponse {
   markedOwnerNames?: string[];
   /** Full mode: the viewer's own PM/SM name, for "My assigned epics". */
   viewerOwnerName?: string;
+  /** Dot on "My assigned epics": the viewer's Epics (PM/SM, with a comment) whose "Giao việc" is still To do. */
+  myAssignedTodoCount?: number;
   totalCount?: number;
   page?: number;
   pageSize?: number;
@@ -1090,7 +1097,9 @@ function EpicAlerts15Screen() {
   // Paged mode: the server already filtered/sorted `rows` down to exactly this page (see the API
   // route) — re-filtering here would double-apply the same filters against a set that's already
   // narrowed, silently dropping rows. 'full' mode keeps the original client-side pipeline.
-  const filteredRows = useMemo(() => {
+  // Full mode: every filter except "leave out the Epics the viewer hid" — the rows the TTM index badges count, so
+  // hiding an Epic never changes a metric (the twin of the SQL `ignoreHidden`). The list itself is `filteredRows`.
+  const indexRows = useMemo(() => {
     if (data?.mode === 'paged') return rows;
     return rows.filter((row) => {
       const normalizedSearch = search.trim().toLocaleLowerCase('vi-VN');
@@ -1104,9 +1113,13 @@ function EpicAlerts15Screen() {
         && (requestingUnitFilters.length === 0 || (row.requestingUnit !== null && requestingUnitFilters.includes(row.requestingUnit)))
         && (ruleGroupFilters.length === 0 || (Boolean(row.ruleGroupName) && ruleGroupFilters.includes(row.ruleGroupName!)))
         && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch))
-        && matchesMarkFilter(row, markFilter, markedPmSmFilters, data?.viewerOwnerName ?? '');
+        && matchesMarkFilter(row, markFilter, markedPmSmFilters, data?.viewerOwnerName ?? '', true);
     }).sort((a, b) => listGroupRankOf(a.currentStatus, a.ttmCnttInScope) - listGroupRankOf(b.currentStatus, b.ttmCnttInScope));
   }, [data?.mode, data?.viewerOwnerName, rows, projectFilters, pmSmFilters, componentFilters, alertFilters, typeFilters, statusFilters, dataIssueFilter, requestingUnitFilters, ruleGroupFilters, search, markFilter, markedPmSmFilters]);
+  const filteredRows = useMemo(
+    () => (data?.mode === 'paged' || markFilter ? indexRows : indexRows.filter((row) => !row.mark?.isHidden)),
+    [data?.mode, indexRows, markFilter],
+  );
 
   // "Marked epics" user dropdown: the PM/SMs of the Epics with a comment in the viewer's scope.
   const markedOwnerOptions = useMemo(
@@ -1116,8 +1129,8 @@ function EpicAlerts15Screen() {
     [data, rows],
   );
 
-  const clientTtmCnttQlda = useMemo(() => summarizeTtmCntt(filteredRows), [filteredRows]);
-  const clientTtmCnttQa = useMemo(() => summarizeQaIndex(filteredRows), [filteredRows]);
+  const clientTtmCnttQlda = useMemo(() => summarizeTtmCntt(indexRows), [indexRows]);
+  const clientTtmCnttQa = useMemo(() => summarizeQaIndex(indexRows), [indexRows]);
   const ttmCnttQlda = data?.mode === 'paged' && data.ttmIndexPm ? data.ttmIndexPm : clientTtmCnttQlda;
   const ttmCnttQa = data?.mode === 'paged' && data.qaIndexPm ? data.qaIndexPm : clientTtmCnttQa;
   // Publishes the badges into AppShell's shared sticky header (see epic-header-widgets-context.tsx).
@@ -1384,8 +1397,18 @@ function EpicAlerts15Screen() {
               onChange={(values) => { setMarkedPmSmFilters(values); setPage(1); }}
             />
           )}
-          <QuickFilterButton active={markFilter === 'HIDDEN'} icon={EyeSlash} label="Hidden epics" onClick={() => handleMarkQuickFilter('HIDDEN')} tooltip="Lọc các Epic đang bị ẩn khỏi danh sách trong phạm vi dữ liệu của bạn" />
-          <QuickFilterButton active={markFilter === 'MINE'} icon={UserFocus} label="My assigned epics" onClick={() => handleMarkQuickFilter('MINE')} tooltip="Lọc các Epic có comment và do bạn làm PM/SM (kể cả Epic đã ẩn)" />
+          <QuickFilterButton active={markFilter === 'HIDDEN'} icon={EyeSlash} label="Hidden epics" onClick={() => handleMarkQuickFilter('HIDDEN')} tooltip="Lọc các Epic bạn đã ẩn khỏi danh sách của bạn (người khác vẫn thấy các Epic này)" />
+          <QuickFilterButton
+            active={markFilter === 'MINE'}
+            count={data?.myAssignedTodoCount}
+            countLabel={`${data?.myAssignedTodoCount ?? 0} Epic được giao còn To do`}
+            icon={UserFocus}
+            label="My assigned epics"
+            onClick={() => handleMarkQuickFilter('MINE')}
+            tooltip={(data?.myAssignedTodoCount ?? 0) > 0
+              ? `Lọc các Epic có comment và do bạn làm PM/SM (kể cả Epic đã ẩn) — ${data?.myAssignedTodoCount} Epic còn Giao việc = To do`
+              : 'Lọc các Epic có comment và do bạn làm PM/SM (kể cả Epic đã ẩn)'}
+          />
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0 ml-auto">
@@ -1514,7 +1537,7 @@ function EpicAlerts15Screen() {
             <THead>
               <TR>
                 <TH className={`ttm-epic-col-sticky ttm-col-border-right text-left align-top ${allColumnsCollapsed ? 'min-w-[160px]' : 'min-w-[200px]'}`} title="issues.issue_key / issues.issue_name">EPIC</TH>
-                <TH className="w-[1%] min-w-[44px] text-center align-top" title="Epic có comment (cờ) và/hoặc đang bị ẩn (mắt gạch chéo) — bấm để mở Mark & Comment">MARK</TH>
+                <TH className="w-[1%] min-w-[44px] text-center align-top" title="Epic có comment (cờ: cam = Giao việc To do, xanh lá = Done) và/hoặc bạn đã ẩn (mắt gạch chéo) — bấm để mở Review Notes">REVIEW</TH>
                 <TH className="w-[1%] min-w-[140px] ttm-col-border-right text-left align-top" title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">SCORING</TH>
                 <TH className="w-[1%] min-w-[42px] text-center align-top ttm-col-pass" title="Đánh giá kết quả TTM-CNTT (QLDA): Đạt (xanh) / Fail (orange); bên dưới là TTM-E2E: Đạt (xanh dương nhạt) / Fail (nâu nhạt)">PASS</TH>
                 <TH className="w-[1%] min-w-[132px] text-left align-top" title="Baseline (dòng trên) = Start Date + TTM-CNTT (QLDA); Thực tế (dòng dưới) = Start Date → R4G Date (hoặc hôm nay nếu chưa có)">TTM-CNTT (QLDA)</TH>
@@ -1652,7 +1675,7 @@ function EpicAlerts15Screen() {
       <EpicBrowserModal epicKey={browsingEpicKey} onClose={() => setBrowsingEpicKey(null)} />
 
       {markEpicKey && (
-        <EpicMarkModal key={markEpicKey} epicKey={markEpicKey} onChanged={() => { void fetchData(); }} onClose={() => setMarkEpicKey(null)} />
+        <EpicMarkModal key={markEpicKey} epicKey={markEpicKey} onChanged={() => { void fetchData(); }} onClose={() => setMarkEpicKey(null)} viewAsUserId={viewAsUserId || undefined} />
       )}
     </div>
   );

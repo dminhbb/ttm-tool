@@ -32,12 +32,13 @@ export interface EpicAlertRowCacheFilters {
   /** "Nhóm rule" (Rule Management) names — rule_group_name of the cache row. */
   ruleGroups?: string[];
   search?: string;
-  /** Epic Mark quick filters (owner 2026-10-27): MARKED = has a comment (hidden ones included), HIDDEN = hidden,
-   * MINE = has a comment and the viewer is one of its PM/SMs. Without one, hidden Epics are left out of the list. */
+  /** Epic Mark quick filters (owner 2026-10-27): MARKED = has a comment (hidden ones included), HIDDEN = hidden by
+   * the viewer, MINE = has a comment and the viewer is one of its PM/SMs. Without one, the Epics the viewer hid are
+   * left out of the list. */
   markFilter?: 'HIDDEN' | 'MARKED' | 'MINE';
   /** With MARKED: narrow to Epics of these PM/SMs (e-mail local parts, as in owner_names). */
   markedPmSm?: string[];
-  /** The viewer, for MINE. */
+  /** The viewer (the previewed user under "Xem dưới quyền"): whose Hide applies, and MINE. */
   viewerUserId?: number;
 }
 
@@ -98,10 +99,14 @@ function buildFilterClause(scope: AccessScope, filters: EpicAlertRowCacheFilters
   const params: unknown[] = [];
   const clauses: string[] = [buildAccessScopeClause(scope, params)];
 
-  // Epic Mark: a hidden Epic is left out of the list unless a Mark quick filter is on. The TTM index
-  // badges pass ignoreHidden — hiding an Epic never changes a metric.
+  // Epic Mark: an Epic the VIEWER hid (Hide is personal — epic_hidden_by_users) is left out of their list unless a
+  // Mark quick filter is on. The TTM index badges pass ignoreHidden — hiding an Epic never changes a metric.
+  const viewerHidClause = () => {
+    params.push(filters.viewerUserId ?? 0);
+    return `EXISTS (SELECT 1 FROM epic_hidden_by_users h WHERE h.epic_key = epic_alert_row_cache.epic_key AND h.user_id = $${params.length})`;
+  };
   if (filters.markFilter === 'HIDDEN') {
-    clauses.push('EXISTS (SELECT 1 FROM epic_marks m WHERE m.epic_key = epic_alert_row_cache.epic_key AND m.is_hidden)');
+    clauses.push(viewerHidClause());
   } else if (filters.markFilter === 'MARKED' || filters.markFilter === 'MINE') {
     clauses.push('EXISTS (SELECT 1 FROM epic_comments c WHERE c.epic_key = epic_alert_row_cache.epic_key)');
     if (filters.markFilter === 'MARKED' && filters.markedPmSm && filters.markedPmSm.length > 0) {
@@ -113,7 +118,7 @@ function buildFilterClause(scope: AccessScope, filters: EpicAlertRowCacheFilters
       clauses.push(`owner_names @> ARRAY[(SELECT SPLIT_PART(LOWER(u.email), '@', 1) FROM users u WHERE u.id = $${params.length})]`);
     }
   } else if (!options.ignoreHidden) {
-    clauses.push('NOT EXISTS (SELECT 1 FROM epic_marks m WHERE m.epic_key = epic_alert_row_cache.epic_key AND m.is_hidden)');
+    clauses.push(`NOT ${viewerHidClause()}`);
   }
 
   if (filters.projectKeys && filters.projectKeys.length > 0) {

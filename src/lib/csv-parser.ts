@@ -1,3 +1,5 @@
+import { EXCEPT_TTM_PLAN_HEADERS, TTM_APPLIED_HEADERS } from './import-ttm-applied-columns';
+
 export interface RawJiraIssue {
   summary: string;
   issueKey: string;
@@ -154,8 +156,8 @@ export function mapCSVToRawIssues(rows: string[][]): { issues: RawJiraIssue[]; h
   const idxKhauSitUat = getIndex(['epic_khau_sit_uat', 'Khâu SIT/UAT', 'Khâu SIT UAT']);
   const idxNoteLyDoKhac = getIndex(['epic_note_ly_do_khac', 'Note lý do khác']);
   const idxMainFailDept = getIndex(['main_fail_dept', 'epic_main_fail_dept', 'Phòng chịu trách nhiệm chính']);
-  const idxTtmApplied = getIndex(['TTM-applied', 'ttm_applied', 'epic_ttm_applied']);
-  const idxExceptTtmPlan = getIndex(['except-TTM-plan', 'except_ttm_plan', 'epic_except_ttm_plan']);
+  const idxTtmApplied = getIndex([...TTM_APPLIED_HEADERS]);
+  const idxExceptTtmPlan = getIndex([...EXCEPT_TTM_PLAN_HEADERS]);
   
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r];

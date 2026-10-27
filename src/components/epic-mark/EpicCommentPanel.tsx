@@ -6,7 +6,7 @@ import { EpicCommentList } from '@/components/epic-mark/EpicCommentList';
 import type { EpicCommentEntry } from '@/lib/epic-mark-format';
 
 /**
- * Read-only "Comment" panel of the Duyệt Epic popup: the Epic's comments (newest first) and its Hide/Unhide state.
+ * Read-only "Comment" panel of the Duyệt Epic popup: the Epic's comments (newest first) and whether the viewer hid it.
  * Shows nothing for an Epic without comments that is not hidden, or when the viewer's data scope lacks the Epic.
  */
 export function EpicCommentPanel({ epicKey }: { epicKey: string }) {
@@ -34,7 +34,7 @@ export function EpicCommentPanel({ epicKey }: { epicKey: string }) {
         <span>Comment ({state.comments.length})</span>
         {state.isHidden && (
           <span className="inline-flex items-center gap-1 rounded bg-fb-surface-muted px-1.5 py-0.5 text-[11px] normal-case tracking-normal text-fb-text-primary">
-            <EyeSlash className="size-3.5" weight="bold" />Đang ẩn khỏi Quản trị Epic
+            <EyeSlash className="size-3.5" weight="bold" />Bạn đã ẩn khỏi Quản trị Epic của bạn
           </span>
         )}
       </div>

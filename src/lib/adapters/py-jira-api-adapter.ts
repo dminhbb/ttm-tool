@@ -38,6 +38,7 @@
  */
 
 import { parseCSV, type RawJiraIssue } from '../csv-parser';
+import { EXCEPT_TTM_PLAN_HEADERS, TTM_APPLIED_HEADERS } from '../import-ttm-applied-columns';
 
 export interface PyJiraApiParseResult {
   issues: RawJiraIssue[];
@@ -129,8 +130,8 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
     // "Phòng chịu trách nhiệm chính" (2026-10-14) — the crawl names it main_fail_dept, without the epic_ prefix.
     main_fail_dept: idx('main_fail_dept') >= 0 ? idx('main_fail_dept') : idx('epic_main_fail_dept'),
     // "TTM-applied" / "except-TTM-plan" (2026-10-26) — the crawl's own header spelling first, then the snake_case ones.
-    ttm_applied: firstIdx('TTM-applied', 'ttm_applied', 'epic_ttm_applied'),
-    except_ttm_plan: firstIdx('except-TTM-plan', 'except_ttm_plan', 'epic_except_ttm_plan'),
+    ttm_applied: firstIdx(...TTM_APPLIED_HEADERS),
+    except_ttm_plan: firstIdx(...EXCEPT_TTM_PLAN_HEADERS),
     // Optional, read only by the "Từ chối import" rules (import-admission-rules.ts): Jira's own
     // level-1 issue type and the date the Epic moved to its current status.
     epic_issue_type: idx('epic_issue_type'),

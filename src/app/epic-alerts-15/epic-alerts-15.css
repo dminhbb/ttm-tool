@@ -1240,5 +1240,23 @@
 :root[data-theme="dark"] .ttm-quick-filter-off:hover { background-color: #474d63; color: #ffffff; }
 .ttm-quick-filter-on { background-color: #f97316; border-color: #f97316; color: #ffffff; }
 .ttm-quick-filter-on:hover { background-color: #ea580c; border-color: #ea580c; color: #ffffff; }
+/* Counter dot on a quick filter ("My assigned epics": Epics given to the viewer still To do) — brown with white text. */
+.ttm-quick-filter-count {
+  position: absolute; top: -8px; right: -8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 9999px; border: 2px solid var(--color-bg-surface, #ffffff);
+  background-color: #8b4513; color: #ffffff;
+  font-size: 10px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+/* Mark & Comment popup — chat frame light grey, message bubbles light navy (owner 2026-10-27). */
+.ttm-chat-frame { background-color: #f1f3f7; }
+.ttm-chat-bubble { background-color: #dfe6f4; color: #14254a; }
+:root[data-theme="dark"] .ttm-chat-frame { background-color: #1a1e31; }
+:root[data-theme="dark"] .ttm-chat-bubble { background-color: #283657; color: #e4eafa; }
 .ttm-mark-flag { color: #f97316; }
+/* Flag of an Epic whose "Giao việc" is Done. */
+.ttm-mark-flag-done { color: #16a34a; }
+:root[data-theme="dark"] .ttm-mark-flag-done { color: #4ade80; }
 :root[data-theme="dark"] .ttm-mark-flag { color: #fb923c; }

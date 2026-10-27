@@ -22,6 +22,7 @@ import { getImportAdmissionSettings, loadImportAdmissionList, loadLastUnreleased
 import { describeViolations, normalizeEpicKey, planImportAdmission, vietnamIsoDate } from './import-admission-rules';
 import { isLevel1IssueType } from './issue-hierarchy';
 import { syncImportBlackList } from './import-black-list';
+import { ttmAppliedColumnsOf, type TtmAppliedColumns } from './import-ttm-applied-columns';
 import { normalizeTtmApplied, parseExceptPlanDate } from './scoring/ttm-applied';
 
 // Epic complexity rule (company rule change, 2026-09) — 4-way classification from epic_request_type
@@ -60,6 +61,30 @@ function computeEpicComplexity(requestType: string, requirementLevel: string): E
 }
 
 const VALID_COMPLEXITY = new Set<string>(['CT-Lv12', 'CT-Lv34', 'SP-Lv12', 'SP-Lv34']);
+
+/**
+ * For a file without the "TTM-applied" and/or "except-TTM-plan" column: the batch's issue rows take that field
+ * from the issue's newest earlier version (aggregated_at not after this batch's), so a Jira UI export or an
+ * older crawl file never blanks the field out. No earlier version → stays NULL. No-op when both columns are present.
+ */
+export async function carryForwardMissingTtmAppliedColumns(client: Pick<PoolClient, 'query'>, batchId: number, columns: TtmAppliedColumns): Promise<number> {
+  if (columns.hasTtmApplied && columns.hasExceptTtmPlan) return 0;
+  const result = await client.query(`
+    UPDATE issues cur SET
+      ttm_applied = CASE WHEN $2::boolean THEN cur.ttm_applied ELSE prev.ttm_applied END,
+      except_ttm_plan = CASE WHEN $3::boolean THEN cur.except_ttm_plan ELSE prev.except_ttm_plan END
+    FROM (
+      SELECT DISTINCT ON (p.issue_key) p.issue_key, p.ttm_applied, p.except_ttm_plan
+      FROM issues p
+      JOIN issues b ON b.issue_key = p.issue_key AND b.source_import_batch_id = $1
+      WHERE p.source_import_batch_id <> $1 AND p.aggregated_at <= b.aggregated_at
+      ORDER BY p.issue_key, p.aggregated_at DESC, p.id DESC
+    ) prev
+    WHERE cur.source_import_batch_id = $1 AND cur.issue_key = prev.issue_key
+      AND (prev.ttm_applied IS NOT NULL OR prev.except_ttm_plan IS NOT NULL);
+  `, [batchId, columns.hasTtmApplied, columns.hasExceptTtmPlan]);
+  return result.rowCount ?? 0;
+}
 
 /**
  * Derives the alert timeline for one import batch from the canonical `issues` rows already stored
@@ -210,12 +235,13 @@ export async function processImport(
 ): Promise<ImportResult> {
   // 1. Parse CSV — dispatch to the correct adapter
   let parsedIssues;
+  let parsedHeaders: string[];
   if (adapterType === ADAPTER_TYPES.PY_JIRA_API) {
-    ({ issues: parsedIssues } = parsePyJiraApi(csvText));
+    ({ issues: parsedIssues, headers: parsedHeaders } = parsePyJiraApi(csvText));
   } else {
     // PURE_JIRA_EXPORT (original / legacy path)
     const parsedRows = parseCSV(csvText);
-    ({ issues: parsedIssues } = mapCSVToRawIssues(parsedRows));
+    ({ issues: parsedIssues, headers: parsedHeaders } = mapCSVToRawIssues(parsedRows));
     // parsePureJiraExport is a thin wrapper — call it for symmetry in future
     void parsePureJiraExport; // explicit reference so tree-shaking keeps the module
   }
@@ -480,15 +506,24 @@ export async function processImport(
         );
       }
 
+      // 4a. A file without the TTM-applied / except-TTM-plan column says nothing about it: keep the value of the
+      // issue's previous version instead of storing NULL (2026-10-27).
+      const ttmColumns = ttmAppliedColumnsOf(parsedHeaders);
+      await carryForwardMissingTtmAppliedColumns(client, batchId, ttmColumns);
+
       // 4b. "TTM-applied" = 'Không áp dụng' → black list (inside this transaction, so the caches refreshed after COMMIT see it).
-      await syncImportBlackList(
-        client,
-        validIssues
-          .filter((issue) => isLevel1IssueType(issue.issueType))
-          .map((issue) => ({ epicKey: issue.issueKey, projectKey: issue.projectKey?.trim() || issue.issueKey.split('-')[0] || '', ttmApplied: normalizeTtmApplied(issue.ttmApplied) })),
-        batchId,
-        aggregatedAtDate,
-      );
+      // Only a file that carries the column decides — otherwise every Epic would read as "Theo quy định" and lose its
+      // IMPORT black-list row.
+      if (ttmColumns.hasTtmApplied) {
+        await syncImportBlackList(
+          client,
+          validIssues
+            .filter((issue) => isLevel1IssueType(issue.issueType))
+            .map((issue) => ({ epicKey: issue.issueKey, projectKey: issue.projectKey?.trim() || issue.issueKey.split('-')[0] || '', ttmApplied: normalizeTtmApplied(issue.ttmApplied) })),
+          batchId,
+          aggregatedAtDate,
+        );
+      }
 
       // 5. Link relationships within the batch.
       //

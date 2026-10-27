@@ -69,7 +69,9 @@
         "makeup_workdays",
         "black_listed_epics",
         "epic_marks",
-        "epic_comments"
+        "epic_comments",
+        "epic_hidden_by_users",
+        "epic_task_status"
       ]
     },
     {
@@ -327,11 +329,19 @@
       }
     },
     "epic_marks": {
-      "description": "<strong>Mới 27/10/2026.</strong> \"Epic Mark\": mỗi dòng là 1 Epic từng được Hide/Unhide (<code>is_hidden</code>, người cập nhật). Epic đang ẩn không hiển thị trong danh sách Quản trị Epic nhưng vẫn tính vào mọi chỉ số.",
+      "description": "<strong>Mới 27/10/2026, ngừng dùng cùng ngày.</strong> Cờ ẩn Epic dùng chung cho mọi người (<code>is_hidden</code>) — thay bằng <code>epic_hidden_by_users</code> (ẩn theo từng người). Code mới không còn đọc bảng này; sẽ xoá bằng một migration sau khi bản mới được deploy.",
       "columns": {}
     },
     "epic_comments": {
-      "description": "<strong>Mới 27/10/2026.</strong> Comment lũy kế của Epic (Mark &amp; Comment): tối đa 256 ký tự, không sửa/xoá; Hide/Unhide ghi thêm 1 dòng hệ thống (<code>is_system</code>). <code>user_name</code> lưu cố định tên người lưu.",
+      "description": "<strong>Mới 27/10/2026.</strong> Comment lũy kế của Epic (Mark &amp; Comment): tối đa 256 ký tự, không sửa/xoá; các dòng <code>is_system</code> là ghi chú hệ thống cũ (từ 27/10/2026 Hide/Unhide không ghi comment nữa). <code>user_name</code> lưu cố định tên người lưu.",
+      "columns": {}
+    },
+    "epic_hidden_by_users": {
+      "description": "<strong>Mới 27/10/2026.</strong> Ẩn Epic theo từng người: mỗi dòng = 1 người đã ẩn 1 Epic khỏi danh sách Quản trị Epic <em>của riêng họ</em>; Unhide xoá dòng. Người khác vẫn thấy Epic; mọi chỉ số vẫn tính Epic này.",
+      "columns": {}
+    },
+    "epic_task_status": {
+      "description": "<strong>Mới 27/10/2026.</strong> \"Giao việc\" của Epic (toggle trong popup Mark &amp; Comment): <code>TODO</code> (mặc định, không có dòng = TODO) / <code>DONE</code>, dùng chung cho mọi người. Epic có comment được coi là đã giao cho PM/SM; PM/SM của Epic hoặc ADMIN trở lên chuyển DONE khi xong. Comment mới không tự đưa về TODO. Đếm Epic còn TODO hiện trên nút \"My assigned epics\".",
       "columns": {}
     },
     "scoring_parameters": {
