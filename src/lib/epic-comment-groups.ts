@@ -235,6 +235,9 @@ export function packCommentBadges(
   return lines.flatMap((line) => line.items);
 }
 
+/** Verdicts shown as icons in the PASS column instead of badges in "Nhận xét". */
+const PASS_COLUMN_KEYS = new Set(['CNTT_FAIL', 'CNTT_PASS', 'E2E_FAIL', 'E2E_PASS']);
+
 /**
  * Danh sách tất cả các badge của Epic cho chế độ hiển thị "Liệt kê" ('list') tại cột "Nhận xét",
  * sử dụng cùng bảng màu nền theo nhóm như thiết kế "Tối giản" ('minimal') và được sắp xếp thông minh
@@ -257,15 +260,17 @@ export function listEpicCommentBadges(row: EpicAlertRowPhased, maxRowUnits = 34)
 
   for (const group of groups) {
     for (const item of group.items) {
-      // Bỏ badge Fail/Đạt TTM-CNTT (QLDA) trong chế độ "Liệt kê" vì đã hiển thị riêng tại cột PASS (owner 2026-10-26).
-      if (item.key === 'CNTT_FAIL' || item.key === 'CNTT_PASS') continue;
+      // Bỏ badge Fail/Đạt TTM-CNTT (QLDA) và Fail/Đạt TTM-E2E trong chế độ "Liệt kê" vì đã hiển thị
+      // riêng dạng icon tại cột PASS (owner 2026-10-26, 2026-10-27).
+      if (PASS_COLUMN_KEYS.has(item.key)) continue;
       rawBadges.push({
         key: item.key,
         label: item.label,
         message: item.message,
         groupKey: group.key,
         tone: item.tone,
-        colorClass: resolveBadgeColorClass(group.key, item.tone),
+        // "Bổ sung Start Date": nền đỏ nhạt (owner 2026-10-27).
+        colorClass: item.key === 'REC_FILL_START_DATE' ? 'ttm-comment-badge-light-red' : resolveBadgeColorClass(group.key, item.tone),
       });
     }
   }

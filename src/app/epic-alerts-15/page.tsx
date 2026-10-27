@@ -1495,7 +1495,7 @@ function EpicAlerts15Screen() {
               <TR>
                 <TH className={`ttm-epic-col-sticky ttm-col-border-right text-left align-top ${allColumnsCollapsed ? 'min-w-[160px]' : 'min-w-[200px]'}`} title="issues.issue_key / issues.issue_name">EPIC</TH>
                 <TH className="w-[1%] min-w-[140px] text-left align-top" title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">NHẬN XÉT</TH>
-                <TH className="w-[1%] min-w-[42px] text-center align-top ttm-col-pass" title="Đánh giá kết quả TTM-CNTT (QLDA): Đạt (xanh) / Fail (orange)">PASS</TH>
+                <TH className="w-[1%] min-w-[42px] text-center align-top ttm-col-pass" title="Đánh giá kết quả TTM-CNTT (QLDA): Đạt (xanh) / Fail (orange); bên dưới là TTM-E2E: Đạt (xanh dương nhạt) / Fail (nâu nhạt)">PASS</TH>
                 <TH className="w-[1%] min-w-[132px] text-left align-top" title="Baseline (dòng trên) = Start Date + TTM-CNTT (QLDA); Thực tế (dòng dưới) = Start Date → R4G Date (hoặc hôm nay nếu chưa có)">TTM-CNTT (QLDA)</TH>
                 <TH className="w-[1%] ttm-col-border-right min-w-[132px] text-left align-top" title="Baseline (dòng trên) = T0 + TTM-E2E; Thực tế (dòng dưới) = T0 → Due Date (hoặc hôm nay nếu chưa có). T0 = Idea Approved Date, hoặc Start Date, hoặc ngày tạo Jira">TTM-E2E</TH>
                 <TH className="w-[1%] min-w-[72px] text-left align-top" title="issues.current_status">STATUS</TH>

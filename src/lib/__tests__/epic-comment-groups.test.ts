@@ -106,15 +106,17 @@ describe('"Nhận xét" 1x4 table groups (Quản trị Epic, 2026-10-16)', () =>
     const badges = listEpicCommentBadges(row);
     const byKey = new Map(badges.map((b) => [b.key, b]));
     assert.equal(byKey.has('CNTT_FAIL'), false);
-    assert.equal(byKey.get('E2E_FAIL')?.colorClass, 'ttm-comment-cell-orange');
+    assert.equal(byKey.has('E2E_FAIL'), false);
     assert.equal(byKey.get('REC_MISSING_FAIL_REASON')?.colorClass, 'ttm-comment-cell-action');
     assert.equal(byKey.get('ANOMALY_R2_PENDING_TOO_LONG')?.colorClass, 'ttm-comment-cell-warning');
     assert.equal(byKey.get('MISSING_START_DATE:Thiếu Start Date (T1)')?.colorClass, 'ttm-comment-cell-orange');
 
     const passRow = rowOf({ r4gDate: '2026-08-01', scoringBadges: ['CNTT_PASS', 'E2E_PASS'] });
     const passBadges = listEpicCommentBadges(passRow);
-    assert.deepEqual(passBadges.map((b) => b.key), ['E2E_PASS']);
-    assert.equal(passBadges[0].colorClass, 'ttm-comment-cell-result');
+    assert.deepEqual(passBadges.map((b) => b.key), []);
+
+    const fillStart = listEpicCommentBadges(rowOf({ scoringBadges: ['REC_FILL_START_DATE'], scoringFindings: [finding('REC_FILL_START_DATE')] }));
+    assert.equal(fillStart.find((b) => b.key === 'REC_FILL_START_DATE')?.colorClass, 'ttm-comment-badge-light-red');
   });
 
   it('listEpicCommentBadges includes OUT_OF_SCOPE badge when ttmCnttInScope is false', () => {

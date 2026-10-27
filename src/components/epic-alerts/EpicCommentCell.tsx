@@ -12,7 +12,7 @@ import {
   type CommentGroup,
   type CommentGroupKey,
 } from '@/lib/epic-comment-groups';
-import { isTtmCnttAchieved } from '@/lib/epic-row-verdicts';
+import { isTtmCnttAchieved, isTtmE2eAchieved } from '@/lib/epic-row-verdicts';
 
 /**
  * Xác định class màu của ô và panel (owner 2026-10-16):
@@ -199,6 +199,41 @@ export function EpicCommentCell({ row }: { row: EpicAlertRowPhased }) {
  * - No text, icon only
  */
 export function TtmCnttPassCell({ row }: { row: EpicAlertRowPhased }) {
+  return (
+    <span className="inline-flex flex-col items-center gap-1">
+      <TtmCnttPassIcon row={row} />
+      <TtmE2ePassIcon row={row} />
+    </span>
+  );
+}
+
+/**
+ * TTM-E2E icon under the TTM-CNTT one in the PASS column (owner 2026-10-27): same icons,
+ * Đạt = light blue, Fail = light brown. Replaces the Fail/Đạt TTM-E2E badges of "Nhận xét".
+ */
+function TtmE2ePassIcon({ row }: { row: EpicAlertRowPhased }) {
+  if (row.ttmE2eAlertLevel === 'FAIL') {
+    return (
+      <Tooltip className="inline-flex w-auto" content="Fail TTM-E2E">
+        <span className="inline-flex items-center justify-center">
+          <XCircle aria-label="Fail TTM-E2E" className="size-5 ttm-icon-e2e-fail" weight="fill" />
+        </span>
+      </Tooltip>
+    );
+  }
+  if (isTtmE2eAchieved(row)) {
+    return (
+      <Tooltip className="inline-flex w-auto" content="Đạt TTM-E2E">
+        <span className="inline-flex items-center justify-center">
+          <CheckCircle aria-label="Đạt TTM-E2E" className="size-5 ttm-icon-e2e-pass" weight="fill" />
+        </span>
+      </Tooltip>
+    );
+  }
+  return null;
+}
+
+function TtmCnttPassIcon({ row }: { row: EpicAlertRowPhased }) {
   // Bỏ trống nếu Epic chưa có đánh giá pass/fail chỉ số TTM-CNTT:
   // ngoài phạm vi, thiếu Start Date (T1), hoặc trong danh sách loại trừ
   if (!row.ttmCnttInScope || !row.t1StartDate || row.ttmBlackListed || row.ttmExclusion) {
