@@ -98,7 +98,10 @@ từ chối cả các Epic đang trong phạm vi:
   **Ngoại lệ:** Epic mà CSDL đã ghi nhận ở status khác Released / MVP Done vào/sau ngày B (`issues`) chắc chắn chuyển sang Released sau B → không bị rule B từ chối (ví dụ DL-65580:
   due 25/06 nhưng Released 10/09). Từ 2026-10-26 bằng chứng tính theo **khoảng hiệu lực** của mỗi phiên bản
   (từ ngày import tới ngày trước phiên bản kế tiếp, phiên bản mới nhất tới hôm nay — `loadLastUnreleasedSeen`, dùng `LEAD`), nên một
-  phiên bản chưa Released import trước B mà còn hiệu lực tới B cũng được tính. Job dọn dữ liệu hằng ngày ghi sẵn dòng `AUTO_EXEMPT`
+  phiên bản chưa Released import trước B mà còn hiệu lực tới B cũng được tính. **Giới hạn (27/10/2026):** khoảng hiệu lực chỉ kéo dài
+  tới phiên bản kế tiếp khi hai phiên bản liền kề cách nhau tối đa `PROOF_MAX_GAP_DAYS` = 7 ngày; khoảng cách dài hơn thì bằng chứng
+  chỉ tính đúng ngày của phiên bản đó (vì làm thưa lịch sử có thể đã xoá phiên bản Released ở giữa, và miễn nhầm là ghi vĩnh viễn
+  `AUTO_EXEMPT`, còn từ chối nhầm thì admin cho phép lại được). Job dọn dữ liệu hằng ngày ghi sẵn dòng `AUTO_EXEMPT`
   cho mọi Epic đang có bằng chứng (`recordHistoryProvenExemptions`, bước `admission_exemptions`, chạy trước bước làm thưa lịch sử `issues`)
   để bằng chứng không mất khi phiên bản cũ bị làm thưa.
 

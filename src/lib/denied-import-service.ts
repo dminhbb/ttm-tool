@@ -96,6 +96,15 @@ export async function saveImportAdmissionSettings(settings: ImportAdmissionSetti
 }
 
 /**
+ * Longest stretch (days) between two consecutive stored versions of an issue over which "unreleased" is still taken to
+ * hold (2026-10-27). A daily file only carries the issues updated that day, so a short gap is just "no change" — but
+ * the history thinning (data-layer-retention.ts) also drops versions, and across a long gap a dropped version may have
+ * been the Released one. Beyond this the proof stays at the version's own day, as before 2026-10-26: a wrong "denied"
+ * is recoverable (an admin allows the Epic), a wrong "exempt" is recorded for good (AUTO_EXEMPT).
+ */
+export const PROOF_MAX_GAP_DAYS = 7;
+
+/**
  * Epic key → last day (Vietnam) the database saw it in a status other than Released / MVP Done in
  * the RAW `issues` rows — the proof RELEASED_BEFORE needs that an Epic got to Released after B
  * (import-admission-rules.ts). 'N/A' (status not exported) proves nothing. Once the proof ages out
@@ -103,10 +112,10 @@ export async function saveImportAdmissionSettings(settings: ImportAdmissionSetti
  */
 export async function loadLastUnreleasedSeen(db: Queryable, epicKeys: readonly string[]): Promise<Map<string, string>> {
   if (epicKeys.length === 0) return new Map();
-  // A version is in force from its own day until the day before the next version of the issue (a daily file
-  // only carries the issues updated that day, so no version = no change), or until today for the newest one.
-  // Reading that whole span — not just the version's own date — keeps the proof when the history thinning
-  // (data-layer-retention.ts) drops the versions in between (2026-10-26).
+  // A version is in force from its own day until the day before the next version of the issue when that next
+  // version is at most PROOF_MAX_GAP_DAYS later (a daily file only carries the issues updated that day, so no
+  // version = no change), and until today for the newest one. Across a longer gap only its own day counts: the
+  // versions the history thinning dropped there could include the Released one (2026-10-26, narrowed 2026-10-27).
   const result = await db.query<{ epicKey: string; lastDate: string }>(`
     WITH versions AS (
       SELECT issue_key, current_status,
@@ -117,13 +126,13 @@ export async function loadLastUnreleasedSeen(db: Queryable, epicKeys: readonly s
     )
     SELECT issue_key AS "epicKey", MAX(CASE
       WHEN next_day IS NULL THEN (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date
-      WHEN next_day > day THEN next_day - 1
+      WHEN next_day > day AND next_day - day <= $2::int THEN next_day - 1
       ELSE day
     END)::text AS "lastDate"
     FROM versions
     WHERE UPPER(TRIM(current_status)) NOT IN ('RELEASED', 'MVP DONE', 'MVPDONE', 'N/A', '')
     GROUP BY issue_key;
-  `, [[...epicKeys]]);
+  `, [[...epicKeys], PROOF_MAX_GAP_DAYS]);
   return new Map(result.rows.map((row) => [row.epicKey, row.lastDate]));
 }
 
