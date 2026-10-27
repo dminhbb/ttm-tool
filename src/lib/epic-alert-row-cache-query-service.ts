@@ -32,6 +32,13 @@ export interface EpicAlertRowCacheFilters {
   /** "Nhóm rule" (Rule Management) names — rule_group_name of the cache row. */
   ruleGroups?: string[];
   search?: string;
+  /** Epic Mark quick filters (owner 2026-10-27): MARKED = has a comment (hidden ones included), HIDDEN = hidden,
+   * MINE = has a comment and the viewer is one of its PM/SMs. Without one, hidden Epics are left out of the list. */
+  markFilter?: 'HIDDEN' | 'MARKED' | 'MINE';
+  /** With MARKED: narrow to Epics of these PM/SMs (e-mail local parts, as in owner_names). */
+  markedPmSm?: string[];
+  /** The viewer, for MINE. */
+  viewerUserId?: number;
 }
 
 export interface EpicAlertRowCachePage {
@@ -58,7 +65,7 @@ interface WhereClause {
 /** Reproduces resolveAccessScope's project/component narrowing as a SQL predicate — a project
  * granted without component narrowing matches on project_key alone; a project narrowed to specific
  * components (PM/SM only) also requires components && the granted list. */
-function buildAccessScopeClause(scope: AccessScope, params: unknown[]): string {
+export function buildAccessScopeClause(scope: AccessScope, params: unknown[]): string {
   if (scope.sourceProjectKeys === null) return 'TRUE';
   if (scope.sourceProjectKeys.length === 0) return 'FALSE';
   const clauses: string[] = [];
@@ -87,9 +94,27 @@ export function rowInAccessScope(scope: AccessScope, projectKey: string, compone
 
 /** Everything from EpicAlertRowCacheFilters except pagination — shared by the page query, its
  * COUNT, and the stat-widget aggregate, all of which must agree on exactly the same row set. */
-function buildFilterClause(scope: AccessScope, filters: EpicAlertRowCacheFilters): WhereClause {
+function buildFilterClause(scope: AccessScope, filters: EpicAlertRowCacheFilters, options: { ignoreHidden?: boolean } = {}): WhereClause {
   const params: unknown[] = [];
   const clauses: string[] = [buildAccessScopeClause(scope, params)];
+
+  // Epic Mark: a hidden Epic is left out of the list unless a Mark quick filter is on. The TTM index
+  // badges pass ignoreHidden — hiding an Epic never changes a metric.
+  if (filters.markFilter === 'HIDDEN') {
+    clauses.push('EXISTS (SELECT 1 FROM epic_marks m WHERE m.epic_key = epic_alert_row_cache.epic_key AND m.is_hidden)');
+  } else if (filters.markFilter === 'MARKED' || filters.markFilter === 'MINE') {
+    clauses.push('EXISTS (SELECT 1 FROM epic_comments c WHERE c.epic_key = epic_alert_row_cache.epic_key)');
+    if (filters.markFilter === 'MARKED' && filters.markedPmSm && filters.markedPmSm.length > 0) {
+      params.push(filters.markedPmSm);
+      clauses.push(`owner_names && $${params.length}::text[]`);
+    }
+    if (filters.markFilter === 'MINE') {
+      params.push(filters.viewerUserId ?? 0);
+      clauses.push(`owner_names @> ARRAY[(SELECT SPLIT_PART(LOWER(u.email), '@', 1) FROM users u WHERE u.id = $${params.length})]`);
+    }
+  } else if (!options.ignoreHidden) {
+    clauses.push('NOT EXISTS (SELECT 1 FROM epic_marks m WHERE m.epic_key = epic_alert_row_cache.epic_key AND m.is_hidden)');
+  }
 
   if (filters.projectKeys && filters.projectKeys.length > 0) {
     params.push(filters.projectKeys);
@@ -268,7 +293,7 @@ export async function queryEpicAlertStatCounts(scope: AccessScope, filters: Epic
  * of hydrating rows into JS. Cancelled Epics never count, even when the Status filter includes them;
  * neither do "Epic ngoại lệ" / non-TTM-project Epics (scoring: their index_flags are already empty). */
 export async function queryTtmCnttIndexes(scope: AccessScope, filters: EpicAlertRowCacheFilters): Promise<{ ttm: TtmCnttSummary; qa: TtmCnttSummary }> {
-  const { sql: accessClause, params } = buildFilterClause(scope, filters);
+  const { sql: accessClause, params } = buildFilterClause(scope, filters, { ignoreHidden: true });
   return queryScoringIndexPm(accessClause, params);
 }
 

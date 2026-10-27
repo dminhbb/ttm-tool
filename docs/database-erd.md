@@ -4,7 +4,7 @@
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
-**58 bảng** trong schema `public`, **45 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
+**60 bảng** trong schema `public`, **45 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
 
 ## Mục lục
 
@@ -12,7 +12,7 @@
 2. [Domain & Dự án](#2-domain-dự-án) — 3 bảng
 3. [Quản lý dự án (PMS — expand-only)](#3-quản-lý-dự-án-pms-expand-only) — 5 bảng
 4. [Import & Issue](#4-import-issue) — 5 bảng
-5. [Cấu hình TTM, lịch & phạm vi](#5-cấu-hình-ttm-lịch-phạm-vi) — 8 bảng
+5. [Cấu hình TTM, lịch & phạm vi](#5-cấu-hình-ttm-lịch-phạm-vi) — 10 bảng
 6. [Epic Scoring Service](#6-epic-scoring-service) — 5 bảng
 7. [Lịch sử & snapshot](#7-lịch-sử-snapshot) — 1 bảng
 8. [Cache dữ liệu dẫn xuất](#8-cache-dữ-liệu-dẫn-xuất) — 5 bảng
@@ -806,6 +806,21 @@ erDiagram
         timestamptz updated_at
         text source
     }
+    epic_marks {
+        varchar epic_key PK
+        boolean is_hidden
+        int updated_by_user_id
+        timestamptz updated_at
+    }
+    epic_comments {
+        bigint id PK
+        varchar epic_key
+        int user_id
+        text user_name
+        varchar content
+        boolean is_system
+        timestamptz created_at
+    }
     users {
         int id PK
     }
@@ -956,6 +971,35 @@ Danh mục "Ngày làm bù": khai báo một ngày T7/CN cụ thể là ngày l�
 
 - `black_listed_epics_source_check`: CHECK ((source = ANY (ARRAY['MANUAL'::text, 'IMPORT'::text])))
 - index `idx_black_listed_epics_project_key`: btree (project_key)
+
+### `epic_marks`
+
+**Mới 27/10/2026.** "Epic Mark": mỗi dòng là 1 Epic từng được Hide/Unhide (`is_hidden`, người cập nhật). Epic đang ẩn không hiển thị trong danh sách Quản trị Epic nhưng vẫn tính vào mọi chỉ số.
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `epic_key` | varchar(100) | không |  | PK |  |
+| `is_hidden` | boolean | không | false |  |  |
+| `updated_by_user_id` | int | có |  |  |  |
+| `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+
+- index `idx_epic_marks_hidden`: btree (epic_key) WHERE is_hidden
+
+### `epic_comments`
+
+**Mới 27/10/2026.** Comment lũy kế của Epic (Mark & Comment): tối đa 256 ký tự, không sửa/xoá; Hide/Unhide ghi thêm 1 dòng hệ thống (`is_system`). `user_name` lưu cố định tên người lưu.
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `id` | bigint (tự tăng) | không |  | PK |  |
+| `epic_key` | varchar(100) | không |  |  |  |
+| `user_id` | int | có |  |  |  |
+| `user_name` | text | không |  |  |  |
+| `content` | varchar(256) | không |  |  |  |
+| `is_system` | boolean | không | false |  |  |
+| `created_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+
+- index `idx_epic_comments_epic_key_created`: btree (epic_key, created_at DESC, id DESC)
 
 ## 6. Epic Scoring Service
 

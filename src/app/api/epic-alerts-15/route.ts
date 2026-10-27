@@ -7,7 +7,9 @@ import { resolveViewAsTarget } from '@/lib/view-as-user-service';
 import type { EpicAlertFilters } from '@/lib/epic-alert-service';
 import { fetchEpicAlertHeaderContext } from '@/lib/epic-alert-service';
 import type { EpicAlertRowCacheFilters } from '@/lib/epic-alert-row-cache-query-service';
-import { getEpicAlertRowCacheMeta, queryEpicAlertFilterOptions, queryEpicAlertRowCachePage, queryEpicAlertStatCounts, queryTtmCnttIndexes } from '@/lib/epic-alert-row-cache-query-service';
+import { buildAccessScopeClause, getEpicAlertRowCacheMeta, queryEpicAlertFilterOptions, queryEpicAlertRowCachePage, queryEpicAlertStatCounts, queryTtmCnttIndexes } from '@/lib/epic-alert-row-cache-query-service';
+import { applyEpicMarks, listMarkedOwnerNames, loadEpicMarkSummaries } from '@/lib/epic-mark-service';
+import pool from '@/lib/db';
 
 function authError(error: unknown): NextResponse | null {
   if (error instanceof AuthError) {
@@ -16,7 +18,7 @@ function authError(error: unknown): NextResponse | null {
   return null;
 }
 
-function parseCacheFilters(searchParams: URLSearchParams): EpicAlertRowCacheFilters {
+function parseCacheFilters(searchParams: URLSearchParams, viewerUserId: number): EpicAlertRowCacheFilters {
   const csv = (key: string) => {
     const raw = searchParams.get(key);
     return raw ? raw.split(',').map((value) => value.trim()).filter(Boolean) : undefined;
@@ -32,7 +34,16 @@ function parseCacheFilters(searchParams: URLSearchParams): EpicAlertRowCacheFilt
     requestingUnits: searchParams.getAll('requestingUnit').map((value) => value.trim()).filter(Boolean),
     ruleGroups: searchParams.getAll('ruleGroup').map((value) => value.trim()).filter(Boolean),
     search: searchParams.get('search') || undefined,
+    markFilter: ['HIDDEN', 'MARKED', 'MINE'].includes(searchParams.get('markFilter') ?? '') ? (searchParams.get('markFilter') as 'HIDDEN' | 'MARKED' | 'MINE') : undefined,
+    markedPmSm: csv('markedPmSm'),
+    viewerUserId,
   };
+}
+
+/** The viewer's name as it appears in an Epic's PM/SM list (e-mail local part) — for "My assigned epics". */
+async function viewerOwnerName(userId: number): Promise<string> {
+  const result = await pool.query<{ name: string }>(`SELECT SPLIT_PART(LOWER(email), '@', 1) AS name FROM users WHERE id = $1;`, [userId]);
+  return result.rows[0]?.name ?? '';
 }
 
 /**
@@ -75,7 +86,7 @@ export async function GET(request: NextRequest) {
 
     if (cacheMeta?.hasCache) {
       const header = await fetchEpicAlertHeaderContext(userId, role);
-      const cacheFilters = parseCacheFilters(searchParams);
+      const cacheFilters = parseCacheFilters(searchParams, userId);
       const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
       const pageSize = Math.min(200, Math.max(1, Number(searchParams.get('pageSize') ?? '20') || 20));
 
@@ -85,6 +96,14 @@ export async function GET(request: NextRequest) {
         queryTtmCnttIndexes(header.scope, cacheFilters),
         queryEpicAlertFilterOptions(header.scope),
       ]);
+      // Epic Mark: comments / hidden flag are read live and stamped on the page's rows (never cached).
+      const marks = await loadEpicMarkSummaries(pageResult.rows.map((row) => row.epicKey));
+      const markedOwnerNames = cacheFilters.markFilter === 'MARKED'
+        ? await (async () => {
+            const params: unknown[] = [];
+            return listMarkedOwnerNames(buildAccessScopeClause(header.scope, params), params);
+          })()
+        : [];
 
       return NextResponse.json({
         mode: 'paged',
@@ -95,7 +114,8 @@ export async function GET(request: NextRequest) {
         lastAggregatedAt: header.lastAggregatedAt,
         viewerName: header.viewerName,
         viewAsUser,
-        rows: pageResult.rows,
+        rows: applyEpicMarks(pageResult.rows, marks),
+        markedOwnerNames,
         totalCount: pageResult.totalCount,
         page,
         pageSize,
@@ -109,7 +129,9 @@ export async function GET(request: NextRequest) {
     // Fallback: advanced date filter active, or the cache hasn't been populated yet (e.g. no
     // import has completed since this table was introduced) — recompute live, same as before.
     const data = await getEpicAlertRowsForDisplay(userId, role, filters);
-    return NextResponse.json({ mode: 'full', ...data, viewAsUser });
+    // Full mode: the client filters, so every row carries its mark and the viewer's own PM/SM name.
+    const [marks, viewerOwner] = await Promise.all([loadEpicMarkSummaries(null), viewerOwnerName(userId)]);
+    return NextResponse.json({ mode: 'full', ...data, rows: applyEpicMarks(data.rows, marks), viewerOwnerName: viewerOwner, viewAsUser });
   } catch (error: unknown) {
     console.error('API Error in epic-alerts-15 route:', error);
     const message = error instanceof Error ? error.message : 'Lỗi hệ thống khi tải dữ liệu Quản lý Epic 15';

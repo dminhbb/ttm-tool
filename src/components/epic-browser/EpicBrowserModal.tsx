@@ -11,6 +11,7 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { TtmBlackListDot } from '@/components/ui/TtmBlackListDot';
 import { EpicIssuesTree } from '@/components/epic-browser/EpicIssuesTree';
+import { EpicCommentPanel } from '@/components/epic-mark/EpicCommentPanel';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import type { DataReviewIssue } from '@/lib/data-review-types';
 import type { EpicBrowserSummary } from '@/lib/epic-browser-service';
@@ -621,6 +622,9 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
                   </div>
                 )}
               </div>
+
+              {/* Panel "Comment" (Epic Mark): danh sách comment + tình trạng Hide/Unhide, chỉ đọc */}
+              <EpicCommentPanel epicKey={epicKey} />
             </>
           )}
         </div>

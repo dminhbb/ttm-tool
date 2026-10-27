@@ -1,9 +1,9 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-27T01:42:07.080Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-10-27T12:28:42.779Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
--- Gồm: 58 bảng, 56 index phụ, 4 hàm, 4 trigger.
+-- Gồm: 60 bảng, 58 index phụ, 4 hàm, 4 trigger.
 -- Yêu cầu: PostgreSQL 14 trở lên, một database RỖNG (không dùng cho DB đã có bảng — sẽ báo lỗi và không
 -- tạo gì vì cả file chạy trong một transaction). Không cần extension nào.
 --
@@ -249,6 +249,25 @@ CREATE TABLE epic_alert_timeline (
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT epic_alert_timeline_pkey PRIMARY KEY (id),
     CONSTRAINT epic_alert_timeline_alert_type_check CHECK (((alert_type)::text = ANY ((ARRAY['FAIL_TTM_CNTT'::character varying, 'LATE_TTM_CNTT'::character varying, 'FAIL_TTM_E2E'::character varying, 'MISSING_START_DATE'::character varying, 'DATA_ANOMALY'::character varying])::text[])))
+);
+
+CREATE TABLE epic_comments (
+    id BIGSERIAL,
+    epic_key character varying(100) NOT NULL,
+    user_id integer,
+    user_name text NOT NULL,
+    content character varying(256) NOT NULL,
+    is_system boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT epic_comments_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE epic_marks (
+    epic_key character varying(100) NOT NULL,
+    is_hidden boolean DEFAULT false NOT NULL,
+    updated_by_user_id integer,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT epic_marks_pkey PRIMARY KEY (epic_key)
 );
 
 CREATE TABLE epic_status_alert_rules (
@@ -833,6 +852,8 @@ CREATE INDEX idx_epic_alert_row_cache_ttm_cntt_in_scope ON epic_alert_row_cache 
 CREATE INDEX idx_epic_alert_timeline_end_date ON epic_alert_timeline USING btree (end_date);
 CREATE INDEX idx_epic_alert_timeline_epic_key ON epic_alert_timeline USING btree (epic_key);
 CREATE UNIQUE INDEX idx_epic_alert_timeline_open_run ON epic_alert_timeline USING btree (epic_key, alert_type) WHERE (end_date IS NULL);
+CREATE INDEX idx_epic_comments_epic_key_created ON epic_comments USING btree (epic_key, created_at DESC, id DESC);
+CREATE INDEX idx_epic_marks_hidden ON epic_marks USING btree (epic_key) WHERE is_hidden;
 CREATE INDEX idx_epic_status_alert_rules_active ON epic_status_alert_rules USING btree (is_active) WHERE is_active;
 CREATE INDEX idx_holidays_range ON holidays USING btree (start_date, end_date) WHERE is_active;
 CREATE UNIQUE INDEX uq_info_banners_single_default ON info_banners USING btree (banner_type) WHERE ((banner_type)::text = 'DEFAULT'::text);
@@ -1033,7 +1054,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 110 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 111 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1145,7 +1166,8 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261102_add_ttm_applied_to_issues.sql'),
     ('20261103_add_ttm_applied_rules.sql'),
     ('20261104_add_user_badge_design_style.sql'),
-    ('20261105_add_cache_stale_marker.sql');
+    ('20261105_add_cache_stale_marker.sql'),
+    ('20261106_add_epic_marks.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1427,7 +1449,7 @@ WHERE current_setting('ttm_install.seed_data', true) = 'on';
 -- derived_cache_refresh_lock (1 dòng)
 INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 SELECT * FROM (VALUES
-    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-10-27 01:16:10.182495+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-10-27 11:26:52.254195+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
 ) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 

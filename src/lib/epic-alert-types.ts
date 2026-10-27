@@ -1,6 +1,7 @@
 import type { AlertLevel, EpicComplexity } from '@/lib/ttm-rules';
 import type { EpicAnomalyViolation } from '@/lib/epic-data-anomaly';
 import type { Finding, TtmExclusion } from '@/lib/scoring/types';
+import type { EpicMarkSummary } from '@/lib/epic-mark-format';
 
 export type { EpicAnomalyViolation } from '@/lib/epic-data-anomaly';
 
@@ -28,6 +29,8 @@ export interface PhaseCell {
 
 export interface EpicAlertRowPhased {
   alertLevel: AlertLevel;
+  /** Epic Mark (comments + hidden flag), stamped after the row cache by the Quản trị Epic API — absent when the Epic has neither. */
+  mark?: EpicMarkSummary;
   /** issues.components (Epic's own Jira Component/s) — used by the Components filter. */
   components: string[];
   currentStatus: string;

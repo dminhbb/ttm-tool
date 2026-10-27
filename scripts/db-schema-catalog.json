@@ -67,7 +67,9 @@
         "ttm_scope_config",
         "holidays",
         "makeup_workdays",
-        "black_listed_epics"
+        "black_listed_epics",
+        "epic_marks",
+        "epic_comments"
       ]
     },
     {
@@ -323,6 +325,14 @@
       "columns": {
         "source": "<code>TEXT NOT NULL DEFAULT 'MANUAL'</code></td><td>CHECK ('MANUAL', 'IMPORT') — <strong>Mới 26/10/2026.</strong> IMPORT = do import CSV tự thêm vì TTM-applied = 'Không áp dụng' (chỉ dòng IMPORT mới được import tự gỡ khi giá trị đổi); MANUAL = người dùng thêm"
       }
+    },
+    "epic_marks": {
+      "description": "<strong>Mới 27/10/2026.</strong> \"Epic Mark\": mỗi dòng là 1 Epic từng được Hide/Unhide (<code>is_hidden</code>, người cập nhật). Epic đang ẩn không hiển thị trong danh sách Quản trị Epic nhưng vẫn tính vào mọi chỉ số.",
+      "columns": {}
+    },
+    "epic_comments": {
+      "description": "<strong>Mới 27/10/2026.</strong> Comment lũy kế của Epic (Mark &amp; Comment): tối đa 256 ký tự, không sửa/xoá; Hide/Unhide ghi thêm 1 dòng hệ thống (<code>is_system</code>). <code>user_name</code> lưu cố định tên người lưu.",
+      "columns": {}
     },
     "scoring_parameters": {
       "description": "Tham số rule do admin ghi đè (grace Release, tỉ lệ Pending lâu, status được miễn…); mặc định nằm trong code.",

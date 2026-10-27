@@ -11,6 +11,9 @@ import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
 import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
+import { EpicMarkCell } from '@/components/epic-mark/EpicMarkCell';
+import { JiraLinkButton } from '@/components/epic-alerts/JiraLinkButton';
+import { EpicMarkModal } from '@/components/epic-mark/EpicMarkModal';
 import { EpicAlertTimeline } from '@/components/epic-alerts/EpicAlertTimeline';
 import { EpicStatWidgets } from '@/components/epic-alerts/EpicStatWidgets';
 import { DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
@@ -26,7 +29,8 @@ import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import type { TtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
-import { ArrowBendUpRight, ArrowCounterClockwise, ArrowSquareOut, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, FloppyDisk, FolderSimple, HourglassMedium, ListChecks, Prohibit, Sparkle, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
+import { ArrowBendUpRight, ArrowCounterClockwise, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, EyeSlash, FlagBanner, FloppyDisk, FolderSimple, HourglassMedium, ListChecks, UserFocus, Prohibit, Sparkle, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
+import type { Icon as PhosphorIcon } from '@phosphor-icons/react';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { listGroupRankOf } from '@/lib/epic-alert-sort-rules';
 import { compareWorkflowStatus } from '@/lib/scoring/derive';
@@ -433,6 +437,36 @@ function TtmE2eStrips({ compact, row }: { compact: boolean; row: EpicAlertRowPha
   );
 }
 
+/** Quick filter chip: light grey (dark grey in dark mode) while off, orange while on (owner 2026-10-27). */
+function QuickFilterButton({ active, icon: Icon, label, onClick, tooltip }: { active: boolean; icon: PhosphorIcon; label: string; onClick: () => void; tooltip: string }) {
+  return (
+    <Tooltip content={tooltip} side="top" className="inline-flex w-auto shrink-0">
+      <button
+        type="button"
+        aria-pressed={active}
+        onClick={onClick}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+          active
+            ? 'ttm-quick-filter-on shadow-sm'
+            : 'ttm-quick-filter-off'
+        }`}
+      >
+        <Icon className="size-3.5" weight={active ? 'bold' : 'regular'} />
+        <span>{label}</span>
+      </button>
+    </Tooltip>
+  );
+}
+
+/** Full-mode twin of the Epic Mark SQL filters (buildFilterClause): without a Mark filter a hidden Epic is left out. */
+function matchesMarkFilter(row: EpicAlertRowPhased, markFilter: 'HIDDEN' | 'MARKED' | 'MINE' | null, markedPmSm: readonly string[], viewerOwnerName: string): boolean {
+  const hasComment = (row.mark?.commentCount ?? 0) > 0;
+  if (markFilter === 'HIDDEN') return Boolean(row.mark?.isHidden);
+  if (markFilter === 'MARKED') return hasComment && (markedPmSm.length === 0 || splitOwnerNames(row.ownerName).some((name) => markedPmSm.includes(name)));
+  if (markFilter === 'MINE') return hasComment && viewerOwnerName !== '' && splitOwnerNames(row.ownerName).includes(viewerOwnerName);
+  return !row.mark?.isHidden;
+}
+
 function AlertHistoryButton({ row, onOpen }: { row: EpicAlertRowPhased; onOpen: (row: EpicAlertRowPhased) => void }) {
   return (
     <button
@@ -443,22 +477,6 @@ function AlertHistoryButton({ row, onOpen }: { row: EpicAlertRowPhased; onOpen: 
     >
       <Warning weight="fill" size={16} />
     </button>
-  );
-}
-
-function JiraLinkButton({ epicKey, viewIssueBaseUrl }: { epicKey: string; viewIssueBaseUrl: string }) {
-  if (!viewIssueBaseUrl) return null;
-  return (
-    <a
-      className="ttm-alert-history-trigger ttm-jira-link-trigger"
-      href={`${viewIssueBaseUrl}${epicKey}`}
-      onClick={(event) => event.stopPropagation()}
-      rel="noopener noreferrer"
-      target="_blank"
-      title="Mở Epic trên Jira"
-    >
-      <ArrowSquareOut weight="bold" size={16} />
-    </a>
   );
 }
 
@@ -554,6 +572,10 @@ interface EpicAlertStatCounts {
  * like before this cache existed: the client still does its own filter/sort/paginate/stat pipeline. */
 interface EpicAlerts15Payload extends EpicAlertPhasedResponse {
   mode: 'paged' | 'full';
+  /** Paged + "Marked epics": PM/SMs (e-mail local part) of the Epics with a comment in the viewer's scope. */
+  markedOwnerNames?: string[];
+  /** Full mode: the viewer's own PM/SM name, for "My assigned epics". */
+  viewerOwnerName?: string;
   totalCount?: number;
   page?: number;
   pageSize?: number;
@@ -620,6 +642,11 @@ function EpicAlerts15Screen() {
   const [dataIssueFilter, setDataIssueFilter] = useState(deepLinkFilters.dataIssue);
   const [search, setSearch] = useState(deepLinkFilters.search);
   const [activeQuickFilter, setActiveQuickFilter] = useState<'PENDING' | 'IN_PO' | 'NOT_IN_PO' | null>(null);
+  // Epic Mark quick filters (owner 2026-10-27) — independent of the status quick filters above. Hidden Epics are
+  // only listed while one of these is on.
+  const [markFilter, setMarkFilter] = useState<'HIDDEN' | 'MARKED' | 'MINE' | null>(null);
+  const [markedPmSmFilters, setMarkedPmSmFilters] = useState<string[]>([]);
+  const [markEpicKey, setMarkEpicKey] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   // "Bộ lọc nâng cao" — collapsed by default (see reports/page.tsx's "Cấu hình nâng cao..." for
   // the shared UI/logic pattern this mirrors). selectedLayerAnchor === availableLayerDates[0] (or
@@ -720,6 +747,8 @@ function EpicAlerts15Screen() {
       for (const unit of requestingUnitFilters) query.append('requestingUnit', unit);
       for (const group of ruleGroupFilters) query.append('ruleGroup', group);
       if (debouncedSearch) query.set('search', debouncedSearch);
+      if (markFilter) query.set('markFilter', markFilter);
+      if (markFilter === 'MARKED' && markedPmSmFilters.length > 0) query.set('markedPmSm', markedPmSmFilters.join(','));
       if (viewAsUserId) query.set('viewAsUserId', viewAsUserId);
       query.set('page', String(page));
       query.set('pageSize', String(PAGE_SIZE));
@@ -949,7 +978,7 @@ function EpicAlerts15Screen() {
   }, [
     savedFiltersReady, serverQueryKey, pastAsOfDate, changedSinceActive, createdDateFrom, startDateFromFilter, dueDateFromFilter,
     projectFilters, pmSmFilters, componentFilters, alertFilters, typeFilters, statusQuery,
-    dataIssueFilter, requestingUnitFilters, ruleGroupFilters, debouncedSearch, page,
+    dataIssueFilter, requestingUnitFilters, ruleGroupFilters, debouncedSearch, page, markFilter, markedPmSmFilters,
   ]);
   useEffect(() => () => fetchAbortRef.current?.abort(), []);
 
@@ -987,6 +1016,12 @@ function EpicAlerts15Screen() {
       const matched = statusOptions.filter((s) => !EXCLUDED_NOT_IN_PO.has(normalizeEpicWorkflowStatus(s)));
       setStatusFilters(matched);
     }
+    setPage(1);
+  };
+
+  const handleMarkQuickFilter = (value: 'HIDDEN' | 'MARKED' | 'MINE') => {
+    setMarkFilter((current) => (current === value ? null : value));
+    setMarkedPmSmFilters([]);
     setPage(1);
   };
 
@@ -1034,6 +1069,8 @@ function EpicAlerts15Screen() {
     setDataIssueFilter(false);
     setSearch('');
     setActiveQuickFilter(null);
+    setMarkFilter(null);
+    setMarkedPmSmFilters([]);
     setSelectedLayerAnchor('');
     setCreatedDateFrom('');
     setStartDateFromFilter('');
@@ -1066,9 +1103,18 @@ function EpicAlerts15Screen() {
         && (!dataIssueFilter || row.hasDataAnomaly)
         && (requestingUnitFilters.length === 0 || (row.requestingUnit !== null && requestingUnitFilters.includes(row.requestingUnit)))
         && (ruleGroupFilters.length === 0 || (Boolean(row.ruleGroupName) && ruleGroupFilters.includes(row.ruleGroupName!)))
-        && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch));
+        && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch))
+        && matchesMarkFilter(row, markFilter, markedPmSmFilters, data?.viewerOwnerName ?? '');
     }).sort((a, b) => listGroupRankOf(a.currentStatus, a.ttmCnttInScope) - listGroupRankOf(b.currentStatus, b.ttmCnttInScope));
-  }, [data?.mode, rows, projectFilters, pmSmFilters, componentFilters, alertFilters, typeFilters, statusFilters, dataIssueFilter, requestingUnitFilters, ruleGroupFilters, search]);
+  }, [data?.mode, data?.viewerOwnerName, rows, projectFilters, pmSmFilters, componentFilters, alertFilters, typeFilters, statusFilters, dataIssueFilter, requestingUnitFilters, ruleGroupFilters, search, markFilter, markedPmSmFilters]);
+
+  // "Marked epics" user dropdown: the PM/SMs of the Epics with a comment in the viewer's scope.
+  const markedOwnerOptions = useMemo(
+    () => (data?.mode === 'paged'
+      ? data.markedOwnerNames ?? []
+      : [...new Set(rows.filter((row) => (row.mark?.commentCount ?? 0) > 0).flatMap((row) => splitOwnerNames(row.ownerName)))].sort((a, b) => a.localeCompare(b, 'vi'))),
+    [data, rows],
+  );
 
   const clientTtmCnttQlda = useMemo(() => summarizeTtmCntt(filteredRows), [filteredRows]);
   const clientTtmCnttQa = useMemo(() => summarizeQaIndex(filteredRows), [filteredRows]);
@@ -1318,54 +1364,28 @@ function EpicAlerts15Screen() {
         </button>
       </section>
 
-      <div className="border-t border-fb-border pt-3 mb-3 flex items-center justify-between gap-3 overflow-x-auto">
-        <div className="flex items-center gap-2 shrink-0 flex-nowrap">
+      <div className="border-t border-fb-border pt-3 mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1.5 text-xs font-bold text-black shrink-0 mr-1 select-none">
             <CaretRight className="size-4 text-[var(--color-text-brand)]" weight="bold" />
             <span>Quick filters:</span>
           </div>
-          <Tooltip content="Lọc các Epic có status là Pending" side="top" className="inline-flex w-auto shrink-0">
-            <button
-              type="button"
-              onClick={handlePendingQuickFilter}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border transition-all cursor-pointer shrink-0 whitespace-nowrap ${
-                activeQuickFilter === 'PENDING'
-                  ? 'bg-status-warning border-status-warning text-white shadow-sm'
-                  : 'bg-status-warning-soft border-status-warning text-status-warning hover:bg-status-warning-soft hover:border-status-warning'
-              }`}
-            >
-              <HourglassMedium className="size-3.5" weight={activeQuickFilter === 'PENDING' ? 'bold' : 'regular'} />
-              <span>Pending Epics</span>
-            </button>
-          </Tooltip>
-          <Tooltip content="Lọc các Epic có status thuộc: To Do, In PO, Released" side="top" className="inline-flex w-auto shrink-0">
-            <button
-              type="button"
-              onClick={handleInPoQuickFilter}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border transition-all cursor-pointer shrink-0 whitespace-nowrap ${
-                activeQuickFilter === 'IN_PO'
-                  ? 'bg-[var(--color-text-brand)] border-fb-blue text-white shadow-sm'
-                  : 'bg-fb-blue-soft border-fb-blue text-fb-blue hover:bg-fb-blue-soft hover:border-fb-blue'
-              }`}
-            >
-              <FolderSimple className="size-3.5" weight={activeQuickFilter === 'IN_PO' ? 'bold' : 'regular'} />
-              <span>Epics in PO</span>
-            </button>
-          </Tooltip>
-          <Tooltip content="Lọc các Epic ở tất cả trạng thái trừ: Cancelled, To Do, In PO, Released" side="top" className="inline-flex w-auto shrink-0">
-            <button
-              type="button"
-              onClick={handleNotInPoQuickFilter}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border transition-all cursor-pointer shrink-0 whitespace-nowrap ${
-                activeQuickFilter === 'NOT_IN_PO'
-                  ? 'bg-fb-accent border-fb-accent text-white shadow-sm'
-                  : 'bg-fb-accent-soft border-fb-accent text-fb-accent hover:bg-fb-accent-soft hover:border-fb-accent'
-              }`}
-            >
-              <Sparkle className="size-3.5" weight={activeQuickFilter === 'NOT_IN_PO' ? 'bold' : 'regular'} />
-              <span>not Epics in PO</span>
-            </button>
-          </Tooltip>
+          <QuickFilterButton active={activeQuickFilter === 'PENDING'} icon={HourglassMedium} label="Pending Epics" onClick={handlePendingQuickFilter} tooltip="Lọc các Epic có status là Pending" />
+          <QuickFilterButton active={activeQuickFilter === 'IN_PO'} icon={FolderSimple} label="Epics in PO" onClick={handleInPoQuickFilter} tooltip="Lọc các Epic có status thuộc: To Do, In PO, Released" />
+          <QuickFilterButton active={activeQuickFilter === 'NOT_IN_PO'} icon={Sparkle} label="not Epics in PO" onClick={handleNotInPoQuickFilter} tooltip="Lọc các Epic ở tất cả trạng thái trừ: Cancelled, To Do, In PO, Released" />
+          <QuickFilterButton active={markFilter === 'MARKED'} icon={FlagBanner} label="Marked epics" onClick={() => handleMarkQuickFilter('MARKED')} tooltip="Lọc các Epic có comment (kể cả Epic đã ẩn) trong phạm vi dữ liệu của bạn" />
+          {markFilter === 'MARKED' && (
+            <ToolbarMultiSelect
+              ariaLabel="PM/SM của Epic có comment"
+              searchable
+              allLabel="Tất cả"
+              options={markedOwnerOptions}
+              value={markedPmSmFilters}
+              onChange={(values) => { setMarkedPmSmFilters(values); setPage(1); }}
+            />
+          )}
+          <QuickFilterButton active={markFilter === 'HIDDEN'} icon={EyeSlash} label="Hidden epics" onClick={() => handleMarkQuickFilter('HIDDEN')} tooltip="Lọc các Epic đang bị ẩn khỏi danh sách trong phạm vi dữ liệu của bạn" />
+          <QuickFilterButton active={markFilter === 'MINE'} icon={UserFocus} label="My assigned epics" onClick={() => handleMarkQuickFilter('MINE')} tooltip="Lọc các Epic có comment và do bạn làm PM/SM (kể cả Epic đã ẩn)" />
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0 ml-auto">
@@ -1494,7 +1514,8 @@ function EpicAlerts15Screen() {
             <THead>
               <TR>
                 <TH className={`ttm-epic-col-sticky ttm-col-border-right text-left align-top ${allColumnsCollapsed ? 'min-w-[160px]' : 'min-w-[200px]'}`} title="issues.issue_key / issues.issue_name">EPIC</TH>
-                <TH className="w-[1%] min-w-[140px] text-left align-top" title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">NHẬN XÉT</TH>
+                <TH className="w-[1%] min-w-[44px] text-center align-top" title="Epic có comment (cờ) và/hoặc đang bị ẩn (mắt gạch chéo) — bấm để mở Mark & Comment">MARK</TH>
+                <TH className="w-[1%] min-w-[140px] ttm-col-border-right text-left align-top" title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">SCORING</TH>
                 <TH className="w-[1%] min-w-[42px] text-center align-top ttm-col-pass" title="Đánh giá kết quả TTM-CNTT (QLDA): Đạt (xanh) / Fail (orange); bên dưới là TTM-E2E: Đạt (xanh dương nhạt) / Fail (nâu nhạt)">PASS</TH>
                 <TH className="w-[1%] min-w-[132px] text-left align-top" title="Baseline (dòng trên) = Start Date + TTM-CNTT (QLDA); Thực tế (dòng dưới) = Start Date → R4G Date (hoặc hôm nay nếu chưa có)">TTM-CNTT (QLDA)</TH>
                 <TH className="w-[1%] ttm-col-border-right min-w-[132px] text-left align-top" title="Baseline (dòng trên) = T0 + TTM-E2E; Thực tế (dòng dưới) = T0 → Due Date (hoặc hôm nay nếu chưa có). T0 = Idea Approved Date, hoặc Start Date, hoặc ngày tạo Jira">TTM-E2E</TH>
@@ -1542,7 +1563,10 @@ function EpicAlerts15Screen() {
                         </span>
                       )}
                     </TD>
-                    <TD className="w-[1%] whitespace-normal px-2 text-left align-top">
+                    <TD className="w-[1%] text-center align-top whitespace-nowrap px-1">
+                      <EpicMarkCell onOpen={setMarkEpicKey} row={row} />
+                    </TD>
+                    <TD className="w-[1%] whitespace-normal px-2 text-left align-top ttm-col-border-right">
                       <EpicCommentCell row={row} />
                     </TD>
                     <TD className="w-[1%] text-center align-top whitespace-nowrap px-1 ttm-col-pass">
@@ -1626,6 +1650,10 @@ function EpicAlerts15Screen() {
       )}
 
       <EpicBrowserModal epicKey={browsingEpicKey} onClose={() => setBrowsingEpicKey(null)} />
+
+      {markEpicKey && (
+        <EpicMarkModal key={markEpicKey} epicKey={markEpicKey} onChanged={() => { void fetchData(); }} onClose={() => setMarkEpicKey(null)} />
+      )}
     </div>
   );
 }
