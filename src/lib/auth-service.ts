@@ -178,6 +178,15 @@ export async function updateUserBadgeDesignStyle(userId: number, style: 'list' |
   }
 }
 
+/**
+ * Identifies the current login: a prefix of the session's token hash (the hash is what the database stores, never the
+ * token). A new login is a new session, so the key changes — used to show a per-login notice only once.
+ */
+export async function currentSessionKey(request?: NextRequest): Promise<string> {
+  const token = request?.cookies.get(SESSION_COOKIE_NAME)?.value ?? (await cookies()).get(SESSION_COOKIE_NAME)?.value;
+  return token ? tokenHash(token).slice(0, 16) : '';
+}
+
 export async function deleteCurrentSession(request?: NextRequest): Promise<void> {
   const token = request?.cookies.get(SESSION_COOKIE_NAME)?.value ?? (await cookies()).get(SESSION_COOKIE_NAME)?.value;
   if (token) await pool.query('DELETE FROM auth_sessions WHERE token_hash = $1;', [tokenHash(token)]);

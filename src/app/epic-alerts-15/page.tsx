@@ -119,6 +119,8 @@ interface EpicAlertsDeepLinkFilters {
   dataIssue: boolean;
   domain: string;
   hasAny: boolean;
+  /** "My assigned epics" quick filter switched on by the login notice (?markFilter=MINE). */
+  markMine: boolean;
   pmSm: string[];
   projects: string[];
   requestingUnits: string[];
@@ -150,6 +152,7 @@ function parseDeepLinkFilters(searchParams: URLSearchParams): EpicAlertsDeepLink
   const dataIssue = searchParams.get('dataIssue') === '1';
   const search = searchParams.get('search') ?? '';
   const domain = searchParams.get('domain') ?? '';
+  const markMine = searchParams.get('markFilter') === 'MINE';
   const dateOrNull = (key: string) => (searchParams.has(key) ? (searchParams.get(key) || null) : undefined);
   return {
     alerts,
@@ -157,10 +160,11 @@ function parseDeepLinkFilters(searchParams: URLSearchParams): EpicAlertsDeepLink
     dataIssue,
     domain,
     hasAny: Boolean(
-      alerts.length || projects.length || status.length || types.length || pmSm.length || requestingUnits.length || ruleGroups.length || dataIssue || search || domain
+      alerts.length || projects.length || status.length || types.length || pmSm.length || requestingUnits.length || ruleGroups.length || dataIssue || search || domain || markMine
       || dateOrNull('cnttFrom') !== undefined || dateOrNull('cnttTo') !== undefined
       || dateOrNull('qaFrom') !== undefined || dateOrNull('qaTo') !== undefined,
     ),
+    markMine,
     pmSm,
     projects,
     requestingUnits,
@@ -651,10 +655,16 @@ function EpicAlerts15Screen() {
   const [activeQuickFilter, setActiveQuickFilter] = useState<'PENDING' | 'IN_PO' | 'NOT_IN_PO' | null>(null);
   // Epic Mark quick filters (owner 2026-10-27) — independent of the status quick filters above. Hidden Epics are
   // only listed while one of these is on.
-  const [markFilter, setMarkFilter] = useState<'HIDDEN' | 'MARKED' | 'MINE' | null>(null);
+  const [markFilter, setMarkFilter] = useState<'HIDDEN' | 'MARKED' | 'MINE' | null>(deepLinkFilters.markMine ? 'MINE' : null);
   const [markedPmSmFilters, setMarkedPmSmFilters] = useState<string[]>([]);
   const [markEpicKey, setMarkEpicKey] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  // The login notice links here while this screen may already be open: switch the filter on then too.
+  const markMineParam = searchParams.get('markFilter') === 'MINE';
+  useEffect(() => {
+    if (!markMineParam) return;
+    void Promise.resolve().then(() => { setMarkFilter('MINE'); setMarkedPmSmFilters([]); setPage(1); });
+  }, [markMineParam]);
   // "Bộ lọc nâng cao" — collapsed by default (see reports/page.tsx's "Cấu hình nâng cao..." for
   // the shared UI/logic pattern this mirrors). selectedLayerAnchor === availableLayerDates[0] (or
   // unset) means "today" — the default newest-row-per-Epic view, so that case sends no asOfDate at all.

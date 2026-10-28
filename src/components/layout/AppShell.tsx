@@ -45,6 +45,7 @@ import { SystemAdminModal } from '@/components/settings/SystemAdminModal';
 import { BlackListedEpicsModal } from '@/components/settings/BlackListedEpicsModal';
 import { AdPopupDisplay } from '@/components/layout/AdPopupDisplay';
 import { DailyCacheWarmer } from '@/components/layout/DailyCacheWarmer';
+import { AssignedEpicsNotice } from '@/components/layout/AssignedEpicsNotice';
 import { SystemStatusFooter } from '@/components/layout/SystemStatusFooter';
 import { DialogHost } from '@/components/ui/dialogs';
 import { showToast, ToastProvider } from '@/components/ui/Toast';
@@ -822,6 +823,8 @@ function AppShellInner({ children }: AppShellProps) {
       </div>
 
       <SystemStatusFooter />
+      {/* Login notice "My assigned epics" — only for a user who may open Quản trị Epic. */}
+      {!mustChangePassword && role !== null && !hiddenFeatureKeys.has('epic_alerts_15') && (requiredRolesFor('/epic-alerts-15')?.includes(role) ?? true) && <AssignedEpicsNotice />}
     </div>
   );
 }
