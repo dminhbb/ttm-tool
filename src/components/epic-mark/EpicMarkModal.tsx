@@ -4,10 +4,11 @@ import * as React from 'react';
 import type { Icon } from '@phosphor-icons/react';
 import {
   Briefcase, Buildings, CalendarBlank, CalendarCheck, CalendarPlus, CalendarX, ChatCircleText, ChatsCircle, CircleHalf,
-  ClockCountdown, FileText, FlagCheckered, Gauge, Info, ListNumbers, PaperPlaneRight, SealCheck, Tag, UserCircle, UsersThree,
+  ClockCountdown, FileText, FlagCheckered, Gauge, Info, ListNumbers, PaperPlaneRight, SealCheck, Tag, Trash, UserCircle, UsersThree,
 } from '@phosphor-icons/react';
 import { JiraLinkButton } from '@/components/epic-alerts/JiraLinkButton';
 import { Badge, type BadgeProps } from '@/components/ui/Badge';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Modal } from '@/components/ui/Modal';
 import { showToast } from '@/components/ui/Toast';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -145,7 +146,7 @@ function avatarTone(name: string): string {
   return AVATAR_TONES[hash % AVATAR_TONES.length];
 }
 
-function CommentThread({ comments }: { comments: EpicCommentEntry[] }) {
+function CommentThread({ comments, disabled, onDelete }: { comments: EpicCommentEntry[]; disabled: boolean; onDelete: (comment: EpicCommentEntry) => void }) {
   if (comments.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 py-10 text-center text-fb-text-secondary">
@@ -164,9 +165,24 @@ function CommentThread({ comments }: { comments: EpicCommentEntry[] }) {
           <div className="min-w-0 flex-1">
             <div className="text-[13px] font-bold leading-tight text-fb-text-primary">{comment.userName}</div>
             <div className="mt-0.5 text-[11px] tabular-nums text-fb-text-secondary">{formatCommentStamp(comment.createdAt)}</div>
-            <p className={cn('ttm-chat-bubble m-0 mt-1.5 inline-block max-w-full break-words whitespace-pre-wrap rounded-xl rounded-tl-sm px-3 py-2 text-[13px]', comment.isSystem && 'italic opacity-80')}>
-              {comment.content}
-            </p>
+            <div className="mt-1.5 flex items-start gap-1.5">
+              <p className={cn('ttm-chat-bubble m-0 inline-block min-w-0 max-w-full break-words whitespace-pre-wrap rounded-xl rounded-tl-sm px-3 py-2 text-[13px]', (comment.isSystem || comment.isDeleted) && 'italic opacity-80')}>
+                {comment.content}
+              </p>
+              {comment.canDelete && (
+                <Tooltip className="inline-flex w-auto shrink-0" content="Xóa comment của bạn" side="top">
+                  <button
+                    aria-label="Xóa comment của bạn"
+                    className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-fb-text-placeholder outline-none transition-colors hover:bg-fb-control hover:text-status-danger focus-visible:ring-2 focus-visible:ring-fb-blue disabled:cursor-not-allowed disabled:opacity-40"
+                    disabled={disabled}
+                    onClick={() => onDelete(comment)}
+                    type="button"
+                  >
+                    <Trash className="size-4" aria-hidden="true" />
+                  </button>
+                </Tooltip>
+              )}
+            </div>
           </div>
         </li>
       ))}
@@ -203,7 +219,7 @@ const GROUP_BADGE_VARIANT: Record<FindingGroup, BadgeProps['variant']> = {
 };
 
 /** Tab "Scoring" (owner 2026-10-28): one row per active Scoring Service badge — badge left, the Epic's own explanation right. */
-function ScoringTable({ notes }: { notes: ScoringNote[] }) {
+function ScoringTable({ epicKey, notes }: { epicKey: string; notes: ScoringNote[] }) {
   if (notes.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 py-10 text-center text-fb-text-secondary">
@@ -213,6 +229,8 @@ function ScoringTable({ notes }: { notes: ScoringNote[] }) {
     );
   }
   return (
+    <>
+      <p className="m-0 mb-2 text-xs text-fb-text-secondary">Đây là các đánh giá của hệ thống đối với epic {epicKey}:</p>
     <div className="overflow-hidden rounded-lg border border-fb-border bg-fb-surface">
       <table className="w-full border-collapse text-[13px]">
         <thead>
@@ -233,6 +251,7 @@ function ScoringTable({ notes }: { notes: ScoringNote[] }) {
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 
@@ -318,6 +337,7 @@ export function EpicMarkModal({ epicKey, onChanged, onClose, viewAsUserId }: { e
   const [text, setText] = React.useState('');
   const [saving, setSaving] = React.useState(false);
   const [tab, setTab] = React.useState<'COMMENT' | 'SCORING'>('COMMENT');
+  const [deleting, setDeleting] = React.useState<EpicCommentEntry | null>(null);
   const changedRef = React.useRef(false);
   const viewIssueBaseUrl = useJiraViewIssueUrl();
   const url = `/api/epic-marks/${encodeURIComponent(epicKey)}`;
@@ -340,7 +360,7 @@ export function EpicMarkModal({ epicKey, onChanged, onClose, viewAsUserId }: { e
     return () => controller.abort();
   }, [readUrl]);
 
-  const request = async (method: 'PATCH' | 'POST', body: unknown): Promise<Record<string, unknown> | null> => {
+  const request = async (method: 'DELETE' | 'PATCH' | 'POST', body: unknown): Promise<Record<string, unknown> | null> => {
     setSaving(true);
     try {
       const response = await fetch(url, { body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' }, method });
@@ -375,6 +395,17 @@ export function EpicMarkModal({ epicKey, onChanged, onClose, viewAsUserId }: { e
     if (await request('POST', { comment })) {
       setText('');
       await reloadComments();
+    }
+  };
+
+  const handleDeleteConfirmed = async () => {
+    const target = deleting;
+    setDeleting(null);
+    if (!target) return;
+    const data = await request('DELETE', { commentId: target.id });
+    if (data) {
+      setPayload((prev) => (prev ? { ...prev, comments: data.comments as EpicCommentEntry[] } : prev));
+      showToast('Đã xóa comment.');
     }
   };
 
@@ -462,7 +493,7 @@ export function EpicMarkModal({ epicKey, onChanged, onClose, viewAsUserId }: { e
             </div>
             {tab === 'SCORING' ? (
               <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4" role="tabpanel">
-                <ScoringTable notes={payload.scoring} />
+                <ScoringTable epicKey={epicKey} notes={payload.scoring} />
               </div>
             ) : (<>
             <div className="shrink-0 border-b border-fb-border px-4 py-3" role="tabpanel">
@@ -500,12 +531,20 @@ export function EpicMarkModal({ epicKey, onChanged, onClose, viewAsUserId }: { e
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-              <CommentThread comments={payload.comments} />
+              <CommentThread comments={payload.comments} disabled={saving} onDelete={setDeleting} />
             </div>
             </>)}
           </div>
         </div>
       )}
+      <ConfirmDialog
+        confirmLabel="Xóa"
+        description="Nội dung comment sẽ được thay bằng dòng ~~deleted~~ và không thể khôi phục hay xóa tiếp. Bạn có chắc muốn xóa?"
+        isOpen={deleting !== null}
+        onClose={() => setDeleting(null)}
+        onConfirm={() => void handleDeleteConfirmed()}
+        title="Xóa comment của bạn?"
+      />
     </Modal>
   );
 }

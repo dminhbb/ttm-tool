@@ -4,6 +4,8 @@
  */
 
 export const EPIC_COMMENT_MAX_LENGTH = 256;
+/** What a deleted comment's text becomes (the row, its author and time stay) — shown in italics. */
+export const EPIC_DELETED_COMMENT = '~~deleted~~';
 
 /** "Giao việc" of an Epic (table epic_task_status): TODO by default, a PM/SM sets DONE when the work is finished. */
 export type EpicTaskStatus = 'TODO' | 'DONE';
@@ -23,10 +25,13 @@ export function canSetEpicTaskStatus(role: string, viewerName: string, ownerName
 }
 
 export interface EpicCommentEntry {
+  /** The viewer may delete it: their own, not yet deleted, not a system line. Only set by the detail read. */
+  canDelete?: boolean;
   content: string;
   /** ISO timestamp. */
   createdAt: string;
   id: number;
+  isDeleted: boolean;
   isSystem: boolean;
   userName: string;
 }

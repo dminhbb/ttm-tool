@@ -389,7 +389,7 @@
         Cơ sở dữ liệu của TTM Monitor dùng <strong>PostgreSQL</strong> (đang chạy 17.6), gồm <strong>62 bảng</strong> trong schema <code>public</code>,
         <strong>47 khoá ngoại</strong>, 4 hàm và 4 trigger; không dùng view, extension hay Row Level Security.
         Cấu trúc thay đổi duy nhất qua chuỗi migration <code>db/migrations/*.sql</code> (chạy bằng <code>scripts/migrate-db.js</code>, ghi vào <code>schema_migrations</code>).
-        Toàn bộ chương này được sinh từ CSDL Supabase ngày 27/10/2026 bởi <code>scripts/db-schema-export.js</code> — cùng lần chạy sinh ra
+        Toàn bộ chương này được sinh từ CSDL Supabase ngày 28/10/2026 bởi <code>scripts/db-schema-export.js</code> — cùng lần chạy sinh ra
         file tạo CSDL mới <code>db/install/ttm-monitor-schema.sql</code> (chỉ cấu trúc, không dữ liệu) và tài liệu ERD chi tiết <code>docs/database-erd.md</code> (sơ đồ Mermaid từng nhóm + từ điển dữ liệu).
       </p>
 
@@ -466,7 +466,7 @@
         </g>
       </svg>
 
-      <h3>5.2. Danh mục 62 bảng CSDL (đối chiếu CSDL Supabase 27/10/2026)</h3>
+      <h3>5.2. Danh mục 62 bảng CSDL (đối chiếu CSDL Supabase 28/10/2026)</h3>
       <table>
         <thead><tr><th>STT</th><th>Bảng CSDL</th><th>Nhóm</th><th>Khoá chính / Khoá ngoại</th><th>Vai trò nghiệp vụ &amp; Ghi chú</th></tr></thead>
         <tbody>
@@ -1018,6 +1018,8 @@
               <tr><td><code>content</code></td><td><code>VARCHAR(256) NOT NULL</code></td><td>—</td><td></td></tr>
               <tr><td><code>is_system</code></td><td><code>BOOLEAN NOT NULL</code></td><td>DEFAULT false</td><td></td></tr>
               <tr><td><code>created_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
+              <tr><td><code>is_deleted</code></td><td><code>BOOLEAN NOT NULL</code></td><td>DEFAULT false</td><td></td></tr>
+              <tr><td><code>deleted_at</code></td><td><code>TIMESTAMPTZ</code></td><td>—</td><td></td></tr>
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li>Index <code>idx_epic_comments_epic_key_created</code>: <code>btree (epic_key, created_at DESC, id DESC)</code></li></ul>

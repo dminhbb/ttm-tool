@@ -3,7 +3,7 @@ import pool from '@/lib/db';
 import type { AuthUser } from '@/lib/auth-types';
 import { resolveAccessScope } from '@/lib/epic-alert-service';
 import { rowInAccessScope } from '@/lib/epic-alert-row-cache-query-service';
-import type { EpicCommentEntry, EpicMarkSummary, EpicTaskStatus } from '@/lib/epic-mark-format';
+import { EPIC_DELETED_COMMENT, type EpicCommentEntry, type EpicMarkSummary, type EpicTaskStatus } from '@/lib/epic-mark-format';
 import { scoringNotesOf, type ScoringNote } from '@/lib/epic-scoring-notes';
 import type { Finding } from '@/lib/scoring/types';
 
@@ -17,36 +17,41 @@ import type { Finding } from '@/lib/scoring/types';
  */
 
 interface CommentRow {
+  canDelete?: boolean;
   content: string;
   createdAt: string;
   epicKey?: string;
   id: string;
+  isDeleted: boolean;
   isSystem: boolean;
   userName: string;
 }
 
 function toEntry(row: CommentRow): EpicCommentEntry {
-  return { content: row.content, createdAt: row.createdAt, id: Number(row.id), isSystem: row.isSystem, userName: row.userName };
+  return {
+    ...(row.canDelete === undefined ? {} : { canDelete: row.canDelete }),
+    content: row.content, createdAt: row.createdAt, id: Number(row.id), isDeleted: row.isDeleted, isSystem: row.isSystem, userName: row.userName,
+  };
 }
 
-const COMMENT_COLUMNS = `id::text AS id, content, created_at::text AS "createdAt", is_system AS "isSystem", user_name AS "userName"`;
+const COMMENT_COLUMNS = `id::text AS id, content, created_at::text AS "createdAt", is_deleted AS "isDeleted", is_system AS "isSystem", user_name AS "userName"`;
 
 export interface EpicMarkAccess {
   epicName: string;
   ownerName: string;
   /** PM/SM usernames of the Epic (owner_names). */
   ownerNames: string[];
-  /** The Epic's active Scoring Service badges with their explanations (tab "Scoring" of Review Notes). */
+  /** The Epic's active Scoring Service badges with their explanations (tab "Scoring" of Review Notes) — only with `withScoring`. */
   scoring: ScoringNote[];
 }
 
 /** The Epic's name + PM/SM when the user's data scope contains it, else null (unknown Epic = out of scope). */
-export async function resolveEpicMarkAccess(user: Pick<AuthUser, 'id' | 'role'>, epicKey: string): Promise<EpicMarkAccess | null> {
+export async function resolveEpicMarkAccess(user: Pick<AuthUser, 'id' | 'role'>, epicKey: string, options: { withScoring?: boolean } = {}): Promise<EpicMarkAccess | null> {
   const [scope, cached] = await Promise.all([
     resolveAccessScope(user.id, user.role),
     pool.query<{ badgeCodes: string[]; components: string[]; epicName: string; findings: Finding[]; ownerNames: string[]; projectKey: string }>(
       `SELECT project_key AS "projectKey", components, epic_name AS "epicName", owner_names AS "ownerNames",
-              findings, badge_codes AS "badgeCodes"
+              ${options.withScoring ? 'findings, badge_codes AS "badgeCodes"' : `NULL::jsonb AS findings, NULL::text[] AS "badgeCodes"`}
        FROM epic_alert_row_cache WHERE epic_key = $1 LIMIT 1;`,
       [epicKey],
     ),
@@ -57,13 +62,13 @@ export async function resolveEpicMarkAccess(user: Pick<AuthUser, 'id' | 'role'>,
     epicName: row.epicName,
     ownerName: (row.ownerNames ?? []).join(', '),
     ownerNames: row.ownerNames ?? [],
-    scoring: scoringNotesOf(row.findings, row.badgeCodes),
+    scoring: options.withScoring ? scoringNotesOf(row.findings, row.badgeCodes) : [],
   };
 }
 
 export interface EpicTaskState {
   status: EpicTaskStatus;
-  /** Who last switched it (full name), null while it was never switched. */
+  /** Who last switched it (username), null while it was never switched. */
   updatedByName: string | null;
   updatedAt: string | null;
 }
@@ -71,7 +76,7 @@ export interface EpicTaskState {
 /** "Giao việc" of the Epic — TODO when nobody switched it yet. */
 export async function getEpicTaskState(epicKey: string): Promise<EpicTaskState> {
   const result = await pool.query<EpicTaskState>(`
-    SELECT t.status, COALESCE(u.full_name, SPLIT_PART(LOWER(u.email), '@', 1)) AS "updatedByName", t.updated_at::text AS "updatedAt"
+    SELECT t.status, SPLIT_PART(LOWER(u.email), '@', 1) AS "updatedByName", t.updated_at::text AS "updatedAt"
     FROM epic_task_status t LEFT JOIN users u ON u.id = t.updated_by_user_id
     WHERE t.epic_key = $1;
   `, [epicKey]);
@@ -93,7 +98,7 @@ export async function setEpicTaskStatus(epicKey: string, status: EpicTaskStatus,
 
 /**
  * "My assigned epics" counter: Epics of the user's data scope where they are a PM/SM (owner_names), that have a
- * comment and whose "Giao việc" is still TODO — hidden ones included, like the quick filter itself.
+ * comment and whose "Giao việc" is still TODO — hidden ones included, like the quick filter itself; Cancelled Epics are not (the list leaves them out by default).
  */
 export async function countAssignedTodoEpics(accessClause: string, params: unknown[], userId: number): Promise<number> {
   const userParam = params.length + 1;
@@ -101,16 +106,20 @@ export async function countAssignedTodoEpics(accessClause: string, params: unkno
     SELECT count(*)::text AS n FROM epic_alert_row_cache
     WHERE ${accessClause}
       AND owner_names @> ARRAY[(SELECT SPLIT_PART(LOWER(u.email), '@', 1) FROM users u WHERE u.id = $${userParam})]
+      AND current_status !~* 'cancel'
       AND EXISTS (SELECT 1 FROM epic_comments c WHERE c.epic_key = epic_alert_row_cache.epic_key)
       AND NOT EXISTS (SELECT 1 FROM epic_task_status t WHERE t.epic_key = epic_alert_row_cache.epic_key AND t.status = 'DONE');
   `, [...params, userId]);
   return Number(result.rows[0]?.n ?? 0);
 }
 
-/** The Epic's comments, and whether `hiddenForUserId` hid it (each user's own Hide). */
-export async function getEpicMarkDetail(epicKey: string, hiddenForUserId: number): Promise<{ comments: EpicCommentEntry[]; isHidden: boolean }> {
+/** The Epic's comments (`canDelete` = the signed-in `actorUserId`'s own, not yet deleted), and whether `hiddenForUserId` hid it (each user's own Hide). */
+export async function getEpicMarkDetail(epicKey: string, hiddenForUserId: number, actorUserId: number): Promise<{ comments: EpicCommentEntry[]; isHidden: boolean }> {
   const [comments, hidden] = await Promise.all([
-    pool.query<CommentRow>(`SELECT ${COMMENT_COLUMNS} FROM epic_comments WHERE epic_key = $1 ORDER BY created_at DESC, id DESC;`, [epicKey]),
+    pool.query<CommentRow>(`
+      SELECT ${COMMENT_COLUMNS}, (user_id = $2 AND NOT is_deleted AND NOT is_system) AS "canDelete"
+      FROM epic_comments WHERE epic_key = $1 ORDER BY created_at DESC, id DESC;
+    `, [epicKey, actorUserId]),
     pool.query('SELECT 1 FROM epic_hidden_by_users WHERE epic_key = $1 AND user_id = $2;', [epicKey, hiddenForUserId]),
   ]);
   return { comments: comments.rows.map(toEntry), isHidden: (hidden.rowCount ?? 0) > 0 };
@@ -127,6 +136,18 @@ export async function addEpicComment(epicKey: string, user: Pick<AuthUser, 'emai
     [epicKey, user.id, commentAuthorName(user), content],
   );
   return toEntry(inserted.rows[0]);
+}
+
+/**
+ * "Delete" of the user's OWN comment: the row stays, its text becomes '~~deleted~~'. Returns false when there is
+ * nothing to delete — not theirs, already deleted, or not in this Epic — so a comment can only be deleted once.
+ */
+export async function deleteOwnEpicComment(epicKey: string, commentId: number, userId: number): Promise<boolean> {
+  const result = await pool.query(`
+    UPDATE epic_comments SET content = $4, is_deleted = TRUE, deleted_at = CURRENT_TIMESTAMP
+    WHERE id = $1 AND epic_key = $2 AND user_id = $3 AND NOT is_deleted AND NOT is_system;
+  `, [commentId, epicKey, userId, EPIC_DELETED_COMMENT]);
+  return (result.rowCount ?? 0) > 0;
 }
 
 /** Hides / unhides the Epic for this user only. Returns whether anything changed. */

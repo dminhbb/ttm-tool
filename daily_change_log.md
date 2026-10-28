@@ -8,6 +8,7 @@
 
 ## 2026-10-28
 
+- **Review Notes — xóa comment của mình, sửa sau review** (migration `20261109_add_epic_comment_deleted`, đã áp dụng Supabase; **local chưa**: `npm run db:migrate:local`): user xóa được comment của CHÍNH mình (icon thùng rác bên phải bubble + popup xác nhận); dòng comment vẫn còn (người, giờ) nhưng nội dung thành `~~deleted~~` in nghiêng, xóa một lần (`DELETE /api/epic-marks/[epicKey]`, `deleteOwnEpicComment`). Tab Scoring có dòng "Đây là các đánh giá của hệ thống đối với epic {key}:". Quick filter đổi tên/xếp lại: My assigned epics, Reviewed epics (kèm dropdown PM/SM), Pending epics, Epics in PO, not Epics in PO, Hidden epics. Sửa theo review: chấm đếm "My assigned epics" không đếm Epic Cancelled; `resolveEpicMarkAccess` chỉ tải Scoring khi GET (`withScoring`); tách dòng import ở `api/epic-alerts-15/route.ts`; `getEpicTaskState` trả username. Xem dưới quyền: Hide áp theo user được xem (đã kiểm tra, không đổi code).
 - **Mark & Comment → "Review Notes"** (không đổi schema):
   - Cột MARK của bảng Quản trị Epic đổi thành REVIEW. Popup đổi tên và tiêu đề thành "Review Notes" (`EpicMarkModal.tsx`, `EpicMarkCell.tsx`, API `/api/epic-marks/[epicKey]`).
   - Popup rộng thêm 10% (922 → 1014px) và cao thêm 5%: thân popup cố định `min(565px, 65dvh)` nên chuyển tab không làm đổi kích thước; thẻ thông tin bên trái tự cuộn khi màn hình thấp.

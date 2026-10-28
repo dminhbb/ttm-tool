@@ -1,6 +1,6 @@
 # TTM Monitor — ERD & từ điển dữ liệu
 
-> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-10-27.
+> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-10-28.
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
@@ -820,6 +820,8 @@ erDiagram
         varchar content
         boolean is_system
         timestamptz created_at
+        boolean is_deleted
+        timestamptz deleted_at
     }
     epic_hidden_by_users {
         int user_id PK, FK
@@ -1011,6 +1013,8 @@ Danh mục "Ngày làm bù": khai báo một ngày T7/CN cụ thể là ngày l�
 | `content` | varchar(256) | không |  |  |  |
 | `is_system` | boolean | không | false |  |  |
 | `created_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+| `is_deleted` | boolean | không | false |  |  |
+| `deleted_at` | timestamptz | có |  |  |  |
 
 - index `idx_epic_comments_epic_key_created`: btree (epic_key, created_at DESC, id DESC)
 

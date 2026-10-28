@@ -8,7 +8,8 @@ import type { AccessScope, EpicAlertFilters } from '@/lib/epic-alert-service';
 import { fetchEpicAlertHeaderContext, resolveAccessScope } from '@/lib/epic-alert-service';
 import type { EpicAlertRowCacheFilters } from '@/lib/epic-alert-row-cache-query-service';
 import { buildAccessScopeClause, getEpicAlertRowCacheMeta, queryEpicAlertFilterOptions, queryEpicAlertRowCachePage, queryEpicAlertStatCounts, queryTtmCnttIndexes } from '@/lib/epic-alert-row-cache-query-service';
-import { applyEpicMarks, countAssignedTodoEpics, listMarkedOwnerNames, loadEpicMarkSummaries } from '@/lib/epic-mark-service';import pool from '@/lib/db';
+import { applyEpicMarks, countAssignedTodoEpics, listMarkedOwnerNames, loadEpicMarkSummaries } from '@/lib/epic-mark-service';
+import pool from '@/lib/db';
 
 function authError(error: unknown): NextResponse | null {
   if (error instanceof AuthError) {

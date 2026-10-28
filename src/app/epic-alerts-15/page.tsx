@@ -1383,21 +1383,6 @@ function EpicAlerts15Screen() {
             <CaretRight className="size-4 text-[var(--color-text-brand)]" weight="bold" />
             <span>Quick filters:</span>
           </div>
-          <QuickFilterButton active={activeQuickFilter === 'PENDING'} icon={HourglassMedium} label="Pending Epics" onClick={handlePendingQuickFilter} tooltip="Lọc các Epic có status là Pending" />
-          <QuickFilterButton active={activeQuickFilter === 'IN_PO'} icon={FolderSimple} label="Epics in PO" onClick={handleInPoQuickFilter} tooltip="Lọc các Epic có status thuộc: To Do, In PO, Released" />
-          <QuickFilterButton active={activeQuickFilter === 'NOT_IN_PO'} icon={Sparkle} label="not Epics in PO" onClick={handleNotInPoQuickFilter} tooltip="Lọc các Epic ở tất cả trạng thái trừ: Cancelled, To Do, In PO, Released" />
-          <QuickFilterButton active={markFilter === 'MARKED'} icon={FlagBanner} label="Marked epics" onClick={() => handleMarkQuickFilter('MARKED')} tooltip="Lọc các Epic có comment (kể cả Epic đã ẩn) trong phạm vi dữ liệu của bạn" />
-          {markFilter === 'MARKED' && (
-            <ToolbarMultiSelect
-              ariaLabel="PM/SM của Epic có comment"
-              searchable
-              allLabel="Tất cả"
-              options={markedOwnerOptions}
-              value={markedPmSmFilters}
-              onChange={(values) => { setMarkedPmSmFilters(values); setPage(1); }}
-            />
-          )}
-          <QuickFilterButton active={markFilter === 'HIDDEN'} icon={EyeSlash} label="Hidden epics" onClick={() => handleMarkQuickFilter('HIDDEN')} tooltip="Lọc các Epic bạn đã ẩn khỏi danh sách của bạn (người khác vẫn thấy các Epic này)" />
           <QuickFilterButton
             active={markFilter === 'MINE'}
             count={data?.myAssignedTodoCount}
@@ -1409,6 +1394,21 @@ function EpicAlerts15Screen() {
               ? `Lọc các Epic có comment và do bạn làm PM/SM (kể cả Epic đã ẩn) — ${data?.myAssignedTodoCount} Epic còn Giao việc = To do`
               : 'Lọc các Epic có comment và do bạn làm PM/SM (kể cả Epic đã ẩn)'}
           />
+          <QuickFilterButton active={markFilter === 'MARKED'} icon={FlagBanner} label="Reviewed epics" onClick={() => handleMarkQuickFilter('MARKED')} tooltip="Lọc các Epic có comment (kể cả Epic đã ẩn) trong phạm vi dữ liệu của bạn" />
+          {markFilter === 'MARKED' && (
+            <ToolbarMultiSelect
+              ariaLabel="PM/SM của Epic có comment"
+              searchable
+              allLabel="Tất cả"
+              options={markedOwnerOptions}
+              value={markedPmSmFilters}
+              onChange={(values) => { setMarkedPmSmFilters(values); setPage(1); }}
+            />
+          )}
+          <QuickFilterButton active={activeQuickFilter === 'PENDING'} icon={HourglassMedium} label="Pending epics" onClick={handlePendingQuickFilter} tooltip="Lọc các Epic có status là Pending" />
+          <QuickFilterButton active={activeQuickFilter === 'IN_PO'} icon={FolderSimple} label="Epics in PO" onClick={handleInPoQuickFilter} tooltip="Lọc các Epic có status thuộc: To Do, In PO, Released" />
+          <QuickFilterButton active={activeQuickFilter === 'NOT_IN_PO'} icon={Sparkle} label="not Epics in PO" onClick={handleNotInPoQuickFilter} tooltip="Lọc các Epic ở tất cả trạng thái trừ: Cancelled, To Do, In PO, Released" />
+          <QuickFilterButton active={markFilter === 'HIDDEN'} icon={EyeSlash} label="Hidden epics" onClick={() => handleMarkQuickFilter('HIDDEN')} tooltip="Lọc các Epic bạn đã ẩn khỏi danh sách của bạn (người khác vẫn thấy các Epic này)" />
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0 ml-auto">

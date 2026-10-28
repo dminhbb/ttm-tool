@@ -6,7 +6,7 @@ export function EpicCommentList({ comments, emptyText = 'Chưa có comment.' }: 
   return (
     <ul className="m-0 flex list-none flex-col gap-1.5 p-0 text-xs leading-snug text-fb-text-primary">
       {comments.map((comment) => (
-        <li className={comment.isSystem ? 'italic text-fb-text-secondary' : undefined} key={comment.id}>
+        <li className={comment.isSystem || comment.isDeleted ? 'italic text-fb-text-secondary' : undefined} key={comment.id}>
           <strong className="font-bold not-italic text-fb-text-primary">{formatCommentHead(comment)}</strong>
           <span> : {comment.content}</span>
         </li>
