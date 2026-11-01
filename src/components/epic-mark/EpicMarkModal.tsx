@@ -4,7 +4,7 @@ import * as React from 'react';
 import type { Icon } from '@phosphor-icons/react';
 import {
   Briefcase, Buildings, CalendarBlank, CalendarCheck, CalendarPlus, CalendarX, ChatCircleText, ChatsCircle, CircleHalf,
-  ClockCountdown, FileText, FlagCheckered, Gauge, Info, ListNumbers, PaperPlaneRight, SealCheck, Tag, Trash, UserCircle, UsersThree,
+  ClockCountdown, Eye, FileText, FlagCheckered, Gauge, Info, ListNumbers, PaperPlaneRight, SealCheck, Tag, Trash, UserCircle, UsersThree,
 } from '@phosphor-icons/react';
 import { JiraLinkButton } from '@/components/epic-alerts/JiraLinkButton';
 import { Badge, type BadgeProps } from '@/components/ui/Badge';
@@ -38,6 +38,8 @@ interface TaskState {
 interface MarkPayload {
   /** False under "Xem dưới quyền": the previewed user's Hide is shown but not changed for them. */
   canToggleHidden: boolean;
+  /** False for an Epic reached only through "Quyền xem": read-only, no comment box. */
+  canComment?: boolean;
   /** The viewer may switch "Giao việc": a PM/SM of the Epic or ADMIN and above (never under "Xem dưới quyền"). */
   canToggleTask: boolean;
   comments: EpicCommentEntry[];
@@ -496,6 +498,13 @@ export function EpicMarkModal({ epicKey, onChanged, onClose, viewAsUserId }: { e
                 <ScoringTable epicKey={epicKey} notes={payload.scoring} />
               </div>
             ) : (<>
+            {payload.canComment === false ? (
+              // "Quyền xem" Epic (owner 2026-11-01): read-only — no comment box.
+              <div className="flex shrink-0 items-center gap-2 border-b border-fb-border px-4 py-3 text-xs text-fb-text-secondary" role="tabpanel">
+                <Eye className="size-4 shrink-0" aria-hidden="true" />
+                Epic này chỉ nằm trong Quyền xem của bạn — xem được comment và Scoring, không comment được.
+              </div>
+            ) : (
             <div className="shrink-0 border-b border-fb-border px-4 py-3" role="tabpanel">
               <div className="flex items-center gap-2">
                 <label className="sr-only" htmlFor="epic-mark-comment">Comment của {payload.viewerName}</label>
@@ -530,6 +539,7 @@ export function EpicMarkModal({ epicKey, onChanged, onClose, viewAsUserId }: { e
                 <span className="tabular-nums">{text.length}/{EPIC_COMMENT_MAX_LENGTH}</span>
               </div>
             </div>
+            )}
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
               <CommentThread comments={payload.comments} disabled={saving} onDelete={setDeleting} />
             </div>

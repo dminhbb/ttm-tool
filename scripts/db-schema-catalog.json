@@ -11,6 +11,10 @@
         "user_domains",
         "user_projects",
         "user_project_components",
+        "user_view_projects",
+        "user_view_project_components",
+        "user_view_epics",
+        "user_view_settings",
         "auth_sessions",
         "password_reset_requests",
         "permission_features",
@@ -187,6 +191,22 @@
     },
     "user_project_components": {
       "description": "Thu hẹp phạm vi quyền dự án của PM/SM xuống chỉ những Epic có Jira Component khớp danh sách.",
+      "columns": {}
+    },
+    "user_view_projects": {
+      "description": "<strong>Mới 01/11/2026.</strong> \"Quyền xem\" (tab trong popup Chỉnh sửa user, chỉ cho USER/ADMIN): dự án mà user được XEM thêm trong màn Quản trị Epic, ngoài phạm vi quyền thật. Epic chỉ-xem hiện kèm icon con mắt và không tính vào bất kỳ chỉ số nào; Dashboard/Báo cáo không đọc bảng này.",
+      "columns": {}
+    },
+    "user_view_project_components": {
+      "description": "<strong>Mới 01/11/2026.</strong> Thu hẹp một dự án trong Quyền xem xuống các Component; không có dòng = xem mọi Epic của dự án (Epic không có Component nào thì không bị thu hẹp).",
+      "columns": {}
+    },
+    "user_view_epics": {
+      "description": "<strong>Mới 01/11/2026.</strong> Epic được cấp Quyền xem đích danh — luôn hiện, không áp Giới hạn thời gian.",
+      "columns": {}
+    },
+    "user_view_settings": {
+      "description": "<strong>Mới 01/11/2026.</strong> \"Giới hạn thời gian\" của Quyền xem theo dự án: chỉ hiện Epic có Created date (ngày tạo Jira) &gt; <code>created_after</code> và Start Date &gt; <code>start_after</code>; NULL = không lọc; Epic chưa có Start Date không thoả điều kiện Start Date.",
       "columns": {}
     },
     "auth_sessions": {

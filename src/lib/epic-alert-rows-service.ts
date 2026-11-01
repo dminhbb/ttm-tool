@@ -70,6 +70,7 @@ function buildBaseRow(entry: EpicAlertEntry, card: EpicScorecard, releasedDone: 
     missingStandardInfo: missingStandardInfo(row).filter((item) => item !== 'T0' && item !== 'Start Date'),
     // PM/SM of the Epic's project (comma-joined if several) — not the raw Jira assignee.
     ownerName: entry.pmSmName,
+    ...(entry.viewOnly ? { viewOnly: true } : {}),
     projectKey: row.project ?? '',
     projectName: entry.projectName || row.project || '',
     r4gDate: row.r4gDate,

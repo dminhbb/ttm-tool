@@ -6,6 +6,20 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-11-01
+
+- **Sửa dropdown "Dự án" không mở trong popup Chỉnh sửa user** (lỗi do lần sửa trước): danh sách thật ra đã mở nhưng nằm sau popup. Nguyên nhân: `globals.css` không nằm trong cascade layer nên `.ui-multi-select__popover { z-index: 30 }` thắng class `z-[125]` của Tailwind. `FloatingPanel` nay đặt `z-index` bằng inline style (đã đo trên trình duyệt: trước 30 / bị popup che, sau 125 / nằm trên cùng).
+- **Tab Quyền xem dùng đúng cụm "Dự án + Giới hạn theo Component" của tab Phân quyền**: tách thành `components/users/ProjectComponentFields.tsx`, cả hai tab dùng chung; bỏ bản sao trong `UserViewGrantsFields.tsx`.
+- **Quyền xem cho user** (migration `20261110_create_user_view_grants`, đã áp dụng Supabase; **local chưa**: `npm run db:migrate:local`):
+  - Popup "Chỉnh sửa user" có tab mới "Quyền xem" (`components/users/UserViewGrantsFields.tsx`), chỉ hiện khi user được sửa là USER hoặc ADMIN. ADMIN/SUPERADMIN cấu hình. Gồm 3 phần:
+    - Quyền xem Dự án: dự án + Component; không chọn Component = mọi Epic của dự án.
+    - Quyền xem Epic: ô chip gợi ý 3 Epic gần nhất (`ChipAutocompleteInput`, API `/api/users/view-grants/epic-suggestions`).
+    - Giới hạn thời gian: Created date sau / Start Date sau; chỉ áp cho Epic có từ quyền theo dự án; Epic chưa có Start Date bị ẩn khi đặt mốc Start Date.
+  - API `/api/users/view-grants` (GET/PUT); bảng `user_view_projects`, `user_view_project_components`, `user_view_epics`, `user_view_settings`. Logic so khớp ở `user-view-grants.ts` (`matchesViewGrants`, có test) và SQL tương ứng `buildViewGrantClause` (`epic-alert-row-cache-query-service.ts`).
+  - Quản trị Epic: liệt kê thêm các Epic trong Quyền xem, có icon con mắt bên phải dòng Epic key (`viewOnly`). Các widget đếm, chỉ số TTM-CNTT (QLDA)/(QA) và chấm "My assigned epics" chỉ tính Epic trong quyền thật. Dropdown bộ lọc có cả Epic chỉ-xem. Áp dụng ở cả chế độ cache lẫn tính trực tiếp (bộ lọc nâng cao, ngày cũ — `fetchEpicAlertContext` nhận `filters.viewGrants`). Chỉ route `/api/epic-alerts-15` truyền quyền xem; Dashboard, Báo cáo, MCP và cache không đổi. Không cần tạo lại cache.
+  - Review Notes với Epic chỉ-xem: xem được comment và Scoring, được "Ẩn epic", không comment và không đổi Giao việc (`resolveEpicMarkAccess` có tuỳ chọn `allowViewGrants`).
+- **Dropdown chọn nhiều không còn bị popup che**: `MultiSelect` hiện danh sách lựa chọn qua `FloatingPanel` (`components/ui/FloatingPanel.tsx`, gắn vào `document.body`, tự mở lên trên hoặc xuống dưới) nên phần thân có thanh cuộn của popup không cắt mất (ví dụ dropdown Dự án trong "Chỉnh sửa user").
+
 ## 2026-10-28
 
 - **Thông báo "My assigned epics" nổi bật hơn**: rộng 460px, nền đỏ nhạt + viền đỏ (token `status-danger`, hợp chế độ tối), chữ/icon lớn hơn, hiển thị 15 giây (`AssignedEpicsNotice.tsx`).

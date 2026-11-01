@@ -18,6 +18,9 @@ import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui
 import { DataTableToolbar } from '@/components/ui/DataTableToolbar';
 import { TableAction } from '@/components/ui/TableAction';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
+import { ProjectComponentFields } from '@/components/users/ProjectComponentFields';
+import { UserViewGrantsFields } from '@/components/users/UserViewGrantsFields';
+import { roleUsesViewGrants, type UserViewGrantsDetail } from '@/lib/user-view-grants';
 import { canGrantRole, USER_ROLES } from '@/lib/auth-types';
 import { generateCompliantPassword, PASSWORD_REQUIREMENTS_GUIDE, validatePassword } from '@/lib/password-rules';
 import { fuzzyIncludes } from '@/lib/fuzzy-search';
@@ -27,7 +30,7 @@ import type { ManagedUser, UserInput, UserRole } from '@/lib/auth-types';
 import type { Domain, Project, ProjectComponent } from '@/lib/master-data-types';
 
 type Tab = 'users' | 'reset' | 'registrations';
-type EditUserTab = 'info' | 'permission' | 'password';
+type EditUserTab = 'info' | 'permission' | 'view' | 'password';
 type UserSortKey = 'username' | 'email' | 'fullName' | 'domain' | 'projects' | 'role' | 'status';
 type Ticket = { createdAt: string; email: string; id: number; userId: number | null };
 type BulkDelete = { ids: number[]; type: 'registrations' | 'tickets'; usernames?: string[] };
@@ -50,6 +53,10 @@ export default function UsersPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [editing, setEditing] = useState<ManagedUser | null>(null);
   const [editTab, setEditTab] = useState<EditUserTab>('info');
+  // Tab "Quyền xem" (USER / ADMIN targets only): loaded when the popup opens, saved with "Lưu" when changed.
+  const [viewGrants, setViewGrants] = useState<UserViewGrantsDetail | null>(null);
+  const [viewGrantsDirty, setViewGrantsDirty] = useState(false);
+  const editingId = editing?.id ?? null;
   const [creating, setCreating] = useState(false);
   const [creatingBulk, setCreatingBulk] = useState(false);
   const [isBulkSaving, setIsBulkSaving] = useState(false);
@@ -81,6 +88,15 @@ export default function UsersPage() {
   };
 
   useEffect(() => { void Promise.resolve().then(load); }, []);
+  useEffect(() => {
+    if (editingId === null) return undefined;
+    const controller = new AbortController();
+    fetch(`/api/users/view-grants?userId=${editingId}`, { signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: UserViewGrantsDetail | null) => { if (!controller.signal.aborted && data) setViewGrants(data); })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [editingId]);
   useEffect(() => { fetch('/api/auth/me').then((response) => (response.ok ? response.json() : null)).then((data: { user?: { role: UserRole } } | null) => { if (data?.user) setCurrentUserRole(data.user.role); }).catch(() => undefined); }, []);
   const domainOptions = [{ value: '', label: 'Chọn Domain' }, ...domains.map((domain) => ({ value: String(domain.id), label: `${domain.domainCode} — ${domain.domainName}` }))];
   const domainMultiOptions = domains.map((domain) => ({ value: String(domain.id), label: `${domain.domainCode} — ${domain.domainName}` }));
@@ -106,7 +122,7 @@ export default function UsersPage() {
   const visibleTickets = tickets.filter((ticket) => fuzzyIncludes(searchTerm, [extractUsername(ticket.email), ticket.email, ticket.createdAt]));
   const visibleInactiveUsers = inactiveUsers.filter((user) => fuzzyIncludes(searchTerm, [extractUsername(user.email), user.email, user.fullName, domainName(user)]));
 
-  const closeEdit = () => { setEditing(null); setEditTab('info'); setEditNewPassword(''); setEditConfirmPassword(''); setShowEditNewPassword(false); setShowEditConfirmPassword(false); };
+  const closeEdit = () => { setEditing(null); setEditTab('info'); setViewGrants(null); setViewGrantsDirty(false); setEditNewPassword(''); setEditConfirmPassword(''); setShowEditNewPassword(false); setShowEditConfirmPassword(false); };
 
   const save = async () => {
     if (!editing) return;
@@ -123,6 +139,15 @@ export default function UsersPage() {
       const pwResponse = await fetch('/api/users', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editing.id, password: editNewPassword }) });
       const pwResult = await pwResponse.json();
       if (!pwResponse.ok) { setMessage({ text: pwResult.error || 'Đã cập nhật user nhưng không thể cấp lại mật khẩu.', type: 'error' }); void load(); return; }
+    }
+    if (viewGrants && viewGrantsDirty && roleUsesViewGrants(editing.role)) {
+      const grantsResponse = await fetch('/api/users/view-grants', {
+        body: JSON.stringify({ createdAfter: viewGrants.createdAfter, epicKeys: viewGrants.epicKeys, projects: viewGrants.projects, startAfter: viewGrants.startAfter, userId: editing.id }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT',
+      });
+      const grantsResult = await grantsResponse.json();
+      if (!grantsResponse.ok) { setMessage({ text: grantsResult.error || 'Đã cập nhật user nhưng không thể lưu Quyền xem.', type: 'error' }); void load(); return; }
     }
     closeEdit();
     showToast('Đã cập nhật user.', 5000);
@@ -228,7 +253,13 @@ export default function UsersPage() {
     <Modal isOpen={creatingBulk} onClose={() => setCreatingBulk(false)} title="Thêm nhiều user" footer={<><Button onClick={() => setCreatingBulk(false)} variant="outline">Hủy</Button><Button isLoading={isBulkSaving} onClick={createBulkUsers}>Thêm user</Button></>}><div className="ui-form flex flex-col gap-4"><FormField id="bulk-usernames" label="Danh sách username" helperText="Nhập username, ngăn cách bằng dấu phẩy; không cần @mbbank.com.vn."><textarea className="ui-textarea form-control-compact" onChange={(event) => setBulkUsernames(event.target.value)} placeholder="minhnd7, ngothanhha, congha" value={bulkUsernames} /></FormField><p className="text-fb-text-secondary">User mới có Họ tên là username, email dạng username@mbbank.com.vn, role USER, inactive, chưa gán Domain và mật khẩu mặc định theo cấu hình yêu cầu.</p></div></Modal>
     <Modal isOpen={approvalUserIds.length > 0} onClose={() => setApprovalUserIds([])} title="Chọn Domain để duyệt đăng ký" footer={<><Button onClick={() => setApprovalUserIds([])} variant="outline">Hủy</Button><Button disabled={!approvalDomainId} onClick={() => void approve(approvalUserIds, Number(approvalDomainId))}>Duyệt đăng ký</Button></>}><div className="ui-form flex flex-col gap-4"><p className="text-fb-text-secondary">Các user được chọn chưa có Domain. Chọn một Domain active để gán trước khi kích hoạt {approvalUserIds.length} user.</p><Select label="Domain" onChange={(event) => setApprovalDomainId(event.target.value)} options={domainOptions} required value={approvalDomainId} /></div></Modal>
     <Modal isOpen={editing !== null} onClose={closeEdit} maxWidth="xl" title="Chỉnh sửa user" footer={<><Button onClick={save}>Lưu</Button><Button onClick={() => setDeleting(editing)} title="Xóa user" variant="danger">Xóa user</Button></>}>{editing && <div className="flex flex-col gap-4">
-      <nav className="ui-tabs" aria-label="Chỉnh sửa user">{([['info', 'Thông tin user'], ['permission', 'Phân quyền'], ['password', 'Mật khẩu']] as [EditUserTab, string][]).map(([key, label]) => <Button key={key} onClick={() => setEditTab(key)} size="sm" variant={editTab === key ? 'primary' : 'outline'}>{label}</Button>)}</nav>
+      <nav className="ui-tabs" aria-label="Chỉnh sửa user">{([['info', 'Thông tin user'], ['permission', 'Phân quyền'], ...(roleUsesViewGrants(editing.role) ? [['view', 'Quyền xem']] : []), ['password', 'Mật khẩu']] as [EditUserTab, string][]).map(([key, label]) => <Button key={key} onClick={() => setEditTab(key)} size="sm" variant={editTab === key ? 'primary' : 'outline'}>{label}</Button>)}</nav>
+      {/* "Quyền xem" (owner 2026-11-01) — not offered to SUPERADMIN / SUPERVISOR targets, who see every Epic already. */}
+      {editTab === 'view' && (roleUsesViewGrants(editing.role)
+        ? (viewGrants
+          ? <UserViewGrantsFields allProjectComponents={projectComponents} allProjects={projects} disabled={currentUserRole === 'SUPERVISOR'} grants={viewGrants} onChange={(next) => { setViewGrants(next); setViewGrantsDirty(true); }} projectOptions={projectMultiOptions} />
+          : <p className="m-0 text-sm text-fb-text-secondary">Đang tải quyền xem…</p>)
+        : <p className="m-0 text-sm text-fb-text-secondary">Quyền xem không áp dụng cho role {editing.role} — user này đã xem được mọi Epic.</p>)}
       {editTab === 'info' && <div className="ui-form flex flex-col gap-4">
         <UserIdentityFields domains={domainMultiOptions} onChange={(user) => setEditing(user as ManagedUser)} user={editing} />
         <label className="ui-check"><input checked={editing.isActive} onChange={(event) => setEditing({ ...editing, isActive: event.target.checked })} type="checkbox" />Đang hoạt động (Active)</label>
@@ -287,33 +318,16 @@ function UserPermissionFields({ allProjectComponents, allProjects, currentUserRo
   const grantableRoles = currentUserRole ? USER_ROLES.filter((role) => canGrantRole(currentUserRole, role)) : [];
   const roleOptions = USER_ROLES.filter((role) => grantableRoles.includes(role) || role === user.role).map((value) => ({ value, label: value }));
   const roleLocked = !grantableRoles.includes(user.role);
-  const selectedProjects = user.projectIds
-    .map((projectId) => allProjects.find((project) => project.id === projectId))
-    .filter((project): project is Project => Boolean(project));
-
   return <>
-    <MultiSelect helperText="Tùy chọn. Chọn các dự án user được phân công vai trò PM/SM." label="Dự án" onChange={(projectIds) => {
-      const nextProjectIds = projectIds.map(Number);
-      const nextProjectComponents = Object.fromEntries(Object.entries(user.projectComponents).filter(([projectId]) => nextProjectIds.includes(Number(projectId))));
-      onChange({ ...user, projectIds: nextProjectIds, projectComponents: nextProjectComponents });
-    }} options={projects} placeholder="Chọn dự án" value={user.projectIds.map(String)} />
-    {selectedProjects.length > 0 && <div className="ui-form-section flex flex-col gap-3 rounded-lg border border-fb-border bg-fb-surface-muted p-3">
-      <p className="text-xs font-semibold text-fb-text-secondary">Giới hạn theo Component (tùy chọn) — bỏ trống nghĩa là user có quyền với toàn bộ issue của dự án đó.</p>
-      {selectedProjects.map((project) => {
-        const componentOptions = allProjectComponents
-          .filter((component) => component.projectKey === project.sourceProjectKey && component.isActive)
-          .map((component) => ({ value: component.componentName, label: component.componentName }));
-        return <MultiSelect
-          key={project.id}
-          helperText={componentOptions.length === 0 ? 'Dự án này chưa có Component nào trong danh mục.' : undefined}
-          label={`${project.sourceProjectKey} — ${project.projectName}`}
-          onChange={(components) => onChange({ ...user, projectComponents: { ...user.projectComponents, [String(project.id)]: components } })}
-          options={componentOptions}
-          placeholder="Toàn quyền dự án (không giới hạn Component)"
-          value={user.projectComponents[String(project.id)] ?? []}
-        />;
-      })}
-    </div>}
+    <ProjectComponentFields
+      allProjectComponents={allProjectComponents}
+      allProjects={allProjects}
+      helperText="Tùy chọn. Chọn các dự án user được phân công vai trò PM/SM."
+      onChange={(projectIds, projectComponents) => onChange({ ...user, projectComponents, projectIds })}
+      projectComponents={user.projectComponents}
+      projectIds={user.projectIds}
+      projects={projects}
+    />
     <Select disabled={roleLocked} helperText={roleLocked ? 'Bạn không có quyền gán hoặc thay đổi role này.' : undefined} label="Role" onChange={(event) => onChange({ ...user, role: event.target.value as UserRole })} options={roleOptions} value={user.role} />
   </>;
 }

@@ -6,6 +6,7 @@ import { getEpicKeysWithCnttAlertRuns } from '@/lib/epic-alert-timeline-service'
 import { EPIC_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 import { listSelectableLayers } from '@/lib/data-layer-retention-service';
 import type { EpicAlertAccessRole } from '@/lib/epic-alert-types';
+import { hasViewGrants, matchesViewGrants, type ViewGrants } from '@/lib/user-view-grants';
 
 /**
  * Who may see which Epics, and each Epic's non-verdict facts (names, dates, project / domain / PM-SM,
@@ -142,6 +143,8 @@ export interface EpicAlertEntry {
   pmSmName: string;
   projectName: string;
   row: EpicRow;
+  /** Listed only through the viewer's "Quyền xem" (not their real data scope) — never counted in a metric. */
+  viewOnly?: boolean;
 }
 
 export interface EpicAlertContext {
@@ -167,6 +170,9 @@ export interface EpicAlertContext {
  * a single flat Epic list instead of the Report's multi-table split.
  */
 export interface EpicAlertFilters {
+  /** "Quyền xem" (owner 2026-11-01): extra Epics the viewer may see, flagged `viewOnly`. Set ONLY by Quản trị Epic's
+   * route — every other caller (dashboards, MCP, caches) leaves it out and keeps the real data scope. */
+  viewGrants?: ViewGrants | null;
   /** "Chọn lớp dữ liệu": show the state of every Epic AT this date (its newest row dated on/before it) and
    * judge FAIL/LATE, "stripe thực tế" and remaining/elapsed working days as of it too. Omit/null for the
    * default: the newest row of every Epic, judged as of the real current date. */
@@ -240,6 +246,8 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole, filt
   const viewerName = viewer.rows[0]?.fullName ?? '';
   const latestAggregatedAt = latestBatch.rows[0]?.aggregatedAt ?? null;
   const asOfDate = filters.asOfDate ? filters.asOfDate.slice(0, 10) : null;
+  // "Quyền xem": only for a viewer whose real scope is not already everything.
+  const viewGrants = scope.sourceProjectKeys !== null && hasViewGrants(filters.viewGrants) ? filters.viewGrants : null;
   if (!latestAggregatedAt) {
     return { accessRole: scope.accessRole, availableLayerDates, dataChangedKeys: new Set(), entries: [], layerDateSources, lastAggregatedAt: null, newSinceCount: 0, viewerName };
   }
@@ -249,14 +257,13 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole, filt
       ${EPIC_ROW_COLUMNS}
     FROM issues
     WHERE UPPER(issues.issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
-      AND ($1::text[] IS NULL OR COALESCE(
-        NULLIF(issues.project_key, ''),
-        NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''),
-        ''
-      ) = ANY($1::text[]))
+      AND ($1::text[] IS NULL
+        OR COALESCE(NULLIF(issues.project_key, ''), NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''), '') = ANY($1::text[])
+        OR COALESCE(NULLIF(issues.project_key, ''), NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''), '') = ANY($3::text[])
+        OR UPPER(issues.issue_key) = ANY($4::text[]))
       AND ($2::date IS NULL OR issues.aggregated_at::date <= $2::date)
     ORDER BY issues.issue_key ASC, issues.aggregated_at DESC
-  `, [scope.sourceProjectKeys, asOfDate]);
+  `, [scope.sourceProjectKeys, asOfDate, viewGrants ? [...viewGrants.projects.keys()] : [], viewGrants ? [...viewGrants.epicKeys] : []]);
 
   // "Chỉ Epic thay đổi từ ngày X": the newest row each Epic has today, to compare with the one at X.
   // Epics whose own data differs from what they had then (the verdict side is compared once rows are scored).
@@ -267,9 +274,12 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole, filt
       SELECT DISTINCT ON (issues.issue_key) ${EPIC_ROW_COLUMNS}
       FROM issues
       WHERE UPPER(issues.issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
-        AND ($1::text[] IS NULL OR COALESCE(NULLIF(issues.project_key, ''), NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''), '') = ANY($1::text[]))
+        AND ($1::text[] IS NULL
+          OR COALESCE(NULLIF(issues.project_key, ''), NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''), '') = ANY($1::text[])
+          OR COALESCE(NULLIF(issues.project_key, ''), NULLIF(SPLIT_PART(issues.issue_key, '-', 1), ''), '') = ANY($2::text[])
+          OR UPPER(issues.issue_key) = ANY($3::text[]))
       ORDER BY issues.issue_key ASC, issues.aggregated_at DESC
-    `, [scope.sourceProjectKeys]);
+    `, [scope.sourceProjectKeys, viewGrants ? [...viewGrants.projects.keys()] : [], viewGrants ? [...viewGrants.epicKeys] : []]);
     const atDate = new Map(result.rows.map((row) => [row.epicKey, row]));
     for (const row of latest.rows) {
       const before = atDate.get(row.epicKey);
@@ -288,7 +298,13 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole, filt
     // with no components tagged in Jira is NOT restricted — per the confirmed rule, a blank
     // Component/s field is treated as "general", visible regardless of the user's narrowing.
     const allowedComponents = row.project ? scope.projectComponents.get(row.project) : undefined;
-    if (allowedComponents && row.components.length > 0 && !row.components.some((component) => allowedComponents.includes(component))) continue;
+    const inRealScope = (scope.sourceProjectKeys === null || scope.sourceProjectKeys.includes(row.project ?? ''))
+      && !(allowedComponents && row.components.length > 0 && !row.components.some((component) => allowedComponents.includes(component)));
+    // Not in the real scope: still listed (view only) when the viewer's "Quyền xem" grants it.
+    const viewOnly = !inRealScope && matchesViewGrants(viewGrants, {
+      components: row.components, createdDate: row.jiraCreatedAt, epicKey: row.epicKey, projectKey: row.project ?? '', startDate: row.startDate,
+    });
+    if (!inRealScope && !viewOnly) continue;
 
     // "Bộ lọc nâng cao" date filters — same semantics as the Epic Report's own filters (see
     // generateEpicReport in reports-service.ts), applied here to the single flat Epic list.
@@ -302,7 +318,7 @@ export async function fetchEpicAlertContext(userId: number, role: UserRole, filt
     const complexity: EpicComplexity = row.complexity ?? 'CT-Lv12';
     const domain = (row.project && domainByProjectKey.get(row.project)) ?? '';
     const projectMeta = row.project ? projectMetaByProjectKey.get(row.project) : undefined;
-    entries.push({ complexity, domain, hasAlertHistory, pmSmName: projectMeta?.leadName ?? '', projectName: projectMeta?.projectName ?? '', row });
+    entries.push({ complexity, domain, hasAlertHistory, pmSmName: projectMeta?.leadName ?? '', projectName: projectMeta?.projectName ?? '', row, ...(viewOnly ? { viewOnly: true } : {}) });
   }
 
   return { accessRole: scope.accessRole, availableLayerDates, dataChangedKeys, entries, lastAggregatedAt: latestAggregatedAt, layerDateSources, newSinceCount, viewerName };

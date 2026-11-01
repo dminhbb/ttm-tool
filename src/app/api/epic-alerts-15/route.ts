@@ -4,10 +4,11 @@ import { getEpicAlertRowsForDisplay } from '@/lib/epic-alert-rows-service';
 import { parseEpicAlertFiltersFromSearchParams } from '@/lib/epic-alert-filter-params';
 import { getTtmScopeConfig } from '@/lib/ttm-scope-config-service';
 import { resolveViewAsTarget } from '@/lib/view-as-user-service';
+import { resolveViewGrants } from '@/lib/user-view-grants-service';
 import type { AccessScope, EpicAlertFilters } from '@/lib/epic-alert-service';
 import { fetchEpicAlertHeaderContext, resolveAccessScope } from '@/lib/epic-alert-service';
 import type { EpicAlertRowCacheFilters } from '@/lib/epic-alert-row-cache-query-service';
-import { buildAccessScopeClause, getEpicAlertRowCacheMeta, queryEpicAlertFilterOptions, queryEpicAlertRowCachePage, queryEpicAlertStatCounts, queryTtmCnttIndexes } from '@/lib/epic-alert-row-cache-query-service';
+import { buildAccessScopeClause, buildListScopeClause, getEpicAlertRowCacheMeta, queryEpicAlertFilterOptions, queryEpicAlertRowCachePage, queryEpicAlertStatCounts, queryTtmCnttIndexes } from '@/lib/epic-alert-row-cache-query-service';
 import { applyEpicMarks, countAssignedTodoEpics, listMarkedOwnerNames, loadEpicMarkSummaries } from '@/lib/epic-mark-service';
 import pool from '@/lib/db';
 
@@ -77,7 +78,13 @@ export async function GET(request: NextRequest) {
     // "Xem dưới quyền" from a TTM dashboard drill-down: list exactly what the previewed user sees
     // (ignored unless the actor may preview that user — see view-as-user-service.ts).
     const { userId, role, viewAsUser } = await resolveViewAsTarget(actor, searchParams.get('viewAsUserId'));
-    const filters = await dropNoOpTtmScopeOverride(parseEpicAlertFiltersFromSearchParams(searchParams));
+    // "Quyền xem" of the viewer (the previewed user under "Xem dưới quyền"): extra Epics listed with an eye icon and
+    // never counted. Only this screen reads them — dashboards, reports and MCP keep the real data scope.
+    const [parsedFilters, viewGrants] = await Promise.all([
+      dropNoOpTtmScopeOverride(parseEpicAlertFiltersFromSearchParams(searchParams)),
+      resolveViewGrants(userId, role),
+    ]);
+    const filters = { ...parsedFilters, viewGrants };
 
     // Fast path: no "layer cũ hơn" drill-down and no advanced date filter active — those change
     // WHICH Epics are even in scope (a WHERE on `issues`, upstream of epic_alert_row_cache), so
@@ -93,7 +100,7 @@ export async function GET(request: NextRequest) {
 
     if (cacheMeta?.hasCache) {
       const header = await fetchEpicAlertHeaderContext(userId, role);
-      const cacheFilters = parseCacheFilters(searchParams, userId);
+      const cacheFilters = { ...parseCacheFilters(searchParams, userId), viewGrants };
       const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
       const pageSize = Math.min(200, Math.max(1, Number(searchParams.get('pageSize') ?? '20') || 20));
 
@@ -101,7 +108,7 @@ export async function GET(request: NextRequest) {
         queryEpicAlertRowCachePage(header.scope, cacheFilters, page, pageSize),
         queryEpicAlertStatCounts(header.scope, cacheFilters),
         queryTtmCnttIndexes(header.scope, cacheFilters),
-        queryEpicAlertFilterOptions(header.scope),
+        queryEpicAlertFilterOptions(header.scope, viewGrants),
       ]);
       // Epic Mark: comments / the viewer's own Hide are read live and stamped on the page's rows (never cached).
       const [marks, myAssignedTodoCount] = await Promise.all([
@@ -111,7 +118,7 @@ export async function GET(request: NextRequest) {
       const markedOwnerNames = cacheFilters.markFilter === 'MARKED'
         ? await (async () => {
             const params: unknown[] = [];
-            return listMarkedOwnerNames(buildAccessScopeClause(header.scope, params), params);
+            return listMarkedOwnerNames(buildListScopeClause(header.scope, viewGrants, params), params);
           })()
         : [];
 

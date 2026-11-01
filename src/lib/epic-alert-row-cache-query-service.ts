@@ -9,6 +9,7 @@ import { summarizeTtmCnttFromCounts } from '@/lib/ttm-cntt-qa';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import { compareWorkflowStatus } from '@/lib/scoring/derive';
 import { FILTER_PRESETS } from '@/lib/scoring/select';
+import { hasViewGrants, type ViewGrants } from '@/lib/user-view-grants';
 
 /**
  * Server-side filter/sort/pagination reads for "Quản trị Epic" (đầy đủ), backed by
@@ -40,6 +41,9 @@ export interface EpicAlertRowCacheFilters {
   markedPmSm?: string[];
   /** The viewer (the previewed user under "Xem dưới quyền"): whose Hide applies, and MINE. */
   viewerUserId?: number;
+  /** The viewer's "Quyền xem" (owner 2026-11-01): Epics beyond the real scope that are LISTED (flagged viewOnly) but
+   * never counted — the stat widgets and TTM indexes read the real scope only. */
+  viewGrants?: ViewGrants | null;
 }
 
 export interface EpicAlertRowCachePage {
@@ -83,6 +87,49 @@ export function buildAccessScopeClause(scope: AccessScope, params: unknown[]): s
   return `(${clauses.join(' OR ')})`;
 }
 
+/**
+ * SQL twin of matchesViewGrants (user-view-grants.ts): an Epic granted by key, or an Epic of a granted project (narrowed
+ * by components — an Epic without components is not narrowed) that passes the "Giới hạn thời gian". Keep the two in sync.
+ */
+export function buildViewGrantClause(grants: ViewGrants, params: unknown[]): string {
+  const parts: string[] = [];
+  if (grants.epicKeys.length > 0) {
+    params.push([...grants.epicKeys]);
+    parts.push(`epic_key = ANY($${params.length}::text[])`);
+  }
+  const projectParts: string[] = [];
+  for (const [projectKey, components] of grants.projects) {
+    params.push(projectKey);
+    if (components.length > 0) {
+      params.push([...components]);
+      projectParts.push(`(project_key = $${params.length - 1} AND (cardinality(components) = 0 OR components && $${params.length}::text[]))`);
+    } else {
+      projectParts.push(`project_key = $${params.length}`);
+    }
+  }
+  if (projectParts.length > 0) {
+    const conditions = [`(${projectParts.join(' OR ')})`];
+    if (grants.createdAfter) {
+      params.push(grants.createdAfter);
+      // Created date = the Epic's Jira creation date (not kept in the row cache — read off its newest issues row).
+      conditions.push(`(SELECT (i.jira_created_at AT TIME ZONE 'UTC')::date FROM issues i WHERE i.issue_key = epic_alert_row_cache.epic_key ORDER BY i.aggregated_at DESC LIMIT 1) > $${params.length}::date`);
+    }
+    if (grants.startAfter) {
+      params.push(grants.startAfter);
+      conditions.push(`NULLIF(LEFT(row_data->>'t1StartDate', 10), '')::date > $${params.length}::date`);
+    }
+    parts.push(`(${conditions.join(' AND ')})`);
+  }
+  return parts.length > 0 ? `(${parts.join(' OR ')})` : 'FALSE';
+}
+
+/** What Quản trị Epic LISTS: the real scope, plus the "Quyền xem" grants of a viewer whose scope is not everything. */
+export function buildListScopeClause(scope: AccessScope, viewGrants: ViewGrants | null | undefined, params: unknown[]): string {
+  const real = buildAccessScopeClause(scope, params);
+  if (scope.sourceProjectKeys === null || !hasViewGrants(viewGrants)) return real;
+  return `(${real} OR ${buildViewGrantClause(viewGrants, params)})`;
+}
+
 /** In-memory twin of buildAccessScopeClause, for code that already holds the rows (the TTM
  * Dashboard 2 cache builds every scope off one read of the table). Keep the two in sync. */
 export function rowInAccessScope(scope: AccessScope, projectKey: string, components: readonly string[] | null): boolean {
@@ -95,9 +142,13 @@ export function rowInAccessScope(scope: AccessScope, projectKey: string, compone
 
 /** Everything from EpicAlertRowCacheFilters except pagination — shared by the page query, its
  * COUNT, and the stat-widget aggregate, all of which must agree on exactly the same row set. */
-function buildFilterClause(scope: AccessScope, filters: EpicAlertRowCacheFilters, options: { ignoreHidden?: boolean } = {}): WhereClause {
+function buildFilterClause(scope: AccessScope, filters: EpicAlertRowCacheFilters, options: { ignoreHidden?: boolean; realScopeOnly?: boolean } = {}): WhereClause & { realScopeSql: string } {
   const params: unknown[] = [];
-  const clauses: string[] = [buildAccessScopeClause(scope, params)];
+  // The real data scope first (its SQL is reused to tell view-only rows apart), then the "Quyền xem" grants unless
+  // the caller counts something (stat widgets, TTM indexes: realScopeOnly).
+  const realScopeSql = buildAccessScopeClause(scope, params);
+  const withViewGrants = !options.realScopeOnly && scope.sourceProjectKeys !== null && hasViewGrants(filters.viewGrants);
+  const clauses: string[] = [withViewGrants ? `(${realScopeSql} OR ${buildViewGrantClause(filters.viewGrants as ViewGrants, params)})` : realScopeSql];
 
   // Epic Mark: an Epic the VIEWER hid (Hide is personal — epic_hidden_by_users) is left out of their list unless a
   // Mark quick filter is on. The TTM index badges pass ignoreHidden — hiding an Epic never changes a metric.
@@ -166,7 +217,7 @@ function buildFilterClause(scope: AccessScope, filters: EpicAlertRowCacheFilters
     .filter((clause): clause is string => Boolean(clause));
   if (alertClauses.length > 0) clauses.push(`(${alertClauses.map((clause) => `(${clause})`).join(' OR ')})`);
 
-  return { sql: clauses.join(' AND '), params };
+  return { params, realScopeSql, sql: clauses.join(' AND ') };
 }
 
 /** Vietnam calendar date as "YYYY-MM-DD" text — comparable with the ISO date strings in row_data. */
@@ -237,14 +288,15 @@ export async function queryEpicAlertRowCachePage(
   page: number,
   pageSize: number,
 ): Promise<EpicAlertRowCachePage> {
-  const { sql: whereSql, params } = buildFilterClause(scope, filters);
+  const { sql: whereSql, params, realScopeSql } = buildFilterClause(scope, filters);
   const countResult = await pool.query<{ n: string }>(`SELECT count(*)::text AS n FROM epic_alert_row_cache WHERE ${whereSql};`, params);
   const totalCount = Number(countResult.rows[0]?.n ?? 0);
 
   const pageParams = [...params, pageSize, (Math.max(1, page) - 1) * pageSize];
-  const rowsResult = await pool.query<{ rowData: EpicAlertRowPhased; computedAt: string; sourceImportBatchId: number | null }>(
+  const rowsResult = await pool.query<{ rowData: EpicAlertRowPhased; computedAt: string; sourceImportBatchId: number | null; viewOnly: boolean }>(
     `
-    SELECT row_data AS "rowData", computed_at::text AS "computedAt", source_import_batch_id AS "sourceImportBatchId"
+    SELECT row_data AS "rowData", computed_at::text AS "computedAt", source_import_batch_id AS "sourceImportBatchId",
+           NOT ${realScopeSql} AS "viewOnly"
     FROM epic_alert_row_cache
     WHERE ${whereSql}
     ORDER BY ${ORDER_BY}
@@ -254,7 +306,7 @@ export async function queryEpicAlertRowCachePage(
   );
 
   return {
-    rows: rowsResult.rows.map((row) => row.rowData),
+    rows: rowsResult.rows.map((row) => (row.viewOnly ? { ...row.rowData, viewOnly: true } : row.rowData)),
     totalCount,
     computedAt: rowsResult.rows[0]?.computedAt ?? null,
     sourceImportBatchId: rowsResult.rows[0]?.sourceImportBatchId ?? null,
@@ -264,7 +316,8 @@ export async function queryEpicAlertRowCachePage(
 /** statCounts widgets — computed over the filtered set (same WHERE as the page query), not just
  * the current page, matching the client's previous filteredRows-based computation exactly. */
 export async function queryEpicAlertStatCounts(scope: AccessScope, filters: EpicAlertRowCacheFilters): Promise<EpicAlertStatCounts> {
-  const { sql: whereSql, params } = buildFilterClause(scope, filters);
+  // "Quyền xem" Epics are listed but never counted (owner 2026-11-01).
+  const { sql: whereSql, params } = buildFilterClause(scope, filters, { realScopeOnly: true });
   const result = await pool.query<{
     dataIssue: string; failCntt: string; failE2e: string; late: string; pending: string; todo: string;
   }>(
@@ -298,7 +351,7 @@ export async function queryEpicAlertStatCounts(scope: AccessScope, filters: Epic
  * of hydrating rows into JS. Cancelled Epics never count, even when the Status filter includes them;
  * neither do "Epic ngoại lệ" / non-TTM-project Epics (scoring: their index_flags are already empty). */
 export async function queryTtmCnttIndexes(scope: AccessScope, filters: EpicAlertRowCacheFilters): Promise<{ ttm: TtmCnttSummary; qa: TtmCnttSummary }> {
-  const { sql: accessClause, params } = buildFilterClause(scope, filters, { ignoreHidden: true });
+  const { sql: accessClause, params } = buildFilterClause(scope, filters, { ignoreHidden: true, realScopeOnly: true });
   return queryScoringIndexPm(accessClause, params);
 }
 
@@ -329,9 +382,10 @@ export interface EpicAlertFilterOptions {
  * over the viewer's FULL access scope — not just whatever page is currently on screen. Needed
  * because the paged query (queryEpicAlertRowCachePage) only ever returns one page of rows, unlike
  * the old client-side-everything model where the dropdowns could just read straight off `rows`. */
-export async function queryEpicAlertFilterOptions(scope: AccessScope): Promise<EpicAlertFilterOptions> {
+export async function queryEpicAlertFilterOptions(scope: AccessScope, viewGrants?: ViewGrants | null): Promise<EpicAlertFilterOptions> {
   const params: unknown[] = [];
-  const accessClause = buildAccessScopeClause(scope, params);
+  // The dropdowns offer what the list can show — "Quyền xem" Epics included.
+  const accessClause = buildListScopeClause(scope, viewGrants, params);
   const result = await pool.query<{
     projectKey: string; status: string; requestingUnit: string | null; domainName: string | null; ownerNames: string[]; ruleGroupName: string | null;
   }>(

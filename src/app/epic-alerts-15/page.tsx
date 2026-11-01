@@ -29,7 +29,7 @@ import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import type { TtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
-import { ArrowBendUpRight, ArrowCounterClockwise, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, EyeSlash, FlagBanner, FloppyDisk, FolderSimple, HourglassMedium, ListChecks, UserFocus, Prohibit, Sparkle, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
+import { ArrowBendUpRight, ArrowCounterClockwise, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, Eye, EyeSlash, FlagBanner, FloppyDisk, FolderSimple, HourglassMedium, ListChecks, UserFocus, Prohibit, Sparkle, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { listGroupRankOf } from '@/lib/epic-alert-sort-rules';
@@ -1139,8 +1139,10 @@ function EpicAlerts15Screen() {
     [data, rows],
   );
 
-  const clientTtmCnttQlda = useMemo(() => summarizeTtmCntt(indexRows), [indexRows]);
-  const clientTtmCnttQa = useMemo(() => summarizeQaIndex(indexRows), [indexRows]);
+  // "Quyền xem" Epics (viewOnly) are listed but never counted (owner 2026-11-01) — the twin of the SQL realScopeOnly.
+  const countedIndexRows = useMemo(() => indexRows.filter((row) => !row.viewOnly), [indexRows]);
+  const clientTtmCnttQlda = useMemo(() => summarizeTtmCntt(countedIndexRows), [countedIndexRows]);
+  const clientTtmCnttQa = useMemo(() => summarizeQaIndex(countedIndexRows), [countedIndexRows]);
   const ttmCnttQlda = data?.mode === 'paged' && data.ttmIndexPm ? data.ttmIndexPm : clientTtmCnttQlda;
   const ttmCnttQa = data?.mode === 'paged' && data.qaIndexPm ? data.qaIndexPm : clientTtmCnttQa;
   // Publishes the badges into AppShell's shared sticky header (see epic-header-widgets-context.tsx).
@@ -1189,6 +1191,7 @@ function EpicAlerts15Screen() {
     let pending = 0;
     let todo = 0;
     for (const row of filteredRows) {
+      if (row.viewOnly) continue; // "Quyền xem": listed, never counted
       if (row.ttmCnttInScope && row.alertLevel === 'FAIL') failCntt += 1;
       if (row.ttmE2eAlertLevel === 'FAIL') failE2e += 1;
       if (row.ttmCnttInScope && row.alertLevel === 'LATE') late += 1;
@@ -1570,6 +1573,13 @@ function EpicAlerts15Screen() {
                 return (
                   <TR key={row.epicKey} className={row.hasDataAnomaly ? 'missing-row' : undefined}>
                     <TD className="ttm-epic-col-sticky ttm-col-border-right text-left align-top">
+                      {row.viewOnly && (
+                        <Tooltip className="float-right ml-1 inline-flex w-auto" content="Epic trong Quyền xem — chỉ để xem, không tính vào bất kỳ chỉ số nào" multiline side="left">
+                          <span aria-label="Epic trong Quyền xem (chỉ xem)" className="ttm-view-only-eye" role="img">
+                            <Eye size={16} weight="bold" aria-hidden="true" />
+                          </span>
+                        </Tooltip>
+                      )}
                       <AlertHistoryButton row={row} onOpen={setAlertHistoryRow} />
                       <JiraLinkButton epicKey={row.epicKey} viewIssueBaseUrl={viewIssueBaseUrl} />
                       <button

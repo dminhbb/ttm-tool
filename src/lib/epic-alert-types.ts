@@ -31,6 +31,9 @@ export interface EpicAlertRowPhased {
   alertLevel: AlertLevel;
   /** Epic Mark (comments + hidden flag), stamped after the row cache by the Quản trị Epic API — absent when the Epic has neither. */
   mark?: EpicMarkSummary;
+  /** Listed only through the viewer's "Quyền xem" (owner 2026-11-01): shown with an eye icon, never counted in a
+   * metric (widgets, TTM indexes). Set per viewer by the Quản trị Epic API — never stored in the row cache. */
+  viewOnly?: boolean;
   /** issues.components (Epic's own Jira Component/s) — used by the Components filter. */
   components: string[];
   currentStatus: string;

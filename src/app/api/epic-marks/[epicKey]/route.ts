@@ -23,6 +23,7 @@ function errorResponse(error: unknown, fallback: string): NextResponse {
 }
 
 const OUT_OF_SCOPE = () => NextResponse.json({ error: 'Epic không nằm trong phạm vi dữ liệu của bạn.' }, { status: 403 });
+const VIEW_ONLY = () => NextResponse.json({ error: 'Epic này chỉ nằm trong Quyền xem của bạn: không comment và không đổi Giao việc được.' }, { status: 403 });
 
 async function epicKeyOf(context: RouteContext): Promise<string> {
   return (await context.params).epicKey.trim().toUpperCase();
@@ -32,15 +33,18 @@ export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const user = await requireUser(request);
     const epicKey = await epicKeyOf(context);
-    const access = await resolveEpicMarkAccess(user, epicKey, { withScoring: true });
+    const access = await resolveEpicMarkAccess(user, epicKey, { allowViewGrants: true, withScoring: true });
     if (!access) return OUT_OF_SCOPE();
     const { userId: hiddenForUserId, viewAsUser } = await resolveViewAsTarget(user, request.nextUrl.searchParams.get('viewAsUserId'));
     const [detail, summary, task] = await Promise.all([getEpicMarkDetail(epicKey, hiddenForUserId, user.id), getEpicBrowserSummary(epicKey), getEpicTaskState(epicKey)]);
     const viewerName = commentAuthorName(user);
     return NextResponse.json({
       ...detail,
+      // An Epic reached only through "Quyền xem" is read-only here: no comment, no "Giao việc" (hiding it for oneself is fine).
+      canComment: !access.viewOnly,
       canToggleHidden: viewAsUser === null,
-      canToggleTask: viewAsUser === null && canSetEpicTaskStatus(user.role, viewerName, access.ownerNames),
+      canToggleTask: viewAsUser === null && !access.viewOnly && canSetEpicTaskStatus(user.role, viewerName, access.ownerNames),
+      viewOnly: access.viewOnly,
       epicKey,
       epicName: summary?.epicName || access.epicName,
       ownerName: access.ownerName,
@@ -65,7 +69,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (!comment) {
       return NextResponse.json({ error: `Comment không được để trống và tối đa ${EPIC_COMMENT_MAX_LENGTH} ký tự.` }, { status: 400 });
     }
-    if (!(await resolveEpicMarkAccess(user, epicKey))) return OUT_OF_SCOPE();
+    const access = await resolveEpicMarkAccess(user, epicKey, { allowViewGrants: true });
+    if (!access) return OUT_OF_SCOPE();
+    if (access.viewOnly) return VIEW_ONLY();
     return NextResponse.json({ comment: await addEpicComment(epicKey, user, comment) });
   } catch (error: unknown) {
     console.error('API Error adding epic comment:', error);
@@ -102,8 +108,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const body = (await request.json().catch(() => null)) as { hidden?: unknown; taskStatus?: unknown } | null;
     if (body?.taskStatus !== undefined) {
       if (!isEpicTaskStatus(body.taskStatus)) return NextResponse.json({ error: 'Giá trị Giao việc không hợp lệ.' }, { status: 400 });
-      const access = await resolveEpicMarkAccess(user, epicKey);
+      const access = await resolveEpicMarkAccess(user, epicKey, { allowViewGrants: true });
       if (!access) return OUT_OF_SCOPE();
+      if (access.viewOnly) return VIEW_ONLY();
       if (!canSetEpicTaskStatus(user.role, commentAuthorName(user), access.ownerNames)) {
         return NextResponse.json({ error: 'Chỉ PM/SM của Epic hoặc ADMIN trở lên được đổi Giao việc.' }, { status: 403 });
       }
@@ -112,7 +119,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
     const hidden = body?.hidden;
     if (typeof hidden !== 'boolean') return NextResponse.json({ error: 'Giá trị Hide/Unhide không hợp lệ.' }, { status: 400 });
-    if (!(await resolveEpicMarkAccess(user, epicKey))) return OUT_OF_SCOPE();
+    // Hiding is personal, so a "Quyền xem" Epic may be hidden too.
+    if (!(await resolveEpicMarkAccess(user, epicKey, { allowViewGrants: true }))) return OUT_OF_SCOPE();
     const changed = await setEpicHidden(epicKey, hidden, user.id);
     return NextResponse.json({ changed, ...(await getEpicMarkDetail(epicKey, user.id, user.id)) });
   } catch (error: unknown) {

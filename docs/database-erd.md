@@ -1,14 +1,14 @@
 # TTM Monitor — ERD & từ điển dữ liệu
 
-> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-10-28.
+> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-01.
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
-**62 bảng** trong schema `public`, **47 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
+**66 bảng** trong schema `public`, **53 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
 
 ## Mục lục
 
-1. [Xác thực & phân quyền](#1-xác-thực-phân-quyền) — 8 bảng
+1. [Xác thực & phân quyền](#1-xác-thực-phân-quyền) — 12 bảng
 2. [Domain & Dự án](#2-domain-dự-án) — 3 bảng
 3. [Quản lý dự án (PMS — expand-only)](#3-quản-lý-dự-án-pms-expand-only) — 5 bảng
 4. [Import & Issue](#4-import-issue) — 5 bảng
@@ -54,6 +54,26 @@ erDiagram
         varchar component_name PK
         timestamptz created_at
     }
+    user_view_projects {
+        int user_id PK, FK
+        int project_id PK, FK
+    }
+    user_view_project_components {
+        int user_id PK, FK
+        int project_id PK, FK
+        varchar component_name PK
+    }
+    user_view_epics {
+        int user_id PK, FK
+        varchar epic_key PK
+    }
+    user_view_settings {
+        int user_id PK, FK
+        date created_after
+        date start_after
+        int updated_by_user_id FK
+        timestamptz updated_at
+    }
     auth_sessions {
         char token_hash PK
         int user_id FK
@@ -93,6 +113,12 @@ erDiagram
     projects ||--o{ user_projects : "project_id"
     users ||--o{ user_projects : "user_id"
     user_projects ||--o{ user_project_components : "user_id, project_id"
+    projects ||--o{ user_view_projects : "project_id"
+    users ||--o{ user_view_projects : "user_id"
+    user_view_projects ||--o{ user_view_project_components : "user_id, project_id"
+    users ||--o{ user_view_epics : "user_id"
+    users |o--o{ user_view_settings : "updated_by_user_id"
+    users ||--o| user_view_settings : "user_id"
     users ||--o{ auth_sessions : "user_id"
     users |o--o{ password_reset_requests : "resolved_by"
     permission_features ||--o{ role_feature_permissions : "feature_key"
@@ -155,6 +181,46 @@ Thu hẹp phạm vi quyền dự án của PM/SM xuống chỉ những Epic có 
 | `created_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
 
 - index `idx_user_project_components_lookup`: btree (user_id, project_id)
+
+### `user_view_projects`
+
+**Mới 01/11/2026.** "Quyền xem" (tab trong popup Chỉnh sửa user, chỉ cho USER/ADMIN): dự án mà user được XEM thêm trong màn Quản trị Epic, ngoài phạm vi quyền thật. Epic chỉ-xem hiện kèm icon con mắt và không tính vào bất kỳ chỉ số nào; Dashboard/Báo cáo không đọc bảng này.
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `user_id` | int | không |  | PK, FK → users(id) |  |
+| `project_id` | int | không |  | PK, FK → projects(id) |  |
+
+### `user_view_project_components`
+
+**Mới 01/11/2026.** Thu hẹp một dự án trong Quyền xem xuống các Component; không có dòng = xem mọi Epic của dự án (Epic không có Component nào thì không bị thu hẹp).
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `user_id` | int | không |  | PK, FK → user_view_projects(user_id) |  |
+| `project_id` | int | không |  | PK, FK → user_view_projects(project_id) |  |
+| `component_name` | varchar(255) | không |  | PK |  |
+
+### `user_view_epics`
+
+**Mới 01/11/2026.** Epic được cấp Quyền xem đích danh — luôn hiện, không áp Giới hạn thời gian.
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `user_id` | int | không |  | PK, FK → users(id) |  |
+| `epic_key` | varchar(100) | không |  | PK |  |
+
+### `user_view_settings`
+
+**Mới 01/11/2026.** "Giới hạn thời gian" của Quyền xem theo dự án: chỉ hiện Epic có Created date (ngày tạo Jira) > `created_after` và Start Date > `start_after`; NULL = không lọc; Epic chưa có Start Date không thoả điều kiện Start Date.
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `user_id` | int | không |  | PK, FK → users(id) |  |
+| `created_after` | date | có |  |  |  |
+| `start_after` | date | có |  |  |  |
+| `updated_by_user_id` | int | có |  | FK → users(id) |  |
+| `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 
 ### `auth_sessions`
 
@@ -1995,4 +2061,10 @@ Số lượt truy cập LŨY KẾ của các dòng `visit_logs` cũ hơn ngày T
 | `user_projects` | project_id | `projects`(id) | CASCADE |
 | `user_projects` | user_id | `users`(id) | CASCADE |
 | `user_usage_daily_stats` | user_id | `users`(id) | CASCADE |
+| `user_view_epics` | user_id | `users`(id) | CASCADE |
+| `user_view_project_components` | user_id, project_id | `user_view_projects`(user_id, project_id) | CASCADE |
+| `user_view_projects` | project_id | `projects`(id) | CASCADE |
+| `user_view_projects` | user_id | `users`(id) | CASCADE |
+| `user_view_settings` | updated_by_user_id | `users`(id) | SET NULL |
+| `user_view_settings` | user_id | `users`(id) | CASCADE |
 | `visit_logs` | user_id | `users`(id) | SET NULL |

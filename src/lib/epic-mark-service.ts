@@ -5,6 +5,8 @@ import { resolveAccessScope } from '@/lib/epic-alert-service';
 import { rowInAccessScope } from '@/lib/epic-alert-row-cache-query-service';
 import { EPIC_DELETED_COMMENT, type EpicCommentEntry, type EpicMarkSummary, type EpicTaskStatus } from '@/lib/epic-mark-format';
 import { scoringNotesOf, type ScoringNote } from '@/lib/epic-scoring-notes';
+import { matchesViewGrants } from '@/lib/user-view-grants';
+import { resolveViewGrants } from '@/lib/user-view-grants-service';
 import type { Finding } from '@/lib/scoring/types';
 
 /**
@@ -41,24 +43,42 @@ export interface EpicMarkAccess {
   ownerName: string;
   /** PM/SM usernames of the Epic (owner_names). */
   ownerNames: string[];
+  /** Reached only through the user's "Quyền xem": read and hide for oneself, no comment, no "Giao việc". */
+  viewOnly: boolean;
   /** The Epic's active Scoring Service badges with their explanations (tab "Scoring" of Review Notes) — only with `withScoring`. */
   scoring: ScoringNote[];
 }
 
 /** The Epic's name + PM/SM when the user's data scope contains it, else null (unknown Epic = out of scope). */
-export async function resolveEpicMarkAccess(user: Pick<AuthUser, 'id' | 'role'>, epicKey: string, options: { withScoring?: boolean } = {}): Promise<EpicMarkAccess | null> {
+export async function resolveEpicMarkAccess(
+  user: Pick<AuthUser, 'id' | 'role'>,
+  epicKey: string,
+  options: { allowViewGrants?: boolean; withScoring?: boolean } = {},
+): Promise<EpicMarkAccess | null> {
   const [scope, cached] = await Promise.all([
     resolveAccessScope(user.id, user.role),
-    pool.query<{ badgeCodes: string[]; components: string[]; epicName: string; findings: Finding[]; ownerNames: string[]; projectKey: string }>(
+    pool.query<{ badgeCodes: string[]; components: string[]; createdDate: string | null; epicName: string; findings: Finding[]; ownerNames: string[]; projectKey: string; startDate: string | null }>(
       `SELECT project_key AS "projectKey", components, epic_name AS "epicName", owner_names AS "ownerNames",
-              ${options.withScoring ? 'findings, badge_codes AS "badgeCodes"' : `NULL::jsonb AS findings, NULL::text[] AS "badgeCodes"`}
+              ${options.withScoring ? 'findings, badge_codes AS "badgeCodes"' : `NULL::jsonb AS findings, NULL::text[] AS "badgeCodes"`},
+              row_data->>'t1StartDate' AS "startDate",
+              (SELECT (i.jira_created_at AT TIME ZONE 'UTC')::date::text FROM issues i WHERE i.issue_key = epic_alert_row_cache.epic_key ORDER BY i.aggregated_at DESC LIMIT 1) AS "createdDate"
        FROM epic_alert_row_cache WHERE epic_key = $1 LIMIT 1;`,
       [epicKey],
     ),
   ]);
   const row = cached.rows[0];
-  if (!row || !rowInAccessScope(scope, row.projectKey, row.components)) return null;
+  if (!row) return null;
+  let viewOnly = false;
+  if (!rowInAccessScope(scope, row.projectKey, row.components)) {
+    // "Quyền xem" (owner 2026-11-01): the popup may be opened to READ (and to hide it for oneself), never to write.
+    if (!options.allowViewGrants) return null;
+    const grants = await resolveViewGrants(user.id, user.role);
+    const facts = { components: row.components ?? [], createdDate: row.createdDate, epicKey, projectKey: row.projectKey, startDate: row.startDate };
+    if (!matchesViewGrants(grants, facts)) return null;
+    viewOnly = true;
+  }
   return {
+    viewOnly,
     epicName: row.epicName,
     ownerName: (row.ownerNames ?? []).join(', '),
     ownerNames: row.ownerNames ?? [],
