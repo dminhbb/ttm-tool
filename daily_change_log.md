@@ -8,6 +8,9 @@
 
 ## 2026-11-01
 
+- **Tài liệu kiến trúc — chương 8 gọn hơn**: bảng chi tiết 8.3–8.14 ẩn mặc định; bấm tên nhóm ở bảng 8.2 thì chỉ hiện bảng của nhóm đó (có nút Đóng, dòng đang chọn được tô sáng, mở thẳng được bằng link `#db-group-<nhóm>`). Khi in / xuất PDF thì hiện đủ cả 12 nhóm.
+- **Tài liệu kiến trúc — thêm chương 8 "Cơ sở dữ liệu"** (`docs/ttm-monitor-kien-truc-va-giai-phap.html`; Phụ lục chuyển thành chương 9): ERD lõi nghiệp vụ (SVG, 21 bảng, FK và liên kết logic theo `epic_key`), tổng quan 12 nhóm bảng, danh sách đủ 66 bảng kèm chức năng (từ `scripts/db-schema-catalog.json`), số bản ghi, khoá chính, khoá ngoại và hành vi ON DELETE — đọc trực tiếp từ Supabase lúc 01/11/2026 22:44 (66 bảng, 53 FK, 87.755 bản ghi).
+- **Tài liệu kiến trúc & giải pháp cho production**: `docs/ttm-monitor-kien-truc-va-giai-phap.html` (HTML tĩnh, sáng/tối, 6 hình SVG). Gồm: tổng quan kiến trúc, giải pháp (Scoring Service, chỉ số TTM), luồng tổng hợp dữ liệu, 3 màn hình chính (Quản trị Epic, TTM Dashboard, Báo cáo Epic), quản trị & tính năng khác, phụ lục triển khai production. Nội dung đối chiếu Tài liệu sản phẩm (`/docs/product`) và mã nguồn tại build 261101.2136.
 - **Sửa dropdown "Dự án" không mở trong popup Chỉnh sửa user** (lỗi do lần sửa trước): danh sách thật ra đã mở nhưng nằm sau popup. Nguyên nhân: `globals.css` không nằm trong cascade layer nên `.ui-multi-select__popover { z-index: 30 }` thắng class `z-[125]` của Tailwind. `FloatingPanel` nay đặt `z-index` bằng inline style (đã đo trên trình duyệt: trước 30 / bị popup che, sau 125 / nằm trên cùng).
 - **Tab Quyền xem dùng đúng cụm "Dự án + Giới hạn theo Component" của tab Phân quyền**: tách thành `components/users/ProjectComponentFields.tsx`, cả hai tab dùng chung; bỏ bản sao trong `UserViewGrantsFields.tsx`.
 - **Quyền xem cho user** (migration `20261110_create_user_view_grants`, đã áp dụng Supabase; **local chưa**: `npm run db:migrate:local`):

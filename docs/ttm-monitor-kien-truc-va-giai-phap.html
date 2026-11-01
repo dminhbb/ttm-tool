@@ -1,0 +1,1231 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TTM Monitor — Kiến trúc &amp; Giải pháp</title>
+<meta name="description" content="Tài liệu tóm tắt kiến trúc và giải pháp ứng dụng TTM Monitor phục vụ đưa lên môi trường production.">
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --surface: #ffffff;
+    --surface-2: #f0f3fa;
+    --text: #14182b;
+    --muted: #5a6178;
+    --border: #d9deea;
+    --brand: #1f3fd1;
+    --brand-soft: #e6ebff;
+    --accent: #0f8a6a;
+    --accent-soft: #e2f5ef;
+    --warn: #b45309;
+    --warn-soft: #fdf1e2;
+    --danger: #c2264b;
+    --danger-soft: #fde8ee;
+    --shadow: 0 1px 2px rgba(20, 24, 43, .06), 0 4px 16px rgba(20, 24, 43, .05);
+    --radius: 14px;
+    --mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1120; --surface: #161a2d; --surface-2: #1d2238; --text: #e7eaf5; --muted: #a2a9c2; --border: #2c3350;
+      --brand: #8aa2ff; --brand-soft: #232c55; --accent: #4fd1a8; --accent-soft: #15362e; --warn: #f5b25c; --warn-soft: #3a2a14;
+      --danger: #ff7d9b; --danger-soft: #3d1723; --shadow: none; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1120; --surface: #161a2d; --surface-2: #1d2238; --text: #e7eaf5; --muted: #a2a9c2; --border: #2c3350;
+    --brand: #8aa2ff; --brand-soft: #232c55; --accent: #4fd1a8; --accent-soft: #15362e; --warn: #f5b25c; --warn-soft: #3a2a14;
+    --danger: #ff7d9b; --danger-soft: #3d1723; --shadow: none; color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.65 "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  }
+  a { color: var(--brand); }
+  code { font-family: var(--mono); font-size: .86em; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 1px 5px; }
+
+  .layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 28px; max-width: 1320px; margin: 0 auto; padding: 24px; }
+  nav.toc { position: sticky; top: 24px; align-self: start; max-height: calc(100vh - 48px); overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 16px; box-shadow: var(--shadow); }
+  nav.toc .brand { font-weight: 800; font-size: 17px; letter-spacing: -.01em; }
+  nav.toc .brand small { display: block; font-weight: 500; font-size: 12px; color: var(--muted); margin-top: 2px; }
+  nav.toc ol { list-style: none; margin: 16px 0 0; padding: 0; counter-reset: toc; }
+  nav.toc li { counter-increment: toc; }
+  nav.toc a { display: flex; gap: 8px; padding: 6px 8px; border-radius: 8px; color: var(--text); text-decoration: none; font-size: 14px; }
+  nav.toc a::before { content: counter(toc); flex: 0 0 20px; height: 20px; border-radius: 6px; background: var(--brand-soft); color: var(--brand); font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+  nav.toc a:hover { background: var(--surface-2); }
+  nav.toc .meta { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+  .theme-btn { margin-top: 10px; width: 100%; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+
+  main { min-width: 0; }
+  header.hero { background: linear-gradient(135deg, var(--brand) 0%, #3b5bff 55%, #6b4dff 100%); color: #fff; border-radius: 18px; padding: 34px 34px 30px; box-shadow: var(--shadow); }
+  :root[data-theme="dark"] header.hero { background: linear-gradient(135deg, #263a9e 0%, #33449e 55%, #47358f 100%); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) header.hero { background: linear-gradient(135deg, #263a9e 0%, #33449e 55%, #47358f 100%); } }
+  header.hero .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: 12px; font-weight: 700; opacity: .85; }
+  header.hero h1 { margin: 8px 0 10px; font-size: 32px; line-height: 1.2; letter-spacing: -.02em; }
+  header.hero p { margin: 0; max-width: 820px; opacity: .95; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 22px; }
+  .stat { background: rgba(255, 255, 255, .13); border: 1px solid rgba(255, 255, 255, .22); border-radius: 12px; padding: 10px 14px; }
+  .stat b { display: block; font-size: 22px; line-height: 1.2; }
+  .stat span { font-size: 12.5px; opacity: .9; }
+
+  section.chapter { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 30px; margin-top: 22px; box-shadow: var(--shadow); }
+  section.chapter > h2 { margin: 0 0 4px; font-size: 24px; letter-spacing: -.01em; display: flex; align-items: center; gap: 12px; }
+  section.chapter > h2 .num { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 10px; background: var(--brand); color: #fff; font-size: 16px; display: inline-flex; align-items: center; justify-content: center; }
+  section.chapter > .lead { color: var(--muted); margin: 0 0 18px; }
+  h3 { font-size: 17px; margin: 26px 0 8px; }
+  h4 { font-size: 15px; margin: 18px 0 6px; }
+  p { margin: 8px 0; }
+  ul, ol { margin: 8px 0; padding-left: 22px; }
+  li { margin: 3px 0; }
+
+  .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  .card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .card h4 { margin: 0 0 6px; }
+  .card p, .card ul { margin: 4px 0; font-size: 14px; }
+  .pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--brand-soft); color: var(--brand); margin-right: 4px; }
+  .pill.green { background: var(--accent-soft); color: var(--accent); }
+  .pill.orange { background: var(--warn-soft); color: var(--warn); }
+  .pill.red { background: var(--danger-soft); color: var(--danger); }
+  .note { border-left: 4px solid var(--brand); background: var(--brand-soft); border-radius: 0 10px 10px 0; padding: 10px 14px; margin: 14px 0; font-size: 14px; }
+  .note.warn { border-color: var(--warn); background: var(--warn-soft); }
+
+  .table-wrap { overflow-x: auto; margin: 10px 0; border: 1px solid var(--border); border-radius: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+  th { background: var(--surface-2); font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  tr:last-child td { border-bottom: 0; }
+
+  figure.diagram { margin: 16px 0; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+  figure.diagram svg { display: block; width: 100%; height: auto; }
+  figure.diagram figcaption { font-size: 13px; color: var(--muted); margin-top: 8px; text-align: center; }
+
+  /* SVG palette — follows the theme */
+  .s-box { fill: var(--surface); stroke: var(--border); stroke-width: 1.4; }
+  .s-brand { fill: var(--brand-soft); stroke: var(--brand); stroke-width: 1.4; }
+  .s-accent { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.4; }
+  .s-warn { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.4; }
+  .s-danger { fill: var(--danger-soft); stroke: var(--danger); stroke-width: 1.4; }
+  .s-frame { fill: none; stroke: var(--brand); stroke-width: 1.6; stroke-dasharray: 6 5; }
+  .s-line { stroke: var(--muted); stroke-width: 1.6; fill: none; }
+  .s-line-brand { stroke: var(--brand); stroke-width: 1.8; fill: none; }
+  .s-arrowhead { fill: var(--muted); }
+  .s-arrowhead-brand { fill: var(--brand); }
+  .t-title { fill: var(--text); font-size: 13.5px; font-weight: 700; }
+  .t-body { fill: var(--muted); font-size: 11.5px; }
+  .t-small { fill: var(--muted); font-size: 10.5px; }
+  .t-brand { fill: var(--brand); font-size: 12.5px; font-weight: 700; }
+  .t-white { fill: #fff; font-size: 13px; font-weight: 700; }
+  .t-num { fill: var(--brand); font-size: 12px; font-weight: 800; }
+
+  /* Chương Cơ sở dữ liệu */
+  td.num, th.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); font-weight: 400; }
+  .ondel { display: inline-block; font-size: 11px; font-weight: 700; color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; margin-left: 2px; }
+  table.db-table td:first-child { white-space: nowrap; }
+  table.db-table td:nth-child(2) { min-width: 280px; }
+  table.db-table td:nth-child(5) { min-width: 260px; font-size: 13px; }
+  .s-logic { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 5 4; fill: none; }
+  .s-divider { stroke: var(--border); stroke-width: 1; }
+  .t-col { fill: var(--text); }
+  .t-key { fill: var(--brand); font-weight: 700; }
+
+  .db-group { margin-top: 18px; scroll-margin-top: 16px; }
+  .db-group-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .db-group-head h4 { margin: 0; }
+  .db-close { border: 1px solid var(--border); background: var(--surface-2); color: var(--text); border-radius: 8px; padding: 4px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+  .db-close:hover { border-color: var(--brand); color: var(--brand); }
+  tr.is-active td { background: var(--brand-soft); }
+  tr.is-active a { font-weight: 700; }
+
+  footer { color: var(--muted); font-size: 13px; text-align: center; padding: 26px 0 10px; }
+
+  @media (max-width: 980px) {
+    .layout { grid-template-columns: 1fr; padding: 16px; }
+    nav.toc { position: static; max-height: none; }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    section.chapter { padding: 20px 16px; }
+    header.hero { padding: 24px 18px; }
+    header.hero h1 { font-size: 25px; }
+  }
+  @media print {
+    body { background: #fff; }
+    .layout { display: block; padding: 0; }
+    nav.toc, .theme-btn, .db-close, #db-group-hint { display: none; }
+    .db-group[hidden] { display: block !important; }
+    section.chapter { box-shadow: none; break-inside: auto; }
+    figure.diagram { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="toc" aria-label="Mục lục">
+    <div class="brand">TTM Monitor<small>Kiến trúc &amp; Giải pháp ứng dụng</small></div>
+    <ol>
+      <li><a href="#kien-truc">Tổng quan kiến trúc</a></li>
+      <li><a href="#giai-phap">Giải pháp ứng dụng</a></li>
+      <li><a href="#luong-du-lieu">Luồng tổng hợp dữ liệu</a></li>
+      <li><a href="#quan-tri-epic">Màn hình Quản trị Epic</a></li>
+      <li><a href="#dashboard">Màn hình TTM Dashboard</a></li>
+      <li><a href="#bao-cao">Màn hình Báo cáo Epic</a></li>
+      <li><a href="#tinh-nang-khac">Quản trị &amp; tính năng khác</a></li>
+      <li><a href="#co-so-du-lieu">Cơ sở dữ liệu</a></li>
+      <li><a href="#van-hanh">Phụ lục: triển khai production</a></li>
+    </ol>
+    <div class="meta">
+      Phiên bản mã nguồn: build <b>261101.2136</b><br>
+      Cập nhật: 01/11/2026<br>
+      Chi tiết nghiệp vụ: Tài liệu sản phẩm (<code>/docs/product</code>)
+      <button class="theme-btn" id="themeBtn" type="button">Đổi giao diện sáng / tối</button>
+    </div>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <div class="eyebrow">Tài liệu tóm tắt cho production</div>
+      <h1>TTM Monitor — Kiến trúc &amp; Giải pháp ứng dụng</h1>
+      <p>Ứng dụng giám sát và cảnh báo sớm rủi ro chậm <b>Time to Market (TTM)</b> của các Epic trên Jira: tổng hợp dữ liệu Jira hằng ngày, chấm điểm từng Epic theo bộ rule của công ty, và cung cấp các màn hình theo dõi, dashboard, báo cáo cho PM/SM, Lead và CBQL.</p>
+      <div class="stats">
+        <div class="stat"><b>1</b><span>ứng dụng Next.js (giao diện + API)</span></div>
+        <div class="stat"><b>92</b><span>API route nội bộ</span></div>
+        <div class="stat"><b>66</b><span>bảng PostgreSQL · 115 migration</span></div>
+        <div class="stat"><b>4</b><span>role cố định + ma trận phân quyền</span></div>
+        <div class="stat"><b>459</b><span>unit test tự động</span></div>
+      </div>
+    </header>
+
+    <!-- ============================================================ 1 -->
+    <section class="chapter" id="kien-truc">
+      <h2><span class="num">1</span>Tổng quan kiến trúc ứng dụng</h2>
+      <p class="lead">Một ứng dụng web duy nhất, một CSDL PostgreSQL — không có server API tách riêng, message queue, scheduler hay Redis.</p>
+
+      <p>TTM Monitor là một ứng dụng <b>Next.js 16</b> chạy trên <b>Node.js</b>. Cùng một tiến trình vừa phục vụ giao diện (các trang React) vừa phục vụ API (Route Handler). Ứng dụng truy vấn PostgreSQL bằng SQL thuần qua driver <code>pg</code>, không dùng ORM. Mọi kết quả tính toán nặng (chấm điểm Epic, chỉ số, phễu dashboard) được tính sẵn và lưu thành <b>bảng cache ngay trong PostgreSQL</b>, nên các màn hình chỉ đọc kết quả đã tính.</p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 960 520" role="img" aria-labelledby="archTitle">
+          <title id="archTitle">Sơ đồ kiến trúc tổng thể TTM Monitor</title>
+          <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="s-arrowhead"/></marker>
+            <marker id="arrB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="s-arrowhead-brand"/></marker>
+          </defs>
+          <!-- actors -->
+          <text x="20" y="26" class="t-brand">Bên ngoài</text>
+          <rect x="20" y="40" width="175" height="74" rx="10" class="s-box"/>
+          <text x="32" y="64" class="t-title">Người dùng</text>
+          <text x="32" y="82" class="t-body">Trình duyệt (HTTPS)</text>
+          <text x="32" y="98" class="t-body">PM/SM · Lead · CBQL · Admin</text>
+          <rect x="20" y="146" width="175" height="74" rx="10" class="s-box"/>
+          <text x="32" y="170" class="t-title">Script Python</text>
+          <text x="32" y="188" class="t-body">Crawl Jira REST API</text>
+          <text x="32" y="204" class="t-body">→ file CSV hằng ngày</text>
+          <rect x="20" y="252" width="175" height="74" rx="10" class="s-box"/>
+          <text x="32" y="276" class="t-title">AI chatbot</text>
+          <text x="32" y="294" class="t-body">MCP client</text>
+          <text x="32" y="310" class="t-body">(Personal Access Token)</text>
+          <rect x="20" y="358" width="175" height="74" rx="10" class="s-box"/>
+          <text x="32" y="382" class="t-title">Ứng dụng khác</text>
+          <text x="32" y="400" class="t-body">Đăng nhập liên kết</text>
+          <text x="32" y="416" class="t-body">SSO + API key</text>
+
+          <!-- arrows actors -> app -->
+          <path d="M195 77 H246" class="s-line" marker-end="url(#arr)"/>
+          <path d="M195 183 H226 V100 H246" class="s-line" marker-end="url(#arr)"/>
+          <path d="M195 289 H230 V104 H246" class="s-line" marker-end="url(#arr)"/>
+          <path d="M195 395 H234 V108 H246" class="s-line" marker-end="url(#arr)"/>
+
+          <!-- app frame -->
+          <rect x="240" y="20" width="460" height="482" rx="14" class="s-frame"/>
+          <text x="256" y="44" class="t-brand">Ứng dụng Next.js 16 · Node.js · 1 tiến trình (nhân bản được)</text>
+
+          <rect x="256" y="58" width="428" height="58" rx="10" class="s-brand"/>
+          <text x="270" y="81" class="t-title">Cổng vào — src/proxy.ts</text>
+          <text x="270" y="100" class="t-body">Phiên đăng nhập · quyền Xem (Ma trận phân quyền) · route dùng token</text>
+
+          <rect x="256" y="132" width="208" height="76" rx="10" class="s-box"/>
+          <text x="268" y="155" class="t-title">Giao diện</text>
+          <text x="268" y="173" class="t-body">React 19 · Tailwind CSS 4</text>
+          <text x="268" y="190" class="t-body">src/app/*/page.tsx (20 trang)</text>
+          <rect x="476" y="132" width="208" height="76" rx="10" class="s-box"/>
+          <text x="488" y="155" class="t-title">API nội bộ</text>
+          <text x="488" y="173" class="t-body">Route Handler · trả JSON</text>
+          <text x="488" y="190" class="t-body">src/app/api (92 route)</text>
+          <path d="M464 170 H474" class="s-line"/>
+
+          <rect x="256" y="224" width="208" height="104" rx="10" class="s-box"/>
+          <text x="268" y="247" class="t-title">Nghiệp vụ</text>
+          <text x="268" y="265" class="t-body">src/lib · src/modules</text>
+          <text x="268" y="282" class="t-body">Import &amp; Từ chối import</text>
+          <text x="268" y="298" class="t-body">Phân quyền dữ liệu · Cache</text>
+          <text x="268" y="314" class="t-body">MCP · SSO · Sao lưu</text>
+          <rect x="476" y="224" width="208" height="104" rx="10" class="s-accent"/>
+          <text x="488" y="247" class="t-title">Scoring Service</text>
+          <text x="488" y="265" class="t-body">src/lib/scoring — thuần</text>
+          <text x="488" y="282" class="t-body">Không đọc DB, không đồng hồ</text>
+          <text x="488" y="298" class="t-body">Rule object · Nhóm rule</text>
+          <text x="488" y="314" class="t-body">→ badge, kết luận, chỉ số</text>
+          <path d="M464 276 H474" class="s-line"/>
+
+          <rect x="256" y="344" width="428" height="52" rx="10" class="s-box"/>
+          <text x="270" y="366" class="t-title">Truy cập dữ liệu — src/lib/db.ts</text>
+          <text x="270" y="384" class="t-body">Một pg.Pool cho cả tiến trình · SQL thuần · profile chọn bằng DB_CONNECTION</text>
+
+          <rect x="256" y="412" width="428" height="74" rx="10" class="s-warn"/>
+          <text x="270" y="435" class="t-title">Việc nền ngay trong tiến trình</text>
+          <text x="270" y="453" class="t-body">after(): tạo lại cache sau import · lượt đầu ngày (lần tải trang đầu tiên)</text>
+          <text x="270" y="470" class="t-body">Khoá derived_cache_refresh_lock: mỗi lúc chỉ 1 lượt, kể cả nhiều instance</text>
+
+          <!-- vertical connectors inside app -->
+          <path d="M470 116 V130" class="s-line"/>
+          <path d="M360 208 V222" class="s-line"/>
+          <path d="M580 208 V222" class="s-line"/>
+          <path d="M360 328 V342" class="s-line"/>
+
+          <!-- DB -->
+          <path d="M684 370 H736" class="s-line-brand" marker-end="url(#arrB)"/>
+          <ellipse cx="848" cy="58" rx="100" ry="16" class="s-brand"/>
+          <rect x="748" y="58" width="200" height="430" class="s-brand" style="stroke-dasharray:0"/>
+          <ellipse cx="848" cy="58" rx="100" ry="16" class="s-brand"/>
+          <ellipse cx="848" cy="488" rx="100" ry="16" class="s-brand"/>
+          <rect x="749.5" y="470" width="197" height="17" style="fill:var(--brand-soft)"/>
+          <text x="764" y="96" class="t-title">PostgreSQL 14+</text>
+          <text x="764" y="113" class="t-body">Supabase hoặc DB nội bộ</text>
+          <rect x="762" y="128" width="172" height="70" rx="8" class="s-box"/>
+          <text x="772" y="148" class="t-title">Dữ liệu nguồn</text>
+          <text x="772" y="166" class="t-small">import_batches · issues</text>
+          <text x="772" y="182" class="t-small">(lịch sử theo lớp ngày)</text>
+          <rect x="762" y="208" width="172" height="70" rx="8" class="s-box"/>
+          <text x="772" y="228" class="t-title">Cấu hình</text>
+          <text x="772" y="246" class="t-small">user · dự án · Domain</text>
+          <text x="772" y="262" class="t-small">tiêu chí TTM · nhóm rule</text>
+          <rect x="762" y="288" width="172" height="86" rx="8" class="s-accent"/>
+          <text x="772" y="308" class="t-title">Cache dẫn xuất</text>
+          <text x="772" y="326" class="t-small">epic_alert_row_cache</text>
+          <text x="772" y="342" class="t-small">ttm_index_global_cache</text>
+          <text x="772" y="358" class="t-small">ttm_dashboard_2_cache</text>
+          <rect x="762" y="384" width="172" height="74" rx="8" class="s-box"/>
+          <text x="772" y="404" class="t-title">Lịch sử &amp; nhật ký</text>
+          <text x="772" y="422" class="t-small">epic_alert_timeline</text>
+          <text x="772" y="438" class="t-small">audit_logs · comment · visit</text>
+        </svg>
+        <figcaption>Hình 1 — Các lớp của ứng dụng và cách các bên bên ngoài kết nối vào. Mọi request đều đi qua cổng vào <code>src/proxy.ts</code>.</figcaption>
+      </figure>
+
+      <h3>1.1. Các lớp chính</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Lớp</th><th>Thành phần</th><th>Vai trò</th></tr></thead>
+        <tbody>
+          <tr><td><b>Cổng vào</b></td><td><code>src/proxy.ts</code></td><td>Chặn mọi request: chưa đăng nhập → trang <code>/login</code> (hoặc 401 với API); đã đăng nhập → áp quyền Xem của Ma trận phân quyền. Một số đường dẫn tự xác thực bằng token riêng: import tự động, MCP, OAuth của MCP.</td></tr>
+          <tr><td><b>Giao diện</b></td><td><code>src/app/*/page.tsx</code>, <code>src/components</code></td><td>React 19 (Client Component), Tailwind CSS 4, icon Phosphor; bộ component UI dùng chung tự xây (popup, bảng, dropdown, tooltip…).</td></tr>
+          <tr><td><b>API</b></td><td><code>src/app/api/**/route.ts</code></td><td>Route Handler trả JSON; xác thực bằng hàm dùng chung <code>requireUser()</code> kèm điều kiện role.</td></tr>
+          <tr><td><b>Nghiệp vụ</b></td><td><code>src/lib</code>, <code>src/modules</code></td><td>Import dữ liệu, Từ chối import, phạm vi quyền dữ liệu, tạo cache, sao lưu/phục hồi, MCP, SSO, thống kê truy cập.</td></tr>
+          <tr><td><b>Scoring Service</b></td><td><code>src/lib/scoring</code></td><td>Nơi duy nhất chứa rule đánh giá Epic. Hoàn toàn thuần: không đọc CSDL, không dùng đồng hồ hệ thống ("hôm nay" là tham số <code>asOf</code>) → dễ kiểm thử và cho cùng kết quả ở mọi màn hình.</td></tr>
+          <tr><td><b>Dữ liệu</b></td><td><code>src/lib/db.ts</code> → PostgreSQL</td><td>Một connection pool; chọn CSDL bằng biến <code>DB_CONNECTION</code> (<code>local</code> / <code>supabase</code>). Schema quản lý bằng migration đánh số trong <code>db/migrations</code>.</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>1.2. Công nghệ sử dụng</h3>
+      <div class="grid-3">
+        <div class="card"><h4>Frontend</h4><p>Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, Phosphor Icons. Font tự host (chạy được trên mạng không có Internet).</p></div>
+        <div class="card"><h4>Backend</h4><p>Next.js Route Handler trên Node.js 20.9+ (khuyến nghị 22 LTS). SQL thuần qua <code>pg</code>; không ORM, không framework server riêng.</p></div>
+        <div class="card"><h4>CSDL</h4><p>PostgreSQL 14+. Hiện tại: Supabase (Transaction pooler). Môi trường mới: PostgreSQL nội bộ.</p></div>
+        <div class="card"><h4>Xác thực</h4><p>Tự xây: mật khẩu băm bcrypt, phiên lưu ở bảng <code>auth_sessions</code> (token băm, hạn 2h hoặc 24h), cookie HTTP-only.</p></div>
+        <div class="card"><h4>Tích hợp</h4><p>MCP Server (<code>@modelcontextprotocol/sdk</code> + zod) cho AI chatbot; SSO Authorization Code cho ứng dụng khác; API import cho script Python.</p></div>
+        <div class="card"><h4>Chất lượng</h4><p>TypeScript strict (<code>tsc --noEmit</code>), ESLint, 459 unit test (Node test runner); git hook bắt buộc cập nhật version stamp.</p></div>
+      </div>
+
+      <h3>1.3. Bảo mật &amp; phân quyền</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Role</th><th>Phạm vi dữ liệu Epic</th><th>Quyền quản trị</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill red">SUPERADMIN</span></td><td>Toàn bộ Epic mọi dự án</td><td>Toàn quyền: user, danh mục, cấu hình rule, nguồn dữ liệu, sao lưu/phục hồi, ma trận phân quyền, quản trị hệ thống.</td></tr>
+          <tr><td><span class="pill orange">SUPERVISOR</span></td><td>Toàn bộ Epic mọi dự án</td><td>Chỉ xem — không tạo/sửa/xoá ở màn hình quản trị nào.</td></tr>
+          <tr><td><span class="pill">ADMIN</span></td><td>Epic thuộc Domain được giao + dự án mình làm PM/SM</td><td>Quản lý user, dự án, Domain, Epic ngoại lệ, cấu hình chung.</td></tr>
+          <tr><td><span class="pill green">USER</span></td><td>Epic thuộc dự án được giao vai trò PM/SM (có thể thu hẹp theo Component)</td><td>Chỉ dùng các màn hình giám sát.</td></tr>
+        </tbody>
+      </table></div>
+      <ul>
+        <li><b>Ma trận phân quyền</b> (SUPERADMIN cấu hình): bật/tắt quyền Xem từng chức năng cho từng role — ẩn menu, chặn URL và trả 403 ở API của màn hình đó; áp dụng cả cho công cụ MCP.</li>
+        <li><b>Quyền xem bổ sung</b> (từ 01/11/2026): USER/ADMIN có thể được cấp thêm dự án/Epic để <i>chỉ xem</i> ở Quản trị Epic, không tính vào chỉ số (chi tiết mục 4).</li>
+        <li>Mọi truy vấn dùng tham số hoá (chống SQL injection); comment người dùng được lọc ký tự nguy hiểm; token import/MCP so khớp constant-time; thao tác xoá vĩnh viễn ghi <code>audit_logs</code>.</li>
+      </ul>
+    </section>
+
+    <!-- ============================================================ 2 -->
+    <section class="chapter" id="giai-phap">
+      <h2><span class="num">2</span>Giải pháp ứng dụng</h2>
+      <p class="lead">Bài toán: phát hiện sớm Epic có nguy cơ chậm Time to Market và đo tỷ lệ tuân thủ TTM một cách thống nhất cho toàn khối.</p>
+
+      <h3>2.1. Bài toán &amp; cách tiếp cận</h3>
+      <div class="grid-2">
+        <div class="card">
+          <h4>Bài toán nghiệp vụ</h4>
+          <ul>
+            <li>Dữ liệu tiến độ nằm rải rác trên Jira, mỗi dự án theo dõi một kiểu.</li>
+            <li>Cần biết Epic nào sắp/đã trễ so với tiêu chí TTM trước khi quá muộn.</li>
+            <li>Cần một con số tuân thủ TTM chung, giải thích được, cho từng PM/SM, dự án, Domain và toàn khối.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Cách giải quyết</h4>
+          <ul>
+            <li>Tự động thu thập dữ liệu Jira hằng ngày (script Python → API import).</li>
+            <li>Một <b>Scoring Service</b> duy nhất chấm mọi Epic theo bộ rule cấu hình được.</li>
+            <li>Kết quả tính sẵn vào cache → mọi màn hình, báo cáo, chatbot dùng chung một kết luận.</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>2.2. Các khái niệm nghiệp vụ cốt lõi</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Khái niệm</th><th>Ý nghĩa</th></tr></thead>
+        <tbody>
+          <tr><td><b>TTM-CNTT (QLDA)</b></td><td>Thời gian từ <b>Start Date (T1)</b> tới <b>R4G Date</b> so với ngân sách ngày làm việc theo loại Epic. Target = T1 + (N − 1) ngày làm việc (trừ ngày nghỉ, cộng ngày làm bù).</td></tr>
+          <tr><td><b>TTM-E2E</b></td><td>Thời gian từ <b>T0</b> (ngày duyệt ý tưởng; thiếu thì Start Date hoặc ngày tạo Jira) tới R4G Date so với ngân sách E2E.</td></tr>
+          <tr><td><b>4 loại Epic</b></td><td>CT-Lv12, CT-Lv34, SP-Lv12, SP-Lv34 — phân loại từ "Loại yêu cầu" và "Mức độ yêu cầu"; mỗi loại có ngân sách riêng ("Tiêu chí Time to Market", có thể có nhiều "Bộ ngân sách").</td></tr>
+          <tr><td><b>5 pha &amp; baseline</b></td><td>DESIGN 20% → DEV 50% → TEST 80% → PENTEST 90% → R4GOLIVE 100% ngân sách TTM-CNTT; pha nào quá baseline mà chưa xong là "Trễ pha".</td></tr>
+          <tr><td><b>Cảnh báo muộn</b></td><td>Mốc = T1 + % ngân sách theo (loại Epic, status hiện tại); qua mốc mà chưa có R4G Date và chưa quá Target → cảnh báo.</td></tr>
+          <tr><td><b>Sai lệch dữ liệu</b></td><td>Rule chất lượng dữ liệu R1–R11 (thiếu ngày, ngày mâu thuẫn, R4G Date khai báo trước…). Epic sai lệch không được chấm Đạt/Fail và nằm ngoài mẫu số chỉ số cho tới khi sửa.</td></tr>
+          <tr><td><b>Epic ngoại lệ</b></td><td>Epic trong danh sách Black listed hoặc thuộc dự án có Time to Market = N — không được chấm và không tính vào chỉ số nào.</td></tr>
+          <tr><td><b>Phạm vi dữ liệu cho TTM</b></td><td>Khoảng ngày R4G (hoặc Target) giới hạn tập Epic tính TTM-CNTT (QLDA) và (QA); Epic ngoài khoảng vẫn hiển thị nhưng không được kết luận.</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>2.3. Scoring Service — động cơ chấm điểm Epic</h3>
+      <p>Mọi rule đánh giá Epic nằm ở một chỗ: <code>src/lib/scoring</code>. Rule được tổ chức thành <b>Rule object</b> (mã cố định, phát ra một nhóm badge) và được áp dụng theo <b>Nhóm rule</b> (Rule Group) — mỗi nhóm có điều kiện ngày (ngày tạo, T0, Start Date, R4G Date, Due Date) và điều kiện TTM-applied, giúp áp dụng chuẩn khác nhau cho Epic theo từng giai đoạn mà không phải sửa code.</p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 960 250" role="img" aria-labelledby="scoreTitle">
+          <title id="scoreTitle">Các bước Scoring Service chấm một Epic</title>
+          <defs>
+            <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="s-arrowhead-brand"/></marker>
+          </defs>
+          <g>
+            <rect x="12" y="20" width="140" height="210" rx="12" class="s-box"/>
+            <circle cx="36" cy="44" r="13" class="s-brand"/><text x="32" y="48" class="t-num">1</text>
+            <text x="56" y="49" class="t-title">Dữ kiện Epic</text>
+            <text x="24" y="80" class="t-body">Các ngày T0, T1,</text>
+            <text x="24" y="96" class="t-body">R4G, Due Date</text>
+            <text x="24" y="112" class="t-body">Status, loại Epic</text>
+            <text x="24" y="128" class="t-body">TTM-applied</text>
+            <text x="24" y="150" class="t-small">tại ngày asOf</text>
+          </g>
+          <path d="M152 125 H170" class="s-line-brand" marker-end="url(#arr2)"/>
+          <g>
+            <rect x="172" y="20" width="140" height="210" rx="12" class="s-box"/>
+            <circle cx="196" cy="44" r="13" class="s-brand"/><text x="192" y="48" class="t-num">2</text>
+            <text x="216" y="49" class="t-title">Epic ngoại lệ?</text>
+            <text x="184" y="80" class="t-body">Black listed hoặc</text>
+            <text x="184" y="96" class="t-body">dự án TTM = N</text>
+            <text x="184" y="118" class="t-body">→ chỉ ghi nhận</text>
+            <text x="184" y="134" class="t-body">"Epic ngoại lệ",</text>
+            <text x="184" y="150" class="t-body">không chấm tiếp</text>
+          </g>
+          <path d="M312 125 H330" class="s-line-brand" marker-end="url(#arr2)"/>
+          <g>
+            <rect x="332" y="20" width="140" height="210" rx="12" class="s-box"/>
+            <circle cx="356" cy="44" r="13" class="s-brand"/><text x="352" y="48" class="t-num">3</text>
+            <text x="376" y="49" class="t-title">Nhóm rule</text>
+            <text x="344" y="80" class="t-body">Mọi nhóm khớp</text>
+            <text x="344" y="96" class="t-body">điều kiện, ưu tiên</text>
+            <text x="344" y="112" class="t-body">cao trước, Default</text>
+            <text x="344" y="128" class="t-body">cuối cùng</text>
+            <text x="344" y="150" class="t-small">Bật / Tắt / Kế thừa</text>
+            <text x="344" y="165" class="t-small">từng rule (slot)</text>
+          </g>
+          <path d="M472 125 H490" class="s-line-brand" marker-end="url(#arr2)"/>
+          <g>
+            <rect x="492" y="20" width="140" height="210" rx="12" class="s-warn"/>
+            <circle cx="516" cy="44" r="13" class="s-brand"/><text x="512" y="48" class="t-num">4</text>
+            <text x="536" y="49" class="t-title">Chất lượng</text>
+            <text x="536" y="64" class="t-title">dữ liệu</text>
+            <text x="504" y="92" class="t-body">Rule R1–R11</text>
+            <text x="504" y="108" class="t-body">→ "Sai lệch dữ liệu"</text>
+            <text x="504" y="130" class="t-body">Có sai lệch thì</text>
+            <text x="504" y="146" class="t-body">bỏ qua kết luận</text>
+            <text x="504" y="162" class="t-body">Đạt / Fail TTM</text>
+          </g>
+          <path d="M632 125 H650" class="s-line-brand" marker-end="url(#arr2)"/>
+          <g>
+            <rect x="652" y="20" width="140" height="210" rx="12" class="s-box"/>
+            <circle cx="676" cy="44" r="13" class="s-brand"/><text x="672" y="48" class="t-num">5</text>
+            <text x="696" y="49" class="t-title">Rule đánh giá</text>
+            <text x="664" y="80" class="t-body">Đạt / Fail TTM-CNTT</text>
+            <text x="664" y="96" class="t-body">Đạt / Fail TTM-E2E</text>
+            <text x="664" y="112" class="t-body">Cảnh báo muộn</text>
+            <text x="664" y="128" class="t-body">Release, Pha</text>
+            <text x="664" y="144" class="t-body">Khuyến nghị</text>
+            <text x="664" y="166" class="t-small">+ thứ tự che badge</text>
+          </g>
+          <path d="M792 125 H810" class="s-line-brand" marker-end="url(#arr2)"/>
+          <g>
+            <rect x="812" y="20" width="140" height="210" rx="12" class="s-accent"/>
+            <circle cx="836" cy="44" r="13" class="s-brand"/><text x="832" y="48" class="t-num">6</text>
+            <text x="856" y="49" class="t-title">Scorecard</text>
+            <text x="824" y="80" class="t-body">Badge + giải thích</text>
+            <text x="824" y="96" class="t-body">Nhóm rule chính</text>
+            <text x="824" y="112" class="t-body">Cờ tham gia chỉ số</text>
+            <text x="824" y="128" class="t-body">TTM-CNTT/QA/E2E</text>
+            <text x="824" y="150" class="t-small">→ lưu vào cache</text>
+          </g>
+        </svg>
+        <figcaption>Hình 2 — Một Epic đi qua Scoring Service. Cùng logic này được dùng khi tạo cache, khi tính trực tiếp, ở Báo cáo Epic và trong MCP.</figcaption>
+      </figure>
+
+      <h3>2.4. Chỉ số tuân thủ TTM</h3>
+      <div class="note">
+        <b>Tỷ lệ % Pass</b> = Epic Đạt / (Epic Đạt + Epic Fail đã có R4G Date + Epic Fail chưa có R4G Date nhưng đã quá Target).<br>
+        Chỉ Epic đã có kết luận mới vào mẫu số — không tính Epic Cancelled, Sai lệch dữ liệu, ngoài Phạm vi dữ liệu cho TTM, Epic ngoại lệ, Epic còn trong hạn.
+      </div>
+      <div class="grid-3">
+        <div class="card"><h4>TTM-CNTT (QLDA)</h4><p>Mọi status (trừ Cancelled), trong khoảng "R4G for TTM (CNTT)".</p></div>
+        <div class="card"><h4>TTM-CNTT (QA)</h4><p>Chỉ Epic đã MVP Done / Released, trong khoảng "R4G for TTM (QA)".</p></div>
+        <div class="card"><h4>TTM-E2E</h4><p>Kết luận Đạt/Fail của trục E2E, không giới hạn theo Phạm vi dữ liệu cho TTM.</p></div>
+      </div>
+      <p>Chỉ số được tính trên đúng tập Epic người xem đang lọc (theo quyền và bộ lọc). Riêng widget <b>toàn công ty</b> trên banner đọc từ <code>ttm_index_global_cache</code> và giống nhau với mọi người.</p>
+    </section>
+
+    <!-- ============================================================ 3 -->
+    <section class="chapter" id="luong-du-lieu">
+      <h2><span class="num">3</span>Luồng tổng hợp dữ liệu</h2>
+      <p class="lead">Từ Jira tới màn hình: thu thập hằng ngày, kiểm soát phạm vi đầu vào, lưu lịch sử theo lớp ngày, chấm điểm một lần và lưu cache.</p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 960 610" role="img" aria-labelledby="flowTitle">
+          <title id="flowTitle">Luồng tổng hợp dữ liệu từ Jira tới các màn hình</title>
+          <defs>
+            <marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="s-arrowhead"/></marker>
+            <marker id="arr3b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="s-arrowhead-brand"/></marker>
+          </defs>
+
+          <!-- Row A: sources -->
+          <text x="14" y="22" class="t-brand">A. Thu thập</text>
+          <rect x="14" y="34" width="120" height="58" rx="10" class="s-box"/>
+          <text x="26" y="58" class="t-title">Jira</text>
+          <text x="26" y="76" class="t-body">Epic/Story/Subtask</text>
+          <path d="M134 63 H156" class="s-line" marker-end="url(#arr3)"/>
+          <rect x="158" y="34" width="150" height="58" rx="10" class="s-box"/>
+          <text x="170" y="58" class="t-title">Script Python</text>
+          <text x="170" y="76" class="t-body">crawl → file CSV</text>
+          <path d="M308 50 H352" class="s-line" marker-end="url(#arr3)"/>
+          <path d="M308 76 H330 V128 H352" class="s-line" marker-end="url(#arr3)"/>
+          <rect x="354" y="26" width="276" height="48" rx="10" class="s-box"/>
+          <text x="366" y="46" class="t-title">API tự động (Bearer token)</text>
+          <text x="366" y="63" class="t-body">POST /api/data-source/import/auto</text>
+          <rect x="354" y="104" width="276" height="48" rx="10" class="s-box"/>
+          <text x="366" y="124" class="t-title">Upload thủ công (SUPERADMIN)</text>
+          <text x="366" y="141" class="t-body">Màn Nguồn dữ liệu · có chế độ "chỉ kiểm tra"</text>
+          <path d="M630 50 H676 V88 H700" class="s-line" marker-end="url(#arr3)"/>
+          <path d="M630 128 H676 V96 H700" class="s-line" marker-end="url(#arr3)"/>
+          <rect x="702" y="62" width="244" height="58" rx="10" class="s-brand"/>
+          <text x="716" y="86" class="t-title">processImport()</text>
+          <text x="716" y="104" class="t-body">1 pipeline chung · 1 transaction</text>
+
+          <!-- Row B: pipeline -->
+          <text x="14" y="150" class="t-brand">B. Xử lý một lượt import</text>
+          <path d="M824 120 V160 H90 V196" class="s-line-brand" marker-end="url(#arr3b)"/>
+          <g>
+            <rect x="14" y="200" width="168" height="76" rx="10" class="s-box"/>
+            <text x="26" y="222" class="t-num">① Parse</text>
+            <text x="26" y="242" class="t-body">Adapter Py Jira API</text>
+            <text x="26" y="258" class="t-body">hoặc Jira export</text>
+            <path d="M182 238 H198" class="s-line" marker-end="url(#arr3)"/>
+            <rect x="200" y="200" width="168" height="76" rx="10" class="s-warn"/>
+            <text x="212" y="222" class="t-num">② Từ chối import</text>
+            <text x="212" y="242" class="t-body">Rule ngày A/B, loại issue,</text>
+            <text x="212" y="258" class="t-body">danh sách từ chối</text>
+            <path d="M368 238 H384" class="s-line" marker-end="url(#arr3)"/>
+            <rect x="386" y="200" width="168" height="76" rx="10" class="s-box"/>
+            <text x="398" y="222" class="t-num">③ Validate</text>
+            <text x="398" y="242" class="t-body">VALID / WARNING /</text>
+            <text x="398" y="258" class="t-body">INVALID từng dòng</text>
+            <path d="M554 238 H570" class="s-line" marker-end="url(#arr3)"/>
+            <rect x="572" y="200" width="168" height="76" rx="10" class="s-box"/>
+            <text x="584" y="222" class="t-num">④ Ghi issues</text>
+            <text x="584" y="242" class="t-body">UPSERT 1 dòng/issue/lớp</text>
+            <text x="584" y="258" class="t-body">+ liên kết Epic→Story→Sub</text>
+            <path d="M740 238 H756" class="s-line" marker-end="url(#arr3)"/>
+            <rect x="758" y="200" width="188" height="76" rx="10" class="s-box"/>
+            <text x="770" y="222" class="t-num">⑤ Epic ngoại lệ</text>
+            <text x="770" y="242" class="t-body">TTM-applied = Không áp</text>
+            <text x="770" y="258" class="t-body">dụng → tự vào black list</text>
+          </g>
+          <path d="M852 276 V300 H90 V316" class="s-line" marker-end="url(#arr3)"/>
+          <g>
+            <rect x="14" y="320" width="226" height="76" rx="10" class="s-box"/>
+            <text x="26" y="342" class="t-num">⑥ Dòng thời gian cảnh báo</text>
+            <text x="26" y="362" class="t-body">aggregateBatchData() →</text>
+            <text x="26" y="378" class="t-body">epic_alert_timeline (giữ lâu dài)</text>
+            <path d="M240 358 H262" class="s-line" marker-end="url(#arr3)"/>
+            <rect x="264" y="320" width="300" height="76" rx="10" class="s-accent"/>
+            <text x="276" y="342" class="t-num">⑦ Tạo lại cache dẫn xuất (sau COMMIT)</text>
+            <text x="276" y="362" class="t-body">Scoring Service chấm mọi Epic tại hôm nay</text>
+            <text x="276" y="378" class="t-body">Khoá 1 lượt/lúc · yêu cầu trùng được gộp</text>
+            <path d="M564 358 H586" class="s-line" marker-end="url(#arr3)"/>
+            <rect x="588" y="320" width="358" height="76" rx="10" class="s-box"/>
+            <text x="600" y="342" class="t-num">⑧ Lưu trữ lịch sử</text>
+            <text x="600" y="362" class="t-body">Giữ mọi phiên bản 30 ngày import gần nhất + bản</text>
+            <text x="600" y="378" class="t-body">tại ngày làm việc cuối mỗi tuần (lớp dữ liệu xem lại)</text>
+          </g>
+
+          <!-- Row C: caches & consumers -->
+          <text x="14" y="438" class="t-brand">C. Đọc dữ liệu</text>
+          <path d="M414 396 V420 H120 V446" class="s-line-brand" marker-end="url(#arr3b)"/>
+          <path d="M414 420 H470 V446" class="s-line-brand" marker-end="url(#arr3b)"/>
+          <path d="M414 420 H800 V446" class="s-line-brand" marker-end="url(#arr3b)"/>
+          <rect x="14" y="450" width="212" height="58" rx="10" class="s-accent"/>
+          <text x="26" y="472" class="t-title">epic_alert_row_cache</text>
+          <text x="26" y="490" class="t-body">1 dòng/Epic + scorecard</text>
+          <rect x="364" y="450" width="212" height="58" rx="10" class="s-accent"/>
+          <text x="376" y="472" class="t-title">ttm_index_global_cache</text>
+          <text x="376" y="490" class="t-body">chỉ số toàn công ty</text>
+          <rect x="694" y="450" width="252" height="58" rx="10" class="s-accent"/>
+          <text x="706" y="472" class="t-title">ttm_dashboard_2_cache</text>
+          <text x="706" y="490" class="t-body">phễu &amp; ma trận theo phạm vi</text>
+
+          <path d="M120 508 V530" class="s-line" marker-end="url(#arr3)"/>
+          <path d="M470 508 V530" class="s-line" marker-end="url(#arr3)"/>
+          <path d="M820 508 V530" class="s-line" marker-end="url(#arr3)"/>
+          <rect x="14" y="534" width="300" height="60" rx="10" class="s-box"/>
+          <text x="26" y="556" class="t-title">Quản trị Epic · Chuẩn hoá dữ liệu</text>
+          <text x="26" y="574" class="t-body">phân trang + lọc bằng SQL trên cache</text>
+          <rect x="330" y="534" width="300" height="60" rx="10" class="s-box"/>
+          <text x="342" y="556" class="t-title">Widget chỉ số toàn công ty</text>
+          <text x="342" y="574" class="t-body">banner Dashboard &amp; Quản trị Epic</text>
+          <rect x="646" y="534" width="300" height="60" rx="10" class="s-box"/>
+          <text x="658" y="556" class="t-title">TTM Dashboard · MCP</text>
+          <text x="658" y="574" class="t-body">có bộ lọc → tính lại cùng công thức</text>
+        </svg>
+        <figcaption>Hình 3 — Luồng dữ liệu. Báo cáo Epic và chế độ "xem ngày cũ" của Quản trị Epic không đọc cache mà chấm trực tiếp từ <code>issues</code> tại ngày được chọn, bằng cùng Scoring Service.</figcaption>
+      </figure>
+
+      <h3>3.1. Nguyên tắc dữ liệu</h3>
+      <ul>
+        <li><b>Import tăng dần:</b> file CSV hằng ngày chỉ chứa issue được cập nhật trong ngày. Hệ thống không dựa vào "lượt mới nhất" mà luôn lấy phiên bản mới nhất của từng Epic trong toàn bộ lịch sử.</li>
+        <li><b>Lớp dữ liệu theo ngày:</b> mỗi lượt import là một lớp (<code>aggregated_at</code>). Người dùng xem lại trạng thái Epic tại một ngày đã qua; Scoring Service chấm lại "như tại ngày đó".</li>
+        <li><b>Kiểm soát đầu vào ("Từ chối import"):</b> chỉ nhận Epic tạo sau ngày A, Epic Released sau ngày B, issue cấp 1 phải là Epic. Epic bị từ chối được ghi vào danh sách để quản trị viên xem lại hoặc cho phép.</li>
+        <li><b>Một nguồn kết luận:</b> cache chỉ do Scoring Service tạo ra, mỗi dòng ghi phiên bản cấu hình đã chấm. Hệ thống tự phát hiện cache cũ hơn cấu hình hiện tại và nhắc SUPERADMIN tạo lại.</li>
+      </ul>
+
+      <h3>3.2. Khi nào cache được tạo lại</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Sự kiện</th><th>Hành vi</th></tr></thead>
+        <tbody>
+          <tr><td>Import CSV (thủ công hoặc API)</td><td>Tự động tạo lại ngay sau khi import thành công (khoảng 20–45 giây).</td></tr>
+          <tr><td>Lượt đầu ngày</td><td>Lần tải trang đầu tiên mỗi ngày kích hoạt tạo lại cache (để Cảnh báo muộn / Fail theo "hôm nay" tự cập nhật) và việc dọn dẹp hằng ngày: phiên hết hạn, nhật ký cũ, mốc snapshot tuần, làm thưa lịch sử (chỉ khi SUPERADMIN bật).</td></tr>
+          <tr><td>Lưu cấu hình (user, dự án, Domain, Epic ngoại lệ, phạm vi, nhóm rule, tiêu chí TTM…)</td><td>Không tự tạo lại — đánh dấu "cache cũ", hiện chấm đỏ và nhắc SUPERADMIN bấm <b>Tạo lại cache</b> khi chỉnh xong (tránh tạo lại liên tục).</td></tr>
+          <tr><td>Nhiều yêu cầu cùng lúc / nhiều instance</td><td>Bảng khoá <code>derived_cache_refresh_lock</code> đảm bảo chỉ một lượt chạy; yêu cầu đến sau được gộp; lượt chết giữa chừng tự hết hạn sau 6 phút.</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>3.3. Dữ liệu trực tiếp (không qua cache)</h3>
+      <p>Bình luận (Review Notes), trạng thái Giao việc, Epic tự ẩn và Quyền xem được đọc trực tiếp và ghép vào kết quả ở mỗi request — có hiệu lực ngay, không cần tạo lại cache.</p>
+    </section>
+
+    <!-- ============================================================ 4 -->
+    <section class="chapter" id="quan-tri-epic">
+      <h2><span class="num">4</span>Màn hình Quản trị Epic <code>/epic-alerts-15</code></h2>
+      <p class="lead">Màn hình làm việc hằng ngày của PM/SM và Lead: toàn bộ Epic trong phạm vi quyền, kết luận của Scoring Service và tiến độ 5 pha trên một bảng.</p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 960 360" role="img" aria-labelledby="qteTitle">
+          <title id="qteTitle">Bố cục màn hình Quản trị Epic</title>
+          <rect x="10" y="10" width="940" height="340" rx="12" class="s-box"/>
+          <rect x="24" y="24" width="912" height="52" rx="8" class="s-brand"/>
+          <text x="38" y="46" class="t-title">Banner chỉ số</text>
+          <text x="38" y="64" class="t-body">TTM-CNTT (QLDA) · TTM-CNTT (QA) theo đúng tập đang lọc · TTM-E2E toàn công ty</text>
+          <rect x="24" y="86" width="912" height="40" rx="8" class="s-box"/>
+          <text x="38" y="111" class="t-body">Widget đếm: Fail TTM-CNTT · Fail TTM-E2E · Cảnh báo muộn · Sai lệch dữ liệu · Pending · To Do (bấm để lọc)</text>
+          <rect x="24" y="136" width="912" height="40" rx="8" class="s-box"/>
+          <text x="38" y="161" class="t-body">Quick filter: Pending · Epics in PO · not in PO · Marked · Hidden · My assigned (chấm số việc còn To do) · Bộ lọc nâng cao / chọn ngày</text>
+          <rect x="24" y="186" width="912" height="40" rx="8" class="s-box"/>
+          <text x="38" y="211" class="t-body">Thanh lọc: Dự án · PM/SM · Component · Nhận xét · Loại Epic · Status · Đơn vị yêu cầu · Nhóm rule · Tìm kiếm</text>
+          <rect x="24" y="236" width="912" height="100" rx="8" class="s-accent"/>
+          <text x="38" y="258" class="t-title">Bảng danh sách Epic (phân trang)</text>
+          <g class="t-small">
+            <rect x="38" y="270" width="96" height="52" rx="6" class="s-box"/><text x="46" y="292" class="t-small">EPIC</text><text x="46" y="308" class="t-small">key · tên · PM/SM</text>
+            <rect x="140" y="270" width="64" height="52" rx="6" class="s-box"/><text x="148" y="292" class="t-small">REVIEW</text><text x="148" y="308" class="t-small">cờ · ẩn</text>
+            <rect x="210" y="270" width="96" height="52" rx="6" class="s-box"/><text x="218" y="292" class="t-small">SCORING</text><text x="218" y="308" class="t-small">badge nhận xét</text>
+            <rect x="312" y="270" width="64" height="52" rx="6" class="s-box"/><text x="320" y="292" class="t-small">PASS</text><text x="320" y="308" class="t-small">CNTT/E2E</text>
+            <rect x="382" y="270" width="96" height="52" rx="6" class="s-box"/><text x="390" y="292" class="t-small">TTM-CNTT</text><text x="390" y="308" class="t-small">baseline/thực tế</text>
+            <rect x="484" y="270" width="96" height="52" rx="6" class="s-box"/><text x="492" y="292" class="t-small">TTM-E2E</text><text x="492" y="308" class="t-small">baseline/thực tế</text>
+            <rect x="586" y="270" width="62" height="52" rx="6" class="s-box"/><text x="594" y="292" class="t-small">STATUS</text>
+            <rect x="654" y="270" width="174" height="52" rx="6" class="s-box"/><text x="662" y="292" class="t-small">START-E2E · START-DATE</text><text x="662" y="308" class="t-small">R4GOLIVE: baseline + thực tế</text>
+            <rect x="834" y="270" width="88" height="52" rx="6" class="s-box"/><text x="842" y="292" class="t-small">DUE DATE</text><text x="842" y="308" class="t-small">trục Release</text>
+          </g>
+        </svg>
+        <figcaption>Hình 4 — Bố cục chính của màn hình Quản trị Epic.</figcaption>
+      </figure>
+
+      <h3>4.1. Chức năng chính</h3>
+      <div class="grid-2">
+        <div class="card"><h4>Danh sách &amp; lọc</h4><ul>
+          <li>Hiển thị mọi Epic trong phạm vi quyền; mặc định ẩn Cancelled.</li>
+          <li>Thứ tự nhóm: Epic thường → In PO → To Do → ngoài phạm vi TTM → Released; trong nhóm theo mức cảnh báo và số ngày còn lại.</li>
+          <li>Bộ lọc "Nhận xét" theo mọi badge và tiêu chí phễu L01–L05bb (mở từ Dashboard).</li>
+          <li>Lưu bộ lọc yêu thích; deep link từ Dashboard mang theo bộ lọc.</li>
+        </ul></div>
+        <div class="card"><h4>Kết luận Scoring</h4><ul>
+          <li>Cột SCORING: badge Đạt/Fail, Cảnh báo, Sai Status, Sai lệch dữ liệu, Khuyến nghị (2 kiểu hiển thị: Liệt kê / Tối giản).</li>
+          <li>Cột PASS: icon Đạt/Fail TTM-CNTT và TTM-E2E.</li>
+          <li>Cột pha: baseline và ngày thực tế, đánh dấu trễ pha; thanh tiến độ TTM-CNTT/E2E.</li>
+          <li>Popup "Logic cảnh báo" giải thích từng badge và công thức.</li>
+        </ul></div>
+        <div class="card"><h4>Review Notes (cột REVIEW)</h4><ul>
+          <li>Comment theo Epic dạng khung chat; người viết được xoá comment của mình.</li>
+          <li><b>Ẩn epic</b>: chỉ ẩn với người bấm.</li>
+          <li><b>Giao việc To do / Done</b>: Epic có comment coi như đã giao cho PM/SM; PM/SM hoặc ADMIN trở lên chuyển Done; cờ chuyển xanh khi Done; nút "My assigned epics" có chấm số việc còn To do.</li>
+          <li>Tab <b>Scoring</b>: mọi badge kèm giải thích riêng cho Epic.</li>
+        </ul></div>
+        <div class="card"><h4>Tra cứu sâu</h4><ul>
+          <li><b>Duyệt Epic</b>: chi tiết Epic, cây Story/Subtask, giải trình Fail TTM, công tắc Epic ngoại lệ.</li>
+          <li><b>Lịch sử cảnh báo</b>: dòng thời gian các đợt Fail / Cảnh báo muộn / Sai lệch.</li>
+          <li><b>Xem ngày cũ</b>: chọn lớp dữ liệu (30 ngày gần nhất + ngày cuối mỗi tuần) để xem trạng thái tại ngày đó; lọc "chỉ Epic thay đổi".</li>
+          <li><b>Xem dưới quyền</b> một user (Lead/Admin) khi mở từ Dashboard.</li>
+        </ul></div>
+      </div>
+
+      <h3>4.2. Hai chế độ truy vấn</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Chế độ</th><th>Khi nào</th><th>Cách làm</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill green">Phân trang trên cache</span></td><td>Mặc định (dữ liệu mới nhất, không bộ lọc ngày nâng cao) — phần lớn lượt truy cập</td><td>Lọc, đếm widget, tính chỉ số và phân trang bằng SQL trên <code>epic_alert_row_cache</code>; trình duyệt chỉ nhận một trang.</td></tr>
+          <tr><td><span class="pill orange">Tính trực tiếp</span></td><td>Chọn ngày cũ hoặc bộ lọc ngày nâng cao</td><td>Đọc phiên bản Epic tại ngày đó từ <code>issues</code>, chấm bằng Scoring Service, trình duyệt lọc/đếm toàn bộ.</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>4.3. Quyền xem bổ sung</h3>
+      <p>Quản trị viên có thể cấp cho USER/ADMIN thêm dự án (kèm Component), Epic cụ thể và giới hạn thời gian (Created date / Start Date sau một mốc) để <b>chỉ xem</b>. Các Epic này hiện kèm biểu tượng con mắt, không được tính vào widget, chỉ số hay Dashboard; trong Review Notes chỉ đọc (không comment, không đổi Giao việc).</p>
+    </section>
+
+    <!-- ============================================================ 5 -->
+    <section class="chapter" id="dashboard">
+      <h2><span class="num">5</span>Màn hình TTM Dashboard <code>/ttm-dashboard-2</code></h2>
+      <p class="lead">Bức tranh tổng hợp cho Lead và CBQL: phễu Epic L01 → L05bb, chỉ số TTM và phân bổ theo nhiều chiều.</p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 960 380" role="img" aria-labelledby="funnelTitle">
+          <title id="funnelTitle">Phễu Epic L01 tới L05bb của TTM Dashboard</title>
+          <polygon points="40,20 600,20 580,72 60,72" class="s-brand"/>
+          <text x="66" y="44" class="t-title">L01 · Tổng epic</text>
+          <text x="66" y="62" class="t-body">mọi Epic trong phạm vi dữ liệu cho TTM, theo quyền và bộ lọc</text>
+          <polygon points="60,80 580,80 560,132 80,132" class="s-brand"/>
+          <text x="90" y="104" class="t-title">L02 · Epic trong phạm vi tính TTM</text>
+          <text x="90" y="122" class="t-body">bỏ Cancelled, Epic ngoại lệ, Epic không có rule TTM-CNTT</text>
+          <polygon points="80,140 560,140 540,192 100,192" class="s-brand"/>
+          <text x="112" y="164" class="t-title">L03 · Epic chuẩn hoá dữ liệu</text>
+          <text x="112" y="182" class="t-body">bỏ Epic Sai lệch dữ liệu · L03 = L04a + L04b</text>
+          <polygon points="100,200 318,200 310,252 112,252" class="s-accent"/>
+          <text x="122" y="224" class="t-title">L04a · Hoàn thành</text>
+          <text x="122" y="242" class="t-body">đã có R4G Date</text>
+          <polygon points="322,200 540,200 528,252 330,252" class="s-warn"/>
+          <text x="342" y="224" class="t-title">L04b · Chưa hoàn thành</text>
+          <text x="342" y="242" class="t-body">chưa có R4G Date</text>
+
+          <rect x="20" y="276" width="140" height="84" rx="10" class="s-accent"/>
+          <text x="32" y="298" class="t-title">L05aa</text>
+          <text x="32" y="316" class="t-body">Đạt TTM-CNTT</text>
+          <text x="32" y="334" class="t-small">R4G ≤ Target</text>
+          <rect x="170" y="276" width="140" height="84" rx="10" class="s-danger"/>
+          <text x="182" y="298" class="t-title">L05ab</text>
+          <text x="182" y="316" class="t-body">Fail — Trễ R4G</text>
+          <text x="182" y="334" class="t-small">R4G &gt; Target</text>
+          <rect x="320" y="276" width="140" height="84" rx="10" class="s-box"/>
+          <text x="332" y="298" class="t-title">L05ac</text>
+          <text x="332" y="316" class="t-body">Chưa kết luận</text>
+          <text x="332" y="334" class="t-small">không tính được Target</text>
+          <rect x="470" y="276" width="140" height="84" rx="10" class="s-danger"/>
+          <text x="482" y="298" class="t-title">L05ba</text>
+          <text x="482" y="316" class="t-body">Fail — Thiếu R4G</text>
+          <text x="482" y="334" class="t-small">đã quá Target</text>
+          <rect x="620" y="276" width="140" height="84" rx="10" class="s-warn"/>
+          <text x="632" y="298" class="t-title">L05bb</text>
+          <text x="632" y="316" class="t-body">Trong hạn</text>
+          <text x="632" y="334" class="t-small">chưa quá Target</text>
+          <path d="M210 252 V268" class="s-line"/><path d="M90 268 H390" class="s-line"/><path d="M90 268 V274" class="s-line"/><path d="M240 268 V274" class="s-line"/><path d="M390 268 V274" class="s-line"/>
+          <path d="M430 252 V262 H690 V274" class="s-line"/><path d="M540 262 V274" class="s-line"/>
+
+          <rect x="630" y="20" width="310" height="232" rx="12" class="s-box"/>
+          <text x="646" y="46" class="t-brand">Công thức chỉ số</text>
+          <text x="646" y="74" class="t-title">% Pass TTM-CNTT =</text>
+          <text x="646" y="96" class="t-body">L05aa / (L05aa + L05ab + L05ba)</text>
+          <text x="646" y="126" class="t-title">% Fail TTM-CNTT =</text>
+          <text x="646" y="148" class="t-body">(L05ab + L05ba) / (L05aa + L05ab + L05ba)</text>
+          <text x="646" y="180" class="t-body">Mỗi Epic thuộc đúng một nhóm cuối →</text>
+          <text x="646" y="198" class="t-body">không đếm trùng. Chuột phải vào một</text>
+          <text x="646" y="216" class="t-body">tiêu chí để xem diễn giải và mở danh</text>
+          <text x="646" y="234" class="t-body">sách Epic tương ứng ở Quản trị Epic.</text>
+        </svg>
+        <figcaption>Hình 5 — Phễu tiêu chí L01 → L05bb; mã tiêu chí được dùng thống nhất ở Dashboard, bộ lọc Quản trị Epic và MCP.</figcaption>
+      </figure>
+
+      <h3>5.1. Bố cục &amp; chức năng</h3>
+      <div class="grid-2">
+        <div class="card"><h4>Banner &amp; bộ lọc</h4><ul>
+          <li>3 chỉ số toàn công ty: TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E.</li>
+          <li>Lọc theo Domain, Dự án, PM/SM, Đơn vị yêu cầu; Advanced Filters ghi đè tạm "Phạm vi dữ liệu cho TTM" cho riêng phiên xem.</li>
+          <li>Lead view / PM-SM view; "Xem dưới quyền" một user trong phạm vi được phép.</li>
+        </ul></div>
+        <div class="card"><h4>Phễu &amp; panel chi tiết</h4><ul>
+          <li>Phễu L01 → L04a | L04b; bấm nửa Hoàn thành mở L05aa/ab/ac, nửa Chưa hoàn thành mở L05ba/bb.</li>
+          <li>Hàng widget vận hành: Fail TTM-CNTT, chậm tiến độ, Sai lệch dữ liệu, Chờ golive, Giải trình Golive.</li>
+          <li>Mọi con số bấm được → mở đúng danh sách Epic ở Quản trị Epic.</li>
+        </ul></div>
+        <div class="card"><h4>Ma trận phân bổ đa chiều</h4><ul>
+          <li>Theo Domain, Phân loại Epic, PM/SM, Dự án (và Nhóm rule khi có nhiều nhóm).</li>
+          <li>Cột: Tổng, Pass, TTM-CNTT (QLDA), Epic đánh giá, Fail (Trễ R4G / Thiếu R4G), TTM-CNTT (QA), Sai lệch dữ liệu, Đúng / Chậm tiến độ.</li>
+        </ul></div>
+        <div class="card"><h4>Biểu đồ &amp; hiệu năng</h4><ul>
+          <li>Các section pie chart theo từng chiều phân tích.</li>
+          <li>Chưa lọc: đọc từ <code>ttm_dashboard_2_cache</code> theo phạm vi quyền; có lọc: trình duyệt tính lại bằng cùng công thức.</li>
+        </ul></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ 6 -->
+    <section class="chapter" id="bao-cao">
+      <h2><span class="num">6</span>Màn hình Báo cáo Epic <code>/reports</code></h2>
+      <p class="lead">Báo cáo theo từng dự án tại một ngày được chọn, có so sánh với một ngày khác — phục vụ họp giao ban và báo cáo định kỳ.</p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 960 200" role="img" aria-labelledby="rptTitle">
+          <title id="rptTitle">Luồng tạo Báo cáo Epic</title>
+          <defs>
+            <marker id="arr4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="s-arrowhead-brand"/></marker>
+          </defs>
+          <rect x="14" y="30" width="200" height="140" rx="12" class="s-box"/>
+          <text x="28" y="56" class="t-title">1. Chọn phạm vi</text>
+          <text x="28" y="80" class="t-body">Domain nghiệp vụ</text>
+          <text x="28" y="98" class="t-body">→ Dự án (bắt buộc)</text>
+          <text x="28" y="116" class="t-body">→ Component (tuỳ chọn)</text>
+          <text x="28" y="134" class="t-body">+ cấu hình nâng cao</text>
+          <path d="M214 100 H244" class="s-line-brand" marker-end="url(#arr4)"/>
+          <rect x="246" y="30" width="210" height="140" rx="12" class="s-box"/>
+          <text x="260" y="56" class="t-title">2. Chọn lớp dữ liệu</text>
+          <text x="260" y="80" class="t-body">Lớp chính: ngày cần xem</text>
+          <text x="260" y="98" class="t-body">Lớp so sánh (tuỳ chọn)</text>
+          <text x="260" y="116" class="t-body">Thiếu dữ liệu → tự lấy</text>
+          <text x="260" y="134" class="t-body">lớp cũ hơn gần nhất</text>
+          <path d="M456 100 H486" class="s-line-brand" marker-end="url(#arr4)"/>
+          <rect x="488" y="30" width="210" height="140" rx="12" class="s-accent"/>
+          <text x="502" y="56" class="t-title">3. Chấm tại ngày đó</text>
+          <text x="502" y="80" class="t-body">Đọc phiên bản Epic từ</text>
+          <text x="502" y="98" class="t-body">issues tại ngày chọn</text>
+          <text x="502" y="116" class="t-body">→ Scoring Service</text>
+          <text x="502" y="134" class="t-body">(cùng rule với màn khác)</text>
+          <path d="M698 100 H728" class="s-line-brand" marker-end="url(#arr4)"/>
+          <rect x="730" y="30" width="216" height="140" rx="12" class="s-box"/>
+          <text x="744" y="56" class="t-title">4. Kết quả</text>
+          <text x="744" y="80" class="t-body">Thẻ tổng hợp + danh sách</text>
+          <text x="744" y="98" class="t-body">Epic từng nhóm, cột</text>
+          <text x="744" y="116" class="t-body">"Chênh lệch" khi so sánh</text>
+          <text x="744" y="134" class="t-body">In / xuất PDF</text>
+        </svg>
+        <figcaption>Hình 6 — Báo cáo Epic chấm Epic trực tiếp tại ngày được chọn bằng cùng Scoring Service, nên khớp với Quản trị Epic khi xem cùng ngày.</figcaption>
+      </figure>
+
+      <h3>6.1. Nội dung báo cáo</h3>
+      <div class="grid-3">
+        <div class="card"><h4>Tổng Released</h4><p>Epic đã Released trong giai đoạn được chọn.</p></div>
+        <div class="card"><h4>Đạt TTM</h4><p>Epic Đạt TTM-CNTT và TTM-E2E.</p></div>
+        <div class="card"><h4>Fail TTM</h4><p>Epic Fail TTM-CNTT hoặc TTM-E2E.</p></div>
+        <div class="card"><h4>Epic In PO</h4><p>Epic ở To Do / In PO.</p></div>
+        <div class="card"><h4>Epic Pending</h4><p>Epic đang Pending.</p></div>
+        <div class="card"><h4>Thiếu thông tin</h4><p>Epic có Sai lệch dữ liệu cần bổ sung.</p></div>
+      </div>
+      <ul>
+        <li>Mỗi Epic bấm mã để mở Duyệt Epic hoặc mở thẳng Jira ở tab mới.</li>
+        <li>Báo cáo là nguồn dữ liệu của công cụ MCP <code>list_report_filters</code> để AI chatbot tra cứu sâu.</li>
+        <li>Phạm vi theo quyền: người dùng chỉ chọn được dự án/Component trong phạm vi của mình.</li>
+      </ul>
+    </section>
+
+    <!-- ============================================================ 7 -->
+    <section class="chapter" id="tinh-nang-khac">
+      <h2><span class="num">7</span>Tính năng quản trị &amp; tính năng khác</h2>
+      <p class="lead">Nhóm "Quản trị" trên menu gồm 2 cấp: <b>Admin: Cấu hình ứng dụng</b> (ADMIN trở lên, SUPERVISOR chỉ xem) và <b>SuperAdmin: Quản trị hệ thống</b> (chỉ SUPERADMIN).</p>
+
+      <h3>7.1. Admin: Cấu hình ứng dụng</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Chức năng</th><th>Mô tả</th></tr></thead>
+        <tbody>
+          <tr><td><b>Quản lý User</b> <code>/admin/users</code></td><td>Tạo/sửa user đơn lẻ hoặc hàng loạt; gán role, Domain, dự án PM/SM và giới hạn theo Component; tab <b>Quyền xem</b> cấp quyền chỉ-xem dự án/Epic; cấp lại mật khẩu; duyệt đăng ký mới.</td></tr>
+          <tr><td><b>Quản lý Dự án</b> <code>/admin/projects</code></td><td>Danh mục dự án (Project Key Jira cố định), gán Domain, cờ Time to Market, import hàng loạt từ CSV.</td></tr>
+          <tr><td><b>Quản lý Domain</b> <code>/admin/domains</code></td><td>Domain nghiệp vụ và danh sách dự án thuộc Domain (quyết định phạm vi xem của ADMIN).</td></tr>
+          <tr><td><b>Cấu hình cảnh báo</b> <code>/admin/status-alert-rules</code></td><td>Tiêu chí Time to Market (ngân sách TTM-CNTT/E2E theo loại Epic, nhiều Bộ ngân sách), mốc Cảnh báo muộn theo % ngân sách và status, Phạm vi dữ liệu cho TTM.</td></tr>
+          <tr><td><b>Epic ngoại lệ</b></td><td>Danh sách Epic loại khỏi mọi phép tính TTM (định dạng <code>KEY:EPIC-1,EPIC-2</code>, có kiểm tra cú pháp).</td></tr>
+          <tr><td><b>Cấu hình ứng dụng</b></td><td>Ngày nghỉ và ngày làm bù (tính ngày làm việc), ánh xạ Issue Type của Subtask sang vai trò BA/DEV/TEST/PM để xác định hoàn thành pha.</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>7.2. SuperAdmin: Quản trị hệ thống</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Chức năng</th><th>Mô tả</th></tr></thead>
+        <tbody>
+          <tr><td><b>Nguồn dữ liệu</b> <code>/</code></td><td>Import CSV + nhật ký import · Quản lý Component · Từ chối import (ngày A/B, danh sách, xoá dữ liệu còn tồn) · Dọn lịch sử (công tắc an toàn, giới hạn số dòng mỗi lượt) · Theo dõi cache (trạng thái, nút Tạo lại cache).</td></tr>
+          <tr><td><b>Sao lưu / Phục hồi</b> <code>/admin/database</code></td><td>Xuất file SQL theo khoảng lớp dữ liệu hoặc theo danh sách bảng; nhập lại bằng upsert theo khoá chính (tối đa 50 MB).</td></tr>
+          <tr><td><b>Ma trận phân quyền</b> <code>/admin/permissions</code></td><td>Quyền Xem/Thêm/Sửa/Xoá cho từng cặp (chức năng, role); quyền Xem có hiệu lực trên menu, URL, API và MCP.</td></tr>
+          <tr><td><b>Rule Management</b> <code>/admin/rule-management</code></td><td>Quản lý Nhóm rule: điều kiện ngày / TTM-applied, thứ tự ưu tiên, Bật/Tắt/Kế thừa từng rule; cảnh báo xung đột; <b>xem trước tác động</b> trước khi lưu; lịch sử thay đổi.</td></tr>
+          <tr><td><b>Quản trị hệ thống</b> (popup)</td><td>Banner thông báo · Popup quảng cáo · API key cho SSO · Cấu hình Jira (link mở Epic) · MCP Server · Lead view cho tất cả user.</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>7.3. Tính năng khác</h3>
+      <div class="grid-2">
+        <div class="card"><h4>Chuẩn hoá dữ liệu <code>/data-normalization</code></h4><p>Danh sách Epic có Sai lệch dữ liệu / cần bổ sung thông tin, kèm khuyến nghị sửa cụ thể cho PM/SM.</p></div>
+        <div class="card"><h4>MCP Server <code>/api/mcp</code></h4><p>Kết nối AI chatbot (Claude, …) bằng Personal Access Token hoặc OAuth. Các tool: danh sách/chi tiết Epic, số liệu Dashboard, logic cảnh báo, tra cứu Tài liệu sản phẩm — luôn theo phạm vi quyền và Ma trận phân quyền của người gọi.</p></div>
+        <div class="card"><h4>SSO &amp; API key</h4><p>Ứng dụng khác đăng nhập liên kết qua luồng Authorization Code (mã sống 5 phút), quản lý client bằng API key.</p></div>
+        <div class="card"><h4>Thống kê truy cập <code>/visit-stats</code></h4><p>Lượt truy cập và tương tác theo user, màn hình, chu kỳ thời gian; tự gộp dữ liệu cũ.</p></div>
+        <div class="card"><h4>Thông báo trong ứng dụng</h4><p>Banner thông báo, popup quảng cáo (có chế độ bắt buộc xem), popup nhắc việc được giao, toast cảnh báo "cần tạo lại cache".</p></div>
+        <div class="card"><h4>Tài liệu sản phẩm <code>/docs/product</code></h4><p>Tài liệu nghiệp vụ đầy đủ trong ứng dụng (rule, công thức, màn hình), kèm popup "Logic cảnh báo" và "Logic xử lý dữ liệu".</p></div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================ 8 (generated from the live database 01/11/2026 22:44) -->
+    <section class="chapter" id="co-so-du-lieu">
+      <h2><span class="num">8</span>Cơ sở dữ liệu</h2>
+      <p class="lead">PostgreSQL 17.6 (Supabase production) — số liệu đếm trực tiếp lúc <b>01/11/2026 22:44</b> (giờ Việt Nam).</p>
+      <div class="grid-3">
+        <div class="card"><h4>66 bảng</h4><p>Schema <code>public</code>, chia 12 nhóm chức năng. Bảng nào cũng có khoá chính.</p></div>
+        <div class="card"><h4>53 khoá ngoại</h4><p>31 khoá trỏ về <code>users</code> (phần lớn là cột "người cập nhật", xoá user thì đặt NULL).</p></div>
+        <div class="card"><h4>87.755 bản ghi</h4><p>Bảng lớn nhất: <code>issues</code> (80.857 bản ghi — mọi phiên bản issue theo lớp ngày).</p></div>
+      </div>
+
+      <h3>8.1. ERD lõi nghiệp vụ</h3>
+      <p>Hình dưới đây gồm các bảng tham gia luồng nghiệp vụ chính. Toàn bộ 66 bảng, kèm khoá chính và khoá ngoại, được liệt kê ở mục 8.3 trở đi. Sơ đồ chi tiết từng nhóm (dạng Mermaid) có trong <code>docs/database-erd.md</code>.</p>
+<figure class="diagram">
+  <svg viewBox="0 0 1236 690" role="img" aria-labelledby="erdTitle">
+    <title id="erdTitle">ERD lõi nghiệp vụ của TTM Monitor</title>
+    <defs>
+      <marker id="erdOne" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M11 1 V11 M7 1 V11" class="s-line" style="stroke-width:1.4"/></marker>
+      <marker id="erdMany" viewBox="0 0 12 12" refX="1" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M11 6 L1 1 M11 6 L1 11 M11 6 H1" class="s-line" style="stroke-width:1.4"/></marker>
+    </defs>
+    <text x="20" y="24" class="t-brand">Người dùng, phạm vi &amp; danh mục</text>
+    <text x="520" y="24" class="t-brand">Dữ liệu nguồn &amp; cấu hình TTM</text>
+    <text x="770" y="24" class="t-brand">Dữ liệu theo Epic &amp; Scoring</text>
+<path d="M270 77 H235 V77 H216" class="s-line" marker-end="url(#erdOne)" marker-start="url(#erdMany)"/>
+<path d="M270 93 H243 V586 H216" class="s-line" marker-end="url(#erdOne)" marker-start="url(#erdMany)"/>
+<path d="M270 187 H251 V130 H216" class="s-line" marker-end="url(#erdOne)" marker-start="url(#erdMany)"/>
+<path d="M270 203 H235 V356 H216" class="s-line" marker-end="url(#erdOne)" marker-start="url(#erdMany)"/>
+<path d="M270 297 H260 V183 H270" class="s-line" marker-end="url(#erdOne)" marker-start="url(#erdMany)"/>
+<path d="M270 437 H243 V130 H216" class="s-line" marker-end="url(#erdOne)" marker-start="url(#erdMany)"/>
+<path d="M270 453 H251 V420 H216" class="s-line" marker-end="url(#erdOne)" marker-start="url(#erdMany)"/>
+<path d="M270 547 H260 V433 H270" class="s-line" marker-end="url(#erdOne)" marker-start="url(#erdMany)"/>
+<path d="M20 399 H10 V601 H20" class="s-line" marker-end="url(#erdOne)" marker-start="url(#erdMany)"/>
+<path d="M520 269 H510 V89 H520" class="s-line" marker-end="url(#erdOne)" marker-start="url(#erdMany)"/>
+<path d="M520 593 H510 V473 H520" class="s-line" marker-end="url(#erdOne)" marker-start="url(#erdMany)"/>
+<path d="M1020 607 H1010 V459 H1020" class="s-line" marker-end="url(#erdOne)" marker-start="url(#erdMany)"/>
+<path d="M770 295 H748 V130 H716" class="s-line" marker-end="url(#erdOne)" marker-start="url(#erdMany)"/>
+<path d="M716 285 H724 V237 H716" class="s-line" marker-end="url(#erdOne)" marker-start="url(#erdMany)"/>
+<path d="M716 301 H732 V237 H716" class="s-line" marker-end="url(#erdOne)" marker-start="url(#erdMany)"/>
+<path d="M716 253 H760" class="s-logic"/>
+<path d="M760 77 V553" class="s-logic"/>
+<path d="M760 77 H770" class="s-logic"/>
+<path d="M760 263 H770" class="s-logic"/>
+<path d="M760 407 H770" class="s-logic"/>
+<path d="M760 553 H770" class="s-logic"/>
+<path d="M760 77 H1004 V317" class="s-logic"/>
+<path d="M1004 77 H1020" class="s-logic"/>
+<path d="M1004 223 H1020" class="s-logic"/>
+<path d="M1004 317 H1020" class="s-logic"/>
+<g><rect x="20" y="40" width="196" height="98" rx="8" class="s-box"/><path d="M20 62 H216" class="s-divider"/><text x="30" y="57" class="t-title">users</text><text x="30" y="78" class="t-small"><tspan class="t-col">id</tspan><tspan class="t-key"> PK</tspan></text><text x="30" y="94" class="t-small"><tspan class="t-col">email</tspan><tspan class="t-key"> UK</tspan></text><text x="30" y="110" class="t-small"><tspan class="t-col">role</tspan></text><text x="30" y="126" class="t-small"><tspan class="t-col">is_active</tspan></text></g>
+<g><rect x="20" y="330" width="196" height="98" rx="8" class="s-box"/><path d="M20 352 H216" class="s-divider"/><text x="30" y="347" class="t-title">projects</text><text x="30" y="368" class="t-small"><tspan class="t-col">id</tspan><tspan class="t-key"> PK</tspan></text><text x="30" y="384" class="t-small"><tspan class="t-col">source_project_key</tspan><tspan class="t-key"> UK</tspan></text><text x="30" y="400" class="t-small"><tspan class="t-col">domain_id</tspan><tspan class="t-key"> FK</tspan></text><text x="30" y="416" class="t-small"><tspan class="t-col">is_active</tspan></text></g>
+<g><rect x="20" y="560" width="196" height="82" rx="8" class="s-box"/><path d="M20 582 H216" class="s-divider"/><text x="30" y="577" class="t-title">domains</text><text x="30" y="598" class="t-small"><tspan class="t-col">id</tspan><tspan class="t-key"> PK</tspan></text><text x="30" y="614" class="t-small"><tspan class="t-col">domain_code</tspan></text><text x="30" y="630" class="t-small"><tspan class="t-col">domain_name</tspan></text></g>
+<g><rect x="270" y="40" width="196" height="66" rx="8" class="s-box"/><path d="M270 62 H466" class="s-divider"/><text x="280" y="57" class="t-title">user_domains</text><text x="280" y="78" class="t-small"><tspan class="t-col">user_id</tspan><tspan class="t-key"> PK FK</tspan></text><text x="280" y="94" class="t-small"><tspan class="t-col">domain_id</tspan><tspan class="t-key"> PK FK</tspan></text></g>
+<g><rect x="270" y="150" width="196" height="66" rx="8" class="s-box"/><path d="M270 172 H466" class="s-divider"/><text x="280" y="167" class="t-title">user_projects</text><text x="280" y="188" class="t-small"><tspan class="t-col">user_id</tspan><tspan class="t-key"> PK FK</tspan></text><text x="280" y="204" class="t-small"><tspan class="t-col">project_id</tspan><tspan class="t-key"> PK FK</tspan></text></g>
+<g><rect x="270" y="260" width="196" height="82" rx="8" class="s-box"/><path d="M270 282 H466" class="s-divider"/><text x="280" y="277" class="t-title">user_project_components</text><text x="280" y="298" class="t-small"><tspan class="t-col">user_id</tspan><tspan class="t-key"> PK FK</tspan></text><text x="280" y="314" class="t-small"><tspan class="t-col">project_id</tspan><tspan class="t-key"> PK FK</tspan></text><text x="280" y="330" class="t-small"><tspan class="t-col">component_name</tspan><tspan class="t-key"> PK</tspan></text></g>
+<g><rect x="270" y="400" width="196" height="66" rx="8" class="s-box"/><path d="M270 422 H466" class="s-divider"/><text x="280" y="417" class="t-title">user_view_projects</text><text x="280" y="438" class="t-small"><tspan class="t-col">user_id</tspan><tspan class="t-key"> PK FK</tspan></text><text x="280" y="454" class="t-small"><tspan class="t-col">project_id</tspan><tspan class="t-key"> PK FK</tspan></text></g>
+<g><rect x="270" y="510" width="196" height="82" rx="8" class="s-box"/><path d="M270 532 H466" class="s-divider"/><text x="280" y="527" class="t-title" style="font-size:11.5px">user_view_project_components</text><text x="280" y="548" class="t-small"><tspan class="t-col">user_id</tspan><tspan class="t-key"> PK FK</tspan></text><text x="280" y="564" class="t-small"><tspan class="t-col">project_id</tspan><tspan class="t-key"> PK FK</tspan></text><text x="280" y="580" class="t-small"><tspan class="t-col">component_name</tspan><tspan class="t-key"> PK</tspan></text></g>
+<g><rect x="520" y="40" width="196" height="98" rx="8" class="s-brand"/><path d="M520 62 H716" class="s-divider"/><text x="530" y="57" class="t-title">import_batches</text><text x="530" y="78" class="t-small"><tspan class="t-col">id</tspan><tspan class="t-key"> PK</tspan></text><text x="530" y="94" class="t-small"><tspan class="t-col">aggregated_at</tspan></text><text x="530" y="110" class="t-small"><tspan class="t-col">status</tspan></text><text x="530" y="126" class="t-small"><tspan class="t-col">import_type</tspan></text></g>
+<g><rect x="520" y="200" width="196" height="146" rx="8" class="s-brand"/><path d="M520 222 H716" class="s-divider"/><text x="530" y="217" class="t-title">issues</text><text x="530" y="238" class="t-small"><tspan class="t-col">id</tspan><tspan class="t-key"> PK</tspan></text><text x="530" y="254" class="t-small"><tspan class="t-col">issue_key</tspan></text><text x="530" y="270" class="t-small"><tspan class="t-col">source_import_batch_id</tspan><tspan class="t-key"> FK</tspan></text><text x="530" y="286" class="t-small"><tspan class="t-col">parent_id</tspan><tspan class="t-key"> FK</tspan></text><text x="530" y="302" class="t-small"><tspan class="t-col">epic_id</tspan><tspan class="t-key"> FK</tspan></text><text x="530" y="318" class="t-small"><tspan class="t-col">project_key</tspan></text><text x="530" y="334" class="t-small"><tspan class="t-col">aggregated_at</tspan></text></g>
+<g><rect x="520" y="440" width="196" height="66" rx="8" class="s-warn"/><path d="M520 462 H716" class="s-divider"/><text x="530" y="457" class="t-title">ttm_policy_sets</text><text x="530" y="478" class="t-small"><tspan class="t-col">key</tspan><tspan class="t-key"> PK</tspan></text><text x="530" y="494" class="t-small"><tspan class="t-col">name</tspan></text></g>
+<g><rect x="520" y="540" width="196" height="114" rx="8" class="s-warn"/><path d="M520 562 H716" class="s-divider"/><text x="530" y="557" class="t-title">ttm_policy_configs</text><text x="530" y="578" class="t-small"><tspan class="t-col">id</tspan><tspan class="t-key"> PK</tspan></text><text x="530" y="594" class="t-small"><tspan class="t-col">policy_set</tspan><tspan class="t-key"> FK</tspan></text><text x="530" y="610" class="t-small"><tspan class="t-col">ttm_type</tspan></text><text x="530" y="626" class="t-small"><tspan class="t-col">epic_complexity_type</tspan></text><text x="530" y="642" class="t-small"><tspan class="t-col">working_days</tspan></text></g>
+<g><rect x="770" y="40" width="196" height="114" rx="8" class="s-accent"/><path d="M770 62 H966" class="s-divider"/><text x="780" y="57" class="t-title">epic_alert_row_cache</text><text x="780" y="78" class="t-small"><tspan class="t-col">epic_key</tspan><tspan class="t-key"> PK</tspan></text><text x="780" y="94" class="t-small"><tspan class="t-col">project_key</tspan></text><text x="780" y="110" class="t-small"><tspan class="t-col">findings</tspan></text><text x="780" y="126" class="t-small"><tspan class="t-col">badge_codes</tspan></text><text x="780" y="142" class="t-small"><tspan class="t-col">rule_group_id</tspan></text></g>
+<g><rect x="770" y="210" width="196" height="98" rx="8" class="s-accent"/><path d="M770 232 H966" class="s-divider"/><text x="780" y="227" class="t-title">epic_alert_timeline</text><text x="780" y="248" class="t-small"><tspan class="t-col">id</tspan><tspan class="t-key"> PK</tspan></text><text x="780" y="264" class="t-small"><tspan class="t-col">epic_key</tspan></text><text x="780" y="280" class="t-small"><tspan class="t-col">alert_type</tspan></text><text x="780" y="296" class="t-small"><tspan class="t-col">source_import_batch_id</tspan><tspan class="t-key"> FK</tspan></text></g>
+<g><rect x="770" y="370" width="196" height="82" rx="8" class="s-accent"/><path d="M770 392 H966" class="s-divider"/><text x="780" y="387" class="t-title">black_listed_epics</text><text x="780" y="408" class="t-small"><tspan class="t-col">epic_key</tspan><tspan class="t-key"> PK</tspan></text><text x="780" y="424" class="t-small"><tspan class="t-col">ttm_black_listed</tspan></text><text x="780" y="440" class="t-small"><tspan class="t-col">source</tspan></text></g>
+<g><rect x="770" y="500" width="196" height="98" rx="8" class="s-accent"/><path d="M770 522 H966" class="s-divider"/><text x="780" y="517" class="t-title">epic_comments</text><text x="780" y="538" class="t-small"><tspan class="t-col">id</tspan><tspan class="t-key"> PK</tspan></text><text x="780" y="554" class="t-small"><tspan class="t-col">epic_key</tspan></text><text x="780" y="570" class="t-small"><tspan class="t-col">user_id</tspan></text><text x="780" y="586" class="t-small"><tspan class="t-col">content</tspan></text></g>
+<g><rect x="1020" y="40" width="196" height="82" rx="8" class="s-accent"/><path d="M1020 62 H1216" class="s-divider"/><text x="1030" y="57" class="t-title">epic_task_status</text><text x="1030" y="78" class="t-small"><tspan class="t-col">epic_key</tspan><tspan class="t-key"> PK</tspan></text><text x="1030" y="94" class="t-small"><tspan class="t-col">status</tspan></text><text x="1030" y="110" class="t-small"><tspan class="t-col">updated_by_user_id</tspan><tspan class="t-key"> FK</tspan></text></g>
+<g><rect x="1020" y="170" width="196" height="66" rx="8" class="s-accent"/><path d="M1020 192 H1216" class="s-divider"/><text x="1030" y="187" class="t-title">epic_hidden_by_users</text><text x="1030" y="208" class="t-small"><tspan class="t-col">user_id</tspan><tspan class="t-key"> PK FK</tspan></text><text x="1030" y="224" class="t-small"><tspan class="t-col">epic_key</tspan><tspan class="t-key"> PK</tspan></text></g>
+<g><rect x="1020" y="280" width="196" height="82" rx="8" class="s-accent"/><path d="M1020 302 H1216" class="s-divider"/><text x="1030" y="297" class="t-title">denied_import_epics</text><text x="1030" y="318" class="t-small"><tspan class="t-col">epic_key</tspan><tspan class="t-key"> PK</tspan></text><text x="1030" y="334" class="t-small"><tspan class="t-col">allow_import</tspan></text><text x="1030" y="350" class="t-small"><tspan class="t-col">source</tspan></text></g>
+<g><rect x="1020" y="410" width="196" height="98" rx="8" class="s-warn"/><path d="M1020 432 H1216" class="s-divider"/><text x="1030" y="427" class="t-title">scoring_rule_groups</text><text x="1030" y="448" class="t-small"><tspan class="t-col">id</tspan><tspan class="t-key"> PK</tspan></text><text x="1030" y="464" class="t-small"><tspan class="t-col">name</tspan></text><text x="1030" y="480" class="t-small"><tspan class="t-col">priority</tspan></text><text x="1030" y="496" class="t-small"><tspan class="t-col">is_default</tspan></text></g>
+<g><rect x="1020" y="570" width="196" height="82" rx="8" class="s-warn"/><path d="M1020 592 H1216" class="s-divider"/><text x="1030" y="587" class="t-title">scoring_rule_group_rules</text><text x="1030" y="608" class="t-small"><tspan class="t-col">group_id</tspan><tspan class="t-key"> PK FK</tspan></text><text x="1030" y="624" class="t-small"><tspan class="t-col">rule_id</tspan><tspan class="t-key"> PK</tspan></text><text x="1030" y="640" class="t-small"><tspan class="t-col">state</tspan></text></g>
+
+  <g transform="translate(20 668)">
+    <path d="M0 0 H34" class="s-line" marker-end="url(#erdOne)" marker-start="url(#erdMany)"/><text x="42" y="4" class="t-small">Khoá ngoại (nhiều → một)</text>
+    <path d="M220 0 H254" class="s-logic"/><text x="262" y="4" class="t-small">Liên kết logic theo epic_key (không có FK)</text>
+    <text x="560" y="4" class="t-small">PK khoá chính · FK khoá ngoại · UK duy nhất · cột "người cập nhật" (FK → users) lược bớt</text>
+  </g>
+  </svg>
+  <figcaption>Hình 7 — ERD lõi nghiệp vụ (21 / 66 bảng). Bảng nền xanh dương: dữ liệu nguồn; xanh lá: dữ liệu theo Epic; cam: cấu hình TTM &amp; Scoring.</figcaption>
+</figure>
+      <div class="note"><b>Vì sao nhiều liên kết không có khoá ngoại?</b> Các bảng theo Epic (<code>epic_alert_row_cache</code>, <code>epic_comments</code>, <code>black_listed_epics</code>…) nối với dữ liệu nguồn bằng <code>epic_key</code>, và với dự án bằng <code>project_key</code> (mã Jira), chứ không bằng <code>issues.id</code>. Lý do: <code>issues</code> lưu nhiều phiên bản của cùng một issue (mỗi lớp ngày một dòng), nên không có một dòng duy nhất để làm đích FK. Ngoài ra, cache được dựng lại toàn bộ, còn comment và danh sách ngoại lệ phải tồn tại kể cả khi lịch sử issue đã bị dọn. Tính toàn vẹn của các liên kết này do code đảm bảo: luồng import, Epic deletion và tạo lại cache.</div>
+
+      <h3>8.2. Tổng quan theo nhóm</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>#</th><th>Nhóm chức năng</th><th class="num">Số bảng</th><th class="num">Số bản ghi</th></tr></thead>
+        <tbody>
+<tr><td>1</td><td><a data-db-group href="#db-group-auth">8.3. Xác thực &amp; phân quyền</a></td><td class="num">12</td><td class="num">253</td></tr>
+<tr><td>2</td><td><a data-db-group href="#db-group-master">8.4. Domain &amp; Dự án</a></td><td class="num">3</td><td class="num">146</td></tr>
+<tr><td>3</td><td><a data-db-group href="#db-group-pms">8.5. Quản lý dự án (PMS — expand-only)</a></td><td class="num">5</td><td class="num">173</td></tr>
+<tr><td>4</td><td><a data-db-group href="#db-group-import">8.6. Import &amp; Issue</a></td><td class="num">5</td><td class="num">81.124</td></tr>
+<tr><td>5</td><td><a data-db-group href="#db-group-ttmcfg">8.7. Cấu hình TTM, lịch &amp; phạm vi</a></td><td class="num">12</td><td class="num">92</td></tr>
+<tr><td>6</td><td><a data-db-group href="#db-group-scoring">8.8. Epic Scoring Service</a></td><td class="num">5</td><td class="num">31</td></tr>
+<tr><td>7</td><td><a data-db-group href="#db-group-history">8.9. Lịch sử &amp; snapshot</a></td><td class="num">1</td><td class="num">2.386</td></tr>
+<tr><td>8</td><td><a data-db-group href="#db-group-cache">8.10. Cache dữ liệu dẫn xuất</a></td><td class="num">5</td><td class="num">1.577</td></tr>
+<tr><td>9</td><td><a data-db-group href="#db-group-system">8.11. Cấu hình hệ thống</a></td><td class="num">4</td><td class="num">118</td></tr>
+<tr><td>10</td><td><a data-db-group href="#db-group-notify">8.12. Popup &amp; Banner thông báo</a></td><td class="num">3</td><td class="num">124</td></tr>
+<tr><td>11</td><td><a data-db-group href="#db-group-integration">8.13. SSO, API Key &amp; MCP Server</a></td><td class="num">7</td><td class="num">85</td></tr>
+<tr><td>12</td><td><a data-db-group href="#db-group-logs">8.14. Nhật ký &amp; thống kê sử dụng</a></td><td class="num">4</td><td class="num">1.646</td></tr>
+          <tr><td></td><td><b>Tổng</b></td><td class="num"><b>66</b></td><td class="num"><b>87.755</b></td></tr>
+        </tbody>
+      </table></div>
+      <p class="note" id="db-group-hint">Bấm tên một nhóm (8.3 – 8.14) trong bảng trên để xem chi tiết các bảng của nhóm đó: chức năng, số bản ghi, khoá chính, khoá ngoại. Mỗi lần chỉ hiện một nhóm.</p>
+      <p class="muted">Hành vi khi xoá bản ghi cha (cột Khoá ngoại): <b>CASCADE</b> xoá luôn bản ghi con · <b>SET NULL</b> giữ bản ghi con, bỏ liên kết · <b>NO ACTION</b> chặn xoá khi còn bản ghi con.</p>
+
+<div class="db-group" id="db-group-auth" hidden>
+<div class="db-group-head"><h4>8.3. Xác thực &amp; phân quyền <span class="muted">— 12 bảng</span></h4><button class="db-close" data-db-close type="button">Đóng ✕</button></div>
+<div class="table-wrap"><table class="db-table">
+  <thead><tr><th>Bảng</th><th>Chức năng</th><th class="num">Số bản ghi</th><th>Khoá chính</th><th>Khoá ngoại</th></tr></thead>
+  <tbody>
+<tr><td><code>users</code></td><td>Quản lý tài khoản người dùng, băm mật khẩu bcrypt. Cột <code>role</code> nhận CHECK 4 giá trị: SUPERADMIN, ADMIN, SUPERVISOR, USER.</td><td class="num">43</td><td><code>id</code></td><td><span class="muted">—</span></td></tr>
+<tr><td><code>user_domains</code></td><td>Phân quyền nhiều-nhiều giữa User và Domain nghiệp vụ (chỉ áp dụng cho ADMIN).</td><td class="num">48</td><td><code>user_id, domain_id</code></td><td><code>domain_id</code> → <code>domains(id)</code> <span class="ondel">CASCADE</span><br><code>user_id</code> → <code>users(id)</code> <span class="ondel">CASCADE</span></td></tr>
+<tr><td><code>user_projects</code></td><td>Phân quyền nhiều-nhiều giữa User và Dự án (cấp quyền full 1 dự án cho PM/SM).</td><td class="num">47</td><td><code>user_id, project_id</code></td><td><code>project_id</code> → <code>projects(id)</code> <span class="ondel">CASCADE</span><br><code>user_id</code> → <code>users(id)</code> <span class="ondel">CASCADE</span></td></tr>
+<tr><td><code>user_project_components</code></td><td>Thu hẹp phạm vi quyền dự án của PM/SM xuống chỉ những Epic có Jira Component khớp danh sách.</td><td class="num">4</td><td><code>user_id, project_id, component_name</code></td><td><code>user_id, project_id</code> → <code>user_projects(user_id, project_id)</code> <span class="ondel">CASCADE</span></td></tr>
+<tr><td><code>user_view_projects</code></td><td><strong>Mới 01/11/2026.</strong> "Quyền xem" (tab trong popup Chỉnh sửa user, chỉ cho USER/ADMIN): dự án mà user được XEM thêm trong màn Quản trị Epic, ngoài phạm vi quyền thật. Epic chỉ-xem hiện kèm icon con mắt và không tính vào bất kỳ chỉ số nào; Dashboard/Báo cáo không đọc bảng này.</td><td class="num">3</td><td><code>user_id, project_id</code></td><td><code>project_id</code> → <code>projects(id)</code> <span class="ondel">CASCADE</span><br><code>user_id</code> → <code>users(id)</code> <span class="ondel">CASCADE</span></td></tr>
+<tr><td><code>user_view_project_components</code></td><td><strong>Mới 01/11/2026.</strong> Thu hẹp một dự án trong Quyền xem xuống các Component; không có dòng = xem mọi Epic của dự án (Epic không có Component nào thì không bị thu hẹp).</td><td class="num">1</td><td><code>user_id, project_id, component_name</code></td><td><code>user_id, project_id</code> → <code>user_view_projects(user_id, project_id)</code> <span class="ondel">CASCADE</span></td></tr>
+<tr><td><code>user_view_epics</code></td><td><strong>Mới 01/11/2026.</strong> Epic được cấp Quyền xem đích danh — luôn hiện, không áp Giới hạn thời gian.</td><td class="num">3</td><td><code>user_id, epic_key</code></td><td><code>user_id</code> → <code>users(id)</code> <span class="ondel">CASCADE</span></td></tr>
+<tr><td><code>user_view_settings</code></td><td><strong>Mới 01/11/2026.</strong> "Giới hạn thời gian" của Quyền xem theo dự án: chỉ hiện Epic có Created date (ngày tạo Jira) &gt; <code>created_after</code> và Start Date &gt; <code>start_after</code>; NULL = không lọc; Epic chưa có Start Date không thoả điều kiện Start Date.</td><td class="num">2</td><td><code>user_id</code></td><td><code>updated_by_user_id</code> → <code>users(id)</code> <span class="ondel">SET NULL</span><br><code>user_id</code> → <code>users(id)</code> <span class="ondel">CASCADE</span></td></tr>
+<tr><td><code>auth_sessions</code></td><td>Quản lý phiên đăng nhập active bằng cookie HTTP-only (băm SHA-256).</td><td class="num">5</td><td><code>token_hash</code></td><td><code>user_id</code> → <code>users(id)</code> <span class="ondel">CASCADE</span></td></tr>
+<tr><td><code>password_reset_requests</code></td><td>Lưu trữ yêu cầu đặt lại mật khẩu theo email. CAPTCHA xác thực trước ở tầng API.</td><td class="num">12</td><td><code>id</code></td><td><code>resolved_by</code> → <code>users(id)</code> <span class="ondel">SET NULL</span></td></tr>
+<tr><td><code>permission_features</code></td><td>Danh mục các tính năng hệ thống phục vụ ma trận phân quyền.</td><td class="num">17</td><td><code>feature_key</code></td><td><span class="muted">—</span></td></tr>
+<tr><td><code>role_feature_permissions</code></td><td>Bảng ma trận cấu hình 4 quyền Xem/Thêm/Sửa/Xóa theo từng (tính năng, role).</td><td class="num">68</td><td><code>feature_key, role</code></td><td><code>feature_key</code> → <code>permission_features(feature_key)</code> <span class="ondel">CASCADE</span></td></tr>
+  </tbody>
+</table></div>
+</div>
+
+<div class="db-group" id="db-group-master" hidden>
+<div class="db-group-head"><h4>8.4. Domain &amp; Dự án <span class="muted">— 3 bảng</span></h4><button class="db-close" data-db-close type="button">Đóng ✕</button></div>
+<div class="table-wrap"><table class="db-table">
+  <thead><tr><th>Bảng</th><th>Chức năng</th><th class="num">Số bản ghi</th><th>Khoá chính</th><th>Khoá ngoại</th></tr></thead>
+  <tbody>
+<tr><td><code>domains</code></td><td>Danh mục Domain nghiệp vụ. Cột <code>lead_name</code> dạng text tự do.</td><td class="num">8</td><td><code>id</code></td><td><span class="muted">—</span></td></tr>
+<tr><td><code>projects</code></td><td>Danh mục Dự án. Khóa <code>source_project_key</code> duy nhất dùng để so khớp với dữ liệu import từ Jira.</td><td class="num">55</td><td><code>id</code></td><td><code>domain_id</code> → <code>domains(id)</code> <span class="ondel">SET NULL</span><br><code>project_type_id</code> → <code>project_types(id)</code> <span class="ondel">SET NULL</span></td></tr>
+<tr><td><code>project_components</code></td><td>Tích lũy tự động các Jira Component đọc được từ CSV import để phục vụ dropdown lọc.</td><td class="num">83</td><td><code>id</code></td><td><span class="muted">—</span></td></tr>
+  </tbody>
+</table></div>
+</div>
+
+<div class="db-group" id="db-group-pms" hidden>
+<div class="db-group-head"><h4>8.5. Quản lý dự án (PMS — expand-only) <span class="muted">— 5 bảng</span></h4><button class="db-close" data-db-close type="button">Đóng ✕</button></div>
+<div class="table-wrap"><table class="db-table">
+  <thead><tr><th>Bảng</th><th>Chức năng</th><th class="num">Số bản ghi</th><th>Khoá chính</th><th>Khoá ngoại</th></tr></thead>
+  <tbody>
+<tr><td><code>project_types</code></td><td><strong>PMS, 09/10/2026.</strong> Loại dự án: Dự án / Team Agile / Team Triển khai (<code>legacy_category</code> map với <code>projects.project_category</code>). <code>projects</code> có thêm <code>project_code</code> (mã nghiệp vụ, mặc định = Jira key) và <code>project_type_id</code>.</td><td class="num">3</td><td><code>id</code></td><td><span class="muted">—</span></td></tr>
+<tr><td><code>project_type_capabilities</code></td><td><strong>PMS.</strong> Năng lực theo loại dự án (Checklist, Milestone, Gantt, Kế hoạch triển khai, Kỳ kế hoạch, Backlog, Capacity).</td><td class="num">9</td><td><code>project_type_id, capability_code</code></td><td><code>project_type_id</code> → <code>project_types(id)</code> <span class="ondel">CASCADE</span></td></tr>
+<tr><td><code>project_external_bindings</code></td><td><strong>PMS.</strong> Liên kết dự án ↔ hệ thống ngoài (mặc định Jira key), có hiệu lực theo khoảng ngày; đổi Jira key của dự án sẽ đóng binding cũ và mở binding mới (trigger, từ 19/10/2026).</td><td class="num">55</td><td><code>id</code></td><td><code>project_id</code> → <code>projects(id)</code> <span class="ondel">CASCADE</span></td></tr>
+<tr><td><code>ttm_project_configs</code></td><td><strong>PMS.</strong> Bật/tắt TTM theo dự án — trigger giữ khớp với <code>projects.ttm</code> (từ 19/10/2026); TTM hiện vẫn đọc <code>projects.ttm</code>.</td><td class="num">55</td><td><code>project_id</code></td><td><code>project_id</code> → <code>projects(id)</code> <span class="ondel">CASCADE</span></td></tr>
+<tr><td><code>project_members</code></td><td><strong>PMS.</strong> Thành viên dự án và vai trò — vai trò PM_SM được trigger giữ khớp với <code>user_projects</code> (từ 19/10/2026); phân quyền hiện vẫn đọc <code>user_projects</code>.</td><td class="num">51</td><td><code>id</code></td><td><code>project_id</code> → <code>projects(id)</code> <span class="ondel">CASCADE</span><br><code>user_id</code> → <code>users(id)</code> <span class="ondel">CASCADE</span></td></tr>
+  </tbody>
+</table></div>
+</div>
+
+<div class="db-group" id="db-group-import" hidden>
+<div class="db-group-head"><h4>8.6. Import &amp; Issue <span class="muted">— 5 bảng</span></h4><button class="db-close" data-db-close type="button">Đóng ✕</button></div>
+<div class="table-wrap"><table class="db-table">
+  <thead><tr><th>Bảng</th><th>Chức năng</th><th class="num">Số bản ghi</th><th>Khoá chính</th><th>Khoá ngoại</th></tr></thead>
+  <tbody>
+<tr><td><code>import_batches</code></td><td>Quản lý từng đợt import CSV (metadata đợt import, mốc <code>aggregated_at</code>, số dòng thành công/lỗi).</td><td class="num">191</td><td><code>id</code></td><td><span class="muted">—</span></td></tr>
+<tr><td><code>data_snapshot_dates</code></td><td><strong>Mới 27/10/2026.</strong> Các ngày mốc cố định của lịch sử <code>issues</code>: ngày làm việc cuối mỗi tuần, ghi một lần khi tuần đã qua. Vùng thưa của <code>issues</code> chỉ giữ phiên bản đang có hiệu lực vào các ngày này (xem mục 6.1).</td><td class="num">9</td><td><code>snapshot_date</code></td><td><span class="muted">—</span></td></tr>
+<tr><td><code>issues</code></td><td>Bảng canonical lưu trữ toàn bộ issue mọi cấp (Epic/Story/Subtask). Ghi nhận các mốc T0 (idea_approved_date), T1 (start_date), R4G (r4g_date), Due (due_date) và 4 Epic Type. Self-FK <code>parent_id</code> &amp; <code>epic_id</code>.</td><td class="num">80.857</td><td><code>id</code></td><td><code>epic_id</code> → <code>issues(id)</code> <span class="ondel">SET NULL</span><br><code>parent_id</code> → <code>issues(id)</code> <span class="ondel">SET NULL</span><br><code>source_import_batch_id</code> → <code>import_batches(id)</code> <span class="ondel">CASCADE</span></td></tr>
+<tr><td><code>denied_import_epics</code></td><td><strong>Mới 14/10/2026.</strong> "Từ chối import": Epic không được đưa vào CSDL. Lưu thông tin cơ bản chụp lúc thêm (summary, status, đơn vị yêu cầu, created, ngày duyệt ý tưởng, start, R4G, due), <code>allow_import</code> ("Cho phép import" — miễn trừ rule tự động), <code>source</code> (<code>MANUAL</code> / <code>AUTO_RULE</code> / <code>SEED</code>), lý do, lần xóa dữ liệu gần nhất — mục 3.4.</td><td class="num">66</td><td><code>epic_key</code></td><td><code>added_by_user_id</code> → <code>users(id)</code> <span class="ondel">SET NULL</span></td></tr>
+<tr><td><code>import_admission_settings</code></td><td><strong>Mới 14/10/2026.</strong> Ngày A (<code>created_before</code>) và ngày B (<code>released_due_before</code>) của rule tự động Từ chối import; để trống = tắt rule — mục 3.4.</td><td class="num">1</td><td><code>id</code></td><td><code>updated_by_user_id</code> → <code>users(id)</code> <span class="ondel">SET NULL</span></td></tr>
+  </tbody>
+</table></div>
+</div>
+
+<div class="db-group" id="db-group-ttmcfg" hidden>
+<div class="db-group-head"><h4>8.7. Cấu hình TTM, lịch &amp; phạm vi <span class="muted">— 12 bảng</span></h4><button class="db-close" data-db-close type="button">Đóng ✕</button></div>
+<div class="table-wrap"><table class="db-table">
+  <thead><tr><th>Bảng</th><th>Chức năng</th><th class="num">Số bản ghi</th><th>Khoá chính</th><th>Khoá ngoại</th></tr></thead>
+  <tbody>
+<tr><td><code>ttm_policy_sets</code></td><td><strong>Mới 26/10/2026.</strong> "Bộ ngân sách" Time to Market: tên một bộ tiêu chí (<code>DEFAULT</code> = hiện hành). Bộ khác chỉ chứa các dòng khác Mặc định; rule TTM-CNTT/E2E trong code chọn bộ nào được đọc (<code>policySet</code> trong <code>src/lib/scoring/registry.ts</code>).</td><td class="num">2</td><td><code>key</code></td><td><span class="muted">—</span></td></tr>
+<tr><td><code>ttm_policy_configs</code></td><td>Tiêu chí mốc hạn TTM chuẩn (TTM-CNTT và TTM-E2E) cho 4 loại Epic Type. Từ 26/10/2026 mỗi dòng thuộc một bộ ngân sách (<code>policy_set</code> → <code>ttm_policy_sets</code>); duy nhất theo (bộ, loại TTM, loại Epic).</td><td class="num">9</td><td><code>id</code></td><td><code>policy_set</code> → <code>ttm_policy_sets(key)</code> <span class="ondel">NO ACTION</span></td></tr>
+<tr><td><code>epic_status_alert_rules</code></td><td>Quy tắc mốc Cảnh báo sớm (số ngày làm việc từ T1) và Cảnh báo muộn (% ngân sách TTM-CNTT từ 26/10/2026) cho từng cặp (Loại Epic × Trạng thái).</td><td class="num">8</td><td><code>id</code></td><td><span class="muted">—</span></td></tr>
+<tr><td><code>issue_type_role_mapping</code></td><td>Mapping loại Subtask Jira sang team-role BA/DEV/TEST/PM để xác định hoàn thành pha.</td><td class="num">8</td><td><code>id</code></td><td><span class="muted">—</span></td></tr>
+<tr><td><code>ttm_scope_config</code></td><td>"Phạm vi dữ liệu cho TTM": khoảng ngày R4G for TTM (CNTT) và (QA) — mục 8.7.</td><td class="num">1</td><td><code>id</code></td><td><code>updated_by_user_id</code> → <code>users(id)</code> <span class="ondel">SET NULL</span></td></tr>
+<tr><td><code>holidays</code></td><td>Danh mục ngày nghỉ lễ/nghỉ công ty dùng để loại trừ khi tính số ngày làm việc.</td><td class="num">5</td><td><code>id</code></td><td><span class="muted">—</span></td></tr>
+<tr><td><code>makeup_workdays</code></td><td>Danh mục "Ngày làm bù": khai báo một ngày T7/CN cụ thể là ngày làm việc bình thường.</td><td class="num">2</td><td><code>id</code></td><td><span class="muted">—</span></td></tr>
+<tr><td><code>black_listed_epics</code></td><td><strong>Mới 05/10/2026.</strong> "Epic ngoại lệ": mỗi dòng là 1 Epic bị loại khỏi mọi phép tính Time to Market (<code>project_key</code>, <code>ttm_black_listed</code>, người cập nhật). Bỏ ngoại lệ = xoá dòng — mục 13.4.</td><td class="num">18</td><td><code>epic_key</code></td><td><code>updated_by_user_id</code> → <code>users(id)</code> <span class="ondel">SET NULL</span></td></tr>
+<tr><td><code>epic_marks</code></td><td><strong>Mới 27/10/2026, ngừng dùng cùng ngày.</strong> Cờ ẩn Epic dùng chung cho mọi người (<code>is_hidden</code>) — thay bằng <code>epic_hidden_by_users</code> (ẩn theo từng người). Code mới không còn đọc bảng này; sẽ xoá bằng một migration sau khi bản mới được deploy.</td><td class="num">1</td><td><code>epic_key</code></td><td><span class="muted">—</span></td></tr>
+<tr><td><code>epic_comments</code></td><td><strong>Mới 27/10/2026.</strong> Comment lũy kế của Epic (Mark &amp; Comment): tối đa 256 ký tự, không sửa/xoá; các dòng <code>is_system</code> là ghi chú hệ thống cũ (từ 27/10/2026 Hide/Unhide không ghi comment nữa). <code>user_name</code> lưu cố định tên người lưu.</td><td class="num">28</td><td><code>id</code></td><td><span class="muted">—</span></td></tr>
+<tr><td><code>epic_hidden_by_users</code></td><td><strong>Mới 27/10/2026.</strong> Ẩn Epic theo từng người: mỗi dòng = 1 người đã ẩn 1 Epic khỏi danh sách Quản trị Epic <em>của riêng họ</em>; Unhide xoá dòng. Người khác vẫn thấy Epic; mọi chỉ số vẫn tính Epic này.</td><td class="num">5</td><td><code>user_id, epic_key</code></td><td><code>user_id</code> → <code>users(id)</code> <span class="ondel">CASCADE</span></td></tr>
+<tr><td><code>epic_task_status</code></td><td><strong>Mới 27/10/2026.</strong> "Giao việc" của Epic (toggle trong popup Mark &amp; Comment): <code>TODO</code> (mặc định, không có dòng = TODO) / <code>DONE</code>, dùng chung cho mọi người. Epic có comment được coi là đã giao cho PM/SM; PM/SM của Epic hoặc ADMIN trở lên chuyển DONE khi xong. Comment mới không tự đưa về TODO. Đếm Epic còn TODO hiện trên nút "My assigned epics".</td><td class="num">5</td><td><code>epic_key</code></td><td><code>updated_by_user_id</code> → <code>users(id)</code> <span class="ondel">SET NULL</span></td></tr>
+  </tbody>
+</table></div>
+</div>
+
+<div class="db-group" id="db-group-scoring" hidden>
+<div class="db-group-head"><h4>8.8. Epic Scoring Service <span class="muted">— 5 bảng</span></h4><button class="db-close" data-db-close type="button">Đóng ✕</button></div>
+<div class="table-wrap"><table class="db-table">
+  <thead><tr><th>Bảng</th><th>Chức năng</th><th class="num">Số bản ghi</th><th>Khoá chính</th><th>Khoá ngoại</th></tr></thead>
+  <tbody>
+<tr><td><code>scoring_parameters</code></td><td>Tham số rule do admin ghi đè (grace Release, tỉ lệ Pending lâu, status được miễn…); mặc định nằm trong code.</td><td class="num">0</td><td><code>param_key</code></td><td><code>updated_by_user_id</code> → <code>users(id)</code> <span class="ondel">SET NULL</span></td></tr>
+<tr><td><code>scoring_rule_settings</code></td><td><strong>Không còn dùng từ 25/10/2026</strong> (thay bằng Rule Group — Rule Management); chờ gỡ bảng. Trước đây: bật/tắt từng badge của Scoring Service.</td><td class="num">0</td><td><code>badge_id</code></td><td><code>updated_by_user_id</code> → <code>users(id)</code> <span class="ondel">SET NULL</span></td></tr>
+<tr><td><code>scoring_rule_groups</code></td><td><strong>Mới 25/10/2026.</strong> Nhóm rule (Rule Group) của Scoring Service: khoảng ngày Epic (5 cặp Từ/Đến: ngày tạo, phê duyệt ý tưởng, Start Date, R4G Date, Due Date — AND, tính cả hai đầu), thứ tự ưu tiên, bật/tắt. Epic thuộc nhóm bật ưu tiên cao nhất mà nó khớp; không khớp nhóm nào thì thuộc nhóm <code>is_default</code> (luôn có đúng một, không điều kiện ngày, đứng cuối). Màn hình Rule Management.</td><td class="num">5</td><td><code>id</code></td><td><code>updated_by_user_id</code> → <code>users(id)</code> <span class="ondel">SET NULL</span></td></tr>
+<tr><td><code>scoring_rule_group_rules</code></td><td><strong>Mới 25/10/2026.</strong> Rule object (id trong <code>src/lib/scoring/registry.ts</code>) mà mỗi nhóm rule khai báo; <code>state</code> = <code>ON</code> (Bật) hoặc <code>OFF</code> (Tắt, từ 26/10/2026) — rule nhóm không khai báo là Kế thừa từ nhóm ưu tiên thấp hơn. Rule luôn chạy không có ở đây. Id không còn trong code thì bị bỏ qua.</td><td class="num">20</td><td><code>group_id, rule_id</code></td><td><code>group_id</code> → <code>scoring_rule_groups(id)</code> <span class="ondel">CASCADE</span></td></tr>
+<tr><td><code>scoring_rule_group_history</code></td><td><strong>Mới 25/10/2026.</strong> Mỗi lần lưu cấu hình nhóm rule: người lưu, thời điểm, toàn bộ cấu hình trước / sau (JSON). Id mới nhất là phiên bản cấu hình — lần lưu sau phải xuất phát từ phiên bản đó.</td><td class="num">6</td><td><code>id</code></td><td><code>saved_by_user_id</code> → <code>users(id)</code> <span class="ondel">SET NULL</span></td></tr>
+  </tbody>
+</table></div>
+</div>
+
+<div class="db-group" id="db-group-history" hidden>
+<div class="db-group-head"><h4>8.9. Lịch sử &amp; snapshot <span class="muted">— 1 bảng</span></h4><button class="db-close" data-db-close type="button">Đóng ✕</button></div>
+<div class="table-wrap"><table class="db-table">
+  <thead><tr><th>Bảng</th><th>Chức năng</th><th class="num">Số bản ghi</th><th>Khoá chính</th><th>Khoá ngoại</th></tr></thead>
+  <tbody>
+<tr><td><code>epic_alert_timeline</code></td><td>Theo dõi 5 loại cảnh báo dưới dạng các đợt (run) có khoảng ngày bắt đầu/kết thúc liên tục.</td><td class="num">2.386</td><td><code>id</code></td><td><code>source_import_batch_id</code> → <code>import_batches(id)</code> <span class="ondel">SET NULL</span></td></tr>
+  </tbody>
+</table></div>
+</div>
+
+<div class="db-group" id="db-group-cache" hidden>
+<div class="db-group-head"><h4>8.10. Cache dữ liệu dẫn xuất <span class="muted">— 5 bảng</span></h4><button class="db-close" data-db-close type="button">Đóng ✕</button></div>
+<div class="table-wrap"><table class="db-table">
+  <thead><tr><th>Bảng</th><th>Chức năng</th><th class="num">Số bản ghi</th><th>Khoá chính</th><th>Khoá ngoại</th></tr></thead>
+  <tbody>
+<tr><td><code>epic_alert_row_cache</code></td><td>Cache dòng Epic của lớp dữ liệu mới nhất cho Quản trị Epic / các Dashboard: <code>row_data</code> (JSON) + các cột lọc/sắp xếp, <code>badge_codes</code>, <code>index_flags</code>, <code>findings</code> của Scoring Service. Dựng lại sau import, đầu ngày và khi cấu hình đổi (mục 6.4).</td><td class="num">1.509</td><td><code>epic_key</code></td><td><span class="muted">—</span></td></tr>
+<tr><td><code>ttm_index_global_cache</code></td><td>Chỉ số toàn công ty TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E (số đếm + %) hiển thị trên banner.</td><td class="num">1</td><td><code>id</code></td><td><code>source_import_batch_id</code> → <code>import_batches(id)</code> <span class="ondel">SET NULL</span></td></tr>
+<tr><td><code>ttm_dashboard_2_cache</code></td><td>Số liệu phễu / widget / ma trận / pie chart chưa lọc của TTM Dashboard 2 theo phạm vi quyền (<code>ALL</code>, <code>ADMIN:&lt;id&gt;</code>, <code>USER:&lt;id&gt;</code>) — mục 21.5.</td><td class="num">32</td><td><code>scope_key</code></td><td><span class="muted">—</span></td></tr>
+<tr><td><code>daily_cache_runs</code></td><td>Mỗi ngày (giờ Việt Nam) 1 dòng: lượt tạo lại cache đầu ngày do lần tải trang đầu tiên kích hoạt (RUNNING / SUCCESS / FAILED, thời lượng, số Epic).</td><td class="num">34</td><td><code>run_date</code></td><td><code>source_import_batch_id</code> → <code>import_batches(id)</code> <span class="ondel">SET NULL</span><br><code>triggered_by_user_id</code> → <code>users(id)</code> <span class="ondel">SET NULL</span></td></tr>
+<tr><td><code>derived_cache_refresh_lock</code></td><td><strong>Mới 05/10/2026.</strong> Khoá (lease) điều phối việc tạo lại cache giữa các instance: <code>request_seq</code>, <code>lease_owner</code>, <code>lease_until</code>, <code>last_source</code> — mục 6.4. <strong>Từ 27/10/2026</strong> thêm dấu “cache cũ”: <code>stale_since</code> (lần lưu đầu tiên chưa được tạo lại cache) và <code>stale_reasons</code> (nguồn: users, projects, domains…); xoá khi một lượt tạo lại bắt đầu sau dấu đó kết thúc.</td><td class="num">1</td><td><code>id</code></td><td><span class="muted">—</span></td></tr>
+  </tbody>
+</table></div>
+</div>
+
+<div class="db-group" id="db-group-system" hidden>
+<div class="db-group-head"><h4>8.11. Cấu hình hệ thống <span class="muted">— 4 bảng</span></h4><button class="db-close" data-db-close type="button">Đóng ✕</button></div>
+<div class="table-wrap"><table class="db-table">
+  <thead><tr><th>Bảng</th><th>Chức năng</th><th class="num">Số bản ghi</th><th>Khoá chính</th><th>Khoá ngoại</th></tr></thead>
+  <tbody>
+<tr><td><code>jira_settings</code></td><td>Hai bảng cấu hình singleton lưu Cấu hình tích hợp Jira và số ngày lưu giữ dữ liệu raw import.</td><td class="num">1</td><td><code>id</code></td><td><span class="muted">—</span></td></tr>
+<tr><td><code>data_retention_configs</code></td><td>Hai bảng cấu hình singleton lưu Cấu hình tích hợp Jira và số ngày lưu giữ dữ liệu raw import.</td><td class="num">1</td><td><code>id</code></td><td><code>history_thinning_updated_by_user_id</code> → <code>users(id)</code> <span class="ondel">SET NULL</span></td></tr>
+<tr><td><code>dashboard_view_settings</code></td><td><strong>Mới 14/10/2026.</strong> Công tắc "Dashboard Lead view cho tất cả user" (<code>lead_view_for_all_users</code>, mặc định bật) — Quản trị hệ thống → Dashboard, mục 21.9.</td><td class="num">1</td><td><code>id</code></td><td><code>updated_by_user_id</code> → <code>users(id)</code> <span class="ondel">SET NULL</span></td></tr>
+<tr><td><code>schema_migrations</code></td><td>Sổ theo dõi migration: mỗi file <code>db/migrations/*.sql</code> đã chạy là một dòng (<code>filename</code>, <code>applied_at</code>). Do <code>scripts/migrate-db.js</code> tự tạo và ghi; file cài đặt <code>db/install/ttm-monitor-schema.sql</code> ghi sẵn toàn bộ migration đã có để DB mới chỉ nhận migration phát sinh sau.</td><td class="num">115</td><td><code>filename</code></td><td><span class="muted">—</span></td></tr>
+  </tbody>
+</table></div>
+</div>
+
+<div class="db-group" id="db-group-notify" hidden>
+<div class="db-group-head"><h4>8.12. Popup &amp; Banner thông báo <span class="muted">— 3 bảng</span></h4><button class="db-close" data-db-close type="button">Đóng ✕</button></div>
+<div class="table-wrap"><table class="db-table">
+  <thead><tr><th>Bảng</th><th>Chức năng</th><th class="num">Số bản ghi</th><th>Khoá chính</th><th>Khoá ngoại</th></tr></thead>
+  <tbody>
+<tr><td><code>ad_popups</code></td><td>Cấu hình Popup quảng cáo toàn màn hình cho mọi user đã đăng nhập (mục 14).</td><td class="num">5</td><td><code>id</code></td><td><span class="muted">—</span></td></tr>
+<tr><td><code>ad_popup_impressions</code></td><td>Đếm số lần một popup đã hiện cho từng user, so với <code>max_impressions</code>.</td><td class="num">117</td><td><code>popup_id, user_id</code></td><td><code>popup_id</code> → <code>ad_popups(id)</code> <span class="ondel">CASCADE</span><br><code>user_id</code> → <code>users(id)</code> <span class="ondel">CASCADE</span></td></tr>
+<tr><td><code>info_banners</code></td><td>Cấu hình Banner thông báo (Mặc định toàn hệ thống hoặc theo từng màn hình, mục 15).</td><td class="num">2</td><td><code>id</code></td><td><span class="muted">—</span></td></tr>
+  </tbody>
+</table></div>
+</div>
+
+<div class="db-group" id="db-group-integration" hidden>
+<div class="db-group-head"><h4>8.13. SSO, API Key &amp; MCP Server <span class="muted">— 7 bảng</span></h4><button class="db-close" data-db-close type="button">Đóng ✕</button></div>
+<div class="table-wrap"><table class="db-table">
+  <thead><tr><th>Bảng</th><th>Chức năng</th><th class="num">Số bản ghi</th><th>Khoá chính</th><th>Khoá ngoại</th></tr></thead>
+  <tbody>
+<tr><td><code>api_keys</code></td><td>API key cấp cho ứng dụng ngoài dùng làm client_id trong luồng SSO (mục 17).</td><td class="num">1</td><td><code>id</code></td><td><span class="muted">—</span></td></tr>
+<tr><td><code>sso_auth_codes</code></td><td>Mã ủy quyền SSO dùng 1 lần, hết hạn sau 5 phút (mục 17).</td><td class="num">2</td><td><code>id</code></td><td><code>api_key_id</code> → <code>api_keys(id)</code> <span class="ondel">CASCADE</span><br><code>user_id</code> → <code>users(id)</code> <span class="ondel">CASCADE</span></td></tr>
+<tr><td><code>mcp_settings</code></td><td>Công tắc singleton bật/tắt toàn bộ MCP Server (mục 16).</td><td class="num">1</td><td><code>id</code></td><td><code>updated_by</code> → <code>users(id)</code> <span class="ondel">SET NULL</span></td></tr>
+<tr><td><code>mcp_access_tokens</code></td><td>Personal Access Token để AI chatbot kết nối MCP thay mặt một user cụ thể (mục 16).</td><td class="num">17</td><td><code>id</code></td><td><code>user_id</code> → <code>users(id)</code> <span class="ondel">CASCADE</span></td></tr>
+<tr><td><code>mcp_access_daily_stats</code></td><td>Thống kê số lượt gọi MCP theo ngày/user, tự dọn sau 90 ngày (mục 16).</td><td class="num">47</td><td><code>user_id, stat_date</code></td><td><code>user_id</code> → <code>users(id)</code> <span class="ondel">CASCADE</span></td></tr>
+<tr><td><code>mcp_oauth_clients</code></td><td>Đăng ký client OAuth động (RFC 7591) cho AI chatbot dùng luồng OAuth kết nối MCP (mục 16).</td><td class="num">9</td><td><code>id</code></td><td><span class="muted">—</span></td></tr>
+<tr><td><code>mcp_oauth_authorization_codes</code></td><td>Mã ủy quyền ngắn hạn cho luồng MCP OAuth 2.0 + PKCE (mục 16).</td><td class="num">8</td><td><code>id</code></td><td><code>user_id</code> → <code>users(id)</code> <span class="ondel">CASCADE</span></td></tr>
+  </tbody>
+</table></div>
+</div>
+
+<div class="db-group" id="db-group-logs" hidden>
+<div class="db-group-head"><h4>8.14. Nhật ký &amp; thống kê sử dụng <span class="muted">— 4 bảng</span></h4><button class="db-close" data-db-close type="button">Đóng ✕</button></div>
+<div class="table-wrap"><table class="db-table">
+  <thead><tr><th>Bảng</th><th>Chức năng</th><th class="num">Số bản ghi</th><th>Khoá chính</th><th>Khoá ngoại</th></tr></thead>
+  <tbody>
+<tr><td><code>audit_logs</code></td><td>Nhật ký ghi nhận các thao tác quan trọng trên hệ thống (kể cả xoá Epic vĩnh viễn); job dọn hằng ngày xoá dòng quá 180 ngày.</td><td class="num">76</td><td><code>id</code></td><td><code>user_id</code> → <code>users(id)</code> <span class="ondel">SET NULL</span></td></tr>
+<tr><td><code>user_usage_daily_stats</code></td><td>Thống kê tần suất tương tác và sử dụng tính năng theo ngày của từng user.</td><td class="num">339</td><td><code>user_id, stat_date</code></td><td><code>user_id</code> → <code>users(id)</code> <span class="ondel">CASCADE</span></td></tr>
+<tr><td><code>visit_logs</code></td><td>Ghi nhận nhật ký lượt đăng nhập ứng dụng (APP_LOGIN) và lượt xem 3 màn hình trọng điểm (SCREEN_VIEW cho TTM Dashboard 2, Quản trị Epic, Báo cáo Epic) phục vụ tính năng Visit Counter (mục 18).</td><td class="num">1.105</td><td><code>id</code></td><td><code>user_id</code> → <code>users(id)</code> <span class="ondel">SET NULL</span></td></tr>
+<tr><td><code>visit_log_rollups</code></td><td>Số lượt truy cập LŨY KẾ của các dòng <code>visit_logs</code> cũ hơn ngày T-15 (đã bị cuốn vào đây rồi xóa; theo <code>event_type</code>, <code>screen_key</code>, <code>user_id</code>) để các số "Tổng (lũy kế)" của Visit Counter không tụt khi job dọn dẹp xóa dòng cũ. <code>screen_key=''</code>: không có màn hình; <code>user_id=0</code>: user đã bị xóa.</td><td class="num">126</td><td><code>event_type, screen_key, user_id</code></td><td><span class="muted">—</span></td></tr>
+  </tbody>
+</table></div>
+</div>
+    </section>
+
+    <!-- ============================================================ 9 -->
+    <section class="chapter" id="van-hanh">
+      <h2><span class="num">9</span>Phụ lục: triển khai production</h2>
+      <p class="lead">Hai mô hình triển khai được hỗ trợ với cùng một mã nguồn.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Hạng mục</th><th>Vercel + Supabase (hiện tại)</th><th>Node.js host + PostgreSQL nội bộ</th></tr></thead>
+        <tbody>
+          <tr><td>Chạy ứng dụng</td><td>Vercel build &amp; chạy serverless</td><td><code>npm ci</code> → <code>npm run build</code> → <code>npm start</code> (cổng mặc định 3000); giữ tiến trình bằng PM2 / systemd / Windows Service</td></tr>
+          <tr><td>CSDL</td><td><code>DB_CONNECTION=supabase</code> + chuỗi Transaction pooler (cổng 6543)</td><td><code>DB_CONNECTION=local</code> + thông số PG; tạo CSDL mới bằng <code>db/install/ttm-monitor-schema.sql</code></td></tr>
+          <tr><td>Migration</td><td colspan="2">Chạy thủ công, không tự chạy khi deploy: <code>node scripts/migrate-db.js --target=&lt;local|supabase&gt;</code></td></tr>
+          <tr><td>Biến môi trường</td><td colspan="2">Thông số CSDL, <code>IMPORT_API_TOKEN</code> (import tự động); mẫu tại <code>.env.example</code></td></tr>
+          <tr><td>Reverse proxy</td><td>Vercel lo HTTPS</td><td>Nginx / IIS: HTTPS, body tối thiểu 60 MB, timeout tối thiểu 300 giây (import, tạo lại cache, sao lưu)</td></tr>
+          <tr><td>Mạng</td><td colspan="2">Build và chạy không cần Internet (font tự host); lúc chạy không gọi dịch vụ ngoài — link Jira chỉ mở trên trình duyệt người dùng</td></tr>
+          <tr><td>Mở rộng</td><td>Vercel tự scale</td><td>Chạy nhiều instance sau load balancer được (phiên lưu trong DB, khoá tạo cache dùng chung)</td></tr>
+        </tbody>
+      </table></div>
+      <div class="note warn"><b>Checklist trước khi lên production:</b> chạy đủ migration trên CSDL đích · đặt <code>IMPORT_API_TOKEN</code> · tạo tài khoản SUPERADMIN và đổi mật khẩu mặc định · cấu hình Domain, dự án, tiêu chí TTM, nhóm rule · import dữ liệu lần đầu rồi bấm <b>Tạo lại cache</b> · kiểm tra Ma trận phân quyền · bật sao lưu định kỳ qua màn Sao lưu / Phục hồi.</div>
+    </section>
+
+    <footer>TTM Monitor · Tài liệu kiến trúc &amp; giải pháp · build 261101.2136 · 01/11/2026</footer>
+  </main>
+</div>
+<script>
+  // Chương 8: chỉ hiện chi tiết của nhóm bảng được bấm ở bảng 8.2 (mỗi lần một nhóm).
+  (function () {
+    function showDbGroup(id) {
+      var target = id ? document.getElementById(id) : null;
+      document.querySelectorAll('.db-group').forEach(function (el) { el.hidden = el !== target; });
+      document.querySelectorAll('a[data-db-group]').forEach(function (a) {
+        a.closest('tr').classList.toggle('is-active', Boolean(target) && a.getAttribute('href') === '#' + id);
+      });
+      return target;
+    }
+    document.addEventListener('click', function (event) {
+      var link = event.target.closest('a[data-db-group]');
+      if (link) {
+        event.preventDefault();
+        var id = link.getAttribute('href').slice(1);
+        var target = showDbGroup(id);
+        try { history.replaceState(null, '', '#' + id); } catch (e) { /* file:// may refuse */ }
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+      if (event.target.closest('[data-db-close]')) {
+        showDbGroup(null);
+        try { history.replaceState(null, '', '#co-so-du-lieu'); } catch (e) { /* file:// may refuse */ }
+        document.getElementById('db-group-hint').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+    if (location.hash.indexOf('#db-group-') === 0) {
+      var target = showDbGroup(location.hash.slice(1));
+      if (target) target.scrollIntoView();
+    }
+  })();
+  (function () {
+    var root = document.documentElement;
+    try { var saved = localStorage.getItem('ttm-arch-doc-theme'); if (saved) root.setAttribute('data-theme', saved); } catch (e) { /* storage blocked */ }
+    document.getElementById('themeBtn').addEventListener('click', function () {
+      var dark = root.getAttribute('data-theme') === 'dark' || (!root.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      var next = dark ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('ttm-arch-doc-theme', next); } catch (e) { /* storage blocked */ }
+    });
+  })();
+</script>
+</body>
+</html>
