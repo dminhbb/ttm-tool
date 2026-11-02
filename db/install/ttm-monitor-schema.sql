@@ -1,9 +1,9 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-01T14:26:35.742Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-02T01:37:35.045Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
--- Gồm: 66 bảng, 58 index phụ, 4 hàm, 4 trigger.
+-- Gồm: 67 bảng, 58 index phụ, 4 hàm, 4 trigger.
 -- Yêu cầu: PostgreSQL 14 trở lên, một database RỖNG (không dùng cho DB đã có bảng — sẽ báo lỗi và không
 -- tạo gì vì cả file chạy trong một transaction). Không cần extension nào.
 --
@@ -806,6 +806,13 @@ CREATE TABLE user_projects (
     CONSTRAINT user_projects_pkey PRIMARY KEY (user_id, project_id)
 );
 
+CREATE TABLE user_registration_reads (
+    reader_user_id integer NOT NULL,
+    registered_user_id integer NOT NULL,
+    read_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT user_registration_reads_pkey PRIMARY KEY (reader_user_id, registered_user_id)
+);
+
 CREATE TABLE user_usage_daily_stats (
     user_id integer NOT NULL,
     stat_date date NOT NULL,
@@ -990,6 +997,8 @@ ALTER TABLE user_domains ADD CONSTRAINT user_domains_user_id_fkey FOREIGN KEY (u
 ALTER TABLE user_project_components ADD CONSTRAINT user_project_components_user_id_project_id_fkey FOREIGN KEY (user_id, project_id) REFERENCES user_projects(user_id, project_id) ON DELETE CASCADE;
 ALTER TABLE user_projects ADD CONSTRAINT user_projects_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
 ALTER TABLE user_projects ADD CONSTRAINT user_projects_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE user_registration_reads ADD CONSTRAINT user_registration_reads_reader_user_id_fkey FOREIGN KEY (reader_user_id) REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE user_registration_reads ADD CONSTRAINT user_registration_reads_registered_user_id_fkey FOREIGN KEY (registered_user_id) REFERENCES users(id) ON DELETE CASCADE;
 ALTER TABLE user_usage_daily_stats ADD CONSTRAINT user_usage_daily_stats_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 ALTER TABLE user_view_epics ADD CONSTRAINT user_view_epics_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 ALTER TABLE user_view_project_components ADD CONSTRAINT user_view_project_components_project_fkey FOREIGN KEY (user_id, project_id) REFERENCES user_view_projects(user_id, project_id) ON DELETE CASCADE;
@@ -1108,7 +1117,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 115 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 116 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1225,7 +1234,8 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261107_create_epic_hidden_by_users.sql'),
     ('20261108_create_epic_task_status.sql'),
     ('20261109_add_epic_comment_deleted.sql'),
-    ('20261110_create_user_view_grants.sql');
+    ('20261110_create_user_view_grants.sql'),
+    ('20261111_create_user_registration_reads.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1507,7 +1517,7 @@ WHERE current_setting('ttm_install.seed_data', true) = 'on';
 -- derived_cache_refresh_lock (1 dòng)
 INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 SELECT * FROM (VALUES
-    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-01 12:47:01.00499+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-02 01:02:56.467098+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
 ) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 

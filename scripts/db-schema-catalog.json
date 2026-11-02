@@ -18,7 +18,8 @@
         "auth_sessions",
         "password_reset_requests",
         "permission_features",
-        "role_feature_permissions"
+        "role_feature_permissions",
+        "user_registration_reads"
       ]
     },
     {
@@ -362,6 +363,10 @@
     },
     "epic_task_status": {
       "description": "<strong>Mới 27/10/2026.</strong> \"Giao việc\" của Epic (toggle trong popup Mark &amp; Comment): <code>TODO</code> (mặc định, không có dòng = TODO) / <code>DONE</code>, dùng chung cho mọi người. Epic có comment được coi là đã giao cho PM/SM; PM/SM của Epic hoặc ADMIN trở lên chuyển DONE khi xong. Comment mới không tự đưa về TODO. Đếm Epic còn TODO hiện trên nút \"My assigned epics\".",
+      "columns": {}
+    },
+    "user_registration_reads": {
+      "description": "<strong>Mới 02/11/2026.</strong> \"Đã đọc\" ở tab Duyệt đăng ký mới (Quản lý user): mỗi dòng = 1 admin (<code>reader_user_id</code>) đã đọc 1 đăng ký chờ duyệt (<code>registered_user_id</code>). Đăng ký đã đọc không còn tính vào badge unread của chính admin đó.",
       "columns": {}
     },
     "scoring_parameters": {

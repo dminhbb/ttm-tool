@@ -4,15 +4,18 @@ import pool from '@/lib/db';
 
 /** Lightweight count for the sidebar's "Quản lý User" red dot — avoids fetching the full user
  * list / ticket list just to know whether either queue is non-empty (see admin/users/page.tsx for
- * the two full-detail queries this mirrors: pending password_reset_requests + inactive users). */
+ * the two full-detail queries this mirrors: pending password_reset_requests + inactive users).
+ * A pending registration the signed-in admin marked "Đã đọc" (user_registration_reads, per reader)
+ * no longer counts for them. */
 export async function GET(request: NextRequest) {
   try {
-    await requireUser(request, ['ADMIN', 'SUPERADMIN', 'SUPERVISOR']);
+    const user = await requireUser(request, ['ADMIN', 'SUPERADMIN', 'SUPERVISOR']);
     const result = await pool.query<{ total: string }>(`
       SELECT
         (SELECT COUNT(*) FROM password_reset_requests WHERE status = 'PENDING')
-        + (SELECT COUNT(*) FROM users WHERE is_active = FALSE) AS total;
-    `);
+        + (SELECT COUNT(*) FROM users u WHERE u.is_active = FALSE
+             AND NOT EXISTS (SELECT 1 FROM user_registration_reads r WHERE r.reader_user_id = $1 AND r.registered_user_id = u.id)) AS total;
+    `, [user.id]);
     return NextResponse.json({ total: Number(result.rows[0]?.total ?? 0) });
   } catch (error) {
     if (error instanceof AuthError) {

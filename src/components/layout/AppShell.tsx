@@ -47,6 +47,7 @@ import { AdPopupDisplay } from '@/components/layout/AdPopupDisplay';
 import { DailyCacheWarmer } from '@/components/layout/DailyCacheWarmer';
 import { AssignedEpicsNotice } from '@/components/layout/AssignedEpicsNotice';
 import { SystemStatusFooter } from '@/components/layout/SystemStatusFooter';
+import { PENDING_USER_TICKETS_CHANGED_EVENT } from '@/lib/admin-pending-events';
 import { DialogHost } from '@/components/ui/dialogs';
 import { showToast, ToastProvider } from '@/components/ui/Toast';
 import { TruncationTooltip } from '@/components/ui/TruncationTooltip';
@@ -671,7 +672,9 @@ function AppShellInner({ children }: AppShellProps) {
       .catch(() => undefined);
     void load();
     const intervalId = window.setInterval(load, 60_000);
-    return () => { cancelled = true; window.clearInterval(intervalId); };
+    // "Đã đọc" on Quản lý user (and similar) — refresh at once rather than on the next poll.
+    window.addEventListener(PENDING_USER_TICKETS_CHANGED_EVENT, load);
+    return () => { cancelled = true; window.clearInterval(intervalId); window.removeEventListener(PENDING_USER_TICKETS_CHANGED_EVENT, load); };
   }, [role]);
 
   React.useEffect(() => {

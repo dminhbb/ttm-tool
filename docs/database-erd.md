@@ -1,14 +1,14 @@
 # TTM Monitor — ERD & từ điển dữ liệu
 
-> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-01.
+> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-02.
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
-**66 bảng** trong schema `public`, **53 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
+**67 bảng** trong schema `public`, **55 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
 
 ## Mục lục
 
-1. [Xác thực & phân quyền](#1-xác-thực-phân-quyền) — 12 bảng
+1. [Xác thực & phân quyền](#1-xác-thực-phân-quyền) — 13 bảng
 2. [Domain & Dự án](#2-domain-dự-án) — 3 bảng
 3. [Quản lý dự án (PMS — expand-only)](#3-quản-lý-dự-án-pms-expand-only) — 5 bảng
 4. [Import & Issue](#4-import-issue) — 5 bảng
@@ -102,6 +102,11 @@ erDiagram
         boolean can_edit
         boolean can_delete
     }
+    user_registration_reads {
+        int reader_user_id PK, FK
+        int registered_user_id PK, FK
+        timestamptz read_at
+    }
     domains {
         int id PK
     }
@@ -122,6 +127,8 @@ erDiagram
     users ||--o{ auth_sessions : "user_id"
     users |o--o{ password_reset_requests : "resolved_by"
     permission_features ||--o{ role_feature_permissions : "feature_key"
+    users ||--o{ user_registration_reads : "reader_user_id"
+    users ||--o{ user_registration_reads : "registered_user_id"
 ```
 
 Bảng tham chiếu ngoài nhóm (chỉ vẽ khoá chính): `domains`, `projects`.
@@ -277,6 +284,16 @@ Bảng ma trận cấu hình 4 quyền Xem/Thêm/Sửa/Xóa theo từng (tính n
 | `can_delete` | boolean | không | false |  |  |
 
 - `role_feature_permissions_role_check`: CHECK (((role)::text = ANY ((ARRAY['SUPERADMIN'::character varying, 'ADMIN'::character varying, 'SUPERVISOR'::character varying, 'USER'::character varying])::text[])))
+
+### `user_registration_reads`
+
+**Mới 02/11/2026.** "Đã đọc" ở tab Duyệt đăng ký mới (Quản lý user): mỗi dòng = 1 admin (`reader_user_id`) đã đọc 1 đăng ký chờ duyệt (`registered_user_id`). Đăng ký đã đọc không còn tính vào badge unread của chính admin đó.
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `reader_user_id` | int | không |  | PK, FK → users(id) |  |
+| `registered_user_id` | int | không |  | PK, FK → users(id) |  |
+| `read_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 
 ## 2. Domain & Dự án
 
@@ -2060,6 +2077,8 @@ Số lượt truy cập LŨY KẾ của các dòng `visit_logs` cũ hơn ngày T
 | `user_project_components` | user_id, project_id | `user_projects`(user_id, project_id) | CASCADE |
 | `user_projects` | project_id | `projects`(id) | CASCADE |
 | `user_projects` | user_id | `users`(id) | CASCADE |
+| `user_registration_reads` | reader_user_id | `users`(id) | CASCADE |
+| `user_registration_reads` | registered_user_id | `users`(id) | CASCADE |
 | `user_usage_daily_stats` | user_id | `users`(id) | CASCADE |
 | `user_view_epics` | user_id | `users`(id) | CASCADE |
 | `user_view_project_components` | user_id, project_id | `user_view_projects`(user_id, project_id) | CASCADE |

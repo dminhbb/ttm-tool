@@ -6,6 +6,14 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-11-02
+
+- **Báo cáo user — sort + Epic trong Quyền xem** (không đổi schema): bấm tiêu đề cột để sắp xếp (bấm lại để đảo chiều); mặc định theo Role — Superadmin, Supervisor, Admin, User, rồi mọi user Inactive — và trong cùng nhóm theo Username A-Z (`admin/users/page.tsx`, `reportSortValue`). Cột Quyền xem liệt kê thêm 10 Epic ngẫu nhiên (mỗi lần tải) trong quyền xem của user, kèm tổng số Epic xem được — cùng quy tắc với Quản trị Epic (`resolveViewGrants` + `buildViewGrantClause`, `user-admin-report-service.ts`).
+- **Quản lý user — popup cố định, "Đã đọc", tab "Báo cáo user"** (migration `20261111_create_user_registration_reads`, đã áp dụng Supabase; **local chưa**: `npm run db:migrate:local`):
+  - Popup "Chỉnh sửa user" giữ nguyên kích thước khi chuyển tab: mọi tab nằm chung một ô grid, tab không hiển thị chỉ bị ẩn (`invisible`), nên popup luôn cao bằng tab lớn nhất ("Quyền xem") (`admin/users/page.tsx`, `editPanelClass`).
+  - Tab "Duyệt đăng ký mới": nút "Đã đọc" ở cột Hành động và theo lô (cạnh "Duyệt đăng ký" / "Xóa"); đăng ký chưa đọc in đậm + badge "Mới". Trạng thái đã đọc riêng của từng admin (bảng `user_registration_reads`, API `/api/users/registration-reads`); badge tab và chấm đỏ menu "Quản lý User" chỉ đếm đăng ký chưa đọc (`/api/admin/pending-tickets-count`); AppShell làm mới chấm đỏ ngay qua sự kiện `PENDING_USER_TICKETS_CHANGED_EVENT` (`lib/admin-pending-events.ts`).
+  - Tab mới "Báo cáo user" (`/api/users/report`, `lib/user-admin-report-service.ts`): Username, Họ tên, Role, Domain, Phân quyền (dự án PM/SM + component), Quyền xem (dự án/component được cấp thêm + số Epic lẻ; SUPERADMIN/SUPERVISOR ghi "Xem mọi Epic"), Đăng nhập (cùng số như danh sách user), Lần đăng nhập gần nhất (`users.last_login_at`), Token đang dùng (MCP token chưa thu hồi). Bảng kiểu Epic Report, 30 user/trang, có ô tìm kiếm.
+
 ## 2026-11-01
 
 - **Tài liệu kiến trúc — chương 8 gọn hơn**: bảng chi tiết 8.3–8.14 ẩn mặc định; bấm tên nhóm ở bảng 8.2 thì chỉ hiện bảng của nhóm đó (có nút Đóng, dòng đang chọn được tô sáng, mở thẳng được bằng link `#db-group-<nhóm>`). Khi in / xuất PDF thì hiện đủ cả 12 nhóm.
