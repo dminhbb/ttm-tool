@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
+import { after } from 'next/server';
 import pool from '@/lib/db';
 import { getEpicAlertRowsWithScorecards } from '@/lib/epic-alert-rows-service';
 import { refreshEpicAlertRowCache } from '@/lib/epic-alert-row-cache-service';
 import { refreshTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { getTtmDashboard2CacheOverview, refreshTtmDashboard2Caches } from '@/lib/ttm-dashboard-2-cache-service';
 import { runDailyHousekeeping } from '@/lib/housekeeping-service';
+import { refreshDashboardTrendCache, TREND_REFRESH_SOURCES } from '@/lib/ttm-dashboard-trend-service';
 import { SCORING_CODE_VERSION } from '@/lib/scoring/registry';
 import { CACHE_STALE_HEADER } from '@/lib/cache-rebuild-status-client';
 import { loadScoringContext, vnToday } from '@/lib/scoring-context-service';
@@ -319,6 +321,7 @@ export async function refreshDerivedCaches(batchId: number | null, source = 'man
     for (let run = 1; ; run += 1) {
       const startedAt = await databaseNow();
       const count = await rebuildDerivedCaches(nextBatchId);
+      await refreshTrendAfter(source);
       await clearCacheStale(startedAt);
       const outcome = await releaseOrRenew(owner, seq);
       if (outcome.released || outcome.seq === null) return count;
@@ -334,6 +337,26 @@ export async function refreshDerivedCaches(batchId: number | null, source = 'man
     await dropLease(owner);
     throw error;
   }
+}
+
+/**
+ * TTM Dashboard 2 "So với <ngày>" ticker (owner 2026-11-03): rebuilt for the daily run, a manual rebuild and imports only.
+ * It re-judges every Epic on the past layer (~30-40 s), so an import or a manual rebuild — whose callers wait for the
+ * caches — runs it after the response (`after`); the daily run is already in the background and runs it in line.
+ * Outside a request (no `after` scope) it runs in line too. A failure never fails the rebuild: the ticker keeps its numbers.
+ */
+async function refreshTrendAfter(source: string): Promise<void> {
+  if (!TREND_REFRESH_SOURCES.has(source)) return;
+  const task = () => refreshDashboardTrendCache().then(() => undefined, (error: unknown) => console.error('TTM Dashboard 2 trend refresh failed:', error));
+  if (source !== 'daily-cache') {
+    try {
+      after(task);
+      return;
+    } catch {
+      // not inside a request — run it now
+    }
+  }
+  await task();
 }
 
 async function databaseNow(): Promise<string | null> {

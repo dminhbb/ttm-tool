@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser, updateUserBadgeDesignStyle } from '@/lib/auth-service';
+import { getCurrentUser, renewCurrentSessionIfDue, sessionCookieOptions, updateUserBadgeDesignStyle } from '@/lib/auth-service';
+import { screenRenewsSession } from '@/lib/session-policy';
 import { isBadgeDesignStyle } from '@/lib/badge-design';
 import { getViewDeniedFeatureKeys } from '@/lib/permission-matrix-service';
 
@@ -14,7 +15,17 @@ export async function GET(request: NextRequest) {
       console.error('Permission matrix lookup failed:', error);
       return [] as string[];
     });
-    return NextResponse.json({ hiddenFeatureKeys, user });
+    const response = NextResponse.json({ hiddenFeatureKeys, user });
+    // AppShell calls this on every screen change with ?path=<screen>. Opening one of the renewing screens with less than
+    // 30 minutes left extends the session (DB + cookie) — session-policy.ts. A renewal problem never breaks the screen.
+    if (screenRenewsSession(request.nextUrl.searchParams.get('path'), user.role)) {
+      const renewed = await renewCurrentSessionIfDue(request).catch((error: unknown) => {
+        console.error('Session renewal failed:', error);
+        return null;
+      });
+      if (renewed) response.cookies.set(sessionCookieOptions(renewed.token, renewed.expiresAt));
+    }
+    return response;
   } catch (error: unknown) {
     console.error('Authentication profile lookup failed:', error);
     return NextResponse.json({ error: 'Không thể tải thông tin phiên đăng nhập.' }, { status: 500 });

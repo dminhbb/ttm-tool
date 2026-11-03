@@ -11,6 +11,7 @@ import type { EpicAlertRowCacheFilters } from '@/lib/epic-alert-row-cache-query-
 import { buildAccessScopeClause, buildListScopeClause, getEpicAlertRowCacheMeta, queryEpicAlertFilterOptions, queryEpicAlertRowCachePage, queryEpicAlertStatCounts, queryTtmCnttIndexes } from '@/lib/epic-alert-row-cache-query-service';
 import { applyEpicMarks, countAssignedTodoEpics, listMarkedOwnerNames, loadEpicMarkSummaries } from '@/lib/epic-mark-service';
 import pool from '@/lib/db';
+import { getNewFailEpicKeys } from '@/lib/ttm-dashboard-trend-service';
 
 function authError(error: unknown): NextResponse | null {
   if (error instanceof AuthError) {
@@ -101,6 +102,10 @@ export async function GET(request: NextRequest) {
     if (cacheMeta?.hasCache) {
       const header = await fetchEpicAlertHeaderContext(userId, role);
       const cacheFilters = { ...parseCacheFilters(searchParams, userId), viewGrants };
+      // Drill-down of the dashboard ticker's brown "Fail TTM-CNTT tăng" sentence: its new Fail Epics (an unknown scope
+      // key lists nothing). The viewer's access scope still applies (buildFilterClause).
+      const newFailScope = searchParams.get('newFailScope');
+      if (newFailScope) cacheFilters.epicKeys = (await getNewFailEpicKeys(newFailScope)) ?? [];
       const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
       const pageSize = Math.min(200, Math.max(1, Number(searchParams.get('pageSize') ?? '20') || 20));
 
@@ -146,7 +151,11 @@ export async function GET(request: NextRequest) {
 
     // Fallback: advanced date filter active, or the cache hasn't been populated yet (e.g. no
     // import has completed since this table was introduced) — recompute live, same as before.
-    const data = await getEpicAlertRowsForDisplay(userId, role, filters);
+    const fullData = await getEpicAlertRowsForDisplay(userId, role, filters);
+    // Full mode filters in the browser, except the ticker drill-down list, which only the server knows.
+    const newFailScope = searchParams.get('newFailScope');
+    const newFailKeys = newFailScope ? new Set((await getNewFailEpicKeys(newFailScope)) ?? []) : null;
+    const data = newFailKeys ? { ...fullData, rows: fullData.rows.filter((row) => newFailKeys.has(row.epicKey)) } : fullData;
     // Full mode: the client filters, so every row carries its mark and the viewer's own PM/SM name. Only the Epics
     // of this list (already within the viewer's data scope) are read — not the whole comment table.
     const [marks, viewerOwner, myAssignedTodoCount] = await Promise.all([

@@ -617,7 +617,8 @@ function AppShellInner({ children }: AppShellProps) {
   React.useEffect(() => {
     if (pathname === '/login') return;
     let cancelled = false;
-    fetch('/api/auth/me', { cache: 'no-store' })
+    // ?path= lets the server renew the session when this screen is one of the renewing ones (session-policy.ts).
+    fetch(`/api/auth/me?path=${encodeURIComponent(pathname)}`, { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : null))
       .then((data: { hiddenFeatureKeys?: string[]; user?: { mustChangePassword?: boolean; role: UserRole } } | null) => {
         if (cancelled || !data?.user) return;

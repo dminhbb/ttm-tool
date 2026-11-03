@@ -31,6 +31,8 @@ export interface EpicAlertsDeepLinkParams {
   /** "Nhóm rule" (Rule Management) names — repeated `ruleGroup` param like requestingUnit. */
   ruleGroup?: string | string[];
   search?: string;
+  /** Dashboard ticker drill-down: the new Fail TTM-CNTT Epics of this dashboard scope key (ttm_dashboard_trend_cache). */
+  newFailScope?: string;
   /** Raw currentStatus values — pre-selects the "Status" multi-select. When omitted, the target
    * screen shows every status (no implicit default exclusions) so counts match whatever the caller
    * computed its own number from. */
@@ -71,6 +73,7 @@ export function buildEpicAlertsDeepLink(params: EpicAlertsDeepLinkParams = {}): 
   }
   if (params.dataIssue) query.set('dataIssue', '1');
   if (params.search) query.set('search', params.search);
+  if (params.newFailScope) query.set('newFailScope', params.newFailScope);
   if (params.domain) query.set('domain', params.domain);
   if (params.ttmScopeCnttFrom !== undefined) query.set('cnttFrom', params.ttmScopeCnttFrom ?? '');
   if (params.ttmScopeCnttTo !== undefined) query.set('cnttTo', params.ttmScopeCnttTo ?? '');

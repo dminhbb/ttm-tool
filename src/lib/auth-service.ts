@@ -7,6 +7,7 @@ import type { PoolClient } from 'pg';
 import pool, { getClient } from '@/lib/db';
 import type { AuthUser, DomainSummary, ManagedUser, ProjectSummary, UserInput, UserProfileDetails, UserRole } from '@/lib/auth-types';
 import { SESSION_COOKIE_NAME } from '@/lib/auth-constants';
+import { renewedSessionExpiry } from '@/lib/session-policy';
 import { verifyCaptcha } from '@/lib/captcha-service';
 import { validatePassword } from '@/lib/password-rules';
 import { getUsageStatsTotals, recordUsageEvent, USAGE_STATS_RETENTION_DAYS } from '@/lib/usage-stats-service';
@@ -147,11 +148,57 @@ export async function changeUserPassword(userId: number, currentPassword: string
 export async function createSession(userId: number, remember: boolean): Promise<{ expiresAt: Date; token: string }> {
   const token = randomBytes(32).toString('base64url');
   const expiresAt = new Date(Date.now() + SESSION_HOURS[remember ? 'remembered' : 'standard'] * 60 * 60 * 1000);
-  await pool.query(
-    'INSERT INTO auth_sessions (token_hash, user_id, expires_at) VALUES ($1, $2, $3);',
-    [tokenHash(token), userId, expiresAt],
-  );
+  try {
+    await pool.query(
+      'INSERT INTO auth_sessions (token_hash, user_id, expires_at, remember) VALUES ($1, $2, $3, $4);',
+      [tokenHash(token), userId, expiresAt, remember],
+    );
+  } catch (error: unknown) {
+    // Migration 20261112 (column remember) not applied yet: sign-in must keep working.
+    if ((error as { code?: string }).code !== '42703') throw error;
+    await pool.query('INSERT INTO auth_sessions (token_hash, user_id, expires_at) VALUES ($1, $2, $3);', [tokenHash(token), userId, expiresAt]);
+  }
   return { expiresAt, token };
+}
+
+/** Attributes of the session cookie — the same at sign-in and when a renewal moves its expiry. */
+export function sessionCookieOptions(token: string, expiresAt: Date) {
+  return {
+    expires: expiresAt,
+    httpOnly: true,
+    name: SESSION_COOKIE_NAME,
+    path: '/',
+    sameSite: 'lax' as const,
+    secure: process.env.NODE_ENV === 'production',
+    value: token,
+  };
+}
+
+/**
+ * Renews the current session when it is due (session-policy.ts: < 30 min left → 2 h from now, never past the ceiling
+ * from login). Returns the token and new expiry so the caller can move the cookie too, or null when nothing changed.
+ * One read, plus one write only when renewing; a concurrent renewal of the same session simply wins once.
+ */
+export async function renewCurrentSessionIfDue(request?: NextRequest): Promise<{ expiresAt: Date; token: string } | null> {
+  const token = request?.cookies.get(SESSION_COOKIE_NAME)?.value ?? (await cookies()).get(SESSION_COOKIE_NAME)?.value;
+  if (!token) return null;
+  try {
+    const hash = tokenHash(token);
+    const session = (await pool.query<{ createdAt: Date | null; expiresAt: Date; remember: boolean }>(
+      'SELECT created_at AS "createdAt", expires_at AS "expiresAt", remember FROM auth_sessions WHERE token_hash = $1 AND expires_at > CURRENT_TIMESTAMP;',
+      [hash],
+    )).rows[0];
+    if (!session) return null;
+    const renewed = renewedSessionExpiry({ createdAt: session.createdAt ?? session.expiresAt, expiresAt: session.expiresAt, remember: session.remember }, new Date());
+    if (!renewed) return null;
+    // Only ever moves the expiry forward (a concurrent renewal that already went further wins); not compared for
+    // equality because PostgreSQL keeps microseconds that a JS Date does not.
+    const updated = await pool.query('UPDATE auth_sessions SET expires_at = $2 WHERE token_hash = $1 AND expires_at > CURRENT_TIMESTAMP AND expires_at < $2;', [hash, renewed]);
+    return (updated.rowCount ?? 0) > 0 ? { expiresAt: renewed, token } : null;
+  } catch (error: unknown) {
+    if ((error as { code?: string }).code === '42703') return null; // migration 20261112 not applied yet: no renewal
+    throw error;
+  }
 }
 
 export async function getCurrentUser(request?: NextRequest): Promise<AuthUser | null> {

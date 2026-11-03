@@ -20,6 +20,8 @@ import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
 import { EpicAlertsIframeModal } from '@/components/ttm-dashboard-2/EpicAlertsIframeModal';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import { BreakdownDonutSections, BreakdownMatrixCard, KpiStrip, type InsightListParams } from '@/components/ttm-dashboard-2/DashboardInsights';
+import { TrendTicker } from '@/components/ttm-dashboard-2/TrendTicker';
+import type { TtmDashboardTrend } from '@/lib/ttm-dashboard-trend';
 import { SolidLayer, SplitLayer, type Ellipse } from '@/components/ttm-dashboard-2/FunnelLayers';
 import { buildEpicAlertsDeepLink, type EpicAlertsDeepLinkAlert } from '@/lib/epic-alerts-deep-link';
 import { formatTtmFailPct, formatTtmPassPct, hasTtmVerdict } from '@/lib/ttm-cntt-qa';
@@ -68,6 +70,8 @@ interface DashboardPayload {
   /** Unfiltered funnel numbers of this viewer's scope (from the cache). */
   summary: TtmFunnelSummary;
   ttmIndexGlobal: TtmIndexGlobalCache | null;
+  /** "So với <ngày>" ticker of the same scope (null until computed). */
+  trend: TtmDashboardTrend | null;
   viewAsUser: { email: string; fullName: string; id: number; role: string } | null;
 }
 
@@ -907,6 +911,20 @@ export default function TtmDashboard2Page() {
       <div className={`transition-opacity ${isRecomputing ? 'opacity-60' : ''}`} aria-busy={isRecomputing}>
         <KpiStrip funnel={funnel} onOpen={openEpicListModal} />
       </div>
+
+      {/* "So với <ngày>" ticker — the unfiltered scope's change, so it is hidden while a toolbar filter is on. */}
+      {data?.trend && !isFiltered && (
+        <TrendTicker
+          onOpenNewFails={() => {
+            setDetailModalId(null);
+            setEpicModal({
+              title: `Danh sách Epic - Fail TTM-CNTT mới phát sinh so với ${data.trend!.comparedLayerDate.split('-').reverse().join('/')}`,
+              url: buildEpicAlertsDeepLink({ newFailScope: data.cache.scopeKey, viewAsUserId: data.viewAsUser?.id ?? null }),
+            });
+          }}
+          trend={data.trend}
+        />
+      )}
 
       {/* ============================================================= */}
       {/* MAIN LAYOUT — ACCORDION: Panel 1 alone (100%) ↔ Panel 1 + Panel 2/3 (50/50).

@@ -41,6 +41,9 @@ export interface EpicAlertRowCacheFilters {
   markedPmSm?: string[];
   /** The viewer (the previewed user under "Xem dưới quyền"): whose Hide applies, and MINE. */
   viewerUserId?: number;
+  /** Only these Epics (a drill-down list, e.g. the new Fail TTM-CNTT Epics of the dashboard ticker); [] lists nothing.
+   * The viewer's own Hide does not apply then, so the list matches the number that opened it. */
+  epicKeys?: string[];
   /** The viewer's "Quyền xem" (owner 2026-11-01): Epics beyond the real scope that are LISTED (flagged viewOnly) but
    * never counted — the stat widgets and TTM indexes read the real scope only. */
   viewGrants?: ViewGrants | null;
@@ -168,10 +171,14 @@ function buildFilterClause(scope: AccessScope, filters: EpicAlertRowCacheFilters
       params.push(filters.viewerUserId ?? 0);
       clauses.push(`owner_names @> ARRAY[(SELECT SPLIT_PART(LOWER(u.email), '@', 1) FROM users u WHERE u.id = $${params.length})]`);
     }
-  } else if (!options.ignoreHidden) {
+  } else if (!options.ignoreHidden && filters.epicKeys === undefined) {
     clauses.push(`NOT ${viewerHidClause()}`);
   }
 
+  if (filters.epicKeys !== undefined) {
+    params.push(filters.epicKeys);
+    clauses.push(`epic_key = ANY($${params.length}::text[])`);
+  }
   if (filters.projectKeys && filters.projectKeys.length > 0) {
     params.push(filters.projectKeys);
     clauses.push(`project_key = ANY($${params.length}::text[])`);

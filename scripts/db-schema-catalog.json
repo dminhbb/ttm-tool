@@ -110,6 +110,7 @@
         "epic_alert_row_cache",
         "ttm_index_global_cache",
         "ttm_dashboard_2_cache",
+        "ttm_dashboard_trend_cache",
         "daily_cache_runs",
         "derived_cache_refresh_lock"
       ]
@@ -401,6 +402,10 @@
     },
     "ttm_index_global_cache": {
       "description": "Chỉ số toàn công ty TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E (số đếm + %) hiển thị trên banner.",
+      "columns": {}
+    },
+    "ttm_dashboard_trend_cache": {
+      "description": "<strong>Mới 03/11/2026.</strong> Dòng chữ chạy \"So với &lt;ngày&gt;\" của TTM Dashboard 2: 6 chỉ số widget (Fail TTM-CNTT, Thiếu lý do, TTM-CNTT %, TTM-E2E %, Sai lệch dữ liệu, Chờ golive) của mỗi phạm vi (<code>scope_key</code> như <code>ttm_dashboard_2_cache</code>) ở lớp dữ liệu mới nhất và lớp liền trước, chấm cùng rule hiện hành. Tính lại ở lần cache đầu ngày, khi Tạo lại cache thủ công và sau mỗi lần import.",
       "columns": {}
     },
     "ttm_dashboard_2_cache": {

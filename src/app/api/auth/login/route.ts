@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateLocal, createSession, SESSION_COOKIE_NAME } from '@/modules/iam/public';
+import { authenticateLocal, createSession, sessionCookieOptions } from '@/modules/iam/public';
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,15 +32,7 @@ export async function POST(request: NextRequest) {
     const user = authResult.user;
     const session = await createSession(user.id, body.remember);
     const response = NextResponse.json({ user });
-    response.cookies.set({
-      name: SESSION_COOKIE_NAME,
-      value: session.token,
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      expires: session.expiresAt,
-      path: '/',
-    });
+    response.cookies.set(sessionCookieOptions(session.token, session.expiresAt));
     return response;
   } catch (error: unknown) {
     console.error('Authentication login failed:', error);

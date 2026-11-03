@@ -121,6 +121,8 @@ interface EpicAlertsDeepLinkFilters {
   hasAny: boolean;
   /** "My assigned epics" quick filter switched on by the login notice (?markFilter=MINE). */
   markMine: boolean;
+  /** Dashboard ticker drill-down: the new Fail TTM-CNTT Epics of this dashboard scope key. */
+  newFailScope: string;
   pmSm: string[];
   projects: string[];
   requestingUnits: string[];
@@ -153,6 +155,7 @@ function parseDeepLinkFilters(searchParams: URLSearchParams): EpicAlertsDeepLink
   const search = searchParams.get('search') ?? '';
   const domain = searchParams.get('domain') ?? '';
   const markMine = searchParams.get('markFilter') === 'MINE';
+  const newFailScope = searchParams.get('newFailScope') ?? '';
   const dateOrNull = (key: string) => (searchParams.has(key) ? (searchParams.get(key) || null) : undefined);
   return {
     alerts,
@@ -160,11 +163,12 @@ function parseDeepLinkFilters(searchParams: URLSearchParams): EpicAlertsDeepLink
     dataIssue,
     domain,
     hasAny: Boolean(
-      alerts.length || projects.length || status.length || types.length || pmSm.length || requestingUnits.length || ruleGroups.length || dataIssue || search || domain || markMine
+      alerts.length || projects.length || status.length || types.length || pmSm.length || requestingUnits.length || ruleGroups.length || dataIssue || search || domain || markMine || newFailScope
       || dateOrNull('cnttFrom') !== undefined || dateOrNull('cnttTo') !== undefined
       || dateOrNull('qaFrom') !== undefined || dateOrNull('qaTo') !== undefined,
     ),
     markMine,
+    newFailScope,
     pmSm,
     projects,
     requestingUnits,
@@ -765,6 +769,8 @@ function EpicAlerts15Screen() {
       for (const group of ruleGroupFilters) query.append('ruleGroup', group);
       if (debouncedSearch) query.set('search', debouncedSearch);
       if (markFilter) query.set('markFilter', markFilter);
+      // Read once from the deep link (dashboard ticker) and kept for this view.
+      if (deepLinkFilters.newFailScope) query.set('newFailScope', deepLinkFilters.newFailScope);
       if (markFilter === 'MARKED' && markedPmSmFilters.length > 0) query.set('markedPmSm', markedPmSmFilters.join(','));
       if (viewAsUserId) query.set('viewAsUserId', viewAsUserId);
       query.set('page', String(page));

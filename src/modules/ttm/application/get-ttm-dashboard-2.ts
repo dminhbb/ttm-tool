@@ -14,6 +14,7 @@ import {
   ttmDashboard2ScopeKey,
 } from '@/lib/ttm-dashboard-2-cache-service';
 import { getTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
+import { getDashboardTrend } from '@/lib/ttm-dashboard-trend-service';
 import { filterTtmDashboard2Rows, summarizeTtmFunnel, type TtmDashboard2Filters, type TtmFunnelSummary } from '@/lib/ttm-funnel-summary';
 import type { UserRole } from '@/lib/auth-types';
 
@@ -49,7 +50,7 @@ async function resolveDataScope(actor: AuthUser, rawViewAsUserId: string | null,
 
 export async function getTtmDashboard2(actor: AuthUser, rawViewAsUserId: string | null, requestedView: TtmDashboard2RequestedView = null) {
   const { leadView, scope, target } = await resolveDataScope(actor, rawViewAsUserId, requestedView);
-  const [snapshot, lastAggregatedAt, ttmIndexGlobal, managedUsers] = await Promise.all([
+  const [snapshot, lastAggregatedAt, ttmIndexGlobal, managedUsers, trend] = await Promise.all([
     getTtmDashboard2Snapshot(scope.userId, scope.role),
     getLatestImportAggregatedAt(),
     getTtmIndexGlobalCache().catch((error: unknown) => {
@@ -57,6 +58,11 @@ export async function getTtmDashboard2(actor: AuthUser, rawViewAsUserId: string 
       return null;
     }),
     listDashboardPreviewUsers(actor),
+    // "So với <ngày>" ticker of the same scope as the numbers (null until first computed — the page then shows none).
+    getDashboardTrend(ttmDashboard2ScopeKey(scope.userId, scope.role)).catch((error: unknown) => {
+      console.error('Failed to read the TTM Dashboard 2 trend:', error);
+      return null;
+    }),
   ]);
 
   return {
@@ -68,6 +74,7 @@ export async function getTtmDashboard2(actor: AuthUser, rawViewAsUserId: string 
     leadView,
     managedUsers,
     summary: snapshot.summary,
+    trend,
     ttmIndexGlobal,
     viewAsUser: target.viewAsUser,
   };

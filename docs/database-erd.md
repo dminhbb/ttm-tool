@@ -1,10 +1,10 @@
 # TTM Monitor — ERD & từ điển dữ liệu
 
-> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-02.
+> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-03.
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
-**67 bảng** trong schema `public`, **55 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
+**68 bảng** trong schema `public`, **55 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
 
 ## Mục lục
 
@@ -15,7 +15,7 @@
 5. [Cấu hình TTM, lịch & phạm vi](#5-cấu-hình-ttm-lịch-phạm-vi) — 12 bảng
 6. [Epic Scoring Service](#6-epic-scoring-service) — 5 bảng
 7. [Lịch sử & snapshot](#7-lịch-sử-snapshot) — 1 bảng
-8. [Cache dữ liệu dẫn xuất](#8-cache-dữ-liệu-dẫn-xuất) — 5 bảng
+8. [Cache dữ liệu dẫn xuất](#8-cache-dữ-liệu-dẫn-xuất) — 6 bảng
 9. [Cấu hình hệ thống](#9-cấu-hình-hệ-thống) — 4 bảng
 10. [Popup & Banner thông báo](#10-popup-banner-thông-báo) — 3 bảng
 11. [SSO, API Key & MCP Server](#11-sso-api-key-mcp-server) — 7 bảng
@@ -79,6 +79,7 @@ erDiagram
         int user_id FK
         timestamptz expires_at
         timestamptz created_at
+        boolean remember
     }
     password_reset_requests {
         int id PK
@@ -239,6 +240,7 @@ Quản lý phiên đăng nhập active bằng cookie HTTP-only (băm SHA-256).
 | `user_id` | int | không |  | FK → users(id) |  |
 | `expires_at` | timestamptz | không |  |  | `TIMESTAMP WITH TIME ZONE`DEFAULT CURRENT_TIMESTAMP |
 | `created_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
+| `remember` | boolean | không | false |  |  |
 
 - index `idx_auth_sessions_user_expiry`: btree (user_id, expires_at)
 
@@ -1377,6 +1379,15 @@ erDiagram
         jsonb summary
         timestamptz computed_at
     }
+    ttm_dashboard_trend_cache {
+        varchar scope_key PK
+        date latest_layer_date
+        date compared_layer_date
+        jsonb current_values
+        jsonb previous_values
+        timestamptz computed_at
+        text_array new_fail_epic_keys
+    }
     daily_cache_runs {
         date run_date PK
         text status
@@ -1494,6 +1505,20 @@ Số liệu phễu / widget / ma trận / pie chart chưa lọc của TTM Dashbo
 | `engine_mode` | varchar(16) | không |  |  |  |
 | `summary` | jsonb | không |  |  |  |
 | `computed_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+
+### `ttm_dashboard_trend_cache`
+
+**Mới 03/11/2026.** Dòng chữ chạy "So với <ngày>" của TTM Dashboard 2: 6 chỉ số widget (Fail TTM-CNTT, Thiếu lý do, TTM-CNTT %, TTM-E2E %, Sai lệch dữ liệu, Chờ golive) của mỗi phạm vi (`scope_key` như `ttm_dashboard_2_cache`) ở lớp dữ liệu mới nhất và lớp liền trước, chấm cùng rule hiện hành. Tính lại ở lần cache đầu ngày, khi Tạo lại cache thủ công và sau mỗi lần import.
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `scope_key` | varchar(64) | không |  | PK |  |
+| `latest_layer_date` | date | không |  |  |  |
+| `compared_layer_date` | date | không |  |  |  |
+| `current_values` | jsonb | không |  |  |  |
+| `previous_values` | jsonb | không |  |  |  |
+| `computed_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+| `new_fail_epic_keys` | text[] | không | '{}'::text[] |  |  |
 
 ### `daily_cache_runs`
 

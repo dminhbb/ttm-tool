@@ -12,6 +12,7 @@ export {
   createSession,
   requireUser,
   SESSION_COOKIE_NAME,
+  sessionCookieOptions,
 } from '@/lib/auth-service';
 export type { AuthResult } from '@/lib/auth-service';
 export type { AuthUser, UserRole } from '@/lib/auth-types';
