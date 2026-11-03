@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createManagedUser, DuplicateUsernameError, extractUsername, normalizeUsername } from '@/lib/auth-service';
+import { PUBLIC_RATE_LIMITS, rateLimitResponse } from '@/lib/api-rate-limit';
 import { verifyCaptcha } from '@/lib/captcha-service';
 import { listDomains } from '@/lib/master-data-service';
 
@@ -7,6 +8,8 @@ const USERNAME_PATTERN = /^[a-z0-9._-]{1,100}$/;
 
 export async function POST(request: NextRequest) {
   try {
+    const limited = rateLimitResponse(request, 'register', PUBLIC_RATE_LIMITS.register);
+    if (limited) return limited;
     const body: unknown = await request.json();
     if (typeof body !== 'object' || body === null || !('email' in body) || !('fullName' in body) || !('password' in body) || !('domainId' in body) || !('captcha' in body) || !('captchaId' in body) || typeof body.email !== 'string' || typeof body.fullName !== 'string' || typeof body.password !== 'string' || typeof body.domainId !== 'number' || !Number.isInteger(body.domainId) || typeof body.captcha !== 'string' || typeof body.captchaId !== 'string' || !verifyCaptcha(body.captchaId, body.captcha)) return NextResponse.json({ error: 'Thông tin đăng ký, Domain hoặc CAPTCHA không hợp lệ.' }, { status: 400 });
     const rawEmail = body.email.trim().toLowerCase();

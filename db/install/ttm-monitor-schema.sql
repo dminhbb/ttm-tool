@@ -1,9 +1,9 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-03T06:56:50.513Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-03T16:17:00.620Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
--- Gồm: 68 bảng, 58 index phụ, 4 hàm, 4 trigger.
+-- Gồm: 70 bảng, 59 index phụ, 4 hàm, 4 trigger.
 -- Yêu cầu: PostgreSQL 14 trở lên, một database RỖNG (không dùng cho DB đã có bảng — sẽ báo lỗi và không
 -- tạo gì vì cả file chạy trong một transaction). Không cần extension nào.
 --
@@ -714,6 +714,25 @@ CREATE TABLE ttm_dashboard_2_cache (
     CONSTRAINT ttm_dashboard_2_cache_pkey PRIMARY KEY (scope_key)
 );
 
+CREATE TABLE ttm_dashboard_fail_history (
+    layer_date date NOT NULL,
+    fail_epic_keys text[] DEFAULT '{}'::text[] NOT NULL,
+    source character varying(10) DEFAULT 'DAILY'::character varying NOT NULL,
+    computed_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT ttm_dashboard_fail_history_pkey PRIMARY KEY (layer_date),
+    CONSTRAINT ttm_dashboard_fail_history_source_check CHECK (((source)::text = ANY ((ARRAY['DAILY'::character varying, 'BACKFILL'::character varying])::text[])))
+);
+
+CREATE TABLE ttm_dashboard_metric_history (
+    scope_key character varying(64) NOT NULL,
+    layer_date date NOT NULL,
+    metric_values jsonb NOT NULL,
+    source character varying(10) DEFAULT 'DAILY'::character varying NOT NULL,
+    computed_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT ttm_dashboard_metric_history_pkey PRIMARY KEY (scope_key, layer_date),
+    CONSTRAINT ttm_dashboard_metric_history_source_check CHECK (((source)::text = ANY ((ARRAY['DAILY'::character varying, 'BACKFILL'::character varying])::text[])))
+);
+
 CREATE TABLE ttm_dashboard_trend_cache (
     scope_key character varying(64) NOT NULL,
     latest_layer_date date NOT NULL,
@@ -722,6 +741,9 @@ CREATE TABLE ttm_dashboard_trend_cache (
     previous_values jsonb NOT NULL,
     computed_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     new_fail_epic_keys text[] DEFAULT '{}'::text[] NOT NULL,
+    series jsonb DEFAULT '[]'::jsonb NOT NULL,
+    week_ref jsonb,
+    month_ref jsonb,
     CONSTRAINT ttm_dashboard_trend_cache_pkey PRIMARY KEY (scope_key)
 );
 
@@ -952,6 +974,7 @@ CREATE UNIQUE INDEX scoring_rule_groups_name_uq ON scoring_rule_groups USING btr
 CREATE UNIQUE INDEX scoring_rule_groups_single_default ON scoring_rule_groups USING btree (is_default) WHERE is_default;
 CREATE INDEX idx_sso_auth_codes_code ON sso_auth_codes USING btree (code);
 CREATE INDEX idx_sso_auth_codes_expires ON sso_auth_codes USING btree (expires_at);
+CREATE INDEX idx_ttm_dashboard_metric_history_date ON ttm_dashboard_metric_history USING btree (layer_date);
 CREATE INDEX idx_ttm_project_configs_enabled ON ttm_project_configs USING btree (is_enabled) WHERE is_enabled;
 CREATE INDEX idx_user_project_components_lookup ON user_project_components USING btree (user_id, project_id);
 CREATE INDEX idx_user_usage_daily_stats_date ON user_usage_daily_stats USING btree (stat_date);
@@ -1129,7 +1152,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 119 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 120 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1250,7 +1273,8 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261111_create_user_registration_reads.sql'),
     ('20261112_add_auth_session_remember.sql'),
     ('20261113_create_ttm_dashboard_trend_cache.sql'),
-    ('20261114_add_trend_new_fail_epic_keys.sql');
+    ('20261114_add_trend_new_fail_epic_keys.sql'),
+    ('20261115_create_ttm_dashboard_metric_history.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1532,7 +1556,7 @@ WHERE current_setting('ttm_install.seed_data', true) = 'on';
 -- derived_cache_refresh_lock (1 dòng)
 INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 SELECT * FROM (VALUES
-    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-03 00:08:52.554548+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-03 09:25:27.84282+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
 ) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 

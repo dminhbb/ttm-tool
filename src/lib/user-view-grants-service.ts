@@ -1,5 +1,8 @@
 import 'server-only';
 import pool, { getClient } from '@/lib/db';
+import type { UserRole } from '@/lib/auth-types';
+import { resolveAccessScope, type AccessScope } from '@/lib/epic-alert-service';
+import { buildAccessScopeClause } from '@/lib/epic-alert-row-cache-query-service';
 import { roleUsesViewGrants, type UserViewGrantsDetail, type UserViewGrantsInput, type ViewGrants } from '@/lib/user-view-grants';
 
 /**
@@ -34,6 +37,40 @@ export async function getUserViewGrants(userId: number): Promise<UserViewGrantsD
     projects: projects.rows.map((row) => ({ components: componentsOf.get(row.projectId) ?? [], projectId: row.projectId })),
     startAfter: settings.rows[0]?.startAfter ?? null,
   };
+}
+
+/**
+ * What an ADMIN may NOT grant: the projects / Epics of `input` that are new (not granted to the user already) and
+ * lie outside the ADMIN's own data scope — a grant opens Quản trị Epic on them, so an ADMIN can only hand out what
+ * they can see themselves. SUPERADMIN (scope = everything) is never restricted. Returns readable names; [] = fine.
+ */
+export async function findGrantsOutsideScope(actor: { id: number; role: UserRole }, targetUserId: number, input: UserViewGrantsInput): Promise<string[]> {
+  if (actor.role === 'SUPERADMIN') return [];
+  const scope = await resolveAccessScope(actor.id, actor.role);
+  if (scope.sourceProjectKeys === null) return [];
+  const current = await getUserViewGrants(targetUserId);
+  const alreadyProjects = new Set(current.projects.map((project) => project.projectId));
+  const alreadyEpics = new Set(current.epicKeys.map((key) => key.toUpperCase()));
+  const outside: string[] = [];
+
+  const newProjectIds = input.projects.map((project) => project.projectId).filter((id) => !alreadyProjects.has(id));
+  if (newProjectIds.length > 0) {
+    const keys = await pool.query<{ sourceProjectKey: string }>('SELECT source_project_key AS "sourceProjectKey" FROM projects WHERE id = ANY($1::int[]);', [newProjectIds]);
+    const allowed = new Set(scope.sourceProjectKeys);
+    for (const row of keys.rows) if (!allowed.has(row.sourceProjectKey)) outside.push(`dự án ${row.sourceProjectKey}`);
+  }
+
+  const newEpicKeys = input.epicKeys.map((key) => key.toUpperCase()).filter((key) => !alreadyEpics.has(key));
+  if (newEpicKeys.length > 0) {
+    const params: unknown[] = [newEpicKeys];
+    const inScope = await pool.query<{ epicKey: string }>(
+      `SELECT epic_key AS "epicKey" FROM epic_alert_row_cache WHERE epic_key = ANY($1::text[]) AND ${buildAccessScopeClause(scope, params)};`,
+      params,
+    );
+    const visible = new Set(inScope.rows.map((row) => row.epicKey.toUpperCase()));
+    for (const key of newEpicKeys) if (!visible.has(key)) outside.push(`Epic ${key}`);
+  }
+  return outside;
 }
 
 /** Replaces the user's whole "Quyền xem". Unknown project ids are rejected (ERR_UNKNOWN_PROJECT). */
@@ -111,18 +148,24 @@ export async function resolveViewGrants(userId: number, role: string): Promise<V
   }
 }
 
+const MIN_SUGGEST_QUERY_LENGTH = 2;
+
 /**
  * Epic suggestions for the "Quyền xem Epic" input: closest key first (exact, then key starting with the text, then key
  * containing it), then name matches. Reads the current Epics (epic_alert_row_cache).
  */
-export async function suggestEpicsForViewGrant(query: string, limit: number): Promise<{ epicKey: string; epicName: string }[]> {
+export async function suggestEpicsForViewGrant(query: string, limit: number, scope?: AccessScope): Promise<{ epicKey: string; epicName: string }[]> {
   const text = query.trim();
-  if (text.length === 0) return [];
+  // Two characters at least: a single letter matches (and sorts) most of the table, for nothing useful.
+  if (text.length < MIN_SUGGEST_QUERY_LENGTH) return [];
   const escaped = text.replace(/[\\%_]/g, (char) => `\\${char}`);
+  const params: unknown[] = [escaped, text, limit];
+  // An ADMIN is offered only the Epics of their own data scope (SUPERADMIN: no scope given = everything).
+  const scopeClause = scope ? buildAccessScopeClause(scope, params) : 'TRUE';
   const result = await pool.query<{ epicKey: string; epicName: string }>(`
     SELECT epic_key AS "epicKey", epic_name AS "epicName"
     FROM epic_alert_row_cache
-    WHERE epic_key ILIKE '%' || $1 || '%' ESCAPE '\\' OR epic_name ILIKE '%' || $1 || '%' ESCAPE '\\'
+    WHERE (epic_key ILIKE '%' || $1 || '%' ESCAPE '\\' OR epic_name ILIKE '%' || $1 || '%' ESCAPE '\\') AND ${scopeClause}
     ORDER BY CASE
         WHEN UPPER(epic_key) = UPPER($2) THEN 0
         WHEN epic_key ILIKE $1 || '%' ESCAPE '\\' THEN 1
@@ -130,6 +173,6 @@ export async function suggestEpicsForViewGrant(query: string, limit: number): Pr
         ELSE 3
       END, length(epic_key), epic_key
     LIMIT $3;
-  `, [escaped, text, limit]);
+  `, params);
   return result.rows;
 }

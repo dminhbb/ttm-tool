@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { PUBLIC_RATE_LIMITS, rateLimitResponse } from '@/lib/api-rate-limit';
 import { authenticateLocal, createSession, sessionCookieOptions } from '@/modules/iam/public';
 
 export async function POST(request: NextRequest) {
   try {
+    const limited = rateLimitResponse(request, 'login', PUBLIC_RATE_LIMITS.login);
+    if (limited) return limited;
     const body: unknown = await request.json();
     if (typeof body !== 'object' || body === null || !('username' in body) || !('password' in body) || !('remember' in body)
       || typeof body.username !== 'string' || typeof body.password !== 'string' || typeof body.remember !== 'boolean'

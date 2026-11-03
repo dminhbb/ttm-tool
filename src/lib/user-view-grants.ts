@@ -101,6 +101,11 @@ export interface ViewGrants {
   startAfter: string | null;
 }
 
+/** Components are compared Unicode-NFC, trimmed, single-spaced, case-insensitive — what an admin typed vs what Jira holds. */
+export function viewGrantComponentKey(value: string): string {
+  return value.normalize('NFC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi');
+}
+
 export function hasViewGrants(grants: ViewGrants | null | undefined): grants is ViewGrants {
   return Boolean(grants && (grants.projects.size > 0 || grants.epicKeys.length > 0));
 }
@@ -124,7 +129,10 @@ export function matchesViewGrants(grants: ViewGrants | null | undefined, epic: V
   if (grants.epicKeys.includes(epic.epicKey.toUpperCase())) return true;
   const allowedComponents = grants.projects.get(epic.projectKey);
   if (allowedComponents === undefined) return false;
-  if (allowedComponents.length > 0 && epic.components.length > 0 && !epic.components.some((component) => allowedComponents.includes(component))) return false;
+  if (allowedComponents.length > 0 && epic.components.length > 0) {
+    const allowed = new Set(allowedComponents.map(viewGrantComponentKey));
+    if (!epic.components.some((component) => allowed.has(viewGrantComponentKey(component)))) return false;
+  }
   if (grants.createdAfter && !(epic.createdDate && epic.createdDate.slice(0, 10) > grants.createdAfter)) return false;
   if (grants.startAfter && !(epic.startDate && epic.startDate.slice(0, 10) > grants.startAfter)) return false;
   return true;

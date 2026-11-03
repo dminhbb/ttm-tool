@@ -111,6 +111,8 @@
         "ttm_index_global_cache",
         "ttm_dashboard_2_cache",
         "ttm_dashboard_trend_cache",
+        "ttm_dashboard_metric_history",
+        "ttm_dashboard_fail_history",
         "daily_cache_runs",
         "derived_cache_refresh_lock"
       ]
@@ -405,7 +407,15 @@
       "columns": {}
     },
     "ttm_dashboard_trend_cache": {
-      "description": "<strong>Mới 03/11/2026.</strong> Dòng chữ chạy \"So với &lt;ngày&gt;\" của TTM Dashboard 2: 6 chỉ số widget (Fail TTM-CNTT, Thiếu lý do, TTM-CNTT %, TTM-E2E %, Sai lệch dữ liệu, Chờ golive) của mỗi phạm vi (<code>scope_key</code> như <code>ttm_dashboard_2_cache</code>) ở lớp dữ liệu mới nhất và lớp liền trước, chấm cùng rule hiện hành. Tính lại ở lần cache đầu ngày, khi Tạo lại cache thủ công và sau mỗi lần import.",
+      "description": "<strong>Mới 03/11/2026.</strong> Dòng chữ chạy \"So với &lt;ngày&gt;\" của TTM Dashboard 2: 6 chỉ số widget (Fail TTM-CNTT, Thiếu lý do, TTM-CNTT %, TTM-E2E %, Sai lệch dữ liệu, Chờ golive) của mỗi phạm vi (<code>scope_key</code> như <code>ttm_dashboard_2_cache</code>) ở lớp dữ liệu mới nhất và lớp liền trước (đọc từ <code>ttm_dashboard_metric_history</code>), cộng chuỗi 7 mốc của biểu đồ <em>Xu hướng biến động chỉ số</em> và hai ngày so sánh tuần trước / tháng trước (chỉ góc nhìn toàn công ty). Tính lại ở lần cache đầu ngày, khi Tạo lại cache thủ công và sau mỗi lần import.",
+      "columns": {}
+    },
+    "ttm_dashboard_metric_history": {
+      "description": "<strong>Mới 03/11/2026.</strong> Chuỗi chỉ số cố định theo ngày: 6 chỉ số widget của từng phạm vi (<code>scope_key</code>) ở từng lớp dữ liệu (<code>layer_date</code>), ghi MỘT lần khi lớp đó là lớp mới nhất (rule của ngày đó, <code>source=DAILY</code>) và không tính lại. Dòng điền bù lần đầu triển khai dùng rule hiện hành (<code>BACKFILL</code>). Giữ 400 ngày. Nguồn của biểu đồ xu hướng, 2 message tuần/tháng và dòng so với lớp liền trước.",
+      "columns": {}
+    },
+    "ttm_dashboard_fail_history": {
+      "description": "<strong>Mới 03/11/2026.</strong> Khóa các Epic Fail TTM-CNTT (Phạm vi của QLDA) của toàn công ty theo từng lớp dữ liệu — mốc để biết Epic nào MỚI chuyển sang Fail so với lớp liền trước.",
       "columns": {}
     },
     "ttm_dashboard_2_cache": {

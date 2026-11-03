@@ -20,6 +20,7 @@ import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
 import { EpicAlertsIframeModal } from '@/components/ttm-dashboard-2/EpicAlertsIframeModal';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import { BreakdownDonutSections, BreakdownMatrixCard, KpiStrip, type InsightListParams } from '@/components/ttm-dashboard-2/DashboardInsights';
+import { TrendChartsPanel } from '@/components/ttm-dashboard-2/TrendChartsPanel';
 import { TrendTicker } from '@/components/ttm-dashboard-2/TrendTicker';
 import type { TtmDashboardTrend } from '@/lib/ttm-dashboard-trend';
 import { SolidLayer, SplitLayer, type Ellipse } from '@/components/ttm-dashboard-2/FunnelLayers';
@@ -1204,6 +1205,10 @@ export default function TtmDashboard2Page() {
           </div>
         </div>
       </div>
+
+      {/* "Xu hướng biến động chỉ số" — under the funnel, company view only (the API sends no series elsewhere); the numbers are the
+          unfiltered scope's, so it is hidden while a toolbar filter is on. */}
+      {data?.trend?.series && data.trend.series.length > 0 && !isFiltered && <TrendChartsPanel series={data.trend.series} />}
 
       {/* MA TRẬN PHÂN BỔ + PIE CHART — Lead view: every dimension; PM/SM view: Phân loại Epic & Dự án */}
       <div className={`flex flex-col gap-5 transition-opacity ${isRecomputing ? 'opacity-60' : ''}`} aria-busy={isRecomputing}>

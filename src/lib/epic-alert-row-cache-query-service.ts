@@ -9,7 +9,7 @@ import { summarizeTtmCnttFromCounts } from '@/lib/ttm-cntt-qa';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import { compareWorkflowStatus } from '@/lib/scoring/derive';
 import { FILTER_PRESETS } from '@/lib/scoring/select';
-import { hasViewGrants, type ViewGrants } from '@/lib/user-view-grants';
+import { hasViewGrants, viewGrantComponentKey, type ViewGrants } from '@/lib/user-view-grants';
 
 /**
  * Server-side filter/sort/pagination reads for "Quản trị Epic" (đầy đủ), backed by
@@ -104,8 +104,9 @@ export function buildViewGrantClause(grants: ViewGrants, params: unknown[]): str
   for (const [projectKey, components] of grants.projects) {
     params.push(projectKey);
     if (components.length > 0) {
-      params.push([...components]);
-      projectParts.push(`(project_key = $${params.length - 1} AND (cardinality(components) = 0 OR components && $${params.length}::text[]))`);
+      params.push(components.map(viewGrantComponentKey));
+      // Same comparison as matchesViewGrants (viewGrantComponentKey): NFC, trimmed, single-spaced, lower case.
+      projectParts.push(`(project_key = $${params.length - 1} AND (cardinality(components) = 0 OR EXISTS (SELECT 1 FROM unnest(components) AS c WHERE lower(regexp_replace(normalize(btrim(c), NFC), '\\s+', ' ', 'g')) = ANY($${params.length}::text[]))))`);
     } else {
       projectParts.push(`project_key = $${params.length}`);
     }

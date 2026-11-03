@@ -4,7 +4,7 @@
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
-**68 bảng** trong schema `public`, **55 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
+**70 bảng** trong schema `public`, **55 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
 
 ## Mục lục
 
@@ -15,7 +15,7 @@
 5. [Cấu hình TTM, lịch & phạm vi](#5-cấu-hình-ttm-lịch-phạm-vi) — 12 bảng
 6. [Epic Scoring Service](#6-epic-scoring-service) — 5 bảng
 7. [Lịch sử & snapshot](#7-lịch-sử-snapshot) — 1 bảng
-8. [Cache dữ liệu dẫn xuất](#8-cache-dữ-liệu-dẫn-xuất) — 6 bảng
+8. [Cache dữ liệu dẫn xuất](#8-cache-dữ-liệu-dẫn-xuất) — 8 bảng
 9. [Cấu hình hệ thống](#9-cấu-hình-hệ-thống) — 4 bảng
 10. [Popup & Banner thông báo](#10-popup-banner-thông-báo) — 3 bảng
 11. [SSO, API Key & MCP Server](#11-sso-api-key-mcp-server) — 7 bảng
@@ -1387,6 +1387,22 @@ erDiagram
         jsonb previous_values
         timestamptz computed_at
         text_array new_fail_epic_keys
+        jsonb series
+        jsonb week_ref
+        jsonb month_ref
+    }
+    ttm_dashboard_metric_history {
+        varchar scope_key PK
+        date layer_date PK
+        jsonb metric_values
+        varchar source
+        timestamptz computed_at
+    }
+    ttm_dashboard_fail_history {
+        date layer_date PK
+        text_array fail_epic_keys
+        varchar source
+        timestamptz computed_at
     }
     daily_cache_runs {
         date run_date PK
@@ -1508,7 +1524,7 @@ Số liệu phễu / widget / ma trận / pie chart chưa lọc của TTM Dashbo
 
 ### `ttm_dashboard_trend_cache`
 
-**Mới 03/11/2026.** Dòng chữ chạy "So với <ngày>" của TTM Dashboard 2: 6 chỉ số widget (Fail TTM-CNTT, Thiếu lý do, TTM-CNTT %, TTM-E2E %, Sai lệch dữ liệu, Chờ golive) của mỗi phạm vi (`scope_key` như `ttm_dashboard_2_cache`) ở lớp dữ liệu mới nhất và lớp liền trước, chấm cùng rule hiện hành. Tính lại ở lần cache đầu ngày, khi Tạo lại cache thủ công và sau mỗi lần import.
+**Mới 03/11/2026.** Dòng chữ chạy "So với <ngày>" của TTM Dashboard 2: 6 chỉ số widget (Fail TTM-CNTT, Thiếu lý do, TTM-CNTT %, TTM-E2E %, Sai lệch dữ liệu, Chờ golive) của mỗi phạm vi (`scope_key` như `ttm_dashboard_2_cache`) ở lớp dữ liệu mới nhất và lớp liền trước (đọc từ `ttm_dashboard_metric_history`), cộng chuỗi 7 mốc của biểu đồ *Xu hướng biến động chỉ số* và hai ngày so sánh tuần trước / tháng trước (chỉ góc nhìn toàn công ty). Tính lại ở lần cache đầu ngày, khi Tạo lại cache thủ công và sau mỗi lần import.
 
 | Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
 |---|---|---|---|---|---|
@@ -1519,6 +1535,37 @@ Số liệu phễu / widget / ma trận / pie chart chưa lọc của TTM Dashbo
 | `previous_values` | jsonb | không |  |  |  |
 | `computed_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 | `new_fail_epic_keys` | text[] | không | '{}'::text[] |  |  |
+| `series` | jsonb | không | '[]'::jsonb |  |  |
+| `week_ref` | jsonb | có |  |  |  |
+| `month_ref` | jsonb | có |  |  |  |
+
+### `ttm_dashboard_metric_history`
+
+**Mới 03/11/2026.** Chuỗi chỉ số cố định theo ngày: 6 chỉ số widget của từng phạm vi (`scope_key`) ở từng lớp dữ liệu (`layer_date`), ghi MỘT lần khi lớp đó là lớp mới nhất (rule của ngày đó, `source=DAILY`) và không tính lại. Dòng điền bù lần đầu triển khai dùng rule hiện hành (`BACKFILL`). Giữ 400 ngày. Nguồn của biểu đồ xu hướng, 2 message tuần/tháng và dòng so với lớp liền trước.
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `scope_key` | varchar(64) | không |  | PK |  |
+| `layer_date` | date | không |  | PK |  |
+| `metric_values` | jsonb | không |  |  |  |
+| `source` | varchar(10) | không | 'DAILY'::character varying |  |  |
+| `computed_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+
+- `ttm_dashboard_metric_history_source_check`: CHECK (((source)::text = ANY ((ARRAY['DAILY'::character varying, 'BACKFILL'::character varying])::text[])))
+- index `idx_ttm_dashboard_metric_history_date`: btree (layer_date)
+
+### `ttm_dashboard_fail_history`
+
+**Mới 03/11/2026.** Khóa các Epic Fail TTM-CNTT (Phạm vi của QLDA) của toàn công ty theo từng lớp dữ liệu — mốc để biết Epic nào MỚI chuyển sang Fail so với lớp liền trước.
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `layer_date` | date | không |  | PK |  |
+| `fail_epic_keys` | text[] | không | '{}'::text[] |  |  |
+| `source` | varchar(10) | không | 'DAILY'::character varying |  |  |
+| `computed_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+
+- `ttm_dashboard_fail_history_source_check`: CHECK (((source)::text = ANY ((ARRAY['DAILY'::character varying, 'BACKFILL'::character varying])::text[])))
 
 ### `daily_cache_runs`
 

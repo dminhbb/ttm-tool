@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
+import { PUBLIC_RATE_LIMITS, rateLimitResponse } from '@/lib/api-rate-limit';
 import { ADAPTER_TYPES, executeImport } from '@/modules/integration/public';
 
 /**
@@ -16,6 +17,9 @@ function isValidToken(provided: string, expected: string): boolean {
   return timingSafeEqual(hashOf(provided), hashOf(expected));
 }
 
+/** One automatic import at a time per instance: a second upload while one runs would double the load on a 3-connection pool. */
+let importInFlight = false;
+
 export async function POST(request: NextRequest) {
   const expectedToken = process.env.IMPORT_API_TOKEN;
   if (!expectedToken) {
@@ -26,9 +30,15 @@ export async function POST(request: NextRequest) {
   const authHeader = request.headers.get('authorization') ?? '';
   const providedToken = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
   if (!providedToken || !isValidToken(providedToken, expectedToken)) {
-    return NextResponse.json({ error: 'Token không hợp lệ.' }, { status: 401 });
+    // Only wrong tokens count toward the limit — a guessing run is cut off, the real crawler is never throttled.
+    return rateLimitResponse(request, 'importTokenFailures', PUBLIC_RATE_LIMITS.importTokenFailures)
+      ?? NextResponse.json({ error: 'Token không hợp lệ.' }, { status: 401 });
+  }
+  if (importInFlight) {
+    return NextResponse.json({ error: 'Đang có một import tự động khác chạy — thử lại sau ít phút.' }, { headers: { 'Retry-After': '120' }, status: 429 });
   }
 
+  importInFlight = true;
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
@@ -46,5 +56,7 @@ export async function POST(request: NextRequest) {
     console.error('API Error in auto-import route:', error);
     const message = error instanceof Error ? error.message : 'Lỗi hệ thống khi xử lý import file';
     return NextResponse.json({ error: message }, { status: 500 });
+  } finally {
+    importInFlight = false;
   }
 }

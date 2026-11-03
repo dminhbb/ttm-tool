@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
 import { markCacheStale, withCacheStale } from '@/lib/daily-cache-service';
 import { importSqlFile, previewImportFile } from '@/lib/db-backup-service';
+import { withSlowLog } from '@/lib/slow-operation';
 
 export const maxDuration = 300;
 
@@ -49,10 +50,10 @@ export async function POST(request: NextRequest) {
     // ?simulate=1 — runs the whole import and rolls it back: per-table inserted / updated / DELETED rows,
     // so the screen can ask before an import that removes data (mirror of the file, Smart clean-up).
     if (url.searchParams.get('simulate') === '1') {
-      return NextResponse.json(await importSqlFile(sqlText, selectedTables, { actorUserId: actor.id, dryRun: true }));
+      return NextResponse.json(await withSlowLog('SQL import (simulate)', () => importSqlFile(sqlText, selectedTables, { actorUserId: actor.id, dryRun: true })));
     }
 
-    const result = await importSqlFile(sqlText, selectedTables, { actorUserId: actor.id });
+    const result = await withSlowLog('SQL import', () => importSqlFile(sqlText, selectedTables, { actorUserId: actor.id }));
     // A restored backup replaces the data the caches were built from — marked stale, rebuilt by hand (2026-10-27).
     return withCacheStale(NextResponse.json(result, { status: result.ok ? 200 : 400 }), result.ok ? await markCacheStale('sql-import') : undefined);
   } catch (error: unknown) {

@@ -2,14 +2,16 @@
 
 import * as React from 'react';
 import { Play, TrendUp } from '@phosphor-icons/react';
-import { buildTrendSentences, trendHead, type TtmDashboardTrend } from '@/lib/ttm-dashboard-trend';
+import { buildReferenceSentence, buildTrendSentences, trendHead, type TtmDashboardTrend } from '@/lib/ttm-dashboard-trend';
 
 /**
- * "So với <ngày>" ticker under the widget row of TTM Dashboard 2 (owner 2026-11-03). The head "So với dd/mm/yyyy:" stays
- * fixed right of the icon, then the Fail TTM-CNTT sentence — the number viewers look at first — fixed too (owner
- * 2026-11-03); the other sentences follow one at a time, each growing up from below and shown for 3 seconds. The
- * icon is the play switch: click to stop on the current sentence, click again to go on. With "reduce motion" set in the
- * OS the sentences still change, without the animation.
+ * "So với <ngày>" ticker under the widget row of TTM Dashboard 2 (owner 2026-11-03), on ONE line:
+ *   icon · fixed "So với dd/mm/yyyy:" · the fixed Fail TTM-CNTT sentence (the number viewers look at first — red when the
+ *   count went up, the normal text color otherwise) · the other sentences, one at a time. In the company view (the API sends
+ *   weekRef / monthRef nowhere else) the rotation also holds "So với tuần trước / tháng trước (<ngày>): …".
+ * Each rotating sentence grows up from below and is shown for 3 seconds. The icon is the play switch: click to stop on the
+ * current sentence, click again to go on. With "reduce motion" set in the OS the sentences still change, without the
+ * animation.
  */
 
 const SENTENCE_MS = 3000;
@@ -28,6 +30,11 @@ export function TrendTicker({ onOpenNewFails, trend }: { onOpenNewFails?: () => 
   const allSentences = buildTrendSentences(trend.current, trend.previous);
   // buildTrendSentences always starts with the Fail TTM-CNTT sentence (a count, never left out): it stays fixed.
   const [fixedSentence, ...sentences] = allSentences;
+  // Company view only (the API leaves weekRef / monthRef out elsewhere): "So với tuần trước (…): …", "So với tháng trước (…): …".
+  const referenceSentences = [
+    trend.weekRef ? buildReferenceSentence('tuần trước', trend.weekRef, trend.current) : null,
+    trend.monthRef ? buildReferenceSentence('tháng trước', trend.monthRef, trend.current) : null,
+  ].filter((sentence): sentence is string => sentence !== null);
   const head = trendHead(trend.comparedLayerDate).trim();
   const [index, setIndex] = React.useState(0);
   const [playing, setPlaying] = React.useState(true);
@@ -44,13 +51,15 @@ export function TrendTicker({ onOpenNewFails, trend }: { onOpenNewFails?: () => 
   }, []);
 
   React.useEffect(() => {
-    if (!playing || sentences.length < 2) return undefined;
+    if (!playing || sentences.length + referenceSentences.length < 2) return undefined;
     const timer = window.setInterval(() => {
       setGrown(false);
-      setIndex((current) => (current + 1) % sentences.length);
+      setIndex((current) => current + 1);
     }, SENTENCE_MS);
     return () => window.clearInterval(timer);
-  }, [playing, sentences.length]);
+  }, [playing, sentences.length, referenceSentences.length]);
+  // One rotation: the widget sentences, then (company view) the week / month comparisons.
+  const rotation = [...sentences, ...referenceSentences];
 
   React.useEffect(() => {
     if (grown) return undefined;
@@ -59,12 +68,13 @@ export function TrendTicker({ onOpenNewFails, trend }: { onOpenNewFails?: () => 
   }, [grown, index]);
 
   if (!fixedSentence) return null;
-  const sentence = sentences.length > 0 ? sentences[index % sentences.length] : null;
+  const sentence = rotation.length > 0 ? rotation[index % rotation.length] : null;
+  const failUp = trend.current.failCntt > trend.previous.failCntt;
 
   return (
     <div
-      aria-label={`${head} ${allSentences.join(' ')}`}
-      className="flex min-w-0 items-center gap-2 py-1 text-sm text-fb-text-primary"
+      aria-label={`${head} ${[...allSentences, ...referenceSentences].join(' ')}`}
+      className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 py-1 text-sm text-fb-text-primary"
       role="region"
       title={`Tính lúc ${formatComputedAt(trend.computedAt)} — dữ liệu ${viDate(trend.latestLayerDate)} so với ${viDate(trend.comparedLayerDate)}`}
     >
@@ -79,10 +89,10 @@ export function TrendTicker({ onOpenNewFails, trend }: { onOpenNewFails?: () => 
         {playing ? <TrendUp aria-hidden="true" className="size-4" weight="bold" /> : <Play aria-hidden="true" className="size-4" weight="fill" />}
       </button>
       <span className="shrink-0 whitespace-nowrap font-bold">{head}</span>
-      {trend.current.failCntt > trend.previous.failCntt && onOpenNewFails && (trend.newFailCount ?? 0) > 0 ? (
-        // Up = brown and clickable: the Epics that became Fail TTM-CNTT since the compared day (owner 2026-11-03).
+      {failUp && onOpenNewFails && (trend.newFailCount ?? 0) > 0 ? (
+        // Up = red and clickable: the Epics that became Fail TTM-CNTT since the compared day (owner 2026-11-03).
         <button
-          className="ttm-trend-fail-up shrink-0 cursor-pointer whitespace-nowrap border-0 bg-transparent p-0 text-left underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-fb-blue"
+          className="shrink-0 cursor-pointer whitespace-nowrap border-0 bg-transparent p-0 text-left text-status-danger underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-fb-blue"
           onClick={onOpenNewFails}
           title={`Xem ${trend.newFailCount} Epic Fail TTM-CNTT mới phát sinh trong Quản trị Epic`}
           type="button"
@@ -90,24 +100,26 @@ export function TrendTicker({ onOpenNewFails, trend }: { onOpenNewFails?: () => 
           {fixedSentence}
         </button>
       ) : (
-        <span className="shrink-0 whitespace-nowrap">{fixedSentence}</span>
+        <span className={`shrink-0 whitespace-nowrap ${failUp ? 'text-status-danger' : ''}`}>{fixedSentence}</span>
       )}
-      {sentence && <span aria-hidden="true" className="relative block h-5 min-w-0 flex-1 overflow-hidden">
-        <span
-          className="absolute inset-x-0 top-0 block origin-bottom truncate leading-5"
-          key={index}
-          style={{
-            opacity: grown ? 1 : 0,
-            transform: grown ? 'translateY(0) scale(1)' : 'translateY(70%) scale(0.92)',
-            transition: reducedMotion ? 'none' : `transform ${GROW_MS}ms ease-out, opacity ${GROW_MS}ms ease-out`,
-          }}
-          title={sentence}
-        >
-          {sentence}
+      {sentence && (
+        <span aria-hidden="true" className="relative block h-5 min-w-[12rem] flex-1 overflow-hidden">
+          <span
+            className="absolute inset-x-0 top-0 block origin-bottom truncate leading-5"
+            key={index}
+            style={{
+              opacity: grown ? 1 : 0,
+              transform: grown ? 'translateY(0) scale(1)' : 'translateY(70%) scale(0.92)',
+              transition: reducedMotion ? 'none' : `transform ${GROW_MS}ms ease-out, opacity ${GROW_MS}ms ease-out`,
+            }}
+            title={sentence}
+          >
+            {sentence}
+          </span>
         </span>
-      </span>}
-      {sentences.length > 1 && (
-        <span aria-hidden="true" className="shrink-0 text-xs tabular-nums text-fb-text-placeholder">{(index % sentences.length) + 1}/{sentences.length}</span>
+      )}
+      {rotation.length > 1 && (
+        <span aria-hidden="true" className="shrink-0 text-xs tabular-nums text-fb-text-placeholder">{(index % rotation.length) + 1}/{rotation.length}</span>
       )}
     </div>
   );

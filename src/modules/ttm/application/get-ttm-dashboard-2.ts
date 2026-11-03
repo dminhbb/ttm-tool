@@ -15,6 +15,7 @@ import {
 } from '@/lib/ttm-dashboard-2-cache-service';
 import { getTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { getDashboardTrend } from '@/lib/ttm-dashboard-trend-service';
+import type { TtmDashboardTrend } from '@/lib/ttm-dashboard-trend';
 import { filterTtmDashboard2Rows, summarizeTtmFunnel, type TtmDashboard2Filters, type TtmFunnelSummary } from '@/lib/ttm-funnel-summary';
 import type { UserRole } from '@/lib/auth-types';
 
@@ -48,6 +49,23 @@ async function resolveDataScope(actor: AuthUser, rawViewAsUserId: string | null,
   return { leadView: { active, available } satisfies TtmDashboard2LeadView, scope, target };
 }
 
+/**
+ * The chart series and the week / month comparison days are for the company view only (owner 2026-11-03): the viewer's
+ * numbers are the whole company's (scope key 'ALL': a SUPERADMIN / SUPERVISOR, or any user in the Lead view) and nobody is
+ * being previewed. An ADMIN's or USER's own scope, the PM/SM view and "Xem dưới quyền" never receive them.
+ */
+function trendForView(trend: TtmDashboardTrend | null, companyView: boolean): TtmDashboardTrend | null {
+  if (!trend || companyView) return trend;
+  return {
+    comparedLayerDate: trend.comparedLayerDate,
+    computedAt: trend.computedAt,
+    current: trend.current,
+    latestLayerDate: trend.latestLayerDate,
+    newFailCount: trend.newFailCount,
+    previous: trend.previous,
+  };
+}
+
 export async function getTtmDashboard2(actor: AuthUser, rawViewAsUserId: string | null, requestedView: TtmDashboard2RequestedView = null) {
   const { leadView, scope, target } = await resolveDataScope(actor, rawViewAsUserId, requestedView);
   const [snapshot, lastAggregatedAt, ttmIndexGlobal, managedUsers, trend] = await Promise.all([
@@ -74,7 +92,7 @@ export async function getTtmDashboard2(actor: AuthUser, rawViewAsUserId: string 
     leadView,
     managedUsers,
     summary: snapshot.summary,
-    trend,
+    trend: trendForView(trend, !target.viewAsUser && ttmDashboard2ScopeKey(scope.userId, scope.role) === 'ALL'),
     ttmIndexGlobal,
     viewAsUser: target.viewAsUser,
   };

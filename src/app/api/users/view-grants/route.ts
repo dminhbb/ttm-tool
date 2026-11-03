@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, getUserRolesByIds, requireUser } from '@/lib/auth-service';
 import { canManageUserWithRole } from '@/lib/auth-types';
 import { parseUserViewGrantsInput, roleUsesViewGrants } from '@/lib/user-view-grants';
-import { getUserViewGrants, saveUserViewGrants } from '@/lib/user-view-grants-service';
+import { findGrantsOutsideScope, getUserViewGrants, saveUserViewGrants } from '@/lib/user-view-grants-service';
 
 /**
  * Tab "Quyền xem" of the user popup (owner 2026-11-01): GET ?userId= reads a user's view grants, PUT { userId,
@@ -46,6 +46,11 @@ export async function PUT(request: NextRequest) {
     }
     if (!roleUsesViewGrants(targetRole)) {
       return NextResponse.json({ error: 'Quyền xem chỉ áp dụng cho user role USER hoặc ADMIN.' }, { status: 400 });
+    }
+    // An ADMIN hands out only what lies in their own data scope (new grants; what the user already has stays).
+    const outside = await findGrantsOutsideScope(actor, userId, parsed.value);
+    if (outside.length > 0) {
+      return NextResponse.json({ error: `Bạn chỉ cấp quyền xem trong phạm vi dữ liệu của mình. Ngoài phạm vi: ${outside.slice(0, 5).join(', ')}${outside.length > 5 ? `… (+${outside.length - 5})` : ''}.` }, { status: 403 });
     }
     await saveUserViewGrants(userId, parsed.value, actor.id);
     return NextResponse.json(await getUserViewGrants(userId));

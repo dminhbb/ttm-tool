@@ -69,3 +69,12 @@ describe('Quyền xem — parsing the tab input', () => {
     assert.ok('error' in parseUserViewGrantsInput(null));
   });
 });
+
+describe('Quyền xem — component names typed by an admin vs held by Jira (2026-11-03)', () => {
+  it('compare ignoring case, outer and repeated spaces', () => {
+    const narrowed = grants({ projects: new Map([['ABC', [' core  api ']]]) });
+    assert.equal(matchesViewGrants(narrowed, { ...epic, components: ['Core API'] }), true);
+    assert.equal(matchesViewGrants(narrowed, { ...epic, components: ['CORE api'] }), true);
+    assert.equal(matchesViewGrants(narrowed, { ...epic, components: ['Billing'] }), false);
+  });
+});

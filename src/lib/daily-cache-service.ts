@@ -8,6 +8,7 @@ import { getTtmDashboard2CacheOverview, refreshTtmDashboard2Caches } from '@/lib
 import { runDailyHousekeeping } from '@/lib/housekeeping-service';
 import { refreshDashboardTrendCache, TREND_REFRESH_SOURCES } from '@/lib/ttm-dashboard-trend-service';
 import { SCORING_CODE_VERSION } from '@/lib/scoring/registry';
+import { withSlowLog } from '@/lib/slow-operation';
 import { CACHE_STALE_HEADER } from '@/lib/cache-rebuild-status-client';
 import { loadScoringContext, vnToday } from '@/lib/scoring-context-service';
 
@@ -317,17 +318,20 @@ export async function refreshDerivedCaches(batchId: number | null, source = 'man
 
   let seq = claim.seq;
   let nextBatchId = batchId;
+  // The ticker is rebuilt ONCE per call, after the lease loop — not once per rebuild of the loop (up to
+  // MAX_REBUILDS_PER_LEASE of them): it is a 30-40 s job on a pool of 3 connections.
+  let completed = false;
   try {
     for (let run = 1; ; run += 1) {
       const startedAt = await databaseNow();
-      const count = await rebuildDerivedCaches(nextBatchId);
-      await refreshTrendAfter(source);
+      const count = await withSlowLog(`derived-cache rebuild (${source})`, () => rebuildDerivedCaches(nextBatchId));
       await clearCacheStale(startedAt);
       const outcome = await releaseOrRenew(owner, seq);
-      if (outcome.released || outcome.seq === null) return count;
+      if (outcome.released || outcome.seq === null) { completed = true; return count; }
       if (run >= MAX_REBUILDS_PER_LEASE) {
         console.error(`Derived-cache rebuild: still being asked after ${run} rebuilds in a row (latest: ${source}) — stopping; the next request or page load rebuilds again.`);
         await abandonLease(owner);
+        completed = true;
         return count;
       }
       seq = outcome.seq;
@@ -336,6 +340,8 @@ export async function refreshDerivedCaches(batchId: number | null, source = 'man
   } catch (error: unknown) {
     await dropLease(owner);
     throw error;
+  } finally {
+    if (completed) await refreshTrendAfter(source);
   }
 }
 
@@ -345,9 +351,26 @@ export async function refreshDerivedCaches(batchId: number | null, source = 'man
  * caches — runs it after the response (`after`); the daily run is already in the background and runs it in line.
  * Outside a request (no `after` scope) it runs in line too. A failure never fails the rebuild: the ticker keeps its numbers.
  */
+/** One trend refresh at a time per instance; a request that arrives meanwhile is folded into ONE more run afterwards. */
+let trendRefreshRunning = false;
+let trendRefreshQueued = false;
+
+async function runTrendRefresh(): Promise<void> {
+  if (trendRefreshRunning) { trendRefreshQueued = true; return; }
+  trendRefreshRunning = true;
+  try {
+    do {
+      trendRefreshQueued = false;
+      await withSlowLog('TTM Dashboard 2 trend refresh', () => refreshDashboardTrendCache()).then(() => undefined, (error: unknown) => console.error('TTM Dashboard 2 trend refresh failed:', error));
+    } while (trendRefreshQueued);
+  } finally {
+    trendRefreshRunning = false;
+  }
+}
+
 async function refreshTrendAfter(source: string): Promise<void> {
   if (!TREND_REFRESH_SOURCES.has(source)) return;
-  const task = () => refreshDashboardTrendCache().then(() => undefined, (error: unknown) => console.error('TTM Dashboard 2 trend refresh failed:', error));
+  const task = runTrendRefresh;
   if (source !== 'daily-cache') {
     try {
       after(task);

@@ -32,12 +32,18 @@ export async function markRegistrationsRead(readerUserId: number, registeredUser
 
 /** Pending registrations (inactive users) this reader has not marked as read yet. */
 export async function countUnreadRegistrations(readerUserId: number): Promise<number> {
-  const result = await pool.query<{ n: string }>(`
-    SELECT count(*)::text AS n FROM users u
-    WHERE u.is_active = FALSE
-      AND NOT EXISTS (SELECT 1 FROM user_registration_reads r WHERE r.reader_user_id = $1 AND r.registered_user_id = u.id);
-  `, [readerUserId]);
-  return Number(result.rows[0]?.n ?? 0);
+  try {
+    const result = await pool.query<{ n: string }>(`
+      SELECT count(*)::text AS n FROM users u
+      WHERE u.is_active = FALSE
+        AND NOT EXISTS (SELECT 1 FROM user_registration_reads r WHERE r.reader_user_id = $1 AND r.registered_user_id = u.id);
+    `, [readerUserId]);
+    return Number(result.rows[0]?.n ?? 0);
+  } catch (error: unknown) {
+    if ((error as { code?: string }).code !== '42P01') throw error;
+    // Migration 20261111 not applied yet: nothing can be marked read, so every pending registration counts.
+    return Number((await pool.query<{ n: string }>('SELECT count(*)::text AS n FROM users WHERE is_active = FALSE;')).rows[0]?.n ?? 0);
+  }
 }
 
 export interface UserReportGrant {
@@ -62,7 +68,7 @@ export interface UserReportRow {
   viewEpicCount: number;
   /** "Quyền xem": every current Epic the grants let the user see (project grants with their components and time limit, plus single Epics). */
   viewEpicTotal: number;
-  /** Up to 10 of those Epics, picked at random on each load. */
+  /** The first 10 of those Epics by key. */
   viewEpicSample: { epicKey: string; epicName: string }[];
   /** Logins within the usage-stats retention window (same figure as the "Đăng nhập" column of the user list). */
   loginCount: number;
@@ -71,7 +77,37 @@ export interface UserReportRow {
   activeTokenCount: number;
 }
 
-export async function getUserReport(): Promise<UserReportRow[]> {
+/** The report is the same for every reader, and each load costs a query per user with grants — kept for a moment so
+ * re-opening the tab (or several admins at once) does not repeat it. Free-tier database: spare the pool. */
+const REPORT_MEMO_MS = 60_000;
+/** Users resolved at the same time — the hosted pool holds 3 connections (db.ts). */
+const REPORT_CONCURRENCY = 3;
+let reportMemo: { at: number; rows: Promise<UserReportRow[]> } | null = null;
+
+export function getUserReport(): Promise<UserReportRow[]> {
+  if (reportMemo && Date.now() - reportMemo.at < REPORT_MEMO_MS) return reportMemo.rows;
+  const rows = loadUserReport();
+  reportMemo = { at: Date.now(), rows };
+  // A failed load must not stay cached.
+  rows.catch(() => { if (reportMemo?.rows === rows) reportMemo = null; });
+  return rows;
+}
+
+/** `work` over every item, at most `limit` at a time; results in input order. */
+async function mapWithLimit<T, R>(items: readonly T[], limit: number, work: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await work(items[index]);
+    }
+  }));
+  return results;
+}
+
+async function loadUserReport(): Promise<UserReportRow[]> {
   const result = await pool.query<UserReportRow>(`
     SELECT
       u.id,
@@ -106,22 +142,24 @@ export async function getUserReport(): Promise<UserReportRow[]> {
     ORDER BY SPLIT_PART(LOWER(u.email), '@', 1) ASC;
   `, [USAGE_STATS_RETENTION_DAYS - 1]);
   // Same rule Quản trị Epic applies (resolveViewGrants + buildViewGrantClause), over the current Epics (row cache).
-  return Promise.all(result.rows.map(async (row): Promise<UserReportRow> => {
+  return mapWithLimit(result.rows, REPORT_CONCURRENCY, async (row): Promise<UserReportRow> => {
+    const empty = { ...row, viewEpicSample: [], viewEpicTotal: 0 };
+    // Nothing granted (the common case) costs no query at all.
+    if (row.viewProjects.length === 0 && row.viewEpicCount === 0) return empty;
     const grants = await resolveViewGrants(row.id, row.role);
-    if (!grants || !hasViewGrants(grants)) return { ...row, viewEpicSample: [], viewEpicTotal: 0 };
+    if (!grants || !hasViewGrants(grants)) return empty;
     const params: unknown[] = [];
     const clause = buildViewGrantClause(grants, params);
-    const sample = await pool.query<{ epicKey: string; epicName: string; total: number }>(`
-      SELECT epic_key AS "epicKey", epic_name AS "epicName", count(*) OVER ()::int AS total
-      FROM epic_alert_row_cache WHERE ${clause}
-      ORDER BY random() LIMIT ${VIEW_EPIC_SAMPLE_SIZE};
-    `, params);
-    return {
-      ...row,
-      viewEpicSample: sample.rows.map(({ epicKey, epicName }) => ({ epicKey, epicName })),
-      viewEpicTotal: sample.rows[0]?.total ?? 0,
-    };
-  }));
+    // Count and the first Epics by key (index order) — no random sort of every matching row.
+    const [total, sample] = await Promise.all([
+      pool.query<{ total: number }>(`SELECT count(*)::int AS total FROM epic_alert_row_cache WHERE ${clause};`, params),
+      pool.query<{ epicKey: string; epicName: string }>(`
+        SELECT epic_key AS "epicKey", epic_name AS "epicName" FROM epic_alert_row_cache WHERE ${clause}
+        ORDER BY epic_key LIMIT ${VIEW_EPIC_SAMPLE_SIZE};
+      `, params),
+    ]);
+    return { ...row, viewEpicSample: sample.rows, viewEpicTotal: total.rows[0]?.total ?? 0 };
+  });
 }
 
 /** How many granted Epics the "Quyền xem" cell lists. */

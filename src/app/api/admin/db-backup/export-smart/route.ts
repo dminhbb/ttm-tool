@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
 import { exportSmartSurfaceToSql } from '@/lib/db-backup-service';
+import { withSlowLog } from '@/lib/slow-operation';
 
 // Reads every surface issue plus ~20 config tables of a large database — same budget as ./import.
 export const maxDuration = 300;
@@ -27,10 +28,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Vui lòng chọn ngày mốc lớp dữ liệu.' }, { status: 400 });
     }
 
-    const sql = await exportSmartSurfaceToSql({
+    const sql = await withSlowLog('Smart export', () => exportSmartSurfaceToSql({
       layerDate,
       includeSchema: includeSchema === true,
-    });
+    }));
     const fileName = `ttm-monitor-smart-export-${layerDate}.sql`;
 
     return new NextResponse(sql, {

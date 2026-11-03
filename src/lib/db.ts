@@ -30,6 +30,16 @@ function stripSslModeParam(connectionString: string): string {
   return connectionString.replace(/([?&])sslmode=[^&]*&?/, '$1').replace(/[?&]$/, '');
 }
 
+/**
+ * Hosted (free-tier) guards. A request that cannot get one of the 3 connections fails after 15 s instead of queueing
+ * until the function is cut (the minutes are billed either way); a statement still running after 2 minutes is
+ * cancelled by the server, so a runaway query cannot hold a connection (or the database CPU) after its function is
+ * gone. 2 minutes is what Supabase's own role setting enforces on the pooler anyway (checked with SHOW
+ * statement_timeout); stating it here keeps the other hosted profile and the code in step with it. Every long job
+ * therefore has to be made of statements well below 2 minutes — the bulk loads are chunked for that reason.
+ */
+const HOSTED_GUARDS = { connectionTimeoutMillis: 15_000, statement_timeout: 120_000 } satisfies PoolConfig;
+
 function aivenPoolConfig(): PoolConfig {
   const rawConnectionString = process.env.DATABASE_URL_AIVEN;
   if (!rawConnectionString) {
@@ -46,7 +56,7 @@ function aivenPoolConfig(): PoolConfig {
   // its own can exhaust that budget the moment a page fires more than a couple of queries in
   // parallel ("sorry, too many clients already"). Keep this app's own ceiling low so pg queues
   // extra queries instead of opening more physical connections than the plan allows.
-  return { connectionString: stripSslModeParam(rawConnectionString), idleTimeoutMillis: 5000, max: 3, ssl };
+  return { connectionString: stripSslModeParam(rawConnectionString), idleTimeoutMillis: 5000, max: 3, ssl, ...HOSTED_GUARDS };
 }
 
 function supabasePoolConfig(): PoolConfig {
@@ -61,7 +71,7 @@ function supabasePoolConfig(): PoolConfig {
   const ssl: PoolConfig['ssl'] = process.env.PGSSLROOTCERT_SUPABASE
     ? { ca: readFileSync(process.env.PGSSLROOTCERT_SUPABASE, 'utf8'), rejectUnauthorized: true }
     : { rejectUnauthorized: false };
-  return { connectionString: stripSslModeParam(rawConnectionString), idleTimeoutMillis: 5000, max: 3, ssl };
+  return { connectionString: stripSslModeParam(rawConnectionString), idleTimeoutMillis: 5000, max: 3, ssl, ...HOSTED_GUARDS };
 }
 
 function localPoolConfig(): PoolConfig {

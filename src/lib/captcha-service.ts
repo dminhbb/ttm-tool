@@ -5,6 +5,17 @@ const CAPTCHA_TTL_MS = 5 * 60 * 1000;
 const CAPTCHA_LENGTH = 6;
 const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
 const challenges = new Map<string, { answer: string; expiresAt: number }>();
+/** Challenges kept at once. The endpoint is public: a flood must not grow this Map without bound. */
+const MAX_CHALLENGES = 2_000;
+
+function pruneChallenges(now: number): void {
+  for (const [id, challenge] of challenges) if (challenge.expiresAt <= now) challenges.delete(id);
+  // Still over the cap with live ones: drop the oldest (Map keeps insertion order).
+  for (const id of challenges.keys()) {
+    if (challenges.size < MAX_CHALLENGES) break;
+    challenges.delete(id);
+  }
+}
 
 function createAnswer(): string {
   const bytes = randomBytes(CAPTCHA_LENGTH);
@@ -19,6 +30,7 @@ function createImage(answer: string): string {
 
 export function issueCaptcha(): { id: string; image: string } {
   const id = randomBytes(24).toString('base64url');
+  if (challenges.size >= MAX_CHALLENGES) pruneChallenges(Date.now());
   challenges.set(id, { answer: createAnswer(), expiresAt: Date.now() + CAPTCHA_TTL_MS });
   return { id, image: createImage(challenges.get(id)!.answer) };
 }

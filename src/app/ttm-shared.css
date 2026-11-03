@@ -498,6 +498,3 @@
 
 
 
-/* TTM Dashboard 2 ticker: "Số lượng Epic Fail TTM-CNTT tăng …" in brown, clickable (owner 2026-11-03). */
-.ttm-trend-fail-up { color: #8b4513; }
-:root[data-theme="dark"] .ttm-trend-fail-up { color: #d9a066; }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, extractUsername, getUserRolesByIds, normalizeUsername, requireUser, resetUserPassword } from '@/lib/auth-service';
+import { PUBLIC_RATE_LIMITS, rateLimitResponse } from '@/lib/api-rate-limit';
 import { canManageUserWithRole } from '@/lib/auth-types';
 import { verifyCaptcha } from '@/lib/captcha-service';
 import { validatePassword } from '@/lib/password-rules';
@@ -21,6 +22,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const limited = rateLimitResponse(request, 'passwordReset', PUBLIC_RATE_LIMITS.passwordReset);
+    if (limited) return limited;
     const body: unknown = await request.json();
     if (!isRecord(body) || typeof body.email !== 'string' || typeof body.captcha !== 'string' || typeof body.captchaId !== 'string' || !verifyCaptcha(body.captchaId, body.captcha)) return NextResponse.json({ error: 'Username/Email hoặc CAPTCHA không hợp lệ.' }, { status: 400 });
     const { default: pool } = await import('@/lib/db');

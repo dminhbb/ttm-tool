@@ -8,6 +8,28 @@
 
 ## 2026-11-03
 
+- **TTM Dashboard 2 — panel "Xu hướng biến động chỉ số" + 2 message tuần/tháng trước** (migration `20261115_create_ttm_dashboard_metric_history.sql`, đã áp dụng cho Supabase; local chưa chạy được):
+  - *Chuỗi chỉ số cố định theo ngày* (`ttm_dashboard_metric_history`, `ttm_dashboard_fail_history`; `src/lib/ttm-dashboard-trend-service.ts`): mỗi phạm vi × mỗi lớp dữ liệu một dòng 6 chỉ số, ghi MỘT lần khi lớp đó là lớp mới nhất và không tính lại (`DAILY`; dòng điền bù `BACKFILL` không bao giờ ghi đè); giữ 400 ngày. Import / Tạo lại cache / lần cache đầu ngày chỉ ghi lớp hôm nay (đọc `epic_alert_row_cache`, rẻ) — dòng "So với <ngày>" lấy số lớp liền trước từ chuỗi này nên bỏ bước chấm lại Epic 30-40 giây mỗi lần import.
+  - *Panel 3 biểu đồ* (`TrendChartsPanel.tsx`, dưới Phễu): Fail TTM-CNTT, Chỉ số TTM-CNTT, Sai lệch dữ liệu — 7 mốc là lớp mới nhất và mỗi 5 lớp lùi về trước (`pickSeriesDates`); lớp thiếu số liệu là chỗ ngắt đường, không phải số 0.
+  - *Ticker 1 dòng* (`TrendTicker.tsx`): icon · "So với <ngày>:" cố định · câu Fail TTM-CNTT cố định (chữ ĐỎ khi số tăng, chữ thường khi không tăng; vẫn bấm được để mở danh sách Epic Fail mới) · nhóm xoay vòng 3 giây gồm các câu còn lại và, ở góc nhìn toàn công ty, 2 message "So với tuần trước / tháng trước (<ngày>): …" (`referenceDates`: ngày dữ liệu cuối của tuần Thứ Hai–Chủ nhật / tháng liền trước, lùi nếu trống).
+  - *Chỉ hiện ở góc nhìn toàn công ty*: API chỉ trả chuỗi và 2 ngày so sánh khi phạm vi là `ALL` và không xem dưới quyền user (`trendForView`); ẩn ở ADMIN "Của tôi", góc nhìn PM/SM, bộ lọc.
+  - *Điền lịch sử một lần* (`scripts/backfill-ttm-metric-history.ts`, `scripts/script-register.mjs`): chạy tay ngoài giới hạn Vercel, mỗi lớp chấm với rule hiện hành (~30-40 giây), có `--confirm`, `--limit`, `--pause-ms`; không có `--confirm` thì chỉ liệt kê.
+
+- **Bảo vệ tài nguyên free tier (Supabase / Vercel)**:
+  - *Giới hạn tần suất cho API công khai* (`src/lib/rate-limit.ts`, `api-rate-limit.ts`; trong bộ nhớ từng instance, không cần migration): captcha 30/phút, đăng nhập 30/5 phút, đăng ký và quên mật khẩu 10/giờ, danh sách Domain đăng ký và trạng thái hệ thống 60/phút — theo IP, trả 429 + `Retry-After`. Import tự động: chỉ đếm các lần SAI token (20/10 phút) và chỉ chạy một import tại một thời điểm mỗi instance.
+  - *Giảm truy vấn lặp*: danh sách Domain đăng ký giữ 30 giây, kiểm tra DB của `/api/system/status` giữ 10 giây (`createTtlMemo`).
+  - *Captcha*: kho thử thách giới hạn 2.000 mục, dọn mục hết hạn khi đầy (`captcha-service.ts`) — endpoint công khai không còn làm phình bộ nhớ.
+  - *Kết nối DB hosted* (`src/lib/db.ts`): chờ lấy kết nối tối đa 15 giây rồi báo lỗi (thay vì xếp hàng tới khi hàm bị cắt), `statement_timeout` 2 phút (khớp mức Supabase đang áp trên pooler, đã kiểm tra bằng SHOW).
+  - *Cảnh báo sớm tác vụ dài* (`src/lib/slow-operation.ts`): rebuild cache, ticker, SQL import / simulate, Smart export ghi warn khi dùng > 70% của 300 giây.
+  - *Rà soát chỉ mục*: `epic_alert_row_cache`, `issues(issue_key, aggregated_at)`, `visit_logs`, `epic_comments` đã đủ; `audit_logs` / `auth_sessions` chỉ bị xóa theo ngày trên bảng nhỏ nên KHÔNG thêm chỉ mục (tránh tốn dung lượng 500MB của gói free).
+
+- **Sửa theo review các bản pull 23/10 → 03/11** (ưu tiên tiết kiệm tài nguyên Supabase / Vercel free tier):
+  - *Quyền xem*: ADMIN chỉ cấp được dự án / Epic MỚI nằm trong phạm vi dữ liệu của chính mình (`findGrantsOutsideScope`, `api/users/view-grants`, 403 kèm danh sách ngoài phạm vi; thứ đã cấp trước đó giữ nguyên); gợi ý Epic của ADMIN chỉ trong phạm vi của họ và cần ≥ 2 ký tự (`suggestEpicsForViewGrant`); so khớp component ở TS và SQL không phân biệt hoa/thường, khoảng trắng (`viewGrantComponentKey`).
+  - *Ticker "So với <ngày>"* (`daily-cache-service.ts`, `ttm-dashboard-trend-service.ts`): chỉ tính lại MỘT lần sau vòng rebuild (không còn mỗi vòng), mỗi instance chạy một lượt tại một thời điểm (yêu cầu đến giữa chừng gộp thành đúng một lượt nữa), ghi bảng có `pg_advisory_xact_lock`.
+  - *Báo cáo user* (`user-admin-report-service.ts`): user chưa được cấp quyền xem không tốn truy vấn nào, các user còn lại chạy tối đa 3 song song, bỏ `ORDER BY random()` (10 Epic đầu theo mã), kết quả giữ 60 giây.
+  - *Chưa migrate vẫn chạy*: đếm đăng ký chưa đọc (`countUnreadRegistrations`, dùng chung cho chấm đỏ Quản lý User) và `getNewFailEpicKeys` bắt lỗi thiếu bảng/cột.
+  - *Ticker*: màu nâu lấy từ token (`color-mix`) thay mã hex, câu so sánh xuống dòng được trên màn hình hẹp.
+
 - **Dòng "So với <ngày>": câu Fail TTM-CNTT tăng → màu nâu, bấm được** (migration `20261114_add_trend_new_fail_epic_keys`, đã áp dụng Supabase; **local chưa**): khi Fail TTM-CNTT tăng, câu cố định có màu nâu (`.ttm-trend-fail-up`, `ttm-shared.css`) và bấm vào mở popup Quản trị Epic chỉ liệt kê các Epic **mới** Fail TTM-CNTT (Fail ở lớp mới nhất nhưng chưa Fail ở ngày so sánh). Danh sách tính cùng lúc với dòng chữ, lưu ở `ttm_dashboard_trend_cache.new_fail_epic_keys`; Quản trị Epic nhận `?newFailScope=<scope>` (bộ lọc `epicKeys` trong `epic-alert-row-cache-query-service.ts`, vẫn áp phạm vi dữ liệu của người xem, không áp Hide cá nhân).
 - **Dòng "So với <ngày>" gọn hơn** (`TrendTicker.tsx`): câu Fail TTM-CNTT cố định không còn in đậm; bỏ nền, viền và bo góc của khối — chỉ còn icon và chữ.
 - **Dòng "So với <ngày>": câu Fail TTM-CNTT cố định** (`TrendTicker.tsx`): sau "So với dd/mm/yyyy:" là câu "Số lượng Epic Fail TTM-CNTT …" đứng yên (chỉ số người xem quan tâm nhất), chỉ 5 câu còn lại lần lượt hiện kiểu lớn dần từ dưới lên, mỗi câu 3 giây (số thứ tự n/5).

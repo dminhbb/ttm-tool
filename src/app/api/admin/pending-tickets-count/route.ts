@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
 import pool from '@/lib/db';
+import { countUnreadRegistrations } from '@/lib/user-admin-report-service';
 
 /** Lightweight count for the sidebar's "Quản lý User" red dot — avoids fetching the full user
  * list / ticket list just to know whether either queue is non-empty (see admin/users/page.tsx for
@@ -10,13 +11,11 @@ import pool from '@/lib/db';
 export async function GET(request: NextRequest) {
   try {
     const user = await requireUser(request, ['ADMIN', 'SUPERADMIN', 'SUPERVISOR']);
-    const result = await pool.query<{ total: string }>(`
-      SELECT
-        (SELECT COUNT(*) FROM password_reset_requests WHERE status = 'PENDING')
-        + (SELECT COUNT(*) FROM users u WHERE u.is_active = FALSE
-             AND NOT EXISTS (SELECT 1 FROM user_registration_reads r WHERE r.reader_user_id = $1 AND r.registered_user_id = u.id)) AS total;
-    `, [user.id]);
-    return NextResponse.json({ total: Number(result.rows[0]?.total ?? 0) });
+    const [tickets, unreadRegistrations] = await Promise.all([
+      pool.query<{ total: string }>("SELECT COUNT(*) AS total FROM password_reset_requests WHERE status = 'PENDING';"),
+      countUnreadRegistrations(user.id),
+    ]);
+    return NextResponse.json({ total: Number(tickets.rows[0]?.total ?? 0) + unreadRegistrations });
   } catch (error) {
     if (error instanceof AuthError) {
       return NextResponse.json({ error: error.code === 'FORBIDDEN' ? 'Bạn không có quyền xem thống kê này.' : 'Chưa đăng nhập.' }, { status: error.code === 'FORBIDDEN' ? 403 : 401 });
