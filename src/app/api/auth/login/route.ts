@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PUBLIC_RATE_LIMITS, rateLimitResponse } from '@/lib/api-rate-limit';
+import { loginFailureLimitResponse, recordLoginFailure } from '@/lib/api-rate-limit';
 import { authenticateLocal, createSession, sessionCookieOptions } from '@/modules/iam/public';
 
 export async function POST(request: NextRequest) {
   try {
-    const limited = rateLimitResponse(request, 'login', PUBLIC_RATE_LIMITS.login);
-    if (limited) return limited;
     const body: unknown = await request.json();
     if (typeof body !== 'object' || body === null || !('username' in body) || !('password' in body) || !('remember' in body)
       || typeof body.username !== 'string' || typeof body.password !== 'string' || typeof body.remember !== 'boolean'
@@ -15,8 +13,14 @@ export async function POST(request: NextRequest) {
     }
     const captchaId = 'captchaId' in body && typeof body.captchaId === 'string' ? body.captchaId : undefined;
     const captcha = 'captcha' in body && typeof body.captcha === 'string' ? body.captcha : undefined;
+    // Only FAILED sign-ins are limited (review 2026-11-04): the staff share a few egress addresses, so a limit on every
+    // attempt would refuse ordinary morning sign-ins. Checked before the password is hashed.
+    const limited = loginFailureLimitResponse(request, body.username);
+    if (limited) return limited;
     const authResult = await authenticateLocal(body.username, body.password, captchaId, captcha);
     if ('error' in authResult) {
+      // An inactive account is not a guessing attempt (the password was right).
+      if (authResult.error !== 'INACTIVE') recordLoginFailure(request, body.username);
       if (authResult.error === 'INACTIVE') {
         return NextResponse.json({ error: 'User chưa kích hoạt, liên hệ admin hoặc domain lead để hỗ trợ.' }, { status: 403 });
       }

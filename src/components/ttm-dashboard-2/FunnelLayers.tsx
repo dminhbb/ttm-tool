@@ -49,8 +49,10 @@ export interface SplitSegment {
   ariaLabel: string;
   active?: boolean;
   dimmed?: boolean;
+  /** Left click when set (L04a / L04b of the main funnel: open the panel, then the layer detail) — else onOpenDetail. */
   onActivate?: () => void;
-  onContextMenu: (event: React.MouseEvent) => void;
+  /** Left click: the "Chi tiết layer" popup (owner 2026-11-04 — was the right click). */
+  onOpenDetail: () => void;
 }
 
 interface SplitLayerProps {
@@ -114,24 +116,23 @@ export function SplitLayer({ top, bottom, segments, minShare = 0.14, fontMain, f
 
       {geometry.map((item, index) => {
         const { segment } = item;
-        const interactive = Boolean(segment.onActivate);
+        const activate = segment.onActivate ?? segment.onOpenDetail;
         return (
           <g
             key={segment.key}
-            role={interactive ? 'button' : undefined}
-            tabIndex={interactive ? 0 : undefined}
+            role="button"
+            tabIndex={0}
             aria-label={segment.ariaLabel}
-            aria-pressed={interactive ? Boolean(segment.active) : undefined}
-            className={`outline-none transition-[opacity,filter] duration-200 ${interactive ? 'cursor-pointer' : 'cursor-context-menu'} ${
+            aria-pressed={segment.onActivate ? Boolean(segment.active) : undefined}
+            className={`cursor-pointer outline-none transition-[opacity,filter] duration-200 ${
               segment.active ? 'brightness-110 drop-shadow-md' : segment.dimmed ? 'opacity-60 hover:opacity-100' : 'hover:brightness-105'
             } focus-visible:drop-shadow-[0_0_3px_#1463f7]`}
-            onClick={segment.onActivate}
+            onClick={activate}
             onKeyDown={(event) => {
-              if (!segment.onActivate || (event.key !== 'Enter' && event.key !== ' ')) return;
+              if (event.key !== 'Enter' && event.key !== ' ') return;
               event.preventDefault();
-              segment.onActivate();
+              activate();
             }}
-            onContextMenu={segment.onContextMenu}
           >
             <path d={item.path} fill={segment.fill} />
             <ellipse cx={top.cx} cy={top.cy} rx={top.rx} ry={top.ry} fill={segment.lidFill} clipPath={`url(#${clipPrefix}-${index})`} />
@@ -156,7 +157,7 @@ export function SplitLayer({ top, bottom, segments, minShare = 0.14, fontMain, f
 
       {/* Callouts for groups too narrow for their text */}
       {callouts.map((item) => (
-        <g key={`callout-${item.segment.key}`} className="cursor-context-menu" onContextMenu={item.segment.onContextMenu} onClick={item.segment.onActivate}>
+        <g key={`callout-${item.segment.key}`} className="cursor-pointer" onClick={item.segment.onActivate ?? item.segment.onOpenDetail}>
           <path
             d={`M ${item.midX} ${midY} L ${item.elbowX} ${item.labelY} L ${item.endX} ${item.labelY}`}
             stroke={item.segment.calloutColor}
@@ -179,13 +180,25 @@ export function SplitLayer({ top, bottom, segments, minShare = 0.14, fontMain, f
 }
 
 /** A plain (unsplit) funnel layer: cone body + lid + count + label. */
-export function SolidLayer({ top, bottom, fill, lidFill, count, label, labelColor, fontMain, onContextMenu }: {
+export function SolidLayer({ top, bottom, fill, lidFill, count, label, labelColor, fontMain, onOpenDetail }: {
   top: Ellipse; bottom: Ellipse; fill: string; lidFill: string; count: number; label: string; labelColor: string; fontMain: number;
-  onContextMenu: (event: React.MouseEvent) => void;
+  /** Left click / Enter: the "Chi tiết layer" popup (owner 2026-11-04 — was the right click). */
+  onOpenDetail: () => void;
 }) {
   const midY = (top.cy + bottom.cy) / 2;
   return (
-    <g className="cursor-context-menu transition-all duration-200 hover:brightness-105" onContextMenu={onContextMenu}>
+    <g
+      aria-label={`${label}: ${fmt(count)} Epic — bấm để xem Chi tiết layer`}
+      className="cursor-pointer outline-none transition-all duration-200 hover:brightness-105 focus-visible:drop-shadow-[0_0_3px_var(--color-text-brand)]"
+      onClick={onOpenDetail}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        onOpenDetail();
+      }}
+      role="button"
+      tabIndex={0}
+    >
       <path
         d={`M ${top.cx - top.rx} ${top.cy} A ${top.rx} ${top.ry} 0 0 0 ${top.cx + top.rx} ${top.cy} L ${bottom.cx + bottom.rx} ${bottom.cy} A ${bottom.rx} ${bottom.ry} 0 0 1 ${bottom.cx - bottom.rx} ${bottom.cy} Z`}
         fill={fill}

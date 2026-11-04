@@ -6,6 +6,14 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-11-04
+
+- **TTM Dashboard 2 — phễu bấm chuột trái, tooltip biểu đồ tròn dễ đọc** (không đổi schema): bỏ chuột phải; bấm chuột trái vào một tầng / nhóm phễu mở popup Chi tiết layer (`FunnelLayers.tsx`: `onOpenDetail`, có thêm Enter/Space). Riêng L04a / L04b trên phễu chính: bấm lần 1 mở Panel 2 / 3, bấm lần 2 khi panel đó đang mở thì hiện Chi tiết layer (`activateSplitLayer`, `ttm-dashboard-2/page.tsx`); đóng panel bằng nút X. Tooltip của biểu đồ tròn (`DonutChartCard.tsx`) đổi sang nền sáng theo theme (`bg-fb-surface`, viền, chữ chính / phụ, dòng "Click để duyệt" màu brand) thay cho nền tối lẫn chữ; dòng hướng dẫn dưới phễu và Tài liệu sản phẩm mục 21.1 cập nhật theo.
+- **Sửa theo review bản pull "Dashboard trending"** (không đổi schema):
+  - *Giới hạn truy cập hợp với mạng công ty* (`api-rate-limit.ts`, `rate-limit.ts`, `api/auth/login/route.ts`): nhân viên đi ra Internet qua vài IP chung (NAT/proxy) nên "theo IP" = "theo văn phòng". Đăng nhập nay chỉ đếm lần **sai** (10 lần/15 phút cho mỗi IP + username, 100 lần/15 phút cho mỗi IP; kiểm tra trước khi băm mật khẩu bằng `peekRateLimit`, ghi khi thất bại bằng `recordLoginFailure`) — đăng nhập thành công không bao giờ bị chặn. Nới các giới hạn khác: captcha 120/phút, đăng ký và quên mật khẩu 30/giờ, Domain đăng ký 300/phút, trạng thái hệ thống 600/phút (DB đã được giữ kết quả 10 giây nên không tăng tải).
+  - *Biểu đồ "Xu hướng biến động chỉ số" ngắt đường thật khi thiếu mốc* (`ttm-dashboard-trend-service.ts`, `TrendChartsPanel.tsx`, kiểu `TtmTrendSeriesPoint`): mốc không có số liệu được giữ lại với `values: null` thay vì bị loại, nên trục X giữ đúng khoảng cách 5 lớp dữ liệu.
+  - *Không xóa lịch sử chỉ số theo phạm vi*: lịch sử của user bị inactive hoặc đổi role ADMIN ↔ USER được giữ (chỉ xóa theo hạn 400 ngày); khi một phạm vi đang dùng thiếu số liệu của lớp liền trước (user mới kích hoạt / đổi role), lần làm mới tự bổ sung một lần cho đúng các phạm vi thiếu (BACKFILL không ghi đè dòng đã có).
+
 ## 2026-11-03
 
 - **TTM Dashboard 2 — panel "Xu hướng biến động chỉ số" + 2 message tuần/tháng trước** (migration `20261115_create_ttm_dashboard_metric_history.sql`, đã áp dụng cho Supabase; local chưa chạy được):

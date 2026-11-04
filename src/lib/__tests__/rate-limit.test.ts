@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
-import { checkRateLimit, clientIpOf, createTtlMemo, MAX_RATE_LIMIT_KEYS, resetRateLimits } from '../rate-limit';
+import { checkRateLimit, clientIpOf, createTtlMemo, MAX_RATE_LIMIT_KEYS, peekRateLimit, resetRateLimits } from '../rate-limit';
 import { isSlowOperation, withSlowLog } from '../slow-operation';
 
 const rule = { limit: 3, windowMs: 60_000 };
@@ -28,6 +28,13 @@ describe('rate limit of the public endpoints', () => {
     // The oldest sources were dropped to make room: the newest is still counted.
     for (let i = 0; i < 3; i += 1) checkRateLimit(`flood:${MAX_RATE_LIMIT_KEYS + 499}`, rule, 0);
     assert.equal(checkRateLimit(`flood:${MAX_RATE_LIMIT_KEYS + 499}`, rule, 0).allowed, false);
+  });
+
+  it('peek tells whether one more would be refused, without counting (failure-only limits)', () => {
+    for (let i = 0; i < 10; i += 1) assert.equal(peekRateLimit('loginFail:1.1.1.1', rule, 0).allowed, true);
+    for (let i = 0; i < 3; i += 1) checkRateLimit('loginFail:1.1.1.1', rule, 0);
+    assert.deepEqual(peekRateLimit('loginFail:1.1.1.1', rule, 1_000), { allowed: false, retryAfterSeconds: 59 });
+    assert.equal(peekRateLimit('loginFail:1.1.1.1', rule, 60_000).allowed, true);
   });
 
   it('reads the caller from the proxy headers', () => {

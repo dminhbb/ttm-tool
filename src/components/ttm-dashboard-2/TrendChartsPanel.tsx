@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { ChartLineUp } from '@phosphor-icons/react';
 import { Tooltip } from '@/components/ui/Tooltip';
-import type { TtmTrendPoint, TtmTrendValues } from '@/lib/ttm-dashboard-trend';
+import type { TtmTrendSeriesPoint, TtmTrendValues } from '@/lib/ttm-dashboard-trend';
 
 /**
  * "Xu hướng biến động chỉ số" (owner 2026-11-03) — three trend charts under the funnel, in the style of the visit chart of
@@ -40,8 +40,11 @@ interface ChartPoint {
   y: number;
 }
 
-function MetricChart({ points, spec }: { points: readonly TtmTrendPoint[]; spec: ChartSpec }) {
-  const values = points.map((point) => spec.valueOf(point.values));
+/** The chart value of a point; null when the history has no numbers for that layer (a gap). */
+const valueAt = (point: TtmTrendSeriesPoint, spec: ChartSpec) => (point.values ? spec.valueOf(point.values) : null);
+
+function MetricChart({ points, spec }: { points: readonly TtmTrendSeriesPoint[]; spec: ChartSpec }) {
+  const values = points.map((point) => valueAt(point, spec));
   const known = values.filter((value): value is number => value !== null);
   // Counts start at 0; a percentage is drawn between its own lowest and highest values so a small drift is visible.
   const rawMin = spec.kind === 'count' ? 0 : known.length > 0 ? Math.floor(Math.min(...known) - 1) : 0;
@@ -51,7 +54,7 @@ function MetricChart({ points, spec }: { points: readonly TtmTrendPoint[]; spec:
   const span = Math.max(1, maxY - minY);
 
   const plot = React.useMemo<ChartPoint[]>(() => points.map((point, index) => {
-    const value = spec.valueOf(point.values);
+    const value = valueAt(point, spec);
     return {
       date: point.date,
       value,
@@ -128,8 +131,8 @@ function MetricChart({ points, spec }: { points: readonly TtmTrendPoint[]; spec:
   );
 }
 
-export function TrendChartsPanel({ series }: { series: readonly TtmTrendPoint[] }) {
-  if (series.length === 0) return null;
+export function TrendChartsPanel({ series }: { series: readonly TtmTrendSeriesPoint[] }) {
+  if (series.length === 0 || series.every((point) => point.values === null)) return null;
   const newest = series[series.length - 1].date;
   const oldest = series[0].date;
   return (

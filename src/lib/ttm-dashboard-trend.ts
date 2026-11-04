@@ -26,10 +26,17 @@ export interface TtmTrendPoint {
   values: TtmTrendValues;
 }
 
+/** One chart point: `values` null when the history holds nothing for that data layer — drawn as a gap, never a zero. */
+export interface TtmTrendSeriesPoint {
+  /** "YYYY-MM-DD". */
+  date: string;
+  values: TtmTrendValues | null;
+}
+
 /** What the dashboard API sends for the viewer's scope. */
 export interface TtmDashboardTrend {
   /** Company view only (the API leaves it out elsewhere): the chart points, oldest first — every 5th data layer back from the newest, 7 at most. */
-  series?: TtmTrendPoint[];
+  series?: TtmTrendSeriesPoint[];
   /** Company view only: the last data day of the previous week / month (null when the history has none that old). */
   weekRef?: TtmTrendPoint | null;
   monthRef?: TtmTrendPoint | null;

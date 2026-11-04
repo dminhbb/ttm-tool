@@ -18,6 +18,7 @@ import {
   trendValuesOf,
   type TtmDashboardTrend,
   type TtmTrendPoint,
+  type TtmTrendSeriesPoint,
   type TtmTrendValues,
 } from '@/lib/ttm-dashboard-trend';
 import { summarizeTtmFunnel, toTtmFunnelRow, TTM_FUNNEL_ROW_KEYS, type TtmFunnelRow } from '@/lib/ttm-funnel-summary';
@@ -160,8 +161,9 @@ export async function refreshDashboardTrendCache(): Promise<number> {
   const targets = await loadScopeTargets();
   await writeHistory(latest, 'DAILY', currentRows.rows, targets);
 
-  // Housekeeping of the history: past the retention, and scopes that no longer exist.
-  await pool.query('DELETE FROM ttm_dashboard_metric_history WHERE layer_date < $1::date OR scope_key <> ALL($2::text[]);', [daysBefore(latest, TREND_HISTORY_RETENTION_DAYS), targets.map((target) => target.scopeKey)]);
+  // Housekeeping of the history: past the retention only. A scope that is not current (a user made inactive, an ADMIN
+  // turned USER) keeps its rows, so they are there again if it comes back (review 2026-11-04); 400 days bound them.
+  await pool.query('DELETE FROM ttm_dashboard_metric_history WHERE layer_date < $1::date;', [daysBefore(latest, TREND_HISTORY_RETENTION_DAYS)]);
   await pool.query('DELETE FROM ttm_dashboard_fail_history WHERE layer_date < $1::date;', [daysBefore(latest, TREND_HISTORY_RETENTION_DAYS)]);
 
   if (layers.length < 2) {
@@ -169,8 +171,14 @@ export async function refreshDashboardTrendCache(): Promise<number> {
     return 0;
   }
   const previous = layers[1];
-  // The previous layer was the newest one yesterday, so it is normally there; a first deployment or a skipped day is filled once.
-  if (!(await datesWithHistory()).has(previous)) await backfillLayerHistory(previous);
+  // The previous layer was the newest one yesterday, so it is normally there for every scope. A first deployment, a skipped
+  // day, or a scope that had no row then (a user activated or given another role since) is filled once — BACKFILL keeps every
+  // existing row, so only the missing scopes are added.
+  const scopesWithPrevious = new Set((await pool.query<{ scopeKey: string }>(
+    'SELECT scope_key AS "scopeKey" FROM ttm_dashboard_metric_history WHERE layer_date = $1::date;',
+    [previous],
+  )).rows.map((row) => row.scopeKey));
+  if (targets.some((target) => !scopesWithPrevious.has(target.scopeKey))) await backfillLayerHistory(previous);
 
   const seriesDates = pickSeriesDates(layers);
   const history = await pool.query<{ date: string; scopeKey: string; values: TtmTrendValues }>(
@@ -204,7 +212,8 @@ export async function refreshDashboardTrendCache(): Promise<number> {
       const before = valueAt.get(`${scopeKey}|${previous}`);
       if (!current || !before) continue; // a scope the history does not know yet (new user): no ticker until its next day
       const newFail = failKeysOf(inScope(currentRows.rows, scope)).filter((key) => !previousFail.has(key));
-      const series = seriesDates.map((date) => pointOf(scopeKey, date)).filter((point): point is TtmTrendPoint => point !== null);
+      // Every chart date is kept: one without numbers is a gap in the line (TrendChartsPanel), so the 5-layer spacing holds.
+      const series: TtmTrendSeriesPoint[] = seriesDates.map((date) => ({ date, values: valueAt.get(`${scopeKey}|${date}`) ?? null }));
       await client.query(
         `INSERT INTO ttm_dashboard_trend_cache (scope_key, latest_layer_date, compared_layer_date, current_values, previous_values, new_fail_epic_keys, series, week_ref, month_ref)
          VALUES ($1, $2::date, $3::date, $4::jsonb, $5::jsonb, $6::text[], $7::jsonb, $8::jsonb, $9::jsonb)`,

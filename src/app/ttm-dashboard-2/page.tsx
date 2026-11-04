@@ -160,7 +160,7 @@ export default function TtmDashboard2Page() {
   // Lead view for every user: company-wide numbers by default, 'own' = the viewer's own scope.
   const [scopeChoice, setScopeChoice] = useState<'lead' | 'own'>('lead');
 
-  // Layer Detail Modal (opened via right-click on a layer/group)
+  // Layer Detail Modal (opened by a left click on a layer/group — L04a / L04b: the second click, once their panel is open)
   const [detailModalId, setDetailModalId] = useState<NodeId | null>(null);
 
   // Right-side detail panel (accordion). `shownRightPanel` keeps the last panel's content mounted
@@ -382,14 +382,14 @@ export default function TtmDashboard2Page() {
     setEpicModal({ title: params.title, url });
   };
 
-  const handleContextMenu = (e: React.MouseEvent, id: NodeId) => {
-    e.preventDefault();
-    setDetailModalId(id);
-  };
+  /** "Chi tiết layer" of a funnel layer — left click since 2026-11-04 (was the right click). */
+  const openLayerDetail = (id: NodeId) => setDetailModalId(id);
 
-  const toggleRightPanel = (panel: RightPanel) => {
+  /** L04a / L04b of the main funnel: the first click opens its panel; once that panel is shown, a click opens the layer detail. */
+  const activateSplitLayer = (panel: RightPanel, id: NodeId) => {
+    if (activeRightPanel === panel) { openLayerDetail(id); return; }
     setShownRightPanel(panel);
-    setActiveRightPanel((prev) => (prev === panel ? null : panel));
+    setActiveRightPanel(panel);
   };
 
   const filteredUsersForModal = useMemo(() => {
@@ -458,7 +458,7 @@ export default function TtmDashboard2Page() {
   );
 
   // -------------------------------------------------------------------------------------------
-  // Popup content per criterion (right-click)
+  // Popup content per criterion (left click)
   // -------------------------------------------------------------------------------------------
   const nodeDetails: Record<NodeId, NodeDetail> = {
     L01: {
@@ -975,7 +975,7 @@ export default function TtmDashboard2Page() {
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-fb-text-placeholder bg-fb-surface-muted px-2.5 py-1 rounded-lg border border-fb-border">
               <Info className="size-3.5 text-fb-blue shrink-0" weight="bold" />
-              <span>Bấm <strong>chuột phải</strong> vào tiêu chí để xem công thức • Bấm <strong>chuột trái vào Hoàn thành / Chưa hoàn thành</strong> để mở phễu chi tiết</span>
+              <span>Bấm vào tiêu chí để xem công thức • <strong>Hoàn thành / Chưa hoàn thành</strong>: bấm lần 1 mở phễu chi tiết, bấm lần 2 xem công thức</span>
             </div>
           </div>
 
@@ -990,7 +990,7 @@ export default function TtmDashboard2Page() {
                 label="Tổng epic"
                 labelColor="#e0f2fe"
                 fontMain={22}
-                onContextMenu={(e) => handleContextMenu(e, 'L01')}
+                onOpenDetail={() => openLayerDetail('L01')}
               />
               <SolidLayer
                 top={{ cx: 220, cy: 125, rx: 145, ry: 17 }}
@@ -1001,7 +1001,7 @@ export default function TtmDashboard2Page() {
                 label="Phạm vi tính TTM"
                 labelColor="#ffe4e6"
                 fontMain={21}
-                onContextMenu={(e) => handleContextMenu(e, 'L02')}
+                onOpenDetail={() => openLayerDetail('L02')}
               />
               <SolidLayer
                 top={{ cx: 220, cy: 215, rx: 105, ry: 13 }}
@@ -1012,7 +1012,7 @@ export default function TtmDashboard2Page() {
                 label="Chuẩn hoá dữ liệu"
                 labelColor="#dbeafe"
                 fontMain={20}
-                onContextMenu={(e) => handleContextMenu(e, 'L03')}
+                onOpenDetail={() => openLayerDetail('L03')}
               />
               {/* L04: L04a Epic hoàn thành | L04b Epic chưa hoàn thành */}
               <SplitLayer
@@ -1025,17 +1025,17 @@ export default function TtmDashboard2Page() {
                 segments={[
                   {
                     key: '4a', count: l4a, alwaysShow: true, fill: '#0284c7', lidFill: '#0369a1', calloutColor: '#0369a1',
-                    main: fmt(l4a), sub: 'Hoàn thành', ariaLabel: `L04a — ${l4a} Epic hoàn thành: bấm để mở/đóng Panel 2`,
+                    main: fmt(l4a), sub: 'Hoàn thành', ariaLabel: `L04a — ${l4a} Epic hoàn thành: bấm để mở Panel 2, bấm lần nữa để xem Chi tiết layer`,
                     active: activeRightPanel === 'COMPLETED', dimmed: activeRightPanel === 'IN_PROGRESS',
-                    onActivate: () => toggleRightPanel('COMPLETED'),
-                    onContextMenu: (e) => handleContextMenu(e, 'L04a'),
+                    onActivate: () => activateSplitLayer('COMPLETED', 'L04a'),
+                    onOpenDetail: () => openLayerDetail('L04a'),
                   },
                   {
                     key: '4b', count: l4b, alwaysShow: true, fill: '#d97706', lidFill: '#b45309', calloutColor: '#b45309',
-                    main: fmt(l4b), sub: 'Chưa hoàn thành', ariaLabel: `L04b — ${l4b} Epic chưa hoàn thành: bấm để mở/đóng Panel 3`,
+                    main: fmt(l4b), sub: 'Chưa hoàn thành', ariaLabel: `L04b — ${l4b} Epic chưa hoàn thành: bấm để mở Panel 3, bấm lần nữa để xem Chi tiết layer`,
                     active: activeRightPanel === 'IN_PROGRESS', dimmed: activeRightPanel === 'COMPLETED',
-                    onActivate: () => toggleRightPanel('IN_PROGRESS'),
-                    onContextMenu: (e) => handleContextMenu(e, 'L04b'),
+                    onActivate: () => activateSplitLayer('IN_PROGRESS', 'L04b'),
+                    onOpenDetail: () => openLayerDetail('L04b'),
                   },
                 ]}
               />
@@ -1117,7 +1117,7 @@ export default function TtmDashboard2Page() {
                           label="Epic hoàn thành"
                           labelColor="#e0f2fe"
                           fontMain={21}
-                          onContextMenu={(e) => handleContextMenu(e, 'L04a')}
+                          onOpenDetail={() => openLayerDetail('L04a')}
                         />
                         <SplitLayer
                           top={detailMid}
@@ -1130,17 +1130,17 @@ export default function TtmDashboard2Page() {
                             {
                               key: '5aa', count: passCount, alwaysShow: true, fill: '#059669', lidFill: '#047857', calloutColor: '#047857',
                               main: `Đạt ${fmt(passCount)}`, sub: 'TTM-CNTT', ariaLabel: `L05aa — ${passCount} Epic đạt TTM-CNTT`,
-                              onContextMenu: (e) => handleContextMenu(e, 'L05aa'),
+                              onOpenDetail: () => openLayerDetail('L05aa'),
                             },
                             {
                               key: '5ac', count: notScoredCount, fill: '#94a3b8', lidFill: '#64748b', calloutColor: '#475569',
                               main: `Chưa kết luận ${fmt(notScoredCount)}`, sub: 'Thiếu Target', ariaLabel: `L05ac — ${notScoredCount} Epic chưa kết luận`,
-                              onContextMenu: (e) => handleContextMenu(e, 'L05ac'),
+                              onOpenDetail: () => openLayerDetail('L05ac'),
                             },
                             {
                               key: '5ab', count: lateCount, alwaysShow: true, fill: '#dc2626', lidFill: '#b91c1c', calloutColor: '#dc2626',
                               main: `Không đạt ${fmt(lateCount)}`, sub: 'Nhóm 1 · Trễ R4G', ariaLabel: `L05ab — ${lateCount} Epic không đạt TTM-CNTT (nhóm 1: R4G Date muộn hơn Target)`,
-                              onContextMenu: (e) => handleContextMenu(e, 'L05ab'),
+                              onOpenDetail: () => openLayerDetail('L05ab'),
                             },
                           ]}
                         />
@@ -1167,7 +1167,7 @@ export default function TtmDashboard2Page() {
                           label="Epic chưa hoàn thành"
                           labelColor="#fef3c7"
                           fontMain={21}
-                          onContextMenu={(e) => handleContextMenu(e, 'L04b')}
+                          onOpenDetail={() => openLayerDetail('L04b')}
                         />
                         <SplitLayer
                           top={detailMid}
@@ -1180,12 +1180,12 @@ export default function TtmDashboard2Page() {
                             {
                               key: '5bb', count: withinCount, alwaysShow: true, fill: '#2563eb', lidFill: '#1d4ed8', calloutColor: '#1d4ed8',
                               main: `Trong hạn ${fmt(withinCount)}`, sub: 'Chưa quá Target', ariaLabel: `L05bb — ${withinCount} Epic trong hạn`,
-                              onContextMenu: (e) => handleContextMenu(e, 'L05bb'),
+                              onOpenDetail: () => openLayerDetail('L05bb'),
                             },
                             {
                               key: '5ba', count: overdueCount, alwaysShow: true, fill: '#dc2626', lidFill: '#b91c1c', calloutColor: '#dc2626',
                               main: `Không đạt ${fmt(overdueCount)}`, sub: 'Nhóm 2 · Quá Target', ariaLabel: `L05ba — ${overdueCount} Epic không đạt TTM-CNTT (nhóm 2: chưa có R4G Date, quá Target)`,
-                              onContextMenu: (e) => handleContextMenu(e, 'L05ba'),
+                              onOpenDetail: () => openLayerDetail('L05ba'),
                             },
                           ]}
                         />

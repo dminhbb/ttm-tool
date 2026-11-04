@@ -54,6 +54,16 @@ export function checkRateLimit(key: string, rule: RateLimitRule, now: number = D
   return { allowed: true, retryAfterSeconds: 0 };
 }
 
+/**
+ * Would one more request of `key` be refused? Counts nothing — for limits on FAILURES only (login): check before the
+ * work, and record with checkRateLimit only when the attempt failed, so successful requests never use the budget.
+ */
+export function peekRateLimit(key: string, rule: RateLimitRule, now: number = Date.now()): RateLimitDecision {
+  const existing = buckets.get(key);
+  if (!existing || existing.resetAt <= now || existing.count < rule.limit) return { allowed: true, retryAfterSeconds: 0 };
+  return { allowed: false, retryAfterSeconds: Math.max(1, Math.ceil((existing.resetAt - now) / 1000)) };
+}
+
 /** For tests. */
 export function resetRateLimits(): void {
   buckets.clear();

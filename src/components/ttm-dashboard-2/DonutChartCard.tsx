@@ -170,7 +170,7 @@ export function DonutChartCard({
         {/* Floating Tooltip - absolute with zero transition lag to prevent jitter */}
         {tooltipState?.visible && activeItem && (
           <div
-            className="pointer-events-none absolute z-30 -translate-x-1/2 -translate-y-full rounded-lg bg-fb-text-primary/95 px-2.5 py-1.5 text-xs text-white shadow-lg backdrop-blur-xs select-none"
+            className="pointer-events-none absolute z-30 -translate-x-1/2 -translate-y-full rounded-lg border border-fb-border bg-fb-surface px-2.5 py-1.5 text-xs text-fb-text-primary shadow-lg select-none"
             style={{ left: tooltipState.x, top: tooltipState.y - 10 }}
           >
             <div className="flex items-center gap-1.5 font-semibold">
@@ -180,11 +180,11 @@ export function DonutChartCard({
               />
               <span className="truncate max-w-[150px]">{activeItem.name}</span>
             </div>
-            <div className="mt-0.5 text-[11px] text-fb-text-placeholder">
-              {formatEpicCount(activeItem.value)} {unitLabel} &bull; <strong className="text-status-warning font-bold text-xs">{activeItem.pct}%</strong>
+            <div className="mt-0.5 text-[11px] text-fb-text-secondary">
+              {formatEpicCount(activeItem.value)} {unitLabel} &bull; <strong className="text-xs font-bold text-fb-text-primary">{activeItem.pct}%</strong>
             </div>
             {onItemClick && (
-              <div className="mt-1 border-t border-fb-border-strong/80 pt-1 text-[11px] text-fb-blue">
+              <div className="mt-1 border-t border-fb-border pt-1 text-[11px] font-semibold text-[var(--color-text-brand)]">
                 Click để duyệt danh sách Epic
               </div>
             )}
