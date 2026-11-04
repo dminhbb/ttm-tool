@@ -1,6 +1,6 @@
 # TTM Monitor — ERD & từ điển dữ liệu
 
-> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-03.
+> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-04.
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
@@ -636,6 +636,10 @@ erDiagram
         varchar request_type
         text ttm_applied
         text except_ttm_plan
+        text subtask_assignees_role
+        date subtask_resolved
+        date story_real_start_date
+        date epic_real_start_date
     }
     denied_import_epics {
         varchar epic_key PK
@@ -760,6 +764,10 @@ Bảng canonical lưu trữ toàn bộ issue mọi cấp (Epic/Story/Subtask). G
 | `request_type` | varchar(255) | có |  |  |  |
 | `ttm_applied` | text | có |  |  |  |
 | `except_ttm_plan` | text | có |  |  |  |
+| `subtask_assignees_role` | text | có |  |  | `TEXT`Dòng Subtask: "Assignee's Role" trên Jira (cột CSV `subtask_Assignees_Role`, nhiều giá trị nối bằng dấu phẩy, lưu nguyên văn) — crawl tool V16 |
+| `subtask_resolved` | date | có |  |  | `DATE`Dòng Subtask: ngày "Resolved" trên Jira (cột CSV `subtask_Resolved`) — crawl tool V16 |
+| `story_real_start_date` | date | có |  |  | `DATE`Dòng Story: ngày bắt đầu thực tế do crawl tool tính (cột CSV `Story_Real_Start_Date`) — V16 |
+| `epic_real_start_date` | date | có |  |  | `DATE`Dòng Epic: ngày bắt đầu thực tế do crawl tool tính (cột CSV `Epic_Real_Start_Date`) — V16.1; dòng import trống / NULL được chép giá trị từ dòng mới nhất trước đó của Epic cùng key |
 
 - index `idx_issues_aggregated_at`: btree (aggregated_at)
 - index `idx_issues_batch_id`: btree (source_import_batch_id)

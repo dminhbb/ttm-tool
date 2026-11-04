@@ -87,6 +87,30 @@ export async function carryForwardMissingTtmAppliedColumns(client: Pick<PoolClie
 }
 
 /**
+ * Epic_Real_Start_Date (crawl tool V16.1, owner 2026-11-04): an Epic row of this batch whose value is empty (no column,
+ * '' or 'NULL') takes the value of the Epic's newest earlier version that has one (aggregated_at not after this batch's)
+ * — run inside the import transaction, so the batch is committed with the value already in place. Since every import
+ * carries it over, that newest earlier non-empty value is the one of the Epic's previous row. No earlier value → stays
+ * NULL. Returns how many rows were filled.
+ */
+export async function carryForwardEpicRealStartDate(client: Pick<PoolClient, 'query'>, batchId: number): Promise<number> {
+  const result = await client.query(`
+    UPDATE issues cur SET epic_real_start_date = prev.epic_real_start_date
+    FROM (
+      SELECT DISTINCT ON (p.issue_key) p.issue_key, p.epic_real_start_date
+      FROM issues p
+      JOIN issues b ON b.issue_key = p.issue_key AND b.source_import_batch_id = $1
+      WHERE p.source_import_batch_id <> $1 AND p.aggregated_at <= b.aggregated_at AND p.epic_real_start_date IS NOT NULL
+        AND UPPER(b.issue_type) IN (${EPIC_ISSUE_TYPES_SQL}) AND b.epic_real_start_date IS NULL
+      ORDER BY p.issue_key, p.aggregated_at DESC, p.id DESC
+    ) prev
+    WHERE cur.source_import_batch_id = $1 AND cur.issue_key = prev.issue_key AND cur.epic_real_start_date IS NULL
+      AND UPPER(cur.issue_type) IN (${EPIC_ISSUE_TYPES_SQL});
+  `, [batchId]);
+  return result.rowCount ?? 0;
+}
+
+/**
  * Derives the alert timeline for one import batch from the canonical `issues` rows already stored
  * for it (Cảnh báo muộn/Fail TTM-CNTT/E2E, thiếu Start Date, dữ liệu bất thường, as of that batch's
  * aggregatedAtDate). Every Epic is judged by the Epic Scoring Service — the same verdicts every screen
@@ -397,6 +421,8 @@ export async function processImport(
         'jira_created_at', 'jira_updated_at', 'epic_stories', 'story_subtasks', 'components',
         'previous_status', 'khau_ba', 'khau_co', 'khau_dev', 'khau_pm_sm', 'khau_po', 'khau_pentest', 'khau_sa', 'khau_sit_uat', 'note_ly_do_khac', 'main_fail_dept', 'ttm_applied', 'except_ttm_plan',
         'project_key', 'request_type',
+        // Crawl tool V16 / V16.1 (2026-11-04) — 43 columns × 500 rows stays far below the 65535-parameter limit.
+        'subtask_assignees_role', 'subtask_resolved', 'story_real_start_date', 'epic_real_start_date',
       ];
       const insertIssueUpdateClause = `
         ON CONFLICT (issue_key, source_import_batch_id) DO UPDATE SET
@@ -434,6 +460,10 @@ export async function processImport(
           except_ttm_plan = EXCLUDED.except_ttm_plan,
           project_key = EXCLUDED.project_key,
           request_type = EXCLUDED.request_type,
+          subtask_assignees_role = EXCLUDED.subtask_assignees_role,
+          subtask_resolved = EXCLUDED.subtask_resolved,
+          story_real_start_date = EXCLUDED.story_real_start_date,
+          epic_real_start_date = EXCLUDED.epic_real_start_date,
           updated_at = NOW();
       `;
 
@@ -489,6 +519,11 @@ export async function processImport(
           issue.projectKey?.trim() || issue.issueKey.split('-')[0] || null,
           // The original "Loại yêu cầu" text (issue.epicType); complexity above is only its CT/SP classification.
           issue.epicType?.trim() || null,
+          // Crawl tool V16 / V16.1: '' and 'NULL' are already undefined (crawlCellValue); an unreadable date is stored as NULL.
+          issue.subtaskAssigneesRole || null,
+          issue.subtaskResolved ? parseJiraDate(issue.subtaskResolved) : null,
+          issue.storyRealStartDate ? parseJiraDate(issue.storyRealStartDate) : null,
+          issue.epicRealStartDate ? parseJiraDate(issue.epicRealStartDate) : null,
         ];
       });
 
@@ -510,6 +545,8 @@ export async function processImport(
       // issue's previous version instead of storing NULL (2026-10-27).
       const ttmColumns = ttmAppliedColumnsOf(parsedHeaders);
       await carryForwardMissingTtmAppliedColumns(client, batchId, ttmColumns);
+      // 4a'. Epic_Real_Start_Date empty → the Epic's previous value (owner 2026-11-04), whatever the file / adapter.
+      await carryForwardEpicRealStartDate(client, batchId);
 
       // 4b. "TTM-applied" = 'Không áp dụng' → black list (inside this transaction, so the caches refreshed after COMMIT see it).
       // Only a file that carries the column decides — otherwise every Epic would read as "Theo quy định" and lose its

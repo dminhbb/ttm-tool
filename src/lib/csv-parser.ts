@@ -49,6 +49,17 @@ export interface RawJiraIssue {
   mainFailDept?: string;   // main_fail_dept — "Phòng chịu trách nhiệm chính" (2026-10-14)
   ttmApplied?: string;     // "TTM-applied" (2026-10-26)
   exceptTtmPlan?: string;  // "except-TTM-plan" (2026-10-26)
+  // Crawl tool V16 / V16.1 (Py Jira API adapter only, 2026-11-04) — kept verbatim; '' / 'NULL' mean empty.
+  subtaskAssigneesRole?: string; // subtask_Assignees_Role — SUBTASK rows, Jira "Assignee's Role" (values joined by ',')
+  subtaskResolved?: string;      // subtask_Resolved — SUBTASK rows, Jira "Resolved" (YYYY-MM-DD)
+  storyRealStartDate?: string;   // Story_Real_Start_Date — STORY rows, computed by the crawl tool (YYYY-MM-DD)
+  epicRealStartDate?: string;    // Epic_Real_Start_Date — EPIC rows, computed by the crawl tool (YYYY-MM-DD)
+}
+
+/** A cell the crawl tool writes as '' or 'NULL' for "no value" → undefined; anything else trimmed. */
+export function crawlCellValue(value: string | undefined): string | undefined {
+  const text = value?.trim() ?? '';
+  return text === '' || text.toUpperCase() === 'NULL' ? undefined : text;
 }
 
 export function parseCSV(csvText: string): string[][] {

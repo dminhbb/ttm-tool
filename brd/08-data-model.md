@@ -213,6 +213,11 @@ requirement_level
 components                 -- TEXT[], Epic/Story's Jira Component/s — dùng cho lọc theo Component
 epic_stories                -- TEXT[], danh sách Story key con trực tiếp của Epic (Py Jira API adapter)
 story_subtasks              -- TEXT[], danh sách Subtask key con trực tiếp của Story (Py Jira API adapter)
+subtask_assignees_role      -- TEXT, dòng Subtask: Jira "Assignee's Role" (subtask_Assignees_Role, nhiều giá trị nối bằng ',') — V16
+subtask_resolved            -- DATE, dòng Subtask: Jira "Resolved" (subtask_Resolved) — V16
+story_real_start_date       -- DATE, dòng Story: ngày bắt đầu thực tế do crawl tool tính (Story_Real_Start_Date) — V16
+epic_real_start_date        -- DATE, dòng Epic: ngày bắt đầu thực tế do crawl tool tính (Epic_Real_Start_Date) — V16.1;
+                            -- dòng import trống / NULL → chép giá trị từ dòng mới nhất trước đó của Epic cùng key
 previous_status            -- VARCHAR(50), ghi nhận status trước của status hiện tại (Py Jira API: epic_previous_status)
 khau_ba                    -- TEXT, vai trò khâu BA gây ra vấn đề Fail TTM-CNTT (epic_khau_ba)
 khau_co                    -- TEXT, vai trò khâu CO (epic_khau_co)

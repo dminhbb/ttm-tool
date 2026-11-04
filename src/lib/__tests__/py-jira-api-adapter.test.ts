@@ -2,6 +2,43 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { parsePyJiraApi } from '@/lib/adapters/py-jira-api-adapter';
 
+describe('PyJiraApiAdapter — crawl tool V16 / V16.1 columns (2026-11-04)', () => {
+  const header = 'hierarchy_level,project_key,epic_key,epic_name,Epic_Real_Start_Date,story_key,story_issue_type,story_summary,story_subtasks,Story_Real_Start_Date,subtask_key,subtask_issue_type,subtask_summary,subtask_Assignees_Role,subtask_Resolved';
+
+  it('reads each field on its own row type, whatever the header case', () => {
+    const csv = [
+      header,
+      'EPIC,BPMCN,BPMCN-1,Epic một,2026-09-01,,,,,,,,,,',
+      'STORY,BPMCN,BPMCN-1,,,BPMCN-2,Story,Story một,BPMCN-3,2026-09-05,,,,,',
+      'SUBTASK,BPMCN,BPMCN-1,,,BPMCN-2,,,,,BPMCN-3,Sub-task,Việc một,"DEV,QA",2026-09-20',
+    ].join('\n');
+    const [epic, story, subtask] = parsePyJiraApi(csv).issues;
+    assert.equal(epic.epicRealStartDate, '2026-09-01');
+    assert.equal(story.storyRealStartDate, '2026-09-05');
+    assert.equal(subtask.subtaskAssigneesRole, 'DEV,QA');
+    assert.equal(subtask.subtaskResolved, '2026-09-20');
+    // Not carried onto the other row types.
+    assert.equal(story.epicRealStartDate, undefined);
+    assert.equal(epic.storyRealStartDate, undefined);
+  });
+
+  it('treats an empty cell, "NULL" (any case) or a missing column as no value', () => {
+    const csv = [
+      header,
+      'EPIC,BPMCN,BPMCN-1,Epic một,NULL,,,,,,,,,,',
+      'STORY,BPMCN,BPMCN-1,,,BPMCN-2,Story,Story một,,null,,,,,',
+      'SUBTASK,BPMCN,BPMCN-1,,,BPMCN-2,,,,,BPMCN-3,Sub-task,Việc một,,',
+    ].join('\n');
+    const [epic, story, subtask] = parsePyJiraApi(csv).issues;
+    assert.equal(epic.epicRealStartDate, undefined);
+    assert.equal(story.storyRealStartDate, undefined);
+    assert.equal(subtask.subtaskAssigneesRole, undefined);
+    assert.equal(subtask.subtaskResolved, undefined);
+    const old = parsePyJiraApi('hierarchy_level,project_key,epic_key,epic_name\nEPIC,BPMCN,BPMCN-1,Epic cũ').issues[0];
+    assert.equal(old.epicRealStartDate, undefined);
+  });
+});
+
 describe('PyJiraApiAdapter — new CSV fields (previous_status & khau_* causes)', () => {
   it('correctly parses epic_previous_status and 9 epic_khau_* fields when present', () => {
     const csvHeader = 'hierarchy_level,project_key,epic_key,epic_name,epic_status,epic_previous_status,epic_request_type,epic_request_level,epic_requesting_unit,epic_assignee,epic_idea_approval_date,epic_start_date,epic_due_date,epic_r4g_date,epic_created,epic_updated,epic_Components,epic_khau_ba,epic_khau_co,epic_khau_dev,epic_khau_pm_sm,epic_khau_po,epic_khau_pentest,epic_khau_sa,epic_khau_sit_uat,epic_note_ly_do_khac,epic_stories';

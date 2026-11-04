@@ -389,7 +389,7 @@
         Cơ sở dữ liệu của TTM Monitor dùng <strong>PostgreSQL</strong> (đang chạy 17.6), gồm <strong>70 bảng</strong> trong schema <code>public</code>,
         <strong>55 khoá ngoại</strong>, 4 hàm và 4 trigger; không dùng view, extension hay Row Level Security.
         Cấu trúc thay đổi duy nhất qua chuỗi migration <code>db/migrations/*.sql</code> (chạy bằng <code>scripts/migrate-db.js</code>, ghi vào <code>schema_migrations</code>).
-        Toàn bộ chương này được sinh từ CSDL Supabase ngày 03/11/2026 bởi <code>scripts/db-schema-export.js</code> — cùng lần chạy sinh ra
+        Toàn bộ chương này được sinh từ CSDL Supabase ngày 04/11/2026 bởi <code>scripts/db-schema-export.js</code> — cùng lần chạy sinh ra
         file tạo CSDL mới <code>db/install/ttm-monitor-schema.sql</code> (chỉ cấu trúc, không dữ liệu) và tài liệu ERD chi tiết <code>docs/database-erd.md</code> (sơ đồ Mermaid từng nhóm + từ điển dữ liệu).
       </p>
 
@@ -470,7 +470,7 @@
         </g>
       </svg>
 
-      <h3>5.2. Danh mục 70 bảng CSDL (đối chiếu CSDL Supabase 03/11/2026)</h3>
+      <h3>5.2. Danh mục 70 bảng CSDL (đối chiếu CSDL Supabase 04/11/2026)</h3>
       <table>
         <thead><tr><th>STT</th><th>Bảng CSDL</th><th>Nhóm</th><th>Khoá chính / Khoá ngoại</th><th>Vai trò nghiệp vụ &amp; Ghi chú</th></tr></thead>
         <tbody>
@@ -899,6 +899,10 @@
               <tr><td><code>request_type</code></td><td><code>VARCHAR(255)</code></td><td>—</td><td></td></tr>
               <tr><td><code>ttm_applied</code></td><td><code>TEXT</code></td><td>—</td><td></td></tr>
               <tr><td><code>except_ttm_plan</code></td><td><code>TEXT</code></td><td>—</td><td></td></tr>
+              <tr><td><code>subtask_assignees_role</code></td><td><code>TEXT</code></td><td>—</td><td><code>TEXT</code></td><td>Dòng Subtask: "Assignee's Role" trên Jira (cột CSV <code>subtask_Assignees_Role</code>, nhiều giá trị nối bằng dấu phẩy, lưu nguyên văn) — crawl tool V16</td></tr>
+              <tr><td><code>subtask_resolved</code></td><td><code>DATE</code></td><td>—</td><td><code>DATE</code></td><td>Dòng Subtask: ngày "Resolved" trên Jira (cột CSV <code>subtask_Resolved</code>) — crawl tool V16</td></tr>
+              <tr><td><code>story_real_start_date</code></td><td><code>DATE</code></td><td>—</td><td><code>DATE</code></td><td>Dòng Story: ngày bắt đầu thực tế do crawl tool tính (cột CSV <code>Story_Real_Start_Date</code>) — V16</td></tr>
+              <tr><td><code>epic_real_start_date</code></td><td><code>DATE</code></td><td>—</td><td><code>DATE</code></td><td>Dòng Epic: ngày bắt đầu thực tế do crawl tool tính (cột CSV <code>Epic_Real_Start_Date</code>) — V16.1; dòng import trống / NULL được chép giá trị từ dòng mới nhất trước đó của Epic cùng key</td></tr>
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li>Index <code>idx_issues_aggregated_at</code>: <code>btree (aggregated_at)</code></li><li>Index <code>idx_issues_batch_id</code>: <code>btree (source_import_batch_id)</code></li><li>Index <code>idx_issues_epic_id</code>: <code>btree (epic_id) WHERE (epic_id IS NOT NULL)</code></li><li>Index <code>idx_issues_epic_key_aggregated_at</code>: <code>btree (epic_key, aggregated_at DESC) WHERE (epic_key IS NOT NULL)</code></li><li>Index <code>idx_issues_key_aggregated_at</code>: <code>btree (issue_key, aggregated_at DESC)</code></li><li>Index <code>idx_issues_key_batch</code>: <code>UNIQUE btree (issue_key, source_import_batch_id)</code></li><li>Index <code>idx_issues_parent_id</code>: <code>btree (parent_id) WHERE (parent_id IS NOT NULL)</code></li><li>Index <code>idx_issues_parent_key</code>: <code>btree (parent_key) WHERE (parent_key IS NOT NULL)</code></li><li>Index <code>idx_issues_type_status</code>: <code>btree (issue_type, current_status)</code></li></ul>
@@ -2523,6 +2527,7 @@
         <li>Cả 2 adapter chuẩn hoá dữ liệu thô về cùng 1 kiểu issue nội bộ trước khi ghi vào CSDL — pipeline validate/ghi/tổng hợp phía sau (mục 3.2) dùng chung, không phụ thuộc adapter nào.</li>
         <li>Adapter Py Jira API đọc thêm cột <code>main_fail_dept</code> ở dòng Epic ("Phòng chịu trách nhiệm chính" của Epic Fail TTM, từ 14/10/2026; adapter Pure Jira Export nhận cột cùng tên hoặc "Phòng chịu trách nhiệm chính") → <code>issues.main_fail_dept</code>, hiển thị ở Duyệt Epic → Giải trình Fail TTM và dùng cho cảnh báo "Thiếu phòng chịu TN chính".</li>
         <li>Adapter Py Jira API nhận thêm 2 cột tùy chọn ở dòng Epic: <code>epic_issue_type</code> (issue type gốc trên Jira của issue cấp 1 — dòng vẫn được coi là Epic về phân cấp) và <code>epic_status_changed_at</code> (ngày chuyển sang status hiện tại). Hai cột chỉ dùng cho rule Từ chối import; file không có 2 cột này vẫn import bình thường.</li>
+        <li>Crawl tool V16 / V16.1 (từ 04/11/2026) thêm 4 cột tùy chọn, lưu vào bảng <code>issues</code>: <code>subtask_Assignees_Role</code> và <code>subtask_Resolved</code> (dòng Subtask), <code>Story_Real_Start_Date</code> (dòng Story), <code>Epic_Real_Start_Date</code> (dòng Epic). Ô trống hoặc <code>NULL</code> coi là không có giá trị; riêng <code>Epic_Real_Start_Date</code> trống thì ứng dụng chép giá trị từ dòng mới nhất trước đó của Epic cùng key trước khi chốt lần import.</li>
         <li><strong>Từ chối import</strong> (mục 3.4) chạy ngay sau adapter, trước validate: <code>src/lib/import-admission-rules.ts</code> (rule thuần, có unit test — cố ý đặt ngoài Scoring Service vì đây là cổng chặn dữ liệu đầu vào, không phải badge hiển thị), <code>src/lib/denied-import-service.ts</code> (danh sách, cấu hình A/B, quét CSDL) và <code>src/lib/epic-deletion-service.ts</code> (Epic deletion).</li>
         <li>Không dùng nền tảng ETL/scheduler ngoài (Airflow, n8n…) — "ETL" ở đây gói gọn trong chính Route Handler xử lý import (đồng bộ, chạy trong 1 request HTTP), kích hoạt bằng tay qua UI hoặc bằng script Python gọi API tự động (mục 3.3).</li>
       </ul>

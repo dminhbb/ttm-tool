@@ -37,7 +37,7 @@
  *           + epic_key  (the grandparent epic)
  */
 
-import { parseCSV, type RawJiraIssue } from '../csv-parser';
+import { crawlCellValue, parseCSV, type RawJiraIssue } from '../csv-parser';
 import { EXCEPT_TTM_PLAN_HEADERS, TTM_APPLIED_HEADERS } from '../import-ttm-applied-columns';
 
 export interface PyJiraApiParseResult {
@@ -139,6 +139,8 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
     // epic_request_level is the current column name; epic_requirement_level is kept as a fallback
     // for files exported before the rename, so older files keep importing this field correctly.
     epic_requirement_level: idx('epic_request_level') >= 0 ? idx('epic_request_level') : idx('epic_requirement_level'),
+    // Crawl tool V16.1 (2026-11-04): computed by the tool, EPIC rows only.
+    epic_real_start_date: idx('Epic_Real_Start_Date'),
 
     // Story columns
     story_key: idx('story_key'),
@@ -148,6 +150,8 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
     story_assignee: idx('story_assignee'),
     story_components: idx('story_components'),
     story_subtasks: idx('story_subtasks'),
+    // Crawl tool V16 (2026-11-04): computed by the tool, STORY rows only.
+    story_real_start_date: idx('Story_Real_Start_Date'),
 
     // Subtask columns
     subtask_key: idx('subtask_key'),
@@ -157,6 +161,9 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
     subtask_assignee: idx('subtask_assignee'),
     subtask_start_date: idx('subtask_start_date'),
     subtask_due_date: idx('subtask_due_date'),
+    // Crawl tool V16 (2026-11-04): Jira "Assignee's Role" and "Resolved" of the subtask (end of the file).
+    subtask_assignees_role: idx('subtask_Assignees_Role'),
+    subtask_resolved: idx('subtask_Resolved'),
   };
 
   const issues: RawJiraIssue[] = [];
@@ -223,6 +230,7 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
         exceptTtmPlan: get(COL.except_ttm_plan) || undefined,
         sourceIssueType: get(COL.epic_issue_type) || undefined,
         statusChangedAt: get(COL.epic_status_changed_at) || undefined,
+        epicRealStartDate: crawlCellValue(get(COL.epic_real_start_date)),
       };
     } else if (level === 'story') {
       const key = get(COL.story_key);
@@ -251,6 +259,7 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
         jiraCreatedAt: '',
         jiraUpdatedAt: '',
         storySubtasks: splitKeyList(get(COL.story_subtasks)),
+        storyRealStartDate: crawlCellValue(get(COL.story_real_start_date)),
       };
     } else {
       // subtask
@@ -280,6 +289,8 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
         rowNumber: r + 1,
         jiraCreatedAt: '',
         jiraUpdatedAt: '',
+        subtaskAssigneesRole: crawlCellValue(get(COL.subtask_assignees_role)),
+        subtaskResolved: crawlCellValue(get(COL.subtask_resolved)),
       };
     }
 

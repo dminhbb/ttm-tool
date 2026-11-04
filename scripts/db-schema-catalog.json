@@ -298,7 +298,11 @@
         "epic_complexity_type": "<code>VARCHAR(50)</code></td><td>Mức yêu cầu từ Jira (1, 2, 3, 4)",
         "components": "<code>TEXT[]</code></td><td>Mảng lưu danh sách key con trực tiếp",
         "previous_status": "<code>TEXT</code></td><td>Thông tin vai trò nguyên nhân Fail TTM-CNTT theo từng khâu &amp; Ghi chú lý do khác",
-        "source_import_batch_id": "<code>TIMESTAMP WITH TIME ZONE NOT NULL</code></td><td>Thời điểm chốt lớp dữ liệu"
+        "source_import_batch_id": "<code>TIMESTAMP WITH TIME ZONE NOT NULL</code></td><td>Thời điểm chốt lớp dữ liệu",
+        "subtask_assignees_role": "<code>TEXT</code></td><td>Dòng Subtask: \"Assignee's Role\" trên Jira (cột CSV <code>subtask_Assignees_Role</code>, nhiều giá trị nối bằng dấu phẩy, lưu nguyên văn) — crawl tool V16",
+        "subtask_resolved": "<code>DATE</code></td><td>Dòng Subtask: ngày \"Resolved\" trên Jira (cột CSV <code>subtask_Resolved</code>) — crawl tool V16",
+        "story_real_start_date": "<code>DATE</code></td><td>Dòng Story: ngày bắt đầu thực tế do crawl tool tính (cột CSV <code>Story_Real_Start_Date</code>) — V16",
+        "epic_real_start_date": "<code>DATE</code></td><td>Dòng Epic: ngày bắt đầu thực tế do crawl tool tính (cột CSV <code>Epic_Real_Start_Date</code>) — V16.1; dòng import trống / NULL được chép giá trị từ dòng mới nhất trước đó của Epic cùng key"
       }
     },
     "denied_import_epics": {

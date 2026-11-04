@@ -70,6 +70,18 @@ Từ chối import (§2.2) — file không có 2 cột này vẫn import bình t
   coi là Epic về phân cấp (`issueType = 'Epic'`); giá trị gốc nằm ở `sourceIssueType`.
 - `epic_status_changed_at` — ngày Epic chuyển sang status hiện tại (lấy từ changelog Jira).
 
+Crawl tool V16 / V16.1 (bổ sung 2026-11-04) thêm 4 cột **tùy chọn** (tên cột không phân biệt hoa thường; ô trống hoặc
+`NULL` = không có giá trị; ngày dạng YYYY-MM-DD, ngày không đọc được lưu NULL):
+
+- `subtask_Assignees_Role` (dòng SUBTASK) — "Assignee's Role" trên Jira, nhiều giá trị nối bằng dấu phẩy, lưu nguyên
+  văn vào `issues.subtask_assignees_role`.
+- `subtask_Resolved` (dòng SUBTASK) — ngày Resolved → `issues.subtask_resolved`.
+- `Story_Real_Start_Date` (dòng STORY) — ngày bắt đầu thực tế do crawl tool tính → `issues.story_real_start_date`.
+- `Epic_Real_Start_Date` (dòng EPIC, V16.1) — ngày bắt đầu thực tế do crawl tool tính → `issues.epic_real_start_date`.
+  Khi dòng import của một Epic có giá trị trống / NULL, trước khi chốt lần import ứng dụng chép giá trị từ dòng mới nhất
+  trước đó (có giá trị) của Epic cùng key; Epic chưa từng có giá trị thì để NULL
+  (`carryForwardEpicRealStartDate`, `src/lib/import-service.ts`).
+
 ## 2.2. Từ chối import — phạm vi dữ liệu nguồn (2026-10-14)
 
 Crawl tool chưa lọc được ngay từ nguồn, nên import adapter tự giữ phạm vi dữ liệu:
