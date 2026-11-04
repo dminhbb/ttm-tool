@@ -3,15 +3,15 @@
 import { EyeSlash, FlagBanner } from '@phosphor-icons/react';
 import { EpicCommentList } from '@/components/epic-mark/EpicCommentList';
 import { Tooltip } from '@/components/ui/Tooltip';
-import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
+import type { EpicMarkSummary } from '@/lib/epic-mark-format';
 
 /**
- * "Review" column (formerly "Mark") of Quản trị Epic: a solid flag when the Epic has comments (orange; green once "Giao việc" is Done;
+ * "Review" column (formerly "Mark") of Quản trị Epic and Báo cáo Epic start sớm: a solid flag when the Epic has comments (orange; green once "Giao việc" is Done;
  * hover = Giao việc + its 2 newest comments), plus an eye-slash
  * when the viewer hid it (Hide is personal). Clicking either opens the Review Notes popup. An Epic with neither shows a faint outline flag
  * that opens the same popup (the only way to write a first comment).
  */
-export function EpicMarkCell({ onOpen, row }: { onOpen: (epicKey: string) => void; row: EpicAlertRowPhased }) {
+export function EpicMarkCell({ onOpen, row }: { onOpen: (epicKey: string) => void; row: { epicKey: string; mark?: EpicMarkSummary } }) {
   const mark = row.mark;
   if (!mark || (mark.commentCount === 0 && !mark.isHidden)) {
     // No comment yet: a faint outline flag is the way in to write the first one.

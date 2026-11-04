@@ -8,6 +8,11 @@
 
 ## 2026-11-04
 
+- **Báo cáo Epic start sớm — cache widget theo ngày, bộ lọc / sắp xếp / Review, widget TTM-CNTT (actual)** (migration `20261118_create_ttm_early_start_cache.sql`, đã áp dụng cho Supabase; local chưa có DB):
+  - *Cache widget* (`ttm_early_start_cache`, `early-start-report-service.ts`): 4 widget tính ở lượt mở báo cáo đầu tiên trong ngày của mỗi phạm vi quyền (khoá như `ttm_dashboard_2_cache`), các lượt sau đọc cache; tính lại khi cache dòng Epic đã được tạo lại sau đó (import / Tạo lại cache) hoặc phạm vi quyền đổi. Bỏ nút Tải lại. Bảng danh sách không cache (chỉ đọc Epic có `REC_EARLY_START`, index GIN `badge_codes`).
+  - *Bảng*: bộ lọc Domain / Project / PM/SM / Status (option lấy từ chính bảng), sắp xếp theo tiêu đề cột (tăng → giảm → mặc định), thanh phân trang như Quản trị Epic, cột Review (`EpicMarkCell` + Review Notes). CSS phân trang và cờ Review chuyển từ `epic-alerts-15.css` sang `ttm-shared.css` để dùng chung.
+  - *Widget TTM-CNTT (actual)* ở header TTM Dashboard 2 và Quản trị Epic (`use-early-start-actual-index.ts`, `GET /api/reports/early-start?summary=latest`): chỉ số start sớm của phạm vi người dùng từ cache gần nhất (không realtime), bấm mở `/reports?view=early-start`; ẩn với người không có quyền Báo cáo Epic.
+  - Giải thích mẫu số khác nhau (dữ liệu 04/11): 19 Epic chưa có R4G Date, chưa tới Target cũ (chưa kết luận) nhưng đã quá Target tính từ ngày start sớm → Fail, vào mẫu số (578 → 597).
 - **Start sớm (Epic_Real_Start_Date) — Duyệt Epic, Review Notes, Scoring Service, Báo cáo Epic start sớm** (migration `20261117_add_early_start_rule.sql` bật rule trong nhóm Default, đã áp dụng cho Supabase; local chưa có DB):
   - *Duyệt Epic*: popup rộng thêm ~10% (`max-w-6xl` → `max-w-[79rem]`, `EpicBrowserModal.tsx`); Issues in Epic thêm cột Start Date và Actual Start Date (Epic_Real_Start_Date của Epic, Story_Real_Start_Date của Story, trống với Subtask — `EpicIssuesTree.tsx`, `epic-browser-service.ts` `actualStartDate`). Story không có Start Date vì crawl tool không gửi.
   - *Review Notes*: thêm dòng "Actual Start Date" = Epic_Real_Start_Date (`EpicMarkModal.tsx`, `EpicBrowserSummary.epicRealStartDate`).

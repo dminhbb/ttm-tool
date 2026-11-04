@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import {
   CaretRight,
   ChartPie,
@@ -41,6 +42,7 @@ import {
   type TtmFunnelSummary,
 } from '@/lib/ttm-funnel-summary';
 import type { TtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
+import { EARLY_START_REPORT_HREF, earlyStartActualTooltip, useEarlyStartActualIndex } from '@/lib/use-early-start-actual-index';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 // Trước đây đây là `import '@/app/epic-alerts-15/epic-alerts-15.css'` — nạp global CSS
 // CỦA MỘT ROUTE KHÁC, kéo theo `:root { --ttm-* }` và `.has-filter { … !important }`
@@ -159,6 +161,8 @@ export default function TtmDashboard2Page() {
   const [viewMode, setViewMode] = useState<'EXECUTIVE' | 'OPERATIONAL'>('EXECUTIVE');
   // Lead view for every user: company-wide numbers by default, 'own' = the viewer's own scope.
   const [scopeChoice, setScopeChoice] = useState<'lead' | 'own'>('lead');
+  // Header widget "TTM-CNTT (actual)" (owner 2026-11-04).
+  const earlyStartActual = useEarlyStartActualIndex();
 
   // Layer Detail Modal (opened by a left click on a layer/group — L04a / L04b: the second click, once their panel is open)
   const [detailModalId, setDetailModalId] = useState<NodeId | null>(null);
@@ -734,6 +738,24 @@ export default function TtmDashboard2Page() {
                 </div>
               </div>
             ))}
+            {/* "TTM-CNTT (actual)" — newest cache of Báo cáo Epic start sớm (built on its first visit of the day, not live); click → that report. */}
+            {!earlyStartActual.hidden && (
+              <Link
+                href={EARLY_START_REPORT_HREF}
+                className="flex h-9 items-center gap-2 rounded-full border border-fb-border bg-fb-surface-muted px-3.5 shrink-0 text-left shadow-2xs hover:bg-fb-control transition-colors"
+                title={earlyStartActualTooltip(earlyStartActual.index)}
+              >
+                <div className="flex flex-col justify-center leading-none">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-fb-text-secondary">TTM-CNTT (actual)</span>
+                  <div className="flex items-baseline gap-1 mt-0.5">
+                    <span className="text-xs font-black text-[var(--early-start-real-color)]">{formatTtmIndexValue(earlyStartActual.index?.summary)}</span>
+                    {earlyStartActual.index && hasTtmVerdict(earlyStartActual.index.summary) && (
+                      <span className="text-[11px] font-medium text-fb-text-placeholder">({earlyStartActual.index.summary.pass}/{earlyStartActual.index.summary.denominator})</span>
+                    )}
+                  </div>
+                </div>
+              </Link>
+            )}
           </div>
 
           {/* User Preview Active Banner */}

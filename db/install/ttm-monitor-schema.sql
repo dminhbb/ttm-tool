@@ -1,9 +1,9 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-04T08:39:49.454Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-04T10:44:27.750Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
--- Gồm: 70 bảng, 59 index phụ, 4 hàm, 4 trigger.
+-- Gồm: 71 bảng, 59 index phụ, 4 hàm, 4 trigger.
 -- Yêu cầu: PostgreSQL 14 trở lên, một database RỖNG (không dùng cho DB đã có bảng — sẽ báo lỗi và không
 -- tạo gì vì cả file chạy trong một transaction). Không cần extension nào.
 --
@@ -751,6 +751,16 @@ CREATE TABLE ttm_dashboard_trend_cache (
     CONSTRAINT ttm_dashboard_trend_cache_pkey PRIMARY KEY (scope_key)
 );
 
+CREATE TABLE ttm_early_start_cache (
+    scope_key character varying(64) NOT NULL,
+    scope_fingerprint character varying(64) NOT NULL,
+    cache_date date NOT NULL,
+    source_computed_at text,
+    summary jsonb NOT NULL,
+    computed_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT ttm_early_start_cache_pkey PRIMARY KEY (scope_key)
+);
+
 CREATE TABLE ttm_index_global_cache (
     id smallint DEFAULT 1 NOT NULL,
     ttm_eligible integer NOT NULL,
@@ -1156,7 +1166,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 122 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 123 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1280,7 +1290,8 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261114_add_trend_new_fail_epic_keys.sql'),
     ('20261115_create_ttm_dashboard_metric_history.sql'),
     ('20261116_add_issue_crawl_v16_fields.sql'),
-    ('20261117_add_early_start_rule.sql');
+    ('20261117_add_early_start_rule.sql'),
+    ('20261118_create_ttm_early_start_cache.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1563,7 +1574,7 @@ WHERE current_setting('ttm_install.seed_data', true) = 'on';
 -- derived_cache_refresh_lock (1 dòng)
 INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 SELECT * FROM (VALUES
-    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-04 08:01:50.048548+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-04 08:43:14.269985+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
 ) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 

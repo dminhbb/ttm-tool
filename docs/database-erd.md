@@ -4,7 +4,7 @@
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
-**70 bảng** trong schema `public`, **55 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
+**71 bảng** trong schema `public`, **55 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
 
 ## Mục lục
 
@@ -15,7 +15,7 @@
 5. [Cấu hình TTM, lịch & phạm vi](#5-cấu-hình-ttm-lịch-phạm-vi) — 12 bảng
 6. [Epic Scoring Service](#6-epic-scoring-service) — 5 bảng
 7. [Lịch sử & snapshot](#7-lịch-sử-snapshot) — 1 bảng
-8. [Cache dữ liệu dẫn xuất](#8-cache-dữ-liệu-dẫn-xuất) — 8 bảng
+8. [Cache dữ liệu dẫn xuất](#8-cache-dữ-liệu-dẫn-xuất) — 9 bảng
 9. [Cấu hình hệ thống](#9-cấu-hình-hệ-thống) — 4 bảng
 10. [Popup & Banner thông báo](#10-popup-banner-thông-báo) — 3 bảng
 11. [SSO, API Key & MCP Server](#11-sso-api-key-mcp-server) — 7 bảng
@@ -1387,6 +1387,14 @@ erDiagram
         jsonb summary
         timestamptz computed_at
     }
+    ttm_early_start_cache {
+        varchar scope_key PK
+        varchar scope_fingerprint
+        date cache_date
+        text source_computed_at
+        jsonb summary
+        timestamptz computed_at
+    }
     ttm_dashboard_trend_cache {
         varchar scope_key PK
         date latest_layer_date
@@ -1527,6 +1535,19 @@ Số liệu phễu / widget / ma trận / pie chart chưa lọc của TTM Dashbo
 | `scope_fingerprint` | varchar(64) | không |  |  |  |
 | `source_computed_at` | text | có |  |  |  |
 | `engine_mode` | varchar(16) | không |  |  |  |
+| `summary` | jsonb | không |  |  |  |
+| `computed_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+
+### `ttm_early_start_cache`
+
+Số liệu 4 widget của Báo cáo Epic start sớm (TTM-CNTT (QLDA) và TTM-CNTT start sớm, số Epic fail) theo phạm vi quyền (`ALL`, `ADMIN:<id>`, `USER:<id>`): tính ở lượt mở báo cáo đầu tiên trong ngày, các lượt sau đọc lại; widget TTM-CNTT (actual) ở header TTM Dashboard 2 / Quản trị Epic đọc dòng gần nhất — mục 11.6.1.
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `scope_key` | varchar(64) | không |  | PK |  |
+| `scope_fingerprint` | varchar(64) | không |  |  |  |
+| `cache_date` | date | không |  |  |  |
+| `source_computed_at` | text | có |  |  |  |
 | `summary` | jsonb | không |  |  |  |
 | `computed_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 

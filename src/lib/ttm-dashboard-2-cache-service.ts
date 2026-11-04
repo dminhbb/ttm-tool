@@ -73,7 +73,7 @@ export function ttmDashboard2ScopeKey(userId: number, role: UserRole): string {
   return role === 'ADMIN' ? `ADMIN:${userId}` : `USER:${userId}`;
 }
 
-function scopeFingerprint(scope: AccessScope): string {
+export function scopeFingerprint(scope: AccessScope): string {
   const canonical = JSON.stringify({
     components: [...scope.projectComponents].map(([projectKey, components]) => [projectKey, [...components].sort()]).sort(),
     projects: scope.sourceProjectKeys === null ? null : [...scope.sourceProjectKeys].sort(),

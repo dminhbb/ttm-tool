@@ -28,6 +28,7 @@ import { formatTtmPassPct, summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import type { TtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
+import { EARLY_START_REPORT_HREF, earlyStartActualTooltip, useEarlyStartActualIndex } from '@/lib/use-early-start-actual-index';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import { ArrowBendUpRight, ArrowCounterClockwise, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, Eye, EyeSlash, FlagBanner, FloppyDisk, FolderSimple, HourglassMedium, ListChecks, UserFocus, Prohibit, Sparkle, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react';
@@ -818,6 +819,8 @@ function EpicAlerts15Screen() {
   // filteredRows, which there is the whole filtered set. Declared further down, after filteredRows.
   // The company-wide snapshot (ttm-index-global-cache-service.ts) is shown only on TTM dashboard's banner.
   const { setItems: setHeaderWidgetItems } = useEpicHeaderWidgets();
+  // "TTM-CNTT (actual)" — the newest cache of Báo cáo Epic start sớm (not live, owner 2026-11-04).
+  const earlyStartActual = useEarlyStartActualIndex();
   useEffect(() => () => setHeaderWidgetItems(null), [setHeaderWidgetItems]);
 
   // Paged mode: `rows` is only the current page, so every filter dropdown's option list instead
@@ -1164,6 +1167,14 @@ function EpicAlerts15Screen() {
         value: formatTtmIndexValue(ttmCnttQlda),
         tooltip: formatTtmIndexTooltip('Chỉ số TTM-CNTT (QLDA) tính trên các Epic đang hiển thị trong bảng Danh sách Epic (theo bộ lọc)', ttmCnttQlda),
       },
+      ...(earlyStartActual.hidden ? [] : [{
+        key: 'ttm-cntt-actual',
+        label: 'TTM-CNTT (actual)',
+        tone: 'actual' as const,
+        value: formatTtmIndexValue(earlyStartActual.index?.summary ?? null),
+        tooltip: earlyStartActualTooltip(earlyStartActual.index),
+        href: EARLY_START_REPORT_HREF,
+      }]),
       {
         key: 'ttm-cntt-qa',
         label: 'TTM-CNTT (QA)',
@@ -1179,7 +1190,7 @@ function EpicAlerts15Screen() {
         tooltip: formatTtmIndexTooltip('Chỉ số Hoàn thành TTM-E2E tính trên toàn bộ Epic trong ứng dụng (giống nhau với mọi người dùng, không đổi theo bộ lọc)', ttmIndexGlobal?.e2e ?? null),
       },
     ]);
-  }, [data, setHeaderWidgetItems, ttmCnttQa, ttmCnttQlda, ttmIndexGlobal]);
+  }, [data, earlyStartActual, setHeaderWidgetItems, ttmCnttQa, ttmCnttQlda, ttmIndexGlobal]);
 
   // Raw status strings (case as stored) whose normalized form is PENDING/TO DO — the Pending/To Do
   // stat widgets set the Status filter (a multi-select) to exactly this set.

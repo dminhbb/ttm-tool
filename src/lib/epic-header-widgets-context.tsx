@@ -16,7 +16,9 @@ export interface EpicHeaderWidgetItem {
   /** Multi-line tooltip text (rendered with the same `Tooltip` component used by the "Nhận xét"
    * badges elsewhere) — join lines with '\n'. */
   tooltip: string;
-  tone: 'e2e' | 'qa' | 'ttm';
+  tone: 'actual' | 'e2e' | 'qa' | 'ttm';
+  /** Set = the widget is a link (e.g. "TTM-CNTT (actual)" → Báo cáo Epic start sớm). */
+  href?: string;
   /** Already formatted for display, e.g. "91,5%" or "—" when there's nothing to show yet. */
   value: string;
 }

@@ -14,8 +14,9 @@ export {
 } from '@/lib/report-access-scope';
 export { generateEpicReport, getReportLayerDates, getReportLayers } from '@/lib/reports-service';
 export type { ReportEpicItem, ReportFilterOptions, ReportResult } from '@/lib/reports-service';
-export { getEarlyStartReport } from '@/lib/early-start-report-service';
-export type { EarlyStartFailEpic, EarlyStartReport } from '@/lib/early-start-report';
+export { getEarlyStartReportPage, getLatestEarlyStartSummary } from '@/lib/early-start-report-service';
+export type { EarlyStartReportPage, EarlyStartSummarySnapshot } from '@/lib/early-start-report-service';
+export type { EarlyStartFailEpic } from '@/lib/early-start-report';
 
 /**
  * Compatibility read for the existing report filters. Projects becomes the owner of this contract

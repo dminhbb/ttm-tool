@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { buildEarlyStartReport, earlyStartIndexFlags, type EarlyStartReportRow } from '@/lib/early-start-report';
+import { earlyStartIndexFlags, listEarlyStartFailEpics, summarizeEarlyStart, type EarlyStartReportRow } from '@/lib/early-start-report';
 
 function row(overrides: Partial<EarlyStartReportRow> = {}): EarlyStartReportRow {
   return {
@@ -24,7 +24,7 @@ describe('Báo cáo Epic start sớm (2026-11-04)', () => {
   });
 
   it('two ratios, and the list of Epics failing from their real start — domain, project, biggest gap first', () => {
-    const report = buildEarlyStartReport([
+    const rows = [
       row({ epicKey: 'B-1', projectKey: 'B', domainName: 'Bán lẻ', scoringEarlyStart: early(3, true) }),
       row({ epicKey: 'A-2', projectKey: 'A', domainName: 'Bán lẻ', scoringEarlyStart: early(2, true) }),
       row({ epicKey: 'A-3', projectKey: 'A', domainName: 'Bán lẻ', scoringEarlyStart: early(9, true) }),
@@ -33,13 +33,15 @@ describe('Báo cáo Epic start sớm (2026-11-04)', () => {
       row({ epicKey: 'D-1', projectKey: 'D', scoringEarlyStart: early(5, false) }),
       // Fail already, no Start sớm → in both fail counts, not listed.
       row({ epicKey: 'E-1', projectKey: 'E', alertLevel: 'FAIL', scoringIndexFlags: ['TTM_COUNTED', 'TTM_ELIGIBLE', 'TTM_FAIL'] }),
-    ], '2026-11-04 08:00:00+07');
-    assert.deepEqual(report.failedEpics.map((item) => item.epicKey), ['C-1', 'A-3', 'A-2', 'B-1']);
-    assert.equal(report.current.pass, 5);
-    assert.equal(report.current.fail, 1);
-    assert.equal(report.earlyStart.pass, 1);
-    assert.equal(report.earlyStart.fail, 5);
-    assert.equal(report.failedEpics[0].releasedDate, '2026-08-25');
-    assert.equal(report.dataLayerDate, '2026-11-03');
+    ];
+    const failed = listEarlyStartFailEpics(rows);
+    assert.deepEqual(failed.map((item) => item.epicKey), ['C-1', 'A-3', 'A-2', 'B-1']);
+    assert.equal(failed[0].releasedDate, '2026-08-25');
+    const summary = summarizeEarlyStart(rows);
+    assert.equal(summary.current.pass, 5);
+    assert.equal(summary.current.fail, 1);
+    assert.equal(summary.earlyStart.pass, 1);
+    assert.equal(summary.earlyStart.fail, 5);
+    assert.equal(summary.dataLayerDate, '2026-11-03');
   });
 });

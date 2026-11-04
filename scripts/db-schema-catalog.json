@@ -110,6 +110,7 @@
         "epic_alert_row_cache",
         "ttm_index_global_cache",
         "ttm_dashboard_2_cache",
+        "ttm_early_start_cache",
         "ttm_dashboard_trend_cache",
         "ttm_dashboard_metric_history",
         "ttm_dashboard_fail_history",
@@ -424,6 +425,10 @@
     },
     "ttm_dashboard_2_cache": {
       "description": "Số liệu phễu / widget / ma trận / pie chart chưa lọc của TTM Dashboard 2 theo phạm vi quyền (<code>ALL</code>, <code>ADMIN:&lt;id&gt;</code>, <code>USER:&lt;id&gt;</code>) — mục 21.5.",
+      "columns": {}
+    },
+    "ttm_early_start_cache": {
+      "description": "Số liệu 4 widget của Báo cáo Epic start sớm (TTM-CNTT (QLDA) và TTM-CNTT start sớm, số Epic fail) theo phạm vi quyền (<code>ALL</code>, <code>ADMIN:&lt;id&gt;</code>, <code>USER:&lt;id&gt;</code>): tính ở lượt mở báo cáo đầu tiên trong ngày, các lượt sau đọc lại; widget TTM-CNTT (actual) ở header TTM Dashboard 2 / Quản trị Epic đọc dòng gần nhất — mục 11.6.1.",
       "columns": {}
     },
     "daily_cache_runs": {

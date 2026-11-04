@@ -797,14 +797,22 @@ function AppShellInner({ children }: AppShellProps) {
           )}
           {pathname === '/epic-alerts-15' && epicHeaderWidgetItems && (
             <div className="ml-auto hidden shrink-0 items-center gap-1.5 lg:flex">
-              {epicHeaderWidgetItems.map((item) => (
-                <Tooltip key={item.key} multiline side="bottom" align="end" content={item.tooltip} className="inline-flex w-auto">
-                  <div className="flex flex-col items-end gap-0 rounded-md border border-fb-border bg-fb-surface-muted px-2 py-1 leading-none cursor-help hover:bg-fb-control transition-colors">
+              {epicHeaderWidgetItems.map((item) => {
+                const body = (
+                  <>
                     <span className="text-[11px] font-bold uppercase tracking-wide text-fb-text-secondary">{item.label}</span>
-                    <span className={cn('text-sm font-extrabold', item.tone === 'qa' ? 'text-fb-accent' : item.tone === 'e2e' ? 'text-status-success' : 'text-fb-blue')}>{item.value}</span>
-                  </div>
-                </Tooltip>
-              ))}
+                    <span className={cn('text-sm font-extrabold', item.tone === 'qa' ? 'text-fb-accent' : item.tone === 'e2e' ? 'text-status-success' : item.tone === 'actual' ? 'text-[var(--early-start-real-color)]' : 'text-fb-blue')}>{item.value}</span>
+                  </>
+                );
+                const boxClass = 'flex flex-col items-end gap-0 rounded-md border border-fb-border bg-fb-surface-muted px-2 py-1 leading-none hover:bg-fb-control transition-colors';
+                return (
+                  <Tooltip key={item.key} multiline side="bottom" align="end" content={item.tooltip} className="inline-flex w-auto">
+                    {item.href
+                      ? <Link href={item.href} className={cn(boxClass, 'cursor-pointer')} aria-label={item.label + ' — mở Báo cáo Epic start sớm'}>{body}</Link>
+                      : <div className={cn(boxClass, 'cursor-help')}>{body}</div>}
+                  </Tooltip>
+                );
+              })}
             </div>
           )}
         </header>

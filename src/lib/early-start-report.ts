@@ -1,24 +1,30 @@
 import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
+import type { EpicMarkSummary } from '@/lib/epic-mark-format';
 import { summarizeTtmCntt, type TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 
 /**
- * "Báo cáo Epic start sớm" (owner 2026-11-04) — pure part: the two TTM-CNTT (QLDA) ratios and the list of Epics that
- * fail when judged from their real start date. Rows come from epic_alert_row_cache (newest data layer, viewer's
- * scope); the Scoring Service already judged each "Start sớm" Epic a second time (row.scoringEarlyStart).
+ * "Báo cáo Epic start sớm" (owner 2026-11-04) — pure part. Rows come from epic_alert_row_cache (newest data layer,
+ * viewer's scope); the Scoring Service already judged each "Start sớm" Epic a second time (row.scoringEarlyStart).
+ *   - summarizeEarlyStart: the 4 widget numbers — cached per scope once a day (early-start-report-service.ts);
+ *   - listEarlyStartFailEpics: the Epics of the table — read every time (only the "Start sớm" Epics are loaded).
  */
 
 export type EarlyStartReportRow = Pick<EpicAlertRowPhased,
   'alertLevel' | 'currentStatus' | 'dataLayerDate' | 'domainName' | 'dueDate' | 'epicKey' | 'epicName' | 'hasDataAnomaly'
   | 'ownerName' | 'projectKey' | 'r4gDate' | 'ruleGroupName' | 'scoringEarlyStart' | 'scoringIndexFlags' | 't0IdeaApprovedDate'
-  | 't1StartDate' | 'ttmBlackListed' | 'ttmCnttInScope' | 'ttmExclusion'>;
+  | 't1StartDate' | 'ttmBlackListed' | 'ttmCnttInScope' | 'ttmExclusion'> & {
+  /** PM/SM names of the Epic's project (epic_alert_row_cache.owner_names). */
+  ownerNames?: string[];
+};
 
 export interface EarlyStartFailEpic {
   epicKey: string;
   summary: string;
   projectKey: string;
   domainName: string;
-  /** PM/SM of the Epic's project (comma-joined). */
+  /** PM/SM of the Epic's project (comma-joined) and each name, for the filter. */
   ownerName: string;
+  ownerNames: string[];
   status: string;
   ideaApprovedDate: string | null;
   startDate: string;
@@ -31,18 +37,17 @@ export interface EarlyStartFailEpic {
   releasedDate: string | null;
   ttmBlackListed: boolean;
   ruleGroupName: string | null;
+  /** Review Notes of the Epic for the viewer (column Review). */
+  mark?: EpicMarkSummary;
 }
 
-export interface EarlyStartReport {
+export interface EarlyStartSummary {
   /** TTM-CNTT (QLDA) as every screen shows it. */
   current: TtmCnttSummary;
   /** Same ratio with the "Start sớm" Epics judged from Epic_Real_Start_Date. */
   earlyStart: TtmCnttSummary;
-  /** "Start sớm" Epics counted in TTM-CNTT (QLDA) that fail when judged from their real start date. */
-  failedEpics: EarlyStartFailEpic[];
-  /** Newest data layer among the rows, and when the cache was built. */
+  /** Newest data layer among the rows. */
   dataLayerDate: string | null;
-  computedAt: string | null;
 }
 
 /** The row's TTM-CNTT (QLDA) flags when judged from the real start date; QA flags stay untouched. */
@@ -61,7 +66,7 @@ function isReleased(status: string): boolean {
   return (status ?? '').trim().toUpperCase() === 'RELEASED';
 }
 
-/** Domain A→Z, then project key A→Z, then the biggest gap first (owner 2026-11-04); Epic key keeps the order stable. */
+/** Default order (owner 2026-11-04): Domain A→Z, then project key A→Z, then the biggest gap first; Epic key keeps it stable. */
 export function compareEarlyStartFailEpics(a: EarlyStartFailEpic, b: EarlyStartFailEpic): number {
   return a.domainName.localeCompare(b.domainName, 'vi')
     || a.projectKey.localeCompare(b.projectKey)
@@ -69,7 +74,17 @@ export function compareEarlyStartFailEpics(a: EarlyStartFailEpic, b: EarlyStartF
     || a.epicKey.localeCompare(b.epicKey, undefined, { numeric: true });
 }
 
-export function buildEarlyStartReport(rows: readonly EarlyStartReportRow[], computedAt: string | null): EarlyStartReport {
+export function summarizeEarlyStart(rows: readonly EarlyStartReportRow[]): EarlyStartSummary {
+  const dataLayerDate = rows.reduce<string | null>((latest, row) => (row.dataLayerDate && (!latest || row.dataLayerDate > latest) ? row.dataLayerDate : latest), null);
+  return {
+    current: summarizeTtmCntt([...rows]),
+    earlyStart: summarizeTtmCntt(rows.map((row) => ({ ...row, scoringIndexFlags: earlyStartIndexFlags(row) }))),
+    dataLayerDate,
+  };
+}
+
+/** "Start sớm" Epics counted in TTM-CNTT (QLDA) that fail when judged from their real start date, in the default order. */
+export function listEarlyStartFailEpics(rows: readonly EarlyStartReportRow[]): EarlyStartFailEpic[] {
   const failedEpics: EarlyStartFailEpic[] = [];
   for (const row of rows) {
     const early = row.scoringEarlyStart;
@@ -80,6 +95,7 @@ export function buildEarlyStartReport(rows: readonly EarlyStartReportRow[], comp
       projectKey: row.projectKey,
       domainName: row.domainName ?? '',
       ownerName: row.ownerName ?? '',
+      ownerNames: row.ownerNames ?? [],
       status: row.currentStatus,
       ideaApprovedDate: row.t0IdeaApprovedDate,
       startDate: early.startDate,
@@ -93,13 +109,5 @@ export function buildEarlyStartReport(rows: readonly EarlyStartReportRow[], comp
       ruleGroupName: row.ruleGroupName ?? null,
     });
   }
-  failedEpics.sort(compareEarlyStartFailEpics);
-  const dataLayerDate = rows.reduce<string | null>((latest, row) => (row.dataLayerDate && (!latest || row.dataLayerDate > latest) ? row.dataLayerDate : latest), null);
-  return {
-    current: summarizeTtmCntt([...rows]),
-    earlyStart: summarizeTtmCntt(rows.map((row) => ({ ...row, scoringIndexFlags: earlyStartIndexFlags(row) }))),
-    failedEpics,
-    dataLayerDate,
-    computedAt,
-  };
+  return failedEpics.sort(compareEarlyStartFailEpics);
 }
