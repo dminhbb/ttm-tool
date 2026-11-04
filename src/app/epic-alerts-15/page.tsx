@@ -819,7 +819,7 @@ function EpicAlerts15Screen() {
   // filteredRows, which there is the whole filtered set. Declared further down, after filteredRows.
   // The company-wide snapshot (ttm-index-global-cache-service.ts) is shown only on TTM dashboard's banner.
   const { setItems: setHeaderWidgetItems } = useEpicHeaderWidgets();
-  // "TTM-CNTT (actual)" — the newest cache of Báo cáo Epic start sớm (not live, owner 2026-11-04).
+  // "TTM-CNTT (SỚM)" — the numbers of Báo cáo Epic start sớm, cached by every cache rebuild (not live, owner 2026-11-04).
   const earlyStartActual = useEarlyStartActualIndex();
   useEffect(() => () => setHeaderWidgetItems(null), [setHeaderWidgetItems]);
 
@@ -1169,10 +1169,10 @@ function EpicAlerts15Screen() {
       },
       ...(earlyStartActual.hidden ? [] : [{
         key: 'ttm-cntt-actual',
-        label: 'TTM-CNTT (actual)',
+        label: 'TTM-CNTT (SỚM)',
         tone: 'actual' as const,
         value: formatTtmIndexValue(earlyStartActual.index?.summary ?? null),
-        tooltip: earlyStartActualTooltip(earlyStartActual.index),
+        tooltip: earlyStartActualTooltip(),
         href: EARLY_START_REPORT_HREF,
       }]),
       {

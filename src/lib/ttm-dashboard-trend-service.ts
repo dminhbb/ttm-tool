@@ -50,7 +50,7 @@ const ALL_SCOPE: AccessScope = { accessRole: 'CBQL_PHONG', projectComponents: ne
 const LAYERS_NEEDED = (TREND_SERIES_POINTS - 1) * TREND_SERIES_STEP + 1;
 
 type ScopedRow = { components: string[] | null; epicKey: string; projectKey: string; row: TtmFunnelRow };
-type ScopeTarget = { scope: AccessScope; scopeKey: string };
+export type ScopeTarget = { scope: AccessScope; scopeKey: string };
 type HistorySource = 'BACKFILL' | 'DAILY';
 
 function inScope(rows: readonly ScopedRow[], scope: AccessScope): ScopedRow[] {
@@ -62,7 +62,7 @@ function valuesFor(rows: readonly ScopedRow[]): TtmTrendValues {
 }
 
 /** Every scope the dashboard caches: the company, each active ADMIN and each active USER. Sequential on purpose (hosted connection caps, db.ts). */
-async function loadScopeTargets(): Promise<ScopeTarget[]> {
+export async function loadScopeTargets(): Promise<ScopeTarget[]> {
   const users = await pool.query<{ id: number; role: UserRole }>("SELECT id, role FROM users WHERE is_active AND role IN ('ADMIN', 'USER') ORDER BY id");
   const targets: ScopeTarget[] = [{ scope: ALL_SCOPE, scopeKey: 'ALL' }];
   for (const user of users.rows) targets.push({ scope: await resolveAccessScope(user.id, user.role), scopeKey: ttmDashboard2ScopeKey(user.id, user.role) });
@@ -171,14 +171,10 @@ export async function refreshDashboardTrendCache(): Promise<number> {
     return 0;
   }
   const previous = layers[1];
-  // The previous layer was the newest one yesterday, so it is normally there for every scope. A first deployment, a skipped
-  // day, or a scope that had no row then (a user activated or given another role since) is filled once — BACKFILL keeps every
-  // existing row, so only the missing scopes are added.
-  const scopesWithPrevious = new Set((await pool.query<{ scopeKey: string }>(
-    'SELECT scope_key AS "scopeKey" FROM ttm_dashboard_metric_history WHERE layer_date = $1::date;',
-    [previous],
-  )).rows.map((row) => row.scopeKey));
-  if (targets.some((target) => !scopesWithPrevious.has(target.scopeKey))) await backfillLayerHistory(previous);
+  // The previous layer was the newest one yesterday, so it is normally there. A first deployment or a skipped day is filled
+  // once (~30-40 s). A scope that has no row for it (a user activated or given another role since) is NOT a reason to
+  // judge every Epic again: it simply has no ticker until its next day (free-tier database, review 2026-11-04).
+  if (!(await datesWithHistory()).has(previous)) await backfillLayerHistory(previous);
 
   const seriesDates = pickSeriesDates(layers);
   const history = await pool.query<{ date: string; scopeKey: string; values: TtmTrendValues }>(

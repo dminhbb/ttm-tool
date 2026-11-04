@@ -2,9 +2,10 @@ import 'server-only';
 import pool from '@/lib/db';
 import type { AuthUser } from '@/lib/auth-types';
 import { resolveAccessScope } from '@/lib/epic-alert-service';
-import { buildAccessScopeClause, getEpicAlertRowCacheMeta } from '@/lib/epic-alert-row-cache-query-service';
+import { buildAccessScopeClause, getEpicAlertRowCacheMeta, rowInAccessScope } from '@/lib/epic-alert-row-cache-query-service';
 import { loadEpicMarkSummaries } from '@/lib/epic-mark-service';
 import { scopeFingerprint, ttmDashboard2ScopeKey } from '@/lib/ttm-dashboard-2-cache-service';
+import { loadScopeTargets } from '@/lib/ttm-dashboard-trend-service';
 import {
   listEarlyStartFailEpics,
   summarizeEarlyStart,
@@ -17,11 +18,12 @@ import {
  * "Báo cáo Epic start sớm" (owner 2026-11-04), read off epic_alert_row_cache (newest data layer, Scoring Service rule
  * "Start sớm") within the viewer's report scope — the same scope as "Báo cáo Epic" and Quản trị Epic.
  *
- * Widgets (table ttm_early_start_cache, one entry per scope, keyed like ttm_dashboard_2_cache): computed on the first
- * visit of the report in the day (Vietnam date) and read from there on every later visit that day. An entry is also
- * rebuilt when the Epic row cache it was built from has been rebuilt since (an import or "Tạo lại cache") or the
- * viewer's access scope changed — otherwise the widgets would disagree with the table below them, which is read live.
- * The header widget "TTM-CNTT (actual)" (TTM Dashboard 2, Quản trị Epic) only reads the newest entry, never builds one.
+ * Widgets (table ttm_early_start_cache, one entry per scope, keyed like ttm_dashboard_2_cache): written for EVERY scope by
+ * each rebuild of the derived caches (refreshEarlyStartCaches — import, daily run, "Tạo lại cache"; a few milliseconds of
+ * work on rows already read) and only read by the report and by the header widget "TTM-CNTT (SỚM)" (TTM Dashboard 2,
+ * Quản trị Epic). A visit that finds no valid entry (the Epic row cache was rebuilt since, the viewer's access scope
+ * changed, a user created after the last rebuild) still builds it on the spot — otherwise the widgets would disagree with
+ * the table below them, which is read live. The header widget never builds one.
  *
  * The table: only the Epics carrying REC_EARLY_START are read (GIN index on badge_codes), so it is not cached; Review
  * Notes (column Review) are the viewer's live ones.
@@ -61,7 +63,7 @@ async function loadRows(user: AuthUser, options: { earlyStartOnly: boolean }): P
   return result.rows.map((item) => item.row);
 }
 
-/** The 4 widget numbers of the report — from today's entry of the viewer's scope, built on the first visit of the day. */
+/** The 4 widget numbers of the report — from today's entry of the viewer's scope (written by the cache rebuild; built here only when missing). */
 export async function getEarlyStartSummary(user: AuthUser): Promise<EarlyStartSummarySnapshot> {
   const scopeKey = ttmDashboard2ScopeKey(user.id, user.role);
   const [cacheMeta, scope] = await Promise.all([getEpicAlertRowCacheMeta(), resolveAccessScope(user.id, user.role)]);
@@ -100,7 +102,41 @@ export async function getEarlyStartSummary(user: AuthUser): Promise<EarlyStartSu
   return { ...summary, cacheDate: stored?.rows[0]?.cacheDate ?? null, computedAt: stored?.rows[0]?.computedAt ?? null, status: 'MISS' };
 }
 
-/** Header widget "TTM-CNTT (actual)": the newest entry of the viewer's scope, whatever its date; null when there is none yet. */
+/**
+ * Writes the report's widget numbers of EVERY scope (the company, each active ADMIN and USER — the keys of
+ * ttm_dashboard_2_cache) from one read of epic_alert_row_cache; called by every rebuild of the derived caches, so the
+ * header widget "TTM-CNTT (SỚM)" and the report open on numbers of the current data layer without anyone having to
+ * visit the report first. Returns how many entries were written.
+ */
+export async function refreshEarlyStartCaches(): Promise<number> {
+  const cacheMeta = await getEpicAlertRowCacheMeta();
+  if (!cacheMeta.hasCache) return 0;
+  const result = await pool.query<{ components: string[] | null; projectKey: string; row: EarlyStartReportRow }>(
+    `SELECT project_key AS "projectKey", components, ${ROW_SQL} AS row FROM epic_alert_row_cache;`,
+  );
+  const targets = await loadScopeTargets();
+  const keys: string[] = [];
+  const fingerprints: string[] = [];
+  const payloads: string[] = [];
+  for (const { scope, scopeKey } of targets) {
+    const rows = result.rows.filter((item) => rowInAccessScope(scope, item.projectKey, item.components)).map((item) => item.row);
+    const payload: CachedPayload = { ...summarizeEarlyStart(rows), version: PAYLOAD_VERSION };
+    keys.push(scopeKey);
+    fingerprints.push(scopeFingerprint(scope));
+    payloads.push(JSON.stringify(payload));
+  }
+  await pool.query(`
+    INSERT INTO ttm_early_start_cache (scope_key, scope_fingerprint, cache_date, source_computed_at, summary, computed_at)
+    SELECT t.scope_key, t.scope_fingerprint, ${VN_TODAY_SQL}, $4::timestamptz, t.summary::jsonb, CURRENT_TIMESTAMP
+    FROM unnest($1::text[], $2::text[], $3::text[]) AS t(scope_key, scope_fingerprint, summary)
+    ON CONFLICT (scope_key) DO UPDATE SET
+      scope_fingerprint = EXCLUDED.scope_fingerprint, cache_date = EXCLUDED.cache_date, source_computed_at = EXCLUDED.source_computed_at,
+      summary = EXCLUDED.summary, computed_at = EXCLUDED.computed_at;
+  `, [keys, fingerprints, payloads, cacheMeta.computedAt]);
+  return targets.length;
+}
+
+/** Header widget "TTM-CNTT (SỚM)": the newest entry of the viewer's scope, whatever its date; null when there is none yet. */
 export async function getLatestEarlyStartSummary(user: AuthUser): Promise<EarlyStartSummarySnapshot | null> {
   const result = await pool.query<{ cacheDate: string; computedAt: string; summary: CachedPayload }>(
     'SELECT summary, cache_date::text AS "cacheDate", computed_at::text AS "computedAt" FROM ttm_early_start_cache WHERE scope_key = $1',

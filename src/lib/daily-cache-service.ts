@@ -5,6 +5,7 @@ import { getEpicAlertRowsWithScorecards } from '@/lib/epic-alert-rows-service';
 import { refreshEpicAlertRowCache } from '@/lib/epic-alert-row-cache-service';
 import { refreshTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { getTtmDashboard2CacheOverview, refreshTtmDashboard2Caches } from '@/lib/ttm-dashboard-2-cache-service';
+import { refreshEarlyStartCaches } from '@/lib/early-start-report-service';
 import { runDailyHousekeeping } from '@/lib/housekeeping-service';
 import { refreshDashboardTrendCache, TREND_REFRESH_SOURCES } from '@/lib/ttm-dashboard-trend-service';
 import { SCORING_CODE_VERSION } from '@/lib/scoring/registry';
@@ -214,6 +215,8 @@ async function rebuildDerivedCaches(batchId: number | null): Promise<number> {
   // TTM Dashboard 2's per-scope funnel cache is derived from the row cache just written. A failure
   // here must not fail the whole refresh — the screen rebuilds a missing/stale entry on demand.
   await refreshTtmDashboard2Caches().catch((error: unknown) => console.error('TTM Dashboard 2 cache refresh failed:', error));
+  // "Báo cáo Epic start sớm" widgets of every scope (header widget "TTM-CNTT (SỚM)"): cheap, from the same row cache.
+  await refreshEarlyStartCaches().catch((error: unknown) => console.error('Early start report cache refresh failed:', error));
   const count = await pool.query<{ n: number }>('SELECT count(*)::int AS n FROM epic_alert_row_cache;');
   return count.rows[0]?.n ?? 0;
 }

@@ -1400,3 +1400,12 @@ mark.ttm-modal-search-highlight.ttm-modal-search-active {
 :root[data-theme="dark"] {
   --early-start-real-color: #f48fb1;
 }
+
+/* Header index widgets (TTM Dashboard 2, Quản trị Epic; owner 2026-11-04): TTM-CNTT (QLDA) violet, TTM-CNTT (SỚM) the primary
+   text color ("black" in light mode, readable in dark), TTM-E2E brown, TTM-CNTT (QA) green. Only the brown needs a variable. */
+:root {
+  --header-widget-e2e-color: #8b4513;
+}
+:root[data-theme="dark"] {
+  --header-widget-e2e-color: #d9a066;
+}

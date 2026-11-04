@@ -15,6 +15,7 @@ import {
 
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { PillToggle } from '@/components/ui/PillToggle';
 import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
@@ -161,7 +162,7 @@ export default function TtmDashboard2Page() {
   const [viewMode, setViewMode] = useState<'EXECUTIVE' | 'OPERATIONAL'>('EXECUTIVE');
   // Lead view for every user: company-wide numbers by default, 'own' = the viewer's own scope.
   const [scopeChoice, setScopeChoice] = useState<'lead' | 'own'>('lead');
-  // Header widget "TTM-CNTT (actual)" (owner 2026-11-04).
+  // Header widget "TTM-CNTT (SỚM)" (owner 2026-11-04).
   const earlyStartActual = useEarlyStartActualIndex();
 
   // Layer Detail Modal (opened by a left click on a layer/group — L04a / L04b: the second click, once their panel is open)
@@ -718,9 +719,9 @@ export default function TtmDashboard2Page() {
           {/* Global TTM Indicators */}
           <div className="hidden sm:flex items-center gap-2">
             {([
-              ['TTM-CNTT (QLDA)', 'Chỉ số TTM-CNTT (QLDA) toàn công ty = L05aa / (L05aa + L05ab + L05ba)', data?.ttmIndexGlobal?.ttm, 'text-[var(--color-success-300)]'],
-              ['TTM-CNTT (QA)', 'Chỉ số TTM-CNTT (QA) toàn công ty — cùng công thức, chỉ lấy Epic MVP Done / Released', data?.ttmIndexGlobal?.qa, 'text-fb-accent'],
-              ['TTM-E2E', 'Chỉ số Hoàn thành TTM-E2E tính trên toàn bộ Epic', data?.ttmIndexGlobal?.e2e, 'text-status-success'],
+              ['TTM-CNTT (QLDA)', 'Chỉ số TTM-CNTT (QLDA) toàn công ty = L05aa / (L05aa + L05ab + L05ba)', data?.ttmIndexGlobal?.ttm, 'text-fb-accent'],
+              ['TTM-CNTT (QA)', 'Chỉ số TTM-CNTT (QA) toàn công ty — cùng công thức, chỉ lấy Epic MVP Done / Released', data?.ttmIndexGlobal?.qa, 'text-status-success'],
+              ['TTM-E2E', 'Chỉ số Hoàn thành TTM-E2E tính trên toàn bộ Epic', data?.ttmIndexGlobal?.e2e, 'text-[var(--header-widget-e2e-color)]'],
             ] as const).map(([label, tooltip, summary, color]) => (
               <div
                 key={label}
@@ -738,23 +739,24 @@ export default function TtmDashboard2Page() {
                 </div>
               </div>
             ))}
-            {/* "TTM-CNTT (actual)" — newest cache of Báo cáo Epic start sớm (built on its first visit of the day, not live); click → that report. */}
+            {/* "TTM-CNTT (SỚM)" — Báo cáo Epic start sớm's numbers, cached by every cache rebuild (not live); click → that report. */}
             {!earlyStartActual.hidden && (
+              <Tooltip content={earlyStartActualTooltip()} className="inline-flex w-auto" side="bottom">
               <Link
                 href={EARLY_START_REPORT_HREF}
                 className="flex h-9 items-center gap-2 rounded-full border border-fb-border bg-fb-surface-muted px-3.5 shrink-0 text-left shadow-2xs hover:bg-fb-control transition-colors"
-                title={earlyStartActualTooltip(earlyStartActual.index)}
               >
                 <div className="flex flex-col justify-center leading-none">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-fb-text-secondary">TTM-CNTT (actual)</span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-fb-text-secondary">TTM-CNTT (SỚM)</span>
                   <div className="flex items-baseline gap-1 mt-0.5">
-                    <span className="text-xs font-black text-[var(--early-start-real-color)]">{formatTtmIndexValue(earlyStartActual.index?.summary)}</span>
+                    <span className="text-xs font-black text-fb-text-primary">{formatTtmIndexValue(earlyStartActual.index?.summary)}</span>
                     {earlyStartActual.index && hasTtmVerdict(earlyStartActual.index.summary) && (
                       <span className="text-[11px] font-medium text-fb-text-placeholder">({earlyStartActual.index.summary.pass}/{earlyStartActual.index.summary.denominator})</span>
                     )}
                   </div>
                 </div>
               </Link>
+              </Tooltip>
             )}
           </div>
 

@@ -8,6 +8,12 @@
 
 ## 2026-11-04
 
+- **Sửa theo review bản pull 04/11 + widget chỉ số trên header**:
+  - *Widget "TTM-CNTT (SỚM)"* (trước là "(actual)"): cache số liệu của Báo cáo Epic start sớm cho MỌI phạm vi ngay khi rebuild cache (`refreshEarlyStartCaches` trong `early-start-report-service.ts`, gọi từ `rebuildDerivedCaches`; vài mili-giây trên dữ liệu đã đọc) — không còn phải mở báo cáo lần đầu trong ngày; báo cáo chỉ tự dựng khi thiếu entry hợp lệ. Hover dùng `Tooltip` của app: "Chỉ số TTM tính theo start date thực tế. Click để xem báo cáo."
+  - *Màu giá trị widget header* (TTM Dashboard 2 và Quản trị Epic): TTM-CNTT (QLDA) tím, TTM-CNTT (SỚM) màu chữ chính (đen ở light mode, vẫn đọc được ở dark mode), TTM-E2E nâu (`--header-widget-e2e-color`), TTM-CNTT (QA) xanh lá.
+  - *Ticker*: lớp liền trước chỉ được tự điền (30-40 giây) khi thiếu dòng của CẢ CÔNG TY (lần triển khai đầu / ngày bị bỏ qua); phạm vi mới (user vừa kích hoạt) không còn kéo theo việc chấm lại toàn bộ Epic — chưa có ticker đến hôm sau.
+  - */reports* dùng token màu (`bg-fb-surface`, `text-fb-text-primary`…) thay `bg-white` / `text-black` để theo light / dark mode.
+
 - **Báo cáo Epic start sớm — cache widget theo ngày, bộ lọc / sắp xếp / Review, widget TTM-CNTT (actual)** (migration `20261118_create_ttm_early_start_cache.sql`, đã áp dụng cho Supabase; local chưa có DB):
   - *Cache widget* (`ttm_early_start_cache`, `early-start-report-service.ts`): 4 widget tính ở lượt mở báo cáo đầu tiên trong ngày của mỗi phạm vi quyền (khoá như `ttm_dashboard_2_cache`), các lượt sau đọc cache; tính lại khi cache dòng Epic đã được tạo lại sau đó (import / Tạo lại cache) hoặc phạm vi quyền đổi. Bỏ nút Tải lại. Bảng danh sách không cache (chỉ đọc Epic có `REC_EARLY_START`, index GIN `badge_codes`).
   - *Bảng*: bộ lọc Domain / Project / PM/SM / Status (option lấy từ chính bảng), sắp xếp theo tiêu đề cột (tăng → giảm → mặc định), thanh phân trang như Quản trị Epic, cột Review (`EpicMarkCell` + Review Notes). CSS phân trang và cờ Review chuyển từ `epic-alerts-15.css` sang `ttm-shared.css` để dùng chung.

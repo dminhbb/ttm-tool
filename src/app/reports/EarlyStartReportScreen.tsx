@@ -62,11 +62,11 @@ function ratioCaption(summary: TtmCnttSummary): string {
 
 function Widget({ caption, delta, title, tone, value }: { title: string; value: string; caption: string; delta?: string; tone: 'brand' | 'danger' }) {
   return (
-    <div className="flex flex-col gap-1 border border-fb-border bg-white p-4">
+    <div className="flex flex-col gap-1 border border-fb-border bg-fb-surface p-4">
       <span className="text-[11px] font-bold uppercase tracking-wide text-fb-text-secondary">{title}</span>
       <span className={cn('text-3xl font-extrabold tabular-nums', tone === 'danger' ? 'text-status-danger' : 'text-[var(--color-text-brand)]')}>{value}</span>
       <span className="text-[11px] text-fb-text-secondary">{caption}</span>
-      {delta && <span className="text-[11px] font-bold text-black">So với chỉ số hiện tại: {delta}</span>}
+      {delta && <span className="text-[11px] font-bold text-fb-text-primary">So với chỉ số hiện tại: {delta}</span>}
     </div>
   );
 }
@@ -91,7 +91,7 @@ function SortHeader({ children, className, onSort, sortKey, sort, title }: { chi
   const Icon = !active ? CaretUpDown : sort.direction === 'asc' ? CaretUp : CaretDown;
   return (
     <th className={cn('whitespace-nowrap border-r border-fb-border px-2 py-1.5', className)} aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'} title={title}>
-      <button type="button" onClick={() => onSort(sortKey)} className="inline-flex items-center gap-1 font-bold text-black hover:text-[var(--color-text-brand)]">
+      <button type="button" onClick={() => onSort(sortKey)} className="inline-flex items-center gap-1 font-bold text-fb-text-primary hover:text-[var(--color-text-brand)]">
         {children}
         <Icon className={cn('size-3 shrink-0', active ? 'text-[var(--color-text-brand)]' : 'text-fb-text-placeholder')} weight="bold" />
       </button>
@@ -128,7 +128,7 @@ function FailTable({ items, jiraViewIssueBaseUrl, offset, onOpenEpic, onOpenRevi
     <div className="overflow-x-auto">
       <table className="w-full min-w-[1160px] border-collapse text-left text-[11px]">
         <thead>
-          <tr className="select-none border-b border-fb-border bg-fb-surface-muted font-bold text-black">
+          <tr className="select-none border-b border-fb-border bg-fb-surface-muted font-bold text-fb-text-primary">
             <th className="w-7 border-r border-fb-border px-2 py-1.5 text-center">STT</th>
             <SortHeader {...header} sortKey="projectKey" className="w-14">Project</SortHeader>
             <SortHeader {...header} sortKey="epicKey" className="max-w-[220px]">Epic Key / Summary</SortHeader>
@@ -150,7 +150,7 @@ function FailTable({ items, jiraViewIssueBaseUrl, offset, onOpenEpic, onOpenRevi
             return (
               <tr key={item.epicKey} className="hover:bg-fb-surface-muted">
                 <td className={cn(cell, 'text-center font-mono text-fb-text-placeholder')}>{offset + index + 1}</td>
-                <td className={cn(cell, 'font-mono font-bold text-black')}>{item.projectKey}</td>
+                <td className={cn(cell, 'font-mono font-bold text-fb-text-primary')}>{item.projectKey}</td>
                 <td className={cell}>
                   <div className="flex items-center gap-1.5">
                     <button
@@ -186,12 +186,12 @@ function FailTable({ items, jiraViewIssueBaseUrl, offset, onOpenEpic, onOpenRevi
                 <td className={cn(cell, 'whitespace-nowrap font-mono')} title={item.earlyTargetDate ? `Target TTM-CNTT (QLDA) tính từ ngày này: ${item.earlyTargetDate}` : undefined}>
                   <DateText value={item.realStartDate} className="font-bold text-[var(--early-start-real-color)]" />
                 </td>
-                <td className={cn(cell, 'whitespace-nowrap text-right font-mono font-bold text-black')}>{item.daysEarly} ngày</td>
+                <td className={cn(cell, 'whitespace-nowrap text-right font-mono font-bold text-fb-text-primary')}>{item.daysEarly} ngày</td>
                 <td className={cn(cell, 'whitespace-nowrap font-mono')}>
-                  {item.r4gDate ? <DateText value={item.r4gDate} icon={<Checks className="size-3 shrink-0 text-black" weight="bold" />} /> : <span className="font-semibold text-status-danger">Thiếu thông tin</span>}
+                  {item.r4gDate ? <DateText value={item.r4gDate} icon={<Checks className="size-3 shrink-0 text-fb-text-primary" weight="bold" />} /> : <span className="font-semibold text-status-danger">Thiếu thông tin</span>}
                 </td>
                 <td className="whitespace-nowrap px-2 py-1.5 font-mono">
-                  {item.releasedDate ? <DateText value={item.releasedDate} icon={<Checks className="size-3 shrink-0 text-black" weight="bold" />} /> : '-'}
+                  {item.releasedDate ? <DateText value={item.releasedDate} icon={<Checks className="size-3 shrink-0 text-fb-text-primary" weight="bold" />} /> : '-'}
                 </td>
               </tr>
             );
@@ -292,7 +292,7 @@ export function EarlyStartReportScreen({ onBack }: { onBack: () => void }) {
   const hasFilter = Object.values(filters).some(Boolean);
 
   return (
-    <div className="space-y-6 bg-white p-4 text-black md:p-6">
+    <div className="space-y-6 bg-fb-surface p-4 text-fb-text-primary md:p-6">
       <InfoBannerDisplay pathname="/reports" />
 
       <div className="rounded-none border-2 border-fb-border bg-fb-control-hover p-5 shadow-sm">
@@ -300,7 +300,7 @@ export function EarlyStartReportScreen({ onBack }: { onBack: () => void }) {
           <button
             type="button"
             onClick={onBack}
-            className="grid size-8 place-items-center border border-fb-border bg-white text-black hover:bg-fb-surface-muted"
+            className="grid size-8 place-items-center border border-fb-border bg-fb-surface text-fb-text-primary hover:bg-fb-surface-muted"
             title="Quay lại Báo cáo Epic (beta 2)"
             aria-label="Quay lại Báo cáo Epic (beta 2)"
           >
@@ -310,7 +310,7 @@ export function EarlyStartReportScreen({ onBack }: { onBack: () => void }) {
             <Lightning className="size-4" weight="bold" />
           </div>
           <div>
-            <h1 className="text-base font-bold text-black">Báo cáo Epic start sớm</h1>
+            <h1 className="text-base font-bold text-fb-text-primary">Báo cáo Epic start sớm</h1>
             <p className="text-[11px] font-medium text-fb-text-secondary">
               TTM-CNTT (QLDA) trong phạm vi tính, lớp dữ liệu mới nhất{summary?.dataLayerDate ? ` (${summary.dataLayerDate})` : ''}. Epic có khuyến nghị &quot;Start sớm&quot; được tính lại với Start Date = Epic_Real_Start_Date.
               {summary?.computedAt ? ` Số liệu widget: cache lúc ${formatDateTime(summary.computedAt)}.` : ''}
@@ -342,14 +342,14 @@ export function EarlyStartReportScreen({ onBack }: { onBack: () => void }) {
       </section>
 
       {/* Panel 2 — Epic "Start sớm" that fail from their real start date */}
-      <section className="overflow-hidden rounded-none border border-black">
-        <div className="flex flex-col justify-between gap-1 border-b border-fb-border bg-fb-control-hover px-3 py-2 text-xs font-bold text-black sm:flex-row sm:items-center">
+      <section className="overflow-hidden rounded-none border border-fb-text-primary">
+        <div className="flex flex-col justify-between gap-1 border-b border-fb-border bg-fb-control-hover px-3 py-2 text-xs font-bold text-fb-text-primary sm:flex-row sm:items-center">
           <span>DANH SÁCH CÁC EPIC FAIL TTM-CNTT START SỚM</span>
           <span className="bg-[var(--color-text-brand)] px-2 py-0.5 text-[11px] font-extrabold uppercase text-white">
             {hasFilter ? `${visibleEpics.length} / ${failedEpics.length}` : `Tổng số: ${failedEpics.length}`} Epic
           </span>
         </div>
-        <div className="flex flex-wrap items-center gap-2 border-b border-fb-border bg-white px-3 py-2">
+        <div className="flex flex-wrap items-center gap-2 border-b border-fb-border bg-fb-surface px-3 py-2">
           <FilterSelect label="Domain" options={options.domain} value={filters.domain} onChange={setFilter('domain')} />
           <FilterSelect label="Project" options={options.project} value={filters.project} onChange={setFilter('project')} />
           <FilterSelect label="PM/SM" options={options.pmSm} value={filters.pmSm} onChange={setFilter('pmSm')} />

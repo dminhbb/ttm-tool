@@ -3,13 +3,13 @@
 import { useEffect, useState } from 'react';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 
-/** Link target of the header widget "TTM-CNTT (actual)". */
+/** Link target of the header widget "TTM-CNTT (SỚM)". */
 export const EARLY_START_REPORT_HREF = '/reports?view=early-start';
 
 export interface EarlyStartActualIndex {
   /** TTM-CNTT (QLDA) with the "Start sớm" Epics judged from Epic_Real_Start_Date. */
   summary: TtmCnttSummary;
-  /** When the cache entry was built (the latest visit of "Báo cáo Epic start sớm" that rebuilt it). */
+  /** When the cache entry was built (the last cache rebuild). */
   computedAt: string | null;
 }
 
@@ -21,9 +21,10 @@ export interface EarlyStartActualState {
 }
 
 /**
- * Header widget "TTM-CNTT (actual)" of TTM Dashboard 2 and Quản trị Epic (owner 2026-11-04): the newest cached numbers
- * of "Báo cáo Epic start sớm" for the viewer's scope — never computed here; the report builds them on its first visit
- * of the day, so this is not real-time like the other header widgets.
+ * Header widget "TTM-CNTT (SỚM)" of TTM Dashboard 2 and Quản trị Epic (owner 2026-11-04): the newest cached numbers
+ * of "Báo cáo Epic start sớm" for the viewer's scope — never computed here; every cache rebuild (import, daily run,
+ * "Tạo lại cache") writes them (early-start-report-service.ts, refreshEarlyStartCaches), so they follow the other
+ * widgets' data layer rather than being real-time.
  */
 export function useEarlyStartActualIndex(): EarlyStartActualState {
   const [state, setState] = useState<EarlyStartActualState>({ hidden: false, index: undefined });
@@ -58,11 +59,7 @@ export function formatEarlyStartCacheTime(value: string | null): string {
   return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-/** Tooltip of the widget. */
-export function earlyStartActualTooltip(index: EarlyStartActualIndex | null | undefined): string {
-  return [
-    'TTM-CNTT (actual): chỉ số TTM-CNTT (QLDA) khi Epic có khuyến nghị "Start sớm" được tính từ Epic_Real_Start_Date (phạm vi của bạn).',
-    index ? `${index.summary.pass}/${index.summary.denominator} — cache lúc ${formatEarlyStartCacheTime(index.computedAt)}` : 'Chưa có số liệu — mở Báo cáo Epic start sớm để tính.',
-    'Bấm để mở Báo cáo Epic start sớm.',
-  ].join('\n');
+/** Tooltip of the widget (the app's Tooltip component). */
+export function earlyStartActualTooltip(): string {
+  return 'Chỉ số TTM tính theo start date thực tế. Click để xem báo cáo.';
 }

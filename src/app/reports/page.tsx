@@ -46,7 +46,7 @@ function ReportsHub() {
   if (view === 'early-start') return <EarlyStartReportScreen onBack={() => open(null)} />;
 
   return (
-    <div className="flex min-h-[60vh] flex-col bg-white p-4 text-black md:p-6">
+    <div className="flex min-h-[60vh] flex-col bg-fb-surface p-4 text-fb-text-primary md:p-6">
       <InfoBannerDisplay pathname="/reports" />
       <div className="flex flex-1 items-center justify-center py-8">
         <div className="grid w-full max-w-4xl grid-cols-1 gap-5 md:grid-cols-2">
@@ -60,7 +60,7 @@ function ReportsHub() {
               <span className="grid size-10 place-items-center bg-[var(--color-text-brand)] text-white">
                 <ButtonIcon className="size-5" weight="bold" />
               </span>
-              <span className="flex w-full items-center justify-between gap-2 text-base font-bold text-black">
+              <span className="flex w-full items-center justify-between gap-2 text-base font-bold text-fb-text-primary">
                 {title}
                 <CaretRight className="size-4 shrink-0 text-fb-text-secondary transition-transform group-hover:translate-x-0.5" weight="bold" />
               </span>

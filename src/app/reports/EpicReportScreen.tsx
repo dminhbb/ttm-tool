@@ -33,7 +33,7 @@ export function getStatusTextColorClass(status: string): string {
   if (norm === 'IN_PROGRESS' || upper.includes('IN PROGRESS') || upper.includes('PROGRESS')) {
     return 'text-[var(--color-primary-700)] font-bold'; // Blue navy
   }
-  return 'text-black font-bold';
+  return 'text-fb-text-primary font-bold';
 }
 
 /** "Báo cáo Epic" — the report of "Báo cáo Epic (beta 2)" as it was before the menu of 2 reports (2026-11-04). */
@@ -244,8 +244,8 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
   if (metaError) {
     return (
       <div className="p-6">
-        <div className="rounded-none border border-black bg-fb-surface-muted p-6 text-center text-black max-w-md mx-auto">
-          <Warning className="size-6 mx-auto mb-2 text-black" weight="bold" />
+        <div className="rounded-none border border-fb-text-primary bg-fb-surface-muted p-6 text-center text-fb-text-primary max-w-md mx-auto">
+          <Warning className="size-6 mx-auto mb-2 text-fb-text-primary" weight="bold" />
           <h2 className="text-base font-bold">Truy cập bị từ chối</h2>
           <p className="text-xs mt-1 text-fb-text-secondary">{metaError}</p>
         </div>
@@ -254,7 +254,7 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
   }
 
   return (
-    <div className="space-y-6 p-4 md:p-6 text-black bg-white">
+    <div className="space-y-6 p-4 md:p-6 text-fb-text-primary bg-fb-surface">
       {/* Banner System */}
       <InfoBannerDisplay pathname="/reports" />
 
@@ -280,13 +280,13 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
       `}</style>
 
       {/* FILTER PANEL - Darker Background to distinguish from White Report below */}
-      <div className="no-print rounded-none border-2 border-fb-border bg-fb-control-hover p-5 space-y-4 shadow-sm text-black">
+      <div className="no-print rounded-none border-2 border-fb-border bg-fb-control-hover p-5 space-y-4 shadow-sm text-fb-text-primary">
         <div className="flex items-center justify-between border-b border-fb-border pb-3">
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onBack}
-              className="grid size-8 place-items-center border border-fb-border bg-white text-black hover:bg-fb-surface-muted"
+              className="grid size-8 place-items-center border border-fb-border bg-fb-surface text-fb-text-primary hover:bg-fb-surface-muted"
               title="Quay lại Báo cáo Epic (beta 2)"
               aria-label="Quay lại Báo cáo Epic (beta 2)"
             >
@@ -296,7 +296,7 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
               <Bandaids className="size-4" weight="bold" />
             </div>
             <div>
-              <h1 className="text-base font-bold text-black">Báo cáo Epic</h1>
+              <h1 className="text-base font-bold text-fb-text-primary">Báo cáo Epic</h1>
               <p className="text-[11px] text-fb-text-secondary font-medium">Lựa chọn lớp dữ liệu và các điều kiện lọc</p>
             </div>
           </div>
@@ -308,11 +308,11 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
         {/* Row 1 Filters: Domain, Project, Component */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
-            <label className="mb-1 block text-[11px] font-bold text-black">1. Domain Nghiệp vụ</label>
+            <label className="mb-1 block text-[11px] font-bold text-fb-text-primary">1. Domain Nghiệp vụ</label>
             <select
               value={selectedDomainId}
               onChange={(e) => setSelectedDomainId(e.target.value)}
-              className="w-full rounded-none border border-fb-border bg-white px-3 py-2 text-xs outline-none focus:border-[var(--color-text-brand)] font-medium"
+              className="w-full rounded-none border border-fb-border bg-fb-surface px-3 py-2 text-xs outline-none focus:border-[var(--color-text-brand)] font-medium"
             >
               <option value="ALL">-- Tất cả Domain --</option>
               {domains.map((d) => (
@@ -324,13 +324,13 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
           </div>
 
           <div>
-            <label className="mb-1 block text-[11px] font-bold text-black">
+            <label className="mb-1 block text-[11px] font-bold text-fb-text-primary">
               2. Dự án (Project Key) <span className="text-[var(--color-text-brand)]">*</span>
             </label>
             <select
               value={effectiveProjectKey}
               onChange={(e) => setSelectedProjectKey(e.target.value)}
-              className="w-full rounded-none border border-fb-border bg-white px-3 py-2 text-xs outline-none focus:border-[var(--color-text-brand)] font-medium"
+              className="w-full rounded-none border border-fb-border bg-fb-surface px-3 py-2 text-xs outline-none focus:border-[var(--color-text-brand)] font-medium"
               required
             >
               {filteredProjects.length === 0 ? (
@@ -346,11 +346,11 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
           </div>
 
           <div>
-            <label className="mb-1 block text-[11px] font-bold text-black">3. Component (Tùy chọn)</label>
+            <label className="mb-1 block text-[11px] font-bold text-fb-text-primary">3. Component (Tùy chọn)</label>
             <select
               value={selectedComponent}
               onChange={(e) => setSelectedComponent(e.target.value)}
-              className="w-full rounded-none border border-fb-border bg-white px-3 py-2 text-xs outline-none focus:border-[var(--color-text-brand)] font-medium"
+              className="w-full rounded-none border border-fb-border bg-fb-surface px-3 py-2 text-xs outline-none focus:border-[var(--color-text-brand)] font-medium"
               disabled={!effectiveProjectKey}
             >
               <option value="ALL">-- Tất cả Component --</option>
@@ -366,38 +366,38 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
         {/* Row 2 Filters: 3 Date Filters */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-fb-border pt-3">
           <div>
-            <label className="mb-1 block text-[11px] font-bold text-black">
+            <label className="mb-1 block text-[11px] font-bold text-fb-text-primary">
               4. Epic tạo mới từ (Created Date &ge;)
             </label>
             <input
               type="date"
               value={createdDateFrom}
               onChange={(e) => setCreatedDateFrom(e.target.value)}
-              className="w-full rounded-none border border-fb-border bg-white px-3 py-1.5 text-xs outline-none focus:border-[var(--color-text-brand)] font-mono"
+              className="w-full rounded-none border border-fb-border bg-fb-surface px-3 py-1.5 text-xs outline-none focus:border-[var(--color-text-brand)] font-mono"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-[11px] font-bold text-black">
+            <label className="mb-1 block text-[11px] font-bold text-fb-text-primary">
               5. Epic start date từ (Start CNTT / T1 &ge;)
             </label>
             <input
               type="date"
               value={startDateFrom}
               onChange={(e) => setStartDateFrom(e.target.value)}
-              className="w-full rounded-none border border-fb-border bg-white px-3 py-1.5 text-xs outline-none focus:border-[var(--color-text-brand)] font-mono"
+              className="w-full rounded-none border border-fb-border bg-fb-surface px-3 py-1.5 text-xs outline-none focus:border-[var(--color-text-brand)] font-mono"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-[11px] font-bold text-black">
+            <label className="mb-1 block text-[11px] font-bold text-fb-text-primary">
               6. Epic golive sau (Due Date &ge;)
             </label>
             <input
               type="date"
               value={releasedDateFrom}
               onChange={(e) => setReleasedDateFrom(e.target.value)}
-              className="w-full rounded-none border border-fb-border bg-white px-3 py-1.5 text-xs outline-none focus:border-[var(--color-text-brand)] font-mono"
+              className="w-full rounded-none border border-fb-border bg-fb-surface px-3 py-1.5 text-xs outline-none focus:border-[var(--color-text-brand)] font-mono"
             />
           </div>
         </div>
@@ -407,7 +407,7 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
           <button
             type="button"
             onClick={() => setAdvancedConfigOpen(!advancedConfigOpen)}
-            className="flex items-center gap-1.5 text-xs font-bold text-black hover:text-[var(--color-text-brand)] transition-colors"
+            className="flex items-center gap-1.5 text-xs font-bold text-fb-text-primary hover:text-[var(--color-text-brand)] transition-colors"
           >
             {advancedConfigOpen ? (
               <CaretDown className="size-4 text-[var(--color-text-brand)]" weight="bold" />
@@ -422,7 +422,7 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
               {/* Item 7. Lịch sử báo cáo */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-[11px] font-bold text-black">
+                  <label className="text-[11px] font-bold text-fb-text-primary">
                     7. Lịch sử báo cáo (Lớp dữ liệu) <span className="text-[var(--color-text-brand)]">*</span>
                   </label>
                   <span className="text-[11px] text-fb-text-secondary font-medium">Chọn 1 lớp dữ liệu, dữ liệu sẽ tự động drill xuống các lớp cũ hơn nếu thiếu.</span>
@@ -444,7 +444,7 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
                           className={`flex items-center gap-1.5 rounded-none border px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
                             isSelected
                               ? 'border-[var(--color-text-brand)] bg-[var(--color-text-brand)] text-white'
-                              : 'border-fb-border bg-white text-fb-text-primary hover:border-black'
+                              : 'border-fb-border bg-fb-surface text-fb-text-primary hover:border-fb-text-primary'
                           }`}
                         >
                           {isSelected && <Check className="size-3.5" weight="bold" />}
@@ -474,7 +474,7 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
               {/* Item 8. So sánh với Lớp dữ liệu */}
               <div className="pt-2 border-t border-fb-border">
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-[11px] font-bold text-black">
+                  <label className="text-[11px] font-bold text-fb-text-primary">
                     8. So sánh với Lớp dữ liệu
                   </label>
                   <span className="text-[11px] text-fb-text-secondary font-medium">Mặc định không so sánh. Chọn 1 lớp dữ liệu để so sánh chi tiết.</span>
@@ -489,7 +489,7 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
                       className={`flex items-center gap-1.5 rounded-none border px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
                         !compareLayerAnchor
                           ? 'border-[var(--color-text-brand)] bg-[var(--color-text-brand)] text-white'
-                          : 'border-fb-border bg-white text-fb-text-primary hover:border-black'
+                          : 'border-fb-border bg-fb-surface text-fb-text-primary hover:border-fb-text-primary'
                       }`}
                     >
                       {!compareLayerAnchor && <Check className="size-3.5" weight="bold" />}
@@ -510,7 +510,7 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
                           className={`flex items-center gap-1.5 rounded-none border px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
                             isSelected
                               ? 'border-[var(--color-text-brand)] bg-[var(--color-text-brand)] text-white'
-                              : 'border-fb-border bg-white text-fb-text-primary hover:border-black'
+                              : 'border-fb-border bg-fb-surface text-fb-text-primary hover:border-fb-text-primary'
                           }`}
                         >
                           {isSelected && <Check className="size-3.5" weight="bold" />}
@@ -543,7 +543,7 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
         {/* Generate Report & Reset Submit Buttons */}
         <div className="flex items-center justify-between border-t border-fb-border pt-3">
           <p className="text-[11px] text-fb-text-primary font-medium">
-            Đã chọn dự án: <strong className="text-black">{effectiveProjectKey || 'Chưa chọn'}</strong> | Lớp chính (Mục 7): <strong className="text-[var(--color-text-brand)]">{selectedLayerAnchor || 'Chưa chọn'}</strong>
+            Đã chọn dự án: <strong className="text-fb-text-primary">{effectiveProjectKey || 'Chưa chọn'}</strong> | Lớp chính (Mục 7): <strong className="text-[var(--color-text-brand)]">{selectedLayerAnchor || 'Chưa chọn'}</strong>
             {compareLayerAnchor ? (
               <> | So sánh với (Mục 8): <strong className="text-fb-text-primary">{compareLayerAnchor}</strong></>
             ) : (
@@ -554,7 +554,7 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
             <button
               type="button"
               onClick={handleResetFilter}
-              className="flex items-center gap-1.5 rounded-none border border-fb-border bg-white px-4 py-2.5 text-xs font-bold text-black transition-all hover:bg-fb-control-hover hover:border-black"
+              className="flex items-center gap-1.5 rounded-none border border-fb-border bg-fb-surface px-4 py-2.5 text-xs font-bold text-fb-text-primary transition-all hover:bg-fb-control-hover hover:border-fb-text-primary"
             >
               <ArrowsClockwise className="size-4" weight="bold" />
               <span>Đặt lại</span>
@@ -573,7 +573,7 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
       </div>
 
       {reportError && (
-        <div className="no-print rounded-none border border-black bg-fb-surface-muted p-3 text-xs font-semibold text-black flex items-center gap-2">
+        <div className="no-print rounded-none border border-fb-text-primary bg-fb-surface-muted p-3 text-xs font-semibold text-fb-text-primary flex items-center gap-2">
           <Warning className="size-4 shrink-0 text-[var(--color-text-brand)]" weight="bold" />
           <span>{reportError}</span>
         </div>
@@ -581,10 +581,10 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
 
       {/* REPORT DOCUMENT VIEW */}
       {report && (
-        <div className="print-container space-y-5 rounded-none border-2 border-black bg-white p-6 text-black shadow-lg">
+        <div className="print-container space-y-5 rounded-none border-2 border-fb-text-primary bg-fb-surface p-6 text-fb-text-primary shadow-lg">
           {/* Actions Bar (Print / PDF) */}
           <div className="no-print flex items-center justify-between border-b border-fb-border pb-3">
-            <div className="flex items-center gap-2 text-xs font-bold text-black">
+            <div className="flex items-center gap-2 text-xs font-bold text-fb-text-primary">
               <CheckCircle className="size-4 text-[var(--color-text-brand)]" weight="fill" />
               <span>Báo cáo đã tổng hợp xong (Bấm mã Epic để Duyệt Epic hoặc xem Jira)</span>
             </div>
@@ -599,14 +599,14 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
           </div>
 
           {/* REPORT HEADER */}
-          <div className="border-b-2 border-black pb-4 text-center space-y-1.5">
+          <div className="border-b-2 border-fb-text-primary pb-4 text-center space-y-1.5">
             <div className="flex items-center justify-center gap-2">
               <div className="grid size-8 place-items-center bg-[var(--color-text-brand)] text-white rounded-none">
                 <Pulse className="size-5" weight="bold" />
               </div>
-              <span className="text-base font-extrabold tracking-tight text-black">TTM MONITOR SYSTEM</span>
+              <span className="text-base font-extrabold tracking-tight text-fb-text-primary">TTM MONITOR SYSTEM</span>
             </div>
-            <h1 className="text-xl font-extrabold tracking-tight text-black uppercase">BÁO CÁO EPIC DỰ ÁN</h1>
+            <h1 className="text-xl font-extrabold tracking-tight text-fb-text-primary uppercase">BÁO CÁO EPIC DỰ ÁN</h1>
             <p className="text-[11px] text-fb-text-placeholder">Thời gian trích xuất hệ thống: {new Date(report.evaluatedAt).toLocaleString('vi-VN')}</p>
           </div>
 
@@ -622,15 +622,15 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
           )}
 
           {/* 2-COLUMN METADATA BLOCK */}
-          <div className="rounded-none border border-black overflow-hidden">
+          <div className="rounded-none border border-fb-text-primary overflow-hidden">
             <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-fb-border">
               {/* Column 1 */}
               <div className="divide-y divide-fb-border">
                 <div className="flex">
-                  <div className="w-2/5 bg-fb-surface-muted text-black px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-fb-border">
+                  <div className="w-2/5 bg-fb-surface-muted text-fb-text-primary px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-fb-border">
                     THỜI GIAN THỐNG KÊ
                   </div>
-                  <div className="w-3/5 bg-white px-3 py-2 text-[11px] font-bold text-black flex flex-col justify-center">
+                  <div className="w-3/5 bg-fb-surface px-3 py-2 text-[11px] font-bold text-fb-text-primary flex flex-col justify-center">
                     <div>
                       <span className="text-[var(--color-text-brand)]">Lớp chính (Mục 7):</span> Trạng thái các Epic tại ngày {report.maxLayerDate}
                     </div>
@@ -643,19 +643,19 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
                 </div>
 
                 <div className="flex">
-                  <div className="w-2/5 bg-fb-surface-muted text-black px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-fb-border">
+                  <div className="w-2/5 bg-fb-surface-muted text-fb-text-primary px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-fb-border">
                     DOMAIN NGHIỆP VỤ
                   </div>
-                  <div className="w-3/5 bg-white px-3 py-2 text-[11px] font-bold text-black flex items-center">
+                  <div className="w-3/5 bg-fb-surface px-3 py-2 text-[11px] font-bold text-fb-text-primary flex items-center">
                     {report.domainName}
                   </div>
                 </div>
 
                 <div className="flex">
-                  <div className="w-2/5 bg-fb-surface-muted text-black px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-fb-border">
+                  <div className="w-2/5 bg-fb-surface-muted text-fb-text-primary px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-fb-border">
                     DỰ ÁN (PROJECT)
                   </div>
-                  <div className="w-3/5 bg-white px-3 py-2 text-[11px] font-bold text-[var(--color-text-brand)] flex items-center">
+                  <div className="w-3/5 bg-fb-surface px-3 py-2 text-[11px] font-bold text-[var(--color-text-brand)] flex items-center">
                     [{report.projectKey}] {report.projectName}
                   </div>
                 </div>
@@ -664,28 +664,28 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
               {/* Column 2 */}
               <div className="divide-y divide-fb-border">
                 <div className="flex">
-                  <div className="w-2/5 bg-fb-surface-muted text-black px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-fb-border">
+                  <div className="w-2/5 bg-fb-surface-muted text-fb-text-primary px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-fb-border">
                     COMPONENT
                   </div>
-                  <div className="w-3/5 bg-white px-3 py-2 text-[11px] font-bold text-black flex items-center">
+                  <div className="w-3/5 bg-fb-surface px-3 py-2 text-[11px] font-bold text-fb-text-primary flex items-center">
                     {report.componentName}
                   </div>
                 </div>
 
                 <div className="flex">
-                  <div className="w-2/5 bg-fb-surface-muted text-black px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-fb-border">
+                  <div className="w-2/5 bg-fb-surface-muted text-fb-text-primary px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-fb-border">
                     PM / SM ĐẠI DIỆN
                   </div>
-                  <div className="w-3/5 bg-white px-3 py-2 text-[11px] font-bold text-black flex items-center">
+                  <div className="w-3/5 bg-fb-surface px-3 py-2 text-[11px] font-bold text-fb-text-primary flex items-center">
                     {report.pmSmNames}
                   </div>
                 </div>
 
                 <div className="flex">
-                  <div className="w-2/5 bg-fb-surface-muted text-black px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-fb-border">
+                  <div className="w-2/5 bg-fb-surface-muted text-fb-text-primary px-3 py-2 text-[11px] font-extrabold tracking-wide uppercase flex items-center border-r border-fb-border">
                     NGÀY LẬP BÁO CÁO
                   </div>
-                  <div className="w-3/5 bg-white px-3 py-2 text-[11px] font-bold text-black flex items-center">
+                  <div className="w-3/5 bg-fb-surface px-3 py-2 text-[11px] font-bold text-fb-text-primary flex items-center">
                     {new Date(report.evaluatedAt).toLocaleDateString('vi-VN')}
                   </div>
                 </div>
@@ -705,7 +705,7 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
                     <span className="text-base font-extrabold text-fb-text-primary" title={`Lớp so sánh: ${compareReport.totalReleasedCount}`}>{compareReport.totalReleasedCount}</span>
                   </div>
                 ) : (
-                  <p className="text-lg font-extrabold text-black mt-0.5">{report.totalReleasedCount}</p>
+                  <p className="text-lg font-extrabold text-fb-text-primary mt-0.5">{report.totalReleasedCount}</p>
                 )}
               </div>
 
@@ -731,7 +731,7 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
                     <span className="text-base font-extrabold text-fb-text-primary" title={`Lớp so sánh: ${compareReport.totalFailedCount}`}>{compareReport.totalFailedCount}</span>
                   </div>
                 ) : (
-                  <p className="text-lg font-extrabold text-black mt-0.5">{report.totalFailedCount}</p>
+                  <p className="text-lg font-extrabold text-fb-text-primary mt-0.5">{report.totalFailedCount}</p>
                 )}
               </div>
 
@@ -836,7 +836,7 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
             isFailTable={true}
             customHeader="Loại Fail / Chi tiết"
             renderCustomCell={(item) => (
-              <td className="px-2.5 py-1.5 text-[11px] font-bold text-black">
+              <td className="px-2.5 py-1.5 text-[11px] font-bold text-fb-text-primary">
                 <span>{item.failType || 'Fail TTM'}</span>
               </td>
             )}
@@ -912,8 +912,8 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
           )}
 
           {/* PAGE BOTTOM FOOTER */}
-          <div className="border-t-2 border-black pt-4 pb-2 text-center mt-6">
-            <p className="text-xs font-bold text-black uppercase tracking-wide">
+          <div className="border-t-2 border-fb-text-primary pt-4 pb-2 text-center mt-6">
+            <p className="text-xs font-bold text-fb-text-primary uppercase tracking-wide">
               Phòng QLDA-TKTN, Trung tâm Đảm bảo chất lượng, Khối CNTT.
             </p>
           </div>
@@ -961,14 +961,14 @@ function ReportSectionBlockSquare({
   const isComparing = compareItems !== undefined;
 
   return (
-    <div className="rounded-none border border-black overflow-hidden">
+    <div className="rounded-none border border-fb-text-primary overflow-hidden">
       {/* Header Bar - Light Background, Clickable to Toggle Collapsed State */}
       <div
         onClick={() => setCollapsed(!collapsed)}
-        className="bg-fb-control-hover text-black px-3 py-2 font-bold text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-1 cursor-pointer select-none border-b border-fb-border hover:bg-fb-control-hover transition-colors"
+        className="bg-fb-control-hover text-fb-text-primary px-3 py-2 font-bold text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-1 cursor-pointer select-none border-b border-fb-border hover:bg-fb-control-hover transition-colors"
       >
         <div className="flex items-center gap-2">
-          {collapsed ? <CaretRight className="size-4 text-black shrink-0" weight="bold" /> : <CaretDown className="size-4 text-black shrink-0" weight="bold" />}
+          {collapsed ? <CaretRight className="size-4 text-fb-text-primary shrink-0" weight="bold" /> : <CaretDown className="size-4 text-fb-text-primary shrink-0" weight="bold" />}
           <span>{title}</span>
         </div>
         <div className="flex items-center gap-2">
@@ -993,7 +993,7 @@ function ReportSectionBlockSquare({
       <div className={collapsed ? 'hidden print:block' : 'block'}>
         {isComparing ? (
           /* COMPARISON MODE: 2 VERTICAL PANES (SIDE-BY-SIDE) */
-          <div className="grid grid-cols-1 xl:grid-cols-2 divide-y xl:divide-y-0 xl:divide-x divide-black bg-white">
+          <div className="grid grid-cols-1 xl:grid-cols-2 divide-y xl:divide-y-0 xl:divide-x divide-fb-text-primary bg-fb-surface">
             {/* Left Pane: Layer chosen in Item 7 */}
             <div className="min-w-0">
               <div className="bg-fb-blue-soft border-b border-fb-border px-3 py-1.5 flex items-center justify-between text-[11px] font-bold text-[var(--color-text-brand)]">
@@ -1081,7 +1081,7 @@ function SingleReportTable({
     <div className="overflow-x-auto">
       <table className="w-full text-left text-[11px] border-collapse min-w-[620px]">
         <thead>
-          <tr className="border-b border-fb-border bg-fb-surface-muted text-black font-bold select-none">
+          <tr className="border-b border-fb-border bg-fb-surface-muted text-fb-text-primary font-bold select-none">
             <th className="px-2 py-1.5 w-7 text-center border-r border-fb-border">STT</th>
             <th className="px-2 py-1.5 w-14 border-r border-fb-border">Project</th>
             <th className="px-2 py-1.5 max-w-[220px] border-r border-fb-border">Epic Key / Summary</th>
@@ -1102,7 +1102,7 @@ function SingleReportTable({
             return (
               <tr key={item.epicKey} className="hover:bg-fb-surface-muted">
                 <td className="px-2 py-1.5 text-center font-mono text-fb-text-placeholder border-r border-fb-border">{idx + 1}</td>
-                <td className="px-2 py-1.5 font-mono font-bold text-black border-r border-fb-border">{item.projectKey}</td>
+                <td className="px-2 py-1.5 font-mono font-bold text-fb-text-primary border-r border-fb-border">{item.projectKey}</td>
 
                 {/* COMBINED EPIC KEY WITH CLICK TO OPEN DUYỆT EPIC POPUP (LINE 1) & SUMMARY (LINE 2) */}
                 <td className="px-2 py-1.5 border-r border-fb-border">
@@ -1221,10 +1221,10 @@ function ComparisonChartCard({
   const diff = primaryCount - compareCount;
 
   return (
-    <div className="rounded-none border border-black bg-fb-surface-muted p-2.5 flex flex-col justify-between">
+    <div className="rounded-none border border-fb-text-primary bg-fb-surface-muted p-2.5 flex flex-col justify-between">
       {/* Title */}
       <div className="border-b border-fb-border pb-1.5 text-center">
-        <h3 className="text-[11px] font-bold text-black uppercase tracking-tight truncate" title={title}>
+        <h3 className="text-[11px] font-bold text-fb-text-primary uppercase tracking-tight truncate" title={title}>
           {title}
         </h3>
         <div className="mt-0.5 flex items-center justify-center gap-1 text-[11px] font-semibold">
@@ -1284,12 +1284,12 @@ function ReportComparisonChartsRow({
   const compareLabel = compareReport.maxLayerDate;
 
   return (
-    <div className="rounded-none border border-black p-3 bg-white space-y-3 print:break-inside-avoid">
+    <div className="rounded-none border border-fb-text-primary p-3 bg-fb-surface space-y-3 print:break-inside-avoid">
       {/* Header & Legend */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-fb-border pb-2 gap-2">
         <div className="flex items-center gap-2">
           <ChartBar className="size-4 text-[var(--color-text-brand)]" weight="bold" />
-          <span className="text-xs font-extrabold uppercase text-black">
+          <span className="text-xs font-extrabold uppercase text-fb-text-primary">
             BIỂU ĐỒ CỘT SO SÁNH TỔNG SỐ EPIC (MỤC 2, 3, 4, 5)
           </span>
         </div>

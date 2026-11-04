@@ -7,7 +7,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { USER_ROLES, type UserRole } from '@/lib/auth-types';
 import { PAGE_HEADERS } from '@/lib/app-screens';
 import { PERMISSION_MATRIX_CHANGED_EVENT } from '@/lib/permission-matrix-types';
-import { EpicHeaderWidgetsProvider, useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
+import { EpicHeaderWidgetsProvider, useEpicHeaderWidgets, type EpicHeaderWidgetItem } from '@/lib/epic-header-widgets-context';
 import {
   Bandaids,
   Broom,
@@ -117,6 +117,14 @@ function navItemAlert(href: string | undefined, pendingUserTicketsCount: number,
 function navItemHref(href: string, cacheRebuildPending: boolean): string {
   return href === '/' && cacheRebuildPending ? CACHE_TAB_HREF : href;
 }
+
+/** Value color of each header index widget: TTM-CNTT (QLDA) violet, (SỚM) primary text, TTM-E2E brown, (QA) green. */
+const HEADER_WIDGET_TONE_CLASS: Record<EpicHeaderWidgetItem['tone'], string> = {
+  actual: 'text-fb-text-primary',
+  e2e: 'text-[var(--header-widget-e2e-color)]',
+  qa: 'text-status-success',
+  ttm: 'text-fb-accent',
+};
 
 export interface AppShellProps {
   children: React.ReactNode;
@@ -801,7 +809,7 @@ function AppShellInner({ children }: AppShellProps) {
                 const body = (
                   <>
                     <span className="text-[11px] font-bold uppercase tracking-wide text-fb-text-secondary">{item.label}</span>
-                    <span className={cn('text-sm font-extrabold', item.tone === 'qa' ? 'text-fb-accent' : item.tone === 'e2e' ? 'text-status-success' : item.tone === 'actual' ? 'text-[var(--early-start-real-color)]' : 'text-fb-blue')}>{item.value}</span>
+                    <span className={cn('text-sm font-extrabold', HEADER_WIDGET_TONE_CLASS[item.tone])}>{item.value}</span>
                   </>
                 );
                 const boxClass = 'flex flex-col items-end gap-0 rounded-md border border-fb-border bg-fb-surface-muted px-2 py-1 leading-none hover:bg-fb-control transition-colors';

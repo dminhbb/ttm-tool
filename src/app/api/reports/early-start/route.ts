@@ -6,7 +6,7 @@ import { getEarlyStartReportPage, getLatestEarlyStartSummary } from '@/modules/t
 /**
  * "Báo cáo Epic start sớm" (owner 2026-11-04), within the viewer's report scope.
  *   GET                 → widgets (today's cache entry, built on the first visit of the day) + the table (live)
- *   GET ?summary=latest → only the newest cached widgets, never built here — the header widget "TTM-CNTT (actual)"
+ *   GET ?summary=latest → only the newest cached widgets, never built here — the header widget "TTM-CNTT (SỚM)"
  *                         of TTM Dashboard 2 / Quản trị Epic; { summary: null } while the report was never opened.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
