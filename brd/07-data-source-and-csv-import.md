@@ -82,6 +82,11 @@ Crawl tool V16 / V16.1 (bổ sung 2026-11-04) thêm 4 cột **tùy chọn** (tê
   trước đó (có giá trị) của Epic cùng key; Epic chưa từng có giá trị thì để NULL
   (`carryForwardEpicRealStartDate`, `src/lib/import-service.ts`).
 
+Hiển thị và sử dụng (2026-11-04): Duyệt Epic → Issues in Epic có cột Start Date và Actual Start Date (Epic_Real_Start_Date của
+Epic, Story_Real_Start_Date của Story, trống với Subtask); Review Notes có dòng Actual Start Date; Scoring Service có khuyến nghị
+"Start sớm" (rule `early-start`, `src/lib/scoring/rules/early-start.ts`) khi Epic_Real_Start_Date < Start Date, dùng cho
+"Báo cáo Epic start sớm" (`/reports?view=early-start`).
+
 ## 2.2. Từ chối import — phạm vi dữ liệu nguồn (2026-10-14)
 
 Crawl tool chưa lọc được ngay từ nguồn, nên import adapter tự giữ phạm vi dữ liệu:

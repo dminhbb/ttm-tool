@@ -48,6 +48,7 @@ describe('PMS module boundaries', () => {
       'app/api/ttm-dashboard-2/route.ts',
       'app/api/ttm-dashboard-2/rows/route.ts',
       'app/api/reports/route.ts',
+      'app/api/reports/early-start/route.ts',
       'app/api/data-source/import/route.ts',
       'app/api/data-source/import/auto/route.ts',
     ];

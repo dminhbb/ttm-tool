@@ -1391,3 +1391,12 @@ mark.ttm-modal-search-highlight.ttm-modal-search-active {
   color: #ffffff;
   outline: 2px solid #fb923c;
 }
+
+/* "Báo cáo Epic start sớm" (2026-11-04): Start Date (T1) in green, Epic_Real_Start_Date in pink. */
+:root {
+  --early-start-t1-color: var(--color-success-300);
+  --early-start-real-color: #c2185b;
+}
+:root[data-theme="dark"] {
+  --early-start-real-color: #f48fb1;
+}

@@ -36,6 +36,7 @@ export type RuleSlot =
   | 'DQ_R1' | 'DQ_R2' | 'DQ_R3' | 'DQ_R4' | 'DQ_R5' | 'DQ_R6' | 'DQ_R8' | 'DQ_R9' | 'DQ_R10' | 'DQ_R11'
   | 'FAIL_REASON_STAGE'
   | 'FAIL_REASON_DEPT'
+  | 'EARLY_START'
   | 'RELEASE_WAITING_GOLIVE'
   | 'RELEASE_JUSTIFY_GOLIVE';
 

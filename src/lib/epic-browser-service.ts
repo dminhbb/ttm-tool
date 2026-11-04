@@ -17,6 +17,7 @@ import { matchesAlertFilter } from '@/lib/epic-row-verdicts';
  */
 export interface DataReviewIssueRow {
   aggregatedAt?: string;
+  actualStartDate?: string | null;
   assignee: string | null;
   dueDate: string | null;
   hasChildren?: boolean;
@@ -34,6 +35,7 @@ export interface DataReviewIssueRow {
 
 export function toIssue(row: DataReviewIssueRow): DataReviewIssue {
   return {
+    actualStartDate: row.actualStartDate ?? null,
     assignee: row.assignee ?? '',
     dataLayerDate: row.aggregatedAt ?? null,
     dueDate: row.dueDate,
@@ -71,7 +73,7 @@ export async function getEpicBrowserRoot(epicKey: string): Promise<DataReviewIss
       li.id, li.jira_id AS "jiraId", li.issue_key AS "issueKey", li.issue_type AS "issueType",
       li.current_status AS status, li.start_date::text AS "startDate", li.r4g_date::text AS "r4gDate",
       li.due_date::text AS "dueDate", li.issue_name AS summary, li.assignee_name AS assignee,
-      li.aggregated_at::text AS "aggregatedAt",
+      li.aggregated_at::text AS "aggregatedAt", li.epic_real_start_date::text AS "actualStartDate",
       COALESCE(itrm_li.team_role, '-') AS role,
       COALESCE(
         NULLIF(li.project_key, ''),
@@ -180,6 +182,8 @@ export async function getEpicBrowserChildren(
       c.current_status AS status, c.start_date::text AS "startDate", c.r4g_date::text AS "r4gDate",
       c.due_date::text AS "dueDate", c.issue_name AS summary, c.assignee_name AS assignee,
       c.aggregated_at::text AS "aggregatedAt",
+      -- "Actual Start Date": a Story's Story_Real_Start_Date (crawl tool V16); none for a Subtask.
+      CASE WHEN UPPER(c.issue_type) IN (${STORY_ISSUE_TYPES_SQL}) THEN ci.story_real_start_date::text END AS "actualStartDate",
       COALESCE(itrm_c.team_role, '-') AS role,
       COALESCE(
         NULLIF(ci.project_key, ''),
@@ -229,6 +233,8 @@ export interface EpicBrowserSummary {
   mainFailDept: string | null;
   ttmApplied: string | null;
   exceptTtmPlan: string | null;
+  /** "Actual Start Date" — issues.epic_real_start_date (crawl tool Epic_Real_Start_Date, V16.1, 2026-11-04). */
+  epicRealStartDate: string | null;
   /** PM/SM of the Epic's project — comma-joined when there are several, derived live from
    * user_projects (getProjectMetaByProjectKeyMap), not the Jira assignee. */
   ownerName: string;
@@ -272,6 +278,7 @@ interface EpicBrowserSummaryRow {
   mainFailDept: string | null;
   ttmApplied: string | null;
   exceptTtmPlan: string | null;
+  epicRealStartDate: string | null;
   project: string | null;
   requestingUnit: string | null;
   startDate: string | null;
@@ -328,6 +335,7 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
         issues.main_fail_dept AS "mainFailDept",
         issues.ttm_applied AS "ttmApplied",
         issues.except_ttm_plan AS "exceptTtmPlan",
+        issues.epic_real_start_date::text AS "epicRealStartDate",
         issues.requesting_unit AS "requestingUnit", issues.aggregated_at::text AS "aggregatedAt",
         COALESCE(
           NULLIF(issues.project_key, ''),
@@ -393,6 +401,7 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
     mainFailDept: row.mainFailDept,
     ttmApplied: row.ttmApplied,
     exceptTtmPlan: row.exceptTtmPlan,
+    epicRealStartDate: row.epicRealStartDate,
     // The PM/SMs responsible for this Epic's components (epic-pm-sm-assignment.ts) — the displayed row
     // already carries them; without one, every PM/SM of the project as before.
     ownerName: displayedRow ? displayedRow.ownerName : projectMeta?.leadName ?? '',

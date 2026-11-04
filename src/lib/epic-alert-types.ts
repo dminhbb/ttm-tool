@@ -1,6 +1,6 @@
 import type { AlertLevel, EpicComplexity } from '@/lib/ttm-rules';
 import type { EpicAnomalyViolation } from '@/lib/epic-data-anomaly';
-import type { Finding, TtmExclusion } from '@/lib/scoring/types';
+import type { EarlyStartEvaluation, Finding, TtmExclusion } from '@/lib/scoring/types';
 import type { EpicMarkSummary } from '@/lib/epic-mark-format';
 
 export type { EpicAnomalyViolation } from '@/lib/epic-data-anomaly';
@@ -117,6 +117,9 @@ export interface EpicAlertRowPhased {
   scoringBadges?: string[];
   scoringIndexFlags?: string[];
   scoringFindings?: Finding[];
+  /** "Start sớm" (REC_EARLY_START): TTM-CNTT (QLDA) judged again from Epic_Real_Start_Date — only "Báo cáo Epic start
+   * sớm" reads it; every other screen keeps the Epic's own verdict. */
+  scoringEarlyStart?: EarlyStartEvaluation;
   /** The Rule Group that judged the Epic (Rule Management, spec 2026-10-25); absent for an "Epic ngoại lệ"
    * (not judged) and on rows cached before Rule Groups existed. */
   ruleGroupId?: number;

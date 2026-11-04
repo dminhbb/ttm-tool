@@ -28,6 +28,7 @@ export const RULE_SLOT_LABELS: Record<RuleSlot, string> = {
   DQ_R11: 'R11 — Kế hoạch ngoại lệ TTM thiếu / sai',
   FAIL_REASON_STAGE: 'Thiếu lý do Fail TTM (khâu fail)',
   FAIL_REASON_DEPT: 'Thiếu phòng chịu TN chính',
+  EARLY_START: 'Start sớm',
   RELEASE_WAITING_GOLIVE: 'Chờ golive',
   RELEASE_JUSTIFY_GOLIVE: 'Giải trình Golive',
 };

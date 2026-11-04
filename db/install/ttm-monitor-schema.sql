@@ -1,6 +1,6 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-04T07:33:22.834Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-04T08:39:49.454Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
 -- Gồm: 70 bảng, 59 index phụ, 4 hàm, 4 trigger.
@@ -1156,7 +1156,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 121 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 122 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1279,7 +1279,8 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261113_create_ttm_dashboard_trend_cache.sql'),
     ('20261114_add_trend_new_fail_epic_keys.sql'),
     ('20261115_create_ttm_dashboard_metric_history.sql'),
-    ('20261116_add_issue_crawl_v16_fields.sql');
+    ('20261116_add_issue_crawl_v16_fields.sql'),
+    ('20261117_add_early_start_rule.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1472,7 +1473,7 @@ SELECT * FROM (VALUES
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 SELECT setval(pg_get_serial_sequence('scoring_rule_groups', 'id'), MAX(id)) FROM scoring_rule_groups HAVING MAX(id) IS NOT NULL;
 
--- scoring_rule_group_rules (20 dòng)
+-- scoring_rule_group_rules (21 dòng)
 INSERT INTO scoring_rule_group_rules (group_id, rule_id, state)
 SELECT * FROM (VALUES
     ('1'::integer, 'dq-r1'::text, 'ON'::text),
@@ -1485,6 +1486,7 @@ SELECT * FROM (VALUES
     ('1'::integer, 'dq-r6'::text, 'ON'::text),
     ('1'::integer, 'dq-r8'::text, 'ON'::text),
     ('1'::integer, 'dq-r9'::text, 'ON'::text),
+    ('1'::integer, 'early-start'::text, 'ON'::text),
     ('1'::integer, 'fail-reason-dept'::text, 'ON'::text),
     ('1'::integer, 'fail-reason-stage'::text, 'ON'::text),
     ('1'::integer, 'release-justify-golive'::text, 'ON'::text),
@@ -1561,7 +1563,7 @@ WHERE current_setting('ttm_install.seed_data', true) = 'on';
 -- derived_cache_refresh_lock (1 dòng)
 INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 SELECT * FROM (VALUES
-    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-04 00:38:02.811388+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-04 08:01:50.048548+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
 ) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 

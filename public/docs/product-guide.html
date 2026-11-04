@@ -1750,7 +1750,7 @@
         <li><strong>Rule object</strong> = một đơn vị logic phát ra một nhóm badge, có <em>mã</em> cố định (lưu trong CSDL, không đổi) và tên hiển thị. Logic viết trong code; không có trình soạn rule trên giao diện.
           Sửa một rule = sửa tại chỗ theo mã, mọi nhóm đang chọn mã đó dùng logic mới; logic chỉ áp dụng cho một giai đoạn Epic thì tạo <em>biến thể</em> với mã mới (ví dụ <code>ttm-cntt-2027</code>).</li>
         <li><strong>Rule chọn được</strong> (theo nhóm): <code>ttm-cntt-sep-2026</code> (Đạt / Fail TTM-CNTT (QLDA) + Sai Status), <code>ttm-e2e-july-2026</code> (Đạt / Fail TTM-E2E + Sai Status),
-          R1, R2, R3, R4, R5, R6, R8, R9, R10 (mỗi rule kèm khuyến nghị của nó), Thiếu lý do Fail TTM (khâu fail), Thiếu phòng chịu TN chính, Giải trình Golive, Chờ golive.
+          R1, R2, R3, R4, R5, R6, R8, R9, R10 (mỗi rule kèm khuyến nghị của nó), Thiếu lý do Fail TTM (khâu fail), Thiếu phòng chịu TN chính, Start sớm (<code>early-start</code>, từ 04/11/2026), Giải trình Golive, Chờ golive.
           Mỗi rule chọn được nằm trong một <strong>slot</strong> (vị trí): rule TTM-CNTT (QLDA) và TTM-E2E, và từng rule còn lại đều có slot riêng. Mỗi nhóm bật <strong>tối đa 1 rule cho mỗi slot</strong>; các biến thể của một slot phát cùng badge nên phễu và chỉ số đếm như cũ.</li>
         <li><strong>Rule luôn chạy</strong> (mọi Epic): Không áp dụng / Không tính được TTM-CNTT và TTM-E2E, Baseline từ ngày tạo Jira + Bổ sung T0, Cảnh báo muộn, Sai Status (Release),
           Release đúng hạn (badge vẫn tắt), Phạm vi dữ liệu cho TTM / Epic ngoại lệ, Pha.</li>
@@ -2084,6 +2084,10 @@
       <div class="callout warn">Màn hình TTM Dashboard bản đầu (SUPERADMIN-only từ 05/10/2026) đã được thay hoàn toàn bằng <strong>TTM Dashboard 2</strong> (mục 21). URL <code>/dashboard-new</code> chuyển hướng sang <code>/ttm-dashboard-2</code>; chức năng <code>dashboard_new</code> đã được gỡ khỏi Ma trận phân quyền.</div>
       <h3>11.6. Báo cáo Epic (<code>/reports</code>) — mọi role đã đăng nhập</h3>
       <p>
+        Từ 04/11/2026 menu <strong>Báo cáo Epic (beta 2)</strong> mở một trang có 2 nút căn giữa: <strong>Báo cáo Epic</strong> (<code>/reports?view=epic</code> — báo cáo
+        mô tả dưới đây) và <strong>Báo cáo Epic start sớm</strong> (<code>/reports?view=early-start</code> — mục 11.6.1). Mỗi báo cáo có nút quay lại trang 2 nút.
+      </p>
+      <p>
         Màn hình báo cáo theo <strong>từng dự án</strong> (không gộp nhiều dự án như Dashboard) — đây là mục đầu tiên trong nhóm &quot;Giám sát&quot; trên sidebar. Người dùng
         chọn 1 Dự án, tùy chọn lọc thêm Domain/Component/khoảng ngày, và chọn <strong>1 ngày</strong> trong các ngày được giữ chi tiết (30 ngày import gần nhất và ngày làm việc cuối mỗi tuần)
         để xem <strong>trạng thái của mọi Epic tại ngày đó</strong>. Dùng lại đúng engine tính cảnh báo/tuân thủ/sai lệch dữ liệu (Epic Scoring Service, <code>scoreEpic</code>) với 3 màn hình giám sát Epic ở trên — không tính lại bằng công thức riêng.
@@ -2098,6 +2102,21 @@
         <li>Epic <strong>Pending</strong>.</li>
       </ol>
       <p>Mỗi dòng Epic có thể bấm mã để mở popup Duyệt Epic hoặc mở thẳng Jira ở tab mới. Đây cũng là báo cáo duy nhất được expose sẵn cho AI chatbot qua MCP Server (tool <code>list_report_filters</code>, mục 16).</p>
+      <h4>11.6.1. Báo cáo Epic start sớm (từ 04/11/2026)</h4>
+      <p>
+        Đánh giá biến động chỉ số TTM-CNTT (QLDA) nếu Epic được tính từ ngày start sớm nhất (<code>Epic_Real_Start_Date</code> — subtask start sớm nhất của các Story,
+        do crawl tool tính). Epic có khuyến nghị <strong>Start sớm</strong> (Epic_Real_Start_Date &lt; Start Date, Epic có Start Date) được Scoring Service chấm lại
+        Đạt / Fail TTM-CNTT (QLDA) với Start Date = Epic_Real_Start_Date: cùng nhóm rule, cùng bộ ngân sách, cùng Sai lệch dữ liệu và phạm vi như kết quả chính thức — chỉ
+        Đạt / Fail thay đổi (Epic chưa có R4G Date có thể chuyển thành Fail vì đã quá Target mới). Kết quả chính thức trên mọi màn hình khác không đổi.
+        Số liệu đọc từ cache dòng Epic (lớp dữ liệu mới nhất), trong phạm vi tính TTM-CNTT (QLDA) và phạm vi xem của người dùng như Báo cáo Epic.
+      </p>
+      <ul>
+        <li><strong>Panel 1</strong> — 4 widget: Chỉ số TTM-CNTT, Số Epic fail TTM-CNTT, Chỉ số TTM-CNTT start sớm, Số Epic fail TTM-CNTT start sớm (kèm chênh lệch so với chỉ số hiện tại). Widget không mở popup.</li>
+        <li><strong>Panel 2</strong> — Danh sách các Epic fail TTM-CNTT start sớm: Epic có khuyến nghị Start sớm bị Fail khi tính từ Epic_Real_Start_Date. Cột: STT, Project, Epic Key / Summary,
+          Domain, PM/SM, Status, Start E2E, Start CNTT (xanh lá), Epic_Real_Start_Date (hồng), Chênh lệch (= Start Date − Epic_Real_Start_Date, ngày lịch), R4G Date, Released Date.
+          Sắp xếp theo Domain (A→Z), Project key (A→Z), rồi chênh lệch lớn nhất trước; 30 Epic / trang. Bấm mã Epic mở Duyệt Epic, icon bên cạnh mở Jira ở tab mới.</li>
+        <li>Sau khi triển khai phiên bản có rule này cần <strong>Tạo lại cache</strong> (hoặc đợi lần import / lượt đầu ngày) thì báo cáo mới có số liệu start sớm.</li>
+      </ul>
       <h3>11.7. Quy tắc hiển thị &amp; Lịch sử Cảnh báo (Quản trị Epic)</h3>
       <ul>
         <li>Quản trị Epic luôn hiện mọi Epic trong phạm vi được phân quyền (kể cả Released chưa từng có cảnh báo — quy tắc ẩn Released của màn rút gọn cũ không còn).</li>

@@ -1,3 +1,4 @@
+import { earlyStartRule } from './rules/early-start';
 import { dqR10Rule, dqR11Rule, dqR1Rule, dqR2Rule, dqR3Rule, dqR4Rule, dqR5Rule, dqR6Rule, dqR8Rule, dqR9Rule } from './rules/data-quality';
 import { failReasonDeptRule, failReasonStageRule } from './rules/fail-reason';
 import { releaseJustifyGoliveRule, releaseOnTimeRule, releaseStatusMismatchRule, releaseWaitingGoliveRule } from './rules/release';
@@ -39,6 +40,7 @@ export const RULES: readonly ScoringRule[] = [
   ttmCnttLateRule,
   failReasonStageRule,
   failReasonDeptRule,
+  earlyStartRule,
   // ---- TTM-E2E ----
   ttmE2eGatesRule,
   ttmE2eJuly2026Rule,
@@ -79,4 +81,4 @@ export const DEFAULT_RULE_GROUP: ScoringRuleGroup = {
 };
 
 /** Bump whenever rule code changes, so cached scorecards are recognized as outdated. */
-export const SCORING_CODE_VERSION = 'scoring-25';
+export const SCORING_CODE_VERSION = 'scoring-26';

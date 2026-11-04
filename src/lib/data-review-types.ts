@@ -1,4 +1,7 @@
 export interface DataReviewIssue {
+  /** "Actual Start Date" (Duyệt Epic → Issues in Epic, 2026-11-04): Epic_Real_Start_Date of an Epic,
+   * Story_Real_Start_Date of a Story (crawl tool V16 / V16.1); always empty for a Subtask. */
+  actualStartDate?: string | null;
   assignee: string;
   /** Which import data layer (aggregated_at) this issue's latest known row currently comes from. */
   dataLayerDate: string | null;

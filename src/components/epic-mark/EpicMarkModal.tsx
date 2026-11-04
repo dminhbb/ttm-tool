@@ -92,6 +92,8 @@ function generalRows(summary: EpicBrowserSummary | null): InfoRow[] {
     { icon: CircleHalf, label: 'Trạng thái', value: <StatusValue status={summary?.status} /> },
     { icon: CalendarPlus, label: 'Ngày tạo', value: formatDate(summary?.createdDate) },
     { icon: CalendarBlank, label: 'Ngày bắt đầu (T1)', value: formatDate(summary?.startDate) },
+    // Epic_Real_Start_Date of the crawl tool (V16.1, 2026-11-04).
+    { icon: CalendarBlank, label: 'Actual Start Date', value: formatDate(summary?.epicRealStartDate) },
     { icon: FlagCheckered, label: 'R4G Date', value: formatDate(summary?.r4gDate) },
     { icon: CalendarX, label: 'Due Date', value: formatDate(summary?.dueDate) },
     { icon: CalendarCheck, label: 'Ngày duyệt YT (T0)', value: formatDate(summary?.ideaApprovedDate) },

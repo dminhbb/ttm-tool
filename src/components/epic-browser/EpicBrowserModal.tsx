@@ -180,7 +180,7 @@ function displayCrawlText(value: string | null | undefined): string {
  * - Title: Summary của Epic
  * - Nút duy nhất ở hàng trên: Toggle 'Epic ngoại lệ' kèm hover tooltip
  * - Panel Details: Bố trí 2 cột (Trái/Phải)
- * - Panel "Issues in Epic": Khung border nét đứt, chứa bảng phân cấp 4 cột (Issue Type | Issue Key | Summary | Status)
+ * - Panel "Issues in Epic": Khung border nét đứt, chứa bảng phân cấp 6 cột (Issue Type | Issue Key | Summary | Status | Start Date | Actual Start Date)
  * - Panel "Giải trình Fail TTM": Thiết kế giống Details, 2 cột hiển thị các nguyên nhân khâu BA, CO, DEV, PM/SM, PO, Pentest, SA, SIT/UAT, Lý do khác và Phòng chịu TN chính (main_fail_dept).
  */
 export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
@@ -245,7 +245,7 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
       <div className={MODAL_BACKDROP_CLASS} onClick={onClose} aria-hidden="true" />
 
       <div
-        className={cn(MODAL_FRAME_CLASS, 'h-[88vh] w-[95vw] max-w-6xl overflow-hidden flex flex-col')}
+        className={cn(MODAL_FRAME_CLASS, 'h-[88vh] w-[95vw] max-w-[79rem] overflow-hidden flex flex-col')}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -469,7 +469,7 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
                 )}
               </div>
 
-              {/* Tab "Issues in Epic" Section (Khung nét đứt, bảng phân cấp 4 cột) */}
+              {/* Tab "Issues in Epic" Section (Khung nét đứt, bảng phân cấp 6 cột) */}
               <div>
                 <button
                   type="button"

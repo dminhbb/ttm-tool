@@ -566,3 +566,42 @@ describe('dates parity with legacy working-days.ts', () => {
     }
   });
 });
+
+describe('Start sớm (REC_EARLY_START, owner 2026-11-04)', () => {
+  const ctx = makeContext();
+  // Start Mon 2026-08-03 → Target 2026-08-21; real start Mon 2026-07-27 → Target 2026-08-14.
+  const facts = makeFacts({ r4gDate: '2026-08-18', status: 'R4GOLIVE', epicRealStartDate: '2026-07-27' });
+
+  it('recommends "Start sớm" only when Epic_Real_Start_Date is earlier than the Start Date', () => {
+    const card = scoreEpic(facts, ctx);
+    const recommendation = activeFindings(card).find((item) => item.badge === 'REC_EARLY_START');
+    assert.ok(recommendation);
+    assert.equal(recommendation.evidence.daysEarly, 7);
+    assert.ok(!active(makeFacts({ epicRealStartDate: '2026-08-03' }), ctx).has('REC_EARLY_START'));
+    assert.ok(!active(makeFacts({ epicRealStartDate: '2026-08-05' }), ctx).has('REC_EARLY_START'));
+    assert.ok(!active(makeFacts({ epicRealStartDate: null }), ctx).has('REC_EARLY_START'));
+    // "Thiếu Start Date" → never.
+    assert.ok(!active(makeFacts({ startDate: null, epicRealStartDate: '2026-07-27' }), ctx).has('REC_EARLY_START'));
+    assert.ok(!active(makeFacts({ status: 'Cancelled', epicRealStartDate: '2026-07-27' }), ctx).has('REC_EARLY_START'));
+    assert.ok(!active(facts, makeContext(withoutRules('early-start'))).has('REC_EARLY_START'));
+  });
+
+  it('judges TTM-CNTT (QLDA) again from the real start date, without touching the Epic\'s own verdict', () => {
+    const card = scoreEpic(facts, ctx);
+    assert.ok(hasBadge(card, 'CNTT_PASS'));
+    assert.deepEqual(card.indexMembership.ttm, { counted: true, eligible: true, pass: true, fail: false });
+    assert.ok(card.earlyStart);
+    assert.equal(card.earlyStart.cnttTargetDate, '2026-08-14');
+    assert.equal(card.earlyStart.daysEarly, 7);
+    assert.deepEqual(card.earlyStart.ttm, { counted: true, eligible: true, pass: false, fail: true });
+    // No recommendation → no second verdict.
+    assert.equal(scoreEpic(makeFacts({ r4gDate: '2026-08-18', status: 'R4GOLIVE' }), ctx).earlyStart, undefined);
+  });
+
+  it('an Epic with "Sai lệch dữ liệu" still gets the recommendation, and stays out of the ratio', () => {
+    const card = scoreEpic({ ...facts, requestType: null }, ctx);
+    assert.ok(hasBadge(card, 'ANOMALY_R4_MISSING_REQUEST_TYPE'));
+    assert.ok(hasBadge(card, 'REC_EARLY_START'));
+    assert.deepEqual(card.earlyStart?.ttm, { counted: true, eligible: false, pass: false, fail: false });
+  });
+});

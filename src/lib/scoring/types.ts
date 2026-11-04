@@ -58,6 +58,9 @@ export interface EpicFacts {
   /** "except-TTM-plan" as the crawl sent it (dd-MM-yyyy), and parsed; the plan is the Target of a 'Ngoại lệ' Epic. */
   exceptPlanRaw?: string | null;
   exceptPlanDate?: IsoDate | null;
+  /** issues.epic_real_start_date — the crawl tool's "Epic_Real_Start_Date" (CSV V16.1, 2026-11-04): the earliest start
+   * among the Epic's Stories' subtasks. Read by the rule "Start sớm" (rules/early-start.ts). */
+  epicRealStartDate?: IsoDate | null;
 }
 
 export type TtmAppliedKind = 'EXCEPTION' | 'NOT_APPLICABLE' | 'STANDARD';
@@ -243,4 +246,22 @@ export interface EpicScorecard {
   findings: Finding[];
   indexMembership: IndexMembership;
   derived: DerivedMetrics;
+  /** Only when the Epic has the active recommendation "Start sớm" (REC_EARLY_START). */
+  earlyStart?: EarlyStartEvaluation | null;
+}
+
+/**
+ * TTM-CNTT (QLDA) judged again with Start Date = Epic_Real_Start_Date (owner 2026-11-04, "Báo cáo Epic start sớm").
+ * Same Rule Group, budget, data quality, scope and denominator as the Epic's own verdict — only T1 of the TTM-CNTT
+ * verdict changes. It never replaces the Epic's verdict anywhere else.
+ */
+export interface EarlyStartEvaluation {
+  startDate: IsoDate;
+  realStartDate: IsoDate;
+  /** Calendar days: Start Date − Epic_Real_Start_Date (> 0). */
+  daysEarly: number;
+  /** Target_CNTT counted from the real start date. */
+  cnttTargetDate: IsoDate | null;
+  /** TTM-CNTT (QLDA) membership with that verdict — read as "TTM_PASS" / "TTM_FAIL"… like scoringIndexFlags. */
+  ttm: IndexFlags;
 }

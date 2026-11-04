@@ -84,6 +84,11 @@ export const BADGES = [
     formula: 'Có "Fail TTM-CNTT (QLDA)"  VÀ  có R4G Date và R4G Date > Target_CNTT  VÀ  main_fail_dept trống hoặc "None" (không phân biệt hoa thường)',
   },
   {
+    id: 'REC_EARLY_START', axis: 'TTM_CNTT', group: 'RECOMMENDATION', label: 'Start sớm', precedence: 37, defaultEnabled: true,
+    meaning: 'Epic bắt đầu thực tế sớm hơn Start Date: ngày Epic_Real_Start_Date do crawl tool tính (subtask start sớm nhất của các Story, import từ 04/11/2026) sớm hơn Start Date (T1) — rà soát lại Start Date trên Jira. Không đổi kết quả TTM-CNTT (QLDA) chính thức; "Báo cáo Epic start sớm" chấm lại TTM-CNTT (QLDA) của các Epic này với Start Date = Epic_Real_Start_Date. Epic Sai lệch dữ liệu vẫn được xét.',
+    formula: 'Có Start Date (không "Thiếu Start Date")  VÀ  có Epic_Real_Start_Date  VÀ  Epic_Real_Start_Date < Start Date.   Chênh lệch = Start Date − Epic_Real_Start_Date (ngày lịch)',
+  },
+  {
     id: 'CNTT_LATE', axis: 'TTM_CNTT', group: 'ALERT', label: 'Cảnh báo muộn', precedence: 40, defaultEnabled: true,
     meaning: 'Chưa có R4G Date, đã qua mốc cảnh báo muộn của status hiện tại, chưa quá Target.',
     formula: 'Không Sai lệch dữ liệu  VÀ  R4G trống  VÀ  T1 +wd Offset_muộn(loại Epic, status) ≤ asOf ≤ Target_CNTT',
@@ -329,7 +334,7 @@ export const BADGE_BY_ID: ReadonlyMap<BadgeId, BadgeDefinition> = new Map(BADGES
 
 /** Resolver: while `when` is active, each badge in `suppress` is still returned but marked suppressed. */
 export const SUPPRESSIONS: readonly { when: BadgeId; suppress: readonly BadgeId[] }[] = [
-  { when: 'CNTT_NOT_APPLICABLE', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH', 'REC_MISSING_FAIL_REASON', 'REC_MISSING_RESPONSIBLE_DEPARTMENT'] },
+  { when: 'CNTT_NOT_APPLICABLE', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH', 'REC_MISSING_FAIL_REASON', 'REC_MISSING_RESPONSIBLE_DEPARTMENT', 'REC_EARLY_START'] },
   { when: 'CNTT_CALC_BROKEN', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH', 'REC_MISSING_FAIL_REASON', 'REC_MISSING_RESPONSIBLE_DEPARTMENT'] },
   { when: 'SCOPE_CNTT_OUT', suppress: ['CNTT_FAIL', 'CNTT_LATE', 'CNTT_PASS', 'CNTT_STATUS_MISMATCH', 'RELEASE_WAITING_GOLIVE', 'REC_MISSING_FAIL_REASON', 'REC_MISSING_RESPONSIBLE_DEPARTMENT'] },
   { when: 'E2E_CALC_BROKEN', suppress: ['E2E_FAIL', 'E2E_PASS', 'E2E_STATUS_MISMATCH'] },

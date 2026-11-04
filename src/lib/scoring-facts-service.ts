@@ -34,6 +34,7 @@ interface EpicFactRow {
   mainFailDept: string | null;
   ttmApplied: string | null;
   exceptTtmPlan: string | null;
+  epicRealStartDate: string | null;
 }
 
 /**
@@ -75,7 +76,8 @@ export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]
         issues.note_ly_do_khac AS "noteLyDoKhac",
         issues.main_fail_dept AS "mainFailDept",
         issues.ttm_applied AS "ttmApplied",
-        issues.except_ttm_plan AS "exceptTtmPlan"
+        issues.except_ttm_plan AS "exceptTtmPlan",
+        issues.epic_real_start_date::text AS "epicRealStartDate"
       FROM issues
       WHERE UPPER(issues.issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
         AND issues.aggregated_at::date <= $1::date
@@ -118,6 +120,7 @@ export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]
       ttmApplied: normalizeTtmApplied(row.ttmApplied),
       exceptPlanRaw: row.exceptTtmPlan,
       exceptPlanDate: parseExceptPlanDate(row.exceptTtmPlan),
+      epicRealStartDate: toIsoDate(row.epicRealStartDate),
     };
   });
 }

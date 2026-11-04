@@ -93,7 +93,7 @@ describe('rule registry (spec 2026-10-25 §4–5)', () => {
   it('owner decisions of 2026-10-25: the 5 extra rules always run; the listed ones are selectable', () => {
     for (const id of ['ttm-cntt-late', 'ttm-e2e-gates', 'release-status-mismatch', 'release-on-time', 'phase']) assert.equal(RULE_BY_ID.get(id)?.core, true, id);
     const selectable = ['ttm-cntt-sep-2026', 'ttm-cntt-legacy-30d', 'ttm-cntt-except-plan', 'dq-r11', 'ttm-e2e-july-2026', 'dq-r1', 'dq-r2', 'dq-r3', 'dq-r4', 'dq-r5', 'dq-r6', 'dq-r8', 'dq-r9', 'dq-r10',
-      'fail-reason-stage', 'fail-reason-dept', 'release-justify-golive', 'release-waiting-golive'];
+      'fail-reason-stage', 'fail-reason-dept', 'early-start', 'release-justify-golive', 'release-waiting-golive'];
     assert.deepEqual(SELECTABLE_RULES.map((rule) => rule.id).sort(), [...selectable].sort());
     assert.ok(CORE_RULES.every((rule) => !rule.slot));
   });

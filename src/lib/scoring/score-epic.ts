@@ -6,7 +6,8 @@ import { matchingRuleGroups, policySetsOf, resolveRuleSelection, slotRuleOf } fr
 import { scopeRule } from './rules/scope-phase';
 import { finding } from './rules/rule-types';
 import type { RuleInput, ScoringRule } from './rules/rule-types';
-import type { EpicFacts, EpicScorecard, Finding, IndexMembership, ScoringContext } from './types';
+import { calendarDaysBetween } from './rules/early-start';
+import type { EarlyStartEvaluation, EpicFacts, EpicScorecard, Finding, IndexMembership, ScoringContext } from './types';
 
 /** A badge not in use yet (`defaultEnabled: false` in catalog.ts) is never emitted. Which rules run is the Rule
  * Group's business (rule-groups.ts) — there is no per-badge switch any more (removed 2026-10-25, spec §9.3). */
@@ -62,6 +63,45 @@ function indexMembership(facts: EpicFacts, active: ReadonlySet<BadgeId>, ctx: Sc
 
 function evaluateRule(rule: ScoringRule, input: RuleInput): Finding[] {
   return (rule.evaluate?.(input) ?? []).filter((item) => isEnabled(item.badge));
+}
+
+interface EarlyStartInput {
+  facts: EpicFacts;
+  ctx: ScoringContext;
+  selected: readonly ScoringRule[];
+  hasDataAnomaly: boolean;
+  hasCnttRule: boolean;
+  /** Primary findings (before suppressions) of the Epic's own scoring. */
+  primary: readonly Finding[];
+  findings: readonly Finding[];
+}
+
+/**
+ * "Start sớm" (owner 2026-11-04): an Epic with the active REC_EARLY_START is judged once more on TTM-CNTT (QLDA) with
+ * Start Date = Epic_Real_Start_Date. Only the verdict rule of the slot TTM_CNTT_VERDICT runs again (same Rule Group,
+ * budget set); data quality, gates, scope and every other finding stay those of the real Start Date, so the Epic is in
+ * the same denominator as before — only Đạt / Fail can change.
+ */
+function judgeEarlyStart({ facts, ctx, selected, hasDataAnomaly, hasCnttRule, primary, findings }: EarlyStartInput): EarlyStartEvaluation | null {
+  if (!findings.some((item) => item.badge === 'REC_EARLY_START' && !item.suppressedBy)) return null;
+  const realStartDate = facts.epicRealStartDate;
+  const startDate = facts.startDate;
+  if (!realStartDate || !startDate) return null;
+  const earlyFacts: EpicFacts = { ...facts, startDate: realStartDate };
+  const earlyDerived = deriveMetrics(earlyFacts, ctx, policySetsOf(selected));
+  const verdictRule = slotRuleOf(selected, 'TTM_CNTT_VERDICT');
+  const verdictBadges = new Set<BadgeId>(verdictRule?.emits ?? []);
+  const earlyVerdict = verdictRule && !(hasDataAnomaly && verdictRule.gatedByDataAnomaly)
+    ? evaluateRule(verdictRule, { facts: earlyFacts, derived: earlyDerived, ctx, hasDataAnomaly })
+    : [];
+  const earlyActive = activeBadges(resolveSuppressions([...primary.filter((item) => !verdictBadges.has(item.badge)), ...earlyVerdict]));
+  return {
+    startDate,
+    realStartDate,
+    daysEarly: calendarDaysBetween(realStartDate, startDate),
+    cnttTargetDate: earlyDerived.cnttTargetDate,
+    ttm: indexMembership(facts, earlyActive, ctx, hasCnttRule).ttm,
+  };
 }
 
 /**
@@ -121,6 +161,7 @@ export function scoreEpic(facts: EpicFacts, ctx: ScoringContext): EpicScorecard 
   const active = activeBadges(resolved);
   const secondary = rules.filter(runs).flatMap((rule) => rule.recommend?.(input, active, resolved) ?? []).filter((item) => isEnabled(item.badge));
   const findings = sortFindings([...resolved, ...secondary]);
+  const earlyStart = judgeEarlyStart({ facts, ctx, selected, hasDataAnomaly, hasCnttRule, primary, findings });
 
   return {
     epicKey: facts.epicKey,
@@ -130,5 +171,6 @@ export function scoreEpic(facts: EpicFacts, ctx: ScoringContext): EpicScorecard 
     findings,
     indexMembership: indexMembership(facts, activeBadges(findings), ctx, hasCnttRule),
     derived,
+    ...(earlyStart ? { earlyStart } : {}),
   };
 }

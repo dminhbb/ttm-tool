@@ -79,6 +79,7 @@ export function projectScorecardOntoRow(row: EpicAlertRowPhased, card: EpicScore
     scoringFindings: card.findings,
     ruleGroupId: card.ruleGroup?.id,
     ruleGroupName: card.ruleGroup?.name,
+    scoringEarlyStart: card.earlyStart ?? undefined,
   };
 }
 

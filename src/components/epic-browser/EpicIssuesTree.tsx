@@ -44,6 +44,13 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+/** "YYYY-MM-DD" → "dd/mm/yyyy"; empty → "-". */
+function DateCell({ value }: { value: string | null | undefined }) {
+  const match = value ? /^(\d{4})-(\d{2})-(\d{2})/.exec(value) : null;
+  if (!match) return <span className="text-fb-text-placeholder">-</span>;
+  return <span className="whitespace-nowrap font-mono text-fb-text-secondary">{`${match[3]}/${match[2]}/${match[1]}`}</span>;
+}
+
 async function fetchChildren(parentId: number, level: 'stories' | 'subtasks'): Promise<DataReviewIssue[]> {
   try {
     const response = await fetch(`/api/epic-browser?parentId=${parentId}&level=${level}`);
@@ -57,8 +64,9 @@ async function fetchChildren(parentId: number, level: 'stories' | 'subtasks'): P
 }
 
 /**
- * Hierarchical 4-column table component for "Issues in Epic":
- * Columns: Issue Type | Issue Key | Summary | Status
+ * Hierarchical 6-column table component for "Issues in Epic":
+ * Columns: Issue Type | Issue Key | Summary | Status | Start Date | Actual Start Date
+ * (Actual Start Date, 2026-11-04: Epic_Real_Start_Date of the Epic, Story_Real_Start_Date of a Story, empty for a Subtask)
  * Indentation for Issue Key:
  * - Epic (Level 1): 0ch
  * - Story (Level 2): 3ch relative to Epic
@@ -129,6 +137,8 @@ export function EpicIssuesTree({ root }: EpicIssuesTreeProps) {
             <th className="px-3 py-2.5 w-52">Issue Key</th>
             <th className="px-3 py-2.5 min-w-[240px]">Summary</th>
             <th className="px-3 py-2.5 w-32">Status</th>
+            <th className="px-3 py-2.5 w-28 whitespace-nowrap">Start Date</th>
+            <th className="px-3 py-2.5 w-32 whitespace-nowrap">Actual Start Date</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-fb-border/70">
@@ -164,6 +174,8 @@ export function EpicIssuesTree({ root }: EpicIssuesTreeProps) {
             <td className="px-3 py-2">
               <StatusBadge status={root.status} />
             </td>
+            <td className="px-3 py-2"><DateCell value={root.startDate} /></td>
+            <td className="px-3 py-2"><DateCell value={root.actualStartDate} /></td>
           </tr>
 
           {/* Expanded Stories / Direct Children */}
@@ -171,7 +183,7 @@ export function EpicIssuesTree({ root }: EpicIssuesTreeProps) {
             <>
               {isRootLoading && stories.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-3 py-3 text-center text-fb-text-placeholder">
+                  <td colSpan={6} className="px-3 py-3 text-center text-fb-text-placeholder">
                     Đang tải danh sách Stories…
                   </td>
                 </tr>
@@ -179,7 +191,7 @@ export function EpicIssuesTree({ root }: EpicIssuesTreeProps) {
 
               {!isRootLoading && stories.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-3 py-3 text-center text-fb-text-placeholder italic">
+                  <td colSpan={6} className="px-3 py-3 text-center text-fb-text-placeholder italic">
                     Epic này chưa có Story nào.
                   </td>
                 </tr>
@@ -223,6 +235,8 @@ export function EpicIssuesTree({ root }: EpicIssuesTreeProps) {
                       <td className="px-3 py-2">
                         <StatusBadge status={story.status} />
                       </td>
+                      <td className="px-3 py-2"><DateCell value={story.startDate} /></td>
+                      <td className="px-3 py-2"><DateCell value={story.actualStartDate} /></td>
                     </tr>
 
                     {/* Level 3: Subtasks under Story (6ch indent) */}
@@ -230,14 +244,14 @@ export function EpicIssuesTree({ root }: EpicIssuesTreeProps) {
                       <>
                         {loadingMap[story.id] && subtasks.length === 0 && (
                           <tr>
-                            <td colSpan={4} className="px-3 py-2 text-fb-text-placeholder italic" style={{ paddingLeft: '9ch' }}>
+                            <td colSpan={6} className="px-3 py-2 text-fb-text-placeholder italic" style={{ paddingLeft: '9ch' }}>
                               Đang tải Subtasks…
                             </td>
                           </tr>
                         )}
                         {!loadingMap[story.id] && subtasks.length === 0 && (
                           <tr>
-                            <td colSpan={4} className="px-3 py-2 text-fb-text-placeholder italic text-[11px]" style={{ paddingLeft: '9ch' }}>
+                            <td colSpan={6} className="px-3 py-2 text-fb-text-placeholder italic text-[11px]" style={{ paddingLeft: '9ch' }}>
                               Story này chưa có Subtask nào.
                             </td>
                           </tr>
@@ -259,6 +273,8 @@ export function EpicIssuesTree({ root }: EpicIssuesTreeProps) {
                             <td className="px-3 py-1.5">
                               <StatusBadge status={subtask.status} />
                             </td>
+                            <td className="px-3 py-1.5"><DateCell value={subtask.startDate} /></td>
+                            <td className="px-3 py-1.5"><DateCell value={null} /></td>
                           </tr>
                         ))}
                       </>
