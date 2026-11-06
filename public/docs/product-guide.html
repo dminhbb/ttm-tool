@@ -386,16 +386,16 @@
       <h2>5. Mô hình &amp; Sơ đồ cơ sở dữ liệu (Data Model &amp; ERD)</h2>
       <!-- BEGIN GENERATED: db-schema -->
       <p>
-        Cơ sở dữ liệu của TTM Monitor dùng <strong>PostgreSQL</strong> (đang chạy 17.6), gồm <strong>71 bảng</strong> trong schema <code>public</code>,
-        <strong>55 khoá ngoại</strong>, 4 hàm và 4 trigger; không dùng view, extension hay Row Level Security.
+        Cơ sở dữ liệu của TTM Monitor dùng <strong>PostgreSQL</strong> (đang chạy 17.6), gồm <strong>76 bảng</strong> trong schema <code>public</code>,
+        <strong>66 khoá ngoại</strong>, 4 hàm và 4 trigger; không dùng view, extension hay Row Level Security.
         Cấu trúc thay đổi duy nhất qua chuỗi migration <code>db/migrations/*.sql</code> (chạy bằng <code>scripts/migrate-db.js</code>, ghi vào <code>schema_migrations</code>).
-        Toàn bộ chương này được sinh từ CSDL Supabase ngày 04/11/2026 bởi <code>scripts/db-schema-export.js</code> — cùng lần chạy sinh ra
+        Toàn bộ chương này được sinh từ CSDL Supabase ngày 06/11/2026 bởi <code>scripts/db-schema-export.js</code> — cùng lần chạy sinh ra
         file tạo CSDL mới <code>db/install/ttm-monitor-schema.sql</code> (chỉ cấu trúc, không dữ liệu) và tài liệu ERD chi tiết <code>docs/database-erd.md</code> (sơ đồ Mermaid từng nhóm + từ điển dữ liệu).
       </p>
 
       <h3>5.1. Sơ đồ thực thể CSDL (ERD Overview)</h3>
-      <p>12 nhóm nghiệp vụ; mỗi ô liệt kê bảng của nhóm, dòng cuối là các nhóm mà bảng trong ô tham chiếu tới qua khoá ngoại. Sơ đồ quan hệ chi tiết từng bảng (cột, PK/FK, bản số) ở <code>docs/database-erd.md</code>; danh sách đầy đủ khoá ngoại ở cuối mục 5.2.</p>
-      <svg viewBox="0 0 934 556" role="img" aria-label="Sơ đồ nhóm bảng CSDL TTM Monitor" style="width:100%; height:auto;">
+      <p>13 nhóm nghiệp vụ; mỗi ô liệt kê bảng của nhóm, dòng cuối là các nhóm mà bảng trong ô tham chiếu tới qua khoá ngoại. Sơ đồ quan hệ chi tiết từng bảng (cột, PK/FK, bản số) ở <code>docs/database-erd.md</code>; danh sách đầy đủ khoá ngoại ở cuối mục 5.2.</p>
+      <svg viewBox="0 0 934 652" role="img" aria-label="Sơ đồ nhóm bảng CSDL TTM Monitor" style="width:100%; height:auto;">
         <g font-size="11" fill="#1f2430">
           <rect x="16" y="16" width="290" height="132" rx="8" fill="#eaf0ff" stroke="#c3cce3" />
           <text x="161" y="36" text-anchor="middle" font-weight="700" font-size="12" fill="#25406f">1. Xác thực &amp; phân quyền (13)</text>
@@ -458,20 +458,26 @@
           <text x="161" y="485" text-anchor="middle" font-size="9.5" fill="#5b6475">ad_popups, ad_popup_impressions, info_banners</text>
           <text x="161" y="502" text-anchor="middle" font-size="9" font-style="italic" fill="#8a93a6">→ tham chiếu nhóm 1</text>
           <rect x="322" y="447" width="290" height="93" rx="8" fill="#f5f6f8" stroke="#c3cce3" />
-          <text x="467" y="467" text-anchor="middle" font-weight="700" font-size="12" fill="#475569">11. SSO, API Key &amp; MCP Server (7)</text>
-          <text x="467" y="485" text-anchor="middle" font-size="9.5" fill="#5b6475">api_keys, sso_auth_codes, mcp_settings,</text>
-          <text x="467" y="498" text-anchor="middle" font-size="9.5" fill="#5b6475">mcp_access_tokens, mcp_access_daily_stats,</text>
-          <text x="467" y="511" text-anchor="middle" font-size="9.5" fill="#5b6475">mcp_oauth_clients, mcp_oauth_authorization_codes</text>
+          <text x="467" y="467" text-anchor="middle" font-weight="700" font-size="12" fill="#475569">11. Bản tin (5)</text>
+          <text x="467" y="485" text-anchor="middle" font-size="9.5" fill="#5b6475">news_letter_articles, news_letter_categories,</text>
+          <text x="467" y="498" text-anchor="middle" font-size="9.5" fill="#5b6475">news_letter_images, news_letter_article_edits,</text>
+          <text x="467" y="511" text-anchor="middle" font-size="9.5" fill="#5b6475">news_letter_reads</text>
           <text x="467" y="528" text-anchor="middle" font-size="9" font-style="italic" fill="#8a93a6">→ tham chiếu nhóm 1</text>
           <rect x="628" y="447" width="290" height="93" rx="8" fill="#f5f6f8" stroke="#c3cce3" />
-          <text x="773" y="467" text-anchor="middle" font-weight="700" font-size="12" fill="#475569">12. Nhật ký &amp; thống kê sử dụng (4)</text>
-          <text x="773" y="485" text-anchor="middle" font-size="9.5" fill="#5b6475">audit_logs, user_usage_daily_stats, visit_logs,</text>
-          <text x="773" y="498" text-anchor="middle" font-size="9.5" fill="#5b6475">visit_log_rollups</text>
-          <text x="773" y="515" text-anchor="middle" font-size="9" font-style="italic" fill="#8a93a6">→ tham chiếu nhóm 1</text>
+          <text x="773" y="467" text-anchor="middle" font-weight="700" font-size="12" fill="#475569">12. SSO, API Key &amp; MCP Server (7)</text>
+          <text x="773" y="485" text-anchor="middle" font-size="9.5" fill="#5b6475">api_keys, sso_auth_codes, mcp_settings,</text>
+          <text x="773" y="498" text-anchor="middle" font-size="9.5" fill="#5b6475">mcp_access_tokens, mcp_access_daily_stats,</text>
+          <text x="773" y="511" text-anchor="middle" font-size="9.5" fill="#5b6475">mcp_oauth_clients, mcp_oauth_authorization_codes</text>
+          <text x="773" y="528" text-anchor="middle" font-size="9" font-style="italic" fill="#8a93a6">→ tham chiếu nhóm 1</text>
+          <rect x="16" y="556" width="290" height="80" rx="8" fill="#f5f6f8" stroke="#c3cce3" />
+          <text x="161" y="576" text-anchor="middle" font-weight="700" font-size="12" fill="#475569">13. Nhật ký &amp; thống kê sử dụng (4)</text>
+          <text x="161" y="594" text-anchor="middle" font-size="9.5" fill="#5b6475">audit_logs, user_usage_daily_stats, visit_logs,</text>
+          <text x="161" y="607" text-anchor="middle" font-size="9.5" fill="#5b6475">visit_log_rollups</text>
+          <text x="161" y="624" text-anchor="middle" font-size="9" font-style="italic" fill="#8a93a6">→ tham chiếu nhóm 1</text>
         </g>
       </svg>
 
-      <h3>5.2. Danh mục 71 bảng CSDL (đối chiếu CSDL Supabase 04/11/2026)</h3>
+      <h3>5.2. Danh mục 76 bảng CSDL (đối chiếu CSDL Supabase 06/11/2026)</h3>
       <table>
         <thead><tr><th>STT</th><th>Bảng CSDL</th><th>Nhóm</th><th>Khoá chính / Khoá ngoại</th><th>Vai trò nghiệp vụ &amp; Ghi chú</th></tr></thead>
         <tbody>
@@ -535,23 +541,28 @@
           <tr><td>58</td><td><code>ad_popups</code></td><td>Popup &amp; Banner thông báo</td><td><code>id</code> (PK)</td><td>Cấu hình Popup quảng cáo toàn màn hình cho mọi user đã đăng nhập (mục 14).</td></tr>
           <tr><td>59</td><td><code>ad_popup_impressions</code></td><td>Popup &amp; Banner thông báo</td><td><code>(popup_id, user_id)</code> (PK)<br><code>popup_id</code> → <code>ad_popups</code><br><code>user_id</code> → <code>users</code></td><td>Đếm số lần một popup đã hiện cho từng user, so với <code>max_impressions</code>.</td></tr>
           <tr><td>60</td><td><code>info_banners</code></td><td>Popup &amp; Banner thông báo</td><td><code>id</code> (PK)</td><td>Cấu hình Banner thông báo (Mặc định toàn hệ thống hoặc theo từng màn hình, mục 15).</td></tr>
-          <tr><td>61</td><td><code>api_keys</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)</td><td>API key cấp cho ứng dụng ngoài dùng làm client_id trong luồng SSO (mục 17).</td></tr>
-          <tr><td>62</td><td><code>sso_auth_codes</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>api_key_id</code> → <code>api_keys</code><br><code>user_id</code> → <code>users</code></td><td>Mã ủy quyền SSO dùng 1 lần, hết hạn sau 5 phút (mục 17).</td></tr>
-          <tr><td>63</td><td><code>mcp_settings</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>updated_by</code> → <code>users</code></td><td>Công tắc singleton bật/tắt toàn bộ MCP Server (mục 16).</td></tr>
-          <tr><td>64</td><td><code>mcp_access_tokens</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Personal Access Token để AI chatbot kết nối MCP thay mặt một user cụ thể (mục 16).</td></tr>
-          <tr><td>65</td><td><code>mcp_access_daily_stats</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>(user_id, stat_date)</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Thống kê số lượt gọi MCP theo ngày/user, tự dọn sau 90 ngày (mục 16).</td></tr>
-          <tr><td>66</td><td><code>mcp_oauth_clients</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)</td><td>Đăng ký client OAuth động (RFC 7591) cho AI chatbot dùng luồng OAuth kết nối MCP (mục 16).</td></tr>
-          <tr><td>67</td><td><code>mcp_oauth_authorization_codes</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Mã ủy quyền ngắn hạn cho luồng MCP OAuth 2.0 + PKCE (mục 16).</td></tr>
-          <tr><td>68</td><td><code>audit_logs</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Nhật ký ghi nhận các thao tác quan trọng trên hệ thống (kể cả xoá Epic vĩnh viễn); job dọn hằng ngày xoá dòng quá 180 ngày.</td></tr>
-          <tr><td>69</td><td><code>user_usage_daily_stats</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>(user_id, stat_date)</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Thống kê tần suất tương tác và sử dụng tính năng theo ngày của từng user.</td></tr>
-          <tr><td>70</td><td><code>visit_logs</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Ghi nhận nhật ký lượt đăng nhập ứng dụng (APP_LOGIN) và lượt xem 3 màn hình trọng điểm (SCREEN_VIEW cho TTM Dashboard 2, Quản trị Epic, Báo cáo Epic) phục vụ tính năng Visit Counter (mục 18).</td></tr>
-          <tr><td>71</td><td><code>visit_log_rollups</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>(event_type, screen_key, user_id)</code> (PK)</td><td>Số lượt truy cập LŨY KẾ của các dòng <code>visit_logs</code> cũ hơn ngày T-15 (đã bị cuốn vào đây rồi xóa; theo <code>event_type</code>, <code>screen_key</code>, <code>user_id</code>) để các số "Tổng (lũy kế)" của Visit Counter không tụt khi job dọn dẹp xóa dòng cũ. <code>screen_key=''</code>: không có màn hình; <code>user_id=0</code>: user đã bị xóa.</td></tr>
+          <tr><td>61</td><td><code>news_letter_articles</code></td><td>Bản tin</td><td><code>id</code> (PK)<br><code>category_id</code> → <code>news_letter_categories</code><br><code>created_by</code> → <code>users</code><br><code>header_image_id</code> → <code>news_letter_images</code><br><code>updated_by</code> → <code>users</code></td><td>Bài viết của Bản tin (<code>/news-letter</code>, SUPERADMIN soạn): tiêu đề, tóm tắt, phân loại, role được xem (<code>visible_roles</code>), Published (tắt = nháp, chỉ tác giả xem), <code>first_published_at</code> (thứ tự bài), ảnh header, nội dung HTML đã lọc ở server — mục 11.8.</td></tr>
+          <tr><td>62</td><td><code>news_letter_categories</code></td><td>Bản tin</td><td><code>id</code> (PK)<br><code>created_by</code> → <code>users</code></td><td>Phân loại bài viết Bản tin (tên không trùng, không xoá được khi còn bài viết dùng).</td></tr>
+          <tr><td>63</td><td><code>news_letter_images</code></td><td>Bản tin</td><td><code>id</code> (PK)<br><code>article_id</code> → <code>news_letter_articles</code><br><code>created_by</code> → <code>users</code></td><td>Ảnh của Bản tin lưu trong CSDL (bytea): 1 ảnh header + tối đa 4 ảnh nội dung mỗi bài; ảnh upload chưa gắn bài (<code>article_id</code> NULL) bị dọn sau 1 ngày.</td></tr>
+          <tr><td>64</td><td><code>news_letter_article_edits</code></td><td>Bản tin</td><td><code>id</code> (PK)<br><code>article_id</code> → <code>news_letter_articles</code><br><code>edited_by</code> → <code>users</code></td><td>Lịch sử thay đổi của bài viết Bản tin — giữ 5 lần sửa gần nhất.</td></tr>
+          <tr><td>65</td><td><code>news_letter_reads</code></td><td>Bản tin</td><td><code>(user_id, article_id)</code> (PK)<br><code>article_id</code> → <code>news_letter_articles</code><br><code>user_id</code> → <code>users</code></td><td>Người dùng đã mở bài viết nào — chấm đỏ trên menu Bản tin khi có bài published chưa đọc.</td></tr>
+          <tr><td>66</td><td><code>api_keys</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)</td><td>API key cấp cho ứng dụng ngoài dùng làm client_id trong luồng SSO (mục 17).</td></tr>
+          <tr><td>67</td><td><code>sso_auth_codes</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>api_key_id</code> → <code>api_keys</code><br><code>user_id</code> → <code>users</code></td><td>Mã ủy quyền SSO dùng 1 lần, hết hạn sau 5 phút (mục 17).</td></tr>
+          <tr><td>68</td><td><code>mcp_settings</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>updated_by</code> → <code>users</code></td><td>Công tắc singleton bật/tắt toàn bộ MCP Server (mục 16).</td></tr>
+          <tr><td>69</td><td><code>mcp_access_tokens</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Personal Access Token để AI chatbot kết nối MCP thay mặt một user cụ thể (mục 16).</td></tr>
+          <tr><td>70</td><td><code>mcp_access_daily_stats</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>(user_id, stat_date)</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Thống kê số lượt gọi MCP theo ngày/user, tự dọn sau 90 ngày (mục 16).</td></tr>
+          <tr><td>71</td><td><code>mcp_oauth_clients</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)</td><td>Đăng ký client OAuth động (RFC 7591) cho AI chatbot dùng luồng OAuth kết nối MCP (mục 16).</td></tr>
+          <tr><td>72</td><td><code>mcp_oauth_authorization_codes</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Mã ủy quyền ngắn hạn cho luồng MCP OAuth 2.0 + PKCE (mục 16).</td></tr>
+          <tr><td>73</td><td><code>audit_logs</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Nhật ký ghi nhận các thao tác quan trọng trên hệ thống (kể cả xoá Epic vĩnh viễn); job dọn hằng ngày xoá dòng quá 180 ngày.</td></tr>
+          <tr><td>74</td><td><code>user_usage_daily_stats</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>(user_id, stat_date)</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Thống kê tần suất tương tác và sử dụng tính năng theo ngày của từng user.</td></tr>
+          <tr><td>75</td><td><code>visit_logs</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Ghi nhận nhật ký lượt đăng nhập ứng dụng (APP_LOGIN) và lượt xem 3 màn hình trọng điểm (SCREEN_VIEW cho TTM Dashboard 2, Quản trị Epic, Báo cáo Epic) phục vụ tính năng Visit Counter (mục 18).</td></tr>
+          <tr><td>76</td><td><code>visit_log_rollups</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>(event_type, screen_key, user_id)</code> (PK)</td><td>Số lượt truy cập LŨY KẾ của các dòng <code>visit_logs</code> cũ hơn ngày T-15 (đã bị cuốn vào đây rồi xóa; theo <code>event_type</code>, <code>screen_key</code>, <code>user_id</code>) để các số "Tổng (lũy kế)" của Visit Counter không tụt khi job dọn dẹp xóa dòng cũ. <code>screen_key=''</code>: không có màn hình; <code>user_id=0</code>: user đã bị xóa.</td></tr>
         </tbody>
       </table>
 
       <details style="margin: 16px 0; border: 1px solid #cdd9f7; border-radius: 10px; background: #f8faff; padding: 12px 16px;">
         <summary style="cursor: pointer; font-weight: 700; font-size: 13.5px; color: var(--brand-600); outline: none; user-select: none;">
-          🔍 Bấm vào đây để xem chi tiết cột, kiểu dữ liệu, khoá PK/FK, ràng buộc &amp; index của 71 bảng
+          🔍 Bấm vào đây để xem chi tiết cột, kiểu dữ liệu, khoá PK/FK, ràng buộc &amp; index của 76 bảng
         </summary>
         <div style="margin-top: 16px;">
           <h4 style="color:var(--brand-700); margin:16px 0 6px; font-size:14px;">1. Xác thực &amp; phân quyền (13 bảng)</h4>
@@ -1447,8 +1458,76 @@
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((end_date IS NULL) OR (end_date &gt;= start_date)))</code></li><li><code>CHECK (((banner_type)::text = ANY ((ARRAY['DEFAULT'::character varying, 'PER_SCREEN'::character varying])::text[])))</code></li><li>Index <code>uq_info_banners_single_default</code>: <code>UNIQUE btree (banner_type) WHERE ((banner_type)::text = 'DEFAULT'::text)</code></li></ul>
-          <h4 style="color:var(--brand-700); margin:16px 0 6px; font-size:14px;">11. SSO, API Key &amp; MCP Server (7 bảng)</h4>
-          <p><strong>11.1. <code>api_keys</code></strong></p>
+          <h4 style="color:var(--brand-700); margin:16px 0 6px; font-size:14px;">11. Bản tin (5 bảng)</h4>
+          <p><strong>11.1. <code>news_letter_articles</code></strong></p>
+          <table>
+            <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
+            <tbody>
+              <tr><td><code>id</code></td><td><code>SERIAL</code></td><td>PRIMARY KEY</td><td></td></tr>
+              <tr><td><code>title</code></td><td><code>VARCHAR(300) NOT NULL</code></td><td>—</td><td></td></tr>
+              <tr><td><code>summary</code></td><td><code>TEXT</code></td><td>—</td><td></td></tr>
+              <tr><td><code>category_id</code></td><td><code>INT</code></td><td>FK → news_letter_categories(id)</td><td></td></tr>
+              <tr><td><code>visible_roles</code></td><td><code>TEXT[] NOT NULL</code></td><td>DEFAULT ARRAY['SUPERADMIN'::text, 'ADMIN'::text, 'SUPERVISOR'::text, 'USER'::text]</td><td></td></tr>
+              <tr><td><code>is_published</code></td><td><code>BOOLEAN NOT NULL</code></td><td>DEFAULT false</td><td></td></tr>
+              <tr><td><code>first_published_at</code></td><td><code>TIMESTAMPTZ</code></td><td>—</td><td></td></tr>
+              <tr><td><code>header_image_id</code></td><td><code>UUID</code></td><td>FK → news_letter_images(id)</td><td></td></tr>
+              <tr><td><code>content_html</code></td><td><code>TEXT NOT NULL</code></td><td>DEFAULT ''::text</td><td></td></tr>
+              <tr><td><code>created_by</code></td><td><code>INT</code></td><td>FK → users(id)</td><td></td></tr>
+              <tr><td><code>created_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
+              <tr><td><code>updated_by</code></td><td><code>INT</code></td><td>FK → users(id)</td><td></td></tr>
+              <tr><td><code>updated_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
+            </tbody>
+          </table>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li>Index <code>idx_news_letter_articles_category</code>: <code>btree (category_id)</code></li><li>Index <code>idx_news_letter_articles_order</code>: <code>btree (first_published_at DESC, id DESC)</code></li></ul>
+          <p><strong>11.2. <code>news_letter_categories</code></strong></p>
+          <table>
+            <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
+            <tbody>
+              <tr><td><code>id</code></td><td><code>SERIAL</code></td><td>PRIMARY KEY</td><td></td></tr>
+              <tr><td><code>name</code></td><td><code>VARCHAR(120) NOT NULL</code></td><td>—</td><td></td></tr>
+              <tr><td><code>created_by</code></td><td><code>INT</code></td><td>FK → users(id)</td><td></td></tr>
+              <tr><td><code>created_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
+              <tr><td><code>updated_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
+            </tbody>
+          </table>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li>Index <code>uq_news_letter_categories_name</code>: <code>UNIQUE btree (lower((name)::text))</code></li></ul>
+          <p><strong>11.3. <code>news_letter_images</code></strong></p>
+          <table>
+            <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
+            <tbody>
+              <tr><td><code>id</code></td><td><code>UUID NOT NULL</code></td><td>PRIMARY KEY</td><td></td></tr>
+              <tr><td><code>article_id</code></td><td><code>INT</code></td><td>FK → news_letter_articles(id)</td><td></td></tr>
+              <tr><td><code>kind</code></td><td><code>VARCHAR(10) NOT NULL</code></td><td>—</td><td></td></tr>
+              <tr><td><code>mime_type</code></td><td><code>VARCHAR(40) NOT NULL</code></td><td>—</td><td></td></tr>
+              <tr><td><code>byte_size</code></td><td><code>INT NOT NULL</code></td><td>—</td><td></td></tr>
+              <tr><td><code>data</code></td><td><code>BYTEA NOT NULL</code></td><td>—</td><td></td></tr>
+              <tr><td><code>created_by</code></td><td><code>INT</code></td><td>FK → users(id)</td><td></td></tr>
+              <tr><td><code>created_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
+            </tbody>
+          </table>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((kind)::text = ANY ((ARRAY['HEADER'::character varying, 'INLINE'::character varying])::text[])))</code></li><li>Index <code>idx_news_letter_images_article</code>: <code>btree (article_id)</code></li></ul>
+          <p><strong>11.4. <code>news_letter_article_edits</code></strong></p>
+          <table>
+            <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
+            <tbody>
+              <tr><td><code>id</code></td><td><code>SERIAL</code></td><td>PRIMARY KEY</td><td></td></tr>
+              <tr><td><code>article_id</code></td><td><code>INT NOT NULL</code></td><td>FK → news_letter_articles(id)</td><td></td></tr>
+              <tr><td><code>edited_by</code></td><td><code>INT</code></td><td>FK → users(id)</td><td></td></tr>
+              <tr><td><code>edited_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
+            </tbody>
+          </table>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li>Index <code>idx_news_letter_article_edits_article</code>: <code>btree (article_id, edited_at DESC)</code></li></ul>
+          <p><strong>11.5. <code>news_letter_reads</code></strong></p>
+          <table>
+            <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
+            <tbody>
+              <tr><td><code>user_id</code></td><td><code>INT NOT NULL</code></td><td>PRIMARY KEY<br>FK → users(id)</td><td></td></tr>
+              <tr><td><code>article_id</code></td><td><code>INT NOT NULL</code></td><td>PRIMARY KEY<br>FK → news_letter_articles(id)</td><td></td></tr>
+              <tr><td><code>read_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
+            </tbody>
+          </table>
+          <h4 style="color:var(--brand-700); margin:16px 0 6px; font-size:14px;">12. SSO, API Key &amp; MCP Server (7 bảng)</h4>
+          <p><strong>12.1. <code>api_keys</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
@@ -1465,7 +1544,7 @@
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((is_unlimited = true) OR ((valid_from IS NOT NULL) AND ((valid_to IS NULL) OR (valid_to &gt;= valid_from)))))</code></li><li>Index <code>idx_api_keys_active</code>: <code>btree (is_active)</code></li></ul>
-          <p><strong>11.2. <code>sso_auth_codes</code></strong></p>
+          <p><strong>12.2. <code>sso_auth_codes</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
@@ -1480,7 +1559,7 @@
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li>Index <code>idx_sso_auth_codes_code</code>: <code>btree (code)</code></li><li>Index <code>idx_sso_auth_codes_expires</code>: <code>btree (expires_at)</code></li></ul>
-          <p><strong>11.3. <code>mcp_settings</code></strong></p>
+          <p><strong>12.3. <code>mcp_settings</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
@@ -1491,7 +1570,7 @@
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK ((id = 1))</code></li></ul>
-          <p><strong>11.4. <code>mcp_access_tokens</code></strong></p>
+          <p><strong>12.4. <code>mcp_access_tokens</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
@@ -1506,7 +1585,7 @@
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li>Index <code>idx_mcp_access_tokens_hash</code>: <code>btree (token_hash)</code></li><li>Index <code>idx_mcp_access_tokens_user</code>: <code>btree (user_id)</code></li></ul>
-          <p><strong>11.5. <code>mcp_access_daily_stats</code></strong></p>
+          <p><strong>12.5. <code>mcp_access_daily_stats</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
@@ -1516,7 +1595,7 @@
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li>Index <code>idx_mcp_access_daily_stats_date</code>: <code>btree (stat_date)</code></li></ul>
-          <p><strong>11.6. <code>mcp_oauth_clients</code></strong></p>
+          <p><strong>12.6. <code>mcp_oauth_clients</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
@@ -1527,7 +1606,7 @@
               <tr><td><code>created_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
             </tbody>
           </table>
-          <p><strong>11.7. <code>mcp_oauth_authorization_codes</code></strong></p>
+          <p><strong>12.7. <code>mcp_oauth_authorization_codes</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
@@ -1544,8 +1623,8 @@
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li>Index <code>idx_mcp_oauth_codes_code</code>: <code>btree (code)</code></li><li>Index <code>idx_mcp_oauth_codes_expires</code>: <code>btree (expires_at)</code></li></ul>
-          <h4 style="color:var(--brand-700); margin:16px 0 6px; font-size:14px;">12. Nhật ký &amp; thống kê sử dụng (4 bảng)</h4>
-          <p><strong>12.1. <code>audit_logs</code></strong></p>
+          <h4 style="color:var(--brand-700); margin:16px 0 6px; font-size:14px;">13. Nhật ký &amp; thống kê sử dụng (4 bảng)</h4>
+          <p><strong>13.1. <code>audit_logs</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
@@ -1557,7 +1636,7 @@
               <tr><td><code>created_at</code></td><td><code>TIMESTAMPTZ</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
             </tbody>
           </table>
-          <p><strong>12.2. <code>user_usage_daily_stats</code></strong></p>
+          <p><strong>13.2. <code>user_usage_daily_stats</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
@@ -1569,7 +1648,7 @@
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li>Index <code>idx_user_usage_daily_stats_date</code>: <code>btree (stat_date)</code></li><li>Index <code>idx_user_usage_daily_stats_user</code>: <code>btree (user_id)</code></li></ul>
-          <p><strong>12.3. <code>visit_logs</code></strong></p>
+          <p><strong>13.3. <code>visit_logs</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
@@ -1581,7 +1660,7 @@
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li>Index <code>idx_visit_logs_screen_created</code>: <code>btree (screen_key, created_at)</code></li><li>Index <code>idx_visit_logs_type_created</code>: <code>btree (event_type, created_at)</code></li><li>Index <code>idx_visit_logs_user_created</code>: <code>btree (user_id, created_at)</code></li></ul>
-          <p><strong>12.4. <code>visit_log_rollups</code></strong></p>
+          <p><strong>13.4. <code>visit_log_rollups</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
@@ -1595,7 +1674,7 @@
         </div>
       </details>
 
-      <p><strong>Danh sách 55 khoá ngoại</strong> (bảng con → bảng cha):</p>
+      <p><strong>Danh sách 66 khoá ngoại</strong> (bảng con → bảng cha):</p>
       <table>
         <thead><tr><th>Bảng con</th><th>Cột</th><th>Tham chiếu</th><th>ON DELETE</th></tr></thead>
         <tbody>
@@ -1620,6 +1699,17 @@
           <tr><td><code>mcp_access_tokens</code></td><td><code>user_id</code></td><td><code>users(id)</code></td><td>CASCADE</td></tr>
           <tr><td><code>mcp_oauth_authorization_codes</code></td><td><code>user_id</code></td><td><code>users(id)</code></td><td>CASCADE</td></tr>
           <tr><td><code>mcp_settings</code></td><td><code>updated_by</code></td><td><code>users(id)</code></td><td>SET NULL</td></tr>
+          <tr><td><code>news_letter_article_edits</code></td><td><code>article_id</code></td><td><code>news_letter_articles(id)</code></td><td>CASCADE</td></tr>
+          <tr><td><code>news_letter_article_edits</code></td><td><code>edited_by</code></td><td><code>users(id)</code></td><td>SET NULL</td></tr>
+          <tr><td><code>news_letter_articles</code></td><td><code>category_id</code></td><td><code>news_letter_categories(id)</code></td><td>RESTRICT</td></tr>
+          <tr><td><code>news_letter_articles</code></td><td><code>created_by</code></td><td><code>users(id)</code></td><td>SET NULL</td></tr>
+          <tr><td><code>news_letter_articles</code></td><td><code>header_image_id</code></td><td><code>news_letter_images(id)</code></td><td>SET NULL</td></tr>
+          <tr><td><code>news_letter_articles</code></td><td><code>updated_by</code></td><td><code>users(id)</code></td><td>SET NULL</td></tr>
+          <tr><td><code>news_letter_categories</code></td><td><code>created_by</code></td><td><code>users(id)</code></td><td>SET NULL</td></tr>
+          <tr><td><code>news_letter_images</code></td><td><code>article_id</code></td><td><code>news_letter_articles(id)</code></td><td>CASCADE</td></tr>
+          <tr><td><code>news_letter_images</code></td><td><code>created_by</code></td><td><code>users(id)</code></td><td>SET NULL</td></tr>
+          <tr><td><code>news_letter_reads</code></td><td><code>article_id</code></td><td><code>news_letter_articles(id)</code></td><td>CASCADE</td></tr>
+          <tr><td><code>news_letter_reads</code></td><td><code>user_id</code></td><td><code>users(id)</code></td><td>CASCADE</td></tr>
           <tr><td><code>password_reset_requests</code></td><td><code>resolved_by</code></td><td><code>users(id)</code></td><td>SET NULL</td></tr>
           <tr><td><code>project_external_bindings</code></td><td><code>project_id</code></td><td><code>projects(id)</code></td><td>CASCADE</td></tr>
           <tr><td><code>project_members</code></td><td><code>project_id</code></td><td><code>projects(id)</code></td><td>CASCADE</td></tr>
@@ -2145,6 +2235,40 @@
         <li>Icon tam giác vàng ở cột Epic mở ra popup <strong class="text-fb-text-primary">Epic History</strong> để tra cứu tích lũy cảnh báo Fail TTM-CNTT qua các đợt import.</li>
         <li>Epic có <strong>dữ liệu bất thường</strong> (mục 9) luôn bị đẩy xuống cuối bảng và tô nền highlight.</li>
       </ul>
+
+      <h3>11.8. Bản tin (<code>/news-letter</code>) — từ 06/11/2026</h3>
+      <p>
+        Trang bài viết kiểu blog để SUPERADMIN gửi thông tin tới người dùng; mục <strong>Bản tin</strong> (icon RSS) ở đầu nhóm "Giám sát" trên menu trái, có
+        <strong>chấm đỏ</strong> khi có bài đã published mà người dùng chưa mở (chỉ tính bài published sau ngày tạo tài khoản, không tính bài của chính mình).
+        Đặt tên chung (<code>news-letter</code>, bảng <code>news_letter_*</code>) để module khác của ứng dụng dùng lại được. Quyền Xem theo Ma trận phân quyền, khối "Chức năng khác"
+        (<code>news_letter</code>, chỉ có quyền Xem; quyền soạn bài luôn chỉ dành cho SUPERADMIN). Màn hình có bộ đếm riêng trong Thống kê truy cập ("Bản tin" — đếm lượt mở trang đọc bài,
+        không tính trang soạn / sửa bài). Cột mục lục rộng 338px.
+      </p>
+      <ul>
+        <li><strong>Đọc bài</strong>: <code>/news-letter</code> mở bài published mới nhất người xem được đọc; <code>/news-letter/&lt;id&gt;</code> là link riêng của từng bài.
+          Bố cục theo mẫu thiết kế số 3: phân loại kèm vạch nhấn, tiêu đề lớn, tóm tắt in nghiêng, dòng thông tin (tác giả, ngày published, phân loại, role được xem nếu bị giới hạn),
+          ảnh header tỉ lệ 16:7, thân bài rộng bằng phần Tóm tắt. Tiêu đề bài, H2, H3, tóm tắt dùng font <strong>Segoe UI</strong> có sẵn của Windows (hiển thị đúng dấu tiếng Việt;
+          ứng dụng chạy trong mạng không có Internet nên không tải font nào từ bên ngoài, kể cả lúc build); cuối bài là <strong>Lịch sử thay đổi</strong> (người tạo + 5 lần sửa gần nhất, chữ nhỏ màu xám). SUPERADMIN thấy nút bút để sửa.</li>
+        <li><strong>Bài viết trước / sau</strong> ở trên và dưới bài: đi theo <em>ngày published lần đầu</em>, chỉ qua các bài published người xem được đọc (bỏ qua nháp);
+          không có bài tương ứng thì link mờ, không bấm được; di chuột vào link hiện tiêu đề bài (Tooltip của ứng dụng).</li>
+        <li><strong>Mục lục</strong> (cột trái): nút POST (SUPERADMIN) → Soạn bài viết; nhóm <em>Mới nhất</em> (5 bài mới nhất); <em>Thư mục bài viết</em>: mỗi Phân loại là một thư mục
+          (A→Z, "Chưa phân loại" cuối) có icon folder, tên thư mục to và đậm hơn tiêu đề bài; đường line kéo từ folder xuống các bài bên dưới — thư mục chứa bài đang xem có line màu accent
+          của theme, dày 2px, các thư mục khác line xám 1px. Mỗi thư mục hiện 5 bài published mới nhất, link "...." tải thêm 5 bài tiếp theo.
+          Mỗi dòng có ngày tạo và người gửi (chữ xám). Bài nháp của chính mình hiện kèm nhãn "Nháp".</li>
+        <li><strong>Soạn / sửa bài viết</strong> (SUPERADMIN): Tiêu đề + công tắc <em>Published</em> (tắt = nháp, chỉ tác giả xem và sửa được — SUPERADMIN khác không thấy), Tóm tắt (không bắt buộc),
+          Phân loại (A→Z, nút "+" mở popup Quản trị Phân loại: thêm / sửa / xoá — không xoá được phân loại còn bài viết dùng), Phân quyền xem theo role (mặc định tất cả),
+          Ảnh header, Nội dung (TipTap: tiêu đề H2/H3, định dạng chữ, liên kết, danh sách, trích dẫn, căn lề, bảng — chèn bảng, thêm/xoá dòng, cột, gộp/tách ô, xoá bảng).
+          Nút Xoá bài (có xác nhận) xoá cả ảnh và lịch sử của bài.</li>
+        <li>Popup "Thêm / Cập nhật Popup quảng cáo" rộng hơn 50% (48rem) để chứa thanh công cụ của trình soạn thảo; popup <em>Quản trị hệ thống</em> thu hẹp menu bên trái (220px) để phần nội dung rộng hơn.</li>
+        <li><strong>Ảnh</strong>: 1 ảnh header + tối đa 4 ảnh trong nội dung; chèn bằng nút ảnh, dán (Ctrl+V) hoặc kéo thả. Trình duyệt thu nhỏ và mã hoá lại ảnh trước khi gửi
+          (header cắt giữa 16:7, rộng 1600px; ảnh nội dung rộng tối đa 1200px; WebP hoặc JPEG). Ảnh lưu trong CSDL (<code>news_letter_images</code>) vì Vercel không có ổ đĩa lưu lâu dài;
+          server kiểm tra loại file theo nội dung thật (chỉ PNG / JPEG / WebP / GIF, không nhận SVG), tối đa 3 MB; ảnh chỉ trả cho người được đọc bài đó, kèm header chặn trình duyệt đoán kiểu file.
+          Ảnh upload mà không lưu cùng bài bị dọn sau 1 ngày (job dọn dẹp hằng ngày); ảnh bị gỡ khỏi bài bị xoá khi lưu bài.</li>
+        <li><strong>Bảo mật nội dung</strong>: HTML được lọc ở server bằng <code>sanitize-html</code> trước khi lưu và trước khi trả về (<code>src/lib/rich-html-sanitizer.ts</code>):
+          chỉ giữ danh sách thẻ cho phép, bỏ script / iframe / style (trừ căn lề, độ rộng bảng) / thuộc tính <code>on*</code> / URL <code>javascript:</code>, <code>data:</code>;
+          ảnh chỉ được trỏ tới API ảnh của ứng dụng và đúng các ảnh của bài; liên kết luôn mở tab mới với <code>rel="noopener noreferrer"</code>. Quyền đọc / sửa kiểm tra ở server cho mọi API.</li>
+        <li>Dữ liệu mẫu: <code>node scripts/seed-news-letter-demo.js --target=supabase</code> tạo 3 phân loại với 3, 6, 11 bài viết; <code>--remove</code> xoá chúng.</li>
+      </ul>
     </section>
 
     <section id="screen-data-source">
@@ -2269,7 +2393,7 @@
           <tr><td>Tên chiến dịch (<code>campaignName</code>)</td><td>Nhãn quản trị nội bộ, không hiển thị cho người dùng cuối</td></tr>
           <tr><td>Hình ảnh (<code>imageUrl</code>)</td><td>URL ảnh banner của popup</td></tr>
           <tr><td>Link khi click (<code>clickUrl</code>)</td><td>Điều hướng khi người dùng bấm vào ảnh</td></tr>
-          <tr><td>Nội dung thông điệp (<code>message</code>)</td><td>Soạn bằng trình soạn thảo WYSIWYG (in đậm/nghiêng/gạch chân, căn lề, danh sách) — lưu dạng HTML đã được làm sạch (mục 14.4)</td></tr>
+          <tr><td>Nội dung thông điệp (<code>message</code>)</td><td>Soạn bằng trình soạn thảo TipTap dùng chung với Bản tin (từ 06/11/2026: in đậm/nghiêng/gạch chân/gạch ngang, liên kết, danh sách, trích dẫn, căn lề, bảng biểu) — lưu dạng HTML đã được làm sạch (mục 14.4)</td></tr>
           <tr><td>Ngày bắt đầu / kết thúc (<code>startDate</code>/<code>endDate</code>)</td><td>Khoảng ngày hiệu lực hiển thị</td></tr>
           <tr><td>Đang hoạt động (<code>isActive</code>)</td><td>Bật/tắt thủ công độc lập với khoảng ngày</td></tr>
           <tr><td>Số lần hiện tối đa (<code>maxImpressions</code>)</td><td>Trần số lần popup này được hiện <strong>cho mỗi user</strong> (đếm riêng theo từng người dùng, không phải tổng toàn hệ thống)</td></tr>
@@ -2300,8 +2424,9 @@
         <li>Nút <strong>"Test Popup"</strong> trong form cấu hình cho phép SUPERADMIN xem trước popup đang soạn (kể cả khi chưa lưu) với đúng hành vi hiển thị thật, không tính vào số lần hiện.</li>
       </ul>
       <div class="callout">
-        Nội dung HTML (thông điệp) được xử lý qua bộ lọc làm sạch nội bộ (loại bỏ <code>&lt;script&gt;</code>, thuộc tính <code>on*</code>, URL <code>javascript:</code>, …)
-        trước khi lưu — đây <strong>không phải</strong> một thư viện sanitize chuyên dụng, ranh giới an toàn thực tế là chỉ SUPERADMIN mới soạn được nội dung này.
+        Từ 06/11/2026 nội dung HTML (thông điệp) được lọc ở server bằng thư viện <code>sanitize-html</code> trước khi lưu (<code>src/lib/rich-html-sanitizer.ts</code>, dùng chung với Bản tin):
+        chỉ giữ danh sách thẻ cho phép (đoạn văn, định dạng chữ, danh sách, trích dẫn, bảng, liên kết http/https/mailto mở tab mới), bỏ mọi <code>&lt;script&gt;</code>, iframe, style (trừ căn lề),
+        thuộc tính <code>on*</code>, URL <code>javascript:</code> / <code>data:</code> và ảnh. Khi hiển thị vẫn qua thêm một lớp lọc nhẹ phía trình duyệt.
       </div>
     </section>
 

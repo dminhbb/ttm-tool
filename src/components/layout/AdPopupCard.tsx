@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { X } from '@phosphor-icons/react';
 import { MODAL_BACKDROP_CLASS, MODAL_FRAME_CLASS } from '@/components/ui/Modal';
+import '@/app/rich-text.css';
 import { sanitizeAdPopupHtml } from '@/lib/sanitize-html';
 
 export interface AdPopupCardProps {
@@ -119,7 +120,7 @@ export function AdPopupCard({
              justifyLeft/Center/Right toolbar, applied as inline text-align on specific blocks)
              is what actually determines it, per-element. */}
           <div
-            className="ad-popup-message w-full p-5 text-sm leading-relaxed text-fb-text-primary"
+            className="ad-popup-message rich-content w-full p-5 text-sm leading-relaxed text-fb-text-primary"
             dangerouslySetInnerHTML={{ __html: sanitizeAdPopupHtml(message) }}
           />
         </div>

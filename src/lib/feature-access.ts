@@ -16,6 +16,7 @@ const PAGE_FEATURES: readonly { featureKey: string; path: string; prefix?: boole
   { path: '/epic-alerts-15', featureKey: 'epic_alerts_15' },
   { path: '/data-normalization', featureKey: 'data_normalization' },
   { path: '/reports', featureKey: 'epic_reports' },
+  { path: '/news-letter', featureKey: 'news_letter', prefix: true },
   { path: '/visit-stats', featureKey: 'visit_counter' },
   { path: '/docs/product', featureKey: 'product_docs' },
   { path: '/docs/product-guide.html', featureKey: 'product_docs' },
@@ -38,6 +39,7 @@ const API_FEATURES: readonly { featureKey: string; prefix: string }[] = [
   { prefix: '/api/ttm-dashboard-2', featureKey: 'ttm_dashboard_2' },
   { prefix: '/api/data-normalization', featureKey: 'data_normalization' },
   { prefix: '/api/reports', featureKey: 'epic_reports' },
+  { prefix: '/api/news-letter', featureKey: 'news_letter' },
   { prefix: '/api/rule-groups', featureKey: 'rule_management' },
 ];
 

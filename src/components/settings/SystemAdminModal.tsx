@@ -61,7 +61,7 @@ export function SystemAdminModal({ isOpen, onClose, role = null }: SystemAdminMo
 
         <div className="flex min-h-0 flex-1">
           <nav
-            className="flex w-[30%] shrink-0 flex-col gap-1 overflow-y-auto border-r border-fb-border bg-fb-surface-muted p-3"
+            className="flex w-[220px] shrink-0 flex-col gap-1 overflow-y-auto border-r border-fb-border bg-fb-surface-muted p-2"
             aria-label="Chức năng quản trị hệ thống"
           >
             {SUPERADMIN_SECTIONS.map((section) => {
@@ -73,7 +73,7 @@ export function SystemAdminModal({ isOpen, onClose, role = null }: SystemAdminMo
                   type="button"
                   onClick={() => setActiveSectionId(section.id)}
                   className={cn(
-                    'flex min-h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-semibold outline-none transition-colors',
+                    'flex min-h-10 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-sm font-semibold outline-none transition-colors',
                     active
                       ? 'bg-fb-blue-soft text-fb-blue'
                       : 'text-fb-text-secondary hover:bg-fb-control hover:text-fb-text-primary',
@@ -81,13 +81,13 @@ export function SystemAdminModal({ isOpen, onClose, role = null }: SystemAdminMo
                   aria-current={active ? 'page' : undefined}
                 >
                   <SectionIcon className="size-5 shrink-0" weight={active ? 'fill' : 'bold'} aria-hidden="true" />
-                  <span className="truncate">{section.label}</span>
+                  <span className="truncate" title={section.label}>{section.label}</span>
                 </button>
               );
             })}
           </nav>
 
-          <div className="w-[70%] flex-1 overflow-y-auto p-5">
+          <div className="min-w-0 flex-1 overflow-y-auto p-5">
             {activeSection.panel}
           </div>
         </div>

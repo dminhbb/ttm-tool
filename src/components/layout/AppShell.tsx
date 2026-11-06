@@ -10,6 +10,7 @@ import { PERMISSION_MATRIX_CHANGED_EVENT } from '@/lib/permission-matrix-types';
 import { EpicHeaderWidgetsProvider, useEpicHeaderWidgets, type EpicHeaderWidgetItem } from '@/lib/epic-header-widgets-context';
 import {
   Bandaids,
+  Rss,
   Broom,
   Browsers,
   CaretDoubleLeft,
@@ -34,6 +35,7 @@ import {
 } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
+import { NEWS_LETTER_CHANGED_EVENT, NEWS_LETTER_READ_EVENT } from '@/lib/news-letter/types';
 import { trackFeatureUsage } from '@/lib/usage-tracking';
 import { CACHE_TAB_HREF, cacheStaleToastText, installCacheStaleWatcher } from '@/lib/cache-rebuild-status-client';
 import { useCacheRebuildPending } from '@/lib/use-cache-rebuild-pending';
@@ -113,6 +115,21 @@ function navItemAlert(href: string | undefined, pendingUserTicketsCount: number,
   return null;
 }
 
+/** "Bản tin" has a published article the viewer hasn't opened yet — red dot on its menu entry (owner 2026-11-06). */
+const NewsLetterUnreadContext = React.createContext(false);
+
+/** Red dot of a top-level menu entry: the shared alerts, plus "Bản tin" unread. */
+function topLevelNavAlert(href: string | undefined, pendingUserTicketsCount: number, cacheRebuildPending: boolean, newsLetterUnread: boolean): string | null {
+  if (href === '/news-letter' && newsLetterUnread) return 'có bài viết mới chưa đọc';
+  return navItemAlert(href, pendingUserTicketsCount, cacheRebuildPending);
+}
+
+/** The menu entry of a screen with sub-pages ("Bản tin" articles) stays highlighted on them. */
+function isNavItemActive(href: string | undefined, pathname: string): boolean {
+  if (!href) return false;
+  return pathname === href || (href === '/news-letter' && pathname.startsWith('/news-letter/'));
+}
+
 /** Where a menu item links — "Nguồn dữ liệu" opens its "Theo dõi cache dữ liệu" tab while a rebuild is pending. */
 function navItemHref(href: string, cacheRebuildPending: boolean): string {
   return href === '/' && cacheRebuildPending ? CACHE_TAB_HREF : href;
@@ -144,6 +161,8 @@ const navigation: NavigationSection[] = [
   {
     label: 'Giám sát',
     items: [
+      // "Bản tin" (owner 2026-11-06): articles posted by SUPERADMIN, readable per role; red dot = unread article.
+      { href: '/news-letter', featureKey: 'news_letter', icon: Rss, label: 'Bản tin' },
       { href: '/reports', featureKey: 'epic_reports', icon: Bandaids, label: 'Báo cáo Epic (beta 2)' },
       // Landing page after sign-in, open to every role (permission matrix feature 'ttm_dashboard_2').
       { href: '/ttm-dashboard-2', featureKey: 'ttm_dashboard_2', icon: Funnel, label: 'TTM dashboard 2' },
@@ -377,6 +396,7 @@ function NavigationGroupMenu({ cacheRebuildPending, expanded, group, onNavigate,
 }
 
 function SidebarContent({ cacheRebuildPending, expanded, hiddenFeatureKeys, onNavigate, onOpenModal, onToggle, pendingUserTicketsCount, role }: SidebarContentProps) {
+  const newsLetterUnread = React.useContext(NewsLetterUnreadContext);
   const pathname = usePathname();
   const sections = visibleNavigationFor(role, hiddenFeatureKeys);
 
@@ -419,7 +439,7 @@ function SidebarContent({ cacheRebuildPending, expanded, hiddenFeatureKeys, onNa
                   );
                 }
                 const ItemIcon = item.icon;
-                const active = !!item.href && pathname === item.href;
+                const active = isNavItemActive(item.href, pathname);
                 const sharedClassName = cn(
                   'flex min-h-10 w-full items-center rounded-md text-left text-sm font-semibold outline-none transition-[background-color,color]',
                   expanded ? 'gap-3 px-3' : 'justify-center px-2',
@@ -427,7 +447,7 @@ function SidebarContent({ cacheRebuildPending, expanded, hiddenFeatureKeys, onNa
                   !active && !item.disabled && 'text-sidebar-text hover:bg-fb-control hover:text-fb-text-primary',
                   item.disabled && 'cursor-not-allowed text-sidebar-disabled',
                 );
-                const itemAlert = navItemAlert(item.href, pendingUserTicketsCount, cacheRebuildPending);
+                const itemAlert = topLevelNavAlert(item.href, pendingUserTicketsCount, cacheRebuildPending, newsLetterUnread);
                 const hasPendingTickets = itemAlert !== null;
                 const content = (
                   <>
@@ -538,6 +558,8 @@ const PAGE_ROLES: Record<string, UserRole[]> = {
   '/admin/users': ADMIN_VIEW_ROLES,
   // /data-review/[batchId] drills into "Nguồn dữ liệu" — same SUPERADMIN-only gate as its API.
   '/data-review': SUPERADMIN_ONLY,
+  // "Soạn bài viết" of Bản tin (editing /news-letter/<id>/edit is refused by its API for any other role).
+  '/news-letter/new': SUPERADMIN_ONLY,
 };
 
 function requiredRolesFor(pathname: string): UserRole[] | undefined {
@@ -610,7 +632,30 @@ function AppShellInner({ children }: AppShellProps) {
   const displayRole = role ?? cachedRole;
   const pathname = usePathname();
   const router = useRouter();
-  const header = PAGE_HEADERS[pathname] ?? PAGE_HEADERS['/'];
+  // Red dot on "Bản tin": checked on every navigation and when an article is read / saved (owner 2026-11-06).
+  const [newsLetterUnread, setNewsLetterUnread] = React.useState(false);
+  const newsLetterAllowed = role !== null && !hiddenFeatureKeys.has('news_letter');
+  React.useEffect(() => {
+    if (!newsLetterAllowed || pathname === '/login') return;
+    let cancelled = false;
+    const check = () => {
+      fetch('/api/news-letter/unread', { cache: 'no-store' })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((data: { unread?: boolean } | null) => {
+          if (!cancelled) setNewsLetterUnread(Boolean(data?.unread));
+        })
+        .catch(() => undefined);
+    };
+    check();
+    window.addEventListener(NEWS_LETTER_READ_EVENT, check);
+    window.addEventListener(NEWS_LETTER_CHANGED_EVENT, check);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(NEWS_LETTER_READ_EVENT, check);
+      window.removeEventListener(NEWS_LETTER_CHANGED_EVENT, check);
+    };
+  }, [newsLetterAllowed, pathname]);
+  const header = PAGE_HEADERS[pathname] ?? (pathname.startsWith('/news-letter/') ? PAGE_HEADERS['/news-letter'] : PAGE_HEADERS['/']);
   const requiredRoles = requiredRolesFor(pathname);
   // Gates `children` below, not just the redirect: a protected page's own effects (data fetches,
   // etc.) must not mount for a role that doesn't belong there, even for the one tick before
@@ -727,6 +772,7 @@ function AppShellInner({ children }: AppShellProps) {
   }
 
   return (
+    <NewsLetterUnreadContext.Provider value={newsLetterAllowed && newsLetterUnread}>
     <div className="app-type-unified min-h-[100dvh] bg-fb-bg text-fb-text-primary">
       <aside
         className={cn(
@@ -846,6 +892,7 @@ function AppShellInner({ children }: AppShellProps) {
       {/* Login notice "My assigned epics" — only for a user who may open Quản trị Epic. */}
       {!mustChangePassword && role !== null && !hiddenFeatureKeys.has('epic_alerts_15') && (requiredRolesFor('/epic-alerts-15')?.includes(role) ?? true) && <AssignedEpicsNotice />}
     </div>
+    </NewsLetterUnreadContext.Provider>
   );
 }
 

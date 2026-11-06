@@ -26,6 +26,8 @@ export const PAGE_HEADERS: Record<string, AppScreenInfo> = {
   '/admin/rule-management': { subtitle: 'Nhóm rule theo mốc ngày Epic và bộ rule cảnh báo / đánh giá áp dụng cho từng nhóm', title: 'Rule Management' },
   '/visit-stats': { subtitle: 'Lượt đăng nhập và lượt sử dụng các màn hình chức năng trên hệ thống', title: 'Thống kê truy cập' },
   '/reports': { subtitle: 'Lựa chọn lớp dữ liệu và các điều kiện lọc', title: 'Báo cáo Epic (beta 2)' },
+  // Also the header of /news-letter/<id>, /news-letter/new and /news-letter/<id>/edit (AppShell looks it up by prefix).
+  '/news-letter': { subtitle: 'Bài viết và thông báo gửi tới người dùng TTM Monitor', title: 'Bản tin' },
   '/no-access': { subtitle: 'Vai trò của bạn chưa được cấp quyền Xem màn hình nào', title: 'Chưa có quyền truy cập' },
   '/docs/product': { subtitle: 'Tài liệu trình bày và đào tạo về hệ thống TTM Monitor', title: 'Tài liệu sản phẩm' },
 

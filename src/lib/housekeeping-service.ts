@@ -1,3 +1,4 @@
+import { purgeOrphanNewsLetterImages } from '@/lib/news-letter/service';
 import pool, { getClient } from '@/lib/db';
 import { runScheduledDataLayerRetention } from '@/lib/data-layer-retention-service';
 import { recordHistoryProvenExemptions } from '@/lib/denied-import-service';
@@ -88,6 +89,8 @@ export async function runDailyHousekeeping(): Promise<HousekeepingResult> {
       result.importBatchesDeleted = retention.batchesDeleted;
     }],
     ['user_usage_daily_stats', async () => { await purgeExpiredUsageStats(); }],
+    // "Bản tin": images uploaded in the editor but never saved with an article (older than a day).
+    ['news_letter_images', async () => { await purgeOrphanNewsLetterImages(); }],
   ];
   for (const [name, run] of steps) {
     try {

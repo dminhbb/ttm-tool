@@ -1,10 +1,10 @@
 # TTM Monitor — ERD & từ điển dữ liệu
 
-> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-04.
+> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-06.
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
-**71 bảng** trong schema `public`, **55 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
+**76 bảng** trong schema `public`, **66 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
 
 ## Mục lục
 
@@ -18,9 +18,10 @@
 8. [Cache dữ liệu dẫn xuất](#8-cache-dữ-liệu-dẫn-xuất) — 9 bảng
 9. [Cấu hình hệ thống](#9-cấu-hình-hệ-thống) — 4 bảng
 10. [Popup & Banner thông báo](#10-popup-banner-thông-báo) — 3 bảng
-11. [SSO, API Key & MCP Server](#11-sso-api-key-mcp-server) — 7 bảng
-12. [Nhật ký & thống kê sử dụng](#12-nhật-ký-thống-kê-sử-dụng) — 4 bảng
-13. [Danh sách khoá ngoại](#13-danh-sách-khoá-ngoại)
+11. [Bản tin](#11-bản-tin) — 5 bảng
+12. [SSO, API Key & MCP Server](#12-sso-api-key-mcp-server) — 7 bảng
+13. [Nhật ký & thống kê sử dụng](#13-nhật-ký-thống-kê-sử-dụng) — 4 bảng
+14. [Danh sách khoá ngoại](#14-danh-sách-khoá-ngoại)
 
 ## 1. Xác thực & phân quyền
 
@@ -1838,7 +1839,150 @@ Cấu hình Banner thông báo (Mặc định toàn hệ thống hoặc theo t�
 - `info_banners_banner_type_check`: CHECK (((banner_type)::text = ANY ((ARRAY['DEFAULT'::character varying, 'PER_SCREEN'::character varying])::text[])))
 - index `uq_info_banners_single_default`: UNIQUE btree (banner_type) WHERE ((banner_type)::text = 'DEFAULT'::text)
 
-## 11. SSO, API Key & MCP Server
+## 11. Bản tin
+
+```mermaid
+erDiagram
+    news_letter_articles {
+        int id PK
+        varchar title
+        text summary
+        int category_id FK
+        text_array visible_roles
+        boolean is_published
+        timestamptz first_published_at
+        uuid header_image_id FK
+        text content_html
+        int created_by FK
+        timestamptz created_at
+        int updated_by FK
+        timestamptz updated_at
+    }
+    news_letter_categories {
+        int id PK
+        varchar name
+        int created_by FK
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    news_letter_images {
+        uuid id PK
+        int article_id FK
+        varchar kind
+        varchar mime_type
+        int byte_size
+        bytea data
+        int created_by FK
+        timestamptz created_at
+    }
+    news_letter_article_edits {
+        int id PK
+        int article_id FK
+        int edited_by FK
+        timestamptz edited_at
+    }
+    news_letter_reads {
+        int user_id PK, FK
+        int article_id PK, FK
+        timestamptz read_at
+    }
+    users {
+        int id PK
+    }
+    news_letter_categories |o--o{ news_letter_articles : "category_id"
+    users |o--o{ news_letter_articles : "created_by"
+    news_letter_images |o--o{ news_letter_articles : "header_image_id"
+    users |o--o{ news_letter_articles : "updated_by"
+    users |o--o{ news_letter_categories : "created_by"
+    news_letter_articles |o--o{ news_letter_images : "article_id"
+    users |o--o{ news_letter_images : "created_by"
+    news_letter_articles ||--o{ news_letter_article_edits : "article_id"
+    users |o--o{ news_letter_article_edits : "edited_by"
+    news_letter_articles ||--o{ news_letter_reads : "article_id"
+    users ||--o{ news_letter_reads : "user_id"
+```
+
+Bảng tham chiếu ngoài nhóm (chỉ vẽ khoá chính): `users`.
+
+### `news_letter_articles`
+
+Bài viết của Bản tin (`/news-letter`, SUPERADMIN soạn): tiêu đề, tóm tắt, phân loại, role được xem (`visible_roles`), Published (tắt = nháp, chỉ tác giả xem), `first_published_at` (thứ tự bài), ảnh header, nội dung HTML đã lọc ở server — mục 11.8.
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `id` | int (tự tăng) | không |  | PK |  |
+| `title` | varchar(300) | không |  |  |  |
+| `summary` | text | có |  |  |  |
+| `category_id` | int | có |  | FK → news_letter_categories(id) |  |
+| `visible_roles` | text[] | không | ARRAY['SUPERADMIN'::text, 'ADMIN'::text, 'SUPERVISOR'::text, 'USER'::text] |  |  |
+| `is_published` | boolean | không | false |  |  |
+| `first_published_at` | timestamptz | có |  |  |  |
+| `header_image_id` | uuid | có |  | FK → news_letter_images(id) |  |
+| `content_html` | text | không | ''::text |  |  |
+| `created_by` | int | có |  | FK → users(id) |  |
+| `created_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+| `updated_by` | int | có |  | FK → users(id) |  |
+| `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+
+- index `idx_news_letter_articles_category`: btree (category_id)
+- index `idx_news_letter_articles_order`: btree (first_published_at DESC, id DESC)
+
+### `news_letter_categories`
+
+Phân loại bài viết Bản tin (tên không trùng, không xoá được khi còn bài viết dùng).
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `id` | int (tự tăng) | không |  | PK |  |
+| `name` | varchar(120) | không |  |  |  |
+| `created_by` | int | có |  | FK → users(id) |  |
+| `created_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+| `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+
+- index `uq_news_letter_categories_name`: UNIQUE btree (lower((name)::text))
+
+### `news_letter_images`
+
+Ảnh của Bản tin lưu trong CSDL (bytea): 1 ảnh header + tối đa 4 ảnh nội dung mỗi bài; ảnh upload chưa gắn bài (`article_id` NULL) bị dọn sau 1 ngày.
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `id` | uuid | không |  | PK |  |
+| `article_id` | int | có |  | FK → news_letter_articles(id) |  |
+| `kind` | varchar(10) | không |  |  |  |
+| `mime_type` | varchar(40) | không |  |  |  |
+| `byte_size` | int | không |  |  |  |
+| `data` | bytea | không |  |  |  |
+| `created_by` | int | có |  | FK → users(id) |  |
+| `created_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+
+- `news_letter_images_kind_check`: CHECK (((kind)::text = ANY ((ARRAY['HEADER'::character varying, 'INLINE'::character varying])::text[])))
+- index `idx_news_letter_images_article`: btree (article_id)
+
+### `news_letter_article_edits`
+
+Lịch sử thay đổi của bài viết Bản tin — giữ 5 lần sửa gần nhất.
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `id` | int (tự tăng) | không |  | PK |  |
+| `article_id` | int | không |  | FK → news_letter_articles(id) |  |
+| `edited_by` | int | có |  | FK → users(id) |  |
+| `edited_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+
+- index `idx_news_letter_article_edits_article`: btree (article_id, edited_at DESC)
+
+### `news_letter_reads`
+
+Người dùng đã mở bài viết nào — chấm đỏ trên menu Bản tin khi có bài published chưa đọc.
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `user_id` | int | không |  | PK, FK → users(id) |  |
+| `article_id` | int | không |  | PK, FK → news_letter_articles(id) |  |
+| `read_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+
+## 12. SSO, API Key & MCP Server
 
 ```mermaid
 erDiagram
@@ -2030,7 +2174,7 @@ Mã ủy quyền ngắn hạn cho luồng MCP OAuth 2.0 + PKCE (mục 16).
 - index `idx_mcp_oauth_codes_code`: btree (code)
 - index `idx_mcp_oauth_codes_expires`: btree (expires_at)
 
-## 12. Nhật ký & thống kê sử dụng
+## 13. Nhật ký & thống kê sử dụng
 
 ```mermaid
 erDiagram
@@ -2129,7 +2273,7 @@ Số lượt truy cập LŨY KẾ của các dòng `visit_logs` cũ hơn ngày T
 | `visit_count` | bigint | không | 0 |  |  |
 | `updated_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
 
-## 13. Danh sách khoá ngoại
+## 14. Danh sách khoá ngoại
 
 | Bảng con | Cột | Tham chiếu | ON DELETE |
 |---|---|---|---|
@@ -2154,6 +2298,17 @@ Số lượt truy cập LŨY KẾ của các dòng `visit_logs` cũ hơn ngày T
 | `mcp_access_tokens` | user_id | `users`(id) | CASCADE |
 | `mcp_oauth_authorization_codes` | user_id | `users`(id) | CASCADE |
 | `mcp_settings` | updated_by | `users`(id) | SET NULL |
+| `news_letter_article_edits` | article_id | `news_letter_articles`(id) | CASCADE |
+| `news_letter_article_edits` | edited_by | `users`(id) | SET NULL |
+| `news_letter_articles` | category_id | `news_letter_categories`(id) | RESTRICT |
+| `news_letter_articles` | created_by | `users`(id) | SET NULL |
+| `news_letter_articles` | header_image_id | `news_letter_images`(id) | SET NULL |
+| `news_letter_articles` | updated_by | `users`(id) | SET NULL |
+| `news_letter_categories` | created_by | `users`(id) | SET NULL |
+| `news_letter_images` | article_id | `news_letter_articles`(id) | CASCADE |
+| `news_letter_images` | created_by | `users`(id) | SET NULL |
+| `news_letter_reads` | article_id | `news_letter_articles`(id) | CASCADE |
+| `news_letter_reads` | user_id | `users`(id) | CASCADE |
 | `password_reset_requests` | resolved_by | `users`(id) | SET NULL |
 | `project_external_bindings` | project_id | `projects`(id) | CASCADE |
 | `project_members` | project_id | `projects`(id) | CASCADE |

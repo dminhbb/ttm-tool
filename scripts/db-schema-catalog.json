@@ -142,6 +142,19 @@
       ]
     },
     {
+      "id": "newsletter",
+      "name": "Bản tin",
+      "fill": "#f5f6f8",
+      "ink": "#475569",
+      "tables": [
+        "news_letter_articles",
+        "news_letter_categories",
+        "news_letter_images",
+        "news_letter_article_edits",
+        "news_letter_reads"
+      ]
+    },
+    {
       "id": "integration",
       "name": "SSO, API Key & MCP Server",
       "fill": "#f5f6f8",
@@ -513,6 +526,26 @@
     },
     "data_snapshot_dates": {
       "description": "<strong>Mới 27/10/2026.</strong> Các ngày mốc cố định của lịch sử <code>issues</code>: ngày làm việc cuối mỗi tuần, ghi một lần khi tuần đã qua. Vùng thưa của <code>issues</code> chỉ giữ phiên bản đang có hiệu lực vào các ngày này (xem mục 6.1).",
+      "columns": {}
+    },
+    "news_letter_articles": {
+      "description": "Bài viết của Bản tin (<code>/news-letter</code>, SUPERADMIN soạn): tiêu đề, tóm tắt, phân loại, role được xem (<code>visible_roles</code>), Published (tắt = nháp, chỉ tác giả xem), <code>first_published_at</code> (thứ tự bài), ảnh header, nội dung HTML đã lọc ở server — mục 11.8.",
+      "columns": {}
+    },
+    "news_letter_categories": {
+      "description": "Phân loại bài viết Bản tin (tên không trùng, không xoá được khi còn bài viết dùng).",
+      "columns": {}
+    },
+    "news_letter_images": {
+      "description": "Ảnh của Bản tin lưu trong CSDL (bytea): 1 ảnh header + tối đa 4 ảnh nội dung mỗi bài; ảnh upload chưa gắn bài (<code>article_id</code> NULL) bị dọn sau 1 ngày.",
+      "columns": {}
+    },
+    "news_letter_article_edits": {
+      "description": "Lịch sử thay đổi của bài viết Bản tin — giữ 5 lần sửa gần nhất.",
+      "columns": {}
+    },
+    "news_letter_reads": {
+      "description": "Người dùng đã mở bài viết nào — chấm đỏ trên menu Bản tin khi có bài published chưa đọc.",
       "columns": {}
     }
   },

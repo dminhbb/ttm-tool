@@ -11,7 +11,7 @@ import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
-import { RichTextEditor } from '@/components/ui/RichTextEditor';
+import { TiptapEditor } from '@/components/ui/TiptapEditor';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { TableAction } from '@/components/ui/TableAction';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -207,6 +207,7 @@ export function AdPopupsPanel() {
         onClose={() => setShowModal(false)}
         title={editingId ? 'Cập nhật Popup quảng cáo' : 'Thêm Popup quảng cáo mới'}
         maxWidth="lg"
+        maxWidthClassName="max-w-[48rem]"
         footer={
           <>
             <Button variant="outline" onClick={() => setShowModal(false)}>Hủy</Button>
@@ -221,13 +222,14 @@ export function AdPopupsPanel() {
             value={form.campaignName}
             onChange={(event) => setForm({ ...form, campaignName: event.target.value })}
           />
-          <RichTextEditor
+          <TiptapEditor
             id="ad-popup-message"
             label="Nội dung thông điệp"
             required
+            tables
             placeholder="Nhập nội dung thông điệp…"
             value={form.message}
-            onChange={(html) => setForm({ ...form, message: html })}
+            onChange={(html) => setForm((current) => ({ ...current, message: html }))}
           />
           <Input
             label="URL ảnh đính kèm"

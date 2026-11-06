@@ -1,9 +1,9 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-04T10:44:27.750Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-06T04:19:46.699Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
--- Gồm: 71 bảng, 59 index phụ, 4 hàm, 4 trigger.
+-- Gồm: 76 bảng, 64 index phụ, 4 hàm, 4 trigger.
 -- Yêu cầu: PostgreSQL 14 trở lên, một database RỖNG (không dùng cho DB đã có bảng — sẽ báo lỗi và không
 -- tạo gì vì cả file chạy trong một transaction). Không cần extension nào.
 --
@@ -507,6 +507,60 @@ CREATE TABLE mcp_settings (
     CONSTRAINT chk_mcp_settings_singleton CHECK ((id = 1))
 );
 
+CREATE TABLE news_letter_article_edits (
+    id SERIAL,
+    article_id integer NOT NULL,
+    edited_by integer,
+    edited_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT news_letter_article_edits_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE news_letter_articles (
+    id SERIAL,
+    title character varying(300) NOT NULL,
+    summary text,
+    category_id integer,
+    visible_roles text[] DEFAULT ARRAY['SUPERADMIN'::text, 'ADMIN'::text, 'SUPERVISOR'::text, 'USER'::text] NOT NULL,
+    is_published boolean DEFAULT false NOT NULL,
+    first_published_at timestamp with time zone,
+    header_image_id uuid,
+    content_html text DEFAULT ''::text NOT NULL,
+    created_by integer,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by integer,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT news_letter_articles_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE news_letter_categories (
+    id SERIAL,
+    name character varying(120) NOT NULL,
+    created_by integer,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT news_letter_categories_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE news_letter_images (
+    id uuid NOT NULL,
+    article_id integer,
+    kind character varying(10) NOT NULL,
+    mime_type character varying(40) NOT NULL,
+    byte_size integer NOT NULL,
+    data bytea NOT NULL,
+    created_by integer,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT news_letter_images_pkey PRIMARY KEY (id),
+    CONSTRAINT news_letter_images_kind_check CHECK (((kind)::text = ANY ((ARRAY['HEADER'::character varying, 'INLINE'::character varying])::text[])))
+);
+
+CREATE TABLE news_letter_reads (
+    user_id integer NOT NULL,
+    article_id integer NOT NULL,
+    read_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT news_letter_reads_pkey PRIMARY KEY (user_id, article_id)
+);
+
 CREATE TABLE password_reset_requests (
     id SERIAL,
     email character varying(255) NOT NULL,
@@ -974,6 +1028,11 @@ CREATE INDEX idx_mcp_access_tokens_hash ON mcp_access_tokens USING btree (token_
 CREATE INDEX idx_mcp_access_tokens_user ON mcp_access_tokens USING btree (user_id);
 CREATE INDEX idx_mcp_oauth_codes_code ON mcp_oauth_authorization_codes USING btree (code);
 CREATE INDEX idx_mcp_oauth_codes_expires ON mcp_oauth_authorization_codes USING btree (expires_at);
+CREATE INDEX idx_news_letter_article_edits_article ON news_letter_article_edits USING btree (article_id, edited_at DESC);
+CREATE INDEX idx_news_letter_articles_category ON news_letter_articles USING btree (category_id);
+CREATE INDEX idx_news_letter_articles_order ON news_letter_articles USING btree (first_published_at DESC, id DESC);
+CREATE UNIQUE INDEX uq_news_letter_categories_name ON news_letter_categories USING btree (lower((name)::text));
+CREATE INDEX idx_news_letter_images_article ON news_letter_images USING btree (article_id);
 CREATE INDEX idx_project_components_project_active ON project_components USING btree (project_key, is_active);
 CREATE INDEX idx_peb_project ON project_external_bindings USING btree (project_id);
 CREATE UNIQUE INDEX uq_peb_external_key_per_system ON project_external_bindings USING btree (system_code, upper((external_project_key)::text)) WHERE is_active;
@@ -1022,6 +1081,17 @@ ALTER TABLE mcp_access_daily_stats ADD CONSTRAINT mcp_access_daily_stats_user_id
 ALTER TABLE mcp_access_tokens ADD CONSTRAINT mcp_access_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 ALTER TABLE mcp_oauth_authorization_codes ADD CONSTRAINT mcp_oauth_authorization_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 ALTER TABLE mcp_settings ADD CONSTRAINT mcp_settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE news_letter_article_edits ADD CONSTRAINT news_letter_article_edits_article_id_fkey FOREIGN KEY (article_id) REFERENCES news_letter_articles(id) ON DELETE CASCADE;
+ALTER TABLE news_letter_article_edits ADD CONSTRAINT news_letter_article_edits_edited_by_fkey FOREIGN KEY (edited_by) REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE news_letter_articles ADD CONSTRAINT news_letter_articles_category_id_fkey FOREIGN KEY (category_id) REFERENCES news_letter_categories(id) ON DELETE RESTRICT;
+ALTER TABLE news_letter_articles ADD CONSTRAINT news_letter_articles_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE news_letter_articles ADD CONSTRAINT news_letter_articles_header_image_id_fkey FOREIGN KEY (header_image_id) REFERENCES news_letter_images(id) ON DELETE SET NULL;
+ALTER TABLE news_letter_articles ADD CONSTRAINT news_letter_articles_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE news_letter_categories ADD CONSTRAINT news_letter_categories_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE news_letter_images ADD CONSTRAINT news_letter_images_article_id_fkey FOREIGN KEY (article_id) REFERENCES news_letter_articles(id) ON DELETE CASCADE;
+ALTER TABLE news_letter_images ADD CONSTRAINT news_letter_images_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE news_letter_reads ADD CONSTRAINT news_letter_reads_article_id_fkey FOREIGN KEY (article_id) REFERENCES news_letter_articles(id) ON DELETE CASCADE;
+ALTER TABLE news_letter_reads ADD CONSTRAINT news_letter_reads_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 ALTER TABLE password_reset_requests ADD CONSTRAINT password_reset_requests_resolved_by_fkey FOREIGN KEY (resolved_by) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE project_external_bindings ADD CONSTRAINT project_external_bindings_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
 ALTER TABLE project_members ADD CONSTRAINT project_members_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
@@ -1166,7 +1236,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 123 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 125 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1291,7 +1361,9 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261115_create_ttm_dashboard_metric_history.sql'),
     ('20261116_add_issue_crawl_v16_fields.sql'),
     ('20261117_add_early_start_rule.sql'),
-    ('20261118_create_ttm_early_start_cache.sql');
+    ('20261118_create_ttm_early_start_cache.sql'),
+    ('20261119_create_news_letter.sql'),
+    ('20261120_news_letter_view_only_permission.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1299,7 +1371,7 @@ INSERT INTO schema_migrations (filename) VALUES
 --    nghiệp vụ (domain, dự án, user, Epic, danh sách Black listed / Từ chối import, banner, API key).
 -- ---------------------------------------------------------------------------------------------
 
--- permission_features (17 dòng)
+-- permission_features (18 dòng)
 INSERT INTO permission_features (feature_key, feature_name, category, display_order)
 SELECT * FROM (VALUES
     ('data_normalization'::character varying(60), 'Chuẩn hoá dữ liệu'::character varying(150), 'VIEW_ONLY'::character varying(10), '101'::integer),
@@ -1311,6 +1383,7 @@ SELECT * FROM (VALUES
     ('general_settings'::character varying(60), 'Quản lý chung'::character varying(150), 'ADMIN'::character varying(10), '80'::integer),
     ('help_alert_logic'::character varying(60), 'Popup Logic cảnh báo Epic'::character varying(150), 'VIEW_ONLY'::character varying(10), '110'::integer),
     ('help_data_logic'::character varying(60), 'Popup Logic xử lý dữ liệu'::character varying(150), 'VIEW_ONLY'::character varying(10), '120'::integer),
+    ('news_letter'::character varying(60), 'Bản tin'::character varying(150), 'VIEW_ONLY'::character varying(10), '80'::integer),
     ('permission_matrix'::character varying(60), 'Ma trận phân quyền'::character varying(150), 'ADMIN'::character varying(10), '10'::integer),
     ('product_docs'::character varying(60), 'Tài liệu sản phẩm'::character varying(150), 'VIEW_ONLY'::character varying(10), '130'::integer),
     ('projects'::character varying(60), 'Quản lý Dự án'::character varying(150), 'ADMIN'::character varying(10), '50'::integer),
@@ -1322,7 +1395,7 @@ SELECT * FROM (VALUES
 ) AS seed (feature_key, feature_name, category, display_order)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 
--- role_feature_permissions (68 dòng)
+-- role_feature_permissions (72 dòng)
 INSERT INTO role_feature_permissions (feature_key, role, can_view, can_add, can_edit, can_delete)
 SELECT * FROM (VALUES
     ('data_normalization'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
@@ -1361,6 +1434,10 @@ SELECT * FROM (VALUES
     ('help_data_logic'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('help_data_logic'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('help_data_logic'::character varying(60), 'USER'::character varying(20), 'false'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('news_letter'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('news_letter'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('news_letter'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('news_letter'::character varying(60), 'USER'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('permission_matrix'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('permission_matrix'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'true'::boolean, 'true'::boolean),
     ('permission_matrix'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
@@ -1375,7 +1452,7 @@ SELECT * FROM (VALUES
     ('projects'::character varying(60), 'USER'::character varying(20), 'false'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('rule_management'::character varying(60), 'ADMIN'::character varying(20), 'false'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('rule_management'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'true'::boolean, 'true'::boolean),
-    ('rule_management'::character varying(60), 'SUPERVISOR'::character varying(20), 'false'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('rule_management'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('rule_management'::character varying(60), 'USER'::character varying(20), 'false'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('status_alert_rules'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('status_alert_rules'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'true'::boolean, 'true'::boolean),
@@ -1574,7 +1651,7 @@ WHERE current_setting('ttm_install.seed_data', true) = 'on';
 -- derived_cache_refresh_lock (1 dòng)
 INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 SELECT * FROM (VALUES
-    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-04 08:43:14.269985+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-05 18:28:34.862328+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
 ) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 
