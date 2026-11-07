@@ -1,4 +1,5 @@
 import pool, { getClient } from '@/lib/db';
+import { EXPORTABLE_TABLES, SMART_CONFIG_TABLES } from '@/lib/db-backup-tables';
 import type { BackupTableInfo, ImportResult, ImportTableResult } from '@/lib/db-backup-types';
 import { EPIC_ISSUE_TYPES_SQL, STORY_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 import { aggregateBatchData } from '@/lib/import-service';
@@ -8,51 +9,10 @@ export const SMART_SURFACE_EXPORT_HEADER = '-- Smart Export Mode: SURFACE_LAYER'
 const MAX_IMPORT_BYTES = 50 * 1024 * 1024;
 const MAX_IMPORT_STATEMENTS = 200_000;
 
-// Allowlist of business tables that can be exported/imported. Session/reset-token
-// tables are intentionally excluded — they are ephemeral and meaningless to restore.
-export const EXPORTABLE_TABLES: { label: string; tableName: string }[] = [
-  { label: 'Người dùng (users)', tableName: 'users' },
-  { label: 'Domain nghiệp vụ', tableName: 'domains' },
-  { label: 'Dự án', tableName: 'projects' },
-  { label: 'User ↔ Domain', tableName: 'user_domains' },
-  { label: 'User ↔ Dự án (PM/SM)', tableName: 'user_projects' },
-  { label: 'User ↔ Component dự án (PM/SM thu hẹp)', tableName: 'user_project_components' },
-  { label: 'Component dự án', tableName: 'project_components' },
-  { label: 'Holiday', tableName: 'holidays' },
-  { label: 'Ngày làm bù', tableName: 'makeup_workdays' },
-  { label: 'Cấu hình cảnh báo Status', tableName: 'epic_status_alert_rules' },
-  { label: 'Bộ ngân sách Time to Market', tableName: 'ttm_policy_sets' },
-  { label: 'Tiêu chí Time to Market (TTM Policy)', tableName: 'ttm_policy_configs' },
-  { label: 'Ánh xạ Issue type → cấp', tableName: 'issue_type_role_mapping' },
-  // Configuration that used to be left out (2026-10-19): restoring a backup must not silently drop
-  // the black list, the "Từ chối import" list/dates (the next import would let denied Epics back in),
-  // the Scoring Service / data-scope settings or the permission matrix. Caches are still left out —
-  // "Tạo lại cache" rebuilds them from the tables above.
-  { label: 'Phạm vi dữ liệu cho TTM', tableName: 'ttm_scope_config' },
-  { label: 'Scoring Service — tham số', tableName: 'scoring_parameters' },
-  { label: 'Scoring Service — bật/tắt rule (cũ, không còn dùng)', tableName: 'scoring_rule_settings' },
-  { label: 'Rule Management — nhóm rule', tableName: 'scoring_rule_groups' },
-  { label: 'Rule Management — rule của từng nhóm', tableName: 'scoring_rule_group_rules' },
-  { label: 'Rule Management — lịch sử thay đổi', tableName: 'scoring_rule_group_history' },
-  { label: 'Epic ngoại lệ (Black listed)', tableName: 'black_listed_epics' },
-  { label: 'Từ chối import — danh sách Epic', tableName: 'denied_import_epics' },
-  { label: 'Từ chối import — ngày A/B', tableName: 'import_admission_settings' },
-  { label: 'Dashboard Lead view cho tất cả user', tableName: 'dashboard_view_settings' },
-  { label: 'Ma trận phân quyền — chức năng', tableName: 'permission_features' },
-  { label: 'Ma trận phân quyền — quyền theo role', tableName: 'role_feature_permissions' },
-  { label: 'Cấu hình Jira', tableName: 'jira_settings' },
-  { label: 'Thời hạn lưu dữ liệu raw', tableName: 'data_retention_configs' },
-  { label: 'Đợt import dữ liệu', tableName: 'import_batches' },
-  { label: 'Issues (Epic/Story/Subtask)', tableName: 'issues' },
-  { label: 'Dòng thời gian cảnh báo Epic (lịch sử Epic)', tableName: 'epic_alert_timeline' },
-  { label: 'Audit log', tableName: 'audit_logs' },
-];
-
+// The import allow-list (a file naming any other table is refused). Since 2026-11-06 there is no "dump" export any more —
+// the only export left is the Smart export (SMART_CONFIG_TABLES in db-backup-tables.ts ⊆ this list); older dump files still import.
 const ALLOWED_TABLE_NAMES = new Set(EXPORTABLE_TABLES.map((table) => table.tableName));
 
-function assertAllowedTable(tableName: string): void {
-  if (!ALLOWED_TABLE_NAMES.has(tableName)) throw new Error(`Bảng "${tableName}" không nằm trong danh sách cho phép export/import.`);
-}
 
 function quoteIdent(name: string): string {
   return `"${name.replace(/"/g, '""')}"`;
@@ -95,14 +55,69 @@ function formatSqlValue(value: unknown): string {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 
-export async function listBackupTables(): Promise<BackupTableInfo[]> {
-  // A table a migration hasn't created on this database yet is left out of the list instead of
-  // failing the whole screen.
-  const results = await Promise.all(EXPORTABLE_TABLES.map(async (table) => {
-    const result = await pool.query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM ${quoteIdent(table.tableName)};`).catch(() => null);
-    return result ? { approxRowCount: Number(result.rows[0]?.count ?? 0), label: table.label, tableName: table.tableName } : null;
+/** Names for the tables that are not in EXPORTABLE_TABLES (those carry their own label). */
+const OTHER_TABLE_LABELS: Record<string, string> = {
+  ad_popup_impressions: 'Popup quảng cáo — lượt hiển thị',
+  ad_popups: 'Popup quảng cáo',
+  api_keys: 'API Key',
+  auth_sessions: 'Phiên đăng nhập',
+  daily_cache_runs: 'Lịch sử chạy cache hằng ngày',
+  data_snapshot_dates: 'Ngày chốt dữ liệu (cuối tuần)',
+  derived_cache_refresh_lock: 'Khoá tạo lại cache',
+  epic_alert_row_cache: 'Cache dòng cảnh báo Epic',
+  epic_comments: 'Bình luận Epic',
+  epic_hidden_by_users: 'Epic user tự ẩn',
+  epic_task_status: 'Trạng thái xử lý Epic (TODO/DONE)',
+  info_banners: 'Banner thông tin',
+  mcp_access_daily_stats: 'MCP — thống kê truy cập',
+  mcp_access_tokens: 'MCP — access token',
+  mcp_oauth_authorization_codes: 'MCP — OAuth authorization code',
+  mcp_oauth_clients: 'MCP — OAuth client',
+  mcp_settings: 'MCP — cấu hình',
+  news_letter_article_edits: 'Bản tin — lịch sử sửa',
+  news_letter_articles: 'Bản tin — bài viết',
+  news_letter_categories: 'Bản tin — phân loại',
+  news_letter_images: 'Bản tin — ảnh',
+  news_letter_reads: 'Bản tin — đã đọc',
+  password_reset_requests: 'Yêu cầu cấp lại mật khẩu',
+  project_external_bindings: 'Dự án — liên kết hệ thống ngoài (PMS)',
+  project_members: 'Dự án — thành viên (PMS)',
+  project_type_capabilities: 'Loại dự án — năng lực (PMS)',
+  project_types: 'Loại dự án (PMS)',
+  schema_migrations: 'Phiên bản migration đã áp dụng',
+  sso_auth_codes: 'SSO — authorization code',
+  ttm_dashboard_2_cache: 'Cache TTM Dashboard 2',
+  ttm_dashboard_fail_history: 'Lịch sử Epic Fail theo ngày',
+  ttm_dashboard_metric_history: 'Lịch sử chỉ số TTM theo ngày',
+  ttm_dashboard_trend_cache: 'Cache xu hướng TTM',
+  ttm_early_start_cache: 'Cache báo cáo Start sớm',
+  ttm_index_global_cache: 'Cache chỉ số TTM toàn cục',
+  user_registration_reads: 'Đăng ký tài khoản — đã đọc',
+  user_usage_daily_stats: 'Thống kê sử dụng theo ngày',
+  visit_log_rollups: 'Nhật ký truy cập — tổng hợp',
+  visit_logs: 'Nhật ký truy cập',
+};
+
+/**
+ * "Thông tin DB": every table of the application (schema public) with its row count and its size on disk
+ * (table + indexes + TOAST). One statement — the count runs inside it via query_to_xml — so it costs one connection.
+ */
+export async function listDatabaseInfo(): Promise<BackupTableInfo[]> {
+  const result = await pool.query<{ count: string; sizeBytes: string; tableName: string }>(`
+    SELECT c.relname AS "tableName",
+      pg_total_relation_size(c.oid)::text AS "sizeBytes",
+      (xpath('/row/c/text()', query_to_xml(format('SELECT count(*) AS c FROM %I.%I', n.nspname, c.relname), false, true, '')))[1]::text AS count
+    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE c.relkind IN ('r', 'p') AND n.nspname = 'public'
+    ORDER BY pg_total_relation_size(c.oid) DESC, c.relname;
+  `);
+  const labels = new Map(EXPORTABLE_TABLES.map((table) => [table.tableName, table.label]));
+  return result.rows.map((row) => ({
+    approxRowCount: Number(row.count ?? 0),
+    label: labels.get(row.tableName) ?? OTHER_TABLE_LABELS[row.tableName] ?? '',
+    sizeBytes: Number(row.sizeBytes),
+    tableName: row.tableName,
   }));
-  return results.filter((table): table is BackupTableInfo => table !== null);
 }
 
 interface ColumnInfo {
@@ -253,93 +268,7 @@ async function exportOneTableToSql(tableName: string, includeSchema: boolean, wh
   return lines;
 }
 
-export async function exportTablesToSql(tableNames: string[], includeSchema: boolean): Promise<string> {
-  const uniqueTableNames = [...new Set(tableNames)];
-  if (uniqueTableNames.length === 0) throw new Error('Vui lòng chọn ít nhất một bảng để export.');
-  for (const tableName of uniqueTableNames) assertAllowedTable(tableName);
-
-  const lines: string[] = [
-    EXPORT_SIGNATURE,
-    `-- Generated at: ${new Date().toISOString()}`,
-    `-- Tables: ${uniqueTableNames.join(', ')}`,
-    `-- Includes schema: ${includeSchema ? 'yes (CREATE TABLE IF NOT EXISTS, columns + primary key only)' : 'no (data only)'}`,
-    '-- Import behavior: rows whose primary key already exists on the target DB are OVERWRITTEN (upsert), not skipped.',
-    '',
-  ];
-
-  for (const tableName of uniqueTableNames) {
-    lines.push(...await exportOneTableToSql(tableName, includeSchema));
-  }
-
-  return lines.join('\n');
-}
-
-export type DataLayerExportCategory = 'raw' | 'epicHistory';
-
-interface DataLayerTableConfig {
-  category: DataLayerExportCategory;
-  /** Raw WHERE-clause SQL using $1 (startDate) / $2 (endDate), both 'YYYY-MM-DD' — inclusive range.
-   * epic_alert_timeline is transition-based (a run's own start_date/end_date can span outside the
-   * chosen window), so its rows are selected by RANGE OVERLAP rather than exact containment —
-   * otherwise an alert that started before the window but is still open (or still active partway
-   * through it) would silently vanish from the export instead of showing up truncated/ongoing, the
-   * same way the live timeline UI itself draws a run that starts before its visible window. */
-  tableName: string;
-  whereClause: string;
-}
-
-// dữ liệu gốc (raw, toggle-gated) / dữ liệu lịch sử Epic (epicHistory) — always exported together for the chosen data-layer range,
-// per exportDataLayerRangeToSql's single "Start/End Data Layer" selection.
-const DATA_LAYER_TABLES: DataLayerTableConfig[] = [
-  { category: 'raw', tableName: 'import_batches', whereClause: 'aggregated_at::date BETWEEN $1 AND $2' },
-  { category: 'raw', tableName: 'issues', whereClause: 'aggregated_at::date BETWEEN $1 AND $2' },
-  { category: 'epicHistory', tableName: 'epic_alert_timeline', whereClause: 'start_date <= $2 AND (end_date IS NULL OR end_date >= $1)' },
-];
-
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
-export interface DataLayerExportOptions {
-  endDate: string;
-  includeRawData: boolean;
-  includeSchema?: boolean;
-  startDate: string;
-}
-
-/**
- * Export "dữ liệu lịch sử Epic" (always) plus "dữ liệu
- * gốc" (only when includeRawData) for one contiguous data-layer date range — the "Start/End Data
- * Layer" + "Export Raw Data" flow on the admin backup screen. Reuses exportOneTableToSql, so the
- * resulting file has the exact same EXPORT_SIGNATURE/statement shape as a whole-table export and
- * is restorable through the same importSqlFile path unchanged.
- */
-export async function exportDataLayerRangeToSql(options: DataLayerExportOptions): Promise<string> {
-  const { startDate, endDate, includeRawData, includeSchema = false } = options;
-  if (!ISO_DATE_PATTERN.test(startDate) || !ISO_DATE_PATTERN.test(endDate)) {
-    throw new Error('Vui lòng chọn Start Data Layer và End Data Layer hợp lệ.');
-  }
-  if (startDate > endDate) {
-    throw new Error('"Start Data Layer" phải trước hoặc trùng ngày với "End Data Layer".');
-  }
-
-  const tablesToExport = DATA_LAYER_TABLES.filter((table) => includeRawData || table.category !== 'raw');
-
-  const lines: string[] = [
-    EXPORT_SIGNATURE,
-    `-- Generated at: ${new Date().toISOString()}`,
-    `-- Data layer range: ${startDate} .. ${endDate}`,
-    `-- Includes raw data: ${includeRawData ? 'yes' : 'no'}`,
-    `-- Tables: ${tablesToExport.map((table) => table.tableName).join(', ')}`,
-    `-- Includes schema: ${includeSchema ? 'yes (CREATE TABLE IF NOT EXISTS, columns + primary key only)' : 'no (data only)'}`,
-    '-- Import behavior: rows whose primary key already exists on the target DB are OVERWRITTEN (upsert), not skipped.',
-    '',
-  ];
-
-  for (const table of tablesToExport) {
-    lines.push(...await exportOneTableToSql(table.tableName, includeSchema, table.whereClause, [startDate, endDate]));
-  }
-
-  return lines.join('\n');
-}
 
 export interface SmartSurfaceExportOptions {
   includeSchema?: boolean;
@@ -472,32 +401,6 @@ export async function exportSmartSurfaceToSql(options: SmartSurfaceExportOptions
   if (issueIds.length === 0) {
     throw new Error(`Không có dữ liệu Epic/Story/Subtask nào tại hoặc trước ngày ${layerDate}.`);
   }
-
-  const SMART_CONFIG_TABLES = [
-    'domains',
-    'projects',
-    'project_components',
-    'users',
-    'user_domains',
-    'user_projects',
-    'user_project_components',
-    'holidays',
-    'makeup_workdays',
-    'epic_status_alert_rules',
-    'ttm_policy_sets',
-    'ttm_policy_configs',
-    'issue_type_role_mapping',
-    'ttm_scope_config',
-    'scoring_parameters',
-    'scoring_rule_settings',
-    'scoring_rule_groups',
-    'scoring_rule_group_rules',
-    'scoring_rule_group_history',
-    'black_listed_epics',
-    'denied_import_epics',
-    'import_admission_settings',
-    'dashboard_view_settings',
-  ];
 
   // A config table this database doesn't have yet (migration not run here) is skipped and named in the
   // header — like listBackupTables — instead of failing the whole export (2026-10-20).
@@ -1038,7 +941,9 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
     // Triggers were off while users were deleted, so no ON DELETE CASCADE ran: sweep the rows that still
     // point at a user the import removed.
     if (insertTables.includes('users')) {
-      for (const child of ['user_project_components', 'user_projects', 'user_domains']) {
+      // A child table this database does not have yet (migration not run here) is skipped, not an error.
+      const children = (await client.query<{ name: string }>("SELECT name FROM unnest($1::text[]) AS name WHERE to_regclass(quote_ident(name)) IS NOT NULL;", [['user_project_components', 'user_projects', 'user_domains', 'user_view_settings', 'user_view_projects', 'user_view_project_components', 'user_view_epics']])).rows.map((row) => row.name);
+      for (const child of children) {
         const orphans = await client.query(`DELETE FROM ${quoteIdent(child)} WHERE user_id NOT IN (SELECT id FROM users);`);
         countDeleted(child, orphans.rowCount);
       }

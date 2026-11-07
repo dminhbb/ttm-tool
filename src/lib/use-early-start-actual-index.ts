@@ -2,47 +2,67 @@
 
 import { useEffect, useState } from 'react';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
+import type { TtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 
 /** Link target of the header widget "TTM-CNTT (SỚM)". */
 export const EARLY_START_REPORT_HREF = '/reports?view=early-start';
 
 export interface EarlyStartActualIndex {
-  /** TTM-CNTT (QLDA) with the "Start sớm" Epics judged from Epic_Real_Start_Date. */
+  /** TTM-CNTT (QLDA) of the whole company with the "Start sớm" Epics judged from Epic_Real_Start_Date. */
   summary: TtmCnttSummary;
   /** When the cache entry was built (the last cache rebuild). */
   computedAt: string | null;
 }
 
-export interface EarlyStartActualState {
-  /** The viewer may not open the report (no "Xem" on Báo cáo Epic): the widget isn't offered at all. */
-  hidden: boolean;
-  /** undefined while loading, null when nothing is cached yet. */
-  index: EarlyStartActualIndex | null | undefined;
+export interface CompanyTtmIndexState {
+  /** Company-wide TTM-CNTT (SỚM); undefined while loading, null when nothing is cached yet. */
+  earlyStart: EarlyStartActualIndex | null | undefined;
+  /** Company-wide TTM-CNTT (QLDA) / (QA) / TTM-E2E; undefined while loading, null before the first import. */
+  global: TtmIndexGlobalCache | null | undefined;
+}
+
+interface CompanyPayload {
+  earlyStart: EarlyStartActualIndex | null;
+  global: TtmIndexGlobalCache | null;
+}
+
+/** One request shared by every widget of the page, kept 60 s (the numbers change only when the caches are rebuilt). */
+const SHARE_MS = 60_000;
+let shared: { at: number; promise: Promise<CompanyPayload | null> } | null = null;
+
+function fetchCompanyPayload(): Promise<CompanyPayload | null> {
+  if (shared && Date.now() - shared.at < SHARE_MS) return shared.promise;
+  const promise = fetch('/api/ttm-index-global')
+    .then(async (response) => {
+      if (!response.ok) return null;
+      const data = (await response.json()) as {
+        earlyStart?: { computedAt: string | null; earlyStart: TtmCnttSummary } | null;
+        ttmIndexGlobal?: TtmIndexGlobalCache | null;
+      };
+      return {
+        earlyStart: data.earlyStart ? { computedAt: data.earlyStart.computedAt, summary: data.earlyStart.earlyStart } : null,
+        global: data.ttmIndexGlobal ?? null,
+      };
+    })
+    .catch(() => null);
+  shared = { at: Date.now(), promise };
+  void promise.then((payload) => { if (!payload && shared?.promise === promise) shared = null; });
+  return promise;
 }
 
 /**
- * Header widget "TTM-CNTT (SỚM)" of TTM Dashboard 2 and Quản trị Epic (owner 2026-11-04): the newest cached numbers
- * of "Báo cáo Epic start sớm" for the viewer's scope — never computed here; every cache rebuild (import, daily run,
- * "Tạo lại cache") writes them (early-start-report-service.ts, refreshEarlyStartCaches), so they follow the other
- * widgets' data layer rather than being real-time.
+ * The company-wide numbers of the header widgets of TTM Dashboard 2 and Quản trị Epic (owner 2026-11-07): TTM-CNTT
+ * (QLDA), (SỚM), (QA) and TTM-E2E — the same for every user, whatever their projects. Never computed here: the caches
+ * are written by every rebuild (import, daily run, "Tạo lại cache"), so they follow the data layer rather than being
+ * real-time.
  */
-export function useEarlyStartActualIndex(): EarlyStartActualState {
-  const [state, setState] = useState<EarlyStartActualState>({ hidden: false, index: undefined });
+export function useCompanyTtmIndex(): CompanyTtmIndexState {
+  const [state, setState] = useState<CompanyTtmIndexState>({ earlyStart: undefined, global: undefined });
   useEffect(() => {
     let active = true;
-    fetch('/api/reports/early-start?summary=latest')
-      .then(async (response) => {
-        if (!active) return;
-        if (response.status === 401 || response.status === 403) {
-          setState({ hidden: true, index: null });
-          return;
-        }
-        const data = (await response.json()) as { summary?: { earlyStart: TtmCnttSummary; computedAt: string | null } | null };
-        if (active) setState({ hidden: false, index: data.summary ? { summary: data.summary.earlyStart, computedAt: data.summary.computedAt } : null });
-      })
-      .catch(() => {
-        if (active) setState({ hidden: false, index: null });
-      });
+    void fetchCompanyPayload().then((payload) => {
+      if (active) setState({ earlyStart: payload?.earlyStart ?? null, global: payload?.global ?? null });
+    });
     return () => {
       active = false;
     };

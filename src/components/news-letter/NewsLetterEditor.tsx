@@ -12,7 +12,7 @@ import { CategoryManagerModal } from '@/components/news-letter/CategoryManagerMo
 import { notifyNewsLetterChanged } from '@/components/news-letter/NewsLetterShell';
 import { ACCEPTED_IMAGE_TYPES, uploadNewsLetterImageFile } from '@/lib/news-letter/resize-image';
 import {
-  NEWS_LETTER_MAX_INLINE_IMAGES,
+  NEWS_LETTER_MAX_ARTICLE_IMAGES,
   NEWS_LETTER_ROLE_LABEL,
   NEWS_LETTER_ROLES,
   NEWS_LETTER_ROUTE,
@@ -108,7 +108,7 @@ export function NewsLetterEditor({ articleId }: { articleId: number | null }) {
   const update = <K extends keyof NewsLetterArticleInput>(key: K, value: NewsLetterArticleInput[K]) => setForm((current) => ({ ...current, [key]: value }));
 
   const uploadInline = React.useCallback(async (file: File) => (await uploadNewsLetterImageFile(file, 'INLINE')).url, []);
-  const images = React.useMemo(() => ({ upload: uploadInline, max: NEWS_LETTER_MAX_INLINE_IMAGES, accept: ACCEPTED_IMAGE_TYPES }), [uploadInline]);
+  const images = React.useMemo(() => ({ upload: uploadInline, max: Math.max(0, NEWS_LETTER_MAX_ARTICLE_IMAGES - (form.headerImageId ? 1 : 0)), accept: ACCEPTED_IMAGE_TYPES }), [uploadInline, form.headerImageId]);
 
   const pickHeader = async (file: File) => {
     setUploadingHeader(true);
@@ -273,7 +273,7 @@ export function NewsLetterEditor({ articleId }: { articleId: number | null }) {
           images={images}
           placeholder="Viết nội dung bài viết… (dán hoặc kéo thả ảnh vào đây)"
           minHeightClassName="min-h-[480px]"
-          helperText={`Tối đa ${NEWS_LETTER_MAX_INLINE_IMAGES} ảnh trong nội dung — chọn bằng nút ảnh, dán (Ctrl+V) hoặc kéo thả; ảnh rộng hơn 1200px được thu nhỏ.`}
+          helperText={`Tối đa ${NEWS_LETTER_MAX_ARTICLE_IMAGES} ảnh mỗi bài (kể cả ảnh header), mỗi ảnh ≤ 1 MB — chọn bằng nút ảnh, dán (Ctrl+V) hoặc kéo thả; ảnh rộng hơn 1200px được thu nhỏ.`}
         />
       </div>
 

@@ -24,11 +24,10 @@ import { matchesPmSmFilter, splitOwnerNames, UNASSIGNED_PM_SM } from '@/lib/epic
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import type { EpicAlertAccessRole, EpicAlertPhasedResponse, EpicAlertRowPhased, PhaseCell } from '@/lib/epic-alert-types';
 import type { ProjectComponent } from '@/lib/master-data-types';
-import { formatTtmPassPct, summarizeQaIndex, summarizeTtmCntt } from '@/lib/ttm-cntt-qa';
+import { formatTtmPassPct } from '@/lib/ttm-cntt-qa';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
-import type { TtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 import { useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
-import { EARLY_START_REPORT_HREF, earlyStartActualTooltip, useEarlyStartActualIndex } from '@/lib/use-early-start-actual-index';
+import { EARLY_START_REPORT_HREF, earlyStartActualTooltip, useCompanyTtmIndex } from '@/lib/use-early-start-actual-index';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import { ArrowBendUpRight, ArrowCounterClockwise, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, Eye, EyeSlash, FlagBanner, FloppyDisk, FolderSimple, HourglassMedium, ListChecks, UserFocus, Prohibit, Sparkle, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react';
@@ -802,13 +801,9 @@ function EpicAlerts15Screen() {
     fetch('/api/project-components').then((res) => (res.ok ? res.json() : [])).then(setProjectComponents).catch(() => undefined);
   }, []);
 
-  // Company-wide TTM-E2E ("Hoàn thành TTM-E2E"), cached (ttm-index-global-cache-service.ts) — same
-  // source as the TTM Dashboard banner widget, fetched standalone so this page doesn't need the
-  // dashboard's full company-wide row set just to show one more header pill.
-  const [ttmIndexGlobal, setTtmIndexGlobal] = useState<TtmIndexGlobalCache | null>(null);
-  useEffect(() => {
-    fetch('/api/ttm-index-global').then((res) => (res.ok ? res.json() : null)).then((payload: { ttmIndexGlobal: TtmIndexGlobalCache | null } | null) => setTtmIndexGlobal(payload?.ttmIndexGlobal ?? null)).catch(() => undefined);
-  }, []);
+  // The four header widgets are COMPANY-wide for every user (owner 2026-11-07, like TTM Dashboard 2): cached numbers of
+  // /api/ttm-index-global (ttm-index-global-cache-service.ts + the early-start cache), never the viewer's projects or filters.
+  const { earlyStart, global: ttmIndexGlobal } = useCompanyTtmIndex();
 
   const rows = data?.rows ?? EMPTY_ROWS;
 
@@ -820,7 +815,6 @@ function EpicAlerts15Screen() {
   // The company-wide snapshot (ttm-index-global-cache-service.ts) is shown only on TTM dashboard's banner.
   const { setItems: setHeaderWidgetItems } = useEpicHeaderWidgets();
   // "TTM-CNTT (SỚM)" — the numbers of Báo cáo Epic start sớm, cached by every cache rebuild (not live, owner 2026-11-04).
-  const earlyStartActual = useEarlyStartActualIndex();
   useEffect(() => () => setHeaderWidgetItems(null), [setHeaderWidgetItems]);
 
   // Paged mode: `rows` is only the current page, so every filter dropdown's option list instead
@@ -1148,12 +1142,6 @@ function EpicAlerts15Screen() {
     [data, rows],
   );
 
-  // "Quyền xem" Epics (viewOnly) are listed but never counted (owner 2026-11-01) — the twin of the SQL realScopeOnly.
-  const countedIndexRows = useMemo(() => indexRows.filter((row) => !row.viewOnly), [indexRows]);
-  const clientTtmCnttQlda = useMemo(() => summarizeTtmCntt(countedIndexRows), [countedIndexRows]);
-  const clientTtmCnttQa = useMemo(() => summarizeQaIndex(countedIndexRows), [countedIndexRows]);
-  const ttmCnttQlda = data?.mode === 'paged' && data.ttmIndexPm ? data.ttmIndexPm : clientTtmCnttQlda;
-  const ttmCnttQa = data?.mode === 'paged' && data.qaIndexPm ? data.qaIndexPm : clientTtmCnttQa;
   // Publishes the badges into AppShell's shared sticky header (see epic-header-widgets-context.tsx).
   // Clearing lives in its own cleanup-only effect above, so an ordinary data refresh never flashes
   // them empty-then-full.
@@ -1164,23 +1152,23 @@ function EpicAlerts15Screen() {
         key: 'ttm-cntt-qlda',
         label: 'TTM-CNTT (QLDA)',
         tone: 'ttm',
-        value: formatTtmIndexValue(ttmCnttQlda),
-        tooltip: formatTtmIndexTooltip('Chỉ số TTM-CNTT (QLDA) tính trên các Epic đang hiển thị trong bảng Danh sách Epic (theo bộ lọc)', ttmCnttQlda),
+        value: formatTtmIndexValue(ttmIndexGlobal?.ttm ?? null),
+        tooltip: formatTtmIndexTooltip('Chỉ số TTM-CNTT (QLDA) toàn công ty (giống nhau với mọi người dùng, không đổi theo bộ lọc)', ttmIndexGlobal?.ttm ?? null),
       },
-      ...(earlyStartActual.hidden ? [] : [{
+      {
         key: 'ttm-cntt-actual',
         label: 'TTM-CNTT (SỚM)',
         tone: 'actual' as const,
-        value: formatTtmIndexValue(earlyStartActual.index?.summary ?? null),
+        value: formatTtmIndexValue(earlyStart?.summary ?? null),
         tooltip: earlyStartActualTooltip(),
         href: EARLY_START_REPORT_HREF,
-      }]),
+      },
       {
         key: 'ttm-cntt-qa',
         label: 'TTM-CNTT (QA)',
         tone: 'qa',
-        value: formatTtmIndexValue(ttmCnttQa),
-        tooltip: formatTtmIndexTooltip('Chỉ số TTM-CNTT (QA) tính trên các Epic đang hiển thị trong bảng Danh sách Epic (theo bộ lọc), theo cách tính của QA', ttmCnttQa),
+        value: formatTtmIndexValue(ttmIndexGlobal?.qa ?? null),
+        tooltip: formatTtmIndexTooltip('Chỉ số TTM-CNTT (QA) toàn công ty, theo cách tính của QA (giống nhau với mọi người dùng, không đổi theo bộ lọc)', ttmIndexGlobal?.qa ?? null),
       },
       {
         key: 'ttm-e2e-global',
@@ -1190,7 +1178,7 @@ function EpicAlerts15Screen() {
         tooltip: formatTtmIndexTooltip('Chỉ số Hoàn thành TTM-E2E tính trên toàn bộ Epic trong ứng dụng (giống nhau với mọi người dùng, không đổi theo bộ lọc)', ttmIndexGlobal?.e2e ?? null),
       },
     ]);
-  }, [data, earlyStartActual, setHeaderWidgetItems, ttmCnttQa, ttmCnttQlda, ttmIndexGlobal]);
+  }, [data, earlyStart, setHeaderWidgetItems, ttmIndexGlobal]);
 
   // Raw status strings (case as stored) whose normalized form is PENDING/TO DO — the Pending/To Do
   // stat widgets set the Status filter (a multi-select) to exactly this set.

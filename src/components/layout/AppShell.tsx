@@ -36,6 +36,7 @@ import {
 import type { Icon } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { NEWS_LETTER_CHANGED_EVENT, NEWS_LETTER_READ_EVENT } from '@/lib/news-letter/types';
+import { useMenuDotRefresh } from '@/lib/use-menu-dot-refresh';
 import { trackFeatureUsage } from '@/lib/usage-tracking';
 import { CACHE_TAB_HREF, cacheStaleToastText, installCacheStaleWatcher } from '@/lib/cache-rebuild-status-client';
 import { useCacheRebuildPending } from '@/lib/use-cache-rebuild-pending';
@@ -116,6 +117,8 @@ function navItemAlert(href: string | undefined, pendingUserTicketsCount: number,
 }
 
 /** "Bản tin" has a published article the viewer hasn't opened yet — red dot on its menu entry (owner 2026-11-06). */
+const NEWS_LETTER_DOT_EVENTS = [NEWS_LETTER_READ_EVENT, NEWS_LETTER_CHANGED_EVENT] as const;
+const USER_TICKETS_DOT_EVENTS = [PENDING_USER_TICKETS_CHANGED_EVENT] as const;
 const NewsLetterUnreadContext = React.createContext(false);
 
 /** Red dot of a top-level menu entry: the shared alerts, plus "Bản tin" unread. */
@@ -632,29 +635,17 @@ function AppShellInner({ children }: AppShellProps) {
   const displayRole = role ?? cachedRole;
   const pathname = usePathname();
   const router = useRouter();
-  // Red dot on "Bản tin": checked on every navigation and when an article is read / saved (owner 2026-11-06).
+  // Red dot on "Bản tin" (owner 2026-11-06): loaded once, then when an article is read / saved, and — only if the last check
+  // is over 5 minutes old — on navigation, on returning to the tab or on a 5-minute timer (use-menu-dot-refresh.ts).
   const [newsLetterUnread, setNewsLetterUnread] = React.useState(false);
-  const newsLetterAllowed = role !== null && !hiddenFeatureKeys.has('news_letter');
-  React.useEffect(() => {
-    if (!newsLetterAllowed || pathname === '/login') return;
-    let cancelled = false;
-    const check = () => {
-      fetch('/api/news-letter/unread', { cache: 'no-store' })
-        .then((response) => (response.ok ? response.json() : null))
-        .then((data: { unread?: boolean } | null) => {
-          if (!cancelled) setNewsLetterUnread(Boolean(data?.unread));
-        })
-        .catch(() => undefined);
-    };
-    check();
-    window.addEventListener(NEWS_LETTER_READ_EVENT, check);
-    window.addEventListener(NEWS_LETTER_CHANGED_EVENT, check);
-    return () => {
-      cancelled = true;
-      window.removeEventListener(NEWS_LETTER_READ_EVENT, check);
-      window.removeEventListener(NEWS_LETTER_CHANGED_EVENT, check);
-    };
-  }, [newsLetterAllowed, pathname]);
+  const newsLetterAllowed = role !== null && !hiddenFeatureKeys.has('news_letter') && pathname !== '/login';
+  const loadNewsLetterUnread = React.useCallback(() => {
+    fetch('/api/news-letter/unread', { cache: 'no-store' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { unread?: boolean } | null) => setNewsLetterUnread(Boolean(data?.unread)))
+      .catch(() => undefined);
+  }, []);
+  useMenuDotRefresh(loadNewsLetterUnread, { enabled: newsLetterAllowed, events: NEWS_LETTER_DOT_EVENTS, navigationKey: pathname, pollMs: 300_000, staleMs: 300_000 });
   const header = PAGE_HEADERS[pathname] ?? (pathname.startsWith('/news-letter/') ? PAGE_HEADERS['/news-letter'] : PAGE_HEADERS['/']);
   const requiredRoles = requiredRolesFor(pathname);
   // Gates `children` below, not just the redirect: a protected page's own effects (data fetches,
@@ -712,24 +703,19 @@ function AppShellInner({ children }: AppShellProps) {
     router.replace(query ? `${pathname}?${query}` : pathname);
   }, [deniedFeature, pathname, router, searchParams]);
 
-  // Red dot on "Quản lý User" — polled (not just fetched once) so an admin sitting on another page
-  // notices a new self-lockout ticket (5 failed logins, see auth-service.ts) without reloading.
-  React.useEffect(() => {
-    if (!role || !ADMIN_VIEW_ROLES.includes(role)) {
-      void Promise.resolve().then(() => setPendingUserTicketsCount(0));
-      return undefined;
-    }
-    let cancelled = false;
-    const load = () => fetch('/api/admin/pending-tickets-count', { cache: 'no-store' })
+  // Red dot on "Quản lý User": an admin sitting on another page notices a new self-lockout ticket (5 failed logins, see
+  // auth-service.ts) without reloading — but only a visible tab polls, every 3 minutes (like the cache-rebuild dot).
+  const ticketsDotEnabled = Boolean(role && ADMIN_VIEW_ROLES.includes(role));
+  const loadPendingUserTickets = React.useCallback(() => {
+    fetch('/api/admin/pending-tickets-count', { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : null))
-      .then((data: { total?: number } | null) => { if (!cancelled && data) setPendingUserTicketsCount(data.total ?? 0); })
+      .then((data: { total?: number } | null) => { if (data) setPendingUserTicketsCount(data.total ?? 0); })
       .catch(() => undefined);
-    void load();
-    const intervalId = window.setInterval(load, 60_000);
-    // "Đã đọc" on Quản lý user (and similar) — refresh at once rather than on the next poll.
-    window.addEventListener(PENDING_USER_TICKETS_CHANGED_EVENT, load);
-    return () => { cancelled = true; window.clearInterval(intervalId); window.removeEventListener(PENDING_USER_TICKETS_CHANGED_EVENT, load); };
-  }, [role]);
+  }, []);
+  React.useEffect(() => {
+    if (!ticketsDotEnabled) void Promise.resolve().then(() => setPendingUserTicketsCount(0));
+  }, [ticketsDotEnabled]);
+  useMenuDotRefresh(loadPendingUserTickets, { enabled: ticketsDotEnabled, events: USER_TICKETS_DOT_EVENTS, pollMs: 180_000, staleMs: 180_000 });
 
   React.useEffect(() => {
     if (!mobileNavigationOpen) return undefined;

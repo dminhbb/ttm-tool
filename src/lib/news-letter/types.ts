@@ -8,10 +8,10 @@ import { USER_ROLES, type UserRole } from '@/lib/auth-types';
 export const NEWS_LETTER_ROUTE = '/news-letter';
 export const NEWS_LETTER_ROLES: readonly UserRole[] = USER_ROLES;
 
-/** Limits (owner 2026-11-06): 1 header image + at most 4 images in the body of an article. */
-export const NEWS_LETTER_MAX_INLINE_IMAGES = 4;
-/** Upload size cap (the browser already shrinks every image to ≤ 1600px before sending it). */
-export const NEWS_LETTER_MAX_IMAGE_BYTES = 3 * 1024 * 1024;
+/** Limits (owner 2026-11-06, tightened after review — server memory): at most 3 images per article, header included, 1 MB each. */
+export const NEWS_LETTER_MAX_ARTICLE_IMAGES = 3;
+/** Upload size cap (the browser shrinks every image to ≤ 1600px and re-encodes it under this size before sending it). */
+export const NEWS_LETTER_MAX_IMAGE_BYTES = 1024 * 1024;
 export const NEWS_LETTER_TITLE_MAX = 300;
 export const NEWS_LETTER_SUMMARY_MAX = 1000;
 export const NEWS_LETTER_CONTENT_MAX = 500_000;

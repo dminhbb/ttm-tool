@@ -9,8 +9,8 @@ import {
   NEWS_LETTER_CONTENT_MAX,
   NEWS_LETTER_GROUP_PAGE,
   NEWS_LETTER_LATEST_PAGE,
+  NEWS_LETTER_MAX_ARTICLE_IMAGES,
   NEWS_LETTER_MAX_IMAGE_BYTES,
-  NEWS_LETTER_MAX_INLINE_IMAGES,
   NEWS_LETTER_ROLES,
   NEWS_LETTER_SUMMARY_MAX,
   NEWS_LETTER_TITLE_MAX,
@@ -136,18 +136,32 @@ async function loadArticle(viewer: NewsLetterViewer, articleId: number | null): 
   return result.rows[0] ?? null;
 }
 
-async function neighbour(viewer: NewsLetterViewer, article: ArticleRow, direction: 'previous' | 'next'): Promise<NewsLetterNeighbour | null> {
-  // Previous = published earlier (older), next = published later (newer).
-  const comparison = direction === 'previous'
-    ? `(${ORDER_KEY} < $3::timestamptz OR (${ORDER_KEY} = $3::timestamptz AND a.id < $4))`
-    : `(${ORDER_KEY} > $3::timestamptz OR (${ORDER_KEY} = $3::timestamptz AND a.id > $4))`;
-  const result = await pool.query<NewsLetterNeighbour>(`
-    SELECT a.id, a.title FROM news_letter_articles a
-    WHERE ${PUBLISHED_VISIBLE} AND a.id <> $4 AND ${comparison}
-    ORDER BY ${ORDER_KEY} ${direction === 'previous' ? 'DESC' : 'ASC'}, a.id ${direction === 'previous' ? 'DESC' : 'ASC'}
-    LIMIT 1
-  `, [viewer.id, viewer.role, article.orderKey, article.id]);
-  return result.rows[0] ?? null;
+/** "Bài viết trước / sau" in ONE query: previous = published earlier (older), next = published later (newer). */
+async function neighbours(viewer: NewsLetterViewer, article: ArticleRow): Promise<{ previous: NewsLetterNeighbour | null; next: NewsLetterNeighbour | null }> {
+  const side = (direction: 'previous' | 'next') => {
+    const older = direction === 'previous';
+    const comparison = older
+      ? `(${ORDER_KEY} < $3::timestamptz OR (${ORDER_KEY} = $3::timestamptz AND a.id < $4))`
+      : `(${ORDER_KEY} > $3::timestamptz OR (${ORDER_KEY} = $3::timestamptz AND a.id > $4))`;
+    return `(SELECT '${direction}' AS side, a.id, a.title FROM news_letter_articles a
+      WHERE ${PUBLISHED_VISIBLE} AND a.id <> $4 AND ${comparison}
+      ORDER BY ${ORDER_KEY} ${older ? 'DESC' : 'ASC'}, a.id ${older ? 'DESC' : 'ASC'} LIMIT 1)`;
+  };
+  const result = await pool.query<NewsLetterNeighbour & { side: 'previous' | 'next' }>(
+    `${side('previous')} UNION ALL ${side('next')}`,
+    [viewer.id, viewer.role, article.orderKey, article.id],
+  );
+  const pick = (direction: 'previous' | 'next'): NewsLetterNeighbour | null => {
+    const row = result.rows.find((item) => item.side === direction);
+    return row ? { id: row.id, title: row.title } : null;
+  };
+  return { previous: pick('previous'), next: pick('next') };
+}
+
+/** Existence + visibility check that does not pull content_html (up to 500 KB). */
+async function canSeeArticle(viewer: NewsLetterViewer, articleId: number): Promise<boolean> {
+  const result = await pool.query('SELECT 1 FROM news_letter_articles a WHERE ' + VISIBLE + ' AND a.id = $3', [viewer.id, viewer.role, articleId]);
+  return (result.rowCount ?? 0) > 0;
 }
 
 async function loadEdits(articleId: number): Promise<NewsLetterArticle['edits']> {
@@ -165,8 +179,7 @@ export async function getNewsLetterPage(viewer: NewsLetterViewer, articleId: num
   const row = await loadArticle(viewer, articleId);
   if (articleId !== null && !row) throw new NewsLetterError('Không tìm thấy bài viết, hoặc bạn không có quyền xem bài viết này.', 404);
   if (!row) return { article: null, previous: null, next: null, canPost: canWriteNewsLetter(viewer) };
-  const previous = await neighbour(viewer, row, 'previous');
-  const next = await neighbour(viewer, row, 'next');
+  const { previous, next } = await neighbours(viewer, row);
   const edits = await loadEdits(row.id);
   if (row.isPublished && row.authorId !== viewer.id) {
     await pool.query('INSERT INTO news_letter_reads (user_id, article_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [viewer.id, row.id]);
@@ -240,7 +253,7 @@ function cleanInput(input: NewsLetterArticleInput, usableImageIds: ReadonlySet<s
   const headerImageId = input.headerImageId && UUID.test(input.headerImageId) && usableImageIds.has(input.headerImageId) ? input.headerImageId : null;
   const contentHtml = sanitizeRichHtml(rawHtml, { headings: true, allowImageId: (id) => usableImageIds.has(id) && id !== headerImageId });
   const inlineImageIds = newsLetterImageIdsOf(contentHtml);
-  if (inlineImageIds.length > NEWS_LETTER_MAX_INLINE_IMAGES) throw new NewsLetterError(`Mỗi bài viết có tối đa ${NEWS_LETTER_MAX_INLINE_IMAGES} ảnh trong nội dung.`);
+  if (inlineImageIds.length + (headerImageId ? 1 : 0) > NEWS_LETTER_MAX_ARTICLE_IMAGES) throw new NewsLetterError(`Mỗi bài viết có tối đa ${NEWS_LETTER_MAX_ARTICLE_IMAGES} ảnh (kể cả ảnh header).`);
   const categoryId = input.categoryId === null || input.categoryId === undefined ? null : Number(input.categoryId);
   if (categoryId !== null && !Number.isInteger(categoryId)) throw new NewsLetterError('Phân loại không hợp lệ.');
   return { title, summary: summary || null, categoryId, visibleRoles: roles, isPublished: Boolean(input.isPublished), headerImageId, contentHtml, inlineImageIds };
@@ -302,7 +315,7 @@ export async function createNewsLetterArticle(viewer: NewsLetterViewer, input: N
 
 export async function updateNewsLetterArticle(viewer: NewsLetterViewer, articleId: number, input: NewsLetterArticleInput): Promise<void> {
   requireWriter(viewer);
-  if (!(await loadArticle(viewer, articleId))) throw new NewsLetterError('Không tìm thấy bài viết, hoặc bạn không có quyền sửa bài viết này.', 404);
+  if (!(await canSeeArticle(viewer, articleId))) throw new NewsLetterError('Không tìm thấy bài viết, hoặc bạn không có quyền sửa bài viết này.', 404);
   const client = await getClient();
   try {
     await client.query('BEGIN');
@@ -335,7 +348,7 @@ export async function updateNewsLetterArticle(viewer: NewsLetterViewer, articleI
 /** Deletes the article with its images, edits and read marks (ON DELETE CASCADE). */
 export async function deleteNewsLetterArticle(viewer: NewsLetterViewer, articleId: number): Promise<void> {
   requireWriter(viewer);
-  if (!(await loadArticle(viewer, articleId))) throw new NewsLetterError('Không tìm thấy bài viết, hoặc bạn không có quyền xoá bài viết này.', 404);
+  if (!(await canSeeArticle(viewer, articleId))) throw new NewsLetterError('Không tìm thấy bài viết, hoặc bạn không có quyền xoá bài viết này.', 404);
   await pool.query('DELETE FROM news_letter_articles WHERE id = $1', [articleId]);
 }
 

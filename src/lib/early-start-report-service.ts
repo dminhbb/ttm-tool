@@ -1,6 +1,7 @@
 import 'server-only';
 import pool from '@/lib/db';
 import type { AuthUser } from '@/lib/auth-types';
+import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import { resolveAccessScope } from '@/lib/epic-alert-service';
 import { buildAccessScopeClause, getEpicAlertRowCacheMeta, rowInAccessScope } from '@/lib/epic-alert-row-cache-query-service';
 import { loadEpicMarkSummaries } from '@/lib/epic-mark-service';
@@ -136,16 +137,18 @@ export async function refreshEarlyStartCaches(): Promise<number> {
   return targets.length;
 }
 
-/** Header widget "TTM-CNTT (SỚM)": the newest entry of the viewer's scope, whatever its date; null when there is none yet. */
-export async function getLatestEarlyStartSummary(user: AuthUser): Promise<EarlyStartSummarySnapshot | null> {
-  const result = await pool.query<{ cacheDate: string; computedAt: string; summary: CachedPayload }>(
-    'SELECT summary, cache_date::text AS "cacheDate", computed_at::text AS "computedAt" FROM ttm_early_start_cache WHERE scope_key = $1',
-    [ttmDashboard2ScopeKey(user.id, user.role)],
+/**
+ * Header widget "TTM-CNTT (SỚM)" (owner 2026-11-07): the COMPANY-wide numbers — the same for every viewer, like the other
+ * header widgets — from the newest entry of the company scope ('ALL'), whatever its date; null when there is none yet.
+ */
+export async function getCompanyEarlyStartSummary(): Promise<{ computedAt: string; earlyStart: TtmCnttSummary } | null> {
+  const result = await pool.query<{ computedAt: string; summary: CachedPayload }>(
+    'SELECT summary, computed_at::text AS "computedAt" FROM ttm_early_start_cache WHERE scope_key = $1',
+    [ttmDashboard2ScopeKey(0, 'SUPERADMIN')],
   );
   const hit = result.rows[0];
   if (!hit || hit.summary.version !== PAYLOAD_VERSION) return null;
-  const { current, earlyStart, dataLayerDate } = hit.summary;
-  return { current, earlyStart, dataLayerDate, cacheDate: hit.cacheDate, computedAt: hit.computedAt, status: 'HIT' };
+  return { computedAt: hit.computedAt, earlyStart: hit.summary.earlyStart };
 }
 
 /** The table: "Start sớm" Epics that fail from their real start date, with the viewer's Review Notes. */

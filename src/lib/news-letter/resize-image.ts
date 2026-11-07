@@ -1,5 +1,7 @@
 'use client';
 
+import { NEWS_LETTER_MAX_IMAGE_BYTES } from '@/lib/news-letter/types';
+
 /**
  * Shrinks and re-encodes an image in the browser before it is uploaded (owner 2026-11-06): smaller uploads and
  * database rows, and re-drawing on a canvas drops the file's metadata and anything hidden in it. The server still checks
@@ -51,12 +53,14 @@ export async function resizeImageFile(file: File, options: { kind: 'HEADER' | 'I
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Trình duyệt không xử lý được ảnh.');
     context.drawImage(bitmap, sx, sy, sw, sh, 0, 0, width, height);
-    // WebP where the browser can encode it, JPEG otherwise.
-    const webp = await toBlob(canvas, 'image/webp', 0.85);
-    if (webp && webp.type === 'image/webp') return webp;
-    const jpeg = await toBlob(canvas, 'image/jpeg', 0.85);
-    if (!jpeg) throw new Error('Trình duyệt không xử lý được ảnh.');
-    return jpeg;
+    // WebP where the browser can encode it, JPEG otherwise; the quality drops until it fits the 1 MB cap.
+    for (const quality of [0.85, 0.7, 0.55, 0.4]) {
+      const webp = await toBlob(canvas, 'image/webp', quality);
+      const blob = webp && webp.type === 'image/webp' ? webp : await toBlob(canvas, 'image/jpeg', quality);
+      if (!blob) throw new Error('Trình duyệt không xử lý được ảnh.');
+      if (blob.size <= NEWS_LETTER_MAX_IMAGE_BYTES) return blob;
+    }
+    throw new Error('Ảnh vẫn lớn hơn 1 MB sau khi thu nhỏ — hãy chọn ảnh khác hoặc đơn giản hơn.');
   } finally {
     bitmap.close();
   }

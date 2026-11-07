@@ -43,7 +43,7 @@ import {
   type TtmFunnelSummary,
 } from '@/lib/ttm-funnel-summary';
 import type { TtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
-import { EARLY_START_REPORT_HREF, earlyStartActualTooltip, useEarlyStartActualIndex } from '@/lib/use-early-start-actual-index';
+import { EARLY_START_REPORT_HREF, earlyStartActualTooltip, useCompanyTtmIndex } from '@/lib/use-early-start-actual-index';
 import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 // Trước đây đây là `import '@/app/epic-alerts-15/epic-alerts-15.css'` — nạp global CSS
 // CỦA MỘT ROUTE KHÁC, kéo theo `:root { --ttm-* }` và `.has-filter { … !important }`
@@ -163,7 +163,7 @@ export default function TtmDashboard2Page() {
   // Lead view for every user: company-wide numbers by default, 'own' = the viewer's own scope.
   const [scopeChoice, setScopeChoice] = useState<'lead' | 'own'>('lead');
   // Header widget "TTM-CNTT (SỚM)" (owner 2026-11-04).
-  const earlyStartActual = useEarlyStartActualIndex();
+  const { earlyStart: earlyStartActual } = useCompanyTtmIndex();
 
   // Layer Detail Modal (opened by a left click on a layer/group — L04a / L04b: the second click, once their panel is open)
   const [detailModalId, setDetailModalId] = useState<NodeId | null>(null);
@@ -739,8 +739,8 @@ export default function TtmDashboard2Page() {
                 </div>
               </div>
             ))}
-            {/* "TTM-CNTT (SỚM)" — Báo cáo Epic start sớm's numbers, cached by every cache rebuild (not live); click → that report. */}
-            {!earlyStartActual.hidden && (
+            {/* "TTM-CNTT (SỚM)" — Báo cáo Epic start sớm's numbers of the whole company (every user, like the other widgets), cached by every cache rebuild (not live); click → that report. */}
+            {(
               <Tooltip content={earlyStartActualTooltip()} className="inline-flex w-auto" side="bottom">
               <Link
                 href={EARLY_START_REPORT_HREF}
@@ -749,9 +749,9 @@ export default function TtmDashboard2Page() {
                 <div className="flex flex-col justify-center leading-none">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-fb-text-secondary">TTM-CNTT (SỚM)</span>
                   <div className="flex items-baseline gap-1 mt-0.5">
-                    <span className="text-xs font-black text-fb-text-primary">{formatTtmIndexValue(earlyStartActual.index?.summary)}</span>
-                    {earlyStartActual.index && hasTtmVerdict(earlyStartActual.index.summary) && (
-                      <span className="text-[11px] font-medium text-fb-text-placeholder">({earlyStartActual.index.summary.pass}/{earlyStartActual.index.summary.denominator})</span>
+                    <span className="text-xs font-black text-fb-text-primary">{formatTtmIndexValue(earlyStartActual?.summary)}</span>
+                    {earlyStartActual && hasTtmVerdict(earlyStartActual.summary) && (
+                      <span className="text-[11px] font-medium text-fb-text-placeholder">({earlyStartActual.summary.pass}/{earlyStartActual.summary.denominator})</span>
                     )}
                   </div>
                 </div>

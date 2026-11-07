@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
-import { listBackupTables } from '@/lib/db-backup-service';
+import { listDatabaseInfo } from '@/lib/db-backup-service';
 
 function authError(error: unknown): NextResponse | null {
   if (error instanceof AuthError) {
@@ -12,9 +12,9 @@ function authError(error: unknown): NextResponse | null {
 export async function GET(request: NextRequest) {
   try {
     await requireUser(request, ['SUPERADMIN']);
-    return NextResponse.json(await listBackupTables());
+    return NextResponse.json(await listDatabaseInfo());
   } catch (error: unknown) {
     console.error('API Error in db-backup/tables route:', error);
-    return authError(error) ?? NextResponse.json({ error: 'Không thể tải danh sách bảng.' }, { status: 500 });
+    return authError(error) ?? NextResponse.json({ error: 'Không thể tải thông tin DB.' }, { status: 500 });
   }
 }

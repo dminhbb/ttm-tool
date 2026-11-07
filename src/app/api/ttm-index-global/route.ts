@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
+import { getCompanyEarlyStartSummary } from '@/lib/early-start-report-service';
 import { getTtmIndexGlobalCache } from '@/lib/ttm-index-global-cache-service';
 
 function authError(error: unknown): NextResponse | null {
@@ -10,7 +11,7 @@ function authError(error: unknown): NextResponse | null {
 }
 
 /**
- * Company-wide TTM-CNTT (QLDA) / TTM-CNTT (QA) / TTM-E2E ratios — same cached singleton row
+ * Company-wide TTM-CNTT (QLDA) / TTM-CNTT (SỚM) / TTM-CNTT (QA) / TTM-E2E ratios — same cached singleton row
  * `dashboard-new`'s own API embeds in its heavier payload (ttm-index-global-cache-service.ts), but
  * exposed standalone so other screens (Quản trị Epic's header banner) can show the same 3 widgets
  * without loading the whole company's Epic row set just for this.
@@ -19,7 +20,9 @@ export async function GET(request: NextRequest) {
   try {
     await requireUser(request);
     const ttmIndexGlobal = await getTtmIndexGlobalCache();
-    return NextResponse.json({ ttmIndexGlobal });
+    // "TTM-CNTT (SỚM)" of the company (cached by every cache rebuild) — for every role, whatever the Báo cáo Epic permission.
+    const earlyStart = await getCompanyEarlyStartSummary();
+    return NextResponse.json({ ttmIndexGlobal, earlyStart });
   } catch (error) {
     console.error('TTM index global API error:', error);
     return authError(error) ?? NextResponse.json({ error: 'Không thể tải chỉ số TTM toàn công ty.' }, { status: 500 });

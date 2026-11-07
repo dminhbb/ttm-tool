@@ -14,7 +14,7 @@ export {
 } from '@/lib/report-access-scope';
 export { generateEpicReport, getReportLayerDates, getReportLayers } from '@/lib/reports-service';
 export type { ReportEpicItem, ReportFilterOptions, ReportResult } from '@/lib/reports-service';
-export { getEarlyStartReportPage, getLatestEarlyStartSummary } from '@/lib/early-start-report-service';
+export { getEarlyStartReportPage } from '@/lib/early-start-report-service';
 export type { EarlyStartReportPage, EarlyStartSummarySnapshot } from '@/lib/early-start-report-service';
 export type { EarlyStartFailEpic } from '@/lib/early-start-report';
 

@@ -1,12 +1,11 @@
+/** One table of the application database ("Thông tin DB" tab). */
 export interface BackupTableInfo {
   approxRowCount: number;
+  /** Vietnamese name of the table; empty when it has none. */
   label: string;
+  /** Table + its indexes + TOAST (pg_total_relation_size), in bytes. */
+  sizeBytes: number;
   tableName: string;
-}
-
-export interface ExportRequest {
-  includeSchema: boolean;
-  tables: string[];
 }
 
 export interface ImportTableResult {
