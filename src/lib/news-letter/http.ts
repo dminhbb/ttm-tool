@@ -6,7 +6,7 @@ import { NewsLetterError, type NewsLetterViewer } from '@/lib/news-letter/servic
 
 /** Shared by the /api/news-letter routes. */
 export function viewerOf(user: AuthUser): NewsLetterViewer {
-  return { id: user.id, role: user.role };
+  return { id: user.id, role: user.role, readOnly: Boolean(user.viewAs) };
 }
 
 export function newsLetterErrorResponse(error: unknown, fallback: string): NextResponse {

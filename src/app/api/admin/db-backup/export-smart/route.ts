@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AuthError, requireUser } from '@/lib/auth-service';
+import { AuthError, requireUser, verifyUserPassword } from '@/lib/auth-service';
 import { exportSmartSurfaceToSql } from '@/lib/db-backup-service';
 import { withSlowLog } from '@/lib/slow-operation';
 
-// Reads every surface issue plus ~20 config tables of a large database — same budget as ./import.
+// Reads every surface issue plus ~45 config tables of a large database — same budget as ./import.
 export const maxDuration = 300;
 
 function authError(error: unknown): NextResponse | null {
@@ -18,12 +18,19 @@ function authError(error: unknown): NextResponse | null {
 
 export async function POST(request: NextRequest) {
   try {
-    await requireUser(request, ['SUPERADMIN']);
+    const actor = await requireUser(request, ['SUPERADMIN']);
     const body: unknown = await request.json();
     if (typeof body !== 'object' || body === null) {
       return NextResponse.json({ error: 'Dữ liệu không hợp lệ.' }, { status: 400 });
     }
-    const { layerDate, includeSchema } = body as Record<string, unknown>;
+    const { layerDate, includeSchema, password } = body as Record<string, unknown>;
+    // The file carries every user with their password hash: the signed-in SUPERADMIN confirms with their own password.
+    if (typeof password !== 'string' || !password) {
+      return NextResponse.json({ error: 'Vui lòng nhập mật khẩu để xác nhận export.' }, { status: 400 });
+    }
+    if (!(await verifyUserPassword(actor.id, password))) {
+      return NextResponse.json({ error: 'Mật khẩu không đúng.', code: 'WRONG_PASSWORD' }, { status: 403 });
+    }
     if (typeof layerDate !== 'string' || !layerDate) {
       return NextResponse.json({ error: 'Vui lòng chọn ngày mốc lớp dữ liệu.' }, { status: 400 });
     }

@@ -30,6 +30,8 @@ export interface AuthUser {
   id: number;
   mustChangePassword?: boolean;
   role: UserRole;
+  /** Set while a SUPERADMIN is in "View as" mode: this object is then the VIEWED user, `viewAs` names the real account. */
+  viewAs?: { actorEmail: string; actorId: number };
 }
 
 export interface ManagedUser extends AuthUser {

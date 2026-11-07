@@ -75,6 +75,8 @@ export interface NewsLetterArticle {
   createdAt: string;
   authorId: number | null;
   authorName: string;
+  /** How many times the article was opened (by anyone but its author). */
+  viewCount: number;
   /** Newest first, at most 5. */
   edits: NewsLetterEdit[];
 }

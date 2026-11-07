@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AuthError, requireUser } from '@/lib/auth-service';
+import { AuthError, requireUser, verifyUserPassword } from '@/lib/auth-service';
 import { previewCleanup, runCleanup } from '@/lib/db-cleanup-service';
 
 function authError(error: unknown): NextResponse | null {
@@ -31,11 +31,22 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await requireUser(request, ['SUPERADMIN']);
+    const actor = await requireUser(request, ['SUPERADMIN']);
     const body: unknown = await request.json();
-    const retentionDays = typeof body === 'object' && body !== null && 'retentionDays' in body ? Number((body as { retentionDays: unknown }).retentionDays) : NaN;
+    if (typeof body !== 'object' || body === null) {
+      return NextResponse.json({ error: 'Dữ liệu không hợp lệ.' }, { status: 400 });
+    }
+    const { retentionDays: rawRetentionDays, limit: rawLimit, password } = body as Record<string, unknown>;
+    const retentionDays = Number(rawRetentionDays);
     if (!Number.isInteger(retentionDays)) return NextResponse.json({ error: 'Số ngày giữ lại không hợp lệ.' }, { status: 400 });
-    const rawLimit = (body as { limit?: unknown }).limit;
+
+    if (typeof password !== 'string' || !password) {
+      return NextResponse.json({ error: 'Vui lòng nhập mật khẩu để xác nhận dọn dữ liệu.' }, { status: 400 });
+    }
+    if (!(await verifyUserPassword(actor.id, password))) {
+      return NextResponse.json({ error: 'Mật khẩu không đúng.', code: 'WRONG_PASSWORD' }, { status: 403 });
+    }
+
     // Optional: at most this many issue rows (the tab "Dọn lịch sử" cleans in rounds); omitted = everything planned.
     const limit = rawLimit === undefined || rawLimit === null ? null : Number(rawLimit);
     return NextResponse.json(await runCleanup(retentionDays, limit));

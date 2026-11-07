@@ -43,8 +43,20 @@ async function queryWithBadgeColumn<T extends object>(sql: string, params: unkno
   }
 }
 
-function mapAuthUser(row: AuthUser & { mustChangePassword?: boolean }): AuthUser {
-  return { badgeDesignStyle: row.badgeDesignStyle === 'minimal' ? 'minimal' : 'list', email: row.email, fullName: row.fullName, id: row.id, role: row.role, mustChangePassword: Boolean(row.mustChangePassword) };
+type SessionUserRow = AuthUser & { actorEmail?: string; actorId?: number; isViewAs?: boolean; mustChangePassword?: boolean };
+
+function mapAuthUser(row: SessionUserRow): AuthUser {
+  const viewAs = row.isViewAs && row.actorId ? { actorEmail: row.actorEmail ?? '', actorId: row.actorId } : undefined;
+  return {
+    badgeDesignStyle: row.badgeDesignStyle === 'minimal' ? 'minimal' : 'list',
+    email: row.email,
+    fullName: row.fullName,
+    id: row.id,
+    role: row.role,
+    // The viewed user's own "must change password" flag is theirs to answer, not the SUPERADMIN's.
+    mustChangePassword: viewAs ? false : Boolean(row.mustChangePassword),
+    ...(viewAs ? { viewAs } : {}),
+  };
 }
 
 export { extractUsername, normalizeUsername } from '@/lib/username';
@@ -204,13 +216,60 @@ export async function renewCurrentSessionIfDue(request?: NextRequest): Promise<{
 export async function getCurrentUser(request?: NextRequest): Promise<AuthUser | null> {
   const token = request?.cookies.get(SESSION_COOKIE_NAME)?.value ?? (await cookies()).get(SESSION_COOKIE_NAME)?.value;
   if (!token) return null;
-  const result = await queryWithBadgeColumn<AuthUser>(`
-    SELECT u.id, u.email, u.full_name AS "fullName", u.role, u.must_change_password AS "mustChangePassword"__BADGE_COLUMN__
-    FROM auth_sessions s
-    JOIN users u ON u.id = s.user_id
-    WHERE s.token_hash = $1 AND s.expires_at > CURRENT_TIMESTAMP AND u.is_active = TRUE;
-  `, [tokenHash(token)], ', u.badge_design_style AS "badgeDesignStyle"');
-  return result.rows[0] ? mapAuthUser(result.rows[0]) : null;
+  const badgeColumn = ', u.badge_design_style AS "badgeDesignStyle"';
+  let rows: SessionUserRow[];
+  try {
+    // "View as": a SUPERADMIN session with view_as_user_id answers as that (active) user; `a` is always the real account.
+    rows = (await queryWithBadgeColumn<SessionUserRow>(`
+      SELECT u.id, u.email, u.full_name AS "fullName", u.role, u.must_change_password AS "mustChangePassword"__BADGE_COLUMN__,
+        (t.id IS NOT NULL) AS "isViewAs", a.id AS "actorId", a.email AS "actorEmail"
+      FROM auth_sessions s
+      JOIN users a ON a.id = s.user_id AND a.is_active = TRUE
+      LEFT JOIN users t ON t.id = s.view_as_user_id AND t.is_active = TRUE AND a.role = 'SUPERADMIN'
+      JOIN users u ON u.id = COALESCE(t.id, a.id)
+      WHERE s.token_hash = $1 AND s.expires_at > CURRENT_TIMESTAMP;
+    `, [tokenHash(token)], badgeColumn)).rows;
+  } catch (error: unknown) {
+    // Migration 20261122 (auth_sessions.view_as_user_id) not applied yet: sign-in keeps working, without View as.
+    if ((error as { code?: string }).code !== '42703') throw error;
+    rows = (await queryWithBadgeColumn<SessionUserRow>(`
+      SELECT u.id, u.email, u.full_name AS "fullName", u.role, u.must_change_password AS "mustChangePassword"__BADGE_COLUMN__
+      FROM auth_sessions s
+      JOIN users u ON u.id = s.user_id
+      WHERE s.token_hash = $1 AND s.expires_at > CURRENT_TIMESTAMP AND u.is_active = TRUE;
+    `, [tokenHash(token)], badgeColumn)).rows;
+  }
+  return rows[0] ? mapAuthUser(rows[0]) : null;
+}
+
+/** The active users a SUPERADMIN can view as (everybody active but the SUPERADMIN themselves). */
+export async function listViewAsCandidates(actorId: number): Promise<{ email: string; fullName: string; id: number; role: string }[]> {
+  const result = await pool.query<{ email: string; fullName: string; id: number; role: string }>(
+    'SELECT id, email, full_name AS "fullName", role FROM users WHERE is_active = TRUE AND id <> $1 ORDER BY full_name, email;',
+    [actorId],
+  );
+  return result.rows;
+}
+
+/** Points the current session at `targetUserId` (View as) or back to normal (null). */
+export async function setSessionViewAs(request: NextRequest, targetUserId: number | null): Promise<void> {
+  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  if (!token) return;
+  await pool.query('UPDATE auth_sessions SET view_as_user_id = $2 WHERE token_hash = $1;', [tokenHash(token), targetUserId]);
+}
+
+/**
+ * Starts (or switches) View as for the current session. The caller has already proven the SUPERADMIN and their password.
+ * Writes the only trace of the mode — one audit_logs line (VIEW_AS, entity = the viewed username) — since writes are blocked
+ * while it is on. Returns null when the target is not an active user.
+ */
+export async function startViewAs(request: NextRequest, actorId: number, targetUserId: number): Promise<{ username: string } | null> {
+  const target = (await pool.query<{ email: string }>('SELECT email FROM users WHERE id = $1 AND is_active = TRUE;', [targetUserId])).rows[0];
+  if (!target) return null;
+  const username = extractUsername(target.email);
+  await setSessionViewAs(request, targetUserId);
+  await pool.query('INSERT INTO audit_logs (user_id, action, entity_type, entity_id) VALUES ($1, $2, $3, $4);', [actorId, 'VIEW_AS', 'USER', username]);
+  return { username };
 }
 
 export async function updateUserBadgeDesignStyle(userId: number, style: 'list' | 'minimal'): Promise<void> {

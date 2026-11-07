@@ -47,6 +47,8 @@ import { AppConfigModal } from '@/components/settings/AppConfigModal';
 import { SystemAdminModal } from '@/components/settings/SystemAdminModal';
 import { BlackListedEpicsModal } from '@/components/settings/BlackListedEpicsModal';
 import { AdPopupDisplay } from '@/components/layout/AdPopupDisplay';
+import { ViewAsBadge } from '@/components/layout/ViewAsFlow';
+import { extractUsername } from '@/lib/username';
 import { DailyCacheWarmer } from '@/components/layout/DailyCacheWarmer';
 import { AssignedEpicsNotice } from '@/components/layout/AssignedEpicsNotice';
 import { SystemStatusFooter } from '@/components/layout/SystemStatusFooter';
@@ -618,6 +620,8 @@ function AppShellInner({ children }: AppShellProps) {
   }, []);
   const [mustChangePassword, setMustChangePassword] = React.useState(false);
   const [role, setRole] = React.useState<UserRole | null>(null);
+  // Username being viewed while a SUPERADMIN is in "View as" mode (badge bottom-right).
+  const [viewAsUsername, setViewAsUsername] = React.useState<string | null>(null);
   const [pendingUserTicketsCount, setPendingUserTicketsCount] = React.useState(0);
   // "Cần tạo lại cache" dot on "Nguồn dữ liệu" — only SUPERADMIN runs "Tạo lại cache" (2026-10-26).
   const cacheRebuildPending = useCacheRebuildPending(role === 'SUPERADMIN');
@@ -664,9 +668,10 @@ function AppShellInner({ children }: AppShellProps) {
     // ?path= lets the server renew the session when this screen is one of the renewing ones (session-policy.ts).
     fetch(`/api/auth/me?path=${encodeURIComponent(pathname)}`, { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : null))
-      .then((data: { hiddenFeatureKeys?: string[]; user?: { mustChangePassword?: boolean; role: UserRole } } | null) => {
+      .then((data: { hiddenFeatureKeys?: string[]; user?: { email?: string; mustChangePassword?: boolean; role: UserRole; viewAs?: unknown } } | null) => {
         if (cancelled || !data?.user) return;
         setRole(data.user.role);
+        setViewAsUsername(data.user.viewAs && data.user.email ? extractUsername(data.user.email) : null);
         setHiddenFeatureKeys(new Set(data.hiddenFeatureKeys ?? []));
         window.sessionStorage.setItem(ROLE_CACHE_KEY, data.user.role);
         // Unconditional sync (not just "set true"): AppShell is a shared layout that survives a
@@ -760,6 +765,7 @@ function AppShellInner({ children }: AppShellProps) {
   return (
     <NewsLetterUnreadContext.Provider value={newsLetterAllowed && newsLetterUnread}>
     <div className="app-type-unified min-h-[100dvh] bg-fb-bg text-fb-text-primary">
+      {viewAsUsername && <ViewAsBadge username={viewAsUsername} />}
       <aside
         className={cn(
           'sidebar-surface fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-fb-border transition-[width] duration-150 lg:flex',

@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { Baby, BookOpen, FlowArrow, GearSix, Key, SignOut, Warning } from '@phosphor-icons/react';
+import { Baby, BookOpen, FlowArrow, GearSix, Key, SignOut, UserSwitch, Warning } from '@phosphor-icons/react';
 import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { showToast } from '@/components/ui/Toast';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { AlertLogicModal, DataLogicModal } from '@/components/layout/HelpPanels';
 import { UserInfoModal } from '@/components/layout/UserInfoModal';
 import { ChangePasswordModal } from '@/components/layout/ChangePasswordModal';
+import { ViewAsFlow } from '@/components/layout/ViewAsFlow';
 import { AppearancePanel } from '@/components/settings/AppearancePanel';
 import {
   applyBadgeDesignStyle,
@@ -46,6 +47,8 @@ interface CurrentUser {
   fullName: string;
   mustChangePassword?: boolean;
   role: UserRole;
+  /** Present while a SUPERADMIN is in View as mode (the fields above are then the viewed user's). */
+  isViewAs?: boolean;
 }
 
 function loadStoredTheme(): AppearanceTheme {
@@ -64,12 +67,15 @@ export function UserMenu({ expanded, hiddenFeatureKeys }: UserMenuProps) {
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
   const [isUserInfoOpen, setIsUserInfoOpen] = React.useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = React.useState(false);
+  const [isViewAsOpen, setIsViewAsOpen] = React.useState(false);
   const [isAlertLogicOpen, setIsAlertLogicOpen] = React.useState(false);
   const [isDataLogicOpen, setIsDataLogicOpen] = React.useState(false);
   const [hasLoadedPreference, setHasLoadedPreference] = React.useState(false);
   const [theme, setTheme] = React.useState<AppearanceTheme>('light');
   const [badgeDesign, setBadgeDesign] = React.useState<BadgeDesignStyle>(DEFAULT_BADGE_DESIGN_STYLE);
   const [user, setUser] = React.useState<CurrentUser | null>(null);
+  // "Xem với User khác..": SUPERADMIN only — also while already in View as (then the real account is a SUPERADMIN), to switch user.
+  const canViewAs = Boolean(user && (user.isViewAs || user.role === 'SUPERADMIN'));
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPERADMIN' || user?.role === 'SUPERVISOR';
   const showAlertLogic = !hiddenFeatureKeys.has('help_alert_logic');
   const showDataLogic = isAdmin && !hiddenFeatureKeys.has('help_data_logic');
@@ -101,6 +107,7 @@ export function UserMenu({ expanded, hiddenFeatureKeys }: UserMenuProps) {
             fullName: payload.user.fullName,
             role: payload.user.role as UserRole,
             mustChangePassword,
+            isViewAs: 'viewAs' in payload.user && Boolean(payload.user.viewAs),
           });
           setBadgeDesign(serverBadgeDesign);
           applyBadgeDesignStyle(serverBadgeDesign, payload.user.email);
@@ -199,15 +206,28 @@ export function UserMenu({ expanded, hiddenFeatureKeys }: UserMenuProps) {
             <Baby className="size-4 shrink-0" weight="bold" aria-hidden="true" />
             <span>Thông tin cá nhân</span>
           </button>
-          <button
-            type="button"
-            onClick={() => { trackFeatureUsage(); setIsMenuOpen(false); setIsChangePasswordOpen(true); }}
-            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-fb-text-primary transition-colors hover:bg-fb-control"
-            role="menuitem"
-          >
-            <Key className="size-4 shrink-0" weight="bold" aria-hidden="true" />
-            <span>Đổi mật khẩu</span>
-          </button>
+          {!user?.isViewAs && (
+            <button
+              type="button"
+              onClick={() => { trackFeatureUsage(); setIsMenuOpen(false); setIsChangePasswordOpen(true); }}
+              className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-fb-text-primary transition-colors hover:bg-fb-control"
+              role="menuitem"
+            >
+              <Key className="size-4 shrink-0" weight="bold" aria-hidden="true" />
+              <span>Đổi mật khẩu</span>
+            </button>
+          )}
+          {canViewAs && (
+            <button
+              type="button"
+              onClick={() => { setIsMenuOpen(false); setIsViewAsOpen(true); }}
+              className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-fb-text-primary transition-colors hover:bg-fb-control"
+              role="menuitem"
+            >
+              <UserSwitch className="size-4 shrink-0" weight="bold" aria-hidden="true" />
+              <span>Xem với User khác..</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => { trackFeatureUsage(); setIsMenuOpen(false); setIsSettingsOpen(true); }}
@@ -339,6 +359,7 @@ export function UserMenu({ expanded, hiddenFeatureKeys }: UserMenuProps) {
         </div>
       </Modal>
 
+      {canViewAs && <ViewAsFlow isOpen={isViewAsOpen} onClose={() => setIsViewAsOpen(false)} />}
       <UserInfoModal isOpen={isUserInfoOpen} onClose={() => setIsUserInfoOpen(false)} />
       <ChangePasswordModal isForceChangePassword={user?.mustChangePassword} isOpen={isChangePasswordOpen} onClose={() => setIsChangePasswordOpen(false)} />
       <AlertLogicModal isOpen={isAlertLogicOpen} onClose={() => setIsAlertLogicOpen(false)} />

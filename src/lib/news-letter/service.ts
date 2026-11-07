@@ -38,6 +38,8 @@ import {
 export interface NewsLetterViewer {
   id: number;
   role: UserRole;
+  /** "View as" mode: the page is read without marking it read or counting a view. */
+  readOnly?: boolean;
 }
 
 export class NewsLetterError extends Error {
@@ -125,7 +127,7 @@ async function loadArticle(viewer: NewsLetterViewer, articleId: number | null): 
     SELECT a.id, a.title, a.summary, a.category_id AS "categoryId", c.name AS "categoryName", a.visible_roles AS "visibleRoles",
       a.is_published AS "isPublished", a.first_published_at::text AS "firstPublishedAt", a.header_image_id::text AS "headerImageId",
       a.content_html AS "contentHtml", a.created_at::text AS "createdAt", a.created_by AS "authorId", ${AUTHOR_NAME} AS "authorName",
-      ${ORDER_KEY}::text AS "orderKey"
+      a.view_count AS "viewCount", ${ORDER_KEY}::text AS "orderKey"
     FROM news_letter_articles a
     LEFT JOIN news_letter_categories c ON c.id = a.category_id
     LEFT JOIN users u ON u.id = a.created_by
@@ -181,10 +183,17 @@ export async function getNewsLetterPage(viewer: NewsLetterViewer, articleId: num
   if (!row) return { article: null, previous: null, next: null, canPost: canWriteNewsLetter(viewer) };
   const { previous, next } = await neighbours(viewer, row);
   const edits = await loadEdits(row.id);
-  if (row.isPublished && row.authorId !== viewer.id) {
-    await pool.query('INSERT INTO news_letter_reads (user_id, article_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [viewer.id, row.id]);
+  let viewCount = row.viewCount;
+  if (row.isPublished && row.authorId !== viewer.id && !viewer.readOnly) {
+    // One round trip: mark it read (red dot) and count the opening.
+    const counted = await pool.query<{ viewCount: number }>(`
+      WITH marked AS (INSERT INTO news_letter_reads (user_id, article_id) VALUES ($1, $2) ON CONFLICT DO NOTHING)
+      UPDATE news_letter_articles SET view_count = view_count + 1 WHERE id = $2 RETURNING view_count AS "viewCount"
+    `, [viewer.id, row.id]);
+    viewCount = counted.rows[0]?.viewCount ?? viewCount + 1;
   }
-  const { orderKey: _orderKey, ...article } = row;
+  const { orderKey: _orderKey, ...rowArticle } = row;
+  const article = { ...rowArticle, viewCount };
   void _orderKey;
   // Sanitized again on the way out — the stored HTML is already clean, this only guards against a row written by hand.
   const allowed = new Set(newsLetterImageIdsOf(article.contentHtml));

@@ -10,6 +10,8 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   try {
     const user = await requireUser(request);
+    // View as is read-only (no impression can be recorded), so no popup is shown while it is on.
+    if (user.viewAs) return NextResponse.json([]);
     return NextResponse.json(await getEligibleAdPopupsForUser(user.id));
   } catch (error: unknown) {
     if (error instanceof AuthError) return NextResponse.json({ error: 'Chưa đăng nhập.' }, { status: 401 });

@@ -1,8 +1,9 @@
 import pool, { getClient } from '@/lib/db';
-import { EXPORTABLE_TABLES, SMART_CONFIG_TABLES } from '@/lib/db-backup-tables';
+import { EXPORTABLE_TABLES, SMART_CONFIG_TABLES, SMART_SESSION_TABLES } from '@/lib/db-backup-tables';
 import type { BackupTableInfo, ImportResult, ImportTableResult } from '@/lib/db-backup-types';
 import { EPIC_ISSUE_TYPES_SQL, STORY_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 import { aggregateBatchData } from '@/lib/import-service';
+import tableCatalog from '../../scripts/db-schema-catalog.json';
 
 export const EXPORT_SIGNATURE = '-- TTM_MONITOR_SQL_EXPORT v1';
 export const SMART_SURFACE_EXPORT_HEADER = '-- Smart Export Mode: SURFACE_LAYER';
@@ -46,6 +47,8 @@ function formatSqlValue(value: unknown): string {
   // with bare commas and no braces, producing a value Postgres rejects as a malformed array
   // literal on re-import.
   if (Array.isArray(value)) return `'${formatPgArrayLiteral(value).replace(/'/g, "''")}'`;
+  // bytea columns (news_letter_images.data) come back as a Buffer: hex input form, no quote/backslash to escape.
+  if (Buffer.isBuffer(value)) return `'\\x${value.toString('hex')}'`;
   // JSON/JSONB columns (e.g. epic_alert_timeline.detail) come back from node-pg as parsed plain
   // objects — without this branch they fell into the generic String(value) case below, which
   // produces the literal text "[object Object]" (JS's default object-to-string conversion, not
@@ -57,42 +60,24 @@ function formatSqlValue(value: unknown): string {
 
 /** Names for the tables that are not in EXPORTABLE_TABLES (those carry their own label). */
 const OTHER_TABLE_LABELS: Record<string, string> = {
-  ad_popup_impressions: 'Popup quảng cáo — lượt hiển thị',
-  ad_popups: 'Popup quảng cáo',
   api_keys: 'API Key',
   auth_sessions: 'Phiên đăng nhập',
   daily_cache_runs: 'Lịch sử chạy cache hằng ngày',
   data_snapshot_dates: 'Ngày chốt dữ liệu (cuối tuần)',
   derived_cache_refresh_lock: 'Khoá tạo lại cache',
   epic_alert_row_cache: 'Cache dòng cảnh báo Epic',
-  epic_comments: 'Bình luận Epic',
-  epic_hidden_by_users: 'Epic user tự ẩn',
-  epic_task_status: 'Trạng thái xử lý Epic (TODO/DONE)',
-  info_banners: 'Banner thông tin',
   mcp_access_daily_stats: 'MCP — thống kê truy cập',
   mcp_access_tokens: 'MCP — access token',
   mcp_oauth_authorization_codes: 'MCP — OAuth authorization code',
   mcp_oauth_clients: 'MCP — OAuth client',
   mcp_settings: 'MCP — cấu hình',
-  news_letter_article_edits: 'Bản tin — lịch sử sửa',
-  news_letter_articles: 'Bản tin — bài viết',
-  news_letter_categories: 'Bản tin — phân loại',
-  news_letter_images: 'Bản tin — ảnh',
-  news_letter_reads: 'Bản tin — đã đọc',
   password_reset_requests: 'Yêu cầu cấp lại mật khẩu',
-  project_external_bindings: 'Dự án — liên kết hệ thống ngoài (PMS)',
-  project_members: 'Dự án — thành viên (PMS)',
-  project_type_capabilities: 'Loại dự án — năng lực (PMS)',
-  project_types: 'Loại dự án (PMS)',
   schema_migrations: 'Phiên bản migration đã áp dụng',
   sso_auth_codes: 'SSO — authorization code',
   ttm_dashboard_2_cache: 'Cache TTM Dashboard 2',
-  ttm_dashboard_fail_history: 'Lịch sử Epic Fail theo ngày',
-  ttm_dashboard_metric_history: 'Lịch sử chỉ số TTM theo ngày',
   ttm_dashboard_trend_cache: 'Cache xu hướng TTM',
   ttm_early_start_cache: 'Cache báo cáo Start sớm',
   ttm_index_global_cache: 'Cache chỉ số TTM toàn cục',
-  user_registration_reads: 'Đăng ký tài khoản — đã đọc',
   user_usage_daily_stats: 'Thống kê sử dụng theo ngày',
   visit_log_rollups: 'Nhật ký truy cập — tổng hợp',
   visit_logs: 'Nhật ký truy cập',
@@ -102,20 +87,52 @@ const OTHER_TABLE_LABELS: Record<string, string> = {
  * "Thông tin DB": every table of the application (schema public) with its row count and its size on disk
  * (table + indexes + TOAST). One statement — the count runs inside it via query_to_xml — so it costs one connection.
  */
+const OTHER_GROUP = { id: 'other', name: 'Khác' };
+/** Tables above this size show the planner's row estimate (pg_class.reltuples) instead of a full count(*) scan. */
+const EXACT_COUNT_MAX_BYTES = 20 * 1024 * 1024;
+
 export async function listDatabaseInfo(): Promise<BackupTableInfo[]> {
-  const result = await pool.query<{ count: string; sizeBytes: string; tableName: string }>(`
-    SELECT c.relname AS "tableName",
-      pg_total_relation_size(c.oid)::text AS "sizeBytes",
-      (xpath('/row/c/text()', query_to_xml(format('SELECT count(*) AS c FROM %I.%I', n.nspname, c.relname), false, true, '')))[1]::text AS count
-    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-    WHERE c.relkind IN ('r', 'p') AND n.nspname = 'public'
-    ORDER BY pg_total_relation_size(c.oid) DESC, c.relname;
-  `);
+  const result = await pool.query<{ count: string; isEstimate: boolean; sizeBytes: string; tableName: string }>(`
+    WITH t AS (
+      SELECT c.oid, n.nspname, c.relname, pg_total_relation_size(c.oid) AS size, c.reltuples::bigint AS estimate
+      FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE c.relkind IN ('r', 'p') AND n.nspname = 'public'
+    )
+    SELECT relname AS "tableName", size::text AS "sizeBytes",
+      (size > $1 AND estimate >= 0) AS "isEstimate",
+      CASE WHEN size > $1 AND estimate >= 0 THEN estimate::text
+        ELSE (xpath('/row/c/text()', query_to_xml(format('SELECT count(*) AS c FROM %I.%I', nspname, relname), false, true, '')))[1]::text
+      END AS count
+    FROM t;
+  `, [EXACT_COUNT_MAX_BYTES]);
   const labels = new Map(EXPORTABLE_TABLES.map((table) => [table.tableName, table.label]));
-  return result.rows.map((row) => ({
-    approxRowCount: Number(row.count ?? 0),
-    label: labels.get(row.tableName) ?? OTHER_TABLE_LABELS[row.tableName] ?? '',
-    sizeBytes: Number(row.sizeBytes),
+  // Groups by function, in the order of the product guide's schema chapter (scripts/db-schema-catalog.json).
+  const groupOf = new Map<string, { id: string; index: number; name: string }>();
+  tableCatalog.groups.forEach((group, index) => {
+    for (const tableName of group.tables) groupOf.set(tableName, { id: group.id, index, name: group.name });
+  });
+  const rows = result.rows
+    .map((row) => {
+      const group = groupOf.get(row.tableName);
+      return {
+        approxRowCount: Number(row.count ?? 0),
+        groupId: group?.id ?? OTHER_GROUP.id,
+        groupIndex: group?.index ?? tableCatalog.groups.length,
+        groupName: group?.name ?? OTHER_GROUP.name,
+        isEstimate: row.isEstimate,
+        label: labels.get(row.tableName) ?? OTHER_TABLE_LABELS[row.tableName] ?? '',
+        sizeBytes: Number(row.sizeBytes),
+        tableName: row.tableName,
+      };
+    })
+    .sort((a, b) => a.groupIndex - b.groupIndex || b.sizeBytes - a.sizeBytes || a.tableName.localeCompare(b.tableName));
+  return rows.map((row): BackupTableInfo => ({
+    approxRowCount: row.approxRowCount,
+    groupId: row.groupId,
+    groupName: row.groupName,
+    isEstimate: row.isEstimate,
+    label: row.label,
+    sizeBytes: row.sizeBytes,
     tableName: row.tableName,
   }));
 }
@@ -418,6 +435,7 @@ export async function exportSmartSurfaceToSql(options: SmartSurfaceExportOptions
     `-- Generated at: ${generatedAt}`,
     `-- Surface layer as of date: ${layerDate}`,
     `-- Tables: import_batches, issues, ${exportedConfigTables.join(', ')}`,
+    '-- Contains users with their password hashes: keep this file safe (the export asks the SUPERADMIN for their password).',
     ...(missingConfigTables.length > 0 ? [`-- Skipped (table not on the source database): ${missingConfigTables.join(', ')}`] : []),
     `-- Includes schema: ${includeSchema ? 'yes (CREATE TABLE IF NOT EXISTS, columns + primary key only)' : 'no (data only)'}`,
     '-- Import behavior: creates a consolidated surface data layer stamped with the import execution timestamp (NOW()).',
@@ -834,7 +852,8 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
     for (const tableName of insertTables) {
       if (hasSmartLayerTablesSelected && SMART_LAYER_TABLES.has(tableName)) continue;
       const insertsForTable = parsed.statements.filter((statement) => statement.type === 'INSERT' && statement.tableName === tableName);
-      const isFullSyncTable = !HISTORICAL_LAYER_TABLES.has(tableName);
+      // audit_logs is mirrored too when it comes from a Smart export (the target gets production's trail, not a mix).
+      const isFullSyncTable = !HISTORICAL_LAYER_TABLES.has(tableName) || (isSmartSurfaceExport && tableName === 'audit_logs');
       if (insertsForTable.length === 0) {
         if (isFullSyncTable) {
           const wiped = await client.query(`DELETE FROM ${quoteIdent(tableName)} AS t WHERE TRUE${keepActor(tableName, 't')};`);
@@ -938,11 +957,21 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
       }
     }
 
+    // A Smart import rewrites `users`: an id may now be another person, so no login of this database survives it —
+    // sessions / tokens / codes are dropped, except the importing SUPERADMIN's own (they stay signed in).
+    if (isSmartSurfaceExport && insertTables.includes('users')) {
+      const sessionTables = (await client.query<{ name: string }>('SELECT name FROM unnest($1::text[]) AS name WHERE to_regclass(quote_ident(name)) IS NOT NULL;', [SMART_SESSION_TABLES])).rows.map((row) => row.name);
+      for (const sessionTable of sessionTables) {
+        const dropped = await client.query(`DELETE FROM ${quoteIdent(sessionTable)} WHERE user_id IS DISTINCT FROM $1::int;`, [actorId]);
+        countDeleted(sessionTable, dropped.rowCount);
+      }
+    }
+
     // Triggers were off while users were deleted, so no ON DELETE CASCADE ran: sweep the rows that still
     // point at a user the import removed.
     if (insertTables.includes('users')) {
       // A child table this database does not have yet (migration not run here) is skipped, not an error.
-      const children = (await client.query<{ name: string }>("SELECT name FROM unnest($1::text[]) AS name WHERE to_regclass(quote_ident(name)) IS NOT NULL;", [['user_project_components', 'user_projects', 'user_domains', 'user_view_settings', 'user_view_projects', 'user_view_project_components', 'user_view_epics']])).rows.map((row) => row.name);
+      const children = (await client.query<{ name: string }>("SELECT name FROM unnest($1::text[]) AS name WHERE to_regclass(quote_ident(name)) IS NOT NULL;", [['user_project_components', 'user_projects', 'user_domains', 'user_view_settings', 'user_view_projects', 'user_view_project_components', 'user_view_epics', 'epic_hidden_by_users', 'ad_popup_impressions', 'user_usage_daily_stats']])).rows.map((row) => row.name);
       for (const child of children) {
         const orphans = await client.query(`DELETE FROM ${quoteIdent(child)} WHERE user_id NOT IN (SELECT id FROM users);`);
         countDeleted(child, orphans.rowCount);

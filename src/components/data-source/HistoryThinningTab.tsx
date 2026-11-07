@@ -1,12 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { LockKey, Trash } from '@phosphor-icons/react';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
 import { confirmDialog } from '@/components/ui/dialogs';
 import { Input } from '@/components/ui/Input';
+import { Modal } from '@/components/ui/Modal';
 import { showToast } from '@/components/ui/Toast';
 import { MAX_THINNING_DAILY_LIMIT, MIN_THINNING_DAILY_LIMIT } from '@/lib/data-layer-retention';
 import type { CleanupPreview, CleanupResult } from '@/lib/db-cleanup-service';
@@ -56,6 +58,15 @@ export function HistoryThinningTab() {
   const [lastRound, setLastRound] = useState<CleanupResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<'preview' | 'run' | 'save' | 'toggle' | null>(null);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+
+  const closePasswordModal = () => {
+    setShowPasswordModal(false);
+    setPassword('');
+    setPasswordError(null);
+  };
 
   const load = useCallback(async () => {
     try {
@@ -114,22 +125,38 @@ export function HistoryThinningTab() {
     } catch (toggleError) { setError(toggleError instanceof Error ? toggleError.message : 'Không thể đổi trạng thái.'); } finally { setBusy(null); }
   };
 
-  const handleRunRound = async () => {
+  const handleRunRound = () => {
     if (!preview) return;
-    const thisRound = Math.min(preview.issueVersionCount, settings.dailyLimit);
-    if (!(await confirmDialog({
-      title: 'Dọn một lượt',
-      description: `Xóa vĩnh viễn ${formatNumber(thisRound)} / ${formatNumber(preview.issueVersionCount)} phiên bản issues cũ (lượt này tối đa ${formatNumber(settings.dailyLimit)} dòng). Phiên bản mới nhất của mỗi issue và dữ liệu 30 ngày import gần nhất được giữ nguyên.\n\nBạn đã sao lưu CSDL chưa?`,
-      confirmLabel: 'Xóa vĩnh viễn',
-    }))) return;
+    setPassword('');
+    setPasswordError(null);
+    setShowPasswordModal(true);
+  };
+
+  const executeRunRound = async () => {
+    if (!preview || !password) return;
     setBusy('run');
+    setPasswordError(null);
     setError(null);
     try {
-      const result = await requestJson<CleanupResult>('/api/admin/db-cleanup', jsonInit('POST', { limit: settings.dailyLimit, retentionDays: settings.rawImportRetentionDays }));
+      const result = await requestJson<CleanupResult>(
+        '/api/admin/db-cleanup',
+        jsonInit('POST', { limit: settings.dailyLimit, retentionDays: settings.rawImportRetentionDays, password }),
+      );
       setLastRound(result);
       showToast(`Đã xóa ${formatNumber(result.issueVersionsDeleted)} dòng issues, còn ${formatNumber(result.issueVersionsRemaining)} dòng chờ các lượt sau.`, 7000);
+      closePasswordModal();
       await Promise.all([load(), refreshPreview(settings.rawImportRetentionDays)]);
-    } catch (runError) { setError(runError instanceof Error ? runError.message : 'Không thể dọn dữ liệu.'); } finally { setBusy(null); }
+    } catch (runError) {
+      const msg = runError instanceof Error ? runError.message : 'Không thể dọn dữ liệu.';
+      if (msg === 'Mật khẩu không đúng.' || msg.toLowerCase().includes('mật khẩu')) {
+        setPasswordError(msg);
+      } else {
+        closePasswordModal();
+        setError(msg);
+      }
+    } finally {
+      setBusy(null);
+    }
   };
 
   return (
@@ -220,6 +247,54 @@ export function HistoryThinningTab() {
           </Button>
         </CardFooter>
       </Card>
+
+      <Modal
+        isOpen={showPasswordModal}
+        onClose={closePasswordModal}
+        title="Xác nhận mật khẩu để dọn dữ liệu"
+        icon={LockKey}
+        maxWidth="sm"
+        footer={(
+          <>
+            <Button variant="outline" onClick={closePasswordModal} disabled={busy === 'run'}>Hủy</Button>
+            <Button
+              variant="danger"
+              icon={<Trash className="size-4" weight="bold" />}
+              onClick={executeRunRound}
+              isLoading={busy === 'run'}
+              disabled={!password || busy === 'run'}
+            >
+              Xác nhận xóa vĩnh viễn
+            </Button>
+          </>
+        )}
+      >
+        <form
+          className="flex flex-col gap-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void executeRunRound();
+          }}
+        >
+          {preview && (
+            <div className="rounded-lg border border-status-danger/30 bg-status-danger/10 p-3 text-xs text-status-danger">
+              Thao tác này sẽ xóa vĩnh viễn <strong>{formatNumber(Math.min(preview.issueVersionCount, settings.dailyLimit))}</strong> / {formatNumber(preview.issueVersionCount)} phiên bản issues cũ (lượt này tối đa {formatNumber(settings.dailyLimit)} dòng). Dữ liệu không thể hoàn tác.
+            </div>
+          )}
+          <p className="text-xs text-fb-text-secondary">
+            Đây là chức năng nhạy cảm về dữ liệu. Vui lòng nhập mật khẩu của tài khoản SUPERADMIN đang đăng nhập để tiếp tục.
+          </p>
+          <Input
+            autoComplete="current-password"
+            autoFocus
+            error={passwordError ?? undefined}
+            label="Mật khẩu của bạn"
+            onChange={(event) => { setPassword(event.target.value); setPasswordError(null); }}
+            type="password"
+            value={password}
+          />
+        </form>
+      </Modal>
     </div>
   );
 }

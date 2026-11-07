@@ -3,7 +3,7 @@
 import * as React from 'react';
 import '@/app/rich-text.css';
 import Link from 'next/link';
-import { CalendarBlank, CaretLeft, CaretRight, ClockCounterClockwise, Lock, PencilSimple, Tag, UserCircle } from '@phosphor-icons/react';
+import { CalendarBlank, CaretLeft, CaretRight, ClockCounterClockwise, Eye, Lock, PencilSimple, Tag, UserCircle } from '@phosphor-icons/react';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { formatNewsDate, formatNewsDateTime } from '@/components/news-letter/format';
 import { useNewsLetter } from '@/components/news-letter/NewsLetterShell';
@@ -114,6 +114,9 @@ export function NewsLetterReader({ articleId }: { articleId: number | null }) {
         <ul className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[11px] font-semibold uppercase tracking-wider text-fb-text-secondary">
           <li className="inline-flex items-center gap-1.5"><UserCircle className="size-4" weight="bold" aria-hidden="true" />{article.authorName || '—'}</li>
           <li className="inline-flex items-center gap-1.5"><CalendarBlank className="size-4" weight="bold" aria-hidden="true" />{formatNewsDate(article.firstPublishedAt ?? article.createdAt)}</li>
+          {article.isPublished && (
+            <li className="inline-flex items-center gap-1.5"><Eye className="size-4" weight="bold" aria-hidden="true" />{new Intl.NumberFormat('vi-VN').format(article.viewCount)} lượt xem</li>
+          )}
           <li className="inline-flex items-center gap-1.5"><Tag className="size-4" weight="bold" aria-hidden="true" />{article.categoryName ?? 'Chưa phân loại'}</li>
           {restricted && (
             <li className="inline-flex items-center gap-1.5 normal-case tracking-normal">

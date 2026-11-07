@@ -4,6 +4,7 @@ import { SESSION_COOKIE_NAME } from '@/lib/auth-constants';
 import { getCurrentUser } from '@/lib/auth-service';
 import { apiFeatureKey, fallbackPathFor, pageFeatureKey } from '@/lib/feature-access';
 import { getViewDeniedFeatureKeySet } from '@/lib/permission-matrix-service';
+import { isWriteBlockedInViewAs, VIEW_AS_BLOCKED_MESSAGE } from '@/lib/view-as';
 
 // '/api/data-source/import/auto' and '/api/mcp' are "public" only from this proxy's point of
 // view — each has its own bearer-token check inside the route itself (IMPORT_API_TOKEN for the
@@ -33,7 +34,11 @@ export async function proxy(request: NextRequest) {
   const hasSessionCookie = Boolean(request.cookies.get(SESSION_COOKIE_NAME)?.value);
   if (PUBLIC_PATHS.includes(pathname)) return NextResponse.next();
   const user = hasSessionCookie ? await getCurrentUser(request) : null;
-  if (user) return enforceViewPermission(request, user.role);
+  if (user) {
+    // "View as" is read-only: every API write is refused (view-as.ts lists the few that stay open).
+    if (user.viewAs && isWriteBlockedInViewAs(request.method, pathname)) return NextResponse.json({ error: VIEW_AS_BLOCKED_MESSAGE, code: 'VIEW_AS_READ_ONLY' }, { status: 403 });
+    return enforceViewPermission(request, user.role);
+  }
   if (pathname.startsWith('/api/')) return NextResponse.json({ error: 'Chưa đăng nhập.' }, { status: 401 });
   const loginUrl = new URL('/login', request.url);
   // Keep the query string too — deep links like /epic-alerts-15?alert=FAIL&projects=WM would

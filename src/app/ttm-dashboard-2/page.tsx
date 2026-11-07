@@ -9,12 +9,11 @@ import {
   ClockCounterClockwise,
   Eye,
   Info,
-  MagnifyingGlass,
   X,
 } from '@phosphor-icons/react';
 
-import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
+import { UserPickerModal } from '@/components/ui/UserPickerModal';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { PillToggle } from '@/components/ui/PillToggle';
@@ -158,7 +157,6 @@ export default function TtmDashboard2Page() {
   // User Preview State
   const [previewUserId, setPreviewUserId] = useState<number | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
-  const [userSearchText, setUserSearchText] = useState('');
   const [viewMode, setViewMode] = useState<'EXECUTIVE' | 'OPERATIONAL'>('EXECUTIVE');
   // Lead view for every user: company-wide numbers by default, 'own' = the viewer's own scope.
   const [scopeChoice, setScopeChoice] = useState<'lead' | 'own'>('lead');
@@ -396,18 +394,6 @@ export default function TtmDashboard2Page() {
     setShownRightPanel(panel);
     setActiveRightPanel(panel);
   };
-
-  const filteredUsersForModal = useMemo(() => {
-    if (!data) return [];
-    if (!userSearchText.trim()) return data.managedUsers;
-    const q = userSearchText.toLowerCase();
-    return data.managedUsers.filter(
-      (u) =>
-        u.fullName.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q) ||
-        u.role.toLowerCase().includes(q)
-    );
-  }, [data, userSearchText]);
 
   if (loading) {
     return (
@@ -1320,48 +1306,16 @@ export default function TtmDashboard2Page() {
       />
 
       {/* USER PREVIEW MODAL */}
-      {showUserModal && (
-        <Modal
-          isOpen={showUserModal}
-          onClose={() => setShowUserModal(false)}
-          title="Chọn User để xem trước Dashboard"
-        >
-          <div className="p-4 space-y-4">
-            <div className="relative">
-              <MagnifyingGlass className="absolute left-3 top-2.5 size-4 text-fb-text-placeholder" />
-              <input
-                type="text"
-                placeholder="Tìm theo tên, email, role…"
-                value={userSearchText}
-                onChange={(e) => setUserSearchText(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 border border-fb-border rounded-lg text-xs outline-none focus:border-[var(--color-text-brand)]"
-              />
-            </div>
-
-            <div className="max-h-[300px] overflow-y-auto space-y-1.5">
-              {filteredUsersForModal.map((u) => (
-                <button
-                  type="button"
-                  key={u.id}
-                  onClick={() => {
-                    setPreviewUserId(u.id);
-                    setShowUserModal(false);
-                  }}
-                  className="w-full text-left p-2.5 border border-fb-border rounded-lg hover:bg-fb-surface-muted cursor-pointer flex items-center justify-between text-xs transition-colors"
-                >
-                  <div>
-                    <div className="font-bold text-fb-text-primary">{u.fullName}</div>
-                    <div className="text-[11px] text-fb-text-placeholder">{u.email}</div>
-                  </div>
-                  <Badge variant="neutral" className="text-[11px] font-mono">
-                    {u.role}
-                  </Badge>
-                </button>
-              ))}
-            </div>
-          </div>
-        </Modal>
-      )}
+      <UserPickerModal
+        isOpen={showUserModal}
+        onClose={() => setShowUserModal(false)}
+        onSelect={(picked) => {
+          setPreviewUserId(picked.id);
+          setShowUserModal(false);
+        }}
+        title="Chọn User để xem trước Dashboard"
+        users={data?.managedUsers ?? []}
+      />
 
     </div>
   );

@@ -1,6 +1,11 @@
 /** One table of the application database ("Thông tin DB" tab). */
 export interface BackupTableInfo {
+  /** Row count — exact, or the planner's estimate for the big tables (isEstimate). */
   approxRowCount: number;
+  /** Functional group (product guide ch. 5): id + Vietnamese name. */
+  groupId: string;
+  groupName: string;
+  isEstimate: boolean;
   /** Vietnamese name of the table; empty when it has none. */
   label: string;
   /** Table + its indexes + TOAST (pg_total_relation_size), in bytes. */

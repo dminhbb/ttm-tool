@@ -94,6 +94,7 @@ CREATE TABLE auth_sessions (
     expires_at timestamp with time zone NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     remember boolean DEFAULT false NOT NULL,
+    view_as_user_id integer,
     CONSTRAINT auth_sessions_pkey PRIMARY KEY (token_hash)
 );
 
@@ -529,6 +530,7 @@ CREATE TABLE news_letter_articles (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_by integer,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    view_count integer DEFAULT 0 NOT NULL,
     CONSTRAINT news_letter_articles_pkey PRIMARY KEY (id)
 );
 
@@ -1064,6 +1066,7 @@ ALTER TABLE ad_popup_impressions ADD CONSTRAINT ad_popup_impressions_popup_id_fk
 ALTER TABLE ad_popup_impressions ADD CONSTRAINT ad_popup_impressions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 ALTER TABLE audit_logs ADD CONSTRAINT audit_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE auth_sessions ADD CONSTRAINT auth_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE auth_sessions ADD CONSTRAINT auth_sessions_view_as_user_id_fkey FOREIGN KEY (view_as_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE black_listed_epics ADD CONSTRAINT black_listed_epics_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE daily_cache_runs ADD CONSTRAINT daily_cache_runs_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
 ALTER TABLE daily_cache_runs ADD CONSTRAINT daily_cache_runs_triggered_by_user_id_fkey FOREIGN KEY (triggered_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
