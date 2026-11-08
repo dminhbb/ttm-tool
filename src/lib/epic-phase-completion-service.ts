@@ -1,16 +1,11 @@
 import 'server-only';
 import pool from '@/lib/db';
 import { EPIC_ISSUE_TYPES_SQL, LATEST_ISSUES_CTE, latestIssuesAsOfCte, STORY_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
-import { storyWorkflowStatusIndex } from '@/lib/story-workflow-rules';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
+import { allStoriesReleased } from '@/lib/scoring/story-phase';
+import type { EpicPhaseCompletionFacts } from '@/lib/scoring/types';
 
-export interface EpicPhaseCompletion {
-  designDone: boolean;
-  devDone: boolean;
-  r4goliveDone: boolean;
-  releasedDone: boolean;
-  testDone: boolean;
-}
+export type EpicPhaseCompletion = EpicPhaseCompletionFacts & { releasedDone: boolean };
 
 interface EpicPhaseSignalsRow {
   baDoneCount: string;
@@ -20,17 +15,11 @@ interface EpicPhaseSignalsRow {
   epicStatus: string;
   r4gDate: string | null;
   storyStatuses: string[];
+  subtaskCounts: Record<string, { total: number; done: number }>;
 }
 
 function normalizeStatus(value: string): string {
   return value.trim().toLocaleUpperCase('en-US').replace(/\s+/g, ' ');
-}
-
-/** All non-Cancelled story statuses reach at least `thresholdStatus` in the Story workflow order — false if there are no (surviving) stories. */
-function allStoriesAtLeast(storyStatuses: string[], thresholdStatus: string): boolean {
-  if (storyStatuses.length === 0) return false;
-  const threshold = storyWorkflowStatusIndex(thresholdStatus);
-  return storyStatuses.every((status) => storyWorkflowStatusIndex(status) >= threshold);
 }
 
 function deriveCompletion(row: EpicPhaseSignalsRow): EpicPhaseCompletion {
@@ -39,14 +28,13 @@ function deriveCompletion(row: EpicPhaseSignalsRow): EpicPhaseCompletion {
   const baDoneCount = Number(row.baDoneCount);
   const storyStatuses = row.storyStatuses.filter((status) => !isCancelledStatus(status));
 
+  // DEV / TEST / PENTEST and the Story half of R4GOLIVE are judged by the Scoring Service from the raw
+  // statuses / subtask counts below (scoring/story-phase.ts) — only Epic-level signals are decided here.
   const designDone = epicStatus === 'IN PROGRESS' || (baTotal > 0 && baDoneCount === baTotal);
-  const devDone = allStoriesAtLeast(storyStatuses, 'READY FOR TEST');
-  const testDone = allStoriesAtLeast(storyStatuses, 'UAT DONE');
-  const r4goliveDone = epicStatus === 'R4GOLIVE' || row.r4gDate !== null || allStoriesAtLeast(storyStatuses, 'READY FOR GOLIVE');
-  const releasedDone = epicStatus === 'RELEASED' || row.dueDate !== null
-    || (storyStatuses.length > 0 && storyStatuses.every((status) => normalizeStatus(status) === 'RELEASED'));
+  const r4goliveRecorded = epicStatus === 'R4GOLIVE' || row.r4gDate !== null;
+  const releasedDone = epicStatus === 'RELEASED' || row.dueDate !== null || allStoriesReleased(storyStatuses);
 
-  return { designDone, devDone, r4goliveDone, releasedDone, testDone };
+  return { designDone, r4goliveRecorded, releasedDone, storyStatuses, subtaskCountsByType: row.subtaskCounts ?? {} };
 }
 
 /**
@@ -147,6 +135,24 @@ export async function computeEpicPhaseCompletionByEpicKey(asOf?: string, epicKey
     stories_agg AS (
       SELECT epic_key, jsonb_agg(status) AS statuses
       FROM stories_active GROUP BY epic_key
+    ),
+    -- Every non-Cancelled subtask of the Epic (under its Stories or directly under it), counted per type —
+    -- the Pentest rule (scoring/story-phase.ts) picks its own types out of this.
+    all_subtasks AS (
+      SELECT epic_key, issue_type, status FROM story_subtasks_explicit
+      UNION ALL
+      SELECT epic_key, issue_type, status FROM story_subtasks_fallback
+      UNION ALL
+      SELECT epic_key, issue_type, status FROM epic_level_subtasks
+    ),
+    subtask_type_agg AS (
+      SELECT epic_key, UPPER(issue_type) AS issue_type, COUNT(*) AS total, COUNT(*) FILTER (WHERE UPPER(TRIM(status)) = 'DONE') AS done
+      FROM all_subtasks WHERE status NOT ILIKE '%cancel%'
+      GROUP BY epic_key, UPPER(issue_type)
+    ),
+    subtasks_agg AS (
+      SELECT epic_key, jsonb_object_agg(issue_type, jsonb_build_object('total', total, 'done', done)) AS counts
+      FROM subtask_type_agg GROUP BY epic_key
     )
     SELECT
       e.issue_key AS "epicKey",
@@ -155,10 +161,12 @@ export async function computeEpicPhaseCompletionByEpicKey(asOf?: string, epicKey
       e.due_date AS "dueDate",
       COALESCE(ba.total, 0)::text AS "baTotal",
       COALESCE(ba.done_count, 0)::text AS "baDoneCount",
-      COALESCE(sa.statuses, '[]'::jsonb) AS "storyStatuses"
+      COALESCE(sa.statuses, '[]'::jsonb) AS "storyStatuses",
+      COALESCE(st.counts, '{}'::jsonb) AS "subtaskCounts"
     FROM epics e
     LEFT JOIN ba_agg ba ON ba.epic_key = e.issue_key
-    LEFT JOIN stories_agg sa ON sa.epic_key = e.issue_key;
+    LEFT JOIN stories_agg sa ON sa.epic_key = e.issue_key
+    LEFT JOIN subtasks_agg st ON st.epic_key = e.issue_key;
   `, params);
 
   const map = new Map<string, EpicPhaseCompletion>();

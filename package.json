@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "sync-docs": "node scripts/sync-product-guide.mjs",
+    "build": "node scripts/sync-product-guide.mjs && next build",
     "start": "next start",
     "lint": "eslint",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test-register.mjs --test \"src/**/*.test.ts\"",

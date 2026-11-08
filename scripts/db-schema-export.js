@@ -26,6 +26,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { execFileSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
 const SQL_OUT = path.join(ROOT, 'db', 'install', 'ttm-monitor-schema.sql');
@@ -665,6 +666,11 @@ async function main() {
     fs.writeFileSync(ERD_OUT, buildErdMarkdown(schema, catalog, source));
     spliceGuide(buildGuideHtml(schema, catalog, source));
     console.log(`Đã ghi ${path.relative(ROOT, ERD_OUT)} và chương 5 của ${path.relative(ROOT, GUIDE)}.`);
+    try {
+      execFileSync(process.execPath, [path.join(__dirname, 'sync-product-guide.mjs')], { stdio: 'inherit' });
+    } catch (syncError) {
+      console.warn('Cảnh báo: Không thể tự động đồng bộ src/lib/product-guide-content.ts:', syncError.message);
+    }
     if (catalog.others.length) console.warn(`Bảng chưa phân nhóm (thêm vào scripts/db-schema-catalog.json): ${catalog.others.join(', ')}`);
     if (catalog.missing.length) console.warn(`Bảng có trong catalog nhưng không còn trên CSDL: ${catalog.missing.join(', ')}`);
   }

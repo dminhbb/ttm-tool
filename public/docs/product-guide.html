@@ -12,6 +12,7 @@
     --danger: #c62828; --danger-bg: #fdeaea; --info: #1565c0; --info-bg: #e9f2ff;
   }
   * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
   body { margin: 0; font-family: "Segoe UI", Arial, system-ui, -apple-system, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.55; }
   header.top { position: sticky; top: 0; z-index: 10; background: var(--brand-900); color: #fff; padding: 18px 28px; }
   header.top h1 { margin: 0; font-size: 20px; letter-spacing: -0.01em; }
@@ -2187,6 +2188,31 @@
       </div>
       <h3>11.2. Quản trị Epic (đầy đủ) (<code>/epic-alerts-15</code>) — mọi role đã đăng nhập</h3>
       <p>Theo dõi chuyên sâu theo 5 pha mốc thời gian: <strong>Design (20%)</strong>, <strong>Dev (50%)</strong>, <strong>Test (80%)</strong>, <strong>Pentest (90%)</strong>, <strong>R4Golive (100%)</strong>. Ngày baseline mỗi pha được tính tự động dựa trên số ngày làm việc tích lũy từ Start Date (T1); cột Release lấy baseline từ T0 + tiêu chí TTM-E2E, độc lập với Start Date. Trên sidebar, mục này chỉ hiển thị nhãn ngắn <strong>&quot;Quản trị Epic&quot;</strong> (không còn hậu tố &quot;(đầy đủ)&quot;).</p>
+      <p><strong>Màu và trạng thái các ô pha (từ 08/11/2026):</strong> mỗi ô pha có 3 trạng thái — <em>không màu</em>
+        (chưa xong, chưa tới baseline), <em>hồng nhạt</em> (chưa xong mà đã quá baseline — Trễ pha), <em>xanh nhạt</em> (đã hoàn thành;
+        icon trước ngày baseline đổi từ mũi tên thành dấu tích <code>CheckCircle</code>). Cột Released (Due Date) chỉ có xanh hoặc không màu.
+        Rê chuột vào ô để xem lý do (tỉ lệ story, story còn lại, story Pending bị bỏ qua, subtask Pentest).</p>
+      <ul>
+        <li><strong>DESIGN:</strong> giữ nguyên — status Epic = In Progress hoặc mọi subtask BA Done.</li>
+        <li><strong>DEV / TEST:</strong> theo phân bố status story (bỏ qua story Cancelled và Pending). Mức của story:
+          Chưa vào DEV (To Do, Analyzing, Ready for Refine, Waiting for Planning, Ready for Dev) → DEV đang làm (In Dev, Reopened) →
+          DEV xong (Dev Done, Ready for Test) → TEST đang làm (In SIT, SIT Done, Ready for UAT, In UAT) → TEST xong (UAT Done, Pentest) →
+          R4GOLIVE (Ready for Golive) → Released (Released, Done). Status chưa có trong danh sách tính là "Chưa vào DEV" và hiện trong tooltip.
+          Pha xong khi <strong>≥ 80% story</strong> đã tới mức "xong" của pha, <strong>hoặc</strong> Epic có từ 3 story trở lên và chỉ còn tối đa
+          1 story chưa tới. TEST xong thì DEV cũng xong. Không có story nào để xét thì pha chưa xong.</li>
+        <li><strong>PENTEST:</strong> nếu Epic có subtask Pentest (loại issue cấu hình ở tham số <code>phase.pentestIssueTypes</code>, mặc định "Pentest")
+          và mọi subtask đó Done thì Epic xong cả DEV, TEST và PENTEST; không có subtask Pentest thì PENTEST xong cùng lúc với TEST.
+          Subtask Pentest có thể nằm dưới Epic hoặc dưới Story; công cụ crawl Jira phải có loại "Pentest" trong
+          <code>issue_levels.level_3_subtask.allowed_issue_types</code> thì dữ liệu mới về tới ứng dụng.</li>
+        <li><strong>R4GOLIVE:</strong> status Epic = R4GOLIVE, hoặc đã có R4G Date, hoặc mọi story ≥ Ready for Golive.</li>
+        <li><strong>Dot "pha hiện tại":</strong> pha đầu tiên chưa xong (DESIGN nếu status Epic = Design; R4GOLIVE nếu status ≥ R4GOLIVE);
+          không còn dot khi Epic đã Released hoặc mọi pha đã xong. Dot hiện cả khi cột pha đang thu gọn (nằm giữa ô hẹp).</li>
+        <li><strong>Chú giải dưới bảng</strong> (cạnh phân trang): <em>Hoàn thành pha</em> (xanh, dấu tích) · <em>Trễ pha</em> (hồng) ·
+          <em>Pha hiện tại</em> (dot); rê chuột vào từng mục hoặc vào tiêu đề cột pha để xem điều kiện hoàn thành.</li>
+        <li><strong>Tham số</strong> (Scoring Service, bảng <code>scoring_parameters</code>): <code>phase.storyDoneRatio</code> (mặc định DEV 80%, TEST 80%),
+          <code>phase.storyDoneTolerance</code> (mặc định Epic ≥ 3 story, còn tối đa 1 story), <code>phase.pentestIssueTypes</code> (mặc định PENTEST).
+          Kết quả hiển thị theo cache — thay đổi có hiệu lực sau lần tạo lại cache kế tiếp.</li>
+      </ul>
       <p><strong>Quy tắc lọc trạng thái mặc định:</strong> Bộ lọc Status trên thanh công cụ luôn mặc định tích chọn (checked) tất cả các trạng thái ngoại trừ <code>Cancelled</code>, đảm bảo các Epic đã bị huỷ mặc định không xuất hiện khi truy cập màn hình này hay ở tất cả các danh sách route liên kết từ màn hình khác (người dùng vẫn có thể tích chọn Cancelled thủ công nếu có nhu cầu tra cứu).</p>
       <p><strong>Thứ tự nhóm trong bảng (từ 28/09/2026):</strong> Epic thông thường hiển thị trước, sau đó lần lượt là nhóm <code>In PO</code> → <code>To Do</code> → nhóm Epic có Nhận xét <strong>“Ngoài phạm vi TTM-CNTT”</strong> (bất kể status) → <code>Released</code> ở cuối. Trong mỗi nhóm vẫn giữ thứ tự cũ: Epic sai lệch dữ liệu xuống cuối nhóm, rồi theo mức cảnh báo (FAIL → LATE → EARLY → NONE) và số ngày làm việc còn lại.</p>
       <p><strong>Widget trên banner (từ 30/09/2026):</strong> <strong>TTM-CNTT (QLDA)</strong> và <strong>TTM-CNTT (QA)</strong>, tính trên đúng các Epic của bảng Danh sách Epic đang lọc (mọi bộ lọc trên thanh công cụ và Advanced Filters) — đổi bộ lọc thì chỉ số đổi theo. Hai widget toàn ứng dụng (QLDA) đã bỏ khỏi màn này — <strong>riêng từ 01/10/2026</strong>, có thêm 1 widget thứ 3 cố định <strong>TTM-E2E</strong> (toàn công ty, đọc từ cache <code>ttm_index_global_cache</code>, giống nhau với mọi người dùng, không đổi theo bộ lọc — xem mục 11.5).</p>

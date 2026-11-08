@@ -306,12 +306,12 @@ export const BADGES = [
   {
     id: 'PHASE_DONE', axis: 'PHASE', group: 'NOTE', label: 'Hoàn thành pha', precedence: 30, defaultEnabled: true,
     meaning: 'Pha đã hoàn thành tại asOf (theo status story/subtask tại asOf).',
-    formula: 'DESIGN: status Epic = In Progress hoặc mọi subtask BA Done. DEV: mọi story ≥ READY FOR TEST. TEST: mọi story ≥ UAT DONE. R4GOLIVE: status = R4GOLIVE hoặc có R4G hoặc mọi story ≥ READY FOR GOLIVE. PENTEST: chưa có rule.',
+    formula: 'Story (bỏ qua Cancelled, Pending) quy về mức: Chưa vào DEV (TO DO, ANALYZING, READY FOR REFINE, WAITING FOR PLANNING, READY FOR DEV; status lạ cũng tính ở mức này) → DEV đang làm (IN DEV, REOPENED) → DEV xong (DEV DONE, READY FOR TEST) → TEST đang làm (IN SIT, SIT DONE, READY FOR UAT, IN UAT) → TEST xong (UAT DONE, PENTEST) → R4GOLIVE (READY FOR GOLIVE) → Released (RELEASED, DONE).  "Đạt ngưỡng" = ≥ 80% story đã tới mức (tham số phase.storyDoneRatio) HOẶC Epic có ≥ 3 story và còn tối đa 1 story chưa tới (phase.storyDoneTolerance); không có story để xét ⇒ chưa xong.  DESIGN: status Epic = In Progress hoặc mọi subtask BA Done.  DEV: đạt ngưỡng "DEV xong", hoặc TEST đã xong.  TEST: đạt ngưỡng "TEST xong", hoặc mọi subtask Pentest Done.  PENTEST: có subtask Pentest ⇒ mọi subtask Pentest Done (khi đó DEV, TEST cũng xong); không có ⇒ xong cùng TEST.  R4GOLIVE: status = R4GOLIVE hoặc có R4G hoặc mọi story ≥ READY FOR GOLIVE.',
   },
   {
     id: 'PHASE_CURRENT', axis: 'PHASE', group: 'NOTE', label: 'Pha hiện tại', precedence: 40, defaultEnabled: true,
     meaning: 'Pha Epic đang thực hiện.',
-    formula: 'DESIGN nếu status = DESIGN; R4GOLIVE nếu status ≥ R4GOLIVE; còn lại là pha đầu tiên chưa xong trong DEV → TEST → PENTEST',
+    formula: 'Không có nếu Epic đã Released hoặc mọi pha đã xong; DESIGN nếu status = DESIGN; R4GOLIVE nếu status ≥ R4GOLIVE; còn lại là pha đầu tiên chưa xong trong DEV → TEST → PENTEST → R4GOLIVE',
   },
   {
     id: 'PHASE_NOT_COMPUTABLE', axis: 'PHASE', group: 'NOTE', label: 'Không tính được', precedence: 50, defaultEnabled: true, core: true,

@@ -25,6 +25,9 @@ export interface PhaseCell {
   /** True for the single phase Epic 15 considers "giai đoạn hiện tại" of this Epic. */
   isCurrentStage: boolean;
   isDone: boolean;
+  /** Why the phase is (not) done — Story share / Pentest subtasks (scoring/story-phase.ts), shown in the
+   * cell tooltip. Absent on rows cached before 2026-11-08 and on Release. */
+  progressNote?: string | null;
 }
 
 export interface EpicAlertRowPhased {

@@ -8,6 +8,43 @@
 
 ## 2026-11-08
 
+- **Sửa triệt để lỗi lồng iframe khi bấm mục lục tại `/docs/product` qua Route Handler in-memory (`/api/docs/product-guide`)**:
+  - Nguyên nhân: Khi dùng thuộc tính `srcDoc` trên `iframe`, URL nội bộ của iframe là `about:srcdoc` và kế thừa base URL từ cửa sổ cha (`http://localhost:3000/docs/product`). Do đó, khi người dùng click vào bất kỳ liên kết hash nào trên mục lục (ví dụ `<a href="#roles">`), trình duyệt coi đó là một chuyển hướng liên kết chéo trang tới `http://localhost:3000/docs/product#roles`, khiến toàn bộ ứng dụng Next.js (layout, sidebar, header...) bị tải lồng vào bên trong iframe.
+  - Giải pháp:
+    1. Tạo Route Handler `src/app/api/docs/product-guide/route.ts` trả về trực tiếp `PRODUCT_GUIDE_HTML` từ bộ nhớ (in-memory, 0ms I/O, không đụng tới filesystem của host tại runtime).
+    2. Cập nhật `src/app/docs/product/page.tsx`: đặt `src="/api/docs/product-guide"` thay vì dùng `srcDoc`. Khi đó URL của tài liệu iframe chính là `/api/docs/product-guide`, mọi thao tác click link hash `#overview`, `#roles`... được trình duyệt nhận diện chuẩn xác là điều hướng nội trang (intra-document scroll), nhảy mượt mà tới đúng section mà không bao giờ tải lại trang hay gây lồng layout.
+    3. Thêm cấu hình phân quyền và tạm dừng hệ thống trong `src/lib/feature-access.ts` và `src/lib/system-suspension.ts` cho `/api/docs/product-guide` đồng bộ với tính năng `product_docs`.
+    4. Bổ sung `html { scroll-behavior: smooth; }` trong `public/docs/product-guide.html` để hiệu ứng cuộn trang khi bấm mục lục mượt mà.
+    5. Bổ sung test kiểm thử `GET /api/docs/product-guide` trong `src/lib/__tests__/product-guide-sync.test.ts` (nâng tổng số test lên 531 tests, toàn bộ pass).
+
+
+- **Tài liệu sản phẩm (/docs/product) & MCP module chạy độc lập 100% với filesystem của host (Phương án C)**:
+  - Giữ `public/docs/product-guide.html` làm source of truth duy nhất trong repo để lập trình viên, AI và script `scripts/db-schema-export.js` tiếp tục cập nhật HTML/CSS/SVG chuẩn mà không cần thao tác với code escape.
+  - Tạo script đồng bộ tự động `scripts/sync-product-guide.mjs` đóng gói nội dung HTML vào module TypeScript in-memory `src/lib/product-guide-content.ts` (hằng số `PRODUCT_GUIDE_HTML`) bằng cơ chế base64 an toàn, vừa đảm bảo hiệu năng nạp tức thì (<0.5ms) vừa tránh việc linter nợ thiết kế (`audit-design-debt.mjs`) quét nhầm các mã màu hex trong CSS của tài liệu.
+  - Tự động hóa đồng bộ: bổ sung npm script `"sync-docs": "node scripts/sync-product-guide.mjs"` vào `package.json`, tự động kích hoạt trước khi build (`npm run build`), và gọi tự động ngay sau khi cập nhật chương 5 CSDL trong `scripts/db-schema-export.js`.
+  - Giao diện `/docs/product` (`src/app/docs/product/page.tsx`): chuyển `iframe` từ thuộc tính `src="/docs/product-guide.html"` sang `srcDoc={PRODUCT_GUIDE_HTML}`. Giao diện nhận nội dung nhúng trực tiếp từ Server Component, hiển thị trọn vẹn độc lập với cơ chế static file serving của host.
+  - Dịch vụ tài liệu MCP (`src/lib/product-doc-service.ts`): loại bỏ hoàn toàn `node:fs/promises` (`readFile`) và truy cập ổ đĩa tại runtime; các hàm `getProductDocSections()` và `searchProductDocs()` phân tích và lưu cache trực tiếp trong bộ nhớ (0ms disk I/O), chạy ổn định trên mọi môi trường Docker, serverless, AWS Lambda hoặc máy chủ hạn chế filesystem.
+  - Tối ưu `next.config.ts`: lược bỏ cấu hình `outputFileTracingIncludes` cho `product-guide.html` vì module đã nằm trong đồ thị dependency tiêu chuẩn.
+  - Bổ sung bộ kiểm thử `src/lib/__tests__/product-guide-sync.test.ts` (4 test cases) kiểm soát độ đồng bộ 100% giữa file gốc và file gen, cấu trúc mục lục và tính chính xác của tìm kiếm từ khóa MCP.
+
+
+- **Tài liệu & popup cho rule pha mới**: Tài liệu sản phẩm mục 11.2 (chú giải, tham số, yêu cầu crawl subtask Pentest);
+  `brd/13` (mục "Màu ô pha, hoàn thành pha và dot"), `brd/14` (mức pha của Story, subtask Pentest), `brd/02`, ghi chú cập nhật ở
+  spec Scoring 2026-09-29 §5.1, `docs/ttm-monitor-kien-truc-va-giai-phap.html`, `docs/jira-crawl-tool-guide.html` (phải thêm
+  "Pentest" vào `allowed_issue_types`). Popup: chú giải dưới bảng Quản trị Epic (`StatusColorLegend` — bỏ "Warning", thêm
+  "Trễ pha"/"Pha hiện tại"), tooltip tiêu đề cột pha nêu điều kiện hoàn thành, mục 8 popup Logic cảnh báo (`HelpPanels.tsx`).
+- **Quản trị Epic — hiện lại dot "pha hiện tại"**: bỏ `display: none` (tạm ẩn từ trước) ở `.ttm-phase-current-dot`
+  (`epic-alerts-15.css`) và vẽ dot cả trong cột pha đang thu gọn (`CollapsiblePhaseCell`, căn giữa ô) — trước đó cột
+  DESIGN/DEV/TEST/PENTEST mặc định thu gọn nên dot không bao giờ hiện. Dữ liệu `isCurrentStage` trong cache vốn đã đúng.
+- **Quản trị Epic — rule hoàn thành pha DEV/TEST/PENTEST mới** (Scoring Service, `SCORING_CODE_VERSION` → `scoring-27`):
+  - Story quy về 7 mức (`src/lib/scoring/story-phase.ts`), bỏ qua Cancelled/Pending; status lạ = "Chưa vào DEV". DEV/TEST xong khi
+    ≥ 80% story tới mức (`phase.storyDoneRatio`) hoặc Epic ≥ 3 story còn tối đa 1 story chưa tới (`phase.storyDoneTolerance`).
+    Sửa lỗi cũ: story Pending/PENTEST/status lạ từng bị coi là "đã xong mọi pha".
+  - PENTEST: mọi subtask Pentest (`phase.pentestIssueTypes`, mặc định PENTEST) Done ⇒ DEV+TEST+PENTEST xong; không có subtask
+    Pentest ⇒ xong cùng TEST. Dữ liệu: `epic-phase-completion-service.ts` trả story status thô + đếm subtask theo loại.
+  - Dot pha hiện tại: bỏ khi Epic Released hoặc mọi pha đã xong; thêm bước PENTEST → R4GOLIVE.
+  - UI: pha xong dùng icon `CheckCircle` thay `ArrowBendUpRight`; tooltip ô pha hiện lý do (`PhaseCell.progressNote`).
+  - Cache cũ hiển thị theo rule cũ tới lần import kế tiếp hoặc "Tổng hợp lại ngay".
 - **Smart export — option "Phạm vi Smart export" & sửa mã hóa Unicode UTF-8** (`/admin/database`, tab Export dữ liệu thông minh):
   - Khắc phục lỗi vỡ font tiếng Việt (mojibake): chuẩn hóa toàn bộ file `src/app/admin/database/page.tsx` về chuẩn UTF-8 chuẩn (không BOM) dùng font chung của ứng dụng (`Inter` / hệ thống IAS), sửa toàn bộ chuỗi ký tự bị vỡ trong các panel và modal.
   - 3 phạm vi export — (1) *Chỉ dữ liệu tại surface data layer* (mặc định: chỉ `import_batches` + `issues`, không có password hash), (2) *Surface layer + các bảng khác trừ nhóm "Xác thực & phân quyền"* (`SMART_AUTH_GROUP_TABLES`, khớp group `auth` của `db-schema-catalog.json`, có test), (3) *Surface layer + toàn bộ bảng còn lại* (hành vi cũ). Logic ở `db-backup-tables.ts` (`SmartExportScope`, `smartTablesForScope`), `exportSmartSurfaceToSql({ scope })`, `POST /api/admin/db-backup/export-smart` nhận `scope`; file ghi thêm dòng `-- Smart Export Scope:`. UI chia 2 panel: trái là form (radio phạm vi, ngày mốc, nút export), phải là mô tả chi tiết theo option đang chọn.

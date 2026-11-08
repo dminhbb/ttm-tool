@@ -240,6 +240,11 @@ FILTER_PRESETS.ACHIEVED_CNTT               // → ['CNTT_PASS'] (thay matchesAle
   cho `scoring_parameters` — thiết kế đã chừa chỗ (xem §11 câu hỏi Q3).
 ### 5.1. D3 — Hoàn thành pha phải lấy theo cùng mốc `asOf`
 
+> **Cập nhật 2026-11-08:** rule hoàn thành DEV/TEST/PENTEST đã đổi — không còn "mọi story ≥ …" mà theo tỉ lệ story
+> đã qua pha (≥ 80% hoặc còn tối đa 1 story khi Epic ≥ 3 story, bỏ qua Cancelled/Pending) và subtask Pentest; logic
+> chuyển vào Scoring Service (`src/lib/scoring/story-phase.ts`), `epic-phase-completion-service.ts` chỉ nạp status
+> story thô + số subtask theo loại. Xem `brd/13-epic-15-and-epic-30-management.md`. Phần dưới giữ nguyên làm lịch sử.
+
 **Vì sao hiện tại chỉ đúng gần đúng.** Cảnh báo một pha gồm 2 bước:
 
 1. **Pha đã xong chưa?** Hàm `computeEpicPhaseCompletionByEpicKey` (`epic-phase-completion-service.ts`) trả

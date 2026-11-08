@@ -1,13 +1,12 @@
 import 'server-only';
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { PRODUCT_GUIDE_HTML } from '@/lib/product-guide-content';
 
 /**
  * Knowledge source for the MCP tools search_product_docs / get_product_doc_section: the in-app
- * "Tài liệu sản phẩm" (/docs/product → public/docs/product-guide.html). Read and parsed at runtime
- * (cached per server instance) rather than copied into a generated file, so whatever that HTML says
- * is always exactly what the AI chatbot answers from — no second copy to drift. next.config.ts's
- * outputFileTracingIncludes ships the HTML into the /api/mcp function bundle on Vercel.
+ * "Tài liệu sản phẩm" (/docs/product). Embedded directly as an in-memory string constant
+ * (PRODUCT_GUIDE_HTML) synced from public/docs/product-guide.html, so it operates 100%
+ * independently of host filesystem reads at runtime.
  *
  * Granularity: one chunk per <h2>/<h3> heading (e.g. "8.3. Cột Nhận xét ..."), each carrying its
  * parent <h2> title so a chunk read alone still says which chapter it belongs to.
@@ -25,7 +24,7 @@ export interface ProductDocSection {
   text: string;
 }
 
-let cache: { mtimeKey: string; sections: ProductDocSection[] } | null = null;
+let cachedSections: ProductDocSection[] | null = null;
 
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', '#39': "'", rarr: '→', larr: '←', ge: '≥', le: '≤', ne: '≠', mdash: '—', ndash: '–', hellip: '…', times: '×' };
 
@@ -82,13 +81,14 @@ export function parseProductDoc(html: string): ProductDocSection[] {
   return sections;
 }
 
+export function getProductDocHtml(): string {
+  return PRODUCT_GUIDE_HTML;
+}
+
 export async function getProductDocSections(): Promise<ProductDocSection[]> {
-  const html = await readFile(PRODUCT_DOC_PATH, 'utf8');
-  const key = `${html.length}:${html.slice(-200)}`;
-  if (cache?.mtimeKey === key) return cache.sections;
-  const sections = parseProductDoc(html);
-  cache = { mtimeKey: key, sections };
-  return sections;
+  if (cachedSections) return cachedSections;
+  cachedSections = parseProductDoc(PRODUCT_GUIDE_HTML);
+  return cachedSections;
 }
 
 /** Lowercase + strip Vietnamese diacritics (đ → d) so "canh bao" matches "cảnh báo". */

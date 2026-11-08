@@ -41,6 +41,7 @@ const API_FEATURES: readonly { featureKey: string; prefix: string }[] = [
   { prefix: '/api/reports', featureKey: 'epic_reports' },
   { prefix: '/api/news-letter', featureKey: 'news_letter' },
   { prefix: '/api/rule-groups', featureKey: 'rule_management' },
+  { prefix: '/api/docs/product-guide', featureKey: 'product_docs' },
 ];
 
 /**

@@ -9,7 +9,7 @@ export default function ProductDocsPage() {
       </p>
       <iframe
         title="Tài liệu sản phẩm TTM Monitor"
-        src="/docs/product-guide.html"
+        src="/api/docs/product-guide"
         className="w-full rounded-lg border border-fb-border bg-white"
         style={{ height: 'calc(100dvh - 180px)', minHeight: 480 }}
       />

@@ -37,7 +37,7 @@ export function makeFacts(overrides: Partial<EpicFacts> = {}): EpicFacts {
     dueDate: null,
     requestType: 'Tính năng mới',
     requirementLevel: '2',
-    phaseCompletion: { designDone: true, devDone: false, testDone: false, r4goliveDone: false },
+    phaseCompletion: { designDone: true, r4goliveRecorded: false, storyStatuses: ['IN DEV', 'TO DO'], subtaskCountsByType: {} },
     ...overrides,
   };
 }

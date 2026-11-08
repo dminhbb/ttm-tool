@@ -22,6 +22,10 @@ To Do → Analyzing → Ready For Refine → Waiting For Planning → Ready For 
 → Ready For Golive → Released
 ```
 
+Story workflow còn có `Ready For UAT` (giữa SIT Done và In UAT), `Pentest` (sau UAT Done) và `Done`
+(tương đương Released). Khi xét hoàn thành pha của Epic (từ 08/11/2026), mỗi status Story được quy về một mức
+pha — xem bảng "Mức pha của Story" trong `13-epic-15-and-epic-30-management.md`; code: `src/lib/scoring/story-phase.ts`.
+
 ## Workflow Subtask (cấp 3)
 
 Mọi Issue Type cấp 3 sử dụng cùng một workflow:
@@ -32,7 +36,9 @@ To Do → In Progress → Done
 
 ## Status đặc biệt
 
-`Pending` và `Cancelled` không nằm trong thứ tự của workflow Epic, Story hoặc Subtask. Chúng có thể xuất hiện tại mọi thời điểm và không được dùng để so sánh trước/sau giữa các giai đoạn.
+`Pending` và `Cancelled` không nằm trong thứ tự của workflow Epic, Story hoặc Subtask. Chúng có thể xuất hiện tại mọi thời điểm và không được dùng để so sánh trước/sau giữa các giai đoạn. Khi xét hoàn thành pha DEV/TEST/R4GOLIVE của Epic, Story Pending và Cancelled bị bỏ qua (không vào mẫu số, không chặn).
+
+Subtask loại **Pentest** (nằm dưới Epic hoặc dưới Story) quyết định pha PENTEST: mọi subtask Pentest `Done` ⇒ Epic xong DEV, TEST và PENTEST. Loại issue được nhận diện qua tham số Scoring `phase.pentestIssueTypes` (mặc định `PENTEST`).
 
 ## Quy tắc triển khai
 

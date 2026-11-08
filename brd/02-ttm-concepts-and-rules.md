@@ -173,6 +173,10 @@ TTM-CNTT được phân bổ theo các giai đoạn:
 | Chuẩn bị Golive và Golive | 10% |
 | Tổng | 100% |
 
+Mỗi giai đoạn tương ứng một cột pha ở Quản trị Epic (DESIGN / DEV / TEST / PENTEST / R4GOLIVE). Từ 08/11/2026 pha
+DEV/TEST được coi là hoàn thành theo tỉ lệ story đã qua pha (≥ 80%, bỏ qua story Cancelled/Pending), pha PENTEST theo
+subtask Pentest — chi tiết và dot "pha hiện tại": `13-epic-15-and-epic-30-management.md`.
+
 Trong MVP1, rule cảnh báo trạng thái Epic chỉ tập trung vào hai trạng thái:
 
 - Design.

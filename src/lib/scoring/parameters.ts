@@ -17,6 +17,12 @@ export interface ScoringParameters {
   'phase.percentages': Record<TtmPhaseKey, number>;
   /** Statuses counted by QA-Index (upper-cased). */
   'index.qaStatuses': string[];
+  /** DEV / TEST done once this share of the Epic's Stories (Cancelled / Pending skipped) reached the phase. */
+  'phase.storyDoneRatio': { DEV: number; TEST: number };
+  /** …or, for an Epic with at least `minStories` Stories, once at most `maxRemaining` Stories are still behind. */
+  'phase.storyDoneTolerance': { minStories: number; maxRemaining: number };
+  /** Subtask issue types (compared without case, spaces, dashes) whose DONE marks DEV / TEST / PENTEST done. */
+  'phase.pentestIssueTypes': string[];
 }
 
 export const DEFAULT_SCORING_PARAMETERS: ScoringParameters = {
@@ -26,6 +32,9 @@ export const DEFAULT_SCORING_PARAMETERS: ScoringParameters = {
   'anomaly.spMismatchLevels': ['1', '2'],
   'phase.percentages': { DESIGN: 0.2, DEV: 0.3, TEST: 0.3, PENTEST: 0.1, R4GOLIVE: 0.1 },
   'index.qaStatuses': ['MVP DONE', 'RELEASED'],
+  'phase.storyDoneRatio': { DEV: 0.8, TEST: 0.8 },
+  'phase.storyDoneTolerance': { minStories: 3, maxRemaining: 1 },
+  'phase.pentestIssueTypes': ['PENTEST'],
 };
 
 export type ScoringParameterKey = keyof ScoringParameters;
@@ -37,6 +46,9 @@ export const SCORING_PARAMETER_LABELS: Record<ScoringParameterKey, string> = {
   'anomaly.spMismatchLevels': 'Requirement Level mâu thuẫn với loại SP',
   'phase.percentages': 'Tỉ lệ ngân sách từng pha',
   'index.qaStatuses': 'Status tính vào TTM-CNTT (QA)',
+  'phase.storyDoneRatio': 'Ngưỡng % story đã qua pha để coi pha DEV / TEST hoàn thành',
+  'phase.storyDoneTolerance': 'Dung sai: Epic có từ N story, còn tối đa K story chưa xong vẫn coi là hoàn thành pha',
+  'phase.pentestIssueTypes': 'Loại subtask Pentest (Done ⇒ DEV, TEST, PENTEST hoàn thành)',
 };
 
 function isStringArray(value: unknown): value is string[] {
@@ -54,6 +66,17 @@ const VALIDATORS: { [K in ScoringParameterKey]: (value: unknown) => value is Sco
     return (['DESIGN', 'DEV', 'TEST', 'PENTEST', 'R4GOLIVE'] as const).every((key) => typeof record[key] === 'number' && (record[key] as number) >= 0);
   },
   'index.qaStatuses': isStringArray,
+  'phase.storyDoneRatio': (value): value is { DEV: number; TEST: number } => {
+    if (typeof value !== 'object' || value === null) return false;
+    const record = value as Record<string, unknown>;
+    return (['DEV', 'TEST'] as const).every((key) => typeof record[key] === 'number' && (record[key] as number) > 0 && (record[key] as number) <= 1);
+  },
+  'phase.storyDoneTolerance': (value): value is { minStories: number; maxRemaining: number } => {
+    if (typeof value !== 'object' || value === null) return false;
+    const record = value as Record<string, unknown>;
+    return Number.isInteger(record.minStories) && (record.minStories as number) >= 1 && Number.isInteger(record.maxRemaining) && (record.maxRemaining as number) >= 0;
+  },
+  'phase.pentestIssueTypes': isStringArray,
 };
 
 export function isValidScoringParameter<K extends ScoringParameterKey>(key: K, value: unknown): value is ScoringParameters[K] {

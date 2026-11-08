@@ -128,7 +128,7 @@ When designing or updating Epic list screens (`/epic-alerts-15`, `/data-normaliz
 - In the Epic column, use `Warning` icon for alert triggers and `ArrowSquareOut` icon for opening Jira in a new tab.
 - Prepend `CaretRight` icon before date text in the START-E2E column/cell, styled with muted font-size (11px) and lighter color (`#64748b`).
 - Prepend `CaretLineRight` icon before date text in the START-CNTT column/cell, styled with muted font-size (11px) and lighter color (`#64748b`).
-- In status/phase stage cells, prepend `ArrowBendUpRight` icon before the baseline date text on the EXACT SAME line, using a lighter muted color (e.g. `#64748b`).
+- In status/phase stage cells, prepend `ArrowBendUpRight` icon before the baseline date text on the EXACT SAME line, using a lighter muted color (e.g. `#64748b`). Once the phase is done (green cell), `CheckCircle` replaces `ArrowBendUpRight` (owner decision 2026-11-08).
 - Prepend the `Checks` icon before the actual recorded date text in the R4Golive and Released columns/cells, using solid BLACK color (`#000000`).
 
 

@@ -2,6 +2,7 @@ import { addWorkingDays, diffWorkingDays, toIsoDate } from './dates';
 import { DEFAULT_POLICY_SET } from './types';
 import type { DerivedMetrics, EpicComplexity, EpicFacts, IsoDate, PhaseDerived, PolicySetSelection, ScoringContext, ScoringTtmPolicy, TtmPhaseKey } from './types';
 import { exceptPlanProblem } from './ttm-applied';
+import { evaluateStoryPhases } from './story-phase';
 
 /**
  * Canonical Epic workflow. Jira's legacy "In Progress" is DEV. Owner rule 2026-10-05: 'MVP DONE'
@@ -124,12 +125,15 @@ export function computePhaseBaselines(startDate: IsoDate, budget: number, percen
   return result;
 }
 
-function resolveCurrentPhase(statusIndex: number, devDone: boolean, testDone: boolean): TtmPhaseKey {
+/** The phase the Epic is in (the dot), or null once it's Released or every phase is done (owner rule 2026-11-08). */
+function resolveCurrentPhase(statusIndex: number, done: Record<TtmPhaseKey, boolean>, released: boolean): TtmPhaseKey | null {
+  if (released || PHASE_KEYS.every((phase) => done[phase])) return null;
   if (statusIndex === STATUS_INDEX.DESIGN) return 'DESIGN';
   if (statusIndex >= STATUS_INDEX.R4GOLIVE) return 'R4GOLIVE';
-  if (!devDone) return 'DEV';
-  if (!testDone) return 'TEST';
-  return 'PENTEST';
+  if (!done.DEV) return 'DEV';
+  if (!done.TEST) return 'TEST';
+  if (!done.PENTEST) return 'PENTEST';
+  return 'R4GOLIVE';
 }
 
 /** `policySets`: the "Bộ ngân sách" of the Epic's Rule Group verdict rules (rule-groups.ts policySetsOf) — the budgets,
@@ -173,18 +177,15 @@ export function deriveMetrics(facts: EpicFacts, ctx: ScoringContext, policySets:
   if (facts.startDate && cnttBudget) {
     const baselines = computePhaseBaselines(facts.startDate, cnttBudget, ctx.parameters['phase.percentages'], ctx);
     const completion = facts.phaseCompletion;
-    const doneOf: Record<TtmPhaseKey, boolean> = {
-      DESIGN: completion?.designDone ?? false,
-      DEV: completion?.devDone ?? false,
-      TEST: completion?.testDone ?? false,
-      PENTEST: false,
-      R4GOLIVE: completion?.r4goliveDone ?? false,
-    };
-    const current = resolveCurrentPhase(statusIndex, doneOf.DEV, doneOf.TEST);
+    const evaluation = completion ? evaluateStoryPhases(completion, ctx.parameters) : null;
+    const doneOf: Record<TtmPhaseKey, boolean> = evaluation?.done ?? { DESIGN: false, DEV: false, TEST: false, PENTEST: false, R4GOLIVE: false };
+    const released = statusIndex === STATUS_INDEX.RELEASED || (completion?.releasedDone ?? false);
+    const current = resolveCurrentPhase(statusIndex, doneOf, released);
     phases = Object.fromEntries(PHASE_KEYS.map((phase): [TtmPhaseKey, PhaseDerived] => [phase, {
       baselineDate: baselines[phase],
       isDone: doneOf[phase],
       isCurrent: phase === current,
+      note: evaluation?.notes[phase] ?? null,
     }])) as Record<TtmPhaseKey, PhaseDerived>;
   }
 

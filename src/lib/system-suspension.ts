@@ -98,6 +98,7 @@ const NEWS_LETTER_SHELL_PATHS: readonly string[] = [
   '/api/visit-counter/track',
   '/docs/product',
   '/docs/product-guide.html',
+  '/api/docs/product-guide',
 ];
 
 export type SuspensionAccess = { kind: 'allow' } | { kind: 'api-blocked' } | { kind: 'redirect'; to: string };

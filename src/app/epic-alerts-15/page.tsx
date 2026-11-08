@@ -29,7 +29,7 @@ import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import { useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
 import { EARLY_START_REPORT_HREF, earlyStartActualTooltip, useCompanyTtmIndex } from '@/lib/use-early-start-actual-index';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
-import { ArrowBendUpRight, ArrowCounterClockwise, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, Eye, EyeSlash, FlagBanner, FloppyDisk, FolderSimple, HourglassMedium, ListChecks, UserFocus, Prohibit, Sparkle, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
+import { ArrowBendUpRight, ArrowCounterClockwise, CheckCircle, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, Eye, EyeSlash, FlagBanner, FloppyDisk, FolderSimple, HourglassMedium, ListChecks, UserFocus, Prohibit, Sparkle, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { listGroupRankOf } from '@/lib/epic-alert-sort-rules';
@@ -208,14 +208,19 @@ function phaseCellColorClass(cell: PhaseCell): string {
  * phases no longer have a recorded completion date at all, so their bottom line stays empty. */
 function PhaseStageCell({ actualDateText, cell }: { actualDateText?: string | null; cell: PhaseCell }) {
   const colorClass = phaseCellColorClass(cell);
-  const baselineTitle = cell.baselineSourceLabel
+  const baselineSource = cell.baselineSourceLabel
     ? `Tính từ ${cell.baselineSourceLabel}: ${formatDate(cell.baselineSourceDate)}`
     : 'Baseline chuẩn theo rule phân chia giai đoạn (tính từ Start Date)';
+  // Story share / Pentest subtasks behind the cell's color (scoring/story-phase.ts) — rows cached before
+  // that rule have no note.
+  const baselineTitle = [cell.isDone ? 'Pha đã hoàn thành' : null, baselineSource, cell.progressNote].filter(Boolean).join('\n');
   return (
     <TD className={`w-[1%] ttm-phase-cell whitespace-nowrap text-left align-top px-1.5${colorClass ? ` ${colorClass}` : ''}`}>
       {cell.isCurrentStage && <span className="ttm-phase-current-dot" title="Giai đoạn hiện tại của Epic" aria-hidden="true" />}
       <span className="ttm-phase-baseline" title={baselineTitle}>
-        <ArrowBendUpRight className="size-3 shrink-0" weight="bold" />
+        {cell.isDone
+          ? <CheckCircle className="size-3 shrink-0" weight="bold" aria-label="Pha đã hoàn thành" />
+          : <ArrowBendUpRight className="size-3 shrink-0" weight="bold" />}
         <span>{formatDate(cell.baselineDate)}</span>
       </span>
       {actualDateText ? (
@@ -236,10 +241,10 @@ type CollapsiblePhase = 'DESIGN' | 'DEV' | 'TEST' | 'PENTEST';
 const COLLAPSIBLE_PHASES: CollapsiblePhase[] = ['DESIGN', 'DEV', 'TEST', 'PENTEST'];
 
 const PHASE_COLUMN_META: Record<CollapsiblePhase, { char: string; title: string }> = {
-  DESIGN: { char: 'D', title: 'Baseline = Start Date + 20% TTM-CNTT (QLDA) (làm tròn ngày)' },
-  DEV: { char: 'V', title: 'Baseline = Start Date + (20%+30%) TTM-CNTT (QLDA) (làm tròn ngày)' },
-  TEST: { char: 'T', title: 'Baseline = Start Date + (20%+30%+30%) TTM-CNTT (QLDA) (làm tròn ngày)' },
-  PENTEST: { char: 'P', title: 'Baseline = Start Date + (20%+30%+30%+10%) TTM-CNTT (QLDA) (làm tròn ngày)' },
+  DESIGN: { char: 'D', title: 'Baseline = Start Date + 20% TTM-CNTT (QLDA) (làm tròn ngày)\nHoàn thành: status Epic = In Progress hoặc mọi subtask BA Done' },
+  DEV: { char: 'V', title: 'Baseline = Start Date + (20%+30%) TTM-CNTT (QLDA) (làm tròn ngày)\nHoàn thành: ≥ 80% story từ Dev Done trở đi (hoặc Epic ≥ 3 story còn tối đa 1 story chưa tới); bỏ qua story Cancelled/Pending' },
+  TEST: { char: 'T', title: 'Baseline = Start Date + (20%+30%+30%) TTM-CNTT (QLDA) (làm tròn ngày)\nHoàn thành: ≥ 80% story từ UAT Done trở đi (hoặc Epic ≥ 3 story còn tối đa 1 story chưa tới), hoặc mọi subtask Pentest Done' },
+  PENTEST: { char: 'P', title: 'Baseline = Start Date + (20%+30%+30%+10%) TTM-CNTT (QLDA) (làm tròn ngày)\nHoàn thành: mọi subtask Pentest Done; Epic không có subtask Pentest thì xong cùng pha TEST' },
 };
 
 /** Expanded: full name, click to collapse. Collapsed: thin stub showing one representative
@@ -265,14 +270,18 @@ function CollapsiblePhaseHeader({ isCollapsed, onToggle, phase }: { isCollapsed:
   );
 }
 
-/** Body-side counterpart of CollapsiblePhaseHeader — a collapsed column renders as an empty thin
- * cell (no content, per the collapse rule), matching the header's width/right-border. */
+/** Body-side counterpart of CollapsiblePhaseHeader — a collapsed column renders as a thin cell with
+ * only its status color and the "pha hiện tại" dot, matching the header's width/right-border. */
 function CollapsiblePhaseCell({ actualDateText, cell, isCollapsed }: { actualDateText?: string | null; cell: PhaseCell; isCollapsed: boolean }) {
   if (isCollapsed) {
     // Collapsed background reuses the same pass/warning/fail class as the expanded cell (see
     // phaseCellColorClass) so the thin stub still shows the column's real status at a glance.
     const colorClass = phaseCellColorClass(cell);
-    return <TD className={`ttm-phase-cell ttm-col-collapsed${colorClass ? ` ${colorClass}` : ''}`} />;
+    return (
+      <TD className={`ttm-phase-cell ttm-col-collapsed${colorClass ? ` ${colorClass}` : ''}`} title={cell.progressNote ?? undefined}>
+        {cell.isCurrentStage && <span className="ttm-phase-current-dot" title="Giai đoạn hiện tại của Epic" aria-hidden="true" />}
+      </TD>
+    );
   }
   return <PhaseStageCell actualDateText={actualDateText} cell={cell} />;
 }
@@ -1567,7 +1576,7 @@ function EpicAlerts15Screen() {
                 <CollapsiblePhaseHeader phase="DEV" isCollapsed={collapsedColumns.has('DEV')} onToggle={toggleColumn} />
                 <CollapsiblePhaseHeader phase="TEST" isCollapsed={collapsedColumns.has('TEST')} onToggle={toggleColumn} />
                 <CollapsiblePhaseHeader phase="PENTEST" isCollapsed={collapsedColumns.has('PENTEST')} onToggle={toggleColumn} />
-                <TH className="w-[1%] min-w-[78px] text-left align-top" title="Baseline = Start Date + 100% TTM-CNTT (QLDA); dòng dưới = issues.r4g_date">R4GOLIVE</TH>
+                <TH className="w-[1%] min-w-[78px] text-left align-top" title={'Baseline = Start Date + 100% TTM-CNTT (QLDA); dòng dưới = issues.r4g_date\nHoàn thành: status Epic = R4GOLIVE, hoặc có R4G Date, hoặc mọi story ≥ Ready for Golive'}>R4GOLIVE</TH>
                 <TH className="w-[1%] min-w-[78px] text-left align-top" title="Baseline = Ngày duyệt ý tưởng (hoặc Ngày epic created nếu không có) + 20 ngày làm việc, không tính holiday. Dòng dưới = issues.due_date">DUE DATE</TH>
               </TR>
             </THead>

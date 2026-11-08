@@ -55,6 +55,7 @@ export function projectScorecardOntoRow(row: EpicAlertRowPhased, card: EpicScore
       isDone: phaseHas('PHASE_DONE', phase),
       isCurrentStage: phaseHas('PHASE_CURRENT', phase),
       baselineDate: derived?.baselineDate ?? null,
+      progressNote: derived?.note ?? null,
     };
     stages[key] = cell;
   }

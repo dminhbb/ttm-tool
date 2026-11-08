@@ -9,11 +9,16 @@ export type TtmPhaseKey = 'DESIGN' | 'DEV' | 'TEST' | 'PENTEST' | 'R4GOLIVE';
 
 export interface EpicPhaseCompletionFacts {
   designDone: boolean;
-  devDone: boolean;
-  r4goliveDone: boolean;
-  /** Not used by any rule — only the Release cell of the row draws it ("đã Released"). */
+  /** Epic status R4GOLIVE or an R4G Date recorded — the Story half of R4GOLIVE's rule lives in story-phase.ts. */
+  r4goliveRecorded: boolean;
+  /** Epic Released / Due Date recorded / every Story Released — read by the Release cell and the "no current
+   * phase once Released" rule. */
   releasedDone?: boolean;
-  testDone: boolean;
+  /** Current statuses of the Epic's non-Cancelled Stories (Pending included — story-phase.ts skips it). */
+  storyStatuses: string[];
+  /** Non-Cancelled subtasks of the Epic (directly under it or under its Stories) per issue type as stored:
+   * total and how many are DONE. The Pentest rule picks its types via `phase.pentestIssueTypes`. */
+  subtaskCountsByType: Record<string, { total: number; done: number }>;
 }
 
 /** One Epic's raw data exactly as known at `ScoringContext.asOf` (the caller loads the matching
@@ -193,6 +198,8 @@ export interface PhaseDerived {
   baselineDate: IsoDate;
   isDone: boolean;
   isCurrent: boolean;
+  /** Why the phase is (not) done — Story share / Pentest subtasks (story-phase.ts); null when nothing to add. */
+  note: string | null;
 }
 
 /** Numbers the screens draw (stripes, phase columns) — computed once here, never re-derived in UI. */

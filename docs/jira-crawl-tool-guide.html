@@ -704,7 +704,7 @@
             <td><code>issue_levels.level_3_subtask.allowed_issue_types</code></td>
             <td><span class="badge badge-neutral">array[string]</span></td>
             <td><code>["BA", "Elicitate"]</code></td>
-            <td>Bộ lọc loại Subtask được phép tải. Các loại khác (DEV, TEST...) bị bỏ qua ở tầng crawl.</td>
+            <td>Bộ lọc loại Subtask được phép tải. Các loại khác (DEV, TEST...) bị bỏ qua ở tầng crawl. <strong>Cần thêm loại <code>Pentest</code></strong> (subtask nằm dưới Epic hoặc Story) để TTM Monitor xác định pha PENTEST: mọi subtask Pentest Done ⇒ Epic xong DEV, TEST và PENTEST (từ 08/11/2026; tên loại khớp tham số <code>phase.pentestIssueTypes</code>, mặc định <code>PENTEST</code>).</td>
           </tr>
           <tr>
             <td><code>subtask_cache.enabled</code></td>

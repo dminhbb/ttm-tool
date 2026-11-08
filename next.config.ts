@@ -1,12 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // The MCP tools search_product_docs/get_product_doc_section (src/lib/product-doc-service.ts)
-  // read the "Tài liệu sản phẩm" HTML from disk at runtime; public/ isn't traced into serverless
-  // function bundles by default, so ship it explicitly with the /api/mcp route.
-  outputFileTracingIncludes: {
-    '/api/mcp': ['./public/docs/product-guide.html'],
-  },
+  // Tài liệu sản phẩm (/docs/product) và công cụ MCP (src/lib/product-doc-service.ts)
+  // được nạp trực tiếp qua in-memory bundle (src/lib/product-guide-content.ts), không phụ thuộc
+  // runtime filesystem hay outputFileTracingIncludes.
   // Màn hình đã gỡ (2026-10-11) — giữ bookmark / liên kết cũ chạy được. Query string của request gốc
   // được Next chuyển tiếp sang đích; quyền xem vẫn do proxy.ts kiểm tra ở màn hình đích.
   async redirects() {

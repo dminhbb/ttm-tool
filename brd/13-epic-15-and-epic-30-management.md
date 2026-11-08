@@ -91,6 +91,50 @@ cộng dồn của pha trước — không phải `round()` đơn giản trên t
 Nhờ R4GOLIVE được gán trực tiếp (không cộng dồn), tổng 5 baseline luôn khớp đúng TTM-CNTT dù 4 pha
 trước có làm tròn lệch bao nhiêu. Khi chưa cấu hình rule status riêng, DEV/TEST/PENTEST dùng offset cảnh báo sớm/muộn của `In Progress`.
 
+## Màu ô pha, hoàn thành pha và dot "pha hiện tại" (từ 08/11/2026)
+
+Rule nằm trong Scoring Service: rule `phase` (`src/lib/scoring/rules/scope-phase.ts`) đọc kết quả của
+`evaluateStoryPhases` (`src/lib/scoring/story-phase.ts`); dữ liệu story/subtask do
+`src/lib/epic-phase-completion-service.ts` nạp **tại ngày đang xem** (`asOf`).
+
+**3 trạng thái của ô pha:** không màu (chưa xong, chưa tới baseline) · hồng nhạt "Trễ pha" (chưa xong mà
+`asOf` > baseline) · xanh nhạt "Hoàn thành pha" (icon `CheckCircle` thay `ArrowBendUpRight` trước ngày baseline).
+Cột Released (Due Date) chỉ có xanh hoặc không màu. Tooltip ô pha (`PhaseCell.progressNote`) nêu lý do: số story
+đã qua pha / tổng, story còn lại theo status, story Pending bị bỏ qua, status chưa phân loại, subtask Pentest.
+
+**Mức pha của Story** (Cancelled và Pending bị bỏ qua — không vào mẫu số, không chặn; status không có trong
+bảng tính là mức 0 và được nêu trong tooltip):
+
+| Mức | Status story |
+|---|---|
+| 0. Chưa vào DEV | To Do, Analyzing, Ready For Refine, Waiting For Planning, Ready For Dev |
+| 1. DEV đang làm | In Dev, Reopened |
+| 2. DEV xong | Dev Done, Ready For Test |
+| 3. TEST đang làm | In SIT, SIT Done, Ready For UAT, In UAT |
+| 4. TEST xong | UAT Done, Pentest |
+| 5. R4GOLIVE | Ready For Golive |
+| 6. Released | Released, Done |
+
+**Rule hoàn thành:**
+
+| Pha | Hoàn thành khi |
+|---|---|
+| DESIGN | Status Epic = In Progress, hoặc mọi subtask BA Done (không đổi) |
+| DEV | "Đạt ngưỡng" ở mức 2, hoặc TEST đã xong |
+| TEST | "Đạt ngưỡng" ở mức 4, hoặc mọi subtask Pentest Done |
+| PENTEST | Có subtask Pentest ⇒ mọi subtask Pentest Done (khi đó DEV, TEST cũng xong); không có ⇒ xong cùng TEST |
+| R4GOLIVE | Status Epic = R4GOLIVE, hoặc có R4G Date, hoặc mọi story ≥ mức 5 |
+| Released (cột Due Date) | Epic Released, hoặc có Due Date, hoặc mọi story Released/Done |
+
+"Đạt ngưỡng" = ≥ 80% story đã tới mức (`phase.storyDoneRatio`, riêng DEV và TEST), **hoặc** Epic có ≥ 3 story và
+còn tối đa 1 story chưa tới (`phase.storyDoneTolerance`). Không còn story nào để xét ⇒ pha chưa xong. Loại subtask
+Pentest khai báo ở `phase.pentestIssueTypes` (mặc định `PENTEST`, so khớp bỏ qua hoa/thường, khoảng trắng, gạch nối);
+subtask có thể nằm dưới Epic hoặc dưới Story. Các tham số đổi được qua bảng `scoring_parameters`.
+
+**Dot "pha hiện tại"** (`PHASE_CURRENT`): pha đầu tiên chưa xong theo thứ tự DEV → TEST → PENTEST → R4GOLIVE;
+DESIGN nếu status Epic = Design; R4GOLIVE nếu status ≥ R4GOLIVE. Không có dot khi Epic đã Released hoặc mọi pha đã
+xong. Dot cũng hiện trong cột pha đang thu gọn (căn giữa ô).
+
 ## Cột TTM-E2E, START-E2E và Release — độc lập với Start Date
 
 Cả 3 màn hình (rút gọn/đầy đủ/Epic in PO) đều có cột TTM-E2E (baseline + stripe thực tế) và
