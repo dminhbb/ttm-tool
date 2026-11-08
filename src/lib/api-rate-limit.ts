@@ -17,6 +17,8 @@ export const PUBLIC_RATE_LIMITS = {
   registrationDomains: { limit: 300, windowMs: 60_000 },
   /** Every page load of every signed-in user calls it (footer); the database probe is memoized for 10 seconds. */
   systemStatus: { limit: 600, windowMs: 60_000 },
+  /** /suspended and the login page read it once per load; the state itself is memoized for 10 seconds. */
+  systemSuspension: { limit: 600, windowMs: 60_000 },
   /** Wrong import-API tokens — a guessing run, not the crawler. */
   importTokenFailures: { limit: 20, windowMs: 10 * 60_000 },
 } as const satisfies Record<string, RateLimitRule>;

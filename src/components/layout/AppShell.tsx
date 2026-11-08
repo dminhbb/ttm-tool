@@ -57,6 +57,7 @@ import { DialogHost } from '@/components/ui/dialogs';
 import { showToast, ToastProvider } from '@/components/ui/Toast';
 import { TruncationTooltip } from '@/components/ui/TruncationTooltip';
 import { fallbackPathFor, pageFeatureKey } from '@/lib/feature-access';
+import { NEWS_LETTER_PATH, SUSPENDED_PATH, SYSTEM_SUSPENSION_CHANGED_EVENT } from '@/lib/system-suspension';
 import { resolveScreenKeyFromPathname, trackScreenVisit } from '@/lib/visit-counter-client';
 
 type NavigationModal = 'appConfig' | 'blackListedEpics' | 'systemAdmin';
@@ -99,6 +100,8 @@ function isNavigationGroup(entry: NavigationEntry): entry is NavigationGroup {
 
 interface SidebarContentProps {
   expanded: boolean;
+  /** "Tạm dừng hệ thống" with the "Bản tin" exception, for a user below SUPERADMIN: only "Bản tin" (+ the avatar menu). */
+  newsLetterOnly?: boolean;
   onNavigate?: () => void;
   onOpenModal: (modal: NavigationModal) => void;
   onToggle?: () => void;
@@ -227,8 +230,9 @@ const NO_HIDDEN_FEATURES: ReadonlySet<string> = new Set();
  * Same for a group whose children are all out of reach for the role.
  * `hiddenFeatureKeys` (permission matrix, "Xem" unticked) only ever removes entries: it narrows
  * what `roles` already allows and can't reveal a screen the role has no access to. */
-function visibleNavigationFor(role: UserRole | null, hiddenFeatureKeys: ReadonlySet<string>): NavigationSection[] {
-  const itemVisible = (item: NavigationItem) => roleAllowed(item.roles, role) && !(item.featureKey && hiddenFeatureKeys.has(item.featureKey));
+function visibleNavigationFor(role: UserRole | null, hiddenFeatureKeys: ReadonlySet<string>, newsLetterOnly = false): NavigationSection[] {
+  const itemVisible = (item: NavigationItem) => (!newsLetterOnly || item.href === NEWS_LETTER_PATH)
+    && roleAllowed(item.roles, role) && !(item.featureKey && hiddenFeatureKeys.has(item.featureKey));
   return navigation
     .map((section) => ({
       ...section,
@@ -400,10 +404,10 @@ function NavigationGroupMenu({ cacheRebuildPending, expanded, group, onNavigate,
   );
 }
 
-function SidebarContent({ cacheRebuildPending, expanded, hiddenFeatureKeys, onNavigate, onOpenModal, onToggle, pendingUserTicketsCount, role }: SidebarContentProps) {
+function SidebarContent({ cacheRebuildPending, expanded, hiddenFeatureKeys, newsLetterOnly = false, onNavigate, onOpenModal, onToggle, pendingUserTicketsCount, role }: SidebarContentProps) {
   const newsLetterUnread = React.useContext(NewsLetterUnreadContext);
   const pathname = usePathname();
-  const sections = visibleNavigationFor(role, hiddenFeatureKeys);
+  const sections = visibleNavigationFor(role, hiddenFeatureKeys, newsLetterOnly);
 
   return (
     <>
@@ -612,10 +616,14 @@ function AppShellInner({ children }: AppShellProps) {
   const [desktopNavigationExpanded, setDesktopNavigationExpanded] = React.useState(false);
   const [appConfigOpen, setAppConfigOpen] = React.useState(false);
   const [systemAdminOpen, setSystemAdminOpen] = React.useState(false);
+  const [systemAdminSection, setSystemAdminSection] = React.useState<string | undefined>(undefined);
+  // "Tạm dừng hệ thống" is ON (from /api/auth/me): `restricted` = this user is below SUPERADMIN (only "Bản tin" is left).
+  const [systemSuspension, setSystemSuspension] = React.useState<{ restricted: boolean } | null>(null);
+  const suspensionRestricted = Boolean(systemSuspension?.restricted);
   const [blackListedEpicsOpen, setBlackListedEpicsOpen] = React.useState(false);
   const openNavigationModal = React.useCallback((modal: NavigationModal) => {
     if (modal === 'appConfig') setAppConfigOpen(true);
-    else if (modal === 'systemAdmin') setSystemAdminOpen(true);
+    else if (modal === 'systemAdmin') { setSystemAdminSection(undefined); setSystemAdminOpen(true); }
     else setBlackListedEpicsOpen(true);
   }, []);
   const [mustChangePassword, setMustChangePassword] = React.useState(false);
@@ -642,7 +650,8 @@ function AppShellInner({ children }: AppShellProps) {
   // Red dot on "Bản tin" (owner 2026-11-06): loaded once, then when an article is read / saved, and — only if the last check
   // is over 5 minutes old — on navigation, on returning to the tab or on a 5-minute timer (use-menu-dot-refresh.ts).
   const [newsLetterUnread, setNewsLetterUnread] = React.useState(false);
-  const newsLetterAllowed = role !== null && !hiddenFeatureKeys.has('news_letter') && pathname !== '/login';
+  const isShellFree = pathname === '/login' || pathname === SUSPENDED_PATH;
+  const newsLetterAllowed = role !== null && !hiddenFeatureKeys.has('news_letter') && !isShellFree;
   const loadNewsLetterUnread = React.useCallback(() => {
     fetch('/api/news-letter/unread', { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : null))
@@ -663,14 +672,15 @@ function AppShellInner({ children }: AppShellProps) {
   const isAuthorized = !featureDenied && (!requiredRoles || (role !== null && requiredRoles.includes(role)));
 
   React.useEffect(() => {
-    if (pathname === '/login') return;
+    if (pathname === '/login' || pathname === SUSPENDED_PATH) return;
     let cancelled = false;
     // ?path= lets the server renew the session when this screen is one of the renewing ones (session-policy.ts).
     fetch(`/api/auth/me?path=${encodeURIComponent(pathname)}`, { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : null))
-      .then((data: { hiddenFeatureKeys?: string[]; user?: { email?: string; mustChangePassword?: boolean; role: UserRole; viewAs?: unknown } } | null) => {
+      .then((data: { hiddenFeatureKeys?: string[]; systemSuspension?: { restricted: boolean } | null; user?: { email?: string; mustChangePassword?: boolean; role: UserRole; viewAs?: unknown } } | null) => {
         if (cancelled || !data?.user) return;
         setRole(data.user.role);
+        setSystemSuspension(data.systemSuspension ?? null);
         setViewAsUsername(data.user.viewAs && data.user.email ? extractUsername(data.user.email) : null);
         setHiddenFeatureKeys(new Set(data.hiddenFeatureKeys ?? []));
         window.sessionStorage.setItem(ROLE_CACHE_KEY, data.user.role);
@@ -688,7 +698,11 @@ function AppShellInner({ children }: AppShellProps) {
   React.useEffect(() => {
     const refresh = () => setPermissionMatrixRevision((current) => current + 1);
     window.addEventListener(PERMISSION_MATRIX_CHANGED_EVENT, refresh);
-    return () => window.removeEventListener(PERMISSION_MATRIX_CHANGED_EVENT, refresh);
+    window.addEventListener(SYSTEM_SUSPENSION_CHANGED_EVENT, refresh);
+    return () => {
+      window.removeEventListener(PERMISSION_MATRIX_CHANGED_EVENT, refresh);
+      window.removeEventListener(SYSTEM_SUSPENSION_CHANGED_EVENT, refresh);
+    };
   }, []);
 
   React.useEffect(() => {
@@ -739,7 +753,8 @@ function AppShellInner({ children }: AppShellProps) {
     }
   }, [pathname, role, mustChangePassword]);
 
-  if (pathname === '/login') return <>{children}</>;
+  // Full-screen pages without the shell (no left panel, no footer).
+  if (isShellFree) return <>{children}</>;
 
   if (isEmbedded) {
     return (
@@ -780,6 +795,7 @@ function AppShellInner({ children }: AppShellProps) {
           cacheRebuildPending={cacheRebuildPending}
           role={displayRole}
           hiddenFeatureKeys={hiddenFeatureKeys}
+          newsLetterOnly={suspensionRestricted}
         />
       </aside>
 
@@ -808,21 +824,25 @@ function AppShellInner({ children }: AppShellProps) {
               cacheRebuildPending={cacheRebuildPending}
               role={displayRole}
               hiddenFeatureKeys={hiddenFeatureKeys}
+              newsLetterOnly={suspensionRestricted}
             />
           </aside>
         </div>
       )}
 
       <AppConfigModal isOpen={appConfigOpen} onClose={() => setAppConfigOpen(false)} role={role} />
-      <SystemAdminModal isOpen={systemAdminOpen} onClose={() => setSystemAdminOpen(false)} role={role} />
+      <SystemAdminModal initialSectionId={systemAdminSection} isOpen={systemAdminOpen} onClose={() => setSystemAdminOpen(false)} role={role} />
       <BlackListedEpicsModal isOpen={blackListedEpicsOpen} onClose={() => setBlackListedEpicsOpen(false)} />
-      <AdPopupDisplay />
+      {!suspensionRestricted && <AdPopupDisplay />}
       <ChangePasswordModal isForceChangePassword isOpen={mustChangePassword} onClose={() => {}} />
       {/* Only in the full shell (never the embedded/iframe branch above), so a dashboard drill-down
           popup doesn't run a second trigger/poll alongside its parent page. */}
-      <DailyCacheWarmer enabled={role !== null && !mustChangePassword} />
+      <DailyCacheWarmer enabled={role !== null && !mustChangePassword && !suspensionRestricted} />
 
       <div className={cn('min-w-0', desktopNavigationExpanded ? 'lg:pl-64' : 'lg:pl-[72px]')}>
+        {systemSuspension && !suspensionRestricted && (
+          <SystemSuspensionStrip onOpenSettings={() => { setSystemAdminSection('system-suspension'); setSystemAdminOpen(true); }} />
+        )}
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-fb-border ttm-frosted-header px-4 sm:px-6">
           <button
             type="button"
@@ -882,9 +902,20 @@ function AppShellInner({ children }: AppShellProps) {
 
       <SystemStatusFooter />
       {/* Login notice "My assigned epics" — only for a user who may open Quản trị Epic. */}
-      {!mustChangePassword && role !== null && !hiddenFeatureKeys.has('epic_alerts_15') && (requiredRolesFor('/epic-alerts-15')?.includes(role) ?? true) && <AssignedEpicsNotice />}
+      {!mustChangePassword && !suspensionRestricted && role !== null && !hiddenFeatureKeys.has('epic_alerts_15') && (requiredRolesFor('/epic-alerts-15')?.includes(role) ?? true) && <AssignedEpicsNotice />}
     </div>
     </NewsLetterUnreadContext.Provider>
+  );
+}
+
+/** SUPERADMIN reminder while "Tạm dừng hệ thống" is ON — every other user is cut off. */
+function SystemSuspensionStrip({ onOpenSettings }: { onOpenSettings: () => void }) {
+  return (
+    <div className="flex items-center justify-center gap-2 bg-status-danger px-4 py-1.5 text-center text-xs font-bold text-white" role="status">
+      <Prohibit className="size-4 shrink-0" weight="bold" aria-hidden="true" />
+      <span>Hệ thống đang tạm dừng — chỉ SUPERADMIN dùng được đầy đủ chức năng.</span>
+      <button type="button" onClick={onOpenSettings} className="cursor-pointer underline underline-offset-2 hover:opacity-80">Cấu hình</button>
+    </div>
   );
 }
 

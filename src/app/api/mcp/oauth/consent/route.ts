@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth-service';
+import { isSuspensionExempt } from '@/lib/system-suspension';
+import { getSystemSuspension } from '@/lib/system-suspension-service';
 import { createAuthorizationCode, resolveOAuthClient } from '@/lib/mcp-oauth-service';
 
 function escapeHtml(value: string): string {
@@ -34,6 +36,10 @@ export async function POST(request: NextRequest) {
   const user = await getCurrentUser(request);
   if (!user) {
     return errorPage('Phiên đăng nhập đã hết hạn', 'Vui lòng đóng cửa sổ này và thử kết nối lại từ ứng dụng AI của bạn.');
+  }
+  const suspension = await getSystemSuspension();
+  if (suspension.isSuspended && !suspension.allowMcp && !isSuspensionExempt(user)) {
+    return errorPage('Hệ thống đang tạm dừng', 'Trong thời gian tạm dừng, kết nối MCP chỉ mở cho Quản trị viên.');
   }
 
   const form = await request.formData();

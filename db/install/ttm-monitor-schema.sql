@@ -1,9 +1,9 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-06T04:19:46.699Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-08T03:32:37.834Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
--- Gồm: 76 bảng, 64 index phụ, 4 hàm, 4 trigger.
+-- Gồm: 77 bảng, 64 index phụ, 4 hàm, 4 trigger.
 -- Yêu cầu: PostgreSQL 14 trở lên, một database RỖNG (không dùng cho DB đã có bảng — sẽ báo lỗi và không
 -- tạo gì vì cả file chạy trong một transaction). Không cần extension nào.
 --
@@ -764,6 +764,19 @@ CREATE TABLE sso_auth_codes (
     CONSTRAINT sso_auth_codes_code_key UNIQUE (code)
 );
 
+CREATE TABLE system_suspension_settings (
+    id smallint DEFAULT 1 NOT NULL,
+    is_suspended boolean DEFAULT false NOT NULL,
+    message_html text DEFAULT ''::text NOT NULL,
+    allow_news_letter boolean DEFAULT false NOT NULL,
+    allow_mcp boolean DEFAULT false NOT NULL,
+    suspended_at timestamp with time zone,
+    updated_by_user_id integer,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT system_suspension_settings_pkey PRIMARY KEY (id),
+    CONSTRAINT system_suspension_settings_id_check CHECK ((id = 1))
+);
+
 CREATE TABLE ttm_dashboard_2_cache (
     scope_key character varying(64) NOT NULL,
     scope_fingerprint character varying(64) NOT NULL,
@@ -1110,6 +1123,7 @@ ALTER TABLE scoring_rule_groups ADD CONSTRAINT scoring_rule_groups_updated_by_us
 ALTER TABLE scoring_rule_settings ADD CONSTRAINT scoring_rule_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE sso_auth_codes ADD CONSTRAINT sso_auth_codes_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE CASCADE;
 ALTER TABLE sso_auth_codes ADD CONSTRAINT sso_auth_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE system_suspension_settings ADD CONSTRAINT system_suspension_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE ttm_index_global_cache ADD CONSTRAINT ttm_index_global_cache_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
 ALTER TABLE ttm_policy_configs ADD CONSTRAINT ttm_policy_configs_policy_set_fkey FOREIGN KEY (policy_set) REFERENCES ttm_policy_sets(key);
 ALTER TABLE ttm_project_configs ADD CONSTRAINT ttm_project_configs_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
@@ -1239,7 +1253,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 125 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 128 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1366,7 +1380,10 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261117_add_early_start_rule.sql'),
     ('20261118_create_ttm_early_start_cache.sql'),
     ('20261119_create_news_letter.sql'),
-    ('20261120_news_letter_view_only_permission.sql');
+    ('20261120_news_letter_view_only_permission.sql'),
+    ('20261121_news_letter_view_count.sql'),
+    ('20261122_auth_sessions_view_as.sql'),
+    ('20261123_system_suspension_settings.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1654,7 +1671,7 @@ WHERE current_setting('ttm_install.seed_data', true) = 'on';
 -- derived_cache_refresh_lock (1 dòng)
 INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 SELECT * FROM (VALUES
-    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-05 18:28:34.862328+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-08 02:31:34.763016+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
 ) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 

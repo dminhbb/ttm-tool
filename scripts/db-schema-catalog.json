@@ -127,6 +127,7 @@
         "jira_settings",
         "data_retention_configs",
         "dashboard_view_settings",
+        "system_suspension_settings",
         "schema_migrations"
       ]
     },
@@ -463,6 +464,12 @@
     "dashboard_view_settings": {
       "description": "<strong>Mới 14/10/2026.</strong> Công tắc \"Dashboard Lead view cho tất cả user\" (<code>lead_view_for_all_users</code>, mặc định bật) — Quản trị hệ thống → Dashboard, mục 21.9.",
       "columns": {}
+    },
+    "system_suspension_settings": {
+      "description": "<strong>Mới 08/11/2026.</strong> \"Tạm dừng hệ thống\" (Quản trị hệ thống → Tạm dừng hệ thống, SUPERADMIN, một dòng <code>id = 1</code>): công tắc <code>is_suspended</code>, nội dung trang toàn màn hình <code>/suspended</code> (<code>message_html</code>, đã lọc an toàn trước khi lưu), ngoại lệ <code>allow_news_letter</code> (Bản tin) và <code>allow_mcp</code> (MCP Server). Mỗi lần lưu ghi một dòng <code>audit_logs</code> (SYSTEM_SUSPEND / SYSTEM_RESUME / SYSTEM_SUSPENSION_UPDATE).",
+      "columns": {
+        "suspended_at": "Thời điểm bắt đầu đợt tạm dừng đang có hiệu lực; NULL khi hệ thống hoạt động bình thường."
+      }
     },
     "schema_migrations": {
       "description": "Sổ theo dõi migration: mỗi file <code>db/migrations/*.sql</code> đã chạy là một dòng (<code>filename</code>, <code>applied_at</code>). Do <code>scripts/migrate-db.js</code> tự tạo và ghi; file cài đặt <code>db/install/ttm-monitor-schema.sql</code> ghi sẵn toàn bộ migration đã có để DB mới chỉ nhận migration phát sinh sau.",

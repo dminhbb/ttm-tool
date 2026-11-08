@@ -3,6 +3,8 @@ import { getCurrentUser, renewCurrentSessionIfDue, sessionCookieOptions, updateU
 import { screenRenewsSession } from '@/lib/session-policy';
 import { isBadgeDesignStyle } from '@/lib/badge-design';
 import { getViewDeniedFeatureKeys } from '@/lib/permission-matrix-service';
+import { isSuspensionExempt } from '@/lib/system-suspension';
+import { getSystemSuspension } from '@/lib/system-suspension-service';
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,7 +17,11 @@ export async function GET(request: NextRequest) {
       console.error('Permission matrix lookup failed:', error);
       return [] as string[];
     });
-    const response = NextResponse.json({ hiddenFeatureKeys, user });
+    // "Tạm dừng hệ thống": the left panel keeps only "Bản tin" + the avatar menu for a user below SUPERADMIN; a SUPERADMIN
+    // gets a reminder strip that the pause is on.
+    const suspension = await getSystemSuspension();
+    const systemSuspension = suspension.isSuspended ? { restricted: !isSuspensionExempt(user) } : null;
+    const response = NextResponse.json({ hiddenFeatureKeys, systemSuspension, user });
     // AppShell calls this on every screen change with ?path=<screen>. Opening one of the renewing screens with less than
     // 30 minutes left extends the session (DB + cookie) — session-policy.ts. A renewal problem never breaks the screen.
     if (screenRenewsSession(request.nextUrl.searchParams.get('path'), user.role)) {

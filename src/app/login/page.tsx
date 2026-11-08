@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { FormEvent, Suspense, useState } from 'react';
+import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { Eye, EyeSlash, LockSimpleOpen, ShieldStar } from '@phosphor-icons/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Alert } from '@/components/ui/Alert';
@@ -13,6 +13,7 @@ import { Select } from '@/components/ui/Select';
 import { SystemStatusFooter } from '@/components/layout/SystemStatusFooter';
 import { applyBadgeDesignStyle, isBadgeDesignStyle, readStoredBadgeDesignStyle } from '@/lib/badge-design';
 import { PASSWORD_REQUIREMENTS_GUIDE, validatePassword } from '@/lib/password-rules';
+import { SUSPENDED_PATH, SYSTEM_SUSPENDED_CODE, type PublicSystemSuspension } from '@/lib/system-suspension';
 
 type ModalMode = 'forgot' | 'register' | null;
 type RegistrationDomain = { id: number; domainCode: string; domainName: string };
@@ -60,6 +61,19 @@ function LoginForm() {
   const [loginCaptchaId, setLoginCaptchaId] = useState('');
   const [loginCaptcha, setLoginCaptcha] = useState('');
   const [loginImage, setLoginImage] = useState<string | undefined>();
+  // "Tạm dừng hệ thống": only administrators sign in normally; sign-up / forgotten password are closed meanwhile.
+  const [suspension, setSuspension] = useState<Pick<PublicSystemSuspension, 'allowNewsLetter'> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/system/suspension', { cache: 'no-store' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: Partial<PublicSystemSuspension> | null) => {
+        if (!cancelled && data?.isSuspended) setSuspension({ allowNewsLetter: Boolean(data.allowNewsLetter) });
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
 
   const loadLoginCaptcha = async () => {
     const response = await fetch('/api/auth/captcha', { cache: 'no-store' });
@@ -95,6 +109,10 @@ function LoginForm() {
     const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (response.ok) {
       const payload: unknown = await response.json().catch(() => null);
+      // Below SUPERADMIN while the system is suspended: "Bản tin" is the only screen left.
+      const landingPath = typeof payload === 'object' && payload !== null && 'landingPath' in payload && typeof payload.landingPath === 'string' && payload.landingPath.startsWith('/') && !payload.landingPath.startsWith('//')
+        ? payload.landingPath
+        : null;
       if (typeof payload === 'object' && payload !== null && 'user' in payload && typeof payload.user === 'object' && payload.user !== null) {
         const userEmail = 'email' in payload.user && typeof payload.user.email === 'string' ? payload.user.email : null;
         const style = 'badgeDesignStyle' in payload.user && isBadgeDesignStyle(payload.user.badgeDesignStyle)
@@ -102,11 +120,19 @@ function LoginForm() {
           : readStoredBadgeDesignStyle(userEmail);
         applyBadgeDesignStyle(style, userEmail);
       }
-      router.replace(nextPath);
+      router.replace(landingPath ?? nextPath);
       router.refresh();
       return;
     }
     const data: unknown = await response.json().catch(() => null);
+    if (typeof data === 'object' && data !== null && 'code' in data && data.code === SYSTEM_SUSPENDED_CODE) {
+      // Below SUPERADMIN and "Bản tin" is not an exception: say so, then back to the full-screen page.
+      setNotice('error' in data && typeof data.error === 'string' ? data.error : 'Hệ thống đang tạm dừng!');
+      setIsError(true);
+      setErrorNonce((value) => value + 1);
+      window.setTimeout(() => router.replace(SUSPENDED_PATH), 2500);
+      return;
+    }
     const errorText = typeof data === 'object' && data !== null && 'error' in data && typeof data.error === 'string' ? data.error : 'Sai username hoặc mật khẩu.';
     const warningText = typeof data === 'object' && data !== null && 'warning' in data && typeof data.warning === 'string' ? data.warning : '';
     const nextRequiresCaptcha = typeof data === 'object' && data !== null && 'requiresCaptcha' in data && data.requiresCaptcha === true;
@@ -150,5 +176,5 @@ function LoginForm() {
     setIsError(false);
   };
 
-  return <main className="flex min-h-[100dvh] flex-col bg-fb-bg"><div className="grid flex-1 place-items-center p-4"><Card className="w-full max-w-md"><CardHeader><div><CardTitle className="flex items-center gap-2"><ShieldStar className="size-5 shrink-0 text-fb-primary" weight="bold" /><span>Đăng nhập TTM Monitor</span></CardTitle><p className="mt-1 text-fb-text-secondary">Phòng QLDA-TKTN, Trung tâm ĐBCL</p></div></CardHeader><CardBody><form className="flex flex-col gap-4" onSubmit={submit}>{notice && <div key={errorNonce} className={isError ? 'shake-once' : undefined}><Alert className={isError ? 'border-[#FFB6C1] bg-[#FFC0CB] text-[#8B4513]' : undefined} title={isError ? 'Thông báo lỗi' : 'Thông báo'} variant={isError ? 'error' : 'info'}>{notice}</Alert></div>}<Input label="Username" onChange={(event) => setUsername(event.target.value)} required value={username} /><div className="relative"><Input className="pr-10" label="Mật khẩu" onChange={(event) => setPassword(event.target.value)} required type={showPassword ? 'text' : 'password'} value={password} /><button aria-label="Hiện hoặc ẩn mật khẩu" className="absolute right-3 top-9" onClick={() => setShowPassword(!showPassword)} type="button">{showPassword ? <EyeSlash /> : <Eye />}</button></div>{loginRequiresCaptcha && <div className="flex flex-col gap-2"><div className="flex items-end gap-3">{loginImage ? <img alt="CAPTCHA phân biệt chữ hoa, chữ thường" className="h-[52px] w-[190px] rounded border border-fb-border" src={loginImage} /> : <div aria-label="Đang tải CAPTCHA" className="h-[52px] w-[190px] rounded border border-fb-border bg-fb-surface-muted" />}<Button onClick={() => void loadLoginCaptcha()} type="button" variant="outline">Đổi mã</Button></div><Input label="Nhập mã CAPTCHA" onChange={(event) => setLoginCaptcha(event.target.value)} required value={loginCaptcha} /></div>}<label className="ui-check"><input checked={remember} onChange={(event) => setRemember(event.target.checked)} type="checkbox" />Ghi nhớ đăng nhập (24 giờ)</label><Button icon={<LockSimpleOpen className="size-4" weight="bold" />} type="submit">Đăng nhập</Button><div className="flex justify-between"><button className="text-fb-blue" onClick={() => open('forgot')} type="button">Quên mật khẩu?</button><button className="text-fb-blue" onClick={() => open('register')} type="button">Đăng ký account</button></div></form></CardBody></Card></div><Modal isOpen={mode !== null} onClose={() => setMode(null)} title={mode === 'register' ? 'Đăng ký account' : 'Quên mật khẩu'} footer={<><Button onClick={() => setMode(null)} variant="outline">Hủy</Button><Button onClick={send}>Gửi</Button></>}>{notice && <Alert className={isError ? 'border-[#FFB6C1] bg-[#FFC0CB] text-[#8B4513]' : undefined} title={isError ? 'Thông báo lỗi' : 'Thông báo'} variant={isError ? 'error' : 'info'}>{notice}</Alert>}<div className="mt-4 flex flex-col gap-4">{mode === 'register' && <><Input label="Họ tên" onChange={(event) => setName(event.target.value)} required value={name} /><div className="relative"><Input className="pr-10" helperText={PASSWORD_REQUIREMENTS_GUIDE} label="Mật khẩu" onChange={(event) => setNewPassword(event.target.value)} required type={showNewPassword ? 'text' : 'password'} value={newPassword} /><button aria-label="Hiện hoặc ẩn mật khẩu" className="absolute right-3 top-9" onClick={() => setShowNewPassword(!showNewPassword)} type="button">{showNewPassword ? <EyeSlash /> : <Eye />}</button></div><div className="relative"><Input className="pr-10" label="Nhập lại mật khẩu" onChange={(event) => setConfirmPassword(event.target.value)} required type={showConfirmPassword ? 'text' : 'password'} value={confirmPassword} /><button aria-label="Hiện hoặc ẩn mật khẩu" className="absolute right-3 top-9" onClick={() => setShowConfirmPassword(!showConfirmPassword)} type="button">{showConfirmPassword ? <EyeSlash /> : <Eye />}</button></div><Select label="Domain" onChange={(event) => setDomainId(event.target.value)} options={[{ value: '', label: domains.length ? 'Chọn Domain' : 'Chưa có Domain hoạt động' }, ...domains.map((domain) => ({ value: String(domain.id), label: `${domain.domainCode} — ${domain.domainName}` }))]} required value={domainId} /></>}<Input label="Email" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} /><div className="flex items-end gap-3">{image ? <img alt="CAPTCHA phân biệt chữ hoa, chữ thường" className="h-[52px] w-[190px] rounded border border-fb-border" src={image} /> : <div aria-label="Đang tải CAPTCHA" className="h-[52px] w-[190px] rounded border border-fb-border bg-fb-surface-muted" />}<Button onClick={() => void loadCaptcha()} type="button" variant="outline">Đổi mã</Button></div><Input label="Nhập mã CAPTCHA" onChange={(event) => setCaptcha(event.target.value)} required value={captcha} /></div></Modal><SystemStatusFooter /></main>;
+  return <main className="flex min-h-[100dvh] flex-col bg-fb-bg"><div className="grid flex-1 place-items-center p-4"><Card className="w-full max-w-md"><CardHeader><div><CardTitle className="flex items-center gap-2"><ShieldStar className="size-5 shrink-0 text-fb-primary" weight="bold" /><span>Đăng nhập TTM Monitor</span></CardTitle><p className="mt-1 text-fb-text-secondary">Phòng QLDA-TKTN, Trung tâm ĐBCL</p></div></CardHeader><CardBody><form className="flex flex-col gap-4" onSubmit={submit}>{suspension && <Alert title="Hệ thống đang tạm dừng" variant="warning">{suspension.allowNewsLetter ? 'Quản trị viên đăng nhập để sử dụng đầy đủ; người dùng khác chỉ xem được Bản tin.' : 'Chỉ Quản trị viên đăng nhập được trong thời gian này.'} <a className="font-semibold text-fb-blue underline underline-offset-2" href={SUSPENDED_PATH}>Quay lại trang thông báo</a></Alert>}{notice && <div key={errorNonce} className={isError ? 'shake-once' : undefined}><Alert className={isError ? 'border-[#FFB6C1] bg-[#FFC0CB] text-[#8B4513]' : undefined} title={isError ? 'Thông báo lỗi' : 'Thông báo'} variant={isError ? 'error' : 'info'}>{notice}</Alert></div>}<Input label="Username" onChange={(event) => setUsername(event.target.value)} required value={username} /><div className="relative"><Input className="pr-10" label="Mật khẩu" onChange={(event) => setPassword(event.target.value)} required type={showPassword ? 'text' : 'password'} value={password} /><button aria-label="Hiện hoặc ẩn mật khẩu" className="absolute right-3 top-9" onClick={() => setShowPassword(!showPassword)} type="button">{showPassword ? <EyeSlash /> : <Eye />}</button></div>{loginRequiresCaptcha && <div className="flex flex-col gap-2"><div className="flex items-end gap-3">{loginImage ? <img alt="CAPTCHA phân biệt chữ hoa, chữ thường" className="h-[52px] w-[190px] rounded border border-fb-border" src={loginImage} /> : <div aria-label="Đang tải CAPTCHA" className="h-[52px] w-[190px] rounded border border-fb-border bg-fb-surface-muted" />}<Button onClick={() => void loadLoginCaptcha()} type="button" variant="outline">Đổi mã</Button></div><Input label="Nhập mã CAPTCHA" onChange={(event) => setLoginCaptcha(event.target.value)} required value={loginCaptcha} /></div>}<label className="ui-check"><input checked={remember} onChange={(event) => setRemember(event.target.checked)} type="checkbox" />Ghi nhớ đăng nhập (24 giờ)</label><Button icon={<LockSimpleOpen className="size-4" weight="bold" />} type="submit">Đăng nhập</Button>{!suspension && <div className="flex justify-between"><button className="text-fb-blue" onClick={() => open('forgot')} type="button">Quên mật khẩu?</button><button className="text-fb-blue" onClick={() => open('register')} type="button">Đăng ký account</button></div>}</form></CardBody></Card></div><Modal isOpen={mode !== null} onClose={() => setMode(null)} title={mode === 'register' ? 'Đăng ký account' : 'Quên mật khẩu'} footer={<><Button onClick={() => setMode(null)} variant="outline">Hủy</Button><Button onClick={send}>Gửi</Button></>}>{notice && <Alert className={isError ? 'border-[#FFB6C1] bg-[#FFC0CB] text-[#8B4513]' : undefined} title={isError ? 'Thông báo lỗi' : 'Thông báo'} variant={isError ? 'error' : 'info'}>{notice}</Alert>}<div className="mt-4 flex flex-col gap-4">{mode === 'register' && <><Input label="Họ tên" onChange={(event) => setName(event.target.value)} required value={name} /><div className="relative"><Input className="pr-10" helperText={PASSWORD_REQUIREMENTS_GUIDE} label="Mật khẩu" onChange={(event) => setNewPassword(event.target.value)} required type={showNewPassword ? 'text' : 'password'} value={newPassword} /><button aria-label="Hiện hoặc ẩn mật khẩu" className="absolute right-3 top-9" onClick={() => setShowNewPassword(!showNewPassword)} type="button">{showNewPassword ? <EyeSlash /> : <Eye />}</button></div><div className="relative"><Input className="pr-10" label="Nhập lại mật khẩu" onChange={(event) => setConfirmPassword(event.target.value)} required type={showConfirmPassword ? 'text' : 'password'} value={confirmPassword} /><button aria-label="Hiện hoặc ẩn mật khẩu" className="absolute right-3 top-9" onClick={() => setShowConfirmPassword(!showConfirmPassword)} type="button">{showConfirmPassword ? <EyeSlash /> : <Eye />}</button></div><Select label="Domain" onChange={(event) => setDomainId(event.target.value)} options={[{ value: '', label: domains.length ? 'Chọn Domain' : 'Chưa có Domain hoạt động' }, ...domains.map((domain) => ({ value: String(domain.id), label: `${domain.domainCode} — ${domain.domainName}` }))]} required value={domainId} /></>}<Input label="Email" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} /><div className="flex items-end gap-3">{image ? <img alt="CAPTCHA phân biệt chữ hoa, chữ thường" className="h-[52px] w-[190px] rounded border border-fb-border" src={image} /> : <div aria-label="Đang tải CAPTCHA" className="h-[52px] w-[190px] rounded border border-fb-border bg-fb-surface-muted" />}<Button onClick={() => void loadCaptcha()} type="button" variant="outline">Đổi mã</Button></div><Input label="Nhập mã CAPTCHA" onChange={(event) => setCaptcha(event.target.value)} required value={captcha} /></div></Modal><SystemStatusFooter /></main>;
 }

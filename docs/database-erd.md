@@ -1,10 +1,10 @@
 # TTM Monitor — ERD & từ điển dữ liệu
 
-> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-06.
+> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-08.
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
-**76 bảng** trong schema `public`, **66 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
+**77 bảng** trong schema `public`, **68 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
 
 ## Mục lục
 
@@ -16,7 +16,7 @@
 6. [Epic Scoring Service](#6-epic-scoring-service) — 5 bảng
 7. [Lịch sử & snapshot](#7-lịch-sử-snapshot) — 1 bảng
 8. [Cache dữ liệu dẫn xuất](#8-cache-dữ-liệu-dẫn-xuất) — 9 bảng
-9. [Cấu hình hệ thống](#9-cấu-hình-hệ-thống) — 4 bảng
+9. [Cấu hình hệ thống](#9-cấu-hình-hệ-thống) — 5 bảng
 10. [Popup & Banner thông báo](#10-popup-banner-thông-báo) — 3 bảng
 11. [Bản tin](#11-bản-tin) — 5 bảng
 12. [SSO, API Key & MCP Server](#12-sso-api-key-mcp-server) — 7 bảng
@@ -81,6 +81,7 @@ erDiagram
         timestamptz expires_at
         timestamptz created_at
         boolean remember
+        int view_as_user_id FK
     }
     password_reset_requests {
         int id PK
@@ -127,6 +128,7 @@ erDiagram
     users |o--o{ user_view_settings : "updated_by_user_id"
     users ||--o| user_view_settings : "user_id"
     users ||--o{ auth_sessions : "user_id"
+    users |o--o{ auth_sessions : "view_as_user_id"
     users |o--o{ password_reset_requests : "resolved_by"
     permission_features ||--o{ role_feature_permissions : "feature_key"
     users ||--o{ user_registration_reads : "reader_user_id"
@@ -242,6 +244,7 @@ Quản lý phiên đăng nhập active bằng cookie HTTP-only (băm SHA-256).
 | `expires_at` | timestamptz | không |  |  | `TIMESTAMP WITH TIME ZONE`DEFAULT CURRENT_TIMESTAMP |
 | `created_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
 | `remember` | boolean | không | false |  |  |
+| `view_as_user_id` | int | có |  | FK → users(id) |  |
 
 - index `idx_auth_sessions_user_expiry`: btree (user_id, expires_at)
 
@@ -1661,6 +1664,16 @@ erDiagram
         int updated_by_user_id FK
         timestamptz updated_at
     }
+    system_suspension_settings {
+        smallint id PK
+        boolean is_suspended
+        text message_html
+        boolean allow_news_letter
+        boolean allow_mcp
+        timestamptz suspended_at
+        int updated_by_user_id FK
+        timestamptz updated_at
+    }
     schema_migrations {
         varchar filename PK
         timestamptz applied_at
@@ -1670,6 +1683,7 @@ erDiagram
     }
     users |o--o{ data_retention_configs : "history_thinning_updated_by_user_id"
     users |o--o{ dashboard_view_settings : "updated_by_user_id"
+    users |o--o{ system_suspension_settings : "updated_by_user_id"
 ```
 
 Bảng tham chiếu ngoài nhóm (chỉ vẽ khoá chính): `users`.
@@ -1721,6 +1735,23 @@ Hai bảng cấu hình singleton lưu Cấu hình tích hợp Jira và số ngà
 | `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 
 - `dashboard_view_settings_id_check`: CHECK ((id = 1))
+
+### `system_suspension_settings`
+
+**Mới 08/11/2026.** "Tạm dừng hệ thống" (Quản trị hệ thống → Tạm dừng hệ thống, SUPERADMIN, một dòng `id = 1`): công tắc `is_suspended`, nội dung trang toàn màn hình `/suspended` (`message_html`, đã lọc an toàn trước khi lưu), ngoại lệ `allow_news_letter` (Bản tin) và `allow_mcp` (MCP Server). Mỗi lần lưu ghi một dòng `audit_logs` (SYSTEM_SUSPEND / SYSTEM_RESUME / SYSTEM_SUSPENSION_UPDATE).
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `id` | smallint | không | 1 | PK |  |
+| `is_suspended` | boolean | không | false |  |  |
+| `message_html` | text | không | ''::text |  |  |
+| `allow_news_letter` | boolean | không | false |  |  |
+| `allow_mcp` | boolean | không | false |  |  |
+| `suspended_at` | timestamptz | có |  |  | Thời điểm bắt đầu đợt tạm dừng đang có hiệu lực; NULL khi hệ thống hoạt động bình thường. |
+| `updated_by_user_id` | int | có |  | FK → users(id) |  |
+| `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+
+- `system_suspension_settings_id_check`: CHECK ((id = 1))
 
 ### `schema_migrations`
 
@@ -1857,6 +1888,7 @@ erDiagram
         timestamptz created_at
         int updated_by FK
         timestamptz updated_at
+        int view_count
     }
     news_letter_categories {
         int id PK
@@ -1923,6 +1955,7 @@ Bài viết của Bản tin (`/news-letter`, SUPERADMIN soạn): tiêu đề, t�
 | `created_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 | `updated_by` | int | có |  | FK → users(id) |  |
 | `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+| `view_count` | int | không | 0 |  |  |
 
 - index `idx_news_letter_articles_category`: btree (category_id)
 - index `idx_news_letter_articles_order`: btree (first_published_at DESC, id DESC)
@@ -2281,6 +2314,7 @@ Số lượt truy cập LŨY KẾ của các dòng `visit_logs` cũ hơn ngày T
 | `ad_popup_impressions` | user_id | `users`(id) | CASCADE |
 | `audit_logs` | user_id | `users`(id) | SET NULL |
 | `auth_sessions` | user_id | `users`(id) | CASCADE |
+| `auth_sessions` | view_as_user_id | `users`(id) | SET NULL |
 | `black_listed_epics` | updated_by_user_id | `users`(id) | SET NULL |
 | `daily_cache_runs` | source_import_batch_id | `import_batches`(id) | SET NULL |
 | `daily_cache_runs` | triggered_by_user_id | `users`(id) | SET NULL |
@@ -2324,6 +2358,7 @@ Số lượt truy cập LŨY KẾ của các dòng `visit_logs` cũ hơn ngày T
 | `scoring_rule_settings` | updated_by_user_id | `users`(id) | SET NULL |
 | `sso_auth_codes` | api_key_id | `api_keys`(id) | CASCADE |
 | `sso_auth_codes` | user_id | `users`(id) | CASCADE |
+| `system_suspension_settings` | updated_by_user_id | `users`(id) | SET NULL |
 | `ttm_index_global_cache` | source_import_batch_id | `import_batches`(id) | SET NULL |
 | `ttm_policy_configs` | policy_set | `ttm_policy_sets`(key) | NO ACTION |
 | `ttm_project_configs` | project_id | `projects`(id) | CASCADE |

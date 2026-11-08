@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loginFailureLimitResponse, recordLoginFailure } from '@/lib/api-rate-limit';
 import { authenticateLocal, createSession, sessionCookieOptions } from '@/modules/iam/public';
+import { NEWS_LETTER_PATH, SYSTEM_SUSPENDED_CODE, SYSTEM_SUSPENDED_LOGIN_MESSAGE } from '@/lib/system-suspension';
+import { getSystemSuspension } from '@/lib/system-suspension-service';
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,8 +39,15 @@ export async function POST(request: NextRequest) {
       }, { status: 401 });
     }
     const user = authResult.user;
+    // "Tạm dừng hệ thống": below SUPERADMIN, sign-in only leads to "Bản tin" — and is refused (no session) when "Bản tin"
+    // is not an exception either. Read fresh: a pause just switched on must not let anyone slip in.
+    const suspension = await getSystemSuspension({ fresh: true });
+    const suspendedForUser = suspension.isSuspended && user.role !== 'SUPERADMIN';
+    if (suspendedForUser && !suspension.allowNewsLetter) {
+      return NextResponse.json({ error: SYSTEM_SUSPENDED_LOGIN_MESSAGE, code: SYSTEM_SUSPENDED_CODE }, { status: 503 });
+    }
     const session = await createSession(user.id, body.remember);
-    const response = NextResponse.json({ user });
+    const response = NextResponse.json(suspendedForUser ? { user, landingPath: NEWS_LETTER_PATH } : { user });
     response.cookies.set(sessionCookieOptions(session.token, session.expiresAt));
     return response;
   } catch (error: unknown) {

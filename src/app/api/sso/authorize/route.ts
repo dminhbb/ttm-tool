@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { authenticateLocal, getCurrentUser } from '@/lib/auth-service';
 import { generateAuthorizationCode, validateSsoClient } from '@/lib/sso-service';
+import { SYSTEM_SUSPENDED_CODE, SYSTEM_SUSPENDED_LOGIN_MESSAGE } from '@/lib/system-suspension';
+import { getSystemSuspension } from '@/lib/system-suspension-service';
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,11 +20,13 @@ export async function POST(request: NextRequest) {
     }
 
     let authenticatedUserId: number | null = null;
+    let authenticatedRole: string | null = null;
 
     if (confirmExistingSession) {
       const currentUser = await getCurrentUser(request);
       if (currentUser) {
         authenticatedUserId = currentUser.id;
+        authenticatedRole = currentUser.role;
       }
     }
 
@@ -39,6 +43,13 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: 'Tên đăng nhập hoặc mật khẩu không chính xác.' }, { status: 401 });
       }
       authenticatedUserId = authRes.user.id;
+      authenticatedRole = authRes.user.role;
+    }
+
+    // "Tạm dừng hệ thống": signing in to another application through this one is for SUPERADMIN only meanwhile.
+    const suspension = await getSystemSuspension({ fresh: true });
+    if (suspension.isSuspended && authenticatedRole !== 'SUPERADMIN') {
+      return NextResponse.json({ success: false, error: SYSTEM_SUSPENDED_LOGIN_MESSAGE, code: SYSTEM_SUSPENDED_CODE }, { status: 503 });
     }
 
     const code = await generateAuthorizationCode(validation.apiKey.id, authenticatedUserId, redirectUri);

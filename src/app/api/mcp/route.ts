@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { buildMcpServer } from '@/lib/mcp-server';
 import { getMcpSettings, verifyMcpAccessToken } from '@/lib/mcp-service';
+import { isSuspensionExempt, SYSTEM_SUSPENDED_CODE } from '@/lib/system-suspension';
+import { getSystemSuspension } from '@/lib/system-suspension-service';
 
 export const runtime = 'nodejs';
 
@@ -34,6 +36,12 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
   const resolved = await verifyMcpAccessToken(token);
   if (!resolved) {
     return unauthorized('Personal Access Token không hợp lệ hoặc đã bị thu hồi.', request);
+  }
+
+  // "Tạm dừng hệ thống": only a SUPERADMIN's token keeps working, unless the MCP exception is ticked.
+  const suspension = await getSystemSuspension();
+  if (suspension.isSuspended && !suspension.allowMcp && !isSuspensionExempt(resolved.user)) {
+    return NextResponse.json({ error: 'Hệ thống đang tạm dừng — MCP Server tạm thời không phục vụ tài khoản của bạn.', code: SYSTEM_SUSPENDED_CODE }, { status: 503 });
   }
 
   const server = buildMcpServer(resolved.user, resolved.tokenId);

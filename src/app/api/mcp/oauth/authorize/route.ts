@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth-service';
+import { isSuspensionExempt } from '@/lib/system-suspension';
+import { getSystemSuspension } from '@/lib/system-suspension-service';
 import { resolveOAuthClient } from '@/lib/mcp-oauth-service';
 
 function escapeHtml(value: string): string {
@@ -86,6 +88,10 @@ export async function GET(request: NextRequest) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('next', `${request.nextUrl.pathname}${request.nextUrl.search}`);
     return NextResponse.redirect(loginUrl);
+  }
+  const suspension = await getSystemSuspension();
+  if (suspension.isSuspended && !suspension.allowMcp && !isSuspensionExempt(user)) {
+    return errorPage('Hệ thống đang tạm dừng', 'Trong thời gian tạm dừng, kết nối MCP chỉ mở cho Quản trị viên.');
   }
 
   return consentPage({

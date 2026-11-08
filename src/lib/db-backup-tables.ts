@@ -146,6 +146,8 @@ export const SMART_EXCLUDED_TABLES: readonly string[] = [
   'password_reset_requests',
   'schema_migrations',
   'sso_auth_codes',
+  // "Tạm dừng hệ thống" is the running state of THIS environment: importing another one's pause could lock everybody out.
+  'system_suspension_settings',
   'ttm_dashboard_2_cache',
   'ttm_dashboard_trend_cache',
   'ttm_early_start_cache',

@@ -4,6 +4,8 @@ import { SESSION_COOKIE_NAME } from '@/lib/auth-constants';
 import { getCurrentUser } from '@/lib/auth-service';
 import { apiFeatureKey, fallbackPathFor, pageFeatureKey } from '@/lib/feature-access';
 import { getViewDeniedFeatureKeySet } from '@/lib/permission-matrix-service';
+import { isSuspensionExempt, suspensionAccessFor, SYSTEM_SUSPENDED_API_MESSAGE, SYSTEM_SUSPENDED_CODE } from '@/lib/system-suspension';
+import { getSystemSuspension } from '@/lib/system-suspension-service';
 import { isWriteBlockedInViewAs, VIEW_AS_BLOCKED_MESSAGE } from '@/lib/view-as';
 
 // '/api/data-source/import/auto' and '/api/mcp' are "public" only from this proxy's point of
@@ -23,7 +25,7 @@ import { isWriteBlockedInViewAs, VIEW_AS_BLOCKED_MESSAGE } from '@/lib/view-as';
 // OAuth client fetches before a user is ever involved.
 const PUBLIC_PATHS = [
   '/login', '/api/auth/login', '/api/auth/logout', '/api/auth/register', '/api/auth/captcha',
-  '/api/auth/registration-domains', '/api/password-reset-requests', '/api/system/status',
+  '/api/auth/registration-domains', '/api/password-reset-requests', '/api/system/status', '/api/system/suspension', '/suspended',
   '/api/data-source/import/auto', '/api/mcp',
   '/.well-known/oauth-authorization-server', '/.well-known/oauth-protected-resource',
   '/api/mcp/oauth/register', '/api/mcp/oauth/authorize', '/api/mcp/oauth/consent', '/api/mcp/oauth/token',
@@ -32,8 +34,25 @@ const PUBLIC_PATHS = [
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hasSessionCookie = Boolean(request.cookies.get(SESSION_COOKIE_NAME)?.value);
+  // "Tạm dừng hệ thống" (system-suspension.ts): checked before the public paths, since some of them (sign-up, password
+  // reset tickets) must close too. A SUPERADMIN (also in View as) is never stopped.
+  const suspension = await getSystemSuspension();
+  if (suspension.isSuspended) {
+    const sessionUser = hasSessionCookie ? await getCurrentUser(request) : null;
+    if (!isSuspensionExempt(sessionUser)) {
+      const access = suspensionAccessFor(pathname, { allowNewsLetter: suspension.allowNewsLetter, signedIn: Boolean(sessionUser) });
+      if (access.kind === 'api-blocked') return NextResponse.json({ error: SYSTEM_SUSPENDED_API_MESSAGE, code: SYSTEM_SUSPENDED_CODE }, { status: 503 });
+      if (access.kind === 'redirect') return NextResponse.redirect(new URL(access.to, request.url));
+    }
+    return continueRequest(request, pathname, sessionUser);
+  }
   if (PUBLIC_PATHS.includes(pathname)) return NextResponse.next();
-  const user = hasSessionCookie ? await getCurrentUser(request) : null;
+  return continueRequest(request, pathname, hasSessionCookie ? await getCurrentUser(request) : null);
+}
+
+/** The normal flow: public paths, sign-in, View as read-only, Ma trận phân quyền. */
+async function continueRequest(request: NextRequest, pathname: string, user: Awaited<ReturnType<typeof getCurrentUser>>): Promise<NextResponse> {
+  if (PUBLIC_PATHS.includes(pathname)) return NextResponse.next();
   if (user) {
     // "View as" is read-only: every API write is refused (view-as.ts lists the few that stay open).
     if (user.viewAs && isWriteBlockedInViewAs(request.method, pathname)) return NextResponse.json({ error: VIEW_AS_BLOCKED_MESSAGE, code: 'VIEW_AS_READ_ONLY' }, { status: 403 });
