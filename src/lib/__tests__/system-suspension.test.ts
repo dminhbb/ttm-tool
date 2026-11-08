@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { isSuspensionExempt, suspensionAccessFor } from '../system-suspension';
-import { sanitizeRichHtml } from '../rich-html-sanitizer';
+import { linkifyRichHtml, sanitizeRichHtml } from '../rich-html-sanitizer';
 
 const visitor = { allowNewsLetter: false, signedIn: false };
 const visitorWithNews = { allowNewsLetter: true, signedIn: false };
@@ -54,4 +54,19 @@ test('the message keeps clickable links (http, https, mailto) and nothing danger
   assert.match(html, /<a href="mailto:it@mbbank.com.vn" target="_blank" rel="noopener noreferrer nofollow">IT<\/a>/);
   assert.match(html, /<a href="https:\/\/a.vn" target="_blank"/);
   assert.doesNotMatch(html, /javascript|script|onclick|<img/);
+});
+
+test('addresses still written as plain text become links (web → https, e-mail → mailto), safely', () => {
+  const html = linkifyRichHtml('<p>Xem https://status.mbbank.com.vn hoặc www.mbbank.com.vn, email hotro@mbbank.com.vn. Lúc 22h00, bản 1.2.3</p>');
+  assert.match(html, /<a href="https:\/\/status.mbbank.com.vn" target="_blank" rel="noopener noreferrer nofollow">https:\/\/status.mbbank.com.vn<\/a>/);
+  assert.match(html, /<a href="https:\/\/www.mbbank.com.vn" target="_blank"[^>]*>www.mbbank.com.vn<\/a>,/);
+  assert.match(html, /<a href="mailto:hotro@mbbank.com.vn" target="_blank"[^>]*>hotro@mbbank.com.vn<\/a>\./);
+  assert.equal((html.match(/<a /g) ?? []).length, 3);
+  // Existing links and code are left as they are; text never escapes into markup.
+  const kept = linkifyRichHtml('<p><a href="mailto:a@mbbank.com.vn">a@mbbank.com.vn</a> <code>x.vn</code> &lt;script&gt;alert(1)&lt;/script&gt; javascript:alert(1) https://a.vn/"onclick=x</p>');
+  assert.equal((kept.match(/<a /g) ?? []).length, 2);
+  assert.match(kept, /<code>x.vn<\/code>/);
+  assert.match(kept, /&lt;script&gt;/);
+  assert.match(kept, /href="https:\/\/a.vn\/&quot;onclick=x"/);
+  assert.doesNotMatch(kept, /href="javascript/);
 });

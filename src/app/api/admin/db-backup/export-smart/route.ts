@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser, verifyUserPassword } from '@/lib/auth-service';
 import { exportSmartSurfaceToSql } from '@/lib/db-backup-service';
+import { DEFAULT_SMART_EXPORT_SCOPE, isSmartExportScope } from '@/lib/db-backup-tables';
 import { withSlowLog } from '@/lib/slow-operation';
 
 // Reads every surface issue plus ~45 config tables of a large database — same budget as ./import.
@@ -23,7 +24,10 @@ export async function POST(request: NextRequest) {
     if (typeof body !== 'object' || body === null) {
       return NextResponse.json({ error: 'Dữ liệu không hợp lệ.' }, { status: 400 });
     }
-    const { layerDate, includeSchema, password } = body as Record<string, unknown>;
+    const { layerDate, includeSchema, password, scope } = body as Record<string, unknown>;
+    if (scope !== undefined && !isSmartExportScope(scope)) {
+      return NextResponse.json({ error: 'Phạm vi Smart export không hợp lệ.' }, { status: 400 });
+    }
     // The file carries every user with their password hash: the signed-in SUPERADMIN confirms with their own password.
     if (typeof password !== 'string' || !password) {
       return NextResponse.json({ error: 'Vui lòng nhập mật khẩu để xác nhận export.' }, { status: 400 });
@@ -38,6 +42,7 @@ export async function POST(request: NextRequest) {
     const sql = await withSlowLog('Smart export', () => exportSmartSurfaceToSql({
       layerDate,
       includeSchema: includeSchema === true,
+      scope: isSmartExportScope(scope) ? scope : DEFAULT_SMART_EXPORT_SCOPE,
     }));
     const fileName = `ttm-monitor-smart-export-${layerDate}.sql`;
 

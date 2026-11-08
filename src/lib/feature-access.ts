@@ -70,6 +70,9 @@ export const MCP_TOOL_FEATURES = {
   list_projects: { featureKeys: ['projects'], screen: 'Quản lý Dự án' },
   list_report_filters: { featureKeys: ['epic_reports'], screen: 'Báo cáo Epic' },
   search_product_docs: { featureKeys: ['product_docs'], screen: 'Tài liệu sản phẩm' },
+  // "Bản tin" (2026-11-08): only with the hashtag #bantin, never the folder "Thông báo từ hệ thống" (news-letter/mcp-rules.ts).
+  get_news_letter_article: { featureKeys: ['news_letter'], screen: 'Bản tin' },
+  search_news_letters: { featureKeys: ['news_letter'], screen: 'Bản tin' },
 } as const satisfies Record<string, { featureKeys: readonly string[]; screen: string }>;
 
 export type McpToolName = keyof typeof MCP_TOOL_FEATURES;

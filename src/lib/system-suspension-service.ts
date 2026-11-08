@@ -1,6 +1,6 @@
 import 'server-only';
 import pool, { getClient } from '@/lib/db';
-import { richHtmlToText, sanitizeRichHtml } from '@/lib/rich-html-sanitizer';
+import { linkifyRichHtml, richHtmlToText } from '@/lib/rich-html-sanitizer';
 import { NOT_SUSPENDED, SUSPENSION_MESSAGE_MAX_LENGTH, type SystemSuspensionState } from '@/lib/system-suspension';
 
 /**
@@ -40,10 +40,13 @@ export interface SystemSuspensionInput {
 
 export class SuspensionMessageError extends Error {}
 
-/** Sanitized message (links: http / https / mailto only, opened in a new tab), '' when it has no text. */
+/**
+ * Sanitized message (links: http / https / mailto only, opened in a new tab; addresses still written as plain text are
+ * turned into links too), '' when it has no text.
+ */
 export function cleanSuspensionMessage(html: string): string {
   if (html.length > SUSPENSION_MESSAGE_MAX_LENGTH) throw new SuspensionMessageError(`Nội dung quá dài (tối đa ${SUSPENSION_MESSAGE_MAX_LENGTH.toLocaleString('vi-VN')} ký tự HTML).`);
-  const clean = sanitizeRichHtml(html);
+  const clean = linkifyRichHtml(html);
   if (clean.length > SUSPENSION_MESSAGE_MAX_LENGTH) throw new SuspensionMessageError('Nội dung quá dài.');
   return richHtmlToText(clean) ? clean : '';
 }

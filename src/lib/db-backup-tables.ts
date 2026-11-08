@@ -50,6 +50,7 @@ export const EXPORTABLE_TABLES: { label: string; tableName: string }[] = [
   { label: 'Đăng ký tài khoản — đã đọc', tableName: 'user_registration_reads' },
   { label: 'Lịch sử Epic Fail theo ngày', tableName: 'ttm_dashboard_fail_history' },
   { label: 'Lịch sử chỉ số TTM theo ngày', tableName: 'ttm_dashboard_metric_history' },
+  { label: 'Cache xu hướng TTM', tableName: 'ttm_dashboard_trend_cache' },
   { label: 'Loại dự án (PMS)', tableName: 'project_types' },
   { label: 'Loại dự án — năng lực (PMS)', tableName: 'project_type_capabilities' },
   { label: 'Dự án — thành viên (PMS)', tableName: 'project_members' },
@@ -117,6 +118,7 @@ export const SMART_CONFIG_TABLES: readonly string[] = [
   'user_registration_reads',
   'ttm_dashboard_fail_history',
   'ttm_dashboard_metric_history',
+  'ttm_dashboard_trend_cache',
   'project_types',
   'project_type_capabilities',
   'project_members',
@@ -149,13 +151,54 @@ export const SMART_EXCLUDED_TABLES: readonly string[] = [
   // "Tạm dừng hệ thống" is the running state of THIS environment: importing another one's pause could lock everybody out.
   'system_suspension_settings',
   'ttm_dashboard_2_cache',
-  'ttm_dashboard_trend_cache',
   'ttm_early_start_cache',
   'ttm_index_global_cache',
   'user_usage_daily_stats',
   'visit_log_rollups',
   'visit_logs',
 ];
+
+/**
+ * Tables of the catalog group "Xác thực & phân quyền" (scripts/db-schema-catalog.json, group `auth`) — the Smart export
+ * scope "SURFACE_AND_DATA" leaves them out (tested against the catalog). Only those the Smart export would carry matter.
+ */
+export const SMART_AUTH_GROUP_TABLES: readonly string[] = [
+  'users',
+  'user_domains',
+  'user_projects',
+  'user_project_components',
+  'user_view_projects',
+  'user_view_project_components',
+  'user_view_epics',
+  'user_view_settings',
+  'auth_sessions',
+  'password_reset_requests',
+  'permission_features',
+  'role_feature_permissions',
+  'user_registration_reads',
+];
+
+/**
+ * "Phạm vi Smart export" (owner 2026-11-08):
+ *  - SURFACE_ONLY     — only the Epic/Story/Subtask surface data layer (import_batches + issues);
+ *  - SURFACE_AND_DATA — surface layer + every other Smart table except the "Xác thực & phân quyền" group;
+ *  - ALL              — surface layer + every other Smart table (the former behaviour).
+ */
+export type SmartExportScope = 'SURFACE_ONLY' | 'SURFACE_AND_DATA' | 'ALL';
+export const SMART_EXPORT_SCOPES: readonly SmartExportScope[] = ['SURFACE_ONLY', 'SURFACE_AND_DATA', 'ALL'];
+export const DEFAULT_SMART_EXPORT_SCOPE: SmartExportScope = 'SURFACE_ONLY';
+
+export function isSmartExportScope(value: unknown): value is SmartExportScope {
+  return typeof value === 'string' && (SMART_EXPORT_SCOPES as readonly string[]).includes(value);
+}
+
+/** The tables besides import_batches / issues that a Smart export of this scope carries. */
+export function smartTablesForScope(scope: SmartExportScope): string[] {
+  if (scope === 'SURFACE_ONLY') return [];
+  if (scope === 'ALL') return [...SMART_CONFIG_TABLES];
+  const auth = new Set(SMART_AUTH_GROUP_TABLES);
+  return SMART_CONFIG_TABLES.filter((table) => !auth.has(table));
+}
 
 /**
  * Tables that hold a login of one environment (user_id of a session / token / code). A Smart import rewrites `users`

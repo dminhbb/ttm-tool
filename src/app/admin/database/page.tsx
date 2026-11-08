@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArrowsClockwise, CloudArrowDown, CloudArrowUp, ListBullets, LockKey, Trash, Warning } from '@phosphor-icons/react';
 import { confirmDialog } from '@/components/ui/dialogs';
 import { Alert } from '@/components/ui/Alert';
@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import type { BackupTableInfo, ImportResult } from '@/lib/db-backup-types';
 import type { ImportPreview } from '@/lib/db-backup-service';
 import type { CleanupPreview } from '@/lib/db-cleanup-service';
+import { DEFAULT_SMART_EXPORT_SCOPE, type SmartExportScope } from '@/lib/db-backup-tables';
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat('vi-VN').format(value);
@@ -34,6 +35,71 @@ function formatSize(bytes: number): string {
 }
 
 type BackupTab = 'smart' | 'info' | 'restore' | 'cleanup';
+
+interface SmartScopeOption {
+  description: ReactNode;
+  title: string;
+  value: SmartExportScope;
+}
+
+const SMART_SCOPE_OPTIONS: SmartScopeOption[] = [
+  {
+    description: (
+      <div className="flex flex-col gap-3 leading-relaxed">
+        <p>
+          Chỉ tổng hợp <strong>lớp dữ liệu bề mặt (Surface Data Layer)</strong> tính từ ngày mốc được chọn trở xuống (<code>aggregated_at::date &lt;= ngày chọn</code>) theo đúng 3 cấp:
+        </p>
+        <ul className="list-disc space-y-1.5 pl-5">
+          <li><strong>Epic:</strong> Danh sách toàn bộ Epic trong phạm vi từ ngày đã chọn trở về trước và chỉ lấy <strong>bản ghi mới nhất</strong> của từng Epic.</li>
+          <li><strong>Story của Epic:</strong> Toàn bộ Story thuộc các Epic trên (chỉ lấy bản ghi mới nhất tính đến ngày đã chọn).</li>
+          <li><strong>Subtask của Story / Epic:</strong> Toàn bộ Subtask thuộc các Story/Epic trên (chỉ lấy bản ghi mới nhất tính đến ngày đã chọn).</li>
+        </ul>
+        <div className="rounded-lg border border-fb-border bg-fb-surface-muted p-3 text-xs">
+          <strong>Lưu ý:</strong> File <strong>không chứa</strong> bất kỳ bảng cấu hình nào khác (không xuất user, mật khẩu, dự án, domain, bản tin...). Môi trường nhận chỉ nạp lớp dữ liệu Epic mới mà không làm thay đổi các bảng danh mục sẵn có.
+        </div>
+      </div>
+    ),
+    title: 'Chỉ dữ liệu tại surface data layer',
+    value: 'SURFACE_ONLY',
+  },
+  {
+    description: (
+      <div className="flex flex-col gap-3 leading-relaxed">
+        <p>
+          Lớp dữ liệu bề mặt (Surface Data Layer) kèm theo dữ liệu của các bảng cấu hình, nghiệp vụ, <strong>ngoại trừ</strong> các bảng thuộc nhóm <strong>&quot;Xác thực &amp; phân quyền&quot;</strong>:
+        </p>
+        <ul className="list-disc space-y-1.5 pl-5">
+          <li><strong>Được xuất:</strong> Domain, Dự án, Component, Tiêu chí &amp; Bộ ngân sách TTM, Phạm vi dữ liệu, Scoring Service &amp; Rule Management, Epic ngoại lệ / Từ chối import, Ngày nghỉ &amp; ngày làm bù, Rule cảnh báo, Ánh xạ Issue type, Cấu hình Jira, Popup quảng cáo, Banner thông tin, Bình luận / Trạng thái xử lý / Ẩn Epic, Lịch sử chỉ số TTM &amp; Cache xu hướng, Các bảng PMS, <strong>Bản tin (kèm ảnh)</strong>, Audit log.</li>
+          <li><strong>Không xuất:</strong> Toàn bộ nhóm Xác thực &amp; phân quyền gồm <strong>User (và password hash)</strong>, User ↔ Domain / Dự án / Component, Quyền xem, Ma trận phân quyền, Phiên đăng nhập, Yêu cầu cấp lại mật khẩu.</li>
+        </ul>
+        <div className="rounded-lg border border-fb-border bg-fb-surface-muted p-3 text-xs">
+          <strong>Lưu ý:</strong> User ở cơ sở dữ liệu đích được giữ nguyên vẹn 100%, không bị ghi đè tài khoản hay phiên đăng nhập.
+        </div>
+      </div>
+    ),
+    title: 'Dữ liệu tại surface data layer và các dữ liệu khác trừ các bảng thuộc nhóm \'Xác thực & phân quyền\'',
+    value: 'SURFACE_AND_DATA',
+  },
+  {
+    description: (
+      <div className="flex flex-col gap-3 leading-relaxed">
+        <p>
+          Lớp dữ liệu bề mặt (Surface Data Layer) kèm theo <strong>toàn bộ dữ liệu của tất cả các bảng còn lại</strong> trong hệ thống:
+        </p>
+        <ul className="list-disc space-y-1.5 pl-5">
+          <li><strong>Bao gồm nhóm Xác thực &amp; phân quyền:</strong> Danh sách <strong>User (kèm mật khẩu băm password hash)</strong>, Phân quyền Domain / Dự án / Component, Thiết lập quyền xem, Ma trận phân quyền theo role.</li>
+          <li><strong>Cùng toàn bộ các bảng nghiệp vụ:</strong> Bản tin (kèm ảnh), Audit log, Lịch sử chỉ số TTM &amp; Cache xu hướng, Danh mục dự án, Cấu hình Jira, Rules scoring...</li>
+          <li><em>Không xuất:</em> Phiên đăng nhập đang hoạt động, Token/API key, Nhật ký truy cập, Cấu hình MCP.</li>
+        </ul>
+        <div className="rounded-lg border border-status-warning/40 bg-status-warning/10 p-3 text-xs text-status-warning">
+          <strong>Cảnh báo bảo mật:</strong> File xuất ở chế độ này chứa toàn bộ user và mật khẩu đã băm (password hash). Khi import vào môi trường đích, danh sách user sẽ được đồng bộ theo file và các phiên đăng nhập khác sẽ bị đăng xuất.
+        </div>
+      </div>
+    ),
+    title: 'Dữ liệu surface data layer và toàn bộ dữ liệu các bảng còn lại',
+    value: 'ALL',
+  },
+];
 
 function todayIsoDate(): string {
   const now = new Date();
@@ -54,6 +120,8 @@ export default function DatabaseBackupPage() {
   const [layerDates, setLayerDates] = useState<string[]>([]);
   const [smartLayerDate, setSmartLayerDate] = useState(todayIsoDate);
   const [isSmartExporting, setIsSmartExporting] = useState(false);
+  const [smartScope, setSmartScope] = useState<SmartExportScope>(DEFAULT_SMART_EXPORT_SCOPE);
+  const selectedScopeOption = SMART_SCOPE_OPTIONS.find((option) => option.value === smartScope) ?? SMART_SCOPE_OPTIONS[0];
   // Smart export carries every user (password hashes): the SUPERADMIN confirms with their own password first.
   const [showSmartPassword, setShowSmartPassword] = useState(false);
   const [smartPassword, setSmartPassword] = useState('');
@@ -165,7 +233,7 @@ export default function DatabaseBackupPage() {
       const res = await fetch('/api/admin/db-backup/export-smart', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ layerDate: smartLayerDate, password: smartPassword }),
+        body: JSON.stringify({ layerDate: smartLayerDate, password: smartPassword, scope: smartScope }),
       });
       if (!res.ok) {
         const result = await res.json();
@@ -396,44 +464,84 @@ export default function DatabaseBackupPage() {
             <CardTitle>Export dữ liệu thông minh (Surface Data Layer)</CardTitle>
           </CardHeader>
           <CardBody className="gap-4">
-            <p className="text-fb-text-secondary">
-              Tổng hợp <strong>lớp dữ liệu bề mặt (Surface Data Layer)</strong> tính từ ngày mốc được chọn trở xuống (<code>aggregated_at::date &lt;= ngày chọn</code>) theo đúng 3 cấp:
-            </p>
-            <ul className="list-disc space-y-1 pl-5 text-fb-text-secondary">
-              <li>
-                <strong>Epic</strong>: lên danh sách toàn bộ Epic trong phạm vi từ ngày đã chọn trở về trước và chỉ lấy <strong>bản ghi mới nhất</strong> của từng Epic.
-              </li>
-              <li>
-                <strong>Story của Epic</strong>: lấy toàn bộ Story thuộc các Epic trên theo đúng logic lớp dữ liệu bề mặt (chỉ lấy bản ghi mới nhất tính đến ngày đã chọn).
-              </li>
-              <li>
-                <strong>Subtask của Story / Epic</strong>: lấy toàn bộ Subtask thuộc các Story/Epic trên theo đúng logic lớp dữ liệu bề mặt (chỉ lấy bản ghi mới nhất tính đến ngày đã chọn).
-              </li>
-              <li>
-                <strong>Toàn bộ các bảng còn lại</strong> (dung lượng nhỏ) để môi trường nhận file giống production: <strong>User (kèm password hash)</strong> và phân quyền (Domain / Dự án / Component / Quyền xem), Ma trận phân quyền, Domain, Dự án, Component, Tiêu chí &amp; Bộ ngân sách TTM, Phạm vi dữ liệu, Scoring Service &amp; Rule Management, Epic ngoại lệ / Từ chối import, ngày nghỉ &amp; ngày làm bù, rule cảnh báo, ánh xạ Issue type, cấu hình Jira, popup quảng cáo, banner thông tin, bình luận / trạng thái xử lý / ẩn Epic, lịch sử chỉ số TTM, các bảng PMS… — các bảng này khi import được đồng bộ y như file (dòng thừa ở môi trường nhận bị xoá). Gồm cả <strong>Bản tin (kèm ảnh)</strong> và <strong>audit log</strong>. <em>Không</em> export: phiên đăng nhập, token / API key, cache dẫn xuất (môi trường nhận tự tạo lại), nhật ký truy cập, lịch sử dòng thời gian Epic, cấu hình MCP.
-              </li>
-              <li>
-                Khi import lại file SQL này ở tab <strong>Import dữ liệu</strong>, hệ thống tự động tạo một lớp dữ liệu hợp nhất lấy <strong>ngày và giờ hiện tại lúc thực hiện import</strong> làm timestamp, đồng thời tính lại các lớp cảnh báo; cache được tạo lại ở môi trường nhận (hệ thống đã đánh dấu cache cũ). Mọi phiên đăng nhập khác của môi trường nhận file bị đăng xuất vì danh sách user được thay bằng file (phiên của bạn được giữ).
-              </li>
-            </ul>
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+              {/* Panel bên trái: Form cấu hình phạm vi, ngày mốc, nút export */}
+              <div className="flex flex-col gap-4 rounded-xl border border-fb-border bg-fb-surface-muted p-4 lg:col-span-5">
+                <fieldset className="flex flex-col gap-2.5">
+                  <legend className="mb-1 text-sm font-semibold text-fb-text-primary">
+                    Phạm vi Smart export
+                  </legend>
+                  {SMART_SCOPE_OPTIONS.map((option) => {
+                    const isSelected = smartScope === option.value;
+                    return (
+                      <label
+                        className={cn(
+                          'flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors',
+                          isSelected
+                            ? 'border-fb-blue bg-fb-surface ring-1 ring-fb-blue/40 shadow-xs'
+                            : 'border-fb-border bg-fb-surface/60 hover:bg-fb-surface',
+                        )}
+                        key={option.value}
+                      >
+                        <input
+                          checked={isSelected}
+                          className="mt-0.5 size-4 text-fb-blue focus:ring-fb-blue"
+                          name="smart-export-scope"
+                          onChange={() => setSmartScope(option.value)}
+                          type="radio"
+                          value={option.value}
+                        />
+                        <span className="text-xs font-medium leading-snug text-fb-text-primary">
+                          {option.title}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </fieldset>
 
-            <div className="flex flex-wrap items-end gap-3 rounded-xl border border-fb-border bg-fb-surface-muted px-4 py-3">
-              <div className="w-44">
-                <Input
-                  type="date"
-                  label="Ngày mốc lớp dữ liệu"
-                  value={smartLayerDate}
-                  onChange={(event) => setSmartLayerDate(event.target.value)}
-                />
+                <div className="pt-2">
+                  <Input
+                    label="Ngày mốc lớp dữ liệu"
+                    onChange={(event) => setSmartLayerDate(event.target.value)}
+                    type="date"
+                    value={smartLayerDate}
+                  />
+                </div>
+
+                <div className="pt-1">
+                  <Button
+                    variant="primary"
+                    className="w-full justify-center"
+                    disabled={!smartLayerDate}
+                    icon={<CloudArrowDown className="size-4" weight="bold" />}
+                    onClick={() => setShowSmartPassword(true)}
+                  >
+                    Smart export
+                  </Button>
+                </div>
+
+                {layerDates.length > 0 && (
+                  <p className="border-t border-fb-border pt-3 text-xs text-fb-text-secondary">
+                    Lớp dữ liệu mới nhất hiện có: <strong className="text-fb-text-primary">{formatLayerDate(layerDates[0])}</strong>
+                    {layerDates.length > 1 ? ` (tổng cộng ${formatNumber(layerDates.length)} ngày có lớp dữ liệu, cũ nhất ${formatLayerDate(layerDates[layerDates.length - 1])})` : ''}.
+                  </p>
+                )}
               </div>
-              <Button
-                variant="primary"
-                icon={<CloudArrowDown className="size-4" weight="bold" />}
-                onClick={() => setShowSmartPassword(true)}
-                disabled={!smartLayerDate}
-              >
-                Smart export
-              </Button>
+
+              {/* Panel bên phải: Mô tả chi tiết option đang chọn */}
+              <div className="flex flex-col rounded-xl border border-fb-border bg-fb-surface p-5 lg:col-span-7">
+                <div className="mb-3 border-b border-fb-border pb-2.5">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-fb-text-secondary">
+                    Mô tả phạm vi export
+                  </span>
+                  <h3 className="mt-1 text-sm font-bold text-fb-text-primary">
+                    {selectedScopeOption.title}
+                  </h3>
+                </div>
+                <div className="text-xs leading-relaxed text-fb-text-secondary">
+                  {selectedScopeOption.description}
+                </div>
+              </div>
             </div>
             <Modal
               isOpen={showSmartPassword}
@@ -456,7 +564,7 @@ export default function DatabaseBackupPage() {
                 }}
               >
                 <p className="text-fb-text-secondary">
-                  File Smart export chứa <strong>toàn bộ user kèm password hash</strong>. Nhập mật khẩu của tài khoản SUPERADMIN đang đăng nhập để tiếp tục.
+                  File Smart export có thể chứa <strong>user kèm password hash</strong> (ở option 3). Nhập mật khẩu của tài khoản SUPERADMIN đang đăng nhập để tiếp tục.
                 </p>
                 <Input
                   autoComplete="current-password"
@@ -469,12 +577,6 @@ export default function DatabaseBackupPage() {
                 />
               </form>
             </Modal>
-            {layerDates.length > 0 && (
-              <p className="text-fb-text-secondary">
-                Lớp dữ liệu mới nhất hiện có trên hệ thống: <strong className="text-fb-text-primary">{formatLayerDate(layerDates[0])}</strong>
-                {layerDates.length > 1 ? ` (tổng cộng ${formatNumber(layerDates.length)} ngày có lớp dữ liệu, cũ nhất ${formatLayerDate(layerDates[layerDates.length - 1])})` : ''}.
-              </p>
-            )}
           </CardBody>
         </Card>
       )}

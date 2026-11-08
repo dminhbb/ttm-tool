@@ -21,6 +21,23 @@ import { getTtmDashboard2Summary } from '@/lib/ttm-dashboard-2-summary-service';
 import { ALERT_LOGIC_SECTIONS, buildAlertLogicSummary } from '@/lib/alert-logic-summary';
 import { listRuleGroupSummary } from '@/lib/rule-group-summary';
 import { listTtmPolicies } from '@/lib/ttm-policy-service';
+import { listNewsLetterFoldersForMcp, listNewsLetterForMcp } from '@/lib/news-letter/service';
+import {
+  clipText,
+  foldForSearch,
+  isNewsLetterHashtag,
+  NEWS_LETTER_MCP_DEFAULT_LIMIT,
+  NEWS_LETTER_MCP_EXCLUDED_FOLDER,
+  NEWS_LETTER_MCP_HASHTAG,
+  NEWS_LETTER_MCP_HASHTAG_REFUSAL,
+  NEWS_LETTER_MCP_MAX_LIMIT,
+  NEWS_LETTER_MCP_SEARCH_WINDOW,
+  NEWS_LETTER_MCP_TEXT_MAX,
+  newsLetterHtmlToText,
+  newsLetterSearchScore,
+  searchSnippet,
+} from '@/lib/news-letter/mcp-rules';
+import { NEWS_LETTER_ROUTE } from '@/lib/news-letter/types';
 import type { AuthUser, UserRole } from '@/lib/auth-types';
 
 const REPORT_VIEW_ROLES: readonly UserRole[] = ['ADMIN', 'SUPERADMIN', 'SUPERVISOR'];
@@ -111,7 +128,7 @@ async function describeScorecard(epicKey: string) {
  */
 export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
   const server = new McpServer(
-    { name: 'ttm-tool', version: '1.3.1' },
+    { name: 'ttm-tool', version: '1.4.0' },
     {
       instructions:
         'ttm-tool (TTM Monitor) — công cụ cảnh báo rủi ro chậm Time to Market cho Epic Jira. '
@@ -120,6 +137,8 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
         + 'Ý nghĩa / công thức từng badge, rule object, nhóm rule đang áp dụng (popup Logic cảnh báo): get_alert_logic. '
         + 'Rule, cách tính, ý nghĩa badge/cảnh báo, hướng dẫn dùng màn hình: search_product_docs rồi get_product_doc_section — '
         + 'trả lời dựa trên Tài liệu sản phẩm và nêu số mục tham chiếu, không tự suy đoán rule. '
+        + `Bản tin (bài viết nội bộ): search_news_letters rồi get_news_letter_article — CHỈ gọi khi tin nhắn của người dùng có hashtag ${NEWS_LETTER_MCP_HASHTAG}; `
+        + `không có hashtag thì không gọi, và nhắc người dùng thêm ${NEWS_LETTER_MCP_HASHTAG} nếu họ muốn tra cứu Bản tin. `
         + 'Mỗi công cụ gắn với một màn hình của ứng dụng: nếu vai trò của người dùng bị bỏ quyền Xem màn hình đó trong Ma trận phân quyền, '
         + 'công cụ trả về thông báo từ chối — hãy báo lại cho người dùng, không thử cách khác để lấy cùng dữ liệu.',
     },
@@ -413,6 +432,101 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
       const { components, domains, projects } = scopeReportFilterOptions(scope, allDomains, allProjects, allComponents);
       await touch();
       return json({ domains, projects, components, layerDates });
+    },
+  );
+
+  const hashtagSchema = z.string().trim().max(20).describe(
+    `Hashtag mà NGƯỜI DÙNG đã viết trong tin nhắn — phải là "${NEWS_LETTER_MCP_HASHTAG}". Chỉ gọi công cụ này khi tin nhắn của người dùng có ${NEWS_LETTER_MCP_HASHTAG}; không tự thêm hashtag khi người dùng không viết.`,
+  );
+  const articleLink = (id: number) => `${NEWS_LETTER_ROUTE}/${id}`;
+
+  registerTool(
+    'search_news_letters',
+    {
+      title: `Tìm bài viết trong Bản tin (${NEWS_LETTER_MCP_HASHTAG})`,
+      description:
+        `Tìm các bài viết đã xuất bản của màn "Bản tin" mà vai trò của người dùng được xem (không phân biệt dấu tiếng Việt), mới nhất trước. `
+        + `CHỈ dùng khi tin nhắn của người dùng có hashtag ${NEWS_LETTER_MCP_HASHTAG}. Không trả bài thuộc thư mục "${NEWS_LETTER_MCP_EXCLUDED_FOLDER}". `
+        + 'Trả về id, tiêu đề, tóm tắt, thư mục, ngày xuất bản, tác giả, đoạn trích, đường dẫn bài, và danh sách thư mục — '
+        + 'đọc toàn văn một bài bằng get_news_letter_article.',
+      inputSchema: {
+        hashtag: hashtagSchema,
+        query: z.string().trim().max(200).optional().describe('Từ khoá tìm trong tiêu đề, tóm tắt và nội dung. Bỏ trống = các bài mới nhất.'),
+        folder: z.string().trim().max(120).optional().describe('Chỉ lấy bài của thư mục có tên chứa chuỗi này (không phân biệt hoa/thường, dấu).'),
+        limit: z.number().int().min(1).max(NEWS_LETTER_MCP_MAX_LIMIT).optional().describe(`Số bài tối đa (mặc định ${NEWS_LETTER_MCP_DEFAULT_LIMIT}, tối đa ${NEWS_LETTER_MCP_MAX_LIMIT}).`),
+      },
+    },
+    async ({ hashtag, query, folder, limit }) => {
+      if (!isNewsLetterHashtag(hashtag)) return forbidden(NEWS_LETTER_MCP_HASHTAG_REFUSAL);
+      const viewer = { id: user.id, role: user.role };
+      const hasWords = foldForSearch(query ?? '').replace(/#?bantin/g, '').trim().length > 0;
+      const [rows, folders] = await Promise.all([
+        listNewsLetterForMcp(viewer, { limit: NEWS_LETTER_MCP_SEARCH_WINDOW, withContent: hasWords }),
+        listNewsLetterFoldersForMcp(viewer),
+      ]);
+      const folderNeedle = folder ? foldForSearch(folder) : '';
+      const matches = rows
+        .filter((row) => !folderNeedle || foldForSearch(row.folder ?? 'Chưa phân loại').includes(folderNeedle))
+        .map((row, order) => {
+          const text = row.contentHtml ? newsLetterHtmlToText(row.contentHtml) : '';
+          return { order, row, score: newsLetterSearchScore({ folder: row.folder, summary: row.summary, text, title: row.title }, query), text };
+        })
+        .filter((item) => item.score > 0)
+        .sort((a, b) => b.score - a.score || a.order - b.order);
+      const take = limit ?? NEWS_LETTER_MCP_DEFAULT_LIMIT;
+      await touch();
+      return json({
+        source: `Bản tin (${NEWS_LETTER_ROUTE})`,
+        excludedFolder: NEWS_LETTER_MCP_EXCLUDED_FOLDER,
+        totalMatched: matches.length,
+        returned: Math.min(matches.length, take),
+        articles: matches.slice(0, take).map(({ row, text }) => ({
+          id: row.id,
+          title: row.title,
+          summary: row.summary,
+          folder: row.folder ?? 'Chưa phân loại',
+          publishedAt: row.publishedAt,
+          author: row.authorName,
+          url: articleLink(row.id),
+          ...(hasWords && text ? { snippet: searchSnippet(text, query) } : {}),
+        })),
+        folders,
+        ...(matches.length === 0 ? { hint: 'Không có bài phù hợp — thử từ khoá khác, bỏ bộ lọc thư mục, hoặc xem danh sách thư mục ở trên.' } : {}),
+      });
+    },
+  );
+
+  registerTool(
+    'get_news_letter_article',
+    {
+      title: `Đọc một bài viết của Bản tin (${NEWS_LETTER_MCP_HASHTAG})`,
+      description:
+        `Đọc toàn văn (dạng chữ, link giữ địa chỉ) một bài đã xuất bản của "Bản tin" theo id (lấy từ search_news_letters). `
+        + `CHỈ dùng khi tin nhắn của người dùng có hashtag ${NEWS_LETTER_MCP_HASHTAG}. Bài thuộc thư mục "${NEWS_LETTER_MCP_EXCLUDED_FOLDER}" không đọc được qua đây. `
+        + `Nội dung dài hơn ${NEWS_LETTER_MCP_TEXT_MAX.toLocaleString('vi-VN')} ký tự bị cắt — gửi đường dẫn bài cho người dùng đọc tiếp.`,
+      inputSchema: {
+        hashtag: hashtagSchema,
+        id: z.number().int().min(1).describe('Id bài viết (từ search_news_letters).'),
+      },
+    },
+    async ({ hashtag, id }) => {
+      if (!isNewsLetterHashtag(hashtag)) return forbidden(NEWS_LETTER_MCP_HASHTAG_REFUSAL);
+      const [row] = await listNewsLetterForMcp({ id: user.id, role: user.role }, { articleId: id, limit: 1, withContent: true });
+      await touch();
+      if (!row) return forbidden(`Không có bài viết #${id} trong Bản tin mà người dùng được xem qua MCP (bài không tồn tại, chưa xuất bản, không mở cho vai trò ${user.role}, hoặc thuộc thư mục "${NEWS_LETTER_MCP_EXCLUDED_FOLDER}").`);
+      const content = clipText(newsLetterHtmlToText(row.contentHtml ?? ''), NEWS_LETTER_MCP_TEXT_MAX);
+      return json({
+        source: `Bản tin (${NEWS_LETTER_ROUTE})`,
+        id: row.id,
+        title: row.title,
+        summary: row.summary,
+        folder: row.folder ?? 'Chưa phân loại',
+        publishedAt: row.publishedAt,
+        author: row.authorName,
+        url: articleLink(row.id),
+        content: content.text,
+        ...(content.truncated ? { truncated: true } : {}),
+      });
     },
   );
 

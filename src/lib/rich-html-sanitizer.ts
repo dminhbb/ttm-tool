@@ -1,3 +1,4 @@
+import { find as findLinks } from 'linkifyjs';
 import sanitizeHtml from 'sanitize-html';
 
 /**
@@ -65,6 +66,43 @@ export function sanitizeRichHtml(html: string, options: RichHtmlOptions = {}): s
       return !match || !options.allowImageId?.(match[1]);
     },
   });
+}
+
+const unescapeText = (text: string) => text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+const escapeText = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+/** Tags whose text is never turned into a link. */
+const NO_LINKIFY_TAGS = new Set(['a', 'code', 'pre']);
+
+/**
+ * Sanitized HTML where web addresses and e-mail addresses still written as plain text become links too (an e-mail →
+ * mailto:) — the editor links them only once a space or Enter follows, so an address typed last and saved at once stays
+ * plain text. Text inside a link, code or pre is left alone. The result goes through sanitizeRichHtml again, so the same
+ * allow-list (http / https / mailto, new tab) applies to the links added here.
+ */
+export function linkifyRichHtml(html: string, options: RichHtmlOptions = {}): string {
+  // sanitize-html output: every '<' / '>' outside a tag is escaped, so splitting on tags is exact.
+  const parts = sanitizeRichHtml(html, options).split(/(<[^>]*>)/);
+  let skipDepth = 0;
+  const out = parts.map((part) => {
+    const tag = /^<(\/?)([a-z0-9]+)/i.exec(part);
+    if (tag) {
+      if (NO_LINKIFY_TAGS.has(tag[2].toLowerCase()) && !part.endsWith('/>')) skipDepth = Math.max(0, skipDepth + (tag[1] ? -1 : 1));
+      return part;
+    }
+    if (skipDepth > 0 || !part) return part;
+    const text = unescapeText(part);
+    const links = findLinks(text, { defaultProtocol: 'https' }).filter((link) => link.type === 'url' || link.type === 'email');
+    if (!links.length) return part;
+    let result = '';
+    let cursor = 0;
+    for (const link of links) {
+      result += escapeText(text.slice(cursor, link.start));
+      result += `<a href="${escapeText(link.href)}">${escapeText(link.value)}</a>`;
+      cursor = link.end;
+    }
+    return result + escapeText(text.slice(cursor));
+  });
+  return sanitizeRichHtml(out.join(''), options);
 }
 
 /** Plain text of an HTML fragment (emptiness checks, list previews). */

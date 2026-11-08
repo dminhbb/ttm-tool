@@ -139,11 +139,23 @@ async function datesWithHistory(): Promise<Set<string>> {
 }
 
 /**
+ * All data layer dates available to the system, newest first.
+ * Combines selectable dates (import_batches + data_snapshot_dates) and dates already recorded in
+ * ttm_dashboard_metric_history (so a restored Smart Export environment or thinned history retains its trend points).
+ */
+export async function loadAvailableLayerDates(): Promise<string[]> {
+  const selectable = await listSelectableLayerDates(pool, 400);
+  const historyResult = await pool.query<{ d: string }>("SELECT DISTINCT layer_date::text AS d FROM ttm_dashboard_metric_history WHERE scope_key = 'ALL';");
+  const combined = new Set([...selectable, ...historyResult.rows.map((row) => row.d)]);
+  return [...combined].sort().reverse();
+}
+
+/**
  * The layer dates the dashboard will want from the history, newest first: the chart's data layers and the week / month
  * comparison days — what a one-off backfill has to cover.
  */
 export async function listNeededHistoryDates(): Promise<{ all: string[]; layers: string[] }> {
-  const layers = await listSelectableLayerDates(pool, 400);
+  const layers = await loadAvailableLayerDates();
   const series = pickSeriesDates(layers.slice(0, LAYERS_NEEDED));
   const refs = layers.length > 0 ? referenceDates(layers[0], layers) : { month: null, week: null };
   const wanted = new Set<string>([...layers.slice(0, LAYERS_NEEDED), ...series, ...(refs.week ? [refs.week] : []), ...(refs.month ? [refs.month] : [])]);
@@ -152,9 +164,11 @@ export async function listNeededHistoryDates(): Promise<{ all: string[]; layers:
 
 /** Rebuilds the history row of the newest layer and every scope's dashboard row. Returns how many scope rows were written (0 when there is no older layer). */
 export async function refreshDashboardTrendCache(): Promise<number> {
-  const layers = await listSelectableLayerDates(pool, 400);
+  const selectable = await listSelectableLayerDates(pool, 400);
+  const historyDates = (await pool.query<{ d: string }>("SELECT DISTINCT layer_date::text AS d FROM ttm_dashboard_metric_history WHERE scope_key = 'ALL';")).rows.map((row) => row.d);
+  const layers = [...new Set([...selectable, ...historyDates])].sort().reverse();
   if (layers.length === 0) return 0;
-  const latest = layers[0];
+  const latest = selectable.length > 0 ? selectable[0] : layers[0];
 
   const fieldsSql = TTM_FUNNEL_ROW_KEYS.map((key) => `'${key}', row_data->'${key}'`).join(', ');
   const currentRows = await pool.query<ScopedRow>(`SELECT epic_key AS "epicKey", project_key AS "projectKey", components, jsonb_build_object(${fieldsSql}) AS row FROM epic_alert_row_cache`);
@@ -230,13 +244,33 @@ export async function refreshDashboardTrendCache(): Promise<number> {
 /** The ticker data of one scope, or null when it was never computed (or the migration is not applied yet). */
 export async function getDashboardTrend(scopeKey: string): Promise<TtmDashboardTrend | null> {
   try {
-    const row = (await pool.query<TtmDashboardTrend>(
+    let row = (await pool.query<TtmDashboardTrend>(
       `SELECT latest_layer_date::text AS "latestLayerDate", compared_layer_date::text AS "comparedLayerDate",
               current_values AS current, previous_values AS previous, computed_at::text AS "computedAt",
               cardinality(new_fail_epic_keys) AS "newFailCount", series, week_ref AS "weekRef", month_ref AS "monthRef"
        FROM ttm_dashboard_trend_cache WHERE scope_key = $1`,
       [scopeKey],
     )).rows[0];
+
+    // Self-heal when cache is empty or under-populated (e.g. after database restore/import)
+    const needsRefresh = !row || (Boolean(row.series && row.series.length <= 1) && scopeKey === 'ALL');
+    if (needsRefresh) {
+      const historyCountResult = await pool.query<{ count: string }>("SELECT count(DISTINCT layer_date) AS count FROM ttm_dashboard_metric_history WHERE scope_key = 'ALL';");
+      const historyCount = Number(historyCountResult.rows[0]?.count ?? 0);
+      if (historyCount >= 2) {
+        const written = await refreshDashboardTrendCache();
+        if (written > 0) {
+          row = (await pool.query<TtmDashboardTrend>(
+            `SELECT latest_layer_date::text AS "latestLayerDate", compared_layer_date::text AS "comparedLayerDate",
+                    current_values AS current, previous_values AS previous, computed_at::text AS "computedAt",
+                    cardinality(new_fail_epic_keys) AS "newFailCount", series, week_ref AS "weekRef", month_ref AS "monthRef"
+             FROM ttm_dashboard_trend_cache WHERE scope_key = $1`,
+            [scopeKey],
+          )).rows[0];
+        }
+      }
+    }
+
     return row ?? null;
   } catch (error: unknown) {
     const code = (error as { code?: string }).code;

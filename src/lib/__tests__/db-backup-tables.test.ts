@@ -13,6 +13,24 @@ test('no table is listed twice in the Smart export or the allow-list', () => {
   assert.equal(new Set(EXPORTABLE_TABLES.map((table) => table.tableName)).size, EXPORTABLE_TABLES.length);
 });
 
+test('Smart export scopes: surface only < without auth group < all', async () => {
+  const { smartTablesForScope, SMART_AUTH_GROUP_TABLES, SMART_CONFIG_TABLES: all } = await import('../db-backup-tables');
+  assert.deepEqual(smartTablesForScope('SURFACE_ONLY'), []);
+  assert.equal(smartTablesForScope('ALL').length, all.length);
+  const middle = smartTablesForScope('SURFACE_AND_DATA');
+  assert.ok(middle.length > 0 && middle.length < all.length);
+  assert.deepEqual(middle.filter((table) => SMART_AUTH_GROUP_TABLES.includes(table)), []);
+  assert.ok(middle.includes('domains') && middle.includes('news_letter_articles'));
+});
+
+test('SMART_AUTH_GROUP_TABLES matches the "Xác thực & phân quyền" group of the schema catalog', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { SMART_AUTH_GROUP_TABLES } = await import('../db-backup-tables');
+  const catalog = JSON.parse(readFileSync('scripts/db-schema-catalog.json', 'utf8')) as { groups: { id: string; tables: string[] }[] };
+  const auth = catalog.groups.find((group) => group.id === 'auth')!.tables;
+  assert.deepEqual([...SMART_AUTH_GROUP_TABLES].sort(), [...auth].sort());
+});
+
 test('every table of the install schema is either in the Smart export or deliberately excluded from it', async () => {
   const { readFileSync } = await import('node:fs');
   const { SMART_EXCLUDED_TABLES } = await import('../db-backup-tables');

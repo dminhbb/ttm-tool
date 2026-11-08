@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PUBLIC_RATE_LIMITS, rateLimitResponse } from '@/lib/api-rate-limit';
 import { getMcpSettings } from '@/lib/mcp-service';
-import { sanitizeRichHtml } from '@/lib/rich-html-sanitizer';
+import { linkifyRichHtml } from '@/lib/rich-html-sanitizer';
 import { DEFAULT_SUSPENSION_MESSAGE_HTML, type PublicSystemSuspension } from '@/lib/system-suspension';
 import { getSystemSuspension } from '@/lib/system-suspension-service';
 
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       allowNewsLetter: state.allowNewsLetter,
       isSuspended: true,
       mcpEnabled,
-      messageHtml: sanitizeRichHtml(state.messageHtml) || DEFAULT_SUSPENSION_MESSAGE_HTML,
+      messageHtml: linkifyRichHtml(state.messageHtml) || DEFAULT_SUSPENSION_MESSAGE_HTML,
     };
     return NextResponse.json(body, { headers });
   } catch (error: unknown) {

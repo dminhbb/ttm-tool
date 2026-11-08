@@ -1,8 +1,10 @@
 import pool, { getClient } from '@/lib/db';
-import { EXPORTABLE_TABLES, SMART_CONFIG_TABLES, SMART_SESSION_TABLES } from '@/lib/db-backup-tables';
+import { DEFAULT_SMART_EXPORT_SCOPE, EXPORTABLE_TABLES, SMART_SESSION_TABLES, smartTablesForScope, type SmartExportScope } from '@/lib/db-backup-tables';
 import type { BackupTableInfo, ImportResult, ImportTableResult } from '@/lib/db-backup-types';
 import { EPIC_ISSUE_TYPES_SQL, STORY_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 import { aggregateBatchData } from '@/lib/import-service';
+import { refreshDerivedCaches } from '@/lib/daily-cache-service';
+import { refreshDashboardTrendCache } from '@/lib/ttm-dashboard-trend-service';
 import tableCatalog from '../../scripts/db-schema-catalog.json';
 
 export const EXPORT_SIGNATURE = '-- TTM_MONITOR_SQL_EXPORT v1';
@@ -297,6 +299,8 @@ const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 export interface SmartSurfaceExportOptions {
   includeSchema?: boolean;
   layerDate: string;
+  /** "Phạm vi Smart export" — default SURFACE_ONLY (surface data layer only). */
+  scope?: SmartExportScope;
 }
 
 /**
@@ -335,7 +339,7 @@ async function mapWithConcurrency<T, R>(items: readonly T[], limit: number, work
 }
 
 export async function exportSmartSurfaceToSql(options: SmartSurfaceExportOptions): Promise<string> {
-  const { layerDate, includeSchema = false } = options;
+  const { layerDate, includeSchema = false, scope = DEFAULT_SMART_EXPORT_SCOPE } = options;
   if (!ISO_DATE_PATTERN.test(layerDate)) {
     throw new Error('Vui lòng chọn ngày mốc lớp dữ liệu hợp lệ (YYYY-MM-DD).');
   }
@@ -428,21 +432,23 @@ export async function exportSmartSurfaceToSql(options: SmartSurfaceExportOptions
 
   // A config table this database doesn't have yet (migration not run here) is skipped and named in the
   // header — like listBackupTables — instead of failing the whole export (2026-10-20).
+  const scopeTables = smartTablesForScope(scope);
   const presentConfigTables = new Set((await pool.query<{ tableName: string }>(
     'SELECT name AS "tableName" FROM unnest($1::text[]) AS name WHERE to_regclass(quote_ident(name)) IS NOT NULL;',
-    [SMART_CONFIG_TABLES],
+    [scopeTables],
   )).rows.map((row) => row.tableName));
-  const exportedConfigTables = SMART_CONFIG_TABLES.filter((table) => presentConfigTables.has(table));
-  const missingConfigTables = SMART_CONFIG_TABLES.filter((table) => !presentConfigTables.has(table));
+  const exportedConfigTables = scopeTables.filter((table) => presentConfigTables.has(table));
+  const missingConfigTables = scopeTables.filter((table) => !presentConfigTables.has(table));
 
   const generatedAt = new Date().toISOString();
   const lines: string[] = [
     EXPORT_SIGNATURE,
     SMART_SURFACE_EXPORT_HEADER,
+    `-- Smart Export Scope: ${scope}`,
     `-- Generated at: ${generatedAt}`,
     `-- Surface layer as of date: ${layerDate}`,
-    `-- Tables: import_batches, issues, ${exportedConfigTables.join(', ')}`,
-    '-- Contains users with their password hashes: keep this file safe (the export asks the SUPERADMIN for their password).',
+    `-- Tables: ${['import_batches', 'issues', ...exportedConfigTables].join(', ')}`,
+    ...(exportedConfigTables.includes('users') ? ['-- Contains users with their password hashes: keep this file safe (the export asks the SUPERADMIN for their password).'] : []),
     ...(missingConfigTables.length > 0 ? [`-- Skipped (table not on the source database): ${missingConfigTables.join(', ')}`] : []),
     `-- Includes schema: ${includeSchema ? 'yes (CREATE TABLE IF NOT EXISTS, columns + primary key only)' : 'no (data only)'}`,
     '-- Import behavior: creates a consolidated surface data layer stamped with the import execution timestamp (NOW()).',
@@ -483,13 +489,31 @@ export async function exportSmartSurfaceToSql(options: SmartSurfaceExportOptions
   lines.push(`INSERT INTO "import_batches" (${batchQuotedColumns}) VALUES (${batchValues.join(', ')}) ${batchConflictClause};`);
   lines.push('');
 
+  // Ensure the trend cache is up-to-date before exporting, so the target environment
+  // immediately gets the full 7-point trend series upon import.
+  if (exportedConfigTables.includes('ttm_dashboard_trend_cache')) {
+    try {
+      await refreshDashboardTrendCache();
+    } catch (trendError) {
+      console.warn('Could not refresh trend cache before export:', trendError);
+    }
+  }
+
   // 2–4. The surface issues (Epics + Stories + Subtasks) and the TTM scoring, calendar,
   // scope & exclusion config tables (so TTM calculations match across environments). Independent
   // reads, so they run concurrently (2026-10-20) — at most SMART_EXPORT_CONCURRENCY at a time, since
   // the hosted pool is small (db.ts); the file keeps this order whatever finishes first.
   const sections = await mapWithConcurrency<() => Promise<string[]>, string[]>([
     () => exportOneTableToSql('issues', includeSchema, 'id = ANY($1::int[])', [issueIds], { source_import_batch_id: 1 }),
-    ...exportedConfigTables.map((configTable) => () => exportOneTableToSql(configTable, includeSchema)),
+    ...exportedConfigTables.map((configTable) => () => {
+      if (configTable === 'ttm_dashboard_metric_history' || configTable === 'ttm_dashboard_fail_history') {
+        return exportOneTableToSql(configTable, includeSchema, 'layer_date <= $1::date', [layerDate]);
+      }
+      if (configTable === 'ttm_dashboard_trend_cache') {
+        return exportOneTableToSql(configTable, includeSchema, 'latest_layer_date <= $1::date', [layerDate]);
+      }
+      return exportOneTableToSql(configTable, includeSchema);
+    }),
   ], SMART_EXPORT_CONCURRENCY, (task) => task());
   for (const section of sections) lines.push(...section);
 
@@ -992,6 +1016,15 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
     }
 
     await client.query(options.dryRun ? 'ROLLBACK' : 'COMMIT');
+
+    if (!options.dryRun && (insertTables.includes('issues') || insertTables.includes('ttm_dashboard_metric_history'))) {
+      try {
+        await refreshDerivedCaches(smartImportBatchId, 'import');
+      } catch (cacheError) {
+        console.error('Failed to refresh derived caches after backup import:', cacheError);
+      }
+    }
+
     return { ok: true, tables: [...resultByTable.values()] };
   } catch (error: unknown) {
     await client.query('ROLLBACK');

@@ -1,4 +1,4 @@
-import { RawJiraIssue } from './csv-parser';
+import type { RawJiraIssue } from './csv-parser';
 import { getIssueHierarchyLevel } from './issue-hierarchy';
 import { isCancelledStatus, isPendingStatus } from './issue-status-rules';
 import { STORY_WORKFLOW_STATUS_ORDER, storyWorkflowStatusIndex } from './story-workflow-rules';

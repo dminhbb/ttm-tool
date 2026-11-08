@@ -2289,6 +2289,8 @@
           chỉ giữ danh sách thẻ cho phép, bỏ script / iframe / style (trừ căn lề, độ rộng bảng) / thuộc tính <code>on*</code> / URL <code>javascript:</code>, <code>data:</code>;
           ảnh chỉ được trỏ tới API ảnh của ứng dụng và đúng các ảnh của bài; liên kết luôn mở tab mới với <code>rel="noopener noreferrer"</code>. Quyền đọc / sửa kiểm tra ở server cho mọi API.</li>
         <li>Dữ liệu mẫu: <code>node scripts/seed-news-letter-demo.js --target=supabase</code> tạo 3 phân loại với 3, 6, 11 bài viết; <code>--remove</code> xoá chúng.</li>
+        <li><strong>AI chatbot (MCP, từ 08/11/2026)</strong>: tin nhắn có hashtag <code>#bantin</code> cho phép chatbot tìm và đọc bài viết đã xuất bản mà role của người dùng được xem,
+          trừ thư mục “Thông báo từ hệ thống” — tool <code>search_news_letters</code>, <code>get_news_letter_article</code> (mục 16.3).</li>
       </ul>
     </section>
 
@@ -2545,6 +2547,8 @@
           <tr><td><code>get_product_doc_section</code></td><td>Đọc đầy đủ một mục của Tài liệu sản phẩm theo số mục (vd. <code>8.3</code>); không truyền số mục để lấy mục lục</td><td>Mọi role đã xác thực</td></tr>
           <tr><td><code>list_report_filters</code></td><td>Danh mục domain/dự án/component/lớp dữ liệu — phục vụ tra cứu sâu kiểu Báo cáo Epic (mục 11.5)</td><td>Mọi role đã xác thực</td></tr>
           <tr><td><code>get_alert_logic</code></td><td>Nội dung popup “Logic cảnh báo” dạng dữ liệu (từ 27/10/2026): nguyên tắc, ký hiệu, Finding Group / Axis, từng badge (ý nghĩa + công thức), thứ tự che badge, điều kiện chỉ số, Rule object, nhóm rule đang áp dụng; tham số <code>sections</code>, <code>badgeIds</code> để lấy phần cần thiết</td><td>Mọi role đã xác thực</td></tr>
+          <tr><td><code>search_news_letters</code></td><td>Tìm bài viết của <strong>Bản tin</strong> (từ 08/11/2026) — không phân biệt dấu, theo từ khoá và/hoặc thư mục, mới nhất trước; trả id, tiêu đề, tóm tắt, thư mục, ngày xuất bản, tác giả, đoạn trích, đường dẫn <code>/news-letter/&lt;id&gt;</code> và danh sách thư mục. Tìm trong 300 bài mới nhất</td><td>Bài đã xuất bản mở cho role của user gọi; cần hashtag <code>#bantin</code></td></tr>
+          <tr><td><code>get_news_letter_article</code></td><td>Đọc toàn văn một bài của Bản tin theo id, dạng chữ (link giữ địa chỉ, ảnh bỏ qua); quá 30.000 ký tự thì cắt và trả kèm đường dẫn bài</td><td>Như trên</td></tr>
         </tbody>
       </table>
       <p><strong>Ma trận phân quyền áp dụng cho MCP (từ 08/10/2026).</strong> Mỗi tool gắn với màn hình hiển thị cùng dữ liệu. Role bị bỏ quyền <em>Xem</em> màn hình đó trong Ma trận phân quyền (mục 2) thì tool trả về thông báo từ chối thay vì dữ liệu — cùng quy tắc với trang và API của màn hình, nên không thể lấy số liệu đi vòng qua chatbot. Ma trận chỉ thu hẹp: điều kiện role của từng tool ở bảng trên vẫn áp dụng trước. Thay đổi ma trận có hiệu lực với MCP trong khoảng 15 giây.</p>
@@ -2562,8 +2566,16 @@
           <tr><td><code>list_domains</code></td><td>Quản lý Domain (<code>domains</code>)</td></tr>
           <tr><td><code>list_holidays</code></td><td>Cấu hình ứng dụng / Quản lý chung (<code>general_settings</code>)</td></tr>
           <tr><td><code>get_ttm_policies</code></td><td>Cấu hình cảnh báo (<code>status_alert_rules</code>)</td></tr>
+          <tr><td><code>search_news_letters</code>, <code>get_news_letter_article</code></td><td>Bản tin (<code>news_letter</code>)</td></tr>
         </tbody>
       </table>
+      <p><strong>Bản tin qua MCP — hashtag <code>#bantin</code> (từ 08/11/2026).</strong> Chatbot chỉ gọi 2 tool Bản tin khi tin nhắn của người dùng có hashtag
+        <code>#bantin</code> (vd. “<em>#bantin tóm tắt báo cáo Time to Market tháng 10</em>”): tool bắt buộc tham số <code>hashtag</code> = <code>#bantin</code>, thiếu hoặc
+        sai thì từ chối và nhắc người dùng thêm hashtag. Lưu ý: MCP Server không nhìn thấy nguyên văn tin nhắn của người dùng — hashtag là quy ước chatbot phải tuân theo
+        (hướng dẫn nằm trong mô tả tool), không phải lớp bảo mật; quyền xem vẫn do role của người dùng và Ma trận phân quyền quyết định.
+        Chỉ trả bài <strong>đã xuất bản</strong> mở cho role của người gọi (không trả bài nháp, kể cả bài nháp của chính họ) và <strong>không bao giờ</strong> trả bài thuộc thư mục
+        <strong>“Thông báo từ hệ thống”</strong> (nhận theo tên thư mục, không phân biệt hoa/thường, dấu — đổi tên thư mục này thì bài của nó sẽ được trả qua MCP).
+        Đọc qua MCP không tính lượt xem và không đánh dấu đã đọc.</p>
       <div class="callout">
         Mỗi lần một tool được gọi thành công, hệ thống cộng dồn <code>mcp_access_daily_stats</code> (theo user/ngày, tự dọn sau 90 ngày) và cập nhật <code>last_used_at</code>
         của token — hiển thị lại thành 3 số liệu (Token đã cấp/Lượt truy cập tuần này/Token đang active) và bảng Top 5 user tại tab MCP Server.

@@ -1,7 +1,7 @@
 import type { PoolClient } from 'pg';
 import pool, { getClient } from './db';
 import { parseCSV, mapCSVToRawIssues } from './csv-parser';
-import { validateAllJiraIssues, parseJiraDate, RowValidationResult } from './validator';
+import { validateAllJiraIssues, parseJiraDate, type RowValidationResult } from './validator';
 import { accumulateProjectComponents, splitComponents } from './project-component-service';
 import { e2eGeometry } from './epic-row-geometry';
 import { loadScoringContext } from './scoring-context-service';

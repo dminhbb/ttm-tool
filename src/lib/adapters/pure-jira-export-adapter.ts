@@ -9,7 +9,7 @@
  * Column mapping uses fuzzy name matching — order in file does not matter.
  */
 
-import { parseCSV, mapCSVToRawIssues, RawJiraIssue } from '../csv-parser';
+import { parseCSV, mapCSVToRawIssues, type RawJiraIssue } from '../csv-parser';
 
 export interface PureJiraExportParseResult {
   issues: RawJiraIssue[];
