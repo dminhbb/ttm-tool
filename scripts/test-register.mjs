@@ -19,6 +19,7 @@ function resolveFile(basePath) {
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
+    if (specifier === 'server-only') return { url: 'data:text/javascript,export {}', shortCircuit: true };
     if (specifier.startsWith('@/')) {
       const file = resolveFile(path.join(srcRoot, specifier.slice(2)));
       if (file) return { url: pathToFileURL(file).href, shortCircuit: true };

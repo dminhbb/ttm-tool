@@ -255,8 +255,14 @@ function buildConflictClause(tableName: string, columnNames: string[], primaryKe
  * exportTablesToSql (whole-table, no filter) and exportDataLayerRangeToSql (filtered by data-layer
  * date range) so the two never drift on statement shape, upsert behavior, or value formatting.
  */
-async function exportOneTableToSql(tableName: string, includeSchema: boolean, whereClause?: string, whereParams?: unknown[]): Promise<string[]> {
-  const lines: string[] = [`-- Table: ${tableName}`];
+async function exportOneTableToSql(
+  tableName: string,
+  includeSchema: boolean,
+  whereClause?: string,
+  whereParams?: unknown[],
+  columnOverrides?: Record<string, unknown>,
+): Promise<string[]> {
+  const lines: string[] = [];
   if (includeSchema) {
     lines.push(await buildCreateTableStatement(tableName));
     lines.push('');
@@ -278,7 +284,8 @@ async function exportOneTableToSql(tableName: string, includeSchema: boolean, wh
   const result = await pool.query(`SELECT ${selectList} FROM ${quoteIdent(tableName)}${whereSql} ORDER BY 1;`, whereParams);
 
   for (const row of result.rows) {
-    const values = columnNames.map((columnName) => formatSqlValue((row as Record<string, unknown>)[columnName]));
+    const rowObj = columnOverrides ? { ...(row as Record<string, unknown>), ...columnOverrides } : (row as Record<string, unknown>);
+    const values = columnNames.map((columnName) => formatSqlValue(rowObj[columnName]));
     lines.push(`INSERT INTO ${quoteIdent(tableName)} (${quotedColumns}) VALUES (${values.join(', ')}) ${conflictClause};`);
   }
   lines.push('');
@@ -443,7 +450,6 @@ export async function exportSmartSurfaceToSql(options: SmartSurfaceExportOptions
   ];
 
   // 1. Export 1 synthetic/consolidated import_batches row
-  lines.push('-- Table: import_batches');
   if (includeSchema) {
     lines.push(await buildCreateTableStatement('import_batches'));
     lines.push('');
@@ -482,7 +488,7 @@ export async function exportSmartSurfaceToSql(options: SmartSurfaceExportOptions
   // reads, so they run concurrently (2026-10-20) — at most SMART_EXPORT_CONCURRENCY at a time, since
   // the hosted pool is small (db.ts); the file keeps this order whatever finishes first.
   const sections = await mapWithConcurrency<() => Promise<string[]>, string[]>([
-    () => exportOneTableToSql('issues', includeSchema, 'id = ANY($1::int[])', [issueIds]),
+    () => exportOneTableToSql('issues', includeSchema, 'id = ANY($1::int[])', [issueIds], { source_import_batch_id: 1 }),
     ...exportedConfigTables.map((configTable) => () => exportOneTableToSql(configTable, includeSchema)),
   ], SMART_EXPORT_CONCURRENCY, (task) => task());
   for (const section of sections) lines.push(...section);
@@ -560,7 +566,10 @@ function parseImportFile(sqlText: string): { error: string } | { statements: Par
   if (rawStatements.length > MAX_IMPORT_STATEMENTS) return { error: `File có quá nhiều câu lệnh (giới hạn ${MAX_IMPORT_STATEMENTS}).` };
 
   const statements: ParsedStatement[] = [];
-  for (const statement of rawStatements) {
+  for (const rawStatement of rawStatements) {
+    const statement = rawStatement.replace(/^(--[^\r\n]*(\r?\n|$))+/, '').trim();
+    if (!statement) continue;
+
     const createMatch = statement.match(/^CREATE TABLE IF NOT EXISTS "([a-zA-Z0-9_]+)"/i);
     if (createMatch) {
       const tableName = createMatch[1];

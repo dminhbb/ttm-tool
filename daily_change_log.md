@@ -8,6 +8,17 @@
 
 ## 2026-11-08
 
+- **Tối ưu hóa Smart Export & Smart Import (`src/lib/db-backup-service.ts`)**:
+  - Loại bỏ các dòng comment tiêu đề bảng `-- Table: <tableName>` gắn liền trước câu lệnh INSERT đầu tiên trong file export SQL (`exportOneTableToSql`, `exportSmartSurfaceToSql`), giúp file SQL thuần chuẩn, tránh trường hợp các bộ phân tích SQL / regex parser nhận diện nhầm dẫn đến bỏ sót bản ghi đầu tiên của mỗi bảng (như trường hợp user ID 1).
+  - Khóa giá trị `source_import_batch_id: 1` cho các bản ghi `issues` trong Smart Export để đồng bộ chính xác với bản ghi batch tổng hợp `id: 1`, tránh lỗi vi phạm khóa ngoại `issues_source_import_batch_id_fkey` khi import bằng `psql` hoặc các công cụ SQL trực tiếp.
+  - Nâng cấp `parseImportFile` để tự động bóc tách và loại bỏ an toàn mọi dòng comment tiền tố trước khi parse regex `^INSERT INTO`, đảm bảo tương thích ngược 100% với các file export cũ.
+
+- **Khởi tạo & Import CSDL PostgreSQL local (`ttm_tool`)**:
+  - Khởi tạo cluster PostgreSQL 17 portable tại `C:\PSQL\data` với superuser `postgres`, password `MBB@26nov`, port 5432.
+  - Áp dụng cấu trúc schema chuẩn (77 bảng, 64 index, 4 functions, 4 triggers, 128 migrations) từ `db/install/ttm-monitor-schema.sql`.
+  - Import thành công toàn bộ dữ liệu từ `D:\git\ttm-monitor-smart-export-2026-11-06.sql`: tạo batch lớp bề mặt, nạp 7.506 issues, liên kết `parent_id`/`epic_id`, tổng hợp `project_components`, đồng bộ 42 users (kèm hash mật khẩu), 54 projects, 7 domains, holidays, cấu hình scoring và phân quyền.
+  - Cập nhật `.env.local` chuyển `DB_CONNECTION=local`. Ứng dụng kết nối ổn định (`dbStatus: pass`), toàn bộ 506 tests pass.
+
 - **Tạm dừng hệ thống (SUPERADMIN)**: thêm mục "Tạm dừng hệ thống" vào popup Quản trị hệ thống (`SystemSuspensionPanel.tsx`): công tắc ON/OFF, nội dung soạn bằng `TiptapEditor` (link http/https/mailto tự nhận, mở cửa sổ mới; server lọc bằng `sanitizeRichHtml` khi lưu và khi trả ra), 2 ngoại lệ "Bản tin" và "MCP Server", nút Xem trước. Lưu phải nhập lại mật khẩu (`PUT /api/admin/system-suspension`, `verifyUserPassword`, sai 5 lần/15 phút thì chặn tạm thời); mỗi lần lưu ghi `audit_logs` (SYSTEM_SUSPEND / SYSTEM_RESUME / SYSTEM_SUSPENSION_UPDATE). Bảng singleton mới `system_suspension_settings` (migration `20261123_system_suspension_settings`).
   - Chặn tập trung ở `proxy.ts` theo luật trong `src/lib/system-suspension.ts` (thuần, có test `system-suspension.test.ts`): user dưới SUPERADMIN (SUPERADMIN kể cả đang View as thì được miễn) chỉ còn `/suspended`, `/login`, API đăng nhập/đăng xuất/captcha, `/api/system/*`, import tự động, MCP (route tự kiểm); nếu Bản tin được phép thì thêm `/news-letter/**`, `/api/news-letter/**` và các API của menu avatar. Trang khác → `/suspended` (đã đăng nhập + có Bản tin → `/news-letter`), API khác → 503 `SYSTEM_SUSPENDED`. Đăng ký account, Quên mật khẩu, SSO sang ứng dụng khác bị đóng với user dưới SUPERADMIN. Trạng thái được cache 10 giây mỗi instance (`system-suspension-service.ts`).
   - Bật tạm dừng (hoặc lưu khi đang tạm dừng mà không có ngoại lệ Bản tin) → xoá mọi `auth_sessions` của user dưới SUPERADMIN. Login (`api/auth/login`): user dưới SUPERADMIN chỉ được vào khi Bản tin được phép (chuyển thẳng `/news-letter`), ngược lại báo "Hệ thống đang tạm dừng!" rồi quay về `/suspended`. Trang login hiện cảnh báo và ẩn Đăng ký / Quên mật khẩu khi đang tạm dừng.
