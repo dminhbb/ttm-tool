@@ -37,6 +37,11 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return errorPage('Phiên đăng nhập đã hết hạn', 'Vui lòng đóng cửa sổ này và thử kết nối lại từ ứng dụng AI của bạn.');
   }
+  // "View as": the session answers as the viewed user — an MCP code minted here would be a token in THEIR name that
+  // outlives the read-only mode. Connecting an AI app is only possible from the SUPERADMIN's own identity.
+  if (user.viewAs) {
+    return errorPage('Đang ở chế độ View as', 'Không thể kết nối ứng dụng AI khi đang xem với tư cách user khác. Hãy thoát View as rồi kết nối lại.');
+  }
   const suspension = await getSystemSuspension();
   if (suspension.isSuspended && !suspension.allowMcp && !isSuspensionExempt(user)) {
     return errorPage('Hệ thống đang tạm dừng', 'Trong thời gian tạm dừng, kết nối MCP chỉ mở cho Quản trị viên.');

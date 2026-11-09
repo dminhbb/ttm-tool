@@ -2191,7 +2191,9 @@
       <p><strong>Màu và trạng thái các ô pha (từ 08/11/2026):</strong> mỗi ô pha có 3 trạng thái — <em>không màu</em>
         (chưa xong, chưa tới baseline), <em>hồng nhạt</em> (chưa xong mà đã quá baseline — Trễ pha), <em>xanh nhạt</em> (đã hoàn thành;
         icon trước ngày baseline đổi từ mũi tên thành dấu tích <code>CheckCircle</code>). Cột Released (Due Date) chỉ có xanh hoặc không màu.
-        Rê chuột vào ô để xem lý do (tỉ lệ story, story còn lại, story Pending bị bỏ qua, subtask Pentest).</p>
+        Rê chuột vào ô để xem lý do (tỉ lệ story, story còn lại, story Pending bị bỏ qua, subtask Pentest).
+        Từ 09/11/2026: Epic đã hoàn thành <strong>R4GOLIVE</strong> hoặc <strong>Released</strong> (cột Due Date) thì mọi pha trước đó đều có nền xanh,
+        nhưng icon dấu tích chỉ hiện ở pha đạt điều kiện hoàn thành riêng của nó (pha chưa đạt giữ mũi tên, tooltip ghi rõ lý do nền xanh).</p>
       <ul>
         <li><strong>DESIGN:</strong> giữ nguyên — status Epic = In Progress hoặc mọi subtask BA Done.</li>
         <li><strong>DEV / TEST:</strong> theo phân bố status story (bỏ qua story Cancelled và Pending). Mức của story:
@@ -2206,7 +2208,7 @@
           <code>issue_levels.level_3_subtask.allowed_issue_types</code> thì dữ liệu mới về tới ứng dụng.</li>
         <li><strong>R4GOLIVE:</strong> status Epic = R4GOLIVE, hoặc đã có R4G Date, hoặc mọi story ≥ Ready for Golive.</li>
         <li><strong>Dot "pha hiện tại":</strong> pha đầu tiên chưa xong (DESIGN nếu status Epic = Design; R4GOLIVE nếu status ≥ R4GOLIVE);
-          không còn dot khi Epic đã Released hoặc mọi pha đã xong. Dot hiện cả khi cột pha đang thu gọn (nằm giữa ô hẹp).</li>
+          không còn dot khi Epic đã Released hoặc mọi pha đã xong. Dot hiện cả khi cột pha đang thu gọn (nằm giữa ô hẹp). Dot màu xám (từ 09/11/2026) để bớt nổi bật.</li>
         <li><strong>Chú giải dưới bảng</strong> (cạnh phân trang): <em>Hoàn thành pha</em> (xanh, dấu tích) · <em>Trễ pha</em> (hồng) ·
           <em>Pha hiện tại</em> (dot); rê chuột vào từng mục hoặc vào tiêu đề cột pha để xem điều kiện hoàn thành.</li>
         <li><strong>Tham số</strong> (Scoring Service, bảng <code>scoring_parameters</code>): <code>phase.storyDoneRatio</code> (mặc định DEV 80%, TEST 80%),
@@ -2316,7 +2318,7 @@
           ảnh chỉ được trỏ tới API ảnh của ứng dụng và đúng các ảnh của bài; liên kết luôn mở tab mới với <code>rel="noopener noreferrer"</code>. Quyền đọc / sửa kiểm tra ở server cho mọi API.</li>
         <li>Dữ liệu mẫu: <code>node scripts/seed-news-letter-demo.js --target=supabase</code> tạo 3 phân loại với 3, 6, 11 bài viết; <code>--remove</code> xoá chúng.</li>
         <li><strong>AI chatbot (MCP, từ 08/11/2026)</strong>: tin nhắn có hashtag <code>#bantin</code> cho phép chatbot tìm và đọc bài viết đã xuất bản mà role của người dùng được xem,
-          trừ thư mục “Thông báo từ hệ thống” — tool <code>search_news_letters</code>, <code>get_news_letter_article</code> (mục 16.3).</li>
+          trừ thư mục ID 2 (hiện là “Thông báo từ hệ thống”) — tool <code>search_news_letters</code>, <code>get_news_letter_article</code> (mục 16.3).</li>
       </ul>
     </section>
 
@@ -2600,7 +2602,7 @@
         sai thì từ chối và nhắc người dùng thêm hashtag. Lưu ý: MCP Server không nhìn thấy nguyên văn tin nhắn của người dùng — hashtag là quy ước chatbot phải tuân theo
         (hướng dẫn nằm trong mô tả tool), không phải lớp bảo mật; quyền xem vẫn do role của người dùng và Ma trận phân quyền quyết định.
         Chỉ trả bài <strong>đã xuất bản</strong> mở cho role của người gọi (không trả bài nháp, kể cả bài nháp của chính họ) và <strong>không bao giờ</strong> trả bài thuộc thư mục
-        <strong>“Thông báo từ hệ thống”</strong> (nhận theo tên thư mục, không phân biệt hoa/thường, dấu — đổi tên thư mục này thì bài của nó sẽ được trả qua MCP).
+        <strong>ID 2</strong> (hiện tên “Thông báo từ hệ thống”; từ 09/11/2026 nhận theo ID thư mục, không theo tên — đổi tên thư mục vẫn không mở bài của nó cho MCP).
         Đọc qua MCP không tính lượt xem và không đánh dấu đã đọc.</p>
       <div class="callout">
         Mỗi lần một tool được gọi thành công, hệ thống cộng dồn <code>mcp_access_daily_stats</code> (theo user/ngày, tự dọn sau 90 ngày) và cập nhật <code>last_used_at</code>

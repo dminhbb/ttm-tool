@@ -191,29 +191,38 @@ const ACCESS_ROLE_LABEL: Record<EpicAlertAccessRole, string> = {
 
 
 /**
- * light green (pass) — đã hoàn thành (isDone); light red (fail) — chưa hoàn thành và đã tới/quá
- * baseline (Cảnh báo muộn); light yellow (warning) — Cảnh báo sớm; không màu — chưa hoàn thành,
- * chưa tới baseline.
+ * light green (pass) — đã hoàn thành (isDone), hoặc Epic đã hoàn thành một pha sau (R4GOLIVE / Released —
+ * `laterPhaseDone`, owner 2026-11-09: nền xanh cho mọi pha trước, còn icon vẫn theo rule riêng của pha);
+ * light red (fail) — chưa hoàn thành và đã tới/quá baseline (Cảnh báo muộn); light yellow (warning) — Cảnh báo sớm;
+ * không màu — chưa hoàn thành, chưa tới baseline.
  */
-function phaseCellColorClass(cell: PhaseCell): string {
-  if (cell.isDone) return 'pass';
+function phaseCellColorClass(cell: PhaseCell, laterPhaseDone = false): string {
+  if (cell.isDone || laterPhaseDone) return 'pass';
   if (cell.alertLevel === 'LATE') return 'fail';
   if (cell.alertLevel === 'EARLY') return 'warning';
   return '';
+}
+
+/** Tooltip of a phase coloured done only because the Epic already reached R4GOLIVE / Released. */
+const LATER_PHASE_DONE_NOTE = 'Nền xanh vì Epic đã hoàn thành R4GOLIVE / Released — pha này chưa đạt điều kiện hoàn thành riêng (icon giữ nguyên)';
+
+/** The Epic finished a later phase: R4GOLIVE or Released for DESIGN…PENTEST, Released for R4GOLIVE (owner 2026-11-09). */
+function laterPhaseDoneFor(row: EpicAlertRowPhased, phase: 'early' | 'r4golive'): boolean {
+  return phase === 'early' ? row.stages.r4golive.isDone || row.stages.release.isDone : row.stages.release.isDone;
 }
 
 /** Two-line cell: baseline (top, computed from the phase-division rule) vs — only for phases that
  * have a real recorded date (R4GOLIVE's R4G Date, Release's Due Date) — that date (bottom).
  * Completion itself is shown purely via the cell's background color (phaseCellColorClass); other
  * phases no longer have a recorded completion date at all, so their bottom line stays empty. */
-function PhaseStageCell({ actualDateText, cell }: { actualDateText?: string | null; cell: PhaseCell }) {
-  const colorClass = phaseCellColorClass(cell);
+function PhaseStageCell({ actualDateText, cell, laterPhaseDone = false }: { actualDateText?: string | null; cell: PhaseCell; laterPhaseDone?: boolean }) {
+  const colorClass = phaseCellColorClass(cell, laterPhaseDone);
   const baselineSource = cell.baselineSourceLabel
     ? `Tính từ ${cell.baselineSourceLabel}: ${formatDate(cell.baselineSourceDate)}`
     : 'Baseline chuẩn theo rule phân chia giai đoạn (tính từ Start Date)';
   // Story share / Pentest subtasks behind the cell's color (scoring/story-phase.ts) — rows cached before
   // that rule have no note.
-  const baselineTitle = [cell.isDone ? 'Pha đã hoàn thành' : null, baselineSource, cell.progressNote].filter(Boolean).join('\n');
+  const baselineTitle = [cell.isDone ? 'Pha đã hoàn thành' : laterPhaseDone ? LATER_PHASE_DONE_NOTE : null, baselineSource, cell.progressNote].filter(Boolean).join('\n');
   return (
     <TD className={`w-[1%] ttm-phase-cell whitespace-nowrap text-left align-top px-1.5${colorClass ? ` ${colorClass}` : ''}`}>
       {cell.isCurrentStage && <span className="ttm-phase-current-dot" title="Giai đoạn hiện tại của Epic" aria-hidden="true" />}
@@ -272,18 +281,19 @@ function CollapsiblePhaseHeader({ isCollapsed, onToggle, phase }: { isCollapsed:
 
 /** Body-side counterpart of CollapsiblePhaseHeader — a collapsed column renders as a thin cell with
  * only its status color and the "pha hiện tại" dot, matching the header's width/right-border. */
-function CollapsiblePhaseCell({ actualDateText, cell, isCollapsed }: { actualDateText?: string | null; cell: PhaseCell; isCollapsed: boolean }) {
+function CollapsiblePhaseCell({ actualDateText, cell, isCollapsed, laterPhaseDone = false }: { actualDateText?: string | null; cell: PhaseCell; isCollapsed: boolean; laterPhaseDone?: boolean }) {
   if (isCollapsed) {
     // Collapsed background reuses the same pass/warning/fail class as the expanded cell (see
     // phaseCellColorClass) so the thin stub still shows the column's real status at a glance.
-    const colorClass = phaseCellColorClass(cell);
+    const colorClass = phaseCellColorClass(cell, laterPhaseDone);
+    const title = [!cell.isDone && laterPhaseDone ? LATER_PHASE_DONE_NOTE : null, cell.progressNote].filter(Boolean).join('\n');
     return (
-      <TD className={`ttm-phase-cell ttm-col-collapsed${colorClass ? ` ${colorClass}` : ''}`} title={cell.progressNote ?? undefined}>
+      <TD className={`ttm-phase-cell ttm-col-collapsed${colorClass ? ` ${colorClass}` : ''}`} title={title || undefined}>
         {cell.isCurrentStage && <span className="ttm-phase-current-dot" title="Giai đoạn hiện tại của Epic" aria-hidden="true" />}
       </TD>
     );
   }
-  return <PhaseStageCell actualDateText={actualDateText} cell={cell} />;
+  return <PhaseStageCell actualDateText={actualDateText} cell={cell} laterPhaseDone={laterPhaseDone} />;
 }
 
 /** Truncates epic summary text for the table's subtitle line — full text stays in the title tooltip. */
@@ -1663,11 +1673,11 @@ function EpicAlerts15Screen() {
                       <TD colSpan={5} className="ttm-metric na text-left align-top">Chưa thể tính lịch TTM-CNTT (QLDA) do thiếu dữ liệu bắt buộc.</TD>
                     ) : (
                       <>
-                        <CollapsiblePhaseCell cell={row.stages.design} isCollapsed={collapsedColumns.has('DESIGN')} />
-                        <CollapsiblePhaseCell cell={row.stages.dev} isCollapsed={collapsedColumns.has('DEV')} />
-                        <CollapsiblePhaseCell cell={row.stages.test} isCollapsed={collapsedColumns.has('TEST')} />
-                        <CollapsiblePhaseCell cell={row.stages.pentest} isCollapsed={collapsedColumns.has('PENTEST')} />
-                        <PhaseStageCell cell={row.stages.r4golive} actualDateText={row.r4gDate} />
+                        <CollapsiblePhaseCell cell={row.stages.design} isCollapsed={collapsedColumns.has('DESIGN')} laterPhaseDone={laterPhaseDoneFor(row, 'early')} />
+                        <CollapsiblePhaseCell cell={row.stages.dev} isCollapsed={collapsedColumns.has('DEV')} laterPhaseDone={laterPhaseDoneFor(row, 'early')} />
+                        <CollapsiblePhaseCell cell={row.stages.test} isCollapsed={collapsedColumns.has('TEST')} laterPhaseDone={laterPhaseDoneFor(row, 'early')} />
+                        <CollapsiblePhaseCell cell={row.stages.pentest} isCollapsed={collapsedColumns.has('PENTEST')} laterPhaseDone={laterPhaseDoneFor(row, 'early')} />
+                        <PhaseStageCell cell={row.stages.r4golive} actualDateText={row.r4gDate} laterPhaseDone={laterPhaseDoneFor(row, 'r4golive')} />
                       </>
                     )}
                     {/* Release: T0-based baseline, always resolves independent of Start Date. */}

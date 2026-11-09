@@ -6,6 +6,14 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-11-09
+
+- **Bảo mật & chỉnh sửa sau review bản pull 07–08/11**:
+  - *Xoá mật khẩu Postgres* khỏi `daily_change_log.md` (mục khởi tạo DB local ngày 08/11). Mật khẩu vẫn còn trong lịch sử git (commit `da037e8`) — cần đổi mật khẩu superuser trên máy đó.
+  - *View as → MCP*: `/api/mcp/oauth/authorize` và `/consent` từ chối khi phiên đang View as (`user.viewAs`) — trước đó consent nằm trong PUBLIC_PATHS của proxy nên không bị luật "chỉ xem" chặn, và cấp được token MCP mang danh user đang được xem, còn dùng được sau khi thoát View as.
+  - *MCP Bản tin*: thư mục không mở cho chatbot nhận theo **ID** (`NEWS_LETTER_MCP_EXCLUDED_FOLDER_IDS = [2]` trong `news-letter/mcp-rules.ts`), không theo tên — đổi tên thư mục không còn làm lộ bài; cập nhật test và Tài liệu sản phẩm mục 16.3.
+- **Quản trị Epic — ô pha**: dot "pha hiện tại" đổi sang màu xám (`--ttm-neutral-500`, `epic-alerts-15.css`, cả chú giải); Epic đã hoàn thành R4GOLIVE hoặc Released (cột Due Date) thì mọi pha trước có nền xanh "done" nhưng icon `CheckCircle` chỉ hiện ở pha đạt rule hoàn thành riêng (`laterPhaseDoneFor` / `phaseCellColorClass` trong `epic-alerts-15/page.tsx`, tooltip ghi lý do) — chỉ là hiển thị, không đổi kết quả Scoring Service (PHASE_DONE, phễu, chỉ số).
+
 ## 2026-11-08
 
 - **Sửa triệt để lỗi lồng iframe khi bấm mục lục tại `/docs/product` qua Route Handler in-memory (`/api/docs/product-guide`)**:
@@ -70,7 +78,7 @@
   - Nâng cấp `parseImportFile` để tự động bóc tách và loại bỏ an toàn mọi dòng comment tiền tố trước khi parse regex `^INSERT INTO`, đảm bảo tương thích ngược 100% với các file export cũ.
 
 - **Khởi tạo & Import CSDL PostgreSQL local (`ttm_tool`)**:
-  - Khởi tạo cluster PostgreSQL 17 portable tại `C:\PSQL\data` với superuser `postgres`, password `MBB@26nov`, port 5432.
+  - Khởi tạo cluster PostgreSQL 17 portable tại `C:\PSQL\data` với superuser `postgres` (mật khẩu chỉ lưu trong `.env.local` của máy đó, không ghi vào repo), port 5432.
   - Áp dụng cấu trúc schema chuẩn (77 bảng, 64 index, 4 functions, 4 triggers, 128 migrations) từ `db/install/ttm-monitor-schema.sql`.
   - Import thành công toàn bộ dữ liệu từ `D:\git\ttm-monitor-smart-export-2026-11-06.sql`: tạo batch lớp bề mặt, nạp 7.506 issues, liên kết `parent_id`/`epic_id`, tổng hợp `project_components`, đồng bộ 42 users (kèm hash mật khẩu), 54 projects, 7 domains, holidays, cấu hình scoring và phân quyền.
   - Cập nhật `.env.local` chuyển `DB_CONNECTION=local`. Ứng dụng kết nối ổn định (`dbStatus: pass`), toàn bộ 506 tests pass.

@@ -446,7 +446,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
       title: `Tìm bài viết trong Bản tin (${NEWS_LETTER_MCP_HASHTAG})`,
       description:
         `Tìm các bài viết đã xuất bản của màn "Bản tin" mà vai trò của người dùng được xem (không phân biệt dấu tiếng Việt), mới nhất trước. `
-        + `CHỈ dùng khi tin nhắn của người dùng có hashtag ${NEWS_LETTER_MCP_HASHTAG}. Không trả bài thuộc thư mục "${NEWS_LETTER_MCP_EXCLUDED_FOLDER}". `
+        + `CHỈ dùng khi tin nhắn của người dùng có hashtag ${NEWS_LETTER_MCP_HASHTAG}. Không trả bài thuộc ${NEWS_LETTER_MCP_EXCLUDED_FOLDER}. `
         + 'Trả về id, tiêu đề, tóm tắt, thư mục, ngày xuất bản, tác giả, đoạn trích, đường dẫn bài, và danh sách thư mục — '
         + 'đọc toàn văn một bài bằng get_news_letter_article.',
       inputSchema: {
@@ -502,7 +502,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
       title: `Đọc một bài viết của Bản tin (${NEWS_LETTER_MCP_HASHTAG})`,
       description:
         `Đọc toàn văn (dạng chữ, link giữ địa chỉ) một bài đã xuất bản của "Bản tin" theo id (lấy từ search_news_letters). `
-        + `CHỈ dùng khi tin nhắn của người dùng có hashtag ${NEWS_LETTER_MCP_HASHTAG}. Bài thuộc thư mục "${NEWS_LETTER_MCP_EXCLUDED_FOLDER}" không đọc được qua đây. `
+        + `CHỈ dùng khi tin nhắn của người dùng có hashtag ${NEWS_LETTER_MCP_HASHTAG}. Bài thuộc ${NEWS_LETTER_MCP_EXCLUDED_FOLDER} không đọc được qua đây. `
         + `Nội dung dài hơn ${NEWS_LETTER_MCP_TEXT_MAX.toLocaleString('vi-VN')} ký tự bị cắt — gửi đường dẫn bài cho người dùng đọc tiếp.`,
       inputSchema: {
         hashtag: hashtagSchema,
@@ -513,7 +513,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
       if (!isNewsLetterHashtag(hashtag)) return forbidden(NEWS_LETTER_MCP_HASHTAG_REFUSAL);
       const [row] = await listNewsLetterForMcp({ id: user.id, role: user.role }, { articleId: id, limit: 1, withContent: true });
       await touch();
-      if (!row) return forbidden(`Không có bài viết #${id} trong Bản tin mà người dùng được xem qua MCP (bài không tồn tại, chưa xuất bản, không mở cho vai trò ${user.role}, hoặc thuộc thư mục "${NEWS_LETTER_MCP_EXCLUDED_FOLDER}").`);
+      if (!row) return forbidden(`Không có bài viết #${id} trong Bản tin mà người dùng được xem qua MCP (bài không tồn tại, chưa xuất bản, không mở cho vai trò ${user.role}, hoặc thuộc ${NEWS_LETTER_MCP_EXCLUDED_FOLDER}).`);
       const content = clipText(newsLetterHtmlToText(row.contentHtml ?? ''), NEWS_LETTER_MCP_TEXT_MAX);
       return json({
         source: `Bản tin (${NEWS_LETTER_ROUTE})`,

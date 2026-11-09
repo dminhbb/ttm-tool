@@ -1,11 +1,14 @@
-// "Bản tin" over MCP (owner 2026-11-08): an AI chatbot may read the articles, except those of the folder "Thông báo từ
-// hệ thống", and only when the user's message carries the hashtag #bantin. Pure module (no database) — the rules, the
+// "Bản tin" over MCP (owner 2026-11-08): an AI chatbot may read the articles, except those of the folders kept from it
+// (by id — 2026-11-09: folder ID 2, so renaming a folder never opens it), and only when the user's message carries the
+// hashtag #bantin. Pure module (no database) — the rules, the
 // HTML → text conversion and the search, shared by the MCP tools (mcp-server.ts) and the tests.
 
 /** Hashtag the user's message must carry for the chatbot to call the Bản tin tools. */
 export const NEWS_LETTER_MCP_HASHTAG = '#bantin';
-/** Folder never returned over MCP (matched by name: case, accents and spacing ignored). */
-export const NEWS_LETTER_MCP_EXCLUDED_FOLDER = 'Thông báo từ hệ thống';
+/** Folders (news_letter_categories.id) never returned over MCP — by id, not by name (owner 2026-11-09). */
+export const NEWS_LETTER_MCP_EXCLUDED_FOLDER_IDS: readonly number[] = [2];
+/** How the tools name those folders to the chatbot (a name could change; the id does not). */
+export const NEWS_LETTER_MCP_EXCLUDED_FOLDER = 'thư mục nội bộ không mở cho chatbot (ID 2)';
 /** Newest articles searched per call; the article text returned is cut at this many characters. */
 export const NEWS_LETTER_MCP_SEARCH_WINDOW = 300;
 export const NEWS_LETTER_MCP_TEXT_MAX = 30_000;
@@ -26,8 +29,9 @@ export function isNewsLetterHashtag(value: string | null | undefined): boolean {
   return foldForSearch(value ?? '') === NEWS_LETTER_MCP_HASHTAG;
 }
 
-export function isMcpExcludedFolder(name: string | null | undefined): boolean {
-  return foldForSearch(name ?? '') === foldForSearch(NEWS_LETTER_MCP_EXCLUDED_FOLDER);
+/** The folder (by id) is kept from MCP; an article without folder (null) never is. */
+export function isMcpExcludedFolder(folderId: number | null | undefined): boolean {
+  return folderId !== null && folderId !== undefined && NEWS_LETTER_MCP_EXCLUDED_FOLDER_IDS.includes(folderId);
 }
 
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };

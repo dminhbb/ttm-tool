@@ -4,7 +4,7 @@ import pool, { getClient } from '@/lib/db';
 import type { UserRole } from '@/lib/auth-types';
 import { newsLetterImageIdsOf, sanitizeRichHtml } from '@/lib/rich-html-sanitizer';
 import { sniffImageMime } from '@/lib/news-letter/image-sniff';
-import { isMcpExcludedFolder } from '@/lib/news-letter/mcp-rules';
+import { isMcpExcludedFolder, NEWS_LETTER_MCP_EXCLUDED_FOLDER_IDS } from '@/lib/news-letter/mcp-rules';
 import {
   NEWS_LETTER_CATEGORY_NAME_MAX,
   NEWS_LETTER_CONTENT_MAX,
@@ -458,12 +458,6 @@ export interface NewsLetterMcpRow {
   contentHtml: string | null;
 }
 
-/** Ids of the folders never returned over MCP ("Thông báo từ hệ thống", matched by name). */
-async function mcpExcludedFolderIds(): Promise<number[]> {
-  const result = await pool.query<{ id: number; name: string }>('SELECT id, name FROM news_letter_categories');
-  return result.rows.filter((row) => isMcpExcludedFolder(row.name)).map((row) => row.id);
-}
-
 /**
  * Published articles the viewer's role may read, outside the folder kept from MCP — newest first, at most `limit`.
  * `articleId` narrows to one article. Drafts never come out here, not even the caller's own.
@@ -472,8 +466,7 @@ export async function listNewsLetterForMcp(
   viewer: NewsLetterViewer,
   options: { articleId?: number; limit: number; withContent: boolean },
 ): Promise<NewsLetterMcpRow[]> {
-  const excluded = await mcpExcludedFolderIds();
-  const params: unknown[] = [viewer.id, viewer.role, excluded, options.limit];
+  const params: unknown[] = [viewer.id, viewer.role, [...NEWS_LETTER_MCP_EXCLUDED_FOLDER_IDS], options.limit];
   if (options.articleId !== undefined) params.push(options.articleId);
   const result = await pool.query<NewsLetterMcpRow>(`
     SELECT a.id, a.title, a.summary, c.name AS folder, a.first_published_at::text AS "publishedAt", ${AUTHOR_NAME} AS "authorName",
@@ -491,10 +484,13 @@ export async function listNewsLetterForMcp(
 
 /** Folders a chatbot may filter on (the excluded one left out), with the articles the viewer may read in each. */
 export async function listNewsLetterFoldersForMcp(viewer: NewsLetterViewer): Promise<{ name: string; articles: number }[]> {
-  const result = await pool.query<{ name: string; articles: number }>(`
-    SELECT c.name, COUNT(a.id) FILTER (WHERE ${PUBLISHED_VISIBLE})::int AS articles
+  const result = await pool.query<{ id: number; name: string; articles: number }>(`
+    SELECT c.id, c.name, COUNT(a.id) FILTER (WHERE ${PUBLISHED_VISIBLE})::int AS articles
     FROM news_letter_categories c LEFT JOIN news_letter_articles a ON a.category_id = c.id
     GROUP BY c.id, c.name
   `, [viewer.id, viewer.role]);
-  return result.rows.filter((row) => !isMcpExcludedFolder(row.name)).sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+  return result.rows
+    .filter((row) => !isMcpExcludedFolder(row.id))
+    .map(({ name, articles }) => ({ name, articles }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
 }

@@ -19,12 +19,13 @@ test('the Bản tin tools answer only to the hashtag #bantin', () => {
   assert.equal(isNewsLetterHashtag(undefined), false);
 });
 
-test('the folder "Thông báo từ hệ thống" is recognised whatever its case, accents or spacing', () => {
-  assert.equal(isMcpExcludedFolder('Thông báo từ hệ thống'), true);
-  assert.equal(isMcpExcludedFolder('  THÔNG BÁO  TỪ HỆ THỐNG '), true);
-  assert.equal(isMcpExcludedFolder('thong bao tu he thong'), true);
-  assert.equal(isMcpExcludedFolder('Thông báo của Phòng QLDA-TKTN'), false);
+test('the folder kept from MCP is recognised by its id (2), never by its name', () => {
+  assert.equal(isMcpExcludedFolder(2), true);
+  assert.equal(isMcpExcludedFolder(1), false);
+  assert.equal(isMcpExcludedFolder(3), false);
+  // No folder: always open.
   assert.equal(isMcpExcludedFolder(null), false);
+  assert.equal(isMcpExcludedFolder(undefined), false);
 });
 
 test('article HTML becomes readable text and keeps link addresses', () => {

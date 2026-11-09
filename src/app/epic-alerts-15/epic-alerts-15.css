@@ -567,7 +567,7 @@
 .ttm-status-swatch.done { background: var(--ttm-success-100); border: 1px solid var(--ttm-success-700); }
 .ttm-status-swatch.warning { background: var(--ttm-warning-100); border: 1px solid var(--ttm-warning-700); }
 .ttm-status-swatch.failed { background: var(--ttm-danger-100); border: 1px solid var(--ttm-danger-700); }
-.ttm-status-swatch-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ttm-brand-500); }
+.ttm-status-swatch-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ttm-neutral-500); }
 .ttm-metric {
   font-weight: 700;
   text-align: left;
@@ -642,7 +642,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--ttm-brand-500);
+  background: var(--ttm-neutral-500);
 }
 /* Thin collapsed phase column: centre the dot so it still shows which phase the Epic is in. */
 .ttm-col-collapsed .ttm-phase-current-dot { right: auto; left: 50%; transform: translateX(-50%); }
