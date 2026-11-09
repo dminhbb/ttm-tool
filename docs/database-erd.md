@@ -1,6 +1,6 @@
 # TTM Monitor — ERD & từ điển dữ liệu
 
-> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-08.
+> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-09.
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
@@ -644,6 +644,9 @@ erDiagram
         date subtask_resolved
         date story_real_start_date
         date epic_real_start_date
+        text change_id
+        text change_id_amt
+        text pentest_status
     }
     denied_import_epics {
         varchar epic_key PK
@@ -772,6 +775,9 @@ Bảng canonical lưu trữ toàn bộ issue mọi cấp (Epic/Story/Subtask). G
 | `subtask_resolved` | date | có |  |  | `DATE`Dòng Subtask: ngày "Resolved" trên Jira (cột CSV `subtask_Resolved`) — crawl tool V16 |
 | `story_real_start_date` | date | có |  |  | `DATE`Dòng Story: ngày bắt đầu thực tế do crawl tool tính (cột CSV `Story_Real_Start_Date`) — V16 |
 | `epic_real_start_date` | date | có |  |  | `DATE`Dòng Epic: ngày bắt đầu thực tế do crawl tool tính (cột CSV `Epic_Real_Start_Date`) — V16.1; dòng import trống / NULL được chép giá trị từ dòng mới nhất trước đó của Epic cùng key |
+| `change_id` | text | có |  |  | `TEXT`Dòng Epic: Change ID trên Jira (cột CSV `Change_ID`, 09/11/2026) — rule "Thiếu Change ID" (R4G Date trước 01/07/2026 cần Change_ID hoặc Change_ID_AMT) |
+| `change_id_amt` | text | có |  |  | `TEXT`Dòng Epic: Change ID trên công cụ AMT (cột CSV `Change_ID_AMT`, 09/11/2026) — bắt buộc với R4G Date từ 01/07/2026 (rule "Thiếu Change ID") |
+| `pentest_status` | text | có |  |  | `TEXT`Dòng Epic: Pentest status của Epic (cột CSV `epic_pentest_status`, 09/11/2026) — "Done" là pha PENTEST hoàn thành; trống / giá trị khác là chưa xong |
 
 - index `idx_issues_aggregated_at`: btree (aggregated_at)
 - index `idx_issues_batch_id`: btree (source_import_batch_id)

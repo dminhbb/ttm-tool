@@ -24,15 +24,14 @@
  *           TTM-applied and except-TTM-plan (2026-10-26, no epic_ prefix; ttm_applied / except_ttm_plan and
  *             epic_-prefixed spellings accepted),
  *           optional epic_issue_type / epic_status_changed_at (read only by the "Từ chối import"
- *             rules — see import-admission-rules.ts)
+ *             rules — see import-admission-rules.ts),
+ *           Change_ID, Change_ID_AMT, epic_pentest_status (2026-11-09 — rule "Thiếu Change ID" and the PENTEST
+ *             phase: epic_pentest_status = Done ⇒ PENTEST done; the crawl no longer sends Pentest subtasks / Tasks)
  *
  * Story  : story_key, story_issue_type, story_summary, story_status, story_assignee,
  *           story_components, story_subtasks (comma/semicolon-separated subtask keys, stored
  *             verbatim — same caveat as epic_stories)
  *          + epic_key  (the epic this story belongs to)
- *          "Task PENTEST" (owner 2026-11-09): a Task of Jira project PENTEST (story_key "PENTEST-…") linked to the
- *          Epic arrives as a STORY row too — level 2 straight under the Epic; issue type "Task" when the file leaves
- *          story_issue_type empty. The phase rules count it as Pentest work (issue-hierarchy.ts isPentestTask).
  *
  * Subtask: subtask_key, subtask_issue_type, subtask_summary, subtask_status, subtask_assignee,
  *           subtask_start_date, subtask_due_date
@@ -42,7 +41,6 @@
 
 import { crawlCellValue, parseCSV, type RawJiraIssue } from '../csv-parser';
 import { EXCEPT_TTM_PLAN_HEADERS, TTM_APPLIED_HEADERS } from '../import-ttm-applied-columns';
-import { PENTEST_TASK_KEY_PREFIX } from '../issue-hierarchy';
 
 export interface PyJiraApiParseResult {
   issues: RawJiraIssue[];
@@ -145,6 +143,10 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
     epic_requirement_level: idx('epic_request_level') >= 0 ? idx('epic_request_level') : idx('epic_requirement_level'),
     // Crawl tool V16.1 (2026-11-04): computed by the tool, EPIC rows only.
     epic_real_start_date: idx('Epic_Real_Start_Date'),
+    // 2026-11-09: EPIC rows only.
+    change_id: idx('Change_ID'),
+    change_id_amt: idx('Change_ID_AMT'),
+    epic_pentest_status: idx('epic_pentest_status'),
 
     // Story columns
     story_key: idx('story_key'),
@@ -235,6 +237,9 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
         sourceIssueType: get(COL.epic_issue_type) || undefined,
         statusChangedAt: get(COL.epic_status_changed_at) || undefined,
         epicRealStartDate: crawlCellValue(get(COL.epic_real_start_date)),
+        changeId: crawlCellValue(get(COL.change_id)),
+        changeIdAmt: crawlCellValue(get(COL.change_id_amt)),
+        pentestStatus: crawlCellValue(get(COL.epic_pentest_status)),
       };
     } else if (level === 'story') {
       const key = get(COL.story_key);
@@ -243,7 +248,7 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
         issueKey: key,
         issueId: '',
         summary: get(COL.story_summary),
-        issueType: get(COL.story_issue_type) || (key.toUpperCase().startsWith(PENTEST_TASK_KEY_PREFIX) ? 'Task' : 'Story'),
+        issueType: get(COL.story_issue_type) || 'Story',
         status: get(COL.story_status),
         projectKey,
         projectName: '',

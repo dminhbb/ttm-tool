@@ -38,7 +38,8 @@ export type RuleSlot =
   | 'FAIL_REASON_DEPT'
   | 'EARLY_START'
   | 'RELEASE_WAITING_GOLIVE'
-  | 'RELEASE_JUSTIFY_GOLIVE';
+  | 'RELEASE_JUSTIFY_GOLIVE'
+  | 'MISSING_CHANGE_ID';
 
 /** The slots that hold a Đạt / Fail verdict. */
 export type VerdictSlot = 'TTM_CNTT_VERDICT' | 'TTM_E2E_VERDICT';

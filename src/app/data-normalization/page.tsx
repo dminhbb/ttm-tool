@@ -14,6 +14,7 @@ import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import type { NormalizationEpicRow, NormalizationPanel } from '@/lib/data-normalization';
 import type { TtmDashboard2FilterOptions } from '@/lib/ttm-funnel-summary';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
+import { cn } from '@/lib/utils';
 // Lớp control dùng chung (.ttm-toolbar / .ttm-select / .ttm-button) — cùng file với TTM Dashboard 2.
 import '@/app/ttm-shared.css';
 
@@ -56,12 +57,14 @@ function pagesParam(pages: Record<string, number>): string {
 }
 
 /** The "Epic" cell — icons + key on ONE line (the summary has its own column). */
-function EpicCell({ onBrowse, row, viewIssueBaseUrl }: { onBrowse: (epicKey: string) => void; row: NormalizationEpicRow; viewIssueBaseUrl: string }) {
+function EpicCell({ isRecommendation, onBrowse, row, viewIssueBaseUrl }: { isRecommendation: boolean; onBrowse: (epicKey: string) => void; row: NormalizationEpicRow; viewIssueBaseUrl: string }) {
   return (
     <TD className="min-w-[170px] !py-1">
       <div className="flex items-center gap-1">
         <Tooltip multiline className="inline-flex w-auto" content={row.violations.map((message) => `• ${message}`).join('\n')}>
-          <Warning aria-label="Epic vi phạm rule này" className="size-4 shrink-0 text-status-warning" weight="fill" />
+          {isRecommendation
+            ? <Lightbulb aria-label="Epic có khuyến nghị này" className="size-4 shrink-0 text-status-success" weight="fill" />
+            : <Warning aria-label="Epic vi phạm rule này" className="size-4 shrink-0 text-status-warning" weight="fill" />}
         </Tooltip>
         {viewIssueBaseUrl && (
           <a
@@ -130,20 +133,23 @@ function RulePanel({ isOpen, onBrowse, onPageChange, onToggle, panel, viewIssueB
   const awaitingRows = !panel.rowsLoaded && panel.totalCount > 0;
   const bodyId = `rule-body-${panel.code}`;
   const Chevron = isOpen ? CaretDown : CaretRight;
+  // "Khuyến nghị" panel (owner 2026-11-09): light green header — a recommendation, not a rule to fix.
+  const isRecommendation = panel.tone === 'recommendation';
   return (
     <section aria-labelledby={`rule-${panel.code}`} className="overflow-hidden rounded-xl border border-fb-border bg-fb-surface shadow-sm">
-      <header className={isOpen ? 'border-b border-fb-border' : undefined}>
+      <header className={cn(isOpen && 'border-b border-fb-border', isRecommendation && 'bg-status-success-soft')}>
         <button
           aria-controls={bodyId}
           aria-expanded={isOpen}
-          className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-4 py-3 text-left hover:bg-fb-surface-muted"
+          className={cn('flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-4 py-3 text-left', isRecommendation ? 'hover:brightness-95' : 'hover:bg-fb-surface-muted')}
           onClick={() => onToggle(panel.code)}
           type="button"
         >
           <Chevron aria-hidden="true" className="size-4 shrink-0 text-fb-text-secondary" weight="bold" />
-          <Badge variant="neutral">{panel.tag}</Badge>
+          <Badge variant={isRecommendation ? 'success' : 'neutral'}>{panel.tag}</Badge>
           <h2 className="text-sm font-normal text-fb-text-primary" id={`rule-${panel.code}`}>{panel.label}</h2>
-          <Badge variant={panel.totalCount > 0 ? 'warning' : 'success'}>{panel.totalCount} Epic</Badge>
+          {/* Count > 0: orange with white text (owner 2026-11-09); 0 stays green. */}
+          <Badge className={panel.totalCount > 0 ? 'dn-count-badge-alert' : undefined} variant={panel.totalCount > 0 ? 'warning' : 'success'}>{panel.totalCount} Epic</Badge>
         </button>
         {isOpen && (
           <div className="space-y-2 px-4 pb-3">
@@ -166,7 +172,7 @@ function RulePanel({ isOpen, onBrowse, onPageChange, onToggle, panel, viewIssueB
             <EmptyState
               className="m-4"
               title="Không có Epic cần chuẩn hoá"
-              description="Không có Epic nào trong phạm vi và bộ lọc hiện tại vi phạm rule này."
+              description={isRecommendation ? 'Không có Epic nào trong phạm vi và bộ lọc hiện tại có khuyến nghị này.' : 'Không có Epic nào trong phạm vi và bộ lọc hiện tại vi phạm rule này.'}
             />
           ) : (
             <TableContainer>
@@ -186,7 +192,7 @@ function RulePanel({ isOpen, onBrowse, onPageChange, onToggle, panel, viewIssueB
                 <TBody>
                   {panel.rows.map((row) => (
                     <TR key={row.epicKey}>
-                      <EpicCell onBrowse={onBrowse} row={row} viewIssueBaseUrl={viewIssueBaseUrl} />
+                      <EpicCell isRecommendation={isRecommendation} onBrowse={onBrowse} row={row} viewIssueBaseUrl={viewIssueBaseUrl} />
                       <TD className="max-w-[420px] truncate !py-1" title={row.epicName}>{row.epicName || '—'}</TD>
                       <TD className="!py-1">{formatDate(row.createdDate)}</TD>
                       <TD className="!py-1">{formatDate(row.ideaApprovedDate)}</TD>
@@ -318,7 +324,7 @@ export default function DataNormalizationPage() {
           </div>
           <div>
             <h1 className="text-sm font-extrabold uppercase tracking-tight text-fb-text-primary">Chuẩn hoá dữ liệu</h1>
-            <p className="text-[11px] text-fb-text-secondary">Epic thiếu lý do Fail TTM và Epic cần chuẩn hoá theo từng rule Sai lệch dữ liệu • một Epic có thể nằm ở nhiều bảng</p>
+            <p className="text-[11px] text-fb-text-secondary">Epic thiếu lý do Fail TTM, Epic cần chuẩn hoá theo từng rule Sai lệch dữ liệu và Epic có khuyến nghị Thiếu Change ID • một Epic có thể nằm ở nhiều bảng</p>
           </div>
         </div>
         {data && (

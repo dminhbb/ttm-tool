@@ -390,7 +390,7 @@
         Cơ sở dữ liệu của TTM Monitor dùng <strong>PostgreSQL</strong> (đang chạy 17.6), gồm <strong>77 bảng</strong> trong schema <code>public</code>,
         <strong>68 khoá ngoại</strong>, 4 hàm và 4 trigger; không dùng view, extension hay Row Level Security.
         Cấu trúc thay đổi duy nhất qua chuỗi migration <code>db/migrations/*.sql</code> (chạy bằng <code>scripts/migrate-db.js</code>, ghi vào <code>schema_migrations</code>).
-        Toàn bộ chương này được sinh từ CSDL Supabase ngày 08/11/2026 bởi <code>scripts/db-schema-export.js</code> — cùng lần chạy sinh ra
+        Toàn bộ chương này được sinh từ CSDL Supabase ngày 09/11/2026 bởi <code>scripts/db-schema-export.js</code> — cùng lần chạy sinh ra
         file tạo CSDL mới <code>db/install/ttm-monitor-schema.sql</code> (chỉ cấu trúc, không dữ liệu) và tài liệu ERD chi tiết <code>docs/database-erd.md</code> (sơ đồ Mermaid từng nhóm + từ điển dữ liệu).
       </p>
 
@@ -479,7 +479,7 @@
         </g>
       </svg>
 
-      <h3>5.2. Danh mục 77 bảng CSDL (đối chiếu CSDL Supabase 08/11/2026)</h3>
+      <h3>5.2. Danh mục 77 bảng CSDL (đối chiếu CSDL Supabase 09/11/2026)</h3>
       <table>
         <thead><tr><th>STT</th><th>Bảng CSDL</th><th>Nhóm</th><th>Khoá chính / Khoá ngoại</th><th>Vai trò nghiệp vụ &amp; Ghi chú</th></tr></thead>
         <tbody>
@@ -920,6 +920,9 @@
               <tr><td><code>subtask_resolved</code></td><td><code>DATE</code></td><td>—</td><td><code>DATE</code></td><td>Dòng Subtask: ngày "Resolved" trên Jira (cột CSV <code>subtask_Resolved</code>) — crawl tool V16</td></tr>
               <tr><td><code>story_real_start_date</code></td><td><code>DATE</code></td><td>—</td><td><code>DATE</code></td><td>Dòng Story: ngày bắt đầu thực tế do crawl tool tính (cột CSV <code>Story_Real_Start_Date</code>) — V16</td></tr>
               <tr><td><code>epic_real_start_date</code></td><td><code>DATE</code></td><td>—</td><td><code>DATE</code></td><td>Dòng Epic: ngày bắt đầu thực tế do crawl tool tính (cột CSV <code>Epic_Real_Start_Date</code>) — V16.1; dòng import trống / NULL được chép giá trị từ dòng mới nhất trước đó của Epic cùng key</td></tr>
+              <tr><td><code>change_id</code></td><td><code>TEXT</code></td><td>—</td><td><code>TEXT</code></td><td>Dòng Epic: Change ID trên Jira (cột CSV <code>Change_ID</code>, 09/11/2026) — rule "Thiếu Change ID" (R4G Date trước 01/07/2026 cần Change_ID hoặc Change_ID_AMT)</td></tr>
+              <tr><td><code>change_id_amt</code></td><td><code>TEXT</code></td><td>—</td><td><code>TEXT</code></td><td>Dòng Epic: Change ID trên công cụ AMT (cột CSV <code>Change_ID_AMT</code>, 09/11/2026) — bắt buộc với R4G Date từ 01/07/2026 (rule "Thiếu Change ID")</td></tr>
+              <tr><td><code>pentest_status</code></td><td><code>TEXT</code></td><td>—</td><td><code>TEXT</code></td><td>Dòng Epic: Pentest status của Epic (cột CSV <code>epic_pentest_status</code>, 09/11/2026) — "Done" là pha PENTEST hoàn thành; trống / giá trị khác là chưa xong</td></tr>
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li>Index <code>idx_issues_aggregated_at</code>: <code>btree (aggregated_at)</code></li><li>Index <code>idx_issues_batch_id</code>: <code>btree (source_import_batch_id)</code></li><li>Index <code>idx_issues_epic_id</code>: <code>btree (epic_id) WHERE (epic_id IS NOT NULL)</code></li><li>Index <code>idx_issues_epic_key_aggregated_at</code>: <code>btree (epic_key, aggregated_at DESC) WHERE (epic_key IS NOT NULL)</code></li><li>Index <code>idx_issues_key_aggregated_at</code>: <code>btree (issue_key, aggregated_at DESC)</code></li><li>Index <code>idx_issues_key_batch</code>: <code>UNIQUE btree (issue_key, source_import_batch_id)</code></li><li>Index <code>idx_issues_parent_id</code>: <code>btree (parent_id) WHERE (parent_id IS NOT NULL)</code></li><li>Index <code>idx_issues_parent_key</code>: <code>btree (parent_key) WHERE (parent_key IS NOT NULL)</code></li><li>Index <code>idx_issues_type_status</code>: <code>btree (issue_type, current_status)</code></li></ul>
@@ -1943,7 +1946,7 @@
         <thead><tr><th>Ô</th><th>Gồm các kết luận</th><th>Màu</th></tr></thead>
         <tbody>
           <tr><td>Kết quả</td><td>Fail / Đạt TTM-CNTT (QLDA), Fail / Đạt TTM-E2E (hai trục độc lập)</td><td>Xanh lá; <strong>nền cam, chữ trắng</strong> khi có Fail</td></tr>
-          <tr><td>Xử lý</td><td>Thiếu lý do Fail TTM, Thiếu phòng chịu TN chính và các khuyến nghị khác (bổ sung Start Date, sửa thứ tự ngày…)</td><td>Xanh dương</td></tr>
+          <tr><td>Xử lý</td><td>Thiếu lý do Fail TTM, Thiếu phòng chịu TN chính và các khuyến nghị khác (bổ sung Start Date, sửa thứ tự ngày, Thiếu Change ID…)</td><td>Xanh dương</td></tr>
           <tr><td>Cảnh báo</td><td>Cảnh báo muộn (engine legacy: cả Cảnh báo sớm), Sai Status, Chờ golive, Giải trình Golive, Pending lâu</td><td>Tím</td></tr>
           <tr><td>Sai lệch dữ liệu</td><td>Mỗi rule đang vi phạm một mục, ví dụ "R1 — Thiếu Start Date" (bảng rule ở mục 9.1)</td><td>Hồng nhạt; <strong>nền cam, chữ trắng</strong> khi có vi phạm</td></tr>
         </tbody>
@@ -1999,6 +2002,11 @@
         <tbody>
           <tr><td><span class="badge warning">Chờ golive</span></td><td>Trong "Phạm vi dữ liệu cho TTM (QLDA)" <strong>VÀ</strong> ( status = R4GOLIVE <strong>HOẶC</strong> (status = RELEASED <strong>VÀ</strong> chưa có Due Date) ) — không cần có R4G Date.</td></tr>
           <tr><td><span class="badge warning">Cảnh báo sớm</span></td><td>Có R4G Date, hôm nay còn trong hạn R4G Date + 5 ngày làm việc, chưa có Due Date, status Epic đã <strong>vượt qua R4GOLIVE</strong> (ví dụ MVPDONE) mà vẫn chưa Released.</td></tr>
+          <tr><td><span class="badge info">Thiếu Change ID</span> (Khuyến nghị, từ 09/11/2026)</td><td>Epic đã có R4G Date, không Cancelled, và:
+            R4G Date <strong>từ 01/07/2026</strong> mà chưa có <code>Change_ID_AMT</code>; hoặc R4G Date <strong>trước 01/07/2026</strong> mà chưa có cả
+            <code>Change_ID</code> lẫn <code>Change_ID_AMT</code> (trống / "None" / "NULL" tính là chưa có). Là <strong>khuyến nghị</strong> (cùng ngày đổi từ Cảnh báo):
+            không đổi Đạt / Fail, không đưa Epic ra khỏi phạm vi hay chỉ số TTM. Hiện ở nhóm "Xử lý" cột Nhận xét, lọc "Thiếu Change ID", và có panel riêng ở
+            màn Chuẩn hoá dữ liệu (mục 11.4). Rule <code>missing-change-id</code> bật sẵn ở nhóm Default, mọi Rule Group kế thừa.</td></tr>
           <tr><td><span class="badge danger">Giải trình Golive</span></td><td>Có R4G Date, và Due Date đã ghi nhận nhưng <strong>vượt hạn</strong> (&gt; R4G Date + 5 ngày làm việc) — bất kể status; <strong>hoặc</strong> chưa có Due Date mà hôm nay đã vượt hạn đó.</td></tr>
         </tbody>
       </table>
@@ -2191,8 +2199,8 @@
       <p><strong>Màu và trạng thái các ô pha (từ 08/11/2026):</strong> mỗi ô pha có 3 trạng thái — <em>không màu</em>
         (chưa xong, chưa tới baseline), <em>hồng nhạt</em> (chưa xong mà đã quá baseline — Trễ pha), <em>xanh nhạt</em> (đã hoàn thành;
         icon trước ngày baseline đổi từ mũi tên thành dấu tích <code>CheckCircle</code>). Cột Released (Due Date) chỉ có xanh hoặc không màu.
-        Rê chuột vào ô để xem lý do (tỉ lệ story, story còn lại, story Pending bị bỏ qua, subtask Pentest).
-        Từ 09/11/2026: Epic đã hoàn thành <strong>R4GOLIVE</strong> hoặc <strong>Released</strong> (cột Due Date) thì mọi pha trước đó đều có nền xanh,
+        Rê chuột vào ô để xem lý do (tỉ lệ story, story còn lại, story Pending bị bỏ qua, Pentest status của Epic).
+        Từ 09/11/2026: Epic đã hoàn thành <strong>PENTEST</strong>, <strong>R4GOLIVE</strong> hoặc <strong>Released</strong> (cột Due Date) thì mọi pha trước đó đều có nền xanh,
         nhưng icon dấu tích chỉ hiện ở pha đạt điều kiện hoàn thành riêng của nó (pha chưa đạt giữ mũi tên, tooltip ghi rõ lý do nền xanh).</p>
       <ul>
         <li><strong>DESIGN:</strong> giữ nguyên — status Epic = In Progress hoặc mọi subtask BA Done.</li>
@@ -2202,14 +2210,10 @@
           R4GOLIVE (Ready for Golive) → Released (Released, Done). Status chưa có trong danh sách tính là "Chưa vào DEV" và hiện trong tooltip.
           Pha xong khi <strong>≥ 80% story</strong> đã tới mức "xong" của pha, <strong>hoặc</strong> Epic có từ 3 story trở lên và chỉ còn tối đa
           1 story chưa tới. TEST xong thì DEV cũng xong. Không có story nào để xét thì pha chưa xong.</li>
-        <li><strong>PENTEST:</strong> nếu Epic có subtask Pentest (loại issue cấu hình ở tham số <code>phase.pentestIssueTypes</code>, mặc định "Pentest")
-          và mọi subtask đó Done thì Epic xong cả DEV, TEST và PENTEST; không có subtask Pentest thì PENTEST xong cùng lúc với TEST.
-          Subtask Pentest có thể nằm dưới Epic hoặc dưới Story; công cụ crawl Jira phải có loại "Pentest" trong
-          <code>issue_levels.level_3_subtask.allowed_issue_types</code> thì dữ liệu mới về tới ứng dụng.
-          Từ 09/11/2026 có thêm <strong>Task PENTEST</strong>: issue loại Task thuộc project Jira PENTEST (mã <code>PENTEST-…</code>) gắn Epic Link —
-          là issue level 2 ngay dưới Epic (file crawl ghi như một dòng STORY, <code>story_issue_type</code> = Task), nhưng trong rule pha nó
-          <strong>không tính là story</strong> (không vào tỉ lệ DEV/TEST) mà tính chung với subtask Pentest: mọi subtask Pentest và Task PENTEST
-          Done thì Epic xong DEV, TEST và PENTEST. Lúc import, status của Task PENTEST được kiểm theo workflow Subtask.</li>
+        <li><strong>PENTEST</strong> (từ 09/11/2026): xét ở trường <code>epic_pentest_status</code> của Epic (file CSV, lưu ở <code>issues.pentest_status</code>):
+          giá trị <strong>Done</strong> (không phân biệt hoa thường) thì pha PENTEST hoàn thành; trống hoặc giá trị khác là <strong>chưa xong</strong>
+          (Epic qua baseline PENTEST sẽ "Trễ pha" cho tới khi Jira khai báo). Không còn xét subtask Pentest / Task PENTEST (crawl không gửi nữa),
+          và PENTEST xong không còn kéo DEV, TEST xong theo — chỉ đổi nền các ô DESIGN / DEV / TEST sang xanh (icon theo rule riêng của từng pha).</li>
         <li><strong>R4GOLIVE:</strong> status Epic = R4GOLIVE, hoặc đã có R4G Date, hoặc mọi story ≥ Ready for Golive.</li>
         <li><strong>Dot "pha hiện tại":</strong> pha đầu tiên chưa xong (DESIGN nếu status Epic = Design; R4GOLIVE nếu status ≥ R4GOLIVE);
           không còn dot khi Epic đã Released hoặc mọi pha đã xong. Dot hiện cả khi cột pha đang thu gọn (nằm giữa ô hẹp). Dot màu xám (từ 09/11/2026) để bớt nổi bật.</li>
@@ -2220,7 +2224,7 @@
         <li><strong>Chú giải dưới bảng</strong> (cạnh phân trang): <em>Hoàn thành pha</em> (xanh, dấu tích) · <em>Trễ pha</em> (hồng) ·
           <em>Pha hiện tại</em> (dot); rê chuột vào từng mục hoặc vào tiêu đề cột pha để xem điều kiện hoàn thành.</li>
         <li><strong>Tham số</strong> (Scoring Service, bảng <code>scoring_parameters</code>): <code>phase.storyDoneRatio</code> (mặc định DEV 80%, TEST 80%),
-          <code>phase.storyDoneTolerance</code> (mặc định Epic ≥ 3 story, còn tối đa 1 story), <code>phase.pentestIssueTypes</code> (mặc định PENTEST).
+          <code>phase.storyDoneTolerance</code> (mặc định Epic ≥ 3 story, còn tối đa 1 story). Tham số <code>phase.pentestIssueTypes</code> đã bỏ (09/11/2026).
           Kết quả hiển thị theo cache — thay đổi có hiệu lực sau lần tạo lại cache kế tiếp.</li>
       </ul>
       <p><strong>Quy tắc lọc trạng thái mặc định:</strong> Bộ lọc Status trên thanh công cụ luôn mặc định tích chọn (checked) tất cả các trạng thái ngoại trừ <code>Cancelled</code>, đảm bảo các Epic đã bị huỷ mặc định không xuất hiện khi truy cập màn hình này hay ở tất cả các danh sách route liên kết từ màn hình khác (người dùng vẫn có thể tích chọn Cancelled thủ công nếu có nhu cầu tra cứu).</p>
@@ -2238,7 +2242,10 @@
       <ol>
         <li><strong>Thiếu lý do Fail TTM</strong> — Epic Fail TTM-CNTT có R4G Date muộn hơn Target mà chưa ghi khâu fail hoặc chưa có phòng chịu trách nhiệm chính; đúng tập Epic của widget THIẾU LÝ DO trên TTM Dashboard 2 (chỉ có ở engine Scoring Service).</li>
         <li><strong>R1, R3–R6, R7 "Sai Status (Release)", R8–R10</strong> — theo thứ tự R. Phụ đề là giải thích rule và "Cách chuẩn hoá" (lấy từ khuyến nghị tương ứng của Scoring Service). R8–R10 chỉ có khi engine hiển thị là Scoring Service; ở engine cũ R1/R5/R7 hiện đúng điều kiện của engine cũ. R2 "Pending lâu" không có panel.</li>
+        <li><strong>Thiếu Change ID</strong> (từ 09/11/2026) — panel cuối, nhãn "Khuyến nghị", tiêu đề <strong>nền xanh lá nhạt</strong>: các Epic có khuyến nghị
+          "Thiếu Change ID" (không phải Sai lệch dữ liệu, không ảnh hưởng chỉ số) để theo dõi; icon bóng đèn ở cột Epic, rê chuột xem trường còn thiếu theo R4G Date.</li>
       </ol>
+      <p>Từ 09/11/2026 ô số lượng "N Epic" ở tiêu đề panel có nền <strong>cam, chữ trắng</strong> khi N &gt; 0 (N = 0 giữ nền xanh).</p>
       <p>Một Epic có thể nằm ở nhiều panel. Dữ liệu theo phạm vi quyền của người xem và cùng bộ lọc với TTM Dashboard 2 (Domain, Dự án, Component, PM/SM, Đơn vị yêu cầu); Epic Cancelled và Epic ngoại lệ không xuất hiện. Bảng Epic: key + Summary, Created date, Ngày duyệt ý tưởng, Start date, R4G date, Due date, Status; 25 Epic/trang.</p>
 
       <h3>11.5. TTM Dashboard (<code>/dashboard-new</code>) — đã gỡ (11/10/2026)</h3>
@@ -2776,6 +2783,10 @@
         <li>Adapter Py Jira API đọc thêm cột <code>main_fail_dept</code> ở dòng Epic ("Phòng chịu trách nhiệm chính" của Epic Fail TTM, từ 14/10/2026; adapter Pure Jira Export nhận cột cùng tên hoặc "Phòng chịu trách nhiệm chính") → <code>issues.main_fail_dept</code>, hiển thị ở Duyệt Epic → Giải trình Fail TTM và dùng cho cảnh báo "Thiếu phòng chịu TN chính".</li>
         <li>Adapter Py Jira API nhận thêm 2 cột tùy chọn ở dòng Epic: <code>epic_issue_type</code> (issue type gốc trên Jira của issue cấp 1 — dòng vẫn được coi là Epic về phân cấp) và <code>epic_status_changed_at</code> (ngày chuyển sang status hiện tại). Hai cột chỉ dùng cho rule Từ chối import; file không có 2 cột này vẫn import bình thường.</li>
         <li>Crawl tool V16 / V16.1 (từ 04/11/2026) thêm 4 cột tùy chọn, lưu vào bảng <code>issues</code>: <code>subtask_Assignees_Role</code> và <code>subtask_Resolved</code> (dòng Subtask), <code>Story_Real_Start_Date</code> (dòng Story), <code>Epic_Real_Start_Date</code> (dòng Epic). Ô trống hoặc <code>NULL</code> coi là không có giá trị; riêng <code>Epic_Real_Start_Date</code> trống thì ứng dụng chép giá trị từ dòng mới nhất trước đó của Epic cùng key trước khi chốt lần import.</li>
+        <li>Từ 09/11/2026 dòng Epic có thêm 3 cột tùy chọn, lưu vào <code>issues</code>: <code>Change_ID</code> → <code>change_id</code>,
+          <code>Change_ID_AMT</code> → <code>change_id_amt</code> (rule "Thiếu Change ID"; hiện ở popup Duyệt Epic và Review Notes) và
+          <code>epic_pentest_status</code> → <code>pentest_status</code> (pha PENTEST; hiện là "Trạng thái pentest" ở hai popup trên). Crawl không còn gửi subtask Pentest / Task PENTEST.
+          Popup Review Notes hiện thêm "Lớp dữ liệu" (ngày import của dòng Epic đang xem).</li>
         <li><strong>Từ chối import</strong> (mục 3.4) chạy ngay sau adapter, trước validate: <code>src/lib/import-admission-rules.ts</code> (rule thuần, có unit test — cố ý đặt ngoài Scoring Service vì đây là cổng chặn dữ liệu đầu vào, không phải badge hiển thị), <code>src/lib/denied-import-service.ts</code> (danh sách, cấu hình A/B, quét CSDL) và <code>src/lib/epic-deletion-service.ts</code> (Epic deletion).</li>
         <li>Không dùng nền tảng ETL/scheduler ngoài (Airflow, n8n…) — "ETL" ở đây gói gọn trong chính Route Handler xử lý import (đồng bộ, chạy trong 1 request HTTP), kích hoạt bằng tay qua UI hoặc bằng script Python gọi API tự động (mục 3.3).</li>
       </ul>

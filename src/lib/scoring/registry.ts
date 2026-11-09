@@ -1,3 +1,4 @@
+import { missingChangeIdRule } from './rules/change-id';
 import { earlyStartRule } from './rules/early-start';
 import { dqR10Rule, dqR11Rule, dqR1Rule, dqR2Rule, dqR3Rule, dqR4Rule, dqR5Rule, dqR6Rule, dqR8Rule, dqR9Rule } from './rules/data-quality';
 import { failReasonDeptRule, failReasonStageRule } from './rules/fail-reason';
@@ -49,6 +50,7 @@ export const RULES: readonly ScoringRule[] = [
   releaseStatusMismatchRule,
   releaseOnTimeRule,
   releaseJustifyGoliveRule,
+  missingChangeIdRule,
   // ---- Scope / Phase ----
   scopeRule,
   phaseRule,
@@ -81,4 +83,4 @@ export const DEFAULT_RULE_GROUP: ScoringRuleGroup = {
 };
 
 /** Bump whenever rule code changes, so cached scorecards are recognized as outdated. */
-export const SCORING_CODE_VERSION = 'scoring-28';
+export const SCORING_CODE_VERSION = 'scoring-30';

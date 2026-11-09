@@ -145,6 +145,7 @@ export async function getDataNormalization(userId: number, role: UserRole, input
       }),
       rowsLoaded,
       tag: panel.tag,
+      tone: panel.tone,
       totalCount: (byPanel.get(panel.code) ?? []).length,
       totalPages: page.totalPages,
     };

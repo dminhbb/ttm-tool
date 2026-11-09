@@ -168,6 +168,11 @@ export const BADGES = [
     formula: 'Có badge "Giải trình Golive"',
   },
   {
+    id: 'REC_MISSING_CHANGE_ID', axis: 'RELEASE', group: 'RECOMMENDATION', label: 'Thiếu Change ID', precedence: 65, defaultEnabled: true,
+    meaning: 'Bổ sung Change ID cho Epic đã có R4G Date (mới từ 09/11/2026, trường CSV Change_ID / Change_ID_AMT): R4G Date từ 01/07/2026 phải có Change ID trên AMT (Change_ID_AMT); R4G Date trước 01/07/2026 cần một trong hai trường Change_ID hoặc Change_ID_AMT. Khuyến nghị (đổi từ Cảnh báo cùng ngày) — không đổi kết quả Đạt / Fail, không đưa Epic ra khỏi phạm vi hay chỉ số TTM; danh sách Epic theo dõi ở màn "Chuẩn hoá dữ liệu". Không áp dụng Epic Cancelled.',
+    formula: 'Có R4G Date  VÀ  status ≠ Cancelled  VÀ  ( R4G ≥ 01/07/2026: Change_ID_AMT trống.   R4G < 01/07/2026: Change_ID trống VÀ Change_ID_AMT trống )   — "None" / "NULL" tính là trống',
+  },
+  {
     id: 'RELEASE_ON_TIME', axis: 'RELEASE', group: 'PASS', label: 'Release đúng hạn', precedence: 70, defaultEnabled: false,
     meaning: 'Đã Released với Due Date trong thời hạn grace. Mới — mặc định TẮT.',
     formula: 'Có R4G  VÀ  Due ≤ R4G +wd G  VÀ  status = RELEASED',
@@ -306,7 +311,7 @@ export const BADGES = [
   {
     id: 'PHASE_DONE', axis: 'PHASE', group: 'NOTE', label: 'Hoàn thành pha', precedence: 30, defaultEnabled: true,
     meaning: 'Pha đã hoàn thành tại asOf (theo status story/subtask tại asOf).',
-    formula: 'Story (bỏ qua Cancelled, Pending) quy về mức: Chưa vào DEV (TO DO, ANALYZING, READY FOR REFINE, WAITING FOR PLANNING, READY FOR DEV; status lạ cũng tính ở mức này) → DEV đang làm (IN DEV, REOPENED) → DEV xong (DEV DONE, READY FOR TEST) → TEST đang làm (IN SIT, SIT DONE, READY FOR UAT, IN UAT) → TEST xong (UAT DONE, PENTEST) → R4GOLIVE (READY FOR GOLIVE) → Released (RELEASED, DONE).  "Đạt ngưỡng" = ≥ 80% story đã tới mức (tham số phase.storyDoneRatio) HOẶC Epic có ≥ 3 story và còn tối đa 1 story chưa tới (phase.storyDoneTolerance); không có story để xét ⇒ chưa xong.  DESIGN: status Epic = In Progress hoặc mọi subtask BA Done.  DEV: đạt ngưỡng "DEV xong", hoặc TEST đã xong.  TEST: đạt ngưỡng "TEST xong", hoặc mọi Pentest Done.  PENTEST: "Pentest" = subtask Pentest + Task PENTEST (issue Task mã PENTEST-… ngay dưới Epic, không tính là story); có ⇒ mọi Pentest Done (khi đó DEV, TEST cũng xong); không có ⇒ xong cùng TEST.  R4GOLIVE: status = R4GOLIVE hoặc có R4G hoặc mọi story ≥ READY FOR GOLIVE.',
+    formula: 'Story (bỏ qua Cancelled, Pending) quy về mức: Chưa vào DEV (TO DO, ANALYZING, READY FOR REFINE, WAITING FOR PLANNING, READY FOR DEV; status lạ cũng tính ở mức này) → DEV đang làm (IN DEV, REOPENED) → DEV xong (DEV DONE, READY FOR TEST) → TEST đang làm (IN SIT, SIT DONE, READY FOR UAT, IN UAT) → TEST xong (UAT DONE, PENTEST) → R4GOLIVE (READY FOR GOLIVE) → Released (RELEASED, DONE).  "Đạt ngưỡng" = ≥ 80% story đã tới mức (tham số phase.storyDoneRatio) HOẶC Epic có ≥ 3 story và còn tối đa 1 story chưa tới (phase.storyDoneTolerance); không có story để xét ⇒ chưa xong.  DESIGN: status Epic = In Progress hoặc mọi subtask BA Done.  DEV: đạt ngưỡng "DEV xong", hoặc TEST đã xong.  TEST: đạt ngưỡng "TEST xong".  PENTEST (từ 09/11/2026): Pentest status của Epic (trường CSV epic_pentest_status) = Done; trống hoặc giá trị khác ⇒ chưa xong (không còn xét subtask Pentest / Task PENTEST). Trên màn hình, PENTEST xong thì các pha trước có nền xanh (icon vẫn theo rule riêng của pha).  R4GOLIVE: status = R4GOLIVE hoặc có R4G hoặc mọi story ≥ READY FOR GOLIVE.',
   },
   {
     id: 'PHASE_CURRENT', axis: 'PHASE', group: 'NOTE', label: 'Pha hiện tại', precedence: 40, defaultEnabled: true,

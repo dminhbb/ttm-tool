@@ -4,7 +4,7 @@ import * as React from 'react';
 import type { Icon } from '@phosphor-icons/react';
 import {
   Briefcase, Buildings, CalendarBlank, CalendarCheck, CalendarPlus, CalendarX, ChatCircleText, ChatsCircle, CircleHalf,
-  ClockCountdown, Eye, FileText, FlagCheckered, Gauge, Info, ListNumbers, PaperPlaneRight, SealCheck, Tag, Trash, UserCircle, UsersThree,
+  ClockCountdown, Eye, FileText, FlagCheckered, Gauge, Hash, Info, ShieldCheck, ListNumbers, PaperPlaneRight, SealCheck, Stack, Tag, Trash, UserCircle, UsersThree,
 } from '@phosphor-icons/react';
 import { JiraLinkButton } from '@/components/epic-alerts/JiraLinkButton';
 import { Badge, type BadgeProps } from '@/components/ui/Badge';
@@ -61,10 +61,10 @@ function formatDate(value: string | null | undefined): string {
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('vi-VN').format(date);
 }
 
-/** Jira sends "None" for an empty crawl field. */
+/** Jira sends "None" for an empty crawl field (the crawl tool "NULL"). */
 function crawlText(value: string | null | undefined): string {
   const text = value?.trim() ?? '';
-  return text && text.toLowerCase() !== 'none' ? text : '-';
+  return text && !['none', 'null'].includes(text.toLowerCase()) ? text : '-';
 }
 
 /** Status of the Epic as a status Badge: finished → success, Cancelled → neutral, anything still open → warning. */
@@ -97,6 +97,13 @@ function generalRows(summary: EpicBrowserSummary | null): InfoRow[] {
     { icon: FlagCheckered, label: 'R4G Date', value: formatDate(summary?.r4gDate) },
     { icon: CalendarX, label: 'Due Date', value: formatDate(summary?.dueDate) },
     { icon: CalendarCheck, label: 'Ngày duyệt YT (T0)', value: formatDate(summary?.ideaApprovedDate) },
+    // Change_ID / Change_ID_AMT (2026-11-09, rule "Thiếu Change ID").
+    { icon: Hash, label: 'Change ID', value: <span className="break-all">{crawlText(summary?.changeId)}</span> },
+    { icon: Hash, label: 'Change ID AMT', value: <span className="break-all">{crawlText(summary?.changeIdAmt)}</span> },
+    // epic_pentest_status (2026-11-09): Done = phase PENTEST done.
+    { icon: ShieldCheck, label: 'Trạng thái pentest', value: crawlText(summary?.pentestStatus) },
+    // Import layer (aggregated_at) the Epic's facts come from (owner 2026-11-09).
+    { icon: Stack, label: 'Lớp dữ liệu', value: formatDate(summary?.dataLayerDate) },
   ];
 }
 

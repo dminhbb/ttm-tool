@@ -39,6 +39,12 @@ function formatDate(value: string | null): string {
   return new Intl.DateTimeFormat('vi-VN').format(date);
 }
 
+/** A crawl text field: blank, "None" (Jira's empty value) or "NULL" → '-'. */
+function crawlText(value: string | null | undefined): string {
+  const text = value?.trim() ?? '';
+  return text && !['none', 'null'].includes(text.toLowerCase()) ? text : '-';
+}
+
 function formatDataLayer(value: string | null): string {
   if (!value) return '-';
   const date = new Date(value);
@@ -449,6 +455,23 @@ export function EpicBrowserModal({ epicKey, onClose }: EpicBrowserModalProps) {
                         <span className="font-medium text-fb-text-primary">
                           {formatDate(summary?.dueDate ?? null)}
                         </span>
+                      </div>
+
+                      {/* Change_ID / Change_ID_AMT (2026-11-09) — Jira sends "None" for an empty value. */}
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Change ID:</span>
+                        <span className="font-medium text-fb-text-primary break-all">{crawlText(summary?.changeId)}</span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Change ID AMT:</span>
+                        <span className="font-medium text-fb-text-primary break-all">{crawlText(summary?.changeIdAmt)}</span>
+                      </div>
+
+                      {/* epic_pentest_status (2026-11-09): Done = phase PENTEST done. */}
+                      <div className="flex items-center">
+                        <span className="w-36 font-semibold text-fb-text-placeholder">Trạng thái pentest:</span>
+                        <span className="font-medium text-fb-text-primary">{crawlText(summary?.pentestStatus)}</span>
                       </div>
 
                       <div className="flex items-center">

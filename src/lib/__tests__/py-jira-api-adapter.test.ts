@@ -118,32 +118,21 @@ describe('PyJiraApiAdapter — TTM-applied / except-TTM-plan (2026-10-26)', () =
 });
 
 
-describe('PyJiraApiAdapter — Task PENTEST (2026-11-09)', () => {
-  const header = 'hierarchy_level,project_key,epic_key,epic_name,story_key,story_issue_type,story_summary,story_status';
-
-  it('a STORY row PENTEST-… is a level-2 Task straight under its Epic', async () => {
-    const { getIssueHierarchyLevel, isPentestTask } = await import('@/lib/issue-hierarchy');
-    const csv = [
+describe('PyJiraApiAdapter — Change_ID / Change_ID_AMT / epic_pentest_status (2026-11-09)', () => {
+  it('reads the three EPIC columns; empty / NULL / missing = no value', () => {
+    const header = 'hierarchy_level,project_key,epic_key,epic_name,Change_ID,Change_ID_AMT,epic_pentest_status';
+    const [epic, blank] = parsePyJiraApi([
       header,
-      'EPIC,BPMCN,BPMCN-1,Epic một,,,,',
-      'STORY,PENTEST,BPMCN-1,,PENTEST-12,Task,Pentest Epic một,To Do',
-      'STORY,PENTEST,BPMCN-1,,PENTEST-13,,Pentest không ghi loại,Done',
-    ].join('\n');
-    const [, task, untyped] = parsePyJiraApi(csv).issues;
-    assert.equal(task.issueType, 'Task');
-    assert.equal(task.epicLink, 'BPMCN-1');
-    assert.equal(task.parentId, '');
-    assert.equal(getIssueHierarchyLevel(task.issueType), 2);
-    assert.equal(isPentestTask(task.issueType, task.issueKey), true);
-    // story_issue_type left empty: still a Task, not a Story.
-    assert.equal(untyped.issueType, 'Task');
-  });
-
-  it('only a Task whose key starts with PENTEST- is a Task PENTEST', async () => {
-    const { isPentestTask } = await import('@/lib/issue-hierarchy');
-    assert.equal(isPentestTask('task', ' pentest-7'), true);
-    assert.equal(isPentestTask('Task', 'BPMCN-7'), false);
-    assert.equal(isPentestTask('Story', 'PENTEST-7'), false);
-    assert.equal(isPentestTask('Sub-task', 'PENTEST-7'), false);
+      'EPIC,BPMCN,BPMCN-1,Epic một,CHG-001,AMT-77,Done',
+      'EPIC,BPMCN,BPMCN-2,Epic hai,,NULL,',
+    ].join('\n')).issues;
+    assert.equal(epic.changeId, 'CHG-001');
+    assert.equal(epic.changeIdAmt, 'AMT-77');
+    assert.equal(epic.pentestStatus, 'Done');
+    assert.equal(blank.changeId, undefined);
+    assert.equal(blank.changeIdAmt, undefined);
+    assert.equal(blank.pentestStatus, undefined);
+    const old = parsePyJiraApi('hierarchy_level,project_key,epic_key,epic_name\nEPIC,BPMCN,BPMCN-1,Epic cũ').issues[0];
+    assert.equal(old.changeIdAmt, undefined);
   });
 });

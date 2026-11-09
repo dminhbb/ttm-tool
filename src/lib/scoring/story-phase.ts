@@ -6,8 +6,8 @@ import type { ScoringParameters } from './parameters';
  * every Story status maps to one level of the Epic's phases, and a phase is done once a share of the
  * Epic's Stories (`phase.storyDoneRatio`, default 80 %) has reached that phase's "done" level — or, for an
  * Epic with enough Stories (`phase.storyDoneTolerance`), once at most 1 Story is still behind. Cancelled
- * and Pending Stories are skipped (neither counted nor blocking). A "Task PENTEST" is not a Story here: it
- * counts with the Pentest subtasks (`EpicPhaseCompletionFacts.pentestTasks`). A status not listed here counts as
+ * and Pending Stories are skipped (neither counted nor blocking). PENTEST (owner 2026-11-09) is read from the Epic's
+ * own Pentest status only: "Done" = done, anything else (blank included) = not done — it no longer marks DEV / TEST. A status not listed here counts as
  * level 0 and is surfaced in the phase note so it can be classified.
  */
 export const STORY_PHASE_LEVELS: readonly { level: number; label: string; statuses: readonly string[] }[] = [
@@ -46,8 +46,9 @@ export function allStoriesReleased(storyStatuses: readonly string[]): boolean {
   return levels.length > 0 && levels.every((level) => level >= DONE_LEVEL.RELEASED);
 }
 
-function normalizeIssueType(value: string): string {
-  return value.toLocaleUpperCase('en-US').replace(/[^A-Z0-9]/g, '');
+/** "Done" (any case / spacing) is the only Pentest status that completes the phase (owner 2026-11-09). */
+export function isPentestStatusDone(status: string | null | undefined): boolean {
+  return normalizeStatus(status ?? '') === 'DONE';
 }
 
 export interface StoryPhaseEvaluation {
@@ -82,23 +83,12 @@ export function evaluateStoryPhases(completion: EpicPhaseCompletionFacts, params
     return { doneCount, isDone: byRatio || byTolerance, byTolerance };
   };
 
-  // Pentest work = the Pentest subtasks (types `phase.pentestIssueTypes`) + the Epic's "Task PENTEST" (level 2,
-  // key PENTEST-…, owner 2026-11-09) — both judged the same way: every one of them Done.
-  const pentestTypes = new Set(params['phase.pentestIssueTypes'].map(normalizeIssueType));
-  let pentestTotal = completion.pentestTasks?.total ?? 0;
-  let pentestDone = completion.pentestTasks?.done ?? 0;
-  for (const [issueType, counts] of Object.entries(completion.subtaskCountsByType)) {
-    if (!pentestTypes.has(normalizeIssueType(issueType))) continue;
-    pentestTotal += counts.total;
-    pentestDone += counts.done;
-  }
-  const pentestSubtasksDone = pentestTotal > 0 && pentestDone === pentestTotal;
-
   const testReached = reached(DONE_LEVEL.TEST, ratios.TEST);
   const devReached = reached(DONE_LEVEL.DEV, ratios.DEV);
-  const test = pentestSubtasksDone || testReached.isDone;
+  const test = testReached.isDone;
   const dev = test || devReached.isDone;
-  const pentest = pentestTotal > 0 ? pentestSubtasksDone : test;
+  const pentestStatus = completion.pentestStatus?.trim() || null;
+  const pentest = isPentestStatusDone(pentestStatus);
   const r4golive = completion.r4goliveRecorded || (total > 0 && counted.every((story) => story.level >= DONE_LEVEL.R4GOLIVE));
 
   const extras = [
@@ -120,15 +110,14 @@ export function evaluateStoryPhases(completion: EpicPhaseCompletionFacts, params
       ...extras,
     ].filter(Boolean).join(' · ');
   };
-  const viaPentest = `Hoàn thành theo Pentest — subtask / Task PENTEST (${pentestDone}/${pentestTotal} Done)`;
 
   return {
     done: { DESIGN: completion.designDone, DEV: dev, TEST: test, PENTEST: pentest, R4GOLIVE: r4golive },
     notes: {
       DESIGN: null,
-      DEV: pentestSubtasksDone ? viaPentest : !devReached.isDone && test ? 'Hoàn thành vì pha TEST đã xong' : storyNote('DEV', DONE_LEVEL.DEV, devReached, ratios.DEV),
-      TEST: pentestSubtasksDone ? viaPentest : storyNote('TEST', DONE_LEVEL.TEST, testReached, ratios.TEST),
-      PENTEST: pentestTotal > 0 ? `Pentest (subtask / Task PENTEST): ${pentestDone}/${pentestTotal} Done` : 'Không có subtask / Task PENTEST — hoàn thành cùng pha TEST',
+      DEV: !devReached.isDone && test ? 'Hoàn thành vì pha TEST đã xong' : storyNote('DEV', DONE_LEVEL.DEV, devReached, ratios.DEV),
+      TEST: storyNote('TEST', DONE_LEVEL.TEST, testReached, ratios.TEST),
+      PENTEST: pentestStatus ? `Pentest status của Epic (epic_pentest_status): ${pentestStatus}` : 'Epic chưa có Pentest status (epic_pentest_status trống) — pha PENTEST chưa hoàn thành',
       R4GOLIVE: null,
     },
   };

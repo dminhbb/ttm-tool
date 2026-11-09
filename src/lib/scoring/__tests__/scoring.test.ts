@@ -231,7 +231,8 @@ describe('TTM-E2E', () => {
 });
 
 describe('Release', () => {
-  const base = makeFacts({ status: 'R4GOLIVE', r4gDate: '2026-08-20' });
+  // Change ID present: these cases are about the golive badges, not "Thiếu Change ID" (2026-11-09).
+  const base = makeFacts({ status: 'R4GOLIVE', r4gDate: '2026-08-20', changeIdAmt: 'AMT-1' });
   it('Chờ golive inside grace; nothing once status is past R4GOLIVE (early warning removed); Giải trình after grace', () => {
     assert.ok(active(base, makeContext({ asOf: '2026-08-24' })).has('RELEASE_WAITING_GOLIVE'));
     const past = active({ ...base, status: 'MVPDONE' }, makeContext({ asOf: '2026-08-24' }));

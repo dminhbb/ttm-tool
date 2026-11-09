@@ -16,13 +16,9 @@ export interface EpicPhaseCompletionFacts {
   releasedDone?: boolean;
   /** Current statuses of the Epic's non-Cancelled Stories (Pending included — story-phase.ts skips it). */
   storyStatuses: string[];
-  /** Non-Cancelled subtasks of the Epic (directly under it or under its Stories) per issue type as stored:
-   * total and how many are DONE. The Pentest rule picks its types via `phase.pentestIssueTypes`. */
-  subtaskCountsByType: Record<string, { total: number; done: number }>;
-  /** Non-Cancelled "Task PENTEST" of the Epic (level 2, key PENTEST-…, see issue-hierarchy.ts isPentestTask): total and
-   * how many are DONE. Counted by the Pentest rule with the Pentest subtasks, kept out of `storyStatuses`. Optional:
-   * facts built before 2026-11-09 have none. */
-  pentestTasks?: { total: number; done: number };
+  /** The Epic's own Pentest status (CSV epic_pentest_status → issues.pentest_status, owner 2026-11-09); null = blank.
+   * "Done" (any case) = phase PENTEST done; anything else, blank included, = not done. */
+  pentestStatus?: string | null;
 }
 
 /** One Epic's raw data exactly as known at `ScoringContext.asOf` (the caller loads the matching
@@ -70,6 +66,9 @@ export interface EpicFacts {
   /** issues.epic_real_start_date — the crawl tool's "Epic_Real_Start_Date" (CSV V16.1, 2026-11-04): the earliest start
    * among the Epic's Stories' subtasks. Read by the rule "Start sớm" (rules/early-start.ts). */
   epicRealStartDate?: IsoDate | null;
+  /** issues.change_id / change_id_amt — CSV Change_ID, Change_ID_AMT (2026-11-09), read by "Thiếu Change ID" (rules/change-id.ts). */
+  changeId?: string | null;
+  changeIdAmt?: string | null;
 }
 
 export type TtmAppliedKind = 'EXCEPTION' | 'NOT_APPLICABLE' | 'STANDARD';

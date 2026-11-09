@@ -4,15 +4,15 @@ import { deriveMetrics } from '../derive';
 import { DEFAULT_SCORING_PARAMETERS } from '../parameters';
 import { scoreEpic } from '../score-epic';
 import { hasBadge } from '../select';
-import { allStoriesReleased, evaluateStoryPhases, storyPhaseLevel } from '../story-phase';
+import { allStoriesReleased, evaluateStoryPhases, isPentestStatusDone, storyPhaseLevel } from '../story-phase';
 import type { EpicPhaseCompletionFacts } from '../types';
 import { makeContext, makeFacts } from './fixtures';
 
-function completion(storyStatuses: string[], subtaskCountsByType: EpicPhaseCompletionFacts['subtaskCountsByType'] = {}): EpicPhaseCompletionFacts {
-  return { designDone: true, r4goliveRecorded: false, storyStatuses, subtaskCountsByType };
+function completion(storyStatuses: string[], pentestStatus: string | null = null): EpicPhaseCompletionFacts {
+  return { designDone: true, r4goliveRecorded: false, storyStatuses, pentestStatus };
 }
 
-const evaluate = (storyStatuses: string[], subtasks: EpicPhaseCompletionFacts['subtaskCountsByType'] = {}) => evaluateStoryPhases(completion(storyStatuses, subtasks), DEFAULT_SCORING_PARAMETERS);
+const evaluate = (storyStatuses: string[], pentestStatus: string | null = null) => evaluateStoryPhases(completion(storyStatuses, pentestStatus), DEFAULT_SCORING_PARAMETERS);
 
 describe('story phase levels', () => {
   it('maps statuses to levels; Cancelled / Pending skipped; unknown → 0', () => {
@@ -65,32 +65,22 @@ describe('DEV / TEST by share of Stories', () => {
   });
 });
 
-describe('PENTEST', () => {
-  it('every Pentest subtask Done → DEV, TEST and PENTEST done regardless of Stories', () => {
-    const result = evaluate(['IN DEV', 'TO DO'], { 'PEN TEST': { total: 2, done: 2 } });
-    assert.deepEqual([result.done.DEV, result.done.TEST, result.done.PENTEST], [true, true, true]);
+describe('PENTEST (owner 2026-11-09: the Epic\'s own epic_pentest_status)', () => {
+  it('epic_pentest_status = Done (any case) → PENTEST done; it no longer marks DEV / TEST', () => {
+    const result = evaluate(['IN DEV', 'TO DO'], ' done ');
+    assert.equal(result.done.PENTEST, true);
+    assert.deepEqual([result.done.DEV, result.done.TEST], [false, false]);
+    assert.match(result.notes.PENTEST ?? '', /done/);
+    assert.equal(isPentestStatusDone('DONE'), true);
+    assert.equal(isPentestStatusDone('In Progress'), false);
   });
 
-  it('a Pentest subtask not Done keeps PENTEST open even when TEST is done', () => {
-    const result = evaluate(['UAT DONE'], { PENTEST: { total: 1, done: 0 } });
-    assert.equal(result.done.TEST, true);
-    assert.equal(result.done.PENTEST, false);
-  });
-
-  it('Task PENTEST counts with the Pentest subtasks (owner 2026-11-09)', () => {
-    const allDone = evaluateStoryPhases({ ...completion(['IN DEV']), pentestTasks: { total: 1, done: 1 } }, DEFAULT_SCORING_PARAMETERS);
-    assert.deepEqual([allDone.done.DEV, allDone.done.TEST, allDone.done.PENTEST], [true, true, true]);
-    assert.match(allDone.notes.PENTEST ?? '', /1\/1 Done/);
-    // A Task PENTEST not Done keeps PENTEST open even when every Pentest subtask is Done.
-    const open = evaluateStoryPhases({ ...completion(['UAT DONE'], { PENTEST: { total: 2, done: 2 } }), pentestTasks: { total: 1, done: 0 } }, DEFAULT_SCORING_PARAMETERS);
-    assert.equal(open.done.TEST, true);
-    assert.equal(open.done.PENTEST, false);
-    assert.match(open.notes.PENTEST ?? '', /2\/3 Done/);
-  });
-
-  it('no Pentest subtask → PENTEST done together with TEST', () => {
-    assert.equal(evaluate(['UAT DONE'], { DEV: { total: 3, done: 3 } }).done.PENTEST, true);
-    assert.equal(evaluate(['IN SIT']).done.PENTEST, false);
+  it('any other status, or a blank one, keeps PENTEST open even when TEST is done', () => {
+    assert.equal(evaluate(['UAT DONE'], 'In Progress').done.PENTEST, false);
+    const blank = evaluate(['UAT DONE']);
+    assert.equal(blank.done.TEST, true);
+    assert.equal(blank.done.PENTEST, false);
+    assert.match(blank.notes.PENTEST ?? '', /trống/);
   });
 });
 
@@ -100,12 +90,12 @@ describe('current phase (dot)', () => {
     assert.equal(inTest.TEST.isCurrent, true);
     const released = deriveMetrics(makeFacts({ status: 'Released', phaseCompletion: { ...completion(['IN DEV']), releasedDone: true } }), makeContext()).phases!;
     assert.ok(Object.values(released).every((cell) => !cell.isCurrent));
-    const allDone = deriveMetrics(makeFacts({ phaseCompletion: { ...completion(['UAT DONE']), r4goliveRecorded: true } }), makeContext()).phases!;
+    const allDone = deriveMetrics(makeFacts({ phaseCompletion: { ...completion(['UAT DONE'], 'Done'), r4goliveRecorded: true } }), makeContext()).phases!;
     assert.ok(Object.values(allDone).every((cell) => cell.isDone && !cell.isCurrent));
   });
 
   it('PHASE_DONE carries the Story-share note; a done PENTEST is never late', () => {
-    const card = scoreEpic(makeFacts({ phaseCompletion: completion(['UAT DONE', 'UAT DONE']) }), makeContext({ asOf: '2026-08-31' }));
+    const card = scoreEpic(makeFacts({ phaseCompletion: completion(['UAT DONE', 'UAT DONE'], 'Done') }), makeContext({ asOf: '2026-08-31' }));
     assert.ok(hasBadge(card, 'PHASE_DONE', 'PENTEST'));
     assert.ok(!hasBadge(card, 'PHASE_LATE', 'PENTEST'));
     assert.ok(hasBadge(card, 'PHASE_CURRENT', 'R4GOLIVE'));

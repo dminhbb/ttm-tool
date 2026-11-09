@@ -21,8 +21,6 @@ export interface ScoringParameters {
   'phase.storyDoneRatio': { DEV: number; TEST: number };
   /** …or, for an Epic with at least `minStories` Stories, once at most `maxRemaining` Stories are still behind. */
   'phase.storyDoneTolerance': { minStories: number; maxRemaining: number };
-  /** Subtask issue types (compared without case, spaces, dashes) whose DONE marks DEV / TEST / PENTEST done. */
-  'phase.pentestIssueTypes': string[];
 }
 
 export const DEFAULT_SCORING_PARAMETERS: ScoringParameters = {
@@ -34,7 +32,6 @@ export const DEFAULT_SCORING_PARAMETERS: ScoringParameters = {
   'index.qaStatuses': ['MVP DONE', 'RELEASED'],
   'phase.storyDoneRatio': { DEV: 0.8, TEST: 0.8 },
   'phase.storyDoneTolerance': { minStories: 3, maxRemaining: 1 },
-  'phase.pentestIssueTypes': ['PENTEST'],
 };
 
 export type ScoringParameterKey = keyof ScoringParameters;
@@ -48,7 +45,6 @@ export const SCORING_PARAMETER_LABELS: Record<ScoringParameterKey, string> = {
   'index.qaStatuses': 'Status tính vào TTM-CNTT (QA)',
   'phase.storyDoneRatio': 'Ngưỡng % story đã qua pha để coi pha DEV / TEST hoàn thành',
   'phase.storyDoneTolerance': 'Dung sai: Epic có từ N story, còn tối đa K story chưa xong vẫn coi là hoàn thành pha',
-  'phase.pentestIssueTypes': 'Loại subtask Pentest (cùng Task PENTEST mã PENTEST-…: Done hết ⇒ DEV, TEST, PENTEST hoàn thành)',
 };
 
 function isStringArray(value: unknown): value is string[] {
@@ -76,7 +72,6 @@ const VALIDATORS: { [K in ScoringParameterKey]: (value: unknown) => value is Sco
     const record = value as Record<string, unknown>;
     return Number.isInteger(record.minStories) && (record.minStories as number) >= 1 && Number.isInteger(record.maxRemaining) && (record.maxRemaining as number) >= 0;
   },
-  'phase.pentestIssueTypes': isStringArray,
 };
 
 export function isValidScoringParameter<K extends ScoringParameterKey>(key: K, value: unknown): value is ScoringParameters[K] {

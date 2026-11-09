@@ -35,6 +35,8 @@ interface EpicFactRow {
   ttmApplied: string | null;
   exceptTtmPlan: string | null;
   epicRealStartDate: string | null;
+  changeId: string | null;
+  changeIdAmt: string | null;
 }
 
 /**
@@ -77,7 +79,9 @@ export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]
         issues.main_fail_dept AS "mainFailDept",
         issues.ttm_applied AS "ttmApplied",
         issues.except_ttm_plan AS "exceptTtmPlan",
-        issues.epic_real_start_date::text AS "epicRealStartDate"
+        issues.epic_real_start_date::text AS "epicRealStartDate",
+        issues.change_id AS "changeId",
+        issues.change_id_amt AS "changeIdAmt"
       FROM issues
       WHERE UPPER(issues.issue_type) IN (${EPIC_ISSUE_TYPES_SQL})
         AND issues.aggregated_at::date <= $1::date
@@ -119,6 +123,8 @@ export async function loadEpicFacts(asOf: string, options: { epicKeys?: string[]
       exceptPlanRaw: row.exceptTtmPlan,
       exceptPlanDate: parseExceptPlanDate(row.exceptTtmPlan),
       epicRealStartDate: toIsoDate(row.epicRealStartDate),
+      changeId: row.changeId,
+      changeIdAmt: row.changeIdAmt,
     };
   });
 }

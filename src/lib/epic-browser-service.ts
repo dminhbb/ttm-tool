@@ -235,6 +235,11 @@ export interface EpicBrowserSummary {
   exceptTtmPlan: string | null;
   /** "Actual Start Date" — issues.epic_real_start_date (crawl tool Epic_Real_Start_Date, V16.1, 2026-11-04). */
   epicRealStartDate: string | null;
+  /** issues.change_id / change_id_amt — CSV Change_ID, Change_ID_AMT (2026-11-09; rule "Thiếu Change ID"). */
+  changeId: string | null;
+  changeIdAmt: string | null;
+  /** "Trạng thái pentest" — issues.pentest_status (CSV epic_pentest_status, 2026-11-09): Done = phase PENTEST done. */
+  pentestStatus: string | null;
   /** PM/SM of the Epic's project — comma-joined when there are several, derived live from
    * user_projects (getProjectMetaByProjectKeyMap), not the Jira assignee. */
   ownerName: string;
@@ -279,6 +284,9 @@ interface EpicBrowserSummaryRow {
   ttmApplied: string | null;
   exceptTtmPlan: string | null;
   epicRealStartDate: string | null;
+  changeId: string | null;
+  changeIdAmt: string | null;
+  pentestStatus: string | null;
   project: string | null;
   requestingUnit: string | null;
   startDate: string | null;
@@ -336,6 +344,9 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
         issues.ttm_applied AS "ttmApplied",
         issues.except_ttm_plan AS "exceptTtmPlan",
         issues.epic_real_start_date::text AS "epicRealStartDate",
+        issues.change_id AS "changeId",
+        issues.change_id_amt AS "changeIdAmt",
+        issues.pentest_status AS "pentestStatus",
         issues.requesting_unit AS "requestingUnit", issues.aggregated_at::text AS "aggregatedAt",
         COALESCE(
           NULLIF(issues.project_key, ''),
@@ -402,6 +413,9 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
     ttmApplied: row.ttmApplied,
     exceptTtmPlan: row.exceptTtmPlan,
     epicRealStartDate: row.epicRealStartDate,
+    changeId: row.changeId,
+    changeIdAmt: row.changeIdAmt,
+    pentestStatus: row.pentestStatus,
     // The PM/SMs responsible for this Epic's components (epic-pm-sm-assignment.ts) — the displayed row
     // already carries them; without one, every PM/SM of the project as before.
     ownerName: displayedRow ? displayedRow.ownerName : projectMeta?.leadName ?? '',

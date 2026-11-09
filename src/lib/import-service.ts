@@ -423,6 +423,8 @@ export async function processImport(
         'project_key', 'request_type',
         // Crawl tool V16 / V16.1 (2026-11-04) — 43 columns × 500 rows stays far below the 65535-parameter limit.
         'subtask_assignees_role', 'subtask_resolved', 'story_real_start_date', 'epic_real_start_date',
+        // 2026-11-09, EPIC rows — 46 columns × 500 rows stays far below the 65535-parameter limit.
+        'change_id', 'change_id_amt', 'pentest_status',
       ];
       const insertIssueUpdateClause = `
         ON CONFLICT (issue_key, source_import_batch_id) DO UPDATE SET
@@ -464,6 +466,9 @@ export async function processImport(
           subtask_resolved = EXCLUDED.subtask_resolved,
           story_real_start_date = EXCLUDED.story_real_start_date,
           epic_real_start_date = EXCLUDED.epic_real_start_date,
+          change_id = EXCLUDED.change_id,
+          change_id_amt = EXCLUDED.change_id_amt,
+          pentest_status = EXCLUDED.pentest_status,
           updated_at = NOW();
       `;
 
@@ -524,6 +529,9 @@ export async function processImport(
           issue.subtaskResolved ? parseJiraDate(issue.subtaskResolved) : null,
           issue.storyRealStartDate ? parseJiraDate(issue.storyRealStartDate) : null,
           issue.epicRealStartDate ? parseJiraDate(issue.epicRealStartDate) : null,
+          issue.changeId || null,
+          issue.changeIdAmt || null,
+          issue.pentestStatus || null,
         ];
       });
 

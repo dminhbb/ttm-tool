@@ -535,3 +535,7 @@
 .ttm-mark-flag-done { color: #16a34a; }
 :root[data-theme="dark"] .ttm-mark-flag-done { color: #4ade80; }
 :root[data-theme="dark"] .ttm-mark-flag { color: #fb923c; }
+
+/* "Chuẩn hoá dữ liệu" (owner 2026-11-09): a panel's "N Epic" count above 0 is orange with white text. Beats the Badge
+   variant utility classes (single class) through specificity. */
+:root .ui-badge.dn-count-badge-alert { background-color: #f97316; color: #ffffff; }

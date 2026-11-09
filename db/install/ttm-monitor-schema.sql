@@ -1,6 +1,6 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-08T03:32:37.834Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-09T10:41:19.113Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
 -- Gồm: 77 bảng, 64 index phụ, 4 hàm, 4 trigger.
@@ -431,6 +431,9 @@ CREATE TABLE issues (
     subtask_resolved date,
     story_real_start_date date,
     epic_real_start_date date,
+    change_id text,
+    change_id_amt text,
+    pentest_status text,
     CONSTRAINT issues_pkey PRIMARY KEY (id)
 );
 
@@ -1253,7 +1256,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 128 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 129 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1383,7 +1386,8 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261120_news_letter_view_only_permission.sql'),
     ('20261121_news_letter_view_count.sql'),
     ('20261122_auth_sessions_view_as.sql'),
-    ('20261123_system_suspension_settings.sql');
+    ('20261123_system_suspension_settings.sql'),
+    ('20261124_add_epic_change_id_pentest_status.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1581,7 +1585,7 @@ SELECT * FROM (VALUES
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 SELECT setval(pg_get_serial_sequence('scoring_rule_groups', 'id'), MAX(id)) FROM scoring_rule_groups HAVING MAX(id) IS NOT NULL;
 
--- scoring_rule_group_rules (21 dòng)
+-- scoring_rule_group_rules (22 dòng)
 INSERT INTO scoring_rule_group_rules (group_id, rule_id, state)
 SELECT * FROM (VALUES
     ('1'::integer, 'dq-r1'::text, 'ON'::text),
@@ -1597,6 +1601,7 @@ SELECT * FROM (VALUES
     ('1'::integer, 'early-start'::text, 'ON'::text),
     ('1'::integer, 'fail-reason-dept'::text, 'ON'::text),
     ('1'::integer, 'fail-reason-stage'::text, 'ON'::text),
+    ('1'::integer, 'missing-change-id'::text, 'ON'::text),
     ('1'::integer, 'release-justify-golive'::text, 'ON'::text),
     ('1'::integer, 'release-waiting-golive'::text, 'ON'::text),
     ('1'::integer, 'ttm-cntt-sep-2026'::text, 'ON'::text),
@@ -1671,7 +1676,7 @@ WHERE current_setting('ttm_install.seed_data', true) = 'on';
 -- derived_cache_refresh_lock (1 dòng)
 INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 SELECT * FROM (VALUES
-    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-08 02:31:34.763016+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-09 06:52:46.471254+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
 ) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 

@@ -95,7 +95,7 @@ export type AlertFilterValue =
   | 'FAIL_LATE_R4G' | 'FAIL_MISSING_R4G' | 'DATA_ANOMALY' | 'DATA_ANOMALY_IN_SCOPE' | 'IN_SCOPE_CNTT' | 'OUT_OF_SCOPE_NO_ANOMALY' | 'MISSING_R4G_IN_SCOPE' | 'TTM_ELIGIBLE_IN_SCOPE' | 'PENDING_TOO_LONG' | 'WAITING_GOLIVE' | 'WAITING_GOLIVE_MISSING_R4G'
   | TtmFunnelFilterValue
   | 'WAITING_GOLIVE_WITHIN_GRACE' | 'WAITING_GOLIVE_OVERDUE' | 'RELEASE_EARLY' | 'JUSTIFY_GOLIVE' | 'OUT_OF_SCOPE_CNTT'
-  | 'TTM_COUNTED_IN_SCOPE' | 'TTM_BLACK_LISTED' | 'TTM_PROJECT_NON_TTM' | 'TTM_NO_CNTT_RULE' | 'MISSING_FAIL_REASON' | 'MISSING_FAIL_STAGE' | 'MISSING_RESPONSIBLE_DEPARTMENT';
+  | 'TTM_COUNTED_IN_SCOPE' | 'TTM_BLACK_LISTED' | 'TTM_PROJECT_NON_TTM' | 'TTM_NO_CNTT_RULE' | 'MISSING_FAIL_REASON' | 'MISSING_FAIL_STAGE' | 'MISSING_RESPONSIBLE_DEPARTMENT' | 'MISSING_CHANGE_ID';
 
 const ALERT_FILTER_OPTIONS: { label: string; value: AlertFilterValue }[] = [
   { label: 'Tất cả nhận xét', value: '' },
@@ -131,6 +131,7 @@ const ALERT_FILTER_OPTIONS: { label: string; value: AlertFilterValue }[] = [
   { label: 'Chờ golive: Trong hạn', value: 'WAITING_GOLIVE_WITHIN_GRACE' },
   { label: 'Chờ golive: Quá hạn', value: 'WAITING_GOLIVE_OVERDUE' },
   { label: 'Giải trình Golive', value: 'JUSTIFY_GOLIVE' },
+  { label: 'Thiếu Change ID', value: 'MISSING_CHANGE_ID' },
   { label: 'Ngoài phạm vi TTM-CNTT (QLDA)', value: 'OUT_OF_SCOPE_CNTT' },
 ];
 

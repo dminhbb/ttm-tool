@@ -1,5 +1,6 @@
 import { BADGE_BY_ID, badgesOf, type BadgeId } from '@/lib/scoring/catalog';
 import type { DashboardEpicRow } from '@/lib/epic-alert-types';
+import { CHANGE_ID_AMT_FROM } from '@/lib/scoring/rules/change-id';
 
 /**
  * "Chuẩn hoá dữ liệu" — the data an Epic's owner has to put right on Jira, one panel per rule, each
@@ -8,7 +9,9 @@ import type { DashboardEpicRow } from '@/lib/epic-alert-types';
  *   1. "Thiếu lý do Fail TTM" — first, since it is the one a PM/SM is chased for (owner 2026-10-13);
  *   2. the "Sai lệch dữ liệu" rules (the ALERT badges of the DATA_QUALITY axis of the scoring catalog:
  *      R1, R3–R6, R8–R10) and R7 "Sai Status (Release)", in R-number order. R2 "Pending lâu" has no
- *      panel: it asks for a decision on the Epic, not for a data fix.
+ *      panel: it asks for a decision on the Epic, not for a data fix;
+ *   3. "Thiếu Change ID" (owner 2026-11-09) — a recommendation, not a data anomaly: listed last, on a light green
+ *      panel (`tone: 'recommendation'`), so its Epics can be followed without leaving any TTM number.
  *
  * An Epic breaking several rules appears in several panels (owner decision 2026-10-12).
  *
@@ -35,6 +38,7 @@ const FAIL_REASON_BADGE = 'REC_MISSING_FAIL_REASON' satisfies BadgeId;
 /** The second half of "Thiếu lý do" on TTM Dashboard 2 (widget = Khâu fail + Chịu TN chính). */
 const RESPONSIBLE_DEPARTMENT_BADGE = 'REC_MISSING_RESPONSIBLE_DEPARTMENT' satisfies BadgeId;
 const RELEASE_MISMATCH_BADGE = 'RELEASE_STATUS_MISMATCH' satisfies BadgeId;
+const MISSING_CHANGE_ID_BADGE = 'REC_MISSING_CHANGE_ID' satisfies BadgeId;
 
 /** Key of the "Thiếu lý do Fail TTM" panel in the API (page map, open panels). */
 export const FAIL_REASON_PANEL_CODE = 'FAIL_REASON';
@@ -56,6 +60,8 @@ export interface NormalizationPanelDefinition {
   index: number;
   /** Message of an Epic in this panel when its row carries none for the rule (a badge, not a violation). */
   defaultMessage: string;
+  /** 'recommendation' = a Khuyến nghị panel (light green), not a rule to fix; absent = a rule panel. */
+  tone?: 'recommendation';
 }
 
 function ruleNumberOf(badgeId: string): number {
@@ -65,6 +71,7 @@ function ruleNumberOf(badgeId: string): number {
 const failReasonBadge = BADGE_BY_ID.get(FAIL_REASON_BADGE)!;
 const responsibleDepartmentBadge = BADGE_BY_ID.get(RESPONSIBLE_DEPARTMENT_BADGE)!;
 const releaseMismatchBadge = BADGE_BY_ID.get(RELEASE_MISMATCH_BADGE)!;
+const missingChangeIdBadge = BADGE_BY_ID.get(MISSING_CHANGE_ID_BADGE)!;
 
 const DATA_QUALITY_PANELS: NormalizationPanelDefinition[] = badgesOf('DATA_QUALITY', 'ALERT')
   .map((badge) => {
@@ -107,15 +114,29 @@ const FAIL_REASON_PANEL: NormalizationPanelDefinition = {
   tag: 'Fail TTM',
 };
 
-/** "Thiếu lý do Fail TTM" first, then the rules in R-number order. */
+/** "Thiếu Change ID" — a recommendation of the Release axis (rules/change-id.ts); its finding message says which field. */
+const MISSING_CHANGE_ID_PANEL: NormalizationPanelDefinition = {
+  code: 'CHANGE_ID',
+  defaultMessage: missingChangeIdBadge.label,
+  formula: missingChangeIdBadge.formula,
+  guide: 'Bổ sung Change ID trên Jira: Epic có R4G Date từ 01/07/2026 điền Change ID AMT (Change_ID_AMT); trước đó điền Change ID hoặc Change ID AMT.',
+  index: 0,
+  label: missingChangeIdBadge.label,
+  meaning: missingChangeIdBadge.meaning,
+  tag: 'Khuyến nghị',
+  tone: 'recommendation',
+};
+
+/** "Thiếu lý do Fail TTM" first, then the rules in R-number order, then the recommendation "Thiếu Change ID". */
 export const NORMALIZATION_PANELS: readonly NormalizationPanelDefinition[] = [
   FAIL_REASON_PANEL,
   ...[...DATA_QUALITY_PANELS, RELEASE_MISMATCH_PANEL].sort((a, b) => a.index - b.index),
+  MISSING_CHANGE_ID_PANEL,
 ];
 
 const PANEL_CODE_BY_RULE_INDEX: ReadonlyMap<number, string> = new Map(NORMALIZATION_PANELS.filter((panel) => panel.index > 0).map((panel) => [panel.index, panel.code]));
 
-type NormalizationSourceRow = Pick<DashboardEpicRow, 'dataAnomalyViolations' | 'scoringBadges' | 'ttmCnttInScope'>;
+type NormalizationSourceRow = Pick<DashboardEpicRow, 'dataAnomalyViolations' | 'r4gDate' | 'scoringBadges' | 'ttmCnttInScope'>;
 
 /**
  * The panels an Epic row belongs to, each with the messages to show for it (panel code → messages).
@@ -138,12 +159,20 @@ export function normalizationPanelsOf(row: NormalizationSourceRow): Map<string, 
   // Both halves of "Thiếu lý do" (as the dashboard widget counts them), inside "Phạm vi dữ liệu cho TTM".
   if (row.ttmCnttInScope && row.scoringBadges?.includes(FAIL_REASON_BADGE)) add(FAIL_REASON_PANEL.code, FAIL_REASON_PANEL.defaultMessage);
   if (row.ttmCnttInScope && row.scoringBadges?.includes(RESPONSIBLE_DEPARTMENT_BADGE)) add(FAIL_REASON_PANEL.code, responsibleDepartmentBadge.meaning);
+  // "Thiếu Change ID": every Epic carrying it (no scope condition — it is about the golive record, not a TTM number).
+  if (row.scoringBadges?.includes(MISSING_CHANGE_ID_BADGE)) {
+    // Same split as rules/change-id.ts (the slim dashboard row has no finding messages).
+    const r4g = row.r4gDate;
+    add(MISSING_CHANGE_ID_PANEL.code, !r4g ? MISSING_CHANGE_ID_PANEL.defaultMessage : r4g >= CHANGE_ID_AMT_FROM
+      ? `R4G Date ${r4g} (từ 01/07/2026): thiếu Change ID AMT (Change_ID_AMT)`
+      : `R4G Date ${r4g}: thiếu Change ID (Change_ID hoặc Change_ID_AMT)`);
+  }
   return panels;
 }
 
 /** Badge codes that put a scoring row in a panel without being a violation — for the SQL pre-filter
  * of epic_alert_row_cache.badge_codes (see queryDashboardEpicRows). */
-export const NORMALIZATION_BADGE_CODES: readonly string[] = [RELEASE_MISMATCH_BADGE, FAIL_REASON_BADGE, RESPONSIBLE_DEPARTMENT_BADGE];
+export const NORMALIZATION_BADGE_CODES: readonly string[] = [RELEASE_MISMATCH_BADGE, FAIL_REASON_BADGE, RESPONSIBLE_DEPARTMENT_BADGE, MISSING_CHANGE_ID_BADGE];
 
 const PANEL_CODES: ReadonlySet<string> = new Set(NORMALIZATION_PANELS.map((panel) => panel.code));
 
@@ -197,6 +226,8 @@ export interface NormalizationPanel {
   /** false = the caller didn't ask for this panel's rows (it is collapsed); `totalCount` still holds. */
   rowsLoaded: boolean;
   tag: string;
+  /** See NormalizationPanelDefinition.tone. */
+  tone?: 'recommendation';
   totalCount: number;
   totalPages: number;
 }

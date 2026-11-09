@@ -15,17 +15,24 @@ import {
 
 const violation = (code: string, ruleIndex: number, message = code) => ({ code, message, ruleIndex }) as Parameters<typeof normalizationPanelsOf>[0]['dataAnomalyViolations'][number];
 const panelsOf = (row: Partial<Parameters<typeof normalizationPanelsOf>[0]>) =>
-  Object.fromEntries(normalizationPanelsOf({ dataAnomalyViolations: [], scoringBadges: undefined, ttmCnttInScope: true, ...row }));
+  Object.fromEntries(normalizationPanelsOf({ dataAnomalyViolations: [], r4gDate: null, scoringBadges: undefined, ttmCnttInScope: true, ...row }));
 
 describe('"Chuẩn hoá dữ liệu" panels', () => {
   it('"Thiếu lý do Fail TTM" comes first, then the rules in R-number order — R7 included, R2 not (2026-10-13)', () => {
-    assert.deepEqual(NORMALIZATION_PANELS.map((panel) => panel.code), [FAIL_REASON_PANEL_CODE, 'R1', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R10', 'R11']);
+    assert.deepEqual(NORMALIZATION_PANELS.map((panel) => panel.code), [FAIL_REASON_PANEL_CODE, 'R1', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R10', 'R11', 'CHANGE_ID']);
     assert.deepEqual(NORMALIZATION_PANELS.slice(0, 2).map((panel) => [panel.tag, panel.label]), [['Fail TTM', 'Thiếu lý do Fail TTM'], ['R1', 'Thiếu Start Date']]);
     assert.equal(NORMALIZATION_PANELS.find((panel) => panel.code === 'R7')?.label, 'Sai Status (Release)');
     for (const panel of NORMALIZATION_PANELS) {
       assert.ok(panel.meaning.length > 0 && panel.guide.length > 0 && panel.defaultMessage.length > 0, `${panel.code} lacks meaning/guide/message`);
     }
     assert.ok(!NORMALIZATION_PANELS.some((panel) => panel.index === 2));
+  });
+
+  it('"Thiếu Change ID" is a light green recommendation panel, last; its message follows the R4G Date (2026-11-09)', () => {
+    const last = NORMALIZATION_PANELS[NORMALIZATION_PANELS.length - 1];
+    assert.deepEqual([last.code, last.tag, last.tone], ['CHANGE_ID', 'Khuyến nghị', 'recommendation']);
+    assert.deepEqual(panelsOf({ scoringBadges: ['REC_MISSING_CHANGE_ID'], r4gDate: '2026-07-01', ttmCnttInScope: false }), { CHANGE_ID: ['R4G Date 2026-07-01 (từ 01/07/2026): thiếu Change ID AMT (Change_ID_AMT)'] });
+    assert.match(panelsOf({ scoringBadges: ['REC_MISSING_CHANGE_ID'], r4gDate: '2026-06-30' }).CHANGE_ID[0], /Change_ID hoặc Change_ID_AMT/);
   });
 
   it('an Epic breaking several rules lands in each of their panels, with that rule\'s messages only', () => {
@@ -58,7 +65,7 @@ describe('"Chuẩn hoá dữ liệu" panels', () => {
     assert.equal(panelsOf({ scoringBadges: ['REC_MISSING_FAIL_REASON', 'REC_MISSING_RESPONSIBLE_DEPARTMENT'] })[FAIL_REASON_PANEL_CODE].length, 2);
     assert.deepEqual(panelsOf({ scoringBadges: ['REC_MISSING_RESPONSIBLE_DEPARTMENT'], ttmCnttInScope: false }), {});
     // The SQL pre-filter keeps exactly the badges read here.
-    assert.deepEqual([...NORMALIZATION_BADGE_CODES].sort(), ['REC_MISSING_FAIL_REASON', 'REC_MISSING_RESPONSIBLE_DEPARTMENT', 'RELEASE_STATUS_MISMATCH']);
+    assert.deepEqual([...NORMALIZATION_BADGE_CODES].sort(), ['REC_MISSING_CHANGE_ID', 'REC_MISSING_FAIL_REASON', 'REC_MISSING_RESPONSIBLE_DEPARTMENT', 'RELEASE_STATUS_MISMATCH']);
   });
 
 });

@@ -54,6 +54,10 @@ export interface RawJiraIssue {
   subtaskResolved?: string;      // subtask_Resolved — SUBTASK rows, Jira "Resolved" (YYYY-MM-DD)
   storyRealStartDate?: string;   // Story_Real_Start_Date — STORY rows, computed by the crawl tool (YYYY-MM-DD)
   epicRealStartDate?: string;    // Epic_Real_Start_Date — EPIC rows, computed by the crawl tool (YYYY-MM-DD)
+  // Crawl tool, EPIC rows (2026-11-09) — kept verbatim; '' / 'NULL' mean empty.
+  changeId?: string;       // Change_ID — Jira "Change ID" (rule "Thiếu Change ID")
+  changeIdAmt?: string;    // Change_ID_AMT — Change ID in the AMT tool (rule "Thiếu Change ID")
+  pentestStatus?: string;  // epic_pentest_status — "Done" = phase PENTEST done
 }
 
 /** A cell the crawl tool writes as '' or 'NULL' for "no value" → undefined; anything else trimmed. */

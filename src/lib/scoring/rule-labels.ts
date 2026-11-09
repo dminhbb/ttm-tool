@@ -31,6 +31,7 @@ export const RULE_SLOT_LABELS: Record<RuleSlot, string> = {
   EARLY_START: 'Start sớm',
   RELEASE_WAITING_GOLIVE: 'Chờ golive',
   RELEASE_JUSTIFY_GOLIVE: 'Giải trình Golive',
+  MISSING_CHANGE_ID: 'Thiếu Change ID',
 };
 
 /** Display order of the categories on the screen. */

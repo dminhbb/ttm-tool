@@ -186,7 +186,7 @@ export function buildMcpServer(user: AuthUser, tokenId: number): McpServer {
           'Bộ lọc "Nhận xét" của màn Quản trị Epic. Tiêu chí phễu TTM Dashboard 2: IN_SCOPE_CNTT = L01 (cần includeCancelled = true để tính cả Epic Cancelled), TTM_COUNTED_IN_SCOPE = L02 (L01 − Cancelled − Epic ngoại lệ), TTM_BLACK_LISTED = Epic ngoại lệ loại Black listed, TTM_PROJECT_NON_TTM = Epic ngoại lệ loại dự án Time to Market = N (Epic ngoại lệ không được Scoring Service xét nên không khớp bộ lọc đánh giá nào khác), TTM_NO_CNTT_RULE = Epic thuộc nhóm rule không có rule TTM-CNTT (cũng bị loại ở L02; vẫn được xét TTM-E2E, Sai lệch dữ liệu…), DATA_ANOMALY_IN_SCOPE = Sai lệch dữ liệu (L02 − L03), '
           + 'TTM_ELIGIBLE_IN_SCOPE = L04a, MISSING_R4G_IN_SCOPE = L04b, TTM_PASS_IN_SCOPE = L05aa, TTM_LATE_IN_SCOPE = L05ab, TTM_NOT_SCORED_IN_SCOPE = L05ac, '
           + 'OVERDUE_MISSING_R4G_IN_SCOPE = L05ba, WITHIN_TARGET_MISSING_R4G = L05bb, OUT_OF_SCOPE_CNTT = ngoài "Phạm vi dữ liệu cho TTM". '
-          + 'Khác: ACHIEVED_E2E / FAIL_E2E, LATE (Chậm tiến độ), DATA_ANOMALY, PENDING_TOO_LONG, WAITING_GOLIVE (+ _MISSING_R4G / _WITHIN_GRACE / _OVERDUE), JUSTIFY_GOLIVE, STATUS_MISMATCH.',
+          + 'Khác: ACHIEVED_E2E / FAIL_E2E, LATE (Chậm tiến độ), DATA_ANOMALY, PENDING_TOO_LONG, WAITING_GOLIVE (+ _MISSING_R4G / _WITHIN_GRACE / _OVERDUE), JUSTIFY_GOLIVE, STATUS_MISMATCH, MISSING_CHANGE_ID (Thiếu Change ID).',
         ),
         includeCancelled: z.boolean().optional().describe('Chỉ có tác dụng khi dùng nhanXet: true = tính cả Epic Cancelled (mặc định loại, giống màn Quản trị Epic).'),
         search: z.string().trim().max(100).optional().describe('Tìm theo mã hoặc tên Epic (không phân biệt hoa/thường).'),

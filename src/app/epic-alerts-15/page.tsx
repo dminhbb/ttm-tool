@@ -210,11 +210,15 @@ function phaseCellColorClass(cell: PhaseCell, laterPhaseDone = false): string {
 }
 
 /** Tooltip of a phase coloured done only because the Epic already reached R4GOLIVE / Released. */
-const LATER_PHASE_DONE_NOTE = 'Nền xanh vì Epic đã hoàn thành R4GOLIVE / Released — pha này chưa đạt điều kiện hoàn thành riêng (icon giữ nguyên)';
+const LATER_PHASE_DONE_NOTE = 'Nền xanh vì Epic đã hoàn thành một pha sau (PENTEST / R4GOLIVE / Released) — pha này chưa đạt điều kiện hoàn thành riêng (icon giữ nguyên)';
 
-/** The Epic finished a later phase: R4GOLIVE or Released for DESIGN…PENTEST, Released for R4GOLIVE (owner 2026-11-09). */
-function laterPhaseDoneFor(row: EpicAlertRowPhased, phase: 'early' | 'r4golive'): boolean {
-  return phase === 'early' ? row.stages.r4golive.isDone || row.stages.release.isDone : row.stages.release.isDone;
+/** The Epic finished a later phase (owner 2026-11-09): PENTEST, R4GOLIVE or Released for DESIGN / DEV / TEST; R4GOLIVE or
+ * Released for PENTEST; Released for R4GOLIVE. Background only — the icon still follows the phase's own rule. */
+function laterPhaseDoneFor(row: EpicAlertRowPhased, phase: 'early' | 'pentest' | 'r4golive'): boolean {
+  const { pentest, r4golive, release } = row.stages;
+  if (phase === 'r4golive') return release.isDone;
+  if (phase === 'pentest') return r4golive.isDone || release.isDone;
+  return pentest.isDone || r4golive.isDone || release.isDone;
 }
 
 /** Two-line cell: baseline (top, computed from the phase-division rule) vs — only for phases that
@@ -258,8 +262,8 @@ const COLLAPSIBLE_PHASES: CollapsiblePhase[] = ['DESIGN', 'DEV', 'TEST', 'PENTES
 const PHASE_COLUMN_META: Record<CollapsiblePhase, { char: string; title: string }> = {
   DESIGN: { char: 'D', title: 'Baseline = Start Date + 20% TTM-CNTT (QLDA) (làm tròn ngày)\nHoàn thành: status Epic = In Progress hoặc mọi subtask BA Done' },
   DEV: { char: 'V', title: 'Baseline = Start Date + (20%+30%) TTM-CNTT (QLDA) (làm tròn ngày)\nHoàn thành: ≥ 80% story từ Dev Done trở đi (hoặc Epic ≥ 3 story còn tối đa 1 story chưa tới); bỏ qua story Cancelled/Pending' },
-  TEST: { char: 'T', title: 'Baseline = Start Date + (20%+30%+30%) TTM-CNTT (QLDA) (làm tròn ngày)\nHoàn thành: ≥ 80% story từ UAT Done trở đi (hoặc Epic ≥ 3 story còn tối đa 1 story chưa tới), hoặc mọi subtask / Task PENTEST Done' },
-  PENTEST: { char: 'P', title: 'Baseline = Start Date + (20%+30%+30%+10%) TTM-CNTT (QLDA) (làm tròn ngày)\nHoàn thành: mọi subtask Pentest và Task PENTEST (mã PENTEST-…) Done; Epic không có cả hai thì xong cùng pha TEST' },
+  TEST: { char: 'T', title: 'Baseline = Start Date + (20%+30%+30%) TTM-CNTT (QLDA) (làm tròn ngày)\nHoàn thành: ≥ 80% story từ UAT Done trở đi (hoặc Epic ≥ 3 story còn tối đa 1 story chưa tới)' },
+  PENTEST: { char: 'P', title: 'Baseline = Start Date + (20%+30%+30%+10%) TTM-CNTT (QLDA) (làm tròn ngày)\nHoàn thành: Pentest status của Epic (epic_pentest_status) = Done; trống hoặc giá trị khác là chưa xong' },
 };
 
 /** Expanded: full name, click to collapse. Collapsed: thin stub showing one representative
@@ -1690,7 +1694,7 @@ function EpicAlerts15Screen() {
                         <CollapsiblePhaseCell cell={row.stages.design} isCollapsed={collapsedColumns.has('DESIGN')} laterPhaseDone={laterPhaseDoneFor(row, 'early')} />
                         <CollapsiblePhaseCell cell={row.stages.dev} isCollapsed={collapsedColumns.has('DEV')} laterPhaseDone={laterPhaseDoneFor(row, 'early')} />
                         <CollapsiblePhaseCell cell={row.stages.test} isCollapsed={collapsedColumns.has('TEST')} laterPhaseDone={laterPhaseDoneFor(row, 'early')} />
-                        <CollapsiblePhaseCell cell={row.stages.pentest} isCollapsed={collapsedColumns.has('PENTEST')} laterPhaseDone={laterPhaseDoneFor(row, 'early')} />
+                        <CollapsiblePhaseCell cell={row.stages.pentest} isCollapsed={collapsedColumns.has('PENTEST')} laterPhaseDone={laterPhaseDoneFor(row, 'pentest')} />
                         <PhaseStageCell cell={row.stages.r4golive} actualDateText={row.r4gDate} laterPhaseDone={laterPhaseDoneFor(row, 'r4golive')} />
                       </>
                     )}

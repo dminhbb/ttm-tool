@@ -317,7 +317,10 @@
         "subtask_assignees_role": "<code>TEXT</code></td><td>Dòng Subtask: \"Assignee's Role\" trên Jira (cột CSV <code>subtask_Assignees_Role</code>, nhiều giá trị nối bằng dấu phẩy, lưu nguyên văn) — crawl tool V16",
         "subtask_resolved": "<code>DATE</code></td><td>Dòng Subtask: ngày \"Resolved\" trên Jira (cột CSV <code>subtask_Resolved</code>) — crawl tool V16",
         "story_real_start_date": "<code>DATE</code></td><td>Dòng Story: ngày bắt đầu thực tế do crawl tool tính (cột CSV <code>Story_Real_Start_Date</code>) — V16",
-        "epic_real_start_date": "<code>DATE</code></td><td>Dòng Epic: ngày bắt đầu thực tế do crawl tool tính (cột CSV <code>Epic_Real_Start_Date</code>) — V16.1; dòng import trống / NULL được chép giá trị từ dòng mới nhất trước đó của Epic cùng key"
+        "epic_real_start_date": "<code>DATE</code></td><td>Dòng Epic: ngày bắt đầu thực tế do crawl tool tính (cột CSV <code>Epic_Real_Start_Date</code>) — V16.1; dòng import trống / NULL được chép giá trị từ dòng mới nhất trước đó của Epic cùng key",
+        "change_id": "<code>TEXT</code></td><td>Dòng Epic: Change ID trên Jira (cột CSV <code>Change_ID</code>, 09/11/2026) — rule \"Thiếu Change ID\" (R4G Date trước 01/07/2026 cần Change_ID hoặc Change_ID_AMT)",
+        "change_id_amt": "<code>TEXT</code></td><td>Dòng Epic: Change ID trên công cụ AMT (cột CSV <code>Change_ID_AMT</code>, 09/11/2026) — bắt buộc với R4G Date từ 01/07/2026 (rule \"Thiếu Change ID\")",
+        "pentest_status": "<code>TEXT</code></td><td>Dòng Epic: Pentest status của Epic (cột CSV <code>epic_pentest_status</code>, 09/11/2026) — \"Done\" là pha PENTEST hoàn thành; trống / giá trị khác là chưa xong"
       }
     },
     "denied_import_epics": {
