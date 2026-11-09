@@ -77,6 +77,17 @@ describe('PENTEST', () => {
     assert.equal(result.done.PENTEST, false);
   });
 
+  it('Task PENTEST counts with the Pentest subtasks (owner 2026-11-09)', () => {
+    const allDone = evaluateStoryPhases({ ...completion(['IN DEV']), pentestTasks: { total: 1, done: 1 } }, DEFAULT_SCORING_PARAMETERS);
+    assert.deepEqual([allDone.done.DEV, allDone.done.TEST, allDone.done.PENTEST], [true, true, true]);
+    assert.match(allDone.notes.PENTEST ?? '', /1\/1 Done/);
+    // A Task PENTEST not Done keeps PENTEST open even when every Pentest subtask is Done.
+    const open = evaluateStoryPhases({ ...completion(['UAT DONE'], { PENTEST: { total: 2, done: 2 } }), pentestTasks: { total: 1, done: 0 } }, DEFAULT_SCORING_PARAMETERS);
+    assert.equal(open.done.TEST, true);
+    assert.equal(open.done.PENTEST, false);
+    assert.match(open.notes.PENTEST ?? '', /2\/3 Done/);
+  });
+
   it('no Pentest subtask → PENTEST done together with TEST', () => {
     assert.equal(evaluate(['UAT DONE'], { DEV: { total: 3, done: 3 } }).done.PENTEST, true);
     assert.equal(evaluate(['IN SIT']).done.PENTEST, false);

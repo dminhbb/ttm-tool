@@ -6,7 +6,7 @@ import { CheckCircle } from '@phosphor-icons/react';
 export function StatusColorLegend() {
   return (
     <div className="ttm-status-legend" aria-label="Chú giải ô pha">
-      <span className="ttm-status-legend-item" title="DEV / TEST: ≥ 80% story đã qua pha (hoặc Epic ≥ 3 story còn tối đa 1 story chưa xong); bỏ qua story Cancelled / Pending. PENTEST: mọi subtask Pentest Done, không có thì xong cùng TEST. Epic đã hoàn thành R4GOLIVE / Released thì mọi pha trước đều nền xanh, nhưng icon hoàn thành chỉ hiện ở pha đạt điều kiện riêng. Rê chuột vào ô pha để xem chi tiết.">
+      <span className="ttm-status-legend-item" title="DEV / TEST: ≥ 80% story đã qua pha (hoặc Epic ≥ 3 story còn tối đa 1 story chưa xong); bỏ qua story Cancelled / Pending. PENTEST: mọi subtask Pentest và Task PENTEST (mã PENTEST-…) Done, không có thì xong cùng TEST. Epic đã hoàn thành R4GOLIVE / Released thì mọi pha trước đều nền xanh, nhưng icon hoàn thành chỉ hiện ở pha đạt điều kiện riêng. Rê chuột vào ô pha để xem chi tiết.">
         <span className="ttm-status-swatch done" aria-hidden="true" />
         <CheckCircle className="size-3 shrink-0" weight="bold" aria-hidden="true" />
         Hoàn thành pha

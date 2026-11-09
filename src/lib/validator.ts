@@ -1,5 +1,5 @@
 import type { RawJiraIssue } from './csv-parser';
-import { getIssueHierarchyLevel } from './issue-hierarchy';
+import { getIssueHierarchyLevel, isPentestTask } from './issue-hierarchy';
 import { isCancelledStatus, isPendingStatus } from './issue-status-rules';
 import { STORY_WORKFLOW_STATUS_ORDER, storyWorkflowStatusIndex } from './story-workflow-rules';
 import { SUBTASK_WORKFLOW_STATUS_ORDER, subtaskWorkflowStatusIndex } from './subtask-workflow-rules';
@@ -236,13 +236,16 @@ export function validateJiraIssue(issue: RawJiraIssue): ValidationError[] {
     }
 
     const isSpecialStatus = isPendingStatus(issue.status) || isCancelledStatus(issue.status);
-    const statusOrder = hierarchyLevel === 2 ? storyWorkflowStatusIndex(issue.status) : subtaskWorkflowStatusIndex(issue.status);
-    const workflowLength = hierarchyLevel === 2 ? STORY_WORKFLOW_STATUS_ORDER.length : SUBTASK_WORKFLOW_STATUS_ORDER.length;
+    // A "Task PENTEST" (level 2, key PENTEST-…) runs a Task workflow (To Do → Done), not the Story one — checked
+    // against the Subtask workflow like the Pentest subtasks it stands beside (owner 2026-11-09).
+    const usesStoryWorkflow = hierarchyLevel === 2 && !isPentestTask(issue.issueType, issue.issueKey);
+    const statusOrder = usesStoryWorkflow ? storyWorkflowStatusIndex(issue.status) : subtaskWorkflowStatusIndex(issue.status);
+    const workflowLength = usesStoryWorkflow ? STORY_WORKFLOW_STATUS_ORDER.length : SUBTASK_WORKFLOW_STATUS_ORDER.length;
     if (!isSpecialStatus && statusOrder >= workflowLength) {
       errors.push({
         type: 'WARNING',
         field: 'Status',
-        message: `Status "${issue.status}" không thuộc workflow ${hierarchyLevel === 2 ? 'Story' : 'Subtask'} đã cấu hình`
+        message: `Status "${issue.status}" không thuộc workflow ${usesStoryWorkflow ? 'Story' : 'Subtask'} đã cấu hình`
       });
     }
   }

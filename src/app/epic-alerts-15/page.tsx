@@ -96,6 +96,12 @@ function formatDate(value: string | null): string {
   return `${day}/${month}/${date.getFullYear()}`;
 }
 
+/** dd/mm/yy — the TTM-CNTT / TTM-E2E strips in compact mode (full dates stay in the strip's tooltip). */
+function formatShortDate(value: string | null): string {
+  const full = formatDate(value);
+  return /^\d{2}\/\d{2}\/\d{4}$/.test(full) ? `${full.slice(0, 6)}${full.slice(8)}` : full;
+}
+
 function formatDateTime(value: string | null): string {
   if (!value) return 'Chưa có dữ liệu';
   const date = new Date(value);
@@ -252,8 +258,8 @@ const COLLAPSIBLE_PHASES: CollapsiblePhase[] = ['DESIGN', 'DEV', 'TEST', 'PENTES
 const PHASE_COLUMN_META: Record<CollapsiblePhase, { char: string; title: string }> = {
   DESIGN: { char: 'D', title: 'Baseline = Start Date + 20% TTM-CNTT (QLDA) (làm tròn ngày)\nHoàn thành: status Epic = In Progress hoặc mọi subtask BA Done' },
   DEV: { char: 'V', title: 'Baseline = Start Date + (20%+30%) TTM-CNTT (QLDA) (làm tròn ngày)\nHoàn thành: ≥ 80% story từ Dev Done trở đi (hoặc Epic ≥ 3 story còn tối đa 1 story chưa tới); bỏ qua story Cancelled/Pending' },
-  TEST: { char: 'T', title: 'Baseline = Start Date + (20%+30%+30%) TTM-CNTT (QLDA) (làm tròn ngày)\nHoàn thành: ≥ 80% story từ UAT Done trở đi (hoặc Epic ≥ 3 story còn tối đa 1 story chưa tới), hoặc mọi subtask Pentest Done' },
-  PENTEST: { char: 'P', title: 'Baseline = Start Date + (20%+30%+30%+10%) TTM-CNTT (QLDA) (làm tròn ngày)\nHoàn thành: mọi subtask Pentest Done; Epic không có subtask Pentest thì xong cùng pha TEST' },
+  TEST: { char: 'T', title: 'Baseline = Start Date + (20%+30%+30%) TTM-CNTT (QLDA) (làm tròn ngày)\nHoàn thành: ≥ 80% story từ UAT Done trở đi (hoặc Epic ≥ 3 story còn tối đa 1 story chưa tới), hoặc mọi subtask / Task PENTEST Done' },
+  PENTEST: { char: 'P', title: 'Baseline = Start Date + (20%+30%+30%+10%) TTM-CNTT (QLDA) (làm tròn ngày)\nHoàn thành: mọi subtask Pentest và Task PENTEST (mã PENTEST-…) Done; Epic không có cả hai thì xong cùng pha TEST' },
 };
 
 /** Expanded: full name, click to collapse. Collapsed: thin stub showing one representative
@@ -392,28 +398,35 @@ function TtmMetricStrips({
   target: number;
 }) {
   const elapsedDays = elapsed ?? 0;
-  // Compact mode (all four collapsible phase columns collapsed) shrinks these tracks so the whole
-  // table fits the viewport with no horizontal scroll — see the toolbar's collapse-all toggle.
-  const BASE_WIDTH = compact ? 22 : 36;
+  // Compact mode (all four collapsible phase columns collapsed) shrinks these tracks and shows
+  // dd/mm/yy dates so the whole table — R4GOLIVE and Due Date included — fits a 100% zoom viewport
+  // with no horizontal scroll (owner 2026-11-09) — see the toolbar's collapse-all toggle.
+  const BASE_WIDTH = compact ? 18 : 36;
   // Hard cap in px (not just a ratio multiplier) so an Epic with an unusually long actual
   // duration can never stretch the strip wide enough to break the table's layout.
-  const MAX_ACTUAL_WIDTH = compact ? 42 : 72;
+  const MAX_ACTUAL_WIDTH = compact ? 30 : 72;
   const actualWidth = Math.min(Math.max(6, ratio * BASE_WIDTH), MAX_ACTUAL_WIDTH);
   const mismatchNote = ' — * đã đạt tiến độ theo ngày ghi nhận nhưng status Epic chưa chuyển đúng quy định';
+  const showDate = compact ? formatShortDate : formatDate;
+  const title = [
+    `${elapsedDays}/${target} ngày làm việc${statusMismatch ? mismatchNote : ''}`,
+    `Baseline: ${formatDate(baselineFromDate)} → ${formatDate(baselineToDate)}`,
+    `Thực tế: ${formatDate(actualFromDate)} → ${formatDate(actualToDate)}`,
+  ].join('\n');
 
   return (
     <TD className={`w-[1%] ttm-metric align-top text-left${compact ? ' ttm-metric-compact' : ''}${className ? ` ${className}` : ''} px-1.5`}>
-      <div className="ttm-strip-wrap items-start text-left" title={`${elapsedDays}/${target} ngày làm việc${statusMismatch ? mismatchNote : ''}`}>
+      <div className="ttm-strip-wrap items-start text-left" title={title}>
         <div className="ttm-strip-row">
-          <span className="ttm-strip-date">{formatDate(baselineFromDate)}</span>
+          <span className="ttm-strip-date">{showDate(baselineFromDate)}</span>
           <span className="ttm-strip-track" style={{ width: `${BASE_WIDTH}px` }} />
-          <span className="ttm-strip-date">{formatDate(baselineToDate)}</span>
+          <span className="ttm-strip-date">{showDate(baselineToDate)}</span>
         </div>
         <div className="ttm-strip-row">
-          <span className="ttm-strip-date">{formatDate(actualFromDate)}</span>
+          <span className="ttm-strip-date">{showDate(actualFromDate)}</span>
           <span className={`ttm-strip-track actual ${isOver ? 'over' : 'under'}`} style={{ width: `${actualWidth}px` }} />
           <span className="ttm-strip-date">
-            {formatDate(actualToDate)}
+            {showDate(actualToDate)}
             {statusMismatch && (
               <span className="ttm-strip-status-mismatch-mark" title="Đã đạt tiến độ theo ngày ghi nhận nhưng status Epic chưa chuyển đúng quy định — vui lòng cập nhật status.">*</span>
             )}
@@ -1567,27 +1580,27 @@ function EpicAlerts15Screen() {
       ) : filteredRows.length === 0 ? (
         <EmptyState title="Không có Epic phù hợp" description="Thử thay đổi bộ lọc." />
       ) : (
-        <TableContainer>
+        <TableContainer className="ttm-epic-table-wrap">
           {/* Fluid responsive layout: Epic column absorbs flexible remaining width,
               while metric, date and status columns are snug and centered with min-widths. */}
           <Table className={`ttm-align-top w-full ${allColumnsCollapsed ? 'ttm-table-compact' : 'min-w-[1200px]'}`}>
             <THead>
               <TR>
                 <TH className={`ttm-epic-col-sticky ttm-col-border-right text-left align-top ${allColumnsCollapsed ? 'min-w-[160px]' : 'min-w-[200px]'}`} title="issues.issue_key / issues.issue_name">EPIC</TH>
-                <TH className="w-[1%] min-w-[44px] text-center align-top" title="Epic có comment (cờ: cam = Giao việc To do, xanh lá = Done) và/hoặc bạn đã ẩn (mắt gạch chéo) — bấm để mở Review Notes">REVIEW</TH>
-                <TH className="w-[1%] min-w-[140px] ttm-col-border-right text-left align-top" title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">SCORING</TH>
-                <TH className="w-[1%] min-w-[42px] text-center align-top ttm-col-pass" title="Đánh giá kết quả TTM-CNTT (QLDA): Đạt (xanh) / Fail (orange); bên dưới là TTM-E2E: Đạt (xanh dương nhạt) / Fail (nâu nhạt)">PASS</TH>
-                <TH className="w-[1%] min-w-[132px] text-left align-top" title="Baseline (dòng trên) = Start Date + TTM-CNTT (QLDA); Thực tế (dòng dưới) = Start Date → R4G Date (hoặc hôm nay nếu chưa có)">TTM-CNTT (QLDA)</TH>
-                <TH className="w-[1%] ttm-col-border-right min-w-[132px] text-left align-top" title="Baseline (dòng trên) = T0 + TTM-E2E; Thực tế (dòng dưới) = T0 → Due Date (hoặc hôm nay nếu chưa có). T0 = Idea Approved Date, hoặc Start Date, hoặc ngày tạo Jira">TTM-E2E</TH>
-                <TH className="w-[1%] min-w-[72px] text-left align-top" title="issues.current_status">STATUS</TH>
-                <TH className="w-[1%] min-w-[74px] text-left align-top" title="T0 = Idea Approved Date, hoặc ngày tạo Jira nếu không có — điểm bắt đầu chu kỳ TTM-E2E">START-E2E</TH>
-                <TH className="w-[1%] min-w-[74px] text-left align-top" title="issues.start_date">START-DATE</TH>
+                <TH className="ttm-cw-shrink w-[1%] min-w-[44px] text-center align-top" title="Epic có comment (cờ: cam = Giao việc To do, xanh lá = Done) và/hoặc bạn đã ẩn (mắt gạch chéo) — bấm để mở Review Notes">REVIEW</TH>
+                <TH className="ttm-cw-scoring w-[1%] min-w-[120px] ttm-col-border-right text-left align-top" title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">SCORING</TH>
+                <TH className="ttm-cw-pass w-[1%] min-w-[42px] text-center align-top ttm-col-pass" title="Đánh giá kết quả TTM-CNTT (QLDA): Đạt (xanh) / Fail (orange); bên dưới là TTM-E2E: Đạt (xanh dương nhạt) / Fail (nâu nhạt)">PASS</TH>
+                <TH className="ttm-cw-strip w-[1%] min-w-[132px] text-left align-top" title="Baseline (dòng trên) = Start Date + TTM-CNTT (QLDA); Thực tế (dòng dưới) = Start Date → R4G Date (hoặc hôm nay nếu chưa có)">TTM-CNTT (QLDA)</TH>
+                <TH className="ttm-cw-strip w-[1%] ttm-col-border-right min-w-[132px] text-left align-top" title="Baseline (dòng trên) = T0 + TTM-E2E; Thực tế (dòng dưới) = T0 → Due Date (hoặc hôm nay nếu chưa có). T0 = Idea Approved Date, hoặc Start Date, hoặc ngày tạo Jira">TTM-E2E</TH>
+                <TH className="ttm-cw-shrink w-[1%] min-w-[72px] text-left align-top" title="issues.current_status">STATUS</TH>
+                <TH className="ttm-cw-start w-[1%] min-w-[74px] text-left align-top" title="T0 = Idea Approved Date, hoặc ngày tạo Jira nếu không có — điểm bắt đầu chu kỳ TTM-E2E">START-E2E</TH>
+                <TH className="ttm-cw-start w-[1%] min-w-[74px] text-left align-top" title="issues.start_date">START-DATE</TH>
                 <CollapsiblePhaseHeader phase="DESIGN" isCollapsed={collapsedColumns.has('DESIGN')} onToggle={toggleColumn} />
                 <CollapsiblePhaseHeader phase="DEV" isCollapsed={collapsedColumns.has('DEV')} onToggle={toggleColumn} />
                 <CollapsiblePhaseHeader phase="TEST" isCollapsed={collapsedColumns.has('TEST')} onToggle={toggleColumn} />
                 <CollapsiblePhaseHeader phase="PENTEST" isCollapsed={collapsedColumns.has('PENTEST')} onToggle={toggleColumn} />
-                <TH className="w-[1%] min-w-[78px] text-left align-top" title={'Baseline = Start Date + 100% TTM-CNTT (QLDA); dòng dưới = issues.r4g_date\nHoàn thành: status Epic = R4GOLIVE, hoặc có R4G Date, hoặc mọi story ≥ Ready for Golive'}>R4GOLIVE</TH>
-                <TH className="w-[1%] min-w-[78px] text-left align-top" title="Baseline = Ngày duyệt ý tưởng (hoặc Ngày epic created nếu không có) + 20 ngày làm việc, không tính holiday. Dòng dưới = issues.due_date">DUE DATE</TH>
+                <TH className="ttm-cw-date w-[1%] min-w-[78px] text-left align-top" title={'Baseline = Start Date + 100% TTM-CNTT (QLDA); dòng dưới = issues.r4g_date\nHoàn thành: status Epic = R4GOLIVE, hoặc có R4G Date, hoặc mọi story ≥ Ready for Golive'}>R4GOLIVE</TH>
+                <TH className="ttm-cw-date w-[1%] min-w-[78px] text-left align-top" title="Baseline = Ngày duyệt ý tưởng (hoặc Ngày epic created nếu không có) + 20 ngày làm việc, không tính holiday. Dòng dưới = issues.due_date">DUE DATE</TH>
               </TR>
             </THead>
             <TBody>
@@ -1670,7 +1683,8 @@ function EpicAlerts15Screen() {
                       </TD>
                     )}
                     {isMissingCore ? (
-                      <TD colSpan={5} className="ttm-metric na text-left align-top">Chưa thể tính lịch TTM-CNTT (QLDA) do thiếu dữ liệu bắt buộc.</TD>
+                      // Wraps (TD is nowrap by default): one unbroken line here stretched the thin D/V/T/P stubs it spans.
+                      <TD colSpan={5} className="ttm-metric na whitespace-normal text-left align-top">Chưa thể tính lịch TTM-CNTT (QLDA) do thiếu dữ liệu bắt buộc.</TD>
                     ) : (
                       <>
                         <CollapsiblePhaseCell cell={row.stages.design} isCollapsed={collapsedColumns.has('DESIGN')} laterPhaseDone={laterPhaseDoneFor(row, 'early')} />

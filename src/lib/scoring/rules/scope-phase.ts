@@ -46,7 +46,7 @@ export const phaseRule: ScoringRule = {
   id: 'phase',
   name: 'Pha — Trễ pha / Hoàn thành pha / Pha hiện tại',
   summary: 'Mỗi pha DESIGN / DEV / TEST / PENTEST / R4GOLIVE có baseline theo % ngân sách TTM-CNTT; pha chưa xong mà đã qua baseline là Trễ pha.',
-  detail: { conditions: 'Luôn chạy. Cần Start Date và ngân sách TTM-CNTT; hoàn thành pha đọc theo story/subtask tại ngày đang xem — DEV/TEST theo % story đã qua pha (bỏ qua Cancelled/Pending), PENTEST theo subtask Pentest. Kèm khuyến nghị "Đẩy nhanh pha" cho pha hiện tại đang trễ.', parameters: ['phase.percentages (mặc định 20 / 30 / 30 / 10 / 10 %)', 'phase.storyDoneRatio (mặc định DEV 80 %, TEST 80 %)', 'phase.storyDoneTolerance (mặc định Epic ≥ 3 story, còn tối đa 1 story)', 'phase.pentestIssueTypes (mặc định PENTEST)'] },
+  detail: { conditions: 'Luôn chạy. Cần Start Date và ngân sách TTM-CNTT; hoàn thành pha đọc theo story/subtask tại ngày đang xem — DEV/TEST theo % story đã qua pha (bỏ qua Cancelled/Pending), PENTEST theo subtask Pentest và Task PENTEST (mã PENTEST-…, không tính là story). Kèm khuyến nghị "Đẩy nhanh pha" cho pha hiện tại đang trễ.', parameters: ['phase.percentages (mặc định 20 / 30 / 30 / 10 / 10 %)', 'phase.storyDoneRatio (mặc định DEV 80 %, TEST 80 %)', 'phase.storyDoneTolerance (mặc định Epic ≥ 3 story, còn tối đa 1 story)', 'phase.pentestIssueTypes (mặc định PENTEST)'] },
   category: 'PHASE',
   stage: 'PRIMARY',
   core: true,

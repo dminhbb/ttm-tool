@@ -30,6 +30,9 @@
  *           story_components, story_subtasks (comma/semicolon-separated subtask keys, stored
  *             verbatim — same caveat as epic_stories)
  *          + epic_key  (the epic this story belongs to)
+ *          "Task PENTEST" (owner 2026-11-09): a Task of Jira project PENTEST (story_key "PENTEST-…") linked to the
+ *          Epic arrives as a STORY row too — level 2 straight under the Epic; issue type "Task" when the file leaves
+ *          story_issue_type empty. The phase rules count it as Pentest work (issue-hierarchy.ts isPentestTask).
  *
  * Subtask: subtask_key, subtask_issue_type, subtask_summary, subtask_status, subtask_assignee,
  *           subtask_start_date, subtask_due_date
@@ -39,6 +42,7 @@
 
 import { crawlCellValue, parseCSV, type RawJiraIssue } from '../csv-parser';
 import { EXCEPT_TTM_PLAN_HEADERS, TTM_APPLIED_HEADERS } from '../import-ttm-applied-columns';
+import { PENTEST_TASK_KEY_PREFIX } from '../issue-hierarchy';
 
 export interface PyJiraApiParseResult {
   issues: RawJiraIssue[];
@@ -239,7 +243,7 @@ export function parsePyJiraApi(csvText: string): PyJiraApiParseResult {
         issueKey: key,
         issueId: '',
         summary: get(COL.story_summary),
-        issueType: get(COL.story_issue_type) || 'Story',
+        issueType: get(COL.story_issue_type) || (key.toUpperCase().startsWith(PENTEST_TASK_KEY_PREFIX) ? 'Task' : 'Story'),
         status: get(COL.story_status),
         projectKey,
         projectName: '',

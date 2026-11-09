@@ -19,6 +19,10 @@ export interface EpicPhaseCompletionFacts {
   /** Non-Cancelled subtasks of the Epic (directly under it or under its Stories) per issue type as stored:
    * total and how many are DONE. The Pentest rule picks its types via `phase.pentestIssueTypes`. */
   subtaskCountsByType: Record<string, { total: number; done: number }>;
+  /** Non-Cancelled "Task PENTEST" of the Epic (level 2, key PENTEST-…, see issue-hierarchy.ts isPentestTask): total and
+   * how many are DONE. Counted by the Pentest rule with the Pentest subtasks, kept out of `storyStatuses`. Optional:
+   * facts built before 2026-11-09 have none. */
+  pentestTasks?: { total: number; done: number };
 }
 
 /** One Epic's raw data exactly as known at `ScoringContext.asOf` (the caller loads the matching

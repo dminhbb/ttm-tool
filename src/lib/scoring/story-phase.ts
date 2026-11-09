@@ -6,7 +6,8 @@ import type { ScoringParameters } from './parameters';
  * every Story status maps to one level of the Epic's phases, and a phase is done once a share of the
  * Epic's Stories (`phase.storyDoneRatio`, default 80 %) has reached that phase's "done" level — or, for an
  * Epic with enough Stories (`phase.storyDoneTolerance`), once at most 1 Story is still behind. Cancelled
- * and Pending Stories are skipped (neither counted nor blocking). A status not listed here counts as
+ * and Pending Stories are skipped (neither counted nor blocking). A "Task PENTEST" is not a Story here: it
+ * counts with the Pentest subtasks (`EpicPhaseCompletionFacts.pentestTasks`). A status not listed here counts as
  * level 0 and is surfaced in the phase note so it can be classified.
  */
 export const STORY_PHASE_LEVELS: readonly { level: number; label: string; statuses: readonly string[] }[] = [
@@ -81,9 +82,11 @@ export function evaluateStoryPhases(completion: EpicPhaseCompletionFacts, params
     return { doneCount, isDone: byRatio || byTolerance, byTolerance };
   };
 
+  // Pentest work = the Pentest subtasks (types `phase.pentestIssueTypes`) + the Epic's "Task PENTEST" (level 2,
+  // key PENTEST-…, owner 2026-11-09) — both judged the same way: every one of them Done.
   const pentestTypes = new Set(params['phase.pentestIssueTypes'].map(normalizeIssueType));
-  let pentestTotal = 0;
-  let pentestDone = 0;
+  let pentestTotal = completion.pentestTasks?.total ?? 0;
+  let pentestDone = completion.pentestTasks?.done ?? 0;
   for (const [issueType, counts] of Object.entries(completion.subtaskCountsByType)) {
     if (!pentestTypes.has(normalizeIssueType(issueType))) continue;
     pentestTotal += counts.total;
@@ -117,7 +120,7 @@ export function evaluateStoryPhases(completion: EpicPhaseCompletionFacts, params
       ...extras,
     ].filter(Boolean).join(' · ');
   };
-  const viaPentest = `Hoàn thành theo subtask Pentest (${pentestDone}/${pentestTotal} Done)`;
+  const viaPentest = `Hoàn thành theo Pentest — subtask / Task PENTEST (${pentestDone}/${pentestTotal} Done)`;
 
   return {
     done: { DESIGN: completion.designDone, DEV: dev, TEST: test, PENTEST: pentest, R4GOLIVE: r4golive },
@@ -125,7 +128,7 @@ export function evaluateStoryPhases(completion: EpicPhaseCompletionFacts, params
       DESIGN: null,
       DEV: pentestSubtasksDone ? viaPentest : !devReached.isDone && test ? 'Hoàn thành vì pha TEST đã xong' : storyNote('DEV', DONE_LEVEL.DEV, devReached, ratios.DEV),
       TEST: pentestSubtasksDone ? viaPentest : storyNote('TEST', DONE_LEVEL.TEST, testReached, ratios.TEST),
-      PENTEST: pentestTotal > 0 ? `Subtask Pentest: ${pentestDone}/${pentestTotal} Done` : 'Không có subtask Pentest — hoàn thành cùng pha TEST',
+      PENTEST: pentestTotal > 0 ? `Pentest (subtask / Task PENTEST): ${pentestDone}/${pentestTotal} Done` : 'Không có subtask / Task PENTEST — hoàn thành cùng pha TEST',
       R4GOLIVE: null,
     },
   };

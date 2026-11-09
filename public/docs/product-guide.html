@@ -2205,10 +2205,18 @@
         <li><strong>PENTEST:</strong> nếu Epic có subtask Pentest (loại issue cấu hình ở tham số <code>phase.pentestIssueTypes</code>, mặc định "Pentest")
           và mọi subtask đó Done thì Epic xong cả DEV, TEST và PENTEST; không có subtask Pentest thì PENTEST xong cùng lúc với TEST.
           Subtask Pentest có thể nằm dưới Epic hoặc dưới Story; công cụ crawl Jira phải có loại "Pentest" trong
-          <code>issue_levels.level_3_subtask.allowed_issue_types</code> thì dữ liệu mới về tới ứng dụng.</li>
+          <code>issue_levels.level_3_subtask.allowed_issue_types</code> thì dữ liệu mới về tới ứng dụng.
+          Từ 09/11/2026 có thêm <strong>Task PENTEST</strong>: issue loại Task thuộc project Jira PENTEST (mã <code>PENTEST-…</code>) gắn Epic Link —
+          là issue level 2 ngay dưới Epic (file crawl ghi như một dòng STORY, <code>story_issue_type</code> = Task), nhưng trong rule pha nó
+          <strong>không tính là story</strong> (không vào tỉ lệ DEV/TEST) mà tính chung với subtask Pentest: mọi subtask Pentest và Task PENTEST
+          Done thì Epic xong DEV, TEST và PENTEST. Lúc import, status của Task PENTEST được kiểm theo workflow Subtask.</li>
         <li><strong>R4GOLIVE:</strong> status Epic = R4GOLIVE, hoặc đã có R4G Date, hoặc mọi story ≥ Ready for Golive.</li>
         <li><strong>Dot "pha hiện tại":</strong> pha đầu tiên chưa xong (DESIGN nếu status Epic = Design; R4GOLIVE nếu status ≥ R4GOLIVE);
           không còn dot khi Epic đã Released hoặc mọi pha đã xong. Dot hiện cả khi cột pha đang thu gọn (nằm giữa ô hẹp). Dot màu xám (từ 09/11/2026) để bớt nổi bật.</li>
+        <li><strong>Bảng gọn khi thu gọn cả 4 cột pha</strong> (D / V / T / P, từ 09/11/2026): cột Epic chiếm khoảng 17,5% bề ngang bảng, cột Scoring 192px (đủ 2 badge một dòng, badge dài xuống dòng),
+          REVIEW / STATUS co theo nội dung, các cột còn lại chia đều phần bề ngang dư;
+          TTM-CNTT (QLDA) và TTM-E2E hiện ngày dạng dd/mm/yy (rê chuột để xem ngày đầy đủ), ô bảng đệm 8px — ở zoom 100% bảng hiện đủ tới cột
+          R4GOLIVE và Due Date mà không cần thanh trượt ngang. Mở rộng bất kỳ cột pha nào thì bảng trở về khổ đầy đủ và dùng thanh trượt ngang.</li>
         <li><strong>Chú giải dưới bảng</strong> (cạnh phân trang): <em>Hoàn thành pha</em> (xanh, dấu tích) · <em>Trễ pha</em> (hồng) ·
           <em>Pha hiện tại</em> (dot); rê chuột vào từng mục hoặc vào tiêu đề cột pha để xem điều kiện hoàn thành.</li>
         <li><strong>Tham số</strong> (Scoring Service, bảng <code>scoring_parameters</code>): <code>phase.storyDoneRatio</code> (mặc định DEV 80%, TEST 80%),

@@ -1,5 +1,6 @@
 import 'server-only';
 import pool from '@/lib/db';
+import { pentestTaskSql } from '@/lib/issue-hierarchy';
 import { EPIC_ISSUE_TYPES_SQL, LATEST_ISSUES_CTE, latestIssuesAsOfCte, STORY_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
 import { allStoriesReleased } from '@/lib/scoring/story-phase';
@@ -13,6 +14,8 @@ interface EpicPhaseSignalsRow {
   dueDate: string | null;
   epicKey: string;
   epicStatus: string;
+  pentestTaskDone: string;
+  pentestTaskTotal: string;
   r4gDate: string | null;
   storyStatuses: string[];
   subtaskCounts: Record<string, { total: number; done: number }>;
@@ -34,7 +37,14 @@ function deriveCompletion(row: EpicPhaseSignalsRow): EpicPhaseCompletion {
   const r4goliveRecorded = epicStatus === 'R4GOLIVE' || row.r4gDate !== null;
   const releasedDone = epicStatus === 'RELEASED' || row.dueDate !== null || allStoriesReleased(storyStatuses);
 
-  return { designDone, r4goliveRecorded, releasedDone, storyStatuses, subtaskCountsByType: row.subtaskCounts ?? {} };
+  return {
+    designDone,
+    r4goliveRecorded,
+    releasedDone,
+    storyStatuses,
+    subtaskCountsByType: row.subtaskCounts ?? {},
+    pentestTasks: { total: Number(row.pentestTaskTotal), done: Number(row.pentestTaskDone) },
+  };
 }
 
 /**
@@ -53,6 +63,9 @@ function deriveCompletion(row: EpicPhaseSignalsRow): EpicPhaseCompletion {
  *   `epic_key`/resolved epic matches) is a real, expected shape (BA work done before any Story
  *   exists yet) and is included in the DESIGN rule's BA-subtask count via `epic_level_subtasks`.
  * - Cancelled Stories and Cancelled Subtasks are excluded everywhere (never block, never count).
+ * - A "Task PENTEST" (level 2, key PENTEST-…, see issue-hierarchy.ts isPentestTask — owner 2026-11-09) is found
+ *   like a Story but kept out of the Story statuses: it is counted apart (`pentestTasks`) for the Pentest rule.
+ *   Its own subtasks still count like any Story's.
  *
  * `asOf` ("YYYY-MM-DD", optional): evaluate with every issue's state as known on that date instead
  * of the newest one (Scoring Service, decision D3) — omitted = unchanged legacy behavior.
@@ -77,14 +90,16 @@ export async function computeEpicPhaseCompletionByEpicKey(asOf?: string, epicKey
         AND (${epicKeysParam}::text[] IS NULL OR issue_key = ANY(${epicKeysParam}::text[]))
     ),
     stories_explicit AS (
-      SELECT e.issue_key AS epic_key, li.issue_key AS story_key, li.current_status AS status, li.story_subtasks
+      SELECT e.issue_key AS epic_key, li.issue_key AS story_key, li.current_status AS status, li.story_subtasks,
+        ${pentestTaskSql('li.issue_type', 'li.issue_key')} AS is_pentest_task
       FROM epics e
       CROSS JOIN LATERAL unnest(e.epic_stories) AS story_key
       JOIN latest_issues li ON li.issue_key = story_key AND UPPER(li.issue_type) IN (${STORY_ISSUE_TYPES_SQL})
       WHERE e.epic_stories IS NOT NULL AND array_length(e.epic_stories, 1) > 0
     ),
     stories_fallback AS (
-      SELECT e.issue_key AS epic_key, li.issue_key AS story_key, li.current_status AS status, li.story_subtasks
+      SELECT e.issue_key AS epic_key, li.issue_key AS story_key, li.current_status AS status, li.story_subtasks,
+        ${pentestTaskSql('li.issue_type', 'li.issue_key')} AS is_pentest_task
       FROM epics e
       JOIN latest_issues li ON li.epic_key = e.issue_key AND UPPER(li.issue_type) IN (${STORY_ISSUE_TYPES_SQL})
       WHERE e.epic_stories IS NULL OR array_length(e.epic_stories, 1) IS NULL
@@ -134,7 +149,11 @@ export async function computeEpicPhaseCompletionByEpicKey(asOf?: string, epicKey
     ),
     stories_agg AS (
       SELECT epic_key, jsonb_agg(status) AS statuses
-      FROM stories_active GROUP BY epic_key
+      FROM stories_active WHERE NOT is_pentest_task GROUP BY epic_key
+    ),
+    pentest_task_agg AS (
+      SELECT epic_key, COUNT(*) AS total, COUNT(*) FILTER (WHERE UPPER(TRIM(status)) = 'DONE') AS done
+      FROM stories_active WHERE is_pentest_task GROUP BY epic_key
     ),
     -- Every non-Cancelled subtask of the Epic (under its Stories or directly under it), counted per type —
     -- the Pentest rule (scoring/story-phase.ts) picks its own types out of this.
@@ -162,10 +181,13 @@ export async function computeEpicPhaseCompletionByEpicKey(asOf?: string, epicKey
       COALESCE(ba.total, 0)::text AS "baTotal",
       COALESCE(ba.done_count, 0)::text AS "baDoneCount",
       COALESCE(sa.statuses, '[]'::jsonb) AS "storyStatuses",
+      COALESCE(pt.total, 0)::text AS "pentestTaskTotal",
+      COALESCE(pt.done, 0)::text AS "pentestTaskDone",
       COALESCE(st.counts, '{}'::jsonb) AS "subtaskCounts"
     FROM epics e
     LEFT JOIN ba_agg ba ON ba.epic_key = e.issue_key
     LEFT JOIN stories_agg sa ON sa.epic_key = e.issue_key
+    LEFT JOIN pentest_task_agg pt ON pt.epic_key = e.issue_key
     LEFT JOIN subtasks_agg st ON st.epic_key = e.issue_key;
   `, params);
 

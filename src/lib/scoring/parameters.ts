@@ -48,7 +48,7 @@ export const SCORING_PARAMETER_LABELS: Record<ScoringParameterKey, string> = {
   'index.qaStatuses': 'Status tính vào TTM-CNTT (QA)',
   'phase.storyDoneRatio': 'Ngưỡng % story đã qua pha để coi pha DEV / TEST hoàn thành',
   'phase.storyDoneTolerance': 'Dung sai: Epic có từ N story, còn tối đa K story chưa xong vẫn coi là hoàn thành pha',
-  'phase.pentestIssueTypes': 'Loại subtask Pentest (Done ⇒ DEV, TEST, PENTEST hoàn thành)',
+  'phase.pentestIssueTypes': 'Loại subtask Pentest (cùng Task PENTEST mã PENTEST-…: Done hết ⇒ DEV, TEST, PENTEST hoàn thành)',
 };
 
 function isStringArray(value: unknown): value is string[] {
