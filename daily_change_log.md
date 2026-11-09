@@ -22,6 +22,7 @@
 - **Popup Duyệt Epic và Review Notes**: thêm Change ID, Change ID AMT; Review Notes thêm "Lớp dữ liệu" (`EpicBrowserModal.tsx`, `EpicMarkModal.tsx`, `epic-browser-service.ts`).
 - **"Thiếu Change ID" đổi sang Khuyến nghị**: badge `REC_MISSING_CHANGE_ID` (group RECOMMENDATION, trục Release; thay `RELEASE_MISSING_CHANGE_ID`), hiện ở nhóm "Xử lý" cột Nhận xét; `SCORING_CODE_VERSION` → scoring-30. Màn **Chuẩn hoá dữ liệu** thêm panel cuối "Thiếu Change ID" (nhãn Khuyến nghị, tiêu đề nền xanh lá nhạt, icon bóng đèn; `data-normalization.ts` `tone: 'recommendation'`, badge vào bộ lọc SQL `NORMALIZATION_BADGE_CODES`), và ô "N Epic" > 0 đổi nền cam chữ trắng (`.dn-count-badge-alert` trong `ttm-shared.css`).
 - **Popup Duyệt Epic / Review Notes**: thêm "Trạng thái pentest" (`issues.pentest_status`, `epic-browser-service.ts`).
+- **"Thiếu Change ID" chỉ xét Epic status ≥ R4GOLIVE** (R4GOLIVE, MVP Done, Pilot, Done, Released; không xét Pending / Reopened / Cancelled) — `isChangeIdStatus` trong `scoring/rules/change-id.ts`; `SCORING_CODE_VERSION` → scoring-31. Kiểm tra MO-34035: `pentest_status = Done` đã vào DB ở lần import lại (batch 341), cache đã cập nhật (pha PENTEST xong) — batch 337 trước đó import qua bản production cũ nên trống.
 
 ## 2026-11-08
 

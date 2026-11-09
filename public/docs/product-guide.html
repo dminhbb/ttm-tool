@@ -2002,7 +2002,7 @@
         <tbody>
           <tr><td><span class="badge warning">Chờ golive</span></td><td>Trong "Phạm vi dữ liệu cho TTM (QLDA)" <strong>VÀ</strong> ( status = R4GOLIVE <strong>HOẶC</strong> (status = RELEASED <strong>VÀ</strong> chưa có Due Date) ) — không cần có R4G Date.</td></tr>
           <tr><td><span class="badge warning">Cảnh báo sớm</span></td><td>Có R4G Date, hôm nay còn trong hạn R4G Date + 5 ngày làm việc, chưa có Due Date, status Epic đã <strong>vượt qua R4GOLIVE</strong> (ví dụ MVPDONE) mà vẫn chưa Released.</td></tr>
-          <tr><td><span class="badge info">Thiếu Change ID</span> (Khuyến nghị, từ 09/11/2026)</td><td>Epic đã có R4G Date, không Cancelled, và:
+          <tr><td><span class="badge info">Thiếu Change ID</span> (Khuyến nghị, từ 09/11/2026)</td><td>Epic có status <strong>từ R4GOLIVE trở lên</strong> (R4GOLIVE, MVP Done, Pilot, Done, Released — không xét Pending, Reopened, Cancelled), đã có R4G Date, và:
             R4G Date <strong>từ 01/07/2026</strong> mà chưa có <code>Change_ID_AMT</code>; hoặc R4G Date <strong>trước 01/07/2026</strong> mà chưa có cả
             <code>Change_ID</code> lẫn <code>Change_ID_AMT</code> (trống / "None" / "NULL" tính là chưa có). Là <strong>khuyến nghị</strong> (cùng ngày đổi từ Cảnh báo):
             không đổi Đạt / Fail, không đưa Epic ra khỏi phạm vi hay chỉ số TTM. Hiện ở nhóm "Xử lý" cột Nhận xét, lọc "Thiếu Change ID", và có panel riêng ở

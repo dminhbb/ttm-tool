@@ -169,8 +169,8 @@ export const BADGES = [
   },
   {
     id: 'REC_MISSING_CHANGE_ID', axis: 'RELEASE', group: 'RECOMMENDATION', label: 'Thiếu Change ID', precedence: 65, defaultEnabled: true,
-    meaning: 'Bổ sung Change ID cho Epic đã có R4G Date (mới từ 09/11/2026, trường CSV Change_ID / Change_ID_AMT): R4G Date từ 01/07/2026 phải có Change ID trên AMT (Change_ID_AMT); R4G Date trước 01/07/2026 cần một trong hai trường Change_ID hoặc Change_ID_AMT. Khuyến nghị (đổi từ Cảnh báo cùng ngày) — không đổi kết quả Đạt / Fail, không đưa Epic ra khỏi phạm vi hay chỉ số TTM; danh sách Epic theo dõi ở màn "Chuẩn hoá dữ liệu". Không áp dụng Epic Cancelled.',
-    formula: 'Có R4G Date  VÀ  status ≠ Cancelled  VÀ  ( R4G ≥ 01/07/2026: Change_ID_AMT trống.   R4G < 01/07/2026: Change_ID trống VÀ Change_ID_AMT trống )   — "None" / "NULL" tính là trống',
+    meaning: 'Bổ sung Change ID cho Epic đã có R4G Date (mới từ 09/11/2026, trường CSV Change_ID / Change_ID_AMT): R4G Date từ 01/07/2026 phải có Change ID trên AMT (Change_ID_AMT); R4G Date trước 01/07/2026 cần một trong hai trường Change_ID hoặc Change_ID_AMT. Chỉ xét Epic có status từ R4GOLIVE trở lên (R4GOLIVE, MVP Done, Pilot, Done, Released); không xét Pending, Reopened, Cancelled. Khuyến nghị (đổi từ Cảnh báo cùng ngày) — không đổi kết quả Đạt / Fail, không đưa Epic ra khỏi phạm vi hay chỉ số TTM; danh sách Epic theo dõi ở màn "Chuẩn hoá dữ liệu".',
+    formula: 'status ∈ {R4GOLIVE, MVP DONE, PILOT, DONE, RELEASED}  VÀ  có R4G Date  VÀ  ( R4G ≥ 01/07/2026: Change_ID_AMT trống.   R4G < 01/07/2026: Change_ID trống VÀ Change_ID_AMT trống )   — "None" / "NULL" tính là trống',
   },
   {
     id: 'RELEASE_ON_TIME', axis: 'RELEASE', group: 'PASS', label: 'Release đúng hạn', precedence: 70, defaultEnabled: false,

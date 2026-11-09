@@ -23,6 +23,16 @@ describe('Thiếu Change ID (owner 2026-11-09)', () => {
     assert.equal(hasChangeIdValue('CHG-12'), true);
   });
 
+  it('only status R4GOLIVE … Released (Pilot included); not Pending / Reopened / In Progress / Cancelled', () => {
+    const ctx = makeContext({ asOf: '2026-09-30' });
+    for (const status of ['R4GOLIVE', 'MVP Done', 'Pilot', 'Done', 'Released']) {
+      assert.ok(hasBadge(scoreEpic(makeFacts({ status, r4gDate: '2026-09-10' }), ctx), 'REC_MISSING_CHANGE_ID'), status);
+    }
+    for (const status of ['Pending', 'Reopened', 'In Progress', 'Test', 'Cancelled']) {
+      assert.ok(!hasBadge(scoreEpic(makeFacts({ status, r4gDate: '2026-09-10' }), ctx), 'REC_MISSING_CHANGE_ID'), status);
+    }
+  });
+
   it('the scorecard carries the alert; a Cancelled Epic does not', () => {
     const ctx = makeContext({ asOf: '2026-09-30' });
     const card = scoreEpic(makeFacts({ status: 'R4GOLIVE', r4gDate: '2026-09-10', changeId: 'CHG-1', changeIdAmt: null }), ctx);
