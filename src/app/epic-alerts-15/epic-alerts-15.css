@@ -218,11 +218,14 @@
 /* Keyword search input — placeholder 'Tìm epic', background matches page background, border preserved */
 /* `!important` đã được BỎ (2026-10-10): `.ttm-field[type="search"]` là 0-2-1 nên vốn
    đã thắng `.ttm-field` (0-1-0), và `.ttm-field[type="search"].has-filter` là 0-3-1. */
+/* 2026-11-10 (owner): no longer transparent — a light accent tint and an accent border so the box stands out from the
+   page; the search runs on Enter (page.tsx). */
 .ttm-search-field,
 .ttm-field[type="search"] {
-  background-color: transparent;
-  border: 1px solid var(--ttm-border);
+  background-color: var(--ttm-brand-050);
+  border: 1px solid var(--ttm-brand-500);
 }
+.ttm-search-field::placeholder { color: var(--ttm-text); opacity: 0.7; }
 .ttm-search-field.has-filter,
 .ttm-field[type="search"].has-filter {
   border-color: var(--color-border-error);
@@ -272,12 +275,13 @@
    - EPIC (the only auto column) keeps ~17.5% of the width (half of what it used to absorb on a ~1700px table);
    - REVIEW / STATUS shrink to their content;
    - SCORING is fixed (192px: two badges on one line, see .ttm-comment-badge-list);
-   - the 11 other columns (PASS, TTM-CNTT, TTM-E2E, START-E2E, START-DATE, D, V, T, P, R4GOLIVE, DUE DATE) get their
-     content width + the SAME share of what is left over. 1208px = every non-Epic column at content width
-     (padding included), so on a narrow table the share is 0 and EPIC shrinks — never a horizontal scrollbar at 100%
-     zoom while the table is ≥ ~1380px wide. Body cells drop their `w-[1%]` so the header widths decide. */
+   - the 11 other columns (PASS, TTM-CNTT, TTM-E2E, T0, T1, D, V, T, P, R4GOLIVE, DUE DATE) get their
+     content width + the SAME share of what is left over. 1076px = every non-Epic column at content width
+     (padding included; T0 / T1 are collapsed stubs too since 2026-11-10), so on a narrow table the share is 0 and EPIC
+     shrinks — never a horizontal scrollbar at 100% zoom while the table is ≥ ~1250px wide. Body cells drop their
+     `w-[1%]` so the header widths decide. */
 .ttm-epic-table-wrap { container-type: inline-size; }
-.ttm-table-compact { --ttm-cw-extra: max(0px, (82.5cqw - 1208px) / 11); }
+.ttm-table-compact { --ttm-cw-extra: max(0px, (82.5cqw - 1036px) / 11); }
 :root:root .ui-table.ttm-table-compact tbody td { width: auto; }
 :root:root .ui-table.ttm-table-compact thead th.ttm-cw-shrink { width: 1px; }
 :root:root .ui-table.ttm-table-compact thead th.ttm-cw-pass { width: calc(48px + var(--ttm-cw-extra)); }
@@ -296,6 +300,12 @@
 .ui-table tbody td.ttm-col-roomy { padding-left: 8px; padding-right: 8px; }
 .ttm-app .ui-table thead th { padding: 8px 6px; font-size: 10.5px; white-space: nowrap; }
 .ttm-app .ui-table tbody td { padding: 6px 6px; }
+/* REVIEW / SCORING / PASS / STATUS (owner 2026-11-10): 6px each side instead of the IAS 16px (or compact 8px) so the
+   default view (DESIGN / DEV / TEST open) fits a 100% zoom window; listed after the compact rule, same specificity, so
+   it wins in both modes. STATUS also caps its badge (ellipsis, full text in the tooltip). */
+:root:root .ui-table.ttm-align-top thead th.ttm-col-tight,
+:root:root .ui-table.ttm-align-top tbody td.ttm-col-tight { padding-left: 6px; padding-right: 6px; }
+.ui-table td.ttm-col-status .ttm-status-badge { display: inline-block; max-width: 92px; overflow: hidden; text-overflow: ellipsis; vertical-align: top; }
 .ttm-col-compact-status { max-width: 92px; }
 .ttm-col-compact-status .ttm-status-badge { max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ttm-metric-compact .ttm-strip-date { font-size: 10px; }
@@ -689,6 +699,25 @@
 .ttm-phase-baseline svg {
   color: #64748b;
   flex-shrink: 0;
+}
+/* Phase done: the CheckCircle is filled (owner 2026-11-10) and keeps the grey of the baseline line above (black tried
+   and reverted the same day). */
+
+/* Row outline (owner 2026-11-10): a 1px theme-accent line round the hovered row (gone once the mouse leaves the table),
+   kept on a row pinned by a click on a non-link spot (page.tsx pinnedRowKey). Drawn with inset shadows on the cells —
+   a <tr> takes no border in this collapsed table; the sticky Epic cell keeps its own drop shadow. */
+.ui-table tbody tr.ttm-epic-row { cursor: default; }
+.ui-table tbody tr.ttm-epic-row:hover > td,
+.ui-table tbody tr.ttm-epic-row.is-row-pinned > td {
+  box-shadow: inset 0 1px 0 var(--ttm-brand-600), inset 0 -1px 0 var(--ttm-brand-600);
+}
+.ui-table tbody tr.ttm-epic-row:hover > td:first-child,
+.ui-table tbody tr.ttm-epic-row.is-row-pinned > td:first-child {
+  box-shadow: inset 1px 0 0 var(--ttm-brand-600), inset 0 1px 0 var(--ttm-brand-600), inset 0 -1px 0 var(--ttm-brand-600), 2px 0 4px rgb(15 23 42 / 8%);
+}
+.ui-table tbody tr.ttm-epic-row:hover > td:last-child,
+.ui-table tbody tr.ttm-epic-row.is-row-pinned > td:last-child {
+  box-shadow: inset -1px 0 0 var(--ttm-brand-600), inset 0 1px 0 var(--ttm-brand-600), inset 0 -1px 0 var(--ttm-brand-600);
 }
 .ttm-phase-actual {
   display: flex;
@@ -1151,10 +1180,10 @@
   align-items: center;
   align-content: flex-start;
   gap: 3px 4px;
-  /* Fixed column (owner 2026-11-09: was max-content up to 210px, then 128px; now 192px = +50% so two
-     usual badges, e.g. "Sai Status (Release)" + "Start sớm", sit on one line) — a long badge wraps onto a
-     second line instead of widening the Scoring column. */
-  width: 192px;
+  /* Fixed column (owner 2026-11-09: was max-content up to 210px, then 128px, then 192px; 2026-11-10: 172px — the
+     widest usual pair, "Start sớm" + "Sai Status (Release)", measured ~166px, still sits on one line) — a long badge
+     wraps onto a second line instead of widening the Scoring column. */
+  width: 172px;
 }
 
 .ttm-comment-badge {

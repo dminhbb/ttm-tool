@@ -238,7 +238,7 @@ function PhaseStageCell({ actualDateText, cell, laterPhaseDone = false }: { actu
       {cell.isCurrentStage && <span className="ttm-phase-current-dot" title="Giai đoạn hiện tại của Epic" aria-hidden="true" />}
       <span className="ttm-phase-baseline" title={baselineTitle}>
         {cell.isDone
-          ? <CheckCircle className="size-3 shrink-0" weight="bold" aria-label="Pha đã hoàn thành" />
+          ? <CheckCircle className="ttm-phase-done-icon size-3 shrink-0" weight="fill" aria-label="Pha đã hoàn thành" />
           : <ArrowBendUpRight className="size-3 shrink-0" weight="bold" />}
         <span>{formatDate(cell.baselineDate)}</span>
       </span>
@@ -252,14 +252,18 @@ function PhaseStageCell({ actualDateText, cell, laterPhaseDone = false }: { actu
   );
 }
 
-/** DESIGN/DEV/TEST/PENTEST can be individually collapsed to save horizontal space (the table has
- * grown to 13 columns) — R4GOLIVE/Release stay always-expanded since their bottom line carries a
- * real recorded date (R4G Date / Due Date), not just the baseline. */
-type CollapsiblePhase = 'DESIGN' | 'DEV' | 'TEST' | 'PENTEST';
+/** START-E2E / START-DATE and DESIGN/DEV/TEST/PENTEST can be individually collapsed to save horizontal space (the table
+ * has grown to 13 columns) — R4GOLIVE/Release stay always-expanded since their bottom line carries a real recorded date
+ * (R4G Date / Due Date), not just the baseline. By default (owner 2026-11-10) START-E2E (T0), START-DATE (T1) and
+ * PENTEST are collapsed, DESIGN / DEV / TEST expanded. */
+type CollapsiblePhase = 'START_E2E' | 'START_DATE' | 'DESIGN' | 'DEV' | 'TEST' | 'PENTEST';
 
-const COLLAPSIBLE_PHASES: CollapsiblePhase[] = ['DESIGN', 'DEV', 'TEST', 'PENTEST'];
+const COLLAPSIBLE_PHASES: CollapsiblePhase[] = ['START_E2E', 'START_DATE', 'DESIGN', 'DEV', 'TEST', 'PENTEST'];
+const DEFAULT_COLLAPSED_COLUMNS: readonly CollapsiblePhase[] = ['START_E2E', 'START_DATE', 'PENTEST'];
 
-const PHASE_COLUMN_META: Record<CollapsiblePhase, { char: string; title: string }> = {
+const PHASE_COLUMN_META: Record<CollapsiblePhase, { char: string; label?: string; title: string; widthClass?: string }> = {
+  START_E2E: { char: 'T0', label: 'START-E2E', title: 'T0 = Idea Approved Date, hoặc ngày tạo Jira nếu không có — điểm bắt đầu chu kỳ TTM-E2E', widthClass: 'ttm-cw-start w-[1%] min-w-[74px]' },
+  START_DATE: { char: 'T1', label: 'START-DATE', title: 'T1 = issues.start_date', widthClass: 'ttm-cw-start w-[1%] min-w-[74px]' },
   DESIGN: { char: 'D', title: 'Baseline = Start Date + 20% TTM-CNTT (QLDA) (làm tròn ngày)\nHoàn thành: status Epic = In Progress hoặc mọi subtask BA Done' },
   DEV: { char: 'V', title: 'Baseline = Start Date + (20%+30%) TTM-CNTT (QLDA) (làm tròn ngày)\nHoàn thành: ≥ 80% story từ Dev Done trở đi (hoặc Epic ≥ 3 story còn tối đa 1 story chưa tới); bỏ qua story Cancelled/Pending' },
   TEST: { char: 'T', title: 'Baseline = Start Date + (20%+30%+30%) TTM-CNTT (QLDA) (làm tròn ngày)\nHoàn thành: ≥ 80% story từ UAT Done trở đi (hoặc Epic ≥ 3 story còn tối đa 1 story chưa tới)' },
@@ -271,11 +275,12 @@ const PHASE_COLUMN_META: Record<CollapsiblePhase, { char: string; title: string 
  * either way (TH's sortDirection prop is intentionally left unset on this column). */
 function CollapsiblePhaseHeader({ isCollapsed, onToggle, phase }: { isCollapsed: boolean; onToggle: (phase: CollapsiblePhase) => void; phase: CollapsiblePhase }) {
   const meta = PHASE_COLUMN_META[phase];
+  const label = meta.label ?? phase;
   if (isCollapsed) {
     return (
       <TH className="ttm-col-collapsed">
-        <Tooltip content={phase} side="right">
-          <button type="button" className="ttm-col-collapsed-toggle" onClick={() => onToggle(phase)} aria-label={`Hiện cột ${phase}`}>
+        <Tooltip content={label} side="right">
+          <button type="button" className="ttm-col-collapsed-toggle" onClick={() => onToggle(phase)} aria-label={`Hiện cột ${label}`}>
             {meta.char}
           </button>
         </Tooltip>
@@ -283,9 +288,29 @@ function CollapsiblePhaseHeader({ isCollapsed, onToggle, phase }: { isCollapsed:
     );
   }
   return (
-    <TH className="w-[1%] min-w-[76px] text-left align-top" title={meta.title}>
-      <button type="button" className="ttm-col-header-toggle" onClick={() => onToggle(phase)} aria-label={`Ẩn cột ${phase}`}>{phase}</button>
+    <TH className={`${meta.widthClass ?? 'w-[1%] min-w-[76px]'} text-left align-top`} title={meta.title}>
+      <button type="button" className="ttm-col-header-toggle" onClick={() => onToggle(phase)} aria-label={`Ẩn cột ${label}`}>{label}</button>
     </TH>
+  );
+}
+
+/** START-E2E (T0) / START-DATE (T1) cell — the date with its icon, or (collapsed) a thin green stub with the date as tooltip. */
+function StartDateCell({ date, icon: StartIcon, isCollapsed, label }: { date: string | null; icon: PhosphorIcon; isCollapsed: boolean; label: 'T0' | 'T1' }) {
+  if (isCollapsed) {
+    return <TD className={`ttm-phase-cell ttm-col-collapsed${date ? ' pass' : ''}`} title={date ? `${label}: ${formatDate(date)}` : `Không có ${label}`} />;
+  }
+  if (!date) {
+    return label === 'T1'
+      ? <TD className="w-[1%] text-left align-top px-1.5"><span className="ttm-metric na">Không có</span></TD>
+      : <TD className="w-[1%] ttm-phase-cell pass whitespace-nowrap text-left align-top px-1.5">—</TD>;
+  }
+  return (
+    <TD className="w-[1%] ttm-phase-cell pass whitespace-nowrap text-left align-top px-1.5">
+      <span className="inline-flex items-center justify-start gap-0.5 text-fb-text-placeholder font-medium text-[11px]">
+        <StartIcon className="size-3 shrink-0 text-fb-text-placeholder" weight="bold" />
+        <span>{formatDate(date)}</span>
+      </span>
+    </TD>
   );
 }
 
@@ -325,7 +350,8 @@ function ChangeSinceNote({ row }: { row: EpicAlertRowPhased }) {
 
 function StatusBadge({ status }: { status: string }) {
   if (!status) return <span className="ttm-empty-warning">—</span>;
-  return <span className="ttm-status-badge">{status}</span>;
+  // A long status ends in "…" (narrow STATUS column, owner 2026-11-10) — the full text stays in the tooltip.
+  return <span className="ttm-status-badge" title={status}>{status}</span>;
 }
 
 /**
@@ -691,7 +717,10 @@ function EpicAlerts15Screen() {
   const [requestingUnitFilters, setRequestingUnitFilters] = useState<string[]>(deepLinkFilters.requestingUnits);
   const [ruleGroupFilters, setRuleGroupFilters] = useState<string[]>(deepLinkFilters.ruleGroups);
   const [dataIssueFilter, setDataIssueFilter] = useState(deepLinkFilters.dataIssue);
+  // "Tìm epic" (owner 2026-11-10): typing only fills the box (searchDraft); Enter applies it (search). Emptying the box clears
+  // the search at once.
   const [search, setSearch] = useState(deepLinkFilters.search);
+  const [searchDraft, setSearchDraft] = useState(deepLinkFilters.search);
   const [activeQuickFilter, setActiveQuickFilter] = useState<'PENDING' | 'IN_PO' | 'NOT_IN_PO' | null>(null);
   // Epic Mark quick filters (owner 2026-10-27) — independent of the status quick filters above. Hidden Epics are
   // only listed while one of these is on.
@@ -716,7 +745,10 @@ function EpicAlerts15Screen() {
   const [createdDateFrom, setCreatedDateFrom] = useState('');
   const [startDateFromFilter, setStartDateFromFilter] = useState('');
   const [dueDateFromFilter, setDueDateFromFilter] = useState('');
-  const [collapsedColumns, setCollapsedColumns] = useState<Set<CollapsiblePhase>>(new Set(['DESIGN', 'DEV', 'TEST', 'PENTEST']));
+  const [collapsedColumns, setCollapsedColumns] = useState<Set<CollapsiblePhase>>(() => new Set(DEFAULT_COLLAPSED_COLUMNS));
+  // Row outline (owner 2026-11-10): the hovered row is outlined in the theme accent (CSS :hover); a click on a non-link spot
+  // of a row keeps its outline (pinned) until the next such click on that row.
+  const [pinnedRowKey, setPinnedRowKey] = useState<string | null>(null);
   const toggleColumn = (phase: CollapsiblePhase) => {
     setCollapsedColumns((prev) => {
       const next = new Set(prev);
@@ -729,7 +761,9 @@ function EpicAlerts15Screen() {
   // viewport without horizontal scroll. Expanding any one of them drops back to the wider fixed
   // layout — the user then scrolls horizontally instead.
   const allColumnsCollapsed = collapsedColumns.size === COLLAPSIBLE_PHASES.length;
-  const toggleAllColumns = () => setCollapsedColumns(allColumnsCollapsed ? new Set() : new Set(COLLAPSIBLE_PHASES));
+  // "Mở rộng cột": any column collapsed → expand every one; all expanded → back to the default collapsed set.
+  const anyColumnCollapsed = collapsedColumns.size > 0;
+  const toggleAllColumns = () => setCollapsedColumns(anyColumnCollapsed ? new Set() : new Set(DEFAULT_COLLAPSED_COLUMNS));
   const [alertHistoryRow, setAlertHistoryRow] = useState<EpicAlertRowPhased | null>(null);
   const [browsingEpicKey, setBrowsingEpicKey] = useState<string | null>(null);
   const viewIssueBaseUrl = useJiraViewIssueUrl();
@@ -967,7 +1001,7 @@ function EpicAlerts15Screen() {
       else if (saved.requestingUnitFilter) setRequestingUnitFilters([saved.requestingUnitFilter]);
       if (saved.ruleGroupFilters && saved.ruleGroupFilters.length > 0) setRuleGroupFilters(saved.ruleGroupFilters);
       if (saved.dataIssueFilter) setDataIssueFilter(saved.dataIssueFilter);
-      if (saved.search) setSearch(saved.search);
+      if (saved.search) { setSearch(saved.search); setSearchDraft(saved.search); }
       if (saved.activeQuickFilter) setActiveQuickFilter(saved.activeQuickFilter);
       if (saved.selectedLayerAnchor) setSelectedLayerAnchor(saved.selectedLayerAnchor);
       if (saved.createdDateFrom) setCreatedDateFrom(saved.createdDateFrom);
@@ -1124,6 +1158,7 @@ function EpicAlerts15Screen() {
     setRuleGroupFilters([]);
     setDataIssueFilter(false);
     setSearch('');
+    setSearchDraft('');
     setActiveQuickFilter(null);
     setMarkFilter(null);
     setMarkedPmSmFilters([]);
@@ -1415,20 +1450,23 @@ function EpicAlerts15Screen() {
         <input
           className={`ttm-field ttm-search-field${search.trim() ? ' has-filter' : ''}`}
           type="search"
-          aria-label="Tìm epic"
-          placeholder="Tìm epic"
-          value={search}
-          onChange={(event) => { setSearch(event.target.value); setPage(1); }}
+          aria-label="Tìm epic — gõ từ khoá rồi nhấn Enter"
+          placeholder="Tìm epic (Enter)"
+          title="Gõ từ khoá rồi nhấn Enter để tìm"
+          value={searchDraft}
+          onChange={(event) => {
+            const value = event.target.value;
+            setSearchDraft(value);
+            // Emptying the box (or its × button) clears the search at once; anything else waits for Enter.
+            if (!value && search) { setSearch(''); setPage(1); }
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            setSearch(searchDraft.trim());
+            setPage(1);
+          }}
         />
-        <button
-          type="button"
-          className="ttm-button ghost ttm-collapse-all-toggle"
-          onClick={toggleAllColumns}
-          title={allColumnsCollapsed ? 'Mở rộng các cột DESIGN/DEV/TEST/PENTEST' : 'Thu gọn các cột DESIGN/DEV/TEST/PENTEST'}
-          aria-label={allColumnsCollapsed ? 'Mở rộng các cột DESIGN/DEV/TEST/PENTEST' : 'Thu gọn các cột DESIGN/DEV/TEST/PENTEST'}
-        >
-          {allColumnsCollapsed ? <ArrowsOutLineHorizontal size={16} weight="bold" /> : <ArrowsInLineHorizontal size={16} weight="bold" />}
-        </button>
       </section>
 
       <div className="border-t border-fb-border pt-3 mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -1486,6 +1524,16 @@ function EpicAlerts15Screen() {
               <ArrowCounterClockwise className="size-4 text-fb-text-secondary" weight="bold" />
             </button>
           </Tooltip>
+          {/* "Mở rộng cột" (owner 2026-11-10): after "Đặt lại bộ lọc mặc định", with its text. */}
+          <button
+            type="button"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-fb-border bg-white hover:bg-fb-surface-muted text-xs font-semibold text-fb-text-secondary shadow-sm transition-colors cursor-pointer shrink-0"
+            onClick={toggleAllColumns}
+            title={anyColumnCollapsed ? 'Mở rộng mọi cột đang thu gọn (START-E2E, START-DATE, DESIGN, DEV, TEST, PENTEST)' : 'Thu gọn về mặc định (START-E2E, START-DATE, PENTEST)'}
+          >
+            {anyColumnCollapsed ? <ArrowsOutLineHorizontal size={16} weight="bold" /> : <ArrowsInLineHorizontal size={16} weight="bold" />}
+            <span>{anyColumnCollapsed ? 'Mở rộng cột' : 'Thu gọn cột'}</span>
+          </button>
         </div>
       </div>
 
@@ -1591,14 +1639,14 @@ function EpicAlerts15Screen() {
             <THead>
               <TR>
                 <TH className={`ttm-epic-col-sticky ttm-col-border-right text-left align-top ${allColumnsCollapsed ? 'min-w-[160px]' : 'min-w-[200px]'}`} title="issues.issue_key / issues.issue_name">EPIC</TH>
-                <TH className="ttm-cw-shrink w-[1%] min-w-[44px] text-center align-top" title="Epic có comment (cờ: cam = Giao việc To do, xanh lá = Done) và/hoặc bạn đã ẩn (mắt gạch chéo) — bấm để mở Review Notes">REVIEW</TH>
-                <TH className="ttm-cw-scoring w-[1%] min-w-[120px] ttm-col-border-right text-left align-top" title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">SCORING</TH>
-                <TH className="ttm-cw-pass w-[1%] min-w-[42px] text-center align-top ttm-col-pass" title="Đánh giá kết quả TTM-CNTT (QLDA): Đạt (xanh) / Fail (orange); bên dưới là TTM-E2E: Đạt (xanh dương nhạt) / Fail (nâu nhạt)">PASS</TH>
+                <TH className="ttm-cw-shrink ttm-col-tight w-[1%] min-w-[44px] text-center align-top" title="Epic có comment (cờ: cam = Giao việc To do, xanh lá = Done) và/hoặc bạn đã ẩn (mắt gạch chéo) — bấm để mở Review Notes">REVIEW</TH>
+                <TH className="ttm-cw-scoring ttm-col-tight w-[1%] min-w-[120px] ttm-col-border-right text-left align-top" title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">SCORING</TH>
+                <TH className="ttm-cw-pass ttm-col-tight w-[1%] min-w-[38px] text-center align-top ttm-col-pass" title="Đánh giá kết quả TTM-CNTT (QLDA): Đạt (xanh) / Fail (orange); bên dưới là TTM-E2E: Đạt (xanh dương nhạt) / Fail (nâu nhạt)">PASS</TH>
                 <TH className="ttm-cw-strip w-[1%] min-w-[132px] text-left align-top" title="Baseline (dòng trên) = Start Date + TTM-CNTT (QLDA); Thực tế (dòng dưới) = Start Date → R4G Date (hoặc hôm nay nếu chưa có)">TTM-CNTT (QLDA)</TH>
                 <TH className="ttm-cw-strip w-[1%] ttm-col-border-right min-w-[132px] text-left align-top" title="Baseline (dòng trên) = T0 + TTM-E2E; Thực tế (dòng dưới) = T0 → Due Date (hoặc hôm nay nếu chưa có). T0 = Idea Approved Date, hoặc Start Date, hoặc ngày tạo Jira">TTM-E2E</TH>
-                <TH className="ttm-cw-shrink w-[1%] min-w-[72px] text-left align-top" title="issues.current_status">STATUS</TH>
-                <TH className="ttm-cw-start w-[1%] min-w-[74px] text-left align-top" title="T0 = Idea Approved Date, hoặc ngày tạo Jira nếu không có — điểm bắt đầu chu kỳ TTM-E2E">START-E2E</TH>
-                <TH className="ttm-cw-start w-[1%] min-w-[74px] text-left align-top" title="issues.start_date">START-DATE</TH>
+                <TH className="ttm-cw-shrink ttm-col-tight w-[1%] min-w-[72px] text-left align-top" title="issues.current_status">STATUS</TH>
+                <CollapsiblePhaseHeader phase="START_E2E" isCollapsed={collapsedColumns.has('START_E2E')} onToggle={toggleColumn} />
+                <CollapsiblePhaseHeader phase="START_DATE" isCollapsed={collapsedColumns.has('START_DATE')} onToggle={toggleColumn} />
                 <CollapsiblePhaseHeader phase="DESIGN" isCollapsed={collapsedColumns.has('DESIGN')} onToggle={toggleColumn} />
                 <CollapsiblePhaseHeader phase="DEV" isCollapsed={collapsedColumns.has('DEV')} onToggle={toggleColumn} />
                 <CollapsiblePhaseHeader phase="TEST" isCollapsed={collapsedColumns.has('TEST')} onToggle={toggleColumn} />
@@ -1612,7 +1660,16 @@ function EpicAlerts15Screen() {
                 const isMissingCore = !row.t1StartDate;
                 const isTtmExcluded = Boolean(row.ttmBlackListed || row.ttmExclusion);
                 return (
-                  <TR key={row.epicKey} className={row.hasDataAnomaly ? 'missing-row' : undefined}>
+                  <TR
+                    key={row.epicKey}
+                    className={[row.hasDataAnomaly ? 'missing-row' : '', 'ttm-epic-row', pinnedRowKey === row.epicKey ? 'is-row-pinned' : ''].filter(Boolean).join(' ')}
+                    onClick={(event) => {
+                      // Links, buttons and form controls keep their own job; selecting text doesn't pin either.
+                      if ((event.target as HTMLElement).closest('a, button, input, select, textarea, label, [role="button"], [role="switch"], [role="dialog"]')) return;
+                      if (window.getSelection()?.toString()) return;
+                      setPinnedRowKey((current) => (current === row.epicKey ? null : row.epicKey));
+                    }}
+                  >
                     <TD className="ttm-epic-col-sticky ttm-col-border-right text-left align-top">
                       {row.viewOnly && (
                         <Tooltip className="float-right ml-1 inline-flex w-auto" content="Epic trong Quyền xem — chỉ để xem, không tính vào bất kỳ chỉ số nào" multiline side="left">
@@ -1647,13 +1704,13 @@ function EpicAlerts15Screen() {
                         </span>
                       )}
                     </TD>
-                    <TD className="w-[1%] text-center align-top whitespace-nowrap px-1">
+                    <TD className="ttm-col-tight w-[1%] text-center align-top whitespace-nowrap px-1">
                       <EpicMarkCell onOpen={setMarkEpicKey} row={row} />
                     </TD>
-                    <TD className="w-[1%] whitespace-normal px-2 text-left align-top ttm-col-border-right">
+                    <TD className="ttm-col-tight w-[1%] whitespace-normal px-2 text-left align-top ttm-col-border-right">
                       <EpicCommentCell row={row} />
                     </TD>
-                    <TD className="w-[1%] text-center align-top whitespace-nowrap px-1 ttm-col-pass">
+                    <TD className="ttm-col-tight w-[1%] text-center align-top whitespace-nowrap px-1 ttm-col-pass">
                       <TtmCnttPassCell row={row} />
                     </TD>
                     {isMissingCore ? (
@@ -1665,27 +1722,9 @@ function EpicAlerts15Screen() {
                         of Start Date, so this renders the same whether or not the Epic is missing
                         Start Date (see e2eGeometry in epic-row-geometry.ts). */}
                     <TtmE2eStrips compact={allColumnsCollapsed} row={row} />
-                    <TD className="w-[1%] text-left align-top whitespace-nowrap px-1.5"><StatusBadge status={row.currentStatus} />{row.changeSince && <ChangeSinceNote row={row} />}</TD>
-                    <TD className="w-[1%] ttm-phase-cell pass whitespace-nowrap text-left align-top px-1.5">
-                      {row.stages.release.baselineSourceDate ? (
-                        <span className="inline-flex items-center justify-start gap-0.5 text-fb-text-placeholder font-medium text-[11px]">
-                          <CaretRight className="size-3 shrink-0 text-fb-text-placeholder" weight="bold" />
-                          <span>{formatDate(row.stages.release.baselineSourceDate)}</span>
-                        </span>
-                      ) : (
-                        '—'
-                      )}
-                    </TD>
-                    {isMissingCore ? (
-                      <TD className="w-[1%] text-left align-top px-1.5"><span className="ttm-metric na">Không có</span></TD>
-                    ) : (
-                      <TD className="w-[1%] ttm-phase-cell pass whitespace-nowrap text-left align-top px-1.5">
-                        <span className="inline-flex items-center justify-start gap-0.5 text-fb-text-placeholder font-medium text-[11px]">
-                          <CaretLineRight className="size-3 shrink-0 text-fb-text-placeholder" weight="bold" />
-                          <span>{formatDate(row.t1StartDate)}</span>
-                        </span>
-                      </TD>
-                    )}
+                    <TD className="ttm-col-tight ttm-col-status w-[1%] text-left align-top whitespace-nowrap px-1.5"><StatusBadge status={row.currentStatus} />{row.changeSince && <ChangeSinceNote row={row} />}</TD>
+                    <StartDateCell date={row.stages.release.baselineSourceDate} icon={CaretRight} isCollapsed={collapsedColumns.has('START_E2E')} label="T0" />
+                    <StartDateCell date={isMissingCore ? null : row.t1StartDate} icon={CaretLineRight} isCollapsed={collapsedColumns.has('START_DATE')} label="T1" />
                     {isMissingCore ? (
                       // Wraps (TD is nowrap by default): one unbroken line here stretched the thin D/V/T/P stubs it spans.
                       <TD colSpan={5} className="ttm-metric na whitespace-normal text-left align-top">Chưa thể tính lịch TTM-CNTT (QLDA) do thiếu dữ liệu bắt buộc.</TD>

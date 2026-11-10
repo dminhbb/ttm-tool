@@ -2220,7 +2220,16 @@
         <li><strong>R4GOLIVE:</strong> status Epic = R4GOLIVE, hoặc đã có R4G Date, hoặc mọi story ≥ Ready for Golive.</li>
         <li><strong>Dot "pha hiện tại":</strong> pha đầu tiên chưa xong (DESIGN nếu status Epic = Design; R4GOLIVE nếu status ≥ R4GOLIVE);
           không còn dot khi Epic đã Released hoặc mọi pha đã xong. Dot hiện cả khi cột pha đang thu gọn (nằm giữa ô hẹp). Dot màu xám (từ 09/11/2026) để bớt nổi bật.</li>
-        <li><strong>Bảng gọn khi thu gọn cả 4 cột pha</strong> (D / V / T / P, từ 09/11/2026): cột Epic chiếm khoảng 17,5% bề ngang bảng, cột Scoring 192px (đủ 2 badge một dòng, badge dài xuống dòng),
+        <li><strong>Cột thu gọn mặc định</strong> (từ 10/11/2026): START-E2E và START-DATE cũng thu gọn được (cột hẹp ghi <strong>T0</strong> / <strong>T1</strong>,
+          rê chuột xem ngày); mặc định START-E2E, START-DATE và PENTEST thu gọn, DESIGN / DEV / TEST mở rộng. Bấm tiêu đề cột để thu / mở từng cột.
+          Nút <strong>"Mở rộng cột"</strong> (có chữ, nằm sau nút "Đặt lại bộ lọc mặc định") mở mọi cột đang thu gọn; khi đã mở hết, nút thành "Thu gọn cột" để về mặc định.</li>
+        <li><strong>Tìm epic</strong> (từ 10/11/2026): ô tìm có nền màu nhấn nhạt và viền màu nhấn cho dễ thấy; gõ từ khoá rồi <strong>nhấn Enter</strong> mới tìm
+          (xoá trống ô thì bỏ tìm ngay).</li>
+        <li><strong>Cột hẹp REVIEW / SCORING / PASS / STATUS</strong> (từ 10/11/2026): đệm ô 6px mỗi bên; SCORING rộng 172px (vẫn đủ 2 badge thường gặp trên một dòng); status dài hiện "…", rê chuột xem đủ — để chế độ mặc định (DESIGN / DEV / TEST mở) vừa màn hình ở zoom 100%.</li>
+        <li><strong>Icon hoàn thành pha</strong> (từ 10/11/2026): dấu tích <code>CheckCircle</code> dạng đặc, giữ màu xám như dòng baseline (màu đen đã thử và bỏ cùng ngày).</li>
+        <li><strong>Đánh dấu dòng</strong> (từ 10/11/2026): rê chuột vào dòng Epic nào thì cả dòng có đường bao màu nhấn của theme (1px), ra khỏi bảng thì mất;
+          bấm vào chỗ bất kỳ không phải link / nút của dòng thì đường bao giữ lại ở dòng đó, bấm lần nữa vào dòng đó để bỏ.</li>
+        <li><strong>Bảng gọn khi thu gọn mọi cột</strong> (T0 / T1 / D / V / T / P, từ 09/11/2026): cột Epic chiếm khoảng 17,5% bề ngang bảng, cột Scoring 192px (đủ 2 badge một dòng, badge dài xuống dòng),
           REVIEW / STATUS co theo nội dung, các cột còn lại chia đều phần bề ngang dư;
           TTM-CNTT (QLDA) và TTM-E2E hiện ngày dạng dd/mm/yy (rê chuột để xem ngày đầy đủ), ô bảng đệm 8px — ở zoom 100% bảng hiện đủ tới cột
           R4GOLIVE và Due Date mà không cần thanh trượt ngang. Mở rộng bất kỳ cột pha nào thì bảng trở về khổ đầy đủ và dùng thanh trượt ngang.</li>
