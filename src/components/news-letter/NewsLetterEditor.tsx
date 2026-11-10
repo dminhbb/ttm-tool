@@ -38,24 +38,27 @@ const EMPTY: NewsLetterArticleInput = {
   categoryId: null,
   visibleRoles: [...NEWS_LETTER_ROLES],
   isPublished: false,
+  hiddenFromMenu: false,
+  isPinned: false,
   headerImageId: null,
   contentHtml: '',
 };
 
-function PublishedSwitch({ checked, onChange }: { checked: boolean; onChange: (value: boolean) => void }) {
+/** One switch of the editor's header row ("Nháp / Published", "Ẩn trên menu", "Ghim bài viết"). */
+function EditorSwitch({ ariaLabel, checked, label, onChange, title }: { ariaLabel: string; checked: boolean; label: string; onChange: (value: boolean) => void; title?: string }) {
   return (
-    <label className="flex shrink-0 items-center gap-2 text-sm font-semibold text-fb-text-primary">
+    <label className="flex shrink-0 items-center gap-2 text-sm font-semibold text-fb-text-primary" title={title}>
       <button
         type="button"
         role="switch"
         aria-checked={checked}
-        aria-label="Published"
+        aria-label={ariaLabel}
         onClick={() => onChange(!checked)}
         className={cn('relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors outline-none focus-visible:ring-2 focus-visible:ring-fb-blue', checked ? 'bg-status-success' : 'bg-fb-border')}
       >
         <span className={cn('inline-block size-5 rounded-full bg-white shadow transition-transform', checked ? 'translate-x-[22px]' : 'translate-x-0.5')} />
       </button>
-      <span>{checked ? 'Published' : 'Nháp'}</span>
+      <span>{label}</span>
     </label>
   );
 }
@@ -94,6 +97,8 @@ export function NewsLetterEditor({ articleId }: { articleId: number | null }) {
             categoryId: article.categoryId,
             visibleRoles: article.visibleRoles,
             isPublished: article.isPublished,
+            hiddenFromMenu: article.hiddenFromMenu,
+            isPinned: article.isPinned,
             headerImageId: article.headerImageId,
             contentHtml: article.contentHtml,
           });
@@ -195,11 +200,28 @@ export function NewsLetterEditor({ articleId }: { articleId: number | null }) {
             <label htmlFor="news-title" className="mb-1.5 block text-sm font-semibold text-fb-text-primary">Tiêu đề<span className="ml-0.5 text-status-danger">*</span></label>
             <input id="news-title" className="ui-input form-control-compact w-full" maxLength={NEWS_LETTER_TITLE_MAX} value={form.title} onChange={(event) => update('title', event.target.value)} placeholder="Tiêu đề bài viết" />
           </div>
-          <div className="pb-1.5">
-            <PublishedSwitch checked={form.isPublished} onChange={(value) => update('isPublished', value)} />
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pb-1.5">
+            <EditorSwitch ariaLabel="Published" checked={form.isPublished} label={form.isPublished ? 'Published' : 'Nháp'} onChange={(value) => update('isPublished', value)} />
+            <EditorSwitch
+              ariaLabel="Ẩn trên menu"
+              checked={Boolean(form.hiddenFromMenu)}
+              label="Ẩn trên menu"
+              onChange={(value) => update('hiddenFromMenu', value)}
+              title="Bài viết vẫn mở được qua link chia sẻ trực tiếp nhưng không hiện trên menu (SUPERADMIN vẫn thấy)"
+            />
+            <EditorSwitch
+              ariaLabel="Ghim bài viết"
+              checked={Boolean(form.isPinned)}
+              label="Ghim bài viết"
+              onChange={(value) => update('isPinned', value)}
+              title="Bài viết nằm trên đầu menu bên trái (trên mục Mới nhất), có biểu tượng ghim và chạy trên ticker"
+            />
           </div>
         </div>
-        <p className="-mt-3 text-xs text-fb-text-secondary">Published tắt: bài viết là nháp, chỉ bạn xem được (không SUPERADMIN nào khác thấy).</p>
+        <p className="-mt-3 text-xs text-fb-text-secondary">
+          Published tắt: bài viết là nháp, chỉ bạn xem được (không SUPERADMIN nào khác thấy). Ẩn trên menu: chỉ mở được qua link chia sẻ
+          (SUPERADMIN vẫn thấy trên menu). Ghim bài viết: hiện trên đầu menu và trên ticker, vẫn nằm trong thư mục của nó.
+        </p>
 
         <div>
           <label htmlFor="news-summary" className="mb-1.5 block text-sm font-semibold text-fb-text-primary">Tóm tắt</label>

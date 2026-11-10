@@ -3,7 +3,8 @@
 import * as React from 'react';
 import '@/app/rich-text.css';
 import Link from 'next/link';
-import { CalendarBlank, CaretLeft, CaretRight, ClockCounterClockwise, Eye, Lock, PencilSimple, Tag, UserCircle } from '@phosphor-icons/react';
+import { CalendarBlank, CaretLeft, CaretRight, Check, ClockCounterClockwise, Eye, EyeSlash, Lock, PencilSimple, PushPin, ShareNetwork, Tag, UserCircle } from '@phosphor-icons/react';
+import { showToast } from '@/components/ui/Toast';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { formatNewsDate, formatNewsDateTime } from '@/components/news-letter/format';
 import { useNewsLetter } from '@/components/news-letter/NewsLetterShell';
@@ -44,6 +45,71 @@ function NeighbourRow({ page }: { page: NewsLetterPage }) {
     <div className="flex items-center justify-between gap-4">
       <NeighbourLink direction="previous" neighbour={page.previous} />
       <NeighbourLink direction="next" neighbour={page.next} />
+    </div>
+  );
+}
+
+/** Copies text to the clipboard — the async API where the page is a secure context, else the old selection way. */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Fall through to the selection way.
+  }
+  const area = document.createElement('textarea');
+  area.value = text;
+  area.setAttribute('readonly', '');
+  area.style.position = 'fixed';
+  area.style.opacity = '0';
+  document.body.appendChild(area);
+  area.select();
+  let copied = false;
+  try {
+    copied = document.execCommand('copy');
+  } catch {
+    copied = false;
+  }
+  area.remove();
+  return copied;
+}
+
+/** "Share" under the article (owner 2026-11-10): shows the article's direct link and copies it to the clipboard. */
+function ShareButton({ articleId }: { articleId: number }) {
+  const [link, setLink] = React.useState<string | null>(null);
+  const [copied, setCopied] = React.useState(false);
+  const share = async () => {
+    const url = `${window.location.origin}${NEWS_LETTER_ROUTE}/${articleId}`;
+    setLink(url);
+    const ok = await copyText(url);
+    setCopied(ok);
+    showToast(ok ? 'Đã copy link bài viết vào clipboard' : 'Không copy tự động được — hãy copy link hiển thị bên cạnh');
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        onClick={() => void share()}
+        className="inline-flex items-center gap-1.5 rounded-full border border-fb-border px-3 py-1.5 text-sm font-semibold text-fb-text-primary transition-colors hover:border-fb-blue hover:text-fb-blue"
+      >
+        <ShareNetwork className="size-4" weight="bold" aria-hidden="true" />
+        Share
+      </button>
+      {link && (
+        <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md bg-fb-surface-muted px-2 py-1 text-xs text-fb-text-secondary">
+          {copied && <Check className="size-3.5 shrink-0 text-status-success" weight="bold" aria-label="Đã copy" />}
+          <input
+            aria-label="Link trực tiếp tới bài viết"
+            className="min-w-0 flex-1 border-0 bg-transparent p-0 text-xs text-fb-text-primary outline-none"
+            onFocus={(event) => event.currentTarget.select()}
+            readOnly
+            size={Math.min(60, link.length)}
+            value={link}
+          />
+        </span>
+      )}
     </div>
   );
 }
@@ -99,6 +165,12 @@ export function NewsLetterReader({ articleId }: { articleId: number | null }) {
           <span className="h-px w-10 bg-fb-blue" aria-hidden="true" />
           {article.categoryName ?? 'Bản tin'}
           {!article.isPublished && <span className="rounded bg-status-warning-soft px-1.5 py-0.5 tracking-normal text-status-warning">Nháp — chỉ bạn xem được</span>}
+          {article.isPinned && <span className="inline-flex items-center gap-1 rounded bg-fb-blue-soft px-1.5 py-0.5 tracking-normal"><PushPin className="size-3" weight="fill" aria-hidden="true" />Ghim</span>}
+          {article.hiddenFromMenu && (
+            <span className="inline-flex items-center gap-1 rounded bg-fb-surface-muted px-1.5 py-0.5 tracking-normal text-fb-text-secondary" title="Không hiện trên menu — người dùng mở qua link chia sẻ">
+              <EyeSlash className="size-3" weight="bold" aria-hidden="true" />Ẩn trên menu
+            </span>
+          )}
         </p>
         <div className="mt-3 flex items-start justify-between gap-4">
           <h1 className="news-title text-3xl font-bold leading-tight text-fb-text-primary sm:text-[40px]">{article.title}</h1>
@@ -133,6 +205,10 @@ export function NewsLetterReader({ articleId }: { articleId: number | null }) {
       )}
 
       <div className="rich-content news-body mt-8 text-[15px]" dangerouslySetInnerHTML={{ __html: article.contentHtml }} />
+
+      <div className="mt-8">
+        <ShareButton articleId={article.id} />
+      </div>
 
       <div className="mt-12 border-t border-fb-border pt-4">
         <NeighbourRow page={page} />

@@ -6,6 +6,11 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-11-10
+
+- **TTM Dashboard 2 — widget "Thiếu lý do"**: số chính = số Epic khác nhau thiếu khâu fail HOẶC phòng chịu TN chính (`insights.missingFailReasonAny`, `missingFailReasonTotal` trong `ttm-funnel-summary.ts`) thay cho tổng hai số (Epic thiếu cả hai bị đếm 2 lần); áp dụng cả cho dữ liệu MCP `get_ttm_dashboard` và đường xu hướng (ticker). Cache payload `PAYLOAD_VERSION` → 15.
+- **Bản tin**: công tắc *Ẩn trên menu* và *Ghim bài viết* cạnh Nháp (migration `20261125_news_letter_hidden_pinned.sql` — cột `hidden_from_menu`, `is_pinned`, `pinned_at`; đã chạy Supabase). Bài ẩn: vẫn mở qua link, không hiện ở mục lục / bài trước-sau / trang mặc định / chấm chưa đọc / MCP, trừ SUPERADMIN thấy trên menu (nhãn "Ẩn"). Bài ghim: nằm trên đầu cột trái (trên "Mới nhất", icon ghim), vẫn trong thư mục, và chạy trên ticker ở đầu phần nội dung (`NewsLetterPinnedTicker.tsx`; ticker dùng chung hook `useTickerRotation` với TrendTicker của TTM Dashboard 2). Nút **Share** cuối bài: hiện link trực tiếp và tự copy vào clipboard.
+
 ## 2026-11-09
 
 - **Bảo mật & chỉnh sửa sau review bản pull 07–08/11**:

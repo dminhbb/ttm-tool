@@ -1,6 +1,6 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-09T10:41:19.113Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-10T02:04:18.324Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
 -- Gồm: 77 bảng, 64 index phụ, 4 hàm, 4 trigger.
@@ -534,6 +534,9 @@ CREATE TABLE news_letter_articles (
     updated_by integer,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     view_count integer DEFAULT 0 NOT NULL,
+    hidden_from_menu boolean DEFAULT false NOT NULL,
+    is_pinned boolean DEFAULT false NOT NULL,
+    pinned_at timestamp with time zone,
     CONSTRAINT news_letter_articles_pkey PRIMARY KEY (id)
 );
 
@@ -1256,7 +1259,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 129 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 130 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1387,7 +1390,8 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261121_news_letter_view_count.sql'),
     ('20261122_auth_sessions_view_as.sql'),
     ('20261123_system_suspension_settings.sql'),
-    ('20261124_add_epic_change_id_pentest_status.sql');
+    ('20261124_add_epic_change_id_pentest_status.sql'),
+    ('20261125_news_letter_hidden_pinned.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1676,7 +1680,7 @@ WHERE current_setting('ttm_install.seed_data', true) = 'on';
 -- derived_cache_refresh_lock (1 dòng)
 INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 SELECT * FROM (VALUES
-    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-09 06:52:46.471254+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-10 01:23:07.150787+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
 ) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 

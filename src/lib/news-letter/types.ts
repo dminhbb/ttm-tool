@@ -34,6 +34,10 @@ export interface NewsLetterTocItem {
   createdAt: string;
   authorName: string;
   isDraft: boolean;
+  /** "Ghim bài viết" (2026-11-10): pin icon, listed at the top of the column and in the ticker. */
+  isPinned: boolean;
+  /** "Ẩn trên menu" (2026-11-10): only SUPERADMIN gets such a line (marked hidden). */
+  hiddenFromMenu: boolean;
 }
 
 export interface NewsLetterTocGroup {
@@ -44,7 +48,12 @@ export interface NewsLetterTocGroup {
   items: NewsLetterTocItem[];
 }
 
+/** Pinned articles shown at the top of the column and in the ticker (newest pin first). */
+export const NEWS_LETTER_PINNED_MAX = 20;
+
 export interface NewsLetterToc {
+  /** "Ghim bài viết" — above "Mới nhất" (they stay in their folders too). */
+  pinned: NewsLetterTocItem[];
   latest: NewsLetterTocItem[];
   latestTotal: number;
   groups: NewsLetterTocGroup[];
@@ -68,6 +77,10 @@ export interface NewsLetterArticle {
   categoryName: string | null;
   visibleRoles: UserRole[];
   isPublished: boolean;
+  /** "Ẩn trên menu": opens by link only (SUPERADMIN still sees it in the column). */
+  hiddenFromMenu: boolean;
+  /** "Ghim bài viết". */
+  isPinned: boolean;
   firstPublishedAt: string | null;
   headerImageId: string | null;
   /** Sanitized HTML. */
@@ -109,6 +122,9 @@ export interface NewsLetterArticleInput {
   categoryId: number | null;
   visibleRoles: UserRole[];
   isPublished: boolean;
+  /** Optional so an older client still saves (both default to off). */
+  hiddenFromMenu?: boolean;
+  isPinned?: boolean;
   headerImageId: string | null;
   contentHtml: string;
 }

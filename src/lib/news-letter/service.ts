@@ -12,6 +12,7 @@ import {
   NEWS_LETTER_LATEST_PAGE,
   NEWS_LETTER_MAX_ARTICLE_IMAGES,
   NEWS_LETTER_MAX_IMAGE_BYTES,
+  NEWS_LETTER_PINNED_MAX,
   NEWS_LETTER_ROLES,
   NEWS_LETTER_SUMMARY_MAX,
   NEWS_LETTER_TITLE_MAX,
@@ -34,6 +35,9 @@ import {
  *   - writing (create / edit / delete, categories, uploads): SUPERADMIN, and only on an article they can see.
  * Order: first_published_at (set the first time the article is published), newest first; a draft has none and sorts by
  * its creation date. "Bài viết trước / sau" walk the published articles the viewer may read — drafts are skipped.
+ * "Ẩn trên menu" (2026-11-10): the article still opens by its id, but only SUPERADMIN finds it in the contents, the
+ * neighbours and the default page; it never raises the unread dot nor goes out over MCP. "Ghim bài viết": listed apart at
+ * the top of the contents (newest pin first) and in the ticker — it stays in "Mới nhất" and in its folder.
  */
 
 export interface NewsLetterViewer {
@@ -61,9 +65,12 @@ const VISIBLE = `((a.is_published AND $2::text = ANY(a.visible_roles)) OR a.crea
 // `$1::int IS NOT NULL` only gives $1 a type when a query uses this clause alone (the viewer id is always set).
 const PUBLISHED_VISIBLE = `(a.is_published AND $2::text = ANY(a.visible_roles) AND $1::int IS NOT NULL)`;
 const ORDER_KEY = 'COALESCE(a.first_published_at, a.created_at)';
+/** SQL: article `a` may be listed for the viewer ($2 = role) — "Ẩn trên menu" ones for SUPERADMIN only. */
+const MENU_VISIBLE = `(NOT a.hidden_from_menu OR $2::text = 'SUPERADMIN')`;
 const AUTHOR_NAME = `COALESCE(SPLIT_PART(LOWER(u.email), '@', 1), '')`;
 
-const TOC_COLUMNS = `a.id, a.title, a.created_at::text AS "createdAt", ${AUTHOR_NAME} AS "authorName", NOT a.is_published AS "isDraft"`;
+const TOC_COLUMNS = `a.id, a.title, a.created_at::text AS "createdAt", ${AUTHOR_NAME} AS "authorName", NOT a.is_published AS "isDraft",
+  a.is_pinned AS "isPinned", a.hidden_from_menu AS "hiddenFromMenu"`;
 
 // ---- Table of contents -------------------------------------------------------------------------------------------
 
@@ -80,7 +87,7 @@ export async function listNewsLetterTocItems(viewer: NewsLetterViewer, options: 
   const result = await pool.query<NewsLetterTocItem>(`
     SELECT ${TOC_COLUMNS}
     FROM news_letter_articles a LEFT JOIN users u ON u.id = a.created_by
-    WHERE ${VISIBLE}${categoryClause}
+    WHERE ${VISIBLE} AND ${MENU_VISIBLE}${categoryClause}
     ORDER BY ${ORDER_KEY} DESC, a.id DESC
     OFFSET $3 LIMIT $4
   `, params);
@@ -89,12 +96,19 @@ export async function listNewsLetterTocItems(viewer: NewsLetterViewer, options: 
 
 /** "Mới nhất" (10) + one group per category the viewer has articles in (5 each, A→Z, "Chưa phân loại" last). */
 export async function getNewsLetterToc(viewer: NewsLetterViewer): Promise<NewsLetterToc> {
-  const [latest, counts] = await Promise.all([
+  const [pinned, latest, counts] = await Promise.all([
+    pool.query<NewsLetterTocItem>(`
+      SELECT ${TOC_COLUMNS}
+      FROM news_letter_articles a LEFT JOIN users u ON u.id = a.created_by
+      WHERE ${VISIBLE} AND ${MENU_VISIBLE} AND a.is_pinned
+      ORDER BY a.pinned_at DESC NULLS LAST, ${ORDER_KEY} DESC, a.id DESC
+      LIMIT ${NEWS_LETTER_PINNED_MAX}
+    `, [viewer.id, viewer.role]).then((result) => result.rows),
     listNewsLetterTocItems(viewer, { offset: 0, limit: NEWS_LETTER_LATEST_PAGE }),
     pool.query<{ categoryId: number | null; name: string | null; total: number }>(`
       SELECT a.category_id AS "categoryId", c.name, COUNT(*)::int AS total
       FROM news_letter_articles a LEFT JOIN news_letter_categories c ON c.id = a.category_id
-      WHERE ${VISIBLE}
+      WHERE ${VISIBLE} AND ${MENU_VISIBLE}
       GROUP BY a.category_id, c.name
     `, [viewer.id, viewer.role]),
   ]);
@@ -110,7 +124,7 @@ export async function getNewsLetterToc(viewer: NewsLetterViewer): Promise<NewsLe
     });
   }
   const latestTotal = counts.rows.reduce((sum, row) => sum + row.total, 0);
-  return { latest, latestTotal, groups };
+  return { pinned, latest, latestTotal, groups };
 }
 
 // ---- Reading ---------------------------------------------------------------------------------------------------
@@ -121,12 +135,13 @@ interface ArticleRow extends Omit<NewsLetterArticle, 'edits'> {
 
 async function loadArticle(viewer: NewsLetterViewer, articleId: number | null): Promise<ArticleRow | null> {
   const params: unknown[] = [viewer.id, viewer.role];
-  // No id: the newest published article the viewer may read (a draft never opens by itself).
-  const where = articleId === null ? PUBLISHED_VISIBLE : `${VISIBLE} AND a.id = $3`;
+  // No id: the newest published article the viewer may read (a draft — or an article hidden from the menu, for anyone but
+  // SUPERADMIN — never opens by itself). An id opens even a hidden one: that is what its shared link is for.
+  const where = articleId === null ? `${PUBLISHED_VISIBLE} AND ${MENU_VISIBLE}` : `${VISIBLE} AND a.id = $3`;
   if (articleId !== null) params.push(articleId);
   const result = await pool.query<ArticleRow>(`
     SELECT a.id, a.title, a.summary, a.category_id AS "categoryId", c.name AS "categoryName", a.visible_roles AS "visibleRoles",
-      a.is_published AS "isPublished", a.first_published_at::text AS "firstPublishedAt", a.header_image_id::text AS "headerImageId",
+      a.is_published AS "isPublished", a.hidden_from_menu AS "hiddenFromMenu", a.is_pinned AS "isPinned", a.first_published_at::text AS "firstPublishedAt", a.header_image_id::text AS "headerImageId",
       a.content_html AS "contentHtml", a.created_at::text AS "createdAt", a.created_by AS "authorId", ${AUTHOR_NAME} AS "authorName",
       a.view_count AS "viewCount", ${ORDER_KEY}::text AS "orderKey"
     FROM news_letter_articles a
@@ -147,7 +162,7 @@ async function neighbours(viewer: NewsLetterViewer, article: ArticleRow): Promis
       ? `(${ORDER_KEY} < $3::timestamptz OR (${ORDER_KEY} = $3::timestamptz AND a.id < $4))`
       : `(${ORDER_KEY} > $3::timestamptz OR (${ORDER_KEY} = $3::timestamptz AND a.id > $4))`;
     return `(SELECT '${direction}' AS side, a.id, a.title FROM news_letter_articles a
-      WHERE ${PUBLISHED_VISIBLE} AND a.id <> $4 AND ${comparison}
+      WHERE ${PUBLISHED_VISIBLE} AND ${MENU_VISIBLE} AND a.id <> $4 AND ${comparison}
       ORDER BY ${ORDER_KEY} ${older ? 'DESC' : 'ASC'}, a.id ${older ? 'DESC' : 'ASC'} LIMIT 1)`;
   };
   const result = await pool.query<NewsLetterNeighbour & { side: 'previous' | 'next' }>(
@@ -212,7 +227,7 @@ export async function hasUnreadNewsLetter(viewer: NewsLetterViewer): Promise<boo
   const result = await pool.query<{ unread: boolean }>(`
     SELECT EXISTS (
       SELECT 1 FROM news_letter_articles a JOIN users me ON me.id = $1
-      WHERE ${PUBLISHED_VISIBLE} AND a.created_by IS DISTINCT FROM $1
+      WHERE ${PUBLISHED_VISIBLE} AND NOT a.hidden_from_menu AND a.created_by IS DISTINCT FROM $1
         AND a.first_published_at > COALESCE(me.created_at, 'epoch'::timestamptz)
         AND NOT EXISTS (SELECT 1 FROM news_letter_reads r WHERE r.user_id = $1 AND r.article_id = a.id)
     ) AS unread
@@ -242,6 +257,8 @@ interface CleanInput {
   categoryId: number | null;
   visibleRoles: UserRole[];
   isPublished: boolean;
+  hiddenFromMenu: boolean;
+  isPinned: boolean;
   headerImageId: string | null;
   contentHtml: string;
   inlineImageIds: string[];
@@ -266,7 +283,10 @@ function cleanInput(input: NewsLetterArticleInput, usableImageIds: ReadonlySet<s
   if (inlineImageIds.length + (headerImageId ? 1 : 0) > NEWS_LETTER_MAX_ARTICLE_IMAGES) throw new NewsLetterError(`Mỗi bài viết có tối đa ${NEWS_LETTER_MAX_ARTICLE_IMAGES} ảnh (kể cả ảnh header).`);
   const categoryId = input.categoryId === null || input.categoryId === undefined ? null : Number(input.categoryId);
   if (categoryId !== null && !Number.isInteger(categoryId)) throw new NewsLetterError('Phân loại không hợp lệ.');
-  return { title, summary: summary || null, categoryId, visibleRoles: roles, isPublished: Boolean(input.isPublished), headerImageId, contentHtml, inlineImageIds };
+  return {
+    title, summary: summary || null, categoryId, visibleRoles: roles, isPublished: Boolean(input.isPublished),
+    hiddenFromMenu: Boolean(input.hiddenFromMenu), isPinned: Boolean(input.isPinned), headerImageId, contentHtml, inlineImageIds,
+  };
 }
 
 type Queryable = { query: typeof pool.query };
@@ -306,10 +326,11 @@ export async function createNewsLetterArticle(viewer: NewsLetterViewer, input: N
     const clean = cleanInput(input, await usableImageIds(client, viewer, null, wanted));
     await assertCategory(client, clean.categoryId);
     const inserted = await client.query<{ id: number }>(`
-      INSERT INTO news_letter_articles (title, summary, category_id, visible_roles, is_published, first_published_at, content_html, created_by, updated_by)
-      VALUES ($1, $2, $3, $4::text[], $5, CASE WHEN $5 THEN CURRENT_TIMESTAMP END, $6, $7, $7)
+      INSERT INTO news_letter_articles (title, summary, category_id, visible_roles, is_published, first_published_at, content_html, created_by, updated_by,
+        hidden_from_menu, is_pinned, pinned_at)
+      VALUES ($1, $2, $3, $4::text[], $5, CASE WHEN $5 THEN CURRENT_TIMESTAMP END, $6, $7, $7, $8, $9, CASE WHEN $9 THEN CURRENT_TIMESTAMP END)
       RETURNING id
-    `, [clean.title, clean.summary, clean.categoryId, clean.visibleRoles, clean.isPublished, clean.contentHtml, viewer.id]);
+    `, [clean.title, clean.summary, clean.categoryId, clean.visibleRoles, clean.isPublished, clean.contentHtml, viewer.id, clean.hiddenFromMenu, clean.isPinned]);
     const articleId = inserted.rows[0].id;
     await syncImages(client, viewer, articleId, clean);
     await client.query('UPDATE news_letter_articles SET header_image_id = $2 WHERE id = $1', [articleId, clean.headerImageId]);
@@ -336,9 +357,12 @@ export async function updateNewsLetterArticle(viewer: NewsLetterViewer, articleI
     await client.query(`
       UPDATE news_letter_articles SET title = $2, summary = $3, category_id = $4, visible_roles = $5::text[], is_published = $6,
         first_published_at = COALESCE(first_published_at, CASE WHEN $6 THEN CURRENT_TIMESTAMP END),
-        header_image_id = $7, content_html = $8, updated_by = $9, updated_at = CURRENT_TIMESTAMP
+        header_image_id = $7, content_html = $8, updated_by = $9, updated_at = CURRENT_TIMESTAMP,
+        hidden_from_menu = $10, is_pinned = $11,
+        -- A pin keeps its date while it stays pinned (the newest pin is listed first).
+        pinned_at = CASE WHEN $11 THEN COALESCE(pinned_at, CURRENT_TIMESTAMP) END
       WHERE id = $1
-    `, [articleId, clean.title, clean.summary, clean.categoryId, clean.visibleRoles, clean.isPublished, clean.headerImageId, clean.contentHtml, viewer.id]);
+    `, [articleId, clean.title, clean.summary, clean.categoryId, clean.visibleRoles, clean.isPublished, clean.headerImageId, clean.contentHtml, viewer.id, clean.hiddenFromMenu, clean.isPinned]);
     // "Lịch sử thay đổi": this edit, and only the 5 newest are kept.
     await client.query('INSERT INTO news_letter_article_edits (article_id, edited_by) VALUES ($1, $2)', [articleId, viewer.id]);
     await client.query(`
@@ -474,7 +498,7 @@ export async function listNewsLetterForMcp(
     FROM news_letter_articles a
     LEFT JOIN news_letter_categories c ON c.id = a.category_id
     LEFT JOIN users u ON u.id = a.created_by
-    WHERE ${PUBLISHED_VISIBLE} AND (a.category_id IS NULL OR NOT (a.category_id = ANY($3::int[])))
+    WHERE ${PUBLISHED_VISIBLE} AND NOT a.hidden_from_menu AND (a.category_id IS NULL OR NOT (a.category_id = ANY($3::int[])))
       ${options.articleId !== undefined ? 'AND a.id = $5' : ''}
     ORDER BY ${ORDER_KEY} DESC, a.id DESC
     LIMIT $4
@@ -485,7 +509,7 @@ export async function listNewsLetterForMcp(
 /** Folders a chatbot may filter on (the excluded one left out), with the articles the viewer may read in each. */
 export async function listNewsLetterFoldersForMcp(viewer: NewsLetterViewer): Promise<{ name: string; articles: number }[]> {
   const result = await pool.query<{ id: number; name: string; articles: number }>(`
-    SELECT c.id, c.name, COUNT(a.id) FILTER (WHERE ${PUBLISHED_VISIBLE})::int AS articles
+    SELECT c.id, c.name, COUNT(a.id) FILTER (WHERE ${PUBLISHED_VISIBLE} AND NOT a.hidden_from_menu)::int AS articles
     FROM news_letter_categories c LEFT JOIN news_letter_articles a ON a.category_id = c.id
     GROUP BY c.id, c.name
   `, [viewer.id, viewer.role]);

@@ -1,7 +1,7 @@
 import { daysBefore, weekMonday } from '@/lib/data-layer-retention';
 import { ttmFunnelBucket } from '@/lib/epic-row-verdicts';
 import { hasTtmVerdict } from '@/lib/ttm-cntt-qa';
-import { ttmFunnelCnttIndex, type TtmFunnelSummary } from '@/lib/ttm-funnel-summary';
+import { missingFailReasonTotal, ttmFunnelCnttIndex, type TtmFunnelSummary } from '@/lib/ttm-funnel-summary';
 
 /**
  * TTM Dashboard 2 — "So với <ngày>" ticker (owner 2026-11-03). Pure: the six widget numbers of a funnel summary and the
@@ -67,7 +67,8 @@ export function trendValuesOf(summary: TtmFunnelSummary): TtmTrendValues {
     anomaly: insights.anomalyCount,
     e2ePct: hasTtmVerdict(insights.e2e) ? insights.e2e.pctPrecise : null,
     failCntt: qlda.fail,
-    missingReason: (insights.missingFailReason ?? 0) + (insights.missingResponsibleDepartment ?? 0),
+    // Distinct Epics, as the widget (owner 2026-11-10) — earlier days stored the sum.
+    missingReason: missingFailReasonTotal(insights),
     ttmCnttPct: hasTtmVerdict(qlda) ? qlda.pctPrecise : null,
     waitingGolive: insights.waitingGolive.total,
   };

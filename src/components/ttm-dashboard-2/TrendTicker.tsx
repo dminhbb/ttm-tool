@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { Play, TrendUp } from '@phosphor-icons/react';
+import { useTickerRotation } from '@/components/ui/useTickerRotation';
 import { buildReferenceSentence, buildTrendSentences, trendHead, type TtmDashboardTrend } from '@/lib/ttm-dashboard-trend';
 
 /**
@@ -11,11 +12,8 @@ import { buildReferenceSentence, buildTrendSentences, trendHead, type TtmDashboa
  *   weekRef / monthRef nowhere else) the rotation also holds "So với tuần trước / tháng trước (<ngày>): …".
  * Each rotating sentence grows up from below and is shown for 3 seconds. The icon is the play switch: click to stop on the
  * current sentence, click again to go on. With "reduce motion" set in the OS the sentences still change, without the
- * animation.
+ * animation. The rotation itself is shared with the pinned-article ticker of "Bản tin" (useTickerRotation).
  */
-
-const SENTENCE_MS = 3000;
-const GROW_MS = 400;
 
 function formatComputedAt(value: string): string {
   const date = new Date(value.replace(' ', 'T'));
@@ -36,36 +34,9 @@ export function TrendTicker({ onOpenNewFails, trend }: { onOpenNewFails?: () => 
     trend.monthRef ? buildReferenceSentence('tháng trước', trend.monthRef, trend.current) : null,
   ].filter((sentence): sentence is string => sentence !== null);
   const head = trendHead(trend.comparedLayerDate).trim();
-  const [index, setIndex] = React.useState(0);
-  const [playing, setPlaying] = React.useState(true);
-  // false for one frame after a sentence changes, so it starts below and grows up into place.
-  const [grown, setGrown] = React.useState(true);
-  const [reducedMotion, setReducedMotion] = React.useState(false);
-
-  React.useEffect(() => {
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const update = () => setReducedMotion(query.matches);
-    update();
-    query.addEventListener('change', update);
-    return () => query.removeEventListener('change', update);
-  }, []);
-
-  React.useEffect(() => {
-    if (!playing || sentences.length + referenceSentences.length < 2) return undefined;
-    const timer = window.setInterval(() => {
-      setGrown(false);
-      setIndex((current) => current + 1);
-    }, SENTENCE_MS);
-    return () => window.clearInterval(timer);
-  }, [playing, sentences.length, referenceSentences.length]);
   // One rotation: the widget sentences, then (company view) the week / month comparisons.
   const rotation = [...sentences, ...referenceSentences];
-
-  React.useEffect(() => {
-    if (grown) return undefined;
-    const frame = window.requestAnimationFrame(() => setGrown(true));
-    return () => window.cancelAnimationFrame(frame);
-  }, [grown, index]);
+  const { index, itemStyle, playing, togglePlaying } = useTickerRotation(rotation.length);
 
   if (!fixedSentence) return null;
   const sentence = rotation.length > 0 ? rotation[index % rotation.length] : null;
@@ -82,7 +53,7 @@ export function TrendTicker({ onOpenNewFails, trend }: { onOpenNewFails?: () => 
         aria-label={playing ? 'Dừng dòng thông tin so sánh' : 'Tiếp tục dòng thông tin so sánh'}
         aria-pressed={!playing}
         className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-[var(--color-text-brand)] outline-none transition-colors hover:bg-fb-control focus-visible:ring-2 focus-visible:ring-fb-blue"
-        onClick={() => setPlaying((current) => !current)}
+        onClick={togglePlaying}
         title={playing ? 'Bấm để dừng' : 'Bấm để chạy tiếp'}
         type="button"
       >
@@ -107,11 +78,7 @@ export function TrendTicker({ onOpenNewFails, trend }: { onOpenNewFails?: () => 
           <span
             className="absolute inset-x-0 top-0 block origin-bottom truncate leading-5"
             key={index}
-            style={{
-              opacity: grown ? 1 : 0,
-              transform: grown ? 'translateY(0) scale(1)' : 'translateY(70%) scale(0.92)',
-              transition: reducedMotion ? 'none' : `transform ${GROW_MS}ms ease-out, opacity ${GROW_MS}ms ease-out`,
-            }}
+            style={itemStyle}
             title={sentence}
           >
             {sentence}

@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { matchesAlertFilter, TTM_FUNNEL_BUCKET_BY_FILTER, ttmFunnelBucket } from '../epic-row-verdicts';
 import type { TtmFunnelFilterValue } from '../epic-row-verdicts';
 import { summarizeE2e, summarizeQaIndex, summarizeTtmCntt, summarizeTtmCnttFromCounts } from '../ttm-cntt-qa';
-import { breakdownIndexes, buildTtmDashboard2FilterOptions, filterTtmDashboard2Rows, formatEpicCount, hasActiveTtmDashboard2Filter, roundEpicCount, splitWaitingGolive, summarizeTtmFunnel, TTM_BREAKDOWN_DIMENSIONS, TTM_FUNNEL_CRITERIA, ttmFunnelCnttIndex, ttmFunnelLayers } from '../ttm-funnel-summary';
+import { breakdownIndexes, buildTtmDashboard2FilterOptions, filterTtmDashboard2Rows, formatEpicCount, hasActiveTtmDashboard2Filter, missingFailReasonTotal, roundEpicCount, splitWaitingGolive, summarizeTtmFunnel, TTM_BREAKDOWN_DIMENSIONS, TTM_FUNNEL_CRITERIA, ttmFunnelCnttIndex, ttmFunnelLayers } from '../ttm-funnel-summary';
 import { buildEpicAlertsDeepLink } from '../epic-alerts-deep-link';
 import type { TtmFunnelRow } from '../ttm-funnel-summary';
 
@@ -422,6 +422,10 @@ describe('widget "Thiếu lý do" split by breakdown row (2026-10-27)', () => {
     const summary = summarizeTtmFunnel(rows);
     assert.equal(summary.insights.missingFailReason, 2);
     assert.equal(summary.insights.missingResponsibleDepartment, 2);
+    // Widget number (owner 2026-11-10): distinct Epics — the one lacking both counts once (3, not 2 + 2).
+    assert.equal(summary.insights.missingFailReasonAny, 3);
+    assert.equal(missingFailReasonTotal(summary.insights), 3);
+    assert.equal(missingFailReasonTotal({ missingFailReason: 2, missingResponsibleDepartment: 4 }), 4);
     const byProject = new Map(summary.insights.breakdowns.project.map((item) => [item.name, item]));
     assert.deepEqual([byProject.get('Dự án 1')?.missingStage, byProject.get('Dự án 1')?.missingDepartment], [1, 2]);
     assert.deepEqual([byProject.get('Dự án 2')?.missingStage, byProject.get('Dự án 2')?.missingDepartment], [1, 0]);

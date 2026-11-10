@@ -75,6 +75,11 @@ export interface TtmBreakdownItem {
 
 /** Everything TTM Dashboard 2 shows besides the funnel itself: the widget row's operational tiles,
  * the TTM-CNTT (QA) / TTM-E2E rings and the per-dimension breakdowns (matrix + pie charts). */
+/** The "Thiếu lý do" widget number: distinct Epics lacking either reason (an older cached payload: the larger half). */
+export function missingFailReasonTotal(insights: Pick<TtmDashboard2Insights, 'missingFailReason' | 'missingFailReasonAny' | 'missingResponsibleDepartment'>): number {
+  return insights.missingFailReasonAny ?? Math.max(insights.missingFailReason ?? 0, insights.missingResponsibleDepartment ?? 0);
+}
+
 export interface TtmDashboard2Insights {
   /** "Sai lệch dữ liệu" among non-Cancelled Epics (same count as TTM Dashboard's tile). */
   anomalyCount: number;
@@ -84,8 +89,12 @@ export interface TtmDashboard2Insights {
    * (REC_MISSING_FAIL_REASON). */
   missingFailReason: number;
   /** "Thiếu lý do" — Chịu TN chính: Fail TTM-CNTT with a late R4G Date lacking "Phòng chịu trách nhiệm
-   * chính" (REC_MISSING_RESPONSIBLE_DEPARTMENT, 2026-10-14). The widget shows the sum of the two. */
+   * chính" (REC_MISSING_RESPONSIBLE_DEPARTMENT, 2026-10-14). */
   missingResponsibleDepartment: number;
+  /** "Thiếu lý do" — the widget's number (owner 2026-11-10): DISTINCT Epics lacking either of the two, since one Epic
+   * often lacks both (the old sum counted it twice). Same Epics as the "Nhận xét" filter MISSING_FAIL_REASON.
+   * Optional: payloads cached before it have none (readers fall back to the larger of the two). */
+  missingFailReasonAny?: number;
   /** "Chờ golive": Epics without an R4G Date, and the rest counted per releaseGraceDeadline ('' =
    * none) so "Trong hạn / Quá hạn" can be split against today's date at view time. */
   waitingGolive: { byGraceDeadline: Record<string, number>; missingR4g: number; total: number };
@@ -243,6 +252,7 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
   let lateWarning = 0;
   let missingFailReason = 0;
   let missingResponsibleDepartment = 0;
+  let missingFailReasonAny = 0;
   for (const row of active) {
     if (row.ttmCnttInScope && row.alertLevel === 'LATE') lateWarning += 1;
     if (row.hasDataAnomaly) anomalyCount += 1;
@@ -257,6 +267,9 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
     }
     if (row.ttmCnttInScope && row.scoringBadges?.includes('REC_MISSING_RESPONSIBLE_DEPARTMENT')) {
       missingResponsibleDepartment += 1;
+    }
+    if (row.ttmCnttInScope && (row.scoringBadges?.includes('REC_MISSING_FAIL_REASON') || row.scoringBadges?.includes('REC_MISSING_RESPONSIBLE_DEPARTMENT'))) {
+      missingFailReasonAny += 1;
     }
   }
 
@@ -314,6 +327,7 @@ function summarizeInsights(rows: readonly TtmFunnelRow[], bucketOf: ReadonlyMap<
     justifyGolive,
     lateWarning,
     missingFailReason,
+    missingFailReasonAny,
     missingResponsibleDepartment,
     qa: summarizeQaIndex(active),
     waitingGolive,

@@ -63,8 +63,9 @@ interface CachedPayload {
  *      for the Component filter;
  * 12 = widget "Thiếu lý do" = Khâu fail + Chịu TN chính (insights.missingResponsibleDepartment);
  * 13 = Rule Groups: bucket NO_CNTT_RULE (L02), breakdown dimension `ruleGroup`, filterOptions.ruleGroups;
- * 14 = breakdown rows carry the widget "Thiếu lý do" split (missingStage / missingDepartment) for get_ttm_dashboard. */
-const PAYLOAD_VERSION = 14;
+ * 14 = breakdown rows carry the widget "Thiếu lý do" split (missingStage / missingDepartment) for get_ttm_dashboard;
+ * 15 = widget "Thiếu lý do" = DISTINCT Epics lacking either reason (insights.missingFailReasonAny), no longer the sum. */
+const PAYLOAD_VERSION = 15;
 
 const ALL_SCOPE: AccessScope = { accessRole: 'CBQL_PHONG', projectComponents: new Map(), sourceProjectKeys: null };
 

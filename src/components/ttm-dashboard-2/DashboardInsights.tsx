@@ -26,6 +26,7 @@ import { formatTtmPct1, hasTtmVerdict, type TtmCnttSummary } from '@/lib/ttm-cnt
 import {
   breakdownIndexes,
   formatEpicCount,
+  missingFailReasonTotal,
   splitWaitingGolive,
   ttmFunnelCnttIndex,
   ttmFunnelLayers,
@@ -274,9 +275,11 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
   const openWarnings = () => onOpen({ alert: 'LATE', title: 'Danh sách Epic - Chậm tiến độ' });
   const warningSubtitle = `${fmt(insights.lateWarning)} muộn`;
 
-  // "Thiếu lý do" = sum of its two warnings (owner 2026-10-14) — each number opens its own list.
+  // "Thiếu lý do" = distinct Epics lacking either of its two warnings (owner 2026-11-10 — one Epic often lacks both, so
+  // the old sum counted it twice); each number of the subtitle opens its own list.
   const missingStage = insights.missingFailReason ?? 0;
   const missingDepartment = insights.missingResponsibleDepartment ?? 0;
+  const missingTotal = missingFailReasonTotal(insights);
   const missingReasonSubtitle = (
     <>
       <KpiSubLink onClick={() => onOpen({ alert: 'MISSING_FAIL_STAGE', title: 'Danh sách Epic - Fail TTM chưa có thông tin khâu fail' })} title="Fail TTM chưa có thông tin khâu fail">
@@ -331,12 +334,12 @@ export function KpiStrip({ funnel, onOpen }: { funnel: TtmFunnelSummary; onOpen:
             <KpiCard
               tone="navy"
               title="THIẾU LÝ DO"
-              value={fmt(missingStage + missingDepartment)}
+              value={fmt(missingTotal)}
               subtitle={missingReasonSubtitle}
               icon={<KpiIconBadge icon={WarningCircle} iconColor="text-[var(--color-warning-400)]" />}
               onClick={() => onOpen({ alert: 'MISSING_FAIL_REASON', title: 'Danh sách Epic - Thiếu lý do Fail TTM' })}
               tooltip={[
-                'Tổng 2 cảnh báo trên Epic Fail TTM-CNTT có R4G Date muộn hơn Target (1 Epic có thể thiếu cả hai):',
+                'Số Epic Fail TTM-CNTT có R4G Date muộn hơn Target thiếu ít nhất một trong hai thông tin (Epic thiếu cả hai chỉ đếm 1 lần):',
                 '• Khâu fail: chưa log thông tin khâu gây ra việc fail (BA, DEV, QA, PM/SM, ...)',
                 '• Chịu TN chính: chưa có Phòng chịu trách nhiệm chính',
               ].join('\n')}

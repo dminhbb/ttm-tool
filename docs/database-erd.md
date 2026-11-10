@@ -1,6 +1,6 @@
 # TTM Monitor — ERD & từ điển dữ liệu
 
-> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-09.
+> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-10.
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
@@ -1895,6 +1895,9 @@ erDiagram
         int updated_by FK
         timestamptz updated_at
         int view_count
+        boolean hidden_from_menu
+        boolean is_pinned
+        timestamptz pinned_at
     }
     news_letter_categories {
         int id PK
@@ -1962,6 +1965,9 @@ Bài viết của Bản tin (`/news-letter`, SUPERADMIN soạn): tiêu đề, t�
 | `updated_by` | int | có |  | FK → users(id) |  |
 | `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 | `view_count` | int | không | 0 |  |  |
+| `hidden_from_menu` | boolean | không | false |  | `BOOLEAN NOT NULL DEFAULT false`"Ẩn trên menu" (10/11/2026): bài viết vẫn mở được qua link, không hiện ở mục lục, bài trước / sau, chấm chưa đọc và MCP — SUPERADMIN vẫn thấy trên menu |
+| `is_pinned` | boolean | không | false |  | `BOOLEAN NOT NULL DEFAULT false`"Ghim bài viết" (10/11/2026): hiện trên đầu cột mục lục (trên "Mới nhất", có biểu tượng ghim) và trên ticker phía trên bài viết; vẫn nằm trong thư mục |
+| `pinned_at` | timestamptz | có |  |  | `TIMESTAMP WITH TIME ZONE`Lúc bài viết được ghim (giữ nguyên khi còn ghim, NULL khi bỏ ghim) — bài ghim mới nhất đứng trước |
 
 - index `idx_news_letter_articles_category`: btree (category_id)
 - index `idx_news_letter_articles_order`: btree (first_published_at DESC, id DESC)

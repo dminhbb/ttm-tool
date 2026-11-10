@@ -9,6 +9,7 @@ import {
   filterTtmDashboard2Rows,
   hasActiveTtmDashboard2Filter,
   roundEpicCount,
+  missingFailReasonTotal,
   splitWaitingGolive,
   summarizeTtmFunnel,
   TTM_FUNNEL_CRITERIA,
@@ -40,17 +41,18 @@ export interface TtmDashboard2SummaryFilters {
 }
 
 /** The widget "Thiếu lý do" of the screen (DashboardInsights.tsx) with what a chatbot needs to read it: both halves, their share of the Fail TTM-CNTT Epics, and where to list them. */
-function describeMissingReason(stage: number, department: number, failTtmCntt: number) {
+function describeMissingReason(stage: number, department: number, distinct: number, failTtmCntt: number) {
   const pct = (count: number) => (failTtmCntt > 0 ? Math.round((count / failTtmCntt) * 1000) / 10 : null);
   return {
-    tong: stage + department,
+    // Distinct Epics lacking either (owner 2026-11-10) — not the sum: one Epic often lacks both.
+    tong: distinct,
     khauFail: stage,
     chiuTnChinh: department,
     epicFailTtmCntt: failTtmCntt,
     tyLeKhauFailPct: pct(stage),
     tyLeChiuTnChinhPct: pct(department),
     nhanXet: { tong: 'MISSING_FAIL_REASON', khauFail: 'MISSING_FAIL_STAGE', chiuTnChinh: 'MISSING_RESPONSIBLE_DEPARTMENT' },
-    moTa: 'Epic Fail TTM-CNTT có R4G Date muộn hơn Target nhưng chưa ghi lý do: khauFail = chưa có thông tin khâu fail (BA, CO, DEV, PM/SM, PO, Pentest, SA, SIT/UAT, Lý do khác); chiuTnChinh = chưa có "Phòng chịu trách nhiệm chính" (trống hoặc None). 1 Epic có thể thiếu cả hai.',
+    moTa: 'Epic Fail TTM-CNTT có R4G Date muộn hơn Target nhưng chưa ghi lý do: khauFail = chưa có thông tin khâu fail (BA, CO, DEV, PM/SM, PO, Pentest, SA, SIT/UAT, Lý do khác); chiuTnChinh = chưa có "Phòng chịu trách nhiệm chính" (trống hoặc None). 1 Epic có thể thiếu cả hai — tong là số Epic khác nhau (không phải khauFail + chiuTnChinh).',
   };
 }
 
@@ -127,7 +129,7 @@ export async function getTtmDashboard2Summary(userId: number, role: UserRole, in
       saiLechDuLieu: insights.anomalyCount,
       choGolive: { total: insights.waitingGolive.total, thieuR4gDate: waiting.missingR4g, trongHan: waiting.withinGrace, quaHan: waiting.overdue },
       giaiTrinhGolive: insights.justifyGolive,
-      thieuLyDo: describeMissingReason(insights.missingFailReason, insights.missingResponsibleDepartment ?? 0, layers.l5ab + layers.l5ba),
+      thieuLyDo: describeMissingReason(insights.missingFailReason, insights.missingResponsibleDepartment ?? 0, missingFailReasonTotal(insights), layers.l5ab + layers.l5ba),
     },
     // Counts go out as the screen shows them: whole Epics. Only the PM/SM dimension holds shares (an
     // Epic of n PM/SMs is 1/n for each — see TtmBreakdownItem); the percentages use the unrounded shares.

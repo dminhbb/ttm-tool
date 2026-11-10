@@ -540,7 +540,11 @@
     },
     "news_letter_articles": {
       "description": "Bài viết của Bản tin (<code>/news-letter</code>, SUPERADMIN soạn): tiêu đề, tóm tắt, phân loại, role được xem (<code>visible_roles</code>), Published (tắt = nháp, chỉ tác giả xem), <code>first_published_at</code> (thứ tự bài), ảnh header, nội dung HTML đã lọc ở server — mục 11.8.",
-      "columns": {}
+      "columns": {
+        "hidden_from_menu": "<code>BOOLEAN NOT NULL DEFAULT false</code></td><td>\"Ẩn trên menu\" (10/11/2026): bài viết vẫn mở được qua link, không hiện ở mục lục, bài trước / sau, chấm chưa đọc và MCP — SUPERADMIN vẫn thấy trên menu",
+        "is_pinned": "<code>BOOLEAN NOT NULL DEFAULT false</code></td><td>\"Ghim bài viết\" (10/11/2026): hiện trên đầu cột mục lục (trên \"Mới nhất\", có biểu tượng ghim) và trên ticker phía trên bài viết; vẫn nằm trong thư mục",
+        "pinned_at": "<code>TIMESTAMP WITH TIME ZONE</code></td><td>Lúc bài viết được ghim (giữ nguyên khi còn ghim, NULL khi bỏ ghim) — bài ghim mới nhất đứng trước"
+      }
     },
     "news_letter_categories": {
       "description": "Phân loại bài viết Bản tin (tên không trùng, không xoá được khi còn bài viết dùng).",
