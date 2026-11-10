@@ -1,17 +1,17 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowSquareOut, Broom, CaretDown, CaretRight, ClockCounterClockwise, Lightbulb, Warning } from '@phosphor-icons/react';
+import { Broom, CaretDown, CaretRight, ClockCounterClockwise, Lightbulb } from '@phosphor-icons/react';
 
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { TableSkeleton } from '@/components/ui/Skeleton';
-import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
-import { Tooltip } from '@/components/ui/Tooltip';
+import { NormalizationEpicTable } from '@/components/data-normalization/NormalizationEpicTable';
 import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
+import { EpicMarkModal } from '@/components/epic-mark/EpicMarkModal';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
-import type { NormalizationEpicRow, NormalizationPanel } from '@/lib/data-normalization';
+import type { NormalizationPanel } from '@/lib/data-normalization';
 import type { TtmDashboard2FilterOptions } from '@/lib/ttm-funnel-summary';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import { cn } from '@/lib/utils';
@@ -33,13 +33,6 @@ const EMPTY_FILTER_OPTIONS: TtmDashboard2FilterOptions = { domainProjectKeys: {}
 const PAGER_BUTTON_STYLE = { minHeight: 30, padding: '4px 12px' } as const;
 const PAGER_SELECT_STYLE = { flex: '0 0 auto', minHeight: 30, padding: '4px 8px', width: 64 } as const;
 
-function formatDate(value: string | null): string {
-  if (!value) return '—';
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return value;
-  return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
-}
-
 function formatDateTime(value: string | null): string {
   if (!value) return 'Chưa có dữ liệu';
   const date = new Date(value);
@@ -54,41 +47,6 @@ function formatDateTime(value: string | null): string {
 /** "R1:2,R5:3" — only the panels that are not on their first page (panel codes hold no comma). */
 function pagesParam(pages: Record<string, number>): string {
   return Object.entries(pages).filter(([, page]) => page > 1).map(([code, page]) => `${code}:${page}`).join(',');
-}
-
-/** The "Epic" cell — icons + key on ONE line (the summary has its own column). */
-function EpicCell({ isRecommendation, onBrowse, row, viewIssueBaseUrl }: { isRecommendation: boolean; onBrowse: (epicKey: string) => void; row: NormalizationEpicRow; viewIssueBaseUrl: string }) {
-  return (
-    <TD className="min-w-[170px] !py-1">
-      <div className="flex items-center gap-1">
-        <Tooltip multiline className="inline-flex w-auto" content={row.violations.map((message) => `• ${message}`).join('\n')}>
-          {isRecommendation
-            ? <Lightbulb aria-label="Epic có khuyến nghị này" className="size-4 shrink-0 text-status-success" weight="fill" />
-            : <Warning aria-label="Epic vi phạm rule này" className="size-4 shrink-0 text-status-warning" weight="fill" />}
-        </Tooltip>
-        {viewIssueBaseUrl && (
-          <a
-            aria-label="Mở Epic trên Jira"
-            className="inline-flex shrink-0 items-center p-0.5 text-fb-text-secondary hover:text-fb-blue"
-            href={`${viewIssueBaseUrl}${row.epicKey}`}
-            rel="noopener noreferrer"
-            target="_blank"
-            title="Mở Epic trên Jira"
-          >
-            <ArrowSquareOut className="size-4" weight="bold" />
-          </a>
-        )}
-        <button
-          className="cursor-pointer border-0 bg-transparent p-0 text-left font-extrabold text-[var(--color-text-brand)] hover:underline"
-          onClick={() => onBrowse(row.epicKey)}
-          title="Duyệt Epic (Epic Browser)"
-          type="button"
-        >
-          {row.epicKey}
-        </button>
-      </div>
-    </TD>
-  );
 }
 
 /** Same menu and paging as Quản trị Epic: ‹ Trước · Trang [chọn trang] / N · Sau ›. */
@@ -121,15 +79,17 @@ function PanelPagination({ onPageChange, panel }: { onPageChange: (page: number)
   );
 }
 
-function RulePanel({ isOpen, onBrowse, onPageChange, onToggle, panel, viewIssueBaseUrl }: {
+function RulePanel({ isOpen, onBrowse, onPageChange, onReview, onToggle, panel, viewIssueBaseUrl }: {
   isOpen: boolean;
   onBrowse: (epicKey: string) => void;
   onPageChange: (code: string, page: number) => void;
+  onReview: (epicKey: string) => void;
   onToggle: (code: string) => void;
   panel: NormalizationPanel;
   viewIssueBaseUrl: string;
 }) {
-  // Opened before its Epics arrived: rows are only sent for the panels the page asked for.
+  // Opened before its Epics arrived: rows are only sent for the panels the page asked for. A section counted 0 Epic
+  // shows "Không có Epic cần chuẩn hoá" at once — it is never asked for (owner 2026-11-10).
   const awaitingRows = !panel.rowsLoaded && panel.totalCount > 0;
   const bodyId = `rule-body-${panel.code}`;
   const Chevron = isOpen ? CaretDown : CaretRight;
@@ -175,40 +135,7 @@ function RulePanel({ isOpen, onBrowse, onPageChange, onToggle, panel, viewIssueB
               description={isRecommendation ? 'Không có Epic nào trong phạm vi và bộ lọc hiện tại có khuyến nghị này.' : 'Không có Epic nào trong phạm vi và bộ lọc hiện tại vi phạm rule này.'}
             />
           ) : (
-            <TableContainer>
-              <Table className="min-w-[960px]">
-                <THead>
-                  <TR>
-                    <TH className="min-w-[170px]">Epic</TH>
-                    <TH className="min-w-[280px]">Summary</TH>
-                    <TH>Created date</TH>
-                    <TH>Ngày duyệt ý tưởng</TH>
-                    <TH>Start date</TH>
-                    <TH>R4G date</TH>
-                    <TH>Due date</TH>
-                    <TH>Status</TH>
-                  </TR>
-                </THead>
-                <TBody>
-                  {panel.rows.map((row) => (
-                    <TR key={row.epicKey}>
-                      <EpicCell isRecommendation={isRecommendation} onBrowse={onBrowse} row={row} viewIssueBaseUrl={viewIssueBaseUrl} />
-                      <TD className="max-w-[420px] truncate !py-1" title={row.epicName}>{row.epicName || '—'}</TD>
-                      <TD className="!py-1">{formatDate(row.createdDate)}</TD>
-                      <TD className="!py-1">{formatDate(row.ideaApprovedDate)}</TD>
-                      <TD className="!py-1">{formatDate(row.startDate)}</TD>
-                      <TD className="!py-1">{formatDate(row.r4gDate)}</TD>
-                      <TD className="!py-1">{formatDate(row.dueDate)}</TD>
-                      <TD className="!py-1">
-                        {row.status
-                          ? <span className="rounded-full border border-fb-border bg-fb-surface-muted px-2 py-0.5 text-[11px] font-semibold text-fb-text-primary">{row.status}</span>
-                          : '—'}
-                      </TD>
-                    </TR>
-                  ))}
-                </TBody>
-              </Table>
-            </TableContainer>
+            <NormalizationEpicTable isRecommendation={isRecommendation} onBrowse={onBrowse} onReview={onReview} rows={panel.rows} viewIssueBaseUrl={viewIssueBaseUrl} />
           )}
           <PanelPagination onPageChange={(page) => onPageChange(panel.code, page)} panel={panel} />
         </div>
@@ -222,6 +149,9 @@ export default function DataNormalizationPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [browsingEpicKey, setBrowsingEpicKey] = useState<string | null>(null);
+  // Review Notes popup of the column REVIEW (owner 2026-11-10); a change reloads the screen (reloadToken).
+  const [reviewEpicKey, setReviewEpicKey] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
   const viewIssueBaseUrl = useJiraViewIssueUrl();
 
   // Same toolbar filters as TTM Dashboard 2.
@@ -237,13 +167,14 @@ export default function DataNormalizationPage() {
   // The panels whose Epic rows the API is asked for: every panel opened so far. It only grows, so
   // collapsing a panel doesn't refetch and reopening it shows its rows at once.
   const [requestedPanels, setRequestedPanels] = useState<readonly string[]>([]);
-  const togglePanel = (code: string) => {
+  const togglePanel = (code: string, totalCount: number) => {
     setOpenPanels((current) => {
       const next = new Set(current);
       if (!next.delete(code)) next.add(code);
       return next;
     });
-    setRequestedPanels((current) => (current.includes(code) ? current : [...current, code].sort()));
+    // A section counted 0 Epic needs no request: it opens straight on "Không có Epic cần chuẩn hoá".
+    if (totalCount > 0) setRequestedPanels((current) => (current.includes(code) ? current : [...current, code].sort()));
   };
 
   // The toolbar options cover the viewer's whole scope and don't depend on the filters: sent with the
@@ -278,11 +209,15 @@ export default function DataNormalizationPage() {
     for (const name of filterPmSms) params.append('pmSms', name);
     for (const unit of filterRequestingUnits) params.append('requestingUnits', unit);
     for (const group of filterRuleGroups) params.append('ruleGroups', group);
-    if (requestedPanels.length) params.set('open', requestedPanels.join(','));
+    // The sections asked for + any open one whose count grew above 0 after a filter change (it was opened at 0).
+    const wanted = new Set(requestedPanels);
+    for (const panel of data?.panels ?? []) if (openPanels.has(panel.code) && panel.totalCount > 0) wanted.add(panel.code);
+    if (wanted.size) params.set('open', [...wanted].sort().join(','));
     const pageText = pagesParam(pages);
     if (pageText) params.set('pages', pageText);
+    if (reloadToken) params.set('r', String(reloadToken));
     return params.toString();
-  }, [filterComponents, filterDomain, filterPmSms, filterProjects, filterRequestingUnits, filterRuleGroups, pages, requestedPanels]);
+  }, [data?.panels, filterComponents, filterDomain, filterPmSms, filterProjects, filterRequestingUnits, filterRuleGroups, openPanels, pages, reloadToken, requestedPanels]);
 
   const requestIdRef = useRef(0);
   useEffect(() => {
@@ -439,7 +374,8 @@ export default function DataNormalizationPage() {
               key={panel.code}
               onBrowse={setBrowsingEpicKey}
               onPageChange={(code, page) => setPages((current) => ({ ...current, [code]: page }))}
-              onToggle={togglePanel}
+              onReview={setReviewEpicKey}
+              onToggle={(code) => togglePanel(code, panel.totalCount)}
               panel={panel}
               viewIssueBaseUrl={viewIssueBaseUrl}
             />
@@ -448,6 +384,14 @@ export default function DataNormalizationPage() {
       )}
 
       <EpicBrowserModal epicKey={browsingEpicKey} onClose={() => setBrowsingEpicKey(null)} />
+      {reviewEpicKey && (
+        <EpicMarkModal
+          key={reviewEpicKey}
+          epicKey={reviewEpicKey}
+          onChanged={() => setReloadToken((current) => current + 1)}
+          onClose={() => setReviewEpicKey(null)}
+        />
+      )}
     </div>
   );
 }

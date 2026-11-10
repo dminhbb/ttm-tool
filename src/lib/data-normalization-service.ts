@@ -12,6 +12,7 @@ import {
 } from '@/lib/data-normalization';
 import { resolveAccessScope } from '@/lib/epic-alert-service';
 import type { DashboardEpicRow } from '@/lib/epic-alert-types';
+import { loadEpicMarkSummaries } from '@/lib/epic-mark-service';
 import { isOutsideTtmCalculation } from '@/lib/ttm-cntt-qa';
 import { getTtmDashboard2Snapshot } from '@/lib/ttm-dashboard-2-cache-service';
 import { loadDashboardEpicRows } from '@/lib/ttm-dashboard-summary-service';
@@ -114,9 +115,14 @@ export async function getDataNormalization(userId: number, role: UserRole, input
 
   const open = new Set(input.openPanels);
   const pageOf = NORMALIZATION_PANELS.map((panel) => paginate(byPanel.get(panel.code) ?? [], input.pages[panel.code] ?? 1));
-  const dates = await loadIssueDates([...new Set(
+  const shownKeys = [...new Set(
     NORMALIZATION_PANELS.flatMap((panel, position) => (open.has(panel.code) ? pageOf[position].rows.map((item) => item.row.epicKey) : [])),
-  )]);
+  )];
+  // Jira dates + the viewer's Review Notes (column REVIEW, 2026-11-10) of the Epics on screen only, side by side.
+  const [dates, marks] = await Promise.all([
+    loadIssueDates(shownKeys),
+    shownKeys.length ? loadEpicMarkSummaries(shownKeys, userId) : Promise.resolve(new Map()),
+  ]);
 
   const panels = NORMALIZATION_PANELS.map((panel, position): NormalizationPanel => {
     const page = pageOf[position];
@@ -136,11 +142,13 @@ export async function getDataNormalization(userId: number, role: UserRole, input
           dueDate: issue?.dueDate ?? row.dueDate ?? null,
           epicKey: row.epicKey,
           epicName: row.epicName,
+          ownerName: row.ownerName ?? '',
           ideaApprovedDate: issue?.ideaApprovedDate ?? null,
           r4gDate: issue?.r4gDate ?? row.r4gDate ?? null,
           startDate: issue?.startDate ?? null,
           status: row.currentStatus,
           violations: messages,
+          mark: marks.get(row.epicKey),
         };
       }),
       rowsLoaded,

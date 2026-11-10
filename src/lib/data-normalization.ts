@@ -1,5 +1,6 @@
 import { BADGE_BY_ID, badgesOf, type BadgeId } from '@/lib/scoring/catalog';
 import type { DashboardEpicRow } from '@/lib/epic-alert-types';
+import type { EpicMarkSummary } from '@/lib/epic-mark-format';
 import { CHANGE_ID_AMT_FROM } from '@/lib/scoring/rules/change-id';
 
 /**
@@ -204,12 +205,16 @@ export interface NormalizationEpicRow {
   dueDate: string | null;
   epicKey: string;
   epicName: string;
+  /** PM/SM of the Epic (comma-joined when several) — column PM/SM (owner 2026-11-10). */
+  ownerName: string;
   ideaApprovedDate: string | null;
   r4gDate: string | null;
   startDate: string | null;
   status: string;
   /** The messages of the violations of THIS panel's rule. */
   violations: string[];
+  /** Review Notes of the Epic for the viewer (column REVIEW, owner 2026-11-10) — absent = no comment, not hidden. */
+  mark?: EpicMarkSummary;
 }
 
 export interface NormalizationPanel {
