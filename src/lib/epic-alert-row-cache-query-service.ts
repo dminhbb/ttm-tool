@@ -1,7 +1,7 @@
 import pool from '@/lib/db';
 import type { AccessScope } from '@/lib/epic-alert-service';
 import { DASHBOARD_EPIC_ROW_KEYS } from '@/lib/epic-alert-types';
-import { LIST_GROUP_RANK_SQL } from '@/lib/epic-alert-sort-rules';
+import { EPIC_LIST_ORDER_SQL, LIST_GROUP_RANK_SQL } from '@/lib/epic-alert-sort-rules';
 import type { DashboardEpicRow, EpicAlertRowPhased } from '@/lib/epic-alert-types';
 import { UNASSIGNED_PM_SM } from '@/lib/epic-pm-sm-assignment';
 import { NORMALIZATION_BADGE_CODES } from '@/lib/data-normalization';
@@ -289,6 +289,8 @@ function buildBadgeFilterClause(alertFilter: string | undefined, params: unknown
 }
 
 const ORDER_BY = `${LIST_GROUP_RANK_SQL} ASC, has_data_anomaly ASC, alert_rank ASC, remaining_working_days_rank ASC, epic_key ASC`;
+/** "Quản trị Epic" list (owner 2026-11-10): T0 newest, then T1 newest, then Epic A→Z — see compareEpicListRows. */
+const EPIC_LIST_ORDER_BY = EPIC_LIST_ORDER_SQL;
 
 export async function queryEpicAlertRowCachePage(
   scope: AccessScope,
@@ -307,7 +309,7 @@ export async function queryEpicAlertRowCachePage(
            NOT ${realScopeSql} AS "viewOnly"
     FROM epic_alert_row_cache
     WHERE ${whereSql}
-    ORDER BY ${ORDER_BY}
+    ORDER BY ${EPIC_LIST_ORDER_BY}
     LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length};
     `,
     pageParams,

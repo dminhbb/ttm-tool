@@ -32,7 +32,7 @@ import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import { ArrowBendUpRight, ArrowCounterClockwise, CheckCircle, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, Eye, EyeSlash, FlagBanner, FloppyDisk, FolderSimple, HourglassMedium, ListChecks, UserFocus, Prohibit, Sparkle, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
-import { listGroupRankOf } from '@/lib/epic-alert-sort-rules';
+import { compareEpicListRows } from '@/lib/epic-alert-sort-rules';
 import { compareWorkflowStatus } from '@/lib/scoring/derive';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
@@ -294,14 +294,16 @@ function CollapsiblePhaseHeader({ isCollapsed, onToggle, phase }: { isCollapsed:
   );
 }
 
-/** START-E2E (T0) / START-DATE (T1) cell — the date with its icon, or (collapsed) a thin green stub with the date as tooltip. */
+/** START-E2E (T0) / START-DATE (T1) cell — the date with its icon, or (collapsed) a thin green stub with the date as tooltip.
+ * A missing T1 gets the "Trễ pha" background (owner 2026-11-10 — those Epics form the second group of the list). */
 function StartDateCell({ date, icon: StartIcon, isCollapsed, label }: { date: string | null; icon: PhosphorIcon; isCollapsed: boolean; label: 'T0' | 'T1' }) {
+  const missingT1 = !date && label === 'T1';
   if (isCollapsed) {
-    return <TD className={`ttm-phase-cell ttm-col-collapsed${date ? ' pass' : ''}`} title={date ? `${label}: ${formatDate(date)}` : `Không có ${label}`} />;
+    return <TD className={`ttm-phase-cell ttm-col-collapsed${date ? ' pass' : missingT1 ? ' fail' : ''}`} title={date ? `${label}: ${formatDate(date)}` : `Không có ${label}`} />;
   }
   if (!date) {
     return label === 'T1'
-      ? <TD className="w-[1%] text-left align-top px-1.5"><span className="ttm-metric na">Không có</span></TD>
+      ? <TD className="w-[1%] ttm-phase-cell fail text-left align-top px-1.5"><span className="ttm-metric na">Không có</span></TD>
       : <TD className="w-[1%] ttm-phase-cell pass whitespace-nowrap text-left align-top px-1.5">—</TD>;
   }
   return (
@@ -1198,7 +1200,9 @@ function EpicAlerts15Screen() {
         && (ruleGroupFilters.length === 0 || (Boolean(row.ruleGroupName) && ruleGroupFilters.includes(row.ruleGroupName!)))
         && (!normalizedSearch || row.epicKey.toLocaleLowerCase('vi-VN').includes(normalizedSearch) || row.epicName.toLocaleLowerCase('vi-VN').includes(normalizedSearch))
         && matchesMarkFilter(row, markFilter, markedPmSmFilters, data?.viewerOwnerName ?? '', true);
-    }).sort((a, b) => listGroupRankOf(a.currentStatus, a.ttmCnttInScope) - listGroupRankOf(b.currentStatus, b.ttmCnttInScope));
+    // Epics with T1 (T0 newest, T1 newest, Epic A→Z), then those without T1 (T0 newest, Epic A→Z) — owner 2026-11-10,
+    // the same order as the paged SQL (EPIC_LIST_ORDER_SQL).
+    }).sort(compareEpicListRows);
   }, [data?.mode, data?.viewerOwnerName, rows, projectFilters, pmSmFilters, componentFilters, alertFilters, typeFilters, statusFilters, dataIssueFilter, requestingUnitFilters, ruleGroupFilters, search, markFilter, markedPmSmFilters]);
   const filteredRows = useMemo(
     () => (data?.mode === 'paged' || markFilter ? indexRows : indexRows.filter((row) => !row.mark?.isHidden)),
@@ -1670,7 +1674,8 @@ function EpicAlerts15Screen() {
                       setPinnedRowKey((current) => (current === row.epicKey ? null : row.epicKey));
                     }}
                   >
-                    <TD className="ttm-epic-col-sticky ttm-col-border-right text-left align-top">
+                    {/* No Start Date (T1): the second group of the list, Epic cell on the "Trễ pha" background (owner 2026-11-10). */}
+                    <TD className={`ttm-epic-col-sticky ttm-col-border-right text-left align-top${isMissingCore ? ' ttm-epic-no-t1' : ''}`}>
                       {row.viewOnly && (
                         <Tooltip className="float-right ml-1 inline-flex w-auto" content="Epic trong Quyền xem — chỉ để xem, không tính vào bất kỳ chỉ số nào" multiline side="left">
                           <span aria-label="Epic trong Quyền xem (chỉ xem)" className="ttm-view-only-eye" role="img">

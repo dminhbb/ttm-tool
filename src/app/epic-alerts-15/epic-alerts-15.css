@@ -497,6 +497,7 @@
   background: var(--ttm-card);
   box-shadow: 2px 0 4px rgb(15 23 42 / 8%);
 }
+.ttm-epic-col-sticky.ttm-epic-no-t1 { background: var(--ttm-danger-100); }
 .ttm-epic-key {
   font-weight: 800;
   color: var(--ttm-brand-600);
@@ -963,6 +964,11 @@
 }
 :root[data-theme="dark"] .ttm-phase-cell.fail {
   background: rgba(240, 100, 114, 0.18);
+}
+/* Epic without a Start Date (T1): its Epic cell takes the "Trễ pha" background (owner 2026-11-10). The light-theme rule
+   sits next to .ttm-epic-col-sticky. Opaque in dark mode so the sticky cell still hides what scrolls under it. */
+:root[data-theme="dark"] .ttm-epic-col-sticky.ttm-epic-no-t1 {
+  background: linear-gradient(rgba(240, 100, 114, 0.18), rgba(240, 100, 114, 0.18)), var(--surface-panel, #191c12);
 }
 
 :root[data-theme="dark"] .ttm-app td.hl-overdue,
