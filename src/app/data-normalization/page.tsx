@@ -12,6 +12,7 @@ import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import { EpicMarkModal } from '@/components/epic-mark/EpicMarkModal';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import type { NormalizationPanel } from '@/lib/data-normalization';
+import { EPIC_FIELD_CHANGE_DEFAULT_FIELD, EPIC_FIELD_CHANGE_DEFAULT_FROM, EPIC_FIELD_CHANGE_FIELDS, EPIC_FIELD_CHANGE_LABEL, type EpicFieldChangeField } from '@/lib/epic-field-changes';
 import type { TtmDashboard2FilterOptions } from '@/lib/ttm-funnel-summary';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import { cn } from '@/lib/utils';
@@ -79,7 +80,12 @@ function PanelPagination({ onPageChange, panel }: { onPageChange: (page: number)
   );
 }
 
-function RulePanel({ isOpen, onBrowse, onPageChange, onReview, onToggle, panel, viewIssueBaseUrl }: {
+function RulePanel({ changesField, changesFrom, isOpen, onBrowse, onChangesFieldChange, onChangesFromChange, onPageChange, onReview, onToggle, panel, viewIssueBaseUrl }: {
+  /** "Epic thay đổi dữ liệu": the created-date calendar and the one-field filter of its button row. */
+  changesField: EpicFieldChangeField;
+  changesFrom: string;
+  onChangesFieldChange: (value: EpicFieldChangeField) => void;
+  onChangesFromChange: (value: string) => void;
   isOpen: boolean;
   onBrowse: (epicKey: string) => void;
   onPageChange: (code: string, page: number) => void;
@@ -95,13 +101,16 @@ function RulePanel({ isOpen, onBrowse, onPageChange, onReview, onToggle, panel, 
   const Chevron = isOpen ? CaretDown : CaretRight;
   // "Khuyến nghị" panel (owner 2026-11-09): light green header — a recommendation, not a rule to fix.
   const isRecommendation = panel.tone === 'recommendation';
+  const isChange = panel.tone === 'change';
   return (
     <section aria-labelledby={`rule-${panel.code}`} className="overflow-hidden rounded-xl border border-fb-border bg-fb-surface shadow-sm">
-      <header className={cn(isOpen && 'border-b border-fb-border', isRecommendation && 'bg-status-success-soft')}>
+      {/* Recommendation: light green; "Epic thay đổi dữ liệu": pastel purple (owner 2026-11-11, .dn-panel-change). */}
+      <header className={cn(isOpen && 'border-b border-fb-border', isRecommendation && 'bg-status-success-soft', isChange && 'dn-panel-change')}>
+        <div className="flex flex-wrap items-center gap-2 pr-4">
         <button
           aria-controls={bodyId}
           aria-expanded={isOpen}
-          className={cn('flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-4 py-3 text-left', isRecommendation ? 'hover:brightness-95' : 'hover:bg-fb-surface-muted')}
+          className={cn('flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-4 py-3 text-left', isRecommendation || isChange ? 'hover:brightness-95' : 'hover:bg-fb-surface-muted')}
           onClick={() => onToggle(panel.code)}
           type="button"
         >
@@ -111,6 +120,7 @@ function RulePanel({ isOpen, onBrowse, onPageChange, onReview, onToggle, panel, 
           {/* Count > 0: orange with white text (owner 2026-11-09); 0 stays green. */}
           <Badge className={panel.totalCount > 0 ? 'dn-count-badge-alert' : undefined} variant={panel.totalCount > 0 ? 'warning' : 'success'}>{panel.totalCount} Epic</Badge>
         </button>
+        </div>
         {isOpen && (
           <div className="space-y-2 px-4 pb-3">
             <p className="text-xs leading-5 text-fb-text-secondary">{panel.meaning}</p>
@@ -119,6 +129,40 @@ function RulePanel({ isOpen, onBrowse, onPageChange, onReview, onToggle, panel, 
                 <Lightbulb className="mt-0.5 size-4 shrink-0 text-status-warning" weight="fill" />
                 <span><strong>Cách chuẩn hoá:</strong> {panel.guide}</span>
               </p>
+            )}
+            {isChange && (
+              // Button row of "Epic thay đổi dữ liệu" (owner 2026-11-11): the created-date calendar (default 01/02/2026) and
+              // exactly one field — "Thay đổi Start date" by default; clicking the active one keeps it.
+              <div className="dn-change-filter-row flex flex-wrap items-center gap-2 rounded-lg px-3 py-2" role="group" aria-label="Bộ lọc Epic thay đổi dữ liệu">
+                <label className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs font-semibold text-fb-text-primary" title="Chỉ liệt kê Epic có Created date từ ngày này">
+                  Created date từ
+                  <input
+                    aria-label="Created date từ ngày"
+                    className="ttm-field"
+                    onChange={(event) => onChangesFromChange(event.target.value || EPIC_FIELD_CHANGE_DEFAULT_FROM)}
+                    style={{ minHeight: 30, padding: '3px 8px' }}
+                    type="date"
+                    value={changesFrom}
+                  />
+                </label>
+                {EPIC_FIELD_CHANGE_FIELDS.map((field) => {
+                  const active = field === changesField;
+                  return (
+                    <button
+                      aria-pressed={active}
+                      className={cn(
+                        'inline-flex h-[30px] cursor-pointer items-center rounded-md border px-3 text-xs font-semibold transition-colors',
+                        active ? 'border-fb-blue bg-fb-blue text-white' : 'border-fb-border bg-fb-surface text-fb-text-secondary hover:border-fb-blue hover:text-fb-blue',
+                      )}
+                      key={field}
+                      onClick={() => { if (!active) onChangesFieldChange(field); }}
+                      type="button"
+                    >
+                      Thay đổi {EPIC_FIELD_CHANGE_LABEL[field]}
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}
@@ -132,10 +176,14 @@ function RulePanel({ isOpen, onBrowse, onPageChange, onReview, onToggle, panel, 
             <EmptyState
               className="m-4"
               title="Không có Epic cần chuẩn hoá"
-              description={isRecommendation ? 'Không có Epic nào trong phạm vi và bộ lọc hiện tại có khuyến nghị này.' : 'Không có Epic nào trong phạm vi và bộ lọc hiện tại vi phạm rule này.'}
+              description={isRecommendation
+                ? 'Không có Epic nào trong phạm vi và bộ lọc hiện tại có khuyến nghị này.'
+                : isChange
+                  ? 'Không có Epic nào (Created date từ ngày đã chọn, trong phạm vi và bộ lọc hiện tại) thay đổi Start date / R4G Date / Requirement Level / Loại yêu cầu.'
+                  : 'Không có Epic nào trong phạm vi và bộ lọc hiện tại vi phạm rule này.'}
             />
           ) : (
-            <NormalizationEpicTable isRecommendation={isRecommendation} onBrowse={onBrowse} onReview={onReview} rows={panel.rows} viewIssueBaseUrl={viewIssueBaseUrl} />
+            <NormalizationEpicTable onBrowse={onBrowse} onReview={onReview} rows={panel.rows} tone={panel.tone} viewIssueBaseUrl={viewIssueBaseUrl} />
           )}
           <PanelPagination onPageChange={(page) => onPageChange(panel.code, page)} panel={panel} />
         </div>
@@ -152,6 +200,9 @@ export default function DataNormalizationPage() {
   // Review Notes popup of the column REVIEW (owner 2026-11-10); a change reloads the screen (reloadToken).
   const [reviewEpicKey, setReviewEpicKey] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  // "Epic thay đổi dữ liệu": Created date from (owner 2026-11-11).
+  const [changesFrom, setChangesFrom] = useState(EPIC_FIELD_CHANGE_DEFAULT_FROM);
+  const [changesField, setChangesField] = useState<EpicFieldChangeField>(EPIC_FIELD_CHANGE_DEFAULT_FIELD);
   const viewIssueBaseUrl = useJiraViewIssueUrl();
 
   // Same toolbar filters as TTM Dashboard 2.
@@ -216,8 +267,10 @@ export default function DataNormalizationPage() {
     const pageText = pagesParam(pages);
     if (pageText) params.set('pages', pageText);
     if (reloadToken) params.set('r', String(reloadToken));
+    if (changesFrom !== EPIC_FIELD_CHANGE_DEFAULT_FROM) params.set('changesFrom', changesFrom);
+    if (changesField !== EPIC_FIELD_CHANGE_DEFAULT_FIELD) params.set('changesField', changesField);
     return params.toString();
-  }, [data?.panels, filterComponents, filterDomain, filterPmSms, filterProjects, filterRequestingUnits, filterRuleGroups, openPanels, pages, reloadToken, requestedPanels]);
+  }, [changesField, changesFrom, data?.panels, filterComponents, filterDomain, filterPmSms, filterProjects, filterRequestingUnits, filterRuleGroups, openPanels, pages, reloadToken, requestedPanels]);
 
   const requestIdRef = useRef(0);
   useEffect(() => {
@@ -375,6 +428,16 @@ export default function DataNormalizationPage() {
               onBrowse={setBrowsingEpicKey}
               onPageChange={(code, page) => setPages((current) => ({ ...current, [code]: page }))}
               onReview={setReviewEpicKey}
+              changesField={changesField}
+              changesFrom={changesFrom}
+              onChangesFieldChange={(value) => {
+                setChangesField(value);
+                setPages((current) => ({ ...current, [panel.code]: 1 }));
+              }}
+              onChangesFromChange={(value) => {
+                setChangesFrom(value);
+                setPages((current) => ({ ...current, [panel.code]: 1 }));
+              }}
               onToggle={(code) => togglePanel(code, panel.totalCount)}
               panel={panel}
               viewIssueBaseUrl={viewIssueBaseUrl}

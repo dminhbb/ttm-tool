@@ -19,7 +19,7 @@ const panelsOf = (row: Partial<Parameters<typeof normalizationPanelsOf>[0]>) =>
 
 describe('"Chuẩn hoá dữ liệu" panels', () => {
   it('"Thiếu lý do Fail TTM" comes first, then the rules in R-number order — R7 included, R2 not (2026-10-13)', () => {
-    assert.deepEqual(NORMALIZATION_PANELS.map((panel) => panel.code), [FAIL_REASON_PANEL_CODE, 'R1', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R10', 'R11', 'CHANGE_ID']);
+    assert.deepEqual(NORMALIZATION_PANELS.map((panel) => panel.code), [FAIL_REASON_PANEL_CODE, 'R1', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R10', 'R11', 'CHANGE_ID', 'FIELD_CHANGE']);
     assert.deepEqual(NORMALIZATION_PANELS.slice(0, 2).map((panel) => [panel.tag, panel.label]), [['Fail TTM', 'Thiếu lý do Fail TTM'], ['R1', 'Thiếu Start Date']]);
     assert.equal(NORMALIZATION_PANELS.find((panel) => panel.code === 'R7')?.label, 'Sai Status (Release)');
     for (const panel of NORMALIZATION_PANELS) {
@@ -29,7 +29,7 @@ describe('"Chuẩn hoá dữ liệu" panels', () => {
   });
 
   it('"Thiếu Change ID" is a light green recommendation panel, last; its message follows the R4G Date (2026-11-09)', () => {
-    const last = NORMALIZATION_PANELS[NORMALIZATION_PANELS.length - 1];
+    const last = NORMALIZATION_PANELS[NORMALIZATION_PANELS.length - 2];
     assert.deepEqual([last.code, last.tag, last.tone], ['CHANGE_ID', 'Khuyến nghị', 'recommendation']);
     assert.deepEqual(panelsOf({ scoringBadges: ['REC_MISSING_CHANGE_ID'], r4gDate: '2026-07-01', ttmCnttInScope: false }), { CHANGE_ID: ['R4G Date 2026-07-01 (từ 01/07/2026): thiếu Change ID AMT (Change_ID_AMT)'] });
     assert.match(panelsOf({ scoringBadges: ['REC_MISSING_CHANGE_ID'], r4gDate: '2026-06-30' }).CHANGE_ID[0], /Change_ID hoặc Change_ID_AMT/);
@@ -101,5 +101,16 @@ describe('"Chuẩn hoá dữ liệu" access', () => {
   it('page and data API are gated by the data_normalization feature', () => {
     assert.equal(pageFeatureKey('/data-normalization'), 'data_normalization');
     assert.equal(apiFeatureKey('/api/data-normalization'), 'data_normalization');
+  });
+  it('"Epic thay đổi dữ liệu" is the last section (tone change); its lines name the field, both values and the data layer', async () => {
+    const { describeEpicFieldChange, epicFieldChangeLayerNote, parseEpicFieldChangeFrom } = await import('../epic-field-changes');
+    const last = NORMALIZATION_PANELS[NORMALIZATION_PANELS.length - 1];
+    assert.deepEqual([last.code, last.tone], ['FIELD_CHANGE', 'change']);
+    assert.equal(describeEpicFieldChange({ field: 'START_DATE', layerAt: '2026-03-12', oldValue: '2026-02-01', newValue: '2026-03-15' }), 'Start date: 01/02/2026 → 15/03/2026');
+    assert.equal(epicFieldChangeLayerNote({ field: 'START_DATE', layerAt: '2026-03-12', oldValue: '2026-02-01', newValue: '2026-03-15' }), 'Lớp dữ liệu 12/03/2026');
+    assert.equal(describeEpicFieldChange({ field: 'REQUIREMENT_LEVEL', layerAt: '2026-10-01', oldValue: '2', newValue: null }), 'Requirement Level: 2 → (trống)');
+    assert.equal(parseEpicFieldChangeFrom('2026-05-01'), '2026-05-01');
+    assert.equal(parseEpicFieldChangeFrom('01/05/2026'), '2026-02-01');
+    assert.equal(parseEpicFieldChangeFrom(null), '2026-02-01');
   });
 });

@@ -108,6 +108,7 @@
       "ink": "#a1401b",
       "tables": [
         "epic_alert_row_cache",
+        "epic_field_changes",
         "ttm_index_global_cache",
         "ttm_dashboard_2_cache",
         "ttm_early_start_cache",
@@ -561,6 +562,15 @@
     "news_letter_reads": {
       "description": "Người dùng đã mở bài viết nào — chấm đỏ trên menu Bản tin khi có bài published chưa đọc.",
       "columns": {}
+    },
+    "epic_field_changes": {
+      "description": "<strong>Mới 11/11/2026.</strong> Cache dẫn xuất của section <em>Epic thay đổi dữ liệu</em> (màn Chuẩn hoá dữ liệu): mỗi dòng là một lần Start date / R4G Date / Requirement Level / Loại yêu cầu của Epic đổi giữa hai phiên bản liên tiếp trong <code>issues</code> — chỉ \"có → trống\" và \"có → giá trị khác\". Dựng lại toàn bộ cùng các cache khác (sau import, chạy hằng ngày, tạo lại cache) bằng một câu SQL; màn hình chỉ đọc.",
+      "columns": {
+        "layer_at": "<code>TIMESTAMP WITH TIME ZONE NOT NULL</code></td><td>aggregated_at của phiên bản mang giá trị mới (lớp dữ liệu phát hiện thay đổi)",
+        "field": "<code>VARCHAR(30) NOT NULL</code></td><td>START_DATE / R4G_DATE / REQUIREMENT_LEVEL / REQUEST_TYPE",
+        "new_value": "<code>TEXT</code></td><td>Giá trị mới; NULL = trường bị xoá",
+        "epic_created_date": "<code>DATE</code></td><td>Created date của Epic (jira_created_at của phiên bản mới nhất) — bộ lọc \"Created date từ\" của section"
+      }
     }
   },
   "seed": {

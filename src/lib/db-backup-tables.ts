@@ -140,6 +140,8 @@ export const SMART_EXCLUDED_TABLES: readonly string[] = [
   'derived_cache_refresh_lock',
   'epic_alert_row_cache',
   'epic_alert_timeline',
+  // 'Epic thay đổi dữ liệu' (2026-11-11): rebuilt from issues by refreshDerivedCaches.
+  'epic_field_changes',
   'mcp_access_daily_stats',
   'mcp_access_tokens',
   'mcp_oauth_authorization_codes',

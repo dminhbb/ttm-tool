@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseNormalizationPages, parseNormalizationPanelCodes } from '@/lib/data-normalization';
+import { parseEpicFieldChangeField, parseEpicFieldChangeFrom } from '@/lib/epic-field-changes';
 import { AuthError, requireUser } from '@/modules/iam/public';
 import { getDataNormalization } from '@/modules/ttm/public';
 
@@ -32,6 +33,8 @@ export async function GET(request: NextRequest) {
       includeFilterOptions: params.get('options') === '1',
       openPanels: parseNormalizationPanelCodes(params.get('open')),
       pages: parseNormalizationPages(params.get('pages')),
+      fieldChangesCreatedFrom: parseEpicFieldChangeFrom(params.get('changesFrom')),
+      fieldChangesField: parseEpicFieldChangeField(params.get('changesField')),
     });
     return NextResponse.json(data);
   } catch (error) {

@@ -9,6 +9,7 @@ import { refreshEarlyStartCaches } from '@/lib/early-start-report-service';
 import { runDailyHousekeeping } from '@/lib/housekeeping-service';
 import { refreshDashboardTrendCache, TREND_REFRESH_SOURCES } from '@/lib/ttm-dashboard-trend-service';
 import { SCORING_CODE_VERSION } from '@/lib/scoring/registry';
+import { refreshEpicFieldChanges } from '@/lib/epic-field-change-service';
 import { withSlowLog } from '@/lib/slow-operation';
 import { CACHE_STALE_HEADER } from '@/lib/cache-rebuild-status-client';
 import { loadScoringContext, vnToday } from '@/lib/scoring-context-service';
@@ -217,6 +218,8 @@ async function rebuildDerivedCaches(batchId: number | null): Promise<number> {
   await refreshTtmDashboard2Caches().catch((error: unknown) => console.error('TTM Dashboard 2 cache refresh failed:', error));
   // "Báo cáo Epic start sớm" widgets of every scope (header widget "TTM-CNTT (SỚM)"): cheap, from the same row cache.
   await refreshEarlyStartCaches().catch((error: unknown) => console.error('Early start report cache refresh failed:', error));
+  // "Chuẩn hoá dữ liệu — Epic thay đổi dữ liệu" (2026-11-11): one statement over the Epic rows (~0.3 s), replaces the table.
+  await refreshEpicFieldChanges().catch((error: unknown) => console.error('Epic field change cache refresh failed:', error));
   const count = await pool.query<{ n: number }>('SELECT count(*)::int AS n FROM epic_alert_row_cache;');
   return count.rows[0]?.n ?? 0;
 }

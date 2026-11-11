@@ -11,8 +11,12 @@ import { CHANGE_ID_AMT_FROM } from '@/lib/scoring/rules/change-id';
  *   2. the "Sai lệch dữ liệu" rules (the ALERT badges of the DATA_QUALITY axis of the scoring catalog:
  *      R1, R3–R6, R8–R10) and R7 "Sai Status (Release)", in R-number order. R2 "Pending lâu" has no
  *      panel: it asks for a decision on the Epic, not for a data fix;
- *   3. "Thiếu Change ID" (owner 2026-11-09) — a recommendation, not a data anomaly: listed last, on a light green
- *      panel (`tone: 'recommendation'`), so its Epics can be followed without leaving any TTM number.
+ *   3. "Thiếu Change ID" (owner 2026-11-09) — a recommendation, not a data anomaly: on a light green panel
+ *      (`tone: 'recommendation'`), so its Epics can be followed without leaving any TTM number;
+ *   4. "Epic thay đổi dữ liệu" (owner 2026-11-11, `tone: 'change'`) — last: Epics whose Start date, R4G Date, Requirement
+ *      Level or "Loại yêu cầu" changed ("có → trống" / "có → giá trị khác") between two of their data layers, filtered by
+ *      the Epic's created date (calendar in the section title). Read from the derived cache epic_field_changes
+ *      (epic-field-change-service.ts) by data-normalization-service.ts — not from the row, so normalizationPanelsOf skips it.
  *
  * An Epic breaking several rules appears in several panels (owner decision 2026-10-12).
  *
@@ -61,9 +65,15 @@ export interface NormalizationPanelDefinition {
   index: number;
   /** Message of an Epic in this panel when its row carries none for the rule (a badge, not a violation). */
   defaultMessage: string;
-  /** 'recommendation' = a Khuyến nghị panel (light green), not a rule to fix; absent = a rule panel. */
-  tone?: 'recommendation';
+  /** 'recommendation' = a Khuyến nghị panel (light green), not a rule to fix; 'change' = "Epic thay đổi dữ liệu" (calendar
+   * in the title, column "Nhận xét"); absent = a rule panel. */
+  tone?: NormalizationPanelTone;
 }
+
+export type NormalizationPanelTone = 'recommendation' | 'change';
+
+/** Code of the "Epic thay đổi dữ liệu" section (its rows come from epic_field_changes, not from the Epic row). */
+export const FIELD_CHANGE_PANEL_CODE = 'FIELD_CHANGE';
 
 function ruleNumberOf(badgeId: string): number {
   return Number(/^ANOMALY_R(\d+)_/.exec(badgeId)?.[1] ?? 0);
@@ -128,11 +138,26 @@ const MISSING_CHANGE_ID_PANEL: NormalizationPanelDefinition = {
   tone: 'recommendation',
 };
 
-/** "Thiếu lý do Fail TTM" first, then the rules in R-number order, then the recommendation "Thiếu Change ID". */
+/** "Epic thay đổi dữ liệu" (owner 2026-11-11). */
+const FIELD_CHANGE_PANEL: NormalizationPanelDefinition = {
+  code: FIELD_CHANGE_PANEL_CODE,
+  defaultMessage: 'Dữ liệu Epic đã thay đổi giữa các lớp dữ liệu',
+  formula: 'So mỗi lớp dữ liệu của Epic với lớp ngay trước: Start date, R4G Date, Requirement Level, Loại yêu cầu — chỉ "có → trống" và "có → giá trị khác" (trống / "None" / "NULL" là trống). Lọc theo Created date của Epic và theo đúng 1 trường (hàng nút dưới phần mô tả).',
+  guide: 'Kiểm tra lại các thay đổi với PM/SM của Epic: thay đổi Start date / R4G Date ảnh hưởng mốc TTM-CNTT; Requirement Level / Loại yêu cầu đổi loại Epic và ngân sách TTM.',
+  index: 0,
+  label: 'Epic thay đổi Start date / R4G Date / Requirement Level / Loại yêu cầu',
+  meaning: 'Epic có ít nhất một thay đổi ở 4 trường trên giữa hai lớp dữ liệu liên tiếp (giá trị bị xoá, hoặc đổi sang giá trị khác; lần điền đầu tiên không tính). Ngày ở cột Nhận xét là ngày lớp dữ liệu (ngày import) phát hiện thay đổi, không phải ngày sửa trên Jira; ngoài 30 ngày gần nhất mỗi tuần chỉ còn một lớp nên thay đổi rồi đổi lại trong cùng tuần không còn thấy.',
+  tag: 'Thay đổi',
+  tone: 'change',
+};
+
+/** "Thiếu lý do Fail TTM" first, then the rules in R-number order, the recommendation "Thiếu Change ID", and last
+ * "Epic thay đổi dữ liệu". */
 export const NORMALIZATION_PANELS: readonly NormalizationPanelDefinition[] = [
   FAIL_REASON_PANEL,
   ...[...DATA_QUALITY_PANELS, RELEASE_MISMATCH_PANEL].sort((a, b) => a.index - b.index),
   MISSING_CHANGE_ID_PANEL,
+  FIELD_CHANGE_PANEL,
 ];
 
 const PANEL_CODE_BY_RULE_INDEX: ReadonlyMap<number, string> = new Map(NORMALIZATION_PANELS.filter((panel) => panel.index > 0).map((panel) => [panel.index, panel.code]));
@@ -215,6 +240,8 @@ export interface NormalizationEpicRow {
   violations: string[];
   /** Review Notes of the Epic for the viewer (column REVIEW, owner 2026-11-10) — absent = no comment, not hidden. */
   mark?: EpicMarkSummary;
+  /** "Epic thay đổi dữ liệu": tooltip of each "Nhận xét" line (same order as `violations`) — its data layer. */
+  noteTooltips?: string[];
 }
 
 export interface NormalizationPanel {
@@ -232,7 +259,7 @@ export interface NormalizationPanel {
   rowsLoaded: boolean;
   tag: string;
   /** See NormalizationPanelDefinition.tone. */
-  tone?: 'recommendation';
+  tone?: NormalizationPanelTone;
   totalCount: number;
   totalPages: number;
 }

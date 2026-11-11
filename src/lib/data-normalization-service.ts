@@ -3,6 +3,7 @@ import pool from '@/lib/db';
 import type { UserRole } from '@/lib/auth-types';
 import {
   compareEpicKeys,
+  FIELD_CHANGE_PANEL_CODE,
   NORMALIZATION_PAGE_SIZE,
   NORMALIZATION_PANELS,
   normalizationPanelsOf,
@@ -13,6 +14,8 @@ import {
 import { resolveAccessScope } from '@/lib/epic-alert-service';
 import type { DashboardEpicRow } from '@/lib/epic-alert-types';
 import { loadEpicMarkSummaries } from '@/lib/epic-mark-service';
+import { loadEpicFieldChanges } from '@/lib/epic-field-change-service';
+import { describeEpicFieldChange, epicFieldChangeLayerNote, type EpicFieldChangeField } from '@/lib/epic-field-changes';
 import { isOutsideTtmCalculation } from '@/lib/ttm-cntt-qa';
 import { getTtmDashboard2Snapshot } from '@/lib/ttm-dashboard-2-cache-service';
 import { loadDashboardEpicRows } from '@/lib/ttm-dashboard-summary-service';
@@ -38,6 +41,10 @@ export interface DataNormalizationInput {
   openPanels: readonly string[];
   /** Panel code ('R1'…) → 1-based page; a panel not listed shows page 1. */
   pages: Record<string, number>;
+  /** "Epic thay đổi dữ liệu": Epics created on/after this date (YYYY-MM-DD, calendar of the section title). */
+  fieldChangesCreatedFrom: string;
+  /** "Epic thay đổi dữ liệu": the one field whose changes are listed (button row of the section). */
+  fieldChangesField: EpicFieldChangeField;
 }
 
 export interface DataNormalizationPayload {
@@ -93,7 +100,11 @@ async function loadFilterOptions(userId: number, role: UserRole, loaded: { fromC
 export async function getDataNormalization(userId: number, role: UserRole, input: DataNormalizationInput): Promise<DataNormalizationPayload> {
   // Cancelled Epics come along (the live path's rows double as the source of the filter options, which
   // cover them like the dashboard's) and are dropped right below.
-  const loaded = await loadDashboardEpicRows(userId, role, { includeCancelled: true, needsNormalizationOnly: true });
+  // The changes come from the small derived table epic_field_changes (rebuilt with the other caches), never computed here.
+  const [loaded, fieldChanges] = await Promise.all([
+    loadDashboardEpicRows(userId, role, { includeCancelled: true, needsNormalizationOnly: true }),
+    loadEpicFieldChanges(input.fieldChangesCreatedFrom, input.fieldChangesField),
+  ]);
   const filterOptions = input.includeFilterOptions ? await loadFilterOptions(userId, role, loaded) : null;
 
   // Panel code → its Epics (with the messages for that panel), in Epic-key order.
@@ -102,6 +113,8 @@ export async function getDataNormalization(userId: number, role: UserRole, input
   for (const row of filterTtmDashboard2Rows(loaded.rows, input.filters)) {
     if (isOutsideTtmCalculation(row)) continue;
     const panels = normalizationPanelsOf(row);
+    const changes = fieldChanges.get(row.epicKey);
+    if (changes?.length) panels.set(FIELD_CHANGE_PANEL_CODE, changes.map(describeEpicFieldChange));
     if (panels.size > 0) matched.push({ panels, row });
   }
   matched.sort((a, b) => compareEpicKeys(a.row.epicKey, b.row.epicKey));
@@ -149,6 +162,7 @@ export async function getDataNormalization(userId: number, role: UserRole, input
           status: row.currentStatus,
           violations: messages,
           mark: marks.get(row.epicKey),
+          noteTooltips: panel.code === FIELD_CHANGE_PANEL_CODE ? fieldChanges.get(row.epicKey)?.map(epicFieldChangeLayerNote) : undefined,
         };
       }),
       rowsLoaded,

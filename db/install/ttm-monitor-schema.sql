@@ -1,9 +1,9 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-10T02:04:18.324Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-11T05:43:26.557Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
--- Gồm: 77 bảng, 64 index phụ, 4 hàm, 4 trigger.
+-- Gồm: 78 bảng, 65 index phụ, 4 hàm, 4 trigger.
 -- Yêu cầu: PostgreSQL 14 trở lên, một database RỖNG (không dùng cho DB đã có bảng — sẽ báo lỗi và không
 -- tạo gì vì cả file chạy trong một transaction). Không cần extension nào.
 --
@@ -264,6 +264,17 @@ CREATE TABLE epic_comments (
     is_deleted boolean DEFAULT false NOT NULL,
     deleted_at timestamp with time zone,
     CONSTRAINT epic_comments_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE epic_field_changes (
+    epic_key character varying(50) NOT NULL,
+    layer_at timestamp with time zone NOT NULL,
+    field character varying(30) NOT NULL,
+    old_value text NOT NULL,
+    new_value text,
+    epic_created_date date,
+    computed_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT epic_field_changes_pkey PRIMARY KEY (epic_key, layer_at, field)
 );
 
 CREATE TABLE epic_hidden_by_users (
@@ -1029,6 +1040,7 @@ CREATE INDEX idx_epic_alert_timeline_end_date ON epic_alert_timeline USING btree
 CREATE INDEX idx_epic_alert_timeline_epic_key ON epic_alert_timeline USING btree (epic_key);
 CREATE UNIQUE INDEX idx_epic_alert_timeline_open_run ON epic_alert_timeline USING btree (epic_key, alert_type) WHERE (end_date IS NULL);
 CREATE INDEX idx_epic_comments_epic_key_created ON epic_comments USING btree (epic_key, created_at DESC, id DESC);
+CREATE INDEX idx_epic_field_changes_created ON epic_field_changes USING btree (epic_created_date);
 CREATE INDEX idx_epic_marks_hidden ON epic_marks USING btree (epic_key) WHERE is_hidden;
 CREATE INDEX idx_epic_status_alert_rules_active ON epic_status_alert_rules USING btree (is_active) WHERE is_active;
 CREATE INDEX idx_holidays_range ON holidays USING btree (start_date, end_date) WHERE is_active;
@@ -1259,7 +1271,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 130 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 131 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1391,7 +1403,8 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261122_auth_sessions_view_as.sql'),
     ('20261123_system_suspension_settings.sql'),
     ('20261124_add_epic_change_id_pentest_status.sql'),
-    ('20261125_news_letter_hidden_pinned.sql');
+    ('20261125_news_letter_hidden_pinned.sql'),
+    ('20261126_epic_field_changes.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1554,23 +1567,23 @@ SELECT * FROM (VALUES
 ) AS seed (id, cntt_from, cntt_to, qa_from, qa_to, updated_at, updated_by_user_id)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 
--- holidays (5 dòng)
+-- holidays (6 dòng)
 INSERT INTO holidays (id, name, holiday_type, is_multi_day, start_date, end_date, description, is_active, created_at, updated_at)
 SELECT * FROM (VALUES
     ('2'::integer, 'Nghỉ Lễ Quốc Khánh 2/9'::character varying(255), 'PUBLIC'::character varying(50), 'true'::boolean, '2026-08-29'::date, '2026-09-02'::date, NULL::text, 'true'::boolean, '2026-08-09 13:34:20.456802+00'::timestamp with time zone, '2026-09-09 16:10:44.604186+00'::timestamp with time zone),
-    ('3'::integer, 'Nghỉ Lễ 2/9'::character varying(255), 'PUBLIC'::character varying(50), 'true'::boolean, '2027-08-29'::date, '2027-09-02'::date, NULL::text, 'true'::boolean, '2026-09-04 15:39:43.864452+00'::timestamp with time zone, '2026-09-04 15:39:43.864452+00'::timestamp with time zone),
+    ('3'::integer, 'Nghỉ Lễ 2/9'::character varying(255), 'PUBLIC'::character varying(50), 'true'::boolean, '2027-09-01'::date, '2027-09-02'::date, NULL::text, 'true'::boolean, '2026-09-04 15:39:43.864452+00'::timestamp with time zone, '2026-11-10 09:37:30.422058+00'::timestamp with time zone),
     ('4'::integer, 'Ngày Văn hóa Việt Nam'::character varying(255), 'PUBLIC'::character varying(50), 'false'::boolean, '2026-11-24'::date, '2026-11-24'::date, 'Làm bù vào 28/11/2026'::text, 'true'::boolean, '2026-09-09 16:10:29.782736+00'::timestamp with time zone, '2026-10-24 10:44:27.037585+00'::timestamp with time zone),
-    ('5'::integer, 'Nghỉ Tết Dương lịch'::character varying(255), 'OTHER'::character varying(50), 'false'::boolean, '2027-01-01'::date, '2027-01-01'::date, NULL::text, 'true'::boolean, '2026-09-09 16:12:39.762681+00'::timestamp with time zone, '2026-09-09 16:12:39.762681+00'::timestamp with time zone),
-    ('6'::integer, 'Nghỉ Lễ 30/4-1/5'::character varying(255), 'PUBLIC'::character varying(50), 'true'::boolean, '2027-04-30'::date, '2027-05-03'::date, NULL::text, 'true'::boolean, '2026-09-09 16:13:37.680664+00'::timestamp with time zone, '2026-09-09 16:13:37.680664+00'::timestamp with time zone)
+    ('6'::integer, 'Nghỉ Lễ 30/4-1/5'::character varying(255), 'PUBLIC'::character varying(50), 'true'::boolean, '2027-04-30'::date, '2027-05-03'::date, NULL::text, 'true'::boolean, '2026-09-09 16:13:37.680664+00'::timestamp with time zone, '2026-09-09 16:13:37.680664+00'::timestamp with time zone),
+    ('7'::integer, 'Nghỉ Tết Dương lịch'::character varying(255), 'PUBLIC'::character varying(50), 'false'::boolean, '2027-01-01'::date, '2027-01-01'::date, NULL::text, 'true'::boolean, '2026-11-10 09:36:14.501717+00'::timestamp with time zone, '2026-11-10 09:36:14.501717+00'::timestamp with time zone),
+    ('8'::integer, 'Ngày Văn hóa Việt Nam'::character varying(255), 'PUBLIC'::character varying(50), 'false'::boolean, '2027-11-24'::date, '2027-11-24'::date, NULL::text, 'true'::boolean, '2026-11-10 09:36:51.914071+00'::timestamp with time zone, '2026-11-10 09:36:51.914071+00'::timestamp with time zone)
 ) AS seed (id, name, holiday_type, is_multi_day, start_date, end_date, description, is_active, created_at, updated_at)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 SELECT setval(pg_get_serial_sequence('holidays', 'id'), MAX(id)) FROM holidays HAVING MAX(id) IS NOT NULL;
 
--- makeup_workdays (2 dòng)
+-- makeup_workdays (1 dòng)
 INSERT INTO makeup_workdays (id, work_date, description, is_active, created_at, updated_at)
 SELECT * FROM (VALUES
-    ('1'::integer, '2026-08-22'::date, 'Làm bù nghỉ Lễ Quốc Khánh'::text, 'true'::boolean, '2026-09-04 08:55:38.989401+00'::timestamp with time zone, '2026-09-09 16:10:59.702748+00'::timestamp with time zone),
-    ('2'::integer, '2027-08-22'::date, NULL::text, 'true'::boolean, '2026-09-04 15:39:44.777032+00'::timestamp with time zone, '2026-09-04 15:39:44.777032+00'::timestamp with time zone)
+    ('1'::integer, '2026-08-22'::date, 'Làm bù nghỉ Lễ Quốc Khánh'::text, 'true'::boolean, '2026-09-04 08:55:38.989401+00'::timestamp with time zone, '2026-09-09 16:10:59.702748+00'::timestamp with time zone)
 ) AS seed (id, work_date, description, is_active, created_at, updated_at)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 SELECT setval(pg_get_serial_sequence('makeup_workdays', 'id'), MAX(id)) FROM makeup_workdays HAVING MAX(id) IS NOT NULL;
@@ -1680,7 +1693,7 @@ WHERE current_setting('ttm_install.seed_data', true) = 'on';
 -- derived_cache_refresh_lock (1 dòng)
 INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 SELECT * FROM (VALUES
-    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-10 01:23:07.150787+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-11 01:16:57.568165+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
 ) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 

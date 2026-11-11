@@ -539,3 +539,18 @@
 /* "Chuẩn hoá dữ liệu" (owner 2026-11-09): a panel's "N Epic" count above 0 is orange with white text. Beats the Badge
    variant utility classes (single class) through specificity. */
 :root .ui-badge.dn-count-badge-alert { background-color: #f97316; color: #ffffff; }
+
+/* "Chuẩn hoá dữ liệu" — the shared Epic table (NormalizationEpicTable, owner 2026-11-11): 8px cell padding instead of the
+   IAS 16px, capped PM/SM, Summary, Status and Nhận xét, dates in 12px — no horizontal scrollbar at 100% zoom. */
+:root:root .ui-table.dn-epic-table thead th,
+:root:root .ui-table.dn-epic-table tbody td { padding-left: 8px; padding-right: 8px; }
+.ui-table.dn-epic-table td.dn-col-owner { max-width: 120px; }
+.ui-table.dn-epic-table td.dn-col-summary { max-width: 260px; }
+.ui-table.dn-epic-table td.dn-col-notes { min-width: 240px; max-width: 300px; }
+.ui-table.dn-epic-table td.dn-col-date { font-size: 12px; font-variant-numeric: tabular-nums; }
+.ui-table.dn-epic-table .dn-status-badge { display: inline-block; max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: top; }
+/* "Epic thay đổi dữ liệu" (owner 2026-11-11): pastel purple section header, light grey filter row (calendar + 4 buttons). */
+.dn-panel-change { background-color: #efe7f8; }
+:root[data-theme="dark"] .dn-panel-change { background-color: #2d2340; }
+.dn-change-filter-row { background-color: #eef0f4; }
+:root[data-theme="dark"] .dn-change-filter-row { background-color: #262a35; }

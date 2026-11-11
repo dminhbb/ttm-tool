@@ -387,10 +387,10 @@
       <h2>5. Mô hình &amp; Sơ đồ cơ sở dữ liệu (Data Model &amp; ERD)</h2>
       <!-- BEGIN GENERATED: db-schema -->
       <p>
-        Cơ sở dữ liệu của TTM Monitor dùng <strong>PostgreSQL</strong> (đang chạy 17.6), gồm <strong>77 bảng</strong> trong schema <code>public</code>,
+        Cơ sở dữ liệu của TTM Monitor dùng <strong>PostgreSQL</strong> (đang chạy 17.6), gồm <strong>78 bảng</strong> trong schema <code>public</code>,
         <strong>68 khoá ngoại</strong>, 4 hàm và 4 trigger; không dùng view, extension hay Row Level Security.
         Cấu trúc thay đổi duy nhất qua chuỗi migration <code>db/migrations/*.sql</code> (chạy bằng <code>scripts/migrate-db.js</code>, ghi vào <code>schema_migrations</code>).
-        Toàn bộ chương này được sinh từ CSDL Supabase ngày 10/11/2026 bởi <code>scripts/db-schema-export.js</code> — cùng lần chạy sinh ra
+        Toàn bộ chương này được sinh từ CSDL Supabase ngày 11/11/2026 bởi <code>scripts/db-schema-export.js</code> — cùng lần chạy sinh ra
         file tạo CSDL mới <code>db/install/ttm-monitor-schema.sql</code> (chỉ cấu trúc, không dữ liệu) và tài liệu ERD chi tiết <code>docs/database-erd.md</code> (sơ đồ Mermaid từng nhóm + từ điển dữ liệu).
       </p>
 
@@ -441,10 +441,10 @@
           <text x="161" y="337" text-anchor="middle" font-size="9.5" fill="#5b6475">epic_alert_timeline</text>
           <text x="161" y="354" text-anchor="middle" font-size="9" font-style="italic" fill="#8a93a6">→ tham chiếu nhóm 4</text>
           <rect x="322" y="299" width="290" height="132" rx="8" fill="#fdeee8" stroke="#c3cce3" />
-          <text x="467" y="319" text-anchor="middle" font-weight="700" font-size="12" fill="#a1401b">8. Cache dữ liệu dẫn xuất (9)</text>
-          <text x="467" y="337" text-anchor="middle" font-size="9.5" fill="#5b6475">epic_alert_row_cache, ttm_index_global_cache,</text>
-          <text x="467" y="350" text-anchor="middle" font-size="9.5" fill="#5b6475">ttm_dashboard_2_cache, ttm_early_start_cache,</text>
-          <text x="467" y="363" text-anchor="middle" font-size="9.5" fill="#5b6475">ttm_dashboard_trend_cache,</text>
+          <text x="467" y="319" text-anchor="middle" font-weight="700" font-size="12" fill="#a1401b">8. Cache dữ liệu dẫn xuất (10)</text>
+          <text x="467" y="337" text-anchor="middle" font-size="9.5" fill="#5b6475">epic_alert_row_cache, epic_field_changes,</text>
+          <text x="467" y="350" text-anchor="middle" font-size="9.5" fill="#5b6475">ttm_index_global_cache, ttm_dashboard_2_cache,</text>
+          <text x="467" y="363" text-anchor="middle" font-size="9.5" fill="#5b6475">ttm_early_start_cache, ttm_dashboard_trend_cache,</text>
           <text x="467" y="376" text-anchor="middle" font-size="9.5" fill="#5b6475">ttm_dashboard_metric_history,</text>
           <text x="467" y="389" text-anchor="middle" font-size="9.5" fill="#5b6475">ttm_dashboard_fail_history, daily_cache_runs,</text>
           <text x="467" y="402" text-anchor="middle" font-size="9.5" fill="#5b6475">derived_cache_refresh_lock</text>
@@ -479,7 +479,7 @@
         </g>
       </svg>
 
-      <h3>5.2. Danh mục 77 bảng CSDL (đối chiếu CSDL Supabase 10/11/2026)</h3>
+      <h3>5.2. Danh mục 78 bảng CSDL (đối chiếu CSDL Supabase 11/11/2026)</h3>
       <table>
         <thead><tr><th>STT</th><th>Bảng CSDL</th><th>Nhóm</th><th>Khoá chính / Khoá ngoại</th><th>Vai trò nghiệp vụ &amp; Ghi chú</th></tr></thead>
         <tbody>
@@ -528,44 +528,45 @@
           <tr><td>43</td><td><code>scoring_rule_group_history</code></td><td>Epic Scoring Service</td><td><code>id</code> (PK)<br><code>saved_by_user_id</code> → <code>users</code></td><td><strong>Mới 25/10/2026.</strong> Mỗi lần lưu cấu hình nhóm rule: người lưu, thời điểm, toàn bộ cấu hình trước / sau (JSON). Id mới nhất là phiên bản cấu hình — lần lưu sau phải xuất phát từ phiên bản đó.</td></tr>
           <tr><td>44</td><td><code>epic_alert_timeline</code></td><td>Lịch sử &amp; snapshot</td><td><code>id</code> (PK)<br><code>source_import_batch_id</code> → <code>import_batches</code></td><td>Theo dõi 5 loại cảnh báo dưới dạng các đợt (run) có khoảng ngày bắt đầu/kết thúc liên tục.</td></tr>
           <tr><td>45</td><td><code>epic_alert_row_cache</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>epic_key</code> (PK)</td><td>Cache dòng Epic của lớp dữ liệu mới nhất cho Quản trị Epic / các Dashboard: <code>row_data</code> (JSON) + các cột lọc/sắp xếp, <code>badge_codes</code>, <code>index_flags</code>, <code>findings</code> của Scoring Service. Dựng lại sau import, đầu ngày và khi cấu hình đổi (mục 6.4).</td></tr>
-          <tr><td>46</td><td><code>ttm_index_global_cache</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>id</code> (PK)<br><code>source_import_batch_id</code> → <code>import_batches</code></td><td>Chỉ số toàn công ty TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E (số đếm + %) hiển thị trên banner.</td></tr>
-          <tr><td>47</td><td><code>ttm_dashboard_2_cache</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>scope_key</code> (PK)</td><td>Số liệu phễu / widget / ma trận / pie chart chưa lọc của TTM Dashboard 2 theo phạm vi quyền (<code>ALL</code>, <code>ADMIN:&lt;id&gt;</code>, <code>USER:&lt;id&gt;</code>) — mục 21.5.</td></tr>
-          <tr><td>48</td><td><code>ttm_early_start_cache</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>scope_key</code> (PK)</td><td>Số liệu 4 widget của Báo cáo Epic start sớm (TTM-CNTT (QLDA) và TTM-CNTT start sớm, số Epic fail) theo phạm vi quyền (<code>ALL</code>, <code>ADMIN:&lt;id&gt;</code>, <code>USER:&lt;id&gt;</code>): tính ở lượt mở báo cáo đầu tiên trong ngày, các lượt sau đọc lại; widget TTM-CNTT (actual) ở header TTM Dashboard 2 / Quản trị Epic đọc dòng gần nhất — mục 11.6.1.</td></tr>
-          <tr><td>49</td><td><code>ttm_dashboard_trend_cache</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>scope_key</code> (PK)</td><td><strong>Mới 03/11/2026.</strong> Dòng chữ chạy "So với &lt;ngày&gt;" của TTM Dashboard 2: 6 chỉ số widget (Fail TTM-CNTT, Thiếu lý do, TTM-CNTT %, TTM-E2E %, Sai lệch dữ liệu, Chờ golive) của mỗi phạm vi (<code>scope_key</code> như <code>ttm_dashboard_2_cache</code>) ở lớp dữ liệu mới nhất và lớp liền trước (đọc từ <code>ttm_dashboard_metric_history</code>), cộng chuỗi 7 mốc của biểu đồ <em>Xu hướng biến động chỉ số</em> và hai ngày so sánh tuần trước / tháng trước (chỉ góc nhìn toàn công ty). Tính lại ở lần cache đầu ngày, khi Tạo lại cache thủ công và sau mỗi lần import.</td></tr>
-          <tr><td>50</td><td><code>ttm_dashboard_metric_history</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>(scope_key, layer_date)</code> (PK)</td><td><strong>Mới 03/11/2026.</strong> Chuỗi chỉ số cố định theo ngày: 6 chỉ số widget của từng phạm vi (<code>scope_key</code>) ở từng lớp dữ liệu (<code>layer_date</code>), ghi MỘT lần khi lớp đó là lớp mới nhất (rule của ngày đó, <code>source=DAILY</code>) và không tính lại. Dòng điền bù lần đầu triển khai dùng rule hiện hành (<code>BACKFILL</code>). Giữ 400 ngày. Nguồn của biểu đồ xu hướng, 2 message tuần/tháng và dòng so với lớp liền trước.</td></tr>
-          <tr><td>51</td><td><code>ttm_dashboard_fail_history</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>layer_date</code> (PK)</td><td><strong>Mới 03/11/2026.</strong> Khóa các Epic Fail TTM-CNTT (Phạm vi của QLDA) của toàn công ty theo từng lớp dữ liệu — mốc để biết Epic nào MỚI chuyển sang Fail so với lớp liền trước.</td></tr>
-          <tr><td>52</td><td><code>daily_cache_runs</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>run_date</code> (PK)<br><code>source_import_batch_id</code> → <code>import_batches</code><br><code>triggered_by_user_id</code> → <code>users</code></td><td>Mỗi ngày (giờ Việt Nam) 1 dòng: lượt tạo lại cache đầu ngày do lần tải trang đầu tiên kích hoạt (RUNNING / SUCCESS / FAILED, thời lượng, số Epic).</td></tr>
-          <tr><td>53</td><td><code>derived_cache_refresh_lock</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>id</code> (PK)</td><td><strong>Mới 05/10/2026.</strong> Khoá (lease) điều phối việc tạo lại cache giữa các instance: <code>request_seq</code>, <code>lease_owner</code>, <code>lease_until</code>, <code>last_source</code> — mục 6.4. <strong>Từ 27/10/2026</strong> thêm dấu “cache cũ”: <code>stale_since</code> (lần lưu đầu tiên chưa được tạo lại cache) và <code>stale_reasons</code> (nguồn: users, projects, domains…); xoá khi một lượt tạo lại bắt đầu sau dấu đó kết thúc.</td></tr>
-          <tr><td>54</td><td><code>jira_settings</code></td><td>Cấu hình hệ thống</td><td><code>id</code> (PK)</td><td>Hai bảng cấu hình singleton lưu Cấu hình tích hợp Jira và số ngày lưu giữ dữ liệu raw import.</td></tr>
-          <tr><td>55</td><td><code>data_retention_configs</code></td><td>Cấu hình hệ thống</td><td><code>id</code> (PK)<br><code>history_thinning_updated_by_user_id</code> → <code>users</code></td><td>Hai bảng cấu hình singleton lưu Cấu hình tích hợp Jira và số ngày lưu giữ dữ liệu raw import.</td></tr>
-          <tr><td>56</td><td><code>dashboard_view_settings</code></td><td>Cấu hình hệ thống</td><td><code>id</code> (PK)<br><code>updated_by_user_id</code> → <code>users</code></td><td><strong>Mới 14/10/2026.</strong> Công tắc "Dashboard Lead view cho tất cả user" (<code>lead_view_for_all_users</code>, mặc định bật) — Quản trị hệ thống → Dashboard, mục 21.9.</td></tr>
-          <tr><td>57</td><td><code>system_suspension_settings</code></td><td>Cấu hình hệ thống</td><td><code>id</code> (PK)<br><code>updated_by_user_id</code> → <code>users</code></td><td><strong>Mới 08/11/2026.</strong> "Tạm dừng hệ thống" (Quản trị hệ thống → Tạm dừng hệ thống, SUPERADMIN, một dòng <code>id = 1</code>): công tắc <code>is_suspended</code>, nội dung trang toàn màn hình <code>/suspended</code> (<code>message_html</code>, đã lọc an toàn trước khi lưu), ngoại lệ <code>allow_news_letter</code> (Bản tin) và <code>allow_mcp</code> (MCP Server). Mỗi lần lưu ghi một dòng <code>audit_logs</code> (SYSTEM_SUSPEND / SYSTEM_RESUME / SYSTEM_SUSPENSION_UPDATE).</td></tr>
-          <tr><td>58</td><td><code>schema_migrations</code></td><td>Cấu hình hệ thống</td><td><code>filename</code> (PK)</td><td>Sổ theo dõi migration: mỗi file <code>db/migrations/*.sql</code> đã chạy là một dòng (<code>filename</code>, <code>applied_at</code>). Do <code>scripts/migrate-db.js</code> tự tạo và ghi; file cài đặt <code>db/install/ttm-monitor-schema.sql</code> ghi sẵn toàn bộ migration đã có để DB mới chỉ nhận migration phát sinh sau.</td></tr>
-          <tr><td>59</td><td><code>ad_popups</code></td><td>Popup &amp; Banner thông báo</td><td><code>id</code> (PK)</td><td>Cấu hình Popup quảng cáo toàn màn hình cho mọi user đã đăng nhập (mục 14).</td></tr>
-          <tr><td>60</td><td><code>ad_popup_impressions</code></td><td>Popup &amp; Banner thông báo</td><td><code>(popup_id, user_id)</code> (PK)<br><code>popup_id</code> → <code>ad_popups</code><br><code>user_id</code> → <code>users</code></td><td>Đếm số lần một popup đã hiện cho từng user, so với <code>max_impressions</code>.</td></tr>
-          <tr><td>61</td><td><code>info_banners</code></td><td>Popup &amp; Banner thông báo</td><td><code>id</code> (PK)</td><td>Cấu hình Banner thông báo (Mặc định toàn hệ thống hoặc theo từng màn hình, mục 15).</td></tr>
-          <tr><td>62</td><td><code>news_letter_articles</code></td><td>Bản tin</td><td><code>id</code> (PK)<br><code>category_id</code> → <code>news_letter_categories</code><br><code>created_by</code> → <code>users</code><br><code>header_image_id</code> → <code>news_letter_images</code><br><code>updated_by</code> → <code>users</code></td><td>Bài viết của Bản tin (<code>/news-letter</code>, SUPERADMIN soạn): tiêu đề, tóm tắt, phân loại, role được xem (<code>visible_roles</code>), Published (tắt = nháp, chỉ tác giả xem), <code>first_published_at</code> (thứ tự bài), ảnh header, nội dung HTML đã lọc ở server — mục 11.8.</td></tr>
-          <tr><td>63</td><td><code>news_letter_categories</code></td><td>Bản tin</td><td><code>id</code> (PK)<br><code>created_by</code> → <code>users</code></td><td>Phân loại bài viết Bản tin (tên không trùng, không xoá được khi còn bài viết dùng).</td></tr>
-          <tr><td>64</td><td><code>news_letter_images</code></td><td>Bản tin</td><td><code>id</code> (PK)<br><code>article_id</code> → <code>news_letter_articles</code><br><code>created_by</code> → <code>users</code></td><td>Ảnh của Bản tin lưu trong CSDL (bytea): 1 ảnh header + tối đa 4 ảnh nội dung mỗi bài; ảnh upload chưa gắn bài (<code>article_id</code> NULL) bị dọn sau 1 ngày.</td></tr>
-          <tr><td>65</td><td><code>news_letter_article_edits</code></td><td>Bản tin</td><td><code>id</code> (PK)<br><code>article_id</code> → <code>news_letter_articles</code><br><code>edited_by</code> → <code>users</code></td><td>Lịch sử thay đổi của bài viết Bản tin — giữ 5 lần sửa gần nhất.</td></tr>
-          <tr><td>66</td><td><code>news_letter_reads</code></td><td>Bản tin</td><td><code>(user_id, article_id)</code> (PK)<br><code>article_id</code> → <code>news_letter_articles</code><br><code>user_id</code> → <code>users</code></td><td>Người dùng đã mở bài viết nào — chấm đỏ trên menu Bản tin khi có bài published chưa đọc.</td></tr>
-          <tr><td>67</td><td><code>api_keys</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)</td><td>API key cấp cho ứng dụng ngoài dùng làm client_id trong luồng SSO (mục 17).</td></tr>
-          <tr><td>68</td><td><code>sso_auth_codes</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>api_key_id</code> → <code>api_keys</code><br><code>user_id</code> → <code>users</code></td><td>Mã ủy quyền SSO dùng 1 lần, hết hạn sau 5 phút (mục 17).</td></tr>
-          <tr><td>69</td><td><code>mcp_settings</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>updated_by</code> → <code>users</code></td><td>Công tắc singleton bật/tắt toàn bộ MCP Server (mục 16).</td></tr>
-          <tr><td>70</td><td><code>mcp_access_tokens</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Personal Access Token để AI chatbot kết nối MCP thay mặt một user cụ thể (mục 16).</td></tr>
-          <tr><td>71</td><td><code>mcp_access_daily_stats</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>(user_id, stat_date)</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Thống kê số lượt gọi MCP theo ngày/user, tự dọn sau 90 ngày (mục 16).</td></tr>
-          <tr><td>72</td><td><code>mcp_oauth_clients</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)</td><td>Đăng ký client OAuth động (RFC 7591) cho AI chatbot dùng luồng OAuth kết nối MCP (mục 16).</td></tr>
-          <tr><td>73</td><td><code>mcp_oauth_authorization_codes</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Mã ủy quyền ngắn hạn cho luồng MCP OAuth 2.0 + PKCE (mục 16).</td></tr>
-          <tr><td>74</td><td><code>audit_logs</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Nhật ký ghi nhận các thao tác quan trọng trên hệ thống (kể cả xoá Epic vĩnh viễn); job dọn hằng ngày xoá dòng quá 180 ngày.</td></tr>
-          <tr><td>75</td><td><code>user_usage_daily_stats</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>(user_id, stat_date)</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Thống kê tần suất tương tác và sử dụng tính năng theo ngày của từng user.</td></tr>
-          <tr><td>76</td><td><code>visit_logs</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Ghi nhận nhật ký lượt đăng nhập ứng dụng (APP_LOGIN) và lượt xem 3 màn hình trọng điểm (SCREEN_VIEW cho TTM Dashboard 2, Quản trị Epic, Báo cáo Epic) phục vụ tính năng Visit Counter (mục 18).</td></tr>
-          <tr><td>77</td><td><code>visit_log_rollups</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>(event_type, screen_key, user_id)</code> (PK)</td><td>Số lượt truy cập LŨY KẾ của các dòng <code>visit_logs</code> cũ hơn ngày T-15 (đã bị cuốn vào đây rồi xóa; theo <code>event_type</code>, <code>screen_key</code>, <code>user_id</code>) để các số "Tổng (lũy kế)" của Visit Counter không tụt khi job dọn dẹp xóa dòng cũ. <code>screen_key=''</code>: không có màn hình; <code>user_id=0</code>: user đã bị xóa.</td></tr>
+          <tr><td>46</td><td><code>epic_field_changes</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>(epic_key, layer_at, field)</code> (PK)</td><td><strong>Mới 11/11/2026.</strong> Cache dẫn xuất của section <em>Epic thay đổi dữ liệu</em> (màn Chuẩn hoá dữ liệu): mỗi dòng là một lần Start date / R4G Date / Requirement Level / Loại yêu cầu của Epic đổi giữa hai phiên bản liên tiếp trong <code>issues</code> — chỉ "có → trống" và "có → giá trị khác". Dựng lại toàn bộ cùng các cache khác (sau import, chạy hằng ngày, tạo lại cache) bằng một câu SQL; màn hình chỉ đọc.</td></tr>
+          <tr><td>47</td><td><code>ttm_index_global_cache</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>id</code> (PK)<br><code>source_import_batch_id</code> → <code>import_batches</code></td><td>Chỉ số toàn công ty TTM-CNTT (QLDA), TTM-CNTT (QA), TTM-E2E (số đếm + %) hiển thị trên banner.</td></tr>
+          <tr><td>48</td><td><code>ttm_dashboard_2_cache</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>scope_key</code> (PK)</td><td>Số liệu phễu / widget / ma trận / pie chart chưa lọc của TTM Dashboard 2 theo phạm vi quyền (<code>ALL</code>, <code>ADMIN:&lt;id&gt;</code>, <code>USER:&lt;id&gt;</code>) — mục 21.5.</td></tr>
+          <tr><td>49</td><td><code>ttm_early_start_cache</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>scope_key</code> (PK)</td><td>Số liệu 4 widget của Báo cáo Epic start sớm (TTM-CNTT (QLDA) và TTM-CNTT start sớm, số Epic fail) theo phạm vi quyền (<code>ALL</code>, <code>ADMIN:&lt;id&gt;</code>, <code>USER:&lt;id&gt;</code>): tính ở lượt mở báo cáo đầu tiên trong ngày, các lượt sau đọc lại; widget TTM-CNTT (actual) ở header TTM Dashboard 2 / Quản trị Epic đọc dòng gần nhất — mục 11.6.1.</td></tr>
+          <tr><td>50</td><td><code>ttm_dashboard_trend_cache</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>scope_key</code> (PK)</td><td><strong>Mới 03/11/2026.</strong> Dòng chữ chạy "So với &lt;ngày&gt;" của TTM Dashboard 2: 6 chỉ số widget (Fail TTM-CNTT, Thiếu lý do, TTM-CNTT %, TTM-E2E %, Sai lệch dữ liệu, Chờ golive) của mỗi phạm vi (<code>scope_key</code> như <code>ttm_dashboard_2_cache</code>) ở lớp dữ liệu mới nhất và lớp liền trước (đọc từ <code>ttm_dashboard_metric_history</code>), cộng chuỗi 7 mốc của biểu đồ <em>Xu hướng biến động chỉ số</em> và hai ngày so sánh tuần trước / tháng trước (chỉ góc nhìn toàn công ty). Tính lại ở lần cache đầu ngày, khi Tạo lại cache thủ công và sau mỗi lần import.</td></tr>
+          <tr><td>51</td><td><code>ttm_dashboard_metric_history</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>(scope_key, layer_date)</code> (PK)</td><td><strong>Mới 03/11/2026.</strong> Chuỗi chỉ số cố định theo ngày: 6 chỉ số widget của từng phạm vi (<code>scope_key</code>) ở từng lớp dữ liệu (<code>layer_date</code>), ghi MỘT lần khi lớp đó là lớp mới nhất (rule của ngày đó, <code>source=DAILY</code>) và không tính lại. Dòng điền bù lần đầu triển khai dùng rule hiện hành (<code>BACKFILL</code>). Giữ 400 ngày. Nguồn của biểu đồ xu hướng, 2 message tuần/tháng và dòng so với lớp liền trước.</td></tr>
+          <tr><td>52</td><td><code>ttm_dashboard_fail_history</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>layer_date</code> (PK)</td><td><strong>Mới 03/11/2026.</strong> Khóa các Epic Fail TTM-CNTT (Phạm vi của QLDA) của toàn công ty theo từng lớp dữ liệu — mốc để biết Epic nào MỚI chuyển sang Fail so với lớp liền trước.</td></tr>
+          <tr><td>53</td><td><code>daily_cache_runs</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>run_date</code> (PK)<br><code>source_import_batch_id</code> → <code>import_batches</code><br><code>triggered_by_user_id</code> → <code>users</code></td><td>Mỗi ngày (giờ Việt Nam) 1 dòng: lượt tạo lại cache đầu ngày do lần tải trang đầu tiên kích hoạt (RUNNING / SUCCESS / FAILED, thời lượng, số Epic).</td></tr>
+          <tr><td>54</td><td><code>derived_cache_refresh_lock</code></td><td>Cache dữ liệu dẫn xuất</td><td><code>id</code> (PK)</td><td><strong>Mới 05/10/2026.</strong> Khoá (lease) điều phối việc tạo lại cache giữa các instance: <code>request_seq</code>, <code>lease_owner</code>, <code>lease_until</code>, <code>last_source</code> — mục 6.4. <strong>Từ 27/10/2026</strong> thêm dấu “cache cũ”: <code>stale_since</code> (lần lưu đầu tiên chưa được tạo lại cache) và <code>stale_reasons</code> (nguồn: users, projects, domains…); xoá khi một lượt tạo lại bắt đầu sau dấu đó kết thúc.</td></tr>
+          <tr><td>55</td><td><code>jira_settings</code></td><td>Cấu hình hệ thống</td><td><code>id</code> (PK)</td><td>Hai bảng cấu hình singleton lưu Cấu hình tích hợp Jira và số ngày lưu giữ dữ liệu raw import.</td></tr>
+          <tr><td>56</td><td><code>data_retention_configs</code></td><td>Cấu hình hệ thống</td><td><code>id</code> (PK)<br><code>history_thinning_updated_by_user_id</code> → <code>users</code></td><td>Hai bảng cấu hình singleton lưu Cấu hình tích hợp Jira và số ngày lưu giữ dữ liệu raw import.</td></tr>
+          <tr><td>57</td><td><code>dashboard_view_settings</code></td><td>Cấu hình hệ thống</td><td><code>id</code> (PK)<br><code>updated_by_user_id</code> → <code>users</code></td><td><strong>Mới 14/10/2026.</strong> Công tắc "Dashboard Lead view cho tất cả user" (<code>lead_view_for_all_users</code>, mặc định bật) — Quản trị hệ thống → Dashboard, mục 21.9.</td></tr>
+          <tr><td>58</td><td><code>system_suspension_settings</code></td><td>Cấu hình hệ thống</td><td><code>id</code> (PK)<br><code>updated_by_user_id</code> → <code>users</code></td><td><strong>Mới 08/11/2026.</strong> "Tạm dừng hệ thống" (Quản trị hệ thống → Tạm dừng hệ thống, SUPERADMIN, một dòng <code>id = 1</code>): công tắc <code>is_suspended</code>, nội dung trang toàn màn hình <code>/suspended</code> (<code>message_html</code>, đã lọc an toàn trước khi lưu), ngoại lệ <code>allow_news_letter</code> (Bản tin) và <code>allow_mcp</code> (MCP Server). Mỗi lần lưu ghi một dòng <code>audit_logs</code> (SYSTEM_SUSPEND / SYSTEM_RESUME / SYSTEM_SUSPENSION_UPDATE).</td></tr>
+          <tr><td>59</td><td><code>schema_migrations</code></td><td>Cấu hình hệ thống</td><td><code>filename</code> (PK)</td><td>Sổ theo dõi migration: mỗi file <code>db/migrations/*.sql</code> đã chạy là một dòng (<code>filename</code>, <code>applied_at</code>). Do <code>scripts/migrate-db.js</code> tự tạo và ghi; file cài đặt <code>db/install/ttm-monitor-schema.sql</code> ghi sẵn toàn bộ migration đã có để DB mới chỉ nhận migration phát sinh sau.</td></tr>
+          <tr><td>60</td><td><code>ad_popups</code></td><td>Popup &amp; Banner thông báo</td><td><code>id</code> (PK)</td><td>Cấu hình Popup quảng cáo toàn màn hình cho mọi user đã đăng nhập (mục 14).</td></tr>
+          <tr><td>61</td><td><code>ad_popup_impressions</code></td><td>Popup &amp; Banner thông báo</td><td><code>(popup_id, user_id)</code> (PK)<br><code>popup_id</code> → <code>ad_popups</code><br><code>user_id</code> → <code>users</code></td><td>Đếm số lần một popup đã hiện cho từng user, so với <code>max_impressions</code>.</td></tr>
+          <tr><td>62</td><td><code>info_banners</code></td><td>Popup &amp; Banner thông báo</td><td><code>id</code> (PK)</td><td>Cấu hình Banner thông báo (Mặc định toàn hệ thống hoặc theo từng màn hình, mục 15).</td></tr>
+          <tr><td>63</td><td><code>news_letter_articles</code></td><td>Bản tin</td><td><code>id</code> (PK)<br><code>category_id</code> → <code>news_letter_categories</code><br><code>created_by</code> → <code>users</code><br><code>header_image_id</code> → <code>news_letter_images</code><br><code>updated_by</code> → <code>users</code></td><td>Bài viết của Bản tin (<code>/news-letter</code>, SUPERADMIN soạn): tiêu đề, tóm tắt, phân loại, role được xem (<code>visible_roles</code>), Published (tắt = nháp, chỉ tác giả xem), <code>first_published_at</code> (thứ tự bài), ảnh header, nội dung HTML đã lọc ở server — mục 11.8.</td></tr>
+          <tr><td>64</td><td><code>news_letter_categories</code></td><td>Bản tin</td><td><code>id</code> (PK)<br><code>created_by</code> → <code>users</code></td><td>Phân loại bài viết Bản tin (tên không trùng, không xoá được khi còn bài viết dùng).</td></tr>
+          <tr><td>65</td><td><code>news_letter_images</code></td><td>Bản tin</td><td><code>id</code> (PK)<br><code>article_id</code> → <code>news_letter_articles</code><br><code>created_by</code> → <code>users</code></td><td>Ảnh của Bản tin lưu trong CSDL (bytea): 1 ảnh header + tối đa 4 ảnh nội dung mỗi bài; ảnh upload chưa gắn bài (<code>article_id</code> NULL) bị dọn sau 1 ngày.</td></tr>
+          <tr><td>66</td><td><code>news_letter_article_edits</code></td><td>Bản tin</td><td><code>id</code> (PK)<br><code>article_id</code> → <code>news_letter_articles</code><br><code>edited_by</code> → <code>users</code></td><td>Lịch sử thay đổi của bài viết Bản tin — giữ 5 lần sửa gần nhất.</td></tr>
+          <tr><td>67</td><td><code>news_letter_reads</code></td><td>Bản tin</td><td><code>(user_id, article_id)</code> (PK)<br><code>article_id</code> → <code>news_letter_articles</code><br><code>user_id</code> → <code>users</code></td><td>Người dùng đã mở bài viết nào — chấm đỏ trên menu Bản tin khi có bài published chưa đọc.</td></tr>
+          <tr><td>68</td><td><code>api_keys</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)</td><td>API key cấp cho ứng dụng ngoài dùng làm client_id trong luồng SSO (mục 17).</td></tr>
+          <tr><td>69</td><td><code>sso_auth_codes</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>api_key_id</code> → <code>api_keys</code><br><code>user_id</code> → <code>users</code></td><td>Mã ủy quyền SSO dùng 1 lần, hết hạn sau 5 phút (mục 17).</td></tr>
+          <tr><td>70</td><td><code>mcp_settings</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>updated_by</code> → <code>users</code></td><td>Công tắc singleton bật/tắt toàn bộ MCP Server (mục 16).</td></tr>
+          <tr><td>71</td><td><code>mcp_access_tokens</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Personal Access Token để AI chatbot kết nối MCP thay mặt một user cụ thể (mục 16).</td></tr>
+          <tr><td>72</td><td><code>mcp_access_daily_stats</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>(user_id, stat_date)</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Thống kê số lượt gọi MCP theo ngày/user, tự dọn sau 90 ngày (mục 16).</td></tr>
+          <tr><td>73</td><td><code>mcp_oauth_clients</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)</td><td>Đăng ký client OAuth động (RFC 7591) cho AI chatbot dùng luồng OAuth kết nối MCP (mục 16).</td></tr>
+          <tr><td>74</td><td><code>mcp_oauth_authorization_codes</code></td><td>SSO, API Key &amp; MCP Server</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Mã ủy quyền ngắn hạn cho luồng MCP OAuth 2.0 + PKCE (mục 16).</td></tr>
+          <tr><td>75</td><td><code>audit_logs</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Nhật ký ghi nhận các thao tác quan trọng trên hệ thống (kể cả xoá Epic vĩnh viễn); job dọn hằng ngày xoá dòng quá 180 ngày.</td></tr>
+          <tr><td>76</td><td><code>user_usage_daily_stats</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>(user_id, stat_date)</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Thống kê tần suất tương tác và sử dụng tính năng theo ngày của từng user.</td></tr>
+          <tr><td>77</td><td><code>visit_logs</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Ghi nhận nhật ký lượt đăng nhập ứng dụng (APP_LOGIN) và lượt xem 3 màn hình trọng điểm (SCREEN_VIEW cho TTM Dashboard 2, Quản trị Epic, Báo cáo Epic) phục vụ tính năng Visit Counter (mục 18).</td></tr>
+          <tr><td>78</td><td><code>visit_log_rollups</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>(event_type, screen_key, user_id)</code> (PK)</td><td>Số lượt truy cập LŨY KẾ của các dòng <code>visit_logs</code> cũ hơn ngày T-15 (đã bị cuốn vào đây rồi xóa; theo <code>event_type</code>, <code>screen_key</code>, <code>user_id</code>) để các số "Tổng (lũy kế)" của Visit Counter không tụt khi job dọn dẹp xóa dòng cũ. <code>screen_key=''</code>: không có màn hình; <code>user_id=0</code>: user đã bị xóa.</td></tr>
         </tbody>
       </table>
 
       <details style="margin: 16px 0; border: 1px solid #cdd9f7; border-radius: 10px; background: #f8faff; padding: 12px 16px;">
         <summary style="cursor: pointer; font-weight: 700; font-size: 13.5px; color: var(--brand-600); outline: none; user-select: none;">
-          🔍 Bấm vào đây để xem chi tiết cột, kiểu dữ liệu, khoá PK/FK, ràng buộc &amp; index của 77 bảng
+          🔍 Bấm vào đây để xem chi tiết cột, kiểu dữ liệu, khoá PK/FK, ràng buộc &amp; index của 78 bảng
         </summary>
         <div style="margin-top: 16px;">
           <h4 style="color:var(--brand-700); margin:16px 0 6px; font-size:14px;">1. Xác thực &amp; phân quyền (13 bảng)</h4>
@@ -1212,7 +1213,7 @@
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((alert_type)::text = ANY ((ARRAY['FAIL_TTM_CNTT'::character varying, 'LATE_TTM_CNTT'::character varying, 'FAIL_TTM_E2E'::character varying, 'MISSING_START_DATE'::character varying, 'DATA_ANOMALY'::character varying])::text[])))</code></li><li>Index <code>idx_epic_alert_timeline_end_date</code>: <code>btree (end_date)</code></li><li>Index <code>idx_epic_alert_timeline_epic_key</code>: <code>btree (epic_key)</code></li><li>Index <code>idx_epic_alert_timeline_open_run</code>: <code>UNIQUE btree (epic_key, alert_type) WHERE (end_date IS NULL)</code></li></ul>
-          <h4 style="color:var(--brand-700); margin:16px 0 6px; font-size:14px;">8. Cache dữ liệu dẫn xuất (9 bảng)</h4>
+          <h4 style="color:var(--brand-700); margin:16px 0 6px; font-size:14px;">8. Cache dữ liệu dẫn xuất (10 bảng)</h4>
           <p><strong>8.1. <code>epic_alert_row_cache</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
@@ -1247,7 +1248,21 @@
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li>Index <code>idx_epic_alert_row_cache_alert_level</code>: <code>btree (alert_level)</code></li><li>Index <code>idx_epic_alert_row_cache_badge_codes</code>: <code>gin (badge_codes)</code></li><li>Index <code>idx_epic_alert_row_cache_current_status</code>: <code>btree (current_status)</code></li><li>Index <code>idx_epic_alert_row_cache_index_flags</code>: <code>gin (index_flags)</code></li><li>Index <code>idx_epic_alert_row_cache_project_key</code>: <code>btree (project_key)</code></li><li>Index <code>idx_epic_alert_row_cache_rule_group</code>: <code>btree (rule_group_id)</code></li><li>Index <code>idx_epic_alert_row_cache_sort</code>: <code>btree (bottom_status_rank, has_data_anomaly, alert_rank, remaining_working_days_rank)</code></li><li>Index <code>idx_epic_alert_row_cache_ttm_cntt_in_scope</code>: <code>btree (ttm_cntt_in_scope)</code></li></ul>
-          <p><strong>8.2. <code>ttm_index_global_cache</code></strong></p>
+          <p><strong>8.2. <code>epic_field_changes</code></strong></p>
+          <table>
+            <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
+            <tbody>
+              <tr><td><code>epic_key</code></td><td><code>VARCHAR(50) NOT NULL</code></td><td>PRIMARY KEY</td><td></td></tr>
+              <tr><td><code>layer_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>PRIMARY KEY</td><td><code>TIMESTAMP WITH TIME ZONE NOT NULL</code></td><td>aggregated_at của phiên bản mang giá trị mới (lớp dữ liệu phát hiện thay đổi)</td></tr>
+              <tr><td><code>field</code></td><td><code>VARCHAR(30) NOT NULL</code></td><td>PRIMARY KEY</td><td><code>VARCHAR(30) NOT NULL</code></td><td>START_DATE / R4G_DATE / REQUIREMENT_LEVEL / REQUEST_TYPE</td></tr>
+              <tr><td><code>old_value</code></td><td><code>TEXT NOT NULL</code></td><td>—</td><td></td></tr>
+              <tr><td><code>new_value</code></td><td><code>TEXT</code></td><td>—</td><td><code>TEXT</code></td><td>Giá trị mới; NULL = trường bị xoá</td></tr>
+              <tr><td><code>epic_created_date</code></td><td><code>DATE</code></td><td>—</td><td><code>DATE</code></td><td>Created date của Epic (jira_created_at của phiên bản mới nhất) — bộ lọc "Created date từ" của section</td></tr>
+              <tr><td><code>computed_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
+            </tbody>
+          </table>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li>Index <code>idx_epic_field_changes_created</code>: <code>btree (epic_created_date)</code></li></ul>
+          <p><strong>8.3. <code>ttm_index_global_cache</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
@@ -1272,7 +1287,7 @@
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK ((id = 1))</code></li></ul>
-          <p><strong>8.3. <code>ttm_dashboard_2_cache</code></strong></p>
+          <p><strong>8.4. <code>ttm_dashboard_2_cache</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
@@ -1284,7 +1299,7 @@
               <tr><td><code>computed_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
             </tbody>
           </table>
-          <p><strong>8.4. <code>ttm_early_start_cache</code></strong></p>
+          <p><strong>8.5. <code>ttm_early_start_cache</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
@@ -1296,7 +1311,7 @@
               <tr><td><code>computed_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
             </tbody>
           </table>
-          <p><strong>8.5. <code>ttm_dashboard_trend_cache</code></strong></p>
+          <p><strong>8.6. <code>ttm_dashboard_trend_cache</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
@@ -1312,7 +1327,7 @@
               <tr><td><code>month_ref</code></td><td><code>JSONB</code></td><td>—</td><td></td></tr>
             </tbody>
           </table>
-          <p><strong>8.6. <code>ttm_dashboard_metric_history</code></strong></p>
+          <p><strong>8.7. <code>ttm_dashboard_metric_history</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
@@ -1324,7 +1339,7 @@
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((source)::text = ANY ((ARRAY['DAILY'::character varying, 'BACKFILL'::character varying])::text[])))</code></li><li>Index <code>idx_ttm_dashboard_metric_history_date</code>: <code>btree (layer_date)</code></li></ul>
-          <p><strong>8.7. <code>ttm_dashboard_fail_history</code></strong></p>
+          <p><strong>8.8. <code>ttm_dashboard_fail_history</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
@@ -1335,7 +1350,7 @@
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((source)::text = ANY ((ARRAY['DAILY'::character varying, 'BACKFILL'::character varying])::text[])))</code></li></ul>
-          <p><strong>8.8. <code>daily_cache_runs</code></strong></p>
+          <p><strong>8.9. <code>daily_cache_runs</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
@@ -1352,7 +1367,7 @@
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK ((status = ANY (ARRAY['RUNNING'::text, 'SUCCESS'::text, 'FAILED'::text])))</code></li></ul>
-          <p><strong>8.9. <code>derived_cache_refresh_lock</code></strong></p>
+          <p><strong>8.10. <code>derived_cache_refresh_lock</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
@@ -2255,11 +2270,15 @@
       <ol>
         <li><strong>Thiếu lý do Fail TTM</strong> — Epic Fail TTM-CNTT có R4G Date muộn hơn Target mà chưa ghi khâu fail hoặc chưa có phòng chịu trách nhiệm chính; đúng tập Epic của widget THIẾU LÝ DO trên TTM Dashboard 2 (chỉ có ở engine Scoring Service).</li>
         <li><strong>R1, R3–R6, R7 "Sai Status (Release)", R8–R10</strong> — theo thứ tự R. Phụ đề là giải thích rule và "Cách chuẩn hoá" (lấy từ khuyến nghị tương ứng của Scoring Service). R8–R10 chỉ có khi engine hiển thị là Scoring Service; ở engine cũ R1/R5/R7 hiện đúng điều kiện của engine cũ. R2 "Pending lâu" không có panel.</li>
-        <li><strong>Thiếu Change ID</strong> (từ 09/11/2026) — panel cuối, nhãn "Khuyến nghị", tiêu đề <strong>nền xanh lá nhạt</strong>: các Epic có khuyến nghị
+        <li><strong>Thiếu Change ID</strong> (từ 09/11/2026) — nhãn "Khuyến nghị", tiêu đề <strong>nền xanh lá nhạt</strong>: các Epic có khuyến nghị
           "Thiếu Change ID" (không phải Sai lệch dữ liệu, không ảnh hưởng chỉ số) để theo dõi; icon bóng đèn ở cột Epic, rê chuột xem trường còn thiếu theo R4G Date.</li>
+        <li><strong>Epic thay đổi dữ liệu</strong> (từ 11/11/2026) — section cuối, nhãn "Thay đổi", tiêu đề nền tím pastel: Epic có <strong>Start date, R4G Date, Requirement Level hoặc Loại yêu cầu</strong> thay đổi giữa hai lớp dữ liệu liên tiếp — chỉ tính "có → trống" (bị xoá) và "có → giá trị khác"; lần điền đầu tiên (trống → có) không tính; trống / "None" / "NULL" là trống.
+          Hàng nút (nền xám nhạt) dưới phần mô tả của section (khi mở): lịch <em>Created date từ</em> (mặc định 01/02/2026, chỉ giữ Epic tạo từ ngày đó) và 4 nút lọc <em>Thay đổi Start date / Thay đổi R4G Date / Thay đổi Requirement Level / Thay đổi Loại yêu cầu</em> — luôn chọn đúng 1 nút, mặc định Start date; số Epic và cột Nhận xét chỉ tính trường đang chọn. Mỗi Epic một dòng; cột <strong>Nhận xét</strong> liệt kê từng thay đổi trên một dòng gạch đầu dòng: "&lt;trường&gt;: cũ → mới" — rê chuột vào dòng để xem lớp dữ liệu phát hiện thay đổi.
+          Danh sách được tính sẵn một lần mỗi khi dựng lại cache (sau import, chạy hằng ngày, tạo lại cache — bảng <code>epic_field_changes</code>), màn hình chỉ đọc kết quả.
+          Giới hạn: ngày ở Nhận xét là ngày import phát hiện thay đổi (không phải ngày sửa trên Jira); ngoài 30 ngày gần nhất mỗi tuần chỉ còn một lớp nên thay đổi rồi đổi lại trong cùng tuần không còn thấy.</li>
       </ol>
       <p>Từ 09/11/2026 ô số lượng "N Epic" ở tiêu đề panel có nền <strong>cam, chữ trắng</strong> khi N &gt; 0 (N = 0 giữ nền xanh).</p>
-      <p>Một Epic có thể nằm ở nhiều panel. Dữ liệu theo phạm vi quyền của người xem và cùng bộ lọc với TTM Dashboard 2 (Domain, Dự án, Component, PM/SM, Đơn vị yêu cầu); Epic Cancelled và Epic ngoại lệ không xuất hiện. Bảng Epic (từ 10/11/2026 dùng chung một mẫu cho mọi section): <strong>Epic</strong> (icon lý do, link Jira, mã — mở Duyệt Epic) · <strong>PM/SM</strong> · <strong>Review</strong> (cột cờ như Quản trị Epic — bấm để mở popup Review Notes; lưu comment xong danh sách tự cập nhật) · Summary · <strong>Status</strong> · Created date · Ngày duyệt ý tưởng · Start date · R4G date · Due date; 25 Epic/trang. Section tính được <strong>0 Epic</strong> mở ra là hiện ngay "Không có Epic cần chuẩn hoá", không gọi lại máy chủ.</p>
+      <p>Một Epic có thể nằm ở nhiều panel. Dữ liệu theo phạm vi quyền của người xem và cùng bộ lọc với TTM Dashboard 2 (Domain, Dự án, Component, PM/SM, Đơn vị yêu cầu); Epic Cancelled và Epic ngoại lệ không xuất hiện. Bảng Epic (từ 10/11/2026 dùng chung một mẫu cho mọi section; từ 11/11/2026 các cột PM/SM, Summary, Status, Nhận xét và cột ngày được thu hẹp, đệm ô 8px, cột "Ngày duyệt ý tưởng" đổi tên "Ngày duyệt YT" — vừa màn hình ở zoom 100%): <strong>Epic</strong> (icon lý do, link Jira, mã — mở Duyệt Epic) · <strong>PM/SM</strong> · <strong>Review</strong> (cột cờ như Quản trị Epic — bấm để mở popup Review Notes; lưu comment xong danh sách tự cập nhật) · Summary · <strong>Status</strong> · Created date · Ngày duyệt ý tưởng · Start date · R4G date · Due date; 25 Epic/trang. Section tính được <strong>0 Epic</strong> mở ra là hiện ngay "Không có Epic cần chuẩn hoá", không gọi lại máy chủ.</p>
 
       <h3>11.5. TTM Dashboard (<code>/dashboard-new</code>) — đã gỡ (11/10/2026)</h3>
       <div class="callout warn">Màn hình TTM Dashboard bản đầu (SUPERADMIN-only từ 05/10/2026) đã được thay hoàn toàn bằng <strong>TTM Dashboard 2</strong> (mục 21). URL <code>/dashboard-new</code> chuyển hướng sang <code>/ttm-dashboard-2</code>; chức năng <code>dashboard_new</code> đã được gỡ khỏi Ma trận phân quyền.</div>

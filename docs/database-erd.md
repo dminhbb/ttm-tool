@@ -1,10 +1,10 @@
 # TTM Monitor — ERD & từ điển dữ liệu
 
-> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-10.
+> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-11.
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
-**77 bảng** trong schema `public`, **68 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
+**78 bảng** trong schema `public`, **68 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
 
 ## Mục lục
 
@@ -15,7 +15,7 @@
 5. [Cấu hình TTM, lịch & phạm vi](#5-cấu-hình-ttm-lịch-phạm-vi) — 12 bảng
 6. [Epic Scoring Service](#6-epic-scoring-service) — 5 bảng
 7. [Lịch sử & snapshot](#7-lịch-sử-snapshot) — 1 bảng
-8. [Cache dữ liệu dẫn xuất](#8-cache-dữ-liệu-dẫn-xuất) — 9 bảng
+8. [Cache dữ liệu dẫn xuất](#8-cache-dữ-liệu-dẫn-xuất) — 10 bảng
 9. [Cấu hình hệ thống](#9-cấu-hình-hệ-thống) — 5 bảng
 10. [Popup & Banner thông báo](#10-popup-banner-thông-báo) — 3 bảng
 11. [Bản tin](#11-bản-tin) — 5 bảng
@@ -1369,6 +1369,15 @@ erDiagram
         int rule_group_id
         text rule_group_name
     }
+    epic_field_changes {
+        varchar epic_key PK
+        timestamptz layer_at PK
+        varchar field PK
+        text old_value
+        text new_value
+        date epic_created_date
+        timestamptz computed_at
+    }
     ttm_index_global_cache {
         smallint id PK
         int ttm_eligible
@@ -1507,6 +1516,22 @@ Cache dòng Epic của lớp dữ liệu mới nhất cho Quản trị Epic / c�
 - index `idx_epic_alert_row_cache_rule_group`: btree (rule_group_id)
 - index `idx_epic_alert_row_cache_sort`: btree (bottom_status_rank, has_data_anomaly, alert_rank, remaining_working_days_rank)
 - index `idx_epic_alert_row_cache_ttm_cntt_in_scope`: btree (ttm_cntt_in_scope)
+
+### `epic_field_changes`
+
+**Mới 11/11/2026.** Cache dẫn xuất của section *Epic thay đổi dữ liệu* (màn Chuẩn hoá dữ liệu): mỗi dòng là một lần Start date / R4G Date / Requirement Level / Loại yêu cầu của Epic đổi giữa hai phiên bản liên tiếp trong `issues` — chỉ "có → trống" và "có → giá trị khác". Dựng lại toàn bộ cùng các cache khác (sau import, chạy hằng ngày, tạo lại cache) bằng một câu SQL; màn hình chỉ đọc.
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `epic_key` | varchar(50) | không |  | PK |  |
+| `layer_at` | timestamptz | không |  | PK | `TIMESTAMP WITH TIME ZONE NOT NULL`aggregated_at của phiên bản mang giá trị mới (lớp dữ liệu phát hiện thay đổi) |
+| `field` | varchar(30) | không |  | PK | `VARCHAR(30) NOT NULL`START_DATE / R4G_DATE / REQUIREMENT_LEVEL / REQUEST_TYPE |
+| `old_value` | text | không |  |  |  |
+| `new_value` | text | có |  |  | `TEXT`Giá trị mới; NULL = trường bị xoá |
+| `epic_created_date` | date | có |  |  | `DATE`Created date của Epic (jira_created_at của phiên bản mới nhất) — bộ lọc "Created date từ" của section |
+| `computed_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+
+- index `idx_epic_field_changes_created`: btree (epic_created_date)
 
 ### `ttm_index_global_cache`
 

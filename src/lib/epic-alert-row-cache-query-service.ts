@@ -444,7 +444,8 @@ export async function queryDashboardEpicRows(scope: AccessScope, options: { incl
   let normalizationClause = '';
   if (options.needsNormalizationOnly) {
     params.push([...NORMALIZATION_BADGE_CODES]);
-    normalizationClause = ` AND (has_data_anomaly OR badge_codes && $${params.length}::text[])`;
+    // + the Epics of "Epic thay đổi dữ liệu" (derived table epic_field_changes, 2026-11-11).
+    normalizationClause = ` AND (has_data_anomaly OR badge_codes && $${params.length}::text[] OR epic_key IN (SELECT epic_key FROM epic_field_changes))`;
   }
   const fieldsSql = DASHBOARD_EPIC_ROW_KEYS.map((key) => `'${key}', row_data->'${key}'`).join(', ');
   const result = await pool.query<{ row: DashboardEpicRow }>(
