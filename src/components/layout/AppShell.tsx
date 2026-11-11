@@ -59,6 +59,7 @@ import { TruncationTooltip } from '@/components/ui/TruncationTooltip';
 import { fallbackPathFor, pageFeatureKey } from '@/lib/feature-access';
 import { NEWS_LETTER_PATH, SUSPENDED_PATH, SYSTEM_SUSPENSION_CHANGED_EVENT } from '@/lib/system-suspension';
 import { resolveScreenKeyFromPathname, trackScreenVisit } from '@/lib/visit-counter-client';
+import { EpicQuickSearch } from '@/components/epic-search/EpicQuickSearch';
 
 type NavigationModal = 'appConfig' | 'blackListedEpics' | 'systemAdmin';
 
@@ -834,6 +835,8 @@ function AppShellInner({ children }: AppShellProps) {
       <SystemAdminModal initialSectionId={systemAdminSection} isOpen={systemAdminOpen} onClose={() => setSystemAdminOpen(false)} role={role} />
       <BlackListedEpicsModal isOpen={blackListedEpicsOpen} onClose={() => setBlackListedEpicsOpen(false)} />
       {!suspensionRestricted && <AdPopupDisplay />}
+      {/* "Tìm nhanh Epic" — key F on any page of the full shell (owner 2026-11-11). */}
+      {role !== null && !suspensionRestricted && <EpicQuickSearch />}
       <ChangePasswordModal isForceChangePassword isOpen={mustChangePassword} onClose={() => {}} />
       {/* Only in the full shell (never the embedded/iframe branch above), so a dashboard drill-down
           popup doesn't run a second trigger/poll alongside its parent page. */}

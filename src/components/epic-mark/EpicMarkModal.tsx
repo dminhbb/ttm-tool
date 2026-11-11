@@ -4,9 +4,13 @@ import * as React from 'react';
 import type { Icon } from '@phosphor-icons/react';
 import {
   Briefcase, Buildings, CalendarBlank, CalendarCheck, CalendarPlus, CalendarX, ChatCircleText, ChatsCircle, CircleHalf,
-  ClockCountdown, Eye, FileText, FlagCheckered, Gauge, Hash, Info, ShieldCheck, ListNumbers, PaperPlaneRight, SealCheck, Stack, Tag, Trash, UserCircle, UsersThree,
+  ClockCountdown, Eye, FileText, FlagCheckered, Gauge, Hash, Info, ShieldCheck, TreeStructure, WarningCircle, ListNumbers, PaperPlaneRight, SealCheck, Stack, Tag, Trash, UserCircle, UsersThree,
 } from '@phosphor-icons/react';
 import { JiraLinkButton } from '@/components/epic-alerts/JiraLinkButton';
+import { EpicFailExplainGrid, EpicFailVerdictBadges } from '@/components/epic-browser/EpicFailExplain';
+import { EpicIssuesTree } from '@/components/epic-browser/EpicIssuesTree';
+import { TableSkeleton } from '@/components/ui/Skeleton';
+import type { DataReviewIssue } from '@/lib/data-review-types';
 import { Badge, type BadgeProps } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Modal } from '@/components/ui/Modal';
@@ -27,7 +31,36 @@ import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
  * the Epic's facts grouped into "Thông tin chung" / "Thông tin dự án" on the left; on the right a frame with two tabs —
  * "Comment" (input on top, chat thread below) and "Scoring" (the Epic's active Scoring Service badges, one row each
  * with its explanation). `onChanged` is called once on close when something was saved, so the list behind can refresh.
+ * 2026-11-11 (owner): the popup is 30% wider, the right frame takes 70% of it, and gains two tabs — "Duyệt Epic" (the
+ * Epic → Story → Subtask tree of the "Duyệt Epic" popup, loaded the first time the tab opens) and "Giải trình Fail TTM"
+ * (the same block as in "Duyệt Epic", from the summary already loaded — EpicFailExplain.tsx).
  */
+
+type FrameTabKey = 'BROWSE' | 'COMMENT' | 'FAIL' | 'SCORING';
+
+/** Tab "Duyệt Epic": the issue tree, fetched once from the "Duyệt Epic" API when the tab is first shown. */
+function EpicTreeTab({ epicKey }: { epicKey: string }) {
+  const [root, setRoot] = React.useState<DataReviewIssue | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch(`/api/epic-browser?epicKey=${encodeURIComponent(epicKey)}`, { signal: controller.signal });
+        const data = (await response.json()) as { error?: string; root?: DataReviewIssue | null };
+        if (controller.signal.aborted) return;
+        if (!response.ok || !data.root) setError(data.error ?? 'Không thể tải cây Epic.');
+        else setRoot(data.root);
+      } catch {
+        if (!controller.signal.aborted) setError('Không thể kết nối máy chủ.');
+      }
+    })();
+    return () => controller.abort();
+  }, [epicKey]);
+  if (error) return <p className="m-0 text-sm text-status-danger">{error}</p>;
+  if (!root) return <TableSkeleton rows={6} />;
+  return <EpicIssuesTree root={root} />;
+}
 
 interface TaskState {
   status: EpicTaskStatus;
@@ -347,7 +380,7 @@ export function EpicMarkModal({ epicKey, onChanged, onClose, viewAsUserId }: { e
   const [error, setError] = React.useState<string | null>(null);
   const [text, setText] = React.useState('');
   const [saving, setSaving] = React.useState(false);
-  const [tab, setTab] = React.useState<'COMMENT' | 'SCORING'>('COMMENT');
+  const [tab, setTab] = React.useState<FrameTabKey>('COMMENT');
   const [deleting, setDeleting] = React.useState<EpicCommentEntry | null>(null);
   const changedRef = React.useRef(false);
   const viewIssueBaseUrl = useJiraViewIssueUrl();
@@ -483,14 +516,15 @@ export function EpicMarkModal({ epicKey, onChanged, onClose, viewAsUserId }: { e
   );
 
   return (
-    <Modal actions={switches} icon={ChatCircleText} isOpen maxWidth="xl" maxWidthClassName="max-w-[1014px]" onClose={handleClose} title={title}>
+    // 2026-11-11: 1014px + 30% = 1318px; the right frame takes 70% of the body (grid 3fr / 7fr below).
+    <Modal actions={switches} icon={ChatCircleText} isOpen maxWidth="xl" maxWidthClassName="max-w-[1318px]" onClose={handleClose} title={title}>
       {error ? (
         <p className="m-0 text-sm text-status-danger">{error}</p>
       ) : !payload ? (
         <p className="m-0 text-sm text-fb-text-secondary">Đang tải…</p>
       ) : (
         // Fixed body height (owner 2026-10-28: +5% over the old natural ~538px), so switching tabs never resizes the popup.
-        <div className="grid grid-cols-1 gap-4 md:h-[min(565px,65dvh)] md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+        <div className="grid grid-cols-1 gap-4 md:h-[min(565px,65dvh)] md:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]">
           <div className="divide-y divide-fb-border overflow-hidden rounded-xl border border-fb-border bg-fb-surface md:overflow-y-auto">
             <InfoSection icon={FileText} rows={generalRows(payload.summary)} title="Thông tin chung" />
             <InfoSection icon={Briefcase} rows={projectRows(payload.summary, payload.ownerName)} title="Thông tin dự án" />
@@ -501,10 +535,21 @@ export function EpicMarkModal({ epicKey, onChanged, onClose, viewAsUserId }: { e
             <div className="flex shrink-0 gap-4 border-b border-fb-border px-4" role="tablist" aria-label="Review Notes">
               <FrameTab active={tab === 'COMMENT'} icon={ChatCircleText} label={`Comment (${payload.comments.length})`} onSelect={() => setTab('COMMENT')} />
               <FrameTab active={tab === 'SCORING'} icon={Gauge} label={`Scoring (${payload.scoring.length})`} onSelect={() => setTab('SCORING')} />
+              <FrameTab active={tab === 'BROWSE'} icon={TreeStructure} label="Duyệt Epic" onSelect={() => setTab('BROWSE')} />
+              <FrameTab active={tab === 'FAIL'} icon={WarningCircle} label="Giải trình Fail TTM" onSelect={() => setTab('FAIL')} />
             </div>
             {tab === 'SCORING' ? (
               <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4" role="tabpanel">
                 <ScoringTable epicKey={epicKey} notes={payload.scoring} />
+              </div>
+            ) : tab === 'BROWSE' ? (
+              <div className="min-h-0 flex-1 overflow-auto px-4 py-4" role="tabpanel">
+                <EpicTreeTab epicKey={epicKey} />
+              </div>
+            ) : tab === 'FAIL' ? (
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4" role="tabpanel">
+                <EpicFailVerdictBadges summary={payload.summary} />
+                <EpicFailExplainGrid summary={payload.summary} />
               </div>
             ) : (<>
             {payload.canComment === false ? (
