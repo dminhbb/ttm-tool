@@ -8,7 +8,7 @@ import type { NormalizationEpicRow, NormalizationPanelTone } from '@/lib/data-no
 
 /**
  * The one Epic table of every section of "Chuẩn hoá dữ liệu" (owner 2026-11-10):
- *   Epic | PM/SM | REVIEW | Summary | Status | Created date | Ngày duyệt ý tưởng | Start date | R4G date | Due date
+ *   Epic | PM/SM | REVIEW | Summary | Status | Created date | Idea date (T0) | Start date (T1) | R4G date | Due date (golive)
  * Epic: why it is listed (warning — a rule to fix; light bulb — a recommendation) with the messages as tooltip, Jira link,
  * key (opens "Duyệt Epic"). REVIEW: the same flag column as Quản trị Epic — opens the Review Notes popup.
  * "Epic thay đổi dữ liệu" (tone 'change', 2026-11-11) adds the column "Nhận xét" after Status: one bullet per change
@@ -47,10 +47,10 @@ export function NormalizationEpicTable({ onBrowse, onReview, rows, tone, viewIss
             <TH>Status</TH>
             {showNotes && <TH>Nhận xét</TH>}
             <TH>Created date</TH>
-            <TH title="Ngày duyệt ý tưởng">Ngày duyệt YT</TH>
-            <TH>Start date</TH>
+            <TH title="Ngày duyệt ý tưởng (Idea Approved Date) — T0">Idea date (T0)</TH>
+            <TH title="Start Date — T1">Start date (T1)</TH>
             <TH>R4G date</TH>
-            <TH>Due date</TH>
+            <TH title="Due Date — ngày golive">Due date (golive)</TH>
           </TR>
         </THead>
         <TBody>

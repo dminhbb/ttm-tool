@@ -57,15 +57,16 @@ export async function refreshEpicFieldChanges(): Promise<number> {
   }
 }
 
-/** The stored changes of one field (the section's filter) of the Epics created on/after `createdFrom` (YYYY-MM-DD), per
- * Epic, oldest change first. */
+/** The LATEST stored change of one field (the section's filter) of each Epic created on/after `createdFrom` (YYYY-MM-DD)
+ * — owner 2026-11-11: judged against today's data, only the most recent change counts (3/7 → trống → 4/9 → 11/10 lists
+ * "04/09 → 11/10" alone), with the data layer that recorded it. The table keeps every change; the read picks the last. */
 export async function loadEpicFieldChanges(createdFrom: string, field: EpicFieldChangeField): Promise<Map<string, EpicFieldChange[]>> {
   const result = await pool.query<{ epicKey: string; layerAt: string; field: EpicFieldChangeField; oldValue: string; newValue: string | null }>(`
     -- The data layer's date as every screen reads it (aggregated_at::date, see listSelectableLayerDates).
-    SELECT epic_key AS "epicKey", layer_at::date::text AS "layerAt", field, old_value AS "oldValue", new_value AS "newValue"
+    SELECT DISTINCT ON (epic_key) epic_key AS "epicKey", layer_at::date::text AS "layerAt", field, old_value AS "oldValue", new_value AS "newValue"
     FROM epic_field_changes
     WHERE epic_created_date >= $1::date AND field = $2
-    ORDER BY epic_key, layer_at
+    ORDER BY epic_key, layer_at DESC
   `, [createdFrom, field]);
   const map = new Map<string, EpicFieldChange[]>();
   for (const row of result.rows) {

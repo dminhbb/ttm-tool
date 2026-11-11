@@ -142,11 +142,11 @@ const MISSING_CHANGE_ID_PANEL: NormalizationPanelDefinition = {
 const FIELD_CHANGE_PANEL: NormalizationPanelDefinition = {
   code: FIELD_CHANGE_PANEL_CODE,
   defaultMessage: 'Dữ liệu Epic đã thay đổi giữa các lớp dữ liệu',
-  formula: 'So mỗi lớp dữ liệu của Epic với lớp ngay trước: Start date, R4G Date, Requirement Level, Loại yêu cầu — chỉ "có → trống" và "có → giá trị khác" (trống / "None" / "NULL" là trống). Lọc theo Created date của Epic và theo đúng 1 trường (hàng nút dưới phần mô tả).',
+  formula: 'So mỗi lớp dữ liệu của Epic với lớp ngay trước: Start date, R4G Date, Requirement Level, Loại yêu cầu — chỉ "có → trống" và "có → giá trị khác" (trống / "None" / "NULL" là trống); mỗi Epic chỉ lấy lần thay đổi GẦN NHẤT của trường đang chọn. Lọc theo Created date của Epic và theo đúng 1 trường (hàng nút dưới phần mô tả).',
   guide: 'Kiểm tra lại các thay đổi với PM/SM của Epic: thay đổi Start date / R4G Date ảnh hưởng mốc TTM-CNTT; Requirement Level / Loại yêu cầu đổi loại Epic và ngân sách TTM.',
   index: 0,
-  label: 'Epic thay đổi Start date / R4G Date / Requirement Level / Loại yêu cầu',
-  meaning: 'Epic có ít nhất một thay đổi ở 4 trường trên giữa hai lớp dữ liệu liên tiếp (giá trị bị xoá, hoặc đổi sang giá trị khác; lần điền đầu tiên không tính). Ngày ở cột Nhận xét là ngày lớp dữ liệu (ngày import) phát hiện thay đổi, không phải ngày sửa trên Jira; ngoài 30 ngày gần nhất mỗi tuần chỉ còn một lớp nên thay đổi rồi đổi lại trong cùng tuần không còn thấy.',
+  label: 'Sửa thông tin quan trọng',
+  meaning: 'Epic đã bị sửa Start date, R4G Date, Requirement Level hoặc Loại yêu cầu giữa hai lớp dữ liệu liên tiếp (giá trị bị xoá, hoặc đổi sang giá trị khác; lần điền đầu tiên không tính) — mỗi Epic chỉ hiện lần thay đổi gần nhất, tính tới dữ liệu hôm nay. Ngày ở cột Nhận xét là ngày lớp dữ liệu (ngày import) phát hiện thay đổi, không phải ngày sửa trên Jira; ngoài 30 ngày gần nhất mỗi tuần chỉ còn một lớp nên thay đổi rồi đổi lại trong cùng tuần không còn thấy.',
   tag: 'Thay đổi',
   tone: 'change',
 };
