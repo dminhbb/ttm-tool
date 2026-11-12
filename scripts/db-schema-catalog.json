@@ -578,6 +578,7 @@
     "tables": [
       "permission_features",
       "role_feature_permissions",
+      "ttm_policy_sets",
       "ttm_policy_configs",
       "epic_status_alert_rules",
       "issue_type_role_mapping",

@@ -1,4 +1,6 @@
+import type { PoolClient } from 'pg';
 import pool, { getClient } from '@/lib/db';
+import { orderTablesForImport, orphanSweepSql, type ForeignKeyInfo } from '@/lib/db-import-order';
 import { DEFAULT_SMART_EXPORT_SCOPE, EXPORTABLE_TABLES, SMART_SESSION_TABLES, smartTablesForScope, type SmartExportScope } from '@/lib/db-backup-tables';
 import type { BackupTableInfo, ImportResult, ImportTableResult } from '@/lib/db-backup-types';
 import { EPIC_ISSUE_TYPES_SQL, STORY_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
@@ -213,6 +215,36 @@ async function getPrimaryKeyColumns(tableName: string): Promise<string[]> {
     ORDER BY kcu.ordinal_position;
   `, [tableName]);
   return result.rows.map((row) => row.columnName);
+}
+
+/** The foreign keys from or to any of `tables` (schema public), with their columns in key order. */
+async function loadForeignKeys(client: PoolClient, tables: string[]): Promise<ForeignKeyInfo[]> {
+  const result = await client.query<ForeignKeyInfo>(`
+    SELECT c.conname AS name, child.relname AS "childTable", parent.relname AS "parentTable",
+      c.confdeltype AS "onDelete", c.condeferrable AS deferrable,
+      ARRAY(SELECT a.attname::text FROM unnest(c.conkey) WITH ORDINALITY AS k(attnum, ord)
+        JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum ORDER BY k.ord) AS "childColumns",
+      ARRAY(SELECT a.attname::text FROM unnest(c.confkey) WITH ORDINALITY AS k(attnum, ord)
+        JOIN pg_attribute a ON a.attrelid = c.confrelid AND a.attnum = k.attnum ORDER BY k.ord) AS "parentColumns"
+    FROM pg_constraint c
+    JOIN pg_class child ON child.oid = c.conrelid
+    JOIN pg_class parent ON parent.oid = c.confrelid
+    JOIN pg_namespace n ON n.oid = child.relnamespace
+    WHERE c.contype = 'f' AND n.nspname = 'public'
+      AND (child.relname = ANY($1::text[]) OR parent.relname = ANY($1::text[]))
+    ORDER BY child.relname, c.conname;
+  `, [tables]);
+  return result.rows;
+}
+
+/** A foreign key violation (23503) at the deferred check, reworded so the admin sees which link of the file is broken. */
+function foreignKeyViolationError(error: unknown): unknown {
+  const pgError = error as { code?: string; constraint?: string; detail?: string; table?: string };
+  if (pgError?.code !== '23503') return error;
+  return new Error(
+    `Dữ liệu trong file vi phạm khoá ngoại "${pgError.constraint ?? '?'}" (bảng ${pgError.table ?? '?'}): ${pgError.detail ?? ''}`
+    + ' Hãy import kèm bảng được tham chiếu, hoặc export lại file từ môi trường nguồn.',
+  );
 }
 
 /**
@@ -685,7 +717,7 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
 
   const SMART_LAYER_TABLES = new Set(['import_batches', 'issues']);
   const hasSmartLayerTablesSelected = isSmartSurfaceExport && insertTables.some((tableName) => SMART_LAYER_TABLES.has(tableName));
-  const tablesToDisableTriggers = hasSmartLayerTablesSelected
+  const touchedTables = hasSmartLayerTablesSelected
     ? [...new Set([...insertTables, 'import_batches', 'issues'])]
     : insertTables;
 
@@ -693,10 +725,13 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
   try {
     await client.query('BEGIN');
 
-    // Disable FK/trigger enforcement for the duration of the load so cross-table and
-    // self-referential foreign keys (e.g. issues.parent_id -> issues.id) never block on
-    // insert order; triggers are re-enabled (without retroactive validation) before commit.
-    for (const tableName of tablesToDisableTriggers) await client.query(`ALTER TABLE ${quoteIdent(tableName)} DISABLE TRIGGER ALL;`);
+    // No trigger is switched off (ALTER TABLE … DISABLE TRIGGER ALL needs a superuser — it also turns off the system
+    // RI_ConstraintTrigger_* of the foreign keys). Instead every foreign key is DEFERRABLE (migration
+    // 20261127_make_foreign_keys_deferrable) and checked at the end, tables are loaded parents first, and rows left
+    // pointing at a missing parent are handled as their ON DELETE says before the check — see db-import-order.ts.
+    await client.query('SET CONSTRAINTS ALL DEFERRED;');
+    const foreignKeys = await loadForeignKeys(client, touchedTables);
+    const orderedInsertTables = orderTablesForImport(insertTables, foreignKeys);
 
     for (const item of parsed.statements.filter((statement) => statement.type === 'CREATE_TABLE')) {
       await client.query(item.statement);
@@ -882,7 +917,7 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
       ],
     };
 
-    for (const tableName of insertTables) {
+    for (const tableName of orderedInsertTables) {
       if (hasSmartLayerTablesSelected && SMART_LAYER_TABLES.has(tableName)) continue;
       const insertsForTable = parsed.statements.filter((statement) => statement.type === 'INSERT' && statement.tableName === tableName);
       // audit_logs is mirrored too when it comes from a Smart export (the target gets production's trail, not a mix).
@@ -972,9 +1007,7 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
       }
     }
 
-    for (const tableName of tablesToDisableTriggers) await client.query(`ALTER TABLE ${quoteIdent(tableName)} ENABLE TRIGGER ALL;`);
-
-    for (const tableName of tablesToDisableTriggers) {
+    for (const tableName of touchedTables) {
       // pg_get_serial_sequence() throws (not just returns NULL) when the table has no "id" column
       // at all — true for join tables with a composite key (user_domains, user_projects) — so
       // check column existence first instead of letting that abort the whole import transaction.
@@ -1000,15 +1033,22 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
       }
     }
 
-    // Triggers were off while users were deleted, so no ON DELETE CASCADE ran: sweep the rows that still
-    // point at a user the import removed.
-    if (insertTables.includes('users')) {
-      // A child table this database does not have yet (migration not run here) is skipped, not an error.
-      const children = (await client.query<{ name: string }>("SELECT name FROM unnest($1::text[]) AS name WHERE to_regclass(quote_ident(name)) IS NOT NULL;", [['user_project_components', 'user_projects', 'user_domains', 'user_view_settings', 'user_view_projects', 'user_view_project_components', 'user_view_epics', 'epic_hidden_by_users', 'ad_popup_impressions', 'user_usage_daily_stats']])).rows.map((row) => row.name);
-      for (const child of children) {
-        const orphans = await client.query(`DELETE FROM ${quoteIdent(child)} WHERE user_id NOT IN (SELECT id FROM users);`);
-        countDeleted(child, orphans.rowCount);
-      }
+    // Rows deleted by the import already cascaded (triggers stay on). What is left are rows loaded from the file that
+    // name a parent this database does not have (e.g. updated_by_user_id of a user that exists only in the source
+    // environment): handle them as their foreign key's ON DELETE says, then run the deferred checks now, so a dry run
+    // reports a broken file too and the error names the constraint.
+    const touched = new Set(touchedTables);
+    for (const fk of foreignKeys) {
+      if (!touched.has(fk.childTable)) continue;
+      const sweep = orphanSweepSql(fk);
+      if (!sweep) continue;
+      const swept = await client.query(sweep);
+      if (fk.onDelete === 'c') countDeleted(fk.childTable, swept.rowCount);
+    }
+    try {
+      await client.query('SET CONSTRAINTS ALL IMMEDIATE;');
+    } catch (error: unknown) {
+      throw foreignKeyViolationError(error);
     }
 
     if (smartImportBatchId !== null && insertTables.includes('issues') && !options.dryRun) {

@@ -671,8 +671,13 @@ Quy tắc dùng chung:
   `denied_import_epics`, `import_admission_settings`, `dashboard_view_settings`, Ma trận phân quyền,
   `jira_settings`, `data_retention_configs`, Rule Management (`scoring_rule_groups`, `scoring_rule_group_rules`,
   `scoring_rule_group_history`), `ttm_policy_sets`. **Không gồm** các bảng cache (dựng lại bằng "Tạo lại cache"),
-  nhật ký truy cập (`visit_logs`, `visit_log_rollups`, `user_usage_daily_stats`) và các bảng §24. Phục hồi chạy với
-  `DISABLE TRIGGER ALL` nên trigger đồng bộ §24 không chạy trong lúc phục hồi. `import_batches`, `issues`,
+  nhật ký truy cập (`visit_logs`, `visit_log_rollups`, `user_usage_daily_stats`) và các bảng §24. Từ 2026-11-12
+  phục hồi KHÔNG tắt trigger (`DISABLE TRIGGER ALL` cần superuser — lỗi "… is a system trigger" trên DB không cấp
+  superuser): mọi khoá ngoại là `DEFERRABLE` (migration `20261127_make_foreign_keys_deferrable`), phục hồi chạy
+  `SET CONSTRAINTS ALL DEFERRED`, nạp bảng cha trước bảng con (bảng do trigger §24 ghi vào nạp sau bảng có trigger,
+  nên kết quả vẫn khớp file), `ON DELETE CASCADE / SET NULL` chạy như bình thường, và dòng của file trỏ tới dòng cha
+  không có trong DB được xử lý theo `ON DELETE` của khoá ngoại trước khi kiểm tra (`src/lib/db-import-order.ts`).
+  `import_batches`, `issues`,
   `epic_alert_timeline`, `audit_logs` chỉ ghi thêm/cập nhật; các bảng còn lại đồng bộ y như file (dòng không có trong file bị xoá).
   Sửa 2026-10-26: export ghi cột `json`/`jsonb` dạng văn bản (trước đó `scoring_rule_group_history` bị ghi thành
   `[object Object]` và không phục hồi được); khi phục hồi, dòng trùng khoá phụ (unique khác khoá chính) được xác định

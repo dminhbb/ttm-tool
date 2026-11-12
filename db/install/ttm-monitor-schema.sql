@@ -1093,74 +1093,74 @@ CREATE INDEX idx_visit_logs_user_created ON visit_logs USING btree (user_id, cre
 -- ---------------------------------------------------------------------------------------------
 -- 3. Khoá ngoại
 -- ---------------------------------------------------------------------------------------------
-ALTER TABLE ad_popup_impressions ADD CONSTRAINT ad_popup_impressions_popup_id_fkey FOREIGN KEY (popup_id) REFERENCES ad_popups(id) ON DELETE CASCADE;
-ALTER TABLE ad_popup_impressions ADD CONSTRAINT ad_popup_impressions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-ALTER TABLE audit_logs ADD CONSTRAINT audit_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE auth_sessions ADD CONSTRAINT auth_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-ALTER TABLE auth_sessions ADD CONSTRAINT auth_sessions_view_as_user_id_fkey FOREIGN KEY (view_as_user_id) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE black_listed_epics ADD CONSTRAINT black_listed_epics_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE daily_cache_runs ADD CONSTRAINT daily_cache_runs_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
-ALTER TABLE daily_cache_runs ADD CONSTRAINT daily_cache_runs_triggered_by_user_id_fkey FOREIGN KEY (triggered_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE dashboard_view_settings ADD CONSTRAINT dashboard_view_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE data_retention_configs ADD CONSTRAINT data_retention_configs_history_thinning_updated_by_user_id_fkey FOREIGN KEY (history_thinning_updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE denied_import_epics ADD CONSTRAINT denied_import_epics_added_by_user_id_fkey FOREIGN KEY (added_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE epic_alert_timeline ADD CONSTRAINT epic_alert_timeline_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
-ALTER TABLE epic_hidden_by_users ADD CONSTRAINT epic_hidden_by_users_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-ALTER TABLE epic_task_status ADD CONSTRAINT epic_task_status_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE import_admission_settings ADD CONSTRAINT import_admission_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE issues ADD CONSTRAINT issues_epic_id_fkey FOREIGN KEY (epic_id) REFERENCES issues(id) ON DELETE SET NULL;
-ALTER TABLE issues ADD CONSTRAINT issues_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES issues(id) ON DELETE SET NULL;
-ALTER TABLE issues ADD CONSTRAINT issues_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE CASCADE;
-ALTER TABLE mcp_access_daily_stats ADD CONSTRAINT mcp_access_daily_stats_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-ALTER TABLE mcp_access_tokens ADD CONSTRAINT mcp_access_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-ALTER TABLE mcp_oauth_authorization_codes ADD CONSTRAINT mcp_oauth_authorization_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-ALTER TABLE mcp_settings ADD CONSTRAINT mcp_settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE news_letter_article_edits ADD CONSTRAINT news_letter_article_edits_article_id_fkey FOREIGN KEY (article_id) REFERENCES news_letter_articles(id) ON DELETE CASCADE;
-ALTER TABLE news_letter_article_edits ADD CONSTRAINT news_letter_article_edits_edited_by_fkey FOREIGN KEY (edited_by) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE news_letter_articles ADD CONSTRAINT news_letter_articles_category_id_fkey FOREIGN KEY (category_id) REFERENCES news_letter_categories(id) ON DELETE RESTRICT;
-ALTER TABLE news_letter_articles ADD CONSTRAINT news_letter_articles_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE news_letter_articles ADD CONSTRAINT news_letter_articles_header_image_id_fkey FOREIGN KEY (header_image_id) REFERENCES news_letter_images(id) ON DELETE SET NULL;
-ALTER TABLE news_letter_articles ADD CONSTRAINT news_letter_articles_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE news_letter_categories ADD CONSTRAINT news_letter_categories_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE news_letter_images ADD CONSTRAINT news_letter_images_article_id_fkey FOREIGN KEY (article_id) REFERENCES news_letter_articles(id) ON DELETE CASCADE;
-ALTER TABLE news_letter_images ADD CONSTRAINT news_letter_images_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE news_letter_reads ADD CONSTRAINT news_letter_reads_article_id_fkey FOREIGN KEY (article_id) REFERENCES news_letter_articles(id) ON DELETE CASCADE;
-ALTER TABLE news_letter_reads ADD CONSTRAINT news_letter_reads_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-ALTER TABLE password_reset_requests ADD CONSTRAINT password_reset_requests_resolved_by_fkey FOREIGN KEY (resolved_by) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE project_external_bindings ADD CONSTRAINT project_external_bindings_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
-ALTER TABLE project_members ADD CONSTRAINT project_members_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
-ALTER TABLE project_members ADD CONSTRAINT project_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-ALTER TABLE project_type_capabilities ADD CONSTRAINT project_type_capabilities_project_type_id_fkey FOREIGN KEY (project_type_id) REFERENCES project_types(id) ON DELETE CASCADE;
-ALTER TABLE projects ADD CONSTRAINT projects_domain_id_fkey FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE SET NULL;
-ALTER TABLE projects ADD CONSTRAINT projects_project_type_id_fkey FOREIGN KEY (project_type_id) REFERENCES project_types(id) ON DELETE SET NULL;
-ALTER TABLE role_feature_permissions ADD CONSTRAINT role_feature_permissions_feature_key_fkey FOREIGN KEY (feature_key) REFERENCES permission_features(feature_key) ON DELETE CASCADE;
-ALTER TABLE scoring_parameters ADD CONSTRAINT scoring_parameters_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE scoring_rule_group_history ADD CONSTRAINT scoring_rule_group_history_saved_by_user_id_fkey FOREIGN KEY (saved_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE scoring_rule_group_rules ADD CONSTRAINT scoring_rule_group_rules_group_id_fkey FOREIGN KEY (group_id) REFERENCES scoring_rule_groups(id) ON DELETE CASCADE;
-ALTER TABLE scoring_rule_groups ADD CONSTRAINT scoring_rule_groups_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE scoring_rule_settings ADD CONSTRAINT scoring_rule_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE sso_auth_codes ADD CONSTRAINT sso_auth_codes_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE CASCADE;
-ALTER TABLE sso_auth_codes ADD CONSTRAINT sso_auth_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-ALTER TABLE system_suspension_settings ADD CONSTRAINT system_suspension_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE ttm_index_global_cache ADD CONSTRAINT ttm_index_global_cache_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL;
-ALTER TABLE ttm_policy_configs ADD CONSTRAINT ttm_policy_configs_policy_set_fkey FOREIGN KEY (policy_set) REFERENCES ttm_policy_sets(key);
-ALTER TABLE ttm_project_configs ADD CONSTRAINT ttm_project_configs_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
-ALTER TABLE ttm_scope_config ADD CONSTRAINT ttm_scope_config_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE user_domains ADD CONSTRAINT user_domains_domain_id_fkey FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE;
-ALTER TABLE user_domains ADD CONSTRAINT user_domains_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-ALTER TABLE user_project_components ADD CONSTRAINT user_project_components_user_id_project_id_fkey FOREIGN KEY (user_id, project_id) REFERENCES user_projects(user_id, project_id) ON DELETE CASCADE;
-ALTER TABLE user_projects ADD CONSTRAINT user_projects_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
-ALTER TABLE user_projects ADD CONSTRAINT user_projects_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-ALTER TABLE user_registration_reads ADD CONSTRAINT user_registration_reads_reader_user_id_fkey FOREIGN KEY (reader_user_id) REFERENCES users(id) ON DELETE CASCADE;
-ALTER TABLE user_registration_reads ADD CONSTRAINT user_registration_reads_registered_user_id_fkey FOREIGN KEY (registered_user_id) REFERENCES users(id) ON DELETE CASCADE;
-ALTER TABLE user_usage_daily_stats ADD CONSTRAINT user_usage_daily_stats_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-ALTER TABLE user_view_epics ADD CONSTRAINT user_view_epics_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-ALTER TABLE user_view_project_components ADD CONSTRAINT user_view_project_components_project_fkey FOREIGN KEY (user_id, project_id) REFERENCES user_view_projects(user_id, project_id) ON DELETE CASCADE;
-ALTER TABLE user_view_projects ADD CONSTRAINT user_view_projects_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
-ALTER TABLE user_view_projects ADD CONSTRAINT user_view_projects_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-ALTER TABLE user_view_settings ADD CONSTRAINT user_view_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE user_view_settings ADD CONSTRAINT user_view_settings_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-ALTER TABLE visit_logs ADD CONSTRAINT visit_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE ad_popup_impressions ADD CONSTRAINT ad_popup_impressions_popup_id_fkey FOREIGN KEY (popup_id) REFERENCES ad_popups(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE ad_popup_impressions ADD CONSTRAINT ad_popup_impressions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE audit_logs ADD CONSTRAINT audit_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE auth_sessions ADD CONSTRAINT auth_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE auth_sessions ADD CONSTRAINT auth_sessions_view_as_user_id_fkey FOREIGN KEY (view_as_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE black_listed_epics ADD CONSTRAINT black_listed_epics_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE daily_cache_runs ADD CONSTRAINT daily_cache_runs_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE daily_cache_runs ADD CONSTRAINT daily_cache_runs_triggered_by_user_id_fkey FOREIGN KEY (triggered_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE dashboard_view_settings ADD CONSTRAINT dashboard_view_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE data_retention_configs ADD CONSTRAINT data_retention_configs_history_thinning_updated_by_user_id_fkey FOREIGN KEY (history_thinning_updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE denied_import_epics ADD CONSTRAINT denied_import_epics_added_by_user_id_fkey FOREIGN KEY (added_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE epic_alert_timeline ADD CONSTRAINT epic_alert_timeline_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE epic_hidden_by_users ADD CONSTRAINT epic_hidden_by_users_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE epic_task_status ADD CONSTRAINT epic_task_status_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE import_admission_settings ADD CONSTRAINT import_admission_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE issues ADD CONSTRAINT issues_epic_id_fkey FOREIGN KEY (epic_id) REFERENCES issues(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE issues ADD CONSTRAINT issues_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES issues(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE issues ADD CONSTRAINT issues_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE mcp_access_daily_stats ADD CONSTRAINT mcp_access_daily_stats_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE mcp_access_tokens ADD CONSTRAINT mcp_access_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE mcp_oauth_authorization_codes ADD CONSTRAINT mcp_oauth_authorization_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE mcp_settings ADD CONSTRAINT mcp_settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE news_letter_article_edits ADD CONSTRAINT news_letter_article_edits_article_id_fkey FOREIGN KEY (article_id) REFERENCES news_letter_articles(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE news_letter_article_edits ADD CONSTRAINT news_letter_article_edits_edited_by_fkey FOREIGN KEY (edited_by) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE news_letter_articles ADD CONSTRAINT news_letter_articles_category_id_fkey FOREIGN KEY (category_id) REFERENCES news_letter_categories(id) ON DELETE RESTRICT DEFERRABLE;
+ALTER TABLE news_letter_articles ADD CONSTRAINT news_letter_articles_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE news_letter_articles ADD CONSTRAINT news_letter_articles_header_image_id_fkey FOREIGN KEY (header_image_id) REFERENCES news_letter_images(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE news_letter_articles ADD CONSTRAINT news_letter_articles_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE news_letter_categories ADD CONSTRAINT news_letter_categories_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE news_letter_images ADD CONSTRAINT news_letter_images_article_id_fkey FOREIGN KEY (article_id) REFERENCES news_letter_articles(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE news_letter_images ADD CONSTRAINT news_letter_images_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE news_letter_reads ADD CONSTRAINT news_letter_reads_article_id_fkey FOREIGN KEY (article_id) REFERENCES news_letter_articles(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE news_letter_reads ADD CONSTRAINT news_letter_reads_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE password_reset_requests ADD CONSTRAINT password_reset_requests_resolved_by_fkey FOREIGN KEY (resolved_by) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE project_external_bindings ADD CONSTRAINT project_external_bindings_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE project_members ADD CONSTRAINT project_members_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE project_members ADD CONSTRAINT project_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE project_type_capabilities ADD CONSTRAINT project_type_capabilities_project_type_id_fkey FOREIGN KEY (project_type_id) REFERENCES project_types(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE projects ADD CONSTRAINT projects_domain_id_fkey FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE projects ADD CONSTRAINT projects_project_type_id_fkey FOREIGN KEY (project_type_id) REFERENCES project_types(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE role_feature_permissions ADD CONSTRAINT role_feature_permissions_feature_key_fkey FOREIGN KEY (feature_key) REFERENCES permission_features(feature_key) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE scoring_parameters ADD CONSTRAINT scoring_parameters_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE scoring_rule_group_history ADD CONSTRAINT scoring_rule_group_history_saved_by_user_id_fkey FOREIGN KEY (saved_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE scoring_rule_group_rules ADD CONSTRAINT scoring_rule_group_rules_group_id_fkey FOREIGN KEY (group_id) REFERENCES scoring_rule_groups(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE scoring_rule_groups ADD CONSTRAINT scoring_rule_groups_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE scoring_rule_settings ADD CONSTRAINT scoring_rule_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE sso_auth_codes ADD CONSTRAINT sso_auth_codes_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE sso_auth_codes ADD CONSTRAINT sso_auth_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE system_suspension_settings ADD CONSTRAINT system_suspension_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE ttm_index_global_cache ADD CONSTRAINT ttm_index_global_cache_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE ttm_policy_configs ADD CONSTRAINT ttm_policy_configs_policy_set_fkey FOREIGN KEY (policy_set) REFERENCES ttm_policy_sets(key) DEFERRABLE;
+ALTER TABLE ttm_project_configs ADD CONSTRAINT ttm_project_configs_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE ttm_scope_config ADD CONSTRAINT ttm_scope_config_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE user_domains ADD CONSTRAINT user_domains_domain_id_fkey FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE user_domains ADD CONSTRAINT user_domains_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE user_project_components ADD CONSTRAINT user_project_components_user_id_project_id_fkey FOREIGN KEY (user_id, project_id) REFERENCES user_projects(user_id, project_id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE user_projects ADD CONSTRAINT user_projects_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE user_projects ADD CONSTRAINT user_projects_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE user_registration_reads ADD CONSTRAINT user_registration_reads_reader_user_id_fkey FOREIGN KEY (reader_user_id) REFERENCES users(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE user_registration_reads ADD CONSTRAINT user_registration_reads_registered_user_id_fkey FOREIGN KEY (registered_user_id) REFERENCES users(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE user_usage_daily_stats ADD CONSTRAINT user_usage_daily_stats_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE user_view_epics ADD CONSTRAINT user_view_epics_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE user_view_project_components ADD CONSTRAINT user_view_project_components_project_fkey FOREIGN KEY (user_id, project_id) REFERENCES user_view_projects(user_id, project_id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE user_view_projects ADD CONSTRAINT user_view_projects_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE user_view_projects ADD CONSTRAINT user_view_projects_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE user_view_settings ADD CONSTRAINT user_view_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE user_view_settings ADD CONSTRAINT user_view_settings_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE DEFERRABLE;
+ALTER TABLE visit_logs ADD CONSTRAINT visit_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
 
 -- ---------------------------------------------------------------------------------------------
 -- 5. Hàm & trigger (đồng bộ bảng PMS, sinh project_code)
@@ -1404,7 +1404,8 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261123_system_suspension_settings.sql'),
     ('20261124_add_epic_change_id_pentest_status.sql'),
     ('20261125_news_letter_hidden_pinned.sql'),
-    ('20261126_epic_field_changes.sql');
+    ('20261126_epic_field_changes.sql'),
+    ('20261127_make_foreign_keys_deferrable.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1512,6 +1513,16 @@ SELECT * FROM (VALUES
     ('visit_counter'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('visit_counter'::character varying(60), 'USER'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean)
 ) AS seed (feature_key, role, can_view, can_add, can_edit, can_delete)
+WHERE current_setting('ttm_install.seed_data', true) = 'on';
+
+-- ttm_policy_sets (2 dòng) — thêm tay 2026-11-12 (đúng 2 bộ của migration 20261031_create_ttm_policy_sets): trước đó
+-- seed thiếu bảng này nên ttm_policy_configs.policy_set vi phạm khoá ngoại và cả file rollback. Lần chạy
+-- `npm run db:export-schema` sau sẽ sinh lại khối này từ CSDL (bảng đã có trong seed của db-schema-catalog.json).
+INSERT INTO "ttm_policy_sets" ("key", "name", "note")
+SELECT * FROM (VALUES
+    ('DEFAULT'::character varying(40), 'Mặc định'::character varying(100), 'Tiêu chí Time to Market hiện hành — mọi bộ khác kế thừa các dòng mà nó không khai báo.'::text),
+    ('legacy-30d'::character varying(40), 'CNTT 30 ngày (Tính năng mới/Cải tiến L3-L4, Epic cũ)'::character varying(100), 'Owner 2026-10-26: Epic CT-Lv34 có Start Date < 01/09/2026 hoặc R4G Date < 01/10/2026 có Target TTM-CNTT 30 ngày làm việc.'::text)
+) AS seed ("key", "name", "note")
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 
 -- ttm_policy_configs (9 dòng)
