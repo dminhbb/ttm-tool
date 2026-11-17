@@ -3,13 +3,15 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { UserFocus, X } from '@phosphor-icons/react';
+import { claimBottomRightSlot } from '@/lib/bottom-right-slot';
 
 /**
  * Login notice at the bottom-right of the page (owner 2026-10-28), like a new-mail toast: "My assigned epics —
  * Bạn có {n} epic được giao task!", n = the user's assigned Epics whose "Giao việc" is not Done. Shown once per
  * login (the API's `loginKey` changes with every login; the last one shown is remembered in localStorage), gone
  * after 15 seconds, and a click opens Quản trị Epic with the "My assigned epics" quick filter already on.
- * Nothing is shown when the count is 0.
+ * Nothing is shown when the count is 0. It holds the bottom-right corner (bottom-right-slot.ts) from the moment it starts
+ * checking until it has decided not to show or is gone again, so a bottom-right "Float message" waits for it.
  */
 
 export const ASSIGNED_NOTICE_SECONDS = 15;
@@ -35,12 +37,16 @@ export function AssignedEpicsNotice() {
   const router = useRouter();
   const [count, setCount] = React.useState(0);
   const [visible, setVisible] = React.useState(false);
+  const releaseSlotRef = React.useRef<(() => void) | null>(null);
 
   React.useEffect(() => {
     const controller = new AbortController();
     let hideTimer: number | undefined;
     let showFrame: number | undefined;
+    const release = claimBottomRightSlot('assigned-epics-notice');
+    releaseSlotRef.current = release;
     void (async () => {
+      let shown = false;
       try {
         const response = await fetch('/api/epic-marks/assigned-notice', { cache: 'no-store', signal: controller.signal });
         if (!response.ok) return;
@@ -50,18 +56,35 @@ export function AssignedEpicsNotice() {
         rememberShownLogin(loginKey);
         if (!data.count || data.count < 1) return;
         setCount(data.count);
+        shown = true;
         showFrame = window.requestAnimationFrame(() => setVisible(true));
         hideTimer = window.setTimeout(() => setVisible(false), ASSIGNED_NOTICE_SECONDS * 1000);
       } catch {
         // A notice is optional: stay silent when it cannot be loaded.
+      } finally {
+        // Not shown: the corner is free at once. Shown: freed when it hides (effect below).
+        if (!shown) release();
       }
     })();
     return () => {
       controller.abort();
+      release();
       if (hideTimer !== undefined) window.clearTimeout(hideTimer);
       if (showFrame !== undefined) window.cancelAnimationFrame(showFrame);
     };
   }, []);
+
+  // Gone (timer or X): free the corner once the fade-out (300 ms) has finished.
+  const wasVisibleRef = React.useRef(false);
+  React.useEffect(() => {
+    if (visible) {
+      wasVisibleRef.current = true;
+      return;
+    }
+    if (!wasVisibleRef.current) return;
+    const timer = window.setTimeout(() => releaseSlotRef.current?.(), 300);
+    return () => window.clearTimeout(timer);
+  }, [visible]);
 
   if (count < 1) return null;
   return (

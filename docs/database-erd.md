@@ -1,10 +1,10 @@
 # TTM Monitor — ERD & từ điển dữ liệu
 
-> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-13.
+> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-17.
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
-**79 bảng** trong schema `public`, **69 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
+**80 bảng** trong schema `public`, **70 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
 
 ## Mục lục
 
@@ -17,7 +17,7 @@
 7. [Lịch sử & snapshot](#7-lịch-sử-snapshot) — 1 bảng
 8. [Cache dữ liệu dẫn xuất](#8-cache-dữ-liệu-dẫn-xuất) — 10 bảng
 9. [Cấu hình hệ thống](#9-cấu-hình-hệ-thống) — 5 bảng
-10. [Popup & Banner thông báo](#10-popup-banner-thông-báo) — 3 bảng
+10. [Popup & Banner thông báo](#10-popup-banner-thông-báo) — 4 bảng
 11. [Bản tin](#11-bản-tin) — 5 bảng
 12. [SSO, API Key, token import & MCP Server](#12-sso-api-key-token-import-mcp-server) — 8 bảng
 13. [Nhật ký & thống kê sử dụng](#13-nhật-ký-thống-kê-sử-dụng) — 4 bảng
@@ -1832,11 +1832,24 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
     }
+    float_message_settings {
+        smallint id PK
+        text message_text
+        boolean is_active
+        date start_date
+        date end_date
+        int auto_hide_seconds
+        boolean dismissible
+        varchar position
+        int updated_by_user_id FK
+        timestamptz updated_at
+    }
     users {
         int id PK
     }
     ad_popups ||--o{ ad_popup_impressions : "popup_id"
     users ||--o{ ad_popup_impressions : "user_id"
+    users |o--o{ float_message_settings : "updated_by_user_id"
 ```
 
 Bảng tham chiếu ngoài nhóm (chỉ vẽ khoá chính): `users`.
@@ -1900,6 +1913,28 @@ Cấu hình Banner thông báo (Mặc định toàn hệ thống hoặc theo t�
 - `chk_info_banners_date_range`: CHECK (((end_date IS NULL) OR (end_date >= start_date)))
 - `info_banners_banner_type_check`: CHECK (((banner_type)::text = ANY ((ARRAY['DEFAULT'::character varying, 'PER_SCREEN'::character varying])::text[])))
 - index `uq_info_banners_single_default`: UNIQUE btree (banner_type) WHERE ((banner_type)::text = 'DEFAULT'::text)
+
+### `float_message_settings`
+
+**Mới 17/11/2026.** "Float message" (Quản trị hệ thống → Float message, SUPERADMIN, một dòng `id = 1`): hộp thông báo nổi bo tròn có icon message, hiện cho mọi user đã đăng nhập. Nội dung một dòng văn bản thuần (`message_text`, tối đa 256 ký tự), công tắc `is_active`, khoảng ngày `start_date`–`end_date` (giờ Việt Nam, tính cả hai đầu), `auto_hide_seconds` (NULL = luôn hiển thị), `dismissible` (nút X), `position` (TOP_RIGHT / BOTTOM_RIGHT — góc phải dưới hiện sau popup thông báo). Mỗi lần lưu ghi một dòng `audit_logs` (FLOAT_MESSAGE_UPDATE).
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `id` | smallint | không | 1 | PK |  |
+| `message_text` | text | không | ''::text |  |  |
+| `is_active` | boolean | không | false |  |  |
+| `start_date` | date | có |  |  |  |
+| `end_date` | date | có |  |  |  |
+| `auto_hide_seconds` | int | có |  |  | Số giây trước khi message tự biến mất (1–3600); NULL = luôn hiển thị. |
+| `dismissible` | boolean | không | true |  |  |
+| `position` | varchar(20) | không | 'BOTTOM_RIGHT'::character varying |  | TOP_RIGHT (góc phải phía trên, dưới header) hoặc BOTTOM_RIGHT (góc phải phía dưới). |
+| `updated_by_user_id` | int | có |  | FK → users(id) |  |
+| `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+
+- `float_message_dates_ordered`: CHECK (((start_date IS NULL) OR (end_date IS NULL) OR (start_date <= end_date)))
+- `float_message_settings_auto_hide_seconds_check`: CHECK (((auto_hide_seconds IS NULL) OR ((auto_hide_seconds >= 1) AND (auto_hide_seconds <= 3600))))
+- `float_message_settings_id_check`: CHECK ((id = 1))
+- `float_message_settings_position_check`: CHECK ((("position")::text = ANY ((ARRAY['TOP_RIGHT'::character varying, 'BOTTOM_RIGHT'::character varying])::text[])))
 
 ## 11. Bản tin
 
@@ -2381,6 +2416,7 @@ Số lượt truy cập LŨY KẾ của các dòng `visit_logs` cũ hơn ngày T
 | `epic_alert_timeline` | source_import_batch_id | `import_batches`(id) | SET NULL |
 | `epic_hidden_by_users` | user_id | `users`(id) | CASCADE |
 | `epic_task_status` | updated_by_user_id | `users`(id) | SET NULL |
+| `float_message_settings` | updated_by_user_id | `users`(id) | SET NULL |
 | `import_admission_settings` | updated_by_user_id | `users`(id) | SET NULL |
 | `import_api_settings` | updated_by_user_id | `users`(id) | SET NULL |
 | `issues` | epic_id | `issues`(id) | SET NULL |

@@ -21,6 +21,7 @@ Quy tắc:
 | Người dùng, phân quyền | User, PM/SM, quyền xem, ma trận quyền, Xem dưới quyền | `src/app/admin/users/`, `src/app/admin/permissions/`, `src/lib/permission-matrix-*`, `src/modules/iam/` | Chưa có |
 | Danh mục | Domain, Project, Component, ngày nghỉ, Tiêu chí TTM | `src/app/admin/domains/`, `src/app/admin/projects/`, `src/app/admin/holidays/`, `src/app/admin/status-alert-rules/` | Chưa có |
 | Lịch sử dữ liệu, sao lưu | Layer, snapshot tuần, backup DB | `src/lib/data-layer-retention*.ts`, `src/lib/db-backup-*.ts`, `src/app/admin/database/` | Chưa có |
+| Float message | Float message, thông báo nổi, message góc phải | `src/components/layout/FloatMessage.tsx`, `src/components/settings/FloatMessagePanel.tsx`, `src/app/api/float-message/` | [float-message](features/float-message.md) |
 | Bản tin | News letter | `src/app/news-letter/`, `src/lib/news-letter/` | Chưa có |
 | MCP, SSO | MCP tool, OAuth, SSO | `src/lib/mcp-*.ts`, `src/app/api/mcp/`, `src/lib/sso-service.ts` | Chưa có |
 

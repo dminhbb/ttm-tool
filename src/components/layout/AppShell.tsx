@@ -27,7 +27,6 @@ import {
   ListChecks,
   Lock,
   Prohibit,
-  Pulse,
   ShareNetwork,
   Users,
   Warning,
@@ -51,6 +50,7 @@ import { ViewAsBadge } from '@/components/layout/ViewAsFlow';
 import { extractUsername } from '@/lib/username';
 import { DailyCacheWarmer } from '@/components/layout/DailyCacheWarmer';
 import { AssignedEpicsNotice } from '@/components/layout/AssignedEpicsNotice';
+import { FloatMessageDisplay } from '@/components/layout/FloatMessage';
 import { SystemStatusFooter } from '@/components/layout/SystemStatusFooter';
 import { PENDING_USER_TICKETS_CHANGED_EVENT } from '@/lib/admin-pending-events';
 import { DialogHost } from '@/components/ui/dialogs';
@@ -413,13 +413,15 @@ function SidebarContent({ cacheRebuildPending, expanded, hiddenFeatureKeys, news
   return (
     <>
       <div className={cn('flex h-16 items-center border-b border-fb-border', expanded ? 'gap-3 px-4' : 'justify-center px-2')}>
-        <div className="grid size-9 shrink-0 place-items-center rounded-md bg-fb-primary text-fb-on-primary">
-          <Pulse className="size-5" weight="bold" aria-hidden="true" />
+        {/* App mark "PMB" (owner 2026-11-17) — text, not an icon, so it reads the same collapsed and expanded. */}
+        <div className="grid size-9 shrink-0 place-items-center rounded-md bg-fb-primary text-fb-on-primary" aria-hidden="true">
+          <span className="text-[11px] font-black leading-none tracking-[-0.02em]">PMB</span>
         </div>
         {expanded && (
           <div className="min-w-0">
-            <p className="truncate text-sm font-extrabold tracking-[-0.02em] text-fb-text-primary">TTM Monitor</p>
-            <p className="text-[11px] font-medium text-sidebar-muted">Theo dõi Time to Market</p>
+            <p className="truncate text-sm font-extrabold tracking-[-0.02em] text-fb-text-primary">PMB</p>
+            {/* Two lines at most in the 256 px sidebar — the full name stays readable instead of being cut. */}
+            <p className="line-clamp-2 text-[11px] font-medium leading-tight text-sidebar-muted">Phòng QLDA.TKTN - Trung tâm ĐBCL</p>
           </div>
         )}
       </div>
@@ -906,6 +908,8 @@ function AppShellInner({ children }: AppShellProps) {
       <SystemStatusFooter />
       {/* Login notice "My assigned epics" — only for a user who may open Quản trị Epic. */}
       {!mustChangePassword && !suspensionRestricted && role !== null && !hiddenFeatureKeys.has('epic_alerts_15') && (requiredRolesFor('/epic-alerts-15')?.includes(role) ?? true) && <AssignedEpicsNotice />}
+      {/* Float message (Quản trị hệ thống, owner 2026-11-17): bottom-right it waits for AssignedEpicsNotice (bottom-right-slot.ts). */}
+      {!mustChangePassword && !suspensionRestricted && role !== null && <FloatMessageDisplay />}
     </div>
     </NewsLetterUnreadContext.Provider>
   );

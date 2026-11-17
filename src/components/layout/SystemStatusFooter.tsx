@@ -44,8 +44,8 @@ function formatLoginDateTime(isoString: string): string {
 
 /**
  * Centered application footer shown on all screens:
- * Line 1: TTM Tool | Version {version} | Total visit: {A}. Weekly: {B}. {This screen: {C}. }Last login users: {D}.
- * Line 2: (C) minhnd7. db: {dbTarget} - {dbStatus}
+ * Line 1: Ứng dụng PMB. | Version {version} | Total visit: {A}. Weekly: {B}. {This screen: {C}. }Last login users: {D}.
+ * Line 2: (C) 2026 Phòng QLDA-TKTN, Trung tâm ĐBCL, K.CNTT. db: {dbTarget} - {dbStatus}
  */
 export function SystemStatusFooter() {
   const pathname = usePathname();
@@ -100,9 +100,9 @@ export function SystemStatusFooter() {
   if (isLoginScreen) {
     return (
       <footer className="w-full shrink-0 px-3 py-2 flex flex-col items-center justify-center gap-0.5 text-center leading-tight">
-        <p className="text-[11px] text-fb-text-placeholder">TTM Tool | Version {status.version}</p>
+        <p className="text-[11px] text-fb-text-placeholder">Ứng dụng PMB. | Version {status.version}</p>
         <p className="text-[11px] text-fb-text-placeholder opacity-80 text-center">
-          (C) minhnd7. db: {status.dbTarget} - {status.dbStatus}
+          (C) 2026 Phòng QLDA-TKTN, Trung tâm ĐBCL, K.CNTT. db: {status.dbTarget} - {status.dbStatus}
         </p>
       </footer>
     );
@@ -112,7 +112,7 @@ export function SystemStatusFooter() {
     <footer className="w-full shrink-0 px-3 py-2 flex flex-col items-center justify-center gap-0.5 text-center leading-tight">
       {/* Line 1: General Stats, optional screen visits, and 5 recent login users */}
       <div className="flex flex-wrap items-center justify-center gap-y-0.5 text-center text-[11px] text-fb-text-placeholder">
-        <span>TTM Tool | Version {status.version} |</span>{' '}
+        <span>Ứng dụng PMB. | Version {status.version} |</span>{' '}
         <span>Total visit: {totalVisitsText}.</span>{' '}
         <span>Weekly: {weeklyVisitsText}.</span>{' '}
         {hasScreenVisits && (
@@ -153,7 +153,7 @@ export function SystemStatusFooter() {
 
       {/* Line 2: Copyright & DB Target/Status */}
       <p className="text-[11px] text-fb-text-placeholder opacity-80 text-center">
-        (C) minhnd7. db: {status.dbTarget} - {status.dbStatus}
+        (C) 2026 Phòng QLDA-TKTN, Trung tâm ĐBCL, K.CNTT. db: {status.dbTarget} - {status.dbStatus}
       </p>
     </footer>
   );

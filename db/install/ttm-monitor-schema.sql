@@ -1,9 +1,9 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-13T08:27:02.931Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-17T23:41:32.919Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
--- Gồm: 79 bảng, 65 index phụ, 4 hàm, 4 trigger.
+-- Gồm: 80 bảng, 65 index phụ, 4 hàm, 4 trigger.
 -- Yêu cầu: PostgreSQL 14 trở lên, một database RỖNG (không dùng cho DB đã có bảng — sẽ báo lỗi và không
 -- tạo gì vì cả file chạy trong một transaction). Không cần extension nào.
 --
@@ -317,6 +317,24 @@ CREATE TABLE epic_task_status (
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT epic_task_status_pkey PRIMARY KEY (epic_key),
     CONSTRAINT epic_task_status_status_check CHECK (((status)::text = ANY ((ARRAY['TODO'::character varying, 'DONE'::character varying])::text[])))
+);
+
+CREATE TABLE float_message_settings (
+    id smallint DEFAULT 1 NOT NULL,
+    message_text text DEFAULT ''::text NOT NULL,
+    is_active boolean DEFAULT false NOT NULL,
+    start_date date,
+    end_date date,
+    auto_hide_seconds integer,
+    dismissible boolean DEFAULT true NOT NULL,
+    position character varying(20) DEFAULT 'BOTTOM_RIGHT'::character varying NOT NULL,
+    updated_by_user_id integer,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT float_message_settings_pkey PRIMARY KEY (id),
+    CONSTRAINT float_message_dates_ordered CHECK (((start_date IS NULL) OR (end_date IS NULL) OR (start_date <= end_date))),
+    CONSTRAINT float_message_settings_auto_hide_seconds_check CHECK (((auto_hide_seconds IS NULL) OR ((auto_hide_seconds >= 1) AND (auto_hide_seconds <= 3600)))),
+    CONSTRAINT float_message_settings_id_check CHECK ((id = 1)),
+    CONSTRAINT float_message_settings_position_check CHECK ((("position")::text = ANY ((ARRAY['TOP_RIGHT'::character varying, 'BOTTOM_RIGHT'::character varying])::text[])))
 );
 
 CREATE TABLE holidays (
@@ -1116,6 +1134,7 @@ ALTER TABLE denied_import_epics ADD CONSTRAINT denied_import_epics_added_by_user
 ALTER TABLE epic_alert_timeline ADD CONSTRAINT epic_alert_timeline_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL DEFERRABLE;
 ALTER TABLE epic_hidden_by_users ADD CONSTRAINT epic_hidden_by_users_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE DEFERRABLE;
 ALTER TABLE epic_task_status ADD CONSTRAINT epic_task_status_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE float_message_settings ADD CONSTRAINT float_message_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
 ALTER TABLE import_admission_settings ADD CONSTRAINT import_admission_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
 ALTER TABLE import_api_settings ADD CONSTRAINT import_api_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
 ALTER TABLE issues ADD CONSTRAINT issues_epic_id_fkey FOREIGN KEY (epic_id) REFERENCES issues(id) ON DELETE SET NULL DEFERRABLE;
@@ -1281,7 +1300,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 133 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 134 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1416,7 +1435,8 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261125_news_letter_hidden_pinned.sql'),
     ('20261126_epic_field_changes.sql'),
     ('20261127_make_foreign_keys_deferrable.sql'),
-    ('20261128_create_import_api_settings.sql');
+    ('20261128_create_import_api_settings.sql'),
+    ('20261129_create_float_message_settings.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1713,7 +1733,7 @@ WHERE current_setting('ttm_install.seed_data', true) = 'on';
 -- derived_cache_refresh_lock (1 dòng)
 INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 SELECT * FROM (VALUES
-    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-12 22:12:16.024443+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-17 11:32:51.965197+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
 ) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 

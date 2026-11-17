@@ -6,8 +6,26 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-11-18
+
+- **Float message — migration Supabase + schema**: đã chạy `20261129_create_float_message_settings` trên Supabase; sinh lại
+  `db/install/ttm-monitor-schema.sql`, `docs/database-erd.md`, chương 5 tài liệu sản phẩm bằng `db:export-schema --target=supabase`.
+  Môi trường công ty: file migration này đi theo đồng bộ FreeFileSync, job `migrate-uat` của pipeline tự chạy.
+
 ## 2026-11-17
 
+- **Float message — chỉnh lần 2**: hộp nền trắng mờ 80% (làm mờ phía sau), kích thước + chữ nhỏ hơn 20% (12px), tối đa ~50 ký tự/dòng
+  rồi tự xuống dòng (`FloatMessage.tsx`); nút X / tự tắt chỉ ẩn ở màn hình đang xem — tải lại trang, chuyển màn hình là hiện lại (bỏ
+  ghi nhớ sessionStorage); Nội dung thành textbox 1 dòng ≤ 256 ký tự (`float-message.ts`); form cấu hình bố trí gọn (`FloatMessagePanel.tsx`).
+- **Đổi nhận diện "PMB" + chức năng "Float message"** (REQ-20261117-03): footer dòng 1 "Ứng dụng PMB.", dòng 2
+  "(C) 2026 Phòng QLDA-TKTN, Trung tâm ĐBCL, K.CNTT." (`SystemStatusFooter.tsx`); sidebar: ô logo chữ "PMB", mở rộng hiện
+  "PMB" / "Phòng QLDA.TKTN - Trung tâm ĐBCL" (`AppShell.tsx`). **Float message** (Quản trị hệ thống, SUPERADMIN): hộp nổi bo
+  tròn + icon message, nội dung văn bản thuần ≤ 300 ký tự, bật/tắt, ngày bắt đầu–kết thúc, tự tắt sau N giây / luôn hiển thị,
+  nút X, góc phải trên/dưới, nút Xem trước — bảng singleton `float_message_settings` (migration `20261129`, **đã chạy local, CHƯA
+  chạy Supabase**), `src/lib/float-message*.ts`, `FloatMessage.tsx`, `FloatMessagePanel.tsx`, API `/api/admin/float-message`,
+  `/api/float-message`. Góc phải dưới chờ popup "epic được giao task" tắt (`src/lib/bottom-right-slot.ts`). Spec
+  `docs/superpowers/specs/2026-11-17-float-message-design.md`, card `docs/kb/features/float-message.md`, tài liệu sản phẩm mục 15.1.
+  Chưa sinh lại `db/install/ttm-monitor-schema.sql` / ERD (chờ migrate Supabase rồi `db:export-schema --target=supabase`).
 - **Gỡ thông tin nội bộ / dữ liệu thật khỏi repo GitHub** (review "Cần xử lý ngay", REQ-20261117-02): `git rm` 3 file CSV Jira
   chưa che (`brd/Jira 2026-08-07…csv`, `brd/import/ttm_jira_issues.csv`, `scripts/ttm_jira_issues_ToolCore_…csv`), `_package/`,
   bảng ánh xạ mã thật↔giả `scripts/scripts/.jira-key-mask-map.json` (lọt `.gitignore` do chạy script từ trong `scripts/`);
