@@ -105,3 +105,7 @@ public/docs/product-guide.zip
 
 # Gói .zip + manifest do tools/packaging/package.ps1 tạo — sinh lại được, không commit, không tự đóng gói chính nó.
 /release-packages/
+
+# MCP dev proxy — token nội bộ của MCP server dev (OCP) + log runtime, không commit.
+/tools/mcp-dev-proxy/.proxy-token
+/tools/mcp-dev-proxy/proxy.log

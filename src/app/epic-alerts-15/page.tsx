@@ -10,7 +10,6 @@ import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
-import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import { EpicMarkCell } from '@/components/epic-mark/EpicMarkCell';
 import { JiraLinkButton } from '@/components/epic-alerts/JiraLinkButton';
 import { EpicMarkModal } from '@/components/epic-mark/EpicMarkModal';
@@ -767,7 +766,6 @@ function EpicAlerts15Screen() {
   const anyColumnCollapsed = collapsedColumns.size > 0;
   const toggleAllColumns = () => setCollapsedColumns(anyColumnCollapsed ? new Set() : new Set(DEFAULT_COLLAPSED_COLUMNS));
   const [alertHistoryRow, setAlertHistoryRow] = useState<EpicAlertRowPhased | null>(null);
-  const [browsingEpicKey, setBrowsingEpicKey] = useState<string | null>(null);
   const viewIssueBaseUrl = useJiraViewIssueUrl();
 
   const availableLayerDates = data?.availableLayerDates ?? EMPTY_LAYER_DATES;
@@ -1688,8 +1686,8 @@ function EpicAlerts15Screen() {
                       <button
                         type="button"
                         className={`ttm-epic-key ${isTtmExcluded ? 'is-ttm-excluded !font-normal' : ''}`}
-                        onClick={() => { trackDataUsage(); setBrowsingEpicKey(row.epicKey); }}
-                        title={`Duyệt Epic (Epic Browser) — Lớp dữ liệu: ${formatDate(row.dataLayerDate)}${isTtmExcluded ? ' (Không tính TTM)' : ''}`}
+                        onClick={() => { trackDataUsage(); setMarkEpicKey(row.epicKey); }}
+                        title={`Thông tin Epic — Lớp dữ liệu: ${formatDate(row.dataLayerDate)}${isTtmExcluded ? ' (Không tính TTM)' : ''}`}
                       >
                         {isTtmExcluded ? `(${row.epicKey})` : row.epicKey}
                       </button>
@@ -1777,8 +1775,6 @@ function EpicAlerts15Screen() {
       {alertHistoryRow && (
         <AlertHistoryPanel key={alertHistoryRow.epicKey} row={alertHistoryRow} onClose={() => setAlertHistoryRow(null)} />
       )}
-
-      <EpicBrowserModal epicKey={browsingEpicKey} onClose={() => setBrowsingEpicKey(null)} />
 
       {markEpicKey && (
         <EpicMarkModal key={markEpicKey} epicKey={markEpicKey} onChanged={() => { void fetchData(); }} onClose={() => setMarkEpicKey(null)} viewAsUserId={viewAsUserId || undefined} />

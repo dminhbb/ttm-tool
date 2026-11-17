@@ -54,9 +54,9 @@ danh sách Black listed và Từ chối import, banner, popup, API key, token MC
 
 **Tài khoản SUPERADMIN ban đầu** (chỉ có khi công tắc `'on'`):
 
-| Username đăng nhập | Mật khẩu ban đầu | Ghi chú |
-|---|---|---|
-| `admin` (email `admin@mbbank.com.vn`) | `Ttm@Admin2026` | Ứng dụng **bắt buộc đổi mật khẩu** ở lần đăng nhập đầu. |
+| Username đăng nhập | Ghi chú |
+|---|---|
+| `admin` (email `admin@mbbank.com.vn`) | Mật khẩu ban đầu nằm trong phần seed của `ttm-monitor-schema.sql` (câu `INSERT INTO users`, lưu dạng băm bcrypt). Ứng dụng **bắt buộc đổi mật khẩu** ở lần đăng nhập đầu. |
 
 Muốn dùng mật khẩu ban đầu khác: tạo mã băm rồi thay chuỗi `$2b$12$…` trong câu `INSERT INTO users` ở cuối file
 (chạy trong thư mục mã nguồn đã `npm ci`):

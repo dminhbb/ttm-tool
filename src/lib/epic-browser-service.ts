@@ -256,6 +256,9 @@ export interface EpicBrowserSummary {
   hasMissingFailReason?: boolean;
   /** Fail TTM-CNTT with a late R4G Date but no "Phòng chịu trách nhiệm chính" (REC_MISSING_RESPONSIBLE_DEPARTMENT). */
   hasMissingResponsibleDepartment?: boolean;
+  /** TTM-E2E verdict (badge E2E_PASS / E2E_FAIL) — shown beside the TTM-CNTT verdict in the "Đánh giá" row. */
+  ttmE2eVerdict?: 'PASS' | 'FAIL' | 'N_A';
+  ttmE2eVerdictLabel?: string;
 }
 
 interface EpicBrowserSummaryRow {
@@ -317,6 +320,20 @@ function ttmCnttVerdictOf(row: EpicAlertRowPhased | null, ttmBlackListed: boolea
     return { hasMissingFailReason, hasMissingResponsibleDepartment, ttmCnttVerdict: 'N_A', ttmCnttVerdictLabel: 'Chưa kết luận' };
   }
   return { hasMissingFailReason, hasMissingResponsibleDepartment, ttmCnttVerdict: 'PENDING', ttmCnttVerdictLabel: 'Đang thực hiện' };
+}
+
+/**
+ * The TTM-E2E verdict shown next to the TTM-CNTT one in the "Đánh giá" row of "Thông tin Epic". Reads the
+ * same displayed row's badges (E2E_PASS / E2E_FAIL); falls back to the legacy `ttmE2eAlertLevel` (FAIL/NONE)
+ * when the row predates the scoring badges. Anything else (no row, no verdict yet) is "N_A" — shown as no
+ * assessment.
+ */
+function ttmE2eVerdictOf(row: EpicAlertRowPhased | null): Pick<EpicBrowserSummary, 'ttmE2eVerdict' | 'ttmE2eVerdictLabel'> {
+  if (!row) return { ttmE2eVerdict: 'N_A', ttmE2eVerdictLabel: undefined };
+  if (row.scoringBadges?.includes('E2E_PASS')) return { ttmE2eVerdict: 'PASS', ttmE2eVerdictLabel: 'Pass TTM-E2E' };
+  if (row.scoringBadges?.includes('E2E_FAIL')) return { ttmE2eVerdict: 'FAIL', ttmE2eVerdictLabel: 'Fail TTM-E2E' };
+  if (row.ttmE2eAlertLevel === 'FAIL') return { ttmE2eVerdict: 'FAIL', ttmE2eVerdictLabel: 'Fail TTM-E2E' };
+  return { ttmE2eVerdict: 'N_A', ttmE2eVerdictLabel: undefined };
 }
 
 export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowserSummary | null> {
@@ -385,6 +402,7 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
   if (!row) return null;
 
   const { hasMissingFailReason, ttmCnttVerdict, ttmCnttVerdictLabel } = ttmCnttVerdictOf(displayedRow, ttmBlackListed);
+  const { ttmE2eVerdict, ttmE2eVerdictLabel } = ttmE2eVerdictOf(displayedRow);
 
   const projectMeta = projectMetaResult.rows[0];
   return {
@@ -428,5 +446,7 @@ export async function getEpicBrowserSummary(epicKey: string): Promise<EpicBrowse
     ttmCnttVerdict,
     ttmCnttVerdictLabel,
     hasMissingFailReason,
+    ttmE2eVerdict,
+    ttmE2eVerdictLabel,
   };
 }

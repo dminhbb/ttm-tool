@@ -10,7 +10,7 @@ import type { NormalizationEpicRow, NormalizationPanelTone } from '@/lib/data-no
  * The one Epic table of every section of "Chuẩn hoá dữ liệu" (owner 2026-11-10):
  *   Epic | PM/SM | REVIEW | Summary | Status | Created date | Idea date (T0) | Start date (T1) | R4G date | Due date (golive)
  * Epic: why it is listed (warning — a rule to fix; light bulb — a recommendation) with the messages as tooltip, Jira link,
- * key (opens "Duyệt Epic"). REVIEW: the same flag column as Quản trị Epic — opens the Review Notes popup.
+ * key (opens "Thông tin Epic"). REVIEW: the same flag column as Quản trị Epic — opens the "Thông tin Epic" popup.
  * "Epic thay đổi dữ liệu" (tone 'change', 2026-11-11) adds the column "Nhận xét" after Status: one bullet per change
  * ("<trường>: cũ → mới"), its data layer in the line's tooltip (the app's Tooltip).
  */
@@ -80,7 +80,7 @@ export function NormalizationEpicTable({ onBrowse, onReview, rows, tone, viewIss
                   <button
                     className="cursor-pointer border-0 bg-transparent p-0 text-left font-extrabold text-[var(--color-text-brand)] hover:underline"
                     onClick={() => onBrowse(row.epicKey)}
-                    title="Duyệt Epic (Epic Browser)"
+                    title="Mở Thông tin Epic"
                     type="button"
                   >
                     {row.epicKey}

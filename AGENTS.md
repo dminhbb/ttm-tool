@@ -8,6 +8,19 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+# BẮT BUỘC — đọc QUY_TRINH_PHAT_TRIEN.md trước khi làm bất kỳ thay đổi nào
+
+Mọi thay đổi code/schema/config trên repo này phải đi theo **9 bước bắt buộc** trong
+[`QUY_TRINH_PHAT_TRIEN.md`](QUY_TRINH_PHAT_TRIEN.md) (Rà soát → Phân tích → **Traceability** →
+Contract → Code → Unit test → Test thông luồng → Run local → Push GitLab), đúng thứ tự. Các mục
+khác trong AGENTS.md này quy định *cách làm từng phần*; QUY_TRINH quy định *thứ tự*.
+
+- **Traceability** của mỗi yêu cầu được lưu tại **`docs/traceability/TRACEABILITY.md`** (ma trận nối
+  `REQ-yyyymmdd-nn` với BRD/spec, contract, code, test, commit). Bước 3 tạo dòng, các bước sau điền
+  dần — xem hướng dẫn và checklist trong QUY_TRINH.
+- Checklist trước khi báo "xong" nằm ở cuối QUY_TRINH; traceability là bằng chứng bắt buộc.
+- Nếu một bước không áp dụng, ghi rõ `N/A – lý do` trong traceability (không bỏ trống).
+
 # Multi-database — local + Supabase (Aiven retired)
 
 This project runs against two Postgres targets in parallel: the developer's local instance and a
@@ -79,6 +92,20 @@ pure-review/read-only requests that changed nothing), append a short entry to
   `file/paths.ts` when it helps a future reader jump straight to the code.
 - Write it in the same language the user used for the request (Vietnamese in this project, unless
   told otherwise).
+
+### Archiving — `daily_change_log.md` chỉ giữ ~30 ngày
+
+`daily_change_log.md` được giữ ở kích thước có thể đọc được bằng cách **chỉ lưu ~30 ngày gần
+nhất** trong file chính; entry cũ hơn được chuyển sang `daily_change_log/archive/` (một file theo
+tháng: `archive-YYYY-MM.md`) để không mất thông tin:
+
+- Script: `node scripts/archive-daily-log.mjs` (mặc định giữ 30 ngày; `--days=90` tuỳ chỉnh;
+  `--dry-run` chỉ báo sẽ làm gì). Chạy khi `daily_change_log.md` quá lớn hoặc khi muốn dọn định kỳ.
+- Script giữ nguyên phần intro và mọi khối `## yyyy-mm-dd` có ngày **trong vòng 30 ngày tính từ
+  entry mới nhất** (không phải từ đồng hồ hệ thống — để chạy trên clone cũ vẫn ổn định); khối cũ
+  hơn gom vào file archive của tháng tương ứng. Không sửa tay file trong `archive/`.
+- Khi đọc log để bắt kịp tình hình: entry < 30 ngày ở `daily_change_log.md`; muốn xem xa hơn thì
+  đọc `daily_change_log/archive/archive-YYYY-MM.md`.
 
 Like the version-stamp rule above, this applies no matter which coding agent is doing the work —
 Claude Code, Codex, Cursor, Antigravity, a human, whatever reads this file — since the point is one

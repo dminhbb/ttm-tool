@@ -3,8 +3,9 @@
 import * as React from 'react';
 import type { Icon } from '@phosphor-icons/react';
 import {
-  Briefcase, Buildings, CalendarBlank, CalendarCheck, CalendarPlus, CalendarX, ChatCircleText, ChatsCircle, CircleHalf,
-  ClockCountdown, Eye, FileText, FlagCheckered, Gauge, Hash, Info, ShieldCheck, TreeStructure, WarningCircle, ListNumbers, PaperPlaneRight, SealCheck, Stack, Tag, Trash, UserCircle, UsersThree,
+  Briefcase, Buildings, CalendarBlank, CalendarCheck, CalendarPlus, CalendarX, ChatCircleText, ChatsCircle, CheckCircle,
+  CircleHalf,
+  ClockCountdown, Eye, FileText, FlagCheckered, Gauge, Hash, Info, ShieldCheck, TreeStructure, Warning, WarningCircle, ListNumbers, PaperPlaneRight, SealCheck, Stack, Tag, Trash, UserCircle, UsersThree,
 } from '@phosphor-icons/react';
 import { JiraLinkButton } from '@/components/epic-alerts/JiraLinkButton';
 import { EpicFailExplainGrid, EpicFailVerdictBadges } from '@/components/epic-browser/EpicFailExplain';
@@ -26,14 +27,15 @@ import { cn } from '@/lib/utils';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 
 /**
- * Popup "Review Notes" (formerly "Mark & Comment") of one Epic (owner 2026-10-27, layout "Phương án 2"): the header carries the Epic key /
- * summary and two switches — "Ẩn epic" (personal Hide) and "Giao việc" (To do / Done, shared). Below, two cards:
- * the Epic's facts grouped into "Thông tin chung" / "Thông tin dự án" on the left; on the right a frame with two tabs —
- * "Comment" (input on top, chat thread below) and "Scoring" (the Epic's active Scoring Service badges, one row each
- * with its explanation). `onChanged` is called once on close when something was saved, so the list behind can refresh.
- * 2026-11-11 (owner): the popup is 30% wider, the right frame takes 70% of it, and gains two tabs — "Duyệt Epic" (the
- * Epic → Story → Subtask tree of the "Duyệt Epic" popup, loaded the first time the tab opens) and "Giải trình Fail TTM"
- * (the same block as in "Duyệt Epic", from the summary already loaded — EpicFailExplain.tsx).
+ * Popup "Thông tin Epic" (formerly "Review Notes" / "Mark & Comment", renamed 2026-11-17) of one Epic: the header
+ * carries the Epic key / summary and switches — "Epic ngoại lệ" (TTM Black listed, ADMIN/SUPERADMIN), "Ẩn epic"
+ * (personal Hide) and "Giao việc" (To do / Done, shared). Below, two cards: the Epic's facts grouped into
+ * "Thông tin chung" / "Thông tin dự án" on the left; on the right a frame with four tabs — "Comment", "Scoring",
+ * "Duyệt Epic" (issue tree) and "Giải trình Fail TTM". `onChanged` is called once on close when something was
+ * saved, so the list behind can refresh.
+ * 2026-11-11 (owner): the popup gained the "Duyệt Epic" and "Giải trình Fail TTM" tabs.
+ * 2026-11-17 (owner): renamed to "Thông tin Epic", +20% size, added "Epic ngoại lệ" toggle, warning dot on the
+ * "Giải trình Fail TTM" tab when the Epic has a missing fail reason. Replaces the "Duyệt Epic" popup everywhere.
  */
 
 type FrameTabKey = 'BROWSE' | 'COMMENT' | 'FAIL' | 'SCORING';
@@ -73,6 +75,8 @@ interface MarkPayload {
   canToggleHidden: boolean;
   /** False for an Epic reached only through "Quyền xem": read-only, no comment box. */
   canComment?: boolean;
+  /** ADMIN / SUPERADMIN may toggle "Epic ngoại lệ" (TTM Black listed) — same rule as "Duyệt Epic". */
+  canEditBlackList: boolean;
   /** The viewer may switch "Giao việc": a PM/SM of the Epic or ADMIN and above (never under "Xem dưới quyền"). */
   canToggleTask: boolean;
   comments: EpicCommentEntry[];
@@ -114,6 +118,25 @@ function TagValue({ text }: { text: string | null | undefined }) {
   return text ? <span className="ias-tag ias-tag-brand">{text}</span> : <>-</>;
 }
 
+/** A pass/fail verdict badge for the "Đánh giá" row — green for PASS, red for FAIL, nothing for any other verdict
+ * (DATA_ANOMALY / EXCLUDED / PENDING / N_A / no row): so an Epic without a definitive pass/fail assessment leaves
+ * the "Đánh giá" row's value blank. */
+function VerdictBadge({ verdict, label }: { verdict: string | undefined; label?: string }) {
+  const isPass = verdict === 'PASS';
+  if (!isPass && verdict !== 'FAIL') return null;
+  return (
+    <span className={cn(
+      'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-bold shadow-xs',
+      isPass ? 'bg-status-success-soft text-status-success border-status-success' : 'bg-status-danger-soft text-status-danger border-status-danger'
+    )}>
+      {isPass
+        ? <CheckCircle className="size-3.5 text-status-success" weight="bold" />
+        : <WarningCircle className="size-3.5 text-status-danger" weight="bold" />}
+      <span>{label ?? (isPass ? 'Pass' : 'Fail')}</span>
+    </span>
+  );
+}
+
 interface InfoRow {
   icon: Icon;
   label: string;
@@ -122,6 +145,13 @@ interface InfoRow {
 
 function generalRows(summary: EpicBrowserSummary | null): InfoRow[] {
   return [
+    // "Đánh giá" (2026-11-17): pass/fail TTM-CNTT and TTM-E2E verdict badges; blank when neither axis has a definitive verdict.
+    { icon: Gauge, label: 'Đánh giá', value: (
+      <span className="flex flex-wrap items-center gap-2">
+        <VerdictBadge verdict={summary?.ttmCnttVerdict} label={summary?.ttmCnttVerdictLabel} />
+        <VerdictBadge verdict={summary?.ttmE2eVerdict} label={summary?.ttmE2eVerdictLabel} />
+      </span>
+    ) },
     { icon: CircleHalf, label: 'Trạng thái', value: <StatusValue status={summary?.status} /> },
     { icon: CalendarPlus, label: 'Ngày tạo', value: formatDate(summary?.createdDate) },
     { icon: CalendarBlank, label: 'Ngày bắt đầu (T1)', value: formatDate(summary?.startDate) },
@@ -235,7 +265,7 @@ function CommentThread({ comments, disabled, onDelete }: { comments: EpicComment
 }
 
 /** A tab of the right-hand frame ("Comment", "Scoring"). */
-function FrameTab({ active, icon: TabIcon, label, onSelect }: { active: boolean; icon: Icon; label: string; onSelect: () => void }) {
+function FrameTab({ active, icon: TabIcon, label, onSelect, trailing }: { active: boolean; icon: Icon; label: string; onSelect: () => void; trailing?: React.ReactNode }) {
   return (
     <button
       aria-selected={active}
@@ -249,6 +279,7 @@ function FrameTab({ active, icon: TabIcon, label, onSelect }: { active: boolean;
     >
       <TabIcon className="size-4" weight={active ? 'fill' : 'regular'} aria-hidden="true" />
       {label}
+      {trailing}
     </button>
   );
 }
@@ -349,6 +380,89 @@ function HiddenSwitch({ checked, disabled, info, onChange }: { checked: boolean;
   );
 }
 
+interface BlackListApiErrorResponse {
+  error?: string;
+}
+
+/** "Epic ngoại lệ" — the same toggle design as "Ẩn epic" (SwitchTrack in a pill): FALSE = toggle OFF, TRUE = toggle ON.
+ * Only ADMIN/SUPERADMIN may change it; toggling asks for confirmation, then PATCHes /api/black-listed-epics. */
+function BlackListSwitch({ canEdit, disabled, epicKey, initialValue, onValueChange }: {
+  canEdit: boolean;
+  disabled: boolean;
+  epicKey: string;
+  initialValue: boolean;
+  onValueChange: (next: boolean) => void;
+}) {
+  const [value, setValue] = React.useState(initialValue);
+  const [saving, setSaving] = React.useState(false);
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+
+  // Re-sync the local value when the parent's value changes (adjusting state during render instead of
+  // in an effect, so there's no extra cascading render).
+  const [syncedInitialValue, setSyncedInitialValue] = React.useState(initialValue);
+  if (syncedInitialValue !== initialValue) {
+    setSyncedInitialValue(initialValue);
+    setValue(initialValue);
+  }
+
+  const handleToggle = async () => {
+    if (!canEdit || saving) return;
+    const nextValue = !value;
+    const prevValue = value;
+    setValue(nextValue);
+    setSaving(true);
+    try {
+      const response = await fetch('/api/black-listed-epics', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blackListed: nextValue, epicKey }),
+      });
+      const data = (await response.json()) as BlackListApiErrorResponse;
+      if (!response.ok) throw new Error(data.error ?? 'Không thể lưu TTM Black listed.');
+      showToast(
+        nextValue
+          ? `Cảnh báo: Epic ${epicKey} đã được chuyển sang Epic ngoại lệ (TTM Black listed = true) — bị loại khỏi phạm vi tính toán Time to Market!`
+          : `Đã bỏ ngoại lệ cho Epic ${epicKey} (TTM Black listed = false). Epic được đưa trở lại tính toán Time to Market.`,
+        7000
+      );
+      onValueChange(nextValue);
+    } catch (requestError: unknown) {
+      setValue(prevValue);
+      showToast(requestError instanceof Error ? requestError.message : 'Không thể kết nối API.', 5000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const info = canEdit
+    ? 'Đánh dấu Epic này ngoại lệ sẽ loại khỏi tất cả các tính toán và cảnh báo Time to Market. FALSE = tắt, TRUE = bật. Chỉ ADMIN/SUPERADMIN được đổi.'
+    : 'Chỉ ADMIN/SUPERADMIN được đổi trạng thái Epic ngoại lệ.';
+
+  return (
+    <>
+      <div className={SWITCH_PILL_CLASS}>
+        <SwitchTrack checked={value} disabled={disabled || !canEdit || saving} label="Epic ngoại lệ" onChange={() => setConfirmOpen(true)} />
+        <span className="whitespace-nowrap">Epic ngoại lệ</span>
+        <SwitchInfo info={info} label="Epic ngoại lệ" />
+      </div>
+      <ConfirmDialog
+        cancelLabel="Hủy"
+        confirmLabel="Đồng ý"
+        description={value
+          ? 'Epic sẽ được đưa trở lại các tính toán và cảnh báo Time to Market, bạn có đồng ý không?'
+          : 'Đánh dấu Epic này ngoại lệ sẽ loại bỏ khỏi tất cả các tính toán và cảnh báo Time to Market, bạn có đồng ý không?'}
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => {
+          setConfirmOpen(false);
+          void handleToggle();
+        }}
+        title={value ? 'Xác nhận đưa Epic trở lại TTM' : 'Xác nhận chuyển sang Epic ngoại lệ'}
+      />
+    </>
+  );
+}
+
 /** "Giao việc" (owner 2026-10-27): "To do ◯ Done ⓘ" — the current side is bold navy, the other muted; Done turns the track green. */
 function TaskSwitch({ disabled, done, info, onChange }: { disabled: boolean; done: boolean; info: string; onChange: (done: boolean) => void }) {
   const sideLabel = (active: boolean, text: string, value: boolean) => (
@@ -367,7 +481,7 @@ function TaskSwitch({ disabled, done, info, onChange }: { disabled: boolean; don
   );
   return (
     <div className={cn(SWITCH_PILL_CLASS, 'gap-2.5 px-3')}>
-      {sideLabel(!done, 'To do', false)}
+      {sideLabel(!done, 'Giao việc: To do', false)}
       <SwitchTrack checked={done} disabled={disabled} label={`Giao việc: ${done ? 'Done' : 'To do'}`} onChange={onChange} onClass="bg-status-success" />
       {sideLabel(done, 'Done', true)}
       <SwitchInfo info={info} label="Giao việc" />
@@ -486,10 +600,10 @@ export function EpicMarkModal({ epicKey, onChanged, onClose, viewAsUserId }: { e
 
   const title = (
     <span className="flex min-w-0 flex-col">
-      <span className="truncate">Review Notes</span>
+      <span className="truncate">Thông tin Epic {epicKey}</span>
       {payload && (
         <span className="flex min-w-0 items-center gap-1 text-xs font-medium text-fb-text-secondary">
-          <span className="truncate">{epicKey} - {payload.epicName}</span>
+          <span className="truncate">{[payload.summary?.projectName, payload.epicName].filter(Boolean).join(' / ')}</span>
           <JiraLinkButton epicKey={epicKey} viewIssueBaseUrl={viewIssueBaseUrl} />
         </span>
       )}
@@ -498,6 +612,19 @@ export function EpicMarkModal({ epicKey, onChanged, onClose, viewAsUserId }: { e
 
   const switches = payload && (
     <div className="flex items-center gap-2">
+      {payload.summary && (
+        <BlackListSwitch
+          canEdit={payload.canEditBlackList}
+          disabled={saving}
+          epicKey={epicKey}
+          initialValue={Boolean(payload.summary.ttmBlackListed)}
+          onValueChange={(nextVal) => {
+            setPayload((prev) =>
+              prev?.summary ? { ...prev, summary: { ...prev.summary, ttmBlackListed: nextVal } } : prev
+            );
+          }}
+        />
+      )}
       <HiddenSwitch
         checked={payload.isHidden}
         disabled={saving || !payload.canToggleHidden}
@@ -516,15 +643,16 @@ export function EpicMarkModal({ epicKey, onChanged, onClose, viewAsUserId }: { e
   );
 
   return (
-    // 2026-11-11: 1014px + 30% = 1318px; the right frame takes 70% of the body (grid 3fr / 7fr below).
-    <Modal actions={switches} icon={ChatCircleText} isOpen maxWidth="xl" maxWidthClassName="max-w-[1318px]" onClose={handleClose} title={title}>
+    // 2026-11-17: 1318px + 20% = ~1582px; the right frame takes 70% of the body (grid 3fr / 7fr below).
+    <Modal actions={switches} icon={ChatCircleText} isOpen maxWidth="xl" maxWidthClassName="max-w-[1582px]" onClose={handleClose} title={title}>
       {error ? (
         <p className="m-0 text-sm text-status-danger">{error}</p>
       ) : !payload ? (
         <p className="m-0 text-sm text-fb-text-secondary">Đang tải…</p>
       ) : (
-        // Fixed body height (owner 2026-10-28: +5% over the old natural ~538px), so switching tabs never resizes the popup.
-        <div className="grid grid-cols-1 gap-4 md:h-[min(565px,65dvh)] md:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]">
+        // Fixed body height (owner 2026-10-28: +5% over the old natural ~538px; 2026-11-17: +20% to ~678px;
+        // 2026-11-17 late: +10% more to ~746px), so switching tabs never resizes the popup.
+        <div className="grid grid-cols-1 gap-4 md:h-[min(746px,65dvh)] md:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]">
           <div className="divide-y divide-fb-border overflow-hidden rounded-xl border border-fb-border bg-fb-surface md:overflow-y-auto">
             <InfoSection icon={FileText} rows={generalRows(payload.summary)} title="Thông tin chung" />
             <InfoSection icon={Briefcase} rows={projectRows(payload.summary, payload.ownerName)} title="Thông tin dự án" />
@@ -532,11 +660,15 @@ export function EpicMarkModal({ epicKey, onChanged, onClose, viewAsUserId }: { e
 
           {/* Chat frame (owner 2026-10-27): light grey, the input on top, newest comment first below it. */}
           <div className="ttm-chat-frame flex min-h-[441px] flex-col overflow-hidden rounded-xl border border-fb-border md:h-full md:min-h-0">
-            <div className="flex shrink-0 gap-4 border-b border-fb-border px-4" role="tablist" aria-label="Review Notes">
+            <div className="flex shrink-0 gap-4 border-b border-fb-border px-4" role="tablist" aria-label="Thông tin Epic">
               <FrameTab active={tab === 'COMMENT'} icon={ChatCircleText} label={`Comment (${payload.comments.length})`} onSelect={() => setTab('COMMENT')} />
               <FrameTab active={tab === 'SCORING'} icon={Gauge} label={`Scoring (${payload.scoring.length})`} onSelect={() => setTab('SCORING')} />
               <FrameTab active={tab === 'BROWSE'} icon={TreeStructure} label="Duyệt Epic" onSelect={() => setTab('BROWSE')} />
-              <FrameTab active={tab === 'FAIL'} icon={WarningCircle} label="Giải trình Fail TTM" onSelect={() => setTab('FAIL')} />
+              <FrameTab active={tab === 'FAIL'} icon={WarningCircle} label="Giải trình Fail TTM" onSelect={() => setTab('FAIL')} trailing={
+                payload.summary?.hasMissingFailReason
+                  ? <span className="ml-1 inline-flex size-4 items-center justify-center rounded-full bg-status-danger text-white" title="Epic bị đánh giá Thiếu lý do Fail TTM"><Warning className="size-2.5" weight="fill" aria-hidden="true" /></span>
+                  : undefined
+              } />
             </div>
             {tab === 'SCORING' ? (
               <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4" role="tabpanel">

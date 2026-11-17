@@ -16,8 +16,8 @@ export function EpicMarkCell({ onOpen, row }: { onOpen: (epicKey: string) => voi
   if (!mark || (mark.commentCount === 0 && !mark.isHidden)) {
     // No comment yet: a faint outline flag is the way in to write the first one.
     return (
-      <Tooltip className="inline-flex w-auto" content="Thêm Review Notes" side="top">
-        <button aria-label={`Thêm Review Notes — ${row.epicKey}`} className="inline-flex cursor-pointer items-center border-0 bg-transparent p-0 opacity-25 transition-opacity hover:opacity-100 focus-visible:opacity-100" onClick={() => onOpen(row.epicKey)} type="button">
+      <Tooltip className="inline-flex w-auto" content="Mở Thông tin Epic" side="top">
+        <button aria-label={`Mở Thông tin Epic — ${row.epicKey}`} className="inline-flex cursor-pointer items-center border-0 bg-transparent p-0 opacity-25 transition-opacity hover:opacity-100 focus-visible:opacity-100" onClick={() => onOpen(row.epicKey)} type="button">
           <FlagBanner className="size-5 text-fb-text-secondary" weight="regular" />
         </button>
       </Tooltip>
@@ -40,7 +40,7 @@ export function EpicMarkCell({ onOpen, row }: { onOpen: (epicKey: string) => voi
           )}
           side="right"
         >
-          <button aria-label={`Review Notes — ${row.epicKey}${mark.taskDone ? ' — Giao việc: Done' : ''}`} className="inline-flex cursor-pointer items-center border-0 bg-transparent p-0" onClick={() => onOpen(row.epicKey)} type="button">
+          <button aria-label={`Thông tin Epic — ${row.epicKey}${mark.taskDone ? ' — Giao việc: Done' : ''}`} className="inline-flex cursor-pointer items-center border-0 bg-transparent p-0" onClick={() => onOpen(row.epicKey)} type="button">
             {/* Orange = comment, Giao việc still To do; green = Giao việc Done (owner 2026-10-27). */}
             <FlagBanner className={`size-5 ${mark.taskDone ? 'ttm-mark-flag-done' : 'ttm-mark-flag'}`} weight="fill" />
           </button>
