@@ -8,7 +8,7 @@ import { normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import { TtmBlackListDot } from '@/components/ui/TtmBlackListDot';
-import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
+import { EpicMarkModal } from '@/components/epic-mark/EpicMarkModal';
 
 /**
  * Custom Status Font-Color rules per user request:
@@ -60,8 +60,8 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
   // Collapsible Advanced Config
   const [advancedConfigOpen, setAdvancedConfigOpen] = React.useState(false);
 
-  // Epic Browser Modal State
-  const [browsingEpicKey, setBrowsingEpicKey] = React.useState<string | null>(null);
+  // "Thông tin Epic" popup (formerly Duyệt Epic) — opened from the Epic key in any report table.
+  const [reviewEpicKey, setReviewEpicKey] = React.useState<string | null>(null);
 
   // 3 Date Filters
   const [createdDateFrom, setCreatedDateFrom] = React.useState<string>('');
@@ -784,7 +784,7 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
           {/* SECTION 1: RELEASED EPICS TABLE */}
           <ReportSectionBlockSquare
             jiraViewIssueBaseUrl={jiraViewIssueBaseUrl}
-            onOpenEpicBrowser={(epicKey) => setBrowsingEpicKey(epicKey)}
+            onOpenEpicBrowser={(epicKey) => setReviewEpicKey(epicKey)}
             title="1. DANH SÁCH CÁC EPIC ĐÃ RELEASED TRONG GIAI ĐOẠN LỰA CHỌN"
             totalCount={report.totalReleasedCount}
             items={report.releasedEpics}
@@ -806,7 +806,7 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
           {/* SECTION 2: PASSED TTM EPICS TABLE */}
           <ReportSectionBlockSquare
             jiraViewIssueBaseUrl={jiraViewIssueBaseUrl}
-            onOpenEpicBrowser={(epicKey) => setBrowsingEpicKey(epicKey)}
+            onOpenEpicBrowser={(epicKey) => setReviewEpicKey(epicKey)}
             title="2. DANH SÁCH CÁC EPIC ĐẠT TTM-CNTT (QLDA) VÀ TTM-E2E"
             totalCount={report.totalPassedCount}
             items={report.passedEpics}
@@ -825,7 +825,7 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
           {/* SECTION 3: FAILED TTM EPICS TABLE */}
           <ReportSectionBlockSquare
             jiraViewIssueBaseUrl={jiraViewIssueBaseUrl}
-            onOpenEpicBrowser={(epicKey) => setBrowsingEpicKey(epicKey)}
+            onOpenEpicBrowser={(epicKey) => setReviewEpicKey(epicKey)}
             title="3. DANH SÁCH CÁC EPIC FAIL TTM-CNTT (QLDA) VÀ TTM-E2E"
             totalCount={report.totalFailedCount}
             items={report.failedEpics}
@@ -845,7 +845,7 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
           {/* SECTION 4: EPIC IN PO DEDICATED TABLE */}
           <ReportSectionBlockSquare
             jiraViewIssueBaseUrl={jiraViewIssueBaseUrl}
-            onOpenEpicBrowser={(epicKey) => setBrowsingEpicKey(epicKey)}
+            onOpenEpicBrowser={(epicKey) => setReviewEpicKey(epicKey)}
             title="4. DANH SÁCH CÁC EPIC IN PO (TO DO, IN PO)"
             totalCount={report.totalInPoCount}
             items={report.inPoEpics}
@@ -864,7 +864,7 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
           {/* SECTION 5: DATA ANOMALY EPICS TABLE */}
           <ReportSectionBlockSquare
             jiraViewIssueBaseUrl={jiraViewIssueBaseUrl}
-            onOpenEpicBrowser={(epicKey) => setBrowsingEpicKey(epicKey)}
+            onOpenEpicBrowser={(epicKey) => setReviewEpicKey(epicKey)}
             title="5. DANH SÁCH CÁC EPIC CÓ SAI LỆCH DỮ LIỆU"
             totalCount={report.totalAnomalyCount}
             items={report.anomalyEpics}
@@ -887,7 +887,7 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
           {/* SECTION 6: PENDING EPICS TABLE */}
           <ReportSectionBlockSquare
             jiraViewIssueBaseUrl={jiraViewIssueBaseUrl}
-            onOpenEpicBrowser={(epicKey) => setBrowsingEpicKey(epicKey)}
+            onOpenEpicBrowser={(epicKey) => setReviewEpicKey(epicKey)}
             title="6. DANH SÁCH CÁC EPIC PENDING"
             totalCount={report.totalPendingCount || 0}
             items={report.pendingEpics || []}
@@ -920,9 +920,9 @@ export function EpicReportScreen({ onBack }: { onBack: () => void }) {
         </div>
       )}
 
-      {/* EPIC BROWSER MODAL (POPUP DUYỆT EPIC) */}
-      {browsingEpicKey && (
-        <EpicBrowserModal epicKey={browsingEpicKey} onClose={() => setBrowsingEpicKey(null)} />
+      {/* "Thông tin Epic" POPUP (formerly Duyệt Epic) */}
+      {reviewEpicKey && (
+        <EpicMarkModal epicKey={reviewEpicKey} onClose={() => setReviewEpicKey(null)} />
       )}
     </div>
   );

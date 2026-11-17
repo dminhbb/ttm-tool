@@ -142,6 +142,8 @@ export const SMART_EXCLUDED_TABLES: readonly string[] = [
   'epic_alert_timeline',
   // 'Epic thay đổi dữ liệu' (2026-11-11): rebuilt from issues by refreshDerivedCaches.
   'epic_field_changes',
+  // Token of the automatic import API (2026-11-13): a secret of THIS environment, like api_keys.
+  'import_api_settings',
   'mcp_access_daily_stats',
   'mcp_access_tokens',
   'mcp_oauth_authorization_codes',

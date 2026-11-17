@@ -9,8 +9,8 @@ import { getSystemSuspension } from '@/lib/system-suspension-service';
 import { isWriteBlockedInViewAs, VIEW_AS_BLOCKED_MESSAGE } from '@/lib/view-as';
 
 // '/api/data-source/import/auto' and '/api/mcp' are "public" only from this proxy's point of
-// view — each has its own bearer-token check inside the route itself (IMPORT_API_TOKEN for the
-// Python export script, a Personal Access Token for MCP clients), since neither caller carries a
+// view — each has its own bearer-token check inside the route itself (the import token stored in
+// import_api_settings for the Python export script, a Personal Access Token for MCP clients), since neither caller carries a
 // browser session cookie to present here.
 //
 // The '/api/mcp/oauth/*' and '.well-known' entries back the OAuth 2.1 front door in front of

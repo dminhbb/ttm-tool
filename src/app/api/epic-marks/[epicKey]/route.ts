@@ -42,6 +42,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
       ...detail,
       // An Epic reached only through "Quyền xem" is read-only here: no comment, no "Giao việc" (hiding it for oneself is fine).
       canComment: !access.viewOnly,
+      // "Epic ngoại lệ" (TTM Black listed) — ADMIN/SUPERADMIN may toggle it (same rule as the "Duyệt Epic" popup).
+      canEditBlackList: user.role === 'ADMIN' || user.role === 'SUPERADMIN',
       canToggleHidden: viewAsUser === null,
       canToggleTask: viewAsUser === null && !access.viewOnly && canSetEpicTaskStatus(user.role, viewerName, access.ownerNames),
       viewOnly: access.viewOnly,

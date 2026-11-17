@@ -16,7 +16,7 @@
     "db:migrate:supabase": "node scripts/migrate-db.js --target=supabase",
     "db:init:supabase": "node scripts/migrate-db.js --target=supabase --init",
     "db:export-schema": "node scripts/db-schema-export.js",
-    "prepare": "git config core.hooksPath .githooks"
+    "prepare": "command -v git >/dev/null && git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

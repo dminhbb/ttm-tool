@@ -6,7 +6,8 @@ import { getAppVersion } from '@/lib/version';
 
 // Never cache: this endpoint's entire purpose is to report the CURRENT build/DB status, and a
 // GET route with no dynamic API usage (cookies()/headers()) is otherwise eligible for Next.js's
-// static route cache — which would freeze whatever version.json/db state was live at build time.
+// static route cache — which would freeze the db state that was live at build time (the version stamp itself
+// is bundled at build time on purpose, see src/lib/version.ts).
 export const dynamic = 'force-dynamic';
 
 // The database probe is kept for a few seconds: this public endpoint must not turn every hit into a query

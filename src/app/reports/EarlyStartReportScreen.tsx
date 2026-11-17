@@ -9,7 +9,6 @@ import { formatTtmPassPct, formatTtmPct1, hasTtmVerdict, type TtmCnttSummary } f
 import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
 import { cn } from '@/lib/utils';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
-import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import { EpicMarkCell } from '@/components/epic-mark/EpicMarkCell';
 import { EpicMarkModal } from '@/components/epic-mark/EpicMarkModal';
 import { TtmBlackListDot } from '@/components/ui/TtmBlackListDot';
@@ -157,7 +156,7 @@ function FailTable({ items, jiraViewIssueBaseUrl, offset, onOpenEpic, onOpenRevi
                       type="button"
                       onClick={() => onOpenEpic(item.epicKey)}
                       className="text-left font-mono text-[11px] font-bold text-[var(--color-text-brand)] hover:underline"
-                      title={`Duyệt Epic — ${item.epicKey}`}
+                      title={`Thông tin Epic — ${item.epicKey}`}
                     >
                       {item.epicKey}
                     </button>
@@ -243,7 +242,6 @@ export function EarlyStartReportScreen({ onBack }: { onBack: () => void }) {
   const [page, setPage] = React.useState(1);
   const [filters, setFilters] = React.useState<Filters>(NO_FILTERS);
   const [sort, setSort] = React.useState<SortState | null>(null);
-  const [browsingEpicKey, setBrowsingEpicKey] = React.useState<string | null>(null);
   const [reviewEpicKey, setReviewEpicKey] = React.useState<string | null>(null);
 
   const applyResult = React.useCallback((result: FetchResult) => {
@@ -367,7 +365,7 @@ export function EarlyStartReportScreen({ onBack }: { onBack: () => void }) {
             items={pageItems}
             jiraViewIssueBaseUrl={jiraViewIssueBaseUrl}
             offset={(currentPage - 1) * PAGE_SIZE}
-            onOpenEpic={setBrowsingEpicKey}
+            onOpenEpic={setReviewEpicKey}
             onOpenReview={setReviewEpicKey}
             onSort={onSort}
             sort={sort}
@@ -393,7 +391,6 @@ export function EarlyStartReportScreen({ onBack }: { onBack: () => void }) {
         )}
       </div>
 
-      <EpicBrowserModal epicKey={browsingEpicKey} onClose={() => setBrowsingEpicKey(null)} />
       {reviewEpicKey && (
         <EpicMarkModal
           key={reviewEpicKey}

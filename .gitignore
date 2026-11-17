@@ -36,6 +36,15 @@ yarn-error.log*
 .env*
 !.env.example
 
+# UAT config is intentionally committed for the CICD deployment.
+!cicd/.env.uat
+
+# Credential Nexus nội bộ (registry npm của MB) — Dockerfile/CI tự sinh file này lúc build.
+.npmrc
+
+# Secret thật của OCP (mật khẩu CSDL, IMPORT_API_TOKEN). Chỉ commit file .example.
+/openshift/secret.yaml
+
 # local databases and runtime files
 *.sqlite
 *.sqlite3
@@ -96,3 +105,7 @@ public/docs/product-guide.zip
 
 # Gói .zip + manifest do tools/packaging/package.ps1 tạo — sinh lại được, không commit, không tự đóng gói chính nó.
 /release-packages/
+
+# MCP dev proxy — token nội bộ của MCP server dev (OCP) + log runtime, không commit.
+/tools/mcp-dev-proxy/.proxy-token
+/tools/mcp-dev-proxy/proxy.log

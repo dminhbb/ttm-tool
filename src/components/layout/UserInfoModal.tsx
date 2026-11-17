@@ -79,7 +79,8 @@ export function UserInfoModal({ isOpen, onClose }: UserInfoModalProps) {
       onClose={onClose}
       title="Thông tin người dùng"
       footer={<Button variant="outline" onClick={onClose}>Đóng</Button>}
-      maxWidth="lg"
+      // 2026-11-17: doubled the width of the popup (was `lg` ≈ 512px → ~1024px).
+      maxWidthClassName="max-w-[1024px]"
     >
       {error && <p className="text-sm text-status-danger">{error}</p>}
       {!error && !data && <p className="text-sm text-fb-text-secondary">Đang tải...</p>}

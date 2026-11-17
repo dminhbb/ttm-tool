@@ -8,7 +8,6 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
 import { NormalizationEpicTable } from '@/components/data-normalization/NormalizationEpicTable';
-import { EpicBrowserModal } from '@/components/epic-browser/EpicBrowserModal';
 import { EpicMarkModal } from '@/components/epic-mark/EpicMarkModal';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import type { NormalizationPanel } from '@/lib/data-normalization';
@@ -196,8 +195,7 @@ export default function DataNormalizationPage() {
   const [data, setData] = useState<DataNormalizationResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [browsingEpicKey, setBrowsingEpicKey] = useState<string | null>(null);
-  // Review Notes popup of the column REVIEW (owner 2026-11-10); a change reloads the screen (reloadToken).
+  // "Thông tin Epic" popup of the Epic key (epic-browser) and the column REVIEW (owner 2026-11-10); a change reloads the screen (reloadToken).
   const [reviewEpicKey, setReviewEpicKey] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   // "Epic thay đổi dữ liệu": Created date from (owner 2026-11-11).
@@ -425,7 +423,7 @@ export default function DataNormalizationPage() {
             <RulePanel
               isOpen={openPanels.has(panel.code)}
               key={panel.code}
-              onBrowse={setBrowsingEpicKey}
+              onBrowse={setReviewEpicKey}
               onPageChange={(code, page) => setPages((current) => ({ ...current, [code]: page }))}
               onReview={setReviewEpicKey}
               changesField={changesField}
@@ -446,7 +444,6 @@ export default function DataNormalizationPage() {
         </div>
       )}
 
-      <EpicBrowserModal epicKey={browsingEpicKey} onClose={() => setBrowsingEpicKey(null)} />
       {reviewEpicKey && (
         <EpicMarkModal
           key={reviewEpicKey}

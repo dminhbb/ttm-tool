@@ -1,0 +1,64 @@
+# Giữ build context nhỏ và tránh mang secret/máy-local vào image.
+
+# Dependency + build output: stage deps/builder tự sinh lại
+node_modules
+.next
+out
+build
+release-packages
+
+# Secret và cấu hình theo máy — image lấy cấu hình từ ConfigMap/Secret của OCP
+.env
+.env.*
+!.env.example
+# UAT config is intentionally included so the Jenkins/OpenShift image can load it at startup.
+!cicd/.env.uat
+certs
+*.pem
+
+# LƯU Ý: .npmrc KHÔNG bị loại trừ — stage `deps` của Dockerfile cần nó để cài từ Nexus nội bộ.
+# Credential chỉ tồn tại trong stage đó (và bị `rm` ngay sau npm ci); image cuối là stage `runner`
+# nên không mang theo. Đừng commit .npmrc vào git (.gitignore đã chặn).
+
+# Git
+.git
+.gitignore
+.githooks
+
+# Tài liệu, BRD, mockup, design — không cần cho runtime
+brd
+docs
+design-backup
+.design
+.design-audit
+projects
+_package
+*.md
+!AGENTS.md
+
+# Công cụ agent
+.agents
+.claude
+.superpowers
+skills-lock.json
+
+# Log/báo cáo tạm sinh ra lúc verify trên máy dev
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea
+.vscode
+
+# File nén, backup
+*.rar
+*.zip
+*.bak
+*.bak[0-9]*
+backups
+
+# Mockup HTML gọi CDN ngoài (cdn.tailwindcss.com, unpkg, Google Fonts) — mạng nội bộ không ra được,
+# và đây chỉ là bản thiết kế nháp, không thuộc ứng dụng.
+public/mockups

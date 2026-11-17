@@ -450,7 +450,7 @@
                                                  v
 +--------------------------------------------------------------------------------------------------+
 |                                            TTM-TOOL                                              |
-|  - API Route: POST /api/data-source/import/auto (Xác thực IMPORT_API_TOKEN)                      |
+|  - API Route: POST /api/data-source/import/auto (Xác thực token import lưu trong CSDL)                      |
 |  - Adapter: parsePyJiraApi() -> chuẩn hóa RawJiraIssue -> Database Ingestion                     |
 |  - Scoring Engine: Chấm điểm vi phạm TTM-CNTT, TTM-E2E, phân rã Phase Alert                      |
 +--------------------------------------------------------------------------------------------------+
@@ -598,7 +598,7 @@
             <td><code>import_api.token</code></td>
             <td><span class="badge badge-neutral">string</span></td>
             <td><code>"SECRET_IMPORT_TOKEN"</code></td>
-            <td>Mã xác thực bí mật trùng với <code>IMPORT_API_TOKEN</code> trong <code>.env.local</code> của ttm-tool.</td>
+            <td>Mã xác thực bí mật trùng với token cấu hình tại ttm-tool → Quản trị hệ thống → <b>Token import tự động</b> (lưu trong CSDL; trước 13/11/2026 là biến môi trường <code>IMPORT_API_TOKEN</code>).</td>
           </tr>
           <tr>
             <td><code>import_api.on_failure</code></td>

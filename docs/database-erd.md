@@ -1,10 +1,10 @@
 # TTM Monitor — ERD & từ điển dữ liệu
 
-> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-11.
+> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-13.
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
-**78 bảng** trong schema `public`, **68 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
+**79 bảng** trong schema `public`, **69 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
 
 ## Mục lục
 
@@ -19,7 +19,7 @@
 9. [Cấu hình hệ thống](#9-cấu-hình-hệ-thống) — 5 bảng
 10. [Popup & Banner thông báo](#10-popup-banner-thông-báo) — 3 bảng
 11. [Bản tin](#11-bản-tin) — 5 bảng
-12. [SSO, API Key & MCP Server](#12-sso-api-key-mcp-server) — 7 bảng
+12. [SSO, API Key, token import & MCP Server](#12-sso-api-key-token-import-mcp-server) — 8 bảng
 13. [Nhật ký & thống kê sử dụng](#13-nhật-ký-thống-kê-sử-dụng) — 4 bảng
 14. [Danh sách khoá ngoại](#14-danh-sách-khoá-ngoại)
 
@@ -2052,7 +2052,7 @@ Người dùng đã mở bài viết nào — chấm đỏ trên menu Bản tin 
 | `article_id` | int | không |  | PK, FK → news_letter_articles(id) |  |
 | `read_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 
-## 12. SSO, API Key & MCP Server
+## 12. SSO, API Key, token import & MCP Server
 
 ```mermaid
 erDiagram
@@ -2077,6 +2077,12 @@ erDiagram
         boolean is_used
         timestamptz expires_at
         timestamptz created_at
+    }
+    import_api_settings {
+        smallint id PK
+        text api_token
+        timestamptz updated_at
+        int updated_by_user_id FK
     }
     mcp_settings {
         smallint id PK
@@ -2123,6 +2129,7 @@ erDiagram
     }
     api_keys ||--o{ sso_auth_codes : "api_key_id"
     users ||--o{ sso_auth_codes : "user_id"
+    users |o--o{ import_api_settings : "updated_by_user_id"
     users |o--o{ mcp_settings : "updated_by"
     users ||--o{ mcp_access_tokens : "user_id"
     users ||--o{ mcp_access_daily_stats : "user_id"
@@ -2168,6 +2175,19 @@ Mã ủy quyền SSO dùng 1 lần, hết hạn sau 5 phút (mục 17).
 
 - index `idx_sso_auth_codes_code`: btree (code)
 - index `idx_sso_auth_codes_expires`: btree (expires_at)
+
+### `import_api_settings`
+
+**Mới 13/11/2026.** Singleton (id = 1) giữ token Bearer của API import tự động `POST /api/data-source/import/auto` (công cụ crawl Jira), thay cho biến môi trường `IMPORT_API_TOKEN`. SUPERADMIN đặt / tạo / xoá ở Quản trị hệ thống → Token import tự động. NULL = chưa cấu hình (API trả 503). Không nằm trong Smart export.
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `id` | smallint | không | 1 | PK |  |
+| `api_token` | text | có |  |  | `TEXT`Token dạng rõ (ứng dụng chạy trong mạng nội bộ); NULL = chưa cấu hình |
+| `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+| `updated_by_user_id` | int | có |  | FK → users(id) |  |
+
+- `import_api_settings_id_check`: CHECK ((id = 1))
 
 ### `mcp_settings`
 
@@ -2362,6 +2382,7 @@ Số lượt truy cập LŨY KẾ của các dòng `visit_logs` cũ hơn ngày T
 | `epic_hidden_by_users` | user_id | `users`(id) | CASCADE |
 | `epic_task_status` | updated_by_user_id | `users`(id) | SET NULL |
 | `import_admission_settings` | updated_by_user_id | `users`(id) | SET NULL |
+| `import_api_settings` | updated_by_user_id | `users`(id) | SET NULL |
 | `issues` | epic_id | `issues`(id) | SET NULL |
 | `issues` | parent_id | `issues`(id) | SET NULL |
 | `issues` | source_import_batch_id | `import_batches`(id) | CASCADE |

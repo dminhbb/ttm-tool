@@ -27,8 +27,14 @@ export function syncProductGuide() {
 
   const rawHtml = fs.readFileSync(HTML_SOURCE_PATH, 'utf8');
 
+  // Normalize to LF so the generated bundle is byte-stable across platforms. On a Windows checkout
+  // (git's `* text=auto` checks the file out as CRLF) the raw read would embed `\r\n` into the
+  // bundle, which (a) makes the committed .ts flip every time and (b) differs from the test's
+  // expectation. Decoding the bundle always yields LF, matching what this normalizes to.
+  const normalizedHtml = rawHtml.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
   // Base64 encode to prevent design-debt linter from misinterpreting embedded HTML/CSS colors as app UI code
-  const base64 = Buffer.from(rawHtml, 'utf8').toString('base64');
+  const base64 = Buffer.from(normalizedHtml, 'utf8').toString('base64');
 
   const banner = `/* eslint-disable */
 /**
