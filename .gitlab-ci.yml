@@ -1,0 +1,204 @@
+# CI/CD của TTM Monitor trên GitLab MB — thay cho pipeline tự động của Vercel.
+#
+# Luồng: install (cache node_modules) → verify (lint + test) → build image → deploy OCP UAT (manual).
+#
+# Biến phải khai ở Settings → CI/CD → Variables (đánh dấu Masked, và Protected nếu nhánh uat được bảo vệ):
+#   NPM_REGISTRY        http://10.1.12.177:8445/repository/active-npm-public/
+#   NPM_USER            tài khoản Nexus
+#   NPM_PASS            mật khẩu Nexus (dạng thường, job tự base64)        [Masked]
+#   IMAGE_REGISTRY      ví dụ harbor.mbbank.com.vn/qlda
+#   REGISTRY_USER       tài khoản đẩy image                                [Masked]
+#   REGISTRY_PASS       mật khẩu đẩy image                                 [Masked]
+#   OCP_SERVER          https://api.ocp.mbbank.com.vn:6443
+#   OCP_TOKEN           token ServiceAccount có quyền deploy ở project UAT [Masked]
+#   OCP_PROJECT         tên project/namespace UAT
+#
+# QUAN TRỌNG: runner trong mạng MB không ra được Internet, nên 3 image dưới (NODE_IMAGE,
+# KANIKO_IMAGE, OC_IMAGE) PHẢI trỏ vào registry nội bộ đã mirror sẵn. Giá trị mặc định ở đây chỉ là
+# ví dụ — sửa cho khớp registry của MB (hoặc ghi đè bằng biến CI/CD) trước khi chạy pipeline.
+
+stages:
+  - install
+  - verify
+  - build
+  - deploy
+
+variables:
+  NODE_IMAGE: "harbor.mbbank.com.vn/library/node:22-alpine"
+  KANIKO_IMAGE: "harbor.mbbank.com.vn/library/kaniko-executor:debug"
+  OC_IMAGE: "harbor.mbbank.com.vn/library/openshift-cli:latest"
+  IMAGE_NAME: "ttm-monitor"
+  # Tag theo commit để Deployment và Job migration luôn dùng đúng cùng một bản build.
+  IMAGE_TAG: "$CI_COMMIT_SHORT_SHA"
+  NEXT_TELEMETRY_DISABLED: "1"
+  GIT_DEPTH: "20"
+
+# node_modules đi qua các job bằng CACHE, KHÔNG bằng artifact.
+#
+# Lý do (đã đo trên repo này): node_modules = 458MB / 33.380 file, nén gzip còn ~117MB. Hạn mức
+# artifact mặc định của GitLab là 100MB mỗi job, và artifact được đóng bằng zip (deflate từng file,
+# với 33k file nhỏ thì còn lớn hơn 117MB) → `artifacts: paths: [node_modules/]` bị từ chối lúc
+# upload, kéo theo lint/test không có dependency để chạy. Cache không chịu hạn mức đó.
+#
+# `policy: pull` ở default để lint/test chỉ tải cache về; riêng job `install` ghi cache (pull-push).
+.node_modules_cache: &node_modules_cache
+  key:
+    files:
+      - package-lock.json
+  paths:
+    - node_modules/
+
+default:
+  cache:
+    <<: *node_modules_cache
+    policy: pull
+
+# Sinh .npmrc trỏ Nexus nội bộ từ biến CI, để credential không nằm trong repo.
+# Định dạng khớp ~/.npmrc trên máy dev: npm yêu cầu _password là base64 của mật khẩu thường.
+# "${NPM_REGISTRY#http*:}" cắt scheme, còn lại "//host:port/path/" — đúng dạng khoá auth của npm.
+#
+# Khai dưới dạng hidden job + dùng lại bằng `!reference`, vì anchor YAML chỉ alias được NGUYÊN một
+# node — không ghép được hai list vào cùng một `before_script` như lint/test cần bên dưới.
+.setup_npmrc:
+  before_script:
+    - |
+      set -eu
+      AUTH_KEY="${NPM_REGISTRY#http*:}"
+      {
+        echo "registry=${NPM_REGISTRY}"
+        echo "strict-ssl=false"
+        echo "${AUTH_KEY}:username=${NPM_USER}"
+        echo "${AUTH_KEY}:_password=$(printf '%s' "${NPM_PASS}" | base64 | tr -d '\n')"
+      } > .npmrc
+
+# Cache của GitLab là best-effort: lần chạy đầu tiên, sau khi đổi package-lock.json, hoặc khi runner
+# đã xoá cache thì node_modules không có. Artifact trước đây đảm bảo việc này, cache thì không — nên
+# lint/test phải tự cài lại thay vì fail với "eslint: not found".
+.ensure_node_modules:
+  before_script:
+    - |
+      set -eu
+      if [ ! -x node_modules/.bin/eslint ]; then
+        echo "Cache node_modules không có hoặc không đầy đủ — chạy npm ci."
+        npm ci --no-audit --no-fund --ignore-scripts
+      fi
+
+install:
+  stage: install
+  image: $NODE_IMAGE
+  before_script:
+    - !reference [.setup_npmrc, before_script]
+  script:
+    # --ignore-scripts: `prepare` chạy `git config core.hooksPath`, không cần trong CI.
+    - npm ci --no-audit --no-fund --ignore-scripts
+  # Job duy nhất ĐƯỢC GHI cache; các job sau chỉ pull (xem `default` ở trên).
+  cache:
+    <<: *node_modules_cache
+    policy: pull-push
+
+lint:
+  stage: verify
+  image: $NODE_IMAGE
+  # Giữ `needs` để install chạy trước và đẩy cache lên; bỏ `dependencies` vì install không còn
+  # artifact nào để tải.
+  needs: ["install"]
+  dependencies: []
+  before_script:
+    - !reference [.setup_npmrc, before_script]
+    - !reference [.ensure_node_modules, before_script]
+  script:
+    - npm run lint
+
+test:
+  stage: verify
+  image: $NODE_IMAGE
+  needs: ["install"]
+  dependencies: []
+  before_script:
+    - !reference [.setup_npmrc, before_script]
+    - !reference [.ensure_node_modules, before_script]
+  script:
+    # 334 test: Epic Scoring Service, working-days, module boundaries. Không cần CSDL.
+    - npm test
+
+build-image:
+  stage: build
+  # Kaniko build được image trong runner Kubernetes mà không cần quyền privileged / docker socket.
+  image:
+    name: $KANIKO_IMAGE
+    entrypoint: [""]
+  needs: ["lint", "test"]
+  # Kaniko tự chạy `npm ci` bên trong stage `deps` của Dockerfile → không cần cache node_modules.
+  # Để trống để job không tải vô ích ~117MB cache mà `default` kế thừa xuống (và .dockerignore loại
+  # node_modules khỏi build context, nên có tải cũng không dùng được).
+  cache: []
+  before_script:
+    - !reference [.setup_npmrc, before_script]
+  script:
+    - mkdir -p /kaniko/.docker
+    - |
+      set -eu
+      AUTH=$(printf '%s:%s' "$REGISTRY_USER" "$REGISTRY_PASS" | base64 | tr -d '\n')
+      REGISTRY_HOST=${IMAGE_REGISTRY%%/*}
+      printf '{"auths":{"%s":{"auth":"%s"}}}' "$REGISTRY_HOST" "$AUTH" > /kaniko/.docker/config.json
+    - |
+      /kaniko/executor \
+        --context "$CI_PROJECT_DIR" \
+        --dockerfile "$CI_PROJECT_DIR/Dockerfile" \
+        --build-arg "NODE_IMAGE=$NODE_IMAGE" \
+        --build-arg "NPM_REGISTRY=$NPM_REGISTRY" \
+        --destination "$IMAGE_REGISTRY/$IMAGE_NAME:$IMAGE_TAG" \
+        --destination "$IMAGE_REGISTRY/$IMAGE_NAME:$CI_COMMIT_REF_SLUG" \
+        --cache=true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "uat" || $CI_COMMIT_BRANCH == "main"'
+
+# Migration CSDL chạy TRƯỚC khi đổi image của Deployment, bằng chính image vừa build.
+# Chỉ áp dụng migration mới; KHÔNG bao giờ --init (lệnh đó chạy db/schema.sql vốn mở đầu bằng
+# DROP TABLE … CASCADE, chỉ dành cho database rỗng).
+migrate-uat:
+  stage: deploy
+  image: $OC_IMAGE
+  needs: ["build-image"]
+  # Job chỉ gọi `oc`, không cần node_modules — chặn cache kế thừa từ `default`.
+  cache: []
+  script:
+    - oc login "$OCP_SERVER" --token="$OCP_TOKEN" --insecure-skip-tls-verify=true
+    - oc project "$OCP_PROJECT"
+    - oc delete job ttm-monitor-migrate --ignore-not-found
+    - |
+      sed "s|image: .*ttm-monitor:.*|image: $IMAGE_REGISTRY/$IMAGE_NAME:$IMAGE_TAG|" \
+        openshift/job-migrate.yaml | oc apply -f -
+    - oc wait --for=condition=complete job/ttm-monitor-migrate --timeout=600s
+  after_script:
+    # Log in ra cả khi job fail, để biết migration dừng ở file nào.
+    - oc logs job/ttm-monitor-migrate || true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "uat"'
+      when: manual
+      allow_failure: false
+
+deploy-uat:
+  stage: deploy
+  image: $OC_IMAGE
+  needs: ["migrate-uat"]
+  cache: []
+  environment:
+    name: uat
+    url: https://ttm-monitor-uat.apps.ocp.mbbank.com.vn
+  script:
+    - oc login "$OCP_SERVER" --token="$OCP_TOKEN" --insecure-skip-tls-verify=true
+    - oc project "$OCP_PROJECT"
+    # ConfigMap/Service/Route idempotent. Secret KHÔNG apply từ repo — tạo tay một lần bằng
+    # `oc create secret` (xem openshift/secret.yaml.example).
+    - oc apply -f openshift/configmap.yaml
+    - oc apply -f openshift/service.yaml
+    - oc apply -f openshift/route.yaml
+    - |
+      sed "s|image: .*ttm-monitor:.*|image: $IMAGE_REGISTRY/$IMAGE_NAME:$IMAGE_TAG|" \
+        openshift/deployment.yaml | oc apply -f -
+    - oc rollout status deployment/ttm-monitor --timeout=600s
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "uat"'
+      when: manual
+      allow_failure: false

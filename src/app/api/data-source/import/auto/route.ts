@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { PUBLIC_RATE_LIMITS, rateLimitResponse } from '@/lib/api-rate-limit';
+import { getImportApiToken } from '@/lib/import-api-token-service';
 import { ADAPTER_TYPES, executeImport } from '@/modules/integration/public';
 
 /**
@@ -21,9 +22,16 @@ function isValidToken(provided: string, expected: string): boolean {
 let importInFlight = false;
 
 export async function POST(request: NextRequest) {
-  const expectedToken = process.env.IMPORT_API_TOKEN;
+  // Token lives in the database (Quản trị hệ thống → "Token import tự động"), no longer in IMPORT_API_TOKEN (2026-11-13).
+  let expectedToken: string | null;
+  try {
+    expectedToken = await getImportApiToken();
+  } catch (error: unknown) {
+    console.error('POST /api/data-source/import/auto: cannot read the import API token.', error);
+    return NextResponse.json({ error: 'Không đọc được cấu hình token import tự động.' }, { status: 503 });
+  }
   if (!expectedToken) {
-    console.error('POST /api/data-source/import/auto: IMPORT_API_TOKEN is not configured.');
+    console.error('POST /api/data-source/import/auto: the import API token is not configured (Quản trị hệ thống → Token import tự động).');
     return NextResponse.json({ error: 'Chức năng import tự động chưa được cấu hình trên server.' }, { status: 503 });
   }
 

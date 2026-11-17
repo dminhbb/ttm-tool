@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { ChartPie, GearSix, Info, Key, LinkSimple, Megaphone, Plugs, Prohibit } from '@phosphor-icons/react';
+import { ChartPie, GearSix, Info, Key, LinkSimple, Megaphone, Plugs, Prohibit, UploadSimple } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { MODAL_BACKDROP_CLASS, MODAL_FRAME_CLASS, ModalHeader, useModalBehavior } from '@/components/ui/Modal';
@@ -9,6 +9,7 @@ import type { UserRole } from '@/lib/auth-types';
 import { AdPopupsPanel } from '@/components/settings/AdPopupsPanel';
 import { ApiKeysPanel } from '@/components/settings/ApiKeysPanel';
 import { DashboardViewPanel } from '@/components/settings/DashboardViewPanel';
+import { ImportApiTokenPanel } from '@/components/settings/ImportApiTokenPanel';
 import { InfoBannersPanel } from '@/components/settings/InfoBannersPanel';
 import { JiraConfigPanel } from '@/components/settings/JiraConfigPanel';
 import { McpServerPanel } from '@/components/settings/McpServerPanel';
@@ -33,6 +34,7 @@ const SUPERADMIN_SECTIONS: SettingsSection[] = [
   { id: 'info-banners', icon: Info, label: 'Banner thông báo', panel: <InfoBannersPanel /> },
   { id: 'ad-popups', icon: Megaphone, label: 'Popup quảng cáo', panel: <AdPopupsPanel /> },
   { id: 'api-keys', icon: Key, label: 'Quản lý API key', panel: <ApiKeysPanel /> },
+  { id: 'import-api-token', icon: UploadSimple, label: 'Token import tự động', panel: <ImportApiTokenPanel /> },
   { id: 'jira-config', icon: LinkSimple, label: 'Cấu hình Jira', panel: <JiraConfigPanel /> },
   { id: 'mcp-server', icon: Plugs, label: 'MCP Server', panel: <McpServerPanel /> },
   { id: 'dashboard-view', icon: ChartPie, label: 'Dashboard', panel: <DashboardViewPanel /> },

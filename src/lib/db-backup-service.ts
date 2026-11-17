@@ -70,6 +70,7 @@ const OTHER_TABLE_LABELS: Record<string, string> = {
   data_snapshot_dates: 'Ngày chốt dữ liệu (cuối tuần)',
   derived_cache_refresh_lock: 'Khoá tạo lại cache',
   epic_alert_row_cache: 'Cache dòng cảnh báo Epic',
+  import_api_settings: 'Token import tự động',
   mcp_access_daily_stats: 'MCP — thống kê truy cập',
   mcp_access_tokens: 'MCP — access token',
   mcp_oauth_authorization_codes: 'MCP — OAuth authorization code',

@@ -1172,13 +1172,13 @@
           <tr><td>Chạy ứng dụng</td><td>Vercel build &amp; chạy serverless</td><td><code>npm ci</code> → <code>npm run build</code> → <code>npm start</code> (cổng mặc định 3000); giữ tiến trình bằng PM2 / systemd / Windows Service</td></tr>
           <tr><td>CSDL</td><td><code>DB_CONNECTION=supabase</code> + chuỗi Transaction pooler (cổng 6543)</td><td><code>DB_CONNECTION=local</code> + thông số PG; tạo CSDL mới bằng <code>db/install/ttm-monitor-schema.sql</code></td></tr>
           <tr><td>Migration</td><td colspan="2">Chạy thủ công, không tự chạy khi deploy: <code>node scripts/migrate-db.js --target=&lt;local|supabase&gt;</code></td></tr>
-          <tr><td>Biến môi trường</td><td colspan="2">Thông số CSDL, <code>IMPORT_API_TOKEN</code> (import tự động); mẫu tại <code>.env.example</code></td></tr>
+          <tr><td>Biến môi trường</td><td colspan="2">Thông số CSDL (token import tự động lưu trong CSDL, đặt ở Quản trị hệ thống → Token import tự động); mẫu tại <code>.env.example</code></td></tr>
           <tr><td>Reverse proxy</td><td>Vercel lo HTTPS</td><td>Nginx / IIS: HTTPS, body tối thiểu 60 MB, timeout tối thiểu 300 giây (import, tạo lại cache, sao lưu)</td></tr>
           <tr><td>Mạng</td><td colspan="2">Build và chạy không cần Internet (font tự host); lúc chạy không gọi dịch vụ ngoài — link Jira chỉ mở trên trình duyệt người dùng</td></tr>
           <tr><td>Mở rộng</td><td>Vercel tự scale</td><td>Chạy nhiều instance sau load balancer được (phiên lưu trong DB, khoá tạo cache dùng chung)</td></tr>
         </tbody>
       </table></div>
-      <div class="note warn"><b>Checklist trước khi lên production:</b> chạy đủ migration trên CSDL đích · đặt <code>IMPORT_API_TOKEN</code> · tạo tài khoản SUPERADMIN và đổi mật khẩu mặc định · cấu hình Domain, dự án, tiêu chí TTM, nhóm rule · import dữ liệu lần đầu rồi bấm <b>Tạo lại cache</b> · kiểm tra Ma trận phân quyền · bật sao lưu định kỳ qua màn Sao lưu / Phục hồi.</div>
+      <div class="note warn"><b>Checklist trước khi lên production:</b> chạy đủ migration trên CSDL đích · đặt token tại Quản trị hệ thống → <b>Token import tự động</b> · tạo tài khoản SUPERADMIN và đổi mật khẩu mặc định · cấu hình Domain, dự án, tiêu chí TTM, nhóm rule · import dữ liệu lần đầu rồi bấm <b>Tạo lại cache</b> · kiểm tra Ma trận phân quyền · bật sao lưu định kỳ qua màn Sao lưu / Phục hồi.</div>
     </section>
 
     <footer>TTM Monitor · Tài liệu kiến trúc &amp; giải pháp · build 261101.2136 · 01/11/2026</footer>

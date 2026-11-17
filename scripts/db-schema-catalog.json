@@ -158,12 +158,13 @@
     },
     {
       "id": "integration",
-      "name": "SSO, API Key & MCP Server",
+      "name": "SSO, API Key, token import & MCP Server",
       "fill": "#f5f6f8",
       "ink": "#475569",
       "tables": [
         "api_keys",
         "sso_auth_codes",
+        "import_api_settings",
         "mcp_settings",
         "mcp_access_tokens",
         "mcp_access_daily_stats",
@@ -498,6 +499,12 @@
     "sso_auth_codes": {
       "description": "Mã ủy quyền SSO dùng 1 lần, hết hạn sau 5 phút (mục 17).",
       "columns": {}
+    },
+    "import_api_settings": {
+      "description": "<strong>Mới 13/11/2026.</strong> Singleton (id = 1) giữ token Bearer của API import tự động <code>POST /api/data-source/import/auto</code> (công cụ crawl Jira), thay cho biến môi trường <code>IMPORT_API_TOKEN</code>. SUPERADMIN đặt / tạo / xoá ở Quản trị hệ thống → Token import tự động. NULL = chưa cấu hình (API trả 503). Không nằm trong Smart export.",
+      "columns": {
+        "api_token": "<code>TEXT</code></td><td>Token dạng rõ (ứng dụng chạy trong mạng nội bộ); NULL = chưa cấu hình"
+      }
     },
     "mcp_settings": {
       "description": "Công tắc singleton bật/tắt toàn bộ MCP Server (mục 16).",

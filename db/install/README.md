@@ -89,8 +89,11 @@ PGPASSWORD=...
 PGDATABASE=ttm_tool
 # hoặc một chuỗi duy nhất (cần TLS thì thêm ?sslmode=require):
 # DATABASE_URL_LOCAL=postgres://ttm_app:...@DB_HOST:5432/ttm_tool
-IMPORT_API_TOKEN=...   # nếu dùng script Python import tự động
 ```
+
+Token cho công cụ crawl Jira import tự động (`POST /api/data-source/import/auto`) **không** khai báo ở biến môi
+trường: sau khi đăng nhập SUPERADMIN, vào **Quản trị hệ thống → Token import tự động** để đặt / tạo token (lưu trong
+bảng `import_api_settings`), rồi điền cùng giá trị vào `import_api.token` của công cụ crawl.
 
 ## 5. Migration về sau
 

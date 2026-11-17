@@ -1,9 +1,9 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-11T05:43:26.557Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-13T08:27:02.931Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
--- Gồm: 78 bảng, 65 index phụ, 4 hàm, 4 trigger.
+-- Gồm: 79 bảng, 65 index phụ, 4 hàm, 4 trigger.
 -- Yêu cầu: PostgreSQL 14 trở lên, một database RỖNG (không dùng cho DB đã có bảng — sẽ báo lỗi và không
 -- tạo gì vì cả file chạy trong một transaction). Không cần extension nào.
 --
@@ -14,7 +14,7 @@
 -- theo dõi, không phải dữ liệu nghiệp vụ: nhờ vậy `node scripts/migrate-db.js --target=local` trên DB mới
 -- chỉ chạy những migration phát sinh SAU thời điểm sinh file.
 --
--- Phần 7 (cuối file) là DỮ LIỆU KHỞI TẠO TUỲ CHỌN: cấu hình hiện hành của 20 bảng cấu hình (ma trận phân quyền,
+-- Phần 7 (cuối file) là DỮ LIỆU KHỞI TẠO TUỲ CHỌN: cấu hình hiện hành của 21 bảng cấu hình (ma trận phân quyền,
 -- tiêu chí TTM, rule cảnh báo, lịch nghỉ, cấu hình Scoring…) + 1 tài khoản SUPERADMIN ban đầu, để ứng dụng chạy được
 -- ngay sau khi tạo DB. Bật / tắt bằng CÔNG TẮC ngay bên dưới. Chi tiết: db/install/README.md.
 -- =============================================================================================
@@ -342,6 +342,15 @@ CREATE TABLE import_admission_settings (
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT import_admission_settings_pkey PRIMARY KEY (id),
     CONSTRAINT import_admission_settings_id_check CHECK ((id = 1))
+);
+
+CREATE TABLE import_api_settings (
+    id smallint DEFAULT 1 NOT NULL,
+    api_token text,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by_user_id integer,
+    CONSTRAINT import_api_settings_pkey PRIMARY KEY (id),
+    CONSTRAINT import_api_settings_id_check CHECK ((id = 1))
 );
 
 CREATE TABLE import_batches (
@@ -1108,6 +1117,7 @@ ALTER TABLE epic_alert_timeline ADD CONSTRAINT epic_alert_timeline_source_import
 ALTER TABLE epic_hidden_by_users ADD CONSTRAINT epic_hidden_by_users_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE DEFERRABLE;
 ALTER TABLE epic_task_status ADD CONSTRAINT epic_task_status_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
 ALTER TABLE import_admission_settings ADD CONSTRAINT import_admission_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE import_api_settings ADD CONSTRAINT import_api_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
 ALTER TABLE issues ADD CONSTRAINT issues_epic_id_fkey FOREIGN KEY (epic_id) REFERENCES issues(id) ON DELETE SET NULL DEFERRABLE;
 ALTER TABLE issues ADD CONSTRAINT issues_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES issues(id) ON DELETE SET NULL DEFERRABLE;
 ALTER TABLE issues ADD CONSTRAINT issues_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE CASCADE DEFERRABLE;
@@ -1271,7 +1281,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 131 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 133 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1405,7 +1415,8 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261124_add_epic_change_id_pentest_status.sql'),
     ('20261125_news_letter_hidden_pinned.sql'),
     ('20261126_epic_field_changes.sql'),
-    ('20261127_make_foreign_keys_deferrable.sql');
+    ('20261127_make_foreign_keys_deferrable.sql'),
+    ('20261128_create_import_api_settings.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1515,14 +1526,12 @@ SELECT * FROM (VALUES
 ) AS seed (feature_key, role, can_view, can_add, can_edit, can_delete)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 
--- ttm_policy_sets (2 dòng) — thêm tay 2026-11-12 (đúng 2 bộ của migration 20261031_create_ttm_policy_sets): trước đó
--- seed thiếu bảng này nên ttm_policy_configs.policy_set vi phạm khoá ngoại và cả file rollback. Lần chạy
--- `npm run db:export-schema` sau sẽ sinh lại khối này từ CSDL (bảng đã có trong seed của db-schema-catalog.json).
-INSERT INTO "ttm_policy_sets" ("key", "name", "note")
+-- ttm_policy_sets (2 dòng)
+INSERT INTO ttm_policy_sets (key, name, note, created_at)
 SELECT * FROM (VALUES
-    ('DEFAULT'::character varying(40), 'Mặc định'::character varying(100), 'Tiêu chí Time to Market hiện hành — mọi bộ khác kế thừa các dòng mà nó không khai báo.'::text),
-    ('legacy-30d'::character varying(40), 'CNTT 30 ngày (Tính năng mới/Cải tiến L3-L4, Epic cũ)'::character varying(100), 'Owner 2026-10-26: Epic CT-Lv34 có Start Date < 01/09/2026 hoặc R4G Date < 01/10/2026 có Target TTM-CNTT 30 ngày làm việc.'::text)
-) AS seed ("key", "name", "note")
+    ('DEFAULT'::character varying(40), 'Mặc định'::character varying(100), 'Tiêu chí Time to Market hiện hành — mọi bộ khác kế thừa các dòng mà nó không khai báo.'::text, '2026-10-26 07:10:53.325116+00'::timestamp with time zone),
+    ('legacy-30d'::character varying(40), 'CNTT 30 ngày (Tính năng mới/Cải tiến L3-L4, Epic cũ)'::character varying(100), 'Owner 2026-10-26: Epic CT-Lv34 có Start Date < 01/09/2026 hoặc R4G Date < 01/10/2026 có Target TTM-CNTT 30 ngày làm việc.'::text, '2026-10-26 07:10:53.325116+00'::timestamp with time zone)
+) AS seed (key, name, note, created_at)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 
 -- ttm_policy_configs (9 dòng)
@@ -1704,7 +1713,7 @@ WHERE current_setting('ttm_install.seed_data', true) = 'on';
 -- derived_cache_refresh_lock (1 dòng)
 INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 SELECT * FROM (VALUES
-    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-11 01:16:57.568165+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-12 22:12:16.024443+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
 ) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 
