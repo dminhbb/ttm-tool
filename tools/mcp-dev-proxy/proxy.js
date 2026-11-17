@@ -40,7 +40,34 @@ if (!TOKEN && fs.existsSync(TOKEN_FILE)) {
   TOKEN = fs.readFileSync(TOKEN_FILE, 'utf8').trim();
 }
 
+const LISTEN_HOST = '127.0.0.1';
+const LOCAL_HOSTS = new Set([`localhost:${PORT}`, `127.0.0.1:${PORT}`]);
+
+/**
+ * Only local MCP clients (Claude Code / VS Code) may use the token this proxy injects. A web page open in the browser of
+ * this machine can still reach 127.0.0.1 — directly or through DNS rebinding — so a request must name the proxy itself
+ * as Host, and a request carrying an Origin (browsers send one, MCP clients do not) must come from a local page.
+ */
+function isLocalClientRequest(req) {
+  const host = (req.headers.host || '').toLowerCase();
+  if (!LOCAL_HOSTS.has(host)) return false;
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  try {
+    const { hostname } = new URL(origin);
+    return hostname === 'localhost' || hostname === '127.0.0.1';
+  } catch {
+    return false;
+  }
+}
+
 const server = http.createServer((req, res) => {
+  if (!isLocalClientRequest(req)) {
+    res.writeHead(403, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32001, message: 'mcp-dev-proxy: only local MCP clients are allowed' }, id: null }));
+    return;
+  }
+
   // Build request options to the internal MCP endpoint
   const options = {
     hostname: TARGET_HOST,
@@ -89,8 +116,10 @@ const server = http.createServer((req, res) => {
   req.pipe(upstream);
 });
 
-server.listen(PORT, () => {
-  console.log(`[mcp-dev-proxy] listening on http://localhost:${PORT}`);
+// Loopback only: the proxy adds the developer's bearer token to every request, so listening on every interface (the
+// Node default) would let any machine on the network use the MCP server in the developer's name.
+server.listen(PORT, LISTEN_HOST, () => {
+  console.log(`[mcp-dev-proxy] listening on http://localhost:${PORT} (${LISTEN_HOST} only)`);
   console.log(`[mcp-dev-proxy] forwarding to https://${TARGET_HOST}${TARGET_PATH}`);
   console.log(`[mcp-dev-proxy] TLS verification DISABLED (dev only)`);
 });

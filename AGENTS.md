@@ -21,6 +21,21 @@ khác trong AGENTS.md này quy định *cách làm từng phần*; QUY_TRINH quy
 - Checklist trước khi báo "xong" nằm ở cuối QUY_TRINH; traceability là bằng chứng bắt buộc.
 - Nếu một bước không áp dụng, ghi rõ `N/A – lý do` trong traceability (không bỏ trống).
 
+# Two environments — GitHub (personal → Vercel) and internal GitLab (company)
+
+The same code is developed in two places: the personal PC (`ttm-tool` → GitHub `dminhbb/ttm-tool` → Vercel production)
+and the company PC (`ttm-tool-mb` → internal GitLab → company build), kept in step by a FreeFileSync **mirror** between
+the two folders. The GitHub repository may be public, so it must never carry the company's internals:
+
+- **Company-only files** live only in `ttm-tool-mb` / internal GitLab, are listed in `.gitignore` and excluded from the
+  FreeFileSync mirror in both directions (so the company copy is neither overwritten nor deleted): `.gitlab-ci.yml`
+  (internal registry / OpenShift / UAT addresses — edit it only in `ttm-tool-mb`) and `/_package/` (release-package
+  manifest). Do not re-create or commit them on the GitHub side.
+- **No real data in the repo:** no unmasked Jira export, database dump or Smart export (`*.sql` with users' password
+  hashes) — use `scripts/mask-jira-csv.js` and keep only masked / synthetic samples (`scripts/export.masked.csv`,
+  `public/brd/py_jira_api_sample.csv`).
+- Secrets stay out of the tree on both sides (`.env*`, `tools/mcp-dev-proxy/.proxy-token`, `.npmrc`).
+
 # Multi-database — local + Supabase (Aiven retired)
 
 This project runs against two Postgres targets in parallel: the developer's local instance and a

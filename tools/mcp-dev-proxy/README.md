@@ -9,7 +9,11 @@ Kết nối Claude Code / VS Code extension tới MCP server **dev** trên OCP n
    và không có option tắt verify TLS trong `.mcp.json`.
 
 Proxy cục bộ này:
-- Lắng nghe trên `http://localhost:3457` (HTTP thuần — không vướng SSL).
+- Lắng nghe trên `http://localhost:3457` (HTTP thuần — không vướng SSL), **chỉ ở `127.0.0.1`** — máy khác trong
+  mạng không gọi được proxy (proxy tự chèn token của bạn, nên không được mở ra ngoài).
+- Từ chối (403) request có header `Host` khác `localhost:<port>` / `127.0.0.1:<port>` hoặc có `Origin` của một trang
+  web không phải localhost — chặn trang web mở trong trình duyệt trên chính máy này (kể cả qua DNS rebinding) mượn
+  token. Claude Code / VS Code không gửi `Origin` nên không bị ảnh hưởng.
 - Forward mọi request tới `https://qlda-tool...mbbank.com.vn/api/mcp` với
   `rejectUnauthorized: false` (tắt verify TLS, **chỉ cho dev**).
 - Tự chèn `Authorization: Bearer <token>` lấy từ file `.proxy-token` (không commit).

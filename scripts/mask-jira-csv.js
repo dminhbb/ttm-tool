@@ -30,7 +30,8 @@
  * Usage:
  *   node scripts/mask-jira-csv.js --input export.csv --output export.masked.csv --map API=PHUCLAM
  *   node scripts/mask-jira-csv.js --input export.csv --output export.masked.csv --map API=PHUCLAM,OTHER=FAKE2 --state scripts/.jira-key-mask-map.json
- *   node mask-jira-csv.js --input ttm_jira_issues_ToolCore_20260828_1129.csv --output export.masked.csv --map API=PHUCLAM,HCM=VIOANH,BPMCN=TAN,CRMCN=THANH,DL=MINHNT,ECM=MCE,MS=SM,MSME=LONGNX1,PMP=HIEU,SBU=LONGNX2,SC=THUY,SMEDS=TUNGDT,TCTHTW=NHUNG,WM=HUONG,YCPT=BRD --state scripts/.jira-key-mask-map.json
+ *   (run it from the repo root and let --state default to scripts/.jira-key-mask-map.json — a relative --state is resolved
+ *    from the current folder: running inside scripts/ with "--state scripts/…" once wrote scripts/scripts/…, outside .gitignore)
  *
  * --map PROJ=FAKE[,PROJ2=FAKE2,...]  Required. Only these project prefixes get masked.
  * --state <path>                      Optional. Persistent key map (default scripts/.jira-key-mask-map.json).

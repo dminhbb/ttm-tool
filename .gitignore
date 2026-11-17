@@ -22,6 +22,13 @@
 # production
 /build
 
+# Company-only files (owner 2026-11-17): they live only in the company copy (ttm-tool-mb → internal GitLab), never on
+# GitHub — internal registry / OpenShift / UAT addresses. FreeFileSync excludes them in both directions, so the
+# company's copy is neither overwritten nor deleted by the mirror. Edit .gitlab-ci.yml only in ttm-tool-mb.
+/.gitlab-ci.yml
+# By-product of unpacking a tools/packaging zip into the source folder (manifest of a release package).
+/_package/
+
 # misc
 .DS_Store
 *.pem
@@ -53,7 +60,9 @@ yarn-error.log*
 
 # scripts/mask-jira-csv.js's persistent key-mapping state — a literal real-key↔fake-key decoder
 # ring, never commit it. Default path; --state points elsewhere it still matches this glob.
-scripts/*.jira-key-mask-map.json
+# Any folder: a relative --state is resolved from where the script is run (scripts/scripts/… once leaked).
+.jira-key-mask-map.json
+*.jira-key-mask-map.json
 
 # local tooling caches
 .turbo/

@@ -762,16 +762,9 @@ export function ImportIssuesTab() {
                 <li><strong className="text-fb-text-primary">Subtask</strong>: subtask_key, subtask_issue_type, subtask_summary, subtask_status, subtask_assignee, subtask_start_date, subtask_due_date (+ story_key, epic_key của dòng)</li>
               </ul>
 
+              {/* Only the synthetic Py Jira API sample is offered: the former "Pure Jira Export" sample linked a real,
+                  unmasked Jira export that was never served from public/ (always 404) and was removed from the repo. */}
               <div className="mt-2 border-t border-fb-border pt-3.5">
-                <a
-                  href="/brd/Jira 2026-08-07T15_18_36+0700.csv"
-                  className="inline-flex items-center gap-2 text-[11px] font-bold text-fb-blue transition-colors hover:text-fb-blue-hover focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-fb-blue/20"
-                >
-                  <DownloadSimple className="w-4 h-4" weight="bold" />
-                  Tải file mẫu CSV (Pure Jira Export)
-                </a>
-              </div>
-              <div>
                 <a
                   href="/brd/py_jira_api_sample.csv"
                   className="inline-flex items-center gap-2 text-[11px] font-bold text-fb-blue transition-colors hover:text-fb-blue-hover focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-fb-blue/20"
