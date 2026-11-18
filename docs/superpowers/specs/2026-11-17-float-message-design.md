@@ -1,39 +1,40 @@
-# Float message — thiết kế (2026-11-17)
+# Float message — thiết kế (2026-11-17, cập nhật hàng đợi 2026-11-18)
 
-Yêu cầu của chủ sản phẩm (REQ-20261117-03): một hộp thông báo nổi giống hộp "PopupKit" (bo tròn mạnh, có icon
-message, chữ tuỳ chỉnh), cấu hình ở Quản trị hệ thống → **Float message** (SUPERADMIN).
+Yêu cầu của chủ sản phẩm (`REQ-20261117-03`, `REQ-20261118-02`): một hộp thông báo nổi giống hộp "PopupKit" (bo tròn mạnh, có icon
+message, chữ tuỳ chỉnh), cấu hình ở Quản trị hệ thống → **Float message** (SUPERADMIN), đồng thời dùng chung làm thành phần hiển thị
+thống nhất cho các thông báo nổi trong ứng dụng theo cơ chế hàng đợi ưu tiên (Priority Queue).
 
 ## Phạm vi
 
-- **Một message duy nhất** (bảng singleton `float_message_settings`, `id = 1`) — giống "Tạm dừng hệ thống", không phải
-  danh sách như "Popup quảng cáo".
 - Hiện cho **mọi user đã đăng nhập**, trên mọi màn hình trong `AppShell`. Không hiện ở màn đăng nhập, `/suspended`, và khi
   user chỉ được xem Bản tin do hệ thống tạm dừng.
-- Nội dung là **một dòng văn bản thuần** (textbox, tối đa 256 ký tự; xuống dòng dán vào thành dấu cách) — render bằng React
-  (tự escape), không HTML. Hộp hiện tối đa khoảng 50 ký tự mỗi dòng, dài hơn thì tự xuống dòng.
+- Nội dung cấu hình của SUPERADMIN lưu tại bảng singleton `float_message_settings` (`id = 1`), là **một dòng văn bản thuần**
+  (textbox, tối đa 256 ký tự; xuống dòng dán vào thành dấu cách) — render bằng React (tự escape), không HTML. Hộp hiện tối đa khoảng
+  50 ký tự mỗi dòng, dài hơn thì tự xuống dòng.
 
-Ngoài phạm vi: nhiều message cùng lúc, nhắm theo role/màn hình, đếm lượt xem, link trong message.
+## Giao diện & Animation (`src/components/layout/FloatMessage.tsx`)
 
-## Quy tắc hiển thị (`src/lib/float-message.ts`, thuần — có test)
+- **Độ trong suốt 70%**: nền hộp `bg-fb-surface/70` kết hợp `backdrop-blur-md`, chữ `12px` đậm.
+- **Animation hiển thị**: trượt ra từ phía lề phải của màn hình (`translate-x-[calc(100%+1.5rem)] opacity-0` → `translate-x-0 opacity-100`)
+  với tốc độ **0.7x** (`duration-[430ms] ease-out`, tương ứng `300ms / 0.7`).
+- **Nút đóng message**: chữ `'x'` ở góc trên bên phải hộp.
+- Lớp hiển thị `z-[50]`: trên header (`z-30`) và sidebar (`z-40`), dưới modal (`z-[60]`).
 
-Giao diện hộp (2026-11-17, lần 2): nền trắng mờ 80% (làm mờ phía sau), kích thước và cỡ chữ nhỏ hơn 20% so với bản đầu (chữ 12px).
+## Cơ chế Hàng đợi ưu tiên (`src/lib/bottom-right-slot.ts`, thuần — có test)
 
-| Cấu hình | Ý nghĩa |
-|---|---|
-| `is_active` | Tắt ⇒ không hiện. |
-| `start_date` / `end_date` | Hiện từ / đến ngày (giờ Việt Nam, tính cả hai đầu); trống = không giới hạn phía đó. Ngày bắt đầu phải ≤ ngày kết thúc. |
-| `auto_hide_seconds` | Tự biến mất sau N giây (1–3600); `NULL` = **luôn hiển thị**. |
-| `dismissible` | Có nút X ở góc để đóng. |
-| `position` | `TOP_RIGHT` (dưới header, góc phải) hoặc `BOTTOM_RIGHT`. |
+Mọi thông báo sử dụng Float message đi qua hàng đợi `FloatMessageQueue` theo thứ tự ưu tiên:
 
-- Nội dung trống thì không hiện dù đang bật.
-- Đã đóng (X) hoặc đã tự tắt: **chỉ ẩn ở màn hình đang xem** — tải lại trang, mở lại trang hay chuyển màn hình là message
-  hiện lại (chủ sản phẩm 2026-11-17: thông tin quan trọng, phải tiếp tục hiển thị). Không ghi nhớ trong trình duyệt.
-- **Góc phải dưới hiện sau popup thông báo**: popup "My assigned epics — Bạn có n epic được giao task!"
-  (`AssignedEpicsNotice`, cũng ở góc phải dưới, 15 giây) giữ "chỗ góc phải dưới" (`src/lib/bottom-right-slot.ts`) từ lúc nó
-  bắt đầu kiểm tra tới lúc biến mất; Float message ở góc phải dưới chờ chỗ này trống mới hiện. Thời gian tự tắt tính từ
-  lúc message thực sự hiện.
-- Lớp hiển thị `z-[50]`: trên header (`z-30`) và sidebar (`z-40`), dưới modal (`z-[60]`) và popup thông báo (`z-[110]`).
+| Thứ tự ưu tiên | Loại nội dung | Timeout | Nút đóng `'x'` |
+|---|---|---|---|
+| **#1 (`CACHE = 1`)** | Thông báo Tạo cache (`DailyCacheWarmer`, `CacheStatusPanel`, cảnh báo `x-cache-stale`, lưu tiêu chí/rule cảnh báo) | Luôn = **10 giây** | Luôn có (`true`) |
+| **#2 (`ASSIGNED_TASKS = 2`)** | Thông báo My assigned tasks (`AssignedEpicsNotice`: *"TASK: Bạn có {n} epic được giao task!"*, có viền màu brown `border-2 border-[var(--header-widget-e2e-color)]`) | Luôn = **10 giây** | Luôn có (`true`) |
+| **Cuối cùng (`SYSTEM_CONFIG = 3`)** | Nội dung Float message cấu hình tại Quản trị hệ thống của SUPERADMIN | Theo cấu hình (`1–3600` giây hoặc `NULL` = luôn hiển thị) | Theo cấu hình (`dismissible`) |
+
+Quy tắc điều phối hàng đợi:
+- Các nội dung không thuộc cấu hình Quản trị hệ thống của SUPERADMIN (`#1`, `#2`) luôn tự động áp dụng `timeout = 10 giây` và `dismissible = true` (nút đóng chữ `'x'`).
+- Nội dung cấu hình của SUPERADMIN (`#3`) luôn xếp hàng cuối cùng (nếu `#3` đang hiển thị mà có thông báo `#1` hoặc `#2` mới phát sinh, `#3` tự nhường chỗ và quay lại cuối hàng đợi).
+- **Thời gian chờ 2 giây (`FLOAT_MESSAGE_GAP_MS = 2000`)**: các float message lần lượt hiển thị cách nhau 2 giây. Message có mức ưu tiên sau chỉ được hiển thị sau khi message trước đã kết thúc timeout + 2 giây chờ, hoặc sau khi message trước bị tắt bằng nút `'x'` + 2 giây chờ.
+- Với nội dung `#3` của SUPERADMIN: đóng (`x`) hoặc tự tắt chỉ ẩn ở màn hình đang xem — tải lại trang hoặc chuyển sang màn hình khác (`pathname` đổi) sẽ đưa `#3` vào cuối hàng đợi để hiển thị lại.
 
 ## Contract
 

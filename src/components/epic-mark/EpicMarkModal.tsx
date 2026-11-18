@@ -619,6 +619,7 @@ export function EpicMarkModal({ epicKey, onChanged, onClose, viewAsUserId }: { e
           epicKey={epicKey}
           initialValue={Boolean(payload.summary.ttmBlackListed)}
           onValueChange={(nextVal) => {
+            changedRef.current = true;
             setPayload((prev) =>
               prev?.summary ? { ...prev, summary: { ...prev.summary, ttmBlackListed: nextVal } } : prev
             );

@@ -12,8 +12,8 @@
 # Build (cần .npmrc trỏ Nexus nội bộ đặt cạnh Dockerfile — xem .gitlab-ci.yml):
 #   cp ~/.npmrc .npmrc && docker build -t ttm-monitor:<tag> .
 
-# Node base image. Mạng nội bộ không ra được Docker Hub → trỏ ARG này vào registry mirror của MB,
-# ví dụ: --build-arg NODE_IMAGE=harbor.mbbank.com.vn/library/node:22-alpine
+# Node base image. Mạng nội bộ không ra được Docker Hub → trỏ ARG này vào registry mirror nội bộ,
+# ví dụ: --build-arg NODE_IMAGE=<INTERNAL_REGISTRY>/library/node:22-alpine
 ARG NODE_IMAGE=node:22-alpine
 
 # ---------------------------------------------------------------------------
@@ -69,9 +69,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=8080
 ENV HOSTNAME=0.0.0.0
 
-# standalone/ đã gồm server.js + node_modules rút gọn. public/ và version.json được copy tường minh:
-# src/lib/product-doc-service.ts đọc public/docs/product-guide.html và src/lib/version.ts đọc
-# version.json, cả hai qua process.cwd() — thiếu thì MCP doc tool lỗi và footer hiện "unknown".
+# standalone/ đã gồm server.js + node_modules rút gọn (tài liệu sản phẩm ở src/lib/product-guide-content.ts
+# và build stamp ở src/lib/version.ts đều đã được nhúng vào bundle lúc build). public/ và version.json
+# vẫn được copy kèm cho các tài nguyên tĩnh do Next.js phục vụ trực tiếp.
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public

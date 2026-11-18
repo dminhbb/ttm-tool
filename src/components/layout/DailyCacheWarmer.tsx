@@ -3,7 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
-import { showToast } from '@/components/ui/Toast';
+import {
+  claimBottomRightSlot,
+  enqueueCacheFloatMessage,
+  FLOAT_MESSAGE_PRIORITY,
+} from '@/lib/bottom-right-slot';
 import { notifyCacheRebuildStatusChanged } from '@/lib/cache-rebuild-status-client';
 
 export const CACHE_REFRESH_TRIGGERED_EVENT = 'ttm-cache-refresh-triggered';
@@ -44,13 +48,13 @@ function writeFreshDay(day: string) {
 /**
  * Kicks off "Caching dữ liệu trong ngày" on the first signed-in page load of the day,
  * and monitors ongoing cache rebuild processes globally across all screens.
- * Displays 'Hệ thống đang tính toán lại cache' and 'Tạo Cache hoàn thành' toasts with a progress indicator.
+ * Displays 'Hệ thống đang tính toán lại cache' and 'Tạo Cache hoàn thành' via the unified Float message
+ * queue with Priority #1 (timeout = 10s, dismissible with 'x').
  * When the rebuild this tab followed from that first load ends well, it offers a reload so the current
  * screen re-reads the fresh cache.
  */
 export function DailyCacheWarmer({ enabled }: { enabled: boolean }) {
   const [askReload, setAskReload] = useState(false);
-  const [isRebuilding, setIsRebuilding] = useState(false);
   const isRebuildingRef = useRef(false);
 
   useEffect(() => {
@@ -61,12 +65,12 @@ export function DailyCacheWarmer({ enabled }: { enabled: boolean }) {
     let latestCheck = 0;
     // True while the rebuild in progress is the day's first one, seen starting from this tab.
     let followingDailyRun = false;
+    const releaseInitialCheck = claimBottomRightSlot('cache-warmer-init', FLOAT_MESSAGE_PRIORITY.CACHE);
 
     const markRebuilding = () => {
       if (isRebuildingRef.current) return;
       isRebuildingRef.current = true;
-      setIsRebuilding(true);
-      showToast('Hệ thống đang tính toán lại cache', 5000);
+      enqueueCacheFloatMessage('Hệ thống đang tính toán lại cache', 'cache-rebuilding');
     };
 
     const checkCacheStatus = async () => {
@@ -84,13 +88,12 @@ export function DailyCacheWarmer({ enabled }: { enabled: boolean }) {
             markRebuilding();
           } else if (isRebuildingRef.current) {
             isRebuildingRef.current = false;
-            setIsRebuilding(false);
             // The unread "cần tạo lại cache" dots re-check now that a rebuild has ended (2026-10-26).
             notifyCacheRebuildStatusChanged();
             if (body.state === 'FAILED') {
-              showToast('Tạo Cache không thành công — số liệu đang hiển thị có thể chưa được cập nhật', 8000);
+              enqueueCacheFloatMessage('Tạo Cache không thành công — số liệu đang hiển thị có thể chưa được cập nhật', 'cache-rebuild-result');
             } else {
-              showToast('Tạo Cache hoàn thành', 5000);
+              enqueueCacheFloatMessage('Tạo Cache hoàn thành', 'cache-rebuild-result');
               if (body.state === 'FRESH' && body.today) writeFreshDay(body.today);
               if (followingDailyRun) setAskReload(true);
             }
@@ -99,6 +102,8 @@ export function DailyCacheWarmer({ enabled }: { enabled: boolean }) {
         }
       } catch {
         if (cancelled || check !== latestCheck) return;
+      } finally {
+        releaseInitialCheck();
       }
       if (isRebuildingRef.current) timer = window.setTimeout(checkCacheStatus, ACTIVE_POLL_INTERVAL_MS);
       else if (!document.hidden) timer = window.setTimeout(checkCacheStatus, IDLE_POLL_INTERVAL_MS);
@@ -123,6 +128,7 @@ export function DailyCacheWarmer({ enabled }: { enabled: boolean }) {
           // ignore
         } finally {
           if (!cancelled) void checkCacheStatus();
+          else releaseInitialCheck();
         }
       })();
     } else {
@@ -139,6 +145,7 @@ export function DailyCacheWarmer({ enabled }: { enabled: boolean }) {
 
     return () => {
       cancelled = true;
+      releaseInitialCheck();
       if (timer !== undefined) window.clearTimeout(timer);
       window.removeEventListener(CACHE_REFRESH_TRIGGERED_EVENT, onTriggered);
       document.removeEventListener('visibilitychange', onVisibilityChange);
@@ -146,32 +153,20 @@ export function DailyCacheWarmer({ enabled }: { enabled: boolean }) {
   }, [enabled]);
 
   return (
-    <>
-      {isRebuilding && (
-        <div className="fixed top-3 right-5 z-[9999] pointer-events-none flex items-center gap-2 rounded-full border border-fb-blue bg-fb-blue-soft/95 px-3 py-1.5 text-xs font-semibold text-fb-blue shadow-lg backdrop-blur-xs transition-all">
-          <span className="relative flex size-2 shrink-0">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-fb-blue opacity-75" />
-            <span className="relative inline-flex size-2 rounded-full bg-fb-blue" />
-          </span>
-          <span>Hệ thống đang tính toán lại cache...</span>
-        </div>
+    <Modal
+      isOpen={askReload}
+      onClose={() => setAskReload(false)}
+      title="Dữ liệu trong ngày đã sẵn sàng"
+      footer={(
+        <>
+          <Button variant="outline" onClick={() => setAskReload(false)}>Để sau</Button>
+          <Button variant="primary" onClick={() => window.location.reload()}>Tải lại trang</Button>
+        </>
       )}
-
-      <Modal
-        isOpen={askReload}
-        onClose={() => setAskReload(false)}
-        title="Dữ liệu trong ngày đã sẵn sàng"
-        footer={(
-          <>
-            <Button variant="outline" onClick={() => setAskReload(false)}>Để sau</Button>
-            <Button variant="primary" onClick={() => window.location.reload()}>Tải lại trang</Button>
-          </>
-        )}
-      >
-        <p className="text-fb-text-secondary">
-          Cache dữ liệu trong ngày vừa được tạo xong. Bạn có muốn tải lại trang hiện tại để xem số liệu mới nhất không?
-        </p>
-      </Modal>
-    </>
+    >
+      <p className="text-fb-text-secondary">
+        Cache dữ liệu trong ngày vừa được tạo xong. Bạn có muốn tải lại trang hiện tại để xem số liệu mới nhất không?
+      </p>
+    </Modal>
   );
 }

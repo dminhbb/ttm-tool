@@ -1,9 +1,9 @@
 # MCP Dev Proxy
 
-Kết nối Claude Code / VS Code extension tới MCP server **dev** trên OCP nội bộ
-(`qlda-tool.apps.dc01-ocp-vm01a-vcf-dev.mbbank.com.vn`) khi gặp 2 rào cản mạng:
+Kết nối Claude Code / VS Code extension tới MCP server **dev** nội bộ
+(`<MCP_DEV_HOST>`) khi gặp 2 rào cản mạng:
 
-1. **Chứng chỉ SSL self-signed** do OpenShift ingress tạo — máy công ty không có
+1. **Chứng chỉ SSL self-signed** do ingress nội bộ tạo — máy công ty không có
    quyền admin để cài CA vào Windows Trusted Root store.
 2. `claude.exe` (native binary) **không tôn trọng** `NODE_TLS_REJECT_UNAUTHORIZED`
    và không có option tắt verify TLS trong `.mcp.json`.
@@ -14,10 +14,9 @@ Proxy cục bộ này:
 - Từ chối (403) request có header `Host` khác `localhost:<port>` / `127.0.0.1:<port>` hoặc có `Origin` của một trang
   web không phải localhost — chặn trang web mở trong trình duyệt trên chính máy này (kể cả qua DNS rebinding) mượn
   token. Claude Code / VS Code không gửi `Origin` nên không bị ảnh hưởng.
-- Forward mọi request tới `https://qlda-tool...mbbank.com.vn/api/mcp` với
+- Forward mọi request tới `https://<MCP_DEV_HOST>/api/mcp` với
   `rejectUnauthorized: false` (tắt verify TLS, **chỉ cho dev**).
 - Tự chèn `Authorization: Bearer <token>` lấy từ file `.proxy-token` (không commit).
-- Bỏ qua corporate proxy cho `.mbbank.com.vn` (đã nằm trong `NO_PROXY`).
 
 ## Cách dùng
 
@@ -44,12 +43,12 @@ Khi proxy đang chạy, server hiện **✓ Connected**.
 ## Cấu hình
 
 - **Port**: đổi bằng `node proxy.js <port>` hoặc biến env `MCP_DEV_PROXY_PORT`.
+- **Host đích**: ghi hostname của MCP server nội bộ vào `tools/mcp-dev-proxy/.proxy-target` (đã có trong `.gitignore`), hoặc đặt biến env `MCP_DEV_PROXY_TARGET_HOST`. Không commit địa chỉ nội bộ lên GitHub.
 - **Token**: ghi vào `tools/mcp-dev-proxy/.proxy-token` (đã có `.gitignore`), hoặc
   biến env `MCP_DEV_PROXY_TOKEN`. Token này KHÔNG được commit.
-- **Endpoint đích**: sửa hằng số `TARGET_HOST` / `TARGET_PATH` trong `proxy.js`.
 
 ## Bảo mật
 
 - `rejectUnauthorized: false` vô hiệu hóa xác minh chứng chỉ cho **proxy này** —
   chỉ dùng cho dev, không bao giờ đưa lên production.
-- Token nằm trong file `.proxy-token` local, không nằm trong `.mcp.json` hoặc git.
+- Host đích và token nằm trong file `.proxy-target` / `.proxy-token` local, không nằm trong `.mcp.json` hoặc git.

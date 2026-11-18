@@ -3,25 +3,65 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname } from 'next/navigation';
-import { ChatCircleText, X } from '@phosphor-icons/react';
-import { isBottomRightSlotBusy, subscribeBottomRightSlot } from '@/lib/bottom-right-slot';
-import type { FloatMessagePosition, PublicFloatMessage } from '@/lib/float-message';
+import { ChatCircleText } from '@phosphor-icons/react';
+import {
+  dismissActiveFloatMessage,
+  enqueueFloatMessage,
+  FLOAT_MESSAGE_PRIORITY,
+  getFloatQueueSnapshot,
+  removeFloatMessageById,
+  subscribeFloatQueue,
+  type FloatQueueSnapshot,
+  type QueuedFloatMessage,
+} from '@/lib/bottom-right-slot';
+import {
+  FLOAT_MESSAGE_CHANGED_EVENT,
+  type FloatMessagePosition,
+  type PublicFloatMessage,
+} from '@/lib/float-message';
 import { cn } from '@/lib/utils';
 
 /**
- * "Float message" (owner 2026-11-17, spec docs/superpowers/specs/2026-11-17-float-message-design.md): a strongly rounded
- * floating box — message icon + custom text, like a "PopupKit" badge — at the top-right (under the header) or
- * bottom-right corner. FloatMessageBox is the box alone (also used by the admin preview); FloatMessageDisplay loads the
- * message of the day for the signed-in user and decides when it shows.
- *
- * Owner 2026-11-17 (second pass): background 80 % opaque (blurred behind), box and text 20 % smaller than the first
- * version, at most about 50 characters per line (longer text wraps), and closing it (X or auto-hide) only lasts for the
- * screen being viewed — the message is important, so it shows again on every page load, refresh or screen change.
+ * "Float message" (owner 2026-11-17 / 2026-11-18, spec docs/superpowers/specs/2026-11-17-float-message-design.md):
+ * - Hộp thông báo nổi bo tròn mạnh (icon message + nội dung chữ), nền độ trong suốt 70% (`bg-fb-surface/70`) kèm làm mờ phía sau.
+ * - Animation khi hiển thị: trượt ra từ phía lề phải của màn hình với tốc độ 0.7x (`duration-[430ms] ease-out`).
+ * - Đồng bộ dùng chung cho:
+ *     #1 Thông báo Tạo cache (timeout = 10s, có nút 'x')
+ *     #2 Thông báo My assigned tasks (timeout = 10s, có nút 'x')
+ *     #3 Nội dung cấu hình tại Quản trị hệ thống của SUPERADMIN (luôn xếp cuối hàng đợi)
+ * - Các message trong hàng đợi hiển thị lần lượt cách nhau 2 giây (sau khi message trước hết timeout hoặc bị tắt).
  */
 
-export function FloatMessageBox({ dismissible, onClose, text }: { dismissible: boolean; onClose?: () => void; text: string }) {
+export function FloatMessageBox({
+  borderClassName,
+  dismissible,
+  onClick,
+  onClose,
+  text,
+}: {
+  borderClassName?: string;
+  dismissible: boolean;
+  onClick?: () => void;
+  onClose?: () => void;
+  text: string;
+}) {
   return (
-    <div className="relative flex w-max max-w-[calc(100vw-2rem)] items-center gap-2.5 rounded-[1.4rem] border border-fb-border bg-fb-surface/80 py-2.5 pr-5 pl-3 text-fb-text-primary shadow-[0_14px_32px_-10px_rgba(15,23,42,0.35)] backdrop-blur-md">
+    <div
+      className={cn(
+        'relative flex w-max max-w-[calc(100vw-2rem)] items-center gap-2.5 rounded-[1.4rem] bg-fb-surface/70 py-2.5 pr-5 pl-3 text-fb-text-primary shadow-[0_14px_32px_-10px_rgba(15,23,42,0.35)] backdrop-blur-md',
+        borderClassName ?? 'border border-fb-border',
+        onClick && 'cursor-pointer hover:bg-fb-surface/85',
+      )}
+      onClick={onClick}
+      onKeyDown={onClick ? (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onClick();
+        }
+      } : undefined}
+      role={onClick ? 'link' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+    >
       <span className="grid size-8 shrink-0 place-items-center rounded-full bg-fb-blue/10 text-fb-blue">
         <ChatCircleText className="size-[19px]" weight="fill" aria-hidden="true" />
       </span>
@@ -31,17 +71,23 @@ export function FloatMessageBox({ dismissible, onClose, text }: { dismissible: b
         <button
           aria-label="Đóng thông báo"
           className="absolute -top-1.5 -right-1.5 grid size-5 cursor-pointer place-items-center rounded-full border border-fb-border bg-fb-surface text-fb-text-secondary shadow-sm outline-none hover:text-fb-text-primary focus-visible:ring-2 focus-visible:ring-fb-blue"
-          onClick={onClose}
+          onClick={(event) => {
+            event.stopPropagation();
+            onClose?.();
+          }}
           type="button"
         >
-          <X className="size-3" weight="bold" aria-hidden="true" />
+          <span aria-hidden="true" className="text-[11px] font-bold leading-none">x</span>
         </button>
       )}
     </div>
   );
 }
 
-/** Fixed in its corner; slides / fades in and out. `layerClassName` sets the stacking layer (z-index). */
+/**
+ * Cố định ở góc phải màn hình; trượt từ lề phải màn hình vào với tốc độ 0.7x (~430ms = 300ms / 0.7).
+ * `layerClassName` đặt lớp hiển thị (z-index).
+ */
 export function FloatMessageFrame({ children, layerClassName = 'z-[50]', position, visible }: {
   children: React.ReactNode;
   layerClassName?: string;
@@ -53,11 +99,11 @@ export function FloatMessageFrame({ children, layerClassName = 'z-[50]', positio
     <div
       aria-hidden={!visible}
       className={cn(
-        'fixed right-4 transition-all duration-300',
+        'fixed right-4 transition-all duration-[430ms] ease-out',
         layerClassName,
         // Top-right sits under the 64 px header so it never covers the header's own buttons.
         isTop ? 'top-20' : 'bottom-4',
-        visible ? 'translate-y-0 opacity-100' : cn('pointer-events-none opacity-0', isTop ? '-translate-y-3' : 'translate-y-3'),
+        visible ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-[calc(100%+1.5rem)] opacity-0',
       )}
       role="status"
     >
@@ -66,48 +112,101 @@ export function FloatMessageFrame({ children, layerClassName = 'z-[50]', positio
   );
 }
 
-function useBottomRightSlotBusy(): boolean {
-  return React.useSyncExternalStore(subscribeBottomRightSlot, isBottomRightSlotBusy, () => false);
+const SERVER_QUEUE_SNAPSHOT: FloatQueueSnapshot = { active: null, coolingDown: false, queuedCount: 0 };
+
+function useFloatQueueSnapshot(): FloatQueueSnapshot {
+  return React.useSyncExternalStore(subscribeFloatQueue, getFloatQueueSnapshot, () => SERVER_QUEUE_SNAPSHOT);
 }
 
 /**
- * Loads GET /api/float-message once per page load. Bottom-right: waits while another notice holds that corner
- * (bottom-right-slot.ts — "epic được giao task") and steps aside if one arrives while it is shown; the auto-hide count
- * starts each time the box actually shows. Closed (X) or timed out: hidden on this screen only — a refresh, another
- * page load or another screen (pathname) shows it again.
+ * Hiển thị lần lượt các Float message trong hàng đợi ưu tiên:
+ *   #1 Tạo cache → #2 My assigned tasks → #3 Nội dung cấu hình Quản trị hệ thống của SUPERADMIN.
+ * Mỗi message cách nhau 2 giây sau khi message trước hết timeout hoặc bị đóng bằng nút 'x'.
+ * Với message #3 của SUPERADMIN: nút 'x' hoặc tự tắt chỉ ẩn ở màn hình đang xem; tải lại trang hoặc chuyển sang
+ * màn hình khác (`pathname` đổi) sẽ đưa lại #3 vào cuối hàng đợi.
  */
 export function FloatMessageDisplay() {
   const pathname = usePathname();
-  const [message, setMessage] = React.useState<PublicFloatMessage | null>(null);
-  const [closedOnPath, setClosedOnPath] = React.useState<string | null>(null);
-  const closed = closedOnPath === pathname;
-  const slotBusy = useBottomRightSlotBusy();
+  const { active } = useFloatQueueSnapshot();
+  const [systemMessage, setSystemMessage] = React.useState<PublicFloatMessage | null>(null);
+  const [enteredSeq, setEnteredSeq] = React.useState<number | null>(null);
+  const [lastActive, setLastActive] = React.useState<QueuedFloatMessage | null>(null);
+
+  const loadSystemMessage = React.useCallback((signal?: AbortSignal) => {
+    fetch('/api/float-message', { cache: 'no-store', signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { message?: PublicFloatMessage | null } | null) => {
+        const next = data?.message ?? null;
+        setSystemMessage(next);
+        if (!next) removeFloatMessageById('system-config');
+      })
+      .catch(() => undefined);
+  }, []);
 
   React.useEffect(() => {
     const controller = new AbortController();
-    fetch('/api/float-message', { cache: 'no-store', signal: controller.signal })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data: { message?: PublicFloatMessage | null } | null) => {
-        setMessage(data?.message ?? null);
-      })
-      .catch(() => undefined);
-    return () => controller.abort();
-  }, []);
+    loadSystemMessage(controller.signal);
+    const onChanged = () => loadSystemMessage();
+    window.addEventListener(FLOAT_MESSAGE_CHANGED_EVENT, onChanged);
+    return () => {
+      controller.abort();
+      window.removeEventListener(FLOAT_MESSAGE_CHANGED_EVENT, onChanged);
+    };
+  }, [loadSystemMessage]);
 
-  const close = React.useCallback(() => setClosedOnPath(pathname), [pathname]);
-
-  const showing = Boolean(message) && !closed && !(message?.position === 'BOTTOM_RIGHT' && slotBusy);
-
+  // Đưa nội dung cấu hình của SUPERADMIN vào cuối hàng đợi (#3) khi tải xong và mỗi khi người dùng chuyển màn hình.
   React.useEffect(() => {
-    if (!showing || !message?.autoHideSeconds) return;
-    const timer = window.setTimeout(close, message.autoHideSeconds * 1000);
-    return () => window.clearTimeout(timer);
-  }, [close, message, showing]);
+    if (!systemMessage) return;
+    enqueueFloatMessage({
+      autoHideSeconds: systemMessage.autoHideSeconds,
+      dismissible: systemMessage.dismissible,
+      id: 'system-config',
+      position: systemMessage.position,
+      priority: FLOAT_MESSAGE_PRIORITY.SYSTEM_CONFIG,
+      text: systemMessage.text,
+    });
+  }, [pathname, systemMessage]);
 
-  if (!message) return null;
+  if (active && active !== lastActive) {
+    setLastActive(active);
+  }
+
+  const activeSeq = active?.seq ?? null;
+  React.useEffect(() => {
+    if (activeSeq === null) return undefined;
+    const frame = window.requestAnimationFrame(() => setEnteredSeq(activeSeq));
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeSeq]);
+
+  const rendered = active ?? lastActive;
+  if (!rendered) return null;
+
+  const visible = Boolean(active && enteredSeq === active.seq);
+  const position: FloatMessagePosition = rendered.position ?? systemMessage?.position ?? 'BOTTOM_RIGHT';
+
+  const handleClose = () => {
+    dismissActiveFloatMessage(rendered.id);
+  };
+
+  const handleClick = rendered.onClick
+    ? () => {
+        const action = rendered.onClick;
+        dismissActiveFloatMessage(rendered.id);
+        action?.();
+      }
+    : undefined;
+
+  const isAssignedTasks = rendered.priority === FLOAT_MESSAGE_PRIORITY.ASSIGNED_TASKS;
+
   return (
-    <FloatMessageFrame position={message.position} visible={showing}>
-      <FloatMessageBox dismissible={message.dismissible} onClose={close} text={message.text} />
+    <FloatMessageFrame position={position} visible={visible}>
+      <FloatMessageBox
+        borderClassName={isAssignedTasks ? 'border-2 border-[var(--header-widget-e2e-color)]' : undefined}
+        dismissible={rendered.dismissible}
+        onClick={handleClick}
+        onClose={handleClose}
+        text={rendered.text}
+      />
     </FloatMessageFrame>
   );
 }
@@ -129,7 +228,7 @@ export function FloatMessagePreview({ autoHideSeconds, dismissible, onDone, posi
 
   const finish = React.useCallback(() => {
     setVisible(false);
-    window.setTimeout(onDone, 300);
+    window.setTimeout(onDone, 430);
   }, [onDone]);
 
   React.useEffect(() => {

@@ -1,11 +1,8 @@
 #!/usr/bin/env node
 /**
- * MCP Dev Proxy — forward HTTP(S) requests to the internal OCP MCP endpoint
- * with TLS certificate verification disabled (the OCP ingress uses a
- * self-signed cert, and the corporate machine has no admin to install the CA).
- *
- * The corporate proxy is bypassed for *.mbbank.com.vn (NO_PROXY), so this
- * proxy connects directly to the internal endpoint.
+ * MCP Dev Proxy — forward HTTP(S) requests to an internal MCP endpoint
+ * with TLS certificate verification disabled (when the internal ingress uses a
+ * self-signed cert and the corporate machine has no admin to install the CA).
  *
  * Usage:
  *   node proxy.js [port]            # default port 3457
@@ -23,17 +20,28 @@
  *
  * NOTE: This disables TLS verification for this proxy only. Use in dev only.
  */
+const fs = require('fs');
 const http = require('http');
 const https = require('https');
+const path = require('path');
 
 const PORT = parseInt(process.argv[2] || process.env.MCP_DEV_PROXY_PORT || '3457', 10);
-const TARGET_HOST = 'qlda-tool.apps.dc01-ocp-vm01a-vcf-dev.mbbank.com.vn';
 const TARGET_PATH = '/api/mcp';
+
+// Target host — read from MCP_DEV_PROXY_TARGET_HOST env var, or a local .proxy-target file
+// (never commit internal hostnames to the public GitHub repository).
+const TARGET_FILE = path.join(__dirname, '.proxy-target');
+let TARGET_HOST = (process.env.MCP_DEV_PROXY_TARGET_HOST || '').trim();
+if (!TARGET_HOST && fs.existsSync(TARGET_FILE)) {
+  TARGET_HOST = fs.readFileSync(TARGET_FILE, 'utf8').trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+}
+if (!TARGET_HOST) {
+  console.error('[mcp-dev-proxy] Missing target host. Set MCP_DEV_PROXY_TARGET_HOST or write the hostname into tools/mcp-dev-proxy/.proxy-target');
+  process.exit(1);
+}
 
 // Bearer token — read from MCP_DEV_PROXY_TOKEN env var, or a local token file
 // (never commit the token). The token file is relative to this script.
-const fs = require('fs');
-const path = require('path');
 const TOKEN_FILE = path.join(__dirname, '.proxy-token');
 let TOKEN = process.env.MCP_DEV_PROXY_TOKEN;
 if (!TOKEN && fs.existsSync(TOKEN_FILE)) {
@@ -79,7 +87,7 @@ const server = http.createServer((req, res) => {
       // Host must match the internal endpoint; drop any inbound host header
       host: TARGET_HOST,
     },
-    // Disable TLS verification — the OCP ingress cert is self-signed.
+    // Disable TLS verification — the internal ingress cert is self-signed.
     // Dev only. Do NOT ship this to production.
     rejectUnauthorized: false,
   };

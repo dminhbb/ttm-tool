@@ -122,9 +122,8 @@ Mục tiêu: kiểm tra cả chặng dữ liệu đã xác định ở bước 1
 
 Việc cần làm:
 
-- `.env.local` trên máy dev trỏ vào DB server UAT (xem mục "Môi trường" trong `AGENTS.md`). Vì vậy mọi thao tác
-  ghi trong bước này (migration `npm run db:migrate:local`, import, xoá, tạo lại cache) là ghi lên dữ liệu UAT thật:
-  phải được chủ sản phẩm đồng ý trước, và migration phải có `.down.sql` để rollback.
+- Trên **máy công ty (`ttm-tool-mb`)**: `.env.local` trỏ vào DB server UAT (xem mục "Two environments" trong `AGENTS.md`), nên mọi thao tác ghi trong bước này (migration `npm run db:migrate:local`, import, xoá, tạo lại cache) là ghi lên dữ liệu UAT thật — phải được chủ sản phẩm đồng ý trước, và migration phải có `.down.sql` để rollback.
+- Trên **máy cá nhân (`ttm-tool`)**: chạy migration trên cả hai CSDL (`npm run db:migrate:local` và `npm run db:migrate:supabase`) và sinh lại schema bằng `npm run db:export-schema -- --target=supabase` theo `AGENTS.md`.
 - Đi hết luồng nghiệp vụ: nhập dữ liệu (import CSV hoặc dữ liệu crawl) → tạo lại cache nếu cần → gọi API → xem trên màn hình.
 - Kiểm tra theo từng vai trò bị ảnh hưởng (SUPERADMIN, ADMIN, PM/SM, user thường) và các màn hình dùng chung dữ liệu
   (`/epic-alerts-15`, `/data-normalization`, `/reports`, TTM Dashboard 2...).
@@ -145,21 +144,19 @@ Việc cần làm:
 
 Kết quả: build pass, smoke test pass.
 
-## Bước 9. Đẩy GitLab
+## Bước 9. Đẩy GitLab / GitHub
 
 Việc cần làm:
 
-- `git status` sạch những file không thuộc yêu cầu. Kiểm tra lại không có `.env*`, CSV, file map key, secret trong diff.
+- `git status` sạch những file không thuộc yêu cầu. Kiểm tra lại không có `.env*`, CSV, file map key, địa chỉ nội bộ hay secret trong diff.
 - Commit theo dạng `type(scope): mô tả` (ví dụ `fix(import): ...`, `feat(epic-alerts): ...`), nhắc mã `REQ-...` trong nội dung commit.
-- Push lên nhánh `uat` của `origin` (GitLab MB). Agent phải hỏi chủ sản phẩm trước khi push.
-- Pipeline chính thức là `.gitlab-ci.yml` (deploy bằng `oc` lên OpenShift, có chạy migration).
-- Theo dõi pipeline GitLab (`install → verify (lint, test) → build-image`) tới khi xanh.
-- Deploy lên OpenShift UAT chạy tay, do chủ sản phẩm bấm: `migrate-uat` (Job `openshift/job-migrate.yaml`, chạy
-  migration mới bằng chính image vừa build) rồi `deploy-uat` (đổi image của Deployment, chờ rollout).
-- Sau khi deploy, mở `https://ttm-monitor-uat.apps.ocp.mbbank.com.vn`, kiểm tra build stamp ở footer khớp `version.json`
+- Agent phải hỏi chủ sản phẩm trước khi push:
+  - **Máy cá nhân (`ttm-tool`)**: push lên nhánh `main` của GitHub (`dminhbb/ttm-tool` → Vercel production).
+  - **Máy công ty (`ttm-tool-mb`)**: push lên nhánh `uat` của `origin` (GitLab nội bộ). Pipeline chính thức là `.gitlab-ci.yml` (deploy bằng `oc` lên OpenShift, có chạy migration): theo dõi pipeline GitLab (`install → verify (lint, test) → build-image`) tới khi xanh; deploy lên OpenShift UAT chạy tay do chủ sản phẩm bấm (`migrate-uat` rồi `deploy-uat`).
+- Sau khi deploy, mở địa chỉ môi trường đích (`<UAT_APP_URL>` hoặc production), kiểm tra build stamp ở footer khớp `version.json`
   vừa push, rồi kiểm tra lại các tiêu chí nghiệm thu.
 
-Kết quả: điền commit, pipeline, trạng thái `Đã deploy UAT` vào traceability.
+Kết quả: điền commit, pipeline, trạng thái `Đã push` / `Đã deploy UAT` vào traceability.
 
 ---
 
@@ -169,6 +166,6 @@ Kết quả: điền commit, pipeline, trạng thái `Đã deploy UAT` vào trac
 - [ ] Contract, BRD và card knowledge base (`docs/kb/`) khớp với code.
 - [ ] `npm run lint`, `npm test`, `npm run build` đều pass.
 - [ ] Đã chạy test thông luồng và có ghi lại kết quả.
-- [ ] Migration (nếu có) có `.down.sql`, đã chạy lên DB UAT khi được đồng ý, và đã sinh lại schema (`npm run db:export-schema -- --target=local`).
+- [ ] Migration (nếu có) có `.down.sql`, đã chạy lên DB (`local` + `supabase` trên máy cá nhân, hoặc DB UAT trên máy công ty khi được đồng ý), và đã sinh lại schema (`npm run db:export-schema -- --target=supabase` trên máy cá nhân, hoặc `--target=local` trên máy công ty).
 - [ ] `version.json` và `daily_change_log.md` đã cập nhật.
-- [ ] Đã push, pipeline xanh.
+- [ ] Đã push, pipeline xanh (khi được chủ sản phẩm yêu cầu push).

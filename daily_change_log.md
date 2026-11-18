@@ -8,6 +8,19 @@
 
 ## 2026-11-18
 
+- **Float message — thiết kế (độ trong suốt 70%, animation trượt từ lề 0.7x) & cơ chế hàng đợi ưu tiên** (`REQ-20261118-02`, không đổi schema):
+  - *Giao diện & Animation* (`src/components/layout/FloatMessage.tsx`): điều chỉnh độ trong suốt hộp thông báo nổi thành 70% (`bg-fb-surface/70` kèm `backdrop-blur-md`), nút đóng chữ `'x'`, và bổ sung animation trượt từ phía lề phải màn hình (`translate-x-[calc(100%+1.5rem)]` → `translate-x-0`) với tốc độ 0.7x (`duration-[430ms] ease-out`).
+  - *Đồng bộ sử dụng Float message & Hàng đợi ưu tiên (`FloatMessageQueue` trong `src/lib/bottom-right-slot.ts`)*:
+    1. **Ưu tiên #1 (`CACHE = 1`)**: các thông báo Tạo cache (`DailyCacheWarmer.tsx`, `CacheStatusPanel.tsx`, `AppShell.tsx` `installCacheStaleWatcher`, `StatusAlertRulesSettings.tsx`) dùng chung `enqueueCacheFloatMessage`.
+    2. **Ưu tiên #2 (`ASSIGNED_TASKS = 2`)**: thông báo *"TASK: Bạn có {n} epic được giao task!"* (`AssignedEpicsNotice.tsx`) dùng chung `enqueueAssignedTasksFloatMessage` với viền màu brown (`border-2 border-[var(--header-widget-e2e-color)]`, bấm vào mở `/epic-alerts-15?markFilter=MINE`).
+    3. **Ưu tiên cuối (`SYSTEM_CONFIG = 3`)**: nội dung Float message cấu hình tại Quản trị hệ thống của SUPERADMIN luôn xếp hàng cuối cùng (và tự nhường chỗ khi có thông báo #1/#2 mới phát sinh).
+  - Các nội dung ngoài cấu hình của SUPERADMIN (#1, #2) luôn áp dụng `timeout = 10 giây` (`NON_ADMIN_FLOAT_TIMEOUT_SECONDS`) và có nút đóng `'x'`; các message trong hàng đợi hiển thị lần lượt cách nhau **2 giây chờ** (`FLOAT_MESSAGE_GAP_MS = 2000`) sau khi message trước hết timeout hoặc bị tắt. Cập nhật spec `docs/superpowers/specs/2026-11-17-float-message-design.md`, card `docs/kb/features/float-message.md` và unit test `src/lib/__tests__/float-message.test.ts`.
+
+- **Xử lý sau review bản pull 18/11** (`REQ-20261118-01`, không đổi schema):
+  - *Popup Thông tin Epic (`EpicMarkModal.tsx`)*: gán `changedRef.current = true` khi ADMIN/SUPERADMIN đổi công tắc **Epic ngoại lệ** (`BlackListSwitch`) để đóng popup thì danh sách phía sau tự động reload.
+  - *Ẩn địa chỉ nội bộ khỏi các file track trên GitHub*: `tools/mcp-dev-proxy/proxy.js` chuyển sang đọc hostname đích từ biến môi trường `MCP_DEV_PROXY_TARGET_HOST` hoặc file cục bộ `tools/mcp-dev-proxy/.proxy-target` (đã thêm vào `.gitignore`); thay các địa chỉ OCP dev / UAT / Harbor nội bộ trong `tools/mcp-dev-proxy/start-proxy.cmd`, `tools/mcp-dev-proxy/README.md`, `MCP_CONNECT.md`, `QUY_TRINH_PHAT_TRIEN.md` và `Dockerfile` bằng placeholder.
+  - *Đồng bộ tài liệu & dọn warning lint*: bỏ chỉ thị `/* eslint-disable */` thừa trong `scripts/sync-product-guide.mjs` và chạy lại `npm run sync-docs` (`npx eslint src` đạt 0 warning, 0 error); cập nhật `QUY_TRINH_PHAT_TRIEN.md` (nêu rõ 2 nhánh môi trường máy cá nhân / máy công ty), comment `Dockerfile`, card KB `docs/kb/features/epic-alerts-15.md` và trạng thái `docs/traceability/TRACEABILITY.md`.
+
 - **Float message — migration Supabase + schema**: đã chạy `20261129_create_float_message_settings` trên Supabase; sinh lại
   `db/install/ttm-monitor-schema.sql`, `docs/database-erd.md`, chương 5 tài liệu sản phẩm bằng `db:export-schema --target=supabase`.
   Môi trường công ty: file migration này đi theo đồng bộ FreeFileSync, job `migrate-uat` của pipeline tự chạy.

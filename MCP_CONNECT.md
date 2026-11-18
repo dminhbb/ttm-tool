@@ -5,9 +5,9 @@ Cursor, VSCode Copilot, ChatGPT, Gemini...) tới **MCP Server** của ttm-tool 
 TTM bằng hội thoại, thay vì phải vào giao diện web.
 
 **Bạn KHÔNG cần source code của ứng dụng.** Bạn chỉ cần 3 thứ:
-1. **Địa chỉ MCP** (URL) — cho sẵn ở mục 1.
+1. **Địa chỉ MCP** (URL) — xem mục 1.
 2. **Personal Access Token** — do chính bạn tự tạo trên giao diện ứng dụng (mục 2).
-3. **Cách xử lý chứng chỉ TLS** — mục 3 (vì server dùng chứng chỉ tự ký).
+3. **Cách xử lý chứng chỉ TLS** — mục 3 (nếu máy chủ nội bộ dùng chứng chỉ tự ký).
 
 AI chatbot sẽ chỉ nhìn thấy đúng dữ liệu theo **phân quyền của tài khoản bạn** — không thêm quyền nào.
 
@@ -15,26 +15,27 @@ AI chatbot sẽ chỉ nhìn thấy đúng dữ liệu theo **phân quyền của
 
 ## 0. Điều kiện tiên quyết
 
-- Bạn nằm trong **mạng nội bộ** (VPN / corporate network) để truy cập được máy chủ dev.
+- Bạn nằm trong **mạng nội bộ** (VPN / corporate network) nếu kết nối tới máy chủ nội bộ.
 - **SUPERADMIN** đã bật tính năng **MCP Server** trong *Quản trị hệ thống → MCP Server*.
   Nếu chưa bật, mọi kết nối đều bị từ chối với mã 503.
-- Môi trường bạn cần kết nối (dev / uat) có địa chỉ khác nhau — xem mục 1.
+- Môi trường bạn cần kết nối (Dev / UAT / Production) có địa chỉ khác nhau — xem mục 1.
 
 ---
 
 ## 1. Địa chỉ MCP (URL)
 
 MCP Server là một endpoint HTTP chuẩn (streamable HTTP) của chính ứng dụng, nằm tại đường dẫn
-`/api/mcp`. Chọn đúng môi trường:
+`/api/mcp` trên domain của ứng dụng:
 
-| Môi trường | Địa chỉ MCP (thay `<token>` ở bước cấu hình) |
+| Môi trường | Địa chỉ MCP (thay `<MCP_SERVER_HOST>` bằng domain môi trường của bạn) |
 |---|---|
-| **Dev (nội bộ OCP)** | `https://qlda-tool.apps.dc01-ocp-vm01a-vcf-dev.mbbank.com.vn/api/mcp` |
-| **UAT** | `https://ttm-monitor-uat.apps.ocp.mbbank.com.vn/api/mcp` |
+| **Dev / UAT / Production** | `https://<MCP_SERVER_HOST>/api/mcp` |
+
+*(Ví dụ: nếu bạn đăng nhập ứng dụng tại `https://<MCP_SERVER_HOST>/login`, thì địa chỉ MCP chính là `https://<MCP_SERVER_HOST>/api/mcp` — hoặc xem URL gợi ý trực tiếp trong mục **Personal Access Token** trên giao diện ứng dụng).*
 
 > Xác minh nhanh: gọi thử bằng `curl` (bỏ `-k` nếu bạn đã cài CA như mục 3):
 > ```bash
-> curl -k https://<ĐỊA_CHỈ_MCP> \
+> curl -k https://<MCP_SERVER_HOST>/api/mcp \
 >   -H "Authorization: Bearer <TOKEN_CỦA_BẠN>" \
 >   -H "Content-Type: application/json" \
 >   -H "Accept: application/json, text/event-stream" \
@@ -59,9 +60,9 @@ MCP Server là một endpoint HTTP chuẩn (streamable HTTP) của chính ứng 
 
 ---
 
-## 3. Xử lý chứng chỉ TLS (bắt buộc — server dùng chứng chỉ tự ký)
+## 3. Xử lý chứng chỉ TLS (khi máy chủ nội bộ dùng chứng chỉ tự ký)
 
-Máy chủ dev của ttm-tool dùng **chứng chỉ tự ký** (self-signed, do OpenShift ingress tạo). Các AI client
+Nếu máy chủ nội bộ của ttm-tool dùng **chứng chỉ tự ký** (self-signed), các AI client
 mặc định sẽ **từ chối** kết nối vì không tin chứng chỉ này. Bạn xử lý theo **một** trong hai cách sau —
 **ưu tiên Cách A** vì giữ được xác thực (an toàn hơn):
 
@@ -72,8 +73,8 @@ Xuất chứng chỉ của máy chủ về một file `.pem` (chỉ 1 lệnh, kh
 **Windows / Linux / macOS** (cần `openssl` — thường có sẵn trong Git Bash, WSL, hoặc `brew install openssl`):
 ```bash
 openssl s_client \
-  -connect qlda-tool.apps.dc01-ocp-vm01a-vcf-dev.mbbank.com.vn:443 \
-  -servername qlda-tool.apps.dc01-ocp-vm01a-vcf-dev.mbbank.com.vn \
+  -connect <MCP_SERVER_HOST>:443 \
+  -servername <MCP_SERVER_HOST> \
   -showcerts </dev/null 2>/dev/null \
   | openssl x509 -out mcp-server-cert.pem
 ```
@@ -121,7 +122,7 @@ Thêm server vào file cấu hình MCP **project scope** (`.mcp.json` ở thư m
   "mcpServers": {
     "ttm-tool": {
       "type": "http",
-      "url": "https://qlda-tool.apps.dc01-ocp-vm01a-vcf-dev.mbbank.com.vn/api/mcp",
+      "url": "https://<MCP_SERVER_HOST>/api/mcp",
       "headers": {
         "Authorization": "Bearer <TOKEN_CỦA_BẠN>"
       }
@@ -130,8 +131,8 @@ Thêm server vào file cấu hình MCP **project scope** (`.mcp.json` ở thư m
 }
 ```
 
-- Thay `<TOKEN_CỦA_BẠN>` bằng token thật (bước 2).
-- Trước khi chạy `claude`, đảm bảo đã đặt biến môi trường TLS theo mục 3 (Cách A hoặc B).
+- Thay `<MCP_SERVER_HOST>` bằng domain ứng dụng và `<TOKEN_CỦA_BẠN>` bằng token thật (bước 2).
+- Trước khi chạy `claude`, đảm bảo đã đặt biến môi trường TLS theo mục 3 (Cách A hoặc B) nếu dùng chứng chỉ tự ký.
 - Kiểm tra: `claude mcp list` — server `ttm-tool` báo **✓ Connected**.
 
 ### 4.2 Claude Desktop — `claude_desktop_config.json`
@@ -141,7 +142,7 @@ Thêm server vào file cấu hình MCP **project scope** (`.mcp.json` ở thư m
   "mcpServers": {
     "ttm-tool": {
       "type": "http",
-      "url": "https://qlda-tool.apps.dc01-ocp-vm01a-vcf-dev.mbbank.com.vn/api/mcp",
+      "url": "https://<MCP_SERVER_HOST>/api/mcp",
       "headers": {
         "Authorization": "Bearer <TOKEN_CỦA_BẠN>"
       }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowsClockwise, Database } from '@phosphor-icons/react';
 import { confirmDialog } from '@/components/ui/dialogs';
-import { showToast } from '@/components/ui/Toast';
+import { enqueueCacheFloatMessage } from '@/lib/bottom-right-slot';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -117,9 +117,9 @@ export function CacheStatusPanel({ rebuildPending = false, staleReasons = [] }: 
         setError(body.error || 'Tạo lại cache thất bại.');
         return;
       }
-      showToast(body.queued
+      enqueueCacheFloatMessage(body.queued
         ? 'Đang có một lượt tạo lại cache khác chạy — lượt đó sẽ tự chạy thêm một lần với dữ liệu mới nhất. Tải lại sau ít phút để xem kết quả.'
-        : `Đã tạo lại cache (mất ${formatNumber(body.durationMs)} ms — ${formatNumber(body.epicAlertRowCacheCount)} Epic).`, 6000);
+        : `Đã tạo lại cache (mất ${formatNumber(body.durationMs)} ms — ${formatNumber(body.epicAlertRowCacheCount)} Epic).`);
       notifyCacheRebuildStatusChanged();
       await load();
     } catch {

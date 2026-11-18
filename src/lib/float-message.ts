@@ -11,6 +11,13 @@ export const FLOAT_MESSAGE_MAX_SECONDS = 3600;
 export const FLOAT_MESSAGE_POSITIONS = ['TOP_RIGHT', 'BOTTOM_RIGHT'] as const;
 export type FloatMessagePosition = (typeof FLOAT_MESSAGE_POSITIONS)[number];
 
+/** Dispatched in the browser tab when SUPERADMIN saves Float message settings so FloatMessageDisplay refreshes at once. */
+export const FLOAT_MESSAGE_CHANGED_EVENT = 'ttm:float-message-changed';
+
+export function notifyFloatMessageChanged(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(FLOAT_MESSAGE_CHANGED_EVENT));
+}
+
 export const FLOAT_MESSAGE_POSITION_LABELS: Record<FloatMessagePosition, string> = {
   BOTTOM_RIGHT: 'Góc phải phía dưới',
   TOP_RIGHT: 'Góc phải phía trên',

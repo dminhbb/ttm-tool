@@ -15,6 +15,7 @@ import {
   FLOAT_MESSAGE_MAX_SECONDS,
   FLOAT_MESSAGE_POSITION_LABELS,
   FLOAT_MESSAGE_POSITIONS,
+  notifyFloatMessageChanged,
   type FloatMessagePosition,
   type FloatMessageSettings,
 } from '@/lib/float-message';
@@ -127,6 +128,7 @@ export function FloatMessagePanel() {
       }
       setSaved(result as FloatMessageSettings);
       setForm(formOf(result as FloatMessageSettings));
+      notifyFloatMessageChanged();
       showToast('Đã lưu Float message. User thấy thay đổi ở lần tải trang kế tiếp.', 5000);
     } catch {
       setSaveError('Không thể kết nối máy chủ.');

@@ -1,6 +1,6 @@
 # Quản trị Epic — `/epic-alerts-15`
 
-Cập nhật lần cuối: 2026-11-16. Khi sửa file/bảng/contract liệt kê dưới đây, sửa luôn card này trong cùng commit.
+Cập nhật lần cuối: 2026-11-18. Khi sửa file/bảng/contract liệt kê dưới đây, sửa luôn card này trong cùng commit.
 
 ## Mục đích
 
@@ -56,7 +56,7 @@ Sửa logic lọc phải sửa **cả hai** chế độ: SQL trong `epic-alert-r
 | Ý nghĩa bộ lọc "Lỗi/cảnh báo" | `epic-row-verdicts.ts` + SQL tương ứng trong `epic-alert-row-cache-query-service.ts` |
 | Thứ tự sắp xếp | `epic-alert-sort-rules.ts` (cả SQL lẫn `compareEpicListRows`) |
 | Quyền xem dữ liệu, "Quyền xem" bổ sung, "Xem dưới quyền" | `epic-alert-service.ts` (`resolveAccessScope`), `user-view-grants-service.ts`, `view-as-user-service.ts`, `buildAccessScopeClause` |
-| Bình luận, ẩn Epic, giao việc | `epic-mark-service.ts`, `src/components/epic-mark/*` |
+| Bình luận, ẩn Epic, giao việc, popup Thông tin Epic (bấm Epic key / ô Review mở `EpicMarkModal`, gồm cả công tắc `BlackListSwitch` "Epic ngoại lệ", tab Scoring / Duyệt Epic / Giải trình Fail TTM) | `epic-mark-service.ts`, `src/components/epic-mark/*`, `epic-browser-service.ts` |
 | Tham số URL của bộ lọc | `epic-alert-filter-params.ts`, `parseCacheFilters` trong `route.ts` |
 | Kiểu dữ liệu dòng / response | `src/lib/epic-alert-types.ts` (`EpicAlertRowPhased`, `EpicAlertPhasedResponse`) |
 

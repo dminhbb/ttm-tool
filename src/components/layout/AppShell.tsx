@@ -37,6 +37,7 @@ import { cn } from '@/lib/utils';
 import { NEWS_LETTER_CHANGED_EVENT, NEWS_LETTER_READ_EVENT } from '@/lib/news-letter/types';
 import { useMenuDotRefresh } from '@/lib/use-menu-dot-refresh';
 import { trackFeatureUsage } from '@/lib/usage-tracking';
+import { enqueueCacheFloatMessage } from '@/lib/bottom-right-slot';
 import { CACHE_TAB_HREF, cacheStaleToastText, installCacheStaleWatcher } from '@/lib/cache-rebuild-status-client';
 import { useCacheRebuildPending } from '@/lib/use-cache-rebuild-pending';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -637,7 +638,7 @@ function AppShellInner({ children }: AppShellProps) {
   // "Cần tạo lại cache" dot on "Nguồn dữ liệu" — only SUPERADMIN runs "Tạo lại cache" (2026-10-26).
   const cacheRebuildPending = useCacheRebuildPending(role === 'SUPERADMIN');
   // A save that only marks the caches stale (users, projects, Domains, Epic ngoại lệ, scope, Rule Groups, restored backup) answers with a header — warn right away (2026-10-27).
-  React.useEffect(() => { installCacheStaleWatcher((source) => showToast(cacheStaleToastText(source), 10000)); }, []);
+  React.useEffect(() => { installCacheStaleWatcher((source) => enqueueCacheFloatMessage(cacheStaleToastText(source))); }, []);
   const [hiddenFeatureKeys, setHiddenFeatureKeys] = React.useState<ReadonlySet<string>>(NO_HIDDEN_FEATURES);
   // Bumped when Ma trận phân quyền is saved in this tab, so the menu follows the new ticks at once
   // (other sessions pick the change up on their next navigation, via the same /api/auth/me call).
