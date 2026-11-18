@@ -12,7 +12,7 @@ import {
  * Thông báo "My assigned tasks" (owner 2026-10-28, đồng bộ sang Float message 2026-11-18 — REQ-20261118-02):
  * "TASK: Bạn có {n} epic được giao task!", n = số Epic được giao cho user mà trạng thái "Giao việc"
  * chưa phải Done. Hiển thị 1 lần mỗi lượt đăng nhập (nhớ `loginKey` trong localStorage), sử dụng chung hàng đợi
- * Float message với thứ tự ưu tiên #2 (sau #1 Tạo cache, trước #3 nội dung cấu hình của SUPERADMIN), viền màu brown,
+ * Float message với thứ tự ưu tiên #2 (sau #1 Tạo cache, trước #3 nội dung cấu hình của SUPERADMIN), viền màu accent của theme,
  * timeout = 10s và có nút đóng 'x'. Bấm vào thông báo sẽ mở màn hình Quản trị Epic với bộ lọc nhanh "My assigned epics".
  */
 

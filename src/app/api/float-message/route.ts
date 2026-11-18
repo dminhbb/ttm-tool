@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
-import { getPublicFloatMessage } from '@/lib/float-message-service';
+import { getFloatMessagePriorities, getPublicFloatMessage } from '@/lib/float-message-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +11,8 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   try {
     await requireUser(request);
-    return NextResponse.json({ message: await getPublicFloatMessage() }, { headers: { 'Cache-Control': 'no-store' } });
+    const [message, priorities] = await Promise.all([getPublicFloatMessage(), getFloatMessagePriorities()]);
+    return NextResponse.json({ message, priorities }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error: unknown) {
     if (error instanceof AuthError) return NextResponse.json({ error: 'Chưa đăng nhập.' }, { status: 401 });
     console.error('API Error loading the float message:', error);

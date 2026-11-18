@@ -21,45 +21,12 @@ import { refreshDerivedCaches } from './daily-cache-service';
 import { getImportAdmissionSettings, loadImportAdmissionList, loadLastUnreleasedSeen, MAX_EPIC_DELETIONS_PER_IMPORT, recordDeniedEpicsOfImport, recordProvenExemptions, type DeniedImportDeletionOutcome } from './denied-import-service';
 import { describeViolations, normalizeEpicKey, planImportAdmission, vietnamIsoDate } from './import-admission-rules';
 import { isLevel1IssueType } from './issue-hierarchy';
+import { computeEpicComplexity } from './epic-complexity';
 import { syncImportBlackList } from './import-black-list';
 import { ttmAppliedColumnsOf, type TtmAppliedColumns } from './import-ttm-applied-columns';
 import { normalizeTtmApplied, parseExceptPlanDate } from './scoring/ttm-applied';
 
-// Epic complexity rule (company rule change, 2026-09) — 4-way classification from epic_request_type
-// + epic_request_level:
-//   CT: request type ∈ {Tính năng mới, Cải tiến} OR request type is missing/empty ("None")
-//   SP: every other request type (anything not matched to CT above)
-//   Lv12/Lv34: request level ∈ {1, 2} vs {3, 4}
-// A level outside 1-4 (including missing data) defaults the whole Epic to CT-Lv12 — the agreed
-// safe default.
-const CT_REQUEST_TYPES = new Set(['cải tiến', 'tính năng mới']);
-const LV12_LEVELS = new Set(['1', '2']);
-const LV34_LEVELS = new Set(['3', '4']);
-
-function normalizeComplexityField(value: string): string {
-  return value.trim().toLocaleLowerCase('vi-VN');
-}
-
-function isBlankComplexityField(normalized: string): boolean {
-  return normalized === '' || normalized === 'none';
-}
-
-/** 'Loại yêu cầu' (requestType, i.e. epic_request_type) and 'Requirement Level' (requirementLevel,
- * i.e. epic_request_level) — raw text straight from the import source, not yet normalised. See the
- * rule comment above for the exact mapping and its default. */
-function computeEpicComplexity(requestType: string, requirementLevel: string): EpicComplexity {
-  const type = normalizeComplexityField(requestType);
-  const level = normalizeComplexityField(requirementLevel);
-  const isCtType = CT_REQUEST_TYPES.has(type) || isBlankComplexityField(type);
-  const isSpType = !isCtType;
-  const isLv34 = LV34_LEVELS.has(level);
-  if (isSpType && isLv34) return 'SP-Lv34';
-  if (isSpType && LV12_LEVELS.has(level)) return 'SP-Lv12';
-  if (isCtType && isLv34) return 'CT-Lv34';
-  // CT + Lv12 lands here too, and so does every unmatched/missing level (the default).
-  return 'CT-Lv12';
-}
-
+// Epic complexity rule (CT/SP × Lv12/Lv34): see computeEpicComplexity in epic-complexity.ts.
 const VALID_COMPLEXITY = new Set<string>(['CT-Lv12', 'CT-Lv34', 'SP-Lv12', 'SP-Lv34']);
 
 /**

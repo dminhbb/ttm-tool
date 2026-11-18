@@ -1,9 +1,9 @@
 -- =============================================================================================
 -- TTM Monitor — tạo CSDL mới (chỉ cấu trúc, KHÔNG có dữ liệu nghiệp vụ)
--- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-17T23:41:32.919Z.
+-- Sinh tự động bởi scripts/db-schema-export.js từ Supabase (PostgreSQL 17.6) lúc 2026-11-18T16:31:53.644Z.
 -- KHÔNG sửa tay: đổi schema bằng một file mới trong db/migrations/ rồi chạy lại script.
 --
--- Gồm: 80 bảng, 65 index phụ, 4 hàm, 4 trigger.
+-- Gồm: 81 bảng, 65 index phụ, 4 hàm, 4 trigger.
 -- Yêu cầu: PostgreSQL 14 trở lên, một database RỖNG (không dùng cho DB đã có bảng — sẽ báo lỗi và không
 -- tạo gì vì cả file chạy trong một transaction). Không cần extension nào.
 --
@@ -319,6 +319,16 @@ CREATE TABLE epic_task_status (
     CONSTRAINT epic_task_status_status_check CHECK (((status)::text = ANY ((ARRAY['TODO'::character varying, 'DONE'::character varying])::text[])))
 );
 
+CREATE TABLE float_message_priorities (
+    code character varying(10) NOT NULL,
+    priority smallint NOT NULL,
+    updated_by_user_id integer,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT float_message_priorities_pkey PRIMARY KEY (code),
+    CONSTRAINT float_message_priorities_code_check CHECK (((code)::text = ANY ((ARRAY['FM-001'::character varying, 'FM-002'::character varying])::text[]))),
+    CONSTRAINT float_message_priorities_priority_check CHECK (((priority >= 1) AND (priority <= 8)))
+);
+
 CREATE TABLE float_message_settings (
     id smallint DEFAULT 1 NOT NULL,
     message_text text DEFAULT ''::text NOT NULL,
@@ -330,11 +340,15 @@ CREATE TABLE float_message_settings (
     position character varying(20) DEFAULT 'BOTTOM_RIGHT'::character varying NOT NULL,
     updated_by_user_id integer,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    url text,
+    open_in_new_tab boolean DEFAULT false NOT NULL,
+    highlight_border boolean DEFAULT false NOT NULL,
     CONSTRAINT float_message_settings_pkey PRIMARY KEY (id),
     CONSTRAINT float_message_dates_ordered CHECK (((start_date IS NULL) OR (end_date IS NULL) OR (start_date <= end_date))),
     CONSTRAINT float_message_settings_auto_hide_seconds_check CHECK (((auto_hide_seconds IS NULL) OR ((auto_hide_seconds >= 1) AND (auto_hide_seconds <= 3600)))),
     CONSTRAINT float_message_settings_id_check CHECK ((id = 1)),
-    CONSTRAINT float_message_settings_position_check CHECK ((("position")::text = ANY ((ARRAY['TOP_RIGHT'::character varying, 'BOTTOM_RIGHT'::character varying])::text[])))
+    CONSTRAINT float_message_settings_position_check CHECK ((("position")::text = ANY ((ARRAY['TOP_RIGHT'::character varying, 'BOTTOM_RIGHT'::character varying])::text[]))),
+    CONSTRAINT float_message_url_length CHECK (((url IS NULL) OR ((char_length(url) >= 1) AND (char_length(url) <= 2048))))
 );
 
 CREATE TABLE holidays (
@@ -1134,6 +1148,7 @@ ALTER TABLE denied_import_epics ADD CONSTRAINT denied_import_epics_added_by_user
 ALTER TABLE epic_alert_timeline ADD CONSTRAINT epic_alert_timeline_source_import_batch_id_fkey FOREIGN KEY (source_import_batch_id) REFERENCES import_batches(id) ON DELETE SET NULL DEFERRABLE;
 ALTER TABLE epic_hidden_by_users ADD CONSTRAINT epic_hidden_by_users_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE DEFERRABLE;
 ALTER TABLE epic_task_status ADD CONSTRAINT epic_task_status_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
+ALTER TABLE float_message_priorities ADD CONSTRAINT float_message_priorities_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
 ALTER TABLE float_message_settings ADD CONSTRAINT float_message_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
 ALTER TABLE import_admission_settings ADD CONSTRAINT import_admission_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
 ALTER TABLE import_api_settings ADD CONSTRAINT import_api_settings_updated_by_user_id_fkey FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL DEFERRABLE;
@@ -1300,7 +1315,7 @@ CREATE TRIGGER trg_projects_sync_project_type BEFORE INSERT OR UPDATE OF project
 CREATE TRIGGER trg_user_projects_sync_project_members AFTER INSERT OR DELETE ON user_projects FOR EACH ROW EXECUTE FUNCTION user_projects_sync_project_members();
 
 -- ---------------------------------------------------------------------------------------------
--- 6. Sổ theo dõi migration — 134 migration đã gộp vào cấu trúc trên
+-- 6. Sổ theo dõi migration — 136 migration đã gộp vào cấu trúc trên
 -- ---------------------------------------------------------------------------------------------
 INSERT INTO schema_migrations (filename) VALUES
     ('20260809_create_project_components.sql'),
@@ -1436,7 +1451,9 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261126_epic_field_changes.sql'),
     ('20261127_make_foreign_keys_deferrable.sql'),
     ('20261128_create_import_api_settings.sql'),
-    ('20261129_create_float_message_settings.sql');
+    ('20261129_create_float_message_settings.sql'),
+    ('20261130_add_ttm_calculator_permission.sql'),
+    ('20261130_float_message_url_priority.sql');
 
 -- ---------------------------------------------------------------------------------------------
 -- 7. DỮ LIỆU KHỞI TẠO (tuỳ chọn) — chỉ nạp khi công tắc ttm_install.seed_data = 'on' (đầu file)
@@ -1444,7 +1461,7 @@ INSERT INTO schema_migrations (filename) VALUES
 --    nghiệp vụ (domain, dự án, user, Epic, danh sách Black listed / Từ chối import, banner, API key).
 -- ---------------------------------------------------------------------------------------------
 
--- permission_features (18 dòng)
+-- permission_features (19 dòng)
 INSERT INTO permission_features (feature_key, feature_name, category, display_order)
 SELECT * FROM (VALUES
     ('data_normalization'::character varying(60), 'Chuẩn hoá dữ liệu'::character varying(150), 'VIEW_ONLY'::character varying(10), '101'::integer),
@@ -1462,13 +1479,14 @@ SELECT * FROM (VALUES
     ('projects'::character varying(60), 'Quản lý Dự án'::character varying(150), 'ADMIN'::character varying(10), '50'::integer),
     ('rule_management'::character varying(60), 'Rule Management'::character varying(150), 'ADMIN'::character varying(10), '65'::integer),
     ('status_alert_rules'::character varying(60), 'Cấu hình cảnh báo'::character varying(150), 'ADMIN'::character varying(10), '60'::integer),
+    ('ttm_calculator'::character varying(60), 'TTM Calculator'::character varying(150), 'VIEW_ONLY'::character varying(10), '102'::integer),
     ('ttm_dashboard_2'::character varying(60), 'TTM Dashboard 2'::character varying(150), 'VIEW_ONLY'::character varying(10), '83'::integer),
     ('users'::character varying(60), 'Quản lý User'::character varying(150), 'ADMIN'::character varying(10), '30'::integer),
     ('visit_counter'::character varying(60), 'Thống kê truy cập'::character varying(150), 'VIEW_ONLY'::character varying(10), '107'::integer)
 ) AS seed (feature_key, feature_name, category, display_order)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 
--- role_feature_permissions (72 dòng)
+-- role_feature_permissions (76 dòng)
 INSERT INTO role_feature_permissions (feature_key, role, can_view, can_add, can_edit, can_delete)
 SELECT * FROM (VALUES
     ('data_normalization'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
@@ -1531,6 +1549,10 @@ SELECT * FROM (VALUES
     ('status_alert_rules'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'true'::boolean, 'true'::boolean),
     ('status_alert_rules'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('status_alert_rules'::character varying(60), 'USER'::character varying(20), 'false'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('ttm_calculator'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('ttm_calculator'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'true'::boolean, 'true'::boolean, 'true'::boolean),
+    ('ttm_calculator'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
+    ('ttm_calculator'::character varying(60), 'USER'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('ttm_dashboard_2'::character varying(60), 'ADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('ttm_dashboard_2'::character varying(60), 'SUPERADMIN'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
     ('ttm_dashboard_2'::character varying(60), 'SUPERVISOR'::character varying(20), 'true'::boolean, 'false'::boolean, 'false'::boolean, 'false'::boolean),
@@ -1733,7 +1755,7 @@ WHERE current_setting('ttm_install.seed_data', true) = 'on';
 -- derived_cache_refresh_lock (1 dòng)
 INSERT INTO derived_cache_refresh_lock (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 SELECT * FROM (VALUES
-    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-17 11:32:51.965197+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
+    ('1'::smallint, '0'::bigint, NULL::character varying(64), NULL::timestamp with time zone, NULL::character varying(100), '2026-11-17 23:46:25.333501+00'::timestamp with time zone, NULL::timestamp with time zone, '{}'::text[])
 ) AS seed (id, request_seq, lease_owner, lease_until, last_source, updated_at, stale_since, stale_reasons)
 WHERE current_setting('ttm_install.seed_data', true) = 'on';
 

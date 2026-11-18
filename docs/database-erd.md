@@ -1,10 +1,10 @@
 # TTM Monitor — ERD & từ điển dữ liệu
 
-> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-17.
+> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-18.
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
-**80 bảng** trong schema `public`, **70 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
+**81 bảng** trong schema `public`, **71 khoá ngoại**, 4 hàm, 4 trigger. Sơ đồ Mermaid hiển thị trực tiếp trên GitHub / GitLab / VS Code (Markdown Preview Mermaid). Ký hiệu: `PK` khoá chính, `FK` khoá ngoại, `UK` duy nhất; quan hệ `||--o{` = một – nhiều (FK bắt buộc), `|o--o{` = không/một – nhiều (FK cho phép NULL), `||--o|` = một – một (FK cũng là khoá chính / duy nhất của bảng con).
 
 ## Mục lục
 
@@ -17,7 +17,7 @@
 7. [Lịch sử & snapshot](#7-lịch-sử-snapshot) — 1 bảng
 8. [Cache dữ liệu dẫn xuất](#8-cache-dữ-liệu-dẫn-xuất) — 10 bảng
 9. [Cấu hình hệ thống](#9-cấu-hình-hệ-thống) — 5 bảng
-10. [Popup & Banner thông báo](#10-popup-banner-thông-báo) — 4 bảng
+10. [Popup & Banner thông báo](#10-popup-banner-thông-báo) — 5 bảng
 11. [Bản tin](#11-bản-tin) — 5 bảng
 12. [SSO, API Key, token import & MCP Server](#12-sso-api-key-token-import-mcp-server) — 8 bảng
 13. [Nhật ký & thống kê sử dụng](#13-nhật-ký-thống-kê-sử-dụng) — 4 bảng
@@ -1843,6 +1843,15 @@ erDiagram
         varchar position
         int updated_by_user_id FK
         timestamptz updated_at
+        text url
+        boolean open_in_new_tab
+        boolean highlight_border
+    }
+    float_message_priorities {
+        varchar code PK
+        smallint priority
+        int updated_by_user_id FK
+        timestamptz updated_at
     }
     users {
         int id PK
@@ -1850,6 +1859,7 @@ erDiagram
     ad_popups ||--o{ ad_popup_impressions : "popup_id"
     users ||--o{ ad_popup_impressions : "user_id"
     users |o--o{ float_message_settings : "updated_by_user_id"
+    users |o--o{ float_message_priorities : "updated_by_user_id"
 ```
 
 Bảng tham chiếu ngoài nhóm (chỉ vẽ khoá chính): `users`.
@@ -1930,11 +1940,29 @@ Cấu hình Banner thông báo (Mặc định toàn hệ thống hoặc theo t�
 | `position` | varchar(20) | không | 'BOTTOM_RIGHT'::character varying |  | TOP_RIGHT (góc phải phía trên, dưới header) hoặc BOTTOM_RIGHT (góc phải phía dưới). |
 | `updated_by_user_id` | int | có |  | FK → users(id) |  |
 | `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+| `url` | text | có |  |  | Mới 18/11/2026. URL mở khi bấm vào message (http/https hoặc đường dẫn nội bộ bắt đầu bằng /); NULL = không bấm được. |
+| `open_in_new_tab` | boolean | không | false |  | TRUE = mở URL ở tab mới; FALSE (mặc định) = tab hiện tại. |
+| `highlight_border` | boolean | không | false |  | TRUE = viền nâu nổi bật như thông báo My assigned tasks; mặc định FALSE. |
 
 - `float_message_dates_ordered`: CHECK (((start_date IS NULL) OR (end_date IS NULL) OR (start_date <= end_date)))
 - `float_message_settings_auto_hide_seconds_check`: CHECK (((auto_hide_seconds IS NULL) OR ((auto_hide_seconds >= 1) AND (auto_hide_seconds <= 3600))))
 - `float_message_settings_id_check`: CHECK ((id = 1))
 - `float_message_settings_position_check`: CHECK ((("position")::text = ANY ((ARRAY['TOP_RIGHT'::character varying, 'BOTTOM_RIGHT'::character varying])::text[])))
+- `float_message_url_length`: CHECK (((url IS NULL) OR ((char_length(url) >= 1) AND (char_length(url) <= 2048))))
+
+### `float_message_priorities`
+
+**Mới 18/11/2026.** Thứ tự ưu tiên (1 chữ số, 1 = ưu tiên nhất) của hai Float message hệ thống trong hàng đợi: `FM-001` Thông báo Tạo cache, `FM-002` My assigned tasks. Message cấu hình ở Quản trị hệ thống (`FM-003`) luôn ở mức cuối nên không lưu ở đây. Cùng thứ tự thì xếp theo mã A-Z.
+
+| Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
+|---|---|---|---|---|---|
+| `code` | varchar(10) | không |  | PK | Mã float message tự sinh: FM-001 hoặc FM-002. |
+| `priority` | smallint | không |  |  | Thứ tự ưu tiên 1–8 (1 = ưu tiên nhất). |
+| `updated_by_user_id` | int | có |  | FK → users(id) |  |
+| `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+
+- `float_message_priorities_code_check`: CHECK (((code)::text = ANY ((ARRAY['FM-001'::character varying, 'FM-002'::character varying])::text[])))
+- `float_message_priorities_priority_check`: CHECK (((priority >= 1) AND (priority <= 8)))
 
 ## 11. Bản tin
 
@@ -2416,6 +2444,7 @@ Số lượt truy cập LŨY KẾ của các dòng `visit_logs` cũ hơn ngày T
 | `epic_alert_timeline` | source_import_batch_id | `import_batches`(id) | SET NULL |
 | `epic_hidden_by_users` | user_id | `users`(id) | CASCADE |
 | `epic_task_status` | updated_by_user_id | `users`(id) | SET NULL |
+| `float_message_priorities` | updated_by_user_id | `users`(id) | SET NULL |
 | `float_message_settings` | updated_by_user_id | `users`(id) | SET NULL |
 | `import_admission_settings` | updated_by_user_id | `users`(id) | SET NULL |
 | `import_api_settings` | updated_by_user_id | `users`(id) | SET NULL |

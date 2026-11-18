@@ -10,7 +10,13 @@
  *   - Các float message hiển thị lần lượt cách nhau 2 giây (FLOAT_MESSAGE_GAP_MS = 2000): message có mức ưu tiên sau
  *     chỉ hiển thị sau khi message trước đã kết thúc timeout + 2 giây chờ, hoặc sau khi message trước bị tắt + 2 giây chờ.
  *   - Module thuần (không phụ thuộc React hay database) để kiểm thử đơn vị toàn diện.
+ *
+ * REQ-20261118-04: mỗi loại (CACHE / ASSIGNED_TASKS / SYSTEM_CONFIG) có mã FM-001 / FM-002 / FM-003 và một "thứ tự ưu tiên"
+ * (1 ký tự, 1 = ưu tiên nhất) do SUPERADMIN sửa được cho hai loại đầu; SYSTEM_CONFIG luôn là 9. Hàng đợi xếp theo thứ tự ưu tiên,
+ * bằng nhau thì theo mã A-Z, rồi theo thứ tự vào hàng (seq). Mặc định (chưa có cấu hình) 1, 2, 9 như trước.
  */
+
+import { FLOAT_MESSAGE_CODES, FLOAT_MESSAGE_SYSTEM_CONFIG_RANK, type FloatMessageCode } from './float-message';
 
 export const FLOAT_MESSAGE_PRIORITY = {
   CACHE: 1,
@@ -19,6 +25,18 @@ export const FLOAT_MESSAGE_PRIORITY = {
 } as const;
 
 export type FloatMessagePriority = (typeof FLOAT_MESSAGE_PRIORITY)[keyof typeof FLOAT_MESSAGE_PRIORITY];
+
+const KIND_CODES: Record<FloatMessagePriority, FloatMessageCode> = {
+  [FLOAT_MESSAGE_PRIORITY.CACHE]: FLOAT_MESSAGE_CODES.CACHE,
+  [FLOAT_MESSAGE_PRIORITY.ASSIGNED_TASKS]: FLOAT_MESSAGE_CODES.ASSIGNED_TASKS,
+  [FLOAT_MESSAGE_PRIORITY.SYSTEM_CONFIG]: FLOAT_MESSAGE_CODES.SYSTEM_CONFIG,
+};
+
+/** Thứ tự ưu tiên hiệu lực của hai loại hệ thống (SUPERADMIN sửa được); SYSTEM_CONFIG luôn là 9. */
+export interface FloatKindRanks {
+  assignedTasks: number;
+  cache: number;
+}
 
 /** Mọi nội dung ngoài cấu hình Quản trị hệ thống của SUPERADMIN luôn có timeout = 10 giây. */
 export const NON_ADMIN_FLOAT_TIMEOUT_SECONDS = 10;
@@ -35,6 +53,8 @@ export interface QueuedFloatMessageInput {
   dismissible?: boolean;
   /** Định danh tuỳ chọn để cập nhật/tránh trùng lặp cùng một thông báo trong hàng đợi. */
   id?: string;
+  /** Viền nổi bật màu accent của theme (My assigned tasks luôn có; SYSTEM_CONFIG theo cấu hình). */
+  highlightBorder?: boolean;
   /** Hành động khi bấm vào hộp thông báo (ví dụ: mở danh sách My assigned epics). */
   onClick?: () => void;
   position?: QueuedFloatMessagePosition;
@@ -45,6 +65,7 @@ export interface QueuedFloatMessageInput {
 export interface QueuedFloatMessage {
   autoHideSeconds: number | null;
   dismissible: boolean;
+  highlightBorder: boolean;
   id: string;
   onClick?: () => void;
   position?: QueuedFloatMessagePosition;
@@ -79,6 +100,7 @@ export class FloatMessageQueue {
   private cooldownTimer: ReturnType<typeof setTimeout> | null = null;
   private isCoolingDown = false;
   private readonly items: QueuedFloatMessage[] = [];
+  private kindRanks: FloatKindRanks = { assignedTasks: 2, cache: 1 };
   private readonly listeners = new Set<() => void>();
   private nextSeq = 1;
   /** Các tác vụ kiểm tra lúc mới tải trang giữ chỗ theo mức ưu tiên để message ưu tiên thấp không bật trước khi check xong. */
@@ -99,16 +121,36 @@ export class FloatMessageQueue {
     for (const listener of this.listeners) listener();
   }
 
-  private sortQueue(): void {
-    this.items.sort((a, b) => a.priority - b.priority || a.seq - b.seq);
+  private rankOfKind(kind: FloatMessagePriority): number {
+    if (kind === FLOAT_MESSAGE_PRIORITY.CACHE) return this.kindRanks.cache;
+    if (kind === FLOAT_MESSAGE_PRIORITY.ASSIGNED_TASKS) return this.kindRanks.assignedTasks;
+    return FLOAT_MESSAGE_SYSTEM_CONFIG_RANK;
   }
 
-  private highestPendingCheckPriority(): number {
-    let min = Infinity;
+  /** < 0 khi loại `a` được hiển thị trước loại `b`: thứ tự ưu tiên nhỏ hơn trước, bằng nhau thì mã A-Z. */
+  private compareKinds(a: FloatMessagePriority, b: FloatMessagePriority): number {
+    return this.rankOfKind(a) - this.rankOfKind(b) || KIND_CODES[a].localeCompare(KIND_CODES[b]);
+  }
+
+  private sortQueue(): void {
+    this.items.sort((a, b) => this.compareKinds(a.priority, b.priority) || a.seq - b.seq);
+  }
+
+  /** Cập nhật thứ tự ưu tiên của Tạo cache / My assigned tasks (từ cấu hình SUPERADMIN) và xếp lại hàng đợi. */
+  setKindRanks(ranks: FloatKindRanks): void {
+    if (ranks.cache === this.kindRanks.cache && ranks.assignedTasks === this.kindRanks.assignedTasks) return;
+    this.kindRanks = { ...ranks };
+    this.sortQueue();
+    this.scheduleNextIfReady();
+    this.emit();
+  }
+
+  /** Có kiểm tra khởi tạo đang chạy của một loại được hiển thị trước `kind` không. */
+  private hasPendingCheckBefore(kind: FloatMessagePriority): boolean {
     for (const priority of this.pendingChecks.values()) {
-      if (priority < min) min = priority;
+      if (this.compareKinds(priority, kind) < 0) return true;
     }
-    return min;
+    return false;
   }
 
   private clearAutoHideTimer(): void {
@@ -131,7 +173,7 @@ export class FloatMessageQueue {
     const candidate = this.items[0];
     // Nếu còn một kiểm tra khởi tạo có mức ưu tiên cao hơn đang chạy (ví dụ #1 hoặc #2 chưa trả kết quả),
     // tạm chờ kiểm tra đó hoàn tất trước khi hiển thị message có mức ưu tiên thấp hơn (#3).
-    if (candidate.priority > this.highestPendingCheckPriority()) return;
+    if (this.hasPendingCheckBefore(candidate.priority)) return;
 
     this.items.shift();
     this.activeItem = candidate;
@@ -171,6 +213,7 @@ export class FloatMessageQueue {
     const item: QueuedFloatMessage = {
       autoHideSeconds,
       dismissible,
+      highlightBorder: input.highlightBorder ?? input.priority === FLOAT_MESSAGE_PRIORITY.ASSIGNED_TASKS,
       id,
       onClick: input.onClick,
       position: input.position,
@@ -209,7 +252,7 @@ export class FloatMessageQueue {
     if (
       this.activeItem
       && this.activeItem.priority === FLOAT_MESSAGE_PRIORITY.SYSTEM_CONFIG
-      && item.priority < this.activeItem.priority
+      && this.compareKinds(item.priority, this.activeItem.priority) < 0
     ) {
       const preempted = this.activeItem;
       this.clearAutoHideTimer();
@@ -295,6 +338,7 @@ export class FloatMessageQueue {
     this.items.length = 0;
     this.pendingChecks.clear();
     this.nextSeq = 1;
+    this.kindRanks = { assignedTasks: 2, cache: 1 };
     this.emit();
   }
 }
@@ -322,6 +366,10 @@ export function enqueueAssignedTasksFloatMessage(options: { onClick?: () => void
     priority: FLOAT_MESSAGE_PRIORITY.ASSIGNED_TASKS,
     text: options.text,
   });
+}
+
+export function setFloatKindRanks(ranks: FloatKindRanks): void {
+  defaultQueue.setKindRanks(ranks);
 }
 
 export function dismissActiveFloatMessage(expectedId?: string): void {

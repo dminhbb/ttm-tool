@@ -27,7 +27,7 @@ Mọi thông báo sử dụng Float message đi qua hàng đợi `FloatMessageQu
 | Thứ tự ưu tiên | Loại nội dung | Timeout | Nút đóng `'x'` |
 |---|---|---|---|
 | **#1 (`CACHE = 1`)** | Thông báo Tạo cache (`DailyCacheWarmer`, `CacheStatusPanel`, cảnh báo `x-cache-stale`, lưu tiêu chí/rule cảnh báo) | Luôn = **10 giây** | Luôn có (`true`) |
-| **#2 (`ASSIGNED_TASKS = 2`)** | Thông báo My assigned tasks (`AssignedEpicsNotice`: *"TASK: Bạn có {n} epic được giao task!"*, có viền màu brown `border-2 border-[var(--header-widget-e2e-color)]`) | Luôn = **10 giây** | Luôn có (`true`) |
+| **#2 (`ASSIGNED_TASKS = 2`)** | Thông báo My assigned tasks (`AssignedEpicsNotice`: *"TASK: Bạn có {n} epic được giao task!"*, có viền màu accent của theme `border-2 border-fb-blue`) | Luôn = **10 giây** | Luôn có (`true`) |
 | **Cuối cùng (`SYSTEM_CONFIG = 3`)** | Nội dung Float message cấu hình tại Quản trị hệ thống của SUPERADMIN | Theo cấu hình (`1–3600` giây hoặc `NULL` = luôn hiển thị) | Theo cấu hình (`dismissible`) |
 
 Quy tắc điều phối hàng đợi:
@@ -49,3 +49,11 @@ Quy tắc điều phối hàng đợi:
 
 `float_message_settings` nằm trong danh sách export và Smart export (như `info_banners`): môi trường test nhận cùng message
 với production.
+
+## Bổ sung 18/11/2026 — URL, viền nổi bật, danh sách & thứ tự ưu tiên (REQ-20261118-04)
+
+- **URL + "Mở trong tab mới"**: `url` (tuỳ chọn, ≤ 2048 ký tự) là `http(s)://host/...` hoặc đường dẫn nội bộ bắt đầu bằng một `/` (không `//`, không khoảng trắng; từ chối `javascript:`, `data:`). Kiểm tra bằng `normalizeFloatMessageUrl` ở form và ở `validateFloatMessageInput` (PUT → 400). `open_in_new_tab` mặc định FALSE (tab hiện tại; đường dẫn nội bộ đi qua router); chỉ có nghĩa khi có `url`. Message có URL bấm được (bấm = đóng message rồi mở URL).
+- **Chữ "CLICK HERE!"**: message bấm được (có URL) hiện chữ `CLICK HERE!` nhấp nháy ngay dưới góc phải hộp (ngoài hình bao), animation `float-message-blink` (`globals.css`; tắt khi `prefers-reduced-motion`).
+- **Viền nổi bật**: `highlight_border` mặc định FALSE; TRUE → `border-2 border-fb-blue` (màu accent của theme, dùng chung với My assigned tasks).
+- **Danh sách & thứ tự ưu tiên**: giữ một message cấu hình (singleton). "Danh sách các float message" gồm 3 nguồn của hàng đợi, mỗi nguồn một mã tự sinh cố định: `FM-001` Thông báo Tạo cache, `FM-002` My assigned tasks, `FM-003` nội dung cấu hình ở Quản trị hệ thống. Thứ tự ưu tiên là 1 chữ số: FM-001/FM-002 sửa được trong 1–8 (bảng `float_message_priorities`, mặc định 1 và 2), FM-003 cố định 9 (luôn cuối). Xếp theo (thứ tự ưu tiên, mã A-Z, thứ tự vào hàng). Không làm: nhiều message cấu hình cùng lúc; đổi thứ tự của FM-003.
+- **API**: `GET /api/float-message` thêm `url`, `openInNewTab`, `highlightBorder` trong `message` và `priorities` ở gốc; `GET/PUT /api/admin/float-message` thêm 3 trường và `priorities`; `PATCH /api/admin/float-message` `{ priorities: { "FM-001": n, "FM-002": n } }` (SUPERADMIN, ghi `audit_logs` `FLOAT_MESSAGE_PRIORITY_UPDATE`).

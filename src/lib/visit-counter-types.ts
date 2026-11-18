@@ -1,4 +1,4 @@
-export type ScreenKey = 'ttm_dashboard_2' | 'epic_alerts' | 'epic_reports' | 'news_letter' | 'data_normalization';
+export type ScreenKey = 'ttm_dashboard_2' | 'epic_alerts' | 'epic_reports' | 'news_letter' | 'data_normalization' | 'ttm_calculator';
 
 export const SCREEN_NAMES: Record<ScreenKey, string> = {
   ttm_dashboard_2: 'TTM Dashboard 2',
@@ -7,9 +7,10 @@ export const SCREEN_NAMES: Record<ScreenKey, string> = {
   news_letter: 'Bản tin',
   // 2026-11-11: counted like the others (footer counter + charts of "Thống kê truy cập").
   data_normalization: 'Chuẩn hoá dữ liệu',
+  ttm_calculator: 'TTM Calculator',
 };
 
-export const TRACKED_SCREEN_KEYS: ScreenKey[] = ['ttm_dashboard_2', 'epic_alerts', 'epic_reports', 'news_letter', 'data_normalization'];
+export const TRACKED_SCREEN_KEYS: ScreenKey[] = ['ttm_dashboard_2', 'epic_alerts', 'epic_reports', 'news_letter', 'data_normalization', 'ttm_calculator'];
 
 /**
  * How far back (Vietnam calendar days before today, T) the Visit Counter needs per-event detail: the
@@ -99,5 +100,6 @@ export function resolveScreenKeyFromPath(rawPath?: string | null): ScreenKey | n
   // "Bản tin" (2026-11-06): reading — the newest article or one article; not the editor pages (new / edit).
   if (normalized === '/news-letter' || /^\/news-letter\/\d+$/.test(normalized)) return 'news_letter';
   if (normalized === '/data-normalization') return 'data_normalization';
+  if (normalized === '/ttm-calculator') return 'ttm_calculator';
   return null;
 }

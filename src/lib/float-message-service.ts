@@ -1,6 +1,6 @@
 import 'server-only';
 import pool, { getClient } from '@/lib/db';
-import { DEFAULT_FLOAT_MESSAGE, publicFloatMessageOf, type FloatMessageInput, type FloatMessageSettings, type PublicFloatMessage } from '@/lib/float-message';
+import { DEFAULT_FLOAT_MESSAGE, DEFAULT_FLOAT_MESSAGE_PRIORITIES, publicFloatMessageOf, type FloatMessageInput, type FloatMessagePriorities, type FloatMessageSettings, type PublicFloatMessage } from '@/lib/float-message';
 
 /**
  * "Float message" — table float_message_settings (migration 20261129), rules in float-message.ts. Every signed-in page
@@ -12,7 +12,8 @@ let cache: { at: number; settings: FloatMessageSettings } | null = null;
 
 const SELECT_SETTINGS = `
   SELECT s.message_text AS "messageText", s.is_active AS "isActive", s.start_date::text AS "startDate", s.end_date::text AS "endDate",
-    s.auto_hide_seconds AS "autoHideSeconds", s.dismissible, s.position, s.updated_at::text AS "updatedAt", u.full_name AS "updatedByName"
+    s.auto_hide_seconds AS "autoHideSeconds", s.dismissible, s.position,
+    s.url, s.open_in_new_tab AS "openInNewTab", s.highlight_border AS "highlightBorder", s.updated_at::text AS "updatedAt", u.full_name AS "updatedByName"
   FROM float_message_settings s LEFT JOIN users u ON u.id = s.updated_by_user_id
   WHERE s.id = 1`;
 
@@ -49,13 +50,14 @@ export async function saveFloatMessageSettings(input: FloatMessageInput, actorUs
   try {
     await client.query('BEGIN');
     await client.query(`
-      INSERT INTO float_message_settings (id, message_text, is_active, start_date, end_date, auto_hide_seconds, dismissible, position, updated_by_user_id, updated_at)
-      VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+      INSERT INTO float_message_settings (id, message_text, is_active, start_date, end_date, auto_hide_seconds, dismissible, position, url, open_in_new_tab, highlight_border, updated_by_user_id, updated_at)
+      VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP)
       ON CONFLICT (id) DO UPDATE SET
         message_text = EXCLUDED.message_text, is_active = EXCLUDED.is_active, start_date = EXCLUDED.start_date,
         end_date = EXCLUDED.end_date, auto_hide_seconds = EXCLUDED.auto_hide_seconds, dismissible = EXCLUDED.dismissible,
-        position = EXCLUDED.position, updated_by_user_id = EXCLUDED.updated_by_user_id, updated_at = EXCLUDED.updated_at;
-    `, [input.messageText, input.isActive, input.startDate, input.endDate, input.autoHideSeconds, input.dismissible, input.position, actorUserId]);
+        position = EXCLUDED.position, url = EXCLUDED.url, open_in_new_tab = EXCLUDED.open_in_new_tab,
+        highlight_border = EXCLUDED.highlight_border, updated_by_user_id = EXCLUDED.updated_by_user_id, updated_at = EXCLUDED.updated_at;
+    `, [input.messageText, input.isActive, input.startDate, input.endDate, input.autoHideSeconds, input.dismissible, input.position, input.url, input.openInNewTab, input.highlightBorder, actorUserId]);
     await client.query(
       'INSERT INTO audit_logs (user_id, action, entity_type, entity_id) VALUES ($1, $2, $3, $4);',
       [actorUserId, 'FLOAT_MESSAGE_UPDATE', 'SYSTEM', 'float_message_settings'],
@@ -69,4 +71,47 @@ export async function saveFloatMessageSettings(input: FloatMessageInput, actorUs
   }
   cache = null;
   return getFloatMessageSettings({ fresh: true });
+}
+
+let prioritiesCache: { at: number; priorities: FloatMessagePriorities } | null = null;
+
+/** Thứ tự ưu tiên của Tạo cache (FM-001) và My assigned tasks (FM-002); mặc định 1 và 2 khi chưa có bảng / dòng. */
+export async function getFloatMessagePriorities(options: { fresh?: boolean } = {}): Promise<FloatMessagePriorities> {
+  if (!options.fresh && prioritiesCache && Date.now() - prioritiesCache.at < CACHE_TTL_MS) return prioritiesCache.priorities;
+  try {
+    const rows = (await pool.query<{ code: string; priority: number }>('SELECT code, priority FROM float_message_priorities;')).rows;
+    const priorities: FloatMessagePriorities = { ...DEFAULT_FLOAT_MESSAGE_PRIORITIES };
+    for (const row of rows) if (row.code === 'FM-001' || row.code === 'FM-002') priorities[row.code] = row.priority;
+    prioritiesCache = { at: Date.now(), priorities };
+    return priorities;
+  } catch (error: unknown) {
+    if (isMissingTable(error)) return { ...DEFAULT_FLOAT_MESSAGE_PRIORITIES };
+    throw error;
+  }
+}
+
+/** Saves already validated priorities (validateFloatMessagePriorities); one audit_logs line per save. */
+export async function saveFloatMessagePriorities(priorities: FloatMessagePriorities, actorUserId: number): Promise<FloatMessagePriorities> {
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+    for (const code of ['FM-001', 'FM-002'] as const) {
+      await client.query(`
+        INSERT INTO float_message_priorities (code, priority, updated_by_user_id, updated_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+        ON CONFLICT (code) DO UPDATE SET priority = EXCLUDED.priority, updated_by_user_id = EXCLUDED.updated_by_user_id, updated_at = EXCLUDED.updated_at;
+      `, [code, priorities[code], actorUserId]);
+    }
+    await client.query(
+      'INSERT INTO audit_logs (user_id, action, entity_type, entity_id) VALUES ($1, $2, $3, $4);',
+      [actorUserId, 'FLOAT_MESSAGE_PRIORITY_UPDATE', 'SYSTEM', 'float_message_priorities'],
+    );
+    await client.query('COMMIT');
+  } catch (error: unknown) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+  prioritiesCache = null;
+  return getFloatMessagePriorities({ fresh: true });
 }

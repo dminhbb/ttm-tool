@@ -1409,3 +1409,15 @@ mark.ttm-modal-search-highlight.ttm-modal-search-active {
 :root[data-theme="dark"] {
   --header-widget-e2e-color: #d9a066;
 }
+
+/* Float message có URL: chữ "CLICK HERE!" nhấp nháy (REQ-20261118-04). */
+@keyframes float-message-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.1; }
+}
+.float-message-blink {
+  animation: float-message-blink 1s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .float-message-blink { animation: none; }
+}

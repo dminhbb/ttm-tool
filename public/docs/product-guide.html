@@ -388,10 +388,10 @@
       <h2>5. Mô hình &amp; Sơ đồ cơ sở dữ liệu (Data Model &amp; ERD)</h2>
       <!-- BEGIN GENERATED: db-schema -->
       <p>
-        Cơ sở dữ liệu của TTM Monitor dùng <strong>PostgreSQL</strong> (đang chạy 17.6), gồm <strong>80 bảng</strong> trong schema <code>public</code>,
-        <strong>70 khoá ngoại</strong>, 4 hàm và 4 trigger; không dùng view, extension hay Row Level Security.
+        Cơ sở dữ liệu của TTM Monitor dùng <strong>PostgreSQL</strong> (đang chạy 17.6), gồm <strong>81 bảng</strong> trong schema <code>public</code>,
+        <strong>71 khoá ngoại</strong>, 4 hàm và 4 trigger; không dùng view, extension hay Row Level Security.
         Cấu trúc thay đổi duy nhất qua chuỗi migration <code>db/migrations/*.sql</code> (chạy bằng <code>scripts/migrate-db.js</code>, ghi vào <code>schema_migrations</code>).
-        Toàn bộ chương này được sinh từ CSDL Supabase ngày 17/11/2026 bởi <code>scripts/db-schema-export.js</code> — cùng lần chạy sinh ra
+        Toàn bộ chương này được sinh từ CSDL Supabase ngày 18/11/2026 bởi <code>scripts/db-schema-export.js</code> — cùng lần chạy sinh ra
         file tạo CSDL mới <code>db/install/ttm-monitor-schema.sql</code> (chỉ cấu trúc, không dữ liệu) và tài liệu ERD chi tiết <code>docs/database-erd.md</code> (sơ đồ Mermaid từng nhóm + từ điển dữ liệu).
       </p>
 
@@ -457,9 +457,9 @@
           <text x="773" y="363" text-anchor="middle" font-size="9.5" fill="#5b6475">system_suspension_settings, schema_migrations</text>
           <text x="773" y="380" text-anchor="middle" font-size="9" font-style="italic" fill="#8a93a6">→ tham chiếu nhóm 1</text>
           <rect x="16" y="447" width="290" height="106" rx="8" fill="#f5f6f8" stroke="#c3cce3" />
-          <text x="161" y="467" text-anchor="middle" font-weight="700" font-size="12" fill="#475569">10. Popup &amp; Banner thông báo (4)</text>
+          <text x="161" y="467" text-anchor="middle" font-weight="700" font-size="12" fill="#475569">10. Popup &amp; Banner thông báo (5)</text>
           <text x="161" y="485" text-anchor="middle" font-size="9.5" fill="#5b6475">ad_popups, ad_popup_impressions, info_banners,</text>
-          <text x="161" y="498" text-anchor="middle" font-size="9.5" fill="#5b6475">float_message_settings</text>
+          <text x="161" y="498" text-anchor="middle" font-size="9.5" fill="#5b6475">float_message_settings, float_message_priorities</text>
           <text x="161" y="515" text-anchor="middle" font-size="9" font-style="italic" fill="#8a93a6">→ tham chiếu nhóm 1</text>
           <rect x="322" y="447" width="290" height="106" rx="8" fill="#f5f6f8" stroke="#c3cce3" />
           <text x="467" y="467" text-anchor="middle" font-weight="700" font-size="12" fill="#475569">11. Bản tin (5)</text>
@@ -482,7 +482,7 @@
         </g>
       </svg>
 
-      <h3>5.2. Danh mục 80 bảng CSDL (đối chiếu CSDL Supabase 17/11/2026)</h3>
+      <h3>5.2. Danh mục 81 bảng CSDL (đối chiếu CSDL Supabase 18/11/2026)</h3>
       <table>
         <thead><tr><th>STT</th><th>Bảng CSDL</th><th>Nhóm</th><th>Khoá chính / Khoá ngoại</th><th>Vai trò nghiệp vụ &amp; Ghi chú</th></tr></thead>
         <tbody>
@@ -549,29 +549,30 @@
           <tr><td>61</td><td><code>ad_popup_impressions</code></td><td>Popup &amp; Banner thông báo</td><td><code>(popup_id, user_id)</code> (PK)<br><code>popup_id</code> → <code>ad_popups</code><br><code>user_id</code> → <code>users</code></td><td>Đếm số lần một popup đã hiện cho từng user, so với <code>max_impressions</code>.</td></tr>
           <tr><td>62</td><td><code>info_banners</code></td><td>Popup &amp; Banner thông báo</td><td><code>id</code> (PK)</td><td>Cấu hình Banner thông báo (Mặc định toàn hệ thống hoặc theo từng màn hình, mục 15).</td></tr>
           <tr><td>63</td><td><code>float_message_settings</code></td><td>Popup &amp; Banner thông báo</td><td><code>id</code> (PK)<br><code>updated_by_user_id</code> → <code>users</code></td><td><strong>Mới 17/11/2026.</strong> "Float message" (Quản trị hệ thống → Float message, SUPERADMIN, một dòng <code>id = 1</code>): hộp thông báo nổi bo tròn có icon message, hiện cho mọi user đã đăng nhập. Nội dung một dòng văn bản thuần (<code>message_text</code>, tối đa 256 ký tự), công tắc <code>is_active</code>, khoảng ngày <code>start_date</code>–<code>end_date</code> (giờ Việt Nam, tính cả hai đầu), <code>auto_hide_seconds</code> (NULL = luôn hiển thị), <code>dismissible</code> (nút X), <code>position</code> (TOP_RIGHT / BOTTOM_RIGHT — góc phải dưới hiện sau popup thông báo). Mỗi lần lưu ghi một dòng <code>audit_logs</code> (FLOAT_MESSAGE_UPDATE).</td></tr>
-          <tr><td>64</td><td><code>news_letter_articles</code></td><td>Bản tin</td><td><code>id</code> (PK)<br><code>category_id</code> → <code>news_letter_categories</code><br><code>created_by</code> → <code>users</code><br><code>header_image_id</code> → <code>news_letter_images</code><br><code>updated_by</code> → <code>users</code></td><td>Bài viết của Bản tin (<code>/news-letter</code>, SUPERADMIN soạn): tiêu đề, tóm tắt, phân loại, role được xem (<code>visible_roles</code>), Published (tắt = nháp, chỉ tác giả xem), <code>first_published_at</code> (thứ tự bài), ảnh header, nội dung HTML đã lọc ở server — mục 11.8.</td></tr>
-          <tr><td>65</td><td><code>news_letter_categories</code></td><td>Bản tin</td><td><code>id</code> (PK)<br><code>created_by</code> → <code>users</code></td><td>Phân loại bài viết Bản tin (tên không trùng, không xoá được khi còn bài viết dùng).</td></tr>
-          <tr><td>66</td><td><code>news_letter_images</code></td><td>Bản tin</td><td><code>id</code> (PK)<br><code>article_id</code> → <code>news_letter_articles</code><br><code>created_by</code> → <code>users</code></td><td>Ảnh của Bản tin lưu trong CSDL (bytea): 1 ảnh header + tối đa 4 ảnh nội dung mỗi bài; ảnh upload chưa gắn bài (<code>article_id</code> NULL) bị dọn sau 1 ngày.</td></tr>
-          <tr><td>67</td><td><code>news_letter_article_edits</code></td><td>Bản tin</td><td><code>id</code> (PK)<br><code>article_id</code> → <code>news_letter_articles</code><br><code>edited_by</code> → <code>users</code></td><td>Lịch sử thay đổi của bài viết Bản tin — giữ 5 lần sửa gần nhất.</td></tr>
-          <tr><td>68</td><td><code>news_letter_reads</code></td><td>Bản tin</td><td><code>(user_id, article_id)</code> (PK)<br><code>article_id</code> → <code>news_letter_articles</code><br><code>user_id</code> → <code>users</code></td><td>Người dùng đã mở bài viết nào — chấm đỏ trên menu Bản tin khi có bài published chưa đọc.</td></tr>
-          <tr><td>69</td><td><code>api_keys</code></td><td>SSO, API Key, token import &amp; MCP Server</td><td><code>id</code> (PK)</td><td>API key cấp cho ứng dụng ngoài dùng làm client_id trong luồng SSO (mục 17).</td></tr>
-          <tr><td>70</td><td><code>sso_auth_codes</code></td><td>SSO, API Key, token import &amp; MCP Server</td><td><code>id</code> (PK)<br><code>api_key_id</code> → <code>api_keys</code><br><code>user_id</code> → <code>users</code></td><td>Mã ủy quyền SSO dùng 1 lần, hết hạn sau 5 phút (mục 17).</td></tr>
-          <tr><td>71</td><td><code>import_api_settings</code></td><td>SSO, API Key, token import &amp; MCP Server</td><td><code>id</code> (PK)<br><code>updated_by_user_id</code> → <code>users</code></td><td><strong>Mới 13/11/2026.</strong> Singleton (id = 1) giữ token Bearer của API import tự động <code>POST /api/data-source/import/auto</code> (công cụ crawl Jira), thay cho biến môi trường <code>IMPORT_API_TOKEN</code>. SUPERADMIN đặt / tạo / xoá ở Quản trị hệ thống → Token import tự động. NULL = chưa cấu hình (API trả 503). Không nằm trong Smart export.</td></tr>
-          <tr><td>72</td><td><code>mcp_settings</code></td><td>SSO, API Key, token import &amp; MCP Server</td><td><code>id</code> (PK)<br><code>updated_by</code> → <code>users</code></td><td>Công tắc singleton bật/tắt toàn bộ MCP Server (mục 16).</td></tr>
-          <tr><td>73</td><td><code>mcp_access_tokens</code></td><td>SSO, API Key, token import &amp; MCP Server</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Personal Access Token để AI chatbot kết nối MCP thay mặt một user cụ thể (mục 16).</td></tr>
-          <tr><td>74</td><td><code>mcp_access_daily_stats</code></td><td>SSO, API Key, token import &amp; MCP Server</td><td><code>(user_id, stat_date)</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Thống kê số lượt gọi MCP theo ngày/user, tự dọn sau 90 ngày (mục 16).</td></tr>
-          <tr><td>75</td><td><code>mcp_oauth_clients</code></td><td>SSO, API Key, token import &amp; MCP Server</td><td><code>id</code> (PK)</td><td>Đăng ký client OAuth động (RFC 7591) cho AI chatbot dùng luồng OAuth kết nối MCP (mục 16).</td></tr>
-          <tr><td>76</td><td><code>mcp_oauth_authorization_codes</code></td><td>SSO, API Key, token import &amp; MCP Server</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Mã ủy quyền ngắn hạn cho luồng MCP OAuth 2.0 + PKCE (mục 16).</td></tr>
-          <tr><td>77</td><td><code>audit_logs</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Nhật ký ghi nhận các thao tác quan trọng trên hệ thống (kể cả xoá Epic vĩnh viễn); job dọn hằng ngày xoá dòng quá 180 ngày.</td></tr>
-          <tr><td>78</td><td><code>user_usage_daily_stats</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>(user_id, stat_date)</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Thống kê tần suất tương tác và sử dụng tính năng theo ngày của từng user.</td></tr>
-          <tr><td>79</td><td><code>visit_logs</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Ghi nhận nhật ký lượt đăng nhập ứng dụng (APP_LOGIN) và lượt xem 3 màn hình trọng điểm (SCREEN_VIEW cho TTM Dashboard 2, Quản trị Epic, Báo cáo Epic) phục vụ tính năng Visit Counter (mục 18).</td></tr>
-          <tr><td>80</td><td><code>visit_log_rollups</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>(event_type, screen_key, user_id)</code> (PK)</td><td>Số lượt truy cập LŨY KẾ của các dòng <code>visit_logs</code> cũ hơn ngày T-15 (đã bị cuốn vào đây rồi xóa; theo <code>event_type</code>, <code>screen_key</code>, <code>user_id</code>) để các số "Tổng (lũy kế)" của Visit Counter không tụt khi job dọn dẹp xóa dòng cũ. <code>screen_key=''</code>: không có màn hình; <code>user_id=0</code>: user đã bị xóa.</td></tr>
+          <tr><td>64</td><td><code>float_message_priorities</code></td><td>Popup &amp; Banner thông báo</td><td><code>code</code> (PK)<br><code>updated_by_user_id</code> → <code>users</code></td><td><strong>Mới 18/11/2026.</strong> Thứ tự ưu tiên (1 chữ số, 1 = ưu tiên nhất) của hai Float message hệ thống trong hàng đợi: <code>FM-001</code> Thông báo Tạo cache, <code>FM-002</code> My assigned tasks. Message cấu hình ở Quản trị hệ thống (<code>FM-003</code>) luôn ở mức cuối nên không lưu ở đây. Cùng thứ tự thì xếp theo mã A-Z.</td></tr>
+          <tr><td>65</td><td><code>news_letter_articles</code></td><td>Bản tin</td><td><code>id</code> (PK)<br><code>category_id</code> → <code>news_letter_categories</code><br><code>created_by</code> → <code>users</code><br><code>header_image_id</code> → <code>news_letter_images</code><br><code>updated_by</code> → <code>users</code></td><td>Bài viết của Bản tin (<code>/news-letter</code>, SUPERADMIN soạn): tiêu đề, tóm tắt, phân loại, role được xem (<code>visible_roles</code>), Published (tắt = nháp, chỉ tác giả xem), <code>first_published_at</code> (thứ tự bài), ảnh header, nội dung HTML đã lọc ở server — mục 11.8.</td></tr>
+          <tr><td>66</td><td><code>news_letter_categories</code></td><td>Bản tin</td><td><code>id</code> (PK)<br><code>created_by</code> → <code>users</code></td><td>Phân loại bài viết Bản tin (tên không trùng, không xoá được khi còn bài viết dùng).</td></tr>
+          <tr><td>67</td><td><code>news_letter_images</code></td><td>Bản tin</td><td><code>id</code> (PK)<br><code>article_id</code> → <code>news_letter_articles</code><br><code>created_by</code> → <code>users</code></td><td>Ảnh của Bản tin lưu trong CSDL (bytea): 1 ảnh header + tối đa 4 ảnh nội dung mỗi bài; ảnh upload chưa gắn bài (<code>article_id</code> NULL) bị dọn sau 1 ngày.</td></tr>
+          <tr><td>68</td><td><code>news_letter_article_edits</code></td><td>Bản tin</td><td><code>id</code> (PK)<br><code>article_id</code> → <code>news_letter_articles</code><br><code>edited_by</code> → <code>users</code></td><td>Lịch sử thay đổi của bài viết Bản tin — giữ 5 lần sửa gần nhất.</td></tr>
+          <tr><td>69</td><td><code>news_letter_reads</code></td><td>Bản tin</td><td><code>(user_id, article_id)</code> (PK)<br><code>article_id</code> → <code>news_letter_articles</code><br><code>user_id</code> → <code>users</code></td><td>Người dùng đã mở bài viết nào — chấm đỏ trên menu Bản tin khi có bài published chưa đọc.</td></tr>
+          <tr><td>70</td><td><code>api_keys</code></td><td>SSO, API Key, token import &amp; MCP Server</td><td><code>id</code> (PK)</td><td>API key cấp cho ứng dụng ngoài dùng làm client_id trong luồng SSO (mục 17).</td></tr>
+          <tr><td>71</td><td><code>sso_auth_codes</code></td><td>SSO, API Key, token import &amp; MCP Server</td><td><code>id</code> (PK)<br><code>api_key_id</code> → <code>api_keys</code><br><code>user_id</code> → <code>users</code></td><td>Mã ủy quyền SSO dùng 1 lần, hết hạn sau 5 phút (mục 17).</td></tr>
+          <tr><td>72</td><td><code>import_api_settings</code></td><td>SSO, API Key, token import &amp; MCP Server</td><td><code>id</code> (PK)<br><code>updated_by_user_id</code> → <code>users</code></td><td><strong>Mới 13/11/2026.</strong> Singleton (id = 1) giữ token Bearer của API import tự động <code>POST /api/data-source/import/auto</code> (công cụ crawl Jira), thay cho biến môi trường <code>IMPORT_API_TOKEN</code>. SUPERADMIN đặt / tạo / xoá ở Quản trị hệ thống → Token import tự động. NULL = chưa cấu hình (API trả 503). Không nằm trong Smart export.</td></tr>
+          <tr><td>73</td><td><code>mcp_settings</code></td><td>SSO, API Key, token import &amp; MCP Server</td><td><code>id</code> (PK)<br><code>updated_by</code> → <code>users</code></td><td>Công tắc singleton bật/tắt toàn bộ MCP Server (mục 16).</td></tr>
+          <tr><td>74</td><td><code>mcp_access_tokens</code></td><td>SSO, API Key, token import &amp; MCP Server</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Personal Access Token để AI chatbot kết nối MCP thay mặt một user cụ thể (mục 16).</td></tr>
+          <tr><td>75</td><td><code>mcp_access_daily_stats</code></td><td>SSO, API Key, token import &amp; MCP Server</td><td><code>(user_id, stat_date)</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Thống kê số lượt gọi MCP theo ngày/user, tự dọn sau 90 ngày (mục 16).</td></tr>
+          <tr><td>76</td><td><code>mcp_oauth_clients</code></td><td>SSO, API Key, token import &amp; MCP Server</td><td><code>id</code> (PK)</td><td>Đăng ký client OAuth động (RFC 7591) cho AI chatbot dùng luồng OAuth kết nối MCP (mục 16).</td></tr>
+          <tr><td>77</td><td><code>mcp_oauth_authorization_codes</code></td><td>SSO, API Key, token import &amp; MCP Server</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Mã ủy quyền ngắn hạn cho luồng MCP OAuth 2.0 + PKCE (mục 16).</td></tr>
+          <tr><td>78</td><td><code>audit_logs</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Nhật ký ghi nhận các thao tác quan trọng trên hệ thống (kể cả xoá Epic vĩnh viễn); job dọn hằng ngày xoá dòng quá 180 ngày.</td></tr>
+          <tr><td>79</td><td><code>user_usage_daily_stats</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>(user_id, stat_date)</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Thống kê tần suất tương tác và sử dụng tính năng theo ngày của từng user.</td></tr>
+          <tr><td>80</td><td><code>visit_logs</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>id</code> (PK)<br><code>user_id</code> → <code>users</code></td><td>Ghi nhận nhật ký lượt đăng nhập ứng dụng (APP_LOGIN) và lượt xem 3 màn hình trọng điểm (SCREEN_VIEW cho TTM Dashboard 2, Quản trị Epic, Báo cáo Epic) phục vụ tính năng Visit Counter (mục 18).</td></tr>
+          <tr><td>81</td><td><code>visit_log_rollups</code></td><td>Nhật ký &amp; thống kê sử dụng</td><td><code>(event_type, screen_key, user_id)</code> (PK)</td><td>Số lượt truy cập LŨY KẾ của các dòng <code>visit_logs</code> cũ hơn ngày T-15 (đã bị cuốn vào đây rồi xóa; theo <code>event_type</code>, <code>screen_key</code>, <code>user_id</code>) để các số "Tổng (lũy kế)" của Visit Counter không tụt khi job dọn dẹp xóa dòng cũ. <code>screen_key=''</code>: không có màn hình; <code>user_id=0</code>: user đã bị xóa.</td></tr>
         </tbody>
       </table>
 
       <details style="margin: 16px 0; border: 1px solid #cdd9f7; border-radius: 10px; background: #f8faff; padding: 12px 16px;">
         <summary style="cursor: pointer; font-weight: 700; font-size: 13.5px; color: var(--brand-600); outline: none; user-select: none;">
-          🔍 Bấm vào đây để xem chi tiết cột, kiểu dữ liệu, khoá PK/FK, ràng buộc &amp; index của 80 bảng
+          🔍 Bấm vào đây để xem chi tiết cột, kiểu dữ liệu, khoá PK/FK, ràng buộc &amp; index của 81 bảng
         </summary>
         <div style="margin-top: 16px;">
           <h4 style="color:var(--brand-700); margin:16px 0 6px; font-size:14px;">1. Xác thực &amp; phân quyền (13 bảng)</h4>
@@ -1450,7 +1451,7 @@
               <tr><td><code>applied_at</code></td><td><code>TIMESTAMPTZ</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
             </tbody>
           </table>
-          <h4 style="color:var(--brand-700); margin:16px 0 6px; font-size:14px;">10. Popup &amp; Banner thông báo (4 bảng)</h4>
+          <h4 style="color:var(--brand-700); margin:16px 0 6px; font-size:14px;">10. Popup &amp; Banner thông báo (5 bảng)</h4>
           <p><strong>10.1. <code>ad_popups</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
@@ -1514,9 +1515,23 @@
               <tr><td><code>position</code></td><td><code>VARCHAR(20) NOT NULL</code></td><td>DEFAULT 'BOTTOM_RIGHT'::character varying</td><td>TOP_RIGHT (góc phải phía trên, dưới header) hoặc BOTTOM_RIGHT (góc phải phía dưới).</td></tr>
               <tr><td><code>updated_by_user_id</code></td><td><code>INT</code></td><td>FK → users(id)</td><td></td></tr>
               <tr><td><code>updated_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
+              <tr><td><code>url</code></td><td><code>TEXT</code></td><td>—</td><td>Mới 18/11/2026. URL mở khi bấm vào message (http/https hoặc đường dẫn nội bộ bắt đầu bằng /); NULL = không bấm được.</td></tr>
+              <tr><td><code>open_in_new_tab</code></td><td><code>BOOLEAN NOT NULL</code></td><td>DEFAULT false</td><td>TRUE = mở URL ở tab mới; FALSE (mặc định) = tab hiện tại.</td></tr>
+              <tr><td><code>highlight_border</code></td><td><code>BOOLEAN NOT NULL</code></td><td>DEFAULT false</td><td>TRUE = viền màu accent của theme nổi bật như thông báo My assigned tasks; mặc định FALSE.</td></tr>
             </tbody>
           </table>
-          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((start_date IS NULL) OR (end_date IS NULL) OR (start_date &lt;= end_date)))</code></li><li><code>CHECK (((auto_hide_seconds IS NULL) OR ((auto_hide_seconds &gt;= 1) AND (auto_hide_seconds &lt;= 3600))))</code></li><li><code>CHECK ((id = 1))</code></li><li><code>CHECK (((&quot;position&quot;)::text = ANY ((ARRAY['TOP_RIGHT'::character varying, 'BOTTOM_RIGHT'::character varying])::text[])))</code></li></ul>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((start_date IS NULL) OR (end_date IS NULL) OR (start_date &lt;= end_date)))</code></li><li><code>CHECK (((auto_hide_seconds IS NULL) OR ((auto_hide_seconds &gt;= 1) AND (auto_hide_seconds &lt;= 3600))))</code></li><li><code>CHECK ((id = 1))</code></li><li><code>CHECK (((&quot;position&quot;)::text = ANY ((ARRAY['TOP_RIGHT'::character varying, 'BOTTOM_RIGHT'::character varying])::text[])))</code></li><li><code>CHECK (((url IS NULL) OR ((char_length(url) &gt;= 1) AND (char_length(url) &lt;= 2048))))</code></li></ul>
+          <p><strong>10.5. <code>float_message_priorities</code></strong></p>
+          <table>
+            <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
+            <tbody>
+              <tr><td><code>code</code></td><td><code>VARCHAR(10) NOT NULL</code></td><td>PRIMARY KEY</td><td>Mã float message tự sinh: FM-001 hoặc FM-002.</td></tr>
+              <tr><td><code>priority</code></td><td><code>SMALLINT NOT NULL</code></td><td>—</td><td>Thứ tự ưu tiên 1–8 (1 = ưu tiên nhất).</td></tr>
+              <tr><td><code>updated_by_user_id</code></td><td><code>INT</code></td><td>FK → users(id)</td><td></td></tr>
+              <tr><td><code>updated_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
+            </tbody>
+          </table>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((code)::text = ANY ((ARRAY['FM-001'::character varying, 'FM-002'::character varying])::text[])))</code></li><li><code>CHECK (((priority &gt;= 1) AND (priority &lt;= 8)))</code></li></ul>
           <h4 style="color:var(--brand-700); margin:16px 0 6px; font-size:14px;">11. Bản tin (5 bảng)</h4>
           <p><strong>11.1. <code>news_letter_articles</code></strong></p>
           <table>
@@ -1748,7 +1763,7 @@
         </div>
       </details>
 
-      <p><strong>Danh sách 70 khoá ngoại</strong> (bảng con → bảng cha):</p>
+      <p><strong>Danh sách 71 khoá ngoại</strong> (bảng con → bảng cha):</p>
       <table>
         <thead><tr><th>Bảng con</th><th>Cột</th><th>Tham chiếu</th><th>ON DELETE</th></tr></thead>
         <tbody>
@@ -1766,6 +1781,7 @@
           <tr><td><code>epic_alert_timeline</code></td><td><code>source_import_batch_id</code></td><td><code>import_batches(id)</code></td><td>SET NULL</td></tr>
           <tr><td><code>epic_hidden_by_users</code></td><td><code>user_id</code></td><td><code>users(id)</code></td><td>CASCADE</td></tr>
           <tr><td><code>epic_task_status</code></td><td><code>updated_by_user_id</code></td><td><code>users(id)</code></td><td>SET NULL</td></tr>
+          <tr><td><code>float_message_priorities</code></td><td><code>updated_by_user_id</code></td><td><code>users(id)</code></td><td>SET NULL</td></tr>
           <tr><td><code>float_message_settings</code></td><td><code>updated_by_user_id</code></td><td><code>users(id)</code></td><td>SET NULL</td></tr>
           <tr><td><code>import_admission_settings</code></td><td><code>updated_by_user_id</code></td><td><code>users(id)</code></td><td>SET NULL</td></tr>
           <tr><td><code>import_api_settings</code></td><td><code>updated_by_user_id</code></td><td><code>users(id)</code></td><td>SET NULL</td></tr>
@@ -2645,6 +2661,8 @@
           <tr><td>Ngày bắt đầu / kết thúc hiển thị</td><td>Tính theo giờ Việt Nam, cả hai ngày đều tính; để trống = không giới hạn phía đó.</td></tr>
           <tr><td>Tự động tắt</td><td><em>Luôn hiển thị</em>, hoặc tự biến mất sau N giây (1–3600) kể từ lúc message thực sự hiện.</td></tr>
           <tr><td>Có nút X để tắt</td><td>Nút X ở góc hộp để user tự đóng.</td></tr>
+          <tr><td>URL &amp; "Mở trong tab mới" (từ 18/11/2026)</td><td>Tuỳ chọn. Nhập URL dạng <code>http(s)://...</code> hoặc đường dẫn nội bộ bắt đầu bằng <code>/</code> (kiểm tra ở cả form và máy chủ) để user bấm vào message mở trang đó; mặc định mở ở tab hiện tại, chọn "Mở trong tab mới" thì mở cửa sổ/tab mới.</td></tr>
+          <tr><td>Viền nổi bật (từ 18/11/2026)</td><td>Chọn thì hộp có viền màu chủ đạo của theme như thông báo "My assigned tasks"; mặc định không chọn.</td></tr>
           <tr><td>Vị trí</td><td>Góc phải phía trên / Góc phải phía dưới. Ở góc phải phía dưới, message <strong>hiện sau</strong> popup thông báo
             "My assigned epics — Bạn có n epic được giao task!" (chờ popup đó tắt hẳn); nếu popup xuất hiện khi message đang hiện thì message tạm ẩn và hiện lại sau.</td></tr>
         </tbody>
@@ -2654,6 +2672,7 @@
           luôn hiển thị thì bấm <strong>Tắt xem trước</strong> để đóng.</li>
         <li>Nút X (hoặc tự tắt) chỉ ẩn message ở màn hình đang xem: tải lại trang, mở lại hay chuyển sang màn hình khác là message hiện lại —
           vì đây là thông tin quan trọng cần truyền tải. User thấy cấu hình mới ở lần tải trang kế tiếp (máy chủ nhớ tạm khoảng 10 giây).</li>
+        <li><strong>Danh sách float message</strong> (dưới form, từ 18/11/2026): cột <em>Thứ tự ưu tiên</em> (một chữ số, 1 là ưu tiên nhất), <em>Mã float message</em> (tự sinh: <code>FM-001</code> Thông báo Tạo cache, <code>FM-002</code> My assigned tasks, <code>FM-003</code> nội dung cấu hình ở form), <em>Nội dung</em>. SUPERADMIN sửa được thứ tự của FM-001 và FM-002 (1–8, lưu ở bảng <code>float_message_priorities</code>); FM-003 luôn ở mức cuối (9). Thứ tự trùng nhau thì xếp theo mã A-Z. Hàng đợi hiển thị theo đúng thứ tự này.</li>
         <li>Giao diện: nền trắng mờ 80% (làm mờ phía sau), chữ 12px đậm, icon message trong vòng tròn.</li>
         <li>Không hiện ở màn đăng nhập, khi user đang phải đổi mật khẩu, và khi hệ thống đang tạm dừng (user chỉ được xem Bản tin).</li>
         <li>Lớp hiển thị: trên header và sidebar, dưới các hộp thoại (modal) và popup thông báo.</li>

@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { createPortal } from 'react-dom';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { ChatCircleText } from '@phosphor-icons/react';
 import {
   dismissActiveFloatMessage,
@@ -10,12 +10,15 @@ import {
   FLOAT_MESSAGE_PRIORITY,
   getFloatQueueSnapshot,
   removeFloatMessageById,
+  setFloatKindRanks,
   subscribeFloatQueue,
   type FloatQueueSnapshot,
   type QueuedFloatMessage,
 } from '@/lib/bottom-right-slot';
 import {
   FLOAT_MESSAGE_CHANGED_EVENT,
+  isInternalFloatMessageUrl,
+  type FloatMessagePriorities,
   type FloatMessagePosition,
   type PublicFloatMessage,
 } from '@/lib/float-message';
@@ -32,14 +35,20 @@ import { cn } from '@/lib/utils';
  * - Các message trong hàng đợi hiển thị lần lượt cách nhau 2 giây (sau khi message trước hết timeout hoặc bị tắt).
  */
 
+/** Viền nổi bật — màu chủ đạo (accent) của theme, dùng chung cho My assigned tasks (REQ-20261118-04). */
+export const FLOAT_MESSAGE_HIGHLIGHT_BORDER = 'border-2 border-fb-blue';
+
 export function FloatMessageBox({
   borderClassName,
+  clickable,
   dismissible,
   onClick,
   onClose,
   text,
 }: {
   borderClassName?: string;
+  /** Bấm được (có URL / hành động): hiện chữ "CLICK HERE!" nhấp nháy ngay dưới góc phải hộp. */
+  clickable?: boolean;
   dismissible: boolean;
   onClick?: () => void;
   onClose?: () => void;
@@ -67,6 +76,11 @@ export function FloatMessageBox({
       </span>
       {/* ~50 characters per line at most (50ch of this font); longer text wraps onto more lines. */}
       <p className="min-w-0 max-w-[50ch] whitespace-pre-line break-words text-[12px] font-bold leading-snug">{text}</p>
+      {(clickable || onClick) && (
+        <span aria-hidden="true" className="float-message-blink pointer-events-none absolute top-full right-3 mt-1 text-[11px] font-extrabold tracking-wide text-fb-blue">
+          CLICK HERE!
+        </span>
+      )}
       {dismissible && (
         <button
           aria-label="Đóng thông báo"
@@ -102,7 +116,7 @@ export function FloatMessageFrame({ children, layerClassName = 'z-[50]', positio
         'fixed right-4 transition-all duration-[430ms] ease-out',
         layerClassName,
         // Top-right sits under the 64 px header so it never covers the header's own buttons.
-        isTop ? 'top-20' : 'bottom-4',
+        isTop ? 'top-20' : 'bottom-7',
         visible ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-[calc(100%+1.5rem)] opacity-0',
       )}
       role="status"
@@ -110,6 +124,17 @@ export function FloatMessageFrame({ children, layerClassName = 'z-[50]', positio
       {children}
     </div>
   );
+}
+
+/** Mở URL của float message: tab hiện tại (mặc định) hoặc tab mới; đường dẫn nội bộ đi qua router khi mở tab hiện tại. */
+function openFloatMessageUrl(url: string, openInNewTab: boolean, router: ReturnType<typeof useRouter>): void {
+  if (openInNewTab) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  } else if (isInternalFloatMessageUrl(url)) {
+    router.push(url);
+  } else {
+    window.location.assign(url);
+  }
 }
 
 const SERVER_QUEUE_SNAPSHOT: FloatQueueSnapshot = { active: null, coolingDown: false, queuedCount: 0 };
@@ -127,6 +152,7 @@ function useFloatQueueSnapshot(): FloatQueueSnapshot {
  */
 export function FloatMessageDisplay() {
   const pathname = usePathname();
+  const router = useRouter();
   const { active } = useFloatQueueSnapshot();
   const [systemMessage, setSystemMessage] = React.useState<PublicFloatMessage | null>(null);
   const [enteredSeq, setEnteredSeq] = React.useState<number | null>(null);
@@ -135,7 +161,8 @@ export function FloatMessageDisplay() {
   const loadSystemMessage = React.useCallback((signal?: AbortSignal) => {
     fetch('/api/float-message', { cache: 'no-store', signal })
       .then((response) => (response.ok ? response.json() : null))
-      .then((data: { message?: PublicFloatMessage | null } | null) => {
+      .then((data: { message?: PublicFloatMessage | null; priorities?: FloatMessagePriorities } | null) => {
+        if (data?.priorities) setFloatKindRanks({ assignedTasks: data.priorities['FM-002'], cache: data.priorities['FM-001'] });
         const next = data?.message ?? null;
         setSystemMessage(next);
         if (!next) removeFloatMessageById('system-config');
@@ -160,12 +187,14 @@ export function FloatMessageDisplay() {
     enqueueFloatMessage({
       autoHideSeconds: systemMessage.autoHideSeconds,
       dismissible: systemMessage.dismissible,
+      highlightBorder: systemMessage.highlightBorder,
       id: 'system-config',
+      onClick: systemMessage.url ? () => openFloatMessageUrl(systemMessage.url as string, systemMessage.openInNewTab, router) : undefined,
       position: systemMessage.position,
       priority: FLOAT_MESSAGE_PRIORITY.SYSTEM_CONFIG,
       text: systemMessage.text,
     });
-  }, [pathname, systemMessage]);
+  }, [pathname, router, systemMessage]);
 
   if (active && active !== lastActive) {
     setLastActive(active);
@@ -196,12 +225,10 @@ export function FloatMessageDisplay() {
       }
     : undefined;
 
-  const isAssignedTasks = rendered.priority === FLOAT_MESSAGE_PRIORITY.ASSIGNED_TASKS;
-
   return (
     <FloatMessageFrame position={position} visible={visible}>
       <FloatMessageBox
-        borderClassName={isAssignedTasks ? 'border-2 border-[var(--header-widget-e2e-color)]' : undefined}
+        borderClassName={rendered.highlightBorder ? FLOAT_MESSAGE_HIGHLIGHT_BORDER : undefined}
         dismissible={rendered.dismissible}
         onClick={handleClick}
         onClose={handleClose}
@@ -212,9 +239,11 @@ export function FloatMessageDisplay() {
 }
 
 /** Admin preview: the box in its real corner, above the open Quản trị hệ thống dialog. */
-export function FloatMessagePreview({ autoHideSeconds, dismissible, onDone, position, text }: {
+export function FloatMessagePreview({ autoHideSeconds, clickable = false, dismissible, highlightBorder = false, onDone, position, text }: {
   autoHideSeconds: number | null;
+  clickable?: boolean;
   dismissible: boolean;
+  highlightBorder?: boolean;
   onDone: () => void;
   position: FloatMessagePosition;
   text: string;
@@ -239,7 +268,7 @@ export function FloatMessagePreview({ autoHideSeconds, dismissible, onDone, posi
 
   return createPortal(
     <FloatMessageFrame layerClassName="z-[130]" position={position} visible={visible}>
-      <FloatMessageBox dismissible={dismissible} onClose={finish} text={text || 'Nội dung Float message'} />
+      <FloatMessageBox borderClassName={highlightBorder ? FLOAT_MESSAGE_HIGHLIGHT_BORDER : undefined} clickable={clickable} dismissible={dismissible} onClose={finish} text={text || 'Nội dung Float message'} />
     </FloatMessageFrame>,
     document.body,
   );

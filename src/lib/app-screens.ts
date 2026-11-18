@@ -24,6 +24,7 @@ export const PAGE_HEADERS: Record<string, AppScreenInfo> = {
   '/admin/database': { subtitle: 'Export/Import dữ liệu ứng dụng dưới dạng file SQL', title: 'Sao lưu / Phục hồi dữ liệu' },
   '/admin/permissions': { subtitle: 'Cấu hình quyền Xem/Thêm/Sửa/Xóa theo vai trò cho từng chức năng', title: 'Ma trận phân quyền' },
   '/admin/rule-management': { subtitle: 'Nhóm rule theo mốc ngày Epic và bộ rule cảnh báo / đánh giá áp dụng cho từng nhóm', title: 'Rule Management' },
+  '/ttm-calculator': { subtitle: 'Công cụ tính toán các giai đoạn của Epic', title: 'TTM Calculator' },
   '/visit-stats': { subtitle: 'Lượt đăng nhập và lượt sử dụng các màn hình chức năng trên hệ thống', title: 'Thống kê truy cập' },
   '/reports': { subtitle: 'Lựa chọn lớp dữ liệu và các điều kiện lọc', title: 'Báo cáo Epic (beta 2)' },
   // Also the header of /news-letter/<id>, /news-letter/new and /news-letter/<id>/edit (AppShell looks it up by prefix).

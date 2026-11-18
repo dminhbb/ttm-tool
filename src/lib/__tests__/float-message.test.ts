@@ -10,8 +10,12 @@ import {
   subscribeBottomRightSlot,
 } from '../bottom-right-slot';
 import {
+  buildFloatMessageList,
   DEFAULT_FLOAT_MESSAGE,
+  DEFAULT_FLOAT_MESSAGE_PRIORITIES,
   FloatMessageInputError,
+  normalizeFloatMessageUrl,
+  validateFloatMessagePriorities,
   isFloatMessageShownOn,
   publicFloatMessageOf,
   validateFloatMessageInput,
@@ -123,8 +127,11 @@ describe('isFloatMessageShownOn / publicFloatMessageOf', () => {
     assert.deepEqual(publicFloatMessageOf(settings, '2026-11-20'), {
       autoHideSeconds: 10,
       dismissible: true,
+      highlightBorder: false,
+      openInNewTab: false,
       position: 'BOTTOM_RIGHT',
       text: 'Bảo trì hệ thống lúc 20:00',
+      url: null,
       version: '2026-11-17 10:00:00+07',
     });
     assert.equal(publicFloatMessageOf(settings, '2026-12-05'), null);
@@ -266,5 +273,95 @@ describe('FloatMessageQueue — priority (#1 Tạo cache, #2 My assigned tasks, 
     // Sau khi #1 hết 10s timeout + 2s chờ, #3 hiển thị trở lại ở cuối hàng đợi
     advance(NON_ADMIN_FLOAT_TIMEOUT_SECONDS * 1000 + FLOAT_MESSAGE_GAP_MS);
     assert.equal(queue.getSnapshot().active?.id, 'system-config');
+  });
+});
+
+describe('URL, new tab and highlight border (REQ-20261118-04)', () => {
+  it('accepts http(s) URLs and internal paths, trims them', () => {
+    assert.equal(normalizeFloatMessageUrl(' https://example.com/a?b=1 '), 'https://example.com/a?b=1');
+    assert.equal(normalizeFloatMessageUrl('http://localhost:3000/x'), 'http://localhost:3000/x');
+    assert.equal(normalizeFloatMessageUrl('/epic-alerts-15?markFilter=MINE'), '/epic-alerts-15?markFilter=MINE');
+  });
+
+  it('refuses anything that is not a URL', () => {
+    for (const bad of ['', 'abc', 'example.com', 'javascript:alert(1)', 'data:text/html,x', 'ftp://x.com', '//evil.com', '/a\\b', 'https://', 'https://a b.com', `https://x.com/${'a'.repeat(2050)}`]) {
+      assert.equal(normalizeFloatMessageUrl(bad), null, bad);
+    }
+  });
+
+  it('validateFloatMessageInput: defaults, trimmed URL, rejects a bad URL, new tab only with a URL', () => {
+    const plain = validateFloatMessageInput(VALID);
+    assert.equal(plain.url, null);
+    assert.equal(plain.openInNewTab, false);
+    assert.equal(plain.highlightBorder, false);
+    const full = validateFloatMessageInput({ ...VALID, highlightBorder: true, openInNewTab: true, url: ' https://example.com ' });
+    assert.equal(full.url, 'https://example.com');
+    assert.equal(full.openInNewTab, true);
+    assert.equal(full.highlightBorder, true);
+    assert.equal(validateFloatMessageInput({ ...VALID, openInNewTab: true, url: '' }).openInNewTab, false);
+    assert.equal(validateFloatMessageInput({ ...VALID, url: '   ' }).url, null);
+    for (const bad of [{ url: 'abc' }, { url: 'javascript:alert(1)' }, { url: 5 }, { openInNewTab: 'yes' }, { highlightBorder: 1 }]) {
+      assert.throws(() => validateFloatMessageInput({ ...VALID, ...bad }), FloatMessageInputError, JSON.stringify(bad));
+    }
+  });
+
+  it('the public view carries url, openInNewTab and highlightBorder', () => {
+    const settings: FloatMessageSettings = { ...DEFAULT_FLOAT_MESSAGE, ...validateFloatMessageInput({ ...VALID, highlightBorder: true, openInNewTab: true, url: '/x' }), updatedAt: 'v1' };
+    const view = publicFloatMessageOf(settings, '2026-11-20');
+    assert.equal(view?.url, '/x');
+    assert.equal(view?.openInNewTab, true);
+    assert.equal(view?.highlightBorder, true);
+  });
+});
+
+describe('priorities and the list (REQ-20261118-04)', () => {
+  it('priorities must be one digit 1..8 for FM-001 and FM-002', () => {
+    assert.deepEqual(validateFloatMessagePriorities({ 'FM-001': 3, 'FM-002': 1 }), { 'FM-001': 3, 'FM-002': 1 });
+    for (const bad of [{ 'FM-001': 0, 'FM-002': 1 }, { 'FM-001': 9, 'FM-002': 1 }, { 'FM-001': 1.5, 'FM-002': 1 }, { 'FM-001': '1', 'FM-002': 1 }, { 'FM-001': 1 }, null]) {
+      assert.throws(() => validateFloatMessagePriorities(bad), FloatMessageInputError, JSON.stringify(bad));
+    }
+  });
+
+  it('list: by priority, ties by code A-Z, the SUPERADMIN message always last', () => {
+    assert.deepEqual(buildFloatMessageList('Hi', DEFAULT_FLOAT_MESSAGE_PRIORITIES).map((row) => [row.code, row.priority]), [['FM-001', 1], ['FM-002', 2], ['FM-003', 9]]);
+    assert.deepEqual(buildFloatMessageList('Hi', { 'FM-001': 5, 'FM-002': 2 }).map((row) => row.code), ['FM-002', 'FM-001', 'FM-003']);
+    assert.deepEqual(buildFloatMessageList('Hi', { 'FM-001': 4, 'FM-002': 4 }).map((row) => row.code), ['FM-001', 'FM-002', 'FM-003']);
+    const last = buildFloatMessageList('  ', { 'FM-001': 8, 'FM-002': 8 }).at(-1);
+    assert.equal(last?.code, 'FM-003');
+    assert.equal(last?.editable, false);
+    assert.equal(last?.text, '(Chưa cấu hình nội dung)');
+  });
+
+  it('queue follows the configured priorities, ties by code', () => {
+    const clock = createFakeClock();
+    const queue = new FloatMessageQueue(clock.timers);
+    queue.setKindRanks({ assignedTasks: 1, cache: 3 });
+    const releaseCheck = queue.holdCheck('tasks-check', FLOAT_MESSAGE_PRIORITY.ASSIGNED_TASKS);
+    queue.enqueue({ id: 'c', priority: FLOAT_MESSAGE_PRIORITY.CACHE, text: 'cache' });
+    queue.enqueue({ id: 's', priority: FLOAT_MESSAGE_PRIORITY.SYSTEM_CONFIG, text: 'sys' });
+    queue.enqueue({ id: 't', priority: FLOAT_MESSAGE_PRIORITY.ASSIGNED_TASKS, text: 'task' });
+    releaseCheck();
+    assert.equal(queue.getSnapshot().active?.id, 't');
+    queue.dismissActive();
+    clock.advance(FLOAT_MESSAGE_GAP_MS);
+    assert.equal(queue.getSnapshot().active?.id, 'c');
+    queue.dismissActive();
+    clock.advance(FLOAT_MESSAGE_GAP_MS);
+    assert.equal(queue.getSnapshot().active?.id, 's');
+
+    const tie = new FloatMessageQueue(clock.timers);
+    tie.setKindRanks({ assignedTasks: 2, cache: 2 });
+    const releaseTie = tie.holdCheck('y', FLOAT_MESSAGE_PRIORITY.CACHE);
+    tie.enqueue({ id: 't', priority: FLOAT_MESSAGE_PRIORITY.ASSIGNED_TASKS, text: 'task' });
+    tie.enqueue({ id: 'c', priority: FLOAT_MESSAGE_PRIORITY.CACHE, text: 'cache' });
+    releaseTie();
+    assert.equal(tie.getSnapshot().active?.id, 'c');
+  });
+
+  it('highlightBorder: always for My assigned tasks, by setting for the SUPERADMIN message', () => {
+    const queue = new FloatMessageQueue(createFakeClock().timers);
+    assert.equal(queue.enqueue({ priority: FLOAT_MESSAGE_PRIORITY.ASSIGNED_TASKS, text: 'a' })?.highlightBorder, true);
+    assert.equal(queue.enqueue({ priority: FLOAT_MESSAGE_PRIORITY.SYSTEM_CONFIG, text: 'b' })?.highlightBorder, false);
+    assert.equal(queue.enqueue({ highlightBorder: true, priority: FLOAT_MESSAGE_PRIORITY.SYSTEM_CONFIG, text: 'c' })?.highlightBorder, true);
   });
 });

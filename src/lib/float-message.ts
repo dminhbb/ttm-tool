@@ -8,6 +8,24 @@
 /** One line of text (owner 2026-11-17: a textbox of at most 256 characters). */
 export const FLOAT_MESSAGE_MAX_LENGTH = 256;
 export const FLOAT_MESSAGE_MAX_SECONDS = 3600;
+export const FLOAT_MESSAGE_MAX_URL_LENGTH = 2048;
+
+/** Mã float message do ứng dụng tự sinh (REQ-20261118-04): mỗi nguồn trong hàng đợi có một mã cố định. */
+export const FLOAT_MESSAGE_CODES = {
+  ASSIGNED_TASKS: 'FM-002',
+  CACHE: 'FM-001',
+  SYSTEM_CONFIG: 'FM-003',
+} as const;
+export type FloatMessageCode = (typeof FLOAT_MESSAGE_CODES)[keyof typeof FLOAT_MESSAGE_CODES];
+/** Thứ tự ưu tiên 1 ký tự: 1 = ưu tiên nhất. Message cấu hình ở Quản trị hệ thống luôn ở mức cuối (9), không sửa được. */
+export const FLOAT_MESSAGE_MIN_RANK = 1;
+export const FLOAT_MESSAGE_MAX_EDITABLE_RANK = 8;
+export const FLOAT_MESSAGE_SYSTEM_CONFIG_RANK = 9;
+/** Hai nguồn hệ thống có thể đổi thứ tự ưu tiên (code → mặc định). */
+export const FLOAT_MESSAGE_EDITABLE_CODES = [FLOAT_MESSAGE_CODES.CACHE, FLOAT_MESSAGE_CODES.ASSIGNED_TASKS] as const;
+export type EditableFloatMessageCode = (typeof FLOAT_MESSAGE_EDITABLE_CODES)[number];
+export type FloatMessagePriorities = Record<EditableFloatMessageCode, number>;
+export const DEFAULT_FLOAT_MESSAGE_PRIORITIES: FloatMessagePriorities = { 'FM-001': 1, 'FM-002': 2 };
 export const FLOAT_MESSAGE_POSITIONS = ['TOP_RIGHT', 'BOTTOM_RIGHT'] as const;
 export type FloatMessagePosition = (typeof FLOAT_MESSAGE_POSITIONS)[number];
 
@@ -29,10 +47,16 @@ export interface FloatMessageInput {
   autoHideSeconds: number | null;
   dismissible: boolean;
   endDate: string | null;
+  /** Viền nổi bật màu nâu (giống thông báo My assigned tasks); mặc định tắt. */
+  highlightBorder: boolean;
   isActive: boolean;
   messageText: string;
+  /** true = mở URL ở tab mới; false (mặc định) = mở ở tab hiện tại. Chỉ có nghĩa khi có `url`. */
+  openInNewTab: boolean;
   position: FloatMessagePosition;
   startDate: string | null;
+  /** URL mở khi bấm vào message (http/https hoặc đường dẫn nội bộ bắt đầu bằng "/"); null = không bấm được. */
+  url: string | null;
 }
 
 export interface FloatMessageSettings extends FloatMessageInput {
@@ -44,8 +68,11 @@ export interface FloatMessageSettings extends FloatMessageInput {
 export interface PublicFloatMessage {
   autoHideSeconds: number | null;
   dismissible: boolean;
+  highlightBorder: boolean;
+  openInNewTab: boolean;
   position: FloatMessagePosition;
   text: string;
+  url: string | null;
   /** updated_at of the last save — identifies the message (a closed message reappears on the next page load anyway). */
   version: string;
 }
@@ -54,10 +81,13 @@ export const DEFAULT_FLOAT_MESSAGE: FloatMessageSettings = {
   autoHideSeconds: null,
   dismissible: true,
   endDate: null,
+  highlightBorder: false,
   isActive: false,
   messageText: '',
+  openInNewTab: false,
   position: 'BOTTOM_RIGHT',
   startDate: null,
+  url: null,
   updatedAt: null,
   updatedByName: null,
 };
@@ -78,6 +108,62 @@ function dateOrNull(value: unknown, label: string): string | null {
   return value;
 }
 
+/**
+ * "Dạng URL" (REQ-20261118-04): URL tuyệt đối http/https (có host) hoặc đường dẫn nội bộ bắt đầu bằng một dấu "/"
+ * (ví dụ "/epic-alerts-15"). Từ chối `javascript:`, `data:`... Trả về URL đã trim, hoặc null nếu không hợp lệ.
+ * Dùng chung cho client (form) và server (API).
+ */
+export function normalizeFloatMessageUrl(value: string): string | null {
+  const url = value.trim();
+  if (!url || url.length > FLOAT_MESSAGE_MAX_URL_LENGTH || /\s/.test(url)) return null;
+  if (url.startsWith('/')) return url.startsWith('//') || url.includes('\\') ? null : url;
+  try {
+    const parsed = new URL(url);
+    return (parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.hostname ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+export function isInternalFloatMessageUrl(url: string): boolean {
+  return url.startsWith('/');
+}
+
+/** Checks the editable priorities of the system messages (each an integer 1..8); throws FloatMessageInputError. */
+export function validateFloatMessagePriorities(raw: unknown): FloatMessagePriorities {
+  const record = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
+  const result = { ...DEFAULT_FLOAT_MESSAGE_PRIORITIES };
+  for (const code of FLOAT_MESSAGE_EDITABLE_CODES) {
+    const rank = record[code];
+    if (typeof rank !== 'number' || !Number.isInteger(rank) || rank < FLOAT_MESSAGE_MIN_RANK || rank > FLOAT_MESSAGE_MAX_EDITABLE_RANK) {
+      throw new FloatMessageInputError(`Thứ tự ưu tiên của ${code} phải là một chữ số từ ${FLOAT_MESSAGE_MIN_RANK} đến ${FLOAT_MESSAGE_MAX_EDITABLE_RANK}.`);
+    }
+    result[code] = rank;
+  }
+  return result;
+}
+
+export interface FloatMessageListRow {
+  code: FloatMessageCode;
+  /** Chỉ hai nguồn hệ thống sửa được; message cấu hình Quản trị hệ thống luôn ở mức cuối. */
+  editable: boolean;
+  priority: number;
+  text: string;
+}
+
+export const CACHE_MESSAGE_TEXT = 'Thông báo Tạo cache (ví dụ "Hệ thống đang tính toán lại cache", "Tạo Cache hoàn thành")';
+export const ASSIGNED_TASKS_MESSAGE_TEXT = 'Thông báo My assigned tasks ("TASK: Bạn có {n} epic được giao task!")';
+
+/** The list under the form: ordered by priority, ties by code A-Z. */
+export function buildFloatMessageList(messageText: string, priorities: FloatMessagePriorities): FloatMessageListRow[] {
+  const rows: FloatMessageListRow[] = [
+    { code: FLOAT_MESSAGE_CODES.CACHE, editable: true, priority: priorities['FM-001'], text: CACHE_MESSAGE_TEXT },
+    { code: FLOAT_MESSAGE_CODES.ASSIGNED_TASKS, editable: true, priority: priorities['FM-002'], text: ASSIGNED_TASKS_MESSAGE_TEXT },
+    { code: FLOAT_MESSAGE_CODES.SYSTEM_CONFIG, editable: false, priority: FLOAT_MESSAGE_SYSTEM_CONFIG_RANK, text: messageText.trim() || '(Chưa cấu hình nội dung)' },
+  ];
+  return rows.sort((a, b) => a.priority - b.priority || a.code.localeCompare(b.code));
+}
+
 /** Trims the text (one line: pasted line breaks become a space) and checks every field; throws FloatMessageInputError. */
 export function validateFloatMessageInput(raw: unknown): FloatMessageInput {
   const record = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
@@ -95,6 +181,15 @@ export function validateFloatMessageInput(raw: unknown): FloatMessageInput {
     }
     autoHideSeconds = seconds;
   }
+  for (const key of ['openInNewTab', 'highlightBorder'] as const) {
+    if (record[key] !== undefined && typeof record[key] !== 'boolean') throw new FloatMessageInputError('Dữ liệu cấu hình không hợp lệ.');
+  }
+  let url: string | null = null;
+  if (record.url !== null && record.url !== undefined && record.url !== '') {
+    if (typeof record.url !== 'string') throw new FloatMessageInputError('URL không hợp lệ.');
+    url = record.url.trim() === '' ? null : normalizeFloatMessageUrl(record.url);
+    if (record.url.trim() !== '' && !url) throw new FloatMessageInputError('URL không hợp lệ: nhập địa chỉ http(s)://... hoặc đường dẫn nội bộ bắt đầu bằng "/".');
+  }
   const startDate = dateOrNull(record.startDate, 'Ngày bắt đầu');
   const endDate = dateOrNull(record.endDate, 'Ngày kết thúc');
   if (startDate && endDate && startDate > endDate) throw new FloatMessageInputError('Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.');
@@ -102,10 +197,13 @@ export function validateFloatMessageInput(raw: unknown): FloatMessageInput {
     autoHideSeconds,
     dismissible: record.dismissible,
     endDate,
+    highlightBorder: record.highlightBorder === true,
     isActive: record.isActive,
     messageText,
+    openInNewTab: url ? record.openInNewTab === true : false,
     position: record.position as FloatMessagePosition,
     startDate,
+    url,
   };
 }
 
@@ -123,8 +221,11 @@ export function publicFloatMessageOf(settings: FloatMessageSettings, today: stri
   return {
     autoHideSeconds: settings.autoHideSeconds,
     dismissible: settings.dismissible,
+    highlightBorder: settings.highlightBorder,
+    openInNewTab: settings.openInNewTab,
     position: settings.position,
     text: settings.messageText,
+    url: settings.url,
     version: settings.updatedAt ?? 'initial',
   };
 }

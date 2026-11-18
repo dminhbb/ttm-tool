@@ -100,10 +100,11 @@ export function clearModalHighlights(root: HTMLElement): void {
 export function highlightModalMatches(root: HTMLElement, regex: RegExp): HTMLElement[] {
   clearModalHighlights(root);
 
-  // If running in a non-browser environment without document
-  if (typeof document === 'undefined') return [];
+  // The root may live in another document (the "Tài liệu sản phẩm" iframe) — build every node in ITS document.
+  const doc = root.ownerDocument;
+  if (!doc) return [];
 
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
       const parent = node.parentElement;
@@ -145,14 +146,14 @@ export function highlightModalMatches(root: HTMLElement, regex: RegExp): HTMLEle
 
     if (matchesInNode.length === 0) continue;
 
-    const fragment = document.createDocumentFragment();
+    const fragment = doc.createDocumentFragment();
     let lastIdx = 0;
 
     for (const m of matchesInNode) {
       if (m.start > lastIdx) {
-        fragment.appendChild(document.createTextNode(text.slice(lastIdx, m.start)));
+        fragment.appendChild(doc.createTextNode(text.slice(lastIdx, m.start)));
       }
-      const mark = document.createElement('mark');
+      const mark = doc.createElement('mark');
       mark.className = 'ttm-modal-search-highlight';
       mark.textContent = m.text;
       fragment.appendChild(mark);
@@ -161,11 +162,26 @@ export function highlightModalMatches(root: HTMLElement, regex: RegExp): HTMLEle
     }
 
     if (lastIdx < text.length) {
-      fragment.appendChild(document.createTextNode(text.slice(lastIdx)));
+      fragment.appendChild(doc.createTextNode(text.slice(lastIdx)));
     }
 
     node.parentNode?.replaceChild(fragment, node);
   }
 
   return matchElements;
+}
+
+/**
+ * Highlight styles for a root that lives inside an iframe: the page's globals.css does not reach into it, so the
+ * same two rules (match / active match) are injected into the iframe's own <head>. Idempotent.
+ */
+export function ensureModalSearchStyles(doc: Document): void {
+  if (doc.getElementById('ttm-modal-search-style')) return;
+  const style = doc.createElement('style');
+  style.id = 'ttm-modal-search-style';
+  style.textContent = [
+    'mark.ttm-modal-search-highlight{background-color:hsl(55 92% 88%);color:hsl(222 47% 11%);border-radius:2px;padding:0 2px;box-decoration-break:clone;-webkit-box-decoration-break:clone}',
+    'mark.ttm-modal-search-highlight.ttm-modal-search-active{background-color:hsl(25 95% 53%);color:white;outline:2px solid hsl(21 90% 48%);outline-offset:1px;font-weight:700}',
+  ].join(' ');
+  doc.head.appendChild(style);
 }

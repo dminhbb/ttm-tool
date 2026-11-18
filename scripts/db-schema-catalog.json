@@ -141,7 +141,8 @@
         "ad_popups",
         "ad_popup_impressions",
         "info_banners",
-        "float_message_settings"
+        "float_message_settings",
+        "float_message_priorities"
       ]
     },
     {
@@ -497,7 +498,17 @@
       "description": "<strong>Mới 17/11/2026.</strong> \"Float message\" (Quản trị hệ thống → Float message, SUPERADMIN, một dòng <code>id = 1</code>): hộp thông báo nổi bo tròn có icon message, hiện cho mọi user đã đăng nhập. Nội dung một dòng văn bản thuần (<code>message_text</code>, tối đa 256 ký tự), công tắc <code>is_active</code>, khoảng ngày <code>start_date</code>–<code>end_date</code> (giờ Việt Nam, tính cả hai đầu), <code>auto_hide_seconds</code> (NULL = luôn hiển thị), <code>dismissible</code> (nút X), <code>position</code> (TOP_RIGHT / BOTTOM_RIGHT — góc phải dưới hiện sau popup thông báo). Mỗi lần lưu ghi một dòng <code>audit_logs</code> (FLOAT_MESSAGE_UPDATE).",
       "columns": {
         "auto_hide_seconds": "Số giây trước khi message tự biến mất (1–3600); NULL = luôn hiển thị.",
-        "position": "TOP_RIGHT (góc phải phía trên, dưới header) hoặc BOTTOM_RIGHT (góc phải phía dưới)."
+        "position": "TOP_RIGHT (góc phải phía trên, dưới header) hoặc BOTTOM_RIGHT (góc phải phía dưới).",
+        "url": "Mới 18/11/2026. URL mở khi bấm vào message (http/https hoặc đường dẫn nội bộ bắt đầu bằng /); NULL = không bấm được.",
+        "open_in_new_tab": "TRUE = mở URL ở tab mới; FALSE (mặc định) = tab hiện tại.",
+        "highlight_border": "TRUE = viền nâu nổi bật như thông báo My assigned tasks; mặc định FALSE."
+      }
+    },
+    "float_message_priorities": {
+      "description": "<strong>Mới 18/11/2026.</strong> Thứ tự ưu tiên (1 chữ số, 1 = ưu tiên nhất) của hai Float message hệ thống trong hàng đợi: <code>FM-001</code> Thông báo Tạo cache, <code>FM-002</code> My assigned tasks. Message cấu hình ở Quản trị hệ thống (<code>FM-003</code>) luôn ở mức cuối nên không lưu ở đây. Cùng thứ tự thì xếp theo mã A-Z.",
+      "columns": {
+        "code": "Mã float message tự sinh: FM-001 hoặc FM-002.",
+        "priority": "Thứ tự ưu tiên 1–8 (1 = ưu tiên nhất)."
       }
     },
     "api_keys": {
