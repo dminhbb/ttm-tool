@@ -6,6 +6,59 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-11-20
+
+- **TTM Calculator — mở rộng nhận dạng Loại yêu cầu khi nhập text** (`REQ-20261120-01`):
+  - Mở rộng `REQUEST_TYPE_PATTERN` trong `src/lib/ttm-calculator-text.ts`: nhận dạng Loại yêu cầu **không phân biệt hoa/thường, không cần dấu tiếng Việt, có/không dấu cách** (vd `san pham` / `sanpham`).
+  - Từ đồng nghĩa gán về cụm chuẩn "Sản phẩm/dịch vụ/quy trình mới": `sản phẩm mới`, `dịch vụ`, `dịch vụ mới`, `quy trình`, `quy trình mới`, `sản phẩm/dịch vụ`. `sản phẩm` đứng riêng vẫn → "Sản phẩm".
+  - Viết tắt (dùng `\b` ranh giới từ để không khớp lẫn): `tnm`/`tn` → Tính năng mới; `sp` → Sản phẩm; `ct` → Cải tiến; `dv`/`qt`/`spm`/`dvm`/`qtm`/`spdvqt`/`spdvqtm` → cụm chuẩn. Regex thành 4 nhóm capturing (1 cụm chuẩn, 2 Tính năng mới, 3 Cải tiến, 4 Sản phẩm), ánh xạ giữ nguyên qua `REQUEST_TYPE_BY_GROUP`.
+  - Bổ sung 4 test trong `ttm-calculator-text.test.ts` (từ đồng nghĩa, không dấu/không dấu cách, viết tắt, viết tắt không khớp lẫn). `npm test` 595/595, `tsc --noEmit`, `eslint` sạch.
+  - Tài liệu sản phẩm: thêm **mục 22 — TTM Calculator** (`public/docs/product-guide.html` → tái sinh `src/lib/product-guide-content.ts` qua `npm run sync-docs`) liệt kê bảng Loại yêu cầu nhận dạng được; cập nhật card KB `docs/kb/features/ttm-calculator.md`.
+
+- **Bản tin — cải tiến màn hình** (`REQ-20261120-02`):
+  - **Tiêu đề ngắn + slug URL**: input "Tiêu đề ngắn" (max 50, không bắt buộc) dưới "Tiêu đề"; hiển thị trên menu (`short_title || title`); sinh **slug** URL thay cho ID (bỏ dấu tiếng Việt, dấu cách→`_`, giữ hoa/thường — `'Quy định sử dụng AI'`→`'Quy_dinh_su_dung_AI'`). Bài không có short_title thì URL vẫn dùng ID. Mở/sửa được cả 2 dạng URL. Schema: `news_letter_articles.short_title` + `slug` (unique, nhiều NULL), `news_letter_categories.expanded`.
+  - **Quản trị Phân loại**: thêm checkbox **Expand** mỗi phân loại (mặc định collapsed); popup cao hơn 50% (`Modal` thêm prop `frameClassName`).
+  - **Cột menu** chuyển **sang phải**; thư mục bài viết có trạng thái thu gọn/mở (mặc định theo `expanded`); **Mới nhất** chỉ hiển thị tiêu đề, font thường, thanh dọc; **bỏ mục Ghim** ở cột (ticker phía trên bài vẫn giữ).
+  - **Nội dung bài xem** được bao bởi vùng **trắng + viền xám**; **giảm font tiêu đề** bài đang xem.
+  - Module thuần `src/lib/news-letter/slug.ts` (`newsLetterSlug`, `newsLetterDisplayTitle`) + test `news-letter-slug.test.ts` (6 test). `npm test` 601/601, `tsc --noEmit`, `eslint src`, `npm run build` pass; migration chạy local (UAT) OK, đã `db:export-schema --target=local`; tạo card KB `docs/kb/features/news-letter.md` (mới).
+
+- **Bản tin — tiếp (đợt 2, `REQ-20261120-02`)**: tăng chiều ngang vùng nội dung bài xem + ticker `max-w-[860px]` → `1075px` (≈+25%, `NewsLetterReader.tsx`/`NewsLetterShell.tsx`); tiêu đề bài `text-[18px]` (bỏ `text-2xl sm:text-3xl`), tóm tắt `text-[14px]` (bỏ `text-lg`); **Share URL** dùng slug từ Tiêu đề ngắn nếu có, ngược lại ID (`ShareButton` nhận `{id, slug}` và build qua `newsArticleHref`); form soạn/sửa: tách khối Tiêu đề + Tiêu đề ngắn ra riêng (input trải đều bằng form Tóm tắt), đẩy các switch xuống hàng riêng; placeholder **Ảnh header** giảm chiều cao `aspect-[16/5]` → `aspect-[32/3]` (≈30%); tooltip Expand trong Quản trị Phân loại đã có sẵn. Toàn UI — không đổi schema. `npm test` 601/601, `tsc --noEmit`, `eslint`, `npm run build` pass.
+
+- **Thông tin Epic — thêm tab "TTM Calendar"** (`REQ-20261120-03`): tab mới trong popup "Thông tin Epic" (`EpicMarkModal.tsx`) tái sử dụng **timeline SVG các pha** của TTM Calculator (`TtmPhaseTimeline`) cho chính Epic đang xem. Nếu Epic đủ 3 thông tin bắt buộc — **Start date** (`summary.startDate`), **Phân loại epic** (`epicType` map qua helper mới `toCalculatorRequestType` về chuẩn calculator), **Requirement level** (`'1'..'4'`) — thì gọi `POST /api/ttm-calculator` (API có sẵn) và vẽ timeline; thiếu ≥1 thì hiển thị `Thiếu thông tin: Start date, Phân loại epic và Requirement level`. Component mới `src/components/epic-mark/TtmCalendarTab.tsx` (lazy-load, pattern như `EpicTreeTab`); helper thuần `toCalculatorRequestType` trong `src/lib/ttm-calculator-text.ts` (trả `null` khi không map được). Sửa lỗi "Created date / Ngày duyệt ý tưởng không hợp lệ": chỉ gửi 3 thông tin bắt buộc, bỏ createdDate/ideaApprovedDate (chỉ cần cho TTM-E2E, không cần vẽ timeline). Toàn client/UI — không đổi schema/API/contract. `npm test` 604/604, `tsc --noEmit`, `eslint` file sạch, `npm run build` pass.
+
+- **Timeline TTM — chỉnh giao diện (pastel, badge, label ngày nghỉ, đường today)** (`REQ-20261120-04`, cả màn hình TTM Calculator lẫn popup Thông tin Epic — dùng chung `src/components/ttm-calculator/TtmPhaseTimeline.tsx`):
+  - **Màu pha hệ pastel** (sky-200/green-200/yellow-200/orange-200/blue-200/violet-200) dễ nhìn trên nền trắng; chữ badge chuyển sang **đen** `#000000` (`BADGE_TEXT`) để đọc rõ trên nền sáng.
+  - **Badge R4G** (pha 1 ngày) rộng **vừa khớp content** (tên + ngày, đo bằng helper `textWidth`); badge **Pentest & Change** và các pha thường rộng ít nhất **bao đủ content**, tối đa `BADGE_HALF`.
+  - **Dòng Thứ + ngày phía trên thanh**: ngày nghỉ (Thứ 7 / Chủ nhật / ngày Lễ theo cấu hình) có **nền light grey** `#e2e8f0` + **chữ đen**.
+  - **Ngày Today**: thêm **đường kẻ dọc 2px** `#dc2626` trên thanh timeline (vẽ SAU các đoạn pha để luôn nổi); giữ nền vàng + chữ đỏ của cột hôm nay.
+  - Tăng hạn mức `hexLiteral` của `TtmPhaseTimeline.tsx` 11→12 trong `design-debt.test.ts` (thêm màu SVG `#000000` — loại ngoại lệ hợp lệ đã ghi chú). `npm test` 604/604, `tsc --noEmit`, `eslint` file sạch, `npm run build` pass.
+
+## 2026-11-19
+
+- **TTM Calculator — timeline: R4G badge, canh giữa, đổi tên pha, tô màu bảng & ngày hôm nay** (`REQ-20261119-02`, tiếp):
+  - Sửa **badge R4G không hiện** (R4G là pha 1 ngày: `xFrom === xTo` → nửa rộng badge = 0 → vô hình): với pha điểm, nửa rộng mặc định = `BADGE_HALF` để badge hiện đủ chữ. `TtmPhaseTimeline.tsx`.
+  - **Canh giữa toàn bộ cụm timeline** so với panel phải (`mx-auto` trên svg + căn giữa dòng ghi chú; `overflow-x-auto` vẫn cuộn khi rộng hơn).
+  - **Đổi tên PENTEST → 'Pentest & Change'** trên Bảng Pha + timeline badge (chỉ màn hình này): thêm `PHASE_DISPLAY_LABELS`/`phaseDisplayLabel` trong `src/lib/ttm-calculator.ts`, dữ liệu `label` gốc giữ nguyên.
+  - **Bảng Pha**: ô pha tô màu nền khớp từng pha trên timeline (`PHASE_CELL_BG`, inline style). **Cột ngày hôm nay trên timeline**: nền vàng `#fef08a` + chữ Thứ/ngày đỏ đậm `#dc2626`.
+  - **Đoạn chữ giải thích** (`ExplanationRow`) bỏ các thẻ `<b>` → chữ thường, không đậm.
+  - Cập nhật baseline `design-debt` `hexLiteral` (TtmPhaseTimeline 9→11, thêm TtmCalculatorScreen 6, total 125). `npm test` 591/591, `tsc --noEmit`, `npm run build` pass.
+
+- **TTM Calculator — timeline SVG các Pha: sửa ô ngày nghỉ + độ dày/badge** (`REQ-20261119-02`, tiếp):
+  - Sửa lỗi **ô ngày nghỉ (T7/CN/ngày Lễ, ví dụ 24/11/2026) không hiện màu xám**: nền trắng `#fff` của thanh timeline từng được vẽ SAU các ô xám nên phủ mất — đảo thứ tự vẽ (nền trắng trước, ô xám + `-` phủ lên sau, rồi đoạn pha, không viền). `TtmPhaseTimeline.tsx`.
+  - Tăng độ dày timeline 10px → **30px**, **border = 0** (bỏ rect viền `#cbd5e1`); các đoạn pha không bo góc để khít nhau. Badge cao 20 → **26px (+30%)**, **border = 0** (bỏ `stroke`), chỉnh lại vị trí chữ trong badge. Cập nhật baseline `design-debt` `hexLiteral` (TtmPhaseTimeline 10→9, total 118→117). `npm test` 591/591, `tsc --noEmit`, `npm run build` pass.
+
+- **TTM Calculator — timeline SVG các Pha** (`REQ-20261119-02`):
+  - Mở rộng contract API `POST /api/ttm-calculator`: trả thêm `holidays`/`workdays` (mảng `YYYY-MM-DD`, từ `ScoringContext.holidays`, sắp xếp) kèm `result` — tương thích ngược, chỉ thêm trường (`ttm-calculator-service.ts`, `route.ts`). Client lưu vào state để vẽ timeline.
+  - Component mới `TtmPhaseTimeline.tsx` (SVG thuần, không cần thư viện chart): thanh timeline dày 10px, mỗi pha (DESIGN/DEV/TEST/PENTEST/R4G/Golive) một đoạn màu riêng; vạch kẻ nhạt phân tách từng ngày; ngày Thứ 7/Chủ nhật/ngày Lễ cấu hình tô xám + ký tự `-` (ngày làm bù coi như ngày làm việc, đúng logic `addWorkingDays`); phía trên thanh là chữ Thứ + ngày từng cột; dưới là badge từng pha (tên đậm + ngày bắt đầu/kết thúc) với line + mũi tên trỏ lên ngày tương ứng. Render có điều kiện (đủ `fromDate`/`toDate`), ngược lại giữ bảng pha.
+  - Tách logic thuần `src/lib/ttm-timeline.ts` (`isNonWorkingDayForTimeline`, `nextCalendarDay`, `buildTimelineDays`) + test `ttm-timeline.test.ts` (7 test). `npm test` 591/591, `tsc --noEmit` pass, `npm run build` pass; màu pha là hex (SVG attribute) nên nằm trong baseline `design-debt` (`hexLiteral` TtmPhaseTimeline = 10).
+
+- **Sửa các điểm phát hiện sau review TTM Calculator + Float message** (`REQ-20261119-01`, không đổi schema/API):
+  - *TTM Calculator (#1, #3, `src/lib/ttm-calculator.ts`)*: `%` của từng pha trong bảng giờ = tỉ lệ workingDays thực tế so với tổng budget (PENTEST lấy phần dư để tổng = 100) thay vì tỉ lệ cấu hình — vì các pha làm tròn lên/xuống và PENTEST bị kéo dài đến trước R4G nên tỉ lệ cấu hình không còn khớp số ngày hiển thị; `release.graceWorkingDays = 0` thì không còn dòng GOLIVE rỗng (golive ngay tại R4G, `goliveDate` = R4G).
+  - *TTM Calculator (#2, `TtmCalculatorScreen.tsx`)*: lời nhắc "Start date rơi vào T7/CN/ngày nghỉ" chỉ hiện khi có bộ ngân sách (tránh "0 ngày LV" gây hiểu lầm khi `totalCnttWorkingDays` null).
+  - *TTM Calculator (cải thiện, `src/app/api/ttm-calculator/route.ts`)*: `optionalDate` trả discriminated union `{ok, value}` thay vì sentinel `undefined` để phân biệt rõ "bỏ trống" với "nhập sai ngày".
+  - *#4/#5 Float message (`FloatMessage.tsx`)*: N/A — code gốc là pattern React "adjusting state during render" (guard, lint pass); `openFloatMessageUrl` đã đúng spec (internal qua router ở tab hiện tại, tab mới dùng `window.open`).
+  - Unit test bổ sung trong `ttm-calculator.test.ts`: PENTEST % khớp workingDays, grace=0 bỏ GOLIVE, workday-override `startIsNonWorkingDay`, level-blank SP→CT-Lv12. `npm test` 584/584, `tsc --noEmit`, `npm run build` pass; lint không có lỗi mới (chỉ pre-existing ở `tools/mcp-dev-proxy/proxy.js`).
+
 ## 2026-11-18
 
 - **Float message — chỉnh giao diện** (`REQ-20261118-04`): viền nổi bật dùng màu accent của theme (`border-fb-blue`, cả FM-002); nhóm có viền cho "Liên kết (URL)" và "Khoảng ngày hiển thị"; danh sách nền đậm hơn, cột "CODE"; message bấm được hiện chữ "CLICK HERE!" nhấp nháy dưới góc phải hộp, không dùng icon hand-tap (`FloatMessage.tsx`, `globals.css`).

@@ -101,13 +101,20 @@ const BASELINE: Record<MeasureName, { total: number; perFile: Record<string, num
    * nên để làm theo từng màn hình.
    */
   hexLiteral: {
-    total: 109,
+    total: 126,
     perFile: {
       // Màu truyền vào SVG phễu/donut dưới dạng prop (fill / lidFill / labelColor).
       'app/ttm-dashboard-2/page.tsx': 36,
       'components/ttm-dashboard-2/FunnelLayers.tsx': 5,
       'components/ttm-dashboard-2/DashboardInsights.tsx': 3,
       'components/ttm-dashboard-2/DonutChartCard.tsx': 5,
+      // Timeline SVG các Pha (REQ-20261119-02 + chỉnh giao diện REQ-20261120-04): màu từng pha hệ pastel + ngày nghỉ +
+      // ngày hôm nay là palette riêng ở thuộc tính SVG (fill="#hex"), không phải CSS nên `var()` không resolve được —
+      // cùng loại nợ với FunnelLayers/DonutChartCard. REQ-20261120-04 thêm chữ đen `#000000` (badge pastel + label ngày
+      // nghỉ) → 12.
+      'components/ttm-calculator/TtmPhaseTimeline.tsx': 12,
+      // Màu nền ô pha trong Bảng Pha (TtmCalculatorScreen) khớp từng pha trên timeline, truyền qua inline style.
+      'components/ttm-calculator/TtmCalculatorScreen.tsx': 6,
       // Bảng tra màu trạng thái dưới dạng object JS.
       'app/epic-alerts-15/page.tsx': 7,
       'app/reports/EpicReportScreen.tsx': 8,

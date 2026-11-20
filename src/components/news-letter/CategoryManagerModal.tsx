@@ -5,11 +5,13 @@ import { Check, PencilSimple, Plus, Tag, Trash, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { alertDialog, confirmDialog } from '@/components/ui/dialogs';
+import { cn } from '@/lib/utils';
 import { NEWS_LETTER_CATEGORY_NAME_MAX, type NewsLetterCategory } from '@/lib/news-letter/types';
 
 /**
  * "Quản trị Phân loại" of "Bản tin" (the "+" next to the Phân loại dropdown, SUPERADMIN): add, rename, delete. A category
  * still used by articles can't be deleted — the server answers how many use it.
+ * "Expand" (owner 2026-11-20): a folder that stays expanded in the left menu by default; off = collapsed.
  */
 
 type CategoriesResponse = { categories?: NewsLetterCategory[]; error?: string };
@@ -28,7 +30,7 @@ export function CategoryManagerModal({ categories, isOpen, onChange, onClose }: 
   onClose: () => void;
 }) {
   const [newName, setNewName] = React.useState('');
-  const [editing, setEditing] = React.useState<{ id: number; name: string } | null>(null);
+  const [editing, setEditing] = React.useState<{ id: number; name: string; expanded: boolean } | null>(null);
   const [busy, setBusy] = React.useState(false);
 
   const run = async (action: () => Promise<NewsLetterCategory[]>) => {
@@ -50,7 +52,10 @@ export function CategoryManagerModal({ categories, isOpen, onChange, onClose }: 
   };
   const rename = async () => {
     if (!editing?.name.trim()) return;
-    if (await run(() => send(`/api/news-letter/categories/${editing.id}`, 'PUT', { name: editing.name }))) setEditing(null);
+    if (await run(() => send(`/api/news-letter/categories/${editing.id}`, 'PUT', { name: editing.name, expanded: editing.expanded }))) setEditing(null);
+  };
+  const toggleExpand = async (category: NewsLetterCategory) => {
+    await run(() => send(`/api/news-letter/categories/${category.id}`, 'PUT', { name: category.name, expanded: !category.expanded }));
   };
   const remove = async (category: NewsLetterCategory) => {
     if (category.articleCount > 0) {
@@ -62,7 +67,7 @@ export function CategoryManagerModal({ categories, isOpen, onChange, onClose }: 
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Quản trị Phân loại" icon={Tag} maxWidth="md" layer="top">
+    <Modal isOpen={isOpen} onClose={onClose} title="Quản trị Phân loại" icon={Tag} maxWidth="md" layer="top" frameClassName="min-h-[60dvh]">
       <div className="space-y-4">
         <form
           className="flex items-center gap-2"
@@ -95,7 +100,7 @@ export function CategoryManagerModal({ categories, isOpen, onChange, onClose }: 
                       maxLength={NEWS_LETTER_CATEGORY_NAME_MAX}
                       value={editing.name}
                       autoFocus
-                      onChange={(event) => setEditing({ id: category.id, name: event.target.value })}
+                      onChange={(event) => setEditing({ id: category.id, name: event.target.value, expanded: category.expanded })}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter') {
                           event.preventDefault();
@@ -109,9 +114,24 @@ export function CategoryManagerModal({ categories, isOpen, onChange, onClose }: 
                   </>
                 ) : (
                   <>
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked={category.expanded}
+                      aria-label={`Thư mục ${category.name} mở sẵn (Expand)`}
+                      title="Expand: thư mục này mở sẵn trong menu bên trái hiển thị các đầu mục tin; tắt = thu gọn"
+                      disabled={busy}
+                      onClick={() => void toggleExpand(category)}
+                      className={cn(
+                        'grid size-8 shrink-0 place-items-center rounded-md border transition-colors',
+                        category.expanded ? 'border-fb-blue bg-fb-blue-soft text-fb-blue' : 'border-fb-border text-fb-text-secondary hover:border-fb-blue hover:text-fb-blue',
+                      )}
+                    >
+                      <Check className="size-4" weight="bold" aria-hidden="true" />
+                    </button>
                     <span className="flex-1 text-sm font-medium text-fb-text-primary">{category.name}</span>
                     <span className="text-xs text-fb-text-secondary">{category.articleCount} bài</span>
-                    <button type="button" className="grid size-8 place-items-center rounded-md text-fb-text-secondary hover:bg-fb-control hover:text-fb-blue" aria-label={`Sửa ${category.name}`} disabled={busy} onClick={() => setEditing({ id: category.id, name: category.name })}><PencilSimple className="size-4" weight="bold" /></button>
+                    <button type="button" className="grid size-8 place-items-center rounded-md text-fb-text-secondary hover:bg-fb-control hover:text-fb-blue" aria-label={`Sửa ${category.name}`} disabled={busy} onClick={() => setEditing({ id: category.id, name: category.name, expanded: category.expanded })}><PencilSimple className="size-4" weight="bold" /></button>
                     <button type="button" className="grid size-8 place-items-center rounded-md text-fb-text-secondary hover:bg-fb-control hover:text-status-danger" aria-label={`Xoá ${category.name}`} disabled={busy} onClick={() => void remove(category)}><Trash className="size-4" weight="bold" /></button>
                   </>
                 )}

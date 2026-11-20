@@ -16,8 +16,17 @@ export const DATE_PATTERN = /(?<![\d/.-])(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{4}|\
 export const LEVEL_PATTERN = /(?<![a-z0-9])(?:level|lv|l|cap|muc)\s*[:=-]?\s*([1-4])(?!\d)/;
 /** Dùng để báo lỗi khi có từ khoá level nhưng số nằm ngoài 1-4. */
 const LEVEL_ANY_NUMBER_PATTERN = /(?<![a-z0-9])(?:level|lv|l|cap|muc)\s*[:=-]?\s*(\d+)/;
-/** Loại yêu cầu — cụm dài xếp trước để "Sản phẩm/dịch vụ/quy trình mới" thắng "Sản phẩm". */
-export const REQUEST_TYPE_PATTERN = /(san\s*pham\s*\/\s*dich\s*vu\s*\/\s*quy\s*trinh\s*moi)|(tinh\s*nang\s*moi)|(cai\s*tien)|(san\s*pham)/;
+/**
+ * Loại yêu cầu — nhận dạng các từ khoá (không phân biệt hoa/thường, không dấu, có/không dấu cách) và viết tắt.
+ * 4 nhóm, mỗi nhóm một capturing group (đánh số theo REQUEST_TYPE_BY_GROUP bên dưới):
+ *   1 = Sản phẩm/dịch vụ/quy trình mới (cụm tiêu chuẩn)
+ *   2 = Tính năng mới
+ *   3 = Cải tiến
+ *   4 = Sản phẩm
+ * Các viết tắt dùng \b (ranh giới từ) để không khớp lẫn vào từ khác. Nhóm dài/xác định trước.
+ */
+export const REQUEST_TYPE_PATTERN =
+  /((?:san\s*pham\s*\/\s*dich\s*vu\s*\/\s*quy\s*trinh\s*moi)|(?:san\s*pham\s*\/\s*dich\s*vu)|(?:san\s*pham\s*moi)|(?:dich\s*vu\s*moi)|(?:dich\s*vu)|(?:quy\s*trinh\s*moi)|(?:quy\s*trinh)|\bspdvqtm\b|\bspdvqt\b|\bdvm\b|\bqtm\b|\bspm\b|\bdv\b|\bqt\b)|(tinh\s*nang\s*moi|\btnm\b|\btn\b)|(cai\s*tien|\bct\b)|(san\s*pham|\bsp\b)/;
 const REQUEST_TYPE_BY_GROUP: readonly CalculatorRequestType[] = ['Sản phẩm/dịch vụ/quy trình mới', 'Tính năng mới', 'Cải tiến', 'Sản phẩm'];
 
 export interface CalculatorTextResult {
@@ -32,6 +41,19 @@ export interface CalculatorTextResult {
 /** Bỏ dấu tiếng Việt, đ → d, chữ thường, gom khoảng trắng. */
 export function normalizeCalculatorText(text: string): string {
   return text.normalize('NFD').replace(/\p{M}/gu, '').replace(/đ/gi, 'd').toLocaleLowerCase('en-US').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Map một chuỗi "Loại yêu cầu" (request type) bất kỳ — từ dữ liệu raw của Epic (issues.request_type) hoặc
+ * đoạn text — về chuỗi chuẩn của TTM Calculator (`CALCULATOR_REQUEST_TYPES`). Chuỗi được chuẩn hoá
+ * (bỏ dấu VN, đ → d, chữ thường, gom khoảng trắng) rồi chạy `REQUEST_TYPE_PATTERN`; trả `null` khi không
+ * nhận dạng được (thiếu / giá trị lạ) — caller coi như thiếu "Phân loại epic". Pure: không DB, không clock.
+ */
+export function toCalculatorRequestType(text: string | null | undefined): CalculatorRequestType | null {
+  const normalized = normalizeCalculatorText(text ?? '');
+  const match = REQUEST_TYPE_PATTERN.exec(normalized);
+  if (!match) return null;
+  return REQUEST_TYPE_BY_GROUP[match.slice(1).findIndex((group) => group !== undefined)] ?? null;
 }
 
 export function isRealDate(year: number, month: number, day: number): boolean {

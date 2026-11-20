@@ -101,6 +101,8 @@ export interface ModalProps {
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
   /** Exact max-width class (e.g. 'max-w-[922px]') for a popup sized between the presets; overrides `maxWidth`'s width. */
   maxWidthClassName?: string;
+  /** Extra classes on the popup frame (e.g. a min-height) — composed over the shared frame style. */
+  frameClassName?: string;
   /** Icon chip shown before the title. */
   icon?: Icon;
   /** 'top' lifts the popup above every other one — for confirmations asked from inside a popup. */
@@ -122,6 +124,7 @@ export const Modal = ({
   footer,
   maxWidth = 'md',
   maxWidthClassName,
+  frameClassName,
   icon,
   layer = 'default',
   actions,
@@ -144,6 +147,7 @@ export const Modal = ({
         className={cn(
           MODAL_FRAME_CLASS,
           'w-full',
+          frameClassName,
           maxWidth === '3xl' ? 'max-h-[92dvh]' : 'max-h-[85dvh]',
           maxWidthClassName ?? {
             'max-w-sm': maxWidth === 'sm',

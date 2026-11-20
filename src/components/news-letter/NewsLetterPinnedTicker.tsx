@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Play, PushPin } from '@phosphor-icons/react';
 import { useTickerRotation } from '@/components/ui/useTickerRotation';
-import { NEWS_LETTER_ROUTE, type NewsLetterTocItem } from '@/lib/news-letter/types';
+import { newsArticleHref, type NewsLetterTocItem } from '@/lib/news-letter/types';
 
 /**
  * Ticker of the pinned articles of "Bản tin" (owner 2026-11-10), at the top of the article area: the same one-line ticker as
@@ -34,7 +34,7 @@ export function NewsLetterPinnedTicker({ items }: { items: readonly NewsLetterTo
       <span aria-hidden="true" className="relative block h-5 min-w-0 flex-1 overflow-hidden">
         <Link
           className="absolute inset-x-0 top-0 block origin-bottom truncate leading-5 text-fb-text-primary hover:text-fb-blue hover:underline"
-          href={`${NEWS_LETTER_ROUTE}/${item.id}`}
+          href={newsArticleHref(item)}
           key={index}
           style={itemStyle}
           tabIndex={-1}

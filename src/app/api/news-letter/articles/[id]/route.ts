@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth-service';
-import { newsLetterErrorResponse, positiveInt, viewerOf } from '@/lib/news-letter/http';
-import { deleteNewsLetterArticle, getNewsLetterArticleForEdit, updateNewsLetterArticle } from '@/lib/news-letter/service';
+import { newsLetterErrorResponse, viewerOf } from '@/lib/news-letter/http';
+import { articleRefToId, deleteNewsLetterArticle, getNewsLetterArticleForEdit, updateNewsLetterArticle } from '@/lib/news-letter/service';
 import type { NewsLetterArticleInput } from '@/lib/news-letter/types';
 
-/** One article in the editor — SUPERADMIN, and only an article they may see (another author's draft is "not found"). */
+/** One article in the editor — SUPERADMIN, and only an article they may see (another author's draft is "not found").
+ * The `id` segment is a numeric id or a slug (owner 2026-11-20). */
 type RouteContext = { params: Promise<{ id: string }> };
 
-async function idOf(context: RouteContext): Promise<number | null> {
-  return positiveInt((await context.params).id);
-}
-
 const BAD_ID = () => NextResponse.json({ error: 'Mã bài viết không hợp lệ.' }, { status: 400 });
+
+async function idOf(context: RouteContext): Promise<number | null> {
+  return articleRefToId((await context.params).id);
+}
 
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
@@ -30,8 +31,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     const id = await idOf(context);
     if (!id) return BAD_ID();
     const body = (await request.json().catch(() => ({}))) as NewsLetterArticleInput;
-    await updateNewsLetterArticle(viewerOf(user), id, body);
-    return NextResponse.json({ id });
+    return NextResponse.json(await updateNewsLetterArticle(viewerOf(user), id, body));
   } catch (error) {
     return newsLetterErrorResponse(error, 'Không thể lưu bài viết.');
   }

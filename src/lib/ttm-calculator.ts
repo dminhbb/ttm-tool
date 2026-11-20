@@ -64,6 +64,17 @@ export interface TtmCalculatorResult {
 
 const LABELS: Record<CalculatorRowKey, string> = { DESIGN: 'DESIGN', DEV: 'DEV', TEST: 'TEST', PENTEST: 'PENTEST', R4GOLIVE: 'R4G', GOLIVE: 'Golive' };
 
+/**
+ * Tên pha hiển thị trên màn hình TTM Calculator (Bảng Pha + timeline badge). Riêng PENTEST đổi thành
+ * 'Pentest & Change' theo yêu cầu chủ sản phẩm (19/11/2026); chỉ ở màn hình này — dữ liệu `label` gốc giữ nguyên.
+ */
+export const PHASE_DISPLAY_LABELS: Record<CalculatorRowKey, string> = { ...LABELS, PENTEST: 'Pentest & Change' };
+
+/** Tên pha để hiển thị trên màn hình TTM Calculator (Bảng Pha + timeline badge). */
+export function phaseDisplayLabel(key: CalculatorRowKey): string {
+  return PHASE_DISPLAY_LABELS[key];
+}
+
 /** Working days from `from` to `to`, both inclusive; 0 when `to` is before `from`. */
 function spanDays(from: IsoDate, to: IsoDate, ctx: ScoringContext): number {
   return to < from ? 0 : diffWorkingDays(from, to, ctx.holidays) + 1;
@@ -106,12 +117,23 @@ export function calculateTtm(input: TtmCalculatorInput, ctx: ScoringContext): Tt
       const fromDate: IsoDate = previousEnd ? addWorkingDays(previousEnd, 1, ctx.holidays) : input.startDate;
       const toDate: IsoDate = key === 'PENTEST' ? addWorkingDays(r4gDate, -1, ctx.holidays) : baseline;
       const days = spanDays(fromDate, toDate, ctx);
-      rows.push({ key, label: LABELS[key], percent: percentages[key] * 100, workingDays: days, fromDate: days ? fromDate : null, toDate: days ? toDate : null });
+      // `percent` = % ngày làm việc thực tế của pha so với tổng budget TTM-CNTT (không phải tỉ lệ cấu hình): vì các pha
+      // làm tròn lên/xuống và PENTEST bị kéo dài đến trước R4G, tỉ lệ cấu hình không còn khớp số ngày hiển thị.
+      rows.push({ key, label: LABELS[key], percent: 0, workingDays: days, fromDate: days ? fromDate : null, toDate: days ? toDate : null });
       if (days) previousEnd = toDate;
     }
+    // Phần trăm mỗi pha = workingDays / tổng workingDays của các pha DESIGN…PENTEST (làm tròn; PENTEST lấy phần dư
+    // để tổng luôn là 100). R4G và Golive không phải pha dùng ngân sách nên `percent` để null.
+    const totalDays = rows.reduce((sum, row) => sum + row.workingDays, 0);
+    for (const row of rows) {
+      row.percent = totalDays > 0 ? Math.round((row.workingDays / totalDays) * 100) : null;
+    }
+    if (rows.length > 0) rows[rows.length - 1].percent = 100 - rows.slice(0, -1).reduce((sum, row) => sum + (row.percent ?? 0), 0);
     rows.push({ key: 'R4GOLIVE', label: LABELS.R4GOLIVE, percent: null, workingDays: 1, fromDate: r4gDate, toDate: r4gDate });
-    const goliveFrom = addWorkingDays(r4gDate, 1, ctx.holidays);
-    rows.push({ key: 'GOLIVE', label: LABELS.GOLIVE, percent: null, workingDays: grace, fromDate: grace > 0 ? goliveFrom : null, toDate: grace > 0 ? addWorkingDays(r4gDate, grace, ctx.holidays) : null });
+    // Không có dòng GOLIVE riêng khi `grace` = 0 (golive ngay tại R4G) — tránh dòng rỗng workingDays 0 / ngày trống.
+    if (grace > 0) {
+      rows.push({ key: 'GOLIVE', label: LABELS.GOLIVE, percent: null, workingDays: grace, fromDate: addWorkingDays(r4gDate, 1, ctx.holidays), toDate: addWorkingDays(r4gDate, grace, ctx.holidays) });
+    }
   }
 
   const e2eSource = input.ideaApprovedDate || input.createdDate || null;

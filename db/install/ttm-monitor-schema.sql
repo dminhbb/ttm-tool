@@ -574,6 +574,8 @@ CREATE TABLE news_letter_article_edits (
 CREATE TABLE news_letter_articles (
     id SERIAL,
     title character varying(300) NOT NULL,
+    short_title character varying(50),
+    slug character varying(80),
     summary text,
     category_id integer,
     visible_roles text[] DEFAULT ARRAY['SUPERADMIN'::text, 'ADMIN'::text, 'SUPERVISOR'::text, 'USER'::text] NOT NULL,
@@ -595,6 +597,7 @@ CREATE TABLE news_letter_articles (
 CREATE TABLE news_letter_categories (
     id SERIAL,
     name character varying(120) NOT NULL,
+    expanded boolean DEFAULT false NOT NULL,
     created_by integer,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -1105,6 +1108,7 @@ CREATE INDEX idx_mcp_oauth_codes_expires ON mcp_oauth_authorization_codes USING 
 CREATE INDEX idx_news_letter_article_edits_article ON news_letter_article_edits USING btree (article_id, edited_at DESC);
 CREATE INDEX idx_news_letter_articles_category ON news_letter_articles USING btree (category_id);
 CREATE INDEX idx_news_letter_articles_order ON news_letter_articles USING btree (first_published_at DESC, id DESC);
+CREATE UNIQUE INDEX uq_news_letter_articles_slug ON news_letter_articles USING btree (slug) WHERE (slug IS NOT NULL);
 CREATE UNIQUE INDEX uq_news_letter_categories_name ON news_letter_categories USING btree (lower((name)::text));
 CREATE INDEX idx_news_letter_images_article ON news_letter_images USING btree (article_id);
 CREATE INDEX idx_project_components_project_active ON project_components USING btree (project_key, is_active);
@@ -1449,6 +1453,7 @@ INSERT INTO schema_migrations (filename) VALUES
     ('20261124_add_epic_change_id_pentest_status.sql'),
     ('20261125_news_letter_hidden_pinned.sql'),
     ('20261126_epic_field_changes.sql'),
+    ('20261126_news_letter_short_title_expand.sql'),
     ('20261127_make_foreign_keys_deferrable.sql'),
     ('20261128_create_import_api_settings.sql'),
     ('20261129_create_float_message_settings.sql'),

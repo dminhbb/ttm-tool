@@ -5,6 +5,7 @@ import type { UserRole } from '@/lib/auth-types';
 import { newsLetterImageIdsOf, sanitizeRichHtml } from '@/lib/rich-html-sanitizer';
 import { sniffImageMime } from '@/lib/news-letter/image-sniff';
 import { isMcpExcludedFolder, NEWS_LETTER_MCP_EXCLUDED_FOLDER_IDS } from '@/lib/news-letter/mcp-rules';
+import { newsLetterSlug } from '@/lib/news-letter/slug';
 import {
   NEWS_LETTER_CATEGORY_NAME_MAX,
   NEWS_LETTER_CONTENT_MAX,
@@ -14,6 +15,7 @@ import {
   NEWS_LETTER_MAX_IMAGE_BYTES,
   NEWS_LETTER_PINNED_MAX,
   NEWS_LETTER_ROLES,
+  NEWS_LETTER_SHORT_TITLE_MAX,
   NEWS_LETTER_SUMMARY_MAX,
   NEWS_LETTER_TITLE_MAX,
   type NewsLetterArticle,
@@ -69,7 +71,7 @@ const ORDER_KEY = 'COALESCE(a.first_published_at, a.created_at)';
 const MENU_VISIBLE = `(NOT a.hidden_from_menu OR $2::text = 'SUPERADMIN')`;
 const AUTHOR_NAME = `COALESCE(SPLIT_PART(LOWER(u.email), '@', 1), '')`;
 
-const TOC_COLUMNS = `a.id, a.title, a.created_at::text AS "createdAt", ${AUTHOR_NAME} AS "authorName", NOT a.is_published AS "isDraft",
+const TOC_COLUMNS = `a.id, a.title, a.short_title AS "shortTitle", a.slug, a.created_at::text AS "createdAt", ${AUTHOR_NAME} AS "authorName", NOT a.is_published AS "isDraft",
   a.is_pinned AS "isPinned", a.hidden_from_menu AS "hiddenFromMenu"`;
 
 // ---- Table of contents -------------------------------------------------------------------------------------------
@@ -105,11 +107,11 @@ export async function getNewsLetterToc(viewer: NewsLetterViewer): Promise<NewsLe
       LIMIT ${NEWS_LETTER_PINNED_MAX}
     `, [viewer.id, viewer.role]).then((result) => result.rows),
     listNewsLetterTocItems(viewer, { offset: 0, limit: NEWS_LETTER_LATEST_PAGE }),
-    pool.query<{ categoryId: number | null; name: string | null; total: number }>(`
-      SELECT a.category_id AS "categoryId", c.name, COUNT(*)::int AS total
+    pool.query<{ categoryId: number | null; name: string | null; expanded: boolean; total: number }>(`
+      SELECT a.category_id AS "categoryId", c.name, COALESCE(c.expanded, false) AS "expanded", COUNT(*)::int AS total
       FROM news_letter_articles a LEFT JOIN news_letter_categories c ON c.id = a.category_id
       WHERE ${VISIBLE} AND ${MENU_VISIBLE}
-      GROUP BY a.category_id, c.name
+      GROUP BY a.category_id, c.name, c.expanded
     `, [viewer.id, viewer.role]),
   ]);
   const groupRows = [...counts.rows].sort((a, b) => (a.categoryId === null ? 1 : b.categoryId === null ? -1 : (a.name ?? '').localeCompare(b.name ?? '', 'vi')));
@@ -119,6 +121,7 @@ export async function getNewsLetterToc(viewer: NewsLetterViewer): Promise<NewsLe
     groups.push({
       categoryId: row.categoryId,
       name: row.name ?? 'Chưa phân loại',
+      expanded: row.expanded,
       total: row.total,
       items: await listNewsLetterTocItems(viewer, { categoryId: row.categoryId, offset: 0, limit: NEWS_LETTER_GROUP_PAGE }),
     });
@@ -140,7 +143,7 @@ async function loadArticle(viewer: NewsLetterViewer, articleId: number | null): 
   const where = articleId === null ? `${PUBLISHED_VISIBLE} AND ${MENU_VISIBLE}` : `${VISIBLE} AND a.id = $3`;
   if (articleId !== null) params.push(articleId);
   const result = await pool.query<ArticleRow>(`
-    SELECT a.id, a.title, a.summary, a.category_id AS "categoryId", c.name AS "categoryName", a.visible_roles AS "visibleRoles",
+    SELECT a.id, a.title, a.short_title AS "shortTitle", a.slug, a.summary, a.category_id AS "categoryId", c.name AS "categoryName", a.visible_roles AS "visibleRoles",
       a.is_published AS "isPublished", a.hidden_from_menu AS "hiddenFromMenu", a.is_pinned AS "isPinned", a.first_published_at::text AS "firstPublishedAt", a.header_image_id::text AS "headerImageId",
       a.content_html AS "contentHtml", a.created_at::text AS "createdAt", a.created_by AS "authorId", ${AUTHOR_NAME} AS "authorName",
       a.view_count AS "viewCount", ${ORDER_KEY}::text AS "orderKey"
@@ -161,7 +164,7 @@ async function neighbours(viewer: NewsLetterViewer, article: ArticleRow): Promis
     const comparison = older
       ? `(${ORDER_KEY} < $3::timestamptz OR (${ORDER_KEY} = $3::timestamptz AND a.id < $4))`
       : `(${ORDER_KEY} > $3::timestamptz OR (${ORDER_KEY} = $3::timestamptz AND a.id > $4))`;
-    return `(SELECT '${direction}' AS side, a.id, a.title FROM news_letter_articles a
+    return `(SELECT '${direction}' AS side, a.id, a.title, a.slug FROM news_letter_articles a
       WHERE ${PUBLISHED_VISIBLE} AND ${MENU_VISIBLE} AND a.id <> $4 AND ${comparison}
       ORDER BY ${ORDER_KEY} ${older ? 'DESC' : 'ASC'}, a.id ${older ? 'DESC' : 'ASC'} LIMIT 1)`;
   };
@@ -171,9 +174,20 @@ async function neighbours(viewer: NewsLetterViewer, article: ArticleRow): Promis
   );
   const pick = (direction: 'previous' | 'next'): NewsLetterNeighbour | null => {
     const row = result.rows.find((item) => item.side === direction);
-    return row ? { id: row.id, title: row.title } : null;
+    return row ? { id: row.id, title: row.title, slug: row.slug } : null;
   };
   return { previous: pick('previous'), next: pick('next') };
+}
+
+/** A URL reference to an article — a numeric id or a slug — resolved to a numeric id (null when it matches nothing). */
+export async function articleRefToId(ref: string | null | undefined): Promise<number | null> {
+  if (!ref) return null;
+  if (/^\d{1,9}$/.test(ref)) {
+    const id = Number(ref);
+    return id > 0 ? id : null;
+  }
+  const result = await pool.query<{ id: number }>('SELECT id FROM news_letter_articles WHERE slug = $1', [ref]);
+  return result.rows[0]?.id ?? null;
 }
 
 /** Existence + visibility check that does not pull content_html (up to 500 KB). */
@@ -221,6 +235,15 @@ export async function getNewsLetterPage(viewer: NewsLetterViewer, articleId: num
   };
 }
 
+/** The reading page by URL reference: `ref` is a numeric id or a slug (owner 2026-11-20). A ref that matches no
+ * article — a slug with no article, or a non-numeric non-slug string — is "not found" (404), like an id that does not exist. */
+export async function getNewsLetterPageByRef(viewer: NewsLetterViewer, ref: string | null): Promise<NewsLetterPage> {
+  if (ref === null || ref === '') return getNewsLetterPage(viewer, null);
+  const id = await articleRefToId(ref);
+  if (id === null) throw new NewsLetterError('Không tìm thấy bài viết, hoặc bạn không có quyền xem bài viết này.', 404);
+  return getNewsLetterPage(viewer, id);
+}
+
 /** Red dot on the menu entry: a published article the viewer may read, published after their account was created, by
  * someone else, that they never opened. */
 export async function hasUnreadNewsLetter(viewer: NewsLetterViewer): Promise<boolean> {
@@ -253,6 +276,8 @@ export async function getNewsLetterArticleForEdit(viewer: NewsLetterViewer, arti
 
 interface CleanInput {
   title: string;
+  /** "Tiêu đề ngắn" (trimmed; null when blank). */
+  shortTitle: string | null;
   summary: string | null;
   categoryId: number | null;
   visibleRoles: UserRole[];
@@ -271,6 +296,8 @@ function cleanInput(input: NewsLetterArticleInput, usableImageIds: ReadonlySet<s
   const title = String(input.title ?? '').replace(/\s+/g, ' ').trim();
   if (!title) throw new NewsLetterError('Tiêu đề là bắt buộc.');
   if (title.length > NEWS_LETTER_TITLE_MAX) throw new NewsLetterError(`Tiêu đề tối đa ${NEWS_LETTER_TITLE_MAX} ký tự.`);
+  const shortTitle = String(input.shortTitle ?? '').replace(/\s+/g, ' ').trim() || null;
+  if (shortTitle && shortTitle.length > NEWS_LETTER_SHORT_TITLE_MAX) throw new NewsLetterError(`Tiêu đề ngắn tối đa ${NEWS_LETTER_SHORT_TITLE_MAX} ký tự.`);
   const summary = String(input.summary ?? '').trim();
   if (summary.length > NEWS_LETTER_SUMMARY_MAX) throw new NewsLetterError(`Tóm tắt tối đa ${NEWS_LETTER_SUMMARY_MAX} ký tự.`);
   const rawHtml = String(input.contentHtml ?? '');
@@ -284,7 +311,7 @@ function cleanInput(input: NewsLetterArticleInput, usableImageIds: ReadonlySet<s
   const categoryId = input.categoryId === null || input.categoryId === undefined ? null : Number(input.categoryId);
   if (categoryId !== null && !Number.isInteger(categoryId)) throw new NewsLetterError('Phân loại không hợp lệ.');
   return {
-    title, summary: summary || null, categoryId, visibleRoles: roles, isPublished: Boolean(input.isPublished),
+    title, shortTitle, summary: summary || null, categoryId, visibleRoles: roles, isPublished: Boolean(input.isPublished),
     hiddenFromMenu: Boolean(input.hiddenFromMenu), isPinned: Boolean(input.isPinned), headerImageId, contentHtml, inlineImageIds,
   };
 }
@@ -302,6 +329,22 @@ async function usableImageIds(db: Queryable, viewer: NewsLetterViewer, articleId
   return new Set(result.rows.map((row) => row.id));
 }
 
+/**
+ * A slug unique among the articles (except `exceptArticleId`): the base slug from the short title, or a suffix
+ * `_2`, `_3`, … when it collides. Runs in the caller's transaction. Returns '' when there is no short title.
+ */
+async function uniqueSlug(db: Queryable, shortTitle: string | null, exceptArticleId: number | null): Promise<string> {
+  const base = newsLetterSlug(shortTitle);
+  if (!base) return '';
+  let candidate = base;
+  for (let suffix = 2; suffix <= 1000; suffix++) {
+    const exists = await db.query<{ id: number }>('SELECT id FROM news_letter_articles WHERE slug = $1 AND id IS DISTINCT FROM $2', [candidate, exceptArticleId]);
+    if (!exists.rowCount) return candidate;
+    candidate = `${base}_${suffix}`;
+  }
+  return base;
+}
+
 async function assertCategory(db: Queryable, categoryId: number | null): Promise<void> {
   if (categoryId === null) return;
   const exists = await db.query('SELECT 1 FROM news_letter_categories WHERE id = $1', [categoryId]);
@@ -317,25 +360,26 @@ async function syncImages(db: Queryable, viewer: NewsLetterViewer, articleId: nu
   await db.query('DELETE FROM news_letter_images WHERE article_id = $1 AND NOT (id = ANY($2::uuid[]))', [articleId, keep]);
 }
 
-export async function createNewsLetterArticle(viewer: NewsLetterViewer, input: NewsLetterArticleInput): Promise<number> {
+export async function createNewsLetterArticle(viewer: NewsLetterViewer, input: NewsLetterArticleInput): Promise<{ id: number; slug: string | null }> {
   requireWriter(viewer);
   const client = await getClient();
   try {
     await client.query('BEGIN');
     const wanted = [...newsLetterImageIdsOf(String(input.contentHtml ?? '')), ...(input.headerImageId ? [input.headerImageId] : [])];
     const clean = cleanInput(input, await usableImageIds(client, viewer, null, wanted));
+    const slug = await uniqueSlug(client, clean.shortTitle, null);
     await assertCategory(client, clean.categoryId);
     const inserted = await client.query<{ id: number }>(`
-      INSERT INTO news_letter_articles (title, summary, category_id, visible_roles, is_published, first_published_at, content_html, created_by, updated_by,
+      INSERT INTO news_letter_articles (title, short_title, slug, summary, category_id, visible_roles, is_published, first_published_at, content_html, created_by, updated_by,
         hidden_from_menu, is_pinned, pinned_at)
-      VALUES ($1, $2, $3, $4::text[], $5, CASE WHEN $5 THEN CURRENT_TIMESTAMP END, $6, $7, $7, $8, $9, CASE WHEN $9 THEN CURRENT_TIMESTAMP END)
+      VALUES ($1, $2, NULLIF($3, ''), $4, $5, $6::text[], $7, CASE WHEN $7 THEN CURRENT_TIMESTAMP END, $8, $9, $9, $10, $11, CASE WHEN $11 THEN CURRENT_TIMESTAMP END)
       RETURNING id
-    `, [clean.title, clean.summary, clean.categoryId, clean.visibleRoles, clean.isPublished, clean.contentHtml, viewer.id, clean.hiddenFromMenu, clean.isPinned]);
+    `, [clean.title, clean.shortTitle, slug, clean.summary, clean.categoryId, clean.visibleRoles, clean.isPublished, clean.contentHtml, viewer.id, clean.hiddenFromMenu, clean.isPinned]);
     const articleId = inserted.rows[0].id;
     await syncImages(client, viewer, articleId, clean);
     await client.query('UPDATE news_letter_articles SET header_image_id = $2 WHERE id = $1', [articleId, clean.headerImageId]);
     await client.query('COMMIT');
-    return articleId;
+    return { id: articleId, slug: slug || null };
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);
     throw error;
@@ -344,7 +388,7 @@ export async function createNewsLetterArticle(viewer: NewsLetterViewer, input: N
   }
 }
 
-export async function updateNewsLetterArticle(viewer: NewsLetterViewer, articleId: number, input: NewsLetterArticleInput): Promise<void> {
+export async function updateNewsLetterArticle(viewer: NewsLetterViewer, articleId: number, input: NewsLetterArticleInput): Promise<{ id: number; slug: string | null }> {
   requireWriter(viewer);
   if (!(await canSeeArticle(viewer, articleId))) throw new NewsLetterError('Không tìm thấy bài viết, hoặc bạn không có quyền sửa bài viết này.', 404);
   const client = await getClient();
@@ -352,17 +396,19 @@ export async function updateNewsLetterArticle(viewer: NewsLetterViewer, articleI
     await client.query('BEGIN');
     const wanted = [...newsLetterImageIdsOf(String(input.contentHtml ?? '')), ...(input.headerImageId ? [input.headerImageId] : [])];
     const clean = cleanInput(input, await usableImageIds(client, viewer, articleId, wanted));
+    const slug = await uniqueSlug(client, clean.shortTitle, articleId);
     await assertCategory(client, clean.categoryId);
     await syncImages(client, viewer, articleId, clean);
     await client.query(`
-      UPDATE news_letter_articles SET title = $2, summary = $3, category_id = $4, visible_roles = $5::text[], is_published = $6,
-        first_published_at = COALESCE(first_published_at, CASE WHEN $6 THEN CURRENT_TIMESTAMP END),
-        header_image_id = $7, content_html = $8, updated_by = $9, updated_at = CURRENT_TIMESTAMP,
-        hidden_from_menu = $10, is_pinned = $11,
+      UPDATE news_letter_articles SET title = $2, short_title = $3, slug = NULLIF($4, ''), summary = $5, category_id = $6,
+        visible_roles = $7::text[], is_published = $8,
+        first_published_at = COALESCE(first_published_at, CASE WHEN $8 THEN CURRENT_TIMESTAMP END),
+        header_image_id = $9, content_html = $10, updated_by = $11, updated_at = CURRENT_TIMESTAMP,
+        hidden_from_menu = $12, is_pinned = $13,
         -- A pin keeps its date while it stays pinned (the newest pin is listed first).
-        pinned_at = CASE WHEN $11 THEN COALESCE(pinned_at, CURRENT_TIMESTAMP) END
+        pinned_at = CASE WHEN $13 THEN COALESCE(pinned_at, CURRENT_TIMESTAMP) END
       WHERE id = $1
-    `, [articleId, clean.title, clean.summary, clean.categoryId, clean.visibleRoles, clean.isPublished, clean.headerImageId, clean.contentHtml, viewer.id, clean.hiddenFromMenu, clean.isPinned]);
+    `, [articleId, clean.title, clean.shortTitle, slug, clean.summary, clean.categoryId, clean.visibleRoles, clean.isPublished, clean.headerImageId, clean.contentHtml, viewer.id, clean.hiddenFromMenu, clean.isPinned]);
     // "Lịch sử thay đổi": this edit, and only the 5 newest are kept.
     await client.query('INSERT INTO news_letter_article_edits (article_id, edited_by) VALUES ($1, $2)', [articleId, viewer.id]);
     await client.query(`
@@ -371,6 +417,7 @@ export async function updateNewsLetterArticle(viewer: NewsLetterViewer, articleI
       )
     `, [articleId]);
     await client.query('COMMIT');
+    return { id: articleId, slug: slug || null };
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);
     throw error;
@@ -390,9 +437,9 @@ export async function deleteNewsLetterArticle(viewer: NewsLetterViewer, articleI
 
 export async function listNewsLetterCategories(): Promise<NewsLetterCategory[]> {
   const result = await pool.query<NewsLetterCategory>(`
-    SELECT c.id, c.name, COUNT(a.id)::int AS "articleCount"
+    SELECT c.id, c.name, c.expanded, COUNT(a.id)::int AS "articleCount"
     FROM news_letter_categories c LEFT JOIN news_letter_articles a ON a.category_id = c.id
-    GROUP BY c.id, c.name
+    GROUP BY c.id, c.name, c.expanded
   `);
   return result.rows.sort((a, b) => a.name.localeCompare(b.name, 'vi'));
 }
@@ -408,20 +455,20 @@ function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && (error as { code?: string }).code === '23505';
 }
 
-export async function createNewsLetterCategory(viewer: NewsLetterViewer, name: unknown): Promise<void> {
+export async function createNewsLetterCategory(viewer: NewsLetterViewer, name: unknown, expanded: unknown): Promise<void> {
   requireWriter(viewer);
   try {
-    await pool.query('INSERT INTO news_letter_categories (name, created_by) VALUES ($1, $2)', [cleanCategoryName(name), viewer.id]);
+    await pool.query('INSERT INTO news_letter_categories (name, expanded, created_by) VALUES ($1, $2, $3)', [cleanCategoryName(name), Boolean(expanded), viewer.id]);
   } catch (error) {
     if (isUniqueViolation(error)) throw new NewsLetterError('Đã có phân loại cùng tên.', 409);
     throw error;
   }
 }
 
-export async function renameNewsLetterCategory(viewer: NewsLetterViewer, categoryId: number, name: unknown): Promise<void> {
+export async function renameNewsLetterCategory(viewer: NewsLetterViewer, categoryId: number, name: unknown, expanded: unknown): Promise<void> {
   requireWriter(viewer);
   try {
-    const result = await pool.query('UPDATE news_letter_categories SET name = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [categoryId, cleanCategoryName(name)]);
+    const result = await pool.query('UPDATE news_letter_categories SET name = $2, expanded = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [categoryId, cleanCategoryName(name), Boolean(expanded)]);
     if (!result.rowCount) throw new NewsLetterError('Không tìm thấy phân loại.', 404);
   } catch (error) {
     if (isUniqueViolation(error)) throw new NewsLetterError('Đã có phân loại cùng tên.', 409);

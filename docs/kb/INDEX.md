@@ -23,7 +23,7 @@ Quy tắc:
 | Lịch sử dữ liệu, sao lưu | Layer, snapshot tuần, backup DB | `src/lib/data-layer-retention*.ts`, `src/lib/db-backup-*.ts`, `src/app/admin/database/` | Chưa có |
 | Float message | Float message, thông báo nổi, message góc phải | `src/components/layout/FloatMessage.tsx`, `src/components/settings/FloatMessagePanel.tsx`, `src/app/api/float-message/` | [float-message](features/float-message.md) |
 | TTM Calculator | Tính mốc, calculator, R4G, golive | `src/app/ttm-calculator/`, `src/lib/ttm-calculator*.ts` | [ttm-calculator](features/ttm-calculator.md) |
-| Bản tin | News letter | `src/app/news-letter/`, `src/lib/news-letter/` | Chưa có |
+| Bản tin | News letter | `src/app/news-letter/`, `src/lib/news-letter/` | [news-letter](features/news-letter.md) |
 | MCP, SSO | MCP tool, OAuth, SSO | `src/lib/mcp-*.ts`, `src/app/api/mcp/`, `src/lib/sso-service.ts` | Chưa có |
 
 Tài liệu nền dùng chung cho mọi card: `AGENTS.md` (môi trường, quy tắc bắt buộc), `BRD_INDEX_FOR_AI_AGENT.md`,

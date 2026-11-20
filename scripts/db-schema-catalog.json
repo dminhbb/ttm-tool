@@ -568,6 +568,8 @@
     "news_letter_articles": {
       "description": "Bài viết của Bản tin (<code>/news-letter</code>, SUPERADMIN soạn): tiêu đề, tóm tắt, phân loại, role được xem (<code>visible_roles</code>), Published (tắt = nháp, chỉ tác giả xem), <code>first_published_at</code> (thứ tự bài), ảnh header, nội dung HTML đã lọc ở server — mục 11.8.",
       "columns": {
+        "short_title": "<code>VARCHAR(50)</code></td><td>\"Tiêu đề ngắn\" (20/11/2026, không bắt buộc): hiển thị trên menu thay <code>title</code>; bỏ trống thì menu dùng <code>title</code>",
+        "slug": "<code>VARCHAR(80)</code> (unique, nhiều NULL)</td><td>URL bài viết thay cho id — rút gọn từ <code>short_title</code> (bỏ dấu VN, dấu cách→<code>_</code>, giữ hoa/thường); bài không có <code>short_title</code> thì NULL và URL dùng id",
         "hidden_from_menu": "<code>BOOLEAN NOT NULL DEFAULT false</code></td><td>\"Ẩn trên menu\" (10/11/2026): bài viết vẫn mở được qua link, không hiện ở mục lục, bài trước / sau, chấm chưa đọc và MCP — SUPERADMIN vẫn thấy trên menu",
         "is_pinned": "<code>BOOLEAN NOT NULL DEFAULT false</code></td><td>\"Ghim bài viết\" (10/11/2026): hiện trên đầu cột mục lục (trên \"Mới nhất\", có biểu tượng ghim) và trên ticker phía trên bài viết; vẫn nằm trong thư mục",
         "pinned_at": "<code>TIMESTAMP WITH TIME ZONE</code></td><td>Lúc bài viết được ghim (giữ nguyên khi còn ghim, NULL khi bỏ ghim) — bài ghim mới nhất đứng trước"
@@ -575,7 +577,9 @@
     },
     "news_letter_categories": {
       "description": "Phân loại bài viết Bản tin (tên không trùng, không xoá được khi còn bài viết dùng).",
-      "columns": {}
+      "columns": {
+        "expanded": "<code>BOOLEAN NOT NULL DEFAULT false</code></td><td>\"Expand\" (20/11/2026): thư mục này mở sẵn trong menu bên trái hiển thị các đầu mục tin; mặc định collapsed"
+      }
     },
     "news_letter_images": {
       "description": "Ảnh của Bản tin lưu trong CSDL (bytea): 1 ảnh header + tối đa 4 ảnh nội dung mỗi bài; ảnh upload chưa gắn bài (<code>article_id</code> NULL) bị dọn sau 1 ngày.",

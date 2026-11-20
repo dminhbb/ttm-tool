@@ -13,6 +13,8 @@ export const NEWS_LETTER_MAX_ARTICLE_IMAGES = 3;
 /** Upload size cap (the browser shrinks every image to ≤ 1600px and re-encodes it under this size before sending it). */
 export const NEWS_LETTER_MAX_IMAGE_BYTES = 1024 * 1024;
 export const NEWS_LETTER_TITLE_MAX = 300;
+/** "Tiêu đề ngắn" (owner 2026-11-20): shown on the menu and slugged into the URL; empty is allowed. */
+export const NEWS_LETTER_SHORT_TITLE_MAX = 50;
 export const NEWS_LETTER_SUMMARY_MAX = 1000;
 export const NEWS_LETTER_CONTENT_MAX = 500_000;
 export const NEWS_LETTER_CATEGORY_NAME_MAX = 120;
@@ -25,12 +27,18 @@ export interface NewsLetterCategory {
   id: number;
   name: string;
   articleCount: number;
+  /** "Expand" (owner 2026-11-20): the folder opens already expanded in the menu when set; collapsed otherwise. */
+  expanded: boolean;
 }
 
 /** One line of the table of contents. */
 export interface NewsLetterTocItem {
   id: number;
   title: string;
+  /** "Tiêu đề ngắn" — shown on the menu instead of `title` when set. */
+  shortTitle: string | null;
+  /** URL slug (from the short title); the link uses it instead of `id` when set. */
+  slug: string | null;
   createdAt: string;
   authorName: string;
   isDraft: boolean;
@@ -44,6 +52,8 @@ export interface NewsLetterTocGroup {
   /** null = "Chưa phân loại". */
   categoryId: number | null;
   name: string;
+  /** "Expand" of the folder — the folder opens expanded in the menu when true. */
+  expanded: boolean;
   total: number;
   items: NewsLetterTocItem[];
 }
@@ -62,6 +72,13 @@ export interface NewsLetterToc {
 export interface NewsLetterNeighbour {
   id: number;
   title: string;
+  /** URL slug — the link uses it instead of `id` when set. */
+  slug: string | null;
+}
+
+/** The canonical link to an article: its slug when it has one, else its id. */
+export function newsArticleHref(article: { slug?: string | null; id: number }): string {
+  return `${NEWS_LETTER_ROUTE}/${article.slug || article.id}`;
 }
 
 export interface NewsLetterEdit {
@@ -72,6 +89,10 @@ export interface NewsLetterEdit {
 export interface NewsLetterArticle {
   id: number;
   title: string;
+  /** "Tiêu đề ngắn" — shown on the menu instead of `title` when set. */
+  shortTitle: string | null;
+  /** URL slug (from the short title); the reader/editor link uses it instead of `id` when set. */
+  slug: string | null;
   summary: string | null;
   categoryId: number | null;
   categoryName: string | null;
@@ -118,6 +139,8 @@ export const NEWS_LETTER_READ_EVENT = 'news-letter-read';
 /** What the editor sends. */
 export interface NewsLetterArticleInput {
   title: string;
+  /** "Tiêu đề ngắn" — shown on the menu and slugged into the URL; empty is allowed. */
+  shortTitle?: string;
   summary: string;
   categoryId: number | null;
   visibleRoles: UserRole[];

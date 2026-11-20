@@ -16,6 +16,7 @@ import {
   NEWS_LETTER_ROLE_LABEL,
   NEWS_LETTER_ROLES,
   NEWS_LETTER_ROUTE,
+  NEWS_LETTER_SHORT_TITLE_MAX,
   NEWS_LETTER_SUMMARY_MAX,
   NEWS_LETTER_TITLE_MAX,
   newsLetterImageUrl,
@@ -34,6 +35,7 @@ import type { UserRole } from '@/lib/auth-types';
 
 const EMPTY: NewsLetterArticleInput = {
   title: '',
+  shortTitle: '',
   summary: '',
   categoryId: null,
   visibleRoles: [...NEWS_LETTER_ROLES],
@@ -63,10 +65,10 @@ function EditorSwitch({ ariaLabel, checked, label, onChange, title }: { ariaLabe
   );
 }
 
-export function NewsLetterEditor({ articleId }: { articleId: number | null }) {
+export function NewsLetterEditor({ articleRef }: { articleRef: string | null }) {
   const router = useRouter();
   const [form, setForm] = React.useState<NewsLetterArticleInput>(EMPTY);
-  const [loaded, setLoaded] = React.useState(articleId === null);
+  const [loaded, setLoaded] = React.useState(articleRef === null);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [categories, setCategories] = React.useState<NewsLetterCategory[]>([]);
   const [categoryModalOpen, setCategoryModalOpen] = React.useState(false);
@@ -81,8 +83,8 @@ export function NewsLetterEditor({ articleId }: { articleId: number | null }) {
       .then((data: { categories?: NewsLetterCategory[] }) => {
         if (active) setCategories(data.categories ?? []);
       });
-    if (articleId !== null) {
-      void fetch(`/api/news-letter/articles/${articleId}`, { cache: 'no-store' })
+    if (articleRef !== null) {
+      void fetch(`/api/news-letter/articles/${encodeURIComponent(articleRef)}`, { cache: 'no-store' })
         .then(async (response) => {
           const data = (await response.json().catch(() => ({}))) as { article?: NewsLetterArticle; error?: string };
           if (!active) return;
@@ -93,6 +95,7 @@ export function NewsLetterEditor({ articleId }: { articleId: number | null }) {
           const article = data.article;
           setForm({
             title: article.title,
+            shortTitle: article.shortTitle ?? '',
             summary: article.summary ?? '',
             categoryId: article.categoryId,
             visibleRoles: article.visibleRoles,
@@ -108,7 +111,7 @@ export function NewsLetterEditor({ articleId }: { articleId: number | null }) {
     return () => {
       active = false;
     };
-  }, [articleId]);
+  }, [articleRef]);
 
   const update = <K extends keyof NewsLetterArticleInput>(key: K, value: NewsLetterArticleInput[K]) => setForm((current) => ({ ...current, [key]: value }));
 
@@ -138,15 +141,15 @@ export function NewsLetterEditor({ articleId }: { articleId: number | null }) {
     }
     setSaving(true);
     try {
-      const response = await fetch(articleId === null ? '/api/news-letter/articles' : `/api/news-letter/articles/${articleId}`, {
-        method: articleId === null ? 'POST' : 'PUT',
+      const response = await fetch(articleRef === null ? '/api/news-letter/articles' : `/api/news-letter/articles/${encodeURIComponent(articleRef)}`, {
+        method: articleRef === null ? 'POST' : 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      const data = (await response.json().catch(() => ({}))) as { id?: number; error?: string };
+      const data = (await response.json().catch(() => ({}))) as { id?: number; slug?: string | null; error?: string };
       if (!response.ok || !data.id) throw new Error(data.error || 'Không thể lưu bài viết.');
       notifyNewsLetterChanged();
-      router.push(`${NEWS_LETTER_ROUTE}/${data.id}`);
+      router.push(data.slug ? `${NEWS_LETTER_ROUTE}/${data.slug}` : `${NEWS_LETTER_ROUTE}/${data.id}`);
     } catch (error) {
       await alertDialog({ title: 'Không lưu được bài viết', description: error instanceof Error ? error.message : 'Không thể lưu bài viết.' });
       setSaving(false);
@@ -154,10 +157,10 @@ export function NewsLetterEditor({ articleId }: { articleId: number | null }) {
   };
 
   const remove = async () => {
-    if (articleId === null) return;
+    if (articleRef === null) return;
     if (!(await confirmDialog({ title: 'Xoá bài viết', description: `Xoá bài viết "${form.title}"? Ảnh của bài viết và lịch sử thay đổi cũng bị xoá, không khôi phục được.`, confirmLabel: 'Xoá bài viết' }))) return;
     setSaving(true);
-    const response = await fetch(`/api/news-letter/articles/${articleId}`, { method: 'DELETE' });
+    const response = await fetch(`/api/news-letter/articles/${encodeURIComponent(articleRef)}`, { method: 'DELETE' });
     if (!response.ok) {
       const data = (await response.json().catch(() => ({}))) as { error?: string };
       await alertDialog({ title: 'Không xoá được bài viết', description: data.error || 'Không thể xoá bài viết.' });
@@ -168,7 +171,7 @@ export function NewsLetterEditor({ articleId }: { articleId: number | null }) {
     router.push(NEWS_LETTER_ROUTE);
   };
 
-  const back = () => router.push(articleId === null ? NEWS_LETTER_ROUTE : `${NEWS_LETTER_ROUTE}/${articleId}`);
+  const back = () => router.push(articleRef === null ? NEWS_LETTER_ROUTE : `${NEWS_LETTER_ROUTE}/${encodeURIComponent(articleRef)}`);
 
   if (loadError) return <p className="py-16 text-center text-sm text-status-danger">{loadError}</p>;
   if (!loaded) return <p className="py-16 text-center text-sm text-fb-text-secondary">Đang tải bài viết…</p>;
@@ -182,11 +185,11 @@ export function NewsLetterEditor({ articleId }: { articleId: number | null }) {
           </button>
           <h1 className="flex items-center gap-2 text-lg font-bold text-fb-text-primary">
             <NotePencil className="size-5 text-fb-blue" weight="bold" aria-hidden="true" />
-            {articleId === null ? 'Soạn bài viết' : 'Sửa bài viết'}
+            {articleRef === null ? 'Soạn bài viết' : 'Sửa bài viết'}
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          {articleId !== null && (
+          {articleRef !== null && (
             <Button variant="danger" size="sm" disabled={saving} onClick={() => void remove()} icon={<Trash className="size-4" weight="bold" />}>Xoá bài</Button>
           )}
           <Button variant="outline" size="sm" disabled={saving} onClick={back}>Huỷ</Button>
@@ -195,12 +198,19 @@ export function NewsLetterEditor({ articleId }: { articleId: number | null }) {
       </div>
 
       <div className="space-y-5 rounded-xl border border-fb-border bg-fb-surface p-5">
-        <div className="flex flex-wrap items-end gap-4">
-          <div className="min-w-[240px] flex-1">
+        <div className="space-y-3">
+          <div>
             <label htmlFor="news-title" className="mb-1.5 block text-sm font-semibold text-fb-text-primary">Tiêu đề<span className="ml-0.5 text-status-danger">*</span></label>
             <input id="news-title" className="ui-input form-control-compact w-full" maxLength={NEWS_LETTER_TITLE_MAX} value={form.title} onChange={(event) => update('title', event.target.value)} placeholder="Tiêu đề bài viết" />
           </div>
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pb-1.5">
+          <div>
+            <label htmlFor="news-short-title" className="mb-1.5 block text-sm font-semibold text-fb-text-primary">
+              Tiêu đề ngắn
+              <span className="ml-1 font-normal text-fb-text-secondary">(hiển thị trên menu · tạo slug URL — không bắt buộc)</span>
+            </label>
+            <input id="news-short-title" className="ui-input form-control-compact w-full" maxLength={NEWS_LETTER_SHORT_TITLE_MAX} value={form.shortTitle ?? ''} onChange={(event) => update('shortTitle', event.target.value)} placeholder="Ví dụ: Quy định sử dụng AI → Quy_dinh_su_dung_AI" />
+          </div>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
             <EditorSwitch ariaLabel="Published" checked={form.isPublished} label={form.isPublished ? 'Published' : 'Nháp'} onChange={(value) => update('isPublished', value)} />
             <EditorSwitch
               ariaLabel="Ẩn trên menu"
@@ -266,7 +276,7 @@ export function NewsLetterEditor({ articleId }: { articleId: number | null }) {
               type="button"
               disabled={uploadingHeader}
               onClick={() => headerInputRef.current?.click()}
-              className="flex aspect-[16/5] w-full flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-fb-border text-fb-text-secondary hover:border-fb-blue hover:text-fb-blue disabled:opacity-60"
+              className="flex aspect-[32/3] w-full flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-fb-border text-fb-text-secondary hover:border-fb-blue hover:text-fb-blue disabled:opacity-60"
             >
               <ImageSquare className="size-7" weight="bold" aria-hidden="true" />
               <span className="text-sm font-semibold">{uploadingHeader ? 'Đang tải ảnh…' : 'Chọn ảnh header'}</span>

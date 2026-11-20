@@ -1539,6 +1539,8 @@
             <tbody>
               <tr><td><code>id</code></td><td><code>SERIAL</code></td><td>PRIMARY KEY</td><td></td></tr>
               <tr><td><code>title</code></td><td><code>VARCHAR(300) NOT NULL</code></td><td>—</td><td></td></tr>
+              <tr><td><code>short_title</code></td><td><code>VARCHAR(50)</code></td><td>—</td><td><code>VARCHAR(50)</code></td><td>"Tiêu đề ngắn" (20/11/2026, không bắt buộc): hiển thị trên menu thay <code>title</code>; bỏ trống thì menu dùng <code>title</code></td></tr>
+              <tr><td><code>slug</code></td><td><code>VARCHAR(80)</code></td><td>—</td><td><code>VARCHAR(80)</code> (unique, nhiều NULL)</td><td>URL bài viết thay cho id — rút gọn từ <code>short_title</code> (bỏ dấu VN, dấu cách→<code>_</code>, giữ hoa/thường); bài không có <code>short_title</code> thì NULL và URL dùng id</td></tr>
               <tr><td><code>summary</code></td><td><code>TEXT</code></td><td>—</td><td></td></tr>
               <tr><td><code>category_id</code></td><td><code>INT</code></td><td>FK → news_letter_categories(id)</td><td></td></tr>
               <tr><td><code>visible_roles</code></td><td><code>TEXT[] NOT NULL</code></td><td>DEFAULT ARRAY['SUPERADMIN'::text, 'ADMIN'::text, 'SUPERVISOR'::text, 'USER'::text]</td><td></td></tr>
@@ -1556,13 +1558,14 @@
               <tr><td><code>pinned_at</code></td><td><code>TIMESTAMPTZ</code></td><td>—</td><td><code>TIMESTAMP WITH TIME ZONE</code></td><td>Lúc bài viết được ghim (giữ nguyên khi còn ghim, NULL khi bỏ ghim) — bài ghim mới nhất đứng trước</td></tr>
             </tbody>
           </table>
-          <ul style="font-size:12px; margin:4px 0 12px;"><li>Index <code>idx_news_letter_articles_category</code>: <code>btree (category_id)</code></li><li>Index <code>idx_news_letter_articles_order</code>: <code>btree (first_published_at DESC, id DESC)</code></li></ul>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li>Index <code>idx_news_letter_articles_category</code>: <code>btree (category_id)</code></li><li>Index <code>idx_news_letter_articles_order</code>: <code>btree (first_published_at DESC, id DESC)</code></li><li>Index <code>uq_news_letter_articles_slug</code>: <code>UNIQUE btree (slug) WHERE (slug IS NOT NULL)</code></li></ul>
           <p><strong>11.2. <code>news_letter_categories</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
               <tr><td><code>id</code></td><td><code>SERIAL</code></td><td>PRIMARY KEY</td><td></td></tr>
               <tr><td><code>name</code></td><td><code>VARCHAR(120) NOT NULL</code></td><td>—</td><td></td></tr>
+              <tr><td><code>expanded</code></td><td><code>BOOLEAN NOT NULL</code></td><td>DEFAULT false</td><td><code>BOOLEAN NOT NULL DEFAULT false</code></td><td>"Expand" (20/11/2026): thư mục này mở sẵn trong menu bên trái hiển thị các đầu mục tin; mặc định collapsed</td></tr>
               <tr><td><code>created_by</code></td><td><code>INT</code></td><td>FK → users(id)</td><td></td></tr>
               <tr><td><code>created_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
               <tr><td><code>updated_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
@@ -3101,6 +3104,54 @@
         <li>Chỉ con số thống kê được mở rộng. Khi bấm vào số liệu để mở popup Quản trị Epic, danh sách vẫn theo đúng phân quyền dữ liệu của user, nên có thể ít hơn con số trên dashboard — màn hình hiện dòng ghi chú này khi đang ở Lead view.</li>
         <li>Số liệu toàn công ty đọc từ cùng bộ cache <code>ALL</code> của SUPERADMIN/SUPERVISOR (mục 21.5). Khi lọc ở Lead view, số liệu được tính <strong>ở máy chủ</strong> — trình duyệt chỉ nhận con số tổng hợp, không nhận dòng Epic nào của toàn công ty (từ 19/10/2026).</li>
         <li>SUPERADMIN / SUPERVISOR vốn đã xem toàn công ty nên không thấy nút chuyển. Tắt công tắc: mọi user quay về chỉ xem số liệu theo phạm vi của mình.</li>
+      </ul>
+    </section>
+
+    <section id="ttm-calculator">
+      <div class="kicker">Công cụ tính</div>
+      <h2>22. TTM Calculator (<code>/ttm-calculator</code>) — tính mốc pha của một Epic giả định</h2>
+      <p>
+        Màn hình <strong>TTM Calculator</strong> (menu icon máy tính) cho phép nhập một Epic <em>giả định</em> và tính các mốc
+        pha <strong>DESIGN → DEV → TEST → PENTEST → R4G mục tiêu → Hạn golive</strong> bằng <strong>đúng Scoring Service và cấu hình đang chạy</strong>
+        (Rule Group, Bộ ngân sách, ngày nghỉ / ngày làm bù). Không lưu dữ liệu. Mọi role đã đăng nhập có quyền View.
+      </p>
+      <p>Có <strong>2 cách nhập</strong>:</p>
+      <ul>
+        <li><strong>Cách 1 — Nhập bằng form:</strong> chọn Loại yêu cầu, Requirement level, Start date (bắt buộc), Created date và Ngày duyệt ý tưởng (không bắt buộc).</li>
+        <li><strong>Cách 2 — Nhập bằng text:</strong> gõ một câu chứa Loại yêu cầu, Level (1–4) và Start date; hệ thống phân tích rồi hiện popup xác nhận trước khi đẩy xuống tính toán.</li>
+      </ul>
+
+      <h3>22.1. Cách 2 — nhập bằng text: nhận dạng Loại yêu cầu</h3>
+      <p>
+        Ở cách nhập text, Loại yêu cầu được nhận dạng bằng Regular Expression, <strong>không phân biệt chữ hoa / chữ thường</strong>,
+        <strong>không cần dấu tiếng Việt</strong> và <strong>có thể có hoặc không có dấu cách</strong> giữa các từ (ví dụ <code>san pham</code> hoặc <code>sanpham</code>).
+        Các từ đồng nghĩa và viết tắt sau đây đều được gán về một trong 4 Loại yêu cầu chuẩn:
+      </p>
+      <table>
+        <thead><tr><th>Loại yêu cầu nhận dạng</th><th>Từ khoá nhập được (không dấu / có dấu)</th><th>Viết tắt</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Tính năng mới</strong></td><td><code>tinh nang moi</code> / <code>Tính năng mới</code></td><td><code>tnm</code>, <code>tn</code></td></tr>
+          <tr><td><strong>Cải tiến</strong></td><td><code>cai tien</code> / <code>Cải tiến</code></td><td><code>ct</code></td></tr>
+          <tr><td><strong>Sản phẩm</strong></td><td><code>san pham</code> / <code>Sản phẩm</code></td><td><code>sp</code></td></tr>
+          <tr>
+            <td><strong>Sản phẩm/dịch vụ/quy trình mới</strong> (cụm tiêu chuẩn)</td>
+            <td>
+              <code>san pham / dich vu / quy trinh moi</code>, <code>san pham / dich vu</code>, <code>san pham moi</code>,
+              <code>dich vu</code>, <code>dich vu moi</code>, <code>quy trinh</code>, <code>quy trinh moi</code>
+            </td>
+            <td><code>spdvqtm</code>, <code>spdvqt</code>, <code>spm</code>, <code>dvm</code>, <code>qtm</code>, <code>dv</code>, <code>qt</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <ul>
+        <li>Bảng Level nhận <code>Level</code> / <code>Lv</code> / <code>L</code> / <code>Cap</code> / <code>Mức</code> + số 1–4. Start date nhận 6 dạng ngày: <code>31/7</code>, <code>31/07</code>, <code>31/7/2026</code>, <code>31/7/26</code>, <code>31/07/2026</code>, <code>31/07/26</code> (phân cách <code>/</code>, <code>.</code> hoặc <code>-</code>). Trình tự các thành phần trong câu không quan trọng.</li>
+        <li>Regular Expression được khai báo tại <code>src/lib/ttm-calculator-text.ts</code> (<code>REQUEST_TYPE_PATTERN</code>), dùng chung cho cả phân loại Epic khi import.</li>
+      </ul>
+      <h3>22.2. Kết quả</h3>
+      <ul>
+        <li>Widget: Start date, R4G mục tiêu, Hạn golive (R4G + <code>release.graceWorkingDays</code> ngày làm việc), Loại Epic (CT-Lv12 / CT-Lv34 / SP-Lv12 / SP-Lv34), tổng thời gian TTM-CNTT và TTM-E2E.</li>
+        <li>Timeline SVG các pha + Bảng pha (độ rộng theo <code>%</code> ngày làm việc thực tế; PENTEST hiển thị là "Pentest &amp; Change"; ngày Thứ 7 / Chủ nhật / ngày Lễ tô xám, ngày trùng hôm nay nền vàng).</li>
+        <li>Bảng pha có màu nền từng pha khớp timeline để dễ nhận dạng.</li>
       </ul>
     </section>
 

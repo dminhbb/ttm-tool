@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await requireUser(request, ['SUPERADMIN']);
-    const body = (await request.json().catch(() => ({}))) as { name?: unknown };
-    await createNewsLetterCategory(viewerOf(user), body.name);
+    const body = (await request.json().catch(() => ({}))) as { name?: unknown; expanded?: unknown };
+    await createNewsLetterCategory(viewerOf(user), body.name, body.expanded);
     return NextResponse.json({ categories: await listNewsLetterCategories() }, { status: 201 });
   } catch (error) {
     return newsLetterErrorResponse(error, 'Không thể thêm phân loại.');

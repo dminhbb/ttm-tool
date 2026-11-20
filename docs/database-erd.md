@@ -1971,6 +1971,8 @@ erDiagram
     news_letter_articles {
         int id PK
         varchar title
+        varchar short_title
+        varchar slug
         text summary
         int category_id FK
         text_array visible_roles
@@ -1990,6 +1992,7 @@ erDiagram
     news_letter_categories {
         int id PK
         varchar name
+        boolean expanded
         int created_by FK
         timestamptz created_at
         timestamptz updated_at
@@ -2041,6 +2044,8 @@ Bài viết của Bản tin (`/news-letter`, SUPERADMIN soạn): tiêu đề, t�
 |---|---|---|---|---|---|
 | `id` | int (tự tăng) | không |  | PK |  |
 | `title` | varchar(300) | không |  |  |  |
+| `short_title` | varchar(50) | có |  |  | `VARCHAR(50)`"Tiêu đề ngắn" (20/11/2026, không bắt buộc): hiển thị trên menu thay `title`; bỏ trống thì menu dùng `title` |
+| `slug` | varchar(80) | có |  |  | `VARCHAR(80)` (unique, nhiều NULL)URL bài viết thay cho id — rút gọn từ `short_title` (bỏ dấu VN, dấu cách→`_`, giữ hoa/thường); bài không có `short_title` thì NULL và URL dùng id |
 | `summary` | text | có |  |  |  |
 | `category_id` | int | có |  | FK → news_letter_categories(id) |  |
 | `visible_roles` | text[] | không | ARRAY['SUPERADMIN'::text, 'ADMIN'::text, 'SUPERVISOR'::text, 'USER'::text] |  |  |
@@ -2059,6 +2064,7 @@ Bài viết của Bản tin (`/news-letter`, SUPERADMIN soạn): tiêu đề, t�
 
 - index `idx_news_letter_articles_category`: btree (category_id)
 - index `idx_news_letter_articles_order`: btree (first_published_at DESC, id DESC)
+- index `uq_news_letter_articles_slug`: UNIQUE btree (slug) WHERE (slug IS NOT NULL)
 
 ### `news_letter_categories`
 
@@ -2068,6 +2074,7 @@ Phân loại bài viết Bản tin (tên không trùng, không xoá được khi
 |---|---|---|---|---|---|
 | `id` | int (tự tăng) | không |  | PK |  |
 | `name` | varchar(120) | không |  |  |  |
+| `expanded` | boolean | không | false |  | `BOOLEAN NOT NULL DEFAULT false`"Expand" (20/11/2026): thư mục này mở sẵn trong menu bên trái hiển thị các đầu mục tin; mặc định collapsed |
 | `created_by` | int | có |  | FK → users(id) |  |
 | `created_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 | `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |

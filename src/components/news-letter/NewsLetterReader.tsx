@@ -8,7 +8,7 @@ import { showToast } from '@/components/ui/Toast';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { formatNewsDate, formatNewsDateTime } from '@/components/news-letter/format';
 import { useNewsLetter } from '@/components/news-letter/NewsLetterShell';
-import { NEWS_LETTER_READ_EVENT, NEWS_LETTER_ROLE_LABEL, NEWS_LETTER_ROUTE, NEWS_LETTER_ROLES, newsLetterImageUrl, type NewsLetterNeighbour, type NewsLetterPage } from '@/lib/news-letter/types';
+import { NEWS_LETTER_READ_EVENT, NEWS_LETTER_ROLE_LABEL, NEWS_LETTER_ROUTE, NEWS_LETTER_ROLES, newsArticleHref, newsLetterImageUrl, type NewsLetterArticle, type NewsLetterNeighbour, type NewsLetterPage } from '@/lib/news-letter/types';
 
 /**
  * One article of "Bản tin" (owner 2026-11-06, look of the reference design 3): category with a short accent line, a big
@@ -33,7 +33,7 @@ function NeighbourLink({ direction, neighbour }: { direction: 'previous' | 'next
   }
   return (
     <Tooltip content={neighbour.title} side="bottom" align={direction === 'previous' ? 'start' : 'end'} multiline className="inline-flex w-auto">
-      <Link href={`${NEWS_LETTER_ROUTE}/${neighbour.id}`} className="text-fb-text-primary hover:text-fb-blue" aria-label={`${label}: ${neighbour.title}`}>
+      <Link href={newsArticleHref(neighbour)} className="text-fb-text-primary hover:text-fb-blue" aria-label={`${label}: ${neighbour.title}`}>
         {content}
       </Link>
     </Tooltip>
@@ -77,11 +77,12 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 /** "Share" under the article (owner 2026-11-10): shows the article's direct link and copies it to the clipboard. */
-function ShareButton({ articleId }: { articleId: number }) {
+function ShareButton({ article }: { article: Pick<NewsLetterArticle, 'id' | 'slug'> }) {
   const [link, setLink] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
   const share = async () => {
-    const url = `${window.location.origin}${NEWS_LETTER_ROUTE}/${articleId}`;
+    // Share link dùng slug từ Tiêu đề ngắn nếu có, ngược lại dùng ID (owner 2026-11-20).
+    const url = `${window.location.origin}${newsArticleHref(article)}`;
     setLink(url);
     const ok = await copyText(url);
     setCopied(ok);
@@ -114,13 +115,13 @@ function ShareButton({ articleId }: { articleId: number }) {
   );
 }
 
-export function NewsLetterReader({ articleId }: { articleId: number | null }) {
+export function NewsLetterReader({ articleRef }: { articleRef: string | null }) {
   const { setActiveArticle } = useNewsLetter();
   const [state, setState] = React.useState<LoadState>({ status: 'loading' });
 
   React.useEffect(() => {
     let active = true;
-    fetch(`/api/news-letter${articleId ? `?articleId=${articleId}` : ''}`, { cache: 'no-store' })
+    fetch(`/api/news-letter${articleRef ? `?ref=${encodeURIComponent(articleRef)}` : ''}`, { cache: 'no-store' })
       .then(async (response) => {
         const data = (await response.json().catch(() => ({}))) as NewsLetterPage & { error?: string };
         if (!active) return;
@@ -139,7 +140,7 @@ export function NewsLetterReader({ articleId }: { articleId: number | null }) {
     return () => {
       active = false;
     };
-  }, [articleId, setActiveArticle]);
+  }, [articleRef, setActiveArticle]);
 
   if (state.status === 'loading') return <p className="py-16 text-center text-sm text-fb-text-secondary">Đang tải bài viết…</p>;
   if (state.status === 'error') return <p className="py-16 text-center text-sm text-status-danger">{state.message}</p>;
@@ -157,10 +158,12 @@ export function NewsLetterReader({ articleId }: { articleId: number | null }) {
   const restricted = article.visibleRoles.length < NEWS_LETTER_ROLES.length;
 
   return (
-    <article className="mx-auto w-full max-w-[860px] pb-12">
+    <article className="mx-auto w-full max-w-[1075px] pb-12">
       <NeighbourRow page={page} />
 
-      <header className="mt-8">
+      {/* "Nội dung bài viết" được bao bởi vùng trắng + viền xám (owner 2026-11-20). */}
+      <div className="mt-4 rounded-xl border border-fb-border bg-white p-5 shadow-sm sm:p-7">
+        <header>
         <p className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.18em] text-fb-blue">
           <span className="h-px w-10 bg-fb-blue" aria-hidden="true" />
           {article.categoryName ?? 'Bản tin'}
@@ -173,16 +176,16 @@ export function NewsLetterReader({ articleId }: { articleId: number | null }) {
           )}
         </p>
         <div className="mt-3 flex items-start justify-between gap-4">
-          <h1 className="news-title text-3xl font-bold leading-tight text-fb-text-primary sm:text-[40px]">{article.title}</h1>
+          <h1 className="news-title text-[18px] font-bold leading-tight text-fb-text-primary">{article.title}</h1>
           {page.canPost && (
             <Tooltip content="Sửa bài viết" side="bottom" align="end" className="inline-flex w-auto shrink-0">
-              <Link href={`${NEWS_LETTER_ROUTE}/${article.id}/edit`} aria-label="Sửa bài viết" className="grid size-9 place-items-center rounded-full border border-fb-border text-fb-text-secondary transition-colors hover:border-fb-blue hover:text-fb-blue">
+              <Link href={`${NEWS_LETTER_ROUTE}/${article.slug || article.id}/edit`} aria-label="Sửa bài viết" className="grid size-9 place-items-center rounded-full border border-fb-border text-fb-text-secondary transition-colors hover:border-fb-blue hover:text-fb-blue">
                 <PencilSimple className="size-4" weight="bold" />
               </Link>
             </Tooltip>
           )}
         </div>
-        {article.summary && <p className="news-title mt-3 text-lg italic leading-relaxed text-fb-text-secondary">{article.summary}</p>}
+        {article.summary && <p className="news-title mt-3 text-[14px] italic leading-relaxed text-fb-text-secondary">{article.summary}</p>}
         <ul className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[11px] font-semibold uppercase tracking-wider text-fb-text-secondary">
           <li className="inline-flex items-center gap-1.5"><UserCircle className="size-4" weight="bold" aria-hidden="true" />{article.authorName || '—'}</li>
           <li className="inline-flex items-center gap-1.5"><CalendarBlank className="size-4" weight="bold" aria-hidden="true" />{formatNewsDate(article.firstPublishedAt ?? article.createdAt)}</li>
@@ -206,11 +209,12 @@ export function NewsLetterReader({ articleId }: { articleId: number | null }) {
 
       <div className="rich-content news-body mt-8 text-[15px]" dangerouslySetInnerHTML={{ __html: article.contentHtml }} />
 
-      <div className="mt-8">
-        <ShareButton articleId={article.id} />
+        <div className="mt-8">
+          <ShareButton article={{ id: article.id, slug: article.slug }} />
+        </div>
       </div>
 
-      <div className="mt-12 border-t border-fb-border pt-4">
+      <div className="mt-8 border-t border-fb-border pt-4">
         <NeighbourRow page={page} />
       </div>
 

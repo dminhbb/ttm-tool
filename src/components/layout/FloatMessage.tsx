@@ -126,7 +126,9 @@ export function FloatMessageFrame({ children, layerClassName = 'z-[50]', positio
   );
 }
 
-/** Mở URL của float message: tab hiện tại (mặc định) hoặc tab mới; đường dẫn nội bộ đi qua router khi mở tab hiện tại. */
+/**
+ * Mở URL của float message: tab hiện tại (mặc định) hoặc tab mới; đường dẫn nội bộ đi qua router khi mở tab hiện tại.
+ */
 function openFloatMessageUrl(url: string, openInNewTab: boolean, router: ReturnType<typeof useRouter>): void {
   if (openInNewTab) {
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -229,6 +231,7 @@ export function FloatMessageDisplay() {
     <FloatMessageFrame position={position} visible={visible}>
       <FloatMessageBox
         borderClassName={rendered.highlightBorder ? FLOAT_MESSAGE_HIGHLIGHT_BORDER : undefined}
+        clickable={Boolean(rendered.onClick)}
         dismissible={rendered.dismissible}
         onClick={handleClick}
         onClose={handleClose}

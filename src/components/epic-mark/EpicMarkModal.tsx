@@ -10,6 +10,7 @@ import {
 import { JiraLinkButton } from '@/components/epic-alerts/JiraLinkButton';
 import { EpicFailExplainGrid, EpicFailVerdictBadges } from '@/components/epic-browser/EpicFailExplain';
 import { EpicIssuesTree } from '@/components/epic-browser/EpicIssuesTree';
+import { TtmCalendarTab } from '@/components/epic-mark/TtmCalendarTab';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import type { DataReviewIssue } from '@/lib/data-review-types';
 import { Badge, type BadgeProps } from '@/components/ui/Badge';
@@ -30,15 +31,16 @@ import { useJiraViewIssueUrl } from '@/lib/use-jira-view-issue-url';
  * Popup "Thông tin Epic" (formerly "Review Notes" / "Mark & Comment", renamed 2026-11-17) of one Epic: the header
  * carries the Epic key / summary and switches — "Epic ngoại lệ" (TTM Black listed, ADMIN/SUPERADMIN), "Ẩn epic"
  * (personal Hide) and "Giao việc" (To do / Done, shared). Below, two cards: the Epic's facts grouped into
- * "Thông tin chung" / "Thông tin dự án" on the left; on the right a frame with four tabs — "Comment", "Scoring",
- * "Duyệt Epic" (issue tree) and "Giải trình Fail TTM". `onChanged` is called once on close when something was
- * saved, so the list behind can refresh.
+ * "Thông tin chung" / "Thông tin dự án" on the left; on the right a frame with five tabs — "Comment", "TTM Calendar",
+ * "Scoring", "Duyệt Epic" (issue tree) and "Giải trình Fail TTM". `onChanged` is called once on close when something
+ * was saved, so the list behind can refresh.
  * 2026-11-11 (owner): the popup gained the "Duyệt Epic" and "Giải trình Fail TTM" tabs.
+ * 2026-11-20 (owner): added the "TTM Calendar" tab (reuses the TTM Calculator phase timeline for this Epic).
  * 2026-11-17 (owner): renamed to "Thông tin Epic", +20% size, added "Epic ngoại lệ" toggle, warning dot on the
  * "Giải trình Fail TTM" tab when the Epic has a missing fail reason. Replaces the "Duyệt Epic" popup everywhere.
  */
 
-type FrameTabKey = 'BROWSE' | 'COMMENT' | 'FAIL' | 'SCORING';
+type FrameTabKey = 'BROWSE' | 'CALENDAR' | 'COMMENT' | 'FAIL' | 'SCORING';
 
 /** Tab "Duyệt Epic": the issue tree, fetched once from the "Duyệt Epic" API when the tab is first shown. */
 function EpicTreeTab({ epicKey }: { epicKey: string }) {
@@ -663,6 +665,7 @@ export function EpicMarkModal({ epicKey, onChanged, onClose, viewAsUserId }: { e
           <div className="ttm-chat-frame flex min-h-[441px] flex-col overflow-hidden rounded-xl border border-fb-border md:h-full md:min-h-0">
             <div className="flex shrink-0 gap-4 border-b border-fb-border px-4" role="tablist" aria-label="Thông tin Epic">
               <FrameTab active={tab === 'COMMENT'} icon={ChatCircleText} label={`Comment (${payload.comments.length})`} onSelect={() => setTab('COMMENT')} />
+              <FrameTab active={tab === 'CALENDAR'} icon={CalendarBlank} label="TTM Calendar" onSelect={() => setTab('CALENDAR')} />
               <FrameTab active={tab === 'SCORING'} icon={Gauge} label={`Scoring (${payload.scoring.length})`} onSelect={() => setTab('SCORING')} />
               <FrameTab active={tab === 'BROWSE'} icon={TreeStructure} label="Duyệt Epic" onSelect={() => setTab('BROWSE')} />
               <FrameTab active={tab === 'FAIL'} icon={WarningCircle} label="Giải trình Fail TTM" onSelect={() => setTab('FAIL')} trailing={
@@ -671,7 +674,11 @@ export function EpicMarkModal({ epicKey, onChanged, onClose, viewAsUserId }: { e
                   : undefined
               } />
             </div>
-            {tab === 'SCORING' ? (
+            {tab === 'CALENDAR' ? (
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4" role="tabpanel">
+                <TtmCalendarTab summary={payload.summary} />
+              </div>
+            ) : tab === 'SCORING' ? (
               <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4" role="tabpanel">
                 <ScoringTable epicKey={epicKey} notes={payload.scoring} />
               </div>

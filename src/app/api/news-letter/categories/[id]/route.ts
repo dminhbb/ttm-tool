@@ -11,8 +11,8 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     const user = await requireUser(request, ['SUPERADMIN']);
     const id = positiveInt((await context.params).id);
     if (!id) return BAD_ID();
-    const body = (await request.json().catch(() => ({}))) as { name?: unknown };
-    await renameNewsLetterCategory(viewerOf(user), id, body.name);
+    const body = (await request.json().catch(() => ({}))) as { name?: unknown; expanded?: unknown };
+    await renameNewsLetterCategory(viewerOf(user), id, body.name, body.expanded);
     return NextResponse.json({ categories: await listNewsLetterCategories() });
   } catch (error) {
     return newsLetterErrorResponse(error, 'Không thể sửa phân loại.');

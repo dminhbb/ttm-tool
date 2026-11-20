@@ -10,9 +10,14 @@ function validIsoDate(value: unknown): value is string {
   return Boolean(match && isRealDate(Number(match[1]), Number(match[2]), Number(match[3])));
 }
 
-function optionalDate(value: unknown): string | null | undefined {
-  if (value === undefined || value === null || value === '') return null;
-  return validIsoDate(value) ? value : undefined;
+/**
+ * Trả về một ngày tuỳ chọn đã được kiểm tra tính hợp lệ: `{ ok: true, value: null }` khi không nhập (được phép bỏ qua),
+ * `{ ok: true, value }` khi hợp lệ, `{ ok: false }` khi có giá trị nhưng sai định dạng / không tồn tại trong lịch.
+ * Dùng discriminated union (không phải sentinel `undefined`) để phân biệt rõ "bỏ trống" với "nhập sai".
+ */
+function optionalDate(value: unknown): { ok: true; value: string | null } | { ok: false } {
+  if (value === undefined || value === null || value === '') return { ok: true, value: null };
+  return validIsoDate(value) ? { ok: true, value } : { ok: false };
 }
 
 /**
@@ -34,10 +39,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Requirement level phải là 1, 2, 3 hoặc 4.' }, { status: 400 });
     }
     if (!validIsoDate(body?.startDate)) return NextResponse.json({ error: 'Start date không hợp lệ.' }, { status: 400 });
-    if (createdDate === undefined || ideaApprovedDate === undefined) return NextResponse.json({ error: 'Created date / Ngày duyệt ý tưởng không hợp lệ.' }, { status: 400 });
+    if (!createdDate.ok || !ideaApprovedDate.ok) return NextResponse.json({ error: 'Created date / Ngày duyệt ý tưởng không hợp lệ.' }, { status: 400 });
 
-    const result = await runTtmCalculator({ createdDate, ideaApprovedDate, requestType, requirementLevel: level, startDate: body.startDate as string });
-    return NextResponse.json({ result });
+    const { result, holidays, workdays } = await runTtmCalculator({ createdDate: createdDate.value, ideaApprovedDate: ideaApprovedDate.value, requestType, requirementLevel: level, startDate: body.startDate as string });
+    return NextResponse.json({ result, holidays, workdays });
   } catch (error: unknown) {
     if (error instanceof AuthError) return NextResponse.json({ error: 'Chưa đăng nhập.' }, { status: 401 });
     console.error('API Error in ttm-calculator POST:', error);

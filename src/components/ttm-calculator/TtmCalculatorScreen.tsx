@@ -11,9 +11,10 @@ import { Select } from '@/components/ui/Select';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { computeEpicComplexity } from '@/lib/epic-complexity';
 import { EPIC_COMPLEXITY_LABELS } from '@/lib/status-alert-rule-types';
-import type { TtmCalculatorResult } from '@/lib/ttm-calculator';
+import { phaseDisplayLabel, type CalculatorPhaseRow, type TtmCalculatorResult } from '@/lib/ttm-calculator';
 import { CALCULATOR_REQUEST_TYPES, parseCalculatorText, type CalculatorTextResult } from '@/lib/ttm-calculator-text';
 import { cn } from '@/lib/utils';
+import { TtmPhaseTimeline } from '@/components/ttm-calculator/TtmPhaseTimeline';
 
 interface FormState {
   createdDate: string;
@@ -25,6 +26,16 @@ interface FormState {
 
 const INITIAL_FORM: FormState = { createdDate: '', ideaApprovedDate: '', requestType: CALCULATOR_REQUEST_TYPES[1], requirementLevel: '2', startDate: '' };
 const WEEKDAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
+/** Màu nền của ô pha trong Bảng Pha, khớp màu từng pha trên timeline (REQ-20261119-02). */
+const PHASE_CELL_BG: Record<CalculatorPhaseRow['key'], string> = {
+  DESIGN: '#e0f2fe', // sky-100
+  DEV: '#dcfce7', // green-100
+  TEST: '#fef9c3', // yellow-100
+  PENTEST: '#ffedd5', // orange-100
+  R4GOLIVE: '#dbeafe', // blue-100
+  GOLIVE: '#ede9fe', // violet-100
+};
 
 /** "T4 11/11/2026" from "2026-11-11". */
 function formatDay(iso: string | null | undefined): string {
@@ -50,26 +61,27 @@ function Widget({ accent = false, label, value }: { accent?: boolean; label: str
 
 function ExplanationRow({ result }: { result: TtmCalculatorResult }) {
   const e2e = result.e2e;
-  const phaseText = result.rows.map((row) => `${row.label} ${row.workingDays} ngày`).join(', ');
+  const phaseText = result.rows.map((row) => `${phaseDisplayLabel(row.key)} ${row.workingDays} ngày`).join(', ');
   return (
     <Alert title="Cách phân loại, rule áp dụng và cách tính">
+      {/* Chữ giải thích dùng cỡ chữ thường, không đậm (bỏ <b>) theo yêu cầu chủ sản phẩm 19/11/2026. */}
       <ul className="m-0 flex list-disc flex-col gap-1 pl-4 text-xs text-fb-text-primary">
-        <li>Epic được phân loại <b>{EPIC_COMPLEXITY_LABELS[result.complexity]}</b>.</li>
+        <li>Epic được phân loại {EPIC_COMPLEXITY_LABELS[result.complexity]}.</li>
         <li>
-          Áp dụng Rule Group <b>{result.ruleGroup.name}</b>{result.ruleGroup.isDefault ? ' (nhóm mặc định)' : ` (ưu tiên ${result.ruleGroup.priority})`}
-          {result.rules.cnttName ? <>, rule <b>{result.rules.cnttName}</b> (bộ ngân sách {result.rules.cnttPolicySet}): tổng thời gian TTM-CNTT <b>{result.totalCnttWorkingDays ?? '—'} ngày làm việc</b>.</> : <>; không có rule TTM-CNTT nên chưa tính được mốc.</>}
+          Áp dụng Rule Group {result.ruleGroup.name}{result.ruleGroup.isDefault ? ' (nhóm mặc định)' : ` (ưu tiên ${result.ruleGroup.priority})`}
+          {result.rules.cnttName ? <>, rule {result.rules.cnttName} (bộ ngân sách {result.rules.cnttPolicySet}): tổng thời gian TTM-CNTT {result.totalCnttWorkingDays ?? '—'} ngày làm việc.</> : <>; không có rule TTM-CNTT nên chưa tính được mốc.</>}
         </li>
         {result.r4gDate && (
-          <li>R4G mục tiêu <b>{formatDay(result.r4gDate)}</b>, hạn golive <b>{formatDay(result.goliveDate)}</b> (R4G + {result.graceWorkingDays} ngày làm việc). Các pha: {phaseText}.</li>
+          <li>R4G mục tiêu {formatDay(result.r4gDate)}, hạn golive {formatDay(result.goliveDate)} (R4G + {result.graceWorkingDays} ngày làm việc). Các pha: {phaseText}.</li>
         )}
         <li>
           {e2e?.budgetWorkingDays
-            ? <>TTM-E2E <b>{e2e.budgetWorkingDays} ngày làm việc</b>, tính từ {e2e.sourceLabel} {formatDay(e2e.sourceDate)}, đến hạn <b>{formatDay(e2e.targetDate)}</b>.</>
+            ? <>TTM-E2E {e2e.budgetWorkingDays} ngày làm việc, tính từ {e2e.sourceLabel} {formatDay(e2e.sourceDate)}, đến hạn {formatDay(e2e.targetDate)}.</>
             : 'Chưa tính TTM-E2E: cần Ngày duyệt ý tưởng hoặc Created date (và bộ ngân sách TTM-E2E của loại Epic này).'}
         </li>
-        {result.startIsNonWorkingDay && (
+        {result.startIsNonWorkingDay && result.totalCnttWorkingDays != null && (
           <li>
-            <b>Lưu ý:</b> Start date rơi vào Thứ 7 / Chủ nhật / ngày nghỉ. Ứng dụng vẫn coi đó là ngày thứ nhất (giống Epic thật) nhưng ngày đó không phải ngày làm việc, nên thực tế chỉ có {(result.totalCnttWorkingDays ?? 1) - 1} ngày làm việc và R4G trùng với khi bắt đầu từ ngày làm việc liền trước.
+            Lưu ý: Start date rơi vào Thứ 7 / Chủ nhật / ngày nghỉ. Ứng dụng vẫn coi đó là ngày thứ nhất (giống Epic thật) nhưng ngày đó không phải ngày làm việc, nên thực tế chỉ có {result.totalCnttWorkingDays - 1} ngày làm việc và R4G trùng với khi bắt đầu từ ngày làm việc liền trước.
           </li>
         )}
       </ul>
@@ -82,6 +94,9 @@ export function TtmCalculatorScreen() {
   const [text, setText] = useState('');
   const [parsed, setParsed] = useState<CalculatorTextResult | null>(null);
   const [result, setResult] = useState<TtmCalculatorResult | null>(null);
+  // Ngày nghỉ / ngày làm bù (theo cấu hình) trả về cùng result, dùng để vẽ timeline.
+  const [holidays, setHolidays] = useState<ReadonlySet<string>>(new Set());
+  const [workdays, setWorkdays] = useState<ReadonlySet<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   // Cách nhập mà kết quả bên phải đang lấy thông tin từ đó.
@@ -102,9 +117,11 @@ export function TtmCalculatorScreen() {
         headers: { 'Content-Type': 'application/json' },
         method: 'POST',
       });
-      const data = (await response.json().catch(() => ({}))) as { error?: string; result?: TtmCalculatorResult };
+      const data = (await response.json().catch(() => ({}))) as { error?: string; result?: TtmCalculatorResult; holidays?: string[]; workdays?: string[] };
       if (!response.ok || !data.result) throw new Error(data.error ?? 'Không thể tính toán các mốc TTM.');
       setResult(data.result);
+      setHolidays(new Set(data.holidays ?? []));
+      setWorkdays(new Set(data.workdays ?? []));
       setSource(from);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Không thể tính toán các mốc TTM.');
@@ -118,6 +135,8 @@ export function TtmCalculatorScreen() {
     setText('');
     setParsed(null);
     setResult(null);
+    setHolidays(new Set());
+    setWorkdays(new Set());
     setSource(null);
     setError(null);
   }
@@ -185,7 +204,7 @@ export function TtmCalculatorScreen() {
               }}
             >
               <Input
-                helperText="Gồm Loại yêu cầu, Level 1-4 và Start date (31/7, 31/07/2026, 31/7/26…). Created date và Ngày duyệt ý tưởng lấy từ form phía trên."
+                helperText="Gồm Loại yêu cầu (tên đầy đủ, không dấu hoặc viết tắt như tnm/sp/ct/dv/qt…), Level 1-4 và Start date (31/7, 31/07/2026, 31/7/26…). Created date và Ngày duyệt ý tưởng lấy từ form phía trên."
                 label="Đoạn text"
                 onChange={(event) => setText(event.target.value)}
                 placeholder="Cải tiến, Level 2, 11/11/2026"
@@ -216,6 +235,18 @@ export function TtmCalculatorScreen() {
                 <Widget label="Tổng thời gian TTM-CNTT" value={result.totalCnttWorkingDays ? `${result.totalCnttWorkingDays} ngày LV` : '—'} />
                 <Widget label="Tổng thời gian TTM-E2E" value={e2e?.budgetWorkingDays ? `${e2e.budgetWorkingDays} ngày LV` : '—'} />
               </div>
+
+              {result.rows.length > 0 && result.goliveDate && (
+                <TtmPhaseTimeline
+                  goliveDate={result.goliveDate}
+                  holidays={holidays}
+                  rows={result.rows}
+                  startDate={result.startDate}
+                  startIsNonWorkingDay={result.startIsNonWorkingDay}
+                  workdays={workdays}
+                />
+              )}
+
               {result.rows.length === 0 && <Alert title="Chưa có mốc pha" variant="warning">Bộ ngân sách TTM-CNTT chưa có dòng cho loại Epic {result.complexity}.</Alert>}
 
               {result.rows.length > 0 && (
@@ -232,7 +263,8 @@ export function TtmCalculatorScreen() {
                     <TBody>
                       {result.rows.map((row) => (
                         <TR key={row.key}>
-                          <TD className={cn(row.key === 'R4GOLIVE' && 'font-bold text-fb-blue')}>{row.label}{row.percent !== null ? ` (${row.percent}%)` : ''}</TD>
+                          {/* Ô pha: màu nền khớp từng pha trên timeline + tên hiển thị (PENTEST → 'Pentest & Change'). */}
+                          <TD className={cn(row.key === 'R4GOLIVE' && 'font-bold text-fb-blue')} style={{ backgroundColor: PHASE_CELL_BG[row.key] }}>{phaseDisplayLabel(row.key)}{row.percent !== null ? ` (${row.percent}%)` : ''}</TD>
                           <TD className={cn('text-right', row.key === 'R4GOLIVE' && 'font-bold text-fb-blue')}>{row.workingDays}</TD>
                           <TD className={cn(row.key === 'R4GOLIVE' && 'font-bold text-fb-blue')}>{formatDay(row.fromDate)}</TD>
                           <TD>{row.key === 'R4GOLIVE' ? '' : formatDay(row.toDate)}</TD>
