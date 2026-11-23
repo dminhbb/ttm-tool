@@ -4,7 +4,7 @@ import { createTtmPolicy, deleteTtmPolicy, listTtmPolicies, updateTtmPolicy } fr
 import { DEFAULT_POLICY_SET_KEY, TTM_TYPES } from '@/lib/ttm-policy-types';
 import type { TtmPolicyInput, TtmType } from '@/lib/ttm-policy-types';
 import type { EpicComplexity } from '@/lib/ttm-rules';
-import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
+import { EPIC_COMPLEXITY_TYPES, isMisclassifiedEpicComplexity } from '@/lib/status-alert-rule-types';
 
 const MAX_WORKING_DAYS = 3650;
 // Shares the single source of truth (status-alert-rule-types.ts) instead of duplicating the value
@@ -35,20 +35,32 @@ function parseInput(value: unknown): TtmPolicyInput | null {
   return { ttmType: ttmType as TtmType, epicComplexityType: epicComplexityType as EpicComplexity, fromTtmField: fromTtmField.trim(), toTtmField: toTtmField.trim(), workingDays, isActive, policySet };
 }
 
+/** Rejects a "Phân loại sai Epic" combination before parsing — a 400 with a clear message. */
+function misclassifiedError(value: unknown): string | null {
+  if (isRecord(value) && isMisclassifiedEpicComplexity(value.epicComplexityType as EpicComplexity)) {
+    return `Tổ hợp ${value.epicComplexityType} thuộc nhóm "Phân loại sai Epic" — không thể cấu hình tiêu chí Time to Market cho tổ hợp này.`;
+  }
+  return null;
+}
+
 export async function GET(request: NextRequest) {
   try { await requireUser(request, ['SUPERADMIN', 'SUPERVISOR']); return NextResponse.json(await listTtmPolicies()); }
   catch (error: unknown) { return authError(error) ?? NextResponse.json({ error: 'Không thể tải tiêu chí Time to Market.' }, { status: 500 }); }
 }
 export async function POST(request: NextRequest) {
   try {
-    await requireUser(request, ['SUPERADMIN']); const input = parseInput(await request.json());
+    await requireUser(request, ['SUPERADMIN']); const body: unknown = await request.json();
+    const misclassified = misclassifiedError(body); if (misclassified) return NextResponse.json({ error: misclassified }, { status: 400 });
+    const input = parseInput(body);
     if (!input) return NextResponse.json({ error: 'Tiêu chí Time to Market không hợp lệ.' }, { status: 400 });
     return NextResponse.json(await createTtmPolicy(input), { status: 201 });
   } catch (error: unknown) { return authError(error) ?? dbError(error) ?? NextResponse.json({ error: 'Không thể thêm tiêu chí Time to Market.' }, { status: 500 }); }
 }
 export async function PUT(request: NextRequest) {
   try {
-    await requireUser(request, ['SUPERADMIN']); const body: unknown = await request.json(); const input = parseInput(body);
+    await requireUser(request, ['SUPERADMIN']); const body: unknown = await request.json();
+    const misclassified = misclassifiedError(body); if (misclassified) return NextResponse.json({ error: misclassified }, { status: 400 });
+    const input = parseInput(body);
     if (!isRecord(body) || typeof body.id !== 'number' || !Number.isInteger(body.id) || body.id <= 0 || !input) return NextResponse.json({ error: 'Tiêu chí Time to Market không hợp lệ.' }, { status: 400 });
     const policy = await updateTtmPolicy(body.id, input); if (!policy) return NextResponse.json({ error: 'Không tìm thấy tiêu chí Time to Market.' }, { status: 404 }); return NextResponse.json(policy);
   } catch (error: unknown) { return authError(error) ?? dbError(error) ?? NextResponse.json({ error: 'Không thể sửa tiêu chí Time to Market.' }, { status: 500 }); }

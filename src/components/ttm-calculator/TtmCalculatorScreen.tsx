@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ArrowCounterClockwise, Calculator, CaretRight, TextT } from '@phosphor-icons/react';
 
 import { Alert } from '@/components/ui/Alert';
@@ -9,8 +9,8 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
-import { computeEpicComplexity } from '@/lib/epic-complexity';
-import { EPIC_COMPLEXITY_LABELS } from '@/lib/status-alert-rule-types';
+import { computeEpicComplexity, complexityToHuman, VALID_EPIC_COMPLEXITIES_LIST } from '@/lib/epic-complexity';
+import { EPIC_COMPLEXITY_LABELS, isMisclassifiedEpicComplexity } from '@/lib/status-alert-rule-types';
 import { phaseDisplayLabel, type CalculatorPhaseRow, type TtmCalculatorResult } from '@/lib/ttm-calculator';
 import { CALCULATOR_REQUEST_TYPES, parseCalculatorText, type CalculatorTextResult } from '@/lib/ttm-calculator-text';
 import { cn } from '@/lib/utils';
@@ -98,16 +98,34 @@ export function TtmCalculatorScreen() {
   const [holidays, setHolidays] = useState<ReadonlySet<string>>(new Set());
   const [workdays, setWorkdays] = useState<ReadonlySet<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  // Tổ hợp "Phân loại sai Epic" đang chọn (khi set, panel phải hiển thị cảnh báo mở rộng + danh sách tổ hợp hợp lệ).
+  const [misclassifiedComplexity, setMisclassifiedComplexity] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   // Cách nhập mà kết quả bên phải đang lấy thông tin từ đó.
   const [source, setSource] = useState<'form' | 'text' | null>(null);
+  // Form của Cách nào đang được focus/soạn thảo → highlight pastel vàng để user nhận dạng (owner 2026-11-23).
+  const [focusedWay, setFocusedWay] = useState<'form' | 'text' | null>(null);
+  // Nút "Đồng ý và tính toán" trong popup kết quả text — tự focus để bấm Enter được.
+  const acceptButtonRef = useRef<HTMLButtonElement>(null);
 
   const setField = (key: keyof FormState) => (value: string) => setForm((current) => ({ ...current, [key]: value }));
 
   async function calculate(next: FormState, from: 'form' | 'text') {
     setError(null);
+    setMisclassifiedComplexity(null);
     if (!next.startDate) {
       setError('Vui lòng nhập Start date.');
+      return;
+    }
+    // Tổ hợp thuộc nhóm "Phân loại sai Epic": chặn tính toán, yêu cầu đổi tổ hợp hợp lệ hoặc Clear (owner 2026-11-23).
+    const complexity = computeEpicComplexity(next.requestType, next.requirementLevel);
+    if (isMisclassifiedEpicComplexity(complexity)) {
+      setMisclassifiedComplexity(complexity);
+      setError('Bạn đang phân loại sai Epic.\n Epic không được phân loại như sau:');
+      setResult(null);
+      setHolidays(new Set());
+      setWorkdays(new Set());
+      setSource(null);
       return;
     }
     setLoading(true);
@@ -139,6 +157,7 @@ export function TtmCalculatorScreen() {
     setWorkdays(new Set());
     setSource(null);
     setError(null);
+    setMisclassifiedComplexity(null);
   }
 
   function parseText() {
@@ -169,7 +188,13 @@ export function TtmCalculatorScreen() {
       <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-[minmax(340px,420px)_minmax(0,1fr)]">
         {/* Panel trái — nhập thông tin (nền tối hơn) */}
         <aside className="flex flex-col gap-5 rounded-xl border border-fb-border bg-[color-mix(in_srgb,var(--color-fb-control)_85%,black)] p-4">
-          <section className="flex flex-col gap-3">
+          <section
+            className={cn('flex flex-col gap-3 rounded-xl border p-3 transition-colors', focusedWay === 'form' ? 'border-fb-warning bg-[#fef9c3]/90' : 'border-transparent')}
+            onBlurCapture={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocusedWay((way) => (way === 'form' ? null : way));
+            }}
+            onFocusCapture={() => setFocusedWay('form')}
+          >
             <h3 className="m-0 flex items-center gap-2 text-sm font-bold text-fb-text-primary"><Calculator className="size-5 text-fb-blue" weight="bold" aria-hidden="true" />Cách 1: Nhập bằng form</h3>
             <form
               className="flex flex-col gap-3"
@@ -194,7 +219,13 @@ export function TtmCalculatorScreen() {
 
           <hr className="m-0 border-0 border-t border-fb-border" />
 
-          <section className="flex flex-col gap-3">
+          <section
+            className={cn('flex flex-col gap-3 rounded-xl border p-3 transition-colors', focusedWay === 'text' ? 'border-fb-warning bg-[#fef9c3]/90' : 'border-transparent')}
+            onBlurCapture={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocusedWay((way) => (way === 'text' ? null : way));
+            }}
+            onFocusCapture={() => setFocusedWay('text')}
+          >
             <h3 className="m-0 flex items-center gap-2 text-sm font-bold text-fb-text-primary"><TextT className="size-5 text-fb-blue" weight="bold" aria-hidden="true" />Cách 2: Nhập bằng text</h3>
             <form
               className="flex flex-col gap-3"
@@ -204,7 +235,7 @@ export function TtmCalculatorScreen() {
               }}
             >
               <Input
-                helperText="Gồm Loại yêu cầu (tên đầy đủ, không dấu hoặc viết tắt như tnm/sp/ct/dv/qt…), Level 1-4 và Start date (31/7, 31/07/2026, 31/7/26…). Created date và Ngày duyệt ý tưởng lấy từ form phía trên."
+                helperText="Gồm Loại yêu cầu (tên đầy đủ, không dấu hoặc viết tắt như tnm/ct/sp/htm/qt/dv/gpnt…), Level 1-4 và Start date (31/7, 31/07/2026, 31/7/26…). Created date và Ngày duyệt ý tưởng lấy từ form phía trên."
                 label="Đoạn text"
                 onChange={(event) => setText(event.target.value)}
                 placeholder="Cải tiến, Level 2, 11/11/2026"
@@ -216,12 +247,31 @@ export function TtmCalculatorScreen() {
               </div>
             </form>
           </section>
-          {error && <Alert title="Chưa tính được" variant="error">{error}</Alert>}
         </aside>
 
         {/* Panel phải — kết quả (trống cho đến khi tính toán) */}
         <section className="flex min-h-[320px] min-w-0 flex-col gap-4 rounded-xl border border-fb-border bg-fb-surface p-4">
-          {!result ? (
+          {error ? (
+            /* Lỗi phát sinh từ input: hiển thị căn giữa trung tâm vùng chứa nội dung panel phải để dễ nhận biết (owner 2026-11-23). */
+            <div className="flex flex-1 items-center justify-center">
+              <Alert className="w-full max-w-md" title="Chưa tính được" variant="error">
+                <span className="whitespace-pre-line font-semibold">
+                  {error}
+                  {misclassifiedComplexity ? <> <span className="normal-case">{complexityToHuman(misclassifiedComplexity)}</span></> : null}
+                </span>
+                {misclassifiedComplexity && (
+                  <>
+                    <p className="mt-1">Các phân loại Epic hợp lệ là:</p>
+                    <ul className="m-0 mt-1 list-disc pl-4">
+                      {VALID_EPIC_COMPLEXITIES_LIST.map((code) => (
+                        <li key={code}>{complexityToHuman(code)}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </Alert>
+            </div>
+          ) : !result ? (
             <div className="flex flex-1 items-center justify-center text-sm text-fb-text-secondary">Nhập thông tin Epic</div>
           ) : (
             <>
@@ -283,10 +333,11 @@ export function TtmCalculatorScreen() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setParsed(null)}>Huỷ</Button>
-            <Button disabled={!canAccept} onClick={acceptParsed} variant="primary">Đồng ý và tính toán</Button>
+            <Button ref={acceptButtonRef} disabled={!canAccept} onClick={acceptParsed} variant="primary">Đồng ý và tính toán</Button>
           </>
         }
         icon={TextT}
+        initialFocusRef={acceptButtonRef}
         isOpen={parsed !== null}
         onClose={() => setParsed(null)}
         title="Kết quả phân tích đoạn text"

@@ -18,9 +18,15 @@ describe('TTM Calculator — nhập bằng text', () => {
     for (const [input, iso] of cases) assert.equal(parse(`Tính năng mới Level 1 ${input}`).startDate, iso, input);
   });
 
-  it('"Sản phẩm/dịch vụ/quy trình mới" thắng "Sản phẩm"; "Sản phẩm" đứng riêng vẫn nhận', () => {
-    assert.equal(parse('Sản phẩm/dịch vụ/quy trình mới, Level 3, 5/8/2026').requestType, 'Sản phẩm/dịch vụ/quy trình mới');
-    assert.equal(parse('Sản phẩm, Lv4, 5.8.2026').requestType, 'Sản phẩm');
+  it('nhận dạng đủ 7 loại yêu cầu (2026-11-23)', () => {
+    const cases: [string, string][] = [
+      ['Tính năng mới', 'Tính năng mới'], ['Cải tiến', 'Cải tiến'], ['Sản phẩm', 'Sản phẩm'],
+      ['Hệ thống mới', 'Hệ thống mới'], ['Quy trình', 'Quy trình'], ['Dịch vụ', 'Dịch vụ'],
+      ['Giải pháp nền tảng', 'Giải pháp nền tảng'],
+    ];
+    for (const [input, expected] of cases) {
+      assert.equal(parse(`${input}, Level 3, 5/8/2026`).requestType, expected, input);
+    }
   });
 
   it('nhận không dấu, viết hoa/thường lẫn lộn và các viết tắt level', () => {
@@ -29,30 +35,24 @@ describe('TTM Calculator — nhập bằng text', () => {
     assert.equal(parse('cai tien L4 1/9').level, '4');
   });
 
-  it('nhận dạng các từ đồng nghĩa gán vào cụm tiêu chuẩn "Sản phẩm/dịch vụ/quy trình mới"', () => {
-    const standard = 'Sản phẩm/dịch vụ/quy trình mới';
-    for (const input of [
-      'sản phẩm mới', 'dịch vụ', 'dịch vụ mới', 'quy trình', 'quy trình mới',
-      'sản phẩm/dịch vụ', 'sản phẩm / dịch vụ / quy trình mới',
-    ]) {
-      assert.equal(parse(`${input}, Level 2, 3/4/2026`).requestType, standard, input);
-    }
+  it('cụm "Sản phẩm/dịch vụ/quy trình mới" cũ gán về "Sản phẩm" (loại yêu cầu này đã bỏ, 2026-11-23)', () => {
+    assert.equal(parse('Sản phẩm/dịch vụ/quy trình mới, Level 3, 5/8/2026').requestType, 'Sản phẩm');
+    assert.equal(parse('Sản phẩm, Lv4, 5.8.2026').requestType, 'Sản phẩm');
   });
 
   it('không phân biệt chữ hoa/thường, không dấu, có/không dấu cách', () => {
     assert.equal(parse('sanpham, Lv1, 3/4/2026').requestType, 'Sản phẩm');
     assert.equal(parse('SAN PHAM, Lv1, 3/4/2026').requestType, 'Sản phẩm');
-    assert.equal(parse('sanphammoi, Lv1, 3/4/2026').requestType, 'Sản phẩm/dịch vụ/quy trình mới');
     assert.equal(parse('TINHNANGMOI Lv1 3/4/2026').requestType, 'Tính năng mới');
     assert.equal(parse('CAITIEN Lv1 3/4/2026').requestType, 'Cải tiến');
+    assert.equal(parse('HETHONGMOI Lv1 3/4/2026').requestType, 'Hệ thống mới');
+    assert.equal(parse('GIAIPHAPNENTANG Lv1 3/4/2026').requestType, 'Giải pháp nền tảng');
   });
 
   it('nhận dạng các viết tắt của Loại yêu cầu', () => {
-    const standard = 'Sản phẩm/dịch vụ/quy trình mới';
     const abbr: [string, string][] = [
-      ['tnm', 'Tính năng mới'], ['tn', 'Tính năng mới'], ['sp', 'Sản phẩm'], ['ct', 'Cải tiến'],
-      ['dv', standard], ['qt', standard], ['spm', standard], ['dvm', standard],
-      ['qtm', standard], ['spdvqt', standard], ['spdvqtm', standard],
+      ['tnm', 'Tính năng mới'], ['tnt', 'Tính năng mới'], ['tn', 'Tính năng mới'], ['ct', 'Cải tiến'], ['sp', 'Sản phẩm'],
+      ['htm', 'Hệ thống mới'], ['qt', 'Quy trình'], ['dv', 'Dịch vụ'], ['gpnt', 'Giải pháp nền tảng'],
     ];
     for (const [abbrInput, expected] of abbr) {
       assert.equal(parse(`${abbrInput} Lv3 3/4/2026`).requestType, expected, abbrInput);
@@ -60,9 +60,10 @@ describe('TTM Calculator — nhập bằng text', () => {
   });
 
   it('viết tắt không khớp lẫn vào từ viết đầy đủ', () => {
-    // "tn" không được khớp trong "tinh nang"; "sp" không được khớp trong "san pham".
+    // "tn" không còn là viết tắt hợp lệ (dùng tnm/tnt); "sp" không được khớp trong "san pham".
     assert.equal(parse('tinh nang moi Lv1 3/4/2026').requestType, 'Tính năng mới');
     assert.equal(parse('san pham Lv1 3/4/2026').requestType, 'Sản phẩm');
+    assert.equal(parse('quy trinh Lv1 3/4/2026').requestType, 'Quy trình');
   });
 
   it('chữ số của ngày không bị nhận nhầm là level', () => {
@@ -80,8 +81,6 @@ describe('TTM Calculator — nhập bằng text', () => {
 });
 
 describe('toCalculatorRequestType — map "Loại yêu cầu" raw về chuẩn TTM Calculator', () => {
-  const standard = 'Sản phẩm/dịch vụ/quy trình mới';
-
   it('map chuẩn, không dấu và viết hoa/thường lẫn lộn về chuẩn', () => {
     assert.equal(toCalculatorRequestType('Cải tiến'), 'Cải tiến');
     assert.equal(toCalculatorRequestType('cai tien'), 'Cải tiến');
@@ -89,17 +88,27 @@ describe('toCalculatorRequestType — map "Loại yêu cầu" raw về chuẩn T
     assert.equal(toCalculatorRequestType('Tính năng mới'), 'Tính năng mới');
     assert.equal(toCalculatorRequestType('TINH NANG MOI'), 'Tính năng mới');
     assert.equal(toCalculatorRequestType('Sản phẩm'), 'Sản phẩm');
+    assert.equal(toCalculatorRequestType('Hệ thống mới'), 'Hệ thống mới');
+    assert.equal(toCalculatorRequestType('Dịch vụ'), 'Dịch vụ');
+    assert.equal(toCalculatorRequestType('Quy trình'), 'Quy trình');
+    assert.equal(toCalculatorRequestType('Giải pháp nền tảng'), 'Giải pháp nền tảng');
   });
 
-  it('map các từ đồng nghĩa và viết tắt về cụm chuẩn', () => {
-    assert.equal(toCalculatorRequestType(standard), standard);
-    assert.equal(toCalculatorRequestType('dịch vụ mới'), standard);
-    assert.equal(toCalculatorRequestType('quy trình'), standard);
-    assert.equal(toCalculatorRequestType('spdvqtm'), standard);
+  it('map cụm cũ "Sản phẩm/dịch vụ/quy trình mới" và viết tắt về chuẩn', () => {
+    assert.equal(toCalculatorRequestType('Sản phẩm/dịch vụ/quy trình mới'), 'Sản phẩm');
+    assert.equal(toCalculatorRequestType('Sản phẩm mới'), 'Sản phẩm');
+    assert.equal(toCalculatorRequestType('Phát triển mới'), 'Sản phẩm');
+    assert.equal(toCalculatorRequestType('dịch vụ'), 'Dịch vụ');
+    assert.equal(toCalculatorRequestType('quy trình'), 'Quy trình');
     assert.equal(toCalculatorRequestType('tnm'), 'Tính năng mới');
+    assert.equal(toCalculatorRequestType('tnt'), 'Tính năng mới');
     assert.equal(toCalculatorRequestType('tn'), 'Tính năng mới');
     assert.equal(toCalculatorRequestType('sp'), 'Sản phẩm');
     assert.equal(toCalculatorRequestType('ct'), 'Cải tiến');
+    assert.equal(toCalculatorRequestType('htm'), 'Hệ thống mới');
+    assert.equal(toCalculatorRequestType('qt'), 'Quy trình');
+    assert.equal(toCalculatorRequestType('dv'), 'Dịch vụ');
+    assert.equal(toCalculatorRequestType('gpnt'), 'Giải pháp nền tảng');
   });
 
   it('trả null khi không nhận dạng được (thiếu / giá trị lạ)', () => {

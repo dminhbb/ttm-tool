@@ -1,6 +1,6 @@
 # Quản trị Epic — `/epic-alerts-15`
 
-Cập nhật lần cuối: 2026-11-18. Khi sửa file/bảng/contract liệt kê dưới đây, sửa luôn card này trong cùng commit.
+Cập nhật lần cuối: 2026-11-23. Khi sửa file/bảng/contract liệt kê dưới đây, sửa luôn card này trong cùng commit.
 
 ## Mục đích
 
@@ -97,6 +97,7 @@ Xoá Epic, Sao lưu DB (`db-backup-*`), Báo cáo người dùng, MCP (`mcp-serv
 ## Bẫy đã biết
 
 - Mọi rule đánh giá Epic nằm trong `src/lib/scoring/`; màn hình chỉ đọc kết quả qua `epic-row-verdicts.ts` (quyết định 2026-10-24).
+- **Phân loại Epic 14 giá trị + R6** (quyết định 23/11/2026): "Loại yêu cầu" tách thành 7 loại (Cải tiến, Tính năng mới, Sản phẩm, Hệ thống mới, Quy trình, Dịch vụ, Giải pháp nền tảng). `computeEpicComplexity` (`src/lib/epic-complexity.ts`) trả về **9 tổ hợp hợp lệ** (`CT-Lv12, CT-Lv34, TNM-Lv12, TNM-Lv34, HTM-Lv34, SP-Lv34, QT-Lv34, DV-Lv34, GPNT-Lv34`) + **5 tổ hợp nhóm "Phân loại sai Epic"** (`HTM-Lv12, SP-Lv12, QT-Lv12, DV-Lv12, GPNT-Lv12`). **Tính năng mới Level 1-2 (TNM-Lv12) là hợp lệ** (bổ sung cùng ngày). **Map các giá trị legacy → SP**: `Sản phẩm/dịch vụ/quy trình mới`, `Sản phẩm mới`, `Phát triển mới` (khớp text parser). **Đã backfill** (migration `20261203`): 2.364 dòng legacy có `requirement_level` về đúng SP (level 1/2 → `SP-Lv12`, level 3/4 → `SP-Lv34`); 2.341 dòng `requirement_level` NULL / `Chưa xác định` giữ `CT-Lv12` để Scoring đánh dấu Sai lệch dữ liệu (R5). `issues.epic_complexity_type` lưu đủ 14 để R6 (`rules/data-quality.ts`, tên "R6 — Phân loại sai Loại yêu cầu", `scoring-34`) phát hiện nhóm sai bằng helper thuần `isMisclassifiedEpicComplexity`. Hai bảng cấu hình `ttm_policy_configs` + `epic_status_alert_rules` nhận đủ 14 tổ hợp **và được seed sẵn 9 tổ hợp hợp lệ** (migration `20261202_seed_epic_complexity_valid_combos.sql`, `ON CONFLICT DO NOTHING`, copy giá trị nhóm SP); dòng nhóm sai disable + API từ chối (400) lưu. Đổi classification/rule → tăng `SCORING_CODE_VERSION` + tạo lại cache (mục Cache ở trên).
 - Rule "Từ chối import" nằm ở `src/lib/import-admission-rules.ts`, không đưa vào scoring (quyết định 2026-10-14).
 - Icon theo mục "Icons standard" trong `AGENTS.md` (`Warning`, `ArrowSquareOut`, `ArrowBendUpRight`/`CheckCircle`, `Checks`...).
 - `/epic-in-po`, `/epic-alerts` đã bỏ (2026-10-11), chỉ còn redirect trong `next.config.ts`.

@@ -24,10 +24,11 @@ import { isLevel1IssueType } from './issue-hierarchy';
 import { computeEpicComplexity } from './epic-complexity';
 import { syncImportBlackList } from './import-black-list';
 import { ttmAppliedColumnsOf, type TtmAppliedColumns } from './import-ttm-applied-columns';
+import { VALID_EPIC_COMPLEXITIES } from './status-alert-rule-types';
 import { normalizeTtmApplied, parseExceptPlanDate } from './scoring/ttm-applied';
 
-// Epic complexity rule (CT/SP × Lv12/Lv34): see computeEpicComplexity in epic-complexity.ts.
-const VALID_COMPLEXITY = new Set<string>(['CT-Lv12', 'CT-Lv34', 'SP-Lv12', 'SP-Lv34']);
+// Epic complexity rule (CT/TNM/SP/HTM/QT/DV/GPNT × Lv12/Lv34): see computeEpicComplexity in epic-complexity.ts.
+const VALID_COMPLEXITY = VALID_EPIC_COMPLEXITIES;
 
 /**
  * For a file without the "TTM-applied" and/or "except-TTM-plan" column: the batch's issue rows take that field

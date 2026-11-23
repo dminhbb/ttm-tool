@@ -4,6 +4,7 @@ import { apiFeatureKey, pageFeatureKey } from '../feature-access';
 import {
   compareEpicKeys,
   FAIL_REASON_PANEL_CODE,
+  isHighlightedRuleTag,
   NORMALIZATION_BADGE_CODES,
   NORMALIZATION_PAGE_SIZE,
   NORMALIZATION_PANELS,
@@ -20,12 +21,22 @@ const panelsOf = (row: Partial<Parameters<typeof normalizationPanelsOf>[0]>) =>
 describe('"Chuẩn hoá dữ liệu" panels', () => {
   it('"Thiếu lý do Fail TTM" comes first, then the rules in R-number order — R7 included, R2 not (2026-10-13)', () => {
     assert.deepEqual(NORMALIZATION_PANELS.map((panel) => panel.code), [FAIL_REASON_PANEL_CODE, 'R1', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R10', 'R11', 'CHANGE_ID', 'FIELD_CHANGE']);
-    assert.deepEqual(NORMALIZATION_PANELS.slice(0, 2).map((panel) => [panel.tag, panel.label]), [['Fail TTM', 'Thiếu lý do Fail TTM'], ['R1', 'Thiếu Start Date']]);
+    assert.deepEqual(NORMALIZATION_PANELS.slice(0, 2).map((panel) => [panel.tag, panel.label]), [['Fail TTM', 'Thiếu lý do Fail TTM'], ['Rule 1', 'Thiếu Start Date']]);
     assert.equal(NORMALIZATION_PANELS.find((panel) => panel.code === 'R7')?.label, 'Sai Status (Release)');
+    assert.equal(NORMALIZATION_PANELS.find((panel) => panel.code === 'R7')?.tag, 'Rule 7');
     for (const panel of NORMALIZATION_PANELS) {
       assert.ok(panel.meaning.length > 0 && panel.guide.length > 0 && panel.defaultMessage.length > 0, `${panel.code} lacks meaning/guide/message`);
     }
     assert.ok(!NORMALIZATION_PANELS.some((panel) => panel.index === 2));
+  });
+
+  it('Rule-1..6, Fail TTM and Rule 9 cells are highlighted red; the others are not (2026-11-23)', () => {
+    for (const tag of ['Rule 1', 'Rule 3', 'Rule 4', 'Rule 5', 'Rule 6', 'Fail TTM', 'Rule 9']) {
+      assert.ok(isHighlightedRuleTag(tag), `${tag} should be highlighted`);
+    }
+    for (const tag of ['Rule 7', 'Rule 8', 'Rule 10', 'Rule 11', 'Khuyến nghị', 'Thay đổi']) {
+      assert.ok(!isHighlightedRuleTag(tag), `${tag} should NOT be highlighted`);
+    }
   });
 
   it('"Thiếu Change ID" is a light green recommendation panel, last; its message follows the R4G Date (2026-11-09)', () => {

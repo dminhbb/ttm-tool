@@ -111,6 +111,9 @@ export interface ModalProps {
   actions?: React.ReactNode;
   /** Ref attached to the scrollable modal body container, useful for in-modal search. */
   bodyRef?: React.Ref<HTMLDivElement>;
+  /** Element focused when the popup opens (default: the close button). Lets callers jump straight to a
+   * primary action — e.g. TTM Calculator auto-focuses "Đồng ý và tính toán" so Enter confirms. */
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
 }
 
 /** useSyncExternalStore subscription for a value that never changes after hydration. */
@@ -129,13 +132,14 @@ export const Modal = ({
   layer = 'default',
   actions,
   bodyRef,
+  initialFocusRef,
 }: ModalProps) => {
   // false during SSR and the hydration pass, true afterwards — the portal is only created on the
   // client, without a setState-in-effect.
   const mounted = React.useSyncExternalStore(subscribeNever, () => true, () => false);
   const titleId = React.useId();
   const closeButtonRef = React.useRef<HTMLButtonElement>(null);
-  useModalBehavior(isOpen, onClose, closeButtonRef);
+  useModalBehavior(isOpen, onClose, initialFocusRef ?? closeButtonRef);
 
   if (!isOpen) return null;
 

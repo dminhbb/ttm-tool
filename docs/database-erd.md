@@ -1,6 +1,6 @@
 # TTM Monitor — ERD & từ điển dữ liệu
 
-> Sinh tự động bởi `scripts/db-schema-export.js` từ Supabase (PostgreSQL 17.6), 2026-11-18.
+> Sinh tự động bởi `scripts/db-schema-export.js` từ local (PostgreSQL 15.3), 2026-11-23.
 > Không sửa tay: cấu trúc đọc từ CSDL, phần mô tả lấy từ `scripts/db-schema-catalog.json`. File cài đặt tương ứng:
 > `db/install/ttm-monitor-schema.sql`. Tài liệu sản phẩm chương 5 dùng cùng nguồn.
 
@@ -156,8 +156,8 @@ Quản lý tài khoản người dùng, băm mật khẩu bcrypt. Cột `role` n
 | `failed_login_attempts` | int | không | 0 |  |  |
 | `badge_design_style` | varchar(20) | không | 'list'::character varying |  |  |
 
-- `users_badge_design_style_check`: CHECK (((badge_design_style)::text = ANY ((ARRAY['list'::character varying, 'minimal'::character varying])::text[])))
-- `users_role_check`: CHECK (((role)::text = ANY ((ARRAY['SUPERADMIN'::character varying, 'ADMIN'::character varying, 'SUPERVISOR'::character varying, 'USER'::character varying])::text[])))
+- `users_badge_design_style_check`: CHECK (((badge_design_style)::text = ANY (ARRAY[('list'::character varying)::text, ('minimal'::character varying)::text])))
+- `users_role_check`: CHECK (((role)::text = ANY (ARRAY[('SUPERADMIN'::character varying)::text, ('ADMIN'::character varying)::text, ('SUPERVISOR'::character varying)::text, ('USER'::character varying)::text])))
 - index `idx_users_unique_username`: UNIQUE btree (split_part(lower((email)::text), '@'::text, 1))
 
 ### `user_domains`
@@ -261,7 +261,7 @@ Lưu trữ yêu cầu đặt lại mật khẩu theo email. CAPTCHA xác thực 
 | `resolved_at` | timestamptz | có |  |  |  |
 | `resolved_by` | int | có |  | FK → users(id) |  |
 
-- `password_reset_requests_status_check`: CHECK (((status)::text = ANY ((ARRAY['PENDING'::character varying, 'RESOLVED'::character varying])::text[])))
+- `password_reset_requests_status_check`: CHECK (((status)::text = ANY (ARRAY[('PENDING'::character varying)::text, ('RESOLVED'::character varying)::text])))
 
 ### `permission_features`
 
@@ -274,7 +274,7 @@ Danh mục các tính năng hệ thống phục vụ ma trận phân quyền.
 | `category` | varchar(10) | không |  |  |  |
 | `display_order` | int | không | 0 |  |  |
 
-- `permission_features_category_check`: CHECK (((category)::text = ANY ((ARRAY['ADMIN'::character varying, 'VIEW_ONLY'::character varying])::text[])))
+- `permission_features_category_check`: CHECK (((category)::text = ANY (ARRAY[('ADMIN'::character varying)::text, ('VIEW_ONLY'::character varying)::text])))
 
 ### `role_feature_permissions`
 
@@ -289,7 +289,7 @@ Bảng ma trận cấu hình 4 quyền Xem/Thêm/Sửa/Xóa theo từng (tính n
 | `can_edit` | boolean | không | false |  |  |
 | `can_delete` | boolean | không | false |  |  |
 
-- `role_feature_permissions_role_check`: CHECK (((role)::text = ANY ((ARRAY['SUPERADMIN'::character varying, 'ADMIN'::character varying, 'SUPERVISOR'::character varying, 'USER'::character varying])::text[])))
+- `role_feature_permissions_role_check`: CHECK (((role)::text = ANY (ARRAY[('SUPERADMIN'::character varying)::text, ('ADMIN'::character varying)::text, ('SUPERVISOR'::character varying)::text, ('USER'::character varying)::text])))
 
 ### `user_registration_reads`
 
@@ -380,7 +380,7 @@ Danh mục Dự án. Khóa `source_project_key` duy nhất dùng để so khớp
 | `project_code` | varchar(50) | không |  | UK |  |
 | `project_type_id` | int | có |  | FK → project_types(id) |  |
 
-- `projects_project_category_check`: CHECK (((project_category)::text = ANY ((ARRAY['Dự án'::character varying, 'Team Agile'::character varying, 'Team Triển khai'::character varying])::text[])))
+- `projects_project_category_check`: CHECK (((project_category)::text = ANY (ARRAY[('Dự án'::character varying)::text, ('Team Agile'::character varying)::text, ('Team Triển khai'::character varying)::text])))
 - `projects_ttm_check`: CHECK ((ttm = ANY (ARRAY['Y'::bpchar, 'N'::bpchar])))
 - index `idx_projects_project_type`: btree (project_type_id)
 - index `idx_projects_source_key`: btree (source_project_key)
@@ -814,7 +814,7 @@ Bảng canonical lưu trữ toàn bộ issue mọi cấp (Epic/Story/Subtask). G
 | `created_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 | `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 
-- `denied_import_epics_source_check`: CHECK (((source)::text = ANY ((ARRAY['MANUAL'::character varying, 'AUTO_RULE'::character varying, 'SEED'::character varying, 'AUTO_EXEMPT'::character varying])::text[])))
+- `denied_import_epics_source_check`: CHECK (((source)::text = ANY (ARRAY[('MANUAL'::character varying)::text, ('AUTO_RULE'::character varying)::text, ('SEED'::character varying)::text, ('AUTO_EXEMPT'::character varying)::text])))
 - index `idx_denied_import_epics_project_key`: btree (project_key)
 
 ### `import_admission_settings`
@@ -964,12 +964,12 @@ Bảng tham chiếu ngoài nhóm (chỉ vẽ khoá chính): `users`.
 
 ### `ttm_policy_configs`
 
-Tiêu chí mốc hạn TTM chuẩn (TTM-CNTT và TTM-E2E) cho 4 loại Epic Type. Từ 26/10/2026 mỗi dòng thuộc một bộ ngân sách (`policy_set` → `ttm_policy_sets`); duy nhất theo (bộ, loại TTM, loại Epic).
+Tiêu chí mốc hạn TTM chuẩn (TTM-CNTT và TTM-E2E) cho 9 Loại Epic hợp lệ (CT-Lv12/CT-Lv34/TNM-Lv12/TNM-Lv34/HTM-Lv34/SP-Lv34/QT-Lv34/DV-Lv34/GPNT-Lv34). Từ 26/10/2026 mỗi dòng thuộc một bộ ngân sách (`policy_set` → `ttm_policy_sets`); duy nhất theo (bộ, loại TTM, loại Epic). Seed 18 dòng (9 tổ hợp × CNTT/E2E, bộ Mặc định) từ migration 20261202.
 
 | Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
 |---|---|---|---|---|---|
 | `id` | int (tự tăng) | không |  | PK |  |
-| `ttm_type` | varchar(20) | không |  |  | `VARCHAR(20) NOT NULL`CHECK ('SIMPLE', 'COMPLEX', 'CT-Lv12', 'CT-Lv34', 'SP-Lv12', 'SP-Lv34') |
+| `ttm_type` | varchar(20) | không |  |  | `VARCHAR(20) NOT NULL`CHECK IN ('TTM_CNTT', 'TTM_E2E') — loại TTM; 9 Loại Epic hợp lệ được seed trong bộ Mặc định |
 | `epic_complexity_type` | varchar(20) | không |  |  |  |
 | `from_ttm_field` | varchar(100) | không |  |  | `VARCHAR(50) NOT NULL`CHECK ('R4G_DATE', 'DUE_DATE') |
 | `to_ttm_field` | varchar(100) | không |  |  |  |
@@ -980,18 +980,18 @@ Tiêu chí mốc hạn TTM chuẩn (TTM-CNTT và TTM-E2E) cho 4 loại Epic Type
 | `policy_set` | varchar(40) | không | 'DEFAULT'::character varying | FK → ttm_policy_sets(key) |  |
 
 - UNIQUE (policy_set, ttm_type, epic_complexity_type)
-- `ttm_policy_configs_epic_complexity_type_check`: CHECK (((epic_complexity_type)::text = ANY ((ARRAY['SIMPLE'::character varying, 'COMPLEX'::character varying, 'CT-Lv12'::character varying, 'CT-Lv34'::character varying, 'SP-Lv12'::character varying, 'SP-Lv34'::character varying])::text[])))
-- `ttm_policy_configs_ttm_type_check`: CHECK (((ttm_type)::text = ANY ((ARRAY['TTM_CNTT'::character varying, 'TTM_E2E'::character varying])::text[])))
+- `ttm_policy_configs_epic_complexity_type_check`: CHECK (((epic_complexity_type)::text = ANY ((ARRAY['SIMPLE'::character varying, 'COMPLEX'::character varying, 'CT-Lv12'::character varying, 'CT-Lv34'::character varying, 'TNM-Lv34'::character varying, 'HTM-Lv34'::character varying, 'SP-Lv34'::character varying, 'QT-Lv34'::character varying, 'DV-Lv34'::character varying, 'GPNT-Lv34'::character varying, 'TNM-Lv12'::character varying, 'HTM-Lv12'::character varying, 'SP-Lv12'::character varying, 'QT-Lv12'::character varying, 'DV-Lv12'::character varying, 'GPNT-Lv12'::character varying])::text[])))
+- `ttm_policy_configs_ttm_type_check`: CHECK (((ttm_type)::text = ANY (ARRAY[('TTM_CNTT'::character varying)::text, ('TTM_E2E'::character varying)::text])))
 - `ttm_policy_configs_working_days_check`: CHECK (((working_days > 0) AND (working_days <= 3650)))
 
 ### `epic_status_alert_rules`
 
-Quy tắc mốc Cảnh báo sớm (số ngày làm việc từ T1) và Cảnh báo muộn (% ngân sách TTM-CNTT từ 26/10/2026) cho từng cặp (Loại Epic × Trạng thái).
+Quy tắc mốc Cảnh báo sớm (số ngày làm việc từ T1) và Cảnh báo muộn (% ngân sách TTM-CNTT từ 26/10/2026) cho từng cặp (Loại Epic × Trạng thái). Seed 18 dòng (9 Loại Epic hợp lệ × Design/In Progress) từ migration 20261202.
 
 | Cột | Kiểu | Null | Mặc định | Khoá | Ghi chú |
 |---|---|---|---|---|---|
 | `id` | int (tự tăng) | không |  | PK |  |
-| `epic_complexity_type` | varchar(20) | không |  |  | `VARCHAR(50) NOT NULL`Trạng thái Epic (Design, In Progress, DEV, TEST...) |
+| `epic_complexity_type` | varchar(20) | không |  |  | `VARCHAR(20) NOT NULL`Loại Epic — 9 tổ hợp hợp lệ: CT-Lv12/CT-Lv34/TNM-Lv12/TNM-Lv34/HTM-Lv34/SP-Lv34/QT-Lv34/DV-Lv34/GPNT-Lv34; CHECK còn nhận 5 tổ hợp "Phân loại sai Epic" (HTM-Lv12/SP-Lv12/QT-Lv12/DV-Lv12/GPNT-Lv12) để R6 gắn cờ |
 | `epic_status` | varchar(50) | không |  |  |  |
 | `early_alert_offset_days` | int | không |  |  | `INT NOT NULL`CHECK (>= 0) — Mốc Cảnh báo muộn (ngày làm việc) |
 | `late_alert_offset_days` | int | không |  |  |  |
@@ -1002,7 +1002,7 @@ Quy tắc mốc Cảnh báo sớm (số ngày làm việc từ T1) và Cảnh b�
 
 - UNIQUE (epic_complexity_type, epic_status)
 - `epic_status_alert_rules_early_alert_offset_days_check`: CHECK ((early_alert_offset_days >= 0))
-- `epic_status_alert_rules_epic_complexity_type_check`: CHECK (((epic_complexity_type)::text = ANY ((ARRAY['SIMPLE'::character varying, 'COMPLEX'::character varying, 'CT-Lv12'::character varying, 'CT-Lv34'::character varying, 'SP-Lv12'::character varying, 'SP-Lv34'::character varying])::text[])))
+- `epic_status_alert_rules_epic_complexity_type_check`: CHECK (((epic_complexity_type)::text = ANY ((ARRAY['SIMPLE'::character varying, 'COMPLEX'::character varying, 'CT-Lv12'::character varying, 'CT-Lv34'::character varying, 'TNM-Lv34'::character varying, 'HTM-Lv34'::character varying, 'SP-Lv34'::character varying, 'QT-Lv34'::character varying, 'DV-Lv34'::character varying, 'GPNT-Lv34'::character varying, 'TNM-Lv12'::character varying, 'HTM-Lv12'::character varying, 'SP-Lv12'::character varying, 'QT-Lv12'::character varying, 'DV-Lv12'::character varying, 'GPNT-Lv12'::character varying])::text[])))
 - `epic_status_alert_rules_late_alert_offset_days_check`: CHECK ((late_alert_offset_days >= 0))
 - `epic_status_alert_rules_late_alert_percent_check`: CHECK (((late_alert_percent >= (0)::numeric) AND (late_alert_percent <= (1000)::numeric)))
 - index `idx_epic_status_alert_rules_active`: btree (is_active) WHERE is_active
@@ -1019,7 +1019,7 @@ Mapping loại Subtask Jira sang team-role BA/DEV/TEST/PM để xác định ho�
 | `created_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
 | `updated_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
 
-- `issue_type_role_mapping_team_role_check`: CHECK (((team_role)::text = ANY ((ARRAY['BA'::character varying, 'DEV'::character varying, 'TEST'::character varying, 'PM'::character varying])::text[])))
+- `issue_type_role_mapping_team_role_check`: CHECK (((team_role)::text = ANY (ARRAY[('BA'::character varying)::text, ('DEV'::character varying)::text, ('TEST'::character varying)::text, ('PM'::character varying)::text])))
 - index `idx_issue_type_role_mapping_role`: btree (team_role)
 
 ### `ttm_scope_config`
@@ -1142,7 +1142,7 @@ Danh mục "Ngày làm bù": khai báo một ngày T7/CN cụ thể là ngày l�
 | `updated_by_user_id` | int | có |  | FK → users(id) |  |
 | `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 
-- `epic_task_status_status_check`: CHECK (((status)::text = ANY ((ARRAY['TODO'::character varying, 'DONE'::character varying])::text[])))
+- `epic_task_status_status_check`: CHECK (((status)::text = ANY (ARRAY[('TODO'::character varying)::text, ('DONE'::character varying)::text])))
 
 ## 6. Epic Scoring Service
 
@@ -1331,7 +1331,7 @@ Theo dõi 5 loại cảnh báo dưới dạng các đợt (run) có khoảng ng�
 | `created_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
 | `updated_at` | timestamptz | có | CURRENT_TIMESTAMP |  |  |
 
-- `epic_alert_timeline_alert_type_check`: CHECK (((alert_type)::text = ANY ((ARRAY['FAIL_TTM_CNTT'::character varying, 'LATE_TTM_CNTT'::character varying, 'FAIL_TTM_E2E'::character varying, 'MISSING_START_DATE'::character varying, 'DATA_ANOMALY'::character varying])::text[])))
+- `epic_alert_timeline_alert_type_check`: CHECK (((alert_type)::text = ANY (ARRAY[('FAIL_TTM_CNTT'::character varying)::text, ('LATE_TTM_CNTT'::character varying)::text, ('FAIL_TTM_E2E'::character varying)::text, ('MISSING_START_DATE'::character varying)::text, ('DATA_ANOMALY'::character varying)::text])))
 - index `idx_epic_alert_timeline_end_date`: btree (end_date)
 - index `idx_epic_alert_timeline_epic_key`: btree (epic_key)
 - index `idx_epic_alert_timeline_open_run`: UNIQUE btree (epic_key, alert_type) WHERE (end_date IS NULL)
@@ -1615,7 +1615,7 @@ Số liệu 4 widget của Báo cáo Epic start sớm (TTM-CNTT (QLDA) và TTM-C
 | `source` | varchar(10) | không | 'DAILY'::character varying |  |  |
 | `computed_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 
-- `ttm_dashboard_metric_history_source_check`: CHECK (((source)::text = ANY ((ARRAY['DAILY'::character varying, 'BACKFILL'::character varying])::text[])))
+- `ttm_dashboard_metric_history_source_check`: CHECK (((source)::text = ANY (ARRAY[('DAILY'::character varying)::text, ('BACKFILL'::character varying)::text])))
 - index `idx_ttm_dashboard_metric_history_date`: btree (layer_date)
 
 ### `ttm_dashboard_fail_history`
@@ -1629,7 +1629,7 @@ Số liệu 4 widget của Báo cáo Epic start sớm (TTM-CNTT (QLDA) và TTM-C
 | `source` | varchar(10) | không | 'DAILY'::character varying |  |  |
 | `computed_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 
-- `ttm_dashboard_fail_history_source_check`: CHECK (((source)::text = ANY ((ARRAY['DAILY'::character varying, 'BACKFILL'::character varying])::text[])))
+- `ttm_dashboard_fail_history_source_check`: CHECK (((source)::text = ANY (ARRAY[('DAILY'::character varying)::text, ('BACKFILL'::character varying)::text])))
 
 ### `daily_cache_runs`
 
@@ -1750,7 +1750,7 @@ Hai bảng cấu hình singleton lưu Cấu hình tích hợp Jira và số ngà
 | `history_thinning_updated_by_user_id` | int | có |  | FK → users(id) |  |
 
 - `data_retention_configs_history_thinning_daily_limit_check`: CHECK (((history_thinning_daily_limit >= 1000) AND (history_thinning_daily_limit <= 1000000)))
-- `data_retention_configs_history_thinning_last_run_source_check`: CHECK (((history_thinning_last_run_source IS NULL) OR ((history_thinning_last_run_source)::text = ANY ((ARRAY['DAILY'::character varying, 'MANUAL'::character varying])::text[]))))
+- `data_retention_configs_history_thinning_last_run_source_check`: CHECK (((history_thinning_last_run_source IS NULL) OR ((history_thinning_last_run_source)::text = ANY (ARRAY[('DAILY'::character varying)::text, ('MANUAL'::character varying)::text]))))
 - `data_retention_configs_id_check`: CHECK ((id = 1))
 - `data_retention_configs_raw_import_retention_days_check`: CHECK (((raw_import_retention_days >= 7) AND (raw_import_retention_days <= 3650)))
 
@@ -1921,7 +1921,7 @@ Cấu hình Banner thông báo (Mặc định toàn hệ thống hoặc theo t�
 | `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 
 - `chk_info_banners_date_range`: CHECK (((end_date IS NULL) OR (end_date >= start_date)))
-- `info_banners_banner_type_check`: CHECK (((banner_type)::text = ANY ((ARRAY['DEFAULT'::character varying, 'PER_SCREEN'::character varying])::text[])))
+- `info_banners_banner_type_check`: CHECK (((banner_type)::text = ANY (ARRAY[('DEFAULT'::character varying)::text, ('PER_SCREEN'::character varying)::text])))
 - index `uq_info_banners_single_default`: UNIQUE btree (banner_type) WHERE ((banner_type)::text = 'DEFAULT'::text)
 
 ### `float_message_settings`
@@ -1971,8 +1971,6 @@ erDiagram
     news_letter_articles {
         int id PK
         varchar title
-        varchar short_title
-        varchar slug
         text summary
         int category_id FK
         text_array visible_roles
@@ -1988,14 +1986,16 @@ erDiagram
         boolean hidden_from_menu
         boolean is_pinned
         timestamptz pinned_at
+        varchar short_title
+        varchar slug
     }
     news_letter_categories {
         int id PK
         varchar name
-        boolean expanded
         int created_by FK
         timestamptz created_at
         timestamptz updated_at
+        boolean expanded
     }
     news_letter_images {
         uuid id PK
@@ -2044,8 +2044,6 @@ Bài viết của Bản tin (`/news-letter`, SUPERADMIN soạn): tiêu đề, t�
 |---|---|---|---|---|---|
 | `id` | int (tự tăng) | không |  | PK |  |
 | `title` | varchar(300) | không |  |  |  |
-| `short_title` | varchar(50) | có |  |  | `VARCHAR(50)`"Tiêu đề ngắn" (20/11/2026, không bắt buộc): hiển thị trên menu thay `title`; bỏ trống thì menu dùng `title` |
-| `slug` | varchar(80) | có |  |  | `VARCHAR(80)` (unique, nhiều NULL)URL bài viết thay cho id — rút gọn từ `short_title` (bỏ dấu VN, dấu cách→`_`, giữ hoa/thường); bài không có `short_title` thì NULL và URL dùng id |
 | `summary` | text | có |  |  |  |
 | `category_id` | int | có |  | FK → news_letter_categories(id) |  |
 | `visible_roles` | text[] | không | ARRAY['SUPERADMIN'::text, 'ADMIN'::text, 'SUPERVISOR'::text, 'USER'::text] |  |  |
@@ -2061,6 +2059,8 @@ Bài viết của Bản tin (`/news-letter`, SUPERADMIN soạn): tiêu đề, t�
 | `hidden_from_menu` | boolean | không | false |  | `BOOLEAN NOT NULL DEFAULT false`"Ẩn trên menu" (10/11/2026): bài viết vẫn mở được qua link, không hiện ở mục lục, bài trước / sau, chấm chưa đọc và MCP — SUPERADMIN vẫn thấy trên menu |
 | `is_pinned` | boolean | không | false |  | `BOOLEAN NOT NULL DEFAULT false`"Ghim bài viết" (10/11/2026): hiện trên đầu cột mục lục (trên "Mới nhất", có biểu tượng ghim) và trên ticker phía trên bài viết; vẫn nằm trong thư mục |
 | `pinned_at` | timestamptz | có |  |  | `TIMESTAMP WITH TIME ZONE`Lúc bài viết được ghim (giữ nguyên khi còn ghim, NULL khi bỏ ghim) — bài ghim mới nhất đứng trước |
+| `short_title` | varchar(50) | có |  |  | `VARCHAR(50)`"Tiêu đề ngắn" (20/11/2026, không bắt buộc): hiển thị trên menu thay `title`; bỏ trống thì menu dùng `title` |
+| `slug` | varchar(80) | có |  |  | `VARCHAR(80)` (unique, nhiều NULL)URL bài viết thay cho id — rút gọn từ `short_title` (bỏ dấu VN, dấu cách→`_`, giữ hoa/thường); bài không có `short_title` thì NULL và URL dùng id |
 
 - index `idx_news_letter_articles_category`: btree (category_id)
 - index `idx_news_letter_articles_order`: btree (first_published_at DESC, id DESC)
@@ -2074,10 +2074,10 @@ Phân loại bài viết Bản tin (tên không trùng, không xoá được khi
 |---|---|---|---|---|---|
 | `id` | int (tự tăng) | không |  | PK |  |
 | `name` | varchar(120) | không |  |  |  |
-| `expanded` | boolean | không | false |  | `BOOLEAN NOT NULL DEFAULT false`"Expand" (20/11/2026): thư mục này mở sẵn trong menu bên trái hiển thị các đầu mục tin; mặc định collapsed |
 | `created_by` | int | có |  | FK → users(id) |  |
 | `created_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 | `updated_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
+| `expanded` | boolean | không | false |  | `BOOLEAN NOT NULL DEFAULT false`"Expand" (20/11/2026): thư mục này mở sẵn trong menu bên trái hiển thị các đầu mục tin; mặc định collapsed |
 
 - index `uq_news_letter_categories_name`: UNIQUE btree (lower((name)::text))
 
@@ -2096,7 +2096,7 @@ Phân loại bài viết Bản tin (tên không trùng, không xoá được khi
 | `created_by` | int | có |  | FK → users(id) |  |
 | `created_at` | timestamptz | không | CURRENT_TIMESTAMP |  |  |
 
-- `news_letter_images_kind_check`: CHECK (((kind)::text = ANY ((ARRAY['HEADER'::character varying, 'INLINE'::character varying])::text[])))
+- `news_letter_images_kind_check`: CHECK (((kind)::text = ANY (ARRAY[('HEADER'::character varying)::text, ('INLINE'::character varying)::text])))
 - index `idx_news_letter_images_article`: btree (article_id)
 
 ### `news_letter_article_edits`

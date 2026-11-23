@@ -5,9 +5,10 @@ import { computeEpicPhaseCompletionByEpicKey } from '@/lib/epic-phase-completion
 import { EPIC_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
 import { toIsoDate } from '@/lib/scoring/dates';
 import { normalizeTtmApplied, parseExceptPlanDate } from '@/lib/scoring/ttm-applied';
+import { VALID_EPIC_COMPLEXITIES } from '@/lib/status-alert-rule-types';
 import type { EpicComplexity, EpicFacts } from '@/lib/scoring/types';
 
-const VALID_COMPLEXITY = new Set(['CT-Lv12', 'CT-Lv34', 'SP-Lv12', 'SP-Lv34']);
+const VALID_COMPLEXITY = VALID_EPIC_COMPLEXITIES;
 
 interface EpicFactRow {
   epicKey: string;

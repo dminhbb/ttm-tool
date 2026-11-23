@@ -21,7 +21,7 @@ export const RULE_SLOT_LABELS: Record<RuleSlot, string> = {
   DQ_R3: 'R3 — Sai thứ tự ngày',
   DQ_R4: 'R4 — Thiếu Phân loại yêu cầu',
   DQ_R5: 'R5 — Thiếu Requirement Level',
-  DQ_R6: 'R6 — SP nhưng Level thấp',
+  DQ_R6: 'R6 — Phân loại sai Loại yêu cầu',
   DQ_R8: 'R8 — Có R4G Date nhưng chưa R4GOLIVE',
   DQ_R9: 'R9 — Thiếu R4G Date',
   DQ_R10: 'R10 — R4G Date ở tương lai',

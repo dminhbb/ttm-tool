@@ -12,9 +12,10 @@ import { BADGE_BY_ID } from '@/lib/scoring/catalog';
 import type { BadgeId } from '@/lib/scoring/catalog';
 import { toIsoDate } from '@/lib/scoring/dates';
 import { scoreEpic } from '@/lib/scoring/score-epic';
+import { VALID_EPIC_COMPLEXITIES } from '@/lib/status-alert-rule-types';
 import type { EpicComplexity, EpicScorecard } from '@/lib/scoring/types';
 
-const VALID_COMPLEXITY = new Set(['CT-Lv12', 'CT-Lv34', 'SP-Lv12', 'SP-Lv34']);
+const VALID_COMPLEXITY = VALID_EPIC_COMPLEXITIES;
 
 export interface ReportFilterOptions {
   /** Pins every FAIL/EARLY/LATE and "sai lệch dữ liệu" calculation to this date instead of the real

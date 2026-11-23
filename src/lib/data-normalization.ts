@@ -48,10 +48,16 @@ const MISSING_CHANGE_ID_BADGE = 'REC_MISSING_CHANGE_ID' satisfies BadgeId;
 /** Key of the "Thiếu lý do Fail TTM" panel in the API (page map, open panels). */
 export const FAIL_REASON_PANEL_CODE = 'FAIL_REASON';
 
+/** Tags whose rule cells are highlighted (red bg + yellow text + bold) on the Chuẩn hoá dữ liệu screen:
+ * Rule 1–6, Fail TTM and Rule 9 (owner request 2026-11-23). */
+export function isHighlightedRuleTag(tag: string): boolean {
+  return tag === 'Fail TTM' || tag === 'Rule 9' || /^Rule [1-6]$/.test(tag);
+}
+
 export interface NormalizationPanelDefinition {
   /** Key of the panel in the API (page map, open panels): 'R1', 'R3'… or FAIL_REASON_PANEL_CODE. */
   code: string;
-  /** Short tag shown before the title ('R1'…, 'Fail TTM'). */
+  /** Short tag shown before the title ('Rule 1'…, 'Fail TTM'). */
   tag: string;
   /** Rule title. */
   label: string;
@@ -96,7 +102,7 @@ const DATA_QUALITY_PANELS: NormalizationPanelDefinition[] = badgesOf('DATA_QUALI
       index,
       label: badge.label,
       meaning: badge.meaning,
-      tag: `R${index}`,
+      tag: `Rule ${index}`,
     };
   })
   .filter((rule) => rule.index > 0);
@@ -111,7 +117,7 @@ const RELEASE_MISMATCH_PANEL: NormalizationPanelDefinition = {
   index: 7,
   label: `${releaseMismatchBadge.label} (Release)`,
   meaning: releaseMismatchBadge.meaning,
-  tag: 'R7',
+  tag: 'Rule 7',
 };
 
 const FAIL_REASON_PANEL: NormalizationPanelDefinition = {

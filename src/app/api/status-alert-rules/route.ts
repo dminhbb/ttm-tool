@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthError, requireUser } from '@/lib/auth-service';
 import { createStatusAlertRule, deleteStatusAlertRule, listStatusAlertRules, updateStatusAlertRule } from '@/lib/status-alert-rule-service';
-import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
+import { EPIC_COMPLEXITY_TYPES, isMisclassifiedEpicComplexity } from '@/lib/status-alert-rule-types';
 import type { EpicComplexityType, StatusAlertRuleInput } from '@/lib/status-alert-rule-types';
 
 const MAX_WORKING_DAY_OFFSET = 3650;
@@ -27,6 +27,9 @@ function parseInput(body: unknown): { error: string } | { value: StatusAlertRule
 
   const { epicComplexityType, epicStatus, earlyAlertOffsetDays, lateAlertPercent, isActive } = body;
   if (!EPIC_COMPLEXITY_TYPES.includes(epicComplexityType as EpicComplexityType)) return { error: 'Loại Epic không hợp lệ.' };
+  if (isMisclassifiedEpicComplexity(epicComplexityType as EpicComplexityType)) {
+    return { error: `Tổ hợp ${epicComplexityType} thuộc nhóm "Phân loại sai Epic" — không thể cấu hình rule cảnh báo cho tổ hợp này.` };
+  }
   if (typeof epicStatus !== 'string' || !/^[\p{L}\p{N} ._/-]{1,50}$/u.test(epicStatus.trim())) {
     return { error: 'Trạng thái Epic chỉ được chứa chữ, số, khoảng trắng hoặc ký tự . _ / - (tối đa 50 ký tự).' };
   }

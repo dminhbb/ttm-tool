@@ -10,17 +10,33 @@ const base = { requestType: 'Cải tiến', requirementLevel: '2', startDate: '2
 const ctx = makeContext({ holidays: { holidays: new Set(['2026-11-24']), workdays: new Set() } });
 
 describe('TTM Calculator — phân loại Epic (dùng chung với import)', () => {
-  it('CT/SP × Lv12/Lv34, level lạ → CT-Lv12', () => {
+  it('7 loại yêu cầu × Lv12/Lv34 → 14 tổ hợp; level lạ → Lv12 (2026-11-23)', () => {
     assert.equal(computeEpicComplexity('Cải tiến', '2'), 'CT-Lv12');
-    assert.equal(computeEpicComplexity('Tính năng mới', '3'), 'CT-Lv34');
+    assert.equal(computeEpicComplexity('Cải tiến', '3'), 'CT-Lv34');
+    assert.equal(computeEpicComplexity('Tính năng mới', '3'), 'TNM-Lv34');
+    assert.equal(computeEpicComplexity('Tính năng mới', '1'), 'TNM-Lv12');
+    assert.equal(computeEpicComplexity('Sản phẩm', '4'), 'SP-Lv34');
     assert.equal(computeEpicComplexity('Sản phẩm', '1'), 'SP-Lv12');
-    assert.equal(computeEpicComplexity('Sản phẩm/dịch vụ/quy trình mới', '4'), 'SP-Lv34');
+    assert.equal(computeEpicComplexity('Hệ thống mới', '4'), 'HTM-Lv34');
+    assert.equal(computeEpicComplexity('Hệ thống mới', '2'), 'HTM-Lv12');
+    assert.equal(computeEpicComplexity('Quy trình', '4'), 'QT-Lv34');
+    assert.equal(computeEpicComplexity('Quy trình', '2'), 'QT-Lv12');
+    assert.equal(computeEpicComplexity('Dịch vụ', '4'), 'DV-Lv34');
+    assert.equal(computeEpicComplexity('Dịch vụ', '2'), 'DV-Lv12');
+    assert.equal(computeEpicComplexity('Giải pháp nền tảng', '4'), 'GPNT-Lv34');
+    assert.equal(computeEpicComplexity('Giải pháp nền tảng', '2'), 'GPNT-Lv12');
     assert.equal(computeEpicComplexity('Cải tiến', '9'), 'CT-Lv12');
+    // Request type không nhận dạng → CT (mặc định an toàn).
+    assert.equal(computeEpicComplexity('giá trị lạ', '4'), 'CT-Lv34');
+    // Request type legacy → SP (từ đồng nghĩa "Sản phẩm/dịch vụ/quy trình mới", owner 2026-11-23).
+    assert.equal(computeEpicComplexity('Sản phẩm/dịch vụ/quy trình mới', '4'), 'SP-Lv34');
   });
 
-  it('level rỗng/missing cho loại SP → mặc định an toàn CT-Lv12 (đổi luôn ngân sách)', () => {
-    assert.equal(computeEpicComplexity('Sản phẩm', ''), 'CT-Lv12');
-    assert.equal(computeEpicComplexity('Sản phẩm', 'none'), 'CT-Lv12');
+  it('level rỗng/missing → mặc định Lv12 (với loại không phải CT → tổ hợp "Phân loại sai Epic")', () => {
+    assert.equal(computeEpicComplexity('Cải tiến', ''), 'CT-Lv12');
+    assert.equal(computeEpicComplexity('Cải tiến', 'none'), 'CT-Lv12');
+    assert.equal(computeEpicComplexity('Sản phẩm', ''), 'SP-Lv12');
+    assert.equal(computeEpicComplexity('Sản phẩm', 'none'), 'SP-Lv12');
   });
 });
 
@@ -75,10 +91,13 @@ describe('TTM Calculator — các mốc', () => {
     assert.match(withCreated.e2e?.sourceLabel ?? '', /Jira/);
   });
 
-  it('loại Epic khác dùng đúng bộ ngân sách của nó (SP-Lv12 = 30 ngày)', () => {
+  it('loại Epic khác dùng đúng bộ ngân sách của nó (SP-Lv12 = 30 ngày); tổ hợp sai được đánh dấu', () => {
     const sp = calculateTtm({ ...base, requestType: 'Sản phẩm' }, ctx);
     assert.equal(sp.complexity, 'SP-Lv12');
     assert.equal(sp.totalCnttWorkingDays, 30);
+    assert.equal(sp.misclassifiedEpic, true);
+    // Tổ hợp hợp lệ (CT-Lv12) không bị đánh dấu sai.
+    assert.equal(calculateTtm(base, ctx).misclassifiedEpic, false);
   });
 
   it('thiếu bộ ngân sách cho loại Epic → không có mốc, không lỗi', () => {

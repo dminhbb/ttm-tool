@@ -1,4 +1,5 @@
 import { computeEpicComplexity } from '@/lib/epic-complexity';
+import { isMisclassifiedEpicComplexity } from '@/lib/status-alert-rule-types';
 import { addWorkingDays, diffWorkingDays } from '@/lib/scoring/dates';
 import { deriveMetrics, PHASE_KEYS } from '@/lib/scoring/derive';
 import { matchingRuleGroups, policySetsOf, resolveRuleSelection, slotRuleOf } from '@/lib/scoring/rule-groups';
@@ -37,6 +38,9 @@ export interface CalculatorPhaseRow {
 
 export interface TtmCalculatorResult {
   complexity: EpicComplexity;
+  /** True when the Epic's Loại Epic is in the "Phân loại sai Epic" group (a non-CT request type wrongly at
+   * Lv12) — the Calculator must warn and refuse to show milestones for it (owner request 2026-11-23). */
+  misclassifiedEpic: boolean;
   /** Hạn golive = R4G + `graceWorkingDays` working days. */
   goliveDate: IsoDate | null;
   graceWorkingDays: number;
@@ -142,6 +146,7 @@ export function calculateTtm(input: TtmCalculatorInput, ctx: ScoringContext): Tt
 
   return {
     complexity,
+    misclassifiedEpic: isMisclassifiedEpicComplexity(complexity),
     e2e: e2eSource
       ? {
           budgetWorkingDays: derived.e2eBudgetWorkingDays,

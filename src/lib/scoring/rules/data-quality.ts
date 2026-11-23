@@ -1,5 +1,6 @@
 import { diffWorkingDays, toIsoDate } from '../dates';
 import { isCancelledStatus, isPendingStatus, isReopenedStatus, normalizeWorkflowStatus, STATUS_INDEX } from '../derive';
+import { isMisclassifiedEpicComplexity } from '@/lib/status-alert-rule-types';
 import { finding } from './rule-types';
 import type { DerivedRule, PrimaryRule, RuleDetail, RuleSlot, ScoringRule } from './rule-types';
 import type { BadgeId } from '../catalog';
@@ -301,18 +302,18 @@ export const dqR5Rule = dataQualityRule({
 
 export const dqR6Rule = dataQualityRule({
   id: 'dq-r6',
-  name: 'R6 — SP nhưng Level thấp',
-  summary: 'Loại Epic Sản phẩm (SP-Lv12 / SP-Lv34) nhưng Requirement Level thuộc danh sách mâu thuẫn (mặc định 1, 2).',
+  name: 'R6 — Phân loại sai Loại yêu cầu',
+  summary: 'Loại Epic thuộc nhóm "Phân loại sai Epic": một Loại yêu cầu (Sản phẩm / Hệ thống mới / Quy trình / Dịch vụ / Giải pháp nền tảng) chỉ tồn tại ở mức 3-4, nhưng Requirement Level của Epic là 1-2 (HTM-Lv12, SP-Lv12, QT-Lv12, DV-Lv12, GPNT-Lv12).',
   detail: { conditions: EXEMPT_NOTE, parameters: ['anomaly.spMismatchLevels'] },
   emits: ['ANOMALY_R6_SP_LEVEL_MISMATCH', 'REC_REVIEW_SP_LEVEL'],
   honorsExemptStatuses: true,
-  evaluate: ({ facts, ctx }) => {
+  evaluate: ({ facts }) => {
+    if (!isMisclassifiedEpicComplexity(facts.complexity)) return [];
     const level = (facts.requirementLevel ?? '').trim();
-    if (!(facts.complexity ?? '').startsWith('SP-') || !ctx.parameters['anomaly.spMismatchLevels'].includes(level)) return [];
-    return [finding('ANOMALY_R6_SP_LEVEL_MISMATCH', `Epic được đánh giá độ phức tạp Sản phẩm (${facts.complexity}) nhưng Requirement Level = ${level} — không phù hợp với loại yêu cầu Sản phẩm`)];
+    return [finding('ANOMALY_R6_SP_LEVEL_MISMATCH', `Loại Epic ${facts.complexity} thuộc nhóm "Phân loại sai Epic" (${facts.complexity?.replace(/-Lv\d+$/, '')} không được phân loại ở mức ${level || '1-2'}) — Loại yêu cầu này chỉ tồn tại ở mức 3-4`)];
   },
   recommend: (_input, active) => (active.has('ANOMALY_R6_SP_LEVEL_MISMATCH')
-    ? [finding('REC_REVIEW_SP_LEVEL', 'Rà soát lại Phân loại yêu cầu / Requirement Level.', {}, { relatedTo: ['ANOMALY_R6_SP_LEVEL_MISMATCH'] })]
+    ? [finding('REC_REVIEW_SP_LEVEL', 'Rà soát lại Phân loại yêu cầu / Requirement Level — Loại Epic thuộc nhóm "Phân loại sai Epic".', {}, { relatedTo: ['ANOMALY_R6_SP_LEVEL_MISMATCH'] })]
     : []),
 });
 

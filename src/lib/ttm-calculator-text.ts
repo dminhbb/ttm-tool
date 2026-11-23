@@ -6,7 +6,9 @@
  * rồi chạy 3 Regular Expression theo thứ tự: ngày → level → loại yêu cầu.
  */
 
-export const CALCULATOR_REQUEST_TYPES = ['Tính năng mới', 'Cải tiến', 'Sản phẩm/dịch vụ/quy trình mới', 'Sản phẩm'] as const;
+export const CALCULATOR_REQUEST_TYPES = [
+  'Tính năng mới', 'Cải tiến', 'Sản phẩm', 'Hệ thống mới', 'Quy trình', 'Dịch vụ', 'Giải pháp nền tảng',
+] as const;
 export type CalculatorRequestType = (typeof CALCULATOR_REQUEST_TYPES)[number];
 export const CALCULATOR_LEVELS = ['1', '2', '3', '4'] as const;
 
@@ -18,16 +20,16 @@ export const LEVEL_PATTERN = /(?<![a-z0-9])(?:level|lv|l|cap|muc)\s*[:=-]?\s*([1
 const LEVEL_ANY_NUMBER_PATTERN = /(?<![a-z0-9])(?:level|lv|l|cap|muc)\s*[:=-]?\s*(\d+)/;
 /**
  * Loại yêu cầu — nhận dạng các từ khoá (không phân biệt hoa/thường, không dấu, có/không dấu cách) và viết tắt.
- * 4 nhóm, mỗi nhóm một capturing group (đánh số theo REQUEST_TYPE_BY_GROUP bên dưới):
- *   1 = Sản phẩm/dịch vụ/quy trình mới (cụm tiêu chuẩn)
- *   2 = Tính năng mới
- *   3 = Cải tiến
- *   4 = Sản phẩm
+ * 7 nhóm, mỗi nhóm một capturing group (đánh số theo REQUEST_TYPE_BY_GROUP bên dưới):
+ *   1 = Tính năng mới    2 = Cải tiến    3 = Sản phẩm    4 = Hệ thống mới
+ *   5 = Quy trình        6 = Dịch vụ     7 = Giải pháp nền tảng
  * Các viết tắt dùng \b (ranh giới từ) để không khớp lẫn vào từ khác. Nhóm dài/xác định trước.
  */
 export const REQUEST_TYPE_PATTERN =
-  /((?:san\s*pham\s*\/\s*dich\s*vu\s*\/\s*quy\s*trinh\s*moi)|(?:san\s*pham\s*\/\s*dich\s*vu)|(?:san\s*pham\s*moi)|(?:dich\s*vu\s*moi)|(?:dich\s*vu)|(?:quy\s*trinh\s*moi)|(?:quy\s*trinh)|\bspdvqtm\b|\bspdvqt\b|\bdvm\b|\bqtm\b|\bspm\b|\bdv\b|\bqt\b)|(tinh\s*nang\s*moi|\btnm\b|\btn\b)|(cai\s*tien|\bct\b)|(san\s*pham|\bsp\b)/;
-const REQUEST_TYPE_BY_GROUP: readonly CalculatorRequestType[] = ['Sản phẩm/dịch vụ/quy trình mới', 'Tính năng mới', 'Cải tiến', 'Sản phẩm'];
+  /((?:tinh\s*nang\s*moi)|\btnm\b|\btnt\b|\btn\b)|(cai\s*tien|\bct\b)|(san\s*pham|phat\s*trien\s*moi|\bsp\b)|((?:he\s*thong\s*moi)|\bhtm\b)|(quy\s*trinh|\bqt\b)|(dich\s*vu|\bdv\b)|((?:giai\s*phap\s*nen\s*tang)|\bgpnt\b)/;
+const REQUEST_TYPE_BY_GROUP: readonly CalculatorRequestType[] = [
+  'Tính năng mới', 'Cải tiến', 'Sản phẩm', 'Hệ thống mới', 'Quy trình', 'Dịch vụ', 'Giải pháp nền tảng',
+];
 
 export interface CalculatorTextResult {
   level: (typeof CALCULATOR_LEVELS)[number] | null;
@@ -101,7 +103,7 @@ export function parseCalculatorText(text: string, currentYear: number): Calculat
   if (typeMatch) {
     requestType = REQUEST_TYPE_BY_GROUP[typeMatch.slice(1).findIndex((group) => group !== undefined)] ?? null;
   } else {
-    problems.push('Không tìm thấy Loại yêu cầu (Tính năng mới, Cải tiến, Sản phẩm/dịch vụ/quy trình mới, Sản phẩm).');
+    problems.push('Không tìm thấy Loại yêu cầu (Tính năng mới, Cải tiến, Sản phẩm, Hệ thống mới, Quy trình, Dịch vụ, Giải pháp nền tảng).');
   }
 
   return { level, problems, requestType, startDate };

@@ -10,6 +10,7 @@ import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
 import { NormalizationEpicTable } from '@/components/data-normalization/NormalizationEpicTable';
 import { EpicMarkModal } from '@/components/epic-mark/EpicMarkModal';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
+import { isHighlightedRuleTag } from '@/lib/data-normalization';
 import type { NormalizationPanel } from '@/lib/data-normalization';
 import { EPIC_FIELD_CHANGE_DEFAULT_FIELD, EPIC_FIELD_CHANGE_DEFAULT_FROM, EPIC_FIELD_CHANGE_FIELDS, EPIC_FIELD_CHANGE_LABEL, type EpicFieldChangeField } from '@/lib/epic-field-changes';
 import type { TtmDashboard2FilterOptions } from '@/lib/ttm-funnel-summary';
@@ -114,7 +115,8 @@ function RulePanel({ changesField, changesFrom, isOpen, onBrowse, onChangesField
           type="button"
         >
           <Chevron aria-hidden="true" className="size-4 shrink-0 text-fb-text-secondary" weight="bold" />
-          <Badge variant={isRecommendation ? 'success' : 'neutral'}>{panel.tag}</Badge>
+          {/* Rule-1..6 / Fail TTM / Rule 9 cells are highlighted red with yellow bold text (owner 2026-11-23). */}
+          <Badge className={isHighlightedRuleTag(panel.tag) ? 'dn-rule-badge-alert' : undefined} variant={isRecommendation ? 'success' : 'neutral'}>{panel.tag}</Badge>
           <h2 className="text-sm font-normal text-fb-text-primary" id={`rule-${panel.code}`}>{panel.label}</h2>
           {/* Count > 0: orange with white text (owner 2026-11-09); 0 stays green. */}
           <Badge className={panel.totalCount > 0 ? 'dn-count-badge-alert' : undefined} variant={panel.totalCount > 0 ? 'warning' : 'success'}>{panel.totalCount} Epic</Badge>

@@ -388,10 +388,10 @@
       <h2>5. Mô hình &amp; Sơ đồ cơ sở dữ liệu (Data Model &amp; ERD)</h2>
       <!-- BEGIN GENERATED: db-schema -->
       <p>
-        Cơ sở dữ liệu của TTM Monitor dùng <strong>PostgreSQL</strong> (đang chạy 17.6), gồm <strong>81 bảng</strong> trong schema <code>public</code>,
+        Cơ sở dữ liệu của TTM Monitor dùng <strong>PostgreSQL</strong> (đang chạy 15.3), gồm <strong>81 bảng</strong> trong schema <code>public</code>,
         <strong>71 khoá ngoại</strong>, 4 hàm và 4 trigger; không dùng view, extension hay Row Level Security.
         Cấu trúc thay đổi duy nhất qua chuỗi migration <code>db/migrations/*.sql</code> (chạy bằng <code>scripts/migrate-db.js</code>, ghi vào <code>schema_migrations</code>).
-        Toàn bộ chương này được sinh từ CSDL Supabase ngày 18/11/2026 bởi <code>scripts/db-schema-export.js</code> — cùng lần chạy sinh ra
+        Toàn bộ chương này được sinh từ CSDL local ngày 23/11/2026 bởi <code>scripts/db-schema-export.js</code> — cùng lần chạy sinh ra
         file tạo CSDL mới <code>db/install/ttm-monitor-schema.sql</code> (chỉ cấu trúc, không dữ liệu) và tài liệu ERD chi tiết <code>docs/database-erd.md</code> (sơ đồ Mermaid từng nhóm + từ điển dữ liệu).
       </p>
 
@@ -482,7 +482,7 @@
         </g>
       </svg>
 
-      <h3>5.2. Danh mục 81 bảng CSDL (đối chiếu CSDL Supabase 18/11/2026)</h3>
+      <h3>5.2. Danh mục 81 bảng CSDL (đối chiếu CSDL local 23/11/2026)</h3>
       <table>
         <thead><tr><th>STT</th><th>Bảng CSDL</th><th>Nhóm</th><th>Khoá chính / Khoá ngoại</th><th>Vai trò nghiệp vụ &amp; Ghi chú</th></tr></thead>
         <tbody>
@@ -513,8 +513,8 @@
           <tr><td>25</td><td><code>denied_import_epics</code></td><td>Import &amp; Issue</td><td><code>epic_key</code> (PK)<br><code>added_by_user_id</code> → <code>users</code></td><td><strong>Mới 14/10/2026.</strong> "Từ chối import": Epic không được đưa vào CSDL. Lưu thông tin cơ bản chụp lúc thêm (summary, status, đơn vị yêu cầu, created, ngày duyệt ý tưởng, start, R4G, due), <code>allow_import</code> ("Cho phép import" — miễn trừ rule tự động), <code>source</code> (<code>MANUAL</code> / <code>AUTO_RULE</code> / <code>SEED</code>), lý do, lần xóa dữ liệu gần nhất — mục 3.4.</td></tr>
           <tr><td>26</td><td><code>import_admission_settings</code></td><td>Import &amp; Issue</td><td><code>id</code> (PK)<br><code>updated_by_user_id</code> → <code>users</code></td><td><strong>Mới 14/10/2026.</strong> Ngày A (<code>created_before</code>) và ngày B (<code>released_due_before</code>) của rule tự động Từ chối import; để trống = tắt rule — mục 3.4.</td></tr>
           <tr><td>27</td><td><code>ttm_policy_sets</code></td><td>Cấu hình TTM, lịch &amp; phạm vi</td><td><code>key</code> (PK)</td><td><strong>Mới 26/10/2026.</strong> "Bộ ngân sách" Time to Market: tên một bộ tiêu chí (<code>DEFAULT</code> = hiện hành). Bộ khác chỉ chứa các dòng khác Mặc định; rule TTM-CNTT/E2E trong code chọn bộ nào được đọc (<code>policySet</code> trong <code>src/lib/scoring/registry.ts</code>).</td></tr>
-          <tr><td>28</td><td><code>ttm_policy_configs</code></td><td>Cấu hình TTM, lịch &amp; phạm vi</td><td><code>id</code> (PK)<br><code>policy_set</code> → <code>ttm_policy_sets</code></td><td>Tiêu chí mốc hạn TTM chuẩn (TTM-CNTT và TTM-E2E) cho 4 loại Epic Type. Từ 26/10/2026 mỗi dòng thuộc một bộ ngân sách (<code>policy_set</code> → <code>ttm_policy_sets</code>); duy nhất theo (bộ, loại TTM, loại Epic).</td></tr>
-          <tr><td>29</td><td><code>epic_status_alert_rules</code></td><td>Cấu hình TTM, lịch &amp; phạm vi</td><td><code>id</code> (PK)</td><td>Quy tắc mốc Cảnh báo sớm (số ngày làm việc từ T1) và Cảnh báo muộn (% ngân sách TTM-CNTT từ 26/10/2026) cho từng cặp (Loại Epic × Trạng thái).</td></tr>
+          <tr><td>28</td><td><code>ttm_policy_configs</code></td><td>Cấu hình TTM, lịch &amp; phạm vi</td><td><code>id</code> (PK)<br><code>policy_set</code> → <code>ttm_policy_sets</code></td><td>Tiêu chí mốc hạn TTM chuẩn (TTM-CNTT và TTM-E2E) cho 9 Loại Epic hợp lệ (CT-Lv12/CT-Lv34/TNM-Lv12/TNM-Lv34/HTM-Lv34/SP-Lv34/QT-Lv34/DV-Lv34/GPNT-Lv34). Từ 26/10/2026 mỗi dòng thuộc một bộ ngân sách (<code>policy_set</code> → <code>ttm_policy_sets</code>); duy nhất theo (bộ, loại TTM, loại Epic). Seed 18 dòng (9 tổ hợp × CNTT/E2E, bộ Mặc định) từ migration 20261202.</td></tr>
+          <tr><td>29</td><td><code>epic_status_alert_rules</code></td><td>Cấu hình TTM, lịch &amp; phạm vi</td><td><code>id</code> (PK)</td><td>Quy tắc mốc Cảnh báo sớm (số ngày làm việc từ T1) và Cảnh báo muộn (% ngân sách TTM-CNTT từ 26/10/2026) cho từng cặp (Loại Epic × Trạng thái). Seed 18 dòng (9 Loại Epic hợp lệ × Design/In Progress) từ migration 20261202.</td></tr>
           <tr><td>30</td><td><code>issue_type_role_mapping</code></td><td>Cấu hình TTM, lịch &amp; phạm vi</td><td><code>id</code> (PK)</td><td>Mapping loại Subtask Jira sang team-role BA/DEV/TEST/PM để xác định hoàn thành pha.</td></tr>
           <tr><td>31</td><td><code>ttm_scope_config</code></td><td>Cấu hình TTM, lịch &amp; phạm vi</td><td><code>id</code> (PK)<br><code>updated_by_user_id</code> → <code>users</code></td><td>"Phạm vi dữ liệu cho TTM": khoảng ngày R4G for TTM (CNTT) và (QA) — mục 8.7.</td></tr>
           <tr><td>32</td><td><code>holidays</code></td><td>Cấu hình TTM, lịch &amp; phạm vi</td><td><code>id</code> (PK)</td><td>Danh mục ngày nghỉ lễ/nghỉ công ty dùng để loại trừ khi tính số ngày làm việc.</td></tr>
@@ -594,7 +594,7 @@
               <tr><td><code>badge_design_style</code></td><td><code>VARCHAR(20) NOT NULL</code></td><td>DEFAULT 'list'::character varying</td><td></td></tr>
             </tbody>
           </table>
-          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((badge_design_style)::text = ANY ((ARRAY['list'::character varying, 'minimal'::character varying])::text[])))</code></li><li><code>CHECK (((role)::text = ANY ((ARRAY['SUPERADMIN'::character varying, 'ADMIN'::character varying, 'SUPERVISOR'::character varying, 'USER'::character varying])::text[])))</code></li><li>Index <code>idx_users_unique_username</code>: <code>UNIQUE btree (split_part(lower((email)::text), '@'::text, 1))</code></li></ul>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((badge_design_style)::text = ANY (ARRAY[('list'::character varying)::text, ('minimal'::character varying)::text])))</code></li><li><code>CHECK (((role)::text = ANY (ARRAY[('SUPERADMIN'::character varying)::text, ('ADMIN'::character varying)::text, ('SUPERVISOR'::character varying)::text, ('USER'::character varying)::text])))</code></li><li>Index <code>idx_users_unique_username</code>: <code>UNIQUE btree (split_part(lower((email)::text), '@'::text, 1))</code></li></ul>
           <p><strong>1.2. <code>user_domains</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
@@ -684,7 +684,7 @@
               <tr><td><code>resolved_by</code></td><td><code>INT</code></td><td>FK → users(id)</td><td></td></tr>
             </tbody>
           </table>
-          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((status)::text = ANY ((ARRAY['PENDING'::character varying, 'RESOLVED'::character varying])::text[])))</code></li></ul>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((status)::text = ANY (ARRAY[('PENDING'::character varying)::text, ('RESOLVED'::character varying)::text])))</code></li></ul>
           <p><strong>1.11. <code>permission_features</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
@@ -695,7 +695,7 @@
               <tr><td><code>display_order</code></td><td><code>INT NOT NULL</code></td><td>DEFAULT 0</td><td></td></tr>
             </tbody>
           </table>
-          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((category)::text = ANY ((ARRAY['ADMIN'::character varying, 'VIEW_ONLY'::character varying])::text[])))</code></li></ul>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((category)::text = ANY (ARRAY[('ADMIN'::character varying)::text, ('VIEW_ONLY'::character varying)::text])))</code></li></ul>
           <p><strong>1.12. <code>role_feature_permissions</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
@@ -708,7 +708,7 @@
               <tr><td><code>can_delete</code></td><td><code>BOOLEAN NOT NULL</code></td><td>DEFAULT false</td><td></td></tr>
             </tbody>
           </table>
-          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((role)::text = ANY ((ARRAY['SUPERADMIN'::character varying, 'ADMIN'::character varying, 'SUPERVISOR'::character varying, 'USER'::character varying])::text[])))</code></li></ul>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((role)::text = ANY (ARRAY[('SUPERADMIN'::character varying)::text, ('ADMIN'::character varying)::text, ('SUPERVISOR'::character varying)::text, ('USER'::character varying)::text])))</code></li></ul>
           <p><strong>1.13. <code>user_registration_reads</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
@@ -751,7 +751,7 @@
               <tr><td><code>project_type_id</code></td><td><code>INT</code></td><td>FK → project_types(id)</td><td></td></tr>
             </tbody>
           </table>
-          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((project_category)::text = ANY ((ARRAY['Dự án'::character varying, 'Team Agile'::character varying, 'Team Triển khai'::character varying])::text[])))</code></li><li><code>CHECK ((ttm = ANY (ARRAY['Y'::bpchar, 'N'::bpchar])))</code></li><li>Index <code>idx_projects_project_type</code>: <code>btree (project_type_id)</code></li><li>Index <code>idx_projects_source_key</code>: <code>btree (source_project_key)</code></li><li>Trigger <code>trg_projects_fill_project_code</code></li><li>Trigger <code>trg_projects_sync_pms_tables</code></li><li>Trigger <code>trg_projects_sync_project_type</code></li></ul>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((project_category)::text = ANY (ARRAY[('Dự án'::character varying)::text, ('Team Agile'::character varying)::text, ('Team Triển khai'::character varying)::text])))</code></li><li><code>CHECK ((ttm = ANY (ARRAY['Y'::bpchar, 'N'::bpchar])))</code></li><li>Index <code>idx_projects_project_type</code>: <code>btree (project_type_id)</code></li><li>Index <code>idx_projects_source_key</code>: <code>btree (source_project_key)</code></li><li>Trigger <code>trg_projects_fill_project_code</code></li><li>Trigger <code>trg_projects_sync_pms_tables</code></li><li>Trigger <code>trg_projects_sync_project_type</code></li></ul>
           <p><strong>2.3. <code>project_components</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
@@ -957,7 +957,7 @@
               <tr><td><code>updated_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
             </tbody>
           </table>
-          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((source)::text = ANY ((ARRAY['MANUAL'::character varying, 'AUTO_RULE'::character varying, 'SEED'::character varying, 'AUTO_EXEMPT'::character varying])::text[])))</code></li><li>Index <code>idx_denied_import_epics_project_key</code>: <code>btree (project_key)</code></li></ul>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((source)::text = ANY (ARRAY[('MANUAL'::character varying)::text, ('AUTO_RULE'::character varying)::text, ('SEED'::character varying)::text, ('AUTO_EXEMPT'::character varying)::text])))</code></li><li>Index <code>idx_denied_import_epics_project_key</code>: <code>btree (project_key)</code></li></ul>
           <p><strong>4.5. <code>import_admission_settings</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
@@ -987,7 +987,7 @@
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
               <tr><td><code>id</code></td><td><code>SERIAL</code></td><td>PRIMARY KEY</td><td></td></tr>
-              <tr><td><code>ttm_type</code></td><td><code>VARCHAR(20) NOT NULL</code></td><td>—</td><td><code>VARCHAR(20) NOT NULL</code></td><td>CHECK ('SIMPLE', 'COMPLEX', 'CT-Lv12', 'CT-Lv34', 'SP-Lv12', 'SP-Lv34')</td></tr>
+              <tr><td><code>ttm_type</code></td><td><code>VARCHAR(20) NOT NULL</code></td><td>—</td><td><code>VARCHAR(20) NOT NULL</code></td><td>CHECK IN ('TTM_CNTT', 'TTM_E2E') — loại TTM; 9 Loại Epic hợp lệ được seed trong bộ Mặc định</td></tr>
               <tr><td><code>epic_complexity_type</code></td><td><code>VARCHAR(20) NOT NULL</code></td><td>—</td><td></td></tr>
               <tr><td><code>from_ttm_field</code></td><td><code>VARCHAR(100) NOT NULL</code></td><td>—</td><td><code>VARCHAR(50) NOT NULL</code></td><td>CHECK ('R4G_DATE', 'DUE_DATE')</td></tr>
               <tr><td><code>to_ttm_field</code></td><td><code>VARCHAR(100) NOT NULL</code></td><td>—</td><td></td></tr>
@@ -998,13 +998,13 @@
               <tr><td><code>policy_set</code></td><td><code>VARCHAR(40) NOT NULL</code></td><td>FK → ttm_policy_sets(key)<br>DEFAULT 'DEFAULT'::character varying</td><td></td></tr>
             </tbody>
           </table>
-          <ul style="font-size:12px; margin:4px 0 12px;"><li>UNIQUE <code>(policy_set, ttm_type, epic_complexity_type)</code></li><li><code>CHECK (((epic_complexity_type)::text = ANY ((ARRAY['SIMPLE'::character varying, 'COMPLEX'::character varying, 'CT-Lv12'::character varying, 'CT-Lv34'::character varying, 'SP-Lv12'::character varying, 'SP-Lv34'::character varying])::text[])))</code></li><li><code>CHECK (((ttm_type)::text = ANY ((ARRAY['TTM_CNTT'::character varying, 'TTM_E2E'::character varying])::text[])))</code></li><li><code>CHECK (((working_days &gt; 0) AND (working_days &lt;= 3650)))</code></li></ul>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li>UNIQUE <code>(policy_set, ttm_type, epic_complexity_type)</code></li><li><code>CHECK (((epic_complexity_type)::text = ANY ((ARRAY['SIMPLE'::character varying, 'COMPLEX'::character varying, 'CT-Lv12'::character varying, 'CT-Lv34'::character varying, 'TNM-Lv34'::character varying, 'HTM-Lv34'::character varying, 'SP-Lv34'::character varying, 'QT-Lv34'::character varying, 'DV-Lv34'::character varying, 'GPNT-Lv34'::character varying, 'TNM-Lv12'::character varying, 'HTM-Lv12'::character varying, 'SP-Lv12'::character varying, 'QT-Lv12'::character varying, 'DV-Lv12'::character varying, 'GPNT-Lv12'::character varying])::text[])))</code></li><li><code>CHECK (((ttm_type)::text = ANY (ARRAY[('TTM_CNTT'::character varying)::text, ('TTM_E2E'::character varying)::text])))</code></li><li><code>CHECK (((working_days &gt; 0) AND (working_days &lt;= 3650)))</code></li></ul>
           <p><strong>5.3. <code>epic_status_alert_rules</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
             <tbody>
               <tr><td><code>id</code></td><td><code>SERIAL</code></td><td>PRIMARY KEY</td><td></td></tr>
-              <tr><td><code>epic_complexity_type</code></td><td><code>VARCHAR(20) NOT NULL</code></td><td>—</td><td><code>VARCHAR(50) NOT NULL</code></td><td>Trạng thái Epic (Design, In Progress, DEV, TEST...)</td></tr>
+              <tr><td><code>epic_complexity_type</code></td><td><code>VARCHAR(20) NOT NULL</code></td><td>—</td><td><code>VARCHAR(20) NOT NULL</code></td><td>Loại Epic — 9 tổ hợp hợp lệ: CT-Lv12/CT-Lv34/TNM-Lv12/TNM-Lv34/HTM-Lv34/SP-Lv34/QT-Lv34/DV-Lv34/GPNT-Lv34; CHECK còn nhận 5 tổ hợp "Phân loại sai Epic" (HTM-Lv12/SP-Lv12/QT-Lv12/DV-Lv12/GPNT-Lv12) để R6 gắn cờ</td></tr>
               <tr><td><code>epic_status</code></td><td><code>VARCHAR(50) NOT NULL</code></td><td>—</td><td></td></tr>
               <tr><td><code>early_alert_offset_days</code></td><td><code>INT NOT NULL</code></td><td>—</td><td><code>INT NOT NULL</code></td><td>CHECK (>= 0) — Mốc Cảnh báo muộn (ngày làm việc)</td></tr>
               <tr><td><code>late_alert_offset_days</code></td><td><code>INT NOT NULL</code></td><td>—</td><td></td></tr>
@@ -1014,7 +1014,7 @@
               <tr><td><code>late_alert_percent</code></td><td><code>NUMERIC(7,4) NOT NULL</code></td><td>DEFAULT 100</td><td><code>NUMERIC(7,4) NOT NULL DEFAULT 100</code></td><td>CHECK (0…1000) — <strong>Mới 26/10/2026.</strong> Mốc Cảnh báo muộn = % ngân sách TTM-CNTT của Epic (Start Date +wd ⌈% × N⌉); <code>late_alert_offset_days</code> chỉ còn là số ngày tương đương theo bộ Mặc định (tham khảo)</td></tr>
             </tbody>
           </table>
-          <ul style="font-size:12px; margin:4px 0 12px;"><li>UNIQUE <code>(epic_complexity_type, epic_status)</code></li><li><code>CHECK ((early_alert_offset_days &gt;= 0))</code></li><li><code>CHECK (((epic_complexity_type)::text = ANY ((ARRAY['SIMPLE'::character varying, 'COMPLEX'::character varying, 'CT-Lv12'::character varying, 'CT-Lv34'::character varying, 'SP-Lv12'::character varying, 'SP-Lv34'::character varying])::text[])))</code></li><li><code>CHECK ((late_alert_offset_days &gt;= 0))</code></li><li><code>CHECK (((late_alert_percent &gt;= (0)::numeric) AND (late_alert_percent &lt;= (1000)::numeric)))</code></li><li>Index <code>idx_epic_status_alert_rules_active</code>: <code>btree (is_active) WHERE is_active</code></li></ul>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li>UNIQUE <code>(epic_complexity_type, epic_status)</code></li><li><code>CHECK ((early_alert_offset_days &gt;= 0))</code></li><li><code>CHECK (((epic_complexity_type)::text = ANY ((ARRAY['SIMPLE'::character varying, 'COMPLEX'::character varying, 'CT-Lv12'::character varying, 'CT-Lv34'::character varying, 'TNM-Lv34'::character varying, 'HTM-Lv34'::character varying, 'SP-Lv34'::character varying, 'QT-Lv34'::character varying, 'DV-Lv34'::character varying, 'GPNT-Lv34'::character varying, 'TNM-Lv12'::character varying, 'HTM-Lv12'::character varying, 'SP-Lv12'::character varying, 'QT-Lv12'::character varying, 'DV-Lv12'::character varying, 'GPNT-Lv12'::character varying])::text[])))</code></li><li><code>CHECK ((late_alert_offset_days &gt;= 0))</code></li><li><code>CHECK (((late_alert_percent &gt;= (0)::numeric) AND (late_alert_percent &lt;= (1000)::numeric)))</code></li><li>Index <code>idx_epic_status_alert_rules_active</code>: <code>btree (is_active) WHERE is_active</code></li></ul>
           <p><strong>5.4. <code>issue_type_role_mapping</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
@@ -1026,7 +1026,7 @@
               <tr><td><code>updated_at</code></td><td><code>TIMESTAMPTZ</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
             </tbody>
           </table>
-          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((team_role)::text = ANY ((ARRAY['BA'::character varying, 'DEV'::character varying, 'TEST'::character varying, 'PM'::character varying])::text[])))</code></li><li>Index <code>idx_issue_type_role_mapping_role</code>: <code>btree (team_role)</code></li></ul>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((team_role)::text = ANY (ARRAY[('BA'::character varying)::text, ('DEV'::character varying)::text, ('TEST'::character varying)::text, ('PM'::character varying)::text])))</code></li><li>Index <code>idx_issue_type_role_mapping_role</code>: <code>btree (team_role)</code></li></ul>
           <p><strong>5.5. <code>ttm_scope_config</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
@@ -1131,7 +1131,7 @@
               <tr><td><code>updated_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
             </tbody>
           </table>
-          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((status)::text = ANY ((ARRAY['TODO'::character varying, 'DONE'::character varying])::text[])))</code></li></ul>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((status)::text = ANY (ARRAY[('TODO'::character varying)::text, ('DONE'::character varying)::text])))</code></li></ul>
           <h4 style="color:var(--brand-700); margin:16px 0 6px; font-size:14px;">6. Epic Scoring Service (5 bảng)</h4>
           <p><strong>6.1. <code>scoring_parameters</code></strong></p>
           <table>
@@ -1218,7 +1218,7 @@
               <tr><td><code>updated_at</code></td><td><code>TIMESTAMPTZ</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
             </tbody>
           </table>
-          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((alert_type)::text = ANY ((ARRAY['FAIL_TTM_CNTT'::character varying, 'LATE_TTM_CNTT'::character varying, 'FAIL_TTM_E2E'::character varying, 'MISSING_START_DATE'::character varying, 'DATA_ANOMALY'::character varying])::text[])))</code></li><li>Index <code>idx_epic_alert_timeline_end_date</code>: <code>btree (end_date)</code></li><li>Index <code>idx_epic_alert_timeline_epic_key</code>: <code>btree (epic_key)</code></li><li>Index <code>idx_epic_alert_timeline_open_run</code>: <code>UNIQUE btree (epic_key, alert_type) WHERE (end_date IS NULL)</code></li></ul>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((alert_type)::text = ANY (ARRAY[('FAIL_TTM_CNTT'::character varying)::text, ('LATE_TTM_CNTT'::character varying)::text, ('FAIL_TTM_E2E'::character varying)::text, ('MISSING_START_DATE'::character varying)::text, ('DATA_ANOMALY'::character varying)::text])))</code></li><li>Index <code>idx_epic_alert_timeline_end_date</code>: <code>btree (end_date)</code></li><li>Index <code>idx_epic_alert_timeline_epic_key</code>: <code>btree (epic_key)</code></li><li>Index <code>idx_epic_alert_timeline_open_run</code>: <code>UNIQUE btree (epic_key, alert_type) WHERE (end_date IS NULL)</code></li></ul>
           <h4 style="color:var(--brand-700); margin:16px 0 6px; font-size:14px;">8. Cache dữ liệu dẫn xuất (10 bảng)</h4>
           <p><strong>8.1. <code>epic_alert_row_cache</code></strong></p>
           <table>
@@ -1344,7 +1344,7 @@
               <tr><td><code>computed_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
             </tbody>
           </table>
-          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((source)::text = ANY ((ARRAY['DAILY'::character varying, 'BACKFILL'::character varying])::text[])))</code></li><li>Index <code>idx_ttm_dashboard_metric_history_date</code>: <code>btree (layer_date)</code></li></ul>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((source)::text = ANY (ARRAY[('DAILY'::character varying)::text, ('BACKFILL'::character varying)::text])))</code></li><li>Index <code>idx_ttm_dashboard_metric_history_date</code>: <code>btree (layer_date)</code></li></ul>
           <p><strong>8.8. <code>ttm_dashboard_fail_history</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
@@ -1355,7 +1355,7 @@
               <tr><td><code>computed_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
             </tbody>
           </table>
-          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((source)::text = ANY ((ARRAY['DAILY'::character varying, 'BACKFILL'::character varying])::text[])))</code></li></ul>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((source)::text = ANY (ARRAY[('DAILY'::character varying)::text, ('BACKFILL'::character varying)::text])))</code></li></ul>
           <p><strong>8.9. <code>daily_cache_runs</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
@@ -1416,7 +1416,7 @@
               <tr><td><code>history_thinning_updated_by_user_id</code></td><td><code>INT</code></td><td>FK → users(id)</td><td></td></tr>
             </tbody>
           </table>
-          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((history_thinning_daily_limit &gt;= 1000) AND (history_thinning_daily_limit &lt;= 1000000)))</code></li><li><code>CHECK (((history_thinning_last_run_source IS NULL) OR ((history_thinning_last_run_source)::text = ANY ((ARRAY['DAILY'::character varying, 'MANUAL'::character varying])::text[]))))</code></li><li><code>CHECK ((id = 1))</code></li><li><code>CHECK (((raw_import_retention_days &gt;= 7) AND (raw_import_retention_days &lt;= 3650)))</code></li></ul>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((history_thinning_daily_limit &gt;= 1000) AND (history_thinning_daily_limit &lt;= 1000000)))</code></li><li><code>CHECK (((history_thinning_last_run_source IS NULL) OR ((history_thinning_last_run_source)::text = ANY (ARRAY[('DAILY'::character varying)::text, ('MANUAL'::character varying)::text]))))</code></li><li><code>CHECK ((id = 1))</code></li><li><code>CHECK (((raw_import_retention_days &gt;= 7) AND (raw_import_retention_days &lt;= 3650)))</code></li></ul>
           <p><strong>9.3. <code>dashboard_view_settings</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
@@ -1500,7 +1500,7 @@
               <tr><td><code>updated_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
             </tbody>
           </table>
-          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((end_date IS NULL) OR (end_date &gt;= start_date)))</code></li><li><code>CHECK (((banner_type)::text = ANY ((ARRAY['DEFAULT'::character varying, 'PER_SCREEN'::character varying])::text[])))</code></li><li>Index <code>uq_info_banners_single_default</code>: <code>UNIQUE btree (banner_type) WHERE ((banner_type)::text = 'DEFAULT'::text)</code></li></ul>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((end_date IS NULL) OR (end_date &gt;= start_date)))</code></li><li><code>CHECK (((banner_type)::text = ANY (ARRAY[('DEFAULT'::character varying)::text, ('PER_SCREEN'::character varying)::text])))</code></li><li>Index <code>uq_info_banners_single_default</code>: <code>UNIQUE btree (banner_type) WHERE ((banner_type)::text = 'DEFAULT'::text)</code></li></ul>
           <p><strong>10.4. <code>float_message_settings</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>
@@ -1517,7 +1517,7 @@
               <tr><td><code>updated_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
               <tr><td><code>url</code></td><td><code>TEXT</code></td><td>—</td><td>Mới 18/11/2026. URL mở khi bấm vào message (http/https hoặc đường dẫn nội bộ bắt đầu bằng /); NULL = không bấm được.</td></tr>
               <tr><td><code>open_in_new_tab</code></td><td><code>BOOLEAN NOT NULL</code></td><td>DEFAULT false</td><td>TRUE = mở URL ở tab mới; FALSE (mặc định) = tab hiện tại.</td></tr>
-              <tr><td><code>highlight_border</code></td><td><code>BOOLEAN NOT NULL</code></td><td>DEFAULT false</td><td>TRUE = viền màu accent của theme nổi bật như thông báo My assigned tasks; mặc định FALSE.</td></tr>
+              <tr><td><code>highlight_border</code></td><td><code>BOOLEAN NOT NULL</code></td><td>DEFAULT false</td><td>TRUE = viền nâu nổi bật như thông báo My assigned tasks; mặc định FALSE.</td></tr>
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((start_date IS NULL) OR (end_date IS NULL) OR (start_date &lt;= end_date)))</code></li><li><code>CHECK (((auto_hide_seconds IS NULL) OR ((auto_hide_seconds &gt;= 1) AND (auto_hide_seconds &lt;= 3600))))</code></li><li><code>CHECK ((id = 1))</code></li><li><code>CHECK (((&quot;position&quot;)::text = ANY ((ARRAY['TOP_RIGHT'::character varying, 'BOTTOM_RIGHT'::character varying])::text[])))</code></li><li><code>CHECK (((url IS NULL) OR ((char_length(url) &gt;= 1) AND (char_length(url) &lt;= 2048))))</code></li></ul>
@@ -1539,8 +1539,6 @@
             <tbody>
               <tr><td><code>id</code></td><td><code>SERIAL</code></td><td>PRIMARY KEY</td><td></td></tr>
               <tr><td><code>title</code></td><td><code>VARCHAR(300) NOT NULL</code></td><td>—</td><td></td></tr>
-              <tr><td><code>short_title</code></td><td><code>VARCHAR(50)</code></td><td>—</td><td><code>VARCHAR(50)</code></td><td>"Tiêu đề ngắn" (20/11/2026, không bắt buộc): hiển thị trên menu thay <code>title</code>; bỏ trống thì menu dùng <code>title</code></td></tr>
-              <tr><td><code>slug</code></td><td><code>VARCHAR(80)</code></td><td>—</td><td><code>VARCHAR(80)</code> (unique, nhiều NULL)</td><td>URL bài viết thay cho id — rút gọn từ <code>short_title</code> (bỏ dấu VN, dấu cách→<code>_</code>, giữ hoa/thường); bài không có <code>short_title</code> thì NULL và URL dùng id</td></tr>
               <tr><td><code>summary</code></td><td><code>TEXT</code></td><td>—</td><td></td></tr>
               <tr><td><code>category_id</code></td><td><code>INT</code></td><td>FK → news_letter_categories(id)</td><td></td></tr>
               <tr><td><code>visible_roles</code></td><td><code>TEXT[] NOT NULL</code></td><td>DEFAULT ARRAY['SUPERADMIN'::text, 'ADMIN'::text, 'SUPERVISOR'::text, 'USER'::text]</td><td></td></tr>
@@ -1556,6 +1554,8 @@
               <tr><td><code>hidden_from_menu</code></td><td><code>BOOLEAN NOT NULL</code></td><td>DEFAULT false</td><td><code>BOOLEAN NOT NULL DEFAULT false</code></td><td>"Ẩn trên menu" (10/11/2026): bài viết vẫn mở được qua link, không hiện ở mục lục, bài trước / sau, chấm chưa đọc và MCP — SUPERADMIN vẫn thấy trên menu</td></tr>
               <tr><td><code>is_pinned</code></td><td><code>BOOLEAN NOT NULL</code></td><td>DEFAULT false</td><td><code>BOOLEAN NOT NULL DEFAULT false</code></td><td>"Ghim bài viết" (10/11/2026): hiện trên đầu cột mục lục (trên "Mới nhất", có biểu tượng ghim) và trên ticker phía trên bài viết; vẫn nằm trong thư mục</td></tr>
               <tr><td><code>pinned_at</code></td><td><code>TIMESTAMPTZ</code></td><td>—</td><td><code>TIMESTAMP WITH TIME ZONE</code></td><td>Lúc bài viết được ghim (giữ nguyên khi còn ghim, NULL khi bỏ ghim) — bài ghim mới nhất đứng trước</td></tr>
+              <tr><td><code>short_title</code></td><td><code>VARCHAR(50)</code></td><td>—</td><td><code>VARCHAR(50)</code></td><td>"Tiêu đề ngắn" (20/11/2026, không bắt buộc): hiển thị trên menu thay <code>title</code>; bỏ trống thì menu dùng <code>title</code></td></tr>
+              <tr><td><code>slug</code></td><td><code>VARCHAR(80)</code></td><td>—</td><td><code>VARCHAR(80)</code> (unique, nhiều NULL)</td><td>URL bài viết thay cho id — rút gọn từ <code>short_title</code> (bỏ dấu VN, dấu cách→<code>_</code>, giữ hoa/thường); bài không có <code>short_title</code> thì NULL và URL dùng id</td></tr>
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li>Index <code>idx_news_letter_articles_category</code>: <code>btree (category_id)</code></li><li>Index <code>idx_news_letter_articles_order</code>: <code>btree (first_published_at DESC, id DESC)</code></li><li>Index <code>uq_news_letter_articles_slug</code>: <code>UNIQUE btree (slug) WHERE (slug IS NOT NULL)</code></li></ul>
@@ -1565,10 +1565,10 @@
             <tbody>
               <tr><td><code>id</code></td><td><code>SERIAL</code></td><td>PRIMARY KEY</td><td></td></tr>
               <tr><td><code>name</code></td><td><code>VARCHAR(120) NOT NULL</code></td><td>—</td><td></td></tr>
-              <tr><td><code>expanded</code></td><td><code>BOOLEAN NOT NULL</code></td><td>DEFAULT false</td><td><code>BOOLEAN NOT NULL DEFAULT false</code></td><td>"Expand" (20/11/2026): thư mục này mở sẵn trong menu bên trái hiển thị các đầu mục tin; mặc định collapsed</td></tr>
               <tr><td><code>created_by</code></td><td><code>INT</code></td><td>FK → users(id)</td><td></td></tr>
               <tr><td><code>created_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
               <tr><td><code>updated_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
+              <tr><td><code>expanded</code></td><td><code>BOOLEAN NOT NULL</code></td><td>DEFAULT false</td><td><code>BOOLEAN NOT NULL DEFAULT false</code></td><td>"Expand" (20/11/2026): thư mục này mở sẵn trong menu bên trái hiển thị các đầu mục tin; mặc định collapsed</td></tr>
             </tbody>
           </table>
           <ul style="font-size:12px; margin:4px 0 12px;"><li>Index <code>uq_news_letter_categories_name</code>: <code>UNIQUE btree (lower((name)::text))</code></li></ul>
@@ -1586,7 +1586,7 @@
               <tr><td><code>created_at</code></td><td><code>TIMESTAMPTZ NOT NULL</code></td><td>DEFAULT CURRENT_TIMESTAMP</td><td></td></tr>
             </tbody>
           </table>
-          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((kind)::text = ANY ((ARRAY['HEADER'::character varying, 'INLINE'::character varying])::text[])))</code></li><li>Index <code>idx_news_letter_images_article</code>: <code>btree (article_id)</code></li></ul>
+          <ul style="font-size:12px; margin:4px 0 12px;"><li><code>CHECK (((kind)::text = ANY (ARRAY[('HEADER'::character varying)::text, ('INLINE'::character varying)::text])))</code></li><li>Index <code>idx_news_letter_images_article</code>: <code>btree (article_id)</code></li></ul>
           <p><strong>11.4. <code>news_letter_article_edits</code></strong></p>
           <table>
             <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Khoá / Ràng buộc</th><th>Ghi chú</th></tr></thead>

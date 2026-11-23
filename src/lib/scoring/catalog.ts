@@ -200,9 +200,9 @@ export const BADGES = [
     formula: 'Requirement Level trống hoặc "none"  VÀ  ( (status khác Pending và status > DESIGN)  HOẶC  (status = Pending và previous_status ∉ {To Do, In PO, Design}) )',
   },
   {
-    id: 'ANOMALY_R6_SP_LEVEL_MISMATCH', axis: 'DATA_QUALITY', group: 'ALERT', label: 'SP nhưng Level thấp', precedence: 60, defaultEnabled: true,
-    meaning: 'R6 — Loại Epic SP nhưng Requirement Level 1–2.',
-    formula: 'Loại Epic ∈ {SP-Lv12, SP-Lv34}  VÀ  Requirement Level ∈ {1, 2}',
+    id: 'ANOMALY_R6_SP_LEVEL_MISMATCH', axis: 'DATA_QUALITY', group: 'ALERT', label: 'Phân loại sai Loại yêu cầu', precedence: 60, defaultEnabled: true,
+    meaning: 'R6 — Loại Epic thuộc nhóm "Phân loại sai Epic": một Loại yêu cầu (Sản phẩm / Hệ thống mới / Quy trình / Dịch vụ / Giải pháp nền tảng) chỉ tồn tại ở mức 3-4, nhưng Requirement Level của Epic là 1-2.',
+    formula: 'Loại Epic ∈ {HTM-Lv12, SP-Lv12, QT-Lv12, DV-Lv12, GPNT-Lv12}',
   },
   {
     id: 'ANOMALY_R8_R4G_DATE_BEFORE_R4GOLIVE', axis: 'DATA_QUALITY', group: 'ALERT', label: 'Có R4G Date nhưng chưa R4GOLIVE', precedence: 62, defaultEnabled: true,
@@ -256,8 +256,8 @@ export const BADGES = [
   },
   {
     id: 'REC_REVIEW_SP_LEVEL', axis: 'DATA_QUALITY', group: 'RECOMMENDATION', label: 'Rà soát loại yêu cầu', precedence: 74, defaultEnabled: true,
-    meaning: 'Rà soát lại Phân loại yêu cầu / Requirement Level.',
-    formula: 'Có "SP nhưng Level thấp"',
+    meaning: 'Rà soát lại Phân loại yêu cầu / Requirement Level — Loại Epic thuộc nhóm "Phân loại sai Epic".',
+    formula: 'Có "Phân loại sai Loại yêu cầu"',
   },
   {
     id: 'REC_FIX_R4G_STATUS', axis: 'DATA_QUALITY', group: 'RECOMMENDATION', label: 'Cập nhật status / R4G Date', precedence: 75, defaultEnabled: true,

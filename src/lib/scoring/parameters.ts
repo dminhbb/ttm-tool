@@ -11,7 +11,8 @@ export interface ScoringParameters {
   'anomaly.pendingStaleRatio': number;
   /** Statuses exempt from every data-quality rule (and R7). Compared upper-cased, workflow-normalized. */
   'anomaly.exemptStatuses': string[];
-  /** Requirement Levels that contradict an SP-type complexity. */
+  /** Requirement Levels that contradict a non-CT type complexity (legacy: R6 now reads the stored Loại
+   * Epic — a non-CT request type only exists at Lv34 — instead of the raw level). */
   'anomaly.spMismatchLevels': string[];
   /** Share of the TTM-CNTT budget per phase, walked in order DESIGN → R4GOLIVE. */
   'phase.percentages': Record<TtmPhaseKey, number>;
@@ -40,7 +41,7 @@ export const SCORING_PARAMETER_LABELS: Record<ScoringParameterKey, string> = {
   'release.graceWorkingDays': 'Thời hạn grace trục Release (ngày làm việc)',
   'anomaly.pendingStaleRatio': 'Ngưỡng "Pending lâu" (tỉ lệ ngân sách TTM-CNTT (QLDA))',
   'anomaly.exemptStatuses': 'Status được miễn rule chất lượng dữ liệu (ngoài Cancelled)',
-  'anomaly.spMismatchLevels': 'Requirement Level mâu thuẫn với loại SP',
+  'anomaly.spMismatchLevels': 'Requirement Level mâu thuẫn với loại Epic (nhóm "Phân loại sai Epic")',
   'phase.percentages': 'Tỉ lệ ngân sách từng pha',
   'index.qaStatuses': 'Status tính vào TTM-CNTT (QA)',
   'phase.storyDoneRatio': 'Ngưỡng % story đã qua pha để coi pha DEV / TEST hoàn thành',

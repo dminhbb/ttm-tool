@@ -21,8 +21,11 @@ export async function listStatusAlertRules(): Promise<StatusAlertRule[]> {
     FROM epic_status_alert_rules
     ORDER BY
       CASE epic_complexity_type
-        WHEN 'CT-Lv12' THEN 1 WHEN 'CT-Lv34' THEN 2 WHEN 'SP-Lv12' THEN 3 WHEN 'SP-Lv34' THEN 4
-        ELSE 5
+        WHEN 'CT-Lv12' THEN 1 WHEN 'CT-Lv34' THEN 2 WHEN 'TNM-Lv34' THEN 3 WHEN 'HTM-Lv34' THEN 4
+        WHEN 'SP-Lv34' THEN 5 WHEN 'QT-Lv34' THEN 6 WHEN 'DV-Lv34' THEN 7 WHEN 'GPNT-Lv34' THEN 8
+        WHEN 'TNM-Lv12' THEN 9 WHEN 'HTM-Lv12' THEN 10 WHEN 'SP-Lv12' THEN 11 WHEN 'QT-Lv12' THEN 12
+        WHEN 'DV-Lv12' THEN 13 WHEN 'GPNT-Lv12' THEN 14
+        ELSE 15
       END,
       CASE epic_status WHEN 'Design' THEN 1 ELSE 2 END;
   `);

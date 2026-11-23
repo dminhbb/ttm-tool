@@ -4,7 +4,28 @@ import type { ScoringParameters } from './parameters';
 /** "YYYY-MM-DD" — every date the scoring service touches is a plain calendar date. */
 export type IsoDate = string;
 
-export type EpicComplexity = 'CT-Lv12' | 'CT-Lv34' | 'SP-Lv12' | 'SP-Lv34';
+/**
+ * Epic "Loại Epic" (request-type × requirement-level combination). Company rule 2026-11-23 expanded the
+ * 4-way classification to 8 valid combinations (Cải tiến / Tính năng mới / Sản phẩm / Hệ thống mới /
+ * Quy trình / Dịch vụ / Giải pháp nền tảng × Lv12/Lv34). The 6 non-CT request types only exist at Lv34, so
+ * their Lv12 combinations are "Phân loại sai Epic" (a data error flagged by R6), still stored so the
+ * Scoring Service can detect them. CT-Lv12 / CT-Lv34 / SP-Lv34 are unchanged.
+ */
+export type EpicComplexity =
+  | 'CT-Lv12'
+  | 'CT-Lv34'
+  | 'TNM-Lv34'
+  | 'HTM-Lv34'
+  | 'SP-Lv34'
+  | 'QT-Lv34'
+  | 'DV-Lv34'
+  | 'GPNT-Lv34'
+  | 'TNM-Lv12'
+  | 'HTM-Lv12'
+  | 'SP-Lv12'
+  | 'QT-Lv12'
+  | 'DV-Lv12'
+  | 'GPNT-Lv12';
 export type TtmPhaseKey = 'DESIGN' | 'DEV' | 'TEST' | 'PENTEST' | 'R4GOLIVE';
 
 export interface EpicPhaseCompletionFacts {

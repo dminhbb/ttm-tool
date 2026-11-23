@@ -101,7 +101,7 @@ const BASELINE: Record<MeasureName, { total: number; perFile: Record<string, num
    * nên để làm theo từng màn hình.
    */
   hexLiteral: {
-    total: 126,
+    total: 128,
     perFile: {
       // Màu truyền vào SVG phễu/donut dưới dạng prop (fill / lidFill / labelColor).
       'app/ttm-dashboard-2/page.tsx': 36,
@@ -114,7 +114,8 @@ const BASELINE: Record<MeasureName, { total: number; perFile: Record<string, num
       // nghỉ) → 12.
       'components/ttm-calculator/TtmPhaseTimeline.tsx': 12,
       // Màu nền ô pha trong Bảng Pha (TtmCalculatorScreen) khớp từng pha trên timeline, truyền qua inline style.
-      'components/ttm-calculator/TtmCalculatorScreen.tsx': 6,
+      // 2026-11-23: thêm pastel vàng `#fef9c3` highlight form Cách 1/Cách 2 khi focus (2 chỗ) → 8.
+      'components/ttm-calculator/TtmCalculatorScreen.tsx': 8,
       // Bảng tra màu trạng thái dưới dạng object JS.
       'app/epic-alerts-15/page.tsx': 7,
       'app/reports/EpicReportScreen.tsx': 8,

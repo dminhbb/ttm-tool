@@ -1,6 +1,6 @@
 # TTM Calculator — `/ttm-calculator`
 
-Cập nhật lần cuối: 2026-11-19. Khi sửa file/bảng/contract liệt kê dưới đây, sửa luôn card này trong cùng commit.
+Cập nhật lần cuối: 2026-11-23. Khi sửa file/bảng/contract liệt kê dưới đây, sửa luôn card này trong cùng commit.
 
 ## Mục đích
 
@@ -31,22 +31,29 @@ form / text (ttm-calculator-text.ts) → POST API → ttm-calculator-service.ts 
 | Regex nhận dạng text (ngày / level / loại yêu cầu) | `src/lib/ttm-calculator-text.ts` |
 | Cách ra mốc pha, PENTEST kéo đến trước R4G, Golive = R4G + `release.graceWorkingDays` | `src/lib/ttm-calculator.ts` |
 | `%` của từng pha (tỉ lệ workingDays thực tế so với tổng budget, PENTEST lấy phần dư) | `src/lib/ttm-calculator.ts` |
-| Phân loại CT/SP × Lv12/Lv34 (dùng chung với import) | `src/lib/epic-complexity.ts` |
+| Phân loại Epic: 7 loại yêu cầu × Lv12/Lv34 = 9 tổ hợp hợp lệ (gồm TNM-Lv12) + 5 "Phân loại sai Epic" (dùng chung với import) | `src/lib/epic-complexity.ts` |
 | Timeline SVG các pha (màu pha, vạch ngày, ngày nghỉ xám + `-`, badge + mũi tên) | `src/components/ttm-calculator/TtmPhaseTimeline.tsx` |
 | Logic thuần ngày nghỉ / ngày làm bù / sinh lưới ngày của timeline | `src/lib/ttm-timeline.ts` |
 
-### Nhận dạng Loại yêu cầu khi nhập text (từ 20/11/2026)
+### Nhận dạng Loại yêu cầu khi nhập text (từ 23/11/2026)
 
-Regex `REQUEST_TYPE_PATTERN` trong `ttm-calculator-text.ts` nhận dạng Loại yêu cầu **không phân biệt hoa/thường, không cần dấu tiếng Việt, có/không dấu cách** giữa các từ. Các từ đồng nghĩa và viết tắt gán về 1 trong 4 loại chuẩn:
+Regex `REQUEST_TYPE_PATTERN` trong `ttm-calculator-text.ts` nhận dạng Loại yêu cầu **không phân biệt hoa/thường, không cần dấu tiếng Việt, có/không dấu cách** giữa các từ. Các từ đồng nghĩa và viết tắt gán về 1 trong 7 loại chuẩn (quyết định chủ sản phẩm 23/11/2026 — bỏ cụm "Sản phẩm/dịch vụ/quy trình mới" cũ, tách đủ 7 loại):
 
 | Loại yêu cầu | Từ khoá | Viết tắt |
 |---|---|---|
-| Tính năng mới | `tinh nang moi` | `tnm`, `tn` |
+| Tính năng mới | `tinh nang moi` | `tnm`, `tnt`, `tn` |
 | Cải tiến | `cai tien` | `ct` |
-| Sản phẩm | `san pham` | `sp` |
-| Sản phẩm/dịch vụ/quy trình mới (cụm chuẩn) | `san pham / dich vu / quy trinh moi`, `san pham / dich vu`, `san pham moi`, `dich vu`, `dich vu moi`, `quy trinh`, `quy trinh moi` | `spdvqtm`, `spdvqt`, `spm`, `dvm`, `qtm`, `dv`, `qt` |
+| Sản phẩm | `san pham` (+ cụm legacy `san pham/dich vu/quy trinh moi`, `san pham moi`, `phat trien moi`) | `sp` |
+| Hệ thống mới | `he thong moi` | `htm` |
+| Quy trình | `quy trinh` | `qt` |
+| Dịch vụ | `dich vu` | `dv` |
+| Giải pháp nền tảng | `giai phap nen tang` | `gpnt` |
 
-Lưu ý: `san pham` đứng riêng → "Sản phẩm"; `san pham moi` → cụm tiêu chuẩn. Các viết tắt dùng `\b` (ranh giới từ) để không khớp lẫn vào từ viết đầy đủ.
+Lưu ý: các cụm cũ "Sản phẩm/dịch vụ/quy trình mới", "Sản phẩm mới", "Phát triển mới" giờ được nhận là từ đồng nghĩa → "Sản phẩm" (không còn là loại yêu cầu riêng). `computeEpicComplexity` (`src/lib/epic-complexity.ts`) cũng map 3 cụm này → SP cho dữ liệu import/DB (khớp text parser). Các viết tắt dùng `\b` (ranh giới từ) để không khớp lẫn vào từ viết đầy đủ. Loại yêu cầu + level tạo ra Phân loại Epic qua `computeEpicComplexity`; tổ hợp thuộc nhóm "Phân loại sai Epic" (vd "Hệ thống mới" + Level 1) bị chặn ở màn hình — xem mục "Phân loại sai Epic" bên dưới.
+
+### Phân loại sai Epic (chặn, từ 23/11/2026)
+
+Màn hình chặn tổ hợp thuộc nhóm "Phân loại sai Epic" (mọi loại không phải Cải tiến/Tính năng mới chỉ tồn tại ở Lv34; tổ hợp Lv12 của chúng là lỗi dữ liệu): `HTM-Lv12, SP-Lv12, QT-Lv12, DV-Lv12, GPNT-Lv12`. **Tính năng mới Level 1-2 (TNM-Lv12) là hợp lệ** (bổ sung cùng ngày) nên không bị chặn. Khi chọn tổ hợp sai (cả form lẫn nhập text), không gọi tính toán và hiển thị cảnh báo `Bạn đang phân loại sai Epic.\n Epic không được phân loại như sau {x}` (helper thuần `isMisclassifiedEpicComplexity` trong `src/lib/epic-complexity.ts`). `POST /api/ttm-calculator` trả thêm cờ `misclassified` (tương thích ngược).
 
 ## Bảng DB
 

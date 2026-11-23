@@ -540,6 +540,10 @@
    variant utility classes (single class) through specificity. */
 :root .ui-badge.dn-count-badge-alert { background-color: #f97316; color: #ffffff; }
 
+/* "Chuẩn hoá dữ liệu" (owner 2026-11-23): the rule-order cells Rule 1-6, Fail TTM and Rule 9 are highlighted
+   red with yellow bold text. Beats the Badge variant utility classes through specificity. */
+:root .ui-badge.dn-rule-badge-alert { background-color: #dc2626; color: #facc15; font-weight: 700; }
+
 /* "Chuẩn hoá dữ liệu" — the shared Epic table (NormalizationEpicTable, owner 2026-11-11): 8px cell padding instead of the
    IAS 16px, capped PM/SM, Summary, Status and Nhận xét, dates in 12px — no horizontal scrollbar at 100% zoom. */
 :root:root .ui-table.dn-epic-table thead th,
