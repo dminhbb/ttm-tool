@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 import pool, { getClient } from '@/lib/db';
 import { orderTablesForImport, orphanSweepSql, type ForeignKeyInfo } from '@/lib/db-import-order';
+import { stageDuplicateSql, targetCollisionSql, type SecondaryUniqueIndex } from '@/lib/db-import-unique';
 import { DEFAULT_SMART_EXPORT_SCOPE, EXPORTABLE_TABLES, SMART_SESSION_TABLES, smartTablesForScope, type SmartExportScope } from '@/lib/db-backup-tables';
 import type { BackupTableInfo, ImportResult, ImportTableResult } from '@/lib/db-backup-types';
 import { EPIC_ISSUE_TYPES_SQL, STORY_ISSUE_TYPES_SQL } from '@/lib/issue-resolution-sql';
@@ -216,6 +217,18 @@ async function getPrimaryKeyColumns(tableName: string): Promise<string[]> {
     ORDER BY kcu.ordinal_position;
   `, [tableName]);
   return result.rows.map((row) => row.columnName);
+}
+
+/** Every UNIQUE index of `tableName` except the primary key (partial and expression indexes included), read at run time. */
+async function loadSecondaryUniqueIndexes(client: PoolClient, tableName: string): Promise<SecondaryUniqueIndex[]> {
+  const result = await client.query<SecondaryUniqueIndex>(`
+    SELECT ARRAY(SELECT pg_get_indexdef(i.indexrelid, k, true) FROM generate_series(1, i.indnkeyatts) AS k ORDER BY k) AS "keys",
+           pg_get_expr(i.indpred, i.indrelid) AS "predicate"
+    FROM pg_index i
+    WHERE i.indrelid = to_regclass($1) AND i.indisunique AND NOT i.indisprimary AND i.indisvalid
+    ORDER BY i.indexrelid;
+  `, [quoteIdent(tableName)]);
+  return result.rows;
 }
 
 /** The foreign keys from or to any of `tables` (schema public), with their columns in key order. */
@@ -888,34 +901,11 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
       'audit_logs',
     ]);
 
-    const SECONDARY_UNIQUE_CONFLICT_PREDICATES: Record<string, string[]> = {
-      domains: ['t.domain_code = incoming.domain_code'],
-      epic_alert_timeline: [
-        't.end_date IS NULL AND incoming.end_date IS NULL AND t.epic_key = incoming.epic_key AND t.alert_type = incoming.alert_type',
-      ],
-      epic_status_alert_rules: [
-        't.epic_complexity_type = incoming.epic_complexity_type AND t.epic_status = incoming.epic_status',
-      ],
-      issue_type_role_mapping: ['t.issue_type = incoming.issue_type'],
-      issues: [
-        't.issue_key = incoming.issue_key AND t.source_import_batch_id = incoming.source_import_batch_id',
-      ],
-      makeup_workdays: ['t.work_date = incoming.work_date'],
-      project_components: [
-        't.project_key = incoming.project_key AND t.component_name = incoming.component_name',
-      ],
-      projects: [
-        't.source_project_key = incoming.source_project_key',
-        't.project_code = incoming.project_code',
-      ],
-      ttm_policy_configs: [
-        't.policy_set = incoming.policy_set AND t.ttm_type = incoming.ttm_type AND t.epic_complexity_type = incoming.epic_complexity_type',
-      ],
-      ttm_policy_sets: ['t.key = incoming.key'],
-      users: [
-        'LOWER(t.email) = LOWER(incoming.email)',
-        "SPLIT_PART(LOWER(t.email), '@', 1) = SPLIT_PART(LOWER(incoming.email), '@', 1)",
-      ],
+    // Collisions on UNIQUE indexes other than the primary key are found automatically from pg_index (loadSecondaryUniqueIndexes,
+    // db-import-unique.ts) — a new table or index needs no entry here. This list only holds "logical" keys that no index
+    // enforces, so they cannot be derived: the same person under another case of the e-mail.
+    const LOGICAL_KEY_PREDICATES: Record<string, string[]> = {
+      users: ['LOWER(t.email) = LOWER(incoming.email)'],
     };
 
     for (const tableName of orderedInsertTables) {
@@ -933,11 +923,15 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
       const tableResult = resultByTable.get(tableName)!;
       const columns = insertsForTable[0].columns!;
       const conflictClause = insertsForTable[0].conflictClause!;
-      const secondaryPredicates = SECONDARY_UNIQUE_CONFLICT_PREDICATES[tableName];
+      const secondaryPredicates = LOGICAL_KEY_PREDICATES[tableName] ?? [];
+      const secondaryIndexes = await loadSecondaryUniqueIndexes(client, tableName);
       const pkColumns = await getPrimaryKeyColumns(tableName);
 
-      if (isFullSyncTable || (secondaryPredicates && secondaryPredicates.length > 0)) {
-        await client.query(`CREATE TEMP TABLE tmp_import_stage (LIKE ${quoteIdent(tableName)}) ON COMMIT DROP;`);
+      if (isFullSyncTable || secondaryPredicates.length > 0 || secondaryIndexes.length > 0) {
+        // INCLUDING DEFAULTS: a file from an environment on an older schema lacks columns the target added since (e.g.
+        // news_letter_categories.expanded, NOT NULL DEFAULT false); without the defaults the staged rows get NULL there and
+        // trip the NOT NULL. The final INSERT names only the file's columns, so the target's own defaults still apply.
+        await client.query(`CREATE TEMP TABLE tmp_import_stage (LIKE ${quoteIdent(tableName)} INCLUDING DEFAULTS) ON COMMIT DROP;`);
         for (let chunkStart = 0; chunkStart < insertsForTable.length; chunkStart += INSERT_BATCH_CHUNK_SIZE) {
           const chunk = insertsForTable.slice(chunkStart, chunkStart + INSERT_BATCH_CHUNK_SIZE);
           const tuples = chunk.map((item) => `(${item.valuesTuple})`).join(', ');
@@ -963,7 +957,16 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
             countDeleted(tableName, mirrored.rowCount);
           }
         }
-        if (secondaryPredicates && secondaryPredicates.length > 0) {
+        // Rows of the file that meet each other, then rows of the target (another primary key) that meet a row of the file,
+        // on every non-primary UNIQUE index: the file's row wins (a deleted local row that the file also names is re-inserted).
+        for (const index of secondaryIndexes) {
+          await client.query(stageDuplicateSql('tmp_import_stage', index));
+          if (pkColumns.length > 0) {
+            const collided = await client.query(targetCollisionSql(tableName, 'tmp_import_stage', pkColumns, index, keepActor(tableName, 't')));
+            countDeleted(tableName, collided.rowCount);
+          }
+        }
+        if (secondaryPredicates.length > 0) {
           // "Another row" = a different primary key — not always `id` (ttm_policy_sets is keyed by `key`).
           const otherRowSql = pkColumns.length > 0
             ? `NOT (${pkColumns.map((col) => `t.${quoteIdent(col)} = incoming.${quoteIdent(col)}`).join(' AND ')})`
