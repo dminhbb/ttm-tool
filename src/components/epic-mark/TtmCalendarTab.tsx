@@ -12,7 +12,7 @@ import { CALCULATOR_LEVELS, toCalculatorRequestType } from '@/lib/ttm-calculator
  * Tab "TTM Calendar" của popup "Thông tin Epic" (REQ-20261120-03): tái sử dụng timeline SVG các pha của màn hình
  * TTM Calculator (`TtmPhaseTimeline`) cho chính Epic đang xem. Nếu Epic thiếu 1 trong 3 thông tin bắt buộc —
  * Start date, Phân loại epic, Requirement level — hiển thị thông báo "Thiếu thông tin: ...". Khi đủ, gọi
- * `POST /api/ttm-calculator` (API có sẵn của TTM Calculator) để lấy kết quả + danh sách ngày nghỉ / ngày làm bù
+ * `POST /api/epic-ttm-calendar` (cùng phép tính với TTM Calculator nhưng không gắn quyền ttm_calculator) để lấy kết quả + danh sách ngày nghỉ / ngày làm bù
  * rồi vẽ timeline. Lazy-load khi tab mở (pattern giống `EpicTreeTab`).
  */
 
@@ -60,7 +60,7 @@ export function TtmCalendarTab({ summary }: { summary: EpicBrowserSummary | null
       try {
         // Timeline chỉ cần 3 thông tin bắt buộc (Start date, Phân loại epic, Requirement level) — không gửi
         // createdDate/ideaApprovedDate (chỉ dùng cho TTM-E2E), tránh API báo "Created date / Ngày duyệt ý tưởng không hợp lệ".
-        const response = await fetch('/api/ttm-calculator', {
+        const response = await fetch('/api/epic-ttm-calendar', {
           body: JSON.stringify({
             requestType,
             requirementLevel: level,

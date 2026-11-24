@@ -6,6 +6,10 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-11-24
+
+- **Xử lý review bản pull 23/11** (`REQ-20261124-01`): migration `20261204_backfill_sanpham_moi_complexity` backfill cả 3 cụm legacy (thêm 'Sản phẩm mới', chuẩn hoá NFC/lower/trim); `computeEpicComplexity` chuẩn hoá NFC + gom khoảng trắng; gỡ tham số `anomaly.spMismatchLevels` (R6 không còn đọc, `scoring-35`); tab TTM Calendar gọi API mới `/api/epic-ttm-calendar` (không gắn quyền `ttm_calculator`, validate chung `ttm-calculator-request.ts`); sửa comment/doc 8+6 → 9+5. Đã chạy `db:migrate:local` và `db:migrate:supabase` (Supabase áp dụng luôn 4 migration còn thiếu từ 20261126). Lưu ý: TNM-Lv12 đang copy ngân sách SP-Lv12 (trước đây TNM thuộc CT-Lv12) — cần chủ sản phẩm xác nhận.
+
 ## 2026-11-23
 
 - **Mở rộng Phân loại Epic thành 14 giá trị + nhóm "Phân loại sai Epic"** (`REQ-20261123-01`):

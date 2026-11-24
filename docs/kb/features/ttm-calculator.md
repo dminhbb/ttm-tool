@@ -92,3 +92,5 @@ attribute không nhận `var()`), nằm trong baseline `design-debt` (`hexLitera
 ## Test
 
 `src/lib/__tests__/ttm-calculator.test.ts`, `ttm-calculator-text.test.ts`, `ttm-timeline.test.ts` (logic thuần ngày nghỉ / ngày làm bù / sinh lưới ngày). Chưa có test UI.
+- Tab "TTM Calendar" của popup Epic gọi `/api/epic-ttm-calendar` (không gắn quyền `ttm_calculator`); `/api/ttm-calculator` thì có. Hai route dùng chung `ttm-calculator-request.ts` — sửa validate ở đó.
+- TNM-Lv12 được seed ngân sách bằng SP-Lv12 (không phải CT-Lv12 như trước 23/11/2026): đổi verdict của các Epic 'Tính năng mới' Level 1-2 — chỉnh ở màn Cấu hình cảnh báo nếu cần.

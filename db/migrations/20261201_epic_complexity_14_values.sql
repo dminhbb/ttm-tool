@@ -1,4 +1,4 @@
--- Epic "Loại Epic" expanded from 4 combinations to 8 valid + 6 "Phân loại sai Epic" (owner request
+-- Epic "Loại Epic" expanded from 4 combinations to 9 valid + 5 "Phân loại sai Epic" (TNM-Lv12 became valid the same day; the widened CHECK accepts all 14) (owner request
 -- 2026-11-23). Request type is now 7-way (Cải tiến / Tính năng mới / Sản phẩm / Hệ thống mới /
 -- Quy trình / Dịch vụ / Giải pháp nền tảng); every non-CT type only exists at Lv34, so its Lv12
 -- combination is a data error (the "Phân loại sai Epic" group R6 flags). The JS source of truth is

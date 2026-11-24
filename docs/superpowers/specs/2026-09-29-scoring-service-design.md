@@ -457,9 +457,10 @@ Tham số chuyển từ hằng số trong code sang `scoring_parameters` (mặc 
 | `release.graceWorkingDays` | 5 | `RELEASE_DUE_GRACE_WORKING_DAYS` (dùng chung Release + R7) |
 | `anomaly.pendingStaleRatio` | 0.2 | `PENDING_STALE_RATIO` |
 | `anomaly.exemptStatuses` | Cancelled, To Do, In PO, Backlog | `evaluateEpicDataAnomaly` |
-| `anomaly.spMismatchLevels` | ["1","2"] | `SP_MISMATCH_LEVELS` |
 | `phase.percentages` | 20/30/30/10/10 | `TTM_PHASE_PERCENTAGE` |
-| `anomaly.spMismatchLevels` / `anomaly.exemptStatuses` | như trên | (Cancelled luôn được miễn) |
+| `anomaly.exemptStatuses` | như trên | (Cancelled luôn được miễn) |
+
+> `anomaly.spMismatchLevels` đã bị gỡ (2026-11-24): R6 đọc thẳng Loại Epic đã lưu (nhóm "Phân loại sai Epic") nên không còn tham số; giá trị cũ trong `scoring_parameters` (nếu có) bị bỏ qua.
 | `index.qaStatuses` | MVP DONE, RELEASED | `TTM_CNTT_QA_STATUSES` |
 
 Các cấu hình **đã có bảng + UI riêng** giữ nguyên nơi lưu, chỉ được nạp vào `ScoringContext`:

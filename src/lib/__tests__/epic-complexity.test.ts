@@ -98,3 +98,19 @@ describe('Giải thích Phân loại Epic cho người dùng (2026-11-23)', () =
     }
   });
 });
+
+describe('Chuẩn hoá chuỗi Loại yêu cầu (2026-11-24)', () => {
+  it('NFD (dấu tách rời), khoảng trắng thừa/giữa chữ vẫn nhận đúng loại', () => {
+    const nfd = 'Sản phẩm'.normalize('NFD');
+    assert.equal(computeEpicComplexity(nfd, '3'), 'SP-Lv34');
+    assert.equal(computeEpicComplexity('  Hệ   thống  mới ', '4'), 'HTM-Lv34');
+    assert.equal(computeEpicComplexity('TÍNH NĂNG MỚI'.normalize('NFD'), '1'), 'TNM-Lv12');
+  });
+
+  it('3 cụm legacy đều → SP', () => {
+    for (const legacy of ['Sản phẩm/dịch vụ/quy trình mới', 'Sản phẩm mới', 'Phát triển mới']) {
+      assert.equal(computeEpicComplexity(legacy, '3'), 'SP-Lv34', legacy);
+      assert.equal(computeEpicComplexity(legacy, '2'), 'SP-Lv12', legacy);
+    }
+  });
+});

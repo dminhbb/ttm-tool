@@ -36,13 +36,14 @@ const REQUEST_TYPE_TO_CODE: Record<string, string> = {
 };
 const LV34_LEVELS = new Set(['3', '4']);
 
+/** Lowercase + NFC (Jira / crawl text may arrive decomposed, NFD) + trim + collapse inner whitespace runs. */
 function normalizeComplexityField(value: string): string {
-  return value.trim().toLocaleLowerCase('vi-VN');
+  return value.normalize('NFC').replace(/\s+/g, ' ').trim().toLocaleLowerCase('vi-VN');
 }
 
 /** 'Loại yêu cầu' (requestType, i.e. epic_request_type) and 'Requirement Level' (requirementLevel,
  * i.e. epic_request_level) — raw text straight from the import source. Note: this compares the request
- * type lowercased + trimmed but NOT diacritic-stripped (the Jira / crawl values carry Vietnamese
+ * type lowercased + NFC + whitespace-collapsed but NOT diacritic-stripped (the Jira / crawl values carry Vietnamese
  * diacritics); the TTM Calculator's text parser does its own diacritic-normalised recognition first. */
 export function computeEpicComplexity(requestType: string, requirementLevel: string): EpicComplexityType {
   const type = normalizeComplexityField(requestType);

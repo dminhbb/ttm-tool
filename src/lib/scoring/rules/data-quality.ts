@@ -304,7 +304,7 @@ export const dqR6Rule = dataQualityRule({
   id: 'dq-r6',
   name: 'R6 — Phân loại sai Loại yêu cầu',
   summary: 'Loại Epic thuộc nhóm "Phân loại sai Epic": một Loại yêu cầu (Sản phẩm / Hệ thống mới / Quy trình / Dịch vụ / Giải pháp nền tảng) chỉ tồn tại ở mức 3-4, nhưng Requirement Level của Epic là 1-2 (HTM-Lv12, SP-Lv12, QT-Lv12, DV-Lv12, GPNT-Lv12).',
-  detail: { conditions: EXEMPT_NOTE, parameters: ['anomaly.spMismatchLevels'] },
+  detail: { conditions: EXEMPT_NOTE },
   emits: ['ANOMALY_R6_SP_LEVEL_MISMATCH', 'REC_REVIEW_SP_LEVEL'],
   honorsExemptStatuses: true,
   evaluate: ({ facts }) => {

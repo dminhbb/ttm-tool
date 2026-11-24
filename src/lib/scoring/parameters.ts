@@ -11,9 +11,6 @@ export interface ScoringParameters {
   'anomaly.pendingStaleRatio': number;
   /** Statuses exempt from every data-quality rule (and R7). Compared upper-cased, workflow-normalized. */
   'anomaly.exemptStatuses': string[];
-  /** Requirement Levels that contradict a non-CT type complexity (legacy: R6 now reads the stored Loại
-   * Epic — a non-CT request type only exists at Lv34 — instead of the raw level). */
-  'anomaly.spMismatchLevels': string[];
   /** Share of the TTM-CNTT budget per phase, walked in order DESIGN → R4GOLIVE. */
   'phase.percentages': Record<TtmPhaseKey, number>;
   /** Statuses counted by QA-Index (upper-cased). */
@@ -28,7 +25,6 @@ export const DEFAULT_SCORING_PARAMETERS: ScoringParameters = {
   'release.graceWorkingDays': 5,
   'anomaly.pendingStaleRatio': 0.2,
   'anomaly.exemptStatuses': ['TO DO', 'IN PO', 'BACKLOG'],
-  'anomaly.spMismatchLevels': ['1', '2'],
   'phase.percentages': { DESIGN: 0.2, DEV: 0.3, TEST: 0.3, PENTEST: 0.1, R4GOLIVE: 0.1 },
   'index.qaStatuses': ['MVP DONE', 'RELEASED'],
   'phase.storyDoneRatio': { DEV: 0.8, TEST: 0.8 },
@@ -41,7 +37,6 @@ export const SCORING_PARAMETER_LABELS: Record<ScoringParameterKey, string> = {
   'release.graceWorkingDays': 'Thời hạn grace trục Release (ngày làm việc)',
   'anomaly.pendingStaleRatio': 'Ngưỡng "Pending lâu" (tỉ lệ ngân sách TTM-CNTT (QLDA))',
   'anomaly.exemptStatuses': 'Status được miễn rule chất lượng dữ liệu (ngoài Cancelled)',
-  'anomaly.spMismatchLevels': 'Requirement Level mâu thuẫn với loại Epic (nhóm "Phân loại sai Epic")',
   'phase.percentages': 'Tỉ lệ ngân sách từng pha',
   'index.qaStatuses': 'Status tính vào TTM-CNTT (QA)',
   'phase.storyDoneRatio': 'Ngưỡng % story đã qua pha để coi pha DEV / TEST hoàn thành',
@@ -56,7 +51,6 @@ const VALIDATORS: { [K in ScoringParameterKey]: (value: unknown) => value is Sco
   'release.graceWorkingDays': (value): value is number => Number.isInteger(value) && (value as number) >= 0,
   'anomaly.pendingStaleRatio': (value): value is number => typeof value === 'number' && value > 0 && value <= 1,
   'anomaly.exemptStatuses': isStringArray,
-  'anomaly.spMismatchLevels': isStringArray,
   'phase.percentages': (value): value is Record<TtmPhaseKey, number> => {
     if (typeof value !== 'object' || value === null) return false;
     const record = value as Record<string, unknown>;

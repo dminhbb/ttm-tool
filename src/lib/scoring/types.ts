@@ -6,10 +6,10 @@ export type IsoDate = string;
 
 /**
  * Epic "Loại Epic" (request-type × requirement-level combination). Company rule 2026-11-23 expanded the
- * 4-way classification to 8 valid combinations (Cải tiến / Tính năng mới / Sản phẩm / Hệ thống mới /
- * Quy trình / Dịch vụ / Giải pháp nền tảng × Lv12/Lv34). The 6 non-CT request types only exist at Lv34, so
+ * 4-way classification to 9 valid combinations (Cải tiến / Tính năng mới / Sản phẩm / Hệ thống mới /
+ * Quy trình / Dịch vụ / Giải pháp nền tảng × Lv12/Lv34). Request types other than CT/TNM only exist at Lv34, so
  * their Lv12 combinations are "Phân loại sai Epic" (a data error flagged by R6), still stored so the
- * Scoring Service can detect them. CT-Lv12 / CT-Lv34 / SP-Lv34 are unchanged.
+ * Scoring Service can detect them (5 combinations: HTM/SP/QT/DV/GPNT-Lv12; TNM-Lv12 is valid).
  */
 export type EpicComplexity =
   | 'CT-Lv12'
