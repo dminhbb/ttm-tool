@@ -10,6 +10,7 @@ import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
+import { PopupMenuButton } from '@/components/ui/PopupMenuButton';
 import { EpicMarkCell } from '@/components/epic-mark/EpicMarkCell';
 import { JiraLinkButton } from '@/components/epic-alerts/JiraLinkButton';
 import { EpicMarkModal } from '@/components/epic-mark/EpicMarkModal';
@@ -17,7 +18,7 @@ import { EpicAlertTimeline } from '@/components/epic-alerts/EpicAlertTimeline';
 import { EpicStatWidgets } from '@/components/epic-alerts/EpicStatWidgets';
 import { DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
 import { EpicCommentCell, TtmCnttPassCell } from '@/components/epic-alerts/EpicCommentCell';
-import { ALERT_FILTER_SELECT_OPTIONS, ALERT_FILTER_VALUES, matchesAlertFilter } from '@/lib/epic-row-verdicts';
+import { ALERT_FILTER_SELECT_OPTIONS, ALERT_FILTER_VALUES, matchesAlertFilter, matchesMarkFilter } from '@/lib/epic-row-verdicts';
 import type { AlertFilterValue } from '@/lib/epic-row-verdicts';
 import { matchesPmSmFilter, splitOwnerNames, UNASSIGNED_PM_SM } from '@/lib/epic-pm-sm-assignment';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
@@ -28,7 +29,9 @@ import type { TtmCnttSummary } from '@/lib/ttm-cntt-qa';
 import { useEpicHeaderWidgets } from '@/lib/epic-header-widgets-context';
 import { EARLY_START_REPORT_HREF, earlyStartActualTooltip, useCompanyTtmIndex } from '@/lib/use-early-start-actual-index';
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
-import { ArrowBendUpRight, ArrowCounterClockwise, CheckCircle, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, Eye, EyeSlash, FlagBanner, FloppyDisk, FolderSimple, HourglassMedium, ListChecks, UserFocus, Prohibit, Sparkle, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
+import { EXPORT_HEADERS, exportRowFields, sortExportRows } from '@/lib/epic-row-export';
+import type { EpicAlertRowExport, ExportRowCells } from '@/lib/epic-row-export';
+import { ArrowBendUpRight, ArrowCounterClockwise, CheckCircle, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, DownloadSimple, Eye, EyeSlash, FilePdf, FileXls, FlagBanner, FloppyDisk, FolderSimple, HourglassMedium, ListChecks, UserFocus, Prohibit, Sparkle, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
 import { compareEpicListRows } from '@/lib/epic-alert-sort-rules';
@@ -531,16 +534,6 @@ function QuickFilterButton({ active, count, countLabel, icon: Icon, label, onCli
       </button>
     </Tooltip>
   );
-}
-
-/** Full-mode twin of the Epic Mark SQL filters (buildFilterClause): without a Mark filter an Epic the viewer hid is
- * left out, unless `ignoreHidden` (the TTM index rows). `row.mark.isHidden` is the viewer's own Hide. */
-function matchesMarkFilter(row: EpicAlertRowPhased, markFilter: 'HIDDEN' | 'MARKED' | 'MINE' | null, markedPmSm: readonly string[], viewerOwnerName: string, ignoreHidden = false): boolean {
-  const hasComment = (row.mark?.commentCount ?? 0) > 0;
-  if (markFilter === 'HIDDEN') return Boolean(row.mark?.isHidden);
-  if (markFilter === 'MARKED') return hasComment && (markedPmSm.length === 0 || splitOwnerNames(row.ownerName).some((name) => markedPmSm.includes(name)));
-  if (markFilter === 'MINE') return hasComment && viewerOwnerName !== '' && splitOwnerNames(row.ownerName).includes(viewerOwnerName);
-  return ignoreHidden || !row.mark?.isHidden;
 }
 
 function AlertHistoryButton({ row, onOpen }: { row: EpicAlertRowPhased; onOpen: (row: EpicAlertRowPhased) => void }) {
@@ -1300,6 +1293,129 @@ function EpicAlerts15Screen() {
     [data?.mode, filteredRows, currentPage],
   );
 
+  // ---- Xuất dữ liệu (XLSX / PDF) -------------------------------------------
+  // Builds the same search params the list fetch sends (minus pagination), so the export matches the
+  // screen's current filter — toolbar + advanced filters included.
+  const buildExportQuery = (): URLSearchParams => {
+    const query = new URLSearchParams();
+    if (pastAsOfDate) {
+      query.set('asOfDate', pastAsOfDate);
+      if (changedSinceActive) query.set('changedSinceOnly', '1');
+    }
+    if (createdDateFrom) query.set('createdDateFrom', createdDateFrom);
+    if (startDateFromFilter) query.set('startDateFrom', startDateFromFilter);
+    if (dueDateFromFilter) query.set('dueDateFrom', dueDateFromFilter);
+    if (deepLinkFilters.ttmScopeCnttFrom !== undefined) query.set('cnttFrom', deepLinkFilters.ttmScopeCnttFrom ?? '');
+    if (deepLinkFilters.ttmScopeCnttTo !== undefined) query.set('cnttTo', deepLinkFilters.ttmScopeCnttTo ?? '');
+    if (deepLinkFilters.ttmScopeQaFrom !== undefined) query.set('qaFrom', deepLinkFilters.ttmScopeQaFrom ?? '');
+    if (deepLinkFilters.ttmScopeQaTo !== undefined) query.set('qaTo', deepLinkFilters.ttmScopeQaTo ?? '');
+    if (projectFilters.length > 0) query.set('projectKeys', projectFilters.join(','));
+    if (pmSmFilters.length > 0) query.set('pmSm', pmSmFilters.join(','));
+    if (componentFilters.length > 0) query.set('components', componentFilters.join(','));
+    if (alertFilters.length > 0) query.set('alertFilter', alertFilters.join(','));
+    if (typeFilters.length > 0) query.set('epicType', typeFilters.join(','));
+    if (statusFilters.length > 0) query.set('statuses', statusFilters.join(','));
+    if (dataIssueFilter) query.set('dataIssueOnly', '1');
+    for (const unit of requestingUnitFilters) query.append('requestingUnit', unit);
+    for (const group of ruleGroupFilters) query.append('ruleGroup', group);
+    if (search.trim()) query.set('search', search.trim());
+    if (markFilter) query.set('markFilter', markFilter);
+    if (deepLinkFilters.newFailScope) query.set('newFailScope', deepLinkFilters.newFailScope);
+    if (markFilter === 'MARKED' && markedPmSmFilters.length > 0) query.set('markedPmSm', markedPmSmFilters.join(','));
+    if (viewAsUserId) query.set('viewAsUserId', viewAsUserId);
+    return query;
+  };
+
+  const [exporting, setExporting] = useState(false);
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  /** Title row text: project names + the data date the export is drawn from. */
+  const exportTitle = (projectNames: string[], exportedAt: string, dataLayerDate: string | null): string =>
+    `${projectNames.length > 0 ? projectNames.join(', ') : 'Toàn bộ dự án'} — Dữ liệu ngày ${exportedAt}${dataLayerDate ? ` (lớp dữ liệu: ${dataLayerDate})` : ''}`;
+
+  const handleExport = async (format: 'xlsx' | 'pdf') => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const query = buildExportQuery();
+      const queryString = query.toString();
+      const res = await fetch(`/api/epic-alerts-15/export${queryString ? `?${queryString}` : ''}`);
+      if (!res.ok) {
+        const result = await res.json().catch(() => null);
+        throw new Error(result?.error || 'Lỗi hệ thống khi xuất dữ liệu.');
+      }
+      const result = await res.json();
+      const sortedRows = sortExportRows(result.rows as EpicAlertRowExport[]);
+      const cells: ExportRowCells[] = sortedRows.map((row) => exportRowFields(row, result.viewIssueBaseUrl ?? ''));
+      const title = exportTitle(result.projectNames ?? [], result.exportedAt ?? '', result.dataLayerDate ?? null);
+      const headers = EXPORT_HEADERS.map((header) => header.label);
+      const stamp = result.exportedAt ? result.exportedAt.replace(/-/g, '') : '';
+      const data = cells.map((cell) => EXPORT_HEADERS.map((header) => cell[header.key]));
+
+      if (format === 'xlsx') {
+        // Dynamically imported so the (heavy) ExcelJS bundle only loads when actually exporting.
+        const ExcelJS = await import('exceljs');
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('Epic');
+        // Two header rows: the title (merged across the width, bold) then the column headers
+        // (bold + blue fill), then the data rows.
+        sheet.addRow([title]);
+        sheet.mergeCells(1, 1, 1, headers.length);
+        sheet.getCell(1, 1).font = { bold: true, size: 12 };
+        sheet.addRow(headers);
+        const headerRow = sheet.getRow(2);
+        headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
+        data.forEach((row) => sheet.addRow(row));
+        // Reasonable column widths based on the header text.
+        sheet.columns = headers.map((label) => ({ width: Math.max(10, Math.min(42, label.length + 6)) }));
+        const buffer = await workbook.xlsx.writeBuffer();
+        downloadBlob(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `epic-export-${stamp || 'data'}.xlsx`);
+      } else {
+        // Landscape PDF, title as a merged header row then the autoTable body (dynamic imports too).
+        const { jsPDF } = await import('jspdf');
+        const { default: autoTable } = await import('jspdf-autotable');
+        // Embed a Unicode font that covers Vietnamese (jsPDF's standard fonts have no VN glyphs), so
+        // the exported PDF renders "Dữ liệu", project names and Pass/Fail text correctly. Loaded via
+        // dynamic import so the ~400KB of base64 fonts only loads when actually exporting a PDF.
+        const { ROBOTO_REGULAR_B64, ROBOTO_BOLD_B64 } = await import('@/lib/epic-pdf-fonts');
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+        doc.addFileToVFS('Roboto-Regular.ttf', ROBOTO_REGULAR_B64);
+        doc.addFileToVFS('Roboto-Bold.ttf', ROBOTO_BOLD_B64);
+        doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
+        doc.addFont('Roboto-Bold.ttf', 'Roboto', 'bold');
+        doc.setFont('Roboto', 'bold');
+        doc.setFontSize(13);
+        doc.setTextColor(20, 20, 20);
+        doc.text(title, 14, 20);
+        autoTable(doc, {
+          startY: 30,
+          head: [headers],
+          body: data,
+          styles: { font: 'Roboto', fontSize: 7, cellPadding: 2 },
+          headStyles: { font: 'Roboto', fillColor: [37, 99, 235], textColor: 255, fontSize: 7 },
+          margin: { top: 10, right: 14, bottom: 14, left: 14 },
+        });
+        downloadBlob(doc.output('blob'), `epic-export-${stamp || 'data'}.pdf`);
+      }
+      showToast(`Đã xuất ${format === 'xlsx' ? 'Excel' : 'PDF'} ${result.rows?.length ?? 0} Epic.`);
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : 'Lỗi khi xuất dữ liệu.', 5000);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="ttm-app">
       {!isEmbedded && <InfoBannerDisplay pathname="/epic-alerts-15" />}
@@ -1526,6 +1642,19 @@ function EpicAlerts15Screen() {
               <ArrowCounterClockwise className="size-4 text-fb-text-secondary" weight="bold" />
             </button>
           </Tooltip>
+          {/* "Xuất Dữ Liệu" (REQ-20261126-01): before "Mở rộng cột", a popup with XLSX/PDF. Muted when
+              no project is selected (a scope-wide export is not allowed) or more than 3 projects are
+              selected in the Dự án filter. */}
+          <PopupMenuButton
+            ariaLabel="Xuất dữ liệu"
+            disabled={projectFilters.length === 0 || projectFilters.length > 3}
+            disabledTooltip="Chọn 1 đến 3 project để xuất dữ liệu"
+            label={<span className="inline-flex items-center gap-1.5"><DownloadSimple size={16} weight="bold" /><span>Xuất Dữ Liệu</span></span>}
+            menuItems={[
+              { label: 'Xuất XLSX', icon: <FileXls size={16} />, onClick: () => { void handleExport('xlsx'); } },
+              { label: 'Xuất PDF', icon: <FilePdf size={16} />, onClick: () => { void handleExport('pdf'); } },
+            ]}
+          />
           {/* "Mở rộng cột" (owner 2026-11-10): after "Đặt lại bộ lọc mặc định", with its text. */}
           <button
             type="button"

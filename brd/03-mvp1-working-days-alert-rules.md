@@ -29,16 +29,16 @@ Các mức cảnh báo:
 
 ## 3. Bảng rule cảnh báo MVP1
 
-> **Cập nhật (09/2026):** thay cho 2 loại Epic đơn giản/phức tạp cũ, rule cảnh báo trạng thái
-> (`epic_status_alert_rules` — panel "Quy tắc cảnh báo Epic") nay áp theo **4 epic-type**
-> CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34 — xem `02-ttm-concepts-and-rules.md` §2 cho định nghĩa từng loại.
+> **Cập nhật (11/2026):** thay cho 2 loại Epic đơn giản/phức tạp cũ, rule cảnh báo trạng thái
+> (`epic_status_alert_rules` — panel "Quy tắc cảnh báo Epic") nay áp theo **14 epic-type**: 9 tổ hợp
+> hợp lệ (CT-Lv12/CT-Lv34/TNM-Lv12/TNM-Lv34/HTM-Lv34/SP-Lv34/QT-Lv34/DV-Lv34/GPNT-Lv34) + 5 tổ hợp
+> nhóm "Phân loại sai Epic" (HTM-Lv12/SP-Lv12/QT-Lv12/DV-Lv12/GPNT-Lv12) — xem `02-ttm-concepts-and-rules.md` §2 cho định nghĩa từng loại.
 > Fail TTM-CNTT không còn nằm trong bảng này — lấy từ `ttm_policy_configs` (§4.4 bên dưới).
 >
 > Các dòng SIMPLE/COMPLEX bên dưới là rule **cũ**, hiện vẫn còn lưu trong DB (không xóa để bảo toàn
 > lịch sử cấu hình) nhưng **không còn Epic nào thuộc 2 loại này** nên các dòng này không còn tác
-> dụng thực tế. Admin cần tự cấu hình rule Design/In Progress (và các trạng thái khác nếu cần) cho 4
-> epic-type mới tại panel "Quy tắc cảnh báo Epic" — hiện tại 4 loại mới **chưa có rule nào**, nghĩa
-> là các Epic mới sẽ không có cảnh báo sớm/muộn theo trạng thái cho tới khi admin cấu hình.
+> dụng thực tế. **9 tổ hợp hợp lệ đã được seed sẵn** (migration `20261202`) cho admin tinh chỉnh
+> Design/In Progress (và các trạng thái khác nếu cần) tại panel "Quy tắc cảnh báo Epic".
 
 ### 3.1. Rule cũ (SIMPLE/COMPLEX) — tham khảo, không còn áp dụng
 
@@ -49,21 +49,20 @@ Các mức cảnh báo:
 | COMPLEX | Design | T1 + 5 ngày làm việc | T1 + 6 ngày làm việc |
 | COMPLEX | In Progress | T1 + 19 ngày làm việc | T1 + 20 ngày làm việc |
 
-### 3.2. Epic-type mới (CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34)
+### 3.2. Epic-type mới (14 giá trị / 9 tổ hợp hợp lệ)
 
-Admin tự nhập rule tại panel "Quy tắc cảnh báo Epic" (mỗi dòng là 1 cặp epic-type × trạng thái, với
-offset cảnh báo sớm < offset cảnh báo muộn) — nếu chưa cấu hình, Epic của 4 loại mới sẽ không có
-cảnh báo sớm/muộn theo trạng thái. Có thể dùng lại giá trị SIMPLE ở trên làm điểm khởi đầu cho
-CT-Lv12, giá trị COMPLEX cho CT-Lv34/SP-Lv12/SP-Lv34, rồi điều chỉnh theo TTM-CNTT thực tế của từng
-loại (xem bảng working-days tại `02-ttm-concepts-and-rules.md` §2).
+Admin cấu hình rule tại panel "Quy tắc cảnh báo Epic" (mỗi dòng là 1 cặp epic-type × trạng thái, với
+offset cảnh báo sớm < offset cảnh báo muộn). **9 tổ hợp hợp lệ đã được seed sẵn** (migration
+`20261202_seed_epic_complexity_valid_combos.sql`) — CT-Lv12/TNM-Lv12 copy giá trị SIMPLE, CT-Lv34/
+TNM-Lv34/HTM-Lv34/SP-Lv34/QT-Lv34/DV-Lv34/GPNT-Lv34 copy giá trị COMPLEX — nhưng admin có thể chỉnh
+bất kỳ lúc nào theo TTM-CNTT thực tế của từng loại (xem bảng working-days tại `02-ttm-concepts-and-rules.md` §2). Nếu một tổ hợp chưa có rule, Epic mang tổ hợp đó sẽ không có cảnh báo sớm/muộn theo trạng thái.
 
 Lưu ý code-level: `OFFSET_RULES` trong `src/lib/ttm-rules.ts` **vẫn hardcode** offset Design/In
-Progress cho cả 4 epic-type (CT-Lv12/SP-Lv12 dùng lại giá trị SIMPLE cũ, CT-Lv34/SP-Lv34 dùng lại
-giá trị COMPLEX cũ) — nhưng đây là **dead code** trong thực tế: mọi caller thật (`epic-compliance-
-engine.ts`, `epic-alert-service.ts`) luôn truyền một mảng `statusAlertRules` (kể cả rỗng) nên
-`resolveOffsetRule` không bao giờ rơi xuống `OFFSET_RULES`. Kết luận nghiệp vụ ở trên (chưa cấu hình
-= chưa có cảnh báo) vẫn đúng, chỉ là do đường gọi thực tế luôn ưu tiên rule active trong DB, không
-phải vì code thiếu giá trị mặc định.
+Progress cho một số epic-type (dùng lại giá trị SIMPLE/COMPLEX cũ) — nhưng đây là **dead code**
+trong thực tế: mọi caller thật (`epic-alert-rows-service.ts`, `epic-alert-service.ts`) luôn truyền
+một mảng `statusAlertRules` (kể cả rỗng) nên `resolveOffsetRule` không bao giờ rơi xuống
+`OFFSET_RULES`. Kết luận nghiệp vụ ở trên (chưa cấu hình = chưa có cảnh báo) vẫn đúng, chỉ là do
+đường gọi thực tế luôn ưu tiên rule active trong DB, không phải vì code thiếu giá trị mặc định.
 
 ## 4. Quy tắc xác định cảnh báo
 
@@ -135,7 +134,7 @@ gian cảnh báo).** Epic ở trạng thái Cancelled/To Do/In PO/Backlog đư�
 | R3 | `DATE_OUT_OF_SEQUENCE` | Sai thứ tự — không thoả T0 ≤ T1 < R4G Date ≤ Due Date (chỉ xét mốc đã có giá trị; R4G Date = Due Date vẫn coi là hợp lệ). Mọi cặp sai trong cùng 1 Epic được **gộp thành 1 vi phạm** (vì bảng `epic_data_anomaly_violations` chỉ lưu tối đa 1 dòng/Epic/rule_code). |
 | R4 | `MISSING_REQUEST_TYPE` | Thiếu Phân loại yêu cầu (`epic_request_type`). |
 | R5 | `MISSING_REQUIREMENT_LEVEL` | Thiếu Requirement Level (`epic_request_level`). *(Engine legacy — không đổi. Scoring Service từ 11/10/2026 chỉ xét khi status > DESIGN và ≠ Pending, hoặc Pending có previous_status rỗng / ∉ {To Do, In PO} (Pending trước đó là To Do / In PO được miễn) — xem spec §25.)* |
-| R6 | `SP_LEVEL_MISMATCH` | Epic được `computeEpicComplexity` đánh giá độ phức tạp **SP** (SP-Lv12/SP-Lv34) nhưng Requirement Level = 1 hoặc 2 — mâu thuẫn nghiệp vụ (SP luôn phải là mức cao), báo hiệu Phân loại yêu cầu hoặc Requirement Level nhập sai. |
+| R6 | `ANOMALY_R6_SP_LEVEL_MISMATCH` | Loại Epic thuộc nhóm **"Phân loại sai Epic"** (`isMisclassifiedEpicComplexity`): một Loại yêu cầu SP/HTM/QT/DV/GPNT chỉ tồn tại ở mức 3-4 nhưng Epic mang tổ hợp Lv12 (HTM-Lv12/SP-Lv12/QT-Lv12/DV-Lv12/GPNT-Lv12) — mâu thuẫn nghiệp vụ, báo hiệu Phân loại yêu cầu hoặc Requirement Level nhập sai (cập nhật 11/2026: nhóm sai bỏ TNM-Lv12 — loại này đã hợp lệ). |
 | R7 | `RELEASE_STATUS_MISMATCH` | Đã có R4G Date và Due Date, Due Date ≤ R4G Date + 5 ngày làm việc (đúng hạn theo "trục Release" — xem `02-ttm-concepts-and-rules.md` mục 6.1), NHƯNG status Epic chưa chuyển sang Released. Ưu tiên hơn badge "Cảnh báo sớm"/"Giải trình Golive" của trục Release. |
 
 > Rule "thiếu T0" (trạng thái ≥ Design nhưng chưa có Ngày duyệt ý tưởng) đã **bị bỏ** khỏi bộ 6 rule

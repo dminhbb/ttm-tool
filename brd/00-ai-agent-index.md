@@ -18,11 +18,14 @@ Nếu các tài liệu cũ còn nhắc tới ngày lịch, logic cũ hoặc tr�
 5. Epic có hai mốc T:
    - **T0** = Ngày duyệt ý tưởng.
    - **T1** = Start Date của Epic.
-6. **Cập nhật (09/2026):** Epic đơn giản/phức tạp (2 loại) đã được thay bằng **4 epic-type**
-   `CT-Lv12`/`CT-Lv34`/`SP-Lv12`/`SP-Lv34`, tính từ `epic_request_type` + `epic_request_level` của
-   Epic (mặc định `CT-Lv12` khi dữ liệu thiếu/không khớp) — xem `02-ttm-concepts-and-rules.md` §2 cho
-   định nghĩa và giá trị working-days đang cấu hình cho từng loại. Giá trị SIMPLE/COMPLEX cũ (3 tuần/
-   6 tuần TTM-CNTT) chỉ còn là dữ liệu lịch sử, không còn Epic nào phân loại theo 2 giá trị này.
+6. **Cập nhật (11/2026):** Epic đơn giản/phức tạp (2 loại) đã được thay bằng **14 giá trị epic-type**
+   — 9 tổ hợp hợp lệ `CT-Lv12`/`CT-Lv34`/`TNM-Lv12`/`TNM-Lv34`/`HTM-Lv34`/`SP-Lv34`/`QT-Lv34`/`DV-Lv34`/
+   `GPNT-Lv34` + 5 tổ hợp nhóm "Phân loại sai Epic" `HTM-Lv12`/`SP-Lv12`/`QT-Lv12`/`DV-Lv12`/`GPNT-Lv12`,
+   tính từ `epic_request_type` (7 loại: Cải tiến/Tính năng mới/Sản phẩm/Hệ thống mới/Quy trình/Dịch vụ/
+   Giải pháp nền tảng) + `epic_request_level` của Epic (mặc định `CT-Lv12` khi dữ liệu thiếu/không khớp)
+   — xem `02-ttm-concepts-and-rules.md` §2 cho định nghĩa và giá trị working-days đang cấu hình cho từng
+   loại. Giá trị SIMPLE/COMPLEX cũ (3 tuần/6 tuần TTM-CNTT) chỉ còn là dữ liệu lịch sử, không còn Epic
+   nào phân loại theo 2 giá trị này.
 8. R4G Date và Due Date là field nhập tay trên Jira.
 9. Phần mềm read-only đối với Jira, không ghi ngược lại Jira.
 10. CSV Import là nguồn dữ liệu MVP đầu; sau này có thể thay bằng Jira API hoặc Jira DB Query thông qua Data Source Adapter.
@@ -32,7 +35,7 @@ Nếu các tài liệu cũ còn nhắc tới ngày lịch, logic cũ hoặc tr�
 | File | Mục đích | Khi nào cần đọc |
 |---|---|---|
 | `01-product-overview.md` | Tổng quan sản phẩm, mục tiêu, phạm vi | Khi cần hiểu sản phẩm tổng thể |
-| `02-ttm-concepts-and-rules.md` | Khái niệm TTM-CNTT, TTM-E2E, 4 epic-type (CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34), ngày làm việc, Pending | Khi code logic nghiệp vụ TTM |
+| `02-ttm-concepts-and-rules.md` | Khái niệm TTM-CNTT, TTM-E2E, phân loại Epic (14 giá trị: 9 hợp lệ + 5 "Phân loại sai Epic"), ngày làm việc, Pending | Khi code logic nghiệp vụ TTM |
 | `03-mvp1-working-days-alert-rules.md` | Rule cảnh báo MVP1 cho Design/In Progress | Khi code cảnh báo, risk, cột Cảnh báo |
 | `04-homepage-and-epic-monitoring.md` | Homepage 3 panel, cột bảng, filter From/To Date | Khi code dashboard hoặc danh sách Epic |
 | `05-auth-rbac-user-management.md` | Login, session, password, role, phân quyền user/domain/project | Khi code auth, user CRUD, RBAC |
@@ -47,6 +50,7 @@ Nếu các tài liệu cũ còn nhắc tới ngày lịch, logic cũ hoặc tr�
 | `14-issue-hierarchy-and-workflows.md` | Cấu trúc phân cấp Issue Jira & quy trình workflow | Khi xử lý dữ liệu issue & cây quan hệ |
 | `15-mcp-sso-and-reports.md` | Báo cáo Epic (`/reports`), MCP Server (AI chatbot), SSO/API Key (SSO Provider) | Khi code màn Báo cáo, tích hợp MCP hoặc SSO |
 | `16-ttm-indexes.md` | Rule tính toán chi tiết TTM-Index/QA-Index (QLDA/PM), TTM-CNTT, TTM-E2E — tử số/mẫu số, phạm vi dữ liệu, "Phạm vi dữ liệu cho TTM", "Phạm vi rule Sai lệch dữ liệu", khuyến nghị "Thiếu lý do Fail TTM", các trường hợp bị loại khỏi tính toán | Khi cần biết chính xác một chỉ số TTM/QA được tính ra sao, hoặc sửa logic liên quan |
+| `17-pentest-and-performance-testing.md` | Hướng dẫn vận hành thủ công pentest (OWASP ZAP, Nuclei, Burp qua skill pentest) và performance/load test (k6, Autocannon) cho app | Khi cần kiểm thử bảo mật hoặc hiệu năng (chủ động, không tự động) |
 
 ## 4. Mapping task → file cần đọc
 

@@ -14,36 +14,52 @@ Hệ thống theo dõi hai tiêu chí:
 > và mục 5 bên dưới. T0 (Idea Approved Date) nếu thiếu sẽ tự fallback sang ngày tạo Epic trên Jira
 > (`jira_created_at`, luôn có), nên baseline TTM-E2E luôn tính được kể cả khi Epic thiếu Start Date.
 
-## 2. Bốn loại Epic (epic-type)
+## 2. Phân loại Epic (epic-type)
 
-> **Cập nhật (09/2026):** thay cho lược đồ 2 loại cũ (Epic đơn giản/Epic phức tạp = SIMPLE/COMPLEX),
-> hệ thống hiện phân loại Epic theo **4 loại**, tính từ hai trường Jira của Epic — `epic_request_type`
-> (loại yêu cầu) và `epic_request_level` (mức độ yêu cầu, 1-4) — theo `computeEpicComplexity`
-> (`src/lib/import-service.ts`), tính một lần tại thời điểm import.
+> **Cập nhật (11/2026):** thay cho lược đồ 2 loại cũ (Epic đơn giản/Epic phức tạp = SIMPLE/COMPLEX), hệ
+> thống hiện phân loại Epic theo **14 giá trị** tính từ hai trường Jira — `epic_request_type` (Loại yêu
+> cầu) và `epic_request_level` (Mức yêu cầu, 1-4) — theo `computeEpicComplexity`
+> (`src/lib/epic-complexity.ts`), tính một lần tại thời điểm import.
 >
-> **Cập nhật (22/09/2026):** đổi cách xác định CT/SP theo `epic_request_type` — CT nay là tập đóng
-> (whitelist), SP là phần bù (mọi giá trị còn lại), thay vì cả hai đều là whitelist như trước:
+> **Quyết định 2026-11-23 (chủ sản phẩm), bổ sung 2026-11-24:** "Loại yêu cầu" được tách thành **7 loại**
+> (Cải tiến, Tính năng mới, Sản phẩm, Hệ thống mới, Quy trình, Dịch vụ, Giải pháp nền tảng). CT và TNM
+> hợp lệ ở cả mức 1-2 lẫn 3-4; các loại còn lại (SP/HTM/QT/DV/GPNT) **chỉ tồn tại ở mức 3-4**, nên tổ
+> hợp mức 1-2 của chúng là **"Phân loại sai Epic"** — vẫn lưu để Scoring Service rule R6 gắn cờ.
 >
-> - **CT** = `epic_request_type` ∈ {"Cải tiến", "Tính năng mới"} HOẶC rỗng/`None` (thiếu dữ liệu).
-> - **SP** = mọi giá trị `epic_request_type` còn lại (không còn giới hạn ở "Sản phẩm/dịch vụ/quy
->   trình mới"/"Sản phẩm" như trước — bất kỳ giá trị nào không khớp CT đều là SP).
+> Chuỗi `epic_request_type` được chuẩn hoá trước khi so khớp (lowercase + trim + gom khoảng trắng + NFC,
+> chấp nhận dấu tiếng Việt dạng NFD/tách rời). Level ∈ {1,2} → `Lv12`, level ∈ {3,4} → `Lv34`; level
+> ngoài 1-4 hoặc thiếu → `Lv12`; Loại yêu cầu thiếu/rỗng/`none` → `CT` (mặc định an toàn). Từ đồng
+> nghĩa/legacy → SP: `Sản phẩm/dịch vụ/quy trình mới`, `Sản phẩm mới`, `Phát triển mới`.
+
+**9 tổ hợp hợp lệ:**
 
 | Epic-type | Điều kiện (request type × request level) |
 |---|---|
-| `CT-Lv12` | request type ∈ {"Cải tiến", "Tính năng mới"} hoặc rỗng/None + mức 1-2 — **mặc định** khi dữ liệu thiếu hoặc không khớp bất kỳ điều kiện nào khác |
-| `CT-Lv34` | request type ∈ {"Cải tiến", "Tính năng mới"} hoặc rỗng/None + mức 3-4 |
-| `SP-Lv12` | request type là bất kỳ giá trị nào khác CT + mức 1-2 (xem R6 tại `03-mvp1-working-days-alert-rules.md` §4.5 — tổ hợp này luôn bị đánh dấu "Sai lệch dữ liệu") |
-| `SP-Lv34` | request type là bất kỳ giá trị nào khác CT + mức 3-4 |
+| `CT-Lv12` | Loại yêu cầu ∈ {"Cải tiến", "Tính năng mới"} hoặc rỗng/None + mức 1-2 — **mặc định** khi dữ liệu thiếu hoặc không khớp bất kỳ điều kiện nào khác |
+| `CT-Lv34` | Loại yêu cầu ∈ {"Cải tiến", "Tính năng mới"} hoặc rỗng/None + mức 3-4 |
+| `TNM-Lv12` | Loại yêu cầu = "Tính năng mới" + mức 1-2 (**hợp lệ từ 23/11/2026**) |
+| `TNM-Lv34` | Loại yêu cầu = "Tính năng mới" + mức 3-4 |
+| `HTM-Lv34` | Loại yêu cầu = "Hệ thống mới" + mức 3-4 |
+| `SP-Lv34` | Loại yêu cầu = "Sản phẩm" (hoặc cụm legacy → SP) + mức 3-4 |
+| `QT-Lv34` | Loại yêu cầu = "Quy trình" + mức 3-4 |
+| `DV-Lv34` | Loại yêu cầu = "Dịch vụ" + mức 3-4 |
+| `GPNT-Lv34` | Loại yêu cầu = "Giải pháp nền tảng" + mức 3-4 |
+
+**5 tổ hợp "Phân loại sai Epic"** (loại SP/HTM/QT/DV/GPNT ở mức 1-2 — bị R6 gắn cờ, xem
+`03-mvp1-working-days-alert-rules.md` §4.5): `HTM-Lv12`, `SP-Lv12`, `QT-Lv12`, `DV-Lv12`, `GPNT-Lv12`.
 
 Giá trị số ngày làm việc (working days) hiện đang cấu hình cho từng loại (bảng `ttm_policy_configs`,
-panel "Tiêu chí Time to Market" tại "Cấu hình cảnh báo"):
+panel "Tiêu chí Time to Market" tại "Cấu hình cảnh báo") — **9 tổ hợp hợp lệ được seed sẵn** (migration
+`20261202_seed_epic_complexity_valid_combos.sql`):
 
 | Epic-type | TTM-CNTT (Start Date → R4G Date) | TTM-E2E (T0 → R4G Date, xem cập nhật 24/09/2026 mục 6) |
 |---|---:|---:|
 | CT-Lv12 | 15 ngày làm việc | 20 ngày làm việc |
 | CT-Lv34 | 25 ngày làm việc | 30 ngày làm việc |
-| SP-Lv12 | 30 ngày làm việc | 50 ngày làm việc |
+| SP-Lv12 (nhóm sai) | 30 ngày làm việc | 50 ngày làm việc |
 | SP-Lv34 | 30 ngày làm việc | 50 ngày làm việc |
+| TNM-Lv12 (copy SP-Lv12) | 15 ngày làm việc | 50 ngày làm việc |
+| TNM-Lv34 / HTM-Lv34 / QT-Lv34 / DV-Lv34 / GPNT-Lv34 (copy SP-Lv34) | 30 ngày làm việc | 50 ngày làm việc |
 
 Các giá trị trên do CBQL Phòng tự cấu hình và có thể thay đổi bất kỳ lúc nào tại panel "Tiêu chí Time
 to Market" — bảng trên chỉ là giá trị đang active tại thời điểm cập nhật tài liệu này, không phải hằng
@@ -52,8 +68,8 @@ số cứng trong code. Đây là nguồn DUY NHẤT cho mốc hạn TTM — kh�
 
 Lược đồ SIMPLE/COMPLEX cũ vẫn còn được DB chấp nhận (`CHECK` constraint không xóa các giá trị cũ) để
 không phá vỡ các dòng rule cũ do admin đã cấu hình trước đây, nhưng **không còn Epic nào được phân
-loại là SIMPLE/COMPLEX nữa** — mọi Epic (kể cả Epic import trước khi đổi rule) đã được backfill sang 1
-trong 4 loại mới ở trên.
+loại là SIMPLE/COMPLEX nữa**. Các dòng Epic lịch sử đã được recompute/backfill (migration `20261201`,
+`20261203`, `20261204`); dòng level NULL / "Chưa xác định" giữ `CT-Lv12` để rule R5 đánh dấu thiếu level.
 
 ## 3. Ngày làm việc
 
@@ -85,7 +101,7 @@ TTM-CNTT là tiêu chí ưu tiên trong MVP1.
 | Bắt đầu | T1 = Epic.Start Date |
 | Kết thúc | Epic.R4G Date |
 | Đơn vị tính | Ngày làm việc |
-| Target theo epic-type | Xem bảng 4 loại tại mục 2 (CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34), cấu hình tại "Tiêu chí Time to Market" |
+| Target theo epic-type | Xem bảng phân loại Epic tại mục 2 (9 tổ hợp hợp lệ), cấu hình tại "Tiêu chí Time to Market" |
 | Kết quả | Đạt TTM-CNTT hoặc Fail TTM-CNTT |
 
 R4G Date là field nhập tay trên Jira.
@@ -101,7 +117,7 @@ TTM-E2E dùng để đo toàn bộ hành trình của yêu cầu.
 | Bắt đầu | T0 = Ngày duyệt ý tưởng |
 | Kết thúc | Epic.R4G Date (xem cập nhật 24/09/2026 bên dưới — trước đó là Due Date) |
 | Đơn vị tính | Ngày làm việc |
-| Target theo epic-type | Xem bảng 4 loại tại mục 2 (CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34), cấu hình tại "Tiêu chí Time to Market" |
+| Target theo epic-type | Xem bảng phân loại Epic tại mục 2 (9 tổ hợp hợp lệ), cấu hình tại "Tiêu chí Time to Market" |
 
 Trong MVP1, TTM-E2E có thể được lưu và hiển thị tham khảo nhưng chưa phải trọng tâm cảnh báo chính.
 

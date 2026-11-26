@@ -150,7 +150,8 @@ nếu total = 0:  pct = 100
 `computeTtmAlert` (`src/lib/ttm-rules.ts`):
 
 - **Mốc mục tiêu (target R4G Date / "TTM-CNTT baseline")** = Start Date (T1) + số ngày làm việc theo
-  policy TTM-CNTT đang active cho loại Epic đó (`CT-Lv12`/`CT-Lv34`/`SP-Lv12`/`SP-Lv34`, cấu hình ở
+  policy TTM-CNTT đang active cho loại Epic đó (1 trong 9 tổ hợp hợp lệ `CT-Lv12`/`CT-Lv34`/`TNM-Lv12`/
+  `TNM-Lv34`/`HTM-Lv34`/`SP-Lv34`/`QT-Lv34`/`DV-Lv34`/`GPNT-Lv34`, cấu hình ở
   "Cấu hình cảnh báo" § Tiêu chí Time to Market).
 - Nếu Epic **đã có R4G Date**: `FAIL` nếu R4G Date thực tế > mốc mục tiêu, ngược lại `NONE`.
 - Nếu Epic **chưa có R4G Date**: so hôm nay với mốc mục tiêu — `FAIL` nếu đã quá hạn; `LATE`/`EARLY`

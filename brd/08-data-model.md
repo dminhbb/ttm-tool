@@ -207,8 +207,8 @@ target_r4g_date
 target_due_date
 jira_created_at            -- epic_created (Py Jira API adapter)
 jira_updated_at             -- epic_updated (Py Jira API adapter)
-epic_complexity_type       -- CT-Lv12 / CT-Lv34 / SP-Lv12 / SP-Lv34 (từ 09/2026 — xem 02-ttm-concepts-and-rules.md §2;
-                            -- legacy SIMPLE/COMPLEX vẫn được CHECK constraint chấp nhận nhưng không còn Epic nào mang giá trị này)
+epic_complexity_type       -- 14 giá trị (từ 11/2026 — xem 02-ttm-concepts-and-rules.md §2): 9 hợp lệ (CT-Lv12/CT-Lv34/TNM-Lv12/TNM-Lv34/HTM-Lv34/SP-Lv34/QT-Lv34/DV-Lv34/GPNT-Lv34)
+                            -- + 5 nhóm "Phân loại sai Epic" (HTM-Lv12/SP-Lv12/QT-Lv12/DV-Lv12/GPNT-Lv12); legacy SIMPLE/COMPLEX vẫn được CHECK chấp nhận nhưng không còn Epic nào mang giá trị này)
 requirement_level
 components                 -- TEXT[], Epic/Story's Jira Component/s — dùng cho lọc theo Component
 epic_stories                -- TEXT[], danh sách Story key con trực tiếp của Epic (Py Jira API adapter)
@@ -257,14 +257,18 @@ Khóa duy nhất: `(issue_key, source_import_batch_id)` — cho phép cùng 1 is
 nhất trong toàn bộ lịch sử (`LATEST_ISSUES_CTE`, `issue-resolution-sql.ts`), không phải bản ghi
 trong batch gần nhất.
 
-**Quy tắc phân loại Epic (`epic_complexity_type` — cập nhật 09/2026):**
-Lúc import dữ liệu, hệ thống tự động tính toán `epic_complexity_type` cho từng Epic (`computeEpicComplexity` trong `import-service.ts`) dựa vào 2 trường từ Jira: `epic_request_type` (Loại yêu cầu) và `epic_request_level` (Mức yêu cầu):
-- **CT-Lv12**: Loại yêu cầu ∈ {`Tính năng mới`, `Cải tiến`} và Mức yêu cầu ∈ {`1`, `2`} (*mặc định an toàn cho mọi trường hợp thiếu hoặc không khớp dữ liệu*).
-- **CT-Lv34**: Loại yêu cầu ∈ {`Tính năng mới`, `Cải tiến`} và Mức yêu cầu ∈ {`3`, `4`}.
-- **SP-Lv12**: Loại yêu cầu ∈ {`Sản phẩm/dịch vụ/quy trình mới`, `Sản phẩm`} và Mức yêu cầu ∈ {`1`, `2`}.
-- **SP-Lv34**: Loại yêu cầu ∈ {`Sản phẩm/dịch vụ/quy trình mới`, `Sản phẩm`} và Mức yêu cầu ∈ {`3`, `4`}.
+**Quy tắc phân loại Epic (`epic_complexity_type` — cập nhật 11/2026):**
+Lúc import dữ liệu, hệ thống tự động tính toán `epic_complexity_type` cho từng Epic (`computeEpicComplexity` trong `src/lib/epic-complexity.ts`) dựa vào 2 trường từ Jira: `epic_request_type` (Loại yêu cầu) và `epic_request_level` (Mức yêu cầu). Chuỗi được chuẩn hoá trước khi so khớp: `lowercase` + `trim` + gom khoảng trắng + **NFC** (chấp nhận dấu tiếng Việt dạng NFD/tách rời).
 
-Tất cả các bản ghi Epic lịch sử đã được backfill tự động sang 4 loại mới thông qua migration `20260908c_backfill_epic_complexity_types.sql`.
+"Loại yêu cầu" (Loại yêu cầu) có **7 loại**: `Cải tiến` (CT), `Tính năng mới` (TNM), `Sản phẩm` (SP), `Hệ thống mới` (HTM), `Quy trình` (QT), `Dịch vụ` (DV), `Giải pháp nền tảng` (GPNT). Từ đồng nghĩa/legacy → SP: `Sản phẩm/dịch vụ/quy trình mới`, `Sản phẩm mới`, `Phát triển mới`. Level ∈ {`1`,`2`} → `Lv12`, level ∈ {`3`,`4`} → `Lv34`; level ngoài 1-4 hoặc thiếu → `Lv12`; Loại yêu cầu thiếu/rỗng/`none` → `CT`.
+
+**9 tổ hợp hợp lệ** (CT và TNM hợp lệ ở cả Lv12 lẫn Lv34; các loại còn lại chỉ tồn tại ở Lv34):
+`CT-Lv12`, `CT-Lv34`, `TNM-Lv12`, `TNM-Lv34`, `HTM-Lv34`, `SP-Lv34`, `QT-Lv34`, `DV-Lv34`, `GPNT-Lv34`.
+
+**5 tổ hợp "Phân loại sai Epic"** (loại SP/HTM/QT/DV/GPNT không được phân loại ở mức 1-2 — vẫn lưu để Scoring Service rule R6 gắn cờ):
+`HTM-Lv12`, `SP-Lv12`, `QT-Lv12`, `DV-Lv12`, `GPNT-Lv12`.
+
+`issues.epic_complexity_type` là `varchar` không CHECK nên lưu được đủ 14 giá trị. Hai bảng cấu hình `ttm_policy_configs` + `epic_status_alert_rules` có CHECK nhận đủ 14 và được **seed 9 tổ hợp hợp lệ** (migration `20261202`). Các dòng Epic lịch sử đã được backfill (migration `20261201` recompute + `20261203`/`20261204` cụm legacy); dòng level NULL / "Chưa xác định" giữ `CT-Lv12` để R5 đánh dấu thiếu level.
 
 ## 8. Chỉ mục hiệu năng trên issues
 
@@ -298,7 +302,7 @@ makeup_workdays: id, work_date (UNIQUE), description, is_active, created_at, upd
 
 ```text
 id
-epic_complexity_type      -- CT-Lv12 / CT-Lv34 / SP-Lv12 / SP-Lv34 (CHECK cũng vẫn chấp nhận SIMPLE/COMPLEX cho các dòng cũ, xem mục 6)
+epic_complexity_type      -- 14 giá trị (xem mục 8): 9 hợp lệ + 5 "Phân loại sai Epic"; CHECK nhận đủ 14 (migration 20261201) và vẫn chấp nhận SIMPLE/COMPLEX cho các dòng cũ
 epic_status                -- Design / In Progress / ... (không giới hạn dropdown, tối đa 50 ký tự)
 early_alert_offset_days
 late_alert_offset_days
@@ -314,16 +318,15 @@ Mốc Fail TTM giờ tính hoàn toàn từ `ttm_policy_configs` (mục 11), tá
 
 Dữ liệu seed gốc (`db/schema.sql`, nay là dữ liệu **legacy** không còn áp dụng): SIMPLE/Design 2-3,
 SIMPLE/In Progress 12-13, COMPLEX/Design 5-6, COMPLEX/In Progress 19-20 (đơn vị ngày làm việc). CHECK
-constraint được nới rộng (`20260908b_widen_epic_complexity_types.sql`) để giữ nguyên các dòng này thay
-vì xóa, nhưng **admin cần tự thêm rule mới cho 4 epic-type CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34** tại panel
-"Quy tắc cảnh báo Epic" — tại thời điểm cập nhật tài liệu này, 4 loại mới **chưa có rule nào**.
+constraint được nới rộng (`20260908b_widen_epic_complexity_types.sql` rồi `20261201`) để giữ nguyên
+các dòng này thay vì xóa; **9 tổ hợp hợp lệ đã được seed sẵn** (migration `20261202_seed_epic_complexity_valid_combos.sql`) cho admin tinh chỉnh tại panel "Quy tắc cảnh báo Epic".
 
 ## 11. ttm_policy_configs
 
 ```text
 id
 ttm_type              -- CHECK IN ('TTM_CNTT','TTM_E2E')
-epic_complexity_type  -- CHECK IN ('SIMPLE','COMPLEX','CT-Lv12','CT-Lv34','SP-Lv12','SP-Lv34')
+epic_complexity_type  -- CHECK IN (SIMPLE/COMPLEX + 14 giá trị mới: 9 hợp lệ + 5 "Phân loại sai Epic", migration 20261201)
 from_ttm_field        -- VARCHAR(100), TEXT TỰ DO — CHECK enum ('IDEA_APPROVED_DATE','START_DATE') đã
                        -- bị DROP (20260817_allow_free_text_ttm_fields.sql) để chừa chỗ map field mới
 to_ttm_field           -- VARCHAR(100), TEXT TỰ DO — CHECK enum ('R4G_DATE','DUE_DATE') đã bị DROP
@@ -340,10 +343,12 @@ diện qua alias chuẩn của Idea Approved Date/Start Date/R4G Date/Due Date, 
 
 Unique `(ttm_type, epic_complexity_type)`. Đây là **nguồn duy nhất** của mốc hạn TTM (thay
 `fail_offset_days` cũ). Seed mặc định lúc tạo bảng (nay là legacy): TTM_CNTT SIMPLE=15 ngày, TTM_CNTT
-COMPLEX=30 ngày, TTM_E2E SIMPLE=30 ngày, TTM_E2E COMPLEX=50 ngày. Giá trị đang active cho 4 epic-type
-mới (do CBQL Phòng tự cấu hình, có thể thay đổi bất kỳ lúc nào — xem `02-ttm-concepts-and-rules.md`
-§2 để biết giá trị hiện tại): CT-Lv12/CT-Lv34/SP-Lv12/SP-Lv34, mỗi loại có 1 dòng TTM_CNTT + 1 dòng
-TTM_E2E.
+COMPLEX=30 ngày, TTM_E2E SIMPLE=30 ngày, TTM_E2E COMPLEX=50 ngày. **9 tổ hợp hợp lệ đã được seed**
+(migration `20261202_seed_epic_complexity_valid_combos.sql`, `ON CONFLICT DO NOTHING` — không đè cấu
+hình admin đã tinh chỉnh): CT-Lv12/CT-Lv34/TNM-Lv12/TNM-Lv34/HTM-Lv34/SP-Lv34/QT-Lv34/DV-Lv34/GPNT-Lv34,
+mỗi loại 1 dòng TTM_CNTT + 1 dòng TTM_E2E (giá trị copy từ nhóm SP; TNM-Lv12 dùng SP-Lv12 — chủ sản
+phẩm xác nhận 24/11/2026). Giá trị active có thể thay đổi bất kỳ lúc nào do CBQL Phòng cấu hình — xem
+`02-ttm-concepts-and-rules.md` §2.
 
 **Fail TTM-E2E là cảnh báo độc lập với Fail TTM-CNTT** (không phải chỉ tham chiếu như tài liệu cũ mô
 tả) — tính bởi rule `E2E_FAIL` của Scoring Service (`scoring/rules/ttm-e2e.ts`; đường kẻ của dải: `epic-row-geometry.ts`): T0 = Idea Approved Date, nếu thiếu

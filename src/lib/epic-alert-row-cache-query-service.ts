@@ -146,7 +146,7 @@ export function rowInAccessScope(scope: AccessScope, projectKey: string, compone
 
 /** Everything from EpicAlertRowCacheFilters except pagination — shared by the page query, its
  * COUNT, and the stat-widget aggregate, all of which must agree on exactly the same row set. */
-function buildFilterClause(scope: AccessScope, filters: EpicAlertRowCacheFilters, options: { ignoreHidden?: boolean; realScopeOnly?: boolean } = {}): WhereClause & { realScopeSql: string } {
+export function buildFilterClause(scope: AccessScope, filters: EpicAlertRowCacheFilters, options: { ignoreHidden?: boolean; realScopeOnly?: boolean } = {}): WhereClause & { realScopeSql: string } {
   const params: unknown[] = [];
   // The real data scope first (its SQL is reused to tell view-only rows apart), then the "Quyền xem" grants unless
   // the caller counts something (stat widgets, TTM indexes: realScopeOnly).

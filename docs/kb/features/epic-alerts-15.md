@@ -1,6 +1,6 @@
 # Quản trị Epic — `/epic-alerts-15`
 
-Cập nhật lần cuối: 2026-11-23. Khi sửa file/bảng/contract liệt kê dưới đây, sửa luôn card này trong cùng commit.
+Cập nhật lần cuối: 2026-11-26. Khi sửa file/bảng/contract liệt kê dưới đây, sửa luôn card này trong cùng commit.
 
 ## Mục đích
 
@@ -59,6 +59,35 @@ Sửa logic lọc phải sửa **cả hai** chế độ: SQL trong `epic-alert-r
 | Bình luận, ẩn Epic, giao việc, popup Thông tin Epic (bấm Epic key / ô Review mở `EpicMarkModal`, gồm cả công tắc `BlackListSwitch` "Epic ngoại lệ", tab Scoring / Duyệt Epic / Giải trình Fail TTM / **TTM Calendar** — `TtmCalendarTab` tái sử dụng timeline TTM Calculator) | `epic-mark-service.ts`, `src/components/epic-mark/*`, `epic-browser-service.ts` |
 | Tham số URL của bộ lọc | `epic-alert-filter-params.ts`, `parseCacheFilters` trong `route.ts` |
 | Kiểu dữ liệu dòng / response | `src/lib/epic-alert-types.ts` (`EpicAlertRowPhased`, `EpicAlertPhasedResponse`) |
+
+## Xuất dữ liệu (XLSX / PDF) — REQ-20261126-01
+
+Nút "Xuất Dữ Liệu" (trước nút "Mở rộng cột") mở popup menu 2 lựa chọn **Xuất XLSX** / **Xuất PDF** (component
+dùng chung `src/components/ui/PopupMenuButton.tsx`: popup dưới nút, z-index cao nhất qua `createPortal`
++ `position: fixed`, tự clamp trong viewport). Nút mờ khi **không chọn project nào** (`projectFilters.length === 0`,
+không cho xuất toàn bộ phạm vi) **hoặc chọn >3** (`projectFilters.length > 3`) — tooltip "Chọn 1 đến 3 project
+để xuất dữ liệu".
+
+- **Dữ liệu** lấy từ **`GET /api/epic-alerts-15/export`** (server-side, xử lý cả 2 mode như list API):
+  - Không advanced filter → đọc `epic_alert_row_cache` toàn tập (tái dùng `buildFilterClause`), không phân trang.
+  - Có advanced filter → `getEpicAlertRowsForDisplay` + lọc client-side bằng `filterFullModeRows`
+    (`src/lib/epic-row-export.ts`) — khớp đúng bộ lọc màn hình.
+  - Mỗi row được enrich thêm **`epicRealStartDate`** (`issues.epic_real_start_date` — cột "Actual Start date").
+  - Trả `{ rows, viewIssueBaseUrl, exportedAt, projectNames, dataLayerDate }`.
+- **Client tạo file**: `src/app/epic-alerts-15/page.tsx` (`handleExport`) sort bằng `sortExportRows`
+  (Dự án A-Z, Epic key prefix A-Z, số lớn→nhỏ) rồi map bằng `exportRowFields`, dựng XLSX (**`exceljs`** — dùng
+  `workbook.addWorksheet` + `addRow` + `mergeCells` + `xlsx.writeBuffer`; **không dùng `xlsx`/SheetJS** vì bản
+  npm 0.18.5 có CVE prototype pollution/ReDoS bị quét bảo mật ngân hàng chặn) / PDF (`jspdf` + `jspdf-autotable`,
+  landscape) — cả hai đều dynamic-import để chỉ tải khi bấm xuất.
+- **PDF tiếng Việt**: jsPDF font chuẩn không có glyph tiếng Việt → nhúng font **Roboto (OFL)** cover tiếng Việt
+  (Regular + Bold, base64 trong `src/lib/epic-pdf-fonts.ts`, sinh từ `@expo-google-fonts/roboto`), dùng
+  `doc.addFileToVFS` + `doc.addFont('Roboto','normal'|'bold')`, `setFont('Roboto','bold')` cho title, và
+  `styles.font`/`headStyles.font = 'Roboto'` trong autoTable. Title = tên dự án + ngày dữ liệu.
+- Cột Pass TTM là **text** (Pass/Fail TTM-CNTT, Pass/Fail TTM-E2E) — không icon; Epic key có link Jira khi
+  `viewIssueBaseUrl` không rỗng.
+- Các cột baseline (Start-E2E, Start-Date, Design, Dev, Test Pentent, R4Golive, Due date) từ
+  `stages.*.baselineDate`; cột ngày thực tế (Actual Start date, Jira R4Golive, Jira Due date) từ
+  `epicRealStartDate`, `r4gDate`, `dueDate`.
 
 ## Bảng DB
 

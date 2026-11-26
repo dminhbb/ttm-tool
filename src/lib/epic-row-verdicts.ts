@@ -1,5 +1,6 @@
 import type { EpicAlertRowPhased } from '@/lib/epic-alert-types';
 import { isCancelledStatus } from '@/lib/issue-status-rules';
+import { splitOwnerNames } from '@/lib/epic-pm-sm-assignment';
 import { BADGE_BY_ID } from '@/lib/scoring/catalog';
 import { FILTER_PRESETS } from '@/lib/scoring/select';
 import type { Finding } from '@/lib/scoring/types';
@@ -195,6 +196,25 @@ export function isTtmIndexEligible(row: IndexRow): boolean {
   if (row.scoringIndexFlags) return row.scoringIndexFlags.includes('TTM_ELIGIBLE');
   // Rows carry the flags once scored; this field-based gate is only for a row built without them.
   return Boolean(row.ttmCnttInScope && row.r4gDate && !row.hasDataAnomaly);
+}
+
+export type MarkFilterValue = 'HIDDEN' | 'MARKED' | 'MINE';
+
+/** Full-mode twin of the Epic Mark SQL filters (buildFilterClause): without a Mark filter an Epic the viewer hid is
+ * left out, unless `ignoreHidden` (the TTM index rows). `row.mark.isHidden` is the viewer's own Hide.
+ * Moved out of page.tsx so the export route (full mode) and the screen share one filter. */
+export function matchesMarkFilter(
+  row: EpicAlertRowPhased,
+  markFilter: MarkFilterValue | null,
+  markedPmSm: readonly string[],
+  viewerOwnerName: string,
+  ignoreHidden = false,
+): boolean {
+  const hasComment = (row.mark?.commentCount ?? 0) > 0;
+  if (markFilter === 'HIDDEN') return Boolean(row.mark?.isHidden);
+  if (markFilter === 'MARKED') return hasComment && (markedPmSm.length === 0 || splitOwnerNames(row.ownerName).some((name) => markedPmSm.includes(name)));
+  if (markFilter === 'MINE') return hasComment && viewerOwnerName !== '' && splitOwnerNames(row.ownerName).includes(viewerOwnerName);
+  return ignoreHidden || !row.mark?.isHidden;
 }
 
 /** Counted as "Đạt" by TTM-Index: exactly the "Đạt TTM-CNTT" badge (decision D1). */
