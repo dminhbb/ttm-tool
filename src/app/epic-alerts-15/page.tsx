@@ -31,6 +31,7 @@ import { EARLY_START_REPORT_HREF, earlyStartActualTooltip, useCompanyTtmIndex } 
 import { EPIC_COMPLEXITY_TYPES } from '@/lib/status-alert-rule-types';
 import { EXPORT_HEADERS, exportRowFields, sortExportRows } from '@/lib/epic-row-export';
 import type { EpicAlertRowExport, ExportRowCells } from '@/lib/epic-row-export';
+import { exportTable } from '@/lib/table-export-client';
 import { ArrowBendUpRight, ArrowCounterClockwise, CheckCircle, ArrowsInLineHorizontal, ArrowsOutLineHorizontal, CaretDown, CaretLineRight, CaretRight, Check, Checks, ClockCountdown, DownloadSimple, Eye, EyeSlash, FilePdf, FileXls, FlagBanner, FloppyDisk, FolderSimple, HourglassMedium, ListChecks, UserFocus, Prohibit, Sparkle, Warning, WarningOctagon, XCircle } from '@phosphor-icons/react';
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react';
 import { epicWorkflowStatusIndex, normalizeEpicWorkflowStatus } from '@/lib/ttm-phase-rules';
@@ -1328,17 +1329,6 @@ function EpicAlerts15Screen() {
 
   const [exporting, setExporting] = useState(false);
 
-  const downloadBlob = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = filename;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
-  };
-
   /** Title row text: project names + the data date the export is drawn from. */
   const exportTitle = (projectNames: string[], exportedAt: string, dataLayerDate: string | null): string =>
     `${projectNames.length > 0 ? projectNames.join(', ') : 'Toàn bộ dự án'} — Dữ liệu ngày ${exportedAt}${dataLayerDate ? ` (lớp dữ liệu: ${dataLayerDate})` : ''}`;
@@ -1358,56 +1348,15 @@ function EpicAlerts15Screen() {
       const sortedRows = sortExportRows(result.rows as EpicAlertRowExport[]);
       const cells: ExportRowCells[] = sortedRows.map((row) => exportRowFields(row, result.viewIssueBaseUrl ?? ''));
       const title = exportTitle(result.projectNames ?? [], result.exportedAt ?? '', result.dataLayerDate ?? null);
-      const headers = EXPORT_HEADERS.map((header) => header.label);
       const stamp = result.exportedAt ? result.exportedAt.replace(/-/g, '') : '';
-      const data = cells.map((cell) => EXPORT_HEADERS.map((header) => cell[header.key]));
-
-      if (format === 'xlsx') {
-        // Dynamically imported so the (heavy) ExcelJS bundle only loads when actually exporting.
-        const ExcelJS = await import('exceljs');
-        const workbook = new ExcelJS.Workbook();
-        const sheet = workbook.addWorksheet('Epic');
-        // Two header rows: the title (merged across the width, bold) then the column headers
-        // (bold + blue fill), then the data rows.
-        sheet.addRow([title]);
-        sheet.mergeCells(1, 1, 1, headers.length);
-        sheet.getCell(1, 1).font = { bold: true, size: 12 };
-        sheet.addRow(headers);
-        const headerRow = sheet.getRow(2);
-        headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-        headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
-        data.forEach((row) => sheet.addRow(row));
-        // Reasonable column widths based on the header text.
-        sheet.columns = headers.map((label) => ({ width: Math.max(10, Math.min(42, label.length + 6)) }));
-        const buffer = await workbook.xlsx.writeBuffer();
-        downloadBlob(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `epic-export-${stamp || 'data'}.xlsx`);
-      } else {
-        // Landscape PDF, title as a merged header row then the autoTable body (dynamic imports too).
-        const { jsPDF } = await import('jspdf');
-        const { default: autoTable } = await import('jspdf-autotable');
-        // Embed a Unicode font that covers Vietnamese (jsPDF's standard fonts have no VN glyphs), so
-        // the exported PDF renders "Dữ liệu", project names and Pass/Fail text correctly. Loaded via
-        // dynamic import so the ~400KB of base64 fonts only loads when actually exporting a PDF.
-        const { ROBOTO_REGULAR_B64, ROBOTO_BOLD_B64 } = await import('@/lib/epic-pdf-fonts');
-        const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-        doc.addFileToVFS('Roboto-Regular.ttf', ROBOTO_REGULAR_B64);
-        doc.addFileToVFS('Roboto-Bold.ttf', ROBOTO_BOLD_B64);
-        doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
-        doc.addFont('Roboto-Bold.ttf', 'Roboto', 'bold');
-        doc.setFont('Roboto', 'bold');
-        doc.setFontSize(13);
-        doc.setTextColor(20, 20, 20);
-        doc.text(title, 14, 20);
-        autoTable(doc, {
-          startY: 30,
-          head: [headers],
-          body: data,
-          styles: { font: 'Roboto', fontSize: 7, cellPadding: 2 },
-          headStyles: { font: 'Roboto', fillColor: [37, 99, 235], textColor: 255, fontSize: 7 },
-          margin: { top: 10, right: 14, bottom: 14, left: 14 },
-        });
-        downloadBlob(doc.output('blob'), `epic-export-${stamp || 'data'}.pdf`);
-      }
+      // Column layout (PDF subset, hidden XLSX columns, AutoFilter, header colours) lives in EXPORT_HEADERS.
+      await exportTable(format, {
+        title,
+        sheetName: 'Epic',
+        columns: EXPORT_HEADERS,
+        rows: cells.map((cell) => EXPORT_HEADERS.map((header) => cell[header.key])),
+        fileBase: `epic-export-${stamp || 'data'}`,
+      });
       showToast(`Đã xuất ${format === 'xlsx' ? 'Excel' : 'PDF'} ${result.rows?.length ?? 0} Epic.`);
     } catch (error: unknown) {
       showToast(error instanceof Error ? error.message : 'Lỗi khi xuất dữ liệu.', 5000);

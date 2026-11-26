@@ -629,6 +629,7 @@
       "derived_cache_refresh_lock"
     ],
     "resetColumns": {
+      "jira_settings": {"api_base_url": "", "view_issue_base_url": ""},
       "derived_cache_refresh_lock": {
         "request_seq": "0",
         "lease_owner": null,

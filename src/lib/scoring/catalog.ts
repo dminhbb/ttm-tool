@@ -300,8 +300,8 @@ export const BADGES = [
   // ---------- PHASE (mỗi finding gắn 1 pha qua `subject`: DESIGN/DEV/TEST/PENTEST/R4GOLIVE) ----------
   {
     id: 'PHASE_LATE', axis: 'PHASE', group: 'ALERT', label: 'Trễ pha', precedence: 10, defaultEnabled: true,
-    meaning: 'Pha chưa hoàn thành tại asOf và đã qua baseline của pha.',
-    formula: 'Pha chưa xong tại asOf  VÀ  asOf > Baseline_pha.   Baseline_pha: DESIGN 20% → DEV 50% → TEST 80% → PENTEST 90% → R4GOLIVE = Target_CNTT',
+    meaning: 'Pha chưa hoàn thành tại asOf và đã qua baseline của pha (trừ khi Epic đã qua pha đó: một pha sau đã xong hoặc Epic đã Released).',
+    formula: 'Pha chưa xong tại asOf  VÀ  asOf > Baseline_pha  VÀ  KHÔNG (một pha sau đã xong HOẶC Epic Released).   Baseline_pha: DESIGN 20% → DEV 50% → TEST 80% → PENTEST 90% → R4GOLIVE = Target_CNTT',
   },
   {
     id: 'REC_ACCELERATE_PHASE', axis: 'PHASE', group: 'RECOMMENDATION', label: 'Đẩy nhanh pha', precedence: 20, defaultEnabled: true,

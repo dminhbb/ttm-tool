@@ -72,7 +72,8 @@ không cho xuất toàn bộ phạm vi) **hoặc chọn >3** (`projectFilters.le
   - Không advanced filter → đọc `epic_alert_row_cache` toàn tập (tái dùng `buildFilterClause`), không phân trang.
   - Có advanced filter → `getEpicAlertRowsForDisplay` + lọc client-side bằng `filterFullModeRows`
     (`src/lib/epic-row-export.ts`) — khớp đúng bộ lọc màn hình.
-  - Mỗi row được enrich thêm **`epicRealStartDate`** (`issues.epic_real_start_date` — cột "Actual Start date").
+  - Mỗi row được enrich thêm (từ phiên bản mới nhất trong `issues`) **`epicRealStartDate`** (`issues.epic_real_start_date` — cột
+    "Actual Start date") và **`requestType`** (`issues.request_type` — cột "Loại Epic").
   - Trả `{ rows, viewIssueBaseUrl, exportedAt, projectNames, dataLayerDate }`.
 - **Client tạo file**: `src/app/epic-alerts-15/page.tsx` (`handleExport`) sort bằng `sortExportRows`
   (Dự án A-Z, Epic key prefix A-Z, số lớn→nhỏ) rồi map bằng `exportRowFields`, dựng XLSX (**`exceljs`** — dùng
@@ -80,7 +81,7 @@ không cho xuất toàn bộ phạm vi) **hoặc chọn >3** (`projectFilters.le
   npm 0.18.5 có CVE prototype pollution/ReDoS bị quét bảo mật ngân hàng chặn) / PDF (`jspdf` + `jspdf-autotable`,
   landscape) — cả hai đều dynamic-import để chỉ tải khi bấm xuất.
 - **PDF tiếng Việt**: jsPDF font chuẩn không có glyph tiếng Việt → nhúng font **Roboto (OFL)** cover tiếng Việt
-  (Regular + Bold, base64 trong `src/lib/epic-pdf-fonts.ts`, sinh từ `@expo-google-fonts/roboto`), dùng
+  (Regular + Bold, base64 trong `src/lib/epic-pdf-fonts.ts`, sinh một lần từ `@expo-google-fonts/roboto` — gói đã gỡ khỏi dependencies 26/11, cách sinh lại ghi ở đầu file), dùng
   `doc.addFileToVFS` + `doc.addFont('Roboto','normal'|'bold')`, `setFont('Roboto','bold')` cho title, và
   `styles.font`/`headStyles.font = 'Roboto'` trong autoTable. Title = tên dự án + ngày dữ liệu.
 - Cột Pass TTM là **text** (Pass/Fail TTM-CNTT, Pass/Fail TTM-E2E) — không icon; Epic key có link Jira khi
@@ -88,6 +89,19 @@ không cho xuất toàn bộ phạm vi) **hoặc chọn >3** (`projectFilters.le
 - Các cột baseline (Start-E2E, Start-Date, Design, Dev, Test Pentent, R4Golive, Due date) từ
   `stages.*.baselineDate`; cột ngày thực tế (Actual Start date, Jira R4Golive, Jira Due date) từ
   `epicRealStartDate`, `r4gDate`, `dueDate`.
+- **Bố cục cột (REQ-20261126-03)** khai báo một chỗ trong `EXPORT_HEADERS` (`epic-row-export.ts`), mỗi cột mang cờ
+  `pdf` / `xlsxHidden` / `filter` / `headerTone`; file XLSX/PDF dựng bằng helper dùng chung
+  `src/lib/table-export-client.ts` (`exportTable`, cũng dùng cho TTM Calculator):
+  - Thứ tự: Dự án | Epic key | Epic summary | Loại Epic (mô tả) | PM/SM | Scoring | Pass TTM | **Loại Epic** | **Req level** |
+    Status | **TTM-CNTT** | **TTM-e2e** | Current phase | Start-E2E … Due date | Jira R4Golive | Jira Due date.
+  - **Loại Epic** = Loại yêu cầu thô trong Jira (`requestType` = `issues.request_type`, vd "Cải tiến", "Tính năng mới", "Sản phẩm" —
+    **không** phải mã gộp `CT-Lv12`), **Req level** = `requirementLevel` thô — 2 cột riêng để sort/lọc.
+    **TTM-CNTT / TTM-e2e** = ngân sách ngày làm việc (`ttmCnttTargetWorkingDays` / `ttmE2eTargetWorkingDays`), ô **số**
+    trong XLSX; = 0 (không có cơ sở tính) → bỏ trống (`exportBudgetCell`).
+  - **PDF** bỏ cột Scoring và Loại Epic (mô tả). **XLSX** giữ 2 cột đó nhưng **ẩn** (user unhide được).
+  - XLSX có **AutoFilter** ở header của Loại Epic / Req level / Status — Excel chỉ cho 1 vùng AutoFilter liền nhau mỗi
+    sheet nên 3 cột này phải đứng cạnh nhau (`xlsxAutoFilterColumns` throw nếu không liền). Header Start-E2E…Due date nền
+    **xanh lá**, Jira R4Golive / Jira Due date nền **vàng pastel**, còn lại xanh dương (áp cho cả PDF); 2 dòng đầu được freeze.
 
 ## Bảng DB
 

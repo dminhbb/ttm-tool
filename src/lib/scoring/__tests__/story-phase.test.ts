@@ -101,3 +101,24 @@ describe('current phase (dot)', () => {
     assert.ok(hasBadge(card, 'PHASE_CURRENT', 'R4GOLIVE'));
   });
 });
+
+describe('"Trễ pha" stops once the Epic is past the phase (owner 2026-11-26)', () => {
+  const asOf = '2026-08-31';
+
+  it('a Released Epic is never late on a phase it did not mark done (e.g. PENTEST without epic_pentest_status)', () => {
+    const card = scoreEpic(makeFacts({ status: 'Released', r4gDate: '2026-08-20', dueDate: '2026-08-25', phaseCompletion: { ...completion(['RELEASED'], null), r4goliveRecorded: true, releasedDone: true } }), makeContext({ asOf }));
+    assert.ok(!hasBadge(card, 'PHASE_DONE', 'PENTEST'));
+    assert.ok(!hasBadge(card, 'PHASE_LATE', 'PENTEST'));
+    assert.ok(!hasBadge(card, 'PHASE_LATE'));
+  });
+
+  it('a later phase done covers the earlier ones; the phase itself still late when nothing after it is done', () => {
+    // R4GOLIVE recorded, PENTEST not done → PENTEST not late (R4GOLIVE is after it).
+    const pastPentest = scoreEpic(makeFacts({ phaseCompletion: { ...completion(['UAT DONE'], null), r4goliveRecorded: true } }), makeContext({ asOf }));
+    assert.ok(!hasBadge(pastPentest, 'PHASE_LATE', 'PENTEST'));
+    // Nothing after PENTEST done → PENTEST still late past its baseline.
+    const stuck = scoreEpic(makeFacts({ phaseCompletion: completion(['UAT DONE'], null) }), makeContext({ asOf }));
+    assert.ok(hasBadge(stuck, 'PHASE_LATE', 'PENTEST'));
+    assert.ok(!hasBadge(stuck, 'PHASE_LATE', 'DEV'), 'TEST done covers DEV');
+  });
+});

@@ -1,6 +1,6 @@
 # TTM Calculator — `/ttm-calculator`
 
-Cập nhật lần cuối: 2026-11-23. Khi sửa file/bảng/contract liệt kê dưới đây, sửa luôn card này trong cùng commit.
+Cập nhật lần cuối: 2026-11-26. Khi sửa file/bảng/contract liệt kê dưới đây, sửa luôn card này trong cùng commit.
 
 ## Mục đích
 
@@ -34,6 +34,7 @@ form / text (ttm-calculator-text.ts) → POST API → ttm-calculator-service.ts 
 | Phân loại Epic: 7 loại yêu cầu × Lv12/Lv34 = 9 tổ hợp hợp lệ (gồm TNM-Lv12) + 5 "Phân loại sai Epic" (dùng chung với import) | `src/lib/epic-complexity.ts` |
 | Timeline SVG các pha (màu pha, vạch ngày, ngày nghỉ xám + `-`, badge + mũi tên) | `src/components/ttm-calculator/TtmPhaseTimeline.tsx` |
 | Logic thuần ngày nghỉ / ngày làm bù / sinh lưới ngày của timeline | `src/lib/ttm-timeline.ts` |
+| Nút "Xuất Dữ Liệu" (XLSX / PDF) — cột, màu header, ô đậm | `src/lib/ttm-calculator-export.ts` (+ helper chung `src/lib/table-export-client.ts`) |
 
 ### Nhận dạng Loại yêu cầu khi nhập text (từ 23/11/2026)
 
@@ -71,6 +72,16 @@ tỉ lệ workingDays thực tế so với tổng budget (không phải tỉ l�
 R4G/Golive không phải pha dùng ngân sách nên `percent` = null. Khi `release.graceWorkingDays` = 0, `goliveDate` = R4G
 và không có dòng GOLIVE riêng.
 
+## Xuất dữ liệu (XLSX / PDF) — REQ-20261126-03
+
+Panel phải (khi đã có kết quả) có nút **Xuất Dữ Liệu** (`PopupMenuButton`, giống Quản trị Epic) → Xuất XLSX / Xuất PDF, file
+tạo hoàn toàn ở trình duyệt (`exportTable` trong `table-export-client.ts`, không gọi API mới). Một dòng duy nhất:
+Project (trống) | Epic (trống) | Loại yêu cầu | Requirement level | **Start date** | Created date | Ngày duyệt ý tưởng |
+TTM-CNTT (`totalCnttWorkingDays`) | TTM-e2e (`e2e.budgetWorkingDays`) | Design | Dev | Test | Pentest & Change | **R4G** | Golive.
+Cột pha là baseline = ngày kết thúc (`rows[].toDate`; R4G = `r4gDate`, Golive = `goliveDate`), header nền **vàng pastel**;
+ô Start date và R4G **in đậm**. Ngân sách không có cơ sở tính → ô trống. Vì `TtmCalculatorResult` không mang Loại yêu cầu /
+Created date / Ngày duyệt ý tưởng, màn hình giữ input của lần tính đang hiển thị trong state `resultInput`.
+
 ## Timeline SVG các pha
 
 `TtmPhaseTimeline` (dưới widget, trên bảng pha) vẽ từng pha (DESIGN/DEV/TEST/PENTEST/R4G/Golive) một đoạn màu **hệ pastel**
@@ -91,6 +102,6 @@ attribute không nhận `var()`), nằm trong baseline `design-debt` (`hexLitera
 
 ## Test
 
-`src/lib/__tests__/ttm-calculator.test.ts`, `ttm-calculator-text.test.ts`, `ttm-timeline.test.ts` (logic thuần ngày nghỉ / ngày làm bù / sinh lưới ngày). Chưa có test UI.
+`src/lib/__tests__/ttm-calculator.test.ts`, `ttm-calculator-text.test.ts`, `ttm-calculator-export.test.ts` (cột / dòng xuất), `ttm-timeline.test.ts` (logic thuần ngày nghỉ / ngày làm bù / sinh lưới ngày). Chưa có test UI.
 - Tab "TTM Calendar" của popup Epic gọi `/api/epic-ttm-calendar` (không gắn quyền `ttm_calculator`); `/api/ttm-calculator` thì có. Hai route dùng chung `ttm-calculator-request.ts` — sửa validate ở đó.
 - TNM-Lv12 được seed ngân sách bằng SP-Lv12 (không phải CT-Lv12 như trước 23/11/2026): đổi verdict của các Epic 'Tính năng mới' Level 1-2 — chỉnh ở màn Cấu hình cảnh báo nếu cần.

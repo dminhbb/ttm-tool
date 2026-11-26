@@ -23,6 +23,9 @@ function authError(error: unknown): NextResponse | null {
   return null;
 }
 
+/** The export covers 1 to 3 projects (owner REQ-20261126-01) — same limit as the button on Quản trị Epic. */
+const EXPORT_MAX_PROJECTS = 3;
+
 /** Same toolbar-filter parsing as the Quản trị Epic list API (parseCacheFilters), reproduced here so
  * the export endpoint can reuse the cache query's SQL WHERE without importing the screen route. */
 function parseCacheFilters(searchParams: URLSearchParams, viewerUserId: number): EpicAlertRowCacheFilters {
@@ -64,21 +67,21 @@ async function viewerOwnerName(userId: number): Promise<string> {
   return result.rows[0]?.name ?? '';
 }
 
-/** Latest known Epic_Real_Start_Date per Epic key (issues, not the row cache). */
-async function loadEpicRealStartDates(epicKeys: readonly string[]): Promise<Map<string, string | null>> {
+/** Facts the row cache does not carry, read from the Epic's newest version in issues: Epic_Real_Start_Date ("Actual Start
+ * date") and the raw Loại yêu cầu (issues.request_type — the "Loại Epic" export column, owner 2026-11-26). */
+interface IssueExportFacts { epicRealStartDate: string | null; requestType: string | null }
+
+async function loadIssueExportFacts(epicKeys: readonly string[]): Promise<Map<string, IssueExportFacts>> {
   if (epicKeys.length === 0) return new Map();
-  const result = await pool.query<{ issueKey: string; epicRealStartDate: string | null }>(
-    `SELECT DISTINCT ON (issue_key) issue_key AS "issueKey", epic_real_start_date::text AS "epicRealStartDate"
+  const result = await pool.query<{ issueKey: string } & IssueExportFacts>(
+    `SELECT DISTINCT ON (issue_key) issue_key AS "issueKey", epic_real_start_date::text AS "epicRealStartDate",
+            NULLIF(request_type, '') AS "requestType"
      FROM issues
      WHERE issue_key = ANY($1)
      ORDER BY issue_key, aggregated_at DESC`,
     [epicKeys],
   );
-  const map = new Map<string, string | null>();
-  for (const row of result.rows) {
-    if (!map.has(row.issueKey)) map.set(row.issueKey, row.epicRealStartDate);
-  }
-  return map;
+  return new Map(result.rows.map((row) => [row.issueKey, { epicRealStartDate: row.epicRealStartDate, requestType: row.requestType }]));
 }
 
 /** Cache-backed (paged) path: the full filtered set, unpaginated, each row enriched with its latest
@@ -88,21 +91,25 @@ async function queryAllCachedRows(
   filters: EpicAlertRowCacheFilters,
 ): Promise<EpicAlertRowExport[]> {
   const { sql: whereSql, params, realScopeSql } = buildFilterClause(scope, filters);
-  const result = await pool.query<{ rowData: unknown; epicRealStartDate: string | null; viewOnly: boolean }>(
+  const result = await pool.query<{ rowData: unknown; epicRealStartDate: string | null; requestType: string | null; viewOnly: boolean }>(
     `
     SELECT row_data AS "rowData",
-           (SELECT i.epic_real_start_date::text FROM issues i WHERE i.issue_key = epic_alert_row_cache.epic_key ORDER BY i.aggregated_at DESC LIMIT 1) AS "epicRealStartDate",
+           latest."epicRealStartDate",
+           latest."requestType",
            NOT (${realScopeSql}) AS "viewOnly"
     FROM epic_alert_row_cache
+    LEFT JOIN LATERAL (
+      SELECT i.epic_real_start_date::text AS "epicRealStartDate", NULLIF(i.request_type, '') AS "requestType"
+      FROM issues i WHERE i.issue_key = epic_alert_row_cache.epic_key ORDER BY i.aggregated_at DESC LIMIT 1
+    ) latest ON TRUE
     WHERE ${whereSql}
     `,
     params,
   );
   return result.rows.map((row) => {
     const data = row.rowData as EpicAlertRowExport;
-    return row.viewOnly
-      ? { ...data, viewOnly: true, epicRealStartDate: row.epicRealStartDate }
-      : { ...data, epicRealStartDate: row.epicRealStartDate };
+    const facts = { epicRealStartDate: row.epicRealStartDate, requestType: row.requestType };
+    return row.viewOnly ? { ...data, viewOnly: true, ...facts } : { ...data, ...facts };
   });
 }
 
@@ -134,6 +141,11 @@ export async function GET(request: NextRequest) {
   try {
     const actor = await requireUser(request);
     const searchParams = request.nextUrl.searchParams;
+    // Same rule as the "Xuất Dữ Liệu" button (1–3 projects), enforced here too so a direct call cannot dump the whole scope.
+    const exportProjectCount = (searchParams.get('projectKeys') ?? '').split(',').map((value) => value.trim()).filter(Boolean).length;
+    if (exportProjectCount < 1 || exportProjectCount > EXPORT_MAX_PROJECTS) {
+      return NextResponse.json({ error: `Chọn từ 1 đến ${EXPORT_MAX_PROJECTS} dự án để xuất dữ liệu.` }, { status: 400 });
+    }
     const { userId, role } = await resolveViewAsTarget(actor, searchParams.get('viewAsUserId'));
     const parsedFilters = await dropNoOpTtmScopeOverride(parseEpicAlertFiltersFromSearchParams(searchParams));
     const viewGrants = await resolveViewGrants(userId, role);
@@ -162,8 +174,8 @@ export async function GET(request: NextRequest) {
       const marks = await loadEpicMarkSummaries(fullData.rows.map((row) => row.epicKey), userId);
       const markedRows = applyEpicMarks(fullData.rows, marks);
       const filtered = filterFullModeRows(markedRows, fullModeOptions(searchParams, await viewerOwnerName(userId)));
-      const realStart = await loadEpicRealStartDates(filtered.map((row) => row.epicKey));
-      rows = filtered.map((row) => ({ ...row, epicRealStartDate: realStart.get(row.epicKey) ?? null }));
+      const facts = await loadIssueExportFacts(filtered.map((row) => row.epicKey));
+      rows = filtered.map((row) => ({ ...row, epicRealStartDate: facts.get(row.epicKey)?.epicRealStartDate ?? null, requestType: facts.get(row.epicKey)?.requestType ?? null }));
     }
 
     const [jiraSettings] = await Promise.all([getJiraSettings()]);
@@ -180,7 +192,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: unknown) {
     console.error('API Error in epic-alerts-15/export route:', error);
-    const message = error instanceof Error ? error.message : 'Lỗi hệ thống khi xuất dữ liệu Quản lý Epic 15';
-    return authError(error) ?? NextResponse.json({ error: message }, { status: 500 });
+    // The server log keeps the detail; the browser only gets a generic message (no SQL / internal error text).
+    return authError(error) ?? NextResponse.json({ error: 'Lỗi hệ thống khi xuất dữ liệu Quản trị Epic.' }, { status: 500 });
   }
 }

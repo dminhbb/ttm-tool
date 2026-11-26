@@ -7,9 +7,18 @@ import type { TtmCalculatorInput } from '@/lib/ttm-calculator';
  */
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
+/**
+ * Năm hợp lệ của mọi ngày nhập (2026-11-26, REQ-20261126-02): phép tính đếm ngày làm việc giữa các mốc, nên một ngày năm
+ * 0001 / 9999 làm một request tốn vài giây CPU máy chủ — giới hạn để API không bị lạm dụng làm chậm hệ thống.
+ */
+export const CALCULATOR_MIN_YEAR = 2000;
+export const CALCULATOR_MAX_YEAR = 2100;
+
 function validIsoDate(value: unknown): value is string {
   const match = typeof value === 'string' ? ISO_DATE.exec(value) : null;
-  return Boolean(match && isRealDate(Number(match[1]), Number(match[2]), Number(match[3])));
+  if (!match) return false;
+  const year = Number(match[1]);
+  return year >= CALCULATOR_MIN_YEAR && year <= CALCULATOR_MAX_YEAR && isRealDate(year, Number(match[2]), Number(match[3]));
 }
 
 /** Ngày tuỳ chọn: bỏ trống → null; có giá trị mà sai định dạng / không tồn tại → ok:false. */

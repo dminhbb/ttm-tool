@@ -53,6 +53,9 @@ function writeFreshDay(day: string) {
  * When the rebuild this tab followed from that first load ends well, it offers a reload so the current
  * screen re-reads the fresh cache.
  */
+/** Longest wait for one cache-status check (the queue's initial hold is released when it ends, answer or not). */
+const CACHE_CHECK_TIMEOUT_MS = 15_000;
+
 export function DailyCacheWarmer({ enabled }: { enabled: boolean }) {
   const [askReload, setAskReload] = useState(false);
   const isRebuildingRef = useRef(false);
@@ -78,7 +81,8 @@ export function DailyCacheWarmer({ enabled }: { enabled: boolean }) {
       if (timer !== undefined) window.clearTimeout(timer);
       timer = undefined;
       try {
-        const res = await fetch('/api/system/daily-cache', { cache: 'no-store' });
+        // Bounded (REQ-20261126-02): a request that never answers must not hold the Float message queue forever.
+        const res = await fetch('/api/system/daily-cache', { cache: 'no-store', signal: AbortSignal.timeout(CACHE_CHECK_TIMEOUT_MS) });
         // A failed check (e.g. the pool is busy mid-rebuild) keeps what is known and tries again.
         const body = res.ok ? ((await res.json()) as DailyCacheApiResponse) : null;
         if (cancelled || check !== latestCheck) return;

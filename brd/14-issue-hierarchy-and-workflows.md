@@ -38,7 +38,7 @@ To Do → In Progress → Done
 
 `Pending` và `Cancelled` không nằm trong thứ tự của workflow Epic, Story hoặc Subtask. Chúng có thể xuất hiện tại mọi thời điểm và không được dùng để so sánh trước/sau giữa các giai đoạn. Khi xét hoàn thành pha DEV/TEST/R4GOLIVE của Epic, Story Pending và Cancelled bị bỏ qua (không vào mẫu số, không chặn).
 
-Subtask loại **Pentest** (nằm dưới Epic hoặc dưới Story) quyết định pha PENTEST: mọi subtask Pentest `Done` ⇒ Epic xong DEV, TEST và PENTEST. Loại issue được nhận diện qua tham số Scoring `phase.pentestIssueTypes` (mặc định `PENTEST`).
+Pha PENTEST của Epic **không** còn đọc từ subtask (từ 09/11/2026): nó theo trường **Pentest status của chính Epic** (`epic_pentest_status` của file CSV → `issues.pentest_status`) — `Done` ⇒ PENTEST xong; trống / giá trị khác ⇒ chưa xong. Công cụ crawl không còn gửi subtask Pentest / Task PENTEST. Epic đã qua pha PENTEST (R4GOLIVE đã xong hoặc Epic Released) thì không bị chấm "Trễ pha" PENTEST (từ 26/11/2026).
 
 ## Quy tắc triển khai
 

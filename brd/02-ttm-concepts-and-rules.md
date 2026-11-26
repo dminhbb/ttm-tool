@@ -30,13 +30,15 @@ Hệ thống theo dõi hai tiêu chí:
 > chấp nhận dấu tiếng Việt dạng NFD/tách rời). Level ∈ {1,2} → `Lv12`, level ∈ {3,4} → `Lv34`; level
 > ngoài 1-4 hoặc thiếu → `Lv12`; Loại yêu cầu thiếu/rỗng/`none` → `CT` (mặc định an toàn). Từ đồng
 > nghĩa/legacy → SP: `Sản phẩm/dịch vụ/quy trình mới`, `Sản phẩm mới`, `Phát triển mới`.
+>
+> **Loại yêu cầu cũ kèm Level trống** (chủ sản phẩm 26/11/2026): "Sản phẩm/dịch vụ/quy trình mới" / "Sản phẩm mới" / "Phát triển mới" mà Level trống (hoặc ngoài 1-4) → `SP-Lv12` = **"Phân loại sai Epic"**, bị rule R6 loại khỏi việc chấm Đạt / Fail; migration `20261205_align_epic_complexity_with_code` tính lại toàn bộ `issues.epic_complexity_type` đúng như `computeEpicComplexity` (cùng cách chuẩn hoá), nên dữ liệu cũ và dữ liệu import mới không còn lệch.
 
 **9 tổ hợp hợp lệ:**
 
 | Epic-type | Điều kiện (request type × request level) |
 |---|---|
-| `CT-Lv12` | Loại yêu cầu ∈ {"Cải tiến", "Tính năng mới"} hoặc rỗng/None + mức 1-2 — **mặc định** khi dữ liệu thiếu hoặc không khớp bất kỳ điều kiện nào khác |
-| `CT-Lv34` | Loại yêu cầu ∈ {"Cải tiến", "Tính năng mới"} hoặc rỗng/None + mức 3-4 |
+| `CT-Lv12` | Loại yêu cầu = "Cải tiến" hoặc rỗng/None/không nhận ra + mức 1-2 (hoặc mức trống) — **mặc định** khi dữ liệu thiếu hoặc không khớp bất kỳ điều kiện nào khác |
+| `CT-Lv34` | Loại yêu cầu = "Cải tiến" hoặc rỗng/None/không nhận ra + mức 3-4 |
 | `TNM-Lv12` | Loại yêu cầu = "Tính năng mới" + mức 1-2 (**hợp lệ từ 23/11/2026**) |
 | `TNM-Lv34` | Loại yêu cầu = "Tính năng mới" + mức 3-4 |
 | `HTM-Lv34` | Loại yêu cầu = "Hệ thống mới" + mức 3-4 |
@@ -191,7 +193,7 @@ TTM-CNTT được phân bổ theo các giai đoạn:
 
 Mỗi giai đoạn tương ứng một cột pha ở Quản trị Epic (DESIGN / DEV / TEST / PENTEST / R4GOLIVE). Từ 08/11/2026 pha
 DEV/TEST được coi là hoàn thành theo tỉ lệ story đã qua pha (≥ 80%, bỏ qua story Cancelled/Pending), pha PENTEST theo
-subtask Pentest — chi tiết và dot "pha hiện tại": `13-epic-15-and-epic-30-management.md`.
+Pentest status của Epic (`epic_pentest_status` = Done) — chi tiết và dot "pha hiện tại": `13-epic-15-and-epic-30-management.md`.
 
 Trong MVP1, rule cảnh báo trạng thái Epic chỉ tập trung vào hai trạng thái:
 

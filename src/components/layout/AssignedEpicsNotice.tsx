@@ -35,12 +35,17 @@ function rememberShownLogin(loginKey: string): void {
   }
 }
 
+/** Longest wait for the assigned-epics check before the queue's hold is released anyway. */
+const ASSIGNED_CHECK_TIMEOUT_MS = 15_000;
+
 export function AssignedEpicsNotice() {
   const router = useRouter();
 
   React.useEffect(() => {
     const controller = new AbortController();
     const release = claimBottomRightSlot('assigned-epics-notice', FLOAT_MESSAGE_PRIORITY.ASSIGNED_TASKS);
+    // Bounded (REQ-20261126-02): a request that never answers must not hold the Float message queue forever.
+    const timeout = window.setTimeout(() => controller.abort(), ASSIGNED_CHECK_TIMEOUT_MS);
     void (async () => {
       try {
         const response = await fetch('/api/epic-marks/assigned-notice', { cache: 'no-store', signal: controller.signal });
@@ -57,6 +62,7 @@ export function AssignedEpicsNotice() {
       } catch {
         // A notice is optional: stay silent when it cannot be loaded.
       } finally {
+        window.clearTimeout(timeout);
         release();
       }
     })();

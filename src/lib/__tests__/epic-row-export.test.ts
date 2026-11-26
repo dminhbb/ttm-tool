@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { exportRowFields, filterFullModeRows, formatExportDate, passTtmText, sortExportRows, scoringText } from '../epic-row-export';
+import { EXPORT_HEADERS, exportBudgetCell, exportRowFields, filterFullModeRows, formatExportDate, passTtmText, sortExportRows, scoringText } from '../epic-row-export';
 import type { EpicAlertRowExport } from '../epic-row-export';
 import type { AlertFilterValue } from '../epic-row-verdicts';
+import { pdfColumnIndexes, xlsxAutoFilterColumns } from '../table-export-client';
 
 /** Minimal EpicAlertRowExport fixture — only the fields the pure functions read, cast for brevity. */
 function makeRow(overrides: Partial<EpicAlertRowExport>): EpicAlertRowExport {
@@ -61,6 +62,40 @@ function makeRow(overrides: Partial<EpicAlertRowExport>): EpicAlertRowExport {
   };
 }
 
+describe('EXPORT_HEADERS layout (owner 2026-11-26, REQ-20261126-03)', () => {
+  const labels = (indexes: number[]) => indexes.map((index) => EXPORT_HEADERS[index].label);
+
+  it('PDF drops Scoring and the long Loại Epic; keeps the new Loại Epic / Req level / TTM-CNTT / TTM-e2e', () => {
+    const pdf = labels(pdfColumnIndexes(EXPORT_HEADERS));
+    assert.ok(!pdf.includes('Scoring'));
+    assert.ok(!pdf.includes('Loại Epic (mô tả)'));
+    for (const label of ['Loại Epic', 'Req level', 'TTM-CNTT', 'TTM-e2e']) assert.ok(pdf.includes(label), label);
+  });
+
+  it('XLSX hides Scoring + Loại Epic (mô tả); AutoFilter covers exactly Loại Epic, Req level, Status', () => {
+    assert.deepEqual(EXPORT_HEADERS.filter((column) => column.xlsxHidden).map((column) => column.label), ['Loại Epic (mô tả)', 'Scoring']);
+    const range = xlsxAutoFilterColumns(EXPORT_HEADERS);
+    assert.ok(range);
+    assert.deepEqual(EXPORT_HEADERS.slice(range.from - 1, range.to).map((column) => column.label), ['Loại Epic', 'Req level', 'Status']);
+  });
+
+  it('Start-E2E…Due date headers green, Jira R4Golive / Jira Due date yellow pastel, the rest blue', () => {
+    const ofTone = (tone: string) => EXPORT_HEADERS.filter((column) => column.headerTone === tone).map((column) => column.label);
+    assert.deepEqual(ofTone('green'), ['Start-E2E', 'Start-Date', 'Actual Start date', 'Design', 'Dev', 'Test Pentent', 'R4Golive', 'Due date']);
+    assert.deepEqual(ofTone('yellow'), ['Jira R4Golive', 'Jira Due date']);
+  });
+
+  it('exportBudgetCell: positive number kept, 0 / null / NaN → blank', () => {
+    assert.equal(exportBudgetCell(30), 30);
+    for (const none of [0, null, undefined, Number.NaN, -1]) assert.equal(exportBudgetCell(none), '');
+  });
+
+  it('xlsxAutoFilterColumns rejects non-contiguous filter columns, null when none', () => {
+    assert.equal(xlsxAutoFilterColumns([{ label: 'A' }]), null);
+    assert.throws(() => xlsxAutoFilterColumns([{ label: 'A', filter: true }, { label: 'B' }, { label: 'C', filter: true }]));
+  });
+});
+
 describe('formatExportDate', () => {
   it('formats ISO date to dd/mm/yyyy, empty for absent/invalid', () => {
     assert.equal(formatExportDate('2026-10-01'), '01/10/2026');
@@ -106,6 +141,10 @@ describe('exportRowFields', () => {
       projectName: 'Mobile',
       ownerName: 'PM A',
       epicType: 'CT-Lv12',
+      requestType: ' Cải tiến ',
+      requirementLevel: ' 2 ',
+      ttmCnttTargetWorkingDays: 45,
+      ttmE2eTargetWorkingDays: 0,
       currentStatus: 'DEV',
       epicRealStartDate: '2026-09-28',
       stages: {
@@ -125,6 +164,10 @@ describe('exportRowFields', () => {
     assert.equal(cells.epicKeyLink, 'https://jira.example/browse/MO-123');
     assert.equal(cells.epicSummary, 'Epic summary');
     assert.equal(cells.loaiEpic, 'CT-Lv12 — Tính năng mới/Cải tiến, mức 1-2');
+    assert.equal(cells.loaiYeuCau, 'Cải tiến', 'Loại Epic = raw Loại yêu cầu, not the CT-Lv12 code');
+    assert.equal(cells.reqLevel, '2');
+    assert.equal(cells.ttmCnttBudget, 45);
+    assert.equal(cells.ttmE2eBudget, '', 'no TTM-E2E budget → blank');
     assert.equal(cells.pmSm, 'PM A');
     assert.equal(cells.status, 'DEV');
     assert.equal(cells.currentPhase, 'Dev');
@@ -138,6 +181,11 @@ describe('exportRowFields', () => {
     assert.equal(cells.dueDate, '10/11/2026');
     assert.equal(cells.jiraR4golive, '02/11/2026');
     assert.equal(cells.jiraDueDate, '15/11/2026');
+  });
+
+  it('blank Loại Epic / Req level / budgets when the Epic has no classification', () => {
+    const cells = exportRowFields(makeRow({}), '');
+    assert.deepEqual([cells.loaiYeuCau, cells.reqLevel, cells.ttmCnttBudget, cells.ttmE2eBudget], ['', '', '', '']);
   });
 
   it('builds no Jira link when the base URL is empty', () => {

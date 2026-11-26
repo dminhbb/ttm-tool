@@ -1,5 +1,5 @@
 import { computeQaInScope, computeTtmCnttInScope } from '../../ttm-scope-rules';
-import { PHASE_KEYS } from '../derive';
+import { PHASE_KEYS, STATUS_INDEX } from '../derive';
 import { finding } from './rule-types';
 import type { ScoringRule } from './rule-types';
 import type { Finding } from '../types';
@@ -46,7 +46,7 @@ export const phaseRule: ScoringRule = {
   id: 'phase',
   name: 'Pha — Trễ pha / Hoàn thành pha / Pha hiện tại',
   summary: 'Mỗi pha DESIGN / DEV / TEST / PENTEST / R4GOLIVE có baseline theo % ngân sách TTM-CNTT; pha chưa xong mà đã qua baseline là Trễ pha.',
-  detail: { conditions: 'Luôn chạy. Cần Start Date và ngân sách TTM-CNTT; hoàn thành pha đọc theo story/subtask tại ngày đang xem — DEV/TEST theo % story đã qua pha (bỏ qua Cancelled/Pending), PENTEST theo Pentest status của Epic (epic_pentest_status = Done; trống ⇒ chưa xong). Kèm khuyến nghị "Đẩy nhanh pha" cho pha hiện tại đang trễ.', parameters: ['phase.percentages (mặc định 20 / 30 / 30 / 10 / 10 %)', 'phase.storyDoneRatio (mặc định DEV 80 %, TEST 80 %)', 'phase.storyDoneTolerance (mặc định Epic ≥ 3 story, còn tối đa 1 story)'] },
+  detail: { conditions: 'Luôn chạy. Cần Start Date và ngân sách TTM-CNTT; hoàn thành pha đọc theo story/subtask tại ngày đang xem — DEV/TEST theo % story đã qua pha (bỏ qua Cancelled/Pending), PENTEST theo Pentest status của Epic (epic_pentest_status = Done; trống ⇒ chưa xong). Pha chưa xong nhưng đã có pha sau hoàn thành hoặc Epic đã Released thì không Trễ pha (26/11/2026). Kèm khuyến nghị "Đẩy nhanh pha" cho pha hiện tại đang trễ.', parameters: ['phase.percentages (mặc định 20 / 30 / 30 / 10 / 10 %)', 'phase.storyDoneRatio (mặc định DEV 80 %, TEST 80 %)', 'phase.storyDoneTolerance (mặc định Epic ≥ 3 story, còn tối đa 1 story)'] },
   category: 'PHASE',
   stage: 'PRIMARY',
   core: true,
@@ -63,15 +63,21 @@ export const phaseRule: ScoringRule = {
     if (!facts.phaseCompletion) {
       findings.push(finding('PHASE_COMPLETION_UNAVAILABLE', `Không có dữ liệu story/subtask tại ${ctx.asOf} — không xác định được pha đã hoàn thành hay chưa.`));
     }
-    for (const phase of PHASE_KEYS) {
-      const cell = derived.phases[phase];
+    // Owner 2026-11-26: a phase is never "Trễ pha" once a LATER phase is done or the Epic is Released — the Epic is past
+    // it (e.g. a Released Epic without "epic_pentest_status = Done"). Same rule the Quản trị Epic cells already paint
+    // green (laterPhaseDoneFor), now judged here so every screen and the notes popup agree.
+    const phases = derived.phases;
+    const released = derived.statusIndex === STATUS_INDEX.RELEASED || (facts.phaseCompletion?.releasedDone ?? false);
+    const laterPhaseDone = (index: number) => released || PHASE_KEYS.slice(index + 1).some((later) => phases[later].isDone);
+    PHASE_KEYS.forEach((phase, index) => {
+      const cell = phases[phase];
       const evidence = { baselineDate: cell.baselineDate };
       if (cell.isCurrent) findings.push(finding('PHASE_CURRENT', `Pha hiện tại: ${phase}.`, evidence, { subject: phase }));
-      if (!facts.phaseCompletion) continue;
+      if (!facts.phaseCompletion) return;
       const note = cell.note ? ` ${cell.note}.` : '';
       if (cell.isDone) findings.push(finding('PHASE_DONE', `Pha ${phase} đã hoàn thành.${note}`, evidence, { subject: phase }));
-      else if (ctx.asOf > cell.baselineDate) findings.push(finding('PHASE_LATE', `Pha ${phase} chưa hoàn thành, đã quá baseline ${cell.baselineDate}.${note}`, evidence, { subject: phase }));
-    }
+      else if (ctx.asOf > cell.baselineDate && !laterPhaseDone(index)) findings.push(finding('PHASE_LATE', `Pha ${phase} chưa hoàn thành, đã quá baseline ${cell.baselineDate}.${note}`, evidence, { subject: phase }));
+    });
     return findings;
   },
   recommend: (_input, _active, findings) => {

@@ -4,21 +4,34 @@ import { isCancelledStatus } from '@/lib/issue-status-rules';
 import { matchesPmSmFilter } from '@/lib/epic-pm-sm-assignment';
 import { isTtmCnttAchieved, isTtmE2eAchieved, matchesAlertFilter, matchesMarkFilter, type MarkFilterValue } from '@/lib/epic-row-verdicts';
 import type { AlertFilterValue } from '@/lib/epic-row-verdicts';
+import type { TableExportColumn } from '@/lib/table-export-client';
 
-/** An Epic row that the export API enriches with the "Actual Start date" (issues.epic_real_start_date). */
-export type EpicAlertRowExport = EpicAlertRowPhased & { epicRealStartDate: string | null };
+/** An Epic row that the export API enriches from the Epic's newest issues version: "Actual Start date"
+ * (issues.epic_real_start_date) and the raw Loại yêu cầu (issues.request_type, e.g. "Cải tiến"). */
+export type EpicAlertRowExport = EpicAlertRowPhased & { epicRealStartDate: string | null; requestType?: string | null };
 
-/** One exported row — every cell a plain string (dates pre-formatted, link built for Epic key). */
+/** One exported row — text cells are plain strings (dates pre-formatted, link built for Epic key); the two TTM budgets
+ * are numbers (working days) so Excel can sort/sum them, '' when the Epic has no basis to compute the budget. */
 export interface ExportRowCells {
   duAn: string;
   epicKey: string;
   epicKeyLink: string;
   epicSummary: string;
+  /** Long description of "Phân loại Epic" (e.g. "CT-Lv12 — Tính năng mới/Cải tiến, mức 1-2") — hidden in XLSX, not in PDF. */
   loaiEpic: string;
   pmSm: string;
   scoring: string;
   passTtm: string;
+  /** Loại yêu cầu as recorded in Jira (issues.request_type, e.g. "Cải tiến", "Sản phẩm") — the "Loại Epic" column,
+   * separate from "Req level" so users can sort/filter by each (owner 2026-11-26: not the combined CT-Lv12 code). */
+  loaiYeuCau: string;
+  /** Requirement level as recorded in Jira (e.g. "3"). */
+  reqLevel: string;
   status: string;
+  /** Ngân sách TTM-CNTT (working days) — '' when there is no basis to compute it. */
+  ttmCnttBudget: number | '';
+  /** Ngân sách TTM-E2E (working days) — '' when there is no basis to compute it. */
+  ttmE2eBudget: number | '';
   currentPhase: string;
   startE2e: string;
   startDate: string;
@@ -32,28 +45,45 @@ export interface ExportRowCells {
   jiraDueDate: string;
 }
 
-/** Ordered column headers (title row) of the exported file — matches `exportRowCells`. */
-export const EXPORT_HEADERS: readonly { key: keyof ExportRowCells; label: string }[] = [
+/** One column of the export file — layout flags (PDF / hidden / filter / header tone) as in `TableExportColumn`. */
+export interface ExportColumn extends TableExportColumn {
+  key: keyof ExportRowCells;
+}
+
+/** Ordered columns (title row) of the exported file — matches `exportRowFields`. Owner 2026-11-26 (REQ-20261126-03):
+ * Scoring + the long "Loại Epic" are hidden in XLSX and dropped from PDF; "Loại Epic" (Loại yêu cầu) / "Req level" are separate
+ * sortable columns; Start-E2E…Due date headers green, Jira R4Golive / Jira Due date yellow pastel; AutoFilter on
+ * Loại Epic / Req level / Status. */
+export const EXPORT_HEADERS: readonly ExportColumn[] = [
   { key: 'duAn', label: 'Dự án' },
   { key: 'epicKey', label: 'Epic key' },
   { key: 'epicSummary', label: 'Epic summary' },
-  { key: 'loaiEpic', label: 'Loại Epic' },
+  { key: 'loaiEpic', label: 'Loại Epic (mô tả)', pdf: false, xlsxHidden: true },
   { key: 'pmSm', label: 'PM/SM' },
-  { key: 'scoring', label: 'Scoring' },
+  { key: 'scoring', label: 'Scoring', pdf: false, xlsxHidden: true },
   { key: 'passTtm', label: 'Pass TTM' },
-  { key: 'status', label: 'Status' },
+  { key: 'loaiYeuCau', label: 'Loại Epic', filter: true },
+  { key: 'reqLevel', label: 'Req level', filter: true },
+  { key: 'status', label: 'Status', filter: true },
+  { key: 'ttmCnttBudget', label: 'TTM-CNTT' },
+  { key: 'ttmE2eBudget', label: 'TTM-e2e' },
   { key: 'currentPhase', label: 'Current phase' },
-  { key: 'startE2e', label: 'Start-E2E' },
-  { key: 'startDate', label: 'Start-Date' },
-  { key: 'actualStartDate', label: 'Actual Start date' },
-  { key: 'design', label: 'Design' },
-  { key: 'dev', label: 'Dev' },
-  { key: 'testPentent', label: 'Test Pentent' },
-  { key: 'r4golive', label: 'R4Golive' },
-  { key: 'dueDate', label: 'Due date' },
-  { key: 'jiraR4golive', label: 'Jira R4Golive' },
-  { key: 'jiraDueDate', label: 'Jira Due date' },
+  { key: 'startE2e', label: 'Start-E2E', headerTone: 'green' },
+  { key: 'startDate', label: 'Start-Date', headerTone: 'green' },
+  { key: 'actualStartDate', label: 'Actual Start date', headerTone: 'green' },
+  { key: 'design', label: 'Design', headerTone: 'green' },
+  { key: 'dev', label: 'Dev', headerTone: 'green' },
+  { key: 'testPentent', label: 'Test Pentent', headerTone: 'green' },
+  { key: 'r4golive', label: 'R4Golive', headerTone: 'green' },
+  { key: 'dueDate', label: 'Due date', headerTone: 'green' },
+  { key: 'jiraR4golive', label: 'Jira R4Golive', headerTone: 'yellow' },
+  { key: 'jiraDueDate', label: 'Jira Due date', headerTone: 'yellow' },
 ];
+
+/** A working-day budget as an export cell: the number, or '' when there is no basis (0 / missing). */
+export function exportBudgetCell(workingDays: number | null | undefined): number | '' {
+  return typeof workingDays === 'number' && Number.isFinite(workingDays) && workingDays > 0 ? workingDays : '';
+}
 
 /** Phase key → display name for the "Current phase" column. */
 const STAGE_LABELS: Record<keyof EpicAlertRowPhased['stages'], string> = {
@@ -124,7 +154,11 @@ export function exportRowFields(row: EpicAlertRowExport, viewIssueBaseUrl: strin
     pmSm: row.ownerName,
     scoring: scoringText(row),
     passTtm: passTtmText(row),
+    loaiYeuCau: row.requestType?.trim() ?? '',
+    reqLevel: row.requirementLevel?.trim() ?? '',
     status: row.currentStatus,
+    ttmCnttBudget: exportBudgetCell(row.ttmCnttTargetWorkingDays),
+    ttmE2eBudget: exportBudgetCell(row.ttmE2eTargetWorkingDays),
     currentPhase,
     startE2e: formatExportDate(row.stages.release.baselineSourceDate),
     startDate: formatExportDate(row.t1StartDate),

@@ -100,7 +100,11 @@ Rule nằm trong Scoring Service: rule `phase` (`src/lib/scoring/rules/scope-pha
 **3 trạng thái của ô pha:** không màu (chưa xong, chưa tới baseline) · hồng nhạt "Trễ pha" (chưa xong mà
 `asOf` > baseline) · xanh nhạt "Hoàn thành pha" (icon `CheckCircle` thay `ArrowBendUpRight` trước ngày baseline).
 Cột Released (Due Date) chỉ có xanh hoặc không màu. Tooltip ô pha (`PhaseCell.progressNote`) nêu lý do: số story
-đã qua pha / tổng, story còn lại theo status, story Pending bị bỏ qua, status chưa phân loại, subtask Pentest.
+đã qua pha / tổng, story còn lại theo status, story Pending bị bỏ qua, status chưa phân loại, Pentest status của Epic.
+
+**Đã qua pha thì không "Trễ pha"** (từ 26/11/2026): pha chưa xong nhưng **một pha sau đã xong hoặc Epic đã Released**
+không còn bị chấm Trễ pha (Scoring Service, rule `phase`), và ô được tô nền xanh (icon vẫn theo rule riêng của pha —
+`laterPhaseDoneFor` trong `page.tsx`). Ví dụ Epic Released chưa có `epic_pentest_status = Done`: PENTEST không trễ.
 
 **Mức pha của Story** (Cancelled và Pending bị bỏ qua — không vào mẫu số, không chặn; status không có trong
 bảng tính là mức 0 và được nêu trong tooltip):
@@ -121,15 +125,14 @@ bảng tính là mức 0 và được nêu trong tooltip):
 |---|---|
 | DESIGN | Status Epic = In Progress, hoặc mọi subtask BA Done (không đổi) |
 | DEV | "Đạt ngưỡng" ở mức 2, hoặc TEST đã xong |
-| TEST | "Đạt ngưỡng" ở mức 4, hoặc mọi subtask Pentest Done |
-| PENTEST | Có subtask Pentest ⇒ mọi subtask Pentest Done (khi đó DEV, TEST cũng xong); không có ⇒ xong cùng TEST |
+| TEST | "Đạt ngưỡng" ở mức 4 |
+| PENTEST | Pentest status của Epic (`epic_pentest_status` của file CSV → `issues.pentest_status`) = **Done** (không phân biệt hoa thường); trống hoặc giá trị khác ⇒ chưa xong. Không còn xét subtask Pentest (từ 09/11/2026), và PENTEST xong không kéo DEV, TEST xong theo |
 | R4GOLIVE | Status Epic = R4GOLIVE, hoặc có R4G Date, hoặc mọi story ≥ mức 5 |
 | Released (cột Due Date) | Epic Released, hoặc có Due Date, hoặc mọi story Released/Done |
 
 "Đạt ngưỡng" = ≥ 80% story đã tới mức (`phase.storyDoneRatio`, riêng DEV và TEST), **hoặc** Epic có ≥ 3 story và
-còn tối đa 1 story chưa tới (`phase.storyDoneTolerance`). Không còn story nào để xét ⇒ pha chưa xong. Loại subtask
-Pentest khai báo ở `phase.pentestIssueTypes` (mặc định `PENTEST`, so khớp bỏ qua hoa/thường, khoảng trắng, gạch nối);
-subtask có thể nằm dưới Epic hoặc dưới Story. Các tham số đổi được qua bảng `scoring_parameters`.
+còn tối đa 1 story chưa tới (`phase.storyDoneTolerance`). Không còn story nào để xét ⇒ pha chưa xong. Các tham số
+đổi được qua bảng `scoring_parameters` (tham số `phase.pentestIssueTypes` của rule subtask Pentest cũ đã bỏ 09/11/2026).
 
 **Dot "pha hiện tại"** (`PHASE_CURRENT`): pha đầu tiên chưa xong theo thứ tự DEV → TEST → PENTEST → R4GOLIVE;
 DESIGN nếu status Epic = Design; R4GOLIVE nếu status ≥ R4GOLIVE. Không có dot khi Epic đã Released hoặc mọi pha đã

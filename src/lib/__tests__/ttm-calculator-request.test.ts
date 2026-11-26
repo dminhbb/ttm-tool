@@ -75,6 +75,14 @@ describe('parseCalculatorRequest — validate body 2 API dùng chung (ttm-calcul
     assert.equal(errorOf({ ...VALID_BODY, createdDate: '2026-02-29' }), 'Created date / Ngày duyệt ý tưởng không hợp lệ.');
   });
 
+  it('năm ngoài 2000–2100 bị từ chối ở mọi ô ngày (chặn request làm tốn CPU máy chủ), biên 2000 / 2100 vẫn hợp lệ', () => {
+    assert.equal(errorOf({ ...VALID_BODY, startDate: '9999-12-01' }), 'Start date không hợp lệ.');
+    assert.equal(errorOf({ ...VALID_BODY, startDate: '1999-12-31' }), 'Start date không hợp lệ.');
+    assert.equal(errorOf({ ...VALID_BODY, createdDate: '0001-01-01' }), 'Created date / Ngày duyệt ý tưởng không hợp lệ.');
+    assert.equal(errorOf({ ...VALID_BODY, ideaApprovedDate: '2101-01-01' }), 'Created date / Ngày duyệt ý tưởng không hợp lệ.');
+    assert.ok('value' in parseCalculatorRequest({ ...VALID_BODY, startDate: '2100-12-31', createdDate: '2000-01-01' }));
+  });
+
   it('đủ 7 loại yêu cầu và 4 level đều được chấp nhận (không loại trừ nhầm)', () => {
     for (const requestType of ['Tính năng mới', 'Cải tiến', 'Sản phẩm', 'Hệ thống mới', 'Quy trình', 'Dịch vụ', 'Giải pháp nền tảng']) {
       for (const requirementLevel of ['1', '2', '3', '4']) {

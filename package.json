@@ -16,10 +16,9 @@
     "db:migrate:supabase": "node scripts/migrate-db.js --target=supabase",
     "db:init:supabase": "node scripts/migrate-db.js --target=supabase --init",
     "db:export-schema": "node scripts/db-schema-export.js",
-    "prepare": "command -v git >/dev/null && git config core.hooksPath .githooks || true"
+    "prepare": "node scripts/install-git-hooks.mjs"
   },
   "dependencies": {
-    "@expo-google-fonts/roboto": "^0.4.3",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@phosphor-icons/react": "^2.1.10",
     "@tailwindcss/postcss": "^4.3.3",

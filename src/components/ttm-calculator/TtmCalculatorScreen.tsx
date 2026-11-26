@@ -1,12 +1,13 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { ArrowCounterClockwise, Calculator, CaretRight, TextT } from '@phosphor-icons/react';
+import { ArrowCounterClockwise, Calculator, CaretRight, DownloadSimple, FilePdf, FileXls, TextT } from '@phosphor-icons/react';
 
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+import { PopupMenuButton } from '@/components/ui/PopupMenuButton';
 import { Select } from '@/components/ui/Select';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { computeEpicComplexity, complexityToHuman, VALID_EPIC_COMPLEXITIES_LIST } from '@/lib/epic-complexity';
@@ -14,6 +15,8 @@ import { EPIC_COMPLEXITY_LABELS, isMisclassifiedEpicComplexity } from '@/lib/sta
 import { phaseDisplayLabel, type CalculatorPhaseRow, type TtmCalculatorResult } from '@/lib/ttm-calculator';
 import { CALCULATOR_REQUEST_TYPES, parseCalculatorText, type CalculatorTextResult } from '@/lib/ttm-calculator-text';
 import { cn } from '@/lib/utils';
+import { exportTable } from '@/lib/table-export-client';
+import { CALCULATOR_EXPORT_COLUMNS, calculatorExportRow, type CalculatorExportInput } from '@/lib/ttm-calculator-export';
 import { TtmPhaseTimeline } from '@/components/ttm-calculator/TtmPhaseTimeline';
 
 interface FormState {
@@ -94,6 +97,9 @@ export function TtmCalculatorScreen() {
   const [text, setText] = useState('');
   const [parsed, setParsed] = useState<CalculatorTextResult | null>(null);
   const [result, setResult] = useState<TtmCalculatorResult | null>(null);
+  // Thông tin đã nhập của lần tính đang hiển thị (result không mang Loại yêu cầu / Created date / Ngày duyệt ý tưởng) — dùng cho "Xuất dữ liệu".
+  const [resultInput, setResultInput] = useState<CalculatorExportInput | null>(null);
+  const [exporting, setExporting] = useState(false);
   // Ngày nghỉ / ngày làm bù (theo cấu hình) trả về cùng result, dùng để vẽ timeline.
   const [holidays, setHolidays] = useState<ReadonlySet<string>>(new Set());
   const [workdays, setWorkdays] = useState<ReadonlySet<string>>(new Set());
@@ -138,6 +144,7 @@ export function TtmCalculatorScreen() {
       const data = (await response.json().catch(() => ({}))) as { error?: string; result?: TtmCalculatorResult; holidays?: string[]; workdays?: string[] };
       if (!response.ok || !data.result) throw new Error(data.error ?? 'Không thể tính toán các mốc TTM.');
       setResult(data.result);
+      setResultInput({ createdDate: next.createdDate || null, ideaApprovedDate: next.ideaApprovedDate || null, requestType: next.requestType, requirementLevel: next.requirementLevel, startDate: next.startDate });
       setHolidays(new Set(data.holidays ?? []));
       setWorkdays(new Set(data.workdays ?? []));
       setSource(from);
@@ -153,11 +160,33 @@ export function TtmCalculatorScreen() {
     setText('');
     setParsed(null);
     setResult(null);
+    setResultInput(null);
     setHolidays(new Set());
     setWorkdays(new Set());
     setSource(null);
     setError(null);
     setMisclassifiedComplexity(null);
+  }
+
+  /** "Xuất dữ liệu" (REQ-20261126-03): 1 dòng thông tin Epic + ngân sách + baseline từng pha, file XLSX / PDF tạo ở trình duyệt. */
+  async function handleExport(format: 'xlsx' | 'pdf') {
+    if (!result || !resultInput || exporting) return;
+    setExporting(true);
+    try {
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      await exportTable(format, {
+        title: `TTM Calculator — ${EPIC_COMPLEXITY_LABELS[result.complexity]} — Xuất ngày ${formatPlainDate(today)}`,
+        sheetName: 'TTM Calculator',
+        columns: CALCULATOR_EXPORT_COLUMNS,
+        rows: [calculatorExportRow(resultInput, result)],
+        fileBase: `ttm-calculator-${today.replace(/-/g, '')}`,
+      });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Lỗi khi xuất dữ liệu.');
+    } finally {
+      setExporting(false);
+    }
   }
 
   function parseText() {
@@ -206,9 +235,9 @@ export function TtmCalculatorScreen() {
               <div className="grid grid-cols-2 gap-3">
                 <Select className="min-w-0" label="Loại yêu cầu *" onChange={(event) => setField('requestType')(event.target.value)} options={CALCULATOR_REQUEST_TYPES.map((value) => ({ label: value, value }))} value={form.requestType} />
                 <Select className="min-w-0" label="Requirement level *" onChange={(event) => setField('requirementLevel')(event.target.value)} options={['1', '2', '3', '4'].map((value) => ({ label: value, value }))} value={form.requirementLevel} />
-                <Input className="min-w-0" label="Start date *" onChange={(event) => setField('startDate')(event.target.value)} type="date" value={form.startDate} />
-                <Input className="min-w-0" label="Created date" onChange={(event) => setField('createdDate')(event.target.value)} type="date" value={form.createdDate} />
-                <Input className="min-w-0" label="Ngày duyệt ý tưởng" onChange={(event) => setField('ideaApprovedDate')(event.target.value)} type="date" value={form.ideaApprovedDate} />
+                <Input className="min-w-0" label="Start date *" onChange={(event) => setField('startDate')(event.target.value)} max="2100-12-31" min="2000-01-01" type="date" value={form.startDate} />
+                <Input className="min-w-0" label="Created date" onChange={(event) => setField('createdDate')(event.target.value)} max="2100-12-31" min="2000-01-01" type="date" value={form.createdDate} />
+                <Input className="min-w-0" label="Ngày duyệt ý tưởng" onChange={(event) => setField('ideaApprovedDate')(event.target.value)} max="2100-12-31" min="2000-01-01" type="date" value={form.ideaApprovedDate} />
               </div>
               <div className="flex gap-2">
                 <Button variant="primary" className={cn('flex-1', calcButtonClass('form'))} isLoading={loading} type="submit" icon={<Calculator className="size-4" weight="bold" aria-hidden="true" />}>Tính toán</Button>
@@ -275,6 +304,18 @@ export function TtmCalculatorScreen() {
             <div className="flex flex-1 items-center justify-center text-sm text-fb-text-secondary">Nhập thông tin Epic</div>
           ) : (
             <>
+              <div className="flex justify-end">
+                <PopupMenuButton
+                  ariaLabel="Xuất dữ liệu"
+                  disabled={exporting || !resultInput}
+                  disabledTooltip="Đang xuất dữ liệu…"
+                  label={<span className="inline-flex items-center gap-1.5"><DownloadSimple size={16} weight="bold" /><span>Xuất Dữ Liệu</span></span>}
+                  menuItems={[
+                    { label: 'Xuất XLSX', icon: <FileXls size={16} />, onClick: () => { void handleExport('xlsx'); } },
+                    { label: 'Xuất PDF', icon: <FilePdf size={16} />, onClick: () => { void handleExport('pdf'); } },
+                  ]}
+                />
+              </div>
               <ExplanationRow result={result} />
 
               <div className="mx-auto grid w-full max-w-3xl grid-cols-3 gap-3">
