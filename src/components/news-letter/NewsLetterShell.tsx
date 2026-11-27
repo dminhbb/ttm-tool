@@ -62,7 +62,8 @@ async function fetchJson<T>(url: string): Promise<T | null> {
   }
 }
 
-function TocLine({ active, item }: { active: boolean; item: NewsLetterTocItem }) {
+/** `number` = "<folder>.<item>", the position on screen (owner 2026-11-27). */
+function TocLine({ active, item, number }: { active: boolean; item: NewsLetterTocItem; number: string }) {
   return (
     <li>
       <Link
@@ -76,6 +77,7 @@ function TocLine({ active, item }: { active: boolean; item: NewsLetterTocItem })
               <EyeSlash className="size-3" weight="bold" aria-hidden="true" />Ẩn
             </span>
           )}
+          <span className="tabular-nums">{number}. </span>
           {newsLetterDisplayTitle(item)}
           {item.isDraft && <span className="ml-1.5 rounded bg-status-warning-soft px-1.5 py-0.5 align-middle text-[11px] font-bold text-status-warning">Nháp</span>}
         </span>
@@ -86,7 +88,7 @@ function TocLine({ active, item }: { active: boolean; item: NewsLetterTocItem })
 }
 
 /** A line of "Mới nhất" (owner 2026-11-20): only the title, regular weight, with a vertical bar — no date/author. */
-function LatestLine({ active, item }: { active: boolean; item: NewsLetterTocItem }) {
+function LatestLine({ active, item, number }: { active: boolean; item: NewsLetterTocItem; number: number }) {
   return (
     <li>
       <Link
@@ -96,6 +98,7 @@ function LatestLine({ active, item }: { active: boolean; item: NewsLetterTocItem
       >
         <span className={cn('block text-[13px] leading-snug', active ? 'font-semibold text-fb-blue' : 'font-normal text-fb-text-primary')}>
           {item.hiddenFromMenu && <EyeSlash className="mr-1 inline size-3.5 align-[-2px] text-fb-text-secondary" weight="bold" aria-label="Ẩn trên menu" />}
+          <span className="tabular-nums">{number}. </span>
           {newsLetterDisplayTitle(item)}
         </span>
       </Link>
@@ -103,7 +106,7 @@ function LatestLine({ active, item }: { active: boolean; item: NewsLetterTocItem
   );
 }
 
-function TocFolder({ activeArticle, group, onLoadMore }: { activeArticle: NewsLetterActiveArticle | null; group: NewsLetterTocGroup; onLoadMore: () => Promise<void> }) {
+function TocFolder({ activeArticle, group, number, onLoadMore }: { activeArticle: NewsLetterActiveArticle | null; group: NewsLetterTocGroup; number: number; onLoadMore: () => Promise<void> }) {
   const [loading, setLoading] = React.useState(false);
   // Default open/collapsed follows the admin's "Expand" checkbox; the reader may still toggle it (owner 2026-11-20).
   const [open, setOpen] = React.useState(Boolean(group.expanded));
@@ -126,7 +129,7 @@ function TocFolder({ activeArticle, group, onLoadMore }: { activeArticle: NewsLe
         /* The line from the folder down to its articles: accent 2px for the folder on screen, grey 1px otherwise. */
         <div className={cn('ml-[17px] pl-2', current ? 'border-l-2 border-fb-blue' : 'border-l border-fb-border')}>
           <ul>
-            {group.items.map((item) => <TocLine key={item.id} item={item} active={item.id === activeArticle?.id} />)}
+            {group.items.map((item, index) => <TocLine key={item.id} item={item} number={`${number}.${index + 1}`} active={item.id === activeArticle?.id} />)}
           </ul>
           {group.items.length < group.total && (
             <button
@@ -175,7 +178,7 @@ function TocColumn({ activeArticle, canPost, onLoadMoreGroup, payload }: {
         ) : (
           /* "Mới nhất": chỉ tiêu đề, font thường, thanh dọc kéo dài như Thư mục (owner 2026-11-20). */
           <div className="mt-1 border-l border-fb-border pl-2">
-            <ul>{toc.latest.slice(0, NEWS_LETTER_LATEST_PAGE).map((item) => <LatestLine key={item.id} item={item} active={item.id === activeArticle?.id} />)}</ul>
+            <ul>{toc.latest.slice(0, NEWS_LETTER_LATEST_PAGE).map((item, index) => <LatestLine key={item.id} item={item} number={index + 1} active={item.id === activeArticle?.id} />)}</ul>
           </div>
         )}
       </section>
@@ -183,8 +186,8 @@ function TocColumn({ activeArticle, canPost, onLoadMoreGroup, payload }: {
         <section>
           <h2 className="border-b border-fb-border px-2 pb-1.5 text-xs font-bold uppercase tracking-wider text-fb-text-secondary">Thư mục bài viết</h2>
           <div className="mt-2 space-y-3">
-            {toc.groups.map((group) => (
-              <TocFolder key={group.categoryId ?? 'none'} group={group} activeArticle={activeArticle} onLoadMore={() => onLoadMoreGroup(group)} />
+            {toc.groups.map((group, index) => (
+              <TocFolder key={group.categoryId ?? 'none'} number={index + 1} group={group} activeArticle={activeArticle} onLoadMore={() => onLoadMoreGroup(group)} />
             ))}
           </div>
         </section>

@@ -34,6 +34,17 @@ export interface TableExportSpec {
   rows: readonly (readonly TableExportCell[])[];
   /** File name without extension. */
   fileBase: string;
+  /** Hyperlinks of data cells: `links[row][column]` (aligned with `rows`); empty / absent = plain text. Only http(s). */
+  links?: readonly (readonly (string | undefined)[])[];
+}
+
+const LINK_ARGB = 'FF1D4ED8';
+const LINK_RGB: [number, number, number] = [29, 78, 216];
+
+/** The URL of a data cell when it is a safe (http / https) link, else null. */
+export function exportCellLink(spec: Pick<TableExportSpec, 'links'>, rowIndex: number, columnIndex: number): string | null {
+  const url = spec.links?.[rowIndex]?.[columnIndex];
+  return url && /^https?:\/\//i.test(url) ? url : null;
 }
 
 interface ToneColors { argbFill: string; argbText: string; rgbFill: [number, number, number]; rgbText: [number, number, number] }
@@ -82,8 +93,11 @@ function downloadBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
-async function exportXlsx(spec: TableExportSpec): Promise<void> {
-  const ExcelJS = await import('exceljs');
+/** The XLSX workbook of a spec (no DOM — unit-tested). */
+export async function buildXlsxWorkbook(spec: TableExportSpec) {
+  const imported = await import('exceljs');
+  // The browser bundle exposes the classes on the namespace, Node's ESM loader on `default`.
+  const ExcelJS = (imported as unknown as { default?: typeof imported }).default ?? imported;
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet(spec.sheetName);
   const { columns, rows } = spec;
@@ -104,15 +118,25 @@ async function exportXlsx(spec: TableExportSpec): Promise<void> {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: tone.argbFill } };
     cell.alignment = { vertical: 'middle', wrapText: true };
   });
-  rows.forEach((row) => {
+  rows.forEach((row, rowIndex) => {
     const added = sheet.addRow([...row]);
     columns.forEach((column, index) => {
-      if (column.boldCells) added.getCell(index + 1).font = { bold: true };
+      const cell = added.getCell(index + 1);
+      const link = exportCellLink(spec, rowIndex, index);
+      if (link) cell.value = { text: String(row[index] ?? ''), hyperlink: link };
+      if (column.boldCells || link) {
+        cell.font = { bold: column.boldCells === true, ...(link ? { underline: true, color: { argb: LINK_ARGB } } : {}) };
+      }
     });
   });
   const filter = xlsxAutoFilterColumns(columns);
   if (filter) sheet.autoFilter = { from: { row: 2, column: filter.from }, to: { row: 2 + rows.length, column: filter.to } };
   sheet.views = [{ state: 'frozen', ySplit: 2 }];
+  return workbook;
+}
+
+async function exportXlsx(spec: TableExportSpec): Promise<void> {
+  const workbook = await buildXlsxWorkbook(spec);
   const buffer = await workbook.xlsx.writeBuffer();
   downloadBlob(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `${spec.fileBase}.xlsx`);
 }
@@ -147,9 +171,16 @@ async function exportPdf(spec: TableExportSpec): Promise<void> {
         const tone = headerToneColors(column.headerTone);
         hook.cell.styles.fillColor = tone.rgbFill;
         hook.cell.styles.textColor = tone.rgbText;
-      } else if (hook.section === 'body' && column.boldCells) {
-        hook.cell.styles.fontStyle = 'bold';
+      } else if (hook.section === 'body') {
+        if (column.boldCells) hook.cell.styles.fontStyle = 'bold';
+        if (exportCellLink(spec, hook.row.index, included[hook.column.index])) hook.cell.styles.textColor = LINK_RGB;
       }
+    },
+    // The clickable area of a link cell (a link annotation over the whole cell).
+    didDrawCell: (hook) => {
+      if (hook.section !== 'body') return;
+      const url = exportCellLink(spec, hook.row.index, included[hook.column.index]);
+      if (url) doc.link(hook.cell.x, hook.cell.y, hook.cell.width, hook.cell.height, { url });
     },
   });
   downloadBlob(doc.output('blob'), `${spec.fileBase}.pdf`);

@@ -3,6 +3,7 @@ import { createManagedUser, DuplicateUsernameError, extractUsername, normalizeUs
 import { PUBLIC_RATE_LIMITS, rateLimitResponse } from '@/lib/api-rate-limit';
 import { verifyCaptcha } from '@/lib/captcha-service';
 import { listDomains } from '@/lib/master-data-service';
+import { validatePassword } from '@/lib/password-rules';
 
 const USERNAME_PATTERN = /^[a-z0-9._-]{1,100}$/;
 
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
     const rawEmail = body.email.trim().toLowerCase();
     const hasDomain = rawEmail.includes('@');
     const username = extractUsername(rawEmail);
-    if (!USERNAME_PATTERN.test(username) || (hasDomain && !/^[^\s@]+@mbbank\.com\.vn$/i.test(rawEmail)) || body.fullName.trim().length === 0 || body.password.length < 8) return NextResponse.json({ error: 'Họ tên, username/email MB Bank hoặc mật khẩu không hợp lệ.' }, { status: 400 });
+    if (!USERNAME_PATTERN.test(username) || (hasDomain && !/^[^\s@]+@mbbank\.com\.vn$/i.test(rawEmail)) || body.fullName.trim().length === 0 || !validatePassword(body.password).isValid) return NextResponse.json({ error: 'Họ tên, username/email MB Bank hoặc mật khẩu không hợp lệ.' }, { status: 400 });
     if (!(await listDomains()).some((domain) => domain.id === body.domainId && domain.isActive)) return NextResponse.json({ error: 'Domain không tồn tại hoặc đã ngừng hoạt động.' }, { status: 400 });
     await createManagedUser({ email: normalizeUsername(rawEmail), fullName: body.fullName.trim(), password: body.password, role: 'USER', isActive: false, domainIds: [body.domainId], projectIds: [], projectComponents: {} });
     return NextResponse.json({ success: true }, { status: 201 });

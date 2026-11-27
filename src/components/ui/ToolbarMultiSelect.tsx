@@ -2,12 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { CaretDown, Check, MagnifyingGlass } from '@phosphor-icons/react';
+import { arrangeChoices, type MultiSelectChoice } from '@/lib/multi-select-options';
 
 /** An option whose stored value differs from what the user reads (e.g. "Nhận xét": FAIL → "Fail TTM-CNTT"). */
-export interface ToolbarMultiSelectOption {
-  label: string;
-  value: string;
-}
+export type ToolbarMultiSelectOption = MultiSelectChoice;
 
 /** Compact multi-choice dropdown for a filter toolbar — same trigger/height as a plain `.ttm-select`
  * native <select> next to it, but opens a checkbox popover instead. Shared by Epic 30/15/in-PO —
@@ -16,23 +14,24 @@ export interface ToolbarMultiSelectOption {
  * free-text box on top of the list (accent- and case-insensitive, matches label or value) for long
  * lists such as Projects; "Chọn tất cả"/"Bỏ chọn" then applies to the options currently shown. */
 
-/** Lower-cased, Vietnamese accents stripped — so "du an" finds "Dự án". */
-function normalizeSearchText(text: string): string {
-  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().trim();
-}
-
-export function ToolbarMultiSelect({
-  allLabel, ariaLabel, disabled = false, onChange, options, searchable = false, title, value,
-}: {
+export interface ToolbarMultiSelectProps {
   allLabel: string;
   ariaLabel: string;
   disabled?: boolean;
   onChange: (values: string[]) => void;
   options: ReadonlyArray<string | ToolbarMultiSelectOption>;
+  /** Values always listed on top (their own A-Z group, darker background, a divider below). */
+  pinnedValues?: readonly string[];
   searchable?: boolean;
+  /** true → the (non-pinned) options are listed A-Z; default keeps the order given. */
+  sortOptions?: boolean;
   title?: string;
   value: string[];
-}) {
+}
+
+export function ToolbarMultiSelect({
+  allLabel, ariaLabel, disabled = false, onChange, options, pinnedValues, searchable = false, sortOptions = false, title, value,
+}: ToolbarMultiSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -61,10 +60,9 @@ export function ToolbarMultiSelect({
 
   // Toggle link: every option explicitly checked → "Bỏ chọn" (clears to []); anything else
   // (none or only some checked) → "Chọn tất cả" (checks every option explicitly).
-  const needle = searchable ? normalizeSearchText(query) : '';
-  const visibleOptions = needle
-    ? normalizedOptions.filter((option) => normalizeSearchText(option.label).includes(needle) || normalizeSearchText(option.value).includes(needle))
-    : normalizedOptions;
+  const needle = searchable ? query.trim() : '';
+  const { pinned, others } = arrangeChoices(normalizedOptions, { pinnedValues, query: needle, sort: sortOptions });
+  const visibleOptions = [...pinned, ...others];
   const allSelected = visibleOptions.length > 0 && visibleOptions.every((option) => value.includes(option.value));
   // While searching, the toggle only adds/removes the options currently shown — it must not wipe
   // selections hidden by the search.
@@ -75,6 +73,17 @@ export function ToolbarMultiSelect({
   };
 
   const hasFilter = value.length > 0;
+
+  const renderOption = (option: MultiSelectChoice) => {
+    const isSelected = value.includes(option.value);
+    return (
+      <label key={option.value} className={`ttm-multiselect-option${isSelected ? ' is-selected' : ''}`}>
+        <input type="checkbox" checked={isSelected} onChange={() => toggle(option.value)} />
+        <span>{option.label}</span>
+        {isSelected && <Check size={14} weight="bold" className="ttm-multiselect-check" aria-hidden="true" />}
+      </label>
+    );
+  };
 
   return (
     <div className="ttm-multiselect" ref={containerRef}>
@@ -114,19 +123,20 @@ export function ToolbarMultiSelect({
           <div className="ttm-multiselect-options">
             {visibleOptions.length === 0 ? (
               <p className="ttm-multiselect-empty">{needle ? 'Không tìm thấy.' : 'Không có lựa chọn.'}</p>
-            ) : visibleOptions.map((option) => {
-              const isSelected = value.includes(option.value);
-              return (
-                <label key={option.value} className={`ttm-multiselect-option${isSelected ? ' is-selected' : ''}`}>
-                  <input type="checkbox" checked={isSelected} onChange={() => toggle(option.value)} />
-                  <span>{option.label}</span>
-                  {isSelected && <Check size={14} weight="bold" className="ttm-multiselect-check" aria-hidden="true" />}
-                </label>
-              );
-            })}
+            ) : (
+              <>
+                {pinned.length > 0 && <div className="ttm-multiselect-pinned">{pinned.map(renderOption)}</div>}
+                {others.map(renderOption)}
+              </>
+            )}
           </div>
         </div>
       )}
     </div>
   );
+}
+
+/** The "type to find, A-Z" dropdown (optionally with pinned items) — a ToolbarMultiSelect with search and sort on. */
+export function SearchableMultiSelect(props: Omit<ToolbarMultiSelectProps, 'searchable' | 'sortOptions'>) {
+  return <ToolbarMultiSelect {...props} searchable sortOptions />;
 }

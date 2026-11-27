@@ -19,6 +19,8 @@ export interface ImportTableResult {
   deleted: number;
   error: string | null;
   inserted: number;
+  /** What the import had to leave out or adjust for this table (schema difference, the importer's own account). */
+  note?: string;
   /** Rows whose primary key matched an existing row — overwritten with the file's data
    * (INSERT ... ON CONFLICT (pk) DO UPDATE SET, see exportTablesToSql). Always 0 for a file
    * exported before this upsert behavior existed (ON CONFLICT DO NOTHING — those still land in

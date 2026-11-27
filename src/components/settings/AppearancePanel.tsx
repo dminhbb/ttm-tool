@@ -3,34 +3,22 @@
 import * as React from 'react';
 import { Check } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
-import { applyThemeBrand, DEFAULT_THEME_BRAND, isThemeBrand, type ThemeBrand } from '@/lib/theme-brand';
+import { applyThemeBrand, type ThemeChoice } from '@/lib/theme-brand';
+import { useThemeChoice } from '@/lib/use-theme-choice';
 
-function subscribeToBrandAttribute(callback: () => void): () => void {
-  const observer = new MutationObserver(callback);
-  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-brand'] });
-  return () => observer.disconnect();
-}
-
-function readAppliedBrand(): ThemeBrand {
-  const attr = document.documentElement.getAttribute('data-brand');
-  return isThemeBrand(attr) ? attr : DEFAULT_THEME_BRAND;
-}
-
-const OPTIONS: { id: ThemeBrand; label: string; swatch: string[] }[] = [
+const OPTIONS: { id: ThemeChoice; label: string; swatch: string[] }[] = [
   // Swatch = [nền trang, màu nhấn, màu chữ chính] của chính brand đó.
   { id: 'ias', label: 'IAS theme', swatch: ['#f4f6fa', '#141ed2', '#14142a'] },
+  { id: 'mb', label: 'MB Theme', swatch: ['var(--mb-swatch-surface)', 'var(--mb-swatch-navy)', 'var(--mb-swatch-navy-dark)'] },
   { id: 'wise', label: 'Lime theme', swatch: ['#e8ebe6', '#9fe870', '#0e0f0c'] },
   { id: 'legacy', label: 'Navy theme', swatch: ['#e9ecef', '#0284c7', '#0f172a'] },
   { id: 'pink', label: 'Pink theme', swatch: ['#dedcdd', '#80526c', '#5c2545'] },
 ];
 
 export function AppearancePanel() {
-  // Reads the attribute the blocking init script already applied, via useSyncExternalStore so
-  // the server snapshot is always the default (no hydration mismatch) and no effect-driven
-  // setState is needed to pick up the real value after mount.
-  const brand = React.useSyncExternalStore(subscribeToBrandAttribute, readAppliedBrand, () => DEFAULT_THEME_BRAND);
+  const brand = useThemeChoice();
 
-  const select = (next: ThemeBrand) => {
+  const select = (next: ThemeChoice) => {
     if (next === brand) return;
     applyThemeBrand(next);
     // A handful of the theme's inherited CSS custom properties (radius, surface colors) don't
@@ -45,7 +33,7 @@ export function AppearancePanel() {
       <p className="text-sm text-fb-text-secondary">
         Mặc định là <strong>IAS theme</strong>. Nếu bạn chọn giao diện khác, thiết lập sẽ được lưu trên trình duyệt và tự động chuyển về IAS theme mặc định sau 7 ngày.
       </p>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {OPTIONS.map((option) => {
           const active = brand === option.id;
           return (

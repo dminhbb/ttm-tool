@@ -9,7 +9,7 @@ import { StatusColorLegend } from '@/components/ui/StatusColorLegend';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { Table, TableContainer, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
+import { SearchableMultiSelect, ToolbarMultiSelect } from '@/components/ui/ToolbarMultiSelect';
 import { PopupMenuButton } from '@/components/ui/PopupMenuButton';
 import { EpicMarkCell } from '@/components/epic-mark/EpicMarkCell';
 import { JiraLinkButton } from '@/components/epic-alerts/JiraLinkButton';
@@ -18,7 +18,7 @@ import { EpicAlertTimeline } from '@/components/epic-alerts/EpicAlertTimeline';
 import { EpicStatWidgets } from '@/components/epic-alerts/EpicStatWidgets';
 import { DataAnomalyList } from '@/components/epic-alerts/DataAnomalyDetail';
 import { EpicCommentCell, TtmCnttPassCell } from '@/components/epic-alerts/EpicCommentCell';
-import { ALERT_FILTER_SELECT_OPTIONS, ALERT_FILTER_VALUES, matchesAlertFilter, matchesMarkFilter } from '@/lib/epic-row-verdicts';
+import { ALERT_FILTER_SELECT_OPTIONS, ALERT_FILTER_VALUES, PINNED_ALERT_FILTER_VALUES, matchesAlertFilter, matchesMarkFilter } from '@/lib/epic-row-verdicts';
 import type { AlertFilterValue } from '@/lib/epic-row-verdicts';
 import { matchesPmSmFilter, splitOwnerNames, UNASSIGNED_PM_SM } from '@/lib/epic-pm-sm-assignment';
 import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
@@ -536,6 +536,9 @@ function QuickFilterButton({ active, count, countLabel, icon: Icon, label, onCli
     </Tooltip>
   );
 }
+
+/** Pinned on top of the "Đơn vị yêu cầu" dropdown (owner 2026-11-27) — the names exactly as Jira records them. */
+const PINNED_REQUESTING_UNITS = ['Khối Ngân hàng số', 'Khối Vận hành', 'Khối Công nghệ thông tin'];
 
 function AlertHistoryButton({ row, onOpen }: { row: EpicAlertRowPhased; onOpen: (row: EpicAlertRowPhased) => void }) {
   return (
@@ -1355,6 +1358,7 @@ function EpicAlerts15Screen() {
         sheetName: 'Epic',
         columns: EXPORT_HEADERS,
         rows: cells.map((cell) => EXPORT_HEADERS.map((header) => cell[header.key])),
+        links: cells.map((cell) => EXPORT_HEADERS.map((header) => (header.key === 'epicKey' ? cell.epicKeyLink : undefined))),
         fileBase: `epic-export-${stamp || 'data'}`,
       });
       showToast(`Đã xuất ${format === 'xlsx' ? 'Excel' : 'PDF'} ${result.rows?.length ?? 0} Epic.`);
@@ -1476,14 +1480,15 @@ function EpicAlerts15Screen() {
           value={componentFilters}
           onChange={(values) => { setComponentFilters(values); setPage(1); }}
         />
-        <ToolbarMultiSelect
+        <SearchableMultiSelect
           ariaLabel="Lọc Nhận xét"
           allLabel="Nhận xét"
+          pinnedValues={PINNED_ALERT_FILTER_VALUES}
           options={ALERT_FILTER_SELECT_OPTIONS.filter((option) => option.value !== '')}
           value={alertFilters}
           onChange={(values) => { setAlertFilters(values as AlertFilterValue[]); setPage(1); }}
         />
-        <ToolbarMultiSelect
+        <SearchableMultiSelect
           ariaLabel="Loại Epic"
           allLabel="Loại Epic"
           options={EPIC_COMPLEXITY_TYPES}
@@ -1497,10 +1502,10 @@ function EpicAlerts15Screen() {
           value={statusFilters}
           onChange={(values) => { setStatusFilters(values); setActiveQuickFilter(null); setPage(1); }}
         />
-        <ToolbarMultiSelect
+        <SearchableMultiSelect
           ariaLabel="Đơn vị yêu cầu"
-          searchable
           allLabel="Đơn vị yêu cầu"
+          pinnedValues={PINNED_REQUESTING_UNITS}
           options={requestingUnitOptions}
           value={requestingUnitFilters}
           onChange={(values) => { setRequestingUnitFilters(values); setPage(1); }}
@@ -1718,6 +1723,7 @@ function EpicAlerts15Screen() {
           <Table className={`ttm-align-top w-full ${allColumnsCollapsed ? 'ttm-table-compact' : 'min-w-[1200px]'}`}>
             <THead>
               <TR>
+                <TH className="ttm-col-index text-center align-top" title="Số thứ tự dòng trên bảng đang hiển thị">#</TH>
                 <TH className={`ttm-epic-col-sticky ttm-col-border-right text-left align-top ${allColumnsCollapsed ? 'min-w-[160px]' : 'min-w-[200px]'}`} title="issues.issue_key / issues.issue_name">EPIC</TH>
                 <TH className="ttm-cw-shrink ttm-col-tight w-[1%] min-w-[44px] text-center align-top" title="Epic có comment (cờ: cam = Giao việc To do, xanh lá = Done) và/hoặc bạn đã ẩn (mắt gạch chéo) — bấm để mở Review Notes">REVIEW</TH>
                 <TH className="ttm-cw-scoring ttm-col-tight w-[1%] min-w-[120px] ttm-col-border-right text-left align-top" title="Tính toán (alertLevel) — không lưu trực tiếp trong CSDL">SCORING</TH>
@@ -1736,7 +1742,7 @@ function EpicAlerts15Screen() {
               </TR>
             </THead>
             <TBody>
-              {pageRows.map((row: EpicAlertRowPhased) => {
+              {pageRows.map((row: EpicAlertRowPhased, rowIndex: number) => {
                 const isMissingCore = !row.t1StartDate;
                 const isTtmExcluded = Boolean(row.ttmBlackListed || row.ttmExclusion);
                 return (
@@ -1750,6 +1756,8 @@ function EpicAlerts15Screen() {
                       setPinnedRowKey((current) => (current === row.epicKey ? null : row.epicKey));
                     }}
                   >
+                    {/* "#" (owner 2026-11-27): the row's position on the page shown — not tied to an Epic, restarts at 1 on each page. */}
+                    <TD className="ttm-col-index text-center align-top tabular-nums">{rowIndex + 1}</TD>
                     {/* No Start Date (T1): the second group of the list, Epic cell on the "Trễ pha" background (owner 2026-11-10). */}
                     <TD className={`ttm-epic-col-sticky ttm-col-border-right text-left align-top${isMissingCore ? ' ttm-epic-no-t1' : ''}`}>
                       {row.viewOnly && (

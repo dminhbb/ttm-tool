@@ -558,3 +558,16 @@
 :root[data-theme="dark"] .dn-panel-change { background-color: #2d2340; }
 .dn-change-filter-row { background-color: #eef0f4; }
 :root[data-theme="dark"] .dn-change-filter-row { background-color: #262a35; }
+
+/* Pinned items of the shared dropdown (owner 2026-11-27): darker background, a divider before the other items. */
+.ttm-multiselect-pinned {
+  margin: -4px -4px 4px;
+  padding: 4px;
+  border-bottom: 1px solid #94a3b8;
+  background: #e2e8f0;
+}
+.ttm-multiselect-pinned .ttm-multiselect-option:hover,
+.ttm-multiselect-pinned .ttm-multiselect-option.is-selected { background: #cbd5e1; }
+:root[data-theme="dark"] .ttm-multiselect-pinned { background: rgba(255, 255, 255, 0.1); border-bottom-color: rgba(255, 255, 255, 0.35); }
+:root[data-theme="dark"] .ttm-multiselect-pinned .ttm-multiselect-option:hover,
+:root[data-theme="dark"] .ttm-multiselect-pinned .ttm-multiselect-option.is-selected { background: rgba(255, 255, 255, 0.16); }

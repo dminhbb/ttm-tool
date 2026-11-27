@@ -785,8 +785,11 @@ export default function DatabaseBackupPage() {
               <div className="flex flex-col gap-2 rounded-xl border border-fb-border bg-fb-surface-muted p-4">
                 <p className="font-bold text-fb-text-primary">Kết quả import:</p>
                 {importResult.tables.map((table) => (
-                  <div key={table.tableName} className="flex items-center justify-between text-fb-text-secondary">
-                    <span className="font-mono">{table.tableName}</span>
+                  <div key={table.tableName} className="flex items-center justify-between gap-2 text-fb-text-secondary">
+                    <span className="flex min-w-0 flex-col">
+                      <span className="font-mono">{table.tableName}</span>
+                      {table.note && <span className="text-xs text-status-warning">{table.note}</span>}
+                    </span>
                     {table.error ? (
                       <span className="flex items-center gap-1 text-status-danger"><Warning className="size-4" weight="bold" />{table.error}</span>
                     ) : (

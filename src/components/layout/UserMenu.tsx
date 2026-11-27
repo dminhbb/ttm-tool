@@ -298,6 +298,7 @@ export function UserMenu({ expanded, hiddenFeatureKeys }: UserMenuProps) {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         title="Cài đặt"
+        maxWidth="xl"
         footer={<Button variant="outline" onClick={() => setIsSettingsOpen(false)}>Đóng</Button>}
       >
         <div className="ui-form flex flex-col gap-6">

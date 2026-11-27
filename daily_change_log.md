@@ -6,6 +6,19 @@
 > sung một bullet vào block của ngày hiện tại — xem hướng dẫn đầy đủ ở `AGENTS.md` § "Daily change
 > log". Ngày mới nhất nằm TRÊN CÙNG; không sửa/xoá bullet của các lần chạy trước trong cùng một ngày.
 
+## 2026-11-27
+
+- Thanh điều hướng trái: dòng phụ dưới "PMB" đổi thành "Project Management MB" (`REQ-20261127-08`).
+- (`REQ-20261127-07`) MB Theme: sidebar mặc định mở nhưng thu gọn được. Popup "Cài đặt" rộng hơn (`xl`), "Logic xử lý dữ liệu" (`2xl`).
+- (`REQ-20261127-06`) Quản lý user: cột Domain xuống dòng. Rule mật khẩu: chỉ còn tối thiểu 5 (tối đa 256) ký tự, dùng chung `password-rules.ts`; mật khẩu ngẫu nhiên không đổi. Icon MB cho sidebar + `favicon.ico`. Thêm "MB Theme" (`mb-theme.css`, IAS + `data-skin="mb"`, sidebar luôn mở 224px; chỉ đè chế độ Sáng).
+- Kiểm tra giao diện `REQ-20261127-03…05` và sửa 2 lỗi: khung focus TTM Calculator dùng token không tồn tại (`fb-warning` → `status-warning`); cột "#" sai màu nền ở dark mode.
+- (`REQ-20261127-05`) TTM Calculator: khung đang focus ở dark mode dùng nền cảnh báo mờ thay vàng nhạt; mục lục Bản tin đánh số (`1.` ở Mới nhất, `<thư mục>.<bài>.` trong thư mục); Quản trị Epic thêm cột "#" cố định bên trái, đánh từ 1 theo trang đang hiển thị.
+- Quản trị Epic: dropdown "Đơn vị yêu cầu" dùng `SearchableMultiSelect`, ghim Khối Công nghệ thông tin / Ngân hàng số / Vận hành (`REQ-20261127-04`).
+- Báo cáo Epic start sớm: bỏ icon cảnh báo ở cột Epic Key / Summary (`REQ-20261127-03`).
+- **Dropdown dùng chung có tìm kiếm / A-Z / Pinned items** (`REQ-20261127-03`): `SearchableMultiSelect` (`ui/ToolbarMultiSelect.tsx`, logic `multi-select-options.ts`) cho "Nhận xét" (ghim 4 mục, thêm giá trị lọc "Start sớm" `EARLY_START`) và "Loại Epic" ở Quản trị Epic; Báo cáo Epic start sớm: Project, PM/SM chọn nhiều bằng cùng component, đổi tên cột thành "Actual Start date".
+- **Sửa 4 lỗi Xuất dữ liệu Quản trị Epic** (`REQ-20261127-01`): route export dùng cache chỉ khi đã có cache (như danh sách); áp `newFailScope` cả nhánh tính trực tiếp; Loại Epic / Actual Start date đọc theo `asOfDate`; Epic key có link Jira trong XLSX + PDF (`table-export-client.ts` `links`).
+- **Sửa lỗi Import Smart export** (`REQ-20261127-02`): tách đăng ký phân loại Bản tin trước khi mirror (khoá `ON DELETE RESTRICT`); chịu được lệch schema (cột thiếu → default, cột/bảng DB đích không có → bỏ qua và ghi chú trên màn hình); tài khoản đang import theo id của file nếu file có người đó, hoặc chuyển sang id mới nếu id bị người khác chiếm, phiên đăng nhập đi theo (`db-import-compat.ts`); sequence chỉ nâng, không hạ. Còn giới hạn file 50 MB (file hiện ~30 MB).
+
 ## 2026-11-26
 
 - **Xuất dữ liệu: thêm cột / định dạng cho Quản trị Epic + nút xuất cho TTM Calculator** (`REQ-20261126-03`):

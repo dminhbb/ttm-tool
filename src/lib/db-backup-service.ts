@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 import pool, { getClient } from '@/lib/db';
 import { orderTablesForImport, orphanSweepSql, type ForeignKeyInfo } from '@/lib/db-import-order';
+import { parseColumnList, planActorUser, splitFileColumns, type ActorPlan, type UserIdentity } from '@/lib/db-import-compat';
 import { stageDuplicateSql, targetCollisionSql, type SecondaryUniqueIndex } from '@/lib/db-import-unique';
 import { DEFAULT_SMART_EXPORT_SCOPE, EXPORTABLE_TABLES, SMART_SESSION_TABLES, smartTablesForScope, type SmartExportScope } from '@/lib/db-backup-tables';
 import type { BackupTableInfo, ImportResult, ImportTableResult } from '@/lib/db-backup-types';
@@ -61,6 +62,11 @@ function formatSqlValue(value: unknown): string {
   // come after the Array check above since arrays are also typeof 'object'.
   if (typeof value === 'object') return `'${JSON.stringify(value).replace(/'/g, "''")}'`;
   return `'${String(value).replace(/'/g, "''")}'`;
+}
+
+/** Result note of a table whose file carries columns the target database does not have. */
+function skippedColumnsNote(columns: readonly string[]): string {
+  return `Cột không có ở database đích — đã bỏ qua: ${columns.join(', ')}.`;
 }
 
 /** Names for the tables that are not in EXPORTABLE_TABLES (those carry their own label). */
@@ -207,8 +213,9 @@ async function getColumns(tableName: string): Promise<ColumnInfo[]> {
   });
 }
 
-async function getPrimaryKeyColumns(tableName: string): Promise<string[]> {
-  const result = await pool.query<{ columnName: string }>(`
+/** `runner` = the import's own connection when the table may exist only inside its transaction (CREATE TABLE of the file). */
+async function getPrimaryKeyColumns(tableName: string, runner: Pick<PoolClient, 'query'> = pool): Promise<string[]> {
+  const result = await runner.query<{ columnName: string }>(`
     SELECT kcu.column_name AS "columnName"
     FROM information_schema.table_constraints tc
     JOIN information_schema.key_column_usage kcu
@@ -229,6 +236,91 @@ async function loadSecondaryUniqueIndexes(client: PoolClient, tableName: string)
     ORDER BY i.indexrelid;
   `, [quoteIdent(tableName)]);
   return result.rows;
+}
+
+/** Rows of one temp-table INSERT statement of the import. */
+const INSERT_BATCH_CHUNK_SIZE = 500;
+
+/**
+ * Loads the file's rows of `tableName` into the temp table `stageName`, tolerating a schema difference between the two
+ * environments:
+ *  - a column the target has and the file lacks takes the target's DEFAULT (INCLUDING DEFAULTS; without it a newer
+ *    NOT NULL column such as news_letter_categories.expanded got NULL and failed the import);
+ *  - a column the file has and the target lacks is staged as text and left out of the final INSERT (`unknown`).
+ */
+async function stageFileRows(
+  client: PoolClient,
+  stageName: string,
+  tableName: string,
+  statements: readonly ParsedStatement[],
+): Promise<{ known: string[]; unknown: string[] }> {
+  const columns = statements[0].columns!;
+  const target = await client.query<{ name: string }>(
+    'SELECT attname AS name FROM pg_attribute WHERE attrelid = to_regclass($1) AND attnum > 0 AND NOT attisdropped;',
+    [quoteIdent(tableName)],
+  );
+  const split = splitFileColumns(parseColumnList(columns), new Set(target.rows.map((row) => row.name)));
+  await client.query(`CREATE TEMP TABLE ${stageName} (LIKE ${quoteIdent(tableName)} INCLUDING DEFAULTS) ON COMMIT DROP;`);
+  for (const column of split.unknown) await client.query(`ALTER TABLE ${stageName} ADD COLUMN ${quoteIdent(column)} text;`);
+  for (let chunkStart = 0; chunkStart < statements.length; chunkStart += INSERT_BATCH_CHUNK_SIZE) {
+    const tuples = statements.slice(chunkStart, chunkStart + INSERT_BATCH_CHUNK_SIZE).map((item) => `(${item.valuesTuple})`).join(', ');
+    await client.query(`INSERT INTO ${stageName} (${columns}) VALUES ${tuples};`);
+  }
+  return split;
+}
+
+/**
+ * Moves every id sequence of `tables` up to the highest id present — never down. setval() is not undone by a ROLLBACK:
+ * setting it to MAX(id) of the imported rows during a dry run (or a failed import) left the sequence BELOW the ids the
+ * database still holds, and the next insert died on a duplicate primary key.
+ */
+async function raiseIdSequences(client: PoolClient, tables: readonly string[]): Promise<void> {
+  for (const tableName of tables) {
+    // pg_get_serial_sequence() throws (not just returns NULL) when the table has no "id" column
+    // at all — true for join tables with a composite key (user_domains, user_projects) — so
+    // check column existence first instead of letting that abort the whole import transaction.
+    const hasIdColumn = await client.query<{ exists: boolean }>(
+      `SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 AND column_name = 'id') AS exists;`,
+      [tableName],
+    );
+    if (!hasIdColumn.rows[0]?.exists) continue;
+    const sequenceResult = await client.query<{ sequenceName: string | null }>('SELECT pg_get_serial_sequence($1, \'id\') AS "sequenceName";', [tableName]);
+    const sequenceName = sequenceResult.rows[0]?.sequenceName;
+    if (!sequenceName) continue;
+    // sequenceName comes back from Postgres already schema-qualified and quoted.
+    await client.query(
+      `SELECT setval($1, GREATEST((SELECT COALESCE(MAX(id), 1) FROM ${quoteIdent(tableName)}), (SELECT last_value FROM ${sequenceName})));`,
+      [sequenceName],
+    );
+  }
+}
+
+/** The importing SUPERADMIN before `users` is loaded: their row, their sessions and where both end up. */
+interface ActorSnapshot {
+  plan: ActorPlan;
+  row: Record<string, unknown>;
+  sessions: { rows: Record<string, unknown>[]; table: string }[];
+}
+
+async function existingTables(client: PoolClient, names: readonly string[]): Promise<string[]> {
+  const result = await client.query<{ name: string }>('SELECT name FROM unnest($1::text[]) AS name WHERE to_regclass(quote_ident(name)) IS NOT NULL;', [names]);
+  return result.rows.map((row) => row.name);
+}
+
+async function snapshotActor(client: PoolClient, actorId: number, userStatements: readonly ParsedStatement[]): Promise<ActorSnapshot | null> {
+  const actor = await client.query<{ row: Record<string, unknown> }>('SELECT to_jsonb(u) AS row FROM users u WHERE u.id = $1;', [actorId]);
+  const row = actor.rows[0]?.row;
+  if (!row) return null;
+  await stageFileRows(client, 'tmp_import_actor_probe', 'users', userStatements);
+  const fileUsers = (await client.query<UserIdentity>('SELECT id, email FROM tmp_import_actor_probe;')).rows;
+  await client.query('DROP TABLE tmp_import_actor_probe;');
+  const maxLocalId = (await client.query<{ max: number }>('SELECT COALESCE(MAX(id), 0)::int AS max FROM users;')).rows[0].max;
+  const sessions: ActorSnapshot['sessions'] = [];
+  for (const table of await existingTables(client, SMART_SESSION_TABLES)) {
+    const rows = await client.query<{ row: Record<string, unknown> }>(`SELECT to_jsonb(t) AS row FROM ${quoteIdent(table)} t WHERE t.user_id = $1;`, [actorId]);
+    sessions.push({ rows: rows.rows.map((item) => item.row), table });
+  }
+  return { plan: planActorUser({ email: String(row.email), id: actorId }, fileUsers, maxLocalId), row, sessions };
 }
 
 /** The foreign keys from or to any of `tables` (schema public), with their columns in key order. */
@@ -714,7 +806,7 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
 
   const isSmartSurfaceExport = sqlText.slice(0, 1000).includes(SMART_SURFACE_EXPORT_HEADER);
   const allTouchedTables = [...new Set(parsed.statements.map((item) => item.tableName))];
-  const insertTables = selectedTables ? allTouchedTables.filter((tableName) => selectedTables.has(tableName)) : allTouchedTables;
+  let insertTables = selectedTables ? allTouchedTables.filter((tableName) => selectedTables.has(tableName)) : allTouchedTables;
   const resultByTable = new Map<string, ImportTableResult>();
   for (const tableName of insertTables) resultByTable.set(tableName, { deleted: 0, error: null, inserted: 0, skippedDuplicates: 0, tableName, updated: 0 });
   // Rows an import deletes are counted per table (a clean-up may touch a table the file doesn't name).
@@ -727,11 +819,13 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
   // The admin running the import must not delete their own account (a file from another environment
   // names the same username under another id) — appended to every DELETE that can reach `users`.
   const actorId = Number.isInteger(options.actorUserId) ? options.actorUserId! : null;
-  const keepActor = (tableName: string, alias: string) => (tableName === 'users' && actorId !== null ? ` AND ${alias}.id <> ${actorId}` : '');
+  // Only while the file does not carry them (plan KEPT, see planActorUser): otherwise their row follows the file.
+  let protectActorRow = true;
+  const keepActor = (tableName: string, alias: string) => (tableName === 'users' && actorId !== null && protectActorRow ? ` AND ${alias}.id <> ${actorId}` : '');
 
   const SMART_LAYER_TABLES = new Set(['import_batches', 'issues']);
   const hasSmartLayerTablesSelected = isSmartSurfaceExport && insertTables.some((tableName) => SMART_LAYER_TABLES.has(tableName));
-  const touchedTables = hasSmartLayerTablesSelected
+  let touchedTables = hasSmartLayerTablesSelected
     ? [...new Set([...insertTables, 'import_batches', 'issues'])]
     : insertTables;
 
@@ -744,14 +838,31 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
     // 20261127_make_foreign_keys_deferrable) and checked at the end, tables are loaded parents first, and rows left
     // pointing at a missing parent are handled as their ON DELETE says before the check — see db-import-order.ts.
     await client.query('SET CONSTRAINTS ALL DEFERRED;');
-    const foreignKeys = await loadForeignKeys(client, touchedTables);
-    const orderedInsertTables = orderTablesForImport(insertTables, foreignKeys);
 
     for (const item of parsed.statements.filter((statement) => statement.type === 'CREATE_TABLE')) {
       await client.query(item.statement);
     }
 
-    const INSERT_BATCH_CHUNK_SIZE = 500;
+    // A table of the file that this database does not have (older schema, no CREATE TABLE in the file) is skipped and
+    // named in the result instead of failing the whole import.
+    const present = new Set(await existingTables(client, touchedTables));
+    for (const tableName of insertTables.filter((name) => !present.has(name))) {
+      resultByTable.get(tableName)!.note = 'Bảng không có ở database đích — đã bỏ qua (chạy migration rồi import lại nếu cần).';
+    }
+    insertTables = insertTables.filter((name) => present.has(name));
+    touchedTables = touchedTables.filter((name) => present.has(name));
+
+    const foreignKeys = await loadForeignKeys(client, touchedTables);
+    const orderedInsertTables = orderTablesForImport(insertTables, foreignKeys);
+    // Before loading: triggers (user_projects → project_members …) take ids from these sequences during the import.
+    await raiseIdSequences(client, touchedTables);
+
+    const userStatements = parsed.statements.filter((statement) => statement.type === 'INSERT' && statement.tableName === 'users');
+    const actorSnapshot = actorId !== null && insertTables.includes('users') && userStatements.length > 0
+      ? await snapshotActor(client, actorId, userStatements)
+      : null;
+    if (actorSnapshot) protectActorRow = actorSnapshot.plan.mode === 'KEPT';
+
     let smartImportBatchId: number | null = null;
     const importNow = new Date().toISOString();
 
@@ -759,12 +870,8 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
       // 1. Create a fresh import_batches record stamped with the current import date & time (importNow).
       const batchStatements = parsed.statements.filter((statement) => statement.type === 'INSERT' && statement.tableName === 'import_batches');
       if (batchStatements.length > 0) {
-        const columns = batchStatements[0].columns!;
-        const parsedCols = columns.split(',').map((col) => col.trim().replace(/^"|"$/g, ''));
-        const nonIdCols = parsedCols.filter((col) => col !== 'id');
-        await client.query('CREATE TEMP TABLE tmp_smart_import_batches (LIKE "import_batches") ON COMMIT DROP;');
-        const tuples = batchStatements.map((item) => `(${item.valuesTuple})`).join(', ');
-        await client.query(`INSERT INTO tmp_smart_import_batches (${columns}) VALUES ${tuples};`);
+        const { known } = await stageFileRows(client, 'tmp_smart_import_batches', 'import_batches', batchStatements);
+        const nonIdCols = known.filter((col) => col !== 'id');
 
         const targetColsSql = nonIdCols.map(quoteIdent).join(', ');
         const selectColsSql = nonIdCols.map((col) => {
@@ -796,15 +903,9 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
       if (insertTables.includes('issues')) {
         const issueStatements = parsed.statements.filter((statement) => statement.type === 'INSERT' && statement.tableName === 'issues');
         if (issueStatements.length > 0) {
-          const columns = issueStatements[0].columns!;
-          const parsedCols = columns.split(',').map((col) => col.trim().replace(/^"|"$/g, ''));
-          const nonIdCols = parsedCols.filter((col) => col !== 'id');
-          await client.query('CREATE TEMP TABLE tmp_smart_issues (LIKE "issues") ON COMMIT DROP;');
-          for (let chunkStart = 0; chunkStart < issueStatements.length; chunkStart += INSERT_BATCH_CHUNK_SIZE) {
-            const chunk = issueStatements.slice(chunkStart, chunkStart + INSERT_BATCH_CHUNK_SIZE);
-            const tuples = chunk.map((item) => `(${item.valuesTuple})`).join(', ');
-            await client.query(`INSERT INTO tmp_smart_issues (${columns}) VALUES ${tuples};`);
-          }
+          const { known, unknown } = await stageFileRows(client, 'tmp_smart_issues', 'issues', issueStatements);
+          const nonIdCols = known.filter((col) => col !== 'id');
+          if (unknown.length > 0) resultByTable.get('issues')!.note = skippedColumnsNote(unknown);
 
           // Clean up any existing issues on the target DB whose issue_key is no longer
           // present in the imported surface layer, as well as any issues with aggregated_at newer than importNow,
@@ -908,6 +1009,20 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
       users: ['LOWER(t.email) = LOWER(incoming.email)'],
     };
 
+    // ON DELETE RESTRICT cannot be deferred: mirroring the parent (news_letter_categories) failed while a local child row
+    // still pointed at a row about to go. A child table the file rewrites is detached first; its upsert sets the value again.
+    for (const fk of foreignKeys) {
+      if (fk.onDelete !== 'r' || !insertTables.includes(fk.childTable) || !insertTables.includes(fk.parentTable)) continue;
+      const childInsert = parsed.statements.find((statement) => statement.type === 'INSERT' && statement.tableName === fk.childTable);
+      if (!childInsert || !/DO UPDATE/i.test(childInsert.conflictClause!)) continue;
+      const nullable = await client.query<{ count: number }>(
+        'SELECT COUNT(*)::int AS count FROM pg_attribute WHERE attrelid = to_regclass($1) AND attname = ANY($2::text[]) AND NOT attnotnull;',
+        [quoteIdent(fk.childTable), fk.childColumns],
+      );
+      if (nullable.rows[0].count !== fk.childColumns.length) continue;
+      await client.query(`UPDATE ${quoteIdent(fk.childTable)} SET ${fk.childColumns.map((column) => `${quoteIdent(column)} = NULL`).join(', ')} WHERE ${fk.childColumns.map((column) => `${quoteIdent(column)} IS NOT NULL`).join(' OR ')};`);
+    }
+
     for (const tableName of orderedInsertTables) {
       if (hasSmartLayerTablesSelected && SMART_LAYER_TABLES.has(tableName)) continue;
       const insertsForTable = parsed.statements.filter((statement) => statement.type === 'INSERT' && statement.tableName === tableName);
@@ -921,22 +1036,16 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
         continue;
       }
       const tableResult = resultByTable.get(tableName)!;
-      const columns = insertsForTable[0].columns!;
-      const conflictClause = insertsForTable[0].conflictClause!;
       const secondaryPredicates = LOGICAL_KEY_PREDICATES[tableName] ?? [];
       const secondaryIndexes = await loadSecondaryUniqueIndexes(client, tableName);
-      const pkColumns = await getPrimaryKeyColumns(tableName);
-
-      if (isFullSyncTable || secondaryPredicates.length > 0 || secondaryIndexes.length > 0) {
-        // INCLUDING DEFAULTS: a file from an environment on an older schema lacks columns the target added since (e.g.
-        // news_letter_categories.expanded, NOT NULL DEFAULT false); without the defaults the staged rows get NULL there and
-        // trip the NOT NULL. The final INSERT names only the file's columns, so the target's own defaults still apply.
-        await client.query(`CREATE TEMP TABLE tmp_import_stage (LIKE ${quoteIdent(tableName)} INCLUDING DEFAULTS) ON COMMIT DROP;`);
-        for (let chunkStart = 0; chunkStart < insertsForTable.length; chunkStart += INSERT_BATCH_CHUNK_SIZE) {
-          const chunk = insertsForTable.slice(chunkStart, chunkStart + INSERT_BATCH_CHUNK_SIZE);
-          const tuples = chunk.map((item) => `(${item.valuesTuple})`).join(', ');
-          await client.query(`INSERT INTO tmp_import_stage (${columns}) VALUES ${tuples};`);
-        }
+      const pkColumns = await getPrimaryKeyColumns(tableName, client);
+      {
+        const { known, unknown } = await stageFileRows(client, 'tmp_import_stage', tableName, insertsForTable);
+        const columns = known.map(quoteIdent).join(', ');
+        const fileClause = insertsForTable[0].conflictClause!;
+        // The file's upsert names every column of the source: without those the target lacks, it is written again.
+        const conflictClause = unknown.length > 0 && /DO UPDATE/i.test(fileClause) ? buildConflictClause(tableName, known, pkColumns) : fileClause;
+        if (unknown.length > 0) tableResult.note = skippedColumnsNote(unknown);
         if (pkColumns.length > 0) {
           const pkSelfMatchSql = pkColumns.map((col) => `t.${quoteIdent(col)} = incoming.${quoteIdent(col)}`).join(' AND ');
           await client.query(`
@@ -995,47 +1104,38 @@ export async function importSqlFile(sqlText: string, selectedTables?: Set<string
         tableResult.updated += result.rows.length - insertedCount;
         tableResult.skippedDuplicates += insertsForTable.length - result.rows.length;
         await client.query('DROP TABLE tmp_import_stage;');
-        continue;
-      }
-
-      for (let chunkStart = 0; chunkStart < insertsForTable.length; chunkStart += INSERT_BATCH_CHUNK_SIZE) {
-        const chunk = insertsForTable.slice(chunkStart, chunkStart + INSERT_BATCH_CHUNK_SIZE);
-        const tuples = chunk.map((item) => `(${item.valuesTuple})`).join(', ');
-        const result = await client.query<{ isNewRow: boolean }>(
-          `INSERT INTO ${quoteIdent(tableName)} (${columns}) VALUES ${tuples} ${conflictClause} RETURNING (xmax = 0) AS "isNewRow";`,
-        );
-        const insertedCount = result.rows.filter((row) => row.isNewRow).length;
-        tableResult.inserted += insertedCount;
-        tableResult.updated += result.rows.length - insertedCount;
-        tableResult.skippedDuplicates += chunk.length - result.rows.length;
       }
     }
 
-    for (const tableName of touchedTables) {
-      // pg_get_serial_sequence() throws (not just returns NULL) when the table has no "id" column
-      // at all — true for join tables with a composite key (user_domains, user_projects) — so
-      // check column existence first instead of letting that abort the whole import transaction.
-      const hasIdColumn = await client.query<{ exists: boolean }>(
-        `SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 AND column_name = 'id') AS exists;`,
-        [tableName],
-      );
-      if (!hasIdColumn.rows[0]?.exists) continue;
-      const sequenceResult = await client.query<{ sequenceName: string | null }>('SELECT pg_get_serial_sequence($1, \'id\') AS "sequenceName";', [tableName]);
-      const sequenceName = sequenceResult.rows[0]?.sequenceName;
-      if (sequenceName) {
-        await client.query(`SELECT setval($1, COALESCE((SELECT MAX(id) FROM ${quoteIdent(tableName)}), 1));`, [sequenceName]);
-      }
+    // The importing SUPERADMIN stays able to sign in: their account is re-created when it had to make room for another
+    // person of the file, and their sessions follow the id the account has now.
+    const actorTargetId = actorSnapshot?.plan.targetId ?? actorId;
+    const actorChangedId = actorSnapshot !== null && actorTargetId !== actorId;
+    if (actorSnapshot?.plan.mode === 'MOVED') {
+      await client.query('INSERT INTO users SELECT * FROM jsonb_populate_record(NULL::users, $1::jsonb);', [JSON.stringify({ ...actorSnapshot.row, id: actorTargetId })]);
+      resultByTable.get('users')!.note = `Tài khoản đang import không có trong file và id ${actorId} thuộc về người khác — đã giữ tài khoản dưới id ${actorTargetId}.`;
     }
 
     // A Smart import rewrites `users`: an id may now be another person, so no login of this database survives it —
     // sessions / tokens / codes are dropped, except the importing SUPERADMIN's own (they stay signed in).
-    if (isSmartSurfaceExport && insertTables.includes('users')) {
-      const sessionTables = (await client.query<{ name: string }>('SELECT name FROM unnest($1::text[]) AS name WHERE to_regclass(quote_ident(name)) IS NOT NULL;', [SMART_SESSION_TABLES])).rows.map((row) => row.name);
-      for (const sessionTable of sessionTables) {
-        const dropped = await client.query(`DELETE FROM ${quoteIdent(sessionTable)} WHERE user_id IS DISTINCT FROM $1::int;`, [actorId]);
+    if (insertTables.includes('users') && (isSmartSurfaceExport || actorChangedId)) {
+      for (const sessionTable of await existingTables(client, SMART_SESSION_TABLES)) {
+        const filter = !actorChangedId ? 'user_id IS DISTINCT FROM $1::int' : isSmartSurfaceExport ? '$1::int IS NOT NULL' : 'user_id = $1::int';
+        const dropped = await client.query(`DELETE FROM ${quoteIdent(sessionTable)} WHERE ${filter};`, [actorId ?? 0]);
         countDeleted(sessionTable, dropped.rowCount);
       }
     }
+    if (actorSnapshot && actorChangedId) {
+      for (const { rows, table } of actorSnapshot.sessions) {
+        for (const row of rows) {
+          await client.query(
+            `INSERT INTO ${quoteIdent(table)} SELECT * FROM jsonb_populate_record(NULL::${quoteIdent(table)}, $1::jsonb) ON CONFLICT DO NOTHING;`,
+            [JSON.stringify({ ...row, user_id: actorTargetId })],
+          );
+        }
+      }
+    }
+    await raiseIdSequences(client, touchedTables);
 
     // Rows deleted by the import already cascaded (triggers stay on). What is left are rows loaded from the file that
     // name a parent this database does not have (e.g. updated_by_user_id of a user that exists only in the source

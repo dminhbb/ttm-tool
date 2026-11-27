@@ -381,7 +381,7 @@ export function DataLogicModal({ isOpen, onClose }: HelpPanelProps) {
       isOpen={isOpen}
       onClose={onClose}
       title="Logic xử lý dữ liệu (Admin)"
-      maxWidth="xl"
+      maxWidth="2xl"
       footer={<Button variant="outline" onClick={onClose}>Đóng</Button>}
     >
       <div className="flex flex-col gap-5 text-fb-text-secondary">

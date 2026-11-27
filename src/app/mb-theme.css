@@ -1,0 +1,118 @@
+/* ================================================================
+   "MB Theme" (chủ sản phẩm 27/11/2026) — chuyển từ bản thiết kế mb-theme.css (đè lên IAS, tham chiếu màn OPMS):
+   sidebar nền trắng, mặc định mở rộng 224px (thiết kế 200px, nới để nhãn menu không bị cắt) và thu gọn được; bảng chỉ kẻ ngang; trạng thái dạng pill; mã bản ghi dạng chip xanh đậm;
+   thẻ KPI có viền trên theo nhóm; header có vạch xanh MB.
+
+   Bản thiết kế dùng class của bộ giao diện khác (.sidebar, .nav-item, .kpi-card, .tbl-compact …); ở đây mỗi rule được
+   gắn vào phần tử tương ứng của ứng dụng này. Rule bề rộng cột theo tỷ lệ (.tbl-compact nth-child) không áp dụng:
+   các bảng của ứng dụng có số cột khác nhau.
+
+   Theme = IAS (data-brand="ias") + data-skin="mb" (xem theme-brand.ts). Chỉ đè chế độ Sáng; chế độ Tối dùng màu IAS.
+   ================================================================ */
+
+/* Preview swatch of the "Giao diện" picker — must show MB colours whatever theme is on. */
+:root {
+  --mb-swatch-surface: #ffffff;
+  --mb-swatch-navy: #141ed2;
+  --mb-swatch-navy-dark: #0e15a8;
+}
+
+:root[data-brand="ias"][data-skin="mb"]:not([data-theme="dark"]) {
+  --mb-navy: #141ed2;
+  --mb-navy-dark: #0e15a8;
+  --mb-tint: #eef0ff;
+  --mb-line: #e6e8f0;
+  --mb-head: #f7f8fc;
+  --mb-row-sub: #fbfbfe;
+  --mb-outline: #c4c6f7;
+  --surface-sidebar: #ffffff;
+}
+
+/* ── Sidebar trắng, mặc định mở ─────────────────────────────────────── */
+@media (min-width: 1024px) {
+  /* Only while expanded (AppShell puts w-64 / lg:pl-64 then); collapsed keeps the 72px rail of every theme. */
+  :root[data-skin="mb"] aside.sidebar-surface.fixed.w-64 { width: 224px; }
+  :root[data-skin="mb"] .app-content.lg\:pl-64 { padding-left: 224px; }
+}
+
+:root[data-brand="ias"][data-skin="mb"]:not([data-theme="dark"]) .sidebar-surface {
+  --color-fb-border: var(--mb-line);
+  --color-fb-control: var(--color-bg-hover);
+  --color-fb-control-hover: var(--color-bg-hover);
+  --color-fb-text-primary: var(--color-text-primary);
+  --color-fb-text-secondary: var(--color-text-secondary);
+  --color-fb-blue: var(--mb-navy);
+  --color-fb-blue-soft: var(--mb-tint);
+  --color-fb-surface: var(--color-bg-surface);
+  --color-fb-primary: var(--mb-navy);
+  --color-fb-on-primary: var(--color-text-inverse);
+  --color-sidebar-text: var(--color-text-body);
+  --color-sidebar-muted: var(--color-text-secondary);
+  --color-sidebar-disabled: var(--color-text-muted);
+}
+
+/* Mục đang mở: nền xanh nhạt + vạch xanh 3px bên trái. */
+:root[data-brand="ias"][data-skin="mb"]:not([data-theme="dark"]) .sidebar-surface nav [aria-current="page"] {
+  box-shadow: inset 3px 0 0 var(--mb-navy);
+}
+
+/* ── Page header ───────────────────────────────────────────────── */
+:root[data-brand="ias"][data-skin="mb"]:not([data-theme="dark"]) header.ttm-frosted-header {
+  border-bottom: 2px solid var(--mb-navy);
+}
+
+/* ── Card, panel ───────────────────────────────────────────────── */
+:root[data-brand="ias"][data-skin="mb"]:not([data-theme="dark"]) .ui-card,
+:root[data-brand="ias"][data-skin="mb"]:not([data-theme="dark"]) .ias-card {
+  border-color: var(--mb-line);
+}
+
+/* ── Thẻ KPI: viền trên màu theo nhóm, số đậm ──────────────────── */
+:root[data-brand="ias"][data-skin="mb"]:not([data-theme="dark"]) .ttm-stat-widget {
+  border-color: var(--mb-line);
+  border-top: 3px solid var(--mb-navy);
+}
+:root[data-brand="ias"][data-skin="mb"]:not([data-theme="dark"]) .ttm-stat-widget.tone-warning { border-top-color: var(--color-bg-warning-solid, #f4b740); }
+:root[data-brand="ias"][data-skin="mb"]:not([data-theme="dark"]) .ttm-stat-widget.tone-danger { border-top-color: var(--color-bg-error-solid, #eb2d4b); }
+:root[data-brand="ias"][data-skin="mb"]:not([data-theme="dark"]) .ttm-stat-widget.is-active {
+  border-color: var(--mb-navy);
+  box-shadow: 0 0 0 3px rgb(20 30 210 / 10%);
+}
+
+/* ── Bảng: chỉ kẻ ngang, tiêu đề xanh MB ───────────────────────── */
+:root[data-brand="ias"][data-skin="mb"]:not([data-theme="dark"]) .ui-table thead th {
+  /* !important: the light-theme header rule of globals.css is !important itself. */
+  background: var(--mb-head) !important;
+  color: var(--mb-navy) !important;
+  border-bottom: 1px solid var(--mb-line) !important;
+  font-weight: 700;
+}
+:root[data-brand="ias"][data-skin="mb"]:not([data-theme="dark"]) .ui-table tbody td {
+  border: none;
+  border-bottom: 1px solid var(--mb-line);
+}
+:root[data-brand="ias"][data-skin="mb"]:not([data-theme="dark"]) .ui-table tbody tr:hover { background: var(--color-bg-hover); }
+
+/* Mã bản ghi (Epic key ở bảng Quản trị Epic): chip xanh đậm. Epic không tính TTM giữ dạng chữ trong ngoặc. */
+:root[data-brand="ias"][data-skin="mb"]:not([data-theme="dark"]) .ui-table .ttm-epic-key:not(.is-ttm-excluded) {
+  display: inline-block;
+  background: var(--mb-navy-dark);
+  color: var(--color-text-inverse);
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+:root[data-brand="ias"][data-skin="mb"]:not([data-theme="dark"]) .ui-table .ttm-epic-key:not(.is-ttm-excluded):hover { background: var(--mb-navy); }
+
+/* ── Trạng thái: pill ──────────────────────────────────────────── */
+:root[data-brand="ias"][data-skin="mb"] .ui-badge,
+:root[data-brand="ias"][data-skin="mb"] .ias-status,
+:root[data-brand="ias"][data-skin="mb"] .ttm-status-badge { border-radius: 9999px; }
+
+/* ── Nút ───────────────────────────────────────────────────────── */
+:root[data-brand="ias"][data-skin="mb"]:not([data-theme="dark"]) .ui-button-primary { background: var(--mb-navy); }
+:root[data-brand="ias"][data-skin="mb"]:not([data-theme="dark"]) .ui-button-primary:hover { background: var(--mb-navy-dark); }
+:root[data-brand="ias"][data-skin="mb"]:not([data-theme="dark"]) .ui-button-secondary,
+:root[data-brand="ias"][data-skin="mb"]:not([data-theme="dark"]) .ui-icon-button { border-color: var(--mb-outline); }

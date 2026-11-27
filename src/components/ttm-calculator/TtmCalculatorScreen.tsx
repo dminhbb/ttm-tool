@@ -40,6 +40,9 @@ const PHASE_CELL_BG: Record<CalculatorPhaseRow['key'], string> = {
   GOLIVE: '#ede9fe', // violet-100
 };
 
+/** The input way being edited: pale yellow; in dark mode a translucent warning tint so the light text stays readable. */
+const FOCUSED_WAY_CLASS = 'border-status-warning bg-[#fef9c3]/90 dark:bg-status-warning-soft';
+
 /** "T4 11/11/2026" from "2026-11-11". */
 function formatDay(iso: string | null | undefined): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? '');
@@ -218,7 +221,7 @@ export function TtmCalculatorScreen() {
         {/* Panel trái — nhập thông tin (nền tối hơn) */}
         <aside className="flex flex-col gap-5 rounded-xl border border-fb-border bg-[color-mix(in_srgb,var(--color-fb-control)_85%,black)] p-4">
           <section
-            className={cn('flex flex-col gap-3 rounded-xl border p-3 transition-colors', focusedWay === 'form' ? 'border-fb-warning bg-[#fef9c3]/90' : 'border-transparent')}
+            className={cn('flex flex-col gap-3 rounded-xl border p-3 transition-colors', focusedWay === 'form' ? FOCUSED_WAY_CLASS : 'border-transparent')}
             onBlurCapture={(event) => {
               if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocusedWay((way) => (way === 'form' ? null : way));
             }}
@@ -249,7 +252,7 @@ export function TtmCalculatorScreen() {
           <hr className="m-0 border-0 border-t border-fb-border" />
 
           <section
-            className={cn('flex flex-col gap-3 rounded-xl border p-3 transition-colors', focusedWay === 'text' ? 'border-fb-warning bg-[#fef9c3]/90' : 'border-transparent')}
+            className={cn('flex flex-col gap-3 rounded-xl border p-3 transition-colors', focusedWay === 'text' ? FOCUSED_WAY_CLASS : 'border-transparent')}
             onBlurCapture={(event) => {
               if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocusedWay((way) => (way === 'text' ? null : way));
             }}

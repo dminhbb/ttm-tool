@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import '@/app/ttm-shared.css';
-import { ArrowLeft, ArrowSquareOut, CaretDown, CaretLineRight, CaretRight, CaretUp, CaretUpDown, Checks, Lightning, Warning } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowSquareOut, CaretDown, CaretLineRight, CaretRight, CaretUp, CaretUpDown, Checks, Lightning } from '@phosphor-icons/react';
 import type { EarlyStartFailEpic, EarlyStartSummary } from '@/lib/early-start-report';
 import { compareWorkflowStatus } from '@/lib/scoring/derive';
 import { formatTtmPassPct, formatTtmPct1, hasTtmVerdict, type TtmCnttSummary } from '@/lib/ttm-cntt-qa';
@@ -12,6 +12,7 @@ import { InfoBannerDisplay } from '@/components/layout/InfoBannerDisplay';
 import { EpicMarkCell } from '@/components/epic-mark/EpicMarkCell';
 import { EpicMarkModal } from '@/components/epic-mark/EpicMarkModal';
 import { TtmBlackListDot } from '@/components/ui/TtmBlackListDot';
+import { SearchableMultiSelect } from '@/components/ui/ToolbarMultiSelect';
 import { getStatusTextColorClass } from './EpicReportScreen';
 
 /**
@@ -137,7 +138,7 @@ function FailTable({ items, jiraViewIssueBaseUrl, offset, onOpenEpic, onOpenRevi
             <SortHeader {...header} sortKey="status" className="w-20">Status</SortHeader>
             <SortHeader {...header} sortKey="ideaApprovedDate" className="min-w-[86px]">Start E2E</SortHeader>
             <SortHeader {...header} sortKey="startDate" className="min-w-[86px]">Start CNTT</SortHeader>
-            <SortHeader {...header} sortKey="realStartDate" className="min-w-[110px]">Epic_Real_Start_Date</SortHeader>
+            <SortHeader {...header} sortKey="realStartDate" className="min-w-[110px]">Actual Start date</SortHeader>
             <SortHeader {...header} sortKey="daysEarly" title="Start Date − Epic_Real_Start_Date (ngày lịch)">Chênh lệch</SortHeader>
             <SortHeader {...header} sortKey="r4gDate" className="min-w-[86px]">R4G Date</SortHeader>
             <SortHeader {...header} sortKey="releasedDate" className="min-w-[86px] border-r-0">Released Date</SortHeader>
@@ -160,7 +161,6 @@ function FailTable({ items, jiraViewIssueBaseUrl, offset, onOpenEpic, onOpenRevi
                     >
                       {item.epicKey}
                     </button>
-                    <Warning className="size-3 shrink-0 text-status-danger" weight="fill" aria-label="Fail TTM-CNTT start sớm" />
                     {item.ttmBlackListed && <TtmBlackListDot />}
                     {jiraHref && (
                       <a href={jiraHref} target="_blank" rel="noopener noreferrer" className="text-fb-text-placeholder hover:text-[var(--color-text-brand)]" title="Mở Epic trên Jira (cửa sổ mới)">
@@ -203,8 +203,9 @@ function FailTable({ items, jiraViewIssueBaseUrl, offset, onOpenEpic, onOpenRevi
 
 // ---- Filters -------------------------------------------------------------------------------------------------------
 
-interface Filters { domain: string; project: string; pmSm: string; status: string }
-const NO_FILTERS: Filters = { domain: '', project: '', pmSm: '', status: '' };
+/** Project and PM/SM take several values (shared dropdown, owner 2026-11-27); empty = all. */
+interface Filters { domain: string; project: string[]; pmSm: string[]; status: string }
+const NO_FILTERS: Filters = { domain: '', project: [], pmSm: [], status: '' };
 
 function filterOptions(epics: readonly EarlyStartFailEpic[]) {
   const sorted = (values: Iterable<string>) => [...new Set(values)].filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi'));
@@ -218,8 +219,8 @@ function filterOptions(epics: readonly EarlyStartFailEpic[]) {
 
 function matches(epic: EarlyStartFailEpic, filters: Filters): boolean {
   return (!filters.domain || epic.domainName === filters.domain)
-    && (!filters.project || epic.projectKey === filters.project)
-    && (!filters.pmSm || epic.ownerNames.includes(filters.pmSm))
+    && (filters.project.length === 0 || filters.project.includes(epic.projectKey))
+    && (filters.pmSm.length === 0 || epic.ownerNames.some((name) => filters.pmSm.includes(name)))
     && (!filters.status || epic.status === filters.status);
 }
 
@@ -278,7 +279,7 @@ export function EarlyStartReportScreen({ onBack }: { onBack: () => void }) {
 
   const summary = report?.summary ?? null;
   const pctDelta = summary && hasTtmVerdict(summary.current) && hasTtmVerdict(summary.earlyStart) ? summary.earlyStart.pctPrecise - summary.current.pctPrecise : null;
-  const setFilter = (key: keyof Filters) => (value: string) => {
+  const setFilter = <K extends keyof Filters>(key: K) => (value: Filters[K]) => {
     setFilters((current) => ({ ...current, [key]: value }));
     setPage(1);
   };
@@ -287,7 +288,7 @@ export function EarlyStartReportScreen({ onBack }: { onBack: () => void }) {
     setSort((current) => (current?.key !== key ? { key, direction: 'asc' } : current.direction === 'asc' ? { key, direction: 'desc' } : null));
     setPage(1);
   };
-  const hasFilter = Object.values(filters).some(Boolean);
+  const hasFilter = Object.values(filters).some((value) => value.length > 0);
 
   return (
     <div className="space-y-6 bg-fb-surface p-4 text-fb-text-primary md:p-6">
@@ -349,8 +350,8 @@ export function EarlyStartReportScreen({ onBack }: { onBack: () => void }) {
         </div>
         <div className="flex flex-wrap items-center gap-2 border-b border-fb-border bg-fb-surface px-3 py-2">
           <FilterSelect label="Domain" options={options.domain} value={filters.domain} onChange={setFilter('domain')} />
-          <FilterSelect label="Project" options={options.project} value={filters.project} onChange={setFilter('project')} />
-          <FilterSelect label="PM/SM" options={options.pmSm} value={filters.pmSm} onChange={setFilter('pmSm')} />
+          <SearchableMultiSelect ariaLabel="Project" allLabel="Project: Tất cả" options={options.project} value={filters.project} onChange={setFilter('project')} />
+          <SearchableMultiSelect ariaLabel="PM/SM" allLabel="PM/SM: Tất cả" options={options.pmSm} value={filters.pmSm} onChange={setFilter('pmSm')} />
           <FilterSelect label="Status" options={options.status} value={filters.status} onChange={setFilter('status')} />
           {hasFilter && (
             <button type="button" className="ttm-button" onClick={() => { setFilters(NO_FILTERS); setPage(1); }}>Xoá lọc</button>

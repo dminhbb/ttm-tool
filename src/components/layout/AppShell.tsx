@@ -35,6 +35,8 @@ import {
 } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
+import { useThemeChoice } from '@/lib/use-theme-choice';
+import Image from 'next/image';
 import { NEWS_LETTER_CHANGED_EVENT, NEWS_LETTER_READ_EVENT } from '@/lib/news-letter/types';
 import { useMenuDotRefresh } from '@/lib/use-menu-dot-refresh';
 import { trackFeatureUsage } from '@/lib/usage-tracking';
@@ -409,6 +411,9 @@ function NavigationGroupMenu({ cacheRebuildPending, expanded, group, onNavigate,
   );
 }
 
+/** public/Icon MB Bank - MBB - 100px.png */
+const APP_ICON_SRC = '/Icon%20MB%20Bank%20-%20MBB%20-%20100px.png';
+
 function SidebarContent({ cacheRebuildPending, expanded, hiddenFeatureKeys, newsLetterOnly = false, onNavigate, onOpenModal, onToggle, pendingUserTicketsCount, role }: SidebarContentProps) {
   const newsLetterUnread = React.useContext(NewsLetterUnreadContext);
   const pathname = usePathname();
@@ -417,15 +422,12 @@ function SidebarContent({ cacheRebuildPending, expanded, hiddenFeatureKeys, news
   return (
     <>
       <div className={cn('flex h-16 items-center border-b border-fb-border', expanded ? 'gap-3 px-4' : 'justify-center px-2')}>
-        {/* App mark "PMB" (owner 2026-11-17) — text, not an icon, so it reads the same collapsed and expanded. */}
-        <div className="grid size-9 shrink-0 place-items-center rounded-md bg-fb-primary text-fb-on-primary" aria-hidden="true">
-          <span className="text-[11px] font-black leading-none tracking-[-0.02em]">PMB</span>
-        </div>
+        {/* App mark: the MB icon (owner 2026-11-27, replaces the "PMB" text mark). */}
+        <Image alt="" aria-hidden="true" className="size-9 shrink-0 rounded-md" height={36} src={APP_ICON_SRC} unoptimized width={36} />
         {expanded && (
           <div className="min-w-0">
             <p className="truncate text-sm font-extrabold tracking-[-0.02em] text-fb-text-primary">PMB</p>
-            {/* Two lines at most in the 256 px sidebar — the full name stays readable instead of being cut. */}
-            <p className="line-clamp-2 text-[11px] font-medium leading-tight text-sidebar-muted">Phòng QLDA.TKTN - Trung tâm ĐBCL</p>
+            <p className="line-clamp-2 text-[11px] font-medium leading-tight text-sidebar-muted">Project Management MB</p>
           </div>
         )}
       </div>
@@ -620,7 +622,10 @@ function subscribeToRoleCache(): () => void {
 function AppShellInner({ children }: AppShellProps) {
   const { items: epicHeaderWidgetItems } = useEpicHeaderWidgets();
   const [mobileNavigationOpen, setMobileNavigationOpen] = React.useState(false);
-  const [desktopNavigationExpanded, setDesktopNavigationExpanded] = React.useState(false);
+  // null = the user has not toggled yet: collapsed, except "MB Theme" which opens with the sidebar expanded (its design).
+  const [navigationExpandedByUser, setNavigationExpandedByUser] = React.useState<boolean | null>(null);
+  const themeChoice = useThemeChoice();
+  const desktopNavigationExpanded = navigationExpandedByUser ?? themeChoice === 'mb';
   const [appConfigOpen, setAppConfigOpen] = React.useState(false);
   const [systemAdminOpen, setSystemAdminOpen] = React.useState(false);
   const [systemAdminSection, setSystemAdminSection] = React.useState<string | undefined>(undefined);
@@ -797,7 +802,7 @@ function AppShellInner({ children }: AppShellProps) {
         <SidebarContent
           expanded={desktopNavigationExpanded}
           onOpenModal={openNavigationModal}
-          onToggle={() => setDesktopNavigationExpanded((current) => !current)}
+          onToggle={() => setNavigationExpandedByUser(!desktopNavigationExpanded)}
           pendingUserTicketsCount={pendingUserTicketsCount}
           cacheRebuildPending={cacheRebuildPending}
           role={displayRole}
@@ -848,7 +853,7 @@ function AppShellInner({ children }: AppShellProps) {
           popup doesn't run a second trigger/poll alongside its parent page. */}
       <DailyCacheWarmer enabled={role !== null && !mustChangePassword && !suspensionRestricted} />
 
-      <div className={cn('min-w-0', desktopNavigationExpanded ? 'lg:pl-64' : 'lg:pl-[72px]')}>
+      <div className={cn('app-content min-w-0', desktopNavigationExpanded ? 'lg:pl-64' : 'lg:pl-[72px]')}>
         {systemSuspension && !suspensionRestricted && (
           <SystemSuspensionStrip onOpenSettings={() => { setSystemAdminSection('system-suspension'); setSystemAdminOpen(true); }} />
         )}

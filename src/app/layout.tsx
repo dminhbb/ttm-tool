@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
 import './globals.css';
+import './mb-theme.css';
 import { AppShell } from '@/components/layout/AppShell';
 import { THEME_BRAND_INIT_SCRIPT } from '@/lib/theme-brand';
 

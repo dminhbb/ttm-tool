@@ -4,7 +4,7 @@ import { canGrantRole, canManageUserWithRole, USER_ROLES } from '@/lib/auth-type
 import type { UserInput, UserRole } from '@/lib/auth-types';
 import { markCacheStale, withCacheStale } from '@/lib/daily-cache-service';
 import { listDomains, listProjects } from '@/lib/master-data-service';
-import { validatePassword } from '@/lib/password-rules';
+import { PASSWORD_REQUIREMENTS_GUIDE, validatePassword } from '@/lib/password-rules';
 
 // Every cached Epic row carries its project's PM/SM usernames, and PM/SM assignment is saved here (a
 // user's projects). A save that changes them — the user's project list, or the username of a user who
@@ -39,7 +39,7 @@ function parseUser(body: unknown, requirePassword: boolean): { error: string } |
   const username = extractUsername(rawEmail);
   const email = normalizeUsername(rawEmail);
   if (!USERNAME_PATTERN.test(username) || (hasDomain && !/^[^\s@]+@mbbank\.com\.vn$/i.test(rawEmail)) || body.fullName.trim().length === 0 || body.fullName.trim().length > 255 || !USER_ROLES.includes(body.role as UserRole)) return { error: 'Username/Email MB Bank, họ tên hoặc role không hợp lệ.' };
-  if (requirePassword && (typeof body.password !== 'string' || body.password.length < 8 || body.password.length > 256)) return { error: 'Mật khẩu phải có từ 8 đến 256 ký tự.' };
+  if (requirePassword && (typeof body.password !== 'string' || !validatePassword(body.password).isValid)) return { error: validatePassword(typeof body.password === 'string' ? body.password : '').error ?? PASSWORD_REQUIREMENTS_GUIDE };
   const projectIds = [...new Set(body.projectIds)];
   const projectComponents = parseProjectComponents(body.projectComponents, projectIds);
   if (projectComponents === null) return { error: 'Dữ liệu Components theo Dự án không hợp lệ.' };

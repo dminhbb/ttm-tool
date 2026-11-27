@@ -1,5 +1,9 @@
-export const PASSWORD_REQUIREMENTS_GUIDE =
-  'Mật khẩu tối thiểu 6 ký tự, gồm ít nhất 1 chữ hoa và 1 ký tự biểu tượng (ví dụ: !@#$%^&*).';
+/** Owner 2026-11-27: the app now runs inside the company network — a password only needs a minimum length. The random
+ * password given to a user (generateCompliantPassword) keeps its stronger shape. */
+export const PASSWORD_MIN_LENGTH = 5;
+export const PASSWORD_MAX_LENGTH = 256;
+
+export const PASSWORD_REQUIREMENTS_GUIDE = `Mật khẩu tối thiểu ${PASSWORD_MIN_LENGTH} ký tự.`;
 
 export interface PasswordValidationResult {
   error?: string;
@@ -7,14 +11,11 @@ export interface PasswordValidationResult {
 }
 
 export function validatePassword(password: string): PasswordValidationResult {
-  if (!password || password.length < 6) {
-    return { isValid: false, error: 'Mật khẩu phải có tối thiểu 6 ký tự.' };
+  if (!password || password.length < PASSWORD_MIN_LENGTH) {
+    return { isValid: false, error: `Mật khẩu phải có tối thiểu ${PASSWORD_MIN_LENGTH} ký tự.` };
   }
-  if (!/[A-Z]/.test(password)) {
-    return { isValid: false, error: 'Mật khẩu phải chứa ít nhất 1 chữ hoa.' };
-  }
-  if (!/[^a-zA-Z0-9]/.test(password)) {
-    return { isValid: false, error: 'Mật khẩu phải chứa ít nhất 1 ký tự biểu tượng.' };
+  if (password.length > PASSWORD_MAX_LENGTH) {
+    return { isValid: false, error: `Mật khẩu tối đa ${PASSWORD_MAX_LENGTH} ký tự.` };
   }
   return { isValid: true };
 }

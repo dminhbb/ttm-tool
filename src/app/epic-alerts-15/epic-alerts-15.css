@@ -281,7 +281,7 @@
      shrinks — never a horizontal scrollbar at 100% zoom while the table is ≥ ~1250px wide. Body cells drop their
      `w-[1%]` so the header widths decide. */
 .ttm-epic-table-wrap { container-type: inline-size; }
-.ttm-table-compact { --ttm-cw-extra: max(0px, (82.5cqw - 1036px) / 11); }
+.ttm-table-compact { --ttm-cw-extra: max(0px, (82.5cqw - 1072px) / 11); }
 :root:root .ui-table.ttm-table-compact tbody td { width: auto; }
 :root:root .ui-table.ttm-table-compact thead th.ttm-cw-shrink { width: 1px; }
 :root:root .ui-table.ttm-table-compact thead th.ttm-cw-pass { width: calc(48px + var(--ttm-cw-extra)); }
@@ -492,12 +492,26 @@
    needs !important to win there too. */
 .ttm-epic-col-sticky {
   position: sticky;
-  left: 0;
+  left: var(--ttm-col-index-width);
   z-index: 2 !important;
   background: var(--ttm-card);
   box-shadow: 2px 0 4px rgb(15 23 42 / 8%);
 }
 .ttm-epic-col-sticky.ttm-epic-no-t1 { background: var(--ttm-danger-100); }
+/* "#" column (owner 2026-11-27): frozen left of the Epic column, which sits exactly its width further right. */
+.ttm-epic-table-wrap { --ttm-col-index-width: 36px; }
+:root:root .ui-table thead th.ttm-col-index,
+:root:root .ui-table tbody td.ttm-col-index {
+  position: sticky;
+  left: 0;
+  width: var(--ttm-col-index-width);
+  min-width: var(--ttm-col-index-width);
+  max-width: var(--ttm-col-index-width);
+  padding-left: 2px;
+  padding-right: 2px;
+}
+.ui-table tbody td.ttm-col-index { z-index: 2; background: var(--ttm-card); color: var(--ttm-muted); font-size: 11px; }
+:root:root .ui-table thead th.ttm-col-index { z-index: 3; }
 .ttm-epic-key {
   font-weight: 800;
   color: var(--ttm-brand-600);
@@ -714,7 +728,11 @@
 }
 .ui-table tbody tr.ttm-epic-row:hover > td:first-child,
 .ui-table tbody tr.ttm-epic-row.is-row-pinned > td:first-child {
-  box-shadow: inset 1px 0 0 var(--ttm-brand-600), inset 0 1px 0 var(--ttm-brand-600), inset 0 -1px 0 var(--ttm-brand-600), 2px 0 4px rgb(15 23 42 / 8%);
+  box-shadow: inset 1px 0 0 var(--ttm-brand-600), inset 0 1px 0 var(--ttm-brand-600), inset 0 -1px 0 var(--ttm-brand-600);
+}
+.ui-table tbody tr.ttm-epic-row:hover > td.ttm-epic-col-sticky,
+.ui-table tbody tr.ttm-epic-row.is-row-pinned > td.ttm-epic-col-sticky {
+  box-shadow: inset 0 1px 0 var(--ttm-brand-600), inset 0 -1px 0 var(--ttm-brand-600), 2px 0 4px rgb(15 23 42 / 8%);
 }
 .ui-table tbody tr.ttm-epic-row:hover > td:last-child,
 .ui-table tbody tr.ttm-epic-row.is-row-pinned > td:last-child {
@@ -971,6 +989,11 @@
   background: linear-gradient(rgba(240, 100, 114, 0.18), rgba(240, 100, 114, 0.18)), var(--surface-panel, #191c12);
 }
 
+:root[data-theme="dark"] .ui-table tbody td.ttm-col-index { background: var(--surface-panel, #191c12); }
+/* The sticky "#" cell stays opaque on a highlighted row, like the Epic cell. */
+:root[data-theme="dark"] .ttm-app tr.missing-row td.ttm-col-index {
+  background: linear-gradient(rgba(240, 100, 114, 0.22), rgba(240, 100, 114, 0.22)), var(--surface-panel, #191c12);
+}
 :root[data-theme="dark"] .ttm-app td.hl-overdue,
 :root[data-theme="dark"] .ttm-app tr.missing-row td {
   background: rgba(240, 100, 114, 0.22);
@@ -1288,3 +1311,16 @@
 /* "Quyền xem" (owner 2026-11-01): eye at the right of the Epic key line — the Epic is listed for viewing only. */
 .ttm-view-only-eye { display: inline-flex; align-items: center; padding-top: 2px; color: #64748b; cursor: help; }
 :root[data-theme="dark"] .ttm-view-only-eye { color: #94a3b8; }
+
+/* Pinned items of the shared dropdown (owner 2026-11-27): darker background, a divider before the other items. */
+.ttm-multiselect-pinned {
+  margin: -4px -4px 4px;
+  padding: 4px;
+  border-bottom: 1px solid #94a3b8;
+  background: #e2e8f0;
+}
+.ttm-multiselect-pinned .ttm-multiselect-option:hover,
+.ttm-multiselect-pinned .ttm-multiselect-option.is-selected { background: #cbd5e1; }
+:root[data-theme="dark"] .ttm-multiselect-pinned { background: rgba(255, 255, 255, 0.1); border-bottom-color: rgba(255, 255, 255, 0.35); }
+:root[data-theme="dark"] .ttm-multiselect-pinned .ttm-multiselect-option:hover,
+:root[data-theme="dark"] .ttm-multiselect-pinned .ttm-multiselect-option.is-selected { background: rgba(255, 255, 255, 0.16); }

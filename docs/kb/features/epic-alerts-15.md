@@ -145,3 +145,6 @@ Xoá Epic, Sao lưu DB (`db-backup-*`), Báo cáo người dùng, MCP (`mcp-serv
 - Icon theo mục "Icons standard" trong `AGENTS.md` (`Warning`, `ArrowSquareOut`, `ArrowBendUpRight`/`CheckCircle`, `Checks`...).
 - `/epic-in-po`, `/epic-alerts` đã bỏ (2026-10-11), chỉ còn redirect trong `next.config.ts`.
 - Tên Epic hiển thị đúng như trong `issues.issue_name`. Màn hình không che dữ liệu; nếu thấy tên bị che (`***`) thì nguồn là dữ liệu crawl/import.
+- Xuất dữ liệu: route `/api/epic-alerts-15/export` phải chọn tập Epic giống hệt API danh sách (cache khi `hasCache` và không có bộ lọc nâng cao, `newFailScope` ở cả hai nhánh); mọi dữ kiện đọc thêm từ `issues` phải theo `asOfDate`.
+- Dropdown lọc: dùng `SearchableMultiSelect` (gõ để tìm, A-Z, `pinnedValues`). Giá trị "Nhận xét" mới phải khai ở `ALERT_FILTER_OPTIONS` và `FILTER_PRESETS` (SQL paged và lọc full mode cùng đọc). CSS nhóm ghim có ở cả `ttm-shared.css` và `epic-alerts-15.css`.
+- Cột "#" và cột EPIC cùng sticky: `left` của EPIC = `--ttm-col-index-width` (36px); đổi bề rộng cột # thì đổi cả hằng 1072px của chế độ compact.

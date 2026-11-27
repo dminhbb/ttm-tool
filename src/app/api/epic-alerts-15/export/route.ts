@@ -7,12 +7,13 @@ import { resolveViewAsTarget } from '@/lib/view-as-user-service';
 import { resolveViewGrants } from '@/lib/user-view-grants-service';
 import { fetchEpicAlertHeaderContext, type AccessScope } from '@/lib/epic-alert-service';
 import type { EpicAlertRowCacheFilters } from '@/lib/epic-alert-row-cache-query-service';
-import { buildFilterClause } from '@/lib/epic-alert-row-cache-query-service';
+import { buildFilterClause, getEpicAlertRowCacheMeta } from '@/lib/epic-alert-row-cache-query-service';
 import { filterFullModeRows, type FullModeFilterOptions } from '@/lib/epic-row-export';
 import type { EpicAlertRowExport } from '@/lib/epic-row-export';
 import { ALERT_FILTER_VALUES } from '@/lib/epic-row-verdicts';
 import type { AlertFilterValue } from '@/lib/epic-row-verdicts';
 import { getJiraSettings } from '@/lib/jira-settings-service';
+import { getNewFailEpicKeys } from '@/lib/ttm-dashboard-trend-service';
 import { applyEpicMarks, loadEpicMarkSummaries } from '@/lib/epic-mark-service';
 import pool from '@/lib/db';
 
@@ -68,18 +69,19 @@ async function viewerOwnerName(userId: number): Promise<string> {
 }
 
 /** Facts the row cache does not carry, read from the Epic's newest version in issues: Epic_Real_Start_Date ("Actual Start
- * date") and the raw Loại yêu cầu (issues.request_type — the "Loại Epic" export column, owner 2026-11-26). */
+ * date") and the raw Loại yêu cầu (issues.request_type — the "Loại Epic" export column, owner 2026-11-26). With
+ * `asOfDate` the version in force AT that date is read, like the rows themselves (AGENTS.md "History of issues"). */
 interface IssueExportFacts { epicRealStartDate: string | null; requestType: string | null }
 
-async function loadIssueExportFacts(epicKeys: readonly string[]): Promise<Map<string, IssueExportFacts>> {
+async function loadIssueExportFacts(epicKeys: readonly string[], asOfDate: string | null): Promise<Map<string, IssueExportFacts>> {
   if (epicKeys.length === 0) return new Map();
   const result = await pool.query<{ issueKey: string } & IssueExportFacts>(
     `SELECT DISTINCT ON (issue_key) issue_key AS "issueKey", epic_real_start_date::text AS "epicRealStartDate",
             NULLIF(request_type, '') AS "requestType"
      FROM issues
-     WHERE issue_key = ANY($1)
+     WHERE issue_key = ANY($1) AND ($2::date IS NULL OR aggregated_at::date <= $2::date)
      ORDER BY issue_key, aggregated_at DESC`,
-    [epicKeys],
+    [epicKeys, asOfDate],
   );
   return new Map(result.rows.map((row) => [row.issueKey, { epicRealStartDate: row.epicRealStartDate, requestType: row.requestType }]));
 }
@@ -157,24 +159,28 @@ export async function GET(request: NextRequest) {
       || filters.ttmScopeQaFrom !== undefined || filters.ttmScopeQaTo !== undefined,
     );
 
+    // Same choice as the list route: the cache only when no advanced filter is on AND it has been built; else live rows.
+    const cacheMeta = usesAdvancedFilter ? null : await getEpicAlertRowCacheMeta();
+    // Drill-down of the dashboard ticker "Fail TTM-CNTT tăng": only its new Fail Epics (an unknown scope key lists nothing).
+    const newFailScope = searchParams.get('newFailScope');
+    const newFailKeys = newFailScope ? (await getNewFailEpicKeys(newFailScope)) ?? [] : null;
+
     let rows: EpicAlertRowExport[];
-    if (!usesAdvancedFilter) {
+    if (cacheMeta?.hasCache) {
       const header = await fetchEpicAlertHeaderContext(userId, role);
       const cacheFilters = { ...parseCacheFilters(searchParams, userId), viewGrants };
-      const newFailScope = searchParams.get('newFailScope');
-      if (newFailScope) {
-        const { getNewFailEpicKeys } = await import('@/lib/ttm-dashboard-trend-service');
-        cacheFilters.epicKeys = (await getNewFailEpicKeys(newFailScope)) ?? [];
-      }
+      if (newFailKeys) cacheFilters.epicKeys = newFailKeys;
       rows = await queryAllCachedRows(header.scope, cacheFilters);
     } else {
       const fullData = await getEpicAlertRowsForDisplay(userId, role, filters);
       // Stamp Epic Marks (comments / the viewer's own Hide) BEFORE filtering, because the Mark quick
       // filters (Hidden/MARKED/MINE) read them — exactly what the list route does before the browser filters.
-      const marks = await loadEpicMarkSummaries(fullData.rows.map((row) => row.epicKey), userId);
-      const markedRows = applyEpicMarks(fullData.rows, marks);
+      const newFailSet = newFailKeys ? new Set(newFailKeys) : null;
+      const listRows = newFailSet ? fullData.rows.filter((row) => newFailSet.has(row.epicKey)) : fullData.rows;
+      const marks = await loadEpicMarkSummaries(listRows.map((row) => row.epicKey), userId);
+      const markedRows = applyEpicMarks(listRows, marks);
       const filtered = filterFullModeRows(markedRows, fullModeOptions(searchParams, await viewerOwnerName(userId)));
-      const facts = await loadIssueExportFacts(filtered.map((row) => row.epicKey));
+      const facts = await loadIssueExportFacts(filtered.map((row) => row.epicKey), filters.asOfDate?.slice(0, 10) ?? null);
       rows = filtered.map((row) => ({ ...row, epicRealStartDate: facts.get(row.epicKey)?.epicRealStartDate ?? null, requestType: facts.get(row.epicKey)?.requestType ?? null }));
     }
 

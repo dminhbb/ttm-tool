@@ -63,6 +63,7 @@ export const FILTER_PRESETS: Record<string, readonly BadgeId[]> = {
   WAITING_GOLIVE: ['RELEASE_WAITING_GOLIVE'],
   JUSTIFY_GOLIVE: ['RELEASE_JUSTIFY_GOLIVE'],
   MISSING_CHANGE_ID: ['REC_MISSING_CHANGE_ID'],
+  EARLY_START: ['REC_EARLY_START'],
   // "Thiếu lý do" (widget of TTM Dashboard 2) = either of its two warnings; each one also on its own.
   MISSING_FAIL_REASON: ['REC_MISSING_FAIL_REASON', 'REC_MISSING_RESPONSIBLE_DEPARTMENT'],
   MISSING_FAIL_STAGE: ['REC_MISSING_FAIL_REASON'],

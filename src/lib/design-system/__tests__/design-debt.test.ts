@@ -115,7 +115,7 @@ const BASELINE: Record<MeasureName, { total: number; perFile: Record<string, num
       'components/ttm-calculator/TtmPhaseTimeline.tsx': 12,
       // Màu nền ô pha trong Bảng Pha (TtmCalculatorScreen) khớp từng pha trên timeline, truyền qua inline style.
       // 2026-11-23: thêm pastel vàng `#fef9c3` highlight form Cách 1/Cách 2 khi focus (2 chỗ) → 8.
-      'components/ttm-calculator/TtmCalculatorScreen.tsx': 8,
+      'components/ttm-calculator/TtmCalculatorScreen.tsx': 7,
       // Bảng tra màu trạng thái dưới dạng object JS.
       'app/epic-alerts-15/page.tsx': 7,
       'app/reports/EpicReportScreen.tsx': 8,
